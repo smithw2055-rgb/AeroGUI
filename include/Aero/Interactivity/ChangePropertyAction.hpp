@@ -15,17 +15,24 @@ public:
     Ref<Aero::Data::Binding> GetValueBinding() const noexcept {
         return valueBinding_;
     }
+    Ref<Aero::Data::Binding> GetTargetObject() const noexcept {
+        return targetObject_;
+    }
     void SetTargetName(StringView value) noexcept;
     void SetPropertyName(StringView value) noexcept;
     void SetValue(const Meta::PropertyValue& value) noexcept;
     void SetValueBinding(
         Ref<Aero::Data::Binding> value) noexcept;
+    void SetTargetObject(Ref<Aero::Data::Binding> value) noexcept {
+        targetObject_ = std::move(value);
+    }
 
 private:
     String targetName_;
     String propertyName_;
     Meta::PropertyValue value_;
     Ref<Aero::Data::Binding> valueBinding_;
+    Ref<Aero::Data::Binding> targetObject_;
 };
 
 } // namespace Aero::Interactivity

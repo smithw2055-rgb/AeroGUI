@@ -34,6 +34,8 @@ public:
     inline static constexpr AttachedProperty<KeyboardNavigationMode> TabNavigationProperty{"TabNavigation"};
     inline static constexpr AttachedProperty<KeyboardNavigationMode> ControlTabNavigationProperty{"ControlTabNavigation"};
     inline static constexpr AttachedProperty<std::uint32_t> TabIndexProperty{"TabIndex"};
+    inline static constexpr AttachedProperty<bool> AcceptsReturnProperty{"AcceptsReturn"};
+    inline static constexpr AttachedProperty<bool> IsTabStopProperty{"IsTabStop"};
 };
 } // namespace Aero::Input
 

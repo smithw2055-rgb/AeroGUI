@@ -854,6 +854,12 @@ Base::Result<void> PopulateUiAnimation(
             "TargetName",
             &Aero::Interactivity::ChangePropertyAction::GetTargetName,
             &Aero::Interactivity::ChangePropertyAction::SetTargetName)
+        .Property<
+            Base::Ref<Data::Binding>,
+            &Aero::Interactivity::ChangePropertyAction::GetTargetObject,
+            &Aero::Interactivity::ChangePropertyAction::SetTargetObject>(
+                "TargetObject",
+                PropertyFlags::Structural)
         .Property(
             "PropertyName",
             &Aero::Interactivity::ChangePropertyAction::GetPropertyName,
@@ -874,6 +880,12 @@ Base::Result<void> PopulateUiAnimation(
             "TargetName",
             &Aero::Interactivity::SetFocusAction::GetTargetName,
             &Aero::Interactivity::SetFocusAction::SetTargetName)
+        .Property<
+            Base::Ref<Data::Binding>,
+            &Aero::Interactivity::SetFocusAction::GetTargetObject,
+            &Aero::Interactivity::SetFocusAction::SetTargetObject>(
+                "TargetObject",
+                PropertyFlags::Structural)
         .Property(
             "Engage",
             &Aero::Interactivity::SetFocusAction::GetEngage,

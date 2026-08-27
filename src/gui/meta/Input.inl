@@ -48,6 +48,12 @@ Base::Result<void> PopulateUiInput(
     keyboardNavigation.Property(
         KeyboardNavigation::TabIndexProperty,
         FrameworkPropertyMetadata(std::uint32_t{0}));
+    keyboardNavigation.Property(
+        KeyboardNavigation::AcceptsReturnProperty,
+        FrameworkPropertyMetadata(false));
+    keyboardNavigation.Property(
+        KeyboardNavigation::IsTabStopProperty,
+        FrameworkPropertyMetadata(false));
     status = keyboardNavigation.Result();
     if (!status) return status.GetStatus();
 

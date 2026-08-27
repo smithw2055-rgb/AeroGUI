@@ -88,6 +88,12 @@ Base::Result<void> PopulateControlsTemplates(
             &HierarchicalDataTemplate::GetItemTemplate,
             &HierarchicalDataTemplate::SetItemTemplate>(
                 "ItemTemplate", PropertyFlags::None)
+        .Content<Base::Object>(
+            "VisualTree",
+            ContentKind::Single,
+            &SetDeferredTemplateVisualTree<DataTemplate>,
+            &ClearDeferredTemplateVisualTree<DataTemplate>,
+            ContentFlags::Visual)
         .Factory();
     status = hierarchicalDataTemplate.Result();
     if (!status) return status.GetStatus();

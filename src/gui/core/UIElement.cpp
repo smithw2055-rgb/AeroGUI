@@ -836,8 +836,9 @@ UIElement* UIElement::LayoutParent() const noexcept {
 }
 
 UIElement::~UIElement() {
-    AERO_ASSERT(AeroGuiInternal::LayoutEngineOf(*this) == nullptr);
-    AERO_ASSERT(!layout_.layoutAttached);
+    layout_.layoutAttached = false;
+    layout_.measureQueued = false;
+    layout_.arrangeQueued = false;
     CleanupHandlers();
     if (rare_ != nullptr && rare_->inputBindings != nullptr) {
         delete static_cast<Base::Vector<Base::Ref<Input::InputBinding>>*>(

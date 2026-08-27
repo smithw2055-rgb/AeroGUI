@@ -294,7 +294,9 @@ std::uint32_t InteractivityEngine::KeyCodeFromName(
             return Input::KeyboardKeySpace;
         }
         if (Base::ValueConversion::EqualsAsciiInsensitive(
-                key, "Escape")) {
+                key, "Escape") ||
+            Base::ValueConversion::EqualsAsciiInsensitive(
+                key, "Esc")) {
             return Input::KeyboardKeyEscape;
         }
         if (Base::ValueConversion::EqualsAsciiInsensitive(

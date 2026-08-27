@@ -1485,7 +1485,6 @@ public:
         return *this;
     }
 
-#if defined(AERO_GUI_IMPLEMENTATION)
     TypeBuilder& Content(
         StringView name,
         TypeId valueType,
@@ -1533,6 +1532,7 @@ public:
         return *this;
     }
 
+#if defined(AERO_GUI_IMPLEMENTATION)
     TypeBuilder& Content(MemberId member) noexcept {
         builder_.Content(member);
         return *this;

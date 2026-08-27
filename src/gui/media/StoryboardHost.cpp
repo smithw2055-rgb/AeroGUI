@@ -5,6 +5,7 @@
 #include <Aero/Media/Animation/StoryboardActions.hpp>
 #include <Aero/Media/PathGeometry.hpp>
 #include <Aero/Media/LineSegment.hpp>
+#include <Aero/Media/Transforms.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -499,9 +500,78 @@ StoryboardHost::ResolveAnimationProperty(
                     !metadata->Types().IsDerivedFrom(
                         transform->RuntimeType(),
                         Media::TransformGroup::StaticTypeId())) {
-                    return Base::Status::Failure(
-                        Base::ErrorCode::NotFound,
-                        "Storyboard transform path has no TransformGroup");
+                    // Blend/WPF intro storyboards target
+                    // RenderTransform.Children[0]/[3] of the default
+                    // Scale/Skew/Rotate/Translate group. If the Style has
+                    // not applied yet (Loaded clocks), materialize that group.
+                    if (!metadata->Types().IsDerivedFrom(
+                            target.RuntimeType(),
+                            Aero::UIElement::StaticTypeId())) {
+                        return Base::Status::Failure(
+                            Base::ErrorCode::NotFound,
+                            "Storyboard transform path has no TransformGroup");
+                    }
+                    Base::Result<Base::Ref<Media::TransformGroup>> group =
+                        Base::MakeRef<Media::TransformGroup>();
+                    if (!group) return group.GetStatus();
+                    Base::Result<Base::Ref<Media::ScaleTransform>> scale =
+                        Base::MakeRef<Media::ScaleTransform>();
+                    Base::Result<Base::Ref<Media::SkewTransform>> skew =
+                        Base::MakeRef<Media::SkewTransform>();
+                    Base::Result<Base::Ref<Media::RotateTransform>> rotate =
+                        Base::MakeRef<Media::RotateTransform>();
+                    Base::Result<Base::Ref<Media::TranslateTransform>>
+                        translate =
+                            Base::MakeRef<Media::TranslateTransform>();
+                    if (!scale || !skew || !rotate || !translate) {
+                        return Base::Status::Failure(
+                            Base::ErrorCode::OutOfMemory,
+                            "Unable to allocate Storyboard TransformGroup children");
+                    }
+                    Base::Result<void> added =
+                        group.Value()->AddChild(
+                            Base::Ref<Media::Transform>(scale.Value()));
+                    if (added) {
+                        added = group.Value()->AddChild(
+                            Base::Ref<Media::Transform>(skew.Value()));
+                    }
+                    if (added) {
+                        added = group.Value()->AddChild(
+                            Base::Ref<Media::Transform>(rotate.Value()));
+                    }
+                    if (added) {
+                        added = group.Value()->AddChild(
+                            Base::Ref<Media::Transform>(translate.Value()));
+                    }
+                    if (!added) return added.GetStatus();
+                    auto& element =
+                        static_cast<Aero::UIElement&>(target);
+                    const bool layoutPath =
+                        beforeIndex ==
+                            Base::StringView(
+                                "(FrameworkElement.LayoutTransform).(TransformGroup.Children)") ||
+                        beforeIndex ==
+                            Base::StringView(
+                                "LayoutTransform.Children");
+                    if (layoutPath) {
+                        if (!metadata->Types().IsDerivedFrom(
+                                target.RuntimeType(),
+                                Aero::FrameworkElement::StaticTypeId())) {
+                            return Base::Status::Failure(
+                                Base::ErrorCode::InvalidArgument,
+                                "Storyboard LayoutTransform target is not a FrameworkElement");
+                        }
+                        static_cast<Aero::FrameworkElement&>(element)
+                            .SetLayoutTransform(
+                                Base::Ref<Media::Transform>(
+                                    group.Value()));
+                    } else {
+                        element.SetRenderTransform(
+                            Base::Ref<Media::Transform>(
+                                group.Value()));
+                    }
+                    transform = Base::Ref<Media::Transform>(
+                        group.Value());
                 }
                 auto& group = static_cast<
                     Media::TransformGroup&>(

@@ -4684,7 +4684,12 @@ Base::Result<void> ObjectBuilder::WriteDirectiveText(
 
     CreatedObjectRecord& object = created_[frame.targetObjectIndex];
     if (frame.directive == DirectiveKind::Name) {
-        if (!Aero::NameScope::IsValidName(node.Value())) {
+        const Meta::PropertyInfo* nameProperty =
+            schema_->Metadata()->Types().FindProperty(
+                object.type, Base::StringView("Name"), false);
+        const bool validName =
+            Aero::NameScope::IsValidName(node.Value());
+        if (!validName && nameProperty == nullptr) {
             return Failure(
                 Base::Status::Failure(
                     Base::ErrorCode::InvalidArgument,
@@ -4693,24 +4698,22 @@ Base::Result<void> ObjectBuilder::WriteDirectiveText(
                 MessageInvalidDirective,
                 node.Source());
         }
-        Base::Result<void> assignResult = object.name.Assign(node.Value());
-        if (!assignResult) {
-            return assignResult.GetStatus();
-        }
-        Base::Result<void> registerResult = RegisterObjectName(
-            frame.targetObjectIndex,
-            node.Source());
-        if (!registerResult) {
-            return registerResult.GetStatus();
+        if (validName) {
+            Base::Result<void> assignResult = object.name.Assign(node.Value());
+            if (!assignResult) {
+                return assignResult.GetStatus();
+            }
+            Base::Result<void> registerResult = RegisterObjectName(
+                frame.targetObjectIndex,
+                node.Source());
+            if (!registerResult) {
+                return registerResult.GetStatus();
+            }
         }
         // VisualState and related non-visual authoring objects expose an
         // ordinary Name property in addition to participating in x:Name
-        // scopes. WPF's x:Name initializes both contracts when that member
-        // exists, which lets a VisualStateGroup be addressed by its authored
-        // name without making framework elements invent a separate Name DP.
-        const Meta::PropertyInfo* nameProperty =
-            schema_->Metadata()->Types().FindProperty(
-                object.type, Base::StringView("Name"), false);
+        // scopes. Types such as Scoreboard's Game also expose Name as a
+        // display string that is not a runtime name (spaces are allowed).
         if (nameProperty != nullptr) {
             Base::Result<Meta::Value> nameValue =
                 schema_->ConvertText(
@@ -6010,13 +6013,20 @@ Base::Result<void> ObjectBuilder::ConnectEvent(
             {parameterTypes, 2U},
             true);
     if (method == nullptr) {
-        return Failure(
-            Base::Status::Failure(
-                Base::ErrorCode::NotFound,
-                "XAML event handler is not registered on the x:Class type"),
-            XamlObjectWriterDiagnosticCodes::UnknownMember,
-            MessageUnknownMember,
-            source);
+        // LoadComponentInto a real code-behind instance must resolve the
+        // handler. A pure-XAML host (x:Class omitted or unregistered) stores
+        // Click="OnFoo" the same way CommandBinding Executed stores a name:
+        // do not abort document construction.
+        if (loadContext_ != nullptr && loadContext_->existingRoot) {
+            return Failure(
+                Base::Status::Failure(
+                    Base::ErrorCode::NotFound,
+                    "XAML event handler is not registered on the x:Class type"),
+                XamlObjectWriterDiagnosticCodes::UnknownMember,
+                MessageUnknownMember,
+                source);
+        }
+        return {};
     }
 
     Base::Result<Base::Ref<XamlEventConnection>> connection =
@@ -6602,12 +6612,20 @@ std::uint32_t ObjectBuilder::FindNameScopeIndexForObject(
     }
     for (std::uint32_t index = objectFrame + 1U; index > 0U; --index) {
         const Frame& frame = frames_[index - 1U];
-        if (frame.kind == FrameKind::Object &&
-            frame.nameScopeIndex != InvalidIndex) {
-            return frame.nameScopeIndex;
+        if (frame.kind != FrameKind::Object ||
+            frame.nameScopeIndex == InvalidIndex) {
+            continue;
         }
+        // UserControl/Page own a nested NameScope for names inside their
+        // content. Their own x:Name belongs to the enclosing namescope so
+        // sibling ElementName bindings (MultiBinding ElementName=BgR) resolve.
+        if (frame.objectIndex == objectIndex &&
+            frame.nameScopeIndex != documentNameScopeIndex_) {
+            continue;
+        }
+        return frame.nameScopeIndex;
     }
-    return InvalidIndex;
+    return documentNameScopeIndex_;
 }
 
 std::uint32_t ObjectBuilder::FindResourceScopeIndexForParent() const noexcept {

@@ -7,6 +7,7 @@
 #include <Aero/Data/Binding.hpp>
 #include <Aero/Resources.hpp>
 #include <Aero/Media/Geometry.hpp>
+#include <Aero/Media/SolidColorBrush.hpp>
 #include <Aero/Media/StreamGeometry.hpp>
 
 #include <cmath>
@@ -224,6 +225,8 @@ bool HasDefaultTargetConversion(
          targetType == TypeOf<Base::Thickness>()) ||
         (sourceType == TypeOf<Aero::Length>() &&
          IsNumericType(targetType)) ||
+        (sourceType == TypeOf<Base::Color>() &&
+         targetType == Media::Brush::StaticTypeId()) ||
         (targetType == TypeOf<Base::String>() &&
          sourceType != InvalidTypeId) ||
         (sourceType == TypeOf<Base::String>() &&
@@ -292,6 +295,19 @@ Base::Result<PropertyValue> ConvertLengthValue(
     }
     return InvalidArgument(
         "Binding Length conversion is not supported");
+}
+
+Base::Result<PropertyValue> ConvertColorToBrush(
+    const PropertyValue& value) noexcept {
+    Base::Result<Base::Color> color =
+        Meta::ValueCodec<Base::Color>::Decode(value);
+    if (!color) return color.GetStatus();
+    Base::Result<Base::Ref<Media::Brush>> brush =
+        Media::MakeSolidColorBrush(color.Value());
+    if (!brush) return brush.GetStatus();
+    return PropertyValue::FromObject(
+        Media::Brush::StaticTypeId(),
+        Base::Ref<Base::Object>(std::move(brush).Value()));
 }
 
 // A TwoWay object binding may intentionally expose a concrete source object
@@ -1843,6 +1859,10 @@ Base::Result<PropertyValue> BindingEngine::ConvertForTarget(
               IsNumericType(targetProperty->ValueType())))
             ? ConvertLengthValue(
                   converted, targetProperty->ValueType())
+            : (converted.Type() == TypeOf<Base::Color>() &&
+               targetProperty->ValueType() ==
+                   Media::Brush::StaticTypeId())
+            ? ConvertColorToBrush(converted)
             : IsNumericType(converted.Type()) &&
                   IsNumericType(targetProperty->ValueType())
                 ? ConvertNumericValue(

@@ -67,11 +67,22 @@ bool MatchesTemplateCondition(
 
 Base::Result<PropertyValue> ConvertTemplateBindingValue(
     const TypeRegistry& types,
+    const Registry* metadata,
     const DependencyProperty& target,
     const PropertyValue& value) noexcept {
+    if (value.IsUnset()) {
+        return PropertyValue{};
+    }
     if (target.AcceptsAnyValue() ||
         value.Type() == target.ValueType()) {
         return value;
+    }
+    if (value.Kind() == PropertyValueKind::Object &&
+        value.IsNullObject()) {
+        if (target.ValueType() == Meta::TypeOf<Base::String>()) {
+            return Meta::ValueCodec<Base::String>::Encode(Base::String{});
+        }
+        return PropertyValue::NullObject(target.ValueType());
     }
     if (value.Kind() == PropertyValueKind::Object &&
         !value.IsNullObject() && value.AsObject() &&
@@ -94,9 +105,35 @@ Base::Result<PropertyValue> ConvertTemplateBindingValue(
                 Aero::Length::Pixels(
                     numeric.Value()));
     }
-    return Base::Status::Failure(
-        Base::ErrorCode::InvalidArgument,
-        "Template binding value is not assignable to the target property");
+    if (target.ValueType() == Meta::TypeOf<double>() &&
+        value.Type() == Meta::TypeOf<Aero::Length>()) {
+        Base::Result<Aero::Length> length =
+            Meta::ValueCodec<Aero::Length>::Decode(value);
+        if (!length) return length.GetStatus();
+        return Meta::ValueCodec<double>::Encode(
+            length.Value().isAuto ? 0.0 : length.Value().value);
+    }
+    if (value.Kind() == PropertyValueKind::String &&
+        metadata != nullptr) {
+        Base::Result<PropertyValue> converted =
+            metadata->TryConvertText(
+                target.ValueType(), value.AsString());
+        if (converted) {
+            return converted;
+        }
+    }
+    if (target.ValueType() == Meta::TypeOf<Base::String>()) {
+        if (value.Kind() == PropertyValueKind::String) {
+            Base::String text;
+            Base::Result<void> assigned = text.Assign(value.AsString());
+            if (!assigned) return assigned.GetStatus();
+            return Meta::ValueCodec<Base::String>::Encode(text);
+        }
+        return Meta::ValueCodec<Base::String>::Encode(Base::String{});
+    }
+    // WPF TemplateBinding conversion failures leave the target at its
+    // default; they do not abort template apply.
+    return PropertyValue{};
 }
 
 } // namespace
@@ -252,6 +289,16 @@ TemplateBuilder::ProjectContentCore(
     }
     UIElement* content = AeroGuiInternal::ContentControlContent(owner);
     if (content == nullptr) return false;
+
+    const ::Aero::Media::Visual* ancestor = &presenterVisual;
+    while (ancestor != nullptr) {
+        if (ancestor == content) {
+            // Content is the templated visual tree (or otherwise already
+            // contains this presenter). Projecting it would cycle.
+            return false;
+        }
+        ancestor = ancestor->GetVisualParent();
+    }
 
     bool presenterIsPart = false;
     for (const Aero::Controls::TemplatePart& part : state.parts) {
@@ -865,12 +912,7 @@ Base::Result<void> TemplatePrivate::AddVisualStateGroup(
          ++transitionIndex) {
         const VisualTransitionPlan& transition =
             group.transitions[transitionIndex];
-        if (transition.generatedDurationMicroseconds == 0U &&
-            !transition.storyboard) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "Visual transition requires a duration or Storyboard");
-        }
+        // WPF allows GeneratedDuration="0" (instant) with no Storyboard.
         const auto stateExists =
             [&](Base::StringView name) noexcept {
                 if (name.Empty()) return true;
@@ -1729,8 +1771,12 @@ Base::Result<void> TemplateEngine::ApplyBindings(
         Base::Result<PropertyValue> converted =
             ConvertTemplateBindingValue(
                 properties_->Types(),
+                metadata_,
                 *targetProperty, value.Value());
         if (!converted) return converted.GetStatus();
+        if (converted.Value().IsUnset()) {
+            continue;
+        }
         Base::Result<void> applied =
             values_->SetTemplateValue(
                 *target,

@@ -926,21 +926,28 @@ struct XamlTemplateSchemaFacetState {
         void* context) noexcept {
         auto* self = static_cast<XamlTemplateSchemaFacetState*>(context);
         const TypeId type = object.RuntimeType();
+        const bool isControlTemplate =
+            type == ControlTemplate::StaticTypeId();
+        const bool isDataTemplateFamily =
+            type == DataTemplate::StaticTypeId() ||
+            type == HierarchicalDataTemplate::StaticTypeId();
+        const bool isItemsPanelTemplate =
+            type == ItemsPanelTemplate::StaticTypeId();
         if (self == nullptr || self->runtime == nullptr ||
             self->properties == nullptr ||
-            (type != ControlTemplate::StaticTypeId() &&
-             type != DataTemplate::StaticTypeId() &&
-             type != ItemsPanelTemplate::StaticTypeId()) ||
+            (!isControlTemplate &&
+             !isDataTemplateFamily &&
+             !isItemsPanelTemplate) ||
             services.deferredContentOwner != &object ||
             services.deferredContent == nullptr) {
-            if (type == ControlTemplate::StaticTypeId() ||
-                type == DataTemplate::StaticTypeId() ||
-                type == ItemsPanelTemplate::StaticTypeId()) {
+            if (isControlTemplate ||
+                isDataTemplateFamily ||
+                isItemsPanelTemplate) {
                 const bool sealed =
-                    type == ControlTemplate::StaticTypeId()
+                    isControlTemplate
                     ? static_cast<const ControlTemplate&>(object)
                           .GetIsSealed()
-                    : type == DataTemplate::StaticTypeId()
+                    : isDataTemplateFamily
                           ? static_cast<const DataTemplate&>(object)
                                 .GetIsSealed()
                           : static_cast<const ItemsPanelTemplate&>(object)
@@ -952,10 +959,9 @@ struct XamlTemplateSchemaFacetState {
             return InvalidTemplateXaml(
                 "Template deferred-content scope is invalid");
         }
-        if (type == ControlTemplate::StaticTypeId() ||
-            type == DataTemplate::StaticTypeId()) {
+        if (isControlTemplate || isDataTemplateFamily) {
             const Meta::TypeId targetType =
-                type == ControlTemplate::StaticTypeId()
+                isControlTemplate
                 ? static_cast<ControlTemplate&>(object)
                       .GetTargetType()
                 : static_cast<DataTemplate&>(object)
@@ -974,7 +980,7 @@ struct XamlTemplateSchemaFacetState {
                     return InvalidTemplateXaml(
                         "Template type constraint must identify an object type");
                 }
-                if (type == ControlTemplate::StaticTypeId() &&
+                if (isControlTemplate &&
                     !self->runtime->Types().IsDerivedFrom(
                         targetType,
                         Control::StaticTypeId())) {
@@ -999,20 +1005,17 @@ struct XamlTemplateSchemaFacetState {
 
         if (services.baseUri != nullptr) {
             Base::Result<void> baseUri;
-            if (object.RuntimeType() ==
-                    ControlTemplate::StaticTypeId()) {
+            if (isControlTemplate) {
                 auto& templateValue = static_cast<ControlTemplate&>(object);
                 if (::Aero::Controls::TemplatePrivate::BaseUri(templateValue).Empty()) {
                     baseUri = ::Aero::Controls::TemplatePrivate::SetBaseUri(templateValue, *services.baseUri);
                 }
-            } else if (object.RuntimeType() ==
-                       DataTemplate::StaticTypeId()) {
+            } else if (isDataTemplateFamily) {
                 auto& templateValue = static_cast<DataTemplate&>(object);
                 if (::Aero::Controls::TemplatePrivate::BaseUri(templateValue).Empty()) {
                     baseUri = ::Aero::Controls::TemplatePrivate::SetBaseUri(templateValue, *services.baseUri);
                 }
-            } else if (object.RuntimeType() ==
-                       ItemsPanelTemplate::StaticTypeId()) {
+            } else if (isItemsPanelTemplate) {
                 auto& templateValue = static_cast<ItemsPanelTemplate&>(object);
                 if (::Aero::Controls::TemplatePrivate::BaseUri(templateValue).Empty()) {
                     baseUri = ::Aero::Controls::TemplatePrivate::SetBaseUri(templateValue, *services.baseUri);
@@ -1020,25 +1023,44 @@ struct XamlTemplateSchemaFacetState {
             }
             if (!baseUri) return baseUri.GetStatus();
         }
-        if (object.RuntimeType() ==
-                DataTemplate::StaticTypeId() ||
-            object.RuntimeType() ==
-                ItemsPanelTemplate::StaticTypeId()) {
+        if (isDataTemplateFamily || isItemsPanelTemplate) {
             const Base::Ref<Base::Object>* authored = nullptr;
-            if (object.RuntimeType() ==
-                    DataTemplate::StaticTypeId()) {
+            if (isDataTemplateFamily) {
                 authored =
                     &::Aero::Controls::TemplatePrivate::AuthoredVisualTree(static_cast<DataTemplate&>(object));
             } else {
                 authored =
                     &::Aero::Controls::TemplatePrivate::AuthoredVisualTree(static_cast<ItemsPanelTemplate&>(object));
             }
+            Base::Ref<Base::Object> visualTree =
+                authored != nullptr ? *authored : Base::Ref<Base::Object>{};
+            if (!visualTree) {
+                for (std::uint32_t index = 0U; index < edges.Size(); ++index) {
+                    if (edges[index].owner == &object && edges[index].child) {
+                        visualTree = edges[index].child;
+                        break;
+                    }
+                }
+            }
+            if (!visualTree) {
+                // WPF allows a DataTemplate with no visual tree. HierarchicalDataTemplate
+                // is a DataTemplate subtype; an empty tree must still seal.
+                if (isDataTemplateFamily) {
+                    auto& dataTemplate =
+                        static_cast<DataTemplate&>(object);
+                    Base::Result<void> sealedDt =
+                        ::Aero::Controls::TemplatePrivate::Seal(dataTemplate);
+                    if (!sealedDt) return sealedDt.GetStatus();
+                    services.deferredContent->ReleaseOwner(object);
+                    return {};
+                }
+                return InvalidTemplateXaml("Template requires a VisualTree");
+            }
             Base::Result<CompiledTemplateBlueprint>
                 compiled =
                     CompileDeferredTemplateBlueprint(
-                        *authored,
-                        object.RuntimeType() ==
-                                DataTemplate::StaticTypeId()
+                        visualTree,
+                        isDataTemplateFamily
                             ? &::Aero::Controls::TemplatePrivate::AuthoredNames(static_cast<DataTemplate&>(object))
                             : nullptr,
                         {
@@ -1052,8 +1074,7 @@ struct XamlTemplateSchemaFacetState {
             if (!compiled) {
                 return compiled.GetStatus();
             }
-            if (object.RuntimeType() ==
-                    DataTemplate::StaticTypeId()) {
+            if (isDataTemplateFamily) {
                 auto& dataTemplate =
                     static_cast<DataTemplate&>(object);
                 Base::Result<void> reserved =
@@ -1089,8 +1110,7 @@ struct XamlTemplateSchemaFacetState {
             Base::Ref<Base::Object> programOwner =
                 program.Value();
             Base::Result<void> configured;
-            if (object.RuntimeType() ==
-                    DataTemplate::StaticTypeId()) {
+            if (isDataTemplateFamily) {
                 auto& dataTemplate =
                     static_cast<DataTemplate&>(object);
                 configured = ::Aero::Controls::TemplatePrivate::Configure(dataTemplate,
@@ -1116,8 +1136,7 @@ struct XamlTemplateSchemaFacetState {
             }
             services.deferredContent->ReleaseOwner(
                 object);
-            if (object.RuntimeType() ==
-                    DataTemplate::StaticTypeId()) {
+            if (isDataTemplateFamily) {
                 auto& dataTemplate =
                     static_cast<DataTemplate&>(object);
                 ::Aero::Controls::TemplatePrivate::ClearAuthoredVisualTree(dataTemplate);
@@ -1529,7 +1548,16 @@ const DependencyProperty* ResolveTemplateProperty(
         separator + 1U >= name.SizeBytes()) {
         return nullptr;
     }
-    const Base::StringView ownerName = name.Substr(0U, separator);
+    const Base::StringView ownerNameRaw = name.Substr(0U, separator);
+    Base::StringView ownerName = ownerNameRaw;
+    for (std::uint32_t index = 0U; index < ownerName.SizeBytes(); ++index) {
+        if (ownerName[index] == ':') {
+            ownerName = ownerName.Substr(
+                index + 1U,
+                ownerName.SizeBytes() - index - 1U);
+            break;
+        }
+    }
     const Base::StringView memberName = name.Substr(
         separator + 1U, name.SizeBytes() - separator - 1U);
     const TypeInfo* owner = properties.Types().FindType(
@@ -1811,25 +1839,44 @@ CompileBlueprint(
         if (contentPresenterCandidate) {
             constexpr Base::StringView ScrollPresenterPart(
                 "PART_ScrollContentPresenter");
+            constexpr Base::StringView HeaderSource("Header");
+            Base::StringView contentSource;
+            for (const TemplatePrototypeProperty& property :
+                 node.properties) {
+                if (property.property ==
+                        ContentPresenter::ContentSourceProperty.Handle() &&
+                    property.value.Kind() == ValueKind::String) {
+                    contentSource = property.value.AsString();
+                    break;
+                }
+            }
+            const bool headerPresenter = contentSource == HeaderSource;
             const bool explicitScrollPresenter =
                 node.name.View() == ScrollPresenterPart;
             const bool exactScrollPresenter =
                 node.type == ScrollContentPresenter::StaticTypeId();
-            bool replace = blueprint.contentPresenter == UINT32_MAX;
-            if (!replace &&
-                blueprint.contentPresenter < blueprint.nodes.Size()) {
-                const TemplatePrototypeNode& selected =
-                    blueprint.nodes[blueprint.contentPresenter];
-                const bool selectedExplicit =
-                    selected.name.View() == ScrollPresenterPart;
-                const bool selectedExact =
-                    selected.type == ScrollContentPresenter::StaticTypeId();
-                replace = explicitScrollPresenter ||
-                    (!selectedExplicit && exactScrollPresenter &&
-                     !selectedExact);
-            }
-            if (replace) {
-                blueprint.contentPresenter = index;
+            // ContentSource=Header presenters display Header, not Content.
+            // Projecting Content onto them is wrong and can cycle when the
+            // only available "content" is the template root itself.
+            if (!headerPresenter ||
+                explicitScrollPresenter ||
+                exactScrollPresenter) {
+                bool replace = blueprint.contentPresenter == UINT32_MAX;
+                if (!replace &&
+                    blueprint.contentPresenter < blueprint.nodes.Size()) {
+                    const TemplatePrototypeNode& selected =
+                        blueprint.nodes[blueprint.contentPresenter];
+                    const bool selectedExplicit =
+                        selected.name.View() == ScrollPresenterPart;
+                    const bool selectedExact =
+                        selected.type == ScrollContentPresenter::StaticTypeId();
+                    replace = explicitScrollPresenter ||
+                        (!selectedExplicit && exactScrollPresenter &&
+                         !selectedExact);
+                }
+                if (replace) {
+                    blueprint.contentPresenter = index;
+                }
             }
         }
 
