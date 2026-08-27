@@ -274,12 +274,14 @@ Base::Result<BindingPathPlan> BindingPathPlan::Compile(
                 ? FindAttachedProperty(descriptors, name)
                 : descriptors.FindProperty(currentType, name, true);
             if (property == nullptr) {
+                // WPF resolves DataContext paths against the runtime object,
+                // not a closed compile-time type. Concrete CLR/Meta types
+                // (including DependencyObject view-models) still need a
+                // dynamic segment when the member is registered only on a
+                // more-derived runtime type.
                 const bool runtimePolymorphic =
-                    currentType == Meta::TypeOf<Base::Object>() ||
-                    input->Kind() == MetadataTypeKind::Interface ||
-                    (static_cast<std::uint32_t>(input->Flags()) &
-                     static_cast<std::uint32_t>(TypeFlags::Abstract)) != 0U;
-                if (!attachedSyntax && runtimePolymorphic) {
+                    !attachedSyntax && IsObjectLike(input->Kind());
+                if (runtimePolymorphic) {
                     Base::Result<void> storedName =
                         segment.dynamicName.Assign(name);
                     if (!storedName) return storedName.GetStatus();

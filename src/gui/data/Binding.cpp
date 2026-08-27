@@ -5,6 +5,11 @@
 #include "gui/styles/StyleState.hpp"
 #include "gui/controls/State.hpp"
 #include <Aero/Data/Binding.hpp>
+#include <Aero/FrameworkElement.hpp>
+#include <Aero/LogicalTreeHelper.hpp>
+#include <Aero/TryCast.hpp>
+#include <Aero/Visual.hpp>
+#include <Aero/VisualTreeHelper.hpp>
 #include <Aero/Resources.hpp>
 #include <Aero/Media/Geometry.hpp>
 #include <Aero/Media/SolidColorBrush.hpp>
@@ -231,6 +236,67 @@ bool HasDefaultTargetConversion(
          sourceType != InvalidTypeId) ||
         (sourceType == TypeOf<Base::String>() &&
          targetType != InvalidTypeId);
+}
+
+bool TargetAcceptsPathResult(
+    const TypeRegistry& types,
+    const DependencyProperty* targetProperty,
+    TypeId resultType,
+    bool hasDynamicResult) noexcept {
+    if (targetProperty == nullptr) {
+        return false;
+    }
+    if (targetProperty->AcceptsAnyValue() ||
+        hasDynamicResult ||
+        resultType == TypeOf<Base::Object>() ||
+        targetProperty->ValueType() == TypeOf<Base::Object>()) {
+        return true;
+    }
+    return types.IsAssignableFrom(
+               targetProperty->ValueType(), resultType) ||
+        HasDefaultTargetConversion(
+            resultType, targetProperty->ValueType());
+}
+
+::Aero::DependencyObject* BindingParent(
+    ::Aero::DependencyObject& node) noexcept {
+    ::Aero::DependencyObject* parent =
+        ::Aero::LogicalTreeHelper::GetParent(node);
+    if (parent == nullptr) {
+        if (::Aero::Media::Visual* visual =
+                ::Aero::TryCast<::Aero::Media::Visual>(&node)) {
+            parent = ::Aero::Media::VisualTreeHelper::GetParent(*visual);
+        }
+    }
+    return parent;
+}
+
+bool BindingOwnerSeesDataContextChange(
+    ::Aero::DependencyObject* owner,
+    ::Aero::DependencyObject& changed) noexcept {
+    ::Aero::DependencyObject* node = owner;
+    for (std::uint32_t depth = 0U; depth < 64U && node != nullptr; ++depth) {
+        if (node == &changed) {
+            return true;
+        }
+        node = BindingParent(*node);
+    }
+    return false;
+}
+
+Base::Result<PropertyValue> ReadDataContextValue(
+    ::Aero::DependencyObject& node,
+    Meta::DependencyPropertyHandle handle) noexcept {
+    if (::Aero::FrameworkElement* element =
+            ::Aero::TryCast<::Aero::FrameworkElement>(&node)) {
+        return element->GetDataContextResult();
+    }
+    if (node.PropertyRegistry().Find(handle) == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotFound,
+            "DataContext property is not registered on this object");
+    }
+    return node.GetValue(handle);
 }
 
 Base::Result<PropertyValue> ConvertNullableBooleanValue(
@@ -851,17 +917,13 @@ Base::Result<BindingHandle> BindingEngine::Attach(
             descriptor.target->PropertyRegistry().Find(
                 descriptor.targetProperty);
         if (targetProperty == nullptr ||
-            (!targetProperty->AcceptsAnyValue() &&
             (descriptor.convert == nullptr &&
-            !descriptor.converterResource &&
-            !record.pathPlan.HasDynamicResult() &&
-            record.pathPlan.ResultType() != TypeOf<Base::Object>() &&
-            !record.metadata->Types().IsAssignableFrom(
-                targetProperty->ValueType(),
-                record.pathPlan.ResultType()) &&
-            !HasDefaultTargetConversion(
-                record.pathPlan.ResultType(),
-                targetProperty->ValueType())))) {
+             !descriptor.converterResource &&
+             !TargetAcceptsPathResult(
+                 record.metadata->Types(),
+                 targetProperty,
+                 record.pathPlan.ResultType(),
+                 record.pathPlan.HasDynamicResult()))) {
             --nextHandle_;
             return BindingTypeMismatch(
                 record.metadata->Types(),
@@ -1051,7 +1113,6 @@ BindingEngine::ActivateDeferred(
             record.diagnosticContext;
         Base::Result<BindingHandle> attached =
             Attach(descriptor);
-        if (!attached) return attached.GetStatus();
         for (std::uint32_t move = index + 1U;
              move < deferredBindings_.Size();
              ++move) {
@@ -1060,6 +1121,10 @@ BindingEngine::ActivateDeferred(
         }
         (void)deferredBindings_.Resize(
             deferredBindings_.Size() - 1U);
+        if (!attached) {
+            RecordError(attached.GetStatus());
+            continue;
+        }
         ++activated;
     }
     return activated;
@@ -1094,7 +1159,10 @@ BindingEngine::ActivatePendingDeferred() noexcept {
         if (target == nullptr) continue;
         Base::Result<std::uint32_t> current =
             ActivateDeferred(*target);
-        if (!current) return current.GetStatus();
+        if (!current) {
+            RecordError(current.GetStatus());
+            continue;
+        }
         activated += current.Value();
     }
     return activated;
@@ -1217,9 +1285,17 @@ Base::Result<void> BindingEngine::ApplySourceToTarget(
         converted = record.descriptor.fallbackValue;
         usedFallback = true;
     }
-    record.descriptor.target->SetValue(
-        record.descriptor.targetProperty,
-        converted.Value());
+    Base::Result<void> written =
+        record.descriptor.target->SetValueChecked(
+            record.descriptor.targetProperty,
+            converted.Value());
+    if (!written) {
+        ReportDiagnostic(
+            record,
+            BindingDiagnosticStage::WriteTarget,
+            written.GetStatus());
+        return written.GetStatus();
+    }
     target = converted.Value();
     return {};
 }
@@ -1273,7 +1349,12 @@ Base::Result<std::uint32_t> BindingEngine::Flush() noexcept {
         const bool metadataPath =
             record.sourceKind != BindingSourceKind::DependencyProperty;
         const bool hasNotify = record.notificationSubscription != 0U;
-        const bool pollMetadata = metadataPath && !hasNotify;
+        const bool unresolvedDataContext =
+            record.sourceKind == BindingSourceKind::DataContext &&
+            (!record.applied || record.metadataSource == nullptr ||
+             (!record.bindsToSource && !record.pathPlan.IsValid()));
+        const bool pollMetadata =
+            (metadataPath && !hasNotify) || unresolvedDataContext;
         if (record.applied && !record.sourceDirty &&
             !record.targetDirty && !pollMetadata) {
             continue;
@@ -1325,7 +1406,10 @@ Base::Result<std::uint32_t> BindingEngine::Flush() noexcept {
                 UpdateSourceTrigger::Explicit
             ? record.forceSourceUpdate
             : (!record.applied || record.targetDirty);
-        Base::Result<void> applied;
+        Base::Result<void> applied =
+            Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "Binding update was not attempted");
         switch (record.descriptor.mode) {
         case BindingMode::OneTime:
             if (!record.applied) {
@@ -1455,13 +1539,20 @@ void BindingEngine::DataBindHook(void* context) noexcept {
     constexpr std::uint32_t MaximumActivationWaves = 16U;
     for (std::uint32_t wave = 0U;
          wave < MaximumActivationWaves; ++wave) {
+        // Apply already-attached bindings even when a deferred template
+        // Binding fails to activate. Sample trees (Inventory, QuestLog)
+        // attach ItemsSource="{Binding ...}" on the live tree, then expand
+        // ControlTemplates that can reject individual deferred Bindings.
+        Base::Result<std::uint32_t> flushed = manager->Flush();
+        if (!flushed) {
+            manager->RecordError(flushed.GetStatus());
+        }
         Base::Result<std::uint32_t> activated =
             manager->ActivatePendingDeferred();
         if (!activated) {
             manager->RecordError(activated.GetStatus());
-            return;
         }
-        Base::Result<std::uint32_t> flushed = manager->Flush();
+        flushed = manager->Flush();
         if (!flushed) {
             manager->RecordError(flushed.GetStatus());
             return;
@@ -1483,8 +1574,9 @@ void BindingEngine::OnPropertyChanged(
             record.sourceDirty = true;
         }
         if (record.sourceKind == BindingSourceKind::DataContext &&
-            record.dataContextOwner == &object &&
-            record.dataContextProperty == args.GetProperty()) {
+            record.dataContextProperty == args.GetProperty() &&
+            BindingOwnerSeesDataContextChange(
+                record.dataContextOwner, object)) {
             ReleaseMetadataSource(record);
             record.metadataSource = nullptr;
             record.pathPlan = {};
@@ -1631,11 +1723,41 @@ Base::Result<void> BindingEngine::ResolveMetadataSource(
             : Base::Result<void>(InvalidState(
                 "Binding metadata source is not resolved"));
     }
-    Base::Result<PropertyValue> dataContext =
-        record.dataContextOwner->GetValue(
-            record.dataContextProperty);
-    if (!dataContext) return dataContext.GetStatus();
-    if (dataContext.Value().Kind() != ValueKind::Object ||
+    if (record.dataContextOwner == nullptr) {
+        ReleaseMetadataSource(record);
+        record.metadataSource = nullptr;
+        record.pathPlan = {};
+        return Base::Status::Failure(
+            Base::ErrorCode::NotFound,
+            "Binding target has no DataContext object");
+    }
+    Base::Result<PropertyValue> dataContext = ReadDataContextValue(
+        *record.dataContextOwner,
+        record.dataContextProperty);
+    if (!dataContext ||
+        dataContext.Value().Kind() != ValueKind::Object ||
+        dataContext.Value().IsNullObject()) {
+        DependencyObject* node = record.dataContextOwner;
+        for (std::uint32_t depth = 0U; depth < 64U && node != nullptr; ++depth) {
+            node = BindingParent(*node);
+            if (node == nullptr) {
+                continue;
+            }
+            Base::Result<PropertyValue> ancestor = ReadDataContextValue(
+                *node,
+                record.dataContextProperty);
+            if (!ancestor) {
+                continue;
+            }
+            if (ancestor.Value().Kind() == ValueKind::Object &&
+                !ancestor.Value().IsNullObject()) {
+                dataContext = std::move(ancestor);
+                break;
+            }
+        }
+    }
+    if (!dataContext ||
+        dataContext.Value().Kind() != ValueKind::Object ||
         dataContext.Value().IsNullObject()) {
         ReleaseMetadataSource(record);
         record.metadataSource = nullptr;
@@ -1691,28 +1813,24 @@ Base::Result<void> BindingEngine::ResolveMetadataSource(
             source->RuntimeType(),
             record.path.View(),
             &compileError);
-    if (!compiled) {
-        return BindingPathFailure(
-            record.metadata->Types(),
-            record.path.View(),
-            compileError,
-            compiled.GetStatus());
-    }
+        if (!compiled) {
+            return BindingPathFailure(
+                record.metadata->Types(),
+                record.path.View(),
+                compileError,
+                compiled.GetStatus());
+        }
     const DependencyProperty* targetProperty =
         record.descriptor.target->PropertyRegistry().Find(
             record.descriptor.targetProperty);
     if (targetProperty == nullptr ||
-        (!targetProperty->AcceptsAnyValue() &&
         (record.descriptor.convert == nullptr &&
-        !record.descriptor.converterResource &&
-        !compiled.Value().HasDynamicResult() &&
-        compiled.Value().ResultType() != TypeOf<Base::Object>() &&
-        !record.metadata->Types().IsAssignableFrom(
-            targetProperty->ValueType(),
-            compiled.Value().ResultType()) &&
-        !HasDefaultTargetConversion(
-            compiled.Value().ResultType(),
-            targetProperty->ValueType())))) {
+         !record.descriptor.converterResource &&
+         !TargetAcceptsPathResult(
+             record.metadata->Types(),
+             targetProperty,
+             compiled.Value().ResultType(),
+             compiled.Value().HasDynamicResult()))) {
         return BindingTypeMismatch(
             record.metadata->Types(),
             record.path.View(),

@@ -851,20 +851,22 @@ Base::Result<std::uint32_t> ExecuteViewFrame(ViewState& state, View& view) noexc
         return ViewNotInitialized(
             "View must be initialized before running frames");
     }
-    if (state.interactivity != nullptr &&
-        !state.interactivity->animationEventStatus.IsOk()) {
-        return state.interactivity->animationEventStatus;
-    }
-    if (state.storyboards != nullptr &&
-        !state.storyboards->eventTriggerStatus.IsOk()) {
-        return state.storyboards->eventTriggerStatus;
-    }
-    if (state.styles != nullptr && !state.styles->LastActionStatus().IsOk()) {
-        return state.styles->LastActionStatus();
-    }
+    const bool skipAnimationPhase =
+        (state.interactivity != nullptr &&
+         !state.interactivity->animationEventStatus.IsOk()) ||
+        (state.storyboards != nullptr &&
+         !state.storyboards->eventTriggerStatus.IsOk()) ||
+        (state.styles != nullptr &&
+         !state.styles->LastActionStatus().IsOk());
 
+    bool skipUnsyncedVisualPhases = false;
     Base::Result<void> resources = SynchronizeFrameResources(state);
-    if (!resources) return resources.GetStatus();
+    if (!resources) {
+        // Missing theme/image/XAML source files must not skip DataBind.
+        // Layout/render can dereference unsynchronized image/font backends.
+        state.ReportRendererFailure(resources.GetStatus());
+        skipUnsyncedVisualPhases = true;
+    }
 
     using Phase = ::Aero::Threading::DispatcherFramePhase;
     const Phase phases[] = {
@@ -880,6 +882,15 @@ Base::Result<std::uint32_t> ExecuteViewFrame(ViewState& state, View& view) noexc
 
     ViewFrameResult result;
     for (Phase phase : phases) {
+        if (phase == Phase::Animation && skipAnimationPhase) {
+            continue;
+        }
+        if (skipUnsyncedVisualPhases &&
+            (phase == Phase::Layout ||
+             phase == Phase::RenderCommit ||
+             phase == Phase::Animation)) {
+            continue;
+        }
         if (phase == Phase::Layout && state.HasAttachedRoot() &&
             state.tree != nullptr) {
             Base::Result<void> completed = state.tree->CompleteVisualEdges({

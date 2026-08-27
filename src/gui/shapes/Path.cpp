@@ -161,6 +161,13 @@ Base::Result<void> TessellateFill(
         for (const ContourRecord contour :
              contours) {
             if (contour.count < 3U) continue;
+            if (contour.offset > points.Size() ||
+                contour.count >
+                    points.Size() - contour.offset) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::OutOfRange,
+                    "Path contour exceeds flattened point buffer");
+            }
             for (std::uint32_t edge = 0U;
                  edge < contour.count; ++edge) {
                 const Point start =
@@ -204,10 +211,10 @@ Base::Result<void> TessellateFill(
             if (right.middle - left.middle <= 1.0e-9) {
                 return {};
             }
-            if (vertices.Size() > UINT32_MAX - 4U) {
+            if (vertices.Size() > 262144U - 4U) {
                 return Base::Status::Failure(
                     Base::ErrorCode::OutOfRange,
-                    "Path tessellation exceeds the 32-bit mesh limit");
+                    "Path tessellation exceeds the fill mesh budget");
             }
             const std::uint32_t base = vertices.Size();
             const Point quad[] = {
@@ -1493,7 +1500,7 @@ Base::Result<void> Path::EnsureGeometry() noexcept {
         }
         if (hasBounds && !pathPoints_.Empty() && !contours.Empty()) {
             geometryBounds_ = bounds;
-            if (GetFill()) {
+            if (GetFill() && !GetIsMeasuring()) {
                 Base::Result<void> tessellated = TessellateFill(
                     pathPoints_,
                     contours,
@@ -1502,7 +1509,7 @@ Base::Result<void> Path::EnsureGeometry() noexcept {
                     geometryIndices_);
                 if (!tessellated) return tessellated.GetStatus();
             }
-            if (GetStroke()) {
+            if (GetStroke() && !GetIsMeasuring()) {
                 Base::Vector<double> dashes;
                 double dashOffset = 0.0;
                 Base::Result<void> resolved =
@@ -1526,7 +1533,9 @@ Base::Result<void> Path::EnsureGeometry() noexcept {
                 if (!stroked) return stroked.GetStatus();
             }
         }
-        geometryDirty_ = false;
+        if (!GetIsMeasuring()) {
+            geometryDirty_ = false;
+        }
         return {};
     }
     Base::StringView data;
@@ -1546,11 +1555,10 @@ Base::Result<void> Path::EnsureGeometry() noexcept {
         pathContourStarts_,
         pathContourCounts_,
         pathContourClosed_,
-        // A storyboard can intentionally start a Path fill transparent and
-        // reveal it later. Geometry is independent from the sampled alpha;
-        // omitting it here leaves no mesh to draw when that animation reaches
-        // an opaque key frame.
-        static_cast<bool>(GetFill()),
+        // Measure only needs bounds. Tessellating Scoreboard-scale emblem
+        // paths during layout has crashed the sample host; fill meshes are
+        // built on the render path instead.
+        static_cast<bool>(GetFill()) && !GetIsMeasuring(),
         GetFillRule());
     Base::Result<Rect> parsed =
         parser.Parse();
@@ -1593,7 +1601,7 @@ Base::Result<void> Path::EnsureGeometry() noexcept {
             }
         }
     }
-    if (GetStroke()) {
+    if (GetStroke() && !GetIsMeasuring()) {
         Base::Vector<double> dashes;
         double dashOffset = 0.0;
         Base::Result<void> resolved =
@@ -1617,7 +1625,9 @@ Base::Result<void> Path::EnsureGeometry() noexcept {
                 strokeIndices_);
         if (!stroked) return stroked.GetStatus();
     }
-    geometryDirty_ = false;
+    if (!GetIsMeasuring()) {
+        geometryDirty_ = false;
+    }
     return {};
 }
 

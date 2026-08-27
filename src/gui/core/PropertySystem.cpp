@@ -10,6 +10,10 @@
 
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Base/Hash.hpp>
+#include <Aero/LogicalTreeHelper.hpp>
+#include <Aero/TryCast.hpp>
+#include <Aero/Visual.hpp>
+#include <Aero/VisualTreeHelper.hpp>
 
 #include <cstdio>
 #include <cstdint>
@@ -1073,6 +1077,8 @@ Base::Result<void> EffectiveValueEngine::SetInheritanceParent(
         if (!stored) return stored.GetStatus();
     } else {
         parents_.Erase(&child);
+        Base::Result<void> subscribed = EnsureInheritanceSubscription(child);
+        if (!subscribed) return subscribed.GetStatus();
     }
 
     const auto participates = [this](DependencyObject& object) noexcept {
@@ -1083,7 +1089,7 @@ Base::Result<void> EffectiveValueEngine::SetInheritanceParent(
         return false;
     };
 
-    if (!participates(child)) {
+    if (parent != nullptr && !participates(child)) {
         RemoveInheritanceSubscription(child);
     }
     if (previousParent != nullptr &&
@@ -1113,13 +1119,19 @@ Base::Result<void> EffectiveValueEngine::QueueDescendants(
     Base::Vector<DependencyObject*> frontier;
     Base::Result<void> root = frontier.PushBack(&parent);
     if (!root) return root.GetStatus();
+    const DependencyProperty* registered = registry_->Find(property);
     std::uint32_t cursor = 0U;
     while (cursor < frontier.Size()) {
         DependencyObject* current = frontier[cursor++];
-        for (auto& link : parents_) {
-            if (link.Value() != current || link.Key() == nullptr) continue;
-            DependencyObject* child = link.Key();
-            const DependencyProperty* registered = registry_->Find(property);
+        auto enqueue = [&](DependencyObject* child) -> Base::Result<void> {
+            if (child == nullptr || child == current) {
+                return {};
+            }
+            for (DependencyObject* seen : frontier) {
+                if (seen == child) {
+                    return {};
+                }
+            }
             const PropertyMetadata* metadata = registered != nullptr
                 ? registered->MetadataFor(child->RuntimeType())
                 : nullptr;
@@ -1129,11 +1141,46 @@ Base::Result<void> EffectiveValueEngine::QueueDescendants(
                     PropertyMetadataFlags::Inherits);
             if (inherits ||
                 AeroGuiInternal::FindEntry(*child, property) != nullptr) {
-                Base::Result<void> queued = QueueObjectProperty(*child, property);
+                Base::Result<void> queued =
+                    QueueObjectProperty(*child, property);
                 if (!queued) return queued.GetStatus();
             }
-            Base::Result<void> pushed = frontier.PushBack(child);
-            if (!pushed) return pushed.GetStatus();
+            return frontier.PushBack(child);
+        };
+
+        Base::Vector<DependencyObject*> children;
+        for (auto& link : parents_) {
+            if (link.Value() != current || link.Key() == nullptr) continue;
+            Base::Result<void> stored = children.PushBack(link.Key());
+            if (!stored) return stored.GetStatus();
+        }
+
+        if (::Aero::Media::Visual* visual =
+                ::Aero::TryCast<::Aero::Media::Visual>(current)) {
+            const std::uint32_t visualCount =
+                ::Aero::Media::VisualTreeHelper::GetChildrenCount(*visual);
+            for (std::uint32_t index = 0U; index < visualCount; ++index) {
+                ::Aero::Media::Visual* childVisual =
+                    ::Aero::Media::VisualTreeHelper::GetChild(*visual, index);
+                if (childVisual == nullptr) continue;
+                Base::Result<void> stored = children.PushBack(childVisual);
+                if (!stored) return stored.GetStatus();
+            }
+        }
+
+        const std::uint32_t logicalCount =
+            ::Aero::LogicalTreeHelper::GetChildrenCount(*current);
+        for (std::uint32_t index = 0U; index < logicalCount; ++index) {
+            DependencyObject* child =
+                ::Aero::LogicalTreeHelper::GetChild(*current, index);
+            if (child == nullptr) continue;
+            Base::Result<void> stored = children.PushBack(child);
+            if (!stored) return stored.GetStatus();
+        }
+
+        for (DependencyObject* child : children) {
+            Base::Result<void> queued = enqueue(child);
+            if (!queued) return queued.GetStatus();
         }
     }
     return {};
@@ -1267,11 +1314,32 @@ Base::Result<void> EffectiveValueEngine::Apply(Pending& entry) noexcept {
     PropertyValue inheritedValue;
     const PropertyValue* inherited = nullptr;
     if (HasFlag(metadata->flags, PropertyMetadataFlags::Inherits)) {
-        DependencyObject* parent = InheritanceParent(*entry.object);
-        while (parent != nullptr && property->MetadataFor(parent->RuntimeType()) == nullptr)
-            parent = InheritanceParent(*parent);
-        if (parent != nullptr) {
-            PropertyValue value = parent->GetValue(entry.property);
+        DependencyObject* inheritFrom = InheritanceParent(*entry.object);
+        if (inheritFrom == nullptr) {
+            if (::Aero::Media::Visual* visual =
+                    ::Aero::TryCast<::Aero::Media::Visual>(entry.object)) {
+                inheritFrom = ::Aero::Media::VisualTreeHelper::GetParent(*visual);
+            }
+        }
+        if (inheritFrom == nullptr) {
+            inheritFrom = ::Aero::LogicalTreeHelper::GetParent(*entry.object);
+        }
+        while (inheritFrom != nullptr &&
+            property->MetadataFor(inheritFrom->RuntimeType()) == nullptr) {
+            DependencyObject* next = InheritanceParent(*inheritFrom);
+            if (next == nullptr) {
+                if (::Aero::Media::Visual* visual =
+                        ::Aero::TryCast<::Aero::Media::Visual>(inheritFrom)) {
+                    next = ::Aero::Media::VisualTreeHelper::GetParent(*visual);
+                }
+            }
+            if (next == nullptr) {
+                next = ::Aero::LogicalTreeHelper::GetParent(*inheritFrom);
+            }
+            inheritFrom = next;
+        }
+        if (inheritFrom != nullptr) {
+            PropertyValue value = inheritFrom->GetValue(entry.property);
             inheritedValue = std::move(value);
             inherited = &inheritedValue;
         }

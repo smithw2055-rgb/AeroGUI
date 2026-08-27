@@ -610,7 +610,10 @@ void ElementTree::SetTreeSubtree(
     if (tree == nullptr) {
         ClearDetachedPresentation(node);
     }
-    ForEachElementTreeChild(node, [this, tree](::Aero::Media::Visual& child) noexcept {
+    ForEachElementTreeChild(node, [this, tree, &node](::Aero::Media::Visual& child) noexcept {
+        if (tree != nullptr) {
+            (void)values_->SetInheritanceParent(child, &node);
+        }
         SetTreeSubtree(child, tree);
     });
 }
@@ -696,6 +699,11 @@ Base::Result<void> ElementTree::AttachLogical(
                 "Logical child must be detached and parent must belong to this tree");
         }
         child.logicalParent_ = &parent;
+        Base::Result<void> inherited =
+            values_->SetInheritanceParent(child, &parent);
+        if (!inherited) {
+            return inherited.GetStatus();
+        }
         return {};
     }
     if (child.logicalParent_ != nullptr || child.tree_ != nullptr) {
