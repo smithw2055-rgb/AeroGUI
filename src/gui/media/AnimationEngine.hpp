@@ -103,8 +103,8 @@ public:
 
     Base::Result<std::uint32_t> Tick(
         AnimationTime nowMicroseconds) noexcept;
-    // Samples newly-created automatic timelines at t=0 so the first submitted
-    // frame has the authored initial key frame.
+    // Samples newly-created timelines at t=0 so the first submitted frame has
+    // the authored initial key frame, including manual (View::Update) clocks.
     Base::Result<std::uint32_t> ApplyPendingInitialValues() noexcept;
     // Called after a frame containing those initial values is submitted. The
     // automatic clock starts here rather than at storyboard construction.

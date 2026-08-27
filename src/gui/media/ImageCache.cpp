@@ -89,6 +89,27 @@ int StbiStreamEof(void* user) {
     return context == nullptr || context->failed || context->eof ? 1 : 0;
 }
 
+// Pattern shaders sample with premultiplied vertex color and SrcOver
+// (ONE / INV_SRC_ALPHA). stb_image returns straight alpha, and PNG
+// transparent pixels commonly keep white RGB, which otherwise composites
+// as an opaque white silhouette.
+void PremultiplyStraightRgba(
+    Base::Vector<std::uint8_t>& pixels) noexcept {
+    const std::uint32_t byteCount = pixels.Size();
+    for (std::uint32_t index = 0U; index + 3U < byteCount; index += 4U) {
+        const std::uint32_t alpha = pixels[index + 3U];
+        pixels[index + 0U] = static_cast<std::uint8_t>(
+            (static_cast<std::uint32_t>(pixels[index + 0U]) * alpha + 127U) /
+            255U);
+        pixels[index + 1U] = static_cast<std::uint8_t>(
+            (static_cast<std::uint32_t>(pixels[index + 1U]) * alpha + 127U) /
+            255U);
+        pixels[index + 2U] = static_cast<std::uint8_t>(
+            (static_cast<std::uint32_t>(pixels[index + 2U]) * alpha + 127U) /
+            255U);
+    }
+}
+
 Base::Status InvalidImage(
     const char* message) noexcept {
     return Base::Status::Failure(
@@ -453,6 +474,7 @@ Base::Result<bool> ImageCache::Synchronize(
                     decoded[index];
             }
             stbi_image_free(decoded);
+            PremultiplyStraightRgba(record->pixels);
             record->width =
                 static_cast<std::uint32_t>(width);
             record->height =

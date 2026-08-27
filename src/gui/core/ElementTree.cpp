@@ -958,7 +958,8 @@ Base::Result<void> ElementTree::AttachLayout(
 
 Base::Result<void> ElementTree::AttachRender(
     ::Aero::Media::Visual& parent, ::Aero::Media::Visual& child, bool& attached) noexcept {
-    if (renderer_ == nullptr) {
+    if (renderer_ == nullptr ||
+        AeroGuiInternal::RenderRuntime(parent) != static_cast<void*>(renderer_)) {
         return {};
     }
     Base::Result<void> result = renderer_->Attach(parent, child);

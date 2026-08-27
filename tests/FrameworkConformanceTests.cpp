@@ -341,6 +341,7 @@ private:
 
 struct PointSink final : FlattenSink {
     Vector<Point> points;
+    Vector<Point> figureStarts;
     std::uint32_t begins = 0U;
     std::uint32_t ends = 0U;
 
@@ -350,6 +351,8 @@ struct PointSink final : FlattenSink {
     Result<void> BeginFigure(Point start, bool isClosed) noexcept override {
         (void)isClosed;
         ++begins;
+        Result<void> recorded = figureStarts.PushBack(start);
+        if (!recorded) return recorded;
         return AddPoint(start);
     }
     Result<void> EndFigure(bool isClosed) noexcept override {
@@ -1708,6 +1711,52 @@ bool SameFlattened(const PointSink& left, const PointSink& right) noexcept {
             return false;
         }
     }
+    return true;
+}
+
+bool TestClosedPathRelativeMove() {
+    StreamGeometry ring;
+    ring.SetData("M10,10 L30,10 L30,30 L10,30 Z m2,2 h16 v16 h-16 Z");
+    PointSink sink;
+    CHECK(ring.Flatten(sink));
+    CHECK(sink.begins == 2U);
+    CHECK(sink.figureStarts.Size() == 2U);
+    CHECK(Near(sink.figureStarts[0].x, 10.0));
+    CHECK(Near(sink.figureStarts[0].y, 10.0));
+    CHECK(Near(sink.figureStarts[1].x, 12.0));
+    CHECK(Near(sink.figureStarts[1].y, 12.0));
+    const Rect ringBounds = ring.GetBounds();
+    CHECK(ringBounds.x >= 9.9);
+    CHECK(ringBounds.y >= 9.9);
+    CHECK(ringBounds.width <= 20.1);
+    CHECK(ringBounds.height <= 20.1);
+
+    StreamGeometry innerFrame;
+    innerFrame.SetData(
+        "M489 658.92H38.65l-.17-.78a35.52 35.52 0 0 0-26.7-26.7l-.78-.18V38.66"
+        "l.78-.18a35.53 35.53 0 0 0 26.7-26.7l.17-.78H489l.17.78a35.53 35.53 "
+        "0 0 0 26.7 26.7l.78.18v592.6l-.78.18a35.52 35.52 0 0 0-26.7 26.7Zm-448.79-2"
+        "h447.2a37.51 37.51 0 0 1 27.24-27.25V40.25A37.51 37.51 0 0 1 487.45 13"
+        "H40.25A37.54 37.54 0 0 1 13 40.25V629.67A37.53 37.53 0 0 1 40.25 656.92Z");
+    PointSink frameSink;
+    CHECK(innerFrame.Flatten(frameSink));
+    CHECK(frameSink.begins == 2U);
+    const Rect frameBounds = innerFrame.GetBounds();
+    CHECK(frameBounds.x > -1.0);
+    CHECK(frameBounds.y > -1.0);
+    CHECK(frameBounds.width < 540.0);
+    CHECK(frameBounds.height < 680.0);
+
+    StreamGeometry listItem;
+    listItem.SetData(
+        "M335.67 47.74H29.81l-20-20 20-20H335.67l20 20Zm-305-2h304.2l18-18-18-18"
+        "H30.64l-18 18Z");
+    PointSink itemSink;
+    CHECK(listItem.Flatten(itemSink));
+    CHECK(itemSink.begins == 2U);
+    const Rect itemBounds = listItem.GetBounds();
+    CHECK(itemBounds.x > -1.0);
+    CHECK(itemBounds.width < 380.0);
     return true;
 }
 
@@ -3321,7 +3370,7 @@ bool TestLoadedIntroStoryboard() {
         "<BeginStoryboard Storyboard=\"{StaticResource Anim.Intro}\"/>"
         "</EventTrigger>"
         "</Grid.Triggers>"
-        "<Border x:Name=\"Child\" Width=\"40\" Height=\"40\" Opacity=\"0\">"
+        "<Border x:Name=\"Child\" Width=\"40\" Height=\"40\">"
         "<Border.RenderTransform>"
         "<TransformGroup>"
         "<ScaleTransform/>"
@@ -3340,6 +3389,7 @@ bool TestLoadedIntroStoryboard() {
         root->FindName<Aero::Controls::Border>(StringView("Child"));
     CHECK(child != nullptr);
     Pump(view, 0.0);
+    CHECK(Near(child->GetOpacity(), 0.0, 0.05));
     Pump(view, 0.25);
     CHECK(Near(child->GetOpacity(), 1.0, 0.05));
     auto* group = TryCast<Aero::Media::TransformGroup>(
@@ -3369,6 +3419,7 @@ int main() {
     RUN(TestComboBoxAndVisualStateAnimation);
     RUN(TestTransform3DCollapseAndHits);
     RUN(TestGeometryFlatten);
+    RUN(TestClosedPathRelativeMove);
     RUN(TestStreamGeometryFlattenCore);
     RUN(TestStreamGeometryContextFlatten);
     RUN(TestTimelineDurationAndKeyTime);

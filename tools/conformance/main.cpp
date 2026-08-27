@@ -7,6 +7,7 @@
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Effects.hpp>
 #include <Aero/Media/Geometry.hpp>
+#include <Aero/Media/StreamGeometry.hpp>
 #include <Aero/Media/Transforms.hpp>
 #include <Aero/View.hpp>
 #include <Aero/VisualStateManager.hpp>
@@ -901,6 +902,45 @@ void VerifyAuthoringPropertySynchronization() noexcept {
         "VisualStateManager exposes an internal attached-property name");
 }
 
+void VerifyClosedPathRelativeMove() noexcept {
+    struct StartSink final : Aero::Media::FlattenSink {
+        Aero::Base::Vector<Aero::Media::Point> starts;
+        Aero::Base::Result<void> AddPoint(Aero::Media::Point) noexcept override {
+            return {};
+        }
+        Aero::Base::Result<void> BeginFigure(
+            Aero::Media::Point start, bool) noexcept override {
+            return starts.PushBack(start);
+        }
+    };
+
+    Aero::Media::StreamGeometry ring;
+    ring.SetData("M10,10 L30,10 L30,30 L10,30 Z m2,2 h16 v16 h-16 Z");
+    StartSink sink;
+    const Aero::Base::Result<void> flattened = ring.Flatten(sink);
+    Check(flattened.HasValue() && sink.starts.Size() == 2U,
+        "Closed path with relative moveto must keep two figures");
+    if (sink.starts.Size() >= 2U) {
+        Check(std::fabs(sink.starts[1].x - 12.0) < 0.01 &&
+                std::fabs(sink.starts[1].y - 12.0) < 0.01,
+            "Relative moveto after closepath must be inset from figure start");
+    }
+    const Aero::Media::Rect bounds = ring.GetBounds();
+    Check(bounds.x >= 9.9 && bounds.width <= 20.1,
+        "Closed relative-moveto ring bounds must not jump to absolute coords");
+
+    Aero::Media::StreamGeometry innerFrame;
+    innerFrame.SetData(
+        "M489 658.92H38.65l-.17-.78a35.52 35.52 0 0 0-26.7-26.7l-.78-.18V38.66"
+        "l.78-.18a35.53 35.53 0 0 0 26.7-26.7l.17-.78H489l.17.78a35.53 35.53 "
+        "0 0 0 26.7 26.7l.78.18v592.6l-.78.18a35.52 35.52 0 0 0-26.7 26.7Zm-448.79-2"
+        "h447.2a37.51 37.51 0 0 1 27.24-27.25V40.25A37.51 37.51 0 0 1 487.45 13"
+        "H40.25A37.54 37.54 0 0 1 13 40.25V629.67A37.53 37.53 0 0 1 40.25 656.92Z");
+    const Aero::Media::Rect frameBounds = innerFrame.GetBounds();
+    Check(frameBounds.x > -1.0 && frameBounds.width < 540.0,
+        "QuestLog InnerFrame hole must stay inside the outer contour");
+}
+
 } // namespace
 
 int main() {
@@ -929,6 +969,7 @@ int main() {
     const Aero::Base::Result<void> initialized = gui.Initialize();
     Check(initialized.HasValue(), "Gui initialization failed");
     if (initialized) {
+        VerifyClosedPathRelativeMove();
         VerifyGuiLoadFacade(gui);
         Aero::ViewOptions viewOptions;
         viewOptions.loadBuiltInTheme = true;

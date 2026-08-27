@@ -607,22 +607,17 @@ Base::Result<void> Path::EnsureGeometry() noexcept {
     }
     if (hasBounds && !pathPoints_.Empty() && !contours.Empty()) {
         geometryBounds_ = bounds;
-        constexpr std::uint32_t kMaxTessellatedStreamBytes = 2048U;
-        bool skipFill = false;
-        if (geometry->RuntimeType() == StreamGeometry::StaticTypeId()) {
-            auto* stream = static_cast<StreamGeometry*>(geometry.Get());
-            if (stream->GetData().SizeBytes() > kMaxTessellatedStreamBytes) {
-                skipFill = true;
-            }
-        }
-        if (GetFill() && !skipFill) {
+        if (GetFill()) {
             Base::Result<void> tessellated = TessellateFill(
                 pathPoints_,
                 contours,
                 GetFillRule(),
                 geometryVertices_,
                 geometryIndices_);
-            if (!tessellated) return tessellated.GetStatus();
+            if (!tessellated) {
+                geometryVertices_.Clear();
+                geometryIndices_.Clear();
+            }
         }
         const PathStrokeParams stroke = ResolvePathStroke(*this);
         if (stroke.brush) {

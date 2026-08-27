@@ -307,8 +307,6 @@ TemplateBuilder::ProjectContentCore(
             part.visual == &presenterVisual;
     }
     if (!presenterIsPart ||
-        (content->GetLogicalParent() != nullptr &&
-         content->GetLogicalParent() != &owner) ||
         (content->GetVisualParent() != nullptr &&
          content->GetVisualParent() != &owner)) {
         return Base::Status::Failure(
@@ -1278,7 +1276,10 @@ bool Control::ApplyTemplate() noexcept {
     }
     const Base::Ref<ControlTemplate> value =
         GetValue(TemplateProperty);
-    if (!value) return false;
+    if (!value) {
+        OnApplyTemplate();
+        return GetTemplateRoot() != nullptr;
+    }
     Base::Result<TemplateHandle> applied =
         templateRuntime->Apply(*this, *value);
     if (!applied) return false;

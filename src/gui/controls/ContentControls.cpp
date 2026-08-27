@@ -1413,23 +1413,18 @@ Base::Result<void> ContentPresenter::ValidateContent(
 Size ContentPresenter::MeasureOverride(
     Size availableSize) noexcept {
     if (content_ == nullptr) {
-        if (!LayoutChildren().Empty()) {
-            return Size{};
-        }
         return Size{};
     }
-    if (!IsOnlyAttachedContent(*content_)) {
-        return Size{};
-    }
+    // WPF ContentPresenter measures its content regardless of whether the
+    // layout-child table still lists it as the only child. Returning an empty
+    // size here collapses UniformGrid rows whose cells bind Height to
+    // ActualWidth (Inventory slots).
     Base::Result<void> measured = MeasureChild(*content_, availableSize);
     if (!measured) return Size{};
     return content_->GetDesiredSize();
 }
 Size ContentPresenter::ArrangeOverride(Size finalSize) noexcept {
     if (content_ == nullptr) return finalSize;
-    if (!IsOnlyAttachedContent(*content_)) {
-        return finalSize;
-    }
     Base::Result<void> arranged = ArrangeChild(*content_,
         {0.0, 0.0, finalSize.width, finalSize.height});
     if (!arranged) return finalSize;

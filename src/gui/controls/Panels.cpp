@@ -413,9 +413,26 @@ Size UniformGrid::MeasureOverride(
     std::uint32_t rows = 0U;
     std::uint32_t columns = 0U;
     ResolveDimensions(count + GetFirstColumn(), rows, columns);
-    const Size cellAvailable{
+    constexpr double Unconstrained = 1.0e12;
+    const bool widthUnconstrained =
+        availableSize.width >= Unconstrained * 0.5;
+    const bool heightUnconstrained =
+        availableSize.height >= Unconstrained * 0.5;
+    Size cellAvailable{
         availableSize.width / static_cast<double>(columns),
         availableSize.height / static_cast<double>(rows)};
+    // ScrollViewer gives children infinite height. Slot templates bind
+    // Height to ActualWidth, so the first measure reports 0 height and a
+    // VerticalAlignment=Top grid collapses to nothing. Use the finite
+    // axis as the unconstrained cell size so square cells appear on the
+    // first pass.
+    if (heightUnconstrained && !widthUnconstrained &&
+        cellAvailable.width > 0.0) {
+        cellAvailable.height = cellAvailable.width;
+    } else if (widthUnconstrained && !heightUnconstrained &&
+               cellAvailable.height > 0.0) {
+        cellAvailable.width = cellAvailable.height;
+    }
     Size cellDesired;
     for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
@@ -428,6 +445,17 @@ Size UniformGrid::MeasureOverride(
         cellDesired.height = std::max(
             cellDesired.height,
             child->GetDesiredSize().height);
+    }
+    if (cellDesired.height <= 0.0 && cellAvailable.width > 0.0 &&
+        cellAvailable.width < Unconstrained * 0.5) {
+        cellDesired.height = cellAvailable.width;
+    }
+    if (cellDesired.width <= 0.0 && cellAvailable.width > 0.0 &&
+        cellAvailable.width < Unconstrained * 0.5) {
+        cellDesired.width = cellAvailable.width;
+    } else if (cellDesired.width <= 0.0 && cellDesired.height > 0.0 &&
+               widthUnconstrained) {
+        cellDesired.width = cellDesired.height;
     }
     return Size{
         cellDesired.width * columns,

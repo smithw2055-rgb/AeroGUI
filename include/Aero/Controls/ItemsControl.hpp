@@ -177,6 +177,8 @@ protected:
     }
     void OnApplyTemplate() noexcept override;
     void OnTemplateDetached() noexcept override;
+    Size MeasureOverride(Size availableSize) noexcept override;
+    bool EnsureDefaultItemsPresenter() noexcept;
 
 private:
     friend class ItemContainerGenerator;
@@ -193,6 +195,7 @@ private:
     const Style* itemContainerStyle_ = nullptr;
     ItemContainerGenerator* generator_ = nullptr;
     Panel* itemsHost_ = nullptr;
+    Ref<Base::Object> defaultItemsPresenter_;
     ItemsChangedHandler changed_;
     ItemsChangedHandler localHandler_;
     ItemsChangedHandler sourceHandler_;

@@ -458,10 +458,14 @@ public:
                         return InvalidPathData(
                             "Path close command has no active contour");
                     }
+                    // SVG/WPF: closepath leaves the current point at the
+                    // figure start so a following relative moveto (Zm...)
+                    // is inset from that vertex, not treated as absolute.
                     current = first;
+                    lastControl = first;
                     Result<void> ended = endFigure(true);
                     if (!ended) return ended.GetStatus();
-                    hasCurrent = false;
+                    hasCurrent = true;
                     command = '\0';
                     lastCommand = 'Z';
                     continue;

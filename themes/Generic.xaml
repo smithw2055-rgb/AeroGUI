@@ -416,7 +416,7 @@
       <Setter.Value>
         <ControlTemplate TargetType="ItemsControl">
           <ControlTemplate.VisualTree>
-            <StackPanel x:Name="ItemsHost"/>
+            <ItemsPresenter x:Name="ItemsPresenter"/>
           </ControlTemplate.VisualTree>
         </ControlTemplate>
       </Setter.Value>

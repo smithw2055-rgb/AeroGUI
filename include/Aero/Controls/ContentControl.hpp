@@ -171,6 +171,8 @@ private:
     Value authoredContent_;
     DependencyPropertyChangedEventHandler
         foregroundChangedHandler_;
+    DependencyPropertyChangedEventHandler
+        fontSizeChangedHandler_;
     bool literalTextContent_ = false;
     bool synchronizingContentProperty_ = false;
     Result<void> StoreContentProperty(
@@ -178,7 +180,11 @@ private:
     void SetGeneratedTextContent(
         const Ref<Base::Object>& contentObject,
         UIElement& content) noexcept;
+    void SyncGeneratedTextFormatting() noexcept;
     void OnForegroundChanged(
+        DependencyObject&,
+        const DependencyPropertyChangedEventArgs&) noexcept;
+    void OnFontSizeChanged(
         DependencyObject&,
         const DependencyPropertyChangedEventArgs&) noexcept;
     bool IsOnlyAttachedContent(const UIElement& content) const noexcept {

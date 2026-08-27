@@ -216,7 +216,7 @@ struct AnimationEngine::Track {
     Meta::PropertyValue discreteBaseValue;
     bool valueApplied = false;
     bool completedCounted = false;
-    bool pendingInitialSample = false;
+    bool pendingInitialSample = true;
 };
 
 namespace {
@@ -393,7 +393,6 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
     track.from = animation.from;
     track.to = animation.to;
     track.startTimeMicroseconds = currentTimeMicroseconds_;
-    track.pendingInitialSample = automaticTickingEnabled_;
     return track.handle;
 }
 
@@ -424,7 +423,6 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
         animation.defaultDestinationValue;
     track.customDouble = animation.animation;
     track.startTimeMicroseconds = currentTimeMicroseconds_;
-    track.pendingInitialSample = automaticTickingEnabled_;
     return track.handle;
 }
 
@@ -454,7 +452,6 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
     track.fromRect = animation.from;
     track.toRect = animation.to;
     track.startTimeMicroseconds = currentTimeMicroseconds_;
-    track.pendingInitialSample = automaticTickingEnabled_;
     return track.handle;
 }
 
@@ -490,7 +487,6 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
     track.fromThickness = animation.from;
     track.toThickness = animation.to;
     track.startTimeMicroseconds = currentTimeMicroseconds_;
-    track.pendingInitialSample = automaticTickingEnabled_;
     return track.handle;
 }
 
@@ -517,7 +513,6 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
     track.toInteger = animation.to;
     track.integerWidth = animation.width;
     track.startTimeMicroseconds = currentTimeMicroseconds_;
-    track.pendingInitialSample = automaticTickingEnabled_;
     return track.handle;
 }
 
@@ -549,7 +544,6 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
     track.fromSize = animation.from;
     track.toSize = animation.to;
     track.startTimeMicroseconds = currentTimeMicroseconds_;
-    track.pendingInitialSample = automaticTickingEnabled_;
     return track.handle;
 }
 
@@ -578,7 +572,6 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
     track.fromMatrix = animation.from;
     track.toMatrix = animation.to;
     track.startTimeMicroseconds = currentTimeMicroseconds_;
-    track.pendingInitialSample = automaticTickingEnabled_;
     return track.handle;
 }
 
@@ -612,7 +605,6 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
     track.fromPoint = animation.from;
     track.toPoint = animation.to;
     track.startTimeMicroseconds = currentTimeMicroseconds_;
-    track.pendingInitialSample = automaticTickingEnabled_;
     return track.handle;
 }
 
@@ -640,7 +632,6 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
     track.fromColor = animation.from;
     track.toColor = animation.to;
     track.startTimeMicroseconds = currentTimeMicroseconds_;
-    track.pendingInitialSample = automaticTickingEnabled_;
     return track.handle;
 }
 
@@ -685,7 +676,6 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
     track.kind = Track::Kind::DoubleKeyFrames;
     track.baseValue = animation.baseValue;
     track.startTimeMicroseconds = currentTimeMicroseconds_;
-    track.pendingInitialSample = automaticTickingEnabled_;
     return track.handle;
 }
 
@@ -732,7 +722,6 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
     track.kind = Track::Kind::ColorKeyFrames;
     track.fromColor = animation.baseValue;
     track.startTimeMicroseconds = currentTimeMicroseconds_;
-    track.pendingInitialSample = automaticTickingEnabled_;
     return track.handle;
 }
 
@@ -778,7 +767,6 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
     track.kind = Track::Kind::PointKeyFrames;
     track.fromPoint = animation.baseValue;
     track.startTimeMicroseconds = currentTimeMicroseconds_;
-    track.pendingInitialSample = automaticTickingEnabled_;
     return track.handle;
 }
 
@@ -828,7 +816,6 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
     track.kind = Track::Kind::ThicknessKeyFrames;
     track.fromThickness = animation.baseValue;
     track.startTimeMicroseconds = currentTimeMicroseconds_;
-    track.pendingInitialSample = automaticTickingEnabled_;
     return track.handle;
 }
 
@@ -872,7 +859,6 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
     track.fromInteger = animation.baseValue;
     track.integerWidth = animation.width;
     track.startTimeMicroseconds = currentTimeMicroseconds_;
-    track.pendingInitialSample = automaticTickingEnabled_;
     return track.handle;
 }
 
@@ -918,7 +904,6 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
     track.kind = Track::Kind::SizeKeyFrames;
     track.fromSize = animation.baseValue;
     track.startTimeMicroseconds = currentTimeMicroseconds_;
-    track.pendingInitialSample = automaticTickingEnabled_;
     return track.handle;
 }
 
@@ -962,7 +947,6 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
     track.kind = Track::Kind::MatrixKeyFrames;
     track.fromMatrix = animation.baseValue;
     track.startTimeMicroseconds = currentTimeMicroseconds_;
-    track.pendingInitialSample = automaticTickingEnabled_;
     return track.handle;
 }
 
@@ -1008,7 +992,6 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
     track.kind = Track::Kind::Discrete;
     track.discreteBaseValue = animation.baseValue;
     track.startTimeMicroseconds = currentTimeMicroseconds_;
-    track.pendingInitialSample = automaticTickingEnabled_;
     return track.handle;
 }
 
@@ -1921,9 +1904,6 @@ Base::Result<std::uint32_t> AnimationEngine::Tick(
 
 Base::Result<std::uint32_t>
 AnimationEngine::ApplyPendingInitialValues() noexcept {
-    if (!automaticTickingEnabled_) {
-        return 0U;
-    }
     bool hasPending = false;
     for (std::uint32_t index = 0U; index < trackCount_; ++index) {
         if (tracks_[index].pendingInitialSample) {
@@ -1931,7 +1911,21 @@ AnimationEngine::ApplyPendingInitialValues() noexcept {
             break;
         }
     }
-    return hasPending ? Tick(currentTimeMicroseconds_) : 0U;
+    if (!hasPending) {
+        return 0U;
+    }
+    Base::Result<std::uint32_t> sampled = Tick(currentTimeMicroseconds_);
+    if (!sampled) return sampled.GetStatus();
+    // Manual clocks (DesktopHost) own subsequent AdvanceBy steps. Clear the
+    // t=0 latch here so later ticks do not stay frozen at the first keyframe.
+    // Automatic clocks keep the latch until CommitPendingInitialValues so the
+    // wall clock starts at the first presented frame rather than construction.
+    if (!automaticTickingEnabled_) {
+        for (std::uint32_t index = 0U; index < trackCount_; ++index) {
+            tracks_[index].pendingInitialSample = false;
+        }
+    }
+    return sampled;
 }
 
 void AnimationEngine::CommitPendingInitialValues() noexcept {

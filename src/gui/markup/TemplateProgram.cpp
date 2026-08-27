@@ -2815,6 +2815,7 @@ CompileControlTemplateDefinition(
                 "ContentPresenter content properties were not registered");
         }
         Base::StringView contentSource;
+        bool hasContentProperty = false;
         for (const TemplatePrototypeProperty& property :
              node.properties) {
             if (property.property ==
@@ -2823,10 +2824,24 @@ CompileControlTemplateDefinition(
                     ValueKind::String) {
                 contentSource =
                     property.value.AsString();
-                break;
+            }
+            if (property.property ==
+                    contentProperty->Handle()) {
+                hasContentProperty = true;
             }
         }
-        if (contentSource.Empty()) continue;
+        // Explicit Content= (including Content="{TemplateBinding Content}")
+        // already wires the presenter. Do not add a second binding.
+        if (hasContentProperty) {
+            continue;
+        }
+        const bool defaultedContent = contentSource.Empty();
+        if (defaultedContent) {
+            // WPF ContentPresenter.ContentSource defaults to "Content".
+            // Unnamed presenters in ListBoxItem/Button templates rely on that
+            // implicit TemplateBinding to show DisplayMemberPath text.
+            contentSource = Base::StringView("Content");
+        }
         if (node.name.Empty()) {
             char generatedName[48];
             const int written = std::snprintf(
@@ -2848,6 +2863,9 @@ CompileControlTemplateDefinition(
                 controlTemplate.GetTargetType(),
                 contentSource);
         if (source == nullptr) {
+            if (defaultedContent) {
+                continue;
+            }
             return MissingTemplateProperty(
                 "ContentSource property",
                 contentSource,

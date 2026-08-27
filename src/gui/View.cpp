@@ -413,6 +413,19 @@ Base::Result<void> LoadViewBuiltInTheme(
             Base::ErrorCode::InvalidArgument,
             "Built-in theme value is invalid");
     }
+    const Base::StringView themeUri =
+        theme == BuiltInTheme::Light
+        ? Base::StringView(
+              "pack://application:,,,/Aero.GUI.Extensions;component/Theme/AeroTheme.LightBlue.xaml")
+        : Base::StringView(
+              "pack://application:,,,/Aero.GUI.Extensions;component/Theme/AeroTheme.DarkBlue.xaml");
+
+    Aero::ResourceDictionary previous =
+        std::move(state.resources->themeResources);
+    Base::Result<void> loaded = LoadViewResources(
+        state, ResourceLayer::Theme, themeUri);
+    if (loaded) return {};
+
     const std::uint8_t* paletteBytes =
         theme == BuiltInTheme::Light
         ? Aero::AeroThemeLightCompiled
@@ -426,15 +439,19 @@ Base::Result<void> LoadViewBuiltInTheme(
             theme == BuiltInTheme::Light
             ? Base::StringView("Light.xaml")
             : Base::StringView("Dark.xaml"));
-    if (!paletteUri) return paletteUri.GetStatus();
+    if (!paletteUri) {
+        state.resources->themeResources = std::move(previous);
+        return paletteUri.GetStatus();
+    }
     Base::Result<Base::ResourceUri> genericUri =
         ::Aero::BuiltInThemeUri(
             Base::StringView("Generic.xaml"));
-    if (!genericUri) return genericUri.GetStatus();
+    if (!genericUri) {
+        state.resources->themeResources = std::move(previous);
+        return genericUri.GetStatus();
+    }
 
-    Aero::ResourceDictionary previous =
-        std::move(state.resources->themeResources);
-    Base::Result<void> loaded = paletteSize != 0U
+    loaded = paletteSize != 0U
         ? LoadViewCompiledResources(state,
               ResourceLayer::Theme,
               {paletteBytes, paletteSize},

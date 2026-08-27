@@ -326,6 +326,8 @@ Base::Result<void> ApplyViewUi(ViewState& state, Aero::Media::Visual& root) noex
                         AeroGuiInternal::
                             InvokeTemplateApplied(control);
                     }
+                } else {
+                    AeroGuiInternal::InvokeTemplateApplied(control);
                 }
             }
 
