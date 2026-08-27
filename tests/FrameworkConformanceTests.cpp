@@ -111,6 +111,7 @@
 #include <Aero/Visual.hpp>
 #include <Aero/VisualStateManager.hpp>
 #include <Aero/VisualTreeHelper.hpp>
+#include <AeroApp/Window.hpp>
 
 #include <cmath>
 #include <cstdint>
@@ -138,6 +139,8 @@ using Aero::Base::String;
 using Aero::Base::StringView;
 using Aero::Base::Vector;
 using Aero::Collections::IItemsSource;
+using Aero::Collections::ObservableCollection;
+using Aero::Collections::ObservableCollectionBase;
 using Aero::Collections::ObservableObjectCollection;
 using Aero::Controls::Button;
 using Aero::Controls::Canvas;
@@ -208,6 +211,7 @@ using Aero::View;
 using Aero::ViewOptions;
 using Aero::ViewViewport;
 using Aero::VisualStateManager;
+using Aero::Window;
 
 #define CHECK(expression)                                                     \
     do {                                                                      \
@@ -439,6 +443,57 @@ public:
         const Aero::Collections::ItemsChangedHandler&) noexcept override {
         return false;
     }
+};
+
+class BindingSlotItem final : public Aero::Base::Object {
+    AERO_DECLARE_TYPE(BindingSlotItem, Aero::Base::Object)
+public:
+    Aero::Meta::TypeId RuntimeType() const noexcept override {
+        return StaticTypeId();
+    }
+};
+
+class BindingPlayer final : public Aero::Base::Object {
+    AERO_DECLARE_TYPE(BindingPlayer, Aero::Base::Object)
+public:
+    Aero::Meta::TypeId RuntimeType() const noexcept override {
+        return StaticTypeId();
+    }
+    Ref<ObservableCollection<BindingSlotItem>> GetSlots() const noexcept {
+        return slots_;
+    }
+    void SetSlots(
+        Ref<ObservableCollection<BindingSlotItem>> value) noexcept {
+        slots_ = std::move(value);
+    }
+
+private:
+    Ref<ObservableCollection<BindingSlotItem>> slots_{};
+};
+
+class BindingItemsViewModel final : public Aero::Base::Object {
+    AERO_DECLARE_TYPE(BindingItemsViewModel, Aero::Base::Object)
+public:
+    Aero::Meta::TypeId RuntimeType() const noexcept override {
+        return StaticTypeId();
+    }
+    Ref<ObservableCollection<BindingSlotItem>> GetItems() const noexcept {
+        return items_;
+    }
+    void SetItems(
+        Ref<ObservableCollection<BindingSlotItem>> value) noexcept {
+        items_ = std::move(value);
+    }
+    Ref<BindingPlayer> GetPlayer() const noexcept {
+        return player_;
+    }
+    void SetPlayer(Ref<BindingPlayer> value) noexcept {
+        player_ = std::move(value);
+    }
+
+private:
+    Ref<ObservableCollection<BindingSlotItem>> items_{};
+    Ref<BindingPlayer> player_{};
 };
 
 class NumericUpDown final : public UserControl {
@@ -722,8 +777,25 @@ Result<void> RegisterTestTypes(Registration& registration) noexcept {
         .Factory()
         .Result();
     if (!person) return person;
-    return Aero::Meta::Register<NamedItems>(registration)
+    Result<void> named = Aero::Meta::Register<NamedItems>(registration)
         .Implements<IItemsSource>()
+        .Factory()
+        .Result();
+    if (!named) return named;
+    Result<void> slot = Aero::Meta::Register<BindingSlotItem>(registration)
+        .Factory()
+        .Result();
+    if (!slot) return slot;
+    Result<void> player = Aero::Meta::Register<BindingPlayer>(registration)
+        .Property<&BindingPlayer::GetSlots, &BindingPlayer::SetSlots>("Slots")
+        .Factory()
+        .Result();
+    if (!player) return player;
+    return Aero::Meta::Register<BindingItemsViewModel>(registration)
+        .Property<&BindingItemsViewModel::GetItems, &BindingItemsViewModel::SetItems>(
+            "Items")
+        .Property<&BindingItemsViewModel::GetPlayer, &BindingItemsViewModel::SetPlayer>(
+            "Player")
         .Factory()
         .Result();
 }
@@ -884,10 +956,19 @@ struct LiveGui {
     Aero::Diagnostics::DiagnosticBag diagnostics;
     Gui gui;
     Ref<View> view;
+    double viewTime = 0.0;
 };
 
 void Pump(View& view, double timeInSeconds) noexcept {
     static_cast<void>(view.Update(timeInSeconds));
+}
+
+void PumpForward(LiveGui& live) noexcept {
+    if (!live.view) {
+        return;
+    }
+    live.viewTime += 0.016;
+    Pump(*live.view, live.viewTime);
 }
 
 LiveGui* NewLiveGui(ViewOptions options = {}) {
@@ -1789,6 +1870,271 @@ bool TestCustomItemsSourceThunk() {
     box.Value()->SetItemsSource(named.Value());
     CHECK(box.Value()->GetCount() == 2U);
     CHECK(box.Value()->GetItem(1U).Get() == two.Value().Get());
+
+    Result<Ref<ObservableCollection<BindingSlotItem>>> typed =
+        MakeRef<ObservableCollection<BindingSlotItem>>();
+    CHECK(typed);
+    Result<Ref<BindingSlotItem>> first = MakeRef<BindingSlotItem>();
+    Result<Ref<BindingSlotItem>> second = MakeRef<BindingSlotItem>();
+    CHECK(first && second);
+    CHECK(typed.Value()->Add(first.Value()));
+    CHECK(typed.Value()->Add(second.Value()));
+    CHECK(typed.Value()->RuntimeType() ==
+        ObservableCollectionBase::StaticTypeId());
+    CHECK(TryCastToInterface<IItemsSource>(typed.Value().Get()) != nullptr);
+    CHECK(Aero::Collections::CollectionAsItemsSource(typed.Value().Get()) !=
+        nullptr);
+
+    Result<Ref<ListBox>> typedBox = MakeRef<ListBox>();
+    CHECK(typedBox);
+    typedBox.Value()->SetItemsSource(typed.Value());
+    CHECK(typedBox.Value()->GetCount() == 2U);
+    CHECK(typedBox.Value()->GetItem(0U).Get() == first.Value().Get());
+    return true;
+}
+
+Result<Ref<BindingItemsViewModel>> MakeBindingItemsViewModel(
+    std::uint32_t count) noexcept {
+    Result<Ref<BindingItemsViewModel>> model =
+        MakeRef<BindingItemsViewModel>();
+    if (!model) return model;
+    Result<Ref<ObservableCollection<BindingSlotItem>>> items =
+        MakeRef<ObservableCollection<BindingSlotItem>>();
+    if (!items) return items.GetStatus();
+    Result<Ref<BindingPlayer>> player = MakeRef<BindingPlayer>();
+    if (!player) return player.GetStatus();
+    Result<Ref<ObservableCollection<BindingSlotItem>>> slots =
+        MakeRef<ObservableCollection<BindingSlotItem>>();
+    if (!slots) return slots.GetStatus();
+    for (std::uint32_t index = 0U; index < count; ++index) {
+        Result<Ref<BindingSlotItem>> item = MakeRef<BindingSlotItem>();
+        if (!item) return item.GetStatus();
+        Result<void> added = items.Value()->Add(item.Value());
+        if (!added) return added.GetStatus();
+        Result<Ref<BindingSlotItem>> slot = MakeRef<BindingSlotItem>();
+        if (!slot) return slot.GetStatus();
+        added = slots.Value()->Add(slot.Value());
+        if (!added) return added.GetStatus();
+    }
+    model.Value()->SetItems(items.Value());
+    player.Value()->SetSlots(slots.Value());
+    model.Value()->SetPlayer(player.Value());
+    return model;
+}
+
+void PumpBindings(LiveGui& live) noexcept {
+    PumpForward(live);
+    PumpForward(live);
+    PumpForward(live);
+    PumpForward(live);
+}
+
+bool CountMatchesAfterLayout(
+    LiveGui& live,
+    ItemsControl& list,
+    std::uint32_t expected) noexcept {
+    static_cast<void>(list.ApplyTemplate());
+    PumpBindings(live);
+    static_cast<void>(list.ApplyTemplate());
+    PumpBindings(live);
+    const std::uint32_t count = list.GetCount();
+    const std::uint32_t realized = list.GetRealizedItemCount();
+    if (count != expected) {
+        std::fprintf(
+            stderr,
+            "ItemsControl GetCount=%u expected=%u realized=%u host=%d\n",
+            count,
+            expected,
+            realized,
+            list.GetItemsHost() != nullptr);
+        return false;
+    }
+    if (expected > 0U &&
+        list.GetItemsHost() != nullptr &&
+        realized == 0U) {
+        std::fprintf(
+            stderr,
+            "ItemsControl host present but realized 0 of %u\n",
+            expected);
+        return false;
+    }
+    return true;
+}
+
+bool TestClrItemsSourceBindingAfterDataContext() {
+    LiveGui* live = NewLiveGui();
+    CHECK(live != nullptr);
+    View& view = *live->view;
+    view.SetSize({240.0, 160.0});
+    constexpr std::uint32_t kCount = 4U;
+    Aero::Markup::XamlReader reader(live->gui);
+
+    {
+        Result<Ref<BindingItemsViewModel>> model =
+            MakeBindingItemsViewModel(kCount);
+        CHECK(model);
+        CHECK(model.Value()->GetItems()->GetCount() == kCount);
+        Result<Aero::Markup::XamlDocument> document = reader.Parse(StringView(
+            "<Grid xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+            " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\""
+            " Width=\"240\" Height=\"160\">"
+            "<ListBox x:Name=\"List\" ItemsSource=\"{Binding Items}\">"
+            "<ListBox.ItemsPanel>"
+            "<ItemsPanelTemplate><StackPanel/></ItemsPanelTemplate>"
+            "</ListBox.ItemsPanel>"
+            "</ListBox>"
+            "</Grid>"));
+        CHECK(document);
+        CHECK(view.SetContent(std::move(document).Value(), {240.0, 160.0}));
+        Grid* grid = TryCast<Grid>(view.GetContent());
+        CHECK(grid != nullptr);
+        ListBox* list = grid->FindName<ListBox>(StringView("List"));
+        CHECK(list != nullptr);
+        CHECK(list->GetCount() == 0U);
+        grid->SetDataContext(Ref<Aero::Base::Object>(model.Value()));
+        CHECK(CountMatchesAfterLayout(*live, *list, kCount));
+        CHECK(list->GetDataContext().AsObject().Get() == model.Value().Get());
+    }
+
+    {
+        Result<Ref<BindingItemsViewModel>> model =
+            MakeBindingItemsViewModel(kCount);
+        CHECK(model);
+        Result<Aero::Markup::XamlDocument> document = reader.Parse(StringView(
+            "<Grid xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+            " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\""
+            " Width=\"240\" Height=\"160\">"
+            "<ItemsControl x:Name=\"List\" ItemsSource=\"{Binding Items}\">"
+            "<ItemsControl.ItemsPanel>"
+            "<ItemsPanelTemplate><StackPanel/></ItemsPanelTemplate>"
+            "</ItemsControl.ItemsPanel>"
+            "</ItemsControl>"
+            "</Grid>"));
+        CHECK(document);
+        Grid* grid = document.Value().Root<Grid>();
+        CHECK(grid != nullptr);
+        grid->SetDataContext(Ref<Aero::Base::Object>(model.Value()));
+        CHECK(view.SetContent(std::move(document).Value(), {240.0, 160.0}));
+        grid = TryCast<Grid>(view.GetContent());
+        CHECK(grid != nullptr);
+        ItemsControl* list = grid->FindName<ItemsControl>(StringView("List"));
+        CHECK(list != nullptr);
+        CHECK(CountMatchesAfterLayout(*live, *list, kCount));
+    }
+
+    {
+        Result<Ref<BindingItemsViewModel>> model =
+            MakeBindingItemsViewModel(kCount);
+        CHECK(model);
+        Result<Aero::Markup::XamlDocument> document = reader.Parse(StringView(
+            "<ListBox xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+            " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\""
+            " x:Name=\"List\" Width=\"240\" Height=\"160\""
+            " ItemsSource=\"{Binding Items}\">"
+            "<ListBox.ItemsPanel>"
+            "<ItemsPanelTemplate><StackPanel/></ItemsPanelTemplate>"
+            "</ListBox.ItemsPanel>"
+            "</ListBox>"));
+        CHECK(document);
+        CHECK(view.SetContent(std::move(document).Value(), {240.0, 160.0}));
+        ListBox* list = TryCast<ListBox>(view.GetContent());
+        CHECK(list != nullptr);
+        list->SetDataContext(Ref<Aero::Base::Object>(model.Value()));
+        CHECK(CountMatchesAfterLayout(*live, *list, kCount));
+    }
+
+    {
+        Result<Ref<ObservableCollection<BindingSlotItem>>> items =
+            MakeRef<ObservableCollection<BindingSlotItem>>();
+        CHECK(items);
+        for (std::uint32_t index = 0U; index < kCount; ++index) {
+            Result<Ref<BindingSlotItem>> item = MakeRef<BindingSlotItem>();
+            CHECK(item);
+            CHECK(items.Value()->Add(item.Value()));
+        }
+        Result<Aero::Markup::XamlDocument> document = reader.Parse(StringView(
+            "<ListBox xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+            " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\""
+            " x:Name=\"List\" Width=\"240\" Height=\"160\""
+            " ItemsSource=\"{Binding}\">"
+            "<ListBox.ItemsPanel>"
+            "<ItemsPanelTemplate><StackPanel/></ItemsPanelTemplate>"
+            "</ListBox.ItemsPanel>"
+            "</ListBox>"));
+        CHECK(document);
+        CHECK(view.SetContent(std::move(document).Value(), {240.0, 160.0}));
+        ListBox* list = TryCast<ListBox>(view.GetContent());
+        CHECK(list != nullptr);
+        list->SetDataContext(Ref<Aero::Base::Object>(items.Value()));
+        CHECK(CountMatchesAfterLayout(*live, *list, kCount));
+    }
+
+    {
+        Result<Ref<BindingItemsViewModel>> model =
+            MakeBindingItemsViewModel(kCount);
+        CHECK(model);
+        Result<Aero::Markup::XamlDocument> document = reader.Parse(StringView(
+            "<Window xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+            " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\""
+            " Width=\"240\" Height=\"160\">"
+            "<Viewbox>"
+            "<ItemsControl x:Name=\"List\" ItemsSource=\"{Binding Items}\">"
+            "<ItemsControl.ItemsPanel>"
+            "<ItemsPanelTemplate><StackPanel/></ItemsPanelTemplate>"
+            "</ItemsControl.ItemsPanel>"
+            "</ItemsControl>"
+            "</Viewbox>"
+            "</Window>"));
+        CHECK(document);
+        CHECK(view.SetContent(std::move(document).Value(), {240.0, 160.0}));
+        Window* window = TryCast<Window>(view.GetContent());
+        CHECK(window != nullptr);
+        ItemsControl* list = window->FindName<ItemsControl>(StringView("List"));
+        CHECK(list != nullptr);
+        CHECK(list->GetCount() == 0U);
+        window->SetDataContext(Ref<Aero::Base::Object>(model.Value()));
+        CHECK(CountMatchesAfterLayout(*live, *list, kCount));
+        CHECK(list->GetDataContext().AsObject().Get() == model.Value().Get());
+    }
+
+    {
+        Result<Ref<BindingItemsViewModel>> model =
+            MakeBindingItemsViewModel(kCount);
+        CHECK(model);
+        Result<Aero::Markup::XamlDocument> document = reader.Parse(StringView(
+            "<ContentControl xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+            " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\""
+            " x:Name=\"Host\" Content=\"{Binding Player.Slots[0]}\"/>"));
+        CHECK(document);
+        CHECK(view.SetContent(std::move(document).Value(), {240.0, 40.0}));
+        ContentControl* host = TryCast<ContentControl>(view.GetContent());
+        CHECK(host != nullptr);
+        host->SetDataContext(Ref<Aero::Base::Object>(model.Value()));
+        PumpBindings(*live);
+        CHECK(host->GetContent().Kind() == Aero::Base::ValueKind::Object);
+        CHECK(!host->GetContent().IsNullObject());
+        CHECK(host->GetContent().AsObject().Get() ==
+            model.Value()->GetPlayer()->GetSlots()->GetItem(0U).Get());
+    }
+
+    {
+        Result<Ref<ObservableObjectCollection>> named =
+            MakeRef<ObservableObjectCollection>();
+        CHECK(named);
+        for (std::uint32_t index = 0U; index < kCount; ++index) {
+            Result<Ref<BindingSlotItem>> item = MakeRef<BindingSlotItem>();
+            CHECK(item);
+            CHECK(named.Value()->Add(item.Value()));
+        }
+        Result<Ref<ListBox>> box = MakeRef<ListBox>();
+        CHECK(box);
+        box.Value()->SetItemsSource(named.Value());
+        CHECK(box.Value()->GetCount() == kCount);
+        CollectionView* defaultView =
+            CollectionViewSource::GetDefaultView(named.Value().Get());
+        CHECK(defaultView != nullptr);
+        CHECK(defaultView->GetCount() == kCount);
+    }
     return true;
 }
 
@@ -2559,6 +2905,7 @@ int main() {
     RUN(TestStrokeJoinCapFillRule);
     RUN(TestNotifyPropertyChangedBindLoop);
     RUN(TestCustomItemsSourceThunk);
+    RUN(TestClrItemsSourceBindingAfterDataContext);
     RUN(TestGalleryXamlSurface);
     RUN(TestGalleryHostXamlSurface);
     RUN(TestTutorialXamlSurface);

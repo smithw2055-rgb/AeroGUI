@@ -303,6 +303,17 @@ public:
     Aero::Meta::TypeId RuntimeType() const noexcept override {
         return StaticTypeId();
     }
+    Ref<Aero::Collections::ObservableObjectCollection>
+    GetSolarSystemObjects() const noexcept {
+        return objects_;
+    }
+    void SetSolarSystemObjects(
+        Ref<Aero::Collections::ObservableObjectCollection> value) noexcept {
+        objects_ = std::move(value);
+    }
+
+private:
+    Ref<Aero::Collections::ObservableObjectCollection> objects_{};
 };
 
 class ColorSelector final : public UserControl {
@@ -494,7 +505,16 @@ public:
     inline static constexpr DependencyProperty<std::int32_t> ManaProperty{"Mana"};
     inline static constexpr DependencyProperty<std::int32_t> DpsProperty{"Dps"};
     inline static constexpr DependencyProperty<std::int32_t> ArmorProperty{"Armor"};
-    inline static constexpr DependencyProperty<Ref<Aero::Base::Object>> SlotsProperty{"Slots"};
+    Ref<Aero::Collections::ObservableObjectCollection> GetSlots() const noexcept {
+        return slots_;
+    }
+    void SetSlots(
+        Ref<Aero::Collections::ObservableObjectCollection> value) noexcept {
+        slots_ = std::move(value);
+    }
+
+private:
+    Ref<Aero::Collections::ObservableObjectCollection> slots_{};
 };
 
 class InventoryViewModel final : public Aero::DependencyObject {
@@ -507,7 +527,13 @@ public:
     InventoryViewModel() noexcept : DependencyObject(StaticTypeId()) {}
     inline static constexpr DependencyProperty<Base::String> PlatformProperty{"Platform"};
     inline static constexpr DependencyProperty<Ref<InventoryPlayer>> PlayerProperty{"Player"};
-    inline static constexpr DependencyProperty<Ref<Aero::Base::Object>> InventoryProperty{"Inventory"};
+    Ref<Aero::Collections::ObservableObjectCollection> GetInventory() const noexcept {
+        return inventory_;
+    }
+    void SetInventory(
+        Ref<Aero::Collections::ObservableObjectCollection> value) noexcept {
+        inventory_ = std::move(value);
+    }
     inline static constexpr DependencyProperty<Ref<Aero::Base::Object>> ItemsProperty{"Items"};
     inline static constexpr DependencyProperty<Ref<Aero::Input::ICommand>> StartDragItemProperty{"StartDragItem"};
     inline static constexpr DependencyProperty<Ref<Aero::Input::ICommand>> EndDragItemProperty{"EndDragItem"};
@@ -516,6 +542,9 @@ public:
     inline static constexpr DependencyProperty<Ref<InventorySlot>> DragSourceProperty{"DragSource"};
     inline static constexpr DependencyProperty<Ref<InventoryItem>> DraggedItemProperty{"DraggedItem"};
     inline static constexpr DependencyProperty<Ref<InventorySlot>> SelectedSlotProperty{"SelectedSlot"};
+
+private:
+    Ref<Aero::Collections::ObservableObjectCollection> inventory_{};
 };
 
 class AnimatedNumber final : public UserControl {
@@ -532,24 +561,50 @@ public:
         AnimationDurationProperty{"AnimationDuration"};
 };
 
-class LocalizationViewModel final : public Aero::DependencyObject {
+class LocalizationViewModel final : public Aero::Base::Object {
     AERO_DECLARE_TYPE_NAMED(
         LocalizationViewModel,
-        Aero::DependencyObject,
+        Aero::Base::Object,
         "clr-namespace:Localization",
         "ViewModel")
 public:
-    LocalizationViewModel() noexcept : DependencyObject(StaticTypeId()) {}
+    LocalizationViewModel() noexcept = default;
+    Aero::Meta::TypeId RuntimeType() const noexcept override {
+        return StaticTypeId();
+    }
+    Ref<Aero::Collections::ObservableObjectCollection> GetLanguages() const noexcept {
+        return languages_;
+    }
+    void SetLanguages(
+        Ref<Aero::Collections::ObservableObjectCollection> value) noexcept {
+        languages_ = std::move(value);
+    }
+
+private:
+    Ref<Aero::Collections::ObservableObjectCollection> languages_{};
 };
 
-class QuestLogViewModel final : public Aero::DependencyObject {
+class QuestLogViewModel final : public Aero::Base::Object {
     AERO_DECLARE_TYPE_NAMED(
         QuestLogViewModel,
-        Aero::DependencyObject,
+        Aero::Base::Object,
         "clr-namespace:QuestLog",
         "ViewModel")
 public:
-    QuestLogViewModel() noexcept : DependencyObject(StaticTypeId()) {}
+    QuestLogViewModel() noexcept = default;
+    Aero::Meta::TypeId RuntimeType() const noexcept override {
+        return StaticTypeId();
+    }
+    Ref<Aero::Collections::ObservableObjectCollection> GetQuests() const noexcept {
+        return quests_;
+    }
+    void SetQuests(
+        Ref<Aero::Collections::ObservableObjectCollection> value) noexcept {
+        quests_ = std::move(value);
+    }
+
+private:
+    Ref<Aero::Collections::ObservableObjectCollection> quests_{};
 };
 
 class TicTacToeViewModel final : public Aero::DependencyObject {
@@ -724,37 +779,6 @@ void ClearOptionSelectorOptions(
     }
 }
 
-void AddScoreboardPlayer(
-    Aero::Base::Object& owner,
-    const Ref<Aero::Base::Object>& value,
-    void*) noexcept {
-    auto& game = static_cast<ScoreboardGame&>(owner);
-    Ref<Aero::Collections::ObservableObjectCollection> players =
-        game.GetPlayers();
-    if (!players) {
-        Result<Ref<Aero::Collections::ObservableObjectCollection>> created =
-            Aero::Base::MakeRef<Aero::Collections::ObservableObjectCollection>();
-        if (!created) {
-            return;
-        }
-        players = std::move(created).Value();
-        game.SetPlayers(players);
-    }
-    if (value) {
-        static_cast<void>(players->Add(value));
-    }
-}
-
-void ClearScoreboardPlayers(
-    Aero::Base::Object& owner,
-    void*) noexcept {
-    auto& game = static_cast<ScoreboardGame&>(owner);
-    if (Ref<Aero::Collections::ObservableObjectCollection> players =
-            game.GetPlayers()) {
-        players->Reset();
-    }
-}
-
 } // namespace
 
 AERO_DECLARE_TYPE_ENUM(ItemCategory)
@@ -834,7 +858,7 @@ Result<void> RegisterSampleHostTypes(
         .Property(InventoryPlayer::ManaProperty, FrameworkPropertyMetadata(std::int32_t{0}))
         .Property(InventoryPlayer::DpsProperty, FrameworkPropertyMetadata(std::int32_t{0}))
         .Property(InventoryPlayer::ArmorProperty, FrameworkPropertyMetadata(std::int32_t{0}))
-        .Property(InventoryPlayer::SlotsProperty, FrameworkPropertyMetadata(Ref<Aero::Base::Object>{}))
+        .Property<&InventoryPlayer::GetSlots, &InventoryPlayer::SetSlots>("Slots")
         .Factory();
     status = player.Result();
     if (!status) return status;
@@ -843,7 +867,8 @@ Result<void> RegisterSampleHostTypes(
     viewModel
         .Property(InventoryViewModel::PlatformProperty, FrameworkPropertyMetadata(String{}))
         .Property(InventoryViewModel::PlayerProperty, FrameworkPropertyMetadata(Ref<InventoryPlayer>{}))
-        .Property(InventoryViewModel::InventoryProperty, FrameworkPropertyMetadata(Ref<Aero::Base::Object>{}))
+        .Property<&InventoryViewModel::GetInventory, &InventoryViewModel::SetInventory>(
+            "Inventory")
         .Property(InventoryViewModel::ItemsProperty, FrameworkPropertyMetadata(Ref<Aero::Base::Object>{}))
         .Property(InventoryViewModel::StartDragItemProperty, FrameworkPropertyMetadata(Ref<Aero::Input::ICommand>{}))
         .Property(InventoryViewModel::EndDragItemProperty, FrameworkPropertyMetadata(Ref<Aero::Input::ICommand>{}))
@@ -939,7 +964,11 @@ Result<void> RegisterSampleHostTypes(
     status = Register<Game>(registration).Factory().Result();
     if (!status) return status;
 
-    status = Register<SolarSystem>(registration).Factory().Result();
+    status = Register<SolarSystem>(registration)
+        .Property<&SolarSystem::GetSolarSystemObjects, &SolarSystem::SetSolarSystemObjects>(
+            "SolarSystemObjects")
+        .Factory()
+        .Result();
     if (!status) return status;
 
     auto colorSelector = Register<ColorSelector>(registration);
@@ -1029,18 +1058,22 @@ Result<void> RegisterSampleHostTypes(
     scoreGame
         .Property(ScoreboardGame::ElapsedTimeProperty, FrameworkPropertyMetadata(std::int32_t{0}))
         .Property(ScoreboardGame::NameProperty, FrameworkPropertyMetadata(String{}))
-        .Content<Aero::Base::Object>(
-            "Players",
-            Aero::Meta::ContentKind::Collection,
-            &AddScoreboardPlayer,
-            &ClearScoreboardPlayers)
+        .Property<&ScoreboardGame::GetPlayers, &ScoreboardGame::SetPlayers>("Players")
         .Factory();
     status = scoreGame.Result();
     if (!status) return status;
 
-    status = Register<LocalizationViewModel>(registration).Factory().Result();
+    status = Register<LocalizationViewModel>(registration)
+        .Property<&LocalizationViewModel::GetLanguages, &LocalizationViewModel::SetLanguages>(
+            "Languages")
+        .Factory()
+        .Result();
     if (!status) return status;
-    status = Register<QuestLogViewModel>(registration).Factory().Result();
+    status = Register<QuestLogViewModel>(registration)
+        .Property<&QuestLogViewModel::GetQuests, &QuestLogViewModel::SetQuests>(
+            "Quests")
+        .Factory()
+        .Result();
     if (!status) return status;
     return Register<TicTacToeViewModel>(registration).Factory().Result();
 }
@@ -1058,7 +1091,19 @@ struct LiveGui {
     Aero::Markup::XamlDocument applicationDocument;
     Aero::Markup::XamlDocument sampleDocument;
     Aero::Application* application = nullptr;
+    double viewTime = 0.0;
 };
+
+bool PumpSample(LiveGui& live) noexcept {
+    if (!live.view) {
+        return false;
+    }
+    live.viewTime += 0.016;
+    // View::Update returns false when the frame version does not
+    // change. Binding/inheritance still flush inside ExecuteViewFrame.
+    static_cast<void>(live.view->Update(live.viewTime));
+    return true;
+}
 
 LiveGui* NewSampleLiveGui() {
     auto* live = new LiveGui();
@@ -1223,7 +1268,9 @@ bool MountAndLayout(
     if (FailIfSampleError(where, mounted.GetStatus(), live.diagnostics)) {
         return false;
     }
-    static_cast<void>(live.view->Update(0.016));
+    if (!PumpSample(live)) {
+        return false;
+    }
     if (DiagnosticsReportSampleFailure(live.diagnostics)) {
         std::fprintf(stderr, "%.*s Update diagnostics contain sample load failure\n",
             static_cast<int>(where.SizeBytes()),
@@ -1236,7 +1283,9 @@ bool MountAndLayout(
         if (!ApplyTemplatesRecursive(live, *mountedRoot, where)) {
             return false;
         }
-        static_cast<void>(live.view->Update(0.032));
+        if (!PumpSample(live)) {
+            return false;
+        }
         if (DiagnosticsReportSampleFailure(live.diagnostics)) {
             std::fprintf(stderr, "%.*s apply diagnostics contain sample load failure\n",
                 static_cast<int>(where.SizeBytes()),
@@ -1244,6 +1293,182 @@ bool MountAndLayout(
             DumpDiagnostics(live.diagnostics);
             return false;
         }
+    }
+    return true;
+}
+
+bool FillObjectCollection(
+    Aero::Collections::ObservableObjectCollection& items,
+    std::uint32_t count) noexcept {
+    for (std::uint32_t index = 0U; index < count; ++index) {
+        Result<Ref<Aero::Controls::TextBlock>> item =
+            Aero::Base::MakeRef<Aero::Controls::TextBlock>();
+        if (!item) {
+            return false;
+        }
+        if (!items.Add(Ref<Aero::Base::Object>(item.Value()))) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool AnyItemsControlHasCount(
+    ::Aero::Media::Visual& node,
+    std::uint32_t expected) noexcept {
+    if (Aero::Controls::ItemsControl* items =
+            TryCast<Aero::Controls::ItemsControl>(&node)) {
+        static_cast<void>(items->ApplyTemplate());
+        if (items->GetCount() == expected) {
+            return true;
+        }
+        std::fprintf(
+            stderr,
+            "ItemsControl type=%u count=%u expected=%u dcNull=%d itemsSource=%d\n",
+            static_cast<unsigned>(items->RuntimeType()),
+            items->GetCount(),
+            expected,
+            TryCast<FrameworkElement>(items) != nullptr &&
+                TryCast<FrameworkElement>(items)->GetDataContext().IsNullObject(),
+            items->GetItemsSource().Get() != nullptr);
+    }
+    const std::uint32_t count = VisualTreeHelper::GetChildrenCount(node);
+    for (std::uint32_t index = 0U; index < count; ++index) {
+        ::Aero::Media::Visual* child =
+            VisualTreeHelper::GetChild(node, index);
+        if (child != nullptr &&
+            AnyItemsControlHasCount(*child, expected)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool AssertNamedItemsCount(
+    FrameworkElement& root,
+    const char* name,
+    std::uint32_t expected) noexcept {
+    Aero::Controls::ItemsControl* list =
+        root.FindName<Aero::Controls::ItemsControl>(CStringView(name));
+    if (list == nullptr) {
+        std::fprintf(stderr, "ItemsControl '%s' was not found\n", name);
+        return false;
+    }
+    static_cast<void>(list->ApplyTemplate());
+    if (list->GetCount() != expected) {
+        std::fprintf(
+            stderr,
+            "ItemsControl '%s' GetCount=%u expected=%u realized=%u\n",
+            name,
+            list->GetCount(),
+            expected,
+            list->GetRealizedItemCount());
+        return false;
+    }
+    return true;
+}
+
+bool ApplySampleItemsDataContext(
+    LiveGui& live,
+    const char* sample) noexcept {
+    FrameworkElement* root =
+        live.view ? live.view->GetContent() : nullptr;
+    if (root == nullptr) {
+        return true;
+    }
+    constexpr std::uint32_t kCount = 4U;
+    if (std::strcmp(sample, "Inventory") == 0) {
+        Result<Ref<InventoryViewModel>> model =
+            Aero::Base::MakeRef<InventoryViewModel>();
+        SAMPLE_CHECK(model);
+        Result<Ref<Aero::Collections::ObservableObjectCollection>> inventory =
+            Aero::Base::MakeRef<Aero::Collections::ObservableObjectCollection>();
+        SAMPLE_CHECK(inventory);
+        SAMPLE_CHECK(FillObjectCollection(*inventory.Value(), kCount));
+        model.Value()->SetInventory(inventory.Value());
+        Result<Ref<InventoryPlayer>> player =
+            Aero::Base::MakeRef<InventoryPlayer>();
+        SAMPLE_CHECK(player);
+        Result<Ref<Aero::Collections::ObservableObjectCollection>> slots =
+            Aero::Base::MakeRef<Aero::Collections::ObservableObjectCollection>();
+        SAMPLE_CHECK(slots);
+        SAMPLE_CHECK(FillObjectCollection(*slots.Value(), 8U));
+        player.Value()->SetSlots(slots.Value());
+        model.Value()->SetValue(
+            InventoryViewModel::PlayerProperty, player.Value());
+        root->SetDataContext(Ref<Aero::Base::Object>(model.Value()));
+        SAMPLE_CHECK(PumpSample(live));
+        SAMPLE_CHECK(PumpSample(live));
+        SAMPLE_CHECK(AssertNamedItemsCount(*root, "InventoryList", kCount));
+        return true;
+    }
+    if (std::strcmp(sample, "DataBinding") == 0) {
+        Result<Ref<SolarSystem>> model = Aero::Base::MakeRef<SolarSystem>();
+        SAMPLE_CHECK(model);
+        Result<Ref<Aero::Collections::ObservableObjectCollection>> objects =
+            Aero::Base::MakeRef<Aero::Collections::ObservableObjectCollection>();
+        SAMPLE_CHECK(objects);
+        SAMPLE_CHECK(FillObjectCollection(*objects.Value(), kCount));
+        model.Value()->SetSolarSystemObjects(objects.Value());
+        root->SetDataContext(Ref<Aero::Base::Object>(model.Value()));
+        SAMPLE_CHECK(PumpSample(live));
+        SAMPLE_CHECK(PumpSample(live));
+        if (!AnyItemsControlHasCount(*root, kCount)) {
+            std::fprintf(
+                stderr,
+                "DataBinding DC kind=%d null=%d type=%u\n",
+                static_cast<int>(root->GetDataContext().Kind()),
+                root->GetDataContext().IsNullObject(),
+                static_cast<unsigned>(
+                    root->GetDataContext().AsObject()
+                    ? root->GetDataContext().AsObject()->RuntimeType()
+                    : 0U));
+            DumpDiagnostics(live.diagnostics);
+            return false;
+        }
+        return true;
+    }
+    if (std::strcmp(sample, "QuestLog") == 0) {
+        Result<Ref<QuestLogViewModel>> model =
+            Aero::Base::MakeRef<QuestLogViewModel>();
+        SAMPLE_CHECK(model);
+        Result<Ref<Aero::Collections::ObservableObjectCollection>> quests =
+            Aero::Base::MakeRef<Aero::Collections::ObservableObjectCollection>();
+        SAMPLE_CHECK(quests);
+        SAMPLE_CHECK(FillObjectCollection(*quests.Value(), kCount));
+        model.Value()->SetQuests(quests.Value());
+        root->SetDataContext(Ref<Aero::Base::Object>(model.Value()));
+        SAMPLE_CHECK(PumpSample(live));
+        SAMPLE_CHECK(PumpSample(live));
+        SAMPLE_CHECK(AssertNamedItemsCount(*root, "Quests", kCount));
+        return true;
+    }
+    if (std::strcmp(sample, "Scoreboard") == 0) {
+        Result<Ref<ScoreboardGame>> model =
+            Aero::Base::MakeRef<ScoreboardGame>();
+        SAMPLE_CHECK(model);
+        SAMPLE_CHECK(model.Value()->GetPlayers());
+        SAMPLE_CHECK(FillObjectCollection(*model.Value()->GetPlayers(), kCount));
+        root->SetDataContext(Ref<Aero::Base::Object>(model.Value()));
+        SAMPLE_CHECK(PumpSample(live));
+        SAMPLE_CHECK(PumpSample(live));
+        SAMPLE_CHECK(AssertNamedItemsCount(*root, "Players", kCount));
+        return true;
+    }
+    if (std::strcmp(sample, "Localization") == 0) {
+        Result<Ref<LocalizationViewModel>> model =
+            Aero::Base::MakeRef<LocalizationViewModel>();
+        SAMPLE_CHECK(model);
+        Result<Ref<Aero::Collections::ObservableObjectCollection>> languages =
+            Aero::Base::MakeRef<Aero::Collections::ObservableObjectCollection>();
+        SAMPLE_CHECK(languages);
+        SAMPLE_CHECK(FillObjectCollection(*languages.Value(), kCount));
+        model.Value()->SetLanguages(languages.Value());
+        root->SetDataContext(Ref<Aero::Base::Object>(model.Value()));
+        SAMPLE_CHECK(PumpSample(live));
+        SAMPLE_CHECK(PumpSample(live));
+        SAMPLE_CHECK(AssertNamedItemsCount(*root, "LanguageSelector", kCount));
+        return true;
     }
     return true;
 }
@@ -1341,7 +1566,9 @@ bool ApplyOneControlTemplate(
     if (FailIfSampleError(where, Aero::Base::Status::Ok(), live.diagnostics)) {
         return false;
     }
-    static_cast<void>(live.view->Update(0.016));
+    if (!PumpSample(live)) {
+        return false;
+    }
     if (DiagnosticsReportSampleFailure(live.diagnostics)) {
         std::fprintf(stderr, "%.*s host Update diagnostics contain sample load failure\n",
             static_cast<int>(where.SizeBytes()),
@@ -1460,7 +1687,9 @@ bool ApplyDictionaryTemplates(
                 live.diagnostics)) {
             return false;
         }
-        static_cast<void>(live.view->Update(0.016));
+        if (!PumpSample(live)) {
+            return false;
+        }
         if (DiagnosticsReportSampleFailure(live.diagnostics)) {
             std::fprintf(stderr, "%s host Update diagnostics contain sample load failure\n",
                 host.key);
@@ -1772,7 +2001,7 @@ bool TestInventoryTemplateApply() {
         mountedTheme.GetStatus(),
         diagnostics));
     static_cast<void>(themedBar.Value()->ApplyTemplate());
-    static_cast<void>(live->view->Update(0.016));
+    SAMPLE_CHECK(PumpSample(*live));
     SAMPLE_CHECK(!DiagnosticsReportSampleFailure(diagnostics));
     return true;
 }
@@ -1866,6 +2095,10 @@ bool TestTutorialSampleXamlLoadApply() {
                     skipNativeHost,
                     std::strcmp(name, "Resources.xaml") == 0 ||
                         std::strcmp(name, "App.xaml") == 0)) {
+                return false;
+            }
+            if (std::strcmp(name, "MainWindow.xaml") == 0 &&
+                !ApplySampleItemsDataContext(*live, sample)) {
                 return false;
             }
         }
