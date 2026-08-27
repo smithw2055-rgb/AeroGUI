@@ -773,6 +773,7 @@ private:
     Base::Result<LoaderResult> CompleteLoad(
         Base::Result<Base::Ref<Base::Object>> loaded) noexcept;
     Base::Result<void> ResolveDeferredStaticResources() noexcept;
+    Base::Result<void> FinalizeDeferredStyles() noexcept;
     Base::Result<Base::Ref<Base::Object>> LoadReaderCore(
         NodeReader& reader) noexcept;
     Base::Result<Base::Ref<Base::Object>> LoadCompiledCore(
@@ -1406,6 +1407,10 @@ struct TemplatePrototypeProperty {
 struct TemplatePrototypeGradientStop {
     double offset = 0.0;
     ::Aero::Base::Color color{};
+    // EnsureAuthoredName / x:Name for a TemplatedParent Binding on this stop.
+    // Apply clones a new GradientStop into the brush and registers this name
+    // so AttachMetadataBindings FindTarget can resolve the bound child.
+    Base::String name;
 };
 
 struct TemplatePrototypeNode {

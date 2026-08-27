@@ -358,8 +358,90 @@ Base::Result<Meta::PropertyValue> XamlStyleSchemaFacet::ConvertValueForProperty(
     return ToPropertyValue(*candidate, property->ValueType());
 }
 
+bool SetterValueIsPending(const Aero::Setter* setter) noexcept {
+    return setter != nullptr &&
+        !setter->GetPropertyName().Empty() &&
+        setter->GetAuthoredValue().IsUnset();
+}
+
+bool StyleHasPendingResourceValues(const Aero::Style& style) noexcept {
+    for (const Base::Ref<Aero::SetterBase>& entry :
+         style.GetAuthoredSetters()) {
+        if (SetterValueIsPending(
+                ::Aero::TryCast<Aero::Setter>(entry.Get()))) {
+            return true;
+        }
+    }
+    for (const Base::Ref<Aero::TriggerBase>& entry :
+         style.GetAuthoredTriggers()) {
+        Aero::TriggerBase* authored = entry.Get();
+        if (authored == nullptr) {
+            continue;
+        }
+        if (authored->RuntimeType() == Aero::Trigger::StaticTypeId()) {
+            auto* trigger = static_cast<Aero::Trigger*>(authored);
+            if (!trigger->GetPropertyName().Empty() &&
+                trigger->GetAuthoredValue().IsUnset()) {
+                return true;
+            }
+            for (const Base::Ref<Aero::Setter>& setterEntry :
+                 trigger->GetAuthoredSetters()) {
+                if (SetterValueIsPending(setterEntry.Get())) {
+                    return true;
+                }
+            }
+            continue;
+        }
+        if (authored->RuntimeType() == Aero::DataTrigger::StaticTypeId()) {
+            auto* trigger = static_cast<Aero::DataTrigger*>(authored);
+            if (trigger->GetBinding() &&
+                trigger->GetAuthoredValue().IsUnset()) {
+                return true;
+            }
+            for (const Base::Ref<Aero::Setter>& setterEntry :
+                 trigger->GetAuthoredSetters()) {
+                if (SetterValueIsPending(setterEntry.Get())) {
+                    return true;
+                }
+            }
+            continue;
+        }
+        if (authored->RuntimeType() ==
+                Aero::MultiDataTrigger::StaticTypeId()) {
+            auto* trigger =
+                static_cast<Aero::MultiDataTrigger*>(authored);
+            for (const Base::Ref<Aero::Condition>& condition :
+                 trigger->GetConditions()) {
+                if (condition &&
+                    condition->GetBinding() &&
+                    condition->GetAuthoredValue().IsUnset()) {
+                    return true;
+                }
+            }
+            for (const Base::Ref<Aero::Setter>& setterEntry :
+                 trigger->GetAuthoredSetters()) {
+                if (SetterValueIsPending(setterEntry.Get())) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
 Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
     Aero::Style& style) noexcept {
+    if (style.GetIsSealed()) {
+        return {};
+    }
+    // Source-backed sibling dictionaries are committed after this EndInit
+    // callback. A Setter.Value="{StaticResource ...}" whose key lives in a
+    // theme/merged dictionary is queued as a deferred write; sealing now
+    // would report "Style Setter requires Value". Leave the Style unsealed
+    // until ObjectBuilder reapplies EndInit after those writes.
+    if (StyleHasPendingResourceValues(style)) {
+        return {};
+    }
     if (schema_ == nullptr || options_.properties == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -851,6 +933,22 @@ struct XamlTemplateSchemaFacetState {
              type != ItemsPanelTemplate::StaticTypeId()) ||
             services.deferredContentOwner != &object ||
             services.deferredContent == nullptr) {
+            if (type == ControlTemplate::StaticTypeId() ||
+                type == DataTemplate::StaticTypeId() ||
+                type == ItemsPanelTemplate::StaticTypeId()) {
+                const bool sealed =
+                    type == ControlTemplate::StaticTypeId()
+                    ? static_cast<const ControlTemplate&>(object)
+                          .GetIsSealed()
+                    : type == DataTemplate::StaticTypeId()
+                          ? static_cast<const DataTemplate&>(object)
+                                .GetIsSealed()
+                          : static_cast<const ItemsPanelTemplate&>(object)
+                                .GetIsSealed();
+                if (sealed) {
+                    return {};
+                }
+            }
             return InvalidTemplateXaml(
                 "Template deferred-content scope is invalid");
         }
@@ -1456,6 +1554,41 @@ std::uint32_t FindPrototypeObject(
     return UINT32_MAX;
 }
 
+bool IsGradientStopObject(
+    Meta::Registry& runtime,
+    const Base::Object& object) noexcept {
+    return runtime.Types().IsDerivedFrom(
+        object.RuntimeType(),
+        ::Aero::Media::GradientStop::StaticTypeId());
+}
+
+Base::Result<void> ApplyPrototypeGradientStops(
+    ::Aero::Media::GradientBrush& gradient,
+    const Base::Vector<TemplatePrototypeGradientStop>& stops,
+    TemplateBuilder* context) noexcept {
+    gradient.ClearGradientStops();
+    for (const TemplatePrototypeGradientStop& stopRecord : stops) {
+        Base::Result<Base::Ref<::Aero::Media::GradientStop>> made =
+            Base::MakeRef<::Aero::Media::GradientStop>();
+        if (!made) return made.GetStatus();
+        Base::Ref<::Aero::Media::GradientStop> stop =
+            std::move(made).Value();
+        stop->SetOffset(stopRecord.offset);
+        stop->SetColor(stopRecord.color);
+        Base::Result<void> added =
+            gradient.AddGradientStop(stop);
+        if (!added) return added.GetStatus();
+        if (context != nullptr && !stopRecord.name.Empty()) {
+            Base::Result<void> named = context->AddObjectPart(
+                stopRecord.name.View(),
+                Base::Ref<Base::Object>(stop),
+                *stop);
+            if (!named) return named.GetStatus();
+        }
+    }
+    return {};
+}
+
 Base::Result<CompiledTemplateBlueprint>
 CompileBlueprint(
     const Base::Ref<Base::Object>& visualTree,
@@ -1495,6 +1628,7 @@ CompileBlueprint(
         if (binding.targetName.Empty() || names == nullptr) continue;
         Base::Object* target = names->Find(binding.targetName.View());
         if (target == nullptr ||
+            IsGradientStopObject(runtime, *target) ||
             runtime.Types().IsDerivedFrom(
                 target->RuntimeType(), ::Aero::Media::Visual::StaticTypeId())) {
             continue;
@@ -1515,7 +1649,9 @@ CompileBlueprint(
          dynamicResources) {
         if (resource.targetName.Empty() || names == nullptr) continue;
         Base::Object* target = names->Find(resource.targetName.View());
-        if (target == nullptr || runtime.Types().IsDerivedFrom(
+        if (target == nullptr ||
+            IsGradientStopObject(runtime, *target) ||
+            runtime.Types().IsDerivedFrom(
                 target->RuntimeType(), ::Aero::Media::Visual::StaticTypeId())) {
             continue;
         }
@@ -1649,9 +1785,16 @@ CompileBlueprint(
                 static_cast<const ::Aero::Media::GradientBrush&>(*object);
             for (const Base::Ref<::Aero::Media::GradientStop>& stop : gradient.GetGradientStops()) {
                 if (!stop) continue;
-                appended = node.gradientStops.PushBack({
-                    stop->GetOffset(),
-                    stop->GetColor()});
+                TemplatePrototypeGradientStop record;
+                record.offset = stop->GetOffset();
+                record.color = stop->GetColor();
+                if (names != nullptr) {
+                    appended = record.name.Assign(
+                        names->NameOf(*stop));
+                    if (!appended) return appended.GetStatus();
+                }
+                appended = node.gradientStops.PushBack(
+                    std::move(record));
                 if (!appended) {
                     return appended.GetStatus();
                 }
@@ -1701,6 +1844,12 @@ CompileBlueprint(
                 return InvalidTemplateCompiler(
                     "ControlTemplate visual content contains a null child");
             }
+            if (IsGradientStopObject(runtime, *edge.child)) {
+                // GradientStops are cloned from the authored brush collection
+                // so TemplatedParent Color bindings target the instance that
+                // actually lives in the applied LinearGradientBrush.
+                continue;
+            }
             const std::uint32_t existing =
                 FindPrototypeObject(pending, edge.child.Get());
             if (existing != UINT32_MAX) {
@@ -1737,6 +1886,57 @@ CompileBlueprint(
                 return appended.GetStatus();
             }
         }
+    }
+
+    // Generated names from EnsureAuthoredName live on the template NameScope.
+    // Unnamed TemplatedParent Binding targets must carry that name onto the
+    // prototype node so apply-time FindTarget can find the part. WPF binds the
+    // unnamed child itself, not the templated parent.
+    for (const Controls::TemplateMetadataBindingPlan& binding :
+         metadataBindings) {
+        if (binding.targetName.Empty() || names == nullptr) {
+            continue;
+        }
+        Base::Object* target = names->Find(binding.targetName.View());
+        if (target == nullptr) {
+            continue;
+        }
+        const std::uint32_t index =
+            FindPrototypeObject(pending, target);
+        if (index == UINT32_MAX ||
+            index >= blueprint.nodes.Size()) {
+            continue;
+        }
+        if (!blueprint.nodes[index].name.Empty()) {
+            continue;
+        }
+        Base::Result<void> named =
+            blueprint.nodes[index].name.Assign(
+                binding.targetName.View());
+        if (!named) return named.GetStatus();
+    }
+    for (const Controls::TemplateDynamicResourcePlan& resource :
+         dynamicResources) {
+        if (resource.targetName.Empty() || names == nullptr) {
+            continue;
+        }
+        Base::Object* target = names->Find(resource.targetName.View());
+        if (target == nullptr) {
+            continue;
+        }
+        const std::uint32_t index =
+            FindPrototypeObject(pending, target);
+        if (index == UINT32_MAX ||
+            index >= blueprint.nodes.Size()) {
+            continue;
+        }
+        if (!blueprint.nodes[index].name.Empty()) {
+            continue;
+        }
+        Base::Result<void> named =
+            blueprint.nodes[index].name.Assign(
+                resource.targetName.View());
+        if (!named) return named.GetStatus();
     }
 
     for (const DeferredBindingEdge& source :
@@ -2941,18 +3141,11 @@ Base::Result<void> BuildCompiledTemplate(
         }
         if (blueprint->runtime->Types().IsDerivedFrom(
                 node.type, ::Aero::Media::GradientBrush::StaticTypeId())) {
-            auto& gradient = static_cast<::Aero::Media::GradientBrush&>(*objects[index]);
-            gradient.ClearGradientStops();
-            for (const TemplatePrototypeGradientStop& stopRecord : node.gradientStops) {
-                Base::Result<Base::Ref<::Aero::Media::GradientStop>> made =
-                    Base::MakeRef<::Aero::Media::GradientStop>();
-                if (made) {
-                    Base::Ref<::Aero::Media::GradientStop> stop = std::move(made).Value();
-                    stop->SetOffset(stopRecord.offset);
-                    stop->SetColor(stopRecord.color);
-                    static_cast<void>(gradient.AddGradientStop(std::move(stop)));
-                }
-            }
+            auto& gradient = static_cast<::Aero::Media::GradientBrush&>(
+                *objects[index]);
+            Base::Result<void> stops = ApplyPrototypeGradientStops(
+                gradient, node.gradientStops, &context);
+            if (!stops) return stops.GetStatus();
         }
     }
     for (std::uint32_t index = 0U;
@@ -3402,18 +3595,11 @@ BuildCompiledDeferredTemplate(
         }
         if (blueprint->runtime->Types().IsDerivedFrom(
                 node.type, ::Aero::Media::GradientBrush::StaticTypeId())) {
-            auto& gradient = static_cast<::Aero::Media::GradientBrush&>(*objects[index]);
-            gradient.ClearGradientStops();
-            for (const TemplatePrototypeGradientStop& stopRecord : node.gradientStops) {
-                Base::Result<Base::Ref<::Aero::Media::GradientStop>> made =
-                    Base::MakeRef<::Aero::Media::GradientStop>();
-                if (made) {
-                    Base::Ref<::Aero::Media::GradientStop> stop = std::move(made).Value();
-                    stop->SetOffset(stopRecord.offset);
-                    stop->SetColor(stopRecord.color);
-                    static_cast<void>(gradient.AddGradientStop(std::move(stop)));
-                }
-            }
+            auto& gradient = static_cast<::Aero::Media::GradientBrush&>(
+                *objects[index]);
+            Base::Result<void> stops = ApplyPrototypeGradientStops(
+                gradient, node.gradientStops, nullptr);
+            if (!stops) return stops.GetStatus();
         }
     }
     for (std::uint32_t index = 0U;

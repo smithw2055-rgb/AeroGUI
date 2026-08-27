@@ -3746,6 +3746,13 @@ Base::Result<void> Schema::SetMember(
 MemberWritePolicy Schema::ResolveMemberWritePolicy(
     const ResolvedMember& member) const noexcept {
     if (domain_ == nullptr || !domain_->IsReady()) return {};
+    // WPF attached VisualStateManager.VisualStateGroups is a collection of
+    // VisualStateGroup children. The property type is VisualStateGroupCollection,
+    // but markup writes one VisualStateGroup at a time.
+    if (member.id ==
+        VisualStateManager::VisualStateGroupsProperty.Handle().value) {
+        return {MemberWriteMode::Collection, false, true};
+    }
     if (domain_->CanWriteProperty(member.id)) {
         Base::Result<Meta::ContentInfo> content =
             domain_->GetContentInfo(member.id);

@@ -9,6 +9,7 @@
 #include "gui/GuiData.hpp"
 #include "gui/ViewState.hpp"
 #include <Aero/BuiltinThemes.generated.hpp>
+#include <Aero/Base/String.hpp>
 
 #include <new>
 #include <utility>
@@ -77,16 +78,50 @@ Base::Result<void> RegisterDefaultXamlProviders(
             ::Aero::AeroExtensionsFontsSourceSize},
         {"AeroTheme.Styles.xaml", ::Aero::AeroExtensionsStylesSource,
             ::Aero::AeroExtensionsStylesSourceSize}};
-    for (const ExtensionSource& source : extensionSources) {
-        Base::String uri;
-        status = uri.Assign(
-            "pack://application:,,,/Aero.GUI.Extensions;component/Theme/");
-        if (!status) return status.GetStatus();
-        status = uri.Append(source.name);
-        if (!status) return status.GetStatus();
-        status = addEmbedded(
-            uri.View(), source.bytes, source.size);
-        if (!status) return status.GetStatus();
+    auto rewriteThemeFileName = [](Base::StringView aeroName,
+                                   Base::StringView themePrefix,
+                                   Base::String& out) noexcept -> Base::Result<void> {
+        constexpr Base::StringView aeroPrefix("AeroTheme");
+        Base::Result<void> assigned = out.Assign(themePrefix);
+        if (!assigned) return assigned.GetStatus();
+        if (aeroName.SizeBytes() >= aeroPrefix.SizeBytes() &&
+            aeroName.Substr(0U, aeroPrefix.SizeBytes()) == aeroPrefix) {
+            return out.Append(aeroName.Substr(
+                aeroPrefix.SizeBytes(),
+                aeroName.SizeBytes() - aeroPrefix.SizeBytes()));
+        }
+        return out.Append(aeroName);
+    };
+    const struct {
+        Base::StringView assembly;
+        Base::StringView themePrefix;
+    } extensionAssemblies[] = {
+        {Base::StringView("Aero.GUI.Extensions"),
+         Base::StringView("AeroTheme")},
+        // Tutorial/ControlGallery App.xaml still references the Noesis pack
+        // assembly and NoesisTheme.* file names. Serve the same Aero theme
+        // bytes under that spelling so Source= pack URIs load.
+        {Base::StringView("Noesis.GUI.Extensions"),
+         Base::StringView("NoesisTheme")}};
+    for (const auto& assembly : extensionAssemblies) {
+        for (const ExtensionSource& source : extensionSources) {
+            Base::String fileName;
+            status = rewriteThemeFileName(
+                source.name, assembly.themePrefix, fileName);
+            if (!status) return status.GetStatus();
+            Base::String uri;
+            status = uri.Assign("pack://application:,,,/");
+            if (!status) return status.GetStatus();
+            status = uri.Append(assembly.assembly);
+            if (!status) return status.GetStatus();
+            status = uri.Append(";component/Theme/");
+            if (!status) return status.GetStatus();
+            status = uri.Append(fileName.View());
+            if (!status) return status.GetStatus();
+            status = addEmbedded(
+                uri.View(), source.bytes, source.size);
+            if (!status) return status.GetStatus();
+        }
     }
     // WPF also accepts a leading-slash component URI without an explicit
     // pack scheme. Keep both root dictionaries available under that spelling.
@@ -100,6 +135,16 @@ Base::Result<void> RegisterDefaultXamlProviders(
         ::Aero::AeroExtensionsDarkSource,
         ::Aero::AeroExtensionsDarkSourceSize);
     if (!status) return status.GetStatus();
+    status = addEmbedded(
+        "/Noesis.GUI.Extensions;component/Theme/NoesisTheme.LightBlue.xaml",
+        ::Aero::AeroExtensionsLightSource,
+        ::Aero::AeroExtensionsLightSourceSize);
+    if (!status) return status.GetStatus();
+    status = addEmbedded(
+        "/Noesis.GUI.Extensions;component/Theme/NoesisTheme.DarkBlue.xaml",
+        ::Aero::AeroExtensionsDarkSource,
+        ::Aero::AeroExtensionsDarkSourceSize);
+    if (!status) return status.GetStatus();
 
     auto registerProvider = [&](Ref<Markup::XamlProvider> provider,
                                 Base::StringView scheme) noexcept -> Base::Result<void> {
@@ -109,6 +154,9 @@ Base::Result<void> RegisterDefaultXamlProviders(
     if (!status) return status.GetStatus();
     status = providers.Set(
         embedded, {}, "Aero.GUI.Extensions");
+    if (!status) return status.GetStatus();
+    status = providers.Set(
+        embedded, {}, "Noesis.GUI.Extensions");
     if (!status) return status.GetStatus();
     status = registerProvider(file, "file");
     if (!status) return status.GetStatus();

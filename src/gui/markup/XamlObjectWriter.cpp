@@ -37,6 +37,9 @@
 #include <Aero/Media/Images.hpp>
 #include <Aero/Interactivity/Behavior.hpp>
 #include <Aero/Data/BindingBase.hpp>
+#include <Aero/Resources.hpp>
+#include <Aero/Style.hpp>
+#include <Aero/VisualStateManager.hpp>
 
 #include <cmath>
 #include <fstream>
@@ -1047,6 +1050,57 @@ Base::Result<ProvidedValue> CreateMultiBindingValue(
 
 } // namespace
 
+Base::Result<void> CaptureControlTemplateChildName(
+    Controls::ControlTemplate& controlTemplate,
+    const Aero::NameScope* nameScope,
+    Base::Object& target,
+    Base::String& storage) noexcept {
+    Base::StringView authoredName;
+    if (nameScope != nullptr) {
+        authoredName = nameScope->NameOf(target);
+    }
+    if (authoredName.Empty()) {
+        authoredName =
+            ::Aero::Controls::TemplatePrivate::AuthoredNames(
+                controlTemplate).NameOf(target);
+    }
+    if (authoredName.Empty()) {
+        Base::Result<Base::String> generated =
+            ::Aero::Controls::TemplatePrivate::EnsureAuthoredName(
+                controlTemplate, target);
+        if (!generated) return generated.GetStatus();
+        storage = std::move(generated).Value();
+        authoredName = storage.View();
+    } else {
+        Base::Result<void> assigned = storage.Assign(authoredName);
+        if (!assigned) return assigned.GetStatus();
+        authoredName = storage.View();
+        if (::Aero::Controls::TemplatePrivate::AuthoredNames(
+                controlTemplate).Find(authoredName) == nullptr) {
+            Base::Result<void> registered =
+                ::Aero::Controls::TemplatePrivate::RegisterAuthoredName(
+                    controlTemplate, authoredName, target);
+            if (!registered) return registered.GetStatus();
+        }
+    }
+    if (nameScope != nullptr &&
+        nameScope->Find(authoredName) == nullptr) {
+        // ExtensionServices exposes the active writer NameScope as const.
+        // Generated TemplatedParent Binding names must still round-trip into
+        // that same table so later ElementName lookups and CompileBlueprint
+        // NameOf stay consistent with AuthoredNames.
+        Base::Result<void> registered =
+            const_cast<Aero::NameScope*>(nameScope)->Register(
+                authoredName, target);
+        if (!registered &&
+            registered.GetStatus().code !=
+                Base::ErrorCode::AlreadyExists) {
+            return registered.GetStatus();
+        }
+    }
+    return {};
+}
+
 BindingExtension::BindingExtension(
     const BindingExtensionOptions& options) noexcept
     : options_(options) {}
@@ -1366,23 +1420,17 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
             static_cast<Controls::ControlTemplate&>(
                 *services.deferredContentOwner);
         Base::String targetName;
-        Base::StringView authoredName =
-            services.nameScope->NameOf(
-                *services.targetObject);
-        if (authoredName.Empty()) {
-            Base::Result<Base::String> generated =
-                ::Aero::Controls::TemplatePrivate::EnsureAuthoredName(controlTemplate,
-                    *services.targetObject);
-            if (!generated) {
-                return generated.GetStatus();
-            }
-            targetName =
-                std::move(generated).Value();
-            authoredName = targetName.View();
+        Base::Result<void> captured = CaptureControlTemplateChildName(
+            controlTemplate,
+            services.nameScope,
+            *services.targetObject,
+            targetName);
+        if (!captured) {
+            return captured.GetStatus();
         }
         Base::Result<void> added =
             ::Aero::Controls::TemplatePrivate::AddTemplatedParentBinding(controlTemplate,
-                authoredName,
+                targetName.View(),
                 path,
                 stringFormat,
                 targetHandle,
@@ -2120,22 +2168,16 @@ Base::Result<ProvidedValue> DynamicResourceExtension::ProvideValue(
             static_cast<Controls::ControlTemplate&>(
                 *services.deferredContentOwner);
         Base::String targetName;
-        Base::StringView authoredName =
-            services.nameScope != nullptr
-            ? services.nameScope->NameOf(*target)
-            : Base::StringView{};
-        if (authoredName.Empty()) {
-            Base::Result<Base::String> generated =
-                ::Aero::Controls::TemplatePrivate::EnsureAuthoredName(
-                    controlTemplate, *target);
-            if (!generated) return generated.GetStatus();
-            targetName = std::move(generated).Value();
-            authoredName = targetName.View();
-        }
+        Base::Result<void> captured = CaptureControlTemplateChildName(
+            controlTemplate,
+            services.nameScope,
+            *target,
+            targetName);
+        if (!captured) return captured.GetStatus();
         Base::Result<void> retained =
             ::Aero::Controls::TemplatePrivate::AddDynamicResource(
                 controlTemplate,
-                authoredName,
+                targetName.View(),
                 key,
                 property);
         return retained
@@ -2599,23 +2641,17 @@ TemplateBindingExtension::ProvideValue(
             MissingPropertyMessage(propertyName, false));
     }
     Base::String targetName;
-    Base::StringView authoredName =
-        services.nameScope->NameOf(
-            *services.targetObject);
-    if (authoredName.Empty()) {
-        Base::Result<Base::String> generated =
-            ::Aero::Controls::TemplatePrivate::EnsureAuthoredName(controlTemplate,
-                *services.targetObject);
-        if (!generated) {
-            return generated.GetStatus();
-        }
-        targetName =
-            std::move(generated).Value();
-        authoredName = targetName.View();
+    Base::Result<void> captured = CaptureControlTemplateChildName(
+        controlTemplate,
+        services.nameScope,
+        *services.targetObject,
+        targetName);
+    if (!captured) {
+        return captured.GetStatus();
     }
     Base::Result<void> added =
         ::Aero::Controls::TemplatePrivate::AddTemplateBinding(controlTemplate,
-            authoredName,
+            targetName.View(),
             source->Handle(),
             destination->Handle());
     return added
@@ -3232,6 +3268,15 @@ Base::Result<LoaderResult> ObjectBuilder::CompleteLoad(
             return status;
         }
     }
+    {
+        Base::Result<void> finalizedStyles = FinalizeDeferredStyles();
+        if (!finalizedStyles) {
+            const Base::Status status = finalizedStyles.GetStatus();
+            result.Clear();
+            AbortTransaction();
+            return status;
+        }
+    }
     result.hasDeferredStaticResources =
         hasDeferredStaticResources_;
     Base::Result<void> prepared =
@@ -3274,6 +3319,29 @@ Base::Result<void> ObjectBuilder::ResolveDeferredStaticResources() noexcept {
     }
     deferredStaticResources_.Clear();
     hasDeferredStaticResources_ = false;
+    return {};
+}
+
+Base::Result<void> ObjectBuilder::FinalizeDeferredStyles() noexcept {
+    for (std::uint32_t index = 0U; index < created_.Size(); ++index) {
+        CreatedObjectRecord& record = created_[index];
+        if (!record.endCalled || !record.object) {
+            continue;
+        }
+        if (record.type == Aero::Style::StaticTypeId()) {
+            auto& style = static_cast<Aero::Style&>(*record.object);
+            if (style.GetIsSealed()) {
+                continue;
+            }
+            Base::Result<void> endResult = schema_->EndInit(
+                record.type,
+                *record.object,
+                BuildExtensionServices(index, {}, {}));
+            if (!endResult) {
+                return endResult.GetStatus();
+            }
+        }
+    }
     return {};
 }
 
@@ -3849,6 +3917,10 @@ MemberWritePolicy ResolveCompiledMemberPolicy(
                 MemberWriteMode::Collection)
         ? MemberWriteMode::Collection
         : MemberWriteMode::SetOnce;
+    if (binding.id ==
+        VisualStateManager::VisualStateGroupsProperty.Handle().value) {
+        policy.mode = MemberWriteMode::Collection;
+    }
     policy.acceptsAnyValue =
         binding.acceptsAnyValue;
     policy.writable = binding.writable;
@@ -6269,6 +6341,18 @@ Base::Result<Aero::ResourceValue> ObjectBuilder::LookupResource(
     if (loadContext_ != nullptr && loadContext_->resources != nullptr) {
         Base::Result<Aero::ResourceValue> value =
             loadContext_->resources->Lookup(resourceKey.Value());
+        if (value) {
+            return value;
+        }
+        if (value.GetStatus().code != Base::ErrorCode::NotFound) {
+            return value.GetStatus();
+        }
+    }
+    if (loadContext_ != nullptr &&
+        loadContext_->fallbackResources != nullptr &&
+        loadContext_->fallbackResources != loadContext_->resources) {
+        Base::Result<Aero::ResourceValue> value =
+            loadContext_->fallbackResources->Lookup(resourceKey.Value());
         if (value) {
             return value;
         }

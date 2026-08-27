@@ -62,6 +62,10 @@ Base::Result<void> PopulateControlsPrimitives(
             Viewbox::StretchDirectionProperty,
             FrameworkPropertyMetadata(StretchDirection::Both)
                 .AffectsMeasure())
+        .Content<Aero::UIElement>(
+            "Content", ContentKind::Single,
+            &SetDecoratorContent, &ClearDecoratorContent,
+            ContentFlags::Visual)
         .Factory();
     status = viewbox.Result();
     if (!status) return status.GetStatus();

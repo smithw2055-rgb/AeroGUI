@@ -1594,6 +1594,14 @@ DependencyObject* TemplateEngine::FindTarget(
     for (const Aero::Controls::TemplatePart& part : instance.parts) {
         if (part.name.View() == name) return part.object;
     }
+    Base::Object* named = instance.names.Find(name);
+    if (named != nullptr &&
+        properties_ != nullptr &&
+        properties_->Types().IsDerivedFrom(
+            named->RuntimeType(),
+            DependencyObject::StaticTypeId())) {
+        return static_cast<DependencyObject*>(named);
+    }
     return nullptr;
 }
 

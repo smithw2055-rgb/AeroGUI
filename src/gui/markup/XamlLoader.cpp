@@ -4,6 +4,7 @@
 #include "gui/styles/StyleState.hpp"
 #include "gui/markup/MarkupState.hpp"
 #include "gui/markup/MarkupWriterState.hpp"
+#include <Aero/VisualStateManager.hpp>
 // Consolidated implementation. Keep sections ordered by dependency.
 
 #include <atomic>
@@ -959,9 +960,12 @@ ResolveCompiledMemberBinding(
         binding.writable =
             runtimeWritable || contentWritable;
         binding.writeMode = static_cast<std::uint8_t>(
-            contentWritable &&
+            (contentWritable &&
                     content.Value().kind ==
-                        Meta::ContentKind::Collection
+                        Meta::ContentKind::Collection) ||
+                    memberId ==
+                        VisualStateManager::VisualStateGroupsProperty
+                            .Handle().value
                 ? MemberWriteMode::Collection
                 : MemberWriteMode::SetOnce);
         binding.acceptsAnyValue =
@@ -4560,6 +4564,17 @@ Base::Status LoaderState::Operation::Failure(
                 ::Aero::Diagnostics::DiagnosticSeverity::Error,
                 message);
         if (diagnostic) {
+            if (status.message != nullptr &&
+                status.message[0] != '\0') {
+                const Base::StringView detail(
+                    status.message,
+                    static_cast<std::uint32_t>(
+                        std::strlen(status.message)));
+                if (detail != message) {
+                    static_cast<void>(
+                        diagnostic.Value().AddNote(detail));
+                }
+            }
             diagnostics_->Report(
                 std::move(diagnostic).Value());
         }
