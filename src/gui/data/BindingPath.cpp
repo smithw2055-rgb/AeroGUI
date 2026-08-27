@@ -680,7 +680,7 @@ Base::Result<void> BindingPathPlan::SetObject(
             items = Collections::CollectionAsItemsSource(&object);
         }
         auto* writable =
-            TryCast<Collections::ObservableObjectCollection>(&object);
+            TryCast<Collections::ObservableCollectionBase>(&object);
         if (items == nullptr && writable == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
@@ -698,7 +698,7 @@ Base::Result<void> BindingPathPlan::SetObject(
                     Base::ErrorCode::InvalidArgument,
                     "Binding collection index assignment requires an object");
             }
-            return writable->Replace(
+            return writable->ReplaceItem(
                 segment.collectionIndex,
                 value.AsObject());
         }

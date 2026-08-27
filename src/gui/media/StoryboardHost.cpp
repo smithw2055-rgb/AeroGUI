@@ -1,5 +1,6 @@
 #include "gui/ViewState.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
+#include "gui/core/state/EventRouter.hpp"
 #include <Aero/CommandBinding.hpp>
 #include <Aero/Media/Animation/EventTrigger.hpp>
 #include <Aero/Media/Animation/StoryboardActions.hpp>
@@ -924,6 +925,20 @@ StoryboardHost::ResolveAnimationProperty(
                     !metadata->Types().IsDerivedFrom(
                         value.Value().AsObject()->RuntimeType(),
                         ::Aero::DependencyObject::StaticTypeId())) {
+                    if (token == Base::StringView("Transform3D") &&
+                        metadata->Types().IsDerivedFrom(
+                            current->RuntimeType(),
+                            Aero::UIElement::StaticTypeId())) {
+                        Base::Result<Base::Ref<Media::CompositeTransform3D>>
+                            created = Base::MakeRef<Media::CompositeTransform3D>();
+                        if (!created) return created.GetStatus();
+                        static_cast<Aero::UIElement*>(current)->SetTransform3D(
+                            Base::Ref<Media::Transform3D>(created.Value()));
+                        current = created.Value().Get();
+                        start = end + 1U;
+                        if (++depth > 16U) break;
+                        continue;
+                    }
                     break;
                 }
                 current = static_cast<::Aero::DependencyObject*>(
@@ -1124,7 +1139,12 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                         *child, triggerOwner, names, &timing,
                         retainedHandles,
                         dataTemplateContext);
-                if (!started) return started.GetStatus();
+                if (!started) {
+                    if (view != nullptr) {
+                        view->ReportUpdateFailure(started.GetStatus());
+                    }
+                    continue;
+                }
                 if (count > UINT32_MAX - started.Value()) {
                     return Base::Status::Failure(
                         Base::ErrorCode::OutOfRange,
@@ -2343,6 +2363,14 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                         if (started.Value()) ++count;
                     }
                 }
+            }
+            if (element->GetIsLoaded() && view != nullptr &&
+                view->events != nullptr) {
+                Aero::RoutedEventArgs loadedArgs;
+                static_cast<void>(view->events->RaiseEvent(
+                    *element,
+                    FrameworkElement::LoadedEvent.Handle(),
+                    &loadedArgs));
             }
             if (metadata->Types().IsDerivedFrom(
                     element->RuntimeType(),

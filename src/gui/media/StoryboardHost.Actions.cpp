@@ -425,6 +425,9 @@ StoryboardHost::ExecuteAnimationAction(
             }
             return started.GetStatus();
         }
+        if (completion.handles.Empty()) {
+            return {};
+        }
         StoryboardSession namedSession(allocator);
         if (!begin.GetName().Empty()) {
             namedSession.owner = &owner;

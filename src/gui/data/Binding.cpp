@@ -1523,8 +1523,21 @@ Base::Result<std::uint32_t> BindingEngine::Flush() noexcept {
     lastError_ = {};
     const std::uint32_t snapshotCount = bindings_.Size();
     std::uint32_t updated = 0U;
+    // Equip slots author DataContext="{Binding Player.Slots[i]}" plus
+    // Content="{Binding}". Apply DataContext writes first so empty-path
+    // Content bindings in the same Flush see the slot object.
+    for (std::uint32_t pass = 0U; pass < 2U; ++pass) {
     for (std::uint32_t index = 0U; index < snapshotCount; ++index) {
         BindingRecord& record = bindings_[index];
+        const bool writesDataContext =
+            record.dataContextProperty.IsValid() &&
+            record.descriptor.targetProperty == record.dataContextProperty;
+        if (pass == 0U && !writesDataContext) {
+            continue;
+        }
+        if (pass == 1U && writesDataContext) {
+            continue;
+        }
         if (record.descriptor.mode == BindingMode::OneTime && record.applied) {
             continue;
         }
@@ -1664,6 +1677,7 @@ Base::Result<std::uint32_t> BindingEngine::Flush() noexcept {
         record.sourceDirty = false;
         record.targetDirty = false;
         record.forceSourceUpdate = false;
+    }
     }
     flushing_ = false;
     return updated;

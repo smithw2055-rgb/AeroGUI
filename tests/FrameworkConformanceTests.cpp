@@ -102,7 +102,10 @@
 #include <Aero/Media/MatrixTransform.hpp>
 #include <Aero/Media/ShaderEffect.hpp>
 #include <Aero/Media/SolidColorBrush.hpp>
+#include <Aero/Media/ScaleTransform.hpp>
+#include <Aero/Media/SkewTransform.hpp>
 #include <Aero/Media/TransformGroup.hpp>
+#include <Aero/Media/TranslateTransform.hpp>
 #include <Aero/Resources.hpp>
 #include <Aero/Shapes/Rectangle.hpp>
 #include <Aero/Interactivity/Interaction.hpp>
@@ -1566,6 +1569,39 @@ bool TestTransform3DCollapseAndHits() {
     Aero::Base::ProjectiveTransform2D toRoot{};
     CHECK(left->TryTransformToVisual(*root, toRoot));
     CHECK(std::isfinite(toRoot.m11) && std::isfinite(toRoot.m33));
+
+    {
+        CompositeTransform3D toward;
+        toward.SetTranslateZ(10.0);
+        CompositeTransform3D plane;
+        const Aero::Base::Point origin{0.0, 20.0};
+        const Aero::Base::Point extent{40.0, 20.0};
+        const Aero::Base::Point center{20.0, 20.0};
+        const Aero::Base::Point nearLeft = Aero::Base::TransformPointClamped(
+            toward.GetTransform3D(), origin, 1000.0, center);
+        const Aero::Base::Point nearRight = Aero::Base::TransformPointClamped(
+            toward.GetTransform3D(), extent, 1000.0, center);
+        const Aero::Base::Point planeLeft = Aero::Base::TransformPointClamped(
+            plane.GetTransform3D(), origin, 1000.0, center);
+        const Aero::Base::Point planeRight = Aero::Base::TransformPointClamped(
+            plane.GetTransform3D(), extent, 1000.0, center);
+        CHECK(std::abs(nearRight.x - nearLeft.x) >
+            std::abs(planeRight.x - planeLeft.x));
+    }
+    {
+        CompositeTransform3D plus;
+        plus.SetRotationY(8.0);
+        CompositeTransform3D minus;
+        minus.SetRotationY(-10.0);
+        const Aero::Base::Point3 plusEdge =
+            Aero::Base::TransformPoint(
+                plus.GetTransform3D(), Aero::Base::Point{80.0, 20.0});
+        const Aero::Base::Point3 minusEdge =
+            Aero::Base::TransformPoint(
+                minus.GetTransform3D(), Aero::Base::Point{80.0, 20.0});
+        CHECK(plusEdge.z > 0.0);
+        CHECK(minusEdge.z < 0.0);
+    }
     return true;
 }
 
@@ -2396,6 +2432,42 @@ bool TestClrItemsSourceBindingAfterDataContext() {
     }
 
     {
+        Result<Ref<BindingItemsViewModel>> model =
+            MakeBindingItemsViewModel(8U);
+        CHECK(model);
+        Result<Aero::Markup::XamlDocument> document = reader.Parse(StringView(
+            "<StackPanel xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+            " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
+            "<ContentControl x:Name=\"Slot0\" Content=\"{Binding}\" DataContext=\"{Binding Player.Slots[0]}\"/>"
+            "<ContentControl x:Name=\"Slot1\" Content=\"{Binding}\" DataContext=\"{Binding Player.Slots[1], Mode=TwoWay}\"/>"
+            "<ContentControl x:Name=\"Slot2\" Content=\"{Binding}\" DataContext=\"{Binding Player.Slots[2], Mode=TwoWay}\"/>"
+            "<ContentControl x:Name=\"Slot3\" Content=\"{Binding}\" DataContext=\"{Binding Player.Slots[3], Mode=TwoWay}\"/>"
+            "<ContentControl x:Name=\"Slot4\" Content=\"{Binding}\" DataContext=\"{Binding Player.Slots[4], Mode=TwoWay}\"/>"
+            "<ContentControl x:Name=\"Slot5\" Content=\"{Binding}\" DataContext=\"{Binding Player.Slots[5], Mode=TwoWay}\"/>"
+            "<ContentControl x:Name=\"Slot6\" Content=\"{Binding}\" DataContext=\"{Binding Player.Slots[6], Mode=TwoWay}\"/>"
+            "<ContentControl x:Name=\"Slot7\" Content=\"{Binding}\" DataContext=\"{Binding Player.Slots[7], Mode=TwoWay}\"/>"
+            "</StackPanel>"));
+        CHECK(document);
+        CHECK(view.SetContent(std::move(document).Value(), {240.0, 160.0}));
+        auto* panel = TryCast<StackPanel>(view.GetContent());
+        CHECK(panel != nullptr);
+        panel->SetDataContext(Ref<Aero::Base::Object>(model.Value()));
+        PumpBindings(*live);
+        CHECK(panel->GetChildren().GetCount() == 8U);
+        for (std::uint32_t index = 0U; index < 8U; ++index) {
+            ContentControl* slot = TryCast<ContentControl>(
+                panel->GetChildren().GetItem(index));
+            CHECK(slot != nullptr);
+            Aero::Base::Object* expected =
+                model.Value()->GetPlayer()->GetSlots()->GetItem(index).Get();
+            CHECK(slot->GetDataContext().Kind() == Aero::Base::ValueKind::Object);
+            CHECK(slot->GetDataContext().AsObject().Get() == expected);
+            CHECK(slot->GetContent().Kind() == Aero::Base::ValueKind::Object);
+            CHECK(slot->GetContent().AsObject().Get() == expected);
+        }
+    }
+
+    {
         Result<Ref<BindingDoItemsViewModel>> model =
             MakeRef<BindingDoItemsViewModel>();
         CHECK(model);
@@ -3211,6 +3283,76 @@ bool TestTutorialRuntimePatterns() {
     return true;
 }
 
+bool TestLoadedIntroStoryboard() {
+    ViewOptions options;
+    options.automaticAnimationClock = false;
+    LiveGui* live = NewLiveGui(options);
+    CHECK(live != nullptr);
+    View& view = *live->view;
+    view.SetSize({200.0, 80.0});
+
+    Aero::Markup::XamlReader reader(live->gui);
+    Result<Aero::Markup::XamlDocument> document = reader.Parse(StringView(
+        "<Grid xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+        " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\""
+        " Width=\"200\" Height=\"80\">"
+        "<Grid.Resources>"
+        "<Storyboard x:Key=\"Anim.Intro\">"
+        "<DoubleAnimationUsingKeyFrames Storyboard.TargetProperty=\"(UIElement.Opacity)\""
+        " Storyboard.TargetName=\"Child\">"
+        "<EasingDoubleKeyFrame KeyTime=\"0\" Value=\"0\"/>"
+        "<EasingDoubleKeyFrame KeyTime=\"0:0:0.2\" Value=\"1\"/>"
+        "</DoubleAnimationUsingKeyFrames>"
+        "<DoubleAnimationUsingKeyFrames"
+        " Storyboard.TargetProperty=\"(UIElement.RenderTransform).(TransformGroup.Children)[3].(TranslateTransform.X)\""
+        " Storyboard.TargetName=\"Child\">"
+        "<EasingDoubleKeyFrame KeyTime=\"0\" Value=\"40\"/>"
+        "<EasingDoubleKeyFrame KeyTime=\"0:0:0.2\" Value=\"0\"/>"
+        "</DoubleAnimationUsingKeyFrames>"
+        "<DoubleAnimationUsingKeyFrames Storyboard.TargetProperty=\"(UIElement.Opacity)\""
+        " Storyboard.TargetName=\"Missing\">"
+        "<EasingDoubleKeyFrame KeyTime=\"0\" Value=\"0\"/>"
+        "<EasingDoubleKeyFrame KeyTime=\"0:0:0.2\" Value=\"1\"/>"
+        "</DoubleAnimationUsingKeyFrames>"
+        "</Storyboard>"
+        "</Grid.Resources>"
+        "<Grid.Triggers>"
+        "<EventTrigger RoutedEvent=\"FrameworkElement.Loaded\">"
+        "<BeginStoryboard Storyboard=\"{StaticResource Anim.Intro}\"/>"
+        "</EventTrigger>"
+        "</Grid.Triggers>"
+        "<Border x:Name=\"Child\" Width=\"40\" Height=\"40\" Opacity=\"0\">"
+        "<Border.RenderTransform>"
+        "<TransformGroup>"
+        "<ScaleTransform/>"
+        "<SkewTransform/>"
+        "<RotateTransform/>"
+        "<TranslateTransform X=\"40\"/>"
+        "</TransformGroup>"
+        "</Border.RenderTransform>"
+        "</Border>"
+        "</Grid>"));
+    CHECK(document);
+    CHECK(view.SetContent(std::move(document).Value(), {200.0, 80.0}));
+    Grid* root = TryCast<Grid>(view.GetContent());
+    CHECK(root != nullptr);
+    Aero::Controls::Border* child =
+        root->FindName<Aero::Controls::Border>(StringView("Child"));
+    CHECK(child != nullptr);
+    Pump(view, 0.0);
+    Pump(view, 0.25);
+    CHECK(Near(child->GetOpacity(), 1.0, 0.05));
+    auto* group = TryCast<Aero::Media::TransformGroup>(
+        child->GetRenderTransform().Get());
+    CHECK(group != nullptr);
+    CHECK(group->GetChildren().Size() > 3U);
+    auto* translate = TryCast<Aero::Media::TranslateTransform>(
+        group->GetChildren()[3].Get());
+    CHECK(translate != nullptr);
+    CHECK(Near(translate->GetX(), 0.0, 0.75));
+    return true;
+}
+
 } // namespace
 
 bool TestStyleSetterMergedStaticResource();
@@ -3230,6 +3372,7 @@ int main() {
     RUN(TestStreamGeometryFlattenCore);
     RUN(TestStreamGeometryContextFlatten);
     RUN(TestTimelineDurationAndKeyTime);
+    RUN(TestLoadedIntroStoryboard);
     RUN(TestCollectionViewAndVirtualization);
     RUN(TestTemplateResolveOrder);
     RUN(TestStrokeJoinCapFillRule);

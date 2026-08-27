@@ -176,6 +176,7 @@ Base::Result<void> PopulateUiElements(
 
     auto frameworkElement = Meta::Register<FrameworkElement>(context);
     frameworkElement
+        .Event(FrameworkElement::LoadedEvent, RoutingStrategy::Direct)
         .Property<
             Base::Ref<ResourceDictionary>,
             &FrameworkElement::SetResources>(

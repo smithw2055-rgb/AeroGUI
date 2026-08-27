@@ -151,6 +151,11 @@ public:
     inline static constexpr DependencyProperty<Ref<Media::Transform>> LayoutTransformProperty{"LayoutTransform"};
     inline static constexpr DependencyProperty<Ref<Media::Brush>> ForegroundProperty{"Foreground"};
 
+    inline static constexpr RoutedEvent<RoutedEventArgs> LoadedEvent{"Loaded"};
+    Event<RoutedEventArgs> Loaded() noexcept {
+        return GetEvent(LoadedEvent);
+    }
+
     void SetUseLayoutRounding(
         bool enabled, double dpiScale = 1.0) noexcept;
     void SetSnapsToDevicePixels(bool enabled) noexcept { SetValue(SnapsToDevicePixelsProperty, enabled); }

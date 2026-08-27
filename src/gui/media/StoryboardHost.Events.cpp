@@ -227,24 +227,12 @@ Base::Result<bool> StoryboardHost::StartEventTrigger(
                 dot + 1U,
                 eventName.SizeBytes() - dot - 1U);
         }
-        if (eventName == Base::StringView("Loaded")) {
-            for (const Base::Ref<Aero::Interactivity::TriggerAction>& action :
-                 trigger.GetActions()) {
-                if (!action) continue;
-                Base::Result<void> executed =
-                    ExecuteAnimationAction(
-                        *action, actionOwner, nullptr, names);
-                if (!executed) return executed.GetStatus();
-            }
-            return true;
-        }
-        // WPF's GotFocus is the logical-focus counterpart of Aero's
-        // keyboard-focus event. Preserve the authored behavior trigger while
-        // routing it through the focus event exposed by the runtime.
         if (eventName == Base::StringView("GotFocus")) {
             eventName = Base::StringView("GotKeyboardFocus");
         }
 
+        const bool loadedEvent =
+            eventName == Base::StringView("Loaded");
         const bool uiSource = metadata->Types().IsDerivedFrom(
             eventSource->RuntimeType(), Aero::UIElement::StaticTypeId());
         const bool contentSource = metadata->Types().IsDerivedFrom(
@@ -275,6 +263,17 @@ Base::Result<bool> StoryboardHost::StartEventTrigger(
         } else {
             event = metadata->Types().FindEvent(
                 eventSource->RuntimeType(), eventName, true);
+        }
+        if (event == nullptr && loadedEvent) {
+            for (const Base::Ref<Aero::Interactivity::TriggerAction>& action :
+                 trigger.GetActions()) {
+                if (!action) continue;
+                Base::Result<void> executed =
+                    ExecuteAnimationAction(
+                        *action, actionOwner, nullptr, names);
+                if (!executed) return executed.GetStatus();
+            }
+            return true;
         }
         if (event == nullptr) {
             return Base::Status::Failure(

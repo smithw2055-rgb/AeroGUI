@@ -852,12 +852,7 @@ Base::Result<std::uint32_t> ExecuteViewFrame(ViewState& state, View& view) noexc
             "View must be initialized before running frames");
     }
     const bool skipAnimationPhase =
-        (state.interactivity != nullptr &&
-         !state.interactivity->animationEventStatus.IsOk()) ||
-        (state.storyboards != nullptr &&
-         !state.storyboards->eventTriggerStatus.IsOk()) ||
-        (state.styles != nullptr &&
-         !state.styles->LastActionStatus().IsOk());
+        state.animations == nullptr;
 
     bool skipUnsyncedVisualPhases = false;
     Base::Result<void> resources = SynchronizeFrameResources(state);
@@ -887,8 +882,7 @@ Base::Result<std::uint32_t> ExecuteViewFrame(ViewState& state, View& view) noexc
         }
         if (skipUnsyncedVisualPhases &&
             (phase == Phase::Layout ||
-             phase == Phase::RenderCommit ||
-             phase == Phase::Animation)) {
+             phase == Phase::RenderCommit)) {
             continue;
         }
         if (phase == Phase::Layout && state.HasAttachedRoot() &&
@@ -944,7 +938,9 @@ Base::Result<std::uint32_t> ExecuteViewFrame(ViewState& state, View& view) noexc
         if (phase == Phase::Animation && state.animations != nullptr) {
             const Base::Status animationStatus =
                 state.animations->LastTickStatus();
-            if (!animationStatus.IsOk()) return animationStatus;
+            if (!animationStatus.IsOk()) {
+                state.ReportUpdateFailure(animationStatus);
+            }
             if (state.animations->Diagnostics().appliedValueCount != 0U) {
                 Aero::Media::Visual* rootVisual = state.RootVisual();
                 if (rootVisual != nullptr && state.renderer != nullptr) {

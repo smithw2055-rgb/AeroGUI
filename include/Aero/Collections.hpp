@@ -8,6 +8,7 @@
 #include <Aero/Base/Vector.hpp>
 #include <Aero/DependencyProperty.hpp>
 #include <Aero/Events/ControlEventArgs.hpp>
+#include <Aero/TryCast.hpp>
 #include <Aero/Value.hpp>
 
 #include <cstdint>
@@ -44,6 +45,17 @@ public:
     ObservableCollectionBase() noexcept = default;
     Meta::TypeId RuntimeType() const noexcept override {
         return StaticTypeId();
+    }
+    // TwoWay collection-index assignment (Player.Slots[i]) writes through
+    // the typed collection, not only ObservableObjectCollection.
+    virtual Result<void> ReplaceItem(
+        std::uint32_t index,
+        Ref<Base::Object> item) noexcept {
+        (void)index;
+        (void)item;
+        return Base::Status::Failure(
+            Base::ErrorCode::ReadOnly,
+            "Binding collection index assignment requires ObservableCollection");
     }
 };
 
@@ -116,6 +128,22 @@ public:
             1U});
         return {};
     }
+    Result<void> ReplaceItem(
+        std::uint32_t index,
+        Ref<Base::Object> item) noexcept override {
+        if (!item) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "ObservableCollection replace is invalid");
+        }
+        T* typed = TryCast<T>(item.Get());
+        if (typed == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "ObservableCollection replace item type is incompatible");
+        }
+        return Replace(index, Ref<T>::FromBorrowed(*typed));
+    }
 
     Result<Ref<T>> RemoveAt(
         std::uint32_t index) noexcept {
@@ -184,9 +212,7 @@ inline IItemsSource* CollectionAsItemsSource(
     if (object == nullptr) {
         return nullptr;
     }
-    const Meta::TypeId type = object->RuntimeType();
-    if (type == ObservableCollectionBase::StaticTypeId() ||
-        type == ObservableObjectCollection::StaticTypeId()) {
+    if (TryCast<ObservableCollectionBase>(object) != nullptr) {
         return static_cast<IItemsSource*>(
             static_cast<ObservableCollectionBase*>(object));
     }

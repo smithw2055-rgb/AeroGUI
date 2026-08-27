@@ -517,13 +517,17 @@ inline Transform3 MakeRotationX(double radians) noexcept {
     return output;
 }
 
+// WPF/Noesis CompositeTransform3D 2.5D: X right, Y down, +Z toward the
+// viewer (left-handed). Positive RotationY brings +X toward the camera so
+// Inventory's authored book-fold (StatsGroup RotationY=-10 / InventoryPanel
+// RotationY=+8) opens outer edges toward the viewer.
 inline Transform3 MakeRotationY(double radians) noexcept {
     const double cosine = std::cos(radians);
     const double sine = std::sin(radians);
     Transform3 output;
     output.m11 = cosine;
-    output.m13 = -sine;
-    output.m31 = sine;
+    output.m13 = sine;
+    output.m31 = -sine;
     output.m33 = cosine;
     return output;
 }

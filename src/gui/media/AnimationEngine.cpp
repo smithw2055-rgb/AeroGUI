@@ -1893,13 +1893,15 @@ Base::Result<std::uint32_t> AnimationEngine::Tick(
     ++diagnostics_.tickSequence;
     diagnostics_.appliedValueCount = 0U;
     std::uint32_t appliedCount = 0U;
+    Base::Status firstTrackError{};
     for (std::uint32_t index = 0U; index < trackCount_; ++index) {
         Base::Result<bool> applied =
             ApplyTrack(tracks_[index], currentTimeMicroseconds_);
         if (!applied) {
-            ticking_ = false;
-            lastTickStatus_ = applied.GetStatus();
-            return applied.GetStatus();
+            if (firstTrackError.IsOk()) {
+                firstTrackError = applied.GetStatus();
+            }
+            continue;
         }
         if (applied.Value()) ++appliedCount;
     }
@@ -1913,7 +1915,7 @@ Base::Result<std::uint32_t> AnimationEngine::Tick(
     }
     CompactStopped();
     ticking_ = false;
-    lastTickStatus_ = Base::Status::Ok();
+    lastTickStatus_ = firstTrackError;
     return appliedCount;
 }
 
