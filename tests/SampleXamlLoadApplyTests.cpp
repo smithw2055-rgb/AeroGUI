@@ -1,8 +1,10 @@
 #include <Aero/Base/Geometry.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
+#include <Aero/Base/Span.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
+#include <Aero/Collections.hpp>
 #include <Aero/Controls.hpp>
 #include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/Controls/Image.hpp>
@@ -10,8 +12,10 @@
 #include <Aero/Controls/ProgressBar.hpp>
 #include <Aero/Controls/ScrollViewer.hpp>
 #include <Aero/Controls/Viewbox.hpp>
+#include <Aero/Data/IMultiValueConverter.hpp>
 #include <Aero/Data/IValueConverter.hpp>
 #include <Aero/Diagnostics.hpp>
+#include <Aero/Events/EventArgs.hpp>
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Gui.hpp>
 #include <Aero/Input.hpp>
@@ -57,6 +61,7 @@ using Aero::Controls::Label;
 using Aero::Controls::ProgressBar;
 using Aero::Controls::ScrollViewer;
 using Aero::Controls::UserControl;
+using Aero::Data::IMultiValueConverter;
 using Aero::Data::IValueConverter;
 using Aero::FrameworkElement;
 using Aero::Gui;
@@ -277,6 +282,16 @@ SAMPLE_ANIM(CircleAnimation);
 SAMPLE_ANIM(ElasticAnimation);
 SAMPLE_ANIM(ExponentialAnimation);
 
+class Game final : public FrameworkElement {
+    AERO_DECLARE_TYPE_NAMED(
+        Game,
+        FrameworkElement,
+        "clr-namespace:CustomRender",
+        "Game")
+public:
+    Game() noexcept : FrameworkElement(StaticTypeId()) {}
+};
+
 class SolarSystem final : public Aero::Base::Object {
     AERO_DECLARE_TYPE_NAMED(
         SolarSystem,
@@ -312,6 +327,10 @@ public:
     inline static constexpr AttachedProperty<double> SeedProperty{"Seed"};
     inline static constexpr DependencyProperty<double> FrequencyProperty{"Frequency"};
     inline static constexpr DependencyProperty<double> OctavesProperty{"Octaves"};
+    inline static constexpr DependencyProperty<double> ScaleXProperty{"ScaleX"};
+    inline static constexpr DependencyProperty<double> ScaleYProperty{"ScaleY"};
+    inline static constexpr DependencyProperty<double> TimeProperty{"Time"};
+    inline static constexpr DependencyProperty<Aero::Base::Color> ColorProperty{"Color"};
 };
 
 class MenuUserControl : public UserControl {
@@ -331,7 +350,25 @@ public:                                                                       \
 SAMPLE_UC(MainMenu, "Menu3D");
 SAMPLE_UC(StartMenu, "Menu3D");
 SAMPLE_UC(SettingsMenu, "Menu3D");
-SAMPLE_UC(MenuDescription, "Menu3D");
+
+class MenuDescription final : public UserControl {
+    AERO_DECLARE_TYPE_NAMED(
+        MenuDescription,
+        UserControl,
+        "clr-namespace:Menu3D",
+        "MenuDescription")
+public:
+    MenuDescription() noexcept : UserControl(StaticTypeId()) {}
+    inline static constexpr DependencyProperty<Base::String> DescriptionProperty{"Description"};
+    inline static constexpr DependencyProperty<Base::String> AcceptTextProperty{"AcceptText"};
+    inline static constexpr DependencyProperty<Base::String> CancelTextProperty{"CancelText"};
+};
+
+enum class Menu3DState : std::uint8_t {
+    Main = 0U,
+    Start,
+    Settings
+};
 
 class OptionSelector final : public UserControl {
     AERO_DECLARE_TYPE_NAMED(
@@ -340,10 +377,21 @@ class OptionSelector final : public UserControl {
         "clr-namespace:Menu3D",
         "OptionSelector")
 public:
-    OptionSelector() noexcept : UserControl(StaticTypeId()) {}
+    OptionSelector() noexcept : UserControl(StaticTypeId()) {
+        options_ = Aero::Base::MakeRef<Aero::Collections::ObservableObjectCollection>().Value();
+    }
+    Ref<Aero::Collections::ObservableObjectCollection> GetOptions() const noexcept {
+        return options_;
+    }
+    void SetOptions(
+        Ref<Aero::Collections::ObservableObjectCollection> value) noexcept {
+        options_ = std::move(value);
+    }
     inline static constexpr DependencyProperty<std::int32_t> SelectedIndexProperty{"SelectedIndex"};
     inline static constexpr DependencyProperty<Ref<Aero::Base::Object>>
         SelectedOptionProperty{"SelectedOption"};
+private:
+    Ref<Aero::Collections::ObservableObjectCollection> options_{};
 };
 
 class ScoreboardPlayer final : public Aero::DependencyObject {
@@ -371,9 +419,20 @@ class ScoreboardGame final : public Aero::DependencyObject {
         "clr-namespace:Scoreboard",
         "Game")
 public:
-    ScoreboardGame() noexcept : DependencyObject(StaticTypeId()) {}
+    ScoreboardGame() noexcept : DependencyObject(StaticTypeId()) {
+        players_ = Aero::Base::MakeRef<Aero::Collections::ObservableObjectCollection>().Value();
+    }
     inline static constexpr DependencyProperty<std::int32_t> ElapsedTimeProperty{"ElapsedTime"};
     inline static constexpr DependencyProperty<Base::String> NameProperty{"Name"};
+    Ref<Aero::Collections::ObservableObjectCollection> GetPlayers() const noexcept {
+        return players_;
+    }
+    void SetPlayers(
+        Ref<Aero::Collections::ObservableObjectCollection> value) noexcept {
+        players_ = std::move(value);
+    }
+private:
+    Ref<Aero::Collections::ObservableObjectCollection> players_{};
 };
 
 enum class ItemCategory : std::uint8_t {
@@ -503,6 +562,88 @@ public:
     TicTacToeViewModel() noexcept : DependencyObject(StaticTypeId()) {}
 };
 
+enum class TicTacToeState : std::uint8_t {
+    Player1 = 0U,
+    Player2
+};
+
+class ColorConverter final : public IMultiValueConverter {
+    AERO_DECLARE_TYPE_NAMED(
+        ColorConverter,
+        IMultiValueConverter,
+        "clr-namespace:UserControls",
+        "ColorConverter")
+public:
+    ColorConverter() noexcept = default;
+    Aero::Meta::TypeId RuntimeType() const noexcept override {
+        return StaticTypeId();
+    }
+    Result<Aero::Value> Convert(
+        Aero::Base::Span<const Aero::Value> values,
+        Aero::Meta::TypeId,
+        const Aero::Value&) noexcept override {
+        if (values.Size() < 3U) {
+            return Aero::Value{};
+        }
+        auto channel = [](const Aero::Value& value) noexcept -> float {
+            if (value.Kind() == Aero::Base::ValueKind::SignedInteger) {
+                return static_cast<float>(value.AsSignedInteger()) / 255.0F;
+            }
+            if (value.Kind() == Aero::Base::ValueKind::Double) {
+                return static_cast<float>(value.AsDouble()) / 255.0F;
+            }
+            if (value.Kind() == Aero::Base::ValueKind::UnsignedInteger) {
+                return static_cast<float>(value.AsUnsignedInteger()) / 255.0F;
+            }
+            return 0.0F;
+        };
+        return Aero::Meta::ValueCodec<Aero::Base::Color>::Encode({
+            channel(values[0]),
+            channel(values[1]),
+            channel(values[2]),
+            1.0F});
+    }
+};
+
+class NumericUpDown final : public UserControl {
+    AERO_DECLARE_TYPE_NAMED(
+        NumericUpDown,
+        UserControl,
+        "clr-namespace:UserControls",
+        "NumericUpDown")
+public:
+    NumericUpDown() noexcept : UserControl(StaticTypeId()) {}
+    std::int32_t GetNumericValue() const noexcept {
+        return GetValueOr(ValueProperty, 0);
+    }
+    std::int32_t GetMinValue() const noexcept {
+        return GetValueOr(MinValueProperty, 0);
+    }
+    std::int32_t GetMaxValue() const noexcept {
+        return GetValueOr(MaxValueProperty, 255);
+    }
+    std::int32_t GetStepValue() const noexcept {
+        return GetValueOr(StepValueProperty, 1);
+    }
+    void SetNumericValue(std::int32_t value) noexcept {
+        const std::int32_t min = GetMinValue();
+        const std::int32_t max = GetMaxValue();
+        if (value < min) value = min;
+        if (value > max) value = max;
+        SetValue(ValueProperty, value);
+    }
+    void UpButton_Click(Aero::Base::Object*, Aero::RoutedEventArgs&) noexcept {
+        SetNumericValue(GetNumericValue() + GetStepValue());
+    }
+    void DownButton_Click(Aero::Base::Object*, Aero::RoutedEventArgs&) noexcept {
+        SetNumericValue(GetNumericValue() - GetStepValue());
+    }
+    inline static constexpr DependencyProperty<std::int32_t> ValueProperty{"Value"};
+    inline static constexpr DependencyProperty<std::int32_t> MinValueProperty{"MinValue"};
+    inline static constexpr DependencyProperty<std::int32_t> MaxValueProperty{"MaxValue"};
+    inline static constexpr DependencyProperty<std::int32_t> StepValueProperty{"StepValue"};
+};
+
 class SampleBehavior : public Aero::Interactivity::Behavior {
 protected:
     explicit SampleBehavior(Aero::Meta::TypeId type) noexcept
@@ -552,9 +693,73 @@ public:
         DropCommandProperty{"DropCommand"};
 };
 
+void AddOptionSelectorOption(
+    Aero::Base::Object& owner,
+    const Ref<Aero::Base::Object>& value,
+    void*) noexcept {
+    auto& selector = static_cast<OptionSelector&>(owner);
+    Ref<Aero::Collections::ObservableObjectCollection> options =
+        selector.GetOptions();
+    if (!options) {
+        Result<Ref<Aero::Collections::ObservableObjectCollection>> created =
+            Aero::Base::MakeRef<Aero::Collections::ObservableObjectCollection>();
+        if (!created) {
+            return;
+        }
+        options = std::move(created).Value();
+        selector.SetOptions(options);
+    }
+    if (value) {
+        static_cast<void>(options->Add(value));
+    }
+}
+
+void ClearOptionSelectorOptions(
+    Aero::Base::Object& owner,
+    void*) noexcept {
+    auto& selector = static_cast<OptionSelector&>(owner);
+    if (Ref<Aero::Collections::ObservableObjectCollection> options =
+            selector.GetOptions()) {
+        options->Reset();
+    }
+}
+
+void AddScoreboardPlayer(
+    Aero::Base::Object& owner,
+    const Ref<Aero::Base::Object>& value,
+    void*) noexcept {
+    auto& game = static_cast<ScoreboardGame&>(owner);
+    Ref<Aero::Collections::ObservableObjectCollection> players =
+        game.GetPlayers();
+    if (!players) {
+        Result<Ref<Aero::Collections::ObservableObjectCollection>> created =
+            Aero::Base::MakeRef<Aero::Collections::ObservableObjectCollection>();
+        if (!created) {
+            return;
+        }
+        players = std::move(created).Value();
+        game.SetPlayers(players);
+    }
+    if (value) {
+        static_cast<void>(players->Add(value));
+    }
+}
+
+void ClearScoreboardPlayers(
+    Aero::Base::Object& owner,
+    void*) noexcept {
+    auto& game = static_cast<ScoreboardGame&>(owner);
+    if (Ref<Aero::Collections::ObservableObjectCollection> players =
+            game.GetPlayers()) {
+        players->Reset();
+    }
+}
+
 } // namespace
 
 AERO_DECLARE_TYPE_ENUM(ItemCategory)
+AERO_DECLARE_TYPE_ENUM(Menu3DState)
+AERO_DECLARE_TYPE_ENUM(TicTacToeState)
 
 namespace {
 
@@ -563,6 +768,23 @@ Result<void> RegisterSampleHostTypes(
     using Aero::Meta::FrameworkPropertyMetadata;
     using Aero::Meta::Register;
     Result<void> status;
+
+    auto menuState = Register<Menu3DState>(
+        registration, StringView("clr-namespace:Menu3D"), "State");
+    menuState
+        .Value("Main", Menu3DState::Main)
+        .Value("Start", Menu3DState::Start)
+        .Value("Settings", Menu3DState::Settings);
+    status = menuState.Result();
+    if (!status) return status;
+
+    auto ticState = Register<TicTacToeState>(
+        registration, StringView("clr-namespace:TicTacToe"), "State");
+    ticState
+        .Value("Player1", TicTacToeState::Player1)
+        .Value("Player2", TicTacToeState::Player2);
+    status = ticState.Result();
+    if (!status) return status;
 
     auto category = Register<ItemCategory>(
         registration, StringView("clr-namespace:Inventory"), "ItemCategory");
@@ -714,6 +936,9 @@ Result<void> RegisterSampleHostTypes(
     REGISTER_ANIM(ElasticAnimation);
     REGISTER_ANIM(ExponentialAnimation);
 
+    status = Register<Game>(registration).Factory().Result();
+    if (!status) return status;
+
     status = Register<SolarSystem>(registration).Factory().Result();
     if (!status) return status;
 
@@ -731,6 +956,12 @@ Result<void> RegisterSampleHostTypes(
         .Property(NoiseBrush::SeedProperty, FrameworkPropertyMetadata(0.0))
         .Property(NoiseBrush::FrequencyProperty, FrameworkPropertyMetadata(1.0))
         .Property(NoiseBrush::OctavesProperty, FrameworkPropertyMetadata(1.0))
+        .Property(NoiseBrush::ScaleXProperty, FrameworkPropertyMetadata(1.0))
+        .Property(NoiseBrush::ScaleYProperty, FrameworkPropertyMetadata(1.0))
+        .Property(NoiseBrush::TimeProperty, FrameworkPropertyMetadata(0.0))
+        .Property(
+            NoiseBrush::ColorProperty,
+            FrameworkPropertyMetadata(Aero::Base::Color{}))
         .Factory();
     status = noise.Result();
     if (!status) return status;
@@ -738,7 +969,15 @@ Result<void> RegisterSampleHostTypes(
     REGISTER_CONVERTER(MainMenu);
     REGISTER_CONVERTER(StartMenu);
     REGISTER_CONVERTER(SettingsMenu);
-    REGISTER_CONVERTER(MenuDescription);
+
+    auto menuDescription = Register<MenuDescription>(registration);
+    menuDescription
+        .Property(MenuDescription::DescriptionProperty, FrameworkPropertyMetadata(String{}))
+        .Property(MenuDescription::AcceptTextProperty, FrameworkPropertyMetadata(String{}))
+        .Property(MenuDescription::CancelTextProperty, FrameworkPropertyMetadata(String{}))
+        .Factory();
+    status = menuDescription.Result();
+    if (!status) return status;
 
     auto option = Register<OptionSelector>(registration);
     option
@@ -746,8 +985,30 @@ Result<void> RegisterSampleHostTypes(
         .Property(
             OptionSelector::SelectedOptionProperty,
             FrameworkPropertyMetadata(Ref<Aero::Base::Object>{}))
+        .Content<Aero::Base::Object>(
+            "Options",
+            Aero::Meta::ContentKind::Collection,
+            &AddOptionSelectorOption,
+            &ClearOptionSelectorOptions)
         .Factory();
     status = option.Result();
+    if (!status) return status;
+
+    status = Register<ColorConverter>(registration).Factory().Result();
+    if (!status) return status;
+
+    auto numeric = Register<NumericUpDown>(registration);
+    numeric
+        .Property(NumericUpDown::ValueProperty, FrameworkPropertyMetadata(std::int32_t{0}))
+        .Property(NumericUpDown::MinValueProperty, FrameworkPropertyMetadata(std::int32_t{0}))
+        .Property(NumericUpDown::MaxValueProperty, FrameworkPropertyMetadata(std::int32_t{255}))
+        .Property(NumericUpDown::StepValueProperty, FrameworkPropertyMetadata(std::int32_t{1}))
+        .EventHandler<Aero::RoutedEventArgs, &NumericUpDown::UpButton_Click>(
+            "UpButton_Click")
+        .EventHandler<Aero::RoutedEventArgs, &NumericUpDown::DownButton_Click>(
+            "DownButton_Click")
+        .Factory();
+    status = numeric.Result();
     if (!status) return status;
 
     auto scorePlayer = Register<ScoreboardPlayer>(registration);
@@ -768,6 +1029,11 @@ Result<void> RegisterSampleHostTypes(
     scoreGame
         .Property(ScoreboardGame::ElapsedTimeProperty, FrameworkPropertyMetadata(std::int32_t{0}))
         .Property(ScoreboardGame::NameProperty, FrameworkPropertyMetadata(String{}))
+        .Content<Aero::Base::Object>(
+            "Players",
+            Aero::Meta::ContentKind::Collection,
+            &AddScoreboardPlayer,
+            &ClearScoreboardPlayers)
         .Factory();
     status = scoreGame.Result();
     if (!status) return status;
@@ -790,6 +1056,7 @@ struct LiveGui {
     Gui gui;
     Ref<View> view;
     Aero::Markup::XamlDocument applicationDocument;
+    Aero::Markup::XamlDocument sampleDocument;
     Aero::Application* application = nullptr;
 };
 
@@ -914,8 +1181,45 @@ bool MountAndLayout(
     if (skipNativeHost) {
         return true;
     }
-    Result<void> mounted = live.view->SetContent(
-        std::move(document), {640.0, 480.0});
+    Result<void> mounted;
+    if (TryCast<Window>(root) != nullptr) {
+        live.sampleDocument = {};
+        mounted = live.view->SetContent(
+            std::move(document), {640.0, 480.0});
+    } else {
+        Aero::Markup::XamlReader reader(live.gui);
+        Result<Aero::Markup::XamlDocument> host = reader.Parse(
+            StringView(
+                "<Grid xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\"/>"),
+            {},
+            {},
+            &live.diagnostics);
+        if (!host) {
+            return !FailIfSampleError(where, host.GetStatus(), live.diagnostics);
+        }
+        live.sampleDocument = {};
+        mounted = live.view->SetContent(
+            std::move(host).Value(), {640.0, 480.0});
+        if (mounted) {
+            Aero::Controls::Panel* panel =
+                TryCast<Aero::Controls::Panel>(live.view->GetContent());
+            if (panel == nullptr || element == nullptr) {
+                std::fprintf(stderr,
+                    "%.*s host Grid is unavailable for a non-Window root\n",
+                    static_cast<int>(where.SizeBytes()),
+                    where.Data());
+                return false;
+            }
+            Result<void> added = panel->GetChildren().Add(
+                Ref<Aero::UIElement>::FromBorrowed(
+                    *static_cast<Aero::UIElement*>(element)));
+            if (!added) {
+                mounted = added;
+            } else {
+                live.sampleDocument = std::move(document);
+            }
+        }
+    }
     if (FailIfSampleError(where, mounted.GetStatus(), live.diagnostics)) {
         return false;
     }
@@ -949,10 +1253,14 @@ bool ApplyOneControlTemplate(
     Aero::Controls::ControlTemplate& tmpl,
     StringView where) {
     const Aero::Meta::TypeId target = tmpl.GetTargetType();
-    const char* hostXaml =
-        "<ContentControl xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
-        " Width=\"48\" Height=\"48\"/>";
-    if (target == Aero::Controls::Primitives::RepeatButton::StaticTypeId()) {
+    const char* hostXaml = nullptr;
+    if (target == Aero::Meta::InvalidTypeId ||
+        target == ContentControl::StaticTypeId() ||
+        target == Control::StaticTypeId()) {
+        hostXaml =
+            "<ContentControl xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+            " Width=\"48\" Height=\"48\"/>";
+    } else if (target == Aero::Controls::Primitives::RepeatButton::StaticTypeId()) {
         hostXaml =
             "<RepeatButton xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
             " Width=\"16\" Height=\"16\"/>";
@@ -969,10 +1277,24 @@ bool ApplyOneControlTemplate(
         hostXaml =
             "<TextBox xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
             " Width=\"80\" Height=\"24\"/>";
-    } else if (target == Aero::Controls::Button::StaticTypeId()) {
+    } else if (target == Aero::Controls::PasswordBox::StaticTypeId()) {
+        hostXaml =
+            "<PasswordBox xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+            " Width=\"80\" Height=\"24\"/>";
+    } else if (target == Aero::Controls::Button::StaticTypeId() ||
+               target == Aero::Controls::Primitives::ButtonBase::StaticTypeId()) {
         hostXaml =
             "<Button xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
             " Width=\"48\" Height=\"24\" Content=\"A\"/>";
+    } else if (target == Aero::Controls::Primitives::ToggleButton::StaticTypeId() ||
+               target == Aero::Controls::CheckBox::StaticTypeId()) {
+        hostXaml =
+            "<CheckBox xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+            " Width=\"48\" Height=\"24\"/>";
+    } else if (target == Aero::Controls::RadioButton::StaticTypeId()) {
+        hostXaml =
+            "<RadioButton xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+            " Width=\"48\" Height=\"24\"/>";
     } else if (target == Label::StaticTypeId()) {
         hostXaml =
             "<Label xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
@@ -985,6 +1307,13 @@ bool ApplyOneControlTemplate(
         hostXaml =
             "<ProgressBar xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
             " Width=\"120\" Height=\"16\" Value=\"40\" Maximum=\"100\"/>";
+    } else if (target == Aero::Controls::Slider::StaticTypeId()) {
+        hostXaml =
+            "<Slider xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+            " Width=\"120\" Height=\"24\" Value=\"20\" Maximum=\"100\"/>";
+    }
+    if (hostXaml == nullptr) {
+        return true;
     }
     Aero::Markup::XamlReader reader(live.gui);
     live.diagnostics.Clear();
@@ -993,7 +1322,15 @@ bool ApplyOneControlTemplate(
     if (FailIfSampleError(where, document.GetStatus(), live.diagnostics)) {
         return false;
     }
-    Control* control = TryCast<Control>(document.Value().Root().Get());
+    if (!live.view) {
+        return true;
+    }
+    Result<void> mounted = live.view->SetContent(
+        std::move(document).Value(), {640.0, 480.0});
+    if (FailIfSampleError(where, mounted.GetStatus(), live.diagnostics)) {
+        return false;
+    }
+    Control* control = TryCast<Control>(live.view->GetContent());
     if (control == nullptr) {
         return true;
     }
@@ -1004,7 +1341,15 @@ bool ApplyOneControlTemplate(
     if (FailIfSampleError(where, Aero::Base::Status::Ok(), live.diagnostics)) {
         return false;
     }
-    return MountAndLayout(live, std::move(document).Value(), where, false);
+    static_cast<void>(live.view->Update(0.016));
+    if (DiagnosticsReportSampleFailure(live.diagnostics)) {
+        std::fprintf(stderr, "%.*s host Update diagnostics contain sample load failure\n",
+            static_cast<int>(where.SizeBytes()),
+            where.Data());
+        DumpDiagnostics(live.diagnostics);
+        return false;
+    }
+    return true;
 }
 
 bool ApplyControlTemplatesInDictionary(
@@ -1087,7 +1432,18 @@ bool ApplyDictionaryTemplates(
                 live.diagnostics)) {
             return false;
         }
-        Control* control = TryCast<Control>(document.Value().Root().Get());
+        if (!live.view) {
+            continue;
+        }
+        Result<void> mounted = live.view->SetContent(
+            std::move(document).Value(), {640.0, 480.0});
+        if (FailIfSampleError(
+                CStringView(host.key),
+                mounted.GetStatus(),
+                live.diagnostics)) {
+            return false;
+        }
+        Control* control = TryCast<Control>(live.view->GetContent());
         if (control == nullptr) {
             continue;
         }
@@ -1104,8 +1460,11 @@ bool ApplyDictionaryTemplates(
                 live.diagnostics)) {
             return false;
         }
-        if (!MountAndLayout(
-                live, std::move(document).Value(), CStringView(host.key), false)) {
+        static_cast<void>(live.view->Update(0.016));
+        if (DiagnosticsReportSampleFailure(live.diagnostics)) {
+            std::fprintf(stderr, "%s host Update diagnostics contain sample load failure\n",
+                host.key);
+            DumpDiagnostics(live.diagnostics);
             return false;
         }
         static_cast<void>(where);
@@ -1451,6 +1810,21 @@ bool TestTutorialSampleXamlLoadApply() {
         "UserControl", "ControlGallery"};
     bool sawIntegrationGlut = false;
     for (const char* sample : required) {
+        {
+            Aero::Markup::XamlReader reader(live->gui);
+            live->diagnostics.Clear();
+            Result<Aero::Markup::XamlDocument> empty = reader.Parse(
+                StringView(
+                    "<Grid xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\"/>"),
+                {},
+                {},
+                &live->diagnostics);
+            if (empty) {
+                live->sampleDocument = {};
+                static_cast<void>(live->view->SetContent(
+                    std::move(empty).Value(), {640.0, 480.0}));
+            }
+        }
         live->applicationDocument = Aero::Markup::XamlDocument{};
         live->application = nullptr;
         const std::filesystem::path sampleDir = dir / sample;
