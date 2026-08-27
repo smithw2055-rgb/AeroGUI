@@ -1,8 +1,10 @@
 add_executable(AeroFrameworkConformanceTests
-    FrameworkConformanceTests.cpp)
+    FrameworkConformanceTests.cpp
+    SampleXamlLoadApplyTests.cpp)
 target_link_libraries(AeroFrameworkConformanceTests
     PRIVATE
-        Aero::Gui)
+        Aero::Gui
+        Aero::App)
 target_compile_features(AeroFrameworkConformanceTests
     PRIVATE cxx_std_17)
 set_target_properties(AeroFrameworkConformanceTests PROPERTIES
@@ -16,7 +18,7 @@ add_test(
     COMMAND AeroFrameworkConformanceTests)
 set_tests_properties(AeroFrameworkConformanceTests PROPERTIES
     LABELS "conformance;framework"
-    TIMEOUT 60)
+    TIMEOUT 240)
 
 add_test(
     NAME AeroArchitectureChecks

@@ -224,7 +224,8 @@ using Aero::VisualStateManager;
         std::fflush(stderr);                                                  \
         if (!(test)()) {                                                      \
             std::fprintf(stderr, "fail %s\n", #test);                         \
-            return 1;                                                         \
+            std::fflush(stderr);                                              \
+            std::_Exit(1);                                                    \
         }                                                                     \
         std::fprintf(stderr, "pass %s\n", #test);                             \
         std::fflush(stderr);                                                  \
@@ -2538,6 +2539,10 @@ bool TestTutorialRuntimePatterns() {
 
 } // namespace
 
+bool TestStyleSetterMergedStaticResource();
+bool TestInventoryTemplateApply();
+bool TestTutorialSampleXamlLoadApply();
+
 int main() {
     RUN(TestStreamContract);
     RUN(TestPublicNamesAndHierarchy);
@@ -2558,6 +2563,9 @@ int main() {
     RUN(TestGalleryHostXamlSurface);
     RUN(TestTutorialXamlSurface);
     RUN(TestTutorialRuntimePatterns);
+    RUN(TestStyleSetterMergedStaticResource);
+    RUN(TestInventoryTemplateApply);
+    RUN(TestTutorialSampleXamlLoadApply);
     std::puts("Aero framework conformance tests passed");
     std::fflush(stdout);
     // LiveGui instances are leaked on purpose (View/~Gui SIGSEGV with mounted
