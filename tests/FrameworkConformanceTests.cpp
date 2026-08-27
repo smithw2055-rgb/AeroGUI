@@ -8,6 +8,7 @@
 #include <Aero/Controls/Button.hpp>
 #include <Aero/Controls/Canvas.hpp>
 #include <Aero/Controls/ComboBox.hpp>
+#include <Aero/Controls/ContentControl.hpp>
 #include <Aero/Controls/Grid.hpp>
 #include <Aero/Controls/ItemsControl.hpp>
 #include <Aero/Controls/ListBox.hpp>
@@ -116,6 +117,10 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
+#include <string>
+#include <system_error>
 #include <type_traits>
 #include <utility>
 
@@ -127,6 +132,7 @@ using Aero::Base::Point;
 using Aero::Base::Ref;
 using Aero::Base::Result;
 using Aero::Base::Span;
+using Aero::Base::Status;
 using Aero::Base::Stream;
 using Aero::Base::String;
 using Aero::Base::StringView;
@@ -136,6 +142,7 @@ using Aero::Collections::ObservableObjectCollection;
 using Aero::Controls::Button;
 using Aero::Controls::Canvas;
 using Aero::Controls::ComboBox;
+using Aero::Controls::ContentControl;
 using Aero::Controls::Grid;
 using Aero::Controls::ItemsControl;
 using Aero::Controls::ListBox;
@@ -974,6 +981,62 @@ void DumpDiagnostics(const Aero::Diagnostics::DiagnosticBag& bag) noexcept {
             static_cast<int>(message.SizeBytes()),
             message.Data());
     }
+}
+
+constexpr StringView kGalleryHostDpTarget(
+    "XAML target does not support dependency properties");
+constexpr StringView kGalleryHostMarkupFailed(
+    "XAML markup-extension value provider failed");
+constexpr StringView kGalleryHostSourceFailed(
+    "ResourceDictionary Source could not be loaded");
+
+bool ReportsGalleryHostFailure(StringView message) noexcept {
+    return Contains(message, kGalleryHostDpTarget) ||
+        Contains(message, kGalleryHostMarkupFailed) ||
+        Contains(message, kGalleryHostSourceFailed);
+}
+
+bool DiagnosticsReportGalleryHostFailure(
+    const Aero::Diagnostics::DiagnosticBag& bag) noexcept {
+    for (std::uint32_t index = 0U; index < bag.Size(); ++index) {
+        const Aero::Diagnostics::Diagnostic& item = bag.Items()[index];
+        if (ReportsGalleryHostFailure(item.Message())) {
+            return true;
+        }
+        const Span<const Aero::Diagnostics::DiagnosticNote> notes = item.Notes();
+        for (std::uint32_t note = 0U; note < notes.Size(); ++note) {
+            if (ReportsGalleryHostFailure(notes[note].Message())) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+StringView AsView(const std::string& text) noexcept {
+    return StringView(
+        text.data(),
+        static_cast<std::uint32_t>(text.size()));
+}
+
+StringView CStringView(const char* text) noexcept {
+    if (text == nullptr || text[0] == '\0') {
+        return {};
+    }
+    return StringView(
+        text,
+        static_cast<std::uint32_t>(std::strlen(text)));
+}
+
+bool WriteUtf8File(
+    const std::filesystem::path& path,
+    const char* text) noexcept {
+    std::ofstream out(path, std::ios::binary | std::ios::trunc);
+    if (!out) {
+        return false;
+    }
+    out << text;
+    return static_cast<bool>(out);
 }
 
 bool ParseMarkup(
@@ -1864,6 +1927,147 @@ bool TestGalleryXamlSurface() {
     return true;
 }
 
+bool TestGalleryHostXamlSurface() {
+    Gui gui;
+    Result<void> initialized = gui.Initialize();
+    CHECK(initialized);
+    Aero::Markup::XamlReader reader(gui);
+    Aero::Diagnostics::DiagnosticBag diagnostics;
+
+    auto failIfGalleryHostError = [&](StringView where,
+                                      const Status& status) -> bool {
+        if (ReportsGalleryHostFailure(CStringView(status.message))) {
+            std::fprintf(stderr, "%.*s reported gallery host failure: %s\n",
+                static_cast<int>(where.SizeBytes()),
+                where.Data(),
+                status.message);
+            DumpDiagnostics(diagnostics);
+            return true;
+        }
+        if (DiagnosticsReportGalleryHostFailure(diagnostics)) {
+            std::fprintf(stderr, "%.*s diagnostics contain gallery host failure\n",
+                static_cast<int>(where.SizeBytes()),
+                where.Data());
+            DumpDiagnostics(diagnostics);
+            return true;
+        }
+        return false;
+    };
+
+    {
+        diagnostics.Clear();
+        Result<Aero::Markup::XamlDocument> document = reader.Parse(
+            StringView(
+                "<Grid xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+                " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\""
+                " xmlns:b=\"http://schemas.microsoft.com/xaml/behaviors\">"
+                "<Grid.Resources>"
+                "<Storyboard x:Key=\"ShowContainer1\"/>"
+                "<Storyboard x:Key=\"ShowContainer2\"/>"
+                "</Grid.Resources>"
+                "<ContentControl x:Name=\"SampleContainer1\" Visibility=\"Collapsed\">"
+                "<b:Interaction.Triggers>"
+                "<b:DataTrigger Binding=\"{Binding Content, ElementName=SampleContainer1}\""
+                " Comparison=\"NotEqual\" Value=\"{x:Null}\">"
+                "<b:ControlStoryboardAction Storyboard=\"{StaticResource ShowContainer1}\"/>"
+                "</b:DataTrigger>"
+                "<b:StoryboardCompletedTrigger Storyboard=\"{StaticResource ShowContainer1}\">"
+                "<b:ChangePropertyAction PropertyName=\"Content\" Value=\"{x:Null}\""
+                " TargetName=\"SampleContainer2\"/>"
+                "</b:StoryboardCompletedTrigger>"
+                "</b:Interaction.Triggers>"
+                "<ContentControl.RenderTransform>"
+                "<TranslateTransform/>"
+                "</ContentControl.RenderTransform>"
+                "</ContentControl>"
+                "<ContentControl x:Name=\"SampleContainer2\" Visibility=\"Collapsed\">"
+                "<b:Interaction.Triggers>"
+                "<b:DataTrigger Binding=\"{Binding Content, ElementName=SampleContainer2}\""
+                " Comparison=\"NotEqual\" Value=\"{x:Null}\">"
+                "<b:ControlStoryboardAction Storyboard=\"{StaticResource ShowContainer2}\"/>"
+                "</b:DataTrigger>"
+                "<b:StoryboardCompletedTrigger Storyboard=\"{StaticResource ShowContainer2}\">"
+                "<b:ChangePropertyAction PropertyName=\"Content\" Value=\"{x:Null}\""
+                " TargetName=\"SampleContainer1\"/>"
+                "</b:StoryboardCompletedTrigger>"
+                "</b:Interaction.Triggers>"
+                "<ContentControl.RenderTransform>"
+                "<TranslateTransform/>"
+                "</ContentControl.RenderTransform>"
+                "</ContentControl>"
+                "</Grid>"),
+            {},
+            {},
+            &diagnostics);
+        if (!document) {
+            std::fprintf(stderr, "Interaction.Triggers parse failed: %s\n",
+                document.GetStatus().message);
+            DumpDiagnostics(diagnostics);
+        }
+        CHECK(!failIfGalleryHostError(
+            StringView("Interaction.Triggers"),
+            document.GetStatus()));
+        CHECK(document);
+        Grid* grid = document.Value().Root<Grid>();
+        CHECK(grid != nullptr);
+        CHECK(grid->FindName<ContentControl>("SampleContainer1") != nullptr);
+        CHECK(grid->FindName<ContentControl>("SampleContainer2") != nullptr);
+    }
+
+    {
+        diagnostics.Clear();
+        std::error_code error;
+        const std::filesystem::path dir =
+            std::filesystem::temp_directory_path(error) /
+            "aero-gallery-host-f940";
+        CHECK(!error);
+        std::filesystem::create_directories(dir, error);
+        CHECK(!error);
+        const std::filesystem::path resourcesPath = dir / "Resources.xaml";
+        const std::filesystem::path appPath = dir / "App.xaml";
+        CHECK(WriteUtf8File(resourcesPath,
+            "<ResourceDictionary xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+            " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
+            "<SolidColorBrush x:Key=\"MainWindowBackground\" Color=\"#FF1A1A2E\"/>"
+            "<Geometry x:Key=\"AeroLogoGeometry\">M0,0 L10,0 L10,10 Z</Geometry>"
+            "<sys:Double xmlns:sys=\"clr-namespace:System;assembly=mscorlib\""
+            " x:Key=\"SelectorBarWidth\">48</sys:Double>"
+            "</ResourceDictionary>"));
+        CHECK(WriteUtf8File(appPath,
+            "<ResourceDictionary xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+            " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
+            "<ResourceDictionary.MergedDictionaries>"
+            "<ResourceDictionary Source=\""
+            "pack://application:,,,/Aero.GUI.Extensions;component/Theme/AeroTheme.DarkBlue.xaml\"/>"
+            "<ResourceDictionary Source=\"Resources.xaml\"/>"
+            "</ResourceDictionary.MergedDictionaries>"
+            "</ResourceDictionary>"));
+        const std::string appPathText = appPath.string();
+        Result<Aero::Markup::XamlDocument> document = reader.Load(
+            AsView(appPathText),
+            {},
+            &diagnostics);
+        if (!document) {
+            std::fprintf(stderr,
+                "Gallery ResourceDictionary Source load failed: %s\n",
+                document.GetStatus().message);
+            DumpDiagnostics(diagnostics);
+        }
+        CHECK(!failIfGalleryHostError(
+            StringView("ResourceDictionary Source"),
+            document.GetStatus()));
+        CHECK(document);
+        Aero::ResourceDictionary* dictionary =
+            document.Value().Root<Aero::ResourceDictionary>();
+        CHECK(dictionary != nullptr);
+        CHECK(dictionary->MergedDictionaryCount() >= 2U);
+        CHECK(dictionary->Contains(StringView("AeroLogoGeometry")));
+        CHECK(dictionary->Contains(StringView("MainWindowBackground")));
+        CHECK(dictionary->Contains(StringView("SelectorBarWidth")));
+    }
+    return true;
+}
+
 bool TestTutorialXamlSurface() {
     static_assert(std::is_base_of<Aero::Controls::ContentControl, Aero::Controls::UserControl>::value,
         "UserControl must derive ContentControl");
@@ -2351,6 +2555,7 @@ int main() {
     RUN(TestNotifyPropertyChangedBindLoop);
     RUN(TestCustomItemsSourceThunk);
     RUN(TestGalleryXamlSurface);
+    RUN(TestGalleryHostXamlSurface);
     RUN(TestTutorialXamlSurface);
     RUN(TestTutorialRuntimePatterns);
     std::puts("Aero framework conformance tests passed");
