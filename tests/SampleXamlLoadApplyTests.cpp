@@ -20,6 +20,7 @@
 #include <Aero/Gui.hpp>
 #include <Aero/Input.hpp>
 #include <Aero/Interactivity/Behavior.hpp>
+#include <Aero/LogicalTreeHelper.hpp>
 #include <Aero/Markup/XamlDocument.hpp>
 #include <Aero/Markup/XamlReader.hpp>
 #include <Aero/Media/Animation/DoubleAnimationBase.hpp>
@@ -1322,15 +1323,6 @@ bool AnyItemsControlHasCount(
         if (items->GetCount() == expected) {
             return true;
         }
-        std::fprintf(
-            stderr,
-            "ItemsControl type=%u count=%u expected=%u dcNull=%d itemsSource=%d\n",
-            static_cast<unsigned>(items->RuntimeType()),
-            items->GetCount(),
-            expected,
-            TryCast<FrameworkElement>(items) != nullptr &&
-                TryCast<FrameworkElement>(items)->GetDataContext().IsNullObject(),
-            items->GetItemsSource().Get() != nullptr);
     }
     const std::uint32_t count = VisualTreeHelper::GetChildrenCount(node);
     for (std::uint32_t index = 0U; index < count; ++index) {
@@ -1356,13 +1348,52 @@ bool AssertNamedItemsCount(
     }
     static_cast<void>(list->ApplyTemplate());
     if (list->GetCount() != expected) {
+        const Aero::Meta::PropertyValue dc = list->GetDataContext();
         std::fprintf(
             stderr,
-            "ItemsControl '%s' GetCount=%u expected=%u realized=%u\n",
+            "ItemsControl '%s' GetCount=%u expected=%u realized=%u "
+            "dcNull=%d dcType=%u itemsSource=%d list=%p\n",
             name,
             list->GetCount(),
             expected,
-            list->GetRealizedItemCount());
+            list->GetRealizedItemCount(),
+            dc.IsNullObject(),
+            static_cast<unsigned>(
+                dc.AsObject() ? dc.AsObject()->RuntimeType() : 0U),
+            list->GetItemsSource().Get() != nullptr,
+            static_cast<void*>(list));
+        const Aero::Meta::PropertyValue localItems =
+            list->ReadLocalValue(
+                Aero::Controls::ItemsControl::ItemsSourceProperty);
+        const Aero::Meta::PropertyValueSourceInfo sourceInfo =
+            list->GetValueSourceInfo(
+                Aero::Controls::ItemsControl::ItemsSourceProperty);
+        std::fprintf(
+            stderr,
+            "  itemsLocalUnset=%d itemsSourceRank=%u itemsCount=%u\n",
+            localItems.IsUnset(),
+            static_cast<unsigned>(sourceInfo.rank),
+            list->GetItems().GetCount());
+        const Aero::DependencyObject* node = list;
+        for (std::uint32_t depth = 0U; node != nullptr && depth < 16U; ++depth) {
+            const FrameworkElement* fe = TryCast<const FrameworkElement>(node);
+            const Aero::Meta::PropertyValue nodeDc =
+                fe != nullptr ? fe->GetDataContext() : Aero::Meta::PropertyValue{};
+            std::fprintf(
+                stderr,
+                "  ancestor[%u] type=%u dcNull=%d logical=%p visual=%p root=%d\n",
+                depth,
+                static_cast<unsigned>(node->RuntimeType()),
+                fe != nullptr && nodeDc.IsNullObject(),
+                static_cast<const void*>(
+                    Aero::LogicalTreeHelper::GetParent(*node)),
+                fe != nullptr
+                    ? static_cast<const void*>(
+                          VisualTreeHelper::GetParent(*fe))
+                    : nullptr,
+                fe == &root);
+            node = Aero::LogicalTreeHelper::GetParent(*node);
+        }
         return false;
     }
     return true;
@@ -1399,7 +1430,10 @@ bool ApplySampleItemsDataContext(
         root->SetDataContext(Ref<Aero::Base::Object>(model.Value()));
         SAMPLE_CHECK(PumpSample(live));
         SAMPLE_CHECK(PumpSample(live));
-        SAMPLE_CHECK(AssertNamedItemsCount(*root, "InventoryList", kCount));
+        if (!AssertNamedItemsCount(*root, "InventoryList", kCount)) {
+            DumpDiagnostics(live.diagnostics);
+            return false;
+        }
         return true;
     }
     if (std::strcmp(sample, "DataBinding") == 0) {
@@ -2006,9 +2040,96 @@ bool TestInventoryTemplateApply() {
     return true;
 }
 
+bool TestWindowGridItemsBinding(LiveGui& live) noexcept {
+    live.diagnostics.Clear();
+    Aero::Markup::XamlReader reader(live.gui);
+    Result<Aero::Markup::XamlDocument> document = reader.Parse(
+        StringView(
+            "<Window xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+            " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\""
+            " Width=\"240\" Height=\"160\">"
+            "<Grid>"
+            "<ItemsControl x:Name=\"List\" ItemsSource=\"{Binding Inventory}\"/>"
+            "</Grid>"
+            "</Window>"),
+        {},
+        {},
+        &live.diagnostics);
+    SAMPLE_CHECK(document);
+    SAMPLE_CHECK(MountAndLayout(
+        live,
+        std::move(document).Value(),
+        StringView("Window-Grid ItemsSource"),
+        false));
+    Result<Ref<InventoryViewModel>> model =
+        Aero::Base::MakeRef<InventoryViewModel>();
+    SAMPLE_CHECK(model);
+    Result<Ref<Aero::Collections::ObservableObjectCollection>> inventory =
+        Aero::Base::MakeRef<Aero::Collections::ObservableObjectCollection>();
+    SAMPLE_CHECK(inventory);
+    SAMPLE_CHECK(FillObjectCollection(*inventory.Value(), 4U));
+    model.Value()->SetInventory(inventory.Value());
+    FrameworkElement* root = live.view->GetContent();
+    SAMPLE_CHECK(root != nullptr);
+    root->SetDataContext(Ref<Aero::Base::Object>(model.Value()));
+    SAMPLE_CHECK(PumpSample(live));
+    SAMPLE_CHECK(PumpSample(live));
+    SAMPLE_CHECK(AssertNamedItemsCount(*root, "List", 4U));
+
+    {
+        live.diagnostics.Clear();
+        Aero::Markup::XamlReader nestedReader(live.gui);
+        Result<Aero::Markup::XamlDocument> nested = nestedReader.Parse(
+            StringView(
+                "<Window xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+                " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\""
+                " Width=\"240\" Height=\"160\">"
+                "<Grid>"
+                "<Grid.Resources>"
+                "<ControlTemplate x:Key=\"SV\" TargetType=\"ScrollViewer\">"
+                "<ScrollContentPresenter Content=\"{TemplateBinding Content}\"/>"
+                "</ControlTemplate>"
+                "</Grid.Resources>"
+                "<ScrollViewer Template=\"{StaticResource SV}\">"
+                "<ItemsControl x:Name=\"NestedList\" ItemsSource=\"{Binding Inventory}\">"
+                "<ItemsControl.ItemsPanel>"
+                "<ItemsPanelTemplate><UniformGrid Columns=\"5\"/></ItemsPanelTemplate>"
+                "</ItemsControl.ItemsPanel>"
+                "</ItemsControl>"
+                "</ScrollViewer>"
+                "</Grid>"
+                "</Window>"),
+            {},
+            {},
+            &live.diagnostics);
+        SAMPLE_CHECK(nested);
+        SAMPLE_CHECK(MountAndLayout(
+            live,
+            std::move(nested).Value(),
+            StringView("Window-ScrollViewer ItemsSource"),
+            false));
+        Result<Ref<InventoryViewModel>> nestedModel =
+            Aero::Base::MakeRef<InventoryViewModel>();
+        SAMPLE_CHECK(nestedModel);
+        Result<Ref<Aero::Collections::ObservableObjectCollection>> nestedItems =
+            Aero::Base::MakeRef<Aero::Collections::ObservableObjectCollection>();
+        SAMPLE_CHECK(nestedItems);
+        SAMPLE_CHECK(FillObjectCollection(*nestedItems.Value(), 4U));
+        nestedModel.Value()->SetInventory(nestedItems.Value());
+        FrameworkElement* nestedRoot = live.view->GetContent();
+        SAMPLE_CHECK(nestedRoot != nullptr);
+        nestedRoot->SetDataContext(Ref<Aero::Base::Object>(nestedModel.Value()));
+        SAMPLE_CHECK(PumpSample(live));
+        SAMPLE_CHECK(PumpSample(live));
+        SAMPLE_CHECK(AssertNamedItemsCount(*nestedRoot, "NestedList", 4U));
+    }
+    return true;
+}
+
 bool TestTutorialSampleXamlLoadApply() {
     LiveGui* live = NewSampleLiveGui();
     SAMPLE_CHECK(live != nullptr);
+    SAMPLE_CHECK(TestWindowGridItemsBinding(*live));
 
     std::error_code error;
     const std::filesystem::path dir =

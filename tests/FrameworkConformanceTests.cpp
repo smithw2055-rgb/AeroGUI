@@ -25,6 +25,7 @@
 #include <Aero/Data/NotifyPropertyChanged.hpp>
 #include <Aero/DataTemplate.hpp>
 #include <Aero/DataTemplateSelector.hpp>
+#include <Aero/DependencyObject.hpp>
 #include <Aero/Diagnostics.hpp>
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Gui.hpp>
@@ -111,7 +112,6 @@
 #include <Aero/Visual.hpp>
 #include <Aero/VisualStateManager.hpp>
 #include <Aero/VisualTreeHelper.hpp>
-#include <AeroApp/Window.hpp>
 
 #include <cmath>
 #include <cstdint>
@@ -211,7 +211,6 @@ using Aero::View;
 using Aero::ViewOptions;
 using Aero::ViewViewport;
 using Aero::VisualStateManager;
-using Aero::Window;
 
 #define CHECK(expression)                                                     \
     do {                                                                      \
@@ -494,6 +493,29 @@ public:
 private:
     Ref<ObservableCollection<BindingSlotItem>> items_{};
     Ref<BindingPlayer> player_{};
+};
+
+class BindingDoItemsViewModel final : public Aero::DependencyObject {
+    AERO_DECLARE_TYPE(BindingDoItemsViewModel, Aero::DependencyObject)
+public:
+    BindingDoItemsViewModel() noexcept : DependencyObject(StaticTypeId()) {}
+    Ref<ObservableCollection<BindingSlotItem>> GetItems() const noexcept {
+        return items_;
+    }
+    void SetItems(
+        Ref<ObservableCollection<BindingSlotItem>> value) noexcept {
+        items_ = std::move(value);
+    }
+    Ref<ObservableObjectCollection> GetInventory() const noexcept {
+        return inventory_;
+    }
+    void SetInventory(Ref<ObservableObjectCollection> value) noexcept {
+        inventory_ = std::move(value);
+    }
+
+private:
+    Ref<ObservableCollection<BindingSlotItem>> items_{};
+    Ref<ObservableObjectCollection> inventory_{};
 };
 
 class NumericUpDown final : public UserControl {
@@ -791,6 +813,16 @@ Result<void> RegisterTestTypes(Registration& registration) noexcept {
         .Factory()
         .Result();
     if (!player) return player;
+    Result<void> doModel =
+        Aero::Meta::Register<BindingDoItemsViewModel>(registration)
+            .Property<&BindingDoItemsViewModel::GetItems, &BindingDoItemsViewModel::SetItems>(
+                "Items")
+            .Property<
+                &BindingDoItemsViewModel::GetInventory,
+                &BindingDoItemsViewModel::SetInventory>("Inventory")
+            .Factory()
+            .Result();
+    if (!doModel) return doModel;
     return Aero::Meta::Register<BindingItemsViewModel>(registration)
         .Property<&BindingItemsViewModel::GetItems, &BindingItemsViewModel::SetItems>(
             "Items")
@@ -2074,7 +2106,7 @@ bool TestClrItemsSourceBindingAfterDataContext() {
             MakeBindingItemsViewModel(kCount);
         CHECK(model);
         Result<Aero::Markup::XamlDocument> document = reader.Parse(StringView(
-            "<Window xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+            "<ContentControl xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
             " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\""
             " Width=\"240\" Height=\"160\">"
             "<Viewbox>"
@@ -2084,17 +2116,43 @@ bool TestClrItemsSourceBindingAfterDataContext() {
             "</ItemsControl.ItemsPanel>"
             "</ItemsControl>"
             "</Viewbox>"
-            "</Window>"));
+            "</ContentControl>"));
         CHECK(document);
         CHECK(view.SetContent(std::move(document).Value(), {240.0, 160.0}));
-        Window* window = TryCast<Window>(view.GetContent());
-        CHECK(window != nullptr);
-        ItemsControl* list = window->FindName<ItemsControl>(StringView("List"));
+        ContentControl* host = TryCast<ContentControl>(view.GetContent());
+        CHECK(host != nullptr);
+        ItemsControl* list = host->FindName<ItemsControl>(StringView("List"));
         CHECK(list != nullptr);
         CHECK(list->GetCount() == 0U);
-        window->SetDataContext(Ref<Aero::Base::Object>(model.Value()));
+        host->SetDataContext(Ref<Aero::Base::Object>(model.Value()));
         CHECK(CountMatchesAfterLayout(*live, *list, kCount));
         CHECK(list->GetDataContext().AsObject().Get() == model.Value().Get());
+    }
+
+    {
+        Result<Ref<BindingItemsViewModel>> model =
+            MakeBindingItemsViewModel(kCount);
+        CHECK(model);
+        Result<Aero::Markup::XamlDocument> document = reader.Parse(StringView(
+            "<Grid xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+            " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\""
+            " Width=\"240\" Height=\"160\">"
+            "<ScrollViewer>"
+            "<ItemsControl x:Name=\"List\" ItemsSource=\"{Binding Items}\">"
+            "<ItemsControl.ItemsPanel>"
+            "<ItemsPanelTemplate><StackPanel/></ItemsPanelTemplate>"
+            "</ItemsControl.ItemsPanel>"
+            "</ItemsControl>"
+            "</ScrollViewer>"
+            "</Grid>"));
+        CHECK(document);
+        CHECK(view.SetContent(std::move(document).Value(), {240.0, 160.0}));
+        Grid* grid = TryCast<Grid>(view.GetContent());
+        CHECK(grid != nullptr);
+        ItemsControl* list = grid->FindName<ItemsControl>(StringView("List"));
+        CHECK(list != nullptr);
+        grid->SetDataContext(Ref<Aero::Base::Object>(model.Value()));
+        CHECK(CountMatchesAfterLayout(*live, *list, kCount));
     }
 
     {
@@ -2115,6 +2173,56 @@ bool TestClrItemsSourceBindingAfterDataContext() {
         CHECK(!host->GetContent().IsNullObject());
         CHECK(host->GetContent().AsObject().Get() ==
             model.Value()->GetPlayer()->GetSlots()->GetItem(0U).Get());
+    }
+
+    {
+        Result<Ref<BindingDoItemsViewModel>> model =
+            MakeRef<BindingDoItemsViewModel>();
+        CHECK(model);
+        Result<Ref<ObservableCollection<BindingSlotItem>>> items =
+            MakeRef<ObservableCollection<BindingSlotItem>>();
+        CHECK(items);
+        Result<Ref<ObservableObjectCollection>> inventory =
+            MakeRef<ObservableObjectCollection>();
+        CHECK(inventory);
+        for (std::uint32_t index = 0U; index < kCount; ++index) {
+            Result<Ref<BindingSlotItem>> item = MakeRef<BindingSlotItem>();
+            CHECK(item);
+            CHECK(items.Value()->Add(item.Value()));
+            CHECK(inventory.Value()->Add(item.Value()));
+        }
+        model.Value()->SetItems(items.Value());
+        model.Value()->SetInventory(inventory.Value());
+        Result<Aero::Markup::XamlDocument> document = reader.Parse(StringView(
+            "<Grid xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+            " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\""
+            " Width=\"240\" Height=\"160\">"
+            "<Grid.Resources>"
+            "<ControlTemplate x:Key=\"SV\" TargetType=\"ScrollViewer\">"
+            "<ScrollContentPresenter Content=\"{TemplateBinding Content}\"/>"
+            "</ControlTemplate>"
+            "</Grid.Resources>"
+            "<ScrollViewer Template=\"{StaticResource SV}\">"
+            "<ItemsControl x:Name=\"List\" ItemsSource=\"{Binding Inventory}\">"
+            "<ItemsControl.ItemsPanel>"
+            "<ItemsPanelTemplate><UniformGrid Columns=\"5\"/></ItemsPanelTemplate>"
+            "</ItemsControl.ItemsPanel>"
+            "<ItemsControl.ItemTemplate>"
+            "<DataTemplate><ContentControl Content=\"{Binding}\"/></DataTemplate>"
+            "</ItemsControl.ItemTemplate>"
+            "</ItemsControl>"
+            "</ScrollViewer>"
+            "</Grid>"));
+        CHECK(document);
+        CHECK(view.SetContent(std::move(document).Value(), {240.0, 160.0}));
+        Grid* grid = TryCast<Grid>(view.GetContent());
+        CHECK(grid != nullptr);
+        ItemsControl* list = grid->FindName<ItemsControl>(StringView("List"));
+        CHECK(list != nullptr);
+        CHECK(list->GetCount() == 0U);
+        grid->SetDataContext(Ref<Aero::Base::Object>(model.Value()));
+        CHECK(CountMatchesAfterLayout(*live, *list, kCount));
+        CHECK(list->GetDataContext().AsObject().Get() == model.Value().Get());
     }
 
     {
