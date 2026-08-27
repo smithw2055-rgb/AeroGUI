@@ -186,10 +186,10 @@ Base::Result<void> InteractivityEngine::AttachBehavior(
                 ? Data::BindingMode::OneWay
                 : authored.binding->GetMode();
             descriptor.updateSourceTrigger =
-                authored.binding->GetUpdateSourceTrigger() ==
-                    Meta::UpdateSourceTrigger::Default
-                ? Meta::UpdateSourceTrigger::PropertyChanged
-                : authored.binding->GetUpdateSourceTrigger();
+                bindings->ResolveUpdateSourceTrigger(
+                    *record.instance.Get(),
+                    authored.property,
+                    authored.binding->GetUpdateSourceTrigger());
             descriptor.fallbackValue =
                 authored.binding->GetFallbackValue();
             descriptor.targetNullValue =

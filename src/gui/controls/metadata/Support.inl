@@ -461,6 +461,20 @@ void OnPathFillRuleChanged(
         static_cast<Path&>(object));
 }
 
+void OnShapePenChanged(
+    ::Aero::DependencyObject& object,
+    const Meta::DependencyPropertyChangedEventArgs&) noexcept {
+    if (object.PropertyRegistry().Types().IsDerivedFrom(
+            object.RuntimeType(), Path::StaticTypeId())) {
+        AeroGuiInternal::PathInvalidateGeometry(
+            static_cast<Path&>(object));
+    } else if (object.PropertyRegistry().Types().IsDerivedFrom(
+                   object.RuntimeType(), FrameworkElement::StaticTypeId())) {
+        static_cast<void>(
+            static_cast<FrameworkElement&>(object).InvalidateVisual());
+    }
+}
+
 void OnShapeFillChanged(
     ::Aero::DependencyObject&,
     const Meta::DependencyPropertyChangedEventArgs&) noexcept {

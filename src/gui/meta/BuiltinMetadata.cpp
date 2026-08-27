@@ -156,6 +156,7 @@ Base::Result<void> PopulateCoreMetadata(
 #include <Aero/Media/Transforms.hpp>
 #include <Aero/Media/Geometry.hpp>
 #include <Aero/Media/DashStyle.hpp>
+#include <Aero/Media/Pen.hpp>
 #include <Aero/Media/StreamGeometry.hpp>
 #include <Aero/Media/PathSegment.hpp>
 #include <Aero/Media/LineSegment.hpp>

@@ -1647,6 +1647,47 @@ DependencyObject* TemplateEngine::FindTarget(
     return nullptr;
 }
 
+bool TemplateEngine::HasTemplateBinding(
+    DependencyObject& target,
+    DependencyPropertyHandle property) const noexcept {
+    for (const Instance& instance : instances_) {
+        if (instance.plan == nullptr) continue;
+        for (const TemplateBindingPlan& binding :
+             Aero::Controls::TemplatePrivate::Bindings(*instance.plan)) {
+            if (binding.targetProperty != property) continue;
+            DependencyObject* found =
+                FindTarget(instance, binding.targetName.View());
+            if (found == &target) return true;
+        }
+    }
+    return false;
+}
+
+Base::Result<void> TemplateEngine::RefreshTemplateBinding(
+    DependencyObject& target,
+    DependencyPropertyHandle property) noexcept {
+    for (Instance& instance : instances_) {
+        if (instance.plan == nullptr) continue;
+        bool matches = false;
+        for (const TemplateBindingPlan& binding :
+             Aero::Controls::TemplatePrivate::Bindings(*instance.plan)) {
+            if (binding.targetProperty != property) continue;
+            DependencyObject* found =
+                FindTarget(instance, binding.targetName.View());
+            if (found == &target) {
+                matches = true;
+                break;
+            }
+        }
+        if (matches) {
+            return ApplyBindings(instance, property);
+        }
+    }
+    return Base::Status::Failure(
+        Base::ErrorCode::NotFound,
+        "TemplateBinding was not found");
+}
+
 Base::Result<void> TemplateEngine::Subscribe(
     Instance& instance) noexcept {
     for (std::uint32_t index = 0U;

@@ -28,6 +28,11 @@ Result<void> ParsePointList(
     StringView text,
     Base::Vector<Point>& points) noexcept;
 
+// Flatten SVG/WPF mini-language into BeginFigure/AddPoint/EndFigure.
+Result<void> FlattenPathData(
+    StringView data,
+    FlattenSink& sink) noexcept;
+
 // Scanline fill of Geometry.Flatten contours. EvenOdd. Used by Path
 // tessellation reuse for UIElement.Clip stencil meshes.
 Result<void> TessellateGeometryFill(

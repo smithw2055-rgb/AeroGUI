@@ -610,6 +610,12 @@ public:
         const Control& control) const noexcept;
     const ControlTemplate* AppliedTemplate(
         TemplateHandle handle) const noexcept;
+    bool HasTemplateBinding(
+        DependencyObject& target,
+        DependencyPropertyHandle property) const noexcept;
+    Base::Result<void> RefreshTemplateBinding(
+        DependencyObject& target,
+        DependencyPropertyHandle property) noexcept;
 
 private:
     struct Instance {

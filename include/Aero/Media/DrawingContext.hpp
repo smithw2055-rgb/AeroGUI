@@ -7,6 +7,8 @@
 
 namespace Aero::Media {
 class Brush;
+class Pen;
+class Geometry;
 struct DrawingContextRuntime;
 
 // WPF-facing retained drawing surface used by FrameworkElement::OnRender().
@@ -53,6 +55,14 @@ public:
         Base::Rect bounds,
         const Ref<Brush>& brush,
         double thickness) noexcept;
+    Result<void> DrawLine(
+        const Ref<Pen>& pen,
+        Base::Point start,
+        Base::Point end) noexcept;
+    Result<void> DrawGeometry(
+        const Ref<Brush>& brush,
+        const Ref<Pen>& pen,
+        const Geometry& geometry) noexcept;
 
 private:
     friend struct DrawingContextRuntime;

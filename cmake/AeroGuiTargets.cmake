@@ -72,6 +72,7 @@ set(_aero_gui_meta_sources
 set(_aero_gui_data_sources
     src/gui/data/BindingPath.cpp
     src/gui/data/Binding.cpp
+    src/gui/data/BindingExpression.cpp
     src/gui/data/BindingObjects.cpp
     src/gui/data/NotifyPropertyChanged.cpp
     src/gui/data/CollectionView.cpp)
@@ -110,6 +111,9 @@ set(_aero_gui_media_sources
     src/gui/media/Effects.cpp
     src/gui/media/Geometry.cpp
     src/gui/media/GeometryFlatten.cpp
+    src/gui/media/StreamGeometry.cpp
+    src/gui/media/StrokeTessellate.cpp
+    src/gui/media/Pen.cpp
     src/gui/media/ImageCache.cpp
     src/gui/media/Images.cpp
     src/gui/media/MediaElement.cpp

@@ -3,6 +3,7 @@
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Media/Brush.hpp>
 #include <Aero/Media/Images.hpp>
+#include <Aero/Media/Pen.hpp>
 
 namespace Aero::Shapes {
 
@@ -15,6 +16,7 @@ class AERO_GUI_API Shape : public FrameworkElement {
 public:
     Ref<Brush> GetFill() const noexcept;
     Ref<Brush> GetStroke() const noexcept;
+    Ref<Media::Pen> GetPen() const noexcept;
     double GetStrokeThickness() const noexcept;
     Stretch GetStretch() const noexcept;
 
@@ -22,11 +24,13 @@ public:
         Ref<Brush> value) noexcept;
     void SetStroke(
         Ref<Brush> value) noexcept;
+    void SetPen(Ref<Media::Pen> value) noexcept;
     void SetStrokeThickness(double value) noexcept;
     void SetStretch(Stretch value) noexcept;
 
     inline static constexpr DependencyProperty<Ref<Brush>> FillProperty{"Fill"};
     inline static constexpr DependencyProperty<Ref<Brush>> StrokeProperty{"Stroke"};
+    inline static constexpr DependencyProperty<Ref<Media::Pen>> PenProperty{"Pen"};
     inline static constexpr DependencyProperty<double> StrokeThicknessProperty{"StrokeThickness"};
     inline static constexpr DependencyProperty<Stretch> StretchProperty{"Stretch"};
 

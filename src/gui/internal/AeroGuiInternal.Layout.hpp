@@ -27,6 +27,10 @@
         ElementTree* tree = element.GetTree();
         return tree != nullptr ? tree->Bindings() : nullptr;
     }
+    static BindingEngine* BindingEngineOf(const DependencyObject& object) noexcept {
+        const UIElement* element = ::Aero::TryCast<UIElement>(&object);
+        return element != nullptr ? BindingEngineOf(*element) : nullptr;
+    }
     static StyleEngine* StyleEngineOf(const UIElement& element) noexcept {
         ElementTree* tree = element.GetTree();
         return tree != nullptr ? tree->Styles() : nullptr;

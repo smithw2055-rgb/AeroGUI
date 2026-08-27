@@ -287,6 +287,12 @@ Base::Result<void> PopulateControlsTextMedia(
                 .AffectsRender()
                 .Changed(&OnShapeFillChanged))
         .Property(
+            Shape::PenProperty,
+            FrameworkPropertyMetadata(Base::Ref<Media::Pen>{})
+                .AffectsMeasure()
+                .AffectsRender()
+                .Changed(&OnShapePenChanged))
+        .Property(
             Shape::StrokeThicknessProperty,
             FrameworkPropertyMetadata(1.0)
                 .AffectsMeasure()

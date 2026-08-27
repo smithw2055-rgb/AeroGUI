@@ -3,6 +3,7 @@
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Media/DashStyle.hpp>
 #include <Aero/Media/Geometry.hpp>
+#include <Aero/Media/Pen.hpp>
 #include <Aero/Shapes/Polygon.hpp>
 #include <Aero/Shapes/Shape.hpp>
 
@@ -12,9 +13,8 @@ namespace Aero::Shapes {
 
 using ::Aero::Media::Geometry;
 using ::Aero::Media::Brush;
-
-enum class PenLineJoin : std::uint8_t { Miter = 0U, Bevel, Round };
-enum class PenLineCap : std::uint8_t { Flat = 0U, Square, Round, Triangle };
+using ::Aero::Media::PenLineJoin;
+using ::Aero::Media::PenLineCap;
 
 // WPF-shaped vector path. The textual Data value accepts the deterministic
 // SVG/WPF subset used by the Gallery vector assets.
@@ -89,6 +89,3 @@ private:
 };
 
 } // namespace Aero::Shapes
-
-AERO_DECLARE_TYPE_ENUM(Aero::Shapes::PenLineJoin)
-AERO_DECLARE_TYPE_ENUM(Aero::Shapes::PenLineCap)

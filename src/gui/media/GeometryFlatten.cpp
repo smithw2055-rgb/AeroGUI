@@ -403,6 +403,333 @@ Result<void> TessellateGeometryFill(
     return {};
 }
 
+namespace {
+
+Base::Status InvalidPathData(const char* message) noexcept {
+    return Base::Status::Failure(
+        Base::ErrorCode::ValidationFailed, message);
+}
+
+class PathDataFlattener {
+public:
+    PathDataFlattener(StringView source, FlattenSink& sink) noexcept
+        : cursor_(source.Data()),
+          end_(source.Data() + source.SizeBytes()),
+          sink_(&sink) {}
+
+    Result<void> Flatten() noexcept {
+        Point current{};
+        Point first{};
+        Point lastControl{};
+        char lastCommand = '\0';
+        char command = '\0';
+        bool hasCurrent = false;
+        bool figureOpen = false;
+        bool figureClosed = false;
+
+        auto beginFigure = [&](Point start, bool closed) noexcept -> Result<void> {
+            if (figureOpen) {
+                Result<void> ended = sink_->EndFigure(figureClosed);
+                if (!ended) return ended.GetStatus();
+                figureOpen = false;
+            }
+            figureClosed = closed;
+            Result<void> started = sink_->BeginFigure(start, closed);
+            if (!started) return started.GetStatus();
+            figureOpen = true;
+            return {};
+        };
+        auto endFigure = [&](bool closed) noexcept -> Result<void> {
+            if (!figureOpen) return {};
+            Result<void> ended = sink_->EndFigure(closed);
+            if (!ended) return ended.GetStatus();
+            figureOpen = false;
+            figureClosed = false;
+            return {};
+        };
+
+        while (true) {
+            SkipSeparators();
+            if (cursor_ == end_) break;
+            if (IsCommand(*cursor_)) {
+                command = *cursor_++;
+                if (command == 'z' || command == 'Z') {
+                    if (!hasCurrent || !figureOpen) {
+                        return InvalidPathData(
+                            "Path close command has no active contour");
+                    }
+                    current = first;
+                    Result<void> ended = endFigure(true);
+                    if (!ended) return ended.GetStatus();
+                    hasCurrent = false;
+                    command = '\0';
+                    lastCommand = 'Z';
+                    continue;
+                }
+            } else if (command == '\0') {
+                return InvalidPathData(
+                    "Path data must begin with a move command");
+            }
+
+            const bool relative = command >= 'a' && command <= 'z';
+            const char absolute = relative
+                ? static_cast<char>(command - 'a' + 'A')
+                : command;
+
+            if (absolute == 'M' || absolute == 'L') {
+                double x = 0.0;
+                double y = 0.0;
+                Result<void> pair = ParsePair(x, y);
+                if (!pair) return pair.GetStatus();
+                Point point{x, y};
+                if (relative && hasCurrent) {
+                    point.x += current.x;
+                    point.y += current.y;
+                }
+                if (absolute == 'M') {
+                    Result<void> started = beginFigure(point, false);
+                    if (!started) return started.GetStatus();
+                    first = point;
+                    command = relative ? 'l' : 'L';
+                } else if (!hasCurrent || !figureOpen) {
+                    return InvalidPathData(
+                        "Path line command requires an active contour");
+                } else {
+                    Result<void> added = sink_->AddPoint(point);
+                    if (!added) return added.GetStatus();
+                }
+                current = point;
+                hasCurrent = true;
+                lastControl = point;
+                lastCommand = absolute;
+                continue;
+            }
+
+            if (absolute == 'H' || absolute == 'V') {
+                if (!hasCurrent || !figureOpen) {
+                    return InvalidPathData(
+                        "Path axis line command requires an active contour");
+                }
+                double value = 0.0;
+                Result<void> parsed = ParseNumber(value);
+                if (!parsed) return parsed.GetStatus();
+                Point point = current;
+                if (absolute == 'H') {
+                    point.x = relative ? current.x + value : value;
+                } else {
+                    point.y = relative ? current.y + value : value;
+                }
+                Result<void> added = sink_->AddPoint(point);
+                if (!added) return added.GetStatus();
+                current = point;
+                lastControl = point;
+                lastCommand = absolute;
+                continue;
+            }
+
+            if (absolute == 'C' || absolute == 'S') {
+                if (!hasCurrent || !figureOpen) {
+                    return InvalidPathData(
+                        "Path cubic command requires an active contour");
+                }
+                Point control1 = current;
+                Point control2{};
+                Point endPoint{};
+                if (absolute == 'C') {
+                    double x1 = 0.0, y1 = 0.0, x2 = 0.0, y2 = 0.0, x = 0.0, y = 0.0;
+                    Result<void> parsed = ParsePair(x1, y1);
+                    if (parsed) parsed = ParsePair(x2, y2);
+                    if (parsed) parsed = ParsePair(x, y);
+                    if (!parsed) return parsed.GetStatus();
+                    control1 = {x1, y1};
+                    control2 = {x2, y2};
+                    endPoint = {x, y};
+                } else {
+                    if (lastCommand == 'C' || lastCommand == 'S') {
+                        control1 = {
+                            2.0 * current.x - lastControl.x,
+                            2.0 * current.y - lastControl.y};
+                    } else {
+                        control1 = current;
+                    }
+                    double x2 = 0.0, y2 = 0.0, x = 0.0, y = 0.0;
+                    Result<void> parsed = ParsePair(x2, y2);
+                    if (parsed) parsed = ParsePair(x, y);
+                    if (!parsed) return parsed.GetStatus();
+                    control2 = {x2, y2};
+                    endPoint = {x, y};
+                }
+                if (relative) {
+                    if (absolute == 'C') {
+                        control1.x += current.x;
+                        control1.y += current.y;
+                    }
+                    control2.x += current.x;
+                    control2.y += current.y;
+                    endPoint.x += current.x;
+                    endPoint.y += current.y;
+                }
+                lastControl = control2;
+                lastCommand = absolute;
+                Result<void> flattened = FlattenCubicBezier(
+                    *sink_, current, control1, control2, endPoint);
+                if (!flattened) return flattened.GetStatus();
+                current = endPoint;
+                continue;
+            }
+
+            if (absolute == 'Q' || absolute == 'T') {
+                if (!hasCurrent || !figureOpen) {
+                    return InvalidPathData(
+                        "Path quadratic command requires an active contour");
+                }
+                Point control = current;
+                Point endPoint{};
+                if (absolute == 'Q') {
+                    double x1 = 0.0, y1 = 0.0, x = 0.0, y = 0.0;
+                    Result<void> parsed = ParsePair(x1, y1);
+                    if (parsed) parsed = ParsePair(x, y);
+                    if (!parsed) return parsed.GetStatus();
+                    control = {x1, y1};
+                    endPoint = {x, y};
+                } else {
+                    if (lastCommand == 'Q' || lastCommand == 'T') {
+                        control = {
+                            2.0 * current.x - lastControl.x,
+                            2.0 * current.y - lastControl.y};
+                    } else {
+                        control = current;
+                    }
+                    double x = 0.0, y = 0.0;
+                    Result<void> parsed = ParsePair(x, y);
+                    if (!parsed) return parsed.GetStatus();
+                    endPoint = {x, y};
+                }
+                if (relative) {
+                    if (absolute == 'Q') {
+                        control.x += current.x;
+                        control.y += current.y;
+                    }
+                    endPoint.x += current.x;
+                    endPoint.y += current.y;
+                }
+                lastControl = control;
+                lastCommand = absolute;
+                Result<void> flattened = FlattenQuadraticBezier(
+                    *sink_, current, control, endPoint);
+                if (!flattened) return flattened.GetStatus();
+                current = endPoint;
+                continue;
+            }
+
+            if (absolute == 'A') {
+                if (!hasCurrent || !figureOpen) {
+                    return InvalidPathData(
+                        "Path arc command requires an active contour");
+                }
+                double rx = 0.0, ry = 0.0, rotation = 0.0;
+                double large = 0.0, sweep = 0.0, x = 0.0, y = 0.0;
+                Result<void> parsed = ParsePair(rx, ry);
+                if (parsed) parsed = ParseNumber(rotation);
+                if (parsed) parsed = ParseNumber(large);
+                if (parsed) parsed = ParseNumber(sweep);
+                if (parsed) parsed = ParsePair(x, y);
+                if (!parsed) return parsed.GetStatus();
+                Point endPoint{x, y};
+                if (relative) {
+                    endPoint.x += current.x;
+                    endPoint.y += current.y;
+                }
+                lastControl = endPoint;
+                lastCommand = absolute;
+                Result<void> flattened = FlattenArc(
+                    *sink_,
+                    current,
+                    Size{std::fabs(rx), std::fabs(ry)},
+                    rotation,
+                    large != 0.0,
+                    sweep != 0.0,
+                    endPoint);
+                if (!flattened) return flattened.GetStatus();
+                current = endPoint;
+                continue;
+            }
+
+            return InvalidPathData(
+                "Path supports commands M, L, H, V, C, S, Q, T, A, and Z");
+        }
+        return endFigure(false);
+    }
+
+private:
+    static bool IsCommand(char value) noexcept {
+        switch (value) {
+        case 'M': case 'm':
+        case 'L': case 'l':
+        case 'H': case 'h':
+        case 'V': case 'v':
+        case 'C': case 'c':
+        case 'S': case 's':
+        case 'Q': case 'q':
+        case 'T': case 't':
+        case 'A': case 'a':
+        case 'Z': case 'z':
+            return true;
+        default:
+            return false;
+        }
+    }
+
+    void SkipSeparators() noexcept {
+        while (cursor_ != end_) {
+            const char value = *cursor_;
+            if (value != ' ' && value != '\t' &&
+                value != '\r' && value != '\n' &&
+                value != ',') {
+                break;
+            }
+            ++cursor_;
+        }
+    }
+
+    Result<void> ParseNumber(double& output) noexcept {
+        SkipSeparators();
+        if (cursor_ == end_) {
+            return InvalidPathData("Path command is missing a coordinate");
+        }
+        errno = 0;
+        char* parsedEnd = nullptr;
+        output = std::strtod(cursor_, &parsedEnd);
+        if (parsedEnd == cursor_ ||
+            parsedEnd > end_ ||
+            errno == ERANGE ||
+            !std::isfinite(output)) {
+            return InvalidPathData("Path coordinate must be a finite number");
+        }
+        cursor_ = parsedEnd;
+        return {};
+    }
+
+    Result<void> ParsePair(double& x, double& y) noexcept {
+        Result<void> first = ParseNumber(x);
+        return first ? ParseNumber(y) : first;
+    }
+
+    const char* cursor_ = nullptr;
+    const char* end_ = nullptr;
+    FlattenSink* sink_ = nullptr;
+};
+
+} // namespace
+
+Result<void> FlattenPathData(
+    StringView data,
+    FlattenSink& sink) noexcept {
+    if (data.Empty()) return {};
+    PathDataFlattener flattener(data, sink);
+    return flattener.Flatten();
+}
+
 bool GeometryContainsLocalPoint(
     const Geometry& geometry,
     Point point) noexcept {

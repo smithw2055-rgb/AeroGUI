@@ -40,6 +40,41 @@ Base::Result<void> PopulateUiResources(
     status = dashStyle.Result();
     if (!status) return status.GetStatus();
 
+    auto pen = Meta::Register<Media::Pen>(context);
+    pen
+        .Property<
+            Base::Ref<Media::Brush>,
+            &Media::Pen::GetBrush,
+            &Media::Pen::SetBrush>(
+            "Brush",
+            PropertyFlags::None)
+        .Property(
+            Media::Pen::ThicknessProperty,
+            FrameworkPropertyMetadata(1.0)
+                .Validate(&::Aero::Base::Validate::NonNegative<double>))
+        .Property<
+            Base::Ref<Media::DashStyle>,
+            &Media::Pen::GetDashStyle,
+            &Media::Pen::SetDashStyle>(
+            "DashStyle",
+            PropertyFlags::None)
+        .Property(
+            Media::Pen::LineJoinProperty,
+            FrameworkPropertyMetadata(Media::PenLineJoin::Miter))
+        .Property(
+            Media::Pen::StartLineCapProperty,
+            FrameworkPropertyMetadata(Media::PenLineCap::Flat))
+        .Property(
+            Media::Pen::EndLineCapProperty,
+            FrameworkPropertyMetadata(Media::PenLineCap::Flat))
+        .Property(
+            Media::Pen::MiterLimitProperty,
+            FrameworkPropertyMetadata(10.0)
+                .Validate(&::Aero::Base::Validate::NonNegative<double>))
+        .Factory();
+    status = pen.Result();
+    if (!status) return status.GetStatus();
+
     auto streamGeometry = Meta::Register<Media::StreamGeometry>(context);
     streamGeometry
         .Property(

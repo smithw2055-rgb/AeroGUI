@@ -306,6 +306,14 @@ void Shape::SetStroke(
     SetValue(StrokeProperty, std::move(value));
 }
 
+Base::Ref<Media::Pen> Shape::GetPen() const noexcept {
+    return GetValueOr(PenProperty, Base::Ref<Media::Pen>{});
+}
+
+void Shape::SetPen(Base::Ref<Media::Pen> value) noexcept {
+    SetValue(PenProperty, std::move(value));
+}
+
 void Shape::SetStrokeThickness(double value) noexcept {
     SetValue(StrokeThicknessProperty, value);
 }

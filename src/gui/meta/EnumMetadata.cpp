@@ -237,20 +237,20 @@ Base::Result<void> PopulateEnumMetadata(
             .Value("EvenOdd", ::Aero::Shapes::FillRule::EvenOdd)
             .Value("Nonzero", ::Aero::Shapes::FillRule::Nonzero););
     AERO_REGISTER_ENUM(
-        ::Aero::Shapes::PenLineJoin,
+        ::Aero::Media::PenLineJoin,
         "PenLineJoin",
         description
-            .Value("Miter", ::Aero::Shapes::PenLineJoin::Miter)
-            .Value("Bevel", ::Aero::Shapes::PenLineJoin::Bevel)
-            .Value("Round", ::Aero::Shapes::PenLineJoin::Round););
+            .Value("Miter", ::Aero::Media::PenLineJoin::Miter)
+            .Value("Bevel", ::Aero::Media::PenLineJoin::Bevel)
+            .Value("Round", ::Aero::Media::PenLineJoin::Round););
     AERO_REGISTER_ENUM(
-        ::Aero::Shapes::PenLineCap,
+        ::Aero::Media::PenLineCap,
         "PenLineCap",
         description
-            .Value("Flat", ::Aero::Shapes::PenLineCap::Flat)
-            .Value("Square", ::Aero::Shapes::PenLineCap::Square)
-            .Value("Round", ::Aero::Shapes::PenLineCap::Round)
-            .Value("Triangle", ::Aero::Shapes::PenLineCap::Triangle););
+            .Value("Flat", ::Aero::Media::PenLineCap::Flat)
+            .Value("Square", ::Aero::Media::PenLineCap::Square)
+            .Value("Round", ::Aero::Media::PenLineCap::Round)
+            .Value("Triangle", ::Aero::Media::PenLineCap::Triangle););
     AERO_REGISTER_ENUM(
         ::Aero::Media::SweepDirection,
         "SweepDirection",

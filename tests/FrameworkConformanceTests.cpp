@@ -19,7 +19,10 @@
 #include <Aero/Controls/TabControl.hpp>
 #include <Aero/Controls/TextBlock.hpp>
 #include <Aero/Controls/VirtualizingStackPanel.hpp>
+#include <Aero/Controls/TextBox.hpp>
 #include <Aero/Data/Binding.hpp>
+#include <Aero/Data/BindingExpression.hpp>
+#include <Aero/Data/BindingOperations.hpp>
 #include <Aero/Data/CollectionView.hpp>
 #include <Aero/Data/CollectionViewSource.hpp>
 #include <Aero/Data/NotifyPropertyChanged.hpp>
@@ -92,6 +95,9 @@
 #include <Aero/Media/Animation/PointAnimationUsingKeyFrames.hpp>
 #include <Aero/Media/Animation/ThicknessAnimationUsingKeyFrames.hpp>
 #include <Aero/Media/DrawingContext.hpp>
+#include <Aero/Media/Pen.hpp>
+#include <Aero/Media/StreamGeometry.hpp>
+#include <Aero/Media/StreamGeometryContext.hpp>
 #include <Aero/Media/ImageSource.hpp>
 #include <Aero/Media/MatrixTransform.hpp>
 #include <Aero/Media/ShaderEffect.hpp>
@@ -155,9 +161,13 @@ using Aero::Controls::PasswordBox;
 using Aero::Controls::StackPanel;
 using Aero::Controls::TabControl;
 using Aero::Controls::TextBlock;
+using Aero::Controls::TextBox;
 using Aero::Controls::UniformGrid;
 using Aero::Controls::UserControl;
 using Aero::Controls::VirtualizingStackPanel;
+using Aero::Data::BindingExpression;
+using Aero::Data::BindingOperations;
+using Aero::Data::BindingStatus;
 using Aero::Data::CollectionView;
 using Aero::Data::CollectionViewSource;
 using Aero::Data::IMultiValueConverter;
@@ -182,6 +192,9 @@ using Aero::Media::LineGeometry;
 using Aero::Media::LineSegment;
 using Aero::Media::PathFigure;
 using Aero::Media::PathGeometry;
+using Aero::Media::Pen;
+using Aero::Media::StreamGeometry;
+using Aero::Media::StreamGeometryContext;
 using Aero::Media::PerspectiveTransform3D;
 using Aero::Media::PolyBezierSegment;
 using Aero::Media::PolyLineSegment;
@@ -660,6 +673,19 @@ protected:
         static_cast<void>(context.DrawRectangle(
             {0.0, 0.0, GetRenderSize().width, GetRenderSize().height},
             Aero::Base::Color{0.2F, 0.3F, 0.8F, 1.0F}));
+        Result<Ref<Aero::Media::Pen>> pen = MakeRef<Aero::Media::Pen>();
+        Result<Ref<Aero::Media::Brush>> stroke = Aero::Media::MakeSolidColorBrush(
+            {1.0F, 1.0F, 1.0F, 1.0F});
+        if (pen && stroke) {
+            pen.Value()->SetBrush(stroke.Value());
+            pen.Value()->SetThickness(2.0);
+            static_cast<void>(context.DrawLine(
+                pen.Value(), {0.0, 0.0}, {10.0, 0.0}));
+            Aero::Media::StreamGeometry geometry;
+            geometry.SetData("M 0,0 L 8,0 L 8,8 Z");
+            static_cast<void>(context.DrawGeometry(
+                stroke.Value(), pen.Value(), geometry));
+        }
     }
 };
 
@@ -1635,6 +1661,83 @@ bool TestGeometryFlatten() {
     return true;
 }
 
+bool SameFlattened(const PointSink& left, const PointSink& right) noexcept {
+    if (left.begins != right.begins || left.ends != right.ends ||
+        left.points.Size() != right.points.Size()) {
+        return false;
+    }
+    for (std::uint32_t index = 0U; index < left.points.Size(); ++index) {
+        if (!Near(left.points[index].x, right.points[index].x, 0.05) ||
+            !Near(left.points[index].y, right.points[index].y, 0.05)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool TestStreamGeometryFlattenCore() {
+    StreamGeometry stream;
+    stream.SetData("M 0,0 L 10,0 C 10,10 20,10 20,0 Q 30,10 30,0 A 8,8 0 0 1 40,0 Z");
+    PointSink fromData;
+    CHECK(stream.Flatten(fromData));
+    CHECK(fromData.begins >= 1U);
+    CHECK(fromData.points.Size() > 8U);
+    CHECK(stream.GetBounds().width > 0.0);
+
+    Result<Ref<PathGeometry>> pathGeometry = MakeRef<PathGeometry>();
+    Result<Ref<PathFigure>> figure = MakeRef<PathFigure>();
+    Result<Ref<LineSegment>> first = MakeRef<LineSegment>();
+    Result<Ref<LineSegment>> second = MakeRef<LineSegment>();
+    CHECK(pathGeometry && figure && first && second);
+    figure.Value()->SetStartPoint({0.0, 0.0});
+    figure.Value()->SetIsClosed(true);
+    first.Value()->SetPoint({10.0, 0.0});
+    second.Value()->SetPoint({10.0, 10.0});
+    CHECK(figure.Value()->AddSegment(first.Value()));
+    CHECK(figure.Value()->AddSegment(second.Value()));
+    CHECK(pathGeometry.Value()->AddFigure(figure.Value()));
+    StreamGeometry lineStream;
+    lineStream.SetData("M 0,0 L 10,0 L 10,10 Z");
+    PointSink fromStream;
+    PointSink fromPathGeometry;
+    CHECK(lineStream.Flatten(fromStream));
+    CHECK(pathGeometry.Value()->Flatten(fromPathGeometry));
+    CHECK(SameFlattened(fromStream, fromPathGeometry));
+
+    LiveGui* live = NewLiveGui();
+    CHECK(live != nullptr);
+    Result<Ref<Path>> path = MakeRef<Path>();
+    Result<Ref<StreamGeometry>> mounted = MakeRef<StreamGeometry>();
+    CHECK(path && mounted);
+    mounted.Value()->SetData(stream.GetData());
+    path.Value()->SetData(mounted.Value());
+    CHECK(live->view->SetContent(path.Value(), {200.0, 200.0}));
+    Pump(*live->view, 0.016);
+    CHECK(path.Value()->GetGeometryBounds().width > 0.0);
+    return true;
+}
+
+bool TestStreamGeometryContextFlatten() {
+    const StringView data(
+        "M 0,0 L 10,0 C 10,10 20,10 20,0 Q 30,10 30,0");
+    StreamGeometry parsed;
+    parsed.SetData(data);
+    PointSink expected;
+    CHECK(parsed.Flatten(expected));
+
+    StreamGeometry built;
+    StreamGeometryContext context = built.Open();
+    CHECK(context.BeginFigure({0.0, 0.0}, true, false));
+    CHECK(context.LineTo({10.0, 0.0}, true, false));
+    CHECK(context.BezierTo({10.0, 10.0}, {20.0, 10.0}, {20.0, 0.0}, true, false));
+    CHECK(context.QuadraticBezierTo({30.0, 10.0}, {30.0, 0.0}, true, false));
+    CHECK(context.Close());
+    PointSink actual;
+    CHECK(built.Flatten(actual));
+    CHECK(SameFlattened(expected, actual));
+    return true;
+}
+
 bool TestTimelineDurationAndKeyTime() {
     Duration automatic = Duration::Automatic();
     CHECK(automatic.IsAutomatic());
@@ -1825,6 +1928,39 @@ bool TestStrokeJoinCapFillRule() {
     CHECK(path.GetFillRule() == FillRule::EvenOdd);
     path.SetFillRule(FillRule::Nonzero);
     CHECK(path.GetFillRule() == FillRule::Nonzero);
+
+    Result<Ref<Pen>> pen = MakeRef<Pen>();
+    Result<Ref<Aero::Media::Brush>> stroke = Aero::Media::MakeSolidColorBrush(
+        {0.0F, 0.0F, 0.0F, 1.0F});
+    CHECK(pen && stroke);
+    pen.Value()->SetBrush(stroke.Value());
+    pen.Value()->SetThickness(4.0);
+    pen.Value()->SetLineJoin(PenLineJoin::Miter);
+    pen.Value()->SetMiterLimit(1.0);
+    pen.Value()->SetStartLineCap(PenLineCap::Square);
+    pen.Value()->SetEndLineCap(PenLineCap::Triangle);
+    path.SetPen(pen.Value());
+    CHECK(path.GetPen().Get() == pen.Value().Get());
+    CHECK(Near(path.GetPen()->GetMiterLimit(), 1.0, 0.001));
+    Result<Ref<StreamGeometry>> geometry = MakeRef<StreamGeometry>();
+    CHECK(geometry);
+    geometry.Value()->SetData("M 0,0 L 20,0 L 10,20 Z");
+    path.SetData(geometry.Value());
+    path.SetStroke(stroke.Value());
+
+    LiveGui* live = NewLiveGui();
+    CHECK(live != nullptr);
+    Result<Ref<Path>> mounted = MakeRef<Path>();
+    CHECK(mounted);
+    mounted.Value()->SetPen(pen.Value());
+    mounted.Value()->SetData(geometry.Value());
+    mounted.Value()->SetStroke(stroke.Value());
+    mounted.Value()->SetStrokeLineJoin(PenLineJoin::Miter);
+    CHECK(live->view->SetContent(mounted.Value(), {100.0, 100.0}));
+    Pump(*live->view, 0.016);
+    CHECK(mounted.Value()->GetGeometryBounds().width > 0.0);
+    CHECK(mounted.Value()->GetGeometryBounds().height > 0.0);
+    CHECK(Near(mounted.Value()->GetPen()->GetMiterLimit(), 1.0, 0.001));
     return true;
 }
 
@@ -1873,6 +2009,90 @@ bool TestNotifyPropertyChangedBindLoop() {
     person.Value()->SetName(std::move(renamed));
     Pump(view, 0.064);
     CHECK(label->GetText() == StringView("Bob"));
+    return true;
+}
+
+bool TestBindingExpressionAndLostFocus() {
+    LiveGui* live = NewLiveGui();
+    CHECK(live != nullptr);
+    View& view = *live->view;
+    view.SetSize({240.0, 80.0});
+
+    Result<Ref<Person>> person = MakeRef<Person>();
+    CHECK(person);
+    String name;
+    CHECK(name.Assign("Ada"));
+    person.Value()->SetName(std::move(name));
+
+    Aero::Markup::XamlReader reader(live->gui);
+    Result<Aero::Markup::XamlDocument> document = reader.Parse(StringView(
+        "<StackPanel xmlns=\"urn:aero\">"
+        "<TextBox Text=\"{Binding Name, Mode=TwoWay}\"/>"
+        "<TextBox Text=\"other\"/>"
+        "</StackPanel>"));
+    CHECK(document);
+    CHECK(view.SetContent(std::move(document).Value(), {240.0, 80.0}));
+    Pump(view, 0.016);
+    auto* root = TryCast<StackPanel>(view.GetContent());
+    CHECK(root != nullptr);
+    CHECK(root->GetChildren().GetCount() >= 2U);
+    auto* input = TryCast<TextBox>(root->GetChildren().GetItem(0U));
+    auto* other = TryCast<TextBox>(root->GetChildren().GetItem(1U));
+    CHECK(input != nullptr && other != nullptr);
+    input->SetValue(
+        FrameworkElement::DataContextProperty,
+        Aero::Value::FromObject(Person::StaticTypeId(), person.Value()));
+    Pump(view, 0.032);
+    Pump(view, 0.048);
+    CHECK(input->GetText() == StringView("Ada"));
+
+    BindingExpression expression = BindingOperations::GetBindingExpression(
+        input, TextBox::TextProperty);
+    CHECK(expression.IsValid());
+    CHECK(expression.Status() == BindingStatus::Active);
+
+    input->SetText("Bob");
+    Pump(view, 0.064);
+    CHECK(person.Value()->GetName() == StringView("Ada"));
+
+    CHECK(input->Focus());
+    Pump(view, 0.080);
+    CHECK(other->Focus());
+    Pump(view, 0.096);
+    CHECK(person.Value()->GetName() == StringView("Bob"));
+
+    BindingExpression invalid;
+    CHECK(!invalid.IsValid());
+    CHECK(invalid.Status() == BindingStatus::Unattached);
+    CHECK(!invalid.UpdateSource().IsOk());
+    CHECK(!invalid.UpdateTarget().IsOk());
+
+    Result<Aero::Markup::XamlDocument> explicitDocument = reader.Parse(StringView(
+        "<TextBox xmlns=\"urn:aero\""
+        " Text=\"{Binding Name, Mode=TwoWay, UpdateSourceTrigger=Explicit}\"/>"));
+    CHECK(explicitDocument);
+    CHECK(view.SetContent(std::move(explicitDocument).Value(), {240.0, 40.0}));
+    auto* explicitBox = TryCast<TextBox>(view.GetContent());
+    CHECK(explicitBox != nullptr);
+    explicitBox->SetValue(
+        FrameworkElement::DataContextProperty,
+        Aero::Value::FromObject(Person::StaticTypeId(), person.Value()));
+    Pump(view, 0.112);
+    CHECK(explicitBox->GetText() == StringView("Bob"));
+    BindingExpression explicitExpression =
+        BindingOperations::GetBindingExpression(
+            explicitBox, TextBox::TextProperty);
+    CHECK(explicitExpression.IsValid());
+    explicitBox->SetText("Cara");
+    Pump(view, 0.128);
+    CHECK(person.Value()->GetName() == StringView("Bob"));
+    CHECK(explicitExpression.UpdateSource().IsOk());
+    CHECK(person.Value()->GetName() == StringView("Cara"));
+    String restored;
+    CHECK(restored.Assign("Ada"));
+    person.Value()->SetName(std::move(restored));
+    CHECK(explicitExpression.UpdateTarget().IsOk());
+    CHECK(explicitBox->GetText() == StringView("Ada"));
     return true;
 }
 
@@ -3007,11 +3227,14 @@ int main() {
     RUN(TestComboBoxAndVisualStateAnimation);
     RUN(TestTransform3DCollapseAndHits);
     RUN(TestGeometryFlatten);
+    RUN(TestStreamGeometryFlattenCore);
+    RUN(TestStreamGeometryContextFlatten);
     RUN(TestTimelineDurationAndKeyTime);
     RUN(TestCollectionViewAndVirtualization);
     RUN(TestTemplateResolveOrder);
     RUN(TestStrokeJoinCapFillRule);
     RUN(TestNotifyPropertyChangedBindLoop);
+    RUN(TestBindingExpressionAndLostFocus);
     RUN(TestCustomItemsSourceThunk);
     RUN(TestClrItemsSourceBindingAfterDataContext);
     RUN(TestGalleryXamlSurface);

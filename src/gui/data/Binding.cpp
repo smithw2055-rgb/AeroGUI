@@ -6,6 +6,7 @@
 #include "gui/controls/State.hpp"
 #include <Aero/Data/Binding.hpp>
 #include <Aero/FrameworkElement.hpp>
+#include <Aero/UIElement.hpp>
 #include <Aero/LogicalTreeHelper.hpp>
 #include <Aero/TryCast.hpp>
 #include <Aero/Visual.hpp>
@@ -792,7 +793,12 @@ Base::Result<BindingHandle> BindingEngine::Attach(
 
     BindingRecord record;
     record.handle.value = nextHandle_++;
+    record.handle.engine_ = this;
     record.descriptor = descriptor;
+    record.descriptor.updateSourceTrigger = ResolveUpdateSourceTrigger(
+        *descriptor.target,
+        descriptor.targetProperty,
+        descriptor.updateSourceTrigger);
     Base::Result<void> appended = bindings_.PushBack(std::move(record));
     if (!appended) {
         --nextHandle_;
@@ -813,6 +819,12 @@ Base::Result<BindingHandle> BindingEngine::Attach(
             descriptor.sourceProperty, propertyChangedHandler_);
         RemoveAt(bindings_.Size() - 1U);
         return targetSubscription.GetStatus();
+    }
+    Base::Result<void> lostFocus =
+        SubscribeLostFocus(bindings_.Back());
+    if (!lostFocus) {
+        RemoveAt(bindings_.Size() - 1U);
+        return lostFocus.GetStatus();
     }
     return bindings_.Back().handle;
 }
@@ -838,6 +850,7 @@ Base::Result<BindingHandle> BindingEngine::Attach(
 
     BindingRecord record;
     record.handle.value = nextHandle_++;
+    record.handle.engine_ = this;
     record.sourceKind = descriptor.source != nullptr
         ? (descriptor.bindsToSource
             ? BindingSourceKind::MetadataObject
@@ -869,8 +882,10 @@ Base::Result<BindingHandle> BindingEngine::Attach(
     record.descriptor.target = descriptor.target;
     record.descriptor.targetProperty = descriptor.targetProperty;
     record.descriptor.mode = descriptor.mode;
-    record.descriptor.updateSourceTrigger =
-        descriptor.updateSourceTrigger;
+    record.descriptor.updateSourceTrigger = ResolveUpdateSourceTrigger(
+        *descriptor.target,
+        descriptor.targetProperty,
+        descriptor.updateSourceTrigger);
     record.descriptor.convert = descriptor.convert;
     record.descriptor.convertBack = descriptor.convertBack;
     record.descriptor.converterResource = descriptor.converterResource;
@@ -1013,6 +1028,11 @@ Base::Result<BindingHandle> BindingEngine::Attach(
             RemoveAt(bindings_.Size() - 1U);
             return sourceSubscription.GetStatus();
         }
+    }
+    Base::Result<void> lostFocus = SubscribeLostFocus(stored);
+    if (!lostFocus) {
+        RemoveAt(bindings_.Size() - 1U);
+        return lostFocus.GetStatus();
     }
     return stored.handle;
 }
@@ -1175,7 +1195,7 @@ Base::Result<bool> BindingEngine::Detach(BindingHandle handle) noexcept {
     if (flushing_) {
         return InvalidState("BindingEngine cannot detach while flushing");
     }
-    if (!handle.IsValid()) {
+    if (handle.value == 0U) {
         return false;
     }
     for (std::uint32_t index = 0U; index < bindings_.Size(); ++index) {
@@ -1207,6 +1227,168 @@ Base::Result<bool> BindingEngine::UpdateSource(BindingHandle handle) noexcept {
         return true;
     }
     return false;
+}
+
+Base::Result<bool> BindingEngine::UpdateTarget(BindingHandle handle) noexcept {
+    if (!dispatcher_->CheckAccess()) {
+        return dispatcher_->VerifyAccess().GetStatus();
+    }
+    if (!hook_.IsValid() || flushing_) {
+        return InvalidState("BindingEngine is not ready to update a target");
+    }
+    BindingRecord* record = FindRecord(handle);
+    if (record == nullptr) return false;
+    record->sourceDirty = true;
+    Base::Result<std::uint32_t> flushed = Flush();
+    if (!flushed) return flushed.GetStatus();
+    return true;
+}
+
+BindingHandle BindingEngine::FindBinding(
+    DependencyObject& target,
+    DependencyPropertyHandle property) const noexcept {
+    for (const BindingRecord& record : bindings_) {
+        if (record.descriptor.target == &target &&
+            record.descriptor.targetProperty == property) {
+            return record.handle;
+        }
+    }
+    return {};
+}
+
+Data::BindingStatus BindingEngine::QueryStatus(
+    BindingHandle handle) const noexcept {
+    const BindingRecord* record = FindRecord(handle);
+    if (record == nullptr) return Data::BindingStatus::Unattached;
+    if (!record->lastStatus.IsOk()) {
+        switch (record->conversionFailureStage) {
+        case BindingDiagnosticStage::ConvertBack:
+        case BindingDiagnosticStage::ValidateBack:
+        case BindingDiagnosticStage::WriteSource:
+            return Data::BindingStatus::UpdateSourceError;
+        default:
+            return Data::BindingStatus::UpdateTargetError;
+        }
+    }
+    return record->applied
+        ? Data::BindingStatus::Active
+        : Data::BindingStatus::Inactive;
+}
+
+bool BindingEngine::Contains(BindingHandle handle) const noexcept {
+    return FindRecord(handle) != nullptr;
+}
+
+UpdateSourceTrigger BindingEngine::ResolveUpdateSourceTrigger(
+    DependencyObject& target,
+    DependencyPropertyHandle property,
+    UpdateSourceTrigger requested) noexcept {
+    if (requested != UpdateSourceTrigger::Default) {
+        return requested;
+    }
+    const DependencyProperty* info =
+        target.PropertyRegistry().Find(property);
+    if (info == nullptr) {
+        return UpdateSourceTrigger::PropertyChanged;
+    }
+    const PropertyMetadata* metadata =
+        info->MetadataFor(target.RuntimeType());
+    if (metadata == nullptr ||
+        metadata->defaultUpdateSourceTrigger ==
+            UpdateSourceTrigger::Default) {
+        return UpdateSourceTrigger::PropertyChanged;
+    }
+    return metadata->defaultUpdateSourceTrigger;
+}
+
+void BindingEngine::RegisterMultiBinding(
+    DependencyObject& target,
+    DependencyPropertyHandle property,
+    Base::Span<const Data::BindingHandle> handles) noexcept {
+    MultiBindingGroup group;
+    group.target = &target;
+    group.targetProperty = property;
+    for (std::uint32_t index = 0U; index < handles.Size(); ++index) {
+        if (!group.handles.PushBack(handles[index])) return;
+    }
+    static_cast<void>(multiBindings_.PushBack(std::move(group)));
+}
+
+Data::MultiBindingExpression BindingEngine::FindMultiBinding(
+    DependencyObject& target,
+    DependencyPropertyHandle property) const noexcept {
+    Data::MultiBindingExpression expression;
+    for (const MultiBindingGroup& group : multiBindings_) {
+        if (group.target != &target ||
+            group.targetProperty != property) {
+            continue;
+        }
+        for (std::uint32_t index = 0U; index < group.handles.Size(); ++index) {
+            if (!expression.handles_.PushBack(group.handles[index])) {
+                return {};
+            }
+        }
+        return expression;
+    }
+    return {};
+}
+
+BindingEngine::BindingRecord* BindingEngine::FindRecord(
+    BindingHandle handle) noexcept {
+    if (!handle.IsValid() || handle.engine_ != this) return nullptr;
+    for (BindingRecord& record : bindings_) {
+        if (record.handle.value == handle.value) return &record;
+    }
+    return nullptr;
+}
+
+const BindingEngine::BindingRecord* BindingEngine::FindRecord(
+    BindingHandle handle) const noexcept {
+    if (!handle.IsValid() || handle.engine_ != this) return nullptr;
+    for (const BindingRecord& record : bindings_) {
+        if (record.handle.value == handle.value) return &record;
+    }
+    return nullptr;
+}
+
+Base::Result<void> BindingEngine::SubscribeLostFocus(
+    BindingRecord& record) noexcept {
+    if (record.descriptor.updateSourceTrigger !=
+            UpdateSourceTrigger::LostFocus ||
+        record.descriptor.target == nullptr) {
+        return {};
+    }
+    UIElement* element = TryCast<UIElement>(record.descriptor.target);
+    if (element == nullptr) return {};
+    if (record.descriptor.targetProperty ==
+        UIElement::IsKeyboardFocusedProperty.Handle()) {
+        record.lostFocusSubscribed = true;
+        return {};
+    }
+    Base::Result<void> subscribed =
+        element->AddValueChangedHandlerChecked(
+            UIElement::IsKeyboardFocusedProperty.Handle(),
+            propertyChangedHandler_);
+    if (!subscribed) return subscribed.GetStatus();
+    record.lostFocusSubscribed = true;
+    return {};
+}
+
+void BindingEngine::UnsubscribeLostFocus(BindingRecord& record) noexcept {
+    if (!record.lostFocusSubscribed || record.descriptor.target == nullptr) {
+        return;
+    }
+    UIElement* element = TryCast<UIElement>(record.descriptor.target);
+    if (element == nullptr) return;
+    if (record.descriptor.targetProperty ==
+        UIElement::IsKeyboardFocusedProperty.Handle()) {
+        record.lostFocusSubscribed = false;
+        return;
+    }
+    (void)element->RemoveValueChangedHandler(
+        UIElement::IsKeyboardFocusedProperty.Handle(),
+        propertyChangedHandler_);
+    record.lostFocusSubscribed = false;
 }
 
 Base::Result<std::uint32_t> BindingEngine::DetachObject(
@@ -1402,10 +1584,23 @@ Base::Result<std::uint32_t> BindingEngine::Flush() noexcept {
             usedFallback ||
             (pollMetadata &&
              source.Value() != record.lastSourceValue);
-        const bool targetChanged = record.descriptor.updateSourceTrigger ==
-                UpdateSourceTrigger::Explicit
+        const bool targetChanged =
+            record.descriptor.updateSourceTrigger ==
+                    UpdateSourceTrigger::Explicit ||
+                record.descriptor.updateSourceTrigger ==
+                    UpdateSourceTrigger::LostFocus
             ? record.forceSourceUpdate
             : (!record.applied || record.targetDirty);
+        if (!sourceChanged && !targetChanged) {
+            record.sourceDirty = false;
+            if (record.descriptor.updateSourceTrigger !=
+                    UpdateSourceTrigger::LostFocus &&
+                record.descriptor.updateSourceTrigger !=
+                    UpdateSourceTrigger::Explicit) {
+                record.targetDirty = false;
+            }
+            continue;
+        }
         Base::Result<void> applied =
             Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
@@ -1465,6 +1660,7 @@ Base::Result<std::uint32_t> BindingEngine::Flush() noexcept {
         record.lastSourceValue = source.Value();
         record.lastTargetValue = target.Value();
         record.applied = true;
+        record.lastStatus = {};
         record.sourceDirty = false;
         record.targetDirty = false;
         record.forceSourceUpdate = false;
@@ -1565,8 +1761,9 @@ void BindingEngine::DataBindHook(void* context) noexcept {
 }
 
 void BindingEngine::OnPropertyChanged(
-    DependencyObject& object,
-    const DependencyPropertyChangedEventArgs& args) noexcept {
+        DependencyObject& object,
+        const DependencyPropertyChangedEventArgs& args) noexcept {
+    bool lostFocusFlush = false;
     for (BindingRecord& record : bindings_) {
         if (record.sourceKind == BindingSourceKind::DependencyProperty &&
             record.descriptor.source == &object &&
@@ -1587,6 +1784,24 @@ void BindingEngine::OnPropertyChanged(
             record.descriptor.targetProperty == args.GetProperty()) {
             record.targetDirty = true;
         }
+        if (record.lostFocusSubscribed &&
+            record.descriptor.target == &object &&
+            args.GetProperty() ==
+                UIElement::IsKeyboardFocusedProperty.Handle() &&
+            record.descriptor.updateSourceTrigger ==
+                UpdateSourceTrigger::LostFocus) {
+            const PropertyValue& next = args.GetNewValue();
+            const bool focused =
+                next.Kind() == ValueKind::Boolean && next.AsBoolean();
+            if (!focused) {
+                record.forceSourceUpdate = true;
+                record.targetDirty = true;
+                lostFocusFlush = true;
+            }
+        }
+    }
+    if (lostFocusFlush && !flushing_ && hook_.IsValid()) {
+        static_cast<void>(Flush());
     }
 }
 
@@ -2119,6 +2334,8 @@ void BindingEngine::ReportDiagnostic(
     BindingDiagnosticStage stage,
     Base::Status status) noexcept {
     lastError_ = status;
+    record.lastStatus = status;
+    record.conversionFailureStage = stage;
     if (record.descriptor.diagnostic != nullptr) {
         record.descriptor.diagnostic(
             {record.handle, stage, status},
@@ -2173,6 +2390,7 @@ void BindingEngine::RemoveAt(std::uint32_t index) noexcept {
     }
     (void)removed.descriptor.target->RemoveValueChangedHandler(
         removed.descriptor.targetProperty, propertyChangedHandler_);
+    UnsubscribeLostFocus(removed);
     for (std::uint32_t current = index + 1U;
          current < bindings_.Size();
          ++current) {

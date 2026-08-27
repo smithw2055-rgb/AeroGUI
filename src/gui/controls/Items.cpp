@@ -1313,10 +1313,11 @@ Base::Result<void> ItemsControl::PrepareContainer(
     descriptor.mode = binding.GetMode() == Data::BindingMode::Default
         ? Data::BindingMode::OneWay
         : binding.GetMode();
-    descriptor.updateSourceTrigger = binding.GetUpdateSourceTrigger() ==
-            Meta::UpdateSourceTrigger::Default
-        ? Meta::UpdateSourceTrigger::PropertyChanged
-        : binding.GetUpdateSourceTrigger();
+    descriptor.updateSourceTrigger =
+        bindings->ResolveUpdateSourceTrigger(
+            childItems,
+            ItemsSourceProperty.Handle(),
+            binding.GetUpdateSourceTrigger());
     descriptor.converterResource = binding.GetConverter();
     descriptor.converterParameter = binding.GetConverterParameter();
     descriptor.fallbackValue = binding.GetFallbackValue();

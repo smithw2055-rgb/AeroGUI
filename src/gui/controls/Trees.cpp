@@ -206,7 +206,10 @@ void TreeViewItem::ActivateHierarchicalContent() noexcept {
             hierarchicalItemsBinding_->GetStringFormat();
         descriptor.mode = Data::BindingMode::OneWay;
         descriptor.updateSourceTrigger =
-            Meta::UpdateSourceTrigger::PropertyChanged;
+            bindings->ResolveUpdateSourceTrigger(
+                *this,
+                ItemsControl::ItemsSourceProperty.Handle(),
+                hierarchicalItemsBinding_->GetUpdateSourceTrigger());
         descriptor.converterResource =
             hierarchicalItemsBinding_->GetConverter();
         descriptor.converterParameter =

@@ -118,6 +118,10 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Controls/TextBoxBase.hpp
     include/Aero/Controls/TextBox.hpp
     include/Aero/Data/Binding.hpp
+    include/Aero/Data/BindingExpression.hpp
+    include/Aero/Data/MultiBindingExpression.hpp
+    include/Aero/Data/TemplateBindingExpression.hpp
+    include/Aero/Data/BindingOperations.hpp
     include/Aero/Data/NotifyPropertyChanged.hpp
     include/Aero/Data/SortDescription.hpp
     include/Aero/Data/CollectionView.hpp
@@ -377,6 +381,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Media/ImageBrush.hpp
     include/Aero/Media/VisualBrush.hpp
     include/Aero/Media/DashStyle.hpp
+    include/Aero/Media/Pen.hpp
     include/Aero/Media/Transform.hpp
     include/Aero/Media/TranslateTransform.hpp
     include/Aero/Media/ScaleTransform.hpp
@@ -397,6 +402,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Media/DirectionalBlurEffect.hpp
     include/Aero/Media/ShaderEffect.hpp
     include/Aero/Media/StreamGeometry.hpp
+    include/Aero/Media/StreamGeometryContext.hpp
     include/Aero/Media/PathSegment.hpp
     include/Aero/Media/LineSegment.hpp
     include/Aero/Media/BezierSegment.hpp

@@ -65,7 +65,9 @@ constexpr Base::StringView OneWayMode("OneWay");
 constexpr Base::StringView TwoWayMode("TwoWay");
 constexpr Base::StringView OneWayToSourceMode("OneWayToSource");
 constexpr Base::StringView PropertyChangedTrigger("PropertyChanged");
+constexpr Base::StringView LostFocusTrigger("LostFocus");
 constexpr Base::StringView ExplicitTrigger("Explicit");
+constexpr Base::StringView DefaultTrigger("Default");
 constexpr Base::StringView SelfValue("Self");
 constexpr Base::StringView TemplatedParentValue("TemplatedParent");
 constexpr Base::StringView RelativeSourcePrefix("{RelativeSource");
@@ -178,7 +180,7 @@ Base::Result<void> ParseArguments(
     ancestorLevel = 1U;
     relativeSource = RelativeSourceKind::None;
     mode = Data::BindingMode::OneWay;
-    updateSourceTrigger = Meta::UpdateSourceTrigger::PropertyChanged;
+    updateSourceTrigger = Meta::UpdateSourceTrigger::Default;
 
     std::uint32_t begin = 0U;
     while (begin < arguments.SizeBytes()) {
@@ -494,8 +496,12 @@ Base::Result<void> ParseArguments(
         } else if (key == UpdateSourceTriggerKey) {
             if (value == PropertyChangedTrigger) {
                 updateSourceTrigger = Meta::UpdateSourceTrigger::PropertyChanged;
+            } else if (value == LostFocusTrigger) {
+                updateSourceTrigger = Meta::UpdateSourceTrigger::LostFocus;
             } else if (value == ExplicitTrigger) {
                 updateSourceTrigger = Meta::UpdateSourceTrigger::Explicit;
+            } else if (value == DefaultTrigger) {
+                updateSourceTrigger = Meta::UpdateSourceTrigger::Default;
             } else {
                 return Base::Status::Failure(
                     Base::ErrorCode::Unsupported,
@@ -604,7 +610,8 @@ void RollbackBinding(
     std::uint64_t token) noexcept {
     auto* state = static_cast<DeferredBindingState*>(context);
     if (state != nullptr && state->manager != nullptr && token != 0U) {
-        static_cast<void>(state->manager->Detach({token}));
+        static_cast<void>(
+            state->manager->Detach(Data::BindingHandle(token)));
     }
 }
 
@@ -941,6 +948,10 @@ Base::Result<std::uint64_t> CommitMultiBinding(
         state->Detach();
         return retainedOutput.GetStatus();
     }
+    state->manager->RegisterMultiBinding(
+        *state->target,
+        state->targetProperty,
+        state->handles.AsSpan());
     return UINT64_C(1);
 }
 

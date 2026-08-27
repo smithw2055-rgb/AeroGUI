@@ -119,9 +119,13 @@ private:
 
 } // namespace Aero::Meta
 
-// Binding descriptors, expressions and the view binding service.
-
 #include <Aero/Data/Binding.hpp>
+#include <Aero/Data/BindingExpression.hpp>
+#include <Aero/Data/MultiBindingExpression.hpp>
+
+namespace Aero {
+class BindingEngine;
+}
 
 namespace Aero::Data {
 
@@ -144,14 +148,6 @@ public:
 
     inline static constexpr DependencyProperty<Value>
         ValueProperty{"Value"};
-};
-
-struct BindingHandle {
-    std::uint64_t value = 0U;
-
-    constexpr bool IsValid() const noexcept {
-        return value != 0U;
-    }
 };
 
 enum class BindingDiagnosticStage : std::uint8_t {
@@ -349,6 +345,23 @@ public:
     }
     Base::Result<bool> Detach(BindingHandle handle) noexcept;
     Base::Result<bool> UpdateSource(BindingHandle handle) noexcept;
+    Base::Result<bool> UpdateTarget(BindingHandle handle) noexcept;
+    BindingHandle FindBinding(
+        DependencyObject& target,
+        DependencyPropertyHandle property) const noexcept;
+    Data::BindingStatus QueryStatus(BindingHandle handle) const noexcept;
+    bool Contains(BindingHandle handle) const noexcept;
+    static UpdateSourceTrigger ResolveUpdateSourceTrigger(
+        DependencyObject& target,
+        DependencyPropertyHandle property,
+        UpdateSourceTrigger requested) noexcept;
+    void RegisterMultiBinding(
+        DependencyObject& target,
+        DependencyPropertyHandle property,
+        Base::Span<const Data::BindingHandle> handles) noexcept;
+    Data::MultiBindingExpression FindMultiBinding(
+        DependencyObject& target,
+        DependencyPropertyHandle property) const noexcept;
 
     // Removes every binding whose source or target is object. Tree/object
     // ownership code uses this before destroying a DependencyObject.
@@ -414,6 +427,8 @@ private:
         bool targetDirty = true;
         bool forceSourceUpdate = false;
         bool pollHintEmitted = false;
+        bool lostFocusSubscribed = false;
+        Base::Status lastStatus{};
     };
 
     struct DeferredBindingRecord {
@@ -442,11 +457,18 @@ private:
         void* diagnosticContext = nullptr;
     };
 
+    struct MultiBindingGroup {
+        DependencyObject* target = nullptr;
+        DependencyPropertyHandle targetProperty;
+        Base::Vector<Data::BindingHandle> handles;
+    };
+
     Dispatcher* dispatcher_ = nullptr;
     Meta::Registry* metadata_ = nullptr;
     Base::Vector<BindingRecord> bindings_;
     Base::Vector<DeferredBindingRecord> deferredBindings_;
     Base::Vector<DependencyObject*> pendingDeferredActivations_;
+    Base::Vector<MultiBindingGroup> multiBindings_;
     DispatcherFrameHookHandle hook_;
     std::uint64_t nextHandle_ = 1U;
     bool flushing_ = false;
@@ -466,6 +488,10 @@ private:
         Base::Object& object,
         MemberId property,
         void* context) noexcept;
+    BindingRecord* FindRecord(BindingHandle handle) noexcept;
+    const BindingRecord* FindRecord(BindingHandle handle) const noexcept;
+    Base::Result<void> SubscribeLostFocus(BindingRecord& record) noexcept;
+    void UnsubscribeLostFocus(BindingRecord& record) noexcept;
     Base::Result<void> VerifyDescriptor(
         const BindingDescriptor& descriptor) const noexcept;
     Base::Result<void> VerifyDescriptor(
