@@ -1261,7 +1261,9 @@ struct XamlTemplateSchemaFacetState {
             (scopeOwner.RuntimeType() !=
                  ControlTemplate::StaticTypeId() &&
              scopeOwner.RuntimeType() !=
-                 DataTemplate::StaticTypeId())) {
+                 DataTemplate::StaticTypeId() &&
+             scopeOwner.RuntimeType() !=
+                 HierarchicalDataTemplate::StaticTypeId())) {
             return InvalidTemplateXaml(
                 "Template name scope is invalid");
         }

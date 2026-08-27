@@ -2118,6 +2118,15 @@ Base::StringView CanonicalXamlTypeName(
     if (value == Base::StringView("VisualStateTransition")) {
         return Base::StringView("VisualTransition");
     }
+    if (value == Base::StringView("MonochromeBrush")) {
+        return Base::StringView("MonochromeShader");
+    }
+    if (value == Base::StringView("ConicGradientBrush")) {
+        return Base::StringView("ConicGradientShader");
+    }
+    if (value == Base::StringView("WavesBrush")) {
+        return Base::StringView("WavesShader");
+    }
     return value;
 }
 
@@ -3230,6 +3239,15 @@ Base::StringView SchemaCanonicalXamlTypeName(
     }
     if (value == Base::StringView("VisualStateTransition")) {
         return Base::StringView("VisualTransition");
+    }
+    if (value == Base::StringView("MonochromeBrush")) {
+        return Base::StringView("MonochromeShader");
+    }
+    if (value == Base::StringView("ConicGradientBrush")) {
+        return Base::StringView("ConicGradientShader");
+    }
+    if (value == Base::StringView("WavesBrush")) {
+        return Base::StringView("WavesShader");
     }
     return value;
 }
