@@ -26,11 +26,6 @@ using namespace Aero::Render;
 
 namespace {
 
-Base::Status InvalidPath(const char* message) noexcept {
-    return Base::Status::Failure(
-        Base::ErrorCode::ValidationFailed, message);
-}
-
 bool SamePoint(Point left, Point right) noexcept {
     constexpr double Epsilon = 1.0e-9;
     return std::abs(left.x - right.x) <= Epsilon &&

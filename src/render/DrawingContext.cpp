@@ -12,16 +12,8 @@
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/media/MediaState.hpp"
 
-#include <cmath>
-
 namespace Aero::Media {
 namespace {
-
-struct StrokeContour {
-    std::uint32_t offset = 0U;
-    std::uint32_t count = 0U;
-    bool closed = false;
-};
 
 class StrokeContourSink final : public FlattenSink {
 public:
