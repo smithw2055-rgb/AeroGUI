@@ -36,6 +36,7 @@
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Images.hpp>
 #include <Aero/Interactivity/Behavior.hpp>
+#include <Aero/Data/BindingBase.hpp>
 
 #include <cmath>
 #include <fstream>
@@ -1221,9 +1222,20 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
         metadata->Types().IsDerivedFrom(
             services.targetObject->RuntimeType(),
             ::Aero::Interactivity::Behavior::StaticTypeId());
-    if ((targetMember != nullptr &&
-         targetMember->ValueType() ==
-             Data::Binding::StaticTypeId()) ||
+    // Blend DataTrigger/Condition/ComparisonCondition store BindingBase as a
+    // CLR authoring plan. They are not DependencyObjects, so a live expression
+    // would fail ResolvePropertyTarget ("XAML target does not support
+    // dependency properties") and abort ResourceDictionary Source loads.
+    const bool targetIsDependencyObject =
+        metadata != nullptr &&
+        metadata->Types().IsDerivedFrom(
+            services.targetObject->RuntimeType(),
+            Meta::TypeOf<::Aero::DependencyObject>());
+    const bool authoredBindingProperty =
+        targetMember != nullptr &&
+        (targetMember->ValueType() == Data::Binding::StaticTypeId() ||
+         targetMember->ValueType() == Data::BindingBase::StaticTypeId());
+    if (authoredBindingProperty || !targetIsDependencyObject ||
         authoredSetterValue || authoredHierarchicalItemsSource ||
         authoredLaunchPath || authoredChangePropertyValue ||
         authoredTimerInterval || authoredInvokeCommand ||
