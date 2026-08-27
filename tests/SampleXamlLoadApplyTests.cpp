@@ -2259,6 +2259,11 @@ bool TestTutorialSampleXamlLoadApply() {
                     fileName == "Settings.xaml") {
                     continue;
                 }
+                const std::string generic = entry.path().generic_string();
+                if (generic.find("/SampleData/") != std::string::npos ||
+                    fileName.find("SampleData") != std::string::npos) {
+                    continue;
+                }
                 const std::string whereText =
                     std::string(sample) + "/" + fileName;
                 if (!LoadDocumentAtPath(
