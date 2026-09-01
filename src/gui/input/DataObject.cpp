@@ -2,6 +2,8 @@
 
 #include <Aero/Meta.hpp>
 
+#include <cstdint>
+
 namespace Aero {
 
 namespace {
@@ -10,7 +12,7 @@ constexpr char FileDropListSeparator = '\n';
 
 Base::Result<Base::String> JoinFileDropList(const Base::Vector<Base::String>& files) noexcept {
     Base::String joined;
-    for (std::size_t index = 0; index < files.Size(); ++index) {
+    for (std::uint32_t index = 0; index < files.Size(); ++index) {
         if (index != 0) {
             const Base::Result<void> separator =
                 joined.Append(Base::StringView(&FileDropListSeparator, 1U));
@@ -57,7 +59,7 @@ Base::Vector<Base::String> SplitFileDropList(Base::StringView value) noexcept {
 } // namespace
 
 void DataObject::SetData(Base::StringView format, const Meta::Value& data) noexcept {
-    for (std::size_t index = 0; index < entries_.Size(); ++index) {
+    for (std::uint32_t index = 0; index < entries_.Size(); ++index) {
         if (entries_[index].format == format) {
             entries_[index].value = data;
             return;
@@ -82,7 +84,7 @@ void DataObject::SetData(Base::StringView format, const Base::Ref<Base::Object>&
 }
 
 bool DataObject::ContainsData(Base::StringView format) const noexcept {
-    for (std::size_t index = 0; index < entries_.Size(); ++index) {
+    for (std::uint32_t index = 0; index < entries_.Size(); ++index) {
         if (entries_[index].format == format) {
             return true;
         }
@@ -91,7 +93,7 @@ bool DataObject::ContainsData(Base::StringView format) const noexcept {
 }
 
 Meta::Value DataObject::GetData(Base::StringView format) const noexcept {
-    for (std::size_t index = 0; index < entries_.Size(); ++index) {
+    for (std::uint32_t index = 0; index < entries_.Size(); ++index) {
         if (entries_[index].format == format) {
             return entries_[index].value;
         }
@@ -101,7 +103,7 @@ Meta::Value DataObject::GetData(Base::StringView format) const noexcept {
 
 Base::Vector<Base::String> DataObject::GetFormats() const noexcept {
     Base::Vector<Base::String> formats;
-    for (std::size_t index = 0; index < entries_.Size(); ++index) {
+    for (std::uint32_t index = 0; index < entries_.Size(); ++index) {
         Base::String copy;
         const Base::Result<void> assigned = copy.Assign(entries_[index].format.View());
         if (assigned) {

@@ -17,6 +17,7 @@
 #include <Aero/FrameworkElement.hpp>
 
 #include <algorithm>
+#include <cstdio>
 #include <new>
 #include <utility>
 #include "ControlBehavior.hpp"
