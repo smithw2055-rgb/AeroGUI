@@ -308,6 +308,8 @@ private:
         const PropertyValue& value) noexcept;
     Result<bool> ClearAnimationValueInternal(
         DependencyPropertyHandle property) noexcept;
+    Result<PropertyValue> GetAnimationBaseValueInternal(
+        DependencyPropertyHandle property) noexcept;
     Result<void> ApplyInheritedValueInternal(
         DependencyPropertyHandle property,
         const PropertyValue* value) noexcept;

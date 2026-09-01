@@ -68,6 +68,14 @@ public:
     Base::Vector<AnimationEventSubscription> animationEventSubscriptions;
     Base::Status eventTriggerStatus;
 
+    struct PendingLoadedTrigger {
+        MediaAnimation::EventTrigger* trigger = nullptr;
+        Aero::FrameworkElement* owner = nullptr;
+        const Aero::NameScope* names = nullptr;
+    };
+    Base::Vector<PendingLoadedTrigger> pendingLoadedTriggers;
+    Base::Result<void> FlushPendingLoadedTriggers() noexcept;
+
     Base::Result<bool> StartEventTrigger(
         MediaAnimation::EventTrigger& trigger,
         Base::Object& defaultSource,

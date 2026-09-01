@@ -326,18 +326,8 @@ Base::Result<void> PopulateControlsItems(
         .Event(TreeViewItem::SelectedEvent)
         .Event(TreeViewItem::UnselectedEvent)
         .Property(
-            TreeViewItem::HeaderProperty,
-            FrameworkPropertyMetadata(Value::NullObject(
-                TypeOf<Base::Object>()))
-                .AffectsMeasure())
-        .Property(
             TreeViewItem::IconProperty,
             FrameworkPropertyMetadata(Base::String{})
-                .AffectsMeasure())
-        .Property(
-            TreeViewItem::HeaderTemplateProperty,
-            FrameworkPropertyMetadata(
-                Base::Ref<DataTemplate>{})
                 .AffectsMeasure())
         .Property(
             TreeViewItem::IsExpandedProperty,

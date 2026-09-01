@@ -29,7 +29,8 @@ ViewState::ViewState(
           schemaBundle(&xamlRuntime->SchemaBundle()),
           documentCache(&xamlRuntime->Documents()),
           itemGenerators(&value),
-          fragmentMounts(&value) {}
+          fragmentMounts(&value),
+          componentMounts(&value) {}
 
 Base::Result<void> ViewState::ApplyViewport(
         const ViewViewport& next) noexcept {
@@ -64,9 +65,28 @@ void ViewState::Shutdown() noexcept {
         BeginDestroyInteractions();
         DetachViewUi(*this);
         FinishDestroyInteractions();
-        static_cast<void>(UnmountAllFragments(*this));
         VisitTextElements(RootVisual(), nullptr);
         VisitPaths(RootVisual(), nullptr);
+        if (HasAttachedRoot()) {
+            static_cast<void>(DetachVisualGraph({
+                loadedDocument.visualContent.mountEdges.Data(),
+                loadedDocument.visualContent.mountEdges.Size()}));
+        }
+        mounted = false;
+        root.Reset();
+        ClearLoadedDocument(*this);
+        for (std::uint32_t index = componentMounts.Size();
+             index > 0U; --index) {
+            FreeObject(
+                *allocator,
+                Base::MemoryTag::Ui,
+                componentMounts[index - 1U]);
+        }
+        componentMounts.Clear();
+        if (effectLifetime) effectLifetime->Invalidate();
+        if (values != nullptr) {
+            values->Shutdown();
+        }
         if (tree != nullptr) {
             tree->SetTextLayout(nullptr);
             tree->SetMeshResources(nullptr);
@@ -84,15 +104,6 @@ void ViewState::Shutdown() noexcept {
         if (storyboards != nullptr) {
             storyboards->storyboardSessions.Clear();
         }
-        if (HasAttachedRoot()) {
-            static_cast<void>(DetachVisualGraph({
-                loadedDocument.visualContent.mountEdges.Data(),
-                loadedDocument.visualContent.mountEdges.Size()}));
-        }
-        mounted = false;
-        root.Reset();
-        ClearLoadedDocument(*this);
-        if (effectLifetime) effectLifetime->Invalidate();
 
 
         FreeObject(*allocator, Base::MemoryTag::Ui, interactivity);

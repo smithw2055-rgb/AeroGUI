@@ -157,6 +157,14 @@ bool IsTargetCompatible(
         return properties->Find(derived, "ItemsSource") != nullptr &&
             properties->Find(derived, "ItemTemplate") != nullptr;
     }
+    // Headered items controls (e.g. HeaderedItemsControl, TreeViewItem) expose
+    // the WPF item contract through Header/HeaderTemplate rather than
+    // ItemsSource/ItemTemplate, yet still derive from the items-control
+    // family. Accept them as valid ContentControl-based styles too.
+    if (expected->Name() == Base::StringView("ContentControl")) {
+        return properties->Find(derived, "Header") != nullptr &&
+            properties->Find(derived, "HeaderTemplate") != nullptr;
+    }
     return false;
 }
 
@@ -735,8 +743,8 @@ Base::Result<void> Style::SealRuntime(
     authoredSetterObjects_.Clear();
     // Retain immutable EventTrigger declarations for per-element routed-event
     // subscriptions. Property/DataTrigger plans are compiled into program_.
-    basedOn_ = nullptr;
-    basedOnOwner_.Reset();
+    // Keep the BasedOn link so callers can still query the resolved base
+    // style after sealing (GetBasedOn()).
     sealed_ = true;
     return {};
 }

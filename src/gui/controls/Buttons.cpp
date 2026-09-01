@@ -392,7 +392,9 @@ Base::Result<void> ButtonBehavior::Attach(
     result = SyncVisualState(button, false);
     if (!result &&
         result.GetStatus().code !=
-            Base::ErrorCode::InvalidState) {
+            Base::ErrorCode::InvalidState &&
+        result.GetStatus().code !=
+            Base::ErrorCode::InvalidArgument) {
         const Base::Status status =
             result.GetStatus();
         static_cast<void>(Detach(button));

@@ -14,7 +14,6 @@
 #include "gui/media/MediaState.hpp"
 
 #include <algorithm>
-#include <cstdio>
 #include <new>
 #include <utility>
 #include "ControlBehavior.hpp"
@@ -178,18 +177,21 @@ Base::Result<AnimationTarget> ResolveAnimationTarget(
                 Base::StringView(
                     "(TransformGroup.Children)");
 
+        auto endsWith =
+            [](Base::StringView value,
+               Base::StringView suffix) noexcept {
+                return value.SizeBytes() >= suffix.SizeBytes() &&
+                    value.Substr(
+                        value.SizeBytes() - suffix.SizeBytes(),
+                        suffix.SizeBytes()) == suffix;
+            };
         const bool gradientStops =
-            beforeIndex == Base::StringView("(Panel.Background).(GradientBrush.GradientStops)") ||
-            beforeIndex == Base::StringView("(Border.Background).(GradientBrush.GradientStops)") ||
-            beforeIndex == Base::StringView("(Control.Background).(GradientBrush.GradientStops)") ||
-            beforeIndex == Base::StringView("(Control.Foreground).(GradientBrush.GradientStops)") ||
-            beforeIndex == Base::StringView("(Control.BorderBrush).(GradientBrush.GradientStops)") ||
-            beforeIndex == Base::StringView("(Border.BorderBrush).(GradientBrush.GradientStops)") ||
-            beforeIndex == Base::StringView("(GradientBrush.GradientStops)") ||
-            beforeIndex == Base::StringView("Background.GradientStops") ||
-            beforeIndex == Base::StringView("Foreground.GradientStops") ||
-            beforeIndex == Base::StringView("BorderBrush.GradientStops") ||
-            beforeIndex == Base::StringView("GradientStops");
+            endsWith(
+                beforeIndex,
+                Base::StringView(").(GradientBrush.GradientStops)")) ||
+            endsWith(
+                beforeIndex,
+                Base::StringView(".GradientStops"));
 
         if (!transformChildren && !gradientStops) {
             return Base::Status::Failure(
@@ -205,21 +207,60 @@ Base::Result<AnimationTarget> ResolveAnimationTarget(
                 gradient = Base::Ref<GradientBrush>::TryFromBorrowed(
                     *static_cast<GradientBrush*>(target));
             } else {
-                Base::StringView propName = "Background";
-                for (std::uint32_t bi = 0U; bi < beforeIndex.SizeBytes(); ++bi) {
-                    if (bi + 10U <= beforeIndex.SizeBytes() &&
-                        beforeIndex.Substr(bi, 10U) == Base::StringView("Foreground")) {
-                        propName = "Foreground";
-                        break;
+                Base::StringView brushOwnerPath;
+                if (!beforeIndex.Empty() && beforeIndex[0] == '(') {
+                    std::uint32_t close = UINT32_MAX;
+                    for (std::uint32_t index = 1U;
+                         index < beforeIndex.SizeBytes();
+                         ++index) {
+                        if (beforeIndex[index] == ')') {
+                            close = index;
+                            break;
+                        }
                     }
-                    if (bi + 11U <= beforeIndex.SizeBytes() &&
-                        beforeIndex.Substr(bi, 11U) == Base::StringView("BorderBrush")) {
-                        propName = "BorderBrush";
-                        break;
+                    if (close == UINT32_MAX || close <= 1U) {
+                        return Base::Status::Failure(
+                            Base::ErrorCode::ValidationFailed,
+                            "VisualState GradientStops owner path is invalid");
+                    }
+                    brushOwnerPath =
+                        beforeIndex.Substr(1U, close - 1U);
+                } else {
+                    std::uint32_t separator = UINT32_MAX;
+                    for (std::uint32_t index = 0U;
+                         index < beforeIndex.SizeBytes();
+                         ++index) {
+                        if (beforeIndex[index] == '.') {
+                            separator = index;
+                            break;
+                        }
+                    }
+                    if (separator == UINT32_MAX || separator == 0U) {
+                        return Base::Status::Failure(
+                            Base::ErrorCode::ValidationFailed,
+                            "VisualState GradientStops owner property is missing");
+                    }
+                    brushOwnerPath =
+                        beforeIndex.Substr(0U, separator);
+                }
+                std::uint32_t ownerDot = UINT32_MAX;
+                for (std::uint32_t index = 0U;
+                     index < brushOwnerPath.SizeBytes();
+                     ++index) {
+                    if (brushOwnerPath[index] == '.') {
+                        ownerDot = index;
                     }
                 }
+                const Base::StringView brushProperty =
+                    ownerDot == UINT32_MAX
+                    ? brushOwnerPath
+                    : brushOwnerPath.Substr(
+                          ownerDot + 1U,
+                          brushOwnerPath.SizeBytes() - ownerDot - 1U);
                 const DependencyProperty* prop =
-                    properties.Find(target->RuntimeType(), propName);
+                    properties.Find(
+                        target->RuntimeType(),
+                        brushProperty);
                 if (prop != nullptr) {
                     Base::Result<PropertyValue> brushVal =
                         target->GetValue(prop->Handle());
@@ -669,8 +710,17 @@ Base::Result<void> VisualStateManagerImpl::ClearStateAnimations(
          active.animations) {
         Base::Result<void> removed =
             animations_->Remove(animation);
-        if (!removed && first.IsOk()) {
-            first = removed.GetStatus();
+        if (!removed) {
+            // SnapshotAndReplace may already have retired the clock while
+            // leaving a HoldEnd value on the property. Treat a missing
+            // handle as cleared so Unchecked can still restore base values.
+            if (removed.GetStatus().code ==
+                Base::ErrorCode::NotFound) {
+                continue;
+            }
+            if (first.IsOk()) {
+                first = removed.GetStatus();
+            }
         }
     }
     active.animations.Clear();
@@ -799,16 +849,21 @@ Base::Result<void> VisualStateManagerImpl::StartStoryboardAnimations(
                 frames[position] = current;
             }
             if (frames.Empty()) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::InvalidArgument,
-                    "VisualState double key-frame animation has no frames");
+                return {};
             }
             Base::Result<PropertyValue> base =
-                resolved.Value().object->GetValue(
+                AeroGuiInternal::GetAnimationBaseValue(
+                    *resolved.Value().object,
                     resolved.Value().property);
+            if (!base || base.Value().IsUnset()) {
+                base = resolved.Value().object->GetValue(
+                    resolved.Value().property);
+            }
+            if (!base) return base.GetStatus();
             Base::Result<double> decoded =
                 ValueCodec<double>::Decode(
                     base.Value());
+            if (!decoded) return decoded.GetStatus();
             Aero::Media::Animation::Model::DoubleKeyFrameAnimation runtime;
             runtime.baseValue = decoded.Value();
             runtime.timing =
@@ -867,9 +922,7 @@ Base::Result<void> VisualStateManagerImpl::StartStoryboardAnimations(
                 frames[position] = current;
             }
             if (frames.Empty()) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::InvalidArgument,
-                    "VisualState color key-frame animation has no frames");
+                return {};
             }
             Base::Result<PropertyValue> base =
                 resolved.Value().object->GetValue(
@@ -992,9 +1045,7 @@ Base::Result<void> VisualStateManagerImpl::StartStoryboardAnimations(
                     std::move(current);
             }
             if (frames.Empty()) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::InvalidArgument,
-                    "VisualState discrete key-frame animation has no frames");
+                return {};
             }
             Base::Result<PropertyValue> base =
                 resolved.Value().object->GetValue(
@@ -1064,19 +1115,50 @@ Base::Result<void> VisualStateManagerImpl::CaptureTransitionValues(
     return {};
 }
 
+PropertyValue BaseValueWithoutAnimation(
+    DependencyObject& target,
+    DependencyPropertyHandle property,
+    DependencyPropertyRegistry& properties) noexcept {
+    // Template-expanded values (Menu3D CircledArrow Fill.Opacity="0") are not
+    // Local. ReadLocalValue is Unset and Brush.Opacity metadata defaults to 1,
+    // so generated Unchecked transitions would tween 1→1 and leave the arrow
+    // visible. Animation-base includes template/style/local, excluding HoldEnd.
+    Base::Result<PropertyValue> base =
+        AeroGuiInternal::GetAnimationBaseValue(target, property);
+    if (base && !base.Value().IsUnset()) {
+        return base.Value();
+    }
+    const PropertyValue local = target.ReadLocalValue(property);
+    if (!local.IsUnset()) {
+        return local;
+    }
+    const DependencyProperty* descriptor = properties.Find(property);
+    if (descriptor == nullptr) {
+        return PropertyValue::Unset();
+    }
+    const PropertyMetadata* metadata =
+        descriptor->MetadataFor(target.RuntimeType());
+    return metadata != nullptr
+        ? metadata->defaultValue
+        : PropertyValue::Unset();
+}
+
 // Walks a storyboard (recursively) and, for every animatable leaf timeline,
 // resolves its real target and captures the current value (from) plus the
 // value the animation drives toward (to). This lets a generated
 // VisualTransition (GeneratedDuration with no explicit Storyboard) fade
 // between the current and destination values even when the destination
 // VisualState expresses its effect through a Storyboard rather than Setters.
+// revertToBase uses the local/default value as `to` so empty Unchecked
+// states can fade HoldEnd clocks back to rest.
 Base::Result<void> VisualStateManagerImpl::CaptureStoryboardTimeline(
     Control& control,
     TemplateHandle handle,
     TemplateEngine& templates,
     DependencyPropertyRegistry& properties,
     Media::Animation::Timeline& timeline,
-    Base::Vector<TransitionValue>& values) noexcept {
+    Base::Vector<TransitionValue>& values,
+    bool revertToBase) noexcept {
     if (timeline.RuntimeType() ==
         Media::Animation::Storyboard::StaticTypeId()) {
         auto& storyboard =
@@ -1087,7 +1169,7 @@ Base::Result<void> VisualStateManagerImpl::CaptureStoryboardTimeline(
             Base::Result<void> captured =
                 CaptureStoryboardTimeline(
                     control, handle, templates, properties,
-                    *child, values);
+                    *child, values, revertToBase);
             if (!captured) return captured.GetStatus();
         }
         return {};
@@ -1101,10 +1183,29 @@ Base::Result<void> VisualStateManagerImpl::CaptureStoryboardTimeline(
     DependencyObject* target = resolved.Value().object;
     const DependencyPropertyHandle property =
         resolved.Value().property;
+    for (std::uint32_t index = 0U; index < values.Size(); ++index) {
+        if (values[index].target == target &&
+            values[index].property == property) {
+            return {};
+        }
+    }
     Base::Result<PropertyValue> from =
         target->GetValue(property);
     if (!from) return from.GetStatus();
 
+    if (revertToBase) {
+        const PropertyValue to = BaseValueWithoutAnimation(
+            *target, property, properties);
+        if (to.IsUnset()) {
+            return {};
+        }
+        return values.PushBack(
+            TransitionValue{
+                target,
+                property,
+                from.Value(),
+                to});
+    }
     if (timeline.RuntimeType() ==
             Media::Animation::DoubleAnimationUsingKeyFrames::
                 StaticTypeId()) {
@@ -1112,9 +1213,7 @@ Base::Result<void> VisualStateManagerImpl::CaptureStoryboardTimeline(
             Media::Animation::DoubleAnimationUsingKeyFrames&>(timeline);
         const auto frames = authored.GetKeyFrames();
         if (frames.Empty()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "VisualState double key-frame transition has no frames");
+            return {};
         }
         Base::Result<PropertyValue> to =
             ValueCodec<double>::Encode(
@@ -1140,9 +1239,7 @@ Base::Result<void> VisualStateManagerImpl::CaptureStoryboardTimeline(
             Media::Animation::ColorAnimationUsingKeyFrames&>(timeline);
         const auto frames = authored.GetKeyFrames();
         if (frames.Empty()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "VisualState color key-frame transition has no frames");
+            return {};
         }
         Base::Result<PropertyValue> to =
             ValueCodec<Base::Color>::Encode(
@@ -1212,10 +1309,27 @@ VisualStateManagerImpl::CaptureStoryboardTransitionValues(
         Base::Result<void> captured =
             CaptureStoryboardTimeline(
                 control, handle, *templates_, *properties_,
-                *child, values);
+                *child, values, false);
         if (!captured) return captured.GetStatus();
     }
     return {};
+}
+
+Base::Result<void>
+VisualStateManagerImpl::CaptureStoryboardRevertToBase(
+    Control& control,
+    TemplateHandle handle,
+    const VisualStatePlan& previous,
+    Base::Vector<TransitionValue>& values) noexcept {
+    if (!previous.storyboard) return {};
+    return CaptureStoryboardTimeline(
+        control,
+        handle,
+        *templates_,
+        *properties_,
+        *previous.storyboard,
+        values,
+        true);
 }
 
 Base::Result<void> VisualStateManagerImpl::StartTransitionAnimations(
@@ -1255,6 +1369,9 @@ Base::Result<void> VisualStateManagerImpl::StartTransitionAnimations(
         Base::Result<double> toDouble =
             ValueCodec<double>::Decode(value.to);
         if (fromDouble && toDouble) {
+            if (fromDouble.Value() == toDouble.Value()) {
+                continue;
+            }
             DoubleAnimation animation;
             animation.from = fromDouble.Value();
             animation.to = toDouble.Value();
@@ -1367,6 +1484,18 @@ Base::Result<bool> VisualStateManagerImpl::GoToState(
             Base::ErrorCode::NotFound,
             "Visual state was not found");
     }
+    if (goToStateDepth_ != 0U) {
+        return false;
+    }
+    struct DepthGuard {
+        std::uint32_t& depth;
+        explicit DepthGuard(std::uint32_t& value) noexcept : depth(value) {
+            ++depth;
+        }
+        ~DepthGuard() noexcept { --depth; }
+        DepthGuard(const DepthGuard&) = delete;
+        DepthGuard& operator=(const DepthGuard&) = delete;
+    } depthGuard(goToStateDepth_);
 
     std::uint32_t activeIndex = FindActive(handle, groupName);
     if (activeIndex != UINT32_MAX &&
@@ -1434,6 +1563,23 @@ Base::Result<bool> VisualStateManagerImpl::GoToState(
             }
             return captured.GetStatus();
         }
+        // Empty destination states (Menu3D CheckStates Unchecked) have no
+        // storyboard/setters. WPF generated VisualTransitions still tween
+        // the previous storyboard's properties back to their base values,
+        // otherwise HoldEnd leaves CircledArrow Fill.Opacity at 1.
+        if (previous != nullptr && previous->storyboard) {
+            captured = CaptureStoryboardRevertToBase(
+                control,
+                handle,
+                *previous,
+                transitionValues);
+            if (!captured) {
+                if (addedRecord) {
+                    RemoveActiveAt(activeIndex);
+                }
+                return captured.GetStatus();
+            }
+        }
     }
     if (previous != nullptr) {
         Base::Result<void> animationsCleared =
@@ -1447,6 +1593,28 @@ Base::Result<bool> VisualStateManagerImpl::GoToState(
         if (!cleared) {
             if (addedRecord) RemoveActiveAt(activeIndex);
             return cleared.GetStatus();
+        }
+        if (!next->storyboard) {
+            for (const TransitionValue& value : transitionValues) {
+                if (value.target == nullptr ||
+                    !value.property.IsValid() ||
+                    value.to.IsUnset()) {
+                    continue;
+                }
+                Base::Result<void> restored = values_->SetAnimationValue(
+                    *value.target, value.property, value.to);
+                if (!restored) {
+                    if (addedRecord) RemoveActiveAt(activeIndex);
+                    return restored.GetStatus();
+                }
+            }
+            if (!transitionValues.Empty() && !values_->IsFlushing()) {
+                Base::Result<std::uint32_t> flushed = values_->Flush();
+                if (!flushed) {
+                    if (addedRecord) RemoveActiveAt(activeIndex);
+                    return flushed.GetStatus();
+                }
+            }
         }
     }
     Base::Result<void> applied = ApplyState(handle, *next, active_[activeIndex]);

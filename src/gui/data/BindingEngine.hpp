@@ -418,6 +418,7 @@ private:
         bool bindsToSource = false;
         BindingPathPlan pathPlan;
         std::uint64_t notificationSubscription = 0U;
+        DependencyPropertyHandle sourceDependencyProperty;
         PropertyValue lastSourceValue;
         PropertyValue lastTargetValue;
         BindingDiagnosticStage conversionFailureStage =

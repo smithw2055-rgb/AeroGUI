@@ -58,6 +58,7 @@ private:
     Aero::AnimationEngine* animations_ = nullptr;
     DependencyPropertyRegistry* properties_ = nullptr;
     Base::Vector<ActiveGroup> active_;
+    std::uint32_t goToStateDepth_ = 0U;
 
     std::uint32_t FindActive(
         TemplateHandle handle,
@@ -107,6 +108,12 @@ private:
         TemplateEngine& templates,
         DependencyPropertyRegistry& properties,
         Media::Animation::Timeline& timeline,
+        Base::Vector<TransitionValue>& values,
+        bool revertToBase) noexcept;
+    Base::Result<void> CaptureStoryboardRevertToBase(
+        Control& control,
+        TemplateHandle handle,
+        const VisualStatePlan& previous,
         Base::Vector<TransitionValue>& values) noexcept;
     Base::Result<void> StartTransitionAnimations(
         Control& control,

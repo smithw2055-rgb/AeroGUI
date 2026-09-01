@@ -763,17 +763,25 @@ Size Path::MeasureOverride(
         std::isfinite(availableSize.height) &&
         availableSize.height < UnboundedConstraint;
     if (GetStretch() == Stretch::None) {
+        // WPF Path Stretch=None sizes to Bounds.Right / Bounds.Bottom so
+        // sibling Paths in a Canvas keep their authored origin (QuestLog
+        // gold frame vs inset CenterPanel).
+        const Size native{
+            std::max(
+                0.0,
+                geometryBounds_.x + geometryBounds_.width),
+            std::max(
+                0.0,
+                geometryBounds_.y + geometryBounds_.height)};
         return Size{
             widthBounded
-                ? std::min(
-                      natural.width,
-                      availableSize.width)
-                : natural.width,
+                ? std::min(native.width, availableSize.width)
+                : native.width,
             heightBounded
                 ? std::min(
-                      natural.height,
+                      native.height,
                       availableSize.height)
-                : natural.height};
+                : native.height};
     }
 
     if (GetStretch() == Stretch::Fill) {
@@ -863,12 +871,17 @@ void Path::OnRender(
         geometryBounds_.width * scaleX;
     const double height =
         geometryBounds_.height * scaleY;
-    const double offsetX =
-        (target.width - width) * 0.5 -
-        geometryBounds_.x * scaleX;
-    const double offsetY =
-        (target.height - height) * 0.5 -
-        geometryBounds_.y * scaleY;
+    // Stretch=None keeps authored coordinates. Subtracting origin here
+    // stacked every Canvas Path at (0,0), so CenterPanel covered the
+    // gold/coffee frames on the left and top.
+    const double offsetX = GetStretch() == Stretch::None
+        ? 0.0
+        : (target.width - width) * 0.5 -
+            geometryBounds_.x * scaleX;
+    const double offsetY = GetStretch() == Stretch::None
+        ? 0.0
+        : (target.height - height) * 0.5 -
+            geometryBounds_.y * scaleY;
     Base::Result<void> transform =
         builder.PushTransform(Transform2D{
             scaleX, 0.0, 0.0, scaleY,

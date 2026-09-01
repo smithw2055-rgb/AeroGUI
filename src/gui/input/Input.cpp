@@ -25,27 +25,53 @@ bool Contains(Size size, Point point) noexcept {
         point.x < size.width && point.y < size.height;
 }
 
-bool HasSelfHitSurface(UIElement& element) noexcept {
-    const Meta::DependencyPropertyRegistry& properties =
-        element.PropertyRegistry();
-    // Panel is a Controls-layer type, while hit testing belongs to the GUI
-    // kernel. Detect the Panel contract through its inherited IsItemsHost DP
-    // instead of introducing a forbidden Core -> Controls dependency.
-    if (properties.Find(
-            element.RuntimeType(),
-            Base::StringView("IsItemsHost")) == nullptr) {
-        return true;
-    }
-    const Meta::DependencyProperty* background =
-        properties.Find(
-            element.RuntimeType(),
-            Base::StringView("Background"));
-    if (background == nullptr) return false;
+bool HasAssignedObject(
+    UIElement& element,
+    Base::StringView name) noexcept {
+    const Meta::DependencyProperty* property =
+        element.PropertyRegistry().Find(
+            element.RuntimeType(), name);
+    if (property == nullptr) return false;
     const Meta::PropertyValue value =
-        element.GetValue(background->Handle());
+        element.GetValue(property->Handle());
     return value.Kind() == Meta::ValueKind::Object &&
         !value.IsNullObject() &&
         static_cast<bool>(value.AsObject());
+}
+
+bool HasSelfHitSurface(UIElement& element) noexcept {
+    const Meta::DependencyPropertyRegistry& properties =
+        element.PropertyRegistry();
+    const Meta::TypeId type = element.RuntimeType();
+    // Hit-testing lives in the GUI kernel and must not take a Controls
+    // dependency. Identify painted content through DPs, matching WPF:
+    // an element is only a self hit-target if it would draw something.
+    // Empty Decorator / FrameworkElement / Viewbox / ContentPresenter
+    // (e.g. Gallery DropDownHeight covering the sidebar) must pass hits
+    // through. Opacity 0 is still hittable; Visibility and
+    // IsHitTestVisible are checked by HitTestElement.
+    if (properties.Find(type, Base::StringView("TextTrimming")) != nullptr) {
+        return true;
+    }
+    if (properties.Find(type, Base::StringView("Fill")) != nullptr) {
+        return HasAssignedObject(element, Base::StringView("Fill")) ||
+            HasAssignedObject(element, Base::StringView("Stroke"));
+    }
+    if (properties.Find(type, Base::StringView("Source")) != nullptr) {
+        return HasAssignedObject(element, Base::StringView("Source"));
+    }
+    if (properties.Find(type, Base::StringView("Background")) != nullptr) {
+        return HasAssignedObject(element, Base::StringView("Background")) ||
+            HasAssignedObject(element, Base::StringView("BorderBrush"));
+    }
+    // Controls (ButtonBase / Thumb / Track / ScrollBar / ListBoxItem) hit-test
+    // their layout slot even when the template root has no Background. QuestLog
+    // page RepeatButtons are arranged to the full track region but paint only a
+    // 44x44 Border; without this, clicks fall through to decorative arrow Paths.
+    if (properties.Find(type, Base::StringView("Template")) != nullptr) {
+        return true;
+    }
+    return false;
 }
 
 bool IsVisualDescendantOrSelf(
@@ -65,13 +91,35 @@ bool ParentToLocal(
         framework != nullptr
         ? framework->GetLocalVisualTransform()
         : Base::IdentityProjective();
+    const Rect slot = element.GetLayoutSlot();
     childContext = Media::AdvanceTransform3DContext(
         parentContext,
         element.GetTransform3D().Get(),
         Media::LiftLocalVisual(localVisual),
-        element.GetLayoutSlot(),
+        slot,
         element.GetRenderSize(),
         false);
+    // 2D elements (including Viewbox scale stored on GetLocalVisualTransform)
+    // must invert the same Compose(localVisual, Translate(slot)) that
+    // PointToScreen / the renderer use. Collapsing the implicit perspective
+    // camera is equivalent in exact arithmetic, but mixing camera centers
+    // between the window root and overlay popups drifts far enough to miss
+    // every ComboBoxItem / button.
+    if (Base::LeavesZ0PlaneUnchanged(parentContext.accumulated) &&
+        Base::LeavesZ0PlaneUnchanged(childContext.accumulated)) {
+        Base::Transform2D translation{};
+        translation.dx = slot.x;
+        translation.dy = slot.y;
+        const Base::ProjectiveTransform2D local = Base::Compose(
+            localVisual, Base::ToProjective(translation));
+        Base::ProjectiveTransform2D inverse;
+        if (!Base::Invert(local, inverse) ||
+            !Base::TryTransformPoint(
+                inverse, parentPosition, localPosition)) {
+            return false;
+        }
+        return IsFinite(localPosition);
+    }
     if (!Media::UnprojectParentToLocal(
             parentContext,
             childContext,
@@ -201,19 +249,14 @@ Base::Result<HitTestResult> HitTestState::HitTest(
         if (!Media::InvertTransform(record.transform, inverse)) {
             continue;
         }
-        Point local = Media::TransformPoint(inverse, position);
-        const Media::Transform3DContext overlayIncoming =
-            Media::MakeImplicitViewRootContext(overlay->GetRenderSize());
-        Media::Transform3DContext overlayContext;
-        Point overlayLocal;
-        if (!ParentToLocal(
-                *overlay,
-                local,
-                overlayLocal,
-                overlayIncoming,
-                overlayContext)) {
-            continue;
-        }
+        // Overlay transforms already map window space onto the overlay root
+        // with its layout slot zeroed (matching the renderer). Applying
+        // ParentToLocal on the overlay would compose that slot/transform a
+        // second time and miss every popup child (ComboBoxItems, menus).
+        Point overlayLocal = Media::TransformPoint(inverse, position);
+        // Identity 3D context (no implicit camera). Nested ParentToLocal uses
+        // the 2D Compose(local, slot) inverse, matching PointToScreen.
+        const Media::Transform3DContext overlayContext{};
         Base::Result<HitTestResult> hit =
             HitTestElement(*overlay, overlayLocal, overlayContext);
         if (!hit) return hit.GetStatus();
@@ -349,7 +392,10 @@ Base::Result<HitTestResult> HitTestState::HitTestElement(
         // Hidden/template branches may be present in the visual tree before
         // they receive a layout slot. They are not hittable and must not
         // poison hit testing for an otherwise arranged root.
-        if (!child->GetIsArrangeValid()) continue;
+        if (!child->GetIsArrangeValid()) {
+            const Rect slot = child->GetLayoutSlot();
+            if (!(slot.width > 0.0 && slot.height > 0.0)) continue;
+        }
         Point childPosition;
         Media::Transform3DContext childContext;
         if (!ParentToLocal(
@@ -746,24 +792,28 @@ Base::Result<PointerDispatchResult> PointerStateMachine::Dispatch(
         break;
     }
     UIElement* captured = CapturedNode(input.pointerId);
-    Base::Result<HitTestResult> hit = captured != nullptr
-        ? hitTests_->RootToLocal(*root_, *captured, input.position)
-        : hitTests_->HitTest(*root_, input.position);
-    if (!hit) return hit.GetStatus();
+    Base::Result<HitTestResult> visualHit =
+        hitTests_->HitTest(*root_, input.position);
+    if (!visualHit) return visualHit.GetStatus();
+    Base::Result<HitTestResult> hit = visualHit;
+    if (captured != nullptr) {
+        hit = hitTests_->RootToLocal(*root_, *captured, input.position);
+        if (!hit) return hit.GetStatus();
+        if (!hit.Value().HasTarget()) {
+            hit = HitTestResult{captured, {}};
+        }
+    }
     PointerDispatchResult result;
     result.hit = hit.Value();
-    UIElement* stateTarget = result.hit.HasTarget() &&
-        result.hit.target->GetIsEnabled() ? result.hit.target : nullptr;
-    if (captured != nullptr && stateTarget != nullptr &&
-        !Contains(stateTarget->GetRenderSize(), result.hit.position)) {
-        stateTarget = nullptr;
-    }
+    UIElement* hoverTarget = visualHit.Value().HasTarget() &&
+        visualHit.Value().target->GetIsEnabled()
+        ? visualHit.Value().target : nullptr;
     Base::Result<void> hover =
-        UpdateHover(input.pointerId, stateTarget);
+        UpdateHover(input.pointerId, hoverTarget);
     if (!hover) return hover.GetStatus();
     if (input.action == PointerAction::Down) {
         Base::Result<void> pressed =
-            UpdatePressed(input.pointerId, stateTarget);
+            UpdatePressed(input.pointerId, hoverTarget);
         if (!pressed) return pressed.GetStatus();
     } else if (input.action == PointerAction::Up) {
         Base::Result<void> released =
@@ -1258,6 +1308,26 @@ Base::Result<void> FocusState::CollectCandidates(
     return {};
 }
 
+static UIElement* FindFirstFocusableDescendant(
+    ::Aero::Media::Visual& parent) noexcept {
+    for (::Aero::Media::Visual* child :
+         AeroGuiInternal::RenderChildren(parent)) {
+        if (child == nullptr) continue;
+        UIElement* element = ::Aero::TryCast<::Aero::UIElement>(child);
+        if (element != nullptr &&
+            element->GetIsLoaded() &&
+            element->GetIsEnabled() &&
+            element->GetIsVisible() &&
+            element->GetFocusable()) {
+            return element;
+        }
+        if (UIElement* nested = FindFirstFocusableDescendant(*child)) {
+            return nested;
+        }
+    }
+    return nullptr;
+}
+
 Base::Result<bool> FocusState::SetFocus(UIElement* node) noexcept {
     if (node == nullptr) return ClearFocus();
     Base::Result<VisualHandle> next = tree_->GetHandle(*node);
@@ -1265,6 +1335,29 @@ Base::Result<bool> FocusState::SetFocus(UIElement* node) noexcept {
     if (!node->GetIsLoaded() || !node->GetIsEnabled()) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Keyboard focus target must be loaded and enabled");
+    }
+    // WPF UIElement.Focus() on a non-focusable target returns false.
+    // FocusManager.IsFocusScope grids (Menu3D LayoutRoot) are the exception:
+    // FadeIn completion SetFocusAction TargetName="LayoutRoot" restores the
+    // remembered child, or the first focusable descendant (Start), after the
+    // intro IsEnabled=false pulse cleared keyboard focus.
+    if (!node->GetFocusable() || !node->GetIsVisible()) {
+        UIElement* restored = node->GetIsFocusScope()
+            ? FocusedElement(*node)
+            : nullptr;
+        if (restored != nullptr &&
+            restored != node &&
+            restored->GetIsLoaded() &&
+            restored->GetIsEnabled() &&
+            restored->GetIsVisible() &&
+            restored->GetFocusable()) {
+            return SetFocus(restored);
+        }
+        UIElement* descendant = FindFirstFocusableDescendant(*node);
+        if (descendant != nullptr && descendant != node) {
+            return SetFocus(descendant);
+        }
+        return false;
     }
     std::uint32_t ancestorCount = 1U;
     ::Aero::Media::Visual* ancestor = node;

@@ -11,7 +11,9 @@
 #include <Aero/Media/Effects.hpp>
 #include <Aero/Markup/XamlReader.hpp>
 #include <Aero/Controls.hpp>
-#include <cstdio>
+#include <Aero/Documents/TextElement.hpp>
+#include <Aero/FrameworkElement.hpp>
+#include <Aero/TryCast.hpp>
 #include "gui/core/State.hpp" 
 #include "gui/internal/PropertyStore.hpp"
 #include <new>
@@ -33,6 +35,43 @@ constexpr Base::Status ReadOnlyStatus() noexcept {
     return Base::Status::Failure(
         Base::ErrorCode::ReadOnly,
         "Dependency property is read-only");
+}
+
+// WPF TextElement.Foreground is the same inheritable DP as Control/TextBlock
+// Foreground (AddOwner). Aero registers a separate attached property, so
+// ContentPresenter templates that set TextElement.Foreground would otherwise
+// leave generated TextBlock content on the ancestor FrameworkElement brush
+// (Menu3D tooltips stacked at full opacity). Redirect attached TextElement
+// formatting onto the FrameworkElement property for non-TextElement targets.
+DependencyPropertyHandle MapTextElementAttachedProperty(
+    TypeId runtimeType,
+    DependencyPropertyHandle property) noexcept {
+    if (!property.IsValid() ||
+        !IsRuntimeTypeDerivedFrom(
+            runtimeType, FrameworkElement::StaticTypeId()) ||
+        IsRuntimeTypeDerivedFrom(
+            runtimeType, Documents::TextElement::StaticTypeId())) {
+        return property;
+    }
+    if (property == Documents::TextElement::ForegroundProperty.Handle()) {
+        return FrameworkElement::ForegroundProperty.Handle();
+    }
+    if (property == Documents::TextElement::FontFamilyProperty.Handle()) {
+        return FrameworkElement::FontFamilyProperty.Handle();
+    }
+    if (property ==
+            ::Aero::Input::FocusManager::IsFocusScopeProperty.Handle()) {
+        return UIElement::IsFocusScopeProperty.Handle();
+    }
+    if (property ==
+            ::Aero::Input::KeyboardNavigation::IsTabStopProperty.Handle()) {
+        return UIElement::IsTabStopProperty.Handle();
+    }
+    if (property ==
+            ::Aero::Input::KeyboardNavigation::TabIndexProperty.Handle()) {
+        return UIElement::TabIndexProperty.Handle();
+    }
+    return property;
 }
 
 } // namespace
@@ -132,6 +171,8 @@ Base::Result<void> DependencyObject::ApplyChange(
     ChangeKind kind, const PropertyValue* requestedValue) noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) return ready.GetStatus();
+    propertyHandle = MapTextElementAttachedProperty(
+        runtimeType_, propertyHandle);
     const Meta::DependencyProperty* property =
         registry_->Find(propertyHandle);
     if (property == nullptr) return Base::Status::Failure(
@@ -304,6 +345,61 @@ Base::Result<void> DependencyObject::RecomputeEffectiveValueInternal(
         ? storedEntry->SourceInfo() : PropertyValueSourceInfo{};
     return RecomputeEffectiveValueCore(propertyHandle, *property, *metadata,
         oldEffective, oldSourceInfo);
+}
+
+// from src/gui/core/PropertySystem.cpp
+
+Base::Result<PropertyValue>
+DependencyObject::GetAnimationBaseValueInternal(
+    DependencyPropertyHandle propertyHandle) noexcept {
+    Base::Result<void> ready = VerifyReady();
+    if (!ready) return ready.GetStatus();
+    const Meta::DependencyProperty* property =
+        registry_->Find(propertyHandle);
+    const PropertyMetadata* metadata = property != nullptr
+        ? property->MetadataFor(runtimeType_) : nullptr;
+    if (property == nullptr || metadata == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotFound,
+            "Dependency property does not apply to this object type");
+    }
+    propertyHandle = property->Handle();
+    const StoredValueEntry* storedEntry =
+        FindStoredEntry(propertyHandle);
+    PropertyValue baseValue = metadata->defaultValue;
+    if (storedEntry != nullptr) {
+        const StoredValueEntry& stored = *storedEntry;
+        const PropertyProviderContribution* provider =
+            stored.Providers().Winner();
+        if (provider != nullptr &&
+            provider->token.rank > PropertyValueRank::Local) {
+            baseValue = provider->value;
+        } else if (stored.HasExpression()) {
+            const PropertyExpression expression =
+                stored.ExpressionOrEmpty();
+            Base::Result<PropertyValue> evaluated =
+                expression.evaluate(
+                    expression.context, *this, propertyHandle);
+            if (!evaluated) return evaluated.GetStatus();
+            if (evaluated.Value().IsUnset()) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::ValidationFailed,
+                    "A property expression returned Unset");
+            }
+            baseValue = std::move(evaluated).Value();
+        } else if (stored.HasLocal()) {
+            baseValue = stored.LocalValueOrUnset();
+        } else if (provider != nullptr) {
+            baseValue = provider->value;
+        } else if (stored.HasInherited()) {
+            baseValue = stored.InheritedValueOrUnset();
+        }
+        if (stored.HasCurrent()) {
+            baseValue = stored.CurrentValueOrUnset();
+        }
+    }
+    return registry_->EvaluateValue(
+        *this, *property, *metadata, baseValue);
 }
 
 // from src/gui/core/PropertySystem.cpp
@@ -602,6 +698,7 @@ Base::Result<void> DependencyObject::ApplyProviderContributionInternal(
     const PropertyValue& value) noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) return ready.GetStatus();
+    property = MapTextElementAttachedProperty(runtimeType_, property);
     Base::Result<void> writable = VerifyMutationAllowed();
     if (!writable) return writable.GetStatus();
     Base::Result<void> valid = registry_->ValidateValueFor(property, runtimeType_, value);
@@ -852,6 +949,7 @@ Base::Result<void> DependencyObject::SetTemplateValueChecked(
     if (!ready) return ready.GetStatus();
     Base::Result<void> writable = VerifyMutationAllowed();
     if (!writable) return writable.GetStatus();
+    property = MapTextElementAttachedProperty(runtimeType_, property);
     const Meta::DependencyProperty* registered = registry_->Find(property);
     if (registered == nullptr) return Base::Status::Failure(Base::ErrorCode::NotFound, "Dependency property is not registered");
     const PropertyMetadata* metadata = registered->MetadataFor(runtimeType_);
@@ -950,6 +1048,8 @@ PropertyValueSourceInfo DependencyObject::GetValueSourceInfo(
     DependencyPropertyHandle propertyHandle) const noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) return {};
+    propertyHandle = MapTextElementAttachedProperty(
+        runtimeType_, propertyHandle);
     const Meta::DependencyProperty* property =
         registry_->Find(propertyHandle);
     if (property == nullptr || property->MetadataFor(runtimeType_) == nullptr) {
@@ -975,6 +1075,8 @@ PropertyValue DependencyObject::ReadLocalValue(
     if (!ready) {
         return PropertyValue::Unset();
     }
+    propertyHandle = MapTextElementAttachedProperty(
+        runtimeType_, propertyHandle);
 
     const Meta::DependencyProperty* property =
         registry_->Find(propertyHandle);
@@ -997,6 +1099,8 @@ PropertyValue DependencyObject::GetValue(
     if (!ready) {
         return PropertyValue::Unset();
     }
+    propertyHandle = MapTextElementAttachedProperty(
+        runtimeType_, propertyHandle);
 
     // Canonical-handle hot path: probe the store by the incoming MemberId
     // before registry Find. Alias/legacy handles fall through.

@@ -57,6 +57,7 @@ namespace Aero {
 class LayoutEngine;
 class BindingEngine;
 class StyleEngine;
+struct ViewState;
 class EventRouter;
 class InputRouter;
 class AnimationEngine;
@@ -144,6 +145,8 @@ public:
     Base::Result<void> DetachVisual(
         ::Aero::Media::Visual& parent, ::Aero::Media::Visual& child) noexcept;
     Base::Result<void> DetachNode(::Aero::Media::Visual& node) noexcept;
+    void InvalidateNodeHandle(::Aero::Media::Visual& node) noexcept;
+    void InvalidateHandleSubtree(::Aero::Media::Visual& node) noexcept;
 
     void AttachPresentation(
         Aero::LayoutEngine* layout,
@@ -241,6 +244,10 @@ public:
     void SetMeshResources(Render::MeshResources* resources) noexcept {
         meshResources_ = resources;
     }
+    void SetViewState(ViewState* viewState) noexcept {
+        viewState_ = viewState;
+    }
+    ViewState* GetViewState() const noexcept { return viewState_; }
 
     using FindNameFn = Base::Object* (*)(
         void* context,
@@ -297,6 +304,7 @@ private:
     Controls::TextBlockLayout* textLayout_ = nullptr;
     Controls::ControlBehavior* controlBehaviors_ = nullptr;
     Render::MeshResources* meshResources_ = nullptr;
+    ViewState* viewState_ = nullptr;
     Aero::ResourceEnvironment resourceEnvironment_{};
     void* nameScopeContext_ = nullptr;
     FindNameFn findName_ = nullptr;
@@ -333,7 +341,6 @@ private:
     void SetTreeSubtree(::Aero::Media::Visual& node, ElementTree* tree) noexcept;
     Base::Result<std::uint32_t> FlushLifecycle() noexcept;
     Base::Result<void> RegisterHandleSubtree(::Aero::Media::Visual& node) noexcept;
-    void InvalidateHandleSubtree(::Aero::Media::Visual& node) noexcept;
     Base::Result<void> TrackInheritedValues(::Aero::Media::Visual& node) noexcept;
     void UntrackInheritedValues(::Aero::Media::Visual& node) noexcept;
     void OnDataContextChanged(

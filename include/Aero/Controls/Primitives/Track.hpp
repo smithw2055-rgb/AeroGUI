@@ -57,6 +57,48 @@ public:
         double trackLength,
         double minimumThumbLength = 8.0) const noexcept;
 
+    // Control only exposes TemplateRoot. Track's Thumb / RepeatButtons are
+    // assigned as structural properties; the first attached child would
+    // otherwise steal TemplateRoot and hide the gold indicator.
+    std::uint32_t GetVisualChildrenCount() const noexcept override {
+        std::uint32_t count = 0U;
+        if (decreaseRepeatButton_ &&
+            decreaseRepeatButton_->GetVisualParent() == this) {
+            ++count;
+        }
+        if (thumb_ && thumb_->GetVisualParent() == this) {
+            ++count;
+        }
+        if (increaseRepeatButton_ &&
+            increaseRepeatButton_->GetVisualParent() == this) {
+            ++count;
+        }
+        return count;
+    }
+    ::Aero::Media::Visual* GetVisualChild(
+        std::uint32_t index) const noexcept override {
+        std::uint32_t current = 0U;
+        const auto take =
+            [&](::Aero::Media::Visual* child) noexcept
+            -> ::Aero::Media::Visual* {
+            if (child == nullptr ||
+                child->GetVisualParent() != this) {
+                return nullptr;
+            }
+            if (current == index) return child;
+            ++current;
+            return nullptr;
+        };
+        if (::Aero::Media::Visual* found =
+                take(decreaseRepeatButton_.Get())) {
+            return found;
+        }
+        if (::Aero::Media::Visual* found = take(thumb_.Get())) {
+            return found;
+        }
+        return take(increaseRepeatButton_.Get());
+    }
+
     inline static constexpr DependencyProperty<Orientation> OrientationProperty{"Orientation"};
     inline static constexpr DependencyProperty<double> MinimumProperty{"Minimum"};
     inline static constexpr DependencyProperty<double> MaximumProperty{"Maximum"};

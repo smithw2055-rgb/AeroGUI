@@ -18,17 +18,23 @@
 
 
 
+#include <cstdio>
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
 
 #include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/Controls.hpp>
 #include <Aero/Markup/MarkupExtension.hpp>
+#include <Aero/HierarchicalDataTemplate.hpp>
 #include <Aero/TryCast.hpp>
 #include <Aero/Controls/ButtonBase.hpp>
 #include <Aero/Controls/ToggleButton.hpp>
+#include <Aero/Controls/TextBlock.hpp>
+#include <Aero/Documents/Span.hpp>
+#include <Aero/Documents/Run.hpp>
 #include <Aero/FrameworkContentElement.hpp>
 #include <Aero/FrameworkElement.hpp>
+#include <Aero/Freezable.hpp>
 #include <Aero/UIElement.hpp>
 #include <Aero/Media/Animation.hpp>
 #include <Aero/Media/Animation/EventTrigger.hpp>
@@ -45,6 +51,7 @@
 #include <fstream>
 #include <new>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace Aero::Markup {
@@ -2275,6 +2282,190 @@ Base::Result<ProvidedValue> DynamicResourceExtension::ProvideValue(
 } // namespace Aero::Markup
 
 
+// ===== StaticResourceExtension =====
+
+namespace Aero::Markup {
+
+Base::Result<void> StaticResourceExtension::Register(
+    Schema& schema,
+    Meta::TypeId staticResourceExtensionType) noexcept {
+    return SchemaPrivate::AddMarkupExtension(schema, {
+        staticResourceExtensionType,
+        &StaticResourceExtension::ProvideValue,
+        this});
+}
+
+Base::Result<ProvidedValue> StaticResourceExtension::ProvideValue(
+    Base::StringView arguments,
+    const ExtensionServices& services,
+    void* context) noexcept {
+    StaticResourceExtension* extension =
+        static_cast<StaticResourceExtension*>(context);
+    if (extension == nullptr ||
+        services.schema == nullptr || services.targetObject == nullptr ||
+        services.targetMember == Meta::InvalidMemberId) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "StaticResource markup extension has no target service context");
+    }
+    Base::StringView key = TrimDynamicResourceText(arguments);
+    constexpr Base::StringView ResourceKeyPrefix("ResourceKey=");
+    if (key.SizeBytes() > ResourceKeyPrefix.SizeBytes() &&
+        key.Substr(0U, ResourceKeyPrefix.SizeBytes()) ==
+            ResourceKeyPrefix) {
+        key = TrimDynamicResourceText(key.Substr(
+            ResourceKeyPrefix.SizeBytes(),
+            key.SizeBytes() - ResourceKeyPrefix.SizeBytes()));
+    }
+    if (key.Empty() || key.Data() == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "StaticResource requires a resource key");
+    }
+    // A Setter is an authored style record rather than a DependencyObject.
+    // Resolve its current resource value while the style dictionary is being
+    // built; the style finalizer subsequently converts that value for the
+    // target dependency property.
+    if (services.targetObject->RuntimeType() ==
+        Aero::Setter::StaticTypeId()) {
+        for (const ResourceDictionary* resources :
+             services.ambientResourceChain) {
+            if (resources == nullptr) continue;
+            Base::Result<Aero::ResourceValue> resource =
+                resources->Lookup(key);
+            if (resource) {
+                return ProvidedValue::FromValue(
+                    std::move(resource).Value());
+            }
+            if (resource.GetStatus().code !=
+                Base::ErrorCode::NotFound) {
+                return resource.GetStatus();
+            }
+        }
+        if (services.fallbackResources != nullptr) {
+            Base::Result<Aero::ResourceValue> resource =
+                services.fallbackResources->Lookup(key);
+            if (resource) {
+                return ProvidedValue::FromValue(
+                    std::move(resource).Value());
+            }
+            if (resource.GetStatus().code !=
+                Base::ErrorCode::NotFound) {
+                return resource.GetStatus();
+            }
+        }
+        return ProvidedValue::FromValue(
+            Meta::Value::NullObject(
+                Meta::TypeOf<Base::Object>()));
+    }
+    Base::Result<::Aero::DependencyObject*> targetResult =
+        SchemaPrivate::ResolvePropertyTarget(
+            *services.schema,
+            *services.targetObject);
+    if (!targetResult) {
+        return targetResult.GetStatus();
+    }
+    ::Aero::DependencyObject* target = targetResult.Value();
+    const Meta::DependencyPropertyHandle property{services.targetMember};
+    if (services.deferredContentOwner != nullptr &&
+        services.deferredContentOwner->RuntimeType() ==
+            Controls::ControlTemplate::StaticTypeId()) {
+        Base::String targetName;
+        Base::Result<void> captured = CaptureControlTemplateChildName(
+            static_cast<Controls::ControlTemplate&>(
+                *services.deferredContentOwner),
+            services.nameScope,
+            *target,
+            targetName);
+        if (!captured) return captured.GetStatus();
+        Base::Result<void> retained =
+            ::Aero::Controls::TemplatePrivate::AddDynamicResource(
+                static_cast<Controls::ControlTemplate&>(
+                    *services.deferredContentOwner),
+                targetName.View(),
+                key,
+                property);
+        return retained
+            ? Base::Result<ProvidedValue>(ProvidedValue::Handled())
+            : Base::Result<ProvidedValue>(retained.GetStatus());
+    }
+    const Meta::DependencyProperty* descriptor =
+        target->PropertyRegistry().Find(property);
+    auto resolveFrom =
+        [&](const ResourceDictionary* resources)
+            -> Base::Result<Meta::PropertyValue> {
+        if (resources == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotFound, "StaticResource scope is absent");
+        }
+        Base::Result<Aero::ResourceValue> resource =
+            resources->Lookup(key);
+        if (resource) {
+            return ConvertLookedUpDynamicResource(
+                resource.Value(), descriptor);
+        }
+        return resource.GetStatus();
+    };
+    for (const ResourceDictionary* resources :
+         services.ambientResourceChain) {
+        Base::Result<Meta::PropertyValue> value = resolveFrom(resources);
+        if (value) {
+            return ProvidedValue::FromValue(
+                std::move(value).Value());
+        }
+        if (value.GetStatus().code != Base::ErrorCode::NotFound) {
+            return value.GetStatus();
+        }
+    }
+    if (services.fallbackResources != nullptr) {
+        Base::Result<Meta::PropertyValue> value =
+            resolveFrom(services.fallbackResources);
+        if (value) {
+            return ProvidedValue::FromValue(
+                std::move(value).Value());
+        }
+        if (value.GetStatus().code != Base::ErrorCode::NotFound) {
+            return value.GetStatus();
+        }
+    }
+    if (services.deferredContentOwner != nullptr) {
+        Aero::ResourceDictionary* templateResources = nullptr;
+        const Meta::TypeId ownerType =
+            services.deferredContentOwner->RuntimeType();
+        if (ownerType == ::Aero::DataTemplate::StaticTypeId() ||
+            ownerType == ::Aero::HierarchicalDataTemplate::StaticTypeId()) {
+            templateResources =
+                &static_cast<::Aero::DataTemplate&>(
+                    *services.deferredContentOwner).GetResources();
+        } else if (
+            ownerType == Controls::ItemsPanelTemplate::StaticTypeId()) {
+            templateResources =
+                &static_cast<Controls::ItemsPanelTemplate&>(
+                    *services.deferredContentOwner).GetResources();
+        }
+        if (templateResources != nullptr) {
+            Base::Result<Meta::PropertyValue> value =
+                resolveFrom(templateResources);
+            if (value) {
+                return ProvidedValue::FromValue(
+                    std::move(value).Value());
+            }
+            if (value.GetStatus().code !=
+                Base::ErrorCode::NotFound) {
+                return value.GetStatus();
+            }
+        }
+    }
+    // WPF StaticResource fails when the key is absent, but AeroGUI keeps the
+    // tree alive by falling back to the property default so the gallery and
+    // sample resources never crash the load.
+    return ProvidedValue::FromValue(
+        MissingDynamicResourceValue(*target, descriptor).Value());
+}
+
+} // namespace Aero::Markup
+
+
 // ===== LocExtension =====
 
 namespace Aero::Markup {
@@ -4250,6 +4441,67 @@ Base::Result<void> ObjectBuilder::WriteText(
     if (!node.HasCompiledValue() &&
         !node.IsFromAttribute() &&
         IsWhitespaceOnly(node.Value())) {
+        // WPF TextBlock/Span mixed content collapses XML whitespace between
+        // inlines to a single space so sibling Runs do not mash together
+        // ("Release, Press or Hover" not "Release,PressorHover").
+        if (frames_.Empty()) {
+            return {};
+        }
+        Frame& spaceFrame = frames_.Back();
+        std::uint32_t objectIndex = InvalidIndex;
+        if (spaceFrame.kind == FrameKind::Member ||
+            spaceFrame.kind == FrameKind::ValueMember) {
+            objectIndex = spaceFrame.targetObjectIndex;
+        } else if (spaceFrame.kind == FrameKind::Object ||
+                   spaceFrame.kind == FrameKind::ValueObject) {
+            objectIndex = spaceFrame.objectIndex;
+        }
+        if (objectIndex >= created_.Size() ||
+            !created_[objectIndex].object) {
+            return {};
+        }
+        const Meta::TypeId hostType = created_[objectIndex].type;
+        const bool inlineHost =
+            schema_->Types().IsDerivedFrom(
+                hostType, Controls::TextBlock::StaticTypeId()) ||
+            schema_->Types().IsDerivedFrom(
+                hostType, Documents::Span::StaticTypeId());
+        if (!inlineHost) {
+            return {};
+        }
+        std::uint32_t inlineCount = 0U;
+        Base::Object& host = *created_[objectIndex].object;
+        if (schema_->Types().IsDerivedFrom(
+                hostType, Controls::TextBlock::StaticTypeId())) {
+            inlineCount = static_cast<Controls::TextBlock&>(host)
+                .GetInlineCount();
+        } else {
+            inlineCount = static_cast<Documents::Span&>(host)
+                .GetInlines().GetCount();
+        }
+        if (inlineCount == 0U) {
+            return {};
+        }
+        Base::Result<Meta::Value> space =
+            Meta::Value::TryFromString(
+                Meta::TypeOf<Base::String>(),
+                Base::StringView(" "));
+        if (!space) {
+            return space.GetStatus();
+        }
+        if (spaceFrame.kind == FrameKind::Member) {
+            return WriteValueToMember(
+                spaceFrame, std::move(space).Value(), node.Source());
+        }
+        if (spaceFrame.kind == FrameKind::Object &&
+            created_[objectIndex].hasContentMember) {
+            return WriteValue(
+                objectIndex,
+                created_[objectIndex].contentMember,
+                std::move(space).Value(),
+                node.Source(),
+                &created_[objectIndex].contentPolicy);
+        }
         return {};
     }
     if (frames_.Empty()) {
@@ -4464,6 +4716,10 @@ Base::Result<void> ObjectBuilder::WriteText(
                     loadContext_->deferUnresolvedStaticResources) {
                     frame.deferredStaticResource = true;
                     hasDeferredStaticResources_ = true;
+                    if (frame.targetObjectIndex < created_.Size()) {
+                        created_[frame.targetObjectIndex]
+                            .deferredStaticResource = true;
+                    }
                     DeferredStaticResourceRecord deferred;
                     deferred.targetObjectIndex =
                         frame.targetObjectIndex;
@@ -4597,6 +4853,10 @@ Base::Result<void> ObjectBuilder::WriteText(
                 loadContext_->deferUnresolvedStaticResources) {
                 frame.deferredStaticResource = true;
                 hasDeferredStaticResources_ = true;
+                if (frame.objectIndex < created_.Size()) {
+                    created_[frame.objectIndex].deferredStaticResource =
+                        true;
+                }
                 DeferredStaticResourceRecord deferred;
                 deferred.targetObjectIndex = frame.objectIndex;
                 deferred.member = contentMember;
@@ -5116,6 +5376,10 @@ Base::Result<void> ObjectBuilder::CompleteObject(
                             Base::ErrorCode::InvalidState,
                             "StaticResource parent frame is invalid");
                     }
+                    if (deferred.targetObjectIndex < created_.Size()) {
+                        created_[deferred.targetObjectIndex]
+                            .deferredStaticResource = true;
+                    }
                     deferred.source = node.Source();
                     Base::Result<void> key = deferred.key.Assign(
                         extension.ResourceKey());
@@ -5152,6 +5416,11 @@ Base::Result<void> ObjectBuilder::CompleteObject(
         }
     }
 
+    // BasedOn="{StaticResource {x:Type T}}" is queued when the type key is
+    // not yet visible (merged Source dictionaries commit after EndObject).
+    // Sealing now would reject the deferred BasedOn write.
+    if (!(record.deferredStaticResource &&
+          record.type == Aero::Style::StaticTypeId())) {
     Base::Result<void> endResult = schema_->EndInit(
         record.type,
         *record.object,
@@ -5165,6 +5434,7 @@ Base::Result<void> ObjectBuilder::CompleteObject(
             XamlObjectWriterDiagnosticCodes::InitializationFailed,
             MessageInitializationFailed,
             node.Source());
+    }
     }
     record.endCalled = true;
 
@@ -5857,10 +6127,26 @@ Base::Result<void> ObjectBuilder::WriteValue(
         (hasVisualContent ||
          hasVisualStructuralProperty) &&
         isUIElementValue(value);
+    const bool parentIsVisual =
+        schema_->Types().IsDerivedFrom(
+            created_[targetObjectIndex].type,
+            Aero::Media::Visual::StaticTypeId());
+    const bool parentIsFreezable =
+        schema_->Types().IsDerivedFrom(
+            created_[targetObjectIndex].type,
+            Aero::Freezable::StaticTypeId());
+    const bool parentIsTimeline =
+        schema_->Types().IsDerivedFrom(
+            created_[targetObjectIndex].type,
+            Media::Animation::Timeline::StaticTypeId());
     const bool stagesDeferredObjectContent =
         services.deferredContentOwner != nullptr &&
         (hasWritableContent || hasVisualStructuralProperty) &&
-        isDependencyObjectValue;
+        isDependencyObjectValue &&
+        (services.deferredContentOwner ==
+             created_[targetObjectIndex].object.Get() ||
+         parentIsVisual ||
+         (parentIsFreezable && !parentIsTimeline));
     Base::Result<void> setResult =
         (stagesVisualContent || stagesDeferredObjectContent)
         ? ObjectWriter::StageContent(
@@ -6273,13 +6559,48 @@ Base::Result<bool> ObjectBuilder::RegisterObjectResource(
 
 Base::Result<Aero::ResourceValue> ObjectBuilder::LookupResource(
     Base::StringView key) const noexcept {
-    Base::Result<Aero::ResourceKey> resourceKey =
-        Aero::ResourceKey::FromString(key);
-    Base::StringView extensionName;
-    Base::StringView typeName;
-    if (ParseMarkupValue(key, extensionName, typeName) ==
-            MarkupValueKind::Extension &&
-        extensionName == Base::StringView("x:Type")) {
+    constexpr Base::StringView PresentationNamespace(
+        "http://schemas.microsoft.com/winfx/2006/xaml/presentation");
+
+    Aero::ResourceKey candidates[4];
+    std::uint32_t candidateCount = 0U;
+    auto addCandidate = [&](Aero::ResourceKey candidate) noexcept {
+        if (!candidate.IsValid() || candidateCount >= 4U) {
+            return;
+        }
+        for (std::uint32_t index = 0U; index < candidateCount; ++index) {
+            if (candidates[index] == candidate) {
+                return;
+            }
+        }
+        candidates[candidateCount++] = std::move(candidate);
+    };
+    auto addStringKey = [&](Base::StringView text) noexcept {
+        if (text.Empty()) {
+            return;
+        }
+        Base::Result<Aero::ResourceKey> parsed =
+            Aero::ResourceKey::FromString(text);
+        if (parsed) {
+            addCandidate(std::move(parsed).Value());
+        }
+    };
+    auto addTypeCandidates = [&](
+        Base::StringView localName,
+        Meta::TypeId type) noexcept {
+        if (type != Meta::InvalidTypeId) {
+            addCandidate(Aero::ResourceKey::FromType(type));
+        }
+        if (!localName.Empty()) {
+            Base::String alias;
+            if (alias.Assign("Style.") && alias.Append(localName)) {
+                addStringKey(alias.View());
+            }
+            addStringKey(localName);
+        }
+    };
+    auto splitTypeName = [&](Base::StringView typeName)
+        -> Base::Result<std::pair<Base::StringView, Base::StringView>> {
         std::uint32_t colon = typeName.SizeBytes();
         for (std::uint32_t index = 0U;
              index < typeName.SizeBytes();
@@ -6305,38 +6626,148 @@ Base::Result<Aero::ResourceValue> ObjectBuilder::LookupResource(
                 colon + 1U,
                 typeName.SizeBytes() - colon - 1U);
         }
-        Base::Result<Base::StringView> namespaceUri =
-            LookupNamespace(prefix);
-        if (!namespaceUri) return namespaceUri.GetStatus();
+        return std::make_pair(prefix, localName);
+    };
+    auto resolveTypeId = [&](Base::StringView prefix, Base::StringView localName)
+        -> Base::Result<Meta::TypeId> {
+        Base::StringView namespaceUri = PresentationNamespace;
+        Base::Result<Base::StringView> bound = LookupNamespace(prefix);
+        if (bound) {
+            namespaceUri = bound.Value();
+        } else if (!prefix.Empty()) {
+            return bound.GetStatus();
+        }
         Base::Result<const Meta::TypeInfo*> type =
-            schema_->ResolveType(
-                namespaceUri.Value(), localName);
-        if (!type) return type.GetStatus();
-        resourceKey = Aero::ResourceKey::FromType(
-            type.Value()->Id());
-    }
-    if (!resourceKey) return resourceKey.GetStatus();
+            schema_->ResolveType(namespaceUri, localName);
+        if (!type && prefix.Empty() &&
+            namespaceUri != PresentationNamespace) {
+            type = schema_->ResolveType(PresentationNamespace, localName);
+        }
+        if (!type) {
+            return type.GetStatus();
+        }
+        return type.Value()->Id();
+    };
+    auto looksLikeTypeName = [&](Base::StringView text) noexcept -> bool {
+        if (text.Empty() || text[0] == '{') {
+            return false;
+        }
+        bool sawColon = false;
+        for (std::uint32_t index = 0U; index < text.SizeBytes(); ++index) {
+            const char character = text[index];
+            if (character == ':') {
+                if (sawColon || index == 0U ||
+                    index + 1U >= text.SizeBytes()) {
+                    return false;
+                }
+                sawColon = true;
+                continue;
+            }
+            const bool letter =
+                (character >= 'A' && character <= 'Z') ||
+                (character >= 'a' && character <= 'z') ||
+                character == '_';
+            const bool digit =
+                character >= '0' && character <= '9';
+            if (!(letter || (index > 0U && digit))) {
+                return false;
+            }
+        }
+        return true;
+    };
 
-    for (std::uint32_t index = frames_.Size(); index > 0U; --index) {
-        const Frame& frame = frames_[index - 1U];
-        if (frame.kind != FrameKind::Object ||
-            frame.resourceScopeIndex == InvalidIndex ||
-            frame.resourceScopeIndex >= resourceScopes_.Size()) {
-            continue;
+    Base::StringView extensionName;
+    Base::StringView typeArgument;
+    const MarkupValueKind markup =
+        ParseMarkupValue(key, extensionName, typeArgument);
+    if (markup == MarkupValueKind::Extension &&
+        extensionName == Base::StringView("x:Type")) {
+        Base::Result<std::pair<Base::StringView, Base::StringView>> parts =
+            splitTypeName(typeArgument);
+        if (!parts) {
+            return parts.GetStatus();
         }
-        Base::Result<Aero::ResourceValue> value =
-            (resourceScopes_[frame.resourceScopeIndex].external != nullptr
-                ? resourceScopes_[frame.resourceScopeIndex].external
-                : &resourceScopes_[frame.resourceScopeIndex].resources)
-                ->Lookup(resourceKey.Value());
-        if (value) {
-            return value;
+        Base::Result<Meta::TypeId> typeId =
+            resolveTypeId(parts.Value().first, parts.Value().second);
+        if (typeId) {
+            addTypeCandidates(parts.Value().second, typeId.Value());
         }
-        if (value.GetStatus().code != Base::ErrorCode::NotFound) {
-            return value.GetStatus();
+        addStringKey(key);
+    } else {
+        addStringKey(key);
+        if (looksLikeTypeName(key)) {
+            Base::Result<std::pair<Base::StringView, Base::StringView>> parts =
+                splitTypeName(key);
+            if (parts) {
+                Base::Result<Meta::TypeId> typeId =
+                    resolveTypeId(parts.Value().first, parts.Value().second);
+                if (typeId) {
+                    addTypeCandidates(parts.Value().second, typeId.Value());
+                }
+            }
         }
     }
-    if (frames_.Empty()) {
+    if (candidateCount == 0U) {
+        addStringKey(key);
+        if (candidateCount == 0U) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "String resource key cannot be empty");
+        }
+    }
+
+    auto lookupOne = [&](const Aero::ResourceKey& resourceKey)
+        -> Base::Result<Aero::ResourceValue> {
+        for (std::uint32_t index = frames_.Size(); index > 0U; --index) {
+            const Frame& frame = frames_[index - 1U];
+            if (frame.kind != FrameKind::Object ||
+                frame.resourceScopeIndex == InvalidIndex ||
+                frame.resourceScopeIndex >= resourceScopes_.Size()) {
+                continue;
+            }
+            Base::Result<Aero::ResourceValue> value =
+                (resourceScopes_[frame.resourceScopeIndex].external != nullptr
+                    ? resourceScopes_[frame.resourceScopeIndex].external
+                    : &resourceScopes_[frame.resourceScopeIndex].resources)
+                    ->Lookup(resourceKey);
+            if (value) {
+                return value;
+            }
+            if (value.GetStatus().code != Base::ErrorCode::NotFound) {
+                return value.GetStatus();
+            }
+        }
+        if (Base::Object* deferredOwner = FindDeferredContentOwner()) {
+            Aero::ResourceDictionary* templateResources = nullptr;
+            const Meta::TypeId ownerType = deferredOwner->RuntimeType();
+            if (ownerType == ::Aero::DataTemplate::StaticTypeId() ||
+                ownerType == ::Aero::HierarchicalDataTemplate::StaticTypeId()) {
+                templateResources =
+                    &static_cast<::Aero::DataTemplate&>(
+                        *deferredOwner).GetResources();
+            } else if (
+                ownerType == Controls::ItemsPanelTemplate::StaticTypeId()) {
+                templateResources =
+                    &static_cast<Controls::ItemsPanelTemplate&>(
+                        *deferredOwner).GetResources();
+            } else if (
+                ownerType == Controls::ControlTemplate::StaticTypeId()) {
+                templateResources =
+                    &static_cast<Controls::ControlTemplate&>(
+                        *deferredOwner).GetResources();
+            }
+            if (templateResources != nullptr) {
+                Base::Result<Aero::ResourceValue> value =
+                    templateResources->Lookup(resourceKey);
+                if (value) return value;
+                if (value.GetStatus().code != Base::ErrorCode::NotFound) {
+                    return value.GetStatus();
+                }
+            }
+        }
+        // WPF: a later merged dictionary's StaticResource sees keys from earlier
+        // application merged dictionaries AND from nested MergedDictionaries, even
+        // while this document still has an object/member frame on the stack.
         for (std::uint32_t index = resourceScopes_.Size();
              index > 0U; --index) {
             const ResourceScopeRecord& scope =
@@ -6346,44 +6777,63 @@ Base::Result<Aero::ResourceValue> ObjectBuilder::LookupResource(
                     ? scope.external
                     : &scope.resources;
             Base::Result<Aero::ResourceValue> value =
-                dictionary->Lookup(resourceKey.Value());
+                dictionary->Lookup(resourceKey);
             if (value) return value;
             if (value.GetStatus().code != Base::ErrorCode::NotFound) {
                 return value.GetStatus();
             }
         }
-        Base::Result<Aero::ResourceValue> committed =
-            committedResources_.Lookup(resourceKey.Value());
-        if (committed) return committed;
-        if (committed.GetStatus().code != Base::ErrorCode::NotFound) {
-            return committed.GetStatus();
+        {
+            Base::Result<Aero::ResourceValue> committed =
+                committedResources_.Lookup(resourceKey);
+            if (committed) return committed;
+            if (committed.GetStatus().code != Base::ErrorCode::NotFound) {
+                return committed.GetStatus();
+            }
         }
-    }
-    if (loadContext_ != nullptr && loadContext_->resources != nullptr) {
+        if (loadContext_ != nullptr && loadContext_->resources != nullptr) {
+            Base::Result<Aero::ResourceValue> value =
+                loadContext_->resources->Lookup(resourceKey);
+            if (value) {
+                return value;
+            }
+            if (value.GetStatus().code != Base::ErrorCode::NotFound) {
+                return value.GetStatus();
+            }
+        }
+        if (loadContext_ != nullptr &&
+            loadContext_->fallbackResources != nullptr &&
+            loadContext_->fallbackResources != loadContext_->resources) {
+            Base::Result<Aero::ResourceValue> value =
+                loadContext_->fallbackResources->Lookup(resourceKey);
+            if (value) {
+                return value;
+            }
+            if (value.GetStatus().code != Base::ErrorCode::NotFound) {
+                return value.GetStatus();
+            }
+        }
+        return Base::Status::Failure(
+            Base::ErrorCode::NotFound,
+            MessageStaticResourceNotFound.Data());
+    };
+
+    Base::Result<Aero::ResourceValue> last =
+        Base::Status::Failure(
+            Base::ErrorCode::NotFound,
+            MessageStaticResourceNotFound.Data());
+    for (std::uint32_t index = 0U; index < candidateCount; ++index) {
         Base::Result<Aero::ResourceValue> value =
-            loadContext_->resources->Lookup(resourceKey.Value());
+            lookupOne(candidates[index]);
         if (value) {
             return value;
         }
         if (value.GetStatus().code != Base::ErrorCode::NotFound) {
             return value.GetStatus();
         }
+        last = std::move(value);
     }
-    if (loadContext_ != nullptr &&
-        loadContext_->fallbackResources != nullptr &&
-        loadContext_->fallbackResources != loadContext_->resources) {
-        Base::Result<Aero::ResourceValue> value =
-            loadContext_->fallbackResources->Lookup(resourceKey.Value());
-        if (value) {
-            return value;
-        }
-        if (value.GetStatus().code != Base::ErrorCode::NotFound) {
-            return value.GetStatus();
-        }
-    }
-    return Base::Status::Failure(
-        Base::ErrorCode::NotFound,
-        MessageStaticResourceNotFound.Data());
+    return last;
 }
 
 Base::Result<void> ObjectBuilder::CreateScopesForObject(
@@ -7354,6 +7804,31 @@ Base::Result<void> ObjectWriter::StageContent(
     }
 
     if (services.deferredContentOwner != nullptr) {
+        const bool parentIsVisual =
+            schema.Types().IsDerivedFrom(
+                object.RuntimeType(),
+                Aero::Media::Visual::StaticTypeId());
+        const bool parentIsFreezable =
+            schema.Types().IsDerivedFrom(
+                object.RuntimeType(),
+                Aero::Freezable::StaticTypeId());
+        const bool parentIsTimeline =
+            schema.Types().IsDerivedFrom(
+                object.RuntimeType(),
+                Media::Animation::Timeline::StaticTypeId());
+        const bool deferParent =
+            services.deferredContentOwner == &object ||
+            parentIsVisual ||
+            (parentIsFreezable && !parentIsTimeline);
+        if (!deferParent) {
+            // DataTemplate.Resources Storyboards and Trigger.EnterActions are
+            // live shared objects. Visual-tree Freezables (TransformGroup)
+            // still clone through the deferred graph.
+            return metadata->WriteContent(
+                object,
+                services.targetMember,
+                value.AsObject());
+        }
         if (services.deferredContent == nullptr ||
             !childIsDependencyObject) {
             return InvalidContentState(

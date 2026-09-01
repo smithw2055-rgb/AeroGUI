@@ -12,6 +12,9 @@
 #include <Aero/Controls/ProgressBar.hpp>
 #include <Aero/Controls/ScrollViewer.hpp>
 #include <Aero/Controls/Viewbox.hpp>
+#include <Aero/Controls/HeaderedItemsControl.hpp>
+#include <Aero/Controls/Primitives/ToggleButton.hpp>
+#include <Aero/Controls/TreeViewItem.hpp>
 #include <Aero/Data/IMultiValueConverter.hpp>
 #include <Aero/Data/IValueConverter.hpp>
 #include <Aero/Diagnostics.hpp>
@@ -47,8 +50,6 @@
 #include <fstream>
 #include <string>
 #include <utility>
-
-#include "TutorialSampleXaml.inc"
 
 using Aero::Base::ErrorCode;
 using Aero::Base::Ref;
@@ -122,7 +123,9 @@ bool ReportsSampleLoadFailure(StringView message) noexcept {
         StringView("ResourceDictionary Source could not be loaded"),
         StringView("Binding TemplatedParent is unavailable"),
         StringView("TemplateBinding target"),
-        StringView("Template trigger source name was not found")};
+        StringView("Template trigger source name was not found"),
+        StringView("StaticResource key"),
+        StringView("forward references are not supported")};
     for (const StringView needle : needles) {
         if (Contains(message, needle)) {
             return true;
@@ -1866,6 +1869,216 @@ bool TestStyleSetterMergedStaticResource() {
     return true;
 }
 
+bool TestMergedNestedStaticResource() {
+    LiveGui* live = NewSampleLiveGui();
+    SAMPLE_CHECK(live != nullptr);
+
+    std::error_code error;
+    const std::filesystem::path dir =
+        std::filesystem::temp_directory_path(error) /
+        "aero-nested-static-f940";
+    SAMPLE_CHECK(!error);
+    SAMPLE_CHECK(WriteUtf8File(
+        dir / "Colors.xaml",
+        CStringView(
+            "<ResourceDictionary xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+            " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
+            "<Color x:Key=\"Color.Gray9\">#FF262E35</Color>"
+            "</ResourceDictionary>")));
+    SAMPLE_CHECK(WriteUtf8File(
+        dir / "Brushes.xaml",
+        CStringView(
+            "<ResourceDictionary xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+            " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
+            "<ResourceDictionary.MergedDictionaries>"
+            "<ResourceDictionary Source=\"Colors.xaml\"/>"
+            "</ResourceDictionary.MergedDictionaries>"
+            "<SolidColorBrush x:Key=\"Brush.Window.Background\" Color=\"{StaticResource Color.Gray9}\"/>"
+            "</ResourceDictionary>")));
+    SAMPLE_CHECK(WriteUtf8File(
+        dir / "Theme.xaml",
+        CStringView(
+            "<ResourceDictionary xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\">"
+            "<ResourceDictionary.MergedDictionaries>"
+            "<ResourceDictionary Source=\"Brushes.xaml\"/>"
+            "</ResourceDictionary.MergedDictionaries>"
+            "</ResourceDictionary>")));
+    SAMPLE_CHECK(WriteUtf8File(
+        dir / "Resources.xaml",
+        CStringView(
+            "<ResourceDictionary xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+            " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
+            "<SolidColorBrush x:Key=\"Window.Accent\" Color=\"{StaticResource Color.Gray9}\"/>"
+            "<ControlTemplate x:Key=\"ColorSelectorComboBoxTemplate\" TargetType=\"ComboBox\">"
+            "<Border>"
+            "<Border.Background>"
+            "<SolidColorBrush Color=\"{StaticResource Color.Gray9}\" Opacity=\"0\"/>"
+            "</Border.Background>"
+            "</Border>"
+            "</ControlTemplate>"
+            "</ResourceDictionary>")));
+    SAMPLE_CHECK(WriteUtf8File(
+        dir / "AppResources.xaml",
+        CStringView(
+            "<ResourceDictionary xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\">"
+            "<ResourceDictionary.MergedDictionaries>"
+            "<ResourceDictionary Source=\"Theme.xaml\"/>"
+            "<ResourceDictionary Source=\"Resources.xaml\"/>"
+            "</ResourceDictionary.MergedDictionaries>"
+            "</ResourceDictionary>")));
+
+    Aero::Markup::XamlReader reader(live->gui);
+    live->diagnostics.Clear();
+    const std::string mergedPath = (dir / "AppResources.xaml").string();
+    Result<Aero::Markup::XamlDocument> merged = reader.Load(
+        AsView(mergedPath), {}, &live->diagnostics);
+    SAMPLE_CHECK(!FailIfSampleError(
+        StringView("Nested sibling Color.Gray9"),
+        merged.GetStatus(),
+        live->diagnostics));
+    SAMPLE_CHECK(merged);
+    Aero::ResourceDictionary* resources =
+        merged.Value().Root<Aero::ResourceDictionary>();
+    SAMPLE_CHECK(resources != nullptr);
+    SAMPLE_CHECK(resources->Contains(StringView("Brush.Window.Background")));
+    SAMPLE_CHECK(resources->Contains(StringView("Window.Accent")));
+    SAMPLE_CHECK(resources->Contains(StringView("ColorSelectorComboBoxTemplate")));
+    SAMPLE_CHECK(resources->Contains(StringView("Color.Gray9")));
+
+    live->diagnostics.Clear();
+    const std::string resourcesPath = (dir / "Resources.xaml").string();
+    Result<Aero::Markup::XamlDocument> sibling = reader.Load(
+        AsView(resourcesPath),
+        *resources,
+        {},
+        &live->diagnostics);
+    SAMPLE_CHECK(!FailIfSampleError(
+        StringView("Sibling fallback Color.Gray9"),
+        sibling.GetStatus(),
+        live->diagnostics));
+    SAMPLE_CHECK(sibling);
+    Aero::ResourceDictionary* siblingDictionary =
+        sibling.Value().Root<Aero::ResourceDictionary>();
+    SAMPLE_CHECK(siblingDictionary != nullptr);
+    SAMPLE_CHECK(siblingDictionary->Contains(StringView("Window.Accent")));
+    return true;
+}
+
+bool TestTypeKeyedStaticResourceBasedOn() {
+    LiveGui* live = NewSampleLiveGui();
+    SAMPLE_CHECK(live != nullptr);
+
+    std::error_code error;
+    const std::filesystem::path dir =
+        std::filesystem::temp_directory_path(error) /
+        "aero-typekey-basedon-f940";
+    SAMPLE_CHECK(!error);
+    SAMPLE_CHECK(WriteUtf8File(
+        dir / "Base.xaml",
+        CStringView(
+            "<ResourceDictionary xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+            " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
+            "<Style TargetType=\"ContentControl\">"
+            "<Setter Property=\"Width\" Value=\"40\"/>"
+            "</Style>"
+            "<Style TargetType=\"HeaderedItemsControl\" BasedOn=\"{StaticResource {x:Type ContentControl}}\">"
+            "<Setter Property=\"Padding\" Value=\"1\"/>"
+            "</Style>"
+            "<Style TargetType=\"ToggleButton\" BasedOn=\"{StaticResource {x:Type ContentControl}}\">"
+            "<Setter Property=\"Height\" Value=\"20\"/>"
+            "</Style>"
+            "</ResourceDictionary>")));
+    SAMPLE_CHECK(WriteUtf8File(
+        dir / "Styles.xaml",
+        CStringView(
+            "<ResourceDictionary xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+            " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
+            "<ResourceDictionary.MergedDictionaries>"
+            "<ResourceDictionary Source=\"Base.xaml\"/>"
+            "</ResourceDictionary.MergedDictionaries>"
+            "<Style x:Key=\"Style.ToggleSwitch\" TargetType=\"ToggleButton\" BasedOn=\"{StaticResource {x:Type ContentControl}}\">"
+            "<Setter Property=\"MinWidth\" Value=\"48\"/>"
+            "<Setter Property=\"Template\">"
+            "<Setter.Value>"
+            "<ControlTemplate TargetType=\"ToggleButton\">"
+            "<Border Background=\"White\"/>"
+            "</ControlTemplate>"
+            "</Setter.Value>"
+            "</Setter>"
+            "</Style>"
+            "<Style x:Key=\"SampleSelectorItemStyle\" TargetType=\"TreeViewItem\" BasedOn=\"{StaticResource {x:Type HeaderedItemsControl}}\">"
+            "<Setter Property=\"Padding\" Value=\"12,7\"/>"
+            "</Style>"
+            "</ResourceDictionary>")));
+    SAMPLE_CHECK(WriteUtf8File(
+        dir / "AppResources.xaml",
+        CStringView(
+            "<ResourceDictionary xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\">"
+            "<ResourceDictionary.MergedDictionaries>"
+            "<ResourceDictionary Source=\"Styles.xaml\"/>"
+            "</ResourceDictionary.MergedDictionaries>"
+            "</ResourceDictionary>")));
+
+    Aero::Markup::XamlReader reader(live->gui);
+    live->diagnostics.Clear();
+    const std::string mergedPath = (dir / "AppResources.xaml").string();
+    Result<Aero::Markup::XamlDocument> merged = reader.Load(
+        AsView(mergedPath), {}, &live->diagnostics);
+    SAMPLE_CHECK(!FailIfSampleError(
+        StringView("Type-keyed BasedOn {x:Type T}"),
+        merged.GetStatus(),
+        live->diagnostics));
+    SAMPLE_CHECK(merged);
+    Aero::ResourceDictionary* resources =
+        merged.Value().Root<Aero::ResourceDictionary>();
+    SAMPLE_CHECK(resources != nullptr);
+    SAMPLE_CHECK(resources->Contains(StringView("Style.ToggleSwitch")));
+    SAMPLE_CHECK(resources->Contains(ContentControl::StaticTypeId()));
+    SAMPLE_CHECK(resources->Contains(
+        Aero::Controls::Primitives::ToggleButton::StaticTypeId()));
+    SAMPLE_CHECK(resources->Contains(
+        Aero::Controls::HeaderedItemsControl::StaticTypeId()));
+
+    auto styleFrom = [&](const Aero::ResourceKey& key) -> Aero::Style* {
+        Result<Aero::ResourceValue> value = resources->Lookup(key);
+        if (!value || value.Value().Kind() != Aero::Meta::ValueKind::Object ||
+            !value.Value().AsObject()) {
+            return nullptr;
+        }
+        return TryCast<Aero::Style>(value.Value().AsObject().Get());
+    };
+    Result<Aero::ResourceKey> toggleKey =
+        Aero::ResourceKey::FromString(StringView("Style.ToggleSwitch"));
+    SAMPLE_CHECK(toggleKey);
+    Aero::Style* toggleSwitch = styleFrom(toggleKey.Value());
+    SAMPLE_CHECK(toggleSwitch != nullptr);
+    SAMPLE_CHECK(toggleSwitch->GetBasedOn() != nullptr);
+    SAMPLE_CHECK(
+        toggleSwitch->GetBasedOn()->GetTargetType() ==
+        ContentControl::StaticTypeId());
+    SAMPLE_CHECK(toggleSwitch->GetIsSealed());
+
+    Result<Aero::ResourceKey> selectorKey =
+        Aero::ResourceKey::FromString(StringView("SampleSelectorItemStyle"));
+    SAMPLE_CHECK(selectorKey);
+    Aero::Style* selector = styleFrom(selectorKey.Value());
+    SAMPLE_CHECK(selector != nullptr);
+    SAMPLE_CHECK(selector->GetBasedOn() != nullptr);
+    SAMPLE_CHECK(
+        selector->GetBasedOn()->GetTargetType() ==
+        Aero::Controls::HeaderedItemsControl::StaticTypeId());
+
+    Aero::Style* implicitToggle = styleFrom(
+        Aero::ResourceKey::FromType(
+            Aero::Controls::Primitives::ToggleButton::StaticTypeId()));
+    SAMPLE_CHECK(implicitToggle != nullptr);
+    SAMPLE_CHECK(implicitToggle->GetBasedOn() != nullptr);
+    SAMPLE_CHECK(
+        implicitToggle->GetBasedOn()->GetTargetType() ==
+        ContentControl::StaticTypeId());
+    return true;
+}
+
 bool TestInventoryTemplateApply() {
     LiveGui* live = NewSampleLiveGui();
     SAMPLE_CHECK(live != nullptr);
@@ -2131,25 +2344,15 @@ bool TestTutorialSampleXamlLoadApply() {
     SAMPLE_CHECK(live != nullptr);
     SAMPLE_CHECK(TestWindowGridItemsBinding(*live));
 
-    std::error_code error;
-    const std::filesystem::path dir =
-        std::filesystem::temp_directory_path(error) /
-        "aero-tutorial-samples-f940";
-    SAMPLE_CHECK(!error);
-    std::filesystem::create_directories(dir, error);
-    SAMPLE_CHECK(!error);
-
-    for (std::uint32_t index = 0U;
-         index < kTutorialSampleXamlFileCount;
-         ++index) {
-        const TutorialSampleXamlFile& file = kTutorialSampleXamlFiles[index];
-        const std::filesystem::path path =
-            dir / file.sample / file.relative;
-        SAMPLE_CHECK(WriteUtf8File(
-            path,
-            StringView(
-                file.text,
-                static_cast<std::uint32_t>(std::strlen(file.text)))));
+    std::filesystem::path dir = "samples";
+    if (!std::filesystem::exists(dir)) {
+        dir = "../samples";
+    }
+    if (!std::filesystem::exists(dir)) {
+        dir = "../../samples";
+    }
+    if (!std::filesystem::exists(dir)) {
+        dir = "c:/Projects/AeroGUI-R/samples";
     }
 
     const char* required[] = {

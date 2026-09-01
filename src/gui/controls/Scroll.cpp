@@ -12,6 +12,7 @@
 #include <cmath>
 #include <limits>
 #include "ControlBehavior.hpp"
+#include "gui/templates/TemplateState.hpp"
 
 namespace Aero::Controls {
 using Aero::Controls::ScrollBehavior;
@@ -127,7 +128,14 @@ ScrollContentPresenter::ScrollContentPresenter() noexcept
 ScrollContentPresenter::ScrollContentPresenter(
     TypeId runtimeType) noexcept
     : ContentControl(runtimeType) {
-    static_cast<void>(SetClipToBounds(true));
+    // WPF: ScrollContentPresenter clips; ScrollViewer does not. Aero's
+    // ScrollViewer derives from ScrollContentPresenter, so only the actual
+    // presenter type must opt in. Clipping the viewer as well nested two
+    // stencil clips over the items host and, after Intro's offscreen fade,
+    // discarded the list on the window target.
+    if (runtimeType == ScrollContentPresenter::StaticTypeId()) {
+        static_cast<void>(SetClipToBounds(true));
+    }
 }
 
 IScrollInfo*
@@ -439,7 +447,11 @@ ScrollContentPresenter::PageVertical(
 Size
 ScrollContentPresenter::MeasureOverride(
     Size availableSize) noexcept {
-    if (GetTemplateRoot() != nullptr) {
+    // ScrollViewer derives from this type and measures its chrome template
+    // here. The presenter itself must still record extent from Content;
+    // otherwise Auto scrollbars stay Collapsed and the thumb never appears.
+    if (RuntimeType() != StaticTypeId() &&
+        GetTemplateRoot() != nullptr) {
         return ContentControl::MeasureOverride(
             availableSize);
     }
@@ -495,7 +507,8 @@ ScrollContentPresenter::MeasureOverride(
 Size
 ScrollContentPresenter::ArrangeOverride(
     Size finalSize) noexcept {
-    if (GetTemplateRoot() != nullptr) {
+    if (RuntimeType() != StaticTypeId() &&
+        GetTemplateRoot() != nullptr) {
         return ContentControl::ArrangeOverride(
             finalSize);
     }
@@ -1268,18 +1281,15 @@ Size Track::ArrangeOverride(
                 : Rect{offset, 0.0,
                        extent, finalSize.height});
     };
-    Base::Result<void> arranged =
-        arrange(first, 0.0, before);
-    if (arranged) {
-        arranged = arrange(
-            thumb_.Get(), thumbOffset, thumbLength);
-    }
-    if (arranged) {
-        arranged = arrange(
-            last,
-            thumbOffset + thumbLength,
-            after);
-    }
+    // Arrange independently: a RepeatButton that is not yet a layout
+    // child must not skip the Thumb (QuestLog's 3px gold indicator).
+    static_cast<void>(arrange(first, 0.0, before));
+    static_cast<void>(arrange(
+        thumb_.Get(), thumbOffset, thumbLength));
+    static_cast<void>(arrange(
+        last,
+        thumbOffset + thumbLength,
+        after));
     return finalSize;
 }
 
@@ -2834,16 +2844,20 @@ namespace Aero::Controls {
 ScrollBarBehavior::ScrollBarBehavior(
     ElementTree& tree,
     EventRouter& events,
-    InputRouter& input) noexcept
+    InputRouter& input,
+    VisualStateManager* states) noexcept
     : tree_(&tree),
       events_(&events),
       input_(&input),
+      states_(states),
       scrollBars_(&Base::GetDefaultAllocator()),
+      thumbs_(&Base::GetDefaultAllocator()),
       mouseDownHandler_(this, &ScrollBarBehavior::OnMouseDown),
       mouseMoveHandler_(this, &ScrollBarBehavior::OnMouseMove),
       mouseUpHandler_(this, &ScrollBarBehavior::OnMouseUp),
       keyDownHandler_(this, &ScrollBarBehavior::OnKeyDown),
       captureChangedHandler_(this, &ScrollBarBehavior::OnCaptureChanged),
+      pointerStateChangedHandler_(this, &ScrollBarBehavior::OnPointerStateChanged),
       lineUpHandler_(&ScrollBarBehavior::OnLineUpCommand),
       lineDownHandler_(&ScrollBarBehavior::OnLineDownCommand),
       lineLeftHandler_(&ScrollBarBehavior::OnLineLeftCommand),
@@ -2860,6 +2874,19 @@ ScrollBarBehavior::ScrollBarBehavior(
       scrollToVerticalOffsetHandler_(&ScrollBarBehavior::OnScrollToVerticalOffsetCommand) {}
 
 ScrollBarBehavior::~ScrollBarBehavior() {
+    if (input_ != nullptr) {
+        static_cast<void>(
+            input_->RemovePointerStateChanged(
+                pointerStateChangedHandler_));
+    }
+    while (!thumbs_.Empty()) {
+        Thumb* thumb = ResolveThumb(thumbs_.Size() - 1U);
+        if (thumb != nullptr) {
+            static_cast<void>(DetachThumb(*thumb));
+        } else {
+            RemoveThumbAt(thumbs_.Size() - 1U);
+        }
+    }
     while (!scrollBars_.Empty()) {
         ScrollBar* scrollBar = Resolve(scrollBars_.Size() - 1U);
         if (scrollBar != nullptr) {
@@ -2899,6 +2926,113 @@ void ScrollBarBehavior::RemoveAt(
             std::move(scrollBars_.Back());
     }
     scrollBars_.PopBack();
+}
+
+std::uint32_t ScrollBarBehavior::FindThumb(
+    const Thumb& thumb) const noexcept {
+    const VisualHandle target =
+        AeroGuiInternal::Handle(thumb);
+    for (std::uint32_t index = 0U;
+         index < thumbs_.Size(); ++index) {
+        if (thumbs_[index].index == target.index &&
+            thumbs_[index].generation == target.generation) {
+            return index;
+        }
+    }
+    return UINT32_MAX;
+}
+
+Thumb* ScrollBarBehavior::ResolveThumb(
+    std::uint32_t index) noexcept {
+    if (index >= thumbs_.Size()) return nullptr;
+    return static_cast<Thumb*>(
+        tree_->ResolveHandle(thumbs_[index]));
+}
+
+void ScrollBarBehavior::RemoveThumbAt(
+    std::uint32_t index) noexcept {
+    if (index >= thumbs_.Size()) return;
+    if (index + 1U != thumbs_.Size()) {
+        thumbs_[index] = thumbs_.Back();
+    }
+    thumbs_.PopBack();
+}
+
+void ScrollBarBehavior::SyncThumbVisualState(
+    Thumb& thumb) noexcept {
+    if (states_ == nullptr) return;
+    Base::StringView common = "Normal";
+    if (!thumb.GetIsEnabled()) {
+        common = "Disabled";
+    } else if (thumb.GetIsDragging()) {
+        common = "Pressed";
+    } else if (thumb.GetIsMouseOver()) {
+        common = "MouseOver";
+    }
+    static_cast<void>(
+        Aero::VisualStateManagerRuntime::GoToState(
+            *states_,
+            thumb,
+            "CommonStates",
+            common,
+            true));
+}
+
+Base::Result<void> ScrollBarBehavior::AttachThumb(
+    Thumb& thumb) noexcept {
+    if (FindThumb(thumb) != UINT32_MAX) {
+        return Base::Status::Failure(
+            Base::ErrorCode::AlreadyExists,
+            "Thumb is already attached");
+    }
+    if (thumb.GetTree() != tree_ ||
+        !AeroGuiInternal::Handle(thumb).IsValid()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Thumb must be loaded in the interaction tree");
+    }
+    if (thumbs_.Empty()) {
+        input_->AddPointerStateChanged(pointerStateChangedHandler_);
+    }
+    Base::Result<void> added =
+        thumbs_.PushBack(AeroGuiInternal::Handle(thumb));
+    if (!added) {
+        if (thumbs_.Empty()) {
+            static_cast<void>(
+                input_->RemovePointerStateChanged(
+                    pointerStateChangedHandler_));
+        }
+        return added.GetStatus();
+    }
+    SyncThumbVisualState(thumb);
+    return {};
+}
+
+Base::Result<bool> ScrollBarBehavior::DetachThumb(
+    Thumb& thumb) noexcept {
+    const std::uint32_t index = FindThumb(thumb);
+    if (index == UINT32_MAX) return false;
+    RemoveThumbAt(index);
+    if (thumbs_.Empty()) {
+        static_cast<void>(
+            input_->RemovePointerStateChanged(
+                pointerStateChangedHandler_));
+    }
+    return true;
+}
+
+void ScrollBarBehavior::OnPointerStateChanged(
+    UIElement& element) noexcept {
+    for (std::uint32_t index = 0U;
+         index < thumbs_.Size(); ++index) {
+        Thumb* thumb = ResolveThumb(index);
+        if (thumb == nullptr) continue;
+        if (thumb != &element &&
+            !thumb->IsAncestorOf(element)) {
+            continue;
+        }
+        SyncThumbVisualState(*thumb);
+    }
 }
 
 Base::Result<void> ScrollBarBehavior::Attach(
@@ -3205,6 +3339,7 @@ void ScrollBarBehavior::OnMouseDown(
     auto& bar = *static_cast<ScrollBar*>(sender);
     const std::uint32_t index = Find(bar);
     if (index == UINT32_MAX ||
+        args.GetHandled() ||
         !bar.GetIsEnabled() ||
         args.GetChangedButton() != MouseButton::Left) {
         return;

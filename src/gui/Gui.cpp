@@ -1,5 +1,7 @@
 #include <Aero/Gui.hpp>
 #include <Aero/View.hpp>
+#include <Aero/TryCast.hpp>
+#include <Aero/UIElement.hpp>
 
 #include <Aero/Markup/XamlReader.hpp>
 #include <Aero/Markup/XamlProvider.hpp>
@@ -427,7 +429,8 @@ Base::Result<Base::Ref<Base::Object>> Gui::LoadXamlRoot(
 
 Base::Result<void> Gui::LoadComponent(
     Base::Object& component,
-    Base::StringView uri) noexcept {
+    Base::StringView uri,
+    ResourceDictionary* resources) noexcept {
     if (!IsInitialized()) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
@@ -446,7 +449,8 @@ Base::Result<void> Gui::LoadComponent(
     CollectUnclaimedDocuments(state);
     Markup::XamlReader reader(*this);
     Base::Result<Markup::XamlDocument> loaded =
-        reader.LoadComponentInto(std::move(root), uri);
+        reader.LoadComponentInto(
+            std::move(root), uri, {}, nullptr, resources);
     if (!loaded) return loaded.GetStatus();
     Base::Result<Base::Ref<Base::Object>> retained =
         RetainLoadedDocument(
@@ -454,6 +458,25 @@ Base::Result<void> Gui::LoadComponent(
             std::move(loaded).Value(),
             externalRootReferences);
     if (!retained) return retained.GetStatus();
+    if (UIElement* element = TryCast<UIElement>(&component)) {
+        if (ElementTree* tree = element->GetTree()) {
+            if (ViewState* viewState = tree->GetViewState()) {
+                for (std::uint32_t index = 0U;
+                     index < state.pendingDocuments.Size(); ++index) {
+                    Markup::LoaderResult& pending =
+                        state.pendingDocuments[index].document;
+                    if (pending.root.Get() != &component) continue;
+                    Markup::LoaderResult taken = std::move(pending);
+                    RemovePendingDocument(state, index);
+                    Base::Result<void> adopted =
+                        AdoptLoadedComponent(
+                            *viewState, std::move(taken));
+                    if (!adopted) return adopted.GetStatus();
+                    break;
+                }
+            }
+        }
+    }
     return {};
 }
 

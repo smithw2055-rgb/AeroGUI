@@ -405,7 +405,7 @@ Base::Result<void> PopulateControlsTextMedia(
                 .Changed(&OnPathDashStyleChanged))
         .Override(
             Shape::StretchProperty,
-            FrameworkPropertyMetadata(Stretch::Uniform)
+            FrameworkPropertyMetadata(Stretch::None)
                 .AffectsMeasure()
                 .AffectsRender())
         .Factory();

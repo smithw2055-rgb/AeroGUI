@@ -44,9 +44,20 @@ endfunction()
 # filled from a post-cut measurement (measured + 10%), never invented first.
 set(AERO_INCLUDE_CLOSURE_SCRIPT
     "${AERO_SOURCE_DIR}/cmake/CountPublicIncludeClosure.py")
+if(NOT DEFINED Python3_EXECUTABLE)
+    find_package(Python3 COMPONENTS Interpreter QUIET)
+endif()
+if(Python3_EXECUTABLE)
+    set(AERO_PYTHON_CMD "${Python3_EXECUTABLE}")
+elseif(WIN32)
+    set(AERO_PYTHON_CMD "python")
+else()
+    set(AERO_PYTHON_CMD "python3")
+endif()
+
 function(aero_include_closure_count relative_header out_lines out_files)
     execute_process(
-        COMMAND python3
+        COMMAND "${AERO_PYTHON_CMD}"
             "${AERO_INCLUDE_CLOSURE_SCRIPT}"
             "${AERO_SOURCE_DIR}"
             "${relative_header}"
@@ -259,7 +270,6 @@ foreach(retired_public_entry IN ITEMS
         "include/Aero/Audio"
         "include/Aero/Render"
         "include/Aero/Input/Platform.hpp"
-        "include/Aero/Input"
         "include/Aero/Platform"
         "include/Aero/Text/FontProvider.hpp"
         "include/Aero/Text"

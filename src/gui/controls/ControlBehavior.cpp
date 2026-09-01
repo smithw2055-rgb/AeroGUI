@@ -91,7 +91,7 @@ Base::Result<void> ControlBehavior::Initialize() noexcept {
 
         Base::Result<Aero::Controls::ScrollBarBehavior*> scrollBars =
             Construct<Aero::Controls::ScrollBarBehavior>(
-                *tree_, *events_, *input_);
+                *tree_, *events_, *input_, visualStates_);
         if (!scrollBars) return scrollBars.GetStatus();
         scrollBars_ = scrollBars.Value();
 
@@ -146,7 +146,9 @@ Base::Result<void> ControlBehavior::Attach(
         types.IsDerivedFrom(type, Primitives::ButtonBase::StaticTypeId())) {
         Base::Result<void> result = buttons_->Attach(
             *static_cast<Primitives::ButtonBase*>(&visual));
-        if (!result) return result.GetStatus();
+        if (!result && result.GetStatus().code != Base::ErrorCode::AlreadyExists) {
+            return result.GetStatus();
+        }
     }
     if (types.IsDerivedFrom(type, TextBox::StaticTypeId())) {
         auto& textBox = *static_cast<TextBox*>(&visual);
@@ -155,7 +157,9 @@ Base::Result<void> ControlBehavior::Attach(
         }
         if (textBoxes_ != nullptr) {
             Base::Result<void> result = textBoxes_->Attach(textBox);
-            if (!result) return result.GetStatus();
+            if (!result && result.GetStatus().code != Base::ErrorCode::AlreadyExists) {
+                return result.GetStatus();
+            }
         }
     }
     if (types.IsDerivedFrom(type, PasswordBox::StaticTypeId())) {
@@ -165,50 +169,74 @@ Base::Result<void> ControlBehavior::Attach(
         }
         if (textBoxes_ != nullptr) {
             Base::Result<void> result = textBoxes_->Attach(passwordBox);
-            if (!result) return result.GetStatus();
+            if (!result && result.GetStatus().code != Base::ErrorCode::AlreadyExists) {
+                return result.GetStatus();
+            }
         }
     }
     if (scrolling_ != nullptr &&
         types.IsDerivedFrom(type, ScrollViewer::StaticTypeId())) {
         Base::Result<void> result = scrolling_->Attach(
             *static_cast<ScrollViewer*>(&visual));
-        if (!result) return result.GetStatus();
+        if (!result && result.GetStatus().code != Base::ErrorCode::AlreadyExists) {
+            return result.GetStatus();
+        }
     }
     if (sliders_ != nullptr &&
         types.IsDerivedFrom(type, Slider::StaticTypeId())) {
         Base::Result<void> result = sliders_->Attach(
             *static_cast<Slider*>(&visual));
-        if (!result) return result.GetStatus();
+        if (!result && result.GetStatus().code != Base::ErrorCode::AlreadyExists) {
+            return result.GetStatus();
+        }
     }
     if (scrollBars_ != nullptr &&
         types.IsDerivedFrom(type, Primitives::ScrollBar::StaticTypeId())) {
         Base::Result<void> result = scrollBars_->Attach(
             *static_cast<Primitives::ScrollBar*>(&visual));
-        if (!result) return result.GetStatus();
+        if (!result && result.GetStatus().code != Base::ErrorCode::AlreadyExists) {
+            return result.GetStatus();
+        }
+    }
+    if (scrollBars_ != nullptr &&
+        types.IsDerivedFrom(type, Primitives::Thumb::StaticTypeId())) {
+        Base::Result<void> result = scrollBars_->AttachThumb(
+            *static_cast<Primitives::Thumb*>(&visual));
+        if (!result && result.GetStatus().code != Base::ErrorCode::AlreadyExists) {
+            return result.GetStatus();
+        }
     }
     if (lists_ != nullptr &&
         types.IsDerivedFrom(type, ListBox::StaticTypeId())) {
         Base::Result<void> result = lists_->Attach(
             *static_cast<ListBox*>(&visual));
-        if (!result) return result.GetStatus();
+        if (!result && result.GetStatus().code != Base::ErrorCode::AlreadyExists) {
+            return result.GetStatus();
+        }
     }
     if (combos_ != nullptr &&
         types.IsDerivedFrom(type, ComboBox::StaticTypeId())) {
         Base::Result<void> result = combos_->Attach(
             *static_cast<ComboBox*>(&visual));
-        if (!result) return result.GetStatus();
+        if (!result && result.GetStatus().code != Base::ErrorCode::AlreadyExists) {
+            return result.GetStatus();
+        }
     }
     if (trees_ != nullptr &&
         types.IsDerivedFrom(type, TreeView::StaticTypeId())) {
         Base::Result<void> result = trees_->Attach(
             *static_cast<TreeView*>(&visual));
-        if (!result) return result.GetStatus();
+        if (!result && result.GetStatus().code != Base::ErrorCode::AlreadyExists) {
+            return result.GetStatus();
+        }
     }
     if (menus_ != nullptr &&
         types.IsDerivedFrom(type, Menu::StaticTypeId())) {
         Base::Result<void> result = menus_->Attach(
             *static_cast<Menu*>(&visual));
-        if (!result) return result.GetStatus();
+        if (!result && result.GetStatus().code != Base::ErrorCode::AlreadyExists) {
+            return result.GetStatus();
+        }
     }
     return {};
 }
@@ -244,6 +272,10 @@ Base::Result<bool> ControlBehavior::Detach(
                types.IsDerivedFrom(type, Primitives::ScrollBar::StaticTypeId())) {
         detached = scrollBars_->Detach(
             *static_cast<Primitives::ScrollBar*>(&visual));
+    } else if (scrollBars_ != nullptr &&
+               types.IsDerivedFrom(type, Primitives::Thumb::StaticTypeId())) {
+        detached = scrollBars_->DetachThumb(
+            *static_cast<Primitives::Thumb*>(&visual));
     } else if (lists_ != nullptr &&
                types.IsDerivedFrom(type, ListBox::StaticTypeId())) {
         detached = lists_->Detach(

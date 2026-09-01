@@ -291,6 +291,7 @@ struct ViewState {
 
     Markup::LoaderResult loadedDocument;
     Base::Vector<FragmentMount> fragmentMounts;
+    Base::Vector<FragmentMount*> componentMounts;
     const Aero::NameScope* activeFragmentNames = nullptr;
 
     bool HasAttachedRoot() const noexcept;
@@ -505,5 +506,12 @@ Base::Result<void> MountViewFragment(
 Base::Result<void> UnmountViewFragment(
     ViewState& state,
     Controls::ContentControl& host) noexcept;
+// Binds deferred LoadComponent effects into a View that already contains the
+// component root (UserControl.InitializeComponent after the host Window is
+// mounted). LoadComponent itself is View-independent; this adopts the pending
+// document's bindings, visual edges, and Loaded storyboards.
+Base::Result<void> AdoptLoadedComponent(
+    ViewState& state,
+    Markup::LoaderResult&& document) noexcept;
 
 } // namespace Aero

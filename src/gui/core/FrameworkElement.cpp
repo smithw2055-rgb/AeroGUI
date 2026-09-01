@@ -251,15 +251,31 @@ void FrameworkElement::SetUseLayoutRounding(
 Base::Object* FrameworkElement::FindNameObject(
     Base::StringView name,
     Meta::TypeId expectedType) noexcept {
-    Base::Object* object = FindRegisteredName(name);
-    if (object != nullptr) {
-        if (expectedType == Meta::InvalidTypeId) {
-            return object;
+    const FrameworkElement* current = this;
+    for (std::uint32_t depth = 0U;
+         current != nullptr && depth < 256U;
+         ++depth) {
+        Base::Object* object = current->FindRegisteredName(name);
+        if (object != nullptr) {
+            if (expectedType == Meta::InvalidTypeId) {
+                return object;
+            }
+            return PropertyRegistry().Types().IsDerivedFrom(
+                object->RuntimeType(), expectedType)
+                ? object
+                : nullptr;
         }
-        return PropertyRegistry().Types().IsDerivedFrom(
-            object->RuntimeType(), expectedType)
-            ? object
-            : nullptr;
+        ::Aero::Media::Visual* visual =
+            ::Aero::TryCast<::Aero::Media::Visual>(
+                const_cast<FrameworkElement*>(current));
+        ::Aero::Base::Object* parent = nullptr;
+        if (visual != nullptr) {
+            parent = visual->GetLogicalParent();
+            if (parent == nullptr) {
+                parent = visual->GetVisualParent();
+            }
+        }
+        current = ::Aero::TryCast<FrameworkElement>(parent);
     }
     return AeroGuiInternal::FindName(
         *this, name, expectedType);

@@ -1,5 +1,6 @@
 #include "gui/ViewState.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
+#include <Aero/Interactivity/InteractionTriggers.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -43,13 +44,13 @@ InteractivityEngine::ResolveInteractionTriggerProperty(
             const Meta::DependencyProperty* property =
                 Aero::MetadataPrivate::DependencyProperties(
                     *metadata).Find(sourceObject->RuntimeType(), path);
-            if (property == nullptr) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::NotFound,
-                    "Interaction Trigger Binding property was not found");
+            if (property != nullptr) {
+                resolved.dependencyProperty = property->Handle();
+                return resolved;
             }
-            resolved.dependencyProperty = property->Handle();
-            return resolved;
+            // CLR properties on a DependencyObject (or a non-DP path) fall
+            // through to metadata lookup below.
+            resolved.dependencySource = nullptr;
         }
 
         Base::StringView rootPath = path;
@@ -90,7 +91,14 @@ Base::Result<bool> InteractivityEngine::EvaluateInteractionDataTrigger(
         Base::Result<bool> matches = DataTemplateTriggerValuesMatch(
             actual.Value(), state.trigger->GetAuthoredValue());
         if (!matches) return matches.GetStatus();
-        const bool active = matches.Value();
+        bool active = matches.Value();
+        const Base::StringView comparison =
+            state.trigger->GetComparison();
+        if (!comparison.Empty() &&
+            Base::ValueConversion::EqualsAsciiInsensitive(
+                comparison, "NotEqual")) {
+            active = !active;
+        }
         if (active == state.active) return false;
         Base::Result<bool> allowed = ConditionBehaviorsAllowExecution(
             state.trigger->GetBehaviors(), *state.owner, state.names);
@@ -120,10 +128,13 @@ Base::Result<bool> InteractivityEngine::StartPropertyChangedTrigger(
                 return false;
             }
         }
-Base::Result<InteractionTriggerProperty> property =
+        Base::Result<InteractionTriggerProperty> property =
             ResolveInteractionTriggerProperty(
                 *trigger.GetBinding(), owner, names);
         if (property.GetStatus().code == Base::ErrorCode::NotFound) {
+            Base::Result<void> pending = PendUntilDataContext(
+                owner, names, nullptr, &trigger);
+            if (!pending) return pending.GetStatus();
             return false;
         }
         if (!property) return property.GetStatus();
@@ -209,6 +220,9 @@ Base::Result<bool> InteractivityEngine::StartInteractionDataTrigger(
             ResolveInteractionTriggerProperty(
                 *trigger.GetBinding(), owner, names);
         if (property.GetStatus().code == Base::ErrorCode::NotFound) {
+            Base::Result<void> pending = PendUntilDataContext(
+                owner, names, &trigger, nullptr);
+            if (!pending) return pending.GetStatus();
             return false;
         }
         if (!property) return property.GetStatus();
@@ -467,6 +481,70 @@ void InteractivityEngine::KeyTriggerState::Invoke(
     if (!executed) {
         runtime->animationEventStatus = executed.GetStatus();
     }
+}
+
+Base::Result<void> InteractivityEngine::PendUntilDataContext(
+    Aero::FrameworkElement& owner,
+    const Aero::NameScope* names,
+    Aero::DataTrigger* dataTrigger,
+    Aero::Interactivity::PropertyChangedTrigger* propertyTrigger) noexcept {
+    for (const PendingInteractionTrigger& existing :
+         pendingInteractionTriggers) {
+        if (existing.owner == &owner &&
+            existing.dataTrigger == dataTrigger &&
+            existing.propertyTrigger == propertyTrigger) {
+            return {};
+        }
+    }
+    // Do not subscribe to DataContext here. Inherited DataContext
+    // notifications run inside ApplyChange; starting triggers from that
+    // stack evaluates ChangePropertyAction and re-enters the property
+    // engine. DataBind retries the pending list after SetDataContext.
+    PendingInteractionTrigger pending;
+    pending.owner = &owner;
+    pending.names = names;
+    pending.dataTrigger = dataTrigger;
+    pending.propertyTrigger = propertyTrigger;
+    return pendingInteractionTriggers.PushBack(std::move(pending));
+}
+
+void InteractivityEngine::ClearPendingInteractionTriggers() noexcept {
+    pendingInteractionTriggers.Clear();
+}
+
+void InteractivityEngine::RetryPendingInteractionTriggers() noexcept {
+    if (retryingPendingInteractionTriggers_ ||
+        pendingInteractionTriggers.Empty()) {
+        return;
+    }
+    retryingPendingInteractionTriggers_ = true;
+    Base::Vector<PendingInteractionTrigger> snapshot(allocator);
+    for (PendingInteractionTrigger& pending : pendingInteractionTriggers) {
+        Base::Result<void> retained =
+            snapshot.PushBack(std::move(pending));
+        if (!retained) {
+            retryingPendingInteractionTriggers_ = false;
+            return;
+        }
+    }
+    pendingInteractionTriggers.Clear();
+    for (PendingInteractionTrigger& pending : snapshot) {
+        if (pending.owner == nullptr) continue;
+        if (pending.dataTrigger != nullptr) {
+            Base::Result<bool> started = StartInteractionDataTrigger(
+                *pending.dataTrigger, *pending.owner, pending.names);
+            if (!started && view != nullptr) {
+                view->ReportUpdateFailure(started.GetStatus());
+            }
+        } else if (pending.propertyTrigger != nullptr) {
+            Base::Result<bool> started = StartPropertyChangedTrigger(
+                *pending.propertyTrigger, *pending.owner, pending.names);
+            if (!started && view != nullptr) {
+                view->ReportUpdateFailure(started.GetStatus());
+            }
+        }
+    }
+    retryingPendingInteractionTriggers_ = false;
 }
 
 } // namespace Aero

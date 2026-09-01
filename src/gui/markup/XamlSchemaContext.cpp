@@ -1074,6 +1074,19 @@ public:
     }
 };
 
+class StaticResourceExtensionToken
+    : public Base::Object {
+    AERO_DECLARE_TYPE_NAMED(
+        StaticResourceExtensionToken,
+        Base::Object,
+        Meta::AeroNamespaceUri(),
+        "StaticResourceExtension")
+public:
+    Meta::TypeId RuntimeType() const noexcept override {
+        return StaticTypeId();
+    }
+};
+
 // AeroGUI's application samples expose Loc both as a markup extension and as
 // an attached Source property.  The token deliberately lives in the normal
 // schema so the legacy AeroGUIExtensions namespace resolves to the same type
@@ -1267,6 +1280,11 @@ Base::Result<void> PopulateMarkupMetadata(
         context,
         TypeFlags::MarkupExtension |
                 TypeFlags::Sealed).Result();
+    if (!status) return status.GetStatus();
+    status = Meta::Register<StaticResourceExtensionToken>(
+        context,
+        TypeFlags::MarkupExtension |
+            TypeFlags::Sealed).Result();
     if (!status) return status.GetStatus();
     auto loc = Meta::Register<LocExtensionToken>(
         context,
@@ -4030,6 +4048,12 @@ Base::Result<ProvidedValue> Schema::ProvideMarkupExtensionValue(
         domain_->Types().FindType(type);
     const XamlMarkupExtensionFacet* registration =
         state_->facets.FindMarkupExtension(type);
+    if (registration != nullptr && registration->provideValue != nullptr) {
+        return registration->provideValue(
+            arguments,
+            services,
+            registration->context);
+    }
     const bool isMarkupExtension =
         info != nullptr &&
         (SchemaHasTypeFlag(info->Flags(), Meta::TypeFlags::MarkupExtension) ||
@@ -4039,12 +4063,6 @@ Base::Result<ProvidedValue> Schema::ProvideMarkupExtensionValue(
         return Base::Status::Failure(
             Base::ErrorCode::Unsupported,
             MessageMissingMarkupExtension);
-    }
-    if (registration != nullptr && registration->provideValue != nullptr) {
-        return registration->provideValue(
-            arguments,
-            services,
-            registration->context);
     }
     Base::Result<Base::Ref<Base::Object>> created = CreateObject(type);
     if (!created) return created.GetStatus();

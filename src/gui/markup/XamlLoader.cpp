@@ -4332,13 +4332,20 @@ LoaderState::Operation::ResolveDictionaryDependencies(
     // so WPF-style DynamicResource values in styles can resolve against an
     // earlier palette or brush dictionary.
     ResourceDictionary ambientResources;
-    Base::Result<void> ambientMerged =
-        ambientResources.AddMerged(dictionary);
+    Base::Result<void> ambientMerged{};
+    // Already-loaded sibling Source dictionaries first so a later merge
+    // (Resources.xaml) can StaticResource keys defined in nested merges of
+    // an earlier sibling (Colors.Dark inside Brushes.DarkBlue).
     for (PendingResourceMerge& discovered : pending) {
         if (ambientMerged) {
             ambientMerged = ambientResources.AddMerged(
                 discovered.source);
         }
+    }
+    if (ambientMerged &&
+        (dictionary.Size() > 0U ||
+         dictionary.MergedDictionaryCount() > 0U)) {
+        ambientMerged = ambientResources.AddMerged(dictionary);
     }
     if (!ambientMerged) return ambientMerged.GetStatus();
     const LoadState& runtime = Runtime();

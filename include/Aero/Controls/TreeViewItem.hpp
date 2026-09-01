@@ -4,8 +4,10 @@
 #include <Aero/Controls/TextBlock.hpp>
 #include <Aero/DependencyProperty.hpp>
 #include <Aero/RoutedEvent.hpp>
+#include <Aero/Base/Delegate.hpp>
 
 namespace Aero::Controls {
+namespace Primitives { class ToggleButton; }
 using ::Aero::DependencyProperty;
 using ::Aero::RoutedEvent;
 using ::Aero::RoutedEventArgs;
@@ -38,9 +40,14 @@ public:
     bool GetHasItems() const noexcept {
         return ItemsControl::GetHasItems();
     }
-    inline static constexpr DependencyProperty<Value> HeaderProperty{"Header"};
+    void BeginExpanderGesture() noexcept;
+    void ApplyExpanderGesture() noexcept;
+    // Same DP as HeaderedItemsControl so ContentSource="Header" TemplateBindings
+    // and SetHeader share one store. A second Header DP left PART_Header empty
+    // for generated SampleTemplate visuals.
+    inline static constexpr auto HeaderProperty = HeaderedItemsControl::HeaderProperty;
     inline static constexpr DependencyProperty<String> IconProperty{"Icon"};
-    inline static constexpr DependencyProperty<Ref<DataTemplate>> HeaderTemplateProperty{"HeaderTemplate"};
+    inline static constexpr auto HeaderTemplateProperty = HeaderedItemsControl::HeaderTemplateProperty;
     inline static constexpr DependencyProperty<bool> IsExpandedProperty{"IsExpanded"};
     inline static constexpr DependencyProperty<bool> IsSelectedProperty{"IsSelected"};
     inline static constexpr RoutedEvent<RoutedEventArgs> ExpandedEvent{"Expanded"};
@@ -63,10 +70,14 @@ private:
     friend class ::Aero::AeroGuiInternal;
 #endif
     friend class ItemsControl;
+    friend class TreeView;
     TextBlock* headerText_ = nullptr;
     TextBlock* iconText_ = nullptr;
     TextBlock* expanderGlyph_ = nullptr;
     ItemsControl* childItems_ = nullptr;
+    UIElement* itemsBorder_ = nullptr;
+    UIElement* itemsHostPresenter_ = nullptr;
+    Primitives::ToggleButton* expandButton_ = nullptr;
     Ref<Base::Object> hierarchicalItemsSource_;
     Ref<Data::Binding> hierarchicalItemsBinding_;
     Ref<Base::Object> hierarchicalBindingSource_;
@@ -79,6 +90,11 @@ private:
         expandedChangedHandler_;
     DependencyPropertyChangedEventHandler
         selectedChangedHandler_;
+    Base::Delegate<void(Base::Object*, RoutedEventArgs&)>
+        expandClickHandler_;
+    bool expanderGestureActive_ = false;
+    bool expanderGestureTarget_ = false;
+    bool expanderGestureArmed_ = false;
 
     void OnHeaderChanged(
         DependencyObject& object,
@@ -92,8 +108,13 @@ private:
         DependencyObject& object,
         const DependencyPropertyChangedEventArgs&
             args) noexcept;
+    void OnExpandButtonClick(
+        Base::Object* sender,
+        RoutedEventArgs& args) noexcept;
     Result<void>
         SynchronizeTemplate() noexcept;
+    void ProjectHeaderContent() noexcept;
+    void ProjectRealizedHeaders() noexcept;
     void SetHierarchicalContent(
         Ref<Base::Object> source,
         Ref<DataTemplate> itemTemplate) noexcept;

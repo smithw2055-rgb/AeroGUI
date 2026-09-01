@@ -133,13 +133,20 @@ inline bool UnprojectParentToLocal(
     const Transform3DContext& child,
     Base::Point parentPosition,
     Base::Point& localPosition) noexcept {
+    // Match CollapseRelativeToParent: collapse both worlds with the child's
+    // camera so hit-testing inverts the same perspective the renderer uses.
+    const double depth = child.depth;
+    const Base::Point center = child.center;
+    const Base::ProjectiveTransform2D parentWorld =
+        Base::CollapsePerspective(parent.accumulated, depth, center);
+    const Base::ProjectiveTransform2D childWorld =
+        Base::CollapsePerspective(child.accumulated, depth, center);
     Base::Point world{};
-    if (!Base::TryTransformPoint(
-            CollapseContext(parent), parentPosition, world)) {
+    if (!Base::TryTransformPoint(parentWorld, parentPosition, world)) {
         return false;
     }
     return Base::TryUnprojectPointToLocalPlane(
-        CollapseContext(child), world, localPosition);
+        childWorld, world, localPosition);
 }
 
 } // namespace Aero::Media

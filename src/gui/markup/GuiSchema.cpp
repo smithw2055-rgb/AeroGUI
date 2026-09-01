@@ -55,6 +55,7 @@ struct GuiSchemaState {
     Markup::UiObjectModel* uiObjectModel = nullptr;
     Markup::ResourceExtension resourceExtension;
     Markup::StaticExtension staticExtension;
+    Markup::StaticResourceExtension staticResourceExtension;
     Markup::TypeExtension typeExtension;
     Markup::LocExtension locExtension;
     Markup::TemplateBindingExtension templateBindingExtension;
@@ -199,6 +200,13 @@ Base::Result<void> GuiSchema::Finalize(
             Meta::MakeTypeId(
                 Markup::LanguageNamespaceUri(),
                 Base::StringView("Static")));
+    }
+    if (status) {
+        status = state_->staticResourceExtension.Register(
+            *state_->schema,
+            Meta::MakeTypeId(
+                Meta::AeroNamespaceUri(),
+                Base::StringView("StaticResourceExtension")));
     }
     if (status) {
         status = state_->typeExtension.Register(

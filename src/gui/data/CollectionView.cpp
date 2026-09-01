@@ -17,8 +17,8 @@ struct DefaultViewEntry {
 };
 
 Base::Vector<CollectionView*>& LiveViews() noexcept {
-    static Base::Vector<CollectionView*> views;
-    return views;
+    static auto* views = new Base::Vector<CollectionView*>();
+    return *views;
 }
 
 CollectionView* AsCollectionView(
@@ -36,8 +36,8 @@ CollectionView* AsCollectionView(
 }
 
 Base::Vector<DefaultViewEntry>& DefaultViews() noexcept {
-    static Base::Vector<DefaultViewEntry> views;
-    return views;
+    static auto* views = new Base::Vector<DefaultViewEntry>();
+    return *views;
 }
 
 int ComparePropertyValues(

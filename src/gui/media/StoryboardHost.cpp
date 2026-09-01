@@ -40,7 +40,8 @@ StoryboardHost::StoryboardHost(ViewState& owner) noexcept
       storyboardSessions(owner.allocator),
       storyboardCompletionSessions(owner.allocator),
       storyboardCompletedSubscriptions(owner.allocator),
-      animationEventSubscriptions(owner.allocator) {}
+      animationEventSubscriptions(owner.allocator),
+      pendingLoadedTriggers(owner.allocator) {}
 
 void StoryboardHost::Bind() noexcept {
     allocator = view->allocator;
@@ -1177,6 +1178,9 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                     ? names->Find(targetName.Value())
                     : view->loadedDocument.names.Find(
                           targetName.Value());
+        if (targetObject == nullptr) {
+            targetObject = triggerOwner.FindName(targetName.Value());
+        }
         if (targetObject == nullptr && names != nullptr) {
             targetObject = view->loadedDocument.names.Find(
                 targetName.Value());
@@ -2107,8 +2111,7 @@ Base::Result<std::uint32_t> StoryboardHost::StartContentElementAnimations(
                 content,
                 actionOwner,
                 names);
-            if (!started) return started.GetStatus();
-            if (started.Value()) ++count;
+            if (started && started.Value()) ++count;
         }
         if (metadata->Types().IsDerivedFrom(
                 content.RuntimeType(),
@@ -2246,8 +2249,7 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                                     *authored),
                             *element,
                             names);
-                    if (!started) return started.GetStatus();
-                    if (started.Value()) ++count;
+                    if (started && started.Value()) ++count;
                     continue;
                 }
                 if (authored->RuntimeType() ==
@@ -2257,8 +2259,7 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                             *authored),
                         *element,
                         names);
-                    if (!started) return started.GetStatus();
-                    if (started.Value()) ++count;
+                    if (started && started.Value()) ++count;
                     continue;
                 }
                 if (authored->RuntimeType() ==
@@ -2268,8 +2269,7 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                             static_cast<Aero::DataTrigger&>(*authored),
                             *element,
                             names);
-                    if (!started) return started.GetStatus();
-                    if (started.Value()) ++count;
+                    if (started && started.Value()) ++count;
                     continue;
                 }
                 if (authored->RuntimeType() !=
@@ -2281,8 +2281,7 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                     *element,
                     *element,
                     names);
-                if (!started) return started.GetStatus();
-                if (started.Value()) ++count;
+                if (started && started.Value()) ++count;
             }
             for (const Base::Ref<Base::Object>& authored :
                  AeroGuiInternal::StyleTriggerPrototypes(
@@ -2306,8 +2305,7 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                             *authored),
                         *element,
                         names);
-                    if (!started) return started.GetStatus();
-                    if (started.Value()) ++count;
+                    if (started && started.Value()) ++count;
                     continue;
                 }
                 if (authored->RuntimeType() ==
@@ -2316,8 +2314,7 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                         static_cast<Aero::Interactivity::KeyTrigger&>(*authored),
                         *element,
                         names);
-                    if (!started) return started.GetStatus();
-                    if (started.Value()) ++count;
+                    if (started && started.Value()) ++count;
                     continue;
                 }
                 if (authored->RuntimeType() ==
@@ -2327,8 +2324,7 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                             static_cast<Aero::DataTrigger&>(*authored),
                             *element,
                             names);
-                    if (!started) return started.GetStatus();
-                    if (started.Value()) ++count;
+                    if (started && started.Value()) ++count;
                     continue;
                 }
                 if (authored->RuntimeType() ==
@@ -2338,8 +2334,7 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                         *element,
                         *element,
                         names);
-                    if (!started) return started.GetStatus();
-                    if (started.Value()) ++count;
+                    if (started && started.Value()) ++count;
                 }
             }
             if (styles != nullptr) {
@@ -2359,8 +2354,7 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                             *element,
                             *element,
                             names);
-                        if (!started) return started.GetStatus();
-                        if (started.Value()) ++count;
+                        if (started && started.Value()) ++count;
                     }
                 }
             }

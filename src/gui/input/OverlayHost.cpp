@@ -431,6 +431,8 @@ Base::Result<void> OverlayHost::DismissOverlaysForPointer(
                         SetPlacementTarget({}));
             }
         }
+        Base::Result<void> synced = SynchronizeOverlays();
+        if (!synced) return synced.GetStatus();
         return closedFocusedOverlay
             ? RestoreOverlayFocus()
             : Base::Result<void>();
@@ -438,6 +440,8 @@ Base::Result<void> OverlayHost::DismissOverlaysForPointer(
 
 Base::Result<bool> OverlayHost::DismissTopOverlayForEscape()
         noexcept {
+        Base::Result<void> synced = SynchronizeOverlays();
+        if (!synced) return Base::Result<bool>(synced.GetStatus());
         for (std::uint32_t index =
                  inputOverlays.Size();
              index > 0U;
@@ -451,12 +455,15 @@ Base::Result<bool> OverlayHost::DismissTopOverlayForEscape()
                     type,
                     Controls::Primitives::Popup::
                         StaticTypeId())) {
-                static_cast<Controls::Primitives::Popup*>(
-                    overlay)->SetIsOpen(false);
-                static_cast<void>(
+                auto* popup =
                     static_cast<Controls::Primitives::Popup*>(
-                        overlay)->
-                        SetPlacementTarget({}));
+                        overlay);
+                // Keep PlacementTarget so the ComboBox can reopen in place.
+                popup->SetIsOpen(false);
+                synced = SynchronizeOverlays();
+                if (!synced) {
+                    return Base::Result<bool>(synced.GetStatus());
+                }
                 Base::Result<void> restored =
                     RestoreOverlayFocus();
                 return restored
@@ -475,6 +482,10 @@ Base::Result<bool> OverlayHost::DismissTopOverlayForEscape()
                         Controls::ContextMenu*>(
                         overlay)->
                         SetPlacementTarget({}));
+                synced = SynchronizeOverlays();
+                if (!synced) {
+                    return Base::Result<bool>(synced.GetStatus());
+                }
                 Base::Result<void> restored =
                     RestoreOverlayFocus();
                 return restored

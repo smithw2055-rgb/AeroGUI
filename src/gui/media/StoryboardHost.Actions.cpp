@@ -32,16 +32,35 @@ StoryboardHost::ExecuteAnimationAction(
         auto& change =
             static_cast<Aero::Interactivity::ChangePropertyAction&>(
                 action);
-        Base::Object* targetObject =
-            change.GetTargetName().Empty()
-            ? static_cast<Base::Object*>(&owner)
-            : dataTemplateContext != nullptr
-                ? dataTemplateContext->FindName(
-                      change.GetTargetName())
-                : names != nullptr
-                    ? names->Find(change.GetTargetName())
-                    : view->loadedDocument.names.Find(
-                          change.GetTargetName());
+        Meta::PropertyValue targetValue;
+        Base::Object* targetObject = nullptr;
+        if (Base::Ref<Data::Binding> targetBinding =
+                change.GetTargetObject()) {
+            Base::Result<Meta::PropertyValue> evaluated =
+                interactivity->EvaluateAuthoredBinding(
+                    *targetBinding,
+                    owner,
+                    dataTemplateContext,
+                    names,
+                    &action);
+            if (!evaluated) return evaluated.GetStatus();
+            targetValue = std::move(evaluated).Value();
+            if (targetValue.Kind() == Meta::ValueKind::Object &&
+                !targetValue.IsNullObject() &&
+                targetValue.AsObject()) {
+                targetObject = targetValue.AsObject().Get();
+            }
+        } else {
+            targetObject = change.GetTargetName().Empty()
+                ? static_cast<Base::Object*>(&owner)
+                : dataTemplateContext != nullptr
+                    ? dataTemplateContext->FindName(
+                          change.GetTargetName())
+                    : names != nullptr
+                        ? names->Find(change.GetTargetName())
+                        : view->loadedDocument.names.Find(
+                              change.GetTargetName());
+        }
         if (targetObject == nullptr ||
             !metadata->Types().IsDerivedFrom(
                 targetObject->RuntimeType(),
@@ -185,13 +204,42 @@ StoryboardHost::ExecuteAnimationAction(
     if (type == Aero::Interactivity::SetFocusAction::StaticTypeId()) {
         auto& setFocus = static_cast<Aero::Interactivity::SetFocusAction&>(action);
         if (!setFocus.GetEngage() || input == nullptr) return {};
-        Base::Object* targetObject = setFocus.GetTargetName().Empty()
-            ? static_cast<Base::Object*>(&owner)
-            : dataTemplateContext != nullptr
-                ? dataTemplateContext->FindName(setFocus.GetTargetName())
-                : names != nullptr
-                    ? names->Find(setFocus.GetTargetName())
-                    : view->loadedDocument.names.Find(setFocus.GetTargetName());
+        Meta::PropertyValue targetValue;
+        Base::Object* targetObject = nullptr;
+        if (Base::Ref<Data::Binding> targetBinding =
+                setFocus.GetTargetObject()) {
+            Base::Result<Meta::PropertyValue> evaluated =
+                interactivity->EvaluateAuthoredBinding(
+                    *targetBinding,
+                    owner,
+                    dataTemplateContext,
+                    names,
+                    &action);
+            if (!evaluated) return evaluated.GetStatus();
+            targetValue = std::move(evaluated).Value();
+            if (targetValue.Kind() == Meta::ValueKind::Object &&
+                !targetValue.IsNullObject() &&
+                targetValue.AsObject()) {
+                targetObject = targetValue.AsObject().Get();
+            }
+        } else {
+            if (setFocus.GetTargetName().Empty()) {
+                targetObject = static_cast<Base::Object*>(&owner);
+            } else if (dataTemplateContext != nullptr) {
+                targetObject = dataTemplateContext->FindName(
+                    setFocus.GetTargetName());
+            }
+            if (targetObject == nullptr) {
+                targetObject = owner.FindName(setFocus.GetTargetName());
+            }
+            if (targetObject == nullptr && names != nullptr) {
+                targetObject = names->Find(setFocus.GetTargetName());
+            }
+            if (targetObject == nullptr) {
+                targetObject = view->loadedDocument.names.Find(
+                    setFocus.GetTargetName());
+            }
+        }
         Aero::UIElement* target =
             targetObject != nullptr && metadata->Types().IsDerivedFrom(
                 targetObject->RuntimeType(), Aero::UIElement::StaticTypeId())
@@ -212,9 +260,10 @@ StoryboardHost::ExecuteAnimationAction(
         }
         if (!target->GetIsEnabled()) return {};
         Base::Result<bool> focused = input->SetFocus(target);
-        return focused
-            ? Base::Result<void>()
-            : Base::Result<void>(focused.GetStatus());
+        // Focus is best-effort. A failed SetFocus must not fail the
+        // EventTrigger (QuestLog MouseEnter → SelectAction).
+        static_cast<void>(focused);
+        return {};
     }
 
     if (type == Aero::Interactivity::SelectAction::StaticTypeId()) {
@@ -380,7 +429,11 @@ StoryboardHost::ExecuteAnimationAction(
         auto& begin =
             static_cast<MediaAnimation::BeginStoryboard&>(
                 action);
-        if (!begin.GetStoryboard()) return {};
+        if (!begin.GetStoryboard()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                "BeginStoryboard Storyboard was not resolved");
+        }
         if (!begin.GetName().Empty()) {
             for (std::uint32_t index = 0U;
                  index < storyboardSessions.Size();

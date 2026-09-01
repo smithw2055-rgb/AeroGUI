@@ -318,7 +318,24 @@ void AnimationEngine::Shutdown() noexcept {
 }
 
 Base::Result<AnimationEngine::Track*>
-AnimationEngine::AddTrack() noexcept {
+AnimationEngine::AddTrack(
+    ::Aero::DependencyObject* target,
+    Meta::DependencyPropertyHandle property) noexcept {
+    // SnapshotAndReplace: a new clock on the same property must retire the
+    // previous HoldEnd fill (QuestLog Close → Intro). Leaving the filling
+    // Close clock active keeps Opacity at 0 and the window rendering.
+    if (target != nullptr && property.IsValid()) {
+        for (std::uint32_t index = 0U; index < trackCount_; ++index) {
+            Track& existing = tracks_[index];
+            if (existing.target != target ||
+                existing.property != property ||
+                existing.state == AnimationState::Stopped) {
+                continue;
+            }
+            existing.state = AnimationState::Stopped;
+            static_cast<void>(ClearTrackValue(existing));
+        }
+    }
     if (!frameHook_.IsValid()) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
@@ -379,7 +396,7 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
         return InvalidAnimation(
             "DoubleAnimation has invalid target, timing, or values");
     }
-    Base::Result<Track*> added = AddTrack();
+    Base::Result<Track*> added = AddTrack(&target, property);
     if (!added) return added.GetStatus();
     Track& track = *added.Value();
     track.handle = {nextHandle_++};
@@ -410,7 +427,7 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
         return InvalidAnimation(
             "Custom DoubleAnimation has invalid target, timing, or values");
     }
-    Base::Result<Track*> added = AddTrack();
+    Base::Result<Track*> added = AddTrack(&target, property);
     if (!added) return added.GetStatus();
     Track& track = *added.Value();
     track.handle = {nextHandle_++};
@@ -440,7 +457,7 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
         return InvalidAnimation(
             "RectAnimation has invalid target, timing, or values");
     }
-    Base::Result<Track*> added = AddTrack();
+    Base::Result<Track*> added = AddTrack(&target, property);
     if (!added) return added.GetStatus();
     Track& track = *added.Value();
     track.handle = {nextHandle_++};
@@ -475,7 +492,7 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
         return InvalidAnimation(
             "ThicknessAnimation has invalid target, timing, or values");
     }
-    Base::Result<Track*> added = AddTrack();
+    Base::Result<Track*> added = AddTrack(&target, property);
     if (!added) return added.GetStatus();
     Track& track = *added.Value();
     track.handle = {nextHandle_++};
@@ -500,7 +517,7 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
         return InvalidAnimation(
             "Integer animation has invalid target or timing");
     }
-    Base::Result<Track*> added = AddTrack();
+    Base::Result<Track*> added = AddTrack(&target, property);
     if (!added) return added.GetStatus();
     Track& track = *added.Value();
     track.handle = {nextHandle_++};
@@ -532,7 +549,7 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
         return InvalidAnimation(
             "SizeAnimation has invalid target, timing, or values");
     }
-    Base::Result<Track*> added = AddTrack();
+    Base::Result<Track*> added = AddTrack(&target, property);
     if (!added) return added.GetStatus();
     Track& track = *added.Value();
     track.handle = {nextHandle_++};
@@ -560,7 +577,7 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
         return InvalidAnimation(
             "MatrixAnimation has invalid target, timing, or values");
     }
-    Base::Result<Track*> added = AddTrack();
+    Base::Result<Track*> added = AddTrack(&target, property);
     if (!added) return added.GetStatus();
     Track& track = *added.Value();
     track.handle = {nextHandle_++};
@@ -593,7 +610,7 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
         return InvalidAnimation(
             "PointAnimation has invalid target, timing, or values");
     }
-    Base::Result<Track*> added = AddTrack();
+    Base::Result<Track*> added = AddTrack(&target, property);
     if (!added) return added.GetStatus();
     Track& track = *added.Value();
     track.handle = {nextHandle_++};
@@ -620,7 +637,7 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
         return InvalidAnimation(
             "ColorAnimation has invalid target, timing, or values");
     }
-    Base::Result<Track*> added = AddTrack();
+    Base::Result<Track*> added = AddTrack(&target, property);
     if (!added) return added.GetStatus();
     Track& track = *added.Value();
     track.handle = {nextHandle_++};
@@ -659,7 +676,7 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
         }
         lastKeyTime = frame.keyTimeMicroseconds;
     }
-    Base::Result<Track*> added = AddTrack();
+    Base::Result<Track*> added = AddTrack(&target, property);
     if (!added) return added.GetStatus();
     Track& track = *added.Value();
     Base::Result<void> copied =
@@ -705,7 +722,7 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
         }
         lastKeyTime = frame.keyTimeMicroseconds;
     }
-    Base::Result<Track*> added = AddTrack();
+    Base::Result<Track*> added = AddTrack(&target, property);
     if (!added) return added.GetStatus();
     Track& track = *added.Value();
     Base::Result<void> copied =
@@ -750,7 +767,7 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
         }
         lastKeyTime = frame.keyTimeMicroseconds;
     }
-    Base::Result<Track*> added = AddTrack();
+    Base::Result<Track*> added = AddTrack(&target, property);
     if (!added) return added.GetStatus();
     Track& track = *added.Value();
     Base::Result<void> copied =
@@ -799,7 +816,7 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
         }
         lastKeyTime = frame.keyTimeMicroseconds;
     }
-    Base::Result<Track*> added = AddTrack();
+    Base::Result<Track*> added = AddTrack(&target, property);
     if (!added) return added.GetStatus();
     Track& track = *added.Value();
     Base::Result<void> copied =
@@ -841,7 +858,7 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
         }
         lastKeyTime = frame.keyTimeMicroseconds;
     }
-    Base::Result<Track*> added = AddTrack();
+    Base::Result<Track*> added = AddTrack(&target, property);
     if (!added) return added.GetStatus();
     Track& track = *added.Value();
     Base::Result<void> copied =
@@ -887,7 +904,7 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
         }
         lastKeyTime = frame.keyTimeMicroseconds;
     }
-    Base::Result<Track*> added = AddTrack();
+    Base::Result<Track*> added = AddTrack(&target, property);
     if (!added) return added.GetStatus();
     Track& track = *added.Value();
     Base::Result<void> copied =
@@ -930,7 +947,7 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
         }
         lastKeyTime = frame.keyTimeMicroseconds;
     }
-    Base::Result<Track*> added = AddTrack();
+    Base::Result<Track*> added = AddTrack(&target, property);
     if (!added) return added.GetStatus();
     Track& track = *added.Value();
     Base::Result<void> copied =
@@ -975,7 +992,7 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
         }
         lastKeyTime = frame.keyTimeMicroseconds;
     }
-    Base::Result<Track*> added = AddTrack();
+    Base::Result<Track*> added = AddTrack(&target, property);
     if (!added) return added.GetStatus();
     Track& track = *added.Value();
     Base::Result<void> copied =
@@ -1072,11 +1089,33 @@ Base::Result<void> AnimationEngine::Seek(
 
 Base::Result<void> AnimationEngine::ClearTrackValue(
     Track& track) noexcept {
-    if (!track.valueApplied || track.target == nullptr) return {};
-    Base::Result<void> cleared = values_->ClearAnimationValue(
-        *track.target, track.property);
-    if (!cleared) return cleared.GetStatus();
-    track.valueApplied = false;
+    if (track.target == nullptr) return {};
+    if (track.valueApplied) {
+        Base::Result<void> cleared = values_->ClearAnimationValue(
+            *track.target, track.property);
+        if (!cleared) return cleared.GetStatus();
+        track.valueApplied = false;
+    }
+    // HoldEnd clocks leave the last keyframe on the animation layer. Removing
+    // the clock must restore the pre-storyboard value (Menu3D CircledArrow
+    // Fill.Opacity 0) even when that rest value is not a Local DP.
+    if (track.kind == Track::Kind::DoubleKeyFrames) {
+        Base::Result<PropertyValue> rest =
+            Meta::ValueCodec<double>::Encode(track.baseValue);
+        if (!rest) return rest.GetStatus();
+        Base::Result<void> restored = values_->SetAnimationValue(
+            *track.target, track.property, rest.Value());
+        if (!restored) return restored.GetStatus();
+        track.valueApplied = true;
+    } else if (track.kind == Track::Kind::ColorKeyFrames) {
+        Base::Result<PropertyValue> rest =
+            Meta::ValueCodec<Base::Color>::Encode(track.fromColor);
+        if (!rest) return rest.GetStatus();
+        Base::Result<void> restored = values_->SetAnimationValue(
+            *track.target, track.property, rest.Value());
+        if (!restored) return restored.GetStatus();
+        track.valueApplied = true;
+    }
     return {};
 }
 
@@ -1092,6 +1131,9 @@ Base::Result<void> AnimationEngine::Stop(
     Base::Result<void> cleared = ClearTrackValue(*track);
     if (!cleared) return cleared.GetStatus();
     track->state = AnimationState::Stopped;
+    if (values_->IsFlushing()) {
+        return {};
+    }
     Base::Result<std::uint32_t> flushed = values_->Flush();
     if (!flushed) return flushed.GetStatus();
     return {};
@@ -1225,9 +1267,19 @@ Base::Result<bool> AnimationEngine::ApplyTrack(
         track.state == AnimationState::Filling) {
         return false;
     }
-    AnimationTime sampledNow = track.pendingInitialSample
-        ? track.startTimeMicroseconds
-        : nowMicroseconds;
+    AnimationTime sampledNow = nowMicroseconds;
+    if (track.pendingInitialSample) {
+        // Automatic clocks keep t=0 until the first presented frame.
+        // Manual clocks (View::Update / AdvanceBy) must sample elapsed time
+        // on the same tick, otherwise a GeneratedDuration fade stays frozen
+        // at `from` (Menu3D CircledArrow Opacity 1 after Unchecked).
+        if (automaticTickingEnabled_ ||
+            nowMicroseconds <= track.startTimeMicroseconds) {
+            sampledNow = track.startTimeMicroseconds;
+        } else {
+            track.pendingInitialSample = false;
+        }
+    }
     if (!track.pendingInitialSample &&
         track.state == AnimationState::Paused) {
         sampledNow = track.pauseTimeMicroseconds;
@@ -1286,6 +1338,24 @@ Base::Result<bool> AnimationEngine::ApplyTrack(
     } else if (completed && track.timing.autoReverse) {
         progress = 0.0;
         sampleTime = 0U;
+    }
+
+    // Key-frame animations without a zero-time key frame interpolate from
+    // the property's current base value. That base can change while the
+    // animation is active (for example an ElementName binding to ActualWidth
+    // after an image finishes layout), even though the animation contribution
+    // still wins the effective-value precedence.
+    if (track.kind == Track::Kind::DoubleKeyFrames &&
+        !track.doubleFrames.Empty() &&
+        track.doubleFrames.Front().keyTimeMicroseconds != 0U) {
+        Base::Result<Meta::PropertyValue> base =
+            AeroGuiInternal::GetAnimationBaseValue(
+                *track.target, track.property);
+        if (!base) return base.GetStatus();
+        Base::Result<double> decoded =
+            Meta::ValueCodec<double>::Decode(base.Value());
+        if (!decoded) return decoded.GetStatus();
+        track.baseValue = decoded.Value();
     }
 
     Meta::PropertyValue value;

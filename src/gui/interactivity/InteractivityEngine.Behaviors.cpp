@@ -15,6 +15,8 @@ using namespace ::Aero;
 namespace MediaAnimation = ::Aero::Media::Animation;
 
 void InteractivityEngine::NotifyLayoutUpdated() noexcept {
+    FlushPendingStyleDataTriggerEvaluations();
+    RetryPendingInteractionTriggers();
     for (auto& behavior : attachedBehaviorInstances) {
         if (behavior.instance) {
             behavior.instance->NotifyLayoutUpdated();

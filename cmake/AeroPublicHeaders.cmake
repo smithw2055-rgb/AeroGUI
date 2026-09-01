@@ -79,6 +79,12 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Gui.hpp
     include/AeroApp/Application.hpp
     include/AeroApp/Window.hpp
+    include/Aero/DataObject.hpp
+    include/Aero/DragDrop.hpp
+    include/Aero/Input/Cursor.hpp
+    include/Aero/Input/Cursors.hpp
+    include/Aero/Input/Keyboard.hpp
+    include/Aero/Input/Mouse.hpp
     include/Aero/DependencyObject.hpp
     include/Aero/DispatcherObject.hpp
     include/Aero/TryCast.hpp

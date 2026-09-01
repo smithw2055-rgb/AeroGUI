@@ -24,6 +24,9 @@
 #include <Aero/Media/Geometry.hpp>
 #include <Aero/Media/StreamGeometry.hpp>
 #include <Aero/FrameworkElement.hpp>
+#include <Aero/Controls/TextBlock.hpp>
+#include <Aero/Documents/Span.hpp>
+#include <Aero/Documents/Inline.hpp>
 
 #include <cstdio>
 #include <new>
@@ -955,6 +958,9 @@ struct XamlTemplateSchemaFacetState {
                 if (sealed) {
                     return {};
                 }
+                // WPF allows an empty ControlTemplate/DataTemplate. Failing
+                // EndInit here aborts the document and drops visual children.
+                return {};
             }
             return InvalidTemplateXaml(
                 "Template deferred-content scope is invalid");
@@ -1933,6 +1939,66 @@ CompileBlueprint(
                 edge.member});
             if (!appended) {
                 return appended.GetStatus();
+            }
+        }
+
+        // String inlines (Hyperlink "Show XAML", inter-Run spaces) live on
+        // TextBlock/Span owned collections and may not have DeferredContentEdge
+        // records. Clone them so ControlTemplate instances keep the text.
+        if (runtime.Types().IsDerivedFrom(
+                object->RuntimeType(),
+                Controls::TextBlock::StaticTypeId()) ||
+            runtime.Types().IsDerivedFrom(
+                object->RuntimeType(),
+                Documents::Span::StaticTypeId())) {
+            const Meta::PropertyInfo* inlinesProperty =
+                runtime.Types().FindProperty(
+                    object->RuntimeType(),
+                    Base::StringView("Inlines"),
+                    true);
+            const MemberId inlinesMember =
+                inlinesProperty != nullptr
+                ? inlinesProperty->Id()
+                : InvalidMemberId;
+            const std::uint32_t inlineCount =
+                runtime.Types().IsDerivedFrom(
+                    object->RuntimeType(),
+                    Controls::TextBlock::StaticTypeId())
+                ? static_cast<Controls::TextBlock&>(*object).GetInlineCount()
+                : static_cast<Documents::Span&>(*object).GetInlines().GetCount();
+            for (std::uint32_t inlineIndex = 0U;
+                 inlineIndex < inlineCount;
+                 ++inlineIndex) {
+                Documents::Inline* inlineValue = nullptr;
+                if (runtime.Types().IsDerivedFrom(
+                        object->RuntimeType(),
+                        Controls::TextBlock::StaticTypeId())) {
+                    inlineValue = static_cast<Controls::TextBlock&>(*object)
+                        .GetInlines().GetItem(inlineIndex);
+                } else {
+                    inlineValue = static_cast<Documents::Span&>(*object)
+                        .GetInlines().GetItem(inlineIndex);
+                }
+                if (inlineValue == nullptr) {
+                    continue;
+                }
+                const std::uint32_t existing =
+                    FindPrototypeObject(pending, inlineValue);
+                if (existing != UINT32_MAX) {
+                    PendingPrototypeNode& existingNode = pending[existing];
+                    if (existingNode.parent == UINT32_MAX) {
+                        existingNode.parent = index;
+                        existingNode.contentMember = inlinesMember;
+                    }
+                    continue;
+                }
+                appended = pending.PushBack({
+                    Base::Ref<Base::Object>::FromBorrowed(*inlineValue),
+                    index,
+                    inlinesMember});
+                if (!appended) {
+                    return appended.GetStatus();
+                }
             }
         }
     }
@@ -3697,11 +3763,20 @@ BuildCompiledDeferredTemplate(
     }
 
     Base::Ref<Base::Object> root = objects[0U];
-    if (payload &&
-        blueprint->runtime->Types().IsDerivedFrom(
-            root->RuntimeType(),
-            FrameworkElement::StaticTypeId())) {
-        static_cast<FrameworkElement&>(*root).SetDataContext(payload);
+    if (payload) {
+        // Nested SampleTemplate TextBlocks bind {Binding Name}/{Binding Icon}
+        // on children, not the StackPanel root. Copy the item DataContext onto
+        // every FrameworkElement so those bindings can activate before a later
+        // visual-tree walk (which previously only ran for the selected leaf).
+        for (const Base::Ref<Base::Object>& object : objects) {
+            if (!object ||
+                !blueprint->runtime->Types().IsDerivedFrom(
+                    object->RuntimeType(),
+                    FrameworkElement::StaticTypeId())) {
+                continue;
+            }
+            static_cast<FrameworkElement&>(*object).SetDataContext(payload);
+        }
     }
     for (const TemplatePrototypeBinding& binding :
          blueprint->bindings) {
@@ -3759,15 +3834,13 @@ BuildCompiledDeferredTemplate(
         Base::Result<void> queued =
             bindings->QueueDeferred(descriptor);
         if (!queued) return queued.GetStatus();
-        // A DataTemplate receives its item as the DataContext of its root
-        // before it is attached to an ItemsHost. Activate bindings targeted
-        // at that root now: closed selectors and other content projections
-        // may consume their template presentation before a popup is visible.
-        // Nested elements remain deferred until the normal visual-tree walk
-        // establishes inherited values for them.
+        // DataContext bindings (no ElementName / RelativeSource ancestor) can
+        // activate immediately now that every FrameworkElement clone carries
+        // the item as DataContext. Nested gallery leaf headers depend on this.
         if (payload &&
             binding.source == UINT32_MAX &&
-            descriptor.target == root.Get()) {
+            binding.sourceName.Empty() &&
+            binding.relativeAncestorType.Empty()) {
             Base::Result<void> activated =
                 bindings->ActivateDeferredWhenReady(*descriptor.target);
             if (!activated) return activated.GetStatus();
@@ -3811,6 +3884,16 @@ BuildCompiledDeferredTemplate(
                 triggerContext->names.PushBack(
                     std::move(named));
             if (!assigned) {
+                return assigned.GetStatus();
+            }
+            auto* rootElement =
+                static_cast<FrameworkElement*>(root.Get());
+            assigned = rootElement->RegisterName(
+                blueprint->nodes[index].name.View(),
+                *objects[index]);
+            if (!assigned &&
+                assigned.GetStatus().code !=
+                    Base::ErrorCode::AlreadyExists) {
                 return assigned.GetStatus();
             }
         }
@@ -3911,23 +3994,16 @@ BuildCompiledDeferredTemplate(
                         *static_cast<DependencyObject*>(root.Get())));
             condition.property =
                 sourceProperty->Handle();
-            condition.value =
-                propertyTrigger.GetAuthoredValue();
-            if (condition.value.Kind() ==
-                    ValueKind::String &&
-                condition.value.Type() !=
-                    sourceProperty->ValueType()) {
-                Base::Result<Value> converted =
-                    ConvertTemplateTextValue(
-                        *blueprint->runtime,
-                        *sourceProperty,
-                        condition.value.AsString());
-                if (!converted) {
-                    return converted.GetStatus();
-                }
-                condition.value =
-                    std::move(converted).Value();
+            Base::Result<Value> converted = ConvertTriggerValue(
+                propertyTrigger.GetAuthoredValue(),
+                root->RuntimeType(),
+                *sourceProperty,
+                *blueprint->runtime,
+                *blueprint->properties);
+            if (!converted) {
+                return converted.GetStatus();
             }
+            condition.value = std::move(converted).Value();
             Base::Result<void> added =
                 runtimeTrigger.conditions.PushBack(
                     std::move(condition));
@@ -3946,6 +4022,9 @@ BuildCompiledDeferredTemplate(
             Aero::Controls::DataTemplateTriggerCondition
                 condition;
             condition.source = Base::WeakRef<Base::Object>(payload);
+            condition.usesDataContext =
+                dataTrigger.GetBinding()->GetElementName().Empty() &&
+                !dataTrigger.GetBinding()->GetRelativeSource();
             condition.binding =
                 dataTrigger.GetBinding();
             condition.value =
@@ -3970,6 +4049,9 @@ BuildCompiledDeferredTemplate(
                 Aero::Controls::DataTemplateTriggerCondition
                     condition;
                 condition.source = Base::WeakRef<Base::Object>(payload);
+                condition.usesDataContext =
+                    authoredCondition->GetBinding()->GetElementName().Empty() &&
+                    !authoredCondition->GetBinding()->GetRelativeSource();
                 condition.binding =
                     authoredCondition->GetBinding();
                 condition.value =

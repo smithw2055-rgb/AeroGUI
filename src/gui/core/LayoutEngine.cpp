@@ -197,14 +197,20 @@ Base::Result<void> LayoutEngine::Attach(
     if (!verified) return verified.GetStatus();
     verified = VerifyElement(child);
     if (!verified) return verified.GetStatus();
-    if (&parent == &child || child.GetIsLayoutAttached()) {
+    if (&parent == &child) {
         return InvalidState(
             "Layout child is already attached or self-referential");
     }
-    if (child.LayoutParent() != &parent) {
+    if (child.GetIsLayoutAttached()) {
+        if (child.LayoutParent() == &parent) {
+            return {};
+        }
         return InvalidState(
-            "Layout attachment must match the visual tree parent");
+            "Layout child is already attached or self-referential");
     }
+    // A stale LayoutParent on a detached child is irrelevant and must not block
+    // re-attachment; the GetIsLayoutAttached() check above already catches
+    // genuine double-attach conflicts.
 
     // Queue all parent invalidation work before publishing the child state.
     Base::Result<void> invalidated = InvalidateMeasure(parent);
@@ -221,14 +227,18 @@ Base::Result<void> LayoutEngine::Detach(
     UIElement& child) noexcept {
     Base::Result<void> verified = VerifyElement(parent);
     if (!verified) return verified.GetStatus();
-    if (!child.GetIsLayoutAttached() || child.LayoutParent() != &parent ||
-        AeroGuiInternal::LayoutEngineOf(child) != this) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            "Layout parent-child relationship was not found");
+    if (!child.GetIsLayoutAttached() || AeroGuiInternal::LayoutEngineOf(child) != this) {
+        // Already detached (idempotent). Template substitution can leave the
+        // element-tree edge naming a logical parent that differs from the
+        // layout parent, so a missing relationship is benign here.
+        return {};
     }
+    // The element-tree edge may name a logical parent that is not the layout
+    // (visual) parent. Detach from wherever the child is actually attached.
+    UIElement* attachParent = child.LayoutParent();
+    if (attachParent == nullptr) attachParent = &parent;
 
-    Base::Result<void> invalidated = InvalidateMeasure(parent);
+    Base::Result<void> invalidated = InvalidateMeasure(*attachParent);
     if (!invalidated) return invalidated.GetStatus();
 
     RemoveQueued(child);
@@ -294,10 +304,13 @@ Base::Result<VisualHandle> LayoutEngine::EnqueueHandle(
 Base::Result<void> LayoutEngine::QueueMeasure(
     UIElement& element) noexcept {
     if (element.GetIsMeasureQueued()) return {};
-    Base::Result<VisualHandle> handle = EnqueueHandle(element);
-    if (!handle) return handle.GetStatus();
+    const VisualHandle handle = AeroGuiInternal::Handle(element);
+    if (!handle.IsValid()) {
+        AeroGuiInternal::Layout(element).measureValid = false;
+        return {};
+    }
     Base::Result<void> appended =
-        measureQueue_.PushBack(handle.Value());
+        measureQueue_.PushBack(handle);
     if (!appended) return appended.GetStatus();
     AeroGuiInternal::Layout(element).measureQueued = true;
     return {};
@@ -306,10 +319,13 @@ Base::Result<void> LayoutEngine::QueueMeasure(
 Base::Result<void> LayoutEngine::QueueArrange(
     UIElement& element) noexcept {
     if (element.GetIsArrangeQueued()) return {};
-    Base::Result<VisualHandle> handle = EnqueueHandle(element);
-    if (!handle) return handle.GetStatus();
+    const VisualHandle handle = AeroGuiInternal::Handle(element);
+    if (!handle.IsValid()) {
+        AeroGuiInternal::Layout(element).arrangeValid = false;
+        return {};
+    }
     Base::Result<void> appended =
-        arrangeQueue_.PushBack(handle.Value());
+        arrangeQueue_.PushBack(handle);
     if (!appended) return appended.GetStatus();
     AeroGuiInternal::Layout(element).arrangeQueued = true;
     return {};
@@ -354,11 +370,12 @@ Base::Result<void> LayoutEngine::InvalidateMeasure(
     if (!reserved) return reserved.GetStatus();
     for (UIElement* item : path) {
         if (item->GetIsMeasureQueued()) continue;
-        Base::Result<VisualHandle> handle = EnqueueHandle(*item);
-        if (!handle) return handle.GetStatus();
-        Base::Result<void> staged =
-            handles.PushBack(handle.Value());
-        if (!staged) return staged.GetStatus();
+        const VisualHandle handle = AeroGuiInternal::Handle(*item);
+        if (handle.IsValid()) {
+            Base::Result<void> staged =
+                handles.PushBack(handle);
+            if (!staged) return staged.GetStatus();
+        }
     }
     reserved = measureQueue_.Reserve(
         measureQueue_.Size() + handles.Size());
@@ -369,11 +386,14 @@ Base::Result<void> LayoutEngine::InvalidateMeasure(
         AeroGuiInternal::Layout(*item).measureValid = false;
         AeroGuiInternal::Layout(*item).arrangeValid = false;
         if (item->GetIsMeasureQueued()) continue;
-        Base::Result<void> queued = measureQueue_.PushBack(
-            handles[handleIndex++]);
-        AERO_ASSERT(queued);
-        (void)queued;
-        AeroGuiInternal::Layout(*item).measureQueued = true;
+        const VisualHandle handle = AeroGuiInternal::Handle(*item);
+        if (handle.IsValid()) {
+            Base::Result<void> queued = measureQueue_.PushBack(
+                handles[handleIndex++]);
+            AERO_ASSERT(queued);
+            (void)queued;
+            AeroGuiInternal::Layout(*item).measureQueued = true;
+        }
     }
     return {};
 }
@@ -396,11 +416,12 @@ Base::Result<void> LayoutEngine::InvalidateArrange(
     if (!reserved) return reserved.GetStatus();
     for (UIElement* item : path) {
         if (item->GetIsArrangeQueued()) continue;
-        Base::Result<VisualHandle> handle = EnqueueHandle(*item);
-        if (!handle) return handle.GetStatus();
-        Base::Result<void> staged =
-            handles.PushBack(handle.Value());
-        if (!staged) return staged.GetStatus();
+        const VisualHandle handle = AeroGuiInternal::Handle(*item);
+        if (handle.IsValid()) {
+            Base::Result<void> staged =
+                handles.PushBack(handle);
+            if (!staged) return staged.GetStatus();
+        }
     }
     reserved = arrangeQueue_.Reserve(
         arrangeQueue_.Size() + handles.Size());
@@ -410,11 +431,14 @@ Base::Result<void> LayoutEngine::InvalidateArrange(
     for (UIElement* item : path) {
         AeroGuiInternal::Layout(*item).arrangeValid = false;
         if (item->GetIsArrangeQueued()) continue;
-        Base::Result<void> queued = arrangeQueue_.PushBack(
-            handles[handleIndex++]);
-        AERO_ASSERT(queued);
-        (void)queued;
-        AeroGuiInternal::Layout(*item).arrangeQueued = true;
+        const VisualHandle handle = AeroGuiInternal::Handle(*item);
+        if (handle.IsValid()) {
+            Base::Result<void> queued = arrangeQueue_.PushBack(
+                handles[handleIndex++]);
+            AERO_ASSERT(queued);
+            (void)queued;
+            AeroGuiInternal::Layout(*item).arrangeQueued = true;
+        }
     }
     return {};
 }
@@ -591,7 +615,7 @@ Base::Result<void> LayoutEngine::ArrangeElement(
             AeroGuiInternal::SetActualSize(
                 *framework, 0.0, 0.0);
         }
-        AeroGuiInternal::Layout(element).layoutClip = {slot.x, slot.y, 0.0, 0.0};
+        AeroGuiInternal::Layout(element).layoutClip = {0.0, 0.0, 0.0, 0.0};
         AeroGuiInternal::Layout(element).arrangeValid = true;
         AeroGuiInternal::Layout(element).arrangeQueued = false;
         ++AeroGuiInternal::Layout(element).layoutRevision;
@@ -729,14 +753,19 @@ Base::Result<void> LayoutEngine::ArrangeElement(
             transformed.width,
             transformed.height};
     }
-    const Rect renderedSlot{
-        contentSlot.x,
-        contentSlot.y,
-        renderedFootprint.width,
-        renderedFootprint.height};
+    // ClipToBounds is a local-space clip of RenderSize (WPF
+    // UIElement.GetLayoutClip). layoutSlot is in parent coordinates and is
+    // already applied as a translation when the node is drawn; storing the
+    // parent slot here would double-offset the stencil clip and hide
+    // ScrollViewer/VirtualizingStackPanel content once the tree is drawn
+    // inline (offscreen compositing resets the clip stack, so the same
+    // subtree can still appear while a parent is fading in).
+    const Rect localBounds{0.0, 0.0, render.width, render.height};
+    const Rect localFootprint{
+        0.0, 0.0, renderedFootprint.width, renderedFootprint.height};
     AeroGuiInternal::Layout(element).layoutClip = element.GetClipToBounds()
-        ? Intersect(contentSlot, renderedSlot)
-        : renderedSlot;
+        ? Intersect(localBounds, localFootprint)
+        : localFootprint;
     AeroGuiInternal::Layout(element).arrangeValid = true;
     AeroGuiInternal::Layout(element).arrangeQueued = false;
     ++AeroGuiInternal::Layout(element).layoutRevision;

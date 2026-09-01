@@ -16,6 +16,12 @@
 #include <Aero/Value.hpp>
 #include <Aero/Freezable.hpp>
 #include <Aero/DispatcherObject.hpp>
+#include <Aero/Input/Cursor.hpp>
+#include <Aero/Input/Mouse.hpp>
+#include <Aero/Input/Keyboard.hpp>
+#include <Aero/DataObject.hpp>
+#include <Aero/DragDrop.hpp>
+#include "gui/meta/InputDevices.inl"
 
 namespace Aero::Meta {
 Base::Result<void> PopulateCoreMetadata(
@@ -217,6 +223,8 @@ Base::Result<void> PopulateUiMetadata(
     status = PopulateUiAnimation(context);
     if (!status) return status.GetStatus();
     status = PopulateUiElements(context);
+    if (!status) return status.GetStatus();
+    status = PopulateInputDevices(context);
     if (!status) return status.GetStatus();
     return {};
 }

@@ -148,7 +148,9 @@ private:
     bool ticking_ = false;
     bool automaticTickingEnabled_ = true;
 
-    Base::Result<Track*> AddTrack() noexcept;
+    Base::Result<Track*> AddTrack(
+        ::Aero::DependencyObject* target = nullptr,
+        Meta::DependencyPropertyHandle property = {}) noexcept;
     Track* FindTrack(AnimationHandle handle) noexcept;
     const Track* FindTrack(AnimationHandle handle) const noexcept;
     Base::Result<void> ClearTrackValue(Track& track) noexcept;

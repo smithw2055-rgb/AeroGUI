@@ -317,7 +317,11 @@ struct Win32WindowState {
         LPARAM value) noexcept {
         switch (message) {
         case WM_CLOSE: {
-            open = false;
+            // Do not mark the native window closed here. WPF raises Closing
+            // first; DestroyWindow runs only if Close() is not cancelled.
+            // Do not PostQuitMessage from this handler: DXGI Present() pumps
+            // messages, and WM_QUIT consumed inside Present leaves the host
+            // looping with a still-open HWND / swapchain.
             WindowEvent event;
             event.type = WindowEventType::CloseRequested;
             Push(event);
@@ -329,6 +333,7 @@ struct Win32WindowState {
             WindowEvent event;
             event.type = WindowEventType::Closed;
             Push(event);
+            PostQuitMessage(0);
             return 0;
         }
         case WM_SIZE: {
@@ -699,6 +704,9 @@ Base::Result<bool> Win32Window::PollEvent(
                PM_REMOVE) != FALSE) {
         if (message.message == WM_QUIT) {
             state_->open = false;
+            WindowEvent quit;
+            quit.type = WindowEventType::CloseRequested;
+            state_->Push(quit);
         } else {
             TranslateMessage(&message);
             DispatchMessageW(&message);
@@ -731,6 +739,9 @@ Base::Result<bool> Win32Window::WaitEvent(
         }
         if (received == 0) {
             state_->open = false;
+            WindowEvent quit;
+            quit.type = WindowEventType::CloseRequested;
+            state_->Push(quit);
             return state_->Dequeue(event);
         }
         TranslateMessage(&message);
@@ -765,7 +776,14 @@ void Win32Window::Close() noexcept {
 }
 
 bool Win32Window::IsOpen() const noexcept {
+#if defined(_WIN32)
+    return state_ != nullptr &&
+        state_->open &&
+        state_->window != nullptr &&
+        IsWindow(state_->window) != FALSE;
+#else
     return state_ != nullptr && state_->open;
+#endif
 }
 
 std::uint32_t Win32Window::ClientWidth() const noexcept {

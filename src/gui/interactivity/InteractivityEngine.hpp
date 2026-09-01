@@ -10,6 +10,8 @@ public:
     explicit InteractivityEngine(ViewState& owner) noexcept;
     void Bind() noexcept;
     void NotifyLayoutUpdated() noexcept;
+    void RetryPendingInteractionTriggers() noexcept;
+    void FlushPendingStyleDataTriggerEvaluations() noexcept;
 
     ViewState* view = nullptr;
     Base::IAllocator* allocator = nullptr;
@@ -47,17 +49,25 @@ public:
         StyleDataTriggerAggregate* aggregate = nullptr;
         bool ownsAggregate = false;
         ::Aero::DependencyObject* source = nullptr;
+        Base::Object* metadataSource = nullptr;
         Meta::DependencyPropertyHandle property;
+        Meta::MemberId metadataProperty = Meta::InvalidMemberId;
         Meta::PropertyValue expected;
 
         void Invoke(
             ::Aero::DependencyObject&,
             const Meta::DependencyPropertyChangedEventArgs&) noexcept;
+        static void MetadataInvoke(
+            Base::Object&,
+            Meta::MemberId property,
+            void* context) noexcept;
     };
     struct StyleDataTriggerSubscription {
         Aero::FrameworkElement* target = nullptr;
         ::Aero::DependencyObject* source = nullptr;
+        Base::Object* metadataSource = nullptr;
         Meta::DependencyPropertyHandle property;
+        std::uint64_t metadataSubscription = 0U;
         Meta::DependencyPropertyChangedEventHandler handler;
         StyleDataTriggerHandlerState* context = nullptr;
     };
@@ -125,6 +135,19 @@ public:
     };
     Base::Vector<InteractionDataTriggerSubscription>
         interactionDataTriggerSubscriptions;
+
+    struct PendingInteractionTrigger {
+        Aero::FrameworkElement* owner = nullptr;
+        const Aero::NameScope* names = nullptr;
+        Aero::DataTrigger* dataTrigger = nullptr;
+        Aero::Interactivity::PropertyChangedTrigger* propertyTrigger =
+            nullptr;
+    };
+    Base::Vector<PendingInteractionTrigger> pendingInteractionTriggers;
+    bool retryingPendingInteractionTriggers_ = false;
+    bool flushingPendingStyleDataTriggers_ = false;
+    Base::Vector<StyleDataTriggerHandlerState*>
+        pendingStyleDataTriggerEvaluations;
 
     struct KeyTriggerState {
         InteractivityEngine* runtime = nullptr;
@@ -236,6 +259,13 @@ public:
         Aero::DataTrigger& trigger,
         Aero::FrameworkElement& owner,
         const Aero::NameScope* names) noexcept;
+    Base::Result<void> PendUntilDataContext(
+        Aero::FrameworkElement& owner,
+        const Aero::NameScope* names,
+        Aero::DataTrigger* dataTrigger,
+        Aero::Interactivity::PropertyChangedTrigger* propertyTrigger)
+        noexcept;
+    void ClearPendingInteractionTriggers() noexcept;
     static std::uint32_t KeyCodeFromName(Base::StringView key) noexcept;
     Base::Result<bool> StartKeyTrigger(
         Aero::Interactivity::KeyTrigger& trigger,

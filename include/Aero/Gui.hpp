@@ -14,6 +14,7 @@ namespace Aero {
 
 class View;
 class FrameworkElement;
+class ResourceDictionary;
 namespace Markup {
 class XamlDocument;
 class XamlProvider;
@@ -56,7 +57,8 @@ public:
     }
     Result<void> LoadComponent(
         Base::Object& component,
-        StringView uri) noexcept;
+        StringView uri,
+        ResourceDictionary* resources = nullptr) noexcept;
     Result<Ref<View>> CreateView(
         Base::IAllocator* allocator = nullptr) noexcept;
     Result<Ref<View>> CreateView(

@@ -931,10 +931,11 @@ EffectiveValueEngine::EffectiveValueEngine(
           this,
           &EffectiveValueEngine::OnInheritancePropertyChanged) {}
 
-EffectiveValueEngine::~EffectiveValueEngine() noexcept {
+void EffectiveValueEngine::Shutdown() noexcept {
     if (phaseHook_.IsValid() && dispatcher_ != nullptr &&
         dispatcher_->CheckAccess()) {
         static_cast<void>(dispatcher_->RemoveFrameHook(phaseHook_));
+        phaseHook_ = {};
     }
 
     for (DependencyObject* object : inheritanceSubscriptions_) {
@@ -953,6 +954,13 @@ EffectiveValueEngine::~EffectiveValueEngine() noexcept {
             }
         }
     }
+    inheritanceSubscriptions_.Clear();
+    pending_.Clear();
+    parents_.Clear();
+}
+
+EffectiveValueEngine::~EffectiveValueEngine() noexcept {
+    Shutdown();
 }
 
 Base::Result<void> EffectiveValueEngine::Initialize() noexcept {
@@ -1364,7 +1372,6 @@ Base::Result<std::uint32_t> EffectiveValueEngine::Flush() noexcept {
     }
 
     FlushScope scope(flushing_);
-    const std::uint64_t boundary = nextQueueSequence_ - 1U;
     std::uint32_t processed = 0U;
 
     while (true) {
@@ -1376,7 +1383,6 @@ Base::Result<std::uint32_t> EffectiveValueEngine::Flush() noexcept {
                 ? AeroGuiInternal::FindEntry(*entry.object, entry.property)
                 : nullptr;
             if (stored != nullptr && stored->Queued() &&
-                entry.queueSequence <= boundary &&
                 entry.queueSequence < selectedSequence) {
                 selected = index;
                 selectedSequence = entry.queueSequence;
@@ -1400,6 +1406,9 @@ Base::Result<std::uint32_t> EffectiveValueEngine::Flush() noexcept {
         }
         pending_.PopBack();
         ++processed;
+        if (processed >= 65536U) {
+            break;
+        }
     }
     return processed;
 }

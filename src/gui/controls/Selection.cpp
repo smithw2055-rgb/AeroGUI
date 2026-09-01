@@ -6,6 +6,7 @@
 #include "gui/controls/State.hpp"
 #include "gui/templates/TemplateState.hpp"
 #include <Aero/Controls.hpp>
+#include <Aero/TryCast.hpp>
 #include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/Controls/TextBoxBase.hpp>
 #include <Aero/Controls/TextBox.hpp>
@@ -74,6 +75,22 @@ bool EqualIndices(
 
 } // namespace
 
+ListBoxItem::ListBoxItem() noexcept
+    : ListBoxItem(StaticTypeId()) {}
+
+ListBoxItem::ListBoxItem(TypeId runtimeType) noexcept
+    : ContentControl(runtimeType),
+      selectedChangedHandler_(
+          this, &ListBoxItem::OnIsSelectedChanged) {
+    static_cast<void>(AddValueChangedHandlerChecked(
+        IsSelectedProperty, selectedChangedHandler_));
+}
+
+ListBoxItem::~ListBoxItem() {
+    static_cast<void>(RemoveValueChangedHandler(
+        IsSelectedProperty, selectedChangedHandler_));
+}
+
 bool ListBoxItem::GetIsSelected() const noexcept {
     return GetValueOr(IsSelectedProperty, false);
 }
@@ -81,6 +98,35 @@ bool ListBoxItem::GetIsSelected() const noexcept {
 void ListBoxItem::SetIsSelected(
     bool value) noexcept {
     SetCurrentValue(IsSelectedProperty, value);
+}
+
+void ListBoxItem::OnIsSelectedChanged(
+    DependencyObject&,
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    const bool selected =
+        args.GetNewValue().Kind() == Meta::ValueKind::Boolean &&
+        args.GetNewValue().AsBoolean();
+    if (!selected) return;
+    ::Aero::Media::Visual* visual = this;
+    while (visual != nullptr) {
+        UIElement* element = ::Aero::TryCast<UIElement>(visual);
+        if (element != nullptr &&
+            PropertyRegistry().Types().IsDerivedFrom(
+                element->RuntimeType(), ListBox::StaticTypeId())) {
+            auto& listBox = *static_cast<ListBox*>(element);
+            ItemContainerGenerator* generator =
+                listBox.GetItemContainerGenerator();
+            if (generator == nullptr) return;
+            const std::uint32_t index =
+                generator->IndexFromContainer(*this);
+            if (index != UINT32_MAX &&
+                listBox.GetSelectedIndex() != index) {
+                listBox.SetSelectedIndex(index);
+            }
+            return;
+        }
+        visual = visual->GetVisualParent();
+    }
 }
 
 Selector::Selector() noexcept
@@ -915,6 +961,7 @@ void Selector::ClearContainer(
 }
 
 void Selector::OnContainersChanged() noexcept {
+    ItemsControl::OnContainersChanged();
     SyncContainers();
 }
 
@@ -1746,8 +1793,10 @@ ComboBehavior::ResolveComboBox(
 Base::Result<void>
 ComboBehavior::Attach(
     ComboBox& comboBox) noexcept {
-    if (comboBox.GetTree() != tree_ ||
-        FindComboBox(comboBox) != UINT32_MAX) {
+    if (FindComboBox(comboBox) != UINT32_MAX) {
+        return {};
+    }
+    if (comboBox.GetTree() != tree_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "ComboBox interaction attach state is invalid");
@@ -2297,6 +2346,13 @@ void ListBehavior::OnPointerStateChanged(
                         ListBoxItem::StaticTypeId())) {
                     auto& item =
                         *static_cast<ListBoxItem*>(container);
+                    if (item.GetIsMouseOver() &&
+                        item.GetIsEnabled() &&
+                        listBox->GetSelectionMode() ==
+                            SelectionMode::Single &&
+                        listBox->GetSelectedIndex() != index) {
+                        listBox->SetSelectedIndex(index);
+                    }
                     Base::StringView common = "Normal";
                     if (!item.GetIsEnabled()) {
                         common = "Disabled";

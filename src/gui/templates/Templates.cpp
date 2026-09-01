@@ -85,14 +85,16 @@ Base::Result<PropertyValue> ConvertTemplateBindingValue(
         return PropertyValue::NullObject(target.ValueType());
     }
     if (value.Kind() == PropertyValueKind::Object &&
-        !value.IsNullObject() && value.AsObject() &&
-        types.IsAssignableFrom(
-            target.ValueType(),
-            value.AsObject()->RuntimeType())) {
-        return PropertyValue::FromObject(
-            target.ValueType(),
-            Base::Ref<Base::Object>::FromBorrowed(
-                *value.AsObject()));
+        !value.IsNullObject() && value.AsObject()) {
+        const TypeId objectType = value.AsObject()->RuntimeType();
+        if (types.IsAssignableFrom(target.ValueType(), objectType) ||
+            types.IsDerivedFrom(objectType, target.ValueType()) ||
+            objectType == target.ValueType()) {
+            return PropertyValue::FromObject(
+                target.ValueType(),
+                Base::Ref<Base::Object>::FromBorrowed(
+                    *value.AsObject()));
+        }
     }
     if (target.ValueType() ==
             Meta::TypeOf<Aero::Length>() &&
@@ -300,19 +302,41 @@ TemplateBuilder::ProjectContentCore(
         ancestor = ancestor->GetVisualParent();
     }
 
-    bool presenterIsPart = false;
+    {
+        const ::Aero::Media::Visual* hosted = content->GetVisualParent();
+        while (hosted != nullptr) {
+            if (hosted == &presenterVisual) {
+                return true;
+            }
+            hosted = hosted->GetVisualParent();
+        }
+    }
+    bool presenterInTemplate = false;
     for (const Aero::Controls::TemplatePart& part : state.parts) {
-        presenterIsPart =
-            presenterIsPart ||
+        presenterInTemplate =
+            presenterInTemplate ||
             part.visual == &presenterVisual;
     }
-    if (!presenterIsPart ||
-        (content->GetVisualParent() != nullptr &&
-         content->GetVisualParent() != &owner)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "Template content cannot be projected");
+    if (!presenterInTemplate) {
+        const ::Aero::Media::Visual* walk = &presenterVisual;
+        while (walk != nullptr) {
+            if (walk == state.rootVisual || walk == state.parent) {
+                presenterInTemplate = true;
+                break;
+            }
+            walk = walk->GetVisualParent();
+        }
     }
+    if (!presenterInTemplate) {
+        // Presenter is not part of this template. Skip rather than abort
+        // ApplyViewUi (fragment content may already be hosted).
+        return false;
+    }
+    // Content may already be a visual child of the owner (SetContent /
+    // fragment attachEdges) or of another host (ScrollViewer.Content still
+    // parented to the templated ScrollViewer). The projection path below
+    // detaches and reparents onto the presenter — do not refuse just
+    // because the current parent is not the owner.
 
     Aero::Controls::TemplateContentProjection projection;
     projection.owner = &owner;
@@ -430,6 +454,37 @@ TemplateBuilder::PopulateContentPresenter(
     if (presenter.GetContent() != nullptr ||
         presenter.GetContentSource().Empty()) {
         return {};
+    }
+    auto& state = *static_cast<Aero::Controls::TemplateBuildState*>(state_);
+    if (presenter.GetContentSource() == Base::StringView("Header") &&
+        state.parent != nullptr) {
+        const Value* header = nullptr;
+        Value stored;
+        if (state.parent->PropertyRegistry().Types().IsDerivedFrom(
+                state.parent->RuntimeType(),
+                HeaderedItemsControl::StaticTypeId())) {
+            stored = static_cast<HeaderedItemsControl*>(state.parent)
+                ->GetHeader();
+            header = &stored;
+        } else if (state.parent->PropertyRegistry().Types().IsDerivedFrom(
+                       state.parent->RuntimeType(),
+                       HeaderedContentControl::StaticTypeId())) {
+            stored = static_cast<HeaderedContentControl*>(state.parent)
+                ->GetHeader();
+            header = &stored;
+        }
+        if (header != nullptr &&
+            header->Kind() == ValueKind::Object &&
+            !header->IsNullObject() &&
+            header->AsObject() &&
+            state.parent->PropertyRegistry().Types().IsDerivedFrom(
+                header->AsObject()->RuntimeType(),
+                UIElement::StaticTypeId())) {
+            // Gallery SampleTemplate StackPanel already lives on Header.
+            // A dummy TextBlock would occupy PART_Header's only layout slot
+            // and prevent HostUiElement from attaching sibling leaf headers.
+            return {};
+        }
     }
     Base::Result<Base::Ref<TextBlock>> created =
         Base::MakeRef<TextBlock>();
@@ -2026,6 +2081,8 @@ Base::Result<void> TemplateEngine::EvaluateTriggers(
             if (!applied) return applied.GetStatus();
         }
     }
+    Base::Result<std::uint32_t> flushed = values_->Flush();
+    if (!flushed) return flushed.GetStatus();
     return {};
 }
 
@@ -2125,9 +2182,13 @@ Base::Result<void> TemplateEngine::ClearAt(
         }
     }
     for (Aero::Controls::TemplatePart& part : instance.parts) {
-        if (part.object == nullptr) continue;
-        Base::Result<void> untracked = values_->DetachObject(*part.object);
-        if (!untracked) return untracked.GetStatus();
+        if (part.object != nullptr) {
+            Base::Result<void> untracked = values_->DetachObject(*part.object);
+            if (!untracked) return untracked.GetStatus();
+        }
+        if (part.visual != nullptr && tree_ != nullptr) {
+            tree_->InvalidateNodeHandle(*part.visual);
+        }
     }
     if (index + 1U != instances_.Size()) {
         instances_[index] = std::move(instances_[instances_.Size() - 1U]);
@@ -2161,6 +2222,11 @@ void TemplateEngine::OnPropertyChanged(
         }
         if (triggerChanged) {
             (void)EvaluateTriggers(instance);
+            // Triggers write parent properties (Button.Background). Re-apply
+            // TemplateBindings so the template root Border picks up the new
+            // value in the same change; otherwise hover/press visuals lag
+            // until a later Background notification.
+            (void)ApplyBindings(instance, DependencyPropertyHandle{});
         }
         if (parentChanged) {
             return;

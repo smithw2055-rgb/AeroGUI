@@ -28,9 +28,16 @@ public:
 
 protected:
     explicit HeaderedContentControl(
-        TypeId runtimeType) noexcept
-        : ContentControl(runtimeType) {}
-    ~HeaderedContentControl() override = default;
+        TypeId runtimeType) noexcept;
+    ~HeaderedContentControl() override;
+    void OnApplyTemplate() noexcept override;
+
+private:
+    void OnHeaderChanged(
+        DependencyObject&,
+        const DependencyPropertyChangedEventArgs&) noexcept;
+    void ProjectHeaderContent() noexcept;
+    DependencyPropertyChangedEventHandler headerChangedHandler_;
 };
 
 } // namespace Aero::Controls

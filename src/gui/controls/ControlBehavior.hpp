@@ -324,13 +324,18 @@ public:
     ScrollBarBehavior(
         ElementTree& tree,
         EventRouter& events,
-        InputRouter& input) noexcept;
+        InputRouter& input,
+        VisualStateManager* states = nullptr) noexcept;
     ~ScrollBarBehavior() noexcept;
 
     Base::Result<void> Attach(
         ScrollBar& scrollBar) noexcept;
     Base::Result<bool> Detach(
         ScrollBar& scrollBar) noexcept;
+    Base::Result<void> AttachThumb(
+        Thumb& thumb) noexcept;
+    Base::Result<bool> DetachThumb(
+        Thumb& thumb) noexcept;
 
 private:
     struct ScrollBarRecord {
@@ -345,12 +350,15 @@ private:
     ElementTree* tree_ = nullptr;
     EventRouter* events_ = nullptr;
     InputRouter* input_ = nullptr;
+    VisualStateManager* states_ = nullptr;
     Base::Vector<ScrollBarRecord> scrollBars_;
+    Base::Vector<VisualHandle> thumbs_;
     MouseButtonEventHandler mouseDownHandler_;
     MouseEventHandler mouseMoveHandler_;
     MouseButtonEventHandler mouseUpHandler_;
     KeyEventHandler keyDownHandler_;
     PointerCaptureChangedHandler captureChangedHandler_;
+    PointerStateChangedHandler pointerStateChangedHandler_;
 
     ExecutedRoutedEventHandler lineUpHandler_;
     ExecutedRoutedEventHandler lineDownHandler_;
@@ -373,6 +381,14 @@ private:
         std::uint32_t index) noexcept;
     void RemoveAt(
         std::uint32_t index) noexcept;
+    std::uint32_t FindThumb(
+        const Thumb& thumb) const noexcept;
+    Thumb* ResolveThumb(
+        std::uint32_t index) noexcept;
+    void RemoveThumbAt(
+        std::uint32_t index) noexcept;
+    void SyncThumbVisualState(
+        Thumb& thumb) noexcept;
 
     void OnMouseDown(
         Base::Object* sender,
@@ -390,6 +406,8 @@ private:
         std::uint32_t pointerId,
         UIElement* target,
         bool captured) noexcept;
+    void OnPointerStateChanged(
+        UIElement& element) noexcept;
 
     static void OnLineUpCommand(
         Base::Object* sender,

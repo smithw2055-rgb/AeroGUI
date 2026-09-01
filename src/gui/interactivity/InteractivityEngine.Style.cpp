@@ -69,6 +69,10 @@ Base::Result<bool> InteractivityEngine::StyleDataTriggerValuesMatch(
             return actual.IsNullObject();
         }
         if (expected.Kind() == Meta::ValueKind::String &&
+            actual.Kind() == Meta::ValueKind::String) {
+            return actual.AsString() == expected.AsString();
+        }
+        if (expected.Kind() == Meta::ValueKind::String &&
             expected.Type() != actual.Type()) {
             Base::Result<Meta::PropertyValue> converted =
                 metadata->TryConvertText(
@@ -82,14 +86,26 @@ Base::Result<bool> InteractivityEngine::StyleDataTriggerValuesMatch(
 Base::Result<void> InteractivityEngine::EvaluateStyleDataTrigger(
         StyleDataTriggerHandlerState& state) noexcept {
         if (styles == nullptr || state.target == nullptr ||
-            state.style == nullptr || state.source == nullptr ||
-            !state.property.IsValid()) {
+            state.style == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
                 "Style DataTrigger subscription is invalid");
         }
-        Base::Result<Meta::PropertyValue> actual =
-            state.source->GetValue(state.property);
+        const bool hasDependency =
+            state.source != nullptr && state.property.IsValid();
+        const bool hasMetadata =
+            state.metadataSource != nullptr &&
+            state.metadataProperty != Meta::InvalidMemberId &&
+            metadata != nullptr;
+        if (!hasDependency && !hasMetadata) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "Style DataTrigger subscription is invalid");
+        }
+        Base::Result<Meta::PropertyValue> actual = hasDependency
+            ? state.source->GetValue(state.property)
+            : metadata->GetProperty(
+                  *state.metadataSource, state.metadataProperty);
         if (!actual) return actual.GetStatus();
         Base::Result<bool> matches = StyleDataTriggerValuesMatch(
             actual.Value(), state.expected);
@@ -130,8 +146,57 @@ Base::Result<void> InteractivityEngine::EvaluateStyleDataTrigger(
             matches.Value());
     }
 
+void InteractivityEngine::FlushPendingStyleDataTriggerEvaluations() noexcept {
+        if (flushingPendingStyleDataTriggers_ ||
+            pendingStyleDataTriggerEvaluations.Empty()) {
+            return;
+        }
+        flushingPendingStyleDataTriggers_ = true;
+        Base::Vector<StyleDataTriggerHandlerState*> snapshot(allocator);
+        for (StyleDataTriggerHandlerState* context :
+             pendingStyleDataTriggerEvaluations) {
+            Base::Result<void> retained = snapshot.PushBack(context);
+            if (!retained) {
+                flushingPendingStyleDataTriggers_ = false;
+                return;
+            }
+        }
+        pendingStyleDataTriggerEvaluations.Clear();
+        for (StyleDataTriggerHandlerState* context : snapshot) {
+            if (context == nullptr || context->target == nullptr) {
+                continue;
+            }
+            bool live = false;
+            for (const StyleDataTriggerSubscription& subscription :
+                 styleDataTriggerSubscriptions) {
+                live = live || subscription.context == context;
+            }
+            if (!live) continue;
+            Base::Result<void> evaluated =
+                EvaluateStyleDataTrigger(*context);
+            if (!evaluated && view != nullptr) {
+                view->ReportUpdateFailure(evaluated.GetStatus());
+            }
+        }
+        flushingPendingStyleDataTriggers_ = false;
+    }
+
 void InteractivityEngine::ClearStyleDataTriggersFor(
         Aero::FrameworkElement& target) noexcept {
+        for (std::uint32_t index = 0U;
+             index < pendingStyleDataTriggerEvaluations.Size();) {
+            StyleDataTriggerHandlerState* context =
+                pendingStyleDataTriggerEvaluations[index];
+            if (context == nullptr || context->target != &target) {
+                ++index;
+                continue;
+            }
+            if (index + 1U != pendingStyleDataTriggerEvaluations.Size()) {
+                pendingStyleDataTriggerEvaluations[index] =
+                    pendingStyleDataTriggerEvaluations.Back();
+            }
+            pendingStyleDataTriggerEvaluations.PopBack();
+        }
         for (std::uint32_t index = 0U;
              index < styleDataTriggerSubscriptions.Size();) {
             StyleDataTriggerSubscription& subscription =
@@ -145,6 +210,13 @@ void InteractivityEngine::ClearStyleDataTriggersFor(
                 (void)subscription.source->RemoveValueChangedHandler(
                     subscription.property,
                     subscription.handler);
+            }
+            if (subscription.metadataSource != nullptr &&
+                subscription.metadataSubscription != 0U &&
+                metadata != nullptr) {
+                static_cast<void>(metadata->UnsubscribePropertyChanged(
+                    *subscription.metadataSource,
+                    subscription.metadataSubscription));
             }
             if (subscription.context != nullptr) {
                 if (subscription.context->ownsAggregate &&
@@ -217,6 +289,41 @@ Base::Result<std::uint32_t> InteractivityEngine::StartStyleDataTriggers(
                 }
             }
 
+            // {Binding Path} DataTriggers use DataContext. Item containers often
+            // receive Style before PrepareContainer assigns the item, so a
+            // missing DataContext is a retry, not a hard error. Skip the
+            // whole trigger so MultiDataTrigger extras are not attached alone.
+            auto bindingWaitsForDataContext =
+                [](const Base::Ref<Data::Binding>& binding) noexcept {
+                    return binding &&
+                        binding->GetElementName().Empty() &&
+                        !binding->GetRelativeSource() &&
+                        !binding->GetSource();
+                };
+            auto dataContextReady = [&target]() noexcept {
+                const Base::Value dataContext = target.GetDataContext();
+                return !dataContext.IsNullObject() &&
+                    dataContext.AsObject().Get() != nullptr;
+            };
+            bool deferred = bindingWaitsForDataContext(trigger.binding) &&
+                !dataContextReady();
+            for (std::uint32_t extraIndex = 0U;
+                 extraIndex < trigger.extraBindings.Size() && !deferred;
+                 ++extraIndex) {
+                deferred = bindingWaitsForDataContext(
+                    trigger.extraBindings[extraIndex].binding) &&
+                    !dataContextReady();
+            }
+            if (deferred) {
+                if (aggregate != nullptr) {
+                    FreeObject(
+                        *allocator,
+                        Base::MemoryTag::Ui,
+                        aggregate);
+                }
+                continue;
+            }
+
             auto attachCondition =
                 [this, &target, &style, index, aggregate](
                     const Base::Ref<Data::Binding>& binding,
@@ -278,27 +385,59 @@ Base::Result<std::uint32_t> InteractivityEngine::StartStyleDataTriggers(
                             current = next;
                         }
                     }
+                } else {
+                    // Default binding source is the element's DataContext
+                    // (inherited from the logical tree), mirroring how a
+                    // plain {Binding Path} resolves its source.
+                    Base::Value dataContext = target.GetDataContext();
+                    if (!dataContext.IsNullObject()) {
+                        Base::Object* contextObject =
+                            dataContext.AsObject().Get();
+                        if (contextObject != nullptr) {
+                            sourceObject = contextObject;
+                        }
+                    }
                 }
-                if (sourceObject == nullptr ||
-                    !metadata->Types().IsDerivedFrom(
-                        sourceObject->RuntimeType(),
-                        ::Aero::DependencyObject::StaticTypeId())) {
+                if (sourceObject == nullptr) {
                     return Base::Status::Failure(
                         Base::ErrorCode::NotFound,
                         "Style DataTrigger Binding source was not found");
                 }
-                auto* source = static_cast<::Aero::DependencyObject*>(
-                    sourceObject);
                 const Base::StringView path =
                     binding->GetPath().GetPath();
-                const Meta::DependencyProperty* property =
-                    ::Aero::MetadataPrivate::
-                        DependencyProperties(*metadata).Find(
-                            source->RuntimeType(), path);
-                if (property == nullptr) {
-                    return Base::Status::Failure(
-                        Base::ErrorCode::NotFound,
-                        "Style DataTrigger Binding path was not found");
+                ::Aero::DependencyObject* dependencySource = nullptr;
+                const Meta::DependencyProperty* dependencyProperty = nullptr;
+                Meta::MemberId metadataProperty = Meta::InvalidMemberId;
+                if (metadata->Types().IsDerivedFrom(
+                        sourceObject->RuntimeType(),
+                        ::Aero::DependencyObject::StaticTypeId())) {
+                    dependencySource =
+                        static_cast<::Aero::DependencyObject*>(sourceObject);
+                    dependencyProperty =
+                        ::Aero::MetadataPrivate::
+                            DependencyProperties(*metadata).Find(
+                                sourceObject->RuntimeType(), path);
+                }
+                if (dependencyProperty == nullptr) {
+                    Base::StringView rootPath = path;
+                    for (std::uint32_t pathIndex = 0U;
+                         pathIndex < path.SizeBytes(); ++pathIndex) {
+                        if (path[pathIndex] == '.') {
+                            rootPath = path.Substr(0U, pathIndex);
+                            break;
+                        }
+                    }
+                    const Meta::PropertyInfo* clrProperty =
+                        metadata->Types().FindProperty(
+                            sourceObject->RuntimeType(), rootPath, true);
+                    if (clrProperty == nullptr ||
+                        !metadata->CanReadProperty(clrProperty->Id())) {
+                        return Base::Status::Failure(
+                            Base::ErrorCode::NotFound,
+                            "Style DataTrigger Binding path was not found");
+                    }
+                    metadataProperty = clrProperty->Id();
+                    dependencySource = nullptr;
                 }
 
                 StyleDataTriggerHandlerState* context = nullptr;
@@ -314,8 +453,13 @@ Base::Result<std::uint32_t> InteractivityEngine::StartStyleDataTriggers(
                 context->conditionIndex = conditionIndex;
                 context->aggregate = aggregate;
                 context->ownsAggregate = ownsAggregate;
-                context->source = source;
-                context->property = property->Handle();
+                context->source = dependencySource;
+                context->metadataSource =
+                    dependencyProperty == nullptr ? sourceObject : nullptr;
+                context->property = dependencyProperty != nullptr
+                    ? dependencyProperty->Handle()
+                    : Meta::DependencyPropertyHandle{};
+                context->metadataProperty = metadataProperty;
                 context->expected = expected;
                 auto callback = [context](
                     ::Aero::DependencyObject& object,
@@ -324,9 +468,23 @@ Base::Result<std::uint32_t> InteractivityEngine::StartStyleDataTriggers(
                         context->Invoke(object, args);
                     };
                 Meta::DependencyPropertyChangedEventHandler handler(callback);
-                Base::Result<void> subscribed =
-                    source->AddValueChangedHandlerChecked(
-                        property->Handle(), handler);
+                std::uint64_t metadataSubscription = 0U;
+                Base::Result<void> subscribed;
+                if (dependencyProperty != nullptr) {
+                    subscribed = dependencySource->AddValueChangedHandlerChecked(
+                        dependencyProperty->Handle(), handler);
+                } else {
+                    Base::Result<std::uint64_t> notification =
+                        metadata->SubscribePropertyChanged(
+                            *sourceObject,
+                            &StyleDataTriggerHandlerState::MetadataInvoke,
+                            context);
+                    if (notification) {
+                        metadataSubscription = notification.Value();
+                    } else {
+                        subscribed = notification.GetStatus();
+                    }
+                }
                 if (!subscribed) {
                     FreeObject(
                         *allocator,
@@ -336,23 +494,37 @@ Base::Result<std::uint32_t> InteractivityEngine::StartStyleDataTriggers(
                 }
                 StyleDataTriggerSubscription subscription;
                 subscription.target = &target;
-                subscription.source = source;
-                subscription.property = property->Handle();
+                subscription.source = dependencySource;
+                subscription.metadataSource =
+                    dependencyProperty == nullptr ? sourceObject : nullptr;
+                subscription.property = dependencyProperty != nullptr
+                    ? dependencyProperty->Handle()
+                    : Meta::DependencyPropertyHandle{};
+                subscription.metadataSubscription = metadataSubscription;
                 subscription.handler = handler;
                 subscription.context = context;
                 Base::Result<void> retained =
                     styleDataTriggerSubscriptions.PushBack(
                         std::move(subscription));
                 if (!retained) {
-                    (void)source->RemoveValueChangedHandler(
-                        property->Handle(), handler);
+                    if (dependencyProperty != nullptr) {
+                        (void)dependencySource->RemoveValueChangedHandler(
+                            dependencyProperty->Handle(), handler);
+                    } else if (metadataSubscription != 0U) {
+                        static_cast<void>(metadata->UnsubscribePropertyChanged(
+                            *sourceObject, metadataSubscription));
+                    }
                     FreeObject(
                         *allocator,
                         Base::MemoryTag::Ui,
                         context);
                     return retained.GetStatus();
                 }
-                return EvaluateStyleDataTrigger(*context);
+                // Defer the first evaluation until DataBind. Evaluating
+                // here runs SetBindingTriggerState inside ApplyViewUi /
+                // item generation, which can re-enter the property engine
+                // and prevent the first frame from completing.
+                return pendingStyleDataTriggerEvaluations.PushBack(context);
             };
 
             Base::Result<void> attached = attachCondition(
@@ -406,6 +578,30 @@ void InteractivityEngine::StyleDataTriggerHandlerState::Invoke(
         runtime->EvaluateStyleDataTrigger(*this);
     if (!evaluated) {
         runtime->animationEventStatus =
+            evaluated.GetStatus();
+    }
+}
+
+void InteractivityEngine::StyleDataTriggerHandlerState::MetadataInvoke(
+    Base::Object&,
+    Meta::MemberId property,
+    void* context) noexcept
+{
+    auto* state = static_cast<StyleDataTriggerHandlerState*>(context);
+    if (state == nullptr ||
+        (state->metadataProperty != Meta::InvalidMemberId &&
+         property != Meta::InvalidMemberId &&
+         property != state->metadataProperty)) {
+        return;
+    }
+    if (state->runtime == nullptr ||
+        !state->runtime->animationEventStatus.IsOk()) {
+        return;
+    }
+    Base::Result<void> evaluated =
+        state->runtime->EvaluateStyleDataTrigger(*state);
+    if (!evaluated) {
+        state->runtime->animationEventStatus =
             evaluated.GetStatus();
     }
 }

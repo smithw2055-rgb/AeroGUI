@@ -1543,7 +1543,9 @@ Base::Result<std::uint32_t> BindingEngine::Flush() noexcept {
         }
         const bool metadataPath =
             record.sourceKind != BindingSourceKind::DependencyProperty;
-        const bool hasNotify = record.notificationSubscription != 0U;
+        const bool hasNotify =
+            record.notificationSubscription != 0U ||
+            record.sourceDependencyProperty.IsValid();
         const bool unresolvedDataContext =
             record.sourceKind == BindingSourceKind::DataContext &&
             (!record.applied || record.metadataSource == nullptr ||
@@ -1784,6 +1786,11 @@ void BindingEngine::OnPropertyChanged(
             record.descriptor.sourceProperty == args.GetProperty()) {
             record.sourceDirty = true;
         }
+        if (record.sourceDependencyProperty.IsValid() &&
+            record.metadataSource == &object &&
+            record.sourceDependencyProperty == args.GetProperty()) {
+            record.sourceDirty = true;
+        }
         if (record.sourceKind == BindingSourceKind::DataContext &&
             record.dataContextProperty == args.GetProperty() &&
             BindingOwnerSeesDataContextChange(
@@ -1830,8 +1837,11 @@ void BindingEngine::OnMetadataPropertyChanged(
             record.pathPlan.Segments().Empty()) {
             continue;
         }
+        const BindingPathSegment& first =
+            record.pathPlan.Segments()[0];
         if (property == InvalidMemberId ||
-            record.pathPlan.Segments()[0].member == property) {
+            first.member == property ||
+            first.dynamic) {
             record.sourceDirty = true;
         }
     }
@@ -2371,11 +2381,46 @@ Base::Result<void> BindingEngine::SubscribeMetadataSource(
         this);
     if (!subscribed) return subscribed.GetStatus();
     record.notificationSubscription = subscribed.Value();
+    record.sourceDependencyProperty = {};
+    if (!record.bindsToSource &&
+        !record.pathPlan.Segments().Empty()) {
+        if (auto* sourceObject =
+                ::Aero::TryCast<::Aero::DependencyObject>(
+                    record.metadataSource)) {
+            const BindingPathSegment& first =
+                record.pathPlan.Segments()[0];
+            if (!first.dynamic && first.member != InvalidMemberId) {
+                DependencyPropertyHandle handle{first.member};
+                if (sourceObject->PropertyRegistry().Find(handle) !=
+                    nullptr) {
+                    Base::Result<void> hooked =
+                        sourceObject->AddValueChangedHandlerChecked(
+                            handle, propertyChangedHandler_);
+                    if (!hooked) {
+                        ReleaseMetadataSource(record);
+                        return hooked.GetStatus();
+                    }
+                    record.sourceDependencyProperty = handle;
+                }
+            }
+        }
+    }
     return {};
 }
 
 void BindingEngine::ReleaseMetadataSource(
     BindingRecord& record) noexcept {
+    if (record.sourceDependencyProperty.IsValid() &&
+        record.metadataSource != nullptr) {
+        if (auto* sourceObject =
+                ::Aero::TryCast<::Aero::DependencyObject>(
+                    record.metadataSource)) {
+            (void)sourceObject->RemoveValueChangedHandler(
+                record.sourceDependencyProperty,
+                propertyChangedHandler_);
+        }
+    }
+    record.sourceDependencyProperty = {};
     if (record.notificationSubscription != 0U &&
         record.metadata != nullptr &&
         record.metadataSource != nullptr) {

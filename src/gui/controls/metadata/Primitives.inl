@@ -79,6 +79,9 @@ Base::Result<void> PopulateControlsPrimitives(
         .Override(
             UIElement::FocusableProperty,
             FrameworkPropertyMetadata(true))
+        .Override(
+            UIElement::IsTabStopProperty,
+            FrameworkPropertyMetadata(true))
         .Property(
             Control::BackgroundProperty,
             FrameworkPropertyMetadata(

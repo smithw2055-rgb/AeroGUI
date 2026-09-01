@@ -149,4 +149,16 @@ struct TextInputDispatchResult {
 
 } // namespace Aero::Input
 
+// Device/input-type headers (Mouse, Keyboard, Cursor, Cursors, DataObject,
+// DragDrop) depend on the enums/aliases declared above (KeyboardModifiers,
+// DragDropEffects). They are included at file scope (each reopens
+// namespace Aero::Input) so the declarations are available to consumers that
+// include only <Aero/Input.hpp>.
+#include <Aero/DataObject.hpp>
+#include <Aero/DragDrop.hpp>
+#include <Aero/Input/Cursor.hpp>
+#include <Aero/Input/Cursors.hpp>
+#include <Aero/Input/Keyboard.hpp>
+#include <Aero/Input/Mouse.hpp>
+
 AERO_DECLARE_TYPE_ENUM(Aero::Input::DragDropEffects)

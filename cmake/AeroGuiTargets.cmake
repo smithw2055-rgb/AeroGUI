@@ -84,6 +84,12 @@ set(_aero_gui_styles_sources
 set(_aero_gui_input_sources
     src/gui/input/Commands.cpp
     src/gui/input/Input.cpp
+    src/gui/input/Cursor.cpp
+    src/gui/input/Cursors.cpp
+    src/gui/input/Mouse.cpp
+    src/gui/input/Keyboard.cpp
+    src/gui/input/DataObject.cpp
+    src/gui/input/DragDrop.cpp
     src/gui/input/Clipboard.cpp
     src/gui/input/OverlayHost.cpp)
 

@@ -105,6 +105,8 @@ public:
     Base::Result<void> DetachObject(
         DependencyObject& object) noexcept;
 
+    void Shutdown() noexcept;
+
     std::uint32_t TrackedPropertyCount() const noexcept {
         return pending_.Size();
     }
@@ -584,6 +586,9 @@ public:
     Base::Result<void> DetachObject(
         DependencyObject& object) noexcept {
         return session_.DetachObject(object);
+    }
+    Base::Result<std::uint32_t> Flush() noexcept {
+        return session_.Flush();
     }
 
 private:

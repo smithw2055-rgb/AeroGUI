@@ -284,7 +284,6 @@ struct X11WindowState {
             if (closeAtom != 0U &&
                 static_cast<Atom>(
                     native.xclient.data.l[0]) == closeAtom) {
-                open = false;
                 WindowEvent event;
                 event.type = WindowEventType::CloseRequested;
                 Push(event);

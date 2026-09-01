@@ -183,6 +183,8 @@ Base::Result<BindingPathPlan> BindingPathPlan::Compile(
     while (begin < path.SizeBytes()) {
         std::uint32_t end = begin;
         const bool attachedSyntax = path[begin] == '(';
+        std::uint32_t attachedIndexOpen = UINT32_MAX;
+        std::uint32_t attachedIndexClose = UINT32_MAX;
         if (attachedSyntax) {
             while (end < path.SizeBytes() && path[end] != ')') ++end;
             if (end >= path.SizeBytes()) {
@@ -195,15 +197,66 @@ Base::Result<BindingPathPlan> BindingPathPlan::Compile(
                         "Binding attached-property segment is missing ')'"));
             }
             ++end;
+            if (end < path.SizeBytes() && path[end] == '[') {
+                attachedIndexOpen = end;
+                attachedIndexClose = end + 1U;
+                while (attachedIndexClose < path.SizeBytes() &&
+                    path[attachedIndexClose] != ']') {
+                    ++attachedIndexClose;
+                }
+                if (attachedIndexClose >= path.SizeBytes()) {
+                    return RecordCompileError(
+                        error, segmentIndex, currentType,
+                        path.Substr(begin, path.SizeBytes() - begin),
+                        InvalidPath(
+                            "Binding collection index syntax is invalid"));
+                }
+                end = attachedIndexClose + 1U;
+            }
         } else {
             while (end < path.SizeBytes() && path[end] != '.') ++end;
         }
         const Base::StringView authoredName =
-            TrimAscii(path.Substr(begin, end - begin));
+            TrimAscii(path.Substr(
+                begin,
+                (attachedIndexOpen != UINT32_MAX
+                    ? attachedIndexOpen
+                    : end) - begin));
         Base::StringView name = authoredName;
         bool hasCollectionIndex = false;
         std::uint32_t collectionIndex = UINT32_MAX;
-        if (!attachedSyntax) {
+        if (attachedIndexOpen != UINT32_MAX) {
+            if (attachedIndexClose <= attachedIndexOpen + 1U) {
+                return RecordCompileError(
+                    error, segmentIndex, currentType, authoredName,
+                    InvalidPath(
+                        "Binding collection index syntax is invalid"));
+            }
+            std::uint64_t parsedIndex = 0U;
+            for (std::uint32_t index = attachedIndexOpen + 1U;
+                 index < attachedIndexClose; ++index) {
+                const char digit = path[index];
+                if (digit < '0' || digit > '9') {
+                    return RecordCompileError(
+                        error, segmentIndex, currentType, authoredName,
+                        InvalidPath(
+                            "Binding collection index must be an unsigned integer"));
+                }
+                parsedIndex = parsedIndex * 10U +
+                    static_cast<std::uint64_t>(digit - '0');
+                if (parsedIndex >
+                    static_cast<std::uint64_t>(UINT32_MAX)) {
+                    return RecordCompileError(
+                        error, segmentIndex, currentType, authoredName,
+                        Base::Status::Failure(
+                            Base::ErrorCode::OutOfRange,
+                            "Binding collection index is out of range"));
+                }
+            }
+            collectionIndex =
+                static_cast<std::uint32_t>(parsedIndex);
+            hasCollectionIndex = true;
+        } else if (!attachedSyntax) {
             std::uint32_t open = authoredName.SizeBytes();
             for (std::uint32_t index = 0U;
                  index < authoredName.SizeBytes(); ++index) {
@@ -290,7 +343,10 @@ Base::Result<BindingPathPlan> BindingPathPlan::Compile(
                     segment.outputType =
                         Meta::TypeOf<Base::Object>();
                     segment.readable = true;
-                    segment.writable = false;
+                    // Runtime object members (SelectedQuest on a ViewModel
+                    // typed only as Object at compile time) still write back
+                    // through SetProperty when the concrete setter exists.
+                    segment.writable = true;
                     segment.dynamic = true;
                     plan.hasDynamicResult_ = true;
                 } else {
@@ -346,7 +402,7 @@ Base::Result<BindingPathPlan> BindingPathPlan::Compile(
             segment.kind = BindingPathSegmentKind::ObjectProperty;
             segment.outputType = Meta::TypeOf<Base::Object>();
             segment.readable = true;
-            segment.writable = false;
+            segment.writable = true;
             segment.dynamic = true;
             plan.hasDynamicResult_ = true;
         } else if (input->Kind() == MetadataTypeKind::Struct) {
@@ -572,9 +628,22 @@ Base::Result<Value> BindingPathPlan::GetObject(
                 true);
         if (property == nullptr ||
             !runtime.CanReadProperty(property->Id())) {
+            const TypeInfo* rt =
+                runtime.Types().FindType(object.RuntimeType());
+            const Base::StringView rtName =
+                rt != nullptr ? rt->Name() : Base::StringView("<unknown>");
+            thread_local char message[384];
+            std::snprintf(
+                message,
+                sizeof(message),
+                "Binding dynamic path property '%.*s' was not found on '%.*s'",
+                static_cast<int>(segment.dynamicName.View().SizeBytes()),
+                segment.dynamicName.View().Data(),
+                static_cast<int>(rtName.SizeBytes()),
+                rtName.Data());
             return Base::Status::Failure(
                 Base::ErrorCode::NotFound,
-                "Binding dynamic path property was not found");
+                message);
         }
         member = property->Id();
     }

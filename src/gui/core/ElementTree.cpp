@@ -14,6 +14,8 @@
 #include <Aero/Controls/ControlTemplate.hpp>
 
 
+#include "gui/data/BindingEngine.hpp"
+#include "gui/styles/StyleEngine.hpp"
 #include "render/RenderTree.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/markup/MarkupState.hpp"
@@ -207,13 +209,42 @@ DependencyObject* LogicalTreeHelper::GetChild(
     return nullptr;
 }
 
+void ElementTree::InvalidateNodeHandle(::Aero::Media::Visual& node) noexcept {
+    const VisualHandle handle{node.handleIndex_, node.handleGeneration_};
+    if (handle.IsValid() && handle.index < handles_.Size()) {
+        UntrackInheritedValues(node);
+        HandleEntry& entry = handles_[handle.index];
+        if (entry.node == &node) {
+            entry.node = nullptr;
+            ++entry.generation;
+            if (entry.generation == 0U) ++entry.generation;
+        }
+    }
+    if (bindings_ != nullptr) {
+        static_cast<void>(bindings_->DetachObject(node));
+    }
+    if (styles_ != nullptr) {
+        if (auto* element = ::Aero::TryCast<UIElement>(&node)) {
+            static_cast<void>(styles_->DetachObject(*element));
+        }
+    }
+    if (values_ != nullptr) {
+        static_cast<void>(values_->DetachObject(node));
+    }
+    node.handleIndex_ = UINT32_MAX;
+    node.handleGeneration_ = 0U;
+}
+
 Media::Visual::~Visual() {
     // A discarded document may still own a parented visual subtree after the
     // ElementTree unmount walk. Tear the node out of tree/layout/render state
     // instead of asserting: WPF allows GC of a still-parented visual.
+    if (tree_ != nullptr) {
+        tree_->InvalidateNodeHandle(*this);
+    }
     tree_ = nullptr;
-    logicalParent_ = nullptr;
     visualParent_ = nullptr;
+    logicalParent_ = nullptr;
     visualFlags_ = static_cast<std::uint8_t>(
         visualFlags_ & static_cast<std::uint8_t>(
             ~(kFlagLoaded | kFlagRenderAttached | kFlagRenderQueued |
@@ -441,18 +472,7 @@ void ElementTree::InvalidateHandleSubtree(::Aero::Media::Visual& node) noexcept 
     ForEachElementTreeChild(node, [this](::Aero::Media::Visual& child) noexcept {
         InvalidateHandleSubtree(child);
     });
-    const VisualHandle handle{node.handleIndex_, node.handleGeneration_};
-    if (handle.IsValid() && handle.index < handles_.Size()) {
-        UntrackInheritedValues(node);
-        HandleEntry& entry = handles_[handle.index];
-        if (entry.node == &node) {
-            entry.node = nullptr;
-            ++entry.generation;
-            if (entry.generation == 0U) ++entry.generation;
-        }
-    }
-    node.handleIndex_ = UINT32_MAX;
-    node.handleGeneration_ = 0U;
+    InvalidateNodeHandle(node);
 }
 
 Base::Result<void> ElementTree::TrackInheritedValues(
@@ -743,13 +763,12 @@ Base::Result<void> ElementTree::AttachLogical(
 Base::Result<void> ElementTree::DetachLogical(
     ::Aero::Media::Visual& parent,
     ::Aero::Media::Visual& child) noexcept {
-    // A complete logical subtree may already have been removed from this
-    // ElementTree while its internal parent/child ownership is still being
-    // dismantled leaf-first. Finish that detached-subtree relationship without
-    // re-entering inheritance or lifecycle services owned by the old tree.
     if (child.logicalParent_ == &parent &&
         child.tree_ == nullptr && parent.tree_ == nullptr) {
         child.logicalParent_ = nullptr;
+        return {};
+    }
+    if (child.logicalParent_ == nullptr) {
         return {};
     }
     Base::Result<void> verified = VerifyMutation(parent, &child);
@@ -799,27 +818,43 @@ Base::Result<void> ElementTree::AttachVisual(
         ++version_;
         return {};
     }
-    if (child.visualParent_ != nullptr || parent.tree_ != this ||
-        child.tree_ != this) {
+    if ((parent.tree_ != nullptr && parent.tree_ != this) ||
+        (child.tree_ != nullptr && child.tree_ != this)) {
         return InvalidState("Visual nodes must be logical members of this tree");
+    }
+    if (child.visualParent_ != nullptr && child.visualParent_ != &parent) {
+        child.visualParent_->RemoveVisualChild(&child);
     }
     Base::Result<void> stored = EnsureVisualChildStorage(parent, child);
     if (!stored) return stored.GetStatus();
     if (child.visualParent_ != &parent) {
         parent.AddVisualChild(&child);
     }
+    if (parent.tree_ == this && child.tree_ != this) {
+        SetTreeSubtree(child, this);
+    }
     if (parent.PropertyRegistry().Types().IsDerivedFrom(
             parent.RuntimeType(), Controls::Control::StaticTypeId()) &&
         ::Aero::TryCast<::Aero::UIElement>(&(child)) != nullptr) {
         auto& control = static_cast<Controls::Control&>(parent);
-        const bool contentVisual =
+        const bool isContentControl =
             parent.PropertyRegistry().Types().IsDerivedFrom(
                 parent.RuntimeType(),
-                Controls::ContentControl::StaticTypeId()) &&
+                Controls::ContentControl::StaticTypeId());
+        const bool contentVisual =
+            isContentControl &&
             AeroGuiInternal::ContentControlContent(
                 static_cast<Controls::ContentControl&>(parent)) ==
                 ::Aero::TryCast<::Aero::UIElement>(&(child));
-        if (AeroGuiInternal::TemplateRoot(control) == nullptr && !contentVisual) {
+        // ContentControl visual children that arrive through a parent
+        // ControlTemplate (gallery SampleControlTemplate's ScrollViewer →
+        // ContentPresenter) are content, not this control's template root.
+        // Stealing TemplateRoot here prevents the real ScrollViewer template
+        // from laying out, so the sample body measures to 0 height.
+        // TemplateEngine::SetRoot assigns TemplateRoot after AttachElement.
+        if (AeroGuiInternal::TemplateRoot(control) == nullptr &&
+            !contentVisual &&
+            !isContentControl) {
             (void)AeroGuiInternal::SetTemplateRoot(control, ::Aero::TryCast<::Aero::UIElement>(&(child)));
         }
     }
@@ -830,8 +865,10 @@ Base::Result<void> ElementTree::AttachVisual(
 Base::Result<void> ElementTree::DetachVisual(
     ::Aero::Media::Visual& parent,
     ::Aero::Media::Visual& child) noexcept {
-    if (child.visualParent_ == &parent &&
-        child.tree_ == nullptr && parent.tree_ == nullptr) {
+    if (child.visualParent_ == nullptr || child.visualParent_ != &parent) {
+        return {};
+    }
+    if (child.tree_ == nullptr && parent.tree_ == nullptr) {
         parent.RemoveVisualChild(&child);
         return {};
     }
@@ -839,7 +876,8 @@ Base::Result<void> ElementTree::DetachVisual(
     if (!verified) {
         return verified;
     }
-    if (child.visualParent_ != &parent) {
+    if ((child.tree_ != nullptr && child.tree_ != this) ||
+        (parent.tree_ != nullptr && parent.tree_ != this)) {
         return NotFound("Visual parent-child relationship was not found");
     }
     parent.RemoveVisualChild(&child);
@@ -1263,19 +1301,23 @@ Base::Result<void> ElementTree::DetachRoot(
     if (state.root == nullptr) return InvalidState("Root attachment is incomplete");
 
     if (state.renderAttached) {
-        Base::Result<void> result = renderer_->SetRoot(nullptr);
-        if (!result) return result.GetStatus();
+        if (renderer_ != nullptr) {
+            Base::Result<void> result = renderer_->SetRoot(nullptr);
+            if (!result) return result.GetStatus();
+        }
         state.renderAttached = false;
     }
     if (state.layoutAttached) {
-        Base::Result<void> result = layout_->SetRoot(nullptr, {});
-        if (!result) {
-            if (renderer_ != nullptr) {
-                Base::Result<void> restored =
-                    renderer_->SetRoot(state.root);
-                if (restored) state.renderAttached = true;
+        if (layout_ != nullptr) {
+            Base::Result<void> result = layout_->SetRoot(nullptr, {});
+            if (!result) {
+                if (renderer_ != nullptr) {
+                    Base::Result<void> restored =
+                        renderer_->SetRoot(state.root);
+                    if (restored) state.renderAttached = true;
+                }
+                return result.GetStatus();
             }
-            return result.GetStatus();
         }
         state.layoutAttached = false;
     }

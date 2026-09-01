@@ -5,6 +5,7 @@
 #include <Aero/Media/Animation.hpp>
 #include <AeroApp/Application.hpp>
 #include <Aero/Controls.hpp> 
+#include <Aero/Input/Cursor.hpp>
 #include <Aero/Input.hpp>
 #include <Aero/KeyboardNavigation.hpp>
 #include <Aero/Layout.hpp>
@@ -102,6 +103,39 @@ Base::Result<void> PopulateEnumMetadata(
             .Value("Move", ::Aero::Input::DragDropEffects::Move)
             .Value("Link", ::Aero::Input::DragDropEffects::Link)
             .Value("All", ::Aero::Input::DragDropEffects::All););
+    AERO_REGISTER_ENUM(
+        ::Aero::Input::CursorType,
+        "CursorType",
+        description
+            .Value("None", ::Aero::Input::CursorType::None)
+            .Value("No", ::Aero::Input::CursorType::No)
+            .Value("Arrow", ::Aero::Input::CursorType::Arrow)
+            .Value("AppStarting", ::Aero::Input::CursorType::AppStarting)
+            .Value("Cross", ::Aero::Input::CursorType::Cross)
+            .Value("Help", ::Aero::Input::CursorType::Help)
+            .Value("IBeam", ::Aero::Input::CursorType::IBeam)
+            .Value("SizeAll", ::Aero::Input::CursorType::SizeAll)
+            .Value("SizeNESW", ::Aero::Input::CursorType::SizeNESW)
+            .Value("SizeNS", ::Aero::Input::CursorType::SizeNS)
+            .Value("SizeNWSE", ::Aero::Input::CursorType::SizeNWSE)
+            .Value("SizeWE", ::Aero::Input::CursorType::SizeWE)
+            .Value("UpArrow", ::Aero::Input::CursorType::UpArrow)
+            .Value("Wait", ::Aero::Input::CursorType::Wait)
+            .Value("Hand", ::Aero::Input::CursorType::Hand)
+            .Value("Pen", ::Aero::Input::CursorType::Pen)
+            .Value("ScrollNS", ::Aero::Input::CursorType::ScrollNS)
+            .Value("ScrollWE", ::Aero::Input::CursorType::ScrollWE)
+            .Value("ScrollAll", ::Aero::Input::CursorType::ScrollAll)
+            .Value("ScrollN", ::Aero::Input::CursorType::ScrollN)
+            .Value("ScrollS", ::Aero::Input::CursorType::ScrollS)
+            .Value("ScrollW", ::Aero::Input::CursorType::ScrollW)
+            .Value("ScrollE", ::Aero::Input::CursorType::ScrollE)
+            .Value("ScrollNW", ::Aero::Input::CursorType::ScrollNW)
+            .Value("ScrollNE", ::Aero::Input::CursorType::ScrollNE)
+            .Value("ScrollSW", ::Aero::Input::CursorType::ScrollSW)
+            .Value("ScrollSE", ::Aero::Input::CursorType::ScrollSE)
+            .Value("ArrowCD", ::Aero::Input::CursorType::ArrowCD)
+            .Value("Custom", ::Aero::Input::CursorType::Custom););
     AERO_REGISTER_ENUM(
         ::Aero::Input::KeyboardNavigationMode,
         "KeyboardNavigationMode",

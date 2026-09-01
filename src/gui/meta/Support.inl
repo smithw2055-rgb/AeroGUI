@@ -757,11 +757,8 @@ void AddStoryboardTimeline(
     void*) noexcept {
     if (!value) return;
     Base::Ref<Media::Animation::Timeline> retained =
-        Base::Ref<Media::Animation::Timeline>::TryFromBorrowed(
+        Base::Ref<Media::Animation::Timeline>::FromBorrowed(
             static_cast<Media::Animation::Timeline&>(*value));
-    if (!retained) {
-        return;
-    }
     static_cast<void>(
         static_cast<Media::Animation::TimelineGroup&>(owner)
             .AddChild(std::move(retained)));

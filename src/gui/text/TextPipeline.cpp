@@ -86,6 +86,32 @@ std::string NormalizedFontName(
     return normalized;
 }
 
+std::string AbbreviatedPackFaceName(
+    const std::string& normalized) {
+    struct FaceSuffix {
+        const char* name;
+        const char* abbreviation;
+    };
+    constexpr FaceSuffix suffixes[] = {
+        {"semilight", "l"},
+        {"semibold", "b"}};
+    for (const FaceSuffix& suffix : suffixes) {
+        const std::size_t length = std::strlen(suffix.name);
+        if (normalized.size() < length ||
+            normalized.compare(
+                normalized.size() - length,
+                length,
+                suffix.name) != 0) {
+            continue;
+        }
+        std::string abbreviated =
+            normalized.substr(0U, normalized.size() - length);
+        abbreviated += suffix.abbreviation;
+        return abbreviated;
+    }
+    return {};
+}
+
 bool IsSupportedFontFile(
     const std::filesystem::path& path) {
     std::string extension =
@@ -133,6 +159,8 @@ Base::Result<bool> SelectPackFontPath(
         family.SizeBytes() - hash - 1U);
     const std::string normalizedRequest =
         NormalizedFontName(requested);
+    const std::string abbreviatedRequest =
+        AbbreviatedPackFaceName(normalizedRequest);
     if (directoryText.empty() ||
         normalizedRequest.empty()) {
         return false;
@@ -185,7 +213,10 @@ Base::Result<bool> SelectPackFontPath(
         else preferred += "regular";
         const bool candidateIsRegular =
             candidate == preferred ||
-            (!bold && !italic && candidate == normalizedRequest);
+            (!bold && !italic &&
+             (candidate == normalizedRequest ||
+              (!abbreviatedRequest.empty() &&
+               candidate == abbreviatedRequest)));
         std::size_t prefix = 0U;
         while (prefix < candidate.size() &&
             prefix < normalizedRequest.size() &&
@@ -212,10 +243,12 @@ Base::Result<bool> SelectPackFontPath(
             bestDistance = distance;
         }
     }
-    if (error || best.empty() ||
-        bestPrefix == 0U) {
+    if (error || best.empty()) {
         return false;
     }
+    // No filename prefix match (Fonts/#PT Root UI vs Muli/Caladea) still
+    // yields a face from that directory so text measure is non-zero.
+    static_cast<void>(bestPrefix);
 
     const std::string selected =
         best.string();
@@ -283,9 +316,8 @@ Base::Result<void> SelectFontPath(
                     combined.View());
             }
         }
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            "Configured font path does not exist");
+        // Pack FontFamily such as Fonts/#PT Root UI is not a file path.
+        // Fall through to family-name / system UI face substitution.
     }
 
 #if defined(_WIN32)
@@ -370,13 +402,9 @@ Base::Result<void> SelectFontPath(
     }
 #endif
 
-    if (!family.Empty()) {
-        if (configured == nullptr ||
-            !FileExists(configured)) {
-            return Base::Status::Failure(
-                Base::ErrorCode::NotFound,
-                "Configured font family is unavailable");
-        }
+    if (!family.Empty() &&
+        configured != nullptr &&
+        FileExists(configured)) {
         return Assign(
             output,
             Base::StringView(

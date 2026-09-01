@@ -1,9 +1,9 @@
 #include "gui/ViewState.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
+#include "gui/internal/InputDevicesState.hpp"
 
 #include <algorithm>
 #include <cmath>
-#include <cstdio>
 #include <cstring>
 #include <limits>
 #include <new>
@@ -23,6 +23,35 @@ Base::Result<Input::PointerDispatchResult> DispatchPointer(
         return ViewNotInitialized(
             "Pointer input requires a mounted View");
     }
+    Input::DeviceState::SetActiveRouter(state.input);
+    Input::DeviceState::SetLastPointerPosition(input.position);
+    // Close popups on an outside press *before* routing, then hit-test
+    // again. Otherwise a stale open Popup overlay keeps capturing the
+    // sidebar (and ComboBox toggles reopen the theme dropdown).
+    if (state.overlays != nullptr &&
+        input.action == Input::PointerAction::Down) {
+        Aero::UIElement* preTarget = nullptr;
+        Aero::Media::Visual* root = state.RootVisual();
+        if (root != nullptr) {
+            Base::Result<Input::HitTestResult> preHit =
+                state.input->HitTest(*root, input.position);
+            if (!preHit) {
+                return preHit.GetStatus();
+            }
+            preTarget = preHit.Value().target;
+        }
+        Base::Result<void> dismissed =
+            state.overlays->DismissOverlaysForPointer(
+                input, preTarget);
+        if (!dismissed) {
+            return dismissed.GetStatus();
+        }
+        Base::Result<void> synced =
+            state.overlays->SynchronizeOverlays();
+        if (!synced) {
+            return synced.GetStatus();
+        }
+    }
     Base::Result<
         Input::PointerDispatchResult>
         dispatched =
@@ -34,12 +63,6 @@ Base::Result<Input::PointerDispatchResult> DispatchPointer(
         dispatched.Value().hit.target;
     if (state.overlays == nullptr) {
         return dispatched;
-    }
-    Base::Result<void> dismissed =
-        state.overlays->DismissOverlaysForPointer(
-            input, target);
-    if (!dismissed) {
-        return dismissed.GetStatus();
     }
     Base::Result<void> toolTip =
         state.overlays->UpdateToolTipForPointer(
@@ -64,6 +87,8 @@ DispatchKeyboard(
         return ViewNotInitialized(
             "Keyboard input requires a mounted View");
     }
+    Input::DeviceState::SetActiveRouter(state.input);
+    Input::DeviceState::SetLastModifiers(input.modifiers);
     if (input.action ==
             Input::KeyboardAction::Down &&
         input.key ==

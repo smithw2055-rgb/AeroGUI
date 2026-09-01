@@ -638,6 +638,29 @@ void UIElement::CleanupHandlers() noexcept {
 
 // from src/gui/controls/Layout.cpp
 
+Base::Result<void> UIElement::EnsureRoutedHandlers() noexcept {
+    Base::Result<void> access = VerifyAccess();
+    if (!access) return access.GetStatus();
+    auto* state = static_cast<UIElementHandlerState*>(
+        (rare_ != nullptr ? rare_->routedHandlers : nullptr));
+    if (state != nullptr) return Base::Result<void>();
+    Base::IAllocator& allocator = Base::GetDefaultAllocator();
+    void* memory = allocator.Allocate({
+        sizeof(UIElementHandlerState),
+        alignof(UIElementHandlerState),
+        Base::MemoryTag::Ui});
+    if (memory == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "Routed event handler state allocation failed");
+    }
+    state = new (memory) UIElementHandlerState();
+    EnsureRare().routedHandlers = state;
+    return Base::Result<void>();
+}
+
+// from src/gui/controls/Layout.cpp
+
 void UIElement::InvokeHandlers(
     RoutedEventHandle event,
     RoutedEventArgs& args) noexcept {

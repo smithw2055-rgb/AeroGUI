@@ -1135,24 +1135,61 @@ void UiFrameEncoder::ProcessCommand(
         const uint32_t color32 = ColorToRGBA32(c, 1.0);
 
         if (mappedVertices_ == nullptr || mappedIndices_ == nullptr) break;
-        if (currentVertexCount_ + mesh->vertices.Size() > (DYNAMIC_VB_SIZE / sizeof(Vertex2D)) ||
-            currentIndexCount_ + mesh->indices.Size() > (DYNAMIC_IB_SIZE / sizeof(uint16_t))) {
-            FlushBatch();
+
+        // Slabs must fit the mapped dynamic buffers, not just the 16-bit
+        // index range. Scoreboard's emblem Paths tessellate far past 512KB
+        // (DYNAMIC_VB_SIZE / sizeof(Vertex2D) ≈ 21k verts); splitting only
+        // at 65535 still memcpy'd past MapVertices and SIGSEGV'd.
+        constexpr std::uint32_t kMaxBatchVertices =
+            static_cast<std::uint32_t>(DYNAMIC_VB_SIZE / sizeof(Vertex2D));
+        constexpr std::uint32_t kMaxBatchIndices =
+            static_cast<std::uint32_t>(DYNAMIC_IB_SIZE / sizeof(uint16_t));
+        constexpr std::uint32_t kMaxMeshVertices =
+            kMaxBatchVertices < 65535U ? kMaxBatchVertices : 65535U;
+
+        auto remapDynamicBuffers = [&]() noexcept -> bool {
             if (mappedVertices_ == nullptr || mappedIndices_ == nullptr) {
-                mappedVertices_ = static_cast<uint8_t*>(device_->MapVertices(DYNAMIC_VB_SIZE));
-                mappedIndices_ = static_cast<uint16_t*>(device_->MapIndices(DYNAMIC_IB_SIZE));
+                if (device_ == nullptr) return false;
+                mappedVertices_ = static_cast<uint8_t*>(
+                    device_->MapVertices(DYNAMIC_VB_SIZE));
+                mappedIndices_ = static_cast<uint16_t*>(
+                    device_->MapIndices(DYNAMIC_IB_SIZE));
             }
             currentVertexOffset_ = 0U;
             currentVertexCount_ = 0U;
             currentIndexCount_ = 0U;
             currentBatch_.startIndex = 0U;
             currentBatch_.vertexOffset = 0U;
-        }
-        if (mappedVertices_ == nullptr || mappedIndices_ == nullptr) break;
+            return mappedVertices_ != nullptr && mappedIndices_ != nullptr;
+        };
 
-        // 16-bit indices cap a single contiguous vertex run at 65536; oversized
-        // meshes are emitted in slabs that fit, rebasing indices per slab.
-        constexpr std::uint32_t kMaxMeshVertices = 65535U;
+        auto writeMeshSlab = [&](
+            std::uint32_t start,
+            std::uint32_t end) noexcept {
+            auto* v = reinterpret_cast<Vertex2D*>(
+                mappedVertices_ + currentVertexOffset_);
+            for (std::uint32_t index = start; index < end; ++index) {
+                const Point pos = TransformPoint(
+                    currentTransform,
+                    mesh->vertices[index].x,
+                    mesh->vertices[index].y);
+                const std::uint32_t local = index - start;
+                v[local].x = static_cast<float>(pos.x);
+                v[local].y = static_cast<float>(pos.y);
+                v[local].color = color32;
+                v[local].u = 0.0F;
+                v[local].v = 0.0F;
+                v[local].coverage = 1.0F;
+            }
+        };
+
+        if (currentVertexCount_ + std::min(mesh->vertices.Size(), kMaxMeshVertices) >
+                kMaxBatchVertices ||
+            currentIndexCount_ + 3U > kMaxBatchIndices) {
+            FlushBatch();
+            if (!remapDynamicBuffers()) break;
+        }
+
         const std::uint32_t vertexCount = mesh->vertices.Size();
         const std::uint32_t splitCount =
             (vertexCount + kMaxMeshVertices - 1U) / kMaxMeshVertices;
@@ -1163,39 +1200,19 @@ void UiFrameEncoder::ProcessCommand(
                 start + kMaxMeshVertices, vertexCount);
             const std::uint32_t count = end - start;
 
-            if (currentVertexCount_ + count > (DYNAMIC_VB_SIZE / sizeof(Vertex2D)) ||
-                currentVertexCount_ + count > kMaxMeshVertices ||
-                currentIndexCount_ + mesh->indices.Size() > (DYNAMIC_IB_SIZE / sizeof(uint16_t))) {
+            if (currentVertexCount_ + count > kMaxBatchVertices) {
                 FlushBatch();
-                if (mappedVertices_ == nullptr || mappedIndices_ == nullptr) {
-                    if (device_ != nullptr) {
-                        mappedVertices_ = static_cast<uint8_t*>(device_->MapVertices(DYNAMIC_VB_SIZE));
-                        mappedIndices_ = static_cast<uint16_t*>(device_->MapIndices(DYNAMIC_IB_SIZE));
-                    }
-                }
-                currentVertexOffset_ = 0U;
-                currentVertexCount_ = 0U;
-                currentIndexCount_ = 0U;
-                currentBatch_.startIndex = 0U;
-                currentBatch_.vertexOffset = 0U;
+                if (!remapDynamicBuffers()) break;
             }
             if (mappedVertices_ == nullptr || mappedIndices_ == nullptr) break;
 
-            auto* v = reinterpret_cast<Vertex2D*>(mappedVertices_ + currentVertexOffset_);
-            const uint16_t baseVertex = static_cast<uint16_t>(currentVertexCount_);
-            for (std::uint32_t index = start; index < end; ++index) {
-                const Point pos = TransformPoint(currentTransform, mesh->vertices[index].x, mesh->vertices[index].y);
-                const std::uint32_t local = index - start;
-                v[local].x = static_cast<float>(pos.x);
-                v[local].y = static_cast<float>(pos.y);
-                v[local].color = color32;
-                v[local].u = 0.0F;
-                v[local].v = 0.0F;
-                v[local].coverage = 1.0F;
-            }
-
+            writeMeshSlab(start, end);
+            uint16_t baseVertex = static_cast<uint16_t>(currentVertexCount_);
             std::uint32_t emittedIndices = 0U;
-            for (std::uint32_t index = 0U; index + 2U < mesh->indices.Size(); index += 3U) {
+            bool slabFailed = false;
+            for (std::uint32_t index = 0U;
+                 index + 2U < mesh->indices.Size();
+                 index += 3U) {
                 const std::uint32_t i0 = mesh->indices[index + 0U];
                 const std::uint32_t i1 = mesh->indices[index + 1U];
                 const std::uint32_t i2 = mesh->indices[index + 2U];
@@ -1203,6 +1220,24 @@ void UiFrameEncoder::ProcessCommand(
                     i1 < start || i1 >= end ||
                     i2 < start || i2 >= end) {
                     continue;
+                }
+                if (currentIndexCount_ + emittedIndices + 3U > kMaxBatchIndices) {
+                    currentVertexOffset_ +=
+                        count * static_cast<std::uint32_t>(sizeof(Vertex2D));
+                    currentVertexCount_ += count;
+                    currentIndexCount_ += emittedIndices;
+                    currentBatch_.numVertices += count;
+                    currentBatch_.numIndices += emittedIndices;
+                    stats_.vertexCount += count;
+                    stats_.indexCount += emittedIndices;
+                    FlushBatch();
+                    if (!remapDynamicBuffers()) {
+                        slabFailed = true;
+                        break;
+                    }
+                    writeMeshSlab(start, end);
+                    baseVertex = 0U;
+                    emittedIndices = 0U;
                 }
                 mappedIndices_[currentIndexCount_ + emittedIndices + 0U] =
                     static_cast<uint16_t>(baseVertex + i0 - start);
@@ -1212,8 +1247,10 @@ void UiFrameEncoder::ProcessCommand(
                     static_cast<uint16_t>(baseVertex + i2 - start);
                 emittedIndices += 3U;
             }
+            if (slabFailed) break;
 
-            currentVertexOffset_ += count * static_cast<std::uint32_t>(sizeof(Vertex2D));
+            currentVertexOffset_ +=
+                count * static_cast<std::uint32_t>(sizeof(Vertex2D));
             currentVertexCount_ += count;
             currentIndexCount_ += emittedIndices;
             currentBatch_.numVertices += count;
@@ -1247,8 +1284,8 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
     ResetFrame();
     stats_.sourceCommandCount = frame.Commands().Size();
 
-    device_->BeginOnscreenRender();
     device_->SetRenderTarget(&target);
+    device_->BeginOnscreenRender();
 
     Tile tile;
     tile.x = 0;
@@ -1350,9 +1387,21 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
             static_cast<void>(clipStack_.PushBack(entry));
             ++clipDepth_;
             nodePushedClip = true;
-        } else if (node.clipsToBounds && node.clip.width > 0.0 && node.clip.height > 0.0) {
-            EmitClipQuad(node.clip, nodeTransform, StencilMode::Equal_Incr, clipDepth_);
-            static_cast<void>(clipStack_.PushBack(ClipEntry{node.clip, nodeTransform}));
+        } else if (node.clipsToBounds &&
+                   node.renderSize.width > 0.0 &&
+                   node.renderSize.height > 0.0) {
+            // ClipToBounds is (0,0,RenderSize) in local space. nodeTransform
+            // already includes layoutSlot, so a parent-space layoutClip
+            // would be applied twice and can cull the entire subtree.
+            const Rect localClip{
+                0.0,
+                0.0,
+                node.renderSize.width,
+                node.renderSize.height};
+            EmitClipQuad(
+                localClip, nodeTransform, StencilMode::Equal_Incr, clipDepth_);
+            static_cast<void>(
+                clipStack_.PushBack(ClipEntry{localClip, nodeTransform}));
             ++clipDepth_;
             nodePushedClip = true;
         }
@@ -1460,9 +1509,29 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
 
         const bool hasEffect = node.effect.kind != RenderEffectKind::None;
         const bool hasMask = node.mask.kind != RenderMaskKind::None;
+        const std::uint32_t subtreeCommands = subtreeCommandCount(nodeIndex);
+        // ClipToBounds under a parent scale (outer Viewbox, Intro
+        // ScaleTransform) cannot rely on window stencil: during Opacity<1
+        // the subtree is baked into a texture whose size is the clip, so
+        // items stay visible, then Opacity==1 switches to inline Equal_Keep
+        // and the list vanishes. Rasterizing the clipped subtree into a
+        // local-space layer matches the fade path and is resolution-correct
+        // for axis-aligned clips.
+        const bool needsClipLayer =
+            node.clipsToBounds && subtreeCommands > 0U;
         const bool needsOffscreen =
             hasEffect || hasMask ||
-            (node.opacity < 1.0 && subtreeCommandCount(nodeIndex) > 1U);
+            (node.opacity < 1.0 && subtreeCommands > 1U) ||
+            needsClipLayer;
+
+        // Opacity 0 still participates in hit-testing, but must not take the
+        // offscreen compositing path. A hidden ScrollBar (17px, opacity 0)
+        // was reallocating the default FBO and, before the SetRenderTarget
+        // clear was removed, wiping the window/sidebar/welcome already drawn.
+        if (node.opacity <= 0.0) {
+            nodeIndex = subtreeEndOf(nodeIndex);
+            continue;
+        }
 
         if (!needsOffscreen) {
             const bool pushedClip =

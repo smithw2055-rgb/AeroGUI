@@ -17,6 +17,17 @@ namespace {
 
 constexpr float GlyphRasterScale = 4.0F;
 
+std::uint32_t AllocateAtlasPage() noexcept {
+    static std::uint32_t next = 1U;
+    return next++;
+}
+
+RenderGlyphRunId AllocateGlyphRunId() noexcept {
+    static RenderGlyphRunId next = 1U;
+    return next++;
+}
+
+
 bool IsValidConfig(const TextConfig& config) noexcept {
     auto validFace = [](const Text::FontFace& face) noexcept {
         return face.handle.IsValid() &&
@@ -45,6 +56,7 @@ struct TextRendererState {
     TextConfig config;
     Text::GlyphAtlas atlas;
     Base::Vector<Ref<Texture>> pageTextures;
+    Base::Vector<std::uint32_t> pageIds;
     Base::Vector<RenderGlyphRunId> glyphRuns;
     std::uint64_t nextRunId = 1U;
     std::uint64_t useStamp = 1U;
@@ -55,6 +67,7 @@ struct TextRendererState {
         : config(cfg),
           atlas(allocator),
           pageTextures(allocator),
+          pageIds(allocator),
           glyphRuns(allocator) {}
 };
 
@@ -194,11 +207,18 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
             "GlyphAtlas", atlasConfig.pageWidth, atlasConfig.pageHeight,
             1, TextureFormat::R8, nullptr);
         if (!tex) break;
+        const std::uint32_t globalPage = AllocateAtlasPage();
         if (encoder_ != nullptr) {
-            static_cast<void>(encoder_->RegisterGlyphAtlas(
-                static_cast<std::uint32_t>(state_->pageTextures.Size()), tex));
+            static_cast<void>(encoder_->RegisterGlyphAtlas(globalPage, tex));
         }
+        static_cast<void>(state_->pageIds.PushBack(globalPage));
         static_cast<void>(state_->pageTextures.PushBack(std::move(tex)));
+    }
+    for (std::uint32_t i = 0U; i < quads.Size(); ++i) {
+        const std::uint32_t localPage = quads[i].page;
+        if (localPage < state_->pageIds.Size()) {
+            quads[i].page = state_->pageIds[localPage];
+        }
     }
 
     for (const Text::GlyphAtlasUpload& upload : state_->atlas.PendingUploads()) {
@@ -210,12 +230,12 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
     }
     state_->atlas.ClearPendingUploads();
 
-    if (state_->nextRunId == Render::InvalidRenderGlyphRunId) {
+    const RenderGlyphRunId glyphRun = AllocateGlyphRunId();
+    if (glyphRun == Render::InvalidRenderGlyphRunId) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfRange,
             "Text renderer glyph-run ID space is exhausted");
     }
-    const RenderGlyphRunId glyphRun = state_->nextRunId++;
     if (encoder_ != nullptr) {
         Base::Result<void> registered =
             encoder_->RegisterGlyphRun(glyphRun, quads.AsSpan());

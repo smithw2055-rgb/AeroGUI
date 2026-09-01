@@ -143,6 +143,11 @@
         DependencyPropertyHandle property) noexcept {
         return object.ClearAnimationValueInternal(property);
     }
+    static Base::Result<PropertyValue> GetAnimationBaseValue(
+        DependencyObject& object,
+        DependencyPropertyHandle property) noexcept {
+        return object.GetAnimationBaseValueInternal(property);
+    }
     static Base::Result<void> ApplyInheritedValue(
         DependencyObject& object,
         DependencyPropertyHandle property,

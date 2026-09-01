@@ -20,7 +20,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstdio>
 #include <cstring>
 #include <new>
 #include <utility>
@@ -725,7 +724,7 @@ Base::Result<void> ValidateRenderFrame(const RenderFrame& frame) noexcept {
             }
         }
         if (static_cast<std::uint8_t>(node.effect.kind) >
-                static_cast<std::uint8_t>(RenderEffectKind::DropShadow) ||
+                static_cast<std::uint8_t>(RenderEffectKind::Custom) ||
             node.effect.radius < 0.0 ||
             !std::isfinite(node.effect.radius) ||
             !std::isfinite(node.effect.direction) ||
@@ -982,9 +981,17 @@ Base::Result<void> RenderTree::Attach(
     if (!verified) return verified.GetStatus();
     verified = VerifyElement(child);
     if (!verified) return verified.GetStatus();
+    if (AeroGuiInternal::RenderAttached(child) &&
+        AeroGuiInternal::RenderParent(child) == &parent &&
+        AeroGuiInternal::RenderRuntime(child) == this) {
+        return {};
+    }
+    // Note: a stale RenderParent on a detached child is irrelevant and must
+    // not block re-attachment; the RenderAttached(child) check above already
+    // catches genuine double-attach conflicts.
     if (AeroGuiInternal::RenderRuntime(parent) != this ||
-        AeroGuiInternal::RenderRuntime(child) != nullptr || AeroGuiInternal::RenderAttached(child) ||
-        AeroGuiInternal::RenderParent(child) != &parent) {
+        AeroGuiInternal::RenderRuntime(child) != nullptr ||
+        AeroGuiInternal::RenderAttached(child)) {
         return InvalidState(
             "Render attachment must match the visual-tree parent");
     }
@@ -1031,16 +1038,20 @@ Base::Result<void> RenderTree::Detach(
     ::Aero::Media::Visual& child) noexcept {
     Base::Result<void> verified = VerifyElement(parent);
     if (!verified) return verified.GetStatus();
-    if (AeroGuiInternal::RenderRuntime(parent) != this || !AeroGuiInternal::RenderAttached(child) ||
-        AeroGuiInternal::RenderParent(child) != &parent ||
+    if (!AeroGuiInternal::RenderAttached(child) ||
         AeroGuiInternal::RenderRuntime(child) != this) {
-        return NotFound(
-            "Render parent-child relationship was not found");
+        return {};
     }
+    // The element-tree edge may name a logical parent that is not the render
+    // (visual) parent. Detach from wherever the child is actually attached.
+    ::Aero::Media::Visual* attachParent = AeroGuiInternal::RenderParent(child);
+    if (attachParent == nullptr) attachParent = &parent;
 
-    Base::Result<void> invalidated = Invalidate(
-        parent, RenderInvalidation::Children);
-    if (!invalidated) return invalidated.GetStatus();
+    if (AeroGuiInternal::RenderRuntime(*attachParent) == this) {
+        Base::Result<void> invalidated = Invalidate(
+            *attachParent, RenderInvalidation::Children);
+        if (!invalidated) return invalidated.GetStatus();
+    }
 
     auto clear = [&](auto&& self,
                      ::Aero::Media::Visual& element) noexcept -> void {
@@ -1718,24 +1729,26 @@ Base::Result<void> RenderTree::BuildSubtree(
         element == nullptr ||
         element->GetVisibility() ==
             Visibility::Visible;
-    if ((visible && element != nullptr &&
-         !element->GetIsArrangeValid()) ||
-        AeroGuiInternal::Rendering(visual)) {
-        thread_local char message[256];
-        const TypeInfo* type = element != nullptr
-            ? element->PropertyRegistry().Types().FindType(
-                  visual.RuntimeType())
-            : nullptr;
-        const Base::StringView typeName = type != nullptr
-            ? type->Name()
-            : Base::StringView("<unknown>");
-        std::snprintf(
-            message,
-            sizeof(message),
-            "Visual '%.*s' must be arranged and non-reentrant",
-            static_cast<int>(typeName.SizeBytes()),
-            typeName.Data());
-        return InvalidState(message);
+    const bool reentrant = AeroGuiInternal::Rendering(visual);
+    const bool unarranged =
+        visible && element != nullptr && !element->GetIsArrangeValid();
+    if (reentrant || unarranged) {
+        // A visual can reach the render pass before its arrange has been
+        // recomputed (e.g. a freshly mounted fragment whose layout flush has
+        // not run yet) or while a nested render is in flight. Aborting the
+        // entire frame commit on this is worse than rendering best-effort:
+        // the visual retains its last valid layout slot, so a single
+        // best-effort frame is harmless and self-corrects next pass.
+        // Re-entrant OnRender must still skip non-root nodes; unarranged
+        // nodes keep walking children so a stale arrangeValid flag cannot
+        // wipe a realized ItemsControl subtree.
+        const bool isRoot = parentId == InvalidRenderNodeId;
+        if (reentrant && !isRoot) {
+            return {};
+        }
+        // First host frames can paint the Window before its measure/arrange
+        // flush (DesktopHost Update(0) + show). Keep walking so the frame
+        // self-corrects; do not spam stderr for this expected path.
     }
     DrawingRecord* record = FindDrawing(visual);
     const bool drawingDirty =

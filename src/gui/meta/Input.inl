@@ -77,5 +77,8 @@ Base::Result<void> PopulateUiInput(
     status = Meta::Register<ExecutedRoutedEventArgs>(
         context).Result();
     if (!status) return status.GetStatus();
+
+    status = Meta::Register<Cursor>(context).Result();
+    if (!status) return status.GetStatus();
     return {};
 }

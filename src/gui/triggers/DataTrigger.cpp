@@ -15,4 +15,12 @@ Base::Result<void> DataTrigger::AddAuthoredSetter(
         std::move(setter));
 }
 
+void DataTrigger::SetPropertyName(StringView value) noexcept {
+    static_cast<void>(propertyName_.Assign(value));
+}
+
+void DataTrigger::SetSourceName(StringView value) noexcept {
+    static_cast<void>(sourceName_.Assign(value));
+}
+
 } // namespace Aero

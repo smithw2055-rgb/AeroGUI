@@ -113,9 +113,10 @@ struct RenderNodeSnapshot {
     RenderNodeId parentId = InvalidRenderNodeId;
     Rect layoutSlot;
     Rect clip;
-    // LayoutClip is meaningful to rendering only when the element explicitly
-    // requests bounds clipping. Otherwise a GetRenderTransform (for example the
-    // scale installed by Viewbox) is allowed to paint outside its layout slot.
+    // ClipToBounds clips to local (0,0,RenderSize). layoutClip is stored in
+    // the same local space; a parent-space rect would be double-translated
+    // by layoutSlot. Viewbox scale (and other render transforms) may paint
+    // outside the layout slot when ClipToBounds is false.
     bool clipsToBounds = false;
     Size renderSize;
     ProjectiveTransform2D renderTransform;

@@ -10,6 +10,7 @@
 #include <Aero/Controls/ComboBox.hpp>
 #include <Aero/Controls/ContentControl.hpp>
 #include <Aero/Controls/Grid.hpp>
+#include <Aero/Controls/ItemCollection.hpp>
 #include <Aero/Controls/ItemsControl.hpp>
 #include <Aero/Controls/ListBox.hpp>
 #include <Aero/Controls/ListBoxItem.hpp>
@@ -42,7 +43,6 @@
 #include <Aero/Media/Animation/Duration.hpp>
 #include <Aero/Media/Animation/KeyTime.hpp>
 #include <Aero/Media/Animation/RepeatBehavior.hpp>
-#include <Aero/Media/Animation/Timeline.hpp>
 #include <Aero/Media/ArcSegment.hpp>
 #include <Aero/Media/BezierSegment.hpp>
 #include <Aero/Media/CombinedGeometry.hpp>
@@ -75,6 +75,8 @@
 #include <Aero/Controls/ListView.hpp>
 #include <Aero/Controls/Page.hpp>
 #include <Aero/Controls/PasswordBox.hpp>
+#include <Aero/Controls/Popup.hpp>
+#include <Aero/Controls/Viewbox.hpp>
 #include <Aero/Controls/TreeViewItem.hpp>
 #include <Aero/Controls/UniformGrid.hpp>
 #include <Aero/Controls/UserControl.hpp>
@@ -109,14 +111,18 @@
 #include <Aero/Resources.hpp>
 #include <Aero/Shapes/Rectangle.hpp>
 #include <Aero/Interactivity/Interaction.hpp>
+#include <Aero/KeyboardNavigation.hpp>
 #include <Aero/KeyBinding.hpp>
 #include <Aero/Media/BitmapImage.hpp>
 #include <Aero/Media/BlurEffect.hpp>
 #include <Aero/Media/RotateTransform.hpp>
 #include <Aero/TextProperties.hpp>
+#include <Aero/Controls/Primitives/ToggleButton.hpp>
+#include <Aero/Documents/TextElement.hpp>
 #include <Aero/TryCast.hpp>
 #include <Aero/UIElement.hpp>
 #include <Aero/View.hpp>
+#include <Aero/Visibility.hpp>
 #include <Aero/ViewOptions.hpp>
 #include <Aero/Visual.hpp>
 #include <Aero/VisualStateManager.hpp>
@@ -151,9 +157,11 @@ using Aero::Collections::IItemsSource;
 using Aero::Collections::ObservableCollection;
 using Aero::Collections::ObservableCollectionBase;
 using Aero::Collections::ObservableObjectCollection;
+using Aero::Controls::Border;
 using Aero::Controls::Button;
 using Aero::Controls::Canvas;
 using Aero::Controls::ComboBox;
+using Aero::Controls::ComboBoxItem;
 using Aero::Controls::ContentControl;
 using Aero::Controls::Grid;
 using Aero::Controls::ItemsControl;
@@ -168,6 +176,10 @@ using Aero::Controls::TextBox;
 using Aero::Controls::UniformGrid;
 using Aero::Controls::UserControl;
 using Aero::Controls::VirtualizingStackPanel;
+using Aero::Controls::ClickMode;
+using Aero::Controls::Primitives::RepeatButton;
+using Aero::Controls::Primitives::ToggleButton;
+using Aero::Input::KeyboardNavigation;
 using Aero::Data::BindingExpression;
 using Aero::Data::BindingOperations;
 using Aero::Data::BindingStatus;
@@ -224,6 +236,7 @@ using Aero::TryCast;
 using Aero::TryCastToInterface;
 using Aero::UIElement;
 using Aero::View;
+using Aero::Visibility;
 using Aero::ViewOptions;
 using Aero::ViewViewport;
 using Aero::VisualStateManager;
@@ -251,7 +264,8 @@ using Aero::VisualStateManager;
     } while (false)
 
 constexpr bool Near(double left, double right, double epsilon = 1.0e-4) noexcept {
-    return std::abs(left - right) <= epsilon;
+    const double diff = left - right;
+    return (diff < 0.0 ? -diff : diff) <= epsilon;
 }
 
 bool Contains(StringView haystack, StringView needle) noexcept {
@@ -469,6 +483,15 @@ public:
     Aero::Meta::TypeId RuntimeType() const noexcept override {
         return StaticTypeId();
     }
+    const String& GetTeam() const noexcept {
+        return team_;
+    }
+    void SetTeam(String value) noexcept {
+        team_ = std::move(value);
+    }
+
+private:
+    String team_{};
 };
 
 class BindingPlayer final : public Aero::Base::Object {
@@ -837,6 +860,7 @@ Result<void> RegisterTestTypes(Registration& registration) noexcept {
         .Result();
     if (!named) return named;
     Result<void> slot = Aero::Meta::Register<BindingSlotItem>(registration)
+        .Property<&BindingSlotItem::GetTeam, &BindingSlotItem::SetTeam>("Team")
         .Factory()
         .Result();
     if (!slot) return slot;
@@ -1608,6 +1632,1264 @@ bool TestTransform3DCollapseAndHits() {
     return true;
 }
 
+bool TestViewboxHoverAndPopupFlip() {
+    LiveGui* live = NewLiveGui();
+    CHECK(live != nullptr);
+    View& view = *live->view;
+    view.SetSize({800.0, 600.0});
+
+    constexpr char kTree[] =
+        "<Viewbox xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" "
+        "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
+        "<Grid Width=\"400\" Height=\"300\">"
+        "<Grid.Resources>"
+        "<Style TargetType=\"{x:Type ComboBox}\">"
+        "<Setter Property=\"Template\">"
+        "<Setter.Value>"
+        "<ControlTemplate TargetType=\"{x:Type ComboBox}\">"
+        "<Grid>"
+        "<ToggleButton IsChecked=\"{Binding IsDropDownOpen, Mode=TwoWay, "
+        "RelativeSource={RelativeSource TemplatedParent}}\"/>"
+        "<ContentPresenter ContentSource=\"SelectionBoxItem\" IsHitTestVisible=\"False\"/>"
+        "<Popup x:Name=\"PART_Popup\" IsOpen=\"{Binding IsDropDownOpen, "
+        "RelativeSource={RelativeSource TemplatedParent}}\" Placement=\"Bottom\" "
+        "VerticalOffset=\"1\">"
+        "<Border Background=\"#FF393B40\" MinWidth=\"{TemplateBinding ActualWidth}\">"
+        "<ScrollViewer>"
+        "<ItemsPresenter/>"
+        "</ScrollViewer>"
+        "</Border>"
+        "</Popup>"
+        "</Grid>"
+        "</ControlTemplate>"
+        "</Setter.Value>"
+        "</Setter>"
+        "</Style>"
+        "</Grid.Resources>"
+        "<Path Stretch=\"Fill\" Fill=\"#FF111111\" "
+        "Data=\"M0,0 L400,0 L400,300 L0,300 z\"/>"
+        "<Button x:Name=\"HitButton\" Width=\"80\" Height=\"32\" "
+        "HorizontalAlignment=\"Right\" VerticalAlignment=\"Bottom\" "
+        "Margin=\"0,0,8,8\" Background=\"#FF3E4146\"/>"
+        "<ComboBox x:Name=\"HitCombo\" Width=\"140\" Height=\"28\" "
+        "HorizontalAlignment=\"Left\" VerticalAlignment=\"Bottom\" "
+        "Margin=\"8,0,0,8\">"
+        "<ComboBoxItem Content=\"Alpha\"/>"
+        "<ComboBoxItem Content=\"Beta\"/>"
+        "<ComboBoxItem Content=\"Gamma\"/>"
+        "</ComboBox>"
+        "</Grid>"
+        "</Viewbox>";
+    Aero::Markup::XamlReader reader(live->gui);
+    Result<Aero::Markup::XamlDocument> document = reader.Parse(
+        StringView(kTree));
+    if (!document) {
+        std::fprintf(stderr, "viewbox hover XAML parse failed: %s\n",
+            document.GetStatus().message);
+        DumpDiagnostics(live->diagnostics);
+    }
+    CHECK(document);
+    CHECK(view.SetContent(std::move(document).Value(), {800.0, 600.0}));
+    Pump(view, 0.016);
+    Pump(view, 0.032);
+
+    FrameworkElement* root = view.GetContent();
+    CHECK(root != nullptr);
+    Button* button = root->FindName<Button>(StringView("HitButton"));
+    ComboBox* combo = root->FindName<ComboBox>(StringView("HitCombo"));
+    CHECK(button != nullptr);
+    CHECK(combo != nullptr);
+
+    const Aero::Size buttonSize = button->GetRenderSize();
+    CHECK(buttonSize.width > 0.0 && buttonSize.height > 0.0);
+    Point buttonScreen{};
+    CHECK(button->TryPointToScreen(
+        {buttonSize.width * 0.5, buttonSize.height * 0.5}, buttonScreen));
+    static_cast<void>(view.MouseMove(
+        static_cast<int>(buttonScreen.x),
+        static_cast<int>(buttonScreen.y)));
+    Pump(view, 0.048);
+    if (!button->GetIsMouseOver()) {
+        std::fprintf(stderr,
+            "button hover miss screen=(%.1f,%.1f) size=(%.1f,%.1f) slot=(%.1f,%.1f,%.1f,%.1f)\n",
+            buttonScreen.x, buttonScreen.y,
+            buttonSize.width, buttonSize.height,
+            button->GetLayoutSlot().x, button->GetLayoutSlot().y,
+            button->GetLayoutSlot().width, button->GetLayoutSlot().height);
+    }
+    CHECK(button->GetIsMouseOver());
+
+    static_cast<void>(combo->ApplyTemplate());
+    combo->SetIsDropDownOpen(true);
+    Pump(view, 0.064);
+    Pump(view, 0.080);
+
+    const auto findPopup = [](auto& self, Aero::Media::Visual& visual)
+        -> Aero::Controls::Primitives::Popup* {
+        if (auto* popup = TryCast<Aero::Controls::Primitives::Popup>(&visual)) {
+            return popup;
+        }
+        const std::uint32_t count =
+            Aero::Media::VisualTreeHelper::GetChildrenCount(visual);
+        for (std::uint32_t index = 0U; index < count; ++index) {
+            Aero::Media::Visual* child =
+                Aero::Media::VisualTreeHelper::GetChild(visual, index);
+            if (child == nullptr) continue;
+            if (Aero::Controls::Primitives::Popup* found = self(self, *child)) {
+                return found;
+            }
+        }
+        return nullptr;
+    };
+    Aero::Controls::Primitives::Popup* popup = findPopup(findPopup, *root);
+    if (popup == nullptr) {
+        popup = findPopup(findPopup, *combo);
+    }
+    if (popup == nullptr) {
+        std::fprintf(stderr,
+            "popup missing comboChildren=%u rootChildren=%u dropDown=%d\n",
+            Aero::Media::VisualTreeHelper::GetChildrenCount(*combo),
+            Aero::Media::VisualTreeHelper::GetChildrenCount(*root),
+            combo->GetIsDropDownOpen() ? 1 : 0);
+    }
+    CHECK(popup != nullptr);
+    CHECK(popup->GetIsOpen());
+    CHECK(Aero::Media::VisualTreeHelper::GetChildrenCount(*popup) > 0U);
+    UIElement* popupChild = TryCast<UIElement>(
+        Aero::Media::VisualTreeHelper::GetChild(*popup, 0U));
+    CHECK(popupChild != nullptr);
+    const Aero::Rect popupSlot = popupChild->GetLayoutSlot();
+    if (!(popupSlot.y < 0.0)) {
+        std::fprintf(stderr,
+            "popup did not flip up slot.y=%.1f size=(%.1f,%.1f) comboSize=(%.1f,%.1f)\n",
+            popupSlot.y, popupSlot.width, popupSlot.height,
+            combo->GetRenderSize().width, combo->GetRenderSize().height);
+    }
+    CHECK(popupSlot.y < 0.0);
+
+    Panel* itemsHost = combo->GetItemsHost();
+    CHECK(itemsHost != nullptr);
+    CHECK(Aero::Media::VisualTreeHelper::GetChildrenCount(*itemsHost) >= 2U);
+    Aero::Media::Visual* itemVisual =
+        Aero::Media::VisualTreeHelper::GetChild(*itemsHost, 1U);
+    auto* item = TryCast<ComboBoxItem>(itemVisual);
+    CHECK(item != nullptr);
+    const Aero::Size itemSize = item->GetRenderSize();
+    CHECK(itemSize.width > 0.0 && itemSize.height > 0.0);
+    Point itemScreen{};
+    CHECK(item->TryPointToScreen(
+        {itemSize.width * 0.5, itemSize.height * 0.5}, itemScreen));
+    static_cast<void>(view.MouseMove(
+        static_cast<int>(itemScreen.x),
+        static_cast<int>(itemScreen.y)));
+    Pump(view, 0.096);
+    if (!item->GetIsMouseOver()) {
+        std::fprintf(stderr,
+            "combo item hover miss screen=(%.1f,%.1f) size=(%.1f,%.1f) slot=(%.1f,%.1f,%.1f,%.1f)\n",
+            itemScreen.x, itemScreen.y,
+            itemSize.width, itemSize.height,
+            item->GetLayoutSlot().x, item->GetLayoutSlot().y,
+            item->GetLayoutSlot().width, item->GetLayoutSlot().height);
+    }
+    CHECK(item->GetIsMouseOver());
+    return true;
+}
+
+TextBlock* FindTextBlock(Aero::Media::Visual& visual) noexcept {
+    if (auto* text = TryCast<TextBlock>(&visual)) {
+        return text;
+    }
+    const std::uint32_t count =
+        Aero::Media::VisualTreeHelper::GetChildrenCount(visual);
+    for (std::uint32_t index = 0U; index < count; ++index) {
+        Aero::Media::Visual* child =
+            Aero::Media::VisualTreeHelper::GetChild(visual, index);
+        if (child == nullptr) continue;
+        if (TextBlock* found = FindTextBlock(*child)) {
+            return found;
+        }
+    }
+    return nullptr;
+}
+
+Path* FindFirstPath(Aero::Media::Visual& visual) {
+    if (auto* path = TryCast<Path>(&visual)) {
+        return path;
+    }
+    const std::uint32_t count =
+        Aero::Media::VisualTreeHelper::GetChildrenCount(visual);
+    for (std::uint32_t index = 0U; index < count; ++index) {
+        Aero::Media::Visual* child =
+            Aero::Media::VisualTreeHelper::GetChild(visual, index);
+        if (child == nullptr) continue;
+        if (Path* found = FindFirstPath(*child)) {
+            return found;
+        }
+    }
+    return nullptr;
+}
+
+struct RepeatClickProbe {
+    std::uint32_t count = 0;
+    void OnClick(Aero::Base::Object*, Aero::RoutedEventArgs&) noexcept {
+        ++count;
+    }
+};
+
+bool TestMenuTooltipForegroundAndFocus() {
+    LiveGui* live = NewLiveGui();
+    CHECK(live != nullptr);
+    View& view = *live->view;
+    view.SetSize({800.0, 600.0});
+
+    constexpr char kTree[] =
+        "<Grid xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" "
+        "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" "
+        "x:Name=\"LayoutRoot\" FocusManager.IsFocusScope=\"True\" Foreground=\"White\">"
+        "<StackPanel>"
+        "<ToggleButton x:Name=\"Start\" Content=\"START GAME\">"
+        "<ToggleButton.Style>"
+        "<Style TargetType=\"{x:Type ToggleButton}\">"
+        "<Style.Triggers>"
+        "<Trigger Property=\"IsKeyboardFocused\" Value=\"True\">"
+        "<Setter Property=\"IsChecked\" Value=\"True\"/>"
+        "</Trigger>"
+        "</Style.Triggers>"
+        "</Style>"
+        "</ToggleButton.Style>"
+        "</ToggleButton>"
+        "<ContentControl x:Name=\"Tip\" Content=\"Dive straight into the adventure.\">"
+        "<ContentControl.Style>"
+        "<Style TargetType=\"{x:Type ContentControl}\">"
+        "<Setter Property=\"OverridesDefaultStyle\" Value=\"True\"/>"
+        "<Setter Property=\"Template\">"
+        "<Setter.Value>"
+        "<ControlTemplate TargetType=\"{x:Type ContentControl}\">"
+        "<ContentPresenter x:Name=\"ContentHost\">"
+        "<TextElement.Foreground>"
+        "<SolidColorBrush Color=\"White\" Opacity=\"0\"/>"
+        "</TextElement.Foreground>"
+        "</ContentPresenter>"
+        "</ControlTemplate>"
+        "</Setter.Value>"
+        "</Setter>"
+        "</Style>"
+        "</ContentControl.Style>"
+        "</ContentControl>"
+        "</StackPanel>"
+        "</Grid>";
+    Aero::Markup::XamlReader reader(live->gui);
+    Result<Aero::Markup::XamlDocument> document = reader.Parse(
+        StringView(kTree));
+    if (!document) {
+        std::fprintf(stderr, "menu tooltip XAML parse failed: %s\n",
+            document.GetStatus().message);
+        DumpDiagnostics(live->diagnostics);
+    }
+    CHECK(document);
+    CHECK(view.SetContent(std::move(document).Value(), {800.0, 600.0}));
+    Pump(view, 0.032);
+
+    FrameworkElement* root = view.GetContent();
+    CHECK(root != nullptr);
+    auto* layoutRoot = root->FindName<Grid>(StringView("LayoutRoot"));
+    auto* start = root->FindName<ToggleButton>(StringView("Start"));
+    auto* tip = root->FindName<ContentControl>(StringView("Tip"));
+    CHECK(layoutRoot != nullptr && start != nullptr && tip != nullptr);
+    static_cast<void>(tip->ApplyTemplate());
+    Pump(view, 0.032);
+
+    TextBlock* text = FindTextBlock(*tip);
+    CHECK(text != nullptr);
+    Ref<Aero::Media::Brush> foreground = text->GetForeground();
+    CHECK(foreground);
+    if (!(foreground->GetOpacity() < 0.05)) {
+        std::fprintf(stderr,
+            "tooltip TextElement.Foreground Opacity leaked through inherited "
+            "Foreground opacity=%.3f\n",
+            foreground->GetOpacity());
+    }
+    CHECK(foreground->GetOpacity() < 0.05);
+
+    Result<bool> scoped = layoutRoot->Focus();
+    CHECK(scoped);
+    CHECK(scoped.Value());
+    Pump(view, 0.016);
+    CHECK(start->GetIsKeyboardFocused());
+    CHECK(!layoutRoot->GetIsKeyboardFocused());
+    CHECK(start->GetIsChecked().GetHasValue());
+    CHECK(start->GetIsChecked().GetValue());
+
+    Result<bool> layoutFocused = layoutRoot->Focus();
+    CHECK(layoutFocused);
+    CHECK(!layoutFocused.Value());
+    Pump(view, 0.016);
+    CHECK(start->GetIsKeyboardFocused());
+    CHECK(!layoutRoot->GetIsKeyboardFocused());
+    return true;
+}
+
+bool TestViewboxTransform3DButtonHit() {
+    LiveGui* live = NewLiveGui();
+    CHECK(live != nullptr);
+    View& view = *live->view;
+    view.SetSize({800.0, 600.0});
+
+    constexpr char kTree[] =
+        "<Viewbox xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" "
+        "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
+        "<Grid x:Name=\"Host\" Width=\"400\" Height=\"300\" Background=\"#FF102030\">"
+        "<Button x:Name=\"HitButton\" Width=\"200\" Height=\"80\" "
+        "HorizontalAlignment=\"Center\" VerticalAlignment=\"Center\" "
+        "Background=\"#FF3E4146\" Content=\"START GAME\"/>"
+        "</Grid>"
+        "</Viewbox>";
+    Aero::Markup::XamlReader reader(live->gui);
+    Result<Aero::Markup::XamlDocument> document = reader.Parse(
+        StringView(kTree));
+    CHECK(document);
+    Grid* host = document.Value().FindName<Grid>("Host");
+    CHECK(host != nullptr);
+    Result<Ref<CompositeTransform3D>> spin = MakeRef<CompositeTransform3D>();
+    CHECK(spin);
+    spin.Value()->SetRotationY(-8.0);
+    host->SetTransform3D(spin.Value());
+    CHECK(view.SetContent(std::move(document).Value(), {800.0, 600.0}));
+    Pump(view, 0.032);
+
+    FrameworkElement* root = view.GetContent();
+    CHECK(root != nullptr);
+    Button* button = root->FindName<Button>(StringView("HitButton"));
+    CHECK(button != nullptr);
+    const Aero::Size buttonSize = button->GetRenderSize();
+    CHECK(buttonSize.width > 0.0 && buttonSize.height > 0.0);
+
+    bool hovered = false;
+    for (int y = 40; y < 560 && !hovered; y += 16) {
+        for (int x = 40; x < 760 && !hovered; x += 16) {
+            static_cast<void>(view.MouseMove(x, y));
+            Pump(view, 0.008);
+            hovered = button->GetIsMouseOver();
+        }
+    }
+    if (!hovered) {
+        Point screen{};
+        static_cast<void>(button->TryPointToScreen(
+            {buttonSize.width * 0.5, buttonSize.height * 0.5}, screen));
+        std::fprintf(stderr,
+            "3D viewbox button was not hittable screen=(%.1f,%.1f) size=(%.1f,%.1f)\n",
+            screen.x, screen.y, buttonSize.width, buttonSize.height);
+    }
+    CHECK(hovered);
+    return true;
+}
+
+bool TestKeyboardNavigationIsTabStopTemplateTrigger() {
+    LiveGui* live = NewLiveGui();
+    CHECK(live != nullptr);
+    View& view = *live->view;
+    view.SetSize({400.0, 200.0});
+
+    constexpr char kTree[] =
+        "<StackPanel xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" "
+        "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
+        "<StackPanel.Resources>"
+        "<ControlTemplate x:Key=\"MenuTemplate\" TargetType=\"{x:Type ToggleButton}\">"
+        "<Grid>"
+        "<Path x:Name=\"CircledArrow\" Data=\"M0,0 L8,4 L0,8 z\" Width=\"16\" Height=\"16\" "
+        "Fill=\"White\" Visibility=\"Visible\"/>"
+        "</Grid>"
+        "<ControlTemplate.Triggers>"
+        "<Trigger Property=\"KeyboardNavigation.IsTabStop\" Value=\"False\">"
+        "<Setter Property=\"Visibility\" TargetName=\"CircledArrow\" Value=\"Collapsed\"/>"
+        "</Trigger>"
+        "</ControlTemplate.Triggers>"
+        "</ControlTemplate>"
+        "</StackPanel.Resources>"
+        "<ToggleButton x:Name=\"Menu\" Width=\"80\" Height=\"40\" "
+        "Template=\"{StaticResource MenuTemplate}\"/>"
+        "<ToggleButton x:Name=\"Setting\" Width=\"80\" Height=\"40\" IsTabStop=\"False\" "
+        "Template=\"{StaticResource MenuTemplate}\"/>"
+        "</StackPanel>";
+    Aero::Markup::XamlReader reader(live->gui);
+    Result<Aero::Markup::XamlDocument> document = reader.Parse(
+        StringView(kTree));
+    if (!document) {
+        std::fprintf(stderr, "IsTabStop trigger XAML parse failed: %s\n",
+            document.GetStatus().message);
+        DumpDiagnostics(live->diagnostics);
+    }
+    CHECK(document);
+    CHECK(view.SetContent(std::move(document).Value(), {400.0, 200.0}));
+    Pump(view, 0.032);
+
+    FrameworkElement* root = view.GetContent();
+    CHECK(root != nullptr);
+    auto* menu = root->FindName<ToggleButton>(StringView("Menu"));
+    auto* setting = root->FindName<ToggleButton>(StringView("Setting"));
+    CHECK(menu != nullptr && setting != nullptr);
+    static_cast<void>(menu->ApplyTemplate());
+    static_cast<void>(setting->ApplyTemplate());
+    Pump(view, 0.016);
+
+    CHECK(menu->GetIsTabStop());
+    CHECK(menu->GetValueOr(KeyboardNavigation::IsTabStopProperty, false));
+    CHECK(!setting->GetIsTabStop());
+    CHECK(!setting->GetValueOr(KeyboardNavigation::IsTabStopProperty, true));
+
+    Path* menuArrow = FindFirstPath(*menu);
+    Path* settingArrow = FindFirstPath(*setting);
+    if (menuArrow == nullptr || settingArrow == nullptr) {
+        std::fprintf(stderr,
+            "CircledArrow path missing menuChildren=%u settingChildren=%u\n",
+            Aero::Media::VisualTreeHelper::GetChildrenCount(*menu),
+            Aero::Media::VisualTreeHelper::GetChildrenCount(*setting));
+    }
+    CHECK(menuArrow != nullptr && settingArrow != nullptr);
+    if (menuArrow->GetVisibility() != Visibility::Visible) {
+        std::fprintf(stderr,
+            "menu CircledArrow collapsed despite IsTabStop=true\n");
+    }
+    CHECK(menuArrow->GetVisibility() == Visibility::Visible);
+    CHECK(settingArrow->GetVisibility() == Visibility::Collapsed);
+    return true;
+}
+
+double PathFillOpacity(Path& path) {
+    Ref<Aero::Media::Brush> fill = path.GetFill();
+    return fill ? fill->GetOpacity() : -1.0;
+}
+
+bool TestCheckedVisualStateRevertsArrowOpacity() {
+    ViewOptions options;
+    options.automaticAnimationClock = false;
+    LiveGui* live = NewLiveGui(options);
+    CHECK(live != nullptr);
+    View& view = *live->view;
+    view.SetSize({400.0, 200.0});
+
+    constexpr char kTree[] =
+        "<StackPanel xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" "
+        "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
+        "<StackPanel.Resources>"
+        "<ControlTemplate x:Key=\"MenuTemplate\" TargetType=\"{x:Type ToggleButton}\">"
+        "<Grid>"
+        "<VisualStateManager.VisualStateGroups>"
+        "<VisualStateGroup x:Name=\"CheckStates\">"
+        "<VisualStateGroup.Transitions>"
+        "<VisualTransition From=\"Checked\" GeneratedDuration=\"0:0:0.2\"/>"
+        "</VisualStateGroup.Transitions>"
+        "<VisualState x:Name=\"Checked\">"
+        "<Storyboard>"
+        "<DoubleAnimationUsingKeyFrames Storyboard.TargetProperty=\"(Shape.Fill).(Brush.Opacity)\" "
+        "Storyboard.TargetName=\"CircledArrow\">"
+        "<EasingDoubleKeyFrame KeyTime=\"0\" Value=\"1\"/>"
+        "</DoubleAnimationUsingKeyFrames>"
+        "</Storyboard>"
+        "</VisualState>"
+        "<VisualState x:Name=\"Unchecked\"/>"
+        "</VisualStateGroup>"
+        "</VisualStateManager.VisualStateGroups>"
+        "<Path x:Name=\"CircledArrow\" Data=\"M0,0 L8,4 L0,8 z\" Width=\"16\" Height=\"16\">"
+        "<Path.Fill>"
+        "<SolidColorBrush Color=\"White\" Opacity=\"0\"/>"
+        "</Path.Fill>"
+        "</Path>"
+        "</Grid>"
+        "</ControlTemplate>"
+        "</StackPanel.Resources>"
+        "<ToggleButton x:Name=\"Start\" Width=\"80\" Height=\"40\" "
+        "Template=\"{StaticResource MenuTemplate}\">"
+        "<ToggleButton.Style>"
+        "<Style TargetType=\"{x:Type ToggleButton}\">"
+        "<Style.Triggers>"
+        "<Trigger Property=\"IsKeyboardFocused\" Value=\"True\">"
+        "<Setter Property=\"IsChecked\" Value=\"True\"/>"
+        "</Trigger>"
+        "</Style.Triggers>"
+        "</Style>"
+        "</ToggleButton.Style>"
+        "</ToggleButton>"
+        "<ToggleButton x:Name=\"Settings\" Width=\"80\" Height=\"40\" "
+        "Template=\"{StaticResource MenuTemplate}\">"
+        "<ToggleButton.Style>"
+        "<Style TargetType=\"{x:Type ToggleButton}\">"
+        "<Style.Triggers>"
+        "<Trigger Property=\"IsKeyboardFocused\" Value=\"True\">"
+        "<Setter Property=\"IsChecked\" Value=\"True\"/>"
+        "</Trigger>"
+        "</Style.Triggers>"
+        "</Style>"
+        "</ToggleButton.Style>"
+        "</ToggleButton>"
+        "</StackPanel>";
+    Aero::Markup::XamlReader reader(live->gui);
+    Result<Aero::Markup::XamlDocument> document = reader.Parse(
+        StringView(kTree));
+    if (!document) {
+        std::fprintf(stderr, "checked VSM XAML parse failed: %s\n",
+            document.GetStatus().message);
+        DumpDiagnostics(live->diagnostics);
+    }
+    CHECK(document);
+    CHECK(view.SetContent(std::move(document).Value(), {400.0, 200.0}));
+    Pump(view, 0.032);
+
+    FrameworkElement* root = view.GetContent();
+    CHECK(root != nullptr);
+    auto* start = root->FindName<ToggleButton>(StringView("Start"));
+    auto* settings = root->FindName<ToggleButton>(StringView("Settings"));
+    CHECK(start != nullptr && settings != nullptr);
+    static_cast<void>(start->ApplyTemplate());
+    static_cast<void>(settings->ApplyTemplate());
+    Pump(view, 0.016);
+
+    Path* startArrow = FindFirstPath(*start);
+    Path* settingsArrow = FindFirstPath(*settings);
+    CHECK(startArrow != nullptr && settingsArrow != nullptr);
+    CHECK(PathFillOpacity(*startArrow) < 0.05);
+
+    Result<bool> focused = start->Focus();
+    CHECK(focused && focused.Value());
+    static_cast<void>(VisualStateManager::GoToState(*start, "Checked", false));
+    Pump(view, 0.05);
+    CHECK(start->GetIsKeyboardFocused());
+    CHECK(start->GetIsChecked().GetHasValue() && start->GetIsChecked().GetValue());
+    if (!(PathFillOpacity(*startArrow) > 0.8)) {
+        std::fprintf(stderr, "checked arrow opacity stayed %.3f\n",
+            PathFillOpacity(*startArrow));
+    }
+    CHECK(PathFillOpacity(*startArrow) > 0.8);
+
+    Result<bool> moved = settings->Focus();
+    CHECK(moved && moved.Value());
+    Pump(view, 0.35);
+    CHECK(settings->GetIsKeyboardFocused());
+    CHECK(!start->GetIsKeyboardFocused());
+    if (start->GetIsChecked().GetHasValue() && start->GetIsChecked().GetValue()) {
+        std::fprintf(stderr, "start IsChecked stayed true after focus moved\n");
+    }
+    CHECK(!(start->GetIsChecked().GetHasValue() && start->GetIsChecked().GetValue()));
+    if (!(PathFillOpacity(*startArrow) < 0.15)) {
+        std::fprintf(stderr,
+            "unchecked arrow opacity stayed %.3f after leave\n",
+            PathFillOpacity(*startArrow));
+    }
+    CHECK(PathFillOpacity(*startArrow) < 0.15);
+    CHECK(PathFillOpacity(*settingsArrow) > 0.8);
+    return true;
+}
+
+bool TestRepeatButtonPressClickAndScaleX() {
+    LiveGui* live = NewLiveGui();
+    CHECK(live != nullptr);
+    View& view = *live->view;
+    view.SetSize({800.0, 600.0});
+
+    constexpr char kTree[] =
+        "<Viewbox xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" "
+        "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
+        "<Grid x:Name=\"Host\" Width=\"400\" Height=\"80\" Background=\"#FF102030\">"
+        "<RepeatButton x:Name=\"NextButton\" Width=\"80\" Height=\"48\" "
+        "HorizontalAlignment=\"Right\" VerticalAlignment=\"Center\" "
+        "Background=\"#FF3E4146\" RenderTransformOrigin=\"0.5,0.5\">"
+        "<RepeatButton.RenderTransform>"
+        "<ScaleTransform ScaleX=\"-1\"/>"
+        "</RepeatButton.RenderTransform>"
+        "</RepeatButton>"
+        "</Grid>"
+        "</Viewbox>";
+    Aero::Markup::XamlReader reader(live->gui);
+    Result<Aero::Markup::XamlDocument> document = reader.Parse(
+        StringView(kTree));
+    CHECK(document);
+    Grid* host = document.Value().FindName<Grid>("Host");
+    CHECK(host != nullptr);
+    Result<Ref<CompositeTransform3D>> spin = MakeRef<CompositeTransform3D>();
+    CHECK(spin);
+    spin.Value()->SetRotationY(-8.0);
+    host->SetTransform3D(spin.Value());
+    CHECK(view.SetContent(std::move(document).Value(), {800.0, 600.0}));
+    Pump(view, 0.032);
+
+    FrameworkElement* root = view.GetContent();
+    CHECK(root != nullptr);
+    RepeatButton* button = root->FindName<RepeatButton>(StringView("NextButton"));
+    CHECK(button != nullptr);
+    CHECK(button->GetClickMode() == ClickMode::Press);
+
+    RepeatClickProbe probe;
+    button->Click().Add({&probe, &RepeatClickProbe::OnClick});
+
+    bool hovered = false;
+    int clickX = 0;
+    int clickY = 0;
+    for (int y = 40; y < 560 && !hovered; y += 8) {
+        for (int x = 40; x < 760 && !hovered; x += 8) {
+            static_cast<void>(view.MouseMove(x, y));
+            Pump(view, 0.008);
+            if (button->GetIsMouseOver()) {
+                hovered = true;
+                clickX = x;
+                clickY = y;
+            }
+        }
+    }
+    if (!hovered) {
+        const Aero::Size buttonSize = button->GetRenderSize();
+        Point screen{};
+        static_cast<void>(button->TryPointToScreen(
+            {buttonSize.width * 0.5, buttonSize.height * 0.5}, screen));
+        std::fprintf(stderr,
+            "scaled RepeatButton was not hittable screen=(%.1f,%.1f) size=(%.1f,%.1f)\n",
+            screen.x, screen.y, buttonSize.width, buttonSize.height);
+    }
+    CHECK(hovered);
+    static_cast<void>(view.MouseButtonDown(
+        clickX, clickY, Aero::Input::MouseButton::Left));
+    Pump(view, 0.016);
+    if (probe.count == 0U) {
+        std::fprintf(stderr,
+            "RepeatButton ClickMode=Press did not fire Click on MouseDown "
+            "pressed=%d over=%d\n",
+            button->GetIsPressed() ? 1 : 0,
+            button->GetIsMouseOver() ? 1 : 0);
+    }
+    CHECK(probe.count >= 1U);
+    static_cast<void>(view.MouseButtonUp(
+        clickX, clickY, Aero::Input::MouseButton::Left));
+    Pump(view, 0.016);
+    return true;
+}
+
+bool TestComboBoxPopupItemClickSelects() {
+    LiveGui* live = NewLiveGui();
+    CHECK(live != nullptr);
+    View& view = *live->view;
+    view.SetSize({800.0, 600.0});
+
+    constexpr char kTree[] =
+        "<Viewbox xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" "
+        "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
+        "<Grid Width=\"400\" Height=\"300\">"
+        "<Grid.Resources>"
+        "<Style TargetType=\"{x:Type ComboBox}\">"
+        "<Setter Property=\"Template\">"
+        "<Setter.Value>"
+        "<ControlTemplate TargetType=\"{x:Type ComboBox}\">"
+        "<Grid>"
+        "<ToggleButton IsChecked=\"{Binding IsDropDownOpen, Mode=TwoWay, "
+        "RelativeSource={RelativeSource TemplatedParent}}\"/>"
+        "<ContentPresenter x:Name=\"ContentSite\" ContentSource=\"SelectionBoxItem\" "
+        "IsHitTestVisible=\"False\"/>"
+        "<Popup x:Name=\"PART_Popup\" IsOpen=\"{Binding IsDropDownOpen, "
+        "RelativeSource={RelativeSource TemplatedParent}}\" Placement=\"Bottom\" "
+        "VerticalOffset=\"1\">"
+        "<Border Background=\"#FF393B40\" MinWidth=\"{TemplateBinding ActualWidth}\">"
+        "<ScrollViewer>"
+        "<ItemsPresenter/>"
+        "</ScrollViewer>"
+        "</Border>"
+        "</Popup>"
+        "</Grid>"
+        "</ControlTemplate>"
+        "</Setter.Value>"
+        "</Setter>"
+        "</Style>"
+        "</Grid.Resources>"
+        "<ComboBox x:Name=\"HitCombo\" Width=\"140\" Height=\"28\" "
+        "HorizontalAlignment=\"Left\" VerticalAlignment=\"Bottom\" "
+        "Margin=\"8,0,0,8\">"
+        "<ComboBoxItem Content=\"Alpha\"/>"
+        "<ComboBoxItem Content=\"Beta\"/>"
+        "<ComboBoxItem Content=\"Gamma\"/>"
+        "</ComboBox>"
+        "</Grid>"
+        "</Viewbox>";
+    Aero::Markup::XamlReader reader(live->gui);
+    Result<Aero::Markup::XamlDocument> document = reader.Parse(
+        StringView(kTree));
+    if (!document) {
+        std::fprintf(stderr, "combo click XAML parse failed: %s\n",
+            document.GetStatus().message);
+        DumpDiagnostics(live->diagnostics);
+    }
+    CHECK(document);
+    CHECK(view.SetContent(std::move(document).Value(), {800.0, 600.0}));
+    Pump(view, 0.016);
+    Pump(view, 0.032);
+
+    FrameworkElement* root = view.GetContent();
+    CHECK(root != nullptr);
+    ComboBox* combo = root->FindName<ComboBox>(StringView("HitCombo"));
+    CHECK(combo != nullptr);
+    static_cast<void>(combo->ApplyTemplate());
+    combo->SetSelectedIndex(0U);
+    Pump(view, 0.016);
+    CHECK(combo->GetSelectedIndex() == 0U);
+
+    combo->SetIsDropDownOpen(true);
+    Pump(view, 0.064);
+    Pump(view, 0.080);
+    CHECK(combo->GetIsDropDownOpen());
+
+    Panel* itemsHost = combo->GetItemsHost();
+    CHECK(itemsHost != nullptr);
+    CHECK(Aero::Media::VisualTreeHelper::GetChildrenCount(*itemsHost) >= 2U);
+    Aero::Media::Visual* itemVisual =
+        Aero::Media::VisualTreeHelper::GetChild(*itemsHost, 1U);
+    auto* item = TryCast<ComboBoxItem>(itemVisual);
+    CHECK(item != nullptr);
+    const Aero::Size itemSize = item->GetRenderSize();
+    CHECK(itemSize.width > 0.0 && itemSize.height > 0.0);
+    Point itemScreen{};
+    CHECK(item->TryPointToScreen(
+        {itemSize.width * 0.5, itemSize.height * 0.5}, itemScreen));
+    const int clickX = static_cast<int>(itemScreen.x);
+    const int clickY = static_cast<int>(itemScreen.y);
+    static_cast<void>(view.MouseMove(clickX, clickY));
+    Pump(view, 0.032);
+    if (!item->GetIsMouseOver()) {
+        std::fprintf(stderr,
+            "combo click hover miss screen=(%.1f,%.1f) click=(%d,%d)\n",
+            itemScreen.x, itemScreen.y, clickX, clickY);
+    }
+    CHECK(item->GetIsMouseOver());
+    static_cast<void>(view.MouseButtonDown(
+        clickX, clickY, Aero::Input::MouseButton::Left));
+    static_cast<void>(view.MouseButtonUp(
+        clickX, clickY, Aero::Input::MouseButton::Left));
+    Pump(view, 0.048);
+    if (combo->GetSelectedIndex() != 1U) {
+        std::fprintf(stderr,
+            "combo click did not select index=%u dropDown=%d text=%.*s\n",
+            combo->GetSelectedIndex(),
+            combo->GetIsDropDownOpen() ? 1 : 0,
+            static_cast<int>(combo->GetSelectionBoxText().View().SizeBytes()),
+            combo->GetSelectionBoxText().View().Data());
+    }
+    CHECK(combo->GetSelectedIndex() == 1U);
+    CHECK(!combo->GetIsDropDownOpen());
+    return true;
+}
+
+bool TestComboBoxItemsSourcePopupClickSelects() {
+    LiveGui* live = NewLiveGui();
+    CHECK(live != nullptr);
+    View& view = *live->view;
+    view.SetSize({800.0, 600.0});
+
+    constexpr char kTree[] =
+        "<Viewbox xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" "
+        "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
+        "<Grid Width=\"400\" Height=\"300\">"
+        "<Grid.Resources>"
+        "<Style TargetType=\"{x:Type ComboBox}\">"
+        "<Setter Property=\"Template\">"
+        "<Setter.Value>"
+        "<ControlTemplate TargetType=\"{x:Type ComboBox}\">"
+        "<Grid>"
+        "<ToggleButton IsChecked=\"{Binding IsDropDownOpen, Mode=TwoWay, "
+        "RelativeSource={RelativeSource TemplatedParent}}\"/>"
+        "<ContentPresenter x:Name=\"ContentSite\" ContentSource=\"SelectionBoxItem\" "
+        "IsHitTestVisible=\"False\"/>"
+        "<Popup x:Name=\"PART_Popup\" IsOpen=\"{Binding IsDropDownOpen, "
+        "RelativeSource={RelativeSource TemplatedParent}}\" Placement=\"Bottom\" "
+        "VerticalOffset=\"1\">"
+        "<Border Background=\"#FF393B40\" MinWidth=\"{TemplateBinding ActualWidth}\">"
+        "<ScrollViewer>"
+        "<ItemsPresenter/>"
+        "</ScrollViewer>"
+        "</Border>"
+        "</Popup>"
+        "</Grid>"
+        "</ControlTemplate>"
+        "</Setter.Value>"
+        "</Setter>"
+        "</Style>"
+        "</Grid.Resources>"
+        "<ComboBox x:Name=\"HitCombo\" Width=\"140\" Height=\"28\" "
+        "HorizontalAlignment=\"Left\" VerticalAlignment=\"Bottom\" "
+        "Margin=\"8,0,0,8\"/>"
+        "</Grid>"
+        "</Viewbox>";
+    Aero::Markup::XamlReader reader(live->gui);
+    Result<Aero::Markup::XamlDocument> document = reader.Parse(
+        StringView(kTree));
+    if (!document) {
+        std::fprintf(stderr, "combo items-source click XAML parse failed: %s\n",
+            document.GetStatus().message);
+        DumpDiagnostics(live->diagnostics);
+    }
+    CHECK(document);
+    CHECK(view.SetContent(std::move(document).Value(), {800.0, 600.0}));
+    Pump(view, 0.016);
+    Pump(view, 0.032);
+
+    FrameworkElement* root = view.GetContent();
+    CHECK(root != nullptr);
+    ComboBox* combo = root->FindName<ComboBox>(StringView("HitCombo"));
+    CHECK(combo != nullptr);
+    Result<Ref<ObservableObjectCollection>> teams =
+        MakeRef<ObservableObjectCollection>();
+    CHECK(teams);
+    CHECK(Aero::Controls::AddBoxedStringItem(*teams.Value(), "Overall"));
+    CHECK(Aero::Controls::AddBoxedStringItem(*teams.Value(), "Alliance"));
+    CHECK(Aero::Controls::AddBoxedStringItem(*teams.Value(), "Horde"));
+    combo->SetItemsSource(Ref<Aero::Base::Object>(teams.Value()));
+    static_cast<void>(combo->ApplyTemplate());
+    combo->SetSelectedIndex(0U);
+    Pump(view, 0.048);
+    CHECK(combo->GetSelectedIndex() == 0U);
+    CHECK(combo->GetSelectionBoxText().View() == StringView("Overall"));
+
+    combo->SetIsDropDownOpen(true);
+    Pump(view, 0.064);
+    Pump(view, 0.080);
+    CHECK(combo->GetIsDropDownOpen());
+
+    Panel* itemsHost = combo->GetItemsHost();
+    CHECK(itemsHost != nullptr);
+    CHECK(Aero::Media::VisualTreeHelper::GetChildrenCount(*itemsHost) >= 3U);
+    Aero::Media::Visual* itemVisual =
+        Aero::Media::VisualTreeHelper::GetChild(*itemsHost, 2U);
+    auto* item = TryCast<ComboBoxItem>(itemVisual);
+    CHECK(item != nullptr);
+    const Aero::Size itemSize = item->GetRenderSize();
+    CHECK(itemSize.width > 0.0 && itemSize.height > 0.0);
+    Point itemScreen{};
+    CHECK(item->TryPointToScreen(
+        {itemSize.width * 0.5, itemSize.height * 0.5}, itemScreen));
+    const int clickX = static_cast<int>(itemScreen.x);
+    const int clickY = static_cast<int>(itemScreen.y);
+    static_cast<void>(view.MouseMove(clickX, clickY));
+    Pump(view, 0.096);
+    CHECK(item->GetIsMouseOver());
+    static_cast<void>(view.MouseButtonDown(
+        clickX, clickY, Aero::Input::MouseButton::Left));
+    static_cast<void>(view.MouseButtonUp(
+        clickX, clickY, Aero::Input::MouseButton::Left));
+    Pump(view, 0.112);
+    if (combo->GetSelectedIndex() != 2U ||
+        combo->GetSelectionBoxText().View() != StringView("Horde")) {
+        std::fprintf(stderr,
+            "combo items-source click index=%u dropDown=%d text=%.*s\n",
+            combo->GetSelectedIndex(),
+            combo->GetIsDropDownOpen() ? 1 : 0,
+            static_cast<int>(combo->GetSelectionBoxText().View().SizeBytes()),
+            combo->GetSelectionBoxText().View().Data());
+    }
+    CHECK(combo->GetSelectedIndex() == 2U);
+    CHECK(combo->GetSelectionBoxText().View() == StringView("Horde"));
+    CHECK(!combo->GetIsDropDownOpen());
+    return true;
+}
+
+bool TestDataTemplateElementNameSelectedItemFilter() {
+    LiveGui* live = NewLiveGui();
+    CHECK(live != nullptr);
+    View& view = *live->view;
+    view.SetSize({400.0, 300.0});
+
+    constexpr char kTree[] =
+        "<Grid xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" "
+        "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" "
+        "Width=\"400\" Height=\"300\">"
+        "<Grid.Resources>"
+        "<DataTemplate x:Key=\"PlayerTemplate\">"
+        "<Border x:Name=\"PlayerRow\" Height=\"24\" Background=\"#FF334455\"/>"
+        "<DataTemplate.Triggers>"
+        "<DataTrigger Binding=\"{Binding SelectedItem, ElementName=VisibleTeam}\" "
+        "Value=\"Horde\">"
+        "<Setter TargetName=\"PlayerRow\" Property=\"Visibility\" Value=\"Collapsed\"/>"
+        "</DataTrigger>"
+        "</DataTemplate.Triggers>"
+        "</DataTemplate>"
+        "</Grid.Resources>"
+        "<StackPanel>"
+        "<ComboBox x:Name=\"VisibleTeam\" Width=\"150\" Height=\"28\"/>"
+        "<ItemsControl x:Name=\"Players\" ItemTemplate=\"{StaticResource PlayerTemplate}\"/>"
+        "</StackPanel>"
+        "</Grid>";
+    Aero::Markup::XamlReader reader(live->gui);
+    Result<Aero::Markup::XamlDocument> document = reader.Parse(
+        StringView(kTree));
+    if (!document) {
+        std::fprintf(stderr, "element-name filter XAML parse failed: %s\n",
+            document.GetStatus().message);
+        DumpDiagnostics(live->diagnostics);
+    }
+    CHECK(document);
+    CHECK(view.SetContent(std::move(document).Value(), {400.0, 300.0}));
+    Pump(view, 0.016);
+
+    FrameworkElement* root = view.GetContent();
+    CHECK(root != nullptr);
+    ComboBox* combo = root->FindName<ComboBox>(StringView("VisibleTeam"));
+    ItemsControl* players =
+        root->FindName<ItemsControl>(StringView("Players"));
+    CHECK(combo != nullptr);
+    CHECK(players != nullptr);
+
+    Result<Ref<ObservableObjectCollection>> teams =
+        MakeRef<ObservableObjectCollection>();
+    CHECK(teams);
+    CHECK(Aero::Controls::AddBoxedStringItem(*teams.Value(), "Overall"));
+    CHECK(Aero::Controls::AddBoxedStringItem(*teams.Value(), "Alliance"));
+    CHECK(Aero::Controls::AddBoxedStringItem(*teams.Value(), "Horde"));
+    combo->SetItemsSource(Ref<Aero::Base::Object>(teams.Value()));
+    combo->SetSelectedIndex(0U);
+
+    Result<Ref<ObservableCollection<BindingSlotItem>>> items =
+        MakeRef<ObservableCollection<BindingSlotItem>>();
+    Result<Ref<BindingSlotItem>> first = MakeRef<BindingSlotItem>();
+    Result<Ref<BindingSlotItem>> second = MakeRef<BindingSlotItem>();
+    CHECK(items && first && second);
+    CHECK(items.Value()->Add(first.Value()));
+    CHECK(items.Value()->Add(second.Value()));
+    players->SetItemsSource(Ref<Aero::Base::Object>(items.Value()));
+    static_cast<void>(combo->ApplyTemplate());
+    static_cast<void>(players->ApplyTemplate());
+    Pump(view, 0.032);
+    Pump(view, 0.048);
+    CHECK(players->GetRealizedItemCount() == 2U);
+
+    const auto findRow = [](auto& self, Aero::Media::Visual& visual)
+        -> Border* {
+        if (auto* border = TryCast<Border>(&visual)) {
+            if (Near(border->GetHeight(), 24.0, 0.5)) {
+                return border;
+            }
+        }
+        const std::uint32_t count =
+            Aero::Media::VisualTreeHelper::GetChildrenCount(visual);
+        for (std::uint32_t index = 0U; index < count; ++index) {
+            Aero::Media::Visual* child =
+                Aero::Media::VisualTreeHelper::GetChild(visual, index);
+            if (child == nullptr) continue;
+            if (Border* found = self(self, *child)) return found;
+        }
+        return nullptr;
+    };
+    Border* row = findRow(findRow, *players);
+    CHECK(row != nullptr);
+    CHECK(row->GetVisibility() == Visibility::Visible);
+
+    combo->SetSelectedIndex(2U);
+    Pump(view, 0.080);
+    Pump(view, 0.096);
+    if (row->GetVisibility() != Visibility::Collapsed) {
+        std::fprintf(stderr,
+            "element-name filter did not collapse visibility=%u selected=%u\n",
+            static_cast<unsigned>(row->GetVisibility()),
+            combo->GetSelectedIndex());
+    }
+    CHECK(row->GetVisibility() == Visibility::Collapsed);
+    return true;
+}
+
+bool TestDataTemplateMultiDataTriggerTeamFilter() {
+    LiveGui* live = NewLiveGui();
+    CHECK(live != nullptr);
+    View& view = *live->view;
+    view.SetSize({400.0, 300.0});
+
+    constexpr char kTree[] =
+        "<Grid xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" "
+        "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" "
+        "Width=\"400\" Height=\"300\">"
+        "<Grid.Resources>"
+        "<DataTemplate x:Key=\"PlayerTemplate\">"
+        "<Border x:Name=\"PlayerRow\" Height=\"24\" Background=\"#FF334455\"/>"
+        "<DataTemplate.Triggers>"
+        "<MultiDataTrigger>"
+        "<MultiDataTrigger.Conditions>"
+        "<Condition Binding=\"{Binding SelectedItem, ElementName=VisibleTeam}\" "
+        "Value=\"Horde\"/>"
+        "<Condition Binding=\"{Binding Team}\" Value=\"Alliance\"/>"
+        "</MultiDataTrigger.Conditions>"
+        "<Setter TargetName=\"PlayerRow\" Property=\"Visibility\" Value=\"Collapsed\"/>"
+        "</MultiDataTrigger>"
+        "<MultiDataTrigger>"
+        "<MultiDataTrigger.Conditions>"
+        "<Condition Binding=\"{Binding SelectedItem, ElementName=VisibleTeam}\" "
+        "Value=\"Alliance\"/>"
+        "<Condition Binding=\"{Binding Team}\" Value=\"Horde\"/>"
+        "</MultiDataTrigger.Conditions>"
+        "<Setter TargetName=\"PlayerRow\" Property=\"Visibility\" Value=\"Collapsed\"/>"
+        "</MultiDataTrigger>"
+        "</DataTemplate.Triggers>"
+        "</DataTemplate>"
+        "</Grid.Resources>"
+        "<StackPanel>"
+        "<ItemsControl x:Name=\"Players\" ItemTemplate=\"{StaticResource PlayerTemplate}\"/>"
+        "<ComboBox x:Name=\"VisibleTeam\" Width=\"150\" Height=\"28\"/>"
+        "</StackPanel>"
+        "</Grid>";
+    Aero::Markup::XamlReader reader(live->gui);
+    Result<Aero::Markup::XamlDocument> document = reader.Parse(
+        StringView(kTree));
+    if (!document) {
+        std::fprintf(stderr, "multi-data filter XAML parse failed: %s\n",
+            document.GetStatus().message);
+        DumpDiagnostics(live->diagnostics);
+    }
+    CHECK(document);
+    CHECK(view.SetContent(std::move(document).Value(), {400.0, 300.0}));
+    Pump(view, 0.016);
+
+    FrameworkElement* root = view.GetContent();
+    CHECK(root != nullptr);
+    ComboBox* combo = root->FindName<ComboBox>(StringView("VisibleTeam"));
+    ItemsControl* players =
+        root->FindName<ItemsControl>(StringView("Players"));
+    CHECK(combo != nullptr);
+    CHECK(players != nullptr);
+
+    Result<Ref<ObservableObjectCollection>> teams =
+        MakeRef<ObservableObjectCollection>();
+    CHECK(teams);
+    CHECK(Aero::Controls::AddBoxedStringItem(*teams.Value(), "Overall"));
+    CHECK(Aero::Controls::AddBoxedStringItem(*teams.Value(), "Alliance"));
+    CHECK(Aero::Controls::AddBoxedStringItem(*teams.Value(), "Horde"));
+    combo->SetItemsSource(Ref<Aero::Base::Object>(teams.Value()));
+    combo->SetSelectedIndex(0U);
+
+    Result<Ref<ObservableCollection<BindingSlotItem>>> items =
+        MakeRef<ObservableCollection<BindingSlotItem>>();
+    Result<Ref<BindingSlotItem>> alliance = MakeRef<BindingSlotItem>();
+    Result<Ref<BindingSlotItem>> horde = MakeRef<BindingSlotItem>();
+    CHECK(items && alliance && horde);
+    String allianceTeam;
+    String hordeTeam;
+    CHECK(allianceTeam.Assign("Alliance"));
+    CHECK(hordeTeam.Assign("Horde"));
+    alliance.Value()->SetTeam(std::move(allianceTeam));
+    horde.Value()->SetTeam(std::move(hordeTeam));
+    CHECK(items.Value()->Add(alliance.Value()));
+    CHECK(items.Value()->Add(horde.Value()));
+    players->SetItemsSource(Ref<Aero::Base::Object>(items.Value()));
+    static_cast<void>(combo->ApplyTemplate());
+    static_cast<void>(players->ApplyTemplate());
+    Pump(view, 0.032);
+    Pump(view, 0.048);
+    CHECK(players->GetRealizedItemCount() == 2U);
+
+    Border* rows[2] = {nullptr, nullptr};
+    std::uint32_t rowCount = 0U;
+    const auto collectRows = [&](auto& self, Aero::Media::Visual& visual)
+        -> void {
+        if (rowCount >= 2U) return;
+        if (auto* border = TryCast<Border>(&visual)) {
+            if (Near(border->GetHeight(), 24.0, 0.5)) {
+                rows[rowCount++] = border;
+                return;
+            }
+        }
+        const std::uint32_t count =
+            Aero::Media::VisualTreeHelper::GetChildrenCount(visual);
+        for (std::uint32_t index = 0U; index < count; ++index) {
+            Aero::Media::Visual* child =
+                Aero::Media::VisualTreeHelper::GetChild(visual, index);
+            if (child == nullptr) continue;
+            self(self, *child);
+        }
+    };
+    collectRows(collectRows, *players);
+    CHECK(rowCount == 2U);
+    CHECK(rows[0] != nullptr && rows[1] != nullptr);
+    CHECK(rows[0]->GetVisibility() == Visibility::Visible);
+    CHECK(rows[1]->GetVisibility() == Visibility::Visible);
+
+    combo->SetSelectedIndex(2U);
+    Pump(view, 0.064);
+    Pump(view, 0.080);
+    if (rows[0]->GetVisibility() != Visibility::Collapsed ||
+        rows[1]->GetVisibility() != Visibility::Visible) {
+        std::fprintf(stderr,
+            "horde filter vis alliance=%u horde=%u selected=%u\n",
+            static_cast<unsigned>(rows[0]->GetVisibility()),
+            static_cast<unsigned>(rows[1]->GetVisibility()),
+            combo->GetSelectedIndex());
+    }
+    CHECK(rows[0]->GetVisibility() == Visibility::Collapsed);
+    CHECK(rows[1]->GetVisibility() == Visibility::Visible);
+
+    combo->SetSelectedIndex(1U);
+    Pump(view, 0.096);
+    Pump(view, 0.112);
+    CHECK(rows[0]->GetVisibility() == Visibility::Visible);
+    CHECK(rows[1]->GetVisibility() == Visibility::Collapsed);
+    return true;
+}
+
+bool TestDataTemplateItemHoverStoryboard() {
+    ViewOptions options;
+    options.automaticAnimationClock = false;
+    LiveGui* live = NewLiveGui(options);
+    CHECK(live != nullptr);
+    View& view = *live->view;
+    view.SetSize({400.0, 300.0});
+
+    constexpr char kTree[] =
+        "<Viewbox xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" "
+        "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
+        "<Grid Width=\"400\" Height=\"300\">"
+        "<Grid.Resources>"
+        "<DataTemplate x:Key=\"PlayerTemplate\">"
+        "<DataTemplate.Resources>"
+        "<Storyboard x:Key=\"OverOn\">"
+        "<DoubleAnimationUsingKeyFrames "
+        "Storyboard.TargetProperty=\"(UIElement.RenderTransform)."
+        "(TransformGroup.Children)[3].(TranslateTransform.X)\" "
+        "Storyboard.TargetName=\"PlayerRow\">"
+        "<EasingDoubleKeyFrame KeyTime=\"0:0:0.15\" Value=\"8\"/>"
+        "</DoubleAnimationUsingKeyFrames>"
+        "</Storyboard>"
+        "</DataTemplate.Resources>"
+        "<Grid x:Name=\"PlayerRow\" Background=\"#FF334455\" Height=\"40\">"
+        "<Grid.RenderTransform>"
+        "<TransformGroup>"
+        "<ScaleTransform/>"
+        "<SkewTransform/>"
+        "<RotateTransform/>"
+        "<TranslateTransform/>"
+        "</TransformGroup>"
+        "</Grid.RenderTransform>"
+        "<TextBlock Text=\"Alpha\" VerticalAlignment=\"Center\" Margin=\"8,0\"/>"
+        "</Grid>"
+        "<DataTemplate.Triggers>"
+        "<Trigger Property=\"IsMouseOver\" Value=\"True\">"
+        "<Trigger.EnterActions>"
+        "<BeginStoryboard Storyboard=\"{StaticResource OverOn}\"/>"
+        "</Trigger.EnterActions>"
+        "</Trigger>"
+        "</DataTemplate.Triggers>"
+        "</DataTemplate>"
+        "</Grid.Resources>"
+        "<ItemsControl x:Name=\"Players\" ItemTemplate=\"{StaticResource PlayerTemplate}\">"
+        "<ItemsControl.ItemsPanel>"
+        "<ItemsPanelTemplate><StackPanel/></ItemsPanelTemplate>"
+        "</ItemsControl.ItemsPanel>"
+        "</ItemsControl>"
+        "</Grid>"
+        "</Viewbox>";
+
+    Aero::Markup::XamlReader reader(live->gui);
+    Result<Aero::Markup::XamlDocument> document = reader.Parse(
+        StringView(kTree));
+    if (!document) {
+        std::fprintf(stderr, "data template hover XAML parse failed: %s\n",
+            document.GetStatus().message);
+        DumpDiagnostics(live->diagnostics);
+    }
+    CHECK(document);
+    CHECK(view.SetContent(std::move(document).Value(), {400.0, 300.0}));
+    Pump(view, 0.016);
+
+    FrameworkElement* root = view.GetContent();
+    CHECK(root != nullptr);
+    ItemsControl* players =
+        root->FindName<ItemsControl>(StringView("Players"));
+    CHECK(players != nullptr);
+
+    const DataTemplate* itemTemplate = players->GetItemTemplate();
+    CHECK(itemTemplate != nullptr);
+    Result<Aero::ResourceValue> overOn =
+        itemTemplate->GetResources().Lookup(StringView("OverOn"));
+    if (!overOn) {
+        std::fprintf(stderr,
+            "DataTemplate.Resources missing OverOn: %s\n",
+            overOn.GetStatus().message);
+    }
+    CHECK(overOn);
+
+    Result<Ref<ObservableCollection<BindingSlotItem>>> items =
+        MakeRef<ObservableCollection<BindingSlotItem>>();
+    Result<Ref<BindingSlotItem>> item = MakeRef<BindingSlotItem>();
+    CHECK(items && item);
+    CHECK(items.Value()->Add(item.Value()));
+    players->SetItemsSource(Ref<Aero::Base::Object>(items.Value()));
+    static_cast<void>(players->ApplyTemplate());
+    Pump(view, 0.032);
+    Pump(view, 0.048);
+    static_cast<void>(players->ApplyTemplate());
+    Pump(view, 0.064);
+    if (players->GetRealizedItemCount() != 1U) {
+        std::fprintf(stderr,
+            "data template hover realized=%u host=%d\n",
+            players->GetRealizedItemCount(),
+            players->GetItemsHost() != nullptr);
+    }
+    CHECK(players->GetRealizedItemCount() == 1U);
+
+    const auto findRow = [](auto& self, Aero::Media::Visual& visual)
+        -> Grid* {
+        if (auto* grid = TryCast<Grid>(&visual)) {
+            auto* group = TryCast<Aero::Media::TransformGroup>(
+                grid->GetRenderTransform().Get());
+            if (group != nullptr && group->GetChildren().Size() > 3U) {
+                return grid;
+            }
+        }
+        const std::uint32_t count =
+            Aero::Media::VisualTreeHelper::GetChildrenCount(visual);
+        for (std::uint32_t index = 0U; index < count; ++index) {
+            Aero::Media::Visual* child =
+                Aero::Media::VisualTreeHelper::GetChild(visual, index);
+            if (child == nullptr) continue;
+            if (Grid* found = self(self, *child)) return found;
+        }
+        return nullptr;
+    };
+    Grid* row = findRow(findRow, *players);
+    if (row == nullptr && root != nullptr) {
+        row = findRow(findRow, *root);
+    }
+    if (row == nullptr) {
+        std::fprintf(stderr, "data template hover PlayerRow was not realized\n");
+    }
+    CHECK(row != nullptr);
+
+    const Aero::Size rowSize = row->GetRenderSize();
+    CHECK(rowSize.width > 0.0 && rowSize.height > 0.0);
+    Point rowScreen{};
+    CHECK(row->TryPointToScreen(
+        {rowSize.width * 0.5, rowSize.height * 0.5}, rowScreen));
+    static_cast<void>(view.MouseMove(
+        static_cast<int>(rowScreen.x),
+        static_cast<int>(rowScreen.y)));
+    Pump(view, 0.080);
+    if (!row->GetIsMouseOver()) {
+        std::fprintf(stderr,
+            "data template hover miss screen=(%.1f,%.1f) size=(%.1f,%.1f) "
+            "slot=(%.1f,%.1f,%.1f,%.1f)\n",
+            rowScreen.x, rowScreen.y,
+            rowSize.width, rowSize.height,
+            row->GetLayoutSlot().x, row->GetLayoutSlot().y,
+            row->GetLayoutSlot().width, row->GetLayoutSlot().height);
+    }
+    CHECK(row->GetIsMouseOver());
+
+    Pump(view, 0.250);
+    auto* group = TryCast<Aero::Media::TransformGroup>(
+        row->GetRenderTransform().Get());
+    CHECK(group != nullptr);
+    CHECK(group->GetChildren().Size() > 3U);
+    auto* translate = TryCast<Aero::Media::TranslateTransform>(
+        group->GetChildren()[3].Get());
+    CHECK(translate != nullptr);
+    if (!(translate->GetX() > 1.0)) {
+        std::fprintf(stderr,
+            "data template hover storyboard did not run translate.x=%.3f "
+            "over=%d\n",
+            translate->GetX(),
+            row->GetIsMouseOver() ? 1 : 0);
+    }
+    CHECK(translate->GetX() > 1.0);
+    return true;
+}
+
 bool TestGeometryFlatten() {
     Result<Ref<PathGeometry>> path = MakeRef<PathGeometry>();
     Result<Ref<PathFigure>> figure = MakeRef<PathFigure>();
@@ -1725,7 +3007,7 @@ bool TestClosedPathRelativeMove() {
     CHECK(Near(sink.figureStarts[0].y, 10.0));
     CHECK(Near(sink.figureStarts[1].x, 12.0));
     CHECK(Near(sink.figureStarts[1].y, 12.0));
-    const Rect ringBounds = ring.GetBounds();
+    const Aero::Rect ringBounds = ring.GetBounds();
     CHECK(ringBounds.x >= 9.9);
     CHECK(ringBounds.y >= 9.9);
     CHECK(ringBounds.width <= 20.1);
@@ -1741,7 +3023,7 @@ bool TestClosedPathRelativeMove() {
     PointSink frameSink;
     CHECK(innerFrame.Flatten(frameSink));
     CHECK(frameSink.begins == 2U);
-    const Rect frameBounds = innerFrame.GetBounds();
+    const Aero::Rect frameBounds = innerFrame.GetBounds();
     CHECK(frameBounds.x > -1.0);
     CHECK(frameBounds.y > -1.0);
     CHECK(frameBounds.width < 540.0);
@@ -1754,7 +3036,7 @@ bool TestClosedPathRelativeMove() {
     PointSink itemSink;
     CHECK(listItem.Flatten(itemSink));
     CHECK(itemSink.begins == 2U);
-    const Rect itemBounds = listItem.GetBounds();
+    const Aero::Rect itemBounds = listItem.GetBounds();
     CHECK(itemBounds.x > -1.0);
     CHECK(itemBounds.width < 380.0);
     return true;
@@ -3406,6 +4688,8 @@ bool TestLoadedIntroStoryboard() {
 } // namespace
 
 bool TestStyleSetterMergedStaticResource();
+bool TestMergedNestedStaticResource();
+bool TestTypeKeyedStaticResourceBasedOn();
 bool TestInventoryTemplateApply();
 bool TestTutorialSampleXamlLoadApply();
 
@@ -3418,6 +4702,17 @@ int main() {
     RUN(TestContainerLayoutAndCalculators);
     RUN(TestComboBoxAndVisualStateAnimation);
     RUN(TestTransform3DCollapseAndHits);
+    RUN(TestViewboxHoverAndPopupFlip);
+    RUN(TestMenuTooltipForegroundAndFocus);
+    RUN(TestViewboxTransform3DButtonHit);
+    RUN(TestKeyboardNavigationIsTabStopTemplateTrigger);
+    RUN(TestCheckedVisualStateRevertsArrowOpacity);
+    RUN(TestRepeatButtonPressClickAndScaleX);
+    RUN(TestComboBoxPopupItemClickSelects);
+    RUN(TestComboBoxItemsSourcePopupClickSelects);
+    RUN(TestDataTemplateElementNameSelectedItemFilter);
+    RUN(TestDataTemplateMultiDataTriggerTeamFilter);
+    RUN(TestDataTemplateItemHoverStoryboard);
     RUN(TestGeometryFlatten);
     RUN(TestClosedPathRelativeMove);
     RUN(TestStreamGeometryFlattenCore);
@@ -3436,6 +4731,8 @@ int main() {
     RUN(TestTutorialXamlSurface);
     RUN(TestTutorialRuntimePatterns);
     RUN(TestStyleSetterMergedStaticResource);
+    RUN(TestMergedNestedStaticResource);
+    RUN(TestTypeKeyedStaticResourceBasedOn);
     RUN(TestInventoryTemplateApply);
     RUN(TestTutorialSampleXamlLoadApply);
     std::puts("Aero framework conformance tests passed");

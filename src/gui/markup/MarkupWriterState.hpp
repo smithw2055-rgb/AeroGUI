@@ -253,6 +253,29 @@ private:
         void* context) noexcept;
 };
 
+// Mirrors WPF's {StaticResource key}/StaticResourceExtension. Unlike
+// DynamicResourceExtension it resolves the resource dictionary key exactly once
+// while the XAML tree is authored and returns the value directly; there is no
+// expression and no change tracking once the tree is live.
+class StaticResourceExtension {
+public:
+    StaticResourceExtension() noexcept = default;
+
+    StaticResourceExtension(const StaticResourceExtension&) = delete;
+    StaticResourceExtension& operator=(
+        const StaticResourceExtension&) = delete;
+
+    Base::Result<void> Register(
+        Schema& schema,
+        Meta::TypeId staticResourceExtensionType) noexcept;
+
+private:
+    static Base::Result<ProvidedValue> ProvideValue(
+        Base::StringView arguments,
+        const ExtensionServices& services,
+        void* context) noexcept;
+};
+
 class TypeExtension {
 public:
     TypeExtension() noexcept = default;
@@ -670,6 +693,7 @@ private:
         bool hasContentMember = false;
         bool contentValueTypeIsObject = false;
         bool contentValueTypeIsValueType = false;
+        bool deferredStaticResource = false;
     };
 
     struct AssignmentRecord {

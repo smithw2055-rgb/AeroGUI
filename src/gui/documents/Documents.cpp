@@ -524,8 +524,8 @@ void Span::SetInlineValue(Meta::Value value) noexcept {
                 object->RuntimeType(), Inline::StaticTypeId())) {
             return;
         }
-        pendingInline_ = Base::Ref<Inline>::FromBorrowed(
-            *static_cast<Inline*>(object.Get()));
+        (void)AddOwnedInline(Base::Ref<Inline>::FromBorrowed(
+            *static_cast<Inline*>(object.Get())));
         return;
     }
     if (value.Kind() != Meta::ValueKind::String) {
@@ -534,8 +534,7 @@ void Span::SetInlineValue(Meta::Value value) noexcept {
     Base::Result<Base::Ref<Run>> created = Base::MakeRef<Run>();
     if (!created) return;
     created.Value()->SetText(value.AsString());
-    pendingInline_ = Base::Ref<Inline>(created.Value());
-    return;
+    (void)AddOwnedInline(Base::Ref<Inline>(created.Value()));
 }
 
 Base::Result<void> Span::AddOwnedInline(Base::Ref<Inline> value) noexcept {
@@ -828,8 +827,37 @@ Base::StringView TextBlock::GetText() const noexcept {
     return GetValueOr(TextProperty, Base::StringView());
 }
 Base::Ref<Brush> TextBlock::GetForeground() const noexcept {
-    return GetValueOr(
-        ForegroundProperty, Base::Ref<Brush>{});
+    const auto authoredForeground =
+        [](const DependencyObject& object) noexcept -> Base::Ref<Brush> {
+            const Meta::PropertyValueSourceInfo source =
+                object.GetValueSourceInfo(
+                    FrameworkElementForegroundProperty.Handle());
+            if (source.isInherited ||
+                source.rank < Meta::PropertyValueRank::TemplatedParentSetter) {
+                return {};
+            }
+            return object.GetValueOr(
+                FrameworkElementForegroundProperty, Base::Ref<Brush>{});
+        };
+    if (Base::Ref<Brush> local = authoredForeground(*this)) {
+        return local;
+    }
+    const ::Aero::Media::Visual* current =
+        GetVisualParent() != nullptr
+        ? GetVisualParent()
+        : ::Aero::TryCast<::Aero::Media::Visual>(GetLogicalParent());
+    for (std::uint32_t depth = 0U;
+         current != nullptr && depth < 64U;
+         ++depth) {
+        if (Base::Ref<Brush> authored = authoredForeground(*current)) {
+            return authored;
+        }
+        current = current->GetVisualParent() != nullptr
+            ? current->GetVisualParent()
+            : ::Aero::TryCast<::Aero::Media::Visual>(
+                  current->GetLogicalParent());
+    }
+    return GetValueOr(ForegroundProperty, Base::Ref<Brush>{});
 }
 Base::Ref<Brush> TextBlock::GetBackground() const noexcept {
     return GetValueOr(
@@ -992,9 +1020,7 @@ void TextBlock::SetInlineValue(
         Base::MakeRef<Documents::Run>();
     if (!created) return;
     created.Value()->SetText(value.AsString());
-    pendingInline_ = Base::Ref<Base::Object>(
-        created.Value());
-    return;
+    (void)AddOwnedInline(Base::Ref<Base::Object>(created.Value()));
 }
 Base::Result<void> TextBlock::AddOwnedInline(
     const Base::Ref<Base::Object>& inlineObject) noexcept {

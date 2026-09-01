@@ -166,13 +166,11 @@ void StoryboardHost::AnimationEventState::Invoke(
             Base::Object*,
             Aero::RoutedEventArgs&) noexcept {
             if (runtime == nullptr || trigger == nullptr ||
-                owner == nullptr ||
-                !runtime->eventTriggerStatus.IsOk()) {
+                owner == nullptr) {
                 return;
             }
             Base::Result<bool> allowed = BehaviorsAllowExecution();
             if (!allowed) {
-                runtime->eventTriggerStatus = allowed.GetStatus();
                 return;
             }
             if (!allowed.Value()) return;
@@ -183,9 +181,12 @@ void StoryboardHost::AnimationEventState::Invoke(
                     runtime->ExecuteAnimationAction(
                         *action, *owner, nullptr, names);
                 if (!executed) {
-                    runtime->eventTriggerStatus =
-                        executed.GetStatus();
-                    return;
+                    // One action failing (SetFocus before the item is
+                    // enabled, unresolved TargetName) must not skip later
+                    // actions in the same trigger. QuestLog MouseEnter runs
+                    // SetFocusAction then SelectAction; aborting here left
+                    // the list item unselected and the detail card unchanged.
+                    continue;
                 }
             }
         }
@@ -329,6 +330,18 @@ Base::Result<bool> StoryboardHost::StartEventTrigger(
                 *allocator, Base::MemoryTag::Ui, eventContext);
             return retained.GetStatus();
         }
+        // Microsoft.Xaml.Behaviors EventTrigger fires Loaded immediately when
+        // the associated object is already loaded (InitializeComponent / mount
+        // often raises Loaded before Interaction.Triggers are attached).
+        if (loadedEvent && uiSource &&
+            static_cast<Aero::UIElement*>(eventSource)->GetIsLoaded()) {
+            // Defer until after the next layout/image pass so ElementName
+            // bindings (Menu3D parallax TranslateTransform.X) see measured
+            // ActualWidth before BackgroundAnim captures its From value.
+            Base::Result<void> queued = pendingLoadedTriggers.PushBack(
+                {&trigger, &actionOwner, names});
+            if (!queued) return queued.GetStatus();
+        }
         return true;
     }
 
@@ -410,7 +423,30 @@ void StoryboardHost::ClearEventTriggers() noexcept {
                 subscription.context);
         }
         animationEventSubscriptions.Clear();
+        pendingLoadedTriggers.Clear();
         eventTriggerStatus = Base::Status::Ok();
+    }
+
+Base::Result<void> StoryboardHost::FlushPendingLoadedTriggers() noexcept {
+        Base::Vector<PendingLoadedTrigger> snapshot(allocator);
+        for (const PendingLoadedTrigger& pending : pendingLoadedTriggers) {
+            Base::Result<void> retained = snapshot.PushBack(pending);
+            if (!retained) return retained.GetStatus();
+        }
+        pendingLoadedTriggers.Clear();
+        for (const PendingLoadedTrigger& pending : snapshot) {
+            if (pending.trigger == nullptr || pending.owner == nullptr) {
+                continue;
+            }
+            for (const Base::Ref<Aero::Interactivity::TriggerAction>& action :
+                 pending.trigger->GetActions()) {
+                if (!action) continue;
+                Base::Result<void> executed = ExecuteAnimationAction(
+                    *action, *pending.owner, nullptr, pending.names);
+                if (!executed) return executed.GetStatus();
+            }
+        }
+        return {};
     }
 
 } // namespace Aero
