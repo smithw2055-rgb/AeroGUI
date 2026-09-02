@@ -11,6 +11,7 @@
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include "gui/media/MediaState.hpp"
+#include "gui/media/BrushRendering.hpp"
 
 #include <algorithm>
 #include <cerrno>
@@ -834,7 +835,8 @@ void Path::OnRender(
     if (!mesh) return;
     const Size target = GetRenderSize();
     if ((mesh_ == InvalidRenderMeshId &&
-         strokeMesh_ == InvalidRenderMeshId) ||
+         strokeMesh_ == InvalidRenderMeshId &&
+         geometryIndices_.Empty()) ||
         (geometryBounds_.width <= 0.0 &&
          geometryBounds_.height <= 0.0)) {
         return;
@@ -887,14 +889,27 @@ void Path::OnRender(
             scaleX, 0.0, 0.0, scaleY,
             offsetX, offsetY});
     if (!transform) return;
-    if (mesh_ != InvalidRenderMeshId) {
+    if (mesh_ != InvalidRenderMeshId || !geometryIndices_.Empty()) {
         Base::Ref<Brush> fill = GetFill();
         if (fill) {
-            Color fillColor = ::Aero::Media::SampleBrush(fill);
-            if (fillColor.alpha > 0.0F) {
-                Base::Result<void> drawn =
-                    builder.DrawMesh(mesh_, fillColor);
+            const bool spatial = IsSpatialGradientBrush(fill.Get());
+            if (spatial && !geometryIndices_.Empty()) {
+                Base::Result<void> drawn = PaintBrushGeometry(
+                    builder,
+                    fill,
+                    geometryVertices_.AsSpan(),
+                    geometryIndices_.AsSpan(),
+                    geometryBounds_,
+                    false,
+                    mesh_);
                 if (!drawn) return;
+            } else if (!spatial && mesh_ != InvalidRenderMeshId) {
+                Color fillColor = ::Aero::Media::SampleBrush(fill);
+                if (fillColor.alpha > 0.0F) {
+                    Base::Result<void> drawn =
+                        builder.DrawMesh(mesh_, fillColor);
+                    if (!drawn) return;
+                }
             }
         }
     }

@@ -554,6 +554,33 @@ void UiFrameEncoder::SetBatchImage(
     AssignColorEnable(currentBatch_.renderState, 1U);
 }
 
+void UiFrameEncoder::SetBatchRamp(
+    Shader::Enum shader,
+    Texture* ramp,
+    const float uniforms[8]) noexcept {
+    const bool uniformsDiffer =
+        std::memcmp(paintUniforms_, uniforms, sizeof(paintUniforms_)) != 0;
+    const bool batchActive = currentBatch_.numIndices > 0U;
+    if (batchActive &&
+        (currentBatch_.shader != shader ||
+         currentBatch_.ramps != ramp ||
+         uniformsDiffer ||
+         currentBatch_.renderState.f.colorEnable != 1U ||
+         currentBatch_.renderState.f.blendMode !=
+             static_cast<uint8_t>(currentBlendMode_))) {
+        FlushBatch();
+    }
+    std::memcpy(paintUniforms_, uniforms, sizeof(paintUniforms_));
+    currentBatch_.shader = shader;
+    currentBatch_.ramps = ramp;
+    currentBatch_.rampsSampler.f.wrapMode = WrapMode::ClampToEdge;
+    currentBatch_.rampsSampler.f.minmagFilter = MinMagFilter::Linear;
+    currentBatch_.pixelUniforms[0].values = paintUniforms_;
+    currentBatch_.pixelUniforms[0].numDwords = 8U;
+    AssignBlendMode(currentBatch_.renderState, static_cast<unsigned>(currentBlendMode_));
+    AssignColorEnable(currentBatch_.renderState, 1U);
+}
+
 void UiFrameEncoder::EmitMaskBrush(
     const RenderMaskSnapshot& mask,
     double width,
@@ -671,20 +698,35 @@ void UiFrameEncoder::CompositeOffscreen(
     offscreenSizeUniform_[1] =
         static_cast<float>(static_cast<double>(texture->GetHeight()) / blurScale);
 
+    // Offscreen targets pad by twice the blur radius so the 3x3 kernel, which
+    // samples at ±radius, does not clamp against the texture edge. Composite
+    // quads are expanded by the same local padding so the halo is visible.
+    const double pad = (node.effect.kind == RenderEffectKind::DropShadow ||
+                        node.effect.kind == RenderEffectKind::Blur ||
+                        node.effect.kind == RenderEffectKind::DirectionalBlur)
+        ? std::max(0.0, node.effect.radius) * 2.0
+        : 0.0;
+    const double quadW = w + pad * 2.0;
+    const double quadH = h + pad * 2.0;
+
     // Drop shadow pass: blurred, tinted copy of the offscreen alpha, offset
     // along the effect direction, composited behind the source.
+    // WPF Direction is degrees from +X, counter-clockwise in a Y-up space.
+    // Default 315° therefore casts down-right in screen (Y-down) coordinates:
+    //   offsetX =  cos(θ) * depth
+    //   offsetY = -sin(θ) * depth
     if (node.effect.kind == RenderEffectKind::DropShadow) {
         const double radians =
             node.effect.direction * 0.017453292519943295;
         const double offsetX =
-            std::sin(radians) * node.effect.depth;
+            std::cos(radians) * node.effect.depth;
         const double offsetY =
-            -std::cos(radians) * node.effect.depth;
+            -std::sin(radians) * node.effect.depth;
         const Point shadowPoints[4] = {
-            TransformPoint(nodeTransform, offsetX, offsetY),
-            TransformPoint(nodeTransform, w + offsetX, offsetY),
-            TransformPoint(nodeTransform, w + offsetX, h + offsetY),
-            TransformPoint(nodeTransform, offsetX, h + offsetY)};
+            TransformPoint(nodeTransform, -pad + offsetX, -pad + offsetY),
+            TransformPoint(nodeTransform, -pad + quadW + offsetX, -pad + offsetY),
+            TransformPoint(nodeTransform, -pad + quadW + offsetX, -pad + quadH + offsetY),
+            TransformPoint(nodeTransform, -pad + offsetX, -pad + quadH + offsetY)};
 
         Color shadowColor = node.effect.color;
         shadowColor.alpha *= static_cast<float>(
@@ -702,10 +744,10 @@ void UiFrameEncoder::CompositeOffscreen(
         const double offsetX = std::cos(radians) * node.effect.radius;
         const double offsetY = std::sin(radians) * node.effect.radius;
         const Point blurPoints[4] = {
-            TransformPoint(nodeTransform, -offsetX, -offsetY),
-            TransformPoint(nodeTransform, w - offsetX, -offsetY),
-            TransformPoint(nodeTransform, w - offsetX, h - offsetY),
-            TransformPoint(nodeTransform, -offsetX, h - offsetY)};
+            TransformPoint(nodeTransform, -pad - offsetX, -pad - offsetY),
+            TransformPoint(nodeTransform, -pad + quadW - offsetX, -pad - offsetY),
+            TransformPoint(nodeTransform, -pad + quadW - offsetX, -pad + quadH - offsetY),
+            TransformPoint(nodeTransform, -pad - offsetX, -pad + quadH - offsetY)};
         SetBatchImage(Shader::Blur, texture);
         currentBatch_.pixelUniforms[0] =
             {offscreenSizeUniform_, 2U, 0U};
@@ -750,10 +792,10 @@ void UiFrameEncoder::CompositeOffscreen(
     }
 
     const Point points[4] = {
-        TransformPoint(nodeTransform, 0.0, 0.0),
-        TransformPoint(nodeTransform, w, 0.0),
-        TransformPoint(nodeTransform, w, h),
-        TransformPoint(nodeTransform, 0.0, h)};
+        TransformPoint(nodeTransform, -pad, -pad),
+        TransformPoint(nodeTransform, -pad + quadW, -pad),
+        TransformPoint(nodeTransform, -pad + quadW, -pad + quadH),
+        TransformPoint(nodeTransform, -pad, -pad + quadH)};
 
     Color tint = Color{1.0F, 1.0F, 1.0F, 1.0F};
     tint.alpha = static_cast<float>(
@@ -949,15 +991,40 @@ void UiFrameEncoder::ProcessCommand(
         break;
     }
     case RenderCommandKind::FillGradientQuad: {
-        EnsureBatchBlend(Shader::Path_Solid);
-        SetContentStencil();
-
         const Point p0 = TransformPoint(currentTransform, cmd.points[0].x, cmd.points[0].y);
         const Point p1 = TransformPoint(currentTransform, cmd.points[1].x, cmd.points[1].y);
         const Point p2 = TransformPoint(currentTransform, cmd.points[2].x, cmd.points[2].y);
         const Point p3 = TransformPoint(currentTransform, cmd.points[3].x, cmd.points[3].y);
 
         const Point points[4] = {p0, p1, p2, p3};
+        if (cmd.paintKind == 1U || cmd.paintKind == 2U) {
+            const Shader::Enum shader = cmd.paintKind == 1U
+                ? Shader::Path_Linear
+                : Shader::Path_Radial;
+            Texture* ramp = nullptr;
+            if (currentFrame_ != nullptr) {
+                const Base::Span<const RenderGradientRampSnapshot> ramps =
+                    currentFrame_->GradientRamps();
+                if (cmd.gradientRamp < ramps.Size()) {
+                    ramp = GetOrCreateGradientRamp(ramps[cmd.gradientRamp]);
+                }
+            }
+            float uniforms[8];
+            std::memcpy(uniforms, cmd.paintUniforms, sizeof(uniforms));
+            if (cmd.paintKind == 1U) {
+                uniforms[0] *= static_cast<float>(currentOpacity);
+            } else {
+                uniforms[3] *= static_cast<float>(currentOpacity);
+            }
+            SetBatchRamp(shader, ramp, uniforms);
+            SetContentStencil();
+            const Color white{1.0F, 1.0F, 1.0F, 1.0F};
+            EmitQuad(points, cmd.uvs, white);
+            break;
+        }
+        EnsureBatchBlend(Shader::Path_Solid);
+        SetContentStencil();
+
         const Point uvs[4] = {{0.0, 0.0}, {1.0, 0.0}, {1.0, 1.0}, {0.0, 1.0}};
 
         EmitQuadWithColors(points, uvs, cmd.colors, currentOpacity);
@@ -1127,11 +1194,36 @@ void UiFrameEncoder::ProcessCommand(
             break;
         }
 
-        EnsureBatchBlend(Shader::Path_Solid);
+        const bool gpuPaint = cmd.paintKind == 1U || cmd.paintKind == 2U;
+        if (gpuPaint) {
+            Texture* ramp = nullptr;
+            if (currentFrame_ != nullptr) {
+                const Base::Span<const RenderGradientRampSnapshot> ramps =
+                    currentFrame_->GradientRamps();
+                if (cmd.gradientRamp < ramps.Size()) {
+                    ramp = GetOrCreateGradientRamp(ramps[cmd.gradientRamp]);
+                }
+            }
+            float uniforms[8];
+            std::memcpy(uniforms, cmd.paintUniforms, sizeof(uniforms));
+            if (cmd.paintKind == 1U) {
+                uniforms[0] *= static_cast<float>(currentOpacity);
+            } else {
+                uniforms[3] *= static_cast<float>(currentOpacity);
+            }
+            SetBatchRamp(
+                cmd.paintKind == 1U ? Shader::Path_Linear : Shader::Path_Radial,
+                ramp,
+                uniforms);
+        } else {
+            EnsureBatchBlend(Shader::Path_Solid);
+        }
         SetContentStencil();
 
         Color c = cmd.color;
-        c.alpha = static_cast<float>(c.alpha * currentOpacity);
+        if (!gpuPaint) {
+            c.alpha = static_cast<float>(c.alpha * currentOpacity);
+        }
         const uint32_t color32 = ColorToRGBA32(c, 1.0);
 
         if (mappedVertices_ == nullptr || mappedIndices_ == nullptr) break;
@@ -1168,18 +1260,59 @@ void UiFrameEncoder::ProcessCommand(
             std::uint32_t end) noexcept {
             auto* v = reinterpret_cast<Vertex2D*>(
                 mappedVertices_ + currentVertexOffset_);
+            const bool hasInverse = cmd.uvs[0].x > 0.5;
+            Base::Transform2D inverse{};
+            if (hasInverse) {
+                static_cast<void>(
+                    Base::TryToTransform2D(cmd.transform, inverse));
+            }
             for (std::uint32_t index = start; index < end; ++index) {
+                const Point local = mesh->vertices[index];
                 const Point pos = TransformPoint(
-                    currentTransform,
-                    mesh->vertices[index].x,
-                    mesh->vertices[index].y);
-                const std::uint32_t local = index - start;
-                v[local].x = static_cast<float>(pos.x);
-                v[local].y = static_cast<float>(pos.y);
-                v[local].color = color32;
-                v[local].u = 0.0F;
-                v[local].v = 0.0F;
-                v[local].coverage = 1.0F;
+                    currentTransform, local.x, local.y);
+                Point sample = local;
+                if (hasInverse && cmd.rect.width > 1.0e-12 &&
+                    cmd.rect.height > 1.0e-12) {
+                    const Point uv{
+                        (local.x - cmd.rect.x) / cmd.rect.width,
+                        (local.y - cmd.rect.y) / cmd.rect.height};
+                    const Point mapped{
+                        uv.x * inverse.m11 + uv.y * inverse.m21 + inverse.dx,
+                        uv.x * inverse.m12 + uv.y * inverse.m22 + inverse.dy};
+                    sample = {
+                        cmd.rect.x + mapped.x * cmd.rect.width,
+                        cmd.rect.y + mapped.y * cmd.rect.height};
+                }
+                float u = 0.0F;
+                float vCoord = 0.0F;
+                if (cmd.paintKind == 1U) {
+                    const double len2 =
+                        cmd.scalar > 1.0e-12 ? cmd.scalar : 1.0;
+                    const double t =
+                        ((sample.x - cmd.points[0].x) * cmd.points[1].x +
+                         (sample.y - cmd.points[0].y) * cmd.points[1].y) /
+                        len2;
+                    u = static_cast<float>(t);
+                    vCoord = 0.5F;
+                } else if (cmd.paintKind == 2U) {
+                    const double rx =
+                        std::fabs(cmd.points[2].x) > 1.0e-6
+                            ? cmd.points[2].x : 1.0;
+                    const double ry =
+                        std::fabs(cmd.points[2].y) > 1.0e-6
+                            ? cmd.points[2].y : 1.0;
+                    u = static_cast<float>(
+                        (sample.x - cmd.points[0].x) / rx);
+                    vCoord = static_cast<float>(
+                        (sample.y - cmd.points[0].y) / ry);
+                }
+                const std::uint32_t localIndex = index - start;
+                v[localIndex].x = static_cast<float>(pos.x);
+                v[localIndex].y = static_cast<float>(pos.y);
+                v[localIndex].color = color32;
+                v[localIndex].u = u;
+                v[localIndex].v = vCoord;
+                v[localIndex].coverage = 1.0F;
             }
         };
 
@@ -1282,7 +1415,12 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
     if (!initialized_ || device_ == nullptr) return {};
 
     ResetFrame();
+    currentFrame_ = &frame;
     stats_.sourceCommandCount = frame.Commands().Size();
+
+    for (const auto& ramp : frame.GradientRamps()) {
+        GetOrCreateGradientRamp(ramp);
+    }
 
     device_->SetRenderTarget(&target);
     device_->BeginOnscreenRender();
@@ -1519,10 +1657,19 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
         // for axis-aligned clips.
         const bool needsClipLayer =
             node.clipsToBounds && subtreeCommands > 0U;
+        // CompositeTransform3D (RotationY card-flip) stores a non-affine
+        // homography on this node. Descendants keep 2D local visuals and
+        // inherit via nodeTransform; DropShadow children each bake their
+        // own axis-aligned layer, so the board never turns as one card.
+        // Rasterize the subtree in local pixels, then warp that one quad.
+        const bool needs3DLayer =
+            subtreeCommands > 0U &&
+            !Base::IsAffine(node.renderTransform);
         const bool needsOffscreen =
             hasEffect || hasMask ||
             (node.opacity < 1.0 && subtreeCommands > 1U) ||
-            needsClipLayer;
+            needsClipLayer ||
+            needs3DLayer;
 
         // Opacity 0 still participates in hit-testing, but must not take the
         // offscreen compositing path. A hidden ScrollBar (17px, opacity 0)
@@ -1545,12 +1692,20 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
         // Offscreen compositing: record the subtree into an offscreen target,
         // then composite it back with the node's effect, mask and opacity.
         const std::uint32_t subtreeEnd = subtreeEndOf(nodeIndex);
+        const double effectPadLocal =
+            (node.effect.kind == RenderEffectKind::DropShadow ||
+             node.effect.kind == RenderEffectKind::Blur ||
+             node.effect.kind == RenderEffectKind::DirectionalBlur)
+            ? std::max(0.0, node.effect.radius) * 2.0
+            : 0.0;
+        const std::uint32_t padPixels = static_cast<std::uint32_t>(
+            std::ceil(effectPadLocal * dpi));
         const std::uint32_t offWidth = std::max(
             1U, static_cast<std::uint32_t>(
-                std::ceil(node.renderSize.width * dpi)));
+                std::ceil(node.renderSize.width * dpi)) + padPixels * 2U);
         const std::uint32_t offHeight = std::max(
             1U, static_cast<std::uint32_t>(
-                std::ceil(node.renderSize.height * dpi)));
+                std::ceil(node.renderSize.height * dpi)) + padPixels * 2U);
 
         FlushBatch();
         RenderTarget* offscreen =
@@ -1575,10 +1730,31 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
 
         // Record the subtree in node-local space scaled by dpi. The root
         // node's slot offset, render transform and opacity are applied at
-        // composite time rather than baked into the offscreen content.
-        ProjectiveTransform2D offRoot;
-        offRoot.m11 = dpi;
-        offRoot.m22 = dpi;
+        // composite time rather than baked into the offscreen content —
+        // except Viewbox stretch, which must be baked so unscaled children
+        // (CheckNought Paths) fit a RenderSize-sized DropShadow target.
+        ProjectiveTransform2D dpiPad;
+        dpiPad.m11 = dpi;
+        dpiPad.m22 = dpi;
+        dpiPad.m31 = static_cast<double>(padPixels);
+        dpiPad.m32 = static_cast<double>(padPixels);
+        ProjectiveTransform2D offRoot = dpiPad;
+        ProjectiveTransform2D compositeTransform = nodeTransform;
+        if (node.hasViewboxTransform) {
+            const ProjectiveTransform2D viewbox =
+                Base::ToProjective(node.viewboxTransform);
+            offRoot = CombineTransform(viewbox, dpiPad);
+            ProjectiveTransform2D inverseViewbox;
+            if (Base::Invert(viewbox, inverseViewbox)) {
+                const ProjectiveTransform2D visualWithout = CombineTransform(
+                    inverseViewbox, node.renderTransform);
+                const ProjectiveTransform2D localWithout = CombineTransform(
+                    visualWithout,
+                    MakeTranslate(node.layoutSlot.x, node.layoutSlot.y));
+                compositeTransform =
+                    CombineTransform(localWithout, baseTransform);
+            }
+        }
         Base::Vector<NodeState> offStack(allocator_);
         for (std::uint32_t i = nodeIndex; i < subtreeEnd; ++i) {
             const RenderNodeSnapshot& sub = nodes[i];
@@ -1661,7 +1837,8 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
         }
 
         CompositeOffscreen(
-            node, offscreen, maskTarget, nodeTransform, nodeOpacity, dpi, frame);
+            node, offscreen, maskTarget, compositeTransform, nodeOpacity, dpi,
+            frame);
         FlushBatch();
 
         nodeIndex = subtreeEnd;
@@ -1685,6 +1862,7 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
 
     device_->EndTile(&target);
     device_->EndOnscreenRender();
+    currentFrame_ = nullptr;
 
     return {};
 }

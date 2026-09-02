@@ -265,6 +265,13 @@ Base::Object* FrameworkElement::FindNameObject(
                 ? object
                 : nullptr;
         }
+        // UserControl (LoadComponent ColorSelector) is a namescope. Walking
+        // to Window made FindName("LayoutRoot") return the Window grid, then
+        // SetContent tried to parent that grid under ColorSelector (cycle).
+        if (::Aero::TryCast<Controls::UserControl>(
+                const_cast<FrameworkElement*>(current)) != nullptr) {
+            break;
+        }
         ::Aero::Media::Visual* visual =
             ::Aero::TryCast<::Aero::Media::Visual>(
                 const_cast<FrameworkElement*>(current));

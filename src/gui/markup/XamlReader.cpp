@@ -127,7 +127,9 @@ Base::Result<XamlDocument> XamlReader::LoadComponentInto(
     GuiState& state = static_cast<GuiState&>(*gui_->state_);
     XamlLoadScope scope(state.dispatcher, state.schema, state.documents);
     if (resources != nullptr) {
-        scope.load.resources = resources;
+        // Ambient lookup only. `resources` is the document dictionary; wiring
+        // Application.Resources there lets LoadComponent mutate/seal app-wide
+        // styles and drops Button/Thumb hover storyboards.
         scope.load.fallbackResources = resources;
     }
     Base::Result<XamlDocument> loaded = state.xaml.LoadComponentInto(

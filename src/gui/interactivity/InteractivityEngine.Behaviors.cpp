@@ -183,10 +183,10 @@ Base::Result<void> InteractivityEngine::AttachBehavior(
             descriptor.stringFormat =
                 authored.binding->GetStringFormat();
             descriptor.bindsToSource = descriptor.path.Empty();
-            descriptor.mode = authored.binding->GetMode() ==
-                    Data::BindingMode::Default
-                ? Data::BindingMode::OneWay
-                : authored.binding->GetMode();
+            descriptor.mode = bindings->ResolveBindingMode(
+                *record.instance.Get(),
+                authored.property,
+                authored.binding->GetMode());
             descriptor.updateSourceTrigger =
                 bindings->ResolveUpdateSourceTrigger(
                     *record.instance.Get(),

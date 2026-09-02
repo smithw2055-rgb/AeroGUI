@@ -184,6 +184,10 @@ private:
         Shader::Enum shader,
         Texture* texture,
         Texture* maskTexture = nullptr) noexcept;
+    void SetBatchRamp(
+        Shader::Enum shader,
+        Texture* ramp,
+        const float uniforms[8]) noexcept;
 
     void CompositeOffscreen(
         const RenderNodeSnapshot& node,
@@ -219,6 +223,8 @@ private:
     Base::Vector<ClipEntry> clipStack_{allocator_};
     float offscreenSizeUniform_[2] = {0.0F, 0.0F};
     float customEffectUniforms_[4] = {0.0F, 0.0F, 0.0F, 0.0F};
+    float paintUniforms_[8]{};
+    const RenderFrame* currentFrame_ = nullptr;
 
     std::uint8_t clipDepth_ = 0U;
 

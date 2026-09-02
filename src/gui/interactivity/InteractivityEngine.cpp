@@ -1,5 +1,6 @@
 #include "gui/ViewState.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
+#include "gui/meta/ValueConversion.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -302,6 +303,114 @@ Base::Result<bool> InteractivityEngine::DataTemplateTriggerValuesMatch(
         return actual == expected;
     }
 
+Base::Result<bool> InteractivityEngine::EvaluateTriggerComparison(
+        const Meta::PropertyValue& actual,
+        Meta::PropertyValue expected,
+        Base::StringView comparison) noexcept {
+        if (actual.Kind() == Meta::ValueKind::Object &&
+            !actual.IsNullObject() &&
+            actual.AsObject() &&
+            actual.AsObject()->RuntimeType() ==
+                ::Aero::Controls::BoxedItemValue::StaticTypeId()) {
+            return EvaluateTriggerComparison(
+                static_cast<const ::Aero::Controls::BoxedItemValue&>(
+                    *actual.AsObject()).Value(),
+                std::move(expected),
+                comparison);
+        }
+        if (comparison.Empty() ||
+            Base::ValueConversion::EqualsAsciiInsensitive(
+                comparison, "Equal") ||
+            Base::ValueConversion::EqualsAsciiInsensitive(
+                comparison, "NotEqual")) {
+            Base::Result<bool> equal = DataTemplateTriggerValuesMatch(
+                actual, expected);
+            if (!equal) return equal.GetStatus();
+            if (comparison.Empty() ||
+                Base::ValueConversion::EqualsAsciiInsensitive(
+                    comparison, "Equal")) {
+                return equal.Value();
+            }
+            return !equal.Value();
+        }
+        Meta::PropertyValue leftValue = actual;
+        Meta::PropertyValue rightValue = std::move(expected);
+        if (rightValue.Kind() == Meta::ValueKind::String &&
+            leftValue.Kind() != Meta::ValueKind::String) {
+            if (metadata == nullptr) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::InvalidState,
+                    "Interaction DataTrigger metadata is unavailable");
+            }
+            Base::Result<Meta::PropertyValue> parsed =
+                metadata->TryConvertText(
+                    leftValue.Type(), rightValue.AsString());
+            if (!parsed) return false;
+            rightValue = std::move(parsed).Value();
+        }
+        if (leftValue.Kind() == Meta::ValueKind::String &&
+            rightValue.Kind() == Meta::ValueKind::String) {
+            const int order = leftValue.AsString().Compare(
+                rightValue.AsString());
+            if (Base::ValueConversion::EqualsAsciiInsensitive(
+                    comparison, "LessThan")) {
+                return order < 0;
+            }
+            if (Base::ValueConversion::EqualsAsciiInsensitive(
+                    comparison, "LessThanOrEqual")) {
+                return order <= 0;
+            }
+            if (Base::ValueConversion::EqualsAsciiInsensitive(
+                    comparison, "GreaterThan")) {
+                return order > 0;
+            }
+            if (Base::ValueConversion::EqualsAsciiInsensitive(
+                    comparison, "GreaterThanOrEqual")) {
+                return order >= 0;
+            }
+            return false;
+        }
+        const auto numeric = [](const Meta::PropertyValue& value,
+                                long double& output) noexcept {
+            switch (value.Kind()) {
+            case Meta::ValueKind::SignedInteger:
+                output = static_cast<long double>(value.AsSignedInteger());
+                return true;
+            case Meta::ValueKind::UnsignedInteger:
+                output = static_cast<long double>(value.AsUnsignedInteger());
+                return true;
+            case Meta::ValueKind::Double:
+                output = static_cast<long double>(value.AsDouble());
+                return true;
+            default:
+                return false;
+            }
+        };
+        long double leftNumber = 0.0L;
+        long double rightNumber = 0.0L;
+        if (!numeric(leftValue, leftNumber) ||
+            !numeric(rightValue, rightNumber)) {
+            return false;
+        }
+        if (Base::ValueConversion::EqualsAsciiInsensitive(
+                comparison, "LessThan")) {
+            return leftNumber < rightNumber;
+        }
+        if (Base::ValueConversion::EqualsAsciiInsensitive(
+                comparison, "LessThanOrEqual")) {
+            return leftNumber <= rightNumber;
+        }
+        if (Base::ValueConversion::EqualsAsciiInsensitive(
+                comparison, "GreaterThan")) {
+            return leftNumber > rightNumber;
+        }
+        if (Base::ValueConversion::EqualsAsciiInsensitive(
+                comparison, "GreaterThanOrEqual")) {
+            return leftNumber >= rightNumber;
+        }
+        return false;
+    }
+
 Base::Object* InteractivityEngine::ResolveDataTemplateConditionSource(
         Aero::Controls::DataTemplateTriggerState& context,
         Aero::Controls::DataTemplateTriggerCondition& condition,
@@ -331,6 +440,18 @@ Base::Object* InteractivityEngine::ResolveDataTemplateConditionSource(
             if (source == nullptr && view != nullptr) {
                 source = view->loadedDocument.names.Find(elementName);
             }
+        } else if (condition.binding &&
+                   condition.binding->GetRelativeSource() &&
+                   context.root != nullptr) {
+            // DataTrigger Bindings with RelativeSource (FindAncestor,
+            // TemplatedParent, Self) are resolved from the generated template
+            // root, not the item payload compiled into condition.source.
+            source = ResolveAuthoredBindingSource(
+                *condition.binding,
+                *context.root,
+                &context,
+                nullptr,
+                context.root);
         } else {
             Base::Ref<Base::Object> retainedSource =
                 condition.source.Lock();
@@ -467,6 +588,9 @@ Base::Result<void> InteractivityEngine::EvaluateDataTemplateTrigger(
                 Base::ErrorCode::InvalidState,
                 "DataTemplate Trigger runtime is unavailable");
         }
+        Base::Result<void> clrAttached =
+            AttachDataTemplateClrSubscription(context, triggerIndex);
+        if (!clrAttached) return clrAttached.GetStatus();
         Aero::Controls::DataTemplatePropertyTrigger& trigger =
             context.triggers[triggerIndex];
         if (!trigger.setters.Empty()) {
@@ -534,15 +658,13 @@ Base::Result<void> InteractivityEngine::EvaluateDataTemplateTrigger(
             : trigger.exitActions.AsSpan();
         for (const Base::Ref<Base::Object>& authored :
              actions) {
-            if (!authored ||
-                !metadata->Types().IsDerivedFrom(
+            if (!authored) continue;
+            const bool isAction =
+                metadata->Types().IsDerivedFrom(
                     authored->RuntimeType(),
                     Aero::Interactivity::TriggerAction::
-                        StaticTypeId())) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::InvalidArgument,
-                    "DataTemplate Trigger contains an invalid action");
-            }
+                        StaticTypeId());
+            if (!isAction) continue;
             Base::Result<void> executed =
                 storyboards->ExecuteAnimationAction(
                     static_cast<
@@ -550,11 +672,111 @@ Base::Result<void> InteractivityEngine::EvaluateDataTemplateTrigger(
                             *authored),
                     *context.root,
                     &context);
-            if (!executed) {
-                return executed.GetStatus();
+            if (!executed && view != nullptr) {
+                view->ReportUpdateFailure(executed.GetStatus());
             }
         }
         trigger.active = active;
+        return {};
+    }
+
+Base::Result<void> InteractivityEngine::AttachDataTemplateClrSubscription(
+        Aero::Controls::DataTemplateTriggerState& context,
+        std::uint32_t triggerIndex) noexcept {
+        if (metadata == nullptr || triggerIndex >= context.triggers.Size()) {
+            return {};
+        }
+        Aero::Controls::DataTemplatePropertyTrigger& trigger =
+            context.triggers[triggerIndex];
+        for (std::uint32_t conditionIndex = 0U;
+             conditionIndex < trigger.conditions.Size();
+             ++conditionIndex) {
+            Aero::Controls::DataTemplateTriggerCondition& condition =
+                trigger.conditions[conditionIndex];
+            if (!condition.binding) continue;
+            Base::StringView path;
+            Base::Object* source = ResolveDataTemplateConditionSource(
+                context, condition, path);
+            if (source == nullptr) continue;
+            if (metadata->Types().IsDerivedFrom(
+                    source->RuntimeType(),
+                    ::Aero::DependencyObject::StaticTypeId())) {
+                const Meta::DependencyProperty* property =
+                    ::Aero::MetadataPrivate::DependencyProperties(*metadata)
+                        .Find(source->RuntimeType(), path);
+                if (property != nullptr) continue;
+            }
+            bool alreadyAttached = false;
+            for (std::uint32_t index = 0U;
+                 index < dataTemplateTriggerSubscriptions.Size();
+                 ++index) {
+                DataTemplateTriggerSubscription& existing =
+                    dataTemplateTriggerSubscriptions[index];
+                if (existing.context == nullptr ||
+                    existing.context->triggerContext.Get() != &context ||
+                    existing.context->triggerIndex != triggerIndex ||
+                    existing.context->conditionIndex != conditionIndex) {
+                    continue;
+                }
+                if (existing.metadataSource == source) {
+                    alreadyAttached = true;
+                    break;
+                }
+                if (existing.metadataSource != nullptr &&
+                    existing.metadataSubscription != 0U) {
+                    static_cast<void>(metadata->UnsubscribePropertyChanged(
+                        *existing.metadataSource,
+                        existing.metadataSubscription));
+                    existing.metadataSource = nullptr;
+                    existing.metadataSubscription = 0U;
+                }
+            }
+            if (alreadyAttached) continue;
+
+            DataTemplateTriggerHandlerState* handlerContext = nullptr;
+            Base::Result<void> created = AllocateObject(
+                *allocator, Base::MemoryTag::Ui, handlerContext);
+            if (!created) return created.GetStatus();
+            handlerContext->runtime = this;
+            handlerContext->triggerContext =
+                Base::Ref<Aero::Controls::DataTemplateTriggerState>::
+                    FromBorrowed(context);
+            handlerContext->triggerIndex = triggerIndex;
+            handlerContext->conditionIndex = conditionIndex;
+            if (!path.Empty()) {
+                const Meta::PropertyInfo* clrProperty =
+                    metadata->Types().FindProperty(
+                        source->RuntimeType(), path, true);
+                if (clrProperty != nullptr) {
+                    handlerContext->metadataProperty = clrProperty->Id();
+                }
+            }
+            Base::Result<std::uint64_t> notification =
+                metadata->SubscribePropertyChanged(
+                    *source,
+                    &DataTemplateTriggerHandlerState::MetadataInvoke,
+                    handlerContext);
+            if (!notification) {
+                FreeObject(*allocator, Base::MemoryTag::Ui, handlerContext);
+                return notification.GetStatus();
+            }
+            if (notification.Value() == 0U) {
+                FreeObject(*allocator, Base::MemoryTag::Ui, handlerContext);
+                continue;
+            }
+            DataTemplateTriggerSubscription record;
+            record.metadataSource = source;
+            record.metadataSubscription = notification.Value();
+            record.context = handlerContext;
+            Base::Result<void> retained =
+                dataTemplateTriggerSubscriptions.PushBack(std::move(record));
+            if (!retained) {
+                static_cast<void>(metadata->UnsubscribePropertyChanged(
+                    *source, notification.Value()));
+                FreeObject(*allocator, Base::MemoryTag::Ui, handlerContext);
+                return retained.GetStatus();
+            }
+        }
         return {};
     }
 
@@ -1078,9 +1300,17 @@ void InteractivityEngine::ClearAnimationSubscriptionsFor(
                 ++index;
                 continue;
             }
-            static_cast<void>(
-                subscription.source->RemoveValueChangedHandler(
-                    subscription.property, subscription.handler));
+            if (subscription.source != nullptr) {
+                static_cast<void>(
+                    subscription.source->RemoveValueChangedHandler(
+                        subscription.property, subscription.handler));
+            } else if (subscription.metadataSource != nullptr &&
+                       subscription.metadataSubscription != 0U &&
+                       metadata != nullptr) {
+                static_cast<void>(metadata->UnsubscribePropertyChanged(
+                    *subscription.metadataSource,
+                    subscription.metadataSubscription));
+            }
             FreeObject(
                 *allocator, Base::MemoryTag::Ui,
                 subscription.context);
@@ -1267,6 +1497,12 @@ void InteractivityEngine::ClearAnimationEventSubscriptions() noexcept {
                         RemoveValueChangedHandler(
                             subscription.property,
                             subscription.handler));
+            } else if (subscription.metadataSource != nullptr &&
+                       subscription.metadataSubscription != 0U &&
+                       metadata != nullptr) {
+                static_cast<void>(metadata->UnsubscribePropertyChanged(
+                    *subscription.metadataSource,
+                    subscription.metadataSubscription));
             }
             FreeObject(
                 *allocator,
@@ -1351,6 +1587,31 @@ DataTemplateTriggerHandlerState::Invoke(
             triggerIndex);
     if (!evaluated && runtime->view != nullptr) {
         runtime->view->ReportUpdateFailure(evaluated.GetStatus());
+    }
+}
+
+void InteractivityEngine::
+DataTemplateTriggerHandlerState::MetadataInvoke(
+    Base::Object&,
+    Meta::MemberId property,
+    void* context) noexcept
+{
+    auto* state = static_cast<DataTemplateTriggerHandlerState*>(context);
+    if (state == nullptr ||
+        (state->metadataProperty != Meta::InvalidMemberId &&
+         property != Meta::InvalidMemberId &&
+         property != state->metadataProperty)) {
+        return;
+    }
+    if (state->runtime == nullptr || !state->triggerContext) {
+        return;
+    }
+    Base::Result<void> evaluated =
+        state->runtime->EvaluateDataTemplateTrigger(
+            *state->triggerContext,
+            state->triggerIndex);
+    if (!evaluated && state->runtime->view != nullptr) {
+        state->runtime->view->ReportUpdateFailure(evaluated.GetStatus());
     }
 }
 

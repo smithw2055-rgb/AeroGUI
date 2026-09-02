@@ -91,8 +91,15 @@ Result<void> StrokePenGeometry(
     const Pen& pen,
     const Geometry& geometry) noexcept {
     Base::Ref<Brush> brush = pen.GetBrush();
-    const Color color = SampleBrush(brush);
-    if (color.alpha <= 0.0F || pen.GetThickness() <= 0.0) return {};
+    if (!brush || pen.GetThickness() <= 0.0) return {};
+    const bool spatial = IsSpatialGradientBrush(brush.Get());
+    Color color{};
+    if (!spatial) {
+        color = SampleBrush(brush);
+        if (color.alpha <= 0.0F) return {};
+    } else if (brush->GetOpacity() <= 0.0) {
+        return {};
+    }
     Base::Vector<Point> points;
     Base::Vector<std::uint32_t> starts;
     Base::Vector<std::uint32_t> counts;
@@ -130,6 +137,22 @@ Result<void> StrokePenGeometry(
         vertices,
         indices);
     if (!stroked) return stroked.GetStatus();
+    if (spatial) {
+        Rect bounds = geometry.GetBounds();
+        const double half = pen.GetThickness() * 0.5;
+        if (half > 0.0) {
+            bounds.x -= half;
+            bounds.y -= half;
+            bounds.width += half * 2.0;
+            bounds.height += half * 2.0;
+        }
+        return PaintBrushGeometry(
+            builder,
+            brush,
+            vertices.AsSpan(),
+            indices.AsSpan(),
+            bounds);
+    }
     return EmitTriangles(builder, vertices, indices, color);
 }
 
@@ -261,8 +284,12 @@ Result<void> DrawingContext::DrawGeometry(
         Result<void> filled = TessellateGeometryFill(
             geometry, vertices, indices);
         if (!filled) return filled.GetStatus();
-        Result<void> drawn = EmitTriangles(
-            builder, vertices, indices, SampleBrush(brush));
+        Result<void> drawn = PaintBrushGeometry(
+            builder,
+            brush,
+            vertices.AsSpan(),
+            indices.AsSpan(),
+            geometry.GetBounds());
         if (!drawn) return drawn.GetStatus();
     }
     if (!pen) return {};

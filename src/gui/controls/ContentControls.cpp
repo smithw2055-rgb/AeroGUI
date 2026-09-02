@@ -8,6 +8,7 @@
 #include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/data/BindingEngine.hpp"
 #include <Aero/TryCast.hpp>
+#include <Aero/VisualTreeHelper.hpp>
 
 #include <algorithm>
 #include <limits>
@@ -149,15 +150,26 @@ void Popup::OnOpenPropertyChanged(
     DependencyObject&,
     const DependencyPropertyChangedEventArgs&
         args) noexcept {
-    static_cast<void>(
-        SetIsHitTestVisible(
-            args.GetNewValue().AsBoolean()));
+    const bool open = args.GetNewValue().AsBoolean();
+    bool hitTest = open;
+    if (open) {
+        UIElement* popupChild =
+            GetTemplateRoot() != nullptr
+                ? GetTemplateRoot()
+                : ContentElement();
+        // Tooltips set IsHitTestVisible=False on the content so the pointer
+        // can keep hitting the placement target. Forcing the Popup itself
+        // hittable would steal MouseEnter/Leave from the planet underneath.
+        if (popupChild != nullptr &&
+            !popupChild->GetIsHitTestVisible()) {
+            hitTest = false;
+        }
+    }
+    static_cast<void>(SetIsHitTestVisible(hitTest));
     static_cast<void>(InvalidateMeasure());
     RoutedEventArgs eventArgs;
     RaiseEvent(
-        args.GetNewValue().AsBoolean()
-            ? OpenedEvent
-            : ClosedEvent,
+        open ? OpenedEvent : ClosedEvent,
         &eventArgs);
 }
 
@@ -220,7 +232,10 @@ Size Popup::ArrangeOverride(
     Size targetSize = finalSize;
     Point targetOrigin{};
     Point targetAbsolute{};
+    Point popupScreenOrigin{};
     double rootHeight = 0.0;
+    double screenRootWidth = 0.0;
+    double screenRootHeight = 0.0;
     double targetScaleX = 1.0;
     double targetScaleY = 1.0;
     double popupScaleX = 1.0;
@@ -287,6 +302,7 @@ Size Popup::ArrangeOverride(
             &targetScaleX, &targetScaleY);
         const Point popupAbsolute = absoluteOrigin(
             *this, nullptr, &popupScaleX, &popupScaleY);
+        popupScreenOrigin = popupAbsolute;
         targetOrigin = {
             targetAbsolute.x - popupAbsolute.x,
             targetAbsolute.y - popupAbsolute.y};
@@ -295,6 +311,11 @@ Size Popup::ArrangeOverride(
             if (rootHeight <= 0.0) {
                 rootHeight = rootElement->GetLayoutSlot().height;
             }
+            screenRootWidth = rootElement->GetRenderSize().width;
+            if (screenRootWidth <= 0.0) {
+                screenRootWidth = rootElement->GetLayoutSlot().width;
+            }
+            screenRootHeight = rootHeight;
         }
         // A Viewbox letter-boxes its child inside the window. WPF still uses
         // the window for popup flip, which opens a bottom ComboBox into the
@@ -395,6 +416,35 @@ Size Popup::ArrangeOverride(
                     GetVerticalOffset();
             }
         }
+    }
+
+    if (screenRootWidth > 0.0 || screenRootHeight > 0.0) {
+        double screenX =
+            popupScreenOrigin.x + x * popupScaleX;
+        double screenY =
+            popupScreenOrigin.y + y * popupScaleY;
+        const double screenW = contentSize.width * popupScaleX;
+        const double screenH = contentSize.height * popupScaleY;
+        if (screenRootWidth > 0.0 &&
+            screenX + screenW > screenRootWidth) {
+            screenX = screenRootWidth - screenW;
+        }
+        if (screenX < 0.0) {
+            screenX = 0.0;
+        }
+        if (screenRootHeight > 0.0 &&
+            screenY + screenH > screenRootHeight) {
+            screenY = screenRootHeight - screenH;
+        }
+        if (screenY < 0.0) {
+            screenY = 0.0;
+        }
+        x = popupScaleX != 0.0
+            ? (screenX - popupScreenOrigin.x) / popupScaleX
+            : screenX;
+        y = popupScaleY != 0.0
+            ? (screenY - popupScreenOrigin.y) / popupScaleY
+            : screenY;
     }
 
     Base::Result<void> arranged =
@@ -501,13 +551,17 @@ Expander::Expander() noexcept
     : HeaderedContentControl(StaticTypeId()),
       expandedChangedHandler_(
           this,
-          &Expander::OnExpandedPropertyChanged) {
+          &Expander::OnExpandedPropertyChanged),
+      headerCheckedHandler_(
+          this,
+          &Expander::OnHeaderCheckedChanged) {
     static_cast<void>(AddValueChangedHandlerChecked(
         IsExpandedProperty,
         expandedChangedHandler_));
 }
 
 Expander::~Expander() {
+    UnbindHeaderToggle();
     static_cast<void>(RemoveValueChangedHandler(
         IsExpandedProperty,
         expandedChangedHandler_));
@@ -529,13 +583,102 @@ void Expander::OnExpandedPropertyChanged(
     DependencyObject&,
     const DependencyPropertyChangedEventArgs&
         change) noexcept {
+    const bool expanded = change.GetNewValue().AsBoolean();
+    if (!synchronizingHeader_ && headerToggle_ != nullptr) {
+        const bool checked =
+            headerToggle_->GetIsChecked().GetValueOr(false);
+        if (checked != expanded) {
+            synchronizingHeader_ = true;
+            headerToggle_->SetIsChecked(Nullable<bool>{expanded});
+            synchronizingHeader_ = false;
+        }
+    }
     static_cast<void>(InvalidateMeasure());
     RoutedEventArgs eventArgs;
     RaiseEvent(
-        change.GetNewValue().AsBoolean()
+        expanded
             ? ExpandedEvent
             : CollapsedEvent,
         &eventArgs);
+}
+
+void Expander::OnHeaderCheckedChanged(
+    DependencyObject&,
+    const DependencyPropertyChangedEventArgs&) noexcept {
+    if (synchronizingHeader_ || headerToggle_ == nullptr) {
+        return;
+    }
+    const bool checked =
+        headerToggle_->GetIsChecked().GetValueOr(false);
+    if (checked == GetIsExpanded()) {
+        return;
+    }
+    synchronizingHeader_ = true;
+    SetIsExpanded(checked);
+    synchronizingHeader_ = false;
+}
+
+void Expander::UnbindHeaderToggle() noexcept {
+    if (headerToggle_ == nullptr) {
+        return;
+    }
+    static_cast<void>(headerToggle_->RemoveValueChangedHandler(
+        ToggleButton::IsCheckedProperty,
+        headerCheckedHandler_));
+    headerToggle_ = nullptr;
+}
+
+void Expander::BindHeaderToggle() noexcept {
+    UnbindHeaderToggle();
+    UIElement* root = GetTemplateRoot();
+    if (root == nullptr) {
+        return;
+    }
+    const auto findHeader = [this](auto& self, Aero::Media::Visual& visual)
+        -> ToggleButton* {
+        if (auto* toggle = TryCast<ToggleButton>(&visual)) {
+            if (toggle->GetTemplatedParent() == this) {
+                return toggle;
+            }
+        }
+        const std::uint32_t count =
+            Aero::Media::VisualTreeHelper::GetChildrenCount(visual);
+        for (std::uint32_t index = 0U; index < count; ++index) {
+            Aero::Media::Visual* child =
+                Aero::Media::VisualTreeHelper::GetChild(visual, index);
+            if (child == nullptr) {
+                continue;
+            }
+            if (ToggleButton* found = self(self, *child)) {
+                return found;
+            }
+        }
+        return nullptr;
+    };
+    headerToggle_ = findHeader(findHeader, *root);
+    if (headerToggle_ == nullptr) {
+        return;
+    }
+    static_cast<void>(headerToggle_->AddValueChangedHandlerChecked(
+        ToggleButton::IsCheckedProperty,
+        headerCheckedHandler_));
+    const bool checked =
+        headerToggle_->GetIsChecked().GetValueOr(false);
+    if (checked != GetIsExpanded()) {
+        synchronizingHeader_ = true;
+        headerToggle_->SetIsChecked(Nullable<bool>{GetIsExpanded()});
+        synchronizingHeader_ = false;
+    }
+}
+
+void Expander::OnApplyTemplate() noexcept {
+    HeaderedContentControl::OnApplyTemplate();
+    BindHeaderToggle();
+}
+
+void Expander::OnTemplateDetached() noexcept {
+    UnbindHeaderToggle();
+    HeaderedContentControl::OnTemplateDetached();
 }
 
 ExpandDirection Expander::GetDirection() const noexcept {
@@ -992,87 +1135,42 @@ Base::Result<void> Viewbox::ApplyViewTransform(
     FrameworkElement* framework = child != nullptr
         ? ::Aero::TryCast<::Aero::FrameworkElement>(child)
         : nullptr;
-    if (projectedChild_ && projectedChild_.Get() != framework) {
-        projectedChild_->ClearViewboxTransform();
+    auto clearStretch = [](FrameworkElement* element) noexcept {
+        if (element == nullptr) return;
+        Base::Transform2D leftover{};
+        if (!element->TryGetViewboxTransform(leftover)) return;
+        element->ClearViewboxTransform();
         static_cast<void>(
-            AeroGuiInternal::InvalidateRenderState(*projectedChild_));
-        projectedChild_.Reset();
+            AeroGuiInternal::InvalidateRenderState(*element));
+    };
+    // Stretch stays on this Viewbox (AeroGUI wrapper Decorator), never on the
+    // child: Hexagon grids have ScaleTransform 1.2, Board has RotationY.
+    // Putting stretch on those nodes composed it after their own transforms
+    // around the unscaled origin, which shifted score digits and collapsed
+    // a 90° flip. DropShadow offscreen bakes this matrix in FrameEncoder.
+    if (projectedChild_ && projectedChild_.Get() != this) {
+        clearStretch(projectedChild_.Get());
     }
     if (child == nullptr) {
+        clearStretch(this);
         viewTransform_.Reset();
+        projectedChild_.Reset();
         return {};
     }
-    if (framework != nullptr) {
-        Base::Transform2D matrix;
-        matrix.m11 = scaleX;
-        matrix.m22 = scaleY;
-        matrix.dx = offsetX;
-        matrix.dy = offsetY;
-        const bool changed = framework->SetViewboxTransform(matrix);
-        if (!projectedChild_) {
-            projectedChild_ =
-                Base::Ref<FrameworkElement>::FromBorrowed(*framework);
-        }
-        if (changed) {
-            static_cast<void>(
-                AeroGuiInternal::InvalidateRenderState(*framework));
-        }
-        return {};
-    }
-    if (!viewTransform_) {
-        Base::Result<Base::Ref<MatrixTransform>> made =
-            Base::MakeRef<MatrixTransform>();
-        if (!made) return made.GetStatus();
-        viewTransform_ = std::move(made).Value();
-    }
-
-    Base::Ref<Media::Transform> current =
-        child->GetRenderTransform();
-    if (!current) {
-        child->SetRenderTransform(viewTransform_);
-    } else if (current.Get() != viewTransform_.Get()) {
-        // A Viewbox contributes an outer scale without replacing the child's
-        // authored RenderTransform. Keeping an existing TransformGroup as the
-        // root is important: storyboards address its children by index (for
-        // example Dialog.RenderTransform.Children[0].ScaleX).
-        if (!current->PropertyRegistry().Types().IsDerivedFrom(
-                current->RuntimeType(),
-                Media::TransformGroup::StaticTypeId())) {
-            return Base::Status::Failure(
-                Base::ErrorCode::Unsupported,
-                "Viewbox can only combine its scale with a TransformGroup");
-        }
-        auto& group = static_cast<Media::TransformGroup&>(*current);
-        bool alreadyAppended = false;
-        for (const Base::Ref<Media::Transform>& transform :
-             group.GetChildren()) {
-            if (transform.Get() == viewTransform_.Get()) {
-                alreadyAppended = true;
-                break;
-            }
-        }
-        if (!alreadyAppended) {
-            Base::Result<void> appended = group.AddChild(
-                Base::Ref<Media::Transform>(viewTransform_));
-            if (!appended) return appended.GetStatus();
-        }
-    }
-
     Base::Transform2D matrix;
     matrix.m11 = scaleX;
     matrix.m22 = scaleY;
-    // The Viewbox scale is an outer layout transform. When it is composed
-    // into the child's authored RenderTransform, compensate the transform
-    // origin so the outer scale remains anchored at the child's top-left.
-    // Otherwise a non-zero RenderTransformOrigin also pivots the Viewbox
-    // scale and visibly displaces centered content.
-    const Point origin = child->GetRenderTransformOrigin();
-    const Size renderSize = child->GetRenderSize();
-    matrix.dx = offsetX +
-        origin.x * renderSize.width * (scaleX - 1.0);
-    matrix.dy = offsetY +
-        origin.y * renderSize.height * (scaleY - 1.0);
-    viewTransform_->SetMatrixValue(matrix);
+    matrix.dx = offsetX;
+    matrix.dy = offsetY;
+    clearStretch(framework);
+    const bool changed = SetViewboxTransform(matrix);
+    projectedChild_ = framework != nullptr
+        ? Base::Ref<FrameworkElement>::FromBorrowed(*framework)
+        : Base::Ref<FrameworkElement>{};
+    if (changed) {
+        static_cast<void>(
+            AeroGuiInternal::InvalidateRenderState(*this));
+    }
     return {};
 }
 Size Viewbox::ArrangeOverride(
@@ -1138,43 +1236,26 @@ Size Viewbox::ArrangeOverride(
         (finalSize.width - renderedWidth) * 0.5;
     const double offsetY =
         (finalSize.height - renderedHeight) * 0.5;
-    // A Viewbox scales the complete child footprint, including its margin.
-    // RenderTransform is applied after layout translation in the renderer, so
-    // an uncompensated FrameworkElement margin would remain in unscaled
-    // pixels. That visibly shifts centered reference content (for example the
-    // Gallery welcome mark) and diverges from WPF/Noesis layout semantics.
-    const FrameworkElement* childFramework =
-        ::Aero::TryCast<::Aero::FrameworkElement>(child);
-    const Thickness childMargin = childFramework != nullptr
-        ? childFramework->GetMargin()
-        : Thickness{};
-    const double arrangeX = offsetX +
-        childMargin.left * (scaleX - 1.0);
-    const double arrangeY = offsetY +
-        childMargin.top * (scaleY - 1.0);
-    // Publish this frame's scale before arranging descendants. Popup
-    // placement walks GetLocalVisualTransform() during ArrangeOverride; if
-    // the Viewbox scale is applied afterwards, the first open (and any
-    // arrange that does not wait for a second pass) places the popup in
-    // unscaled coordinates and the up/down flip tests the wrong height.
+    // Child layout stays in unscaled local pixels (Transform3D CenterX/Y,
+    // ScaleTransform origin). Stretch lives on this Viewbox. Centering
+    // offset is part of that matrix, not the child slot.
     Base::Result<void> transformed = ApplyViewTransform(
         scaleX,
         scaleY,
-        0.0,
-        0.0);
+        offsetX,
+        offsetY);
     if (!transformed) return finalSize;
     Base::Result<void> arranged = ArrangeChild(
         *child,
-        {arrangeX, arrangeY,
-         natural.width, natural.height});
+        {0.0, 0.0, natural.width, natural.height});
     if (!arranged) return finalSize;
     // Non-FrameworkElement children compensate RenderTransformOrigin from
     // the arranged RenderSize; re-apply so that origin stays correct.
     transformed = ApplyViewTransform(
         scaleX,
         scaleY,
-        0.0,
-        0.0);
+        offsetX,
+        offsetY);
     if (!transformed) return finalSize;
     return finalSize;
 }
@@ -1529,14 +1610,18 @@ void ContentPresenter::HostUiElement(
         element.GetVisualParent() != this) {
         detachHosted(element);
     }
-    if (tree != nullptr && element.GetVisualParent() != this) {
+    if (tree != nullptr &&
+        (element.GetVisualParent() != this ||
+         !element.GetIsLayoutAttached())) {
         // AttachVisual requires the child to already be a tree member.
         // Authored Header visuals and DataTemplate roots often are not;
-        // AttachElement joins them first.
+        // AttachElement joins them first. LoadComponent can also leave the
+        // visual parent set while layout is still detached.
         if (element.GetTree() == nullptr &&
             element.GetLogicalParent() == nullptr) {
             static_cast<void>(tree->AttachElement(*this, element));
-        } else {
+        } else if (element.GetVisualParent() == nullptr ||
+                   element.GetVisualParent() == this) {
             static_cast<void>(tree->AttachVisualChild(*this, element));
         }
     }

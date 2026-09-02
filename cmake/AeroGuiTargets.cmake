@@ -548,6 +548,10 @@ if(AERO_ENABLE_D3D11_BACKEND)
         RenderFrameShadow "${_aero_d3d11_shader_root}/RenderFrameShadow.hlsl" FALSE)
     aero_compile_d3d11_shader_pair(
         RenderFrameMask "${_aero_d3d11_shader_root}/RenderFrameMask.hlsl" FALSE)
+    aero_compile_d3d11_shader_pair(
+        RenderFrameLinear "${_aero_d3d11_shader_root}/RenderFrameLinear.hlsl" FALSE)
+    aero_compile_d3d11_shader_pair(
+        RenderFrameRadial "${_aero_d3d11_shader_root}/RenderFrameRadial.hlsl" FALSE)
     get_property(_aero_d3d11_shader_outputs GLOBAL PROPERTY
         AERO_D3D11_SHADER_OUTPUTS)
     add_custom_target(AeroD3D11RenderFrameShaders

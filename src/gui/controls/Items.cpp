@@ -17,6 +17,7 @@
 #include <Aero/FrameworkElement.hpp>
 
 #include <algorithm>
+#include <cstdio>
 #include <new>
 #include <utility>
 #include "ControlBehavior.hpp"
@@ -868,9 +869,52 @@ void ContentControl::SetContentValue(
             UIElement::StaticTypeId())) {
         authoredContent_ = Meta::Value::FromObject(
             value->RuntimeType(), value);
-        SetOwnedContent(
-            value,
-            *static_cast<UIElement*>(value.Get()));
+        auto& content = *static_cast<UIElement*>(value.Get());
+        SetOwnedContent(value, content);
+        // UserControl / untemplated ContentControl host content as a direct
+        // visual child. LoadComponent assigns Content after the control is
+        // already in a View; without this attach, MeasureOverride sees an
+        // unattached pointer and reports 0x0 (BlendTutorial ColorSelector).
+        if (GetTemplateRoot() == nullptr &&
+            content.GetVisualParent() != this) {
+            if (ElementTree* tree = GetTree()) {
+                if (content.GetTree() == nullptr &&
+                    content.GetLogicalParent() == nullptr) {
+                    (void)tree->AttachElement(*this, content);
+                } else if (content.GetVisualParent() != this) {
+                    (void)tree->AttachVisualChild(*this, content);
+                }
+            }
+        }
+        if (ElementTree* tree = GetTree()) {
+            if (PropertyRegistry().Types().IsDerivedFrom(
+                    content.RuntimeType(), Panel::StaticTypeId())) {
+                auto& panel = static_cast<Panel&>(content);
+                const std::uint32_t count = panel.GetChildren().GetCount();
+                for (std::uint32_t index = 0U; index < count; ++index) {
+                    UIElement* nested = panel.GetChildren().GetItem(index);
+                    if (nested == nullptr) {
+                        continue;
+                    }
+                    if (nested->GetVisualParent() != nullptr &&
+                        nested->GetVisualParent() != &panel) {
+                        continue;
+                    }
+                    if (nested->GetVisualParent() == &panel &&
+                        nested->GetIsLayoutAttached()) {
+                        continue;
+                    }
+                    if (nested->GetTree() == nullptr &&
+                        nested->GetLogicalParent() == nullptr) {
+                        (void)tree->AttachElement(panel, *nested);
+                    } else {
+                        (void)tree->AttachVisualChild(panel, *nested);
+                    }
+                }
+                (void)panel.InvalidateMeasure();
+            }
+        }
+        (void)InvalidateMeasure();
         return;
     }
     literalTextContent_ = false;
@@ -886,6 +930,29 @@ void ContentControl::SetContentValue(
         : Meta::Value::NullObject(
             Meta::TypeOf<Base::Object>());
     (void)InvalidateMeasure();
+}
+
+void ContentControl::EnsureHostedContent() noexcept {
+    if (GetTemplateRoot() != nullptr || content_ == nullptr) {
+        return;
+    }
+    if (content_->GetVisualParent() == this &&
+        content_->GetIsLayoutAttached()) {
+        return;
+    }
+    ElementTree* tree = GetTree();
+    if (tree == nullptr) {
+        if (content_->GetVisualParent() == nullptr) {
+            AddVisualChild(content_);
+        }
+        return;
+    }
+    if (content_->GetTree() == nullptr &&
+        content_->GetLogicalParent() == nullptr) {
+        (void)tree->AttachElement(*this, *content_);
+        return;
+    }
+    (void)tree->AttachVisualChild(*this, *content_);
 }
 
 void ContentControl::SetContentValue(
@@ -928,6 +995,12 @@ void ContentControl::SetContentValue(
     created.Value()->SetText(value.AsString());
     Base::Ref<Base::Object> retained(created.Value());
     SetOwnedContent(retained, *created.Value());
+    if (GetTemplateRoot() == nullptr &&
+        created.Value()->GetVisualParent() != this) {
+        if (ElementTree* tree = GetTree()) {
+            (void)tree->AttachElement(*this, *created.Value());
+        }
+    }
     (void)StoreContentProperty(value);
     authoredContent_ = std::move(value);
     contentValue_.Reset();
@@ -1440,9 +1513,10 @@ Base::Result<void> ItemsControl::PrepareContainer(
     descriptor.targetProperty = ItemsSourceProperty.Handle();
     descriptor.path = binding.GetPathText();
     descriptor.stringFormat = binding.GetStringFormat();
-    descriptor.mode = binding.GetMode() == Data::BindingMode::Default
-        ? Data::BindingMode::OneWay
-        : binding.GetMode();
+    descriptor.mode = bindings->ResolveBindingMode(
+        childItems,
+        ItemsSourceProperty.Handle(),
+        binding.GetMode());
     descriptor.updateSourceTrigger =
         bindings->ResolveUpdateSourceTrigger(
             childItems,

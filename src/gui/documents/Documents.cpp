@@ -864,7 +864,27 @@ Base::Ref<Brush> TextBlock::GetBackground() const noexcept {
         BackgroundProperty, Base::Ref<Brush>{});
 }
 double TextBlock::GetFontSize() const noexcept {
-    return GetValueOr(FontSizeProperty, 16.0);
+    const Meta::PropertyValueSourceInfo attached =
+        GetValueSourceInfo(
+            Documents::TextElement::FontSizeProperty.Handle());
+    const Meta::PropertyValueSourceInfo owned =
+        GetValueSourceInfo(FontSizeProperty.Handle());
+    const double attachedSize = GetValueOr(
+        Documents::TextElement::FontSizeProperty, 16.0);
+    const double ownedSize = GetValueOr(FontSizeProperty, 16.0);
+    const auto attachedRank =
+        static_cast<std::uint8_t>(attached.rank);
+    const auto ownedRank = static_cast<std::uint8_t>(owned.rank);
+    if (attachedRank > ownedRank) return attachedSize;
+    if (ownedRank > attachedRank) return ownedSize;
+    constexpr double kDefaultSize = 16.0;
+    if (attachedSize != kDefaultSize && ownedSize == kDefaultSize) {
+        return attachedSize;
+    }
+    if (ownedSize != kDefaultSize && attachedSize == kDefaultSize) {
+        return ownedSize;
+    }
+    return attachedRank > 0U ? attachedSize : ownedSize;
 }
 Base::Ref<Media::FontFamily> TextBlock::GetFontFamily() const noexcept {
     return FrameworkElement::GetFontFamily();
@@ -1208,7 +1228,27 @@ Size TextBlock::MeasureOverride(Size availableSize) noexcept {
     Base::Result<void> copied = Documents::CopyText(*this, flattened);
     if (!copied) return Size{};
 
+    const Thickness padding =
+        GetValueOr(PaddingProperty, Thickness{});
+    Size textAvailable = availableSize;
+    if (std::isfinite(textAvailable.width) && textAvailable.width > 0.0) {
+        textAvailable.width = std::max(
+            0.0, textAvailable.width - padding.left - padding.right);
+    }
+    if (std::isfinite(textAvailable.height) && textAvailable.height > 0.0) {
+        textAvailable.height = std::max(
+            0.0, textAvailable.height - padding.top - padding.bottom);
+    }
+
     auto* layoutService = TextLayoutFor(*this);
+    const Base::StringView shapedText = flattened.View();
+    const auto fallbackTextSize = [&]() noexcept -> Size {
+        if (shapedText.Empty()) return {};
+        const double fontSize = std::max(1.0, GetFontSize());
+        const double units =
+            static_cast<double>(std::max(1U, shapedText.SizeBytes()));
+        return Size{fontSize * 0.55 * units, fontSize * 1.25};
+    };
     if (layoutService != nullptr) {
         const Base::StringView text = flattened.View();
         if (text.Empty()) {
@@ -1227,7 +1267,7 @@ Size TextBlock::MeasureOverride(Size availableSize) noexcept {
         } else {
             ::Aero::Controls::TextLayoutRequest request;
             request.text = text;
-            request.availableSize = availableSize;
+            request.availableSize = textAvailable;
             request.dpiScale = GetDpiScale();
             request.pixelSize = static_cast<float>(GetFontSize());
             request.lineHeight = static_cast<float>(GetLineHeight());
@@ -1244,51 +1284,62 @@ Size TextBlock::MeasureOverride(Size availableSize) noexcept {
             ::Aero::Controls::TextLayoutResult output;
             Base::Result<void> prepared =
                 layoutService->ShapeAndPrepare(request, output);
-            if (!prepared) return Size{};
-            bool validGlyphRuns = true;
-            for (RenderGlyphRunId glyphRun : output.glyphRuns) {
-                if (glyphRun == InvalidRenderGlyphRunId) {
-                    validGlyphRuns = false;
-                    break;
-                }
-            }
-            if (!IsValidTextSize(output.desiredSize) || !validGlyphRuns) {
+            if (!prepared) {
+                glyphRunSize_ = fallbackTextSize();
+            } else {
+                bool validGlyphRuns = true;
                 for (RenderGlyphRunId glyphRun : output.glyphRuns) {
-                    if (glyphRun != InvalidRenderGlyphRunId) {
-                        layoutService->ReleaseGlyphRun(glyphRun);
-                    }
-                }
-                return Size{};
-            }
-
-            bool changed =
-                glyphRuns_.Size() != output.glyphRuns.Size() ||
-                glyphRunSize_.width != output.desiredSize.width ||
-                glyphRunSize_.height != output.desiredSize.height ||
-                !serviceOwnsGlyphRun_;
-            if (!changed) {
-                for (std::uint32_t index = 0U;
-                     index < glyphRuns_.Size(); ++index) {
-                    if (glyphRuns_[index] != output.glyphRuns[index]) {
-                        changed = true;
+                    if (glyphRun == InvalidRenderGlyphRunId) {
+                        validGlyphRuns = false;
                         break;
                     }
                 }
-            }
-            ReleaseServiceGlyphRun();
-            glyphRuns_ = std::move(output.glyphRuns);
-            textHitRegions_ = std::move(output.hitRegions);
-            glyphRunSize_ = output.desiredSize;
-            serviceOwnsGlyphRun_ = !glyphRuns_.Empty();
-            if (changed) {
-                Base::Result<void> invalidated = InvalidateVisual();
-                if (!invalidated) return Size{};
+                if (!IsValidTextSize(output.desiredSize) || !validGlyphRuns) {
+                    for (RenderGlyphRunId glyphRun : output.glyphRuns) {
+                        if (glyphRun != InvalidRenderGlyphRunId) {
+                            layoutService->ReleaseGlyphRun(glyphRun);
+                        }
+                    }
+                    glyphRunSize_ = fallbackTextSize();
+                } else {
+                    bool changed =
+                        glyphRuns_.Size() != output.glyphRuns.Size() ||
+                        glyphRunSize_.width != output.desiredSize.width ||
+                        glyphRunSize_.height != output.desiredSize.height ||
+                        !serviceOwnsGlyphRun_;
+                    if (!changed) {
+                        for (std::uint32_t index = 0U;
+                             index < glyphRuns_.Size(); ++index) {
+                            if (glyphRuns_[index] != output.glyphRuns[index]) {
+                                changed = true;
+                                break;
+                            }
+                        }
+                    }
+                    ReleaseServiceGlyphRun();
+                    glyphRuns_ = std::move(output.glyphRuns);
+                    textHitRegions_ = std::move(output.hitRegions);
+                    glyphRunSize_ = output.desiredSize;
+                    serviceOwnsGlyphRun_ = !glyphRuns_.Empty();
+                    if (changed) {
+                        Base::Result<void> invalidated = InvalidateVisual();
+                        if (!invalidated) return Size{};
+                    }
+                }
             }
         }
+    } else {
+        glyphRunSize_ = fallbackTextSize();
     }
     Size desired{
-        std::min(glyphRunSize_.width, availableSize.width),
-        std::min(glyphRunSize_.height, availableSize.height)};
+        glyphRunSize_.width + padding.left + padding.right,
+        glyphRunSize_.height + padding.top + padding.bottom};
+    if (std::isfinite(availableSize.width) && availableSize.width > 0.0) {
+        desired.width = std::min(desired.width, availableSize.width);
+    }
+    if (std::isfinite(availableSize.height) && availableSize.height > 0.0) {
+        desired.height = std::min(desired.height, availableSize.height);
+    }
     const std::uint32_t uiCount = GetVisualChildrenCount();
     for (std::uint32_t index = 0U; index < uiCount; ++index) {
         auto* child = static_cast<UIElement*>(GetVisualChild(index));
@@ -1302,6 +1353,8 @@ Size TextBlock::MeasureOverride(Size availableSize) noexcept {
     return desired;
 }
 Size TextBlock::ArrangeOverride(Size finalSize) noexcept {
+    const Thickness padding =
+        GetValueOr(PaddingProperty, Thickness{});
     const bool needsAlignment = GetTextAlignment() != TextAlignment::Left ||
         GetFlowDirection() == FlowDirection::RightToLeft;
     if (needsAlignment && finalSize.width > 0.0) {
@@ -1314,15 +1367,15 @@ Size TextBlock::ArrangeOverride(Size finalSize) noexcept {
     for (std::uint32_t index = 0U; index < uiCount; ++index) {
         auto* child = static_cast<UIElement*>(GetVisualChild(index));
         if (child == nullptr) continue;
-        Rect slot{0.0, 0.0, child->GetDesiredSize().width,
+        Rect slot{padding.left, padding.top, child->GetDesiredSize().width,
             child->GetDesiredSize().height};
         while (placeholder < textHitRegions_.Size()) {
             const TextHitRegion& region = textHitRegions_[placeholder];
             ++placeholder;
             if (region.textLength == 3U) {
                 slot = Rect{
-                    static_cast<double>(region.x),
-                    static_cast<double>(region.y),
+                    static_cast<double>(region.x) + padding.left,
+                    static_cast<double>(region.y) + padding.top,
                     std::max(static_cast<double>(region.width),
                         child->GetDesiredSize().width),
                     std::max(static_cast<double>(region.height),
@@ -1348,6 +1401,16 @@ void TextBlock::OnRender(
                  GetRenderSize().height},
                 background);
         if (!filled) return;
+    }
+    const Thickness padding =
+        GetValueOr(PaddingProperty, Thickness{});
+    const bool shiftGlyphs =
+        padding.left != 0.0 || padding.top != 0.0;
+    if (shiftGlyphs) {
+        Base::Transform2D origin;
+        origin.dx = padding.left;
+        origin.dy = padding.top;
+        if (!builder.PushTransform(origin)) return;
     }
     struct RichTextLineClip {
         float x = 0.0F;
@@ -1521,6 +1584,9 @@ void TextBlock::OnRender(
             {0.0, y, glyphRunSize_.width, thickness},
             ::Aero::Media::SampleBrush(GetForeground(), 0.5,
                 Color{0.0F, 0.0F, 0.0F, 1.0F})));
+    }
+    if (shiftGlyphs) {
+        static_cast<void>(builder.PopTransform());
     }
     return;
 }

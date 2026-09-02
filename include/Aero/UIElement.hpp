@@ -33,27 +33,27 @@ class UIElementChildRange {
 public:
     class Iterator {
     public:
-        Iterator(const ::Aero::Media::Visual* owner, std::uint32_t index) noexcept : owner_(owner), index_(index) { Advance(); }
+        Iterator(const UIElement* owner, std::uint32_t index) noexcept : owner_(owner), index_(index) { Advance(); }
         UIElement* operator*() const noexcept;
         Iterator& operator++() noexcept { ++index_; Advance(); return *this; }
         bool operator!=(const Iterator& other) const noexcept { return owner_ != other.owner_ || index_ != other.index_; }
         bool operator==(const Iterator& other) const noexcept { return !(*this != other); }
 
     private:
-        const ::Aero::Media::Visual* owner_ = nullptr;
+        const UIElement* owner_ = nullptr;
         std::uint32_t index_ = 0U;
         void Advance() noexcept;
     };
 
-    explicit UIElementChildRange(const ::Aero::Media::Visual& owner) noexcept : owner_(&owner) {}
+    explicit UIElementChildRange(const UIElement& owner) noexcept : owner_(&owner) {}
     Iterator begin() const noexcept { return Iterator(owner_, 0U); }
-    Iterator end() const noexcept { return Iterator(owner_, ::Aero::Media::VisualTreeHelper::GetChildrenCount(*owner_)); }
+    Iterator end() const noexcept;
     bool Empty() const noexcept { return begin() == end(); }
     std::uint32_t Size() const noexcept;
     UIElement* operator[](std::uint32_t index) const noexcept;
 
 private:
-    const ::Aero::Media::Visual* owner_ = nullptr;
+    const UIElement* owner_ = nullptr;
 };
 
 class AERO_GUI_API UIElement : public ::Aero::Media::Visual {
@@ -335,6 +335,8 @@ protected:
         PropertyInvalidationFlags flags) noexcept override;
     virtual Size MeasureOverride(Size availableSize) noexcept;
     virtual Size ArrangeOverride(Size finalSize) noexcept;
+    virtual std::uint32_t GetLayoutChildrenCount() const noexcept;
+    virtual UIElement* GetLayoutChild(std::uint32_t index) const noexcept;
     Result<void> MeasureChild(
         UIElement& child, Size availableSize) noexcept;
     Result<void> ArrangeChild(
@@ -347,6 +349,8 @@ private:
 #if defined(AERO_GUI_IMPLEMENTATION)
     friend class ::Aero::AeroGuiInternal;
 #endif
+    friend class UIElementChildRange;
+    friend class UIElementChildRange::Iterator;
     friend class Aero::Input::RoutedCommand;
 
     Result<void> AddHandlerErased(

@@ -480,5 +480,18 @@ const ::Aero::Render::RenderFrame* CurrentFrameForConformance(
     return ViewState::CurrentFrame(view);
 }
 
+double MaxAbsCommittedProjectiveM13(const View& view) noexcept {
+    const ::Aero::Render::RenderFrame* frame =
+        ViewState::CurrentFrame(view);
+    if (frame == nullptr) return 0.0;
+    double maxAbs = 0.0;
+    for (const ::Aero::Render::RenderNodeSnapshot& node : frame->Nodes()) {
+        maxAbs = std::max(maxAbs, std::abs(node.renderTransform.m13));
+        maxAbs = std::max(maxAbs, std::abs(node.renderTransform.m23));
+        maxAbs = std::max(maxAbs, std::abs(node.renderTransform.m33 - 1.0));
+    }
+    return maxAbs;
+}
+
 
 } // namespace Aero

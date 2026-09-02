@@ -545,8 +545,14 @@ Base::Result<void> ButtonBehavior::InvokeClick(
     ButtonBase& button) noexcept {
     if (!button.GetIsEnabled()) return {};
     const TypeId type = button.RuntimeType();
-    if (type == ToggleButton::StaticTypeId() ||
-        type == CheckBox::StaticTypeId()) {
+    const bool isRadio = type == RadioButton::StaticTypeId();
+    const bool isToggle =
+        !isRadio &&
+        (type == ToggleButton::StaticTypeId() ||
+         type == CheckBox::StaticTypeId() ||
+         button.PropertyRegistry().Types().IsDerivedFrom(
+             type, ToggleButton::StaticTypeId()));
+    if (isToggle) {
         auto& toggle = static_cast<ToggleButton&>(button);
         ToggleState next = ToggleState::Unchecked;
         if (ReadToggleState(toggle) == ToggleState::Unchecked) {
@@ -559,7 +565,7 @@ Base::Result<void> ButtonBehavior::InvokeClick(
         Base::Result<void> changed =
             ApplyToggleState(toggle, next);
         if (!changed) return changed.GetStatus();
-    } else if (type == RadioButton::StaticTypeId()) {
+    } else if (isRadio) {
         auto& radio = static_cast<RadioButton&>(button);
         Base::Result<void> changed = ApplyToggleState(
             radio, ToggleState::Checked);
@@ -742,6 +748,8 @@ void ButtonBehavior::OnMouseUp(
     record.pointerDown = false;
     record.repeatElapsed = 0U;
     record.nextRepeat = 0U;
+    static_cast<void>(
+        input_->ReleasePointer(args.GetPointerId()));
     args.SetHandled(true);
     if (button.GetClickMode() == ClickMode::Release &&
         button.GetIsEnabled() && button.GetIsMouseOver()) {

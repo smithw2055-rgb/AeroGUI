@@ -88,17 +88,12 @@ Base::Result<bool> InteractivityEngine::EvaluateInteractionDataTrigger(
                 state.names,
                 nullptr);
         if (!actual) return actual.GetStatus();
-        Base::Result<bool> matches = DataTemplateTriggerValuesMatch(
-            actual.Value(), state.trigger->GetAuthoredValue());
+        Base::Result<bool> matches = EvaluateTriggerComparison(
+            actual.Value(),
+            state.trigger->GetAuthoredValue(),
+            state.trigger->GetComparison());
         if (!matches) return matches.GetStatus();
-        bool active = matches.Value();
-        const Base::StringView comparison =
-            state.trigger->GetComparison();
-        if (!comparison.Empty() &&
-            Base::ValueConversion::EqualsAsciiInsensitive(
-                comparison, "NotEqual")) {
-            active = !active;
-        }
+        const bool active = matches.Value();
         if (active == state.active) return false;
         Base::Result<bool> allowed = ConditionBehaviorsAllowExecution(
             state.trigger->GetBehaviors(), *state.owner, state.names);

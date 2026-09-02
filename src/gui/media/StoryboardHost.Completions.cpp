@@ -56,7 +56,8 @@ StoryboardHost::ProcessStoryboardCompletions() noexcept
     while (index < storyboardCompletionSessions.Size()) {
         StoryboardCompletionSession& session =
             storyboardCompletionSessions[index];
-        bool completed = true;
+        bool running = false;
+        bool filling = false;
         for (Aero::Media::Animation::Model::AnimationHandle handle :
              session.handles) {
             const Aero::Media::Animation::Model::AnimationState state =
@@ -65,11 +66,15 @@ StoryboardHost::ProcessStoryboardCompletions() noexcept
                     Aero::Media::Animation::Model::AnimationState::Active ||
                 state ==
                     Aero::Media::Animation::Model::AnimationState::Paused) {
-                completed = false;
+                running = true;
                 break;
             }
+            if (state ==
+                Aero::Media::Animation::Model::AnimationState::Filling) {
+                filling = true;
+            }
         }
-        if (!completed) {
+        if (running) {
             ++index;
             continue;
         }
@@ -84,6 +89,12 @@ StoryboardHost::ProcessStoryboardCompletions() noexcept
                     storyboardCompletionSessions[next]);
         }
         storyboardCompletionSessions.PopBack();
+
+        // ClockController.Stop leaves tracks Stopped. That is not a natural
+        // completion; WPF does not raise Completed in that case.
+        if (!filling) {
+            continue;
+        }
 
         for (const StoryboardCompletedSubscription&
                  subscription :

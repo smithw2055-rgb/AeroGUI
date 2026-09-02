@@ -101,6 +101,15 @@ std::uint64_t HashCommand(
     hash = HashScalar(hash, command.mesh);
     hash = HashScalar(hash, command.glyphRun);
     hash = HashScalar(hash, command.scalar);
+    hash = HashScalar(hash, command.paintKind);
+    hash = HashScalar(hash, command.gradientRamp);
+    for (int i = 0; i < 4; ++i) {
+        hash = HashScalar(hash, command.uvs[i].x);
+        hash = HashScalar(hash, command.uvs[i].y);
+    }
+    for (float uniform : command.paintUniforms) {
+        hash = HashScalar(hash, uniform);
+    }
     return HashScalar(hash, command.cornerRadius);
 }
 
@@ -288,6 +297,31 @@ Base::Result<void> DisplayListBuilder::FillGradientQuad(
     return Append(command);
 }
 
+Base::Result<void> DisplayListBuilder::FillGradientQuad(
+    const Point points[4],
+    const Point uvs[4],
+    std::uint8_t paintKind,
+    const float uniforms[8],
+    std::uintptr_t gradientBrush) noexcept {
+    if (paintKind == 0U || gradientBrush == 0U || uniforms == nullptr) {
+        return InvalidArgument("GPU gradient fill requires paint and brush");
+    }
+    RenderCommand command;
+    command.kind = RenderCommandKind::FillGradientQuad;
+    command.paintKind = paintKind;
+    command.gradientBrush = gradientBrush;
+    command.color = Color{1.0F, 1.0F, 1.0F, 1.0F};
+    for (int i = 0; i < 4; ++i) {
+        command.points[i] = points[i];
+        command.uvs[i] = uvs[i];
+        command.colors[i] = command.color;
+    }
+    for (int i = 0; i < 8; ++i) {
+        command.paintUniforms[i] = uniforms[i];
+    }
+    return Append(command);
+}
+
 Base::Result<void> DisplayListBuilder::StrokeRect(
     Rect rect,
     Color color,
@@ -338,6 +372,43 @@ Base::Result<void> DisplayListBuilder::DrawMesh(
     command.kind = RenderCommandKind::DrawMesh;
     command.mesh = mesh;
     command.color = tint;
+    return Append(command);
+}
+
+Base::Result<void> DisplayListBuilder::DrawMesh(
+    RenderMeshId mesh,
+    std::uint8_t paintKind,
+    const float uniforms[8],
+    std::uintptr_t gradientBrush,
+    Rect bounds,
+    Point startOrOrigin,
+    Point delta,
+    Point radii,
+    double len2,
+    bool hasInverse,
+    Transform2D inverse) noexcept {
+    if (mesh == InvalidRenderMeshId || paintKind == 0U ||
+        gradientBrush == 0U || uniforms == nullptr) {
+        return InvalidArgument("GPU DrawMesh requires paint and brush");
+    }
+    RenderCommand command;
+    command.kind = RenderCommandKind::DrawMesh;
+    command.mesh = mesh;
+    command.color = Color{1.0F, 1.0F, 1.0F, 1.0F};
+    command.paintKind = paintKind;
+    command.gradientBrush = gradientBrush;
+    command.rect = bounds;
+    command.points[0] = startOrOrigin;
+    command.points[1] = delta;
+    command.points[2] = radii;
+    command.scalar = len2;
+    command.uvs[0].x = hasInverse ? 1.0 : 0.0;
+    if (hasInverse) {
+        command.transform = Base::ToProjective(inverse);
+    }
+    for (int i = 0; i < 8; ++i) {
+        command.paintUniforms[i] = uniforms[i];
+    }
     return Append(command);
 }
 
@@ -407,6 +478,16 @@ void FrameworkElement::DropRareIfUnused() noexcept {
     if (frameworkRare_->hasViewboxTransform) return;
     delete frameworkRare_;
     frameworkRare_ = nullptr;
+}
+
+bool FrameworkElement::TryGetViewboxTransform(
+    Base::Transform2D& matrix) const noexcept {
+    if (frameworkRare_ == nullptr ||
+        !frameworkRare_->hasViewboxTransform) {
+        return false;
+    }
+    matrix = frameworkRare_->viewboxTransform;
+    return true;
 }
 
 bool FrameworkElement::SetViewboxTransform(
@@ -498,6 +579,14 @@ FrameworkElement::GetLocalVisualTransform() const noexcept {
             bounds.height};
     }
 
+    // AeroGUI Viewbox: stretch is an inner wrapper transform, then this
+    // element's authored RenderTransform (intro TranslateY) sits outside it.
+    // Apply the Viewbox scale before RenderTransform so a parent animation
+    // does not get multiplied by the stretch.
+    if (frameworkRare_ != nullptr && frameworkRare_->hasViewboxTransform) {
+        result = ComposeTransforms(result, frameworkRare_->viewboxTransform);
+    }
+
     Base::Ref<Transform> renderTransform =
         GetRenderTransform();
     if (renderTransform) {
@@ -521,9 +610,6 @@ FrameworkElement::GetLocalVisualTransform() const noexcept {
         result = ComposeTransforms(
             result,
             render);
-    }
-    if (frameworkRare_ != nullptr && frameworkRare_->hasViewboxTransform) {
-        result = ComposeTransforms(result, frameworkRare_->viewboxTransform);
     }
     return Base::ToProjective(result);
 }
@@ -1858,6 +1944,18 @@ Base::Result<void> RenderTree::BuildSubtree(
         AeroGuiInternal::RenderRevision(visual) +
         (AeroGuiInternal::RenderDirtyFlags(visual) != 0U
          ? 1U : 0U);
+    if (element != nullptr) {
+        if (Media::Transform3D* localTransform3D =
+                element->GetTransform3D().Get()) {
+            const std::uint64_t extra =
+                AeroGuiInternal::FreezableRevision(*localTransform3D);
+            if (UINT64_MAX - snapshot.elementRevision < extra) {
+                snapshot.elementRevision = UINT64_MAX;
+            } else {
+                snapshot.elementRevision += extra;
+            }
+        }
+    }
 
     Base::ProjectiveTransform2D overlayPlacement = Base::IdentityProjective();
     if (overlayRoot) {
@@ -1874,21 +1972,60 @@ Base::Result<void> RenderTree::BuildSubtree(
         framework != nullptr
         ? framework->GetLocalVisualTransform()
         : Base::IdentityProjective();
+    Base::Transform2D viewboxMatrix{};
+    const Base::Transform2D* viewbox =
+        framework != nullptr && framework->TryGetViewboxTransform(viewboxMatrix)
+            ? &viewboxMatrix
+            : nullptr;
+    if (viewbox != nullptr) {
+        snapshot.hasViewboxTransform = true;
+        snapshot.viewboxTransform = viewboxMatrix;
+    }
+    Base::Transform3 innerVisual;
+    Base::Transform3 outerVisual;
+    Media::LiftLocalVisualWithViewbox(
+        localVisual, viewbox, innerVisual, outerVisual);
     const Media::Transform3DContext childContext =
         Media::AdvanceTransform3DContext(
             transform3D,
             element != nullptr ? element->GetTransform3D().Get() : nullptr,
-            Media::LiftLocalVisual(localVisual),
+            innerVisual,
             snapshot.layoutSlot,
             snapshot.renderSize,
-            overlayRoot);
-    snapshot.renderTransform =
-        Media::CollapseRelativeToParent(
-            transform3D,
-            childContext,
-            snapshot.layoutSlot,
-            localVisual,
-            false);
+            overlayRoot,
+            outerVisual);
+    Media::Transform3D* local3D =
+        element != nullptr ? element->GetTransform3D().Get() : nullptr;
+    const bool local3DActive =
+        local3D != nullptr &&
+        ::Aero::TryCast<Media::PerspectiveTransform3D>(local3D) == nullptr &&
+        !Base::LeavesZ0PlaneUnchanged(local3D->GetTransform3D());
+    const bool parent3DActive =
+        !Base::LeavesZ0PlaneUnchanged(transform3D.accumulated);
+    if (local3DActive) {
+        // Collapse this element's CompositeTransform3D in local pixels
+        // (CenterX/Y) and wrap Viewbox scale. Grid itself does not paint;
+        // descendants inherit this multiply (see parent3DActive below).
+        snapshot.renderTransform = Media::CollapseLocalTransform3D(
+            local3D,
+            snapshot.renderSize,
+            innerVisual,
+            outerVisual,
+            childContext.depth);
+    } else if (parent3DActive) {
+        // Parent already collapsed RotationY into renderTransform. Collapsing
+        // again with the window-sized camera sends a card-flip off-axis so
+        // the board vanishes at 90° instead of turning.
+        snapshot.renderTransform = localVisual;
+    } else {
+        snapshot.renderTransform =
+            Media::CollapseRelativeToParent(
+                transform3D,
+                childContext,
+                snapshot.layoutSlot,
+                localVisual,
+                false);
+    }
     if (element != nullptr &&
         ::Aero::TryCast<Media::PerspectiveTransform3D>(
             element->GetTransform3D().Get()) != nullptr) {
@@ -1910,6 +2047,18 @@ Base::Result<void> RenderTree::BuildSubtree(
     if (!commandAppend) {
         plan.nodes_.PopBack();
         return commandAppend;
+    }
+    if (commandCount != 0U) {
+        const std::uint32_t start = snapshot.commandOffset;
+        for (std::uint32_t i = 0U; i < commandCount; ++i) {
+            RenderCommand& command = plan.commands_[start + i];
+            if (command.paintKind == 0U || command.gradientBrush == 0U) {
+                continue;
+            }
+            const auto* brush = reinterpret_cast<
+                const ::Aero::Media::GradientBrush*>(command.gradientBrush);
+            command.gradientRamp = AppendGradientRamp(plan, *brush);
+        }
     }
 
     if (!visible) return {};

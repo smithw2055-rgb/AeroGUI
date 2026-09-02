@@ -334,6 +334,36 @@ constexpr const char* PatternPixelShaderSource =
     "    fragColor = texture(uTexture, vUV) * (vColor * vCoverage);\n"
     "}\n";
 
+constexpr const char* LinearPixelShaderSource =
+    "#version 330 core\n"
+    "uniform sampler2D uTexture;\n"
+    "uniform vec4 uPaint0;\n"
+    "in vec4 vColor;\n"
+    "in vec2 vUV;\n"
+    "in float vCoverage;\n"
+    "out vec4 fragColor;\n"
+    "void main() {\n"
+    "    fragColor = (uPaint0.x * texture(uTexture, vUV)) * (vColor * vCoverage);\n"
+    "}\n";
+
+constexpr const char* RadialPixelShaderSource =
+    "#version 330 core\n"
+    "uniform sampler2D uTexture;\n"
+    "uniform vec4 uPaint0;\n"
+    "uniform vec4 uPaint1;\n"
+    "in vec4 vColor;\n"
+    "in vec2 vUV;\n"
+    "in float vCoverage;\n"
+    "out vec4 fragColor;\n"
+    "void main() {\n"
+    "    float dd = uPaint1.x * vUV.x - uPaint1.y * vUV.y;\n"
+    "    float inside = vUV.x * vUV.x + vUV.y * vUV.y - dd * dd;\n"
+    "    float u = uPaint0.x * vUV.x + uPaint0.y * vUV.y +\n"
+    "        uPaint0.z * sqrt(max(inside, 0.0));\n"
+    "    vec4 paint = texture(uTexture, vec2(u, uPaint1.z));\n"
+    "    fragColor = (uPaint0.w * paint) * (vColor * vCoverage);\n"
+    "}\n";
+
 constexpr const char* SDFPixelShaderSource =
     "#version 330 core\n"
     "uniform sampler2D uTexture;\n"
@@ -507,8 +537,11 @@ Base::Result<void> OpenGL33RenderDevice::Initialize() noexcept {
     GLuint shadowFS = CompileShader(gl, GL_FRAGMENT_SHADER, ShadowPixelShaderSource);
     GLuint maskFS = CompileShader(gl, GL_FRAGMENT_SHADER, MaskPixelShaderSource);
     GLuint customFS = CompileShader(gl, GL_FRAGMENT_SHADER, CustomEffectPixelShaderSource);
+    GLuint linearFS = CompileShader(gl, GL_FRAGMENT_SHADER, LinearPixelShaderSource);
+    GLuint radialFS = CompileShader(gl, GL_FRAGMENT_SHADER, RadialPixelShaderSource);
     if (solidFS == 0 || patternFS == 0 || sdfFS == 0 ||
-        blurFS == 0 || shadowFS == 0 || maskFS == 0 || customFS == 0) {
+        blurFS == 0 || shadowFS == 0 || maskFS == 0 || customFS == 0 ||
+        linearFS == 0 || radialFS == 0) {
         if (solidFS != 0) gl.glDeleteShader(solidFS);
         if (patternFS != 0) gl.glDeleteShader(patternFS);
         if (sdfFS != 0) gl.glDeleteShader(sdfFS);
@@ -516,6 +549,8 @@ Base::Result<void> OpenGL33RenderDevice::Initialize() noexcept {
         if (shadowFS != 0) gl.glDeleteShader(shadowFS);
         if (maskFS != 0) gl.glDeleteShader(maskFS);
         if (customFS != 0) gl.glDeleteShader(customFS);
+        if (linearFS != 0) gl.glDeleteShader(linearFS);
+        if (radialFS != 0) gl.glDeleteShader(radialFS);
         gl.glDeleteShader(vertexShader);
         return Base::Status::Failure(Base::ErrorCode::InternalError, "Failed to compile a GL fragment shader");
     }
@@ -527,6 +562,8 @@ Base::Result<void> OpenGL33RenderDevice::Initialize() noexcept {
     shadowProgram_ = LinkProgram(gl, vertexShader, shadowFS);
     maskProgram_ = LinkProgram(gl, vertexShader, maskFS);
     customEffectProgram_ = LinkProgram(gl, vertexShader, customFS);
+    linearProgram_ = LinkProgram(gl, vertexShader, linearFS);
+    radialProgram_ = LinkProgram(gl, vertexShader, radialFS);
     gl.glDeleteShader(solidFS);
     gl.glDeleteShader(patternFS);
     gl.glDeleteShader(sdfFS);
@@ -534,10 +571,12 @@ Base::Result<void> OpenGL33RenderDevice::Initialize() noexcept {
     gl.glDeleteShader(shadowFS);
     gl.glDeleteShader(maskFS);
     gl.glDeleteShader(customFS);
+    gl.glDeleteShader(linearFS);
+    gl.glDeleteShader(radialFS);
     gl.glDeleteShader(vertexShader);
     if (solidProgram_ == 0 || patternProgram_ == 0 || sdfProgram_ == 0 ||
         blurProgram_ == 0 || shadowProgram_ == 0 || maskProgram_ == 0 ||
-        customEffectProgram_ == 0) {
+        customEffectProgram_ == 0 || linearProgram_ == 0 || radialProgram_ == 0) {
         Shutdown();
         return Base::Status::Failure(Base::ErrorCode::InternalError, "Failed to link a GL program");
     }
@@ -636,6 +675,8 @@ void OpenGL33RenderDevice::Shutdown() noexcept {
         if (shadowProgram_ != 0 && gl.glDeleteProgram != nullptr) gl.glDeleteProgram(shadowProgram_);
         if (maskProgram_ != 0 && gl.glDeleteProgram != nullptr) gl.glDeleteProgram(maskProgram_);
         if (customEffectProgram_ != 0 && gl.glDeleteProgram != nullptr) gl.glDeleteProgram(customEffectProgram_);
+        if (linearProgram_ != 0 && gl.glDeleteProgram != nullptr) gl.glDeleteProgram(linearProgram_);
+        if (radialProgram_ != 0 && gl.glDeleteProgram != nullptr) gl.glDeleteProgram(radialProgram_);
         solidProgram_ = 0;
         patternProgram_ = 0;
         sdfProgram_ = 0;
@@ -643,6 +684,8 @@ void OpenGL33RenderDevice::Shutdown() noexcept {
         shadowProgram_ = 0;
         maskProgram_ = 0;
         customEffectProgram_ = 0;
+        linearProgram_ = 0;
+        radialProgram_ = 0;
         currentProgram_ = 0;
         if (dynamicVB_ != 0 && gl.glDeleteBuffers != nullptr) gl.glDeleteBuffers(1, &dynamicVB_);
         if (dynamicIB_ != 0 && gl.glDeleteBuffers != nullptr) gl.glDeleteBuffers(1, &dynamicIB_);
@@ -852,6 +895,20 @@ void OpenGL33RenderDevice::DrawBatch(const Batch& batch) noexcept {
     GLuint maskSampler = 0;
     bool needsTextureSize = false;
     switch (batch.shader.v) {
+    case Shader::Path_Linear:
+        program = linearProgram_;
+        if (batch.ramps != nullptr) {
+            texture = static_cast<OpenGL33Texture*>(batch.ramps)->GetNativeTexture();
+            sampler = samplers_[batch.rampsSampler.v & 0x3F];
+        }
+        break;
+    case Shader::Path_Radial:
+        program = radialProgram_;
+        if (batch.ramps != nullptr) {
+            texture = static_cast<OpenGL33Texture*>(batch.ramps)->GetNativeTexture();
+            sampler = samplers_[batch.rampsSampler.v & 0x3F];
+        }
+        break;
     case Shader::Path_Pattern:
         program = patternProgram_;
         if (batch.image != nullptr) {
@@ -929,6 +986,28 @@ void OpenGL33RenderDevice::DrawBatch(const Batch& batch) noexcept {
                 static_cast<const float*>(batch.pixelUniforms[0].values);
             g_gl.glUniform2f(
                 textureSizeLocation, size[0], size[1]);
+        }
+    }
+
+    if ((batch.shader.v == Shader::Path_Linear ||
+         batch.shader.v == Shader::Path_Radial) &&
+        batch.pixelUniforms[0].values != nullptr &&
+        batch.pixelUniforms[0].numDwords >= 1U &&
+        g_gl.glUniform4f != nullptr) {
+        const float* paint =
+            static_cast<const float*>(batch.pixelUniforms[0].values);
+        const GLint paint0 =
+            g_gl.glGetUniformLocation(program, "uPaint0");
+        if (paint0 != -1) {
+            g_gl.glUniform4f(paint0, paint[0], paint[1], paint[2], paint[3]);
+        }
+        if (batch.shader.v == Shader::Path_Radial &&
+            batch.pixelUniforms[0].numDwords >= 8U) {
+            const GLint paint1 =
+                g_gl.glGetUniformLocation(program, "uPaint1");
+            if (paint1 != -1) {
+                g_gl.glUniform4f(paint1, paint[4], paint[5], paint[6], paint[7]);
+            }
         }
     }
 

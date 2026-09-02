@@ -7,6 +7,8 @@
 #include <Aero/Media/PathGeometry.hpp>
 #include <Aero/Media/LineSegment.hpp>
 #include <Aero/Media/Transforms.hpp>
+#include <Aero/Media/CompositeTransform3D.hpp>
+#include <Aero/UIElement.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -627,62 +629,102 @@ StoryboardHost::ResolveAnimationProperty(
                         terminalStart,
                         path.SizeBytes() -
                             terminalStart - 1U);
-                const Meta::DependencyProperty*
-                    ownerDependency =
-                        findDependencyProperty(
-                            target, ownerPath);
-                if (ownerDependency == nullptr) {
-                    return Base::Status::Failure(
-                        Base::ErrorCode::NotFound,
-                        "Storyboard compound object property was not found");
+                const bool transform3DOwner =
+                    ownerPath.SizeBytes() >= 11U &&
+                    ownerPath.Substr(
+                        ownerPath.SizeBytes() - 11U,
+                        11U) == Base::StringView("Transform3D");
+                if (transform3DOwner &&
+                    metadata->Types().IsDerivedFrom(
+                        target.RuntimeType(),
+                        Aero::UIElement::StaticTypeId())) {
+                    // `(aero:Element.Transform3D).(…RotationY)` is a
+                    // parenthesized compound path. Find("Transform3D") on a
+                    // Grid returns UIElement::Transform3D, whose default is
+                    // empty even when XAML wrote the Element attached DP.
+                    // GetTransform3D() reads both; render already does.
+                    auto& element =
+                        static_cast<Aero::UIElement&>(target);
+                    Base::Ref<Media::Transform3D> existing =
+                        element.GetTransform3D();
+                    if (!existing) {
+                        Base::Result<Base::Ref<Media::CompositeTransform3D>>
+                            created =
+                                Base::MakeRef<Media::CompositeTransform3D>();
+                        if (!created) return created.GetStatus();
+                        element.SetTransform3D(
+                            Base::Ref<Media::Transform3D>(
+                                created.Value()));
+                        existing = Base::Ref<Media::Transform3D>(
+                            created.Value());
+                    }
+                    propertyTarget = existing.Get();
+                    path = terminalPath;
+                    indexedPathResolved = true;
+                } else {
+                    const Meta::DependencyProperty*
+                        ownerDependency =
+                            findDependencyProperty(
+                                target, ownerPath);
+                    if (ownerDependency == nullptr) {
+                        return Base::Status::Failure(
+                            Base::ErrorCode::NotFound,
+                            "Storyboard compound object property was not found");
+                    }
+                    Base::Result<Meta::PropertyValue>
+                        ownerValue = target.GetValue(
+                            ownerDependency->Handle());
+                    if (!ownerValue ||
+                        ownerValue.Value().Kind() !=
+                            Meta::ValueKind::Object ||
+                        !ownerValue.Value().AsObject() ||
+                        !metadata->Types().IsDerivedFrom(
+                            ownerValue.Value().
+                                AsObject()->RuntimeType(),
+                            ::Aero::DependencyObject::
+                                StaticTypeId())) {
+                        thread_local char message[384];
+                        const Meta::TypeInfo* targetType =
+                            metadata->Types().FindType(
+                                target.RuntimeType());
+                        const Base::StringView targetTypeName =
+                            targetType != nullptr
+                            ? targetType->Name()
+                            : Base::StringView("<unknown>");
+                        std::snprintf(
+                            message,
+                            sizeof(message),
+                            "Storyboard compound object property '%.*s' on '%.*s' has no DependencyObject value",
+                            static_cast<int>(ownerPath.SizeBytes()),
+                            ownerPath.Data(),
+                            static_cast<int>(targetTypeName.SizeBytes()),
+                            targetTypeName.Data());
+                        return Base::Status::Failure(
+                            Base::ErrorCode::NotFound,
+                            message);
+                    }
+                    propertyTarget =
+                        static_cast<
+                            ::Aero::DependencyObject*>(
+                            ownerValue.Value().
+                                AsObject().Get());
+                    path = terminalPath;
+                    indexedPathResolved = true;
                 }
-                Base::Result<Meta::PropertyValue>
-                    ownerValue = target.GetValue(
-                        ownerDependency->Handle());
-                if (!ownerValue ||
-                    ownerValue.Value().Kind() !=
-                        Meta::ValueKind::Object ||
-                    !ownerValue.Value().AsObject() ||
-                    !metadata->Types().IsDerivedFrom(
-                        ownerValue.Value().
-                            AsObject()->RuntimeType(),
-                        ::Aero::DependencyObject::
-                            StaticTypeId())) {
-                    thread_local char message[384];
-                    const Meta::TypeInfo* targetType =
-                        metadata->Types().FindType(
-                            target.RuntimeType());
-                    const Base::StringView targetTypeName =
-                        targetType != nullptr
-                        ? targetType->Name()
-                        : Base::StringView("<unknown>");
-                    std::snprintf(
-                        message,
-                        sizeof(message),
-                        "Storyboard compound object property '%.*s' on '%.*s' has no DependencyObject value",
-                        static_cast<int>(ownerPath.SizeBytes()),
-                        ownerPath.Data(),
-                        static_cast<int>(targetTypeName.SizeBytes()),
-                        targetTypeName.Data());
-                    return Base::Status::Failure(
-                        Base::ErrorCode::NotFound,
-                        message);
-                }
-                propertyTarget =
-                    static_cast<
-                        ::Aero::DependencyObject*>(
-                        ownerValue.Value().
-                            AsObject().Get());
-                path = terminalPath;
-                indexedPathResolved = true;
             }
         }
 
         std::uint32_t dot = UINT32_MAX;
         if (!indexedPathResolved) {
+            std::uint32_t parentheses = 0U;
             for (std::uint32_t index = 0U;
                  index < path.SizeBytes(); ++index) {
-                if (path[index] == '.') {
+                const char character = path[index];
+                if (character == '(') {
+                    ++parentheses;
+                } else if (character == ')' && parentheses != 0U) {
+                    --parentheses;
+                } else if (character == '.' && parentheses == 0U) {
                     dot = index;
                     break;
                 }
@@ -930,10 +972,20 @@ StoryboardHost::ResolveAnimationProperty(
                         metadata->Types().IsDerivedFrom(
                             current->RuntimeType(),
                             Aero::UIElement::StaticTypeId())) {
+                        auto& element =
+                            *static_cast<Aero::UIElement*>(current);
+                        Base::Ref<Media::Transform3D> existing =
+                            element.GetTransform3D();
+                        if (existing) {
+                            current = existing.Get();
+                            start = end + 1U;
+                            if (++depth > 16U) break;
+                            continue;
+                        }
                         Base::Result<Base::Ref<Media::CompositeTransform3D>>
                             created = Base::MakeRef<Media::CompositeTransform3D>();
                         if (!created) return created.GetStatus();
-                        static_cast<Aero::UIElement*>(current)->SetTransform3D(
+                        element.SetTransform3D(
                             Base::Ref<Media::Transform3D>(created.Value()));
                         current = created.Value().Get();
                         start = end + 1U;

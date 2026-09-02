@@ -431,7 +431,28 @@ Base::Result<Base::String> FormatBindingString(
     const PropertyValue& value,
     Base::StringView format,
     const Registry* metadata = nullptr) noexcept {
-    Base::StringView activeFormat = format;
+    // Markup extensions write \{ and \} so the XAML parser does not treat
+    // the placeholder as nested markup. WPF stores StringFormat without those
+    // slashes ("Orbit: {0:F2} AU"). Unescape before looking up {0:...}.
+    Base::String unescapedFormat;
+    if (!format.Empty()) {
+        Base::Result<void> reserved =
+            unescapedFormat.Reserve(format.SizeBytes());
+        if (!reserved) return reserved.GetStatus();
+        for (std::uint32_t index = 0U;
+             index < format.SizeBytes();
+             ++index) {
+            if (format[index] == '\\' &&
+                index + 1U < format.SizeBytes()) {
+                ++index;
+            }
+            const char character = format[index];
+            Base::Result<void> appended = unescapedFormat.Append(
+                Base::StringView(&character, 1U));
+            if (!appended) return appended.GetStatus();
+        }
+    }
+    Base::StringView activeFormat = unescapedFormat.View();
     if (activeFormat.SizeBytes() >= 2U &&
         activeFormat[0] == '{' &&
         activeFormat[1] == '}') {
@@ -795,6 +816,10 @@ Base::Result<BindingHandle> BindingEngine::Attach(
     record.handle.value = nextHandle_++;
     record.handle.engine_ = this;
     record.descriptor = descriptor;
+    record.descriptor.mode = ResolveBindingMode(
+        *descriptor.target,
+        descriptor.targetProperty,
+        descriptor.mode);
     record.descriptor.updateSourceTrigger = ResolveUpdateSourceTrigger(
         *descriptor.target,
         descriptor.targetProperty,
@@ -881,7 +906,10 @@ Base::Result<BindingHandle> BindingEngine::Attach(
     }
     record.descriptor.target = descriptor.target;
     record.descriptor.targetProperty = descriptor.targetProperty;
-    record.descriptor.mode = descriptor.mode;
+    record.descriptor.mode = ResolveBindingMode(
+        *descriptor.target,
+        descriptor.targetProperty,
+        descriptor.mode);
     record.descriptor.updateSourceTrigger = ResolveUpdateSourceTrigger(
         *descriptor.target,
         descriptor.targetProperty,
@@ -947,16 +975,21 @@ Base::Result<BindingHandle> BindingEngine::Attach(
                 *descriptor.target,
                 targetProperty);
         }
-        if ((descriptor.mode == BindingMode::TwoWay ||
-             descriptor.mode == BindingMode::OneWayToSource) &&
-            !record.pathPlan.CanWrite()) {
-            --nextHandle_;
-            return Base::Status::Failure(
-                Base::ErrorCode::ReadOnly,
-                "Binding source path is not writable");
+        const bool wantsWriteback =
+            record.descriptor.mode == BindingMode::TwoWay ||
+            record.descriptor.mode == BindingMode::OneWayToSource;
+        if (wantsWriteback && !record.pathPlan.CanWrite()) {
+            if (descriptor.mode != BindingMode::Default ||
+                record.descriptor.mode == BindingMode::OneWayToSource) {
+                --nextHandle_;
+                return Base::Status::Failure(
+                    Base::ErrorCode::ReadOnly,
+                    "Binding source path is not writable");
+            }
+            record.descriptor.mode = BindingMode::OneWay;
         }
-        if ((descriptor.mode == BindingMode::TwoWay ||
-             descriptor.mode == BindingMode::OneWayToSource) &&
+        if (wantsWriteback &&
+            record.descriptor.mode != BindingMode::OneWay &&
             !record.pathPlan.HasDynamicResult() &&
             targetProperty->ValueType() != record.pathPlan.ResultType() &&
             descriptor.convertBack == nullptr &&
@@ -968,9 +1001,13 @@ Base::Result<BindingHandle> BindingEngine::Attach(
                 record.metadata->Types(),
                 record.pathPlan.ResultType(),
                 targetProperty->ValueType())) {
-            --nextHandle_;
-            return InvalidArgument(
-                "Binding requires ConvertBack for different source and target types");
+            if (descriptor.mode != BindingMode::Default ||
+                record.descriptor.mode == BindingMode::OneWayToSource) {
+                --nextHandle_;
+                return InvalidArgument(
+                    "Binding requires ConvertBack for different source and target types");
+            }
+            record.descriptor.mode = BindingMode::OneWay;
         }
     } else if (record.sourceKind == BindingSourceKind::MetadataObject) {
         const DependencyProperty* targetProperty =
@@ -989,12 +1026,16 @@ Base::Result<BindingHandle> BindingEngine::Attach(
                 *descriptor.target,
                 targetProperty);
         }
-        if (descriptor.mode == BindingMode::TwoWay ||
-            descriptor.mode == BindingMode::OneWayToSource) {
-            --nextHandle_;
-            return Base::Status::Failure(
-                Base::ErrorCode::ReadOnly,
-                "Binding to a source object does not support writeback");
+        if (record.descriptor.mode == BindingMode::TwoWay ||
+            record.descriptor.mode == BindingMode::OneWayToSource) {
+            if (descriptor.mode != BindingMode::Default ||
+                record.descriptor.mode == BindingMode::OneWayToSource) {
+                --nextHandle_;
+                return Base::Status::Failure(
+                    Base::ErrorCode::ReadOnly,
+                    "Binding to a source object does not support writeback");
+            }
+            record.descriptor.mode = BindingMode::OneWay;
         }
     }
 
@@ -1299,6 +1340,29 @@ UpdateSourceTrigger BindingEngine::ResolveUpdateSourceTrigger(
         return UpdateSourceTrigger::PropertyChanged;
     }
     return metadata->defaultUpdateSourceTrigger;
+}
+
+BindingMode BindingEngine::ResolveBindingMode(
+    DependencyObject& target,
+    DependencyPropertyHandle property,
+    BindingMode requested) noexcept {
+    if (requested != BindingMode::Default) {
+        return requested;
+    }
+    const DependencyProperty* info =
+        target.PropertyRegistry().Find(property);
+    if (info == nullptr) {
+        return BindingMode::OneWay;
+    }
+    const PropertyMetadata* metadata =
+        info->MetadataFor(target.RuntimeType());
+    if (metadata != nullptr &&
+        HasFlag(
+            metadata->flags,
+            PropertyMetadataFlags::BindsTwoWayByDefault)) {
+        return BindingMode::TwoWay;
+    }
+    return BindingMode::OneWay;
 }
 
 void BindingEngine::RegisterMultiBinding(
@@ -1652,7 +1716,16 @@ Base::Result<std::uint32_t> BindingEngine::Flush() noexcept {
             }
             break;
         case BindingMode::TwoWay:
-            if (sourceChanged) {
+            // A target edit (ToggleButton click) must write back even when
+            // metadata-path polling reports a unchanged source as "changed".
+            // Source still wins when the source property itself is dirty.
+            if (targetChanged && !record.sourceDirty) {
+                applied = ApplyTargetToSource(
+                    record,
+                    target.Value(),
+                    source.Value());
+                if (applied) ++updated;
+            } else if (sourceChanged) {
                 applied = ApplySourceToTarget(
                     record,
                     source.Value(),
@@ -2196,9 +2269,11 @@ Base::Result<PropertyValue> BindingEngine::ConvertForTarget(
                 record.descriptor.conversionContext);
         if (!result) return result.GetStatus();
         converted = std::move(result).Value();
-    } else if (HasDefaultTargetConversion(
-                   converted.Type(),
-                   targetProperty->ValueType())) {
+    }
+    if (converted.Type() != targetProperty->ValueType() &&
+        HasDefaultTargetConversion(
+            converted.Type(),
+            targetProperty->ValueType())) {
         Base::Result<PropertyValue> result =
             ((converted.Type() == TypeOf<bool>() &&
               targetProperty->ValueType() ==

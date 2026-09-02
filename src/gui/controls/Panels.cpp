@@ -24,6 +24,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <limits>
 #include <utility>
 
 
@@ -90,7 +91,7 @@ Size StackPanel::MeasureOverride(Size availableSize) noexcept {
         if (orientation == Orientation::Vertical) childAvailable.height = 1.0e12;
         else childAvailable.width = 1.0e12;
         Base::Result<void> measured = MeasureChild(*child, childAvailable);
-        if (!measured) return Size{};
+        if (!measured) continue;
         const Size childDesired = child->GetDesiredSize();
         if (orientation == Orientation::Vertical) {
             desired.width = std::max(desired.width, childDesired.width);
@@ -156,7 +157,7 @@ Size DockPanel::MeasureOverride(
             std::max(0.0, availableSize.height - consumedHeight)};
         Base::Result<void> measured =
             MeasureChild(*child, remaining);
-        if (!measured) return Size{};
+        if (!measured) continue;
         const Size childDesired = child->GetDesiredSize();
         const Dock dock = GetChildDock(*child);
         if (dock == Dock::Left || dock == Dock::Right) {
@@ -289,7 +290,7 @@ Size WrapPanel::MeasureOverride(
                 ? GetItemHeight() : availableSize.height};
         Base::Result<void> measured =
             MeasureChild(*child, childAvailable);
-        if (!measured) return Size{};
+        if (!measured) continue;
         const Size desired = child->GetDesiredSize();
         const double childPrimary = horizontal
             ? (GetItemWidth() > 0.0
@@ -438,7 +439,7 @@ Size UniformGrid::MeasureOverride(
         if (child == nullptr) continue;
         Base::Result<void> measured =
             MeasureChild(*child, cellAvailable);
-        if (!measured) return Size{};
+        if (!measured) continue;
         cellDesired.width = std::max(
             cellDesired.width,
             child->GetDesiredSize().width);
@@ -510,58 +511,41 @@ void Canvas::SetChildPosition(
     child.SetValue(TopProperty, position.y);
 }
 Point Canvas::GetChildPosition(const UIElement& child) const noexcept {
+    const double left = child.GetValueOr(
+        LeftProperty, std::numeric_limits<double>::infinity());
+    const double top = child.GetValueOr(
+        TopProperty, std::numeric_limits<double>::infinity());
     return {
-        child.GetValueOr(LeftProperty, 0.0),
-        child.GetValueOr(TopProperty, 0.0)};
+        std::isfinite(left) ? left : 0.0,
+        std::isfinite(top) ? top : 0.0};
 }
 Size Canvas::MeasureOverride(Size) noexcept {
-    Size desired;
     for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
         Base::Result<void> measured = MeasureChild(*child, {1.0e12, 1.0e12});
-        if (!measured) return Size{};
-        const Point position = GetChildPosition(*child);
-        desired.width = std::max(
-            desired.width, position.x + child->GetDesiredSize().width);
-        desired.height = std::max(
-            desired.height, position.y + child->GetDesiredSize().height);
+        if (!measured) continue;
     }
-    return desired;
+    return Size{};
 }
 Size Canvas::ArrangeOverride(Size finalSize) noexcept {
+    constexpr double Unset = std::numeric_limits<double>::infinity();
     for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
         const Size desired = child->GetDesiredSize();
-        Point position = GetChildPosition(*child);
-        Base::Result<EffectiveValueSource> leftSource =
-            child->GetValueSource(LeftProperty.Handle());
-        if (!leftSource) return finalSize;
-        if (leftSource.Value() !=
-            EffectiveValueSource::Local) {
-            Base::Result<EffectiveValueSource> rightSource =
-                child->GetValueSource(RightProperty.Handle());
-            if (!rightSource) return finalSize;
-            if (rightSource.Value() ==
-                EffectiveValueSource::Local) {
-                position.x = finalSize.width -
-                    child->GetValueOr(RightProperty, 0.0) -
-                    desired.width;
-            }
+        const double left = child->GetValueOr(LeftProperty, Unset);
+        const double top = child->GetValueOr(TopProperty, Unset);
+        const double right = child->GetValueOr(RightProperty, Unset);
+        const double bottom = child->GetValueOr(BottomProperty, Unset);
+        Point position{0.0, 0.0};
+        if (std::isfinite(left)) {
+            position.x = left;
+        } else if (std::isfinite(right)) {
+            position.x = finalSize.width - right - desired.width;
         }
-        Base::Result<EffectiveValueSource> topSource =
-            child->GetValueSource(TopProperty.Handle());
-        if (!topSource) return finalSize;
-        if (topSource.Value() !=
-            EffectiveValueSource::Local) {
-            Base::Result<EffectiveValueSource> bottomSource =
-                child->GetValueSource(BottomProperty.Handle());
-            if (!bottomSource) return finalSize;
-            if (bottomSource.Value() ==
-                EffectiveValueSource::Local) {
-                position.y = finalSize.height -
-                    child->GetValueOr(BottomProperty, 0.0) -
-                    desired.height;
-            }
+        if (std::isfinite(top)) {
+            position.y = top;
+        } else if (std::isfinite(bottom)) {
+            position.y = finalSize.height - bottom - desired.height;
         }
         Base::Result<void> arranged = ArrangeChild(*child,
             {position.x, position.y, desired.width, desired.height});
@@ -897,7 +881,7 @@ Size Grid::MeasureOverride(
         const Size childAvailable{
             childWidth, childHeight};
         Base::Result<void> measured = MeasureChild(*child, childAvailable);
-        if (!measured) return Size{};
+        if (!measured) continue;
         const Size childDesired = child->GetDesiredSize();
         const double widthShare =
             std::max(0.0, childDesired.width - fixedWidth) /
@@ -925,10 +909,22 @@ Size Grid::MeasureOverride(
         }
     }
 
+    Base::Vector<double> resolvedColumns;
+    Base::Vector<double> resolvedRows;
+    Base::Result<void> resolved = ResolveTracks(
+        {columns_.Data(), columns_.Size()},
+        {desiredColumns.Data(), desiredColumns.Size()},
+        availableSize.width, resolvedColumns);
+    if (!resolved) return Size{};
+    resolved = ResolveTracks(
+        {rows_.Data(), rows_.Size()},
+        {desiredRows.Data(), desiredRows.Size()},
+        availableSize.height, resolvedRows);
+    if (!resolved) return Size{};
     double width = 0.0;
     double height = 0.0;
-    for (double value : desiredColumns) width += value;
-    for (double value : desiredRows) height += value;
+    for (double value : resolvedColumns) width += value;
+    for (double value : resolvedRows) height += value;
     desiredColumns_ = std::move(desiredColumns);
     desiredRows_ = std::move(desiredRows);
     return Size{width, height};
@@ -1085,12 +1081,19 @@ Base::Result<void> Grid::ResolveTracks(
             totalStarWeight += definition.value;
         }
     }
+    const bool unconstrained =
+        available >= 1.0e12 * 0.5;
     const double remaining = std::max(0.0, available - occupied);
     if (totalStarWeight > 0.0) {
         for (std::uint32_t index = 0U; index < count; ++index) {
             const GridLength definition = definitions.Empty()
                 ? GridLength::Star() : definitions[index];
-            if (definition.unit == GridUnitType::Star) {
+            if (definition.unit != GridUnitType::Star) continue;
+            // WPF: star tracks behave like Auto when the constraint is
+            // infinite (StackPanel → ColorSelector Grid with Height="*").
+            if (unconstrained) {
+                resolved[index] = desired.Empty() ? 0.0 : desired[index];
+            } else {
                 resolved[index] = remaining *
                     (definition.value / totalStarWeight);
             }
@@ -1111,7 +1114,37 @@ Base::Result<void> UIElementCollection::Add(Base::Ref<UIElement> child) noexcept
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "UIElementCollection requires an owner and child");
     }
     Base::Ref<Base::Object> object(child);
-    return owner_->AddChildCore(object, *child);
+    UIElement& element = *child;
+    Base::Result<void> added = owner_->AddChildCore(object, element);
+    if (!added) return added.GetStatus();
+    // AttachVisual already calls PanelAddChild. Nested AttachElement here
+    // double-mounts layout/render and drops ControlTemplates.
+    ElementTree* tree = owner_->GetTree();
+    if (tree != nullptr) {
+        if (element.GetTree() == nullptr &&
+            element.GetLogicalParent() == nullptr) {
+            Base::Result<ElementAttachment> attached =
+                tree->AttachElement(*owner_, element);
+            if (!attached) {
+                (void)owner_->RemoveChildCore(element);
+                return attached.GetStatus();
+            }
+        } else if (
+            element.GetVisualParent() != owner_ ||
+            !element.GetIsLayoutAttached()) {
+            if (element.GetVisualParent() != nullptr &&
+                element.GetVisualParent() != owner_) {
+                return {};
+            }
+            Base::Result<VisualAttachment> attached =
+                tree->AttachVisualChild(*owner_, element);
+            if (!attached) {
+                (void)owner_->RemoveChildCore(element);
+                return attached.GetStatus();
+            }
+        }
+    }
+    return {};
 }
 Base::Result<void> UIElementCollection::Remove(UIElement& child) noexcept {
     if (owner_ == nullptr) {
@@ -1170,6 +1203,25 @@ struct PanelZOrder {
         });
     return index < ordered.Size() ? ordered[index].child : nullptr;
 }
+
+std::uint32_t Panel::GetLayoutChildrenCount() const noexcept {
+    return GetVisualChildrenCount();
+}
+
+UIElement* Panel::GetLayoutChild(std::uint32_t index) const noexcept {
+    std::uint32_t current = 0U;
+    for (std::uint32_t childIndex = 0U; childIndex < ownedChildren_.Size();
+         ++childIndex) {
+        UIElement* child = ownedChildren_[childIndex]
+            ? static_cast<UIElement*>(ownedChildren_[childIndex].Get())
+            : nullptr;
+        if (child == nullptr || child->GetVisualParent() != this) continue;
+        if (current == index) return child;
+        ++current;
+    }
+    return nullptr;
+}
+
 Base::Result<void> Panel::AddChildCore(const Base::Ref<Base::Object>& childObject, UIElement& child) noexcept {
     if (!childObject || childObject.Get() != &child) {
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Panel child ownership does not match its UIElement");
@@ -1183,16 +1235,57 @@ Base::Result<void> Panel::AddChildCore(const Base::Ref<Base::Object>& childObjec
     }
     Base::Result<void> appended = ownedChildren_.PushBack(childObject);
     if (!appended) return appended.GetStatus();
+    if (child.GetVisualParent() != this) {
+        if (ElementTree* tree = GetTree()) {
+            // XAML Panel content uses AddChildCore, not UIElementCollection::Add.
+            // A live-tree Grid (LoadComponent ColorSelector) must still parent
+            // children visually or star rows measure 0 and ColorRect stays 0x0.
+            if (child.GetTree() == nullptr &&
+                child.GetLogicalParent() == nullptr) {
+                Base::Result<ElementAttachment> attached =
+                    tree->AttachElement(*this, child);
+                if (!attached) {
+                    ownedChildren_.PopBack();
+                    return attached.GetStatus();
+                }
+            } else if (
+                child.GetVisualParent() != this ||
+                !child.GetIsLayoutAttached()) {
+                if (child.GetVisualParent() != nullptr &&
+                    child.GetVisualParent() != this) {
+                    return InvalidateMeasure();
+                }
+                Base::Result<VisualAttachment> attached =
+                    tree->AttachVisualChild(*this, child);
+                if (!attached) {
+                    ownedChildren_.PopBack();
+                    return attached.GetStatus();
+                }
+            }
+        } else {
+            AddVisualChild(&child);
+        }
+    }
     return InvalidateMeasure();
 }
 Base::Result<bool> Panel::RemoveChildCore(UIElement& child) noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) return access.GetStatus();
-    if (!LayoutChildren().Empty()) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidState, "Mounted Panel children must be removed by the presentation runtime");
-    }
     for (std::uint32_t index = 0U; index < ownedChildren_.Size(); ++index) {
         if (ownedChildren_[index].Get() != &child) continue;
+        ElementTree* tree = GetTree();
+        if (tree != nullptr && child.GetTree() == tree) {
+            if (child.GetVisualParent() == this) {
+                Base::Result<void> detached = tree->DetachVisual(*this, child);
+                if (!detached) return detached.GetStatus();
+            }
+            if (child.GetLogicalParent() == this) {
+                Base::Result<void> detached = tree->DetachLogical(*this, child);
+                if (!detached) return detached.GetStatus();
+            }
+        } else if (child.GetVisualParent() == this) {
+            RemoveVisualChild(&child);
+        }
         for (std::uint32_t next = index + 1U; next < ownedChildren_.Size(); ++next) {
             ownedChildren_[next - 1U] = std::move(ownedChildren_[next]);
         }
@@ -1205,8 +1298,22 @@ Base::Result<bool> Panel::RemoveChildCore(UIElement& child) noexcept {
 void Panel::ClearChildrenCore() noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) return;
-    if (!LayoutChildren().Empty()) {
-        return;
+    ElementTree* tree = GetTree();
+    for (std::uint32_t index = 0U; index < ownedChildren_.Size(); ++index) {
+        UIElement* child = ownedChildren_[index]
+            ? static_cast<UIElement*>(ownedChildren_[index].Get())
+            : nullptr;
+        if (child == nullptr) continue;
+        if (tree != nullptr && child->GetTree() == tree) {
+            if (child->GetVisualParent() == this) {
+                (void)tree->DetachVisual(*this, *child);
+            }
+            if (child->GetLogicalParent() == this) {
+                (void)tree->DetachLogical(*this, *child);
+            }
+        } else if (child->GetVisualParent() == this) {
+            RemoveVisualChild(child);
+        }
     }
     ownedChildren_.Clear();
     (void)InvalidateMeasure();

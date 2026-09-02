@@ -1169,13 +1169,12 @@ Base::Result<Aero::VisualAttachment> ElementTree::AttachVisualChild(
 
     Base::Result<void> layout = AttachLayout(visualParent, child, state.layoutAttached);
     if (!layout) {
-        (void)DetachVisual(visualParent, child);
+        // Keep the visual parent. Rolling back returned UserControl content
+        // to Window, so ColorSelector ArrangeOverride never hosted LayoutRoot.
         return layout.GetStatus();
     }
     Base::Result<void> render = AttachRender(visualParent, child, state.renderAttached);
     if (!render) {
-        (void)DetachLayout(visualParent, child, state.layoutAttached);
-        (void)DetachVisual(visualParent, child);
         return render.GetStatus();
     }
     if (state.renderAttached && renderer_ != nullptr) {

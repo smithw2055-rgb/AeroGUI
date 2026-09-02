@@ -5,7 +5,10 @@
 #include "gui/styles/StyleEngine.hpp"
 #include "gui/triggers/TriggerDiagnostics.hpp"
 #include "gui/triggers/TriggerEngine.hpp"
+#include "gui/data/BindingEngine.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
 #include <Aero/Controls/ControlTemplate.hpp>
+#include <Aero/Data/Binding.hpp>
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Style.hpp>
 #include <Aero/EventSetter.hpp>
@@ -884,6 +887,8 @@ Base::Result<void> StyleEngine::Apply(
         if (!states) return states.GetStatus();
     }
     if (requiresSubscription) {
+        Base::Result<void> attached = AttachSetterBindings(object, style);
+        if (!attached) return attached.GetStatus();
         Base::Result<void> subscribed =
             triggerEngine_->SubscribeTriggers(object, style);
         if (!subscribed) return subscribed.GetStatus();
@@ -972,6 +977,7 @@ std::uint32_t StyleEngine::FindApplication(
 Base::Result<void> StyleEngine::ClearSetters(
     DependencyObject& object,
     const Style& style) noexcept {
+    DetachSetterBindings(object);
     for (const StyleSetter& setter : StylePrivate::RuntimeSetters(style)) {
         if (IsDeferredBindingSetterValue(setter.value)) {
             continue;
@@ -997,6 +1003,78 @@ Base::Result<void> StyleEngine::ClearSetters(
         }
     }
     return {};
+}
+
+Base::Result<void> StyleEngine::AttachSetterBindings(
+    DependencyObject& object,
+    const Style& style) noexcept {
+    BindingEngine* bindings = AeroGuiInternal::BindingEngineOf(object);
+    for (const StyleSetter& setter : StylePrivate::RuntimeSetters(style)) {
+        if (!IsDeferredBindingSetterValue(setter.value)) {
+            continue;
+        }
+        if (bindings == nullptr || bindings->Metadata() == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotInitialized,
+                "Style Binding setters require a mounted View binding engine");
+        }
+        Base::Ref<Base::Object> stored = setter.value.AsObject();
+        if (!stored || stored->RuntimeType() != Data::Binding::StaticTypeId()) {
+            continue;
+        }
+        auto& binding = static_cast<Data::Binding&>(*stored);
+        Data::MetadataBindingDescriptor descriptor;
+        descriptor.metadata = bindings->Metadata();
+        descriptor.source = binding.GetSource().Get();
+        descriptor.target = &object;
+        descriptor.targetProperty = setter.property;
+        descriptor.dataContextProperty =
+            FrameworkElement::DataContextProperty.Handle();
+        descriptor.dataContextOwner = &object;
+        descriptor.path = binding.GetPathText();
+        descriptor.stringFormat = binding.GetStringFormat();
+        descriptor.bindsToSource = binding.GetPath().GetIsEmpty();
+        descriptor.mode = BindingEngine::ResolveBindingMode(
+            object,
+            setter.property,
+            binding.GetMode());
+        descriptor.updateSourceTrigger =
+            BindingEngine::ResolveUpdateSourceTrigger(
+                object,
+                setter.property,
+                binding.GetUpdateSourceTrigger());
+        descriptor.converterResource = binding.GetConverter();
+        descriptor.converterParameter = binding.GetConverterParameter();
+        descriptor.fallbackValue = binding.GetFallbackValue();
+        descriptor.targetNullValue = binding.GetTargetNullValue();
+        Base::Result<Data::BindingHandle> attached =
+            bindings->Attach(descriptor);
+        if (!attached) return attached.GetStatus();
+        Base::Result<void> tracked = setterBindings_.PushBack(
+            {&object, attached.Value()});
+        if (!tracked) {
+            static_cast<void>(bindings->Detach(attached.Value()));
+            return tracked.GetStatus();
+        }
+    }
+    return {};
+}
+
+void StyleEngine::DetachSetterBindings(DependencyObject& object) noexcept {
+    BindingEngine* bindings = AeroGuiInternal::BindingEngineOf(object);
+    std::uint32_t keep = 0U;
+    for (std::uint32_t index = 0U; index < setterBindings_.Size(); ++index) {
+        SetterBinding record = setterBindings_[index];
+        if (record.object != &object) {
+            setterBindings_[keep] = record;
+            ++keep;
+            continue;
+        }
+        if (bindings != nullptr && record.handle.IsValid()) {
+            static_cast<void>(bindings->Detach(record.handle));
+        }
+    }
+    static_cast<void>(setterBindings_.Resize(keep));
 }
 
 StyleEngine::StyleEngine(

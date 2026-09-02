@@ -101,8 +101,10 @@ struct TemplateMetadataBindingPlan {
     Base::String path;
     Base::String stringFormat;
     DependencyPropertyHandle targetProperty;
-    Data::BindingMode mode = Data::BindingMode::OneWay;
+    Data::BindingMode mode = Data::BindingMode::Default;
     UpdateSourceTrigger updateSourceTrigger = UpdateSourceTrigger::PropertyChanged;
+    Base::Ref<Data::IValueConverter> converter;
+    Meta::PropertyValue converterParameter;
 };
 
 struct TemplateDynamicResourcePlan {

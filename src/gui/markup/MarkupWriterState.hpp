@@ -399,9 +399,11 @@ struct DeferredBindingEdge {
     Base::String stringFormat;
     bool bindsToSource = false;
     Data::BindingMode mode =
-        Data::BindingMode::OneWay;
+        Data::BindingMode::Default;
     Meta::UpdateSourceTrigger updateSourceTrigger =
         Meta::UpdateSourceTrigger::PropertyChanged;
+    Base::Ref<Data::IValueConverter> converter;
+    Meta::PropertyValue converterParameter;
 };
 
 class DeferredContentPlan {
@@ -435,7 +437,9 @@ public:
         Base::StringView stringFormat,
         Data::BindingMode mode,
         Meta::UpdateSourceTrigger updateSourceTrigger,
-        bool bindsToSource) noexcept;
+        bool bindsToSource,
+        const Base::Ref<Data::IValueConverter>& converter,
+        const Meta::PropertyValue& converterParameter) noexcept;
     Base::Result<void> CopyBindingsForOwner(
         const Base::Object& owner,
         Base::Vector<DeferredBindingEdge>& output) const noexcept;
@@ -1467,9 +1471,11 @@ struct TemplatePrototypeBinding {
     Base::String stringFormat;
     bool bindsToSource = false;
     Data::BindingMode mode =
-        Data::BindingMode::OneWay;
+        Data::BindingMode::Default;
     Meta::UpdateSourceTrigger updateSourceTrigger =
         Meta::UpdateSourceTrigger::PropertyChanged;
+    Base::Ref<Data::IValueConverter> converter;
+    Meta::PropertyValue converterParameter;
 };
 
 struct CompiledTemplateBlueprint {

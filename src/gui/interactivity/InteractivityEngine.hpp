@@ -170,14 +170,21 @@ public:
         Base::Ref<Aero::Controls::DataTemplateTriggerState> triggerContext;
         std::uint32_t triggerIndex = 0U;
         std::uint32_t conditionIndex = 0U;
+        Meta::MemberId metadataProperty = Meta::InvalidMemberId;
 
         void Invoke(
             ::Aero::DependencyObject&,
             const Meta::DependencyPropertyChangedEventArgs&) noexcept;
+        static void MetadataInvoke(
+            Base::Object&,
+            Meta::MemberId property,
+            void* context) noexcept;
     };
     struct DataTemplateTriggerSubscription {
         ::Aero::DependencyObject* source = nullptr;
+        Base::Object* metadataSource = nullptr;
         Meta::DependencyPropertyHandle property;
+        std::uint64_t metadataSubscription = 0U;
         Meta::DependencyPropertyChangedEventHandler handler;
         DataTemplateTriggerHandlerState* context = nullptr;
     };
@@ -188,6 +195,10 @@ public:
     Base::Result<bool> DataTemplateTriggerValuesMatch(
         const Meta::PropertyValue& actual,
         Meta::PropertyValue expected) noexcept;
+    Base::Result<bool> EvaluateTriggerComparison(
+        const Meta::PropertyValue& actual,
+        Meta::PropertyValue expected,
+        Base::StringView comparison) noexcept;
     Base::Object* ResolveDataTemplateConditionSource(
         Aero::Controls::DataTemplateTriggerState& context,
         Aero::Controls::DataTemplateTriggerCondition& condition,
@@ -211,6 +222,9 @@ public:
         const Aero::Style& style) noexcept;
     Base::Result<std::uint32_t> StartDataTemplateTriggers(
         Aero::Controls::DataTemplateTriggerState& context) noexcept;
+    Base::Result<void> AttachDataTemplateClrSubscription(
+        Aero::Controls::DataTemplateTriggerState& context,
+        std::uint32_t triggerIndex) noexcept;
     Base::Result<Base::Ref<Interactivity::Behavior>> CloneBehaviorPrototype(
         const Interactivity::Behavior& prototype) noexcept;
     Base::Object* ResolveBehaviorBindingSource(

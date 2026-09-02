@@ -6,6 +6,8 @@
 #include "render/DisplayList.hpp"
 #include <Aero/Controls.hpp>
 #include "gui/media/MediaState.hpp"
+#include <Aero/Input/Mouse.hpp>
+#include <Aero/TryCast.hpp>
 #include <Aero/Value.hpp>
 
 #include <algorithm>
@@ -1604,6 +1606,23 @@ void Slider::OnTemplateDetached() noexcept {
     Control::OnTemplateDetached();
 }
 
+Size Slider::MeasureOverride(Size availableSize) noexcept {
+    Size desired = Control::MeasureOverride(availableSize);
+    // BlendTutorial ColorSelector / Position sliders omit Height. An empty
+    // default template Grid measures 0x0, which collapses Grid Height="*"
+    // rows inside a StackPanel. Keep a theme-like minimum.
+    constexpr double kMinThickness = 18.0;
+    constexpr double kMinLength = 32.0;
+    if (GetOrientation() == Orientation::Horizontal) {
+        desired.height = std::max(desired.height, kMinThickness);
+        desired.width = std::max(desired.width, kMinLength);
+    } else {
+        desired.width = std::max(desired.width, kMinThickness);
+        desired.height = std::max(desired.height, kMinLength);
+    }
+    return desired;
+}
+
 void Slider::OnTrackPropertyChanged(
     DependencyObject&,
     const DependencyPropertyChangedEventArgs&) noexcept {
@@ -1835,6 +1854,33 @@ void Slider::SetValueFromPosition(
     SetValue(GetSnapValue(
         GetMinimum() +
         normalized * (GetMaximum() - GetMinimum())));
+}
+
+void Slider::SetValueFromTrackPoint(
+    Point local) noexcept {
+    if (track_ == nullptr) {
+        const bool horizontal =
+            GetOrientation() == Orientation::Horizontal;
+        SetValueFromPosition(
+            horizontal ? local.x : local.y,
+            horizontal
+                ? GetRenderSize().width
+                : GetRenderSize().height);
+        return;
+    }
+    const bool horizontal =
+        GetOrientation() == Orientation::Horizontal;
+    const Size size = track_->GetRenderSize();
+    const double length =
+        horizontal ? size.width : size.height;
+    if (!(length > 0.0)) return;
+    const double thumbLength = track_->GetThumbLength(length);
+    const double position =
+        (horizontal ? local.x : local.y) - thumbLength * 0.5;
+    Base::Result<double> value =
+        track_->ValueFromThumbOffset(position, length, thumbLength);
+    if (!value) return;
+    SetValue(GetSnapValue(value.Value()));
 }
 
 double Slider::GetNormalizedValueForLayout() const noexcept {
@@ -2643,18 +2689,22 @@ void SliderBehavior::OnIncreaseLargeCommand(
 
 Base::Result<void>
 SliderBehavior::SetFromPoint(
-    Slider& slider,
-    Point point) noexcept {
+    Slider& slider) noexcept {
+    auto* track = slider.track_;
+    if (track != nullptr) {
+        slider.SetValueFromTrackPoint(
+            Input::Mouse::GetPosition(track));
+        return {};
+    }
+    const Point local = Input::Mouse::GetPosition(&slider);
     const bool horizontal =
         slider.GetOrientation() ==
         Orientation::Horizontal;
-    const double position =
-        horizontal ? point.x : point.y;
-    const double length =
+    slider.SetValueFromPosition(
+        horizontal ? local.x : local.y,
         horizontal
-        ? slider.GetRenderSize().width
-        : slider.GetRenderSize().height;
-    slider.SetValueFromPosition(position, length);
+            ? slider.GetRenderSize().width
+            : slider.GetRenderSize().height);
     return {};
 }
 
@@ -2676,42 +2726,78 @@ void SliderBehavior::OnMouseDown(
     record.pointerId = args.GetPointerId();
     static_cast<void>(
         input_->SetFocus(&slider));
-    Point local = args.GetPosition();
-    const bool horizontal =
-        slider.GetOrientation() ==
-        Orientation::Horizontal;
-    const double position =
-        horizontal ? local.x : local.y;
-    const double length =
-        horizontal
-        ? slider.GetRenderSize().width
-        : slider.GetRenderSize().height;
-    const double range =
-        slider.GetMaximum() - slider.GetMinimum();
-    double normalized = range > 0.0
-        ? (slider.GetValue() - slider.GetMinimum()) /
-            range
-        : 0.0;
-    if (slider.GetIsDirectionReversed()) {
-        normalized = 1.0 - normalized;
-    }
-    const double thumbPosition =
-        7.0 +
-        std::clamp(normalized, 0.0, 1.0) *
-            std::max(0.0, length - 14.0);
-    record.dragging =
+    auto* track = slider.track_;
+    Thumb* thumb = track != nullptr
+        ? track->GetThumbElement().Get()
+        : nullptr;
+    auto* source = ::Aero::TryCast<UIElement>(
+        args.GetOriginalSource());
+    const bool onThumb =
+        thumb != nullptr &&
+        source != nullptr &&
+        (source == thumb || thumb->IsAncestorOf(*source));
+    const bool onTrack =
+        track != nullptr &&
+        source != nullptr &&
+        (source == track || track->IsAncestorOf(*source));
+    const bool onSlider =
+        source == nullptr ||
+        source == &slider ||
+        slider.IsAncestorOf(*source);
+    const bool hasRepeatButtons =
+        track != nullptr &&
+        (track->GetDecreaseRepeatButton() ||
+            track->GetIncreaseRepeatButton());
+    // Templates without RepeatButtons (BlendTutorial) wrap PART_Track in a
+    // Border. OriginalSource is then that Border, not the Track. Treat any
+    // click on the slider as move-to-point so the thumb follows the pointer.
+    const bool moveToPoint =
         slider.GetIsMoveToPointEnabled() ||
-        std::fabs(position - thumbPosition) <=
-            10.0;
+        ((onTrack || onSlider) && !hasRepeatButtons);
+    record.dragging = onThumb || moveToPoint;
+    if (!record.dragging && track != nullptr && onTrack) {
+        const Point local = Input::Mouse::GetPosition(track);
+        const bool horizontal =
+            slider.GetOrientation() ==
+            Orientation::Horizontal;
+        const Size size = track->GetRenderSize();
+        const double length =
+            horizontal ? size.width : size.height;
+        const double position =
+            horizontal ? local.x : local.y;
+        const double thumbOffset =
+            track->GetThumbOffset(length);
+        const double thumbLength =
+            track->GetThumbLength(length);
+        record.dragging =
+            std::fabs(
+                position - (thumbOffset + thumbLength * 0.5)) <=
+            std::max(10.0, thumbLength);
+    }
     if (record.dragging) {
         static_cast<void>(
             input_->CapturePointer(
                 args.GetPointerId(), slider));
     }
-    if (slider.GetIsMoveToPointEnabled()) {
-        static_cast<void>(
-            SetFromPoint(slider, args.GetPosition()));
+    if (moveToPoint || (record.dragging && onThumb)) {
+        static_cast<void>(SetFromPoint(slider));
     } else if (!record.dragging) {
+        const Point local = track != nullptr
+            ? Input::Mouse::GetPosition(track)
+            : Input::Mouse::GetPosition(&slider);
+        const bool horizontal =
+            slider.GetOrientation() ==
+            Orientation::Horizontal;
+        const double position =
+            horizontal ? local.x : local.y;
+        const double length =
+            horizontal
+            ? (track != nullptr
+                ? track->GetRenderSize().width
+                : slider.GetRenderSize().width)
+            : (track != nullptr
+                ? track->GetRenderSize().height
+                : slider.GetRenderSize().height);
         const bool after =
             position >= length * 0.5;
         const bool increase =
@@ -2739,7 +2825,7 @@ void SliderBehavior::OnMouseMove(
         return;
     }
     static_cast<void>(
-        SetFromPoint(slider, args.GetPosition()));
+        SetFromPoint(slider));
     args.SetHandled(true);
 }
 
@@ -2759,7 +2845,7 @@ void SliderBehavior::OnMouseUp(
         return;
     }
     static_cast<void>(
-        SetFromPoint(slider, args.GetPosition()));
+        SetFromPoint(slider));
     sliders_[index].dragging = false;
     static_cast<void>(
         input_->ReleasePointer(

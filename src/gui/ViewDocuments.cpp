@@ -1,5 +1,6 @@
 #include "gui/ViewState.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
+#include <Aero/VisualTreeHelper.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -927,6 +928,109 @@ Base::Result<void> UnmountViewFragment(
               "content host does not contain a mounted XAML fragment"));
 }
 
+namespace {
+
+Base::Result<void> MountOwnedLayoutChildren(
+    ElementTree& context,
+    Aero::Media::Visual& node) noexcept {
+    if (auto* panel = ::Aero::TryCast<Controls::Panel>(&node)) {
+        const std::uint32_t count = panel->GetChildren().GetCount();
+        for (std::uint32_t index = 0U; index < count; ++index) {
+            UIElement* child = panel->GetChildren().GetItem(index);
+            if (child == nullptr) continue;
+            if (child->GetVisualParent() == panel &&
+                child->GetIsLayoutAttached()) {
+                continue;
+            }
+            if (child->GetVisualParent() != nullptr &&
+                child->GetVisualParent() != panel) {
+                continue;
+            }
+            Base::Result<VisualAttachment> mounted =
+                context.AttachVisualChild(*panel, *child);
+            if (!mounted) return mounted.GetStatus();
+        }
+    }
+    if (auto* host = ::Aero::TryCast<Controls::ContentControl>(&node)) {
+        if (AeroGuiInternal::TemplateRoot(*host) == nullptr) {
+            UIElement* content =
+                AeroGuiInternal::ContentControlContent(*host);
+            if (content != nullptr &&
+                (content->GetVisualParent() != host ||
+                 !content->GetIsLayoutAttached()) &&
+                (content->GetVisualParent() == nullptr ||
+                 content->GetVisualParent() == host)) {
+                Base::Result<VisualAttachment> mounted =
+                    context.AttachVisualChild(*host, *content);
+                if (!mounted) return mounted.GetStatus();
+            }
+        }
+    }
+
+    const std::uint32_t visualCount =
+        Aero::Media::VisualTreeHelper::GetChildrenCount(node);
+    for (std::uint32_t index = 0U; index < visualCount; ++index) {
+        Aero::Media::Visual* child =
+            Aero::Media::VisualTreeHelper::GetChild(node, index);
+        if (child == nullptr) continue;
+        UIElement* childEl = ::Aero::TryCast<UIElement>(child);
+        UIElement* parentEl = ::Aero::TryCast<UIElement>(&node);
+        if (childEl != nullptr && parentEl != nullptr &&
+            child->GetVisualParent() == &node &&
+            (!childEl->GetIsLayoutAttached() ||
+             childEl->LayoutParent() != parentEl)) {
+            Base::Result<VisualAttachment> mounted =
+                context.AttachVisualChild(node, *child);
+            if (!mounted) return mounted.GetStatus();
+        }
+        Base::Result<void> nested =
+            MountOwnedLayoutChildren(context, *child);
+        if (!nested) return nested.GetStatus();
+    }
+    if (auto* panel = ::Aero::TryCast<Controls::Panel>(&node)) {
+        const std::uint32_t count = panel->GetChildren().GetCount();
+        for (std::uint32_t index = 0U; index < count; ++index) {
+            UIElement* child = panel->GetChildren().GetItem(index);
+            if (child == nullptr || child->GetVisualParent() == &node) {
+                continue;
+            }
+            Base::Result<void> nested =
+                MountOwnedLayoutChildren(context, *child);
+            if (!nested) return nested.GetStatus();
+        }
+    }
+    return {};
+}
+
+void InvalidateLayoutSubtree(UIElement& element) noexcept {
+    (void)element.InvalidateMeasure();
+    (void)element.InvalidateArrange();
+    const std::uint32_t visualCount =
+        Aero::Media::VisualTreeHelper::GetChildrenCount(element);
+    for (std::uint32_t index = 0U; index < visualCount; ++index) {
+        Aero::Media::Visual* child =
+            Aero::Media::VisualTreeHelper::GetChild(element, index);
+        auto* childElement = child != nullptr
+            ? ::Aero::TryCast<UIElement>(child)
+            : nullptr;
+        if (childElement != nullptr) {
+            InvalidateLayoutSubtree(*childElement);
+        }
+    }
+    if (auto* panel = ::Aero::TryCast<Controls::Panel>(&element)) {
+        const std::uint32_t count = panel->GetChildren().GetCount();
+        for (std::uint32_t index = 0U; index < count; ++index) {
+            UIElement* child = panel->GetChildren().GetItem(index);
+            if (child == nullptr || child->GetVisualParent() == &element) {
+                continue;
+            }
+            InvalidateLayoutSubtree(*child);
+        }
+    }
+}
+
+} // namespace
+
 Base::Result<void> AdoptLoadedComponent(
     ViewState& state,
     Markup::LoaderResult&& incoming) noexcept {
@@ -958,21 +1062,25 @@ Base::Result<void> AdoptLoadedComponent(
         std::uint32_t attached = 0U;
         for (const Markup::VisualEdge& edge :
              document.visualContent.mountEdges) {
-            if (edge.state.logicalAttached) ++attached;
+            if (edge.state.layoutAttached) ++attached;
         }
         while (attached < document.visualContent.mountEdges.Size()) {
             bool progressed = false;
             for (Markup::VisualEdge& edge :
                  document.visualContent.mountEdges) {
-                if (edge.state.logicalAttached ||
-                    edge.parent == nullptr ||
+                if (edge.parent == nullptr ||
                     edge.child == nullptr) {
+                    continue;
+                }
+                if (edge.state.layoutAttached) {
                     continue;
                 }
                 if (UIElement* childEl =
                         ::Aero::TryCast<UIElement>(edge.child);
                     childEl != nullptr &&
-                    childEl->GetIsLayoutAttached()) {
+                    childEl->GetIsLayoutAttached() &&
+                    childEl->GetVisualParent() == edge.parent) {
+                    edge.state.layoutAttached = true;
                     ++attached;
                     progressed = true;
                     continue;
@@ -980,9 +1088,30 @@ Base::Result<void> AdoptLoadedComponent(
                 if (edge.parent->GetTree() != &context) {
                     continue;
                 }
-                if (edge.child->GetTree() == &context) {
+                if (UIElement* childEl =
+                        ::Aero::TryCast<UIElement>(edge.child);
+                    childEl != nullptr &&
+                    childEl->GetTree() == &context) {
+                    // LoadComponent may join the logical/tree membership of
+                    // UserControl content before layout edges exist. Skipping
+                    // here left ColorSelector/NumericUpDown Grids with no
+                    // layout children (0 height in a StackPanel).
+                    if (!childEl->GetIsLayoutAttached() ||
+                        childEl->GetVisualParent() != edge.parent) {
+                        Base::Result<VisualAttachment> mounted =
+                            context.AttachVisualChild(
+                                *edge.parent, *childEl);
+                        if (!mounted) return mounted.GetStatus();
+                        edge.state.visualAttached = true;
+                        edge.state.layoutAttached = true;
+                    } else {
+                        edge.state.layoutAttached = true;
+                    }
                     ++attached;
                     progressed = true;
+                    continue;
+                }
+                if (edge.child->GetTree() == &context) {
                     continue;
                 }
                 Base::Result<ElementAttachment> mounted =
@@ -997,38 +1126,73 @@ Base::Result<void> AdoptLoadedComponent(
         return {};
     };
 
-    if (Controls::ContentControl* host =
+    const auto hostLoadedContent = [&]() noexcept -> Base::Result<void> {
+        Controls::ContentControl* host =
             ::Aero::TryCast<Controls::ContentControl>(
-                document.root.Get())) {
-        if (UIElement* content =
-                AeroGuiInternal::ContentControlContent(*host);
-            content != nullptr &&
-            content->GetVisualParent() == nullptr &&
-            host->GetTree() == &context) {
-            if (content->GetTree() == nullptr &&
-                content->GetLogicalParent() == nullptr) {
-                Base::Result<ElementAttachment> mounted =
-                    context.AttachElement(*host, *content);
-                if (!mounted) return mounted.GetStatus();
-            } else if (content->GetVisualParent() != host) {
-                Base::Result<VisualAttachment> mounted =
-                    context.AttachVisualChild(*host, *content);
-                if (!mounted) return mounted.GetStatus();
+                document.root.Get());
+        if (host == nullptr || host->GetTree() != &context) {
+            return {};
+        }
+        UIElement* content =
+            AeroGuiInternal::ContentControlContent(*host);
+        if (content == nullptr) {
+            for (Markup::VisualEdge& edge :
+                 document.visualContent.mountEdges) {
+                if (edge.parent != host || edge.child == nullptr) {
+                    continue;
+                }
+                UIElement* child =
+                    ::Aero::TryCast<UIElement>(edge.child);
+                if (child == nullptr || child == host) {
+                    continue;
+                }
+                (void)AeroGuiInternal::SetContentValue(
+                    *host,
+                    Base::Ref<Base::Object>::FromBorrowed(*child));
+                content = AeroGuiInternal::ContentControlContent(*host);
+                break;
             }
         }
-    }
+        if (content == nullptr ||
+            (content->GetVisualParent() == host &&
+             content->GetIsLayoutAttached())) {
+            return {};
+        }
+        if (content->GetTree() == nullptr &&
+            content->GetLogicalParent() == nullptr) {
+            Base::Result<ElementAttachment> mounted =
+                context.AttachElement(*host, *content);
+            if (!mounted) return mounted.GetStatus();
+        } else {
+            Base::Result<VisualAttachment> mounted =
+                context.AttachVisualChild(*host, *content);
+            if (!mounted) return mounted.GetStatus();
+        }
+        return {};
+    };
+
+    Base::Result<void> hosted = hostLoadedContent();
+    if (!hosted) return hosted.GetStatus();
 
     Base::Result<void> attached = attachEdges();
     if (!attached) return attached.GetStatus();
+    hosted = hostLoadedContent();
+    if (!hosted) return hosted.GetStatus();
 
     Base::Result<Aero::Media::Visual*> rootVisual =
         state.ResolveVisual(
             *document.root, document.root->RuntimeType());
     if (rootVisual) {
+        attached = MountOwnedLayoutChildren(context, *rootVisual.Value());
+        if (!attached) return attached.GetStatus();
         Base::Result<void> applied =
             ApplyViewUi(state, *rootVisual.Value());
         if (!applied) return applied.GetStatus();
         attached = attachEdges();
+        if (!attached) return attached.GetStatus();
+        hosted = hostLoadedContent();
+        if (!hosted) return hosted.GetStatus();
+        attached = MountOwnedLayoutChildren(context, *rootVisual.Value());
         if (!attached) return attached.GetStatus();
         applied = ApplyViewUi(state, *rootVisual.Value());
         if (!applied) return applied.GetStatus();
@@ -1039,6 +1203,10 @@ Base::Result<void> AdoptLoadedComponent(
         Base::Result<void> interactions =
             state.VisitAndAttach(*rootVisual.Value());
         if (!interactions) return interactions.GetStatus();
+        if (UIElement* rootElement =
+                ::Aero::TryCast<UIElement>(rootVisual.Value())) {
+            InvalidateLayoutSubtree(*rootElement);
+        }
     }
 
     Markup::EffectRuntimeServices runtimeServices;

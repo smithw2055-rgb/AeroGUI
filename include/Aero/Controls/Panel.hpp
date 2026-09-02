@@ -52,6 +52,8 @@ protected:
     ~Panel() override = default;
     std::uint32_t GetVisualChildrenCount() const noexcept override;
     ::Aero::Media::Visual* GetVisualChild(std::uint32_t index) const noexcept override;
+    std::uint32_t GetLayoutChildrenCount() const noexcept override;
+    UIElement* GetLayoutChild(std::uint32_t index) const noexcept override;
     void OnRender(
         ::Aero::Media::DrawingContext& context) noexcept override;
 private:

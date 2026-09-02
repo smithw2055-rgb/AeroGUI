@@ -76,6 +76,9 @@
 #include <Aero/Controls/Page.hpp>
 #include <Aero/Controls/PasswordBox.hpp>
 #include <Aero/Controls/Popup.hpp>
+#include <Aero/Controls/DockPanel.hpp>
+#include <Aero/Controls/Expander.hpp>
+#include <Aero/Controls/Slider.hpp>
 #include <Aero/Controls/Viewbox.hpp>
 #include <Aero/Controls/TreeViewItem.hpp>
 #include <Aero/Controls/UniformGrid.hpp>
@@ -140,6 +143,10 @@
 #include <type_traits>
 #include <utility>
 
+namespace Aero {
+double MaxAbsCommittedProjectiveM13(const View& view) noexcept;
+}
+
 namespace {
 
 using Aero::Base::ErrorCode;
@@ -163,6 +170,7 @@ using Aero::Controls::Canvas;
 using Aero::Controls::ComboBox;
 using Aero::Controls::ComboBoxItem;
 using Aero::Controls::ContentControl;
+using Aero::Controls::Expander;
 using Aero::Controls::Grid;
 using Aero::Controls::ItemsControl;
 using Aero::Controls::ListBox;
@@ -170,11 +178,13 @@ using Aero::Controls::ListBoxItem;
 using Aero::Controls::Panel;
 using Aero::Controls::PasswordBox;
 using Aero::Controls::StackPanel;
+using Aero::Controls::Slider;
 using Aero::Controls::TabControl;
 using Aero::Controls::TextBlock;
 using Aero::Controls::TextBox;
 using Aero::Controls::UniformGrid;
 using Aero::Controls::UserControl;
+using Aero::Controls::Viewbox;
 using Aero::Controls::VirtualizingStackPanel;
 using Aero::Controls::ClickMode;
 using Aero::Controls::Primitives::RepeatButton;
@@ -230,6 +240,7 @@ using Aero::Shapes::FillRule;
 using Aero::Shapes::Path;
 using Aero::Shapes::PenLineCap;
 using Aero::Shapes::PenLineJoin;
+using Aero::Shapes::Rectangle;
 using Aero::Shapes::Shape;
 using Aero::Style;
 using Aero::TryCast;
@@ -980,6 +991,27 @@ constexpr char kNumericUpDownXaml[] =
     "</StackPanel>"
     "</UserControl>";
 
+constexpr char kStarColorGridXaml[] =
+    "<UserControl xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+    " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
+    "<Grid>"
+    "<Grid.RowDefinitions>"
+    "<RowDefinition Height=\"*\"/>"
+    "<RowDefinition Height=\"*\"/>"
+    "<RowDefinition Height=\"*\"/>"
+    "<RowDefinition Height=\"*\"/>"
+    "</Grid.RowDefinitions>"
+    "<Grid.ColumnDefinitions>"
+    "<ColumnDefinition Width=\"1*\"/>"
+    "<ColumnDefinition Width=\"2*\"/>"
+    "</Grid.ColumnDefinitions>"
+    "<Rectangle Fill=\"Red\" Stroke=\"Black\" Grid.RowSpan=\"4\" Margin=\"0,0,5,0\"/>"
+    "<Slider x:Name=\"R\" Grid.Column=\"1\" Maximum=\"255\" VerticalAlignment=\"Center\""
+    " Margin=\"10,1,0,1\"/>"
+    "<TextBlock Text=\"R\" Grid.Column=\"1\" VerticalAlignment=\"Center\"/>"
+    "</Grid>"
+    "</UserControl>";
+
 constexpr char kLanguageEnXaml[] =
     "<ResourceDictionary xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
     " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\""
@@ -1017,6 +1049,8 @@ Result<Aero::Markup::StreamResourceInfo> OpenTutorialXaml(
     const char* text = nullptr;
     if (UriEndsWith(uri, StringView("NumericUpDown.xaml"))) {
         text = kNumericUpDownXaml;
+    } else if (UriEndsWith(uri, StringView("StarColorGrid.xaml"))) {
+        text = kStarColorGridXaml;
     } else if (UriEndsWith(uri, StringView("Language-en.xaml"))) {
         text = kLanguageEnXaml;
     } else if (UriEndsWith(uri, StringView("Language-fr.xaml"))) {
@@ -1792,6 +1826,991 @@ bool TestViewboxHoverAndPopupFlip() {
             item->GetLayoutSlot().width, item->GetLayoutSlot().height);
     }
     CHECK(item->GetIsMouseOver());
+    return true;
+}
+
+bool TestViewboxFrameworkElementSpacer() {
+    LiveGui* live = NewLiveGui();
+    CHECK(live != nullptr);
+    View& view = *live->view;
+    view.SetSize({800.0, 600.0});
+
+    constexpr char kTree[] =
+        "<Viewbox xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" "
+        "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
+        "<StackPanel>"
+        "<Rectangle x:Name=\"Track\" Width=\"620\" Height=\"28\" Fill=\"WhiteSmoke\"/>"
+        "<FrameworkElement Margin=\"0,28,0,0\"/>"
+        "<Button x:Name=\"Go\" Width=\"120\" Height=\"28\" Content=\"Go!\"/>"
+        "</StackPanel>"
+        "</Viewbox>";
+    Aero::Markup::XamlReader reader(live->gui);
+    Result<Aero::Markup::XamlDocument> document = reader.Parse(
+        StringView(kTree));
+    if (!document) {
+        std::fprintf(stderr, "viewbox spacer XAML parse failed: %s\n",
+            document.GetStatus().message);
+        DumpDiagnostics(live->diagnostics);
+    }
+    CHECK(document);
+    CHECK(view.SetContent(std::move(document).Value(), {800.0, 600.0}));
+    Pump(view, 0.016);
+    Pump(view, 0.032);
+
+    auto* viewbox = TryCast<Viewbox>(view.GetContent());
+    CHECK(viewbox != nullptr);
+    Aero::Base::Transform2D stretch{};
+    CHECK(viewbox->TryGetViewboxTransform(stretch));
+    if (stretch.m11 < 0.1 || stretch.m22 < 0.1) {
+        std::fprintf(stderr,
+            "Viewbox spacer collapsed stretch m11=%.6g m22=%.6g\n",
+            stretch.m11, stretch.m22);
+        DumpDiagnostics(live->diagnostics);
+    }
+    CHECK(stretch.m11 >= 0.1 && stretch.m22 >= 0.1);
+
+    Button* go = viewbox->FindName<Button>(StringView("Go"));
+    CHECK(go != nullptr);
+    const Aero::Size goSize = go->GetRenderSize();
+    CHECK(goSize.width > 0.0 && goSize.height > 0.0);
+    Point topLeft{};
+    Point bottomRight{};
+    CHECK(go->TryPointToScreen({0.0, 0.0}, topLeft));
+    CHECK(go->TryPointToScreen(
+        {goSize.width, goSize.height}, bottomRight));
+    const double screenWidth = std::abs(bottomRight.x - topLeft.x);
+    const double screenHeight = std::abs(bottomRight.y - topLeft.y);
+    if (screenWidth < 8.0 || screenHeight < 4.0) {
+        std::fprintf(stderr,
+            "Viewbox spacer hid Go screen=(%.2f,%.2f)-(%.2f,%.2f)\n",
+            topLeft.x, topLeft.y, bottomRight.x, bottomRight.y);
+    }
+    CHECK(screenWidth >= 8.0 && screenHeight >= 4.0);
+    return true;
+}
+
+bool TestStackPanelZIndexDoesNotReorderLayout() {
+    LiveGui* live = NewLiveGui();
+    CHECK(live != nullptr);
+    View& view = *live->view;
+    view.SetSize({400.0, 300.0});
+
+    constexpr char kTree[] =
+        "<StackPanel xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" "
+        "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" x:Name=\"Host\">"
+        "<Button x:Name=\"First\" Width=\"80\" Height=\"24\" Content=\"First\"/>"
+        "<Button x:Name=\"Second\" Width=\"80\" Height=\"24\" Content=\"Second\"/>"
+        "<Button x:Name=\"Go\" Width=\"80\" Height=\"24\" Panel.ZIndex=\"-1\" Content=\"Go\"/>"
+        "</StackPanel>";
+    Aero::Markup::XamlReader reader(live->gui);
+    Result<Aero::Markup::XamlDocument> document = reader.Parse(
+        StringView(kTree));
+    if (!document) {
+        std::fprintf(stderr, "stackpanel zindex XAML parse failed: %s\n",
+            document.GetStatus().message);
+        DumpDiagnostics(live->diagnostics);
+    }
+    CHECK(document);
+    CHECK(view.SetContent(std::move(document).Value(), {400.0, 300.0}));
+    Pump(view, 0.016);
+    Pump(view, 0.032);
+
+    auto* host = TryCast<StackPanel>(view.GetContent());
+    CHECK(host != nullptr);
+    Button* first = host->FindName<Button>(StringView("First"));
+    Button* second = host->FindName<Button>(StringView("Second"));
+    Button* go = host->FindName<Button>(StringView("Go"));
+    CHECK(first != nullptr && second != nullptr && go != nullptr);
+
+    CHECK(Aero::Media::VisualTreeHelper::GetChild(*host, 0U) == go);
+    CHECK(go->GetLayoutSlot().y > second->GetLayoutSlot().y);
+    CHECK(second->GetLayoutSlot().y > first->GetLayoutSlot().y);
+    return true;
+}
+
+bool TestPanelProgrammaticAddAttachesVisual() {
+    LiveGui* live = NewLiveGui();
+    CHECK(live != nullptr);
+    View& view = *live->view;
+    view.SetSize({200.0, 200.0});
+
+    Aero::Markup::XamlReader reader(live->gui);
+    Result<Aero::Markup::XamlDocument> document = reader.Parse(StringView(
+        "<Canvas xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" "
+        "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" "
+        "x:Name=\"Host\" Width=\"200\" Height=\"200\"/>"));
+    if (!document) {
+        std::fprintf(stderr, "panel add XAML parse failed: %s\n",
+            document.GetStatus().message);
+        DumpDiagnostics(live->diagnostics);
+    }
+    CHECK(document);
+    CHECK(view.SetContent(std::move(document).Value(), {200.0, 200.0}));
+    Pump(view, 0.016);
+
+    auto* host = TryCast<Canvas>(view.GetContent());
+    CHECK(host != nullptr);
+    Result<Ref<Rectangle>> rectangle = MakeRef<Rectangle>();
+    CHECK(rectangle);
+    rectangle.Value()->SetWidth(40.0);
+    rectangle.Value()->SetHeight(20.0);
+    CHECK(host->GetChildren().Add(
+        Ref<Aero::UIElement>(rectangle.Value())));
+    Pump(view, 0.032);
+    CHECK(rectangle.Value()->GetVisualParent() == host);
+    CHECK(Aero::Media::VisualTreeHelper::GetChildrenCount(*host) == 1U);
+    CHECK(Aero::Media::VisualTreeHelper::GetChild(*host, 0U) ==
+        rectangle.Value().Get());
+    CHECK(host->GetChildren().Remove(*rectangle.Value()));
+    Pump(view, 0.048);
+    CHECK(rectangle.Value()->GetVisualParent() == nullptr);
+    CHECK(Aero::Media::VisualTreeHelper::GetChildrenCount(*host) == 0U);
+    return true;
+}
+
+bool TestPanelXamlChildrenStayVisuallyParented() {
+    LiveGui* live = NewLiveGui();
+    CHECK(live != nullptr);
+    View& view = *live->view;
+    view.SetSize({200.0, 200.0});
+
+    Aero::Markup::XamlReader reader(live->gui);
+    Result<Aero::Markup::XamlDocument> document = reader.Parse(StringView(
+        "<Canvas xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" "
+        "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" "
+        "Width=\"200\" Height=\"200\">"
+        "<Canvas.Resources>"
+        "<ControlTemplate x:Key=\"HoverBtn\" TargetType=\"{x:Type Button}\">"
+        "<Border x:Name=\"Bg\" Background=\"Gray\" Width=\"80\" Height=\"24\">"
+        "<Border x:Name=\"BgOver\" Background=\"White\" Opacity=\"0\"/>"
+        "</Border>"
+        "<ControlTemplate.Triggers>"
+        "<Trigger Property=\"IsMouseOver\" Value=\"True\">"
+        "<Setter TargetName=\"BgOver\" Property=\"Opacity\" Value=\"1\"/>"
+        "</Trigger>"
+        "</ControlTemplate.Triggers>"
+        "</ControlTemplate>"
+        "</Canvas.Resources>"
+        "<Button x:Name=\"Add\" Width=\"80\" Height=\"24\" "
+        "Template=\"{StaticResource HoverBtn}\"/>"
+        "<Rectangle x:Name=\"Mark\" Width=\"20\" Height=\"20\" "
+        "Canvas.Left=\"40\" Canvas.Top=\"40\"/>"
+        "</Canvas>"));
+    if (!document) {
+        std::fprintf(stderr, "panel xaml children parse failed: %s\n",
+            document.GetStatus().message);
+        DumpDiagnostics(live->diagnostics);
+    }
+    CHECK(document);
+    CHECK(view.SetContent(std::move(document).Value(), {200.0, 200.0}));
+    Pump(view, 0.016);
+    Pump(view, 0.032);
+
+    auto* host = TryCast<Canvas>(view.GetContent());
+    CHECK(host != nullptr);
+    CHECK(Aero::Media::VisualTreeHelper::GetChildrenCount(*host) == 2U);
+    Button* add = host->FindName<Button>(StringView("Add"));
+    CHECK(add != nullptr);
+    CHECK(add->GetVisualParent() == host);
+    CHECK(Aero::Media::VisualTreeHelper::GetChildrenCount(*add) == 1U);
+    auto* bg = TryCast<Aero::Controls::Border>(
+        Aero::Media::VisualTreeHelper::GetChild(*add, 0U));
+    CHECK(bg != nullptr);
+    CHECK(Aero::Media::VisualTreeHelper::GetChildrenCount(*bg) >= 1U);
+    auto* over = TryCast<Aero::Controls::Border>(
+        Aero::Media::VisualTreeHelper::GetChild(*bg, 0U));
+    CHECK(over != nullptr);
+    CHECK(Near(over->GetOpacity(), 0.0, 0.01));
+    const Aero::Size addSize = add->GetRenderSize();
+    CHECK(addSize.width > 0.0 && addSize.height > 0.0);
+    Point addScreen{};
+    CHECK(add->TryPointToScreen(
+        {addSize.width * 0.5, addSize.height * 0.5}, addScreen));
+    static_cast<void>(view.MouseMove(
+        static_cast<int>(addScreen.x),
+        static_cast<int>(addScreen.y)));
+    Pump(view, 0.048);
+    if (!add->GetIsMouseOver() || !Near(over->GetOpacity(), 1.0, 0.01)) {
+        std::fprintf(stderr,
+            "panel xaml button hover miss screen=(%.1f,%.1f) size=(%.1f,%.1f) "
+            "over=%.3f isOver=%d visualChildren=%u\n",
+            addScreen.x, addScreen.y, addSize.width, addSize.height,
+            over->GetOpacity(), add->GetIsMouseOver() ? 1 : 0,
+            Aero::Media::VisualTreeHelper::GetChildrenCount(*add));
+        DumpDiagnostics(live->diagnostics);
+    }
+    CHECK(add->GetIsMouseOver());
+    CHECK(Near(over->GetOpacity(), 1.0, 0.01));
+    return true;
+}
+
+bool TestExpanderTemplatedParentIsCheckedWritesBack() {
+    LiveGui* live = NewLiveGui();
+    CHECK(live != nullptr);
+    View& view = *live->view;
+    view.SetSize({240.0, 160.0});
+
+    constexpr char kTree[] =
+        "<Expander xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" "
+        "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" "
+        "x:Name=\"Host\" Header=\"Position\" IsExpanded=\"True\">"
+        "<Expander.Template>"
+        "<ControlTemplate TargetType=\"{x:Type Expander}\">"
+        "<StackPanel>"
+        "<ToggleButton x:Name=\"HeaderButton\" "
+        "IsChecked=\"{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}}\"/>"
+        "<ContentPresenter/>"
+        "</StackPanel>"
+        "</ControlTemplate>"
+        "</Expander.Template>"
+        "<TextBlock Text=\"Body\"/>"
+        "</Expander>";
+    Aero::Markup::XamlReader reader(live->gui);
+    Result<Aero::Markup::XamlDocument> document = reader.Parse(StringView(kTree));
+    if (!document) {
+        std::fprintf(stderr, "expander binding XAML parse failed: %s\n",
+            document.GetStatus().message);
+        DumpDiagnostics(live->diagnostics);
+    }
+    CHECK(document);
+    CHECK(view.SetContent(std::move(document).Value(), {240.0, 160.0}));
+    Pump(view, 0.016);
+    Pump(view, 0.032);
+
+    auto* host = TryCast<Expander>(view.GetContent());
+    CHECK(host != nullptr);
+    CHECK(host->GetIsExpanded());
+    ToggleButton* header = nullptr;
+    const std::uint32_t visualCount =
+        Aero::Media::VisualTreeHelper::GetChildrenCount(*host);
+    for (std::uint32_t index = 0U; index < visualCount && header == nullptr;
+         ++index) {
+        Aero::Media::Visual* child =
+            Aero::Media::VisualTreeHelper::GetChild(*host, index);
+        if (child == nullptr) continue;
+        header = TryCast<ToggleButton>(child);
+        if (header != nullptr) break;
+        const std::uint32_t nestedCount =
+            Aero::Media::VisualTreeHelper::GetChildrenCount(*child);
+        for (std::uint32_t nested = 0U;
+             nested < nestedCount && header == nullptr;
+             ++nested) {
+            Aero::Media::Visual* nestedChild =
+                Aero::Media::VisualTreeHelper::GetChild(*child, nested);
+            header = nestedChild != nullptr
+                ? TryCast<ToggleButton>(nestedChild)
+                : nullptr;
+        }
+    }
+    CHECK(header != nullptr);
+    const Aero::Nullable<bool> checkedState = header->GetIsChecked();
+    CHECK(checkedState.GetHasValue() && checkedState.GetValue());
+
+    header->SetIsChecked(Aero::Nullable<bool>{false});
+    Pump(view, 0.048);
+    if (host->GetIsExpanded()) {
+        std::fprintf(stderr,
+            "Expander IsExpanded stayed true after ToggleButton uncheck "
+            "(Binding Mode did not write back)\n");
+        DumpDiagnostics(live->diagnostics);
+    }
+    CHECK(!host->GetIsExpanded());
+    return true;
+}
+
+bool TestExpanderUnnamedHeaderClickWritesBack() {
+    LiveGui* live = NewLiveGui();
+    CHECK(live != nullptr);
+    View& view = *live->view;
+    view.SetSize({240.0, 200.0});
+
+    constexpr char kTree[] =
+        "<Expander xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" "
+        "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" "
+        "x:Name=\"Host\" Header=\"Position\" IsExpanded=\"True\">"
+        "<Expander.Template>"
+        "<ControlTemplate TargetType=\"{x:Type Expander}\">"
+        "<Grid>"
+        "<Grid.RowDefinitions>"
+        "<RowDefinition Height=\"Auto\"/>"
+        "<RowDefinition Height=\"Auto\"/>"
+        "</Grid.RowDefinitions>"
+        "<Border x:Name=\"ContentBorder\" Grid.Row=\"1\" Height=\"40\" "
+        "Background=\"#FFB8B8B8\" Visibility=\"Collapsed\">"
+        "<ContentPresenter/>"
+        "</Border>"
+        "<Grid>"
+        "<ToggleButton Height=\"24\" "
+        "IsChecked=\"{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}}\">"
+        "<ToggleButton.Template>"
+        "<ControlTemplate TargetType=\"{x:Type ToggleButton}\">"
+        "<Grid Background=\"#FFA0A0A0\">"
+        "<Path Data=\"M0,0L5,4 0,8\" Fill=\"White\" Margin=\"8,8,0,0\" "
+        "HorizontalAlignment=\"Left\" VerticalAlignment=\"Center\"/>"
+        "</Grid>"
+        "</ControlTemplate>"
+        "</ToggleButton.Template>"
+        "</ToggleButton>"
+        "<ContentPresenter ContentSource=\"Header\" Margin=\"18,0,8,0\" "
+        "IsHitTestVisible=\"False\" VerticalAlignment=\"Center\"/>"
+        "</Grid>"
+        "</Grid>"
+        "<ControlTemplate.Triggers>"
+        "<Trigger Property=\"IsExpanded\" Value=\"True\">"
+        "<Setter TargetName=\"ContentBorder\" Property=\"Visibility\" Value=\"Visible\"/>"
+        "</Trigger>"
+        "</ControlTemplate.Triggers>"
+        "</ControlTemplate>"
+        "</Expander.Template>"
+        "<TextBlock Text=\"Body\"/>"
+        "</Expander>";
+    Aero::Markup::XamlReader reader(live->gui);
+    Result<Aero::Markup::XamlDocument> document = reader.Parse(StringView(kTree));
+    if (!document) {
+        std::fprintf(stderr, "unnamed expander XAML parse failed: %s\n",
+            document.GetStatus().message);
+        DumpDiagnostics(live->diagnostics);
+    }
+    CHECK(document);
+    CHECK(view.SetContent(std::move(document).Value(), {240.0, 200.0}));
+    Pump(view, 0.016);
+    Pump(view, 0.032);
+
+    auto* host = TryCast<Expander>(view.GetContent());
+    CHECK(host != nullptr);
+    CHECK(host->GetIsExpanded());
+
+    ToggleButton* header = nullptr;
+    const auto findToggle = [&](auto& self, Aero::Media::Visual& visual)
+        -> ToggleButton* {
+        if (auto* toggle = TryCast<ToggleButton>(&visual)) return toggle;
+        const std::uint32_t count =
+            Aero::Media::VisualTreeHelper::GetChildrenCount(visual);
+        for (std::uint32_t index = 0U; index < count; ++index) {
+            Aero::Media::Visual* child =
+                Aero::Media::VisualTreeHelper::GetChild(visual, index);
+            if (child == nullptr) continue;
+            if (ToggleButton* found = self(self, *child)) return found;
+        }
+        return nullptr;
+    };
+    header = findToggle(findToggle, *host);
+    CHECK(header != nullptr);
+    CHECK(header->GetIsChecked().GetHasValue() &&
+        header->GetIsChecked().GetValue());
+
+    const Aero::Size headerSize = header->GetRenderSize();
+    CHECK(headerSize.width > 0.0 && headerSize.height > 0.0);
+    Point headerScreen{};
+    CHECK(header->TryPointToScreen({8.0, headerSize.height * 0.5}, headerScreen));
+    static_cast<void>(view.MouseMove(
+        static_cast<int>(headerScreen.x), static_cast<int>(headerScreen.y)));
+    Pump(view, 0.032);
+    static_cast<void>(view.MouseButtonDown(
+        static_cast<int>(headerScreen.x), static_cast<int>(headerScreen.y),
+        Aero::Input::MouseButton::Left));
+    Pump(view, 0.016);
+    static_cast<void>(view.MouseButtonUp(
+        static_cast<int>(headerScreen.x), static_cast<int>(headerScreen.y),
+        Aero::Input::MouseButton::Left));
+    Pump(view, 0.048);
+    if (host->GetIsExpanded()) {
+        std::fprintf(stderr,
+            "unnamed expander header click did not collapse over=%d checked=%d "
+            "header=(%.1fx%.1f)\n",
+            header->GetIsMouseOver() ? 1 : 0,
+            header->GetIsChecked().GetValueOr(true) ? 1 : 0,
+            headerSize.width, headerSize.height);
+        DumpDiagnostics(live->diagnostics);
+    }
+    CHECK(!host->GetIsExpanded());
+    return true;
+}
+
+bool TestExpanderResourceDictionaryHeaderClick() {
+    LiveGui* live = NewLiveGui();
+    CHECK(live != nullptr);
+    View& view = *live->view;
+    view.SetSize({240.0, 200.0});
+
+    constexpr char kTree[] =
+        "<Grid xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" "
+        "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
+        "<Grid.Resources>"
+        "<ControlTemplate x:Key=\"ExpanderT\" TargetType=\"{x:Type Expander}\">"
+        "<Grid>"
+        "<Grid.RowDefinitions>"
+        "<RowDefinition Height=\"Auto\"/>"
+        "<RowDefinition Height=\"Auto\"/>"
+        "</Grid.RowDefinitions>"
+        "<Border x:Name=\"ContentBorder\" Grid.Row=\"1\" Height=\"40\" "
+        "Background=\"#FFB8B8B8\" Visibility=\"Collapsed\">"
+        "<ContentPresenter/>"
+        "</Border>"
+        "<Grid>"
+        "<ToggleButton Height=\"24\" "
+        "IsChecked=\"{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}}\">"
+        "<ToggleButton.Template>"
+        "<ControlTemplate TargetType=\"{x:Type ToggleButton}\">"
+        "<Border Background=\"#FFA0A0A0\"/>"
+        "</ControlTemplate>"
+        "</ToggleButton.Template>"
+        "</ToggleButton>"
+        "<ContentPresenter ContentSource=\"Header\" Margin=\"18,0,8,0\" "
+        "IsHitTestVisible=\"False\" VerticalAlignment=\"Center\"/>"
+        "</Grid>"
+        "</Grid>"
+        "<ControlTemplate.Triggers>"
+        "<Trigger Property=\"IsExpanded\" Value=\"True\">"
+        "<Setter TargetName=\"ContentBorder\" Property=\"Visibility\" Value=\"Visible\"/>"
+        "</Trigger>"
+        "</ControlTemplate.Triggers>"
+        "</ControlTemplate>"
+        "<Style TargetType=\"{x:Type Expander}\">"
+        "<Setter Property=\"Template\" Value=\"{StaticResource ExpanderT}\"/>"
+        "</Style>"
+        "</Grid.Resources>"
+        "<Expander x:Name=\"Host\" Header=\"Position\" IsExpanded=\"True\">"
+        "<TextBlock Text=\"Body\"/>"
+        "</Expander>"
+        "</Grid>";
+    Aero::Markup::XamlReader reader(live->gui);
+    Result<Aero::Markup::XamlDocument> document = reader.Parse(StringView(kTree));
+    if (!document) {
+        std::fprintf(stderr, "resource expander XAML parse failed: %s\n",
+            document.GetStatus().message);
+        DumpDiagnostics(live->diagnostics);
+    }
+    CHECK(document);
+    CHECK(view.SetContent(std::move(document).Value(), {240.0, 200.0}));
+    Pump(view, 0.016);
+    Pump(view, 0.032);
+
+    FrameworkElement* root = view.GetContent();
+    CHECK(root != nullptr);
+    auto* host = root->FindName<Expander>(StringView("Host"));
+    CHECK(host != nullptr);
+    CHECK(host->GetIsExpanded());
+
+    ToggleButton* header = nullptr;
+    const auto findToggle = [&](auto& self, Aero::Media::Visual& visual)
+        -> ToggleButton* {
+        if (auto* toggle = TryCast<ToggleButton>(&visual)) return toggle;
+        const std::uint32_t count =
+            Aero::Media::VisualTreeHelper::GetChildrenCount(visual);
+        for (std::uint32_t index = 0U; index < count; ++index) {
+            Aero::Media::Visual* child =
+                Aero::Media::VisualTreeHelper::GetChild(visual, index);
+            if (child == nullptr) continue;
+            if (ToggleButton* found = self(self, *child)) return found;
+        }
+        return nullptr;
+    };
+    header = findToggle(findToggle, *host);
+    CHECK(header != nullptr);
+    header->SetIsChecked(Aero::Nullable<bool>{false});
+    Pump(view, 0.048);
+    if (host->GetIsExpanded()) {
+        std::fprintf(stderr,
+            "resource-dictionary Expander IsExpanded stayed true after uncheck\n");
+        DumpDiagnostics(live->diagnostics);
+    }
+    CHECK(!host->GetIsExpanded());
+    return true;
+}
+
+bool TestControlTemplateHoverStoryboard() {
+    ViewOptions options;
+    options.automaticAnimationClock = false;
+    LiveGui* live = NewLiveGui(options);
+    CHECK(live != nullptr);
+    View& view = *live->view;
+    view.SetSize({200.0, 80.0});
+
+    constexpr char kTree[] =
+        "<Button xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" "
+        "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" "
+        "x:Name=\"Add\" Content=\"Add\" Width=\"120\" Height=\"32\">"
+        "<Button.Template>"
+        "<ControlTemplate TargetType=\"{x:Type Button}\">"
+        "<ControlTemplate.Resources>"
+        "<Storyboard x:Key=\"OverOn\">"
+        "<DoubleAnimationUsingKeyFrames Storyboard.TargetProperty=\"(UIElement.Opacity)\" "
+        "Storyboard.TargetName=\"BgOver\">"
+        "<EasingDoubleKeyFrame KeyTime=\"0:0:0\" Value=\"1\"/>"
+        "</DoubleAnimationUsingKeyFrames>"
+        "</Storyboard>"
+        "</ControlTemplate.Resources>"
+        "<Grid>"
+        "<Border x:Name=\"Bg\" Background=\"#FFA0A0A0\"/>"
+        "<Border x:Name=\"BgOver\" Background=\"#FFFF0000\" Opacity=\"0\"/>"
+        "<ContentPresenter HorizontalAlignment=\"Center\" VerticalAlignment=\"Center\"/>"
+        "</Grid>"
+        "<ControlTemplate.Triggers>"
+        "<Trigger Property=\"IsMouseOver\" Value=\"True\">"
+        "<Trigger.EnterActions>"
+        "<BeginStoryboard Storyboard=\"{StaticResource OverOn}\"/>"
+        "</Trigger.EnterActions>"
+        "</Trigger>"
+        "</ControlTemplate.Triggers>"
+        "</ControlTemplate>"
+        "</Button.Template>"
+        "</Button>";
+    Aero::Markup::XamlReader reader(live->gui);
+    Result<Aero::Markup::XamlDocument> document = reader.Parse(StringView(kTree));
+    if (!document) {
+        std::fprintf(stderr, "control template hover XAML parse failed: %s\n",
+            document.GetStatus().message);
+        DumpDiagnostics(live->diagnostics);
+    }
+    CHECK(document);
+    CHECK(view.SetContent(std::move(document).Value(), {200.0, 80.0}));
+    Pump(view, 0.016);
+    Pump(view, 0.032);
+
+    auto* add = TryCast<Button>(view.GetContent());
+    CHECK(add != nullptr);
+    const Aero::Size addSize = add->GetRenderSize();
+    CHECK(addSize.width > 0.0 && addSize.height > 0.0);
+    Point addScreen{};
+    CHECK(add->TryPointToScreen(
+        {addSize.width * 0.5, addSize.height * 0.5}, addScreen));
+    static_cast<void>(view.MouseMove(
+        static_cast<int>(addScreen.x), static_cast<int>(addScreen.y)));
+    Pump(view, 0.048);
+    CHECK(add->GetIsMouseOver());
+
+    Border* over = nullptr;
+    if (Aero::Media::VisualTreeHelper::GetChildrenCount(*add) > 0U) {
+        Aero::Media::Visual* templateRoot =
+            Aero::Media::VisualTreeHelper::GetChild(*add, 0U);
+        if (templateRoot != nullptr) {
+            const std::uint32_t nested =
+                Aero::Media::VisualTreeHelper::GetChildrenCount(*templateRoot);
+            for (std::uint32_t index = 0U; index < nested; ++index) {
+                auto* border = TryCast<Border>(
+                    Aero::Media::VisualTreeHelper::GetChild(*templateRoot, index));
+                if (border == nullptr) continue;
+                if (over == nullptr) {
+                    over = border;
+                    continue;
+                }
+                over = border;
+                break;
+            }
+        }
+    }
+    CHECK(over != nullptr);
+    if (over->GetOpacity() <= 0.5) {
+        std::fprintf(stderr,
+            "control template hover storyboard did not raise BgOver opacity=%.2f\n",
+            over->GetOpacity());
+        DumpDiagnostics(live->diagnostics);
+    }
+    CHECK(over->GetOpacity() > 0.5);
+    return true;
+}
+
+struct BlendAddClickProbe {
+    std::uint32_t count = 0;
+    void OnClick(Aero::Base::Object*, Aero::RoutedEventArgs&) noexcept {
+        ++count;
+    }
+};
+
+bool TestGridStarRowsSizeInStackPanel() {
+    LiveGui* live = NewLiveGui();
+    CHECK(live != nullptr);
+    View& view = *live->view;
+    view.SetSize({240.0, 400.0});
+
+    constexpr char kTree[] =
+        "<StackPanel xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" "
+        "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" "
+        "Width=\"150\">"
+        "<Grid x:Name=\"ColorGrid\">"
+        "<Grid.RowDefinitions>"
+        "<RowDefinition Height=\"*\"/>"
+        "<RowDefinition Height=\"*\"/>"
+        "<RowDefinition Height=\"*\"/>"
+        "<RowDefinition Height=\"*\"/>"
+        "</Grid.RowDefinitions>"
+        "<Grid.ColumnDefinitions>"
+        "<ColumnDefinition Width=\"1*\"/>"
+        "<ColumnDefinition Width=\"2*\"/>"
+        "</Grid.ColumnDefinitions>"
+        "<Rectangle x:Name=\"Swatch\" Grid.RowSpan=\"4\" Fill=\"Red\" "
+        "Stroke=\"Black\" Margin=\"0,0,5,0\"/>"
+        "<Slider x:Name=\"R\" Grid.Column=\"1\" Height=\"18\" Margin=\"10,1,0,1\" "
+        "Maximum=\"255\"/>"
+        "</Grid>"
+        "</StackPanel>";
+    Aero::Markup::XamlReader reader(live->gui);
+    Result<Aero::Markup::XamlDocument> document = reader.Parse(StringView(kTree));
+    if (!document) {
+        std::fprintf(stderr, "star-grid XAML parse failed: %s\n",
+            document.GetStatus().message);
+        DumpDiagnostics(live->diagnostics);
+    }
+    CHECK(document);
+    CHECK(view.SetContent(std::move(document).Value(), {240.0, 400.0}));
+    Pump(view, 0.016);
+    Pump(view, 0.032);
+    FrameworkElement* root = view.GetContent();
+    CHECK(root != nullptr);
+    Grid* grid = root->FindName<Grid>(StringView("ColorGrid"));
+    Rectangle* swatch = root->FindName<Rectangle>(StringView("Swatch"));
+    CHECK(grid != nullptr && swatch != nullptr);
+    if (grid->GetRenderSize().height < 8.0 ||
+        swatch->GetRenderSize().height < 8.0) {
+        std::fprintf(stderr,
+            "star Grid in StackPanel collapsed grid=(%.1fx%.1f) swatch=(%.1fx%.1f)\n",
+            grid->GetRenderSize().width, grid->GetRenderSize().height,
+            swatch->GetRenderSize().width, swatch->GetRenderSize().height);
+    }
+    CHECK(grid->GetRenderSize().height >= 8.0);
+    CHECK(swatch->GetRenderSize().height >= 8.0);
+    return true;
+}
+
+bool TestBlendTutorialSidebarInteractions() {
+    LiveGui* live = NewLiveGui();
+    CHECK(live != nullptr);
+    View& view = *live->view;
+    view.SetSize({800.0, 600.0});
+    ViewViewport viewport;
+    viewport.logicalSize = {800.0, 600.0};
+    viewport.pixelWidth = 800U;
+    viewport.pixelHeight = 600U;
+    viewport.dpiScale = 1.0;
+    static_cast<void>(view.SetViewport(viewport));
+
+    constexpr char kTree[] =
+        "<Grid xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" "
+        "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
+        "<Grid.Resources>"
+        "<SolidColorBrush x:Key=\"Bg\" Color=\"#FFA0A0A0\"/>"
+        "<SolidColorBrush x:Key=\"Over\" Color=\"#FFFF0000\"/>"
+        "<ControlTemplate x:Key=\"HoverBtn\" TargetType=\"{x:Type Button}\">"
+        "<Grid>"
+        "<Border x:Name=\"Bg\" Background=\"{StaticResource Bg}\" Height=\"24\"/>"
+        "<Border x:Name=\"BgOver\" Background=\"{StaticResource Over}\" Opacity=\"0\"/>"
+        "<ContentPresenter HorizontalAlignment=\"Center\" VerticalAlignment=\"Center\"/>"
+        "</Grid>"
+        "<ControlTemplate.Triggers>"
+        "<Trigger Property=\"IsMouseOver\" Value=\"True\">"
+        "<Setter TargetName=\"BgOver\" Property=\"Opacity\" Value=\"1\"/>"
+        "</Trigger>"
+        "</ControlTemplate.Triggers>"
+        "</ControlTemplate>"
+        "<ControlTemplate x:Key=\"ExpanderT\" TargetType=\"{x:Type Expander}\">"
+        "<StackPanel>"
+        "<ToggleButton x:Name=\"HeaderButton\" Height=\"24\" Background=\"#FFA0A0A0\" "
+        "IsChecked=\"{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}}\"/>"
+        "<Border x:Name=\"ContentBorder\" Background=\"#FFB8B8B8\">"
+        "<ContentPresenter/>"
+        "</Border>"
+        "</StackPanel>"
+        "<ControlTemplate.Triggers>"
+        "<Trigger Property=\"IsExpanded\" Value=\"False\">"
+        "<Setter TargetName=\"ContentBorder\" Property=\"Visibility\" Value=\"Collapsed\"/>"
+        "</Trigger>"
+        "</ControlTemplate.Triggers>"
+        "</ControlTemplate>"
+        "<ControlTemplate x:Key=\"SliderT\" TargetType=\"{x:Type Slider}\">"
+        "<Border Background=\"#FF696969\" Height=\"20\">"
+        "<Track x:Name=\"PART_Track\">"
+        "<Track.Thumb>"
+        "<Thumb x:Name=\"thumb\" Width=\"10\" Height=\"16\" Background=\"White\"/>"
+        "</Track.Thumb>"
+        "</Track>"
+        "</Border>"
+        "</ControlTemplate>"
+        "</Grid.Resources>"
+        "<Grid Margin=\"10\">"
+        "<Grid.RowDefinitions>"
+        "<RowDefinition Height=\"369*\"/>"
+        "<RowDefinition Height=\"631*\"/>"
+        "</Grid.RowDefinitions>"
+        "<Decorator x:Name=\"PropsBarMaxWidth\" Grid.Column=\"1\"/>"
+        "</Grid>"
+        "<DockPanel LastChildFill=\"True\">"
+        "<Viewbox x:Name=\"PropsBar\" DockPanel.Dock=\"Right\" VerticalAlignment=\"Top\" "
+        "Margin=\"0,10,10,10\" MaxWidth=\"{Binding ActualHeight, ElementName=PropsBarMaxWidth}\">"
+        "<StackPanel Width=\"150\">"
+        "<Button x:Name=\"AddButton\" Content=\"Add\" Height=\"24\" Margin=\"0,0,0,3\" "
+        "Template=\"{StaticResource HoverBtn}\"/>"
+        "<Expander x:Name=\"PositionExpander\" Header=\"Position\" IsExpanded=\"True\" "
+        "Template=\"{StaticResource ExpanderT}\" Margin=\"0,0,0,10\">"
+        "<Slider x:Name=\"PositionLeft\" Minimum=\"0\" Maximum=\"100\" Value=\"10\" "
+        "Template=\"{StaticResource SliderT}\"/>"
+        "</Expander>"
+        "</StackPanel>"
+        "</Viewbox>"
+        "<Border x:Name=\"ContainerBorder\" Background=\"White\" Margin=\"10\" "
+        "BorderBrush=\"Gray\" BorderThickness=\"1\">"
+        "<Canvas x:Name=\"ContainerCanvas\"/>"
+        "</Border>"
+        "</DockPanel>"
+        "</Grid>";
+    Aero::Markup::XamlReader reader(live->gui);
+    Result<Aero::Markup::XamlDocument> document = reader.Parse(StringView(kTree));
+    if (!document) {
+        std::fprintf(stderr, "blend sidebar XAML parse failed: %s\n",
+            document.GetStatus().message);
+        DumpDiagnostics(live->diagnostics);
+    }
+    CHECK(document);
+    CHECK(view.SetContent(std::move(document).Value(), {800.0, 600.0}));
+    Pump(view, 0.016);
+    Pump(view, 0.048);
+
+    FrameworkElement* root = view.GetContent();
+    CHECK(root != nullptr);
+    Button* add = root->FindName<Button>(StringView("AddButton"));
+    Expander* expander = root->FindName<Expander>(StringView("PositionExpander"));
+    Slider* slider = root->FindName<Slider>(StringView("PositionLeft"));
+    CHECK(add != nullptr && expander != nullptr && slider != nullptr);
+
+    BlendAddClickProbe probe;
+    add->Click().Add({&probe, &BlendAddClickProbe::OnClick});
+
+    const Aero::Size addSize = add->GetRenderSize();
+    CHECK(addSize.width > 0.0 && addSize.height > 0.0);
+    Point addScreen{};
+    CHECK(add->TryPointToScreen(
+        {addSize.width * 0.5, addSize.height * 0.5}, addScreen));
+    static_cast<void>(view.MouseMove(
+        static_cast<int>(addScreen.x), static_cast<int>(addScreen.y)));
+    Pump(view, 0.048);
+    Border* over = nullptr;
+    if (Aero::Media::VisualTreeHelper::GetChildrenCount(*add) > 0U) {
+        Aero::Media::Visual* templateRoot =
+            Aero::Media::VisualTreeHelper::GetChild(*add, 0U);
+        if (templateRoot != nullptr) {
+            const std::uint32_t nested =
+                Aero::Media::VisualTreeHelper::GetChildrenCount(*templateRoot);
+            for (std::uint32_t index = 0U; index < nested; ++index) {
+                auto* border = TryCast<Border>(
+                    Aero::Media::VisualTreeHelper::GetChild(*templateRoot, index));
+                if (border == nullptr) continue;
+                if (over == nullptr) {
+                    over = border;
+                    continue;
+                }
+                over = border;
+                break;
+            }
+        }
+    }
+    if (!add->GetIsMouseOver()) {
+        std::fprintf(stderr,
+            "blend Add hover miss screen=(%.1f,%.1f) size=(%.1fx%.1f) "
+            "slot=(%.1f,%.1f,%.1f,%.1f)\n",
+            addScreen.x, addScreen.y, addSize.width, addSize.height,
+            add->GetLayoutSlot().x, add->GetLayoutSlot().y,
+            add->GetLayoutSlot().width, add->GetLayoutSlot().height);
+    }
+    CHECK(add->GetIsMouseOver());
+    if (over != nullptr) {
+        CHECK(over->GetOpacity() > 0.5);
+    }
+
+    static_cast<void>(view.MouseButtonDown(
+        static_cast<int>(addScreen.x), static_cast<int>(addScreen.y),
+        Aero::Input::MouseButton::Left));
+    Pump(view, 0.016);
+    static_cast<void>(view.MouseButtonUp(
+        static_cast<int>(addScreen.x), static_cast<int>(addScreen.y),
+        Aero::Input::MouseButton::Left));
+    Pump(view, 0.032);
+    if (probe.count == 0U) {
+        std::fprintf(stderr,
+            "blend Add click did not fire pressed=%d over=%d\n",
+            add->GetIsPressed() ? 1 : 0,
+            add->GetIsMouseOver() ? 1 : 0);
+    }
+    CHECK(probe.count >= 1U);
+
+    CHECK(expander->GetIsExpanded());
+    ToggleButton* header = nullptr;
+    const auto findToggle = [&](auto& self, Aero::Media::Visual& visual)
+        -> ToggleButton* {
+        if (auto* toggle = TryCast<ToggleButton>(&visual)) return toggle;
+        const std::uint32_t count =
+            Aero::Media::VisualTreeHelper::GetChildrenCount(visual);
+        for (std::uint32_t index = 0U; index < count; ++index) {
+            Aero::Media::Visual* child =
+                Aero::Media::VisualTreeHelper::GetChild(visual, index);
+            if (child == nullptr) continue;
+            if (ToggleButton* found = self(self, *child)) return found;
+        }
+        return nullptr;
+    };
+    header = findToggle(findToggle, *expander);
+    CHECK(header != nullptr);
+
+    static_cast<void>(view.MouseMove(0, 0));
+    Pump(view, 0.016);
+
+    const Aero::Size headerSize = header->GetRenderSize();
+    CHECK(headerSize.width > 0.0 && headerSize.height > 0.0);
+    Point headerScreen{};
+    Point headerOrigin{};
+    CHECK(header->TryPointToScreen({0.0, 0.0}, headerOrigin));
+    CHECK(header->TryPointToScreen(
+        {headerSize.width * 0.5, headerSize.height * 0.5}, headerScreen));
+    static_cast<void>(view.MouseMove(
+        static_cast<int>(headerScreen.x), static_cast<int>(headerScreen.y)));
+    Pump(view, 0.032);
+    std::fprintf(stderr,
+        "blend expander before-slider headerOver=%d expanderOver=%d "
+        "sliderOver=%d addOver=%d headerScreen=(%.1f,%.1f) "
+        "hdrOrigin=(%.1f,%.1f) captured=%d arrange=%d\n",
+        header->GetIsMouseOver() ? 1 : 0,
+        expander->GetIsMouseOver() ? 1 : 0,
+        slider->GetIsMouseOver() ? 1 : 0,
+        add->GetIsMouseOver() ? 1 : 0,
+        headerScreen.x, headerScreen.y,
+        headerOrigin.x, headerOrigin.y,
+        Aero::Input::Mouse::Captured() != nullptr ? 1 : 0,
+        header->GetIsArrangeValid() ? 1 : 0);
+    static_cast<void>(view.MouseButtonDown(
+        static_cast<int>(headerScreen.x), static_cast<int>(headerScreen.y),
+        Aero::Input::MouseButton::Left));
+    Pump(view, 0.016);
+    static_cast<void>(view.MouseButtonUp(
+        static_cast<int>(headerScreen.x), static_cast<int>(headerScreen.y),
+        Aero::Input::MouseButton::Left));
+    Pump(view, 0.048);
+    if (expander->GetIsExpanded()) {
+        std::fprintf(stderr,
+            "blend Expander did not collapse after header click "
+            "headerOver=%d expanderOver=%d addOver=%d checked=%d "
+            "headerScreen=(%.1f,%.1f) addScreen=(%.1f,%.1f) "
+            "headerSize=(%.1fx%.1f) expanderSize=(%.1fx%.1f)\n",
+            header->GetIsMouseOver() ? 1 : 0,
+            expander->GetIsMouseOver() ? 1 : 0,
+            add->GetIsMouseOver() ? 1 : 0,
+            header->GetIsChecked().GetValueOr(true) ? 1 : 0,
+            headerScreen.x, headerScreen.y,
+            addScreen.x, addScreen.y,
+            headerSize.width, headerSize.height,
+            expander->GetRenderSize().width, expander->GetRenderSize().height);
+    }
+    CHECK(!expander->GetIsExpanded());
+    expander->SetIsExpanded(true);
+    Pump(view, 0.048);
+
+    const double start = slider->GetValue();
+    const Aero::Size sliderSize = slider->GetRenderSize();
+    CHECK(sliderSize.width > 8.0);
+    Point sliderScreen{};
+    CHECK(slider->TryPointToScreen(
+        {sliderSize.width * 0.85, sliderSize.height * 0.5}, sliderScreen));
+    static_cast<void>(view.MouseMove(
+        static_cast<int>(sliderScreen.x), static_cast<int>(sliderScreen.y)));
+    Pump(view, 0.032);
+    static_cast<void>(view.MouseButtonDown(
+        static_cast<int>(sliderScreen.x), static_cast<int>(sliderScreen.y),
+        Aero::Input::MouseButton::Left));
+    Pump(view, 0.016);
+    static_cast<void>(view.MouseButtonUp(
+        static_cast<int>(sliderScreen.x), static_cast<int>(sliderScreen.y),
+        Aero::Input::MouseButton::Left));
+    Pump(view, 0.032);
+    if (!(slider->GetValue() > start + 1.0)) {
+        std::fprintf(stderr,
+            "blend Slider did not follow click start=%.1f now=%.1f "
+            "size=(%.1fx%.1f) over=%d screen=(%.1f,%.1f)\n",
+            start, slider->GetValue(), sliderSize.width, sliderSize.height,
+            slider->GetIsMouseOver() ? 1 : 0,
+            sliderScreen.x, sliderScreen.y);
+    }
+    CHECK(slider->GetValue() > start + 1.0);
+    return true;
+}
+
+bool TestLoadComponentUserControlInStackPanel() {
+    LiveGui* live = NewTutorialLiveGui();
+    CHECK(live != nullptr);
+    View& view = *live->view;
+    view.SetSize({240.0, 160.0});
+
+    Result<Ref<NumericUpDown>> control = MakeRef<NumericUpDown>();
+    CHECK(control);
+    Aero::Markup::XamlReader reader(live->gui);
+    Result<Aero::Markup::XamlDocument> host = reader.Parse(StringView(
+        "<StackPanel xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" "
+        "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" Width=\"200\"/>"));
+    CHECK(host);
+    CHECK(view.SetContent(std::move(host).Value(), {240.0, 160.0}));
+    Pump(view, 0.016);
+    auto* stack = TryCast<StackPanel>(view.GetContent());
+    CHECK(stack != nullptr);
+    CHECK(stack->GetChildren().Add(
+        Ref<Aero::UIElement>(control.Value())));
+    Pump(view, 0.032);
+    CHECK(live->gui.LoadComponent(
+        *control.Value(), "memory:///NumericUpDown.xaml"));
+    Pump(view, 0.016);
+    Pump(view, 0.032);
+    if (control.Value()->GetRenderSize().height < 1.0) {
+        Aero::Media::Visual* child =
+            Aero::Media::VisualTreeHelper::GetChildrenCount(*control.Value()) > 0U
+            ? Aero::Media::VisualTreeHelper::GetChild(*control.Value(), 0U)
+            : nullptr;
+        auto* childElement = TryCast<UIElement>(child);
+        std::fprintf(stderr,
+            "LoadComponent UserControl in StackPanel stayed 0 height "
+            "size=(%.1fx%.1f) visualChildren=%u "
+            "childLayout=%d childParent=%d childSize=(%.1fx%.1f)\n",
+            control.Value()->GetRenderSize().width,
+            control.Value()->GetRenderSize().height,
+            Aero::Media::VisualTreeHelper::GetChildrenCount(*control.Value()),
+            childElement != nullptr && childElement->GetIsLayoutAttached() ? 1 : 0,
+            childElement != nullptr && childElement->LayoutParent() ==
+                control.Value().Get() ? 1 : 0,
+            childElement != nullptr ? childElement->GetRenderSize().width : 0.0,
+            childElement != nullptr ? childElement->GetRenderSize().height : 0.0);
+    }
+    CHECK(control.Value()->GetRenderSize().height >= 1.0);
+    CHECK(control.Value()->FindName("UpButton") != nullptr);
+    return true;
+}
+
+bool TestLoadComponentStarGridUserControlInStackPanel() {
+    LiveGui* live = NewTutorialLiveGui();
+    CHECK(live != nullptr);
+    View& view = *live->view;
+    view.SetSize({240.0, 200.0});
+
+    Result<Ref<UserControl>> control = MakeRef<UserControl>();
+    CHECK(control);
+    Aero::Markup::XamlReader reader(live->gui);
+    Result<Aero::Markup::XamlDocument> host = reader.Parse(StringView(
+        "<StackPanel xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" "
+        "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" Width=\"200\"/>"));
+    CHECK(host);
+    CHECK(view.SetContent(std::move(host).Value(), {240.0, 200.0}));
+    Pump(view, 0.016);
+    auto* stack = TryCast<StackPanel>(view.GetContent());
+    CHECK(stack != nullptr);
+    CHECK(stack->GetChildren().Add(
+        Ref<Aero::UIElement>(control.Value())));
+    Pump(view, 0.032);
+    CHECK(live->gui.LoadComponent(
+        *control.Value(), "memory:///StarColorGrid.xaml"));
+    Pump(view, 0.016);
+    Pump(view, 0.032);
+    if (control.Value()->GetRenderSize().height < 8.0) {
+        std::fprintf(stderr,
+            "LoadComponent star-grid UserControl stayed 0 height size=(%.1fx%.1f)\n",
+            control.Value()->GetRenderSize().width,
+            control.Value()->GetRenderSize().height);
+    }
+    CHECK(control.Value()->GetRenderSize().height >= 8.0);
+    CHECK(control.Value()->FindName("R") != nullptr);
     return true;
 }
 
@@ -4685,6 +5704,132 @@ bool TestLoadedIntroStoryboard() {
     return true;
 }
 
+bool TestBoardFlipRotationYStoryboard() {
+    ViewOptions options;
+    options.automaticAnimationClock = false;
+    LiveGui* live = NewLiveGui(options);
+    CHECK(live != nullptr);
+    View& view = *live->view;
+    view.SetSize({400.0, 400.0});
+
+    Aero::Markup::XamlReader reader(live->gui);
+    Result<Aero::Markup::XamlDocument> document = reader.Parse(StringView(
+        "<Viewbox xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+        " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\""
+        " xmlns:aero=\"clr-namespace:AeroGUIExtensions;assembly=Aero.GUI.Extensions\""
+        " xmlns:b=\"http://schemas.microsoft.com/xaml/behaviors\""
+        " Width=\"400\" Height=\"400\">"
+        "<Viewbox.Resources>"
+        "<Storyboard x:Key=\"BoardFlip1Anim\">"
+        "<DoubleAnimationUsingKeyFrames"
+        " Storyboard.TargetProperty=\"(aero:Element.Transform3D).(aero:CompositeTransform3D.RotationY)\""
+        " Storyboard.TargetName=\"Board\">"
+        "<EasingDoubleKeyFrame KeyTime=\"0:0:0.1\" Value=\"-90\">"
+        "<EasingDoubleKeyFrame.EasingFunction>"
+        "<ExponentialEase EasingMode=\"EaseInOut\"/>"
+        "</EasingDoubleKeyFrame.EasingFunction>"
+        "</EasingDoubleKeyFrame>"
+        "</DoubleAnimationUsingKeyFrames>"
+        "</Storyboard>"
+        "</Viewbox.Resources>"
+        "<Grid x:Name=\"Board\" Width=\"200\" Height=\"200\" Margin=\"15\">"
+        "<aero:Element.Transform3D>"
+        "<aero:CompositeTransform3D CenterX=\"100\" CenterY=\"100\"/>"
+        "</aero:Element.Transform3D>"
+        "<Border x:Name=\"Probe\" Width=\"20\" Height=\"20\""
+        " HorizontalAlignment=\"Left\" VerticalAlignment=\"Center\""
+        " Background=\"White\"/>"
+        "<Button x:Name=\"Start\" Background=\"#00FF0000\">"
+        "<b:Interaction.Triggers>"
+        "<b:EventTrigger EventName=\"Click\">"
+        "<b:ControlStoryboardAction Storyboard=\"{StaticResource BoardFlip1Anim}\"/>"
+        "</b:EventTrigger>"
+        "</b:Interaction.Triggers>"
+        "</Button>"
+        "</Grid>"
+        "</Viewbox>"));
+    if (!document) {
+        std::fprintf(stderr, "board flip XAML parse failed: %s\n",
+            document.GetStatus().message);
+        DumpDiagnostics(live->diagnostics);
+    }
+    CHECK(document);
+    CHECK(view.SetContent(std::move(document).Value(), {400.0, 400.0}));
+    Pump(view, 0.0);
+
+    FrameworkElement* root = view.GetContent();
+    CHECK(root != nullptr);
+    Grid* board = root->FindName<Grid>(StringView("Board"));
+    CHECK(board != nullptr);
+    CompositeTransform3D* transform =
+        TryCast<CompositeTransform3D>(board->GetTransform3D().Get());
+    if (transform == nullptr) {
+        std::fprintf(stderr, "Board GetTransform3D was null after load\n");
+        DumpDiagnostics(live->diagnostics);
+    }
+    CHECK(transform != nullptr);
+    CHECK(Near(transform->GetRotationY(), 0.0, 0.5));
+
+    Button* start = root->FindName<Button>(StringView("Start"));
+    CHECK(start != nullptr);
+    Point click{};
+    CHECK(start->TryPointToScreen(
+        {start->GetRenderSize().width * 0.5,
+         start->GetRenderSize().height * 0.5},
+        click));
+    static_cast<void>(view.MouseButtonDown(
+        static_cast<int>(click.x),
+        static_cast<int>(click.y),
+        Aero::Input::MouseButton::Left));
+    Pump(view, 0.016);
+    static_cast<void>(view.MouseButtonUp(
+        static_cast<int>(click.x),
+        static_cast<int>(click.y),
+        Aero::Input::MouseButton::Left));
+    Pump(view, 0.032);
+
+    Border* probe = root->FindName<Aero::Controls::Border>(StringView("Probe"));
+    CHECK(probe != nullptr);
+    Point rest{};
+    CHECK(probe->TryPointToScreen({10.0, 10.0}, rest));
+
+    Pump(view, 0.09);
+    const double midY = transform->GetRotationY();
+    if (!(midY < -8.0)) {
+        std::fprintf(stderr,
+            "BoardFlip1 RotationY stayed at %.3f after Click (expected mid-flip)\n",
+            midY);
+        DumpDiagnostics(live->diagnostics);
+    }
+    CHECK(midY < -8.0);
+
+    const double projective = Aero::MaxAbsCommittedProjectiveM13(view);
+    if (!(projective > 1.0e-4)) {
+        std::fprintf(stderr,
+            "BoardFlip1 RotationY=%.3f but committed renderTransform stayed affine "
+            "(max |m13/m23/(m33-1)|=%.6g)\n",
+            midY, projective);
+        DumpDiagnostics(live->diagnostics);
+    }
+    CHECK(projective > 1.0e-4);
+
+    Point flipped{};
+    CHECK(probe->TryPointToScreen({10.0, 10.0}, flipped));
+    const double shift = flipped.x - rest.x;
+    if (!(shift > 2.0 || shift < -2.0)) {
+        std::fprintf(stderr,
+            "BoardFlip1 RotationY=%.3f but Probe screen x did not move "
+            "(rest=%.1f flipped=%.1f)\n",
+            midY, rest.x, flipped.x);
+        DumpDiagnostics(live->diagnostics);
+    }
+    CHECK(shift > 2.0 || shift < -2.0);
+
+    Pump(view, 0.20);
+    CHECK(Near(transform->GetRotationY(), -90.0, 4.0));
+    return true;
+}
+
 } // namespace
 
 bool TestStyleSetterMergedStaticResource();
@@ -4703,6 +5848,18 @@ int main() {
     RUN(TestComboBoxAndVisualStateAnimation);
     RUN(TestTransform3DCollapseAndHits);
     RUN(TestViewboxHoverAndPopupFlip);
+    RUN(TestViewboxFrameworkElementSpacer);
+    RUN(TestStackPanelZIndexDoesNotReorderLayout);
+    RUN(TestPanelProgrammaticAddAttachesVisual);
+    RUN(TestPanelXamlChildrenStayVisuallyParented);
+    RUN(TestExpanderTemplatedParentIsCheckedWritesBack);
+    RUN(TestExpanderUnnamedHeaderClickWritesBack);
+    RUN(TestExpanderResourceDictionaryHeaderClick);
+    RUN(TestControlTemplateHoverStoryboard);
+    RUN(TestGridStarRowsSizeInStackPanel);
+    RUN(TestBlendTutorialSidebarInteractions);
+    RUN(TestLoadComponentUserControlInStackPanel);
+    RUN(TestLoadComponentStarGridUserControlInStackPanel);
     RUN(TestMenuTooltipForegroundAndFocus);
     RUN(TestViewboxTransform3DButtonHit);
     RUN(TestKeyboardNavigationIsTabStopTemplateTrigger);
@@ -4719,6 +5876,7 @@ int main() {
     RUN(TestStreamGeometryContextFlatten);
     RUN(TestTimelineDurationAndKeyTime);
     RUN(TestLoadedIntroStoryboard);
+    RUN(TestBoardFlipRotationYStoryboard);
     RUN(TestCollectionViewAndVirtualization);
     RUN(TestTemplateResolveOrder);
     RUN(TestStrokeJoinCapFillRule);

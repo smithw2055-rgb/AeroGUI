@@ -148,6 +148,8 @@ private:
     unsigned int shadowProgram_ = 0;
     unsigned int maskProgram_ = 0;
     unsigned int customEffectProgram_ = 0;
+    unsigned int linearProgram_ = 0;
+    unsigned int radialProgram_ = 0;
     unsigned int currentProgram_ = 0;
 
     // Sampler objects indexed by SamplerState.v (same encoding as D3D11).

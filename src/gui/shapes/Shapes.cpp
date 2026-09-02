@@ -1,5 +1,7 @@
 #include "render/DisplayList.hpp"
 #include <Aero/Shapes.hpp>
+#include <Aero/Base/Vector.hpp>
+#include <Aero/Media/Pen.hpp>
 
 #include "gui/core/State.hpp"
 #include "gui/media/AnimationEngine.hpp"
@@ -409,57 +411,66 @@ void Ellipse::OnRender(
         return popped;
     };
 
-    const Color fill = ::Aero::Media::SampleBrush(GetFill());
-    const Color stroke = ::Aero::Media::SampleBrush(GetStroke());
-    const double thickness = std::max(0.0, GetStrokeThickness());
-    if (stroke.alpha > 0.0F && thickness > 0.0) {
-        if (fill.alpha > 0.0F) {
-            Base::Result<void> painted = paintEllipse(
-                {0.0, 0.0, renderSize.width, renderSize.height}, stroke);
-            if (!painted) return;
-            const double inset = std::min(
-                thickness,
-                std::min(renderSize.width, renderSize.height) * 0.5);
-            painted = paintEllipse(
-                {inset, inset,
-                 renderSize.width - inset * 2.0,
-                 renderSize.height - inset * 2.0},
-                fill);
-            if (!painted) return;
-        } else {
-            // A short chain of antialiased circular dabs forms a transparent
-            // ellipse ring without falling back to a rectangular outline.
-            constexpr double Pi = 3.14159265358979323846;
-            const double diameter = std::max(0.5, thickness);
-            const double perimeter = Pi *
-                (renderSize.width + renderSize.height) * 0.5;
-            const std::uint32_t segments = static_cast<std::uint32_t>(
-                std::clamp(
-                    std::ceil(perimeter / std::max(0.5, diameter * 0.65)),
-                    24.0, 192.0));
-            const double radiusX = std::max(
-                0.0, (renderSize.width - diameter) * 0.5);
-            const double radiusY = std::max(
-                0.0, (renderSize.height - diameter) * 0.5);
-            for (std::uint32_t index = 0U; index < segments; ++index) {
-                const double angle = 2.0 * Pi *
-                    static_cast<double>(index) /
-                    static_cast<double>(segments);
-                const Rect dab{
-                    renderSize.width * 0.5 + std::cos(angle) * radiusX -
-                        diameter * 0.5,
-                    renderSize.height * 0.5 + std::sin(angle) * radiusY -
-                        diameter * 0.5,
-                    diameter, diameter};
-                Base::Result<void> painted = builder.FillRoundedRect(
-                    dab, stroke, diameter * 0.5);
-                if (!painted) return;
-            }
+    auto paintEllipseBrush = [&](Rect bounds, const Base::Ref<Brush>& brush)
+        noexcept -> Base::Result<void> {
+        if (!brush || bounds.width <= 0.0 || bounds.height <= 0.0) {
+            return {};
         }
-        return;
+        Transform2D transform;
+        transform.m11 = bounds.width;
+        transform.m22 = bounds.height;
+        transform.dx = bounds.x;
+        transform.dy = bounds.y;
+        Base::Result<void> pushed = builder.PushTransform(transform);
+        if (!pushed) return pushed.GetStatus();
+        Base::Result<void> painted = ::Aero::Media::PaintBrushRect(
+            builder,
+            brush,
+            Rect{0.0, 0.0, 1.0, 1.0},
+            0.5,
+            GetFlowDirection() == FlowDirection::RightToLeft);
+        Base::Result<void> popped = builder.PopTransform();
+        if (!painted) return painted.GetStatus();
+        return popped;
+    };
+
+    const Base::Ref<Brush> fillBrush = GetFill();
+    const Base::Ref<Brush> strokeBrush = GetStroke();
+    const bool spatialFill =
+        ::Aero::Media::IsSpatialGradientBrush(fillBrush.Get());
+    const Color fill = spatialFill
+        ? Color{}
+        : ::Aero::Media::SampleBrush(fillBrush);
+    const double thickness = std::max(0.0, GetStrokeThickness());
+    const Rect bounds{0.0, 0.0, renderSize.width, renderSize.height};
+    const bool hasFill = spatialFill || fill.alpha > 0.0F;
+    if (hasFill) {
+        Base::Result<void> painted = spatialFill
+            ? paintEllipseBrush(bounds, fillBrush)
+            : paintEllipse(bounds, fill);
+        if (!painted) return;
     }
-    static_cast<void>(paintEllipse(
-        {0.0, 0.0, renderSize.width, renderSize.height}, fill));
+    if (strokeBrush && thickness > 0.0) {
+        // Match AeroGUI Ellipse: fill/stroke as rounded-rect primitives, not
+        // Flatten+TessellateStroke. A 200px clock bezel was emitting hundreds
+        // of GPU gradient triangles per frame and stalling first paint.
+        const double half = thickness * 0.5;
+        const Rect strokeBounds{
+            half, half,
+            std::max(0.0, renderSize.width - thickness),
+            std::max(0.0, renderSize.height - thickness)};
+        if (strokeBounds.width > 0.0 && strokeBounds.height > 0.0) {
+            const double radius = std::min(
+                strokeBounds.width, strokeBounds.height) * 0.5;
+            static_cast<void>(::Aero::Media::PaintBrushRoundedStroke(
+                builder,
+                strokeBrush,
+                strokeBounds,
+                thickness,
+                radius,
+                GetFlowDirection() == FlowDirection::RightToLeft));
+        }
+    }
 }
 
 namespace {

@@ -230,6 +230,15 @@ Size UIElement::MeasureOverride(Size availableSize) noexcept {
     return availableSize;
 }
 
+std::uint32_t UIElement::GetLayoutChildrenCount() const noexcept {
+    return GetVisualChildrenCount();
+}
+
+UIElement* UIElement::GetLayoutChild(std::uint32_t index) const noexcept {
+    ::Aero::Media::Visual* child = GetVisualChild(index);
+    return child != nullptr ? ::Aero::TryCast<::Aero::UIElement>(child) : nullptr;
+}
+
 // from src/gui/controls/Layout.cpp
 void UIElement::SetKeyboardFocusWithinState(
     bool value) noexcept {
@@ -278,6 +287,10 @@ Base::Ref<Transform> UIElement::GetRenderTransform() const noexcept {
 Base::Ref<Media::Transform3D> UIElement::GetTransform3D() const noexcept {
     Base::Result<Base::Ref<Media::Transform3D>> value =
         GetValue(Transform3DProperty);
+    if (value && value.Value()) {
+        return std::move(value).Value();
+    }
+    value = GetValue(Element::Transform3DProperty);
     return value
         ? std::move(value).Value()
         : Base::Ref<Media::Transform3D>{};
@@ -819,18 +832,22 @@ UIElement::Rare& UIElement::EnsureRare() noexcept {
 }
 
 UIElement* UIElementChildRange::Iterator::operator*() const noexcept {
-    ::Aero::Media::Visual* child = owner_ != nullptr ? ::Aero::Media::VisualTreeHelper::GetChild(*owner_, index_) : nullptr;
-    return child != nullptr ? ::Aero::TryCast<::Aero::UIElement>(child) : nullptr;
+    return owner_ != nullptr ? owner_->GetLayoutChild(index_) : nullptr;
 }
 
 void UIElementChildRange::Iterator::Advance() noexcept {
     if (owner_ == nullptr) return;
-    const std::uint32_t count = ::Aero::Media::VisualTreeHelper::GetChildrenCount(*owner_);
+    const std::uint32_t count = owner_->GetLayoutChildrenCount();
     while (index_ < count) {
-        ::Aero::Media::Visual* child = ::Aero::Media::VisualTreeHelper::GetChild(*owner_, index_);
-        if (child != nullptr && ::Aero::TryCast<::Aero::UIElement>(child) != nullptr) return;
+        if (owner_->GetLayoutChild(index_) != nullptr) return;
         ++index_;
     }
+}
+
+UIElementChildRange::Iterator UIElementChildRange::end() const noexcept {
+    const std::uint32_t count =
+        owner_ != nullptr ? owner_->GetLayoutChildrenCount() : 0U;
+    return Iterator(owner_, count);
 }
 
 std::uint32_t UIElementChildRange::Size() const noexcept {

@@ -23,6 +23,7 @@
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Geometry.hpp>
 #include <Aero/Media/StreamGeometry.hpp>
+#include <Aero/Media/Transform.hpp>
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Controls/TextBlock.hpp>
 #include <Aero/Documents/Span.hpp>
@@ -292,6 +293,17 @@ Base::Result<Meta::PropertyValue> XamlStyleSchemaFacet::ConvertValueForProperty(
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Style conversion requires an initialized extension");
+    }
+    // Setter.Value="{Binding ...}" is a declaration. Converting it to the
+    // target DP type (Canvas.Left is double) would drop the Binding and
+    // fail style sealing, so ListBoxItem orbit placement never applied.
+    if (value.Kind() == Meta::ValueKind::Object &&
+        !value.IsNullObject() &&
+        (value.Type() == Data::Binding::StaticTypeId() ||
+         (value.AsObject() &&
+          value.AsObject()->RuntimeType() ==
+              Data::Binding::StaticTypeId()))) {
+        return value;
     }
     const Meta::DependencyProperty* property =
         ResolveStyleProperty(
@@ -1654,11 +1666,11 @@ CompileBlueprint(
             InvalidMemberId});
     if (!appended) return appended.GetStatus();
 
-    // Templated-parent bindings may target Freezables and other named
-    // DependencyObjects nested in a visual property (for example a
-    // GradientStop.Color binding). They are not visual edges, so retain them
-    // explicitly in the prototype graph and later expose them through the
-    // template instance name table.
+    // Templated-parent bindings may target Freezables nested in a visual
+    // property (for example a GradientStop.Color binding). Visuals and
+    // TransformGroup children are discovered from content edges so authored
+    // order is preserved; pre-inserting RotateTransform made clock hands
+    // compile as parentless nodes and drop out of TransformGroup.Children.
     for (const Controls::TemplateMetadataBindingPlan& binding :
          metadataBindings) {
         if (binding.targetName.Empty() || names == nullptr) continue;
@@ -1666,7 +1678,9 @@ CompileBlueprint(
         if (target == nullptr ||
             IsGradientStopObject(runtime, *target) ||
             runtime.Types().IsDerivedFrom(
-                target->RuntimeType(), ::Aero::Media::Visual::StaticTypeId())) {
+                target->RuntimeType(), ::Aero::Media::Visual::StaticTypeId()) ||
+            runtime.Types().IsDerivedFrom(
+                target->RuntimeType(), ::Aero::Media::Transform::StaticTypeId())) {
             continue;
         }
         if (!runtime.Types().IsDerivedFrom(
@@ -1688,7 +1702,9 @@ CompileBlueprint(
         if (target == nullptr ||
             IsGradientStopObject(runtime, *target) ||
             runtime.Types().IsDerivedFrom(
-                target->RuntimeType(), ::Aero::Media::Visual::StaticTypeId())) {
+                target->RuntimeType(), ::Aero::Media::Visual::StaticTypeId()) ||
+            runtime.Types().IsDerivedFrom(
+                target->RuntimeType(), ::Aero::Media::Transform::StaticTypeId())) {
             continue;
         }
         if (!runtime.Types().IsDerivedFrom(
@@ -1922,6 +1938,10 @@ CompileBlueprint(
                     // duplicate visual content.
                     existingNode.parent = index;
                     existingNode.contentMember = edge.member;
+                    if (existing < blueprint.nodes.Size()) {
+                        blueprint.nodes[existing].parent = index;
+                        blueprint.nodes[existing].contentMember = edge.member;
+                    }
                     continue;
                 }
                 if (existingNode.parent == index &&
@@ -1989,6 +2009,11 @@ CompileBlueprint(
                     if (existingNode.parent == UINT32_MAX) {
                         existingNode.parent = index;
                         existingNode.contentMember = inlinesMember;
+                        if (existing < blueprint.nodes.Size()) {
+                            blueprint.nodes[existing].parent = index;
+                            blueprint.nodes[existing].contentMember =
+                                inlinesMember;
+                        }
                     }
                     continue;
                 }
@@ -2090,6 +2115,8 @@ CompileBlueprint(
         binding.mode = source.mode;
         binding.updateSourceTrigger =
             source.updateSourceTrigger;
+        binding.converter = source.converter;
+        binding.converterParameter = source.converterParameter;
         if (externalElementName) {
             Base::Result<void> sourceName =
                 binding.sourceName.Assign(
@@ -3419,6 +3446,8 @@ Base::Result<void> BuildCompiledTemplate(
         descriptor.mode = binding.mode;
         descriptor.updateSourceTrigger =
             binding.updateSourceTrigger;
+        descriptor.converterResource = binding.converter;
+        descriptor.converterParameter = binding.converterParameter;
         Base::Result<void> queued =
             context.Bindings().QueueDeferred(descriptor);
         if (!queued) return queued.GetStatus();
@@ -3826,6 +3855,8 @@ BuildCompiledDeferredTemplate(
         descriptor.mode = binding.mode;
         descriptor.updateSourceTrigger =
             binding.updateSourceTrigger;
+        descriptor.converterResource = binding.converter;
+        descriptor.converterParameter = binding.converterParameter;
         if (bindings == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,

@@ -13,7 +13,9 @@
 #include <Aero/Markup/XamlReader.hpp>
 #include <Aero/Controls.hpp>
 #include <cstdio>
-#include "gui/core/State.hpp" 
+#include <cstdint>
+#include "gui/core/State.hpp"
+#include "gui/media/Transform3DMath.hpp" 
 #include "gui/input/InputState.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
@@ -65,25 +67,94 @@ Base::Transform2D Translation(double x, double y) noexcept {
 
 Base::ProjectiveTransform2D ToRootTransformProjective(
     const Visual& visual) noexcept {
-    Base::ProjectiveTransform2D result = Base::IdentityProjective();
-    const Visual* current = &visual;
-    while (current != nullptr) {
-        const ::Aero::UIElement* element =
-            ::Aero::TryCast<::Aero::UIElement>(current);
-        const ::Aero::FrameworkElement* framework =
-            ::Aero::TryCast<::Aero::FrameworkElement>(current);
-        if (element != nullptr) {
-            Base::ProjectiveTransform2D local = framework != nullptr
-                ? framework->GetLocalVisualTransform()
-                : Base::IdentityProjective();
-            const Base::Rect slot = element->GetLayoutSlot();
-            local = Base::Compose(
-                local, Base::ToProjective(Translation(slot.x, slot.y)));
-            result = Base::Compose(result, local);
-        }
-        current = current->GetVisualParent();
+    const Visual* chain[64];
+    std::uint32_t count = 0U;
+    for (const Visual* current = &visual;
+         current != nullptr && count < 64U;
+         current = current->GetVisualParent()) {
+        chain[count++] = current;
     }
-    return result;
+
+    Base::Size rootSize{};
+    for (std::uint32_t index = count; index > 0U; --index) {
+        if (const UIElement* rootElement =
+                ::Aero::TryCast<UIElement>(chain[index - 1U])) {
+            rootSize = rootElement->GetRenderSize();
+            break;
+        }
+    }
+    Media::Transform3DContext incoming =
+        Media::MakeImplicitViewRootContext(rootSize);
+    Base::ProjectiveTransform2D world = Base::IdentityProjective();
+
+    for (std::uint32_t index = count; index > 0U; --index) {
+        const Visual* current = chain[index - 1U];
+        const UIElement* element = ::Aero::TryCast<UIElement>(current);
+        const FrameworkElement* framework =
+            ::Aero::TryCast<FrameworkElement>(current);
+        if (element == nullptr) {
+            continue;
+        }
+
+        const Base::ProjectiveTransform2D localVisual =
+            framework != nullptr
+            ? framework->GetLocalVisualTransform()
+            : Base::IdentityProjective();
+        const Base::Rect slot = element->GetLayoutSlot();
+        Base::Transform2D viewboxMatrix{};
+        const Base::Transform2D* viewbox =
+            framework != nullptr &&
+                    framework->TryGetViewboxTransform(viewboxMatrix)
+                ? &viewboxMatrix
+                : nullptr;
+        Base::Transform3 innerVisual;
+        Base::Transform3 outerVisual;
+        Media::LiftLocalVisualWithViewbox(
+            localVisual, viewbox, innerVisual, outerVisual);
+        const Media::Transform3DContext childContext =
+            Media::AdvanceTransform3DContext(
+                incoming,
+                element->GetTransform3D().Get(),
+                innerVisual,
+                slot,
+                element->GetRenderSize(),
+                false,
+                outerVisual);
+        Media::Transform3D* local3D = element->GetTransform3D().Get();
+        const bool local3DActive =
+            local3D != nullptr &&
+            ::Aero::TryCast<Media::PerspectiveTransform3D>(local3D) ==
+                nullptr &&
+            !Base::LeavesZ0PlaneUnchanged(local3D->GetTransform3D());
+        const bool parent3DActive =
+            !Base::LeavesZ0PlaneUnchanged(incoming.accumulated);
+        Base::ProjectiveTransform2D renderTransform = localVisual;
+        if (local3DActive) {
+            renderTransform = Media::CollapseLocalTransform3D(
+                local3D,
+                element->GetRenderSize(),
+                innerVisual,
+                outerVisual,
+                childContext.depth);
+        } else if (!parent3DActive) {
+            renderTransform = Media::CollapseRelativeToParent(
+                incoming,
+                childContext,
+                slot,
+                localVisual,
+                false);
+        }
+        if (::Aero::TryCast<Media::PerspectiveTransform3D>(
+                element->GetTransform3D().Get()) != nullptr) {
+            renderTransform = localVisual;
+        }
+        const Base::ProjectiveTransform2D local = Base::Compose(
+            renderTransform,
+            Base::ToProjective(Translation(slot.x, slot.y)));
+        world = Base::Compose(local, world);
+        incoming = childContext;
+    }
+    return world;
 }
 
 } // namespace

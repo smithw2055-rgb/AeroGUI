@@ -537,17 +537,34 @@ StoryboardHost::ExecuteAnimationAction(
                 begin, owner, dataTemplateContext, names);
         }
         bool found = false;
+        Base::Vector<Aero::Media::Animation::Model::AnimationHandle> stopped(
+            allocator);
         for (StoryboardCompletionSession& session : storyboardCompletionSessions) {
-            if (session.owner != &owner || session.storyboard.Get() != control.GetStoryboard().Get()) continue;
+            // Shared resource storyboards (DataBinding ShowPopup) are started
+            // from one ListBoxItem and stopped from another. Match the
+            // storyboard instance, not the element that began it.
+            if (session.storyboard.Get() != control.GetStoryboard().Get()) continue;
             found = true;
             for (Aero::Media::Animation::Model::AnimationHandle handle : session.handles) {
                 Base::Result<void> result;
-                if (control.GetControlOption() == MediaAnimation::ControlStoryboardAction::Option::Stop) result = animations->Stop(handle);
-                else if (control.GetControlOption() == MediaAnimation::ControlStoryboardAction::Option::Pause) result = animations->Pause(handle);
+                if (control.GetControlOption() == MediaAnimation::ControlStoryboardAction::Option::Stop) {
+                    result = animations->Stop(handle);
+                    if (result) {
+                        Base::Result<void> retained = stopped.PushBack(handle);
+                        if (!retained) return retained.GetStatus();
+                    }
+                } else if (control.GetControlOption() == MediaAnimation::ControlStoryboardAction::Option::Pause) result = animations->Pause(handle);
                 else if (control.GetControlOption() == MediaAnimation::ControlStoryboardAction::Option::Resume) result = animations->Resume(handle);
                 else return Base::Status::Failure(Base::ErrorCode::Unsupported, "ControlStoryboardAction option is not implemented");
                 if (!result) return result.GetStatus();
             }
+        }
+        if (control.GetControlOption() ==
+                MediaAnimation::ControlStoryboardAction::Option::Stop &&
+            !stopped.Empty()) {
+            // WPF ClockController.Stop does not raise Completed. Drop the
+            // session so StoryboardCompletedTrigger cannot steal focus.
+            CancelStoryboardCompletionSessions(stopped.AsSpan());
         }
         return found ? Base::Result<void>{} : Base::Status::Failure(
             Base::ErrorCode::NotFound, "ControlStoryboardAction storyboard was not started");

@@ -15,6 +15,10 @@
 #include "AeroD3D11RenderFrameShadowPixelShader.hpp"
 #include "AeroD3D11RenderFrameMaskVertexShader.hpp"
 #include "AeroD3D11RenderFrameMaskPixelShader.hpp"
+#include "AeroD3D11RenderFrameLinearVertexShader.hpp"
+#include "AeroD3D11RenderFrameLinearPixelShader.hpp"
+#include "AeroD3D11RenderFrameRadialVertexShader.hpp"
+#include "AeroD3D11RenderFrameRadialPixelShader.hpp"
 
 namespace Aero::Render {
 
@@ -232,6 +236,18 @@ Base::Result<void> D3D11RenderDevice::InitPipelines() noexcept {
         nullptr, &maskPixelShader_);
     if (FAILED(hr)) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "Failed to create mask pixel shader");
 
+    hr = device_->CreatePixelShader(
+        AeroD3D11RenderFrameLinearPixelShader,
+        sizeof(AeroD3D11RenderFrameLinearPixelShader),
+        nullptr, &linearPixelShader_);
+    if (FAILED(hr)) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "Failed to create linear pixel shader");
+
+    hr = device_->CreatePixelShader(
+        AeroD3D11RenderFrameRadialPixelShader,
+        sizeof(AeroD3D11RenderFrameRadialPixelShader),
+        nullptr, &radialPixelShader_);
+    if (FAILED(hr)) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "Failed to create radial pixel shader");
+
     const D3D11_INPUT_ELEMENT_DESC vertexLayout[] = {
         {"POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
         {"COLOR", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, 8, D3D11_INPUT_PER_VERTEX_DATA, 0},
@@ -441,6 +457,8 @@ void D3D11RenderDevice::ReleasePipelines() noexcept {
     ReleaseCom(blurPixelShader_);
     ReleaseCom(shadowPixelShader_);
     ReleaseCom(maskPixelShader_);
+    ReleaseCom(linearPixelShader_);
+    ReleaseCom(radialPixelShader_);
     ReleaseCom(customEffectPixelShader_);
 }
 
@@ -736,6 +754,22 @@ void D3D11RenderDevice::DrawBatch(const Batch& batch) noexcept {
     case Shader::Path_AA_Solid:
         pixelShader = solidPixelShader_;
         break;
+    case Shader::Path_Linear:
+        pixelShader = linearPixelShader_;
+        sampler = samplers_[batch.rampsSampler.v & 0x3F];
+        if (batch.ramps != nullptr) {
+            srv = static_cast<D3D11Texture*>(batch.ramps)->GetNativeSRV();
+        }
+        setTextureSize = false;
+        break;
+    case Shader::Path_Radial:
+        pixelShader = radialPixelShader_;
+        sampler = samplers_[batch.rampsSampler.v & 0x3F];
+        if (batch.ramps != nullptr) {
+            srv = static_cast<D3D11Texture*>(batch.ramps)->GetNativeSRV();
+        }
+        setTextureSize = false;
+        break;
     case Shader::Path_Pattern:
         pixelShader = patternPixelShader_;
         sampler = samplers_[batch.imageSampler.v & 0x3F];
@@ -876,6 +910,23 @@ void D3D11RenderDevice::DrawBatch(const Batch& batch) noexcept {
         }
         ID3D11Buffer* psConstants[] = { pixelCB_[0] };
         context_->PSSetConstantBuffers(1, 1, psConstants);
+    } else if ((batch.shader.v == Shader::Path_Linear ||
+                batch.shader.v == Shader::Path_Radial) &&
+               batch.pixelUniforms[0].values != nullptr &&
+               batch.pixelUniforms[0].numDwords >= 1U) {
+        D3D11_MAPPED_SUBRESOURCE mapped{};
+        if (SUCCEEDED(context_->Map(
+                pixelCB_[0], 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) {
+            float* data = static_cast<float*>(mapped.pData);
+            const uint32_t count = std::min(batch.pixelUniforms[0].numDwords, 8U);
+            std::memcpy(
+                data,
+                batch.pixelUniforms[0].values,
+                static_cast<size_t>(count) * sizeof(float));
+            context_->Unmap(pixelCB_[0], 0);
+        }
+        ID3D11Buffer* psConstants[] = { pixelCB_[0] };
+        context_->PSSetConstantBuffers(0, 1, psConstants);
     }
 
     context_->DrawIndexed(batch.numIndices, batch.startIndex, 0);

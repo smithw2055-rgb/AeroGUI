@@ -205,8 +205,17 @@ Base::Result<void> LayoutEngine::Attach(
         if (child.LayoutParent() == &parent) {
             return {};
         }
-        return InvalidState(
-            "Layout child is already attached or self-referential");
+        // LoadComponent / UserControl content can reparent a Grid that was
+        // first joined under the Window (or left layoutAttached with a stale
+        // parent). Fail-closed blocked ColorSelector from hosting LayoutRoot.
+        UIElement* oldParent = child.LayoutParent();
+        AeroGuiInternal::Layout(child).layoutAttached = false;
+        AeroGuiInternal::Layout(child).measureValid = false;
+        AeroGuiInternal::Layout(child).arrangeValid = false;
+        if (oldParent != nullptr && oldParent != &parent) {
+            Base::Result<void> released = InvalidateMeasure(*oldParent);
+            if (!released) return released.GetStatus();
+        }
     }
     // A stale LayoutParent on a detached child is irrelevant and must not block
     // re-attachment; the GetIsLayoutAttached() check above already catches
@@ -493,8 +502,14 @@ Base::Result<void> LayoutEngine::MeasureElement(
         ? framework->GetMinSize() : Size{};
     const Size maximum = framework != nullptr
         ? framework->GetMaxSize() : Size{1.0e12, 1.0e12};
-    const bool hasWidth = framework != nullptr && framework->GetHasWidth();
-    const bool hasHeight = framework != nullptr && framework->GetHasHeight();
+    // Window.Width/Height size the native chrome. The layout root must fill
+    // the view client (DPI-converted, user-resized) so Viewbox Uniform can
+    // scale. Nested elements still honor explicit Width/Height.
+    const bool isLayoutRoot = root_ != nullptr && &element == root_;
+    const bool hasWidth =
+        !isLayoutRoot && framework != nullptr && framework->GetHasWidth();
+    const bool hasHeight =
+        !isLayoutRoot && framework != nullptr && framework->GetHasHeight();
     Size available = Deflate(constraint, margin);
     Base::Ref<Transform> layoutTransform =
         framework != nullptr
@@ -637,8 +652,11 @@ Base::Result<void> LayoutEngine::ArrangeElement(
         ? framework->GetMinSize() : Size{};
     const Size maximum = framework != nullptr
         ? framework->GetMaxSize() : Size{1.0e12, 1.0e12};
-    const bool hasWidth = framework != nullptr && framework->GetHasWidth();
-    const bool hasHeight = framework != nullptr && framework->GetHasHeight();
+    const bool isLayoutRoot = root_ != nullptr && &element == root_;
+    const bool hasWidth =
+        !isLayoutRoot && framework != nullptr && framework->GetHasWidth();
+    const bool hasHeight =
+        !isLayoutRoot && framework != nullptr && framework->GetHasHeight();
     const HorizontalAlignment horizontal = framework != nullptr
         ? framework->GetHorizontalAlignment() : HorizontalAlignment::Stretch;
     const VerticalAlignment vertical = framework != nullptr

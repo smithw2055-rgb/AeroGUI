@@ -182,7 +182,7 @@ public:
         static Base::Result<void> SetTargetType(FrameworkTemplate& value, Meta::TypeId type) noexcept;
         static Base::Result<void> ConfigureFactory(FrameworkTemplate& value, TemplateFactoryCallback factory, void* context = nullptr, Base::Ref<Base::Object> owner = {}) noexcept;
         static Base::Result<void> AddTemplateBinding(FrameworkTemplate& value, Base::StringView targetName, DependencyPropertyHandle sourceProperty, DependencyPropertyHandle targetProperty) noexcept;
-        static Base::Result<void> AddTemplatedParentBinding(FrameworkTemplate& value, Base::StringView targetName, Base::StringView path, Base::StringView stringFormat, DependencyPropertyHandle targetProperty, Data::BindingMode mode, UpdateSourceTrigger updateSourceTrigger) noexcept;
+        static Base::Result<void> AddTemplatedParentBinding(FrameworkTemplate& value, Base::StringView targetName, Base::StringView path, Base::StringView stringFormat, DependencyPropertyHandle targetProperty, Data::BindingMode mode, UpdateSourceTrigger updateSourceTrigger, const Base::Ref<Data::IValueConverter>& converter = {}, const Meta::PropertyValue& converterParameter = {}) noexcept;
         static Base::Result<void> AddDynamicResource(FrameworkTemplate& value, Base::StringView targetName, Base::StringView key, DependencyPropertyHandle targetProperty) noexcept;
         static Base::Result<void> AddPropertyTrigger(FrameworkTemplate& value, TemplatePropertyTrigger trigger) noexcept;
         static Base::Result<void> AddVisualStateGroup(FrameworkTemplate& value, VisualStateGroupPlan group) noexcept;

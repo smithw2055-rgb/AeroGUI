@@ -82,6 +82,7 @@ public:
     Thickness GetMargin() const noexcept;
     Ref<Media::Transform> GetLayoutTransform() const noexcept;
     Base::ProjectiveTransform2D GetLocalVisualTransform() const noexcept;
+    bool TryGetViewboxTransform(Base::Transform2D& matrix) const noexcept;
     Result<Value> GetDataContextResult() const noexcept;
     Ref<Media::FontFamily> GetFontFamily() const noexcept {
         return GetValueOr(
@@ -193,6 +194,10 @@ protected:
     virtual DependencyObject* GetLogicalChild(std::uint32_t index) const noexcept { return GetVisualChild(index); }
     void OnPropertyInvalidated(
         PropertyInvalidationFlags flags) noexcept override;
+    Size MeasureOverride(Size availableSize) noexcept override {
+        static_cast<void>(availableSize);
+        return Size{};
+    }
     virtual void OnRender(
         ::Aero::Media::DrawingContext& context) noexcept;
 

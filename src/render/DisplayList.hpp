@@ -8,6 +8,7 @@
 #include <Aero/Media/DrawingContext.hpp>
 
 #include <cstdint>
+#include <cstddef>
 
 namespace Aero::Render { class RenderTree; }
 
@@ -56,12 +57,20 @@ struct RenderCommand {
     Color color;
     Point points[4]{};
     Color colors[4]{};
+    Point uvs[4]{};
     Rect sourceUv;
     RenderImageId image = InvalidRenderImageId;
     RenderMeshId mesh = InvalidRenderMeshId;
     RenderGlyphRunId glyphRun = InvalidRenderGlyphRunId;
     double scalar = 0.0;
     double cornerRadius = 0.0;
+    // 0 = Gouraud vertex colors (FillGradientQuad). 1 = Path_Linear,
+    // 2 = Path_Radial. gradientBrush is a GradientBrush* used while the
+    // display list is recorded; RenderTree resolves it to gradientRamp.
+    std::uint8_t paintKind = 0U;
+    std::uint32_t gradientRamp = UINT32_MAX;
+    std::uintptr_t gradientBrush = 0U;
+    float paintUniforms[8]{};
 };
 
 class DisplayList {
@@ -98,6 +107,12 @@ public:
         Rect rect, Color color, double cornerRadius) noexcept;
     Base::Result<void> FillGradientQuad(
         const Point points[4], const Color colors[4]) noexcept;
+    Base::Result<void> FillGradientQuad(
+        const Point points[4],
+        const Point uvs[4],
+        std::uint8_t paintKind,
+        const float uniforms[8],
+        std::uintptr_t gradientBrush) noexcept;
     Base::Result<void> StrokeRect(
         Rect rect, Color color, double thickness,
         double cornerRadius = 0.0) noexcept;
@@ -109,6 +124,18 @@ public:
     Base::Result<void> DrawMesh(
         RenderMeshId mesh,
         Color tint = {1.0F, 1.0F, 1.0F, 1.0F}) noexcept;
+    Base::Result<void> DrawMesh(
+        RenderMeshId mesh,
+        std::uint8_t paintKind,
+        const float uniforms[8],
+        std::uintptr_t gradientBrush,
+        Rect bounds,
+        Point startOrOrigin,
+        Point delta,
+        Point radii,
+        double len2,
+        bool hasInverse,
+        Transform2D inverse) noexcept;
     Base::Result<void> DrawGlyphRun(
         RenderGlyphRunId glyphRun,
         Color tint = {1.0F, 1.0F, 1.0F, 1.0F}) noexcept;

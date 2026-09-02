@@ -120,6 +120,11 @@ struct RenderNodeSnapshot {
     bool clipsToBounds = false;
     Size renderSize;
     ProjectiveTransform2D renderTransform;
+    // Viewbox stretch stored on this node. Offscreen effect capture bakes it
+    // into the layer so unscaled children fit RenderSize; composite then
+    // omits it to avoid a second scale.
+    bool hasViewboxTransform = false;
+    Transform2D viewboxTransform{};
     ::Aero::BlendMode blendMode = ::Aero::BlendMode::Normal;
     double opacity = 1.0;
     RenderMaskSnapshot mask;

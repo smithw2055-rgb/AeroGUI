@@ -186,7 +186,7 @@ Base::Result<void> ParseArguments(
     ancestorType = {};
     ancestorLevel = 1U;
     relativeSource = RelativeSourceKind::None;
-    mode = Data::BindingMode::OneWay;
+    mode = Data::BindingMode::Default;
     updateSourceTrigger = Meta::UpdateSourceTrigger::Default;
 
     std::uint32_t begin = 0U;
@@ -541,7 +541,7 @@ struct DeferredBindingState {
     Base::String path;
     Base::String stringFormat;
     bool bindsToSource = false;
-    Data::BindingMode mode = Data::BindingMode::OneWay;
+    Data::BindingMode mode = Data::BindingMode::Default;
     Meta::UpdateSourceTrigger updateSourceTrigger =
         Meta::UpdateSourceTrigger::PropertyChanged;
     Base::Ref<Data::IValueConverter> converter;
@@ -1158,7 +1158,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
     std::uint32_t ancestorLevel = 1U;
     RelativeSourceKind relativeSource =
         RelativeSourceKind::None;
-    Data::BindingMode mode = Data::BindingMode::OneWay;
+    Data::BindingMode mode = Data::BindingMode::Default;
     Meta::UpdateSourceTrigger updateSourceTrigger =
         Meta::UpdateSourceTrigger::PropertyChanged;
     Base::Result<void> parsed = ParseArguments(
@@ -1446,6 +1446,15 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
         if (!captured) {
             return captured.GetStatus();
         }
+        Meta::PropertyValue stagedParameter;
+        if (!converterParameter.Empty()) {
+            Base::Result<Meta::PropertyValue> parameter =
+                Meta::PropertyValue::TryFromString(
+                    Meta::TypeOf<Base::String>(),
+                    converterParameter);
+            if (!parameter) return parameter.GetStatus();
+            stagedParameter = std::move(parameter).Value();
+        }
         Base::Result<void> added =
             ::Aero::Controls::TemplatePrivate::AddTemplatedParentBinding(controlTemplate,
                 targetName.View(),
@@ -1453,7 +1462,9 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
                 stringFormat,
                 targetHandle,
                 mode,
-                updateSourceTrigger);
+                updateSourceTrigger,
+                converter,
+                stagedParameter);
         return added
             ? Base::Result<ProvidedValue>(
                   ProvidedValue::Handled())
@@ -1504,6 +1515,15 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
 
     if (services.deferredContentOwner != nullptr &&
         services.deferredContent != nullptr) {
+        Meta::PropertyValue stagedParameter;
+        if (!converterParameter.Empty()) {
+            Base::Result<Meta::PropertyValue> parameter =
+                Meta::PropertyValue::TryFromString(
+                    Meta::TypeOf<Base::String>(),
+                    converterParameter);
+            if (!parameter) return parameter.GetStatus();
+            stagedParameter = std::move(parameter).Value();
+        }
         Base::Result<void> staged =
             services.deferredContent->StageBinding(
                 *services.deferredContentOwner,
@@ -1524,7 +1544,9 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
                 stringFormat,
                 mode,
                 updateSourceTrigger,
-                path.Empty());
+                path.Empty(),
+                converter,
+                stagedParameter);
         return staged
             ? Base::Result<ProvidedValue>(
                   ProvidedValue::Handled())
@@ -7545,7 +7567,9 @@ Base::Result<void> DeferredContentPlan::StageBinding(
     Base::StringView stringFormat,
     Data::BindingMode mode,
     Meta::UpdateSourceTrigger updateSourceTrigger,
-    bool bindsToSource) noexcept {
+    bool bindsToSource,
+    const Base::Ref<Data::IValueConverter>& converter,
+    const Meta::PropertyValue& converterParameter) noexcept {
     if (!targetProperty.IsValid() ||
         (path.Empty() && !bindsToSource) ||
         !metadata.IsReady()) {
@@ -7569,6 +7593,8 @@ Base::Result<void> DeferredContentPlan::StageBinding(
     edge.mode = mode;
     edge.bindsToSource = bindsToSource;
     edge.updateSourceTrigger = updateSourceTrigger;
+    edge.converter = converter;
+    edge.converterParameter = converterParameter;
     Base::Result<void> assigned =
         edge.path.Assign(path);
     if (!assigned) return assigned.GetStatus();
@@ -7699,7 +7725,7 @@ Base::Result<Aero::Media::Visual*> ObjectWriter::ResolveVisual(
     ::Aero::Markup::Schema& schema,
     Base::Object& object,
     Meta::TypeId type) noexcept {
-    if (object.RuntimeType() != type ||
+    if (!schema.Types().IsDerivedFrom(object.RuntimeType(), type) ||
         !schema.Types().IsDerivedFrom(
             type, Aero::Media::Visual::StaticTypeId())) {
         return InvalidContent(

@@ -287,8 +287,7 @@ private:
     void RemoveAt(
         std::uint32_t index) noexcept;
     Base::Result<void> SetFromPoint(
-        Slider& slider,
-        Point point) noexcept;
+        Slider& slider) noexcept;
     void OnMouseDown(
         Base::Object* sender,
         MouseButtonEventArgs& args) noexcept;

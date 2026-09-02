@@ -71,6 +71,13 @@ bool HasSelfHitSurface(UIElement& element) noexcept {
     if (properties.Find(type, Base::StringView("Template")) != nullptr) {
         return true;
     }
+    // Track is not a Control (no Template DP) and typically has no Background.
+    // BlendTutorial's slider groove is a Track inside a Border; without this,
+    // clicks land on the Border and Slider never sees on-track move-to-point.
+    if (properties.Find(type, Base::StringView("DecreaseRepeatButton")) !=
+        nullptr) {
+        return true;
+    }
     return false;
 }
 
@@ -92,21 +99,38 @@ bool ParentToLocal(
         ? framework->GetLocalVisualTransform()
         : Base::IdentityProjective();
     const Rect slot = element.GetLayoutSlot();
+    Base::Transform2D viewboxMatrix{};
+    const Base::Transform2D* viewbox =
+        framework != nullptr && framework->TryGetViewboxTransform(viewboxMatrix)
+            ? &viewboxMatrix
+            : nullptr;
+    Base::Transform3 innerVisual;
+    Base::Transform3 outerVisual;
+    Media::LiftLocalVisualWithViewbox(
+        localVisual, viewbox, innerVisual, outerVisual);
     childContext = Media::AdvanceTransform3DContext(
         parentContext,
         element.GetTransform3D().Get(),
-        Media::LiftLocalVisual(localVisual),
+        innerVisual,
         slot,
         element.GetRenderSize(),
-        false);
+        false,
+        outerVisual);
     // 2D elements (including Viewbox scale stored on GetLocalVisualTransform)
     // must invert the same Compose(localVisual, Translate(slot)) that
     // PointToScreen / the renderer use. Collapsing the implicit perspective
     // camera is equivalent in exact arithmetic, but mixing camera centers
     // between the window root and overlay popups drifts far enough to miss
     // every ComboBoxItem / button.
-    if (Base::LeavesZ0PlaneUnchanged(parentContext.accumulated) &&
-        Base::LeavesZ0PlaneUnchanged(childContext.accumulated)) {
+    Media::Transform3D* local3D = element.GetTransform3D().Get();
+    const bool local3DActive =
+        local3D != nullptr &&
+        ::Aero::TryCast<Media::PerspectiveTransform3D>(local3D) == nullptr &&
+        !Base::LeavesZ0PlaneUnchanged(local3D->GetTransform3D());
+    const bool parent3DActive =
+        !Base::LeavesZ0PlaneUnchanged(parentContext.accumulated);
+    if ((!parent3DActive && !local3DActive) ||
+        (parent3DActive && !local3DActive)) {
         Base::Transform2D translation{};
         translation.dx = slot.x;
         translation.dy = slot.y;

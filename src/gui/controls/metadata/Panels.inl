@@ -137,24 +137,24 @@ Base::Result<void> PopulateControlsPanels(
     canvas
         .Property(
             Canvas::LeftProperty,
-            FrameworkPropertyMetadata(0.0)
-                .AffectsParentMeasure()
-                .Validate(&::Aero::Base::Validate::Finite<double>))
+            FrameworkPropertyMetadata(
+                std::numeric_limits<double>::infinity())
+                .AffectsParentArrange())
         .Property(
             Canvas::TopProperty,
-            FrameworkPropertyMetadata(0.0)
-                .AffectsParentMeasure()
-                .Validate(&::Aero::Base::Validate::Finite<double>))
+            FrameworkPropertyMetadata(
+                std::numeric_limits<double>::infinity())
+                .AffectsParentArrange())
         .Property(
             Canvas::RightProperty,
-            FrameworkPropertyMetadata(0.0)
-                .AffectsParentArrange()
-                .Validate(&::Aero::Base::Validate::Finite<double>))
+            FrameworkPropertyMetadata(
+                std::numeric_limits<double>::infinity())
+                .AffectsParentArrange())
         .Property(
             Canvas::BottomProperty,
-            FrameworkPropertyMetadata(0.0)
-                .AffectsParentArrange()
-                .Validate(&::Aero::Base::Validate::Finite<double>))
+            FrameworkPropertyMetadata(
+                std::numeric_limits<double>::infinity())
+                .AffectsParentArrange())
         .Factory();
     status = canvas.Result();
     if (!status) return status.GetStatus();

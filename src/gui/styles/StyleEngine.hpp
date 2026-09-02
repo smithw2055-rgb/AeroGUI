@@ -1,6 +1,7 @@
 #pragma once
 
 #include "gui/styles/StyleState.hpp"
+#include <Aero/Data/BindingExpression.hpp>
 
 namespace Aero {
 
@@ -66,6 +67,16 @@ private:
     Base::Result<void> ClearSetters(
         DependencyObject& object,
         const Style& style) noexcept;
+    Base::Result<void> AttachSetterBindings(
+        DependencyObject& object,
+        const Style& style) noexcept;
+    void DetachSetterBindings(DependencyObject& object) noexcept;
+
+    struct SetterBinding {
+        DependencyObject* object = nullptr;
+        Data::BindingHandle handle;
+    };
+    Base::Vector<SetterBinding> setterBindings_;
 
     // Owned trigger-evaluation engine. StyleEngine delegates all trigger
     // state, subscription and deferred-evaluation behavior to it.

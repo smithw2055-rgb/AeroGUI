@@ -1,7 +1,10 @@
 #include "gui/ViewState.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
 #include <Aero/Controls/ControlTemplate.hpp>
+#include <Aero/Controls/ContentControl.hpp>
+#include <Aero/Controls/Panel.hpp>
 #include <Aero/Media/Transform.hpp>
+#include <Aero/VisualTreeHelper.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -173,7 +176,7 @@ Aero::Media::Visual* ViewState::RootVisual() noexcept {
 
 Base::Result<Aero::Media::Visual*> ViewState::ResolveVisual(
         Base::Object& object, Meta::TypeId type) noexcept {
-        if (object.RuntimeType() != type ||
+        if (!metadata->Types().IsDerivedFrom(object.RuntimeType(), type) ||
             !metadata->Types().IsDerivedFrom(
                 type, Aero::Media::Visual::StaticTypeId())) {
             return Base::Status::Failure(
@@ -410,6 +413,28 @@ Base::Result<void> ApplyViewUi(ViewState& state, Aero::Media::Visual& root) noex
                  AeroGuiInternal::RenderChildren(*node)) {
                 pushed = stack.PushBack(child);
                 if (!pushed) return pushed.GetStatus();
+            }
+            if (auto* panel = ::Aero::TryCast<Controls::Panel>(node)) {
+                const std::uint32_t count = panel->GetChildren().GetCount();
+                for (std::uint32_t index = 0U; index < count; ++index) {
+                    UIElement* child = panel->GetChildren().GetItem(index);
+                    if (child == nullptr || child->GetVisualParent() == node) {
+                        continue;
+                    }
+                    pushed = stack.PushBack(child);
+                    if (!pushed) return pushed.GetStatus();
+                }
+            }
+            if (auto* host = ::Aero::TryCast<Controls::ContentControl>(node)) {
+                if (AeroGuiInternal::TemplateRoot(*host) == nullptr) {
+                    UIElement* content =
+                        AeroGuiInternal::ContentControlContent(*host);
+                    if (content != nullptr &&
+                        content->GetVisualParent() != host) {
+                        pushed = stack.PushBack(content);
+                        if (!pushed) return pushed.GetStatus();
+                    }
+                }
             }
         }
         Base::Result<std::uint32_t> appliedValues = state.values->Flush();
@@ -908,6 +933,28 @@ Base::Result<void> ViewState::VisitAndAttach(
                  index < children.Size(); ++index) {
                 pushed = stack.PushBack(children[index]);
                 if (!pushed) return pushed.GetStatus();
+            }
+            if (auto* panel = ::Aero::TryCast<Controls::Panel>(node)) {
+                const std::uint32_t count = panel->GetChildren().GetCount();
+                for (std::uint32_t index = 0U; index < count; ++index) {
+                    UIElement* child = panel->GetChildren().GetItem(index);
+                    if (child == nullptr || child->GetVisualParent() == node) {
+                        continue;
+                    }
+                    pushed = stack.PushBack(child);
+                    if (!pushed) return pushed.GetStatus();
+                }
+            }
+            if (auto* host = ::Aero::TryCast<Controls::ContentControl>(node)) {
+                if (AeroGuiInternal::TemplateRoot(*host) == nullptr) {
+                    UIElement* content =
+                        AeroGuiInternal::ContentControlContent(*host);
+                    if (content != nullptr &&
+                        content->GetVisualParent() != host) {
+                        pushed = stack.PushBack(content);
+                        if (!pushed) return pushed.GetStatus();
+                    }
+                }
             }
         }
         return {};

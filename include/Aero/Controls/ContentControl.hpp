@@ -99,31 +99,24 @@ protected:
         }
         return Control::GetLogicalChild(index);
     }
+    void EnsureHostedContent() noexcept;
     Size MeasureOverride(Size availableSize) noexcept override {
         if (GetTemplateRoot() != nullptr) {
             return Control::MeasureOverride(availableSize);
         }
+        EnsureHostedContent();
         if (content_ == nullptr) {
-            if (!LayoutChildren().Empty()) {
-                return Size{};
-            }
             return Size{};
         }
-        if (!IsOnlyAttachedContent(*content_)) {
-            return Size{};
-        }
-        Result<void> measured = MeasureChild(*content_, availableSize);
-        if (!measured) return Size{};
+        (void)MeasureChild(*content_, availableSize);
         return content_->GetDesiredSize();
     }
     Size ArrangeOverride(Size finalSize) noexcept override {
         if (GetTemplateRoot() != nullptr) {
             return Control::ArrangeOverride(finalSize);
         }
+        EnsureHostedContent();
         if (content_ == nullptr) return finalSize;
-        if (!IsOnlyAttachedContent(*content_)) {
-            return finalSize;
-        }
         Result<void> arranged = ArrangeChild(
             *content_, {0.0, 0.0, finalSize.width, finalSize.height});
         if (!arranged) return finalSize;

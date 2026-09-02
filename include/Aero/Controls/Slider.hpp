@@ -6,6 +6,7 @@
 
 namespace Aero::Controls {
 namespace Primitives { class Track; }
+class SliderBehavior;
 
 enum class TickPlacement : std::uint8_t {
     None = 0U,
@@ -55,6 +56,8 @@ public:
     void SetValueFromPosition(
         double position,
         double trackLength) noexcept;
+    void SetValueFromTrackPoint(
+        Point local) noexcept;
 
     inline static constexpr DependencyProperty<Orientation> OrientationProperty{"Orientation"};
     inline static constexpr DependencyProperty<double> SmallChangeProperty{"SmallChange"};
@@ -69,12 +72,14 @@ public:
 protected:
     void OnApplyTemplate() noexcept override;
     void OnTemplateDetached() noexcept override;
+    Size MeasureOverride(Size availableSize) noexcept override;
     Size ArrangeOverride(
         Size finalSize) noexcept override;
     void OnRender(
         ::Aero::Media::DrawingContext& context) noexcept override;
 
 private:
+    friend class SliderBehavior;
     Primitives::Track* track_ = nullptr;
     DependencyPropertyChangedEventHandler trackPropertyChangedHandler_;
     void OnTrackPropertyChanged(

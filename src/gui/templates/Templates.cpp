@@ -43,9 +43,16 @@ Base::Status InvalidTemplate(const char* message) noexcept {
 
 bool IsDeferredBindingSetterValue(
     const PropertyValue& value) noexcept {
-    return value.Kind() == ValueKind::Object &&
-        !value.IsNullObject() &&
-        value.Type() == Data::Binding::StaticTypeId();
+    if (value.Kind() != ValueKind::Object ||
+        value.IsNullObject()) {
+        return false;
+    }
+    if (value.Type() == Data::Binding::StaticTypeId()) {
+        return true;
+    }
+    return value.AsObject() &&
+        value.AsObject()->RuntimeType() ==
+            Data::Binding::StaticTypeId();
 }
 
 bool MatchesTemplateCondition(
@@ -808,7 +815,9 @@ Base::Result<void> TemplatePrivate::AddTemplatedParentBinding(
     Base::StringView stringFormat,
     DependencyPropertyHandle targetProperty,
     Data::BindingMode mode,
-    Meta::UpdateSourceTrigger updateSourceTrigger) noexcept {
+    Meta::UpdateSourceTrigger updateSourceTrigger,
+    const Base::Ref<Data::IValueConverter>& converter,
+    const Meta::PropertyValue& converterParameter) noexcept {
     FrameworkTemplateState* state = State(templateValue);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "FrameworkTemplate state allocation failed");
     if (state->sealed) return InvalidTemplate("Cannot modify a sealed FrameworkTemplate");
@@ -823,6 +832,8 @@ Base::Result<void> TemplatePrivate::AddTemplatedParentBinding(
     binding.targetProperty = targetProperty;
     binding.mode = mode;
     binding.updateSourceTrigger = updateSourceTrigger;
+    binding.converter = converter;
+    binding.converterParameter = converterParameter;
     return state->metadataBindings.PushBack(std::move(binding));
 }
 
@@ -1937,6 +1948,8 @@ Base::Result<void> TemplateEngine::AttachMetadataBindings(
         descriptor.mode = binding.mode;
         descriptor.updateSourceTrigger =
             binding.updateSourceTrigger;
+        descriptor.converterResource = binding.converter;
+        descriptor.converterParameter = binding.converterParameter;
         Base::Result<Data::BindingHandle> attached =
             bindings_->Attach(descriptor);
         if (!attached) return attached.GetStatus();

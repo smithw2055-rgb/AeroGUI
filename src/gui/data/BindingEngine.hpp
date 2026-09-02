@@ -184,7 +184,7 @@ struct BindingDescriptor {
     DependencyPropertyHandle sourceProperty;
     DependencyObject* target = nullptr;
     DependencyPropertyHandle targetProperty;
-    BindingMode mode = BindingMode::OneWay;
+    BindingMode mode = BindingMode::Default;
     UpdateSourceTrigger updateSourceTrigger = UpdateSourceTrigger::PropertyChanged;
     BindingConvertCallback convert = nullptr;
     BindingConvertCallback convertBack = nullptr;
@@ -236,7 +236,7 @@ struct MetadataBindingDescriptor {
     // WPF permits an ElementName/Source binding with no Path; in that form the
     // source object itself is assigned to the target property.
     bool bindsToSource = false;
-    BindingMode mode = BindingMode::OneWay;
+    BindingMode mode = BindingMode::Default;
     UpdateSourceTrigger updateSourceTrigger =
         UpdateSourceTrigger::PropertyChanged;
     BindingConvertCallback convert = nullptr;
@@ -252,13 +252,6 @@ struct MetadataBindingDescriptor {
     void* diagnosticContext = nullptr;
 };
 
-// A host-owned BindingExpression scheduler. Direct dependency-property and
-// immutable metadata-path sources converge in DispatcherFramePhase::DataBind.
-// DataContext changes re-resolve the source, notifications mark expressions
-// dirty, and TwoWay conflicts in one phase are resolved source-to-target.
-// Binding records are non-owning: a host must Detach() the binding or call
-// Shutdown() before a non-DataContext source or target object is destroyed.
-
 } // namespace Aero::Data
 
 
@@ -269,6 +262,12 @@ using namespace Aero::Meta;
 using namespace Aero::Threading;
 using namespace Aero::Data;
 
+// A host-owned BindingExpression scheduler. Direct dependency-property and
+// immutable metadata-path sources converge in DispatcherFramePhase::DataBind.
+// DataContext changes re-resolve the source, notifications mark expressions
+// dirty, and TwoWay conflicts in one phase are resolved source-to-target.
+// Binding records are non-owning: a host must Detach() the binding or call
+// Shutdown() before a non-DataContext source or target object is destroyed.
 class BindingEngine {
 public:
     explicit BindingEngine(
@@ -355,6 +354,10 @@ public:
         DependencyObject& target,
         DependencyPropertyHandle property,
         UpdateSourceTrigger requested) noexcept;
+    static BindingMode ResolveBindingMode(
+        DependencyObject& target,
+        DependencyPropertyHandle property,
+        BindingMode requested) noexcept;
     void RegisterMultiBinding(
         DependencyObject& target,
         DependencyPropertyHandle property,
@@ -442,7 +445,7 @@ private:
         Base::String path;
         Base::String stringFormat;
         bool bindsToSource = false;
-        BindingMode mode = BindingMode::OneWay;
+        BindingMode mode = BindingMode::Default;
         UpdateSourceTrigger updateSourceTrigger =
             UpdateSourceTrigger::PropertyChanged;
         BindingConvertCallback convert = nullptr;

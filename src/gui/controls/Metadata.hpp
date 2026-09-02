@@ -25,7 +25,7 @@ inline constexpr Base::StringView ControlsMetadataModuleName() noexcept {
 
 inline Base::Result<void> RegisterControlsMetadata(
     ::Aero::Meta::Registry& domain) noexcept {
-    constexpr std::uint32_t SchemaVersion = 29U;
+    constexpr std::uint32_t SchemaVersion = 30U;
     const Base::StringView name = ControlsMetadataModuleName();
     return domain.RegisterModule({
         Meta::MakeMetadataModuleId(name),
