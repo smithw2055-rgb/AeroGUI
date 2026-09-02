@@ -38,10 +38,6 @@ Base::Status InvalidState(const char* message) noexcept {
     return Base::Status::Failure(Base::ErrorCode::InvalidState, message);
 }
 
-Base::Status NotFound(const char* message) noexcept {
-    return Base::Status::Failure(Base::ErrorCode::NotFound, message);
-}
-
 std::uint64_t HashByte(std::uint64_t hash, std::uint8_t value) noexcept {
     constexpr std::uint64_t Prime = 1099511628211ULL;
     return (hash ^ value) * Prime;
