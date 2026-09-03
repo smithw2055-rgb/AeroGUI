@@ -1138,14 +1138,10 @@ public:
     }
 
     const TypeFactoryFacet* FindTypeFactory(TypeId type) const noexcept;
-    const ContentFacet* FindContent(TypeId type) const noexcept;
     const ContentFacet* FindContentByMember(MemberId member) const noexcept;
-    MemberId FindContentMember(TypeId type) const noexcept;
     const PropertyAccessorFacet* FindPropertyAccessor(MemberId member) const noexcept;
     const ValueMemberAccessorFacet* FindValueMemberAccessor(MemberId member) const noexcept;
     const MethodInvokerFacet* FindMethodInvoker(MemberId member) const noexcept;
-    const DependencyPropertyFacet* FindDependencyProperty(MemberId member) const noexcept;
-    const RoutedEventFacet* FindRoutedEvent(MemberId member) const noexcept;
     const PropertyChangeNotificationFacet*
     FindPropertyChangeNotification(TypeId type) const noexcept;
     const CollectionChangeNotificationFacet*
@@ -1169,26 +1165,28 @@ private:
 
     struct TypeRecord {
         TypeId id = InvalidTypeId;
-        std::uint32_t firstFacetRef = 0U;
         MetadataFacetMask mask = 0U;
-        std::uint16_t facetCount = 0U;
-        std::uint16_t reserved = 0U;
+        std::uint32_t factoryIndex = InvalidFacetIndex;
+        std::uint32_t valueSemanticsIndex = InvalidFacetIndex;
+        std::uint32_t textConverterIndex = InvalidFacetIndex;
+        std::uint32_t propertyChangeIndex = InvalidFacetIndex;
+        std::uint32_t collectionChangeIndex = InvalidFacetIndex;
+        std::uint32_t reserved = 0U;
     };
 
     struct MemberRecord {
         MemberId id = InvalidMemberId;
-        std::uint32_t firstFacetRef = 0U;
         MetadataFacetMask mask = 0U;
-        std::uint16_t facetCount = 0U;
-        std::uint16_t reserved = 0U;
+        std::uint32_t propertyAccessorIndex = InvalidFacetIndex;
+        std::uint32_t contentIndex = InvalidFacetIndex;
+        std::uint32_t valueMemberAccessorIndex = InvalidFacetIndex;
+        std::uint32_t methodInvokerIndex = InvalidFacetIndex;
     };
 
     static_assert(sizeof(TypeRecord) <= 64U,
         "Metadata TypeRecord must remain compact");
     static_assert(sizeof(MemberRecord) <= 48U,
         "Metadata MemberRecord must remain compact");
-    static_assert(sizeof(std::uint32_t) == 4U,
-        "Metadata facet references must remain 32-bit");
 
     const TypeRegistry* types_ = nullptr;
     Base::Vector<TypeFactoryFacet> factories_;
@@ -1207,17 +1205,15 @@ private:
 
     Base::Vector<FacetDraft> typeDrafts_;
     Base::Vector<FacetDraft> memberDrafts_;
+    Base::HashMap<TypeId, std::uint32_t> typeDraftIndex_;
+    Base::HashMap<MemberId, std::uint32_t> memberDraftIndex_;
     Base::Vector<TypeRecord> typeRecords_;
     Base::Vector<MemberRecord> memberRecords_;
-    Base::Vector<std::uint32_t> facetRefs_;
     Base::HashMap<TypeId, std::uint32_t> typeIndex_;
     Base::HashMap<MemberId, std::uint32_t> memberIndex_;
     bool sealed_ = false;
     bool valueFacetsSealed_ = false;
 
-    static std::uint16_t FacetCountBefore(
-        MetadataFacetMask mask,
-        MetadataFacetKind kind) noexcept;
     Base::Result<void> SetTypeFacet(
         TypeId type,
         MetadataFacetKind kind,
@@ -1227,12 +1223,6 @@ private:
         MetadataFacetKind kind,
         std::uint32_t index) noexcept;
     Base::Result<void> SealIndex() noexcept;
-    std::uint32_t FindTypeFacet(
-        TypeId type,
-        MetadataFacetKind kind) const noexcept;
-    std::uint32_t FindMemberFacet(
-        MemberId member,
-        MetadataFacetKind kind) const noexcept;
 };
 
 } // namespace Aero

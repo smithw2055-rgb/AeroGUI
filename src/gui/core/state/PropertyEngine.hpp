@@ -244,11 +244,12 @@ public:
         DependencyObject& object,
         DependencyPropertyHandle property,
         const PropertyValue& value) noexcept {
-        ContributionRecord* existing = FindRecord(
-            setterRecords_, object, property);
-        if (existing != nullptr) {
+        // C1: O(1) indexed update. Setter semantics keep a single live
+        // contribution per (object, property); repeat sets reuse the token.
+        const ContributionKey key{&object, property};
+        if (PropertyProviderToken* existing = setterRecords_.Find(key)) {
             return engine_->SetProviderContribution(
-                object, property, existing->token, value);
+                object, property, *existing, value);
         }
 
         Base::Result<ObjectState*> stateResult = EnsureState(object);
@@ -268,26 +269,35 @@ public:
             object, property, token, value);
         if (!applied) return applied.GetStatus();
 
-        ContributionRecord record;
-        record.object = &object;
-        record.property = property;
-        record.token = token;
-        Base::Result<void> retained = setterRecords_.PushBack(
-            std::move(record));
+        Base::Result<Base::HashMap<ContributionKey, PropertyProviderToken,
+            ContributionKeyHash>::InsertResult> retained =
+            setterRecords_.Insert(key, token);
         if (!retained) {
             static_cast<void>(engine_->ClearProviderContribution(
                 object, property, token));
             return retained.GetStatus();
         }
+        ++state.liveContributions;
         return {};
     }
 
     Base::Result<void> ClearSetterValue(
         DependencyObject& object,
         DependencyPropertyHandle property) noexcept {
-        Base::Result<std::uint32_t> cleared = ClearRecords(
-            setterRecords_, object, property);
+        const ContributionKey key{&object, property};
+        PropertyProviderToken* found = setterRecords_.Find(key);
+        if (found == nullptr) {
+            PruneState(object);
+            return {};
+        }
+        const PropertyProviderToken token = *found;
+        Base::Result<bool> cleared =
+            engine_->ClearProviderContribution(object, property, token);
         if (!cleared) return cleared.GetStatus();
+        setterRecords_.Erase(key);
+        if (ObjectState* state = states_.Find(&object)) {
+            if (state->liveContributions != 0U) --state->liveContributions;
+        }
         PruneState(object);
         return {};
     }
@@ -296,6 +306,10 @@ public:
         DependencyObject& object,
         DependencyPropertyHandle property,
         const PropertyValue& value) noexcept {
+        // C1: trigger semantics stack: several simultaneously active triggers
+        // may contribute to the same (object, property) with distinct
+        // ordinals (later declaration wins via IsStronger). The per-pair
+        // token vector is usually length 1.
         Base::Result<ObjectState*> stateResult = EnsureState(object);
         if (!stateResult) return stateResult.GetStatus();
         ObjectState& state = *stateResult.Value();
@@ -313,39 +327,113 @@ public:
             object, property, token, value);
         if (!applied) return applied.GetStatus();
 
-        ContributionRecord record;
-        record.object = &object;
-        record.property = property;
-        record.token = token;
-        Base::Result<void> retained = triggerRecords_.PushBack(
-            std::move(record));
+        const ContributionKey key{&object, property};
+        Base::Vector<PropertyProviderToken>* stored =
+            triggerRecords_.Find(key);
+        bool fresh = false;
+        if (stored == nullptr) {
+            Base::Result<Base::HashMap<ContributionKey,
+                Base::Vector<PropertyProviderToken>,
+                ContributionKeyHash>::InsertResult> inserted =
+                triggerRecords_.Insert(
+                    key, Base::Vector<PropertyProviderToken>{});
+            if (!inserted) {
+                static_cast<void>(engine_->ClearProviderContribution(
+                    object, property, token));
+                return inserted.GetStatus();
+            }
+            stored = &inserted.Value().entry->Value();
+            fresh = true;
+        }
+        Base::Result<void> retained = stored->PushBack(token);
         if (!retained) {
             static_cast<void>(engine_->ClearProviderContribution(
                 object, property, token));
+            if (fresh) triggerRecords_.Erase(key);
             return retained.GetStatus();
         }
+        ++state.liveContributions;
         return {};
     }
 
     Base::Result<void> ClearTriggerValue(
         DependencyObject& object,
         DependencyPropertyHandle property) noexcept {
-        Base::Result<std::uint32_t> cleared = ClearRecords(
-            triggerRecords_, object, property);
-        if (!cleared) return cleared.GetStatus();
+        const ContributionKey key{&object, property};
+        Base::Vector<PropertyProviderToken>* stored =
+            triggerRecords_.Find(key);
+        if (stored == nullptr) {
+            PruneState(object);
+            return {};
+        }
+        for (const PropertyProviderToken& token : *stored) {
+            Base::Result<bool> cleared =
+                engine_->ClearProviderContribution(object, property, token);
+            if (!cleared) return cleared.GetStatus();
+        }
+        if (ObjectState* state = states_.Find(&object)) {
+            const std::uint32_t count = stored->Size();
+            state->liveContributions = (state->liveContributions >= count)
+                ? state->liveContributions - count
+                : 0U;
+        }
+        triggerRecords_.Erase(key);
         PruneState(object);
         return {};
     }
 
     Base::Result<void> ClearObjectProviders(
         DependencyObject& object) noexcept {
-        Base::Result<std::uint32_t> setters = ClearObjectRecords(
-            setterRecords_, object);
-        if (!setters) return setters.GetStatus();
-        Base::Result<std::uint32_t> triggers = ClearObjectRecords(
-            triggerRecords_, object);
-        if (!triggers) return triggers.GetStatus();
-        RemoveState(object);
+        // C1: single indexed sweep per table. Erase-during-iteration is safe:
+        // HashMap::Erase marks a tombstone without rehashing, and the
+        // index-based iterator skips non-occupied buckets.
+        ObjectState* state = states_.Find(&object);
+        for (auto it = setterRecords_.begin();
+             it != setterRecords_.end();) {
+            if (it->Key().object != &object) {
+                ++it;
+                continue;
+            }
+            const ContributionKey key = it->Key();
+            const PropertyProviderToken token = it->Value();
+            ++it;
+            Base::Result<bool> cleared =
+                engine_->ClearProviderContribution(
+                    object, key.property, token);
+            if (!cleared) return cleared.GetStatus();
+            setterRecords_.Erase(key);
+            if (state != nullptr && state->liveContributions != 0U) {
+                --state->liveContributions;
+            }
+        }
+        for (auto it = triggerRecords_.begin();
+             it != triggerRecords_.end();) {
+            if (it->Key().object != &object) {
+                ++it;
+                continue;
+            }
+            const ContributionKey key = it->Key();
+            ++it;
+            Base::Vector<PropertyProviderToken>* stored =
+                triggerRecords_.Find(key);
+            if (stored != nullptr) {
+                for (const PropertyProviderToken& token : *stored) {
+                    Base::Result<bool> cleared =
+                        engine_->ClearProviderContribution(
+                            object, key.property, token);
+                    if (!cleared) return cleared.GetStatus();
+                }
+                if (state != nullptr) {
+                    const std::uint32_t count = stored->Size();
+                    state->liveContributions =
+                        (state->liveContributions >= count)
+                            ? state->liveContributions - count
+                            : 0U;
+                }
+            }
+            triggerRecords_.Erase(key);
+        }
+        states_.Erase(&object);
         return {};
     }
 
@@ -365,38 +453,57 @@ public:
     }
 
 private:
-    struct ContributionRecord {
+    // C1: O(1) contribution index. Setter side keeps one live token per
+    // (object, property); trigger side stacks one token vector per pair.
+    struct ContributionKey {
         DependencyObject* object = nullptr;
         DependencyPropertyHandle property;
-        PropertyProviderToken token;
+
+        bool operator==(const ContributionKey& other) const noexcept {
+            return object == other.object && property == other.property;
+        }
+    };
+
+    struct ContributionKeyHash {
+        Base::HashCode operator()(
+            const ContributionKey& key,
+            Base::HashCode seed = 0U) const noexcept {
+            const Base::HashCode objectHash =
+                Base::DefaultHash<DependencyObject*>{}(
+                    key.object, seed);
+            return Base::MixHash64(
+                objectHash ^
+                static_cast<Base::HashCode>(key.property.value));
+        }
     };
 
     struct ObjectState {
-        DependencyObject* object = nullptr;
         std::uint32_t setterOrigin = 0U;
         std::uint32_t triggerOrigin = 0U;
         std::uint32_t nextSetterOrdinal = 0U;
         std::uint32_t nextTriggerOrdinal = 0U;
+        std::uint32_t liveContributions = 0U;
     };
 
     EffectiveValueEngine* engine_ = nullptr;
     PropertyValueRank setterRank_ = PropertyValueRank::Default;
     PropertyValueRank triggerRank_ = PropertyValueRank::Default;
-    Base::Vector<ContributionRecord> setterRecords_;
-    Base::Vector<ContributionRecord> triggerRecords_;
-    Base::Vector<ObjectState> states_;
+    Base::HashMap<ContributionKey, PropertyProviderToken,
+        ContributionKeyHash> setterRecords_;
+    Base::HashMap<ContributionKey, Base::Vector<PropertyProviderToken>,
+        ContributionKeyHash> triggerRecords_;
+    Base::HashMap<DependencyObject*, ObjectState> states_;
 
     Base::Result<ObjectState*> EnsureState(
         DependencyObject& object) noexcept {
-        for (ObjectState& state : states_) {
-            if (state.object == &object) return &state;
+        if (ObjectState* existing = states_.Find(&object)) {
+            return existing;
         }
-        ObjectState state;
-        state.object = &object;
-        Base::Result<void> retained = states_.PushBack(
-            std::move(state));
-        if (!retained) return retained.GetStatus();
-        return &states_[states_.Size() - 1U];
+        Base::Result<Base::HashMap<DependencyObject*, ObjectState>::
+            InsertResult> inserted = states_.Insert(
+                &object, ObjectState{});
+        if (!inserted) return inserted.GetStatus();
+        return &inserted.Value().entry->Value();
     }
 
     Base::Result<std::uint32_t> EnsureOrigin(
@@ -420,93 +527,12 @@ private:
         return next++;
     }
 
-    static ContributionRecord* FindRecord(
-        Base::Vector<ContributionRecord>& records,
-        DependencyObject& object,
-        DependencyPropertyHandle property) noexcept {
-        for (ContributionRecord& record : records) {
-            if (record.object == &object && record.property == property) {
-                return &record;
-            }
-        }
-        return nullptr;
-    }
-
-    Base::Result<std::uint32_t> ClearRecords(
-        Base::Vector<ContributionRecord>& records,
-        DependencyObject& object,
-        DependencyPropertyHandle property) noexcept {
-        std::uint32_t removed = 0U;
-        std::uint32_t index = 0U;
-        while (index < records.Size()) {
-            ContributionRecord& record = records[index];
-            if (record.object != &object || record.property != property) {
-                ++index;
-                continue;
-            }
-            Base::Result<bool> cleared =
-                engine_->ClearProviderContribution(
-                    object, property, record.token);
-            if (!cleared) return cleared.GetStatus();
-            RemoveAt(records, index);
-            ++removed;
-        }
-        return removed;
-    }
-
-    Base::Result<std::uint32_t> ClearObjectRecords(
-        Base::Vector<ContributionRecord>& records,
-        DependencyObject& object) noexcept {
-        std::uint32_t removed = 0U;
-        std::uint32_t index = 0U;
-        while (index < records.Size()) {
-            ContributionRecord& record = records[index];
-            if (record.object != &object) {
-                ++index;
-                continue;
-            }
-            Base::Result<bool> cleared =
-                engine_->ClearProviderContribution(
-                    object, record.property, record.token);
-            if (!cleared) return cleared.GetStatus();
-            RemoveAt(records, index);
-            ++removed;
-        }
-        return removed;
-    }
-
-    bool HasRecords(const DependencyObject& object) const noexcept {
-        for (const ContributionRecord& record : setterRecords_) {
-            if (record.object == &object) return true;
-        }
-        for (const ContributionRecord& record : triggerRecords_) {
-            if (record.object == &object) return true;
-        }
-        return false;
-    }
-
     void PruneState(DependencyObject& object) noexcept {
-        if (!HasRecords(object)) RemoveState(object);
-    }
-
-    void RemoveState(DependencyObject& object) noexcept {
-        for (std::uint32_t index = 0U; index < states_.Size(); ++index) {
-            if (states_[index].object != &object) continue;
-            RemoveAt(states_, index);
-            return;
+        // C1: liveness is tracked inline; no record scan needed.
+        ObjectState* state = states_.Find(&object);
+        if (state != nullptr && state->liveContributions == 0U) {
+            states_.Erase(&object);
         }
-    }
-
-    template<class T>
-    static void RemoveAt(
-        Base::Vector<T>& values,
-        std::uint32_t index) noexcept {
-        for (std::uint32_t next = index + 1U;
-             next < values.Size();
-             ++next) {
-            values[next - 1U] = std::move(values[next]);
-        }
-        values.PopBack();
     }
 };
 

@@ -56,6 +56,11 @@ set(_aero_gui_core_sources
 
 set(_aero_gui_meta_sources
     src/gui/meta/Metadata.cpp
+    src/gui/meta/TypeRegistry.inl
+    src/gui/meta/MetadataAuthoring.inl
+    src/gui/meta/BehaviorTable.inl
+    src/gui/meta/MetaTable.inl
+    src/gui/meta/Registry.inl
     src/gui/meta/EnumMetadata.cpp
     src/gui/meta/BuiltinMetadata.cpp
     src/gui/meta/Value.cpp
@@ -163,6 +168,9 @@ set(_aero_gui_markup_sources
     src/gui/markup/XamlSchemaContext.cpp
     src/gui/markup/XamlObjectWriter.cpp
     src/gui/markup/TemplateProgram.cpp
+    src/gui/markup/StyleSupport.inl
+    src/gui/markup/TemplateSupport.inl
+    src/gui/markup/TemplateCompiler.inl
     src/gui/markup/XamlLoader.cpp
     src/gui/markup/GuiSchema.cpp
     src/gui/markup/ReloadCoordinator.cpp

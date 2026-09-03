@@ -1051,22 +1051,20 @@ Base::Result<void> EffectiveValueEngine::QueueObjectProperty(
     if (!ensured) return ensured.GetStatus();
     StoredValueEntry* stored = ensured.Value();
     if (stored->Queued()) return {};
-    if (nextQueueSequence_ == UINT64_MAX) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfRange,
-            "Effective value queue sequence limit reached");
-    }
+    // C1: FIFO insertion order replaces the monotonic queueSequence. Skipping
+    // SetQueueSequence avoids forcing a StoredValueRare allocation on every
+    // enqueue for properties that otherwise need no rare block.
     stored->SetQueued(true);
-    Base::Result<void> sequenced = stored->SetQueueSequence(nextQueueSequence_++);
-    if (!sequenced) {
-        stored->SetQueued(false);
-        return sequenced.GetStatus();
-    }
     Pending pending;
     pending.object = &object;
     pending.property = property;
-    pending.queueSequence = stored->QueueSequence();
-    return pending_.PushBack(pending);
+    pending.queueSequence = 0U;
+    Base::Result<void> queued = pending_.PushBack(pending);
+    if (!queued) {
+        stored->SetQueued(false);
+        return queued.GetStatus();
+    }
+    return {};
 }
 
 DependencyObject* EffectiveValueEngine::InheritanceParent(
@@ -1402,43 +1400,48 @@ Base::Result<std::uint32_t> EffectiveValueEngine::Flush() noexcept {
 
     FlushScope scope(flushing_);
     std::uint32_t processed = 0U;
-
-    while (true) {
-        std::uint32_t selected = EffectiveInvalidIndex;
-        std::uint64_t selectedSequence = UINT64_MAX;
-        for (std::uint32_t index = 0U; index < pending_.Size(); ++index) {
-            const Pending& entry = pending_[index];
-            StoredValueEntry* stored = entry.object != nullptr
-                ? AeroGuiInternal::FindEntry(*entry.object, entry.property)
-                : nullptr;
-            if (stored != nullptr && stored->Queued() &&
-                entry.queueSequence < selectedSequence) {
-                selected = index;
-                selectedSequence = entry.queueSequence;
-            }
+    // C1: FIFO head-index drain. pending_ is appended in queueSequence order
+    // and QueueObjectProperty refuses duplicates while Queued(), so the vector
+    // is already sequence-ordered; the former min-sequence scan was O(n^2).
+    // Newly queued entries appended by Apply() during the flush are processed
+    // in the same pass, matching the previous while(true) semantics.
+    std::uint32_t head = 0U;
+    auto compactPrefix = [&](std::uint32_t keepFrom) noexcept {
+        const std::uint32_t tail = pending_.Size();
+        std::uint32_t write = 0U;
+        for (std::uint32_t read = keepFrom; read < tail; ++read) {
+            pending_[write++] = std::move(pending_[read]);
         }
-        if (selected == EffectiveInvalidIndex) break;
+        while (pending_.Size() > write) {
+            pending_.PopBack();
+        }
+    };
 
-        Pending entry = pending_[selected];
+    while (head < pending_.Size()) {
+        Pending entry = pending_[head];
+        ++head;
+        if (entry.object == nullptr) {
+            continue;
+        }
         StoredValueEntry* stored =
             AeroGuiInternal::FindEntry(*entry.object, entry.property);
-        if (stored != nullptr) {
-            stored->SetQueued(false);
+        if (stored == nullptr || !stored->Queued()) {
+            continue;
         }
+        stored->SetQueued(false);
         Base::Result<void> applied = Apply(entry);
         if (!applied) {
-            if (stored != nullptr) stored->SetQueued(true);
+            stored->SetQueued(true);
+            // Keep the failed entry plus the unprocessed tail.
+            compactPrefix(head - 1U);
             return applied.GetStatus();
         }
-        for (std::uint32_t current = selected + 1U; current < pending_.Size(); ++current) {
-            pending_[current - 1U] = std::move(pending_[current]);
-        }
-        pending_.PopBack();
         ++processed;
         if (processed >= 65536U) {
             break;
         }
     }
+    compactPrefix(head);
     return processed;
 }
 

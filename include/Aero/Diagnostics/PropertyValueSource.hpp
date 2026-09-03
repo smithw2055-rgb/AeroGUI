@@ -77,7 +77,9 @@ public:
                 sizeof(PropertyProviderContribution),
                 alignof(PropertyProviderContribution),
                 Base::MemoryTag::Container);
+            return true;
         }
+        NoteInserted(contributions_.Size() - 1U);
         return true;
     }
 
@@ -102,7 +104,9 @@ public:
                 sizeof(PropertyProviderContribution),
                 alignof(PropertyProviderContribution),
                 Base::MemoryTag::Container);
+            return true;
         }
+        NoteInserted(contributions_.Size() - 1U);
         return true;
     }
 
@@ -118,12 +122,13 @@ public:
         std::uint32_t index = 0U;
         while (index < contributions_.Size()) {
             if (contributions_[index].token.origin == origin) {
-                RemoveAt(index);
+                EraseAtUnchecked(index);
                 ++removed;
             } else {
                 ++index;
             }
         }
+        if (removed != 0U) RefreshWinner();
         return removed;
     }
 
@@ -136,12 +141,13 @@ public:
             const PropertyProviderToken token =
                 contributions_[index].token;
             if (token.rank == rank && token.origin == origin) {
-                RemoveAt(index);
+                EraseAtUnchecked(index);
                 ++removed;
             } else {
                 ++index;
             }
         }
+        if (removed != 0U) RefreshWinner();
         return removed;
     }
 
@@ -150,32 +156,28 @@ public:
         std::uint32_t index = 0U;
         while (index < contributions_.Size()) {
             if (contributions_[index].token.rank == rank) {
-                RemoveAt(index);
+                EraseAtUnchecked(index);
                 ++removed;
             } else {
                 ++index;
             }
         }
+        if (removed != 0U) RefreshWinner();
         return removed;
     }
 
     void Clear() noexcept {
         contributions_.Clear();
+        winner_ = UINT32_MAX;
     }
 
     const PropertyProviderContribution* Winner() const noexcept {
-        if (contributions_.Empty()) return nullptr;
-        std::uint32_t winner = 0U;
-        for (std::uint32_t index = 1U;
-             index < contributions_.Size();
-             ++index) {
-            if (IsStronger(
-                    contributions_[index].token,
-                    contributions_[winner].token)) {
-                winner = index;
-            }
-        }
-        return &contributions_[winner];
+        // C1: cached winner index. Set() maintains it incrementally (one
+        // comparison); removals fix it up or rescan once. Hot recompute path
+        // drops from O(k) to O(1).
+        return winner_ != UINT32_MAX && winner_ < contributions_.Size()
+            ? &contributions_[winner_]
+            : nullptr;
     }
 
     const PropertyProviderContribution* FindContribution(
@@ -201,6 +203,9 @@ public:
 
 private:
     Base::Vector<PropertyProviderContribution> contributions_;
+    // Cached index of the IsStronger-maximum element, or UINT32_MAX when
+    // empty. Order-independent because Winner is defined by comparison.
+    std::uint32_t winner_ = UINT32_MAX;
 
     std::uint32_t Find(PropertyProviderToken token) const noexcept {
         for (std::uint32_t index = 0U;
@@ -214,13 +219,54 @@ private:
     }
 
     void RemoveAt(std::uint32_t index) noexcept {
-        for (std::uint32_t next = index + 1U;
-             next < contributions_.Size();
-             ++next) {
-            contributions_[next - 1U] =
-                std::move(contributions_[next]);
+        // C1: order-independent swap-remove. Winner() selects by
+        // IsStronger(rank/origin/ordinal), so element order is irrelevant.
+        const std::uint32_t last = contributions_.Size() - 1U;
+        if (index != last) {
+            contributions_[index] = std::move(contributions_[last]);
         }
         contributions_.PopBack();
+        if (contributions_.Empty()) {
+            winner_ = UINT32_MAX;
+        } else if (winner_ == last) {
+            // Removed the tail: either the winner itself (rescan) or the
+            // element swapped into the removed slot (winner moved).
+            winner_ = (index != last) ? index : UINT32_MAX;
+            if (winner_ == UINT32_MAX) RefreshWinner();
+        } else if (winner_ == index) {
+            RefreshWinner();
+        }
+    }
+
+    void EraseAtUnchecked(std::uint32_t index) noexcept {
+        const std::uint32_t last = contributions_.Size() - 1U;
+        if (index != last) {
+            contributions_[index] = std::move(contributions_[last]);
+        }
+        contributions_.PopBack();
+    }
+
+    void NoteInserted(std::uint32_t index) noexcept {
+        if (winner_ == UINT32_MAX ||
+            IsStronger(
+                contributions_[index].token,
+                contributions_[winner_].token)) {
+            winner_ = index;
+        }
+    }
+
+    void RefreshWinner() noexcept {
+        winner_ = UINT32_MAX;
+        for (std::uint32_t index = 0U;
+             index < contributions_.Size();
+             ++index) {
+            if (winner_ == UINT32_MAX ||
+                IsStronger(
+                    contributions_[index].token,
+                    contributions_[winner_].token)) {
+                winner_ = index;
+            }
+        }
     }
 
     static constexpr bool IsStronger(
