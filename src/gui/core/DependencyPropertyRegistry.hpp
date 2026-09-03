@@ -26,7 +26,8 @@ public:
     Result<void> AddOwner(
         DependencyPropertyHandle property,
         TypeId ownerType,
-        const PropertyMetadata& metadata) noexcept;
+        const PropertyMetadata& metadata,
+        DependencyPropertyFlags flags = DependencyPropertyFlags::None) noexcept;
 
     Result<void> OverrideMetadata(
         DependencyPropertyHandle property,

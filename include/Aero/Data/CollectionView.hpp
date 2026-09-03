@@ -29,6 +29,10 @@ public:
         return StaticTypeId();
     }
 
+    Base::Object* AsObject() noexcept override {
+        return this;
+    }
+
     Collections::IItemsSource* GetSource() const noexcept {
         return inner_;
     }
@@ -74,6 +78,7 @@ private:
     void RaiseCurrentChanged() noexcept;
 
     Collections::IItemsSource* inner_ = nullptr;
+    Base::WeakRef<Base::Object> innerObj_;
     Base::Vector<std::uint32_t> map_;
     CollectionViewFilter filter_;
     String sortProperty_;

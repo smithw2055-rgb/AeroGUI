@@ -41,6 +41,7 @@ public:
     const Ref<T>* begin() const noexcept { return items_.begin(); }
     Ref<T>* end() noexcept { return items_.end(); }
     const Ref<T>* end() const noexcept { return items_.end(); }
+    Base::Object* AsObject() noexcept override { return this; }
     Ref<Base::Object> GetItem(
         std::uint32_t index) const noexcept override {
         return index < items_.Size()

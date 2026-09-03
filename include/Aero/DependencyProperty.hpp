@@ -62,6 +62,11 @@ public:
         return handle_.value;
     }
 
+    template<class TNewOwner>
+    constexpr DependencyPropertyRef<TNewOwner, TValue> AddOwner() const noexcept {
+        return DependencyPropertyRef<TNewOwner, TValue>(name_);
+    }
+
 private:
     StringView name_;
     DependencyPropertyHandle handle_;
@@ -431,8 +436,14 @@ private:
     TypeId registeredOwnerType_ = InvalidTypeId;
     DependencyPropertyFlags flags_ = DependencyPropertyFlags::None;
     std::uint64_t readOnlySecret_ = 0U;
+    struct MetadataCacheEntry {
+        TypeId forType = InvalidTypeId;
+        const PropertyMetadata* metadata = nullptr;
+    };
+
     String name_;
     Base::Vector<MetadataEntry> metadata_;
+    mutable MetadataCacheEntry metadataCache_[4]{};
 };
 
 } // namespace Aero::Meta

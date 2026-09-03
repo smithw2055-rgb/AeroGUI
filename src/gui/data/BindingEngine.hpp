@@ -8,6 +8,7 @@
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
+#include <Aero/Base/HashMap.hpp>
 #include "gui/meta/MetadataState.hpp"
 #include "gui/core/State.hpp" 
 
@@ -470,6 +471,7 @@ private:
     Dispatcher* dispatcher_ = nullptr;
     Meta::Registry* metadata_ = nullptr;
     Base::Vector<BindingRecord> bindings_;
+    Base::HashMap<std::uint64_t, std::uint32_t> handleIndexMap_;
     Base::Vector<DeferredBindingRecord> deferredBindings_;
     Base::Vector<DependencyObject*> pendingDeferredActivations_;
     Base::Vector<MultiBindingGroup> multiBindings_;

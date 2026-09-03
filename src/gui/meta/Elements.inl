@@ -135,14 +135,14 @@ Base::Result<void> PopulateUiElements(
         .Property(
             UIElement::FocusableProperty,
             FrameworkPropertyMetadata(false))
-        .Property(
-            UIElement::IsTabStopProperty,
+        .AddOwner(
+            KeyboardNavigation::IsTabStopProperty,
             FrameworkPropertyMetadata(false))
-        .Property(
-            UIElement::TabIndexProperty,
+        .AddOwner(
+            KeyboardNavigation::TabIndexProperty,
             FrameworkPropertyMetadata(std::uint32_t{0}))
-        .Property(
-            UIElement::IsFocusScopeProperty,
+        .AddOwner(
+            FocusManager::IsFocusScopeProperty,
             FrameworkPropertyMetadata(false))
         .Property(
             UIElement::OpacityProperty,

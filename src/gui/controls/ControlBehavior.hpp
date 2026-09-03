@@ -7,6 +7,7 @@
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include "gui/templates/TemplateInstance.hpp"
+#include <Aero/Base/HashMap.hpp>
 
 // Private control behavior and template implementation for one View.
 // Public controls expose WPF semantics; these classes only retain interaction state.
@@ -660,6 +661,8 @@ private:
     Aero::BindingEngine* bindings_ = nullptr;
     Aero::ResourceDictionary* resources_ = nullptr;
     Base::Vector<Instance> instances_;
+    Base::HashMap<const Control*, std::uint32_t> controlToInstance_;
+    Base::HashMap<std::uint64_t, std::uint32_t> handleToInstance_;
     DependencyPropertyChangedEventHandler propertyChangedHandler_;
     std::uint64_t nextHandle_ = 1U;
 

@@ -103,15 +103,17 @@ Base::Result<void> PopulateControlsTextMedia(
     auto textElement = Meta::Register<Documents::TextElement>(
         context, TypeFlags::Abstract);
     textElement
-        .Property(
+        .AddOwner(
             Documents::TextElement::FontFamilyProperty,
+            Aero::FrameworkElement::FontFamilyProperty,
             FrameworkPropertyMetadata(Base::Ref<Media::FontFamily>{})
                 .Inherits().AffectsMeasure())
         .Property(
             Documents::TextElement::FontWeightProperty,
             FrameworkPropertyMetadata(FontWeight::Normal).Inherits().AffectsMeasure())
-        .Property(
+        .AddOwner(
             Documents::TextElement::ForegroundProperty,
+            Aero::FrameworkElement::ForegroundProperty,
             FrameworkPropertyMetadata(Base::Ref<Brush>{}).Inherits())
         .Property(
             Documents::TextElement::FontSizeProperty,

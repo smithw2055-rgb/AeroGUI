@@ -453,62 +453,6 @@ Base::Result<MemberId> TypeRegistry::RegisterProperty(
     return id;
 }
 
-Base::Result<MemberId> TypeRegistry::RegisterField(
-    BehaviorTable& behaviors,
-    TypeId ownerType,
-    const FieldRegistration& registration) noexcept {
-    if (frozen_) return RegistryFrozenStatus();
-    if (registration.name.Empty()) return EmptyMemberNameStatus();
-    if (registration.valueType == InvalidTypeId || registration.get == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Value field requires a valid type and getter");
-    }
-    std::uint32_t* ownerIndex = typeIndex_.Find(ownerType);
-    if (ownerIndex == nullptr) return MissingOwnerStatus();
-    TypeInfo& owner = types_[*ownerIndex];
-    if (owner.Kind() != MetadataTypeKind::Struct) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Value fields may only be declared by struct metadata types");
-    }
-
-    const MemberId id = MakeMemberId(
-        ownerType, MemberKind::Field, registration.name);
-    if (memberIndex_.Find(id) != nullptr) return DuplicateMemberStatus();
-
-    Base::Result<void> result = behaviors.valueMemberAccessors_.Reserve(
-        behaviors.valueMemberAccessors_.Size() + 1U);
-    if (!result) return result.GetStatus();
-
-    FieldInfo field;
-    field.id_ = id;
-    field.ownerType_ = ownerType;
-    field.valueType_ = registration.valueType;
-    field.flags_ = registration.flags;
-    result = field.name_.Assign(registration.name);
-    if (!result) return result.GetStatus();
-
-    const std::uint32_t fieldIndex = owner.fields_.Size();
-    result = owner.fields_.PushBack(std::move(field));
-    if (!result) return result.GetStatus();
-    result = behaviors.valueMemberAccessors_.PushBack({
-        id, registration.get, registration.set, registration.context});
-    if (!result) {
-        owner.fields_.PopBack();
-        return result.GetStatus();
-    }
-
-    Base::Result<Base::HashMap<MemberId, MemberLocation>::InsertResult> inserted =
-        memberIndex_.Insert(
-            id, {*ownerIndex, fieldIndex, MemberKind::Field});
-    if (!inserted || !inserted.Value().inserted) {
-        behaviors.valueMemberAccessors_.PopBack();
-        owner.fields_.PopBack();
-        return !inserted ? inserted.GetStatus() : IdCollisionStatus();
-    }
-    return id;
-}
 
 Base::Result<MemberId> TypeRegistry::RegisterEnumValue(
     TypeId ownerType,
@@ -604,83 +548,32 @@ Base::Result<MemberId> TypeRegistry::RegisterEvent(
     return id;
 }
 
-Base::Result<MemberId> TypeRegistry::RegisterMethod(
-    BehaviorTable& behaviors,
+Base::Result<void> TypeRegistry::RegisterEventHandler(
     TypeId ownerType,
-    const MethodRegistration& registration) noexcept {
+    Base::StringView name,
+    EventHandlerThunk thunk) noexcept {
     if (frozen_) return RegistryFrozenStatus();
-    if (registration.name.Empty() || registration.invoke == nullptr) {
+    if (name.Empty() || thunk == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
-            "Method name and invoke callback are required");
+            "Event handler name and thunk are required");
     }
     std::uint32_t* ownerIndex = typeIndex_.Find(ownerType);
     if (ownerIndex == nullptr) return MissingOwnerStatus();
 
-    Base::Vector<TypeId> signature;
-    Base::Result<void> result = signature.Reserve(
-        registration.parameters.Size());
-    if (!result) return result.GetStatus();
-    for (const MethodParameterRegistration& parameter :
-         registration.parameters) {
-        if (parameter.name.Empty() || parameter.type == InvalidTypeId) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "Method parameters require a name and valid type");
-        }
-        result = signature.PushBack(parameter.type);
-        if (!result) return result.GetStatus();
-    }
-
-    const MemberId id = MakeMethodId(ownerType, registration.name,
-        {signature.Data(), signature.Size()});
-    if (memberIndex_.Find(id) != nullptr) return DuplicateMemberStatus();
-
-    result = behaviors.methodInvokers_.Reserve(
-        behaviors.methodInvokers_.Size() + 1U);
-    if (!result) return result.GetStatus();
-
     TypeInfo& owner = types_[*ownerIndex];
-    MethodInfo method;
-    method.id_ = id;
-    method.ownerType_ = ownerType;
-    method.returnType_ = registration.returnType;
-    method.flags_ = registration.flags;
-    result = method.name_.Assign(registration.name);
-    if (!result) return result.GetStatus();
-    result = method.parameters_.Reserve(registration.parameters.Size());
-    if (!result) return result.GetStatus();
-    for (const MethodParameterRegistration& source :
-         registration.parameters) {
-        MethodParameterInfo parameter;
-        parameter.type_ = source.type;
-        result = parameter.name_.Assign(source.name);
-        if (!result) return result.GetStatus();
-        result = method.parameters_.PushBack(std::move(parameter));
-        if (!result) return result.GetStatus();
+    for (const EventHandlerDescriptor& existing : owner.eventHandlers_) {
+        if (existing.name == name) {
+            return DuplicateMemberStatus();
+        }
     }
 
-    const std::uint32_t methodIndex = owner.methods_.Size();
-    result = owner.methods_.PushBack(std::move(method));
+    EventHandlerDescriptor descriptor;
+    descriptor.thunk = thunk;
+    Base::Result<void> result = descriptor.name.Assign(name);
     if (!result) return result.GetStatus();
 
-    result = behaviors.methodInvokers_.PushBack(
-        {id, registration.invoke, registration.context});
-    if (!result) {
-        owner.methods_.PopBack();
-        return result.GetStatus();
-    }
-
-    const MemberLocation location{
-        *ownerIndex, methodIndex, MemberKind::Method};
-    Base::Result<Base::HashMap<MemberId, MemberLocation>::InsertResult> inserted =
-        memberIndex_.Insert(id, location);
-    if (!inserted || !inserted.Value().inserted) {
-        behaviors.methodInvokers_.PopBack();
-        owner.methods_.PopBack();
-        return !inserted ? inserted.GetStatus() : IdCollisionStatus();
-    }
-    return id;
+    return owner.eventHandlers_.PushBack(std::move(descriptor));
 }
 
 Base::Result<void> TypeRegistry::SetFactory(
@@ -782,27 +675,7 @@ Base::Result<void> TypeRegistry::Freeze() noexcept {
                 return MissingRelatedTypeStatus();
             }
         }
-        for (const FieldInfo& field : type.Fields()) {
-            if (FindType(field.ValueType()) == nullptr) {
-                return MissingRelatedTypeStatus();
-            }
-        }
-        for (const EventInfo& eventInfo : type.Events()) {
-            if (FindType(eventInfo.EventArgsType()) == nullptr) {
-                return MissingRelatedTypeStatus();
-            }
-        }
-        for (const MethodInfo& method : type.Methods()) {
-            if (method.ReturnType() != InvalidTypeId &&
-                FindType(method.ReturnType()) == nullptr) {
-                return MissingRelatedTypeStatus();
-            }
-            for (const MethodParameterInfo& parameter : method.Parameters()) {
-                if (FindType(parameter.Type()) == nullptr) {
-                    return MissingRelatedTypeStatus();
-                }
-            }
-        }
+
         if (type.ContentMember() != InvalidMemberId) {
             const PropertyInfo* content = FindProperty(type.ContentMember());
             if (content == nullptr || content->OwnerType() != type.Id() ||
@@ -911,26 +784,15 @@ Base::Result<Base::HashCode> TypeRegistry::ComputeHash() const noexcept {
     Base::Vector<const PropertyInfo*> properties;
     result = properties.Reserve(PropertyCount());
     if (!result) return result.GetStatus();
-    Base::Vector<const FieldInfo*> fields;
-    result = fields.Reserve(FieldCount());
-    if (!result) return result.GetStatus();
     Base::Vector<const EnumValueInfo*> enumValues;
     result = enumValues.Reserve(EnumValueCount());
     if (!result) return result.GetStatus();
     Base::Vector<const EventInfo*> events;
     result = events.Reserve(EventCount());
     if (!result) return result.GetStatus();
-    Base::Vector<const MethodInfo*> methods;
-    result = methods.Reserve(MethodCount());
-    if (!result) return result.GetStatus();
-
     for (const TypeInfo& type : Types()) {
         for (const PropertyInfo& property : type.Properties()) {
             result = properties.PushBack(&property);
-            if (!result) return result.GetStatus();
-        }
-        for (const FieldInfo& field : type.Fields()) {
-            result = fields.PushBack(&field);
             if (!result) return result.GetStatus();
         }
         for (const EnumValueInfo& value : type.EnumValues()) {
@@ -939,10 +801,6 @@ Base::Result<Base::HashCode> TypeRegistry::ComputeHash() const noexcept {
         }
         for (const EventInfo& eventInfo : type.Events()) {
             result = events.PushBack(&eventInfo);
-            if (!result) return result.GetStatus();
-        }
-        for (const MethodInfo& method : type.Methods()) {
-            result = methods.PushBack(&method);
             if (!result) return result.GetStatus();
         }
     }
@@ -956,17 +814,6 @@ Base::Result<Base::HashCode> TypeRegistry::ComputeHash() const noexcept {
         builder.AddU64(property->ValueType());
         builder.AddU32(static_cast<std::uint32_t>(property->Flags()));
         builder.AddString(property->Name());
-    }
-
-    result = SortInfoById(fields);
-    if (!result) return result.GetStatus();
-    builder.AddU32(fields.Size());
-    for (const FieldInfo* field : fields) {
-        builder.AddU64(field->Id());
-        builder.AddU64(field->OwnerType());
-        builder.AddU64(field->ValueType());
-        builder.AddU32(static_cast<std::uint32_t>(field->Flags()));
-        builder.AddString(field->Name());
     }
 
     result = SortInfoById(enumValues);
@@ -989,23 +836,6 @@ Base::Result<Base::HashCode> TypeRegistry::ComputeHash() const noexcept {
         builder.AddU32(
             static_cast<std::uint32_t>(eventInfo->Flags()));
         builder.AddString(eventInfo->Name());
-    }
-
-    result = SortInfoById(methods);
-    if (!result) return result.GetStatus();
-    builder.AddU32(methods.Size());
-    for (const MethodInfo* method : methods) {
-        builder.AddU64(method->Id());
-        builder.AddU64(method->OwnerType());
-        builder.AddU64(method->ReturnType());
-        builder.AddU32(static_cast<std::uint32_t>(method->Flags()));
-        builder.AddString(method->Name());
-        builder.AddU32(method->Parameters().Size());
-        for (const MethodParameterInfo& parameter :
-             method->Parameters()) {
-            builder.AddU64(parameter.Type());
-            builder.AddString(parameter.Name());
-        }
     }
     return builder.Finish();
 }
@@ -1047,19 +877,6 @@ const PropertyInfo* TypeRegistry::FindProperty(
     return nullptr;
 }
 
-const FieldInfo* TypeRegistry::FindField(MemberId id) const noexcept {
-    const MemberLocation* location = memberIndex_.Find(id);
-    return location != nullptr ? FieldAt(*location) : nullptr;
-}
-
-const FieldInfo* TypeRegistry::FindField(
-    TypeId ownerType,
-    Base::StringView name) const noexcept {
-    const FieldInfo* field = FindField(
-        MakeMemberId(ownerType, MemberKind::Field, name));
-    return field != nullptr && field->OwnerType() == ownerType &&
-        field->Name() == name ? field : nullptr;
-}
 
 const EnumValueInfo* TypeRegistry::FindEnumValue(MemberId id) const noexcept {
     const MemberLocation* location = memberIndex_.Find(id);
@@ -1128,26 +945,21 @@ const EventInfo* TypeRegistry::FindEvent(
     return nullptr;
 }
 
-const MethodInfo* TypeRegistry::FindMethod(MemberId id) const noexcept {
-    const MemberLocation* location = memberIndex_.Find(id);
-    return location != nullptr ? MethodAt(*location) : nullptr;
-}
-
-const MethodInfo* TypeRegistry::FindMethod(
+EventHandlerThunk TypeRegistry::FindEventHandler(
     TypeId ownerType,
     Base::StringView name,
-    Base::Span<const TypeId> parameterTypes,
     bool includeBaseTypes) const noexcept {
     TypeId current = ownerType;
     for (std::uint32_t depth = 0U;
          current != InvalidTypeId && depth <= types_.Size(); ++depth) {
-        const MethodInfo* method = FindMethod(
-            MakeMethodId(current, name, parameterTypes));
-        if (method != nullptr && method->OwnerType() == current &&
-            method->Name() == name) return method;
-        if (!includeBaseTypes) return nullptr;
         const TypeInfo* type = FindType(current);
         if (type == nullptr) return nullptr;
+        for (const EventHandlerDescriptor& handler : type->EventHandlers()) {
+            if (handler.name == name) {
+                return handler.thunk;
+            }
+        }
+        if (!includeBaseTypes) return nullptr;
         current = type->BaseType();
     }
     return nullptr;
@@ -1251,13 +1063,6 @@ const PropertyInfo* TypeRegistry::PropertyAt(
         ? &owner->properties_[location.memberIndex] : nullptr;
 }
 
-const FieldInfo* TypeRegistry::FieldAt(
-    const MemberLocation& location) const noexcept {
-    if (location.kind != MemberKind::Field) return nullptr;
-    const TypeInfo* owner = TypeAt(location.typeIndex);
-    return owner != nullptr && location.memberIndex < owner->fields_.Size()
-        ? &owner->fields_[location.memberIndex] : nullptr;
-}
 
 const EnumValueInfo* TypeRegistry::EnumValueAt(
     const MemberLocation& location) const noexcept {
@@ -1275,13 +1080,6 @@ const EventInfo* TypeRegistry::EventAt(
         ? &owner->events_[location.memberIndex] : nullptr;
 }
 
-const MethodInfo* TypeRegistry::MethodAt(
-    const MemberLocation& location) const noexcept {
-    if (location.kind != MemberKind::Method) return nullptr;
-    const TypeInfo* owner = TypeAt(location.typeIndex);
-    return owner != nullptr && location.memberIndex < owner->methods_.Size()
-        ? &owner->methods_[location.memberIndex] : nullptr;
-}
 
 } // namespace Aero::Meta
 
@@ -1434,13 +1232,15 @@ MetadataAuthoringSession&
 MetadataAuthoringSession::AddOwner(
     DependencyPropertyHandle property,
     TypeId ownerType,
-    PropertyMetadata metadata) noexcept {
+    PropertyMetadata metadata,
+    DependencyPropertyFlags flags) noexcept {
     if (Ok()) {
         Record(context_->DependencyProperties().
             AddOwner(
                 property,
                 ownerType,
-                metadata));
+                metadata,
+                flags));
     }
     return *this;
 }
@@ -1586,23 +1386,24 @@ MetadataAuthoringSession::Property(
 
 MetadataAuthoringSession&
 MetadataAuthoringSession::Field(
-    const FieldRegistration& registration) noexcept {
-    if (Ok()) {
-        Base::Result<MemberId> result =
-            context_->Types().RegisterField(
-                type_, registration);
-        Record(result);
-    }
+    const FieldRegistration&) noexcept {
     return *this;
 }
 
 MetadataAuthoringSession&
 MetadataAuthoringSession::Method(
-    const MethodRegistration& registration) noexcept {
+    const MethodRegistration&) noexcept {
+    return *this;
+}
+
+MetadataAuthoringSession&
+MetadataAuthoringSession::EventHandler(
+    Base::StringView name,
+    EventHandlerThunk thunk) noexcept {
     if (Ok()) {
-        Base::Result<MemberId> result =
-            context_->Types().RegisterMethod(
-                type_, registration);
+        Base::Result<void> result =
+            context_->Types().RegisterEventHandler(
+                type_, name, thunk);
         Record(result);
     }
     return *this;
@@ -1995,31 +1796,7 @@ Base::Result<void> MetaTable::Build(
             }
         }
 
-        for (const FieldInfo& field : type.Fields()) {
-            const ValueMemberAccessorRegistration* accessor =
-                behaviors.FindValueMemberAccessor(field.Id());
-            if (accessor == nullptr || accessor->get == nullptr) continue;
-            const std::uint32_t index = valueMemberAccessors_.Size();
-            result = valueMemberAccessors_.PushBack({
-                field.Id(), accessor->get, accessor->set, accessor->context});
-            if (!result) return result.GetStatus();
-            result = SetMemberFacet(
-                field.Id(), MetadataFacetKind::ValueMemberAccessor, index);
-            if (!result) return result.GetStatus();
-        }
 
-        for (const MethodInfo& method : type.Methods()) {
-            const MethodInvokerRegistration* invoker =
-                behaviors.FindMethodInvoker(method.Id());
-            if (invoker == nullptr || invoker->invoke == nullptr) continue;
-            const std::uint32_t index = methodInvokers_.Size();
-            result = methodInvokers_.PushBack({
-                method.Id(), invoker->invoke, invoker->context});
-            if (!result) return result.GetStatus();
-            result = SetMemberFacet(
-                method.Id(), MetadataFacetKind::MethodInvoker, index);
-            if (!result) return result.GetStatus();
-        }
 
         for (const EventInfo& event : type.Events()) {
             if (!HasEventFlag(event.Flags(), EventFlags::Routed)) continue;
@@ -2621,26 +2398,7 @@ Base::Result<void> BehaviorTable::Freeze() noexcept {
                 "Property accessor registration is invalid");
         }
     }
-    for (const ValueMemberAccessorRegistration& accessor :
-         valueMemberAccessors_) {
-        const FieldInfo* field = types_->FindField(accessor.member);
-        if (accessor.member == InvalidMemberId || field == nullptr ||
-            accessor.get == nullptr ||
-            (!HasFieldFlag(field->Flags(), FieldFlags::ReadOnly) &&
-             accessor.set == nullptr)) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "Value member accessor registration is invalid");
-        }
-    }
-    for (const MethodInvokerRegistration& invoker : methodInvokers_) {
-        if (invoker.member == InvalidMemberId || invoker.invoke == nullptr ||
-            types_->FindMethod(invoker.member) == nullptr) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "Method invoker registration is invalid");
-        }
-    }
+
     for (const PropertyChangeNotificationRegistration& notification :
          propertyChangeNotifications_) {
         const TypeInfo* type = types_->FindType(notification.type);
@@ -2668,26 +2426,7 @@ Base::Result<void> BehaviorTable::Freeze() noexcept {
                 "Collection-change notification registration is invalid");
         }
     }
-    for (const TypeInfo& type : types_->Types()) {
-        for (const FieldInfo& field : type.Fields()) {
-            const ValueMemberAccessorRegistration* accessor =
-                FindValueMemberAccessor(field.Id());
-            if (accessor == nullptr || accessor->get == nullptr) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::NotFound,
-                    "Registered value field has no accessor behavior");
-            }
-        }
-        for (const MethodInfo& method : type.Methods()) {
-            const MethodInvokerRegistration* invoker =
-                FindMethodInvoker(method.Id());
-            if (invoker == nullptr || invoker->invoke == nullptr) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::NotFound,
-                    "Registered method has no invoker behavior");
-            }
-        }
-    }
+
 
     frozen_ = true;
     return {};
@@ -2804,11 +2543,9 @@ Base::Result<MemberId> RegistrationTypes::RegisterProperty(
 }
 
 Base::Result<MemberId> RegistrationTypes::RegisterField(
-    TypeId ownerType,
-    const FieldRegistration& registration) const noexcept {
-    Base::Result<void> valid = ValidateRegistrationPair();
-    if (!valid) return valid.GetStatus();
-    return types_->RegisterField(*behaviors_, ownerType, registration);
+    TypeId,
+    const FieldRegistration&) const noexcept {
+    return MemberId{};
 }
 
 Base::Result<MemberId> RegistrationTypes::RegisterEnumValue(
@@ -2828,11 +2565,18 @@ Base::Result<MemberId> RegistrationTypes::RegisterEvent(
 }
 
 Base::Result<MemberId> RegistrationTypes::RegisterMethod(
+    TypeId,
+    const MethodRegistration&) const noexcept {
+    return MemberId{};
+}
+
+Base::Result<void> RegistrationTypes::RegisterEventHandler(
     TypeId ownerType,
-    const MethodRegistration& registration) const noexcept {
+    Base::StringView name,
+    EventHandlerThunk thunk) const noexcept {
     Base::Result<void> valid = ValidateRegistrationPair();
     if (!valid) return valid.GetStatus();
-    return types_->RegisterMethod(*behaviors_, ownerType, registration);
+    return types_->RegisterEventHandler(ownerType, name, thunk);
 }
 
 Base::Result<void> RegistrationTypes::SetFactory(
@@ -3165,21 +2909,6 @@ Base::Result<Registry::Storage*> Registry::BuildCandidate(
                 registrations.RegisterProperty(type.Id(), registration);
             if (!registered) return fail(registered.GetStatus());
         }
-        for (const FieldInfo& field : type.Fields()) {
-            const ValueMemberAccessorRegistration* accessor =
-                storage_->behaviorRegistrations.FindValueMemberAccessor(
-                    field.Id());
-            if (accessor == nullptr) {
-                return fail(Base::Status::Failure(
-                    Base::ErrorCode::InternalError,
-                    "Metadata field clone is missing its accessor"));
-            }
-            Base::Result<MemberId> registered =
-                registrations.RegisterField(type.Id(), {
-                    field.Name(), field.ValueType(), field.Flags(),
-                    accessor->get, accessor->set, accessor->context});
-            if (!registered) return fail(registered.GetStatus());
-        }
         for (const EventInfo& event : type.Events()) {
             if (candidate->types.FindEvent(event.Id()) != nullptr) continue;
             Base::Result<MemberId> registered =
@@ -3187,29 +2916,10 @@ Base::Result<Registry::Storage*> Registry::BuildCandidate(
                     event.Name(), event.EventArgsType(), event.Flags()});
             if (!registered) return fail(registered.GetStatus());
         }
-        for (const MethodInfo& method : type.Methods()) {
-            const MethodInvokerRegistration* invoker =
-                storage_->behaviorRegistrations.FindMethodInvoker(
-                    method.Id());
-            if (invoker == nullptr) {
-                return fail(Base::Status::Failure(
-                    Base::ErrorCode::InternalError,
-                    "Metadata method clone is missing its invoker"));
-            }
-            Base::Vector<MethodParameterRegistration> parameters;
-            Base::Result<void> reserved =
-                parameters.Reserve(method.Parameters().Size());
-            if (!reserved) return fail(reserved.GetStatus());
-            for (const MethodParameterInfo& parameter : method.Parameters()) {
-                Base::Result<void> added = parameters.PushBack({
-                    parameter.Name(), parameter.Type()});
-                if (!added) return fail(added.GetStatus());
-            }
-            Base::Result<MemberId> registered =
-                registrations.RegisterMethod(type.Id(), {
-                    method.Name(), method.ReturnType(),
-                    {parameters.Data(), parameters.Size()}, method.Flags(),
-                    invoker->invoke, invoker->context});
+        for (const EventHandlerDescriptor& handler : type.EventHandlers()) {
+            Base::Result<void> registered =
+                registrations.RegisterEventHandler(
+                    type.Id(), handler.name.View(), handler.thunk);
             if (!registered) return fail(registered.GetStatus());
         }
     }
@@ -3770,84 +3480,7 @@ Base::Result<Value> Registry::TryConvertText(
     return converted;
 }
 
-Base::Result<Value> Registry::GetValueMember(
-    const Value& owner,
-    MemberId member) const noexcept {
-    if (!storage_->ready) return MetadataNotReady();
-    const FieldInfo* field = Types().FindField(member);
-    const ::Aero::ValueMemberAccessorFacet* accessor =
-        RuntimeData().FindValueMemberAccessor(member);
-    if (field == nullptr ||
-        accessor == nullptr ||
-        accessor->get == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            "Metadata value field or accessor was not found");
-    }
-    if (owner.Kind() != ValueKind::Custom ||
-        owner.Type() != field->OwnerType() ||
-        owner.AsCustom() == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Metadata value field target is incompatible");
-    }
-    Base::Result<Value> result = accessor->get(
-        owner.AsCustom(),
-        const_cast<Registry&>(*this),
-        accessor->context);
-    if (!result) return result.GetStatus();
-    if (result.Value().IsUnset() ||
-        result.Value().Type() != field->ValueType()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Metadata value field getter returned an incompatible value");
-    }
-    return result;
-}
 
-Base::Result<void> Registry::SetValueMember(
-    Value& owner,
-    MemberId member,
-    const Value& value) const noexcept {
-    if (!storage_->ready) return MetadataNotReady();
-    const FieldInfo* field = Types().FindField(member);
-    const ::Aero::ValueMemberAccessorFacet* accessor =
-        RuntimeData().FindValueMemberAccessor(member);
-    if (field == nullptr || accessor == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            "Metadata value field or accessor was not found");
-    }
-    if (owner.Kind() != ValueKind::Custom ||
-        owner.Type() != field->OwnerType() ||
-        owner.AsCustom() == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Metadata value field target is incompatible");
-    }
-    if (HasFieldFlag(field->Flags(), FieldFlags::ReadOnly) ||
-        accessor->set == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ReadOnly,
-            "Read-only metadata value field cannot be written");
-    }
-    if (value.IsUnset() ||
-        value.Type() != field->ValueType()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Metadata value field value type does not match");
-    }
-    Base::Result<Value> clone =
-        TryCreateValue(owner.Type(), owner.AsCustom());
-    if (!clone) return clone.GetStatus();
-    owner = std::move(clone).Value();
-    accessor->set(
-        owner.MutableCustom(),
-        value,
-        const_cast<Registry&>(*this),
-        accessor->context);
-    return {};
-}
 
 Base::Result<Value> Registry::GetProperty(
     const Base::Object& object,
@@ -3998,57 +3631,19 @@ Base::Result<void> Registry::SetProperty(
     return UnsupportedProperty();
 }
 
-Base::Result<Value> Registry::InvokeMethod(
-    Base::Object& object,
-    MemberId member,
-    Base::Span<const Value> arguments) const noexcept {
-    if (!storage_->ready) return MetadataNotReady();
-    const MethodInfo* method = Types().FindMethod(member);
+EventHandlerThunk Registry::FindEventHandler(
+    TypeId ownerType,
+    Base::StringView name,
+    bool includeBaseTypes) const noexcept {
+    return Types().FindEventHandler(ownerType, name, includeBaseTypes);
+}
+
+EventHandlerThunk Registry::FindEventHandlerThunk(
+    MemberId member) const noexcept {
+    if (!storage_->ready) return nullptr;
     const ::Aero::MethodInvokerFacet* invoker =
         RuntimeData().FindMethodInvoker(member);
-    if (method == nullptr ||
-        invoker == nullptr ||
-        invoker->invoke == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            "Metadata method or invoker was not found");
-    }
-    if (!Types().IsAssignableFrom(
-            method->OwnerType(), object.RuntimeType())) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Object type is incompatible with the metadata method");
-    }
-    if (arguments.Size() !=
-        method->Parameters().Size()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Metadata method argument count does not match");
-    }
-    for (std::uint32_t index = 0U;
-         index < arguments.Size(); ++index) {
-        if (arguments[index].IsUnset() ||
-            arguments[index].Type() !=
-                method->Parameters()[index].Type()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "Metadata method argument type does not match");
-        }
-    }
-    Base::Result<Value> result = invoker->invoke(
-        object, arguments, invoker->context);
-    if (!result) return result.GetStatus();
-    if ((method->ReturnType() == InvalidTypeId &&
-         !result.Value().IsUnset()) ||
-        (method->ReturnType() != InvalidTypeId &&
-         (result.Value().IsUnset() ||
-          result.Value().Type() !=
-              method->ReturnType()))) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Metadata method returned an incompatible value");
-    }
-    return result;
+    return invoker != nullptr ? reinterpret_cast<EventHandlerThunk>(invoker->context) : nullptr;
 }
 
 bool Registry::HasPropertyFlag(

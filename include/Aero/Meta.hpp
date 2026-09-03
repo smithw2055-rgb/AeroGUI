@@ -10,6 +10,10 @@
 #include <type_traits>
 #include <utility>
 
+namespace Aero {
+struct RoutedEventArgs;
+}
+
 namespace Aero::Meta {
 using Base::ValueCopyCallback;
 using Base::ValueDestroyCallback;
@@ -82,6 +86,10 @@ using PropertyChangeUnsubscribeCallback = Base::Result<bool> (*)(
     std::uint64_t subscription,
     void* context) noexcept;
 using InterfaceCastThunk = void* (*)(Base::Object* object) noexcept;
+using EventHandlerThunk = void (*)(
+    Object* target,
+    Object* sender,
+    ::Aero::RoutedEventArgs& args) noexcept;
 
 template<class T, class TInterface>
 void* CastObjectToInterface(Base::Object* object) noexcept {
@@ -605,7 +613,8 @@ private:
     MetadataAuthoringSession& AddOwner(
         DependencyPropertyHandle property,
         TypeId ownerType,
-        PropertyMetadata metadata) noexcept;
+        PropertyMetadata metadata,
+        DependencyPropertyFlags flags = DependencyPropertyFlags::None) noexcept;
     MetadataAuthoringSession& RoutedEvent(
         RoutedEventHandle declaredHandle,
         Base::StringView name,
@@ -633,6 +642,9 @@ private:
         const FieldRegistration& registration) noexcept;
     MetadataAuthoringSession& Method(
         const MethodRegistration& registration) noexcept;
+    MetadataAuthoringSession& EventHandler(
+        Base::StringView name,
+        EventHandlerThunk thunk) noexcept;
     MetadataAuthoringSession& EnumValueRaw(
         Base::StringView name,
         std::uint64_t rawValue) noexcept;
@@ -1447,16 +1459,18 @@ public:
         static_assert(std::is_invocable_v<
             decltype(Handler), T&, Object*, TArgs&>,
             "XAML event handler must accept (Object*, EventArgs& or const EventArgs&)");
-        const MethodParameterRegistration parameters[] = {
-            {"sender", TypeOf<Object>()},
-            {"args", TypeOf<TArgs>()}};
-        builder_.Method({
+        builder_.EventHandler(
             name,
-            InvalidTypeId,
-            {parameters, 2U},
-            MethodFlags::None,
-            &InvokeEventHandler<T, TArgs, Handler>,
-            nullptr});
+            static_cast<EventHandlerThunk>(
+                [](Object* target, Object* sender, RoutedEventArgs& args) noexcept {
+                    if (target != nullptr) {
+                        std::invoke(
+                            Handler,
+                            static_cast<T&>(*target),
+                            sender,
+                            static_cast<TArgs&>(args));
+                    }
+                }));
         return *this;
     }
 
@@ -1560,7 +1574,61 @@ public:
         metadata.changed = options.ChangeCallback();
         builder_.AddOwner(
             property.Handle(), TypeOf<T>(),
-            std::move(metadata));
+            std::move(metadata),
+            DependencyPropertyFlags::None);
+        return *this;
+    }
+
+    template<class TOwner, class TValue>
+    TypeBuilder& AddOwner(
+        const AttachedPropertyRef<TOwner, TValue>& property,
+        const FrameworkPropertyMetadata<TValue>& options) noexcept {
+        if (!builder_.Ok()) return *this;
+        ::Aero::Result<::Aero::Meta::Value> encoded =
+            builder_.Encode(options.DefaultValue());
+        if (!encoded) {
+            builder_.Fail(encoded.GetStatus());
+            return *this;
+        }
+        PropertyMetadata metadata;
+        metadata.defaultValue = std::move(encoded).Value();
+        metadata.flags = options.Flags();
+        metadata.defaultUpdateSourceTrigger =
+            options.DefaultUpdateSourceTrigger();
+        metadata.validate = options.Validator();
+        metadata.coerce = options.Coercer();
+        metadata.changed = options.ChangeCallback();
+        builder_.AddOwner(
+            property.Handle(), TypeOf<T>(),
+            std::move(metadata),
+            DependencyPropertyFlags::Attached);
+        return *this;
+    }
+
+    template<class TAliasOwner, class TOwner, class TValue>
+    TypeBuilder& AddOwner(
+        const AttachedPropertyRef<TAliasOwner, TValue>& /*aliasProperty*/,
+        const DependencyPropertyRef<TOwner, TValue>& sourceProperty,
+        const FrameworkPropertyMetadata<TValue>& options) noexcept {
+        if (!builder_.Ok()) return *this;
+        ::Aero::Result<::Aero::Meta::Value> encoded =
+            builder_.Encode(options.DefaultValue());
+        if (!encoded) {
+            builder_.Fail(encoded.GetStatus());
+            return *this;
+        }
+        PropertyMetadata metadata;
+        metadata.defaultValue = std::move(encoded).Value();
+        metadata.flags = options.Flags();
+        metadata.defaultUpdateSourceTrigger =
+            options.DefaultUpdateSourceTrigger();
+        metadata.validate = options.Validator();
+        metadata.coerce = options.Coercer();
+        metadata.changed = options.ChangeCallback();
+        builder_.AddOwner(
+            sourceProperty.Handle(), TypeOf<T>(),
+            std::move(metadata),
+            DependencyPropertyFlags::Attached);
         return *this;
     }
 

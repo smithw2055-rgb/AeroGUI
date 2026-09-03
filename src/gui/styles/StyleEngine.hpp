@@ -1,6 +1,7 @@
 #pragma once
 
 #include "gui/styles/StyleState.hpp"
+#include <Aero/Base/HashMap.hpp>
 #include <Aero/Data/BindingExpression.hpp>
 
 namespace Aero {
@@ -59,6 +60,7 @@ private:
     ::Aero::StyleProviderSession* values_ = nullptr;
     DependencyPropertyRegistry* properties_ = nullptr;
     Base::Vector<StyleApplication> applications_;
+    Base::HashMap<const DependencyObject*, std::uint32_t> objectIndexMap_;
     Base::Result<void> VerifyTarget(
         const DependencyObject& object,
         const Style& style) const noexcept;

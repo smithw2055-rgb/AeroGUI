@@ -406,27 +406,14 @@ Base::Result<BindingPathPlan> BindingPathPlan::Compile(
             segment.dynamic = true;
             plan.hasDynamicResult_ = true;
         } else if (input->Kind() == MetadataTypeKind::Struct) {
-            const FieldInfo* field =
-                descriptors.FindField(currentType, name);
-            if (field == nullptr) {
-                return RecordCompileError(
-                    error,
-                    segmentIndex,
-                    currentType,
-                    name,
-                    Base::Status::Failure(
-                        Base::ErrorCode::NotFound,
-                        "Binding path value field was not found"));
-            }
-            segment.kind = BindingPathSegmentKind::ValueField;
-            segment.member = field->Id();
-            segment.outputType = field->ValueType();
-            segment.readable =
-                runtime.CanReadValueMember(field->Id());
-            segment.writable =
-                runtime.CanWriteValueMember(field->Id()) &&
-                !HasFieldFlag(field->Flags(), FieldFlags::ReadOnly);
-            segment.copyOnWrite = true;
+            return RecordCompileError(
+                error,
+                segmentIndex,
+                currentType,
+                name,
+                Base::Status::Failure(
+                    Base::ErrorCode::Unsupported,
+                    "Binding path value fields are not supported"));
         } else {
             return RecordCompileError(
                 error,
@@ -673,10 +660,9 @@ Base::Result<Value> BindingPathPlan::GetValue(
             Base::ErrorCode::InvalidArgument,
             "Binding path value segment is incompatible");
     }
-    Base::Result<Value> current =
-        runtime.GetValueMember(value, segment.member);
-    if (!current || segmentIndex + 1U == segments_.Size()) return current;
-    return GetValue(runtime, current.Value(), segmentIndex + 1U);
+    return Base::Status::Failure(
+        Base::ErrorCode::Unsupported,
+        "Binding path value fields are not supported");
 }
 
 Base::Result<void> BindingPathPlan::Set(
@@ -847,24 +833,9 @@ Base::Result<bool> BindingPathPlan::SetValue(
             Base::ErrorCode::InvalidArgument,
             "Binding path value segment is incompatible");
     }
-    if (segmentIndex + 1U == segments_.Size()) {
-        Base::Result<void> stored =
-            runtime.SetValueMember(owner, segment.member, value);
-        return stored
-            ? Base::Result<bool>(true)
-            : Base::Result<bool>(stored.GetStatus());
-    }
-    Base::Result<Value> child =
-        runtime.GetValueMember(owner, segment.member);
-    if (!child) return child.GetStatus();
-    Base::Result<bool> changed =
-        SetValue(runtime, child.Value(), segmentIndex + 1U, value);
-    if (!changed || !changed.Value()) return changed;
-    Base::Result<void> stored =
-        runtime.SetValueMember(owner, segment.member, child.Value());
-    return stored
-        ? Base::Result<bool>(true)
-        : Base::Result<bool>(stored.GetStatus());
+    return Base::Status::Failure(
+        Base::ErrorCode::Unsupported,
+        "Binding path value fields are not supported");
 }
 
 } // namespace Aero::Meta

@@ -12,7 +12,8 @@ namespace Aero::Data {
 namespace {
 
 struct DefaultViewEntry {
-    Collections::IItemsSource* source = nullptr;
+    Base::WeakRef<Base::Object> source;
+    Collections::IItemsSource* rawSource = nullptr;
     Ref<CollectionView> view;
 };
 
@@ -110,20 +111,39 @@ CollectionView* CollectionViewSource::GetDefaultView(
     if (CollectionView* existing = AsCollectionView(source)) {
         return existing;
     }
+    Base::Object* sourceObj = source->AsObject();
     Base::Vector<DefaultViewEntry>& views = DefaultViews();
-    for (std::uint32_t index = 0U; index < views.Size(); ++index) {
-        CollectionView* view = views[index].view.Get();
-        if (views[index].source == source) return view;
-        if (view != nullptr &&
-            static_cast<Collections::IItemsSource*>(view) == source) {
-            return view;
+    for (std::uint32_t index = 0U; index < views.Size(); ) {
+        if (views[index].rawSource != nullptr) {
+            Base::Ref<Base::Object> locked = views[index].source.Lock();
+            if (!locked) {
+                if (index + 1U < views.Size()) {
+                    views[index] = std::move(views.Back());
+                }
+                views.PopBack();
+                continue;
+            }
+            if (sourceObj != nullptr && locked.Get() == sourceObj) {
+                return views[index].view.Get();
+            }
+        } else {
+            CollectionView* view = views[index].view.Get();
+            if (view != nullptr &&
+                static_cast<Collections::IItemsSource*>(view) == source) {
+                return view;
+            }
         }
+        ++index;
     }
     Base::Result<Ref<CollectionView>> created =
         Base::MakeRef<CollectionView>(source);
     if (!created) return nullptr;
     DefaultViewEntry entry;
-    entry.source = source;
+    if (sourceObj != nullptr) {
+        entry.source = Base::WeakRef<Base::Object>(
+            Base::Ref<Base::Object>::TryFromBorrowed(*sourceObj));
+        entry.rawSource = source;
+    }
     entry.view = std::move(created).Value();
     CollectionView* view = entry.view.Get();
     Base::Result<void> stored = views.PushBack(std::move(entry));
@@ -137,6 +157,11 @@ CollectionView::CollectionView(
       innerHandler_(this, &CollectionView::OnInnerChanged) {
     static_cast<void>(LiveViews().PushBack(this));
     if (inner_ != nullptr) {
+        Base::Object* obj = inner_->AsObject();
+        if (obj != nullptr) {
+            innerObj_ = Base::WeakRef<Base::Object>(
+                Base::Ref<Base::Object>::TryFromBorrowed(*obj));
+        }
         inner_->AddItemsChanged(innerHandler_);
     }
     Rebuild();
@@ -152,7 +177,9 @@ CollectionView::~CollectionView() {
         }
     }
     if (inner_ != nullptr) {
-        static_cast<void>(inner_->RemoveItemsChanged(innerHandler_));
+        if (!innerObj_.Expired()) {
+            static_cast<void>(inner_->RemoveItemsChanged(innerHandler_));
+        }
     }
 }
 

@@ -1232,9 +1232,11 @@ bool MountAndLayout(
     }
     Result<void> mounted;
     if (TryCast<Window>(root) != nullptr) {
-        live.sampleDocument = {};
         mounted = live.view->SetContent(
             std::move(document), {640.0, 480.0});
+        if (mounted) {
+            live.sampleDocument = {};
+        }
     } else {
         Aero::Markup::XamlReader reader(live.gui);
         Result<Aero::Markup::XamlDocument> host = reader.Parse(
@@ -1246,7 +1248,6 @@ bool MountAndLayout(
         if (!host) {
             return !FailIfSampleError(where, host.GetStatus(), live.diagnostics);
         }
-        live.sampleDocument = {};
         mounted = live.view->SetContent(
             std::move(host).Value(), {640.0, 480.0});
         if (mounted) {
@@ -2250,6 +2251,7 @@ bool TestInventoryTemplateApply() {
     static_cast<void>(themedBar.Value()->ApplyTemplate());
     SAMPLE_CHECK(PumpSample(*live));
     SAMPLE_CHECK(!DiagnosticsReportSampleFailure(diagnostics));
+    static_cast<void>(live->view->SetContent(Ref<FrameworkElement>{}, {}));
     return true;
 }
 
@@ -2373,9 +2375,9 @@ bool TestTutorialSampleXamlLoadApply() {
                 {},
                 &live->diagnostics);
             if (empty) {
-                live->sampleDocument = {};
                 static_cast<void>(live->view->SetContent(
                     std::move(empty).Value(), {640.0, 480.0}));
+                live->sampleDocument = {};
             }
         }
         live->applicationDocument = Aero::Markup::XamlDocument{};
@@ -2464,7 +2466,9 @@ bool TestTutorialSampleXamlLoadApply() {
                 }
                 const std::string generic = entry.path().generic_string();
                 if (generic.find("/SampleData/") != std::string::npos ||
-                    fileName.find("SampleData") != std::string::npos) {
+                    generic.find("/Properties/") != std::string::npos ||
+                    fileName.find("SampleData") != std::string::npos ||
+                    fileName.find("DesignTimeResources") != std::string::npos) {
                     continue;
                 }
                 const std::string whereText =

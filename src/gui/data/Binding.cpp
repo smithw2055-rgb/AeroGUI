@@ -753,6 +753,7 @@ BindingEngine::BindingEngine(
     : dispatcher_(&dispatcher),
       metadata_(metadata),
       bindings_(),
+      handleIndexMap_(),
       propertyChangedHandler_(this, &BindingEngine::OnPropertyChanged) {}
 
 BindingEngine::~BindingEngine() noexcept {
@@ -824,11 +825,13 @@ Base::Result<BindingHandle> BindingEngine::Attach(
         *descriptor.target,
         descriptor.targetProperty,
         descriptor.updateSourceTrigger);
+    const std::uint32_t newIndex = bindings_.Size();
     Base::Result<void> appended = bindings_.PushBack(std::move(record));
     if (!appended) {
         --nextHandle_;
         return appended.GetStatus();
     }
+    static_cast<void>(handleIndexMap_.Insert(bindings_.Back().handle.value, newIndex));
     Base::Result<void> sourceSubscription =
         descriptor.source->AddValueChangedHandlerChecked(
             descriptor.sourceProperty, propertyChangedHandler_);
@@ -1039,6 +1042,7 @@ Base::Result<BindingHandle> BindingEngine::Attach(
         }
     }
 
+    const std::uint32_t newIndex = bindings_.Size();
     Base::Result<void> appended =
         bindings_.PushBack(std::move(record));
     if (!appended) {
@@ -1046,6 +1050,7 @@ Base::Result<BindingHandle> BindingEngine::Attach(
         return appended.GetStatus();
     }
     BindingRecord& stored = bindings_.Back();
+    static_cast<void>(handleIndexMap_.Insert(stored.handle.value, newIndex));
     Base::Result<void> targetSubscription =
         descriptor.target->AddValueChangedHandlerChecked(
             descriptor.targetProperty, propertyChangedHandler_);
@@ -1239,11 +1244,10 @@ Base::Result<bool> BindingEngine::Detach(BindingHandle handle) noexcept {
     if (handle.value == 0U) {
         return false;
     }
-    for (std::uint32_t index = 0U; index < bindings_.Size(); ++index) {
-        if (bindings_[index].handle.value == handle.value) {
-            RemoveAt(index);
-            return true;
-        }
+    const std::uint32_t* found = handleIndexMap_.Find(handle.value);
+    if (found != nullptr && *found < bindings_.Size() && bindings_[*found].handle.value == handle.value) {
+        RemoveAt(*found);
+        return true;
     }
     return false;
 }
@@ -1255,19 +1259,17 @@ Base::Result<bool> BindingEngine::UpdateSource(BindingHandle handle) noexcept {
     if (!hook_.IsValid() || flushing_) {
         return InvalidState("BindingEngine is not ready to update a source");
     }
-    for (BindingRecord& record : bindings_) {
-        if (record.handle.value != handle.value) {
-            continue;
-        }
-        if (record.descriptor.mode != BindingMode::TwoWay &&
-            record.descriptor.mode != BindingMode::OneWayToSource) {
-            return false;
-        }
-        record.targetDirty = true;
-        record.forceSourceUpdate = true;
-        return true;
+    BindingRecord* record = FindRecord(handle);
+    if (record == nullptr) {
+        return false;
     }
-    return false;
+    if (record->descriptor.mode != BindingMode::TwoWay &&
+        record->descriptor.mode != BindingMode::OneWayToSource) {
+        return false;
+    }
+    record->targetDirty = true;
+    record->forceSourceUpdate = true;
+    return true;
 }
 
 Base::Result<bool> BindingEngine::UpdateTarget(BindingHandle handle) noexcept {
@@ -1400,8 +1402,9 @@ Data::MultiBindingExpression BindingEngine::FindMultiBinding(
 BindingEngine::BindingRecord* BindingEngine::FindRecord(
     BindingHandle handle) noexcept {
     if (!handle.IsValid() || handle.engine_ != this) return nullptr;
-    for (BindingRecord& record : bindings_) {
-        if (record.handle.value == handle.value) return &record;
+    const std::uint32_t* found = handleIndexMap_.Find(handle.value);
+    if (found != nullptr && *found < bindings_.Size() && bindings_[*found].handle.value == handle.value) {
+        return &bindings_[*found];
     }
     return nullptr;
 }
@@ -1409,8 +1412,9 @@ BindingEngine::BindingRecord* BindingEngine::FindRecord(
 const BindingEngine::BindingRecord* BindingEngine::FindRecord(
     BindingHandle handle) const noexcept {
     if (!handle.IsValid() || handle.engine_ != this) return nullptr;
-    for (const BindingRecord& record : bindings_) {
-        if (record.handle.value == handle.value) return &record;
+    const std::uint32_t* found = handleIndexMap_.Find(handle.value);
+    if (found != nullptr && *found < bindings_.Size() && bindings_[*found].handle.value == handle.value) {
+        return &bindings_[*found];
     }
     return nullptr;
 }
@@ -2508,6 +2512,7 @@ void BindingEngine::ReleaseMetadataSource(
 
 void BindingEngine::RemoveAt(std::uint32_t index) noexcept {
     BindingRecord& removed = bindings_[index];
+    handleIndexMap_.Erase(removed.handle.value);
     if (removed.sourceKind ==
         BindingSourceKind::DependencyProperty) {
         (void)removed.descriptor.source->RemoveValueChangedHandler(
@@ -2529,6 +2534,7 @@ void BindingEngine::RemoveAt(std::uint32_t index) noexcept {
          current < bindings_.Size();
          ++current) {
         bindings_[current - 1U] = std::move(bindings_[current]);
+        static_cast<void>(handleIndexMap_.Set(bindings_[current - 1U].handle.value, current - 1U));
     }
     bindings_.PopBack();
 }

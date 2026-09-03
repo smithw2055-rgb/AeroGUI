@@ -453,6 +453,7 @@ public:
         const Aero::Collections::ItemsChangedHandler& handler) noexcept override {
         return changed_.Remove(handler);
     }
+    Aero::Base::Object* AsObject() noexcept override { return this; }
     Result<void> Add(Ref<Aero::Base::Object> item) noexcept {
         Result<void> stored = items_.PushBack(std::move(item));
         if (!stored) return stored;
@@ -476,6 +477,7 @@ class UnregisteredItems final :
     public Aero::Base::Object,
     public IItemsSource {
 public:
+    Aero::Base::Object* AsObject() noexcept override { return this; }
     std::uint32_t GetCount() const noexcept override { return 3U; }
     Ref<Aero::Base::Object> GetItem(std::uint32_t) const noexcept override {
         return {};
@@ -4561,10 +4563,9 @@ Result<Ref<BindingItemsViewModel>> MakeBindingItemsViewModel(
 }
 
 void PumpBindings(LiveGui& live) noexcept {
-    PumpForward(live);
-    PumpForward(live);
-    PumpForward(live);
-    PumpForward(live);
+    for (int i = 0; i < 16; ++i) {
+        PumpForward(live);
+    }
 }
 
 bool CountMatchesAfterLayout(

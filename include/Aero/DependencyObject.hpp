@@ -41,9 +41,6 @@ public:
             property) const noexcept;
     template<class TOwner, class TValue>
     PropertyAccess<TValue> GetValue(
-        const AttachedPropertyRef<TOwner, TValue>& property) const noexcept;
-    template<class TOwner, class TValue>
-    PropertyAccess<TValue> GetValue(
         const ReadOnlyPropertyRef<TOwner, TValue>& property) const noexcept;
     template<class TOwner, class TValue>
     TValue GetValueOr(
@@ -53,10 +50,6 @@ public:
     StringView GetValueOr(
         const DependencyPropertyRef<TOwner, String>& property,
         StringView fallback) const noexcept;
-    template<class TOwner, class TValue>
-    TValue GetValueOr(
-        const AttachedPropertyRef<TOwner, TValue>& property,
-        const TValue& fallback) const noexcept;
     template<class TOwner, class TValue>
     TValue GetValueOr(
         const ReadOnlyPropertyRef<TOwner, TValue>& property,
@@ -90,14 +83,6 @@ public:
     Result<void> SetValueChecked(
         const DependencyPropertyRef<TOwner, String>& property,
         StringView value) noexcept;
-    template<class TOwner, class TValue>
-    void SetValue(
-        const AttachedPropertyRef<TOwner, TValue>& property,
-        PropertyAccess<TValue> value) noexcept;
-    template<class TOwner, class TValue>
-    Result<void> SetValueChecked(
-        const AttachedPropertyRef<TOwner, TValue>& property,
-        PropertyAccess<TValue> value) noexcept;
     void SetValue(
         const DependencyPropertyKey& key,
         const PropertyValue& value) noexcept;
@@ -142,11 +127,6 @@ public:
         const DependencyPropertyRef<TOwner, TValue>& property) noexcept {
         return ClearValueChecked(property.Handle());
     }
-    template<class TOwner, class TValue>
-    Result<void> ClearValueChecked(
-        const AttachedPropertyRef<TOwner, TValue>& property) noexcept {
-        return ClearValueChecked(property.Handle());
-    }
     void ClearValue(
         const DependencyPropertyKey& key) noexcept;
     Result<void> ClearValueChecked(
@@ -159,11 +139,6 @@ public:
     template<class TOwner, class TValue>
     Result<void> CoerceValueChecked(
         const DependencyPropertyRef<TOwner, TValue>& property) noexcept {
-        return CoerceValueChecked(property.Handle());
-    }
-    template<class TOwner, class TValue>
-    Result<void> CoerceValueChecked(
-        const AttachedPropertyRef<TOwner, TValue>& property) noexcept {
         return CoerceValueChecked(property.Handle());
     }
 
@@ -264,6 +239,7 @@ private:
     Meta::DependencyPropertyRegistry* registry_ = nullptr;
     TypeId runtimeType_ = InvalidTypeId;
     bool objectServicesAvailable_ = false;
+    mutable bool typeVerified_ = false;
     void* valueStore_ = nullptr;
     Base::Vector<MemberId> updateStack_;
     Base::Vector<ChangeHandlerRecord> changeHandlers_;
@@ -283,6 +259,9 @@ private:
         DependencyPropertyHandle property) const noexcept;
     Result<StoredValueEntry*> EnsureStoredEntry(
         DependencyPropertyHandle property) noexcept;
+    Result<StoredValueEntry*> EnsureStoredEntryDirect(
+        DependencyPropertyHandle canonicalHandle,
+        const PropertyMetadata& metadata) noexcept;
     MemberId CanonicalPropertyKey(
         DependencyPropertyHandle property) const noexcept;
 #endif
@@ -363,14 +342,6 @@ StringView DependencyObject::GetValue(
 
 template<class TOwner, class TValue>
 PropertyAccess<TValue> DependencyObject::GetValue(
-    const AttachedPropertyRef<TOwner, TValue>& property) const noexcept {
-    return GetValue(
-        static_cast<const DependencyPropertyRef<TOwner, TValue>&>(
-            property));
-}
-
-template<class TOwner, class TValue>
-PropertyAccess<TValue> DependencyObject::GetValue(
     const ReadOnlyPropertyRef<TOwner, TValue>& property) const noexcept {
     const PropertyValue stored = GetValue(property.Handle());
     Result<PropertyAccess<TValue>> decoded =
@@ -397,16 +368,6 @@ StringView DependencyObject::GetValueOr(
     return stored.Kind() == Base::ValueKind::String
         ? stored.AsString()
         : fallback;
-}
-
-template<class TOwner, class TValue>
-TValue DependencyObject::GetValueOr(
-    const AttachedPropertyRef<TOwner, TValue>& property,
-    const TValue& fallback) const noexcept {
-    return GetValueOr(
-        static_cast<const DependencyPropertyRef<TOwner, TValue>&>(
-            property),
-        fallback);
 }
 
 template<class TOwner, class TValue>
@@ -467,23 +428,6 @@ Result<void> DependencyObject::SetValueChecked(
     StringView value) noexcept {
     Result<PropertyValue> stored =
         Base::Value::TryFromString(Meta::TypeOf<String>(), value);
-    if (!stored) return stored.GetStatus();
-    return SetValueChecked(property.Handle(), stored.Value());
-}
-
-template<class TOwner, class TValue>
-void DependencyObject::SetValue(
-    const AttachedPropertyRef<TOwner, TValue>& property,
-    PropertyAccess<TValue> value) noexcept {
-    static_cast<void>(SetValueChecked(property, value));
-}
-
-template<class TOwner, class TValue>
-Result<void> DependencyObject::SetValueChecked(
-    const AttachedPropertyRef<TOwner, TValue>& property,
-    PropertyAccess<TValue> value) noexcept {
-    Result<PropertyValue> stored =
-        Meta::ValueCodec<TValue>::Encode(value);
     if (!stored) return stored.GetStatus();
     return SetValueChecked(property.Handle(), stored.Value());
 }

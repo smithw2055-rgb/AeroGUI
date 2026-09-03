@@ -30,25 +30,9 @@ private:
     Base::String name_;
 };
 
-class FieldInfo {
-public:
-    FieldInfo(FieldInfo&&) noexcept = default;
-    FieldInfo& operator=(FieldInfo&&) noexcept = default;
-    FieldInfo(const FieldInfo&) = delete;
-    FieldInfo& operator=(const FieldInfo&) = delete;
-    MemberId Id() const noexcept { return id_; }
-    TypeId OwnerType() const noexcept { return ownerType_; }
-    TypeId ValueType() const noexcept { return valueType_; }
-    FieldFlags Flags() const noexcept { return flags_; }
-    Base::StringView Name() const noexcept { return name_.View(); }
-private:
-    friend class TypeRegistry;
-    FieldInfo() noexcept = default;
-    MemberId id_ = InvalidMemberId;
-    TypeId ownerType_ = InvalidTypeId;
-    TypeId valueType_ = InvalidTypeId;
-    FieldFlags flags_ = FieldFlags::None;
-    Base::String name_;
+struct EventHandlerDescriptor {
+    Base::String name;
+    EventHandlerThunk thunk = nullptr;
 };
 
 class EnumValueInfo {
@@ -68,46 +52,6 @@ private:
     TypeId ownerType_ = InvalidTypeId;
     std::uint64_t rawValue_ = 0U;
     Base::String name_;
-};
-
-class MethodParameterInfo {
-public:
-    MethodParameterInfo(MethodParameterInfo&&) noexcept = default;
-    MethodParameterInfo& operator=(MethodParameterInfo&&) noexcept = default;
-    MethodParameterInfo(const MethodParameterInfo&) = delete;
-    MethodParameterInfo& operator=(const MethodParameterInfo&) = delete;
-    Base::StringView Name() const noexcept { return name_.View(); }
-    TypeId Type() const noexcept { return type_; }
-private:
-    friend class TypeRegistry;
-    MethodParameterInfo() noexcept = default;
-    TypeId type_ = InvalidTypeId;
-    Base::String name_;
-};
-
-class MethodInfo {
-public:
-    MethodInfo(MethodInfo&&) noexcept = default;
-    MethodInfo& operator=(MethodInfo&&) noexcept = default;
-    MethodInfo(const MethodInfo&) = delete;
-    MethodInfo& operator=(const MethodInfo&) = delete;
-    MemberId Id() const noexcept { return id_; }
-    TypeId OwnerType() const noexcept { return ownerType_; }
-    TypeId ReturnType() const noexcept { return returnType_; }
-    MethodFlags Flags() const noexcept { return flags_; }
-    Base::StringView Name() const noexcept { return name_.View(); }
-    Base::Span<const MethodParameterInfo> Parameters() const noexcept {
-        return {parameters_.Data(), parameters_.Size()};
-    }
-private:
-    friend class TypeRegistry;
-    MethodInfo() noexcept = default;
-    MemberId id_ = InvalidMemberId;
-    TypeId ownerType_ = InvalidTypeId;
-    TypeId returnType_ = InvalidTypeId;
-    MethodFlags flags_ = MethodFlags::None;
-    Base::String name_;
-    Base::Vector<MethodParameterInfo> parameters_;
 };
 
 class EventInfo {
@@ -153,10 +97,11 @@ public:
         return {interfaceCasts_.Data(), interfaceCasts_.Size()};
     }
     Base::Span<const PropertyInfo> Properties() const noexcept { return {properties_.Data(), properties_.Size()}; }
-    Base::Span<const FieldInfo> Fields() const noexcept { return {fields_.Data(), fields_.Size()}; }
     Base::Span<const EnumValueInfo> EnumValues() const noexcept { return {enumValues_.Data(), enumValues_.Size()}; }
     Base::Span<const EventInfo> Events() const noexcept { return {events_.Data(), events_.Size()}; }
-    Base::Span<const MethodInfo> Methods() const noexcept { return {methods_.Data(), methods_.Size()}; }
+    Base::Span<const EventHandlerDescriptor> EventHandlers() const noexcept {
+        return {eventHandlers_.Data(), eventHandlers_.Size()};
+    }
     MemberId ContentMember() const noexcept { return contentMember_; }
 private:
     friend class TypeRegistry;
@@ -171,10 +116,9 @@ private:
     Base::Vector<TypeId> interfaces_;
     Base::Vector<InterfaceCastThunk> interfaceCasts_;
     Base::Vector<PropertyInfo> properties_;
-    Base::Vector<FieldInfo> fields_;
     Base::Vector<EnumValueInfo> enumValues_;
     Base::Vector<EventInfo> events_;
-    Base::Vector<MethodInfo> methods_;
+    Base::Vector<EventHandlerDescriptor> eventHandlers_;
     MemberId contentMember_ = InvalidMemberId;
 };
 
@@ -197,13 +141,6 @@ public:
         }
         return count;
     }
-    std::uint32_t FieldCount() const noexcept {
-        std::uint32_t count = 0U;
-        for (const TypeInfo& type : types_) {
-            count += type.Fields().Size();
-        }
-        return count;
-    }
     std::uint32_t EnumValueCount() const noexcept {
         std::uint32_t count = 0U;
         for (const TypeInfo& type : types_) {
@@ -218,10 +155,10 @@ public:
         }
         return count;
     }
-    std::uint32_t MethodCount() const noexcept {
+    std::uint32_t EventHandlerCount() const noexcept {
         std::uint32_t count = 0U;
         for (const TypeInfo& type : types_) {
-            count += type.Methods().Size();
+            count += type.EventHandlers().Size();
         }
         return count;
     }
@@ -230,16 +167,16 @@ public:
     const TypeInfo* FindType(Base::StringView xamlNamespace, Base::StringView name) const noexcept;
     const PropertyInfo* FindProperty(MemberId id) const noexcept;
     const PropertyInfo* FindProperty(TypeId ownerType, Base::StringView name, bool includeBaseTypes = true) const noexcept;
-    const FieldInfo* FindField(MemberId id) const noexcept;
-    const FieldInfo* FindField(TypeId ownerType, Base::StringView name) const noexcept;
     const EnumValueInfo* FindEnumValue(MemberId id) const noexcept;
     const EnumValueInfo* FindEnumValue(TypeId ownerType, Base::StringView name) const noexcept;
     const EnumValueInfo* FindEnumValue(TypeId ownerType, std::uint64_t rawValue) const noexcept;
     bool IsEnumValue(TypeId type, std::uint64_t rawValue) const noexcept;
     const EventInfo* FindEvent(MemberId id) const noexcept;
     const EventInfo* FindEvent(TypeId ownerType, Base::StringView name, bool includeBaseTypes = true) const noexcept;
-    const MethodInfo* FindMethod(MemberId id) const noexcept;
-    const MethodInfo* FindMethod(TypeId ownerType, Base::StringView name, Base::Span<const TypeId> parameterTypes, bool includeBaseTypes = true) const noexcept;
+    EventHandlerThunk FindEventHandler(
+        TypeId ownerType,
+        Base::StringView name,
+        bool includeBaseTypes = true) const noexcept;
     MemberId FindContentMember(TypeId type) const noexcept;
     bool IsDerivedFrom(TypeId type, TypeId expectedBase) const noexcept;
     bool Implements(TypeId type, TypeId interfaceType) const noexcept;
@@ -256,10 +193,9 @@ private:
         TypeId interfaceType,
         InterfaceCastThunk cast = nullptr) noexcept;
     Base::Result<MemberId> RegisterProperty(BehaviorTable& behaviors, TypeId ownerType, const PropertyRegistration& registration) noexcept;
-    Base::Result<MemberId> RegisterField(BehaviorTable& behaviors, TypeId ownerType, const FieldRegistration& registration) noexcept;
     Base::Result<MemberId> RegisterEnumValue(TypeId ownerType, const EnumValueRegistration& registration) noexcept;
     Base::Result<MemberId> RegisterEvent(TypeId ownerType, const EventRegistration& registration) noexcept;
-    Base::Result<MemberId> RegisterMethod(BehaviorTable& behaviors, TypeId ownerType, const MethodRegistration& registration) noexcept;
+    Base::Result<void> RegisterEventHandler(TypeId ownerType, Base::StringView name, EventHandlerThunk thunk) noexcept;
     Base::Result<void> SetFactory(BehaviorTable& behaviors, TypeId type, ObjectFactory factory) noexcept;
     Base::Result<void> SetContentMember(TypeId type, MemberId member) noexcept;
     struct MemberLocation { std::uint32_t typeIndex = 0U; std::uint32_t memberIndex = 0U; MemberKind kind = MemberKind::Property; };
@@ -270,10 +206,8 @@ private:
     TypeInfo* MutableType(TypeId id) noexcept;
     const TypeInfo* TypeAt(std::uint32_t index) const noexcept;
     const PropertyInfo* PropertyAt(const MemberLocation& location) const noexcept;
-    const FieldInfo* FieldAt(const MemberLocation& location) const noexcept;
     const EnumValueInfo* EnumValueAt(const MemberLocation& location) const noexcept;
     const EventInfo* EventAt(const MemberLocation& location) const noexcept;
-    const MethodInfo* MethodAt(const MemberLocation& location) const noexcept;
 };
 
 } // namespace Aero::Meta
@@ -437,13 +371,6 @@ public:
     Base::Result<Value> TryConvertText(
         TypeId type,
         Base::StringView text) const noexcept;
-    Base::Result<Value> GetValueMember(
-        const Value& owner,
-        MemberId member) const noexcept;
-    Base::Result<void> SetValueMember(
-        Value& owner,
-        MemberId member,
-        const Value& value) const noexcept;
     Base::Result<Value> GetProperty(
         const Base::Object& object,
         MemberId member) const noexcept;
@@ -451,10 +378,12 @@ public:
         Base::Object& object,
         MemberId member,
         const Value& value) const noexcept;
-    Base::Result<Value> InvokeMethod(
-        Base::Object& object,
-        MemberId member,
-        Base::Span<const Value> arguments) const noexcept;
+    EventHandlerThunk FindEventHandler(
+        TypeId ownerType,
+        Base::StringView name,
+        bool includeBaseTypes = true) const noexcept;
+    EventHandlerThunk FindEventHandlerThunk(
+        MemberId member) const noexcept;
 
     // Structural registration data is exposed read-only. Mutable registration
     // is confined to module callbacks and their Registration.
@@ -851,6 +780,10 @@ public:
     Base::Result<MemberId> RegisterMethod(
         TypeId ownerType,
         const MethodRegistration& registration) const noexcept;
+    Base::Result<void> RegisterEventHandler(
+        TypeId ownerType,
+        Base::StringView name,
+        EventHandlerThunk thunk) const noexcept;
     Base::Result<void> SetFactory(
         TypeId type,
         ObjectFactory factory) const noexcept;

@@ -31,6 +31,7 @@ public:
         const ItemsChangedHandler& handler) noexcept = 0;
     virtual bool RemoveItemsChanged(
         const ItemsChangedHandler& handler) noexcept = 0;
+    virtual Base::Object* AsObject() noexcept { return nullptr; }
 };
 
 // Non-template IItemsSource hub. Typed ObservableCollection<T> instances
@@ -45,6 +46,9 @@ public:
     ObservableCollectionBase() noexcept = default;
     Meta::TypeId RuntimeType() const noexcept override {
         return StaticTypeId();
+    }
+    Base::Object* AsObject() noexcept override {
+        return this;
     }
     // TwoWay collection-index assignment (Player.Slots[i]) writes through
     // the typed collection, not only ObservableObjectCollection.

@@ -151,6 +151,14 @@ set(_aero_gui_controls_sources
     src/gui/controls/VisualStateManager.cpp)
 
 set(_aero_gui_markup_sources
+    src/gui/markup/MarkupCommon.hpp
+    src/gui/markup/BindingExtension.inl
+    src/gui/markup/DynamicResourceExtension.inl
+    src/gui/markup/StaticResourceExtension.inl
+    src/gui/markup/LocExtension.inl
+    src/gui/markup/TemplateBindingExtension.inl
+    src/gui/markup/TypeExtension.inl
+    src/gui/markup/StaticExtension.inl
     src/gui/markup/XamlParser.cpp
     src/gui/markup/XamlSchemaContext.cpp
     src/gui/markup/XamlObjectWriter.cpp

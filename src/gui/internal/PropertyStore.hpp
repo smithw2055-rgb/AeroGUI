@@ -13,6 +13,46 @@
 
 namespace Aero {
 
+struct StoredValueRarePool {
+    static constexpr std::size_t kMaxPooled = 256U;
+    struct Node { Node* next; };
+    Node* head = nullptr;
+    std::size_t count = 0U;
+
+    ~StoredValueRarePool() noexcept {
+        while (head != nullptr) {
+            Node* next = head->next;
+            ::operator delete(head);
+            head = next;
+        }
+        count = 0U;
+    }
+
+    void* Allocate(std::size_t size) noexcept {
+        if (head != nullptr) {
+            Node* node = head;
+            head = node->next;
+            --count;
+            return node;
+        }
+        return ::operator new(size, std::nothrow);
+    }
+
+    void Deallocate(void* ptr) noexcept {
+        if (ptr == nullptr) return;
+        if (count < kMaxPooled) {
+            auto* node = static_cast<Node*>(ptr);
+            node->next = head;
+            head = node;
+            ++count;
+        } else {
+            ::operator delete(ptr);
+        }
+    }
+};
+
+inline thread_local StoredValueRarePool g_storedValueRarePool;
+
 // Uncommon DP data. Allocated when a local/inherited/provider/expression/
 // animation/current/queue payload exists. GetValue of a simple stored
 // local/style entry reads only StoredValueEntry::effectiveValue.
@@ -25,12 +65,35 @@ struct StoredValueRare {
     PropertyProviderSet baseProviders;
     PropertyValueSourceInfo sourceInfo{};
     std::uint64_t queueSequence = 0U;
+
+    static void* operator new(std::size_t size) noexcept {
+        return g_storedValueRarePool.Allocate(size);
+    }
+    static void* operator new(std::size_t size, const std::nothrow_t&) noexcept {
+        return g_storedValueRarePool.Allocate(size);
+    }
+    static void* operator new(std::size_t size, std::align_val_t, const std::nothrow_t&) noexcept {
+        return g_storedValueRarePool.Allocate(size);
+    }
+
+    static void operator delete(void* ptr) noexcept {
+        g_storedValueRarePool.Deallocate(ptr);
+    }
+    static void operator delete(void* ptr, const std::nothrow_t&) noexcept {
+        g_storedValueRarePool.Deallocate(ptr);
+    }
+    static void operator delete(void* ptr, std::align_val_t) noexcept {
+        g_storedValueRarePool.Deallocate(ptr);
+    }
+    static void operator delete(void* ptr, std::align_val_t, const std::nothrow_t&) noexcept {
+        g_storedValueRarePool.Deallocate(ptr);
+    }
 };
 
 // Wave 4 hot entry (HashMap value; MemberId is the map key):
 //   PropertyValue effectiveValue
-//   std::uint32_t packedFlags   (origin/rank/has* bits)
 //   StoredValueRare* rare
+//   std::uint32_t packedFlags   (origin/rank/has* bits)
 // Local / inherited / animation / expression / providers live in rare.
 // packedFlags:
 //   [0] HasLocal  [1] HasCurrent  [2] HasExpression
@@ -334,8 +397,71 @@ private:
     }
 };
 
+struct PropertyStorePool {
+    static constexpr std::size_t kMaxPooled = 256U;
+    struct Node { Node* next; };
+    Node* head = nullptr;
+    std::size_t count = 0U;
+
+    ~PropertyStorePool() noexcept {
+        while (head != nullptr) {
+            Node* next = head->next;
+            ::operator delete(head);
+            head = next;
+        }
+        count = 0U;
+    }
+
+    void* Allocate(std::size_t size) noexcept {
+        if (head != nullptr) {
+            Node* node = head;
+            head = node->next;
+            --count;
+            return node;
+        }
+        return ::operator new(size, std::nothrow);
+    }
+
+    void Deallocate(void* ptr) noexcept {
+        if (ptr == nullptr) return;
+        if (count < kMaxPooled) {
+            auto* node = static_cast<Node*>(ptr);
+            node->next = head;
+            head = node;
+            ++count;
+        } else {
+            ::operator delete(ptr);
+        }
+    }
+};
+
+inline thread_local PropertyStorePool g_propertyStorePool;
+
 struct PropertyStore {
     Base::HashMap<MemberId, StoredValueEntry> entries;
+
+    static void* operator new(std::size_t size) noexcept {
+        return g_propertyStorePool.Allocate(size);
+    }
+    static void* operator new(std::size_t size, const std::nothrow_t&) noexcept {
+        return g_propertyStorePool.Allocate(size);
+    }
+    static void* operator new(std::size_t size, std::align_val_t, const std::nothrow_t&) noexcept {
+        return g_propertyStorePool.Allocate(size);
+    }
+
+    static void operator delete(void* ptr) noexcept {
+        g_propertyStorePool.Deallocate(ptr);
+    }
+    static void operator delete(void* ptr, const std::nothrow_t&) noexcept {
+        g_propertyStorePool.Deallocate(ptr);
+    }
+    static void operator delete(void* ptr, std::align_val_t) noexcept {
+        g_propertyStorePool.Deallocate(ptr);
+    }
+    static void operator delete(void* ptr, std::align_val_t, const std::nothrow_t&) noexcept {
+        g_propertyStorePool.Deallocate(ptr);
+    }
 };
 
 static_assert(

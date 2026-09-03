@@ -1540,6 +1540,7 @@ Base::Result<TemplateHandle> TemplateEngine::Apply(
     }
     buildState.rootVisual = nullptr;
     buildState.rootElement = nullptr;
+    const std::uint32_t newIndex = instances_.Size();
     Base::Result<void> tracked =
         instances_.PushBack(std::move(instance));
     if (!tracked) {
@@ -1553,6 +1554,8 @@ Base::Result<TemplateHandle> TemplateEngine::Apply(
         return tracked.GetStatus();
     }
     Instance& stored = instances_.Back();
+    static_cast<void>(controlToInstance_.Insert(stored.parent, newIndex));
+    static_cast<void>(handleToInstance_.Insert(stored.handle.value, newIndex));
     Base::Result<void> subscribed = Subscribe(stored);
     if (!subscribed) {
         const Base::Status status = subscribed.GetStatus();
@@ -1676,24 +1679,15 @@ const ControlTemplate* TemplateEngine::AppliedTemplate(
 
 std::uint32_t TemplateEngine::FindInstance(
     TemplateHandle handle) const noexcept {
-    for (std::uint32_t index = 0U;
-         index < instances_.Size();
-         ++index) {
-        if (instances_[index].handle.value == handle.value) {
-            return index;
-        }
-    }
-    return UINT32_MAX;
+    if (!handle.IsValid()) return UINT32_MAX;
+    const std::uint32_t* found = handleToInstance_.Find(handle.value);
+    return found != nullptr ? *found : UINT32_MAX;
 }
 
 std::uint32_t TemplateEngine::FindInstance(
     const Control& control) const noexcept {
-    for (std::uint32_t index = 0U;
-         index < instances_.Size();
-         ++index) {
-        if (instances_[index].parent == &control) return index;
-    }
-    return UINT32_MAX;
+    const std::uint32_t* found = controlToInstance_.Find(&control);
+    return found != nullptr ? *found : UINT32_MAX;
 }
 
 DependencyObject* TemplateEngine::FindTarget(
@@ -2203,8 +2197,12 @@ Base::Result<void> TemplateEngine::ClearAt(
             tree_->InvalidateNodeHandle(*part.visual);
         }
     }
+    controlToInstance_.Erase(instance.parent);
+    handleToInstance_.Erase(instance.handle.value);
     if (index + 1U != instances_.Size()) {
         instances_[index] = std::move(instances_[instances_.Size() - 1U]);
+        static_cast<void>(controlToInstance_.Set(instances_[index].parent, index));
+        static_cast<void>(handleToInstance_.Set(instances_[index].handle.value, index));
     }
     instances_.PopBack();
     return {};

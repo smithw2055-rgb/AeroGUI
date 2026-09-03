@@ -152,26 +152,52 @@ const PropertyMetadata* DependencyProperty::MetadataFor(
         return nullptr;
     }
 
+    for (std::uint32_t i = 0U; i < 4U; ++i) {
+        if (metadataCache_[i].forType == forType) {
+            if (i > 0U) {
+                const MetadataCacheEntry hit = metadataCache_[i];
+                for (std::uint32_t j = i; j > 0U; --j) {
+                    metadataCache_[j] = metadataCache_[j - 1U];
+                }
+                metadataCache_[0] = hit;
+            }
+            return metadataCache_[0].metadata;
+        }
+    }
+
+    const PropertyMetadata* result = nullptr;
     TypeId current = forType;
     std::uint32_t remaining = typeRegistry_->TypeCount() + 1U;
     while (current != InvalidTypeId && remaining > 0U) {
         const MetadataEntry* exact = FindMetadataExact(current);
         if (exact != nullptr) {
-            return &exact->metadata;
+            result = &exact->metadata;
+            break;
         }
 
         const TypeInfo* type = typeRegistry_->FindType(current);
         if (type == nullptr) {
-            return nullptr;
+            break;
         }
         current = type->BaseType();
         --remaining;
     }
-    if (IsAttached()) {
+    if (result == nullptr && IsAttached()) {
         const MetadataEntry* owner = FindMetadataExact(registeredOwnerType_);
-        return owner != nullptr ? &owner->metadata : nullptr;
+        if (owner != nullptr) {
+            result = &owner->metadata;
+        }
     }
-    return nullptr;
+
+    if (result != nullptr) {
+        for (std::uint32_t j = 3U; j > 0U; --j) {
+            metadataCache_[j] = metadataCache_[j - 1U];
+        }
+        metadataCache_[0].forType = forType;
+        metadataCache_[0].metadata = result;
+    }
+
+    return result;
 }
 
 DependencyPropertyRegistry::DependencyPropertyRegistry(
@@ -523,7 +549,8 @@ DependencyPropertyRegistry::Register(
 Base::Result<void> DependencyPropertyRegistry::AddOwner(
     DependencyPropertyHandle propertyHandle,
     TypeId ownerType,
-    const PropertyMetadata& metadata) noexcept {
+    const PropertyMetadata& metadata,
+    DependencyPropertyFlags flags) noexcept {
     if (frozen_ || typeRegistry_->IsFrozen()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -549,6 +576,8 @@ Base::Result<void> DependencyPropertyRegistry::AddOwner(
             Base::ErrorCode::AlreadyExists,
             "Dependency property already has metadata for this owner");
     }
+
+    property.flags_ = property.flags_ | flags;
 
     Base::Result<void> validation = ValidateMetadata(
         property.ValueType(),
@@ -598,7 +627,7 @@ Base::Result<void> DependencyPropertyRegistry::AddOwner(
     PropertyRegistration metaProperty;
     metaProperty.name = property.Name();
     metaProperty.valueType = property.ValueType();
-    metaProperty.flags = ToTypeRegistryFlags(property.Flags(), metadata.flags);
+    metaProperty.flags = ToTypeRegistryFlags(property.Flags() | flags, metadata.flags);
     metaProperty.access = PropertyAccessKind::Provider;
     metaProperty.provider = DependencyPropertyProviderId;
     Base::Result<MemberId> alias = RegistrationTypes(

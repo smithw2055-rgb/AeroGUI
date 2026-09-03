@@ -869,12 +869,14 @@ Base::Result<void> StyleEngine::Apply(
         if (states) states = application.bindingTriggerKnown.Resize(
             StylePrivate::RuntimeTriggers(style).Size(), 0U);
         if (!states) return states.GetStatus();
+        const std::uint32_t newIndex = applications_.Size();
         Base::Result<void> tracked =
             applications_.PushBack(
                 std::move(application));
         if (!tracked) {
             return tracked.GetStatus();
         }
+        static_cast<void>(objectIndexMap_.Insert(&object, newIndex));
     } else if (requiresSubscription) {
         applications_[existing].style = &style;
         Base::Result<void> states =
@@ -924,8 +926,10 @@ Base::Result<void> StyleEngine::Clear(
     }
     if (existing != UINT32_MAX) {
         triggerEngine_->RemovePendingTriggerEvaluation(object);
+        objectIndexMap_.Erase(&object);
         if (existing + 1U != applications_.Size()) {
-            applications_[existing] = applications_[applications_.Size() - 1U];
+            applications_[existing] = std::move(applications_[applications_.Size() - 1U]);
+            static_cast<void>(objectIndexMap_.Set(applications_[existing].object, existing));
         }
         applications_.PopBack();
     }
@@ -947,8 +951,10 @@ Base::Result<bool> StyleEngine::DetachObject(
     if (!cleared) {
         return cleared.GetStatus();
     }
+    objectIndexMap_.Erase(&object);
     if (existing + 1U != applications_.Size()) {
-        applications_[existing] = applications_[applications_.Size() - 1U];
+        applications_[existing] = std::move(applications_[applications_.Size() - 1U]);
+        static_cast<void>(objectIndexMap_.Set(applications_[existing].object, existing));
     }
     applications_.PopBack();
     return true;
@@ -966,12 +972,8 @@ const Style* StyleEngine::AppliedStyle(
 
 std::uint32_t StyleEngine::FindApplication(
     const DependencyObject& object) const noexcept {
-    for (std::uint32_t index = 0U; index < applications_.Size(); ++index) {
-        if (applications_[index].object == &object) {
-            return index;
-        }
-    }
-    return UINT32_MAX;
+    const std::uint32_t* found = objectIndexMap_.Find(&object);
+    return found != nullptr ? *found : UINT32_MAX;
 }
 
 Base::Result<void> StyleEngine::ClearSetters(
@@ -1084,6 +1086,7 @@ StyleEngine::StyleEngine(
       values_(&providerSession_),
       properties_(&properties),
       applications_(),
+      objectIndexMap_(),
       triggerEngine_(new TriggerEngine(
           *values_, *properties_, applications_)) {}
 
