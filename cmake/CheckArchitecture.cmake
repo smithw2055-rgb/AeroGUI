@@ -1041,9 +1041,47 @@ aero_forbid_text(
     "struct Access;"
     "FrameworkElement must not expose an unused Access seam")
 aero_require_text(
-    "src/gui/markup/XamlObjectWriter.cpp"
+    "src/gui/markup/XamlObjectWriter.Properties.cpp"
     "ObjectBuilder::ConnectEvent("
     "XAML event attributes must connect through the object-writer pipeline")
+aero_forbid_text(
+    "src/gui/markup/XamlObjectWriter.cpp"
+    "BindingExtension.inl"
+    "Markup extensions must compile as dedicated translation units, not amalgamate into XamlObjectWriter.cpp")
+aero_require_file("src/gui/markup/XamlObjectWriter.Properties.cpp")
+aero_require_file("src/gui/markup/XamlObjectWriter.Extensions.cpp")
+aero_require_file("src/gui/markup/XamlObjectWriter.Scopes.cpp")
+aero_require_file("src/gui/markup/BindingExtension.cpp")
+aero_require_file("src/gui/markup/DynamicResourceExtension.cpp")
+aero_require_file("src/gui/markup/StaticResourceExtension.cpp")
+aero_require_file("src/gui/markup/LocExtension.cpp")
+aero_require_file("src/gui/markup/TemplateBindingExtension.cpp")
+aero_require_file("src/gui/markup/TypeExtension.cpp")
+aero_require_file("src/gui/markup/StaticExtension.cpp")
+aero_forbid_text(
+    "include/Aero/Threading.hpp"
+    "RegisterFrameHook("
+    "Dispatcher frame-hook table is retired; ViewFrame drives engines directly")
+aero_forbid_text(
+    "include/Aero/Threading.hpp"
+    "RunFramePhase("
+    "Dispatcher::RunFramePhase is retired; ViewFrame calls engines directly")
+aero_forbid_text(
+    "include/Aero/Threading.hpp"
+    "RemoveFrameHook("
+    "Dispatcher frame-hook table is retired")
+aero_forbid_text(
+    "include/Aero/Threading.hpp"
+    "RegisteredFrameHookCount("
+    "Dispatcher frame-hook table is retired")
+aero_forbid_text(
+    "src/gui/core/Dispatcher.cpp"
+    "RegisterFrameHook("
+    "Do not restore the Dispatcher frame-hook table")
+aero_forbid_text(
+    "src/gui/core/Dispatcher.cpp"
+    "RunFramePhase("
+    "Do not restore Dispatcher::RunFramePhase")
 aero_require_file("templates/AeroApp/App.xaml")
 aero_require_file("templates/AeroApp/MainWindow.xaml")
 

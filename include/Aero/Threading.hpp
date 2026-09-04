@@ -65,14 +65,6 @@ struct DispatcherTaskHandle  {
     }
 };
 
-struct DispatcherFrameHookHandle  {
-    std::uint64_t value = 0U;
-
-    constexpr bool IsValid() const noexcept {
-        return value != 0U;
-    }
-};
-
 constexpr bool operator==(
     DispatcherTaskHandle left, DispatcherTaskHandle right) noexcept {
     return left.value == right.value;
@@ -80,18 +72,6 @@ constexpr bool operator==(
 
 constexpr bool operator!=(
     DispatcherTaskHandle left, DispatcherTaskHandle right) noexcept {
-    return !(left == right);
-}
-
-constexpr bool operator==(
-    DispatcherFrameHookHandle left,
-    DispatcherFrameHookHandle right) noexcept {
-    return left.value == right.value;
-}
-
-constexpr bool operator!=(
-    DispatcherFrameHookHandle left,
-    DispatcherFrameHookHandle right) noexcept {
     return !(left == right);
 }
 
@@ -166,20 +146,8 @@ public:
         std::uint32_t maxCallbacks =
             UnlimitedDispatcherCallbacks) noexcept;
 
-    Result<DispatcherFrameHookHandle>
-    RegisterFrameHook(
-        DispatcherFramePhase phase,
-        DispatcherCallback callback,
-        void* context = nullptr,
-        DispatcherCleanupCallback cleanup = nullptr) noexcept;
-
-    Result<bool> RemoveFrameHook(
-        DispatcherFrameHookHandle handle) noexcept;
-
-    // Hooks run in registration order. Hooks added while a phase is running
-    // are deferred until the next invocation of that phase.
-    Result<std::uint32_t> RunFramePhase(
-        DispatcherFramePhase phase) noexcept;
+    // Snapshot of last recorded frame-phase durations. ViewFrame drives
+    // engines directly, so this remains zero unless a host fills it.
     DispatcherFrameTimings
     FrameTimings() const noexcept;
 
@@ -187,7 +155,6 @@ public:
     EnterReentrancyGuard() noexcept;
 
     std::uint32_t PendingTaskCount() const noexcept;
-    std::uint32_t RegisteredFrameHookCount() const noexcept;
     bool IsPumping() const noexcept;
     std::uint32_t ReentrancyDepth() const noexcept;
 
@@ -219,19 +186,8 @@ private:
         RecordState state = RecordState::Pending;
     };
 
-    struct FrameHookRecord  {
-        DispatcherFrameHookHandle handle;
-        std::uint64_t sequence = 0U;
-        DispatcherFramePhase phase = DispatcherFramePhase::BeginFrame;
-        DispatcherCallback callback = nullptr;
-        DispatcherCleanupCallback cleanup = nullptr;
-        void* context = nullptr;
-        RecordState state = RecordState::Pending;
-    };
-
     Base::Vector<TaskRecord> ready_;
     Base::Vector<TaskRecord> delayed_;
-    Base::Vector<FrameHookRecord> hooks_;
     mutable std::mutex mutex_;
     PropertySlab propertySlab_;
 
@@ -243,13 +199,8 @@ private:
     DispatcherWakeCallback wake_ = nullptr;
     void* wakeContext_ = nullptr;
     std::uint64_t nextTaskHandle_ = 1U;
-    std::uint64_t nextHookHandle_ = 1U;
-    std::uint64_t nextHookSequence_ = 1U;
-    DispatcherFrameHookHandle activeHook_;
     std::uint32_t guardDepth_ = 0U;
-    DispatcherFrameTimings frameTimings_;
     bool pumping_ = false;
-    bool phaseActive_ = false;
     bool shuttingDown_ = false;
 
     Result<DispatcherTaskHandle> Enqueue(
@@ -269,8 +220,6 @@ private:
 
     void CompactReadyLocked(bool force) noexcept;
     void CompactDelayedLocked(bool force) noexcept;
-    void CompactHooksLocked() noexcept;
-    void FinishFramePhaseLocked(DispatcherFramePhase phase) noexcept;
     void DiscardCompletedReadyPrefixLocked() noexcept;
     void DiscardCompletedDelayedPrefixLocked() noexcept;
     void LeaveReentrancyGuard() noexcept;
@@ -278,8 +227,6 @@ private:
 
     static bool IsValidPriority(
         DispatcherPriority priority) noexcept;
-    static bool IsValidFramePhase(
-        DispatcherFramePhase phase) noexcept;
 };
 
 } // namespace Aero::Threading

@@ -1101,10 +1101,9 @@ Base::Result<std::uint32_t> ExecuteViewFrame(ViewState& state, View& view) noexc
         skipUnsyncedVisualPhases = true;
     }
 
-    // P3.2: explicit direct phase driving. The Dispatcher::RunFramePhase
-    // hook table is retired (no engine registers hooks anymore); ViewFrame
-    // is the single frame funnel and calls each engine entry directly in
-    // WPF order:
+    // P3.2: explicit direct phase driving. The Dispatcher frame-hook table
+    // is deleted; ViewFrame is the single frame funnel and calls each
+    // engine entry directly in WPF order:
     //   PropertyChanges (values->Flush)
     //   -> DataBind (bindings DataBindHook, single canonical call)
     //   -> Animation (animations AnimationFrameHook)

@@ -157,16 +157,27 @@ set(_aero_gui_controls_sources
 
 set(_aero_gui_markup_sources
     src/gui/markup/MarkupCommon.hpp
+    src/gui/markup/XamlObjectWriterInternal.hpp
     src/gui/markup/BindingExtension.inl
+    src/gui/markup/BindingExtension.cpp
     src/gui/markup/DynamicResourceExtension.inl
+    src/gui/markup/DynamicResourceExtension.cpp
     src/gui/markup/StaticResourceExtension.inl
+    src/gui/markup/StaticResourceExtension.cpp
     src/gui/markup/LocExtension.inl
+    src/gui/markup/LocExtension.cpp
     src/gui/markup/TemplateBindingExtension.inl
+    src/gui/markup/TemplateBindingExtension.cpp
     src/gui/markup/TypeExtension.inl
+    src/gui/markup/TypeExtension.cpp
     src/gui/markup/StaticExtension.inl
+    src/gui/markup/StaticExtension.cpp
     src/gui/markup/XamlParser.cpp
     src/gui/markup/XamlSchemaContext.cpp
     src/gui/markup/XamlObjectWriter.cpp
+    src/gui/markup/XamlObjectWriter.Properties.cpp
+    src/gui/markup/XamlObjectWriter.Extensions.cpp
+    src/gui/markup/XamlObjectWriter.Scopes.cpp
     src/gui/markup/TemplateProgram.cpp
     src/gui/markup/StyleSupport.inl
     src/gui/markup/TemplateSupport.inl
