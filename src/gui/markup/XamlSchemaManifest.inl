@@ -8,15 +8,16 @@
 #include <new>
 
 namespace Aero::Markup {
-namespace {
-
-constexpr std::uint32_t ManifestMagic = UINT32_C(0x48435341); // ASCH
-constexpr std::uint32_t ManifestEncodingVersion = 1U;
 
 enum class ManifestMemberKind : std::uint8_t {
     Property = 0U,
     Event
 };
+
+namespace {
+
+constexpr std::uint32_t ManifestMagic = UINT32_C(0x48435341); // ASCH
+constexpr std::uint32_t ManifestEncodingVersion = 1U;
 
 Base::Status InvalidManifest(const char* message) noexcept {
     return Base::Status::Failure(Base::ErrorCode::ValidationFailed, message);
