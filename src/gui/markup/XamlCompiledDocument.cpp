@@ -1,3 +1,16 @@
+#include "gui/meta/MetadataState.hpp"
+#include "gui/core/State.hpp"
+#include "gui/media/AnimationEngine.hpp"
+#include "gui/styles/StyleState.hpp"
+#include "gui/markup/MarkupState.hpp"
+#include "gui/markup/MarkupWriterState.hpp"
+#include <Aero/VisualStateManager.hpp>
+#include <cmath>
+#include <cstring>
+#include <utility>
+#include <cstdint>
+
+
 // ===== CompiledDocument =====
 
 

@@ -76,9 +76,11 @@ set(_aero_gui_meta_sources
 
 set(_aero_gui_data_sources
     src/gui/data/BindingPath.cpp
+    src/gui/data/BindingInternal.hpp
     src/gui/data/Binding.cpp
+    src/gui/data/BindingEvaluation.cpp
+    src/gui/data/BindingOperations.cpp
     src/gui/data/BindingExpression.cpp
-    src/gui/data/BindingObjects.cpp
     src/gui/data/NotifyPropertyChanged.cpp
     src/gui/data/CollectionView.cpp)
 
@@ -116,7 +118,9 @@ set(_aero_gui_interactivity_sources
     src/gui/interactivity/BlendBehaviors.cpp)
 
 set(_aero_gui_media_sources
+    src/gui/media/AnimationEngineInternal.hpp
     src/gui/media/AnimationEngine.cpp
+    src/gui/media/AnimationEngine.Apply.cpp
     src/gui/media/Animation.cpp
     src/gui/media/Brushes.cpp
     src/gui/media/Effects.cpp
@@ -130,7 +134,10 @@ set(_aero_gui_media_sources
     src/gui/media/MediaElement.cpp
     src/gui/media/StbImageImplementation.cpp
     src/gui/media/Transforms.cpp
+    src/gui/media/StoryboardHostInternal.hpp
     src/gui/media/StoryboardHost.cpp
+    src/gui/media/StoryboardHost.Properties.cpp
+    src/gui/media/StoryboardHost.Timelines.cpp
     src/gui/media/StoryboardHost.Actions.cpp
     src/gui/media/StoryboardHost.Completions.cpp
     src/gui/media/StoryboardHost.Events.cpp)
@@ -145,18 +152,36 @@ set(_aero_gui_controls_sources
     src/gui/controls/Panels.cpp
     src/gui/controls/Images.cpp
     src/gui/controls/Items.cpp
+    src/gui/controls/ItemContainerGenerator.cpp
     src/gui/controls/ListView.cpp
     src/gui/controls/Menus.cpp
     src/gui/controls/ControlsMetadata.cpp
-    src/gui/controls/Scroll.cpp
+    src/gui/controls/ScrollInternal.hpp
+    src/gui/controls/ScrollContentPresenter.cpp
+    src/gui/controls/ScrollViewer.cpp
+    src/gui/controls/ScrollBar.cpp
+    src/gui/controls/ScrollBehavior.cpp
     src/gui/controls/Selection.cpp
+    src/gui/controls/TextBoxInternal.hpp
     src/gui/controls/TextBox.cpp
+    src/gui/controls/PasswordBox.cpp
+    src/gui/controls/TextBoxSelection.cpp
+    src/gui/controls/TextBoxBehavior.cpp
     src/gui/controls/Trees.cpp
     src/gui/controls/Virtualization.cpp
     src/gui/controls/VisualStateManager.cpp)
 
 set(_aero_gui_markup_sources
     src/gui/markup/MarkupCommon.hpp
+    src/gui/markup/XamlObjectWriterInternal.hpp
+    src/gui/markup/MarkupExtensionHost.hpp
+    src/gui/markup/XamlObjectWriterInternal.cpp
+    src/gui/markup/XamlObjectWriterBuilderCore.cpp
+    src/gui/markup/XamlObjectWriterPropertyApply.cpp
+    src/gui/markup/XamlObjectWriterMarkupEval.cpp
+    src/gui/markup/XamlObjectWriterNameScope.cpp
+    src/gui/markup/XamlObjectWriter.cpp
+    src/gui/markup/XamlMarkupExtensions.cpp
     src/gui/markup/BindingExtension.inl
     src/gui/markup/DynamicResourceExtension.inl
     src/gui/markup/StaticResourceExtension.inl
@@ -165,12 +190,16 @@ set(_aero_gui_markup_sources
     src/gui/markup/TypeExtension.inl
     src/gui/markup/StaticExtension.inl
     src/gui/markup/XamlParser.cpp
+    src/gui/markup/XamlCompiledSchema.cpp
+    src/gui/markup/XamlSchemaMetadata.cpp
+    src/gui/markup/XamlSchemaManifest.cpp
     src/gui/markup/XamlSchemaContext.cpp
-    src/gui/markup/XamlObjectWriter.cpp
-    src/gui/markup/TemplateProgram.cpp
-    src/gui/markup/StyleSupport.inl
-    src/gui/markup/TemplateSupport.inl
-    src/gui/markup/TemplateCompiler.inl
+    src/gui/markup/StyleSupport.cpp
+    src/gui/markup/TemplateSupport.cpp
+    src/gui/markup/TemplateCompiler.cpp
+    src/gui/markup/XamlCompiledDocument.cpp
+    src/gui/markup/XamlDocumentCache.cpp
+    src/gui/markup/XamlObjectLoader.cpp
     src/gui/markup/XamlLoader.cpp
     src/gui/markup/GuiSchema.cpp
     src/gui/markup/ReloadCoordinator.cpp
@@ -247,7 +276,11 @@ add_library(Aero::Gui ALIAS AeroGui)
 target_include_directories(AeroGui
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        # B4: Meta.hpp pulls TypeBuilder authoring detail from src/gui/meta.
+        # BUILD uses src/; INSTALL uses the aero-meta-authoring prefix only.
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
         $<INSTALL_INTERFACE:include>
+        $<INSTALL_INTERFACE:include/aero-meta-authoring>
     PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(AeroGui PUBLIC Aero::Base Threads::Threads)
@@ -408,6 +441,8 @@ unset(_aero_theme_embed_result)
 # Private retained renderer and backend-neutral render-device machinery remain
 # part of the explicit render-contract and composition lists above.
 
+# Shared GPU StateCache (header-only) under src/render/common/ is included by
+# both AeroRenderOpenGL33 and AeroRenderD3D11 via PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src.
 # OpenGL 3.3 is a separately linkable backend product. AeroGui contains no GL
 # implementation or factory symbols.
 add_library(AeroRenderOpenGL33 ${AERO_LIBRARY_TYPE}

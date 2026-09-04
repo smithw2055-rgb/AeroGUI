@@ -1,4 +1,5 @@
 #include "gui/ViewState.hpp"
+#include "gui/media/StoryboardHostInternal.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/core/state/EventRouter.hpp"
 #include <Aero/CommandBinding.hpp>
@@ -23,18 +24,6 @@ namespace Aero {
 using namespace ::Aero;
 namespace MediaAnimation = ::Aero::Media::Animation;
 
-namespace {
-
-template<class TAnimation>
-Aero::Media::Animation::TimelineRuntime::KeyframeSchedule
-MakeKeyframeSchedule(
-    const TAnimation& animation,
-    Aero::Media::Animation::AnimationTime authoredDuration) noexcept {
-    return Aero::Media::Animation::TimelineRuntime::MakeSchedule(
-        animation.GetKeyFrames(), authoredDuration);
-}
-
-} // namespace
 
 StoryboardHost::StoryboardHost(ViewState& owner) noexcept
     : view(&owner),
@@ -77,7 +66,6 @@ Base::Result<Base::StringView> StoryboardHost::AnimationAttachedString(
         return value.Value().AsString();
     }
 
-#include "StoryboardProperties.inl"
 
 
 StoryboardHost::StoryboardTimingState StoryboardHost::ComposeStoryboardTiming(
@@ -208,7 +196,6 @@ Base::Result<std::uint32_t>
         return std::uint32_t{1U};
     }
 
-#include "StoryboardTimelines.inl"
 
 
 Base::Result<std::uint32_t> StoryboardHost::StartContentElementAnimations(

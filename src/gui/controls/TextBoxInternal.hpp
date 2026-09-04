@@ -1,3 +1,76 @@
+#pragma once
+
+// Shared helpers / display policies for TextBox* translation units
+// (formerly anonymous helpers + TextBoxPolicy.inl amalgamated into TextBox.cpp).
+
+#include "gui/core/State.hpp"
+#include "gui/text/EditableText.hpp"
+#include "TextBlockLayout.hpp"
+
+#include <Aero/UIElement.hpp>
+
+#include <algorithm>
+#include <cstdint>
+#include <limits>
+
+namespace Aero::Controls {
+namespace TextBoxDetail {
+
+inline constexpr double DefaultAdvance = 8.0;
+inline constexpr double DefaultLineHeight = 18.0;
+inline constexpr double CaretWidth = 1.0;
+inline constexpr double ScrollLine = 16.0;
+
+inline std::uint32_t EffectiveMaximumLength(
+    std::uint32_t value) noexcept {
+    return value == 0U ? UINT32_MAX : value;
+}
+
+inline double ClampOffset(
+    double value,
+    double extent,
+    double viewport) noexcept {
+    const double maximum =
+        std::max(0.0, extent - viewport);
+    return std::min(std::max(0.0, value), maximum);
+}
+
+inline Point ToLocalPoint(
+    const UIElement& element,
+    Point point) noexcept {
+    const UIElement* current = &element;
+    while (current != nullptr) {
+        const Rect slot = current->GetLayoutSlot();
+        point.x -= slot.x;
+        point.y -= slot.y;
+        current = current->LayoutParent();
+    }
+    return point;
+}
+
+inline Rect ToRootRect(
+    const UIElement& element,
+    Rect rect) noexcept {
+    const UIElement* current = &element;
+    while (current != nullptr) {
+        const Rect slot = current->GetLayoutSlot();
+        rect.x += slot.x;
+        rect.y += slot.y;
+        current = current->LayoutParent();
+    }
+    return rect;
+}
+
+} // namespace TextBoxDetail
+
+using TextBoxDetail::DefaultAdvance;
+using TextBoxDetail::DefaultLineHeight;
+using TextBoxDetail::CaretWidth;
+using TextBoxDetail::ScrollLine;
+using TextBoxDetail::EffectiveMaximumLength;
+using TextBoxDetail::ClampOffset;
+using TextBoxDetail::ToLocalPoint;
+using TextBoxDetail::ToRootRect;
 
 class TextDisplayPolicy {
 public:
@@ -83,21 +156,29 @@ private:
     Base::String mask_;
 };
 
+inline ::Aero::Text::EditableTextModel& Model(
+    void* value) noexcept {
+    return *static_cast<::Aero::Text::EditableTextModel*>(value);
+}
+
+inline const ::Aero::Text::EditableTextModel& Model(
+    const void* value) noexcept {
+    return *static_cast<const ::Aero::Text::EditableTextModel*>(value);
+}
+
+inline TextDisplayPolicy* DisplayPolicy(
+    void* value) noexcept {
+    return static_cast<TextDisplayPolicy*>(value);
+}
+
+inline PasswordTextDisplayPolicy* PasswordPolicy(
+    void* value) noexcept {
+    return static_cast<PasswordTextDisplayPolicy*>(value);
+}
+
+inline TextBlockLayout* LayoutService(
+    const ::Aero::Media::Visual& visual) noexcept {
+    return AeroGuiInternal::TypedTextLayoutRuntime<TextBlockLayout>(visual);
+}
+
 } // namespace Aero::Controls
-
-namespace Aero::Controls {
-
-using namespace Primitives;
-using namespace ::Aero::Render;
-} // namespace Aero::Controls
-
-namespace Aero::Controls {
-using ::Aero::Controls::TextDisplayPolicy;
-using ::Aero::Controls::PlainTextDisplayPolicy;
-using ::Aero::Controls::PasswordTextDisplayPolicy;
-using ::Aero::Controls::TextLayoutRequest;
-using ::Aero::Controls::TextLayoutResult;
-} // namespace Aero::Controls
-
-namespace Aero::Controls {
-using namespace Primitives;

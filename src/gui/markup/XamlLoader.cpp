@@ -94,9 +94,6 @@ Base::Result<void> ValidateCompiledCacheIdentity(
 
 
 
-#include "gui/markup/XamlCompiledDocument.inl"
-#include "gui/markup/XamlDocumentCache.inl"
-#include "gui/markup/XamlObjectLoader.inl"
 
 // ===== Resources =====
 

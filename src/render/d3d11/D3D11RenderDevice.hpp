@@ -8,6 +8,7 @@
 #include <AeroRender/RenderTarget.hpp>
 #include <AeroRender/Texture.hpp>
 #include <AeroRender/D3D11.hpp>
+#include "render/common/StateCache.hpp"
 
 #if defined(_WIN32)
 #ifndef WIN32_LEAN_AND_MEAN
@@ -186,6 +187,7 @@ private:
     DeviceCaps caps_{};
     D3D11RenderTarget* currentTarget_ = nullptr;
     ID3D11RasterizerState* currentRasterizer_ = nullptr;
+    StateCache stateCache_{};
 };
 
 } // namespace Aero::Render

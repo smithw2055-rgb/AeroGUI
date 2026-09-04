@@ -1,8 +1,31 @@
+#include "gui/data/BindingInternal.hpp"
+
+#include "gui/meta/MetadataState.hpp"
+#include "gui/core/State.hpp"
+#include "gui/data/BindingEngine.hpp"
+#include "gui/controls/State.hpp"
+#include <Aero/Data/Binding.hpp>
+#include <Aero/FrameworkElement.hpp>
+#include <Aero/LogicalTreeHelper.hpp>
+#include <Aero/VisualTreeHelper.hpp>
+#include <Aero/Visual.hpp>
+#include <Aero/TryCast.hpp>
+#include <Aero/Resources.hpp>
+#include <Aero/Media/Geometry.hpp>
+#include <Aero/Media/SolidColorBrush.hpp>
+#include <Aero/Media/StreamGeometry.hpp>
+
+#include <cmath>
+#include <cstdio>
+#include <cstring>
+#include <limits>
+#include <utility>
+
 namespace Aero::Data {
 
 using namespace Aero::Meta;
 using namespace Aero::Threading;
-namespace {
+
 
 Base::Status InvalidState(const char* message) noexcept {
     return Base::Status::Failure(Base::ErrorCode::InvalidState, message);
@@ -16,7 +39,7 @@ Base::Status BindingTypeMismatch(
     const TypeRegistry& types,
     Base::StringView path,
     TypeId sourceType,
-    const DependencyObject& target,
+    const ::Aero::DependencyObject& target,
     const DependencyProperty* targetProperty) noexcept {
     thread_local char message[512];
     const TypeInfo* source =
@@ -406,7 +429,7 @@ bool IsZeroPaddingFormat(
 Base::Result<Base::String> FormatBindingString(
     const PropertyValue& value,
     Base::StringView format,
-    const Registry* metadata = nullptr) noexcept {
+    const Registry* metadata) noexcept {
     // Markup extensions write \{ and \} so the XAML parser does not treat
     // the placeholder as nested markup. WPF stores StringFormat without those
     // slashes ("Orbit: {0:F2} AU"). Unescape before looking up {0:...}.
@@ -710,9 +733,6 @@ Base::Result<PropertyValue> UnboxItemsValue(
     }
     return value;
 }
-
-} // namespace
-
 
 
 } // namespace Aero::Data

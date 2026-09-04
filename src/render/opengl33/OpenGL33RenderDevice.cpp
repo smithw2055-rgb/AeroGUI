@@ -666,11 +666,11 @@ Base::Result<void> OpenGL33RenderDevice::Initialize() noexcept {
 
     // Create the 64 sampler states indexed by SamplerState.v
     // (wrapMode:3 bits | minmagFilter:1 << 3 | mipFilter:2 << 4).
-    gl.glGenSamplers(64, samplers_);
-    for (uint8_t v = 0; v < 64; ++v) {
-        const uint8_t wrapMode = v & 0x7;
-        const uint8_t minmag = (v >> 3) & 0x1;
-        const uint8_t mip = (v >> 4) & 0x3;
+    gl.glGenSamplers(StateCache::kSamplerTableSize, samplers_);
+    for (uint8_t v = 0; v < StateCache::kSamplerTableSize; ++v) {
+        const uint8_t wrapMode = StateCache::UnpackWrap(v);
+        const uint8_t minmag = StateCache::UnpackMinMag(v);
+        const uint8_t mip = StateCache::UnpackMip(v);
 
         const GLint filter = (minmag == MinMagFilter::Linear)
             ? static_cast<GLint>(GL_LINEAR)
@@ -724,9 +724,10 @@ void OpenGL33RenderDevice::Shutdown() noexcept {
     if (g_glResolved) {
         const GLCallbacks& gl = g_gl;
         if (samplers_[0] != 0 && gl.glDeleteSamplers != nullptr) {
-            gl.glDeleteSamplers(64, samplers_);
-            for (int i = 0; i < 64; ++i) samplers_[i] = 0;
+            gl.glDeleteSamplers(StateCache::kSamplerTableSize, samplers_);
+            for (uint8_t i = 0; i < StateCache::kSamplerTableSize; ++i) samplers_[i] = 0;
         }
+        stateCache_.Reset();
         if (solidProgram_ != 0 && gl.glDeleteProgram != nullptr) gl.glDeleteProgram(solidProgram_);
         if (patternProgram_ != 0 && gl.glDeleteProgram != nullptr) gl.glDeleteProgram(patternProgram_);
         if (sdfProgram_ != 0 && gl.glDeleteProgram != nullptr) gl.glDeleteProgram(sdfProgram_);
@@ -869,6 +870,7 @@ void OpenGL33RenderDevice::EndUpdatingTextures(Texture** textures, uint32_t coun
 void OpenGL33RenderDevice::BeginOffscreenRender() noexcept {
     if (vao_ == 0 || currentTarget_ == nullptr) return;
     if (currentTarget_->IsDefaultFBO()) return;
+    stateCache_.Reset();
     g_gl.glDisable(GL_SCISSOR_TEST);
     g_gl.glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
     g_gl.glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
@@ -881,6 +883,7 @@ void OpenGL33RenderDevice::BeginOnscreenRender() noexcept {
     // background/sidebar content and a second clear would wipe those pixels.
     if (vao_ == 0 || currentTarget_ == nullptr) return;
     if (!currentTarget_->IsDefaultFBO()) return;
+    stateCache_.Reset();
     g_gl.glDisable(GL_SCISSOR_TEST);
     g_gl.glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
     g_gl.glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
@@ -890,6 +893,7 @@ void OpenGL33RenderDevice::EndOnscreenRender() noexcept {}
 
 void OpenGL33RenderDevice::SetRenderTarget(RenderTarget* surface) noexcept {
     if (vao_ == 0) return;
+    stateCache_.Reset();
     currentTarget_ = static_cast<OpenGL33RenderTarget*>(surface);
     if (currentTarget_ == nullptr) return;
 
@@ -952,34 +956,40 @@ void OpenGL33RenderDevice::DrawBatch(const Batch& batch) noexcept {
     GLuint sampler = 0;
     GLuint maskTexture = 0;
     GLuint maskSampler = 0;
+    uint8_t samplerIndex0 = 0U;
+    uint8_t samplerIndex1 = 0U;
     bool needsTextureSize = false;
     switch (batch.shader.v) {
     case Shader::Path_Linear:
         program = linearProgram_;
         if (batch.ramps != nullptr) {
             texture = static_cast<OpenGL33Texture*>(batch.ramps)->GetNativeTexture();
-            sampler = samplers_[batch.rampsSampler.v & 0x3F];
+            samplerIndex0 = StateCache::ClampSamplerIndex(batch.rampsSampler.v);
+            sampler = samplers_[samplerIndex0];
         }
         break;
     case Shader::Path_Radial:
         program = radialProgram_;
         if (batch.ramps != nullptr) {
             texture = static_cast<OpenGL33Texture*>(batch.ramps)->GetNativeTexture();
-            sampler = samplers_[batch.rampsSampler.v & 0x3F];
+            samplerIndex0 = StateCache::ClampSamplerIndex(batch.rampsSampler.v);
+            sampler = samplers_[samplerIndex0];
         }
         break;
     case Shader::Path_Pattern:
         program = patternProgram_;
         if (batch.image != nullptr) {
             texture = static_cast<OpenGL33Texture*>(batch.image)->GetNativeTexture();
-            sampler = samplers_[batch.imageSampler.v & 0x3F];
+            samplerIndex0 = StateCache::ClampSamplerIndex(batch.imageSampler.v);
+            sampler = samplers_[samplerIndex0];
         }
         break;
     case Shader::SDF_Solid:
         program = sdfProgram_;
         if (batch.glyphs != nullptr) {
             texture = static_cast<OpenGL33Texture*>(batch.glyphs)->GetNativeTexture();
-            sampler = samplers_[batch.glyphsSampler.v & 0x3F];
+            samplerIndex0 = StateCache::ClampSamplerIndex(batch.glyphsSampler.v);
+            sampler = samplers_[samplerIndex0];
         }
         break;
     case Shader::Blur:
@@ -987,14 +997,16 @@ void OpenGL33RenderDevice::DrawBatch(const Batch& batch) noexcept {
         needsTextureSize = true;
         if (batch.image != nullptr) {
             texture = static_cast<OpenGL33Texture*>(batch.image)->GetNativeTexture();
-            sampler = samplers_[batch.imageSampler.v & 0x3F];
+            samplerIndex0 = StateCache::ClampSamplerIndex(batch.imageSampler.v);
+            sampler = samplers_[samplerIndex0];
         }
         break;
     case Shader::Custom_Effect:
         program = customEffectProgram_;
         if (batch.image != nullptr) {
             texture = static_cast<OpenGL33Texture*>(batch.image)->GetNativeTexture();
-            sampler = samplers_[batch.imageSampler.v & 0x3F];
+            samplerIndex0 = StateCache::ClampSamplerIndex(batch.imageSampler.v);
+            sampler = samplers_[samplerIndex0];
         }
         break;
     case Shader::Shadow:
@@ -1002,18 +1014,21 @@ void OpenGL33RenderDevice::DrawBatch(const Batch& batch) noexcept {
         needsTextureSize = true;
         if (batch.image != nullptr) {
             texture = static_cast<OpenGL33Texture*>(batch.image)->GetNativeTexture();
-            sampler = samplers_[batch.imageSampler.v & 0x3F];
+            samplerIndex0 = StateCache::ClampSamplerIndex(batch.imageSampler.v);
+            sampler = samplers_[samplerIndex0];
         }
         break;
     case Shader::Mask:
         program = maskProgram_;
         if (batch.image != nullptr) {
             texture = static_cast<OpenGL33Texture*>(batch.image)->GetNativeTexture();
-            sampler = samplers_[batch.imageSampler.v & 0x3F];
+            samplerIndex0 = StateCache::ClampSamplerIndex(batch.imageSampler.v);
+            sampler = samplers_[samplerIndex0];
         }
         if (batch.shadow != nullptr) {
             maskTexture = static_cast<OpenGL33Texture*>(batch.shadow)->GetNativeTexture();
-            maskSampler = samplers_[batch.shadowSampler.v & 0x3F];
+            samplerIndex1 = StateCache::ClampSamplerIndex(batch.shadowSampler.v);
+            maskSampler = samplers_[samplerIndex1];
         }
         break;
     case Shader::Path_Solid:
@@ -1024,7 +1039,11 @@ void OpenGL33RenderDevice::DrawBatch(const Batch& batch) noexcept {
 
     if (program == 0) return;
 
-    if (currentProgram_ != program) {
+    const ShaderPipelineKey pipelineKey{batch.shader.v};
+    const bool pipelineEnumChanged = stateCache_.UpdatePipeline(pipelineKey);
+    const bool pipelineHandleChanged = stateCache_.UpdatePipelineHandle(
+        static_cast<std::uintptr_t>(program));
+    if (pipelineEnumChanged || pipelineHandleChanged || currentProgram_ != program) {
         g_gl.glUseProgram(program);
         currentProgram_ = program;
     }
@@ -1098,64 +1117,69 @@ void OpenGL33RenderDevice::DrawBatch(const Batch& batch) noexcept {
         static_cast<GLsizeiptr>(batch.numIndices) * sizeof(uint16_t),
         mappedIBMemory_ + static_cast<GLsizeiptr>(batch.startIndex) * sizeof(uint16_t));
 
-    // Blend state.
-    const uint8_t blendMode = batch.renderState.f.blendMode;
-    if (blendMode == BlendMode::Src) {
-        g_gl.glDisable(GL_BLEND);
-    } else {
-        g_gl.glEnable(GL_BLEND);
-        switch (blendMode) {
-        case BlendMode::SrcOver_Multiply:
-            // out = Cs*Cd + Cd*(1-As)
-            g_gl.glBlendFuncSeparate(
-                GL_DEST_COLOR, GL_ONE_MINUS_SRC_ALPHA,
-                GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-            break;
-        case BlendMode::SrcOver_Screen:
-            // out = Cs + Cd*(1-Cs)
-            g_gl.glBlendFuncSeparate(
-                GL_ONE, GL_ONE_MINUS_SRC_COLOR,
-                GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-            break;
-        case BlendMode::SrcOver_Additive:
-            // out = Cs + Cd
-            g_gl.glBlendFuncSeparate(
-                GL_ONE, GL_ONE, GL_ONE, GL_ONE);
-            break;
-        case BlendMode::SrcOver_Dual:
-            // No dual-source output from the current shaders; SrcOver semantics.
-            g_gl.glBlendFuncSeparate(
-                GL_ONE, GL_ONE_MINUS_SRC_ALPHA,
-                GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-            break;
-        case BlendMode::SrcOver:
-        default:
-            g_gl.glBlendFuncSeparate(
-                GL_ONE, GL_ONE_MINUS_SRC_ALPHA,
-                GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-            break;
+    // Blend + color-mask via shared StateCache (dedupe parallel D3D path).
+    const BlendStateKey blendKey{
+        batch.renderState.f.blendMode,
+        batch.renderState.f.colorEnable};
+    if (stateCache_.UpdateBlend(blendKey)) {
+        if (blendKey.blendMode == BlendMode::Src) {
+            g_gl.glDisable(GL_BLEND);
+        } else {
+            g_gl.glEnable(GL_BLEND);
+            switch (blendKey.blendMode) {
+            case BlendMode::SrcOver_Multiply:
+                g_gl.glBlendFuncSeparate(
+                    GL_DEST_COLOR, GL_ONE_MINUS_SRC_ALPHA,
+                    GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+                break;
+            case BlendMode::SrcOver_Screen:
+                g_gl.glBlendFuncSeparate(
+                    GL_ONE, GL_ONE_MINUS_SRC_COLOR,
+                    GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+                break;
+            case BlendMode::SrcOver_Additive:
+                g_gl.glBlendFuncSeparate(
+                    GL_ONE, GL_ONE, GL_ONE, GL_ONE);
+                break;
+            case BlendMode::SrcOver_Dual:
+                g_gl.glBlendFuncSeparate(
+                    GL_ONE, GL_ONE_MINUS_SRC_ALPHA,
+                    GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+                break;
+            case BlendMode::SrcOver:
+            default:
+                g_gl.glBlendFuncSeparate(
+                    GL_ONE, GL_ONE_MINUS_SRC_ALPHA,
+                    GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+                break;
+            }
         }
+        const GLboolean colorMask =
+            blendKey.colorEnable != 0 ? GL_TRUE : GL_FALSE;
+        g_gl.glColorMask(colorMask, colorMask, colorMask, colorMask);
     }
 
-    // Stencil state.
-    const uint8_t stencilMode = batch.renderState.f.stencilMode;
-    if (g_gl.glStencilFunc != nullptr && g_gl.glStencilOp != nullptr) {
-        switch (stencilMode) {
+    const DepthStencilStateKey dsKey{
+        batch.renderState.f.stencilMode,
+        batch.stencilRef};
+    if (g_gl.glStencilFunc != nullptr && g_gl.glStencilOp != nullptr &&
+        stateCache_.UpdateDepthStencil(dsKey)) {
+        switch (dsKey.stencilMode) {
         case StencilMode::Equal_Keep:
         case StencilMode::Equal_Keep_ZTest:
             g_gl.glEnable(GL_STENCIL_TEST);
             g_gl.glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
-            g_gl.glStencilFunc(GL_EQUAL, static_cast<GLint>(batch.stencilRef), 0xFF);
+            g_gl.glStencilFunc(GL_EQUAL, static_cast<GLint>(dsKey.stencilRef), 0xFF);
             break;
         case StencilMode::Equal_Incr:
             g_gl.glEnable(GL_STENCIL_TEST);
             g_gl.glStencilOp(GL_KEEP, GL_KEEP, GL_INCR_WRAP);
-            g_gl.glStencilFunc(GL_EQUAL, static_cast<GLint>(batch.stencilRef), 0xFF);
+            g_gl.glStencilFunc(GL_EQUAL, static_cast<GLint>(dsKey.stencilRef), 0xFF);
             break;
         case StencilMode::Equal_Decr:
             g_gl.glEnable(GL_STENCIL_TEST);
             g_gl.glStencilOp(GL_KEEP, GL_KEEP, GL_DECR_WRAP);
-            g_gl.glStencilFunc(GL_EQUAL, static_cast<GLint>(batch.stencilRef), 0xFF);
+            g_gl.glStencilFunc(GL_EQUAL, static_cast<GLint>(dsKey.stencilRef), 0xFF);
             break;
         case StencilMode::Clear:
             g_gl.glEnable(GL_STENCIL_TEST);
@@ -1170,18 +1194,25 @@ void OpenGL33RenderDevice::DrawBatch(const Batch& batch) noexcept {
         }
     }
 
-    const GLboolean colorMask = batch.renderState.f.colorEnable != 0 ? GL_TRUE : GL_FALSE;
-    g_gl.glColorMask(colorMask, colorMask, colorMask, colorMask);
-
     if (texture != 0) {
         g_gl.glActiveTexture(GL_TEXTURE0);
         g_gl.glBindTexture(GL_TEXTURE_2D, texture);
-        g_gl.glBindSampler(0, sampler);
+        if (stateCache_.UpdateSampler(
+                0, SamplerBindKey{samplerIndex0, true})) {
+            g_gl.glBindSampler(0, sampler);
+        }
+    } else {
+        static_cast<void>(stateCache_.UpdateSampler(0, SamplerBindKey{}));
     }
     if (maskTexture != 0) {
         g_gl.glActiveTexture(GL_TEXTURE1);
         g_gl.glBindTexture(GL_TEXTURE_2D, maskTexture);
-        g_gl.glBindSampler(1, maskSampler);
+        if (stateCache_.UpdateSampler(
+                1, SamplerBindKey{samplerIndex1, true})) {
+            g_gl.glBindSampler(1, maskSampler);
+        }
+    } else {
+        static_cast<void>(stateCache_.UpdateSampler(1, SamplerBindKey{}));
     }
 
     g_gl.glBindVertexArray(vao_);
@@ -1189,12 +1220,16 @@ void OpenGL33RenderDevice::DrawBatch(const Batch& batch) noexcept {
         static_cast<GLsizei>(batch.numIndices), GL_UNSIGNED_SHORT, nullptr);
 
     if (maskTexture != 0) {
+        g_gl.glActiveTexture(GL_TEXTURE1);
         g_gl.glBindSampler(1, 0);
         g_gl.glBindTexture(GL_TEXTURE_2D, 0);
+        static_cast<void>(stateCache_.UpdateSampler(1, SamplerBindKey{}));
     }
     if (texture != 0) {
+        g_gl.glActiveTexture(GL_TEXTURE0);
         g_gl.glBindSampler(0, 0);
         g_gl.glBindTexture(GL_TEXTURE_2D, 0);
+        static_cast<void>(stateCache_.UpdateSampler(0, SamplerBindKey{}));
     }
     g_gl.glBindVertexArray(0);
 }

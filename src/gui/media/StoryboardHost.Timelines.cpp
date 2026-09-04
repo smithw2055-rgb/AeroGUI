@@ -1,3 +1,31 @@
+#include "gui/ViewState.hpp"
+#include "gui/media/StoryboardHostInternal.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
+#include "gui/core/state/EventRouter.hpp"
+#include <Aero/CommandBinding.hpp>
+#include <Aero/Media/Animation/EventTrigger.hpp>
+#include <Aero/Media/Animation/StoryboardActions.hpp>
+#include <Aero/Media/PathGeometry.hpp>
+#include <Aero/Media/LineSegment.hpp>
+#include <Aero/Media/Transforms.hpp>
+#include <Aero/Media/CompositeTransform3D.hpp>
+#include <Aero/UIElement.hpp>
+#include <Aero/FrameworkElement.hpp>
+#include <Aero/TryCast.hpp>
+
+#include <algorithm>
+#include <cmath>
+#include <cstdio>
+#include <cstring>
+#include <limits>
+#include <new>
+#include <utility>
+
+namespace Aero {
+
+using namespace ::Aero;
+namespace MediaAnimation = ::Aero::Media::Animation;
+
 Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
         MediaAnimation::Timeline& timeline,
         Aero::FrameworkElement& triggerOwner,
@@ -987,3 +1015,5 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             std::move(started),
             retainedHandles);
     }
+
+} // namespace Aero

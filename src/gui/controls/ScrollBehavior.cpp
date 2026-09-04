@@ -1,3 +1,26 @@
+#include "gui/controls/ScrollInternal.hpp"
+#include "gui/meta/ValueConversion.hpp"
+#include "gui/core/State.hpp"
+#include "gui/input/InputState.hpp"
+#include "gui/media/AnimationEngine.hpp"
+#include "gui/styles/StyleState.hpp"
+#include "render/DisplayList.hpp"
+#include <Aero/Controls.hpp>
+#include "gui/media/MediaState.hpp"
+#include <Aero/Input/Mouse.hpp>
+#include <Aero/TryCast.hpp>
+#include <Aero/Value.hpp>
+
+#include <algorithm>
+#include <cmath>
+#include <limits>
+#include "ControlBehavior.hpp"
+#include "gui/templates/TemplateState.hpp"
+
+namespace Aero::Controls {
+using namespace Primitives;
+using namespace ::Aero::Render;
+
 ScrollBehavior::ScrollBehavior(
     ElementTree& tree,
     EventRouter& events) noexcept
@@ -1320,4 +1343,4 @@ void ScrollBarBehavior::OnCaptureChanged(
     }
 }
 
-} // namespace Aero::Controls::Primitives
+} // namespace Aero::Controls

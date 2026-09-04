@@ -1,3 +1,34 @@
+#include "gui/data/BindingInternal.hpp"
+
+#include "gui/meta/MetadataState.hpp"
+#include "gui/core/State.hpp"
+#include "gui/data/BindingEngine.hpp"
+#include "gui/media/AnimationEngine.hpp"
+#include "gui/styles/StyleState.hpp"
+#include "gui/controls/State.hpp"
+#include <Aero/Data/Binding.hpp>
+#include <Aero/FrameworkElement.hpp>
+#include <Aero/UIElement.hpp>
+#include <Aero/LogicalTreeHelper.hpp>
+#include <Aero/TryCast.hpp>
+#include <Aero/Visual.hpp>
+#include <Aero/VisualTreeHelper.hpp>
+#include <Aero/Resources.hpp>
+#include <Aero/Media/Geometry.hpp>
+#include <Aero/Media/SolidColorBrush.hpp>
+
+#include <cmath>
+#include <cstdio>
+#include <cstring>
+#include <limits>
+#include <utility>
+
+namespace Aero {
+
+using namespace Aero::Meta;
+using namespace Aero::Threading;
+using namespace Aero::Data;
+
 Base::Result<void> BindingEngine::ApplySourceToTarget(
     BindingRecord& record,
     const PropertyValue& source,
@@ -1021,3 +1052,4 @@ void BindingEngine::RemoveAt(std::uint32_t index) noexcept {
     bindings_.PopBack();
 }
 
+} // namespace Aero

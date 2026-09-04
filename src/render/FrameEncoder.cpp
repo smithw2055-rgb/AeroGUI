@@ -271,27 +271,64 @@ Texture* UiFrameEncoder::GetOrCreateGradientRamp(
     return result;
 }
 
+void UiFrameEncoder::BeginOffscreenTargetFrame() noexcept {
+    // Mark the pool free for this encode pass so same-sized ClipToBounds /
+    // opacity layers can reuse FBOs across different nodeIds instead of
+    // growing one target per node forever.
+    for (auto& entry : offscreenTargets_) {
+        entry.inUse = false;
+    }
+}
+
 RenderTarget* UiFrameEncoder::GetOrCreateOffscreenTarget(
     RenderNodeId nodeId, std::uint32_t width, std::uint32_t height,
     bool isMask) noexcept {
     const bool needsStencil = !isMask;
+
+    auto adopt = [&](OffscreenTargetEntry& entry) noexcept -> RenderTarget* {
+        entry.nodeId = nodeId;
+        entry.isMask = isMask;
+        entry.inUse = true;
+        if (!entry.target || entry.width != width || entry.height != height) {
+            entry.target = device_->CreateRenderTarget(
+                "Offscreen", width, height, 1, needsStencil);
+            entry.width = width;
+            entry.height = height;
+        }
+        return entry.target.Get();
+    };
+
+    // 1) Sticky match: same node + mask role (keeps resize churn local).
     for (auto& entry : offscreenTargets_) {
         if (entry.nodeId == nodeId && entry.isMask == isMask) {
-            if (entry.width != width || entry.height != height) {
-                entry.target = device_->CreateRenderTarget(
-                    "Offscreen", width, height, 1, needsStencil);
-                entry.width = width;
-                entry.height = height;
-            }
+            return adopt(entry);
+        }
+    }
+
+    // 2) Reuse any free pool entry with matching size + mask/stencil format.
+    for (auto& entry : offscreenTargets_) {
+        if (!entry.inUse && entry.isMask == isMask &&
+            entry.width == width && entry.height == height && entry.target) {
+            entry.nodeId = nodeId;
+            entry.inUse = true;
             return entry.target.Get();
         }
     }
+
+    // 3) Reuse any free entry (resize) before allocating a new GPU target.
+    for (auto& entry : offscreenTargets_) {
+        if (!entry.inUse && entry.isMask == isMask) {
+            return adopt(entry);
+        }
+    }
+
     Ref<RenderTarget> target = device_->CreateRenderTarget(
         "Offscreen", width, height, 1, needsStencil);
     if (!target) return nullptr;
     RenderTarget* result = target.Get();
     static_cast<void>(offscreenTargets_.PushBack(
-        OffscreenTargetEntry{nodeId, isMask, std::move(target), width, height}));
+        OffscreenTargetEntry{
+            nodeId, isMask, true, std::move(target), width, height}));
     return result;
 }
 
@@ -1415,6 +1452,7 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
     if (!initialized_ || device_ == nullptr) return {};
 
     ResetFrame();
+    BeginOffscreenTargetFrame();
     currentFrame_ = &frame;
     stats_.sourceCommandCount = frame.Commands().Size();
 

@@ -1,15 +1,15 @@
+#include "gui/controls/TextBoxInternal.hpp"
 #include "render/DisplayList.hpp"
 #include <Aero/Controls/TextBoxBase.hpp>
 #include <Aero/Controls/TextBox.hpp>
 #include <Aero/Controls/PasswordBox.hpp>
 #include "gui/text/EditableText.hpp"
-#include "gui/core/State.hpp" 
-#include "gui/input/InputState.hpp" 
+#include "gui/core/State.hpp"
+#include "gui/input/InputState.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include "gui/media/MediaState.hpp"
 #include "TextBlockLayout.hpp"
-
 
 #include <algorithm>
 #include <cmath>
@@ -19,83 +19,8 @@
 #include "ControlBehavior.hpp"
 
 namespace Aero::Controls {
-#include "TextBoxPolicy.inl"
-
+using namespace Primitives;
 using namespace ::Aero::Render;
-
-namespace {
-
-constexpr double DefaultAdvance = 8.0;
-constexpr double DefaultLineHeight = 18.0;
-constexpr double CaretWidth = 1.0;
-constexpr double ScrollLine = 16.0;
-
-std::uint32_t EffectiveMaximumLength(
-    std::uint32_t value) noexcept {
-    return value == 0U ? UINT32_MAX : value;
-}
-
-double ClampOffset(
-    double value,
-    double extent,
-    double viewport) noexcept {
-    const double maximum =
-        std::max(0.0, extent - viewport);
-    return std::min(std::max(0.0, value), maximum);
-}
-
-Point ToLocalPoint(
-    const UIElement& element,
-    Point point) noexcept {
-    const UIElement* current = &element;
-    while (current != nullptr) {
-        const Rect slot = current->GetLayoutSlot();
-        point.x -= slot.x;
-        point.y -= slot.y;
-        current = current->LayoutParent();
-    }
-    return point;
-}
-
-Rect ToRootRect(
-    const UIElement& element,
-    Rect rect) noexcept {
-    const UIElement* current = &element;
-    while (current != nullptr) {
-        const Rect slot = current->GetLayoutSlot();
-        rect.x += slot.x;
-        rect.y += slot.y;
-        current = current->LayoutParent();
-    }
-    return rect;
-}
-
-} // namespace
-
-::Aero::Text::EditableTextModel& Model(
-    void* value) noexcept {
-    return *static_cast<::Aero::Text::EditableTextModel*>(value);
-}
-
-const ::Aero::Text::EditableTextModel& Model(
-    const void* value) noexcept {
-    return *static_cast<const ::Aero::Text::EditableTextModel*>(value);
-}
-
-::Aero::Controls::TextDisplayPolicy* DisplayPolicy(
-    void* value) noexcept {
-    return static_cast<::Aero::Controls::TextDisplayPolicy*>(value);
-}
-
-::Aero::Controls::PasswordTextDisplayPolicy* PasswordPolicy(
-    void* value) noexcept {
-    return static_cast<::Aero::Controls::PasswordTextDisplayPolicy*>(value);
-}
-
-::Aero::Controls::TextBlockLayout* LayoutService(
-    const ::Aero::Media::Visual& visual) noexcept {
-    return AeroGuiInternal::TypedTextLayoutRuntime<::Aero::Controls::TextBlockLayout>(visual);
-}
 
 Base::Ref<Media::Brush>
 TextBoxBase::GetSelectionBrush() const noexcept {
@@ -169,7 +94,6 @@ TextBox::~TextBox() {
     displayPolicy_ = nullptr;
 }
 
-#include "PasswordBox.inl"
 
 const void*
 TextBox::GetActiveModel() const noexcept {
@@ -1018,8 +942,4 @@ Base::Result<void> TextBox::Paste(
     return ReplaceSelection(text.View());
 }
 
-#include "TextBoxSelection.inl"
-
 } // namespace Aero::Controls
-
-#include "TextBoxBehavior.inl"

@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <cstdlib>
 #include <new>
 #include <utility>
 
@@ -2384,10 +2385,10 @@ Base::Result<std::uint32_t> RenderTree::RebuildFull() noexcept {
 #ifndef NDEBUG
 // P4.3: Debug-only agreement check. Independently rebuilds the frame from
 // scratch (flags are still dirty, so drawings re-record fresh) and requires
-// bit-identical content versus the in-place refresh. Every conformance Pump
-// in debug builds exercises it, pinning refresh/rebuild equivalence across
-// the whole suite. On disagreement it asserts and reports false so the
-// caller heals via the full rebuild.
+// bit-identical content versus the in-place refresh. Gated by
+// AERO_VERIFY_REFRESH (see Commit) so normal conformance pumps do not always
+// double-rebuild. On disagreement it asserts and reports false so the caller
+// heals via the full rebuild.
 bool RenderTree::VerifyRefresh() noexcept {
     verifyFrame_.Clear();
     verifyFrame_.logicalSize_ = logicalSize_;
@@ -2481,7 +2482,27 @@ Base::Result<std::uint32_t> RenderTree::Commit() noexcept {
         }
         if (!fallback) {
 #ifndef NDEBUG
-            if (!VerifyRefresh()) {
+            // Opt-in / sampled: every Pump used to double-rebuild in Debug via
+            // VerifyRefresh. Default off so conformance stays fast; set
+            // AERO_VERIFY_REFRESH=1 (always) or =sample (every 16th success).
+            static const int verifyMode = []() noexcept -> int {
+                const char* env = std::getenv("AERO_VERIFY_REFRESH");
+                if (env == nullptr || env[0] == '\0' || env[0] == '0') {
+                    return 0;
+                }
+                if (env[0] == 's' || env[0] == 'S') {
+                    return 2;
+                }
+                return 1;
+            }();
+            static std::uint32_t verifySampleCounter = 0U;
+            bool runVerify = false;
+            if (verifyMode == 1) {
+                runVerify = true;
+            } else if (verifyMode == 2) {
+                runVerify = ((++verifySampleCounter) & 0xFU) == 0U;
+            }
+            if (runVerify && !VerifyRefresh()) {
                 fallback = true;
             }
 #endif

@@ -43,7 +43,7 @@
 #include <vector>
 
 namespace Aero::Markup {
-namespace {
+namespace WriterBindingDetail {
 
 constexpr Base::StringView ElementNameKey("ElementName");
 constexpr Base::StringView SourceKey("Source");
@@ -76,7 +76,7 @@ enum class RelativeSourceKind : std::uint8_t {
 };
 
 
-Base::Result<long double> ReadConstantBindingNumber(
+Base::Result<long double> ReadConstantBindingNumberImpl(
     const Meta::Value& value) noexcept {
     switch (value.Kind()) {
     case Meta::ValueKind::SignedInteger:
@@ -95,7 +95,7 @@ Base::Result<long double> ReadConstantBindingNumber(
     }
 }
 
-Base::Result<Meta::Value> ConvertConstantBindingValue(
+Base::Result<Meta::Value> ConvertConstantBindingValueImpl(
     const Meta::Value& value,
     Meta::TypeId targetType) noexcept {
     if (targetType == Meta::InvalidTypeId) {
@@ -106,7 +106,7 @@ Base::Result<Meta::Value> ConvertConstantBindingValue(
     if (value.Type() == targetType) return value;
 
     Base::Result<long double> number =
-        ReadConstantBindingNumber(value);
+        ReadConstantBindingNumberImpl(value);
     if (!number) return number.GetStatus();
     const double converted =
         static_cast<double>(number.Value());
@@ -956,7 +956,7 @@ void CleanupMultiBinding(void* context) noexcept {
         Base::MemoryTag::Markup);
 }
 
-Base::Result<ProvidedValue> CreateMultiBindingValue(
+Base::Result<ProvidedValue> CreateMultiBindingValueImpl(
     Data::MultiBinding& binding,
     const ExtensionServices& services) noexcept {
     if (services.schema == nullptr ||
@@ -1038,7 +1038,26 @@ Base::Result<ProvidedValue> CreateMultiBindingValue(
         &BindMultiBindingRuntime);
 }
 
-} // namespace
+} // namespace WriterBindingDetail
+
+Base::Result<long double> ReadConstantBindingNumber(
+    const Meta::Value& value) noexcept {
+    return WriterBindingDetail::ReadConstantBindingNumberImpl(value);
+}
+
+Base::Result<Meta::Value> ConvertConstantBindingValue(
+    const Meta::Value& value,
+    Meta::TypeId targetType) noexcept {
+    return WriterBindingDetail::ConvertConstantBindingValueImpl(value, targetType);
+}
+
+Base::Result<ProvidedValue> CreateMultiBindingValue(
+    Data::MultiBinding& binding,
+    const ExtensionServices& services) noexcept {
+    return WriterBindingDetail::CreateMultiBindingValueImpl(binding, services);
+}
+
+using namespace WriterBindingDetail;
 
 Base::Result<void> CaptureControlTemplateChildName(
     Controls::ControlTemplate& controlTemplate,

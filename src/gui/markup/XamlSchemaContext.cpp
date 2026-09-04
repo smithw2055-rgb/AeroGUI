@@ -6,12 +6,12 @@
 #include "gui/templates/TemplateState.hpp"
 #include "gui/markup/MarkupState.hpp"
 #include "gui/markup/MarkupWriterState.hpp"
+#include <Aero/Markup/MarkupExtension.hpp>
+#include <Aero/TryCast.hpp>
+#include <cstdio>
 // Consolidated implementation. Keep sections ordered by dependency.
 
 
-#include "gui/markup/XamlCompiledSchema.inl"
-#include "gui/markup/XamlSchemaMetadata.inl"
-#include "gui/markup/XamlSchemaManifest.inl"
 
 // ===== Schema =====
 

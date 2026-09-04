@@ -1,36 +1,23 @@
-#include "gui/meta/ValueConversion.hpp"
-#include "gui/core/State.hpp" 
-#include "gui/input/InputState.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleState.hpp"
-#include "render/DisplayList.hpp"
+#pragma once
+
+// Shared helpers for Scroll* translation units (formerly anonymous in Scroll.cpp).
+
 #include <Aero/Controls.hpp>
-#include "gui/media/MediaState.hpp"
-#include <Aero/Input/Mouse.hpp>
-#include <Aero/TryCast.hpp>
 #include <Aero/Value.hpp>
 
 #include <algorithm>
 #include <cmath>
-#include <limits>
-#include "ControlBehavior.hpp"
-#include "gui/templates/TemplateState.hpp"
 
 namespace Aero::Controls {
-using Aero::Controls::ScrollBehavior;
-using Aero::Controls::SliderBehavior;
+namespace ScrollDetail {
 
-using namespace Primitives;
-using namespace ::Aero::Render;
-namespace {
+inline constexpr double LayoutInfinity = 1.0e12;
 
-constexpr double LayoutInfinity = 1.0e12;
-
-bool Same(double left, double right) noexcept {
+inline bool Same(double left, double right) noexcept {
     return std::fabs(left - right) <= 0.000001;
 }
 
-bool SameData(
+inline bool SameData(
     const ScrollData& left,
     const ScrollData& right) noexcept {
     return Same(left.horizontalOffset, right.horizontalOffset) &&
@@ -41,11 +28,11 @@ bool SameData(
         Same(left.viewportHeight, right.viewportHeight);
 }
 
-bool ValidNonnegative(double value) noexcept {
+inline bool ValidNonnegative(double value) noexcept {
     return std::isfinite(value) && value >= 0.0;
 }
 
-bool ValidData(const ScrollData& value) noexcept {
+inline bool ValidData(const ScrollData& value) noexcept {
     return ValidNonnegative(value.horizontalOffset) &&
         ValidNonnegative(value.verticalOffset) &&
         ValidNonnegative(value.extentWidth) &&
@@ -54,7 +41,7 @@ bool ValidData(const ScrollData& value) noexcept {
         ValidNonnegative(value.viewportHeight);
 }
 
-Visibility ComputeScrollBarVisibility(
+inline Visibility ComputeScrollBarVisibility(
     ScrollBarVisibility mode,
     double extent,
     double viewport) noexcept {
@@ -72,7 +59,7 @@ Visibility ComputeScrollBarVisibility(
     }
 }
 
-double ClampOffset(
+inline double ClampOffset(
     double value,
     double extent,
     double viewport,
@@ -83,7 +70,7 @@ double ClampOffset(
 }
 
 template <typename TProperty>
-double ReadDouble(
+inline double ReadDouble(
     const DependencyObject& object,
     const TProperty& property,
     double fallback = 0.0) noexcept {
@@ -91,7 +78,7 @@ double ReadDouble(
 }
 
 template <typename TProperty>
-bool ReadBool(
+inline bool ReadBool(
     const DependencyObject& object,
     const TProperty& property,
     bool fallback) noexcept {
@@ -99,7 +86,7 @@ bool ReadBool(
 }
 
 template <typename TProperty>
-Orientation ReadOrientation(
+inline Orientation ReadOrientation(
     const DependencyObject& object,
     const TProperty& property) noexcept {
     return object.GetValueOr(
@@ -107,7 +94,7 @@ Orientation ReadOrientation(
 }
 
 template <typename TProperty>
-void StoreDouble(
+inline void StoreDouble(
     DependencyObject& object,
     const TProperty& property,
     double value) noexcept {
@@ -115,17 +102,28 @@ void StoreDouble(
 }
 
 template <typename TProperty>
-void StoreOrientation(
+inline void StoreOrientation(
     DependencyObject& object,
     const TProperty& property,
     Orientation value) noexcept {
     object.SetValue(property, value);
 }
 
-} // namespace
+} // namespace ScrollDetail
 
+// Bring helpers into Aero::Controls for unqualified use (matches former
+// anonymous-namespace amalgamation).
+using ScrollDetail::LayoutInfinity;
+using ScrollDetail::Same;
+using ScrollDetail::SameData;
+using ScrollDetail::ValidNonnegative;
+using ScrollDetail::ValidData;
+using ScrollDetail::ComputeScrollBarVisibility;
+using ScrollDetail::ClampOffset;
+using ScrollDetail::ReadDouble;
+using ScrollDetail::ReadBool;
+using ScrollDetail::ReadOrientation;
+using ScrollDetail::StoreDouble;
+using ScrollDetail::StoreOrientation;
 
-#include "ScrollContentPresenter.inl"
-#include "ScrollViewer.inl"
-#include "ScrollBar.inl"
-#include "ScrollBehavior.inl"
+} // namespace Aero::Controls

@@ -30,7 +30,8 @@ its types below.
 - `shapes/Shapes.cpp` — `Rectangle`, `Ellipse`, `Path`, `Line`, `Polygon`, `Polyline`
 - `shapes/Path.cpp` — `Path` geometry tessellation
 - `documents/Documents.cpp` — `System.Windows.Documents` (`Run`, `Span`, `Paragraph`, …)
-- `controls/Items.cpp` — `ItemsControl`, `ItemCollection`, `ItemContainerGenerator`
+- `controls/Items.cpp` — `ItemsControl`, `ItemCollection`, ItemsPresenter/Content helpers
+- `controls/ItemContainerGenerator.cpp` — `ItemContainerGenerator` runtime + facade
 - `controls/Selection.cpp` — `Selector`, `ListBox`
 - `controls/Scroll.cpp` — `ScrollViewer`, `ScrollBar`
 - `controls/TextBox.cpp` — `TextBox`, `TextBoxBase`

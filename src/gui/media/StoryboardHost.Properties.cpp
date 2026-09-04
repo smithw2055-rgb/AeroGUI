@@ -1,3 +1,31 @@
+#include "gui/ViewState.hpp"
+#include "gui/media/StoryboardHostInternal.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
+#include "gui/core/state/EventRouter.hpp"
+#include <Aero/CommandBinding.hpp>
+#include <Aero/Media/Animation/EventTrigger.hpp>
+#include <Aero/Media/Animation/StoryboardActions.hpp>
+#include <Aero/Media/PathGeometry.hpp>
+#include <Aero/Media/LineSegment.hpp>
+#include <Aero/Media/Transforms.hpp>
+#include <Aero/Media/CompositeTransform3D.hpp>
+#include <Aero/UIElement.hpp>
+#include <Aero/FrameworkElement.hpp>
+#include <Aero/TryCast.hpp>
+
+#include <algorithm>
+#include <cmath>
+#include <cstdio>
+#include <cstring>
+#include <limits>
+#include <new>
+#include <utility>
+
+namespace Aero {
+
+using namespace ::Aero;
+namespace MediaAnimation = ::Aero::Media::Animation;
+
 Base::Result<StoryboardHost::ResolvedAnimationProperty>
 StoryboardHost::ResolveAnimationProperty(
         ::Aero::DependencyObject& target,
@@ -948,3 +976,5 @@ StoryboardHost::ResolveAnimationProperty(
         return ResolvedAnimationProperty{
             propertyTarget, property->Handle()};
     }
+
+} // namespace Aero

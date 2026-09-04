@@ -1,3 +1,27 @@
+#include "gui/controls/TextBoxInternal.hpp"
+#include "render/DisplayList.hpp"
+#include <Aero/Controls/TextBoxBase.hpp>
+#include <Aero/Controls/TextBox.hpp>
+#include <Aero/Controls/PasswordBox.hpp>
+#include "gui/text/EditableText.hpp"
+#include "gui/core/State.hpp"
+#include "gui/input/InputState.hpp"
+#include "gui/media/AnimationEngine.hpp"
+#include "gui/styles/StyleState.hpp"
+#include "gui/media/MediaState.hpp"
+#include "TextBlockLayout.hpp"
+
+#include <algorithm>
+#include <cmath>
+#include <limits>
+#include <new>
+#include <utility>
+#include "ControlBehavior.hpp"
+
+namespace Aero::Controls {
+using namespace Primitives;
+using namespace ::Aero::Render;
+
 PasswordBox::PasswordBox() noexcept
     : TextBoxBase(StaticTypeId()),
       validation_(new (std::nothrow) ::Aero::Text::EditableTextModel()),
@@ -245,3 +269,4 @@ PasswordBox::SynchronizePasswordFromEditor()
     return {};
 }
 
+} // namespace Aero::Controls

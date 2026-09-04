@@ -111,6 +111,7 @@ private:
     struct OffscreenTargetEntry {
         RenderNodeId nodeId = InvalidRenderNodeId;
         bool isMask = false;
+        bool inUse = false;
         Ref<RenderTarget> target;
         std::uint32_t width = 0U;
         std::uint32_t height = 0U;
@@ -137,6 +138,7 @@ private:
     RenderTarget* GetOrCreateOffscreenTarget(
         RenderNodeId nodeId, std::uint32_t width, std::uint32_t height,
         bool isMask = false) noexcept;
+    void BeginOffscreenTargetFrame() noexcept;
 
     void EmitQuad(
         const Point points[4],

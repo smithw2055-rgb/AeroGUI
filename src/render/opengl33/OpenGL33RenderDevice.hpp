@@ -10,6 +10,7 @@
 #include <AeroRender/OpenGL33.hpp>
 
 #include "OpenGL33.hpp"
+#include "render/common/StateCache.hpp"
 
 namespace Aero::Render {
 
@@ -160,6 +161,7 @@ private:
 
     DeviceCaps caps_{};
     OpenGL33RenderTarget* currentTarget_ = nullptr;
+    StateCache stateCache_{};
 };
 
 } // namespace Aero::Render

@@ -1,3 +1,14 @@
+#include "gui/meta/MetadataState.hpp"
+#include "gui/core/State.hpp"
+#include "gui/data/BindingEngine.hpp"
+#include "gui/media/AnimationEngine.hpp"
+#include "gui/styles/StyleState.hpp"
+#include "gui/controls/State.hpp"
+#include "gui/templates/TemplateState.hpp"
+#include "gui/markup/MarkupState.hpp"
+#include "gui/markup/MarkupWriterState.hpp"
+#include <cstdio>
+
 // ===== TemplateCompiler =====
 
 
@@ -6,6 +17,12 @@
 
 
 #include "gui/controls/ControlBehavior.hpp"
+
+#include <Aero/Media/StreamGeometry.hpp>
+#include <Aero/Media/Geometry.hpp>
+#include <Aero/Media/Brushes.hpp>
+#include <Aero/HierarchicalDataTemplate.hpp>
+#include <Aero/Controls/ControlTemplate.hpp>
 
 
 namespace Aero::Markup {
