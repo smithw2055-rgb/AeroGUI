@@ -764,26 +764,15 @@ Base::Result<void> BindingEngine::Initialize() noexcept {
     if (!dispatcher_->CheckAccess()) {
         return dispatcher_->VerifyAccess();
     }
-    if (hook_.IsValid()) {
+    if (initialized_) {
         return {};
     }
-    Base::Result<DispatcherFrameHookHandle> registered =
-        dispatcher_->RegisterFrameHook(
-            DispatcherFramePhase::DataBind,
-            &BindingEngine::DataBindHook,
-            this);
-    if (!registered) {
-        return registered.GetStatus();
-    }
-    hook_ = registered.Value();
+    // P3.2: ViewFrame drives DataBindHook() directly; no DataBind hook.
+    initialized_ = true;
     return {};
 }
 
 void BindingEngine::Shutdown() noexcept {
-    if (hook_.IsValid()) {
-        (void)dispatcher_->RemoveFrameHook(hook_);
-        hook_ = {};
-    }
     while (!bindings_.Empty()) {
         RemoveAt(bindings_.Size() - 1U);
     }
@@ -797,7 +786,7 @@ Base::Result<BindingHandle> BindingEngine::Attach(
     if (!dispatcher_->CheckAccess()) {
         return dispatcher_->VerifyAccess().GetStatus();
     }
-    if (!hook_.IsValid()) {
+    if (!initialized_) {
         return InvalidState("BindingEngine must be initialized before Attach");
     }
     if (flushing_) {
@@ -862,7 +851,7 @@ Base::Result<BindingHandle> BindingEngine::Attach(
     if (!dispatcher_->CheckAccess()) {
         return dispatcher_->VerifyAccess().GetStatus();
     }
-    if (!hook_.IsValid()) {
+    if (!initialized_) {
         return InvalidState("BindingEngine must be initialized before Attach");
     }
     if (flushing_) {
@@ -1256,7 +1245,7 @@ Base::Result<bool> BindingEngine::UpdateSource(BindingHandle handle) noexcept {
     if (!dispatcher_->CheckAccess()) {
         return dispatcher_->VerifyAccess().GetStatus();
     }
-    if (!hook_.IsValid() || flushing_) {
+    if (!initialized_ || flushing_) {
         return InvalidState("BindingEngine is not ready to update a source");
     }
     BindingRecord* record = FindRecord(handle);
@@ -1276,7 +1265,7 @@ Base::Result<bool> BindingEngine::UpdateTarget(BindingHandle handle) noexcept {
     if (!dispatcher_->CheckAccess()) {
         return dispatcher_->VerifyAccess().GetStatus();
     }
-    if (!hook_.IsValid() || flushing_) {
+    if (!initialized_ || flushing_) {
         return InvalidState("BindingEngine is not ready to update a target");
     }
     BindingRecord* record = FindRecord(handle);
@@ -1580,7 +1569,7 @@ Base::Result<std::uint32_t> BindingEngine::Flush() noexcept {
     if (!dispatcher_->CheckAccess()) {
         return dispatcher_->VerifyAccess().GetStatus();
     }
-    if (!hook_.IsValid()) {
+    if (!initialized_) {
         return InvalidState("BindingEngine is not initialized");
     }
     if (flushing_) {
@@ -1898,7 +1887,7 @@ void BindingEngine::OnPropertyChanged(
             }
         }
     }
-    if (lostFocusFlush && !flushing_ && hook_.IsValid()) {
+    if (lostFocusFlush && !flushing_ && initialized_) {
         static_cast<void>(Flush());
     }
 }

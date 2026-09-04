@@ -184,7 +184,6 @@ set(_aero_gui_text_sources
     src/gui/text/TextLayout.cpp
     src/gui/text/TextPipeline.cpp
     src/gui/text/TextTypes.cpp
-    src/gui/text/UnicodeAnalysis.cpp
     src/gui/text/freetype/FreeTypeAdapter.cpp
     src/gui/text/harfbuzz/HarfBuzzAdapter.cpp)
 

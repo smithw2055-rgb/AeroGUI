@@ -311,7 +311,7 @@ private:
     ::Aero::Media::Visual* root_ = nullptr;
     Base::Vector<LifecycleRecord> lifecycleQueue_;
     Base::Vector<HandleEntry> handles_;
-    ::Aero::Threading::DispatcherFrameHookHandle lifecycleHook_;
+    bool initialized_ = false;
     ElementTreeLifecycleHandler lifecycleHandler_ = nullptr;
     void* lifecycleContext_ = nullptr;
     DependencyPropertyChangedEventHandler dataContextChangedHandler_;
@@ -340,6 +340,9 @@ private:
     void ApplyLoadedSubtree(::Aero::Media::Visual& node, bool loaded) noexcept;
     void SetTreeSubtree(::Aero::Media::Visual& node, ElementTree* tree) noexcept;
     Base::Result<std::uint32_t> FlushLifecycle() noexcept;
+    // P3.2 explicit Lifecycle phase entry (formerly the frame-hook body).
+    // ViewFrame calls it directly; no hook registration remains.
+    static void LifecycleHook(void* context) noexcept;
     Base::Result<void> RegisterHandleSubtree(::Aero::Media::Visual& node) noexcept;
     Base::Result<void> TrackInheritedValues(::Aero::Media::Visual& node) noexcept;
     void UntrackInheritedValues(::Aero::Media::Visual& node) noexcept;
@@ -350,7 +353,6 @@ private:
     Base::Result<void> AttachRender(::Aero::Media::Visual& parent, ::Aero::Media::Visual& child, bool& attached) noexcept;
     Base::Result<void> DetachLayout(::Aero::Media::Visual& parent, ::Aero::Media::Visual& child, bool& attached) noexcept;
     Base::Result<void> DetachRender(::Aero::Media::Visual& parent, ::Aero::Media::Visual& child, bool& attached) noexcept;
-    static void LifecycleHook(void* context) noexcept;
 };
 
 } // namespace Aero

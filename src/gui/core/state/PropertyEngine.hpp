@@ -18,7 +18,6 @@ namespace Aero::Meta { class Registry; class Registration; }
 namespace Aero::Meta {
 
 using ::Aero::Threading::Dispatcher;
-using ::Aero::Threading::DispatcherFrameHookHandle;
 using ::Aero::Threading::DispatcherThreadToken;
 using ::Aero::Threading::CurrentDispatcherThreadToken;
 
@@ -38,7 +37,7 @@ public:
 
     Base::Result<void> Initialize() noexcept;
     bool IsInitialized() const noexcept {
-        return phaseHook_.IsValid();
+        return initialized_;
     }
 
     Base::Result<void> SetInheritanceParent(
@@ -108,7 +107,7 @@ public:
     void Shutdown() noexcept;
 
     std::uint32_t TrackedPropertyCount() const noexcept {
-        return pending_.Size();
+        return queueCount_;
     }
     std::uint32_t PendingPropertyCount() const noexcept;
     bool IsFlushing() const noexcept {
@@ -116,22 +115,32 @@ public:
     }
 
 private:
-    struct Pending {
+    // P2.2: recycled intrusive queue link. The old pending_ vector is gone;
+    // links are popped from / returned to linkFree_, so steady-state
+    // enqueue/dequeue performs zero allocations and can never reallocate.
+    // NOTE: links are engine-owned rather than embedded in StoredValueEntry
+    // because a queued entry may be erased synchronously (e.g. ClearValue
+    // back to default recomputes inline and drops the entry via
+    // RemoveStoredEntry); an entry-owned link would die with it and sever
+    // the chain. Dedup still rides on the per-entry Queued() flag.
+    struct QueueLink {
         DependencyObject* object = nullptr;
         DependencyPropertyHandle property;
-        std::uint64_t queueSequence = 0U;
+        QueueLink* next = nullptr;
     };
 
     Dispatcher* dispatcher_ = nullptr;
     DependencyPropertyRegistry* registry_ = nullptr;
-    Base::Vector<Pending> pending_;
+    QueueLink* queueHead_ = nullptr;
+    QueueLink* queueTail_ = nullptr;
+    QueueLink* linkFree_ = nullptr;
+    std::uint32_t queueCount_ = 0U;
     Base::HashMap<DependencyObject*, DependencyObject*> parents_;
     Base::Vector<DependencyObject*> inheritanceSubscriptions_;
     DependencyPropertyChangedEventHandler
         inheritanceChangedHandler_;
-    DispatcherFrameHookHandle phaseHook_;
     PropertyProviderOriginAllocator providerOrigins_;
-    std::uint64_t nextQueueSequence_ = 1U;
+    bool initialized_ = false;
     bool flushing_ = false;
 
     Base::Result<void> VerifyMutable() const noexcept;
@@ -150,10 +159,15 @@ private:
         const DependencyPropertyChangedEventArgs&
             args) noexcept;
     Base::Result<void> Apply(
-        Pending& entry) noexcept;
+        DependencyObject& object,
+        DependencyPropertyHandle property) noexcept;
+    // Pops a link from the free list or allocates a fresh one. Only fails on
+    // OOM when the free list is empty (steady state never allocates).
+    Base::Result<QueueLink*> AcquireLink() noexcept;
+    void RecycleLink(QueueLink* link) noexcept;
+    void ClearQueueLinks() noexcept;
 
     static bool IsMutableBaseRank(PropertyValueRank rank) noexcept;
-    static void PropertyChangesHook(void* context) noexcept;
 };
 
 } // namespace Aero::Meta

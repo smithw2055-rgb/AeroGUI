@@ -1083,6 +1083,12 @@ Base::Result<std::uint32_t> ExecuteViewFrame(ViewState& state, View& view) noexc
         return ViewNotInitialized(
             "View must be initialized before running frames");
     }
+    // P3.1: pump cross-thread work first. This is the single frame funnel
+    // for DesktopHost, tests and samples, so one hookup covers every host.
+    // Failures here must not abort the frame: async work is best-effort.
+    if (state.dispatcher != nullptr) {
+        static_cast<void>(state.dispatcher->ProcessPending());
+    }
     const bool skipAnimationPhase =
         state.animations == nullptr;
 

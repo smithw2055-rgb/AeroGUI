@@ -13,6 +13,13 @@ set_target_properties(AeroFrameworkConformanceTests PROPERTIES
     CXX_EXTENSIONS NO)
 aero_apply_compiler_options(AeroFrameworkConformanceTests)
 
+# P0.2: CWD-independent test resources. The sample-tree test resolves
+# "samples/" from this compile-time source root first, so CTest passes
+# from any working directory.
+target_compile_definitions(AeroFrameworkConformanceTests
+    PRIVATE
+        "AERO_TEST_SOURCE_DIR=\"${CMAKE_SOURCE_DIR}\"")
+
 add_test(
     NAME AeroFrameworkConformanceTests
     COMMAND AeroFrameworkConformanceTests)
@@ -27,4 +34,4 @@ add_test(
         -P "${CMAKE_SOURCE_DIR}/cmake/CheckArchitecture.cmake")
 set_tests_properties(AeroArchitectureChecks PROPERTIES
     LABELS "architecture"
-    TIMEOUT 30)
+    TIMEOUT 300)

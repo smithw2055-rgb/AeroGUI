@@ -279,9 +279,7 @@ ElementTree::ElementTree(
           this, &ElementTree::OnDataContextChanged) {}
 
 ElementTree::~ElementTree() noexcept {
-    if (lifecycleHook_.IsValid() && dispatcher_->CheckAccess()) {
-        (void)dispatcher_->RemoveFrameHook(lifecycleHook_);
-    }
+    // P3.2: no frame-hook registration; nothing to unregister.
     if (root_ != nullptr && dispatcher_->CheckAccess()) {
         (void)SetRoot(nullptr);
     }
@@ -292,17 +290,11 @@ Base::Result<void> ElementTree::Initialize() noexcept {
     if (!access) {
         return access;
     }
-    if (lifecycleHook_.IsValid()) {
+    if (initialized_) {
         return {};
     }
-    Base::Result<DispatcherFrameHookHandle> hook = dispatcher_->RegisterFrameHook(
-        DispatcherFramePhase::Lifecycle,
-        &ElementTree::LifecycleHook,
-        this);
-    if (!hook) {
-        return hook.GetStatus();
-    }
-    lifecycleHook_ = hook.Value();
+    // P3.2: ViewFrame drives LifecycleHook() directly; no Lifecycle hook.
+    initialized_ = true;
     return {};
 }
 
@@ -526,7 +518,7 @@ Base::Result<void> ElementTree::VerifyMutation(
     if (!access) {
         return access;
     }
-    if (!lifecycleHook_.IsValid()) {
+    if (!initialized_) {
         return InvalidState("ElementTree must be initialized before mutation");
     }
     if (mutating_) {

@@ -181,19 +181,13 @@ Base::Result<void> DependencyObject::ApplyChange(
             entry.rare->localExpression = {};
         }
         entry.SetHasExpression(false);
-        {
-            Base::Result<void> storedLocal = entry.SetLocalValue(*requestedValue);
-            if (!storedLocal) {
-                if (!hadEntry) {
-                    RemoveStoredEntry(CanonicalPropertyKey(propertyHandle));
-                }
-                return storedLocal.GetStatus();
-            }
-        }
+        // P2.1: inline Local set is infallible, no OOM rollback needed.
+        entry.SetLocalValue(*requestedValue);
         entry.ClearCurrent();
         break;
     case ChangeKind::SetCurrent: {
-        Base::Result<StoredValueRare*> block = entry.EnsureRare();
+        Base::Result<StoredValueRare*> block =
+            entry.EnsureRare(GetDispatcher().GetPropertySlab());
         if (!block) {
             if (!hadEntry) {
                 RemoveStoredEntry(CanonicalPropertyKey(propertyHandle));
@@ -236,12 +230,13 @@ Base::Result<void> DependencyObject::ApplyChange(
         storedEntry->SetHasCurrent(oldHasCurrent);
         storedEntry->SetHasExpression(oldHasExpression);
         if (oldHasLocal) {
-            (void)storedEntry->SetLocalValue(oldLocal);
+            storedEntry->SetLocalValue(oldLocal);
         } else {
             storedEntry->ClearLocal();
         }
         if (oldHasCurrent || oldHasExpression) {
-            Base::Result<StoredValueRare*> block = storedEntry->EnsureRare();
+            Base::Result<StoredValueRare*> block = storedEntry->EnsureRare(
+                GetDispatcher().GetPropertySlab());
             if (!block) {
                 Base::ReportOutOfMemory(
                     sizeof(StoredValueRare),
@@ -459,7 +454,8 @@ Base::Result<void> DependencyObject::RecomputeEffectiveValueCore(
     StoredValueEntry& entry = *storedEntry;
     entry.effectiveValue = newEffective;
     {
-        Base::Result<void> storedSource = entry.SetSourceInfo(source);
+        Base::Result<void> storedSource = entry.SetSourceInfo(
+            source, GetDispatcher().GetPropertySlab());
         if (!storedSource) {
             return storedSource.GetStatus();
         }
@@ -519,7 +515,8 @@ Base::Result<void> DependencyObject::ApplyInheritedValueInternal(
     if (value == nullptr) {
         entry.ClearInherited();
     } else {
-        Base::Result<void> storedInherited = entry.SetInheritedValue(*value);
+        Base::Result<void> storedInherited = entry.SetInheritedValue(
+            *value, GetDispatcher().GetPropertySlab());
         if (!storedInherited) {
             return storedInherited.GetStatus();
         }
@@ -556,7 +553,8 @@ Base::Result<void> DependencyObject::ApplyAnimationValueInternal(
         "Animation values cannot be Unset");
     Base::Result<StoredValueEntry*> ensured = EnsureStoredEntry(property);
     if (!ensured) return ensured.GetStatus();
-    Base::Result<StoredValueRare*> block = ensured.Value()->EnsureRare();
+    Base::Result<StoredValueRare*> block = ensured.Value()->EnsureRare(
+        GetDispatcher().GetPropertySlab());
     if (!block) return block.GetStatus();
     block.Value()->animationValue = value;
     ensured.Value()->SetHasAnimation(true);
@@ -608,7 +606,8 @@ Base::Result<void> DependencyObject::ApplyLocalExpressionInternal(
     PropertyExpression old;
     const bool hadOld = entry.HasExpression();
     if (hadOld) old = entry.ExpressionOrEmpty();
-    Base::Result<StoredValueRare*> block = entry.EnsureRare();
+    Base::Result<StoredValueRare*> block =
+        entry.EnsureRare(GetDispatcher().GetPropertySlab());
     if (!block) return block.GetStatus();
     block.Value()->localExpression = expression;
     entry.SetHasExpression(true);
@@ -670,7 +669,8 @@ Base::Result<void> DependencyObject::ApplyProviderContributionInternal(
     if (!ensured) return ensured.GetStatus();
     StoredValueEntry& entry = *ensured.Value();
     entry.ClearCurrent();
-    Base::Result<PropertyProviderSet*> providers = entry.EnsureProviders();
+    Base::Result<PropertyProviderSet*> providers = entry.EnsureProviders(
+        GetDispatcher().GetPropertySlab());
     if (!providers) {
         return providers.GetStatus();
     }
@@ -1093,11 +1093,11 @@ PropertyValue DependencyObject::GetValue(
 
 MemberId DependencyObject::CanonicalPropertyKey(
     DependencyPropertyHandle property) const noexcept {
+    // P2.3: single-hash alias resolution; no descriptor load. The store is
+    // always keyed by canonical handle (ApplyChange canonicalizes via
+    // Find()->Handle() before EnsureStoredEntryDirect).
     if (registry_ != nullptr) {
-        const Meta::DependencyProperty* descriptor = registry_->Find(property);
-        if (descriptor != nullptr) {
-            return descriptor->Handle().value;
-        }
+        return registry_->CanonicalHandle(property);
     }
     return property.value;
 }
@@ -1144,11 +1144,15 @@ Base::Result<StoredValueEntry*> DependencyObject::EnsureStoredEntryDirect(
     DependencyPropertyHandle canonicalHandle,
     const PropertyMetadata& metadata) noexcept {
     if (valueStore_ == nullptr) {
-        valueStore_ = new (std::nothrow) PropertyStore();
-        if (valueStore_ == nullptr) {
+        // P2.4: the store block comes from the owning Dispatcher's slab.
+        // Release needs no context: delete routes via the block header.
+        void* memory = GetDispatcher().GetPropertySlab().AllocateStore(
+            sizeof(PropertyStore));
+        if (memory == nullptr) {
             return Base::Status::Failure(Base::ErrorCode::OutOfMemory,
                 "DependencyObject value store allocation failed");
         }
+        valueStore_ = new (memory) PropertyStore();
     }
     PropertyStore* store = static_cast<PropertyStore*>(valueStore_);
     StoredValueEntry entry;

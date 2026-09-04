@@ -75,6 +75,8 @@ DecodedCodePoint Decode(
 bool IsCombiningMark(std::uint32_t codePoint) noexcept {
     return
         (codePoint >= 0x0300U && codePoint <= 0x036FU) ||
+        (codePoint >= 0x064BU && codePoint <= 0x065FU) ||
+        codePoint == 0x0670U ||
         (codePoint >= 0x1AB0U && codePoint <= 0x1AFFU) ||
         (codePoint >= 0x1DC0U && codePoint <= 0x1DFFU) ||
         (codePoint >= 0x20D0U && codePoint <= 0x20FFU) ||

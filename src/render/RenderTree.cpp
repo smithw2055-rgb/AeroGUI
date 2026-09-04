@@ -925,9 +925,7 @@ RenderTree::RenderTree(Dispatcher& dispatcher) noexcept
     : dispatcher_(&dispatcher), dirty_(), drawings_(), currentFrame_() {}
 
 RenderTree::~RenderTree() noexcept {
-    if (phaseHook_.IsValid() && dispatcher_->CheckAccess()) {
-        (void)dispatcher_->RemoveFrameHook(phaseHook_);
-    }
+    // P3.2: no frame-hook registration; nothing to unregister.
     if (root_ != nullptr && dispatcher_->CheckAccess()) {
         auto clear = [&](auto&& self, ::Aero::Media::Visual& visual) noexcept -> void {
             for (::Aero::Media::Visual* child :
@@ -952,17 +950,11 @@ Base::Result<void> RenderTree::Initialize() noexcept {
     if (!access) {
         return access;
     }
-    if (phaseHook_.IsValid()) {
+    if (initialized_) {
         return {};
     }
-    Base::Result<DispatcherFrameHookHandle> hook = dispatcher_->RegisterFrameHook(
-        DispatcherFramePhase::RenderCommit,
-        &RenderTree::RenderCommitHook,
-        this);
-    if (!hook) {
-        return hook.GetStatus();
-    }
-    phaseHook_ = hook.Value();
+    // P3.2: ViewFrame drives RenderCommitHook() directly; no hook.
+    initialized_ = true;
     return {};
 }
 
@@ -972,7 +964,7 @@ Base::Result<void> RenderTree::VerifyElement(
     if (!access) {
         return access;
     }
-    if (!phaseHook_.IsValid()) {
+    if (!initialized_) {
         return InvalidState("RenderTree must be initialized before use");
     }
     if (&element.GetDispatcher() != dispatcher_) {
@@ -2097,7 +2089,7 @@ Base::Result<void> RenderTree::BuildSubtree(
 Base::Result<std::uint32_t> RenderTree::Commit() noexcept {
     Base::Result<void> access = dispatcher_->VerifyAccess();
     if (!access) return access.GetStatus();
-    if (!phaseHook_.IsValid()) {
+    if (!initialized_) {
         return InvalidState(
             "RenderTree must be initialized before commit");
     }

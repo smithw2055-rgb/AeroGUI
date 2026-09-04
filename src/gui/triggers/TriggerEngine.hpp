@@ -50,8 +50,14 @@ public:
         DependencyObject& object,
         Base::Span<const Base::Ref<Base::Object>>
             actions) noexcept;
-    Base::Result<void> EnsureTriggerPhaseHook(
+    // P3.2: opts the deferred evaluations into ViewFrame's explicit DataBind
+    // phase (formerly registered a frame hook). ViewFrame calls
+    // TriggerPhaseHook() directly when phase participation is enabled.
+    Base::Result<void> EnableDataBindPhase(
         DependencyObject& object) noexcept;
+    bool DataBindPhaseEnabled() const noexcept {
+        return dataBindPhaseEnabled_;
+    }
     Base::Result<void> QueueTriggerEvaluation(
         DependencyObject& object) noexcept;
     void RemovePendingTriggerEvaluation(
@@ -78,7 +84,7 @@ private:
     Base::Vector<StyleApplication>& applications_;
     DependencyPropertyChangedEventHandler propertyChangedHandler_;
     Dispatcher* dispatcher_ = nullptr;
-    DispatcherFrameHookHandle triggerPhaseHook_;
+    bool dataBindPhaseEnabled_ = false;
     Base::Vector<DependencyObject*>
         pendingTriggerEvaluations_;
     TriggerActionHandler triggerActionHandler_ = nullptr;

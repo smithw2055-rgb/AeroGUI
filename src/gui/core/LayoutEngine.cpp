@@ -152,24 +152,15 @@ LayoutEngine::LayoutEngine(Dispatcher& dispatcher) noexcept
     : dispatcher_(&dispatcher) {}
 
 LayoutEngine::~LayoutEngine() {
-    if (phaseHook_.IsValid() && dispatcher_->CheckAccess()) {
-        static_cast<void>(
-            dispatcher_->RemoveFrameHook(phaseHook_));
-    }
+    // P3.2: no frame-hook registration; nothing to unregister.
 }
 
 Base::Result<void> LayoutEngine::Initialize() noexcept {
     Base::Result<void> access = dispatcher_->VerifyAccess();
     if (!access) return access.GetStatus();
-    if (phaseHook_.IsValid()) return {};
-    Base::Result<DispatcherFrameHookHandle> hook =
-        dispatcher_->RegisterFrameHook(
-            DispatcherFramePhase::Layout,
-            &LayoutEngine::LayoutHook,
-            this,
-            nullptr);
-    if (!hook) return hook.GetStatus();
-    phaseHook_ = hook.Value();
+    if (initialized_) return {};
+    // P3.2: ViewFrame drives LayoutHook() directly; no Layout hook.
+    initialized_ = true;
     return {};
 }
 

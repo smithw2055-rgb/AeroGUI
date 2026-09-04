@@ -43,6 +43,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Diagnostics/Rendering.hpp
     include/Aero/Diagnostics/SourceSpan.hpp
     include/Aero/Threading.hpp
+    include/Aero/PropertySlab.hpp
     include/Aero/DispatcherReentrancyGuard.hpp
     include/Aero/Meta.hpp
     include/Aero/Value.hpp

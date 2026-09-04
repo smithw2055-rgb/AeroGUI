@@ -55,6 +55,13 @@ public:
     const DependencyProperty* Find(
         TypeId ownerType,
         StringView name) const noexcept;
+    // P2.3: registration-time canonicalization fast path. Aliases inserted
+    // by Register/AddOwner resolve to the registered-owner (canonical)
+    // handle with a single memberIndex_ hash lookup, without loading the
+    // full descriptor. Unknown handles fall back to the incoming value,
+    // matching the legacy CanonicalPropertyKey contract.
+    MemberId CanonicalHandle(
+        DependencyPropertyHandle property) const noexcept;
     Result<void> ValidateValueFor(
         DependencyPropertyHandle property,
         TypeId ownerType,

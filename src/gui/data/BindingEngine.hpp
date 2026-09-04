@@ -372,9 +372,12 @@ public:
     Base::Result<std::uint32_t> DetachObject(
         DependencyObject& object) noexcept;
 
-    // Flush is also exposed for deterministic headless tests. Normal hosts run
-    // it through the DataBind frame phase registered by Initialize().
+    // Flush is also exposed for deterministic headless tests. Normal hosts
+    // run it through the explicit DataBind phase driven by ViewFrame.
     Base::Result<std::uint32_t> Flush() noexcept;
+    // P3.2 explicit DataBind phase entry (formerly the frame-hook body).
+    // Runs the bounded activation-wave sequence directly.
+    static void DataBindHook(void* context) noexcept;
     Base::Result<std::uint32_t>
     InspectBindings(
         const DependencyObject& object,
@@ -382,7 +385,7 @@ public:
             output) const noexcept;
 
     bool IsInitialized() const noexcept {
-        return hook_.IsValid();
+        return initialized_;
     }
     bool IsFlushing() const noexcept {
         return flushing_;
@@ -475,13 +478,12 @@ private:
     Base::Vector<DeferredBindingRecord> deferredBindings_;
     Base::Vector<DependencyObject*> pendingDeferredActivations_;
     Base::Vector<MultiBindingGroup> multiBindings_;
-    DispatcherFrameHookHandle hook_;
+    bool initialized_ = false;
     std::uint64_t nextHandle_ = 1U;
     bool flushing_ = false;
     Base::Status lastError_;
     DependencyPropertyChangedEventHandler propertyChangedHandler_;
 
-    static void DataBindHook(void* context) noexcept;
     Base::Result<std::uint32_t>
     ActivatePendingDeferred() noexcept;
     void OnPropertyChanged(

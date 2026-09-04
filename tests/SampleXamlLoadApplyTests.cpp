@@ -2346,15 +2346,21 @@ bool TestTutorialSampleXamlLoadApply() {
     SAMPLE_CHECK(live != nullptr);
     SAMPLE_CHECK(TestWindowGridItemsBinding(*live));
 
-    std::filesystem::path dir = "samples";
+    // P0.2: resolve the sample tree from the compile-time source root
+    // first (CTest-safe from any working directory). The CWD-relative
+    // probes below remain only for ad-hoc runs of a hand-built binary.
+    std::filesystem::path dir;
+#ifdef AERO_TEST_SOURCE_DIR
+    dir = std::filesystem::path(AERO_TEST_SOURCE_DIR) / "samples";
+#endif
+    if (dir.empty() || !std::filesystem::exists(dir)) {
+        dir = "samples";
+    }
     if (!std::filesystem::exists(dir)) {
         dir = "../samples";
     }
     if (!std::filesystem::exists(dir)) {
         dir = "../../samples";
-    }
-    if (!std::filesystem::exists(dir)) {
-        dir = "c:/Projects/AeroGUI-R/samples";
     }
 
     const char* required[] = {

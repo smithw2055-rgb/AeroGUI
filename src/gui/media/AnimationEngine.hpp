@@ -103,6 +103,9 @@ public:
 
     Base::Result<std::uint32_t> Tick(
         AnimationTime nowMicroseconds) noexcept;
+    // P3.2 explicit Animation phase entry (formerly the frame-hook body).
+    // ViewFrame calls it directly; no hook registration remains.
+    static void AnimationFrameHook(void* context) noexcept;
     // Samples newly-created timelines at t=0 so the first submitted frame has
     // the authored initial key frame, including manual (View::Update) clocks.
     Base::Result<std::uint32_t> ApplyPendingInitialValues() noexcept;
@@ -118,7 +121,7 @@ public:
         return lastTickStatus_;
     }
     bool IsInitialized() const noexcept {
-        return frameHook_.IsValid();
+        return initialized_;
     }
     void SetAutomaticTickingEnabled(bool enabled) noexcept {
         automaticTickingEnabled_ = enabled;
@@ -140,7 +143,7 @@ private:
     Track* tracks_ = nullptr;
     std::uint32_t trackCount_ = 0U;
     std::uint32_t trackCapacity_ = 0U;
-    ::Aero::Threading::DispatcherFrameHookHandle frameHook_;
+    bool initialized_ = false;
     AnimationTime currentTimeMicroseconds_ = 0U;
     std::uint64_t nextHandle_ = 1U;
     AnimationDiagnostics diagnostics_;
@@ -159,8 +162,6 @@ private:
         AnimationTime nowMicroseconds) noexcept;
     void CompactStopped() noexcept;
     void ReleaseTracks() noexcept;
-
-    static void AnimationFrameHook(void* context) noexcept;
 };
 
 } // namespace Aero

@@ -1523,8 +1523,8 @@ aero_require_text(
     "Hot DP entries must pack origin/has* bits instead of scattered bools")
 aero_require_text(
     "src/gui/internal/PropertyStore.hpp"
-    "PropertyValue effectiveValue;\n    StoredValueRare* rare = nullptr;\n    std::uint32_t packedFlags = 0U;"
-    "Hot DP entries must hold one effective Value plus packed flags and a rare pointer")
+    "PropertyValue inlineLocal;\n    StoredValueRare* rare = nullptr;\n    std::uint32_t packedFlags = 0U;"
+    "Hot DP entries must hold effective + inline-Local Values plus packed flags and a rare pointer (P2.1)")
 aero_require_text(
     "src/gui/internal/PropertyStore.hpp"
     "OriginShift = 16U"

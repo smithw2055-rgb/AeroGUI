@@ -23,6 +23,9 @@ public:
     Base::Result<void> InvalidateMeasure(UIElement& element) noexcept;
     Base::Result<void> InvalidateArrange(UIElement& element) noexcept;
     Base::Result<std::uint32_t> Flush() noexcept;
+    // P3.2 explicit Layout phase entry (formerly the frame-hook body).
+    // ViewFrame calls it directly; no hook registration remains.
+    static void LayoutHook(void* context) noexcept;
     LayoutDiagnostics Diagnostics() const noexcept;
     std::uint64_t PassVersion() const noexcept { return passVersion_; }
     Base::Status LastFlushStatus() const noexcept {
@@ -36,7 +39,7 @@ private:
     Size rootAvailableSize_;
     Base::Vector<VisualHandle> measureQueue_;
     Base::Vector<VisualHandle> arrangeQueue_;
-    DispatcherFrameHookHandle phaseHook_;
+    bool initialized_ = false;
     std::uint64_t passVersion_ = 0U;
     std::uint32_t measuredCount_ = 0U;
     std::uint32_t arrangedCount_ = 0U;
@@ -51,7 +54,6 @@ private:
     Base::Result<VisualHandle> EnqueueHandle(UIElement& element) noexcept;
     Base::Result<void> MeasureElement(UIElement& element, Size constraint) noexcept;
     Base::Result<void> ArrangeElement(UIElement& element, Rect slot) noexcept;
-    static void LayoutHook(void* context) noexcept;
 };
 
 } // namespace Aero

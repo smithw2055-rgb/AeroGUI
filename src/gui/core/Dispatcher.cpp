@@ -310,16 +310,12 @@ Base::Result<DispatcherTaskHandle> Dispatcher::Enqueue(
         }
         if (nextTaskHandle_ == 0U ||
             nextTaskHandle_ ==
-                std::numeric_limits<std::uint64_t>::max() ||
-            nextTaskSequence_ == 0U ||
-            nextTaskSequence_ ==
                 std::numeric_limits<std::uint64_t>::max()) {
             return TokenExhaustedStatus();
         }
 
         TaskRecord record;
         record.handle.value = nextTaskHandle_;
-        record.sequence = nextTaskSequence_;
         record.dueTimeMicroseconds = dueTimeMicroseconds;
         record.priority = priority;
         record.callback = callback;
@@ -336,7 +332,6 @@ Base::Result<DispatcherTaskHandle> Dispatcher::Enqueue(
 
         handle = record.handle;
         ++nextTaskHandle_;
-        ++nextTaskSequence_;
     }
 
     NotifyWake();
@@ -434,6 +429,10 @@ Base::Result<std::uint32_t> Dispatcher::ProcessPending(
     std::uint32_t callbackCount = 0U;
     Base::Status terminalStatus = Base::Status::Ok();
 
+    // P3.1: FIFO drain with priority admission filter. Each pass promotes
+    // due timers, then runs the oldest Pending task admitted by
+    // throughPriority; non-admitted tasks stay queued for a later pump.
+    // A full pass with no admitted task ends the pump.
     while (callbackCount < maxCallbacks) {
         TaskRecord invocation;
         bool hasInvocation = false;
@@ -447,22 +446,32 @@ Base::Result<std::uint32_t> Dispatcher::ProcessPending(
                 terminalStatus = promoteResult.GetStatus();
             } else {
                 DiscardCompletedReadyPrefixLocked();
-                if (readyHead_ < ready_.Size()) {
-                    TaskRecord& record = ready_[readyHead_];
-                    const std::uint8_t recordPriority =
-                        static_cast<std::uint8_t>(record.priority);
-                    const std::uint8_t allowedPriority =
-                        static_cast<std::uint8_t>(throughPriority);
-                    if (recordPriority <= allowedPriority) {
-                        invocation = record;
-                        record.state = RecordState::Finished;
-                        record.callback = nullptr;
-                        record.cleanup = nullptr;
-                        record.context = nullptr;
-                        ++readyHead_;
-                        CompactReadyLocked(false);
-                        hasInvocation = true;
+                const std::uint8_t allowedPriority =
+                    static_cast<std::uint8_t>(
+                        throughPriority);
+                for (std::uint32_t index = readyHead_;
+                     index < ready_.Size();
+                     ++index) {
+                    TaskRecord& record = ready_[index];
+                    if (record.state !=
+                            RecordState::Pending) {
+                        continue;
                     }
+                    const std::uint8_t recordPriority =
+                        static_cast<std::uint8_t>(
+                            record.priority);
+                    if (recordPriority >
+                        allowedPriority) {
+                        continue;
+                    }
+                    invocation = record;
+                    record.state = RecordState::Finished;
+                    record.callback = nullptr;
+                    record.cleanup = nullptr;
+                    record.context = nullptr;
+                    CompactReadyLocked(false);
+                    hasInvocation = true;
+                    break;
                 }
             }
         }
@@ -634,6 +643,35 @@ Base::Result<std::uint32_t> Dispatcher::RunFramePhase(
             frameTimings_.frameSequence =
                 sequence;
         }
+        // P1.3: hook-less phases (BeginFrame/Input/EndFrame in practice:
+        // no engine registers them) skip the hook scan and clock calls
+        // below. Timing semantics are preserved exactly: BeginFrame
+        // already reset above, EndFrame rolls up through the shared
+        // finisher, other empty phases record zero.
+        bool hasPhaseHook = false;
+        for (const FrameHookRecord& record : hooks_) {
+            if (record.state == RecordState::Pending &&
+                record.phase == phase) {
+                hasPhaseHook = true;
+                break;
+            }
+        }
+        if (!hasPhaseHook) {
+            activeHook_ = {};
+            phaseActive_ = false;
+            if (phase ==
+                DispatcherFramePhase::EndFrame) {
+                FinishFramePhaseLocked(phase);
+            } else if (
+                phase !=
+                DispatcherFramePhase::BeginFrame) {
+                frameTimings_.phaseMicroseconds[
+                    static_cast<std::uint32_t>(
+                        phase)] = 0U;
+            }
+            return Base::Result<std::uint32_t>(
+                0U);
+        }
     }
 
     std::uint32_t invoked = 0U;
@@ -700,31 +738,39 @@ Base::Result<std::uint32_t> Dispatcher::RunFramePhase(
                 phaseEnd >= phaseStart
                 ? phaseEnd - phaseStart
                 : 0U;
-        if (phase ==
-            DispatcherFramePhase::EndFrame) {
-            frameTimings_.totalMicroseconds =
-                0U;
-            for (DispatcherTime duration :
-                frameTimings_.
-                    phaseMicroseconds) {
-                if (UINT64_MAX -
-                        frameTimings_.
-                            totalMicroseconds <
-                    duration) {
-                    frameTimings_.
-                        totalMicroseconds =
-                            UINT64_MAX;
-                    break;
-                }
-                frameTimings_.
-                    totalMicroseconds +=
-                        duration;
-            }
-            ++frameTimings_.frameSequence;
-        }
-        CompactHooksLocked();
+        FinishFramePhaseLocked(phase);
     }
     return invoked;
+}
+
+// Caller must hold mutex_. Rolls up EndFrame totals (frame sequence bump
+// included) and compacts retired hooks. Shared by the normal phase tail
+// and the P1.3 hook-less fast path so timing semantics stay identical.
+void Dispatcher::FinishFramePhaseLocked(
+    DispatcherFramePhase phase) noexcept {
+    if (phase ==
+        DispatcherFramePhase::EndFrame) {
+        frameTimings_.totalMicroseconds =
+            0U;
+        for (DispatcherTime duration :
+            frameTimings_.
+                phaseMicroseconds) {
+            if (UINT64_MAX -
+                    frameTimings_.
+                        totalMicroseconds <
+                duration) {
+                frameTimings_.
+                    totalMicroseconds =
+                        UINT64_MAX;
+                break;
+            }
+            frameTimings_.
+                totalMicroseconds +=
+                    duration;
+        }
+        ++frameTimings_.frameSequence;
+    }
+    CompactHooksLocked();
 }
 
 DispatcherFrameTimings
@@ -802,25 +848,16 @@ std::uint32_t Dispatcher::ReentrancyDepth() const noexcept {
 
 Base::Result<void> Dispatcher::InsertReadyLocked(
     const TaskRecord& record) noexcept {
-    CompactReadyLocked(false);
-    const Base::Result<void> appendResult =
-        ready_.PushBack(record);
-    if (!appendResult) {
-        return appendResult.GetStatus();
-    }
-
-    std::uint32_t index = ready_.Size() - 1U;
-    while (index > readyHead_ &&
-           ReadyLess(ready_[index], ready_[index - 1U])) {
-        std::swap(ready_[index], ready_[index - 1U]);
-        --index;
-    }
-    return {};
+    // P3.1: pure FIFO append. Priority is an admission filter applied by
+    // ProcessPending, never an ordering key; the O(n) sorted insertion is
+    // gone, so cross-thread Post is O(1).
+    return ready_.PushBack(record);
 }
 
 Base::Result<void> Dispatcher::InsertDelayedLocked(
     const TaskRecord& record) noexcept {
-    CompactDelayedLocked(false);
+    // P3.1: ordered by due time only (stable for equal dues: strict < keeps
+    // insertion order). Priority no longer participates.
     const Base::Result<void> appendResult =
         delayed_.PushBack(record);
     if (!appendResult) {
@@ -829,7 +866,8 @@ Base::Result<void> Dispatcher::InsertDelayedLocked(
 
     std::uint32_t index = delayed_.Size() - 1U;
     while (index > delayedHead_ &&
-           DelayedLess(delayed_[index], delayed_[index - 1U])) {
+            delayed_[index].dueTimeMicroseconds <
+                delayed_[index - 1U].dueTimeMicroseconds) {
         std::swap(delayed_[index], delayed_[index - 1U]);
         --index;
     }
@@ -991,36 +1029,6 @@ bool Dispatcher::IsValidFramePhase(
     DispatcherFramePhase phase) noexcept {
     return static_cast<std::uint8_t>(phase) <
         static_cast<std::uint8_t>(DispatcherFramePhase::Count);
-}
-
-bool Dispatcher::ReadyLess(
-    const TaskRecord& left,
-    const TaskRecord& right) noexcept {
-    const std::uint8_t leftPriority =
-        static_cast<std::uint8_t>(left.priority);
-    const std::uint8_t rightPriority =
-        static_cast<std::uint8_t>(right.priority);
-    return leftPriority < rightPriority ||
-        (leftPriority == rightPriority &&
-         left.sequence < right.sequence);
-}
-
-bool Dispatcher::DelayedLess(
-    const TaskRecord& left,
-    const TaskRecord& right) noexcept {
-    if (left.dueTimeMicroseconds !=
-        right.dueTimeMicroseconds) {
-        return left.dueTimeMicroseconds <
-            right.dueTimeMicroseconds;
-    }
-
-    const std::uint8_t leftPriority =
-        static_cast<std::uint8_t>(left.priority);
-    const std::uint8_t rightPriority =
-        static_cast<std::uint8_t>(right.priority);
-    return leftPriority < rightPriority ||
-        (leftPriority == rightPriority &&
-         left.sequence < right.sequence);
 }
 
 DispatcherObject::DispatcherObject(

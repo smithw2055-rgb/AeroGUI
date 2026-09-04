@@ -1,273 +1,182 @@
-# AeroGUI-R 精简化重构总文档
+# AeroGUI-R 精简化重构总方案（修订版）
 
-> 状态：C1 步骤 1–3 已落地并验证；其余为待实施计划。
-> 约定：WPF 语义零回归；常用公共 API 零破坏性改名；每步出口为
-> Linux Release 全量构建 + `AeroFrameworkConformanceTests`（源码目录运行）
-> + `CheckArchitecture.cmake` + 对应域基准。
-
-## 0. 基线规模（实测）
-
-- `include` 461 个 `.hpp`；`src` 154 个 `.cpp` + 106 个私有 `hpp/inl`。
-- 上帝文件：`XamlObjectWriter.cpp:7918`、`XamlLoader.cpp:5110`、
-  `XamlSchemaContext.cpp:4221`、`TemplateProgram.cpp:4126`、
-  `Scroll.cpp:3579`、`Items.cpp:3408`、`TextBox.cpp:3131`、
-  `Metadata.cpp:4025`、`Binding.cpp:2542`、`StoryboardHost.cpp:2463`、
-  `RenderTree.cpp:2209`、`FrameEncoder.cpp:1870`、`AnimationEngine.cpp:2102`。
-- 门禁：`CheckArchitecture.cmake:2414` 行；`AeroGuiTargets.cmake:662` 行，17 个
-  `_aero_gui_*_sources` 分组；`Meta.hpp:1848` 行。
+> **当前状态**：
+> - **已落地**：C1 属性系统优化（1.1–1.3）已验证合入；`Metadata.cpp`、`TemplateProgram.cpp`、`XamlObjectWriter.cpp` 上帝文件已完成首轮模块拆分；老旧 Facet 文档与过渡代码已清理。
+> - **待实施**：P0 门禁松绑 → P1 死代码拔除 → P2 属性与元数据收尾 → P3 调度模型纠偏 → P4 渲染单快照攻坚 → P5 上层业务收敛。
+>
+> **核心原则与红线**：
+> 1. **WPF 语义零回归**；对外常用公共 API 零破坏性改名。
+> 2. **保留跨线程任务封送能力**：Dispatcher 不得暴力切断外部工作线程调度入场券。
+> 3. **每步出口闭环**：Linux Release 全量构建 + `AeroFrameworkConformanceTests` + `CheckArchitecture.cmake` + 领域微基准 / 像素级门禁。
 
 ---
 
-## 1. 已落地（C1 属性+Session，2026-09 实施）
+## 0. 代码现状与基线规模（实测更新）
 
-### 1.1 `EffectiveValueEngine::Flush` O(n²)→O(n)（`src/gui/core/PropertySystem.cpp:1389`）
+### 0.1 最新规模指标
+- `include`：461 个 `.hpp`；`src`：154 个 `.cpp` + 私有 `hpp/inl`。
+- 门禁脚本：`CheckArchitecture.cmake`（2415 行）；`AeroGuiTargets.cmake`（670 行）；`Meta.hpp`（1848 行）。
 
-- 原因：`pending_` 按单调 `queueSequence` 追加且 `QueueObjectProperty`
-  拒重，天然有序；原每轮线性扫描找最小序号属多余 O(n²)。
-- 改法：FIFO 头指针消费 + 结束时一次 `compactPrefix` 压缩；
-  `Apply` 中新入队条目本轮继续处理（与原 `while(true)` 语义一致）；
-  失败时保留失败条目+未处理尾部并返回错误；顺手丢弃已失效
-  （`!Queued`）的滞留条目（旧代码永久滞留）。
-- 附带：`QueueObjectProperty` 不再调用 `SetQueueSequence`
-  （`PropertySystem.cpp:1033`），简单 Local 属性入队恢复零堆分配
-  （原每次强制 `EnsureRare` 分配 `StoredValueRare`）。
+### 0.2 上帝文件跟踪对比
+| 文件路径 | 初始行数 | 当前行数 | 当前状态与说明 |
+|---|---|---|---|
+| `src/gui/markup/TemplateProgram.cpp` | 4126 | **16** | ✅ 拆解为 `TemplateCompiler.inl`、`TemplateSupport.inl`、`StyleSupport.inl` |
+| `src/gui/meta/Metadata.cpp` | 4025 | **26** | ✅ 拆解为 `MetaTable.inl`、`Registry.inl`、`TypeRegistry.inl`、`BehaviorTable.inl` 等 |
+| `src/gui/markup/XamlObjectWriter.cpp` | 7918 | **4830** | 🟡 标记扩展已抽离（`BindingExtension.inl`、`DynamicResourceExtension.inl` 等），仍待进一步解耦 |
+| `src/gui/markup/XamlLoader.cpp` | 5110 | 5110 | 待拆分（语法树分析与对象构建混合） |
+| `src/gui/markup/XamlSchemaContext.cpp` | 4221 | 4221 | 待拆分（命名空间解析与类型元数据查询） |
+| `src/gui/controls/Scroll.cpp` | 3579 | 3579 | 待拆分（`IScrollInfo` 计算与视觉滚动条混合） |
+| `src/gui/controls/Items.cpp` | 3408 | 2910 | 🟡 部分模板逻辑移出，仍待解耦容器与生成逻辑 |
+| `src/gui/controls/TextBox.cpp` | 3131 | 3131 | 待拆分（文本编辑模型、光标定位与绘制混合） |
+| `src/gui/data/Binding.cpp` | 2542 | 2542 | 待拆分（表达式求值与生命周期管理） |
+| `src/gui/media/StoryboardHost.cpp` | 2463 | 2463 | 待切分（主逻辑 + Actions/Completions/Events 物理碎片） |
+| `src/render/RenderTree.cpp` | 2209 | 2209 | 待优化（每帧全量快照与哈希） |
+| `src/gui/media/AnimationEngine.cpp` | 2102 | 2102 | 待拆分（时钟驱动与属性插值通道） |
+| `src/render/FrameEncoder.cpp` | 1870 | 1870 | 待消除 $O(n^3)$ 子树遍历与冗余批次计算 |
+
+---
+
+## 1. 已落地成果（C1 + 初始拆解阶段）
+
+### 1.1 `EffectiveValueEngine::Flush` 算法降度 $O(n^2) \to O(n)$
+- **代码位置**：`src/gui/core/PropertySystem.cpp:1389`
+- **改进**：取消逐轮扫描最小单调序列号的多余 $O(n^2)$ 查找，改为 FIFO 双指针连续消费 + 结束时单次 `compactPrefix` 压缩；支持本轮新入队原地处理；丢弃 `!Queued` 失效条目。
+- **关联优化**：简单 Local 属性入队免除 `EnsureRare` 堆分配。
 
 ### 1.2 `PropertyProviderSet` swap-remove + Winner 缓存
-（`include/Aero/Diagnostics/PropertyValueSource.hpp`）
+- **代码位置**：`include/Aero/Diagnostics/PropertyValueSource.hpp`
+- **改进**：
+  - `RemoveAt` 从 $O(n)$ 移动压缩改为 $O(1)$ 末尾元素交换。
+  - 新增 `winner_` 缓存下标，热路径 `Winner()` 由 $O(k) \to O(1)$。
+  - 增量维护与批量 `RefreshWinner()` 机制分离。
+- **微基准实测**：20k contributions 下，`Winner()` 由 87µs 降至 0µs；全删操作由 523µs 降至 352µs。
 
-- `RemoveAt` 由 O(n) 移位改为 O(1) 末尾交换（`Winner()` 按
-  `IsStronger(rank/origin/ordinal)` 全量比较，与顺序无关）。
-- 新增 `winner_` 缓存下标：`Winner()` O(k)→O(1)
-  （热路径：`RecomputeEffectiveValueCore`、
-  `GetAnimationBaseValueInternal` 每次重算各调一次）；
-  `Set` 单次比较增量维护；单点删除做换位修正；
-  批量删除（`RemoveOrigin/Remove/RemoveRank`）用不维护缓存的
-  `EraseAtUnchecked` 循环 + 结束时一次 `RefreshWinner()`。
-- 微基准（20k contributions，Release）：`Winner` 87µs→0µs；
-  `RemoveOrigin(全删)` 523µs→352µs。
-- 边界用例（独立校验程序，全过）：rank/origin/ordinal 优先级、
-  删 winner 重扫、批量删、同 token 值替换、`Clear`、尾部 winner 换位。
+### 1.3 `PropertyProviderSession` Hash 索引化
+- **代码位置**：`src/gui/core/state/PropertyEngine.hpp:230`
+- **改进**：
+  - `setterRecords_` / `states_` 均转换为哈希表查找，彻底消除线性扫描。
+  - `ObjectState` 冗余清理，`PruneState` 降为 $O(1)$。
 
-### 1.3 `PropertyProviderSession` 记录 Hash 索引化
-（`src/gui/core/state/PropertyEngine.hpp:230`，公共 API 不变）
-
-- `setterRecords_: Vector` → `HashMap<ContributionKey, Token>` O(1)
-  （setter 语义：每对单贡献，重复 Set 复用 token）。
-- `triggerRecords_: Vector` →
-  `HashMap<ContributionKey, Vector<Token>>`（trigger 语义：多记录堆叠，
-  `TriggerEngine::EvaluateTriggers` 先全清再按声明顺序逐个 Set，
-  后声明 ordinal 更大即获胜；对内向量通常长度 1）。
-- `states_: Vector<ObjectState>` → `HashMap<DO*, ObjectState>` O(1)；
-  `ObjectState` 删冗余 `object` 成员，加 `liveContributions` 计数，
-  `PruneState` O(1)。
-- 删除 `FindRecord/ClearRecords/ClearObjectRecords/HasRecords/
-  RemoveState/RemoveAt` 六个 helper；`ClearObjectProviders` 改为
-  每表 $<×>次遍历 + `Erase`（tombstone，无 rehash，迭代安全），
-  回滚/错误语义与旧代码一致。
-- 构建注意：`HashMap::Entry::value_` 为私有，外部经
-  `entry->Value()` 访问。
-
-### 1.4 验证记录
-
-| 检查 | 结果 |
-|---|---|
-| Linux Release 全量构建（AeroGui + tools + tests） | 通过 |
-| `AeroFrameworkConformanceTests`（源码目录运行） | pass，与基线一致 |
-| `CheckArchitecture.cmake` | passed（含 include-closure 预算） |
-| CTest 整包说明 | `AeroFrameworkConformanceTests` 在 CTest 默认 CWD 下失败为**预存环境问题**（用例依赖源码目录相对 `samples/` 路径；切 CWD 不带改动可复现），非回归 |
+### 1.4 上帝文件首轮物理瘦身
+- `TemplateProgram.cpp`、`Metadata.cpp`、`XamlObjectWriter.cpp` 成功分离出 15+ 个聚焦模块文件，编译边界初步建立。
 
 ---
 
-## 2. P0 门禁松绑（后续一切的前置）
+## 2. P0 基础设施：门禁松绑与测试环境固化（后续一切的前置）
 
-- `CheckArchitecture.cmake`：`require_file` 从文件名白名单降为语义断言；
-  保留 `forbid Detail/Runtime/Impl/RenderSurface/GraphicsDevice` 词汇检查；
-  删除对 `ViewFrame/ViewDocuments/StoryboardHost.*/InteractivityEngine.*
-  /TemplateProgram` 具体文件名的强绑定（约 501–562、648–669、755–912 段）。
-- `AeroPublicHeaders.cmake`：物理==声明逐文件校验改为 umbrella 校验。
-- `AeroGuiTargets.cmake`：17 个 `_aero_gui_*_sources` 合并为 5 组
-  （`core / ui / markup / media_text / render`）。
-- 新增兼容断言（不锁文件名）：`Controls.hpp` 含 `Button/Grid/ListBox/TextBox`；
-  `Gui.hpp` 含 `LoadXaml<T>/LoadComponent/CreateView`；
-  `FrameworkElement` 含 `Get/SetWidth/DataContext/FindName/FindResource`；
-  `Binding` 含 `Path/Mode/ElementName`。
+- **P0.1 `CheckArchitecture.cmake` 规则升级**：
+  - 将 `require_file` 物理路径硬编码白名单降为**语义/接口断言**。
+  - 删除对已拆分或拟合并文件（如 `StoryboardHost.Actions.cpp`、`ViewDocuments.cpp`、`InteractivityEngine.*`）的硬性绑定（约 501–562、648–669、755–912 段）。
+  - 保留并加固 `forbid Detail/Runtime/Impl/RenderSurface/GraphicsDevice` 等核心分层命名约束。
+- **P0.2 消除测试环境路径敏感性（CI 定时炸弹）**：
+  - 修复 `AeroFrameworkConformanceTests` 强依赖执行目录（CWD）在源码根目录的缺陷，统一采用基于 `AERO_SOURCE_DIR` 宏或统一测试资源基准路径解析，确保 CTest 任意工作路径均可 100% 稳定通过。
+- **P0.3 统一头文件与目标组管理**：
+  - `AeroPublicHeaders.cmake` 支持 umbrella 头文件聚合；
+  - `AeroGuiTargets.cmake` 17 组细粒度源文件合并归并为 5 组（`core / ui / markup / media_text / render`）。
 
 ---
 
-## 3. C系列续项（属性域收尾）
+## 3. P1 零风险清理与死代码拔除（轻量先行）
 
-1. **Entry 内联 Local**：`StoredValueEntry` 内嵌 `inlineLocal`，
-   90% 简单 Local 免 `Rare` 分配；`DO::valueStore_(void*)` 改 Engine 句柄。
-2. **侵入式队列**：`queuedNext` 链替代 `pending_` vector
-   （步骤 1 的 FIFO 头指针已铺垫）；删 `queueSequence/nextQueueSequence_`。
-3. **Registry 合并**：`DependencyPropertyRegistry` 降为 `TypeRegistry` 视图；
-   别名在 `Register/AddOwner` 时 canonical 化，删运行时二次 Find
-   （`DependencyObject.cpp:1080-1084, 1114-1119`）与 `CanonicalPropertyKey`
-   逐次映射；删 `ToTypeRegistryFlags` 双份 flag。
-4. **池合一**：`StoredValueRarePool + PropertyStorePool` 双 `thread_local`
-   池 → Engine 内 `Slab<Rare> + Slab<ObjectStore>`。
+- **P1.1 彻底清理 `UnicodeAnalysis` 孤岛**：
+  - `src/gui/text/UnicodeAnalysis.cpp` 经实测全网零调用，直接自研代码已由 `TextLayout` 承载，连同 CMake 配置彻底移除（减负约 300 行）。
+- **P1.2 统一字素集（Grapheme Cluster）判定**：
+  - 合并 `TextLayout`、`EditableText` 中的重复实现，补全阿拉伯语 Combining 字符范围（`0x064B-065F`、`0x0670`）。
+- **P1.3 清理 `ViewFrame` 虚假阶段轮询**：
+  - 删除 `BeginFrame`、`Input`、`EndFrame` 等无注册 Hook 但每帧空跑耗时计量的无用驱动开销。
 
 ---
 
-## 4. D系列：Dispatcher/Threading（下一优先级）
+## 4. P2 属性系统与元数据收尾（C & M 系列深化）
 
-现状：`Threading.hpp:279` + `Dispatcher.cpp:1048`；9 Phase
-（`Threading.hpp:34-45`）+ 10 Priority（`:20-32`）；7 处
-`RegisterFrameHook` 只占 6 Phase（DataBind 被 `Binding.cpp:771` 与
-`TriggerEngine.cpp:255` 占两次）；`Begin/Input/End` 零注册仍每帧驱动+计时。
-
-- **D1 零调用任务队列**：`Post/PostDelayed/PostAt/ProcessPending/Cancel`
-  在 `src/` 无生产调用方；连带 `ready_/delayed_` 双队列、
-  `Insert/Promote/Compact/Discard/ReadyLess/DelayedLess`
- （`Dispatcher.cpp:253-496,803-1024`）、`maxCallbacks`、`DelayOverflow`。
-  `ViewFrame` 早已直调引擎。**删。**
-- **D2 单线程持 mutex**：`Threading.hpp:157-158` 明示永不建线程，
-  却全方法持 `mutex_:222`（约20处）；另有线程令牌
-  （`Dispatcher.cpp:14-27,95-97`）、可插拔时钟/唤醒
-  （`DispatcherOptions{now/wake}:102-107`，`NotifyWake:978-982`）。
-  **删，保留 `ownerThread_` 单断言。**
-- **D3 双重调度**：`Dispatcher::RunFramePhase` Hook 表
-  （`Dispatcher.cpp:603-728`）与 `ViewFrame.cpp:1098-1163` 硬编码
-  `phases[9]` 并存，且顺序不一致（ViewFrame 是
-  Animation/Lifecycle/Layout，枚举是 Animation/Layout/Lifecycle）。
-  **删空 `Begin/Input/End` 驱动；`DataBind×2` 合一钩；
-  `hooks_/activeHook_/phaseHook` 退化为 ViewFrame 直接顺序调用。**
-- **D4 防御收敛**：`CheckAccess + VerifyAccess` 双写
-  （`Dispatcher.cpp:225-233`，`Binding.cpp:764,797` 典型）；
-  跨 Dispatcher 比对 6 处收敛到 `Attach/Initialize` 一次；
-  `DispatcherReentrancyGuard`（唯一使用
-  `DependencyObject.cpp:745-746`）并入 `MutationScope`；
-  `FrameTimings`（唯一消费 `Inspector.cpp:232-234`）移入 Inspector 按需采样。
-- 步骤：D-a 任务队列 → D-b 同步原语 → D-c Phase 折叠 → D-d 防御收敛。
+- **P2.1 `StoredValueEntry` 内联 Local 值**：
+  - 在 `StoredValueEntry` 中直接内嵌基础 `PropertyValue inlineLocal`，使 90% 简单属性读写完全免于 `StoredValueRare` 堆分配。
+  - `DependencyObject::valueStore_` 统一为 Engine 句柄。
+- **P2.2 侵入式队列链表**：
+  - 在 Entry 级增加 `queuedNext` 指针，以侵入式单链表彻底替代 `EffectiveValueEngine::pending_` 动态向量，彻底消灭队列扩容分配开销。
+- **P2.3 Registry 单一事实源**：
+  - `DependencyPropertyRegistry` 降为 `TypeRegistry` 的轻量只读视图。
+  - 属性别名在 `Register/AddOwner` 时完成规范化（Canonicalization），移除 `DependencyObject.cpp` 运行时的二次查表与 `CanonicalPropertyKey` 动态映射。
+- **P2.4 线程局部池收归 Engine Slab**：
+  - 将 `StoredValueRarePool` 与 `PropertyStorePool` 从全局 `thread_local` 转换为 Dispatcher/Engine 拥有的 `SlabAllocator`，生命周期随引擎严格绑定，避免线程穿透与跨线程泄露。
+- **P2.5 `Meta.hpp` 公共立面精简**：
+  - 公共头文件仅暴露常用的 6 个流畅配置入口，其余 30+ 内部实现重载与 `#ifdef AERO_GUI_IMPLEMENTATION` 严格移入私有头文件。
 
 ---
 
-## 5. R系列：渲染单快照（Scheme B 收尾）
+## 5. P3 调度器与线程模型纠偏（D 系列理性重构）
 
-详见 `docs/RENDER_PIPELINE_SIMPLIFICATION.md`。现状仍双付费：
+> **纠偏说明**：原计划过度裁撤任务队列与互斥保护，将导致 AeroGUI 彻底丧失外部工作线程向 UI 线程封送回调的标准途径。本阶段旨在**去过度设计，保核心能力**。
 
-- **R1**：`RenderTree::BuildSubtree`（`RenderTree.cpp:1801-2095`）每 Commit
-  全树物化快照（`RenderTree.hpp:111-188`）；`UiFrameEncoder::Record`
-  `parentIndexes` 倒序找父 O(n²)（`FrameEncoder.cpp:1593-1631`）+
-  `subtree*` 逐节点扫子树；常驻 `StableHash` 全量哈希（`:656-703`）+
-  `ValidateRenderFrame` id 唯一 O(n²)（`:733-745`）。
-- **R2**：D3D11（`D3D11RenderDevice.cpp:743-838`）与 OpenGL33
-  （`:947-1023`）shader 分支、`Sampler64`、Blend/Stencil 状态机同构手写两套；
-  `D3D11RenderContext.cpp:301-364` 残留 BMP dump 调试代码。
-- **R3**：`RenderContext` 4 标志状态机 + `RenderDevice` 7 虚函数
-  （`AeroRender/RenderDevice.hpp:427-450`）+ `RenderTarget::State` +
-  `ViewRenderer` 三转发（`ViewRenderer.cpp:168-196`）。
-  压为 `BeginSurfaceFrame/CompleteSurfaceFrame(FrameDescriptor)`。
-- **R4**：`Flatten` vs `TessellateStroke(14参)` vs `PaintBrush*/SampleBrush`
-  vs `DrawGeometry` 内两次 Flatten（`DrawingContext.cpp:276-297`）；
-  Clip 网格三处各存；`TextRenderer::ShapeAndPrepare`
-  （`TextRenderer.cpp:123-273`）成形+图集+上传+命中区一函数，
-  `CollectGarbage=0` 假回收。
-- 方向：`DescribeVisual` 单一事实源 → `Commit` 只刷 dirty DisplayList +
-  `FrameDescriptor` → `RecordTree` 递归栈直录；后端抽公共 `StateCache`；
-  几何合为 `Fill/Stroke→DisplayList` 单入口；像素门禁守护。
+- **P3.1 跨线程任务队列轻量化（保留并精简）**：
+  - **剥离过度设计**：移除 10 级 priority 复杂优先级排序及 delayed 压缩算法（`Insert/Promote/Compact/Discard` 等 500+ 行死重代码）。
+  - **确立核心契约**：保留极简、线程安全的 MPSC（多生产者单消费者）任务队列，支持 `Post`、`PostDelayed` 与 `Cancel`。
+  - **打通主循环驱动**：在 `src/app/DesktopHost.cpp` 的帧循环开始处正确挂接 `ProcessPending()` 调用，闭环异步与定时器回调能力。
+- **P3.2 消除双重调度与 Hook 表**：
+  - 废弃 `Dispatcher::RunFramePhase` 间接 Hook 机制；
+  - `ViewFrame` 改为直接、显式、顺序调用各子引擎（`AnimationEngine::Flush`、`BindingEngine::Flush`、`LayoutEngine::Flush`、`RenderTree::Flush`）。
+  - 合并 DataBind 两个离散阶段为单次调用。
+- **P3.3 防御机制收敛**：
+  - `CheckAccess` / `VerifyAccess` 双重防御逻辑精简，跨 Dispatcher 归属检查收敛至 `Attach/Initialize` 一次性完成。
+  - `DispatcherReentrancyGuard` 与 `MutationScope` 合并；`FrameTimings` 按需采样移入 Inspector。
 
 ---
 
-## 6. M系列：Meta 注册表合一
+## 6. P4 渲染单快照攻坚（R 系列核心优化，Scheme B 收尾）
 
-- **M1 双存**：`TypeRegistry::PropertyInfo`（`MetadataState.hpp:18-30`）vs
-  `DependencyPropertyRegistration/DependencyProperty`
-  （`DependencyProperty.hpp:366-447`）；一次注册写两处
-  （`PropertySystem.cpp:394-530`）；双索引同键；flag 双编码；
-  规范键三层别名。方向：DP Registry 降为 TypeRegistry 视图（§3.3）。
-- **M2 作者 API 过载**：`Meta.hpp:1848`——`TypeBuilder` ~30 重载、
-  `MetadataAuthoringSession` ~21 链式、`FrameworkPropertyMetadata` 14 fluent；
-  普通开发者仅需 6 个；`#ifdef AERO_GUI_IMPLEMENTATION` 内部分支泄漏到公头
- （`:1265,1549,1635,1669`）。方向：公头只留立面，其余退私头。
-- **M3 文件错配**：`BuiltinModules.cpp:25` 两转发单独立文件 →
-  并入 `BuiltinMetadata.cpp`；`Value.cpp:335` 通用转换 → `base/`；
-  `Module.cpp:253` 拓扑排序独立为 `ModuleSet.cpp`；
-  `Metadata.cpp:4025` 按 `=====` 切 `MetaTable/Registry` 两 `.cpp`。
+> **质量守护要求**：本阶段为风险最高的视觉核心层，必须在实施前建立**端到端像素对比门禁（Pixel Diffs / Golden Images）**，杜绝渲染回归。
 
----
-
-## 7. T系列：文本管线收敛
-
-- **T1 回退链≥4份**：`TextPipelineState::fallbackFaces:687` →
-  `Headless` 拷贝（`:539-544,647`）→ `Proxy` 逐调用临时（`:498,510`）→
-  `TextLayoutRequest`（`TextLayout.hpp:48-49`）→ `Render::TextConfig`；
-  `LoadedFont` 缓存与 `FreeType::FaceRecord` 重复。方向：只留 Pipeline
-  一份，余改 `Span` 视图。
-- **T2 断行二选一**：`UnicodeAnalysis` 全套**全网零调用**，
-  `TextLayout` 自研 `Tokenize/hasRtl/getDirection`；删一套约200行。
-- **T3 字素三套且不一致**：`TextLayout:33-59` vs
-  `UnicodeAnalysis:204-272` vs `EditableText:48-123`；
-  combining 范围两处不一致（缺 `0x064B-065F/0x0670`）。方向：合一。
-- **T4 立面重复**：`TextBlockLayout::{Request,Result}` 是 `TextLayout`
-  超集扁平化；`HeadlessTextBlockLayout`（`TextPipeline.cpp:528-651`）与
-  `TextRenderer::ShapeAndPrepare`（`TextRenderer.cpp:88-224`）各展一遍。
-- **T5 可插拔名存实亡**：`friend HarfBuzzAdapter` + `FT_Face` 强转
-  （`HarfBuzzAdapter.cpp:108-110`）；`RegisterProvider` 强制三件套同 Identity
-  （`FontManager.cpp:82-115`）。方向：shaper 存接口 + 允许缺省。
+- **P4.1 根治 `FrameEncoder` 遍历退化（$O(n^3) \to O(n)$）**：
+  - 彻底重写 `UiFrameEncoder::Record`：移除 `parentIndexes` 倒序数组与 `isInSubtree` 递归检查。
+  - 引入显式树深度/递归遍历栈，在单次深度优先遍历中直接流式录制子树指令与作用域。
+- **P4.2 热路径去重与哈希瘦身**：
+  - `ValidateRenderFrame` 中移除每帧全量双循环 $O(n^2)$ 节点 ID 检查，改为构建时局部前置断言或 Debug-only 检查。
+  - 优化 `RenderFrame::StableHash`，渐变 ramp 仅参与版本哈希，不再逐帧遍历 1024 字节像素。
+- **P4.3 消除每 Commit 全树物化快照**：
+  - `DescribeVisual` 作为唯一视觉事实源；
+  - `Commit` 仅刷新 dirty DisplayList 与 `FrameDescriptor`，不再拷贝整棵树的镜像。
+- **P4.4 后端管线与状态机归一**：
+  - D3D11 与 OpenGL33 抽取共享的 `StateCache`（融合 Shader 分支、Sampler、Blend/Stencil 状态）；
+  - 清理 `D3D11RenderContext.cpp` 中的历史调试代码；
+  - 几何路径合并：统一 `Fill/Stroke -> DisplayList` 单入口，消除 `DrawGeometry` 的二次冗余 Flatten。
 
 ---
 
-## 8. I系列：输入/动画/故事板
+## 7. P5 文本、输入与上层模块收尾（T / I / V / B / X / S / Z）
 
-- **I1 三层转发**：`DesktopHost:475-513` → `View::` →
-  `ViewInput.cpp:152-351` 12薄包装 → 匿名 Dispatch →
-  `InputRouter` → 三 State `Dispatch`。`Escape/Cancel` 双判
-  （`ViewInput:92-98` vs `InputState.hpp:371-385`）；focus 两套队列；
-  overlay 双份 Vector。方向：Host 直发 `InputRouter`；
-  `FocusHost/OverlayHost` 并入 `InputRouter::Flush`。
-- **I2 Commands 全局表**：`StaticRoutedCommands/Interned/Resolve*`
-  （`Commands.cpp:49-135`）+ 双注入 + `InputRouterOf` 回查循环。
-  方向：`ProcessInput` 删除直调 `CanExecute/Execute`。
-- **I3 StoryboardHost 按方法名切分**：主文件 2463 行
-  （`BeginTimeline:1159-2148` 约990行、17个 `Begin*` 分支、
-  `ResolveAnimationProperty:81-1030` 约950行）+ `.Actions:698` +
-  `.Events:452`（复刻 Interactivity 条件语义）+ `.Completions:137`
-  （轮询完成，本应回调）。方向：4→1（或 Timing+Runtime 2）。
-- **I4 三引擎 Flush 同构**（D 系列的延伸）：
-  Binding/Trigger/Animation 三套 `pending+Flush+static Hook+Register`
- （`Binding.cpp:770,1579,1825`、`TriggerEngine.cpp:254,295,314`、
-  `AnimationEngine.cpp:296,1928-2091`），`ViewFrame:1136-1350` 散调约8处。
-  方向：收敛到 Dispatcher Phase 单队列。
+- **P5.1 文本管线收敛 (T)**：
+  - 回退字体链（Fallback Faces）去重：消除 PipelineState、Headless、Proxy 间的 4 份拷贝，全链路统一为 `Span` 视图。
+  - `TextBlockLayout` 与 `TextRenderer::ShapeAndPrepare` 扁平化，字形排版与 GPU 上传职责清晰分离，移除虚假 GC。
+  - HarfBuzz / FreeType 适配器解耦，Shaper 接口允许缺省降级。
+- **P5.2 输入路由与故事板分治 (I)**：
+  - 缩短输入事件转发层级：`DesktopHost` 直通 `InputRouter`，消除 `ViewInput` 中 12 个空壳包装函数。
+  - `StoryboardHost.cpp`（2463 行）与配套物理切片文件整合成两个清晰组件：`StoryboardTimingEngine`（时钟计算）与 `StoryboardRuntime`（属性作用器）。
+  - 全局 Command 路由表瘦身，直调 `CanExecute/Execute`。
+- **P5.3 视图、数据绑定与资源层收尾 (V / B / X / S / Z)**：
+  - `ViewState` 扁平化：收敛 25 个离散指针，消除 `GuiState`、`ViewState`、`ElementTree` 间的平行链条。
+  - `BindingPath::Compile` 建立全局 `(rootType, path, schemaHash)` 编译缓存，避免重复解析。
+  - `ResourceHost` 4 字典合并为层级化 `Environment`；
+  - 继续推进剩余上帝文件（`XamlLoader.cpp`、`XamlSchemaContext.cpp`、`Scroll.cpp`、`TextBox.cpp`）的结构性拆分。
 
 ---
 
-## 9. V/B/X/S/Z 系列收尾
+## 8. 推荐实施拓扑与推进节奏
 
-- **V1 View 碎片**：7 文件 → `View+ViewFrame` 2 文件；
-  `ViewState:219-259` 25 指针 → `Gui*+Tree*+FrameArgs`；
-  `GuiState/ViewState/ElementTree` 平行指针 → 只存链；
-  `DesktopHost` 三角重叠 → Host 只做窗口+上下文+泵。
-- **B1 Binding**：双描述符（`BindingEngine.hpp:183-254`）→ 单
-  `BindingDescriptor{sourceKind+path}`；`BindingPath::Compile:143`
-  按源类型重编 → 按 `(rootType,path,schemaHash)` 全局缓存；
-  `MultiBindingProxy:140-152` 额外 DO → 直聚 handles；
-  `CollectionView` vs `Selector` currency → 单 DefaultViews。
-- **X1 资源**：`Find/TryFindResource×4` → 只留 `ResourceKey` 核心；
-  `ResourceHost` 4 字典 → `Environment{layers[]}`；
-  `XamlRuntime` 折叠进 `DocumentCache`。
-- **S1**：`Templates.cpp:2733` + `Style.cpp:1107` 会话统一（C3 半治后续）；
-  `Path.cpp:930` + `Shapes.cpp:711` 几何与控件分离。
-- **Z1**：`sdk-consumers/` 11 桩 → 3（Gui/Render/App）。
-
----
-
-## 10. 公共接口 WPF 兼容红线（精简中不得触碰）
-
-`Get/Set/ClearWidth`、`Click()+=`、`Grid::SetRow`、
-`Binding(Path/Mode/ElementName)`、`Gui::LoadXaml<T>/LoadComponent/CreateView`、
-`FindName/FindResource`、`Application::Run/StartupUri`、
-`OnRender(DrawingContext&)`、`Meta::Register`；`Set(void)+*Checked(Result)+
-LoadXaml(Result)` 三轨话术；头聚合只加 umbrella、不删细头（先转发一版本）。
-
----
-
-## 11. 总执行顺序与出口
-
-```
-P0门禁 → C收尾(§3) → D-a→D-b→D-c→D-d → R单快照 → M合一 → T收敛 → I → V/B/X/S → Z固化
+```mermaid
+graph TD
+    P0[P0: 门禁松绑 + 测试 CWD 路径解耦] --> P1[P1: 零风险清理: 删 UnicodeAnalysis / 字素集统一 / ViewFrame 空阶段精简]
+    P1 --> P2[P2: 属性系统与元数据收尾: Local内联 / 侵入式队列 / TypeRegistry合一]
+    P2 --> P3[P3: Dispatcher 纠偏: 轻量 MPSC 队列 + 接入主循环 Pump + 去双重调度]
+    P3 --> P4[P4: 渲染攻坚: 消除 FrameEncoder O(n³) / 去全树快照 / 像素门禁守护]
+    P4 --> P5[P5: 文本 / 输入 / 绑定 / 剩余上帝文件拆解]
 ```
 
-- 每步：Linux Release 全量构建 + conformance（源码目录运行）+
-  `CheckArchitecture` + 对应域基准（帧 Flush / 像素门禁 / 样式应用）。
-- D 无语义风险可连续落地；R 需像素门禁守护；M 需等价性测试先行（同 C1 模式）。
+### 退出与验收矩阵
+| 阶段 | 核心验证重点 | 出口门禁标准 |
+|---|---|---|
+| **P0** | CMake 检查松绑，测试执行脱敏 | 任意目录运行 `AeroFrameworkConformanceTests` 100% Pass，`CheckArchitecture` 通过 |
+| **P1** | 死代码彻底清空，文本边界修复 | 全量 Release 构建零警告，Text Conformance 测试通过 |
+| **P2** | 属性读写零多余分配，注册表合一 | Property 微基准（吞吐与分配计数）、XAML 全量加载用例通过 |
+| **P3** | 跨线程异步调度通路正常，主循环无空耗 | 增加外部线程 `Post` 验证用例，帧调度阶段耗时显著下降 |
+| **P4** | 复杂树渲染帧率提升，消除嵌套扫描 | 像素级比对（Pixel Diffs）零误差，Release 帧率基准提升 |
+| **P5** | 架构整洁度达标，上帝文件彻底降权 | 架构行数预算检查，SDK 示例与 samples 编译运行无瑕疵 |

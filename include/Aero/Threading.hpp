@@ -6,6 +6,7 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/DispatcherReentrancyGuard.hpp>
+#include <Aero/PropertySlab.hpp>
 
 #include <cstdint>
 #include <mutex>
@@ -154,6 +155,10 @@ public:
     bool Cancel(
         DispatcherTaskHandle handle) noexcept;
 
+    // Pumps queued callbacks in FIFO order. throughPriority is an admission
+    // filter (P3.1): callbacks posted at a priority above throughPriority
+    // stay queued for a later pump. Ordering within the admitted set is
+    // always FIFO; the former 10-level sorted insertion is gone.
     // Processes ready callbacks from Send through throughPriority. The host
     // controls when this is called; Dispatcher never creates a worker thread.
     Result<std::uint32_t> ProcessPending(
@@ -186,6 +191,13 @@ public:
     bool IsPumping() const noexcept;
     std::uint32_t ReentrancyDepth() const noexcept;
 
+    // P2.4: Dispatcher-owned slab for dependency-property storage blocks
+    // (PropertyStore / StoredValueRare). Lifetime is strictly bound to the
+    // Dispatcher; pooled blocks never outlive it.
+    PropertySlab& GetPropertySlab() noexcept {
+        return propertySlab_;
+    }
+
 private:
     friend class DispatcherReentrancyGuard;
 
@@ -197,8 +209,9 @@ private:
 
     struct TaskRecord  {
         DispatcherTaskHandle handle;
-        std::uint64_t sequence = 0U;
         DispatcherTime dueTimeMicroseconds = 0U;
+        // Admission filter for ProcessPending(throughPriority). Never used
+        // for ordering (P3.1: the ready queue is pure FIFO).
         DispatcherPriority priority = DispatcherPriority::Normal;
         DispatcherCallback callback = nullptr;
         DispatcherCleanupCallback cleanup = nullptr;
@@ -220,6 +233,7 @@ private:
     Base::Vector<TaskRecord> delayed_;
     Base::Vector<FrameHookRecord> hooks_;
     mutable std::mutex mutex_;
+    PropertySlab propertySlab_;
 
     std::uint32_t readyHead_ = 0U;
     std::uint32_t delayedHead_ = 0U;
@@ -229,7 +243,6 @@ private:
     DispatcherWakeCallback wake_ = nullptr;
     void* wakeContext_ = nullptr;
     std::uint64_t nextTaskHandle_ = 1U;
-    std::uint64_t nextTaskSequence_ = 1U;
     std::uint64_t nextHookHandle_ = 1U;
     std::uint64_t nextHookSequence_ = 1U;
     DispatcherFrameHookHandle activeHook_;
@@ -257,6 +270,7 @@ private:
     void CompactReadyLocked(bool force) noexcept;
     void CompactDelayedLocked(bool force) noexcept;
     void CompactHooksLocked() noexcept;
+    void FinishFramePhaseLocked(DispatcherFramePhase phase) noexcept;
     void DiscardCompletedReadyPrefixLocked() noexcept;
     void DiscardCompletedDelayedPrefixLocked() noexcept;
     void LeaveReentrancyGuard() noexcept;
@@ -266,12 +280,6 @@ private:
         DispatcherPriority priority) noexcept;
     static bool IsValidFramePhase(
         DispatcherFramePhase phase) noexcept;
-    static bool ReadyLess(
-        const TaskRecord& left,
-        const TaskRecord& right) noexcept;
-    static bool DelayedLess(
-        const TaskRecord& left,
-        const TaskRecord& right) noexcept;
 };
 
 } // namespace Aero::Threading

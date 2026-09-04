@@ -236,6 +236,9 @@ public:
         std::uint32_t pixelHeight,
         double dpiScale) noexcept;
     Base::Result<std::uint32_t> Commit() noexcept;
+    // P3.2 explicit RenderCommit phase entry (formerly the frame-hook
+    // body). ViewFrame calls it directly; no hook registration remains.
+    static void RenderCommitHook(void* context) noexcept;
 
     const ::Aero::Render::RenderFrame& CurrentFrame() const noexcept {
         return currentFrame_;
@@ -262,7 +265,7 @@ private:
     };
     Base::Vector<OverlayRecord> overlays_;
     ::Aero::Render::RenderFrame currentFrame_;
-    ::Aero::Threading::DispatcherFrameHookHandle phaseHook_;
+    bool initialized_ = false;
     RenderNodeId nextNodeId_ = 1U;
     std::uint64_t commitVersion_ = 0U;
     Base::Status lastCommitStatus_;
@@ -299,7 +302,6 @@ private:
     static std::uint32_t AppendGradientRamp(
         ::Aero::Render::RenderFrame& plan,
         const ::Aero::Media::GradientBrush& brush) noexcept;
-    static void RenderCommitHook(void* context) noexcept;
 };
 
 } // namespace Aero::Render

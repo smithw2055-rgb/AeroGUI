@@ -120,6 +120,7 @@
 #include <Aero/Media/BlurEffect.hpp>
 #include <Aero/Media/RotateTransform.hpp>
 #include <Aero/TextProperties.hpp>
+#include <Aero/Threading.hpp>
 #include <Aero/Controls/Primitives/ToggleButton.hpp>
 #include <Aero/Documents/TextElement.hpp>
 #include <Aero/TryCast.hpp>
@@ -136,10 +137,13 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <atomic>
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <string>
 #include <system_error>
+#include <thread>
 #include <type_traits>
 #include <utility>
 
@@ -1450,6 +1454,146 @@ bool TestViewFrameViewportAndInput() {
     static_cast<void>(view.MouseButtonUp(
         12, 8, Aero::Input::MouseButton::Left));
     static_cast<void>(view.KeyDown(Aero::Input::Key::Tab));
+    return true;
+}
+
+// P3.1 exit gate: external worker threads must be able to marshal callbacks
+// onto the UI thread through Dispatcher::Post, pumped by the frame loop.
+namespace {
+
+struct CrossThreadPostRecord {
+    std::atomic<std::uint32_t>* executed = nullptr;
+    Aero::Threading::DispatcherThreadToken ownerThread = 0U;
+    std::atomic<bool>* threadOk = nullptr;
+    std::uint32_t* orderSlot = nullptr;
+    std::atomic<std::uint32_t>* orderNext = nullptr;
+};
+
+void CrossThreadPostCallback(void* context) noexcept {
+    auto* record = static_cast<CrossThreadPostRecord*>(context);
+    if (record == nullptr) {
+        return;
+    }
+    if (record->threadOk != nullptr &&
+        Aero::Threading::CurrentDispatcherThreadToken() !=
+            record->ownerThread) {
+        record->threadOk->store(false, std::memory_order_relaxed);
+    }
+    if (record->orderSlot != nullptr && record->orderNext != nullptr) {
+        *record->orderSlot = record->orderNext->fetch_add(
+            1U, std::memory_order_relaxed);
+    }
+    if (record->executed != nullptr) {
+        record->executed->fetch_add(1U, std::memory_order_relaxed);
+    }
+}
+
+} // namespace
+
+bool TestDispatcherCrossThreadPost() {
+    LiveGui* live = NewLiveGui();
+    CHECK(live != nullptr);
+    View& view = *live->view;
+
+    Result<Ref<Button>> button = MakeRef<Button>();
+    CHECK(button);
+    CHECK(view.SetContent(button.Value()));
+    Aero::Threading::Dispatcher& dispatcher =
+        button.Value()->GetDispatcher();
+    const Aero::Threading::DispatcherThreadToken owner =
+        dispatcher.OwnerThreadToken();
+    CHECK(owner == Aero::Threading::CurrentDispatcherThreadToken());
+
+    // FIFO order on the owner thread through the direct pump.
+    static constexpr std::uint32_t kFifoPosts = 8U;
+    std::atomic<std::uint32_t> fifoExecuted{0U};
+    std::atomic<std::uint32_t> fifoNext{0U};
+    std::uint32_t fifoOrder[kFifoPosts] = {};
+    CrossThreadPostRecord fifoRecords[kFifoPosts] = {};
+    for (std::uint32_t index = 0U; index < kFifoPosts; ++index) {
+        fifoRecords[index].executed = &fifoExecuted;
+        fifoRecords[index].ownerThread = owner;
+        fifoRecords[index].orderSlot = &fifoOrder[index];
+        fifoRecords[index].orderNext = &fifoNext;
+        Result<Aero::Threading::DispatcherTaskHandle> posted =
+            dispatcher.Post(
+                Aero::Threading::DispatcherPriority::Normal,
+                &CrossThreadPostCallback,
+                &fifoRecords[index]);
+        CHECK(posted);
+    }
+    Result<std::uint32_t> fifoPumped = dispatcher.ProcessPending();
+    CHECK(fifoPumped);
+    CHECK(fifoPumped.Value() == kFifoPosts);
+    CHECK(fifoExecuted.load(std::memory_order_relaxed) == kFifoPosts);
+    for (std::uint32_t index = 0U; index < kFifoPosts; ++index) {
+        CHECK(fifoOrder[index] == index);
+    }
+
+    // Worker threads marshal onto the UI thread; the frame loop pumps them.
+    static constexpr std::uint32_t kWorkerPosts = 16U;
+    static constexpr std::uint32_t kWorkers = 2U;
+    std::atomic<std::uint32_t> workerExecuted{0U};
+    std::atomic<bool> workerThreadOk{true};
+    CrossThreadPostRecord workerRecords[kWorkers][kWorkerPosts] = {};
+    for (std::uint32_t worker = 0U; worker < kWorkers; ++worker) {
+        for (std::uint32_t index = 0U; index < kWorkerPosts; ++index) {
+            workerRecords[worker][index].executed = &workerExecuted;
+            workerRecords[worker][index].ownerThread = owner;
+            workerRecords[worker][index].threadOk = &workerThreadOk;
+        }
+    }
+    std::thread workers[kWorkers];
+    for (std::uint32_t worker = 0U; worker < kWorkers; ++worker) {
+        workers[worker] = std::thread(
+            [&dispatcher, &workerRecords, worker]() {
+                for (std::uint32_t index = 0U;
+                     index < kWorkerPosts;
+                     ++index) {
+                    static_cast<void>(dispatcher.Post(
+                        Aero::Threading::DispatcherPriority::Background,
+                        &CrossThreadPostCallback,
+                        &workerRecords[worker][index]));
+                }
+            });
+    }
+    for (std::uint32_t worker = 0U; worker < kWorkers; ++worker) {
+        workers[worker].join();
+    }
+    PumpForward(*live);
+    CHECK(workerExecuted.load(std::memory_order_relaxed) ==
+        kWorkers * kWorkerPosts);
+    CHECK(workerThreadOk.load(std::memory_order_relaxed));
+
+    // Delayed post fires after its due time through the same pump.
+    std::atomic<std::uint32_t> delayedExecuted{0U};
+    CrossThreadPostRecord delayedRecord;
+    delayedRecord.executed = &delayedExecuted;
+    delayedRecord.ownerThread = owner;
+    Result<Aero::Threading::DispatcherTaskHandle> delayedPosted =
+        dispatcher.PostDelayed(
+            5000U,
+            Aero::Threading::DispatcherPriority::Normal,
+            &CrossThreadPostCallback,
+            &delayedRecord);
+    CHECK(delayedPosted);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    PumpForward(*live);
+    CHECK(delayedExecuted.load(std::memory_order_relaxed) == 1U);
+
+    // Cancelled work never runs.
+    std::atomic<std::uint32_t> cancelledExecuted{0U};
+    CrossThreadPostRecord cancelledRecord;
+    cancelledRecord.executed = &cancelledExecuted;
+    Result<Aero::Threading::DispatcherTaskHandle> cancellablePosted =
+        dispatcher.Post(
+            Aero::Threading::DispatcherPriority::Normal,
+            &CrossThreadPostCallback,
+            &cancelledRecord);
+    CHECK(cancellablePosted);
+    CHECK(dispatcher.Cancel(cancellablePosted.Value()));
+    PumpForward(*live);
+    CHECK(cancelledExecuted.load(std::memory_order_relaxed) == 0U);
     return true;
 }
 
@@ -5845,6 +5989,7 @@ int main() {
     RUN(TestXamlStreamReader);
     RUN(TestProviderOwnershipAndReplacement);
     RUN(TestViewFrameViewportAndInput);
+    RUN(TestDispatcherCrossThreadPost);
     RUN(TestContainerLayoutAndCalculators);
     RUN(TestComboBoxAndVisualStateAnimation);
     RUN(TestTransform3DCollapseAndHits);

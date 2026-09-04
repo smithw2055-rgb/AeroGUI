@@ -292,14 +292,9 @@ AnimationEngine::~AnimationEngine() noexcept {
 Base::Result<void> AnimationEngine::Initialize() noexcept {
     Base::Result<void> access = dispatcher_->VerifyAccess();
     if (!access) return access.GetStatus();
-    if (frameHook_.IsValid()) return {};
-    Base::Result<::Aero::Threading::DispatcherFrameHookHandle> hook =
-        dispatcher_->RegisterFrameHook(
-            ::Aero::Threading::DispatcherFramePhase::Animation,
-            &AnimationEngine::AnimationFrameHook,
-            this);
-    if (!hook) return hook.GetStatus();
-    frameHook_ = hook.Value();
+    if (initialized_) return {};
+    // P3.2: ViewFrame drives AnimationFrameHook() directly; no hook.
+    initialized_ = true;
     currentTimeMicroseconds_ = dispatcher_->NowMicroseconds();
     lastTickStatus_ = Base::Status::Ok();
     return {};
@@ -308,12 +303,8 @@ Base::Result<void> AnimationEngine::Initialize() noexcept {
 void AnimationEngine::Shutdown() noexcept {
     if (dispatcher_ != nullptr && dispatcher_->CheckAccess()) {
         static_cast<void>(RemoveAll());
-        if (frameHook_.IsValid()) {
-            static_cast<void>(
-                dispatcher_->RemoveFrameHook(frameHook_));
-        }
     }
-    frameHook_ = {};
+    initialized_ = false;
     ReleaseTracks();
 }
 
@@ -336,7 +327,7 @@ AnimationEngine::AddTrack(
             static_cast<void>(ClearTrackValue(existing));
         }
     }
-    if (!frameHook_.IsValid()) {
+    if (!initialized_) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
             "AnimationEngine is not initialized");
@@ -1929,7 +1920,7 @@ Base::Result<std::uint32_t> AnimationEngine::Tick(
     AnimationTime nowMicroseconds) noexcept {
     Base::Result<void> access = dispatcher_->VerifyAccess();
     if (!access) return access.GetStatus();
-    if (!frameHook_.IsValid()) {
+    if (!initialized_) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
             "AnimationEngine is not initialized");

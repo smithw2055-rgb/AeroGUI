@@ -6,102 +6,86 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Diagnostics/PropertyValueSource.hpp>
 #include <Aero/DependencyProperty.hpp>
+#include <Aero/PropertySlab.hpp>
 
+#include <cstddef>
 #include <cstdint>
 #include <new>
 #include <utility>
 
 namespace Aero {
 
-struct StoredValueRarePool {
-    static constexpr std::size_t kMaxPooled = 256U;
-    struct Node { Node* next; };
-    Node* head = nullptr;
-    std::size_t count = 0U;
-
-    ~StoredValueRarePool() noexcept {
-        while (head != nullptr) {
-            Node* next = head->next;
-            ::operator delete(head);
-            head = next;
-        }
-        count = 0U;
-    }
-
-    void* Allocate(std::size_t size) noexcept {
-        if (head != nullptr) {
-            Node* node = head;
-            head = node->next;
-            --count;
-            return node;
-        }
-        return ::operator new(size, std::nothrow);
-    }
-
-    void Deallocate(void* ptr) noexcept {
-        if (ptr == nullptr) return;
-        if (count < kMaxPooled) {
-            auto* node = static_cast<Node*>(ptr);
-            node->next = head;
-            head = node;
-            ++count;
-        } else {
-            ::operator delete(ptr);
-        }
-    }
-};
-
-inline thread_local StoredValueRarePool g_storedValueRarePool;
-
-// Uncommon DP data. Allocated when a local/inherited/provider/expression/
-// animation/current/queue payload exists. GetValue of a simple stored
-// local/style entry reads only StoredValueEntry::effectiveValue.
+// Uncommon DP data. Allocated when an inherited/provider/expression/
+// animation/current/queue payload exists. Simple local values live inline in
+// StoredValueEntry::inlineLocal (P2.1), so GetValue/SetValue of an ordinary
+// local property never touches the heap.
+//
+// P2.4: blocks are owned by the Dispatcher PropertySlab. Hot paths allocate
+// from the slab explicitly (EnsureRare(slab)); the class operator new stays
+// as the plain-heap fallback for context-free copies (CopyRareFrom). Every
+// block carries a slab header, so operator delete routes back to the owning
+// slab (or the heap) with no calling context, safe from any thread.
 struct StoredValueRare {
     PropertyExpression localExpression{};
-    PropertyValue localValue{};
     PropertyValue inheritedValue{};
     PropertyValue currentValue{};
     PropertyValue animationValue{};
     PropertyProviderSet baseProviders;
     PropertyValueSourceInfo sourceInfo{};
-    std::uint64_t queueSequence = 0U;
 
     static void* operator new(std::size_t size) noexcept {
-        return g_storedValueRarePool.Allocate(size);
+        return PropertySlab::AllocateHeap(size);
     }
     static void* operator new(std::size_t size, const std::nothrow_t&) noexcept {
-        return g_storedValueRarePool.Allocate(size);
+        return PropertySlab::AllocateHeap(size);
     }
     static void* operator new(std::size_t size, std::align_val_t, const std::nothrow_t&) noexcept {
-        return g_storedValueRarePool.Allocate(size);
+        return PropertySlab::AllocateHeap(size);
     }
 
     static void operator delete(void* ptr) noexcept {
-        g_storedValueRarePool.Deallocate(ptr);
+        PropertySlab::ReleaseRare(ptr);
     }
     static void operator delete(void* ptr, const std::nothrow_t&) noexcept {
-        g_storedValueRarePool.Deallocate(ptr);
+        PropertySlab::ReleaseRare(ptr);
     }
     static void operator delete(void* ptr, std::align_val_t) noexcept {
-        g_storedValueRarePool.Deallocate(ptr);
+        PropertySlab::ReleaseRare(ptr);
     }
     static void operator delete(void* ptr, std::align_val_t, const std::nothrow_t&) noexcept {
-        g_storedValueRarePool.Deallocate(ptr);
+        PropertySlab::ReleaseRare(ptr);
+    }
+
+    // P2.4: slab allocation for hot paths. Callers pass their Dispatcher's
+    // slab (via DependencyObject::GetDispatcher().GetPropertySlab()).
+    static void* AllocateFromSlab(PropertySlab& slab) noexcept {
+        return slab.AllocateRare(sizeof(StoredValueRare));
+    }
+
+    // Placement new for slab-provided memory (class operator new overloads
+    // hide the global placement new; the memory already carries its header).
+    static void* operator new(std::size_t, void* memory) noexcept {
+        return memory;
+    }
+    static void operator delete(void*, void*) noexcept {
     }
 };
 
 // Wave 4 hot entry (HashMap value; MemberId is the map key):
 //   PropertyValue effectiveValue
+//   PropertyValue inlineLocal      (P2.1: simple Local values, no heap)
 //   StoredValueRare* rare
 //   std::uint32_t packedFlags   (origin/rank/has* bits)
-// Local / inherited / animation / expression / providers live in rare.
+// Inherited / animation / expression / providers live in rare. Local values
+// live inline; rare is only allocated for the uncommon payloads above.
 // packedFlags:
 //   [0] HasLocal  [1] HasCurrent  [2] HasExpression
 //   [3] HasInherited  [4] HasAnimation  [5] Queued
 //   [6] IsCoerced  [7] IsCurrentValue
 //   [8..15] PropertyValueRank  [16..31] origin (truncated to 16 bits)
-// Approximate sizeof: one Value + pointer + flags vs three Values plus
-// provider set plus sourceInfo before this wave.
+// Approximate sizeof: two Values + pointer + flags vs three Values plus
+// provider set plus sourceInfo before this wave. The second Value buys
+// allocation-free Local reads/writes for the common case.
 struct StoredValueEntry {
     enum : std::uint32_t {
         HasLocalBit = 1U << 0U,
@@ -119,6 +103,10 @@ struct StoredValueEntry {
     };
 
     PropertyValue effectiveValue;
+    // P2.1: 90% of properties hold a simple Local value. Kept inline so
+    // Set/Get/ClearLocal never allocate. Valid only when HasLocalBit is set;
+    // default-constructed Value is Unset.
+    PropertyValue inlineLocal;
     StoredValueRare* rare = nullptr;
     std::uint32_t packedFlags = 0U;
 
@@ -126,6 +114,7 @@ struct StoredValueEntry {
 
     StoredValueEntry(const StoredValueEntry& other)
         : effectiveValue(other.effectiveValue),
+          inlineLocal(other.inlineLocal),
           rare(nullptr),
           packedFlags(other.packedFlags) {
         CopyRareFrom(other.rare);
@@ -133,6 +122,7 @@ struct StoredValueEntry {
 
     StoredValueEntry(StoredValueEntry&& other) noexcept
         : effectiveValue(std::move(other.effectiveValue)),
+          inlineLocal(std::move(other.inlineLocal)),
           rare(other.rare),
           packedFlags(other.packedFlags) {
         other.rare = nullptr;
@@ -149,6 +139,7 @@ struct StoredValueEntry {
             return *this;
         }
         effectiveValue = other.effectiveValue;
+        inlineLocal = other.inlineLocal;
         packedFlags = other.packedFlags;
         delete rare;
         rare = nullptr;
@@ -162,6 +153,7 @@ struct StoredValueEntry {
         }
         delete rare;
         effectiveValue = std::move(other.effectiveValue);
+        inlineLocal = std::move(other.inlineLocal);
         packedFlags = other.packedFlags;
         rare = other.rare;
         other.rare = nullptr;
@@ -189,16 +181,20 @@ struct StoredValueEntry {
     }
     void SetQueued(bool value) noexcept { SetFlag(QueuedBit, value); }
 
-    Base::Result<StoredValueRare*> EnsureRare() noexcept {
+    // P2.4: rare blocks come from the owning Dispatcher's slab. The
+    // parameterless overload is intentionally absent so new call sites
+    // cannot silently fall back to the heap.
+    Base::Result<StoredValueRare*> EnsureRare(PropertySlab& slab) noexcept {
         if (rare != nullptr) {
             return rare;
         }
-        rare = new (std::nothrow) StoredValueRare();
-        if (rare == nullptr) {
+        void* memory = StoredValueRare::AllocateFromSlab(slab);
+        if (memory == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::OutOfMemory,
                 "Dependency property uncommon-value block allocation failed");
         }
+        rare = new (memory) StoredValueRare();
         return rare;
     }
 
@@ -207,7 +203,9 @@ struct StoredValueEntry {
             return;
         }
         const PropertyValueSourceInfo& source = rare->sourceInfo;
-        if (HasLocal() || HasCurrent() || HasExpression() || HasInherited() ||
+        // NOTE: HasLocal is intentionally absent: Local values live inline
+        // (P2.1) and never pin the rare block.
+        if (HasCurrent() || HasExpression() || HasInherited() ||
             HasAnimation() || Queued() ||
             !rare->baseProviders.GetIsEmpty() ||
             source.revision != 0U ||
@@ -220,26 +218,18 @@ struct StoredValueEntry {
     }
 
     PropertyValue LocalValueOrUnset() const noexcept {
-        return (rare != nullptr && HasLocal())
-            ? rare->localValue
-            : PropertyValue::Unset();
+        return HasLocal() ? inlineLocal : PropertyValue::Unset();
     }
 
-    Base::Result<void> SetLocalValue(const PropertyValue& value) noexcept {
-        Base::Result<StoredValueRare*> block = EnsureRare();
-        if (!block) {
-            return block.GetStatus();
-        }
-        block.Value()->localValue = value;
+    // P2.1: infallible. A simple Local set never allocates.
+    void SetLocalValue(const PropertyValue& value) noexcept {
+        inlineLocal = value;
         SetHasLocal(true);
-        return {};
     }
 
     void ClearLocal() noexcept {
         SetHasLocal(false);
-        if (rare != nullptr) {
-            rare->localValue = PropertyValue::Unset();
-        }
+        inlineLocal = PropertyValue::Unset();
         DropRareIfUnused();
     }
 
@@ -249,8 +239,10 @@ struct StoredValueEntry {
             : PropertyValue::Unset();
     }
 
-    Base::Result<void> SetInheritedValue(const PropertyValue& value) noexcept {
-        Base::Result<StoredValueRare*> block = EnsureRare();
+    Base::Result<void> SetInheritedValue(
+        const PropertyValue& value,
+        PropertySlab& slab) noexcept {
+        Base::Result<StoredValueRare*> block = EnsureRare(slab);
         if (!block) {
             return block.GetStatus();
         }
@@ -312,9 +304,10 @@ struct StoredValueEntry {
     }
 
     Base::Result<void> SetSourceInfo(
-        const PropertyValueSourceInfo& info) noexcept {
+        const PropertyValueSourceInfo& info,
+        PropertySlab& slab) noexcept {
         PackOriginFlags(info);
-        Base::Result<StoredValueRare*> block = EnsureRare();
+        Base::Result<StoredValueRare*> block = EnsureRare(slab);
         if (!block) {
             return block.GetStatus();
         }
@@ -331,25 +324,13 @@ struct StoredValueEntry {
         return (rare != nullptr) ? &rare->baseProviders : nullptr;
     }
 
-    Base::Result<PropertyProviderSet*> EnsureProviders() noexcept {
-        Base::Result<StoredValueRare*> block = EnsureRare();
+    Base::Result<PropertyProviderSet*> EnsureProviders(
+        PropertySlab& slab) noexcept {
+        Base::Result<StoredValueRare*> block = EnsureRare(slab);
         if (!block) {
             return block.GetStatus();
         }
         return &block.Value()->baseProviders;
-    }
-
-    std::uint64_t QueueSequence() const noexcept {
-        return (rare != nullptr) ? rare->queueSequence : 0U;
-    }
-
-    Base::Result<void> SetQueueSequence(std::uint64_t sequence) noexcept {
-        Base::Result<StoredValueRare*> block = EnsureRare();
-        if (!block) {
-            return block.GetStatus();
-        }
-        block.Value()->queueSequence = sequence;
-        return {};
     }
 
 private:
@@ -397,75 +378,47 @@ private:
     }
 };
 
-struct PropertyStorePool {
-    static constexpr std::size_t kMaxPooled = 256U;
-    struct Node { Node* next; };
-    Node* head = nullptr;
-    std::size_t count = 0U;
-
-    ~PropertyStorePool() noexcept {
-        while (head != nullptr) {
-            Node* next = head->next;
-            ::operator delete(head);
-            head = next;
-        }
-        count = 0U;
-    }
-
-    void* Allocate(std::size_t size) noexcept {
-        if (head != nullptr) {
-            Node* node = head;
-            head = node->next;
-            --count;
-            return node;
-        }
-        return ::operator new(size, std::nothrow);
-    }
-
-    void Deallocate(void* ptr) noexcept {
-        if (ptr == nullptr) return;
-        if (count < kMaxPooled) {
-            auto* node = static_cast<Node*>(ptr);
-            node->next = head;
-            head = node;
-            ++count;
-        } else {
-            ::operator delete(ptr);
-        }
-    }
-};
-
-inline thread_local PropertyStorePool g_propertyStorePool;
-
 struct PropertyStore {
     Base::HashMap<MemberId, StoredValueEntry> entries;
 
+    // P2.4: same slab discipline as StoredValueRare. Allocated explicitly
+    // from the owning Dispatcher's slab; operator delete routes heap and
+    // slab blocks alike via the block header.
     static void* operator new(std::size_t size) noexcept {
-        return g_propertyStorePool.Allocate(size);
+        return PropertySlab::AllocateHeap(size);
     }
     static void* operator new(std::size_t size, const std::nothrow_t&) noexcept {
-        return g_propertyStorePool.Allocate(size);
+        return PropertySlab::AllocateHeap(size);
     }
     static void* operator new(std::size_t size, std::align_val_t, const std::nothrow_t&) noexcept {
-        return g_propertyStorePool.Allocate(size);
+        return PropertySlab::AllocateHeap(size);
     }
 
     static void operator delete(void* ptr) noexcept {
-        g_propertyStorePool.Deallocate(ptr);
+        PropertySlab::ReleaseStore(ptr);
     }
     static void operator delete(void* ptr, const std::nothrow_t&) noexcept {
-        g_propertyStorePool.Deallocate(ptr);
+        PropertySlab::ReleaseStore(ptr);
     }
     static void operator delete(void* ptr, std::align_val_t) noexcept {
-        g_propertyStorePool.Deallocate(ptr);
+        PropertySlab::ReleaseStore(ptr);
     }
     static void operator delete(void* ptr, std::align_val_t, const std::nothrow_t&) noexcept {
-        g_propertyStorePool.Deallocate(ptr);
+        PropertySlab::ReleaseStore(ptr);
+    }
+
+    // Placement new for slab-provided memory. Required because the
+    // class-specific operator new overloads above hide the global placement
+    // new; the memory already carries its slab header.
+    static void* operator new(std::size_t, void* memory) noexcept {
+        return memory;
+    }
+    static void operator delete(void*, void*) noexcept {
     }
 };
 
 static_assert(
-    sizeof(StoredValueEntry) <= 128U,
-    "Hot DP entry must stay one Value plus packed flags and a rare pointer");
+    sizeof(StoredValueEntry) <= 192U,
+    "Hot DP entry must stay two Values plus packed flags and a rare pointer");
 
 } // namespace Aero

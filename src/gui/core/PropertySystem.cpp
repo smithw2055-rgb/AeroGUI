@@ -18,6 +18,7 @@
 #include <cstdio>
 #include <cstdint>
 #include <limits>
+#include <new>
 #include <utility>
 
 namespace Aero {
@@ -759,6 +760,14 @@ const DependencyProperty* DependencyPropertyRegistry::Find(
     return index != InvalidIndex ? &properties_[index] : nullptr;
 }
 
+MemberId DependencyPropertyRegistry::CanonicalHandle(
+    DependencyPropertyHandle property) const noexcept {
+    const std::uint32_t index = FindIndex(property.value);
+    return index != InvalidIndex
+        ? properties_[index].Handle().value
+        : property.value;
+}
+
 Base::Result<void> DependencyPropertyRegistry::ValidateValueFor(
     DependencyPropertyHandle propertyHandle,
     TypeId ownerType,
@@ -953,7 +962,6 @@ EffectiveValueEngine::EffectiveValueEngine(
     DependencyPropertyRegistry& registry) noexcept
     : dispatcher_(&dispatcher),
       registry_(&registry),
-      pending_(),
       parents_(),
       inheritanceSubscriptions_(),
       inheritanceChangedHandler_(
@@ -961,12 +969,8 @@ EffectiveValueEngine::EffectiveValueEngine(
           &EffectiveValueEngine::OnInheritancePropertyChanged) {}
 
 void EffectiveValueEngine::Shutdown() noexcept {
-    if (phaseHook_.IsValid() && dispatcher_ != nullptr &&
-        dispatcher_->CheckAccess()) {
-        static_cast<void>(dispatcher_->RemoveFrameHook(phaseHook_));
-        phaseHook_ = {};
-    }
-
+    // P3.2: no frame-hook registration anymore; ViewFrame drives Flush()
+    // explicitly. Shutdown only releases subscriptions and queued links.
     for (DependencyObject* object : inheritanceSubscriptions_) {
         if (object == nullptr) continue;
         for (const DependencyProperty& property : registry_->Properties()) {
@@ -984,7 +988,7 @@ void EffectiveValueEngine::Shutdown() noexcept {
         }
     }
     inheritanceSubscriptions_.Clear();
-    pending_.Clear();
+    ClearQueueLinks();
     parents_.Clear();
 }
 
@@ -995,28 +999,22 @@ EffectiveValueEngine::~EffectiveValueEngine() noexcept {
 Base::Result<void> EffectiveValueEngine::Initialize() noexcept {
     Base::Result<void> access = dispatcher_->VerifyAccess();
     if (!access) return access.GetStatus();
-    if (phaseHook_.IsValid()) return {};
+    if (initialized_) return {};
     if (!registry_->IsFrozen()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "DependencyPropertyRegistry must be frozen before the value engine");
     }
 
-    Base::Result<DispatcherFrameHookHandle> hook =
-        dispatcher_->RegisterFrameHook(
-            ::Aero::Threading::DispatcherFramePhase::PropertyChanges,
-            &EffectiveValueEngine::PropertyChangesHook,
-            this,
-            nullptr);
-    if (!hook) return hook.GetStatus();
-    phaseHook_ = hook.Value();
+    // P3.2: ViewFrame calls Flush() directly; no PropertyChanges hook.
+    initialized_ = true;
     return {};
 }
 
 Base::Result<void> EffectiveValueEngine::VerifyMutable() const noexcept {
     Base::Result<void> access = dispatcher_->VerifyAccess();
     if (!access) return access.GetStatus();
-    if (!phaseHook_.IsValid()) {
+    if (!initialized_) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
             "EffectiveValueEngine is not initialized");
@@ -1051,20 +1049,67 @@ Base::Result<void> EffectiveValueEngine::QueueObjectProperty(
     if (!ensured) return ensured.GetStatus();
     StoredValueEntry* stored = ensured.Value();
     if (stored->Queued()) return {};
-    // C1: FIFO insertion order replaces the monotonic queueSequence. Skipping
-    // SetQueueSequence avoids forcing a StoredValueRare allocation on every
-    // enqueue for properties that otherwise need no rare block.
+    // P2.2: FIFO tail append on the recycled-link list. No vector growth,
+    // no SetQueueSequence rare allocation (C1: insertion order is the order).
+    Base::Result<QueueLink*> acquired = AcquireLink();
+    if (!acquired) return acquired.GetStatus();
+    QueueLink* link = acquired.Value();
+    link->object = &object;
+    link->property = property;
+    link->next = nullptr;
     stored->SetQueued(true);
-    Pending pending;
-    pending.object = &object;
-    pending.property = property;
-    pending.queueSequence = 0U;
-    Base::Result<void> queued = pending_.PushBack(pending);
-    if (!queued) {
-        stored->SetQueued(false);
-        return queued.GetStatus();
+    if (queueTail_ != nullptr) {
+        queueTail_->next = link;
+    } else {
+        queueHead_ = link;
     }
+    queueTail_ = link;
+    ++queueCount_;
     return {};
+}
+
+Base::Result<EffectiveValueEngine::QueueLink*>
+EffectiveValueEngine::AcquireLink() noexcept {
+    if (linkFree_ != nullptr) {
+        QueueLink* link = linkFree_;
+        linkFree_ = link->next;
+        link->next = nullptr;
+        return link;
+    }
+    QueueLink* link = new (std::nothrow) QueueLink();
+    if (link == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "Effective value queue link allocation failed");
+    }
+    return link;
+}
+
+void EffectiveValueEngine::RecycleLink(QueueLink* link) noexcept {
+    if (link == nullptr) return;
+    link->object = nullptr;
+    link->property = DependencyPropertyHandle{};
+    link->next = linkFree_;
+    linkFree_ = link;
+}
+
+void EffectiveValueEngine::ClearQueueLinks() noexcept {
+    QueueLink* cursor = queueHead_;
+    while (cursor != nullptr) {
+        QueueLink* next = cursor->next;
+        delete cursor;
+        cursor = next;
+    }
+    queueHead_ = nullptr;
+    queueTail_ = nullptr;
+    queueCount_ = 0U;
+    cursor = linkFree_;
+    while (cursor != nullptr) {
+        QueueLink* next = cursor->next;
+        delete cursor;
+        cursor = next;
+    }
+    linkFree_ = nullptr;
 }
 
 DependencyObject* EffectiveValueEngine::InheritanceParent(
@@ -1339,28 +1384,30 @@ void EffectiveValueEngine::OnInheritancePropertyChanged(
 }
 
 
-Base::Result<void> EffectiveValueEngine::Apply(Pending& entry) noexcept {
-    const DependencyProperty* property = registry_->Find(entry.property);
-    if (property == nullptr) return Base::Status::Failure(Base::ErrorCode::NotFound,
+Base::Result<void> EffectiveValueEngine::Apply(
+    DependencyObject& object,
+    DependencyPropertyHandle property) noexcept {
+    const DependencyProperty* registered = registry_->Find(property);
+    if (registered == nullptr) return Base::Status::Failure(Base::ErrorCode::NotFound,
         "Dependency property is no longer registered");
-    const PropertyMetadata* metadata = property->MetadataFor(entry.object->RuntimeType());
+    const PropertyMetadata* metadata = registered->MetadataFor(object.RuntimeType());
     if (metadata == nullptr) return Base::Status::Failure(Base::ErrorCode::NotFound,
         "Dependency property metadata is unavailable for the object");
     PropertyValue inheritedValue;
     const PropertyValue* inherited = nullptr;
     if (HasFlag(metadata->flags, PropertyMetadataFlags::Inherits)) {
-        DependencyObject* inheritFrom = InheritanceParent(*entry.object);
+        DependencyObject* inheritFrom = InheritanceParent(object);
         if (inheritFrom == nullptr) {
             if (::Aero::Media::Visual* visual =
-                    ::Aero::TryCast<::Aero::Media::Visual>(entry.object)) {
+                    ::Aero::TryCast<::Aero::Media::Visual>(&object)) {
                 inheritFrom = ::Aero::Media::VisualTreeHelper::GetParent(*visual);
             }
         }
         if (inheritFrom == nullptr) {
-            inheritFrom = ::Aero::LogicalTreeHelper::GetParent(*entry.object);
+            inheritFrom = ::Aero::LogicalTreeHelper::GetParent(object);
         }
         while (inheritFrom != nullptr &&
-            property->MetadataFor(inheritFrom->RuntimeType()) == nullptr) {
+            registered->MetadataFor(inheritFrom->RuntimeType()) == nullptr) {
             DependencyObject* next = InheritanceParent(*inheritFrom);
             if (next == nullptr) {
                 if (::Aero::Media::Visual* visual =
@@ -1374,20 +1421,20 @@ Base::Result<void> EffectiveValueEngine::Apply(Pending& entry) noexcept {
             inheritFrom = next;
         }
         if (inheritFrom != nullptr) {
-            PropertyValue value = inheritFrom->GetValue(entry.property);
+            PropertyValue value = inheritFrom->GetValue(property);
             inheritedValue = std::move(value);
             inherited = &inheritedValue;
         }
     }
-    Base::Result<void> stored = AeroGuiInternal::ApplyInheritedValue(*entry.object, entry.property, inherited);
+    Base::Result<void> stored = AeroGuiInternal::ApplyInheritedValue(object, property, inherited);
     if (!stored) return stored.GetStatus();
-    return AeroGuiInternal::RecomputeEffectiveValue(*entry.object, entry.property);
+    return AeroGuiInternal::RecomputeEffectiveValue(object, property);
 }
 
 Base::Result<std::uint32_t> EffectiveValueEngine::Flush() noexcept {
     Base::Result<void> access = dispatcher_->VerifyAccess();
     if (!access) return access.GetStatus();
-    if (!phaseHook_.IsValid()) {
+    if (!initialized_) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
             "EffectiveValueEngine is not initialized");
@@ -1400,48 +1447,53 @@ Base::Result<std::uint32_t> EffectiveValueEngine::Flush() noexcept {
 
     FlushScope scope(flushing_);
     std::uint32_t processed = 0U;
-    // C1: FIFO head-index drain. pending_ is appended in queueSequence order
-    // and QueueObjectProperty refuses duplicates while Queued(), so the vector
-    // is already sequence-ordered; the former min-sequence scan was O(n^2).
-    // Newly queued entries appended by Apply() during the flush are processed
-    // in the same pass, matching the previous while(true) semantics.
-    std::uint32_t head = 0U;
-    auto compactPrefix = [&](std::uint32_t keepFrom) noexcept {
-        const std::uint32_t tail = pending_.Size();
-        std::uint32_t write = 0U;
-        for (std::uint32_t read = keepFrom; read < tail; ++read) {
-            pending_[write++] = std::move(pending_[read]);
+    // P2.2: intrusive-list drain. Links are appended in FIFO order and
+    // QueueObjectProperty refuses duplicates while Queued(), so the list is
+    // already ordered; the former min-sequence scan was O(n^2), the vector
+    // head-index drain still paid growth reallocations. Consumed links return
+    // to linkFree_ for reuse. New links appended by Apply() during the flush
+    // are processed in the same pass.
+    while (queueHead_ != nullptr) {
+        QueueLink* link = queueHead_;
+        queueHead_ = link->next;
+        if (queueHead_ == nullptr) {
+            queueTail_ = nullptr;
         }
-        while (pending_.Size() > write) {
-            pending_.PopBack();
-        }
-    };
-
-    while (head < pending_.Size()) {
-        Pending entry = pending_[head];
-        ++head;
-        if (entry.object == nullptr) {
+        --queueCount_;
+        DependencyObject* object = link->object;
+        DependencyPropertyHandle property = link->property;
+        if (object == nullptr) {
+            RecycleLink(link);
             continue;
         }
         StoredValueEntry* stored =
-            AeroGuiInternal::FindEntry(*entry.object, entry.property);
+            AeroGuiInternal::FindEntry(*object, property);
         if (stored == nullptr || !stored->Queued()) {
+            RecycleLink(link);
             continue;
         }
         stored->SetQueued(false);
-        Base::Result<void> applied = Apply(entry);
+        Base::Result<void> applied = Apply(*object, property);
         if (!applied) {
             stored->SetQueued(true);
-            // Keep the failed entry plus the unprocessed tail.
-            compactPrefix(head - 1U);
+            // Keep the failed link plus the unprocessed tail, preserving
+            // order: the failed entry stays at the head.
+            link->object = object;
+            link->property = property;
+            link->next = queueHead_;
+            queueHead_ = link;
+            if (queueTail_ == nullptr) {
+                queueTail_ = link;
+            }
+            ++queueCount_;
             return applied.GetStatus();
         }
+        RecycleLink(link);
         ++processed;
         if (processed >= 65536U) {
             break;
         }
     }
-    compactPrefix(head);
     return processed;
 }
 
@@ -1591,17 +1643,27 @@ Base::Result<void> EffectiveValueEngine::DetachObject(DependencyObject& object) 
             AeroGuiInternal::DropEngineValueState(object, DependencyPropertyHandle{key});
         if (!cleared) return cleared.GetStatus();
     }
-    std::uint32_t pendingIndex = 0U;
-    while (pendingIndex < pending_.Size()) {
-        if (pending_[pendingIndex].object == &object) {
-            for (std::uint32_t current = pendingIndex + 1U;
-                 current < pending_.Size(); ++current) {
-                pending_[current - 1U] = std::move(pending_[current]);
+    // P2.2: unlink every queued link for the detached object; links return
+    // to the free list. O(n) single pass, no element shifting.
+    QueueLink* previous = nullptr;
+    QueueLink* cursor = queueHead_;
+    while (cursor != nullptr) {
+        QueueLink* next = cursor->next;
+        if (cursor->object == &object) {
+            if (previous == nullptr) {
+                queueHead_ = next;
+            } else {
+                previous->next = next;
             }
-            pending_.PopBack();
+            if (cursor == queueTail_) {
+                queueTail_ = previous;
+            }
+            --queueCount_;
+            RecycleLink(cursor);
         } else {
-            ++pendingIndex;
+            previous = cursor;
         }
+        cursor = next;
     }
     parents_.Erase(&object);
     Base::Vector<DependencyObject*> children;
@@ -1618,20 +1680,9 @@ Base::Result<void> EffectiveValueEngine::DetachObject(DependencyObject& object) 
 }
 
 std::uint32_t EffectiveValueEngine::PendingPropertyCount() const noexcept {
-    std::uint32_t count = 0U;
-    for (const Pending& entry : pending_) {
-        const StoredValueEntry* stored = entry.object != nullptr
-            ? AeroGuiInternal::FindEntry(*entry.object, entry.property)
-            : nullptr;
-        if (stored != nullptr && stored->Queued()) ++count;
-    }
-    return count;
-}
-
-void EffectiveValueEngine::PropertyChangesHook(
-    void* context) noexcept {
-    auto* engine = static_cast<EffectiveValueEngine*>(context);
-    static_cast<void>(engine->Flush());
+    // P2.2: every linked node was enqueued with Queued() set and the flag is
+    // only cleared on dequeue, so the counter is exact.
+    return queueCount_;
 }
 
 } // namespace Aero::Meta

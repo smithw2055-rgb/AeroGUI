@@ -1238,6 +1238,13 @@ private:
 template<class T>
 class TypeBuilder {
 public:
+    // P2.5 public fluent contract. Ordinary module authors use only:
+    //   Factory / Implements / Property / Event+EventHandler / Override /
+    //   Content+Collection / AddOwner / ValueSemantics / TextConverter /
+    //   PropertyChangeNotifications / CollectionChangeNotifications / Value.
+    // Raw implementation-only overloads (MemberId/callable forms) live in
+    // the consolidated AERO_GUI_IMPLEMENTATION section below and are
+    // invisible to SDK consumers.
     explicit TypeBuilder(
         Registration& context,
         TypeFlags flags = TypeFlags::None) noexcept
@@ -1262,12 +1269,6 @@ public:
             &CreateDefaultObject<T>);
         return *this;
     }
-#if defined(AERO_GUI_IMPLEMENTATION)
-    TypeBuilder& Factory(ObjectFactory factory) noexcept {
-        builder_.Factory(factory);
-        return *this;
-    }
-#endif
     template<class TInterface>
     TypeBuilder& Implements() noexcept {
         builder_.Implements(
@@ -1546,13 +1547,6 @@ public:
         return *this;
     }
 
-#if defined(AERO_GUI_IMPLEMENTATION)
-    TypeBuilder& Content(MemberId member) noexcept {
-        builder_.Content(member);
-        return *this;
-    }
-#endif
-
     template<class TOwner, class TValue>
     TypeBuilder& AddOwner(
         const DependencyPropertyRef<TOwner, TValue>& property,
@@ -1632,27 +1626,6 @@ public:
         return *this;
     }
 
-#if defined(AERO_GUI_IMPLEMENTATION)
-    TypeBuilder& ContentAccessor(
-        MemberId member,
-        ContentKind kind,
-        ContentWriteCallback write,
-        ContentClearCallback clear,
-        ContentFlags flags = ContentFlags::None,
-        void* callbackContext = nullptr) noexcept {
-        builder_.ContentAccessor(
-            member, kind, write, clear,
-            flags, callbackContext);
-        return *this;
-    }
-
-    TypeBuilder& ValueSemantics(
-        const ValueTypeRegistration& registration) noexcept {
-        builder_.ValueSemantics(registration);
-        return *this;
-    }
-#endif
-
     TypeBuilder& ValueSemantics() noexcept {
         builder_.ValueSemantics(
             MakeValueTypeRegistration<T>());
@@ -1665,14 +1638,6 @@ public:
             &ConvertTypedText<T, Converter>);
         return *this;
     }
-
-#if defined(AERO_GUI_IMPLEMENTATION)
-    TypeBuilder& TextConverter(
-        TextValueConverterCallback converter) noexcept {
-        builder_.TextConverter(converter);
-        return *this;
-    }
-#endif
 
     TypeBuilder& PropertyChangeNotifications() noexcept {
         builder_.PropertyChangeNotifications(
@@ -1699,6 +1664,47 @@ public:
             subscribe, unsubscribe, callbackContext);
         return *this;
     }
+
+#if defined(AERO_GUI_IMPLEMENTATION)
+    // P2.5: consolidated implementation-only overloads. Raw factory,
+    // MemberId-addressed content, and raw value-semantics/text-converter
+    // forms are reserved for in-tree schema authors; SDK consumers use the
+    // typed fluent entries above and never see this section.
+    TypeBuilder& Factory(ObjectFactory factory) noexcept {
+        builder_.Factory(factory);
+        return *this;
+    }
+
+    TypeBuilder& Content(MemberId member) noexcept {
+        builder_.Content(member);
+        return *this;
+    }
+
+    TypeBuilder& ContentAccessor(
+        MemberId member,
+        ContentKind kind,
+        ContentWriteCallback write,
+        ContentClearCallback clear,
+        ContentFlags flags = ContentFlags::None,
+        void* callbackContext = nullptr) noexcept {
+        builder_.ContentAccessor(
+            member, kind, write, clear,
+            flags, callbackContext);
+        return *this;
+    }
+
+    TypeBuilder& ValueSemantics(
+        const ValueTypeRegistration& registration) noexcept {
+        builder_.ValueSemantics(registration);
+        return *this;
+    }
+
+    TypeBuilder& TextConverter(
+        TextValueConverterCallback converter) noexcept {
+        builder_.TextConverter(converter);
+        return *this;
+    }
+#endif
 
     TypeBuilder& Value(
         StringView name,

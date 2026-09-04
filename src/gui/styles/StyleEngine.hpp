@@ -54,6 +54,11 @@ public:
         TriggerActionHandler handler,
         void* context) noexcept;
     const Base::Status& LastActionStatus() const noexcept;
+    // P3.2: ViewFrame drives the owned TriggerEngine's DataBind phase
+    // directly. May be null when the engine failed to allocate it.
+    TriggerEngine* Triggers() noexcept {
+        return triggerEngine_;
+    }
 
 private:
     ::Aero::StyleProviderSession providerSession_;

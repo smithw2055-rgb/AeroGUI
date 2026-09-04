@@ -808,7 +808,7 @@ Base::Result<void> StyleEngine::Apply(
     DependencyObject& object,
     const Style& style) noexcept {
     Base::Result<void> hooked =
-        triggerEngine_->EnsureTriggerPhaseHook(object);
+        triggerEngine_->EnableDataBindPhase(object);
     if (!hooked) return hooked.GetStatus();
     Base::Result<void> verified = VerifyTarget(object, style);
     if (!verified) {

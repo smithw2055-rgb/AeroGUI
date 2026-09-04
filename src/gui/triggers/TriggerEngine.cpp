@@ -14,13 +14,7 @@ TriggerEngine::TriggerEngine(
       propertyChangedHandler_(this, &TriggerEngine::OnPropertyChanged) {}
 
 TriggerEngine::~TriggerEngine() noexcept {
-    if (dispatcher_ != nullptr &&
-        triggerPhaseHook_.IsValid() &&
-        dispatcher_->CheckAccess()) {
-        static_cast<void>(
-            dispatcher_->RemoveFrameHook(
-                triggerPhaseHook_));
-    }
+    // P3.2: no frame-hook registration; nothing to unregister.
 }
 
 Base::Result<void> TriggerEngine::SubscribeTriggers(
@@ -240,10 +234,10 @@ void TriggerEngine::OnPropertyChanged(
     }
 }
 
-Base::Result<void> TriggerEngine::EnsureTriggerPhaseHook(
+Base::Result<void> TriggerEngine::EnableDataBindPhase(
     DependencyObject& object) noexcept {
     Dispatcher& dispatcher = object.GetDispatcher();
-    if (triggerPhaseHook_.IsValid()) {
+    if (dataBindPhaseEnabled_) {
         return dispatcher_ == &dispatcher
             ? Base::Result<void>()
             : Base::Result<void>(
@@ -251,15 +245,9 @@ Base::Result<void> TriggerEngine::EnsureTriggerPhaseHook(
                     Base::ErrorCode::InvalidArgument,
                     "StyleEngine objects must share one Dispatcher"));
     }
-    Base::Result<DispatcherFrameHookHandle> hook =
-        dispatcher.RegisterFrameHook(
-            DispatcherFramePhase::DataBind,
-            &TriggerEngine::TriggerPhaseHook,
-            this,
-            nullptr);
-    if (!hook) return hook.GetStatus();
+    // P3.2: no hook registration; ViewFrame drives TriggerPhaseHook().
     dispatcher_ = &dispatcher;
-    triggerPhaseHook_ = hook.Value();
+    dataBindPhaseEnabled_ = true;
     return {};
 }
 
