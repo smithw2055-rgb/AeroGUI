@@ -1,12 +1,9 @@
 #include "gui/core/State.hpp" 
 #include "gui/input/InputState.hpp"
-#include "gui/core/State.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include "gui/controls/State.hpp"
 #include "gui/templates/TemplateState.hpp"
-#include "gui/core/facets/InteractionStateFacet.hpp"
-#include "gui/core/facets/InputEventFacet.hpp"
 #include <Aero/Controls.hpp>
 
 #include <utility>
@@ -19,31 +16,26 @@ using namespace Primitives;
 
 ButtonBase::~ButtonBase() {
     auto* behaviors = static_cast<ControlBehavior*>(
-        ::Aero::Core::InteractionStateFacet::ControlBehaviorRuntime(*this));
+        AeroGuiInternal::ControlBehaviorRuntime(*this));
     if (behaviors != nullptr) {
         static_cast<void>(behaviors->Detach(*this));
     }
 }
 
 ClickMode ButtonBase::GetClickMode() const noexcept {
-    return GetValueOr(ClickModeProperty, ClickMode::Release);
+    return GetValue(ClickModeProperty);
 }
 
 ICommand* ButtonBase::GetCommand() const noexcept {
-    return GetValueOr(
-        CommandProperty, Base::Ref<ICommand>{}).Get();
+    return GetValue(CommandProperty).Get();
 }
 
 Value ButtonBase::GetCommandParameter() const noexcept {
-    return GetValueOr(
-        CommandParameterProperty,
-        Value::NullObject(TypeOf<Base::Object>()));
+    return GetValue(CommandParameterProperty);
 }
 
 UIElement* ButtonBase::GetCommandTarget() const noexcept {
-    return GetValueOr(
-        CommandTargetProperty,
-        Base::Ref<UIElement>{}).Get();
+    return GetValue(CommandTargetProperty).Get();
 }
 
 void ButtonBase::SetClickMode(
@@ -68,11 +60,11 @@ void ButtonBase::SetCommandTarget(
 }
 
 std::uint32_t RepeatButton::GetDelay() const noexcept {
-    return GetValueOr(DelayProperty, 400U);
+    return GetValue(DelayProperty);
 }
 
 std::uint32_t RepeatButton::GetInterval() const noexcept {
-    return GetValueOr(IntervalProperty, 100U);
+    return GetValue(IntervalProperty);
 }
 
 void RepeatButton::SetDelay(
@@ -86,11 +78,11 @@ void RepeatButton::SetInterval(
 }
 
 Nullable<bool> ToggleButton::GetIsChecked() const noexcept {
-    return GetValueOr(IsCheckedProperty, Nullable<bool>{false});
+    return GetValue(IsCheckedProperty);
 }
 
 bool ToggleButton::GetIsThreeState() const noexcept {
-    return GetValueOr(IsThreeStateProperty, false);
+    return GetValue(IsThreeStateProperty);
 }
 
 void ToggleButton::SetIsChecked(
@@ -127,7 +119,7 @@ void ToggleButton::SetToggleState(
 }
 
 Base::StringView RadioButton::GetGroupName() const noexcept {
-    return GetValueOr(GroupNameProperty, Base::StringView());
+    return GetValue(GroupNameProperty);
 }
 
 void RadioButton::SetGroupName(
@@ -138,7 +130,7 @@ void RadioButton::SetGroupName(
 void ButtonBase::OnApplyTemplate() noexcept {
     ContentControl::OnApplyTemplate();
     auto* behaviors = static_cast<ControlBehavior*>(
-        ::Aero::Core::InteractionStateFacet::ControlBehaviorRuntime(*this));
+        AeroGuiInternal::ControlBehaviorRuntime(*this));
     if (behaviors != nullptr) {
         static_cast<void>(behaviors->RefreshButtonVisualState(
             *this, false));
@@ -282,7 +274,7 @@ ButtonBase* ButtonBehavior::ResolveButton(
     std::uint32_t index) noexcept {
     ::Aero::Media::Visual* visual = tree_->ResolveHandle(buttons_[index].handle);
     return visual != nullptr
-        ? static_cast<ButtonBase*>(visual->AsUIElement())
+        ? ::Aero::TryCast<ButtonBase>(visual)
         : nullptr;
 }
 
@@ -341,39 +333,36 @@ Base::Result<void> ButtonBehavior::Attach(
         buttons_.PushBack(std::move(record));
     if (!appended) return appended.GetStatus();
 
-    button.AddHandlerChecked(UIElement::MouseDownEvent, mouseDownHandler_);
-    button.AddHandlerChecked(UIElement::MouseUpEvent, mouseUpHandler_);
-    button.AddHandlerChecked(UIElement::KeyDownEvent, keyDownHandler_);
-    button.AddHandlerChecked(UIElement::KeyUpEvent, keyUpHandler_);
-    button.AddHandlerChecked(UIElement::GotKeyboardFocusEvent, focusChangedHandler_);
-    button.AddHandlerChecked(UIElement::LostKeyboardFocusEvent, focusChangedHandler_);
-    Base::Result<void> result = button.AddValueChangedHandlerChecked(
+    button.AddHandler(UIElement::MouseDownEvent, mouseDownHandler_);
+    button.AddHandler(UIElement::MouseUpEvent, mouseUpHandler_);
+    button.AddHandler(UIElement::KeyDownEvent, keyDownHandler_);
+    button.AddHandler(UIElement::KeyUpEvent, keyUpHandler_);
+    button.AddHandler(UIElement::GotKeyboardFocusEvent, focusChangedHandler_);
+    button.AddHandler(UIElement::LostKeyboardFocusEvent, focusChangedHandler_);
+    button.AddValueChangedHandler(
         ButtonBase::CommandProperty,
         propertyChangedHandler_);
-    if (result) result = button.AddValueChangedHandlerChecked(
+    button.AddValueChangedHandler(
         UIElement::IsEnabledProperty,
         propertyChangedHandler_);
     const bool isToggle =
         button.RuntimeType() == ToggleButton::StaticTypeId() ||
         button.RuntimeType() == CheckBox::StaticTypeId() ||
         button.RuntimeType() == RadioButton::StaticTypeId();
-    if (result && isToggle) {
-        result = button.AddValueChangedHandlerChecked(
+    if (isToggle) {
+        button.AddValueChangedHandler(
             ToggleButton::IsCheckedProperty,
             propertyChangedHandler_);
-    }
-    if (result && isToggle) {
-        result = button.AddValueChangedHandlerChecked(
+        button.AddValueChangedHandler(
             ToggleButton::IsThreeStateProperty,
             propertyChangedHandler_);
     }
-    if (result &&
-        button.RuntimeType() == RadioButton::StaticTypeId()) {
-        result = button.AddValueChangedHandlerChecked(
+    if (button.RuntimeType() == RadioButton::StaticTypeId()) {
+        button.AddValueChangedHandler(
             RadioButton::GroupNameProperty,
             propertyChangedHandler_);
     }
-    if (result) result =
+    Base::Result<void> result =
         SubscribeCommand(button, buttons_.Back());
     if (!result) {
         const Base::Status status = result.GetStatus();
@@ -395,7 +384,9 @@ Base::Result<void> ButtonBehavior::Attach(
     result = SyncVisualState(button, false);
     if (!result &&
         result.GetStatus().code !=
-            Base::ErrorCode::InvalidState) {
+            Base::ErrorCode::InvalidState &&
+        result.GetStatus().code !=
+            Base::ErrorCode::InvalidArgument) {
         const Base::Status status =
             result.GetStatus();
         static_cast<void>(Detach(button));
@@ -462,7 +453,7 @@ Base::Result<bool> ButtonBehavior::Detach(
     }
     UnsubscribeCommand(record);
     if (states_ != nullptr) {
-        static_cast<void>(Aero::Controls::TemplatePrivate::Clear(*states_, button));
+        static_cast<void>(Aero::VisualStateManagerRuntime::Clear(*states_, button));
     }
     RemoveAt(index);
     return true;
@@ -546,8 +537,14 @@ Base::Result<void> ButtonBehavior::InvokeClick(
     ButtonBase& button) noexcept {
     if (!button.GetIsEnabled()) return {};
     const TypeId type = button.RuntimeType();
-    if (type == ToggleButton::StaticTypeId() ||
-        type == CheckBox::StaticTypeId()) {
+    const bool isRadio = type == RadioButton::StaticTypeId();
+    const bool isToggle =
+        !isRadio &&
+        (type == ToggleButton::StaticTypeId() ||
+         type == CheckBox::StaticTypeId() ||
+         button.PropertyRegistry().Types().IsDerivedFrom(
+             type, ToggleButton::StaticTypeId()));
+    if (isToggle) {
         auto& toggle = static_cast<ToggleButton&>(button);
         ToggleState next = ToggleState::Unchecked;
         if (ReadToggleState(toggle) == ToggleState::Unchecked) {
@@ -560,7 +557,7 @@ Base::Result<void> ButtonBehavior::InvokeClick(
         Base::Result<void> changed =
             ApplyToggleState(toggle, next);
         if (!changed) return changed.GetStatus();
-    } else if (type == RadioButton::StaticTypeId()) {
+    } else if (isRadio) {
         auto& radio = static_cast<RadioButton&>(button);
         Base::Result<void> changed = ApplyToggleState(
             radio, ToggleState::Checked);
@@ -627,7 +624,7 @@ void ButtonBehavior::PublishToggleState(
 
 void ButtonBehavior::UncheckRadioPeers(
     RadioButton& button) noexcept {
-    ::Aero::Media::Visual* parent = button.GetLogicalParent();
+    ::Aero::Media::Visual* parent = ::Aero::TryCast<::Aero::Media::Visual>(button.GetLogicalParent());
     const Base::StringView group = button.GetGroupName();
     for (std::uint32_t index = 0U;
         index < buttons_.Size(); ++index) {
@@ -659,7 +656,7 @@ ButtonBehavior::SyncVisualState(
             Base::StringView state) noexcept
             -> Base::Result<void> {
         Base::Result<bool> changed =
-            Aero::Controls::TemplatePrivate::GoToState(*states_,
+            Aero::VisualStateManagerRuntime::GoToState(*states_,
                 button, group, state,
                 useTransitions);
         if (!changed &&
@@ -743,6 +740,8 @@ void ButtonBehavior::OnMouseUp(
     record.pointerDown = false;
     record.repeatElapsed = 0U;
     record.nextRepeat = 0U;
+    static_cast<void>(
+        input_->ReleasePointer(args.GetPointerId()));
     args.SetHandled(true);
     if (button.GetClickMode() == ClickMode::Release &&
         button.GetIsEnabled() && button.GetIsMouseOver()) {
@@ -766,7 +765,7 @@ void ButtonBehavior::OnKeyDown(
         record.keyboardDown = true;
         record.repeatElapsed = 0U;
         record.nextRepeat = 0U;
-        static_cast<void>(::Aero::Core::InputEventFacet::SetPressed(button, true));
+        static_cast<void>(AeroGuiInternal::SetPressed(button, true));
         if (button.GetClickMode() == ClickMode::Press) {
             static_cast<void>(InvokeClick(button));
         }
@@ -788,7 +787,7 @@ void ButtonBehavior::OnKeyUp(
     buttons_[index].keyboardDown = false;
     buttons_[index].repeatElapsed = 0U;
     buttons_[index].nextRepeat = 0U;
-    static_cast<void>(::Aero::Core::InputEventFacet::SetPressed(button, false));
+    static_cast<void>(AeroGuiInternal::SetPressed(button, false));
     args.SetHandled(true);
     if (button.GetIsEnabled() &&
         button.GetClickMode() == ClickMode::Release) {
@@ -809,7 +808,7 @@ void ButtonBehavior::OnFocusChanged(
         buttons_[index].keyboardDown = false;
         buttons_[index].repeatElapsed = 0U;
         buttons_[index].nextRepeat = 0U;
-        static_cast<void>(::Aero::Core::InputEventFacet::SetPressed(button, false));
+        static_cast<void>(AeroGuiInternal::SetPressed(button, false));
     }
     static_cast<void>(
         SyncVisualState(button));

@@ -1,15 +1,15 @@
 #pragma once
 
-#include "gui/core/Facet.hpp"
 #include <Aero/Layout.hpp>
 #include <Aero/UIElement.hpp>
 #include <Aero/Threading.hpp>
+#include "gui/core/VisualHandle.hpp"
 
 namespace Aero {
 
 using namespace Aero::Threading;
 
-class LayoutEngine : public Core::Facet {
+class LayoutEngine {
 public:
     explicit LayoutEngine(Dispatcher& dispatcher) noexcept;
     ~LayoutEngine() noexcept;
@@ -23,6 +23,9 @@ public:
     Base::Result<void> InvalidateMeasure(UIElement& element) noexcept;
     Base::Result<void> InvalidateArrange(UIElement& element) noexcept;
     Base::Result<std::uint32_t> Flush() noexcept;
+    // P3.2 explicit Layout phase entry (formerly the frame-hook body).
+    // ViewFrame calls it directly; no hook registration remains.
+    static void LayoutHook(void* context) noexcept;
     LayoutDiagnostics Diagnostics() const noexcept;
     std::uint64_t PassVersion() const noexcept { return passVersion_; }
     Base::Status LastFlushStatus() const noexcept {
@@ -34,9 +37,9 @@ private:
     Dispatcher* dispatcher_ = nullptr;
     UIElement* root_ = nullptr;
     Size rootAvailableSize_;
-    Base::Vector<Aero::VisualLease> measureQueue_;
-    Base::Vector<Aero::VisualLease> arrangeQueue_;
-    DispatcherFrameHookHandle phaseHook_;
+    Base::Vector<VisualHandle> measureQueue_;
+    Base::Vector<VisualHandle> arrangeQueue_;
+    bool initialized_ = false;
     std::uint64_t passVersion_ = 0U;
     std::uint32_t measuredCount_ = 0U;
     std::uint32_t arrangedCount_ = 0U;
@@ -47,9 +50,10 @@ private:
     Base::Result<void> QueueMeasure(UIElement& element) noexcept;
     Base::Result<void> QueueArrange(UIElement& element) noexcept;
     void RemoveQueued(UIElement& element) noexcept;
+    UIElement* ResolveQueued(VisualHandle handle) const noexcept;
+    Base::Result<VisualHandle> EnqueueHandle(UIElement& element) noexcept;
     Base::Result<void> MeasureElement(UIElement& element, Size constraint) noexcept;
     Base::Result<void> ArrangeElement(UIElement& element, Rect slot) noexcept;
-    static void LayoutHook(void* context) noexcept;
 };
 
 } // namespace Aero

@@ -48,6 +48,12 @@ Base::Result<void> PopulateUiInput(
     keyboardNavigation.Property(
         KeyboardNavigation::TabIndexProperty,
         FrameworkPropertyMetadata(std::uint32_t{0}));
+    keyboardNavigation.Property(
+        KeyboardNavigation::AcceptsReturnProperty,
+        FrameworkPropertyMetadata(false));
+    keyboardNavigation.Property(
+        KeyboardNavigation::IsTabStopProperty,
+        FrameworkPropertyMetadata(false));
     status = keyboardNavigation.Result();
     if (!status) return status.GetStatus();
 
@@ -70,6 +76,9 @@ Base::Result<void> PopulateUiInput(
     if (!status) return status.GetStatus();
     status = Meta::Register<ExecutedRoutedEventArgs>(
         context).Result();
+    if (!status) return status.GetStatus();
+
+    status = Meta::Register<Cursor>(context).Result();
     if (!status) return status.GetStatus();
     return {};
 }

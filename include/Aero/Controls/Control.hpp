@@ -2,12 +2,11 @@
 
 #include <Aero/TextFormatting.hpp>
 #include <Aero/FrameworkElement.hpp>
-#include <Aero/Media/Brushes.hpp>
+#include <Aero/Media/Brush.hpp>
 #include <Aero/Style.hpp>
 #include <utility>
 
 namespace Aero { class VisualStateManager; }
-namespace Aero::Core { class VisualFacet; class LayoutFacet; class InteractionStateFacet; }
 namespace Aero::Controls {
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::DependencyPropertyChangedEventHandler;
@@ -29,27 +28,21 @@ public:
     }
 
     Ref<Aero::Media::Brush> GetBackground() const noexcept {
-        return GetValueOr(
-            BackgroundProperty,
-            Ref<Aero::Media::Brush>{});
+        return GetValue(BackgroundProperty);
     }
     void SetBackground(
         Ref<Aero::Media::Brush> value) noexcept {
         SetValue(BackgroundProperty, std::move(value));
     }
     Ref<Aero::Media::Brush> GetBorderBrush() const noexcept {
-        return GetValueOr(
-            BorderBrushProperty,
-            Ref<Aero::Media::Brush>{});
+        return GetValue(BorderBrushProperty);
     }
     void SetBorderBrush(
         Ref<Aero::Media::Brush> value) noexcept {
         SetValue(BorderBrushProperty, std::move(value));
     }
     Aero::Base::Thickness GetBorderThickness() const noexcept {
-        return GetValueOr(
-            BorderThicknessProperty,
-            Aero::Base::Thickness{});
+        return GetValue(BorderThicknessProperty);
     }
     void SetBorderThickness(
         Aero::Base::Thickness value) noexcept {
@@ -60,9 +53,7 @@ public:
         SetBorderThickness({value, value, value, value});
     }
     Aero::Base::Thickness GetPadding() const noexcept {
-        return GetValueOr(
-            PaddingProperty,
-            Aero::Base::Thickness{});
+        return GetValue(PaddingProperty);
     }
     void SetPadding(
         Aero::Base::Thickness value) noexcept {
@@ -70,50 +61,42 @@ public:
     }
     Aero::HorizontalAlignment
     GetHorizontalContentAlignment() const noexcept {
-        return GetValueOr(
-            HorizontalContentAlignmentProperty,
-            Aero::HorizontalAlignment::Left);
+        return GetValue(HorizontalContentAlignmentProperty);
     }
     Aero::VerticalAlignment
     GetVerticalContentAlignment() const noexcept {
-        return GetValueOr(
-            VerticalContentAlignmentProperty,
-            Aero::VerticalAlignment::Top);
+        return GetValue(VerticalContentAlignmentProperty);
     }
     Ref<Aero::Media::Brush> GetForeground() const noexcept {
-        return GetValueOr(
-            ForegroundProperty,
-            Ref<Aero::Media::Brush>{});
+        return GetValue(ForegroundProperty);
     }
     void SetForeground(
         Ref<Aero::Media::Brush> value) noexcept {
         SetValue(ForegroundProperty, std::move(value));
     }
     double GetFontSize() const noexcept {
-        return GetValueOr(FontSizeProperty, 16.0);
+        return GetValue(FontSizeProperty);
     }
     void SetFontSize(
         double value) noexcept {
         SetValue(FontSizeProperty, value);
     }
     FontWeight GetFontWeight() const noexcept {
-        return GetValueOr(FontWeightProperty, FontWeight::Normal);
+        return GetValue(FontWeightProperty);
     }
     void SetFontWeight(
         FontWeight value) noexcept {
         SetValue(FontWeightProperty, value);
     }
     Ref<Aero::Style> GetFocusVisualStyle() const noexcept {
-        return GetValueOr(
-            FocusVisualStyleProperty,
-            Ref<Aero::Style>{});
+        return GetValue(FocusVisualStyleProperty);
     }
     void SetFocusVisualStyle(
         Ref<Aero::Style> value) noexcept {
         SetValue(FocusVisualStyleProperty, std::move(value));
     }
     bool GetOverridesDefaultStyle() const noexcept {
-        return GetValueOr(OverridesDefaultStyleProperty, false);
+        return GetValue(OverridesDefaultStyleProperty);
     }
     void SetOverridesDefaultStyle(
         bool value) noexcept {
@@ -146,6 +129,17 @@ protected:
         return;
     }
     virtual void OnTemplateDetached() noexcept {}
+    std::uint32_t GetVisualChildrenCount() const noexcept override {
+        return templateChild_ != nullptr && templateChild_->GetVisualParent() == this
+            ? 1U : 0U;
+    }
+    ::Aero::Media::Visual* GetVisualChild(std::uint32_t index) const noexcept override {
+        if (index != 0U || templateChild_ == nullptr ||
+            templateChild_->GetVisualParent() != this) {
+            return nullptr;
+        }
+        return templateChild_;
+    }
     Size MeasureOverride(
         Size availableSize) noexcept override {
         if (templateChild_ == nullptr) return Size{};
@@ -167,9 +161,7 @@ protected:
         ::Aero::Media::DrawingContext& context) noexcept override;
 private:
 #if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::Core::VisualFacet;
-    friend class ::Aero::Core::LayoutFacet;
-    friend class ::Aero::Core::InteractionStateFacet;
+    friend class ::Aero::AeroGuiInternal;
 #endif
     friend class ::Aero::VisualStateManager;
     void SetTemplateChildCore(UIElement* child) noexcept {

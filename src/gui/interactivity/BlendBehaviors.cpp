@@ -22,24 +22,28 @@ Base::Transform2D Translation(double x, double y) noexcept {
 }
 
 Base::Transform2D ToRootTransform(const ::Aero::Media::Visual& visual) noexcept {
-    Base::Transform2D result;
+    Base::ProjectiveTransform2D result = Base::IdentityProjective();
     const ::Aero::Media::Visual* current = &visual;
     while (current != nullptr) {
-        const UIElement* element = current->AsUIElement();
+        const UIElement* element = ::Aero::TryCast<::Aero::UIElement>(current);
         const FrameworkElement* framework =
-            current->AsFrameworkElement();
+            ::Aero::TryCast<::Aero::FrameworkElement>(current);
         if (element != nullptr) {
-            Base::Transform2D local = framework != nullptr
+            Base::ProjectiveTransform2D local = framework != nullptr
                 ? framework->GetLocalVisualTransform()
-                : Base::Transform2D{};
+                : Base::IdentityProjective();
             const Rect slot = element->GetLayoutSlot();
-            local = Media::ComposeTransforms(
-                local, Translation(slot.x, slot.y));
-            result = Media::ComposeTransforms(result, local);
+            local = Base::Compose(
+                local, Base::ToProjective(Translation(slot.x, slot.y)));
+            result = Base::Compose(result, local);
         }
         current = current->GetVisualParent();
     }
-    return result;
+    Base::Transform2D affine;
+    if (!Base::TryToTransform2D(result, affine)) {
+        return {};
+    }
+    return affine;
 }
 
 Base::Result<Base::Ref<Media::Brush>> ReadBackground(
@@ -266,8 +270,7 @@ void MouseDragElementBehavior::OnDetaching() noexcept {
                 mouseUpHandler_));
         if (dragging_ && pointerId_ != UINT32_MAX) {
             Aero::InputRouter* input =
-                Aero::Core::GetFacet<::Aero::InputRouter>(
-                    *associated);
+                AeroGuiInternal::InputRouterOf(*associated);
             if (input != nullptr) {
                 static_cast<void>(input->ReleasePointer(pointerId_));
             }
@@ -337,7 +340,7 @@ void MouseDragElementBehavior::OnMouseMove(
             return;
         }
         Aero::InputRouter* input =
-            Aero::Core::GetFacet<::Aero::InputRouter>(*associated);
+            AeroGuiInternal::InputRouterOf(*associated);
         if (input == nullptr ||
             !input->CapturePointer(pointerId_, *associated)) {
             pointerId_ = UINT32_MAX;
@@ -349,7 +352,7 @@ void MouseDragElementBehavior::OnMouseMove(
     double y = dragStartY_ + deltaY;
     if (GetConstrainToParentBounds()) {
         UIElement* parent = associated->GetVisualParent() != nullptr
-            ? associated->GetVisualParent()->AsUIElement()
+            ? ::Aero::TryCast<::Aero::UIElement>(associated->GetVisualParent())
             : nullptr;
         if (parent != nullptr) {
             const Rect slot = associated->GetLayoutSlot();
@@ -386,7 +389,7 @@ void MouseDragElementBehavior::OnMouseUp(
     FrameworkElement* associated = GetAssociatedObject();
     if (dragging_ && associated != nullptr) {
         Aero::InputRouter* input =
-            Aero::Core::GetFacet<::Aero::InputRouter>(*associated);
+            AeroGuiInternal::InputRouterOf(*associated);
         if (input != nullptr) {
             static_cast<void>(input->ReleasePointer(pointerId_));
         }
@@ -398,8 +401,7 @@ void MouseDragElementBehavior::OnMouseUp(
 
 
 Base::Ref<FrameworkElement> BackgroundEffectBehavior::GetSource() const noexcept {
-    Base::Ref<Base::Object> source = GetValueOr(
-        SourceProperty, Base::Ref<Base::Object>{});
+    Base::Ref<Base::Object> source = GetValue(SourceProperty);
     if (!source || !PropertyRegistry().Types().IsDerivedFrom(
             source->RuntimeType(), FrameworkElement::StaticTypeId())) {
         return {};

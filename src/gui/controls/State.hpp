@@ -8,10 +8,6 @@
 #include <Aero/Controls/TextBoxBase.hpp>
 #include <Aero/Controls/TextBox.hpp>
 #include <Aero/Shapes.hpp>
-#include "gui/core/facets/VisualFacet.hpp"
-#include "gui/core/facets/DependencyPropertyFacet.hpp"
-#include "gui/core/facets/InteractionStateFacet.hpp"
-#include "gui/core/facets/TextLayoutFacet.hpp"
 
 #include <utility>
 

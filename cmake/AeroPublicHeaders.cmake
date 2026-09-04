@@ -25,20 +25,47 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/CAPI.h
     include/Aero/Controls.hpp
     include/Aero/Controls/UserControl.hpp
+    include/Aero/Controls/Page.hpp
     include/Aero/Controls/CheckBox.hpp
     include/Aero/Controls/RadioButton.hpp
-    include/Aero/Controls/ComboBox.hpp
+        include/Aero/Controls/ComboBoxItem.hpp
+        include/Aero/Controls/ComboBox.hpp
     include/Aero/Controls/ListView.hpp
     include/Aero/Controls/ScrollViewer.hpp
+    include/Aero/Controls/IScrollInfo.hpp
+    include/Aero/Controls/ScrollContentPresenter.hpp
     include/Aero/Collections.hpp
     include/Aero/Diagnostics.hpp
     include/Aero/Diagnostics/DependencyProperty.hpp
+    include/Aero/Diagnostics/EffectiveValueSource.hpp
+    include/Aero/Diagnostics/Layout.hpp
     include/Aero/Diagnostics/PropertyValueSource.hpp
     include/Aero/Diagnostics/Rendering.hpp
+    include/Aero/Diagnostics/SourceSpan.hpp
     include/Aero/Threading.hpp
+    include/Aero/PropertySlab.hpp
+    include/Aero/DispatcherReentrancyGuard.hpp
     include/Aero/Meta.hpp
     include/Aero/Value.hpp
     include/Aero/Documents.hpp
+    include/Aero/Documents/Bold.hpp
+    include/Aero/Documents/Hyperlink.hpp
+    include/Aero/Documents/Inline.hpp
+    include/Aero/Documents/InlineCollection.hpp
+    include/Aero/Documents/InlineCollectionView.hpp
+    include/Aero/Documents/Italic.hpp
+    include/Aero/Documents/LineBreak.hpp
+    include/Aero/Documents/NavigationService.hpp
+    include/Aero/Documents/Run.hpp
+    include/Aero/Documents/Span.hpp
+    include/Aero/Documents/TextElement.hpp
+    include/Aero/Documents/TextPointer.hpp
+    include/Aero/Documents/TextRange.hpp
+    include/Aero/Documents/Underline.hpp
+    include/Aero/Documents/InlineUIContainer.hpp
+    include/Aero/Documents/Adorner.hpp
+    include/Aero/Documents/AdornerLayer.hpp
+    include/Aero/Documents/AdornerDecorator.hpp
     include/Aero/Media/DrawingContext.hpp
     include/Aero/Events/ApplicationEventArgs.hpp
     include/Aero/Events/CommandEventArgs.hpp
@@ -53,10 +80,20 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Gui.hpp
     include/AeroApp/Application.hpp
     include/AeroApp/Window.hpp
+    include/Aero/DataObject.hpp
+    include/Aero/DragDrop.hpp
+    include/Aero/Input/Cursor.hpp
+    include/Aero/Input/Cursors.hpp
+    include/Aero/Input/Keyboard.hpp
+    include/Aero/Input/Mouse.hpp
     include/Aero/DependencyObject.hpp
+    include/Aero/DispatcherObject.hpp
+    include/Aero/TryCast.hpp
     include/Aero/DependencyProperty.hpp
     include/Aero/RoutedEvent.hpp
     include/Aero/Visual.hpp
+    include/Aero/Visibility.hpp
+    include/Aero/HorizontalAlignment.hpp
     include/Aero/UIElement.hpp
     include/Aero/FrameworkElement.hpp
     include/Aero/FrameworkContentElement.hpp
@@ -68,6 +105,9 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Controls/Button.hpp
     include/Aero/Controls/ToggleButton.hpp
     include/Aero/Controls/Grid.hpp
+    include/Aero/Controls/ColumnDefinition.hpp
+    include/Aero/Controls/RowDefinition.hpp
+    include/Aero/Controls/GridLength.hpp
     include/Aero/Controls/StackPanel.hpp
     include/Aero/Controls/Border.hpp
     include/Aero/Controls/ItemsControl.hpp
@@ -78,21 +118,149 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Controls/HeaderedItemsControl.hpp
     include/Aero/Controls/ItemContainerGenerator.hpp
     include/Aero/Controls/ListBox.hpp
+    include/Aero/Controls/ListBoxItem.hpp
     include/Aero/Controls/TreeView.hpp
+    include/Aero/Controls/TreeViewItem.hpp
     include/Aero/Controls/TextBlock.hpp
     include/Aero/Controls/TextBoxBase.hpp
     include/Aero/Controls/TextBox.hpp
     include/Aero/Data/Binding.hpp
+    include/Aero/Data/BindingExpression.hpp
+    include/Aero/Data/MultiBindingExpression.hpp
+    include/Aero/Data/TemplateBindingExpression.hpp
+    include/Aero/Data/BindingOperations.hpp
+    include/Aero/Data/NotifyPropertyChanged.hpp
+    include/Aero/Data/SortDescription.hpp
+    include/Aero/Data/CollectionView.hpp
+    include/Aero/Data/CollectionViewSource.hpp
     include/Aero/Resources.hpp
     include/Aero/Style.hpp
+    include/Aero/EventSetter.hpp
+    include/Aero/FrameworkTemplate.hpp
     include/Aero/Controls/ControlTemplate.hpp
+    include/Aero/VisualState.hpp
+    include/Aero/VisualTransition.hpp
+    include/Aero/VisualStateGroup.hpp
+    include/Aero/VisualStateGroupCollection.hpp
+    include/Aero/VisualStateManager.hpp
     include/Aero/DataTemplate.hpp
+    include/Aero/DataTemplateSelector.hpp
+    include/Aero/HierarchicalDataTemplate.hpp
     include/Aero/Media/Animation.hpp
+    include/Aero/Media/Animation/AnimationTimeline.hpp
+    include/Aero/Media/Animation/AnimationUsingKeyFrames.hpp
+    include/Aero/Media/Animation/BackEase.hpp
+    include/Aero/Media/Animation/BooleanAnimationUsingKeyFrames.hpp
+    include/Aero/Media/Animation/BooleanKeyFrame.hpp
+    include/Aero/Media/Animation/BounceEase.hpp
+    include/Aero/Media/Animation/CircleEase.hpp
+    include/Aero/Media/Animation/ColorAnimation.hpp
+    include/Aero/Media/Animation/ColorAnimationBase.hpp
+    include/Aero/Media/Animation/ColorAnimationUsingKeyFrames.hpp
+    include/Aero/Media/Animation/ColorKeyFrame.hpp
+    include/Aero/Media/Animation/CubicEase.hpp
+    include/Aero/Media/Animation/DiscreteBooleanKeyFrame.hpp
+    include/Aero/Media/Animation/DiscreteColorKeyFrame.hpp
+    include/Aero/Media/Animation/DiscreteDoubleKeyFrame.hpp
+    include/Aero/Media/Animation/DiscreteInt16KeyFrame.hpp
+    include/Aero/Media/Animation/DiscreteInt32KeyFrame.hpp
+    include/Aero/Media/Animation/DiscreteInt64KeyFrame.hpp
+    include/Aero/Media/Animation/DiscreteObjectKeyFrame.hpp
+    include/Aero/Media/Animation/DiscretePointKeyFrame.hpp
+    include/Aero/Media/Animation/DiscreteSizeKeyFrame.hpp
+    include/Aero/Media/Animation/DiscreteMatrixKeyFrame.hpp
+    include/Aero/Media/Animation/DiscreteStringKeyFrame.hpp
+    include/Aero/Media/Animation/DiscreteThicknessKeyFrame.hpp
+    include/Aero/Media/Animation/Duration.hpp
+    include/Aero/Media/Animation/DoubleAnimation.hpp
+    include/Aero/Media/Animation/DoubleAnimationBase.hpp
+    include/Aero/Media/Animation/DoubleAnimationUsingKeyFrames.hpp
+    include/Aero/Media/Animation/DoubleKeyFrame.hpp
+    include/Aero/Media/Animation/EasingColorKeyFrame.hpp
+    include/Aero/Media/Animation/EasingDoubleKeyFrame.hpp
+    include/Aero/Media/Animation/EasingFunctionBase.hpp
+    include/Aero/Media/Animation/EasingInt16KeyFrame.hpp
+    include/Aero/Media/Animation/EasingInt32KeyFrame.hpp
+    include/Aero/Media/Animation/EasingInt64KeyFrame.hpp
+    include/Aero/Media/Animation/EasingPointKeyFrame.hpp
+    include/Aero/Media/Animation/EasingSizeKeyFrame.hpp
+    include/Aero/Media/Animation/EasingMatrixKeyFrame.hpp
+    include/Aero/Media/Animation/EasingThicknessKeyFrame.hpp
+    include/Aero/Media/Animation/ElasticEase.hpp
+    include/Aero/Media/Animation/ExponentialEase.hpp
+    include/Aero/Media/Animation/Int16Animation.hpp
+    include/Aero/Media/Animation/Int16AnimationBase.hpp
+    include/Aero/Media/Animation/Int16AnimationUsingKeyFrames.hpp
+    include/Aero/Media/Animation/Int16KeyFrame.hpp
+    include/Aero/Media/Animation/Int32Animation.hpp
+    include/Aero/Media/Animation/Int32AnimationBase.hpp
+    include/Aero/Media/Animation/Int32AnimationUsingKeyFrames.hpp
+    include/Aero/Media/Animation/Int32KeyFrame.hpp
+    include/Aero/Media/Animation/Int64Animation.hpp
+    include/Aero/Media/Animation/Int64AnimationBase.hpp
+    include/Aero/Media/Animation/Int64AnimationUsingKeyFrames.hpp
+    include/Aero/Media/Animation/Int64KeyFrame.hpp
+    include/Aero/Media/Animation/KeyFrame.hpp
+    include/Aero/Media/Animation/KeyFrameBase.hpp
+    include/Aero/Media/Animation/KeyTime.hpp
+    include/Aero/Media/Animation/MatrixAnimation.hpp
+    include/Aero/Media/Animation/MatrixAnimationBase.hpp
+    include/Aero/Media/Animation/MatrixAnimationUsingKeyFrames.hpp
+    include/Aero/Media/Animation/MatrixKeyFrame.hpp
+    include/Aero/Media/Animation/LinearColorKeyFrame.hpp
+    include/Aero/Media/Animation/LinearDoubleKeyFrame.hpp
+    include/Aero/Media/Animation/LinearInt16KeyFrame.hpp
+    include/Aero/Media/Animation/LinearInt32KeyFrame.hpp
+    include/Aero/Media/Animation/LinearInt64KeyFrame.hpp
+    include/Aero/Media/Animation/LinearPointKeyFrame.hpp
+    include/Aero/Media/Animation/LinearSizeKeyFrame.hpp
+    include/Aero/Media/Animation/LinearMatrixKeyFrame.hpp
+    include/Aero/Media/Animation/LinearThicknessKeyFrame.hpp
+    include/Aero/Media/Animation/ObjectAnimationUsingKeyFrames.hpp
+    include/Aero/Media/Animation/ObjectKeyFrame.hpp
+    include/Aero/Media/Animation/ParallelTimeline.hpp
+    include/Aero/Media/Animation/PointAnimation.hpp
+    include/Aero/Media/Animation/PointAnimationBase.hpp
+    include/Aero/Media/Animation/PointAnimationUsingKeyFrames.hpp
+    include/Aero/Media/Animation/PointKeyFrame.hpp
+    include/Aero/Media/Animation/PowerEase.hpp
+    include/Aero/Media/Animation/QuadraticEase.hpp
+    include/Aero/Media/Animation/QuarticEase.hpp
+    include/Aero/Media/Animation/QuinticEase.hpp
+    include/Aero/Media/Animation/RectAnimation.hpp
+    include/Aero/Media/Animation/RectAnimationBase.hpp
+    include/Aero/Media/Animation/RepeatBehavior.hpp
+    include/Aero/Media/Animation/SineEase.hpp
+    include/Aero/Media/Animation/SizeAnimation.hpp
+    include/Aero/Media/Animation/SizeAnimationBase.hpp
+    include/Aero/Media/Animation/SizeAnimationUsingKeyFrames.hpp
+    include/Aero/Media/Animation/SizeKeyFrame.hpp
+    include/Aero/Media/Animation/SplineColorKeyFrame.hpp
+    include/Aero/Media/Animation/SplineDoubleKeyFrame.hpp
+    include/Aero/Media/Animation/SplineInt16KeyFrame.hpp
+    include/Aero/Media/Animation/SplineInt32KeyFrame.hpp
+    include/Aero/Media/Animation/SplineInt64KeyFrame.hpp
+    include/Aero/Media/Animation/SplinePointKeyFrame.hpp
+    include/Aero/Media/Animation/SplineSizeKeyFrame.hpp
+    include/Aero/Media/Animation/SplineMatrixKeyFrame.hpp
+    include/Aero/Media/Animation/SplineThicknessKeyFrame.hpp
+    include/Aero/Media/Animation/Storyboard.hpp
+    include/Aero/Media/Animation/StringAnimationUsingKeyFrames.hpp
+    include/Aero/Media/Animation/StringKeyFrame.hpp
+    include/Aero/Media/Animation/ThicknessAnimation.hpp
+    include/Aero/Media/Animation/ThicknessAnimationBase.hpp
+    include/Aero/Media/Animation/ThicknessAnimationUsingKeyFrames.hpp
+    include/Aero/Media/Animation/ThicknessKeyFrame.hpp
+    include/Aero/Media/Animation/TimeSpan.hpp
+    include/Aero/Media/Animation/Timeline.hpp
+    include/Aero/Media/Animation/TimelineGroup.hpp
+    include/Aero/Media/BlendMode.hpp
     include/Aero/Media/Brushes.hpp
     include/Aero/Media/Geometry.hpp
     include/Aero/Media/Transforms.hpp
     include/Aero/Markup/XamlDocument.hpp
     include/Aero/Markup/XamlReader.hpp
+    include/Aero/Media/CompositionTarget.hpp
     include/Aero/View.hpp
     include/Aero/IRenderer.hpp
     include/AeroRender/Render.hpp
@@ -108,6 +276,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Markup/ReloadCoordinator.hpp
     include/Aero/Markup/ResourceScope.hpp
     include/Aero/Markup/ServiceProvider.hpp
+    include/Aero/Markup/MarkupExtension.hpp
     include/Aero/Media/FontProvider.hpp
     include/Aero/Media/TextureProvider.hpp
     include/Aero/Markup/XamlProvider.hpp
@@ -115,13 +284,27 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Layout.hpp
     include/Aero/Media/Effects.hpp
     include/Aero/Media/Fonts.hpp
+    include/Aero/Media/FontFamily.hpp
     include/Aero/Media/Images.hpp
+    include/Aero/Media/ImageSource.hpp
+    include/Aero/Media/BitmapImage.hpp
+    include/Aero/Media/CroppedBitmap.hpp
     include/Aero/Module.hpp
     include/Aero/Shapes.hpp
+    include/Aero/Shapes/Ellipse.hpp
+    include/Aero/Shapes/Line.hpp
+    include/Aero/Shapes/Path.hpp
+    include/Aero/Shapes/Polygon.hpp
+    include/Aero/Shapes/Polyline.hpp
+    include/Aero/Shapes/Rectangle.hpp
+    include/Aero/Shapes/Shape.hpp
     include/Aero/Triggers/Conditions.hpp
+    include/Aero/Triggers/SetterBase.hpp
+    include/Aero/Triggers/Setter.hpp
     include/Aero/Triggers/DataTrigger.hpp
     include/Aero/Media/Animation/EventTrigger.hpp
     include/Aero/Interactivity/InteractionTriggers.hpp
+    include/Aero/Interactivity/Interaction.hpp
     include/Aero/Interactivity/Conditions.hpp
     include/Aero/Triggers/MultiDataTrigger.hpp
     include/Aero/Triggers/MultiTrigger.hpp
@@ -141,16 +324,145 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Media/MediaElement.hpp
     include/Aero/Media/Animation/MediaActions.hpp
     include/Aero/TextFormatting.hpp
+    include/Aero/Text.hpp
+    include/Aero/TextProperties.hpp
     include/Aero/Controls/Decorator.hpp
+    include/Aero/Controls/BulletDecorator.hpp
     include/Aero/Controls/ContentPresenter.hpp
+    include/Aero/Controls/Primitives.hpp
+    include/Aero/Controls/Primitives/Selector.hpp
+    include/Aero/Controls/Primitives/Thumb.hpp
+    include/Aero/Controls/Primitives/Track.hpp
+    include/Aero/Controls/Primitives/RangeBase.hpp
+    include/Aero/Controls/Primitives/ScrollBar.hpp
+    include/Aero/Controls/Primitives/TickBar.hpp
     include/Aero/Controls/RangeBase.hpp
+    include/Aero/Controls/Slider.hpp
+    include/Aero/Controls/ProgressBar.hpp
+    include/Aero/Controls/GridSplitter.hpp
     include/Aero/Controls/Popup.hpp
     include/Aero/Controls/HeaderedContentControl.hpp
+    include/Aero/Controls/VirtualizingPanel.hpp
     include/Aero/Controls/VirtualizingStackPanel.hpp
+    include/Aero/Controls/VirtualizationCacheLength.hpp
+    include/Aero/Controls/VirtualizingWrapPanel.hpp
     include/Aero/Controls/Menu.hpp
     include/Aero/Controls/ToolBar.hpp
+    include/Aero/Controls/Separator.hpp
     include/Aero/Controls/StatusBar.hpp
+    include/Aero/Controls/StatusBarItem.hpp
     include/Aero/Controls/ToolTip.hpp
     include/Aero/Controls/Image.hpp
+    include/Aero/Controls/MenuItem.hpp
+    include/Aero/Controls/ContextMenu.hpp
+    include/Aero/Controls/ContextMenuService.hpp
+    include/Aero/Controls/GridViewColumnHeader.hpp
+    include/Aero/Controls/GridViewColumn.hpp
+    include/Aero/Controls/GridView.hpp
+    include/Aero/Controls/GridViewHeaderRowPresenter.hpp
+    include/Aero/Controls/GridViewRowPresenter.hpp
+    include/Aero/Controls/ListViewItem.hpp
+    include/Aero/Media/Animation/BeginStoryboard.hpp
+    include/Aero/Media/Animation/ControlStoryboardAction.hpp
+    include/Aero/Media/Animation/ControllableStoryboardAction.hpp
+    include/Aero/Media/Animation/PauseStoryboard.hpp
+    include/Aero/Media/Animation/ResumeStoryboard.hpp
+    include/Aero/Media/Animation/StopStoryboard.hpp
+    include/Aero/Media/Animation/RemoveStoryboard.hpp
+    include/Aero/Media/Animation/SeekStoryboard.hpp
+    include/Aero/Media/Animation/PlayMediaAction.hpp
+    include/Aero/Media/Animation/PauseMediaAction.hpp
+    include/Aero/Media/Animation/StopMediaAction.hpp
+    include/Aero/Media/Brush.hpp
+    include/Aero/Media/SolidColorBrush.hpp
+    include/Aero/Media/GradientStop.hpp
+    include/Aero/Media/GradientStopCollection.hpp
+    include/Aero/Media/BrushShader.hpp
+    include/Aero/Media/MonochromeShader.hpp
+    include/Aero/Media/ConicGradientShader.hpp
+    include/Aero/Media/WavesShader.hpp
+    include/Aero/Media/GradientBrush.hpp
+    include/Aero/Media/LinearGradientBrush.hpp
+    include/Aero/Media/RadialGradientBrush.hpp
+    include/Aero/Media/TileBrush.hpp
+    include/Aero/Media/ImageBrush.hpp
+    include/Aero/Media/VisualBrush.hpp
+    include/Aero/Media/DashStyle.hpp
+    include/Aero/Media/Pen.hpp
+    include/Aero/Media/Transform.hpp
+    include/Aero/Media/TranslateTransform.hpp
+    include/Aero/Media/ScaleTransform.hpp
+    include/Aero/Media/RotateTransform.hpp
+    include/Aero/Media/SkewTransform.hpp
+    include/Aero/Media/MatrixTransform.hpp
+    include/Aero/Media/Transform3D.hpp
+    include/Aero/Media/PerspectiveTransform3D.hpp
+    include/Aero/Media/MatrixTransform3D.hpp
+    include/Aero/Media/CompositeTransform3D.hpp
+    include/Aero/Media/CompositeTransform.hpp
+    include/Aero/Media/TransformGroup.hpp
+    include/Aero/Media/Effect.hpp
+    include/Aero/Media/BlurEffect.hpp
+    include/Aero/Media/DropShadowEffect.hpp
+    include/Aero/Media/PixelateEffect.hpp
+    include/Aero/Media/TintEffect.hpp
+    include/Aero/Media/DirectionalBlurEffect.hpp
+    include/Aero/Media/ShaderEffect.hpp
+    include/Aero/Media/StreamGeometry.hpp
+    include/Aero/Media/StreamGeometryContext.hpp
+    include/Aero/Media/PathSegment.hpp
+    include/Aero/Media/LineSegment.hpp
+    include/Aero/Media/BezierSegment.hpp
+    include/Aero/Media/QuadraticBezierSegment.hpp
+    include/Aero/Media/ArcSegment.hpp
+    include/Aero/Media/PolyLineSegment.hpp
+    include/Aero/Media/PolyBezierSegment.hpp
+    include/Aero/Media/PolyQuadraticBezierSegment.hpp
+    include/Aero/Media/PathFigure.hpp
+    include/Aero/Media/PathGeometry.hpp
+    include/Aero/Media/LineGeometry.hpp
+    include/Aero/Media/RectangleGeometry.hpp
+    include/Aero/Media/EllipseGeometry.hpp
+    include/Aero/Media/GeometryGroup.hpp
+    include/Aero/Media/CombinedGeometry.hpp
+    include/Aero/Media/FreezableCollection.hpp
+    include/Aero/InputScope.hpp
+    include/Aero/ICommand.hpp
+    include/Aero/InputGesture.hpp
+    include/Aero/KeyGesture.hpp
+    include/Aero/RoutedCommand.hpp
+    include/Aero/RoutedUICommand.hpp
+    include/Aero/RelayCommand.hpp
+    include/Aero/InputBinding.hpp
+    include/Aero/KeyBinding.hpp
+    include/Aero/MouseBinding.hpp
+    include/Aero/CommandBinding.hpp
+    include/Aero/ApplicationCommands.hpp
+    include/Aero/KeyboardNavigation.hpp
+    include/Aero/FocusManager.hpp
+    include/Aero/Data/PropertyPath.hpp
+    include/Aero/Data/RelativeSource.hpp
+    include/Aero/Data/IValueConverter.hpp
+    include/Aero/Data/IMultiValueConverter.hpp
+    include/Aero/Data/BooleanToVisibilityConverter.hpp
+    include/Aero/Data/BindingBase.hpp
+    include/Aero/Data/MultiBinding.hpp
     include/Aero/Controls/PasswordBox.hpp
+    include/Aero/ContentElement.hpp
+    include/Aero/VisualTreeHelper.hpp
+    include/Aero/LogicalTreeHelper.hpp
+    include/Aero/Controls/DockPanel.hpp
+    include/Aero/Controls/WrapPanel.hpp
+    include/Aero/Controls/UniformGrid.hpp
+    include/Aero/Controls/Canvas.hpp
+    include/Aero/Controls/Viewbox.hpp
+    include/Aero/Controls/GroupBox.hpp
+    include/Aero/Controls/Label.hpp
+    include/Aero/Controls/Expander.hpp
+    include/Aero/Controls/TabItem.hpp
+    include/Aero/Controls/TabControl.hpp
+    include/Aero/Controls/TabPanel.hpp
+    include/Aero/Controls/Primitives/ButtonBase.hpp
+    include/Aero/Controls/Primitives/ToggleButton.hpp
+    include/Aero/Controls/Primitives/RepeatButton.hpp
 )

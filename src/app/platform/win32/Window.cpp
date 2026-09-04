@@ -79,6 +79,49 @@ void EnablePerMonitorDpiAwareness() noexcept {
     static_cast<void>(initialized);
 }
 
+UINT QuerySystemDpi() noexcept {
+    using GetDpiForSystemFunction = UINT (WINAPI*)();
+    const HMODULE user32 = GetModuleHandleW(L"user32.dll");
+    const auto getDpiForSystem = user32 != nullptr
+        ? reinterpret_cast<GetDpiForSystemFunction>(
+              GetProcAddress(user32, "GetDpiForSystem"))
+        : nullptr;
+    if (getDpiForSystem != nullptr) {
+        const UINT dpi = getDpiForSystem();
+        if (dpi != 0U) {
+            return dpi;
+        }
+    }
+    return 96U;
+}
+
+BOOL AdjustWindowRectForDpi(
+    RECT* bounds,
+    DWORD style,
+    UINT dpi) noexcept {
+    using AdjustWindowRectExForDpiFunction =
+        BOOL (WINAPI*)(LPRECT, DWORD, BOOL, DWORD, UINT);
+    const HMODULE user32 = GetModuleHandleW(L"user32.dll");
+    const auto adjustForDpi = user32 != nullptr
+        ? reinterpret_cast<AdjustWindowRectExForDpiFunction>(
+              GetProcAddress(user32, "AdjustWindowRectExForDpi"))
+        : nullptr;
+    if (adjustForDpi != nullptr) {
+        return adjustForDpi(bounds, style, FALSE, 0U, dpi);
+    }
+    return AdjustWindowRectEx(bounds, style, FALSE, 0U);
+}
+
+LONG DipToPhysical(
+    std::uint32_t dips,
+    UINT dpi) noexcept {
+    return static_cast<LONG>(
+        (static_cast<std::uint64_t>(dips) *
+             static_cast<std::uint64_t>(dpi) +
+         48ULL) /
+        96ULL);
+}
+
 const wchar_t* Win32WindowClassName() noexcept {
     return L"AeroGuiPlatformWindow";
 }
@@ -317,7 +360,11 @@ struct Win32WindowState {
         LPARAM value) noexcept {
         switch (message) {
         case WM_CLOSE: {
-            open = false;
+            // Do not mark the native window closed here. WPF raises Closing
+            // first; DestroyWindow runs only if Close() is not cancelled.
+            // Do not PostQuitMessage from this handler: DXGI Present() pumps
+            // messages, and WM_QUIT consumed inside Present leaves the host
+            // looping with a still-open HWND / swapchain.
             WindowEvent event;
             event.type = WindowEventType::CloseRequested;
             Push(event);
@@ -329,6 +376,7 @@ struct Win32WindowState {
             WindowEvent event;
             event.type = WindowEventType::Closed;
             Push(event);
+            PostQuitMessage(0);
             return 0;
         }
         case WM_SIZE: {
@@ -576,6 +624,8 @@ Base::Result<void> Win32Window::Create(
     state_->dpiScale = 1.0;
     state_->pendingHighSurrogate = 0U;
     EnablePerMonitorDpiAwareness();
+    const UINT dpi = QuerySystemDpi();
+    state_->dpiScale = static_cast<double>(dpi) / 96.0;
     state_->instance = GetModuleHandleW(nullptr);
     if (state_->instance == nullptr) {
         return WindowFailure(
@@ -615,12 +665,12 @@ Base::Result<void> Win32Window::Create(
     int outerWidth = CW_USEDEFAULT;
     int outerHeight = CW_USEDEFAULT;
     if (!platformDefaultSize) {
-        bounds.right =
-            static_cast<LONG>(descriptor.width);
-        bounds.bottom =
-            static_cast<LONG>(descriptor.height);
-        if (AdjustWindowRectEx(
-                &bounds, style, FALSE, 0U) == FALSE) {
+        // XAML Window Width/Height are device-independent pixels. The Win32
+        // client must be physical pixels so layout DIPs match the viewport.
+        bounds.right = DipToPhysical(descriptor.width, dpi);
+        bounds.bottom = DipToPhysical(descriptor.height, dpi);
+        if (AdjustWindowRectForDpi(
+                &bounds, style, dpi) == FALSE) {
             state_->instance = nullptr;
             return WindowFailure(
                 Base::ErrorCode::InternalError,
@@ -699,6 +749,9 @@ Base::Result<bool> Win32Window::PollEvent(
                PM_REMOVE) != FALSE) {
         if (message.message == WM_QUIT) {
             state_->open = false;
+            WindowEvent quit;
+            quit.type = WindowEventType::CloseRequested;
+            state_->Push(quit);
         } else {
             TranslateMessage(&message);
             DispatchMessageW(&message);
@@ -731,6 +784,9 @@ Base::Result<bool> Win32Window::WaitEvent(
         }
         if (received == 0) {
             state_->open = false;
+            WindowEvent quit;
+            quit.type = WindowEventType::CloseRequested;
+            state_->Push(quit);
             return state_->Dequeue(event);
         }
         TranslateMessage(&message);
@@ -765,7 +821,14 @@ void Win32Window::Close() noexcept {
 }
 
 bool Win32Window::IsOpen() const noexcept {
+#if defined(_WIN32)
+    return state_ != nullptr &&
+        state_->open &&
+        state_->window != nullptr &&
+        IsWindow(state_->window) != FALSE;
+#else
     return state_ != nullptr && state_->open;
+#endif
 }
 
 std::uint32_t Win32Window::ClientWidth() const noexcept {

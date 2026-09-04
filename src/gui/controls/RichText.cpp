@@ -1,6 +1,6 @@
 #include "gui/meta/MetadataState.hpp"
 #include "gui/core/State.hpp" 
-#include "gui/data/BindingState.hpp"
+#include "gui/data/BindingEngine.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include "render/DisplayList.hpp"
@@ -215,8 +215,7 @@ void ApplyRichText(DependencyObject& object) noexcept {
     if (!object.PropertyRegistry().Types().IsDerivedFrom(
             object.RuntimeType(),
             Controls::TextBlock::StaticTypeId())) return;
-    const Base::StringView source = object.GetValueOr(
-        RichText::TextProperty, Base::StringView{});
+    const Base::StringView source = object.GetValue(RichText::TextProperty);
     Base::String plain;
     Base::Vector<RichTextParseState> states;
     Base::Vector<Controls::TextBlock::RichTextStyleRange> ranges;

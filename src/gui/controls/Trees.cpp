@@ -1,16 +1,26 @@
 #include "gui/core/State.hpp" 
 #include "gui/input/InputState.hpp" 
-#include "gui/data/BindingState.hpp"
+#include "gui/data/BindingEngine.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include "gui/controls/State.hpp"
 #include "gui/templates/TemplateState.hpp"
-#include "gui/core/facets/InteractionStateFacet.hpp"
 #include <Aero/Controls.hpp>
 #include <Aero/Controls/ControlTemplate.hpp>
+#include <Aero/TryCast.hpp>
+#include <Aero/Controls/Primitives/ToggleButton.hpp>
+#include <Aero/Controls/ItemContainerGenerator.hpp>
 
 #include <utility>
 #include "ControlBehavior.hpp"
+#include <Aero/Media/ScaleTransform.hpp>
+#include <Aero/Media/RotateTransform.hpp>
+#include <Aero/Controls/Decorator.hpp>
+#include <Aero/Controls/ContentPresenter.hpp>
+#include <Aero/Controls/ItemsPresenter.hpp>
+#include <Aero/Visual.hpp>
+#include <Aero/VisualTreeHelper.hpp>
+#include "gui/internal/AeroGuiInternal.hpp"
 
 namespace Aero::Controls {
 using Aero::Controls::TreeBehavior;
@@ -19,21 +29,170 @@ using namespace Primitives;
 
 namespace {
 
-// RTTI is disabled, so an ItemsSource arrives as a Base::Object and must be
-// down-cast by its runtime type. The collection contract is implemented by the
-// two observable collections known to the framework (mirrors
-// metadata/Support.inl OnItemsSourceChanged).
 Collections::IItemsSource* AsItemsSource(
     Base::Object* source) noexcept {
-    if (source == nullptr) return nullptr;
-    const Meta::TypeId type = source->RuntimeType();
-    if (type == Collections::ObservableCollection::StaticTypeId()) {
-        return static_cast<Collections::ObservableCollection*>(source);
+    Collections::IItemsSource* items =
+        TryCastToInterface<Collections::IItemsSource>(source);
+    if (items == nullptr) {
+        items = Collections::CollectionAsItemsSource(source);
     }
-    if (type == Media::GradientStopCollection::StaticTypeId()) {
-        return static_cast<Media::GradientStopCollection*>(source);
+    return items;
+}
+
+void AttachOwnedUiSubtree(
+    ElementTree& tree,
+    UIElement& parent) noexcept {
+    const auto attachChild = [&](UIElement& child) noexcept {
+        if (child.GetVisualParent() == &parent &&
+            child.GetTree() == &tree &&
+            child.GetIsLayoutAttached()) {
+            AttachOwnedUiSubtree(tree, child);
+            return;
+        }
+        if (child.GetVisualParent() != nullptr &&
+            child.GetVisualParent() != &parent) {
+            static_cast<void>(tree.DetachVisual(
+                *child.GetVisualParent(),
+                static_cast<::Aero::Media::Visual&>(child)));
+        }
+        if (child.GetTree() == nullptr &&
+            child.GetLogicalParent() == nullptr) {
+            static_cast<void>(tree.AttachElement(parent, child));
+        } else if (child.GetVisualParent() != &parent ||
+                   !child.GetIsLayoutAttached()) {
+            static_cast<void>(tree.AttachVisualChild(parent, child));
+        }
+        if (Aero::BindingEngine* bindings =
+                AeroGuiInternal::BindingEngineOf(child)) {
+            static_cast<void>(bindings->ActivateDeferredWhenReady(child));
+        }
+        AttachOwnedUiSubtree(tree, child);
+    };
+
+    if (parent.PropertyRegistry().Types().IsDerivedFrom(
+            parent.RuntimeType(), Panel::StaticTypeId())) {
+        auto& panel = static_cast<Panel&>(parent);
+        const std::uint32_t count = AeroGuiInternal::PanelChildCount(panel);
+        for (std::uint32_t index = 0U; index < count; ++index) {
+            const Base::Ref<Base::Object> owned =
+                AeroGuiInternal::PanelChildAt(panel, index);
+            if (!owned ||
+                !parent.PropertyRegistry().Types().IsDerivedFrom(
+                    owned->RuntimeType(), UIElement::StaticTypeId())) {
+                continue;
+            }
+            attachChild(*static_cast<UIElement*>(owned.Get()));
+        }
+        return;
     }
-    return nullptr;
+    if (parent.PropertyRegistry().Types().IsDerivedFrom(
+            parent.RuntimeType(), Decorator::StaticTypeId())) {
+        const Base::Ref<Base::Object>& owned =
+            AeroGuiInternal::DecoratorOwnedChild(
+                static_cast<Decorator&>(parent));
+        if (owned &&
+            parent.PropertyRegistry().Types().IsDerivedFrom(
+                owned->RuntimeType(), UIElement::StaticTypeId())) {
+            attachChild(*static_cast<UIElement*>(owned.Get()));
+        }
+        return;
+    }
+    if (parent.PropertyRegistry().Types().IsDerivedFrom(
+            parent.RuntimeType(), ContentPresenter::StaticTypeId())) {
+        auto& presenter = static_cast<ContentPresenter&>(parent);
+        const Base::Ref<Base::Object>& owned = presenter.GetOwnedContent();
+        if (owned &&
+            parent.PropertyRegistry().Types().IsDerivedFrom(
+                owned->RuntimeType(), UIElement::StaticTypeId())) {
+            attachChild(*static_cast<UIElement*>(owned.Get()));
+        }
+        return;
+    }
+    if (parent.PropertyRegistry().Types().IsDerivedFrom(
+            parent.RuntimeType(), ContentControl::StaticTypeId())) {
+        const Base::Ref<Base::Object>& owned =
+            AeroGuiInternal::OwnedContent(
+                static_cast<ContentControl&>(parent));
+        if (owned &&
+            parent.PropertyRegistry().Types().IsDerivedFrom(
+                owned->RuntimeType(), UIElement::StaticTypeId())) {
+            attachChild(*static_cast<UIElement*>(owned.Get()));
+        }
+    }
+}
+
+void HostHeaderVisual(
+    ElementTree&,
+    ContentPresenter& presenter,
+    const Base::Ref<Base::Object>& owner,
+    UIElement& element) noexcept {
+    presenter.HostUiElement(owner, element);
+}
+
+Base::Ref<Base::Object> DataItemFromContainer(
+    TreeViewItem& item) noexcept {
+    Base::Ref<Base::Object> context;
+    const Value dc = item.GetDataContext();
+    if (dc.Kind() == ValueKind::Object &&
+        !dc.IsNullObject() &&
+        dc.AsObject() &&
+        dc.AsObject().Get() != &item) {
+        context = dc.AsObject();
+    }
+    ::Aero::Media::Visual* visual = item.GetVisualParent();
+    while (visual != nullptr) {
+        UIElement* element = ::Aero::TryCast<::Aero::UIElement>(visual);
+        if (element != nullptr &&
+            item.PropertyRegistry().Types().IsDerivedFrom(
+                element->RuntimeType(),
+                ItemsControl::StaticTypeId())) {
+            auto& items = static_cast<ItemsControl&>(*element);
+            ItemContainerGenerator* generator =
+                items.GetItemContainerGenerator();
+            if (generator != nullptr) {
+                Base::Ref<Base::Object> data =
+                    generator->ItemFromContainer(item);
+                if (data && data.Get() != &item) {
+                    return data;
+                }
+            }
+        }
+        visual = visual->GetVisualParent();
+    }
+    if (context) {
+        return context;
+    }
+    return Base::Ref<Base::Object>::FromBorrowed(item);
+}
+
+void UnselectOtherTreeViewItems(
+    ::Aero::Media::Visual& parent,
+    TreeViewItem* keep,
+    Aero::VisualStateManager* states) noexcept {
+    for (::Aero::Media::Visual* child :
+         AeroGuiInternal::RenderChildren(parent)) {
+        if (child == nullptr) continue;
+        UIElement* element =
+            ::Aero::TryCast<::Aero::UIElement>(child);
+        if (element != nullptr &&
+            element->PropertyRegistry().Types().IsDerivedFrom(
+                element->RuntimeType(),
+                TreeViewItem::StaticTypeId())) {
+            auto* node = static_cast<TreeViewItem*>(element);
+            if (node != keep && node->GetIsSelected()) {
+                node->SetIsSelected(false);
+                if (states != nullptr) {
+                    static_cast<void>(
+                        Aero::VisualStateManagerRuntime::GoToState(
+                            *states,
+                            *node,
+                            "SelectionStates",
+                            "Unselected"));
+                }
+            }
+        }
+        UnselectOtherTreeViewItems(*child, keep, states);
+    }
 }
 
 } // namespace
@@ -51,23 +210,30 @@ TreeViewItem::TreeViewItem(
       expandedChangedHandler_(
           this, &TreeViewItem::OnExpandedChanged),
       selectedChangedHandler_(
-          this, &TreeViewItem::OnSelectedChanged) {
-    static_cast<void>(AddValueChangedHandlerChecked(
+          this, &TreeViewItem::OnSelectedChanged),
+      expandClickHandler_(
+          this, &TreeViewItem::OnExpandButtonClick) {
+    static_cast<void>(AddValueChangedHandler(
         HeaderProperty, headerChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         IconProperty, iconChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         IsExpandedProperty,
         expandedChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         IsSelectedProperty,
         selectedChangedHandler_));
 }
 
 TreeViewItem::~TreeViewItem() {
     if (childItems_ != nullptr) {
-        ::Aero::Core::InteractionStateFacet::SetItemsSourceBorrowed(
+        AeroGuiInternal::SetItemsSourceBorrowed(
             *childItems_, nullptr);
+    }
+    if (expandButton_ != nullptr) {
+        static_cast<void>(expandButton_->RemoveHandler(
+            ButtonBase::ClickEvent, expandClickHandler_));
+        expandButton_ = nullptr;
     }
     static_cast<void>(RemoveValueChangedHandler(
         HeaderProperty, headerChangedHandler_));
@@ -83,9 +249,7 @@ TreeViewItem::~TreeViewItem() {
 
 Value
 TreeViewItem::GetHeader() const noexcept {
-    return GetValueOr(
-        HeaderProperty,
-        Value::NullObject(Meta::TypeOf<Base::Object>()));
+    return GetValue(HeaderProperty);
 }
 
 void TreeViewItem::SetHeader(
@@ -103,8 +267,7 @@ Base::Result<void> TreeViewItem::SetHeader(
 }
 
 Base::StringView TreeViewItem::GetIcon() const noexcept {
-    return GetValueOr(
-        IconProperty, Base::StringView{});
+    return GetValue(IconProperty);
 }
 
 void TreeViewItem::SetIcon(
@@ -114,9 +277,7 @@ void TreeViewItem::SetIcon(
 
 Base::Ref<DataTemplate>
 TreeViewItem::GetHeaderTemplate() const noexcept {
-    return GetValueOr(
-        HeaderTemplateProperty,
-        Base::Ref<DataTemplate>{});
+    return GetValue(HeaderTemplateProperty);
 }
 
 void
@@ -126,8 +287,7 @@ TreeViewItem::SetHeaderTemplate(
 }
 
 bool TreeViewItem::GetIsExpanded() const noexcept {
-    return GetValueOr(
-        IsExpandedProperty, false);
+    return GetValue(IsExpandedProperty);
 }
 
 void
@@ -137,8 +297,7 @@ TreeViewItem::SetIsExpanded(
 }
 
 bool TreeViewItem::GetIsSelected() const noexcept {
-    return GetValueOr(
-        IsSelectedProperty, false);
+    return GetValue(IsSelectedProperty);
 }
 
 void
@@ -201,8 +360,7 @@ void TreeViewItem::ActivateHierarchicalContent() noexcept {
     if (hierarchicalItemsSource_) {
         SetItemsSource(hierarchicalItemsSource_);
     } else if (hierarchicalItemsBinding_ && hierarchicalBindingSource_) {
-        auto* bindings = ::Aero::Core::GetFacet<::Aero::BindingEngine>(
-            *this);
+        auto* bindings = AeroGuiInternal::BindingEngineOf(*this);
         if (bindings == nullptr || bindings->Metadata() == nullptr) return;
         Data::MetadataBindingDescriptor descriptor;
         descriptor.metadata = bindings->Metadata();
@@ -214,7 +372,10 @@ void TreeViewItem::ActivateHierarchicalContent() noexcept {
             hierarchicalItemsBinding_->GetStringFormat();
         descriptor.mode = Data::BindingMode::OneWay;
         descriptor.updateSourceTrigger =
-            Meta::UpdateSourceTrigger::PropertyChanged;
+            bindings->ResolveUpdateSourceTrigger(
+                *this,
+                ItemsControl::ItemsSourceProperty.Handle(),
+                hierarchicalItemsBinding_->GetUpdateSourceTrigger());
         descriptor.converterResource =
             hierarchicalItemsBinding_->GetConverter();
         descriptor.converterParameter =
@@ -240,9 +401,10 @@ void TreeViewItem::ActivateHierarchicalContent() noexcept {
     if (childItems_ != nullptr) {
         const Base::Ref<Base::Object> current = GetItemsSource();
 auto* items = AsItemsSource(current.Get());
-        ::Aero::Core::InteractionStateFacet::SetItemsSourceBorrowed(
+        AeroGuiInternal::SetItemsSourceBorrowed(
             *childItems_, items);
     }
+    ProjectRealizedHeaders();
 }
 
 void
@@ -285,31 +447,65 @@ TreeViewItem::OnApplyTemplate() noexcept {
             ItemsControl::StaticTypeId())
         ? static_cast<ItemsControl*>(children)
         : nullptr;
-    if (headerText_ == nullptr ||
-        expanderGlyph_ == nullptr ||
-        childItems_ == nullptr) {
-        return;
+    DependencyObject* itemsBorder =
+        GetTemplateChild("ItemsBorder");
+    itemsBorder_ =
+        itemsBorder != nullptr
+        ? ::Aero::TryCast<::Aero::UIElement>(itemsBorder)
+        : nullptr;
+    DependencyObject* itemsHost =
+        GetTemplateChild("ItemsHost");
+    itemsHostPresenter_ =
+        itemsHost != nullptr
+        ? ::Aero::TryCast<::Aero::UIElement>(itemsHost)
+        : nullptr;
+    if (expandButton_ != nullptr) {
+        static_cast<void>(expandButton_->RemoveHandler(
+            ButtonBase::ClickEvent, expandClickHandler_));
+        expandButton_ = nullptr;
     }
-Base::Ref<Base::Object> source = GetItemsSource();
-    Collections::IItemsSource* childSource = AsItemsSource(source.Get());
-    if (childSource == nullptr) {
-        childSource =
-            static_cast<Collections::IItemsSource*>(&ItemsControl::GetItems());
+    DependencyObject* expander =
+        GetTemplateChild("ExpandButton");
+    expandButton_ =
+        expander != nullptr
+        ? ::Aero::TryCast<ToggleButton>(expander)
+        : nullptr;
+    if (expandButton_ != nullptr) {
+        expandButton_->AddHandler(
+            ButtonBase::ClickEvent, expandClickHandler_);
     }
-    ::Aero::Core::InteractionStateFacet::SetItemsSourceBorrowed(
-        *childItems_, childSource);
+
+    if (childItems_ != nullptr) {
+        Base::Ref<Base::Object> source = GetItemsSource();
+        Collections::IItemsSource* childSource = AsItemsSource(source.Get());
+        if (childSource == nullptr) {
+            childSource =
+                static_cast<Collections::IItemsSource*>(
+                    &ItemsControl::GetItems());
+        }
+        AeroGuiInternal::SetItemsSourceBorrowed(
+            *childItems_, childSource);
+    }
     static_cast<void>(SynchronizeTemplate());
+    ProjectRealizedHeaders();
 }
 
 void TreeViewItem::OnTemplateDetached() noexcept {
     if (childItems_ != nullptr) {
-        ::Aero::Core::InteractionStateFacet::SetItemsSourceBorrowed(
+        AeroGuiInternal::SetItemsSourceBorrowed(
             *childItems_, nullptr);
     }
     headerText_ = nullptr;
     iconText_ = nullptr;
     expanderGlyph_ = nullptr;
     childItems_ = nullptr;
+    itemsBorder_ = nullptr;
+    itemsHostPresenter_ = nullptr;
+    if (expandButton_ != nullptr) {
+        static_cast<void>(expandButton_->RemoveHandler(
+            ButtonBase::ClickEvent, expandClickHandler_));
+        expandButton_ = nullptr;
+    }
     HeaderedItemsControl::OnTemplateDetached();
 }
 
@@ -339,6 +535,61 @@ TreeViewItem::SynchronizeTemplate() noexcept {
                 ? Visibility::Visible
                 : Visibility::Collapsed);
     }
+    const bool expanded = GetIsExpanded();
+    if (itemsBorder_ != nullptr) {
+        itemsBorder_->SetVisibility(
+            expanded
+                ? Visibility::Visible
+                : Visibility::Collapsed);
+    }
+    if (itemsHostPresenter_ == nullptr && itemsBorder_ != nullptr) {
+        if (auto* border = ::Aero::TryCast<Decorator>(itemsBorder_)) {
+            itemsHostPresenter_ = border->GetChild();
+        }
+    }
+    if (itemsHostPresenter_ != nullptr) {
+        Base::Ref<Media::Transform> transform =
+            itemsHostPresenter_->GetRenderTransform();
+        Media::ScaleTransform* scale =
+            transform
+                ? ::Aero::TryCast<Media::ScaleTransform>(transform.Get())
+                : nullptr;
+        if (scale == nullptr) {
+            Base::Result<Base::Ref<Media::ScaleTransform>> made =
+                Base::MakeRef<Media::ScaleTransform>();
+            if (made) {
+                scale = made.Value().Get();
+                itemsHostPresenter_->SetRenderTransform(
+                    Base::Ref<Media::Transform>(made.Value()));
+            }
+        }
+        if (scale != nullptr) {
+            if (::Aero::AnimationEngine* animations =
+                    AeroGuiInternal::AnimationEngineOf(*this)) {
+                static_cast<void>(animations->RemoveTarget(*scale));
+                static_cast<void>(
+                    animations->RemoveTarget(*itemsHostPresenter_));
+                if (itemsBorder_ != nullptr) {
+                    static_cast<void>(
+                        animations->RemoveTarget(*itemsBorder_));
+                }
+            }
+            scale->SetScaleY(expanded ? 1.0 : 0.0);
+        }
+    }
+    if (DependencyObject* arrow = GetTemplateChild("Arrow")) {
+        if (auto* element = ::Aero::TryCast<UIElement>(arrow)) {
+            Base::Ref<Media::Transform> transform =
+                element->GetRenderTransform();
+            if (auto* rotate =
+                    transform
+                        ? ::Aero::TryCast<Media::RotateTransform>(
+                              transform.Get())
+                        : nullptr) {
+                rotate->SetAngle(expanded ? 90.0 : 0.0);
+            }
+        }
+    }
     return {};
 }
 
@@ -347,12 +598,140 @@ void TreeViewItem::OnHeaderChanged(
     const DependencyPropertyChangedEventArgs&)
     noexcept {
     static_cast<void>(SynchronizeTemplate());
+    ProjectHeaderContent();
+}
+
+namespace {
+
+ContentPresenter* FindHeaderPresenter(
+    TreeViewItem& item,
+    UIElement* expandButton,
+    DependencyObject* namedHeader) noexcept {
+    if (auto* presenter =
+            namedHeader != nullptr
+                ? ::Aero::TryCast<ContentPresenter>(namedHeader)
+                : nullptr) {
+        return presenter;
+    }
+
+    ContentPresenter* headerPresenter = nullptr;
+    const auto consider = [&](ContentPresenter* presenter) noexcept {
+        if (presenter == nullptr) {
+            return;
+        }
+        if (presenter->GetContentSource() == Base::StringView("Header")) {
+            headerPresenter = presenter;
+        }
+    };
+    const auto walk = [&](auto&& self, ::Aero::Media::Visual& node) -> void {
+        if (headerPresenter != nullptr &&
+            headerPresenter->GetContentSource() ==
+                Base::StringView("Header")) {
+            return;
+        }
+        if (&node != &item) {
+            if (::Aero::TryCast<ItemsPresenter>(&node) != nullptr ||
+                ::Aero::TryCast<TreeViewItem>(&node) != nullptr) {
+                return;
+            }
+        }
+        if (auto* presenter = ::Aero::TryCast<ContentPresenter>(&node)) {
+            consider(presenter);
+        }
+        const std::uint32_t count =
+            ::Aero::Media::VisualTreeHelper::GetChildrenCount(node);
+        for (std::uint32_t index = 0U; index < count; ++index) {
+            ::Aero::Media::Visual* child =
+                ::Aero::Media::VisualTreeHelper::GetChild(node, index);
+            if (child != nullptr) {
+                self(self, *child);
+            }
+        }
+    };
+    walk(walk, item);
+
+    if (headerPresenter != nullptr &&
+        headerPresenter->GetContentSource() == Base::StringView("Header")) {
+        return headerPresenter;
+    }
+
+    // PART_Header is authored as ToggleButton.Content. The expander style
+    // template has not necessarily projected that content into the visual
+    // tree yet, but the logical Content tree already holds the presenter.
+    if (expandButton != nullptr) {
+        const Value content =
+            static_cast<Primitives::ToggleButton*>(expandButton)
+                ->GetContent();
+        if (content.Kind() == ValueKind::Object &&
+            !content.IsNullObject() &&
+            content.AsObject()) {
+            Base::Object* hosted = content.AsObject().Get();
+            if (item.PropertyRegistry().Types().IsDerivedFrom(
+                    hosted->RuntimeType(),
+                    ::Aero::Media::Visual::StaticTypeId())) {
+                walk(walk, *static_cast<::Aero::Media::Visual*>(hosted));
+            }
+        }
+    }
+    return headerPresenter;
+}
+
+} // namespace
+
+void TreeViewItem::ProjectHeaderContent() noexcept {
+    const Value header = GetHeader();
+    if (header.Kind() != ValueKind::Object ||
+        header.IsNullObject() ||
+        !header.AsObject()) {
+        return;
+    }
+    Base::Object* obj = header.AsObject().Get();
+    if (!PropertyRegistry().Types().IsDerivedFrom(
+            obj->RuntimeType(), UIElement::StaticTypeId())) {
+        return;
+    }
+    auto* element = static_cast<UIElement*>(obj);
+    ContentPresenter* presenter = FindHeaderPresenter(
+        *this, expandButton_, GetTemplateChild("PART_Header"));
+    ElementTree* tree = GetTree();
+    if (presenter == nullptr) {
+        return;
+    }
+    if (tree == nullptr) {
+        presenter->HostUiElement(header.AsObject(), *element);
+        return;
+    }
+    HostHeaderVisual(
+        *tree, *presenter, header.AsObject(), *element);
+}
+
+void TreeViewItem::ProjectRealizedHeaders() noexcept {
+    ProjectHeaderContent();
+    ItemContainerGenerator* generator = GetItemContainerGenerator();
+    if (generator == nullptr) {
+        return;
+    }
+    const std::uint32_t count = generator->GetGeneratedCount();
+    for (std::uint32_t index = 0U; index < count; ++index) {
+        FrameworkElement* container = generator->ContainerFromIndex(index);
+        if (container == nullptr ||
+            !PropertyRegistry().Types().IsDerivedFrom(
+                container->RuntimeType(), TreeViewItem::StaticTypeId())) {
+            continue;
+        }
+        static_cast<TreeViewItem*>(container)->ProjectHeaderContent();
+    }
 }
 
 void TreeViewItem::OnExpandedChanged(
     DependencyObject&,
     const DependencyPropertyChangedEventArgs&
         args) noexcept {
+    if (expanderGestureActive_ &&
+        args.GetNewValue().AsBoolean() != expanderGestureTarget_) {
+        SetIsExpanded(expanderGestureTarget_);
+        return;
+    }
     if (args.GetNewValue().AsBoolean()) {
         ActivateHierarchicalContent();
     }
@@ -377,9 +756,59 @@ void TreeViewItem::OnSelectedChanged(
         &event));
 }
 
+void TreeViewItem::BeginExpanderGesture() noexcept {
+    if (!GetHasItems()) return;
+    expanderGestureTarget_ = !GetIsExpanded();
+    expanderGestureActive_ = true;
+    expanderGestureArmed_ = false;
+}
+
+void TreeViewItem::OnExpandButtonClick(
+    Base::Object*,
+    RoutedEventArgs&) noexcept {
+    bool target;
+    if (expanderGestureActive_) {
+        target = expanderGestureTarget_;
+        expanderGestureArmed_ = true;
+    } else if (expandButton_ != nullptr) {
+        const Nullable<bool> checked = expandButton_->GetIsChecked();
+        target = checked.GetHasValue() && checked.GetValue();
+    } else {
+        return;
+    }
+    // Keep the gesture armed while writing so a TwoWay IsChecked echo
+    // cannot collapse the node on the same click.
+    if (expandButton_ != nullptr) {
+        const Nullable<bool> checked = expandButton_->GetIsChecked();
+        const bool isChecked =
+            checked.GetHasValue() && checked.GetValue();
+        if (isChecked != target) {
+            expandButton_->SetIsChecked(Nullable<bool>{target});
+        }
+    }
+    if (GetIsExpanded() != target) {
+        SetIsExpanded(target);
+    }
+    static_cast<void>(SynchronizeTemplate());
+    // Keep the gesture armed until the next expander MouseDown so a TwoWay
+    // IsChecked echo cannot collapse the node on the same click.
+}
+
+void TreeViewItem::ApplyExpanderGesture() noexcept {
+    if (!expanderGestureActive_) return;
+    expanderGestureArmed_ = true;
+    if (expandButton_ != nullptr) {
+        expandButton_->SetIsChecked(Nullable<bool>{expanderGestureTarget_});
+    }
+    if (GetIsExpanded() != expanderGestureTarget_) {
+        SetIsExpanded(expanderGestureTarget_);
+    }
+    static_cast<void>(SynchronizeTemplate());
+}
+
 TreeView::~TreeView() {
     auto* behaviors = static_cast<ControlBehavior*>(
-        ::Aero::Core::InteractionStateFacet::ControlBehaviorRuntime(*this));
+        AeroGuiInternal::ControlBehaviorRuntime(*this));
     if (behaviors != nullptr) {
         static_cast<void>(behaviors->Detach(*this));
     }
@@ -387,9 +816,7 @@ TreeView::~TreeView() {
 
 Base::Ref<Base::Object>
 TreeView::GetSelectedItem() const noexcept {
-    return GetValueOr(
-        SelectedItemProperty,
-        Base::Ref<Base::Object>{});
+    return GetValue(SelectedItemProperty);
 }
 
 Base::Result<Base::Ref<FrameworkElement>>
@@ -405,44 +832,51 @@ TreeView::CreateContainer(
 bool TreeView::SelectItem(
     TreeViewItem* item) noexcept {
     auto* states = static_cast<Aero::VisualStateManager*>(
-        ::Aero::Core::InteractionStateFacet::VisualStateRuntime(*this));
+        AeroGuiInternal::VisualStateRuntime(*this));
+    Base::Ref<Base::Object> next;
+    if (item != nullptr) {
+        next = DataItemFromContainer(*item);
+    }
     Base::Ref<Base::Object> previous =
         GetSelectedItem();
-    if (previous.Get() == item) return false;
-    if (previous &&
-        PropertyRegistry().Types().IsDerivedFrom(
-            previous->RuntimeType(),
-            TreeViewItem::StaticTypeId())) {
-        static_cast<TreeViewItem*>(previous.Get())->SetIsSelected(false);
-        if (states != nullptr) {
-            static_cast<void>(
-                Aero::Controls::TemplatePrivate::GoToState(*states,
-                    *static_cast<TreeViewItem*>(
-                        previous.Get()),
-                    "SelectionStates",
-                    "Unselected"));
-        }
+    if (previous.Get() == next.Get() &&
+        (item == nullptr || item->GetIsSelected())) {
+        return false;
     }
-    Base::Ref<Base::Object> next;
+    UnselectOtherTreeViewItems(*this, item, states);
     if (item != nullptr) {
         item->SetIsSelected(true);
         if (states != nullptr) {
-            Base::Result<bool> state =
-                Aero::Controls::TemplatePrivate::GoToState(*states,
+            // Gallery TreeViewItem chrome uses property Triggers, not VSM
+            // SelectionStates. Missing visual states must not block
+            // SelectedItem / SelectedItemChanged (Tag → SelectedSample).
+            static_cast<void>(
+                Aero::VisualStateManagerRuntime::GoToState(*states,
                     *item,
                     "SelectionStates",
-                    "Selected");
-            if (!state) {
-                return false;
-            }
+                    "Selected"));
         }
-        next =
-            Base::Ref<Base::Object>::FromBorrowed(
-                *item);
     }
     SetReadOnlyCurrentValue(SelectedItemProperty, next);
     RoutedEventArgs event;
     RaiseEvent(SelectedItemChangedEvent, &event);
+    if (Aero::BindingEngine* bindings =
+            AeroGuiInternal::BindingEngineOf(*this)) {
+        static_cast<void>(bindings->Flush());
+    }
+    if (item != nullptr) {
+        ::Aero::Media::Visual* visual = item->GetVisualParent();
+        while (visual != nullptr) {
+            if (auto* node = ::Aero::TryCast<TreeViewItem>(visual)) {
+                if (!node->GetIsExpanded()) {
+                    node->SetIsExpanded(true);
+                }
+                static_cast<void>(node->SynchronizeTemplate());
+            }
+            visual = visual->GetVisualParent();
+        }
+        static_cast<void>(item->SynchronizeTemplate());
+    }
     return true;
 }
 
@@ -513,7 +947,7 @@ TreeBehavior::ResolveTreeView(
         : nullptr;
     return visual != nullptr
         ? static_cast<TreeView*>(
-            visual->AsUIElement())
+            ::Aero::TryCast<::Aero::UIElement>(visual))
         : nullptr;
 }
 
@@ -529,22 +963,13 @@ TreeBehavior::Attach(
     Base::Result<VisualHandle> handle =
         tree_->GetHandle(treeView);
     if (!handle) return handle.GetStatus();
-    Base::Result<void> mouse =
-        treeView.AddHandlerChecked(
-            UIElement::MouseDownEvent,
-            mouseDownHandler_);
-    if (!mouse) return mouse.GetStatus();
-    Base::Result<void> key =
-        treeView.AddHandlerChecked(
-            UIElement::KeyDownEvent,
-            keyDownHandler_);
-    if (!key) {
-        static_cast<void>(
-            treeView.RemoveHandler(
-                UIElement::MouseDownEvent,
-                mouseDownHandler_));
-        return key.GetStatus();
-    }
+    treeView.AddHandler(
+        UIElement::MouseDownEvent,
+        mouseDownHandler_,
+        true);
+    treeView.AddHandler(
+        UIElement::KeyDownEvent,
+        keyDownHandler_);
     Base::Result<void> stored =
         records_.PushBack(handle.Value());
     if (!stored) {
@@ -599,7 +1024,7 @@ TreeBehavior::FindItem(
     while (visual != nullptr &&
         visual != &treeView) {
         UIElement* element =
-            visual->AsUIElement();
+            ::Aero::TryCast<::Aero::UIElement>(visual);
         if (element != nullptr &&
             treeView.PropertyRegistry().Types().
                 IsDerivedFrom(
@@ -619,10 +1044,10 @@ TreeBehavior::CollectVisibleItems(
     Base::Vector<TreeViewItem*>& items)
     noexcept {
     for (::Aero::Media::Visual* child :
-        parent.GetVisualChildren()) {
+        AeroGuiInternal::RenderChildren(parent)) {
         if (child == nullptr) continue;
         UIElement* element =
-            child->AsUIElement();
+            ::Aero::TryCast<::Aero::UIElement>(child);
         if (element != nullptr &&
             element->GetVisibility() !=
                 Visibility::Visible) {
@@ -661,7 +1086,82 @@ void TreeBehavior::OnMouseDown(
         FindItem(
             treeView, args.GetOriginalSource());
     if (item == nullptr) return;
-    if (!treeView.SelectItem(item)) return;
+    UIElement* sourceElement =
+        args.GetOriginalSource() != nullptr &&
+                treeView.PropertyRegistry().Types().IsDerivedFrom(
+                    args.GetOriginalSource()->RuntimeType(),
+                    UIElement::StaticTypeId())
+            ? static_cast<UIElement*>(args.GetOriginalSource())
+            : nullptr;
+    const auto inItemsRegion =
+        [](TreeViewItem& node, UIElement* source) noexcept -> bool {
+        if (source == nullptr) return false;
+        Controls::Panel* host = node.GetItemsHost();
+        ::Aero::Media::Visual* visual = source;
+        while (visual != nullptr && visual != &node) {
+            if (visual == host) return true;
+            if (::Aero::TryCast<ItemsPresenter>(visual) != nullptr) {
+                return true;
+            }
+            visual = visual->GetVisualParent();
+        }
+        return false;
+    };
+    if (inItemsRegion(*item, sourceElement)) {
+        // Gallery leaves put PART_Header inside a HasItems=False disabled
+        // ExpandButton. Hits often land on the parent's ItemsPresenter
+        // instead of the leaf. Pick the child whose box contains the point
+        // so sibling rows stay expanded and SelectedItem is the Sample.
+        TreeViewItem* child = nullptr;
+        ::Aero::Media::Visual* walk = sourceElement;
+        while (walk != nullptr && walk != item) {
+            if (auto* node = ::Aero::TryCast<TreeViewItem>(walk)) {
+                child = node;
+                break;
+            }
+            walk = walk->GetVisualParent();
+        }
+        if (child == nullptr && sourceElement != nullptr) {
+            const Base::Point screen =
+                sourceElement->PointToScreen(args.GetPosition());
+            ItemContainerGenerator* generator =
+                item->GetItemContainerGenerator();
+            const std::uint32_t count = item->GetCount();
+            for (std::uint32_t index = 0U; index < count; ++index) {
+                FrameworkElement* container =
+                    generator != nullptr
+                    ? generator->ContainerFromIndex(index)
+                    : nullptr;
+                auto* candidate =
+                    container != nullptr
+                    ? ::Aero::TryCast<TreeViewItem>(container)
+                    : nullptr;
+                if (candidate == nullptr) continue;
+                Base::Point local;
+                if (!candidate->TryPointFromScreen(screen, local)) {
+                    continue;
+                }
+                Size size = candidate->GetRenderSize();
+                if (!(size.width > 0.0 && size.height > 0.0)) {
+                    const Rect slot = candidate->GetLayoutSlot();
+                    size = Size{slot.width, slot.height};
+                }
+                if (local.x >= 0.0 && local.y >= 0.0 &&
+                    local.x < size.width && local.y < size.height) {
+                    child = candidate;
+                    break;
+                }
+            }
+        }
+        if (child != nullptr) {
+            item = child;
+        }
+    }
+    // Expand/collapse is owned by ExpandButton Click + TwoWay IsChecked.
+    // MouseDown must not toggle: gallery leaves live inside a disabled
+    // ExpandButton, so a miss lands on the parent Grid and would collapse
+    // Basic Input (hiding RepeatButton/ToggleButton/CheckBox/RadioButton/Slider).
+    static_cast<void>(treeView.SelectItem(item));
     static_cast<void>(
         input_->SetFocus(item));
     args.SetHandled(true);
@@ -694,11 +1194,22 @@ void TreeBehavior::OnKeyDown(
             current =
                 static_cast<TreeViewItem*>(
                     selected.Get());
+        } else if (selected) {
+            Base::Vector<TreeViewItem*> visible;
+            if (CollectVisibleItems(treeView, visible)) {
+                for (TreeViewItem* candidate : visible) {
+                    if (candidate != nullptr &&
+                        candidate->GetIsSelected()) {
+                        current = candidate;
+                        break;
+                    }
+                }
+            }
         }
     }
     if (current == nullptr) return;
     if (args.GetKey() == KeyboardKeyRight &&
-        ::Aero::Core::InteractionStateFacet::TreeViewItemCount(*current) != 0U &&
+        AeroGuiInternal::TreeViewItemCount(*current) != 0U &&
         !current->GetIsExpanded()) {
         static_cast<void>(
             current->SetIsExpanded(true));
@@ -714,7 +1225,7 @@ void TreeBehavior::OnKeyDown(
     }
     if (args.GetKey() == KeyboardKeyEnter ||
         args.GetKey() == KeyboardKeySpace) {
-        if (::Aero::Core::InteractionStateFacet::TreeViewItemCount(*current) != 0U) {
+        if (AeroGuiInternal::TreeViewItemCount(*current) != 0U) {
             static_cast<void>(
                 current->SetIsExpanded(
                     !current->GetIsExpanded()));

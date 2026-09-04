@@ -51,16 +51,6 @@ Base::Result<void> PopulateControlsTemplates(
             "DataType",
             PropertyFlags::None)
         .Property<
-            Base::Ref<Base::Object>,
-            &DataTemplate::GetHierarchicalItemsSource,
-            &DataTemplate::SetHierarchicalItemsSource>(
-                "ItemsSource", PropertyFlags::None)
-        .Property<
-            Base::Ref<Base::Object>,
-            &DataTemplate::GetHierarchicalItemTemplate,
-            &DataTemplate::SetHierarchicalItemTemplate>(
-                "ItemTemplate", PropertyFlags::None)
-        .Property<
             Base::Ref<Aero::ResourceDictionary>,
             &DataTemplate::SetResources>(
                 "Resources",
@@ -77,6 +67,35 @@ Base::Result<void> PopulateControlsTemplates(
             ContentFlags::Visual)
         .Factory();
     status = dataTemplate.Result();
+    if (!status) return status.GetStatus();
+
+    auto dataTemplateSelector =
+        Meta::Register<DataTemplateSelector>(context);
+    dataTemplateSelector.Factory();
+    status = dataTemplateSelector.Result();
+    if (!status) return status.GetStatus();
+
+    auto hierarchicalDataTemplate =
+        Meta::Register<HierarchicalDataTemplate>(context);
+    hierarchicalDataTemplate
+        .Property<
+            Base::Ref<Base::Object>,
+            &HierarchicalDataTemplate::GetItemsSource,
+            &HierarchicalDataTemplate::SetItemsSource>(
+                "ItemsSource", PropertyFlags::None)
+        .Property<
+            Base::Ref<Base::Object>,
+            &HierarchicalDataTemplate::GetItemTemplate,
+            &HierarchicalDataTemplate::SetItemTemplate>(
+                "ItemTemplate", PropertyFlags::None)
+        .Content<Base::Object>(
+            "VisualTree",
+            ContentKind::Single,
+            &SetDeferredTemplateVisualTree<DataTemplate>,
+            &ClearDeferredTemplateVisualTree<DataTemplate>,
+            ContentFlags::Visual)
+        .Factory();
+    status = hierarchicalDataTemplate.Result();
     if (!status) return status.GetStatus();
 
     auto itemsPanelTemplate =

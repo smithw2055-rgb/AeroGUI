@@ -1,7 +1,10 @@
 #pragma once
 
-#include <Aero/Layout.hpp>
+#include <Aero/Base/Geometry.hpp>
+#include <Aero/Media/BlendMode.hpp>
+#include <Aero/Visibility.hpp>
 #include <Aero/Visual.hpp>
+#include <Aero/VisualTreeHelper.hpp>
 #include <Aero/Base/Delegate.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Vector.hpp>
@@ -11,59 +14,51 @@
 #include <Aero/Input.hpp>
 
 #include <cstddef>
-#include <new>
-#include <type_traits>
 
 namespace Aero {
+
+using Point = Base::Point;
+using Size = Base::Size;
+using Rect = Base::Rect;
 
 using Meta::PropertyInvalidationFlags;
 using Meta::TypeId;
 
 class UIElement;
-namespace Media { class Transform; class Effect; class Brush; }
-
-namespace Core {
-class Facet;
-class LayoutFacet;
-class InputEventFacet;
-class VisualFacet;
-class InteractionStateFacet;
-class TextLayoutFacet;
-}
+class AeroGuiInternal;
+namespace Media { class Transform; class Transform3D; class Effect; class Brush; class Geometry; }
+namespace Input { class RoutedCommand; class InputBinding; class CommandBinding; }
 
 class UIElementChildRange {
 public:
     class Iterator {
     public:
-        Iterator(const ::Aero::Media::Visual* owner, std::uint32_t index) noexcept : owner_(owner), index_(index) { Advance(); }
+        Iterator(const UIElement* owner, std::uint32_t index) noexcept : owner_(owner), index_(index) { Advance(); }
         UIElement* operator*() const noexcept;
         Iterator& operator++() noexcept { ++index_; Advance(); return *this; }
         bool operator!=(const Iterator& other) const noexcept { return owner_ != other.owner_ || index_ != other.index_; }
         bool operator==(const Iterator& other) const noexcept { return !(*this != other); }
 
     private:
-        const ::Aero::Media::Visual* owner_ = nullptr;
+        const UIElement* owner_ = nullptr;
         std::uint32_t index_ = 0U;
         void Advance() noexcept;
     };
 
-    explicit UIElementChildRange(const ::Aero::Media::Visual& owner) noexcept : owner_(&owner) {}
+    explicit UIElementChildRange(const UIElement& owner) noexcept : owner_(&owner) {}
     Iterator begin() const noexcept { return Iterator(owner_, 0U); }
-    Iterator end() const noexcept { return Iterator(owner_, ::Aero::Media::VisualTreeHelper::GetChildrenCount(*owner_)); }
+    Iterator end() const noexcept;
     bool Empty() const noexcept { return begin() == end(); }
     std::uint32_t Size() const noexcept;
     UIElement* operator[](std::uint32_t index) const noexcept;
 
 private:
-    const ::Aero::Media::Visual* owner_ = nullptr;
+    const UIElement* owner_ = nullptr;
 };
 
 class AERO_GUI_API UIElement : public ::Aero::Media::Visual {
     AERO_DECLARE_TYPE(UIElement, ::Aero::Media::Visual)
 public:
-    template<class TFacet>
-    TFacet* GetFacet() const noexcept;
-
     template<class TArgs>
     using Event = ::Aero::Event<UIElement, TArgs>;
 
@@ -188,42 +183,34 @@ public:
     explicit UIElement(TypeId runtimeType) noexcept;
     ~UIElement() override;
 
-    UIElement* AsUIElement() noexcept override { return this; }
-    const UIElement* AsUIElement() const noexcept override { return this; }
-    UIElement* LayoutParent() const noexcept {
-        ::Aero::Media::Visual* parent = GetVisualParent();
-        return parent != nullptr ? parent->AsUIElement() : nullptr;
-    }
+    UIElement* LayoutParent() const noexcept;
 
-    template<class TArgs>
-    Result<void> AddHandlerChecked(
-        RoutedEventHandle event,
-        const Base::Delegate<void(Base::Object*, TArgs&)>& handler,
-        bool handledEventsToo = false) noexcept {
-        if (handler.Empty()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "Routed event handler must not be empty");
-        }
-        return AddHandlerCore(event, DescribeHandler(handler), handledEventsToo);
-    }
     template<class TArgs>
     void AddHandler(
         RoutedEventHandle event,
         const Base::Delegate<void(Base::Object*, TArgs&)>& handler,
         bool handledEventsToo = false) noexcept {
-        Result<void> added = AddHandlerChecked(event, handler, handledEventsToo);
-        if (added) return;
-        if (added.GetStatus().code == Base::ErrorCode::OutOfMemory) {
-            Base::ReportOutOfMemory(sizeof(handler), alignof(decltype(handler)), Base::MemoryTag::General);
+        if (handler.Empty()) {
+            return;
         }
-        AERO_ASSERT(false && "UIElement::AddHandler failed; use AddHandlerChecked for diagnostics");
+        static_cast<void>(AddHandlerErased(
+            event,
+            &handler,
+            sizeof(handler),
+            alignof(decltype(handler)),
+            TArgs::StaticTypeId(),
+            handledEventsToo));
     }
     template<class TArgs>
     bool RemoveHandler(
         RoutedEventHandle event,
         const Base::Delegate<void(Base::Object*, TArgs&)>& handler) noexcept {
-        return RemoveHandlerCore(event, DescribeHandler(handler));
+        return RemoveHandlerErased(
+            event,
+            &handler,
+            sizeof(handler),
+            alignof(decltype(handler)),
+            TArgs::StaticTypeId());
     }
 
     Result<void> InvalidateMeasure() noexcept;
@@ -242,6 +229,7 @@ public:
     Size GetUntransformedDesiredSize() const noexcept;
     Size GetPreviousMeasureConstraint() const noexcept;
     bool GetClipToBounds() const noexcept;
+    Ref<Media::Geometry> GetClip() const noexcept;
     BlendMode GetBlendMode() const noexcept;
     Ref<Media::Effect> GetEffect() const noexcept;
     Ref<Media::Brush> GetOpacityMask() const noexcept;
@@ -268,11 +256,13 @@ public:
     std::uint32_t GetTabIndex() const noexcept;
     bool GetIsFocusScope() const noexcept;
     Ref<Media::Transform> GetRenderTransform() const noexcept;
+    Ref<Media::Transform3D> GetTransform3D() const noexcept;
     Point GetRenderTransformOrigin() const noexcept;
     std::uint64_t GetLayoutRevision() const noexcept;
 
     // Dependency properties
     inline static constexpr DependencyProperty<bool> ClipToBoundsProperty{"ClipToBounds"};
+    inline static constexpr DependencyProperty<Ref<Media::Geometry>> ClipProperty{"Clip"};
     inline static constexpr DependencyProperty<BlendMode> BlendModeProperty{"BlendMode"};
     inline static constexpr DependencyProperty<Ref<Media::Effect>> EffectProperty{"Effect"};
     inline static constexpr DependencyProperty<Ref<Media::Brush>> OpacityMaskProperty{"OpacityMask"};
@@ -290,10 +280,12 @@ public:
     inline static constexpr DependencyProperty<bool> IsFocusScopeProperty{"IsFocusScope"};
     inline static constexpr DependencyProperty<double> OpacityProperty{"Opacity"};
     inline static constexpr DependencyProperty<Ref<Media::Transform>> RenderTransformProperty{"RenderTransform"};
+    inline static constexpr DependencyProperty<Ref<Media::Transform3D>> Transform3DProperty{"Transform3D"};
     inline static constexpr DependencyProperty<Point> RenderTransformOriginProperty{"RenderTransformOrigin"};
 
     // Property operations
     void SetClipToBounds(bool value) noexcept;
+    void SetClip(Ref<Media::Geometry> value) noexcept;
     void SetBlendMode(
         BlendMode value) noexcept;
     void SetEffect(
@@ -307,17 +299,30 @@ public:
     void SetIsTabStop(bool value) noexcept;
     void SetTabIndex(std::uint32_t value) noexcept;
     void SetIsFocusScope(bool value) noexcept;
+    Result<void> AddInputBinding(Ref<Input::InputBinding> binding) noexcept;
+    void ClearInputBindings() noexcept;
+    Base::Span<const Ref<Input::InputBinding>> GetInputBindings() const noexcept;
+    Result<void> AddCommandBinding(Ref<Input::CommandBinding> binding) noexcept;
+    void ClearCommandBindings() noexcept;
+    Base::Span<const Ref<Input::CommandBinding>> GetCommandBindings() const noexcept;
     void SetRenderTransform(
         Ref<Media::Transform> value) noexcept;
+    void SetTransform3D(
+        Ref<Media::Transform3D> value) noexcept;
     void SetRenderTransformOrigin(
         Point value) noexcept;
 
 protected:
     void RaiseEvent(RoutedEventHandle event, RoutedEventArgs* args = nullptr) noexcept;
+    void OnVisualChildrenChanged(
+        ::Aero::Media::Visual* visualAdded,
+        ::Aero::Media::Visual* visualRemoved) noexcept override;
     void OnPropertyInvalidated(
         PropertyInvalidationFlags flags) noexcept override;
     virtual Size MeasureOverride(Size availableSize) noexcept;
     virtual Size ArrangeOverride(Size finalSize) noexcept;
+    virtual std::uint32_t GetLayoutChildrenCount() const noexcept;
+    virtual UIElement* GetLayoutChild(std::uint32_t index) const noexcept;
     Result<void> MeasureChild(
         UIElement& child, Size availableSize) noexcept;
     Result<void> ArrangeChild(
@@ -328,87 +333,62 @@ protected:
 
 private:
 #if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::Core::LayoutFacet;
-    friend class ::Aero::Core::InputEventFacet;
-    friend class ::Aero::Core::VisualFacet;
-    friend class ::Aero::Core::InteractionStateFacet;
-    friend class ::Aero::Core::TextLayoutFacet;
+    friend class ::Aero::AeroGuiInternal;
 #endif
+    friend class UIElementChildRange;
+    friend class UIElementChildRange::Iterator;
     friend class Aero::Input::RoutedCommand;
 
-    struct HandlerOperations {
-        std::size_t size = 0U;
-        std::size_t alignment = 0U;
-        void (*copy)(void*, const void*) noexcept = nullptr;
-        void (*destroy)(void*) noexcept = nullptr;
-        bool (*equals)(const void*, const void*) noexcept = nullptr;
-        void (*invoke)(const void*, Base::Object*, RoutedEventArgs&) noexcept = nullptr;
-    };
-
-    struct HandlerDescriptor {
-        const void* value = nullptr;
-        const HandlerOperations* operations = nullptr;
-        Meta::TypeId argsType = Meta::InvalidTypeId;
-    };
-
-    template<class TArgs>
-    static HandlerDescriptor DescribeHandler(
-        const Base::Delegate<void(Base::Object*, TArgs&)>& handler) noexcept {
-        using Handler = Base::Delegate<void(Base::Object*, TArgs&)>;
-        static const HandlerOperations operations{
-            sizeof(Handler),
-            alignof(Handler),
-            [](void* destination, const void* source) noexcept {
-                new (destination) Handler(*static_cast<const Handler*>(source));
-            },
-            [](void* value) noexcept { static_cast<Handler*>(value)->~Handler(); },
-            [](const void* left, const void* right) noexcept {
-                return *static_cast<const Handler*>(left) == *static_cast<const Handler*>(right);
-            },
-            [](const void* value, Base::Object* sender, RoutedEventArgs& args) noexcept {
-                static_cast<const Handler*>(value)->Invoke(sender, static_cast<TArgs&>(args));
-            }};
-        return {&handler, &operations, TArgs::StaticTypeId()};
-    }
-
-    Result<void> AddHandlerCore(
+    Result<void> AddHandlerErased(
         RoutedEventHandle event,
-        const HandlerDescriptor& handler,
+        const void* handler,
+        std::size_t size,
+        std::size_t alignment,
+        Meta::TypeId argsType,
         bool handledEventsToo) noexcept;
-    bool RemoveHandlerCore(
+    bool RemoveHandlerErased(
         RoutedEventHandle event,
-        const HandlerDescriptor& handler) noexcept;
+        const void* handler,
+        std::size_t size,
+        std::size_t alignment,
+        Meta::TypeId argsType) noexcept;
     void InvokeHandlers(RoutedEventHandle event, RoutedEventArgs& args) noexcept;
-
-    void* routedHandlers_ = nullptr;
 
     void SetMouseOverState(bool value) noexcept;
     void SetPressedState(bool value) noexcept;
     void SetKeyboardFocusedState(bool value) noexcept;
     void SetKeyboardFocusWithinState(bool value) noexcept;
     void CleanupHandlers() noexcept;
+    Result<void> EnsureRoutedHandlers() noexcept;
 
-    // Element-affine facet bag. View-affine facets are resolved through
-    // Core::GetFacet<T>(element) from the ElementHost matrix; per-element
-    // facets (layout / render / interaction state) are resolved through
-    // ElementFacet<T>() from this bag. Lifecycle (OnAttached/OnDetached) is
-    // driven by ElementTree::AttachElement / DetachNode.
-    static constexpr std::size_t ElementFacetCount = 16U;
-    Core::Facet* elementFacets_[ElementFacetCount] = {};
+    struct LayoutHot {
+        Size desiredSize{};
+        Size untransformedDesiredSize{};
+        Size renderSize{};
+        Size previousMeasureConstraint{};
+        Rect layoutSlot{};
+        Rect layoutClip{};
+        Rect visualRect{};
+        std::uint64_t layoutRevision = 0U;
+        bool layoutAttached : 1;
+        bool measureValid : 1;
+        bool arrangeValid : 1;
+        bool measureQueued : 1;
+        bool arrangeQueued : 1;
+        bool measuring : 1;
+        bool arranging : 1;
+    };
 
- public:
-    // Read a per-element facet. Registration is restricted to this class and
-    // its subclasses via SetElementFacet (protected).
-    template<class T>
-    T* ElementFacet() const noexcept;
+    struct Rare {
+        void* routedHandlers = nullptr;
+        void* inputBindings = nullptr;
+        void* commandBindings = nullptr;
+    };
 
-    // Drive per-element facet lifecycle from ElementTree attach/detach.
-    void AttachElementFacets() noexcept;
-    void DetachElementFacets() noexcept;
+    Rare& EnsureRare() noexcept;
 
- protected:
-    template<class T>
-    void SetElementFacet(T* facet) noexcept;
+    LayoutHot layout_{};
+    Rare* rare_ = nullptr;
 };
 
 } // namespace Aero

@@ -8,7 +8,7 @@
 #include <Aero/Base/Object.hpp>
 #include <Aero/Value.hpp>
 #include <Aero/DependencyProperty.hpp>
-#include "gui/data/BindingState.hpp"
+#include "gui/data/BindingEngine.hpp"
 
 namespace Aero {
 
@@ -17,11 +17,19 @@ struct StyleTriggerSetter {
     PropertyValue value;
 };
 
+struct TriggerBindingCondition {
+    Base::Ref<Data::Binding> binding;
+    PropertyValue value;
+};
+
 struct TriggerPlan {
     DependencyPropertyHandle property;
     Base::Ref<Data::Binding> binding;
     PropertyValue value;
-    bool IsBindingTrigger() const noexcept { return static_cast<bool>(binding); }
+    Base::Vector<TriggerBindingCondition> extraBindings;
+    bool IsBindingTrigger() const noexcept {
+        return static_cast<bool>(binding) || !extraBindings.Empty();
+    }
     Base::Vector<StyleTriggerSetter> setters;
     Base::Vector<Base::Ref<Base::Object>> enterActions;
     Base::Vector<Base::Ref<Base::Object>> exitActions;

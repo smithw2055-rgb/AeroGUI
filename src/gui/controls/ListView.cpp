@@ -10,9 +10,7 @@ namespace Aero::Controls {
 
 Value GridViewColumn::GetHeader()
     const noexcept {
-    return GetValueOr(
-        HeaderProperty,
-        Value::NullObject(Meta::TypeOf<Base::Object>()));
+    return GetValue(HeaderProperty);
 }
 
 void GridViewColumn::SetHeader(
@@ -31,8 +29,7 @@ Base::Result<void> GridViewColumn::SetHeader(
 
 double GridViewColumn::GetWidth()
     const noexcept {
-    return GetValueOr(
-        WidthProperty, 100.0);
+    return GetValue(WidthProperty);
 }
 
 void GridViewColumn::SetWidth(
@@ -46,9 +43,7 @@ void GridViewColumn::SetWidth(
 
 Base::Ref<DataTemplate>
 GridViewColumn::GetCellTemplate() const noexcept {
-    return GetValueOr(
-        CellTemplateProperty,
-        Base::Ref<DataTemplate>{});
+    return GetValue(CellTemplateProperty);
 }
 
 void
@@ -61,9 +56,7 @@ GridViewColumn::SetCellTemplate(
 
 Base::Ref<DataTemplate>
 GridViewColumn::GetHeaderTemplate() const noexcept {
-    return GetValueOr(
-        HeaderTemplateProperty,
-        Base::Ref<DataTemplate>{});
+    return GetValue(HeaderTemplateProperty);
 }
 
 void
@@ -77,9 +70,7 @@ GridViewColumn::SetHeaderTemplate(
 Base::StringView
 GridViewColumn::GetDisplayMemberPath()
     const noexcept {
-    return GetValueOr(
-        DisplayMemberPathProperty,
-        Base::StringView{});
+    return GetValue(DisplayMemberPathProperty);
 }
 
 void
@@ -91,9 +82,7 @@ GridViewColumn::SetDisplayMemberPath(
 
 Base::Ref<Data::Binding>
 GridViewColumn::GetDisplayMemberBinding() const noexcept {
-    return GetValueOr(
-        DisplayMemberBindingProperty,
-        Base::Ref<Data::Binding>{});
+    return GetValue(DisplayMemberBindingProperty);
 }
 
 void
@@ -117,9 +106,7 @@ Base::Result<void> GridView::AddColumn(
 
 Base::Ref<GridView>
 ListView::GetView() const noexcept {
-    return GetValueOr(
-        ViewProperty,
-        Base::Ref<GridView>{});
+    return GetValue(ViewProperty);
 }
 
 void ListView::SetView(

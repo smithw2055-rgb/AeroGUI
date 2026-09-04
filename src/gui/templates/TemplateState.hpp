@@ -1,6 +1,7 @@
 #pragma once
 
 #include "gui/templates/TemplateInstance.hpp"
+#include <Aero/VisualStateManager.hpp>
 
 namespace Aero::Controls {
 class TemplateEngine;
@@ -104,6 +105,23 @@ struct VisualStateManagerRuntime {
         ::Aero::Controls::TemplateEngine& templates,
         ::Aero::AnimationEngine& animations,
         Meta::DependencyPropertyRegistry& properties) noexcept;
+    static Base::Result<bool> GoToState(
+        VisualStateManager& manager,
+        ::Aero::Controls::Control& control,
+        Base::StringView groupName,
+        Base::StringView stateName,
+        bool useTransitions = true) noexcept;
+    static Base::Result<bool> ClearState(
+        VisualStateManager& manager,
+        ::Aero::Controls::Control& control,
+        Base::StringView groupName) noexcept;
+    static Base::Result<std::uint32_t> Clear(
+        VisualStateManager& manager,
+        ::Aero::Controls::Control& control) noexcept;
+    static Base::StringView CurrentState(
+        const VisualStateManager& manager,
+        const ::Aero::Controls::Control& control,
+        Base::StringView groupName) noexcept;
     static void*& Runtime(
         VisualStateManager& value) noexcept {
         return value.impl_;
@@ -164,7 +182,7 @@ public:
         static Base::Result<void> SetTargetType(FrameworkTemplate& value, Meta::TypeId type) noexcept;
         static Base::Result<void> ConfigureFactory(FrameworkTemplate& value, TemplateFactoryCallback factory, void* context = nullptr, Base::Ref<Base::Object> owner = {}) noexcept;
         static Base::Result<void> AddTemplateBinding(FrameworkTemplate& value, Base::StringView targetName, DependencyPropertyHandle sourceProperty, DependencyPropertyHandle targetProperty) noexcept;
-        static Base::Result<void> AddTemplatedParentBinding(FrameworkTemplate& value, Base::StringView targetName, Base::StringView path, Base::StringView stringFormat, DependencyPropertyHandle targetProperty, Data::BindingMode mode, UpdateSourceTrigger updateSourceTrigger) noexcept;
+        static Base::Result<void> AddTemplatedParentBinding(FrameworkTemplate& value, Base::StringView targetName, Base::StringView path, Base::StringView stringFormat, DependencyPropertyHandle targetProperty, Data::BindingMode mode, UpdateSourceTrigger updateSourceTrigger, const Base::Ref<Data::IValueConverter>& converter = {}, const Meta::PropertyValue& converterParameter = {}) noexcept;
         static Base::Result<void> AddDynamicResource(FrameworkTemplate& value, Base::StringView targetName, Base::StringView key, DependencyPropertyHandle targetProperty) noexcept;
         static Base::Result<void> AddPropertyTrigger(FrameworkTemplate& value, TemplatePropertyTrigger trigger) noexcept;
         static Base::Result<void> AddVisualStateGroup(FrameworkTemplate& value, VisualStateGroupPlan group) noexcept;
@@ -194,19 +212,6 @@ public:
         static Base::Span<const TemplatePropertyTrigger> Triggers(const FrameworkTemplate& value) noexcept;
         static Base::Span<const VisualStateGroupPlan> VisualStateGroups(const FrameworkTemplate& value) noexcept;
         static Base::Result<void> Seal(FrameworkTemplate& value, const Meta::DependencyPropertyRegistry& properties) noexcept;
-
-        static Base::Result<VisualStateManager*> Create(Meta::EffectiveValueEngine& values,
-            Aero::Controls::TemplateEngine& templates, Aero::AnimationEngine& animations,
-            Meta::DependencyPropertyRegistry& properties) noexcept;
-        static Base::Result<bool> GoToState(VisualStateManager& manager, Control& control,
-            Base::StringView groupName, Base::StringView stateName,
-            bool useTransitions = true) noexcept;
-        static Base::Result<bool> ClearState(VisualStateManager& manager, Control& control,
-            Base::StringView groupName) noexcept;
-        static Base::Result<std::uint32_t> Clear(VisualStateManager& manager,
-            Control& control) noexcept;
-        static Base::StringView GetCurrentState(const VisualStateManager& manager,
-            const Control& control, Base::StringView groupName) noexcept;
 };
 
 } // namespace Aero::Controls

@@ -1,6 +1,5 @@
 #include <Aero/Media/Transforms.hpp>
 #include "gui/core/State.hpp" 
-#include "gui/core/facets/DependencyPropertyFacet.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include "gui/media/MediaState.hpp"
@@ -52,7 +51,7 @@ namespace Aero::Media {
 
 std::uint64_t TransformRuntime::Revision(
     const Transform& transform) noexcept {
-    return ::Aero::Core::DependencyPropertyFacet::FreezableRevision(transform);
+    return AeroGuiInternal::FreezableRevision(transform);
 }
 
 } // namespace Aero::Media
@@ -155,33 +154,46 @@ bool InvertTransform(
     return Base::IsFiniteTransform(inverse);
 }
 
-Base::Transform2D CompositeTransform3D::GetProjectedMatrix() const noexcept {
-    constexpr double Perspective = 1000.0;
-    const double radiansX = GetRotationX() * Pi / 180.0;
-    const double radiansY = GetRotationY() * Pi / 180.0;
-    const double radiansZ = GetRotationZ() * Pi / 180.0;
-    const double depth = std::max(-Perspective * 0.95,
-        std::min(Perspective * 0.95, GetTranslateZ() + GetCenterZ()));
-    const double perspective = Perspective / (Perspective - depth);
-    const double scaleX = GetScaleX() * std::cos(radiansY) * perspective;
-    const double scaleY = GetScaleY() * std::cos(radiansX) * perspective;
-    const double cosine = std::cos(radiansZ);
-    const double sine = std::sin(radiansZ);
-    Base::Transform2D matrix;
-    matrix.m11 = scaleX * cosine;
-    matrix.m12 = scaleX * sine;
-    matrix.m21 = -scaleY * sine;
-    matrix.m22 = scaleY * cosine;
-    matrix.dx = GetTranslateX();
-    matrix.dy = GetTranslateY();
-    return AroundCenter(matrix, GetCenterX(), GetCenterY());
+Base::Transform3 CompositeTransform3D::GetTransform3D() const noexcept {
+    constexpr double DegToRad = Pi / 180.0;
+    const double cx = GetCenterX();
+    const double cy = GetCenterY();
+    const double cz = GetCenterZ();
+    Base::Transform3 transform = Base::MakeTranslate3(-cx, -cy, -cz);
+    transform = Base::Compose(
+        transform,
+        Base::MakeScale3(GetScaleX(), GetScaleY(), GetScaleZ()));
+    transform = Base::Compose(
+        transform,
+        Base::MakeRotationX(GetRotationX() * DegToRad));
+    transform = Base::Compose(
+        transform,
+        Base::MakeRotationY(GetRotationY() * DegToRad));
+    transform = Base::Compose(
+        transform,
+        Base::MakeRotationZ(GetRotationZ() * DegToRad));
+    transform = Base::Compose(
+        transform,
+        Base::MakeTranslate3(
+            cx + GetTranslateX(),
+            cy + GetTranslateY(),
+            cz + GetTranslateZ()));
+    return transform;
+}
+
+Base::Transform3 PerspectiveTransform3D::GetTransform3D() const noexcept {
+    return Base::IdentityTransform3();
+}
+
+Base::Transform3 MatrixTransform3D::GetTransform3D() const noexcept {
+    return GetMatrix();
 }
 
 double TranslateTransform::GetX() const noexcept {
-    return GetValueOr(XProperty, 0.0);
+    return GetValue(XProperty);
 }
 double TranslateTransform::GetY() const noexcept {
-    return GetValueOr(YProperty, 0.0);
+    return GetValue(YProperty);
 }
 void TranslateTransform::SetX(double value) noexcept {
     SetValue(XProperty, value);
@@ -197,16 +209,16 @@ Base::Transform2D TranslateTransform::GetMatrix() const noexcept {
 }
 
 double ScaleTransform::GetScaleX() const noexcept {
-    return GetValueOr(ScaleXProperty, 1.0);
+    return GetValue(ScaleXProperty);
 }
 double ScaleTransform::GetScaleY() const noexcept {
-    return GetValueOr(ScaleYProperty, 1.0);
+    return GetValue(ScaleYProperty);
 }
 double ScaleTransform::GetCenterX() const noexcept {
-    return GetValueOr(CenterXProperty, 0.0);
+    return GetValue(CenterXProperty);
 }
 double ScaleTransform::GetCenterY() const noexcept {
-    return GetValueOr(CenterYProperty, 0.0);
+    return GetValue(CenterYProperty);
 }
 void ScaleTransform::SetScaleX(double value) noexcept {
     SetValue(ScaleXProperty, value);
@@ -228,13 +240,13 @@ Base::Transform2D ScaleTransform::GetMatrix() const noexcept {
 }
 
 double RotateTransform::GetAngle() const noexcept {
-    return GetValueOr(AngleProperty, 0.0);
+    return GetValue(AngleProperty);
 }
 double RotateTransform::GetCenterX() const noexcept {
-    return GetValueOr(CenterXProperty, 0.0);
+    return GetValue(CenterXProperty);
 }
 double RotateTransform::GetCenterY() const noexcept {
-    return GetValueOr(CenterYProperty, 0.0);
+    return GetValue(CenterYProperty);
 }
 void RotateTransform::SetAngle(double value) noexcept {
     SetValue(AngleProperty, value);
@@ -258,16 +270,16 @@ Base::Transform2D RotateTransform::GetMatrix() const noexcept {
 }
 
 double SkewTransform::GetAngleX() const noexcept {
-    return GetValueOr(AngleXProperty, 0.0);
+    return GetValue(AngleXProperty);
 }
 double SkewTransform::GetAngleY() const noexcept {
-    return GetValueOr(AngleYProperty, 0.0);
+    return GetValue(AngleYProperty);
 }
 double SkewTransform::GetCenterX() const noexcept {
-    return GetValueOr(CenterXProperty, 0.0);
+    return GetValue(CenterXProperty);
 }
 double SkewTransform::GetCenterY() const noexcept {
-    return GetValueOr(CenterYProperty, 0.0);
+    return GetValue(CenterYProperty);
 }
 void SkewTransform::SetAngleX(double value) noexcept {
     SetValue(AngleXProperty, value);
@@ -288,8 +300,32 @@ Base::Transform2D SkewTransform::GetMatrix() const noexcept {
     return AroundCenter(value, GetCenterX(), GetCenterY());
 }
 
+Base::Transform2D CompositeTransform::GetMatrix() const noexcept {
+    Base::Transform2D scale;
+    scale.m11 = GetScaleX();
+    scale.m22 = GetScaleY();
+    Base::Transform2D skew;
+    skew.m21 = std::tan(GetSkewX() * Pi / 180.0);
+    skew.m12 = std::tan(GetSkewY() * Pi / 180.0);
+    const double radians = GetRotation() * Pi / 180.0;
+    const double cosine = std::cos(radians);
+    const double sine = std::sin(radians);
+    Base::Transform2D rotate;
+    rotate.m11 = cosine;
+    rotate.m12 = sine;
+    rotate.m21 = -sine;
+    rotate.m22 = cosine;
+    Base::Transform2D translate;
+    translate.dx = GetTranslateX();
+    translate.dy = GetTranslateY();
+    Base::Transform2D composed = ComposeTransforms(scale, skew);
+    composed = ComposeTransforms(composed, rotate);
+    composed = AroundCenter(composed, GetCenterX(), GetCenterY());
+    return ComposeTransforms(composed, translate);
+}
+
 Base::Transform2D MatrixTransform::GetMatrixValue() const noexcept {
-    return GetValueOr(MatrixProperty, Base::Transform2D{});
+    return GetValue(MatrixProperty);
 }
 void MatrixTransform::SetMatrixValue(
     Base::Transform2D value) noexcept {
@@ -316,12 +352,10 @@ Base::Result<void> TransformGroup::AddChild(
     }
     Transform* retained = value.Get();
     if (!retained->IsFrozen()) {
-        Base::Result<void> subscribed =
-            retained->AddChangedHandlerChecked(childChangedHandler_);
-        if (!subscribed) return subscribed.GetStatus();
+        retained->AddChangedHandler(childChangedHandler_);
     }
     Base::Result<void> added =
-        children_.PushBack(std::move(value));
+        children_.Add(std::move(value));
     if (!added) {
         if (!retained->IsFrozen()) {
             static_cast<void>(

@@ -1,0 +1,449 @@
+#include "gui/ViewState.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
+#include <Aero/Media/Animation/EventTrigger.hpp>
+
+#include <algorithm>
+#include <cmath>
+#include <cstdio>
+#include <cstring>
+#include <limits>
+#include <new>
+#include <utility>
+
+namespace Aero {
+
+using namespace ::Aero;
+namespace MediaAnimation = ::Aero::Media::Animation;
+
+Base::Result<bool> StoryboardHost::AnimationEventState::EvaluateComparison(
+            const Aero::Interactivity::ComparisonCondition& condition) noexcept {
+            const Base::Ref<Data::Binding> binding =
+                condition.GetLeftOperand();
+            if (!binding || runtime == nullptr ||
+                runtime->metadata == nullptr) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::InvalidState,
+                    "ConditionBehavior requires a bound left operand");
+            }
+            if (binding->GetElementName().Empty()) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::Unsupported,
+                    "ConditionBehavior currently requires Binding ElementName");
+            }
+            Base::Object* source = names != nullptr
+                ? names->Find(binding->GetElementName())
+                : runtime->view->loadedDocument.names.Find(
+                      binding->GetElementName());
+            if (source == nullptr) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::NotFound,
+                    "ConditionBehavior Binding ElementName was not found");
+            }
+            Base::Result<Meta::BindingPathPlan> plan =
+                Meta::BindingPathPlan::Compile(
+                    *runtime->metadata,
+                    source->RuntimeType(), binding->GetPath().GetPath());
+            if (!plan) return plan.GetStatus();
+            Base::Result<Meta::PropertyValue> current =
+                plan.Value().Get(*runtime->metadata, *source);
+            if (!current) return current.GetStatus();
+            Meta::PropertyValue expected = condition.GetRightOperand();
+            if (expected.IsNullObject()) {
+                return current.Value().IsNullObject();
+            }
+            if (expected.Kind() == Meta::ValueKind::String &&
+                expected.Type() != current.Value().Type()) {
+                Base::Result<Meta::PropertyValue> converted =
+                    Meta::PropertyValue::TryFromString(
+                        current.Value().Type(), expected.AsString());
+                // WPF-style conditions simply do not match when their two
+                // operands cannot be converted to a comparable type.
+                if (!converted) return false;
+                expected = std::move(converted).Value();
+            }
+            const auto comparison = condition.GetComparisonOperator();
+            if (comparison ==
+                Aero::Interactivity::ComparisonCondition::Operator::Equal) {
+                return current.Value().Equals(expected);
+            }
+            if (comparison ==
+                Aero::Interactivity::ComparisonCondition::Operator::NotEqual) {
+                return !current.Value().Equals(expected);
+            }
+
+            const auto isNumeric = [](Meta::ValueKind kind) noexcept {
+                return kind == Meta::ValueKind::SignedInteger ||
+                    kind == Meta::ValueKind::UnsignedInteger ||
+                    kind == Meta::ValueKind::Double;
+            };
+            const auto numericValue = [](const Meta::PropertyValue& value) noexcept {
+                switch (value.Kind()) {
+                case Meta::ValueKind::SignedInteger:
+                    return static_cast<long double>(value.AsSignedInteger());
+                case Meta::ValueKind::UnsignedInteger:
+                    return static_cast<long double>(value.AsUnsignedInteger());
+                case Meta::ValueKind::Double:
+                    return static_cast<long double>(value.AsDouble());
+                default:
+                    return 0.0L;
+                }
+            };
+            if (isNumeric(current.Value().Kind()) && isNumeric(expected.Kind())) {
+                const long double left = numericValue(current.Value());
+                const long double right = numericValue(expected);
+                switch (comparison) {
+                case Aero::Interactivity::ComparisonCondition::Operator::LessThan:
+                    return left < right;
+                case Aero::Interactivity::ComparisonCondition::Operator::LessThanOrEqual:
+                    return left <= right;
+                case Aero::Interactivity::ComparisonCondition::Operator::GreaterThan:
+                    return left > right;
+                case Aero::Interactivity::ComparisonCondition::Operator::GreaterThanOrEqual:
+                    return left >= right;
+                default:
+                    break;
+                }
+            }
+            if (current.Value().Kind() == Meta::ValueKind::String &&
+                expected.Kind() == Meta::ValueKind::String) {
+                const int result = current.Value().AsString().Compare(
+                    expected.AsString());
+                switch (comparison) {
+                case Aero::Interactivity::ComparisonCondition::Operator::LessThan:
+                    return result < 0;
+                case Aero::Interactivity::ComparisonCondition::Operator::LessThanOrEqual:
+                    return result <= 0;
+                case Aero::Interactivity::ComparisonCondition::Operator::GreaterThan:
+                    return result > 0;
+                case Aero::Interactivity::ComparisonCondition::Operator::GreaterThanOrEqual:
+                    return result >= 0;
+                default:
+                    break;
+                }
+            }
+            return false;
+        }
+
+Base::Result<bool> StoryboardHost::AnimationEventState::BehaviorsAllowExecution() noexcept {
+            for (const Base::Ref<Base::Object>& behavior :
+                 trigger->GetBehaviors()) {
+                if (!behavior) continue;
+                if (behavior->RuntimeType() !=
+                    Aero::Interactivity::ConditionBehavior::StaticTypeId()) {
+                    return Base::Status::Failure(
+                        Base::ErrorCode::Unsupported,
+                        "EventTrigger contains an unsupported behavior");
+                }
+                const Base::Ref<Aero::Interactivity::ConditionalExpression> expression =
+                    static_cast<Aero::Interactivity::ConditionBehavior&>(*behavior).GetExpression();
+                if (!expression) {
+                    return Base::Status::Failure(
+                        Base::ErrorCode::InvalidState,
+                        "ConditionBehavior has no expression");
+                }
+                bool expressionResult = false;
+                for (const Base::Ref<Aero::Interactivity::ComparisonCondition>& condition :
+                     expression->GetConditions()) {
+                    if (!condition) continue;
+                    Base::Result<bool> matches = EvaluateComparison(*condition);
+                    if (!matches) return matches.GetStatus();
+                    expressionResult = matches.Value();
+                    if (!expressionResult && expression->GetChaining() ==
+                        Aero::Interactivity::ConditionalExpression::ForwardChaining::And) {
+                        return false;
+                    }
+                    if (expressionResult && expression->GetChaining() ==
+                        Aero::Interactivity::ConditionalExpression::ForwardChaining::Or) {
+                        break;
+                    }
+                }
+                if (!expressionResult) return false;
+            }
+            return true;
+        }
+
+void StoryboardHost::AnimationEventState::Invoke(
+            Base::Object*,
+            Aero::RoutedEventArgs&) noexcept {
+            if (runtime == nullptr || trigger == nullptr ||
+                owner == nullptr) {
+                return;
+            }
+            Base::Result<bool> allowed = BehaviorsAllowExecution();
+            if (!allowed) {
+                return;
+            }
+            if (!allowed.Value()) return;
+            for (const Base::Ref<Aero::Interactivity::TriggerAction>& action :
+                 trigger->GetActions()) {
+                if (!action) continue;
+                Base::Result<void> executed =
+                    runtime->ExecuteAnimationAction(
+                        *action, *owner, nullptr, names);
+                if (!executed) {
+                    // One action failing (SetFocus before the item is
+                    // enabled, unresolved TargetName) must not skip later
+                    // actions in the same trigger. QuestLog MouseEnter runs
+                    // SetFocusAction then SelectAction; aborting here left
+                    // the list item unselected and the detail card unchanged.
+                    continue;
+                }
+            }
+        }
+
+Base::Result<bool> StoryboardHost::StartEventTrigger(
+        MediaAnimation::EventTrigger& trigger,
+        Base::Object& defaultSource,
+        Aero::FrameworkElement& actionOwner,
+        const Aero::NameScope* names) noexcept {
+        const Base::StringView routedEvent =
+            trigger.GetRoutedEvent();
+        Base::Object* eventSource =
+            trigger.GetSourceName().Empty()
+            ? &defaultSource
+            : names != nullptr
+                ? names->Find(trigger.GetSourceName())
+                : view->loadedDocument.names.Find(
+                      trigger.GetSourceName());
+        if (eventSource == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                "EventTrigger SourceName was not found");
+        }
+        // Microsoft.Xaml.Behaviors EventTrigger defaults EventName to
+        // Loaded. Several reference samples intentionally omit EventName
+        // to request that startup behavior.
+        Base::StringView eventName = routedEvent.Empty()
+            ? Base::StringView("Loaded")
+            : routedEvent;
+        std::uint32_t dot = UINT32_MAX;
+        for (std::uint32_t index = 0U;
+             index < eventName.SizeBytes(); ++index) {
+            if (eventName[index] == '.') dot = index;
+        }
+        Base::StringView eventOwnerName;
+        if (dot != UINT32_MAX) {
+            eventOwnerName = eventName.Substr(0U, dot);
+            eventName = eventName.Substr(
+                dot + 1U,
+                eventName.SizeBytes() - dot - 1U);
+        }
+        if (eventName == Base::StringView("GotFocus")) {
+            eventName = Base::StringView("GotKeyboardFocus");
+        }
+
+        const bool loadedEvent =
+            eventName == Base::StringView("Loaded");
+        const bool uiSource = metadata->Types().IsDerivedFrom(
+            eventSource->RuntimeType(), Aero::UIElement::StaticTypeId());
+        const bool contentSource = metadata->Types().IsDerivedFrom(
+            eventSource->RuntimeType(), Aero::ContentElement::StaticTypeId());
+        if (!uiSource && !contentSource) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                "EventTrigger source does not support routed events");
+        }
+        const Meta::EventInfo* event = nullptr;
+        if (!eventOwnerName.Empty()) {
+            Base::StringView ownerName = eventOwnerName;
+            for (std::uint32_t index = 0U;
+                 index < ownerName.SizeBytes(); ++index) {
+                if (ownerName[index] == ':') {
+                    ownerName = ownerName.Substr(
+                        index + 1U,
+                        ownerName.SizeBytes() - index - 1U);
+                }
+            }
+            for (const Meta::TypeInfo& type :
+                 metadata->Types().Types()) {
+                if (type.Name() != ownerName) continue;
+                event = metadata->Types().FindEvent(
+                    type.Id(), eventName, true);
+                if (event != nullptr) break;
+            }
+        } else {
+            event = metadata->Types().FindEvent(
+                eventSource->RuntimeType(), eventName, true);
+        }
+        if (event == nullptr && loadedEvent) {
+            for (const Base::Ref<Aero::Interactivity::TriggerAction>& action :
+                 trigger.GetActions()) {
+                if (!action) continue;
+                Base::Result<void> executed =
+                    ExecuteAnimationAction(
+                        *action, actionOwner, nullptr, names);
+                if (!executed) return executed.GetStatus();
+            }
+            return true;
+        }
+        if (event == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                "EventTrigger RoutedEvent was not found on its source");
+        }
+        const Aero::RoutedEventHandle eventHandle{event->Id()};
+        AnimationEventState* eventContext = nullptr;
+        Base::Result<void> created = AllocateObject(
+            *allocator, Base::MemoryTag::Ui, eventContext);
+        if (!created) return created.GetStatus();
+        eventContext->runtime = this;
+        eventContext->trigger = &trigger;
+        eventContext->owner = &actionOwner;
+        eventContext->names = names;
+        auto callback = [eventContext](
+            Base::Object* sender,
+            Aero::RoutedEventArgs& args) noexcept {
+            eventContext->Invoke(sender, args);
+        };
+        Aero::RoutedEventHandler handler(callback);
+        if (uiSource) {
+            static_cast<Aero::UIElement*>(eventSource)->AddHandler(
+                eventHandle, handler);
+        } else {
+            static_cast<Aero::ContentElement*>(eventSource)->AddHandler(
+                eventHandle, handler);
+        }
+        AnimationEventSubscription subscription;
+        subscription.source = eventSource;
+        subscription.visualOwner = &actionOwner;
+        subscription.event = eventHandle;
+        subscription.handler = handler;
+        subscription.context = eventContext;
+        subscription.contentSource = contentSource;
+        Base::Result<void> retained =
+            animationEventSubscriptions.PushBack(
+                std::move(subscription));
+        if (!retained) {
+            if (contentSource) {
+                static_cast<void>(
+                    static_cast<Aero::ContentElement*>(eventSource)
+                        ->RemoveHandler(eventHandle, handler));
+            } else {
+                static_cast<void>(
+                    static_cast<Aero::UIElement*>(eventSource)
+                        ->RemoveHandler(eventHandle, handler));
+            }
+            FreeObject(
+                *allocator, Base::MemoryTag::Ui, eventContext);
+            return retained.GetStatus();
+        }
+        // Microsoft.Xaml.Behaviors EventTrigger fires Loaded immediately when
+        // the associated object is already loaded (InitializeComponent / mount
+        // often raises Loaded before Interaction.Triggers are attached).
+        if (loadedEvent && uiSource &&
+            static_cast<Aero::UIElement*>(eventSource)->GetIsLoaded()) {
+            // Defer until after the next layout/image pass so ElementName
+            // bindings (Menu3D parallax TranslateTransform.X) see measured
+            // ActualWidth before BackgroundAnim captures its From value.
+            Base::Result<void> queued = pendingLoadedTriggers.PushBack(
+                {&trigger, &actionOwner, names});
+            if (!queued) return queued.GetStatus();
+        }
+        return true;
+    }
+
+
+namespace {
+
+bool EventTriggerOwnerInSubtree(
+        Aero::Media::Visual* node,
+        const Aero::Media::Visual& fragmentRoot) noexcept {
+    while (node != nullptr) {
+        if (node == &fragmentRoot) return true;
+        node = ::Aero::TryCast<::Aero::Media::Visual>(node->GetLogicalParent()) != nullptr ? ::Aero::TryCast<::Aero::Media::Visual>(node->GetLogicalParent()) : node->GetVisualParent();
+    }
+    return false;
+}
+
+} // namespace
+
+void StoryboardHost::ClearEventTriggersFor(
+        Aero::Media::Visual& fragmentRoot) noexcept {
+        for (std::uint32_t index = 0U;
+             index < animationEventSubscriptions.Size();) {
+            AnimationEventSubscription& subscription =
+                animationEventSubscriptions[index];
+            if (subscription.visualOwner == nullptr ||
+                !EventTriggerOwnerInSubtree(
+                    subscription.visualOwner, fragmentRoot)) {
+                ++index;
+                continue;
+            }
+            if (subscription.source != nullptr) {
+                if (subscription.contentSource) {
+                    static_cast<void>(
+                        static_cast<Aero::ContentElement*>(subscription.source)
+                            ->RemoveHandler(
+                                subscription.event,
+                                subscription.handler));
+                } else {
+                    static_cast<void>(
+                        static_cast<Aero::UIElement*>(subscription.source)
+                            ->RemoveHandler(
+                                subscription.event,
+                                subscription.handler));
+                }
+            }
+            FreeObject(
+                *allocator, Base::MemoryTag::Ui,
+                subscription.context);
+            for (std::uint32_t next = index + 1U;
+                 next < animationEventSubscriptions.Size(); ++next) {
+                animationEventSubscriptions[next - 1U] =
+                    std::move(animationEventSubscriptions[next]);
+            }
+            animationEventSubscriptions.PopBack();
+        }
+    }
+
+void StoryboardHost::ClearEventTriggers() noexcept {
+        for (AnimationEventSubscription& subscription :
+             animationEventSubscriptions) {
+            if (subscription.source != nullptr) {
+                if (subscription.contentSource) {
+                    static_cast<void>(
+                        static_cast<Aero::ContentElement*>(subscription.source)
+                            ->RemoveHandler(
+                                subscription.event,
+                                subscription.handler));
+                } else {
+                    static_cast<void>(
+                        static_cast<Aero::UIElement*>(subscription.source)
+                            ->RemoveHandler(
+                                subscription.event,
+                                subscription.handler));
+                }
+            }
+            FreeObject(
+                *allocator,
+                Base::MemoryTag::Ui,
+                subscription.context);
+        }
+        animationEventSubscriptions.Clear();
+        pendingLoadedTriggers.Clear();
+        eventTriggerStatus = Base::Status::Ok();
+    }
+
+Base::Result<void> StoryboardHost::FlushPendingLoadedTriggers() noexcept {
+        Base::Vector<PendingLoadedTrigger> snapshot(allocator);
+        for (const PendingLoadedTrigger& pending : pendingLoadedTriggers) {
+            Base::Result<void> retained = snapshot.PushBack(pending);
+            if (!retained) return retained.GetStatus();
+        }
+        pendingLoadedTriggers.Clear();
+        for (const PendingLoadedTrigger& pending : snapshot) {
+            if (pending.trigger == nullptr || pending.owner == nullptr) {
+                continue;
+            }
+            for (const Base::Ref<Aero::Interactivity::TriggerAction>& action :
+                 pending.trigger->GetActions()) {
+                if (!action) continue;
+                Base::Result<void> executed = ExecuteAnimationAction(
+                    *action, *pending.owner, nullptr, pending.names);
+                if (!executed) return executed.GetStatus();
+            }
+        }
+        return {};
+    }
+
+} // namespace Aero

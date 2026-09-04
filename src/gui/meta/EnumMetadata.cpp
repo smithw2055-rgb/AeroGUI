@@ -5,7 +5,9 @@
 #include <Aero/Media/Animation.hpp>
 #include <AeroApp/Application.hpp>
 #include <Aero/Controls.hpp> 
+#include <Aero/Input/Cursor.hpp>
 #include <Aero/Input.hpp>
+#include <Aero/KeyboardNavigation.hpp>
 #include <Aero/Layout.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Images.hpp>
@@ -13,6 +15,9 @@
 #include <Aero/Shapes.hpp>
 #include <Aero/Interactivity/Conditions.hpp>
 #include <Aero/Media/Animation/StoryboardActions.hpp>
+#include <Aero/Data/SortDescription.hpp>
+#include <Aero/Media/ArcSegment.hpp>
+#include <Aero/Media/CombinedGeometry.hpp>
 #include <AeroApp/Window.hpp>
 
 namespace Aero {
@@ -98,6 +103,39 @@ Base::Result<void> PopulateEnumMetadata(
             .Value("Move", ::Aero::Input::DragDropEffects::Move)
             .Value("Link", ::Aero::Input::DragDropEffects::Link)
             .Value("All", ::Aero::Input::DragDropEffects::All););
+    AERO_REGISTER_ENUM(
+        ::Aero::Input::CursorType,
+        "CursorType",
+        description
+            .Value("None", ::Aero::Input::CursorType::None)
+            .Value("No", ::Aero::Input::CursorType::No)
+            .Value("Arrow", ::Aero::Input::CursorType::Arrow)
+            .Value("AppStarting", ::Aero::Input::CursorType::AppStarting)
+            .Value("Cross", ::Aero::Input::CursorType::Cross)
+            .Value("Help", ::Aero::Input::CursorType::Help)
+            .Value("IBeam", ::Aero::Input::CursorType::IBeam)
+            .Value("SizeAll", ::Aero::Input::CursorType::SizeAll)
+            .Value("SizeNESW", ::Aero::Input::CursorType::SizeNESW)
+            .Value("SizeNS", ::Aero::Input::CursorType::SizeNS)
+            .Value("SizeNWSE", ::Aero::Input::CursorType::SizeNWSE)
+            .Value("SizeWE", ::Aero::Input::CursorType::SizeWE)
+            .Value("UpArrow", ::Aero::Input::CursorType::UpArrow)
+            .Value("Wait", ::Aero::Input::CursorType::Wait)
+            .Value("Hand", ::Aero::Input::CursorType::Hand)
+            .Value("Pen", ::Aero::Input::CursorType::Pen)
+            .Value("ScrollNS", ::Aero::Input::CursorType::ScrollNS)
+            .Value("ScrollWE", ::Aero::Input::CursorType::ScrollWE)
+            .Value("ScrollAll", ::Aero::Input::CursorType::ScrollAll)
+            .Value("ScrollN", ::Aero::Input::CursorType::ScrollN)
+            .Value("ScrollS", ::Aero::Input::CursorType::ScrollS)
+            .Value("ScrollW", ::Aero::Input::CursorType::ScrollW)
+            .Value("ScrollE", ::Aero::Input::CursorType::ScrollE)
+            .Value("ScrollNW", ::Aero::Input::CursorType::ScrollNW)
+            .Value("ScrollNE", ::Aero::Input::CursorType::ScrollNE)
+            .Value("ScrollSW", ::Aero::Input::CursorType::ScrollSW)
+            .Value("ScrollSE", ::Aero::Input::CursorType::ScrollSE)
+            .Value("ArrowCD", ::Aero::Input::CursorType::ArrowCD)
+            .Value("Custom", ::Aero::Input::CursorType::Custom););
     AERO_REGISTER_ENUM(
         ::Aero::Input::KeyboardNavigationMode,
         "KeyboardNavigationMode",
@@ -227,20 +265,46 @@ Base::Result<void> PopulateEnumMetadata(
             .Value("Reflect", ::Aero::Media::GradientSpreadMethod::Reflect)
             .Value("Repeat", ::Aero::Media::GradientSpreadMethod::Repeat););
     AERO_REGISTER_ENUM(
-        ::Aero::Shapes::PenLineJoin,
+        ::Aero::Shapes::FillRule,
+        "FillRule",
+        description
+            .Value("EvenOdd", ::Aero::Shapes::FillRule::EvenOdd)
+            .Value("Nonzero", ::Aero::Shapes::FillRule::Nonzero););
+    AERO_REGISTER_ENUM(
+        ::Aero::Media::PenLineJoin,
         "PenLineJoin",
         description
-            .Value("Miter", ::Aero::Shapes::PenLineJoin::Miter)
-            .Value("Bevel", ::Aero::Shapes::PenLineJoin::Bevel)
-            .Value("Round", ::Aero::Shapes::PenLineJoin::Round););
+            .Value("Miter", ::Aero::Media::PenLineJoin::Miter)
+            .Value("Bevel", ::Aero::Media::PenLineJoin::Bevel)
+            .Value("Round", ::Aero::Media::PenLineJoin::Round););
     AERO_REGISTER_ENUM(
-        ::Aero::Shapes::PenLineCap,
+        ::Aero::Media::PenLineCap,
         "PenLineCap",
         description
-            .Value("Flat", ::Aero::Shapes::PenLineCap::Flat)
-            .Value("Square", ::Aero::Shapes::PenLineCap::Square)
-            .Value("Round", ::Aero::Shapes::PenLineCap::Round)
-            .Value("Triangle", ::Aero::Shapes::PenLineCap::Triangle););
+            .Value("Flat", ::Aero::Media::PenLineCap::Flat)
+            .Value("Square", ::Aero::Media::PenLineCap::Square)
+            .Value("Round", ::Aero::Media::PenLineCap::Round)
+            .Value("Triangle", ::Aero::Media::PenLineCap::Triangle););
+    AERO_REGISTER_ENUM(
+        ::Aero::Media::SweepDirection,
+        "SweepDirection",
+        description
+            .Value("Counterclockwise", ::Aero::Media::SweepDirection::Counterclockwise)
+            .Value("Clockwise", ::Aero::Media::SweepDirection::Clockwise););
+    AERO_REGISTER_ENUM(
+        ::Aero::Media::GeometryCombineMode,
+        "GeometryCombineMode",
+        description
+            .Value("Union", ::Aero::Media::GeometryCombineMode::Union)
+            .Value("Intersect", ::Aero::Media::GeometryCombineMode::Intersect)
+            .Value("Xor", ::Aero::Media::GeometryCombineMode::Xor)
+            .Value("Exclude", ::Aero::Media::GeometryCombineMode::Exclude););
+    AERO_REGISTER_ENUM(
+        ::Aero::Data::ListSortDirection,
+        "ListSortDirection",
+        description
+            .Value("Ascending", ::Aero::Data::ListSortDirection::Ascending)
+            .Value("Descending", ::Aero::Data::ListSortDirection::Descending););
 
     AERO_REGISTER_ENUM(
         ::Aero::TextWrapping,
@@ -421,6 +485,13 @@ Base::Result<void> PopulateEnumMetadata(
         description
             .Value("Standard", ::Aero::Controls::VirtualizationMode::Standard)
             .Value("Recycling", ::Aero::Controls::VirtualizationMode::Recycling););
+    AERO_REGISTER_ENUM(
+        ::Aero::Controls::VirtualizationCacheLengthUnit,
+        "VirtualizationCacheLengthUnit",
+        description
+            .Value("Pixel", ::Aero::Controls::VirtualizationCacheLengthUnit::Pixel)
+            .Value("Item", ::Aero::Controls::VirtualizationCacheLengthUnit::Item)
+            .Value("Page", ::Aero::Controls::VirtualizationCacheLengthUnit::Page););
 
 #undef AERO_REGISTER_ENUM
     return {};

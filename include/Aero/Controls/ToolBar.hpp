@@ -2,20 +2,12 @@
 
 #include <Aero/Controls/ItemsControl.hpp>
 #include <Aero/Controls/Panel.hpp>
+#include <Aero/Controls/Separator.hpp>
 #include <Aero/Controls/TextBlock.hpp>
 #include <Aero/DataTemplate.hpp>
 
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
-
-class AERO_GUI_API Separator
-    : public Control {
-    AERO_DECLARE_TYPE(Separator, Control)
-public:
-    Separator() noexcept
-        : Control(StaticTypeId()) {}
-    ~Separator() override = default;
-};
 
 class AERO_GUI_API ToolBar
     : public ItemsControl {

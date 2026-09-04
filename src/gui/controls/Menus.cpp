@@ -2,7 +2,6 @@
 #include "gui/input/InputState.hpp" 
 #include "gui/media/AnimationEngine.hpp"
 #include <Aero/Controls.hpp>
-#include "gui/core/facets/InteractionStateFacet.hpp"
 
 #include <utility>
 #include "ControlBehavior.hpp"
@@ -18,16 +17,16 @@ MenuItem::MenuItem() noexcept
       menuPropertyChangedHandler_(
           this,
           &MenuItem::OnMenuPropertyChanged) {
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         InputGestureTextProperty,
         menuPropertyChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         IsCheckableProperty,
         menuPropertyChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         IsCheckedProperty,
         menuPropertyChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         IsSubmenuOpenProperty,
         menuPropertyChangedHandler_));
 }
@@ -49,9 +48,7 @@ MenuItem::~MenuItem() {
 
 Base::StringView
 MenuItem::GetInputGestureText() const noexcept {
-    return GetValueOr(
-        InputGestureTextProperty,
-        Base::StringView{});
+    return GetValue(InputGestureTextProperty);
 }
 
 void
@@ -62,8 +59,7 @@ MenuItem::SetInputGestureText(
 }
 
 bool MenuItem::GetIsCheckable() const noexcept {
-    return GetValueOr(
-        IsCheckableProperty, false);
+    return GetValue(IsCheckableProperty);
 }
 
 void MenuItem::SetIsCheckable(
@@ -73,8 +69,7 @@ void MenuItem::SetIsCheckable(
 }
 
 bool MenuItem::GetIsChecked() const noexcept {
-    return GetValueOr(
-        IsCheckedProperty, false);
+    return GetValue(IsCheckedProperty);
 }
 
 void MenuItem::SetIsChecked(
@@ -84,11 +79,11 @@ void MenuItem::SetIsChecked(
 }
 
 bool MenuItem::GetIsHighlighted() const noexcept {
-    return GetValueOr(IsHighlightedProperty, false);
+    return GetValue(IsHighlightedProperty);
 }
 
 bool MenuItem::GetIsSubmenuOpen() const noexcept {
-    return GetValueOr(IsSubmenuOpenProperty, false);
+    return GetValue(IsSubmenuOpenProperty);
 }
 
 void MenuItem::SetIsSubmenuOpen(
@@ -97,13 +92,11 @@ void MenuItem::SetIsSubmenuOpen(
 }
 
 MenuItemRole MenuItem::GetRole() const noexcept {
-    return GetValueOr(RoleProperty, MenuItemRole::TopLevelItem);
+    return GetValue(RoleProperty);
 }
 
 ICommand* MenuItem::GetCommand() const noexcept {
-    return GetValueOr(
-        CommandProperty,
-        Base::Ref<ICommand>{}).Get();
+    return GetValue(CommandProperty).Get();
 }
 
 void MenuItem::SetCommand(
@@ -114,9 +107,7 @@ void MenuItem::SetCommand(
 
 Value
 MenuItem::GetCommandParameter() const noexcept {
-    return GetValueOr(
-        CommandParameterProperty,
-        Value::NullObject(TypeOf<Base::Object>()));
+    return GetValue(CommandParameterProperty);
 }
 
 void
@@ -233,7 +224,7 @@ void MenuItem::SetRoleState(
 
 Menu::~Menu() {
     auto* behaviors = static_cast<ControlBehavior*>(
-        ::Aero::Core::InteractionStateFacet::ControlBehaviorRuntime(*this));
+        AeroGuiInternal::ControlBehaviorRuntime(*this));
     if (behaviors != nullptr) {
         static_cast<void>(behaviors->Detach(*this));
     }
@@ -254,7 +245,7 @@ ContextMenu::ContextMenu() noexcept
       openChangedHandler_(
           this,
           &ContextMenu::OnOpenChanged) {
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         IsOpenProperty,
         openChangedHandler_));
 }
@@ -266,8 +257,7 @@ ContextMenu::~ContextMenu() {
 }
 
 bool ContextMenu::GetIsOpen() const noexcept {
-    return GetValueOr(
-        IsOpenProperty, false);
+    return GetValue(IsOpenProperty);
 }
 
 void ContextMenu::SetIsOpen(
@@ -278,9 +268,7 @@ void ContextMenu::SetIsOpen(
 
 Base::Ref<UIElement>
 ContextMenu::GetPlacementTarget() const noexcept {
-    return GetValueOr(
-        PlacementTargetProperty,
-        Base::Ref<UIElement>{});
+    return GetValue(PlacementTargetProperty);
 }
 
 void
@@ -319,9 +307,7 @@ void ContextMenu::OnOpenChanged(
 Base::Ref<ContextMenu>
 ContextMenuService::GetContextMenu(
     const DependencyObject& target) noexcept {
-    return target.GetValueOr(
-        ContextMenuProperty,
-        Base::Ref<ContextMenu>{});
+    return target.GetValue(ContextMenuProperty);
 }
 
 void
@@ -394,7 +380,7 @@ Menu* MenuBehavior::ResolveMenu(
         : nullptr;
     return visual != nullptr
         ? static_cast<Menu*>(
-            visual->AsUIElement())
+            ::Aero::TryCast<::Aero::UIElement>(visual))
         : nullptr;
 }
 
@@ -410,8 +396,8 @@ MenuBehavior::Attach(
     Base::Result<VisualHandle> handle =
         tree_->GetHandle(menu);
     if (!handle) return handle.GetStatus();
-    menu.AddHandlerChecked(UIElement::MouseDownEvent, mouseDownHandler_);
-    menu.AddHandlerChecked(UIElement::KeyDownEvent, keyDownHandler_);
+    menu.AddHandler(UIElement::MouseDownEvent, mouseDownHandler_);
+    menu.AddHandler(UIElement::KeyDownEvent, keyDownHandler_);
     Base::Result<void> stored =
         records_.PushBack(handle.Value());
     if (!stored) {
@@ -463,7 +449,7 @@ MenuItem* MenuBehavior::FindItem(
     while (visual != nullptr &&
         visual != &menu) {
         UIElement* element =
-            visual->AsUIElement();
+            ::Aero::TryCast<::Aero::UIElement>(visual);
         if (element != nullptr &&
             menu.PropertyRegistry().Types().
                 IsDerivedFrom(
@@ -527,7 +513,7 @@ void MenuBehavior::OnMouseDown(
         FindItem(
             menu, args.GetOriginalSource());
     if (item == nullptr) return;
-    ::Aero::Core::InteractionStateFacet::SetMenuItemHighlighted(*item, true);
+    AeroGuiInternal::SetMenuItemHighlighted(*item, true);
     Base::Result<void> invoked =
         Invoke(menu, *item);
     if (!invoked) return;

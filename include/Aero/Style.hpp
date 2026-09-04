@@ -33,6 +33,7 @@ public:
     std::uint32_t GetCount() const noexcept;
     SetterBase* GetItem(std::uint32_t index) const noexcept;
     bool GetIsEmpty() const noexcept { return GetCount() == 0U; }
+    Result<void> Add(Ref<SetterBase> setter) noexcept;
     Result<void> Add(Ref<Setter> setter) noexcept;
     void Clear() noexcept;
 
@@ -86,6 +87,8 @@ public:
         const Trigger& trigger) noexcept;
     Result<void> AddTrigger(
         const DataTrigger& trigger) noexcept;
+    Result<void> AddTrigger(
+        const MultiDataTrigger& trigger) noexcept;
 
     class TriggerBuilder {
     public:
@@ -152,11 +155,12 @@ public:
     bool SetTargetType(TypeId targetType) noexcept;
     bool SetBasedOn(const Style* basedOn) noexcept;
     bool SetBasedOn(Ref<Base::Object> basedOn) noexcept;
+    Result<void> AddAuthoredSetter(Ref<SetterBase> setter) noexcept;
     Result<void> AddAuthoredSetter(Ref<Setter> setter) noexcept;
     Result<void> AddAuthoredTrigger(Ref<TriggerBase> trigger) noexcept;
     void ClearAuthoredSetters() noexcept;
     void ClearAuthoredTriggers() noexcept;
-    Span<const Ref<Setter>> GetAuthoredSetters() const noexcept {
+    Span<const Ref<SetterBase>> GetAuthoredSetters() const noexcept {
         return {authoredSetterObjects_.Data(), authoredSetterObjects_.Size()};
     }
     Span<const Ref<TriggerBase>> GetAuthoredTriggers() const noexcept {
@@ -185,7 +189,7 @@ private:
     TypeId targetType_ = InvalidTypeId;
     const Style* basedOn_ = nullptr;
     Ref<Base::Object> basedOnOwner_;
-    Base::Vector<Ref<Setter>> authoredSetterObjects_;
+    Base::Vector<Ref<SetterBase>> authoredSetterObjects_;
     Base::Vector<Ref<TriggerBase>> authoredTriggerObjects_;
     Base::IAllocator* implAllocator_ = nullptr;
     StyleState* program_ = nullptr;

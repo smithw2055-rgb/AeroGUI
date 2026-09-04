@@ -73,6 +73,15 @@ Base::Result<void> PopulateUiMedia(
     status = rect.Result();
     if (!status) return status.GetStatus();
 
+    auto size = Meta::Register<Base::Size>(context);
+    size
+        .Field<&Base::Size::width>("Width")
+        .Field<&Base::Size::height>("Height")
+        .ValueSemantics()
+        .TextConverter<&ConvertSize>();
+    status = size.Result();
+    if (!status) return status.GetStatus();
+
     // Brush.RelativeTransform is a Transform-valued dependency property, so
     // the abstract value type must exist before Brush metadata is authored.
     status = Meta::Register<Transform>(
@@ -130,6 +139,7 @@ Base::Result<void> PopulateUiMedia(
     auto gradientStopCollection =
         Meta::Register<GradientStopCollection>(context);
     gradientStopCollection
+        .Implements<Collections::IItemsSource>()
         .Content<GradientStop>(
             "Items", ContentKind::Collection,
             &AddGradientStopCollectionItem,
@@ -238,6 +248,38 @@ Base::Result<void> PopulateUiMedia(
     status = imageSource.Result();
     if (!status) return status.GetStatus();
 
+    auto tileBrush = Meta::Register<TileBrush>(
+        context, TypeFlags::Abstract);
+    tileBrush
+        .Property(
+            TileBrush::StretchProperty,
+            FrameworkPropertyMetadata(Stretch::Fill))
+        .Property(
+            TileBrush::ViewboxProperty,
+            FrameworkPropertyMetadata(Rect{0.0, 0.0, 1.0, 1.0}))
+        .Property(
+            TileBrush::ViewportProperty,
+            FrameworkPropertyMetadata(Rect{0.0, 0.0, 1.0, 1.0}))
+        .Property(
+            TileBrush::ViewboxUnitsProperty,
+            FrameworkPropertyMetadata(
+                BrushMappingMode::RelativeToBoundingBox))
+        .Property(
+            TileBrush::ViewportUnitsProperty,
+            FrameworkPropertyMetadata(
+                BrushMappingMode::RelativeToBoundingBox))
+        .Property(
+            TileBrush::TileModeProperty,
+            FrameworkPropertyMetadata(TileMode::None))
+        .Property(
+            TileBrush::AlignmentXProperty,
+            FrameworkPropertyMetadata(HorizontalAlignment::Center))
+        .Property(
+            TileBrush::AlignmentYProperty,
+            FrameworkPropertyMetadata(VerticalAlignment::Center));
+    status = tileBrush.Result();
+    if (!status) return status.GetStatus();
+
     auto bitmapImage =
         Meta::Register<BitmapImage>(context);
     bitmapImage
@@ -270,34 +312,6 @@ Base::Result<void> PopulateUiMedia(
             ImageBrush::ImageSourceProperty,
             FrameworkPropertyMetadata(
                 Base::Ref<ImageSource>{}))
-        .Property(
-            ImageBrush::StretchProperty,
-            FrameworkPropertyMetadata(Stretch::Fill))
-        .Property(
-            ImageBrush::ViewboxProperty,
-            FrameworkPropertyMetadata(
-                Rect{0.0, 0.0, 1.0, 1.0}))
-        .Property(
-            ImageBrush::ViewportProperty,
-            FrameworkPropertyMetadata(
-                Rect{0.0, 0.0, 1.0, 1.0}))
-        .Property(
-            ImageBrush::ViewboxUnitsProperty,
-            FrameworkPropertyMetadata(
-                BrushMappingMode::RelativeToBoundingBox))
-        .Property(
-            ImageBrush::ViewportUnitsProperty,
-            FrameworkPropertyMetadata(
-                BrushMappingMode::RelativeToBoundingBox))
-        .Property(
-            ImageBrush::TileModeProperty,
-            FrameworkPropertyMetadata(TileMode::None))
-        .Property(
-            ImageBrush::AlignmentXProperty,
-            FrameworkPropertyMetadata(HorizontalAlignment::Center))
-        .Property(
-            ImageBrush::AlignmentYProperty,
-            FrameworkPropertyMetadata(VerticalAlignment::Center))
         .Factory();
     status = imageBrush.Result();
     if (!status) return status.GetStatus();
@@ -313,6 +327,25 @@ Base::Result<void> PopulateUiMedia(
         .ValueSemantics()
         .TextConverter<&ConvertMatrix>();
     status = matrix.Result();
+    if (!status) return status.GetStatus();
+
+    auto transform3 = Meta::Register<Base::Transform3>(context);
+    transform3
+        .Field<&Base::Transform3::m11>("M11")
+        .Field<&Base::Transform3::m12>("M12")
+        .Field<&Base::Transform3::m13>("M13")
+        .Field<&Base::Transform3::m21>("M21")
+        .Field<&Base::Transform3::m22>("M22")
+        .Field<&Base::Transform3::m23>("M23")
+        .Field<&Base::Transform3::m31>("M31")
+        .Field<&Base::Transform3::m32>("M32")
+        .Field<&Base::Transform3::m33>("M33")
+        .Field<&Base::Transform3::dx>("OffsetX")
+        .Field<&Base::Transform3::dy>("OffsetY")
+        .Field<&Base::Transform3::dz>("OffsetZ")
+        .ValueSemantics()
+        .TextConverter<&ConvertTransform3>();
+    status = transform3.Result();
     if (!status) return status.GetStatus();
 
     auto translate = Meta::Register<TranslateTransform>(context);
@@ -387,6 +420,30 @@ Base::Result<void> PopulateUiMedia(
     status = matrixTransform.Result();
     if (!status) return status.GetStatus();
 
+    auto compositeTransform = Meta::Register<CompositeTransform>(context);
+    compositeTransform
+        .Property(CompositeTransform::CenterXProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform::CenterYProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform::ScaleXProperty,
+            FrameworkPropertyMetadata(1.0).AffectsRender())
+        .Property(CompositeTransform::ScaleYProperty,
+            FrameworkPropertyMetadata(1.0).AffectsRender())
+        .Property(CompositeTransform::SkewXProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform::SkewYProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform::RotationProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform::TranslateXProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform::TranslateYProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Factory();
+    status = compositeTransform.Result();
+    if (!status) return status.GetStatus();
+
     auto transformGroup = Meta::Register<TransformGroup>(context);
     transformGroup
         .Content<Transform>(
@@ -396,6 +453,68 @@ Base::Result<void> PopulateUiMedia(
             &ClearTransformGroupChildren)
         .Factory();
     status = transformGroup.Result();
+    if (!status) return status.GetStatus();
+
+    status = Meta::Register<Transform3D>(
+        context, TypeFlags::Abstract).Result();
+    if (!status) return status.GetStatus();
+
+    auto compositeTransform3D =
+        Meta::Register<CompositeTransform3D>(context);
+    compositeTransform3D
+        .Property(CompositeTransform3D::CenterXProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform3D::CenterYProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform3D::CenterZProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform3D::RotationXProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform3D::RotationYProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform3D::RotationZProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform3D::ScaleXProperty,
+            FrameworkPropertyMetadata(1.0).AffectsRender())
+        .Property(CompositeTransform3D::ScaleYProperty,
+            FrameworkPropertyMetadata(1.0).AffectsRender())
+        .Property(CompositeTransform3D::ScaleZProperty,
+            FrameworkPropertyMetadata(1.0).AffectsRender())
+        .Property(CompositeTransform3D::TranslateXProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform3D::TranslateYProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform3D::TranslateZProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Factory();
+    status = compositeTransform3D.Result();
+    if (!status) return status.GetStatus();
+
+    auto perspectiveTransform3D =
+        Meta::Register<PerspectiveTransform3D>(context);
+    perspectiveTransform3D
+        .Property(
+            PerspectiveTransform3D::DepthProperty,
+            FrameworkPropertyMetadata(Base::DefaultPerspectiveDepth)
+                .AffectsRender())
+        .Property(
+            PerspectiveTransform3D::OffsetXProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(
+            PerspectiveTransform3D::OffsetYProperty,
+            FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Factory();
+    status = perspectiveTransform3D.Result();
+    if (!status) return status.GetStatus();
+
+    auto matrixTransform3D = Meta::Register<MatrixTransform3D>(context);
+    matrixTransform3D
+        .Property(
+            MatrixTransform3D::MatrixProperty,
+            FrameworkPropertyMetadata(Base::IdentityTransform3())
+                .AffectsRender())
+        .Factory();
+    status = matrixTransform3D.Result();
     if (!status) return status.GetStatus();
 
     status = Meta::Register<Effect>(
@@ -482,6 +601,17 @@ Base::Result<void> PopulateUiMedia(
     status = directionalBlurEffect.Result();
     if (!status) return status.GetStatus();
 
+    auto shaderEffect = Meta::Register<ShaderEffect>(context);
+    shaderEffect
+        .Property(
+            ShaderEffect::PixelShaderProperty,
+            FrameworkPropertyMetadata(Base::String{})
+                .AffectsRender()
+                .Changed(&ShaderEffect::OnPixelShaderChanged))
+        .Factory();
+    status = shaderEffect.Result();
+    if (!status) return status.GetStatus();
+
     auto mediaElement = Meta::Register<MediaElement>(context);
     mediaElement
         .Event(MediaElement::BufferingEndedEvent, RoutingStrategy::Direct)
@@ -529,15 +659,6 @@ Base::Result<void> PopulateUiMedia(
         .Property(
             VisualBrush::VisualProperty,
             FrameworkPropertyMetadata(Base::Ref<Base::Object>{}))
-        .Property(
-            VisualBrush::StretchProperty,
-            FrameworkPropertyMetadata(Stretch::Fill))
-        .Property(
-            VisualBrush::ViewboxProperty,
-            FrameworkPropertyMetadata(Rect{0.0, 0.0, 1.0, 1.0}))
-        .Property(
-            VisualBrush::AlignmentYProperty,
-            FrameworkPropertyMetadata(VerticalAlignment::Center))
         .Factory();
     status = visualBrush.Result();
     if (!status) return status.GetStatus();
@@ -553,7 +674,30 @@ Base::Result<void> PopulateUiMedia(
     if (!status) return status.GetStatus();
     status = Meta::Register<KeyGesture>(context).Result();
     if (!status) return status.GetStatus();
-    status = Meta::Register<RoutedCommand>(context).Result();
+    status = Meta::Register<RoutedCommand>(context)
+        .TextConverter(&ConvertRoutedCommandReference)
+        .Result();
+    if (!status) return status.GetStatus();
+    status = Meta::Register<RoutedUICommand>(context).Result();
+    if (!status) return status.GetStatus();
+    status = Meta::Register<InputBinding>(
+        context, TypeFlags::Abstract).Result();
+    if (!status) return status.GetStatus();
+    auto commandBinding = Meta::Register<CommandBinding>(context);
+    commandBinding
+        .Property("Command", &CommandBinding::GetCommandName,
+            &CommandBinding::SetCommandName)
+        .Property("Executed", &CommandBinding::GetExecutedName,
+            &CommandBinding::SetExecutedName)
+        .Property("CanExecute", &CommandBinding::GetCanExecuteName,
+            &CommandBinding::SetCanExecuteName)
+        .Factory();
+    status = commandBinding.Result();
+    if (!status) return status.GetStatus();
+    status = Meta::Register<ApplicationCommands>(
+        context, TypeFlags::Abstract).Result();
+    if (!status) return status.GetStatus();
+    status = ApplicationCommands::RegisterDefaults();
     if (!status) return status.GetStatus();
     return {};
 }

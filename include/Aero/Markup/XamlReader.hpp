@@ -116,7 +116,8 @@ public:
         Ref<Base::Object> existingRoot,
         StringView uri,
         const XamlReaderSettings& settings = {},
-        Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept;
+        Diagnostics::IDiagnosticSink* diagnostics = nullptr,
+        ResourceDictionary* resources = nullptr) noexcept;
     Result<XamlDocument> Parse(
         StringView source,
         const Base::ResourceUri& baseUri = {},

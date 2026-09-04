@@ -5,6 +5,7 @@
 #include <Aero/Controls/Button.hpp>
 #include <Aero/Shapes.hpp>
 #include <Aero/Media/Animation.hpp>
+#include <Aero/Media/DrawingContext.hpp>
 
 #include <cstdint>
 #include <type_traits>

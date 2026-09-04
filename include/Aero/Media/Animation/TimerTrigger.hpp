@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Aero/Data/Binding.hpp>
 #include <Aero/Media/Animation/EventTrigger.hpp>
 
 namespace Aero::Media::Animation {

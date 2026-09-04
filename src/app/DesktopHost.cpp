@@ -42,6 +42,8 @@ Base::Result<Render::RenderContext*> CreateRenderContext(
     std::uint32_t width,
     std::uint32_t height,
     Base::IAllocator* allocator) noexcept {
+    (void)window;
+    (void)allocator;
     if (width == 0U || height == 0U) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
@@ -322,6 +324,12 @@ Base::Result<void> LoadFromUri(
                 window->GetHeight(), owner->defaultHeight);
             Base::Result<void> native = CreateNativeWindow(width, height);
             if (!native) return native.GetStatus();
+            // Make the window visible immediately. SetContent / first Update
+            // of a large tree (Inventory) can take several seconds; waiting
+            // until that finishes looks like a hung process with no window.
+            if (owner != nullptr && owner->visible && nativeWindow) {
+                static_cast<void>(nativeWindow->Show());
+            }
             width = nativeWindow->ClientWidth();
             height = nativeWindow->ClientHeight();
             if (width == 0U || height == 0U) {
@@ -376,6 +384,13 @@ Base::Result<void> LoadFromUri(
             if (!mounted) return mounted.GetStatus();
             DesktopHost::AttachWindow(*window, &runtime);
             DesktopHost::NotifyWindowSourceInitialized(*window);
+            // One-shot layout at the native client size so star-row hosts
+            // (gallery selector / welcome) are not left at RenderSize 0.
+            static_cast<void>(view->Update(0.0));
+            firstLayoutFlushed = true;
+            if (owner != nullptr && owner->visible && nativeWindow) {
+                static_cast<void>(RenderFrame(true));
+            }
             return {};
         }
 
@@ -426,12 +441,14 @@ Base::Result<void> LoadFromUri(
             case Platform::WindowEventType::CloseRequested:
                 if (window != nullptr) window->Close();
                 else Close();
+                RequestHostExitIfIdle();
                 return {};
             case Platform::WindowEventType::Closed:
                 closeRequested = true;
                 if (window != nullptr) {
                     DesktopHost::NotifyWindowClosed(*window);
                 }
+                RequestHostExitIfIdle();
                 return {};
             case Platform::WindowEventType::Resized:
             case Platform::WindowEventType::ScaleChanged:
@@ -527,11 +544,16 @@ Base::Result<void> LoadFromUri(
             if (!viewport) return viewport.GetStatus();
             dpiScale = nextDpiScale;
             frameRequested = true;
+            if (!firstLayoutFlushed &&
+                width != 0U && height != 0U && view) {
+                static_cast<void>(view->Update(updateTimeSeconds));
+                firstLayoutFlushed = true;
+            }
             return {};
         }
 
         Base::Result<bool> PumpEvents() noexcept {
-            if (!nativeWindow || !nativeWindow->IsOpen() || closeRequested) {
+            if (!nativeWindow) {
                 return false;
             }
             bool handled = false;
@@ -543,10 +565,11 @@ Base::Result<void> LoadFromUri(
                 handled = true;
                 Base::Result<void> status = HandleEvent(event);
                 if (!status) return status.GetStatus();
-                if (closeRequested) break;
             }
-            Base::Result<void> resized = ApplyPendingResize();
-            if (!resized) return resized.GetStatus();
+            if (!closeRequested && nativeWindow->IsOpen()) {
+                Base::Result<void> resized = ApplyPendingResize();
+                if (!resized) return resized.GetStatus();
+            }
             return handled;
         }
 
@@ -648,9 +671,30 @@ Base::Result<void> LoadFromUri(
             // before the display connection closes; Shutdown() later repeats
             // the teardown idempotently.
             if (renderContext) renderContext->Shutdown();
-            if (nativeWindow != nullptr && nativeWindow->IsOpen()) {
+            if (nativeWindow != nullptr) {
                 nativeWindow->Close();
             }
+        }
+
+        void RequestHostExitIfIdle() noexcept {
+            if (owner == nullptr || owner->application == nullptr) return;
+            const ShutdownMode mode = owner->application->GetShutdownMode();
+            if (mode == ShutdownMode::OnExplicitShutdown) return;
+            if (mode == ShutdownMode::OnMainWindowClose) {
+                Window* main = owner->application->GetMainWindow();
+                for (WindowHost* host : owner->windows) {
+                    if (host != nullptr &&
+                        host->window == main &&
+                        host->IsOpen()) {
+                        return;
+                    }
+                }
+            } else {
+                for (WindowHost* host : owner->windows) {
+                    if (host != nullptr && host->IsOpen()) return;
+                }
+            }
+            owner->RequestExit(0);
         }
 
         bool IsOpen() const noexcept {
@@ -668,7 +712,9 @@ Base::Result<void> LoadFromUri(
         void Shutdown() noexcept {
             if (shutdown) return;
             shutdown = true;
-            if (renderContext) renderContext->Shutdown();
+            if (renderContext) {
+                renderContext->Shutdown();
+            }
             if (window != nullptr) {
                 DesktopHost::NotifyWindowClosed(*window);
                 DesktopHost::DetachWindow(*window);
@@ -676,9 +722,11 @@ Base::Result<void> LoadFromUri(
 #if defined(_WIN32)
             static_cast<void>(inputMethod.Detach());
 #endif
-            if (nativeWindow) nativeWindow->Close();
-            loadedDocument = {};
+            if (nativeWindow) {
+                nativeWindow->Close();
+            }
             view.Reset();
+            loadedDocument = {};
             windowOwner.Reset();
             window = nullptr;
             nativeWindow.reset();
@@ -716,6 +764,7 @@ Base::Result<void> LoadFromUri(
         bool closeRequested = false;
         bool hasPendingResize = false;
         bool firstFrameRendered = false;
+        bool firstLayoutFlushed = false;
         bool frameRequested = true;
         bool updateClockInitialized = false;
         std::chrono::steady_clock::time_point lastUpdate;
@@ -803,19 +852,35 @@ Base::Result<void> LoadFromUri(
 
     void LoadDictionarySourcesRecursively(
         ResourceDictionary& dict,
-        const Base::ResourceUri& baseUri) noexcept {
+        const Base::ResourceUri& baseUri,
+        ResourceDictionary* parent = nullptr) noexcept {
         if (!dict.GetSource().Empty()) {
-            Base::Result<Base::ResourceUri> resolved =
-                Base::ResourceUri::Resolve(baseUri, dict.GetSource().Canonical());
-            if (resolved) {
-                Markup::XamlReader dictReader(environment);
-                Base::Result<Markup::XamlDocument> dictDoc =
-                    dictReader.Load(resolved.Value().Canonical(), dict, {}, diagnostics);
-                if (dictDoc && dictDoc.Value().Root()) {
-                    if (dictDoc.Value().Root()->RuntimeType() == ResourceDictionary::StaticTypeId()) {
-                        auto* resDict = static_cast<ResourceDictionary*>(dictDoc.Value().Root().Get());
-                        if (resDict != &dict) {
-                            static_cast<void>(dict.AddMerged(*resDict));
+            // XamlLoader already resolved Source= dictionaries (including nested
+            // MergedDictionaries). Reloading into the placeholder with the
+            // placeholder itself as ambient cannot see sibling application
+            // merges, so Color.Gray9 / theme brushes fail and the second copy
+            // shadows the good first load.
+            const bool alreadyLoaded =
+                dict.Size() > 0U || dict.MergedDictionaryCount() > 0U;
+            if (!alreadyLoaded) {
+                Base::Result<Base::ResourceUri> resolved =
+                    Base::ResourceUri::Resolve(baseUri, dict.GetSource().Canonical());
+                if (resolved) {
+                    Markup::XamlReader dictReader(environment);
+                    ResourceDictionary* ambient =
+                        parent != nullptr ? parent : &dict;
+                    Base::Result<Markup::XamlDocument> dictDoc =
+                        dictReader.Load(
+                            resolved.Value().Canonical(),
+                            *ambient,
+                            {},
+                            diagnostics);
+                    if (dictDoc && dictDoc.Value().Root()) {
+                        if (dictDoc.Value().Root()->RuntimeType() == ResourceDictionary::StaticTypeId()) {
+                            auto* resDict = static_cast<ResourceDictionary*>(dictDoc.Value().Root().Get());
+                            if (resDict != &dict) {
+                                static_cast<void>(dict.AddMerged(*resDict));
+                            }
                         }
                     }
                 }
@@ -824,7 +889,8 @@ Base::Result<void> LoadFromUri(
         for (std::uint32_t i = 0; i < dict.MergedDictionaryCount(); ++i) {
             auto merged = dict.MergedDictionaryAt(i);
             if (merged) {
-                LoadDictionarySourcesRecursively(merged.Value(), baseUri);
+                LoadDictionarySourcesRecursively(
+                    merged.Value(), baseUri, &dict);
             }
         }
     }
@@ -1026,6 +1092,10 @@ Base::Result<void> LoadFromUri(
                 return {};
             }
         }
+        if (windows.Empty() &&
+            application->GetShutdownMode() == ShutdownMode::OnLastWindowClose) {
+            RequestExit(0);
+        }
         return {};
     }
 
@@ -1055,18 +1125,31 @@ Base::Result<void> LoadFromUri(
                 if (!pumped) return pumped.GetStatus();
                 handledEvent = handledEvent || pumped.Value();
             }
-            status = RemoveClosedWindows();
-            if (!status) return status.GetStatus();
             if (exitRequested) break;
 
+            bool anyOpen = false;
             for (WindowHost* host : windows) {
-                status = host->RenderFrame();
-                if (!status) return status.GetStatus();
+                if (host != nullptr && host->IsOpen()) {
+                    anyOpen = true;
+                    status = host->RenderFrame();
+                    if (!status) return status.GetStatus();
+                }
+            }
+            if (!anyOpen) {
+                // Do not destroy WindowHost here: tearing down the View /
+                // D3D device while the live loop still expects to Present
+                // can hang. RequestExit, then ShutdownWindows after break.
+                if (!exitRequested &&
+                    application->GetShutdownMode() !=
+                        ShutdownMode::OnExplicitShutdown) {
+                    RequestExit(0);
+                }
+                break;
             }
 
-            if (!handledEvent && !windows.Empty()) {
+            if (!handledEvent && anyOpen) {
                 WindowHost* waiter = windows[0];
-                if (waiter != nullptr) {
+                if (waiter != nullptr && waiter->IsOpen()) {
                     // A single non-animated window can block fully on native
                     // events. Animation or multi-window hosting uses a 16 ms
                     // timed native wait so other windows and the animation
@@ -1112,9 +1195,11 @@ Base::Result<void> LoadFromUri(
     void RequestExit(int requestedExitCode) noexcept {
         exitCode = requestedExitCode;
         exitRequested = true;
-        for (WindowHost* host : windows) {
-            if (host != nullptr) host->Close();
-        }
+        // Shutdown can be requested from CompositionTarget.Rendering while
+        // a WindowHost is still inside RenderFrame. Closing the hosts here
+        // tears down the render context re-entrantly and can deadlock during
+        // Present. The run loop observes exitRequested immediately and
+        // ShutdownWindows performs teardown after the active frame returns.
     }
 
     static void RequestExitThunk(

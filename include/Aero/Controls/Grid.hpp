@@ -1,59 +1,21 @@
 #pragma once
 
+#include <Aero/Controls/ColumnDefinition.hpp>
+#include <Aero/Controls/RowDefinition.hpp>
+#include <Aero/Controls/GridLength.hpp>
 #include <Aero/Controls/Panel.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Input.hpp>
+#include <Aero/InputBinding.hpp>
 
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
 
-class AERO_GUI_API ColumnDefinition : public Base::Object {
-    AERO_DECLARE_TYPE(ColumnDefinition, Base::Object)
-public:
-    ColumnDefinition() noexcept = default;
-    TypeId RuntimeType() const noexcept override {
-        return StaticTypeId();
-    }
-    GridLength GetWidth() const noexcept { return width_; }
-    double GetMaxWidth() const noexcept { return maxWidth_; }
-    StringView GetSharedSizeGroup() const noexcept {
-        return sharedSizeGroup_.View();
-    }
-    void SetWidth(GridLength value) noexcept;
-    void SetMaxWidth(double value) noexcept;
-    void SetSharedSizeGroup(
-        StringView value) noexcept;
-private:
-    GridLength width_ = GridLength::Star();
-    double maxWidth_ = 1.0e12;
-    String sharedSizeGroup_;
-};
-
-class AERO_GUI_API RowDefinition : public Base::Object {
-    AERO_DECLARE_TYPE(RowDefinition, Base::Object)
-public:
-    RowDefinition() noexcept = default;
-    TypeId RuntimeType() const noexcept override {
-        return StaticTypeId();
-    }
-    GridLength GetHeight() const noexcept { return height_; }
-    double GetMaxHeight() const noexcept { return maxHeight_; }
-    StringView GetSharedSizeGroup() const noexcept {
-        return sharedSizeGroup_.View();
-    }
-    void SetHeight(GridLength value) noexcept;
-    void SetMaxHeight(double value) noexcept;
-    void SetSharedSizeGroup(
-        StringView value) noexcept;
-private:
-    GridLength height_ = GridLength::Star();
-    double maxHeight_ = 1.0e12;
-    String sharedSizeGroup_;
-};
-
 class AERO_GUI_API Grid : public Panel {
     AERO_DECLARE_TYPE(Grid, Panel)
-    friend class ::Aero::Core::GridLayoutFacet;
+    #if defined(AERO_GUI_IMPLEMENTATION)
+    friend class ::Aero::AeroGuiInternal;
+    #endif
 public:
     Grid() noexcept;
     void SetColumnDefinitions(Span<const GridLength> definitions) noexcept;
@@ -72,11 +34,15 @@ public:
     void ClearColumnDefinitionObjects() noexcept;
     void ClearRowDefinitionObjects() noexcept;
     Result<void> AddInputBinding(
-        Ref<Aero::Input::KeyBinding> binding) noexcept;
-    void ClearInputBindings() noexcept { inputBindings_.Clear(); }
-    Span<const Ref<Aero::Input::KeyBinding>>
+        Ref<Aero::Input::InputBinding> binding) noexcept {
+        return UIElement::AddInputBinding(std::move(binding));
+    }
+    void ClearInputBindings() noexcept {
+        UIElement::ClearInputBindings();
+    }
+    Span<const Ref<Aero::Input::InputBinding>>
     GetInputBindings() const noexcept {
-        return {inputBindings_.Data(), inputBindings_.Size()};
+        return UIElement::GetInputBindings();
     }
     StringView GetColumnDefinitionsText() const noexcept;
     StringView GetRowDefinitionsText() const noexcept;
@@ -105,8 +71,6 @@ private:
         columnDefinitionObjects_;
     Base::Vector<Ref<RowDefinition>>
         rowDefinitionObjects_;
-    Base::Vector<Ref<Aero::Input::KeyBinding>>
-        inputBindings_;
     Base::Vector<double> desiredColumns_;
     Base::Vector<double> desiredRows_;
     std::uint32_t GetColumnCount() const noexcept;

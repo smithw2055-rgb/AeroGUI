@@ -86,6 +86,11 @@ Base::Result<void> PopulateUiElements(
                 .AffectsArrange()
                 .Changed(&OnRenderStateChanged))
         .Property(
+            UIElement::ClipProperty,
+            FrameworkPropertyMetadata(Base::Ref<Geometry>{})
+                .AffectsRender()
+                .Changed(&OnRenderStateChanged))
+        .Property(
             UIElement::BlendModeProperty,
             FrameworkPropertyMetadata(BlendMode::Normal)
                 .Changed(&OnRenderStateChanged))
@@ -130,14 +135,14 @@ Base::Result<void> PopulateUiElements(
         .Property(
             UIElement::FocusableProperty,
             FrameworkPropertyMetadata(false))
-        .Property(
-            UIElement::IsTabStopProperty,
+        .AddOwner(
+            KeyboardNavigation::IsTabStopProperty,
             FrameworkPropertyMetadata(false))
-        .Property(
-            UIElement::TabIndexProperty,
+        .AddOwner(
+            KeyboardNavigation::TabIndexProperty,
             FrameworkPropertyMetadata(std::uint32_t{0}))
-        .Property(
-            UIElement::IsFocusScopeProperty,
+        .AddOwner(
+            FocusManager::IsFocusScopeProperty,
             FrameworkPropertyMetadata(false))
         .Property(
             UIElement::OpacityProperty,
@@ -150,14 +155,28 @@ Base::Result<void> PopulateUiElements(
                 .AffectsRender()
                 .Changed(&OnRenderTransformChanged))
         .Property(
+            UIElement::Transform3DProperty,
+            FrameworkPropertyMetadata(Base::Ref<Media::Transform3D>{})
+                .AffectsRender()
+                .Changed(&OnRenderTransformChanged))
+        .Property(
             UIElement::RenderTransformOriginProperty,
             FrameworkPropertyMetadata(Point{})
-                .Changed(&OnRenderStateChanged));
+                .Changed(&OnRenderStateChanged))
+        .Collection<InputBinding>(
+            "InputBindings",
+            &AddUiElementInputBinding,
+            &ClearUiElementInputBindings)
+        .Collection<CommandBinding>(
+            "CommandBindings",
+            &AddUiElementCommandBinding,
+            &ClearUiElementCommandBindings);
     status = uiElement.Result();
     if (!status) return status.GetStatus();
 
     auto frameworkElement = Meta::Register<FrameworkElement>(context);
     frameworkElement
+        .Event(FrameworkElement::LoadedEvent, RoutingStrategy::Direct)
         .Property<
             Base::Ref<ResourceDictionary>,
             &FrameworkElement::SetResources>(

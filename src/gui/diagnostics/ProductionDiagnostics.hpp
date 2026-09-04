@@ -10,16 +10,16 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Controls.hpp>
+#include <Aero/LogicalTreeHelper.hpp>
+#include <Aero/VisualTreeHelper.hpp>
 #include <Aero/Documents.hpp>
 #include <Aero/Layout.hpp>
 #include "gui/meta/MetadataState.hpp" 
 #include "gui/input/InputState.hpp"
 #include "gui/core/State.hpp"
-#include "gui/data/BindingState.hpp"
+#include "gui/data/BindingEngine.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
-#include "gui/core/facets/VisualFacet.hpp"
-#include "gui/core/facets/RenderFacet.hpp"
 #include <Aero/FrameworkElement.hpp>
 
 #include <cstdint>
@@ -141,11 +141,12 @@ private:
     Base::Result<void> CaptureNode(
         const Aero::Media::Visual& visual) noexcept {
         AccessibilityNode node;
-        node.id = NodeId(Aero::Core::VisualFacet::Handle(visual));
-        const Aero::Media::Visual* parent = visual.GetLogicalParent();
+        node.id = NodeId(AeroGuiInternal::Handle(visual));
+        const Aero::Media::Visual* parent =
+            ::Aero::TryCast<::Aero::Media::Visual>(visual.GetLogicalParent());
         if (parent == nullptr) parent = visual.GetVisualParent();
-        node.parent = parent != nullptr ? NodeId(Aero::Core::VisualFacet::Handle(*parent)) : 0U;
-        const Aero::UIElement* element = visual.AsUIElement();
+        node.parent = parent != nullptr ? NodeId(AeroGuiInternal::Handle(*parent)) : 0U;
+        const Aero::UIElement* element = ::Aero::TryCast<::Aero::UIElement>(&(visual));
         if (element != nullptr) {
             node.bounds = element->GetLayoutSlot();
             node.enabled = element->GetIsEnabled();
@@ -199,18 +200,27 @@ private:
             Base::Result<void> added = Add(std::move(node));
             if (!added) return added.GetStatus();
         }
-        const Base::Span<Aero::Media::Visual* const> logical =
-            visual.GetLogicalChildren();
-        for (Aero::Media::Visual* child : logical) {
+        const std::uint32_t logicalCount =
+            LogicalTreeHelper::GetChildrenCount(visual);
+        for (std::uint32_t index = 0U; index < logicalCount; ++index) {
+            Aero::Media::Visual* child = ::Aero::TryCast<::Aero::Media::Visual>(
+                LogicalTreeHelper::GetChild(visual, index));
             if (child == nullptr) continue;
             Base::Result<void> captured = CaptureNode(*child);
             if (!captured) return captured.GetStatus();
         }
-        for (Aero::Media::Visual* child : visual.GetVisualChildren()) {
+        const std::uint32_t visualCount =
+            Aero::Media::VisualTreeHelper::GetChildrenCount(visual);
+        for (std::uint32_t index = 0U; index < visualCount; ++index) {
+            Aero::Media::Visual* child =
+                Aero::Media::VisualTreeHelper::GetChild(visual, index);
             if (child == nullptr) continue;
             bool alreadyCaptured = false;
-            for (Aero::Media::Visual* logicalChild : logical) {
-                if (logicalChild == child) {
+            for (std::uint32_t logicalIndex = 0U;
+                 logicalIndex < logicalCount; ++logicalIndex) {
+                if (::Aero::TryCast<::Aero::Media::Visual>(
+                        LogicalTreeHelper::GetChild(visual, logicalIndex)) ==
+                    child) {
                     alreadyCaptured = true;
                     break;
                 }
@@ -306,16 +316,17 @@ private:
     Base::Result<void> CaptureNode(
         const Aero::Media::Visual& visual) noexcept {
         InspectorTreeNode node;
-        node.handle = Aero::Core::VisualFacet::Handle(visual);
+        node.handle = AeroGuiInternal::Handle(visual);
         node.runtimeType = visual.RuntimeType();
         node.loaded = visual.GetIsLoaded();
-        if (visual.GetLogicalParent() != nullptr) {
-            node.logicalParent = Aero::Core::VisualFacet::Handle(*visual.GetLogicalParent());
+        if (::Aero::TryCast<::Aero::Media::Visual>(visual.GetLogicalParent()) != nullptr) {
+            node.logicalParent = AeroGuiInternal::Handle(
+                *::Aero::TryCast<::Aero::Media::Visual>(visual.GetLogicalParent()));
         }
         if (visual.GetVisualParent() != nullptr) {
-            node.visualParent = Aero::Core::VisualFacet::Handle(*visual.GetVisualParent());
+            node.visualParent = AeroGuiInternal::Handle(*visual.GetVisualParent());
         }
-        const Aero::UIElement* element = visual.AsUIElement();
+        const Aero::UIElement* element = ::Aero::TryCast<::Aero::UIElement>(&(visual));
         if (element != nullptr) {
             node.layoutSlot = element->GetLayoutSlot();
             node.renderSize = element->GetRenderSize();
@@ -324,14 +335,18 @@ private:
             node.arrangeValid = element->GetIsArrangeValid();
         }
         const Aero::FrameworkElement* framework =
-            visual.AsFrameworkElement();
+            ::Aero::TryCast<::Aero::FrameworkElement>(&(visual));
         if (framework != nullptr) {
-            node.renderRevision = Aero::Core::RenderFacet::RenderRevision(const_cast<Aero::FrameworkElement&>(*framework));
-            node.renderValid = Aero::Core::RenderFacet::RenderValid(const_cast<Aero::FrameworkElement&>(*framework));
+            node.renderRevision = AeroGuiInternal::RenderRevision(const_cast<Aero::FrameworkElement&>(*framework));
+            node.renderValid = AeroGuiInternal::RenderValid(const_cast<Aero::FrameworkElement&>(*framework));
         }
         Base::Result<void> appended = nodes_.PushBack(node);
         if (!appended) return appended.GetStatus();
-        for (Aero::Media::Visual* child : visual.GetLogicalChildren()) {
+        const std::uint32_t childCount =
+            LogicalTreeHelper::GetChildrenCount(visual);
+        for (std::uint32_t index = 0U; index < childCount; ++index) {
+            Aero::Media::Visual* child = ::Aero::TryCast<::Aero::Media::Visual>(
+                LogicalTreeHelper::GetChild(visual, index));
             if (child == nullptr) continue;
             Base::Result<void> captured = CaptureNode(*child);
             if (!captured) return captured.GetStatus();

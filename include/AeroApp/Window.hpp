@@ -20,19 +20,19 @@ public:
     Window() noexcept : Window(StaticTypeId()) {}
     ~Window() noexcept override;
 
-    StringView GetTitle() const noexcept { return GetValueOr(TitleProperty, StringView{}); }
+    StringView GetTitle() const noexcept { return GetValue(TitleProperty); }
     void SetTitle(StringView value) noexcept { SetValue(TitleProperty, value); }
-    WindowState GetWindowState() const noexcept { return GetValueOr(WindowStateProperty, WindowState::Normal); }
+    WindowState GetWindowState() const noexcept { return GetValue(WindowStateProperty); }
     void SetWindowState(WindowState value) noexcept;
-    WindowStyle GetWindowStyle() const noexcept { return GetValueOr(WindowStyleProperty, WindowStyle::SingleBorderWindow); }
+    WindowStyle GetWindowStyle() const noexcept { return GetValue(WindowStyleProperty); }
     void SetWindowStyle(WindowStyle value) noexcept { SetValue(WindowStyleProperty, value); }
-    ResizeMode GetResizeMode() const noexcept { return GetValueOr(ResizeModeProperty, ResizeMode::CanResize); }
+    ResizeMode GetResizeMode() const noexcept { return GetValue(ResizeModeProperty); }
     void SetResizeMode(ResizeMode value) noexcept { SetValue(ResizeModeProperty, value); }
-    SizeToContent GetSizeToContent() const noexcept { return GetValueOr(SizeToContentProperty, SizeToContent::Manual); }
+    SizeToContent GetSizeToContent() const noexcept { return GetValue(SizeToContentProperty); }
     void SetSizeToContent(SizeToContent value) noexcept { SetValue(SizeToContentProperty, value); }
-    bool GetShowInTaskbar() const noexcept { return GetValueOr(ShowInTaskbarProperty, true); }
+    bool GetShowInTaskbar() const noexcept { return GetValue(ShowInTaskbarProperty); }
     void SetShowInTaskbar(bool value) noexcept { SetValue(ShowInTaskbarProperty, value); }
-    bool GetTopmost() const noexcept { return GetValueOr(TopmostProperty, false); }
+    bool GetTopmost() const noexcept { return GetValue(TopmostProperty); }
     void SetTopmost(bool value) noexcept { SetValue(TopmostProperty, value); }
 
     Result<void> Show() noexcept;

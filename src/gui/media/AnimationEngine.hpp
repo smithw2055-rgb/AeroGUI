@@ -1,5 +1,4 @@
 #pragma once
-#include "gui/core/Facet.hpp"
 
 #include "gui/core/State.hpp"
 #include "gui/media/AnimationModel.hpp"
@@ -8,7 +7,7 @@ namespace Aero {
 
 using namespace Aero::Media::Animation::Model;
 
-class AnimationEngine : public Core::Facet {
+class AnimationEngine {
 public:
     AnimationEngine(
         ::Aero::Threading::Dispatcher& dispatcher,
@@ -49,11 +48,43 @@ public:
     Base::Result<AnimationHandle> Begin(
         ::Aero::DependencyObject& target,
         Meta::DependencyPropertyHandle property,
+        const IntegerAnimation& animation) noexcept;
+    Base::Result<AnimationHandle> Begin(
+        ::Aero::DependencyObject& target,
+        Meta::DependencyPropertyHandle property,
+        const SizeAnimation& animation) noexcept;
+    Base::Result<AnimationHandle> Begin(
+        ::Aero::DependencyObject& target,
+        Meta::DependencyPropertyHandle property,
+        const MatrixAnimation& animation) noexcept;
+    Base::Result<AnimationHandle> Begin(
+        ::Aero::DependencyObject& target,
+        Meta::DependencyPropertyHandle property,
         const DoubleKeyFrameAnimation& animation) noexcept;
     Base::Result<AnimationHandle> Begin(
         ::Aero::DependencyObject& target,
         Meta::DependencyPropertyHandle property,
         const ColorKeyFrameAnimation& animation) noexcept;
+    Base::Result<AnimationHandle> Begin(
+        ::Aero::DependencyObject& target,
+        Meta::DependencyPropertyHandle property,
+        const PointKeyFrameAnimation& animation) noexcept;
+    Base::Result<AnimationHandle> Begin(
+        ::Aero::DependencyObject& target,
+        Meta::DependencyPropertyHandle property,
+        const ThicknessKeyFrameAnimation& animation) noexcept;
+    Base::Result<AnimationHandle> Begin(
+        ::Aero::DependencyObject& target,
+        Meta::DependencyPropertyHandle property,
+        const IntegerKeyFrameAnimation& animation) noexcept;
+    Base::Result<AnimationHandle> Begin(
+        ::Aero::DependencyObject& target,
+        Meta::DependencyPropertyHandle property,
+        const SizeKeyFrameAnimation& animation) noexcept;
+    Base::Result<AnimationHandle> Begin(
+        ::Aero::DependencyObject& target,
+        Meta::DependencyPropertyHandle property,
+        const MatrixKeyFrameAnimation& animation) noexcept;
     Base::Result<AnimationHandle> Begin(
         ::Aero::DependencyObject& target,
         Meta::DependencyPropertyHandle property,
@@ -72,8 +103,11 @@ public:
 
     Base::Result<std::uint32_t> Tick(
         AnimationTime nowMicroseconds) noexcept;
-    // Samples newly-created automatic timelines at t=0 so the first submitted
-    // frame has the authored initial key frame.
+    // P3.2 explicit Animation phase entry (formerly the frame-hook body).
+    // ViewFrame calls it directly; no hook registration remains.
+    static void AnimationFrameHook(void* context) noexcept;
+    // Samples newly-created timelines at t=0 so the first submitted frame has
+    // the authored initial key frame, including manual (View::Update) clocks.
     Base::Result<std::uint32_t> ApplyPendingInitialValues() noexcept;
     // Called after a frame containing those initial values is submitted. The
     // automatic clock starts here rather than at storyboard construction.
@@ -87,7 +121,7 @@ public:
         return lastTickStatus_;
     }
     bool IsInitialized() const noexcept {
-        return frameHook_.IsValid();
+        return initialized_;
     }
     void SetAutomaticTickingEnabled(bool enabled) noexcept {
         automaticTickingEnabled_ = enabled;
@@ -109,7 +143,7 @@ private:
     Track* tracks_ = nullptr;
     std::uint32_t trackCount_ = 0U;
     std::uint32_t trackCapacity_ = 0U;
-    ::Aero::Threading::DispatcherFrameHookHandle frameHook_;
+    bool initialized_ = false;
     AnimationTime currentTimeMicroseconds_ = 0U;
     std::uint64_t nextHandle_ = 1U;
     AnimationDiagnostics diagnostics_;
@@ -117,7 +151,9 @@ private:
     bool ticking_ = false;
     bool automaticTickingEnabled_ = true;
 
-    Base::Result<Track*> AddTrack() noexcept;
+    Base::Result<Track*> AddTrack(
+        ::Aero::DependencyObject* target = nullptr,
+        Meta::DependencyPropertyHandle property = {}) noexcept;
     Track* FindTrack(AnimationHandle handle) noexcept;
     const Track* FindTrack(AnimationHandle handle) const noexcept;
     Base::Result<void> ClearTrackValue(Track& track) noexcept;
@@ -126,8 +162,6 @@ private:
         AnimationTime nowMicroseconds) noexcept;
     void CompactStopped() noexcept;
     void ReleaseTracks() noexcept;
-
-    static void AnimationFrameHook(void* context) noexcept;
 };
 
 } // namespace Aero

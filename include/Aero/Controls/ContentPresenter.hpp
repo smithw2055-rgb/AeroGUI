@@ -15,9 +15,7 @@ public:
         return contentValue_;
     }
     StringView GetContentSource() const noexcept {
-        return GetValueOr(
-            ContentSourceProperty,
-            StringView{});
+        return GetValue(ContentSourceProperty);
     }
     void SetContentSource(
         StringView value) noexcept;
@@ -27,23 +25,29 @@ public:
     }
     void SetContent(UIElement* content) noexcept;
 
-    // Template teardown is a two-step transaction: clear the presenter-owned
-    // reference first, then detach the visual/layout/render edge through the Gui context. A nullptr literal selects this overload without weakening
-    // the ordinary UIElement* validation path.
+    // Clear the presenter-owned reference. Callers that still have a visual
+    // or layout edge must detach it through the element tree first; leftover
+    // layout children must not block replacing a TextBlock host with a
+    // UIElement header (gallery SampleSection Header StackPanel).
     void SetContent(std::nullptr_t) noexcept {
         Result<void> access = VerifyAccess();
         if (!access) return;
         if (content_ == nullptr) return;
-        if (!LayoutChildren().Empty() && !IsOnlyAttachedContent(*content_)) {
-            return;
-        }
         content_ = nullptr;
         ownedContent_.Reset();
+        (void)InvalidateMeasure();
         return;
     }
 
     void SetOwnedContent(const Ref<Base::Object>& contentObject,
         UIElement& content) noexcept;
+
+    // Host a UIElement as Content, replacing any auto-created TextBlock from
+    // ContentSource. Used by TemplateBinding ContentSource=Header and by
+    // item generators that project DataTemplate visuals into PART_Header.
+    void HostUiElement(
+        const Ref<Base::Object>& owner,
+        UIElement& element) noexcept;
 
     inline static constexpr DependencyProperty<String> ContentSourceProperty{"ContentSource"};
     inline static constexpr DependencyProperty<Value> ContentProperty{"Content"};
@@ -53,6 +57,15 @@ public:
         const Meta::DependencyPropertyChangedEventArgs&
             change) noexcept;
 protected:
+    std::uint32_t GetVisualChildrenCount() const noexcept override {
+        return content_ != nullptr && content_->GetVisualParent() == this ? 1U : 0U;
+    }
+    ::Aero::Media::Visual* GetVisualChild(std::uint32_t index) const noexcept override {
+        if (index != 0U || content_ == nullptr || content_->GetVisualParent() != this) {
+            return nullptr;
+        }
+        return content_;
+    }
     Size MeasureOverride(Size availableSize) noexcept override;
     Size ArrangeOverride(Size finalSize) noexcept override;
 private:

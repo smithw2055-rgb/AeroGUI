@@ -13,9 +13,7 @@ public:
     ~HeaderedItemsControl() override = default;
 
     Value GetHeader() const noexcept {
-        return GetValueOr(
-            HeaderProperty,
-            Value::NullObject(Meta::TypeOf<Base::Object>()));
+        return GetValue(HeaderProperty);
     }
     void SetHeader(Value value) noexcept {
         SetValue(HeaderProperty, std::move(value));
@@ -28,8 +26,7 @@ public:
         return {};
     }
     Ref<DataTemplate> GetHeaderTemplate() const noexcept {
-        return GetValueOr(
-            HeaderTemplateProperty, Ref<DataTemplate>{});
+        return GetValue(HeaderTemplateProperty);
     }
     void SetHeaderTemplate(Ref<DataTemplate> value) noexcept {
         SetValue(HeaderTemplateProperty, std::move(value));

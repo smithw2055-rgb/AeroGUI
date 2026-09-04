@@ -556,7 +556,7 @@ Base::Result<void> ResourceDictionary::Add(
         source);
 }
 
-Base::Result<void> ResourceDictionary::ApplyChecked(
+Base::Result<void> ResourceDictionary::StoreResource(
     const ResourceKey& key,
     const ResourceValue& value,
     ::Aero::Diagnostics::SourceSpan source) noexcept {
@@ -590,7 +590,7 @@ Base::Result<void> ResourceDictionary::ApplyChecked(
     return {};
 }
 
-Base::Result<void> ResourceDictionary::ApplyChecked(
+Base::Result<void> ResourceDictionary::StoreResource(
     Base::StringView key,
     const ResourceValue& value,
     ::Aero::Diagnostics::SourceSpan source) noexcept {
@@ -599,18 +599,18 @@ Base::Result<void> ResourceDictionary::ApplyChecked(
     if (!resourceKey) {
         return resourceKey.GetStatus();
     }
-    return ApplyChecked(resourceKey.Value(), value, source);
+    return StoreResource(resourceKey.Value(), value, source);
 }
 
-Base::Result<void> ResourceDictionary::ApplyChecked(
+Base::Result<void> ResourceDictionary::StoreResource(
     Meta::TypeId key,
     const ResourceValue& value,
     ::Aero::Diagnostics::SourceSpan source) noexcept {
-    return ApplyChecked(
+    return StoreResource(
         ResourceKey::FromType(key), value, source);
 }
 
-Base::Result<void> ResourceDictionary::ApplyChecked(
+Base::Result<void> ResourceDictionary::StoreResource(
     Base::StringView key,
     Meta::TypeId type,
     const Base::Ref<Base::Object>& object,
@@ -620,7 +620,7 @@ Base::Result<void> ResourceDictionary::ApplyChecked(
             Base::ErrorCode::InvalidArgument,
             MessageInvalidResource);
     }
-    return ApplyChecked(
+    return StoreResource(
         key,
         Meta::Value::FromObject(type, object),
         source);
@@ -630,21 +630,21 @@ bool ResourceDictionary::Set(
     const ResourceKey& key,
     const ResourceValue& value,
     ::Aero::Diagnostics::SourceSpan source) noexcept {
-    return static_cast<bool>(ApplyChecked(key, value, source));
+    return static_cast<bool>(StoreResource(key, value, source));
 }
 
 bool ResourceDictionary::Set(
     Base::StringView key,
     const ResourceValue& value,
     ::Aero::Diagnostics::SourceSpan source) noexcept {
-    return static_cast<bool>(ApplyChecked(key, value, source));
+    return static_cast<bool>(StoreResource(key, value, source));
 }
 
 bool ResourceDictionary::Set(
     Meta::TypeId key,
     const ResourceValue& value,
     ::Aero::Diagnostics::SourceSpan source) noexcept {
-    return static_cast<bool>(ApplyChecked(key, value, source));
+    return static_cast<bool>(StoreResource(key, value, source));
 }
 
 bool ResourceDictionary::Set(
@@ -652,7 +652,7 @@ bool ResourceDictionary::Set(
     Meta::TypeId type,
     const Base::Ref<Base::Object>& object,
     ::Aero::Diagnostics::SourceSpan source) noexcept {
-    return static_cast<bool>(ApplyChecked(key, type, object, source));
+    return static_cast<bool>(StoreResource(key, type, object, source));
 }
 
 Base::Result<bool> ResourceDictionary::Remove(
@@ -1087,18 +1087,20 @@ Base::Result<ResourceValue> ResourceResolver::Lookup(
     const ResourceEnvironment& environment) noexcept {
     const FrameworkElement* current = element;
     while (current != nullptr) {
-        Base::Result<ResourceValue> local =
-            current->GetResources().Lookup(key);
-        if (local) {
-            return local.Value();
+        const ResourceDictionary* owned = current->LocalResources();
+        if (owned != nullptr) {
+            Base::Result<ResourceValue> local = owned->Lookup(key);
+            if (local) {
+                return local.Value();
+            }
+            if (local.GetStatus().code !=
+                Base::ErrorCode::NotFound) {
+                return local.GetStatus();
+            }
         }
-        if (local.GetStatus().code !=
-            Base::ErrorCode::NotFound) {
-            return local.GetStatus();
-        }
-        const ::Aero::Media::Visual* logical = current->GetLogicalParent();
+        const ::Aero::Media::Visual* logical = ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent());
         current = logical != nullptr
-            ? logical->AsFrameworkElement()
+            ? ::Aero::TryCast<::Aero::FrameworkElement>(logical)
             : nullptr;
     }
     const ResourceDictionary* layers[] = {

@@ -3,7 +3,29 @@
 Base::Result<void> PopulateControlsItems(
     ::Aero::Meta::Registration& context) noexcept {
     Base::Result<void> status;
-    status = Meta::Register<Collections::ObservableCollection>(context)
+    status = Meta::Register<Collections::IItemsSource>(
+        context, TypeFlags::Abstract)
+        .Result();
+    if (!status) return status.GetStatus();
+
+    status = Meta::Register<Collections::ObservableCollectionBase>(
+        context, TypeFlags::Abstract)
+        .Implements<Collections::IItemsSource>()
+        .Result();
+    if (!status) return status.GetStatus();
+
+    status = Meta::Register<Collections::ObservableObjectCollection>(context)
+        .Factory()
+        .Implements<Collections::IItemsSource>()
+        .Result();
+    if (!status) return status.GetStatus();
+
+    status = Meta::Register<Data::CollectionView>(context)
+        .Implements<Collections::IItemsSource>()
+        .Result();
+    if (!status) return status.GetStatus();
+
+    status = Meta::Register<Data::CollectionViewSource>(context)
         .Factory()
         .Result();
     if (!status) return status.GetStatus();
@@ -60,6 +82,12 @@ Base::Result<void> PopulateControlsItems(
                 Base::Ref<DataTemplate>{})
                 .AffectsMeasure()
                 .Changed(&OnItemTemplateChanged))
+        .Property(
+            ItemsControl::ItemTemplateSelectorProperty,
+            FrameworkPropertyMetadata(
+                Base::Ref<DataTemplateSelector>{})
+                .AffectsMeasure()
+                .Changed(&OnItemTemplateSelectorChanged))
         .Property(
             ItemsControl::ItemsPanelProperty,
             FrameworkPropertyMetadata(
@@ -127,7 +155,10 @@ Base::Result<void> PopulateControlsItems(
             Selector::IsSelectedProperty,
             FrameworkPropertyMetadata(false)
                 .AffectsRender()
-                .BindsTwoWayByDefault());
+                .BindsTwoWayByDefault())
+        .Property(
+            Selector::IsSynchronizedWithCurrentItemProperty,
+            FrameworkPropertyMetadata(false));
     status = selector.Result();
     if (!status) return status.GetStatus();
 
@@ -295,18 +326,8 @@ Base::Result<void> PopulateControlsItems(
         .Event(TreeViewItem::SelectedEvent)
         .Event(TreeViewItem::UnselectedEvent)
         .Property(
-            TreeViewItem::HeaderProperty,
-            FrameworkPropertyMetadata(Value::NullObject(
-                TypeOf<Base::Object>()))
-                .AffectsMeasure())
-        .Property(
             TreeViewItem::IconProperty,
             FrameworkPropertyMetadata(Base::String{})
-                .AffectsMeasure())
-        .Property(
-            TreeViewItem::HeaderTemplateProperty,
-            FrameworkPropertyMetadata(
-                Base::Ref<DataTemplate>{})
                 .AffectsMeasure())
         .Property(
             TreeViewItem::IsExpandedProperty,
@@ -739,25 +760,11 @@ Base::Result<void> PopulateControlsItems(
 
     auto tabControl = Meta::Register<TabControl>(context);
     tabControl
-        .Event(TabControl::SelectionChangedEvent)
-        .Property(
-            TabControl::SelectedIndexProperty,
-            FrameworkPropertyMetadata(UINT32_MAX)
-                .AffectsMeasure()
-                .BindsTwoWayByDefault())
         .Property(
             TabControl::SelectedContentProperty,
             FrameworkPropertyMetadata(
                 Meta::Value::NullObject(
                     Meta::TypeOf<Base::Object>())))
-        .Property(
-            TabControl::ItemsSourceProperty,
-            FrameworkPropertyMetadata(Base::Ref<Base::Object>{})
-                .AffectsMeasure())
-        .Property(
-            TabControl::ItemTemplateProperty,
-            FrameworkPropertyMetadata(Base::Ref<DataTemplate>{})
-                .AffectsMeasure())
         .Property(
             TabControl::ContentTemplateProperty,
             FrameworkPropertyMetadata(Base::Ref<DataTemplate>{})
@@ -766,12 +773,6 @@ Base::Result<void> PopulateControlsItems(
             TabControl::TabStripPlacementProperty,
             FrameworkPropertyMetadata(Dock::Top)
                 .AffectsMeasure())
-        .Content<TabItem>(
-            "Items",
-            ContentKind::Collection,
-            &AddTabControlItem,
-            &ClearTabControlItems,
-            ContentFlags::Visual)
         .Factory();
     status = tabControl.Result();
     if (!status) return status.GetStatus();

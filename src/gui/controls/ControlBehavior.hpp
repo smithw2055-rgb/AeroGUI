@@ -3,10 +3,11 @@
 #include "gui/meta/MetadataState.hpp"
 #include "gui/core/State.hpp" 
 #include "gui/input/InputState.hpp"
-#include "gui/data/BindingState.hpp"
+#include "gui/data/BindingEngine.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include "gui/templates/TemplateInstance.hpp"
+#include <Aero/Base/HashMap.hpp>
 
 // Private control behavior and template implementation for one View.
 // Public controls expose WPF semantics; these classes only retain interaction state.
@@ -287,8 +288,7 @@ private:
     void RemoveAt(
         std::uint32_t index) noexcept;
     Base::Result<void> SetFromPoint(
-        Slider& slider,
-        Point point) noexcept;
+        Slider& slider) noexcept;
     void OnMouseDown(
         Base::Object* sender,
         MouseButtonEventArgs& args) noexcept;
@@ -324,13 +324,18 @@ public:
     ScrollBarBehavior(
         ElementTree& tree,
         EventRouter& events,
-        InputRouter& input) noexcept;
+        InputRouter& input,
+        VisualStateManager* states = nullptr) noexcept;
     ~ScrollBarBehavior() noexcept;
 
     Base::Result<void> Attach(
         ScrollBar& scrollBar) noexcept;
     Base::Result<bool> Detach(
         ScrollBar& scrollBar) noexcept;
+    Base::Result<void> AttachThumb(
+        Thumb& thumb) noexcept;
+    Base::Result<bool> DetachThumb(
+        Thumb& thumb) noexcept;
 
 private:
     struct ScrollBarRecord {
@@ -345,12 +350,15 @@ private:
     ElementTree* tree_ = nullptr;
     EventRouter* events_ = nullptr;
     InputRouter* input_ = nullptr;
+    VisualStateManager* states_ = nullptr;
     Base::Vector<ScrollBarRecord> scrollBars_;
+    Base::Vector<VisualHandle> thumbs_;
     MouseButtonEventHandler mouseDownHandler_;
     MouseEventHandler mouseMoveHandler_;
     MouseButtonEventHandler mouseUpHandler_;
     KeyEventHandler keyDownHandler_;
     PointerCaptureChangedHandler captureChangedHandler_;
+    PointerStateChangedHandler pointerStateChangedHandler_;
 
     ExecutedRoutedEventHandler lineUpHandler_;
     ExecutedRoutedEventHandler lineDownHandler_;
@@ -373,6 +381,14 @@ private:
         std::uint32_t index) noexcept;
     void RemoveAt(
         std::uint32_t index) noexcept;
+    std::uint32_t FindThumb(
+        const Thumb& thumb) const noexcept;
+    Thumb* ResolveThumb(
+        std::uint32_t index) noexcept;
+    void RemoveThumbAt(
+        std::uint32_t index) noexcept;
+    void SyncThumbVisualState(
+        Thumb& thumb) noexcept;
 
     void OnMouseDown(
         Base::Object* sender,
@@ -390,6 +406,8 @@ private:
         std::uint32_t pointerId,
         UIElement* target,
         bool captured) noexcept;
+    void OnPointerStateChanged(
+        UIElement& element) noexcept;
 
     static void OnLineUpCommand(
         Base::Object* sender,
@@ -610,6 +628,12 @@ public:
         const Control& control) const noexcept;
     const ControlTemplate* AppliedTemplate(
         TemplateHandle handle) const noexcept;
+    bool HasTemplateBinding(
+        DependencyObject& target,
+        DependencyPropertyHandle property) const noexcept;
+    Base::Result<void> RefreshTemplateBinding(
+        DependencyObject& target,
+        DependencyPropertyHandle property) noexcept;
 
 private:
     struct Instance {
@@ -637,6 +661,8 @@ private:
     Aero::BindingEngine* bindings_ = nullptr;
     Aero::ResourceDictionary* resources_ = nullptr;
     Base::Vector<Instance> instances_;
+    Base::HashMap<const Control*, std::uint32_t> controlToInstance_;
+    Base::HashMap<std::uint64_t, std::uint32_t> handleToInstance_;
     DependencyPropertyChangedEventHandler propertyChangedHandler_;
     std::uint64_t nextHandle_ = 1U;
 
@@ -744,10 +770,6 @@ public:
     Base::Result<std::uint32_t> AdvanceTime(
         std::uint32_t elapsedMilliseconds) noexcept;
     void Shutdown() noexcept;
-
-    static void SetVisualStateManager(
-        Control& control,
-        VisualStateManager* visualStates) noexcept;
 
 private:
     template<class T, class... TArgs>

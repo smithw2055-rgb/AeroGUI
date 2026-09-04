@@ -2,12 +2,12 @@
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Config.hpp>
-#include <Aero/Base/Delegate.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Input.hpp>
 #include <Aero/Layout.hpp>
 #include <Aero/IRenderer.hpp>
+#include <Aero/Media/CompositionTarget.hpp>
 #include <Aero/ViewOptions.hpp>
 
 #include <cstdint>
@@ -20,42 +20,25 @@ class FrameworkElement;
 class Gui;
 class View;
 class ViewRenderer;
+// Source-only hub state defined in src/gui/ViewState.hpp. Incomplete here so
+// View methods can keep a private pointer without installing ViewState.
 struct ViewState;
 
-// Global frame notification matching WPF CompositionTarget.Rendering. Hosts
-// still own the frame clock through View::Update; subscribers use this event to
-// invalidate custom visuals immediately before retained render commit.
-using RenderingEventHandler = Base::Delegate<void()>;
-
-namespace Media {
-
-class AERO_GUI_API CompositionTarget final {
-public:
-    // Explicit View overloads are preferred for multi-view hosts. The legacy
-    // overloads remain dispatcher-thread scoped for WPF-shaped source
-    // compatibility.
-    static void AddRendering(
-        ::Aero::View& view,
-        const ::Aero::RenderingEventHandler& handler) noexcept;
-    static bool RemoveRendering(
-        ::Aero::View& view,
-        const ::Aero::RenderingEventHandler& handler) noexcept;
-    static void AddRendering(
-        const ::Aero::RenderingEventHandler& handler) noexcept;
-    static bool RemoveRendering(
-        const ::Aero::RenderingEventHandler& handler) noexcept;
-
-private:
-    friend class ::Aero::View;
-    friend struct ::Aero::ViewState;
-    static void RaiseRendering(::Aero::View& view) noexcept;
-};
-
-} // namespace Media
 namespace Markup {
 class XamlReader;
 class XamlDocument;
 }
+// P4.3: read-only committed-frame identity for content-stability gates
+// (hosts and conformance tests). version 0 means no frame has been
+// committed yet. contentHash is a content hash over nodes/commands (no
+// generation markers): identical visuals hash identically, so round-trip
+// comparisons detect any commit-path divergence without pixel readback.
+struct CommittedFrameInfo {
+    std::uint64_t version = 0U;
+    std::uint32_t nodeCount = 0U;
+    std::uint32_t commandCount = 0U;
+    std::uint64_t contentHash = 0U;
+};
 // Host-driven retained-mode view. View::Update() advances UI state; the
 // per-View Renderer synchronizes and renders the retained frame. XAML,
 // resource-layer and fragment operations live on Markup::XamlReader.
@@ -143,6 +126,7 @@ public:
         std::uint64_t id) noexcept;
     IRenderer& GetRenderer() noexcept;
     const IRenderer& GetRenderer() const noexcept;
+    CommittedFrameInfo GetCommittedFrameInfo() const noexcept;
 
 private:
     Result<void> Initialize(const ViewOptions& options) noexcept;

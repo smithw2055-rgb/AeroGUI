@@ -4,55 +4,21 @@
 #include <Aero/Base/Geometry.hpp>
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/Ref.hpp>
-#include <Aero/Base/Vector.hpp>
-#include <Aero/Base/Span.hpp>
 #include <Aero/DependencyObject.hpp>
 
 #include <cstdint>
 
 namespace Aero {
 
-class FrameworkElement;
 class ElementTree;
-class UIElement;
+class LogicalTreeHelper;
+class AeroGuiInternal;
 
 } // namespace Aero
 
 namespace Aero::Media {
 
-class Visual;
-
-class AERO_GUI_API VisualTreeHelper {
-public:
-    static Visual* GetParent(const Visual& visual) noexcept;
-    static std::uint32_t GetChildrenCount(const Visual& visual) noexcept;
-    static Visual* GetChild(const Visual& visual, std::uint32_t index) noexcept;
-};
-
-} // namespace Aero::Media
-
-namespace Aero {
-
-class AERO_GUI_API LogicalTreeHelper {
-public:
-    static DependencyObject* GetParent(const DependencyObject& object) noexcept;
-    static std::uint32_t GetChildrenCount(const DependencyObject& object) noexcept;
-    static DependencyObject* GetChild(const DependencyObject& object, std::uint32_t index) noexcept;
-    static Media::Visual* GetParent(const Media::Visual& visual) noexcept;
-    static std::uint32_t GetChildrenCount(const Media::Visual& visual) noexcept;
-    static Media::Visual* GetChild(const Media::Visual& visual, std::uint32_t index) noexcept;
-};
-
-} // namespace Aero
-
-namespace Aero::Core {
-class RenderFacet;
-class VisualFacet;
-template<class TFacet>
-TFacet* GetFacet(const ::Aero::Media::Visual& visual) noexcept;
-} // namespace Aero::Core
-
-namespace Aero::Media {
+class VisualTreeHelper;
 
 class AERO_GUI_API Visual : public ::Aero::DependencyObject {
     AERO_DECLARE_TYPE(Visual, ::Aero::DependencyObject)
@@ -62,49 +28,75 @@ public:
     ~Visual() override;
 
     Visual* GetVisualParent() const noexcept { return visualParent_; }
-    Visual* GetLogicalParent() const noexcept { return logicalParent_; }
-    bool GetIsLoaded() const noexcept { return loaded_; }
+    ::Aero::DependencyObject* GetLogicalParent() const noexcept { return logicalParent_; }
+    bool GetIsLoaded() const noexcept { return LoadedFlag(); }
 
+    bool IsAncestorOf(const Visual& descendant) const noexcept;
+    Base::Transform2D TransformToVisual(const Visual& visual) const noexcept;
+    bool TryTransformToVisual(
+        const Visual& visual,
+        Base::ProjectiveTransform2D& output) const noexcept;
+    Base::Point PointToScreen(Base::Point point) const noexcept;
+    bool TryPointToScreen(
+        Base::Point point,
+        Base::Point& screen) const noexcept;
+    Base::Point PointFromScreen(Base::Point point) const noexcept;
+    bool TryPointFromScreen(
+        Base::Point point,
+        Base::Point& local) const noexcept;
+
+#if defined(AERO_GUI_IMPLEMENTATION)
     ::Aero::ElementTree* GetTree() const noexcept { return tree_; }
-
-    virtual Base::Span<Visual* const> GetVisualChildren() const noexcept {
-        return { visualChildren_.Data(), visualChildren_.Size() };
-    }
-    Base::Span<Visual* const> GetLogicalChildren() const noexcept {
-        return { logicalChildren_.Data(), logicalChildren_.Size() };
-    }
-
-    virtual ::Aero::UIElement* AsUIElement() noexcept { return nullptr; }
-    virtual const ::Aero::UIElement* AsUIElement() const noexcept { return nullptr; }
-    virtual ::Aero::FrameworkElement* AsFrameworkElement() noexcept { return nullptr; }
-    virtual const ::Aero::FrameworkElement* AsFrameworkElement() const noexcept { return nullptr; }
-
-    template<class TFacet>
-    TFacet* GetFacet() const noexcept {
-        return ::Aero::Core::GetFacet<TFacet>(*this);
-    }
+#endif
 
 protected:
-    virtual std::uint32_t GetVisualChildrenCount() const noexcept { return visualChildren_.Size(); }
-    virtual Visual* GetVisualChild(std::uint32_t index) const noexcept { return index < visualChildren_.Size() ? visualChildren_[index] : nullptr; }
+    virtual std::uint32_t GetVisualChildrenCount() const noexcept { return 0U; }
+    virtual Visual* GetVisualChild(std::uint32_t) const noexcept { return nullptr; }
+
+    void AddVisualChild(Visual* child) noexcept;
+    void RemoveVisualChild(Visual* child) noexcept;
 
     virtual void OnVisualParentChanged(Visual* oldParent) noexcept {
         static_cast<void>(oldParent);
+    }
+    virtual void OnVisualChildrenChanged(
+        Visual* visualAdded,
+        Visual* visualRemoved) noexcept {
+        static_cast<void>(visualAdded);
+        static_cast<void>(visualRemoved);
     }
 
 private:
     friend class ::Aero::LogicalTreeHelper;
     friend class ::Aero::ElementTree;
     friend class VisualTreeHelper;
-    friend class ::Aero::Core::RenderFacet;
-    friend class ::Aero::Core::VisualFacet;
+#if defined(AERO_GUI_IMPLEMENTATION)
+    friend class ::Aero::AeroGuiInternal;
+#endif
     Result<Ref<Base::Object>> AcquireLifetime() noexcept;
 
+    static constexpr std::uint8_t kFlagRenderAttached = 1U << 0U;
+    static constexpr std::uint8_t kFlagRenderValid = 1U << 1U;
+    static constexpr std::uint8_t kFlagRenderQueued = 1U << 2U;
+    static constexpr std::uint8_t kFlagRendering = 1U << 3U;
+    static constexpr std::uint8_t kFlagLoaded = 1U << 4U;
+
+    bool LoadedFlag() const noexcept {
+        return (visualFlags_ & kFlagLoaded) != 0U;
+    }
+    void SetLoadedFlag(bool loaded) noexcept {
+        if (loaded) {
+            visualFlags_ = static_cast<std::uint8_t>(
+                visualFlags_ | kFlagLoaded);
+        } else {
+            visualFlags_ = static_cast<std::uint8_t>(
+                visualFlags_ & static_cast<std::uint8_t>(~kFlagLoaded));
+        }
+    }
+
     ::Aero::ElementTree* tree_ = nullptr;
-    Visual* logicalParent_ = nullptr;
+    ::Aero::DependencyObject* logicalParent_ = nullptr;
     Visual* visualParent_ = nullptr;
-    Base::Vector<Visual*> logicalChildren_;
-    Base::Vector<Visual*> visualChildren_;
     Ref<Base::Object> lifetime_;
     Base::RenderNodeId renderNodeId_ =
         Base::InvalidRenderNodeId;
@@ -112,11 +104,7 @@ private:
     std::uint32_t handleIndex_ = UINT32_MAX;
     std::uint32_t handleGeneration_ = 0U;
     std::uint8_t renderDirtyFlags_ = 0x07U;
-    bool renderAttached_ = false;
-    bool renderValid_ = false;
-    bool renderQueued_ = false;
-    bool rendering_ = false;
-    bool loaded_ = false;
+    std::uint8_t visualFlags_ = 0U;
 };
 
 } // namespace Aero::Media

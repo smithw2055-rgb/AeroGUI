@@ -1,7 +1,5 @@
 #pragma once
 
-#include "gui/core/Facet.hpp"
-
 namespace Aero {
 
 class UIElement;
@@ -14,10 +12,10 @@ class LayoutEngine;
 class StyleEngine;
 class AnimationEngine;
 
-class EventRouter : public Core::Facet {
+class EventRouter {
 public:
     explicit EventRouter(void* eventState) noexcept;
-    ~EventRouter() noexcept override;
+    ~EventRouter() noexcept;
 
     template<class TArgs>
     Base::Result<void> RegisterClassHandler(
@@ -147,43 +145,3 @@ Base::Result<void> EventRouter::RegisterClassHandler(
 }
 
 } // namespace Aero
-
-namespace Aero::Core {
-
-template<>
-struct FacetTrait<EventRouter> {
-    static constexpr std::uint32_t Id = static_cast<std::uint32_t>(FacetId::EventRouter);
-    static constexpr FacetType Type = FacetType::Input;
-};
-
-template<>
-struct FacetTrait<InputRouter> {
-    static constexpr std::uint32_t Id = static_cast<std::uint32_t>(FacetId::InputRouter);
-    static constexpr FacetType Type = FacetType::Input;
-};
-
-template<>
-struct FacetTrait<BindingEngine> {
-    static constexpr std::uint32_t Id = static_cast<std::uint32_t>(FacetId::BindingEngine);
-    static constexpr FacetType Type = FacetType::Dependency;
-};
-
-template<>
-struct FacetTrait<LayoutEngine> {
-    static constexpr std::uint32_t Id = static_cast<std::uint32_t>(FacetId::LayoutEngine);
-    static constexpr FacetType Type = FacetType::Layout;
-};
-
-template<>
-struct FacetTrait<StyleEngine> {
-    static constexpr std::uint32_t Id = static_cast<std::uint32_t>(FacetId::StyleEngine);
-    static constexpr FacetType Type = FacetType::Dependency;
-};
-
-template<>
-struct FacetTrait<AnimationEngine> {
-    static constexpr std::uint32_t Id = static_cast<std::uint32_t>(FacetId::AnimationEngine);
-    static constexpr FacetType Type = FacetType::Interaction;
-};
-
-} // namespace Aero::Core

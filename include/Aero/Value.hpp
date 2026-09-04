@@ -27,6 +27,7 @@ namespace Aero::Base {
 
 struct Color;
 struct Rect;
+struct Size;
 
 using TypeId = Base::MetaTypeId;
 using MemberId = Base::MetaMemberId;
@@ -64,7 +65,7 @@ struct ValueTypeRegistration {
     bool inlineSafe = false;
 };
 
-class AERO_GUI_API ValueTypeSemantics : public Base::Object {
+class AERO_BASE_API ValueTypeSemantics : public Base::Object {
 public:
     explicit ValueTypeSemantics(const ValueTypeRegistration& registration) noexcept : registration_(registration) {}
     const ValueTypeRegistration& Registration() const noexcept { return registration_; }
@@ -72,7 +73,7 @@ private:
     ValueTypeRegistration registration_;
 };
 
-class AERO_GUI_API Value {
+class AERO_BASE_API Value {
 public:
     static constexpr std::uint32_t InlineCapacity = 32U;
     Value() noexcept = default;
@@ -574,6 +575,16 @@ struct TypeTraits<Base::Rect> {
         return AeroNamespaceUri();
     }
     static constexpr StringView Name() noexcept { return "Rect"; }
+    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
+};
+
+template<>
+struct TypeTraits<Base::Size> {
+    static constexpr TypeId Id() noexcept { return MakeTypeId("Size"); }
+    static constexpr StringView Namespace() noexcept {
+        return AeroNamespaceUri();
+    }
+    static constexpr StringView Name() noexcept { return "Size"; }
     static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
 };
 

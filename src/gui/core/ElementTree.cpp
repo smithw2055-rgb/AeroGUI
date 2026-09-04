@@ -5,15 +5,20 @@
 #include <Aero/Layout.hpp>
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/FrameworkContentElement.hpp>
+#include <Aero/LogicalTreeHelper.hpp>
+#include <Aero/VisualTreeHelper.hpp>
+#include <Aero/Controls/ContentPresenter.hpp>
+#include <Aero/Controls/Decorator.hpp>
+#include <Aero/Controls/Panel.hpp>
+#include <Aero/Controls/ContentControl.hpp>
+#include <Aero/Controls/ControlTemplate.hpp>
 
 
-#include "gui/core/facets/VisualFacet.hpp"
-#include "gui/core/facets/RenderFacet.hpp"
-#include "gui/core/facets/InputEventFacet.hpp"
-#include "gui/core/facets/InteractionStateFacet.hpp"
-#include "gui/core/facets/DependencyPropertyFacet.hpp"
-#include "gui/core/facets/TextLayoutFacet.hpp"
+#include "gui/data/BindingEngine.hpp"
+#include "gui/styles/StyleEngine.hpp"
 #include "render/RenderTree.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
+#include "gui/markup/MarkupState.hpp"
 
 namespace Aero {
 
@@ -38,12 +43,107 @@ RoutedEventTable& Events(void* state) noexcept {
     return *static_cast<RoutedEventTable*>(state);
 }
 
+Base::Result<void> EnsureVisualChildStorage(
+    ::Aero::Media::Visual& parent,
+    ::Aero::Media::Visual& child) noexcept {
+    UIElement* childElement = ::Aero::TryCast<::Aero::UIElement>(&(child));
+    if (childElement == nullptr) return {};
+    const TypeRegistry& types = parent.PropertyRegistry().Types();
+    if (types.IsDerivedFrom(
+            parent.RuntimeType(), Controls::Panel::StaticTypeId())) {
+        auto& panel = static_cast<Controls::Panel&>(parent);
+        const std::uint32_t count = AeroGuiInternal::PanelChildCount(panel);
+        for (std::uint32_t index = 0U; index < count; ++index) {
+            if (AeroGuiInternal::PanelChildAt(panel, index).Get() == childElement) {
+                return {};
+            }
+        }
+        Base::Ref<Base::Object> borrowed =
+            Base::Ref<Base::Object>::FromBorrowed(*childElement);
+        return AeroGuiInternal::PanelAddChild(panel, borrowed, *childElement);
+    }
+    if (types.IsDerivedFrom(
+            parent.RuntimeType(), Controls::ContentPresenter::StaticTypeId())) {
+        auto& presenter = static_cast<Controls::ContentPresenter&>(parent);
+        if (presenter.GetContent() == nullptr) {
+            presenter.SetContent(childElement);
+        }
+        return {};
+    }
+    if (types.IsDerivedFrom(
+            parent.RuntimeType(), Controls::ContentControl::StaticTypeId())) {
+        auto& control = static_cast<Controls::ContentControl&>(parent);
+        UIElement* existing =
+            AeroGuiInternal::ContentControlContent(control);
+        if (existing == childElement) {
+            return {};
+        }
+        // Content is a logical property, not a side effect of visual attach.
+        // Assigning a ControlTemplate visual child as Content makes
+        // ProjectContent parent that subtree under a ContentPresenter inside
+        // itself ("Visual tree attachment would create a cycle").
+        const Base::Ref<Controls::ControlTemplate> templ =
+            control.GetValue(Controls::Control::TemplateProperty);
+        if (existing == nullptr &&
+            AeroGuiInternal::TemplateRoot(control) == nullptr &&
+            !templ) {
+            control.SetContent(childElement);
+        }
+        return {};
+    }
+    if (types.IsDerivedFrom(
+            parent.RuntimeType(), Controls::Decorator::StaticTypeId())) {
+        auto& decorator = static_cast<Controls::Decorator&>(parent);
+        if (decorator.GetChild() == nullptr) {
+            decorator.SetChild(childElement);
+        }
+        return {};
+    }
+    if (types.IsDerivedFrom(
+            parent.RuntimeType(), Controls::BulletDecorator::StaticTypeId())) {
+        auto& bullet = static_cast<Controls::BulletDecorator&>(parent);
+        if (bullet.GetChild() == childElement ||
+            bullet.GetBullet() == childElement) {
+            return {};
+        }
+        Base::Ref<UIElement> borrowed =
+            Base::Ref<UIElement>::FromBorrowed(*childElement);
+        if (bullet.GetChild() == nullptr) {
+            bullet.SetChild(std::move(borrowed));
+            return {};
+        }
+        if (bullet.GetBullet() == nullptr) {
+            bullet.SetBullet(std::move(borrowed));
+        }
+        return {};
+    }
+    return {};
+}
+
 } // namespace
 
 Media::Visual::Visual(TypeId runtimeType) noexcept
-    : DependencyObject(runtimeType),
-      logicalChildren_(),
-      visualChildren_() {}
+    : DependencyObject(runtimeType) {}
+
+void Media::Visual::AddVisualChild(Visual* child) noexcept {
+    if (child == nullptr || child == this) return;
+    Visual* const oldParent = child->visualParent_;
+    if (oldParent == this) return;
+    if (oldParent != nullptr) return;
+    child->visualParent_ = this;
+    child->OnVisualParentChanged(oldParent);
+    OnVisualChildrenChanged(child, nullptr);
+}
+
+void Media::Visual::RemoveVisualChild(Visual* child) noexcept {
+    if (child == nullptr) return;
+    Visual* const oldParent = child->visualParent_;
+    if (oldParent == this) {
+        child->visualParent_ = nullptr;
+        child->OnVisualParentChanged(oldParent);
+    }
+    OnVisualChildrenChanged(nullptr, child);
+}
 
 ::Aero::Media::Visual* Media::VisualTreeHelper::GetParent(const ::Aero::Media::Visual& visual) noexcept {
     return visual.visualParent_;
@@ -79,16 +179,13 @@ std::uint32_t LogicalTreeHelper::GetChildrenCount(
     const TypeRegistry& types = object.PropertyRegistry().Types();
     if (types.IsDerivedFrom(
             object.RuntimeType(), FrameworkContentElement::StaticTypeId())) {
-        return Aero::Core::VisualFacet::LogicalChildrenCount(
+        return AeroGuiInternal::LogicalChildrenCount(
             static_cast<const FrameworkContentElement&>(object));
     }
     if (types.IsDerivedFrom(
             object.RuntimeType(), FrameworkElement::StaticTypeId())) {
         return static_cast<const FrameworkElement&>(object)
             .GetLogicalChildrenCount();
-    }
-    if (types.IsDerivedFrom(object.RuntimeType(), Media::Visual::StaticTypeId())) {
-        return static_cast<const ::Aero::Media::Visual&>(object).logicalChildren_.Size();
     }
     return 0U;
 }
@@ -99,7 +196,7 @@ DependencyObject* LogicalTreeHelper::GetChild(
     const TypeRegistry& types = object.PropertyRegistry().Types();
     if (types.IsDerivedFrom(
             object.RuntimeType(), FrameworkContentElement::StaticTypeId())) {
-        return Aero::Core::VisualFacet::LogicalChild(
+        return AeroGuiInternal::LogicalChild(
             static_cast<const FrameworkContentElement&>(object), index);
     }
     if (types.IsDerivedFrom(
@@ -107,36 +204,50 @@ DependencyObject* LogicalTreeHelper::GetChild(
         return static_cast<const FrameworkElement&>(object)
             .GetLogicalChild(index);
     }
-    if (types.IsDerivedFrom(object.RuntimeType(), Media::Visual::StaticTypeId())) {
-        const auto& visual = static_cast<const ::Aero::Media::Visual&>(object);
-        return index < visual.logicalChildren_.Size()
-            ? visual.logicalChildren_[index] : nullptr;
-    }
     return nullptr;
 }
 
-::Aero::Media::Visual* LogicalTreeHelper::GetParent(const ::Aero::Media::Visual& visual) noexcept {
-    return visual.logicalParent_;
-}
-
-std::uint32_t LogicalTreeHelper::GetChildrenCount(const ::Aero::Media::Visual& visual) noexcept {
-    return visual.logicalChildren_.Size();
-}
-
-::Aero::Media::Visual* LogicalTreeHelper::GetChild(const ::Aero::Media::Visual& visual, std::uint32_t index) noexcept {
-    return index < visual.logicalChildren_.Size() ? visual.logicalChildren_[index] : nullptr;
+void ElementTree::InvalidateNodeHandle(::Aero::Media::Visual& node) noexcept {
+    const VisualHandle handle{node.handleIndex_, node.handleGeneration_};
+    if (handle.IsValid() && handle.index < handles_.Size()) {
+        UntrackInheritedValues(node);
+        HandleEntry& entry = handles_[handle.index];
+        if (entry.node == &node) {
+            entry.node = nullptr;
+            ++entry.generation;
+            if (entry.generation == 0U) ++entry.generation;
+        }
+    }
+    if (bindings_ != nullptr) {
+        static_cast<void>(bindings_->DetachObject(node));
+    }
+    if (styles_ != nullptr) {
+        if (auto* element = ::Aero::TryCast<UIElement>(&node)) {
+            static_cast<void>(styles_->DetachObject(*element));
+        }
+    }
+    if (values_ != nullptr) {
+        static_cast<void>(values_->DetachObject(node));
+    }
+    node.handleIndex_ = UINT32_MAX;
+    node.handleGeneration_ = 0U;
 }
 
 Media::Visual::~Visual() {
-    AERO_ASSERT(tree_ == nullptr);
-    AERO_ASSERT(logicalParent_ == nullptr);
-    AERO_ASSERT(visualParent_ == nullptr);
-    AERO_ASSERT(logicalChildren_.Empty());
-    AERO_ASSERT(visualChildren_.Empty());
-    AERO_ASSERT(!renderAttached_);
-    AERO_ASSERT(!renderQueued_);
-    AERO_ASSERT(!rendering_);
-    AERO_ASSERT(renderNodeId_ == Base::InvalidRenderNodeId);
+    // A discarded document may still own a parented visual subtree after the
+    // ElementTree unmount walk. Tear the node out of tree/layout/render state
+    // instead of asserting: WPF allows GC of a still-parented visual.
+    if (tree_ != nullptr) {
+        tree_->InvalidateNodeHandle(*this);
+    }
+    tree_ = nullptr;
+    visualParent_ = nullptr;
+    logicalParent_ = nullptr;
+    visualFlags_ = static_cast<std::uint8_t>(
+        visualFlags_ & static_cast<std::uint8_t>(
+            ~(kFlagLoaded | kFlagRenderAttached | kFlagRenderQueued |
+                kFlagRendering)));
+    renderNodeId_ = Base::InvalidRenderNodeId;
     if (lifetime_) static_cast<Aero::VisualLifetime*>(lifetime_.Get())->Invalidate();
 }
 
@@ -148,7 +259,7 @@ Base::Result<Aero::VisualLease> Aero::VisualLease::Acquire(
     if (lease.strong) return lease;
 
     Base::Result<Base::Ref<Base::Object>> lifetime =
-        Aero::Core::VisualFacet::AcquireLifetime(node);
+        AeroGuiInternal::AcquireLifetime(node);
     if (!lifetime) return lifetime.GetStatus();
     lease.lifetime = Base::Ref<VisualLifetime>::FromBorrowed(
         *static_cast<VisualLifetime*>(lifetime.Value().Get()));
@@ -166,12 +277,12 @@ ElementTree::ElementTree(
           this, &ElementTree::OnDataContextChanged) {}
 
 ElementTree::~ElementTree() noexcept {
-    if (lifecycleHook_.IsValid() && dispatcher_->CheckAccess()) {
-        (void)dispatcher_->RemoveFrameHook(lifecycleHook_);
-    }
+    // P3.2: no frame-hook registration; nothing to unregister.
     if (root_ != nullptr && dispatcher_->CheckAccess()) {
         (void)SetRoot(nullptr);
     }
+    lifecycleQueue_.Clear();
+    handles_.Clear();
 }
 
 Base::Result<void> ElementTree::Initialize() noexcept {
@@ -179,17 +290,11 @@ Base::Result<void> ElementTree::Initialize() noexcept {
     if (!access) {
         return access;
     }
-    if (lifecycleHook_.IsValid()) {
+    if (initialized_) {
         return {};
     }
-    Base::Result<DispatcherFrameHookHandle> hook = dispatcher_->RegisterFrameHook(
-        DispatcherFramePhase::Lifecycle,
-        &ElementTree::LifecycleHook,
-        this);
-    if (!hook) {
-        return hook.GetStatus();
-    }
-    lifecycleHook_ = hook.Value();
+    // P3.2: ViewFrame drives LifecycleHook() directly; no Lifecycle hook.
+    initialized_ = true;
     return {};
 }
 
@@ -215,18 +320,81 @@ Base::Result<VisualHandle> ElementTree::GetHandle(
     return entry.generation == handle.generation ? entry.node : nullptr;
 }
 
+namespace {
+
+// ContentControl / Window logical children are Content, while the applied
+// ControlTemplate lives only on the visual tree. Unmount, Loaded, and handle
+// walks must visit both, or template visuals keep tree_/layout/Loaded state
+// and abort in ~UIElement / ~Visual.
+template<class Fn>
+void ForEachElementTreeChild(
+    ::Aero::Media::Visual& node, Fn&& fn) noexcept {
+    const std::uint32_t visualCount =
+        ::Aero::Media::VisualTreeHelper::GetChildrenCount(node);
+    for (std::uint32_t index = 0U; index < visualCount; ++index) {
+        ::Aero::Media::Visual* child =
+            ::Aero::Media::VisualTreeHelper::GetChild(node, index);
+        if (child != nullptr) {
+            fn(*child);
+        }
+    }
+    const std::uint32_t logicalCount =
+        LogicalTreeHelper::GetChildrenCount(node);
+    for (std::uint32_t index = 0U; index < logicalCount; ++index) {
+        ::Aero::Media::Visual* child = ::Aero::TryCast<::Aero::Media::Visual>(
+            LogicalTreeHelper::GetChild(node, index));
+        if (child == nullptr) {
+            continue;
+        }
+        bool duplicate = false;
+        for (std::uint32_t visualIndex = 0U;
+             visualIndex < visualCount;
+             ++visualIndex) {
+            if (::Aero::Media::VisualTreeHelper::GetChild(
+                    node, visualIndex) == child) {
+                duplicate = true;
+                break;
+            }
+        }
+        if (!duplicate) {
+            fn(*child);
+        }
+    }
+}
+
+void ClearDetachedPresentation(::Aero::Media::Visual& node) noexcept {
+    UIElement* element = ::Aero::TryCast<UIElement>(&node);
+    if (element != nullptr) {
+        AeroGuiInternal::Layout(*element).layoutAttached = false;
+        AeroGuiInternal::Layout(*element).measureQueued = false;
+        AeroGuiInternal::Layout(*element).arrangeQueued = false;
+    }
+    AeroGuiInternal::RenderAttached(node) = false;
+    AeroGuiInternal::RenderQueued(node) = false;
+    AeroGuiInternal::Rendering(node) = false;
+    AeroGuiInternal::NodeId(node) = Base::InvalidRenderNodeId;
+}
+
+} // namespace
+
 Base::Result<void> ElementTree::CollectLogicalSubtree(
     ::Aero::Media::Visual& node,
     Base::Vector<::Aero::Media::Visual*>& nodes) noexcept {
+    for (::Aero::Media::Visual* existing : nodes) {
+        if (existing == &node) {
+            return {};
+        }
+    }
     Base::Result<void> appended = nodes.PushBack(&node);
     if (!appended) return appended.GetStatus();
-    for (::Aero::Media::Visual* child : node.logicalChildren_) {
-        if (child == nullptr) continue;
-        Base::Result<void> collected =
-            CollectLogicalSubtree(*child, nodes);
-        if (!collected) return collected.GetStatus();
-    }
-    return {};
+    Base::Result<void> childStatus{};
+    ForEachElementTreeChild(node, [&](::Aero::Media::Visual& child) noexcept {
+        if (!childStatus) {
+            return;
+        }
+        childStatus = CollectLogicalSubtree(child, nodes);
+    });
+    return childStatus;
 }
 
 Base::Result<void> ElementTree::RegisterHandleSubtree(::Aero::Media::Visual& node) noexcept {
@@ -293,36 +461,23 @@ Base::Result<void> ElementTree::RegisterHandleSubtree(::Aero::Media::Visual& nod
 }
 
 void ElementTree::InvalidateHandleSubtree(::Aero::Media::Visual& node) noexcept {
-    for (::Aero::Media::Visual* child : node.logicalChildren_) {
-        if (child != nullptr) InvalidateHandleSubtree(*child);
-    }
-    const VisualHandle handle{node.handleIndex_, node.handleGeneration_};
-    if (handle.IsValid() && handle.index < handles_.Size()) {
-        UntrackInheritedValues(node);
-        HandleEntry& entry = handles_[handle.index];
-        if (entry.node == &node) {
-            entry.node = nullptr;
-            ++entry.generation;
-            if (entry.generation == 0U) ++entry.generation;
-        }
-    }
-    node.handleIndex_ = UINT32_MAX;
-    node.handleGeneration_ = 0U;
+    ForEachElementTreeChild(node, [this](::Aero::Media::Visual& child) noexcept {
+        InvalidateHandleSubtree(child);
+    });
+    InvalidateNodeHandle(node);
 }
 
 Base::Result<void> ElementTree::TrackInheritedValues(
     ::Aero::Media::Visual& node) noexcept {
-    FrameworkElement* element = node.AsFrameworkElement();
+    FrameworkElement* element = ::Aero::TryCast<::Aero::FrameworkElement>(&(node));
     if (element == nullptr ||
         element->PropertyRegistry().Find(
             FrameworkElement::DataContextProperty) == nullptr) {
         return {};
     }
-    Base::Result<void> subscribed =
-        element->AddValueChangedHandlerChecked(
-            FrameworkElement::DataContextProperty,
-            dataContextChangedHandler_);
-    if (!subscribed) return subscribed.GetStatus();
+    element->AddValueChangedHandler(
+        FrameworkElement::DataContextProperty,
+        dataContextChangedHandler_);
     Base::Result<void> invalidated = values_->Invalidate(
         *element, FrameworkElement::DataContextProperty);
     if (!invalidated) {
@@ -335,7 +490,7 @@ Base::Result<void> ElementTree::TrackInheritedValues(
 }
 
 void ElementTree::UntrackInheritedValues(::Aero::Media::Visual& node) noexcept {
-    FrameworkElement* element = node.AsFrameworkElement();
+    FrameworkElement* element = ::Aero::TryCast<::Aero::FrameworkElement>(&(node));
     if (element == nullptr ||
         element->PropertyRegistry().Find(
             FrameworkElement::DataContextProperty) == nullptr) {
@@ -361,7 +516,7 @@ Base::Result<void> ElementTree::VerifyMutation(
     if (!access) {
         return access;
     }
-    if (!lifecycleHook_.IsValid()) {
+    if (!initialized_) {
         return InvalidState("ElementTree must be initialized before mutation");
     }
     if (mutating_) {
@@ -379,12 +534,12 @@ Base::Result<void> ElementTree::VerifyMutation(
 bool ElementTree::IsLogicalAncestor(
     const ::Aero::Media::Visual& possibleAncestor,
     const ::Aero::Media::Visual& node) const noexcept {
-    const ::Aero::Media::Visual* current = node.logicalParent_;
+    const ::Aero::DependencyObject* current = node.logicalParent_;
     while (current != nullptr) {
         if (current == &possibleAncestor) {
             return true;
         }
-        current = current->logicalParent_;
+        current = LogicalTreeHelper::GetParent(*current);
     }
     return false;
 }
@@ -406,7 +561,12 @@ Base::Result<void> ElementTree::StageLifecycleSubtree(
     ::Aero::Media::Visual& node,
     bool loaded,
     Base::Vector<LifecycleRecord>& staged) noexcept {
-    if (node.loaded_ != loaded) {
+    for (const LifecycleRecord& record : staged) {
+        if (record.node.Resolve() == &node) {
+            return {};
+        }
+    }
+    if (node.LoadedFlag() != loaded) {
         Base::Result<Aero::VisualLease> lease =
             Aero::VisualLease::Acquire(node);
         if (!lease) return lease.GetStatus();
@@ -418,13 +578,14 @@ Base::Result<void> ElementTree::StageLifecycleSubtree(
             staged.PushBack(std::move(record));
         if (!appended) return appended.GetStatus();
     }
-    for (::Aero::Media::Visual* child : node.logicalChildren_) {
-        if (child == nullptr) continue;
-        Base::Result<void> childResult =
-            StageLifecycleSubtree(*child, loaded, staged);
-        if (!childResult) return childResult.GetStatus();
-    }
-    return {};
+    Base::Result<void> childStatus{};
+    ForEachElementTreeChild(node, [&](::Aero::Media::Visual& child) noexcept {
+        if (!childStatus) {
+            return;
+        }
+        childStatus = StageLifecycleSubtree(child, loaded, staged);
+    });
+    return childStatus;
 }
 
 void ElementTree::PublishLifecycle(
@@ -441,18 +602,30 @@ void ElementTree::PublishLifecycle(
 }
 
 void ElementTree::ApplyLoadedSubtree(::Aero::Media::Visual& node, bool loaded) noexcept {
-    node.loaded_ = loaded;
-    for (::Aero::Media::Visual* child : node.logicalChildren_) {
-        if (child != nullptr) ApplyLoadedSubtree(*child, loaded);
+    if (node.LoadedFlag() == loaded) {
+        return;
     }
+    node.SetLoadedFlag(loaded);
+    ForEachElementTreeChild(node, [this, loaded](::Aero::Media::Visual& child) noexcept {
+        ApplyLoadedSubtree(child, loaded);
+    });
 }
 
 void ElementTree::SetTreeSubtree(
     ::Aero::Media::Visual& node, ElementTree* tree) noexcept {
-    node.tree_ = tree;
-    for (::Aero::Media::Visual* child : node.logicalChildren_) {
-        if (child != nullptr) SetTreeSubtree(*child, tree);
+    if (node.tree_ == tree) {
+        return;
     }
+    node.tree_ = tree;
+    if (tree == nullptr) {
+        ClearDetachedPresentation(node);
+    }
+    ForEachElementTreeChild(node, [this, tree, &node](::Aero::Media::Visual& child) noexcept {
+        if (tree != nullptr) {
+            (void)values_->SetInheritanceParent(child, &node);
+        }
+        SetTreeSubtree(child, tree);
+    });
 }
 
 Base::Result<void> ElementTree::SetRoot(::Aero::Media::Visual* root) noexcept {
@@ -525,18 +698,31 @@ Base::Result<void> ElementTree::AttachLogical(
             Base::ErrorCode::CycleDetected,
             "Logical tree attachment would create a cycle");
     }
-    if (child.logicalParent_ != nullptr || child.tree_ != nullptr ||
-        parent.tree_ != this) {
+    if (parent.tree_ != this) {
+        return InvalidState(
+            "Logical child must be detached and parent must belong to this tree");
+    }
+    if (child.tree_ == this) {
+        if (child.logicalParent_ != nullptr &&
+            child.logicalParent_ != &parent) {
+            return InvalidState(
+                "Logical child must be detached and parent must belong to this tree");
+        }
+        child.logicalParent_ = &parent;
+        Base::Result<void> inherited =
+            values_->SetInheritanceParent(child, &parent);
+        if (!inherited) {
+            return inherited.GetStatus();
+        }
+        return {};
+    }
+    if (child.logicalParent_ != nullptr || child.tree_ != nullptr) {
         return InvalidState(
             "Logical child must be detached and parent must belong to this tree");
     }
 
-    Base::Result<void> childReserved = parent.logicalChildren_.Reserve(
-        parent.logicalChildren_.Size() + 1U);
-    if (!childReserved) return childReserved.GetStatus();
-
     Base::Vector<LifecycleRecord> staged;
-    if (parent.loaded_) {
+    if (parent.LoadedFlag()) {
         Base::Result<void> prepared =
             StageLifecycleSubtree(child, true, staged);
         if (!prepared) return prepared.GetStatus();
@@ -555,45 +741,24 @@ Base::Result<void> ElementTree::AttachLogical(
     }
 
     mutating_ = true;
-    Base::Result<void> appended =
-        parent.logicalChildren_.PushBack(&child);
-    AERO_ASSERT(appended);
-    (void)appended;
     child.logicalParent_ = &parent;
     SetTreeSubtree(child, this);
     ++version_;
-    if (parent.loaded_) ApplyLoadedSubtree(child, true);
+    if (parent.LoadedFlag()) ApplyLoadedSubtree(child, true);
     PublishLifecycle(staged);
     mutating_ = false;
     return {};
 }
 
-void ElementTree::RemoveChild(
-    Base::Vector<::Aero::Media::Visual*>& children,
-    ::Aero::Media::Visual& child) noexcept {
-    for (std::uint32_t index = 0U; index < children.Size(); ++index) {
-        if (children[index] == &child) {
-            for (std::uint32_t current = index + 1U;
-                 current < children.Size(); ++current) {
-                children[current - 1U] = children[current];
-            }
-            children.PopBack();
-            return;
-        }
-    }
-}
-
 Base::Result<void> ElementTree::DetachLogical(
     ::Aero::Media::Visual& parent,
     ::Aero::Media::Visual& child) noexcept {
-    // A complete logical subtree may already have been removed from this
-    // ElementTree while its internal parent/child ownership is still being
-    // dismantled leaf-first. Finish that detached-subtree relationship without
-    // re-entering inheritance or lifecycle services owned by the old tree.
     if (child.logicalParent_ == &parent &&
         child.tree_ == nullptr && parent.tree_ == nullptr) {
-        RemoveChild(parent.logicalChildren_, child);
         child.logicalParent_ = nullptr;
+        return {};
+    }
+    if (child.logicalParent_ == nullptr) {
         return {};
     }
     Base::Result<void> verified = VerifyMutation(parent, &child);
@@ -603,7 +768,7 @@ Base::Result<void> ElementTree::DetachLogical(
     }
 
     Base::Vector<LifecycleRecord> staged;
-    if (child.loaded_) {
+    if (child.LoadedFlag()) {
         Base::Result<void> prepared =
             StageLifecycleSubtree(child, false, staged);
         if (!prepared) return prepared.GetStatus();
@@ -617,8 +782,7 @@ Base::Result<void> ElementTree::DetachLogical(
     if (!inherited) return inherited.GetStatus();
 
     mutating_ = true;
-    if (child.loaded_) ApplyLoadedSubtree(child, false);
-    RemoveChild(parent.logicalChildren_, child);
+    if (child.LoadedFlag()) ApplyLoadedSubtree(child, false);
     child.logicalParent_ = nullptr;
     SetTreeSubtree(child, nullptr);
     InvalidateHandleSubtree(child);
@@ -640,17 +804,50 @@ Base::Result<void> ElementTree::AttachVisual(
             Base::ErrorCode::CycleDetected,
             "Visual tree attachment would create a cycle");
     }
-    if (child.visualParent_ != nullptr || parent.tree_ != this ||
-        child.tree_ != this) {
+    if (child.visualParent_ == &parent) {
+        ++version_;
+        return {};
+    }
+    if ((parent.tree_ != nullptr && parent.tree_ != this) ||
+        (child.tree_ != nullptr && child.tree_ != this)) {
         return InvalidState("Visual nodes must be logical members of this tree");
     }
-    Base::Result<void> appended = parent.visualChildren_.PushBack(&child);
-    if (!appended) {
-        return appended;
+    if (child.visualParent_ != nullptr && child.visualParent_ != &parent) {
+        child.visualParent_->RemoveVisualChild(&child);
     }
-    ::Aero::Media::Visual* const oldParent = child.visualParent_;
-    child.visualParent_ = &parent;
-    child.OnVisualParentChanged(oldParent);
+    Base::Result<void> stored = EnsureVisualChildStorage(parent, child);
+    if (!stored) return stored.GetStatus();
+    if (child.visualParent_ != &parent) {
+        parent.AddVisualChild(&child);
+    }
+    if (parent.tree_ == this && child.tree_ != this) {
+        SetTreeSubtree(child, this);
+    }
+    if (parent.PropertyRegistry().Types().IsDerivedFrom(
+            parent.RuntimeType(), Controls::Control::StaticTypeId()) &&
+        ::Aero::TryCast<::Aero::UIElement>(&(child)) != nullptr) {
+        auto& control = static_cast<Controls::Control&>(parent);
+        const bool isContentControl =
+            parent.PropertyRegistry().Types().IsDerivedFrom(
+                parent.RuntimeType(),
+                Controls::ContentControl::StaticTypeId());
+        const bool contentVisual =
+            isContentControl &&
+            AeroGuiInternal::ContentControlContent(
+                static_cast<Controls::ContentControl&>(parent)) ==
+                ::Aero::TryCast<::Aero::UIElement>(&(child));
+        // ContentControl visual children that arrive through a parent
+        // ControlTemplate (gallery SampleControlTemplate's ScrollViewer →
+        // ContentPresenter) are content, not this control's template root.
+        // Stealing TemplateRoot here prevents the real ScrollViewer template
+        // from laying out, so the sample body measures to 0 height.
+        // TemplateEngine::SetRoot assigns TemplateRoot after AttachElement.
+        if (AeroGuiInternal::TemplateRoot(control) == nullptr &&
+            !contentVisual &&
+            !isContentControl) {
+            (void)AeroGuiInternal::SetTemplateRoot(control, ::Aero::TryCast<::Aero::UIElement>(&(child)));
+        }
+    }
     ++version_;
     return {};
 }
@@ -658,25 +855,22 @@ Base::Result<void> ElementTree::AttachVisual(
 Base::Result<void> ElementTree::DetachVisual(
     ::Aero::Media::Visual& parent,
     ::Aero::Media::Visual& child) noexcept {
-    if (child.visualParent_ == &parent &&
-        child.tree_ == nullptr && parent.tree_ == nullptr) {
-        RemoveChild(parent.visualChildren_, child);
-        ::Aero::Media::Visual* const oldParent = child.visualParent_;
-        child.visualParent_ = nullptr;
-        child.OnVisualParentChanged(oldParent);
+    if (child.visualParent_ == nullptr || child.visualParent_ != &parent) {
+        return {};
+    }
+    if (child.tree_ == nullptr && parent.tree_ == nullptr) {
+        parent.RemoveVisualChild(&child);
         return {};
     }
     Base::Result<void> verified = VerifyMutation(parent, &child);
     if (!verified) {
         return verified;
     }
-    if (child.visualParent_ != &parent) {
+    if ((child.tree_ != nullptr && child.tree_ != this) ||
+        (parent.tree_ != nullptr && parent.tree_ != this)) {
         return NotFound("Visual parent-child relationship was not found");
     }
-    RemoveChild(parent.visualChildren_, child);
-    ::Aero::Media::Visual* const oldParent = child.visualParent_;
-    child.visualParent_ = nullptr;
-    child.OnVisualParentChanged(oldParent);
+    parent.RemoveVisualChild(&child);
     ++version_;
     return {};
 }
@@ -686,12 +880,22 @@ Base::Result<void> ElementTree::DetachNode(::Aero::Media::Visual& node) noexcept
     if (!verified) {
         return verified;
     }
-    if (auto* ue = node.AsUIElement()) {
-        ue->DetachElementFacets();
+    Base::Vector<::Aero::Media::Visual*> visualChildren;
+    const std::uint32_t visualCount =
+        Media::VisualTreeHelper::GetChildrenCount(node);
+    Base::Result<void> reserved = visualChildren.Reserve(visualCount);
+    if (!reserved) return reserved.GetStatus();
+    for (std::uint32_t index = 0U; index < visualCount; ++index) {
+        ::Aero::Media::Visual* child =
+            Media::VisualTreeHelper::GetChild(node, index);
+        if (child != nullptr) {
+            Base::Result<void> appended = visualChildren.PushBack(child);
+            if (!appended) return appended.GetStatus();
+        }
     }
-    while (!node.visualChildren_.Empty()) {
+    for (std::uint32_t index = visualChildren.Size(); index > 0U; --index) {
         Base::Result<void> detached = DetachVisual(
-            node, *node.visualChildren_[node.visualChildren_.Size() - 1U]);
+            node, *visualChildren[index - 1U]);
         if (!detached) {
             return detached;
         }
@@ -702,15 +906,33 @@ Base::Result<void> ElementTree::DetachNode(::Aero::Media::Visual& node) noexcept
             return detached;
         }
     }
-    while (!node.logicalChildren_.Empty()) {
-        Base::Result<void> detached = DetachLogical(
-            node, *node.logicalChildren_[node.logicalChildren_.Size() - 1U]);
+    Base::Vector<::Aero::Media::Visual*> logicalChildren;
+    const std::uint32_t logicalCount = LogicalTreeHelper::GetChildrenCount(node);
+    reserved = logicalChildren.Reserve(logicalCount);
+    if (!reserved) return reserved.GetStatus();
+    for (std::uint32_t index = 0U; index < logicalCount; ++index) {
+        ::Aero::Media::Visual* child = ::Aero::TryCast<::Aero::Media::Visual>(
+            LogicalTreeHelper::GetChild(node, index));
+        if (child != nullptr) {
+            Base::Result<void> appended = logicalChildren.PushBack(child);
+            if (!appended) return appended.GetStatus();
+        }
+    }
+    for (std::uint32_t index = logicalChildren.Size(); index > 0U; --index) {
+        ::Aero::Media::Visual* child = logicalChildren[index - 1U];
+        if (child->GetLogicalParent() != &node) continue;
+        Base::Result<void> detached = DetachLogical(node, *child);
         if (!detached) {
             return detached;
         }
     }
     if (node.logicalParent_ != nullptr) {
-        return DetachLogical(*node.logicalParent_, node);
+        ::Aero::Media::Visual* logicalParent =
+            ::Aero::TryCast<::Aero::Media::Visual>(node.logicalParent_);
+        if (logicalParent != nullptr) {
+            return DetachLogical(*logicalParent, node);
+        }
+        node.logicalParent_ = nullptr;
     }
     if (root_ == &node) {
         return SetRoot(nullptr);
@@ -730,7 +952,8 @@ Base::Result<std::uint32_t> ElementTree::FlushLifecycle() noexcept {
     lifecycleQueue_.Clear();
 
     std::uint32_t count = 0U;
-    for (const LifecycleRecord& record : snapshot) {
+    for (std::uint32_t i = 0U; i < snapshot.Size(); ++i) {
+        const LifecycleRecord& record = snapshot[i];
         ::Aero::Media::Visual* node = record.node.Resolve();
         if (node == nullptr) continue;
         if (lifecycleHandler_ != nullptr) {
@@ -751,8 +974,8 @@ void ElementTree::LifecycleHook(void* context) noexcept {
 
 Base::Result<void> ElementTree::AttachLayout(
     ::Aero::Media::Visual& parent, ::Aero::Media::Visual& child, bool& attached) noexcept {
-    UIElement* parentElement = parent.AsUIElement();
-    UIElement* childElement = child.AsUIElement();
+    UIElement* parentElement = ::Aero::TryCast<::Aero::UIElement>(&(parent));
+    UIElement* childElement = ::Aero::TryCast<::Aero::UIElement>(&(child));
     if (layout_ == nullptr || parentElement == nullptr || childElement == nullptr) {
         return {};
     }
@@ -764,7 +987,8 @@ Base::Result<void> ElementTree::AttachLayout(
 
 Base::Result<void> ElementTree::AttachRender(
     ::Aero::Media::Visual& parent, ::Aero::Media::Visual& child, bool& attached) noexcept {
-    if (renderer_ == nullptr) {
+    if (renderer_ == nullptr ||
+        AeroGuiInternal::RenderRuntime(parent) != static_cast<void*>(renderer_)) {
         return {};
     }
     Base::Result<void> result = renderer_->Attach(parent, child);
@@ -776,8 +1000,8 @@ Base::Result<void> ElementTree::AttachRender(
 Base::Result<void> ElementTree::DetachLayout(
     ::Aero::Media::Visual& parent, ::Aero::Media::Visual& child, bool& attached) noexcept {
     if (!attached) return {};
-    UIElement* parentElement = parent.AsUIElement();
-    UIElement* childElement = child.AsUIElement();
+    UIElement* parentElement = ::Aero::TryCast<::Aero::UIElement>(&(parent));
+    UIElement* childElement = ::Aero::TryCast<::Aero::UIElement>(&(child));
     if (layout_ == nullptr || parentElement == nullptr || childElement == nullptr) {
         return InvalidState("Attached layout edge has no layout service");
     }
@@ -842,9 +1066,6 @@ Base::Result<Aero::ElementAttachment> ElementTree::AttachElement(
         return handle.GetStatus();
     }
     state.childHandle = handle.Value();
-    if (auto* ue = child.AsUIElement()) {
-        ue->AttachElementFacets();
-    }
     return state;
 }
 
@@ -939,20 +1160,19 @@ Base::Result<Aero::VisualAttachment> ElementTree::AttachVisualChild(
 
     Base::Result<void> layout = AttachLayout(visualParent, child, state.layoutAttached);
     if (!layout) {
-        (void)DetachVisual(visualParent, child);
+        // Keep the visual parent. Rolling back returned UserControl content
+        // to Window, so ColorSelector ArrangeOverride never hosted LayoutRoot.
         return layout.GetStatus();
     }
     Base::Result<void> render = AttachRender(visualParent, child, state.renderAttached);
     if (!render) {
-        (void)DetachLayout(visualParent, child, state.layoutAttached);
-        (void)DetachVisual(visualParent, child);
         return render.GetStatus();
     }
     if (state.renderAttached && renderer_ != nullptr) {
         auto attachDescendants = [&](auto&& self, ::Aero::Media::Visual& parent) noexcept
             -> Base::Result<void> {
             for (::Aero::Media::Visual* descendant :
-                 Aero::Core::RenderFacet::RenderChildren(parent)) {
+                 AeroGuiInternal::RenderChildren(parent)) {
                 if (descendant == nullptr) continue;
                 Base::Result<void> attached = renderer_->Attach(parent, *descendant);
                 if (!attached) return attached.GetStatus();
@@ -1039,7 +1259,7 @@ Base::Result<Aero::RootAttachment> ElementTree::AttachRoot(
     if (!context) return context.GetStatus();
     state.contextAttached = true;
 
-    UIElement* layoutRoot = root.AsUIElement();
+    UIElement* layoutRoot = ::Aero::TryCast<::Aero::UIElement>(&(root));
     if (layoutRoot != nullptr) {
         if (layout_ == nullptr) {
             (void)SetRoot(nullptr);
@@ -1071,28 +1291,32 @@ Base::Result<void> ElementTree::DetachRoot(
     if (state.root == nullptr) return InvalidState("Root attachment is incomplete");
 
     if (state.renderAttached) {
-        Base::Result<void> result = renderer_->SetRoot(nullptr);
-        if (!result) return result.GetStatus();
+        if (renderer_ != nullptr) {
+            Base::Result<void> result = renderer_->SetRoot(nullptr);
+            if (!result) return result.GetStatus();
+        }
         state.renderAttached = false;
     }
     if (state.layoutAttached) {
-        Base::Result<void> result = layout_->SetRoot(nullptr, {});
-        if (!result) {
-            if (renderer_ != nullptr) {
-                Base::Result<void> restored =
-                    renderer_->SetRoot(state.root);
-                if (restored) state.renderAttached = true;
+        if (layout_ != nullptr) {
+            Base::Result<void> result = layout_->SetRoot(nullptr, {});
+            if (!result) {
+                if (renderer_ != nullptr) {
+                    Base::Result<void> restored =
+                        renderer_->SetRoot(state.root);
+                    if (restored) state.renderAttached = true;
+                }
+                return result.GetStatus();
             }
-            return result.GetStatus();
         }
         state.layoutAttached = false;
     }
     if (state.contextAttached) {
         Base::Result<void> result = SetRoot(nullptr);
         if (!result) {
-            if (state.root->AsUIElement() != nullptr && layout_ != nullptr) {
+            if (::Aero::TryCast<::Aero::UIElement>(state.root) != nullptr && layout_ != nullptr) {
                 Base::Result<void> restored =
-                    layout_->SetRoot(state.root->AsUIElement(), state.availableSize);
+                    layout_->SetRoot(::Aero::TryCast<::Aero::UIElement>(state.root), state.availableSize);
                 if (restored) state.layoutAttached = true;
             }
             if (renderer_ != nullptr) {
@@ -1106,6 +1330,209 @@ Base::Result<void> ElementTree::DetachRoot(
     }
     return {};
 }
+
+Base::Result<void> ElementTree::AttachVisualGraph(
+    ::Aero::Media::Visual& visualRoot,
+    Base::Span<Markup::VisualEdge> edges,
+    Size availableSize,
+    RootAttachment& outAttachment) noexcept {
+    if (layout_ == nullptr || outAttachment.IsAttached() ||
+        !IsValidLayoutSize(availableSize)) {
+        return InvalidState(
+            "Gui root cannot be attached in its current state");
+    }
+    AttachPresentation(layout_, renderer_);
+    Base::Result<Aero::RootAttachment> rootAttached =
+        AttachRoot(visualRoot, availableSize);
+    if (!rootAttached) return rootAttached.GetStatus();
+    outAttachment = std::move(rootAttached).Value();
+
+    auto parentRenderReady =
+        [this, &visualRoot](::Aero::Media::Visual& parent) noexcept {
+            if (&parent == &visualRoot) return true;
+            if (renderer_ == nullptr) return true;
+            return AeroGuiInternal::RenderRuntime(parent) ==
+                static_cast<void*>(renderer_);
+        };
+
+    std::uint32_t attached = 0U;
+    while (attached < edges.Size()) {
+        bool progressed = false;
+        for (Markup::VisualEdge& edge : edges) {
+            if (edge.state.logicalAttached || edge.parent == nullptr ||
+                edge.child == nullptr ||
+                edge.parent->GetTree() != this ||
+                !parentRenderReady(*edge.parent)) {
+                continue;
+            }
+            Base::Result<Aero::ElementAttachment> edgeAttached =
+                AttachElement(*edge.parent, *edge.child);
+            if (!edgeAttached) {
+                static_cast<void>(DetachVisualGraph(outAttachment, edges));
+                return edgeAttached.GetStatus();
+            }
+            edge.state = std::move(edgeAttached).Value();
+            ++attached;
+            progressed = true;
+        }
+        if (!progressed) break;
+    }
+    return {};
+}
+
+Base::Result<void> ElementTree::CompleteVisualEdges(
+    Base::Span<Markup::VisualEdge> edges) noexcept {
+    if (root_ == nullptr) {
+        return InvalidState(
+            "Deferred visual edges require an attached root");
+    }
+    std::uint32_t attached = 0U;
+    for (const Markup::VisualEdge& edge : edges) {
+        if (edge.state.logicalAttached) ++attached;
+    }
+    while (attached < edges.Size()) {
+        bool progressed = false;
+        for (Markup::VisualEdge& edge : edges) {
+            if (edge.state.logicalAttached ||
+                edge.parent == nullptr || edge.child == nullptr ||
+                edge.parent->GetTree() != this) {
+                continue;
+            }
+            if (renderer_ != nullptr &&
+                AeroGuiInternal::RenderRuntime(*edge.parent) !=
+                    static_cast<void*>(renderer_) &&
+                edge.parent != root_) {
+                continue;
+            }
+            if (edge.child->GetTree() == this &&
+                AeroGuiInternal::RenderAttached(*edge.child)) {
+                continue;
+            }
+            Base::Result<Aero::ElementAttachment> edgeAttached =
+                AttachElement(*edge.parent, *edge.child);
+            if (!edgeAttached) return edgeAttached.GetStatus();
+            edge.state = std::move(edgeAttached).Value();
+            ++attached;
+            progressed = true;
+        }
+        if (!progressed) break;
+    }
+    return {};
+}
+
+Base::Result<void> ElementTree::ResizeRoot(
+    UIElement& layoutRoot,
+    Size availableSize,
+    ::Aero::Media::Visual* renderRoot) noexcept {
+    if (layout_ == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotInitialized,
+            "View resize requires an attached layout root");
+    }
+    if (!IsValidLayoutSize(availableSize)) {
+        return InvalidArgument("View dimensions are invalid");
+    }
+    Base::Result<void> resized = layout_->SetRoot(&layoutRoot, availableSize);
+    if (!resized) return resized.GetStatus();
+    if (renderer_ != nullptr && renderRoot != nullptr) {
+        return renderer_->Invalidate(
+            *renderRoot, Aero::Render::RenderInvalidation::State);
+    }
+    return {};
+}
+
+Base::Result<void> ElementTree::DetachVisualGraph(
+    RootAttachment& attachment,
+    Base::Span<Markup::VisualEdge> edges) noexcept {
+    if (!attachment.IsAttached() && root_ == nullptr) return {};
+
+    const auto reconcileAttachment =
+        [this](Markup::VisualEdge& edge) noexcept {
+            auto& state = edge.state;
+            if (state.child == nullptr) {
+                state.logicalAttached = false;
+                state.visualAttached = false;
+                state.layoutAttached = false;
+                state.renderAttached = false;
+                return;
+            }
+            state.logicalAttached =
+                state.logicalParent != nullptr &&
+                state.child->GetLogicalParent() == state.logicalParent;
+            state.visualAttached =
+                state.visualParent != nullptr &&
+                state.child->GetVisualParent() == state.visualParent;
+
+            Aero::UIElement* childElement = ::Aero::TryCast<::Aero::UIElement>(state.child);
+            Aero::UIElement* parentElement =
+                state.visualParent != nullptr
+                ? ::Aero::TryCast<::Aero::UIElement>(state.visualParent)
+                : nullptr;
+            if (childElement != nullptr &&
+                childElement->GetIsLayoutAttached() &&
+                AeroGuiInternal::LayoutEngineOf(*childElement) == nullptr) {
+                AeroGuiInternal::Layout(*childElement).layoutAttached = false;
+                AeroGuiInternal::Layout(*childElement).measureQueued = false;
+                AeroGuiInternal::Layout(*childElement).arrangeQueued = false;
+            }
+            state.layoutAttached =
+                layout_ != nullptr && childElement != nullptr &&
+                parentElement != nullptr &&
+                childElement->GetIsLayoutAttached() &&
+                AeroGuiInternal::LayoutEngineOf(*childElement) == layout_ &&
+                childElement->LayoutParent() == parentElement;
+
+            if (AeroGuiInternal::RenderAttached(*state.child) &&
+                AeroGuiInternal::RenderRuntime(*state.child) == nullptr) {
+                AeroGuiInternal::RenderAttached(*state.child) = false;
+                AeroGuiInternal::RenderQueued(*state.child) = false;
+                AeroGuiInternal::Rendering(*state.child) = false;
+                AeroGuiInternal::NodeId(*state.child) = Base::InvalidRenderNodeId;
+                AeroGuiInternal::RenderValid(*state.child) = false;
+            }
+            state.renderAttached =
+                renderer_ != nullptr &&
+                AeroGuiInternal::RenderAttached(*state.child) &&
+                AeroGuiInternal::RenderRuntime(*state.child) == renderer_ &&
+                AeroGuiInternal::RenderParent(*state.child) == state.visualParent;
+        };
+
+    std::uint32_t remaining = 0U;
+    for (Markup::VisualEdge& edge : edges) {
+        reconcileAttachment(edge);
+        if (edge.state.IsAttached()) ++remaining;
+    }
+    while (remaining > 0U) {
+        bool progressed = false;
+        for (Markup::VisualEdge& edge : edges) {
+            reconcileAttachment(edge);
+            if (!edge.state.IsAttached()) continue;
+            bool hasAttachedChild = false;
+            for (const Markup::VisualEdge& candidate : edges) {
+                if (candidate.state.IsAttached() &&
+                    candidate.parent == edge.child) {
+                    hasAttachedChild = true;
+                    break;
+                }
+            }
+            if (hasAttachedChild) continue;
+            Base::Result<void> detached = DetachElement(edge.state);
+            if (!detached) return detached.GetStatus();
+            --remaining;
+            progressed = true;
+        }
+        if (!progressed) {
+            return InvalidState(
+                "Visual edges cannot be detached leaf-first");
+        }
+    }
+
+    Base::Result<void> rootDetached = DetachRoot(attachment);
+    if (!rootDetached) return rootDetached.GetStatus();
+    attachment = {};
+    return {};
+}
+
 
 } // namespace Aero
 
@@ -1160,13 +1587,13 @@ void EventRouter::InvokeNode(
 
     if (catalog.Types().IsDerivedFrom(
             node.RuntimeType(), UIElement::StaticTypeId())) {
-        Aero::Core::InputEventFacet::InvokeHandlers(
+        AeroGuiInternal::InvokeHandlers(
             static_cast<UIElement&>(node), args.GetRoutedEvent(), args);
         return;
     }
     if (catalog.Types().IsDerivedFrom(
             node.RuntimeType(), ContentElement::StaticTypeId())) {
-        Aero::Core::InputEventFacet::InvokeContentHandlers(
+        AeroGuiInternal::InvokeContentHandlers(
             static_cast<ContentElement&>(node), args.GetRoutedEvent(), args);
     }
 }
@@ -1220,84 +1647,3 @@ void EventRouter::CleanupClassHandlers() noexcept {
 }
 
 } // namespace Aero
-
-namespace Aero::Core {
-
-BindingEngine* DependencyPropertyFacet::BindingEngineFor(const Aero::UIElement& element) noexcept {
-    ElementTree* tree = element.GetTree();
-    ElementHost* host = tree != nullptr ? tree->Host() : nullptr;
-    return host != nullptr ? host->GetFacet<BindingEngine>() : nullptr;
-}
-
-StyleEngine* DependencyPropertyFacet::StyleEngineFor(const Aero::UIElement& element) noexcept {
-    ElementTree* tree = element.GetTree();
-    ElementHost* host = tree != nullptr ? tree->Host() : nullptr;
-    return host != nullptr ? host->GetFacet<StyleEngine>() : nullptr;
-}
-
-AnimationEngine* DependencyPropertyFacet::AnimationEngineFor(const Aero::UIElement& element) noexcept {
-    ElementTree* tree = element.GetTree();
-    ElementHost* host = tree != nullptr ? tree->Host() : nullptr;
-    return host != nullptr ? host->GetFacet<AnimationEngine>() : nullptr;
-}
-
-void* DependencyPropertyFacet::TemplateRuntime(const ::Aero::Media::Visual& visual) noexcept {
-    ElementTree* tree = visual.GetTree();
-    ElementHost* host = tree != nullptr ? tree->Host() : nullptr;
-    auto* facet = host != nullptr ? host->GetFacet<TemplateEngineFacet>() : nullptr;
-    return facet != nullptr ? static_cast<void*>(facet->Engine()) : nullptr;
-}
-
-void* DependencyPropertyFacet::MeshResourcesRuntime(const ::Aero::Media::Visual& visual) noexcept {
-    ElementTree* tree = visual.GetTree();
-    ElementHost* host = tree != nullptr ? tree->Host() : nullptr;
-    auto* facet = host != nullptr ? host->GetFacet<MeshResourceFacet>() : nullptr;
-    return facet != nullptr ? static_cast<void*>(facet->Resources()) : nullptr;
-}
-
-Base::Object* DependencyPropertyFacet::FindName(
-    const Aero::UIElement& element,
-    Base::StringView name,
-    Meta::TypeId expectedType) noexcept {
-    ElementTree* tree = element.GetTree();
-    ElementHost* services = tree != nullptr ? tree->Host() : nullptr;
-    auto* scope = services != nullptr
-        ? services->GetFacet<NameScopeFacet>()
-        : nullptr;
-    return scope != nullptr ? scope->FindName(name, expectedType) : nullptr;
-}
-
-void* TextLayoutFacet::TextLayoutRuntime(const ::Aero::Media::Visual& visual) noexcept {
-    ElementTree* tree = visual.GetTree();
-    ElementHost* host = tree != nullptr ? tree->Host() : nullptr;
-    auto* facet = host != nullptr ? host->GetFacet<TextLayoutServiceFacet>() : nullptr;
-    return facet != nullptr ? static_cast<void*>(facet->Layout()) : nullptr;
-}
-
-EventRouter* InputEventFacet::EventRouterFor(const Aero::UIElement& element) noexcept {
-    ElementTree* tree = element.GetTree();
-    ElementHost* services = tree != nullptr ? tree->Host() : nullptr;
-    return services != nullptr ? services->GetFacet<EventRouter>() : nullptr;
-}
-
-InputRouter* InputEventFacet::InputRouterFor(const Aero::UIElement& element) noexcept {
-    ElementTree* tree = element.GetTree();
-    ElementHost* services = tree != nullptr ? tree->Host() : nullptr;
-    return services != nullptr ? services->GetFacet<InputRouter>() : nullptr;
-}
-
-void* InteractionStateFacet::VisualStateRuntime(const ::Aero::Media::Visual& visual) noexcept {
-    ElementTree* tree = visual.GetTree();
-    ElementHost* host = tree != nullptr ? tree->Host() : nullptr;
-    auto* facet = host != nullptr ? host->GetFacet<VisualStateServiceFacet>() : nullptr;
-    return facet != nullptr ? static_cast<void*>(facet->Manager()) : nullptr;
-}
-
-void* InteractionStateFacet::ControlBehaviorRuntime(const ::Aero::Media::Visual& visual) noexcept {
-    ElementTree* tree = visual.GetTree();
-    ElementHost* host = tree != nullptr ? tree->Host() : nullptr;
-    auto* facet = host != nullptr ? host->GetFacet<ControlBehaviorFacet>() : nullptr;
-    return facet != nullptr ? static_cast<void*>(facet->Behaviors()) : nullptr;
-}
-
-} // namespace Aero::Core

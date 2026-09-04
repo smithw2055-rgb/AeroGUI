@@ -7,38 +7,30 @@ commands, styles, templates, drawing operations, and value types. Runtime
 coordination is owned by view composition and must not become a second public
 framework of managers, services, or access objects.
 
-## Ownership
+## Current kernel
 
-The current implementation keeps complete UI and control runtime declarations
-behind the source-only domain aggregates:
+Installed headers keep the WPF surface. Kernel-private operations live in
+`src/gui/internal/` and are reached through one friend,
+`friend class ::Aero::AeroGuiInternal`.
 
-- `src/gui/GuiPrivate.hpp`
-- `src/gui/controls/ControlsPrivate.hpp`
+`View` / `ElementTree` is the service hub: named pointers to layout, bindings,
+styles, events, input, animations, visual states, templates, text layout,
+control behaviors, mesh resources, and name scope. Visual/UIElement reach that
+hub through `GetTree()`.
 
-GUI implementation seams use `Aero::GuiPrivate::Detail`; controls use
-`Aero::Controls::Detail`. Public objects that require an attachment retain
-opaque state and grant friendship to one access owner per domain rather than
-naming a concrete manager in their public declaration.
+Hot layout/visual fields stay on the object. Cold data uses a lazy rare
+pointer. The dependency-property store is an opaque hashmap handle on
+`DependencyObject`.
 
-Private aliases may keep implementation call sites readable, but they do not
-define product namespaces and are not authoring APIs. New behavior should first
-be implemented as ordinary private functions or state owned by the existing
-view runtime. A new manager is justified only when it has an independently
-useful lifecycle, replacement boundary, or scheduling responsibility.
+The ECS-style `Core::Facet` / `GetFacet` / `ElementFacet` bags and the older
+`Access` / `GuiPrivate` facades are deleted. They are not the product
+architecture.
 
-## Stage C simplification
+XAML metadata type-capability tables (`XamlFacets`) are a different system
+used by the markup runtime. They are not element or engine facets.
 
-Stage C removes typed interaction-manager fields from common controls and
-internalizes display-list, theme-style registry, UI metadata bootstrap, and
-Gallery compatibility types. XAML Facets are stored in one compact per-type
-record instead of parallel manager-like stores.
+## Historical note
 
-This stage deliberately does not claim that every historical manager has been
-merged. Remaining manager classes are private implementation units and may be
-consolidated incrementally without changing the WPF-facing SDK.
-
-## Deliberate exceptions
-
-`RenderManager` remains in the private render boundary.
-`VisualStateManager` remains public because it maps to WPF semantics.
-`FontManager` remains public pending the text-provider SDK review.
+Earlier drafts described `GuiPrivate.hpp`, per-domain `Access` types, and a
+typed `ElementHost` facet matrix. Those documents are not the current
+contract; see `docs/SOURCE_ARCHITECTURE.md`.

@@ -2,6 +2,7 @@
 
 #include <Aero/Interactivity/Behavior.hpp>
 #include <Aero/Events/EventArgs.hpp>
+#include <Aero/FrameworkElement.hpp>
 #include <Aero/Media/Effects.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Transforms.hpp>
@@ -18,10 +19,10 @@ public:
     MouseDragElementBehavior() noexcept;
     ~MouseDragElementBehavior() override = default;
 
-    double GetX() const noexcept { return GetValueOr(XProperty, 0.0); }
-    double GetY() const noexcept { return GetValueOr(YProperty, 0.0); }
+    double GetX() const noexcept { return GetValue(XProperty); }
+    double GetY() const noexcept { return GetValue(YProperty); }
     bool GetConstrainToParentBounds() const noexcept {
-        return GetValueOr(ConstrainToParentBoundsProperty, false);
+        return GetValue(ConstrainToParentBoundsProperty);
     }
     void SetX(double value) noexcept { SetValue(XProperty, value); }
     void SetY(double value) noexcept { SetValue(YProperty, value); }
@@ -80,7 +81,7 @@ public:
             Ref<Base::Object>(std::move(value)));
     }
     Ref<Media::Effect> GetEffect() const noexcept {
-        return GetValueOr(EffectProperty, Ref<Media::Effect>{});
+        return GetValue(EffectProperty);
     }
     void SetEffect(Ref<Media::Effect> value) noexcept {
         SetValue(EffectProperty, std::move(value));

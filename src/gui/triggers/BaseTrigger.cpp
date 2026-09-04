@@ -2,7 +2,7 @@
 #include <Aero/Triggers/TriggerBase.hpp>
 #include <Aero/Value.hpp>
 
-#include "gui/data/BindingState.hpp"
+#include "gui/data/BindingEngine.hpp"
 #include "gui/triggers/TriggerDiagnostics.hpp"
 
 namespace Aero {
@@ -13,9 +13,16 @@ Base::Result<void> InvalidStyle(const char* message) noexcept {
 
 bool IsDeferredBindingSetterValue(
     const PropertyValue& value) noexcept {
-    return value.Kind() == ValueKind::Object &&
-        !value.IsNullObject() &&
-        value.Type() == Data::Binding::StaticTypeId();
+    if (value.Kind() != ValueKind::Object ||
+        value.IsNullObject()) {
+        return false;
+    }
+    if (value.Type() == Data::Binding::StaticTypeId()) {
+        return true;
+    }
+    return value.AsObject() &&
+        value.AsObject()->RuntimeType() ==
+            Data::Binding::StaticTypeId();
 }
 
 Base::Result<void> TriggerBase::AddEnterAction(

@@ -103,15 +103,17 @@ Base::Result<void> PopulateControlsTextMedia(
     auto textElement = Meta::Register<Documents::TextElement>(
         context, TypeFlags::Abstract);
     textElement
-        .Property(
+        .AddOwner(
             Documents::TextElement::FontFamilyProperty,
+            Aero::FrameworkElement::FontFamilyProperty,
             FrameworkPropertyMetadata(Base::Ref<Media::FontFamily>{})
                 .Inherits().AffectsMeasure())
         .Property(
             Documents::TextElement::FontWeightProperty,
             FrameworkPropertyMetadata(FontWeight::Normal).Inherits().AffectsMeasure())
-        .Property(
+        .AddOwner(
             Documents::TextElement::ForegroundProperty,
+            Aero::FrameworkElement::ForegroundProperty,
             FrameworkPropertyMetadata(Base::Ref<Brush>{}).Inherits())
         .Property(
             Documents::TextElement::FontSizeProperty,
@@ -227,6 +229,30 @@ Base::Result<void> PopulateControlsTextMedia(
     status = hyperlink.Result();
     if (!status) return status.GetStatus();
 
+    auto inlineUi = Meta::Register<Documents::InlineUIContainer>(context);
+    inlineUi
+        .Property(
+            Documents::InlineUIContainer::ChildProperty,
+            FrameworkPropertyMetadata(Base::Ref<UIElement>{}))
+        .Factory();
+    status = inlineUi.Result();
+    if (!status) return status.GetStatus();
+
+    auto adorner = Meta::Register<Documents::Adorner>(context);
+    adorner.Factory();
+    status = adorner.Result();
+    if (!status) return status.GetStatus();
+
+    auto adornerLayer = Meta::Register<Documents::AdornerLayer>(context);
+    adornerLayer.Factory();
+    status = adornerLayer.Result();
+    if (!status) return status.GetStatus();
+
+    auto adornerDecorator = Meta::Register<Documents::AdornerDecorator>(context);
+    adornerDecorator.Factory();
+    status = adornerDecorator.Result();
+    if (!status) return status.GetStatus();
+
     auto image = Meta::Register<Image>(context);
     image
         .Property(
@@ -262,6 +288,12 @@ Base::Result<void> PopulateControlsTextMedia(
             FrameworkPropertyMetadata(Base::Ref<Brush>{})
                 .AffectsRender()
                 .Changed(&OnShapeFillChanged))
+        .Property(
+            Shape::PenProperty,
+            FrameworkPropertyMetadata(Base::Ref<Media::Pen>{})
+                .AffectsMeasure()
+                .AffectsRender()
+                .Changed(&OnShapePenChanged))
         .Property(
             Shape::StrokeThicknessProperty,
             FrameworkPropertyMetadata(1.0)
@@ -308,19 +340,24 @@ Base::Result<void> PopulateControlsTextMedia(
                 .AffectsRender()
                 .Changed(&OnPathDataChanged))
         .Property(
-            Path::FillProperty,
+            Path::FillRuleProperty,
+            FrameworkPropertyMetadata(FillRule::EvenOdd)
+                .AffectsRender()
+                .Changed(&OnPathFillRuleChanged))
+        .Override(
+            Shape::FillProperty,
             FrameworkPropertyMetadata(
                 Base::Ref<Media::Brush>{})
                 .AffectsRender()
                 .Changed(&OnPathColorChanged))
-        .Property(
-            Path::StrokeProperty,
+        .Override(
+            Shape::StrokeProperty,
             FrameworkPropertyMetadata(
                 Base::Ref<Media::Brush>{})
                 .AffectsRender()
                 .Changed(&OnPathColorChanged))
-        .Property(
-            Path::StrokeThicknessProperty,
+        .Override(
+            Shape::StrokeThicknessProperty,
             FrameworkPropertyMetadata(1.0)
                 .AffectsMeasure()
                 .AffectsRender()
@@ -354,12 +391,70 @@ Base::Result<void> PopulateControlsTextMedia(
                 .Validate(&ValidateNormalizedDouble)
                 .Changed(&OnPathDoubleChanged))
         .Property(
-            Path::StretchProperty,
-            FrameworkPropertyMetadata(Stretch::Uniform)
+            Path::StrokeDashArrayProperty,
+            FrameworkPropertyMetadata(Base::String{})
+                .AffectsRender()
+                .Changed(&OnPathStringChanged))
+        .Property(
+            Path::StrokeDashOffsetProperty,
+            FrameworkPropertyMetadata(0.0)
+                .AffectsRender()
+                .Changed(&OnPathDoubleChanged))
+        .Property(
+            Path::DashStyleProperty,
+            FrameworkPropertyMetadata(Base::Ref<Media::DashStyle>{})
+                .AffectsRender()
+                .Changed(&OnPathDashStyleChanged))
+        .Override(
+            Shape::StretchProperty,
+            FrameworkPropertyMetadata(Stretch::None)
                 .AffectsMeasure()
                 .AffectsRender())
         .Factory();
     status = path.Result();
+    if (!status) return status.GetStatus();
+
+    auto line = Meta::Register<Line>(context);
+    line
+        .Property(
+            Line::X1Property,
+            FrameworkPropertyMetadata(0.0).AffectsMeasure().AffectsRender())
+        .Property(
+            Line::Y1Property,
+            FrameworkPropertyMetadata(0.0).AffectsMeasure().AffectsRender())
+        .Property(
+            Line::X2Property,
+            FrameworkPropertyMetadata(0.0).AffectsMeasure().AffectsRender())
+        .Property(
+            Line::Y2Property,
+            FrameworkPropertyMetadata(0.0).AffectsMeasure().AffectsRender())
+        .Factory();
+    status = line.Result();
+    if (!status) return status.GetStatus();
+
+    auto polygon = Meta::Register<Polygon>(context);
+    polygon
+        .Property(
+            Polygon::FillRuleProperty,
+            FrameworkPropertyMetadata(FillRule::EvenOdd).AffectsRender())
+        .Property<
+            Base::String,
+            &Polygon::SetPointsText>(
+            "Points",
+            PropertyFlags::None)
+        .Factory();
+    status = polygon.Result();
+    if (!status) return status.GetStatus();
+
+    auto polyline = Meta::Register<Polyline>(context);
+    polyline
+        .Property<
+            Base::String,
+            &Polyline::SetPointsText>(
+            "Points",
+            PropertyFlags::None)
+        .Factory();
+    status = polyline.Result();
     if (!status) return status.GetStatus();
 
     const Base::Ref<Brush> selection = makeBrush({

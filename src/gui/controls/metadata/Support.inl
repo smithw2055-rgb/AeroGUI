@@ -351,24 +351,6 @@ void ClearGridRowDefinitions(
     static_cast<Grid&>(owner).ClearRowDefinitionObjects();
 }
 
-void AddGridInputBinding(
-    Base::Object& owner,
-    const Base::Ref<Base::Object>& value,
-    void*) noexcept {
-    Base::Ref<Input::KeyBinding> retained =
-        Base::Ref<Input::KeyBinding>::TryFromBorrowed(
-            static_cast<Input::KeyBinding&>(*value));
-    if (retained) {
-        (void)static_cast<Grid&>(owner).AddInputBinding(std::move(retained));
-    }
-}
-
-void ClearGridInputBindings(
-    Base::Object& owner,
-    void*) noexcept {
-    static_cast<Grid&>(owner).ClearInputBindings();
-}
-
 bool ValidateGridDefinitionsText(
     const Base::String& value) noexcept {
     Base::Vector<GridLength> parsed;
@@ -409,7 +391,7 @@ void OnGridRowsChanged(
 void OnPathDataChanged(
     ::Aero::DependencyObject& object,
     const Meta::DependencyPropertyChangedEventArgs&) noexcept {
-    ::Aero::Core::DependencyPropertyFacet::PathInvalidateGeometry(
+    AeroGuiInternal::PathInvalidateGeometry(
         static_cast<Path&>(object));
 }
 
@@ -417,7 +399,7 @@ void OnPathColorChanged(
     ::Aero::DependencyObject& object,
     const Base::Ref<Media::Brush>&,
     const Base::Ref<Media::Brush>&) noexcept {
-    ::Aero::Core::DependencyPropertyFacet::PathInvalidateGeometry(
+    AeroGuiInternal::PathInvalidateGeometry(
         static_cast<Path&>(object));
 }
 
@@ -427,7 +409,7 @@ void OnPathDoubleChanged(
     const double&) noexcept {
     if (object.PropertyRegistry().Types().IsDerivedFrom(
             object.RuntimeType(), Path::StaticTypeId())) {
-        ::Aero::Core::DependencyPropertyFacet::PathInvalidateGeometry(
+        AeroGuiInternal::PathInvalidateGeometry(
             static_cast<Path&>(object));
     } else if (object.PropertyRegistry().Types().IsDerivedFrom(
                    object.RuntimeType(), FrameworkElement::StaticTypeId())) {
@@ -440,7 +422,7 @@ void OnPathLineJoinChanged(
     ::Aero::DependencyObject& object,
     const PenLineJoin&,
     const PenLineJoin&) noexcept {
-    ::Aero::Core::DependencyPropertyFacet::PathInvalidateGeometry(
+    AeroGuiInternal::PathInvalidateGeometry(
         static_cast<Path&>(object));
 }
 
@@ -448,8 +430,49 @@ void OnPathLineCapChanged(
     ::Aero::DependencyObject& object,
     const PenLineCap&,
     const PenLineCap&) noexcept {
-    ::Aero::Core::DependencyPropertyFacet::PathInvalidateGeometry(
+    AeroGuiInternal::PathInvalidateGeometry(
         static_cast<Path&>(object));
+}
+
+void OnPathStringChanged(
+    ::Aero::DependencyObject& object,
+    const Base::String&,
+    const Base::String&) noexcept {
+    if (object.PropertyRegistry().Types().IsDerivedFrom(
+            object.RuntimeType(), Path::StaticTypeId())) {
+        AeroGuiInternal::PathInvalidateGeometry(
+            static_cast<Path&>(object));
+    }
+}
+
+void OnPathDashStyleChanged(
+    ::Aero::DependencyObject& object,
+    const Base::Ref<Media::DashStyle>&,
+    const Base::Ref<Media::DashStyle>&) noexcept {
+    AeroGuiInternal::PathInvalidateGeometry(
+        static_cast<Path&>(object));
+}
+
+void OnPathFillRuleChanged(
+    ::Aero::DependencyObject& object,
+    const FillRule&,
+    const FillRule&) noexcept {
+    AeroGuiInternal::PathInvalidateGeometry(
+        static_cast<Path&>(object));
+}
+
+void OnShapePenChanged(
+    ::Aero::DependencyObject& object,
+    const Meta::DependencyPropertyChangedEventArgs&) noexcept {
+    if (object.PropertyRegistry().Types().IsDerivedFrom(
+            object.RuntimeType(), Path::StaticTypeId())) {
+        AeroGuiInternal::PathInvalidateGeometry(
+            static_cast<Path&>(object));
+    } else if (object.PropertyRegistry().Types().IsDerivedFrom(
+                   object.RuntimeType(), FrameworkElement::StaticTypeId())) {
+        static_cast<void>(
+            static_cast<FrameworkElement&>(object).InvalidateVisual());
+    }
 }
 
 void OnShapeFillChanged(
@@ -566,14 +589,14 @@ void SetPanelContent(
     if (!child) {
         return;
     }
-    (void)::Aero::Core::VisualFacet::PanelAddChild(
+    (void)AeroGuiInternal::PanelAddChild(
         static_cast<Panel&>(owner), child, *static_cast<Aero::UIElement*>(child.Get()));
 }
 
 void ClearPanelContent(
     Base::Object& owner,
     void*) noexcept {
-    ::Aero::Core::VisualFacet::PanelClearChildren(static_cast<Panel&>(owner));
+    AeroGuiInternal::PanelClearChildren(static_cast<Panel&>(owner));
 }
 
 void SetDecoratorContent(
@@ -583,7 +606,7 @@ void SetDecoratorContent(
     if (!child) {
         return;
     }
-    (void)::Aero::Core::VisualFacet::DecoratorSetOwnedChild(
+    (void)AeroGuiInternal::DecoratorSetOwnedChild(
         static_cast<Decorator&>(owner), child, *static_cast<Aero::UIElement*>(child.Get()));
 }
 
@@ -625,14 +648,14 @@ void SetContentControlContent(
     if (!child) {
         return;
     }
-    (void)::Aero::Core::InteractionStateFacet::SetContentValue(
+    (void)AeroGuiInternal::SetContentValue(
         static_cast<ContentControl&>(owner), child);
 }
 
 void ClearContentControlContent(
     Base::Object& owner,
     void*) noexcept {
-    (void)::Aero::Core::InteractionStateFacet::SetContentValue(
+    (void)AeroGuiInternal::SetContentValue(
         static_cast<ContentControl&>(owner), Meta::Value::NullObject(Meta::TypeOf<Base::Object>()));
 }
 
@@ -719,18 +742,12 @@ void OnItemsSourceChanged(
     ::Aero::DependencyObject& object,
     const Base::Ref<Base::Object>&,
     const Base::Ref<Base::Object>& value) noexcept {
-    Collections::IItemsSource* source = nullptr;
-    if (value) {
-        if (value->RuntimeType() ==
-            Collections::ObservableCollection::StaticTypeId()) {
-            source = static_cast<Collections::ObservableCollection*>(value.Get());
-        } else if (value->RuntimeType() ==
-                   Media::GradientStopCollection::StaticTypeId()) {
-            source = static_cast<Media::GradientStopCollection*>(
-                value.Get());
-        }
+    Collections::IItemsSource* source =
+        TryCastToInterface<Collections::IItemsSource>(value.Get());
+    if (source == nullptr) {
+        source = Collections::CollectionAsItemsSource(value.Get());
     }
-    ::Aero::Core::InteractionStateFacet::SetItemsSource(
+    AeroGuiInternal::SetItemsSource(
         static_cast<ItemsControl&>(object), source);
 }
 
@@ -738,7 +755,15 @@ void OnItemTemplateChanged(
     ::Aero::DependencyObject& object,
     const Base::Ref<DataTemplate>&,
     const Base::Ref<DataTemplate>& value) noexcept {
-    ::Aero::Core::InteractionStateFacet::SetItemTemplate(
+    AeroGuiInternal::SetItemTemplate(
+        static_cast<ItemsControl&>(object), value.Get());
+}
+
+void OnItemTemplateSelectorChanged(
+    ::Aero::DependencyObject& object,
+    const Base::Ref<DataTemplateSelector>&,
+    const Base::Ref<DataTemplateSelector>& value) noexcept {
+    AeroGuiInternal::SetItemTemplateSelector(
         static_cast<ItemsControl&>(object), value.Get());
 }
 
@@ -746,7 +771,7 @@ void OnDisplayMemberPathChanged(
     ::Aero::DependencyObject& object,
     const Base::String&,
     const Base::String&) noexcept {
-    ::Aero::Core::InteractionStateFacet::RefreshDisplayMemberPath(
+    AeroGuiInternal::RefreshDisplayMemberPath(
         static_cast<ItemsControl&>(object));
 }
 
@@ -754,7 +779,7 @@ void OnItemsPanelChanged(
     ::Aero::DependencyObject& object,
     const Base::Ref<ItemsPanelTemplate>&,
     const Base::Ref<ItemsPanelTemplate>& value) noexcept {
-    ::Aero::Core::InteractionStateFacet::SetItemsPanel(
+    AeroGuiInternal::SetItemsPanel(
         static_cast<ItemsControl&>(object), value.Get());
 }
 
@@ -762,7 +787,7 @@ void OnItemContainerStyleChanged(
     ::Aero::DependencyObject& object,
     const Base::Ref<Style>&,
     const Base::Ref<Style>& value) noexcept {
-    ::Aero::Core::InteractionStateFacet::SetItemContainerStyle(
+    AeroGuiInternal::SetItemContainerStyle(
         static_cast<ItemsControl&>(object), value.Get());
 }
 
@@ -805,23 +830,4 @@ void ClearGridViewColumns(
     void*) noexcept {
     static_cast<GridView&>(
         owner).ClearColumns();
-}
-
-void AddTabControlItem(
-    Base::Object& owner,
-    const Base::Ref<Base::Object>& item,
-    void*) noexcept {
-    if (!item) {
-        return;
-    }
-    (void)static_cast<TabControl&>(owner).
-        AddOwnedTab(
-            Base::Ref<TabItem>::FromBorrowed(
-                static_cast<TabItem&>(*item)));
-}
-
-void ClearTabControlItems(
-    Base::Object& owner,
-    void*) noexcept {
-    static_cast<TabControl&>(owner).ClearOwnedTabs();
 }

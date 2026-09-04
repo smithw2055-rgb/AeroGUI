@@ -10,6 +10,7 @@
 #include <AeroRender/OpenGL33.hpp>
 
 #include "OpenGL33.hpp"
+#include "render/common/StateCache.hpp"
 
 namespace Aero::Render {
 
@@ -147,6 +148,9 @@ private:
     unsigned int blurProgram_ = 0;
     unsigned int shadowProgram_ = 0;
     unsigned int maskProgram_ = 0;
+    unsigned int customEffectProgram_ = 0;
+    unsigned int linearProgram_ = 0;
+    unsigned int radialProgram_ = 0;
     unsigned int currentProgram_ = 0;
 
     // Sampler objects indexed by SamplerState.v (same encoding as D3D11).
@@ -157,6 +161,7 @@ private:
 
     DeviceCaps caps_{};
     OpenGL33RenderTarget* currentTarget_ = nullptr;
+    StateCache stateCache_{};
 };
 
 } // namespace Aero::Render

@@ -1770,7 +1770,7 @@ public:
         : DependencyObject(StaticTypeId()) {}
 
     Base::StringView ResourceKey() const noexcept {
-        return GetValueOr(ResourceKeyProperty, Base::StringView{});
+        return GetValue(ResourceKeyProperty);
     }
     void SetResourceKey(
         Base::StringView value) noexcept {

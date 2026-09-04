@@ -1,6 +1,17 @@
 #pragma once
 
+#include "gui/core/VisualHandle.hpp"
+
+#include <Aero/Base/Object.hpp>
+#include <Aero/Base/Ref.hpp>
+#include <Aero/Base/Result.hpp>
+#include <Aero/Base/Span.hpp>
+#include <Aero/Base/StringView.hpp>
+#include <Aero/Base/Vector.hpp>
+
 namespace Aero {
+
+namespace Markup { struct VisualEdge; }
 
 
 class VisualLifetime : public Base::Object {
@@ -34,10 +45,40 @@ struct VisualLease {
 
 #include <Aero/Threading.hpp>
 #include <Aero/Layout.hpp>
+#include <Aero/Resources.hpp>
+#include <Aero/Visual.hpp>
+#include <Aero/UIElement.hpp>
 
-namespace Aero::Render { class RenderTree; }
+namespace Aero::Render { class RenderTree; struct MeshResources; }
+namespace Aero::Meta { class EffectiveValueEngine; }
 
 namespace Aero {
+
+class LayoutEngine;
+class BindingEngine;
+class StyleEngine;
+struct ViewState;
+class EventRouter;
+class InputRouter;
+class AnimationEngine;
+class VisualStateManager;
+namespace Controls {
+class TemplateEngine;
+class TextBlockLayout;
+class ControlBehavior;
+} // namespace Controls
+
+struct ElementTreeLifecycleEvent {
+    ::Aero::Media::Visual* node = nullptr;
+    bool loaded = false;
+    std::uint64_t treeVersion = 0U;
+};
+
+using ElementTreeLifecycleHandler = void (*)(
+    const ElementTreeLifecycleEvent& event,
+    void* context) noexcept;
+
+constexpr std::uint32_t InvalidIndex = UINT32_MAX;
 
 struct ElementAttachment {
     ::Aero::Media::Visual* logicalParent = nullptr;
@@ -78,10 +119,6 @@ struct RootAttachment {
     }
 };
 
-} // namespace Aero
-
-namespace Aero {
-
 class ElementTree {
 public:
     ElementTree(
@@ -108,12 +145,21 @@ public:
     Base::Result<void> DetachVisual(
         ::Aero::Media::Visual& parent, ::Aero::Media::Visual& child) noexcept;
     Base::Result<void> DetachNode(::Aero::Media::Visual& node) noexcept;
+    void InvalidateNodeHandle(::Aero::Media::Visual& node) noexcept;
+    void InvalidateHandleSubtree(::Aero::Media::Visual& node) noexcept;
 
     void AttachPresentation(
         Aero::LayoutEngine* layout,
         ::Aero::Render::RenderTree* renderer) noexcept {
         layout_ = layout;
         renderer_ = renderer;
+    }
+    void AttachResourceEnvironment(
+        const ResourceEnvironment& environment) noexcept {
+        resourceEnvironment_ = environment;
+    }
+    const ResourceEnvironment& GetResourceEnvironment() const noexcept {
+        return resourceEnvironment_;
     }
 
     Base::Result<Aero::ElementAttachment> AttachElement(
@@ -138,14 +184,85 @@ public:
         ::Aero::Media::Visual& root, Size availableSize) noexcept;
     Base::Result<void> DetachRoot(
         Aero::RootAttachment& state) noexcept;
+    Base::Result<void> AttachVisualGraph(
+        ::Aero::Media::Visual& visualRoot,
+        Base::Span<Markup::VisualEdge> edges,
+        Size availableSize,
+        RootAttachment& outAttachment) noexcept;
+    Base::Result<void> CompleteVisualEdges(
+        Base::Span<Markup::VisualEdge> edges) noexcept;
+    Base::Result<void> DetachVisualGraph(
+        RootAttachment& attachment,
+        Base::Span<Markup::VisualEdge> edges) noexcept;
+    Base::Result<void> ResizeRoot(
+        UIElement& layoutRoot,
+        Size availableSize,
+        ::Aero::Media::Visual* renderRoot) noexcept;
 
     Aero::LayoutEngine* Layout() const noexcept { return layout_; }
     ::Aero::Render::RenderTree* Renderer() const noexcept { return renderer_; }
-    void SetHost(Aero::ElementHost* host) noexcept {
-        host_ = host;
+    Aero::BindingEngine* Bindings() const noexcept { return bindings_; }
+    Aero::StyleEngine* Styles() const noexcept { return styles_; }
+    Aero::EventRouter* Events() const noexcept { return events_; }
+    Aero::InputRouter* Input() const noexcept { return input_; }
+    Aero::AnimationEngine* Animations() const noexcept { return animations_; }
+    VisualStateManager* VisualStates() const noexcept { return visualStates_; }
+    Controls::TemplateEngine* Templates() const noexcept { return templates_; }
+    Controls::TextBlockLayout* TextLayout() const noexcept { return textLayout_; }
+    Controls::ControlBehavior* ControlBehaviors() const noexcept {
+        return controlBehaviors_;
     }
-    Aero::ElementHost* Host() const noexcept {
-        return host_;
+    Render::MeshResources* MeshResources() const noexcept {
+        return meshResources_;
+    }
+
+    void SetLayout(Aero::LayoutEngine* layout) noexcept { layout_ = layout; }
+    void SetRenderer(::Aero::Render::RenderTree* renderer) noexcept {
+        renderer_ = renderer;
+    }
+    void SetBindings(Aero::BindingEngine* bindings) noexcept {
+        bindings_ = bindings;
+    }
+    void SetStyles(Aero::StyleEngine* styles) noexcept { styles_ = styles; }
+    void SetEvents(Aero::EventRouter* events) noexcept { events_ = events; }
+    void SetInput(Aero::InputRouter* input) noexcept { input_ = input; }
+    void SetAnimations(Aero::AnimationEngine* animations) noexcept {
+        animations_ = animations;
+    }
+    void SetVisualStates(VisualStateManager* visualStates) noexcept {
+        visualStates_ = visualStates;
+    }
+    void SetTemplates(Controls::TemplateEngine* templates) noexcept {
+        templates_ = templates;
+    }
+    void SetTextLayout(Controls::TextBlockLayout* textLayout) noexcept {
+        textLayout_ = textLayout;
+    }
+    void SetControlBehaviors(Controls::ControlBehavior* behaviors) noexcept {
+        controlBehaviors_ = behaviors;
+    }
+    void SetMeshResources(Render::MeshResources* resources) noexcept {
+        meshResources_ = resources;
+    }
+    void SetViewState(ViewState* viewState) noexcept {
+        viewState_ = viewState;
+    }
+    ViewState* GetViewState() const noexcept { return viewState_; }
+
+    using FindNameFn = Base::Object* (*)(
+        void* context,
+        Base::StringView name,
+        Meta::TypeId expectedType) noexcept;
+    void SetNameScope(void* context, FindNameFn findName) noexcept {
+        nameScopeContext_ = context;
+        findName_ = findName;
+    }
+    Base::Object* FindName(
+        Base::StringView name,
+        Meta::TypeId expectedType = Meta::InvalidTypeId) const noexcept {
+        return findName_ != nullptr
+            ? findName_(nameScopeContext_, name, expectedType)
+            : nullptr;
     }
 
     void SetLifecycleHandler(
@@ -160,6 +277,7 @@ public:
     std::uint32_t PendingLifecycleCount() const noexcept {
         return lifecycleQueue_.Size();
     }
+    Base::Result<std::uint32_t> FlushLifecycle() noexcept;
 
 private:
     struct LifecycleRecord {
@@ -177,11 +295,24 @@ private:
     Meta::EffectiveValueEngine* values_ = nullptr;
     Aero::LayoutEngine* layout_ = nullptr;
     ::Aero::Render::RenderTree* renderer_ = nullptr;
-    Aero::ElementHost* host_ = nullptr;
+    Aero::BindingEngine* bindings_ = nullptr;
+    Aero::StyleEngine* styles_ = nullptr;
+    Aero::EventRouter* events_ = nullptr;
+    Aero::InputRouter* input_ = nullptr;
+    Aero::AnimationEngine* animations_ = nullptr;
+    VisualStateManager* visualStates_ = nullptr;
+    Controls::TemplateEngine* templates_ = nullptr;
+    Controls::TextBlockLayout* textLayout_ = nullptr;
+    Controls::ControlBehavior* controlBehaviors_ = nullptr;
+    Render::MeshResources* meshResources_ = nullptr;
+    ViewState* viewState_ = nullptr;
+    Aero::ResourceEnvironment resourceEnvironment_{};
+    void* nameScopeContext_ = nullptr;
+    FindNameFn findName_ = nullptr;
     ::Aero::Media::Visual* root_ = nullptr;
     Base::Vector<LifecycleRecord> lifecycleQueue_;
     Base::Vector<HandleEntry> handles_;
-    ::Aero::Threading::DispatcherFrameHookHandle lifecycleHook_;
+    bool initialized_ = false;
     ElementTreeLifecycleHandler lifecycleHandler_ = nullptr;
     void* lifecycleContext_ = nullptr;
     DependencyPropertyChangedEventHandler dataContextChangedHandler_;
@@ -209,20 +340,19 @@ private:
         Base::Vector<LifecycleRecord>& staged) noexcept;
     void ApplyLoadedSubtree(::Aero::Media::Visual& node, bool loaded) noexcept;
     void SetTreeSubtree(::Aero::Media::Visual& node, ElementTree* tree) noexcept;
-    Base::Result<std::uint32_t> FlushLifecycle() noexcept;
+    // P3.2 explicit Lifecycle phase entry (formerly the frame-hook body).
+    // ViewFrame calls it directly; no hook registration remains.
+    static void LifecycleHook(void* context) noexcept;
     Base::Result<void> RegisterHandleSubtree(::Aero::Media::Visual& node) noexcept;
-    void InvalidateHandleSubtree(::Aero::Media::Visual& node) noexcept;
     Base::Result<void> TrackInheritedValues(::Aero::Media::Visual& node) noexcept;
     void UntrackInheritedValues(::Aero::Media::Visual& node) noexcept;
     void OnDataContextChanged(
         DependencyObject& object,
         const DependencyPropertyChangedEventArgs& args) noexcept;
-    void RemoveChild(Base::Vector<::Aero::Media::Visual*>& children, ::Aero::Media::Visual& child) noexcept;
     Base::Result<void> AttachLayout(::Aero::Media::Visual& parent, ::Aero::Media::Visual& child, bool& attached) noexcept;
     Base::Result<void> AttachRender(::Aero::Media::Visual& parent, ::Aero::Media::Visual& child, bool& attached) noexcept;
     Base::Result<void> DetachLayout(::Aero::Media::Visual& parent, ::Aero::Media::Visual& child, bool& attached) noexcept;
     Base::Result<void> DetachRender(::Aero::Media::Visual& parent, ::Aero::Media::Visual& child, bool& attached) noexcept;
-    static void LifecycleHook(void* context) noexcept;
 };
 
 } // namespace Aero

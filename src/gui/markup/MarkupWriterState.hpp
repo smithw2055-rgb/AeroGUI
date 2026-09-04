@@ -17,6 +17,7 @@
 #include <Aero/Diagnostics.hpp>
 #include <Aero/Value.hpp>
 #include <Aero/Data/Binding.hpp>
+#include <Aero/Data/MultiBinding.hpp>
 #include <Aero/DependencyProperty.hpp>
 #include <Aero/Layout.hpp>
 #include <Aero/Markup/XamlReader.hpp>
@@ -252,6 +253,29 @@ private:
         void* context) noexcept;
 };
 
+// Mirrors WPF's {StaticResource key}/StaticResourceExtension. Unlike
+// DynamicResourceExtension it resolves the resource dictionary key exactly once
+// while the XAML tree is authored and returns the value directly; there is no
+// expression and no change tracking once the tree is live.
+class StaticResourceExtension {
+public:
+    StaticResourceExtension() noexcept = default;
+
+    StaticResourceExtension(const StaticResourceExtension&) = delete;
+    StaticResourceExtension& operator=(
+        const StaticResourceExtension&) = delete;
+
+    Base::Result<void> Register(
+        Schema& schema,
+        Meta::TypeId staticResourceExtensionType) noexcept;
+
+private:
+    static Base::Result<ProvidedValue> ProvideValue(
+        Base::StringView arguments,
+        const ExtensionServices& services,
+        void* context) noexcept;
+};
+
 class TypeExtension {
 public:
     TypeExtension() noexcept = default;
@@ -375,9 +399,11 @@ struct DeferredBindingEdge {
     Base::String stringFormat;
     bool bindsToSource = false;
     Data::BindingMode mode =
-        Data::BindingMode::OneWay;
+        Data::BindingMode::Default;
     Meta::UpdateSourceTrigger updateSourceTrigger =
         Meta::UpdateSourceTrigger::PropertyChanged;
+    Base::Ref<Data::IValueConverter> converter;
+    Meta::PropertyValue converterParameter;
 };
 
 class DeferredContentPlan {
@@ -411,7 +437,9 @@ public:
         Base::StringView stringFormat,
         Data::BindingMode mode,
         Meta::UpdateSourceTrigger updateSourceTrigger,
-        bool bindsToSource) noexcept;
+        bool bindsToSource,
+        const Base::Ref<Data::IValueConverter>& converter,
+        const Meta::PropertyValue& converterParameter) noexcept;
     Base::Result<void> CopyBindingsForOwner(
         const Base::Object& owner,
         Base::Vector<DeferredBindingEdge>& output) const noexcept;
@@ -669,6 +697,7 @@ private:
         bool hasContentMember = false;
         bool contentValueTypeIsObject = false;
         bool contentValueTypeIsValueType = false;
+        bool deferredStaticResource = false;
     };
 
     struct AssignmentRecord {
@@ -772,6 +801,7 @@ private:
     Base::Result<LoaderResult> CompleteLoad(
         Base::Result<Base::Ref<Base::Object>> loaded) noexcept;
     Base::Result<void> ResolveDeferredStaticResources() noexcept;
+    Base::Result<void> FinalizeDeferredStyles() noexcept;
     Base::Result<Base::Ref<Base::Object>> LoadReaderCore(
         NodeReader& reader) noexcept;
     Base::Result<Base::Ref<Base::Object>> LoadCompiledCore(
@@ -1384,6 +1414,7 @@ public:
 #include <Aero/Controls.hpp>
 
 #include <Aero/Media/Animation.hpp>
+#include <Aero/Media/Animation/EventTrigger.hpp>
 
 
 
@@ -1404,6 +1435,10 @@ struct TemplatePrototypeProperty {
 struct TemplatePrototypeGradientStop {
     double offset = 0.0;
     ::Aero::Base::Color color{};
+    // EnsureAuthoredName / x:Name for a TemplatedParent Binding on this stop.
+    // Apply clones a new GradientStop into the brush and registers this name
+    // so AttachMetadataBindings FindTarget can resolve the bound child.
+    Base::String name;
 };
 
 struct TemplatePrototypeNode {
@@ -1436,9 +1471,11 @@ struct TemplatePrototypeBinding {
     Base::String stringFormat;
     bool bindsToSource = false;
     Data::BindingMode mode =
-        Data::BindingMode::OneWay;
+        Data::BindingMode::Default;
     Meta::UpdateSourceTrigger updateSourceTrigger =
         Meta::UpdateSourceTrigger::PropertyChanged;
+    Base::Ref<Data::IValueConverter> converter;
+    Meta::PropertyValue converterParameter;
 };
 
 struct CompiledTemplateBlueprint {

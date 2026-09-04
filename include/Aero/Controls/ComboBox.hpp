@@ -1,7 +1,7 @@
 #pragma once
 
-
-#include <Aero/Controls/ListBox.hpp>
+#include <Aero/Controls/ComboBoxItem.hpp>
+#include <Aero/Controls/Primitives/Selector.hpp>
 #include <Aero/Controls/Popup.hpp>
 #include <Aero/Controls/TextBlock.hpp>
 #include <Aero/Controls/TextBox.hpp>
@@ -13,21 +13,6 @@ using ::Aero::Meta::DependencyPropertyChangedEventHandler;
 using ::Aero::Meta::TypeId;
 
 class ComboBehavior;
-
-class AERO_GUI_API ComboBoxItem
-    : public ListBoxItem {
-    AERO_DECLARE_TYPE(ComboBoxItem, ListBoxItem)
-public:
-    ComboBoxItem() noexcept
-        : ListBoxItem(StaticTypeId()) {}
-    ~ComboBoxItem() override = default;
-
-    bool GetIsSelected() const noexcept;
-    void SetIsSelected(
-        bool value) noexcept;
-
-    inline static constexpr DependencyProperty<bool> IsSelectedProperty{"IsSelected"};
-};
 
 class AERO_GUI_API ComboBox : public Primitives::Selector {
     AERO_DECLARE_TYPE(ComboBox, Primitives::Selector)
@@ -52,19 +37,15 @@ public:
     void SetText(
         StringView value) noexcept;
     StringView GetPlaceholder() const noexcept {
-        return GetValueOr(
-            PlaceholderProperty, StringView{});
+        return GetValue(PlaceholderProperty);
     }
     void SetPlaceholder(
         StringView value) noexcept {
         SetValue(PlaceholderProperty, value);
     }
-    String GetSelectionBoxText() const noexcept;
+    StringView GetSelectionBoxText() const noexcept;
     Value GetSelectionBoxItem() const noexcept {
-        return GetValueOr(
-            SelectionBoxItemProperty,
-            Value::NullObject(
-                Meta::TypeOf<Base::Object>()));
+        return GetValue(SelectionBoxItemProperty);
     }
 
     inline static constexpr RoutedEvent<RoutedEventArgs> DropDownOpenedEvent{"DropDownOpened"};

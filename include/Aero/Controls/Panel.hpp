@@ -5,16 +5,6 @@
 #include <Aero/Layout.hpp>
 #include <utility>
 
-namespace Aero::Core {
-class VisualFacet;
-class LayoutFacet;
-class StackLayoutFacet;
-class GridLayoutFacet;
-class DockLayoutFacet;
-class CanvasLayoutFacet;
-class WrapLayoutFacet;
-}
-
 namespace Aero::Controls {
 
 using ::Aero::Meta::TypeId;
@@ -43,9 +33,7 @@ class AERO_GUI_API Panel : public FrameworkElement {
     AERO_DECLARE_TYPE(Panel, FrameworkElement)
 public:
     Ref<Aero::Media::Brush> GetBackground() const noexcept {
-        return GetValueOr(
-            BackgroundProperty,
-            Ref<Aero::Media::Brush>{});
+        return GetValue(BackgroundProperty);
     }
     void SetBackground(
         Ref<Aero::Media::Brush> value) noexcept {
@@ -60,12 +48,16 @@ protected:
     explicit Panel(TypeId runtimeType) noexcept
         : FrameworkElement(runtimeType), children_(*this), ownedChildren_() {}
     ~Panel() override = default;
+    std::uint32_t GetVisualChildrenCount() const noexcept override;
+    ::Aero::Media::Visual* GetVisualChild(std::uint32_t index) const noexcept override;
+    std::uint32_t GetLayoutChildrenCount() const noexcept override;
+    UIElement* GetLayoutChild(std::uint32_t index) const noexcept override;
     void OnRender(
         ::Aero::Media::DrawingContext& context) noexcept override;
 private:
     friend class UIElementCollection;
 #if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::Core::VisualFacet;
+    friend class ::Aero::AeroGuiInternal;
 #endif
     std::uint32_t ChildCountCore() const noexcept { return ownedChildren_.Size(); }
     Ref<Base::Object> ChildAtCore(std::uint32_t index) const noexcept {

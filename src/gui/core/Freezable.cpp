@@ -2,7 +2,6 @@
 
 #include "gui/meta/MetadataState.hpp"
 #include "gui/core/State.hpp"
-#include "gui/core/facets/DependencyPropertyFacet.hpp"
 #include "gui/core/state/FreezableState.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
@@ -79,20 +78,20 @@ Base::Result<void> CheckFreezeNode(
         return FreezeGraphStatus(
             "A Freezable object graph contains a cycle");
     }
-    if (Core::DependencyPropertyFacet::HasUnfreezableValueState(value)) {
+    if (AeroGuiInternal::HasUnfreezableValueState(value)) {
         return FreezeGraphStatus(
             "A Freezable with an expression or animation cannot be frozen");
     }
     Base::Result<void> pushed = context.visiting.PushBack(&value);
     if (!pushed) return pushed.GetStatus();
     Base::Result<void> children =
-        Core::DependencyPropertyFacet::VisitFreezableChildren(
+        AeroGuiInternal::VisitFreezableChildren(
             value, &context, &CheckFreezeChild);
     if (!children) {
         context.visiting.PopBack();
         return children.GetStatus();
     }
-    if (!Core::DependencyPropertyFacet::FreezableCheckCore(value)) {
+    if (!AeroGuiInternal::FreezableCheckCore(value)) {
         context.visiting.PopBack();
         return FreezeGraphStatus(
             "A Freezable child rejected the freeze operation");
@@ -124,15 +123,20 @@ void RemoveConsumerAt(
 } // namespace
 
 Freezable::Freezable(Meta::TypeId runtimeType) noexcept
-    : DependencyObject(runtimeType),
-      implAllocator_(&Base::GetDefaultAllocator()) {
-    void* memory = implAllocator_->Allocate({
+    : DependencyObject(runtimeType) {}
+
+bool Freezable::EnsureState() noexcept {
+    if (impl_ != nullptr) return true;
+    Base::IAllocator& allocator = Base::GetDefaultAllocator();
+    void* memory = allocator.Allocate({
         sizeof(FreezableState), alignof(FreezableState), Base::MemoryTag::Ui});
     if (memory == nullptr) {
         Base::ReportOutOfMemory(
             sizeof(FreezableState), alignof(FreezableState), Base::MemoryTag::Ui);
+        return false;
     }
-    impl_ = new (memory) FreezableState(*implAllocator_);
+    impl_ = new (memory) FreezableState(allocator);
+    return true;
 }
 
 Freezable::~Freezable() {
@@ -140,7 +144,7 @@ Freezable::~Freezable() {
     impl_->consumers.Clear();
     impl_->handlers.Clear();
     impl_->~FreezableState();
-    implAllocator_->Deallocate(
+    Base::GetDefaultAllocator().Deallocate(
         impl_, sizeof(FreezableState), alignof(FreezableState), Base::MemoryTag::Ui);
     impl_ = nullptr;
 }
@@ -152,7 +156,7 @@ bool Freezable::IsFrozen() const noexcept {
 bool Freezable::CanFreeze() const noexcept {
     if (IsFrozen()) return true;
     if (!VerifyAccess()) return false;
-    if (impl_ == nullptr || impl_->freezing) return false;
+    if (impl_ != nullptr && impl_->freezing) return false;
     if (activeFreezeCheck != nullptr) {
         return CheckFreezeNode(
             *activeFreezeCheck,
@@ -170,7 +174,7 @@ Base::Result<void> Freezable::Freeze() noexcept {
     if (IsFrozen()) return {};
     Base::Result<void> access = VerifyAccess();
     if (!access) return access.GetStatus();
-    if (impl_ == nullptr || impl_->freezing) {
+    if (impl_ != nullptr && impl_->freezing) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Freezable freeze operation is already active");
@@ -191,6 +195,11 @@ Base::Result<void> Freezable::Freeze() noexcept {
     // every overridable check has already succeeded.
     for (Freezable* current : context.complete) {
         if (current != nullptr && !current->IsFrozen()) {
+            if (!current->EnsureState()) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::OutOfMemory,
+                    "Freezable freeze state allocation failed");
+            }
             current->impl_->freezing = true;
         }
     }
@@ -212,30 +221,18 @@ Base::Result<void> Freezable::Freeze() noexcept {
     return {};
 }
 
-Base::Result<void> Freezable::AddChangedHandlerChecked(
+void Freezable::AddChangedHandler(
     const FreezableChangedHandler& handler) noexcept {
+    if (handler.Empty()) return;
     Base::Result<void> writable = WritePreamble();
-    if (!writable) return writable.GetStatus();
-    if (handler.Empty()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Freezable changed handler is empty");
-    }
+    if (!writable) return;
     FreezableState::HandlerRecord record;
     record.handler = handler;
     record.active = true;
-    return impl_->handlers.PushBack(std::move(record));
-}
-
-void Freezable::AddChangedHandler(
-    const FreezableChangedHandler& handler) noexcept {
-    Base::Result<void> added = AddChangedHandlerChecked(handler);
-    if (!added && added.GetStatus().code == Base::ErrorCode::OutOfMemory) {
-        Base::ReportOutOfMemory(
-            sizeof(FreezableState::HandlerRecord),
-            alignof(FreezableState::HandlerRecord),
-            Base::MemoryTag::Ui);
+    if (!EnsureState()) {
+        return;
     }
+    static_cast<void>(impl_->handlers.PushBack(std::move(record)));
 }
 
 bool Freezable::RemoveChangedHandler(
@@ -308,7 +305,7 @@ void Freezable::OnChanged() noexcept {
             : record.unmanagedObject;
         const Meta::DependencyPropertyHandle property = record.property;
         if (consumer != nullptr) {
-            Core::DependencyPropertyFacet::InvalidateSubProperty(
+            AeroGuiInternal::InvalidateSubProperty(
                 *consumer, property);
         }
     }
@@ -335,13 +332,18 @@ Base::Result<void> Freezable::VerifyMutationAllowed() const noexcept {
 
 } // namespace Aero
 
-namespace Aero::Core {
+namespace Aero {
 
-Base::Result<void> DependencyPropertyFacet::AttachFreezableConsumer(
+Base::Result<void> AeroGuiInternal::AttachFreezableConsumer(
     Freezable& value,
     DependencyObject& object,
     Meta::DependencyPropertyHandle property) noexcept {
     if (value.IsFrozen() || !property.IsValid()) return {};
+    if (!value.EnsureState()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "Freezable consumer state allocation failed");
+    }
     for (const FreezableState::ConsumerRecord& record : value.impl_->consumers) {
         Base::Ref<DependencyObject> retained = record.object.Lock();
         DependencyObject* candidate = retained
@@ -361,7 +363,7 @@ Base::Result<void> DependencyPropertyFacet::AttachFreezableConsumer(
     return value.impl_->consumers.PushBack(std::move(record));
 }
 
-void DependencyPropertyFacet::DetachFreezableConsumer(
+void AeroGuiInternal::DetachFreezableConsumer(
     Freezable& value,
     DependencyObject& object,
     Meta::DependencyPropertyHandle property) noexcept {
@@ -380,28 +382,33 @@ void DependencyPropertyFacet::DetachFreezableConsumer(
     }
 }
 
-std::uint64_t DependencyPropertyFacet::FreezableRevision(
+std::uint64_t AeroGuiInternal::FreezableRevision(
     const Freezable& value) noexcept {
     return value.impl_ != nullptr ? value.impl_->revision : 0U;
 }
 
-bool DependencyPropertyFacet::FreezableCheckCore(
+bool AeroGuiInternal::FreezableCheckCore(
     Freezable& value) noexcept {
     return value.FreezeCore(true);
 }
 
-bool DependencyPropertyFacet::HasUnfreezableValueState(
+bool AeroGuiInternal::HasUnfreezableValueState(
     const DependencyObject& object) noexcept {
-    for (const auto& entry : object.values_) {
-        if (entry.hasExpression || entry.hasAnimation ||
-            entry.sourceInfo.hasExpression || entry.sourceInfo.isAnimated) {
+    const PropertyStore* store = AeroGuiInternal::Store(object);
+    if (store == nullptr) {
+        return false;
+    }
+    for (const auto& record : store->entries) {
+        const StoredValueEntry& entry = record.Value();
+        if (entry.HasExpression() || entry.HasAnimation() ||
+            entry.SourceInfo().hasExpression || entry.SourceInfo().isAnimated) {
             return true;
         }
     }
     return false;
 }
 
-Base::Result<void> DependencyPropertyFacet::VisitFreezableChildren(
+Base::Result<void> AeroGuiInternal::VisitFreezableChildren(
     DependencyObject& object,
     void* context,
     FreezableVisitor visitor) noexcept {
@@ -418,7 +425,7 @@ Base::Result<void> DependencyPropertyFacet::VisitFreezableChildren(
     return {};
 }
 
-Base::Result<void> DependencyPropertyFacet::PrepareConsumerChange(
+Base::Result<void> AeroGuiInternal::PrepareConsumerChange(
     DependencyObject& consumer,
     Meta::DependencyPropertyHandle property,
     const Meta::PropertyValue& oldValue,
@@ -430,7 +437,7 @@ Base::Result<void> DependencyPropertyFacet::PrepareConsumerChange(
         *newChild, consumer, property);
 }
 
-void DependencyPropertyFacet::CommitConsumerChange(
+void AeroGuiInternal::CommitConsumerChange(
     DependencyObject& consumer,
     Meta::DependencyPropertyHandle property,
     const Meta::PropertyValue& oldValue,
@@ -443,7 +450,7 @@ void DependencyPropertyFacet::CommitConsumerChange(
     }
 }
 
-void DependencyPropertyFacet::InvalidateSubProperty(
+void AeroGuiInternal::InvalidateSubProperty(
     DependencyObject& object,
     Meta::DependencyPropertyHandle propertyHandle) noexcept {
     const Meta::DependencyProperty* property =
@@ -457,4 +464,4 @@ void DependencyPropertyFacet::InvalidateSubProperty(
     object.OnPropertyInvalidated(flags);
 }
 
-} // namespace Aero::Core
+} // namespace Aero

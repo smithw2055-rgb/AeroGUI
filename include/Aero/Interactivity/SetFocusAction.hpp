@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Aero/Data/Binding.hpp>
 #include <Aero/Interactivity/TriggerAction.hpp>
 
 namespace Aero::Interactivity {
@@ -12,11 +13,18 @@ public:
     void SetTargetName(StringView value) noexcept {
         (void)targetName_.Assign(value);
     }
+    Ref<Aero::Data::Binding> GetTargetObject() const noexcept {
+        return targetObject_;
+    }
+    void SetTargetObject(Ref<Aero::Data::Binding> value) noexcept {
+        targetObject_ = std::move(value);
+    }
     bool GetEngage() const noexcept { return engage_; }
     void SetEngage(bool value) noexcept { engage_ = value; }
 
 private:
     String targetName_;
+    Ref<Aero::Data::Binding> targetObject_;
     bool engage_ = true;
 };
 

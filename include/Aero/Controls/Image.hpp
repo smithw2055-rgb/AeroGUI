@@ -3,7 +3,6 @@
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Media/Images.hpp>
 
-namespace Aero::Core { class RenderFacet; }
 
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
@@ -11,7 +10,7 @@ using ::Aero::Media::ImageSource;
 class AERO_GUI_API Image : public FrameworkElement {
     AERO_DECLARE_TYPE(Image, FrameworkElement)
 #if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::Core::RenderFacet;
+    friend class ::Aero::AeroGuiInternal;
 #endif
 public:
 

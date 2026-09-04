@@ -15,6 +15,10 @@
 #include "AeroD3D11RenderFrameShadowPixelShader.hpp"
 #include "AeroD3D11RenderFrameMaskVertexShader.hpp"
 #include "AeroD3D11RenderFrameMaskPixelShader.hpp"
+#include "AeroD3D11RenderFrameLinearVertexShader.hpp"
+#include "AeroD3D11RenderFrameLinearPixelShader.hpp"
+#include "AeroD3D11RenderFrameRadialVertexShader.hpp"
+#include "AeroD3D11RenderFrameRadialPixelShader.hpp"
 
 namespace Aero::Render {
 
@@ -232,6 +236,18 @@ Base::Result<void> D3D11RenderDevice::InitPipelines() noexcept {
         nullptr, &maskPixelShader_);
     if (FAILED(hr)) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "Failed to create mask pixel shader");
 
+    hr = device_->CreatePixelShader(
+        AeroD3D11RenderFrameLinearPixelShader,
+        sizeof(AeroD3D11RenderFrameLinearPixelShader),
+        nullptr, &linearPixelShader_);
+    if (FAILED(hr)) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "Failed to create linear pixel shader");
+
+    hr = device_->CreatePixelShader(
+        AeroD3D11RenderFrameRadialPixelShader,
+        sizeof(AeroD3D11RenderFrameRadialPixelShader),
+        nullptr, &radialPixelShader_);
+    if (FAILED(hr)) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "Failed to create radial pixel shader");
+
     const D3D11_INPUT_ELEMENT_DESC vertexLayout[] = {
         {"POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
         {"COLOR", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, 8, D3D11_INPUT_PER_VERTEX_DATA, 0},
@@ -248,10 +264,10 @@ Base::Result<void> D3D11RenderDevice::InitPipelines() noexcept {
 
     // Create sampler states indexed by SamplerState.v
     // (wrapMode:3 bits | minmagFilter:1 << 3 | mipFilter:2 << 4)
-    for (uint8_t v = 0; v < 64; ++v) {
-        const uint8_t wrapMode = v & 0x7;
-        const uint8_t minmag = (v >> 3) & 0x1;
-        const uint8_t mip = (v >> 4) & 0x3;
+    for (uint8_t v = 0; v < StateCache::kSamplerTableSize; ++v) {
+        const uint8_t wrapMode = StateCache::UnpackWrap(v);
+        const uint8_t minmag = StateCache::UnpackMinMag(v);
+        const uint8_t mip = StateCache::UnpackMip(v);
 
         D3D11_SAMPLER_DESC samplerDesc{};
         samplerDesc.Filter = (minmag == MinMagFilter::Linear)
@@ -430,7 +446,7 @@ void D3D11RenderDevice::ReleasePipelines() noexcept {
     }
     ReleaseCom(rasterizerSolid_);
     ReleaseCom(rasterizerScissor_);
-    for (int i = 0; i < 64; ++i) {
+    for (uint8_t i = 0; i < StateCache::kSamplerTableSize; ++i) {
         ReleaseCom(samplers_[i]);
     }
     ReleaseCom(vertex2DInputLayout_);
@@ -441,6 +457,9 @@ void D3D11RenderDevice::ReleasePipelines() noexcept {
     ReleaseCom(blurPixelShader_);
     ReleaseCom(shadowPixelShader_);
     ReleaseCom(maskPixelShader_);
+    ReleaseCom(linearPixelShader_);
+    ReleaseCom(radialPixelShader_);
+    ReleaseCom(customEffectPixelShader_);
 }
 
 void D3D11RenderDevice::Shutdown() noexcept {
@@ -607,6 +626,7 @@ void D3D11RenderDevice::EndUpdatingTextures(Texture** textures, uint32_t count) 
 
 void D3D11RenderDevice::BeginOffscreenRender() noexcept {
     if (context_ == nullptr || currentTarget_ == nullptr) return;
+    stateCache_.Reset();
     const float clearColor[4] = {0.0f, 0.0f, 0.0f, 0.0f};
     context_->ClearRenderTargetView(currentTarget_->GetRTV(), clearColor);
     ID3D11DepthStencilView* dsv = currentTarget_->GetDSV();
@@ -617,6 +637,7 @@ void D3D11RenderDevice::BeginOffscreenRender() noexcept {
 void D3D11RenderDevice::EndOffscreenRender() noexcept {}
 void D3D11RenderDevice::BeginOnscreenRender() noexcept {
     if (context_ == nullptr || currentTarget_ == nullptr) return;
+    stateCache_.Reset();
     ID3D11DepthStencilView* dsv = currentTarget_->GetDSV();
     if (dsv != nullptr) {
         context_->ClearDepthStencilView(dsv, D3D11_CLEAR_STENCIL, 1.0f, 0);
@@ -626,6 +647,7 @@ void D3D11RenderDevice::EndOnscreenRender() noexcept {}
 
 void D3D11RenderDevice::SetRenderTarget(RenderTarget* surface) noexcept {
     if (context_ == nullptr) return;
+    stateCache_.Reset();
     currentTarget_ = static_cast<D3D11RenderTarget*>(surface);
     if (currentTarget_ != nullptr) {
         ID3D11RenderTargetView* rtv = currentTarget_->GetRTV();
@@ -729,29 +751,52 @@ void D3D11RenderDevice::DrawBatch(const Batch& batch) noexcept {
     ID3D11ShaderResourceView* srv = nullptr;
     ID3D11SamplerState* maskSampler = nullptr;
     ID3D11ShaderResourceView* maskSrv = nullptr;
+    uint8_t samplerIndex0 = 0U;
+    uint8_t samplerIndex1 = 0U;
     bool setTextureSize = false;
     switch (batch.shader.v) {
     case Shader::Path_Solid:
     case Shader::Path_AA_Solid:
         pixelShader = solidPixelShader_;
         break;
+    case Shader::Path_Linear:
+        pixelShader = linearPixelShader_;
+        samplerIndex0 = StateCache::ClampSamplerIndex(batch.rampsSampler.v);
+        sampler = samplers_[samplerIndex0];
+        if (batch.ramps != nullptr) {
+            srv = static_cast<D3D11Texture*>(batch.ramps)->GetNativeSRV();
+        }
+        setTextureSize = false;
+        break;
+    case Shader::Path_Radial:
+        pixelShader = radialPixelShader_;
+        samplerIndex0 = StateCache::ClampSamplerIndex(batch.rampsSampler.v);
+        sampler = samplers_[samplerIndex0];
+        if (batch.ramps != nullptr) {
+            srv = static_cast<D3D11Texture*>(batch.ramps)->GetNativeSRV();
+        }
+        setTextureSize = false;
+        break;
     case Shader::Path_Pattern:
         pixelShader = patternPixelShader_;
-        sampler = samplers_[batch.imageSampler.v & 0x3F];
+        samplerIndex0 = StateCache::ClampSamplerIndex(batch.imageSampler.v);
+        sampler = samplers_[samplerIndex0];
         if (batch.image != nullptr) {
             srv = static_cast<D3D11Texture*>(batch.image)->GetNativeSRV();
         }
         break;
     case Shader::SDF_Solid:
         pixelShader = sdfPixelShader_;
-        sampler = samplers_[batch.glyphsSampler.v & 0x3F];
+        samplerIndex0 = StateCache::ClampSamplerIndex(batch.glyphsSampler.v);
+        sampler = samplers_[samplerIndex0];
         if (batch.glyphs != nullptr) {
             srv = static_cast<D3D11Texture*>(batch.glyphs)->GetNativeSRV();
         }
         break;
     case Shader::Blur:
         pixelShader = blurPixelShader_;
-        sampler = samplers_[batch.imageSampler.v & 0x3F];
+        samplerIndex0 = StateCache::ClampSamplerIndex(batch.imageSampler.v);
+        sampler = samplers_[samplerIndex0];
         if (batch.image != nullptr) {
             srv = static_cast<D3D11Texture*>(batch.image)->GetNativeSRV();
         }
@@ -759,7 +804,8 @@ void D3D11RenderDevice::DrawBatch(const Batch& batch) noexcept {
         break;
     case Shader::Shadow:
         pixelShader = shadowPixelShader_;
-        sampler = samplers_[batch.imageSampler.v & 0x3F];
+        samplerIndex0 = StateCache::ClampSamplerIndex(batch.imageSampler.v);
+        sampler = samplers_[samplerIndex0];
         if (batch.image != nullptr) {
             srv = static_cast<D3D11Texture*>(batch.image)->GetNativeSRV();
         }
@@ -767,13 +813,37 @@ void D3D11RenderDevice::DrawBatch(const Batch& batch) noexcept {
         break;
     case Shader::Mask:
         pixelShader = maskPixelShader_;
-        sampler = samplers_[batch.imageSampler.v & 0x3F];
+        samplerIndex0 = StateCache::ClampSamplerIndex(batch.imageSampler.v);
+        sampler = samplers_[samplerIndex0];
         if (batch.image != nullptr) {
             srv = static_cast<D3D11Texture*>(batch.image)->GetNativeSRV();
         }
-        maskSampler = samplers_[batch.shadowSampler.v & 0x3F];
+        samplerIndex1 = StateCache::ClampSamplerIndex(batch.shadowSampler.v);
+        maskSampler = samplers_[samplerIndex1];
         if (batch.shadow != nullptr) {
             maskSrv = static_cast<D3D11Texture*>(batch.shadow)->GetNativeSRV();
+        }
+        break;
+    case Shader::Custom_Effect:
+        pixelShader = customEffectPixelShader_ != nullptr
+            ? customEffectPixelShader_ : patternPixelShader_;
+        samplerIndex0 = StateCache::ClampSamplerIndex(batch.imageSampler.v);
+        sampler = samplers_[samplerIndex0];
+        if (batch.image != nullptr) {
+            srv = static_cast<D3D11Texture*>(batch.image)->GetNativeSRV();
+        }
+        if (batch.pixelShader != nullptr) {
+            ID3D11PixelShader* loaded = nullptr;
+            if (SUCCEEDED(device_->CreatePixelShader(
+                    batch.pixelShader,
+                    batch.vertexUniforms[1].numDwords,
+                    nullptr,
+                    &loaded)) &&
+                loaded != nullptr) {
+                ReleaseCom(customEffectPixelShader_);
+                customEffectPixelShader_ = loaded;
+                pixelShader = customEffectPixelShader_;
+            }
         }
         break;
     default:
@@ -786,34 +856,43 @@ void D3D11RenderDevice::DrawBatch(const Batch& batch) noexcept {
         return;
     }
 
-    context_->IASetInputLayout(vertex2DInputLayout_);
-    context_->VSSetShader(solidVertexShader_, nullptr, 0);
-    context_->PSSetShader(pixelShader, nullptr, 0);
+    const ShaderPipelineKey pipelineKey{batch.shader.v};
+    const bool pipelineEnumChanged = stateCache_.UpdatePipeline(pipelineKey);
+    const bool pipelineHandleChanged = stateCache_.UpdatePipelineHandle(
+        reinterpret_cast<std::uintptr_t>(pixelShader));
+    if (pipelineEnumChanged || pipelineHandleChanged) {
+        context_->IASetInputLayout(vertex2DInputLayout_);
+        context_->VSSetShader(solidVertexShader_, nullptr, 0);
+        context_->PSSetShader(pixelShader, nullptr, 0);
+        context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        ID3D11Buffer* vsConstants[] = { vertexCB_[0] };
+        context_->VSSetConstantBuffers(0, 1, vsConstants);
+    }
 
     // UiFrameEncoder::Vertex2D is 24 bytes: float2 pos, uint32 color, float2 uv, float coverage
     const UINT stride = 24;
     const UINT offset = 0;
     context_->IASetVertexBuffers(0, 1, &dynamicVB_, &stride, &offset);
     context_->IASetIndexBuffer(dynamicIB_, DXGI_FORMAT_R16_UINT, 0);
-    context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-    ID3D11Buffer* vsConstants[] = { vertexCB_[0] };
-    context_->VSSetConstantBuffers(0, 1, vsConstants);
-
-    // Set blend state
-    const uint8_t colorEnable = batch.renderState.f.colorEnable;
-    const uint8_t blendMode = batch.renderState.f.blendMode;
-    if (blendMode < BlendMode::Count) {
-        ID3D11BlendState* bs = blendStates_[colorEnable * BlendMode::Count + blendMode];
+    const BlendStateKey blendKey{
+        batch.renderState.f.blendMode,
+        batch.renderState.f.colorEnable};
+    if (blendKey.blendMode < BlendMode::Count &&
+        stateCache_.UpdateBlend(blendKey)) {
+        ID3D11BlendState* bs =
+            blendStates_[BlendStateKey::TableIndex(blendKey)];
         if (bs != nullptr) {
             context_->OMSetBlendState(bs, nullptr, 0xFFFFFFFF);
         }
     }
 
-    // Set depth-stencil state
-    const uint8_t stencilMode = batch.renderState.f.stencilMode;
-    if (stencilMode < StencilMode::Count) {
-        ID3D11DepthStencilState* ds = stencilStates_[stencilMode];
+    const DepthStencilStateKey dsKey{
+        batch.renderState.f.stencilMode,
+        batch.stencilRef};
+    if (dsKey.stencilMode < StencilMode::Count &&
+        stateCache_.UpdateDepthStencil(dsKey)) {
+        ID3D11DepthStencilState* ds = stencilStates_[dsKey.stencilMode];
         if (ds != nullptr) {
             context_->OMSetDepthStencilState(ds, batch.stencilRef);
         }
@@ -826,18 +905,24 @@ void D3D11RenderDevice::DrawBatch(const Batch& batch) noexcept {
         context_->RSSetState(rasterizerSolid_);
     }
 
-    // Bind texture and sampler if present
+    // Bind SRVs every draw (content changes); filter sampler object rebinds.
     if (srv != nullptr) {
         context_->PSSetShaderResources(0, 1, &srv);
-        if (sampler != nullptr) {
+        if (sampler != nullptr &&
+            stateCache_.UpdateSampler(0, SamplerBindKey{samplerIndex0, true})) {
             context_->PSSetSamplers(0, 1, &sampler);
         }
+    } else {
+        static_cast<void>(stateCache_.UpdateSampler(0, SamplerBindKey{}));
     }
     if (maskSrv != nullptr) {
         context_->PSSetShaderResources(1, 1, &maskSrv);
-        if (maskSampler != nullptr) {
+        if (maskSampler != nullptr &&
+            stateCache_.UpdateSampler(1, SamplerBindKey{samplerIndex1, true})) {
             context_->PSSetSamplers(1, 1, &maskSampler);
         }
+    } else {
+        static_cast<void>(stateCache_.UpdateSampler(1, SamplerBindKey{}));
     }
 
     if (setTextureSize && batch.pixelUniforms[0].values != nullptr &&
@@ -854,6 +939,23 @@ void D3D11RenderDevice::DrawBatch(const Batch& batch) noexcept {
         }
         ID3D11Buffer* psConstants[] = { pixelCB_[0] };
         context_->PSSetConstantBuffers(1, 1, psConstants);
+    } else if ((batch.shader.v == Shader::Path_Linear ||
+                batch.shader.v == Shader::Path_Radial) &&
+               batch.pixelUniforms[0].values != nullptr &&
+               batch.pixelUniforms[0].numDwords >= 1U) {
+        D3D11_MAPPED_SUBRESOURCE mapped{};
+        if (SUCCEEDED(context_->Map(
+                pixelCB_[0], 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) {
+            float* data = static_cast<float*>(mapped.pData);
+            const uint32_t count = std::min(batch.pixelUniforms[0].numDwords, 8U);
+            std::memcpy(
+                data,
+                batch.pixelUniforms[0].values,
+                static_cast<size_t>(count) * sizeof(float));
+            context_->Unmap(pixelCB_[0], 0);
+        }
+        ID3D11Buffer* psConstants[] = { pixelCB_[0] };
+        context_->PSSetConstantBuffers(0, 1, psConstants);
     }
 
     context_->DrawIndexed(batch.numIndices, batch.startIndex, 0);

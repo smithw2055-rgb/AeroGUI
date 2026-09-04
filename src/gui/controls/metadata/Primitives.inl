@@ -62,6 +62,10 @@ Base::Result<void> PopulateControlsPrimitives(
             Viewbox::StretchDirectionProperty,
             FrameworkPropertyMetadata(StretchDirection::Both)
                 .AffectsMeasure())
+        .Content<Aero::UIElement>(
+            "Content", ContentKind::Single,
+            &SetDecoratorContent, &ClearDecoratorContent,
+            ContentFlags::Visual)
         .Factory();
     status = viewbox.Result();
     if (!status) return status.GetStatus();
@@ -74,6 +78,9 @@ Base::Result<void> PopulateControlsPrimitives(
         .Event(Control::MouseDoubleClickEvent)
         .Override(
             UIElement::FocusableProperty,
+            FrameworkPropertyMetadata(true))
+        .Override(
+            UIElement::IsTabStopProperty,
             FrameworkPropertyMetadata(true))
         .Property(
             Control::BackgroundProperty,
@@ -142,7 +149,7 @@ Base::Result<void> PopulateControlsPrimitives(
                 .AffectsMeasure()
                 .Structural()
                 .Changed(
-                    &::Aero::Core::InteractionStateFacet::
+                    &AeroGuiInternal::
                         OnContentControlPropertyChanged))
         .Property(
             ContentControl::ContentTemplateProperty,

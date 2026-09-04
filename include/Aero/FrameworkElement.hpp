@@ -3,14 +3,11 @@
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Result.hpp>
-#include <Aero/Base/Vector.hpp>
-#include <Aero/Threading.hpp>
-#include <Aero/Input.hpp>
-#include <Aero/Media/DrawingContext.hpp>
-#include <Aero/Media/Fonts.hpp>
-#include <Aero/Media/Transforms.hpp>
+#include <Aero/InputScope.hpp>
+#include <Aero/Media/FontFamily.hpp>
 #include <Aero/Resources.hpp>
-#include <Aero/TextFormatting.hpp>
+#include <Aero/HorizontalAlignment.hpp>
+#include <Aero/Layout.hpp>
 #include <Aero/UIElement.hpp>
 
 #include <cstdint>
@@ -23,11 +20,13 @@ using Meta::TypeId;
 
 class Style;
 namespace Controls { class Viewbox; }
-namespace Core {
-class RenderFacet;
-class InteractionStateFacet;
-}
 class FrameworkElement;
+namespace Media {
+class DrawingContext;
+class Brush;
+class Transform;
+class FontFamily;
+}
 
 class FrameworkElementChildRange {
 public:
@@ -61,10 +60,6 @@ public:
     explicit FrameworkElement(TypeId runtimeType) noexcept;
     ~FrameworkElement() override;
 
-    FrameworkElement* AsFrameworkElement() noexcept override { return this; }
-    const FrameworkElement* AsFrameworkElement() const noexcept override {
-        return this;
-    }
     DependencyObject* GetParent() const noexcept { return GetLogicalParent(); }
 
     bool GetUseLayoutRounding() const noexcept;
@@ -75,37 +70,38 @@ public:
     double GetWidth() const noexcept;
     double GetHeight() const noexcept;
     double GetActualWidth() const noexcept {
-        return GetValueOr(
-            ActualWidthProperty, 0.0);
+        return GetValue(ActualWidthProperty);
     }
     double GetActualHeight() const noexcept {
-        return GetValueOr(
-            ActualHeightProperty, 0.0);
+        return GetValue(ActualHeightProperty);
     }
     Size GetMinSize() const noexcept;
     Size GetMaxSize() const noexcept;
     Thickness GetMargin() const noexcept;
     Ref<Media::Transform> GetLayoutTransform() const noexcept;
-    Base::Transform2D GetLocalVisualTransform() const noexcept;
+    Base::ProjectiveTransform2D GetLocalVisualTransform() const noexcept;
+    bool TryGetViewboxTransform(Base::Transform2D& matrix) const noexcept;
     Result<Value> GetDataContextResult() const noexcept;
     Ref<Media::FontFamily> GetFontFamily() const noexcept {
-        return GetValueOr(
-            FontFamilyProperty, Ref<Media::FontFamily>{});
+        return GetValue(FontFamilyProperty);
     }
     FlowDirection GetFlowDirection() const noexcept {
-        return GetValueOr(FlowDirectionProperty, FlowDirection::LeftToRight);
+        return GetValue(FlowDirectionProperty);
     }
     Base::Object* FindName(StringView name) noexcept;
+    Result<void> RegisterName(
+        StringView name,
+        Base::Object& scopedElement) noexcept;
     template<class T>
     T* FindName(StringView name) noexcept {
         return static_cast<T*>(FindNameObject(name, T::StaticTypeId()));
     }
-    ResourceDictionary& GetResources() noexcept {
-        return resources_;
-    }
-    const ResourceDictionary& GetResources() const noexcept {
-        return resources_;
-    }
+    Result<ResourceValue> FindResource(const ResourceKey& key) const noexcept;
+    Result<ResourceValue> FindResource(StringView key) const noexcept;
+    Result<ResourceValue> TryFindResource(const ResourceKey& key) const noexcept;
+    Result<ResourceValue> TryFindResource(StringView key) const noexcept;
+    ResourceDictionary& GetResources() noexcept;
+    const ResourceDictionary& GetResources() const noexcept;
     void SetResources(
         Ref<ResourceDictionary> value) noexcept;
     DependencyObject* GetTemplatedParent() const noexcept {
@@ -151,6 +147,12 @@ public:
     inline static constexpr DependencyProperty<bool> UseLayoutRoundingProperty{"UseLayoutRounding"};
     inline static constexpr DependencyProperty<bool> SnapsToDevicePixelsProperty{"SnapsToDevicePixels"};
     inline static constexpr DependencyProperty<Ref<Media::Transform>> LayoutTransformProperty{"LayoutTransform"};
+    inline static constexpr DependencyProperty<Ref<Media::Brush>> ForegroundProperty{"Foreground"};
+
+    inline static constexpr RoutedEvent<RoutedEventArgs> LoadedEvent{"Loaded"};
+    Event<RoutedEventArgs> Loaded() noexcept {
+        return GetEvent(LoadedEvent);
+    }
 
     void SetUseLayoutRounding(
         bool enabled, double dpiScale = 1.0) noexcept;
@@ -171,15 +173,7 @@ public:
         Ref<Media::FontFamily> value) noexcept {
         SetValue(FontFamilyProperty, std::move(value));
     }
-    Result<void> SetFontFamily(
-        StringView value) noexcept {
-        Result<Ref<Media::FontFamily>> family =
-            Base::MakeRef<Media::FontFamily>();
-        if (!family) return family.GetStatus();
-        family.Value()->SetSource(value);
-        SetFontFamily(std::move(family).Value());
-        return {};
-    }
+    Result<void> SetFontFamily(StringView value) noexcept;
     void SetFlowDirection(FlowDirection value) noexcept {
         SetValue(FlowDirectionProperty, value);
     }
@@ -193,18 +187,19 @@ public:
     Result<void> InvalidateVisual() noexcept;
 
 protected:
-    virtual std::uint32_t GetLogicalChildrenCount() const noexcept { return ::Aero::Media::VisualTreeHelper::GetChildrenCount(*this); }
-    virtual DependencyObject* GetLogicalChild(std::uint32_t index) const noexcept { return LogicalTreeHelper::GetChild(static_cast<const ::Aero::Media::Visual&>(*this), index); }
+    virtual std::uint32_t GetLogicalChildrenCount() const noexcept { return GetVisualChildrenCount(); }
+    virtual DependencyObject* GetLogicalChild(std::uint32_t index) const noexcept { return GetVisualChild(index); }
     void OnPropertyInvalidated(
         PropertyInvalidationFlags flags) noexcept override;
+    Size MeasureOverride(Size availableSize) noexcept override {
+        static_cast<void>(availableSize);
+        return Size{};
+    }
     virtual void OnRender(
         ::Aero::Media::DrawingContext& context) noexcept;
 
 private:
-    FrameworkElement* GetRenderParent() const noexcept {
-        ::Aero::Media::Visual* parent = GetVisualParent();
-        return parent != nullptr ? parent->AsFrameworkElement() : nullptr;
-    }
+    FrameworkElement* GetRenderParent() const noexcept;
     FrameworkElementChildRange GetRenderChildren() const noexcept {
         return FrameworkElementChildRange(*this);
     }
@@ -219,54 +214,55 @@ private:
         Ref<Base::Object> trigger) noexcept;
     void ClearAuthoredTriggers() noexcept;
     Span<const Ref<Base::Object>>
-    AuthoredTriggers() const noexcept {
-        return {
-            authoredTriggers_.Data(),
-            authoredTriggers_.Size()};
-    }
+    AuthoredTriggers() const noexcept;
     Result<void> AddAuthoredBehavior(
         Ref<Base::Object> behavior) noexcept;
     void ClearAuthoredBehaviors() noexcept;
     Span<const Ref<Base::Object>>
-    AuthoredBehaviors() const noexcept {
-        return authoredBehaviors_.AsSpan();
-    }
+    AuthoredBehaviors() const noexcept;
     Result<void> AddStyleBehaviorPrototype(
         Ref<Base::Object> behavior) noexcept;
     void ClearStyleBehaviorPrototypes() noexcept;
     Span<const Ref<Base::Object>>
-    StyleBehaviorPrototypes() const noexcept {
-        return styleBehaviorPrototypes_.AsSpan();
-    }
+    StyleBehaviorPrototypes() const noexcept;
     Result<void> AddStyleTriggerPrototype(
         Ref<Base::Object> trigger) noexcept;
     void ClearStyleTriggerPrototypes() noexcept;
     Span<const Ref<Base::Object>>
-    StyleTriggerPrototypes() const noexcept {
-        return styleTriggerPrototypes_.AsSpan();
+    StyleTriggerPrototypes() const noexcept;
+
+    const ResourceDictionary* LocalResources() const noexcept {
+        return resources_;
     }
 
     Base::Object* FindNameObject(
         StringView name,
         Meta::TypeId expectedType) noexcept;
+    Base::Object* FindRegisteredName(
+        StringView name) const noexcept;
 
     friend class LogicalTreeHelper;
     friend class Controls::Viewbox;
+    friend class ResourceResolver;
 #if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::Core::VisualFacet;
-    friend class ::Aero::Core::LayoutFacet;
-    friend class ::Aero::Core::RenderFacet;
-    friend class ::Aero::Core::InteractionStateFacet;
+    friend class ::Aero::AeroGuiInternal;
 #endif
     double dpiScale_ = 1.0;
-    Base::Transform2D viewboxTransform_{};
-    bool hasViewboxTransform_ = false;
     DependencyObject* templatedParent_ = nullptr;
-    ResourceDictionary resources_;
-    Base::Vector<Ref<Base::Object>> authoredTriggers_;
-    Base::Vector<Ref<Base::Object>> authoredBehaviors_;
-    Base::Vector<Ref<Base::Object>> styleBehaviorPrototypes_;
-    Base::Vector<Ref<Base::Object>> styleTriggerPrototypes_;
+    mutable ResourceDictionary* resources_ = nullptr;
+    // Authored triggers/behaviors, style prototypes, and viewbox projection
+    // live off the hot instance. Empty elements pay one pointer.
+    struct FrameworkRare;
+    FrameworkRare* EnsureFrameworkRare() noexcept;
+    void DropRareIfUnused() noexcept;
+    bool SetViewboxTransform(const Base::Transform2D& matrix) noexcept;
+    void ClearViewboxTransform() noexcept;
+    FrameworkRare* frameworkRare_ = nullptr;
 };
 
 } // namespace Aero
+
+namespace Aero::Media {
+inline constexpr auto FrameworkElementForegroundProperty =
+    ::Aero::FrameworkElement::ForegroundProperty;
+}

@@ -112,7 +112,8 @@ Base::Result<XamlDocument> XamlReader::LoadComponentInto(
     Base::Ref<Base::Object> existingRoot,
     Base::StringView uri,
     const XamlReaderSettings& settings,
-    Diagnostics::IDiagnosticSink* diagnostics) noexcept {
+    Diagnostics::IDiagnosticSink* diagnostics,
+    ResourceDictionary* resources) noexcept {
     if (gui_ == nullptr || !gui_->IsInitialized()) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
@@ -125,6 +126,12 @@ Base::Result<XamlDocument> XamlReader::LoadComponentInto(
     }
     GuiState& state = static_cast<GuiState&>(*gui_->state_);
     XamlLoadScope scope(state.dispatcher, state.schema, state.documents);
+    if (resources != nullptr) {
+        // Ambient lookup only. `resources` is the document dictionary; wiring
+        // Application.Resources there lets LoadComponent mutate/seal app-wide
+        // styles and drops Button/Thumb hover storyboards.
+        scope.load.fallbackResources = resources;
+    }
     Base::Result<XamlDocument> loaded = state.xaml.LoadComponentInto(
         state.xamlProviders,
         &scope.load,

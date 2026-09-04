@@ -376,7 +376,7 @@ AeroGUI/
 │   ├── triggers/           # Aero::Triggers: interactivity behaviors
 │   ├── meta/               # Aero::Meta / Aero::Module: type, value, metadata, modules
 │   ├── diagnostics/        # GUI inspection and rendering diagnostics
-│   └── (root)              # Gui/View composition: Gui.cpp, View.cpp, ViewRenderer*
+│   └── (root)              # Gui/View composition: Gui.cpp, View.cpp, ViewFrame.cpp, ViewInput.cpp, ViewFocus.cpp, ViewRender.cpp, ViewRenderer*
 ├── src/render/             # backend-neutral render contracts + native backends
 ├── src/app/                # Application, Window and private OS window/IME adapters
 ├── src/audio/              # optional audio product implementation

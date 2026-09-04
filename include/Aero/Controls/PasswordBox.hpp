@@ -2,7 +2,6 @@
 
 #include <Aero/Controls/TextBox.hpp>
 
-namespace Aero::Core { class TextLayoutFacet; }
 
 namespace Aero::Controls {
 
@@ -53,6 +52,12 @@ public:
     inline static constexpr DependencyProperty<String> PasswordCharProperty{"PasswordChar"};
     inline static constexpr DependencyProperty<std::uint32_t> MaxLengthProperty{"MaxLength"};
     inline static constexpr DependencyProperty<String> PlaceholderProperty{"Placeholder"};
+    StringView GetPlaceholder() const noexcept {
+        return GetValue(PlaceholderProperty);
+    }
+    void SetPlaceholder(StringView value) noexcept {
+        SetValue(PlaceholderProperty, value);
+    }
     inline static constexpr auto ForegroundProperty = Control::ForegroundProperty;
 
 protected:
@@ -68,7 +73,7 @@ private:
     friend class TextBox;
     friend class TextEditBehavior;
 #if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::Core::TextLayoutFacet;
+    friend class ::Aero::AeroGuiInternal;
 #endif
 
     String password_;
