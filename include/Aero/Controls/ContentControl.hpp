@@ -2,6 +2,7 @@
 
 #include <Aero/Controls/Control.hpp>
 
+#include <cstddef>
 
 namespace Aero::Controls {
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
@@ -43,6 +44,9 @@ public:
     }
     void SetContent(StringView text) noexcept;
     void SetContent(const char* text) noexcept;
+    void SetContent(std::nullptr_t) noexcept {
+        SetContent(static_cast<UIElement*>(nullptr));
+    }
     template<class T,
         class = std::enable_if_t<
             std::is_base_of_v<UIElement, T> &&

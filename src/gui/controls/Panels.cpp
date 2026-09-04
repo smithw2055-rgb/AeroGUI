@@ -523,7 +523,6 @@ Size Canvas::MeasureOverride(Size) noexcept {
     return Size{};
 }
 Size Canvas::ArrangeOverride(Size finalSize) noexcept {
-    constexpr double Unset = std::numeric_limits<double>::infinity();
     for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
         const Size desired = child->GetDesiredSize();

@@ -716,9 +716,7 @@ Base::Result<void> TimelineGroup::AddChild(
     }
     Timeline* retained = value.Get();
     if (!retained->IsFrozen()) {
-        Base::Result<void> subscribed =
-            retained->AddChangedHandler(timelineChangedHandler_);
-        if (!subscribed) return subscribed.GetStatus();
+        retained->AddChangedHandler(timelineChangedHandler_);
     }
     Base::Result<void> added = timelines_.Add(std::move(value));
     if (!added) {

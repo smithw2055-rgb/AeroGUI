@@ -264,7 +264,7 @@ Base::Result<void> SliderBehavior::Attach(
         output = added.Value();
         return {};
     };
-    status = addCommand(
+    Base::Result<void> status = addCommand(
         "DecreaseSmall", decreaseSmallHandler_,
         record.decreaseSmallCommand);
     if (status) {

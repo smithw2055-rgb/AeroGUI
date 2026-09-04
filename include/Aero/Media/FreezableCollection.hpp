@@ -59,9 +59,7 @@ public:
         EnsureItemHandler();
         T* retained = item.Get();
         if (!retained->IsFrozen()) {
-            Result<void> subscribed =
-                retained->AddChangedHandler(itemChangedHandler_);
-            if (!subscribed) return subscribed.GetStatus();
+            retained->AddChangedHandler(itemChangedHandler_);
         }
         Result<void> added = items_.PushBack(std::move(item));
         if (!added) {

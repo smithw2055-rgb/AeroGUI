@@ -117,16 +117,18 @@ Base::Result<bool> ScrollContentPresenter::UpdateData(
             Base::ErrorCode::InvalidArgument,
             "Scroll data must be finite and nonnegative");
     }
-    value.horizontalOffset = ClampOffset(
-        value.horizontalOffset,
-        value.extentWidth,
-        value.viewportWidth,
-        GetAllowsHorizontalScroll());
-    value.verticalOffset = ClampOffset(
-        value.verticalOffset,
-        value.extentHeight,
-        value.viewportHeight,
-        GetAllowsVerticalScroll());
+    value.horizontalOffset = GetAllowsHorizontalScroll()
+        ? ClampOffset(
+            value.horizontalOffset,
+            value.extentWidth,
+            value.viewportWidth)
+        : 0.0;
+    value.verticalOffset = GetAllowsVerticalScroll()
+        ? ClampOffset(
+            value.verticalOffset,
+            value.extentHeight,
+            value.viewportHeight)
+        : 0.0;
     if (SameData(data_, value)) return false;
     const ScrollData oldData = data_;
     data_ = value;

@@ -1433,11 +1433,9 @@ void ComboBox::ObserveSelectedProjection(
     }
     selectedProjection_ = projection;
     if (selectedProjection_ != nullptr) {
-        Base::Result<void> observed =
-            selectedProjection_->AddValueChangedHandler(
-                TextBlock::TextProperty,
-                selectedProjectionChangedHandler_);
-        if (!observed) selectedProjection_ = nullptr;
+        selectedProjection_->AddValueChangedHandler(
+            TextBlock::TextProperty,
+            selectedProjectionChangedHandler_);
     }
 }
 

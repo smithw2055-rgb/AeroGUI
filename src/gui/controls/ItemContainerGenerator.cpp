@@ -810,15 +810,10 @@ ItemContainerGeneratorRuntime::AttachRecord(
             record.content->RuntimeType(), UIElement::StaticTypeId())) {
         if (owner_->PropertyRegistry().Types().IsDerivedFrom(
                 record.content->RuntimeType(), TextBlock::StaticTypeId())) {
-            Base::Result<void> subscribed =
-                static_cast<TextBlock*>(record.content.Get())
-                    ->AddValueChangedHandler(
-                        TextBlock::TextProperty,
-                        generatedHeaderChangedHandler_);
-            if (!subscribed) {
-                (void)tree_->DetachElement(record.containerMount);
-                return subscribed.GetStatus();
-            }
+            static_cast<TextBlock*>(record.content.Get())
+                ->AddValueChangedHandler(
+                    TextBlock::TextProperty,
+                    generatedHeaderChangedHandler_);
             record.generatedHeader = true;
             Base::Result<void> assigned = UpdateGeneratedHeader(record);
             if (!assigned) {

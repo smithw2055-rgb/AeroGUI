@@ -352,9 +352,7 @@ Base::Result<void> TransformGroup::AddChild(
     }
     Transform* retained = value.Get();
     if (!retained->IsFrozen()) {
-        Base::Result<void> subscribed =
-            retained->AddChangedHandler(childChangedHandler_);
-        if (!subscribed) return subscribed.GetStatus();
+        retained->AddChangedHandler(childChangedHandler_);
     }
     Base::Result<void> added =
         children_.Add(std::move(value));

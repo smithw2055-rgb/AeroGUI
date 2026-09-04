@@ -65,9 +65,7 @@ Base::Result<void> GradientBrush::AddGradientStop(
     }
     GradientStop* retained = stop.Get();
     if (!retained->IsFrozen()) {
-        Base::Result<void> subscribed =
-            retained->AddChangedHandler(stopChangedHandler_);
-        if (!subscribed) return subscribed.GetStatus();
+        retained->AddChangedHandler(stopChangedHandler_);
     }
     Base::Result<void> added =
         stops_.PushBack(std::move(stop));
@@ -97,9 +95,7 @@ Base::Result<void> GradientStopCollection::Add(
     }
     GradientStop* retained = stop.Get();
     if (!retained->IsFrozen()) {
-        Base::Result<void> subscribed =
-            retained->AddChangedHandler(stopChangedHandler_);
-        if (!subscribed) return subscribed.GetStatus();
+        retained->AddChangedHandler(stopChangedHandler_);
     }
     Base::Result<void> added =
         stops_.PushBack(std::move(stop));
