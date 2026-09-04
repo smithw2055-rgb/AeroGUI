@@ -1101,101 +1101,137 @@ Base::Result<std::uint32_t> ExecuteViewFrame(ViewState& state, View& view) noexc
         skipUnsyncedVisualPhases = true;
     }
 
-    using Phase = ::Aero::Threading::DispatcherFramePhase;
-    const Phase phases[] = {
-        Phase::BeginFrame,
-        Phase::Input,
-        Phase::PropertyChanges,
-        Phase::DataBind,
-        Phase::Animation,
-        Phase::Lifecycle,
-        Phase::Layout,
-        Phase::RenderCommit,
-        Phase::EndFrame};
-
+    // P3.2: explicit direct phase driving. The Dispatcher::RunFramePhase
+    // hook table is retired (no engine registers hooks anymore); ViewFrame
+    // is the single frame funnel and calls each engine entry directly in
+    // WPF order:
+    //   PropertyChanges (values->Flush)
+    //   -> DataBind (bindings DataBindHook, single canonical call)
+    //   -> Animation (animations AnimationFrameHook)
+    //   -> Lifecycle (focus + initial values)
+    //   -> Layout (layout LayoutHook)
+    //   -> RenderCommit (renderer RenderCommitHook)
+    // BeginFrame/Input/EndFrame had no registered hooks (P1.3) and are gone.
     ViewFrameResult result;
-    for (Phase phase : phases) {
-        if (phase == Phase::Animation && skipAnimationPhase) {
-            continue;
+
+    // ---- PropertyChanges ----
+    if (state.values != nullptr) {
+        Base::Result<std::uint32_t> flushed = state.values->Flush();
+        if (!flushed) return flushed.GetStatus();
+        Base::Result<void> counted = AddFrameCallbacks(
+            result, flushed.Value(), "Frame callback count overflow");
+        if (!counted) return counted.GetStatus();
+    }
+
+    // ---- DataBind (single canonical call, merges the two discrete stages) ----
+    if (state.bindings != nullptr) {
+        Aero::BindingEngine::DataBindHook(state.bindings);
+    }
+    {
+        Base::Result<void> generatedVisualsFlushed =
+            state.FlushGeneratedVisuals();
+        if (!generatedVisualsFlushed) {
+            return generatedVisualsFlushed.GetStatus();
         }
-        if (skipUnsyncedVisualPhases &&
-            (phase == Phase::Layout ||
-             phase == Phase::RenderCommit)) {
-            continue;
+        if (Aero::Media::Visual* rootVisual = state.RootVisual()) {
+            Base::Result<void> generators =
+                state.AttachPendingItemGenerators(*rootVisual);
+            if (!generators) return generators.GetStatus();
         }
-        if (phase == Phase::Layout && state.HasAttachedRoot() &&
-            state.tree != nullptr) {
+        if (state.interactivity != nullptr) {
+            state.interactivity->FlushPendingStyleDataTriggerEvaluations();
+            state.interactivity->RetryPendingInteractionTriggers();
+        }
+    }
+
+    // ---- Animation ----
+    if (!skipAnimationPhase && state.animations != nullptr) {
+        Aero::AnimationEngine::AnimationFrameHook(state.animations);
+        const Base::Status animationStatus =
+            state.animations->LastTickStatus();
+        if (!animationStatus.IsOk()) {
+            state.ReportUpdateFailure(animationStatus);
+        }
+        if (state.animations->Diagnostics().appliedValueCount != 0U) {
+            Aero::Media::Visual* rootVisual = state.RootVisual();
+            if (rootVisual != nullptr && state.renderer != nullptr) {
+                Base::Result<void> invalidated = state.renderer->Invalidate(
+                    *rootVisual, Aero::Render::RenderInvalidation::All);
+                if (!invalidated) return invalidated.GetStatus();
+            }
+        }
+        if (state.storyboards != nullptr) {
+            Base::Result<std::uint32_t> completed =
+                state.storyboards->ProcessStoryboardCompletions();
+            if (!completed) return completed.GetStatus();
+            Base::Result<void> counted = AddFrameCallbacks(
+                result,
+                completed.Value(),
+                "Frame callback count overflow");
+            if (!counted) return counted.GetStatus();
+        }
+    }
+
+    // ---- Lifecycle ----
+    {
+        Base::Result<std::uint32_t> focused = state.focus != nullptr
+            ? state.focus->ProcessPendingFocus()
+            : Base::Result<std::uint32_t>(0U);
+        if (!focused) return focused.GetStatus();
+        Base::Result<void> counted = AddFrameCallbacks(
+            result, focused.Value(), "View callback count overflow");
+        if (!counted) return counted.GetStatus();
+        if (state.animations != nullptr) {
+            Base::Result<std::uint32_t> initialValues =
+                state.animations->ApplyPendingInitialValues();
+            if (!initialValues) return initialValues.GetStatus();
+            Base::Result<void> countedInitial = AddFrameCallbacks(
+                result,
+                initialValues.Value(),
+                "Initial animation callback count overflow");
+            if (!countedInitial) return countedInitial.GetStatus();
+        }
+    }
+
+    // ---- Layout ----
+    if (!skipUnsyncedVisualPhases) {
+        if (state.HasAttachedRoot() && state.tree != nullptr) {
             Base::Result<void> completed = state.tree->CompleteVisualEdges({
                 state.loadedDocument.visualContent.mountEdges.Data(),
                 state.loadedDocument.visualContent.mountEdges.Size()});
             if (!completed) return completed.GetStatus();
         }
-        if (phase == Phase::RenderCommit) {
-            state.RaiseFrameRendering(view);
-            if (state.overlays != nullptr) {
-                Base::Result<void> overlaySync =
-                    state.overlays->SynchronizeOverlays();
-                if (!overlaySync) return overlaySync.GetStatus();
+        if (state.layout != nullptr) {
+            Aero::LayoutEngine::LayoutHook(state.layout);
+            if (!state.layout->LastFlushStatus().IsOk()) {
+                return state.layout->LastFlushStatus();
             }
         }
-
-        Base::Result<std::uint32_t> ran = state.dispatcher->RunFramePhase(phase);
-        if (!ran) return ran.GetStatus();
-
-        if (phase == Phase::Lifecycle) {
-            Base::Result<std::uint32_t> focused = state.focus != nullptr
-                ? state.focus->ProcessPendingFocus()
-                : Base::Result<std::uint32_t>(0U);
-            if (!focused) return focused.GetStatus();
-            Base::Result<void> counted = AddFrameCallbacks(
-                result, focused.Value(), "View callback count overflow");
-            if (!counted) return counted.GetStatus();
+        if (Aero::Media::Visual* rootVisual = state.RootVisual()) {
+            Base::Result<void> generators =
+                state.AttachPendingItemGenerators(*rootVisual);
+            if (!generators) return generators.GetStatus();
         }
-        if (phase == Phase::DataBind) {
-            Base::Result<void> generatedVisualsFlushed =
-                state.FlushGeneratedVisuals();
-            if (!generatedVisualsFlushed) {
-                return generatedVisualsFlushed.GetStatus();
+        // Layout writes ActualWidth/ActualHeight during arrange.
+        // Early Layout phases can run before the tree is arranged
+        // ("best-effort" renders). Flush ElementName bindings and
+        // start Loaded storyboards only after a real arrange so
+        // Menu3D parallax can snapshot TranslateTransform.X from
+        // the measured image width.
+        if (state.layout != nullptr &&
+            state.layout->Diagnostics().arrangedCount != 0U) {
+            if (state.bindings != nullptr) {
+                Base::Result<std::uint32_t> rebound =
+                    state.bindings->Flush();
+                if (!rebound) return rebound.GetStatus();
             }
-            if (Aero::Media::Visual* rootVisual = state.RootVisual()) {
-                Base::Result<void> generators =
-                    state.AttachPendingItemGenerators(*rootVisual);
-                if (!generators) return generators.GetStatus();
-            }
-            if (state.interactivity != nullptr) {
-                state.interactivity->FlushPendingStyleDataTriggerEvaluations();
-                state.interactivity->RetryPendingInteractionTriggers();
+            if (state.storyboards != nullptr) {
+                Base::Result<void> loaded =
+                    state.storyboards->FlushPendingLoadedTriggers();
+                if (!loaded) return loaded.GetStatus();
             }
         }
-        if (phase == Phase::Layout && !state.layout->LastFlushStatus().IsOk()) {
-            return state.layout->LastFlushStatus();
-        }
-        if (phase == Phase::Layout) {
-            if (Aero::Media::Visual* rootVisual = state.RootVisual()) {
-                Base::Result<void> generators =
-                    state.AttachPendingItemGenerators(*rootVisual);
-                if (!generators) return generators.GetStatus();
-            }
-            // Layout writes ActualWidth/ActualHeight during arrange.
-            // Early Layout phases can run before the tree is arranged
-            // ("best-effort" renders). Flush ElementName bindings and
-            // start Loaded storyboards only after a real arrange so
-            // Menu3D parallax can snapshot TranslateTransform.X from
-            // the measured image width.
-            if (state.layout->Diagnostics().arrangedCount != 0U) {
-                if (state.bindings != nullptr) {
-                    Base::Result<std::uint32_t> rebound =
-                        state.bindings->Flush();
-                    if (!rebound) return rebound.GetStatus();
-                }
-                if (state.storyboards != nullptr) {
-                    Base::Result<void> loaded =
-                        state.storyboards->FlushPendingLoadedTriggers();
-                    if (!loaded) return loaded.GetStatus();
-                }
-            }
-        }
-        if (phase == Phase::Layout &&
+        if (state.layout != nullptr &&
             state.layout->Diagnostics().arrangedCount != 0U) {
             if (state.interactivity != nullptr) {
                 state.interactivity->NotifyLayoutUpdated();
@@ -1207,52 +1243,23 @@ Base::Result<std::uint32_t> ExecuteViewFrame(ViewState& state, View& view) noexc
                 if (!invalidated) return invalidated.GetStatus();
             }
         }
-        if (phase == Phase::Animation && state.animations != nullptr) {
-            const Base::Status animationStatus =
-                state.animations->LastTickStatus();
-            if (!animationStatus.IsOk()) {
-                state.ReportUpdateFailure(animationStatus);
-            }
-            if (state.animations->Diagnostics().appliedValueCount != 0U) {
-                Aero::Media::Visual* rootVisual = state.RootVisual();
-                if (rootVisual != nullptr && state.renderer != nullptr) {
-                    Base::Result<void> invalidated = state.renderer->Invalidate(
-                        *rootVisual, Aero::Render::RenderInvalidation::All);
-                    if (!invalidated) return invalidated.GetStatus();
-                }
-            }
-            if (state.storyboards != nullptr) {
-                Base::Result<std::uint32_t> completed =
-                    state.storyboards->ProcessStoryboardCompletions();
-                if (!completed) return completed.GetStatus();
-                Base::Result<void> counted = AddFrameCallbacks(
-                    result,
-                    completed.Value(),
-                    "Frame callback count overflow");
-                if (!counted) return counted.GetStatus();
-            }
-        }
-        if (phase == Phase::Lifecycle && state.animations != nullptr) {
-            Base::Result<std::uint32_t> initialValues =
-                state.animations->ApplyPendingInitialValues();
-            if (!initialValues) return initialValues.GetStatus();
-            Base::Result<void> counted = AddFrameCallbacks(
-                result,
-                initialValues.Value(),
-                "Initial animation callback count overflow");
-            if (!counted) return counted.GetStatus();
-        }
+    }
 
-        Base::Result<void> counted = AddFrameCallbacks(
-            result, ran.Value(), "Frame callback count overflow");
-        if (!counted) return counted.GetStatus();
-
-        if (phase == Phase::RenderCommit) {
+    // ---- RenderCommit ----
+    if (!skipUnsyncedVisualPhases) {
+        state.RaiseFrameRendering(view);
+        if (state.overlays != nullptr) {
+            Base::Result<void> overlaySync =
+                state.overlays->SynchronizeOverlays();
+            if (!overlaySync) return overlaySync.GetStatus();
+        }
+        if (state.renderer != nullptr) {
+            ::Aero::Render::RenderTree::RenderCommitHook(state.renderer);
             const Base::Status committed = state.renderer->LastCommitStatus();
             if (!committed.IsOk()) return committed;
-            if (state.animations != nullptr) {
-                state.animations->CommitPendingInitialValues();
-            }
+        }
+        if (state.animations != nullptr) {
+            state.animations->CommitPendingInitialValues();
         }
     }
 

@@ -723,6 +723,21 @@ const IRenderer& View::GetRenderer() const noexcept {
     return state_->publicRenderer;
 }
 
+CommittedFrameInfo View::GetCommittedFrameInfo() const noexcept {
+    CommittedFrameInfo info;
+    if (state_ == nullptr || state_->renderer == nullptr) return info;
+    const ::Aero::Render::RenderFrame& frame =
+        state_->renderer->CurrentFrame();
+    if (frame.Version() == 0U) return info;
+    const ::Aero::Render::RenderDiagnostics diagnostics =
+        state_->renderer->Diagnostics();
+    info.version = frame.Version();
+    info.nodeCount = diagnostics.nodeCount;
+    info.commandCount = diagnostics.commandCount;
+    info.contentHash = diagnostics.frameHash;
+    return info;
+}
+
 FrameworkElement* View::GetContent() noexcept {
     return state_ != nullptr && state_->RootVisual() != nullptr
         ? ::Aero::TryCast<::Aero::FrameworkElement>(state_->RootVisual())

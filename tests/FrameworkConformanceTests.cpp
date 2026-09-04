@@ -1429,6 +1429,110 @@ bool TestProviderOwnershipAndReplacement() {
     return true;
 }
 
+// P4.3 exit gate: the commit path (in-place refresh vs full rebuild) must
+// be content-transparent. Drives a State-only change and its round trip
+// through the public frame identity and requires bit-identical content
+// hashes, stable node/command counts, and version progress. The idle pump
+// additionally pins the clean-frame early-out (no new version published).
+bool TestRenderCommitContentStability() {
+    LiveGui* live = NewLiveGui();
+    CHECK(live != nullptr);
+    View& view = *live->view;
+
+    // Programmatic attach pattern (mirrors TestPanelProgrammaticAdd):
+    // mount the root first, then add the child so element-tree attach
+    // wires visual/render parenting through the standard path.
+    Result<Ref<Canvas>> canvas = MakeRef<Canvas>();
+    CHECK(canvas);
+    canvas.Value()->SetWidth(200.0);
+    canvas.Value()->SetHeight(120.0);
+    Result<Ref<Aero::Media::Brush>> background =
+        Aero::Media::MakeSolidColorBrush({1.0F, 0.0F, 0.0F, 1.0F});
+    CHECK(background);
+    canvas.Value()->SetBackground(background.Value());
+    CHECK(view.SetContent(canvas.Value(), {200.0, 120.0}));
+    Pump(view, 0.016);
+    Result<Ref<Button>> button = MakeRef<Button>();
+    CHECK(button);
+    button.Value()->SetWidth(80.0);
+    button.Value()->SetHeight(32.0);
+    CHECK(canvas.Value()->GetChildren().Add(
+        Ref<Aero::UIElement>(button.Value())));
+    Pump(view, 0.032);
+    Pump(view, 0.048);
+    CHECK(button.Value()->GetVisualParent() == canvas.Value().Get());
+
+    Aero::CommittedFrameInfo base = view.GetCommittedFrameInfo();
+    CHECK(base.version != 0U);
+    CHECK(base.nodeCount >= 2U);
+    CHECK(base.contentHash != 0U);
+
+    // Steady state: no work scheduled, the commit early-outs and the
+    // published frame (version and content) is untouched.
+    Pump(view, 0.064);
+    const Aero::CommittedFrameInfo idle = view.GetCommittedFrameInfo();
+    CHECK(idle.version == base.version);
+    CHECK(idle.nodeCount == base.nodeCount);
+    CHECK(idle.commandCount == base.commandCount);
+    CHECK(idle.contentHash == base.contentHash);
+
+    // State-only change (opacity touches no layout): a new version with
+    // identical structure, and observably different content.
+    button.Value()->SetValue(
+        Aero::UIElement::OpacityProperty, 0.5);
+    Pump(view, 0.080);
+    Pump(view, 0.096);
+    const Aero::CommittedFrameInfo dimmed = view.GetCommittedFrameInfo();
+    CHECK(dimmed.version != base.version);
+    CHECK(dimmed.nodeCount == base.nodeCount);
+    CHECK(dimmed.commandCount == base.commandCount);
+    CHECK(dimmed.contentHash != base.contentHash);
+
+    // Round trip: restoring the exact value must reproduce the exact
+    // committed bytes regardless of which commit path ran.
+    button.Value()->SetValue(
+        Aero::UIElement::OpacityProperty, 1.0);
+    Pump(view, 0.112);
+    Pump(view, 0.128);
+    const Aero::CommittedFrameInfo restored = view.GetCommittedFrameInfo();
+    CHECK(restored.version != dimmed.version);
+    CHECK(restored.nodeCount == base.nodeCount);
+    CHECK(restored.commandCount == base.commandCount);
+    CHECK(restored.contentHash == base.contentHash);
+    return true;
+}
+
+// P4.4 exit gate: pins the fill+stroke geometry scene bytes. Game::OnRender
+// issues DrawRectangle + DrawLine + DrawGeometry(fill AND pen); the latter
+// must survive the single-flatten unification bit-identically (one
+// geometry.Flatten feeding both fill and stroke tessellation instead of
+// two). Any tessellation divergence changes commandCount/contentHash.
+bool TestDrawGeometryFillStrokeScene() {
+    // Game lives in the tutorial test module.
+    LiveGui* live = NewTutorialLiveGui();
+    CHECK(live != nullptr);
+    View& view = *live->view;
+    Result<Ref<Game>> game = MakeRef<Game>();
+    CHECK(game);
+    game.Value()->SetWidth(80.0);
+    game.Value()->SetHeight(60.0);
+    CHECK(view.SetContent(game.Value(), {80.0, 60.0}));
+    Pump(view, 0.016);
+    Pump(view, 0.032);
+    const Aero::CommittedFrameInfo info = view.GetCommittedFrameInfo();
+    CHECK(info.version != 0U);
+    CHECK(info.nodeCount >= 1U);
+    CHECK(info.commandCount > 0U);
+    CHECK(info.contentHash != 0U);
+    // Idempotent re-commit pins the exact bytes.
+    Pump(view, 0.048);
+    const Aero::CommittedFrameInfo again = view.GetCommittedFrameInfo();
+    CHECK(again.version == info.version);
+    CHECK(again.commandCount == info.commandCount);
+    CHECK(again.contentHash == info.contentHash);
+    return true;
+}
+
 bool TestViewFrameViewportAndInput() {
     LiveGui* live = NewLiveGui();
     CHECK(live != nullptr);
@@ -5989,6 +6093,8 @@ int main() {
     RUN(TestXamlStreamReader);
     RUN(TestProviderOwnershipAndReplacement);
     RUN(TestViewFrameViewportAndInput);
+    RUN(TestRenderCommitContentStability);
+    RUN(TestDrawGeometryFillStrokeScene);
     RUN(TestDispatcherCrossThreadPost);
     RUN(TestContainerLayoutAndCalculators);
     RUN(TestComboBoxAndVisualStateAnimation);

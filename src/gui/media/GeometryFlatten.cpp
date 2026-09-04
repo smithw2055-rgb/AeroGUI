@@ -1,4 +1,5 @@
 #include "gui/media/GeometryFlatten.hpp"
+#include "gui/media/FlattenSinks.inl"
 
 #include <algorithm>
 #include <cerrno>
@@ -10,12 +11,6 @@ namespace Aero::Media {
 namespace {
 
 constexpr double Pi = 3.14159265358979323846;
-
-bool SamePoint(Point left, Point right) noexcept {
-    constexpr double Epsilon = 1.0e-9;
-    return std::abs(left.x - right.x) <= Epsilon &&
-        std::abs(left.y - right.y) <= Epsilon;
-}
 
 std::uint32_t SegmentCount(double controlLength) noexcept {
     return static_cast<std::uint32_t>(
@@ -88,7 +83,7 @@ Result<void> FlattenArc(
     bool isLargeArc,
     bool sweepClockwise,
     Point end) noexcept {
-    if (SamePoint(start, end)) return {};
+    if (FlattenSinksSamePoint(start, end)) return {};
     double rx = std::fabs(radii.width);
     double ry = std::fabs(radii.height);
     if (rx < 1.0e-12 || ry < 1.0e-12) {
@@ -186,7 +181,7 @@ Result<void> FlattenArc(
         if (!flattened) return flattened.GetStatus();
         previous = p1;
     }
-    if (!SamePoint(previous, end)) {
+    if (!FlattenSinksSamePoint(previous, end)) {
         return sink.AddPoint(end);
     }
     return {};
@@ -240,59 +235,40 @@ Result<void> ParsePointList(
 
 namespace {
 
-struct FillContour {
-    std::uint32_t offset = 0U;
-    std::uint32_t count = 0U;
-};
-
-class GeometryFillSink final : public FlattenSink {
+// Fan-out for the single-flatten path: one geometry.Flatten drives both
+// the fill contour set and the stroke contour set. Each side observes the
+// exact event stream it would see in its own dedicated pass.
+class FillAndStrokeFanOut final : public FlattenSink {
 public:
-    GeometryFillSink(
-        Base::Vector<Point>& points,
-        Base::Vector<FillContour>& contours) noexcept
-        : points_(&points), contours_(&contours) {}
+    FillAndStrokeFanOut(
+        GeometryFillSink& fill,
+        StrokeContourSink& stroke) noexcept
+        : fill_(&fill), stroke_(&stroke) {}
 
     Result<void> BeginFigure(Point start, bool isClosed) noexcept override {
-        Result<void> finished = Flush();
-        if (!finished) return finished.GetStatus();
-        closed_ = isClosed;
-        contour_.Clear();
-        return contour_.PushBack(start);
+        Result<void> filled = fill_->BeginFigure(start, isClosed);
+        if (!filled) return filled.GetStatus();
+        return stroke_->BeginFigure(start, isClosed);
     }
     Result<void> AddPoint(Point point) noexcept override {
-        if (contour_.Empty()) {
-            return BeginFigure(point, closed_);
-        }
-        return contour_.PushBack(point);
+        Result<void> filled = fill_->AddPoint(point);
+        if (!filled) return filled.GetStatus();
+        return stroke_->AddPoint(point);
     }
     Result<void> EndFigure(bool isClosed) noexcept override {
-        closed_ = isClosed;
-        return Flush();
+        Result<void> filled = fill_->EndFigure(isClosed);
+        if (!filled) return filled.GetStatus();
+        return stroke_->EndFigure(isClosed);
     }
-    Result<void> Finish() noexcept { return Flush(); }
+    Result<void> Finish() noexcept {
+        Result<void> filled = fill_->Finish();
+        if (!filled) return filled.GetStatus();
+        return stroke_->Finish();
+    }
 
 private:
-    Result<void> Flush() noexcept {
-        if (contour_.Size() > 1U &&
-            SamePoint(contour_.Front(), contour_.Back())) {
-            contour_.PopBack();
-        }
-        if (contour_.Size() < 3U) {
-            contour_.Clear();
-            return {};
-        }
-        FillContour record{points_->Size(), contour_.Size()};
-        Result<void> appended = points_->Append(contour_.AsSpan());
-        if (!appended) return appended.GetStatus();
-        appended = contours_->PushBack(record);
-        contour_.Clear();
-        return appended;
-    }
-
-    Base::Vector<Point> contour_;
-    Base::Vector<Point>* points_ = nullptr;
-    Base::Vector<FillContour>* contours_ = nullptr;
-    bool closed_ = true;
+    GeometryFillSink* fill_ = nullptr;
+    StrokeContourSink* stroke_ = nullptr;
 };
 
 double FillEdgeX(Point start, Point end, double y) noexcept {
@@ -304,6 +280,29 @@ double FillEdgeX(Point start, Point end, double y) noexcept {
 }
 
 } // namespace
+
+Result<void> FlattenGeometryContours(
+    const Geometry& geometry,
+    Base::Vector<Point>& fillPoints,
+    Base::Vector<FillContour>& fillContours,
+    Base::Vector<Point>& strokePoints,
+    Base::Vector<std::uint32_t>& strokeStarts,
+    Base::Vector<std::uint32_t>& strokeCounts,
+    Base::Vector<std::uint8_t>& strokeClosed) noexcept {
+    fillPoints.Clear();
+    fillContours.Clear();
+    strokePoints.Clear();
+    strokeStarts.Clear();
+    strokeCounts.Clear();
+    strokeClosed.Clear();
+    GeometryFillSink fillSink(fillPoints, fillContours);
+    StrokeContourSink strokeSink(
+        strokePoints, strokeStarts, strokeCounts, strokeClosed);
+    FillAndStrokeFanOut fanOut(fillSink, strokeSink);
+    Result<void> flattened = geometry.Flatten(fanOut);
+    if (!flattened) return flattened.GetStatus();
+    return fanOut.Finish();
+}
 
 Result<void> TessellateGeometryFill(
     const Geometry& geometry,
@@ -318,6 +317,16 @@ Result<void> TessellateGeometryFill(
     if (!flattened) return flattened.GetStatus();
     flattened = sink.Finish();
     if (!flattened) return flattened.GetStatus();
+    return TessellateFillContours(points, contours, vertices, indices);
+}
+
+Result<void> TessellateFillContours(
+    const Base::Vector<Point>& points,
+    const Base::Vector<FillContour>& contours,
+    Base::Vector<Point>& vertices,
+    Base::Vector<std::uint32_t>& indices) noexcept {
+    vertices.Clear();
+    indices.Clear();
     if (points.Empty() || contours.Empty()) return {};
 
     Base::Vector<double> levels;

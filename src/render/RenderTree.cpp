@@ -653,9 +653,24 @@ namespace Aero::Render {
 using namespace ::Aero::Render;
 using Aero::FrameworkElement;
 
+void RenderFrame::Clear() noexcept {
+    nodes_.Clear();
+    commands_.Clear();
+    gradientRamps_.Clear();
+    geometryClipVertices_.Clear();
+    geometryClipIndices_.Clear();
+    version_ = 0U;
+    logicalSize_ = {};
+    pixelWidth_ = 0U;
+    pixelHeight_ = 0U;
+    dpiScale_ = 1.0;
+}
+
 std::uint64_t RenderFrame::StableHash() const noexcept {
     std::uint64_t hash = 1469598103934665603ULL;
-    hash = HashScalar(hash, version_);
+    // P4.3: version_ is a generation marker, not content (see
+    // elementRevision above). The descriptor version stays available via
+    // Version()/Diagnostics; the hash identifies visuals only.
     hash = HashSize(hash, logicalSize_);
     hash = HashScalar(hash, pixelWidth_);
     hash = HashScalar(hash, pixelHeight_);
@@ -686,7 +701,10 @@ std::uint64_t RenderFrame::StableHash() const noexcept {
                 node.effect.kind));
         hash = HashScalar(hash, node.commandOffset);
         hash = HashScalar(hash, node.commandCount);
-        hash = HashScalar(hash, node.elementRevision);
+        // P4.3: elementRevision is a commit-generation marker, not content.
+        // Excluding it makes StableHash a true content hash: identical
+        // visuals hash identically regardless of how many commits have
+        // passed, which is what the content-stability gate compares.
     }
     for (const RenderCommand& command : commands_) {
         hash = HashCommand(hash, command);
@@ -694,10 +712,9 @@ std::uint64_t RenderFrame::StableHash() const noexcept {
     for (const RenderGradientRampSnapshot& ramp : gradientRamps_) {
         // brushIdentity is intentionally omitted: it is a process-local cache
         // key and must not make a frame hash depend on an address.
+        // P4.2: ramp pixels (1024 B) no longer participate per frame; the
+        // revision already versions content changes, so hash it only.
         hash = HashScalar(hash, ramp.revision);
-        for (const std::uint8_t value : ramp.pixels) {
-            hash = HashByte(hash, value);
-        }
     }
     return hash;
 }
@@ -730,6 +747,12 @@ Base::Result<void> ValidateRenderFrame(const RenderFrame& frame) noexcept {
         if (node.id == InvalidRenderNodeId) {
             return InvalidState("RenderFrame node IDs must be nonzero");
         }
+        // P4.2: the ID-uniqueness and parent-precedes double loops were O(n^2)
+        // per validated frame. Node IDs come from RenderTree's monotonic
+        // nextNodeId_ counter and parents are appended before their children
+        // in BuildSubtree, so both hold by construction; keep them as
+        // Debug-only checks and validate fields in O(n) in all builds.
+#ifndef NDEBUG
         for (std::uint32_t previous = 0U; previous < nodeIndex; ++previous) {
             if (nodes[previous].id == node.id) {
                 return InvalidState("RenderFrame node IDs must be unique");
@@ -744,6 +767,7 @@ Base::Result<void> ValidateRenderFrame(const RenderFrame& frame) noexcept {
                 return InvalidState("RenderFrame parent must precede its child");
             }
         }
+#endif
         if (!IsValidLayoutRect(node.layoutSlot) ||
             !IsValidLayoutRect(node.clip) ||
             !IsValidLayoutSize(node.renderSize) ||
@@ -1011,6 +1035,8 @@ Base::Result<void> RenderTree::SetRoot(
         dirty_.Clear();
         drawings_.Clear();
         overlays_.Clear();
+        // P4.3: membership changed; committed node order is no longer valid.
+        ++structureVersion_;
         return {};
     }
 
@@ -1045,6 +1071,8 @@ Base::Result<void> RenderTree::SetRoot(
     AERO_ASSERT(queued);
     (void)queued;
     AeroGuiInternal::RenderQueued(*root) = true;
+    // P4.3: new root identity; committed node order is no longer valid.
+    ++structureVersion_;
     return {};
 }
 
@@ -1104,6 +1132,8 @@ Base::Result<void> RenderTree::Attach(
     AERO_ASSERT(queued);
     (void)queued;
     AeroGuiInternal::RenderQueued(child) = true;
+    // P4.3: new node identity; committed node order is no longer valid.
+    ++structureVersion_;
     return {};
 }
 
@@ -1145,6 +1175,8 @@ Base::Result<void> RenderTree::Detach(
         AeroGuiInternal::NodeId(element) = InvalidRenderNodeId;
     };
     clear(clear, child);
+    // P4.3: node identities removed; committed node order is no longer valid.
+    ++structureVersion_;
     return {};
 }
 
@@ -1588,6 +1620,9 @@ Base::Result<void> RenderTree::SetOverlays(
     }
     if (!changed) return {};
     overlays_ = std::move(next);
+    // P4.3: overlay membership feeds the commit tail; committed node order
+    // is no longer valid.
+    ++structureVersion_;
     if (root_ != nullptr) {
         return Invalidate(
             *root_,
@@ -1703,10 +1738,21 @@ std::uint32_t RenderTree::AppendGradientRamp(
         ramp.pixels[i * 4U + 3U] = static_cast<std::uint8_t>(
             std::clamp(alpha * 255.0F + 0.5F, 0.0F, 255.0F));
     }
-    const Base::Span<const RenderGradientRampSnapshot> existing =
+    Base::Span<const RenderGradientRampSnapshot> existing =
         plan.GradientRamps();
     for (std::uint32_t i = 0U; i < existing.Size(); ++i) {
-        if (existing[i].brushIdentity == ramp.brushIdentity) return i;
+        if (existing[i].brushIdentity != ramp.brushIdentity) continue;
+        // P4.3: revision-aware dedup. A brush whose stops changed keeps its
+        // table slot; pixels are refreshed in place so incremental commits
+        // never go stale and never grow the table with duplicates. Full
+        // rebuilds always start from an empty table, so this path never
+        // triggers there (zero behavior change for that path).
+        if (existing[i].revision != ramp.revision) {
+            RenderGradientRampSnapshot& stored = plan.gradientRamps_[i];
+            stored.revision = ramp.revision;
+            stored.pixels = ramp.pixels;
+        }
+        return i;
     }
     static_cast<void>(plan.gradientRamps_.PushBack(ramp));
     return plan.gradientRamps_.Size() - 1U;
@@ -1790,12 +1836,65 @@ RenderMaskSnapshot RenderTree::BuildMaskSnapshot(
     return snapshot;
 }
 
-Base::Result<void> RenderTree::BuildSubtree(
+bool RenderTree::IsEmittedChild(
+    const ::Aero::Media::Visual& child) noexcept {
+    const Meta::TypeId childType = child.RuntimeType();
+    const Meta::TypeRegistry& childTypes =
+        child.PropertyRegistry().Types();
+    // Popup-style visuals remain logical/template children so bindings,
+    // layout and routed events keep their WPF shape. They must never be
+    // emitted inline, though: an open popup is committed exactly once via
+    // the overlay list, and a closed popup is omitted altogether.
+    const bool overlayHost =
+        childTypes.IsDerivedFrom(
+            childType,
+            Controls::Primitives::Popup::StaticTypeId()) ||
+        childTypes.IsDerivedFrom(
+            childType,
+            Controls::ContextMenu::StaticTypeId()) ||
+        childTypes.IsDerivedFrom(
+            childType,
+            Documents::AdornerLayer::StaticTypeId());
+    if (overlayHost) return false;
+    // Open overlay instances additionally pass IsOverlay(); callers check
+    // both so an open popup is committed exactly once via the overlay list.
+    return true;
+}
+
+void RenderTree::ResolveCommandGradients(
+    RenderFrame& plan,
+    std::uint32_t start,
+    std::uint32_t count) noexcept {
+    for (std::uint32_t i = 0U; i < count; ++i) {
+        RenderCommand& command = plan.commands_[start + i];
+        if (command.paintKind == 0U || command.gradientBrush == 0U) {
+            continue;
+        }
+        const auto* brush = reinterpret_cast<
+            const ::Aero::Media::GradientBrush*>(command.gradientBrush);
+        command.gradientRamp = AppendGradientRamp(plan, *brush);
+    }
+}
+
+Base::Result<void> RenderTree::DescribeVisual(
     ::Aero::Media::Visual& visual,
     RenderNodeId parentId,
-    RenderFrame& plan,
     bool overlayRoot,
-    const ::Aero::Media::Transform3DContext& transform3D) noexcept {
+    const ::Aero::Media::Transform3DContext& transform3D,
+    RenderFrame& plan,
+    const DisplayList*& drawingOut,
+    RenderNodeSnapshot& snapshotOut,
+    bool& skipOut,
+    bool& visibleOut,
+    ::Aero::Media::Transform3DContext& childContextOut,
+    bool& clippedOut) noexcept {
+    drawingOut = nullptr;
+    snapshotOut = RenderNodeSnapshot{};
+    skipOut = false;
+    visibleOut = false;
+    childContextOut = transform3D;
+    clippedOut = false;
+
     UIElement* element = ::Aero::TryCast<::Aero::UIElement>(&visual);
     FrameworkElement* framework =
         ::Aero::TryCast<::Aero::FrameworkElement>(&visual);
@@ -1818,12 +1917,14 @@ Base::Result<void> RenderTree::BuildSubtree(
         // wipe a realized ItemsControl subtree.
         const bool isRoot = parentId == InvalidRenderNodeId;
         if (reentrant && !isRoot) {
+            skipOut = true;
             return {};
         }
         // First host frames can paint the Window before its measure/arrange
         // flush (DesktopHost Update(0) + show). Keep walking so the frame
         // self-corrects; do not spam stderr for this expected path.
     }
+    visibleOut = visible;
     DrawingRecord* record = FindDrawing(visual);
     const bool drawingDirty =
         HasRenderInvalidation(
@@ -1920,6 +2021,7 @@ Base::Result<void> RenderTree::BuildSubtree(
                 if (!appended) return appended;
                 appended = plan.geometryClipIndices_.Append(indices.AsSpan());
                 if (!appended) return appended;
+                clippedOut = true;
             }
         }
     }
@@ -2024,54 +2126,57 @@ Base::Result<void> RenderTree::BuildSubtree(
             Base::Compose(snapshot.renderTransform, overlayPlacement);
     }
 
+    drawingOut = &list;
+    snapshotOut = snapshot;
+    childContextOut = childContext;
+    return {};
+}
+
+Base::Result<void> RenderTree::BuildSubtree(
+    ::Aero::Media::Visual& visual,
+    RenderNodeId parentId,
+    RenderFrame& plan,
+    bool overlayRoot,
+    const ::Aero::Media::Transform3DContext& transform3D) noexcept {
+    const DisplayList* drawing = nullptr;
+    RenderNodeSnapshot snapshot;
+    bool skipped = false;
+    bool visible = false;
+    Media::Transform3DContext childContext = transform3D;
+    bool clipped = false;
+    Base::Result<void> described = DescribeVisual(
+        visual, parentId, overlayRoot, transform3D, plan, drawing, snapshot,
+        skipped, visible, childContext, clipped);
+    if (!described) return described.GetStatus();
+    if (skipped) return {};
+    static_cast<void>(clipped);
+
+    snapshot.commandOffset = plan.commands_.Size();
     Base::Result<void> nodeAppend = plan.nodes_.PushBack(snapshot);
     if (!nodeAppend) {
         return nodeAppend;
     }
+    const std::uint32_t commandCount = snapshot.commandCount;
     Base::Result<void> commandAppend =
         commandCount != 0U
-        ? plan.commands_.Append(list.Commands())
+        ? plan.commands_.Append(drawing->Commands())
         : Base::Result<void>();
     if (!commandAppend) {
         plan.nodes_.PopBack();
         return commandAppend;
     }
     if (commandCount != 0U) {
-        const std::uint32_t start = snapshot.commandOffset;
-        for (std::uint32_t i = 0U; i < commandCount; ++i) {
-            RenderCommand& command = plan.commands_[start + i];
-            if (command.paintKind == 0U || command.gradientBrush == 0U) {
-                continue;
-            }
-            const auto* brush = reinterpret_cast<
-                const ::Aero::Media::GradientBrush*>(command.gradientBrush);
-            command.gradientRamp = AppendGradientRamp(plan, *brush);
-        }
+        ResolveCommandGradients(plan, snapshot.commandOffset, commandCount);
     }
 
     if (!visible) return {};
     for (::Aero::Media::Visual* child :
          AeroGuiInternal::
              RenderChildren(visual)) {
-        if (child == nullptr) continue;
-        const Meta::TypeId childType = child->RuntimeType();
-        const Meta::TypeRegistry& childTypes =
-            child->PropertyRegistry().Types();
-        // Popup-style visuals remain logical/template children so bindings,
-        // layout and routed events keep their WPF shape. They must never be
-        // emitted inline, though: an open popup is committed exactly once via
-        // the overlay list, and a closed popup is omitted altogether.
-        const bool overlayHost =
-            childTypes.IsDerivedFrom(
-                childType,
-                Controls::Primitives::Popup::StaticTypeId()) ||
-            childTypes.IsDerivedFrom(
-                childType,
-                Controls::ContextMenu::StaticTypeId()) ||
-            childTypes.IsDerivedFrom(
-                childType,
-                Documents::AdornerLayer::StaticTypeId());
-        if (IsOverlay(*child) || overlayHost) continue;
+        if (child == nullptr || IsOverlay(*child) ||
+            !IsEmittedChild(*child)) {
+            continue;
+        }
         Base::Result<void> childResult =
             BuildSubtree(
                 *child,
@@ -2085,6 +2190,237 @@ Base::Result<void> RenderTree::BuildSubtree(
     }
     return {};
 }
+
+Base::Result<void> RenderTree::RefreshInPlace(
+    bool& fallbackOut,
+    std::uint32_t& committedNodesOut) noexcept {
+    fallbackOut = true;
+    committedNodesOut = 0U;
+    // Caller guarantees: root present, frame built before, structure
+    // generation matches, no overlays, viewport clean.
+    const Size rootSize = [&]() noexcept {
+        if (FrameworkElement* rootFramework =
+                ::Aero::TryCast<::Aero::FrameworkElement>(root_)) {
+            return rootFramework->GetRenderSize();
+        }
+        return logicalSize_;
+    }();
+    const Media::Transform3DContext rootContext =
+        Media::MakeImplicitViewRootContext(rootSize);
+
+    std::uint32_t cursor = 0U;
+    bool fallback = false;
+    Base::Status fatal;
+    auto refresh = [&](auto&& self,
+                       ::Aero::Media::Visual& visual,
+                       RenderNodeId parentId,
+                       const Media::Transform3DContext& transform3D) noexcept
+        -> Base::Result<void> {
+        if (fallback) return {};
+        // Bounds and identity first: never bind a reference past the end.
+        // Structural drift (missed attach/detach) falls back to the full
+        // rebuild, which re-derives order from the live tree.
+        if (cursor >= currentFrame_.nodes_.Size() ||
+            currentFrame_.nodes_[cursor].id !=
+                AeroGuiInternal::NodeId(visual) ||
+            currentFrame_.nodes_[cursor].parentId != parentId) {
+            fallback = true;
+            return {};
+        }
+        RenderNodeSnapshot& stored = currentFrame_.nodes_[cursor];
+        // Layout writes sizes directly without render flags. A resized
+        // visual needs its drawing re-recorded; force the Drawing bit so
+        // DescribeVisual treats it exactly like a flagged visual (the full
+        // path reaches the same state via the blanket invalidations).
+        bool sizeChanged = false;
+        if (UIElement* layoutElement =
+                ::Aero::TryCast<::Aero::UIElement>(&visual)) {
+            const Size nowSize = layoutElement->GetRenderSize();
+            sizeChanged =
+                nowSize.width != stored.renderSize.width ||
+                nowSize.height != stored.renderSize.height;
+            if (sizeChanged) {
+                AeroGuiInternal::RenderDirtyFlags(visual) |=
+                    static_cast<std::uint8_t>(
+                        RenderInvalidation::Drawing);
+                AeroGuiInternal::RenderValid(visual) = false;
+            }
+        }
+        const bool drawingDirty = HasRenderInvalidation(
+            static_cast<RenderInvalidation>(
+                AeroGuiInternal::RenderDirtyFlags(visual)),
+            RenderInvalidation::Drawing);
+
+        const DisplayList* drawing = nullptr;
+        RenderNodeSnapshot snapshot;
+        bool skipped = false;
+        bool visible = false;
+        Media::Transform3DContext childContext = transform3D;
+        bool clipped = false;
+        Base::Result<void> described = DescribeVisual(
+            visual, parentId, false, transform3D, currentFrame_, drawing,
+            snapshot, skipped, visible, childContext, clipped);
+        if (!described) {
+            fatal = described.GetStatus();
+            return fatal;
+        }
+        if (skipped) return {};
+        if (clipped) {
+            // Geometry-clip ranges cannot be spliced in place.
+            fallback = true;
+            return {};
+        }
+        if (snapshot.commandCount != stored.commandCount) {
+            // Command-range resize shifts every later offset: full rebuild.
+            fallback = true;
+            return {};
+        }
+        // Ranges are fixed: patch fields in place, refresh the command
+        // bytes only when the drawing was actually re-recorded.
+        snapshot.commandOffset = stored.commandOffset;
+        stored = snapshot;
+        if (snapshot.commandCount != 0U &&
+            (drawingDirty || sizeChanged)) {
+            Base::Span<const RenderCommand> fresh = drawing->Commands();
+            for (std::uint32_t i = 0U; i < snapshot.commandCount; ++i) {
+                currentFrame_.commands_[stored.commandOffset + i] =
+                    fresh[i];
+            }
+            ResolveCommandGradients(
+                currentFrame_, stored.commandOffset,
+                snapshot.commandCount);
+        }
+        ++cursor;
+
+        if (!visible) return {};
+        for (::Aero::Media::Visual* child :
+             AeroGuiInternal::
+                 RenderChildren(visual)) {
+            if (child == nullptr || IsOverlay(*child) ||
+                !IsEmittedChild(*child)) {
+                continue;
+            }
+            Base::Result<void> childResult = self(
+                self, *child, AeroGuiInternal::NodeId(visual),
+                childContext);
+            if (!childResult) return childResult.GetStatus();
+            if (fallback) return {};
+        }
+        return {};
+    };
+
+    // Bounds-guard the first access: an empty frame cannot refresh.
+    if (currentFrame_.nodes_.Empty()) {
+        return {};
+    }
+    Base::Result<void> walked =
+        refresh(refresh, *root_, InvalidRenderNodeId, rootContext);
+    if (!walked) return walked.GetStatus();
+    if (fallback || cursor != currentFrame_.nodes_.Size()) {
+        return {};
+    }
+    currentFrame_.version_ = ++commitVersion_;
+    MarkCommittedSubtree(*root_, true);
+    dirty_.Clear();
+    committedStructureVersion_ = structureVersion_;
+    committedNodesOut = cursor;
+    fallbackOut = false;
+    return {};
+}
+
+Base::Result<std::uint32_t> RenderTree::RebuildFull() noexcept {
+    stagedFrame_.Clear();
+    stagedFrame_.version_ = commitVersion_ + 1U;
+    stagedFrame_.logicalSize_ = logicalSize_;
+    stagedFrame_.pixelWidth_ = pixelWidth_;
+    stagedFrame_.pixelHeight_ = pixelHeight_;
+    stagedFrame_.dpiScale_ = dpiScale_;
+    const Size rootSize = [&]() noexcept {
+        if (FrameworkElement* rootFramework =
+                ::Aero::TryCast<::Aero::FrameworkElement>(root_)) {
+            return rootFramework->GetRenderSize();
+        }
+        return logicalSize_;
+    }();
+    const Media::Transform3DContext rootContext =
+        Media::MakeImplicitViewRootContext(rootSize);
+    Base::Result<void> built = BuildSubtree(
+        *root_, InvalidRenderNodeId, stagedFrame_, false, rootContext);
+    if (!built) {
+        return built.GetStatus();
+    }
+    for (const OverlayRecord& record :
+         overlays_) {
+        FrameworkElement* overlay =
+            record.element;
+        if (overlay == nullptr ||
+            static_cast<::Aero::Media::Visual*>(overlay) == root_ ||
+            !AeroGuiInternal::RenderAttached(*overlay) ||
+            overlay->GetVisibility() != Visibility::Visible ||
+            !overlay->GetIsArrangeValid()) {
+            continue;
+        }
+        const Size overlaySize = overlay->GetRenderSize();
+        built = BuildSubtree(
+            *overlay,
+            AeroGuiInternal::NodeId(*root_),
+            stagedFrame_,
+            true,
+            Media::MakeImplicitViewRootContext(overlaySize));
+        if (!built) {
+            return built.GetStatus();
+        }
+    }
+    const std::uint32_t committedNodes = stagedFrame_.nodes_.Size();
+    currentFrame_ = std::move(stagedFrame_);
+    commitVersion_ = currentFrame_.Version();
+    MarkCommittedSubtree(*root_, true);
+    dirty_.Clear();
+    viewportDirty_ = false;
+    committedStructureVersion_ = structureVersion_;
+    return committedNodes;
+}
+
+#ifndef NDEBUG
+// P4.3: Debug-only agreement check. Independently rebuilds the frame from
+// scratch (flags are still dirty, so drawings re-record fresh) and requires
+// bit-identical content versus the in-place refresh. Every conformance Pump
+// in debug builds exercises it, pinning refresh/rebuild equivalence across
+// the whole suite. On disagreement it asserts and reports false so the
+// caller heals via the full rebuild.
+bool RenderTree::VerifyRefresh() noexcept {
+    verifyFrame_.Clear();
+    verifyFrame_.logicalSize_ = logicalSize_;
+    verifyFrame_.pixelWidth_ = pixelWidth_;
+    verifyFrame_.pixelHeight_ = pixelHeight_;
+    verifyFrame_.dpiScale_ = dpiScale_;
+    const Size rootSize = [&]() noexcept {
+        if (FrameworkElement* rootFramework =
+                ::Aero::TryCast<::Aero::FrameworkElement>(root_)) {
+            return rootFramework->GetRenderSize();
+        }
+        return logicalSize_;
+    }();
+    const Media::Transform3DContext rootContext =
+        Media::MakeImplicitViewRootContext(rootSize);
+    // Overlays are empty whenever a refresh was attempted.
+    Base::Result<void> built = BuildSubtree(
+        *root_, InvalidRenderNodeId, verifyFrame_, false, rootContext);
+    if (!built) return true;
+    // Normalize the generation marker: StableHash covers the descriptor
+    // version, which the refresh already advanced.
+    verifyFrame_.version_ = currentFrame_.Version();
+    const bool agree =
+        verifyFrame_.nodes_.Size() == currentFrame_.nodes_.Size() &&
+        verifyFrame_.commands_.Size() == currentFrame_.commands_.Size() &&
+        verifyFrame_.gradientRamps_.Size() ==
+            currentFrame_.gradientRamps_.Size() &&
+        verifyFrame_.StableHash() == currentFrame_.StableHash();
+    AERO_ASSERT(agree &&
+        "P4.3: in-place refresh diverged from full rebuild");
+    return agree;
+}
+#endif
 
 Base::Result<std::uint32_t> RenderTree::Commit() noexcept {
     Base::Result<void> access = dispatcher_->VerifyAccess();
@@ -2107,59 +2443,57 @@ Base::Result<std::uint32_t> RenderTree::Commit() noexcept {
     if (dirty_.Empty() && !viewportDirty_ &&
         currentFrame_.Version() != 0U) return 0U;
 
-    committing_ = true;
-    RenderFrame next;
-    next.version_ = commitVersion_ + 1U;
-    next.logicalSize_ = logicalSize_;
-    next.pixelWidth_ = pixelWidth_;
-    next.pixelHeight_ = pixelHeight_;
-    next.dpiScale_ = dpiScale_;
-    const Size rootSize = [&]() noexcept {
-        if (FrameworkElement* rootFramework =
-                ::Aero::TryCast<::Aero::FrameworkElement>(root_)) {
-            return rootFramework->GetRenderSize();
-        }
-        return logicalSize_;
-    }();
-    const Media::Transform3DContext rootContext =
-        Media::MakeImplicitViewRootContext(rootSize);
-    Base::Result<void> built = BuildSubtree(
-        *root_, InvalidRenderNodeId, next, false, rootContext);
-    if (!built) {
+    // P4.3: viewport-only change with a stable structure and no dirty
+    // visuals is descriptor-only: snapshots store element-relative state,
+    // so no node needs to be revisited. A new version is still published
+    // so hosts re-present at the new size/dpi.
+    if (dirty_.Empty() && viewportDirty_ &&
+        currentFrame_.Version() != 0U &&
+        committedStructureVersion_ == structureVersion_) {
+        committing_ = true;
+        currentFrame_.version_ = ++commitVersion_;
+        currentFrame_.logicalSize_ = logicalSize_;
+        currentFrame_.pixelWidth_ = pixelWidth_;
+        currentFrame_.pixelHeight_ = pixelHeight_;
+        currentFrame_.dpiScale_ = dpiScale_;
+        viewportDirty_ = false;
         committing_ = false;
-        return built.GetStatus();
+        return currentFrame_.nodes_.Size();
     }
-    for (const OverlayRecord& record :
-         overlays_) {
-        FrameworkElement* overlay =
-            record.element;
-        if (overlay == nullptr ||
-            static_cast<::Aero::Media::Visual*>(overlay) == root_ ||
-            !AeroGuiInternal::RenderAttached(*overlay) ||
-            overlay->GetVisibility() != Visibility::Visible ||
-            !overlay->GetIsArrangeValid()) {
-            continue;
-        }
-        const Size overlaySize = overlay->GetRenderSize();
-        built = BuildSubtree(
-            *overlay,
-            AeroGuiInternal::NodeId(*root_),
-            next,
-            true,
-            Media::MakeImplicitViewRootContext(overlaySize));
-        if (!built) {
+
+    committing_ = true;
+    // P4.3: fast path. The live visual tree (+ cached drawings) is the
+    // single fact source; when node order and command ranges are stable
+    // the commit patches snapshot fields in place instead of materializing
+    // a whole-tree mirror. Any doubt falls back to the full rebuild below.
+    const bool canRefresh =
+        currentFrame_.Version() != 0U &&
+        committedStructureVersion_ == structureVersion_ &&
+        overlays_.Empty() && !viewportDirty_;
+    if (canRefresh) {
+        bool fallback = true;
+        std::uint32_t refreshedNodes = 0U;
+        Base::Result<void> refreshed =
+            RefreshInPlace(fallback, refreshedNodes);
+        if (!refreshed) {
             committing_ = false;
-            return built.GetStatus();
+            return refreshed.GetStatus();
+        }
+        if (!fallback) {
+#ifndef NDEBUG
+            if (!VerifyRefresh()) {
+                fallback = true;
+            }
+#endif
+        }
+        if (!fallback) {
+            committing_ = false;
+            return refreshedNodes;
         }
     }
-    const std::uint32_t committedNodes = next.nodes_.Size();
-    currentFrame_ = std::move(next);
-    commitVersion_ = currentFrame_.Version();
-    MarkCommittedSubtree(*root_, true);
-    dirty_.Clear();
-    viewportDirty_ = false;
+    Base::Result<std::uint32_t> rebuilt = RebuildFull();
     committing_ = false;
-    return committedNodes;
+    return rebuilt;
 }
 
 RenderDiagnostics RenderTree::Diagnostics() const noexcept {

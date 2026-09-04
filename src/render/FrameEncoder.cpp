@@ -1587,47 +1587,58 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
         return nodePushedClip;
     };
 
-    // Parent index lookup used to compute contiguous subtree ranges.
-    static constexpr std::uint32_t kNotFound = 0xFFFFFFFFU;
-    Base::Vector<std::uint32_t> parentIndexes(allocator_);
+    // P4.1: O(n) subtree ranges. Nodes are emitted in DFS preorder with
+    // parent preceding child (RenderTree::Commit via BuildSubtree; enforced
+    // by ValidateRenderFrame), so every subtree is a contiguous index range.
+    // The old parentIndexes reverse scan (O(n^2)) plus the isInSubtree chain
+    // walk inside every subtreeEndOf call (O(n . depth) each, O(n^3) total
+    // across the record loop) is replaced by:
+    //  1. one preorder pass deriving depths with an explicit ancestor stack
+    //     (each node pushed/popped once, amortized O(n)) — mirrors the
+    //     nodeStack open/close logic in the record loop below;
+    //  2. one reverse pass computing every subtree end with a monotonic
+    //     scan (path compression, amortized O(n));
+    //  3. prefix sums over commandCount for O(1) subtree command queries.
+    Base::Vector<std::uint32_t> depths(allocator_);
+    Base::Vector<RenderNodeId> ancestorStack(allocator_);
     for (std::uint32_t i = 0U; i < nodeCount; ++i) {
-        std::uint32_t parentIndex = kNotFound;
         const RenderNodeId parentId = nodes[i].parentId;
-        for (std::uint32_t j = i; j > 0U; --j) {
-            if (nodes[j - 1U].id == parentId) {
-                parentIndex = j - 1U;
-                break;
-            }
+        while (!ancestorStack.Empty() && ancestorStack.Back() != parentId) {
+            static_cast<void>(ancestorStack.PopBack());
         }
-        static_cast<void>(parentIndexes.PushBack(parentIndex));
+        // Orphan parent ids (invalid frames) bottom out at depth 0, matching
+        // the old kNotFound behavior where isInSubtree() returned false.
+        static_cast<void>(depths.PushBack(ancestorStack.Size()));
+        static_cast<void>(ancestorStack.PushBack(nodes[i].id));
     }
 
-    auto isInSubtree = [&](std::uint32_t index,
-                           std::uint32_t rootIndex) noexcept {
-        std::uint32_t cursor = index;
-        while (cursor != kNotFound) {
-            if (cursor == rootIndex) return true;
-            if (cursor < rootIndex) return false;
-            cursor = parentIndexes[cursor];
+    Base::Vector<std::uint32_t> subtreeEnds(allocator_);
+    for (std::uint32_t i = 0U; i < nodeCount; ++i) {
+        static_cast<void>(subtreeEnds.PushBack(i + 1U));
+    }
+    for (std::uint32_t i = nodeCount; i > 0U;) {
+        --i;
+        std::uint32_t end = i + 1U;
+        while (end < nodeCount && depths[end] > depths[i]) {
+            end = subtreeEnds[end];
         }
-        return false;
-    };
+        subtreeEnds[i] = end;
+    }
+
+    Base::Vector<std::uint32_t> commandPrefix(allocator_);
+    static_cast<void>(commandPrefix.PushBack(0U));
+    for (std::uint32_t i = 0U; i < nodeCount; ++i) {
+        static_cast<void>(commandPrefix.PushBack(
+            commandPrefix[i] + nodes[i].commandCount));
+    }
 
     auto subtreeEndOf = [&](std::uint32_t rootIndex) noexcept {
-        std::uint32_t end = rootIndex + 1U;
-        while (end < nodeCount && isInSubtree(end, rootIndex)) {
-            ++end;
-        }
-        return end;
+        return subtreeEnds[rootIndex];
     };
 
     auto subtreeCommandCount = [&](std::uint32_t rootIndex) noexcept {
-        std::uint32_t count = nodes[rootIndex].commandCount;
-        const std::uint32_t end = subtreeEndOf(rootIndex);
-        for (std::uint32_t i = rootIndex + 1U; i < end; ++i) {
-            count += nodes[i].commandCount;
-        }
-        return count;
+        return commandPrefix[subtreeEnds[rootIndex]] -
+            commandPrefix[rootIndex];
     };
 
     for (std::uint32_t nodeIndex = 0U; nodeIndex < nodeCount; ) {

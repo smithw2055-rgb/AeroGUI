@@ -8,6 +8,7 @@
 
 #include <cstdio>
 #include <limits>
+#include <mutex>
 
 
 namespace Aero::Meta {
@@ -138,6 +139,49 @@ const PropertyInfo* FindAttachedProperty(
     return nullptr;
 }
 
+// P5.3: global (domain, rootType, schemaHash, path) plan cache. Paths
+// recompile on every attach today while XAML trees repeat the same short
+// paths hundreds of times. The key pins the exact compilation inputs;
+// VerifyRuntime re-validates the schema on every use, so entries stay
+// correct across registries and registry teardown (key pointers are only
+// compared, never dereferenced; a reused address with an equal schema
+// hash resolves identically by construction).
+struct CompiledPathKey {
+    const Registry* domain = nullptr;
+    TypeId root = InvalidTypeId;
+    Base::HashCode schema = 0U;
+    Base::String path;
+    bool operator==(const CompiledPathKey& other) const noexcept {
+        return domain == other.domain && root == other.root &&
+            schema == other.schema &&
+            path.View() == other.path.View();
+    }
+};
+
+struct CompiledPathKeyHash {
+    Base::HashCode operator()(
+        const CompiledPathKey& key,
+        Base::HashCode seed = 0U) const noexcept {
+        Base::HashCode hash = Base::DefaultHash<const Registry*>{}(
+            key.domain, seed);
+        hash = Base::DefaultHash<TypeId>{}(key.root, hash);
+        hash = Base::DefaultHash<Base::HashCode>{}(key.schema, hash);
+        return Base::DefaultHash<Base::String>{}(key.path, hash);
+    }
+};
+
+struct CompiledPathCache {
+    static constexpr std::uint32_t Capacity = 256U;
+    std::mutex mutex;
+    Base::HashMap<CompiledPathKey, BindingPathPlan, CompiledPathKeyHash>
+        plans;
+};
+
+CompiledPathCache& PathPlanCache() noexcept {
+    static CompiledPathCache cache;
+    return cache;
+}
+
 } // namespace
 
 Base::Result<BindingPathPlan> BindingPathPlan::Compile(
@@ -176,6 +220,21 @@ Base::Result<BindingPathPlan> BindingPathPlan::Compile(
     plan.compiledDomain_ = &runtime;
     plan.rootType_ = rootType;
     plan.schemaHash_ = schemaHash.Value();
+
+    // P5.3: serve repeated paths from the global compile cache. The key
+    // uses the trimmed path; an uncacheable key (key-string OOM) simply
+    // parses uncached.
+    CompiledPathKey cacheKey;
+    cacheKey.domain = &runtime;
+    cacheKey.root = rootType;
+    cacheKey.schema = schemaHash.Value();
+    const bool cacheable = static_cast<bool>(cacheKey.path.Assign(path));
+    if (cacheable) {
+        std::lock_guard<std::mutex> lock(PathPlanCache().mutex);
+        if (BindingPathPlan* hit = PathPlanCache().plans.Find(cacheKey)) {
+            return *hit;
+        }
+    }
 
     TypeId currentType = rootType;
     std::uint32_t segmentIndex = 0U;
@@ -502,6 +561,14 @@ Base::Result<BindingPathPlan> BindingPathPlan::Compile(
             plan.canWrite_ = plan.canWrite_ && segment.readable &&
                 (!segment.copyOnWrite || segment.writable);
         }
+    }
+    if (cacheable) {
+        std::lock_guard<std::mutex> lock(PathPlanCache().mutex);
+        CompiledPathCache& cache = PathPlanCache();
+        if (cache.plans.Size() >= CompiledPathCache::Capacity) {
+            cache.plans.Clear();
+        }
+        static_cast<void>(cache.plans.Insert(cacheKey, plan));
     }
     return plan;
 }
