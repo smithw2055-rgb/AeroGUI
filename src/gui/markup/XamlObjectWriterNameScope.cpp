@@ -149,14 +149,14 @@ Base::Result<void> ObjectBuilder::ConnectEvent(
     Base::Result<void> connected;
     if (schema_->Types().IsDerivedFrom(
             eventSource.type, UIElement::StaticTypeId())) {
-        connected = static_cast<UIElement*>(
-            eventSource.object.Get())->AddHandlerChecked(
+        static_cast<UIElement*>(
+            eventSource.object.Get())->AddHandler(
                 routedEvent, handler);
     } else if (schema_->Types().IsDerivedFrom(
                    eventSource.type,
                    ContentElement::StaticTypeId())) {
-        connected = static_cast<ContentElement*>(
-            eventSource.object.Get())->AddHandlerChecked(
+        static_cast<ContentElement*>(
+            eventSource.object.Get())->AddHandler(
                 routedEvent, handler);
     } else {
         connected = Base::Status::Failure(

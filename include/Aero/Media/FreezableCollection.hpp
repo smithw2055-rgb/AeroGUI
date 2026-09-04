@@ -60,7 +60,7 @@ public:
         T* retained = item.Get();
         if (!retained->IsFrozen()) {
             Result<void> subscribed =
-                retained->AddChangedHandlerChecked(itemChangedHandler_);
+                retained->AddChangedHandler(itemChangedHandler_);
             if (!subscribed) return subscribed.GetStatus();
         }
         Result<void> added = items_.PushBack(std::move(item));

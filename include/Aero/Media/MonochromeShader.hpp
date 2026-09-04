@@ -9,7 +9,7 @@ class AERO_GUI_API MonochromeShader : public BrushShader {
 public:
     MonochromeShader() noexcept : BrushShader(StaticTypeId()) {}
     Color GetColor() const noexcept {
-        return GetValueOr(ColorProperty, Color{});
+        return GetValue(ColorProperty);
     }
     void SetColor(Color value) noexcept {
         SetValue(ColorProperty, value);

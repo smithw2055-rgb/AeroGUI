@@ -53,7 +53,7 @@ public:
     inline static constexpr DependencyProperty<std::uint32_t> MaxLengthProperty{"MaxLength"};
     inline static constexpr DependencyProperty<String> PlaceholderProperty{"Placeholder"};
     StringView GetPlaceholder() const noexcept {
-        return GetValueOr(PlaceholderProperty, StringView{});
+        return GetValue(PlaceholderProperty);
     }
     void SetPlaceholder(StringView value) noexcept {
         SetValue(PlaceholderProperty, value);

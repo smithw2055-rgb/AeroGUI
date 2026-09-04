@@ -296,15 +296,12 @@ Base::Result<bool> StoryboardHost::StartEventTrigger(
             eventContext->Invoke(sender, args);
         };
         Aero::RoutedEventHandler handler(callback);
-        Base::Result<void> subscribed = uiSource
-            ? static_cast<Aero::UIElement*>(eventSource)->AddHandlerChecked(
-                  eventHandle, handler)
-            : static_cast<Aero::ContentElement*>(eventSource)->AddHandlerChecked(
-                  eventHandle, handler);
-        if (!subscribed) {
-            FreeObject(
-                *allocator, Base::MemoryTag::Ui, eventContext);
-            return subscribed.GetStatus();
+        if (uiSource) {
+            static_cast<Aero::UIElement*>(eventSource)->AddHandler(
+                eventHandle, handler);
+        } else {
+            static_cast<Aero::ContentElement*>(eventSource)->AddHandler(
+                eventHandle, handler);
         }
         AnimationEventSubscription subscription;
         subscription.source = eventSource;

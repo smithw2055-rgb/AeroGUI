@@ -190,10 +190,10 @@ Base::Transform3 MatrixTransform3D::GetTransform3D() const noexcept {
 }
 
 double TranslateTransform::GetX() const noexcept {
-    return GetValueOr(XProperty, 0.0);
+    return GetValue(XProperty);
 }
 double TranslateTransform::GetY() const noexcept {
-    return GetValueOr(YProperty, 0.0);
+    return GetValue(YProperty);
 }
 void TranslateTransform::SetX(double value) noexcept {
     SetValue(XProperty, value);
@@ -209,16 +209,16 @@ Base::Transform2D TranslateTransform::GetMatrix() const noexcept {
 }
 
 double ScaleTransform::GetScaleX() const noexcept {
-    return GetValueOr(ScaleXProperty, 1.0);
+    return GetValue(ScaleXProperty);
 }
 double ScaleTransform::GetScaleY() const noexcept {
-    return GetValueOr(ScaleYProperty, 1.0);
+    return GetValue(ScaleYProperty);
 }
 double ScaleTransform::GetCenterX() const noexcept {
-    return GetValueOr(CenterXProperty, 0.0);
+    return GetValue(CenterXProperty);
 }
 double ScaleTransform::GetCenterY() const noexcept {
-    return GetValueOr(CenterYProperty, 0.0);
+    return GetValue(CenterYProperty);
 }
 void ScaleTransform::SetScaleX(double value) noexcept {
     SetValue(ScaleXProperty, value);
@@ -240,13 +240,13 @@ Base::Transform2D ScaleTransform::GetMatrix() const noexcept {
 }
 
 double RotateTransform::GetAngle() const noexcept {
-    return GetValueOr(AngleProperty, 0.0);
+    return GetValue(AngleProperty);
 }
 double RotateTransform::GetCenterX() const noexcept {
-    return GetValueOr(CenterXProperty, 0.0);
+    return GetValue(CenterXProperty);
 }
 double RotateTransform::GetCenterY() const noexcept {
-    return GetValueOr(CenterYProperty, 0.0);
+    return GetValue(CenterYProperty);
 }
 void RotateTransform::SetAngle(double value) noexcept {
     SetValue(AngleProperty, value);
@@ -270,16 +270,16 @@ Base::Transform2D RotateTransform::GetMatrix() const noexcept {
 }
 
 double SkewTransform::GetAngleX() const noexcept {
-    return GetValueOr(AngleXProperty, 0.0);
+    return GetValue(AngleXProperty);
 }
 double SkewTransform::GetAngleY() const noexcept {
-    return GetValueOr(AngleYProperty, 0.0);
+    return GetValue(AngleYProperty);
 }
 double SkewTransform::GetCenterX() const noexcept {
-    return GetValueOr(CenterXProperty, 0.0);
+    return GetValue(CenterXProperty);
 }
 double SkewTransform::GetCenterY() const noexcept {
-    return GetValueOr(CenterYProperty, 0.0);
+    return GetValue(CenterYProperty);
 }
 void SkewTransform::SetAngleX(double value) noexcept {
     SetValue(AngleXProperty, value);
@@ -325,7 +325,7 @@ Base::Transform2D CompositeTransform::GetMatrix() const noexcept {
 }
 
 Base::Transform2D MatrixTransform::GetMatrixValue() const noexcept {
-    return GetValueOr(MatrixProperty, Base::Transform2D{});
+    return GetValue(MatrixProperty);
 }
 void MatrixTransform::SetMatrixValue(
     Base::Transform2D value) noexcept {
@@ -353,7 +353,7 @@ Base::Result<void> TransformGroup::AddChild(
     Transform* retained = value.Get();
     if (!retained->IsFrozen()) {
         Base::Result<void> subscribed =
-            retained->AddChangedHandlerChecked(childChangedHandler_);
+            retained->AddChangedHandler(childChangedHandler_);
         if (!subscribed) return subscribed.GetStatus();
     }
     Base::Result<void> added =

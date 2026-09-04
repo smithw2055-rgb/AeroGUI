@@ -11,6 +11,8 @@ class AERO_GUI_API Track : public Control {
 public:
     Track() noexcept : Control(StaticTypeId()) {}
     ~Track() override = default;
+    using Control::GetValue;
+    using Control::SetValue;
 
     Orientation GetOrientation() const noexcept;
     double GetMinimum() const noexcept;

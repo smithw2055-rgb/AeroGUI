@@ -1305,9 +1305,7 @@ Base::Result<void> FocusState::CollectCandidates(
             element->GetIsTabStop()) {
             Base::Result<void> appended = candidates.PushBack(
                 {element,
-                 element->GetValueOr(
-                     KeyboardNavigation::TabIndexProperty,
-                     element->GetTabIndex()),
+                 element->GetValue(KeyboardNavigation::TabIndexProperty),
                  candidateOrder});
             if (!appended) return appended.GetStatus();
             std::uint32_t index = candidates.Size() - 1U;

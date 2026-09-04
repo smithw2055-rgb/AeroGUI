@@ -11,13 +11,13 @@ class AERO_GUI_API PathFigure : public Freezable {
 public:
     PathFigure() noexcept : Freezable(StaticTypeId()) {}
     Point GetStartPoint() const noexcept {
-        return GetValueOr(StartPointProperty, Point{});
+        return GetValue(StartPointProperty);
     }
     void SetStartPoint(Point value) noexcept {
         SetValue(StartPointProperty, value);
     }
     bool GetIsClosed() const noexcept {
-        return GetValueOr(IsClosedProperty, false);
+        return GetValue(IsClosedProperty);
     }
     void SetIsClosed(bool value) noexcept {
         SetValue(IsClosedProperty, value);

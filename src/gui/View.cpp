@@ -61,70 +61,72 @@ Base::Result<void> ViewState::ApplyViewport(
     }
 
 void ViewState::Shutdown() noexcept {
-        audio.Shutdown();
-        BeginDestroyInteractions();
-        DetachViewUi(*this);
-        FinishDestroyInteractions();
-        VisitTextElements(RootVisual(), nullptr);
-        VisitPaths(RootVisual(), nullptr);
-        if (HasAttachedRoot()) {
-            static_cast<void>(DetachVisualGraph({
-                loadedDocument.visualContent.mountEdges.Data(),
-                loadedDocument.visualContent.mountEdges.Size()}));
-        }
-        mounted = false;
-        root.Reset();
-        ClearLoadedDocument(*this);
-        for (std::uint32_t index = componentMounts.Size();
-             index > 0U; --index) {
-            FreeObject(
-                *allocator,
-                Base::MemoryTag::Ui,
-                componentMounts[index - 1U]);
-        }
-        componentMounts.Clear();
-        if (effectLifetime) effectLifetime->Invalidate();
-        if (values != nullptr) {
-            values->Shutdown();
-        }
-        if (tree != nullptr) {
-            tree->SetTextLayout(nullptr);
-            tree->SetMeshResources(nullptr);
-        }
-        DestroyUiEngines();
-        if (images != nullptr) {
-            images->Shutdown(GetImageResources());
-        }
-        if (tree != nullptr) {
-            tree->SetLifecycleHandler(nullptr);
-        }
-        if (animations != nullptr) {
-            static_cast<void>(animations->RemoveAll());
-        }
-        if (storyboards != nullptr) {
-            storyboards->storyboardSessions.Clear();
-        }
-
-
-        FreeObject(*allocator, Base::MemoryTag::Ui, interactivity);
-        FreeObject(*allocator, Base::MemoryTag::Ui, storyboards);
-        FreeObject(*allocator, Base::MemoryTag::Ui, input);
-        FreeObject(*allocator, Base::MemoryTag::Ui, events);
-        if (bindings != nullptr) bindings->Shutdown();
-        FreeObject(*allocator, Base::MemoryTag::Ui, bindings);
-        FreeObject(*allocator, Base::MemoryTag::Ui, renderer);
-        FreeObject(*allocator, Base::MemoryTag::Ui, layout);
-        FreeObject(*allocator, Base::MemoryTag::Ui, tree);
-        FreeObject(*allocator, Base::MemoryTag::Ui, text);
-        FreeObject(*allocator, Base::MemoryTag::Ui, images);
-        FreeObject(*allocator, Base::MemoryTag::Ui, animations);
-        FreeObject(*allocator, Base::MemoryTag::Ui, values);
-        FreeObject(*allocator, Base::MemoryTag::Ui, objectFactory);
-        schema = nullptr;
-        metadata = nullptr;
-        device.Reset();
-        initialized = false;
+    audio.Shutdown();
+    BeginDestroyInteractions();
+    DetachViewUi(*this);
+    FinishDestroyInteractions();
+    VisitTextElements(RootVisual(), nullptr);
+    VisitPaths(RootVisual(), nullptr);
+    if (HasAttachedRoot()) {
+        static_cast<void>(DetachVisualGraph({
+            loadedDocument.visualContent.mountEdges.Data(),
+            loadedDocument.visualContent.mountEdges.Size()}));
     }
+    mounted = false;
+    root.Reset();
+    ClearLoadedDocument(*this);
+    for (std::uint32_t index = componentMounts.Size();
+         index > 0U; --index) {
+        FreeObject(
+            *allocator,
+            Base::MemoryTag::Ui,
+            componentMounts[index - 1U]);
+    }
+    componentMounts.Clear();
+    if (tree != nullptr) {
+        static_cast<void>(tree->FlushLifecycle());
+    }
+    if (storyboards != nullptr) {
+        storyboards->storyboardSessions.Clear();
+    }
+    if (animations != nullptr) {
+        static_cast<void>(animations->RemoveAll());
+    }
+    if (bindings != nullptr) {
+        bindings->Shutdown();
+    }
+    if (effectLifetime) effectLifetime->Invalidate();
+    if (values != nullptr) {
+        values->Shutdown();
+    }
+    if (tree != nullptr) {
+        tree->SetTextLayout(nullptr);
+        tree->SetMeshResources(nullptr);
+        tree->SetLifecycleHandler(nullptr);
+    }
+    DestroyUiEngines();
+    if (images != nullptr) {
+        images->Shutdown(GetImageResources());
+    }
+
+    FreeObject(*allocator, Base::MemoryTag::Ui, interactivity);
+    FreeObject(*allocator, Base::MemoryTag::Ui, storyboards);
+    FreeObject(*allocator, Base::MemoryTag::Ui, input);
+    FreeObject(*allocator, Base::MemoryTag::Ui, events);
+    FreeObject(*allocator, Base::MemoryTag::Ui, bindings);
+    FreeObject(*allocator, Base::MemoryTag::Ui, renderer);
+    FreeObject(*allocator, Base::MemoryTag::Ui, layout);
+    FreeObject(*allocator, Base::MemoryTag::Ui, tree);
+    FreeObject(*allocator, Base::MemoryTag::Ui, text);
+    FreeObject(*allocator, Base::MemoryTag::Ui, images);
+    FreeObject(*allocator, Base::MemoryTag::Ui, animations);
+    FreeObject(*allocator, Base::MemoryTag::Ui, values);
+    FreeObject(*allocator, Base::MemoryTag::Ui, objectFactory);
+    schema = nullptr;
+    metadata = nullptr;
+    device.Reset();
+    initialized = false;
+}
 
 Base::Result<void> ViewState::Initialize(
         const ViewOptions& requested) noexcept {

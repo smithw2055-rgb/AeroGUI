@@ -13,10 +13,10 @@ public:
     PerspectiveTransform3D() noexcept : Transform3D(StaticTypeId()) {}
 
     double GetDepth() const noexcept {
-        return GetValueOr(DepthProperty, Base::DefaultPerspectiveDepth);
+        return GetValue(DepthProperty);
     }
-    double GetOffsetX() const noexcept { return GetValueOr(OffsetXProperty, 0.0); }
-    double GetOffsetY() const noexcept { return GetValueOr(OffsetYProperty, 0.0); }
+    double GetOffsetX() const noexcept { return GetValue(OffsetXProperty); }
+    double GetOffsetY() const noexcept { return GetValue(OffsetYProperty); }
 
     void SetDepth(double value) noexcept { SetValue(DepthProperty, value); }
     void SetOffsetX(double value) noexcept { SetValue(OffsetXProperty, value); }

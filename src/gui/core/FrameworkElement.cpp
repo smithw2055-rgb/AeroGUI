@@ -131,30 +131,26 @@ Result<void> FrameworkElement::SetFontFamily(StringView value) noexcept {
 
 // from src/gui/controls/Layout.cpp
 VerticalAlignment FrameworkElement::GetVerticalAlignment() const noexcept {
-    return GetValueOr(
-        VerticalAlignmentProperty,
-        VerticalAlignment::Stretch);
+    return GetValue(VerticalAlignmentProperty);
 }
 
 // from src/gui/controls/Layout.cpp
 HorizontalAlignment FrameworkElement::GetHorizontalAlignment() const noexcept {
-    return GetValueOr(
-        HorizontalAlignmentProperty,
-        HorizontalAlignment::Stretch);
+    return GetValue(HorizontalAlignmentProperty);
 }
 
 // from src/gui/controls/Layout.cpp
 Thickness FrameworkElement::GetMargin() const noexcept {
-    return GetValueOr(MarginProperty, Thickness{});
+    return GetValue(MarginProperty);
 }
 
 // from src/gui/controls/Layout.cpp
 Size FrameworkElement::GetMaxSize() const noexcept {
     const Size minimum = GetMinSize();
     const double authoredWidth =
-        GetValueOr(MaxWidthProperty, 1.0e12);
+        GetValue(MaxWidthProperty);
     const double authoredHeight =
-        GetValueOr(MaxHeightProperty, 1.0e12);
+        GetValue(MaxHeightProperty);
     // Resolve contradictory template/style ordering at layout time. Min values
     // take precedence without rejecting an otherwise valid WPF template.
     return {
@@ -165,39 +161,37 @@ Size FrameworkElement::GetMaxSize() const noexcept {
 // from src/gui/controls/Layout.cpp
 Size FrameworkElement::GetMinSize() const noexcept {
     return {
-        GetValueOr(MinWidthProperty, 0.0),
-        GetValueOr(MinHeightProperty, 0.0)};
+        GetValue(MinWidthProperty),
+        GetValue(MinHeightProperty)};
 }
 
 // from src/gui/controls/Layout.cpp
 double FrameworkElement::GetHeight() const noexcept {
     const Length length =
-        GetValueOr(HeightProperty, Length::Auto());
+        GetValue(HeightProperty);
     return length.isAuto ? 0.0 : length.value;
 }
 
 // from src/gui/controls/Layout.cpp
 double FrameworkElement::GetWidth() const noexcept {
     const Length length =
-        GetValueOr(WidthProperty, Length::Auto());
+        GetValue(WidthProperty);
     return length.isAuto ? 0.0 : length.value;
 }
 
 // from src/gui/controls/Layout.cpp
 bool FrameworkElement::GetHasHeight() const noexcept {
-    return !GetValueOr(
-        HeightProperty, Length::Auto()).isAuto;
+    return !GetValue(HeightProperty).isAuto;
 }
 
 // from src/gui/controls/Layout.cpp
 bool FrameworkElement::GetHasWidth() const noexcept {
-    return !GetValueOr(
-        WidthProperty, Length::Auto()).isAuto;
+    return !GetValue(WidthProperty).isAuto;
 }
 
 // from src/gui/controls/Layout.cpp
 bool FrameworkElement::GetSnapsToDevicePixels() const noexcept {
-    return GetValueOr(SnapsToDevicePixelsProperty, false);
+    return GetValue(SnapsToDevicePixelsProperty);
 }
 
 // from src/gui/controls/Layout.cpp
@@ -220,7 +214,7 @@ bool FrameworkElement::GetSnapsToDevicePixels() const noexcept {
 
 
 bool FrameworkElement::GetUseLayoutRounding() const noexcept {
-    return GetValueOr(UseLayoutRoundingProperty, false);
+    return GetValue(UseLayoutRoundingProperty);
 }
 
 // from src/gui/controls/Layout.cpp

@@ -221,35 +221,18 @@ Base::Result<void> Freezable::Freeze() noexcept {
     return {};
 }
 
-Base::Result<void> Freezable::AddChangedHandlerChecked(
+void Freezable::AddChangedHandler(
     const FreezableChangedHandler& handler) noexcept {
+    if (handler.Empty()) return;
     Base::Result<void> writable = WritePreamble();
-    if (!writable) return writable.GetStatus();
-    if (handler.Empty()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Freezable changed handler is empty");
-    }
+    if (!writable) return;
     FreezableState::HandlerRecord record;
     record.handler = handler;
     record.active = true;
     if (!EnsureState()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfMemory,
-            "Freezable changed-handler state allocation failed");
+        return;
     }
-    return impl_->handlers.PushBack(std::move(record));
-}
-
-void Freezable::AddChangedHandler(
-    const FreezableChangedHandler& handler) noexcept {
-    Base::Result<void> added = AddChangedHandlerChecked(handler);
-    if (!added && added.GetStatus().code == Base::ErrorCode::OutOfMemory) {
-        Base::ReportOutOfMemory(
-            sizeof(FreezableState::HandlerRecord),
-            alignof(FreezableState::HandlerRecord),
-            Base::MemoryTag::Ui);
-    }
+    static_cast<void>(impl_->handlers.PushBack(std::move(record)));
 }
 
 bool Freezable::RemoveChangedHandler(

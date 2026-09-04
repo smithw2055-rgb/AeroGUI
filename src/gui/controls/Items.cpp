@@ -135,10 +135,10 @@ ContentControl::ContentControl(
       fontSizeChangedHandler_(
           this,
           &ContentControl::OnFontSizeChanged) {
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         Control::ForegroundProperty,
         foregroundChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         Control::FontSizeProperty,
         fontSizeChangedHandler_));
 }
@@ -528,6 +528,19 @@ void ContentControl::SetContentValue(
     return;
 }
 
+void ContentControl::SetContent(StringView text) noexcept {
+    auto boxed = Value::TryFromString(TypeOf<Base::String>(), text);
+    if (boxed) {
+        SetContentValue(std::move(boxed).Value());
+    }
+}
+
+void ContentControl::SetContent(const char* text) noexcept {
+    SetContent(text != nullptr
+        ? StringView(text, static_cast<std::uint32_t>(std::strlen(text)))
+        : StringView());
+}
+
 Base::Result<Base::Ref<Base::Object>>
 ContentControl::CreateTemplatedContent() const noexcept {
     if (content_ != nullptr) {
@@ -626,7 +639,7 @@ void ItemsControl::OnApplyTemplate() noexcept {
             if (PropertyRegistry().Types().IsDerivedFrom(
                     current->RuntimeType(), Panel::StaticTypeId())) {
                 auto& panel = *static_cast<Panel*>(current);
-                if (panel.GetValueOr(Panel::IsItemsHostProperty, false)) {
+                if (panel.GetValue(Panel::IsItemsHostProperty)) {
                     part = current;
                     break;
                 }

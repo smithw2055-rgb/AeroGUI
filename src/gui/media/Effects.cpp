@@ -12,7 +12,7 @@ std::uint64_t EffectRuntime::Revision(
 }
 
 double BlurEffect::GetRadius() const noexcept {
-    return GetValueOr(RadiusProperty, 5.0);
+    return GetValue(RadiusProperty);
 }
 
 void BlurEffect::SetRadius(
@@ -21,25 +21,23 @@ void BlurEffect::SetRadius(
 }
 
 double DropShadowEffect::GetBlurRadius() const noexcept {
-    return GetValueOr(BlurRadiusProperty, 5.0);
+    return GetValue(BlurRadiusProperty);
 }
 
 double DropShadowEffect::GetDirection() const noexcept {
-    return GetValueOr(DirectionProperty, 315.0);
+    return GetValue(DirectionProperty);
 }
 
 double DropShadowEffect::GetShadowDepth() const noexcept {
-    return GetValueOr(ShadowDepthProperty, 5.0);
+    return GetValue(ShadowDepthProperty);
 }
 
 double DropShadowEffect::GetOpacity() const noexcept {
-    return GetValueOr(OpacityProperty, 1.0);
+    return GetValue(OpacityProperty);
 }
 
 Base::Color DropShadowEffect::GetColor() const noexcept {
-    return GetValueOr(
-        ColorProperty,
-        Base::Color{0.0F, 0.0F, 0.0F, 1.0F});
+    return GetValue(ColorProperty);
 }
 
 void DropShadowEffect::SetBlurRadius(
@@ -68,7 +66,7 @@ void DropShadowEffect::SetColor(
 }
 
 double PixelateEffect::GetSize() const noexcept {
-    return GetValueOr(SizeProperty, 1.0);
+    return GetValue(SizeProperty);
 }
 
 void PixelateEffect::SetSize(double value) noexcept {
@@ -76,7 +74,7 @@ void PixelateEffect::SetSize(double value) noexcept {
 }
 
 Base::Color TintEffect::GetColor() const noexcept {
-    return GetValueOr(ColorProperty, Base::Color{0.0F, 0.0F, 1.0F, 1.0F});
+    return GetValue(ColorProperty);
 }
 
 void TintEffect::SetColor(Base::Color value) noexcept {
@@ -84,7 +82,7 @@ void TintEffect::SetColor(Base::Color value) noexcept {
 }
 
 double DirectionalBlurEffect::GetRadius() const noexcept {
-    return GetValueOr(RadiusProperty, 0.0);
+    return GetValue(RadiusProperty);
 }
 
 void DirectionalBlurEffect::SetRadius(double value) noexcept {
@@ -92,7 +90,7 @@ void DirectionalBlurEffect::SetRadius(double value) noexcept {
 }
 
 double DirectionalBlurEffect::GetAngle() const noexcept {
-    return GetValueOr(AngleProperty, 0.0);
+    return GetValue(AngleProperty);
 }
 
 void DirectionalBlurEffect::SetAngle(double value) noexcept {
@@ -100,9 +98,9 @@ void DirectionalBlurEffect::SetAngle(double value) noexcept {
 }
 
 void ShaderEffect::SynchronizePixelShaderCache() const noexcept {
-    const String current = GetValueOr(PixelShaderProperty, String{});
-    if (current.View() != source_.View()) {
-        static_cast<void>(source_.Assign(current.View()));
+    const StringView current = GetValue(PixelShaderProperty);
+    if (current != source_.View()) {
+        static_cast<void>(source_.Assign(current));
     }
 }
 

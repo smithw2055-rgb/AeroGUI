@@ -55,10 +55,6 @@ public:
 private:
     friend class KeyBinding;
 
-    Result<void> AssignNameChecked(StringView name) noexcept;
-    Result<void> AddInputGestureChecked(
-        Ref<InputGesture> gesture) noexcept;
-
     String name_;
     Base::Vector<Ref<InputGesture>> gestures_;
 };

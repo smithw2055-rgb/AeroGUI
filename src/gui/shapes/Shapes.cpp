@@ -281,21 +281,19 @@ ImageBrushGeometry FitImageBrush(
 } // namespace
 
 Base::Ref<Brush> Shape::GetFill() const noexcept {
-    return GetValueOr(
-        FillProperty, Base::Ref<Brush>{});
+    return GetValue(FillProperty);
 }
 
 Base::Ref<Brush> Shape::GetStroke() const noexcept {
-    return GetValueOr(
-        StrokeProperty, Base::Ref<Brush>{});
+    return GetValue(StrokeProperty);
 }
 
 double Shape::GetStrokeThickness() const noexcept {
-    return GetValueOr(StrokeThicknessProperty, 1.0);
+    return GetValue(StrokeThicknessProperty);
 }
 
 Stretch Shape::GetStretch() const noexcept {
-    return GetValueOr(StretchProperty, Stretch::Fill);
+    return GetValue(StretchProperty);
 }
 
 void Shape::SetFill(
@@ -309,7 +307,7 @@ void Shape::SetStroke(
 }
 
 Base::Ref<Media::Pen> Shape::GetPen() const noexcept {
-    return GetValueOr(PenProperty, Base::Ref<Media::Pen>{});
+    return GetValue(PenProperty);
 }
 
 void Shape::SetPen(Base::Ref<Media::Pen> value) noexcept {
@@ -325,11 +323,11 @@ void Shape::SetStretch(Stretch value) noexcept {
 }
 
 double Rectangle::GetRadiusX() const noexcept {
-    return GetValueOr(RadiusXProperty, 0.0);
+    return GetValue(RadiusXProperty);
 }
 
 double Rectangle::GetRadiusY() const noexcept {
-    return GetValueOr(RadiusYProperty, 0.0);
+    return GetValue(RadiusYProperty);
 }
 
 void Rectangle::SetRadiusX(double value) noexcept {
@@ -582,10 +580,10 @@ void FillPointFan(
 
 } // namespace
 
-double Line::GetX1() const noexcept { return GetValueOr(X1Property, 0.0); }
-double Line::GetY1() const noexcept { return GetValueOr(Y1Property, 0.0); }
-double Line::GetX2() const noexcept { return GetValueOr(X2Property, 0.0); }
-double Line::GetY2() const noexcept { return GetValueOr(Y2Property, 0.0); }
+double Line::GetX1() const noexcept { return GetValue(X1Property); }
+double Line::GetY1() const noexcept { return GetValue(Y1Property); }
+double Line::GetX2() const noexcept { return GetValue(X2Property); }
+double Line::GetY2() const noexcept { return GetValue(Y2Property); }
 void Line::SetX1(double value) noexcept { SetValue(X1Property, value); }
 void Line::SetY1(double value) noexcept { SetValue(Y1Property, value); }
 void Line::SetX2(double value) noexcept { SetValue(X2Property, value); }
@@ -609,7 +607,7 @@ void Line::OnRender(::Aero::Media::DrawingContext& context) noexcept {
 }
 
 FillRule Polygon::GetFillRule() const noexcept {
-    return GetValueOr(FillRuleProperty, FillRule::EvenOdd);
+    return GetValue(FillRuleProperty);
 }
 void Polygon::SetFillRule(FillRule value) noexcept {
     SetValue(FillRuleProperty, value);

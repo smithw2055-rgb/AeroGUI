@@ -17,8 +17,7 @@ public:
         : ContentControl(StaticTypeId()) {}
 
     GridViewColumnHeaderRole GetRole() const noexcept {
-        return GetValueOr(
-            RoleProperty, GridViewColumnHeaderRole::Normal);
+        return GetValue(RoleProperty);
     }
     void SetRole(
         GridViewColumnHeaderRole value) noexcept {

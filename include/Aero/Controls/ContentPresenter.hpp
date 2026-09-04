@@ -15,9 +15,7 @@ public:
         return contentValue_;
     }
     StringView GetContentSource() const noexcept {
-        return GetValueOr(
-            ContentSourceProperty,
-            StringView{});
+        return GetValue(ContentSourceProperty);
     }
     void SetContentSource(
         StringView value) noexcept;

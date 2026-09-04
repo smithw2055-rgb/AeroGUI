@@ -36,9 +36,7 @@ public:
     void SetDisplayMemberBinding(
         Ref<Aero::Data::Binding> value) noexcept;
     Ref<Style> GetHeaderContainerStyle() const noexcept {
-        return GetValueOr(
-            HeaderContainerStyleProperty,
-            Ref<Style>{});
+        return GetValue(HeaderContainerStyleProperty);
     }
     void SetHeaderContainerStyle(
         Ref<Style> value) noexcept {

@@ -11,15 +11,15 @@ class AERO_GUI_API CompositeTransform : public Transform {
 public:
     CompositeTransform() noexcept : Transform(StaticTypeId()) {}
 
-    double GetCenterX() const noexcept { return GetValueOr(CenterXProperty, 0.0); }
-    double GetCenterY() const noexcept { return GetValueOr(CenterYProperty, 0.0); }
-    double GetScaleX() const noexcept { return GetValueOr(ScaleXProperty, 1.0); }
-    double GetScaleY() const noexcept { return GetValueOr(ScaleYProperty, 1.0); }
-    double GetSkewX() const noexcept { return GetValueOr(SkewXProperty, 0.0); }
-    double GetSkewY() const noexcept { return GetValueOr(SkewYProperty, 0.0); }
-    double GetRotation() const noexcept { return GetValueOr(RotationProperty, 0.0); }
-    double GetTranslateX() const noexcept { return GetValueOr(TranslateXProperty, 0.0); }
-    double GetTranslateY() const noexcept { return GetValueOr(TranslateYProperty, 0.0); }
+    double GetCenterX() const noexcept { return GetValue(CenterXProperty); }
+    double GetCenterY() const noexcept { return GetValue(CenterYProperty); }
+    double GetScaleX() const noexcept { return GetValue(ScaleXProperty); }
+    double GetScaleY() const noexcept { return GetValue(ScaleYProperty); }
+    double GetSkewX() const noexcept { return GetValue(SkewXProperty); }
+    double GetSkewY() const noexcept { return GetValue(SkewYProperty); }
+    double GetRotation() const noexcept { return GetValue(RotationProperty); }
+    double GetTranslateX() const noexcept { return GetValue(TranslateXProperty); }
+    double GetTranslateY() const noexcept { return GetValue(TranslateYProperty); }
 
     void SetCenterX(double value) noexcept { SetValue(CenterXProperty, value); }
     void SetCenterY(double value) noexcept { SetValue(CenterYProperty, value); }

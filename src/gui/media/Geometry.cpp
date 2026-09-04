@@ -128,7 +128,7 @@ void Geometry::SetTransform(Base::Ref<Transform> value) noexcept {
     Transform* next = value.Get();
     if (next != nullptr && !next->IsFrozen()) {
         Base::Result<void> subscribed =
-            next->AddChangedHandlerChecked(transformChangedHandler_);
+            next->AddChangedHandler(transformChangedHandler_);
         if (!subscribed) return;
     }
     Base::Ref<Transform> previous = std::move(transform_);
@@ -533,7 +533,7 @@ void CombinedGeometry::AttachChild(
     Geometry* next = value.Get();
     if (next != nullptr && !next->IsFrozen()) {
         Result<void> subscribed =
-            next->AddChangedHandlerChecked(childChangedHandler_);
+            next->AddChangedHandler(childChangedHandler_);
         if (!subscribed) return;
     }
     Ref<Geometry> previous = std::move(slot);

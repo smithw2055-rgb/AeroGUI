@@ -143,7 +143,7 @@ public:
     double GetVolume() const noexcept { return volume_; }
     void SetVolume(double value) noexcept { volume_ = value; }
     bool GetIsEnabled() const noexcept {
-        return GetValueOr(IsEnabledProperty, true);
+        return GetValue(IsEnabledProperty);
     }
     void SetIsEnabled(bool value) noexcept {
         SetValue(IsEnabledProperty, value);

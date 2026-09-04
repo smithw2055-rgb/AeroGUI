@@ -37,19 +37,15 @@ public:
     void SetText(
         StringView value) noexcept;
     StringView GetPlaceholder() const noexcept {
-        return GetValueOr(
-            PlaceholderProperty, StringView{});
+        return GetValue(PlaceholderProperty);
     }
     void SetPlaceholder(
         StringView value) noexcept {
         SetValue(PlaceholderProperty, value);
     }
-    String GetSelectionBoxText() const noexcept;
+    StringView GetSelectionBoxText() const noexcept;
     Value GetSelectionBoxItem() const noexcept {
-        return GetValueOr(
-            SelectionBoxItemProperty,
-            Value::NullObject(
-                Meta::TypeOf<Base::Object>()));
+        return GetValue(SelectionBoxItemProperty);
     }
 
     inline static constexpr RoutedEvent<RoutedEventArgs> DropDownOpenedEvent{"DropDownOpened"};

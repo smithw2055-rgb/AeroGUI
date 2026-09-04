@@ -1,4 +1,4 @@
-#include "gui/controls/ScrollInternal.hpp"
+#include "gui/controls/ScrollCommon.hpp"
 #include "gui/meta/ValueConversion.hpp"
 #include "gui/core/State.hpp"
 #include "gui/input/InputState.hpp"
@@ -81,7 +81,7 @@ ScrollViewer::GetVerticalScrollBarVisibility() const noexcept {
 }
 
 PanningMode ScrollViewer::GetPanningMode() const noexcept {
-    return GetValueOr(PanningModeProperty, PanningMode::None);
+    return GetValue(PanningModeProperty);
 }
 
 void ScrollViewer::SetPanningMode(
@@ -92,17 +92,13 @@ void ScrollViewer::SetPanningMode(
 Visibility
 ScrollViewer::GetComputedHorizontalScrollBarVisibility()
     const noexcept {
-    return GetValueOr(
-        ComputedHorizontalScrollBarVisibilityProperty,
-        Visibility::Collapsed);
+    return GetValue(ComputedHorizontalScrollBarVisibilityProperty);
 }
 
 Visibility
 ScrollViewer::GetComputedVerticalScrollBarVisibility()
     const noexcept {
-    return GetValueOr(
-        ComputedVerticalScrollBarVisibilityProperty,
-        Visibility::Collapsed);
+    return GetValue(ComputedVerticalScrollBarVisibilityProperty);
 }
 
 void ScrollViewer::SetCanHorizontallyScroll(
@@ -210,13 +206,13 @@ void ScrollViewer::AttachScrollBars() noexcept {
     DependencyObject* vert = GetTemplateChild(Base::StringView("PART_VerticalScrollBar"));
     if (vert != nullptr && PropertyRegistry().Types().IsDerivedFrom(vert->RuntimeType(), ScrollBar::StaticTypeId())) {
         verticalScrollBar_ = static_cast<Primitives::ScrollBar*>(vert);
-        static_cast<void>(verticalScrollBar_->AddValueChangedHandlerChecked(
+        static_cast<void>(verticalScrollBar_->AddValueChangedHandler(
             ScrollBar::ValueProperty, scrollBarValueChangedHandler_));
     }
     DependencyObject* horz = GetTemplateChild(Base::StringView("PART_HorizontalScrollBar"));
     if (horz != nullptr && PropertyRegistry().Types().IsDerivedFrom(horz->RuntimeType(), ScrollBar::StaticTypeId())) {
         horizontalScrollBar_ = static_cast<Primitives::ScrollBar*>(horz);
-        static_cast<void>(horizontalScrollBar_->AddValueChangedHandlerChecked(
+        static_cast<void>(horizontalScrollBar_->AddValueChangedHandler(
             ScrollBar::ValueProperty, scrollBarValueChangedHandler_));
     }
 }
@@ -271,17 +267,13 @@ void ScrollViewer::OnTemplateDetached() noexcept {
 ScrollBarVisibility
 ScrollViewer::GetHorizontalScrollBarVisibility(
     const DependencyObject& element) noexcept {
-    return element.GetValueOr(
-        HorizontalScrollBarVisibilityProperty,
-        ScrollBarVisibility::Disabled);
+    return element.GetValue(HorizontalScrollBarVisibilityProperty);
 }
 
 ScrollBarVisibility
 ScrollViewer::GetVerticalScrollBarVisibility(
     const DependencyObject& element) noexcept {
-    return element.GetValueOr(
-        VerticalScrollBarVisibilityProperty,
-        ScrollBarVisibility::Visible);
+    return element.GetValue(VerticalScrollBarVisibilityProperty);
 }
 
 void

@@ -14,7 +14,7 @@ public:
         : FrameworkElement(StaticTypeId()) {}
 
     bool GetAllowsColumnReorder() const noexcept {
-        return GetValueOr(AllowsColumnReorderProperty, false);
+        return GetValue(AllowsColumnReorderProperty);
     }
     void SetAllowsColumnReorder(bool value) noexcept {
         SetValue(AllowsColumnReorderProperty, value);

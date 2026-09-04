@@ -47,17 +47,14 @@ public:
     double GetOpacity() const noexcept;
     void SetOpacity(double value) noexcept;
     Ref<Base::Object> GetShader() const noexcept {
-        return GetValueOr(
-            ShaderProperty, Ref<Base::Object>{});
+        return GetValue(ShaderProperty);
     }
     void SetShader(
         Ref<Base::Object> value) noexcept {
         SetValue(ShaderProperty, std::move(value));
     }
     Ref<Transform> GetRelativeTransform() const noexcept {
-        return GetValueOr(
-            RelativeTransformProperty,
-            Ref<Transform>{});
+        return GetValue(RelativeTransformProperty);
     }
     void SetRelativeTransform(
         Ref<Transform> value) noexcept {

@@ -242,19 +242,19 @@ public:
     std::uint64_t Generation() const noexcept;
 
 private:
-    Result<void> ApplyChecked(
+    Result<void> StoreResource(
         const ResourceKey& key,
         const ResourceValue& value,
         ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
-    Result<void> ApplyChecked(
+    Result<void> StoreResource(
         StringView key,
         const ResourceValue& value,
         ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
-    Result<void> ApplyChecked(
+    Result<void> StoreResource(
         Meta::TypeId key,
         const ResourceValue& value,
         ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
-    Result<void> ApplyChecked(
+    Result<void> StoreResource(
         StringView key,
         Meta::TypeId type,
         const Ref<Base::Object>& object,

@@ -76,7 +76,7 @@ void TextProperties::OnCompatibilityPropertyChanged(
         value = Meta::Value::FromObject(
             target->ValueType(), value.AsObject());
     }
-    (void)object.SetValueChecked(target->Handle(), value);
+    object.SetValue(target->Handle(), value);
 }
 
 std::uint32_t SetterBaseCollection::GetCount() const noexcept {
@@ -851,10 +851,9 @@ Base::Result<void> StyleEngine::Apply(
                 eventSetter->GetHandler().Empty()) {
                 continue;
             }
-            Base::Result<void> added = element->AddHandlerChecked(
+            element->AddHandler(
                 eventSetter->GetEvent(),
                 eventSetter->GetHandler());
-            if (!added) return added.GetStatus();
         }
     }
     if (existing == UINT32_MAX) {

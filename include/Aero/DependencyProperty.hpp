@@ -487,3 +487,13 @@ using Meta::UpdateSourceTrigger;
 using Meta::ValueCodec;
 
 } // namespace Aero
+
+#define AERO_DEPENDENCY_PROPERTY(type, name) \
+    inline static constexpr ::Aero::Meta::DependencyPropertyRef<Self, type> name##Property{#name}
+
+#define AERO_ATTACHED_PROPERTY(type, name) \
+    inline static constexpr ::Aero::Meta::AttachedPropertyRef<Self, type> name##Property{#name}
+
+#define AERO_READONLY_PROPERTY(type, name) \
+    inline static constexpr ::Aero::Meta::ReadOnlyPropertyRef<Self, type> name##Property{#name}
+

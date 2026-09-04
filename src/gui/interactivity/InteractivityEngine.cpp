@@ -895,16 +895,8 @@ Base::Result<std::uint32_t>
                     };
                 Meta::DependencyPropertyChangedEventHandler
                     handler(callback);
-                Base::Result<void> subscribed =
-                    dependencySource->AddValueChangedHandlerChecked(
-                        condition.property, handler);
-                if (!subscribed) {
-                    FreeObject(
-                        *allocator,
-                        Base::MemoryTag::Ui,
-                        handlerContext);
-                    return subscribed.GetStatus();
-                }
+                dependencySource->AddValueChangedHandler(
+                    condition.property, handler);
                 DataTemplateTriggerSubscription record;
                 record.source = dependencySource.Get();
                 record.property = condition.property;
@@ -969,15 +961,9 @@ Base::Result<std::uint32_t>
                         };
                     Meta::DependencyPropertyChangedEventHandler handler(
                         callback);
-                    Base::Result<void> subscribed =
-                        dcOwner->AddValueChangedHandlerChecked(
-                            FrameworkElement::DataContextProperty.Handle(),
-                            handler);
-                    if (!subscribed) {
-                        FreeObject(
-                            *allocator, Base::MemoryTag::Ui, handlerContext);
-                        return subscribed.GetStatus();
-                    }
+                    dcOwner->AddValueChangedHandler(
+                        FrameworkElement::DataContextProperty.Handle(),
+                        handler);
                     DataTemplateTriggerSubscription record;
                     record.source = dcOwner;
                     record.property =

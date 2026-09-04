@@ -9,10 +9,10 @@ class AERO_GUI_API QuadraticBezierSegment : public PathSegment {
 public:
     QuadraticBezierSegment() noexcept : PathSegment(StaticTypeId()) {}
     Point GetPoint1() const noexcept {
-        return GetValueOr(Point1Property, Point{});
+        return GetValue(Point1Property);
     }
     Point GetPoint2() const noexcept {
-        return GetValueOr(Point2Property, Point{});
+        return GetValue(Point2Property);
     }
     void SetPoint1(Point value) noexcept { SetValue(Point1Property, value); }
     void SetPoint2(Point value) noexcept { SetValue(Point2Property, value); }

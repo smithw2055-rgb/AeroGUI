@@ -14,8 +14,7 @@ public:
         : ItemsControl(StaticTypeId()) {}
     ~StatusBar() override = default;
     bool GetIsSizingGripVisible() const noexcept {
-        return GetValueOr(
-            IsSizingGripVisibleProperty, true);
+        return GetValue(IsSizingGripVisibleProperty);
     }
     void SetIsSizingGripVisible(
         bool value) noexcept {

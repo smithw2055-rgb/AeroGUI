@@ -13,25 +13,22 @@ public:
     ~TextElement() override = default;
 
     Ref<Media::FontFamily> GetFontFamily() const noexcept {
-        return GetValueOr(
-            FontFamilyProperty, Ref<Media::FontFamily>{});
+        return GetValue(FontFamilyProperty);
     }
     double GetFontSize() const noexcept {
-        return GetValueOr(FontSizeProperty, 16.0);
+        return GetValue(FontSizeProperty);
     }
     FontWeight GetFontWeight() const noexcept {
-        return GetValueOr(FontWeightProperty, FontWeight::Normal);
+        return GetValue(FontWeightProperty);
     }
     FontStyle GetFontStyle() const noexcept {
-        return GetValueOr(FontStyleProperty, FontStyle::Normal);
+        return GetValue(FontStyleProperty);
     }
     Ref<Media::Brush> GetForeground() const noexcept {
-        return GetValueOr(ForegroundProperty, Ref<Media::Brush>{});
+        return GetValue(ForegroundProperty);
     }
     Controls::TextDecorations GetTextDecorations() const noexcept {
-        return GetValueOr(
-            TextDecorationsProperty,
-            Controls::TextDecorations::None);
+        return GetValue(TextDecorationsProperty);
     }
 
     void SetFontFamily(Ref<Media::FontFamily> value) noexcept {

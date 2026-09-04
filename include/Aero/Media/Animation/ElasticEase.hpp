@@ -10,10 +10,10 @@ public:
     ElasticEase() noexcept
         : EasingFunctionBase(StaticTypeId(), Kind::Elastic) {}
     double GetOscillations() const noexcept {
-        return GetValueOr(OscillationsProperty, 3.0);
+        return GetValue(OscillationsProperty);
     }
     double GetSpringiness() const noexcept {
-        return GetValueOr(SpringinessProperty, 3.0);
+        return GetValue(SpringinessProperty);
     }
     void SetOscillations(double value) noexcept;
     void SetSpringiness(double value) noexcept;

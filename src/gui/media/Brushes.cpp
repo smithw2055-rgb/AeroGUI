@@ -15,7 +15,7 @@
 namespace Aero::Media {
 
 double Brush::GetOpacity() const noexcept {
-    return GetValueOr(OpacityProperty, 1.0);
+    return GetValue(OpacityProperty);
 }
 
 void Brush::SetOpacity(
@@ -24,7 +24,7 @@ void Brush::SetOpacity(
 }
 
 Color SolidColorBrush::GetColor() const noexcept {
-    return GetValueOr(ColorProperty, initialColor_);
+    return GetValue(ColorProperty);
 }
 
 void SolidColorBrush::SetColor(
@@ -33,11 +33,11 @@ void SolidColorBrush::SetColor(
 }
 
 double GradientStop::GetOffset() const noexcept {
-    return GetValueOr(OffsetProperty, 0.0);
+    return GetValue(OffsetProperty);
 }
 
 Color GradientStop::GetColor() const noexcept {
-    return GetValueOr(ColorProperty, Color{});
+    return GetValue(ColorProperty);
 }
 
 void GradientStop::SetOffset(
@@ -66,7 +66,7 @@ Base::Result<void> GradientBrush::AddGradientStop(
     GradientStop* retained = stop.Get();
     if (!retained->IsFrozen()) {
         Base::Result<void> subscribed =
-            retained->AddChangedHandlerChecked(stopChangedHandler_);
+            retained->AddChangedHandler(stopChangedHandler_);
         if (!subscribed) return subscribed.GetStatus();
     }
     Base::Result<void> added =
@@ -98,7 +98,7 @@ Base::Result<void> GradientStopCollection::Add(
     GradientStop* retained = stop.Get();
     if (!retained->IsFrozen()) {
         Base::Result<void> subscribed =
-            retained->AddChangedHandlerChecked(stopChangedHandler_);
+            retained->AddChangedHandler(stopChangedHandler_);
         if (!subscribed) return subscribed.GetStatus();
     }
     Base::Result<void> added =
@@ -219,9 +219,7 @@ Base::Result<void> ImageBrush::SetRuntimeImage(
 }
 
 BrushMappingMode GradientBrush::GetMappingMode() const noexcept {
-    return GetValueOr(
-        MappingModeProperty,
-        BrushMappingMode::RelativeToBoundingBox);
+    return GetValue(MappingModeProperty);
 }
 
 void GradientBrush::SetMappingMode(
@@ -230,9 +228,7 @@ void GradientBrush::SetMappingMode(
 }
 
 GradientSpreadMethod GradientBrush::GetSpreadMethod() const noexcept {
-    return GetValueOr(
-        SpreadMethodProperty,
-        GradientSpreadMethod::Pad);
+    return GetValue(SpreadMethodProperty);
 }
 
 void GradientBrush::SetSpreadMethod(
@@ -241,11 +237,11 @@ void GradientBrush::SetSpreadMethod(
 }
 
 Point LinearGradientBrush::GetStartPoint() const noexcept {
-    return GetValueOr(StartPointProperty, Point{0.0, 0.0});
+    return GetValue(StartPointProperty);
 }
 
 Point LinearGradientBrush::GetEndPoint() const noexcept {
-    return GetValueOr(EndPointProperty, Point{1.0, 1.0});
+    return GetValue(EndPointProperty);
 }
 
 void LinearGradientBrush::SetStartPoint(
@@ -259,20 +255,19 @@ void LinearGradientBrush::SetEndPoint(
 }
 
 Point RadialGradientBrush::GetCenter() const noexcept {
-    return GetValueOr(CenterProperty, Point{0.5, 0.5});
+    return GetValue(CenterProperty);
 }
 
 Point RadialGradientBrush::GetGradientOrigin() const noexcept {
-    return GetValueOr(
-        GradientOriginProperty, Point{0.5, 0.5});
+    return GetValue(GradientOriginProperty);
 }
 
 double RadialGradientBrush::GetRadiusX() const noexcept {
-    return GetValueOr(RadiusXProperty, 0.5);
+    return GetValue(RadiusXProperty);
 }
 
 double RadialGradientBrush::GetRadiusY() const noexcept {
-    return GetValueOr(RadiusYProperty, 0.5);
+    return GetValue(RadiusYProperty);
 }
 
 void RadialGradientBrush::SetCenter(
@@ -296,37 +291,35 @@ void RadialGradientBrush::SetRadiusY(
 }
 
 Stretch TileBrush::GetStretch() const noexcept {
-    return GetValueOr(StretchProperty, Stretch::Fill);
+    return GetValue(StretchProperty);
 }
 
 Rect TileBrush::GetViewbox() const noexcept {
-    return GetValueOr(ViewboxProperty, Rect{0.0, 0.0, 1.0, 1.0});
+    return GetValue(ViewboxProperty);
 }
 
 Rect TileBrush::GetViewport() const noexcept {
-    return GetValueOr(ViewportProperty, Rect{0.0, 0.0, 1.0, 1.0});
+    return GetValue(ViewportProperty);
 }
 
 BrushMappingMode TileBrush::GetViewboxUnits() const noexcept {
-    return GetValueOr(
-        ViewboxUnitsProperty, BrushMappingMode::RelativeToBoundingBox);
+    return GetValue(ViewboxUnitsProperty);
 }
 
 BrushMappingMode TileBrush::GetViewportUnits() const noexcept {
-    return GetValueOr(
-        ViewportUnitsProperty, BrushMappingMode::RelativeToBoundingBox);
+    return GetValue(ViewportUnitsProperty);
 }
 
 TileMode TileBrush::GetTileMode() const noexcept {
-    return GetValueOr(TileModeProperty, TileMode::None);
+    return GetValue(TileModeProperty);
 }
 
 HorizontalAlignment TileBrush::GetAlignmentX() const noexcept {
-    return GetValueOr(AlignmentXProperty, HorizontalAlignment::Center);
+    return GetValue(AlignmentXProperty);
 }
 
 VerticalAlignment TileBrush::GetAlignmentY() const noexcept {
-    return GetValueOr(AlignmentYProperty, VerticalAlignment::Center);
+    return GetValue(AlignmentYProperty);
 }
 
 void TileBrush::SetStretch(Stretch value) noexcept {
@@ -363,9 +356,7 @@ void TileBrush::SetAlignmentY(VerticalAlignment value) noexcept {
 
 Base::Ref<ImageSource>
 ImageBrush::GetSource() const noexcept {
-    return GetValueOr(
-        ImageSourceProperty,
-        Base::Ref<ImageSource>{});
+    return GetValue(ImageSourceProperty);
 }
 
 void ImageBrush::SetSource(

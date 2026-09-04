@@ -11,7 +11,7 @@ public:
     ~Run() override = default;
 
     StringView GetText() const noexcept {
-        return GetValueOr(TextProperty, StringView{});
+        return GetValue(TextProperty);
     }
     StringView GetContent() const noexcept { return GetText(); }
     void SetText(StringView value) noexcept {

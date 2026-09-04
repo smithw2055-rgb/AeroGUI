@@ -98,7 +98,7 @@ void VirtualizingStackPanel::SetEstimatedItemExtent(
 
 VirtualizationCacheLength
 VirtualizingStackPanel::GetCacheLength() const noexcept {
-    return GetValueOr(CacheLengthProperty, VirtualizationCacheLength{});
+    return GetValue(CacheLengthProperty);
 }
 
 void VirtualizingStackPanel::SetCacheLength(
@@ -109,8 +109,7 @@ void VirtualizingStackPanel::SetCacheLength(
 
 VirtualizationCacheLengthUnit
 VirtualizingStackPanel::GetCacheLengthUnit() const noexcept {
-    return GetValueOr(
-        CacheLengthUnitProperty, VirtualizationCacheLengthUnit::Item);
+    return GetValue(CacheLengthUnitProperty);
 }
 
 void VirtualizingStackPanel::SetCacheLengthUnit(
@@ -378,10 +377,9 @@ VirtualizingStackPanel::OnPropertyInvalidated(
     PropertyInvalidationFlags flags) noexcept {
     const double oldEstimate =
         estimatedItemExtent_;
-    orientation_ = GetValueOr(OrientationProperty, orientation_);
-    overscanCount_ = GetValueOr(OverscanCountProperty, overscanCount_);
-    estimatedItemExtent_ = GetValueOr(
-        EstimatedItemExtentProperty, estimatedItemExtent_);
+    orientation_ = GetValue(OrientationProperty);
+    overscanCount_ = GetValue(OverscanCountProperty);
+    estimatedItemExtent_ = GetValue(EstimatedItemExtentProperty);
     if (!Same(
             oldEstimate,
             estimatedItemExtent_)) {
@@ -892,11 +890,11 @@ VirtualizingWrapPanel::VirtualizingWrapPanel() noexcept
     : VirtualizingStackPanel(StaticTypeId()) {}
 
 double VirtualizingWrapPanel::GetItemWidth() const noexcept {
-    return GetValueOr(ItemWidthProperty, 0.0);
+    return GetValue(ItemWidthProperty);
 }
 
 double VirtualizingWrapPanel::GetItemHeight() const noexcept {
-    return GetValueOr(ItemHeightProperty, 0.0);
+    return GetValue(ItemHeightProperty);
 }
 
 void VirtualizingWrapPanel::SetItemWidth(double value) noexcept {

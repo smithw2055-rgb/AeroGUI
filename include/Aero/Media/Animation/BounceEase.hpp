@@ -10,10 +10,10 @@ public:
     BounceEase() noexcept
         : EasingFunctionBase(StaticTypeId(), Kind::Bounce) {}
     double GetBounces() const noexcept {
-        return GetValueOr(BouncesProperty, 3.0);
+        return GetValue(BouncesProperty);
     }
     double GetBounciness() const noexcept {
-        return GetValueOr(BouncinessProperty, 3.0);
+        return GetValue(BouncinessProperty);
     }
     void SetBounces(double value) noexcept;
     void SetBounciness(double value) noexcept;

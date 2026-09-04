@@ -20,8 +20,6 @@ public:
     bool CanFreeze() const noexcept;
     Result<void> Freeze() noexcept;
 
-    Result<void> AddChangedHandlerChecked(
-        const FreezableChangedHandler& handler) noexcept;
     void AddChangedHandler(
         const FreezableChangedHandler& handler) noexcept;
     bool RemoveChangedHandler(

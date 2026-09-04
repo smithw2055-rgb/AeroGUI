@@ -10,7 +10,7 @@ class AERO_GUI_API LineSegment : public PathSegment {
 public:
     LineSegment() noexcept : PathSegment(StaticTypeId()) {}
     Point GetPoint() const noexcept {
-        return GetValueOr(PointProperty, Point{});
+        return GetValue(PointProperty);
     }
     void SetPoint(Point value) noexcept {
         SetValue(PointProperty, value);

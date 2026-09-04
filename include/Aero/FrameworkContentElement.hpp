@@ -19,9 +19,7 @@ public:
     void SetResources(Ref<ResourceDictionary> value) noexcept;
 
     Value GetDataContext() const noexcept {
-        return GetValueOr(
-            DataContextProperty,
-            Value::NullObject(Meta::TypeOf<Base::Object>()));
+        return GetValue(DataContextProperty);
     }
     void SetDataContext(Value value) noexcept {
         SetValue(DataContextProperty, std::move(value));
@@ -35,29 +33,29 @@ public:
     }
 
     Ref<Style> GetStyle() const noexcept {
-        return GetValueOr(StyleProperty, Ref<Style>{});
+        return GetValue(StyleProperty);
     }
     void SetStyle(Ref<Style> value) noexcept {
         SetValue(StyleProperty, std::move(value));
     }
 
     bool GetIsEnabled() const noexcept {
-        return GetValueOr(IsEnabledProperty, true);
+        return GetValue(IsEnabledProperty);
     }
     void SetIsEnabled(bool value) noexcept {
         SetValue(IsEnabledProperty, value);
     }
     bool GetIsMouseOver() const noexcept {
-        return GetValueOr(IsMouseOverProperty, false);
+        return GetValue(IsMouseOverProperty);
     }
     StringView GetCursor() const noexcept {
-        return GetValueOr(CursorProperty, StringView{});
+        return GetValue(CursorProperty);
     }
     void SetCursor(StringView value) noexcept {
         SetValue(CursorProperty, value);
     }
     bool GetOverridesDefaultStyle() const noexcept {
-        return GetValueOr(OverridesDefaultStyleProperty, false);
+        return GetValue(OverridesDefaultStyleProperty);
     }
     void SetOverridesDefaultStyle(bool value) noexcept {
         SetValue(OverridesDefaultStyleProperty, value);

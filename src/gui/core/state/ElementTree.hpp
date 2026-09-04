@@ -277,6 +277,7 @@ public:
     std::uint32_t PendingLifecycleCount() const noexcept {
         return lifecycleQueue_.Size();
     }
+    Base::Result<std::uint32_t> FlushLifecycle() noexcept;
 
 private:
     struct LifecycleRecord {
@@ -339,7 +340,6 @@ private:
         Base::Vector<LifecycleRecord>& staged) noexcept;
     void ApplyLoadedSubtree(::Aero::Media::Visual& node, bool loaded) noexcept;
     void SetTreeSubtree(::Aero::Media::Visual& node, ElementTree* tree) noexcept;
-    Base::Result<std::uint32_t> FlushLifecycle() noexcept;
     // P3.2 explicit Lifecycle phase entry (formerly the frame-hook body).
     // ViewFrame calls it directly; no hook registration remains.
     static void LifecycleHook(void* context) noexcept;

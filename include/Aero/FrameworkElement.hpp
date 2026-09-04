@@ -70,12 +70,10 @@ public:
     double GetWidth() const noexcept;
     double GetHeight() const noexcept;
     double GetActualWidth() const noexcept {
-        return GetValueOr(
-            ActualWidthProperty, 0.0);
+        return GetValue(ActualWidthProperty);
     }
     double GetActualHeight() const noexcept {
-        return GetValueOr(
-            ActualHeightProperty, 0.0);
+        return GetValue(ActualHeightProperty);
     }
     Size GetMinSize() const noexcept;
     Size GetMaxSize() const noexcept;
@@ -85,11 +83,10 @@ public:
     bool TryGetViewboxTransform(Base::Transform2D& matrix) const noexcept;
     Result<Value> GetDataContextResult() const noexcept;
     Ref<Media::FontFamily> GetFontFamily() const noexcept {
-        return GetValueOr(
-            FontFamilyProperty, Ref<Media::FontFamily>{});
+        return GetValue(FontFamilyProperty);
     }
     FlowDirection GetFlowDirection() const noexcept {
-        return GetValueOr(FlowDirectionProperty, FlowDirection::LeftToRight);
+        return GetValue(FlowDirectionProperty);
     }
     Base::Object* FindName(StringView name) noexcept;
     Result<void> RegisterName(

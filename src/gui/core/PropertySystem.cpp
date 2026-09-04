@@ -1283,28 +1283,9 @@ EffectiveValueEngine::EnsureInheritanceSubscription(
             continue;
         }
 
-        Base::Result<void> added =
-            object.AddValueChangedHandlerChecked(
-                property.Handle(),
-                inheritanceChangedHandler_);
-        if (!added) {
-            for (const DependencyProperty& rollback :
-                 registry_->Properties()) {
-                if (rollback.Handle() == property.Handle()) break;
-                const PropertyMetadata* rollbackMetadata =
-                    rollback.MetadataFor(object.RuntimeType());
-                if (rollbackMetadata != nullptr &&
-                    HasFlag(
-                        rollbackMetadata->flags,
-                        PropertyMetadataFlags::Inherits)) {
-                    static_cast<void>(
-                        object.RemoveValueChangedHandler(
-                            rollback.Handle(),
-                            inheritanceChangedHandler_));
-                }
-            }
-            return added.GetStatus();
-        }
+        object.AddValueChangedHandler(
+            property.Handle(),
+            inheritanceChangedHandler_);
 
         Base::Result<void> queued =
             QueueObjectProperty(object, property.Handle());

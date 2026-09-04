@@ -18,22 +18,17 @@ public:
     }
     TabItem* GetSelectedTab() const noexcept;
     Value GetSelectedContent() const noexcept {
-        return GetValueOr(
-            SelectedContentProperty,
-            Value::NullObject(
-                Meta::TypeOf<Base::Object>()));
+        return GetValue(SelectedContentProperty);
     }
     Ref<DataTemplate> GetContentTemplate() const noexcept {
-        return GetValueOr(
-            ContentTemplateProperty,
-            Ref<DataTemplate>{});
+        return GetValue(ContentTemplateProperty);
     }
     void SetContentTemplate(
         Ref<DataTemplate> value) noexcept {
         SetValue(ContentTemplateProperty, std::move(value));
     }
     Dock GetTabStripPlacement() const noexcept {
-        return GetValueOr(TabStripPlacementProperty, Dock::Top);
+        return GetValue(TabStripPlacementProperty);
     }
     void SetTabStripPlacement(Dock value) noexcept {
         SetValue(TabStripPlacementProperty, value);

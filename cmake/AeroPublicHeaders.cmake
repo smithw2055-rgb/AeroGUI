@@ -432,6 +432,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/KeyGesture.hpp
     include/Aero/RoutedCommand.hpp
     include/Aero/RoutedUICommand.hpp
+    include/Aero/RelayCommand.hpp
     include/Aero/InputBinding.hpp
     include/Aero/KeyBinding.hpp
     include/Aero/MouseBinding.hpp

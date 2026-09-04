@@ -21,29 +21,28 @@ class AERO_GUI_API Timeline : public ::Aero::Freezable {
     AERO_DECLARE_TYPE(Timeline, ::Aero::Freezable)
 public:
     TimeSpan GetBeginTime() const noexcept {
-        return GetValueOr(BeginTimeProperty, TimeSpan::Zero());
+        return GetValue(BeginTimeProperty);
     }
     Duration GetDuration() const noexcept {
-        return GetValueOr(DurationProperty, Duration::Automatic());
+        return GetValue(DurationProperty);
     }
     RepeatBehavior GetRepeatBehavior() const noexcept {
-        return GetValueOr(RepeatBehaviorProperty, RepeatBehavior::Once());
+        return GetValue(RepeatBehaviorProperty);
     }
     double GetSpeedRatio() const noexcept {
-        return GetValueOr(SpeedRatioProperty, 1.0);
+        return GetValue(SpeedRatioProperty);
     }
     bool GetAutoReverse() const noexcept {
-        return GetValueOr(AutoReverseProperty, false);
+        return GetValue(AutoReverseProperty);
     }
     FillBehavior GetFillBehavior() const noexcept {
-        return GetValueOr(FillBehaviorProperty, FillBehavior::HoldEnd);
+        return GetValue(FillBehaviorProperty);
     }
 
     void SetBeginTime(TimeSpan value) noexcept;
     void SetBeginTime(StringView value) noexcept;
     void SetDuration(Duration value) noexcept;
     void SetDuration(StringView value) noexcept;
-    Result<void> SetDurationChecked(StringView value) noexcept;
     void SetRepeatBehavior(RepeatBehavior value) noexcept;
     void SetRepeatBehavior(StringView value) noexcept;
     void SetSpeedRatio(double value) noexcept;

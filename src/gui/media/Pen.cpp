@@ -15,13 +15,13 @@ void Pen::SetBrush(Ref<Brush> value) noexcept {
     if (brush_) {
         brushChangedHandler_ = FreezableChangedHandler(
             this, &Pen::OnBrushChanged);
-        (void)brush_->AddChangedHandlerChecked(brushChangedHandler_);
+        (void)brush_->AddChangedHandler(brushChangedHandler_);
     }
     WritePostscript();
 }
 
 double Pen::GetThickness() const noexcept {
-    return GetValueOr(ThicknessProperty, 1.0);
+    return GetValue(ThicknessProperty);
 }
 
 void Pen::SetThickness(double value) noexcept {
@@ -41,13 +41,13 @@ void Pen::SetDashStyle(Ref<DashStyle> value) noexcept {
     if (dashStyle_) {
         dashStyleChangedHandler_ = FreezableChangedHandler(
             this, &Pen::OnDashStyleChanged);
-        (void)dashStyle_->AddChangedHandlerChecked(dashStyleChangedHandler_);
+        (void)dashStyle_->AddChangedHandler(dashStyleChangedHandler_);
     }
     WritePostscript();
 }
 
 PenLineJoin Pen::GetLineJoin() const noexcept {
-    return GetValueOr(LineJoinProperty, PenLineJoin::Miter);
+    return GetValue(LineJoinProperty);
 }
 
 void Pen::SetLineJoin(PenLineJoin value) noexcept {
@@ -55,7 +55,7 @@ void Pen::SetLineJoin(PenLineJoin value) noexcept {
 }
 
 PenLineCap Pen::GetStartLineCap() const noexcept {
-    return GetValueOr(StartLineCapProperty, PenLineCap::Flat);
+    return GetValue(StartLineCapProperty);
 }
 
 void Pen::SetStartLineCap(PenLineCap value) noexcept {
@@ -63,7 +63,7 @@ void Pen::SetStartLineCap(PenLineCap value) noexcept {
 }
 
 PenLineCap Pen::GetEndLineCap() const noexcept {
-    return GetValueOr(EndLineCapProperty, PenLineCap::Flat);
+    return GetValue(EndLineCapProperty);
 }
 
 void Pen::SetEndLineCap(PenLineCap value) noexcept {
@@ -71,7 +71,7 @@ void Pen::SetEndLineCap(PenLineCap value) noexcept {
 }
 
 double Pen::GetMiterLimit() const noexcept {
-    return GetValueOr(MiterLimitProperty, 10.0);
+    return GetValue(MiterLimitProperty);
 }
 
 void Pen::SetMiterLimit(double value) noexcept {

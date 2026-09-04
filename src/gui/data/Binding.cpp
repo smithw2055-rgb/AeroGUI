@@ -108,22 +108,10 @@ Base::Result<BindingHandle> BindingEngine::Attach(
         return appended.GetStatus();
     }
     static_cast<void>(handleIndexMap_.Insert(bindings_.Back().handle.value, newIndex));
-    Base::Result<void> sourceSubscription =
-        descriptor.source->AddValueChangedHandlerChecked(
-            descriptor.sourceProperty, propertyChangedHandler_);
-    if (!sourceSubscription) {
-        RemoveAt(bindings_.Size() - 1U);
-        return sourceSubscription.GetStatus();
-    }
-    Base::Result<void> targetSubscription =
-        descriptor.target->AddValueChangedHandlerChecked(
-            descriptor.targetProperty, propertyChangedHandler_);
-    if (!targetSubscription) {
-        (void)descriptor.source->RemoveValueChangedHandler(
-            descriptor.sourceProperty, propertyChangedHandler_);
-        RemoveAt(bindings_.Size() - 1U);
-        return targetSubscription.GetStatus();
-    }
+    descriptor.source->AddValueChangedHandler(
+        descriptor.sourceProperty, propertyChangedHandler_);
+    descriptor.target->AddValueChangedHandler(
+        descriptor.targetProperty, propertyChangedHandler_);
     Base::Result<void> lostFocus =
         SubscribeLostFocus(bindings_.Back());
     if (!lostFocus) {
@@ -327,22 +315,12 @@ Base::Result<BindingHandle> BindingEngine::Attach(
     }
     BindingRecord& stored = bindings_.Back();
     static_cast<void>(handleIndexMap_.Insert(stored.handle.value, newIndex));
-    Base::Result<void> targetSubscription =
-        descriptor.target->AddValueChangedHandlerChecked(
-            descriptor.targetProperty, propertyChangedHandler_);
-    if (!targetSubscription) {
-        RemoveAt(bindings_.Size() - 1U);
-        return targetSubscription.GetStatus();
-    }
+    descriptor.target->AddValueChangedHandler(
+        descriptor.targetProperty, propertyChangedHandler_);
     if (stored.sourceKind == BindingSourceKind::DataContext) {
-        Base::Result<void> contextSubscription =
-            stored.dataContextOwner->AddValueChangedHandlerChecked(
-                descriptor.dataContextProperty,
-                propertyChangedHandler_);
-        if (!contextSubscription) {
-            RemoveAt(bindings_.Size() - 1U);
-            return contextSubscription.GetStatus();
-        }
+        stored.dataContextOwner->AddValueChangedHandler(
+            descriptor.dataContextProperty,
+            propertyChangedHandler_);
     } else if (stored.sourceKind == BindingSourceKind::MetadataPath) {
         Base::Result<void> sourceSubscription =
             SubscribeMetadataSource(stored);
@@ -709,11 +687,9 @@ Base::Result<void> BindingEngine::SubscribeLostFocus(
         record.lostFocusSubscribed = true;
         return {};
     }
-    Base::Result<void> subscribed =
-        element->AddValueChangedHandlerChecked(
-            UIElement::IsKeyboardFocusedProperty.Handle(),
-            propertyChangedHandler_);
-    if (!subscribed) return subscribed.GetStatus();
+    element->AddValueChangedHandler(
+        UIElement::IsKeyboardFocusedProperty.Handle(),
+        propertyChangedHandler_);
     record.lostFocusSubscribed = true;
     return {};
 }

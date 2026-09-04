@@ -10,7 +10,7 @@ public:
     ExponentialEase() noexcept
         : EasingFunctionBase(StaticTypeId(), Kind::Exponential) {}
     double GetExponent() const noexcept {
-        return GetValueOr(ExponentProperty, 2.0);
+        return GetValue(ExponentProperty);
     }
     void SetExponent(double value) noexcept;
     inline static constexpr DependencyProperty<double> ExponentProperty{"Exponent"};

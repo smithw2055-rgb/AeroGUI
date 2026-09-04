@@ -23,24 +23,19 @@ ButtonBase::~ButtonBase() {
 }
 
 ClickMode ButtonBase::GetClickMode() const noexcept {
-    return GetValueOr(ClickModeProperty, ClickMode::Release);
+    return GetValue(ClickModeProperty);
 }
 
 ICommand* ButtonBase::GetCommand() const noexcept {
-    return GetValueOr(
-        CommandProperty, Base::Ref<ICommand>{}).Get();
+    return GetValue(CommandProperty).Get();
 }
 
 Value ButtonBase::GetCommandParameter() const noexcept {
-    return GetValueOr(
-        CommandParameterProperty,
-        Value::NullObject(TypeOf<Base::Object>()));
+    return GetValue(CommandParameterProperty);
 }
 
 UIElement* ButtonBase::GetCommandTarget() const noexcept {
-    return GetValueOr(
-        CommandTargetProperty,
-        Base::Ref<UIElement>{}).Get();
+    return GetValue(CommandTargetProperty).Get();
 }
 
 void ButtonBase::SetClickMode(
@@ -65,11 +60,11 @@ void ButtonBase::SetCommandTarget(
 }
 
 std::uint32_t RepeatButton::GetDelay() const noexcept {
-    return GetValueOr(DelayProperty, 400U);
+    return GetValue(DelayProperty);
 }
 
 std::uint32_t RepeatButton::GetInterval() const noexcept {
-    return GetValueOr(IntervalProperty, 100U);
+    return GetValue(IntervalProperty);
 }
 
 void RepeatButton::SetDelay(
@@ -83,11 +78,11 @@ void RepeatButton::SetInterval(
 }
 
 Nullable<bool> ToggleButton::GetIsChecked() const noexcept {
-    return GetValueOr(IsCheckedProperty, Nullable<bool>{false});
+    return GetValue(IsCheckedProperty);
 }
 
 bool ToggleButton::GetIsThreeState() const noexcept {
-    return GetValueOr(IsThreeStateProperty, false);
+    return GetValue(IsThreeStateProperty);
 }
 
 void ToggleButton::SetIsChecked(
@@ -124,7 +119,7 @@ void ToggleButton::SetToggleState(
 }
 
 Base::StringView RadioButton::GetGroupName() const noexcept {
-    return GetValueOr(GroupNameProperty, Base::StringView());
+    return GetValue(GroupNameProperty);
 }
 
 void RadioButton::SetGroupName(
@@ -338,39 +333,36 @@ Base::Result<void> ButtonBehavior::Attach(
         buttons_.PushBack(std::move(record));
     if (!appended) return appended.GetStatus();
 
-    button.AddHandlerChecked(UIElement::MouseDownEvent, mouseDownHandler_);
-    button.AddHandlerChecked(UIElement::MouseUpEvent, mouseUpHandler_);
-    button.AddHandlerChecked(UIElement::KeyDownEvent, keyDownHandler_);
-    button.AddHandlerChecked(UIElement::KeyUpEvent, keyUpHandler_);
-    button.AddHandlerChecked(UIElement::GotKeyboardFocusEvent, focusChangedHandler_);
-    button.AddHandlerChecked(UIElement::LostKeyboardFocusEvent, focusChangedHandler_);
-    Base::Result<void> result = button.AddValueChangedHandlerChecked(
+    button.AddHandler(UIElement::MouseDownEvent, mouseDownHandler_);
+    button.AddHandler(UIElement::MouseUpEvent, mouseUpHandler_);
+    button.AddHandler(UIElement::KeyDownEvent, keyDownHandler_);
+    button.AddHandler(UIElement::KeyUpEvent, keyUpHandler_);
+    button.AddHandler(UIElement::GotKeyboardFocusEvent, focusChangedHandler_);
+    button.AddHandler(UIElement::LostKeyboardFocusEvent, focusChangedHandler_);
+    button.AddValueChangedHandler(
         ButtonBase::CommandProperty,
         propertyChangedHandler_);
-    if (result) result = button.AddValueChangedHandlerChecked(
+    button.AddValueChangedHandler(
         UIElement::IsEnabledProperty,
         propertyChangedHandler_);
     const bool isToggle =
         button.RuntimeType() == ToggleButton::StaticTypeId() ||
         button.RuntimeType() == CheckBox::StaticTypeId() ||
         button.RuntimeType() == RadioButton::StaticTypeId();
-    if (result && isToggle) {
-        result = button.AddValueChangedHandlerChecked(
+    if (isToggle) {
+        button.AddValueChangedHandler(
             ToggleButton::IsCheckedProperty,
             propertyChangedHandler_);
-    }
-    if (result && isToggle) {
-        result = button.AddValueChangedHandlerChecked(
+        button.AddValueChangedHandler(
             ToggleButton::IsThreeStateProperty,
             propertyChangedHandler_);
     }
-    if (result &&
-        button.RuntimeType() == RadioButton::StaticTypeId()) {
-        result = button.AddValueChangedHandlerChecked(
+    if (button.RuntimeType() == RadioButton::StaticTypeId()) {
+        button.AddValueChangedHandler(
             RadioButton::GroupNameProperty,
             propertyChangedHandler_);
     }
-    if (result) result =
+    Base::Result<void> result =
         SubscribeCommand(button, buttons_.Back());
     if (!result) {
         const Base::Status status = result.GetStatus();

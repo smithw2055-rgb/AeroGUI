@@ -10,7 +10,7 @@ public:
     PowerEase() noexcept
         : EasingFunctionBase(StaticTypeId(), Kind::Power) {}
     double GetPower() const noexcept {
-        return GetValueOr(PowerProperty, 2.0);
+        return GetValue(PowerProperty);
     }
     void SetPower(double value) noexcept;
     inline static constexpr DependencyProperty<double> PowerProperty{"Power"};

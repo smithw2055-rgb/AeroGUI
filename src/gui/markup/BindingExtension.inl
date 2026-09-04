@@ -688,9 +688,10 @@ struct DeferredMultiBindingState {
                 *targetInfo,
                 std::move(converted).Value());
         if (!coerced) return coerced.GetStatus();
-        return result->SetValueChecked(
+        result->SetValue(
             Data::MultiBindingProxy::ValueProperty.Handle(),
             std::move(coerced).Value());
+        return {};
     }
 
     void OnInputChanged(
@@ -820,11 +821,9 @@ Base::Result<std::uint64_t> CommitMultiBinding(
 
     const Meta::Value initial =
         state->target->GetValue(state->targetProperty);
-    Base::Result<void> initialized =
-        state->result->SetValueChecked(
-            Data::MultiBindingProxy::ValueProperty.Handle(),
-            initial);
-    if (!initialized) return initialized.GetStatus();
+    state->result->SetValue(
+        Data::MultiBindingProxy::ValueProperty.Handle(),
+        initial);
 
     Base::Result<void> reservedInputs =
         state->inputs.Reserve(children.Size());
@@ -854,14 +853,9 @@ Base::Result<std::uint64_t> CommitMultiBinding(
             state->Detach();
             return retained.GetStatus();
         }
-        Base::Result<void> subscribed =
-            input.Value()->AddValueChangedHandlerChecked(
-                Data::MultiBindingProxy::ValueProperty.Handle(),
-                state->changed);
-        if (!subscribed) {
-            state->Detach();
-            return subscribed.GetStatus();
-        }
+        input.Value()->AddValueChangedHandler(
+            Data::MultiBindingProxy::ValueProperty.Handle(),
+            state->changed);
 
         const Base::Ref<Data::Binding>& child =
             children[index];

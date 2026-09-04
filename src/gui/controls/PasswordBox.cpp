@@ -1,4 +1,4 @@
-#include "gui/controls/TextBoxInternal.hpp"
+#include "gui/controls/TextBoxCommon.hpp"
 #include "render/DisplayList.hpp"
 #include <Aero/Controls/TextBoxBase.hpp>
 #include <Aero/Controls/TextBox.hpp>
@@ -74,9 +74,7 @@ void PasswordBox::SetPassword(
 }
 
 Base::StringView PasswordBox::GetPasswordChar() const noexcept {
-    return GetValueOr(
-        PasswordCharProperty,
-        Base::StringView(u8"\u2022"));
+    return GetValue(PasswordCharProperty);
 }
 
 void PasswordBox::SetPasswordChar(
@@ -98,9 +96,7 @@ void PasswordBox::SetPasswordChar(
 }
 
 std::uint32_t PasswordBox::GetMaxLength() const noexcept {
-    return GetValueOr(
-        MaxLengthProperty,
-        0U);
+    return GetValue(MaxLengthProperty);
 }
 
 void PasswordBox::SetMaxLength(

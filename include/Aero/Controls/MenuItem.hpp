@@ -45,9 +45,7 @@ public:
     Value GetCommandParameter() const noexcept;
     void SetCommandParameter(Value value) noexcept;
     Value GetIcon() const noexcept {
-        return GetValueOr(
-            IconProperty,
-            Value::NullObject(Meta::TypeOf<Base::Object>()));
+        return GetValue(IconProperty);
     }
     void SetIcon(Value value) noexcept {
         SetValue(IconProperty, std::move(value));

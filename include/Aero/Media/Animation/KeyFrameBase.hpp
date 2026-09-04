@@ -23,7 +23,7 @@ public:
     };
 
     KeyTime GetKeyTime() const noexcept {
-        return GetValueOr(KeyTimeProperty, KeyTime{});
+        return GetValue(KeyTimeProperty);
     }
     void SetKeyTime(KeyTime value) noexcept;
     void SetKeyTime(StringView value) noexcept;
@@ -32,12 +32,12 @@ public:
     }
 
     Ref<EasingFunctionBase> GetEasingFunction() const noexcept {
-        return GetValueOr(EasingFunctionProperty, Ref<EasingFunctionBase>{});
+        return GetValue(EasingFunctionProperty);
     }
     void SetEasingFunction(Ref<EasingFunctionBase> value) noexcept;
 
     StringView GetKeySpline() const noexcept {
-        return GetValueOr(KeySplineProperty, StringView{});
+        return GetValue(KeySplineProperty);
     }
     void SetKeySpline(StringView value) noexcept;
 

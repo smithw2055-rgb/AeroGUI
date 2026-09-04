@@ -31,22 +31,16 @@ double LimitScale(
 } // namespace
 
 Base::Ref<ImageSource> Image::GetSource() const noexcept {
-    return GetValueOr(
-        SourceProperty,
-        Base::Ref<ImageSource>{});
+    return GetValue(SourceProperty);
 }
 
 Stretch Image::GetStretch() const noexcept {
-    return GetValueOr(
-        StretchProperty,
-        Stretch::Uniform);
+    return GetValue(StretchProperty);
 }
 
 StretchDirection
 Image::GetStretchDirection() const noexcept {
-    return GetValueOr(
-        StretchDirectionProperty,
-        StretchDirection::Both);
+    return GetValue(StretchDirectionProperty);
 }
 
 void Image::SetSource(

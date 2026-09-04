@@ -1,4 +1,4 @@
-#include "gui/controls/TextBoxInternal.hpp"
+#include "gui/controls/TextBoxCommon.hpp"
 #include "render/DisplayList.hpp"
 #include <Aero/Controls/TextBoxBase.hpp>
 #include <Aero/Controls/TextBox.hpp>
@@ -24,9 +24,7 @@ using namespace ::Aero::Render;
 
 Base::Ref<Media::Brush>
 TextBoxBase::GetSelectionBrush() const noexcept {
-    return GetValueOr(
-        SelectionBrushProperty,
-        Base::Ref<Media::Brush>{});
+    return GetValue(SelectionBrushProperty);
 }
 
 void TextBoxBase::SetSelectionBrush(
@@ -35,7 +33,7 @@ void TextBoxBase::SetSelectionBrush(
 }
 
 double TextBoxBase::GetSelectionOpacity() const noexcept {
-    return GetValueOr(SelectionOpacityProperty, 0.25);
+    return GetValue(SelectionOpacityProperty);
 }
 
 void TextBoxBase::SetSelectionOpacity(
@@ -46,9 +44,7 @@ void TextBoxBase::SetSelectionOpacity(
 
 Base::Ref<Media::Brush>
 TextBoxBase::GetCaretBrush() const noexcept {
-    return GetValueOr(
-        CaretBrushProperty,
-        Base::Ref<Media::Brush>{});
+    return GetValue(CaretBrushProperty);
 }
 
 void TextBoxBase::SetCaretBrush(
@@ -66,7 +62,7 @@ TextBox::TextBox() noexcept
           this,
           &TextBox::OnTextPropertyChanged) {
     displayPolicy_ = plainPolicy_;
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         TextProperty, textChangedHandler_));
 }
 
@@ -112,7 +108,7 @@ std::uint32_t TextBox::GetCaret() const noexcept {
 }
 
 Base::StringView TextBox::GetText() const noexcept {
-    return GetValueOr(TextProperty, Base::StringView());
+    return GetValue(TextProperty);
 }
 
 void TextBox::SetText(
@@ -144,7 +140,7 @@ void TextBox::OnTextPropertyChanged(
 }
 
 bool TextBox::GetIsReadOnly() const noexcept {
-    return GetValueOr(IsReadOnlyProperty, false);
+    return GetValue(IsReadOnlyProperty);
 }
 
 void TextBox::SetIsReadOnly(
@@ -161,7 +157,7 @@ void TextBox::SetIsReadOnly(
 }
 
 std::uint32_t TextBox::GetMaxLength() const noexcept {
-    return GetValueOr(MaxLengthProperty, 0U);
+    return GetValue(MaxLengthProperty);
 }
 
 void TextBox::SetMaxLength(
@@ -182,7 +178,7 @@ void TextBox::SetMaxLength(
 }
 
 bool TextBox::GetAcceptsReturn() const noexcept {
-    return GetValueOr(AcceptsReturnProperty, false);
+    return GetValue(AcceptsReturnProperty);
 }
 
 void TextBox::SetAcceptsReturn(
@@ -192,9 +188,7 @@ void TextBox::SetAcceptsReturn(
 
 TextWrapping
 TextBox::GetTextWrapping() const noexcept {
-    return GetValueOr(
-        TextWrappingProperty,
-        TextWrapping::NoWrap);
+    return GetValue(TextWrappingProperty);
 }
 
 void TextBox::SetTextWrapping(
@@ -203,9 +197,7 @@ void TextBox::SetTextWrapping(
 }
 
 Base::StringView TextBox::GetPlaceholder() const noexcept {
-    return GetValueOr(
-        PlaceholderProperty,
-        Base::StringView());
+    return GetValue(PlaceholderProperty);
 }
 
 void TextBox::SetPlaceholder(
@@ -215,9 +207,7 @@ void TextBox::SetPlaceholder(
 
 Base::Ref<Media::Brush>
 TextBox::GetPlaceholderForeground() const noexcept {
-    return GetValueOr(
-        PlaceholderForegroundProperty,
-        Base::Ref<Media::Brush>{});
+    return GetValue(PlaceholderForegroundProperty);
 }
 
 void TextBox::SetPlaceholderForeground(
@@ -226,7 +216,7 @@ void TextBox::SetPlaceholderForeground(
 }
 
 double TextBox::GetFontSize() const noexcept {
-    return GetValueOr(FontSizeProperty, 15.0);
+    return GetValue(FontSizeProperty);
 }
 
 void TextBox::SetFontSize(
@@ -250,9 +240,7 @@ Base::Result<void> TextBox::SetFontFamily(
 }
 
 FontWeight TextBox::GetFontWeight() const noexcept {
-    return GetValueOr(
-        FontWeightProperty,
-        FontWeight::Normal);
+    return GetValue(FontWeightProperty);
 }
 
 void TextBox::SetFontWeight(
@@ -261,9 +249,7 @@ void TextBox::SetFontWeight(
 }
 
 FontStyle TextBox::GetFontStyle() const noexcept {
-    return GetValueOr(
-        FontStyleProperty,
-        FontStyle::Normal);
+    return GetValue(FontStyleProperty);
 }
 
 void TextBox::SetFontStyle(
@@ -273,9 +259,7 @@ void TextBox::SetFontStyle(
 
 TextAlignment
 TextBox::GetTextAlignment() const noexcept {
-    return GetValueOr(
-        TextAlignmentProperty,
-        TextAlignment::Left);
+    return GetValue(TextAlignmentProperty);
 }
 
 void TextBox::SetTextAlignment(
@@ -284,7 +268,7 @@ void TextBox::SetTextAlignment(
 }
 
 std::uint32_t TextBox::GetMaxLines() const noexcept {
-    return GetValueOr(MaxLinesProperty, 0U);
+    return GetValue(MaxLinesProperty);
 }
 
 void TextBox::SetMaxLines(
@@ -293,7 +277,7 @@ void TextBox::SetMaxLines(
 }
 
 std::uint32_t TextBox::GetMinLines() const noexcept {
-    return GetValueOr(MinLinesProperty, 1U);
+    return GetValue(MinLinesProperty);
 }
 
 void TextBox::SetMinLines(

@@ -2132,7 +2132,7 @@ DependencyObject* TemplateEngine::FindPart(
                 continue;
             }
             auto& panel = *static_cast<Panel*>(part.object);
-            if (panel.GetValueOr(Panel::IsItemsHostProperty, false)) {
+            if (panel.GetValue(Panel::IsItemsHostProperty)) {
                 return part.object;
             }
         }
@@ -2250,10 +2250,8 @@ Base::Result<void> TemplateEngine::Subscribe(
                     property;
         }
         if (first) {
-            Base::Result<void> subscribed =
-                instance.parent->AddValueChangedHandlerChecked(
-                    property, propertyChangedHandler_);
-            if (!subscribed) return subscribed.GetStatus();
+            instance.parent->AddValueChangedHandler(
+                property, propertyChangedHandler_);
         }
     }
     for (std::uint32_t index = 0U;
@@ -2270,11 +2268,9 @@ Base::Result<void> TemplateEngine::Subscribe(
                     Base::ErrorCode::NotFound,
                     "Template trigger source name was not found");
             }
-            Base::Result<void> subscribed =
-                source->AddValueChangedHandlerChecked(
-                    condition.property,
-                    propertyChangedHandler_);
-            if (!subscribed) return subscribed.GetStatus();
+            source->AddValueChangedHandler(
+                condition.property,
+                propertyChangedHandler_);
         }
     }
     return {};

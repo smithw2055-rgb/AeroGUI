@@ -214,8 +214,7 @@ private:
         Aero::FrameworkElement* associated = GetAssociatedObject();
         if (associated == nullptr) return;
         const Aero::Base::Point position = args.GetPosition(*associated);
-        const Aero::Base::Point offset = GetValueOr(
-            DragStartOffsetProperty, Aero::Base::Point{});
+        const Aero::Base::Point offset = GetValue(DragStartOffsetProperty);
         SetValue(DraggedItemXProperty, position.x - offset.x);
         SetValue(DraggedItemYProperty, position.y - offset.y);
     }
@@ -310,9 +309,7 @@ private:
         if (associated == nullptr) return;
         Aero::Value item = associated->GetDataContext();
         if (item.IsUnset() || item.IsNullObject()) return;
-        Aero::Base::Ref<Aero::Input::ICommand> command = GetValueOr(
-            StartDragCommandProperty,
-            Aero::Base::Ref<Aero::Input::ICommand>{});
+        Aero::Base::Ref<Aero::Input::ICommand> command = GetValue(StartDragCommandProperty);
         if (!command) return;
         Aero::Base::Result<bool> canExecute =
             command->CanExecute(item, associated);
@@ -331,9 +328,7 @@ private:
         dragStarted_ = false;
         Aero::FrameworkElement* associated = GetAssociatedObject();
         if (associated == nullptr) return;
-        Aero::Base::Ref<Aero::Input::ICommand> command = GetValueOr(
-            EndDragCommandProperty,
-            Aero::Base::Ref<Aero::Input::ICommand>{});
+        Aero::Base::Ref<Aero::Input::ICommand> command = GetValue(EndDragCommandProperty);
         if (!command) return;
         const bool success = !args.GetCanceled() &&
             args.GetEffects() != Aero::Input::DragDropEffects::None;
@@ -432,9 +427,7 @@ private:
             return;
         }
         Aero::Value item = associated->GetDataContext();
-        Aero::Base::Ref<Aero::Input::ICommand> command = GetValueOr(
-            DropCommandProperty,
-            Aero::Base::Ref<Aero::Input::ICommand>{});
+        Aero::Base::Ref<Aero::Input::ICommand> command = GetValue(DropCommandProperty);
         Aero::Base::Result<bool> canExecute = command
             ? command->CanExecute(item, associated)
             : Aero::Base::Result<bool>(false);
@@ -941,8 +934,7 @@ bool VerifyMainWindowInteractions(
         return false;
     }
     AdvanceView(view, timeInSeconds, 16U);
-    if (!targetSlot->GetValueOr(
-            Inventory::Slot::IsDragOverProperty, false)) {
+    if (!targetSlot->GetValue(Inventory::Slot::IsDragOverProperty)) {
         std::fprintf(stderr,
             "DRAG FAIL: DragEnter did not update target state enter=%u leave=%u allow=%d last=%p chest=%p hit=%p\n",
             Inventory::DropItemBehavior::enterCount,
@@ -955,8 +947,7 @@ bool VerifyMainWindowInteractions(
             const auto bindings = Inventory::DropItemBehavior::lastEnteredBehavior->GetAuthoredBindings();
             std::fprintf(stderr,
                 "  behavior value=%d authored=%u mode=%u path=%.*s\n",
-                Inventory::DropItemBehavior::lastEnteredBehavior->GetValueOr(
-                    Inventory::DropItemBehavior::IsDragOverProperty, false) ? 1 : 0,
+                Inventory::DropItemBehavior::lastEnteredBehavior->GetValue(Inventory::DropItemBehavior::IsDragOverProperty) ? 1 : 0,
                 bindings.Size(),
                 bindings.Empty() || !bindings[0].binding
                     ? 255U
@@ -970,10 +961,8 @@ bool VerifyMainWindowInteractions(
         }
         return false;
     }
-    const double draggedX = dragAdorner->GetValueOr(
-        Inventory::DragAdornerBehavior::DraggedItemXProperty, 0.0);
-    const double draggedY = dragAdorner->GetValueOr(
-        Inventory::DragAdornerBehavior::DraggedItemYProperty, 0.0);
+    const double draggedX = dragAdorner->GetValue(Inventory::DragAdornerBehavior::DraggedItemXProperty);
+    const double draggedY = dragAdorner->GetValue(Inventory::DragAdornerBehavior::DraggedItemYProperty);
     if (draggedX == 0.0 && draggedY == 0.0) {
         std::fprintf(stderr,
             "DRAG FAIL: DragAdorner coordinates were not updated (%.2f, %.2f)\n",
@@ -992,8 +981,7 @@ bool VerifyMainWindowInteractions(
         fixture.command->GetParameter(4U).Kind() !=
             Meta::ValueKind::Boolean ||
         !fixture.command->GetParameter(4U).AsBoolean() ||
-        targetSlot->GetValueOr(
-            Inventory::Slot::IsDragOverProperty, false)) {
+        targetSlot->GetValue(Inventory::Slot::IsDragOverProperty)) {
         std::fprintf(stderr, "DRAG FAIL: drop/completion semantics are incorrect\n");
         return false;
     }

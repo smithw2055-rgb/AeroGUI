@@ -82,7 +82,7 @@ ListBoxItem::ListBoxItem(TypeId runtimeType) noexcept
     : ContentControl(runtimeType),
       selectedChangedHandler_(
           this, &ListBoxItem::OnIsSelectedChanged) {
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         IsSelectedProperty, selectedChangedHandler_));
 }
 
@@ -92,7 +92,7 @@ ListBoxItem::~ListBoxItem() {
 }
 
 bool ListBoxItem::GetIsSelected() const noexcept {
-    return GetValueOr(IsSelectedProperty, false);
+    return GetValue(IsSelectedProperty);
 }
 
 void ListBoxItem::SetIsSelected(
@@ -141,19 +141,19 @@ Selector::Selector(TypeId runtimeType) noexcept
       currentChangedHandler_(
           this, &Selector::OnViewCurrentChanged) {
     AddItemsChanged(itemsChangedHandler_);
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         SelectionModeProperty,
         propertyChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         SelectedIndexProperty,
         propertyChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         SelectedItemProperty,
         propertyChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         SelectedValueProperty,
         propertyChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         IsSynchronizedWithCurrentItemProperty,
         propertyChangedHandler_));
 }
@@ -180,26 +180,21 @@ Selector::~Selector() {
 }
 
 SelectionMode Selector::GetSelectionMode() const noexcept {
-    return GetValueOr(
-        SelectionModeProperty, SelectionMode::Single);
+    return GetValue(SelectionModeProperty);
 }
 
 std::uint32_t Selector::GetSelectedIndex() const noexcept {
-    return GetValueOr(SelectedIndexProperty, UINT32_MAX);
+    return GetValue(SelectedIndexProperty);
 }
 
 Base::Ref<Base::Object>
 Selector::GetSelectedItem() const noexcept {
-    return GetValueOr(
-        SelectedItemProperty,
-        Base::Ref<Base::Object>{});
+    return GetValue(SelectedItemProperty);
 }
 
 Base::Ref<Base::Object>
 Selector::GetSelectedValue() const noexcept {
-    return GetValueOr(
-        SelectedValueProperty,
-        Base::Ref<Base::Object>{});
+    return GetValue(SelectedValueProperty);
 }
 
 bool Selector::GetIsSelected(
@@ -288,7 +283,7 @@ void Selector::SetSelectedValue(
 }
 
 bool Selector::GetIsSynchronizedWithCurrentItem() const noexcept {
-    return GetValueOr(IsSynchronizedWithCurrentItemProperty, false);
+    return GetValue(IsSynchronizedWithCurrentItemProperty);
 }
 
 void Selector::SetIsSynchronizedWithCurrentItem(bool value) noexcept {
@@ -1048,8 +1043,7 @@ Base::Result<bool> ListBox::BringIntoView(
 }
 
 bool ComboBoxItem::GetIsSelected() const noexcept {
-    return GetValueOr(
-        IsSelectedProperty, false);
+    return GetValue(IsSelectedProperty);
 }
 
 void ComboBoxItem::SetIsSelected(
@@ -1092,25 +1086,25 @@ ComboBox::ComboBox() noexcept
           &ComboBox::OnEditableTextChanged) {
     static_cast<void>(AddSelectionChanged(
         selectionChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         IsDropDownOpenProperty,
         dropDownChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         MaxDropDownHeightProperty,
         maxDropDownHeightChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         IsEditableProperty,
         editableChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         TextProperty,
         textChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         Control::ForegroundProperty,
         foregroundChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         Selector::SelectedIndexProperty,
         selectedValueChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         Selector::SelectedItemProperty,
         selectedValueChangedHandler_));
 }
@@ -1148,8 +1142,7 @@ ComboBox::~ComboBox() {
 }
 
 bool ComboBox::GetIsDropDownOpen() const noexcept {
-    return GetValueOr(
-        IsDropDownOpenProperty, false);
+    return GetValue(IsDropDownOpenProperty);
 }
 
 void ComboBox::SetIsDropDownOpen(
@@ -1158,8 +1151,7 @@ void ComboBox::SetIsDropDownOpen(
 }
 
 double ComboBox::GetMaxDropDownHeight() const noexcept {
-    return GetValueOr(
-        MaxDropDownHeightProperty, 240.0);
+    return GetValue(MaxDropDownHeightProperty);
 }
 
 void ComboBox::SetMaxDropDownHeight(
@@ -1169,12 +1161,11 @@ void ComboBox::SetMaxDropDownHeight(
 }
 
 bool ComboBox::GetIsEditable() const noexcept {
-    return GetValueOr(
-        IsEditableProperty, false);
+    return GetValue(IsEditableProperty);
 }
 
 bool ComboBox::GetIsReadOnly() const noexcept {
-    return GetValueOr(IsReadOnlyProperty, false);
+    return GetValue(IsReadOnlyProperty);
 }
 
 void ComboBox::SetIsReadOnly(
@@ -1188,8 +1179,7 @@ void ComboBox::SetIsEditable(
 }
 
 Base::StringView ComboBox::GetText() const noexcept {
-    return GetValueOr(
-        TextProperty, Base::StringView());
+    return GetValue(TextProperty);
 }
 
 void ComboBox::SetText(
@@ -1197,11 +1187,8 @@ void ComboBox::SetText(
     SetValue(TextProperty, value);
 }
 
-Base::String ComboBox::GetSelectionBoxText() const
-    noexcept {
-    return GetValueOr(
-        SelectionBoxTextProperty,
-        Base::String{});
+Base::StringView ComboBox::GetSelectionBoxText() const noexcept {
+    return GetValue(SelectionBoxTextProperty);
 }
 
 Base::Result<Base::Ref<FrameworkElement>>
@@ -1350,16 +1337,12 @@ void ComboBox::OnApplyTemplate()
         ? static_cast<Popup*>(popup)
         : nullptr;
     if (editableTextBox_ != nullptr) {
-        Base::Result<void> editableHandler =
-            editableTextBox_->AddHandlerChecked(
-                TextBox::TextChangedEvent,
-                editableTextChangedHandler_);
-        if (!editableHandler) {
-            return;
-        }
+        editableTextBox_->AddHandler(
+            TextBox::TextChangedEvent,
+            editableTextChangedHandler_);
     }
     if (popup_ != nullptr) {
-        static_cast<void>(popup_->AddValueChangedHandlerChecked(
+        static_cast<void>(popup_->AddValueChangedHandler(
             Popup::IsOpenProperty,
             popupIsOpenChangedHandler_));
         popup_->SetPlacementTarget(
@@ -1451,7 +1434,7 @@ void ComboBox::ObserveSelectedProjection(
     selectedProjection_ = projection;
     if (selectedProjection_ != nullptr) {
         Base::Result<void> observed =
-            selectedProjection_->AddValueChangedHandlerChecked(
+            selectedProjection_->AddValueChangedHandler(
                 TextBlock::TextProperty,
                 selectedProjectionChangedHandler_);
         if (!observed) selectedProjection_ = nullptr;
@@ -1804,23 +1787,13 @@ ComboBehavior::Attach(
     Base::Result<VisualHandle> handle =
         tree_->GetHandle(comboBox);
     if (!handle) return handle.GetStatus();
-    Base::Result<void> mouse =
-        comboBox.AddHandlerChecked(
-            UIElement::MouseDownEvent,
-            mouseDownHandler_,
-            true);
-    if (!mouse) return mouse.GetStatus();
-    Base::Result<void> key =
-        comboBox.AddHandlerChecked(
-            UIElement::KeyDownEvent,
-            keyDownHandler_);
-    if (!key) {
-        static_cast<void>(
-            comboBox.RemoveHandler(
-                UIElement::MouseDownEvent,
-                mouseDownHandler_));
-        return key.GetStatus();
-    }
+    comboBox.AddHandler(
+        UIElement::MouseDownEvent,
+        mouseDownHandler_,
+        true);
+    comboBox.AddHandler(
+        UIElement::KeyDownEvent,
+        keyDownHandler_);
     if (records_.Empty() && input_ != nullptr) {
         static_cast<void>(
             input_->AddPointerStateChanged(
@@ -2078,21 +2051,12 @@ Base::Result<void> ListBehavior::Attach(
     if (records_.Empty()) {
         input_->AddPointerStateChanged(pointerStateChangedHandler_);
     }
-    Base::Result<void> mouse =
-        listBox.AddHandlerChecked(
-            UIElement::MouseDownEvent,
-            mouseDownHandler_);
-    if (!mouse) return mouse.GetStatus();
-    Base::Result<void> key =
-        listBox.AddHandlerChecked(
-            UIElement::KeyDownEvent,
-            keyDownHandler_);
-    if (!key) {
-        static_cast<void>(listBox.RemoveHandler(
-            UIElement::MouseDownEvent,
-            mouseDownHandler_));
-        return key.GetStatus();
-    }
+    listBox.AddHandler(
+        UIElement::MouseDownEvent,
+        mouseDownHandler_);
+    listBox.AddHandler(
+        UIElement::KeyDownEvent,
+        keyDownHandler_);
     Record record;
     record.handle = handle.Value();
     Base::Result<void> added =

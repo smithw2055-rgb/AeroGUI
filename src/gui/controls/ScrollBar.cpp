@@ -1,4 +1,4 @@
-#include "gui/controls/ScrollInternal.hpp"
+#include "gui/controls/ScrollCommon.hpp"
 #include "gui/meta/ValueConversion.hpp"
 #include "gui/core/State.hpp"
 #include "gui/input/InputState.hpp"
@@ -43,31 +43,27 @@ double Track::GetViewportSize() const noexcept {
 }
 
 double GridSplitter::GetDragIncrement() const noexcept {
-    return GetValueOr(DragIncrementProperty, 1.0);
+    return GetValue(DragIncrementProperty);
 }
 
 double GridSplitter::GetKeyboardIncrement() const noexcept {
-    return GetValueOr(KeyboardIncrementProperty, 10.0);
+    return GetValue(KeyboardIncrementProperty);
 }
 
 GridResizeDirection GridSplitter::GetResizeDirection() const noexcept {
-    return GetValueOr(ResizeDirectionProperty, GridResizeDirection::Auto);
+    return GetValue(ResizeDirectionProperty);
 }
 
 GridResizeBehavior GridSplitter::GetResizeBehavior() const noexcept {
-    return GetValueOr(
-        ResizeBehaviorProperty,
-        GridResizeBehavior::BasedOnAlignment);
+    return GetValue(ResizeBehaviorProperty);
 }
 
 bool GridSplitter::GetShowsPreview() const noexcept {
-    return GetValueOr(ShowsPreviewProperty, false);
+    return GetValue(ShowsPreviewProperty);
 }
 
 Base::Ref<Aero::Style> GridSplitter::GetPreviewStyle() const noexcept {
-    return GetValueOr(
-        PreviewStyleProperty,
-        Base::Ref<Aero::Style>{});
+    return GetValue(PreviewStyleProperty);
 }
 
 void GridSplitter::SetDragIncrement(double value) noexcept {
@@ -98,8 +94,7 @@ void GridSplitter::SetPreviewStyle(
 }
 
 bool Track::GetIsDirectionReversed() const noexcept {
-    return GetValueOr(
-        IsDirectionReversedProperty, false);
+    return GetValue(IsDirectionReversedProperty);
 }
 
 void Track::SetOrientation(
@@ -325,19 +320,19 @@ ScrollBar::ScrollBar() noexcept
       trackPropertyChangedHandler_(
           this,
           &ScrollBar::OnTrackPropertyChanged) {
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         OrientationProperty,
         trackPropertyChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         MinimumProperty,
         trackPropertyChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         MaximumProperty,
         trackPropertyChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         ValueProperty,
         trackPropertyChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         ViewportSizeProperty,
         trackPropertyChangedHandler_));
 }
@@ -405,11 +400,11 @@ RangeBase::RangeBase(TypeId runtimeType) noexcept
       rangeChangedHandler_(
           this,
           &RangeBase::OnRangePropertyChanged) {
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         MinimumProperty, rangeChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         MaximumProperty, rangeChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         ValueProperty, rangeChangedHandler_));
 }
 
@@ -586,15 +581,15 @@ Slider::Slider() noexcept
     : Primitives::RangeBase(StaticTypeId()),
       trackPropertyChangedHandler_(
           this, &Slider::OnTrackPropertyChanged) {
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         OrientationProperty, trackPropertyChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         MinimumProperty, trackPropertyChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         MaximumProperty, trackPropertyChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         ValueProperty, trackPropertyChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         IsDirectionReversedProperty, trackPropertyChangedHandler_));
 }
 
@@ -671,9 +666,7 @@ double Slider::GetLargeChange() const noexcept {
 }
 
 TickPlacement Slider::GetTickPlacement() const noexcept {
-    return GetValueOr(
-        TickPlacementProperty,
-        TickPlacement::None);
+    return GetValue(TickPlacementProperty);
 }
 
 double Slider::GetTickFrequency() const noexcept {
@@ -681,8 +674,7 @@ double Slider::GetTickFrequency() const noexcept {
 }
 
 Base::StringView Slider::GetTicks() const noexcept {
-    return GetValueOr(
-        TicksProperty, Base::StringView());
+    return GetValue(TicksProperty);
 }
 
 bool Slider::GetIsSnapToTickEnabled() const noexcept {
@@ -1116,15 +1108,11 @@ void Slider::OnRender(
 }
 
 Base::Ref<Media::Brush> TickBar::GetFill() const noexcept {
-    return GetValueOr(
-        FillProperty,
-        Base::Ref<Media::Brush>{});
+    return GetValue(FillProperty);
 }
 
 TickBarPlacement TickBar::GetPlacement() const noexcept {
-    return GetValueOr(
-        PlacementProperty,
-        TickBarPlacement::Top);
+    return GetValue(PlacementProperty);
 }
 
 void TickBar::SetFill(

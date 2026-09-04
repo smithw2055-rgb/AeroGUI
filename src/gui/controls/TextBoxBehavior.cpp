@@ -1,4 +1,4 @@
-#include "gui/controls/TextBoxInternal.hpp"
+#include "gui/controls/TextBoxCommon.hpp"
 #include "render/DisplayList.hpp"
 #include <Aero/Controls/TextBoxBase.hpp>
 #include <Aero/Controls/TextBox.hpp>
@@ -174,65 +174,16 @@ TextEditBehavior::Attach(
         input_->AddPointerCaptureChanged(captureChangedHandler_);
         captureSubscribed_ = true;
     }
-    Base::Result<void> result =
-        textBox.AddHandlerChecked(
-            UIElement::MouseDownEvent,
-            mouseDownHandler_);
-    if (result) {
-        result = textBox.AddHandlerChecked(
-            UIElement::MouseMoveEvent,
-            mouseMoveHandler_);
-    }
-    if (result) {
-        result = textBox.AddHandlerChecked(
-            UIElement::MouseUpEvent,
-            mouseUpHandler_);
-    }
-    if (result) {
-        result = textBox.AddHandlerChecked(
-            UIElement::KeyDownEvent,
-            keyDownHandler_);
-    }
-    if (result) {
-        result = textBox.AddHandlerChecked(
-            UIElement::TextInputEvent,
-            textInputHandler_);
-    }
-    if (result) {
-        result = textBox.AddHandlerChecked(
-            UIElement::LostKeyboardFocusEvent,
-            focusChangedHandler_);
-    }
-    if (result) {
-        result =
-            textBox.AddValueChangedHandlerChecked(
-                TextBox::TextProperty,
-                propertyChangedHandler_);
-    }
-    if (result) {
-        result =
-            textBox.AddValueChangedHandlerChecked(
-                TextBox::IsReadOnlyProperty,
-                propertyChangedHandler_);
-    }
-    if (result) {
-        result =
-            textBox.AddValueChangedHandlerChecked(
-                TextBox::MaxLengthProperty,
-                propertyChangedHandler_);
-    }
-    if (result) {
-        result =
-            textBox.AddValueChangedHandlerChecked(
-                UIElement::IsEnabledProperty,
-                propertyChangedHandler_);
-    }
-    if (!result) {
-        const Base::Status failure =
-            result.GetStatus();
-        static_cast<void>(Detach(textBox));
-        return failure;
-    }
+    textBox.AddHandler(UIElement::MouseDownEvent, mouseDownHandler_);
+    textBox.AddHandler(UIElement::MouseMoveEvent, mouseMoveHandler_);
+    textBox.AddHandler(UIElement::MouseUpEvent, mouseUpHandler_);
+    textBox.AddHandler(UIElement::KeyDownEvent, keyDownHandler_);
+    textBox.AddHandler(UIElement::TextInputEvent, textInputHandler_);
+    textBox.AddHandler(UIElement::LostKeyboardFocusEvent, focusChangedHandler_);
+    textBox.AddValueChangedHandler(TextBox::TextProperty, propertyChangedHandler_);
+    textBox.AddValueChangedHandler(TextBox::IsReadOnlyProperty, propertyChangedHandler_);
+    textBox.AddValueChangedHandler(TextBox::MaxLengthProperty, propertyChangedHandler_);
+    textBox.AddValueChangedHandler(UIElement::IsEnabledProperty, propertyChangedHandler_);
     return {};
 }
 
@@ -277,90 +228,18 @@ TextEditBehavior::Attach(
         captureSubscribed_ = true;
     }
 
-    Base::Result<void> result =
-        passwordBox.AddHandlerChecked(
-            UIElement::MouseDownEvent,
-            mouseDownHandler_);
-    if (result) {
-        result = passwordBox.AddHandlerChecked(
-            UIElement::MouseMoveEvent,
-            mouseMoveHandler_);
-    }
-    if (result) {
-        result = passwordBox.AddHandlerChecked(
-            UIElement::MouseUpEvent,
-            mouseUpHandler_);
-    }
-    if (result) {
-        result = passwordBox.AddHandlerChecked(
-            UIElement::KeyDownEvent,
-            keyDownHandler_);
-    }
-    if (result) {
-        result = passwordBox.AddHandlerChecked(
-            UIElement::TextInputEvent,
-            textInputHandler_);
-    }
-    if (result) {
-        result = passwordBox.AddHandlerChecked(
-            UIElement::LostKeyboardFocusEvent,
-            focusChangedHandler_);
-    }
-    if (result) {
-        result =
-            passwordBox.
-                AddValueChangedHandlerChecked(
-                    PasswordBox::
-                        PasswordCharProperty,
-                    propertyChangedHandler_);
-    }
-    if (result) {
-        result =
-            passwordBox.
-                AddValueChangedHandlerChecked(
-                    PasswordBox::
-                        MaxLengthProperty,
-                    propertyChangedHandler_);
-    }
-    if (result) {
-        result =
-            passwordBox.
-                AddValueChangedHandlerChecked(
-                    PasswordBox::
-                        ForegroundProperty,
-                    propertyChangedHandler_);
-    }
-    if (result) {
-        result =
-            passwordBox.
-                AddValueChangedHandlerChecked(
-                    PasswordBox::
-                        SelectionBrushProperty,
-                    propertyChangedHandler_);
-    }
-    if (result) {
-        result =
-            passwordBox.
-                AddValueChangedHandlerChecked(
-                    PasswordBox::
-                        CaretBrushProperty,
-                    propertyChangedHandler_);
-    }
-    if (result) {
-        result =
-            passwordBox.
-                AddValueChangedHandlerChecked(
-                    UIElement::
-                        IsEnabledProperty,
-                    propertyChangedHandler_);
-    }
-    if (!result) {
-        const Base::Status failure =
-            result.GetStatus();
-        static_cast<void>(
-            Detach(passwordBox));
-        return failure;
-    }
+    passwordBox.AddHandler(UIElement::MouseDownEvent, mouseDownHandler_);
+    passwordBox.AddHandler(UIElement::MouseMoveEvent, mouseMoveHandler_);
+    passwordBox.AddHandler(UIElement::MouseUpEvent, mouseUpHandler_);
+    passwordBox.AddHandler(UIElement::KeyDownEvent, keyDownHandler_);
+    passwordBox.AddHandler(UIElement::TextInputEvent, textInputHandler_);
+    passwordBox.AddHandler(UIElement::LostKeyboardFocusEvent, focusChangedHandler_);
+    passwordBox.AddValueChangedHandler(PasswordBox::PasswordCharProperty, propertyChangedHandler_);
+    passwordBox.AddValueChangedHandler(PasswordBox::MaxLengthProperty, propertyChangedHandler_);
+    passwordBox.AddValueChangedHandler(PasswordBox::ForegroundProperty, propertyChangedHandler_);
+    passwordBox.AddValueChangedHandler(PasswordBox::SelectionBrushProperty, propertyChangedHandler_);
+    passwordBox.AddValueChangedHandler(PasswordBox::CaretBrushProperty, propertyChangedHandler_);
+    passwordBox.AddValueChangedHandler(UIElement::IsEnabledProperty, propertyChangedHandler_);
     return {};
 }
 

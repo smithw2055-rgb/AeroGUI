@@ -401,8 +401,7 @@ void MouseDragElementBehavior::OnMouseUp(
 
 
 Base::Ref<FrameworkElement> BackgroundEffectBehavior::GetSource() const noexcept {
-    Base::Ref<Base::Object> source = GetValueOr(
-        SourceProperty, Base::Ref<Base::Object>{});
+    Base::Ref<Base::Object> source = GetValue(SourceProperty);
     if (!source || !PropertyRegistry().Types().IsDerivedFrom(
             source->RuntimeType(), FrameworkElement::StaticTypeId())) {
         return {};

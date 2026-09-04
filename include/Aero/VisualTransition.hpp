@@ -31,9 +31,8 @@ public:
     }
     Result<void> SetGeneratedDuration(
         StringView value) noexcept {
-        Media::Animation::Storyboard validator;
-        Result<void> valid =
-            validator.SetDurationChecked(value);
+        Result<Media::Animation::Duration> valid =
+            Media::Animation::Duration::TryParse(value);
         if (!valid) return valid.GetStatus();
         return generatedDuration_.Assign(value);
     }

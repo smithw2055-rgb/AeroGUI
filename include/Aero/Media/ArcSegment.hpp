@@ -16,20 +16,19 @@ class AERO_GUI_API ArcSegment : public PathSegment {
 public:
     ArcSegment() noexcept : PathSegment(StaticTypeId()) {}
     Point GetPoint() const noexcept {
-        return GetValueOr(PointProperty, Point{});
+        return GetValue(PointProperty);
     }
     Size GetSize() const noexcept {
-        return GetValueOr(SizeProperty, Size{});
+        return GetValue(SizeProperty);
     }
     double GetRotationAngle() const noexcept {
-        return GetValueOr(RotationAngleProperty, 0.0);
+        return GetValue(RotationAngleProperty);
     }
     bool GetIsLargeArc() const noexcept {
-        return GetValueOr(IsLargeArcProperty, false);
+        return GetValue(IsLargeArcProperty);
     }
     SweepDirection GetSweepDirection() const noexcept {
-        return GetValueOr(
-            SweepDirectionProperty, SweepDirection::Counterclockwise);
+        return GetValue(SweepDirectionProperty);
     }
     void SetPoint(Point value) noexcept { SetValue(PointProperty, value); }
     void SetSize(Size value) noexcept { SetValue(SizeProperty, value); }

@@ -10,7 +10,7 @@ public:
     BackEase() noexcept
         : EasingFunctionBase(StaticTypeId(), Kind::Back) {}
     double GetAmplitude() const noexcept {
-        return GetValueOr(AmplitudeProperty, 1.0);
+        return GetValue(AmplitudeProperty);
     }
     void SetAmplitude(double value) noexcept;
     inline static constexpr DependencyProperty<double> AmplitudeProperty{"Amplitude"};

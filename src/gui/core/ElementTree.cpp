@@ -83,9 +83,7 @@ Base::Result<void> EnsureVisualChildStorage(
         // ProjectContent parent that subtree under a ContentPresenter inside
         // itself ("Visual tree attachment would create a cycle").
         const Base::Ref<Controls::ControlTemplate> templ =
-            control.GetValueOr(
-                Controls::Control::TemplateProperty,
-                Base::Ref<Controls::ControlTemplate>{});
+            control.GetValue(Controls::Control::TemplateProperty);
         if (existing == nullptr &&
             AeroGuiInternal::TemplateRoot(control) == nullptr &&
             !templ) {
@@ -283,6 +281,8 @@ ElementTree::~ElementTree() noexcept {
     if (root_ != nullptr && dispatcher_->CheckAccess()) {
         (void)SetRoot(nullptr);
     }
+    lifecycleQueue_.Clear();
+    handles_.Clear();
 }
 
 Base::Result<void> ElementTree::Initialize() noexcept {
@@ -475,11 +475,9 @@ Base::Result<void> ElementTree::TrackInheritedValues(
             FrameworkElement::DataContextProperty) == nullptr) {
         return {};
     }
-    Base::Result<void> subscribed =
-        element->AddValueChangedHandlerChecked(
-            FrameworkElement::DataContextProperty,
-            dataContextChangedHandler_);
-    if (!subscribed) return subscribed.GetStatus();
+    element->AddValueChangedHandler(
+        FrameworkElement::DataContextProperty,
+        dataContextChangedHandler_);
     Base::Result<void> invalidated = values_->Invalidate(
         *element, FrameworkElement::DataContextProperty);
     if (!invalidated) {
@@ -954,7 +952,8 @@ Base::Result<std::uint32_t> ElementTree::FlushLifecycle() noexcept {
     lifecycleQueue_.Clear();
 
     std::uint32_t count = 0U;
-    for (const LifecycleRecord& record : snapshot) {
+    for (std::uint32_t i = 0U; i < snapshot.Size(); ++i) {
+        const LifecycleRecord& record = snapshot[i];
         ::Aero::Media::Visual* node = record.node.Resolve();
         if (node == nullptr) continue;
         if (lifecycleHandler_ != nullptr) {

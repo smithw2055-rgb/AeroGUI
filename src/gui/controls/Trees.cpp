@@ -213,14 +213,14 @@ TreeViewItem::TreeViewItem(
           this, &TreeViewItem::OnSelectedChanged),
       expandClickHandler_(
           this, &TreeViewItem::OnExpandButtonClick) {
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         HeaderProperty, headerChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         IconProperty, iconChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         IsExpandedProperty,
         expandedChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         IsSelectedProperty,
         selectedChangedHandler_));
 }
@@ -249,9 +249,7 @@ TreeViewItem::~TreeViewItem() {
 
 Value
 TreeViewItem::GetHeader() const noexcept {
-    return GetValueOr(
-        HeaderProperty,
-        Value::NullObject(Meta::TypeOf<Base::Object>()));
+    return GetValue(HeaderProperty);
 }
 
 void TreeViewItem::SetHeader(
@@ -269,8 +267,7 @@ Base::Result<void> TreeViewItem::SetHeader(
 }
 
 Base::StringView TreeViewItem::GetIcon() const noexcept {
-    return GetValueOr(
-        IconProperty, Base::StringView{});
+    return GetValue(IconProperty);
 }
 
 void TreeViewItem::SetIcon(
@@ -280,9 +277,7 @@ void TreeViewItem::SetIcon(
 
 Base::Ref<DataTemplate>
 TreeViewItem::GetHeaderTemplate() const noexcept {
-    return GetValueOr(
-        HeaderTemplateProperty,
-        Base::Ref<DataTemplate>{});
+    return GetValue(HeaderTemplateProperty);
 }
 
 void
@@ -292,8 +287,7 @@ TreeViewItem::SetHeaderTemplate(
 }
 
 bool TreeViewItem::GetIsExpanded() const noexcept {
-    return GetValueOr(
-        IsExpandedProperty, false);
+    return GetValue(IsExpandedProperty);
 }
 
 void
@@ -303,8 +297,7 @@ TreeViewItem::SetIsExpanded(
 }
 
 bool TreeViewItem::GetIsSelected() const noexcept {
-    return GetValueOr(
-        IsSelectedProperty, false);
+    return GetValue(IsSelectedProperty);
 }
 
 void
@@ -478,8 +471,8 @@ TreeViewItem::OnApplyTemplate() noexcept {
         ? ::Aero::TryCast<ToggleButton>(expander)
         : nullptr;
     if (expandButton_ != nullptr) {
-        static_cast<void>(expandButton_->AddHandlerChecked(
-            ButtonBase::ClickEvent, expandClickHandler_));
+        expandButton_->AddHandler(
+            ButtonBase::ClickEvent, expandClickHandler_);
     }
 
     if (childItems_ != nullptr) {
@@ -823,9 +816,7 @@ TreeView::~TreeView() {
 
 Base::Ref<Base::Object>
 TreeView::GetSelectedItem() const noexcept {
-    return GetValueOr(
-        SelectedItemProperty,
-        Base::Ref<Base::Object>{});
+    return GetValue(SelectedItemProperty);
 }
 
 Base::Result<Base::Ref<FrameworkElement>>
@@ -972,23 +963,13 @@ TreeBehavior::Attach(
     Base::Result<VisualHandle> handle =
         tree_->GetHandle(treeView);
     if (!handle) return handle.GetStatus();
-    Base::Result<void> mouse =
-        treeView.AddHandlerChecked(
-            UIElement::MouseDownEvent,
-            mouseDownHandler_,
-            true);
-    if (!mouse) return mouse.GetStatus();
-    Base::Result<void> key =
-        treeView.AddHandlerChecked(
-            UIElement::KeyDownEvent,
-            keyDownHandler_);
-    if (!key) {
-        static_cast<void>(
-            treeView.RemoveHandler(
-                UIElement::MouseDownEvent,
-                mouseDownHandler_));
-        return key.GetStatus();
-    }
+    treeView.AddHandler(
+        UIElement::MouseDownEvent,
+        mouseDownHandler_,
+        true);
+    treeView.AddHandler(
+        UIElement::KeyDownEvent,
+        keyDownHandler_);
     Base::Result<void> stored =
         records_.PushBack(handle.Value());
     if (!stored) {

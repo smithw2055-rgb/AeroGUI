@@ -12,7 +12,7 @@ public:
     MatrixTransform3D() noexcept : Transform3D(StaticTypeId()) {}
 
     Base::Transform3 GetMatrix() const noexcept {
-        return GetValueOr(MatrixProperty, Base::IdentityTransform3());
+        return GetValue(MatrixProperty);
     }
     void SetMatrix(Base::Transform3 value) noexcept {
         SetValue(MatrixProperty, value);

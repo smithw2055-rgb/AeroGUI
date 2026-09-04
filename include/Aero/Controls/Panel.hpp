@@ -33,9 +33,7 @@ class AERO_GUI_API Panel : public FrameworkElement {
     AERO_DECLARE_TYPE(Panel, FrameworkElement)
 public:
     Ref<Aero::Media::Brush> GetBackground() const noexcept {
-        return GetValueOr(
-            BackgroundProperty,
-            Ref<Aero::Media::Brush>{});
+        return GetValue(BackgroundProperty);
     }
     void SetBackground(
         Ref<Aero::Media::Brush> value) noexcept {

@@ -35,12 +35,10 @@ public:
         return items_;
     }
     Ref<Base::Object> GetItemsSource() const noexcept {
-        return GetValueOr(
-            ItemsSourceProperty,
-            Ref<Base::Object>{});
+        return GetValue(ItemsSourceProperty);
     }
     bool GetHasItems() const noexcept {
-        return GetValueOr(HasItemsProperty, false);
+        return GetValue(HasItemsProperty);
     }
     std::uint32_t GetCount() const noexcept;
     Ref<Base::Object> GetItem(
@@ -50,16 +48,14 @@ public:
         SetValue(ItemsSourceProperty, std::move(source));
     }
     std::uint32_t GetAlternationCount() const noexcept {
-        return GetValueOr(AlternationCountProperty, 0U);
+        return GetValue(AlternationCountProperty);
     }
     void SetAlternationCount(
         std::uint32_t value) noexcept {
         SetValue(AlternationCountProperty, value);
     }
     StringView GetDisplayMemberPath() const noexcept {
-        return GetValueOr(
-            DisplayMemberPathProperty,
-            StringView{});
+        return GetValue(DisplayMemberPathProperty);
     }
     void SetDisplayMemberPath(StringView value) noexcept {
         SetValue(DisplayMemberPathProperty, value);

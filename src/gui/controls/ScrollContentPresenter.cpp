@@ -1,4 +1,4 @@
-#include "gui/controls/ScrollInternal.hpp"
+#include "gui/controls/ScrollCommon.hpp"
 #include "gui/meta/ValueConversion.hpp"
 #include "gui/core/State.hpp"
 #include "gui/input/InputState.hpp"
@@ -97,8 +97,7 @@ bool ScrollContentPresenter::GetAllowsVerticalScroll() const noexcept {
 }
 
 bool ScrollContentPresenter::GetUsesContentScrolling() const noexcept {
-    return GetValueOr(
-        CanContentScrollProperty, false);
+    return GetValue(CanContentScrollProperty);
 }
 
 void ScrollContentPresenter::SetLineScrollAmount(

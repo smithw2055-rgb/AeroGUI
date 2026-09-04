@@ -16,7 +16,7 @@ class AERO_GUI_API EasingFunctionBase : public ::Aero::Freezable {
     AERO_DECLARE_TYPE(EasingFunctionBase, ::Aero::Freezable)
 public:
     EasingMode GetEasingMode() const noexcept {
-        return GetValueOr(EasingModeProperty, EasingMode::EaseOut);
+        return GetValue(EasingModeProperty);
     }
     void SetEasingMode(EasingMode value) noexcept {
         SetValue(EasingModeProperty, value);

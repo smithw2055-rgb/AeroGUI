@@ -803,81 +803,38 @@ bool DependencyObject::RemoveValueChangedHandler(
 void DependencyObject::AddValueChangedHandler(
     DependencyPropertyHandle property,
     const DependencyPropertyChangedEventHandler& handler) noexcept {
-    Base::Result<void> added =
-        AddValueChangedHandlerChecked(property, handler);
-    if (!added) {
-        Base::ReportOutOfMemory(
-            sizeof(DependencyPropertyChangedEventHandler),
-            alignof(DependencyPropertyChangedEventHandler),
-            Base::MemoryTag::General);
-    }
-}
-
-// from src/gui/core/PropertySystem.cpp
-
-Base::Result<void> DependencyObject::AddValueChangedHandlerChecked(
-    DependencyPropertyHandle property,
-    const DependencyPropertyChangedEventHandler& handler) noexcept {
-    Base::Result<void> ready = VerifyReady();
-    if (!ready) {
-        return ready.GetStatus();
-    }
-    const Meta::DependencyProperty* descriptor =
-        registry_->Find(property);
-    if (!property.IsValid() || handler.Empty() ||
-        descriptor == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Dependency property change handler registration is invalid");
+    if (!VerifyReady()) return;
+    const Meta::DependencyProperty* descriptor = registry_->Find(property);
+    if (!property.IsValid() || handler.Empty() || descriptor == nullptr) {
+        return;
     }
     property = descriptor->Handle();
     ChangeHandlerRecord record;
     record.property = property;
     record.handler = handler;
     record.active = true;
-    return changeHandlers_.PushBack(std::move(record));
-}
-
-// from src/gui/core/PropertySystem.cpp
-
-Base::Result<void> DependencyObject::CoerceValueChecked(
-    DependencyPropertyHandle property) noexcept {
-    return ApplyChange(property, nullptr, ChangeKind::ReCoerce, nullptr);
+    (void)changeHandlers_.PushBack(std::move(record));
 }
 
 // from src/gui/core/PropertySystem.cpp
 
 void DependencyObject::CoerceValue(
     DependencyPropertyHandle property) noexcept {
-    static_cast<void>(CoerceValueChecked(property));
-}
-
-// from src/gui/core/PropertySystem.cpp
-
-Base::Result<void> DependencyObject::ClearValueChecked(
-    const DependencyPropertyKey& key) noexcept {
-    return ApplyChange(key.Property(), &key, ChangeKind::Clear, nullptr);
+    (void)ApplyChange(property, nullptr, ChangeKind::ReCoerce, nullptr);
 }
 
 // from src/gui/core/PropertySystem.cpp
 
 void DependencyObject::ClearValue(
     const DependencyPropertyKey& key) noexcept {
-    static_cast<void>(ClearValueChecked(key));
-}
-
-// from src/gui/core/PropertySystem.cpp
-
-Base::Result<void> DependencyObject::ClearValueChecked(
-    DependencyPropertyHandle property) noexcept {
-    return ApplyChange(property, nullptr, ChangeKind::Clear, nullptr);
+    (void)ApplyChange(key.Property(), &key, ChangeKind::Clear, nullptr);
 }
 
 // from src/gui/core/PropertySystem.cpp
 
 void DependencyObject::ClearValue(
     DependencyPropertyHandle property) noexcept {
-    static_cast<void>(ClearValueChecked(property));
+    (void)ApplyChange(property, nullptr, ChangeKind::Clear, nullptr);
 }
 
 // from src/gui/core/PropertySystem.cpp
@@ -905,17 +862,17 @@ void DependencyObject::SetReadOnlyCurrentValue(
 
 // from src/gui/core/PropertySystem.cpp
 
-Base::Result<void> DependencyObject::SetTemplateValueChecked(
+void DependencyObject::SetTemplateValue(
     DependencyPropertyHandle property,
     const PropertyValue& value) noexcept {
     Base::Result<void> ready = VerifyReady();
-    if (!ready) return ready.GetStatus();
+    if (!ready) return;
     Base::Result<void> writable = VerifyMutationAllowed();
-    if (!writable) return writable.GetStatus();
+    if (!writable) return;
     const Meta::DependencyProperty* registered = registry_->Find(property);
-    if (registered == nullptr) return Base::Status::Failure(Base::ErrorCode::NotFound, "Dependency property is not registered");
+    if (registered == nullptr) return;
     const PropertyMetadata* metadata = registered->MetadataFor(runtimeType_);
-    if (metadata == nullptr) return Base::Status::Failure(Base::ErrorCode::NotFound, "Dependency property metadata is not registered for type");
+    if (metadata == nullptr) return;
 
     StoredValueEntry* storedEntry = FindStoredEntry(property);
     const PropertyValue oldEffective = storedEntry != nullptr ? storedEntry->effectiveValue : metadata->defaultValue;
@@ -925,42 +882,18 @@ Base::Result<void> DependencyObject::SetTemplateValueChecked(
         property,
         PropertyProviderToken{PropertyValueRank::TemplatedParentSetter, FirstCanonicalProviderOrigin, 0U},
         value);
-    if (!contribution) return contribution.GetStatus();
+    if (!contribution) return;
 
-    return RecomputeEffectiveValueCore(
+    (void)RecomputeEffectiveValueCore(
         property, *registered, *metadata, oldEffective, oldSourceInfo);
 }
 
 // from src/gui/core/PropertySystem.cpp
 
-void DependencyObject::SetTemplateValue(
-    DependencyPropertyHandle property,
-    const PropertyValue& value) noexcept {
-    static_cast<void>(SetTemplateValueChecked(property, value));
-}
-
-// from src/gui/core/PropertySystem.cpp
-
-Base::Result<void> DependencyObject::SetCurrentValueChecked(
-    const DependencyPropertyKey& key,
-    const PropertyValue& value) noexcept {
-    return ApplyChange(key.Property(), &key, ChangeKind::SetCurrent, &value);
-}
-
-// from src/gui/core/PropertySystem.cpp
-
 void DependencyObject::SetCurrentValue(
     const DependencyPropertyKey& key,
     const PropertyValue& value) noexcept {
-    static_cast<void>(SetCurrentValueChecked(key, value));
-}
-
-// from src/gui/core/PropertySystem.cpp
-
-Base::Result<void> DependencyObject::SetCurrentValueChecked(
-    DependencyPropertyHandle property,
-    const PropertyValue& value) noexcept {
-    return ApplyChange(property, nullptr, ChangeKind::SetCurrent, &value);
+    (void)ApplyChange(key.Property(), &key, ChangeKind::SetCurrent, &value);
 }
 
 // from src/gui/core/PropertySystem.cpp
@@ -968,15 +901,7 @@ Base::Result<void> DependencyObject::SetCurrentValueChecked(
 void DependencyObject::SetCurrentValue(
     DependencyPropertyHandle property,
     const PropertyValue& value) noexcept {
-    static_cast<void>(SetCurrentValueChecked(property, value));
-}
-
-// from src/gui/core/PropertySystem.cpp
-
-Base::Result<void> DependencyObject::SetValueChecked(
-    const DependencyPropertyKey& key,
-    const PropertyValue& value) noexcept {
-    return ApplyChange(key.Property(), &key, ChangeKind::SetLocal, &value);
+    (void)ApplyChange(property, nullptr, ChangeKind::SetCurrent, &value);
 }
 
 // from src/gui/core/PropertySystem.cpp
@@ -984,15 +909,7 @@ Base::Result<void> DependencyObject::SetValueChecked(
 void DependencyObject::SetValue(
     const DependencyPropertyKey& key,
     const PropertyValue& value) noexcept {
-    static_cast<void>(SetValueChecked(key, value));
-}
-
-// from src/gui/core/PropertySystem.cpp
-
-Base::Result<void> DependencyObject::SetValueChecked(
-    DependencyPropertyHandle property,
-    const PropertyValue& value) noexcept {
-    return ApplyChange(property, nullptr, ChangeKind::SetLocal, &value);
+    (void)ApplyChange(key.Property(), &key, ChangeKind::SetLocal, &value);
 }
 
 // from src/gui/core/PropertySystem.cpp
@@ -1000,7 +917,7 @@ Base::Result<void> DependencyObject::SetValueChecked(
 void DependencyObject::SetValue(
     DependencyPropertyHandle property,
     const PropertyValue& value) noexcept {
-    static_cast<void>(SetValueChecked(property, value));
+    (void)ApplyChange(property, nullptr, ChangeKind::SetLocal, &value);
 }
 
 // from src/gui/core/PropertySystem.cpp

@@ -18,8 +18,7 @@ public:
     ~Thumb() override = default;
 
     bool GetIsDragging() const noexcept {
-        return GetValueOr(
-            IsDraggingProperty, false);
+        return GetValue(IsDraggingProperty);
     }
     Result<void> BeginDrag(
         std::uint32_t pointerId,

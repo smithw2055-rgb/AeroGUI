@@ -33,9 +33,7 @@ public:
     Ref<Base::Object> GetSelectedItem() const noexcept;
     Ref<Base::Object> GetSelectedValue() const noexcept;
     StringView GetSelectedValuePath() const noexcept {
-        return GetValueOr(
-            SelectedValuePathProperty,
-            StringView{});
+        return GetValue(SelectedValuePathProperty);
     }
     Span<const std::uint32_t> GetSelectedIndices() const noexcept {
         return {selectedIndices_.Data(), selectedIndices_.Size()};

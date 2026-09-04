@@ -12,13 +12,13 @@ public:
         return StaticTypeId();
     }
     Point GetCenter() const noexcept {
-        return GetValueOr(CenterProperty, Point{});
+        return GetValue(CenterProperty);
     }
     double GetRadiusX() const noexcept {
-        return GetValueOr(RadiusXProperty, 0.0);
+        return GetValue(RadiusXProperty);
     }
     double GetRadiusY() const noexcept {
-        return GetValueOr(RadiusYProperty, 0.0);
+        return GetValue(RadiusYProperty);
     }
     void SetCenter(Point value) noexcept { SetValue(CenterProperty, value); }
     void SetRadiusX(double value) noexcept { SetValue(RadiusXProperty, value); }

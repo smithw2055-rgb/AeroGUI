@@ -1367,9 +1367,7 @@ CompileVisualStates(
             authoredRoot->RuntimeType(),
             ::Aero::DependencyObject::StaticTypeId())) {
         auto& root = static_cast<::Aero::DependencyObject&>(*authoredRoot);
-        Base::Ref<VisualStateGroupCollection> valueStore = root.GetValueOr(
-            VisualStateManager::VisualStateGroupsProperty,
-            Base::Ref<VisualStateGroupCollection>{});
+        Base::Ref<VisualStateGroupCollection> valueStore = root.GetValue(VisualStateManager::VisualStateGroupsProperty);
         if (valueStore) {
             for (const Base::Ref<VisualStateGroup>& groupObject :
                  valueStore->GetItems()) {

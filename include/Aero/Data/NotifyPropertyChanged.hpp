@@ -26,6 +26,16 @@ public:
         Meta::MemberId property,
         void* context) noexcept;
 
+    template<class TValue>
+    bool SetProperty(TValue& field, const TValue& newValue, Base::StringView propertyName) noexcept {
+        if (field == newValue) {
+            return false;
+        }
+        field = newValue;
+        RaisePropertyChanged(propertyName);
+        return true;
+    }
+
     void RaisePropertyChanged(Base::StringView propertyName) noexcept {
         Base::Object& self = static_cast<TDerived&>(*this);
         Notify(self, FindNotifyPropertyMember(self, propertyName));

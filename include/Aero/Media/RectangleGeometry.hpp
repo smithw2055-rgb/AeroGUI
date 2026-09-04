@@ -12,13 +12,13 @@ public:
         return StaticTypeId();
     }
     Rect GetRect() const noexcept {
-        return GetValueOr(RectProperty, Rect{});
+        return GetValue(RectProperty);
     }
     double GetRadiusX() const noexcept {
-        return GetValueOr(RadiusXProperty, 0.0);
+        return GetValue(RadiusXProperty);
     }
     double GetRadiusY() const noexcept {
-        return GetValueOr(RadiusYProperty, 0.0);
+        return GetValue(RadiusYProperty);
     }
     void SetRect(Rect value) noexcept { SetValue(RectProperty, value); }
     void SetRadiusX(double value) noexcept { SetValue(RadiusXProperty, value); }

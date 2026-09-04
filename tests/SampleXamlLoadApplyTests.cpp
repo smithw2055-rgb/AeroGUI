@@ -673,16 +673,16 @@ class NumericUpDown final : public UserControl {
 public:
     NumericUpDown() noexcept : UserControl(StaticTypeId()) {}
     std::int32_t GetNumericValue() const noexcept {
-        return GetValueOr(ValueProperty, 0);
+        return GetValue(ValueProperty);
     }
     std::int32_t GetMinValue() const noexcept {
-        return GetValueOr(MinValueProperty, 0);
+        return GetValue(MinValueProperty);
     }
     std::int32_t GetMaxValue() const noexcept {
-        return GetValueOr(MaxValueProperty, 255);
+        return GetValue(MaxValueProperty);
     }
     std::int32_t GetStepValue() const noexcept {
-        return GetValueOr(StepValueProperty, 1);
+        return GetValue(StepValueProperty);
     }
     void SetNumericValue(std::int32_t value) noexcept {
         const std::int32_t min = GetMinValue();

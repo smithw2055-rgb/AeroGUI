@@ -224,19 +224,12 @@ void VerifyGradientFreeze() noexcept {
     Aero::Media::LinearGradientBrush& brush = *brushRef.Value();
     changedCount = 0U;
     Aero::FreezableChangedHandler handler(&CountChanged);
-    Check(brush.AddChangedHandlerChecked(handler).HasValue(),
-        "Freezable Changed subscription failed");
+    brush.AddChangedHandler(handler);
     Check(brush.AddGradientStop(stop).HasValue(),
         "gradient stop attachment failed");
     const std::uint32_t beforeChildChange = changedCount;
-    Aero::Base::Result<void> changed = stop->SetValueChecked(
+    stop->SetValue(
         Aero::Media::GradientStop::OffsetProperty, 0.25);
-    if (!changed) {
-        std::fprintf(stderr, "GradientStop.Offset status before freeze: %u\n",
-            static_cast<unsigned>(changed.GetStatus().code));
-    }
-    Check(changed.HasValue(),
-        "checked GradientStop mutation failed before Freeze");
     Check(changedCount > beforeChildChange,
         "GradientStop change did not propagate through GradientBrush");
 
@@ -249,16 +242,10 @@ void VerifyGradientFreeze() noexcept {
         "Freeze must publish exactly one final Changed notification");
 
     const double frozenOffset = stop->GetOffset();
-    Aero::Base::Result<void> rejected = stop->SetValueChecked(
+    stop->SetValue(
         Aero::Media::GradientStop::OffsetProperty, 0.75);
-    if (rejected || rejected.GetStatus().code !=
-            Aero::Base::ErrorCode::ReadOnly) {
-        std::fprintf(stderr, "GradientStop.Offset status after freeze: %u\n",
-            static_cast<unsigned>(rejected.GetStatus().code));
-    }
-    Check(!rejected &&
-            rejected.GetStatus().code == Aero::Base::ErrorCode::ReadOnly,
-        "checked mutation of a frozen object must return ReadOnly");
+    Check(std::fabs(stop->GetOffset() - frozenOffset) < 0.000001,
+        "mutation changed a frozen object");
     stop->SetOffset(0.75);
     Check(std::fabs(stop->GetOffset() - frozenOffset) < 0.000001,
         "void mutation changed a frozen object");

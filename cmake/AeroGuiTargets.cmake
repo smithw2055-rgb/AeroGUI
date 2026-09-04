@@ -156,13 +156,13 @@ set(_aero_gui_controls_sources
     src/gui/controls/ListView.cpp
     src/gui/controls/Menus.cpp
     src/gui/controls/ControlsMetadata.cpp
-    src/gui/controls/ScrollInternal.hpp
+    src/gui/controls/ScrollCommon.hpp
     src/gui/controls/ScrollContentPresenter.cpp
     src/gui/controls/ScrollViewer.cpp
     src/gui/controls/ScrollBar.cpp
     src/gui/controls/ScrollBehavior.cpp
     src/gui/controls/Selection.cpp
-    src/gui/controls/TextBoxInternal.hpp
+    src/gui/controls/TextBoxCommon.hpp
     src/gui/controls/TextBox.cpp
     src/gui/controls/PasswordBox.cpp
     src/gui/controls/TextBoxSelection.cpp

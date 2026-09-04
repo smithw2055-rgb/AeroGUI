@@ -12,7 +12,7 @@ public:
     ~VisualBrush() override = default;
 
     Ref<Base::Object> GetVisual() const noexcept {
-        return GetValueOr(VisualProperty, Ref<Base::Object>{});
+        return GetValue(VisualProperty);
     }
     void SetVisual(Ref<Base::Object> value) noexcept {
         SetValue(VisualProperty, std::move(value));

@@ -261,4 +261,13 @@ namespace Aero {
 template<class T>
 using Ref = Base::Ref<T>;
 
+using Base::MakeRef;
+using Base::MakeRefWithAllocator;
+
+template<class T, class... Args>
+inline Ref<T> New(Args&&... args) noexcept {
+    auto res = Base::MakeRef<T>(std::forward<Args>(args)...);
+    return res ? res.Value() : Ref<T>{};
+}
+
 } // namespace Aero

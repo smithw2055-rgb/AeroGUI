@@ -30,7 +30,7 @@ Popup::Popup(TypeId runtimeType) noexcept
           this,
           &Popup::OnOpenPropertyChanged) {
     static_cast<void>(SetIsHitTestVisible(false));
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         IsOpenProperty,
         openChangedHandler_));
 }
@@ -42,8 +42,7 @@ Popup::~Popup() {
 }
 
 bool Popup::GetIsOpen() const noexcept {
-    return GetValueOr(
-        IsOpenProperty, false);
+    return GetValue(IsOpenProperty);
 }
 
 void Popup::SetIsOpen(
@@ -52,9 +51,7 @@ void Popup::SetIsOpen(
 }
 
 PlacementMode Popup::GetPlacement() const noexcept {
-    return GetValueOr(
-        PlacementProperty,
-        PlacementMode::Bottom);
+    return GetValue(PlacementProperty);
 }
 
 void Popup::SetPlacement(
@@ -64,8 +61,7 @@ void Popup::SetPlacement(
 }
 
 double Popup::GetHorizontalOffset() const noexcept {
-    return GetValueOr(
-        HorizontalOffsetProperty, 0.0);
+    return GetValue(HorizontalOffsetProperty);
 }
 
 void Popup::SetHorizontalOffset(
@@ -75,8 +71,7 @@ void Popup::SetHorizontalOffset(
 }
 
 double Popup::GetVerticalOffset() const noexcept {
-    return GetValueOr(
-        VerticalOffsetProperty, 0.0);
+    return GetValue(VerticalOffsetProperty);
 }
 
 void Popup::SetVerticalOffset(
@@ -86,8 +81,7 @@ void Popup::SetVerticalOffset(
 }
 
 bool Popup::GetStaysOpen() const noexcept {
-    return GetValueOr(
-        StaysOpenProperty, true);
+    return GetValue(StaysOpenProperty);
 }
 
 void Popup::SetStaysOpen(
@@ -97,8 +91,7 @@ void Popup::SetStaysOpen(
 }
 
 bool Popup::GetMatchPlacementTargetWidth() const noexcept {
-    return GetValueOr(
-        MatchPlacementTargetWidthProperty, false);
+    return GetValue(MatchPlacementTargetWidthProperty);
 }
 
 void
@@ -111,9 +104,7 @@ Popup::SetMatchPlacementTargetWidth(
 
 Base::Ref<UIElement>
 Popup::GetPlacementTarget() const noexcept {
-    return GetValueOr(
-        PlacementTargetProperty,
-        Base::Ref<UIElement>{});
+    return GetValue(PlacementTargetProperty);
 }
 
 void Popup::SetPlacementTarget(
@@ -124,9 +115,7 @@ void Popup::SetPlacementTarget(
 }
 
 PopupAnimation Popup::GetPopupAnimation() const noexcept {
-    return GetValueOr(
-        PopupAnimationProperty,
-        PopupAnimation::None);
+    return GetValue(PopupAnimationProperty);
 }
 
 void Popup::SetPopupAnimation(
@@ -136,8 +125,7 @@ void Popup::SetPopupAnimation(
 }
 
 bool Popup::GetAllowsTransparency() const noexcept {
-    return GetValueOr(
-        AllowsTransparencyProperty, false);
+    return GetValue(AllowsTransparencyProperty);
 }
 
 void Popup::SetAllowsTransparency(
@@ -463,7 +451,7 @@ HeaderedContentControl::HeaderedContentControl(
       headerChangedHandler_(
           this,
           &HeaderedContentControl::OnHeaderChanged) {
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         HeaderProperty,
         headerChangedHandler_));
 }
@@ -482,10 +470,7 @@ void HeaderedContentControl::OnHeaderChanged(
 
 Meta::Value
 HeaderedContentControl::GetHeader() const noexcept {
-    return GetValueOr(
-        HeaderProperty,
-        Meta::Value::NullObject(
-            Meta::TypeOf<Base::Object>()));
+    return GetValue(HeaderProperty);
 }
 
 void HeaderedContentControl::SetHeader(
@@ -504,9 +489,7 @@ Base::Result<void> HeaderedContentControl::SetHeader(
 
 Base::Ref<DataTemplate>
 HeaderedContentControl::GetHeaderTemplate() const noexcept {
-    return GetValueOr(
-        HeaderTemplateProperty,
-        Base::Ref<DataTemplate>{});
+    return GetValue(HeaderTemplateProperty);
 }
 
 void
@@ -555,7 +538,7 @@ Expander::Expander() noexcept
       headerCheckedHandler_(
           this,
           &Expander::OnHeaderCheckedChanged) {
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         IsExpandedProperty,
         expandedChangedHandler_));
 }
@@ -568,8 +551,7 @@ Expander::~Expander() {
 }
 
 bool Expander::GetIsExpanded() const noexcept {
-    return GetValueOr(
-        IsExpandedProperty, false);
+    return GetValue(IsExpandedProperty);
 }
 
 void Expander::SetIsExpanded(
@@ -659,7 +641,7 @@ void Expander::BindHeaderToggle() noexcept {
     if (headerToggle_ == nullptr) {
         return;
     }
-    static_cast<void>(headerToggle_->AddValueChangedHandlerChecked(
+    static_cast<void>(headerToggle_->AddValueChangedHandler(
         ToggleButton::IsCheckedProperty,
         headerCheckedHandler_));
     const bool checked =
@@ -682,9 +664,7 @@ void Expander::OnTemplateDetached() noexcept {
 }
 
 ExpandDirection Expander::GetDirection() const noexcept {
-    return GetValueOr(
-        ExpandDirectionProperty,
-        ExpandDirection::Down);
+    return GetValue(ExpandDirectionProperty);
 }
 
 void Expander::SetDirection(
@@ -763,8 +743,7 @@ Size Expander::ArrangeOverride(
 }
 
 bool TabItem::GetIsSelected() const noexcept {
-    return GetValueOr(
-        IsSelectedProperty, false);
+    return GetValue(IsSelectedProperty);
 }
 
 void TabItem::SetIsSelected(
@@ -778,7 +757,7 @@ TabControl::TabControl() noexcept
       selectionChangedHandler_(
           this,
           &TabControl::OnSelectionPropertyChanged) {
-    static_cast<void>(AddValueChangedHandlerChecked(
+    static_cast<void>(AddValueChangedHandler(
         SelectedIndexProperty,
         selectionChangedHandler_));
 }
@@ -1050,13 +1029,11 @@ using namespace Aero::Threading;
 using namespace Aero::Render;
 
 Stretch Viewbox::GetStretch() const noexcept {
-    return GetValueOr(StretchProperty, Stretch::Uniform);
+    return GetValue(StretchProperty);
 }
 StretchDirection
 Viewbox::GetStretchDirection() const noexcept {
-    return GetValueOr(
-        StretchDirectionProperty,
-        StretchDirection::Both);
+    return GetValue(StretchDirectionProperty);
 }
 void Viewbox::SetStretch(
     Stretch value) noexcept {
@@ -1262,23 +1239,19 @@ Size Viewbox::ArrangeOverride(
 Border::Border() noexcept : Decorator(StaticTypeId()) {}
 
 Base::Ref<Brush> Border::GetBackground() const noexcept {
-    return GetValueOr(
-        BackgroundProperty, Base::Ref<Brush>{});
+    return GetValue(BackgroundProperty);
 }
 Base::Ref<Brush> Border::GetBorderBrush() const noexcept {
-    return GetValueOr(
-        BorderBrushProperty, Base::Ref<Brush>{});
+    return GetValue(BorderBrushProperty);
 }
 Thickness Border::GetBorderThickness() const noexcept {
-    return GetValueOr(
-        BorderThicknessProperty, Thickness{});
+    return GetValue(BorderThicknessProperty);
 }
 CornerRadius Border::GetCornerRadius() const noexcept {
-    return GetValueOr(
-        CornerRadiusProperty, CornerRadius{});
+    return GetValue(CornerRadiusProperty);
 }
 Thickness Border::GetPadding() const noexcept {
-    return GetValueOr(PaddingProperty, Thickness{});
+    return GetValue(PaddingProperty);
 }
 void Border::SetBackground(
     Base::Ref<Brush> value) noexcept {

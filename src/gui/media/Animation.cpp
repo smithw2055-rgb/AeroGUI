@@ -273,14 +273,9 @@ void Timeline::SetDuration(Duration value) noexcept {
 }
 
 void Timeline::SetDuration(Base::StringView value) noexcept {
-    static_cast<void>(SetDurationChecked(value));
-}
-
-Base::Result<void> Timeline::SetDurationChecked(
-    Base::StringView value) noexcept {
     Base::Result<Duration> parsed = Duration::TryParse(value);
-    if (!parsed) return parsed.GetStatus();
-    return SetValueChecked(DurationProperty, parsed.Value());
+    if (!parsed) return;
+    SetValue(DurationProperty, parsed.Value());
 }
 
 void Timeline::SetRepeatBehavior(RepeatBehavior value) noexcept {
@@ -722,7 +717,7 @@ Base::Result<void> TimelineGroup::AddChild(
     Timeline* retained = value.Get();
     if (!retained->IsFrozen()) {
         Base::Result<void> subscribed =
-            retained->AddChangedHandlerChecked(timelineChangedHandler_);
+            retained->AddChangedHandler(timelineChangedHandler_);
         if (!subscribed) return subscribed.GetStatus();
     }
     Base::Result<void> added = timelines_.Add(std::move(value));

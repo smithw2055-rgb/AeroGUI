@@ -28,27 +28,21 @@ public:
     }
 
     Ref<Aero::Media::Brush> GetBackground() const noexcept {
-        return GetValueOr(
-            BackgroundProperty,
-            Ref<Aero::Media::Brush>{});
+        return GetValue(BackgroundProperty);
     }
     void SetBackground(
         Ref<Aero::Media::Brush> value) noexcept {
         SetValue(BackgroundProperty, std::move(value));
     }
     Ref<Aero::Media::Brush> GetBorderBrush() const noexcept {
-        return GetValueOr(
-            BorderBrushProperty,
-            Ref<Aero::Media::Brush>{});
+        return GetValue(BorderBrushProperty);
     }
     void SetBorderBrush(
         Ref<Aero::Media::Brush> value) noexcept {
         SetValue(BorderBrushProperty, std::move(value));
     }
     Aero::Base::Thickness GetBorderThickness() const noexcept {
-        return GetValueOr(
-            BorderThicknessProperty,
-            Aero::Base::Thickness{});
+        return GetValue(BorderThicknessProperty);
     }
     void SetBorderThickness(
         Aero::Base::Thickness value) noexcept {
@@ -59,9 +53,7 @@ public:
         SetBorderThickness({value, value, value, value});
     }
     Aero::Base::Thickness GetPadding() const noexcept {
-        return GetValueOr(
-            PaddingProperty,
-            Aero::Base::Thickness{});
+        return GetValue(PaddingProperty);
     }
     void SetPadding(
         Aero::Base::Thickness value) noexcept {
@@ -69,50 +61,42 @@ public:
     }
     Aero::HorizontalAlignment
     GetHorizontalContentAlignment() const noexcept {
-        return GetValueOr(
-            HorizontalContentAlignmentProperty,
-            Aero::HorizontalAlignment::Left);
+        return GetValue(HorizontalContentAlignmentProperty);
     }
     Aero::VerticalAlignment
     GetVerticalContentAlignment() const noexcept {
-        return GetValueOr(
-            VerticalContentAlignmentProperty,
-            Aero::VerticalAlignment::Top);
+        return GetValue(VerticalContentAlignmentProperty);
     }
     Ref<Aero::Media::Brush> GetForeground() const noexcept {
-        return GetValueOr(
-            ForegroundProperty,
-            Ref<Aero::Media::Brush>{});
+        return GetValue(ForegroundProperty);
     }
     void SetForeground(
         Ref<Aero::Media::Brush> value) noexcept {
         SetValue(ForegroundProperty, std::move(value));
     }
     double GetFontSize() const noexcept {
-        return GetValueOr(FontSizeProperty, 16.0);
+        return GetValue(FontSizeProperty);
     }
     void SetFontSize(
         double value) noexcept {
         SetValue(FontSizeProperty, value);
     }
     FontWeight GetFontWeight() const noexcept {
-        return GetValueOr(FontWeightProperty, FontWeight::Normal);
+        return GetValue(FontWeightProperty);
     }
     void SetFontWeight(
         FontWeight value) noexcept {
         SetValue(FontWeightProperty, value);
     }
     Ref<Aero::Style> GetFocusVisualStyle() const noexcept {
-        return GetValueOr(
-            FocusVisualStyleProperty,
-            Ref<Aero::Style>{});
+        return GetValue(FocusVisualStyleProperty);
     }
     void SetFocusVisualStyle(
         Ref<Aero::Style> value) noexcept {
         SetValue(FocusVisualStyleProperty, std::move(value));
     }
     bool GetOverridesDefaultStyle() const noexcept {
-        return GetValueOr(OverridesDefaultStyleProperty, false);
+        return GetValue(OverridesDefaultStyleProperty);
     }
     void SetOverridesDefaultStyle(
         bool value) noexcept {

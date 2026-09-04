@@ -56,9 +56,7 @@ Base::Result<Base::Ref<Interactivity::Behavior>>
             Meta::PropertyValue local =
                 prototype.ReadLocalValue(property.Handle());
             if (local.IsUnset()) continue;
-            Base::Result<void> copied = clone->SetValueChecked(
-                property.Handle(), local);
-            if (!copied) return copied.GetStatus();
+            clone->SetValue(property.Handle(), local);
         }
         Base::Result<void> bindingsCopied =
             prototype.CopyAuthoredBindingsTo(*clone);

@@ -1,4 +1,4 @@
-#include "gui/controls/ScrollInternal.hpp"
+#include "gui/controls/ScrollCommon.hpp"
 #include "gui/meta/ValueConversion.hpp"
 #include "gui/core/State.hpp"
 #include "gui/input/InputState.hpp"
@@ -70,11 +70,9 @@ Base::Result<void> ScrollBehavior::Attach(
             Base::ErrorCode::InvalidState,
             "ScrollViewer must be loaded in the interaction tree");
     }
-    Base::Result<void> handler =
-        viewer.AddHandlerChecked(
-            UIElement::MouseWheelEvent,
-            wheelHandler_);
-    if (!handler) return handler.GetStatus();
+    viewer.AddHandler(
+        UIElement::MouseWheelEvent,
+        wheelHandler_);
     Base::Result<void> added =
         viewers_.PushBack(
             {&viewer, AeroGuiInternal::Handle(viewer)});
@@ -232,45 +230,18 @@ Base::Result<void> SliderBehavior::Attach(
     if (sliders_.Empty()) {
         input_->AddPointerCaptureChanged(captureChangedHandler_);
     }
-    Base::Result<void> status =
-        slider.AddHandlerChecked(
-            UIElement::MouseDownEvent,
-            mouseDownHandler_);
-    if (status) {
-        status = slider.AddHandlerChecked(
-            UIElement::MouseMoveEvent,
-            mouseMoveHandler_);
-    }
-    if (status) {
-        status = slider.AddHandlerChecked(
-            UIElement::MouseUpEvent,
-            mouseUpHandler_);
-    }
-    if (status) {
-        status = slider.AddHandlerChecked(
-            UIElement::KeyDownEvent,
-            keyDownHandler_);
-    }
-    if (!status) {
-        static_cast<void>(slider.RemoveHandler(
-            UIElement::MouseDownEvent,
-            mouseDownHandler_));
-        static_cast<void>(slider.RemoveHandler(
-            UIElement::MouseMoveEvent,
-            mouseMoveHandler_));
-        static_cast<void>(slider.RemoveHandler(
-            UIElement::MouseUpEvent,
-            mouseUpHandler_));
-        static_cast<void>(slider.RemoveHandler(
-            UIElement::KeyDownEvent,
-            keyDownHandler_));
-        if (sliders_.Empty()) {
-            static_cast<void>(
-                input_->RemovePointerCaptureChanged(
-                    captureChangedHandler_));
-        }
-        return status.GetStatus();
-    }
+    slider.AddHandler(
+        UIElement::MouseDownEvent,
+        mouseDownHandler_);
+    slider.AddHandler(
+        UIElement::MouseMoveEvent,
+        mouseMoveHandler_);
+    slider.AddHandler(
+        UIElement::MouseUpEvent,
+        mouseUpHandler_);
+    slider.AddHandler(
+        UIElement::KeyDownEvent,
+        keyDownHandler_);
     SliderRecord record;
     record.handle =
         AeroGuiInternal::Handle(slider);
@@ -904,45 +875,18 @@ Base::Result<void> ScrollBarBehavior::Attach(
     if (scrollBars_.Empty()) {
         input_->AddPointerCaptureChanged(captureChangedHandler_);
     }
-    Base::Result<void> status =
-        scrollBar.AddHandlerChecked(
-            UIElement::MouseDownEvent,
-            mouseDownHandler_);
-    if (status) {
-        status = scrollBar.AddHandlerChecked(
-            UIElement::MouseMoveEvent,
-            mouseMoveHandler_);
-    }
-    if (status) {
-        status = scrollBar.AddHandlerChecked(
-            UIElement::MouseUpEvent,
-            mouseUpHandler_);
-    }
-    if (status) {
-        status = scrollBar.AddHandlerChecked(
-            UIElement::KeyDownEvent,
-            keyDownHandler_);
-    }
-    if (!status) {
-        static_cast<void>(scrollBar.RemoveHandler(
-            UIElement::MouseDownEvent,
-            mouseDownHandler_));
-        static_cast<void>(scrollBar.RemoveHandler(
-            UIElement::MouseMoveEvent,
-            mouseMoveHandler_));
-        static_cast<void>(scrollBar.RemoveHandler(
-            UIElement::MouseUpEvent,
-            mouseUpHandler_));
-        static_cast<void>(scrollBar.RemoveHandler(
-            UIElement::KeyDownEvent,
-            keyDownHandler_));
-        if (scrollBars_.Empty()) {
-            static_cast<void>(
-                input_->RemovePointerCaptureChanged(
-                    captureChangedHandler_));
-        }
-        return status.GetStatus();
-    }
+    scrollBar.AddHandler(
+        UIElement::MouseDownEvent,
+        mouseDownHandler_);
+    scrollBar.AddHandler(
+        UIElement::MouseMoveEvent,
+        mouseMoveHandler_);
+    scrollBar.AddHandler(
+        UIElement::MouseUpEvent,
+        mouseUpHandler_);
+    scrollBar.AddHandler(
+        UIElement::KeyDownEvent,
+        keyDownHandler_);
     ScrollBarRecord record;
     record.handle =
         AeroGuiInternal::Handle(scrollBar);

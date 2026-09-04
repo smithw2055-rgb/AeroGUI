@@ -23,8 +23,7 @@ public:
     Ref<Geometry> GetGeometry1() const noexcept { return geometry1_; }
     Ref<Geometry> GetGeometry2() const noexcept { return geometry2_; }
     GeometryCombineMode GetGeometryCombineMode() const noexcept {
-        return GetValueOr(
-            GeometryCombineModeProperty, GeometryCombineMode::Union);
+        return GetValue(GeometryCombineModeProperty);
     }
     void SetGeometry1(Ref<Geometry> value) noexcept;
     void SetGeometry2(Ref<Geometry> value) noexcept;

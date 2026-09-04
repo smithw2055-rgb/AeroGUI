@@ -9,7 +9,7 @@
 #include <cmath>
 
 namespace Aero::Controls {
-namespace ScrollDetail {
+namespace ScrollSupport {
 
 inline constexpr double LayoutInfinity = 1.0e12;
 
@@ -59,14 +59,12 @@ inline Visibility ComputeScrollBarVisibility(
     }
 }
 
-inline double ClampOffset(
-    double value,
-    double extent,
-    double viewport,
-    bool enabled) noexcept {
-    if (!enabled) return 0.0;
-    return std::clamp(
-        value, 0.0, std::max(0.0, extent - viewport));
+inline double ClampOffset(double offset, double extent, double viewport) noexcept {
+    if (!std::isfinite(offset) || offset <= 0.0) {
+        return 0.0;
+    }
+    const double maxOffset = extent > viewport ? extent - viewport : 0.0;
+    return offset > maxOffset ? maxOffset : offset;
 }
 
 template <typename TProperty>
@@ -74,23 +72,24 @@ inline double ReadDouble(
     const DependencyObject& object,
     const TProperty& property,
     double fallback = 0.0) noexcept {
-    return object.GetValueOr(property, fallback);
+    (void)fallback;
+    return object.GetValue(property);
 }
 
 template <typename TProperty>
 inline bool ReadBool(
     const DependencyObject& object,
     const TProperty& property,
-    bool fallback) noexcept {
-    return object.GetValueOr(property, fallback);
+    bool fallback = false) noexcept {
+    (void)fallback;
+    return object.GetValue(property);
 }
 
 template <typename TProperty>
 inline Orientation ReadOrientation(
     const DependencyObject& object,
     const TProperty& property) noexcept {
-    return object.GetValueOr(
-        property, Orientation::Vertical);
+    return object.GetValue(property);
 }
 
 template <typename TProperty>
@@ -109,21 +108,21 @@ inline void StoreOrientation(
     object.SetValue(property, value);
 }
 
-} // namespace ScrollDetail
+} // namespace ScrollSupport
 
 // Bring helpers into Aero::Controls for unqualified use (matches former
 // anonymous-namespace amalgamation).
-using ScrollDetail::LayoutInfinity;
-using ScrollDetail::Same;
-using ScrollDetail::SameData;
-using ScrollDetail::ValidNonnegative;
-using ScrollDetail::ValidData;
-using ScrollDetail::ComputeScrollBarVisibility;
-using ScrollDetail::ClampOffset;
-using ScrollDetail::ReadDouble;
-using ScrollDetail::ReadBool;
-using ScrollDetail::ReadOrientation;
-using ScrollDetail::StoreDouble;
-using ScrollDetail::StoreOrientation;
+using ScrollSupport::LayoutInfinity;
+using ScrollSupport::Same;
+using ScrollSupport::SameData;
+using ScrollSupport::ValidNonnegative;
+using ScrollSupport::ValidData;
+using ScrollSupport::ComputeScrollBarVisibility;
+using ScrollSupport::ClampOffset;
+using ScrollSupport::ReadDouble;
+using ScrollSupport::ReadBool;
+using ScrollSupport::ReadOrientation;
+using ScrollSupport::StoreDouble;
+using ScrollSupport::StoreOrientation;
 
 } // namespace Aero::Controls

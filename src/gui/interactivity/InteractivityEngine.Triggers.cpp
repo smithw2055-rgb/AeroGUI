@@ -151,8 +151,8 @@ Base::Result<bool> InteractivityEngine::StartPropertyChangedTrigger(
         std::uint64_t metadataSubscription = 0U;
         Base::Result<void> subscribed;
         if (property.Value().dependencySource != nullptr) {
-            subscribed = property.Value().dependencySource
-                ->AddValueChangedHandlerChecked(
+            property.Value().dependencySource
+                ->AddValueChangedHandler(
                     property.Value().dependencyProperty, handler);
         } else {
             Base::Result<std::uint64_t> notification =
@@ -239,8 +239,8 @@ Base::Result<bool> InteractivityEngine::StartInteractionDataTrigger(
         std::uint64_t metadataSubscription = 0U;
         Base::Result<void> subscribed;
         if (property.Value().dependencySource != nullptr) {
-            subscribed = property.Value().dependencySource
-                ->AddValueChangedHandlerChecked(
+            property.Value().dependencySource
+                ->AddValueChangedHandler(
                     property.Value().dependencyProperty, handler);
         } else {
             Base::Result<std::uint64_t> notification =
@@ -361,13 +361,8 @@ Base::Result<bool> InteractivityEngine::StartKeyTrigger(
             [context](Base::Object* sender, Aero::KeyEventArgs& args) noexcept {
                 context->Invoke(sender, args);
             });
-        Base::Result<void> subscribed = source->AddHandlerChecked(
+        source->AddHandler(
             Aero::UIElement::KeyDownEvent.Handle(), handler);
-        if (!subscribed) {
-            FreeObject(
-                *allocator, Base::MemoryTag::Ui, context);
-            return subscribed.GetStatus();
-        }
         Base::Result<void> retained = keyTriggerSubscriptions.PushBack({
             &owner, source, handler, context});
         if (!retained) {

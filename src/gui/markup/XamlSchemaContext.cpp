@@ -563,9 +563,7 @@ Base::Result<void> Schema::SetMember(
             convertedValue.Type() == VisualStateGroup::StaticTypeId() &&
             convertedValue.AsObject()) {
             auto& target = static_cast<::Aero::DependencyObject&>(object);
-            Base::Ref<VisualStateGroupCollection> valueStore = target.GetValueOr(
-                VisualStateManager::VisualStateGroupsProperty,
-                Base::Ref<VisualStateGroupCollection>{});
+            Base::Ref<VisualStateGroupCollection> valueStore = target.GetValue(VisualStateManager::VisualStateGroupsProperty);
             if (!valueStore) {
                 Base::Result<Base::Ref<VisualStateGroupCollection>> created =
                     Base::MakeRef<VisualStateGroupCollection>();

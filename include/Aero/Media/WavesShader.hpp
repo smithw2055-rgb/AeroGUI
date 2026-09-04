@@ -9,7 +9,7 @@ class AERO_GUI_API WavesShader : public BrushShader {
 public:
     WavesShader() noexcept : BrushShader(StaticTypeId()) {}
     double GetTime() const noexcept {
-        return GetValueOr(TimeProperty, 0.0);
+        return GetValue(TimeProperty);
     }
     void SetTime(double value) noexcept {
         SetValue(TimeProperty, value);

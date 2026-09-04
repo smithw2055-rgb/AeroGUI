@@ -20,7 +20,7 @@ public:
     UIElement* GetBullet() const noexcept { return bullet_.Get(); }
     UIElement* GetChild() const noexcept { return child_.Get(); }
     Ref<Media::Brush> GetBackground() const noexcept {
-        return GetValueOr(BackgroundProperty, Ref<Media::Brush>{});
+        return GetValue(BackgroundProperty);
     }
     void SetBackground(Ref<Media::Brush> value) noexcept {
         SetValue(BackgroundProperty, std::move(value));

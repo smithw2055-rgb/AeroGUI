@@ -1,4 +1,4 @@
-#include "gui/controls/TextBoxInternal.hpp"
+#include "gui/controls/TextBoxCommon.hpp"
 #include "render/DisplayList.hpp"
 #include <Aero/Controls/TextBoxBase.hpp>
 #include <Aero/Controls/TextBox.hpp>

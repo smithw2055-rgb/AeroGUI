@@ -14,7 +14,7 @@
 #include <limits>
 
 namespace Aero::Controls {
-namespace TextBoxDetail {
+namespace TextBoxSupport {
 
 inline constexpr double DefaultAdvance = 8.0;
 inline constexpr double DefaultLineHeight = 18.0;
@@ -32,7 +32,16 @@ inline double ClampOffset(
     double viewport) noexcept {
     const double maximum =
         std::max(0.0, extent - viewport);
-    return std::min(std::max(0.0, value), maximum);
+    return std::clamp(value, 0.0, maximum);
+}
+
+inline double ClampOffset(
+    double value,
+    double extent,
+    double viewport,
+    bool enabled) noexcept {
+    if (!enabled) return 0.0;
+    return ClampOffset(value, extent, viewport);
 }
 
 inline Point ToLocalPoint(
@@ -61,16 +70,16 @@ inline Rect ToRootRect(
     return rect;
 }
 
-} // namespace TextBoxDetail
+} // namespace TextBoxSupport
 
-using TextBoxDetail::DefaultAdvance;
-using TextBoxDetail::DefaultLineHeight;
-using TextBoxDetail::CaretWidth;
-using TextBoxDetail::ScrollLine;
-using TextBoxDetail::EffectiveMaximumLength;
-using TextBoxDetail::ClampOffset;
-using TextBoxDetail::ToLocalPoint;
-using TextBoxDetail::ToRootRect;
+using TextBoxSupport::DefaultAdvance;
+using TextBoxSupport::DefaultLineHeight;
+using TextBoxSupport::CaretWidth;
+using TextBoxSupport::ScrollLine;
+using TextBoxSupport::EffectiveMaximumLength;
+using TextBoxSupport::ClampOffset;
+using TextBoxSupport::ToLocalPoint;
+using TextBoxSupport::ToRootRect;
 
 class TextDisplayPolicy {
 public:

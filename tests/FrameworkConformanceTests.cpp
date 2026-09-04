@@ -587,16 +587,16 @@ public:
     NumericUpDown() noexcept : UserControl(StaticTypeId()) {}
 
     std::int32_t GetNumericValue() const noexcept {
-        return GetValueOr(ValueProperty, 0);
+        return GetValue(ValueProperty);
     }
     std::int32_t GetMinValue() const noexcept {
-        return GetValueOr(MinValueProperty, 0);
+        return GetValue(MinValueProperty);
     }
     std::int32_t GetMaxValue() const noexcept {
-        return GetValueOr(MaxValueProperty, 255);
+        return GetValue(MaxValueProperty);
     }
     std::int32_t GetStepValue() const noexcept {
-        return GetValueOr(StepValueProperty, 1);
+        return GetValue(StepValueProperty);
     }
     void SetNumericValue(std::int32_t value) noexcept {
         const std::int32_t min = GetMinValue();
@@ -667,7 +667,7 @@ class Clock final : public Aero::Controls::Control {
 public:
     Clock() noexcept : Control(StaticTypeId()) {}
     std::int32_t GetHour() const noexcept {
-        return GetValueOr(HourProperty, 0);
+        return GetValue(HourProperty);
     }
     void SetHour(std::int32_t value) noexcept {
         SetValue(HourProperty, value);
@@ -684,7 +684,7 @@ class CircleAnimation final : public DoubleAnimationBase {
 public:
     CircleAnimation() noexcept : DoubleAnimationBase(StaticTypeId()) {}
     double GetRadius() const noexcept {
-        return GetValueOr(RadiusProperty, 1.0);
+        return GetValue(RadiusProperty);
     }
     void SetRadius(double value) noexcept {
         SetValue(RadiusProperty, value);
@@ -3302,9 +3302,9 @@ bool TestKeyboardNavigationIsTabStopTemplateTrigger() {
     Pump(view, 0.016);
 
     CHECK(menu->GetIsTabStop());
-    CHECK(menu->GetValueOr(KeyboardNavigation::IsTabStopProperty, false));
+    CHECK(menu->GetValue(KeyboardNavigation::IsTabStopProperty));
     CHECK(!setting->GetIsTabStop());
-    CHECK(!setting->GetValueOr(KeyboardNavigation::IsTabStopProperty, true));
+    CHECK(!setting->GetValue(KeyboardNavigation::IsTabStopProperty));
 
     Path* menuArrow = FindFirstPath(*menu);
     Path* settingArrow = FindFirstPath(*setting);
@@ -3634,8 +3634,8 @@ bool TestComboBoxPopupItemClickSelects() {
             "combo click did not select index=%u dropDown=%d text=%.*s\n",
             combo->GetSelectedIndex(),
             combo->GetIsDropDownOpen() ? 1 : 0,
-            static_cast<int>(combo->GetSelectionBoxText().View().SizeBytes()),
-            combo->GetSelectionBoxText().View().Data());
+            static_cast<int>(combo->GetSelectionBoxText().SizeBytes()),
+            combo->GetSelectionBoxText().Data());
     }
     CHECK(combo->GetSelectedIndex() == 1U);
     CHECK(!combo->GetIsDropDownOpen());
@@ -3710,7 +3710,7 @@ bool TestComboBoxItemsSourcePopupClickSelects() {
     combo->SetSelectedIndex(0U);
     Pump(view, 0.048);
     CHECK(combo->GetSelectedIndex() == 0U);
-    CHECK(combo->GetSelectionBoxText().View() == StringView("Overall"));
+    CHECK(combo->GetSelectionBoxText() == StringView("Overall"));
 
     combo->SetIsDropDownOpen(true);
     Pump(view, 0.064);
@@ -3740,16 +3740,16 @@ bool TestComboBoxItemsSourcePopupClickSelects() {
         clickX, clickY, Aero::Input::MouseButton::Left));
     Pump(view, 0.112);
     if (combo->GetSelectedIndex() != 2U ||
-        combo->GetSelectionBoxText().View() != StringView("Horde")) {
+        combo->GetSelectionBoxText() != StringView("Horde")) {
         std::fprintf(stderr,
             "combo items-source click index=%u dropDown=%d text=%.*s\n",
             combo->GetSelectedIndex(),
             combo->GetIsDropDownOpen() ? 1 : 0,
-            static_cast<int>(combo->GetSelectionBoxText().View().SizeBytes()),
-            combo->GetSelectionBoxText().View().Data());
+            static_cast<int>(combo->GetSelectionBoxText().SizeBytes()),
+            combo->GetSelectionBoxText().Data());
     }
     CHECK(combo->GetSelectedIndex() == 2U);
-    CHECK(combo->GetSelectionBoxText().View() == StringView("Horde"));
+    CHECK(combo->GetSelectionBoxText() == StringView("Horde"));
     CHECK(!combo->GetIsDropDownOpen());
     return true;
 }

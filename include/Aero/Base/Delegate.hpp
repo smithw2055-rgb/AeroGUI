@@ -161,7 +161,7 @@ public:
     }
 
 private:
-    Result<void> AddChecked(
+    Result<void> AddInternal(
         const Delegate& delegate,
         IAllocator* allocator = nullptr) noexcept;
 
@@ -401,7 +401,7 @@ Result<void> Delegate<Ret(Args...)>::EnsureUniqueMulticast(
 }
 
 template<class Ret, class... Args>
-Result<void> Delegate<Ret(Args...)>::AddChecked(
+Result<void> Delegate<Ret(Args...)>::AddInternal(
     const Delegate& delegate,
     IAllocator* allocator) noexcept {
     if (delegate.Empty()) return {};
@@ -443,7 +443,7 @@ template<class Ret, class... Args>
 void Delegate<Ret(Args...)>::Add(
     const Delegate& delegate,
     IAllocator* allocator) noexcept {
-    Result<void> result = AddChecked(delegate, allocator);
+    Result<void> result = AddInternal(delegate, allocator);
     if (!result) {
         ReportOutOfMemory(sizeof(DelegateMulticast<Signature>),
             alignof(DelegateMulticast<Signature>), MemoryTag::General);

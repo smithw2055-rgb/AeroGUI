@@ -812,7 +812,7 @@ ItemContainerGeneratorRuntime::AttachRecord(
                 record.content->RuntimeType(), TextBlock::StaticTypeId())) {
             Base::Result<void> subscribed =
                 static_cast<TextBlock*>(record.content.Get())
-                    ->AddValueChangedHandlerChecked(
+                    ->AddValueChangedHandler(
                         TextBlock::TextProperty,
                         generatedHeaderChangedHandler_);
             if (!subscribed) {

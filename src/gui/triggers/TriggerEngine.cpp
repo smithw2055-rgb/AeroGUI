@@ -35,10 +35,8 @@ Base::Result<void> TriggerEngine::SubscribeTriggers(
                  StylePrivate::RuntimeTriggers(style)[previous].property != property);
         }
         if (!first) continue;
-        Base::Result<void> subscribed =
-            object.AddValueChangedHandlerChecked(
-                property, propertyChangedHandler_);
-        if (!subscribed) return subscribed.GetStatus();
+        object.AddValueChangedHandler(
+            property, propertyChangedHandler_);
     }
     return {};
 }

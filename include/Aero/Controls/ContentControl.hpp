@@ -18,12 +18,10 @@ public:
     inline static constexpr DependencyProperty<Ref<Base::Object>> ContentTemplateSelectorProperty{"ContentTemplateSelector"};
 
     Value GetContent() const noexcept {
-        return GetValueOr(ContentProperty, Value::NullObject(Meta::TypeOf<Base::Object>()));
+        return GetValue(ContentProperty);
     }
     Ref<Base::Object> GetContentTemplate() const noexcept {
-        return GetValueOr(
-            ContentTemplateProperty,
-            Ref<Base::Object>{});
+        return GetValue(ContentTemplateProperty);
     }
     void SetContentTemplate(
         Ref<Base::Object> value) noexcept {
@@ -31,9 +29,7 @@ public:
     }
     Ref<Base::Object>
     GetContentTemplateSelector() const noexcept {
-        return GetValueOr(
-            ContentTemplateSelectorProperty,
-            Ref<Base::Object>{});
+        return GetValue(ContentTemplateSelectorProperty);
     }
     void SetContentTemplateSelector(
         Ref<Base::Object> value) noexcept {
@@ -44,6 +40,15 @@ public:
     }
     void SetContent(Value content) noexcept {
         SetContentValue(std::move(content));
+    }
+    void SetContent(StringView text) noexcept;
+    void SetContent(const char* text) noexcept;
+    template<class T,
+        class = std::enable_if_t<
+            std::is_base_of_v<UIElement, T> &&
+            !std::is_same_v<T, Base::Object>>>
+    void SetContent(Ref<T> element) noexcept {
+        SetContent(element.Get());
     }
     void SetContent(UIElement* content) noexcept {
         Result<void> access = VerifyAccess();

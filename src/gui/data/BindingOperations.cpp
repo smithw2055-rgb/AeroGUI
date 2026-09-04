@@ -48,17 +48,9 @@ Base::Result<void> BindingEngine::ApplySourceToTarget(
         converted = record.descriptor.fallbackValue;
         usedFallback = true;
     }
-    Base::Result<void> written =
-        record.descriptor.target->SetValueChecked(
-            record.descriptor.targetProperty,
-            converted.Value());
-    if (!written) {
-        ReportDiagnostic(
-            record,
-            BindingDiagnosticStage::WriteTarget,
-            written.GetStatus());
-        return written.GetStatus();
-    }
+    record.descriptor.target->SetValue(
+        record.descriptor.targetProperty,
+        converted.Value());
     target = converted.Value();
     return {};
 }
@@ -985,13 +977,8 @@ Base::Result<void> BindingEngine::SubscribeMetadataSource(
                 DependencyPropertyHandle handle{first.member};
                 if (sourceObject->PropertyRegistry().Find(handle) !=
                     nullptr) {
-                    Base::Result<void> hooked =
-                        sourceObject->AddValueChangedHandlerChecked(
-                            handle, propertyChangedHandler_);
-                    if (!hooked) {
-                        ReleaseMetadataSource(record);
-                        return hooked.GetStatus();
-                    }
+                    sourceObject->AddValueChangedHandler(
+                        handle, propertyChangedHandler_);
                     record.sourceDependencyProperty = handle;
                 }
             }

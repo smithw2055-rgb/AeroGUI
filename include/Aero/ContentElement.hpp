@@ -38,36 +38,20 @@ public:
     UIElement* GetContentHost() const noexcept { return contentHost_; }
 
     template<class TArgs>
-    Result<void> AddHandlerChecked(
+    void AddHandler(
         RoutedEventHandle event,
         const Base::Delegate<void(Base::Object*, TArgs&)>& handler,
         bool handledEventsToo = false) noexcept {
         if (handler.Empty()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "Routed event handler must not be empty");
+            return;
         }
-        return AddHandlerErased(
+        static_cast<void>(AddHandlerErased(
             event,
             &handler,
             sizeof(handler),
             alignof(decltype(handler)),
             TArgs::StaticTypeId(),
-            handledEventsToo);
-    }
-
-    template<class TArgs>
-    void AddHandler(
-        RoutedEventHandle event,
-        const Base::Delegate<void(Base::Object*, TArgs&)>& handler,
-        bool handledEventsToo = false) noexcept {
-        Result<void> added = AddHandlerChecked(event, handler, handledEventsToo);
-        if (!added) {
-            Base::ReportOutOfMemory(
-                sizeof(handler),
-                alignof(decltype(handler)),
-                Base::MemoryTag::General);
-        }
+            handledEventsToo));
     }
 
     template<class TArgs>

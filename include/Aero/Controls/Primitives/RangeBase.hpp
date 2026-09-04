@@ -8,6 +8,9 @@ namespace Aero::Controls::Primitives {
 class AERO_GUI_API RangeBase : public Control {
     AERO_DECLARE_TYPE(RangeBase, Control)
 public:
+    using Control::GetValue;
+    using Control::SetValue;
+
     double GetMinimum() const noexcept;
     double GetMaximum() const noexcept;
     double GetValue() const noexcept;

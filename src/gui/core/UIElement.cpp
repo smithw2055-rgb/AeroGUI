@@ -274,7 +274,7 @@ void UIElement::SetRenderTransform(
 
 // from src/gui/controls/Layout.cpp
 Point UIElement::GetRenderTransformOrigin() const noexcept {
-    return GetValueOr(RenderTransformOriginProperty, Point{});
+    return GetValue(RenderTransformOriginProperty);
 }
 
 // from src/gui/controls/Layout.cpp
@@ -343,9 +343,7 @@ void UIElement::SetOpacityMask(
 // from src/gui/controls/Layout.cpp
 
 Base::Ref<Media::Brush> UIElement::GetOpacityMask() const noexcept {
-    return GetValueOr(
-        OpacityMaskProperty,
-        Base::Ref<Media::Brush>{});
+    return GetValue(OpacityMaskProperty);
 }
 
 // from src/gui/controls/Layout.cpp
@@ -373,7 +371,7 @@ void UIElement::SetClip(Base::Ref<Geometry> value) noexcept {
 }
 
 Base::Ref<Geometry> UIElement::GetClip() const noexcept {
-    return GetValueOr(ClipProperty, Base::Ref<Geometry>{});
+    return GetValue(ClipProperty);
 }
 
 Base::Result<void> UIElement::AddInputBinding(
@@ -476,17 +474,17 @@ void UIElement::OnPropertyInvalidated(
 
 // from src/gui/controls/Layout.cpp
 bool UIElement::GetIsFocusScope() const noexcept {
-    return GetValueOr(IsFocusScopeProperty, false);
+    return GetValue(IsFocusScopeProperty);
 }
 
 // from src/gui/controls/Layout.cpp
 std::uint32_t UIElement::GetTabIndex() const noexcept {
-    return GetValueOr(TabIndexProperty, 0U);
+    return GetValue(TabIndexProperty);
 }
 
 // from src/gui/controls/Layout.cpp
 bool UIElement::GetIsTabStop() const noexcept {
-    return GetValueOr(IsTabStopProperty, false);
+    return GetValue(IsTabStopProperty);
 }
 
 // from src/gui/controls/Layout.cpp
@@ -503,37 +501,37 @@ Base::Result<bool> UIElement::Focus() noexcept {
 
 // from src/gui/controls/Layout.cpp
 bool UIElement::GetFocusable() const noexcept {
-    return GetValueOr(FocusableProperty, false);
+    return GetValue(FocusableProperty);
 }
 
 // from src/gui/controls/Layout.cpp
 bool UIElement::GetIsKeyboardFocusWithin() const noexcept {
-    return GetValueOr(IsKeyboardFocusWithinProperty, false);
+    return GetValue(IsKeyboardFocusWithinProperty);
 }
 
 // from src/gui/controls/Layout.cpp
 bool UIElement::GetIsKeyboardFocused() const noexcept {
-    return GetValueOr(IsKeyboardFocusedProperty, false);
+    return GetValue(IsKeyboardFocusedProperty);
 }
 
 // from src/gui/controls/Layout.cpp
 bool UIElement::GetIsPressed() const noexcept {
-    return GetValueOr(IsPressedProperty, false);
+    return GetValue(IsPressedProperty);
 }
 
 // from src/gui/controls/Layout.cpp
 bool UIElement::GetIsMouseOver() const noexcept {
-    return GetValueOr(IsMouseOverProperty, false);
+    return GetValue(IsMouseOverProperty);
 }
 
 // from src/gui/controls/Layout.cpp
 bool UIElement::GetAllowDrop() const noexcept {
-    return GetValueOr(AllowDropProperty, false);
+    return GetValue(AllowDropProperty);
 }
 
 // from src/gui/controls/Layout.cpp
 bool UIElement::GetIsEnabled() const noexcept {
-    if (!GetValueOr(IsEnabledProperty, true)) return false;
+    if (!GetValue(IsEnabledProperty)) return false;
     ::Aero::Media::Visual* parent = ::Aero::TryCast<::Aero::Media::Visual>(GetLogicalParent());
     if (parent == nullptr) parent = GetVisualParent();
     const UIElement* parentElement =
@@ -563,38 +561,34 @@ bool UIElement::GetIsVisible() const noexcept {
 
 // from src/gui/controls/Layout.cpp
 Visibility UIElement::GetVisibility() const noexcept {
-    return GetValueOr(
-        VisibilityProperty, Visibility::Visible);
+    return GetValue(VisibilityProperty);
 }
 
 // from src/gui/controls/Layout.cpp
 bool UIElement::GetIsHitTestVisible() const noexcept {
-    return GetValueOr(IsHitTestVisibleProperty, true);
+    return GetValue(IsHitTestVisibleProperty);
 }
 
 // from src/gui/controls/Layout.cpp
 double UIElement::GetOpacity() const noexcept {
-    return GetValueOr(OpacityProperty, 1.0);
+    return GetValue(OpacityProperty);
 }
 
 // from src/gui/controls/Layout.cpp
 
 Base::Ref<Effect> UIElement::GetEffect() const noexcept {
-    return GetValueOr(
-        EffectProperty,
-        Base::Ref<Effect>{});
+    return GetValue(EffectProperty);
 }
 
 // from src/gui/controls/Layout.cpp
 BlendMode UIElement::GetBlendMode() const noexcept {
-    return GetValueOr(
-        BlendModeProperty, BlendMode::Normal);
+    return GetValue(BlendModeProperty);
 }
 
 // from src/gui/controls/Layout.cpp
 
 bool UIElement::GetClipToBounds() const noexcept {
-    return GetValueOr(ClipToBoundsProperty, false);
+    return GetValue(ClipToBoundsProperty);
 }
 
 // from src/gui/controls/Layout.cpp

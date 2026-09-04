@@ -293,33 +293,14 @@ RoutedCommand::RoutedCommand(Base::StringView name) noexcept
     }
 }
 
-Base::Result<void> RoutedCommand::AssignNameChecked(
-    Base::StringView name) noexcept {
-    return name_.Assign(name);
-}
-
 void RoutedCommand::SetName(Base::StringView name) noexcept {
-    static_cast<void>(AssignNameChecked(name));
-}
-
-Base::Result<void> RoutedCommand::AddInputGestureChecked(
-    Base::Ref<InputGesture> gesture) noexcept {
-    if (!gesture) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
-            "Input gesture must not be null");
-    }
-    return gestures_.PushBack(std::move(gesture));
+    static_cast<void>(name_.Assign(name));
 }
 
 void RoutedCommand::AddInputGesture(
     Base::Ref<InputGesture> gesture) noexcept {
-    Base::Result<void> added = AddInputGestureChecked(std::move(gesture));
-    if (!added) {
-        Base::ReportOutOfMemory(
-            sizeof(Base::Ref<InputGesture>),
-            alignof(Base::Ref<InputGesture>),
-            Base::MemoryTag::Container);
-    }
+    if (!gesture) return;
+    static_cast<void>(gestures_.PushBack(std::move(gesture)));
 }
 
 bool RoutedCommand::MatchesInput(
@@ -481,9 +462,8 @@ Base::Result<void> KeyBinding::Finalize() noexcept {
     Base::Result<Base::Ref<KeyGesture>> gesture =
         Base::MakeRef<KeyGesture>(key.Value(), modifiers.Value());
     if (!gesture) return gesture.GetStatus();
-    Base::Result<void> added = command_->AddInputGestureChecked(
+    command_->AddInputGesture(
         Base::Ref<InputGesture>(std::move(gesture).Value()));
-    if (!added) return added.GetStatus();
     finalized_ = true;
     return {};
 }

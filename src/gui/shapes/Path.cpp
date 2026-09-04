@@ -341,39 +341,31 @@ Path::~Path() {
 }
 
 Base::Ref<Geometry> Path::GetData() const noexcept {
-    return GetValueOr(
-        DataProperty,
-        Base::Ref<Geometry>{});
+    return GetValue(DataProperty);
 }
 
 FillRule Path::GetFillRule() const noexcept {
-    return GetValueOr(FillRuleProperty, FillRule::EvenOdd);
+    return GetValue(FillRuleProperty);
 }
 
 PenLineJoin Path::GetStrokeLineJoin() const noexcept {
-    return GetValueOr(
-        StrokeLineJoinProperty,
-        PenLineJoin::Miter);
+    return GetValue(StrokeLineJoinProperty);
 }
 
 PenLineCap Path::GetStrokeStartLineCap() const noexcept {
-    return GetValueOr(
-        StrokeStartLineCapProperty,
-        PenLineCap::Flat);
+    return GetValue(StrokeStartLineCapProperty);
 }
 
 PenLineCap Path::GetStrokeEndLineCap() const noexcept {
-    return GetValueOr(
-        StrokeEndLineCapProperty,
-        PenLineCap::Flat);
+    return GetValue(StrokeEndLineCapProperty);
 }
 
 double Path::GetTrimStart() const noexcept {
-    return GetValueOr(TrimStartProperty, 0.0);
+    return GetValue(TrimStartProperty);
 }
 
 double Path::GetTrimEnd() const noexcept {
-    return GetValueOr(TrimEndProperty, 1.0);
+    return GetValue(TrimEndProperty);
 }
 
 void Path::SetData(
@@ -413,17 +405,15 @@ void Path::SetTrimEnd(
 }
 
 Base::StringView Path::GetStrokeDashArray() const noexcept {
-    return GetValueOr(StrokeDashArrayProperty, Base::StringView{});
+    return GetValue(StrokeDashArrayProperty);
 }
 
 double Path::GetStrokeDashOffset() const noexcept {
-    return GetValueOr(StrokeDashOffsetProperty, 0.0);
+    return GetValue(StrokeDashOffsetProperty);
 }
 
 Base::Ref<Media::DashStyle> Path::GetDashStyle() const noexcept {
-    return GetValueOr(
-        DashStyleProperty,
-        Base::Ref<Media::DashStyle>{});
+    return GetValue(DashStyleProperty);
 }
 
 void Path::SetStrokeDashArray(Base::StringView value) noexcept {

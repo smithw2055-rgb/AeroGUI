@@ -12,10 +12,10 @@ public:
         return StaticTypeId();
     }
     Point GetStartPoint() const noexcept {
-        return GetValueOr(StartPointProperty, Point{});
+        return GetValue(StartPointProperty);
     }
     Point GetEndPoint() const noexcept {
-        return GetValueOr(EndPointProperty, Point{});
+        return GetValue(EndPointProperty);
     }
     void SetStartPoint(Point value) noexcept {
         SetValue(StartPointProperty, value);

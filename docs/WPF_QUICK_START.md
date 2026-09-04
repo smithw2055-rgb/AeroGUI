@@ -51,7 +51,7 @@ double width = button->GetWidth();
 bool enabled = button->GetIsEnabled();
 ```
 
-Typed setters such as `SetWidth` are `void`, matching WPF. They do **not** return `Result`. Diagnostics use the `*Checked` dual rail on the DP engine (`SetValueChecked`, `ClearValueChecked`, `AddHandlerChecked`), not a `Result`-returning `SetWidth`.
+Typed setters such as `SetWidth` and dependency property mutations (`SetValue`, `SetCurrentValue`, `ClearValue`, `CoerceValue`) are `void`, strictly matching WPF and NoesisGUI semantics.
 
 Attached properties keep their WPF shape:
 
@@ -202,10 +202,10 @@ class Rating : public Aero::Controls::Control {
     AERO_DECLARE_TYPE_NAMED(Rating, Aero::Controls::Control, "urn:demo", "Rating")
 
 public:
-    inline static constexpr Aero::DependencyProperty<double> ValueProperty{"Value"};
+    AERO_DEPENDENCY_PROPERTY(double, Value);
 
-    double GetValue() const noexcept { return GetValueOr(ValueProperty, 0.0); }
-    void SetValue(double value) noexcept { static_cast<void>(Aero::DependencyObject::SetValue(ValueProperty, value)); }
+    double GetValue() const noexcept { return GetValue(ValueProperty); }
+    void SetValue(double value) noexcept { Aero::DependencyObject::SetValue(ValueProperty, value); }
 };
 ```
 

@@ -677,25 +677,19 @@ Base::Result<Aero::Rect> GetCharacterRect(
 }
 
 Base::StringView Hyperlink::GetNavigateUri() const noexcept {
-    return GetValueOr(NavigateUriProperty, Base::StringView{});
+    return GetValue(NavigateUriProperty);
 }
 
 Input::ICommand* Hyperlink::GetCommand() const noexcept {
-    return GetValueOr(
-        CommandProperty,
-        Base::Ref<Input::ICommand>{}).Get();
+    return GetValue(CommandProperty).Get();
 }
 
 Value Hyperlink::GetCommandParameter() const noexcept {
-    return GetValueOr(
-        CommandParameterProperty,
-        Value::NullObject(Meta::TypeOf<Base::Object>()));
+    return GetValue(CommandParameterProperty);
 }
 
 Aero::UIElement* Hyperlink::GetCommandTarget() const noexcept {
-    return GetValueOr(
-        CommandTargetProperty,
-        Base::Ref<Aero::UIElement>{}).Get();
+    return GetValue(CommandTargetProperty).Get();
 }
 
 void Hyperlink::SetNavigateUri(
@@ -739,7 +733,7 @@ Base::Result<void> NavigationService::Attach(
             Base::ErrorCode::InvalidState,
             "NavigationService requires a navigation handler");
     }
-    root.AddHandlerChecked(Hyperlink::RequestNavigateEvent, requestHandler_, true);
+    root.AddHandler(Hyperlink::RequestNavigateEvent, requestHandler_, true);
     root_ = &root;
     return {};
 }
@@ -824,7 +818,7 @@ TextBlock::~TextBlock() {
     ReleaseServiceGlyphRun();
 }
 Base::StringView TextBlock::GetText() const noexcept {
-    return GetValueOr(TextProperty, Base::StringView());
+    return GetValue(TextProperty);
 }
 Base::Ref<Brush> TextBlock::GetForeground() const noexcept {
     const auto authoredForeground =
@@ -836,8 +830,7 @@ Base::Ref<Brush> TextBlock::GetForeground() const noexcept {
                 source.rank < Meta::PropertyValueRank::TemplatedParentSetter) {
                 return {};
             }
-            return object.GetValueOr(
-                FrameworkElementForegroundProperty, Base::Ref<Brush>{});
+            return object.GetValue(FrameworkElementForegroundProperty);
         };
     if (Base::Ref<Brush> local = authoredForeground(*this)) {
         return local;
@@ -857,11 +850,10 @@ Base::Ref<Brush> TextBlock::GetForeground() const noexcept {
             : ::Aero::TryCast<::Aero::Media::Visual>(
                   current->GetLogicalParent());
     }
-    return GetValueOr(ForegroundProperty, Base::Ref<Brush>{});
+    return GetValue(ForegroundProperty);
 }
 Base::Ref<Brush> TextBlock::GetBackground() const noexcept {
-    return GetValueOr(
-        BackgroundProperty, Base::Ref<Brush>{});
+    return GetValue(BackgroundProperty);
 }
 double TextBlock::GetFontSize() const noexcept {
     const Meta::PropertyValueSourceInfo attached =
@@ -869,9 +861,8 @@ double TextBlock::GetFontSize() const noexcept {
             Documents::TextElement::FontSizeProperty.Handle());
     const Meta::PropertyValueSourceInfo owned =
         GetValueSourceInfo(FontSizeProperty.Handle());
-    const double attachedSize = GetValueOr(
-        Documents::TextElement::FontSizeProperty, 16.0);
-    const double ownedSize = GetValueOr(FontSizeProperty, 16.0);
+    const double attachedSize = GetValue(Documents::TextElement::FontSizeProperty);
+    const double ownedSize = GetValue(FontSizeProperty);
     const auto attachedRank =
         static_cast<std::uint8_t>(attached.rank);
     const auto ownedRank = static_cast<std::uint8_t>(owned.rank);
@@ -893,43 +884,31 @@ FontWeight TextBlock::GetFontWeight() const noexcept {
     if (RuntimeType() == Documents::Bold::StaticTypeId()) {
         return FontWeight::Bold;
     }
-    return GetValueOr(
-        FontWeightProperty,
-        FontWeight::Normal);
+    return GetValue(FontWeightProperty);
 }
 FontStyle TextBlock::GetFontStyle() const noexcept {
     if (RuntimeType() == Documents::Italic::StaticTypeId()) {
         return FontStyle::Italic;
     }
-    return GetValueOr(
-        FontStyleProperty,
-        FontStyle::Normal);
+    return GetValue(FontStyleProperty);
 }
 TextDecorations TextBlock::GetTextDecorations() const noexcept {
     if (RuntimeType() == Documents::Underline::StaticTypeId()) {
         return TextDecorations::Underline;
     }
-    return GetValueOr(
-        TextDecorationsProperty,
-        TextDecorations::None);
+    return GetValue(TextDecorationsProperty);
 }
 TextWrapping TextBlock::GetTextWrapping() const noexcept {
-    return GetValueOr(
-        TextWrappingProperty,
-        TextWrapping::NoWrap);
+    return GetValue(TextWrappingProperty);
 }
 TextTrimming TextBlock::GetTextTrimming() const noexcept {
-    return GetValueOr(
-        TextTrimmingProperty,
-        TextTrimming::None);
+    return GetValue(TextTrimmingProperty);
 }
 TextAlignment TextBlock::GetTextAlignment() const noexcept {
-    return GetValueOr(
-        TextAlignmentProperty,
-        TextAlignment::Left);
+    return GetValue(TextAlignmentProperty);
 }
 double TextBlock::GetLineHeight() const noexcept {
-    return GetValueOr(LineHeightProperty, 0.0);
+    return GetValue(LineHeightProperty);
 }
 void TextBlock::SetText(Base::StringView value) noexcept {
     SetValue(TextProperty, value);
@@ -1216,9 +1195,7 @@ void TextBlock::SetGlyphRun(
     (void)InvalidateVisual();
 }
 Size TextBlock::MeasureOverride(Size availableSize) noexcept {
-    if (!GetValueOr(
-            RichText::TextProperty,
-            Base::StringView{}).Empty()) {
+    if (!GetValue(RichText::TextProperty).Empty()) {
         // RichText can be populated while a template is still detached from
         // its inherited DataContext. Refresh at the first real measure so
         // inline bindings such as MusicLevel observe the mounted model.
@@ -1229,7 +1206,7 @@ Size TextBlock::MeasureOverride(Size availableSize) noexcept {
     if (!copied) return Size{};
 
     const Thickness padding =
-        GetValueOr(PaddingProperty, Thickness{});
+        GetValue(PaddingProperty);
     Size textAvailable = availableSize;
     if (std::isfinite(textAvailable.width) && textAvailable.width > 0.0) {
         textAvailable.width = std::max(
@@ -1354,7 +1331,7 @@ Size TextBlock::MeasureOverride(Size availableSize) noexcept {
 }
 Size TextBlock::ArrangeOverride(Size finalSize) noexcept {
     const Thickness padding =
-        GetValueOr(PaddingProperty, Thickness{});
+        GetValue(PaddingProperty);
     const bool needsAlignment = GetTextAlignment() != TextAlignment::Left ||
         GetFlowDirection() == FlowDirection::RightToLeft;
     if (needsAlignment && finalSize.width > 0.0) {
@@ -1403,7 +1380,7 @@ void TextBlock::OnRender(
         if (!filled) return;
     }
     const Thickness padding =
-        GetValueOr(PaddingProperty, Thickness{});
+        GetValue(PaddingProperty);
     const bool shiftGlyphs =
         padding.left != 0.0 || padding.top != 0.0;
     if (shiftGlyphs) {

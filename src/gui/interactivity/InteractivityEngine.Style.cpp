@@ -471,7 +471,7 @@ Base::Result<std::uint32_t> InteractivityEngine::StartStyleDataTriggers(
                 std::uint64_t metadataSubscription = 0U;
                 Base::Result<void> subscribed;
                 if (dependencyProperty != nullptr) {
-                    subscribed = dependencySource->AddValueChangedHandlerChecked(
+                    dependencySource->AddValueChangedHandler(
                         dependencyProperty->Handle(), handler);
                 } else {
                     Base::Result<std::uint64_t> notification =

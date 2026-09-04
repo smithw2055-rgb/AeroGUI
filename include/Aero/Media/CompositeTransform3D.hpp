@@ -12,18 +12,18 @@ class AERO_GUI_API CompositeTransform3D : public Transform3D {
 public:
     CompositeTransform3D() noexcept : Transform3D(StaticTypeId()) {}
 
-    double GetCenterX() const noexcept { return GetValueOr(CenterXProperty, 0.0); }
-    double GetCenterY() const noexcept { return GetValueOr(CenterYProperty, 0.0); }
-    double GetCenterZ() const noexcept { return GetValueOr(CenterZProperty, 0.0); }
-    double GetRotationX() const noexcept { return GetValueOr(RotationXProperty, 0.0); }
-    double GetRotationY() const noexcept { return GetValueOr(RotationYProperty, 0.0); }
-    double GetRotationZ() const noexcept { return GetValueOr(RotationZProperty, 0.0); }
-    double GetScaleX() const noexcept { return GetValueOr(ScaleXProperty, 1.0); }
-    double GetScaleY() const noexcept { return GetValueOr(ScaleYProperty, 1.0); }
-    double GetScaleZ() const noexcept { return GetValueOr(ScaleZProperty, 1.0); }
-    double GetTranslateX() const noexcept { return GetValueOr(TranslateXProperty, 0.0); }
-    double GetTranslateY() const noexcept { return GetValueOr(TranslateYProperty, 0.0); }
-    double GetTranslateZ() const noexcept { return GetValueOr(TranslateZProperty, 0.0); }
+    double GetCenterX() const noexcept { return GetValue(CenterXProperty); }
+    double GetCenterY() const noexcept { return GetValue(CenterYProperty); }
+    double GetCenterZ() const noexcept { return GetValue(CenterZProperty); }
+    double GetRotationX() const noexcept { return GetValue(RotationXProperty); }
+    double GetRotationY() const noexcept { return GetValue(RotationYProperty); }
+    double GetRotationZ() const noexcept { return GetValue(RotationZProperty); }
+    double GetScaleX() const noexcept { return GetValue(ScaleXProperty); }
+    double GetScaleY() const noexcept { return GetValue(ScaleYProperty); }
+    double GetScaleZ() const noexcept { return GetValue(ScaleZProperty); }
+    double GetTranslateX() const noexcept { return GetValue(TranslateXProperty); }
+    double GetTranslateY() const noexcept { return GetValue(TranslateYProperty); }
+    double GetTranslateZ() const noexcept { return GetValue(TranslateZProperty); }
 
     void SetCenterX(double value) noexcept { SetValue(CenterXProperty, value); }
     void SetCenterY(double value) noexcept { SetValue(CenterYProperty, value); }

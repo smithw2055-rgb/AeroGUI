@@ -76,8 +76,7 @@ StackPanel::StackPanel(Orientation orientation) noexcept
     }
 }
 Orientation StackPanel::GetOrientation() const noexcept {
-    return GetValueOr(
-        OrientationProperty, Orientation::Vertical);
+    return GetValue(OrientationProperty);
 }
 void StackPanel::SetOrientation(Orientation value) noexcept {
     SetValue(OrientationProperty, value);
@@ -123,7 +122,7 @@ Size StackPanel::ArrangeOverride(Size finalSize) noexcept {
     return finalSize;
 }
 bool DockPanel::GetLastChildFill() const noexcept {
-    return GetValueOr(LastChildFillProperty, true);
+    return GetValue(LastChildFillProperty);
 }
 void DockPanel::SetLastChildFill(
     bool value) noexcept {
@@ -143,7 +142,7 @@ void DockPanel::SetChildDock(
 }
 Dock DockPanel::GetChildDock(
     const UIElement& child) const noexcept {
-    return child.GetValueOr(DockProperty, Dock::Left);
+    return child.GetValue(DockProperty);
 }
 Size DockPanel::MeasureOverride(
     Size availableSize) noexcept {
@@ -240,19 +239,17 @@ Size DockPanel::ArrangeOverride(
     return finalSize;
 }
 Orientation WrapPanel::GetOrientation() const noexcept {
-    return GetValueOr(
-        OrientationProperty,
-        Orientation::Horizontal);
+    return GetValue(OrientationProperty);
 }
 void WrapPanel::SetOrientation(
     Orientation value) noexcept {
     SetValue(OrientationProperty, value);
 }
 double WrapPanel::GetItemWidth() const noexcept {
-    return GetValueOr(ItemWidthProperty, 0.0);
+    return GetValue(ItemWidthProperty);
 }
 double WrapPanel::GetItemHeight() const noexcept {
-    return GetValueOr(ItemHeightProperty, 0.0);
+    return GetValue(ItemHeightProperty);
 }
 void WrapPanel::SetItemWidth(
     double value) noexcept {
@@ -363,13 +360,13 @@ Size WrapPanel::ArrangeOverride(
     return finalSize;
 }
 std::uint32_t UniformGrid::GetRows() const noexcept {
-    return GetValueOr(RowsProperty, 0U);
+    return GetValue(RowsProperty);
 }
 std::uint32_t UniformGrid::GetColumns() const noexcept {
-    return GetValueOr(ColumnsProperty, 0U);
+    return GetValue(ColumnsProperty);
 }
 std::uint32_t UniformGrid::GetFirstColumn() const noexcept {
-    return GetValueOr(FirstColumnProperty, 0U);
+    return GetValue(FirstColumnProperty);
 }
 void UniformGrid::SetRows(
     std::uint32_t value) noexcept {
@@ -511,10 +508,8 @@ void Canvas::SetChildPosition(
     child.SetValue(TopProperty, position.y);
 }
 Point Canvas::GetChildPosition(const UIElement& child) const noexcept {
-    const double left = child.GetValueOr(
-        LeftProperty, std::numeric_limits<double>::infinity());
-    const double top = child.GetValueOr(
-        TopProperty, std::numeric_limits<double>::infinity());
+    const double left = child.GetValue(LeftProperty);
+    const double top = child.GetValue(TopProperty);
     return {
         std::isfinite(left) ? left : 0.0,
         std::isfinite(top) ? top : 0.0};
@@ -532,10 +527,10 @@ Size Canvas::ArrangeOverride(Size finalSize) noexcept {
     for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
         const Size desired = child->GetDesiredSize();
-        const double left = child->GetValueOr(LeftProperty, Unset);
-        const double top = child->GetValueOr(TopProperty, Unset);
-        const double right = child->GetValueOr(RightProperty, Unset);
-        const double bottom = child->GetValueOr(BottomProperty, Unset);
+        const double left = child->GetValue(LeftProperty);
+        const double top = child->GetValue(TopProperty);
+        const double right = child->GetValue(RightProperty);
+        const double bottom = child->GetValue(BottomProperty);
         Point position{0.0, 0.0};
         if (std::isfinite(left)) {
             position.x = left;
@@ -711,14 +706,10 @@ Grid::ClearRowDefinitionObjects() noexcept {
     (void)InvalidateMeasure();
 }
 Base::StringView Grid::GetColumnDefinitionsText() const noexcept {
-    return GetValueOr(
-        ColumnDefinitionsTextProperty,
-        Base::StringView{});
+    return GetValue(ColumnDefinitionsTextProperty);
 }
 Base::StringView Grid::GetRowDefinitionsText() const noexcept {
-    return GetValueOr(
-        RowDefinitionsTextProperty,
-        Base::StringView{});
+    return GetValue(RowDefinitionsTextProperty);
 }
 void Grid::SetColumnDefinitionsText(
     Base::StringView value) noexcept {
@@ -1036,22 +1027,22 @@ Base::Result<void> Grid::ValidateDefinitions(
     return {};
 }
 std::uint32_t Grid::GetChildRow(const UIElement& child) const noexcept {
-    return child.GetValueOr(RowProperty, 0U);
+    return child.GetValue(RowProperty);
 }
 std::uint32_t Grid::GetChildColumn(const UIElement& child) const noexcept {
-    return child.GetValueOr(ColumnProperty, 0U);
+    return child.GetValue(ColumnProperty);
 }
 std::uint32_t Grid::GetChildRowSpan(
     const UIElement& child) const noexcept {
     return std::max(
         1U,
-        child.GetValueOr(RowSpanProperty, 1U));
+        child.GetValue(RowSpanProperty));
 }
 std::uint32_t Grid::GetChildColumnSpan(
     const UIElement& child) const noexcept {
     return std::max(
         1U,
-        child.GetValueOr(ColumnSpanProperty, 1U));
+        child.GetValue(ColumnSpanProperty));
 }
 Base::Result<void> Grid::ResolveTracks(
     Base::Span<const GridLength> definitions,
@@ -1189,7 +1180,7 @@ struct PanelZOrder {
             : nullptr;
         if (child == nullptr || child->GetVisualParent() != this) continue;
         PanelZOrder record;
-        record.z = child->GetValueOr(ZIndexProperty, 0);
+        record.z = child->GetValue(ZIndexProperty);
         record.document = document++;
         record.child = child;
         if (!ordered.PushBack(record)) return nullptr;

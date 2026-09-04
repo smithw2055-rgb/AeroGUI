@@ -712,7 +712,9 @@ Base::Result<void> LoadFromUri(
         void Shutdown() noexcept {
             if (shutdown) return;
             shutdown = true;
-            if (renderContext) renderContext->Shutdown();
+            if (renderContext) {
+                renderContext->Shutdown();
+            }
             if (window != nullptr) {
                 DesktopHost::NotifyWindowClosed(*window);
                 DesktopHost::DetachWindow(*window);
@@ -720,10 +722,9 @@ Base::Result<void> LoadFromUri(
 #if defined(_WIN32)
             static_cast<void>(inputMethod.Detach());
 #endif
-            if (nativeWindow) nativeWindow->Close();
-            // Drop the View while the XAML document still owns the visual
-            // tree. Clearing loadedDocument first leaves Unmount/Shutdown
-            // walking freed objects and can hang the process after Close.
+            if (nativeWindow) {
+                nativeWindow->Close();
+            }
             view.Reset();
             loadedDocument = {};
             windowOwner.Reset();
