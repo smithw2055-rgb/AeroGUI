@@ -19,8 +19,8 @@ OverlayHost::OverlayHost(ViewState& owner) noexcept
 void OverlayHost::Bind() noexcept {
     allocator = view->allocator;
     metadata = view->metadata;
-    input = view->input;
-    renderer = view->renderer;
+    input = view->Input();
+    renderTree = view->RenderTree();
 }
 
 Base::Result<void> OverlayHost::SynchronizeOverlays() noexcept {
@@ -30,7 +30,7 @@ Base::Result<void> OverlayHost::SynchronizeOverlays() noexcept {
         Aero::Media::Visual* rootVisual =
             view->RootVisual();
         if (rootVisual == nullptr ||
-            renderer == nullptr) {
+            renderTree == nullptr) {
             if (input != nullptr) input->ClearOverlays();
             return {};
         }
@@ -267,7 +267,7 @@ Base::Result<void> OverlayHost::SynchronizeOverlays() noexcept {
             }
         }
         Base::Result<void> render =
-            renderer->SetOverlays(
+            renderTree->SetOverlays(
                 renderOverlays.AsSpan(),
                 overlayTransforms.AsSpan());
         if (!render) return render.GetStatus();
@@ -283,9 +283,9 @@ void OverlayHost::ClearOverlays() noexcept {
         renderOverlays.Clear();
         inputOverlays.Clear();
         overlayTransforms.Clear();
-        if (renderer != nullptr) {
+        if (renderTree != nullptr) {
             static_cast<void>(
-                renderer->SetOverlays(
+                renderTree->SetOverlays(
                     renderOverlays.AsSpan(),
                     overlayTransforms.AsSpan()));
         }

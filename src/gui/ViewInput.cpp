@@ -19,11 +19,11 @@ namespace {
 Base::Result<Input::PointerDispatchResult> DispatchPointer(
     ViewState& state,
     const Input::PointerInput& input) noexcept {
-    if (!state.mounted || state.input == nullptr) {
+    if (!state.mounted || state.Input() == nullptr) {
         return ViewNotInitialized(
             "Pointer input requires a mounted View");
     }
-    Input::DeviceState::SetActiveRouter(state.input);
+    Input::DeviceState::SetActiveRouter(state.Input());
     Input::DeviceState::SetLastPointerPosition(input.position);
     // Close popups on an outside press *before* routing, then hit-test
     // again. Otherwise a stale open Popup overlay keeps capturing the
@@ -34,7 +34,7 @@ Base::Result<Input::PointerDispatchResult> DispatchPointer(
         Aero::Media::Visual* root = state.RootVisual();
         if (root != nullptr) {
             Base::Result<Input::HitTestResult> preHit =
-                state.input->HitTest(*root, input.position);
+                state.Input()->HitTest(*root, input.position);
             if (!preHit) {
                 return preHit.GetStatus();
             }
@@ -55,7 +55,7 @@ Base::Result<Input::PointerDispatchResult> DispatchPointer(
     Base::Result<
         Input::PointerDispatchResult>
         dispatched =
-            state.input->DispatchPointer(input);
+            state.Input()->DispatchPointer(input);
     if (!dispatched) {
         return dispatched.GetStatus();
     }
@@ -83,18 +83,18 @@ Base::Result<Input::KeyboardDispatchResult>
 DispatchKeyboard(
     ViewState& state,
     const Input::KeyboardInput& input) noexcept {
-    if (!state.mounted || state.input == nullptr) {
+    if (!state.mounted || state.Input() == nullptr) {
         return ViewNotInitialized(
             "Keyboard input requires a mounted View");
     }
-    Input::DeviceState::SetActiveRouter(state.input);
+    Input::DeviceState::SetActiveRouter(state.Input());
     Input::DeviceState::SetLastModifiers(input.modifiers);
     if (input.action ==
             Input::KeyboardAction::Down &&
         input.key ==
             Input::KeyboardKeyEscape &&
-        state.input->IsDragging()) {
-        return state.input->DispatchKeyboard(input);
+        state.Input()->IsDragging()) {
+        return state.Input()->DispatchKeyboard(input);
     }
     if (input.action ==
             Input::KeyboardAction::Down &&
@@ -114,18 +114,18 @@ DispatchKeyboard(
             return result;
         }
     }
-    return state.input->DispatchKeyboard(input);
+    return state.Input()->DispatchKeyboard(input);
 }
 
 Base::Result<Input::TextInputDispatchResult>
 DispatchText(
     ViewState& state,
     const Input::TextInput& input) noexcept {
-    if (!state.mounted || state.input == nullptr) {
+    if (!state.mounted || state.Input() == nullptr) {
         return ViewNotInitialized(
             "Text input requires a mounted View");
     }
-    return state.input->DispatchText(input);
+    return state.Input()->DispatchText(input);
 }
 
 bool DispatchTouch(

@@ -16,7 +16,7 @@ public:
     Base::IAllocator* allocator = nullptr;
     ::Aero::Meta::Registry* metadata = nullptr;
     Aero::InputRouter* input = nullptr;
-    ::Aero::Render::RenderTree* renderer = nullptr;
+    ::Aero::Render::RenderTree* renderTree = nullptr;
 
     Base::Vector<Aero::FrameworkElement*> renderOverlays;
     Base::Vector<Aero::UIElement*> inputOverlays;

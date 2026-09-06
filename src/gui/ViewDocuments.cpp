@@ -36,7 +36,7 @@ Base::Result<Markup::XamlReaderSettings> XamlSettings(ViewState& state,
         }
         state.loadContext.resources = &state.resources->dynamicResourceEnvironment;
         state.loadContext.effectiveValues = state.values;
-        state.loadContext.bindings = state.bindings;
+        state.loadContext.bindings = state.Bindings();
         state.loadContext.fallbackResources =
             &state.resources->dynamicResourceEnvironment;
         state.loadContext.documentCache = state.documentCache;
@@ -287,7 +287,7 @@ Base::Result<void> MountRoot(ViewState& state,
         state.mounted = true;
         Markup::EffectRuntimeServices runtimeServices;
         runtimeServices.effectiveValues = state.values;
-        runtimeServices.bindings = state.bindings;
+        runtimeServices.bindings = state.Bindings();
         runtimeServices.fallbackResources = &state.resources->dynamicResourceEnvironment;
         runtimeServices.lifetime = state.effectLifetime;
         Base::Result<void> bound = state.loadedDocument.effects.Bind(runtimeServices);
@@ -311,7 +311,7 @@ Base::Result<void> MountRoot(ViewState& state,
             return effects.GetStatus();
         }
         Base::Result<std::uint32_t> initialBindings =
-            state.bindings->Flush();
+            state.Bindings()->Flush();
         if (!initialBindings) {
             static_cast<void>(state.DetachVisualGraph({
                 state.loadedDocument.visualContent.mountEdges.Data(),
@@ -400,7 +400,7 @@ Base::Result<void> MountRoot(ViewState& state,
             return itemGeneratorsAttached.GetStatus();
         }
         Base::Result<std::uint32_t> settledBindings =
-            state.bindings->Flush();
+            state.Bindings()->Flush();
         state.deferGeneratedActivation = false;
         if (!settledBindings) {
             state.BeginDestroyInteractions();
@@ -430,8 +430,8 @@ Base::Result<void> MountRoot(ViewState& state,
         Base::Result<std::uint32_t> startedAnimations =
             state.storyboards->StartLoadedAnimations(rootVisual.Value());
         if (!startedAnimations) {
-            if (state.animations != nullptr) {
-                static_cast<void>(state.animations->RemoveAll());
+            if (state.Animations() != nullptr) {
+                static_cast<void>(state.Animations()->RemoveAll());
             }
             state.storyboards->storyboardSessions.Clear();
             state.BeginDestroyInteractions();
@@ -589,9 +589,9 @@ Base::Result<void> DetachMountedRoot(ViewState& state,
             }
             return {};
         }
-        if (state.animations != nullptr) {
+        if (state.Animations() != nullptr) {
             Base::Result<void> removed =
-                state.animations->RemoveAll();
+                state.Animations()->RemoveAll();
             if (!removed) return removed.GetStatus();
         }
         state.storyboards->storyboardSessions.Clear();
@@ -709,7 +709,7 @@ Base::Result<void> MountViewFragment(
     Markup::XamlDocument&& document) noexcept {
     ViewState* state_ = &state;
     if (state_ == nullptr || !state_->initialized || !state_->mounted ||
-        state_->tree == nullptr || state_->layout == nullptr) {
+        state_->tree == nullptr || state_->Layout() == nullptr) {
         return ViewApiInvalidState(
             "content fragment mounting requires a mounted View");
     }
@@ -878,7 +878,7 @@ Base::Result<void> MountViewFragment(
     }
     Markup::EffectRuntimeServices runtimeServices;
     runtimeServices.effectiveValues = state_->values;
-    runtimeServices.bindings = state_->bindings;
+    runtimeServices.bindings = state_->Bindings();
     runtimeServices.fallbackResources = &state_->resources->dynamicResourceEnvironment;
     runtimeServices.lifetime = state_->effectLifetime;
     Base::Result<void> boundEffects = fragment.document.effects.Bind(runtimeServices);
@@ -1036,7 +1036,7 @@ Base::Result<void> AdoptLoadedComponent(
     ViewState& state,
     Markup::LoaderResult&& incoming) noexcept {
     if (!state.initialized || !state.mounted ||
-        state.tree == nullptr || state.bindings == nullptr ||
+        state.tree == nullptr || state.Bindings() == nullptr ||
         state.values == nullptr || state.allocator == nullptr) {
         return {};
     }
@@ -1212,7 +1212,7 @@ Base::Result<void> AdoptLoadedComponent(
 
     Markup::EffectRuntimeServices runtimeServices;
     runtimeServices.effectiveValues = state.values;
-    runtimeServices.bindings = state.bindings;
+    runtimeServices.bindings = state.Bindings();
     runtimeServices.fallbackResources =
         state.resources != nullptr
             ? &state.resources->dynamicResourceEnvironment
@@ -1224,7 +1224,7 @@ Base::Result<void> AdoptLoadedComponent(
     if (!prepared) return prepared.GetStatus();
     Base::Result<void> committed = document.effects.Commit();
     if (!committed) return committed.GetStatus();
-    Base::Result<std::uint32_t> flushed = state.bindings->Flush();
+    Base::Result<std::uint32_t> flushed = state.Bindings()->Flush();
     if (!flushed) return flushed.GetStatus();
 
     if (rootVisual && state.storyboards != nullptr) {
@@ -1236,7 +1236,7 @@ Base::Result<void> AdoptLoadedComponent(
     if (DependencyObject* target =
             ::Aero::TryCast<DependencyObject>(document.root.Get())) {
         static_cast<void>(
-            state.bindings->ActivateDeferredWhenReady(*target));
+            state.Bindings()->ActivateDeferredWhenReady(*target));
     }
     return {};
 }

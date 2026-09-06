@@ -177,8 +177,8 @@ void ViewState::TextLifecycleHook(
 const ::Aero::Render::RenderFrame* ViewState::CurrentFrame(
     const View& view) noexcept
 {
-    return view.state_ != nullptr && view.state_->renderer != nullptr
-        ? &view.state_->renderer->CurrentFrame()
+    return view.state_ != nullptr && view.state_->RenderTree() != nullptr
+        ? &view.state_->RenderTree()->CurrentFrame()
         : nullptr;
 }
 
@@ -305,7 +305,7 @@ Base::Result<void> ViewRenderer::Init(
     Aero::Media::Visual* rootVisual =
         data.RootVisual();
     if (rootVisual != nullptr) {
-        status = data.renderer->Invalidate(
+        status = data.RenderTree()->Invalidate(
             *rootVisual,
             Aero::Render::RenderInvalidation::All);
     }
@@ -355,13 +355,13 @@ bool ViewRenderer::UpdateRenderTree() noexcept {
     }
 
     auto& data = *view_->state_;
-    if (data.renderer == nullptr) {
+    if (data.RenderTree() == nullptr) {
         data.ReportRendererFailure(ViewNotInitialized(
             "View render tree is unavailable"));
         return false;
     }
     const ::Aero::Render::RenderFrame& frame =
-        data.renderer->CurrentFrame();
+        data.RenderTree()->CurrentFrame();
     if (frame.Version() == 0U) {
         data.ClearRendererFailure();
         return false;
@@ -394,7 +394,7 @@ bool ViewRenderer::RenderOffscreen() noexcept {
     }
 
     const ::Aero::Render::RenderFrame& frame =
-        view_->state_->renderer->CurrentFrame();
+        view_->state_->RenderTree()->CurrentFrame();
     if (frame.Version() == 0U) {
         offscreenReady_ = true;
         view_->state_->ClearRendererFailure();
@@ -441,7 +441,7 @@ void ViewRenderer::Render(
     }
 
     const ::Aero::Render::RenderFrame& frame =
-        view_->state_->renderer->CurrentFrame();
+        view_->state_->RenderTree()->CurrentFrame();
     if (frame.Version() == 0U) {
         view_->state_->ClearRendererFailure();
         return;

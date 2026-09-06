@@ -120,15 +120,15 @@ InteractivityEngine::InteractivityEngine(ViewState& owner) noexcept
 void InteractivityEngine::Bind() noexcept {
     allocator = view->allocator;
     metadata = view->metadata;
-    animations = view->animations;
-    events = view->events;
-    input = view->input;
+    animations = view->Animations();
+    events = view->Events();
+    input = view->Input();
     tree = view->tree;
-    styles = view->styles;
+    styles = view->Styles();
     values = view->values;
     dispatcher = view->dispatcher;
-    templates = view->templates;
-    bindings = view->bindings;
+    templates = view->Templates();
+    bindings = view->Bindings();
     storyboards = view->storyboards;
 }
 

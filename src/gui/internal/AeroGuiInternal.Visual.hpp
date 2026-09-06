@@ -116,7 +116,7 @@
         ElementTree* tree = AERO_GET_FIELD(visual, Visual_tree);
         return tree != nullptr &&
             AERO_GET_FIELD(visual, Visual_renderNodeId) != Base::InvalidRenderNodeId
-            ? static_cast<void*>(tree->Renderer())
+            ? static_cast<void*>(tree->RenderTree())
             : nullptr;
     }
     static void Render(

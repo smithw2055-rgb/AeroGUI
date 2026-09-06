@@ -1,5 +1,7 @@
 #pragma once
 
+// Thin controls-state umbrella. Prefer direct includes when practical.
+
 #include <Aero/Controls.hpp>
 #include <Aero/Base/Result.hpp>
 #include "gui/core/State.hpp"

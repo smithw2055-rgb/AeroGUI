@@ -30,9 +30,9 @@ using namespace ::Aero::Controls;
 using namespace ::Aero::Controls;
 using namespace ::Aero;
 
-struct ItemContainerGenerator::Impl {
+struct ItemContainerGenerator::GeneratorState {
 public:
-    Impl(
+    GeneratorState(
         ItemContainerGenerator& facade,
         ElementTree& tree,
         LayoutEngine& layout,
@@ -42,7 +42,7 @@ public:
         TemplateEngine* templates,
         ItemSubtreeCallback subtreeCallback,
         void* subtreeContext) noexcept;
-    ~Impl() noexcept;
+    ~GeneratorState() noexcept;
 
     Base::Result<void> Attach(ItemsControl& owner, Panel& itemsHost) noexcept;
     Base::Result<void> AttachVirtualized(
@@ -158,7 +158,7 @@ private:
     Base::Result<void> ReleaseRecycledContainers() noexcept;
 };
 
-ItemContainerGenerator::Impl::Impl(
+ItemContainerGenerator::GeneratorState::GeneratorState(
     ItemContainerGenerator& facade,
     ElementTree& tree,
     LayoutEngine& layout,
@@ -179,16 +179,16 @@ ItemContainerGenerator::Impl::Impl(
       subtreeContext_(subtreeContext),
       changedHandler_(
           this,
-          &ItemContainerGenerator::Impl::OnItemsChanged),
+          &ItemContainerGenerator::GeneratorState::OnItemsChanged),
       generatedHeaderChangedHandler_(
           this,
-          &ItemContainerGenerator::Impl::OnGeneratedHeaderChanged) {}
+          &ItemContainerGenerator::GeneratorState::OnGeneratedHeaderChanged) {}
 
-ItemContainerGenerator::Impl::~Impl() noexcept {
+ItemContainerGenerator::GeneratorState::~GeneratorState() noexcept {
     static_cast<void>(Detach());
 }
 
-Base::Result<void> ItemContainerGenerator::Impl::Attach(
+Base::Result<void> ItemContainerGenerator::GeneratorState::Attach(
     ItemsControl& owner,
     Panel& itemsHost) noexcept {
     if (owner_ != nullptr ||
@@ -225,7 +225,7 @@ Base::Result<void> ItemContainerGenerator::Impl::Attach(
 }
 
 Base::Result<void>
-ItemContainerGenerator::Impl::AttachVirtualized(
+ItemContainerGenerator::GeneratorState::AttachVirtualized(
     ItemsControl& owner,
     VirtualizingStackPanel& itemsHost) noexcept {
     if (owner_ != nullptr ||
@@ -272,7 +272,7 @@ ItemContainerGenerator::Impl::AttachVirtualized(
     return {};
 }
 
-Base::Result<bool> ItemContainerGenerator::Impl::Detach() noexcept {
+Base::Result<bool> ItemContainerGenerator::GeneratorState::Detach() noexcept {
     if (owner_ == nullptr) return false;
     static_cast<void>(
         owner_->RemoveItemsChanged(
@@ -305,8 +305,8 @@ Base::Result<bool> ItemContainerGenerator::Impl::Detach() noexcept {
         : Base::Result<bool>(firstError);
 }
 
-Base::Result<ItemContainerGenerator::Impl::Record>
-ItemContainerGenerator::Impl::CreateRecord(
+Base::Result<ItemContainerGenerator::GeneratorState::Record>
+ItemContainerGenerator::GeneratorState::CreateRecord(
     std::uint32_t index) noexcept {
     if (owner_ == nullptr ||
         index >= owner_->GetCount()) {
@@ -561,7 +561,7 @@ ItemContainerGenerator::Impl::CreateRecord(
 }
 
 Base::Result<void>
-ItemContainerGenerator::Impl::AttachOwnedSubtree(
+ItemContainerGenerator::GeneratorState::AttachOwnedSubtree(
     Record& record,
     Aero::Media::Visual& root) noexcept {
     Base::Vector<Aero::Media::Visual*> pending;
@@ -745,7 +745,7 @@ ItemContainerGenerator::Impl::AttachOwnedSubtree(
 }
 
 Base::Result<void>
-ItemContainerGenerator::Impl::DetachOwnedSubtree(
+ItemContainerGenerator::GeneratorState::DetachOwnedSubtree(
     Record& record) noexcept {
     Base::Status firstError;
     for (std::uint32_t index =
@@ -765,7 +765,7 @@ ItemContainerGenerator::Impl::DetachOwnedSubtree(
 }
 
 Base::Result<void>
-ItemContainerGenerator::Impl::AttachRecord(
+ItemContainerGenerator::GeneratorState::AttachRecord(
     Record& record,
     std::uint32_t index) noexcept {
     FrameworkElement& container = *record.container;
@@ -974,7 +974,7 @@ ItemContainerGenerator::Impl::AttachRecord(
 }
 
 Base::Result<void>
-ItemContainerGenerator::Impl::ProjectGeneratedContent(
+ItemContainerGenerator::GeneratorState::ProjectGeneratedContent(
     Record& record) noexcept {
     if (record.itemIsOwnContainer || !record.content || !record.container ||
         !PropertyRegistry(owner_).Types().IsDerivedFrom(
@@ -1133,7 +1133,7 @@ ItemContainerGenerator::Impl::ProjectGeneratedContent(
 }
 
 Base::Result<void>
-ItemContainerGenerator::Impl::UpdateGeneratedHeader(
+ItemContainerGenerator::GeneratorState::UpdateGeneratedHeader(
     Record& record) noexcept {
     if (!record.generatedHeader || !record.content || !record.container ||
         !PropertyRegistry(owner_).Types().IsDerivedFrom(
@@ -1157,7 +1157,7 @@ ItemContainerGenerator::Impl::UpdateGeneratedHeader(
     return {};
 }
 
-void ItemContainerGenerator::Impl::OnGeneratedHeaderChanged(
+void ItemContainerGenerator::GeneratorState::OnGeneratedHeaderChanged(
     DependencyObject& object,
     const DependencyPropertyChangedEventArgs&) noexcept {
     for (Record& record : records_) {
@@ -1170,7 +1170,7 @@ void ItemContainerGenerator::Impl::OnGeneratedHeaderChanged(
 }
 
 Base::Result<void>
-ItemContainerGenerator::Impl::DetachRecord(
+ItemContainerGenerator::GeneratorState::DetachRecord(
     Record& record,
     bool recycleContainer) noexcept {
     if (!record.container) return {};
@@ -1302,7 +1302,7 @@ ItemContainerGenerator::Impl::DetachRecord(
 }
 
 Base::Result<void>
-ItemContainerGenerator::Impl::ReleaseRecycledContainers() noexcept {
+ItemContainerGenerator::GeneratorState::ReleaseRecycledContainers() noexcept {
     Base::Status firstError;
     for (Base::Ref<FrameworkElement>& container :
         recycledContainers_) {
@@ -1316,7 +1316,7 @@ ItemContainerGenerator::Impl::ReleaseRecycledContainers() noexcept {
 }
 
 Base::Result<void>
-ItemContainerGenerator::Impl::InsertRecord(
+ItemContainerGenerator::GeneratorState::InsertRecord(
     std::uint32_t index,
     Record record) noexcept {
     if (index > records_.Size()) {
@@ -1351,7 +1351,7 @@ ItemContainerGenerator::Impl::InsertRecord(
     return {};
 }
 
-void ItemContainerGenerator::Impl::RemoveRecordAt(
+void ItemContainerGenerator::GeneratorState::RemoveRecordAt(
     std::uint32_t index) noexcept {
     for (std::uint32_t current = index;
         current + 1U < records_.Size(); ++current) {
@@ -1362,7 +1362,7 @@ void ItemContainerGenerator::Impl::RemoveRecordAt(
 }
 
 Base::Result<void>
-ItemContainerGenerator::Impl::ReorderVisuals() noexcept {
+ItemContainerGenerator::GeneratorState::ReorderVisuals() noexcept {
     for (Record& record : records_) {
         Base::Result<void> detached = tree_->DetachVisual(record.containerMount);
         if (!detached) return detached.GetStatus();
@@ -1375,7 +1375,7 @@ ItemContainerGenerator::Impl::ReorderVisuals() noexcept {
 }
 
 Base::Result<bool>
-ItemContainerGenerator::Impl::SetRealizationRangeInternal(
+ItemContainerGenerator::GeneratorState::SetRealizationRangeInternal(
     std::uint32_t firstIndex,
     std::uint32_t count,
     bool force) noexcept {
@@ -1454,7 +1454,7 @@ ItemContainerGenerator::Impl::SetRealizationRangeInternal(
 }
 
 Base::Result<bool>
-ItemContainerGenerator::Impl::SetRealizationRange(
+ItemContainerGenerator::GeneratorState::SetRealizationRange(
     std::uint32_t firstIndex,
     std::uint32_t count) noexcept {
     Base::Result<bool> changed =
@@ -1470,7 +1470,7 @@ ItemContainerGenerator::Impl::SetRealizationRange(
     return changed;
 }
 
-Base::Result<void> ItemContainerGenerator::Impl::Refresh() noexcept {
+Base::Result<void> ItemContainerGenerator::GeneratorState::Refresh() noexcept {
     if (owner_ == nullptr || host_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -1543,7 +1543,7 @@ Base::Result<void> ItemContainerGenerator::Impl::Refresh() noexcept {
     return {};
 }
 
-Base::Result<void> ItemContainerGenerator::Impl::ApplyChange(
+Base::Result<void> ItemContainerGenerator::GeneratorState::ApplyChange(
     const ItemsChangedEvent& event) noexcept {
     if (event.action == ItemsChangeAction::Reset) {
         return Refresh();
@@ -1650,7 +1650,7 @@ Base::Result<void> ItemContainerGenerator::Impl::ApplyChange(
     return Refresh();
 }
 
-void ItemContainerGenerator::Impl::OnItemsChanged(
+void ItemContainerGenerator::GeneratorState::OnItemsChanged(
     const ItemsChangedEvent& event) noexcept {
     Base::Result<void> applied;
     if (virtualizingHost_ != nullptr &&
@@ -1682,7 +1682,7 @@ void ItemContainerGenerator::Impl::OnItemsChanged(
 }
 
 FrameworkElement*
-ItemContainerGenerator::Impl::ContainerFromIndex(
+ItemContainerGenerator::GeneratorState::ContainerFromIndex(
     std::uint32_t index) const noexcept {
     return index >= firstGeneratedIndex_ &&
         index - firstGeneratedIndex_ <
@@ -1694,7 +1694,7 @@ ItemContainerGenerator::Impl::ContainerFromIndex(
 }
 
 std::uint32_t
-ItemContainerGenerator::Impl::IndexFromContainer(
+ItemContainerGenerator::GeneratorState::IndexFromContainer(
     const FrameworkElement& container) const noexcept {
     for (std::uint32_t index = 0U;
         index < records_.Size(); ++index) {
@@ -1707,7 +1707,7 @@ ItemContainerGenerator::Impl::IndexFromContainer(
 }
 
 Base::Ref<Base::Object>
-ItemContainerGenerator::Impl::ItemFromContainer(
+ItemContainerGenerator::GeneratorState::ItemFromContainer(
     const FrameworkElement& container) const noexcept {
     const std::uint32_t index =
         IndexFromContainer(container);
@@ -1722,14 +1722,14 @@ ItemContainerGenerator::Impl::ItemFromContainer(
 namespace Aero::Controls {
 
 ItemContainerGenerator::~ItemContainerGenerator() noexcept {
-    delete impl_;
-    impl_ = nullptr;
+    delete state_;
+    state_ = nullptr;
 }
 
 Base::Result<void> ItemContainerGenerator::Attach(
     ItemsControl& owner,
     Panel& itemsHost) noexcept {
-    auto* runtime = impl_;
+    auto* runtime = state_;
     return runtime != nullptr
         ? runtime->Attach(owner, itemsHost)
         : Base::Result<void>(Base::Status::Failure(
@@ -1740,7 +1740,7 @@ Base::Result<void> ItemContainerGenerator::Attach(
 Base::Result<void> ItemContainerGenerator::AttachVirtualized(
     ItemsControl& owner,
     VirtualizingStackPanel& itemsHost) noexcept {
-    auto* runtime = impl_;
+    auto* runtime = state_;
     return runtime != nullptr
         ? runtime->AttachVirtualized(owner, itemsHost)
         : Base::Result<void>(Base::Status::Failure(
@@ -1749,12 +1749,12 @@ Base::Result<void> ItemContainerGenerator::AttachVirtualized(
 }
 
 Base::Result<bool> ItemContainerGenerator::Detach() noexcept {
-    auto* runtime = impl_;
+    auto* runtime = state_;
     return runtime != nullptr ? runtime->Detach() : Base::Result<bool>(false);
 }
 
 Base::Result<void> ItemContainerGenerator::Refresh() noexcept {
-    auto* runtime = impl_;
+    auto* runtime = state_;
     return runtime != nullptr
         ? runtime->Refresh()
         : Base::Result<void>(Base::Status::Failure(
@@ -1765,52 +1765,52 @@ Base::Result<void> ItemContainerGenerator::Refresh() noexcept {
 void ItemContainerGenerator::SetRealizationRange(
     std::uint32_t firstIndex,
     std::uint32_t count) noexcept {
-    auto* runtime = impl_;
+    auto* runtime = state_;
     if (runtime != nullptr) (void)runtime->SetRealizationRange(firstIndex, count);
 }
 
 std::uint32_t ItemContainerGenerator::GetGeneratedCount() const noexcept {
-    auto* runtime = impl_;
+    auto* runtime = state_;
     return runtime != nullptr ? runtime->GetGeneratedCount() : 0U;
 }
 
 std::uint32_t ItemContainerGenerator::GetFirstGeneratedIndex() const noexcept {
-    auto* runtime = impl_;
+    auto* runtime = state_;
     return runtime != nullptr ? runtime->GetFirstGeneratedIndex() : 0U;
 }
 
 std::uint32_t ItemContainerGenerator::GetCreatedContainerCount() const noexcept {
-    auto* runtime = impl_;
+    auto* runtime = state_;
     return runtime != nullptr ? runtime->GetCreatedContainerCount() : 0U;
 }
 
 std::uint32_t ItemContainerGenerator::GetRecycledContainerUseCount() const noexcept {
-    auto* runtime = impl_;
+    auto* runtime = state_;
     return runtime != nullptr ? runtime->GetRecycledContainerUseCount() : 0U;
 }
 
 FrameworkElement* ItemContainerGenerator::ContainerFromIndex(
     std::uint32_t index) const noexcept {
-    auto* runtime = impl_;
+    auto* runtime = state_;
     return runtime != nullptr ? runtime->ContainerFromIndex(index) : nullptr;
 }
 
 std::uint32_t ItemContainerGenerator::IndexFromContainer(
     const FrameworkElement& container) const noexcept {
-    auto* runtime = impl_;
+    auto* runtime = state_;
     return runtime != nullptr ? runtime->IndexFromContainer(container) : UINT32_MAX;
 }
 
 Base::Ref<Base::Object> ItemContainerGenerator::ItemFromContainer(
     const FrameworkElement& container) const noexcept {
-    auto* runtime = impl_;
+    auto* runtime = state_;
     return runtime != nullptr
         ? runtime->ItemFromContainer(container)
         : Base::Ref<Base::Object>{};
 }
 
 Base::Status ItemContainerGenerator::LastError() const noexcept {
-    auto* runtime = impl_;
+    auto* runtime = state_;
     return runtime != nullptr
         ? runtime->LastError()
         : Base::Status::Failure(
@@ -1819,7 +1819,7 @@ Base::Status ItemContainerGenerator::LastError() const noexcept {
 }
 
 Base::Result<ItemContainerGenerator*>
-ItemContainerGenerator::Impl::Create(
+ItemContainerGenerator::GeneratorState::Create(
     ElementTree& tree,
     Aero::LayoutEngine& layout,
     Meta::EffectiveValueEngine& values,
@@ -1834,7 +1834,7 @@ ItemContainerGenerator::Impl::Create(
             Base::ErrorCode::OutOfMemory,
             "ItemContainerGenerator allocation failed");
     }
-    generator->impl_ = new (std::nothrow) ItemContainerGenerator::Impl(
+    generator->state_ = new (std::nothrow) ItemContainerGenerator::GeneratorState(
         *generator,
         tree,
         layout,
@@ -1844,7 +1844,7 @@ ItemContainerGenerator::Impl::Create(
         templates,
         subtreeCallback,
         subtreeContext);
-    if (generator->impl_ == nullptr) {
+    if (generator->state_ == nullptr) {
         delete generator;
         return Base::Status::Failure(
             Base::ErrorCode::OutOfMemory,
@@ -1904,7 +1904,7 @@ AeroGuiInternal::CreateItemContainerGenerator(
     Controls::TemplateEngine* templates,
     Controls::ItemSubtreeCallback subtreeCallback,
     void* subtreeContext) noexcept {
-    return Controls::ItemContainerGenerator::Impl::Create(
+    return Controls::ItemContainerGenerator::GeneratorState::Create(
         tree,
         layout,
         values,

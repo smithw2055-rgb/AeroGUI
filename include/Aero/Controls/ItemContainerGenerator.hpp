@@ -39,16 +39,16 @@ public:
     Base::Status LastError() const noexcept;
 
 private:
-    struct Impl;
-    friend struct Impl;
+    struct GeneratorState;
+    friend struct GeneratorState;
     friend class ::Aero::AeroGuiInternal;
 
     ItemContainerGenerator() noexcept = default;
-    Impl* impl_ = nullptr;
+    GeneratorState* state_ = nullptr;
 
     // Privileged helpers: ItemContainerGenerator is the sole friend of
-    // ItemsControl / VirtualizingStackPanel; Impl calls these instead of
-    // touching their private members directly.
+    // ItemsControl / VirtualizingStackPanel; GeneratorState calls these
+    // instead of touching their private members directly.
     static bool OwnerHasGenerator(const ItemsControl& owner) noexcept;
     static void SetOwnerGenerator(
         ItemsControl& owner,

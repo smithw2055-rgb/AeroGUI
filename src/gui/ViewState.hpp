@@ -1,8 +1,9 @@
 #pragma once
 
 // Source-only View hub state. Not installed under include/Aero.
-// ViewState is data plus named engine pointers; domain work lives on the
-// engines, OverlayHost, FocusHost, ResourceHost, and free functions in
+// ViewState is frame/POD ownership; ElementTree is the service hub
+// (Layout/Bindings/Styles/…). Domain work lives on the engines,
+// OverlayHost, FocusHost, ResourceHost, and free functions in
 // ViewDocuments.cpp / ViewFrame.cpp.
 
 #include <Aero/View.hpp>
@@ -236,27 +237,49 @@ struct ViewState {
     std::uint64_t deviceGeneration = 0U;
     ViewViewport viewport;
 
-    // Business-domain engines allocated and destroyed by this ViewState.
+    // Frame ownership + ElementTree hub.
+    // Domain callers reach Layout/Bindings/Styles/Animations/… through
+    // ElementTree (VisualTree()); ViewState keeps ownership for hosts that are
+    // not yet on the tree, and thin accessors that forward to tree once wired.
     Meta::ObjectFactoryScope* objectFactory = nullptr;
     Meta::EffectiveValueEngine* values = nullptr;
-    Aero::AnimationEngine* animations = nullptr;
     Aero::ElementTree* tree = nullptr;
-    Aero::LayoutEngine* layout = nullptr;
-    ::Aero::Render::RenderTree* renderer = nullptr;
     Aero::Media::ImageCache* images = nullptr;
     Aero::Text::TextPipeline* text = nullptr;
-    Aero::BindingEngine* bindings = nullptr;
-    Aero::EventRouter* events = nullptr;
-    Aero::InputRouter* input = nullptr;
 
-    Aero::Controls::TemplateEngine* templates = nullptr;
-    VisualStateManager* visualStates = nullptr;
-    Aero::StyleEngine* styles = nullptr;
     InteractivityEngine* interactivity = nullptr;
     StoryboardHost* storyboards = nullptr;
     OverlayHost* overlays = nullptr;
     FocusHost* focus = nullptr;
     ResourceHost* resources = nullptr;
+
+    Aero::LayoutEngine* Layout() const noexcept {
+        return tree != nullptr ? tree->Layout() : nullptr;
+    }
+    ::Aero::Render::RenderTree* RenderTree() const noexcept {
+        return tree != nullptr ? tree->RenderTree() : nullptr;
+    }
+    Aero::BindingEngine* Bindings() const noexcept {
+        return tree != nullptr ? tree->Bindings() : nullptr;
+    }
+    Aero::StyleEngine* Styles() const noexcept {
+        return tree != nullptr ? tree->Styles() : nullptr;
+    }
+    Aero::EventRouter* Events() const noexcept {
+        return tree != nullptr ? tree->Events() : nullptr;
+    }
+    Aero::InputRouter* Input() const noexcept {
+        return tree != nullptr ? tree->Input() : nullptr;
+    }
+    Aero::AnimationEngine* Animations() const noexcept {
+        return tree != nullptr ? tree->Animations() : nullptr;
+    }
+    VisualStateManager* VisualStates() const noexcept {
+        return tree != nullptr ? tree->VisualStates() : nullptr;
+    }
+    Aero::Controls::TemplateEngine* Templates() const noexcept {
+        return tree != nullptr ? tree->Templates() : nullptr;
+    }
 
     // Mount, provider-generation, and resource-layer state.
     Markup::Schema* schema = nullptr;

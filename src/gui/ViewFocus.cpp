@@ -10,7 +10,7 @@ FocusHost::FocusHost(ViewState& owner) noexcept
       pendingFocusTargets(owner.allocator) {}
 
 void FocusHost::Bind() noexcept {
-    input = view != nullptr ? view->input : nullptr;
+    input = view != nullptr ? view->Input() : nullptr;
 }
 
 Base::Result<void> FocusHost::QueueFocus(Aero::UIElement& target) noexcept {
@@ -27,7 +27,7 @@ Base::Result<void> FocusHost::QueueFocus(Aero::UIElement& target) noexcept {
 
 Base::Result<std::uint32_t> FocusHost::ProcessPendingFocus() noexcept {
         if (input == nullptr && view != nullptr) {
-            input = view->input;
+            input = view->Input();
         }
         if (input == nullptr || pendingFocusTargets.Empty()) return 0U;
         std::uint32_t focusedCount = 0U;

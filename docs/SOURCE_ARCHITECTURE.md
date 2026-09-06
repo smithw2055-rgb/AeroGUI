@@ -112,11 +112,13 @@ own headers.
 
 ## View composition
 
-`ViewState` is source-only data (`src/gui/ViewState.hpp`, not installed).
-It owns named engine pointers (tree, layout, bindings, styles, events, input,
-animations, visualStates, templates, renderer, text, images), root attachment,
-resource dictionaries, storyboard session vectors, pending focus, and fragment
-mounts. Domain methods are defined out of line next to their engine:
+`ViewState` is source-only frame/POD data (`src/gui/ViewState.hpp`, not
+installed). `ElementTree` is the service hub (`Layout()`, `Bindings()`,
+`Styles()`, `Events()`, `Input()`, `Animations()`, `VisualStates()`,
+`Templates()`, `RenderTree()`, …). `ViewState` owns the tree plus hosts that
+are not on the tree yet (interactivity, storyboards, overlays, focus,
+resources, values, text, images) and forwards hub access through thin
+accessors. Domain methods are defined out of line next to their engine:
 `ViewFrame.cpp` ticks the frame, `media/StoryboardHost.cpp` runs
 storyboard sessions, `interactivity/InteractivityEngine.cpp` evaluates
 ConditionBehavior / EventTrigger / KeyTrigger / DataTrigger, and
@@ -155,10 +157,10 @@ Implementation `.cpp` files include that header.
 
 `View` / `ElementTree` is the service hub. The tree holds named pointers
 (`Layout()`, `Bindings()`, `Styles()`, `Events()`, `Input()`, `Animations()`,
-`VisualStates()`, `Templates()`, `TextLayout()`, `ControlBehaviors()`,
-`MeshResources()`, `FindName()`). Visual/UIElement reach the tree through
-`VisualTree()`. Engines are ordinary objects; they do not inherit a Facet base
-just to sit in an array.
+`VisualStates()`, `Templates()`, `RenderTree()`, `TextLayout()`,
+`ControlBehaviors()`, `MeshResources()`, `FindName()`). Visual/UIElement reach
+the tree through `VisualTree()`. Engines are ordinary objects; they do not
+inherit a Facet base just to sit in an array.
 
 Hot private data stays on the object (required for `sizeof` when types are
 subclassed): visual parent, layout flags, desired/render size, value-store

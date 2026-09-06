@@ -157,9 +157,9 @@ public:
 
     void AttachPresentation(
         Aero::LayoutEngine* layout,
-        ::Aero::Render::RenderTree* renderer) noexcept {
+        ::Aero::Render::RenderTree* renderTree) noexcept {
         layout_ = layout;
-        renderer_ = renderer;
+        renderTree_ = renderTree;
     }
     void AttachResourceEnvironment(
         const ResourceEnvironment& environment) noexcept {
@@ -207,7 +207,7 @@ public:
         ::Aero::Media::Visual* renderRoot) noexcept;
 
     Aero::LayoutEngine* Layout() const noexcept { return layout_; }
-    ::Aero::Render::RenderTree* Renderer() const noexcept { return renderer_; }
+    ::Aero::Render::RenderTree* RenderTree() const noexcept { return renderTree_; }
     Aero::BindingEngine* Bindings() const noexcept { return bindings_; }
     Aero::StyleEngine* Styles() const noexcept { return styles_; }
     Aero::EventRouter* Events() const noexcept { return events_; }
@@ -224,8 +224,8 @@ public:
     }
 
     void SetLayout(Aero::LayoutEngine* layout) noexcept { layout_ = layout; }
-    void SetRenderer(::Aero::Render::RenderTree* renderer) noexcept {
-        renderer_ = renderer;
+    void SetRenderTree(::Aero::Render::RenderTree* renderTree) noexcept {
+        renderTree_ = renderTree;
     }
     void SetBindings(Aero::BindingEngine* bindings) noexcept {
         bindings_ = bindings;
@@ -301,7 +301,7 @@ private:
     ::Aero::Threading::Dispatcher* dispatcher_ = nullptr;
     Meta::EffectiveValueEngine* values_ = nullptr;
     Aero::LayoutEngine* layout_ = nullptr;
-    ::Aero::Render::RenderTree* renderer_ = nullptr;
+    ::Aero::Render::RenderTree* renderTree_ = nullptr;
     Aero::BindingEngine* bindings_ = nullptr;
     Aero::StyleEngine* styles_ = nullptr;
     Aero::EventRouter* events_ = nullptr;

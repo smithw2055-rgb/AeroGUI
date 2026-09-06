@@ -998,11 +998,11 @@ Base::Result<void> ElementTree::AttachLayout(
 
 Base::Result<void> ElementTree::AttachRender(
     ::Aero::Media::Visual& parent, ::Aero::Media::Visual& child, bool& attached) noexcept {
-    if (renderer_ == nullptr ||
-        AeroGuiInternal::RenderRuntime(parent) != static_cast<void*>(renderer_)) {
+    if (renderTree_ == nullptr ||
+        AeroGuiInternal::RenderRuntime(parent) != static_cast<void*>(renderTree_)) {
         return {};
     }
-    Base::Result<void> result = renderer_->Attach(parent, child);
+    Base::Result<void> result = renderTree_->Attach(parent, child);
     if (!result) return result.GetStatus();
     attached = true;
     return {};
@@ -1025,10 +1025,10 @@ Base::Result<void> ElementTree::DetachLayout(
 Base::Result<void> ElementTree::DetachRender(
     ::Aero::Media::Visual& parent, ::Aero::Media::Visual& child, bool& attached) noexcept {
     if (!attached) return {};
-    if (renderer_ == nullptr) {
+    if (renderTree_ == nullptr) {
         return InvalidState("Attached render edge has no render tree");
     }
-    Base::Result<void> result = renderer_->Detach(parent, child);
+    Base::Result<void> result = renderTree_->Detach(parent, child);
     if (!result) return result.GetStatus();
     attached = false;
     return {};
@@ -1179,13 +1179,13 @@ Base::Result<Aero::VisualAttachment> ElementTree::AttachVisualChild(
     if (!render) {
         return render.GetStatus();
     }
-    if (state.renderAttached && renderer_ != nullptr) {
+    if (state.renderAttached && renderTree_ != nullptr) {
         auto attachDescendants = [&](auto&& self, ::Aero::Media::Visual& parent) noexcept
             -> Base::Result<void> {
             for (::Aero::Media::Visual* descendant :
                  AeroGuiInternal::RenderChildren(parent)) {
                 if (descendant == nullptr) continue;
-                Base::Result<void> attached = renderer_->Attach(parent, *descendant);
+                Base::Result<void> attached = renderTree_->Attach(parent, *descendant);
                 if (!attached) return attached.GetStatus();
                 Base::Result<void> nested = self(self, *descendant);
                 if (!nested) return nested.GetStatus();
@@ -1284,8 +1284,8 @@ Base::Result<Aero::RootAttachment> ElementTree::AttachRoot(
         state.layoutAttached = true;
     }
 
-    if (renderer_ != nullptr) {
-        Base::Result<void> render = renderer_->SetRoot(&root);
+    if (renderTree_ != nullptr) {
+        Base::Result<void> render = renderTree_->SetRoot(&root);
         if (!render) {
             if (state.layoutAttached) (void)layout_->SetRoot(nullptr, {});
             (void)SetRoot(nullptr);
@@ -1302,8 +1302,8 @@ Base::Result<void> ElementTree::DetachRoot(
     if (state.root == nullptr) return InvalidState("Root attachment is incomplete");
 
     if (state.renderAttached) {
-        if (renderer_ != nullptr) {
-            Base::Result<void> result = renderer_->SetRoot(nullptr);
+        if (renderTree_ != nullptr) {
+            Base::Result<void> result = renderTree_->SetRoot(nullptr);
             if (!result) return result.GetStatus();
         }
         state.renderAttached = false;
@@ -1312,9 +1312,9 @@ Base::Result<void> ElementTree::DetachRoot(
         if (layout_ != nullptr) {
             Base::Result<void> result = layout_->SetRoot(nullptr, {});
             if (!result) {
-                if (renderer_ != nullptr) {
+                if (renderTree_ != nullptr) {
                     Base::Result<void> restored =
-                        renderer_->SetRoot(state.root);
+                        renderTree_->SetRoot(state.root);
                     if (restored) state.renderAttached = true;
                 }
                 return result.GetStatus();
@@ -1330,9 +1330,9 @@ Base::Result<void> ElementTree::DetachRoot(
                     layout_->SetRoot(::Aero::TryCast<::Aero::UIElement>(state.root), state.availableSize);
                 if (restored) state.layoutAttached = true;
             }
-            if (renderer_ != nullptr) {
+            if (renderTree_ != nullptr) {
                 Base::Result<void> restored =
-                    renderer_->SetRoot(state.root);
+                    renderTree_->SetRoot(state.root);
                 if (restored) state.renderAttached = true;
             }
             return result.GetStatus();
@@ -1352,7 +1352,7 @@ Base::Result<void> ElementTree::AttachVisualGraph(
         return InvalidState(
             "Gui root cannot be attached in its current state");
     }
-    AttachPresentation(layout_, renderer_);
+    AttachPresentation(layout_, renderTree_);
     Base::Result<Aero::RootAttachment> rootAttached =
         AttachRoot(visualRoot, availableSize);
     if (!rootAttached) return rootAttached.GetStatus();
@@ -1361,9 +1361,9 @@ Base::Result<void> ElementTree::AttachVisualGraph(
     auto parentRenderReady =
         [this, &visualRoot](::Aero::Media::Visual& parent) noexcept {
             if (&parent == &visualRoot) return true;
-            if (renderer_ == nullptr) return true;
+            if (renderTree_ == nullptr) return true;
             return AeroGuiInternal::RenderRuntime(parent) ==
-                static_cast<void*>(renderer_);
+                static_cast<void*>(renderTree_);
         };
 
     std::uint32_t attached = 0U;
@@ -1409,9 +1409,9 @@ Base::Result<void> ElementTree::CompleteVisualEdges(
                 VisualTree(edge.parent) != this) {
                 continue;
             }
-            if (renderer_ != nullptr &&
+            if (renderTree_ != nullptr &&
                 AeroGuiInternal::RenderRuntime(*edge.parent) !=
-                    static_cast<void*>(renderer_) &&
+                    static_cast<void*>(renderTree_) &&
                 edge.parent != root_) {
                 continue;
             }
@@ -1445,8 +1445,8 @@ Base::Result<void> ElementTree::ResizeRoot(
     }
     Base::Result<void> resized = layout_->SetRoot(&layoutRoot, availableSize);
     if (!resized) return resized.GetStatus();
-    if (renderer_ != nullptr && renderRoot != nullptr) {
-        return renderer_->Invalidate(
+    if (renderTree_ != nullptr && renderRoot != nullptr) {
+        return renderTree_->Invalidate(
             *renderRoot, Aero::Render::RenderInvalidation::State);
     }
     return {};
@@ -1502,9 +1502,9 @@ Base::Result<void> ElementTree::DetachVisualGraph(
                 AeroGuiInternal::RenderValid(*state.child) = false;
             }
             state.renderAttached =
-                renderer_ != nullptr &&
+                renderTree_ != nullptr &&
                 AeroGuiInternal::RenderAttached(*state.child) &&
-                AeroGuiInternal::RenderRuntime(*state.child) == renderer_ &&
+                AeroGuiInternal::RenderRuntime(*state.child) == renderTree_ &&
                 AeroGuiInternal::RenderParent(*state.child) == state.visualParent;
         };
 

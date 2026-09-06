@@ -37,9 +37,9 @@ StoryboardHost::StoryboardHost(ViewState& owner) noexcept
 void StoryboardHost::Bind() noexcept {
     allocator = view->allocator;
     metadata = view->metadata;
-    animations = view->animations;
-    input = view->input;
-    styles = view->styles;
+    animations = view->Animations();
+    input = view->Input();
+    styles = view->Styles();
     interactivity = view->interactivity;
 }
 
@@ -463,9 +463,9 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                 }
             }
             if (element->GetIsLoaded() && view != nullptr &&
-                view->events != nullptr) {
+                view->Events() != nullptr) {
                 Aero::RoutedEventArgs loadedArgs;
-                static_cast<void>(view->events->RaiseEvent(
+                static_cast<void>(view->Events()->RaiseEvent(
                     *element,
                     FrameworkElement::LoadedEvent.Handle(),
                     &loadedArgs));

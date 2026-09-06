@@ -34,12 +34,13 @@ ViewState::ViewState(
 
 Base::Result<void> ViewState::ApplyViewport(
         const ViewViewport& next) noexcept {
-        if (renderer == nullptr) {
+        ::Aero::Render::RenderTree* renderTree = RenderTree();
+        if (renderTree == nullptr) {
             return AeroNotInitialized(
                 "View render tree is unavailable");
         }
         const ViewViewport previous = viewport;
-        Base::Result<void> updated = renderer->SetViewport(
+        Base::Result<void> updated = renderTree->SetViewport(
             next.logicalSize,
             next.pixelWidth,
             next.pixelHeight,
@@ -48,7 +49,7 @@ Base::Result<void> ViewState::ApplyViewport(
         if (HasAttachedRoot()) {
             updated = ResizeVisualRoot(next.logicalSize);
             if (!updated) {
-                static_cast<void>(renderer->SetViewport(
+                static_cast<void>(renderTree->SetViewport(
                     previous.logicalSize,
                     previous.pixelWidth,
                     previous.pixelHeight,
@@ -65,11 +66,11 @@ void ViewState::Shutdown() noexcept {
     if (storyboards != nullptr) {
         storyboards->storyboardSessions.Clear();
     }
-    if (animations != nullptr) {
-        static_cast<void>(animations->RemoveAll());
+    if (Animations() != nullptr) {
+        static_cast<void>(Animations()->RemoveAll());
     }
-    if (bindings != nullptr) {
-        bindings->Shutdown();
+    if (Bindings() != nullptr) {
+        Bindings()->Shutdown();
     }
     BeginDestroyInteractions();
     DetachViewUi(*this);
@@ -104,6 +105,15 @@ void ViewState::Shutdown() noexcept {
         tree->SetMeshResources(nullptr);
         tree->SetLifecycleHandler(nullptr);
     }
+
+    // Capture hub-owned engines before DestroyUiEngines clears tree slots.
+    Aero::InputRouter* inputEngine = Input();
+    Aero::EventRouter* eventEngine = Events();
+    Aero::BindingEngine* bindingEngine = Bindings();
+    ::Aero::Render::RenderTree* renderTreeEngine = RenderTree();
+    Aero::LayoutEngine* layoutEngine = Layout();
+    Aero::AnimationEngine* animationEngine = Animations();
+
     DestroyUiEngines();
     if (images != nullptr) {
         images->Shutdown(GetImageResources());
@@ -111,15 +121,15 @@ void ViewState::Shutdown() noexcept {
 
     FreeObject(*allocator, Base::MemoryTag::Ui, interactivity);
     FreeObject(*allocator, Base::MemoryTag::Ui, storyboards);
-    FreeObject(*allocator, Base::MemoryTag::Ui, input);
-    FreeObject(*allocator, Base::MemoryTag::Ui, events);
-    FreeObject(*allocator, Base::MemoryTag::Ui, bindings);
-    FreeObject(*allocator, Base::MemoryTag::Ui, renderer);
-    FreeObject(*allocator, Base::MemoryTag::Ui, layout);
+    FreeObject(*allocator, Base::MemoryTag::Ui, inputEngine);
+    FreeObject(*allocator, Base::MemoryTag::Ui, eventEngine);
+    FreeObject(*allocator, Base::MemoryTag::Ui, bindingEngine);
+    FreeObject(*allocator, Base::MemoryTag::Ui, renderTreeEngine);
+    FreeObject(*allocator, Base::MemoryTag::Ui, layoutEngine);
     FreeObject(*allocator, Base::MemoryTag::Ui, tree);
     FreeObject(*allocator, Base::MemoryTag::Ui, text);
     FreeObject(*allocator, Base::MemoryTag::Ui, images);
-    FreeObject(*allocator, Base::MemoryTag::Ui, animations);
+    FreeObject(*allocator, Base::MemoryTag::Ui, animationEngine);
     FreeObject(*allocator, Base::MemoryTag::Ui, values);
     FreeObject(*allocator, Base::MemoryTag::Ui, objectFactory);
     schema = nullptr;
@@ -192,6 +202,7 @@ Base::Result<void> ViewState::Initialize(
                     DependencyProperties(*metadata));
         }
         if (status) status = values->Initialize();
+        Aero::AnimationEngine* animations = nullptr;
         if (status) {
             status = AllocateObject(*allocator, Base::MemoryTag::Ui, animations, *dispatcher, *values, allocator);
         }
@@ -205,13 +216,24 @@ Base::Result<void> ViewState::Initialize(
         }
         if (status) status = tree->Initialize();
         if (status) {
+            tree->SetAnimations(animations);
+        }
+        Aero::LayoutEngine* layout = nullptr;
+        if (status) {
             status = AllocateObject(*allocator, Base::MemoryTag::Ui, layout, *dispatcher);
         }
         if (status) status = layout->Initialize();
         if (status) {
-            status = AllocateObject(*allocator, Base::MemoryTag::Ui, renderer, *dispatcher);
+            tree->SetLayout(layout);
         }
-        if (status) status = renderer->Initialize();
+        ::Aero::Render::RenderTree* renderTree = nullptr;
+        if (status) {
+            status = AllocateObject(*allocator, Base::MemoryTag::Ui, renderTree, *dispatcher);
+        }
+        if (status) status = renderTree->Initialize();
+        if (status) {
+            tree->SetRenderTree(renderTree);
+        }
         if (status) {
             status = AllocateObject(*allocator, Base::MemoryTag::Ui, images, allocator);
         }
@@ -226,6 +248,7 @@ Base::Result<void> ViewState::Initialize(
             tree->SetLifecycleHandler(
                 &TextLifecycleHook, this);
         }
+        Aero::BindingEngine* bindings = nullptr;
         if (status) {
             status = AllocateObject(
                 *allocator,
@@ -236,12 +259,23 @@ Base::Result<void> ViewState::Initialize(
         }
         if (status) status = bindings->Initialize();
         if (status) {
+            tree->SetBindings(bindings);
+        }
+        Aero::EventRouter* events = nullptr;
+        if (status) {
             status = AllocateObject(*allocator, Base::MemoryTag::Ui, events,
                 ::Aero::MetadataPrivate::
                     RoutedEventState(*metadata));
         }
         if (status) {
+            tree->SetEvents(events);
+        }
+        Aero::InputRouter* input = nullptr;
+        if (status) {
             status = AllocateObject(*allocator, Base::MemoryTag::Ui, input, *tree, *events);
+        }
+        if (status) {
+            tree->SetInput(input);
         }
         if (status) {
             status = AllocateObject(*allocator, Base::MemoryTag::Ui, interactivity, *this);
@@ -267,7 +301,7 @@ Base::Result<void> ViewState::Initialize(
             status = resources->RebuildDynamicEnvironment();
         }
         if (status) {
-            tree->AttachPresentation(layout, renderer);
+            tree->AttachPresentation(Layout(), RenderTree());
         }
         if (!status) {
             Shutdown();
@@ -727,12 +761,12 @@ const IRenderer& View::GetRenderer() const noexcept {
 
 CommittedFrameInfo View::GetCommittedFrameInfo() const noexcept {
     CommittedFrameInfo info;
-    if (state_ == nullptr || state_->renderer == nullptr) return info;
+    if (state_ == nullptr || state_->RenderTree() == nullptr) return info;
     const ::Aero::Render::RenderFrame& frame =
-        state_->renderer->CurrentFrame();
+        state_->RenderTree()->CurrentFrame();
     if (frame.Version() == 0U) return info;
     const ::Aero::Render::RenderDiagnostics diagnostics =
-        state_->renderer->Diagnostics();
+        state_->RenderTree()->Diagnostics();
     info.version = frame.Version();
     info.nodeCount = diagnostics.nodeCount;
     info.commandCount = diagnostics.commandCount;

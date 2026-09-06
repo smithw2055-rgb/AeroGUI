@@ -1,6 +1,8 @@
 #pragma once
 
-// Private element state and direct Gui runtime declarations.
+// Private element-state umbrella (thin include hub).
+// Prefer including gui/core/state/*.hpp directly when practical;
+// this file remains for existing translation units.
 
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
