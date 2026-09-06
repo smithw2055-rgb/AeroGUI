@@ -22,23 +22,26 @@ public:
     }
 
     StringView GetName() const noexcept { return name_.View(); }
-    Result<void> SetName(StringView value) noexcept {
-        return name_.Assign(value);
+    void SetName(StringView value) noexcept {
+        Base::Result<void> assigned = name_.Assign(value);
+        if (!assigned) { AERO_ASSERT(false); return; }
     }
     Span<const Ref<VisualState>> GetStates() const noexcept {
         return {states_.Data(), states_.Size()};
     }
-    Result<void> AddState(Ref<VisualState> value) noexcept {
-        return states_.PushBack(std::move(value));
+    void AddState(Ref<VisualState> value) noexcept {
+        Base::Result<void> pushed = states_.PushBack(std::move(value));
+        if (!pushed) { AERO_ASSERT(false); return; }
     }
     void ClearStates() noexcept { states_.Clear(); }
     Span<const Ref<VisualTransition>>
     GetTransitions() const noexcept {
         return {transitions_.Data(), transitions_.Size()};
     }
-    Result<void> AddTransition(
+    void AddTransition(
         Ref<VisualTransition> value) noexcept {
-        return transitions_.PushBack(std::move(value));
+        Base::Result<void> pushed = transitions_.PushBack(std::move(value));
+        if (!pushed) { AERO_ASSERT(false); return; }
     }
     void ClearTransitions() noexcept { transitions_.Clear(); }
 

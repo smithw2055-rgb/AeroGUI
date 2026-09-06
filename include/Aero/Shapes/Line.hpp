@@ -19,10 +19,10 @@ public:
     void SetX2(double value) noexcept;
     void SetY2(double value) noexcept;
 
-    inline static constexpr DependencyProperty<double> X1Property{"X1"};
-    inline static constexpr DependencyProperty<double> Y1Property{"Y1"};
-    inline static constexpr DependencyProperty<double> X2Property{"X2"};
-    inline static constexpr DependencyProperty<double> Y2Property{"Y2"};
+    AERO_DEPENDENCY_PROPERTY(double, X1);
+    AERO_DEPENDENCY_PROPERTY(double, Y1);
+    AERO_DEPENDENCY_PROPERTY(double, X2);
+    AERO_DEPENDENCY_PROPERTY(double, Y2);
 
 protected:
     Size MeasureOverride(Size availableSize) noexcept override;

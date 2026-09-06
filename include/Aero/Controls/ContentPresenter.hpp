@@ -17,10 +17,8 @@ public:
     StringView GetContentSource() const noexcept {
         return GetValue(ContentSourceProperty);
     }
-    void SetContentSource(
-        StringView value) noexcept;
-    void SetContentValue(
-        Value value) noexcept {
+    void SetContentSource(StringView value) noexcept;
+    void SetContentValue(Value value) noexcept {
         SetValue(ContentProperty, std::move(value));
     }
     void SetContent(UIElement* content) noexcept;
@@ -49,9 +47,9 @@ public:
         const Ref<Base::Object>& owner,
         UIElement& element) noexcept;
 
-    inline static constexpr DependencyProperty<String> ContentSourceProperty{"ContentSource"};
-    inline static constexpr DependencyProperty<Value> ContentProperty{"Content"};
-    inline static constexpr DependencyProperty<Ref<Base::Object>> ContentTemplateProperty{"ContentTemplate"};
+    AERO_DEPENDENCY_PROPERTY(String, ContentSource);
+    AERO_DEPENDENCY_PROPERTY(Value, Content);
+    AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, ContentTemplate);
     static void OnContentPropertyChanged(
         ::Aero::DependencyObject& object,
         const Meta::DependencyPropertyChangedEventArgs&

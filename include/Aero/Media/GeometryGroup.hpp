@@ -12,7 +12,7 @@ public:
     Meta::TypeId RuntimeType() const noexcept override {
         return StaticTypeId();
     }
-    Result<void> Add(Ref<Geometry> value) noexcept;
+    void Add(Ref<Geometry> value) noexcept;
     void Clear() noexcept {
         if (!WritePreamble()) return;
         children_.Clear();

@@ -38,7 +38,7 @@ Base::Result<void> PopulateControlsItems(
             [](Base::Object& owner,
                const Base::Ref<Base::Object>& value,
                void*) noexcept {
-                (void)static_cast<AlternationConverter&>(owner)
+                static_cast<AlternationConverter&>(owner)
                     .AddValue(value);
             },
             [](Base::Object& owner, void*) noexcept {

@@ -13,12 +13,12 @@ public:
     ~Polyline() override = default;
 
     Span<const Point> GetPoints() const noexcept;
-    Result<void> SetPoints(Span<const Point> points) noexcept;
-    Result<void> AddPoint(Point point) noexcept;
+    void SetPoints(Span<const Point> points) noexcept;
+    void AddPoint(Point point) noexcept;
     void ClearPoints() noexcept;
-    Result<void> SetPoints(StringView text) noexcept;
-    Result<void> SetPointsText(Base::String text) noexcept {
-        return SetPoints(text.View());
+    void SetPoints(StringView text) noexcept;
+    void SetPointsText(Base::String text) noexcept {
+        SetPoints(text.View());
     }
 
 protected:

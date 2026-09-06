@@ -47,10 +47,9 @@ public:
     double GetSplineControlPoint2X() const noexcept { return controlPoint2X_; }
     double GetSplineControlPoint2Y() const noexcept { return controlPoint2Y_; }
 
-    inline static constexpr DependencyProperty<KeyTime> KeyTimeProperty{"KeyTime"};
-    inline static constexpr DependencyProperty<Ref<EasingFunctionBase>>
-        EasingFunctionProperty{"EasingFunction"};
-    inline static constexpr DependencyProperty<String> KeySplineProperty{"KeySpline"};
+    AERO_DEPENDENCY_PROPERTY(KeyTime, KeyTime);
+    AERO_DEPENDENCY_PROPERTY(Ref<EasingFunctionBase>, EasingFunction);
+    AERO_DEPENDENCY_PROPERTY(String, KeySpline);
 
     static void OnKeySplineChanged(
         DependencyObject& object,

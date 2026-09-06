@@ -62,6 +62,15 @@ Base::Result<void> ViewState::ApplyViewport(
 
 void ViewState::Shutdown() noexcept {
     audio.Shutdown();
+    if (storyboards != nullptr) {
+        storyboards->storyboardSessions.Clear();
+    }
+    if (animations != nullptr) {
+        static_cast<void>(animations->RemoveAll());
+    }
+    if (bindings != nullptr) {
+        bindings->Shutdown();
+    }
     BeginDestroyInteractions();
     DetachViewUi(*this);
     FinishDestroyInteractions();
@@ -85,15 +94,6 @@ void ViewState::Shutdown() noexcept {
     componentMounts.Clear();
     if (tree != nullptr) {
         static_cast<void>(tree->FlushLifecycle());
-    }
-    if (storyboards != nullptr) {
-        storyboards->storyboardSessions.Clear();
-    }
-    if (animations != nullptr) {
-        static_cast<void>(animations->RemoveAll());
-    }
-    if (bindings != nullptr) {
-        bindings->Shutdown();
     }
     if (effectLifetime) effectLifetime->Invalidate();
     if (values != nullptr) {

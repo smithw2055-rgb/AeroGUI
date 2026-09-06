@@ -21,8 +21,7 @@ public:
     void SetTargetName(StringView value) noexcept;
     void SetPropertyName(StringView value) noexcept;
     void SetValue(const Meta::PropertyValue& value) noexcept;
-    void SetValueBinding(
-        Ref<Aero::Data::Binding> value) noexcept;
+    void SetValueBinding(Ref<Aero::Data::Binding> value) noexcept;
     void SetTargetObject(Ref<Aero::Data::Binding> value) noexcept {
         targetObject_ = std::move(value);
     }

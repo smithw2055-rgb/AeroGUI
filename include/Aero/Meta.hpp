@@ -925,8 +925,8 @@ public:
     }
 
 #if defined(AERO_GUI_IMPLEMENTATION)
-    // P2.5 / B4: implementation-only overloads live in TypeBuilderInternal.inc
-#include "gui/meta/TypeBuilderInternal.inc"
+    // P2.5 / B4: implementation-only overloads live in TypeBuilderCommon.inc
+#include "gui/meta/TypeBuilderCommon.inc"
 #endif
 
     TypeBuilder& Value(
@@ -1060,18 +1060,3 @@ Result<void> RegisterComponentTypes(
 }
 
 } // namespace Aero::Meta
-
-namespace Aero {
-
-// One module declaration registers ordinary code-behind/custom-control types,
-// default factories, and optional DescribeComponent metadata. Applications no
-// longer author Registry or XAML facet callbacks for these types.
-template<class... TComponents>
-constexpr ModuleRegistration DefineComponentModule(
-    StringView name) noexcept {
-    return DefineModule(
-        name,
-        &Meta::RegisterComponentTypes<TComponents...>);
-}
-
-} // namespace Aero

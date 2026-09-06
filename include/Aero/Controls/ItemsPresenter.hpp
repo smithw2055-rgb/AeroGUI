@@ -11,9 +11,7 @@ public:
     ItemsPresenter() noexcept : Decorator(StaticTypeId()) {}
     ~ItemsPresenter() override = default;
     Panel* GetItemsHost() const noexcept;
-    void SetItemsHost(
-        const Ref<Base::Object>& owner,
-        Panel& panel) noexcept;
+    void SetItemsHost(const Ref<Base::Object>& owner, Panel& panel) noexcept;
 };
 
 } // namespace Aero::Controls

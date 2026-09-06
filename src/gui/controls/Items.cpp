@@ -105,24 +105,24 @@ void ItemsPresenter::SetItemsHost(
 using namespace ::Aero::Controls;
 using namespace ::Aero;
 
-Base::Result<void> AddBoxedItem(
+void AddBoxedItem(
     Collections::ObservableCollection<Base::Object>& source,
     Meta::Value value) noexcept {
     Base::Result<Base::Ref<::Aero::Controls::BoxedItemValue>> boxed =
         Base::MakeRef<::Aero::Controls::BoxedItemValue>(std::move(value));
-    if (!boxed) return boxed.GetStatus();
-    return source.Add(
+    if (!boxed) { AERO_ASSERT(false); return; }
+    source.Add(
         Base::Ref<Base::Object>(std::move(boxed).Value()));
 }
 
-Base::Result<void> AddBoxedStringItem(
+void AddBoxedStringItem(
     Collections::ObservableCollection<Base::Object>& source,
     Base::StringView value) noexcept {
     Base::Result<Meta::Value> boxed =
         Meta::Value::TryFromString(
             Meta::TypeOf<Base::String>(), value);
-    if (!boxed) return boxed.GetStatus();
-    return AddBoxedItem(
+    if (!boxed) { AERO_ASSERT(false); return; }
+    AddBoxedItem(
         source, std::move(boxed).Value());
 }
 
@@ -204,25 +204,21 @@ void ItemCollection::Notify(
     if (!changed_.Empty()) changed_.Invoke(event);
 }
 
-Base::Result<void> ItemCollection::Add(
+void ItemCollection::Add(
     Base::Ref<Base::Object> item) noexcept {
-    return Insert(items_.Size(), std::move(item));
+    Insert(items_.Size(), std::move(item));
 }
 
-Base::Result<void> ItemCollection::Insert(
+void ItemCollection::Insert(
     std::uint32_t index,
     Base::Ref<Base::Object> item) noexcept {
-    if (!item || index > items_.Size()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "ItemCollection insert is invalid");
-    }
+    if (!item || index > items_.Size()) { AERO_ASSERT(false); return; }
     Base::Result<void> reserved =
         items_.Reserve(items_.Size() + 1U);
-    if (!reserved) return reserved.GetStatus();
+    if (!reserved) { AERO_ASSERT(false); return; }
     Base::Result<void> added =
         items_.PushBack(std::move(item));
-    if (!added) return added.GetStatus();
+    if (!added) { AERO_ASSERT(false); return; }
     Base::Ref<Base::Object> moving =
         std::move(items_.Back());
     for (std::uint32_t current =
@@ -238,7 +234,6 @@ Base::Result<void> ItemCollection::Insert(
         index,
         0U,
         1U});
-    return {};
 }
 
 Base::Result<Base::Ref<Base::Object>>

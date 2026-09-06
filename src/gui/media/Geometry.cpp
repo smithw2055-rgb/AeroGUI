@@ -163,32 +163,22 @@ Result<void> Geometry::FlattenCore(FlattenSink&) const noexcept {
     return {};
 }
 
-Base::Result<void> PathFigure::AddSegment(
+void PathFigure::AddSegment(
     Base::Ref<PathSegment> value) noexcept {
     Base::Result<void> writable = WritePreamble();
-    if (!writable) return writable.GetStatus();
-    if (!value) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "PathFigure segment cannot be null");
-    }
-    Base::Result<void> added = segments_.Add(std::move(value));
-    if (added) WritePostscript();
-    return added;
+    if (!writable) { AERO_ASSERT(false); return; }
+    if (!value) { AERO_ASSERT(false); return; }
+    segments_.Add(std::move(value));
+    WritePostscript();
 }
 
-Base::Result<void> PathGeometry::AddFigure(
+void PathGeometry::AddFigure(
     Base::Ref<PathFigure> value) noexcept {
     Base::Result<void> writable = WritePreamble();
-    if (!writable) return writable.GetStatus();
-    if (!value) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "PathGeometry figure cannot be null");
-    }
-    Base::Result<void> added = figures_.Add(std::move(value));
-    if (added) WritePostscript();
-    return added;
+    if (!writable) { AERO_ASSERT(false); return; }
+    if (!value) { AERO_ASSERT(false); return; }
+    figures_.Add(std::move(value));
+    WritePostscript();
 }
 
 Result<void> PathGeometry::FlattenCore(FlattenSink& sink) const noexcept {
@@ -302,31 +292,31 @@ Result<void> ArcSegment::Flatten(
     return {};
 }
 
-Result<void> PolyLineSegment::SetPoints(Span<const Point> points) noexcept {
+void PolyLineSegment::SetPoints(Span<const Point> points) noexcept {
     Result<void> writable = WritePreamble();
-    if (!writable) return writable.GetStatus();
+    if (!writable) { AERO_ASSERT(false); return; }
     points_.Clear();
     Result<void> stored = points_.Append(points);
-    if (stored) WritePostscript();
-    return stored;
+    if (!stored) { AERO_ASSERT(false); return; }
+    WritePostscript();
 }
-Result<void> PolyLineSegment::AddPoint(Point point) noexcept {
+void PolyLineSegment::AddPoint(Point point) noexcept {
     Result<void> writable = WritePreamble();
-    if (!writable) return writable.GetStatus();
+    if (!writable) { AERO_ASSERT(false); return; }
     Result<void> stored = points_.PushBack(point);
-    if (stored) WritePostscript();
-    return stored;
+    if (!stored) { AERO_ASSERT(false); return; }
+    WritePostscript();
 }
 void PolyLineSegment::ClearPoints() noexcept {
     if (!WritePreamble()) return;
     points_.Clear();
     WritePostscript();
 }
-Result<void> PolyLineSegment::SetPoints(StringView text) noexcept {
+void PolyLineSegment::SetPoints(StringView text) noexcept {
     Base::Vector<Point> parsed;
     Result<void> status = ParsePointList(text, parsed);
-    if (!status) return status.GetStatus();
-    return SetPoints(parsed.AsSpan());
+    if (!status) { AERO_ASSERT(false); return; }
+    SetPoints(parsed.AsSpan());
 }
 Result<void> PolyLineSegment::Flatten(
     FlattenSink& sink,
@@ -339,31 +329,31 @@ Result<void> PolyLineSegment::Flatten(
     return {};
 }
 
-Result<void> PolyBezierSegment::SetPoints(Span<const Point> points) noexcept {
+void PolyBezierSegment::SetPoints(Span<const Point> points) noexcept {
     Result<void> writable = WritePreamble();
-    if (!writable) return writable.GetStatus();
+    if (!writable) { AERO_ASSERT(false); return; }
     points_.Clear();
     Result<void> stored = points_.Append(points);
-    if (stored) WritePostscript();
-    return stored;
+    if (!stored) { AERO_ASSERT(false); return; }
+    WritePostscript();
 }
-Result<void> PolyBezierSegment::AddPoint(Point point) noexcept {
+void PolyBezierSegment::AddPoint(Point point) noexcept {
     Result<void> writable = WritePreamble();
-    if (!writable) return writable.GetStatus();
+    if (!writable) { AERO_ASSERT(false); return; }
     Result<void> stored = points_.PushBack(point);
-    if (stored) WritePostscript();
-    return stored;
+    if (!stored) { AERO_ASSERT(false); return; }
+    WritePostscript();
 }
 void PolyBezierSegment::ClearPoints() noexcept {
     if (!WritePreamble()) return;
     points_.Clear();
     WritePostscript();
 }
-Result<void> PolyBezierSegment::SetPoints(StringView text) noexcept {
+void PolyBezierSegment::SetPoints(StringView text) noexcept {
     Base::Vector<Point> parsed;
     Result<void> status = ParsePointList(text, parsed);
-    if (!status) return status.GetStatus();
-    return SetPoints(parsed.AsSpan());
+    if (!status) { AERO_ASSERT(false); return; }
+    SetPoints(parsed.AsSpan());
 }
 Result<void> PolyBezierSegment::Flatten(
     FlattenSink& sink,
@@ -382,32 +372,31 @@ Result<void> PolyBezierSegment::Flatten(
     return {};
 }
 
-Result<void> PolyQuadraticBezierSegment::SetPoints(
-    Span<const Point> points) noexcept {
+void PolyQuadraticBezierSegment::SetPoints(Span<const Point> points) noexcept {
     Result<void> writable = WritePreamble();
-    if (!writable) return writable.GetStatus();
+    if (!writable) { AERO_ASSERT(false); return; }
     points_.Clear();
     Result<void> stored = points_.Append(points);
-    if (stored) WritePostscript();
-    return stored;
+    if (!stored) { AERO_ASSERT(false); return; }
+    WritePostscript();
 }
-Result<void> PolyQuadraticBezierSegment::AddPoint(Point point) noexcept {
+void PolyQuadraticBezierSegment::AddPoint(Point point) noexcept {
     Result<void> writable = WritePreamble();
-    if (!writable) return writable.GetStatus();
+    if (!writable) { AERO_ASSERT(false); return; }
     Result<void> stored = points_.PushBack(point);
-    if (stored) WritePostscript();
-    return stored;
+    if (!stored) { AERO_ASSERT(false); return; }
+    WritePostscript();
 }
 void PolyQuadraticBezierSegment::ClearPoints() noexcept {
     if (!WritePreamble()) return;
     points_.Clear();
     WritePostscript();
 }
-Result<void> PolyQuadraticBezierSegment::SetPoints(StringView text) noexcept {
+void PolyQuadraticBezierSegment::SetPoints(StringView text) noexcept {
     Base::Vector<Point> parsed;
     Result<void> status = ParsePointList(text, parsed);
-    if (!status) return status.GetStatus();
-    return SetPoints(parsed.AsSpan());
+    if (!status) { AERO_ASSERT(false); return; }
+    SetPoints(parsed.AsSpan());
 }
 Result<void> PolyQuadraticBezierSegment::Flatten(
     FlattenSink& sink,
@@ -494,17 +483,12 @@ Result<void> EllipseGeometry::FlattenCore(FlattenSink& sink) const noexcept {
     return sink.EndFigure(true);
 }
 
-Result<void> GeometryGroup::Add(Ref<Geometry> value) noexcept {
+void GeometryGroup::Add(Ref<Geometry> value) noexcept {
     Result<void> writable = WritePreamble();
-    if (!writable) return writable.GetStatus();
-    if (!value) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "GeometryGroup child cannot be null");
-    }
-    Result<void> added = children_.Add(std::move(value));
-    if (added) WritePostscript();
-    return added;
+    if (!writable) { AERO_ASSERT(false); return; }
+    if (!value) { AERO_ASSERT(false); return; }
+    children_.Add(std::move(value));
+    WritePostscript();
 }
 
 Result<void> GeometryGroup::FlattenCore(FlattenSink& sink) const noexcept {
@@ -584,22 +568,17 @@ bool CombinedGeometry::FreezeCore(bool isChecking) noexcept {
 
 namespace Aero::Media {
 
-Result<void> DashStyle::SetDashes(Span<const double> value) noexcept {
+void DashStyle::SetDashes(Span<const double> value) noexcept {
     Result<void> writable = WritePreamble();
-    if (!writable) return writable.GetStatus();
+    if (!writable) { AERO_ASSERT(false); return; }
     dashes_.Clear();
     for (std::uint32_t index = 0U; index < value.Size(); ++index) {
         const double dash = value[index];
-        if (!std::isfinite(dash) || dash < 0.0) {
-            return Base::Status::Failure(
-                Base::ErrorCode::ValidationFailed,
-                "DashStyle dashes must be finite and non-negative");
-        }
+        if (!std::isfinite(dash) || dash < 0.0) { AERO_ASSERT(false); return; }
         Result<void> added = dashes_.PushBack(dash);
-        if (!added) return added.GetStatus();
+        if (!added) { AERO_ASSERT(false); return; }
     }
     WritePostscript();
-    return {};
 }
 
 void DashStyle::SetOffset(double value) noexcept {

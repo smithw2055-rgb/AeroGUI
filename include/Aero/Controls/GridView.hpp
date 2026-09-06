@@ -20,7 +20,7 @@ public:
             columns_.Data(),
             columns_.Size()};
     }
-    Result<void> AddColumn(
+    void AddColumn(
         Ref<GridViewColumn> column)
         noexcept;
     void ClearColumns() noexcept {
@@ -35,8 +35,7 @@ public:
     Ref<Style> GetColumnHeaderContainerStyle() const noexcept {
         return columnHeaderContainerStyle_;
     }
-    void SetColumnHeaderContainerStyle(
-        Ref<Style> value) noexcept {
+    void SetColumnHeaderContainerStyle(Ref<Style> value) noexcept {
         columnHeaderContainerStyle_ = std::move(value);
     }
     Ref<Base::Object> GetColumnHeaderContextMenu() const noexcept {

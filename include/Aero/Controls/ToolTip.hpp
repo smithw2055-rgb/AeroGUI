@@ -15,15 +15,13 @@ public:
 
     std::uint32_t GetInitialShowDelay()
         const noexcept;
-    void SetInitialShowDelay(
-        std::uint32_t value) noexcept;
+    void SetInitialShowDelay(std::uint32_t value) noexcept;
     std::uint32_t GetShowDuration()
         const noexcept;
-    void SetShowDuration(
-        std::uint32_t value) noexcept;
+    void SetShowDuration(std::uint32_t value) noexcept;
 
-    inline static constexpr DependencyProperty<std::uint32_t> InitialShowDelayProperty{"InitialShowDelay"};
-    inline static constexpr DependencyProperty<std::uint32_t> ShowDurationProperty{"ShowDuration"};
+    AERO_DEPENDENCY_PROPERTY(std::uint32_t, InitialShowDelay);
+    AERO_DEPENDENCY_PROPERTY(std::uint32_t, ShowDuration);
 };
 
 class AERO_GUI_API ToolTipService
@@ -36,23 +34,17 @@ public:
     }
     static Ref<ToolTip> GetToolTip(
         const DependencyObject& target) noexcept;
-    static void SetToolTip(
-        DependencyObject& target,
-        Ref<ToolTip> value) noexcept;
+    static void SetToolTip(DependencyObject& target, Ref<ToolTip> value) noexcept;
     static std::uint32_t GetInitialShowDelay(
         const DependencyObject& target) noexcept;
-    static void SetInitialShowDelay(
-        DependencyObject& target,
-        std::uint32_t value) noexcept;
+    static void SetInitialShowDelay(DependencyObject& target, std::uint32_t value) noexcept;
     static std::uint32_t GetShowDuration(
         const DependencyObject& target) noexcept;
-    static void SetShowDuration(
-        DependencyObject& target,
-        std::uint32_t value) noexcept;
+    static void SetShowDuration(DependencyObject& target, std::uint32_t value) noexcept;
 
-    inline static constexpr AttachedProperty<Ref<ToolTip>> ToolTipProperty{"ToolTip"};
-    inline static constexpr AttachedProperty<std::uint32_t> InitialShowDelayProperty{"InitialShowDelay"};
-    inline static constexpr AttachedProperty<std::uint32_t> ShowDurationProperty{"ShowDuration"};
+    AERO_ATTACHED_PROPERTY(Ref<ToolTip>, ToolTip);
+    AERO_ATTACHED_PROPERTY(std::uint32_t, InitialShowDelay);
+    AERO_ATTACHED_PROPERTY(std::uint32_t, ShowDuration);
 };
 
 } // namespace Aero::Controls

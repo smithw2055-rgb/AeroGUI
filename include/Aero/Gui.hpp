@@ -35,14 +35,9 @@ public:
 
     Result<void> AddModule(
         const ModuleRegistration& registration) noexcept;
-    Result<void> SetXamlProvider(
-        Ref<Markup::XamlProvider> provider,
-        StringView scheme = {},
-        StringView assembly = {}) noexcept;
-    Result<void> SetTextureProvider(
-        Ref<Media::TextureProvider> provider) noexcept;
-    Result<void> SetFontProvider(
-        Ref<Media::FontProvider> provider) noexcept;
+    Result<void> SetXamlProvider(Ref<Markup::XamlProvider> provider, StringView scheme = {}, StringView assembly = {}) noexcept;
+    Result<void> SetTextureProvider(Ref<Media::TextureProvider> provider) noexcept;
+    Result<void> SetFontProvider(Ref<Media::FontProvider> provider) noexcept;
     Result<void> Initialize() noexcept;
     template<class T = FrameworkElement>
     Result<Ref<T>> LoadXaml(

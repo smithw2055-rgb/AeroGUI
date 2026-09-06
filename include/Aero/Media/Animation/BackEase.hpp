@@ -13,7 +13,7 @@ public:
         return GetValue(AmplitudeProperty);
     }
     void SetAmplitude(double value) noexcept;
-    inline static constexpr DependencyProperty<double> AmplitudeProperty{"Amplitude"};
+    AERO_DEPENDENCY_PROPERTY(double, Amplitude);
 };
 
 } // namespace Aero::Media::Animation

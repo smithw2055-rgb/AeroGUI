@@ -20,8 +20,8 @@ class AERO_GUI_API TriggerBase : public Base::Object {
     AERO_DECLARE_TYPE(TriggerBase, Base::Object)
 public:
     TypeId RuntimeType() const noexcept override { return runtimeType_; }
-    Result<void> AddEnterAction(Ref<Base::Object> action) noexcept;
-    Result<void> AddExitAction(Ref<Base::Object> action) noexcept;
+    void AddEnterAction(Ref<Base::Object> action) noexcept;
+    void AddExitAction(Ref<Base::Object> action) noexcept;
     void ClearEnterActions() noexcept { enterActions_.Clear(); }
     void ClearExitActions() noexcept { exitActions_.Clear(); }
     Span<const Ref<Base::Object>> GetEnterActions() const noexcept {
@@ -30,11 +30,10 @@ public:
     Span<const Ref<Base::Object>> GetExitActions() const noexcept {
         return {exitActions_.Data(), exitActions_.Size()};
     }
-    Result<void> AddBehavior(Ref<Base::Object> behavior) noexcept {
-        return behavior ? behaviors_.PushBack(std::move(behavior))
-                        : Result<void>(Base::Status::Failure(
-                              Base::ErrorCode::InvalidArgument,
-                              "Trigger behavior cannot be null"));
+    void AddBehavior(Ref<Base::Object> behavior) noexcept {
+        if (!behavior) { AERO_ASSERT(false); return; }
+        Base::Result<void> pushed = behaviors_.PushBack(std::move(behavior));
+        if (!pushed) { AERO_ASSERT(false); return; }
     }
     void ClearBehaviors() noexcept { behaviors_.Clear(); }
     Span<const Ref<Base::Object>> GetBehaviors() const noexcept {

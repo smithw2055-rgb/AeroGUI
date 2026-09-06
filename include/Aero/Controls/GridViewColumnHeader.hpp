@@ -19,12 +19,11 @@ public:
     GridViewColumnHeaderRole GetRole() const noexcept {
         return GetValue(RoleProperty);
     }
-    void SetRole(
-        GridViewColumnHeaderRole value) noexcept {
+    void SetRole(GridViewColumnHeaderRole value) noexcept {
         SetValue(RoleProperty, value);
     }
 
-    inline static constexpr DependencyProperty<GridViewColumnHeaderRole> RoleProperty{"Role"};
+    AERO_DEPENDENCY_PROPERTY(GridViewColumnHeaderRole, Role);
 };
 } // namespace Aero::Controls
 AERO_DECLARE_TYPE_ENUM(Aero::Controls::GridViewColumnHeaderRole)

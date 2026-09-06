@@ -28,8 +28,8 @@ public:
         return GetEvent(IndeterminateEvent);
     }
 
-    inline static constexpr DependencyProperty<Nullable<bool>> IsCheckedProperty{"IsChecked"};
-    inline static constexpr DependencyProperty<bool> IsThreeStateProperty{"IsThreeState"};
+    AERO_DEPENDENCY_PROPERTY(Nullable<bool>, IsChecked);
+    AERO_DEPENDENCY_PROPERTY(bool, IsThreeState);
 
 protected:
     explicit ToggleButton(TypeId runtimeType) noexcept

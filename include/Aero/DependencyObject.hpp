@@ -51,35 +51,19 @@ public:
     PropertyValueSourceInfo GetValueSourceInfo(
         DependencyPropertyHandle property) const noexcept;
 
-    void SetValue(
-        DependencyPropertyHandle property,
-        const PropertyValue& value) noexcept;
+    void SetValue(DependencyPropertyHandle property, const PropertyValue& value) noexcept;
     template<class TOwner, class TValue>
-    void SetValue(
-        const DependencyPropertyRef<TOwner, TValue>& property,
-        PropertyAccess<TValue> value) noexcept;
+    void SetValue(const DependencyPropertyRef<TOwner, TValue>& property, PropertyAccess<TValue> value) noexcept;
     template<class TOwner>
-    void SetValue(
-        const DependencyPropertyRef<TOwner, String>& property,
-        StringView value) noexcept;
-    void SetValue(
-        const DependencyPropertyKey& key,
-        const PropertyValue& value) noexcept;
+    void SetValue(const DependencyPropertyRef<TOwner, String>& property, StringView value) noexcept;
+    void SetValue(const DependencyPropertyKey& key, const PropertyValue& value) noexcept;
 
-    void SetCurrentValue(
-        DependencyPropertyHandle property,
-        const PropertyValue& value) noexcept;
+    void SetCurrentValue(DependencyPropertyHandle property, const PropertyValue& value) noexcept;
     template<class TOwner, class TValue>
-    void SetCurrentValue(
-        const DependencyPropertyRef<TOwner, TValue>& property,
-        PropertyAccess<TValue> value) noexcept;
-    void SetCurrentValue(
-        const DependencyPropertyKey& key,
-        const PropertyValue& value) noexcept;
+    void SetCurrentValue(const DependencyPropertyRef<TOwner, TValue>& property, PropertyAccess<TValue> value) noexcept;
+    void SetCurrentValue(const DependencyPropertyKey& key, const PropertyValue& value) noexcept;
 
-    void SetTemplateValue(
-        DependencyPropertyHandle property,
-        const PropertyValue& value) noexcept;
+    void SetTemplateValue(DependencyPropertyHandle property, const PropertyValue& value) noexcept;
 
     void ClearValue(
         DependencyPropertyHandle property) noexcept;
@@ -139,13 +123,9 @@ protected:
     ~DependencyObject() override;
     // Framework-owned state properties use this path so public SetValue calls
     // remain read-only while derived runtime types can publish state changes.
-    void SetReadOnlyCurrentValue(
-        DependencyPropertyHandle property,
-        const PropertyValue& value) noexcept;
+    void SetReadOnlyCurrentValue(DependencyPropertyHandle property, const PropertyValue& value) noexcept;
     template<class TOwner, class TValue>
-    void SetReadOnlyCurrentValue(
-        const ReadOnlyPropertyRef<TOwner, TValue>& property,
-        PropertyAccess<TValue> value) noexcept;
+    void SetReadOnlyCurrentValue(const ReadOnlyPropertyRef<TOwner, TValue>& property, PropertyAccess<TValue> value) noexcept;
     virtual void OnPropertyInvalidated(
         PropertyInvalidationFlags flags) noexcept;
     virtual void OnPropertyChanged(
@@ -164,6 +144,11 @@ private:
         DependencyPropertyHandle property;
         DependencyPropertyChangedEventHandler handler;
         bool active = false;
+    };
+
+    struct DependencyObjectRare {
+        Base::Vector<ChangeHandlerRecord> changeHandlers;
+        std::uint32_t changeHandlerNotificationDepth = 0U;
     };
 
     class MutationScope {
@@ -194,10 +179,8 @@ private:
     bool objectServicesAvailable_ = false;
     mutable bool typeVerified_ = false;
     void* valueStore_ = nullptr;
-    Base::Vector<MemberId> updateStack_;
-    Base::Vector<ChangeHandlerRecord> changeHandlers_;
+    DependencyObjectRare* rare_ = nullptr;
     PropertyInvalidationFlags invalidations_ = PropertyInvalidationFlags::None;
-    std::uint32_t changeHandlerNotificationDepth_ = 0U;
     std::uint64_t nextValueRevision_ = 1U;
 
     Result<void> VerifyReady() const noexcept;

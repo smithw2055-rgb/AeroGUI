@@ -18,6 +18,6 @@ public:
         SetValue(VisualProperty, std::move(value));
     }
 
-    inline static constexpr DependencyProperty<Ref<Base::Object>> VisualProperty{"Visual"};
+    AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, Visual);
 };
 } // namespace Aero::Media

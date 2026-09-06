@@ -18,28 +18,19 @@ public:
     StringView GetPassword() const noexcept {
         return password_.View();
     }
-    void SetPassword(
-        StringView value) noexcept;
+    void SetPassword(StringView value) noexcept;
     StringView GetPasswordChar() const noexcept;
-    void SetPasswordChar(
-        StringView value) noexcept;
+    void SetPasswordChar(StringView value) noexcept;
     std::uint32_t GetMaxLength() const noexcept;
-    void SetMaxLength(
-        std::uint32_t value) noexcept;
-    void SetSelectionBrush(
-        Ref<Media::Brush> value) noexcept override;
-    void SetSelectionOpacity(
-        double value) noexcept override;
-    void SetCaretBrush(
-        Ref<Media::Brush> value) noexcept override;
+    void SetMaxLength(std::uint32_t value) noexcept;
+    void SetSelectionBrush(Ref<Media::Brush> value) noexcept override;
+    void SetSelectionOpacity(double value) noexcept override;
+    void SetCaretBrush(Ref<Media::Brush> value) noexcept override;
     TextSelection GetSelection() const noexcept;
     std::uint32_t GetCaret() const noexcept;
-    void SetSelection(
-        std::uint32_t anchor,
-        std::uint32_t caret) noexcept;
+    void SetSelection(std::uint32_t anchor, std::uint32_t caret) noexcept;
     Result<void> SelectAll() noexcept;
-    void SetInputMethodHost(
-        Input::ITextInputMethodHost* host) noexcept;
+    void SetInputMethodHost(Input::ITextInputMethodHost* host) noexcept;
     Input::ITextInputMethodHost*
     GetInputMethodHost() const noexcept;
     bool GetIsComposing() const noexcept;
@@ -49,9 +40,9 @@ public:
         PasswordChanged() noexcept {
         return GetEvent(PasswordChangedEvent);
     }
-    inline static constexpr DependencyProperty<String> PasswordCharProperty{"PasswordChar"};
-    inline static constexpr DependencyProperty<std::uint32_t> MaxLengthProperty{"MaxLength"};
-    inline static constexpr DependencyProperty<String> PlaceholderProperty{"Placeholder"};
+    AERO_DEPENDENCY_PROPERTY(String, PasswordChar);
+    AERO_DEPENDENCY_PROPERTY(std::uint32_t, MaxLength);
+    AERO_DEPENDENCY_PROPERTY(String, Placeholder);
     StringView GetPlaceholder() const noexcept {
         return GetValue(PlaceholderProperty);
     }

@@ -98,6 +98,12 @@ bool Value::Equals(const Value& other) const noexcept {
     if (kind_ == ValueKind::String && other.kind_ == ValueKind::String) {
         return AsString() == other.AsString();
     }
+    if (kind_ == ValueKind::Object && other.kind_ == ValueKind::Object) {
+        return storage_.Get() == other.storage_.Get();
+    }
+    if (kind_ == ValueKind::Unset && other.kind_ == ValueKind::Unset) {
+        return true;
+    }
     if (type_ != other.type_ || kind_ != other.kind_) return false;
     switch (kind_) {
     case ValueKind::Unset: return true;

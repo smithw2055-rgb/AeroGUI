@@ -38,7 +38,6 @@ The advanced rendering surface is split by responsibility:
 
 ```text
 include/Aero/IRenderer.hpp
-include/AeroRender/Render.hpp
 include/AeroRender/RenderDevice.hpp
 include/AeroRender/RenderTarget.hpp
 include/AeroRender/D3D11.hpp

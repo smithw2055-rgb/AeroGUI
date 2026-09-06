@@ -18,24 +18,20 @@ void Trigger::SetValue(
     value_ = value;
 }
 
-Base::Result<void> Trigger::AddSetter(
+void Trigger::AddSetter(
     const Setter& setter) noexcept {
     if (!setter.GetProperty().IsValid() ||
-        setter.GetValue().IsUnset()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Trigger setter is invalid");
-    }
+        setter.GetValue().IsUnset()) { AERO_ASSERT(false); return; }
     Base::Result<void> property =
         setterProperties_.PushBack(setter.GetProperty());
-    if (!property) return property.GetStatus();
+    if (!property) { AERO_ASSERT(false); return; }
     Base::Result<void> value =
         setterValues_.PushBack(setter.GetValue());
     if (!value) {
         setterProperties_.PopBack();
-        return value.GetStatus();
+        AERO_ASSERT(false);
+        return;
     }
-    return {};
 }
 
 void Trigger::SetPropertyName(
@@ -60,14 +56,12 @@ void Trigger::SetAuthoredValue(
     authoredValue_ = value;
 }
 
-Base::Result<void> Trigger::AddAuthoredSetter(
+void Trigger::AddAuthoredSetter(
     Base::Ref<Setter> setter) noexcept {
-    if (!setter) {
-        return InvalidStyle(
-            "Trigger authored setter is null");
-    }
-    return authoredSetters_.PushBack(
+    if (!setter) { AERO_ASSERT(false); return; }
+    Base::Result<void> pushed = authoredSetters_.PushBack(
         std::move(setter));
+    if (!pushed) { AERO_ASSERT(false); return; }
 }
 
 void Trigger::ClearAuthoredSetters() noexcept {

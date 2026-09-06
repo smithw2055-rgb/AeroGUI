@@ -696,20 +696,12 @@ void KeyFrameBase::OnKeySplineChanged(
     frame->controlPoint2Y_ = values[3];
 }
 
-Base::Result<void> TimelineGroup::AddChild(
+void TimelineGroup::AddChild(
     Base::Ref<Timeline> value) noexcept {
     Base::Result<void> writable = WritePreamble();
-    if (!writable) return writable.GetStatus();
-    if (!value) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "TimelineGroup child cannot be null");
-    }
-    if (ContainsTimeline(*value, this)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::CycleDetected,
-            "TimelineGroup cannot contain itself directly or indirectly");
-    }
+    if (!writable) { AERO_ASSERT(false); return; }
+    if (!value) { AERO_ASSERT(false); return; }
+    if (ContainsTimeline(*value, this)) { AERO_ASSERT(false); return; }
     if (timelineChangedHandler_.Empty()) {
         timelineChangedHandler_ = FreezableChangedHandler(
             this, &TimelineGroup::OnTimelineChanged);
@@ -718,16 +710,8 @@ Base::Result<void> TimelineGroup::AddChild(
     if (!retained->IsFrozen()) {
         retained->AddChangedHandler(timelineChangedHandler_);
     }
-    Base::Result<void> added = timelines_.Add(std::move(value));
-    if (!added) {
-        if (!retained->IsFrozen()) {
-            static_cast<void>(retained->RemoveChangedHandler(
-                timelineChangedHandler_));
-        }
-        return added.GetStatus();
-    }
+    timelines_.Add(std::move(value));
     WritePostscript();
-    return {};
 }
 
 void TimelineGroup::Clear() noexcept {
@@ -858,14 +842,11 @@ void EventTrigger::SetSourceName(
     static_cast<void>(sourceName_.Assign(value));
 }
 
-Base::Result<void> EventTrigger::AddAction(
+void EventTrigger::AddAction(
     Base::Ref<TriggerAction> value) noexcept {
-    if (!value) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "EventTrigger action cannot be null");
-    }
-    return actions_.PushBack(std::move(value));
+    if (!value) { AERO_ASSERT(false); return; }
+    Base::Result<void> pushed = actions_.PushBack(std::move(value));
+    if (!pushed) { AERO_ASSERT(false); return; }
 }
 
 void EventTrigger::ClearActions() noexcept {
@@ -879,14 +860,11 @@ void StoryboardCompletedTrigger::SetStoryboard(
     return;
 }
 
-Base::Result<void> StoryboardCompletedTrigger::AddAction(
+void StoryboardCompletedTrigger::AddAction(
     Base::Ref<TriggerAction> value) noexcept {
-    if (!value) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "StoryboardCompletedTrigger action cannot be null");
-    }
-    return actions_.PushBack(std::move(value));
+    if (!value) { AERO_ASSERT(false); return; }
+    Base::Result<void> pushed = actions_.PushBack(std::move(value));
+    if (!pushed) { AERO_ASSERT(false); return; }
 }
 
 void

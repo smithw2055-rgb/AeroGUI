@@ -17,14 +17,13 @@ public:
     double GetRadiusX() const noexcept;
     double GetRadiusY() const noexcept;
     void SetCenter(Point value) noexcept;
-    void SetGradientOrigin(
-        Point value) noexcept;
+    void SetGradientOrigin(Point value) noexcept;
     void SetRadiusX(double value) noexcept;
     void SetRadiusY(double value) noexcept;
 
-    inline static constexpr DependencyProperty<Point> CenterProperty{"Center"};
-    inline static constexpr DependencyProperty<Point> GradientOriginProperty{"GradientOrigin"};
-    inline static constexpr DependencyProperty<double> RadiusXProperty{"RadiusX"};
-    inline static constexpr DependencyProperty<double> RadiusYProperty{"RadiusY"};
+    AERO_DEPENDENCY_PROPERTY(Point, Center);
+    AERO_DEPENDENCY_PROPERTY(Point, GradientOrigin);
+    AERO_DEPENDENCY_PROPERTY(double, RadiusX);
+    AERO_DEPENDENCY_PROPERTY(double, RadiusY);
 };
 } // namespace Aero::Media

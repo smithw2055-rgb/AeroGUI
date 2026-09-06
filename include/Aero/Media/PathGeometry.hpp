@@ -13,7 +13,7 @@ public:
     Meta::TypeId RuntimeType() const noexcept override {
         return StaticTypeId();
     }
-    Result<void> AddFigure(Ref<PathFigure> value) noexcept;
+    void AddFigure(Ref<PathFigure> value) noexcept;
     void ClearFigures() noexcept {
         if (!WritePreamble()) return;
         figures_.Clear();

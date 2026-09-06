@@ -222,38 +222,29 @@ MouseDragElementBehavior::MouseDragElementBehavior() noexcept
       mouseMoveHandler_(this, &MouseDragElementBehavior::OnMouseMove),
       mouseUpHandler_(this, &MouseDragElementBehavior::OnMouseUp) {}
 
-Base::Result<void> MouseDragElementBehavior::OnAttached() noexcept {
+void MouseDragElementBehavior::OnAttached() noexcept {
     FrameworkElement* associated = GetAssociatedObject();
-    if (associated == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "MouseDragElementBehavior has no associated object");
-    }
+    if (associated == nullptr) { AERO_ASSERT(false); return; }
     originalTransform_ = associated->GetRenderTransform();
     Base::Result<Base::Ref<Media::TransformGroup>> group =
         Base::MakeRef<Media::TransformGroup>();
-    if (!group) return group.GetStatus();
+    if (!group) { AERO_ASSERT(false); return; }
     Base::Result<Base::Ref<Media::TranslateTransform>> translation =
         Base::MakeRef<Media::TranslateTransform>();
-    if (!translation) return translation.GetStatus();
+    if (!translation) { AERO_ASSERT(false); return; }
     transformGroup_ = std::move(group).Value();
     translation_ = std::move(translation).Value();
     if (originalTransform_) {
-        Base::Result<void> appended =
-            transformGroup_->AddChild(originalTransform_);
-        if (!appended) return appended.GetStatus();
+        transformGroup_->AddChild(originalTransform_);
     }
-    Base::Result<void> appended =
-        transformGroup_->AddChild(
-            Base::Ref<Media::Transform>(translation_));
-    if (!appended) return appended.GetStatus();
+    transformGroup_->AddChild(
+        Base::Ref<Media::Transform>(translation_));
     associated->SetRenderTransform(
         Base::Ref<Media::Transform>(transformGroup_));
     SynchronizeTransform();
     associated->PreviewMouseLeftButtonDown().Add(mouseDownHandler_);
     associated->PreviewMouseMove().Add(mouseMoveHandler_);
     associated->PreviewMouseLeftButtonUp().Add(mouseUpHandler_);
-    return {};
 }
 
 void MouseDragElementBehavior::OnDetaching() noexcept {
@@ -410,16 +401,12 @@ Base::Ref<FrameworkElement> BackgroundEffectBehavior::GetSource() const noexcept
         *static_cast<FrameworkElement*>(source.Get()));
 }
 
-Base::Result<void> BackgroundEffectBehavior::OnAttached() noexcept {
+void BackgroundEffectBehavior::OnAttached() noexcept {
     FrameworkElement* associated = GetAssociatedObject();
-    if (associated == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "BackgroundEffectBehavior has no associated object");
-    }
+    if (associated == nullptr) { AERO_ASSERT(false); return; }
     originalFill_ = GetShapeFill(*associated);
     originalEffect_ = associated->GetEffect();
-    return Refresh();
+    static_cast<void>(Refresh());
 }
 
 void BackgroundEffectBehavior::OnDetaching() noexcept {

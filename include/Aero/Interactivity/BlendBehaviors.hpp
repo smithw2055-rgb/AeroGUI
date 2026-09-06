@@ -30,16 +30,16 @@ public:
         SetValue(ConstrainToParentBoundsProperty, value);
     }
 
-    inline static constexpr DependencyProperty<double> XProperty{"X"};
-    inline static constexpr DependencyProperty<double> YProperty{"Y"};
-    inline static constexpr DependencyProperty<bool> ConstrainToParentBoundsProperty{"ConstrainToParentBounds"};
+    AERO_DEPENDENCY_PROPERTY(double, X);
+    AERO_DEPENDENCY_PROPERTY(double, Y);
+    AERO_DEPENDENCY_PROPERTY(bool, ConstrainToParentBounds);
 
     static void OnPositionChanged(
         DependencyObject& object,
         const Meta::DependencyPropertyChangedEventArgs& args) noexcept;
 
 protected:
-    Result<void> OnAttached() noexcept override;
+    void OnAttached() noexcept override;
     void OnDetaching() noexcept override;
 
 private:
@@ -87,15 +87,15 @@ public:
         SetValue(EffectProperty, std::move(value));
     }
 
-    inline static constexpr DependencyProperty<Ref<Base::Object>> SourceProperty{"Source"};
-    inline static constexpr DependencyProperty<Ref<Media::Effect>> EffectProperty{"Effect"};
+    AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, Source);
+    AERO_DEPENDENCY_PROPERTY(Ref<Media::Effect>, Effect);
 
     static void OnBehaviorPropertyChanged(
         DependencyObject& object,
         const Meta::DependencyPropertyChangedEventArgs& args) noexcept;
 
 protected:
-    Result<void> OnAttached() noexcept override;
+    void OnAttached() noexcept override;
     void OnDetaching() noexcept override;
     void OnLayoutUpdated() noexcept override;
 

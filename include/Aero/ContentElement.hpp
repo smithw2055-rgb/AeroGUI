@@ -45,13 +45,13 @@ public:
         if (handler.Empty()) {
             return;
         }
-        static_cast<void>(AddHandlerErased(
+        AddHandlerErased(
             event,
             &handler,
             sizeof(handler),
             alignof(decltype(handler)),
             TArgs::StaticTypeId(),
-            handledEventsToo));
+            handledEventsToo);
     }
 
     template<class TArgs>
@@ -76,7 +76,7 @@ private:
     friend class ::Aero::AeroGuiInternal;
 #endif
 
-    Result<void> AddHandlerErased(
+    void AddHandlerErased(
         RoutedEventHandle event,
         const void* handler,
         std::size_t size,

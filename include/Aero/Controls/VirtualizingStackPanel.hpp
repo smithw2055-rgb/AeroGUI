@@ -21,14 +21,11 @@ public:
     void SetCacheLengthUnit(VirtualizationCacheLengthUnit value) noexcept;
 
     Orientation GetOrientation() const noexcept;
-    void SetOrientation(
-        Orientation value) noexcept;
+    void SetOrientation(Orientation value) noexcept;
     std::uint32_t GetOverscanCount() const noexcept;
-    void SetOverscanCount(
-        std::uint32_t value) noexcept;
+    void SetOverscanCount(std::uint32_t value) noexcept;
     double GetEstimatedItemExtent() const noexcept;
-    void SetEstimatedItemExtent(
-        double value) noexcept;
+    void SetEstimatedItemExtent(double value) noexcept;
 
     std::uint32_t GetVisibleFirstIndex() const noexcept {
         return visibleFirstIndex_;
@@ -50,12 +47,9 @@ public:
     ScrollData GetData() const noexcept override {
         return data_;
     }
-    void SetViewport(
-        Size viewport) noexcept override;
-    void SetHorizontalOffset(
-        double value) noexcept override;
-    void SetVerticalOffset(
-        double value) noexcept override;
+    void SetViewport(Size viewport) noexcept override;
+    void SetHorizontalOffset(double value) noexcept override;
+    void SetVerticalOffset(double value) noexcept override;
     Result<bool> LineHorizontal(
         double direction) noexcept override;
     Result<bool> LineVertical(
@@ -65,11 +59,11 @@ public:
     Result<bool> PageVertical(
         double direction) noexcept override;
 
-    inline static constexpr DependencyProperty<Orientation> OrientationProperty{"Orientation"};
-    inline static constexpr DependencyProperty<std::uint32_t> OverscanCountProperty{"OverscanCount"};
-    inline static constexpr DependencyProperty<double> EstimatedItemExtentProperty{"EstimatedItemExtent"};
-    inline static constexpr DependencyProperty<VirtualizationCacheLength> CacheLengthProperty{"CacheLength"};
-    inline static constexpr DependencyProperty<VirtualizationCacheLengthUnit> CacheLengthUnitProperty{"CacheLengthUnit"};
+    AERO_DEPENDENCY_PROPERTY(Orientation, Orientation);
+    AERO_DEPENDENCY_PROPERTY(std::uint32_t, OverscanCount);
+    AERO_DEPENDENCY_PROPERTY(double, EstimatedItemExtent);
+    AERO_DEPENDENCY_PROPERTY(VirtualizationCacheLength, CacheLength);
+    AERO_DEPENDENCY_PROPERTY(VirtualizationCacheLengthUnit, CacheLengthUnit);
 
 protected:
     explicit VirtualizingStackPanel(TypeId runtimeType) noexcept;
@@ -133,13 +127,9 @@ private:
         double delta) noexcept;
     double PrefixDeviation(
         std::uint32_t count) const noexcept;
-    void SetMeasuredExtent(
-        std::uint32_t index,
-        double value) noexcept;
-    void SetMainScrollOffset(
-        double value) noexcept;
-    void SetCrossScrollOffset(
-        double value) noexcept;
+    void SetMeasuredExtent(std::uint32_t index, double value) noexcept;
+    void SetMainScrollOffset(double value) noexcept;
+    void SetCrossScrollOffset(double value) noexcept;
 };
 
 } // namespace Aero::Controls

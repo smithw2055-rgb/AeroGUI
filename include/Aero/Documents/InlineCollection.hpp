@@ -11,7 +11,7 @@ public:
     bool GetIsEmpty() const noexcept { return GetCount() == 0U; }
     Inline* GetItem(std::uint32_t index) const noexcept;
     InlineCollectionView GetView() const noexcept;
-    Result<void> Add(Ref<Inline> value) noexcept;
+    void Add(Ref<Inline> value) noexcept;
     Result<bool> Remove(Inline& value) noexcept;
     void Clear() noexcept;
 

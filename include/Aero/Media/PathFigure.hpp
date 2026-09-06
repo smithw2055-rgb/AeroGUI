@@ -22,7 +22,7 @@ public:
     void SetIsClosed(bool value) noexcept {
         SetValue(IsClosedProperty, value);
     }
-    Result<void> AddSegment(Ref<PathSegment> value) noexcept;
+    void AddSegment(Ref<PathSegment> value) noexcept;
     void ClearSegments() noexcept {
         if (!WritePreamble()) return;
         segments_.Clear();
@@ -31,8 +31,8 @@ public:
     Span<const Ref<PathSegment>> GetSegments() const noexcept {
         return segments_.AsSpan();
     }
-    inline static constexpr DependencyProperty<Point> StartPointProperty{"StartPoint"};
-    inline static constexpr DependencyProperty<bool> IsClosedProperty{"IsClosed"};
+    AERO_DEPENDENCY_PROPERTY(Point, StartPoint);
+    AERO_DEPENDENCY_PROPERTY(bool, IsClosed);
 private:
     FreezableCollection<PathSegment> segments_;
 };

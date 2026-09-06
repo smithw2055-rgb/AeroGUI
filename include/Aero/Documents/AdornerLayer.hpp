@@ -11,8 +11,8 @@ class AERO_GUI_API AdornerLayer : public FrameworkElement {
 public:
     AdornerLayer() noexcept : FrameworkElement(StaticTypeId()) {}
 
-    Result<void> Add(Ref<Adorner> adorner) noexcept;
-    Result<void> Remove(Adorner& adorner) noexcept;
+    void Add(Ref<Adorner> adorner) noexcept;
+    void Remove(Adorner& adorner) noexcept;
     void Clear() noexcept { adorners_.Clear(); }
     Base::Span<const Ref<Adorner>> GetAdorners() const noexcept {
         return {adorners_.Data(), adorners_.Size()};

@@ -28,7 +28,7 @@ public:
         Node& scratch) noexcept = 0;
 };
 
-namespace WriterDetail {
+namespace WriterSupport {
 
 inline constexpr Base::StringView MessageSchemaNotReady(
     "XAML object writer requires a frozen schema context");
@@ -204,55 +204,55 @@ bool IsCompiledMemberCompatible(
     Meta::TypeId targetType,
     const ResolvedMember& member) noexcept;
 
-} // namespace WriterDetail
+} // namespace WriterSupport
 
-using WriterDetail::MessageSchemaNotReady;
-using WriterDetail::MessageUnknownType;
-using WriterDetail::MessageTypeNotConstructible;
-using WriterDetail::MessageUnknownMember;
-using WriterDetail::MessageInvalidAttachedMember;
-using WriterDetail::MessageUnsupportedMember;
-using WriterDetail::MessageInvalidValue;
-using WriterDetail::MessageInvalidWriterState;
-using WriterDetail::MessageMissingContentProperty;
-using WriterDetail::MessageDuplicateMemberValue;
-using WriterDetail::MessageInitializationFailed;
-using WriterDetail::MessageUnexpectedText;
-using WriterDetail::MessageTypeMismatch;
-using WriterDetail::MessageFactoryFailed;
-using WriterDetail::MessageMissingMemberValue;
-using WriterDetail::MessageMultipleRoots;
-using WriterDetail::MessageInvalidDirective;
-using WriterDetail::MessageDuplicateName;
-using WriterDetail::MessageDuplicateResourceKey;
-using WriterDetail::MessageStaticResourceNotFound;
-using WriterDetail::MessageMissingResourceScope;
-using WriterDetail::MessageNullNotAllowed;
-using WriterDetail::MessageInvalidMarkupExtension;
-using WriterDetail::MessageNamespaceState;
-using WriterDetail::MessageNameRegistrationFailed;
-using WriterDetail::MessageResourceRegistrationFailed;
-using WriterDetail::MessageUnknownMarkupExtension;
-using WriterDetail::MessageMarkupExtensionFailed;
-using WriterDetail::XmlPrefix;
-using WriterDetail::XmlNamespaceUri;
-using WriterDetail::DirectiveName;
-using WriterDetail::DirectiveKey;
-using WriterDetail::DirectiveClass;
-using WriterDetail::DirectiveNull;
-using WriterDetail::NullMarkup;
-using WriterDetail::StaticResourceMarkup;
-using WriterDetail::StreamingXamlNodeCursor;
-using WriterDetail::CompiledXamlNodeCursor;
-using WriterDetail::XamlEventConnection;
-using WriterDetail::XamlEventInvoker;
-using WriterDetail::InvalidStateStatus;
-using WriterDetail::SessionConsumedStatus;
-using WriterDetail::IsAsciiWhitespace;
-using WriterDetail::HasTypeFlag;
-using WriterDetail::StaticResourceNotFoundMessage;
-using WriterDetail::ResolveCompiledMember;
-using WriterDetail::ResolveCompiledMemberPolicy;
-using WriterDetail::IsCompiledMemberCompatible;
+using WriterSupport::MessageSchemaNotReady;
+using WriterSupport::MessageUnknownType;
+using WriterSupport::MessageTypeNotConstructible;
+using WriterSupport::MessageUnknownMember;
+using WriterSupport::MessageInvalidAttachedMember;
+using WriterSupport::MessageUnsupportedMember;
+using WriterSupport::MessageInvalidValue;
+using WriterSupport::MessageInvalidWriterState;
+using WriterSupport::MessageMissingContentProperty;
+using WriterSupport::MessageDuplicateMemberValue;
+using WriterSupport::MessageInitializationFailed;
+using WriterSupport::MessageUnexpectedText;
+using WriterSupport::MessageTypeMismatch;
+using WriterSupport::MessageFactoryFailed;
+using WriterSupport::MessageMissingMemberValue;
+using WriterSupport::MessageMultipleRoots;
+using WriterSupport::MessageInvalidDirective;
+using WriterSupport::MessageDuplicateName;
+using WriterSupport::MessageDuplicateResourceKey;
+using WriterSupport::MessageStaticResourceNotFound;
+using WriterSupport::MessageMissingResourceScope;
+using WriterSupport::MessageNullNotAllowed;
+using WriterSupport::MessageInvalidMarkupExtension;
+using WriterSupport::MessageNamespaceState;
+using WriterSupport::MessageNameRegistrationFailed;
+using WriterSupport::MessageResourceRegistrationFailed;
+using WriterSupport::MessageUnknownMarkupExtension;
+using WriterSupport::MessageMarkupExtensionFailed;
+using WriterSupport::XmlPrefix;
+using WriterSupport::XmlNamespaceUri;
+using WriterSupport::DirectiveName;
+using WriterSupport::DirectiveKey;
+using WriterSupport::DirectiveClass;
+using WriterSupport::DirectiveNull;
+using WriterSupport::NullMarkup;
+using WriterSupport::StaticResourceMarkup;
+using WriterSupport::StreamingXamlNodeCursor;
+using WriterSupport::CompiledXamlNodeCursor;
+using WriterSupport::XamlEventConnection;
+using WriterSupport::XamlEventInvoker;
+using WriterSupport::InvalidStateStatus;
+using WriterSupport::SessionConsumedStatus;
+using WriterSupport::IsAsciiWhitespace;
+using WriterSupport::HasTypeFlag;
+using WriterSupport::StaticResourceNotFoundMessage;
+using WriterSupport::ResolveCompiledMember;
+using WriterSupport::ResolveCompiledMemberPolicy;
+using WriterSupport::IsCompiledMemberCompatible;
 
 } // namespace Aero::Markup

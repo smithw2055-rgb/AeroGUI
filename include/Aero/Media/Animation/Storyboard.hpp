@@ -11,11 +11,11 @@ class AERO_GUI_API Storyboard : public ParallelTimeline {
 public:
     Storyboard() noexcept : Storyboard(StaticTypeId()) {}
 
-    inline static constexpr AttachedProperty<String> TargetNameProperty{"TargetName"};
-    inline static constexpr AttachedProperty<String> TargetPropertyProperty{"TargetProperty"};
+    AERO_ATTACHED_PROPERTY(String, TargetName);
+    AERO_ATTACHED_PROPERTY(String, TargetProperty);
 
-    Result<void> AddTimeline(Ref<Timeline> value) noexcept {
-        return AddChild(std::move(value));
+    void AddTimeline(Ref<Timeline> value) noexcept {
+        AddChild(std::move(value));
     }
     void ClearTimelines() noexcept { Clear(); }
 

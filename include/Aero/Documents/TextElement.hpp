@@ -34,13 +34,12 @@ public:
     void SetFontFamily(Ref<Media::FontFamily> value) noexcept {
         SetValue(FontFamilyProperty, std::move(value));
     }
-    Result<void> SetFontFamily(StringView value) noexcept {
+    void SetFontFamily(StringView value) noexcept {
         Result<Ref<Media::FontFamily>> family =
             Base::MakeRef<Media::FontFamily>();
-        if (!family) return family.GetStatus();
+        if (!family) { AERO_ASSERT(false); return; }
         family.Value()->SetSource(value);
         SetFontFamily(std::move(family).Value());
-        return {};
     }
     void SetFontSize(double value) noexcept {
         SetValue(FontSizeProperty, value);
@@ -54,17 +53,16 @@ public:
     void SetForeground(Ref<Media::Brush> value) noexcept {
         SetValue(ForegroundProperty, std::move(value));
     }
-    void SetTextDecorations(
-        Controls::TextDecorations value) noexcept {
+    void SetTextDecorations(Controls::TextDecorations value) noexcept {
         SetValue(TextDecorationsProperty, value);
     }
 
-    inline static constexpr AttachedProperty<Ref<Media::FontFamily>> FontFamilyProperty{"FontFamily"};
-    inline static constexpr AttachedProperty<double> FontSizeProperty{"FontSize"};
-    inline static constexpr AttachedProperty<FontWeight> FontWeightProperty{"FontWeight"};
-    inline static constexpr AttachedProperty<FontStyle> FontStyleProperty{"FontStyle"};
-    inline static constexpr AttachedProperty<Ref<Media::Brush>> ForegroundProperty{"Foreground"};
-    inline static constexpr AttachedProperty<Controls::TextDecorations> TextDecorationsProperty{"TextDecorations"};
+    AERO_ATTACHED_PROPERTY(Ref<Media::FontFamily>, FontFamily);
+    AERO_ATTACHED_PROPERTY(double, FontSize);
+    AERO_ATTACHED_PROPERTY(FontWeight, FontWeight);
+    AERO_ATTACHED_PROPERTY(FontStyle, FontStyle);
+    AERO_ATTACHED_PROPERTY(Ref<Media::Brush>, Foreground);
+    AERO_ATTACHED_PROPERTY(Controls::TextDecorations, TextDecorations);
 
 protected:
     explicit TextElement(Meta::TypeId runtimeType) noexcept

@@ -20,12 +20,12 @@ public:
         SetValue(AllowsColumnReorderProperty, value);
     }
 
-    inline static constexpr DependencyProperty<bool> AllowsColumnReorderProperty{"AllowsColumnReorder"};
-    inline static constexpr DependencyProperty<Ref<Base::Object>> ColumnHeaderContainerStyleProperty{"ColumnHeaderContainerStyle"};
-    inline static constexpr DependencyProperty<Ref<Base::Object>> ColumnHeaderContextMenuProperty{"ColumnHeaderContextMenu"};
-    inline static constexpr DependencyProperty<Ref<Base::Object>> ColumnHeaderTemplateProperty{"ColumnHeaderTemplate"};
-    inline static constexpr DependencyProperty<Ref<Base::Object>> ColumnHeaderTemplateSelectorProperty{"ColumnHeaderTemplateSelector"};
-    inline static constexpr DependencyProperty<Ref<Base::Object>> ColumnHeaderToolTipProperty{"ColumnHeaderToolTip"};
-    inline static constexpr DependencyProperty<Ref<Base::Object>> ColumnsProperty{"Columns"};
+    AERO_DEPENDENCY_PROPERTY(bool, AllowsColumnReorder);
+    AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, ColumnHeaderContainerStyle);
+    AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, ColumnHeaderContextMenu);
+    AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, ColumnHeaderTemplate);
+    AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, ColumnHeaderTemplateSelector);
+    AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, ColumnHeaderToolTip);
+    AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, Columns);
 };
 } // namespace Aero::Controls

@@ -31,23 +31,14 @@ public:
     GetIncreaseRepeatButton() const noexcept {
         return increaseRepeatButton_;
     }
-    void SetOrientation(
-        Orientation value) noexcept;
-    void SetRange(
-        double minimum,
-        double maximum) noexcept;
-    void SetValue(
-        double value) noexcept;
-    void SetViewportSize(
-        double value) noexcept;
-    void SetIsDirectionReversed(
-        bool value) noexcept;
-    void SetDecreaseRepeatButton(
-        Ref<RepeatButton> value) noexcept;
-    void SetThumb(
-        Ref<Thumb> value) noexcept;
-    void SetIncreaseRepeatButton(
-        Ref<RepeatButton> value) noexcept;
+    void SetOrientation(Orientation value) noexcept;
+    void SetRange(double minimum, double maximum) noexcept;
+    void SetValue(double value) noexcept;
+    void SetViewportSize(double value) noexcept;
+    void SetIsDirectionReversed(bool value) noexcept;
+    void SetDecreaseRepeatButton(Ref<RepeatButton> value) noexcept;
+    void SetThumb(Ref<Thumb> value) noexcept;
+    void SetIncreaseRepeatButton(Ref<RepeatButton> value) noexcept;
     double GetThumbLength(
         double trackLength,
         double minimumThumbLength = 8.0) const noexcept;
@@ -101,12 +92,12 @@ public:
         return take(increaseRepeatButton_.Get());
     }
 
-    inline static constexpr DependencyProperty<Orientation> OrientationProperty{"Orientation"};
-    inline static constexpr DependencyProperty<double> MinimumProperty{"Minimum"};
-    inline static constexpr DependencyProperty<double> MaximumProperty{"Maximum"};
-    inline static constexpr DependencyProperty<double> ValueProperty{"Value"};
-    inline static constexpr DependencyProperty<double> ViewportSizeProperty{"ViewportSize"};
-    inline static constexpr DependencyProperty<bool> IsDirectionReversedProperty{"IsDirectionReversed"};
+    AERO_DEPENDENCY_PROPERTY(Orientation, Orientation);
+    AERO_DEPENDENCY_PROPERTY(double, Minimum);
+    AERO_DEPENDENCY_PROPERTY(double, Maximum);
+    AERO_DEPENDENCY_PROPERTY(double, Value);
+    AERO_DEPENDENCY_PROPERTY(double, ViewportSize);
+    AERO_DEPENDENCY_PROPERTY(bool, IsDirectionReversed);
 
 protected:
     Size MeasureOverride(

@@ -222,8 +222,7 @@ public:
     // dictionary type implicitly copyable.
     Result<ResourceDictionary> Share() const noexcept;
 
-    void SetSource(
-        const Base::ResourceUri& source) noexcept;
+    void SetSource(const Base::ResourceUri& source) noexcept;
     const Base::ResourceUri& GetSource() const noexcept;
 
     Result<void> Seal() noexcept;

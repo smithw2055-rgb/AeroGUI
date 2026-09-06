@@ -15,10 +15,8 @@ public:
     }
     static Ref<ContextMenu> GetContextMenu(
         const DependencyObject& target) noexcept;
-    static void SetContextMenu(
-        DependencyObject& target,
-        Ref<ContextMenu> value) noexcept;
+    static void SetContextMenu(DependencyObject& target, Ref<ContextMenu> value) noexcept;
 
-    inline static constexpr AttachedProperty<Ref<ContextMenu>> ContextMenuProperty{"ContextMenu"};
+    AERO_ATTACHED_PROPERTY(Ref<ContextMenu>, ContextMenu);
 };
 } // namespace Aero::Controls

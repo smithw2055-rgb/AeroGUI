@@ -35,20 +35,17 @@ public:
     Ref<Aero::Style> GetPreviewStyle() const noexcept;
     void SetDragIncrement(double value) noexcept;
     void SetKeyboardIncrement(double value) noexcept;
-    void SetResizeDirection(
-        GridResizeDirection value) noexcept;
-    void SetResizeBehavior(
-        GridResizeBehavior value) noexcept;
+    void SetResizeDirection(GridResizeDirection value) noexcept;
+    void SetResizeBehavior(GridResizeBehavior value) noexcept;
     void SetShowsPreview(bool value) noexcept;
-    void SetPreviewStyle(
-        Ref<Aero::Style> value) noexcept;
+    void SetPreviewStyle(Ref<Aero::Style> value) noexcept;
 
-    inline static constexpr DependencyProperty<double> DragIncrementProperty{"DragIncrement"};
-    inline static constexpr DependencyProperty<double> KeyboardIncrementProperty{"KeyboardIncrement"};
-    inline static constexpr DependencyProperty<GridResizeDirection> ResizeDirectionProperty{"ResizeDirection"};
-    inline static constexpr DependencyProperty<GridResizeBehavior> ResizeBehaviorProperty{"ResizeBehavior"};
-    inline static constexpr DependencyProperty<bool> ShowsPreviewProperty{"ShowsPreview"};
-    inline static constexpr DependencyProperty<Ref<Aero::Style>> PreviewStyleProperty{"PreviewStyle"};
+    AERO_DEPENDENCY_PROPERTY(double, DragIncrement);
+    AERO_DEPENDENCY_PROPERTY(double, KeyboardIncrement);
+    AERO_DEPENDENCY_PROPERTY(GridResizeDirection, ResizeDirection);
+    AERO_DEPENDENCY_PROPERTY(GridResizeBehavior, ResizeBehavior);
+    AERO_DEPENDENCY_PROPERTY(bool, ShowsPreview);
+    AERO_DEPENDENCY_PROPERTY(Ref<Aero::Style>, PreviewStyle);
 };
 
 } // namespace Aero::Controls

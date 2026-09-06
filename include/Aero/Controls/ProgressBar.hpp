@@ -13,14 +13,12 @@ public:
 
     bool GetIsIndeterminate() const noexcept;
     Orientation GetOrientation() const noexcept;
-    void SetIsIndeterminate(
-        bool value) noexcept;
-    void SetOrientation(
-        Orientation value) noexcept;
+    void SetIsIndeterminate(bool value) noexcept;
+    void SetOrientation(Orientation value) noexcept;
     double GetNormalizedValue() const noexcept;
 
-    inline static constexpr DependencyProperty<bool> IsIndeterminateProperty{"IsIndeterminate"};
-    inline static constexpr DependencyProperty<Orientation> OrientationProperty{"Orientation"};
+    AERO_DEPENDENCY_PROPERTY(bool, IsIndeterminate);
+    AERO_DEPENDENCY_PROPERTY(Orientation, Orientation);
 };
 
 } // namespace Aero::Controls

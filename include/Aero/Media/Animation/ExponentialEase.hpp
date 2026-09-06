@@ -13,7 +13,7 @@ public:
         return GetValue(ExponentProperty);
     }
     void SetExponent(double value) noexcept;
-    inline static constexpr DependencyProperty<double> ExponentProperty{"Exponent"};
+    AERO_DEPENDENCY_PROPERTY(double, Exponent);
 };
 
 } // namespace Aero::Media::Animation

@@ -20,13 +20,11 @@ public:
 
     Ref<Aero::Media::Brush> GetFill() const noexcept;
     TickBarPlacement GetPlacement() const noexcept;
-    void SetFill(
-        Ref<Aero::Media::Brush> value) noexcept;
-    void SetPlacement(
-        TickBarPlacement value) noexcept;
+    void SetFill(Ref<Aero::Media::Brush> value) noexcept;
+    void SetPlacement(TickBarPlacement value) noexcept;
 
-    inline static constexpr DependencyProperty<Ref<Aero::Media::Brush>> FillProperty{"Fill"};
-    inline static constexpr DependencyProperty<TickBarPlacement> PlacementProperty{"Placement"};
+    AERO_DEPENDENCY_PROPERTY(Ref<Aero::Media::Brush>, Fill);
+    AERO_DEPENDENCY_PROPERTY(TickBarPlacement, Placement);
 
 protected:
     void OnRender(

@@ -157,28 +157,20 @@ Base::Result<Diagnostic> Diagnostic::Create(
     return diagnostic;
 }
 
-Base::Result<void> Diagnostic::AddNote(
+void Diagnostic::AddNote(
     Base::StringView message,
     SourceSpan source) noexcept {
-    if (message.Empty()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Diagnostic note message must not be empty");
-    }
-    if (!IsValidSourceSpan(source)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Diagnostic note source span is invalid");
+    if (message.Empty() || !IsValidSourceSpan(source)) {
+        return;
     }
 
     DiagnosticNote note;
     note.source_ = source;
-    Base::Result<void> assignResult = note.message_.Assign(message);
-    if (!assignResult) {
-        return assignResult.GetStatus();
+    if (!note.message_.Assign(message)) {
+        return;
     }
 
-    return notes_.PushBack(std::move(note));
+    (void)notes_.PushBack(std::move(note));
 }
 
 DiagnosticBag::DiagnosticBag(std::uint32_t maxDiagnostics) noexcept

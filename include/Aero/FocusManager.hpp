@@ -12,7 +12,7 @@ public:
         return StaticTypeId();
     }
 
-    inline static constexpr AttachedProperty<bool> IsFocusScopeProperty{"IsFocusScope"};
-    inline static constexpr AttachedProperty<Ref<Base::Object>> FocusedElementProperty{"FocusedElement"};
+    AERO_ATTACHED_PROPERTY(bool, IsFocusScope);
+    AERO_ATTACHED_PROPERTY(Ref<Base::Object>, FocusedElement);
 };
 } // namespace Aero::Input

@@ -29,30 +29,22 @@ public:
     bool GetIsOpen() const noexcept;
     void SetIsOpen(bool value) noexcept;
     PlacementMode GetPlacement() const noexcept;
-    void SetPlacement(
-        PlacementMode value) noexcept;
+    void SetPlacement(PlacementMode value) noexcept;
     double GetHorizontalOffset() const noexcept;
-    void SetHorizontalOffset(
-        double value) noexcept;
+    void SetHorizontalOffset(double value) noexcept;
     double GetVerticalOffset() const noexcept;
-    void SetVerticalOffset(
-        double value) noexcept;
+    void SetVerticalOffset(double value) noexcept;
     bool GetStaysOpen() const noexcept;
-    void SetStaysOpen(
-        bool value) noexcept;
+    void SetStaysOpen(bool value) noexcept;
     bool GetMatchPlacementTargetWidth() const noexcept;
-    void SetMatchPlacementTargetWidth(
-        bool value) noexcept;
+    void SetMatchPlacementTargetWidth(bool value) noexcept;
     Ref<UIElement>
         GetPlacementTarget() const noexcept;
-    void SetPlacementTarget(
-        Ref<UIElement> value) noexcept;
+    void SetPlacementTarget(Ref<UIElement> value) noexcept;
     PopupAnimation GetPopupAnimation() const noexcept;
-    void SetPopupAnimation(
-        PopupAnimation value) noexcept;
+    void SetPopupAnimation(PopupAnimation value) noexcept;
     bool GetAllowsTransparency() const noexcept;
-    void SetAllowsTransparency(
-        bool value) noexcept;
+    void SetAllowsTransparency(bool value) noexcept;
 
     inline static constexpr RoutedEvent<RoutedEventArgs> OpenedEvent{"Opened"};
     inline static constexpr RoutedEvent<RoutedEventArgs> ClosedEvent{"Closed"};
@@ -65,15 +57,15 @@ public:
         return GetEvent(ClosedEvent);
     }
 
-    inline static constexpr DependencyProperty<bool> IsOpenProperty{"IsOpen"};
-    inline static constexpr DependencyProperty<PlacementMode> PlacementProperty{"Placement"};
-    inline static constexpr DependencyProperty<double> HorizontalOffsetProperty{"HorizontalOffset"};
-    inline static constexpr DependencyProperty<double> VerticalOffsetProperty{"VerticalOffset"};
-    inline static constexpr DependencyProperty<bool> StaysOpenProperty{"StaysOpen"};
-    inline static constexpr DependencyProperty<bool> MatchPlacementTargetWidthProperty{"MatchPlacementTargetWidth"};
-    inline static constexpr DependencyProperty<Ref<UIElement>> PlacementTargetProperty{"PlacementTarget"};
-    inline static constexpr DependencyProperty<PopupAnimation> PopupAnimationProperty{"PopupAnimation"};
-    inline static constexpr DependencyProperty<bool> AllowsTransparencyProperty{"AllowsTransparency"};
+    AERO_DEPENDENCY_PROPERTY(bool, IsOpen);
+    AERO_DEPENDENCY_PROPERTY(PlacementMode, Placement);
+    AERO_DEPENDENCY_PROPERTY(double, HorizontalOffset);
+    AERO_DEPENDENCY_PROPERTY(double, VerticalOffset);
+    AERO_DEPENDENCY_PROPERTY(bool, StaysOpen);
+    AERO_DEPENDENCY_PROPERTY(bool, MatchPlacementTargetWidth);
+    AERO_DEPENDENCY_PROPERTY(Ref<UIElement>, PlacementTarget);
+    AERO_DEPENDENCY_PROPERTY(PopupAnimation, PopupAnimation);
+    AERO_DEPENDENCY_PROPERTY(bool, AllowsTransparency);
 
 protected:
     explicit Popup(TypeId runtimeType) noexcept;

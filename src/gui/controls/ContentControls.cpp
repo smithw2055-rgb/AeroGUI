@@ -478,13 +478,12 @@ void HeaderedContentControl::SetHeader(
     SetValue(HeaderProperty, value);
 }
 
-Base::Result<void> HeaderedContentControl::SetHeader(
+void HeaderedContentControl::SetHeader(
     Base::StringView value) noexcept {
     Base::Result<Value> boxed = Value::TryFromString(
         Meta::TypeOf<Base::String>(), value);
-    if (!boxed) return boxed.GetStatus();
+    if (!boxed) { AERO_ASSERT(false); return; }
     SetHeader(std::move(boxed).Value());
-    return {};
 }
 
 Base::Ref<DataTemplate>
@@ -567,8 +566,9 @@ void Expander::OnExpandedPropertyChanged(
         change) noexcept {
     const bool expanded = change.GetNewValue().AsBoolean();
     if (!synchronizingHeader_ && headerToggle_ != nullptr) {
+        const Nullable<bool> isChecked = headerToggle_->GetIsChecked();
         const bool checked =
-            headerToggle_->GetIsChecked().GetValueOr(false);
+            isChecked.GetHasValue() ? isChecked.GetValue() : false;
         if (checked != expanded) {
             synchronizingHeader_ = true;
             headerToggle_->SetIsChecked(Nullable<bool>{expanded});
@@ -590,8 +590,9 @@ void Expander::OnHeaderCheckedChanged(
     if (synchronizingHeader_ || headerToggle_ == nullptr) {
         return;
     }
+    const Nullable<bool> isChecked = headerToggle_->GetIsChecked();
     const bool checked =
-        headerToggle_->GetIsChecked().GetValueOr(false);
+        isChecked.GetHasValue() ? isChecked.GetValue() : false;
     if (checked == GetIsExpanded()) {
         return;
     }
@@ -644,8 +645,9 @@ void Expander::BindHeaderToggle() noexcept {
     static_cast<void>(headerToggle_->AddValueChangedHandler(
         ToggleButton::IsCheckedProperty,
         headerCheckedHandler_));
+    const Nullable<bool> isChecked = headerToggle_->GetIsChecked();
     const bool checked =
-        headerToggle_->GetIsChecked().GetValueOr(false);
+        isChecked.GetHasValue() ? isChecked.GetValue() : false;
     if (checked != GetIsExpanded()) {
         synchronizingHeader_ = true;
         headerToggle_->SetIsChecked(Nullable<bool>{GetIsExpanded()});
@@ -1103,7 +1105,7 @@ Size Viewbox::MeasureOverride(
         natural.width * scaleX,
         natural.height * scaleY};
 }
-Base::Result<void> Viewbox::ApplyViewTransform(
+void Viewbox::ApplyViewTransform(
     double scaleX,
     double scaleY,
     double offsetX,
@@ -1132,7 +1134,7 @@ Base::Result<void> Viewbox::ApplyViewTransform(
         clearStretch(this);
         viewTransform_.Reset();
         projectedChild_.Reset();
-        return {};
+        return;
     }
     Base::Transform2D matrix;
     matrix.m11 = scaleX;
@@ -1148,15 +1150,12 @@ Base::Result<void> Viewbox::ApplyViewTransform(
         static_cast<void>(
             AeroGuiInternal::InvalidateRenderState(*this));
     }
-    return {};
 }
 Size Viewbox::ArrangeOverride(
     Size finalSize) noexcept {
     UIElement* child = GetChild();
     if (child == nullptr) {
-        Base::Result<void> reset =
-            ApplyViewTransform(1.0, 1.0, 0.0, 0.0);
-        if (!reset) return finalSize;
+        ApplyViewTransform(1.0, 1.0, 0.0, 0.0);
         return finalSize;
     }
 
@@ -1165,9 +1164,7 @@ Size Viewbox::ArrangeOverride(
         Base::Result<void> arranged = ArrangeChild(
             *child, {0.0, 0.0, 0.0, 0.0});
         if (!arranged) return finalSize;
-        Base::Result<void> reset =
-            ApplyViewTransform(1.0, 1.0, 0.0, 0.0);
-        if (!reset) return finalSize;
+        ApplyViewTransform(1.0, 1.0, 0.0, 0.0);
         return finalSize;
     }
 
@@ -1216,24 +1213,22 @@ Size Viewbox::ArrangeOverride(
     // Child layout stays in unscaled local pixels (Transform3D CenterX/Y,
     // ScaleTransform origin). Stretch lives on this Viewbox. Centering
     // offset is part of that matrix, not the child slot.
-    Base::Result<void> transformed = ApplyViewTransform(
+    ApplyViewTransform(
         scaleX,
         scaleY,
         offsetX,
         offsetY);
-    if (!transformed) return finalSize;
     Base::Result<void> arranged = ArrangeChild(
         *child,
         {0.0, 0.0, natural.width, natural.height});
     if (!arranged) return finalSize;
     // Non-FrameworkElement children compensate RenderTransformOrigin from
     // the arranged RenderSize; re-apply so that origin stays correct.
-    transformed = ApplyViewTransform(
+    ApplyViewTransform(
         scaleX,
         scaleY,
         offsetX,
         offsetY);
-    if (!transformed) return finalSize;
     return finalSize;
 }
 Border::Border() noexcept : Decorator(StaticTypeId()) {}

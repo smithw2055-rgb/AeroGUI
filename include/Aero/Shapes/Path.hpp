@@ -47,16 +47,16 @@ public:
     void SetStrokeDashOffset(double value) noexcept;
     void SetDashStyle(Ref<Media::DashStyle> value) noexcept;
 
-    inline static constexpr DependencyProperty<Ref<Geometry>> DataProperty{"Data"};
-    inline static constexpr DependencyProperty<FillRule> FillRuleProperty{"FillRule"};
-    inline static constexpr DependencyProperty<PenLineJoin> StrokeLineJoinProperty{"StrokeLineJoin"};
-    inline static constexpr DependencyProperty<PenLineCap> StrokeStartLineCapProperty{"StrokeStartLineCap"};
-    inline static constexpr DependencyProperty<PenLineCap> StrokeEndLineCapProperty{"StrokeEndLineCap"};
-    inline static constexpr AttachedProperty<double> TrimStartProperty{"TrimStart"};
-    inline static constexpr AttachedProperty<double> TrimEndProperty{"TrimEnd"};
-    inline static constexpr DependencyProperty<String> StrokeDashArrayProperty{"StrokeDashArray"};
-    inline static constexpr DependencyProperty<double> StrokeDashOffsetProperty{"StrokeDashOffset"};
-    inline static constexpr DependencyProperty<Ref<Media::DashStyle>> DashStyleProperty{"DashStyle"};
+    AERO_DEPENDENCY_PROPERTY(Ref<Geometry>, Data);
+    AERO_DEPENDENCY_PROPERTY(FillRule, FillRule);
+    AERO_DEPENDENCY_PROPERTY(PenLineJoin, StrokeLineJoin);
+    AERO_DEPENDENCY_PROPERTY(PenLineCap, StrokeStartLineCap);
+    AERO_DEPENDENCY_PROPERTY(PenLineCap, StrokeEndLineCap);
+    AERO_ATTACHED_PROPERTY(double, TrimStart);
+    AERO_ATTACHED_PROPERTY(double, TrimEnd);
+    AERO_DEPENDENCY_PROPERTY(String, StrokeDashArray);
+    AERO_DEPENDENCY_PROPERTY(double, StrokeDashOffset);
+    AERO_DEPENDENCY_PROPERTY(Ref<Media::DashStyle>, DashStyle);
 
 protected:
     Size MeasureOverride(Size availableSize) noexcept override;

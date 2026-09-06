@@ -1,4 +1,4 @@
-#include "gui/media/AnimationEngineInternal.hpp"
+#include "gui/media/AnimationEngineCommon.hpp"
 
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Layout.hpp>
@@ -23,7 +23,7 @@ using namespace Aero::Meta;
 using namespace Aero::Threading;
 using namespace Aero::Media::Animation::Model;
 using namespace Aero::Media;
-using namespace Aero::Media::Animation::EngineDetail;
+using namespace Aero::Media::Animation::EngineSupport;
 
 AnimationEngine::AnimationEngine(
     ::Aero::Threading::Dispatcher& dispatcher,

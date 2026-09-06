@@ -1456,8 +1456,8 @@ bool TestRenderCommitContentStability() {
     CHECK(button);
     button.Value()->SetWidth(80.0);
     button.Value()->SetHeight(32.0);
-    CHECK(canvas.Value()->GetChildren().Add(
-        Ref<Aero::UIElement>(button.Value())));
+    canvas.Value()->GetChildren().Add(
+        Ref<Aero::UIElement>(button.Value()));
     Pump(view, 0.032);
     Pump(view, 0.048);
     CHECK(button.Value()->GetVisualParent() == canvas.Value().Get());
@@ -1778,8 +1778,8 @@ bool TestComboBoxAndVisualStateAnimation() {
     CHECK(first && second);
     first.Value()->SetText("alpha");
     second.Value()->SetText("beta");
-    CHECK(combo.Value()->GetItems().Add(first.Value()));
-    CHECK(combo.Value()->GetItems().Add(second.Value()));
+    combo.Value()->GetItems().Add(first.Value());
+    combo.Value()->GetItems().Add(second.Value());
     combo.Value()->SetSelectedIndex(1U);
     CHECK(combo.Value()->GetSelectedItem().Get() == second.Value().Get());
     combo.Value()->SetIsDropDownOpen(true);
@@ -1804,11 +1804,11 @@ bool TestComboBoxAndVisualStateAnimation() {
     CHECK(animation.GetRepeatBehavior().HasCount());
 
     Style style(DoubleAnimation::StaticTypeId());
-    CHECK(style.Set(
+    style.Set(
         Timeline::DurationProperty,
-        Duration::FromTimeSpan(TimeSpan::FromMicroseconds(2'000'000ULL))));
-    CHECK(style.Set(Timeline::BeginTimeProperty, TimeSpan::Zero()));
-    CHECK(style.Set(Timeline::AutoReverseProperty, true));
+        Duration::FromTimeSpan(TimeSpan::FromMicroseconds(2'000'000ULL)));
+    style.Set(Timeline::BeginTimeProperty, TimeSpan::Zero());
+    style.Set(Timeline::AutoReverseProperty, true);
     CHECK(Timeline::DurationProperty.Name() == StringView("Duration"));
     CHECK(Timeline::RepeatBehaviorProperty.Name() == StringView("RepeatBehavior"));
     return true;
@@ -2204,14 +2204,14 @@ bool TestPanelProgrammaticAddAttachesVisual() {
     CHECK(rectangle);
     rectangle.Value()->SetWidth(40.0);
     rectangle.Value()->SetHeight(20.0);
-    CHECK(host->GetChildren().Add(
-        Ref<Aero::UIElement>(rectangle.Value())));
+    host->GetChildren().Add(
+        Ref<Aero::UIElement>(rectangle.Value()));
     Pump(view, 0.032);
     CHECK(rectangle.Value()->GetVisualParent() == host);
     CHECK(Aero::Media::VisualTreeHelper::GetChildrenCount(*host) == 1U);
     CHECK(Aero::Media::VisualTreeHelper::GetChild(*host, 0U) ==
         rectangle.Value().Get());
-    CHECK(host->GetChildren().Remove(*rectangle.Value()));
+    host->GetChildren().Remove(*rectangle.Value());
     Pump(view, 0.048);
     CHECK(rectangle.Value()->GetVisualParent() == nullptr);
     CHECK(Aero::Media::VisualTreeHelper::GetChildrenCount(*host) == 0U);
@@ -2465,11 +2465,15 @@ bool TestExpanderUnnamedHeaderClickWritesBack() {
         Aero::Input::MouseButton::Left));
     Pump(view, 0.048);
     if (host->GetIsExpanded()) {
+        const Aero::Nullable<bool> headerChecked = header->GetIsChecked();
+        const bool checked = headerChecked.GetHasValue()
+            ? headerChecked.GetValue()
+            : true;
         std::fprintf(stderr,
             "unnamed expander header click did not collapse over=%d checked=%d "
             "header=(%.1fx%.1f)\n",
             header->GetIsMouseOver() ? 1 : 0,
-            header->GetIsChecked().GetValueOr(true) ? 1 : 0,
+            checked ? 1 : 0,
             headerSize.width, headerSize.height);
         DumpDiagnostics(live->diagnostics);
     }
@@ -2934,6 +2938,10 @@ bool TestBlendTutorialSidebarInteractions() {
         Aero::Input::MouseButton::Left));
     Pump(view, 0.048);
     if (expander->GetIsExpanded()) {
+        const Aero::Nullable<bool> headerChecked = header->GetIsChecked();
+        const bool checked = headerChecked.GetHasValue()
+            ? headerChecked.GetValue()
+            : true;
         std::fprintf(stderr,
             "blend Expander did not collapse after header click "
             "headerOver=%d expanderOver=%d addOver=%d checked=%d "
@@ -2942,7 +2950,7 @@ bool TestBlendTutorialSidebarInteractions() {
             header->GetIsMouseOver() ? 1 : 0,
             expander->GetIsMouseOver() ? 1 : 0,
             add->GetIsMouseOver() ? 1 : 0,
-            header->GetIsChecked().GetValueOr(true) ? 1 : 0,
+            checked ? 1 : 0,
             headerScreen.x, headerScreen.y,
             addScreen.x, addScreen.y,
             headerSize.width, headerSize.height,
@@ -2998,8 +3006,8 @@ bool TestLoadComponentUserControlInStackPanel() {
     Pump(view, 0.016);
     auto* stack = TryCast<StackPanel>(view.GetContent());
     CHECK(stack != nullptr);
-    CHECK(stack->GetChildren().Add(
-        Ref<Aero::UIElement>(control.Value())));
+    stack->GetChildren().Add(
+        Ref<Aero::UIElement>(control.Value()));
     Pump(view, 0.032);
     CHECK(live->gui.LoadComponent(
         *control.Value(), "memory:///NumericUpDown.xaml"));
@@ -3046,8 +3054,8 @@ bool TestLoadComponentStarGridUserControlInStackPanel() {
     Pump(view, 0.016);
     auto* stack = TryCast<StackPanel>(view.GetContent());
     CHECK(stack != nullptr);
-    CHECK(stack->GetChildren().Add(
-        Ref<Aero::UIElement>(control.Value())));
+    stack->GetChildren().Add(
+        Ref<Aero::UIElement>(control.Value()));
     Pump(view, 0.032);
     CHECK(live->gui.LoadComponent(
         *control.Value(), "memory:///StarColorGrid.xaml"));
@@ -3702,9 +3710,9 @@ bool TestComboBoxItemsSourcePopupClickSelects() {
     Result<Ref<ObservableObjectCollection>> teams =
         MakeRef<ObservableObjectCollection>();
     CHECK(teams);
-    CHECK(Aero::Controls::AddBoxedStringItem(*teams.Value(), "Overall"));
-    CHECK(Aero::Controls::AddBoxedStringItem(*teams.Value(), "Alliance"));
-    CHECK(Aero::Controls::AddBoxedStringItem(*teams.Value(), "Horde"));
+    Aero::Controls::AddBoxedStringItem(*teams.Value(), "Overall");
+    Aero::Controls::AddBoxedStringItem(*teams.Value(), "Alliance");
+    Aero::Controls::AddBoxedStringItem(*teams.Value(), "Horde");
     combo->SetItemsSource(Ref<Aero::Base::Object>(teams.Value()));
     static_cast<void>(combo->ApplyTemplate());
     combo->SetSelectedIndex(0U);
@@ -3803,9 +3811,9 @@ bool TestDataTemplateElementNameSelectedItemFilter() {
     Result<Ref<ObservableObjectCollection>> teams =
         MakeRef<ObservableObjectCollection>();
     CHECK(teams);
-    CHECK(Aero::Controls::AddBoxedStringItem(*teams.Value(), "Overall"));
-    CHECK(Aero::Controls::AddBoxedStringItem(*teams.Value(), "Alliance"));
-    CHECK(Aero::Controls::AddBoxedStringItem(*teams.Value(), "Horde"));
+    Aero::Controls::AddBoxedStringItem(*teams.Value(), "Overall");
+    Aero::Controls::AddBoxedStringItem(*teams.Value(), "Alliance");
+    Aero::Controls::AddBoxedStringItem(*teams.Value(), "Horde");
     combo->SetItemsSource(Ref<Aero::Base::Object>(teams.Value()));
     combo->SetSelectedIndex(0U);
 
@@ -3814,8 +3822,8 @@ bool TestDataTemplateElementNameSelectedItemFilter() {
     Result<Ref<BindingSlotItem>> first = MakeRef<BindingSlotItem>();
     Result<Ref<BindingSlotItem>> second = MakeRef<BindingSlotItem>();
     CHECK(items && first && second);
-    CHECK(items.Value()->Add(first.Value()));
-    CHECK(items.Value()->Add(second.Value()));
+    items.Value()->Add(first.Value());
+    items.Value()->Add(second.Value());
     players->SetItemsSource(Ref<Aero::Base::Object>(items.Value()));
     static_cast<void>(combo->ApplyTemplate());
     static_cast<void>(players->ApplyTemplate());
@@ -3918,9 +3926,9 @@ bool TestDataTemplateMultiDataTriggerTeamFilter() {
     Result<Ref<ObservableObjectCollection>> teams =
         MakeRef<ObservableObjectCollection>();
     CHECK(teams);
-    CHECK(Aero::Controls::AddBoxedStringItem(*teams.Value(), "Overall"));
-    CHECK(Aero::Controls::AddBoxedStringItem(*teams.Value(), "Alliance"));
-    CHECK(Aero::Controls::AddBoxedStringItem(*teams.Value(), "Horde"));
+    Aero::Controls::AddBoxedStringItem(*teams.Value(), "Overall");
+    Aero::Controls::AddBoxedStringItem(*teams.Value(), "Alliance");
+    Aero::Controls::AddBoxedStringItem(*teams.Value(), "Horde");
     combo->SetItemsSource(Ref<Aero::Base::Object>(teams.Value()));
     combo->SetSelectedIndex(0U);
 
@@ -3935,8 +3943,8 @@ bool TestDataTemplateMultiDataTriggerTeamFilter() {
     CHECK(hordeTeam.Assign("Horde"));
     alliance.Value()->SetTeam(std::move(allianceTeam));
     horde.Value()->SetTeam(std::move(hordeTeam));
-    CHECK(items.Value()->Add(alliance.Value()));
-    CHECK(items.Value()->Add(horde.Value()));
+    items.Value()->Add(alliance.Value());
+    items.Value()->Add(horde.Value());
     players->SetItemsSource(Ref<Aero::Base::Object>(items.Value()));
     static_cast<void>(combo->ApplyTemplate());
     static_cast<void>(players->ApplyTemplate());
@@ -4077,7 +4085,7 @@ bool TestDataTemplateItemHoverStoryboard() {
         MakeRef<ObservableCollection<BindingSlotItem>>();
     Result<Ref<BindingSlotItem>> item = MakeRef<BindingSlotItem>();
     CHECK(items && item);
-    CHECK(items.Value()->Add(item.Value()));
+    items.Value()->Add(item.Value());
     players->SetItemsSource(Ref<Aero::Base::Object>(items.Value()));
     static_cast<void>(players->ApplyTemplate());
     Pump(view, 0.032);
@@ -4175,29 +4183,29 @@ bool TestGeometryFlatten() {
 
     figure.Value()->SetStartPoint({0.0, 0.0});
     line.Value()->SetPoint({10.0, 0.0});
-    CHECK(figure.Value()->AddSegment(line.Value()));
+    figure.Value()->AddSegment(line.Value());
     cubic.Value()->SetPoint1({10.0, 10.0});
     cubic.Value()->SetPoint2({20.0, 10.0});
     cubic.Value()->SetPoint3({20.0, 0.0});
-    CHECK(figure.Value()->AddSegment(cubic.Value()));
+    figure.Value()->AddSegment(cubic.Value());
     quad.Value()->SetPoint1({30.0, 10.0});
     quad.Value()->SetPoint2({30.0, 0.0});
-    CHECK(figure.Value()->AddSegment(quad.Value()));
+    figure.Value()->AddSegment(quad.Value());
     arc.Value()->SetPoint({40.0, 0.0});
     arc.Value()->SetSize({8.0, 8.0});
     arc.Value()->SetSweepDirection(Aero::Media::SweepDirection::Clockwise);
-    CHECK(figure.Value()->AddSegment(arc.Value()));
+    figure.Value()->AddSegment(arc.Value());
     const Point polyPoints[] = {{50.0, 0.0}, {60.0, 0.0}};
-    CHECK(polyLine.Value()->SetPoints({polyPoints, 2U}));
-    CHECK(figure.Value()->AddSegment(polyLine.Value()));
+    polyLine.Value()->SetPoints({polyPoints, 2U});
+    figure.Value()->AddSegment(polyLine.Value());
     const Point bezierPts[] = {
         {70.0, 10.0}, {80.0, 10.0}, {80.0, 0.0}};
-    CHECK(polyBezier.Value()->SetPoints({bezierPts, 3U}));
-    CHECK(figure.Value()->AddSegment(polyBezier.Value()));
+    polyBezier.Value()->SetPoints({bezierPts, 3U});
+    figure.Value()->AddSegment(polyBezier.Value());
     const Point quadPts[] = {{90.0, 10.0}, {90.0, 0.0}};
-    CHECK(polyQuad.Value()->SetPoints({quadPts, 2U}));
-    CHECK(figure.Value()->AddSegment(polyQuad.Value()));
-    CHECK(path.Value()->AddFigure(figure.Value()));
+    polyQuad.Value()->SetPoints({quadPts, 2U});
+    figure.Value()->AddSegment(polyQuad.Value());
+    path.Value()->AddFigure(figure.Value());
 
     PointSink sink;
     CHECK(path.Value()->Flatten(sink));
@@ -4229,8 +4237,8 @@ bool TestGeometryFlatten() {
     b.Value()->SetEndPoint({4.0, 2.0});
     Result<Ref<GeometryGroup>> group = MakeRef<GeometryGroup>();
     CHECK(group);
-    CHECK(group.Value()->Add(a.Value()));
-    CHECK(group.Value()->Add(b.Value()));
+    group.Value()->Add(a.Value());
+    group.Value()->Add(b.Value());
     PointSink grouped;
     CHECK(group.Value()->Flatten(grouped));
     CHECK(grouped.points.Size() >= 4U);
@@ -4329,9 +4337,9 @@ bool TestStreamGeometryFlattenCore() {
     figure.Value()->SetIsClosed(true);
     first.Value()->SetPoint({10.0, 0.0});
     second.Value()->SetPoint({10.0, 10.0});
-    CHECK(figure.Value()->AddSegment(first.Value()));
-    CHECK(figure.Value()->AddSegment(second.Value()));
-    CHECK(pathGeometry.Value()->AddFigure(figure.Value()));
+    figure.Value()->AddSegment(first.Value());
+    figure.Value()->AddSegment(second.Value());
+    pathGeometry.Value()->AddFigure(figure.Value());
     StreamGeometry lineStream;
     lineStream.SetData("M 0,0 L 10,0 L 10,10 Z");
     PointSink fromStream;
@@ -4403,9 +4411,9 @@ bool TestTimelineDurationAndKeyTime() {
     animation.SetDuration(Duration::Forever());
     CHECK(animation.GetDuration().IsForever());
     Style style(DoubleAnimation::StaticTypeId());
-    CHECK(style.Set(Timeline::DurationProperty, Duration::Forever()));
-    CHECK(style.Set(
-        Timeline::RepeatBehaviorProperty, RepeatBehavior::Forever()));
+    style.Set(Timeline::DurationProperty, Duration::Forever());
+    style.Set(
+        Timeline::RepeatBehaviorProperty, RepeatBehavior::Forever());
     return true;
 }
 
@@ -4424,9 +4432,9 @@ bool TestCollectionViewAndVirtualization() {
     wider.Value()->SetWidth(90.0);
 
     ObservableObjectCollection source;
-    CHECK(source.Add(narrow.Value()));
-    CHECK(source.Add(wide.Value()));
-    CHECK(source.Add(wider.Value()));
+    source.Add(narrow.Value());
+    source.Add(wide.Value());
+    source.Add(wider.Value());
 
     CollectionView view(&source);
     CHECK(view.GetCount() == 3U);
@@ -4447,7 +4455,7 @@ bool TestCollectionViewAndVirtualization() {
         Result<Ref<TextBlock>> row = MakeRef<TextBlock>();
         CHECK(row);
         row.Value()->SetHeight(24.0);
-        CHECK(items.Value()->Add(row.Value()));
+        items.Value()->Add(row.Value());
         CHECK(rows.PushBack(row.Value()));
     }
 
@@ -4749,8 +4757,8 @@ bool TestCustomItemsSourceThunk() {
     Result<Ref<TextBlock>> one = MakeRef<TextBlock>();
     Result<Ref<TextBlock>> two = MakeRef<TextBlock>();
     CHECK(one && two);
-    CHECK(named.Value()->Add(one.Value()));
-    CHECK(named.Value()->Add(two.Value()));
+    named.Value()->Add(one.Value());
+    named.Value()->Add(two.Value());
     CHECK(TryCastToInterface<IItemsSource>(named.Value().Get()) != nullptr);
 
     Result<Ref<ListBox>> box = MakeRef<ListBox>();
@@ -4765,8 +4773,8 @@ bool TestCustomItemsSourceThunk() {
     Result<Ref<BindingSlotItem>> first = MakeRef<BindingSlotItem>();
     Result<Ref<BindingSlotItem>> second = MakeRef<BindingSlotItem>();
     CHECK(first && second);
-    CHECK(typed.Value()->Add(first.Value()));
-    CHECK(typed.Value()->Add(second.Value()));
+    typed.Value()->Add(first.Value());
+    typed.Value()->Add(second.Value());
     CHECK(typed.Value()->RuntimeType() ==
         ObservableCollectionBase::StaticTypeId());
     CHECK(TryCastToInterface<IItemsSource>(typed.Value().Get()) != nullptr);
@@ -4797,12 +4805,10 @@ Result<Ref<BindingItemsViewModel>> MakeBindingItemsViewModel(
     for (std::uint32_t index = 0U; index < count; ++index) {
         Result<Ref<BindingSlotItem>> item = MakeRef<BindingSlotItem>();
         if (!item) return item.GetStatus();
-        Result<void> added = items.Value()->Add(item.Value());
-        if (!added) return added.GetStatus();
+        items.Value()->Add(item.Value());
         Result<Ref<BindingSlotItem>> slot = MakeRef<BindingSlotItem>();
         if (!slot) return slot.GetStatus();
-        added = slots.Value()->Add(slot.Value());
-        if (!added) return added.GetStatus();
+        slots.Value()->Add(slot.Value());
     }
     model.Value()->SetItems(items.Value());
     player.Value()->SetSlots(slots.Value());
@@ -4937,7 +4943,7 @@ bool TestClrItemsSourceBindingAfterDataContext() {
         for (std::uint32_t index = 0U; index < kCount; ++index) {
             Result<Ref<BindingSlotItem>> item = MakeRef<BindingSlotItem>();
             CHECK(item);
-            CHECK(items.Value()->Add(item.Value()));
+            items.Value()->Add(item.Value());
         }
         Result<Aero::Markup::XamlDocument> document = reader.Parse(StringView(
             "<ListBox xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
@@ -5079,8 +5085,8 @@ bool TestClrItemsSourceBindingAfterDataContext() {
         for (std::uint32_t index = 0U; index < kCount; ++index) {
             Result<Ref<BindingSlotItem>> item = MakeRef<BindingSlotItem>();
             CHECK(item);
-            CHECK(items.Value()->Add(item.Value()));
-            CHECK(inventory.Value()->Add(item.Value()));
+            items.Value()->Add(item.Value());
+            inventory.Value()->Add(item.Value());
         }
         model.Value()->SetItems(items.Value());
         model.Value()->SetInventory(inventory.Value());
@@ -5123,7 +5129,7 @@ bool TestClrItemsSourceBindingAfterDataContext() {
         for (std::uint32_t index = 0U; index < kCount; ++index) {
             Result<Ref<BindingSlotItem>> item = MakeRef<BindingSlotItem>();
             CHECK(item);
-            CHECK(named.Value()->Add(item.Value()));
+            named.Value()->Add(item.Value());
         }
         Result<Ref<ListBox>> box = MakeRef<ListBox>();
         CHECK(box);
@@ -5857,7 +5863,7 @@ bool TestTutorialRuntimePatterns() {
         effect.Value()->SetPixelShader("custom.frag");
         CHECK(effect.Value()->GetPixelShader() == StringView("custom.frag"));
         const std::uint8_t bytes[] = {0x43, 0x47, 0x58, 0x00};
-        CHECK(effect.Value()->SetBytecode({bytes, 4U}));
+        effect.Value()->SetBytecode({bytes, 4U});
         CHECK(effect.Value()->GetBytecode().Size() == 4U);
         // .noesisbrush is a Noesis offline compiler artifact. Aero loads
         // PixelShader source or raw bytecode; it does not compile brushes.

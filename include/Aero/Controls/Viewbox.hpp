@@ -18,11 +18,10 @@ public:
     Stretch GetStretch() const noexcept;
     StretchDirection GetStretchDirection() const noexcept;
     void SetStretch(Stretch value) noexcept;
-    void SetStretchDirection(
-        StretchDirection value) noexcept;
+    void SetStretchDirection(StretchDirection value) noexcept;
 
-    inline static constexpr DependencyProperty<Stretch> StretchProperty{"Stretch"};
-    inline static constexpr DependencyProperty<StretchDirection> StretchDirectionProperty{"StretchDirection"};
+    AERO_DEPENDENCY_PROPERTY(Stretch, Stretch);
+    AERO_DEPENDENCY_PROPERTY(StretchDirection, StretchDirection);
 
 protected:
     Size MeasureOverride(
@@ -33,7 +32,7 @@ protected:
 private:
     Ref<MatrixTransform> viewTransform_;
     Ref<FrameworkElement> projectedChild_;
-    Result<void> ApplyViewTransform(
+    void ApplyViewTransform(
         double scaleX,
         double scaleY,
         double offsetX,

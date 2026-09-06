@@ -26,14 +26,14 @@ public:
     void SetAlignmentX(HorizontalAlignment value) noexcept;
     void SetAlignmentY(VerticalAlignment value) noexcept;
 
-    inline static constexpr DependencyProperty<Stretch> StretchProperty{"Stretch"};
-    inline static constexpr DependencyProperty<Rect> ViewboxProperty{"Viewbox"};
-    inline static constexpr DependencyProperty<Rect> ViewportProperty{"Viewport"};
-    inline static constexpr DependencyProperty<BrushMappingMode> ViewboxUnitsProperty{"ViewboxUnits"};
-    inline static constexpr DependencyProperty<BrushMappingMode> ViewportUnitsProperty{"ViewportUnits"};
-    inline static constexpr DependencyProperty<TileMode> TileModeProperty{"TileMode"};
-    inline static constexpr DependencyProperty<HorizontalAlignment> AlignmentXProperty{"AlignmentX"};
-    inline static constexpr DependencyProperty<VerticalAlignment> AlignmentYProperty{"AlignmentY"};
+    AERO_DEPENDENCY_PROPERTY(Stretch, Stretch);
+    AERO_DEPENDENCY_PROPERTY(Rect, Viewbox);
+    AERO_DEPENDENCY_PROPERTY(Rect, Viewport);
+    AERO_DEPENDENCY_PROPERTY(BrushMappingMode, ViewboxUnits);
+    AERO_DEPENDENCY_PROPERTY(BrushMappingMode, ViewportUnits);
+    AERO_DEPENDENCY_PROPERTY(TileMode, TileMode);
+    AERO_DEPENDENCY_PROPERTY(HorizontalAlignment, AlignmentX);
+    AERO_DEPENDENCY_PROPERTY(VerticalAlignment, AlignmentY);
 
 protected:
     explicit TileBrush(TypeId runtimeType) noexcept

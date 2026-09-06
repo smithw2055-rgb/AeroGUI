@@ -12,18 +12,13 @@ namespace Aero::Media::Animation {
 template<typename TKeyFrame>
 class AnimationUsingKeyFrames : public AnimationTimeline {
 public:
-    Result<void> AddKeyFrame(Ref<TKeyFrame> value) noexcept {
+    void AddKeyFrame(Ref<TKeyFrame> value) noexcept {
         Result<void> writable = WritePreamble();
-        if (!writable) return writable.GetStatus();
-        if (!value) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "Key frame cannot be null");
-        }
+        if (!writable) { AERO_ASSERT(false); return; }
+        if (!value) { AERO_ASSERT(false); return; }
         Result<void> added = keyFrames_.PushBack(std::move(value));
-        if (!added) return added.GetStatus();
+        if (!added) { AERO_ASSERT(false); return; }
         WritePostscript();
-        return {};
     }
     void ClearKeyFrames() noexcept {
         if (!WritePreamble() || keyFrames_.Empty()) return;

@@ -20,7 +20,7 @@ public:
 
     [[nodiscard]] Base::Transform3 GetTransform3D() const noexcept override;
 
-    inline static constexpr DependencyProperty<Base::Transform3> MatrixProperty{"Matrix"};
+    AERO_DEPENDENCY_PROPERTY(Base::Transform3, Matrix);
 };
 
 } // namespace Aero::Media

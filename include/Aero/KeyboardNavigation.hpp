@@ -29,13 +29,13 @@ public:
         return StaticTypeId();
     }
 
-    inline static constexpr AttachedProperty<KeyboardNavigationMode> DirectionalNavigationProperty{"DirectionalNavigation"};
+    AERO_ATTACHED_PROPERTY(KeyboardNavigationMode, DirectionalNavigation);
 
-    inline static constexpr AttachedProperty<KeyboardNavigationMode> TabNavigationProperty{"TabNavigation"};
-    inline static constexpr AttachedProperty<KeyboardNavigationMode> ControlTabNavigationProperty{"ControlTabNavigation"};
-    inline static constexpr AttachedProperty<std::uint32_t> TabIndexProperty{"TabIndex"};
-    inline static constexpr AttachedProperty<bool> AcceptsReturnProperty{"AcceptsReturn"};
-    inline static constexpr AttachedProperty<bool> IsTabStopProperty{"IsTabStop"};
+    AERO_ATTACHED_PROPERTY(KeyboardNavigationMode, TabNavigation);
+    AERO_ATTACHED_PROPERTY(KeyboardNavigationMode, ControlTabNavigation);
+    AERO_ATTACHED_PROPERTY(std::uint32_t, TabIndex);
+    AERO_ATTACHED_PROPERTY(bool, AcceptsReturn);
+    AERO_ATTACHED_PROPERTY(bool, IsTabStop);
 };
 } // namespace Aero::Input
 

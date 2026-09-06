@@ -10,7 +10,7 @@ public:
     MatrixTransform() noexcept : Transform(StaticTypeId()) {}
     Base::Transform2D GetMatrixValue() const noexcept;
     void SetMatrixValue(Base::Transform2D value) noexcept;
-    inline static constexpr DependencyProperty<Base::Transform2D> MatrixProperty{"Matrix"};
+    AERO_DEPENDENCY_PROPERTY(Base::Transform2D, Matrix);
     Base::Transform2D GetMatrix() const noexcept override {
         return GetMatrixValue();
     }

@@ -14,6 +14,6 @@ public:
     void SetTime(double value) noexcept {
         SetValue(TimeProperty, value);
     }
-    inline static constexpr DependencyProperty<double> TimeProperty{"Time"};
+    AERO_DEPENDENCY_PROPERTY(double, Time);
 };
 } // namespace Aero::Media

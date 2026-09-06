@@ -163,15 +163,13 @@ public:
                 "InlineCollection cannot create a document cycle");
         }
 
-        Base::Result<void> added;
         if (IsTextBlock(owner)) {
-            added = static_cast<Controls::TextBlock&>(owner)
+            static_cast<Controls::TextBlock&>(owner)
                 .AddOwnedInline(Base::Ref<Base::Object>(value));
         } else {
-            added = static_cast<Documents::Span&>(owner)
+            static_cast<Documents::Span&>(owner)
                 .AddOwnedInline(value);
         }
-        if (!added) return added.GetStatus();
 
         return {};
     }
@@ -475,15 +473,12 @@ InlineCollectionView InlineCollection::GetView() const noexcept {
         : InlineCollectionView{};
 }
 
-Base::Result<void> InlineCollection::Add(
+void InlineCollection::Add(
     Base::Ref<Inline> value) noexcept {
-    if (owner_ == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "InlineCollection is not bound to an owner");
-    }
-    return Aero::Controls::TextBlockDocumentHelper::Add(
+    if (owner_ == nullptr) { AERO_ASSERT(false); return; }
+    Base::Result<void> added = Aero::Controls::TextBlockDocumentHelper::Add(
         *owner_, std::move(value));
+    if (!added) { AERO_ASSERT(false); return; }
 }
 
 Base::Result<bool> InlineCollection::Remove(
@@ -524,7 +519,7 @@ void Span::SetInlineValue(Meta::Value value) noexcept {
                 object->RuntimeType(), Inline::StaticTypeId())) {
             return;
         }
-        (void)AddOwnedInline(Base::Ref<Inline>::FromBorrowed(
+        AddOwnedInline(Base::Ref<Inline>::FromBorrowed(
             *static_cast<Inline*>(object.Get())));
         return;
     }
@@ -534,29 +529,24 @@ void Span::SetInlineValue(Meta::Value value) noexcept {
     Base::Result<Base::Ref<Run>> created = Base::MakeRef<Run>();
     if (!created) return;
     created.Value()->SetText(value.AsString());
-    (void)AddOwnedInline(Base::Ref<Inline>(created.Value()));
+    AddOwnedInline(Base::Ref<Inline>(created.Value()));
 }
 
-Base::Result<void> Span::AddOwnedInline(Base::Ref<Inline> value) noexcept {
-    if (!value) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Span inline cannot be null");
-    }
+void Span::AddOwnedInline(Base::Ref<Inline> value) noexcept {
+    if (!value) { AERO_ASSERT(false); return; }
     for (const Base::Ref<Inline>& current : inlines_) {
-        if (current.Get() == value.Get()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::AlreadyExists,
-                "Span already owns the inline");
-        }
+        if (current.Get() == value.Get()) { AERO_ASSERT(false); return; }
     }
     Base::Result<void> appended = inlines_.PushBack(value);
-    if (!appended) return appended.GetStatus();
+    if (!appended) { AERO_ASSERT(false); return; }
     AeroGuiInternal::Attach(
         *value, this, GetContentHost(), nullptr);
     pendingInline_ = std::move(value);
     Controls::TextBlock* host = Aero::Controls::TextBlockDocumentHelper::Host(*this);
-    return host != nullptr ? host->InvalidateMeasure() : Base::Result<void>{};
+    if (host != nullptr) {
+        Base::Result<void> invalidated = host->InvalidateMeasure();
+        if (!invalidated) { AERO_ASSERT(false); return; }
+    }
 }
 
 void Span::ClearOwnedInlines() noexcept {
@@ -931,9 +921,9 @@ void TextBlock::SetFontFamily(
     Base::Ref<Media::FontFamily> value) noexcept {
     FrameworkElement::SetFontFamily(std::move(value));
 }
-Base::Result<void> TextBlock::SetFontFamily(
+void TextBlock::SetFontFamily(
     Base::StringView value) noexcept {
-    return FrameworkElement::SetFontFamily(value);
+    FrameworkElement::SetFontFamily(value);
 }
 void TextBlock::SetFontWeight(
     FontWeight value) noexcept {
@@ -1009,7 +999,7 @@ void TextBlock::SetInlineValue(
                 Documents::Inline::StaticTypeId())) {
             return;
         }
-        (void)AddOwnedInline(inlineObject);
+        AddOwnedInline(inlineObject);
         return;
     }
     if (value.Kind() != Meta::ValueKind::String) {
@@ -1019,37 +1009,25 @@ void TextBlock::SetInlineValue(
         Base::MakeRef<Documents::Run>();
     if (!created) return;
     created.Value()->SetText(value.AsString());
-    (void)AddOwnedInline(Base::Ref<Base::Object>(created.Value()));
+    AddOwnedInline(Base::Ref<Base::Object>(created.Value()));
 }
-Base::Result<void> TextBlock::AddOwnedInline(
+void TextBlock::AddOwnedInline(
     const Base::Ref<Base::Object>& inlineObject) noexcept {
-    if (!inlineObject) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "TextBlock inline cannot be null");
-    }
+    if (!inlineObject) { AERO_ASSERT(false); return; }
     Base::Result<void> access = VerifyAccess();
-    if (!access) return access.GetStatus();
+    if (!access) { AERO_ASSERT(false); return; }
     const TypeRegistry& types = PropertyRegistry().Types();
     const TypeId type = inlineObject->RuntimeType();
     const bool supported = types.IsDerivedFrom(
         type, Documents::Inline::StaticTypeId());
-    if (!supported) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "TextBlock content must derive from Documents::Inline");
-    }
+    if (!supported) { AERO_ASSERT(false); return; }
     for (const Base::Ref<Base::Object>& owned :
          ownedInlines_) {
-        if (owned.Get() == inlineObject.Get()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::AlreadyExists,
-                "TextBlock already owns the inline");
-        }
+        if (owned.Get() == inlineObject.Get()) { AERO_ASSERT(false); return; }
     }
     Base::Result<void> appended =
         ownedInlines_.PushBack(inlineObject);
-    if (!appended) return appended.GetStatus();
+    if (!appended) { AERO_ASSERT(false); return; }
     auto& inlineValue = *static_cast<Documents::Inline*>(inlineObject.Get());
     AeroGuiInternal::Attach(
         inlineValue, this, this, nullptr);
@@ -1060,7 +1038,8 @@ Base::Result<void> TextBlock::AddOwnedInline(
         }
     }
     pendingInline_ = inlineObject;
-    return InvalidateMeasure();
+    Base::Result<void> invalidated = InvalidateMeasure();
+    if (!invalidated) { AERO_ASSERT(false); return; }
 }
 void TextBlock::ClearOwnedInlines() noexcept {
     Base::Result<void> access = VerifyAccess();

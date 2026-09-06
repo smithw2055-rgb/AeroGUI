@@ -20,7 +20,7 @@ public:
     Base::Span<const std::uint8_t> GetBytecode() const noexcept {
         return {bytecode_.Data(), bytecode_.Size()};
     }
-    Result<void> SetBytecode(Base::Span<const std::uint8_t> value) noexcept;
+    void SetBytecode(Base::Span<const std::uint8_t> value) noexcept;
 
     Base::Span<const float> GetUniforms() const noexcept {
         return {uniforms_.data(), uniformCount_};
@@ -30,7 +30,7 @@ public:
     std::uint32_t GetShaderId() const noexcept { return shaderId_; }
     void SetShaderId(std::uint32_t value) noexcept { shaderId_ = value; }
 
-    inline static constexpr DependencyProperty<String> PixelShaderProperty{"PixelShader"};
+    AERO_DEPENDENCY_PROPERTY(String, PixelShader);
 
     static void OnPixelShaderChanged(
         DependencyObject& object,

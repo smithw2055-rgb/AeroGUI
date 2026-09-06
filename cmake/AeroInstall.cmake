@@ -80,7 +80,7 @@ unset(_aero_public_install_directory)
 install(FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/gui/meta/TypeBuilderDetail.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/gui/meta/MetadataRegistrations.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/gui/meta/TypeBuilderInternal.inc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/gui/meta/TypeBuilderCommon.inc"
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/aero-meta-authoring/gui/meta")
 
 install(FILES

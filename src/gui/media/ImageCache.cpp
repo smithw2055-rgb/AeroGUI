@@ -128,10 +128,11 @@ Base::Result<void> ClearImageTarget(
             0U);
     }
     if (imageBrush != nullptr) {
-        return imageBrush->SetRuntimeImage(
+        imageBrush->SetRuntimeImage(
             Render::InvalidRenderImageId,
             0U,
             0U);
+        return {};
     }
     return {};
 }
@@ -308,9 +309,12 @@ Base::Result<bool> ImageCache::Synchronize(
                     *imageControl,
                     Render::InvalidRenderImageId,
                     0U, 0U)
-                : imageBrush->SetRuntimeImage(
+                : Base::Result<void>{};
+            if (imageBrush != nullptr && imageControl == nullptr) {
+                imageBrush->SetRuntimeImage(
                     Render::InvalidRenderImageId,
                     0U, 0U);
+            }
             if (!cleared) {
                 return cleared.GetStatus();
             }
@@ -611,17 +615,19 @@ Base::Result<bool> ImageCache::Synchronize(
                 nextHeadlessImage_++;
             changed = true;
         }
-        Base::Result<void> assigned =
-            imageControl != nullptr
-            ? AeroGuiInternal::SetImageRuntimeData(
+        Base::Result<void> assigned;
+        if (imageControl != nullptr) {
+            assigned = AeroGuiInternal::SetImageRuntimeData(
                 *imageControl,
                 record->renderImage,
                 record->width,
-                record->height)
-            : imageBrush->SetRuntimeImage(
+                record->height);
+        } else {
+            imageBrush->SetRuntimeImage(
                 record->renderImage,
                 record->width,
                 record->height);
+        }
         if (!assigned) return assigned.GetStatus();
         }
     }

@@ -22,10 +22,10 @@ public:
     void SetOpacity(double value) noexcept;
     void SetColor(Base::Color value) noexcept;
 
-    inline static constexpr DependencyProperty<double> BlurRadiusProperty{"BlurRadius"};
-    inline static constexpr DependencyProperty<double> DirectionProperty{"Direction"};
-    inline static constexpr DependencyProperty<double> ShadowDepthProperty{"ShadowDepth"};
-    inline static constexpr DependencyProperty<double> OpacityProperty{"Opacity"};
-    inline static constexpr DependencyProperty<Base::Color> ColorProperty{"Color"};
+    AERO_DEPENDENCY_PROPERTY(double, BlurRadius);
+    AERO_DEPENDENCY_PROPERTY(double, Direction);
+    AERO_DEPENDENCY_PROPERTY(double, ShadowDepth);
+    AERO_DEPENDENCY_PROPERTY(double, Opacity);
+    AERO_DEPENDENCY_PROPERTY(Base::Color, Color);
 };
 } // namespace Aero::Media

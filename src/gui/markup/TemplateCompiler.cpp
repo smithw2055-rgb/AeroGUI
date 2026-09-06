@@ -201,9 +201,7 @@ Base::Result<void> ApplyPrototypeGradientStops(
             std::move(made).Value();
         stop->SetOffset(stopRecord.offset);
         stop->SetColor(stopRecord.color);
-        Base::Result<void> added =
-            gradient.AddGradientStop(stop);
-        if (!added) return added.GetStatus();
+        gradient.AddGradientStop(stop);
         if (context != nullptr && !stopRecord.name.Empty()) {
             Base::Result<void> named = context->AddObjectPart(
                 stopRecord.name.View(),
@@ -1166,8 +1164,7 @@ CompileVisualStates(
                         }
                         for (auto& kf : srcDouble->GetKeyFrames()) {
                             if (!kf) continue;
-                            auto a = dst.Value()->AddKeyFrame(kf);
-                            if (!a) return a.GetStatus();
+                            dst.Value()->AddKeyFrame(kf);
                         }
                         cloned = dst.Value();
                     } else if (tl->RuntimeType() == Aero::Media::Animation::ColorAnimationUsingKeyFrames::StaticTypeId()) {
@@ -1184,16 +1181,13 @@ CompileVisualStates(
                         }
                         for (auto& kf : srcColor->GetKeyFrames()) {
                             if (!kf) continue;
-                            auto a = dst.Value()->AddKeyFrame(kf);
-                            if (!a) return a.GetStatus();
+                            dst.Value()->AddKeyFrame(kf);
                         }
                         cloned = dst.Value();
                     } else {
                         cloned = tl;
                     }
-                    Base::Result<void> added =
-                        storyboardCopy.Value()->AddTimeline(cloned);
-                    if (!added) return added.GetStatus();
+                    storyboardCopy.Value()->AddTimeline(cloned);
                 }
                 state.storyboard = std::move(storyboardCopy.Value());
             } else {
@@ -1338,9 +1332,7 @@ CompileVisualStates(
                 if (!storyboardCopy) return storyboardCopy.GetStatus();
                 for (const auto& tl : srcStoryboard->GetTimelines()) {
                     if (!tl) continue;
-                    Base::Result<void> added =
-                        storyboardCopy.Value()->AddTimeline(tl);
-                    if (!added) return added.GetStatus();
+                    storyboardCopy.Value()->AddTimeline(tl);
                 }
                 transition.storyboard = std::move(storyboardCopy.Value());
             } else {
@@ -2262,10 +2254,8 @@ Base::Result<void> BuildCompiledTemplate(
         // evaluated. Keep the owner alive through both evaluations.
         FrameworkElement* const triggerRoot = triggerContext->root;
         Base::Ref<Base::Object> triggerOwner(triggerContext);
-        Base::Result<void> attached =
-            AeroGuiInternal::AddAuthoredTrigger(
-                *triggerRoot, std::move(triggerOwner));
-        if (!attached) return attached.GetStatus();
+        AeroGuiInternal::AddAuthoredTrigger(
+            *triggerRoot, std::move(triggerOwner));
     }
     return {};
 }
@@ -2690,11 +2680,9 @@ BuildCompiledDeferredTemplate(
         if (!retained) return retained.GetStatus();
     }
     if (triggerContext) {
-        Base::Result<void> attached =
-            AeroGuiInternal::AddAuthoredTrigger(
-                static_cast<FrameworkElement&>(*root),
-                Base::Ref<Base::Object>(triggerContext));
-        if (!attached) return attached.GetStatus();
+        AeroGuiInternal::AddAuthoredTrigger(
+            static_cast<FrameworkElement&>(*root),
+            Base::Ref<Base::Object>(triggerContext));
     }
     return root;
 }

@@ -18,9 +18,8 @@ Base::Result<void> Behavior::Attach(FrameworkElement& object) noexcept {
             "Behavior is already attached to another object");
     }
     associatedObject_ = &object;
-    Base::Result<void> attached = OnAttached();
-    if (!attached) associatedObject_ = nullptr;
-    return attached;
+    OnAttached();
+    return {};
 }
 
 void Behavior::Detach() noexcept {
@@ -29,48 +28,41 @@ void Behavior::Detach() noexcept {
     associatedObject_ = nullptr;
 }
 
-Base::Result<void> Behavior::AddAuthoredBinding(
+void Behavior::AddAuthoredBinding(
     Meta::DependencyPropertyHandle property,
     Base::Ref<Aero::Data::Binding> binding) noexcept {
-    if (!property.IsValid() || !binding) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Behavior authored Binding is invalid");
-    }
+    if (!property.IsValid() || !binding) { AERO_ASSERT(false); return; }
     for (AuthoredBinding& existing : authoredBindings_) {
         if (existing.property == property) {
             existing.binding = std::move(binding);
-            return {};
+            return;
         }
     }
-    return authoredBindings_.PushBack(
+    Base::Result<void> pushed = authoredBindings_.PushBack(
         {property, std::move(binding)});
+    if (!pushed) { AERO_ASSERT(false); return; }
 }
 
-Base::Result<void> Behavior::CopyAuthoredBindingsTo(
+void Behavior::CopyAuthoredBindingsTo(
     Behavior& destination) const noexcept {
     for (const AuthoredBinding& binding : authoredBindings_) {
-        Base::Result<void> copied = destination.AddAuthoredBinding(
+        destination.AddAuthoredBinding(
             binding.property, binding.binding);
-        if (!copied) return copied.GetStatus();
     }
-    return {};
 }
 
-Base::Result<void> StyleBehaviorCollection::Add(
+void StyleBehaviorCollection::Add(
     Base::Ref<Base::Object> value) noexcept {
-    return value ? items_.PushBack(std::move(value))
-                 : Base::Result<void>(Base::Status::Failure(
-                       Base::ErrorCode::InvalidArgument,
-                       "Style behavior cannot be null"));
+    if (!value) { AERO_ASSERT(false); return; }
+    Base::Result<void> pushed = items_.PushBack(std::move(value));
+    if (!pushed) { AERO_ASSERT(false); return; }
 }
 
-Base::Result<void> StyleTriggerCollection::Add(
+void StyleTriggerCollection::Add(
     Base::Ref<Base::Object> value) noexcept {
-    return value ? items_.PushBack(std::move(value))
-                 : Base::Result<void>(Base::Status::Failure(
-                       Base::ErrorCode::InvalidArgument,
-                       "Style trigger cannot be null"));
+    if (!value) { AERO_ASSERT(false); return; }
+    Base::Result<void> pushed = items_.PushBack(std::move(value));
+    if (!pushed) { AERO_ASSERT(false); return; }
 }
 
 void StyleInteraction::OnBehaviorsChanged(
@@ -92,9 +84,8 @@ void StyleInteraction::OnBehaviorsChanged(
     }
     for (const Base::Ref<Base::Object>& behavior :
          static_cast<StyleBehaviorCollection&>(*value.AsObject()).GetItems()) {
-        static_cast<void>(
-            AeroGuiInternal::AddStyleBehaviorPrototype(
-                element, behavior));
+        AeroGuiInternal::AddStyleBehaviorPrototype(
+            element, behavior);
     }
 }
 
@@ -117,9 +108,8 @@ void StyleInteraction::OnTriggersChanged(
     }
     for (const Base::Ref<Base::Object>& trigger :
          static_cast<StyleTriggerCollection&>(*value.AsObject()).GetItems()) {
-        static_cast<void>(
-            AeroGuiInternal::AddStyleTriggerPrototype(
-                element, trigger));
+        AeroGuiInternal::AddStyleTriggerPrototype(
+            element, trigger);
     }
 }
 

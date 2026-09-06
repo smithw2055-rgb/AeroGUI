@@ -120,13 +120,12 @@ void FrameworkElement::SetWidth(double value) noexcept {
     SetValue(WidthProperty, Length::Pixels(value));
 }
 
-Result<void> FrameworkElement::SetFontFamily(StringView value) noexcept {
+void FrameworkElement::SetFontFamily(StringView value) noexcept {
     Result<Ref<Media::FontFamily>> family =
         Base::MakeRef<Media::FontFamily>();
-    if (!family) return family.GetStatus();
+    if (!family) { AERO_ASSERT(false); return; }
     family.Value()->SetSource(value);
     SetFontFamily(std::move(family).Value());
-    return {};
 }
 
 // from src/gui/controls/Layout.cpp

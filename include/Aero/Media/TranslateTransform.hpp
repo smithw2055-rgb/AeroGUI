@@ -13,8 +13,8 @@ public:
     void SetX(double value) noexcept;
     void SetY(double value) noexcept;
 
-    inline static constexpr DependencyProperty<double> XProperty{"X"};
-    inline static constexpr DependencyProperty<double> YProperty{"Y"};
+    AERO_DEPENDENCY_PROPERTY(double, X);
+    AERO_DEPENDENCY_PROPERTY(double, Y);
 
     Base::Transform2D GetMatrix() const noexcept override;
 };

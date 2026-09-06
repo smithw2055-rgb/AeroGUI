@@ -122,14 +122,13 @@ void ShaderEffect::OnPixelShaderChanged(
     static_cast<ShaderEffect&>(object).SynchronizePixelShaderCache();
 }
 
-Base::Result<void> ShaderEffect::SetBytecode(
+void ShaderEffect::SetBytecode(
     Base::Span<const std::uint8_t> value) noexcept {
     bytecode_.Clear();
     for (std::uint32_t index = 0U; index < value.Size(); ++index) {
         Base::Result<void> added = bytecode_.PushBack(value[index]);
-        if (!added) return added.GetStatus();
+        if (!added) { AERO_ASSERT(false); return; }
     }
-    return {};
 }
 
 void ShaderEffect::SetUniform(std::uint32_t index, float value) noexcept {

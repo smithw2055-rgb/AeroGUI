@@ -18,12 +18,11 @@ public:
     void SetHeader(Value value) noexcept {
         SetValue(HeaderProperty, std::move(value));
     }
-    Result<void> SetHeader(StringView value) noexcept {
+    void SetHeader(StringView value) noexcept {
         Result<Value> boxed = Value::TryFromString(
             Meta::TypeOf<String>(), value);
-        if (!boxed) return boxed.GetStatus();
+        if (!boxed) { AERO_ASSERT(false); return; }
         SetHeader(std::move(boxed).Value());
-        return {};
     }
     Ref<DataTemplate> GetHeaderTemplate() const noexcept {
         return GetValue(HeaderTemplateProperty);
@@ -32,8 +31,8 @@ public:
         SetValue(HeaderTemplateProperty, std::move(value));
     }
 
-    inline static constexpr DependencyProperty<Value> HeaderProperty{"Header"};
-    inline static constexpr DependencyProperty<Ref<DataTemplate>> HeaderTemplateProperty{"HeaderTemplate"};
+    AERO_DEPENDENCY_PROPERTY(Value, Header);
+    AERO_DEPENDENCY_PROPERTY(Ref<DataTemplate>, HeaderTemplate);
 
 protected:
     explicit HeaderedItemsControl(Meta::TypeId runtimeType) noexcept

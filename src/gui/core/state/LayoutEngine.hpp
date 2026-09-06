@@ -39,6 +39,8 @@ private:
     Size rootAvailableSize_;
     Base::Vector<VisualHandle> measureQueue_;
     Base::Vector<VisualHandle> arrangeQueue_;
+    Base::Vector<VisualHandle> measureWorkQueue_;
+    Base::Vector<VisualHandle> arrangeWorkQueue_;
     bool initialized_ = false;
     std::uint64_t passVersion_ = 0U;
     std::uint32_t measuredCount_ = 0U;

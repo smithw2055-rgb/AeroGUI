@@ -16,8 +16,8 @@ public:
     void SetOffset(double value) noexcept;
     void SetColor(Color value) noexcept;
 
-    inline static constexpr DependencyProperty<double> OffsetProperty{"Offset"};
-    inline static constexpr DependencyProperty<Color> ColorProperty{"Color"};
+    AERO_DEPENDENCY_PROPERTY(double, Offset);
+    AERO_DEPENDENCY_PROPERTY(Color, Color);
 
 };
 } // namespace Aero::Media

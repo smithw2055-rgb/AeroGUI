@@ -1260,14 +1260,10 @@ bool MountAndLayout(
                     where.Data());
                 return false;
             }
-            Result<void> added = panel->GetChildren().Add(
+            panel->GetChildren().Add(
                 Ref<Aero::UIElement>::FromBorrowed(
                     *static_cast<Aero::UIElement*>(element)));
-            if (!added) {
-                mounted = added;
-            } else {
-                live.sampleDocument = std::move(document);
-            }
+            live.sampleDocument = std::move(document);
         }
     }
     if (FailIfSampleError(where, mounted.GetStatus(), live.diagnostics)) {
@@ -1311,9 +1307,7 @@ bool FillObjectCollection(
         if (!item) {
             return false;
         }
-        if (!items.Add(Ref<Aero::Base::Object>(item.Value()))) {
-            return false;
-        }
+        items.Add(Ref<Aero::Base::Object>(item.Value()));
     }
     return true;
 }

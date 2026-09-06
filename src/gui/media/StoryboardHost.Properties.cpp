@@ -1,5 +1,5 @@
 #include "gui/ViewState.hpp"
-#include "gui/media/StoryboardHostInternal.hpp"
+#include "gui/media/StoryboardHostCommon.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/core/state/EventRouter.hpp"
 #include <Aero/CommandBinding.hpp>
@@ -481,22 +481,14 @@ StoryboardHost::ResolveAnimationProperty(
                             Base::ErrorCode::OutOfMemory,
                             "Unable to allocate Storyboard TransformGroup children");
                     }
-                    Base::Result<void> added =
-                        group.Value()->AddChild(
-                            Base::Ref<Media::Transform>(scale.Value()));
-                    if (added) {
-                        added = group.Value()->AddChild(
-                            Base::Ref<Media::Transform>(skew.Value()));
-                    }
-                    if (added) {
-                        added = group.Value()->AddChild(
-                            Base::Ref<Media::Transform>(rotate.Value()));
-                    }
-                    if (added) {
-                        added = group.Value()->AddChild(
-                            Base::Ref<Media::Transform>(translate.Value()));
-                    }
-                    if (!added) return added.GetStatus();
+                    group.Value()->AddChild(
+                        Base::Ref<Media::Transform>(scale.Value()));
+                    group.Value()->AddChild(
+                        Base::Ref<Media::Transform>(skew.Value()));
+                    group.Value()->AddChild(
+                        Base::Ref<Media::Transform>(rotate.Value()));
+                    group.Value()->AddChild(
+                        Base::Ref<Media::Transform>(translate.Value()));
                     auto& element =
                         static_cast<Aero::UIElement&>(target);
                     const bool layoutPath =

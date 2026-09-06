@@ -22,12 +22,10 @@ public:
     void SetBinding(Ref<Aero::Data::Binding> value) noexcept {
         binding_ = std::move(value);
     }
-    Result<void> AddAction(Ref<TriggerAction> value) noexcept {
-        return value
-            ? actions_.PushBack(std::move(value))
-            : Result<void>(Base::Status::Failure(
-                  Base::ErrorCode::InvalidArgument,
-                  "PropertyChangedTrigger action cannot be null"));
+    void AddAction(Ref<TriggerAction> value) noexcept {
+        if (!value) { AERO_ASSERT(false); return; }
+        Base::Result<void> pushed = actions_.PushBack(std::move(value));
+        if (!pushed) { AERO_ASSERT(false); return; }
     }
     void ClearActions() noexcept { actions_.Clear(); }
     Span<const Ref<TriggerAction>> GetActions() const noexcept {
@@ -53,12 +51,10 @@ public:
     }
     bool GetActiveOnFocus() const noexcept { return activeOnFocus_; }
     void SetActiveOnFocus(bool value) noexcept { activeOnFocus_ = value; }
-    Result<void> AddAction(Ref<TriggerAction> value) noexcept {
-        return value
-            ? actions_.PushBack(std::move(value))
-            : Result<void>(Base::Status::Failure(
-                  Base::ErrorCode::InvalidArgument,
-                  "KeyTrigger action cannot be null"));
+    void AddAction(Ref<TriggerAction> value) noexcept {
+        if (!value) { AERO_ASSERT(false); return; }
+        Base::Result<void> pushed = actions_.PushBack(std::move(value));
+        if (!pushed) { AERO_ASSERT(false); return; }
     }
     void ClearActions() noexcept { actions_.Clear(); }
     Span<const Ref<TriggerAction>> GetActions() const noexcept {
@@ -100,8 +96,7 @@ public:
     Ref<Aero::Data::Binding> GetCommandParameterBinding() const noexcept {
         return commandParameterBinding_;
     }
-    void SetCommandParameterBinding(
-        Ref<Aero::Data::Binding> value) noexcept {
+    void SetCommandParameterBinding(Ref<Aero::Data::Binding> value) noexcept {
         commandParameterBinding_ = std::move(value);
     }
 
@@ -149,7 +144,7 @@ public:
         SetValue(IsEnabledProperty, value);
     }
 
-    inline static constexpr DependencyProperty<bool> IsEnabledProperty{"IsEnabled"};
+    AERO_DEPENDENCY_PROPERTY(bool, IsEnabled);
 
 private:
     String source_;

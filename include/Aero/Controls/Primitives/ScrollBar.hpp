@@ -15,14 +15,10 @@ public:
     double GetViewportSize() const noexcept;
     double GetSmallChange() const noexcept;
     double GetLargeChange() const noexcept;
-    void SetOrientation(
-        Orientation value) noexcept;
-    void SetViewportSize(
-        double value) noexcept;
-    void SetSmallChange(
-        double value) noexcept;
-    void SetLargeChange(
-        double value) noexcept;
+    void SetOrientation(Orientation value) noexcept;
+    void SetViewportSize(double value) noexcept;
+    void SetSmallChange(double value) noexcept;
+    void SetLargeChange(double value) noexcept;
     Result<bool> LineDecrement() noexcept;
     Result<bool> LineIncrement() noexcept;
     Result<bool> PageDecrement() noexcept;
@@ -32,10 +28,10 @@ public:
         double trackLength,
         double minimumThumbLength = 8.0) noexcept;
 
-    inline static constexpr DependencyProperty<Orientation> OrientationProperty{"Orientation"};
-    inline static constexpr DependencyProperty<double> ViewportSizeProperty{"ViewportSize"};
-    inline static constexpr DependencyProperty<double> SmallChangeProperty{"SmallChange"};
-    inline static constexpr DependencyProperty<double> LargeChangeProperty{"LargeChange"};
+    AERO_DEPENDENCY_PROPERTY(Orientation, Orientation);
+    AERO_DEPENDENCY_PROPERTY(double, ViewportSize);
+    AERO_DEPENDENCY_PROPERTY(double, SmallChange);
+    AERO_DEPENDENCY_PROPERTY(double, LargeChange);
 
 protected:
     void OnApplyTemplate() noexcept override;

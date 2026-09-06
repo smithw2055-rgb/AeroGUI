@@ -16,8 +16,8 @@ enum class VirtualizationMode : std::uint8_t { Standard = 0U, Recycling };
 class AERO_GUI_API VirtualizingPanel : public Panel {
     AERO_DECLARE_TYPE(VirtualizingPanel, Panel)
 public:
-    inline static constexpr AttachedProperty<ScrollUnit> ScrollUnitProperty{"ScrollUnit"};
-    inline static constexpr AttachedProperty<VirtualizationMode> VirtualizationModeProperty{"VirtualizationMode"};
+    AERO_ATTACHED_PROPERTY(ScrollUnit, ScrollUnit);
+    AERO_ATTACHED_PROPERTY(VirtualizationMode, VirtualizationMode);
 
 protected:
     explicit VirtualizingPanel(TypeId runtimeType) noexcept

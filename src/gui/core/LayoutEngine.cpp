@@ -808,14 +808,13 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
         }
     }
 
-    Base::Vector<VisualHandle> measure =
-        std::move(measureQueue_);
-    measureQueue_ = Base::Vector<VisualHandle>();
-    for (const VisualHandle handle : measure) {
+    measureWorkQueue_.Clear();
+    measureWorkQueue_.Swap(measureQueue_);
+    for (const VisualHandle handle : measureWorkQueue_) {
         UIElement* element = ResolveQueued(handle);
         if (element != nullptr) AeroGuiInternal::Layout(*element).measureQueued = false;
     }
-    for (const VisualHandle handle : measure) {
+    for (const VisualHandle handle : measureWorkQueue_) {
         UIElement* element = ResolveQueued(handle);
         if (element == nullptr || element == root_ ||
             AeroGuiInternal::LayoutEngineOf(*element) != this || element->GetIsMeasureValid()) {
@@ -830,18 +829,19 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
         if (!measured) {
             (void)QueueMeasure(*element);
             flushing_ = false;
+            measureWorkQueue_.Clear();
             return measured.GetStatus();
         }
     }
+    measureWorkQueue_.Clear();
 
-    Base::Vector<VisualHandle> arrange =
-        std::move(arrangeQueue_);
-    arrangeQueue_ = Base::Vector<VisualHandle>();
-    for (const VisualHandle handle : arrange) {
+    arrangeWorkQueue_.Clear();
+    arrangeWorkQueue_.Swap(arrangeQueue_);
+    for (const VisualHandle handle : arrangeWorkQueue_) {
         UIElement* element = ResolveQueued(handle);
         if (element != nullptr) AeroGuiInternal::Layout(*element).arrangeQueued = false;
     }
-    for (const VisualHandle handle : arrange) {
+    for (const VisualHandle handle : arrangeWorkQueue_) {
         UIElement* element = ResolveQueued(handle);
         if (element == nullptr || element == root_ ||
             AeroGuiInternal::LayoutEngineOf(*element) != this || element->GetIsArrangeValid()) {
@@ -856,9 +856,11 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
         if (!arranged) {
             (void)QueueArrange(*element);
             flushing_ = false;
+            arrangeWorkQueue_.Clear();
             return arranged.GetStatus();
         }
     }
+    arrangeWorkQueue_.Clear();
 
     // Applying a template during ArrangeOverride can attach new visuals and
     // invalidate the root after the root's first arrange has completed. Drive

@@ -30,6 +30,7 @@ struct StoredValueRare {
     PropertyValue inheritedValue{};
     PropertyValue currentValue{};
     PropertyValue animationValue{};
+    PropertyValue localBackup{};
     PropertyProviderSet baseProviders;
     PropertyValueSourceInfo sourceInfo{};
 
@@ -71,21 +72,12 @@ struct StoredValueRare {
     }
 };
 
-// Wave 4 hot entry (HashMap value; MemberId is the map key):
+// Single-slot hot entry (HashMap value; MemberId is the map key):
 //   PropertyValue effectiveValue
-//   PropertyValue inlineLocal      (P2.1: simple Local values, no heap)
 //   StoredValueRare* rare
 //   std::uint32_t packedFlags   (origin/rank/has* bits)
-// Inherited / animation / expression / providers live in rare. Local values
-// live inline; rare is only allocated for the uncommon payloads above.
-// packedFlags:
-//   [0] HasLocal  [1] HasCurrent  [2] HasExpression
-//   [3] HasInherited  [4] HasAnimation  [5] Queued
-//   [6] IsCoerced  [7] IsCurrentValue
-//   [8..15] PropertyValueRank  [16..31] origin (truncated to 16 bits)
-// Approximate sizeof: two Values + pointer + flags vs three Values plus
-// provider set plus sourceInfo before this wave. The second Value buys
-// allocation-free Local reads/writes for the common case.
+// Inherited / animation / expression / providers / local-backup live in rare.
+// When no override is active, effectiveValue directly holds the Local value.
 struct StoredValueEntry {
     enum : std::uint32_t {
         HasLocalBit = 1U << 0U,
@@ -103,10 +95,6 @@ struct StoredValueEntry {
     };
 
     PropertyValue effectiveValue;
-    // P2.1: 90% of properties hold a simple Local value. Kept inline so
-    // Set/Get/ClearLocal never allocate. Valid only when HasLocalBit is set;
-    // default-constructed Value is Unset.
-    PropertyValue inlineLocal;
     StoredValueRare* rare = nullptr;
     std::uint32_t packedFlags = 0U;
 
@@ -114,7 +102,6 @@ struct StoredValueEntry {
 
     StoredValueEntry(const StoredValueEntry& other)
         : effectiveValue(other.effectiveValue),
-          inlineLocal(other.inlineLocal),
           rare(nullptr),
           packedFlags(other.packedFlags) {
         CopyRareFrom(other.rare);
@@ -122,7 +109,6 @@ struct StoredValueEntry {
 
     StoredValueEntry(StoredValueEntry&& other) noexcept
         : effectiveValue(std::move(other.effectiveValue)),
-          inlineLocal(std::move(other.inlineLocal)),
           rare(other.rare),
           packedFlags(other.packedFlags) {
         other.rare = nullptr;
@@ -139,7 +125,6 @@ struct StoredValueEntry {
             return *this;
         }
         effectiveValue = other.effectiveValue;
-        inlineLocal = other.inlineLocal;
         packedFlags = other.packedFlags;
         delete rare;
         rare = nullptr;
@@ -153,7 +138,6 @@ struct StoredValueEntry {
         }
         delete rare;
         effectiveValue = std::move(other.effectiveValue);
-        inlineLocal = std::move(other.inlineLocal);
         packedFlags = other.packedFlags;
         rare = other.rare;
         other.rare = nullptr;
@@ -203,10 +187,9 @@ struct StoredValueEntry {
             return;
         }
         const PropertyValueSourceInfo& source = rare->sourceInfo;
-        // NOTE: HasLocal is intentionally absent: Local values live inline
-        // (P2.1) and never pin the rare block.
         if (HasCurrent() || HasExpression() || HasInherited() ||
             HasAnimation() || Queued() ||
+            !rare->localBackup.IsUnset() ||
             !rare->baseProviders.GetIsEmpty() ||
             source.revision != 0U ||
             source.token.ordinal != 0U ||
@@ -218,18 +201,33 @@ struct StoredValueEntry {
     }
 
     PropertyValue LocalValueOrUnset() const noexcept {
-        return HasLocal() ? inlineLocal : PropertyValue::Unset();
+        if (!HasLocal()) {
+            return PropertyValue::Unset();
+        }
+        return (rare != nullptr && !rare->localBackup.IsUnset())
+            ? rare->localBackup
+            : effectiveValue;
     }
 
-    // P2.1: infallible. A simple Local set never allocates.
+    // Single-slot local value store: when no animation/expression/coercion override is active,
+    // effectiveValue directly holds the local value.
     void SetLocalValue(const PropertyValue& value) noexcept {
-        inlineLocal = value;
         SetHasLocal(true);
+        if (rare != nullptr && (HasCurrent() || HasAnimation() || HasExpression() || Flag(IsCoercedBit))) {
+            rare->localBackup = value;
+        } else {
+            effectiveValue = value;
+            if (rare != nullptr) {
+                rare->localBackup = PropertyValue::Unset();
+            }
+        }
     }
 
     void ClearLocal() noexcept {
         SetHasLocal(false);
-        inlineLocal = PropertyValue::Unset();
+        if (rare != nullptr) {
+            rare->localBackup = PropertyValue::Unset();
+        }
         DropRareIfUnused();
     }
 
@@ -418,7 +416,7 @@ struct PropertyStore {
 };
 
 static_assert(
-    sizeof(StoredValueEntry) <= 192U,
-    "Hot DP entry must stay two Values plus packed flags and a rare pointer");
+    sizeof(StoredValueEntry) <= 96U,
+    "Hot DP entry must stay single Value plus packed flags and a rare pointer");
 
 } // namespace Aero

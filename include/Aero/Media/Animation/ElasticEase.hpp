@@ -17,8 +17,8 @@ public:
     }
     void SetOscillations(double value) noexcept;
     void SetSpringiness(double value) noexcept;
-    inline static constexpr DependencyProperty<double> OscillationsProperty{"Oscillations"};
-    inline static constexpr DependencyProperty<double> SpringinessProperty{"Springiness"};
+    AERO_DEPENDENCY_PROPERTY(double, Oscillations);
+    AERO_DEPENDENCY_PROPERTY(double, Springiness);
 };
 
 } // namespace Aero::Media::Animation

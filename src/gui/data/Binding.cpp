@@ -25,7 +25,7 @@
 #include <utility>
 
 
-#include "gui/data/BindingInternal.hpp"
+#include "gui/data/BindingCommon.hpp"
 
 
 namespace Aero {

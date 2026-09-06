@@ -19,8 +19,9 @@ public:
     Span<const Ref<VisualStateGroup>> GetItems() const noexcept {
         return {items_.Data(), items_.Size()};
     }
-    Result<void> Add(Ref<VisualStateGroup> value) noexcept {
-        return items_.PushBack(std::move(value));
+    void Add(Ref<VisualStateGroup> value) noexcept {
+        Base::Result<void> pushed = items_.PushBack(std::move(value));
+        if (!pushed) { AERO_ASSERT(false); return; }
     }
     void Clear() noexcept { items_.Clear(); }
 

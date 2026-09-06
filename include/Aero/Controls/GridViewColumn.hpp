@@ -15,40 +15,34 @@ public:
         : DependencyObject(StaticTypeId()) {}
     Value GetHeader() const noexcept;
     void SetHeader(Value value) noexcept;
-    Result<void> SetHeader(StringView value) noexcept;
+    void SetHeader(StringView value) noexcept;
     double GetWidth() const noexcept;
-    void SetWidth(
-        double value) noexcept;
+    void SetWidth(double value) noexcept;
     Ref<DataTemplate>
         GetCellTemplate() const noexcept;
-    void SetCellTemplate(
-        Ref<DataTemplate> value) noexcept;
+    void SetCellTemplate(Ref<DataTemplate> value) noexcept;
     Ref<DataTemplate>
         GetHeaderTemplate() const noexcept;
-    void SetHeaderTemplate(
-        Ref<DataTemplate> value) noexcept;
+    void SetHeaderTemplate(Ref<DataTemplate> value) noexcept;
     StringView GetDisplayMemberPath()
         const noexcept;
-    void SetDisplayMemberPath(
-        StringView value) noexcept;
+    void SetDisplayMemberPath(StringView value) noexcept;
     Ref<Aero::Data::Binding>
         GetDisplayMemberBinding() const noexcept;
-    void SetDisplayMemberBinding(
-        Ref<Aero::Data::Binding> value) noexcept;
+    void SetDisplayMemberBinding(Ref<Aero::Data::Binding> value) noexcept;
     Ref<Style> GetHeaderContainerStyle() const noexcept {
         return GetValue(HeaderContainerStyleProperty);
     }
-    void SetHeaderContainerStyle(
-        Ref<Style> value) noexcept {
+    void SetHeaderContainerStyle(Ref<Style> value) noexcept {
         SetValue(HeaderContainerStyleProperty, std::move(value));
     }
 
-    inline static constexpr DependencyProperty<Value> HeaderProperty{"Header"};
-    inline static constexpr DependencyProperty<double> WidthProperty{"Width"};
-    inline static constexpr DependencyProperty<Ref<DataTemplate>> CellTemplateProperty{"CellTemplate"};
-    inline static constexpr DependencyProperty<Ref<DataTemplate>> HeaderTemplateProperty{"HeaderTemplate"};
-    inline static constexpr DependencyProperty<String> DisplayMemberPathProperty{"DisplayMemberPath"};
-    inline static constexpr DependencyProperty<Ref<Aero::Data::Binding>> DisplayMemberBindingProperty{"DisplayMemberBinding"};
-    inline static constexpr DependencyProperty<Ref<Style>> HeaderContainerStyleProperty{"HeaderContainerStyle"};
+    AERO_DEPENDENCY_PROPERTY(Value, Header);
+    AERO_DEPENDENCY_PROPERTY(double, Width);
+    AERO_DEPENDENCY_PROPERTY(Ref<DataTemplate>, CellTemplate);
+    AERO_DEPENDENCY_PROPERTY(Ref<DataTemplate>, HeaderTemplate);
+    AERO_DEPENDENCY_PROPERTY(String, DisplayMemberPath);
+    AERO_DEPENDENCY_PROPERTY(Ref<Aero::Data::Binding>, DisplayMemberBinding);
+    AERO_DEPENDENCY_PROPERTY(Ref<Style>, HeaderContainerStyle);
 };
 } // namespace Aero::Controls

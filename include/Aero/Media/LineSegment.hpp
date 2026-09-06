@@ -15,7 +15,7 @@ public:
     void SetPoint(Point value) noexcept {
         SetValue(PointProperty, value);
     }
-    inline static constexpr DependencyProperty<Point> PointProperty{"Point"};
+    AERO_DEPENDENCY_PROPERTY(Point, Point);
     Result<void> Flatten(
         FlattenSink& sink,
         Point& currentPoint) const noexcept override;

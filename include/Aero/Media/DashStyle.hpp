@@ -16,7 +16,7 @@ public:
     }
     double GetOffset() const noexcept { return offset_; }
 
-    Result<void> SetDashes(Span<const double> value) noexcept;
+    void SetDashes(Span<const double> value) noexcept;
     void SetOffset(double value) noexcept;
 
 private:

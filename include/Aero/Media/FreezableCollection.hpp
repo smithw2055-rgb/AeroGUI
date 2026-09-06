@@ -48,14 +48,10 @@ public:
             ? Ref<Base::Object>(items_[index])
             : Ref<Base::Object>{};
     }
-    Result<void> Add(Ref<T> item) noexcept {
+    void Add(Ref<T> item) noexcept {
         Result<void> writable = WritePreamble();
-        if (!writable) return writable.GetStatus();
-        if (!item) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "FreezableCollection item cannot be null");
-        }
+        if (!writable) { AERO_ASSERT(false); return; }
+        if (!item) { AERO_ASSERT(false); return; }
         EnsureItemHandler();
         T* retained = item.Get();
         if (!retained->IsFrozen()) {
@@ -67,7 +63,8 @@ public:
                 static_cast<void>(retained->RemoveChangedHandler(
                     itemChangedHandler_));
             }
-            return added.GetStatus();
+            AERO_ASSERT(false);
+            return;
         }
         if (!changed_.Empty()) {
             changed_.Invoke({
@@ -78,7 +75,6 @@ public:
                 1U});
         }
         WritePostscript();
-        return {};
     }
     void Clear() noexcept {
         if (!WritePreamble() || items_.Empty()) return;

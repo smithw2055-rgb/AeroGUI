@@ -13,6 +13,6 @@ public:
     double GetSize() const noexcept;
     void SetSize(double value) noexcept;
 
-    inline static constexpr DependencyProperty<double> SizeProperty{"Size"};
+    AERO_DEPENDENCY_PROPERTY(double, Size);
 };
 } // namespace Aero::Media

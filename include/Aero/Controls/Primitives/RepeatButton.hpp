@@ -15,8 +15,8 @@ public:
     void SetDelay(std::uint32_t value) noexcept;
     void SetInterval(std::uint32_t value) noexcept;
 
-    inline static constexpr DependencyProperty<std::uint32_t> DelayProperty{"Delay"};
-    inline static constexpr DependencyProperty<std::uint32_t> IntervalProperty{"Interval"};
+    AERO_DEPENDENCY_PROPERTY(std::uint32_t, Delay);
+    AERO_DEPENDENCY_PROPERTY(std::uint32_t, Interval);
 
 protected:
     explicit RepeatButton(TypeId runtimeType) noexcept

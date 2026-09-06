@@ -33,16 +33,14 @@ public:
     }
 
     void SetClickMode(ClickMode value) noexcept;
-    void SetCommand(
-        Ref<ICommand> command) noexcept;
+    void SetCommand(Ref<ICommand> command) noexcept;
     void SetCommandParameter(Value parameter) noexcept;
-    void SetCommandTarget(
-        Ref<UIElement> target) noexcept;
+    void SetCommandTarget(Ref<UIElement> target) noexcept;
 
-    inline static constexpr DependencyProperty<ClickMode> ClickModeProperty{"ClickMode"};
-    inline static constexpr DependencyProperty<Ref<ICommand>> CommandProperty{"Command"};
-    inline static constexpr DependencyProperty<Value> CommandParameterProperty{"CommandParameter"};
-    inline static constexpr DependencyProperty<Ref<UIElement>> CommandTargetProperty{"CommandTarget"};
+    AERO_DEPENDENCY_PROPERTY(ClickMode, ClickMode);
+    AERO_DEPENDENCY_PROPERTY(Ref<ICommand>, Command);
+    AERO_DEPENDENCY_PROPERTY(Value, CommandParameter);
+    AERO_DEPENDENCY_PROPERTY(Ref<UIElement>, CommandTarget);
 
 protected:
     explicit ButtonBase(TypeId runtimeType) noexcept

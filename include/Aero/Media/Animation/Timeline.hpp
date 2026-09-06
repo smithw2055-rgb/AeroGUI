@@ -49,18 +49,12 @@ public:
     void SetAutoReverse(bool value) noexcept;
     void SetFillBehavior(FillBehavior value) noexcept;
 
-    inline static constexpr DependencyProperty<TimeSpan> BeginTimeProperty{
-        "BeginTime"};
-    inline static constexpr DependencyProperty<Duration> DurationProperty{
-        "Duration"};
-    inline static constexpr DependencyProperty<RepeatBehavior>
-        RepeatBehaviorProperty{"RepeatBehavior"};
-    inline static constexpr DependencyProperty<double> SpeedRatioProperty{
-        "SpeedRatio"};
-    inline static constexpr DependencyProperty<bool> AutoReverseProperty{
-        "AutoReverse"};
-    inline static constexpr DependencyProperty<FillBehavior>
-        FillBehaviorProperty{"FillBehavior"};
+    AERO_DEPENDENCY_PROPERTY(TimeSpan, BeginTime);
+    AERO_DEPENDENCY_PROPERTY(Duration, Duration);
+    AERO_DEPENDENCY_PROPERTY(RepeatBehavior, RepeatBehavior);
+    AERO_DEPENDENCY_PROPERTY(double, SpeedRatio);
+    AERO_DEPENDENCY_PROPERTY(bool, AutoReverse);
+    AERO_DEPENDENCY_PROPERTY(FillBehavior, FillBehavior);
 
 protected:
     explicit Timeline(Meta::TypeId runtimeType) noexcept

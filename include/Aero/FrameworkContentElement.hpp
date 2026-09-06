@@ -61,13 +61,13 @@ public:
         SetValue(OverridesDefaultStyleProperty, value);
     }
 
-    inline static constexpr DependencyProperty<Value> DataContextProperty{"DataContext"};
-    inline static constexpr DependencyProperty<Ref<Style>> StyleProperty{"Style"};
-    inline static constexpr DependencyProperty<Value> TagProperty{"Tag"};
-    inline static constexpr DependencyProperty<bool> IsEnabledProperty{"IsEnabled"};
-    inline static constexpr ReadOnlyDependencyProperty<bool> IsMouseOverProperty{"IsMouseOver"};
-    inline static constexpr DependencyProperty<String> CursorProperty{"Cursor"};
-    inline static constexpr DependencyProperty<bool> OverridesDefaultStyleProperty{"OverridesDefaultStyle"};
+    AERO_DEPENDENCY_PROPERTY(Value, DataContext);
+    AERO_DEPENDENCY_PROPERTY(Ref<Style>, Style);
+    AERO_DEPENDENCY_PROPERTY(Value, Tag);
+    AERO_DEPENDENCY_PROPERTY(bool, IsEnabled);
+    AERO_READONLY_PROPERTY(bool, IsMouseOver);
+    AERO_DEPENDENCY_PROPERTY(String, Cursor);
+    AERO_DEPENDENCY_PROPERTY(bool, OverridesDefaultStyle);
 
 protected:
     virtual std::uint32_t GetLogicalChildrenCount() const noexcept { return 0U; }
@@ -78,7 +78,7 @@ private:
 #if defined(AERO_GUI_IMPLEMENTATION)
     friend class ::Aero::AeroGuiInternal;
 #endif
-    Result<void> AddAuthoredTrigger(
+    void AddAuthoredTrigger(
         Ref<Base::Object> trigger) noexcept;
     void ClearAuthoredTriggers() noexcept;
     Span<const Ref<Base::Object>>

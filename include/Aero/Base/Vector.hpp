@@ -160,6 +160,22 @@ public:
         size_ = 0U;
     }
 
+    void Swap(BasicVector& other) noexcept {
+        if (this == &other) {
+            return;
+        }
+        if constexpr (InlineCount == 0U) {
+            std::swap(allocator_, other.allocator_);
+            std::swap(data_, other.data_);
+            std::swap(size_, other.size_);
+            std::swap(capacity_, other.capacity_);
+        } else {
+            BasicVector temporary(std::move(*this));
+            *this = std::move(other);
+            other = std::move(temporary);
+        }
+    }
+
     void PopBack() noexcept {
         AERO_ASSERT(size_ > 0U);
         --size_;

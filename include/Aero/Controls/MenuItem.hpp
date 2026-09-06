@@ -26,22 +26,17 @@ public:
 
     StringView GetInputGestureText()
         const noexcept;
-    void SetInputGestureText(
-        StringView value) noexcept;
+    void SetInputGestureText(StringView value) noexcept;
     bool GetIsCheckable() const noexcept;
-    void SetIsCheckable(
-        bool value) noexcept;
+    void SetIsCheckable(bool value) noexcept;
     bool GetIsChecked() const noexcept;
-    void SetIsChecked(
-        bool value) noexcept;
+    void SetIsChecked(bool value) noexcept;
     bool GetIsHighlighted() const noexcept;
     bool GetIsSubmenuOpen() const noexcept;
-    void SetIsSubmenuOpen(
-        bool value) noexcept;
+    void SetIsSubmenuOpen(bool value) noexcept;
     MenuItemRole GetRole() const noexcept;
     ICommand* GetCommand() const noexcept;
-    void SetCommand(
-        Ref<ICommand> command) noexcept;
+    void SetCommand(Ref<ICommand> command) noexcept;
     Value GetCommandParameter() const noexcept;
     void SetCommandParameter(Value value) noexcept;
     Value GetIcon() const noexcept {
@@ -51,15 +46,15 @@ public:
         SetValue(IconProperty, std::move(value));
     }
 
-    inline static constexpr DependencyProperty<String> InputGestureTextProperty{"InputGestureText"};
-    inline static constexpr DependencyProperty<bool> IsCheckableProperty{"IsCheckable"};
-    inline static constexpr DependencyProperty<bool> IsCheckedProperty{"IsChecked"};
-    inline static constexpr ReadOnlyDependencyProperty<bool> IsHighlightedProperty{"IsHighlighted"};
-    inline static constexpr DependencyProperty<bool> IsSubmenuOpenProperty{"IsSubmenuOpen"};
-    inline static constexpr ReadOnlyDependencyProperty<MenuItemRole> RoleProperty{"Role"};
-    inline static constexpr DependencyProperty<Ref<ICommand>> CommandProperty{"Command"};
-    inline static constexpr DependencyProperty<Value> CommandParameterProperty{"CommandParameter"};
-    inline static constexpr DependencyProperty<Value> IconProperty{"Icon"};
+    AERO_DEPENDENCY_PROPERTY(String, InputGestureText);
+    AERO_DEPENDENCY_PROPERTY(bool, IsCheckable);
+    AERO_DEPENDENCY_PROPERTY(bool, IsChecked);
+    AERO_READONLY_PROPERTY(bool, IsHighlighted);
+    AERO_DEPENDENCY_PROPERTY(bool, IsSubmenuOpen);
+    AERO_READONLY_PROPERTY(MenuItemRole, Role);
+    AERO_DEPENDENCY_PROPERTY(Ref<ICommand>, Command);
+    AERO_DEPENDENCY_PROPERTY(Value, CommandParameter);
+    AERO_DEPENDENCY_PROPERTY(Value, Icon);
     inline static constexpr RoutedEvent<RoutedEventArgs> ClickEvent{"Click"};
 
 protected:

@@ -30,19 +30,12 @@ public:
         value_ = value;
     }
     template<class TOwner, class TValue>
-    Result<void> Set(
-        const Meta::DependencyPropertyRef<TOwner, TValue>& property,
-        const TValue& value) noexcept {
+    void Set(const Meta::DependencyPropertyRef<TOwner, TValue>& property, const TValue& value) noexcept {
         Result<PropertyValue> encoded = Meta::ValueCodec<TValue>::Encode(value);
-        if (!encoded) return encoded.GetStatus();
-        if (!property.Handle().IsValid()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "Setter property is invalid");
-        }
+        if (!encoded) { AERO_ASSERT(false); return; }
+        if (!property.Handle().IsValid()) { AERO_ASSERT(false); return; }
         SetProperty(property.Handle());
         SetValue(encoded.Value());
-        return {};
     }
     void SetPropertyName(StringView value) noexcept;
     void SetTargetName(StringView value) noexcept;

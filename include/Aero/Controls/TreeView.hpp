@@ -19,7 +19,7 @@ public:
         GetSelectedItem() const noexcept;
     bool SelectItem(
         TreeViewItem* item) noexcept;
-    inline static constexpr ReadOnlyDependencyProperty<Ref<Base::Object>> SelectedItemProperty{"SelectedItem"};
+    AERO_READONLY_PROPERTY(Ref<Base::Object>, SelectedItem);
     inline static constexpr RoutedEvent<RoutedEventArgs> SelectedItemChangedEvent{"SelectedItemChanged"};
 
 protected:

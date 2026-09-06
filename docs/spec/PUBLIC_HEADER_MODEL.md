@@ -12,12 +12,16 @@ public type names and observable behavior; it does not require AeroGUI to copy
 
 The supported product umbrellas are:
 
+- `<AeroPCH.hpp>` — single precompiled-header/umbrella for new hosts;
 - `<Aero/Gui.hpp>` — retained WPF/XAML authoring surface;
 - `<AeroApp/App.hpp>` — `Application::Run()` and optional default desktop lifetime;
-- `<Aero/Meta.hpp>` — typed metadata and custom-module authoring.
+- `<Aero/Meta.hpp>` — typed metadata and custom-module authoring
+  (`Aero/Module.hpp` is its lightweight composition header).
 
 Embedding uses the installed `RenderDevice`/`RenderTarget` contracts plus the
 opt-in `<AeroRender/D3D11.hpp>` and `<AeroRender/OpenGL33.hpp>` factories.
+`<AeroRender/BackendCommon.hpp>` owns the shared state-preservation policy so
+the two backend headers cannot drift.
 Advanced headers under `Aero/Markup`, provider contracts under their owning
 domains, and `Input/Platform.hpp` are specialist surfaces. Native
 Win32/X11 adapters remain private. These specialist headers are not transitively
@@ -123,7 +127,20 @@ template `KeyFrame<T>` underneath the WPF-named key-frame types.
 `Controls/TextBox.hpp` physically own their declarations. Foundational family
 types such as `Control`, `Panel`, `ContentControl`, `ButtonBase`, and
 `ItemsControl` follow the same rule. The SDK contains no parallel `Aero/Gui/*`
-paths and no include-only `Text.hpp` compatibility facade.
+paths and no include-only `Text.hpp` compatibility facade. Foundational
+family types are owned by `Controls/Primitives/*` with no flat forwarding
+headers under `Controls/`.
+
+Trigger ownership follows WPF semantics: `Aero/Triggers/*` owns Style/Template
+triggers, `Aero/Interactivity/*` owns Blend behaviors/actions, and
+`Media/Animation/*Trigger|*Action` owns event-driven storyboard/media actions.
+`<Aero/Media/Animation.hpp>` stays trigger-free.
+
+Property declarations use `AERO_DEPENDENCY_PROPERTY` /
+`AERO_ATTACHED_PROPERTY` / `AERO_READONLY_PROPERTY` from
+`<Aero/DependencyProperty.hpp>`; hand-written `XxxProperty` refs and
+`Nullable::GetValueOr` are retired. Nullable values use explicit
+`GetHasValue() ? GetValue() : fallback` at the call site.
 
 ## Private implementation placement
 
@@ -174,6 +191,15 @@ failure. Dependency-property mutations (`SetValue`, `SetCurrentValue`,
 validation and read-only checks are completed before commit so a rejected
 assignment leaves the previous effective value unchanged. `Freezable` freezes
 disallow subsequent mutations silently or via assertion.
+
+`void` is the default for fallible-looking conveniences that the caller cannot
+meaningfully handle: every property setter overload (including `StringView`
+conversion overloads), collection `Add`/`Insert`/`Clear`/`Remove` operations,
+and lifecycle hooks (`OnAttached`/`OnDetaching`/`OnLayoutUpdated`). Their
+allocation/conversion failures assert via `AERO_ASSERT` and keep the previous
+value (best-effort no-op in release). `Result<void>` stays reserved for `Try*`
+names, streams/files, module registration, XAML/schema loading, backend
+`Create*` factories, and codecs.
 
 Adding a public header is therefore an API decision: it must update the
 whitelist and namespace manifest when needed, fit an existing product/domain

@@ -19,7 +19,7 @@ public:
     }
     Value GetMetadataInlines() const noexcept;
     void SetInlineValue(Value value) noexcept;
-    Result<void> AddOwnedInline(Ref<Inline> value) noexcept;
+    void AddOwnedInline(Ref<Inline> value) noexcept;
     void ClearOwnedInlines() noexcept;
 
 protected:

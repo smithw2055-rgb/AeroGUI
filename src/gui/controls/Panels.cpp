@@ -648,45 +648,41 @@ void Grid::SetChildCell(
     child.SetValue(RowSpanProperty, rowSpan);
     child.SetValue(ColumnSpanProperty, columnSpan);
 }
-Base::Result<void> Grid::AddColumnDefinition(
+void Grid::AddColumnDefinition(
     Base::Ref<ColumnDefinition> definition) noexcept {
     Base::Result<void> access = VerifyAccess();
-    if (!access) return access.GetStatus();
-    if (!definition) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Grid ColumnDefinition is null");
-    }
+    if (!access) { AERO_ASSERT(false); return; }
+    if (!definition) { AERO_ASSERT(false); return; }
     Base::Result<void> objectAdded =
         columnDefinitionObjects_.PushBack(definition);
-    if (!objectAdded) return objectAdded.GetStatus();
+    if (!objectAdded) { AERO_ASSERT(false); return; }
     Base::Result<void> lengthAdded =
         columns_.PushBack(definition->GetWidth());
     if (!lengthAdded) {
         columnDefinitionObjects_.PopBack();
-        return lengthAdded.GetStatus();
+        AERO_ASSERT(false);
+        return;
     }
-    return InvalidateMeasure();
+    Base::Result<void> invalidated = InvalidateMeasure();
+    if (!invalidated) { AERO_ASSERT(false); return; }
 }
-Base::Result<void> Grid::AddRowDefinition(
+void Grid::AddRowDefinition(
     Base::Ref<RowDefinition> definition) noexcept {
     Base::Result<void> access = VerifyAccess();
-    if (!access) return access.GetStatus();
-    if (!definition) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Grid RowDefinition is null");
-    }
+    if (!access) { AERO_ASSERT(false); return; }
+    if (!definition) { AERO_ASSERT(false); return; }
     Base::Result<void> objectAdded =
         rowDefinitionObjects_.PushBack(definition);
-    if (!objectAdded) return objectAdded.GetStatus();
+    if (!objectAdded) { AERO_ASSERT(false); return; }
     Base::Result<void> lengthAdded =
         rows_.PushBack(definition->GetHeight());
     if (!lengthAdded) {
         rowDefinitionObjects_.PopBack();
-        return lengthAdded.GetStatus();
+        AERO_ASSERT(false);
+        return;
     }
-    return InvalidateMeasure();
+    Base::Result<void> invalidated = InvalidateMeasure();
+    if (!invalidated) { AERO_ASSERT(false); return; }
 }
 void
 Grid::ClearColumnDefinitionObjects() noexcept {
@@ -1099,14 +1095,13 @@ UIElement* UIElementCollection::GetItem(std::uint32_t index) const noexcept {
     Base::Ref<Base::Object> child = owner_->ChildAtCore(index);
     return child ? static_cast<UIElement*>(child.Get()) : nullptr;
 }
-Base::Result<void> UIElementCollection::Add(Base::Ref<UIElement> child) noexcept {
+void UIElementCollection::Add(Base::Ref<UIElement> child) noexcept {
     if (owner_ == nullptr || !child) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "UIElementCollection requires an owner and child");
+        return;
     }
     Base::Ref<Base::Object> object(child);
     UIElement& element = *child;
-    Base::Result<void> added = owner_->AddChildCore(object, element);
-    if (!added) return added.GetStatus();
+    owner_->AddChildCore(object, element);
     // AttachVisual already calls PanelAddChild. Nested AttachElement here
     // double-mounts layout/render and drops ControlTemplates.
     ElementTree* tree = owner_->GetTree();
@@ -1117,31 +1112,29 @@ Base::Result<void> UIElementCollection::Add(Base::Ref<UIElement> child) noexcept
                 tree->AttachElement(*owner_, element);
             if (!attached) {
                 (void)owner_->RemoveChildCore(element);
-                return attached.GetStatus();
+                return;
             }
         } else if (
             element.GetVisualParent() != owner_ ||
             !element.GetIsLayoutAttached()) {
             if (element.GetVisualParent() != nullptr &&
                 element.GetVisualParent() != owner_) {
-                return {};
+                return;
             }
             Base::Result<VisualAttachment> attached =
                 tree->AttachVisualChild(*owner_, element);
             if (!attached) {
                 (void)owner_->RemoveChildCore(element);
-                return attached.GetStatus();
+                return;
             }
         }
     }
-    return {};
 }
-Base::Result<void> UIElementCollection::Remove(UIElement& child) noexcept {
+void UIElementCollection::Remove(UIElement& child) noexcept {
     if (owner_ == nullptr) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidState, "UIElementCollection has no owner");
+        return;
     }
-    Base::Result<bool> removed = owner_->RemoveChildCore(child);
-    return removed ? Base::Result<void>() : Base::Result<void>(removed.GetStatus());
+    (void)owner_->RemoveChildCore(child);
 }
 void UIElementCollection::Clear() noexcept {
     if (owner_ == nullptr) {
@@ -1212,19 +1205,19 @@ UIElement* Panel::GetLayoutChild(std::uint32_t index) const noexcept {
     return nullptr;
 }
 
-Base::Result<void> Panel::AddChildCore(const Base::Ref<Base::Object>& childObject, UIElement& child) noexcept {
+void Panel::AddChildCore(const Base::Ref<Base::Object>& childObject, UIElement& child) noexcept {
     if (!childObject || childObject.Get() != &child) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Panel child ownership does not match its UIElement");
+        return;
     }
     Base::Result<void> access = VerifyAccess();
-    if (!access) return access.GetStatus();
+    if (!access) return;
     for (const Base::Ref<Base::Object>& owned : ownedChildren_) {
         if (owned.Get() == &child) {
-            return Base::Status::Failure(Base::ErrorCode::AlreadyExists, "Panel already contains the child");
+            return;
         }
     }
     Base::Result<void> appended = ownedChildren_.PushBack(childObject);
-    if (!appended) return appended.GetStatus();
+    if (!appended) return;
     if (child.GetVisualParent() != this) {
         if (ElementTree* tree = GetTree()) {
             // XAML Panel content uses AddChildCore, not UIElementCollection::Add.
@@ -1236,27 +1229,28 @@ Base::Result<void> Panel::AddChildCore(const Base::Ref<Base::Object>& childObjec
                     tree->AttachElement(*this, child);
                 if (!attached) {
                     ownedChildren_.PopBack();
-                    return attached.GetStatus();
+                    return;
                 }
             } else if (
                 child.GetVisualParent() != this ||
                 !child.GetIsLayoutAttached()) {
                 if (child.GetVisualParent() != nullptr &&
                     child.GetVisualParent() != this) {
-                    return InvalidateMeasure();
+                    (void)InvalidateMeasure();
+                    return;
                 }
                 Base::Result<VisualAttachment> attached =
                     tree->AttachVisualChild(*this, child);
                 if (!attached) {
                     ownedChildren_.PopBack();
-                    return attached.GetStatus();
+                    return;
                 }
             }
         } else {
             AddVisualChild(&child);
         }
     }
-    return InvalidateMeasure();
+    (void)InvalidateMeasure();
 }
 Base::Result<bool> Panel::RemoveChildCore(UIElement& child) noexcept {
     Base::Result<void> access = VerifyAccess();

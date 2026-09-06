@@ -88,15 +88,15 @@ public:
     inline static constexpr RoutedEvent<RoutedEventArgs> MediaFailedEvent{"MediaFailed"};
     inline static constexpr RoutedEvent<RoutedEventArgs> MediaOpenedEvent{"MediaOpened"};
 
-    inline static constexpr DependencyProperty<String> SourceProperty{"Source"};
-    inline static constexpr DependencyProperty<Stretch> StretchProperty{"Stretch"};
-    inline static constexpr DependencyProperty<StretchDirection> StretchDirectionProperty{"StretchDirection"};
-    inline static constexpr DependencyProperty<MediaState> LoadedBehaviorProperty{"LoadedBehavior"};
-    inline static constexpr DependencyProperty<MediaState> UnloadedBehaviorProperty{"UnloadedBehavior"};
-    inline static constexpr DependencyProperty<bool> IsMutedProperty{"IsMuted"};
-    inline static constexpr DependencyProperty<double> VolumeProperty{"Volume"};
-    inline static constexpr DependencyProperty<double> BalanceProperty{"Balance"};
-    inline static constexpr DependencyProperty<bool> ScrubbingEnabledProperty{"ScrubbingEnabled"};
+    AERO_DEPENDENCY_PROPERTY(String, Source);
+    AERO_DEPENDENCY_PROPERTY(Stretch, Stretch);
+    AERO_DEPENDENCY_PROPERTY(StretchDirection, StretchDirection);
+    AERO_DEPENDENCY_PROPERTY(MediaState, LoadedBehavior);
+    AERO_DEPENDENCY_PROPERTY(MediaState, UnloadedBehavior);
+    AERO_DEPENDENCY_PROPERTY(bool, IsMuted);
+    AERO_DEPENDENCY_PROPERTY(double, Volume);
+    AERO_DEPENDENCY_PROPERTY(double, Balance);
+    AERO_DEPENDENCY_PROPERTY(bool, ScrubbingEnabled);
 };
 
 } // namespace Aero::Media

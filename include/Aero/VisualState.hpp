@@ -21,30 +21,26 @@ public:
     }
 
     StringView GetName() const noexcept { return name_.View(); }
-    Result<void> SetName(StringView value) noexcept {
-        return name_.Assign(value);
+    void SetName(StringView value) noexcept {
+        Base::Result<void> assigned = name_.Assign(value);
+        if (!assigned) { AERO_ASSERT(false); return; }
     }
     Span<const Ref<Base::Object>> GetSetters() const noexcept {
         return {setters_.Data(), setters_.Size()};
     }
-    Result<void> AddSetter(
+    void AddSetter(
         Ref<Base::Object> value) noexcept {
-        return setters_.PushBack(std::move(value));
+        Base::Result<void> pushed = setters_.PushBack(std::move(value));
+        if (!pushed) { AERO_ASSERT(false); return; }
     }
     void ClearSetters() noexcept { setters_.Clear(); }
     const Ref<Media::Animation::Storyboard>&
     GetStoryboard() const noexcept {
         return storyboard_;
     }
-    Result<void> SetStoryboard(
-        Ref<Media::Animation::Storyboard> value) noexcept {
-        if (storyboard_ && value) {
-            return Base::Status::Failure(
-                Base::ErrorCode::AlreadyExists,
-                "VisualState accepts only one Storyboard");
-        }
+    void SetStoryboard(Ref<Media::Animation::Storyboard> value) noexcept {
+        if (storyboard_ && value) { AERO_ASSERT(false); return; }
         storyboard_ = std::move(value);
-        return {};
     }
 
 private:

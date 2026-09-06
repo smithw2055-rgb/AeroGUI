@@ -13,6 +13,6 @@ public:
     Base::Color GetColor() const noexcept;
     void SetColor(Base::Color value) noexcept;
 
-    inline static constexpr DependencyProperty<Base::Color> ColorProperty{"Color"};
+    AERO_DEPENDENCY_PROPERTY(Base::Color, Color);
 };
 } // namespace Aero::Media

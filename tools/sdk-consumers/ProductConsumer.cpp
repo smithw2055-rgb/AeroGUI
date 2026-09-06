@@ -92,9 +92,6 @@ inline constexpr Aero::ModuleRegistration ConsumerComponents =
     static_cast<void>(
         static_cast<Aero::Result<int> (Aero::Application::*)() noexcept>(
             &Aero::Application::Run));
-    static_cast<void>(
-        static_cast<int (*)(const Aero::App::RunOptions&) noexcept>(
-            &Aero::App::Run));
 }
 
 static_assert(

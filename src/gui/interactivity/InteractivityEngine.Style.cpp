@@ -65,8 +65,8 @@ Base::Result<bool> InteractivityEngine::StyleDataTriggerValuesMatch(
                     *actual.AsObject()).Value(),
                 std::move(expected));
         }
-        if (expected.IsNullObject()) {
-            return actual.IsNullObject();
+        if (expected.IsNullObject() || expected.IsUnset()) {
+            return actual.IsNullObject() || actual.IsUnset();
         }
         if (expected.Kind() == Meta::ValueKind::String &&
             actual.Kind() == Meta::ValueKind::String) {

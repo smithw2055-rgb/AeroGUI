@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Aero/Base/Config.hpp>
+#include <Aero/Base/Assert.hpp>
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
@@ -23,41 +24,35 @@ public:
     StringView GetGeneratedDuration() const noexcept {
         return generatedDuration_.View();
     }
-    Result<void> SetFrom(StringView value) noexcept {
-        return from_.Assign(value);
+    void SetFrom(StringView value) noexcept {
+        Base::Result<void> assigned = from_.Assign(value);
+        if (!assigned) { AERO_ASSERT(false); return; }
     }
-    Result<void> SetTo(StringView value) noexcept {
-        return to_.Assign(value);
+    void SetTo(StringView value) noexcept {
+        Base::Result<void> assigned = to_.Assign(value);
+        if (!assigned) { AERO_ASSERT(false); return; }
     }
-    Result<void> SetGeneratedDuration(
-        StringView value) noexcept {
+    void SetGeneratedDuration(StringView value) noexcept {
         Result<Media::Animation::Duration> valid =
             Media::Animation::Duration::TryParse(value);
-        if (!valid) return valid.GetStatus();
-        return generatedDuration_.Assign(value);
+        if (!valid) { AERO_ASSERT(false); return; }
+        Base::Result<void> assigned = generatedDuration_.Assign(value);
+        if (!assigned) { AERO_ASSERT(false); return; }
     }
     Ref<Media::Animation::EasingFunctionBase>
     GetGeneratedEasingFunction() const noexcept {
         return generatedEasingFunction_;
     }
-    Result<void> SetGeneratedEasingFunction(
-        Ref<Media::Animation::EasingFunctionBase> value) noexcept {
+    void SetGeneratedEasingFunction(Ref<Media::Animation::EasingFunctionBase> value) noexcept {
         generatedEasingFunction_ = std::move(value);
-        return {};
     }
     const Ref<Media::Animation::Storyboard>&
     GetStoryboard() const noexcept {
         return storyboard_;
     }
-    Result<void> SetStoryboard(
-        Ref<Media::Animation::Storyboard> value) noexcept {
-        if (storyboard_ && value) {
-            return Base::Status::Failure(
-                Base::ErrorCode::AlreadyExists,
-                "VisualTransition accepts only one Storyboard");
-        }
+    void SetStoryboard(Ref<Media::Animation::Storyboard> value) noexcept {
+        if (storyboard_ && value) { AERO_ASSERT(false); return; }
         storyboard_ = std::move(value);
-        return {};
     }
 
 private:

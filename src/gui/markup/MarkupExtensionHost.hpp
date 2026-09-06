@@ -30,8 +30,8 @@
 #include <Aero/Markup/MarkupExtension.hpp>
 #include <Aero/HierarchicalDataTemplate.hpp>
 #include <Aero/TryCast.hpp>
-#include <Aero/Controls/ButtonBase.hpp>
-#include <Aero/Controls/ToggleButton.hpp>
+#include <Aero/Controls/Primitives/ButtonBase.hpp>
+#include <Aero/Controls/Primitives/ToggleButton.hpp>
 #include <Aero/Controls/TextBlock.hpp>
 #include <Aero/Documents/Span.hpp>
 #include <Aero/Documents/Run.hpp>

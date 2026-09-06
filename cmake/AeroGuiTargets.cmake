@@ -76,7 +76,7 @@ set(_aero_gui_meta_sources
 
 set(_aero_gui_data_sources
     src/gui/data/BindingPath.cpp
-    src/gui/data/BindingInternal.hpp
+    src/gui/data/BindingCommon.hpp
     src/gui/data/Binding.cpp
     src/gui/data/BindingEvaluation.cpp
     src/gui/data/BindingOperations.cpp
@@ -118,7 +118,7 @@ set(_aero_gui_interactivity_sources
     src/gui/interactivity/BlendBehaviors.cpp)
 
 set(_aero_gui_media_sources
-    src/gui/media/AnimationEngineInternal.hpp
+    src/gui/media/AnimationEngineCommon.hpp
     src/gui/media/AnimationEngine.cpp
     src/gui/media/AnimationEngine.Apply.cpp
     src/gui/media/Animation.cpp
@@ -134,7 +134,7 @@ set(_aero_gui_media_sources
     src/gui/media/MediaElement.cpp
     src/gui/media/StbImageImplementation.cpp
     src/gui/media/Transforms.cpp
-    src/gui/media/StoryboardHostInternal.hpp
+    src/gui/media/StoryboardHostCommon.hpp
     src/gui/media/StoryboardHost.cpp
     src/gui/media/StoryboardHost.Properties.cpp
     src/gui/media/StoryboardHost.Timelines.cpp
@@ -173,9 +173,9 @@ set(_aero_gui_controls_sources
 
 set(_aero_gui_markup_sources
     src/gui/markup/MarkupCommon.hpp
-    src/gui/markup/XamlObjectWriterInternal.hpp
+    src/gui/markup/XamlObjectWriterCommon.hpp
     src/gui/markup/MarkupExtensionHost.hpp
-    src/gui/markup/XamlObjectWriterInternal.cpp
+    src/gui/markup/XamlObjectWriterCommon.cpp
     src/gui/markup/XamlObjectWriterBuilderCore.cpp
     src/gui/markup/XamlObjectWriterPropertyApply.cpp
     src/gui/markup/XamlObjectWriterMarkupEval.cpp

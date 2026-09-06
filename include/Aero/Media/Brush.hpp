@@ -49,23 +49,21 @@ public:
     Ref<Base::Object> GetShader() const noexcept {
         return GetValue(ShaderProperty);
     }
-    void SetShader(
-        Ref<Base::Object> value) noexcept {
+    void SetShader(Ref<Base::Object> value) noexcept {
         SetValue(ShaderProperty, std::move(value));
     }
     Ref<Transform> GetRelativeTransform() const noexcept {
         return GetValue(RelativeTransformProperty);
     }
-    void SetRelativeTransform(
-        Ref<Transform> value) noexcept {
+    void SetRelativeTransform(Ref<Transform> value) noexcept {
         SetValue(RelativeTransformProperty, std::move(value));
     }
 
     std::uint64_t GetRevision() const noexcept;
 
-    inline static constexpr DependencyProperty<double> OpacityProperty{"Opacity"};
-    inline static constexpr DependencyProperty<Ref<Base::Object>> ShaderProperty{"Shader"};
-    inline static constexpr DependencyProperty<Ref<Transform>> RelativeTransformProperty{"RelativeTransform"};
+    AERO_DEPENDENCY_PROPERTY(double, Opacity);
+    AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, Shader);
+    AERO_DEPENDENCY_PROPERTY(Ref<Transform>, RelativeTransform);
 
 protected:
     explicit Brush(TypeId runtimeType) noexcept

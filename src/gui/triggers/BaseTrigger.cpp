@@ -25,24 +25,20 @@ bool IsDeferredBindingSetterValue(
             Data::Binding::StaticTypeId();
 }
 
-Base::Result<void> TriggerBase::AddEnterAction(
+void TriggerBase::AddEnterAction(
     Base::Ref<Base::Object> action) noexcept {
-    if (!action) {
-        return InvalidStyle(
-            "Trigger enter action is null");
-    }
-    return enterActions_.PushBack(
+    if (!action) { AERO_ASSERT(false); return; }
+    Base::Result<void> pushed = enterActions_.PushBack(
         std::move(action));
+    if (!pushed) { AERO_ASSERT(false); return; }
 }
 
-Base::Result<void> TriggerBase::AddExitAction(
+void TriggerBase::AddExitAction(
     Base::Ref<Base::Object> action) noexcept {
-    if (!action) {
-        return InvalidStyle(
-            "Trigger exit action is null");
-    }
-    return exitActions_.PushBack(
+    if (!action) { AERO_ASSERT(false); return; }
+    Base::Result<void> pushed = exitActions_.PushBack(
         std::move(action));
+    if (!pushed) { AERO_ASSERT(false); return; }
 }
 
 } // namespace Aero

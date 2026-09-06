@@ -13,7 +13,7 @@ public:
     UIElement* GetChild() const noexcept { return child_.Get(); }
     void SetChild(Ref<UIElement> value) noexcept { child_ = std::move(value); }
 
-    inline static constexpr DependencyProperty<Ref<UIElement>> ChildProperty{"Child"};
+    AERO_DEPENDENCY_PROPERTY(Ref<UIElement>, Child);
 
 private:
     Ref<UIElement> child_;

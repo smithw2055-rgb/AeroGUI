@@ -849,10 +849,13 @@ DependencyObject::DependencyObject(TypeId runtimeType) noexcept
       runtimeType_(runtimeType),
       objectServicesAvailable_(HasObjectFactory()),
       valueStore_(nullptr),
-      updateStack_(),
-      changeHandlers_() {}
+      rare_(nullptr) {}
 
 DependencyObject::~DependencyObject() {
+    if (rare_ != nullptr) {
+        delete rare_;
+        rare_ = nullptr;
+    }
     PropertyStore* store = static_cast<PropertyStore*>(valueStore_);
     if (store != nullptr) {
         for (auto& record : store->entries) {

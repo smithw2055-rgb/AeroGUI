@@ -35,13 +35,13 @@ public:
     double GetMiterLimit() const noexcept;
     void SetMiterLimit(double value) noexcept;
 
-    inline static constexpr DependencyProperty<Ref<Brush>> BrushProperty{"Brush"};
-    inline static constexpr DependencyProperty<double> ThicknessProperty{"Thickness"};
-    inline static constexpr DependencyProperty<Ref<DashStyle>> DashStyleProperty{"DashStyle"};
-    inline static constexpr DependencyProperty<PenLineJoin> LineJoinProperty{"LineJoin"};
-    inline static constexpr DependencyProperty<PenLineCap> StartLineCapProperty{"StartLineCap"};
-    inline static constexpr DependencyProperty<PenLineCap> EndLineCapProperty{"EndLineCap"};
-    inline static constexpr DependencyProperty<double> MiterLimitProperty{"MiterLimit"};
+    AERO_DEPENDENCY_PROPERTY(Ref<Brush>, Brush);
+    AERO_DEPENDENCY_PROPERTY(double, Thickness);
+    AERO_DEPENDENCY_PROPERTY(Ref<DashStyle>, DashStyle);
+    AERO_DEPENDENCY_PROPERTY(PenLineJoin, LineJoin);
+    AERO_DEPENDENCY_PROPERTY(PenLineCap, StartLineCap);
+    AERO_DEPENDENCY_PROPERTY(PenLineCap, EndLineCap);
+    AERO_DEPENDENCY_PROPERTY(double, MiterLimit);
 
 protected:
     bool FreezeCore(bool isChecking) noexcept override;

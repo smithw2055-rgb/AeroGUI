@@ -12,7 +12,7 @@
 #include <Aero/Controls/Border.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Controls/Button.hpp>
-#include <Aero/Controls/ButtonBase.hpp>
+#include <Aero/Controls/Primitives/ButtonBase.hpp>
 #include <Aero/Controls/ContentControl.hpp>
 #include <Aero/Controls/Control.hpp>
 #include <Aero/Controls/ControlTemplate.hpp>
@@ -34,7 +34,7 @@
 #include <Aero/Controls/TextBlock.hpp>
 #include <Aero/Controls/TextBox.hpp>
 #include <Aero/Controls/TextBoxBase.hpp>
-#include <Aero/Controls/ToggleButton.hpp>
+#include <Aero/Controls/Primitives/ToggleButton.hpp>
 #include <Aero/Media/Transforms.hpp>
 #include <Aero/Controls/TreeView.hpp>
 #include <Aero/UIElement.hpp>

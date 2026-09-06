@@ -22,25 +22,19 @@ public:
     ~ComboBox() override;
 
     bool GetIsDropDownOpen() const noexcept;
-    void SetIsDropDownOpen(
-        bool value) noexcept;
+    void SetIsDropDownOpen(bool value) noexcept;
     double GetMaxDropDownHeight() const noexcept;
-    void SetMaxDropDownHeight(
-        double value) noexcept;
+    void SetMaxDropDownHeight(double value) noexcept;
     bool GetIsEditable() const noexcept;
-    void SetIsEditable(
-        bool value) noexcept;
+    void SetIsEditable(bool value) noexcept;
     bool GetIsReadOnly() const noexcept;
-    void SetIsReadOnly(
-        bool value) noexcept;
+    void SetIsReadOnly(bool value) noexcept;
     StringView GetText() const noexcept;
-    void SetText(
-        StringView value) noexcept;
+    void SetText(StringView value) noexcept;
     StringView GetPlaceholder() const noexcept {
         return GetValue(PlaceholderProperty);
     }
-    void SetPlaceholder(
-        StringView value) noexcept {
+    void SetPlaceholder(StringView value) noexcept {
         SetValue(PlaceholderProperty, value);
     }
     StringView GetSelectionBoxText() const noexcept;
@@ -59,14 +53,14 @@ public:
         return GetEvent(DropDownClosedEvent);
     }
 
-    inline static constexpr DependencyProperty<bool> IsDropDownOpenProperty{"IsDropDownOpen"};
-    inline static constexpr DependencyProperty<double> MaxDropDownHeightProperty{"MaxDropDownHeight"};
-    inline static constexpr DependencyProperty<bool> IsEditableProperty{"IsEditable"};
-    inline static constexpr DependencyProperty<bool> IsReadOnlyProperty{"IsReadOnly"};
-    inline static constexpr DependencyProperty<String> TextProperty{"Text"};
-    inline static constexpr DependencyProperty<String> PlaceholderProperty{"Placeholder"};
-    inline static constexpr ReadOnlyDependencyProperty<String> SelectionBoxTextProperty{"SelectionBoxText"};
-    inline static constexpr ReadOnlyDependencyProperty<Value> SelectionBoxItemProperty{"SelectionBoxItem"};
+    AERO_DEPENDENCY_PROPERTY(bool, IsDropDownOpen);
+    AERO_DEPENDENCY_PROPERTY(double, MaxDropDownHeight);
+    AERO_DEPENDENCY_PROPERTY(bool, IsEditable);
+    AERO_DEPENDENCY_PROPERTY(bool, IsReadOnly);
+    AERO_DEPENDENCY_PROPERTY(String, Text);
+    AERO_DEPENDENCY_PROPERTY(String, Placeholder);
+    AERO_READONLY_PROPERTY(String, SelectionBoxText);
+    AERO_READONLY_PROPERTY(Value, SelectionBoxItem);
 
 protected:
     Result<Ref<FrameworkElement>>

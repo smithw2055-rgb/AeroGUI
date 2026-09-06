@@ -13,6 +13,6 @@ public:
     double GetRadius() const noexcept;
     void SetRadius(double value) noexcept;
 
-    inline static constexpr DependencyProperty<double> RadiusProperty{"Radius"};
+    AERO_DEPENDENCY_PROPERTY(double, Radius);
 };
 } // namespace Aero::Media

@@ -16,9 +16,8 @@ public:
     ~ComboBoxItem() override = default;
 
     bool GetIsSelected() const noexcept;
-    void SetIsSelected(
-        bool value) noexcept;
+    void SetIsSelected(bool value) noexcept;
 
-    inline static constexpr DependencyProperty<bool> IsSelectedProperty{"IsSelected"};
+    AERO_DEPENDENCY_PROPERTY(bool, IsSelected);
 };
 } // namespace Aero::Controls

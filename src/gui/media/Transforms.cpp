@@ -332,20 +332,12 @@ void MatrixTransform::SetMatrixValue(
     DependencyObject::SetValue(MatrixProperty, value);
 }
 
-Base::Result<void> TransformGroup::AddChild(
+void TransformGroup::AddChild(
     Base::Ref<Transform> value) noexcept {
     Base::Result<void> writable = WritePreamble();
-    if (!writable) return writable.GetStatus();
-    if (!value) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "TransformGroup child cannot be null");
-    }
-    if (ContainsTransform(*value, this)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::CycleDetected,
-            "TransformGroup cannot contain itself directly or indirectly");
-    }
+    if (!writable) { AERO_ASSERT(false); return; }
+    if (!value) { AERO_ASSERT(false); return; }
+    if (ContainsTransform(*value, this)) { AERO_ASSERT(false); return; }
     if (childChangedHandler_.Empty()) {
         childChangedHandler_ = FreezableChangedHandler(
             this, &TransformGroup::OnChildChanged);
@@ -354,17 +346,8 @@ Base::Result<void> TransformGroup::AddChild(
     if (!retained->IsFrozen()) {
         retained->AddChangedHandler(childChangedHandler_);
     }
-    Base::Result<void> added =
-        children_.Add(std::move(value));
-    if (!added) {
-        if (!retained->IsFrozen()) {
-            static_cast<void>(
-                retained->RemoveChangedHandler(childChangedHandler_));
-        }
-        return added.GetStatus();
-    }
+    children_.Add(std::move(value));
     WritePostscript();
-    return {};
 }
 
 void TransformGroup::ClearChildren() noexcept {

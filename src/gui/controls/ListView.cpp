@@ -18,13 +18,12 @@ void GridViewColumn::SetHeader(
     SetValue(HeaderProperty, std::move(value));
 }
 
-Base::Result<void> GridViewColumn::SetHeader(
+void GridViewColumn::SetHeader(
     Base::StringView value) noexcept {
     Base::Result<Value> boxed = Value::TryFromString(
         Meta::TypeOf<Base::String>(), value);
-    if (!boxed) return boxed.GetStatus();
+    if (!boxed) { AERO_ASSERT(false); return; }
     SetHeader(std::move(boxed).Value());
-    return {};
 }
 
 double GridViewColumn::GetWidth()
@@ -92,16 +91,13 @@ GridViewColumn::SetDisplayMemberBinding(
         DisplayMemberBindingProperty, std::move(value));
 }
 
-Base::Result<void> GridView::AddColumn(
+void GridView::AddColumn(
     Base::Ref<GridViewColumn> column)
     noexcept {
-    if (!column) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "GridView column is null");
-    }
-    return columns_.PushBack(
+    if (!column) { AERO_ASSERT(false); return; }
+    Base::Result<void> pushed = columns_.PushBack(
         std::move(column));
+    if (!pushed) { AERO_ASSERT(false); return; }
 }
 
 Base::Ref<GridView>
@@ -112,7 +108,7 @@ ListView::GetView() const noexcept {
 void ListView::SetView(
     Base::Ref<GridView> value) noexcept {
     SetValue(ViewProperty, std::move(value));
-    (void)SynchronizeColumnHeaders();
+    SynchronizeColumnHeaders();
 }
 
 void
@@ -130,7 +126,7 @@ ListView::OnApplyTemplate() noexcept {
     if (columnHeaders_ == nullptr) {
         return;
     }
-    static_cast<void>(SynchronizeColumnHeaders());
+    SynchronizeColumnHeaders();
 }
 
 void ListView::OnTemplateDetached() noexcept {
@@ -138,9 +134,9 @@ void ListView::OnTemplateDetached() noexcept {
     ListBox::OnTemplateDetached();
 }
 
-Base::Result<void>
+void
 ListView::SynchronizeColumnHeaders() noexcept {
-    if (columnHeaders_ == nullptr) return {};
+    if (columnHeaders_ == nullptr) return;
     Base::String text;
     Base::Ref<GridView> view = GetView();
     if (view) {
@@ -153,7 +149,7 @@ ListView::SynchronizeColumnHeaders() noexcept {
                 ? header.AsString()
                 : Base::StringView{});
             if (!appended) {
-                return appended.GetStatus();
+                return;
             }
             const std::uint32_t headerCharacters =
                 header.Kind() == ValueKind::String
@@ -182,13 +178,12 @@ ListView::SynchronizeColumnHeaders() noexcept {
                 appended = text.Append(
                     Base::StringView(" "));
                 if (!appended) {
-                    return appended.GetStatus();
+                    return;
                 }
             }
         }
     }
     columnHeaders_->SetText(text.View());
-    return {};
 }
 
 Base::Result<Base::Ref<FrameworkElement>>

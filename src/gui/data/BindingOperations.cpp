@@ -1,4 +1,4 @@
-#include "gui/data/BindingInternal.hpp"
+#include "gui/data/BindingCommon.hpp"
 
 #include "gui/meta/MetadataState.hpp"
 #include "gui/core/State.hpp"

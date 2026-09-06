@@ -25,11 +25,9 @@ public:
     ~Expander() override;
 
     bool GetIsExpanded() const noexcept;
-    void SetIsExpanded(
-        bool value) noexcept;
+    void SetIsExpanded(bool value) noexcept;
     ExpandDirection GetDirection() const noexcept;
-    void SetDirection(
-        ExpandDirection value) noexcept;
+    void SetDirection(ExpandDirection value) noexcept;
 
     inline static constexpr RoutedEvent<RoutedEventArgs> ExpandedEvent{"Expanded"};
     inline static constexpr RoutedEvent<RoutedEventArgs> CollapsedEvent{"Collapsed"};
@@ -41,8 +39,8 @@ public:
         Collapsed() noexcept {
         return GetEvent(CollapsedEvent);
     }
-    inline static constexpr DependencyProperty<bool> IsExpandedProperty{"IsExpanded"};
-    inline static constexpr DependencyProperty<ExpandDirection> ExpandDirectionProperty{"ExpandDirection"};
+    AERO_DEPENDENCY_PROPERTY(bool, IsExpanded);
+    AERO_DEPENDENCY_PROPERTY(ExpandDirection, ExpandDirection);
 
 protected:
     void OnApplyTemplate() noexcept override;

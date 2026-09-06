@@ -122,7 +122,7 @@ void AddGroupState(
             VisualState::StaticTypeId()) {
         return;
     }
-    (void)static_cast<VisualStateGroup&>(object).AddState(
+    static_cast<VisualStateGroup&>(object).AddState(
         Base::Ref<VisualState>::FromBorrowed(
             *static_cast<VisualState*>(value.Get())));
 }
@@ -141,7 +141,7 @@ void AddGroupTransition(
             VisualTransition::StaticTypeId()) {
         return;
     }
-    (void)static_cast<VisualStateGroup&>(object).AddTransition(
+    static_cast<VisualStateGroup&>(object).AddTransition(
         Base::Ref<VisualTransition>::FromBorrowed(
             *static_cast<VisualTransition*>(value.Get())));
 }
@@ -194,7 +194,7 @@ void AddStateContent(
     auto& state =
         static_cast<VisualState&>(object);
     if (value->RuntimeType() == Setter::StaticTypeId()) {
-        (void)state.AddSetter(value);
+        state.AddSetter(value);
         return;
     }
     if (value->RuntimeType() ==
@@ -243,7 +243,7 @@ void ClearTransitionStoryboard(
     void*) noexcept {
     if (!value || value->RuntimeType() != VisualStateGroup::StaticTypeId()) return;
     auto& collection = static_cast<VisualStateGroupCollection&>(owner);
-    (void)collection.Add(
+    collection.Add(
         Base::Ref<VisualStateGroup>::FromBorrowed(
             *static_cast<VisualStateGroup*>(value.Get())));
 }

@@ -37,7 +37,14 @@ constexpr Base::Status ReadOnlyStatus() noexcept {
         "Dependency property is read-only");
 }
 
+struct ActiveMutation {
+    const DependencyObject* object = nullptr;
+    MemberId property = InvalidMemberId;
+};
 
+constexpr std::uint32_t MaxMutationDepth = 32U;
+thread_local ActiveMutation t_mutationStack[MaxMutationDepth]{};
+thread_local std::uint32_t t_mutationDepth = 0U;
 
 } // namespace
 
@@ -72,41 +79,49 @@ PropertyInvalidationFlags DependencyObject::AccumulateInvalidations(
 
 void DependencyObject::NotifyValueChanged(
     const DependencyPropertyChangedEventArgs& args) noexcept {
-    AERO_ASSERT(changeHandlerNotificationDepth_ != UINT32_MAX);
-    ++changeHandlerNotificationDepth_;
-    const std::uint32_t snapshotCount = changeHandlers_.Size();
+    if (rare_ == nullptr || rare_->changeHandlers.Empty()) {
+        return;
+    }
+    AERO_ASSERT(rare_->changeHandlerNotificationDepth != UINT32_MAX);
+    ++rare_->changeHandlerNotificationDepth;
+    const std::uint32_t snapshotCount = rare_->changeHandlers.Size();
     for (std::uint32_t index = 0U; index < snapshotCount; ++index) {
-        if (index >= changeHandlers_.Size()) {
+        if (index >= rare_->changeHandlers.Size()) {
             break;
         }
-        ChangeHandlerRecord& record = changeHandlers_[index];
+        ChangeHandlerRecord& record = rare_->changeHandlers[index];
         if (record.active && record.property == args.GetProperty()) {
             record.handler(*this, args);
         }
     }
-    --changeHandlerNotificationDepth_;
-    if (changeHandlerNotificationDepth_ != 0U) {
+    --rare_->changeHandlerNotificationDepth;
+    if (rare_->changeHandlerNotificationDepth != 0U) {
         return;
     }
-    for (std::uint32_t index = 0U; index < changeHandlers_.Size();) {
-        if (!changeHandlers_[index].active) {
+    for (std::uint32_t index = 0U; index < rare_->changeHandlers.Size();) {
+        if (!rare_->changeHandlers[index].active) {
             RemoveChangeHandler(index);
         } else {
             ++index;
         }
+    }
+    if (rare_->changeHandlers.Empty()) {
+        delete rare_;
+        rare_ = nullptr;
     }
 }
 
 // from src/gui/core/PropertySystem.cpp
 
 void DependencyObject::RemoveChangeHandler(std::uint32_t index) noexcept {
-    AERO_ASSERT(index < changeHandlers_.Size());
+    if (rare_ == nullptr) return;
+    AERO_ASSERT(index < rare_->changeHandlers.Size());
     for (std::uint32_t current = index + 1U;
-         current < changeHandlers_.Size();
+         current < rare_->changeHandlers.Size();
          ++current) {
-        changeHandlers_[current - 1U] = std::move(changeHandlers_[current]);
+        rare_->changeHandlers[current - 1U] = std::move(rare_->changeHandlers[current]);
     }
-    changeHandlers_.PopBack();
+    rare_->changeHandlers.PopBack();
 }
 
 // from src/gui/core/PropertySystem.cpp
@@ -452,6 +467,15 @@ Base::Result<void> DependencyObject::RecomputeEffectiveValueCore(
     if (storedEntry == nullptr) return Base::Status::Failure(Base::ErrorCode::InternalError,
         "Dependency property entry disappeared during evaluation");
     StoredValueEntry& entry = *storedEntry;
+    if (hasLocal && (source.isCoerced || hasAnimation || hasCurrent || hasExpression)) {
+        Base::Result<StoredValueRare*> block =
+            entry.EnsureRare(GetDispatcher().GetPropertySlab());
+        if (block) {
+            block.Value()->localBackup = localValue;
+        }
+    } else if (entry.rare != nullptr) {
+        entry.rare->localBackup = PropertyValue::Unset();
+    }
     entry.effectiveValue = newEffective;
     {
         Base::Result<void> storedSource = entry.SetSourceInfo(
@@ -716,8 +740,10 @@ EffectiveValueSource DependencyObject::ToLegacySource(
 // from src/gui/core/PropertySystem.cpp
 
 void DependencyObject::LeaveMutation() noexcept {
-    AERO_ASSERT(!updateStack_.Empty());
-    updateStack_.PopBack();
+    AERO_ASSERT(t_mutationDepth > 0U && t_mutationStack[t_mutationDepth - 1U].object == this);
+    if (t_mutationDepth > 0U) {
+        --t_mutationDepth;
+    }
 }
 
 // from src/gui/core/PropertySystem.cpp
@@ -729,23 +755,26 @@ DependencyObject::BeginMutation(
     if (!writable) {
         return writable.GetStatus();
     }
-    for (MemberId active : updateStack_) {
-        if (active == property.value) {
+    for (std::uint32_t index = 0U; index < t_mutationDepth; ++index) {
+        if (t_mutationStack[index].object == this &&
+            t_mutationStack[index].property == property.value) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
                 "Recursive mutation of the same dependency property is not allowed");
         }
     }
-
-    Base::Result<void> pushed = updateStack_.PushBack(property.value);
-    if (!pushed) {
-        return pushed.GetStatus();
+    if (t_mutationDepth >= MaxMutationDepth) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Property mutation depth limit reached");
     }
+
+    t_mutationStack[t_mutationDepth++] = {this, property.value};
 
     Base::Result<DispatcherReentrancyGuard> guard =
         GetDispatcher().EnterReentrancyGuard();
     if (!guard) {
-        updateStack_.PopBack();
+        --t_mutationDepth;
         return guard.GetStatus();
     }
 
@@ -781,17 +810,24 @@ bool DependencyObject::RemoveValueChangedHandler(
     if (descriptor != nullptr) {
         property = descriptor->Handle();
     }
-    for (std::uint32_t count = changeHandlers_.Size(); count > 0U; --count) {
+    if (rare_ == nullptr || rare_->changeHandlers.Empty()) {
+        return false;
+    }
+    for (std::uint32_t count = rare_->changeHandlers.Size(); count > 0U; --count) {
         const std::uint32_t index = count - 1U;
-        ChangeHandlerRecord& record = changeHandlers_[index];
+        ChangeHandlerRecord& record = rare_->changeHandlers[index];
         if (record.property != property || record.handler != handler ||
             !record.active) {
             continue;
         }
-        if (changeHandlerNotificationDepth_ != 0U) {
+        if (rare_->changeHandlerNotificationDepth != 0U) {
             record.active = false;
         } else {
             RemoveChangeHandler(index);
+            if (rare_->changeHandlers.Empty()) {
+                delete rare_;
+                rare_ = nullptr;
+            }
         }
         return true;
     }
@@ -809,11 +845,15 @@ void DependencyObject::AddValueChangedHandler(
         return;
     }
     property = descriptor->Handle();
+    if (rare_ == nullptr) {
+        rare_ = new (std::nothrow) DependencyObjectRare();
+        if (rare_ == nullptr) return;
+    }
     ChangeHandlerRecord record;
     record.property = property;
     record.handler = handler;
     record.active = true;
-    (void)changeHandlers_.PushBack(std::move(record));
+    (void)rare_->changeHandlers.PushBack(std::move(record));
 }
 
 // from src/gui/core/PropertySystem.cpp

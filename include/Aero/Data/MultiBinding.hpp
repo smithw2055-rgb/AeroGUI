@@ -28,12 +28,10 @@ public:
     Span<const Ref<Binding>> GetBindings() const noexcept {
         return bindings_.AsSpan();
     }
-    Result<void> AddBinding(Ref<Binding> value) noexcept {
-        return value
-            ? bindings_.PushBack(std::move(value))
-            : Result<void>(Base::Status::Failure(
-                  Base::ErrorCode::InvalidArgument,
-                  "MultiBinding child Binding is null"));
+    void AddBinding(Ref<Binding> value) noexcept {
+        if (value) {
+            (void)bindings_.PushBack(std::move(value));
+        }
     }
     void ClearBindings() noexcept { bindings_.Clear(); }
 

@@ -30,33 +30,28 @@ public:
     Ref<Aero::Media::Brush> GetBackground() const noexcept {
         return GetValue(BackgroundProperty);
     }
-    void SetBackground(
-        Ref<Aero::Media::Brush> value) noexcept {
+    void SetBackground(Ref<Aero::Media::Brush> value) noexcept {
         SetValue(BackgroundProperty, std::move(value));
     }
     Ref<Aero::Media::Brush> GetBorderBrush() const noexcept {
         return GetValue(BorderBrushProperty);
     }
-    void SetBorderBrush(
-        Ref<Aero::Media::Brush> value) noexcept {
+    void SetBorderBrush(Ref<Aero::Media::Brush> value) noexcept {
         SetValue(BorderBrushProperty, std::move(value));
     }
     Aero::Base::Thickness GetBorderThickness() const noexcept {
         return GetValue(BorderThicknessProperty);
     }
-    void SetBorderThickness(
-        Aero::Base::Thickness value) noexcept {
+    void SetBorderThickness(Aero::Base::Thickness value) noexcept {
         SetValue(BorderThicknessProperty, value);
     }
-    void SetBorderThickness(
-        double value) noexcept {
+    void SetBorderThickness(double value) noexcept {
         SetBorderThickness({value, value, value, value});
     }
     Aero::Base::Thickness GetPadding() const noexcept {
         return GetValue(PaddingProperty);
     }
-    void SetPadding(
-        Aero::Base::Thickness value) noexcept {
+    void SetPadding(Aero::Base::Thickness value) noexcept {
         SetValue(PaddingProperty, value);
     }
     Aero::HorizontalAlignment
@@ -70,50 +65,45 @@ public:
     Ref<Aero::Media::Brush> GetForeground() const noexcept {
         return GetValue(ForegroundProperty);
     }
-    void SetForeground(
-        Ref<Aero::Media::Brush> value) noexcept {
+    void SetForeground(Ref<Aero::Media::Brush> value) noexcept {
         SetValue(ForegroundProperty, std::move(value));
     }
     double GetFontSize() const noexcept {
         return GetValue(FontSizeProperty);
     }
-    void SetFontSize(
-        double value) noexcept {
+    void SetFontSize(double value) noexcept {
         SetValue(FontSizeProperty, value);
     }
     FontWeight GetFontWeight() const noexcept {
         return GetValue(FontWeightProperty);
     }
-    void SetFontWeight(
-        FontWeight value) noexcept {
+    void SetFontWeight(FontWeight value) noexcept {
         SetValue(FontWeightProperty, value);
     }
     Ref<Aero::Style> GetFocusVisualStyle() const noexcept {
         return GetValue(FocusVisualStyleProperty);
     }
-    void SetFocusVisualStyle(
-        Ref<Aero::Style> value) noexcept {
+    void SetFocusVisualStyle(Ref<Aero::Style> value) noexcept {
         SetValue(FocusVisualStyleProperty, std::move(value));
     }
     bool GetOverridesDefaultStyle() const noexcept {
         return GetValue(OverridesDefaultStyleProperty);
     }
-    void SetOverridesDefaultStyle(
-        bool value) noexcept {
+    void SetOverridesDefaultStyle(bool value) noexcept {
         SetValue(OverridesDefaultStyleProperty, value);
     }
-    inline static constexpr DependencyProperty<Ref<Aero::Media::Brush>> BackgroundProperty{"Background"};
-    inline static constexpr DependencyProperty<Ref<Aero::Media::Brush>> BorderBrushProperty{"BorderBrush"};
-    inline static constexpr DependencyProperty<Aero::Base::Thickness> BorderThicknessProperty{"BorderThickness"};
-    inline static constexpr DependencyProperty<Aero::Base::Thickness> PaddingProperty{"Padding"};
-    inline static constexpr DependencyProperty<Aero::HorizontalAlignment> HorizontalContentAlignmentProperty{"HorizontalContentAlignment"};
-    inline static constexpr DependencyProperty<Aero::VerticalAlignment> VerticalContentAlignmentProperty{"VerticalContentAlignment"};
+    AERO_DEPENDENCY_PROPERTY(Ref<Aero::Media::Brush>, Background);
+    AERO_DEPENDENCY_PROPERTY(Ref<Aero::Media::Brush>, BorderBrush);
+    AERO_DEPENDENCY_PROPERTY(Aero::Base::Thickness, BorderThickness);
+    AERO_DEPENDENCY_PROPERTY(Aero::Base::Thickness, Padding);
+    AERO_DEPENDENCY_PROPERTY(Aero::HorizontalAlignment, HorizontalContentAlignment);
+    AERO_DEPENDENCY_PROPERTY(Aero::VerticalAlignment, VerticalContentAlignment);
     inline static constexpr auto ForegroundProperty = Aero::Media::FrameworkElementForegroundProperty;
-    inline static constexpr DependencyProperty<double> FontSizeProperty{"FontSize"};
-    inline static constexpr DependencyProperty<FontWeight> FontWeightProperty{"FontWeight"};
-    inline static constexpr DependencyProperty<Ref<Aero::Style>> FocusVisualStyleProperty{"FocusVisualStyle"};
-    inline static constexpr DependencyProperty<bool> OverridesDefaultStyleProperty{"OverridesDefaultStyle"};
-    inline static constexpr DependencyProperty<Ref<ControlTemplate>> TemplateProperty{"Template"};
+    AERO_DEPENDENCY_PROPERTY(double, FontSize);
+    AERO_DEPENDENCY_PROPERTY(FontWeight, FontWeight);
+    AERO_DEPENDENCY_PROPERTY(Ref<Aero::Style>, FocusVisualStyle);
+    AERO_DEPENDENCY_PROPERTY(bool, OverridesDefaultStyle);
+    AERO_DEPENDENCY_PROPERTY(Ref<ControlTemplate>, Template);
 
     // Returns true only when this call materialized a new template instance.
     // Repeated calls are intentionally idempotent.

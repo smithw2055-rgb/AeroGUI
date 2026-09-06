@@ -15,16 +15,15 @@ public:
         : StoryboardCompletedTrigger(StaticTypeId()) {}
     Ref<Storyboard> GetStoryboard() const noexcept { return storyboard_; }
     void SetStoryboard(Ref<Storyboard> value) noexcept;
-    Result<void> AddAction(Ref<TriggerAction> value) noexcept;
+    void AddAction(Ref<TriggerAction> value) noexcept;
     void ClearActions() noexcept;
     Span<const Ref<TriggerAction>> GetActions() const noexcept {
         return {actions_.Data(), actions_.Size()};
     }
-    Result<void> AddConditionBehavior(Ref<Base::Object> value) noexcept {
-        return value ? behaviors_.PushBack(std::move(value))
-                     : Result<void>(Base::Status::Failure(
-                           Base::ErrorCode::InvalidArgument,
-                           "StoryboardCompletedTrigger behavior cannot be null"));
+    void AddConditionBehavior(Ref<Base::Object> value) noexcept {
+        if (!value) { AERO_ASSERT(false); return; }
+        Base::Result<void> pushed = behaviors_.PushBack(std::move(value));
+        if (!pushed) { AERO_ASSERT(false); return; }
     }
     void ClearConditionBehaviors() noexcept { behaviors_.Clear(); }
     Span<const Ref<Base::Object>> GetBehaviors() const noexcept {

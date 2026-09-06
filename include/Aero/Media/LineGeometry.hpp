@@ -24,8 +24,8 @@ public:
         SetValue(EndPointProperty, value);
     }
     Rect GetBounds() const noexcept override;
-    inline static constexpr DependencyProperty<Point> StartPointProperty{"StartPoint"};
-    inline static constexpr DependencyProperty<Point> EndPointProperty{"EndPoint"};
+    AERO_DEPENDENCY_PROPERTY(Point, StartPoint);
+    AERO_DEPENDENCY_PROPERTY(Point, EndPoint);
 protected:
     Result<void> FlattenCore(FlattenSink& sink) const noexcept override;
 };

@@ -15,8 +15,8 @@ public:
     void SetItemWidth(double value) noexcept;
     void SetItemHeight(double value) noexcept;
 
-    inline static constexpr DependencyProperty<double> ItemWidthProperty{"ItemWidth"};
-    inline static constexpr DependencyProperty<double> ItemHeightProperty{"ItemHeight"};
+    AERO_DEPENDENCY_PROPERTY(double, ItemWidth);
+    AERO_DEPENDENCY_PROPERTY(double, ItemHeight);
 
 protected:
     void CalculateRealizationRange() noexcept override;

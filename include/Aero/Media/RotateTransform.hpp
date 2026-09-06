@@ -15,9 +15,9 @@ public:
     void SetCenterX(double value) noexcept;
     void SetCenterY(double value) noexcept;
 
-    inline static constexpr DependencyProperty<double> AngleProperty{"Angle"};
-    inline static constexpr DependencyProperty<double> CenterXProperty{"CenterX"};
-    inline static constexpr DependencyProperty<double> CenterYProperty{"CenterY"};
+    AERO_DEPENDENCY_PROPERTY(double, Angle);
+    AERO_DEPENDENCY_PROPERTY(double, CenterX);
+    AERO_DEPENDENCY_PROPERTY(double, CenterY);
 
     Base::Transform2D GetMatrix() const noexcept override;
 };

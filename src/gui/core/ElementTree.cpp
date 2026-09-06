@@ -60,7 +60,8 @@ Base::Result<void> EnsureVisualChildStorage(
         }
         Base::Ref<Base::Object> borrowed =
             Base::Ref<Base::Object>::FromBorrowed(*childElement);
-        return AeroGuiInternal::PanelAddChild(panel, borrowed, *childElement);
+        AeroGuiInternal::PanelAddChild(panel, borrowed, *childElement);
+        return {};
     }
     if (types.IsDerivedFrom(
             parent.RuntimeType(), Controls::ContentPresenter::StaticTypeId())) {
@@ -231,6 +232,9 @@ void ElementTree::InvalidateNodeHandle(::Aero::Media::Visual& node) noexcept {
     }
     node.handleIndex_ = UINT32_MAX;
     node.handleGeneration_ = 0U;
+    if (node.tree_ == this) {
+        node.tree_ = nullptr;
+    }
 }
 
 Media::Visual::~Visual() {
@@ -280,6 +284,11 @@ ElementTree::~ElementTree() noexcept {
     // P3.2: no frame-hook registration; nothing to unregister.
     if (root_ != nullptr && dispatcher_->CheckAccess()) {
         (void)SetRoot(nullptr);
+    }
+    for (HandleEntry& entry : handles_) {
+        if (entry.node != nullptr && entry.node->tree_ == this) {
+            entry.node->tree_ = nullptr;
+        }
     }
     lifecycleQueue_.Clear();
     handles_.Clear();
@@ -944,24 +953,26 @@ Base::Result<std::uint32_t> ElementTree::FlushLifecycle() noexcept {
     Base::Result<void> access = dispatcher_->VerifyAccess();
     if (!access) return access.GetStatus();
 
-    Base::Vector<LifecycleRecord> snapshot;
-    Base::Result<void> assigned = snapshot.Assign(
-        Base::Span<const LifecycleRecord>(
-            lifecycleQueue_.Data(), lifecycleQueue_.Size()));
-    if (!assigned) return assigned.GetStatus();
-    lifecycleQueue_.Clear();
-
     std::uint32_t count = 0U;
-    for (std::uint32_t i = 0U; i < snapshot.Size(); ++i) {
-        const LifecycleRecord& record = snapshot[i];
-        ::Aero::Media::Visual* node = record.node.Resolve();
-        if (node == nullptr) continue;
-        if (lifecycleHandler_ != nullptr) {
-            const ElementTreeLifecycleEvent event{
-                node, record.loaded, record.treeVersion};
-            lifecycleHandler_(event, lifecycleContext_);
+    {
+        Base::Vector<LifecycleRecord> snapshot;
+        Base::Result<void> assigned = snapshot.Assign(
+            Base::Span<const LifecycleRecord>(
+                lifecycleQueue_.Data(), lifecycleQueue_.Size()));
+        if (!assigned) return assigned.GetStatus();
+        lifecycleQueue_.Clear();
+
+        for (std::uint32_t i = 0U; i < snapshot.Size(); ++i) {
+            const LifecycleRecord& record = snapshot[i];
+            ::Aero::Media::Visual* node = record.node.Resolve();
+            if (node == nullptr) continue;
+            if (lifecycleHandler_ != nullptr) {
+                const ElementTreeLifecycleEvent event{
+                    node, record.loaded, record.treeVersion};
+                lifecycleHandler_(event, lifecycleContext_);
+            }
+            ++count;
         }
-        ++count;
     }
     return count;
 }

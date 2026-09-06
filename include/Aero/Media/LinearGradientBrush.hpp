@@ -17,7 +17,7 @@ public:
     void SetStartPoint(Point value) noexcept;
     void SetEndPoint(Point value) noexcept;
 
-    inline static constexpr DependencyProperty<Point> StartPointProperty{"StartPoint"};
-    inline static constexpr DependencyProperty<Point> EndPointProperty{"EndPoint"};
+    AERO_DEPENDENCY_PROPERTY(Point, StartPoint);
+    AERO_DEPENDENCY_PROPERTY(Point, EndPoint);
 };
 } // namespace Aero::Media

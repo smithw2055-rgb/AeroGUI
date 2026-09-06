@@ -50,15 +50,11 @@ void GradientStop::SetColor(
     SetValue(ColorProperty, value);
 }
 
-Base::Result<void> GradientBrush::AddGradientStop(
+void GradientBrush::AddGradientStop(
     Base::Ref<GradientStop> stop) noexcept {
     Base::Result<void> writable = WritePreamble();
-    if (!writable) return writable.GetStatus();
-    if (!stop) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "GradientStop cannot be null");
-    }
+    if (!writable) { AERO_ASSERT(false); return; }
+    if (!stop) { AERO_ASSERT(false); return; }
     if (stopChangedHandler_.Empty()) {
         stopChangedHandler_ = FreezableChangedHandler(
             this, &GradientBrush::OnGradientStopChanged);
@@ -74,21 +70,17 @@ Base::Result<void> GradientBrush::AddGradientStop(
             static_cast<void>(
                 retained->RemoveChangedHandler(stopChangedHandler_));
         }
-        return added.GetStatus();
+        AERO_ASSERT(false);
+        return;
     }
     WritePostscript();
-    return {};
 }
 
-Base::Result<void> GradientStopCollection::Add(
+void GradientStopCollection::Add(
     Base::Ref<GradientStop> stop) noexcept {
     Base::Result<void> writable = WritePreamble();
-    if (!writable) return writable.GetStatus();
-    if (!stop) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "GradientStopCollection item cannot be null");
-    }
+    if (!writable) { AERO_ASSERT(false); return; }
+    if (!stop) { AERO_ASSERT(false); return; }
     if (stopChangedHandler_.Empty()) {
         stopChangedHandler_ = FreezableChangedHandler(
             this, &GradientStopCollection::OnStopChanged);
@@ -104,7 +96,8 @@ Base::Result<void> GradientStopCollection::Add(
             static_cast<void>(
                 retained->RemoveChangedHandler(stopChangedHandler_));
         }
-        return added.GetStatus();
+        AERO_ASSERT(false);
+        return;
     }
     if (!changed_.Empty()) {
         changed_.Invoke({
@@ -115,7 +108,6 @@ Base::Result<void> GradientStopCollection::Add(
             1U});
     }
     WritePostscript();
-    return {};
 }
 
 GradientBrush::~GradientBrush() {
@@ -203,7 +195,7 @@ std::uint64_t Brush::GetRevision() const noexcept {
     return AeroGuiInternal::FreezableRevision(*this);
 }
 
-Base::Result<void> ImageBrush::SetRuntimeImage(
+void ImageBrush::SetRuntimeImage(
     std::uint64_t image, std::uint32_t width, std::uint32_t height) noexcept {
     const bool changed =
         renderImage_ != image || pixelWidth_ != width || pixelHeight_ != height;
@@ -211,7 +203,6 @@ Base::Result<void> ImageBrush::SetRuntimeImage(
     pixelWidth_ = width;
     pixelHeight_ = height;
     if (changed) WritePostscript();
-    return {};
 }
 
 BrushMappingMode GradientBrush::GetMappingMode() const noexcept {

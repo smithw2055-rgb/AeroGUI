@@ -14,15 +14,13 @@ public:
     ~ContextMenu() override;
 
     bool GetIsOpen() const noexcept;
-    void SetIsOpen(
-        bool value) noexcept;
+    void SetIsOpen(bool value) noexcept;
     Ref<UIElement>
         GetPlacementTarget() const noexcept;
-    void SetPlacementTarget(
-        Ref<UIElement> value) noexcept;
+    void SetPlacementTarget(Ref<UIElement> value) noexcept;
 
-    inline static constexpr DependencyProperty<bool> IsOpenProperty{"IsOpen"};
-    inline static constexpr DependencyProperty<Ref<UIElement>> PlacementTargetProperty{"PlacementTarget"};
+    AERO_DEPENDENCY_PROPERTY(bool, IsOpen);
+    AERO_DEPENDENCY_PROPERTY(Ref<UIElement>, PlacementTarget);
     inline static constexpr RoutedEvent<RoutedEventArgs> OpenedEvent{"Opened"};
     inline static constexpr RoutedEvent<RoutedEventArgs> ClosedEvent{"Closed"};
 

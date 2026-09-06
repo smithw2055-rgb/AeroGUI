@@ -75,11 +75,7 @@ TextBox::~TextBox() {
                 SetClient(nullptr));
         inputMethodHost_ = nullptr;
     }
-    if (scrollViewer_ != nullptr &&
-        scrollViewer_->GetContentScrollInfo() == this) {
-        static_cast<void>(
-            scrollViewer_->SetContentScrollInfo(nullptr));
-    }
+    scrollViewer_ = nullptr;
     ReleaseGlyphRuns();
     delete static_cast<::Aero::Text::EditableTextModel*>(model_);
     model_ = nullptr;
@@ -234,9 +230,9 @@ void TextBox::SetFontFamily(
     FrameworkElement::SetFontFamily(std::move(value));
 }
 
-Base::Result<void> TextBox::SetFontFamily(
+void TextBox::SetFontFamily(
     Base::StringView value) noexcept {
-    return FrameworkElement::SetFontFamily(value);
+    FrameworkElement::SetFontFamily(value);
 }
 
 FontWeight TextBox::GetFontWeight() const noexcept {

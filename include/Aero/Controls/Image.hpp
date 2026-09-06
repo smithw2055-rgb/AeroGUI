@@ -21,16 +21,13 @@ public:
     Ref<ImageSource> GetSource() const noexcept;
     Stretch GetStretch() const noexcept;
     StretchDirection GetStretchDirection() const noexcept;
-    void SetSource(
-        Ref<ImageSource> value) noexcept;
-    void SetStretch(
-        Stretch value) noexcept;
-    void SetStretchDirection(
-        StretchDirection value) noexcept;
+    void SetSource(Ref<ImageSource> value) noexcept;
+    void SetStretch(Stretch value) noexcept;
+    void SetStretchDirection(StretchDirection value) noexcept;
 
-    inline static constexpr DependencyProperty<Ref<ImageSource>> SourceProperty{"Source"};
-    inline static constexpr DependencyProperty<Stretch> StretchProperty{"Stretch"};
-    inline static constexpr DependencyProperty<StretchDirection> StretchDirectionProperty{"StretchDirection"};
+    AERO_DEPENDENCY_PROPERTY(Ref<ImageSource>, Source);
+    AERO_DEPENDENCY_PROPERTY(Stretch, Stretch);
+    AERO_DEPENDENCY_PROPERTY(StretchDirection, StretchDirection);
 
 protected:
     Size MeasureOverride(

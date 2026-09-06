@@ -14,10 +14,9 @@ public:
     ~BitmapImage() override = default;
 
     Base::ResourceUri GetUriSource() const noexcept;
-    void SetUriSource(
-        const Base::ResourceUri& value) noexcept;
+    void SetUriSource(const Base::ResourceUri& value) noexcept;
 
-    inline static constexpr DependencyProperty<Base::ResourceUri> UriSourceProperty{"UriSource"};
+    AERO_DEPENDENCY_PROPERTY(Base::ResourceUri, UriSource);
 };
 
 } // namespace Aero::Media

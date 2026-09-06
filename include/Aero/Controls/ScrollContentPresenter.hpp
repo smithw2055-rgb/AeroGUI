@@ -20,26 +20,19 @@ public:
     IScrollInfo* GetContentScrollInfo() const noexcept {
         return contentScrollInfo_;
     }
-    void SetContentScrollInfo(
-        IScrollInfo* value) noexcept;
+    void SetContentScrollInfo(IScrollInfo* value) noexcept;
 
     bool GetCanHorizontallyScroll() const noexcept;
     bool GetCanVerticallyScroll() const noexcept;
     bool GetCanContentScroll() const noexcept;
-    void SetCanHorizontallyScroll(
-        bool value) noexcept;
-    void SetCanVerticallyScroll(
-        bool value) noexcept;
-    void SetCanContentScroll(
-        bool value) noexcept;
-    inline static constexpr DependencyProperty<bool> CanContentScrollProperty{"CanContentScroll"};
+    void SetCanHorizontallyScroll(bool value) noexcept;
+    void SetCanVerticallyScroll(bool value) noexcept;
+    void SetCanContentScroll(bool value) noexcept;
+    AERO_DEPENDENCY_PROPERTY(bool, CanContentScroll);
 
-    void SetViewport(
-        Size viewport) noexcept override;
-    void SetHorizontalOffset(
-        double value) noexcept override;
-    void SetVerticalOffset(
-        double value) noexcept override;
+    void SetViewport(Size viewport) noexcept override;
+    void SetHorizontalOffset(double value) noexcept override;
+    void SetVerticalOffset(double value) noexcept override;
     Result<bool> LineHorizontal(
         double direction) noexcept override;
     Result<bool> LineVertical(
@@ -56,8 +49,7 @@ public:
     double GetLineScrollAmount() const noexcept {
         return lineScrollAmount_;
     }
-    void SetLineScrollAmount(
-        double value) noexcept;
+    void SetLineScrollAmount(double value) noexcept;
 
 protected:
     explicit ScrollContentPresenter(

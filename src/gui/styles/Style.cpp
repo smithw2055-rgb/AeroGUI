@@ -88,19 +88,15 @@ SetterBase* SetterBaseCollection::GetItem(std::uint32_t index) const noexcept {
     return owner_->GetAuthoredSetters()[index].Get();
 }
 
-Base::Result<void> SetterBaseCollection::Add(
+void SetterBaseCollection::Add(
     Base::Ref<SetterBase> setter) noexcept {
-    if (owner_ == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "Setter collection is detached");
-    }
-    return owner_->AddAuthoredSetter(std::move(setter));
+    if (owner_ == nullptr) { AERO_ASSERT(false); return; }
+    owner_->AddAuthoredSetter(std::move(setter));
 }
 
-Base::Result<void> SetterBaseCollection::Add(
+void SetterBaseCollection::Add(
     Base::Ref<Setter> setter) noexcept {
-    return Add(Base::Ref<SetterBase>(std::move(setter)));
+    Add(Base::Ref<SetterBase>(std::move(setter)));
 }
 
 void SetterBaseCollection::Clear() noexcept {
@@ -116,14 +112,10 @@ TriggerBase* TriggerCollection::GetItem(std::uint32_t index) const noexcept {
     return owner_->GetAuthoredTriggers()[index].Get();
 }
 
-Base::Result<void> TriggerCollection::Add(
+void TriggerCollection::Add(
     Base::Ref<TriggerBase> trigger) noexcept {
-    if (owner_ == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "Trigger collection is detached");
-    }
-    return owner_->AddAuthoredTrigger(std::move(trigger));
+    if (owner_ == nullptr) { AERO_ASSERT(false); return; }
+    owner_->AddAuthoredTrigger(std::move(trigger));
 }
 
 void TriggerCollection::Clear() noexcept {
@@ -333,18 +325,12 @@ bool Style::SetBasedOn(const Style* basedOn) noexcept {
     return true;
 }
 
-Base::Result<void> Style::AddSetter(
+void Style::AddSetter(
     DependencyPropertyHandle property,
     const PropertyValue& value) noexcept {
-    if (sealed_) {
-        return InvalidStyle("Cannot modify a sealed Style");
-    }
-    if (!property.IsValid() || value.IsUnset()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Style setter requires a property and concrete value");
-    }
-    return program_->AddAuthoredSetter(property, value);
+    if (sealed_) { AERO_ASSERT(false); return; }
+    if (!property.IsValid() || value.IsUnset()) { AERO_ASSERT(false); return; }
+    program_->AddAuthoredSetter(property, value);
 }
 
 bool Style::SetBasedOn(
@@ -358,37 +344,27 @@ bool Style::SetBasedOn(
     return true;
 }
 
-Base::Result<void> Style::AddAuthoredSetter(
+void Style::AddAuthoredSetter(
     Base::Ref<SetterBase> setter) noexcept {
-    if (sealed_) {
-        return InvalidStyle(
-            "Cannot modify a sealed Style");
-    }
-    if (!setter) {
-        return InvalidStyle(
-            "Style authored setter is null");
-    }
-    return authoredSetterObjects_.PushBack(
+    if (sealed_) { AERO_ASSERT(false); return; }
+    if (!setter) { AERO_ASSERT(false); return; }
+    Base::Result<void> pushed = authoredSetterObjects_.PushBack(
         std::move(setter));
+    if (!pushed) { AERO_ASSERT(false); return; }
 }
 
-Base::Result<void> Style::AddAuthoredSetter(
+void Style::AddAuthoredSetter(
     Base::Ref<Setter> setter) noexcept {
-    return AddAuthoredSetter(Base::Ref<SetterBase>(std::move(setter)));
+    AddAuthoredSetter(Base::Ref<SetterBase>(std::move(setter)));
 }
 
-Base::Result<void> Style::AddAuthoredTrigger(
+void Style::AddAuthoredTrigger(
     Base::Ref<TriggerBase> trigger) noexcept {
-    if (sealed_) {
-        return InvalidStyle(
-            "Cannot modify a sealed Style");
-    }
-    if (!trigger) {
-        return InvalidStyle(
-            "Style authored trigger is null");
-    }
-    return authoredTriggerObjects_.PushBack(
+    if (sealed_) { AERO_ASSERT(false); return; }
+    if (!trigger) { AERO_ASSERT(false); return; }
+    Base::Result<void> pushed = authoredTriggerObjects_.PushBack(
         std::move(trigger));
+    if (!pushed) { AERO_ASSERT(false); return; }
 }
 
 void Style::ClearAuthoredSetters() noexcept {
@@ -409,46 +385,36 @@ void Style::ClearAuthoredTriggers() noexcept {
     authoredTriggerObjects_.Clear();
 }
 
-Base::Result<void> Style::AddSetter(
+void Style::AddSetter(
     const Setter& setter) noexcept {
-    return AddSetter(
+    AddSetter(
         setter.GetProperty(), setter.GetValue());
 }
 
-Base::Result<void> Style::AddPropertyTrigger(
+void Style::AddPropertyTrigger(
     DependencyPropertyHandle condition,
     const PropertyValue& conditionValue,
     DependencyPropertyHandle property,
     PropertyValue value) noexcept {
-    if (sealed_) {
-        return InvalidStyle("Cannot modify a sealed Style");
-    }
+    if (sealed_) { AERO_ASSERT(false); return; }
     if (!condition.IsValid() || conditionValue.IsUnset() ||
-        !property.IsValid() || value.IsUnset()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Style property trigger is incomplete");
-    }
+        !property.IsValid() || value.IsUnset()) { AERO_ASSERT(false); return; }
     TriggerPlan trigger;
     trigger.property = condition;
     trigger.value = conditionValue;
     Base::Result<void> setter = trigger.setters.PushBack(
         {property, std::move(value)});
-    if (!setter) return setter.GetStatus();
-    return program_->AddAuthoredTrigger(std::move(trigger));
+    if (!setter) { AERO_ASSERT(false); return; }
+    Base::Result<void> planned =
+        program_->AddAuthoredTrigger(std::move(trigger));
+    if (!planned) { AERO_ASSERT(false); return; }
 }
 
-Base::Result<void> Style::AddTrigger(
+void Style::AddTrigger(
     const Trigger& trigger) noexcept {
-    if (sealed_) {
-        return InvalidStyle("Cannot modify a sealed Style");
-    }
+    if (sealed_) { AERO_ASSERT(false); return; }
     if (!trigger.property_.IsValid() || trigger.value_.IsUnset() ||
-        trigger.setterProperties_.Size() != trigger.setterValues_.Size()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "Trigger is incomplete");
-    }
+        trigger.setterProperties_.Size() != trigger.setterValues_.Size()) { AERO_ASSERT(false); return; }
     TriggerPlan plan;
     plan.property = trigger.property_;
     plan.value = trigger.value_;
@@ -456,71 +422,55 @@ Base::Result<void> Style::AddTrigger(
          index < trigger.setterProperties_.Size(); ++index) {
         Base::Result<void> copied = plan.setters.PushBack({
             trigger.setterProperties_[index], trigger.setterValues_[index]});
-        if (!copied) return copied.GetStatus();
+        if (!copied) { AERO_ASSERT(false); return; }
     }
     Base::Result<void> copied = plan.enterActions.Append(
         trigger.GetEnterActions());
-    if (!copied) return copied.GetStatus();
+    if (!copied) { AERO_ASSERT(false); return; }
     copied = plan.exitActions.Append(trigger.GetExitActions());
-    if (!copied) return copied.GetStatus();
-    return program_->AddAuthoredTrigger(std::move(plan));
+    if (!copied) { AERO_ASSERT(false); return; }
+    Base::Result<void> planned =
+        program_->AddAuthoredTrigger(std::move(plan));
+    if (!planned) { AERO_ASSERT(false); return; }
 }
 
-Base::Result<void> Style::AddTrigger(
+void Style::AddTrigger(
     const DataTrigger& trigger) noexcept {
-    if (sealed_) {
-        return InvalidStyle("Cannot modify a sealed Style");
-    }
+    if (sealed_) { AERO_ASSERT(false); return; }
     if (!trigger.GetBinding() || trigger.GetAuthoredValue().IsUnset() ||
-        trigger.GetAuthoredSetters().Empty()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "DataTrigger is incomplete");
-    }
+        trigger.GetAuthoredSetters().Empty()) { AERO_ASSERT(false); return; }
     TriggerPlan plan;
     plan.binding = trigger.GetBinding();
     plan.value = trigger.GetAuthoredValue();
     for (const Base::Ref<Setter>& authored :
          trigger.GetAuthoredSetters()) {
         if (!authored || !authored->GetProperty().IsValid() ||
-            authored->GetValue().IsUnset()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidState,
-                "DataTrigger Setter is incomplete");
-        }
+            authored->GetValue().IsUnset()) { AERO_ASSERT(false); return; }
         Base::Result<void> copied = plan.setters.PushBack({
             authored->GetProperty(), authored->GetValue()});
-        if (!copied) return copied.GetStatus();
+        if (!copied) { AERO_ASSERT(false); return; }
     }
     Base::Result<void> copied = plan.enterActions.Append(
         trigger.GetEnterActions());
-    if (!copied) return copied.GetStatus();
+    if (!copied) { AERO_ASSERT(false); return; }
     copied = plan.exitActions.Append(trigger.GetExitActions());
-    if (!copied) return copied.GetStatus();
-    return program_->AddAuthoredTrigger(std::move(plan));
+    if (!copied) { AERO_ASSERT(false); return; }
+    Base::Result<void> planned =
+        program_->AddAuthoredTrigger(std::move(plan));
+    if (!planned) { AERO_ASSERT(false); return; }
 }
 
-Base::Result<void> Style::AddTrigger(
+void Style::AddTrigger(
     const MultiDataTrigger& trigger) noexcept {
-    if (sealed_) {
-        return InvalidStyle("Cannot modify a sealed Style");
-    }
+    if (sealed_) { AERO_ASSERT(false); return; }
     if (trigger.GetConditions().Empty() ||
-        trigger.GetAuthoredSetters().Empty()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "MultiDataTrigger is incomplete");
-    }
+        trigger.GetAuthoredSetters().Empty()) { AERO_ASSERT(false); return; }
     TriggerPlan plan;
     bool first = true;
     for (const Base::Ref<Condition>& condition :
          trigger.GetConditions()) {
         if (!condition || !condition->GetBinding() ||
-            condition->GetAuthoredValue().IsUnset()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidState,
-                "MultiDataTrigger Condition is incomplete");
-        }
+            condition->GetAuthoredValue().IsUnset()) { AERO_ASSERT(false); return; }
         if (first) {
             plan.binding = condition->GetBinding();
             plan.value = condition->GetAuthoredValue();
@@ -532,26 +482,24 @@ Base::Result<void> Style::AddTrigger(
         extra.value = condition->GetAuthoredValue();
         Base::Result<void> copied =
             plan.extraBindings.PushBack(std::move(extra));
-        if (!copied) return copied.GetStatus();
+        if (!copied) { AERO_ASSERT(false); return; }
     }
     for (const Base::Ref<Setter>& authored :
          trigger.GetAuthoredSetters()) {
         if (!authored || !authored->GetProperty().IsValid() ||
-            authored->GetValue().IsUnset()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidState,
-                "MultiDataTrigger Setter is incomplete");
-        }
+            authored->GetValue().IsUnset()) { AERO_ASSERT(false); return; }
         Base::Result<void> copied = plan.setters.PushBack({
             authored->GetProperty(), authored->GetValue()});
-        if (!copied) return copied.GetStatus();
+        if (!copied) { AERO_ASSERT(false); return; }
     }
     Base::Result<void> copied = plan.enterActions.Append(
         trigger.GetEnterActions());
-    if (!copied) return copied.GetStatus();
+    if (!copied) { AERO_ASSERT(false); return; }
     copied = plan.exitActions.Append(trigger.GetExitActions());
-    if (!copied) return copied.GetStatus();
-    return program_->AddAuthoredTrigger(std::move(plan));
+    if (!copied) { AERO_ASSERT(false); return; }
+    Base::Result<void> planned =
+        program_->AddAuthoredTrigger(std::move(plan));
+    if (!planned) { AERO_ASSERT(false); return; }
 }
 
 Base::Result<void> Style::SealRuntime(

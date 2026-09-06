@@ -40,18 +40,18 @@ public:
 
     [[nodiscard]] Base::Transform3 GetTransform3D() const noexcept override;
 
-    inline static constexpr DependencyProperty<double> CenterXProperty{"CenterX"};
-    inline static constexpr DependencyProperty<double> CenterYProperty{"CenterY"};
-    inline static constexpr DependencyProperty<double> CenterZProperty{"CenterZ"};
-    inline static constexpr DependencyProperty<double> RotationXProperty{"RotationX"};
-    inline static constexpr DependencyProperty<double> RotationYProperty{"RotationY"};
-    inline static constexpr DependencyProperty<double> RotationZProperty{"RotationZ"};
-    inline static constexpr DependencyProperty<double> ScaleXProperty{"ScaleX"};
-    inline static constexpr DependencyProperty<double> ScaleYProperty{"ScaleY"};
-    inline static constexpr DependencyProperty<double> ScaleZProperty{"ScaleZ"};
-    inline static constexpr DependencyProperty<double> TranslateXProperty{"TranslateX"};
-    inline static constexpr DependencyProperty<double> TranslateYProperty{"TranslateY"};
-    inline static constexpr DependencyProperty<double> TranslateZProperty{"TranslateZ"};
+    AERO_DEPENDENCY_PROPERTY(double, CenterX);
+    AERO_DEPENDENCY_PROPERTY(double, CenterY);
+    AERO_DEPENDENCY_PROPERTY(double, CenterZ);
+    AERO_DEPENDENCY_PROPERTY(double, RotationX);
+    AERO_DEPENDENCY_PROPERTY(double, RotationY);
+    AERO_DEPENDENCY_PROPERTY(double, RotationZ);
+    AERO_DEPENDENCY_PROPERTY(double, ScaleX);
+    AERO_DEPENDENCY_PROPERTY(double, ScaleY);
+    AERO_DEPENDENCY_PROPERTY(double, ScaleZ);
+    AERO_DEPENDENCY_PROPERTY(double, TranslateX);
+    AERO_DEPENDENCY_PROPERTY(double, TranslateY);
+    AERO_DEPENDENCY_PROPERTY(double, TranslateZ);
 };
 
 } // namespace Aero::Media

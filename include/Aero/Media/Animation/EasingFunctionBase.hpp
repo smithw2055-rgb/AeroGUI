@@ -21,7 +21,7 @@ public:
     void SetEasingMode(EasingMode value) noexcept {
         SetValue(EasingModeProperty, value);
     }
-    inline static constexpr DependencyProperty<EasingMode> EasingModeProperty{"EasingMode"};
+    AERO_DEPENDENCY_PROPERTY(EasingMode, EasingMode);
 
     enum class Kind : std::uint8_t {
         Linear = 0U,

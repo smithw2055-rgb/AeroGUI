@@ -15,12 +15,12 @@ public:
     const PropertyValue& GetValue() const noexcept { return value_; }
     void SetProperty(DependencyPropertyHandle value) noexcept;
     void SetValue(const PropertyValue& value) noexcept;
-    Result<void> AddSetter(const Setter& setter) noexcept;
+    void AddSetter(const Setter& setter) noexcept;
     void SetPropertyName(StringView value) noexcept;
     StringView GetSourceName() const noexcept { return sourceName_.View(); }
     void SetSourceName(StringView value) noexcept;
     void SetAuthoredValue(const PropertyValue& value) noexcept;
-    Result<void> AddAuthoredSetter(Ref<Setter> setter) noexcept;
+    void AddAuthoredSetter(Ref<Setter> setter) noexcept;
     void ClearAuthoredSetters() noexcept;
     StringView GetPropertyName() const noexcept { return propertyName_.View(); }
     const PropertyValue& GetAuthoredValue() const noexcept { return authoredValue_; }

@@ -16,11 +16,10 @@ public:
     bool GetIsSizingGripVisible() const noexcept {
         return GetValue(IsSizingGripVisibleProperty);
     }
-    void SetIsSizingGripVisible(
-        bool value) noexcept {
+    void SetIsSizingGripVisible(bool value) noexcept {
         SetValue(IsSizingGripVisibleProperty, value);
     }
-    inline static constexpr DependencyProperty<bool> IsSizingGripVisibleProperty{"IsSizingGripVisible"};
+    AERO_DEPENDENCY_PROPERTY(bool, IsSizingGripVisible);
 
 protected:
     Result<Ref<FrameworkElement>>

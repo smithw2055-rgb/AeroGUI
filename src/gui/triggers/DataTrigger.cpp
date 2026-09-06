@@ -5,14 +5,12 @@
 
 namespace Aero {
 
-Base::Result<void> DataTrigger::AddAuthoredSetter(
+void DataTrigger::AddAuthoredSetter(
     Base::Ref<Setter> setter) noexcept {
-    if (!setter) {
-        return InvalidStyle(
-            "DataTrigger authored setter is null");
-    }
-    return authoredSetters_.PushBack(
+    if (!setter) { AERO_ASSERT(false); return; }
+    Base::Result<void> pushed = authoredSetters_.PushBack(
         std::move(setter));
+    if (!pushed) { AERO_ASSERT(false); return; }
 }
 
 void DataTrigger::SetPropertyName(StringView value) noexcept {

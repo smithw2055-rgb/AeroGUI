@@ -1137,11 +1137,13 @@ ItemContainerGeneratorRuntime::UpdateGeneratedHeader(
     if (owner_->PropertyRegistry().Types().IsDerivedFrom(
             record.container->RuntimeType(),
             TreeViewItem::StaticTypeId())) {
-        return static_cast<TreeViewItem*>(record.container.Get())
+        static_cast<TreeViewItem*>(record.container.Get())
             ->SetHeader(text);
+        return {};
     }
-    return static_cast<HeaderedItemsControl*>(record.container.Get())
+    static_cast<HeaderedItemsControl*>(record.container.Get())
         ->SetHeader(text);
+    return {};
 }
 
 void ItemContainerGeneratorRuntime::OnGeneratedHeaderChanged(

@@ -15,7 +15,7 @@ public:
     double GetAngle() const noexcept;
     void SetAngle(double value) noexcept;
 
-    inline static constexpr DependencyProperty<double> RadiusProperty{"Radius"};
-    inline static constexpr DependencyProperty<double> AngleProperty{"Angle"};
+    AERO_DEPENDENCY_PROPERTY(double, Radius);
+    AERO_DEPENDENCY_PROPERTY(double, Angle);
 };
 } // namespace Aero::Media

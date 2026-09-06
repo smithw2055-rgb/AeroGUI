@@ -17,8 +17,8 @@ public:
     }
     void SetBounces(double value) noexcept;
     void SetBounciness(double value) noexcept;
-    inline static constexpr DependencyProperty<double> BouncesProperty{"Bounces"};
-    inline static constexpr DependencyProperty<double> BouncinessProperty{"Bounciness"};
+    AERO_DEPENDENCY_PROPERTY(double, Bounces);
+    AERO_DEPENDENCY_PROPERTY(double, Bounciness);
 };
 
 } // namespace Aero::Media::Animation

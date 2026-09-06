@@ -18,7 +18,7 @@ public:
     bool GetIsSelected() const noexcept;
     void SetIsSelected(bool value) noexcept;
 
-    inline static constexpr DependencyProperty<bool> IsSelectedProperty{"IsSelected"};
+    AERO_DEPENDENCY_PROPERTY(bool, IsSelected);
 protected:
     explicit ListBoxItem(TypeId runtimeType) noexcept;
 

@@ -520,6 +520,7 @@ Base::Result<void> DetachFragment(ViewState& state,
                 if (hasMountedChild) continue;
                 Base::Result<void> detached = context.DetachElement(edge.state);
                 if (!detached && detached.GetStatus().code != Base::ErrorCode::NotFound) {
+                    std::fprintf(stderr, "DetachFragment: edge detach failed: %s\n", detached.GetStatus().message);
                     return detached.GetStatus();
                 }
                 edge.state = {};

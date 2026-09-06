@@ -33,15 +33,15 @@ public:
 
     Base::Transform2D GetMatrix() const noexcept override;
 
-    inline static constexpr DependencyProperty<double> CenterXProperty{"CenterX"};
-    inline static constexpr DependencyProperty<double> CenterYProperty{"CenterY"};
-    inline static constexpr DependencyProperty<double> ScaleXProperty{"ScaleX"};
-    inline static constexpr DependencyProperty<double> ScaleYProperty{"ScaleY"};
-    inline static constexpr DependencyProperty<double> SkewXProperty{"SkewX"};
-    inline static constexpr DependencyProperty<double> SkewYProperty{"SkewY"};
-    inline static constexpr DependencyProperty<double> RotationProperty{"Rotation"};
-    inline static constexpr DependencyProperty<double> TranslateXProperty{"TranslateX"};
-    inline static constexpr DependencyProperty<double> TranslateYProperty{"TranslateY"};
+    AERO_DEPENDENCY_PROPERTY(double, CenterX);
+    AERO_DEPENDENCY_PROPERTY(double, CenterY);
+    AERO_DEPENDENCY_PROPERTY(double, ScaleX);
+    AERO_DEPENDENCY_PROPERTY(double, ScaleY);
+    AERO_DEPENDENCY_PROPERTY(double, SkewX);
+    AERO_DEPENDENCY_PROPERTY(double, SkewY);
+    AERO_DEPENDENCY_PROPERTY(double, Rotation);
+    AERO_DEPENDENCY_PROPERTY(double, TranslateX);
+    AERO_DEPENDENCY_PROPERTY(double, TranslateY);
 };
 
 } // namespace Aero::Media

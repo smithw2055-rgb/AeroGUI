@@ -24,9 +24,9 @@ public:
 
     [[nodiscard]] Base::Transform3 GetTransform3D() const noexcept override;
 
-    inline static constexpr DependencyProperty<double> DepthProperty{"Depth"};
-    inline static constexpr DependencyProperty<double> OffsetXProperty{"OffsetX"};
-    inline static constexpr DependencyProperty<double> OffsetYProperty{"OffsetY"};
+    AERO_DEPENDENCY_PROPERTY(double, Depth);
+    AERO_DEPENDENCY_PROPERTY(double, OffsetX);
+    AERO_DEPENDENCY_PROPERTY(double, OffsetY);
 };
 
 } // namespace Aero::Media

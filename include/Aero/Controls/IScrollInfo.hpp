@@ -11,12 +11,9 @@ class AERO_GUI_API IScrollInfo {
 public:
     virtual ~IScrollInfo() = default;
     virtual ScrollData GetData() const noexcept = 0;
-    virtual void SetViewport(
-        Size viewport) noexcept = 0;
-    virtual void SetHorizontalOffset(
-        double value) noexcept = 0;
-    virtual void SetVerticalOffset(
-        double value) noexcept = 0;
+    virtual void SetViewport(Size viewport) noexcept = 0;
+    virtual void SetHorizontalOffset(double value) noexcept = 0;
+    virtual void SetVerticalOffset(double value) noexcept = 0;
     virtual Result<bool> LineHorizontal(
         double direction) noexcept = 0;
     virtual Result<bool> LineVertical(

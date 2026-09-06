@@ -12,10 +12,10 @@ public:
     ConicGradientShader() noexcept
         : BrushShader(StaticTypeId()),
           stops_(&Base::GetDefaultAllocator()) {}
-    Result<void> AddGradientStop(Ref<GradientStop> value) noexcept {
-        return value ? stops_.PushBack(std::move(value))
-            : Result<void>(Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument, "ConicGradientShader stop is null"));
+    void AddGradientStop(Ref<GradientStop> value) noexcept {
+        if (!value) { AERO_ASSERT(false); return; }
+        Base::Result<void> pushed = stops_.PushBack(std::move(value));
+        if (!pushed) { AERO_ASSERT(false); return; }
     }
     void ClearGradientStops() noexcept { stops_.Clear(); }
     Span<const Ref<GradientStop>> GetGradientStops() const noexcept {

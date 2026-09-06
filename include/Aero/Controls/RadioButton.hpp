@@ -11,10 +11,9 @@ public:
     ~RadioButton() override = default;
 
     StringView GetGroupName() const noexcept;
-    void SetGroupName(
-        StringView value) noexcept;
+    void SetGroupName(StringView value) noexcept;
 
-    inline static constexpr DependencyProperty<String> GroupNameProperty{"GroupName"};
+    AERO_DEPENDENCY_PROPERTY(String, GroupName);
 
 protected:
     explicit RadioButton(TypeId runtimeType) noexcept

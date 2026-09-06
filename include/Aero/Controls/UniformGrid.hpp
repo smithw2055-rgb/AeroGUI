@@ -17,11 +17,10 @@ public:
     std::uint32_t GetFirstColumn() const noexcept;
     void SetRows(std::uint32_t value) noexcept;
     void SetColumns(std::uint32_t value) noexcept;
-    void SetFirstColumn(
-        std::uint32_t value) noexcept;
-    inline static constexpr DependencyProperty<std::uint32_t> RowsProperty{"Rows"};
-    inline static constexpr DependencyProperty<std::uint32_t> ColumnsProperty{"Columns"};
-    inline static constexpr DependencyProperty<std::uint32_t> FirstColumnProperty{"FirstColumn"};
+    void SetFirstColumn(std::uint32_t value) noexcept;
+    AERO_DEPENDENCY_PROPERTY(std::uint32_t, Rows);
+    AERO_DEPENDENCY_PROPERTY(std::uint32_t, Columns);
+    AERO_DEPENDENCY_PROPERTY(std::uint32_t, FirstColumn);
 protected:
     Size MeasureOverride(Size availableSize) noexcept override;
     Size ArrangeOverride(Size finalSize) noexcept override;

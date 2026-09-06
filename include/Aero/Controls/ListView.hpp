@@ -19,10 +19,9 @@ public:
     ~ListView() override = default;
 
     Ref<GridView> GetView() const noexcept;
-    void SetView(
-        Ref<GridView> value) noexcept;
+    void SetView(Ref<GridView> value) noexcept;
 
-    inline static constexpr DependencyProperty<Ref<GridView>> ViewProperty{"View"};
+    AERO_DEPENDENCY_PROPERTY(Ref<GridView>, View);
 
 protected:
     void
@@ -35,7 +34,6 @@ protected:
 
 private:
     TextBlock* columnHeaders_ = nullptr;
-    Result<void>
-        SynchronizeColumnHeaders() noexcept;
+    void SynchronizeColumnHeaders() noexcept;
 };
 } // namespace Aero::Controls

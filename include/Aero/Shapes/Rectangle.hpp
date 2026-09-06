@@ -15,8 +15,8 @@ public:
     void SetRadiusX(double value) noexcept;
     void SetRadiusY(double value) noexcept;
 
-    inline static constexpr DependencyProperty<double> RadiusXProperty{"RadiusX"};
-    inline static constexpr DependencyProperty<double> RadiusYProperty{"RadiusY"};
+    AERO_DEPENDENCY_PROPERTY(double, RadiusX);
+    AERO_DEPENDENCY_PROPERTY(double, RadiusY);
 
 protected:
     Size MeasureOverride(

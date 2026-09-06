@@ -83,23 +83,19 @@ public:
             ? Ref<Base::Object>(items_[index])
             : Ref<Base::Object>{};
     }
-    Result<void> Add(Ref<T> item) noexcept {
-        return Insert(items_.Size(), std::move(item));
+    void Add(Ref<T> item) noexcept {
+        Insert(items_.Size(), std::move(item));
     }
-    Result<void> Insert(
+    void Insert(
         std::uint32_t index,
         Ref<T> item) noexcept {
-        if (!item || index > items_.Size()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "ObservableCollection insert is invalid");
-        }
+        if (!item || index > items_.Size()) { AERO_ASSERT(false); return; }
         Result<void> reserved =
             items_.Reserve(items_.Size() + 1U);
-        if (!reserved) return reserved.GetStatus();
+        if (!reserved) { AERO_ASSERT(false); return; }
         Ref<T> placeholder;
         Result<void> pushed = items_.PushBack(std::move(placeholder));
-        if (!pushed) return pushed.GetStatus();
+        if (!pushed) { AERO_ASSERT(false); return; }
         for (std::uint32_t current = items_.Size() - 1U;
              current > index; --current) {
             items_[current] = std::move(items_[current - 1U]);
@@ -111,7 +107,6 @@ public:
             index,
             0U,
             1U});
-        return {};
     }
     Result<void> Replace(
         std::uint32_t index,

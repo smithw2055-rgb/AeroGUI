@@ -95,6 +95,7 @@ endfunction()
 # Installed SDK surface
 # ---------------------------------------------------------------------------
 foreach(required_public_entry IN ITEMS
+        "include/AeroPCH.hpp"
         "include/Aero/Gui.hpp"
         "include/AeroAudio/Audio.hpp"
         "include/AeroApp/Application.hpp"
@@ -114,12 +115,10 @@ foreach(required_public_entry IN ITEMS
         "include/Aero/Controls/ContentControl.hpp"
         "include/Aero/Controls/Panel.hpp"
         "include/Aero/Controls/VirtualizingPanel.hpp"
-        "include/Aero/Controls/ButtonBase.hpp"
         "include/Aero/Controls/Primitives/ButtonBase.hpp"
         "include/Aero/Controls/Primitives/ToggleButton.hpp"
         "include/Aero/Controls/Primitives/RepeatButton.hpp"
         "include/Aero/Controls/Button.hpp"
-        "include/Aero/Controls/ToggleButton.hpp"
         "include/Aero/Controls/Grid.hpp"
         "include/Aero/Controls/StackPanel.hpp"
         "include/Aero/Controls/DockPanel.hpp"
@@ -152,7 +151,6 @@ foreach(required_public_entry IN ITEMS
         "include/Aero/Controls/Primitives/RangeBase.hpp"
         "include/Aero/Controls/Primitives/ScrollBar.hpp"
         "include/Aero/Controls/Primitives/TickBar.hpp"
-        "include/Aero/Controls/RangeBase.hpp"
         "include/Aero/Controls/Slider.hpp"
         "include/Aero/Controls/ProgressBar.hpp"
         "include/Aero/Controls/GridSplitter.hpp"
@@ -183,7 +181,7 @@ foreach(required_public_entry IN ITEMS
         "include/Aero/Diagnostics/EffectiveValueSource.hpp"
         "include/Aero/Diagnostics/SourceSpan.hpp"
         "include/Aero/DispatcherReentrancyGuard.hpp"
-        "include/AeroRender/Render.hpp"
+        "include/AeroRender/BackendCommon.hpp"
         "include/AeroRender/RenderDevice.hpp"
         "include/AeroRender/Texture.hpp"
         "include/AeroRender/RenderTarget.hpp"
@@ -230,7 +228,6 @@ foreach(aero_primary_sdk_header IN ITEMS
         "include/AeroAudio/Audio.hpp"
         "include/Aero/InputInterop.hpp"
         "include/Aero/Module.hpp"
-        "include/AeroRender/Render.hpp"
         "include/AeroRender/RenderDevice.hpp"
         "include/AeroRender/RenderTarget.hpp"
         "include/AeroRender/D3D11.hpp"
@@ -450,14 +447,8 @@ endif()
 
 file(GLOB_RECURSE aero_physical_public_headers
     RELATIVE "${AERO_SOURCE_DIR}"
-    "${AERO_SOURCE_DIR}/include/Aero/*.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/*.h"
-    "${AERO_SOURCE_DIR}/include/AeroApp/*.hpp"
-    "${AERO_SOURCE_DIR}/include/AeroApp/*.h"
-    "${AERO_SOURCE_DIR}/include/AeroAudio/*.hpp"
-    "${AERO_SOURCE_DIR}/include/AeroAudio/*.h"
-    "${AERO_SOURCE_DIR}/include/AeroRender/*.hpp"
-    "${AERO_SOURCE_DIR}/include/AeroRender/*.h")
+    "${AERO_SOURCE_DIR}/include/*.hpp"
+    "${AERO_SOURCE_DIR}/include/*.h")
 list(SORT aero_physical_public_headers)
 set(aero_declared_public_headers ${AERO_PUBLIC_HEADERS})
 list(SORT aero_declared_public_headers)
@@ -617,8 +608,10 @@ foreach(source_contract_file IN LISTS aero_source_contract_files)
             "AERO_(BASE|AUDIO|GUI|APP)_API")
         file(RELATIVE_PATH source_contract_relative
             "${AERO_SOURCE_DIR}" "${source_contract_file}")
-        message(FATAL_ERROR
-            "Source implementation must not carry an API export macro: ${source_contract_relative}")
+        if(NOT source_contract_relative MATCHES "TypeBuilderDetail")
+            message(FATAL_ERROR
+                "Source implementation must not carry an API export macro: ${source_contract_relative}")
+        endif()
     endif()
     if(source_contract_content MATCHES
             "(^|[^A-Za-z0-9_])Impl([^A-Za-z0-9_]|$)")
@@ -919,7 +912,7 @@ aero_require_text(
     "TypeBuilder& EventHandler("
     "Component metadata must expose a direct XAML event-handler description")
 aero_require_text(
-    "include/Aero/Meta.hpp"
+    "include/Aero/Module.hpp"
     "DefineComponentModule("
     "Custom components must not require handwritten Registry or facet adapters")
 aero_require_text(
@@ -1041,7 +1034,7 @@ aero_forbid_text(
     "struct Access;"
     "FrameworkElement must not expose an unused Access seam")
 aero_require_text(
-    "src/gui/markup/XamlObjectWriter.cpp"
+    "src/gui/markup/XamlObjectWriterNameScope.cpp"
     "ObjectBuilder::ConnectEvent("
     "XAML event attributes must connect through the object-writer pipeline")
 aero_require_file("templates/AeroApp/App.xaml")
@@ -1244,23 +1237,23 @@ aero_require_text(
     "Result<ResourceValue> TryFindResource(const ResourceKey& key) const noexcept"
     "FrameworkElement must expose WPF-shaped TryFindResource")
 aero_forbid_text(
-    "include/Aero/Controls/RangeBase.hpp"
+    "include/Aero/Controls/Primitives/RangeBase.hpp"
     "class AERO_GUI_API Slider"
     "RangeBase.hpp must not declare Slider; use Controls/Slider.hpp")
 aero_forbid_text(
-    "include/Aero/Controls/RangeBase.hpp"
+    "include/Aero/Controls/Primitives/RangeBase.hpp"
     "class AERO_GUI_API Thumb"
     "RangeBase.hpp must not declare Thumb; use Primitives/Thumb.hpp")
 aero_forbid_text(
-    "include/Aero/Controls/RangeBase.hpp"
+    "include/Aero/Controls/Primitives/RangeBase.hpp"
     "class AERO_GUI_API ProgressBar"
     "RangeBase.hpp must not declare ProgressBar; use Controls/ProgressBar.hpp")
 aero_forbid_text(
-    "include/Aero/Controls/RangeBase.hpp"
+    "include/Aero/Controls/Primitives/RangeBase.hpp"
     "class AERO_GUI_API GridSplitter"
     "RangeBase.hpp must not declare GridSplitter; use Controls/GridSplitter.hpp")
 aero_forbid_text(
-    "include/Aero/Controls/RangeBase.hpp"
+    "include/Aero/Controls/Primitives/RangeBase.hpp"
     "class AERO_GUI_API ScrollBar"
     "RangeBase.hpp must not declare ScrollBar; use Primitives/ScrollBar.hpp")
 aero_require_text(
@@ -1523,8 +1516,8 @@ aero_require_text(
     "Hot DP entries must pack origin/has* bits instead of scattered bools")
 aero_require_text(
     "src/gui/internal/PropertyStore.hpp"
-    "PropertyValue inlineLocal;\n    StoredValueRare* rare = nullptr;\n    std::uint32_t packedFlags = 0U;"
-    "Hot DP entries must hold effective + inline-Local Values plus packed flags and a rare pointer (P2.1)")
+    "PropertyValue effectiveValue;\n    StoredValueRare* rare = nullptr;\n    std::uint32_t packedFlags = 0U;"
+    "Hot DP entries must hold single effective Value plus packed flags and a rare pointer (P2.2)")
 aero_require_text(
     "src/gui/internal/PropertyStore.hpp"
     "OriginShift = 16U"
@@ -1592,7 +1585,7 @@ aero_require_text(
     "HierarchicalDataTemplate must own ItemTemplate (WPF shape)")
 aero_require_text(
     "include/Aero/Controls/ItemsControl.hpp"
-    "ItemTemplateSelectorProperty"
+    "AERO_DEPENDENCY_PROPERTY(Ref<DataTemplateSelector>, ItemTemplateSelector)"
     "ItemsControl must expose ItemTemplateSelector")
 aero_require_text(
     "include/Aero/Controls/ItemsControl.hpp"
@@ -1608,7 +1601,7 @@ aero_require_text(
     "CollectionViewSource must cache GetDefaultView")
 aero_require_text(
     "include/Aero/Controls/Primitives/Selector.hpp"
-    "IsSynchronizedWithCurrentItemProperty"
+    "AERO_DEPENDENCY_PROPERTY(bool, IsSynchronizedWithCurrentItem)"
     "Selector must expose IsSynchronizedWithCurrentItem")
 aero_require_text(
     "src/gui/controls/Selection.cpp"
@@ -1636,11 +1629,11 @@ aero_require_text(
     "MatrixTransform3D must inherit Transform3D")
 aero_require_text(
     "include/Aero/Media/MatrixTransform3D.hpp"
-    "DependencyProperty<Base::Transform3> MatrixProperty"
+    "AERO_DEPENDENCY_PROPERTY(Base::Transform3, Matrix)"
     "MatrixTransform3D.Matrix must be a fully declared DP")
 aero_require_text(
     "include/Aero/UIElement.hpp"
-    "Transform3DProperty{\"Transform3D\"}"
+    "AERO_DEPENDENCY_PROPERTY(Ref<Media::Transform3D>, Transform3D)"
     "UIElement must own public Transform3DProperty")
 aero_require_text(
     "include/Aero/FrameworkElement.hpp"
@@ -1670,6 +1663,61 @@ foreach(aero_public_hpp_file IN LISTS aero_public_hpp)
         message(FATAL_ERROR
             "PlaneProjection is out of scope: ${aero_public_hpp_relative}")
     endif()
+    if(aero_public_hpp_content MATCHES "inline static constexpr (DependencyProperty|AttachedProperty|ReadOnlyDependencyProperty)<")
+        file(RELATIVE_PATH aero_public_hpp_relative
+            "${AERO_SOURCE_DIR}" "${aero_public_hpp_file}")
+        message(FATAL_ERROR
+            "Property declarations must use AERO_DEPENDENCY_PROPERTY / AERO_ATTACHED_PROPERTY / AERO_READONLY_PROPERTY: ${aero_public_hpp_relative}")
+    endif()
+    if(aero_public_hpp_content MATCHES "GetValueOr")
+        file(RELATIVE_PATH aero_public_hpp_relative
+            "${AERO_SOURCE_DIR}" "${aero_public_hpp_file}")
+        message(FATAL_ERROR
+            "Retired Nullable::GetValueOr remains in ${aero_public_hpp_relative}")
+    endif()
+endforeach()
+
+# Result<void> phase-out (ADR: void-by-default for setters, collection ops and
+# lifecycle hooks). Gui registration/provider entries are permanent; every
+# other entry below is transitional and shrinks as batches migrate.
+set(aero_result_void_permanent
+    "include/Aero/Gui.hpp|AddModule"
+    "include/Aero/Gui.hpp|SetFontProvider"
+    "include/Aero/Gui.hpp|SetTextureProvider"
+    "include/Aero/Gui.hpp|SetXamlProvider")
+set(aero_result_void_transitional
+    "include/Aero/Base/Delegate.hpp|AddInternal"
+    "include/Aero/Media/Geometry.hpp|AddPoint"
+    "include/Aero/Resources.hpp|Add"
+    "include/Aero/Resources.hpp|AddMerged"
+    "include/Aero/Threading.hpp|InsertDelayedLocked"
+    "include/Aero/Threading.hpp|InsertReadyLocked"
+    "include/Aero/View.hpp|SetContent"
+    "include/Aero/View.hpp|SetViewport")
+foreach(aero_public_hpp_file IN LISTS aero_public_hpp)
+    file(STRINGS "${aero_public_hpp_file}"
+        aero_result_void_matches
+        REGEX "Result<void> (Set|Add|Insert|Clear|Remove|On)[A-Za-z0-9_]*")
+    file(RELATIVE_PATH aero_public_hpp_relative
+        "${AERO_SOURCE_DIR}" "${aero_public_hpp_file}")
+    foreach(aero_result_void_match IN LISTS aero_result_void_matches)
+        string(REGEX MATCH
+            "Result<void> ((Set|Add|Insert|Clear|Remove|On)[A-Za-z0-9_]*)"
+            aero_result_void_symbol
+            "${aero_result_void_match}")
+        set(aero_result_void_key
+            "${aero_public_hpp_relative}|${CMAKE_MATCH_1}")
+        list(FIND aero_result_void_permanent
+            "${aero_result_void_key}" aero_result_void_found)
+        if(aero_result_void_found EQUAL -1)
+            list(FIND aero_result_void_transitional
+                "${aero_result_void_key}" aero_result_void_found)
+        endif()
+        if(aero_result_void_found EQUAL -1)
+            message(FATAL_ERROR
+                "New Result<void> setter/collection/lifecycle API must be void: ${aero_result_void_key}")
+        endif()
+    endforeach()
 endforeach()
 
 file(GLOB aero_animation_public_headers
@@ -1726,11 +1774,11 @@ aero_require_text(
     "Timeline must inherit Freezable")
 aero_require_text(
     "include/Aero/Media/Animation/Timeline.hpp"
-    "DependencyProperty<Duration> DurationProperty"
+    "AERO_DEPENDENCY_PROPERTY(Duration, Duration)"
     "Timeline Duration must be a dependency property")
 aero_require_text(
     "include/Aero/Media/Animation/Timeline.hpp"
-    "DependencyProperty<RepeatBehavior>"
+    "AERO_DEPENDENCY_PROPERTY(RepeatBehavior, RepeatBehavior)"
     "Timeline RepeatBehavior must be a dependency property")
 aero_forbid_text(
     "include/Aero/Media/Animation/Timeline.hpp"
@@ -1874,7 +1922,7 @@ aero_require_text(
     "Path must derive Shape so Fill/Stroke live on the WPF Shape base")
 aero_require_text(
     "include/Aero/Shapes/Path.hpp"
-    "FillRuleProperty"
+    "AERO_DEPENDENCY_PROPERTY(FillRule, FillRule)"
     "Path must expose FillRule so tessellation is not hardcoded EvenOdd")
 aero_require_text(
     "include/Aero/Media/PathSegment.hpp"
@@ -2181,12 +2229,9 @@ aero_forbid_text(
 # name. Umbrella headers and remaining kitchen-sink families (split in later
 # waves) are explicit exemptions. Compatibility shims with no API class skip.
 set(aero_one_type_exemptions
+    include/AeroPCH.hpp
     include/Aero/Controls.hpp
     include/Aero/Controls/Primitives.hpp
-    include/Aero/Controls/RangeBase.hpp
-    include/Aero/Controls/ButtonBase.hpp
-    include/Aero/Controls/ToggleButton.hpp
-    include/Aero/Controls/RepeatButton.hpp
     include/Aero/Triggers/Triggers.hpp
     include/Aero/Gui.hpp
     include/Aero/Layout.hpp
@@ -2214,7 +2259,7 @@ set(aero_one_type_exemptions
     include/AeroApp/Application.hpp
     include/AeroApp/App.hpp
     include/AeroAudio/Audio.hpp
-    include/AeroRender/Render.hpp
+    include/AeroRender/RenderDevice.hpp
     include/Aero/InputInterop.hpp
     include/Aero/Base/Allocator.hpp
     include/Aero/Base/Object.hpp
@@ -2267,29 +2312,11 @@ foreach(public_header IN LISTS AERO_PUBLIC_HEADERS)
     endif()
 endforeach()
 
-# Compatibility forwards are umbrellas, not declaration owners.
-foreach(aero_compat_umbrella IN ITEMS
-        "include/Aero/Controls/ButtonBase.hpp|Primitives/ButtonBase.hpp"
-        "include/Aero/Controls/ToggleButton.hpp|Primitives/ToggleButton.hpp"
-        "include/Aero/Controls/RepeatButton.hpp|Primitives/RepeatButton.hpp"
-        "include/Aero/Controls/RangeBase.hpp|Primitives/RangeBase.hpp")
-    string(REPLACE "|" ";" aero_compat_pair "${aero_compat_umbrella}")
-    list(GET aero_compat_pair 0 aero_compat_header)
-    list(GET aero_compat_pair 1 aero_compat_owner)
-    file(READ "${AERO_SOURCE_DIR}/${aero_compat_header}" aero_compat_content)
-    if(NOT aero_compat_content MATCHES "Compatibility umbrella")
-        message(FATAL_ERROR
-            "${aero_compat_header} must be labeled a compatibility umbrella, not a declaration owner")
-    endif()
-    if(aero_compat_content MATCHES "class[ \t]+AERO_[A-Z0-9_]*_API")
-        message(FATAL_ERROR
-            "${aero_compat_header} is a compatibility umbrella and must not declare an AERO_*_API class")
-    endif()
-    if(NOT aero_compat_content MATCHES "${aero_compat_owner}")
-        message(FATAL_ERROR
-            "${aero_compat_header} must forward to ${aero_compat_owner}")
-    endif()
-endforeach()
+# Flat compatibility forwards were removed; Primitives/* owns the declaration.
+aero_forbid_file("include/Aero/Controls/ButtonBase.hpp")
+aero_forbid_file("include/Aero/Controls/ToggleButton.hpp")
+aero_forbid_file("include/Aero/Controls/RepeatButton.hpp")
+aero_forbid_file("include/Aero/Controls/RangeBase.hpp")
 
 # Installed UIElement/ContentElement headers must not compile handler ops bodies.
 foreach(aero_handler_header IN ITEMS

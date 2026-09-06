@@ -45,14 +45,10 @@ public:
     std::uint32_t GetIndexOfItem(
         const Base::Object* item) const noexcept;
 
-    void SetSelectionMode(
-        SelectionMode value) noexcept;
-    void SetSelectedIndex(
-        std::uint32_t index) noexcept;
-    void SetSelectedItem(
-        Ref<Base::Object> item) noexcept;
-    void SetSelectedValue(
-        Ref<Base::Object> value) noexcept;
+    void SetSelectionMode(SelectionMode value) noexcept;
+    void SetSelectedIndex(std::uint32_t index) noexcept;
+    void SetSelectedItem(Ref<Base::Object> item) noexcept;
+    void SetSelectedValue(Ref<Base::Object> value) noexcept;
     bool GetIsSynchronizedWithCurrentItem() const noexcept;
     void SetIsSynchronizedWithCurrentItem(bool value) noexcept;
     bool Select(
@@ -79,13 +75,13 @@ public:
         return lastSelectionError_;
     }
 
-    inline static constexpr DependencyProperty<SelectionMode> SelectionModeProperty{"SelectionMode"};
-    inline static constexpr DependencyProperty<std::uint32_t> SelectedIndexProperty{"SelectedIndex"};
-    inline static constexpr DependencyProperty<Ref<Base::Object>> SelectedItemProperty{"SelectedItem"};
-    inline static constexpr DependencyProperty<Ref<Base::Object>> SelectedValueProperty{"SelectedValue"};
-    inline static constexpr DependencyProperty<String> SelectedValuePathProperty{"SelectedValuePath"};
-    inline static constexpr AttachedProperty<bool> IsSelectedProperty{"IsSelected"};
-    inline static constexpr DependencyProperty<bool> IsSynchronizedWithCurrentItemProperty{"IsSynchronizedWithCurrentItem"};
+    AERO_DEPENDENCY_PROPERTY(SelectionMode, SelectionMode);
+    AERO_DEPENDENCY_PROPERTY(std::uint32_t, SelectedIndex);
+    AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, SelectedItem);
+    AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, SelectedValue);
+    AERO_DEPENDENCY_PROPERTY(String, SelectedValuePath);
+    AERO_ATTACHED_PROPERTY(bool, IsSelected);
+    AERO_DEPENDENCY_PROPERTY(bool, IsSynchronizedWithCurrentItem);
     // WPF Selector.SelectionChanged is a bubbling routed event. Keep the
     // strongly typed selection notification above for model-facing code while
     // also publishing the routed surface used by EventTrigger.

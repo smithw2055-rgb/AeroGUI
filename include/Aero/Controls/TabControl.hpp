@@ -23,8 +23,7 @@ public:
     Ref<DataTemplate> GetContentTemplate() const noexcept {
         return GetValue(ContentTemplateProperty);
     }
-    void SetContentTemplate(
-        Ref<DataTemplate> value) noexcept {
+    void SetContentTemplate(Ref<DataTemplate> value) noexcept {
         SetValue(ContentTemplateProperty, std::move(value));
     }
     Dock GetTabStripPlacement() const noexcept {
@@ -34,9 +33,9 @@ public:
         SetValue(TabStripPlacementProperty, value);
     }
 
-    inline static constexpr ReadOnlyDependencyProperty<Value> SelectedContentProperty{"SelectedContent"};
-    inline static constexpr DependencyProperty<Ref<DataTemplate>> ContentTemplateProperty{"ContentTemplate"};
-    inline static constexpr DependencyProperty<Dock> TabStripPlacementProperty{"TabStripPlacement"};
+    AERO_READONLY_PROPERTY(Value, SelectedContent);
+    AERO_DEPENDENCY_PROPERTY(Ref<DataTemplate>, ContentTemplate);
+    AERO_DEPENDENCY_PROPERTY(Dock, TabStripPlacement);
 
 protected:
     Result<Ref<FrameworkElement>> CreateContainer(

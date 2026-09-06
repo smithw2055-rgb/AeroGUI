@@ -16,9 +16,7 @@ public:
     double GetValue() const noexcept;
     void SetMinimum(double value) noexcept;
     void SetMaximum(double value) noexcept;
-    void SetRange(
-        double minimum,
-        double maximum) noexcept;
+    void SetRange(double minimum, double maximum) noexcept;
     void SetValue(double value) noexcept;
 
     inline static constexpr RoutedEvent<RangeValueChangedEventArgs> ValueChangedEvent{"ValueChanged"};
@@ -26,9 +24,9 @@ public:
         ValueChanged() noexcept {
         return GetEvent(ValueChangedEvent);
     }
-    inline static constexpr DependencyProperty<double> MinimumProperty{"Minimum"};
-    inline static constexpr DependencyProperty<double> MaximumProperty{"Maximum"};
-    inline static constexpr DependencyProperty<double> ValueProperty{"Value"};
+    AERO_DEPENDENCY_PROPERTY(double, Minimum);
+    AERO_DEPENDENCY_PROPERTY(double, Maximum);
+    AERO_DEPENDENCY_PROPERTY(double, Value);
 
 protected:
     explicit RangeBase(TypeId runtimeType) noexcept;

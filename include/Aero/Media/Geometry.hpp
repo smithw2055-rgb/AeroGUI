@@ -42,7 +42,7 @@ public:
         return transform_;
     }
     void SetTransform(Ref<Transform> value) noexcept;
-    inline static constexpr DependencyProperty<Ref<Transform>> TransformProperty{"Transform"};
+    AERO_DEPENDENCY_PROPERTY(Ref<Transform>, Transform);
 private:
     void OnTransformChanged(Freezable&) noexcept;
     Ref<Transform> transform_;

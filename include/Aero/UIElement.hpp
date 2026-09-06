@@ -193,13 +193,13 @@ public:
         if (handler.Empty()) {
             return;
         }
-        static_cast<void>(AddHandlerErased(
+        AddHandlerErased(
             event,
             &handler,
             sizeof(handler),
             alignof(decltype(handler)),
             TArgs::StaticTypeId(),
-            handledEventsToo));
+            handledEventsToo);
     }
     template<class TArgs>
     bool RemoveHandler(
@@ -261,37 +261,34 @@ public:
     std::uint64_t GetLayoutRevision() const noexcept;
 
     // Dependency properties
-    inline static constexpr DependencyProperty<bool> ClipToBoundsProperty{"ClipToBounds"};
-    inline static constexpr DependencyProperty<Ref<Media::Geometry>> ClipProperty{"Clip"};
-    inline static constexpr DependencyProperty<BlendMode> BlendModeProperty{"BlendMode"};
-    inline static constexpr DependencyProperty<Ref<Media::Effect>> EffectProperty{"Effect"};
-    inline static constexpr DependencyProperty<Ref<Media::Brush>> OpacityMaskProperty{"OpacityMask"};
-    inline static constexpr DependencyProperty<bool> IsHitTestVisibleProperty{"IsHitTestVisible"};
-    inline static constexpr DependencyProperty<Visibility> VisibilityProperty{"Visibility"};
-    inline static constexpr DependencyProperty<bool> IsEnabledProperty{"IsEnabled"};
-    inline static constexpr DependencyProperty<bool> AllowDropProperty{"AllowDrop"};
-    inline static constexpr ReadOnlyDependencyProperty<bool> IsMouseOverProperty{"IsMouseOver"};
-    inline static constexpr ReadOnlyDependencyProperty<bool> IsPressedProperty{"IsPressed"};
-    inline static constexpr ReadOnlyDependencyProperty<bool> IsKeyboardFocusedProperty{"IsKeyboardFocused"};
-    inline static constexpr ReadOnlyDependencyProperty<bool> IsKeyboardFocusWithinProperty{"IsKeyboardFocusWithin"};
-    inline static constexpr DependencyProperty<bool> FocusableProperty{"Focusable"};
-    inline static constexpr DependencyProperty<bool> IsTabStopProperty{"IsTabStop"};
-    inline static constexpr DependencyProperty<std::uint32_t> TabIndexProperty{"TabIndex"};
-    inline static constexpr DependencyProperty<bool> IsFocusScopeProperty{"IsFocusScope"};
-    inline static constexpr DependencyProperty<double> OpacityProperty{"Opacity"};
-    inline static constexpr DependencyProperty<Ref<Media::Transform>> RenderTransformProperty{"RenderTransform"};
-    inline static constexpr DependencyProperty<Ref<Media::Transform3D>> Transform3DProperty{"Transform3D"};
-    inline static constexpr DependencyProperty<Point> RenderTransformOriginProperty{"RenderTransformOrigin"};
+    AERO_DEPENDENCY_PROPERTY(bool, ClipToBounds);
+    AERO_DEPENDENCY_PROPERTY(Ref<Media::Geometry>, Clip);
+    AERO_DEPENDENCY_PROPERTY(BlendMode, BlendMode);
+    AERO_DEPENDENCY_PROPERTY(Ref<Media::Effect>, Effect);
+    AERO_DEPENDENCY_PROPERTY(Ref<Media::Brush>, OpacityMask);
+    AERO_DEPENDENCY_PROPERTY(bool, IsHitTestVisible);
+    AERO_DEPENDENCY_PROPERTY(Visibility, Visibility);
+    AERO_DEPENDENCY_PROPERTY(bool, IsEnabled);
+    AERO_DEPENDENCY_PROPERTY(bool, AllowDrop);
+    AERO_READONLY_PROPERTY(bool, IsMouseOver);
+    AERO_READONLY_PROPERTY(bool, IsPressed);
+    AERO_READONLY_PROPERTY(bool, IsKeyboardFocused);
+    AERO_READONLY_PROPERTY(bool, IsKeyboardFocusWithin);
+    AERO_DEPENDENCY_PROPERTY(bool, Focusable);
+    AERO_DEPENDENCY_PROPERTY(bool, IsTabStop);
+    AERO_DEPENDENCY_PROPERTY(std::uint32_t, TabIndex);
+    AERO_DEPENDENCY_PROPERTY(bool, IsFocusScope);
+    AERO_DEPENDENCY_PROPERTY(double, Opacity);
+    AERO_DEPENDENCY_PROPERTY(Ref<Media::Transform>, RenderTransform);
+    AERO_DEPENDENCY_PROPERTY(Ref<Media::Transform3D>, Transform3D);
+    AERO_DEPENDENCY_PROPERTY(Point, RenderTransformOrigin);
 
     // Property operations
     void SetClipToBounds(bool value) noexcept;
     void SetClip(Ref<Media::Geometry> value) noexcept;
-    void SetBlendMode(
-        BlendMode value) noexcept;
-    void SetEffect(
-        Ref<Media::Effect> value) noexcept;
-    void SetOpacityMask(
-        Ref<Media::Brush> value) noexcept;
+    void SetBlendMode(BlendMode value) noexcept;
+    void SetEffect(Ref<Media::Effect> value) noexcept;
+    void SetOpacityMask(Ref<Media::Brush> value) noexcept;
     void SetIsHitTestVisible(bool value) noexcept;
     void SetVisibility(Visibility value) noexcept;
     void SetIsEnabled(bool value) noexcept;
@@ -299,18 +296,15 @@ public:
     void SetIsTabStop(bool value) noexcept;
     void SetTabIndex(std::uint32_t value) noexcept;
     void SetIsFocusScope(bool value) noexcept;
-    Result<void> AddInputBinding(Ref<Input::InputBinding> binding) noexcept;
+    void AddInputBinding(Ref<Input::InputBinding> binding) noexcept;
     void ClearInputBindings() noexcept;
     Base::Span<const Ref<Input::InputBinding>> GetInputBindings() const noexcept;
-    Result<void> AddCommandBinding(Ref<Input::CommandBinding> binding) noexcept;
+    void AddCommandBinding(Ref<Input::CommandBinding> binding) noexcept;
     void ClearCommandBindings() noexcept;
     Base::Span<const Ref<Input::CommandBinding>> GetCommandBindings() const noexcept;
-    void SetRenderTransform(
-        Ref<Media::Transform> value) noexcept;
-    void SetTransform3D(
-        Ref<Media::Transform3D> value) noexcept;
-    void SetRenderTransformOrigin(
-        Point value) noexcept;
+    void SetRenderTransform(Ref<Media::Transform> value) noexcept;
+    void SetTransform3D(Ref<Media::Transform3D> value) noexcept;
+    void SetRenderTransformOrigin(Point value) noexcept;
 
 protected:
     void RaiseEvent(RoutedEventHandle event, RoutedEventArgs* args = nullptr) noexcept;
@@ -339,7 +333,7 @@ private:
     friend class UIElementChildRange::Iterator;
     friend class Aero::Input::RoutedCommand;
 
-    Result<void> AddHandlerErased(
+    void AddHandlerErased(
         RoutedEventHandle event,
         const void* handler,
         std::size_t size,

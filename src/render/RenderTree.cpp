@@ -1402,20 +1402,13 @@ FrameworkElement::AuthoredTriggers() const noexcept {
         : Base::Span<const Base::Ref<Base::Object>>{};
 }
 
-Base::Result<void> FrameworkElement::AddAuthoredTrigger(
+void FrameworkElement::AddAuthoredTrigger(
     Base::Ref<Base::Object> trigger) noexcept {
-    if (!trigger) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "FrameworkElement trigger cannot be null");
-    }
+    if (!trigger) { AERO_ASSERT(false); return; }
     FrameworkRare* rare = EnsureFrameworkRare();
-    if (rare == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfMemory,
-            "FrameworkElement rare interaction list allocation failed");
-    }
-    return rare->authoredTriggers.PushBack(std::move(trigger));
+    if (rare == nullptr) { AERO_ASSERT(false); return; }
+    Base::Result<void> pushed = rare->authoredTriggers.PushBack(std::move(trigger));
+    if (!pushed) { AERO_ASSERT(false); return; }
 }
 
 void
@@ -1425,20 +1418,13 @@ FrameworkElement::ClearAuthoredTriggers() noexcept {
         DropRareIfUnused();
     }
 }
-Base::Result<void> FrameworkElement::AddAuthoredBehavior(
+void FrameworkElement::AddAuthoredBehavior(
     Base::Ref<Base::Object> behavior) noexcept {
-    if (!behavior) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "FrameworkElement behavior cannot be null");
-    }
+    if (!behavior) { AERO_ASSERT(false); return; }
     FrameworkRare* rare = EnsureFrameworkRare();
-    if (rare == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfMemory,
-            "FrameworkElement rare interaction list allocation failed");
-    }
-    return rare->authoredBehaviors.PushBack(std::move(behavior));
+    if (rare == nullptr) { AERO_ASSERT(false); return; }
+    Base::Result<void> pushed = rare->authoredBehaviors.PushBack(std::move(behavior));
+    if (!pushed) { AERO_ASSERT(false); return; }
 }
 
 void FrameworkElement::ClearAuthoredBehaviors() noexcept {
@@ -1447,20 +1433,13 @@ void FrameworkElement::ClearAuthoredBehaviors() noexcept {
         DropRareIfUnused();
     }
 }
-Base::Result<void> FrameworkElement::AddStyleBehaviorPrototype(
+void FrameworkElement::AddStyleBehaviorPrototype(
     Base::Ref<Base::Object> behavior) noexcept {
-    if (!behavior) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "FrameworkElement style behavior cannot be null");
-    }
+    if (!behavior) { AERO_ASSERT(false); return; }
     FrameworkRare* rare = EnsureFrameworkRare();
-    if (rare == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfMemory,
-            "FrameworkElement rare interaction list allocation failed");
-    }
-    return rare->styleBehaviorPrototypes.PushBack(std::move(behavior));
+    if (rare == nullptr) { AERO_ASSERT(false); return; }
+    Base::Result<void> pushed = rare->styleBehaviorPrototypes.PushBack(std::move(behavior));
+    if (!pushed) { AERO_ASSERT(false); return; }
 }
 
 void FrameworkElement::ClearStyleBehaviorPrototypes() noexcept {
@@ -1469,20 +1448,13 @@ void FrameworkElement::ClearStyleBehaviorPrototypes() noexcept {
         DropRareIfUnused();
     }
 }
-Base::Result<void> FrameworkElement::AddStyleTriggerPrototype(
+void FrameworkElement::AddStyleTriggerPrototype(
     Base::Ref<Base::Object> trigger) noexcept {
-    if (!trigger) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "FrameworkElement style trigger cannot be null");
-    }
+    if (!trigger) { AERO_ASSERT(false); return; }
     FrameworkRare* rare = EnsureFrameworkRare();
-    if (rare == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfMemory,
-            "FrameworkElement rare interaction list allocation failed");
-    }
-    return rare->styleTriggerPrototypes.PushBack(std::move(trigger));
+    if (rare == nullptr) { AERO_ASSERT(false); return; }
+    Base::Result<void> pushed = rare->styleTriggerPrototypes.PushBack(std::move(trigger));
+    if (!pushed) { AERO_ASSERT(false); return; }
 }
 
 void FrameworkElement::ClearStyleTriggerPrototypes() noexcept {

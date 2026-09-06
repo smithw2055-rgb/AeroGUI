@@ -24,9 +24,9 @@ public:
     void SetRadiusX(double value) noexcept { SetValue(RadiusXProperty, value); }
     void SetRadiusY(double value) noexcept { SetValue(RadiusYProperty, value); }
     Rect GetBounds() const noexcept override { return GetRect(); }
-    inline static constexpr DependencyProperty<Rect> RectProperty{"Rect"};
-    inline static constexpr DependencyProperty<double> RadiusXProperty{"RadiusX"};
-    inline static constexpr DependencyProperty<double> RadiusYProperty{"RadiusY"};
+    AERO_DEPENDENCY_PROPERTY(Rect, Rect);
+    AERO_DEPENDENCY_PROPERTY(double, RadiusX);
+    AERO_DEPENDENCY_PROPERTY(double, RadiusY);
 protected:
     Result<void> FlattenCore(FlattenSink& sink) const noexcept override;
 };

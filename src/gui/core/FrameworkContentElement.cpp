@@ -81,19 +81,12 @@ FrameworkContentElement::AuthoredTriggers() const noexcept {
 
 // from src/gui/core/ContentElement.cpp
 
-Base::Result<void> FrameworkContentElement::AddAuthoredTrigger(
+void FrameworkContentElement::AddAuthoredTrigger(
     Base::Ref<Base::Object> trigger) noexcept {
-    if (!trigger) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "FrameworkContentElement trigger cannot be null");
-    }
+    if (!trigger) { AERO_ASSERT(false); return; }
     FrameworkContentRare* rare = EnsureFrameworkContentRare();
-    if (rare == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfMemory,
-            "FrameworkContentElement rare interaction list allocation failed");
-    }
-    return rare->authoredTriggers.PushBack(std::move(trigger));
+    if (rare == nullptr) { AERO_ASSERT(false); return; }
+    Base::Result<void> pushed = rare->authoredTriggers.PushBack(std::move(trigger));
+    if (!pushed) { AERO_ASSERT(false); return; }
 }
 } // namespace Aero {

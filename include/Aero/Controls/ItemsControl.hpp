@@ -43,15 +43,13 @@ public:
     std::uint32_t GetCount() const noexcept;
     Ref<Base::Object> GetItem(
         std::uint32_t index) const noexcept;
-    void SetItemsSource(
-        Ref<Base::Object> source) noexcept {
+    void SetItemsSource(Ref<Base::Object> source) noexcept {
         SetValue(ItemsSourceProperty, std::move(source));
     }
     std::uint32_t GetAlternationCount() const noexcept {
         return GetValue(AlternationCountProperty);
     }
-    void SetAlternationCount(
-        std::uint32_t value) noexcept {
+    void SetAlternationCount(std::uint32_t value) noexcept {
         SetValue(AlternationCountProperty, value);
     }
     StringView GetDisplayMemberPath() const noexcept {
@@ -64,12 +62,10 @@ public:
     const DataTemplate* GetItemTemplate() const noexcept {
         return itemTemplate_;
     }
-    void SetItemTemplate(
-        Ref<DataTemplate> value) noexcept {
+    void SetItemTemplate(Ref<DataTemplate> value) noexcept {
         SetValue(ItemTemplateProperty, std::move(value));
     }
-    void SetItemTemplate(
-        const DataTemplate* value) noexcept {
+    void SetItemTemplate(const DataTemplate* value) noexcept {
         Ref<DataTemplate> retained;
         if (value != nullptr) {
             retained = Ref<DataTemplate>::TryFromBorrowed(
@@ -81,8 +77,7 @@ public:
     const DataTemplateSelector* GetItemTemplateSelector() const noexcept {
         return itemTemplateSelector_;
     }
-    void SetItemTemplateSelector(
-        Ref<DataTemplateSelector> value) noexcept {
+    void SetItemTemplateSelector(Ref<DataTemplateSelector> value) noexcept {
         SetValue(ItemTemplateSelectorProperty, std::move(value));
     }
     virtual Ref<DataTemplate> ResolveItemTemplate(
@@ -91,12 +86,10 @@ public:
     const ItemsPanelTemplate* GetItemsPanel() const noexcept {
         return itemsPanel_;
     }
-    void SetItemsPanel(
-        Ref<ItemsPanelTemplate> value) noexcept {
+    void SetItemsPanel(Ref<ItemsPanelTemplate> value) noexcept {
         SetValue(ItemsPanelProperty, std::move(value));
     }
-    void SetItemsPanel(
-        const ItemsPanelTemplate* value) noexcept {
+    void SetItemsPanel(const ItemsPanelTemplate* value) noexcept {
         Ref<ItemsPanelTemplate> retained;
         if (value != nullptr) {
             retained = Ref<ItemsPanelTemplate>::TryFromBorrowed(
@@ -108,12 +101,10 @@ public:
     const Style* GetItemContainerStyle() const noexcept {
         return itemContainerStyle_;
     }
-    void SetItemContainerStyle(
-        Ref<Style> value) noexcept {
+    void SetItemContainerStyle(Ref<Style> value) noexcept {
         SetValue(ItemContainerStyleProperty, std::move(value));
     }
-    void SetItemContainerStyle(
-        const Style* value) noexcept {
+    void SetItemContainerStyle(const Style* value) noexcept {
         Ref<Style> retained;
         if (value != nullptr) {
             retained = Ref<Style>::TryFromBorrowed(
@@ -141,15 +132,15 @@ public:
         return generator_;
     }
 
-    inline static constexpr ReadOnlyDependencyProperty<std::uint32_t> ItemCountProperty{"ItemCount"};
-    inline static constexpr ReadOnlyDependencyProperty<bool> HasItemsProperty{"HasItems"};
-    inline static constexpr DependencyProperty<Ref<Base::Object>> ItemsSourceProperty{"ItemsSource"};
-    inline static constexpr DependencyProperty<std::uint32_t> AlternationCountProperty{"AlternationCount"};
-    inline static constexpr DependencyProperty<String> DisplayMemberPathProperty{"DisplayMemberPath"};
-    inline static constexpr DependencyProperty<Ref<DataTemplate>> ItemTemplateProperty{"ItemTemplate"};
-    inline static constexpr DependencyProperty<Ref<DataTemplateSelector>> ItemTemplateSelectorProperty{"ItemTemplateSelector"};
-    inline static constexpr DependencyProperty<Ref<ItemsPanelTemplate>> ItemsPanelProperty{"ItemsPanel"};
-    inline static constexpr DependencyProperty<Ref<Style>> ItemContainerStyleProperty{"ItemContainerStyle"};
+    AERO_READONLY_PROPERTY(std::uint32_t, ItemCount);
+    AERO_READONLY_PROPERTY(bool, HasItems);
+    AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, ItemsSource);
+    AERO_DEPENDENCY_PROPERTY(std::uint32_t, AlternationCount);
+    AERO_DEPENDENCY_PROPERTY(String, DisplayMemberPath);
+    AERO_DEPENDENCY_PROPERTY(Ref<DataTemplate>, ItemTemplate);
+    AERO_DEPENDENCY_PROPERTY(Ref<DataTemplateSelector>, ItemTemplateSelector);
+    AERO_DEPENDENCY_PROPERTY(Ref<ItemsPanelTemplate>, ItemsPanel);
+    AERO_DEPENDENCY_PROPERTY(Ref<Style>, ItemContainerStyle);
 
 protected:
     explicit ItemsControl(TypeId runtimeType) noexcept;
@@ -199,16 +190,11 @@ private:
     ItemsChangedHandler localHandler_;
     ItemsChangedHandler sourceHandler_;
 
-    void SetItemsSourceCore(
-        Collections::IItemsSource* source) noexcept;
-    void SetItemTemplateCore(
-        const DataTemplate* value) noexcept;
-    void SetItemTemplateSelectorCore(
-        const DataTemplateSelector* value) noexcept;
-    void SetItemsPanelCore(
-        const ItemsPanelTemplate* value) noexcept;
-    void SetItemContainerStyleCore(
-        const Style* value) noexcept;
+    void SetItemsSourceCore(Collections::IItemsSource* source) noexcept;
+    void SetItemTemplateCore(const DataTemplate* value) noexcept;
+    void SetItemTemplateSelectorCore(const DataTemplateSelector* value) noexcept;
+    void SetItemsPanelCore(const ItemsPanelTemplate* value) noexcept;
+    void SetItemContainerStyleCore(const Style* value) noexcept;
     void OnLocalChanged(
         const ItemsChangedEvent& event) noexcept;
     void OnSourceChanged(

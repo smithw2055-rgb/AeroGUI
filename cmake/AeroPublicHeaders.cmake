@@ -1,6 +1,7 @@
 # Explicit installed SDK header whitelist.
 # Adding a public header is an API decision and must update this file.
 set(AERO_PUBLIC_HEADERS
+    include/AeroPCH.hpp
     include/AeroApp/App.hpp
     include/AeroAudio/Audio.hpp
     include/Aero/Base/Allocator.hpp
@@ -100,10 +101,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Controls/Control.hpp
     include/Aero/Controls/ContentControl.hpp
     include/Aero/Controls/Panel.hpp
-    include/Aero/Controls/ButtonBase.hpp
-    include/Aero/Controls/RepeatButton.hpp
     include/Aero/Controls/Button.hpp
-    include/Aero/Controls/ToggleButton.hpp
     include/Aero/Controls/Grid.hpp
     include/Aero/Controls/ColumnDefinition.hpp
     include/Aero/Controls/RowDefinition.hpp
@@ -263,8 +261,8 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Media/CompositionTarget.hpp
     include/Aero/View.hpp
     include/Aero/IRenderer.hpp
-    include/AeroRender/Render.hpp
     include/AeroRender/RenderDevice.hpp
+    include/AeroRender/BackendCommon.hpp
     include/AeroRender/Texture.hpp
     include/AeroRender/RenderTarget.hpp
     include/AeroRender/WindowInterop.hpp
@@ -336,7 +334,6 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Controls/Primitives/RangeBase.hpp
     include/Aero/Controls/Primitives/ScrollBar.hpp
     include/Aero/Controls/Primitives/TickBar.hpp
-    include/Aero/Controls/RangeBase.hpp
     include/Aero/Controls/Slider.hpp
     include/Aero/Controls/ProgressBar.hpp
     include/Aero/Controls/GridSplitter.hpp

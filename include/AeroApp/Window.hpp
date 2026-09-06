@@ -39,13 +39,13 @@ public:
     Result<void> Close() noexcept;
     bool GetIsOpen() const noexcept;
 
-    inline static constexpr DependencyProperty<String> TitleProperty{"Title"};
-    inline static constexpr DependencyProperty<WindowState> WindowStateProperty{"WindowState"};
-    inline static constexpr DependencyProperty<WindowStyle> WindowStyleProperty{"WindowStyle"};
-    inline static constexpr DependencyProperty<ResizeMode> ResizeModeProperty{"ResizeMode"};
-    inline static constexpr DependencyProperty<SizeToContent> SizeToContentProperty{"SizeToContent"};
-    inline static constexpr DependencyProperty<bool> ShowInTaskbarProperty{"ShowInTaskbar"};
-    inline static constexpr DependencyProperty<bool> TopmostProperty{"Topmost"};
+    AERO_DEPENDENCY_PROPERTY(String, Title);
+    AERO_DEPENDENCY_PROPERTY(WindowState, WindowState);
+    AERO_DEPENDENCY_PROPERTY(WindowStyle, WindowStyle);
+    AERO_DEPENDENCY_PROPERTY(ResizeMode, ResizeMode);
+    AERO_DEPENDENCY_PROPERTY(SizeToContent, SizeToContent);
+    AERO_DEPENDENCY_PROPERTY(bool, ShowInTaskbar);
+    AERO_DEPENDENCY_PROPERTY(bool, Topmost);
     inline static constexpr RoutedEvent<CancelEventArgs> ClosingEvent{"Closing"};
     inline static constexpr RoutedEvent<RoutedEventArgs> ClosedEvent{"Closed"};
     inline static constexpr RoutedEvent<RoutedEventArgs> ActivatedEvent{"Activated"};

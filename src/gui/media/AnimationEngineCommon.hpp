@@ -16,7 +16,7 @@
 #include <cstdint>
 #include <utility>
 
-namespace Aero::Media::Animation::EngineDetail {
+namespace Aero::Media::Animation::EngineSupport {
 
 inline constexpr double Pi = 3.1415926535897932384626433832795;
 
@@ -174,7 +174,7 @@ inline Base::Result<Meta::PropertyValue> EncodeIntegerWidth(
     return EncodeSignedInteger<std::int32_t>(value);
 }
 
-} // namespace Aero::Media::Animation::EngineDetail
+} // namespace Aero::Media::Animation::EngineSupport
 
 namespace Aero {
 

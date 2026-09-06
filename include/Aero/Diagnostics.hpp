@@ -136,7 +136,7 @@ public:
         DiagnosticObjectId object = InvalidDiagnosticObjectId,
         MemberId member = InvalidMemberId) noexcept;
 
-    Result<void> AddNote(
+    void AddNote(
         StringView message,
         SourceSpan source = {}) noexcept;
 

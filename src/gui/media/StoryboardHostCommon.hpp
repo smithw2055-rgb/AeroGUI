@@ -7,7 +7,7 @@
 #include <Aero/Media/Animation/EventTrigger.hpp>
 
 namespace Aero {
-namespace StoryboardDetail {
+namespace StoryboardSupport {
 
 template<class TAnimation>
 inline Aero::Media::Animation::TimelineRuntime::KeyframeSchedule
@@ -18,8 +18,8 @@ MakeKeyframeSchedule(
         animation.GetKeyFrames(), authoredDuration);
 }
 
-} // namespace StoryboardDetail
+} // namespace StoryboardSupport
 
-using StoryboardDetail::MakeKeyframeSchedule;
+using StoryboardSupport::MakeKeyframeSchedule;
 
 } // namespace Aero

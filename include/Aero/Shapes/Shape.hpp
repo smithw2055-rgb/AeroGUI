@@ -20,19 +20,17 @@ public:
     double GetStrokeThickness() const noexcept;
     Stretch GetStretch() const noexcept;
 
-    void SetFill(
-        Ref<Brush> value) noexcept;
-    void SetStroke(
-        Ref<Brush> value) noexcept;
+    void SetFill(Ref<Brush> value) noexcept;
+    void SetStroke(Ref<Brush> value) noexcept;
     void SetPen(Ref<Media::Pen> value) noexcept;
     void SetStrokeThickness(double value) noexcept;
     void SetStretch(Stretch value) noexcept;
 
-    inline static constexpr DependencyProperty<Ref<Brush>> FillProperty{"Fill"};
-    inline static constexpr DependencyProperty<Ref<Brush>> StrokeProperty{"Stroke"};
-    inline static constexpr DependencyProperty<Ref<Media::Pen>> PenProperty{"Pen"};
-    inline static constexpr DependencyProperty<double> StrokeThicknessProperty{"StrokeThickness"};
-    inline static constexpr DependencyProperty<Stretch> StretchProperty{"Stretch"};
+    AERO_DEPENDENCY_PROPERTY(Ref<Brush>, Fill);
+    AERO_DEPENDENCY_PROPERTY(Ref<Brush>, Stroke);
+    AERO_DEPENDENCY_PROPERTY(Ref<Media::Pen>, Pen);
+    AERO_DEPENDENCY_PROPERTY(double, StrokeThickness);
+    AERO_DEPENDENCY_PROPERTY(Stretch, Stretch);
 
 protected:
     explicit Shape(TypeId runtimeType) noexcept

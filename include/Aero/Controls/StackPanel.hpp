@@ -15,7 +15,7 @@ public:
     explicit StackPanel(Orientation orientation) noexcept;
     Orientation GetOrientation() const noexcept;
     void SetOrientation(Orientation value) noexcept;
-    inline static constexpr DependencyProperty<Orientation> OrientationProperty{"Orientation"};
+    AERO_DEPENDENCY_PROPERTY(Orientation, Orientation);
 protected:
     Size MeasureOverride(Size availableSize) noexcept override;
     Size ArrangeOverride(Size finalSize) noexcept override;

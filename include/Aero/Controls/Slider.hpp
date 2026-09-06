@@ -31,43 +31,31 @@ public:
     bool GetIsSnapToTickEnabled() const noexcept;
     bool GetIsDirectionReversed() const noexcept;
     bool GetIsMoveToPointEnabled() const noexcept;
-    void SetOrientation(
-        Orientation value) noexcept;
-    void SetSmallChange(
-        double value) noexcept;
-    void SetLargeChange(
-        double value) noexcept;
-    void SetTickPlacement(
-        TickPlacement value) noexcept;
-    void SetTickFrequency(
-        double value) noexcept;
-    void SetTicks(
-        StringView value) noexcept;
-    void SetIsSnapToTickEnabled(
-        bool value) noexcept;
-    void SetIsDirectionReversed(
-        bool value) noexcept;
-    void SetIsMoveToPointEnabled(
-        bool value) noexcept;
+    void SetOrientation(Orientation value) noexcept;
+    void SetSmallChange(double value) noexcept;
+    void SetLargeChange(double value) noexcept;
+    void SetTickPlacement(TickPlacement value) noexcept;
+    void SetTickFrequency(double value) noexcept;
+    void SetTicks(StringView value) noexcept;
+    void SetIsSnapToTickEnabled(bool value) noexcept;
+    void SetIsDirectionReversed(bool value) noexcept;
+    void SetIsMoveToPointEnabled(bool value) noexcept;
     Result<bool> DecreaseSmall() noexcept;
     Result<bool> IncreaseSmall() noexcept;
     Result<bool> DecreaseLarge() noexcept;
     Result<bool> IncreaseLarge() noexcept;
-    void SetValueFromPosition(
-        double position,
-        double trackLength) noexcept;
-    void SetValueFromTrackPoint(
-        Point local) noexcept;
+    void SetValueFromPosition(double position, double trackLength) noexcept;
+    void SetValueFromTrackPoint(Point local) noexcept;
 
-    inline static constexpr DependencyProperty<Orientation> OrientationProperty{"Orientation"};
-    inline static constexpr DependencyProperty<double> SmallChangeProperty{"SmallChange"};
-    inline static constexpr DependencyProperty<double> LargeChangeProperty{"LargeChange"};
-    inline static constexpr DependencyProperty<TickPlacement> TickPlacementProperty{"TickPlacement"};
-    inline static constexpr DependencyProperty<double> TickFrequencyProperty{"TickFrequency"};
-    inline static constexpr DependencyProperty<String> TicksProperty{"Ticks"};
-    inline static constexpr DependencyProperty<bool> IsSnapToTickEnabledProperty{"IsSnapToTickEnabled"};
-    inline static constexpr DependencyProperty<bool> IsDirectionReversedProperty{"IsDirectionReversed"};
-    inline static constexpr DependencyProperty<bool> IsMoveToPointEnabledProperty{"IsMoveToPointEnabled"};
+    AERO_DEPENDENCY_PROPERTY(Orientation, Orientation);
+    AERO_DEPENDENCY_PROPERTY(double, SmallChange);
+    AERO_DEPENDENCY_PROPERTY(double, LargeChange);
+    AERO_DEPENDENCY_PROPERTY(TickPlacement, TickPlacement);
+    AERO_DEPENDENCY_PROPERTY(double, TickFrequency);
+    AERO_DEPENDENCY_PROPERTY(String, Ticks);
+    AERO_DEPENDENCY_PROPERTY(bool, IsSnapToTickEnabled);
+    AERO_DEPENDENCY_PROPERTY(bool, IsDirectionReversed);
+    AERO_DEPENDENCY_PROPERTY(bool, IsMoveToPointEnabled);
 
 protected:
     void OnApplyTemplate() noexcept override;

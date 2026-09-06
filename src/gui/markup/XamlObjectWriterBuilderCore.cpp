@@ -9,7 +9,7 @@
 #include "gui/markup/MarkupState.hpp"
 #include "gui/markup/MarkupWriterState.hpp"
 #include "gui/markup/MarkupCommon.hpp"
-#include "gui/markup/XamlObjectWriterInternal.hpp"
+#include "gui/markup/XamlObjectWriterCommon.hpp"
 #include "gui/markup/MarkupExtensionHost.hpp"
 
 #include <Aero/Markup/XamlReader.hpp>

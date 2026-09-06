@@ -13,17 +13,16 @@ public:
         GetGradientStops() const noexcept {
         return stops_.AsSpan();
     }
-    Result<void> AddGradientStop(
+    void AddGradientStop(
         Ref<GradientStop> stop) noexcept;
     void ClearGradientStops() noexcept;
     BrushMappingMode GetMappingMode() const noexcept;
-    void SetMappingMode(
-        BrushMappingMode value) noexcept;
+    void SetMappingMode(BrushMappingMode value) noexcept;
     GradientSpreadMethod GetSpreadMethod() const noexcept;
     void SetSpreadMethod(GradientSpreadMethod value) noexcept;
 
-    inline static constexpr DependencyProperty<BrushMappingMode> MappingModeProperty{"MappingMode"};
-    inline static constexpr DependencyProperty<GradientSpreadMethod> SpreadMethodProperty{"SpreadMethod"};
+    AERO_DEPENDENCY_PROPERTY(BrushMappingMode, MappingMode);
+    AERO_DEPENDENCY_PROPERTY(GradientSpreadMethod, SpreadMethod);
 
 protected:
     explicit GradientBrush(TypeId runtimeType) noexcept

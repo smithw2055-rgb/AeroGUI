@@ -279,6 +279,9 @@ Base::Result<bool> InteractivityEngine::DataTemplateTriggerValuesMatch(
                     *actual.AsObject()).Value(),
                 std::move(expected));
         }
+        if (expected.IsNullObject() || expected.IsUnset()) {
+            return actual.IsNullObject() || actual.IsUnset();
+        }
         if (expected.Kind() == Meta::ValueKind::String &&
             actual.Kind() == Meta::ValueKind::String) {
             return actual.AsString() == expected.AsString();

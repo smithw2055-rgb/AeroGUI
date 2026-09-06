@@ -14,6 +14,6 @@ public:
     void SetColor(Color value) noexcept {
         SetValue(ColorProperty, value);
     }
-    inline static constexpr DependencyProperty<Color> ColorProperty{"Color"};
+    AERO_DEPENDENCY_PROPERTY(Color, Color);
 };
 } // namespace Aero::Media

@@ -21,21 +21,14 @@ public:
     void SetColumnDefinitions(Span<const GridLength> definitions) noexcept;
     void SetRowDefinitions(Span<const GridLength> definitions) noexcept;
     void SetChildCell(UIElement& child, std::uint32_t row, std::uint32_t column) noexcept;
-    void SetChildCell(
-        UIElement& child,
-        std::uint32_t row,
-        std::uint32_t column,
-        std::uint32_t rowSpan,
-        std::uint32_t columnSpan) noexcept;
-    Result<void> AddColumnDefinition(
-        Ref<ColumnDefinition> definition) noexcept;
-    Result<void> AddRowDefinition(
-        Ref<RowDefinition> definition) noexcept;
+    void SetChildCell(UIElement& child, std::uint32_t row, std::uint32_t column, std::uint32_t rowSpan, std::uint32_t columnSpan) noexcept;
+    void AddColumnDefinition(Ref<ColumnDefinition> definition) noexcept;
+    void AddRowDefinition(Ref<RowDefinition> definition) noexcept;
     void ClearColumnDefinitionObjects() noexcept;
     void ClearRowDefinitionObjects() noexcept;
-    Result<void> AddInputBinding(
+    void AddInputBinding(
         Ref<Aero::Input::InputBinding> binding) noexcept {
-        return UIElement::AddInputBinding(std::move(binding));
+        UIElement::AddInputBinding(std::move(binding));
     }
     void ClearInputBindings() noexcept {
         UIElement::ClearInputBindings();
@@ -46,21 +39,23 @@ public:
     }
     StringView GetColumnDefinitionsText() const noexcept;
     StringView GetRowDefinitionsText() const noexcept;
-    void SetColumnDefinitionsText(
-        StringView value) noexcept;
-    void SetRowDefinitionsText(
-        StringView value) noexcept;
-    Span<const GridLength> GetColumnDefinitions() const noexcept { return {columns_.Data(), columns_.Size()}; }
-    Span<const GridLength> GetRowDefinitions() const noexcept { return {rows_.Data(), rows_.Size()}; }
-    inline static constexpr AttachedProperty<std::uint32_t> RowProperty{"Row"};
-    inline static constexpr AttachedProperty<std::uint32_t> ColumnProperty{"Column"};
-    inline static constexpr AttachedProperty<std::uint32_t> RowSpanProperty{"RowSpan"};
-    inline static constexpr AttachedProperty<std::uint32_t> ColumnSpanProperty{"ColumnSpan"};
-    inline static constexpr AttachedProperty<bool> IsSharedSizeScopeProperty{"IsSharedSizeScope"};
+    void SetColumnDefinitionsText(StringView value) noexcept;
+    void SetRowDefinitionsText(StringView value) noexcept;
+    Span<const GridLength> GetColumnDefinitions() const noexcept { 
+        return {columns_.Data(), columns_.Size()}; 
+    }
+    Span<const GridLength> GetRowDefinitions() const noexcept { 
+        return {rows_.Data(), rows_.Size()}; 
+    }
+    AERO_ATTACHED_PROPERTY(std::uint32_t, Row);
+    AERO_ATTACHED_PROPERTY(std::uint32_t, Column);
+    AERO_ATTACHED_PROPERTY(std::uint32_t, RowSpan);
+    AERO_ATTACHED_PROPERTY(std::uint32_t, ColumnSpan);
+    AERO_ATTACHED_PROPERTY(bool, IsSharedSizeScope);
     // Programmatic compact form; WPF XAML uses the structural
     // ColumnDefinitions and RowDefinitions collections.
-    inline static constexpr DependencyProperty<String> ColumnDefinitionsTextProperty{"ColumnDefinitionsText"};
-    inline static constexpr DependencyProperty<String> RowDefinitionsTextProperty{"RowDefinitionsText"};
+    AERO_DEPENDENCY_PROPERTY(String, ColumnDefinitionsText);
+    AERO_DEPENDENCY_PROPERTY(String, RowDefinitionsText);
 protected:
     Size MeasureOverride(Size availableSize) noexcept override;
     Size ArrangeOverride(Size finalSize) noexcept override;

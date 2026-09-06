@@ -28,16 +28,14 @@ public:
     Aero::UIElement* GetCommandTarget() const noexcept;
 
     void SetNavigateUri(StringView value) noexcept;
-    void SetCommand(
-        Ref<Aero::Input::ICommand> command) noexcept;
+    void SetCommand(Ref<Aero::Input::ICommand> command) noexcept;
     void SetCommandParameter(Value parameter) noexcept;
-    void SetCommandTarget(
-        Ref<Aero::UIElement> target) noexcept;
+    void SetCommandTarget(Ref<Aero::UIElement> target) noexcept;
 
-    inline static constexpr DependencyProperty<String> NavigateUriProperty{"NavigateUri"};
-    inline static constexpr DependencyProperty<Ref<Aero::Input::ICommand>> CommandProperty{"Command"};
-    inline static constexpr DependencyProperty<Value> CommandParameterProperty{"CommandParameter"};
-    inline static constexpr DependencyProperty<Ref<Aero::UIElement>> CommandTargetProperty{"CommandTarget"};
+    AERO_DEPENDENCY_PROPERTY(String, NavigateUri);
+    AERO_DEPENDENCY_PROPERTY(Ref<Aero::Input::ICommand>, Command);
+    AERO_DEPENDENCY_PROPERTY(Value, CommandParameter);
+    AERO_DEPENDENCY_PROPERTY(Ref<Aero::UIElement>, CommandTarget);
 };
 
 } // namespace Aero::Documents

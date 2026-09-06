@@ -24,25 +24,20 @@ Size Adorner::ArrangeOverride(Size finalSize) noexcept {
     return finalSize;
 }
 
-Base::Result<void> AdornerLayer::Add(Base::Ref<Adorner> adorner) noexcept {
-    if (!adorner) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument, "Adorner cannot be null");
-    }
+void AdornerLayer::Add(Base::Ref<Adorner> adorner) noexcept {
+    if (!adorner) { AERO_ASSERT(false); return; }
     for (const Base::Ref<Adorner>& owned : adorners_) {
-        if (owned.Get() == adorner.Get()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::AlreadyExists, "Adorner already added");
-        }
+        if (owned.Get() == adorner.Get()) { AERO_ASSERT(false); return; }
     }
     Adorner* child = adorner.Get();
     Base::Result<void> appended = adorners_.PushBack(std::move(adorner));
-    if (!appended) return appended.GetStatus();
+    if (!appended) { AERO_ASSERT(false); return; }
     AddVisualChild(child);
-    return InvalidateMeasure();
+    Base::Result<void> invalidated = InvalidateMeasure();
+    if (!invalidated) { AERO_ASSERT(false); return; }
 }
 
-Base::Result<void> AdornerLayer::Remove(Adorner& adorner) noexcept {
+void AdornerLayer::Remove(Adorner& adorner) noexcept {
     for (std::uint32_t index = 0U; index < adorners_.Size(); ++index) {
         if (adorners_[index].Get() == &adorner) {
             RemoveVisualChild(&adorner);
@@ -51,10 +46,11 @@ Base::Result<void> AdornerLayer::Remove(Adorner& adorner) noexcept {
                 adorners_[shift] = std::move(adorners_[shift + 1U]);
             }
             adorners_.PopBack();
-            return InvalidateMeasure();
+            Base::Result<void> invalidated = InvalidateMeasure();
+            if (!invalidated) { AERO_ASSERT(false); return; }
+            return;
         }
     }
-    return {};
 }
 
 AdornerLayer* AdornerLayer::GetAdornerLayer(UIElement* element) noexcept {

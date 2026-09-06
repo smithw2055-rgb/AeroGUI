@@ -22,8 +22,7 @@ public:
     }
     void SetWidth(GridLength value) noexcept;
     void SetMaxWidth(double value) noexcept;
-    void SetSharedSizeGroup(
-        StringView value) noexcept;
+    void SetSharedSizeGroup(StringView value) noexcept;
 private:
     GridLength width_ = GridLength::Star();
     double maxWidth_ = 1.0e12;

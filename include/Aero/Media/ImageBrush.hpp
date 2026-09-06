@@ -15,13 +15,12 @@ public:
     Ref<ImageSource> GetSource() const noexcept;
     void SetSource(Ref<ImageSource> value) noexcept;
 
-    inline static constexpr DependencyProperty<Ref<ImageSource>> ImageSourceProperty{"ImageSource"};
+    AERO_DEPENDENCY_PROPERTY(Ref<ImageSource>, ImageSource);
 
     std::uint64_t GetRenderImageId() const noexcept { return renderImage_; }
     std::uint32_t GetPixelWidth() const noexcept { return pixelWidth_; }
     std::uint32_t GetPixelHeight() const noexcept { return pixelHeight_; }
-    Result<void> SetRuntimeImage(
-        std::uint64_t image, std::uint32_t width, std::uint32_t height) noexcept;
+    void SetRuntimeImage(std::uint64_t image, std::uint32_t width, std::uint32_t height) noexcept;
 
 private:
     std::uint64_t renderImage_ = 0U;

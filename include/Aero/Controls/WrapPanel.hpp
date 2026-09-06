@@ -15,10 +15,10 @@ public:
     double GetItemHeight() const noexcept;
     void SetItemWidth(double value) noexcept;
     void SetItemHeight(double value) noexcept;
-    inline static constexpr DependencyProperty<Orientation> OrientationProperty{"Orientation"};
+    AERO_DEPENDENCY_PROPERTY(Orientation, Orientation);
     // Zero selects the child's desired dimension.
-    inline static constexpr DependencyProperty<double> ItemWidthProperty{"ItemWidth"};
-    inline static constexpr DependencyProperty<double> ItemHeightProperty{"ItemHeight"};
+    AERO_DEPENDENCY_PROPERTY(double, ItemWidth);
+    AERO_DEPENDENCY_PROPERTY(double, ItemHeight);
 protected:
     Size MeasureOverride(Size availableSize) noexcept override;
     Size ArrangeOverride(Size finalSize) noexcept override;

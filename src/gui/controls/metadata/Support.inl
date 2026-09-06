@@ -589,7 +589,7 @@ void SetPanelContent(
     if (!child) {
         return;
     }
-    (void)AeroGuiInternal::PanelAddChild(
+    AeroGuiInternal::PanelAddChild(
         static_cast<Panel&>(owner), child, *static_cast<Aero::UIElement*>(child.Get()));
 }
 
@@ -729,7 +729,7 @@ void AddItemsControlItem(
     if (!item) {
         return;
     }
-    (void)static_cast<ItemsControl&>(owner).GetItems().Add(item);
+    static_cast<ItemsControl&>(owner).GetItems().Add(item);
 }
 
 void ClearItemsControlItems(
@@ -798,7 +798,7 @@ void AddTreeViewItem(
     if (!item) {
         return;
     }
-    (void)static_cast<TreeViewItem&>(owner).GetItems().Add(item);
+    static_cast<TreeViewItem&>(owner).GetItems().Add(item);
 }
 
 void ClearTreeViewItems(

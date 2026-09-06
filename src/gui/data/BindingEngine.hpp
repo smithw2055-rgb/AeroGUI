@@ -147,8 +147,7 @@ public:
     MultiBindingProxy() noexcept
         : DependencyObject(StaticTypeId()) {}
 
-    inline static constexpr DependencyProperty<Value>
-        ValueProperty{"Value"};
+    AERO_DEPENDENCY_PROPERTY(Value, Value);
 };
 
 enum class BindingDiagnosticStage : std::uint8_t {

@@ -1711,8 +1711,7 @@ Base::Status LoaderState::Operation::Failure(
                     static_cast<std::uint32_t>(
                         std::strlen(status.message)));
                 if (detail != message) {
-                    static_cast<void>(
-                        diagnostic.Value().AddNote(detail));
+                    diagnostic.Value().AddNote(detail);
                 }
             }
             diagnostics_->Report(

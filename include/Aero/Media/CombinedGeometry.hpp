@@ -30,8 +30,7 @@ public:
     void SetGeometryCombineMode(GeometryCombineMode value) noexcept {
         SetValue(GeometryCombineModeProperty, value);
     }
-    inline static constexpr DependencyProperty<GeometryCombineMode>
-        GeometryCombineModeProperty{"GeometryCombineMode"};
+    AERO_DEPENDENCY_PROPERTY(GeometryCombineMode, GeometryCombineMode);
 protected:
     Result<void> FlattenCore(FlattenSink& sink) const noexcept override;
     bool FreezeCore(bool isChecking) noexcept override;

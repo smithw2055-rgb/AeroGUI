@@ -23,20 +23,16 @@ public:
 
     Value GetHeader() const noexcept;
     void SetHeader(Value value) noexcept;
-    Result<void> SetHeader(StringView value) noexcept;
+    void SetHeader(StringView value) noexcept;
     StringView GetIcon() const noexcept;
-    void SetIcon(
-        StringView value) noexcept;
+    void SetIcon(StringView value) noexcept;
     Ref<DataTemplate>
         GetHeaderTemplate() const noexcept;
-    void SetHeaderTemplate(
-        Ref<DataTemplate> value) noexcept;
+    void SetHeaderTemplate(Ref<DataTemplate> value) noexcept;
     bool GetIsExpanded() const noexcept;
-    void SetIsExpanded(
-        bool value) noexcept;
+    void SetIsExpanded(bool value) noexcept;
     bool GetIsSelected() const noexcept;
-    void SetIsSelected(
-        bool value) noexcept;
+    void SetIsSelected(bool value) noexcept;
     bool GetHasItems() const noexcept {
         return ItemsControl::GetHasItems();
     }
@@ -46,10 +42,10 @@ public:
     // and SetHeader share one store. A second Header DP left PART_Header empty
     // for generated SampleTemplate visuals.
     inline static constexpr auto HeaderProperty = HeaderedItemsControl::HeaderProperty;
-    inline static constexpr DependencyProperty<String> IconProperty{"Icon"};
+    AERO_DEPENDENCY_PROPERTY(String, Icon);
     inline static constexpr auto HeaderTemplateProperty = HeaderedItemsControl::HeaderTemplateProperty;
-    inline static constexpr DependencyProperty<bool> IsExpandedProperty{"IsExpanded"};
-    inline static constexpr DependencyProperty<bool> IsSelectedProperty{"IsSelected"};
+    AERO_DEPENDENCY_PROPERTY(bool, IsExpanded);
+    AERO_DEPENDENCY_PROPERTY(bool, IsSelected);
     inline static constexpr RoutedEvent<RoutedEventArgs> ExpandedEvent{"Expanded"};
     inline static constexpr RoutedEvent<RoutedEventArgs> CollapsedEvent{"Collapsed"};
     inline static constexpr RoutedEvent<RoutedEventArgs> SelectedEvent{"Selected"};
@@ -115,13 +111,8 @@ private:
         SynchronizeTemplate() noexcept;
     void ProjectHeaderContent() noexcept;
     void ProjectRealizedHeaders() noexcept;
-    void SetHierarchicalContent(
-        Ref<Base::Object> source,
-        Ref<DataTemplate> itemTemplate) noexcept;
-    void SetHierarchicalBinding(
-        Ref<Data::Binding> binding,
-        Ref<Base::Object> source,
-        Ref<DataTemplate> itemTemplate) noexcept;
+    void SetHierarchicalContent(Ref<Base::Object> source, Ref<DataTemplate> itemTemplate) noexcept;
+    void SetHierarchicalBinding(Ref<Data::Binding> binding, Ref<Base::Object> source, Ref<DataTemplate> itemTemplate) noexcept;
     void ClearHierarchicalContent() noexcept;
     void ActivateHierarchicalContent() noexcept;
 };

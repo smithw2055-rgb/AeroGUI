@@ -15,8 +15,8 @@
 #include <Aero/Markup/MarkupExtension.hpp>
 #include <Aero/HierarchicalDataTemplate.hpp>
 #include <Aero/TryCast.hpp>
-#include <Aero/Controls/ButtonBase.hpp>
-#include <Aero/Controls/ToggleButton.hpp>
+#include <Aero/Controls/Primitives/ButtonBase.hpp>
+#include <Aero/Controls/Primitives/ToggleButton.hpp>
 #include <Aero/Controls/TextBlock.hpp>
 #include <Aero/Documents/Span.hpp>
 #include <Aero/Documents/Run.hpp>
@@ -43,7 +43,7 @@
 #include <vector>
 
 namespace Aero::Markup {
-namespace WriterBindingDetail {
+namespace WriterBindingSupport {
 
 constexpr Base::StringView ElementNameKey("ElementName");
 constexpr Base::StringView SourceKey("Source");
@@ -1032,26 +1032,26 @@ Base::Result<ProvidedValue> CreateMultiBindingValueImpl(
         &BindMultiBindingRuntime);
 }
 
-} // namespace WriterBindingDetail
+} // namespace WriterBindingSupport
 
 Base::Result<long double> ReadConstantBindingNumber(
     const Meta::Value& value) noexcept {
-    return WriterBindingDetail::ReadConstantBindingNumberImpl(value);
+    return WriterBindingSupport::ReadConstantBindingNumberImpl(value);
 }
 
 Base::Result<Meta::Value> ConvertConstantBindingValue(
     const Meta::Value& value,
     Meta::TypeId targetType) noexcept {
-    return WriterBindingDetail::ConvertConstantBindingValueImpl(value, targetType);
+    return WriterBindingSupport::ConvertConstantBindingValueImpl(value, targetType);
 }
 
 Base::Result<ProvidedValue> CreateMultiBindingValue(
     Data::MultiBinding& binding,
     const ExtensionServices& services) noexcept {
-    return WriterBindingDetail::CreateMultiBindingValueImpl(binding, services);
+    return WriterBindingSupport::CreateMultiBindingValueImpl(binding, services);
 }
 
-using namespace WriterBindingDetail;
+using namespace WriterBindingSupport;
 
 Base::Result<void> CaptureControlTemplateChildName(
     Controls::ControlTemplate& controlTemplate,
@@ -1371,15 +1371,12 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
             return ProvidedValue::Handled();
         }
         if (authoredBehaviorBinding) {
-            Base::Result<void> retained =
-                static_cast<::Aero::Interactivity::Behavior*>(
-                    services.targetObject)->AddAuthoredBinding(
-                        Meta::DependencyPropertyHandle{
-                            targetMember->Id()},
-                        std::move(binding).Value());
-            return retained
-                ? Base::Result<ProvidedValue>(ProvidedValue::Handled())
-                : Base::Result<ProvidedValue>(retained.GetStatus());
+            static_cast<::Aero::Interactivity::Behavior*>(
+                services.targetObject)->AddAuthoredBinding(
+                    Meta::DependencyPropertyHandle{
+                        targetMember->Id()},
+                    std::move(binding).Value());
+            return ProvidedValue::Handled();
         }
         Base::Result<Meta::Value> value =
             Meta::Value::FromObject(

@@ -526,9 +526,7 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
         Base::Result<void> resolved = setter->Resolve(
             property->Handle(), value.Value());
         if (!resolved) return resolved.GetStatus();
-        Base::Result<void> added =
-            style.AddSetter(*setter);
-        if (!added) return added.GetStatus();
+        style.AddSetter(*setter);
     }
     for (const Base::Ref<Aero::TriggerBase>& entry :
          style.GetAuthoredTriggers()) {
@@ -594,11 +592,9 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
                 Base::Result<void> resolved = setter->Resolve(
                     property->Handle(), value.Value());
                 if (!resolved) return resolved.GetStatus();
-                Base::Result<void> added = trigger->AddSetter(*setter);
-                if (!added) return added.GetStatus();
+                trigger->AddSetter(*setter);
             }
-            Base::Result<void> added = style.AddTrigger(*trigger);
-            if (!added) return added.GetStatus();
+            style.AddTrigger(*trigger);
             continue;
         }
         if (options_.properties->Types().IsDerivedFrom(
@@ -654,8 +650,7 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
                     property->Handle(), value.Value());
                 if (!resolved) return resolved.GetStatus();
             }
-            Base::Result<void> added = style.AddTrigger(*trigger);
-            if (!added) return added.GetStatus();
+            style.AddTrigger(*trigger);
             continue;
         }
         if (authored->RuntimeType() ==
@@ -707,8 +702,7 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
                     property->Handle(), value.Value());
                 if (!resolved) return resolved.GetStatus();
             }
-            Base::Result<void> added = style.AddTrigger(*trigger);
-            if (!added) return added.GetStatus();
+            style.AddTrigger(*trigger);
             continue;
         }
         return Base::Status::Failure(

@@ -37,7 +37,7 @@ public:
         const Collections::ItemsChangedHandler& handler) noexcept override {
         return changed_.Remove(handler);
     }
-    Result<void> Add(
+    void Add(
         Ref<GradientStop> stop) noexcept;
     void Clear() noexcept;
 protected:

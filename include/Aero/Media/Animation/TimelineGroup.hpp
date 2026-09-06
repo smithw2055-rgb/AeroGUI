@@ -11,9 +11,9 @@ namespace Aero::Media::Animation {
 class AERO_GUI_API TimelineGroup : public Timeline {
     AERO_DECLARE_TYPE(TimelineGroup, Timeline)
 public:
-    Result<void> AddChild(Ref<Timeline> value) noexcept;
-    Result<void> AddTimeline(Ref<Timeline> value) noexcept {
-        return AddChild(std::move(value));
+    void AddChild(Ref<Timeline> value) noexcept;
+    void AddTimeline(Ref<Timeline> value) noexcept {
+        AddChild(std::move(value));
     }
     void Clear() noexcept;
     void ClearTimelines() noexcept { Clear(); }

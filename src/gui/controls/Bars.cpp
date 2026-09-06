@@ -104,13 +104,12 @@ void ToolBar::SetHeader(
     SetValue(HeaderProperty, value);
 }
 
-Base::Result<void> ToolBar::SetHeader(
+void ToolBar::SetHeader(
     Base::StringView value) noexcept {
     Base::Result<Value> boxed = Value::TryFromString(
         Meta::TypeOf<Base::String>(), value);
-    if (!boxed) return boxed.GetStatus();
+    if (!boxed) { AERO_ASSERT(false); return; }
     SetHeader(std::move(boxed).Value());
-    return {};
 }
 
 Base::Ref<DataTemplate>

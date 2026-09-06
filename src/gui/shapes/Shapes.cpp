@@ -615,22 +615,18 @@ void Polygon::SetFillRule(FillRule value) noexcept {
 Span<const Point> Polygon::GetPoints() const noexcept {
     return points_.AsSpan();
 }
-Result<void> Polygon::SetPoints(Span<const Point> points) noexcept {
+void Polygon::SetPoints(Span<const Point> points) noexcept {
     points_.Clear();
     Result<void> stored = points_.Append(points);
-    if (stored) {
-        static_cast<void>(InvalidateMeasure());
-        static_cast<void>(InvalidateVisual());
-    }
-    return stored;
+    if (!stored) { AERO_ASSERT(false); return; }
+    static_cast<void>(InvalidateMeasure());
+    static_cast<void>(InvalidateVisual());
 }
-Result<void> Polygon::AddPoint(Point point) noexcept {
+void Polygon::AddPoint(Point point) noexcept {
     Result<void> stored = points_.PushBack(point);
-    if (stored) {
-        static_cast<void>(InvalidateMeasure());
-        static_cast<void>(InvalidateVisual());
-    }
-    return stored;
+    if (!stored) { AERO_ASSERT(false); return; }
+    static_cast<void>(InvalidateMeasure());
+    static_cast<void>(InvalidateVisual());
 }
 void Polygon::ClearPoints() noexcept {
     if (points_.Empty()) return;
@@ -638,11 +634,11 @@ void Polygon::ClearPoints() noexcept {
     static_cast<void>(InvalidateMeasure());
     static_cast<void>(InvalidateVisual());
 }
-Result<void> Polygon::SetPoints(StringView text) noexcept {
+void Polygon::SetPoints(StringView text) noexcept {
     Base::Vector<Point> parsed;
     Result<void> status = ParsePoints(text, parsed);
-    if (!status) return status.GetStatus();
-    return SetPoints(parsed.AsSpan());
+    if (!status) { AERO_ASSERT(false); return; }
+    SetPoints(parsed.AsSpan());
 }
 Size Polygon::MeasureOverride(Size) noexcept {
     return PointsExtent(points_.AsSpan(), std::max(0.0, GetStrokeThickness()));
@@ -664,22 +660,18 @@ void Polygon::OnRender(::Aero::Media::DrawingContext& context) noexcept {
 Span<const Point> Polyline::GetPoints() const noexcept {
     return points_.AsSpan();
 }
-Result<void> Polyline::SetPoints(Span<const Point> points) noexcept {
+void Polyline::SetPoints(Span<const Point> points) noexcept {
     points_.Clear();
     Result<void> stored = points_.Append(points);
-    if (stored) {
-        static_cast<void>(InvalidateMeasure());
-        static_cast<void>(InvalidateVisual());
-    }
-    return stored;
+    if (!stored) { AERO_ASSERT(false); return; }
+    static_cast<void>(InvalidateMeasure());
+    static_cast<void>(InvalidateVisual());
 }
-Result<void> Polyline::AddPoint(Point point) noexcept {
+void Polyline::AddPoint(Point point) noexcept {
     Result<void> stored = points_.PushBack(point);
-    if (stored) {
-        static_cast<void>(InvalidateMeasure());
-        static_cast<void>(InvalidateVisual());
-    }
-    return stored;
+    if (!stored) { AERO_ASSERT(false); return; }
+    static_cast<void>(InvalidateMeasure());
+    static_cast<void>(InvalidateVisual());
 }
 void Polyline::ClearPoints() noexcept {
     if (points_.Empty()) return;
@@ -687,11 +679,11 @@ void Polyline::ClearPoints() noexcept {
     static_cast<void>(InvalidateMeasure());
     static_cast<void>(InvalidateVisual());
 }
-Result<void> Polyline::SetPoints(StringView text) noexcept {
+void Polyline::SetPoints(StringView text) noexcept {
     Base::Vector<Point> parsed;
     Result<void> status = ParsePoints(text, parsed);
-    if (!status) return status.GetStatus();
-    return SetPoints(parsed.AsSpan());
+    if (!status) { AERO_ASSERT(false); return; }
+    SetPoints(parsed.AsSpan());
 }
 Size Polyline::MeasureOverride(Size) noexcept {
     return PointsExtent(points_.AsSpan(), std::max(0.0, GetStrokeThickness()));

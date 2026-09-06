@@ -46,7 +46,7 @@ public:
         if (child_) AddVisualChild(child_.Get());
     }
 
-    inline static constexpr DependencyProperty<Ref<Media::Brush>> BackgroundProperty{"Background"};
+    AERO_DEPENDENCY_PROPERTY(Ref<Media::Brush>, Background);
 
 protected:
     std::uint32_t GetVisualChildrenCount() const noexcept override {

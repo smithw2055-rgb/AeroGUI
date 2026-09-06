@@ -21,7 +21,7 @@ public:
         SetText(value);
     }
 
-    inline static constexpr DependencyProperty<String> TextProperty{"Text"};
+    AERO_DEPENDENCY_PROPERTY(String, Text);
 };
 
 } // namespace Aero::Documents

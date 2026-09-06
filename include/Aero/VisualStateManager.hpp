@@ -31,7 +31,7 @@ public:
         StringView stateName,
         bool useTransitions = true) noexcept;
 
-    inline static constexpr AttachedProperty<Ref<VisualStateGroupCollection>> VisualStateGroupsProperty{"VisualStateGroups"};
+    AERO_ATTACHED_PROPERTY(Ref<VisualStateGroupCollection>, VisualStateGroups);
 
     ~VisualStateManager() noexcept override;
     VisualStateManager(const VisualStateManager&) = delete;

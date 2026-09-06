@@ -257,13 +257,12 @@ void TreeViewItem::SetHeader(
     SetValue(HeaderProperty, std::move(value));
 }
 
-Base::Result<void> TreeViewItem::SetHeader(
+void TreeViewItem::SetHeader(
     Base::StringView value) noexcept {
     Base::Result<Value> boxed = Value::TryFromString(
         Meta::TypeOf<Base::String>(), value);
-    if (!boxed) return boxed.GetStatus();
+    if (!boxed) { AERO_ASSERT(false); return; }
     SetHeader(std::move(boxed).Value());
-    return {};
 }
 
 Base::StringView TreeViewItem::GetIcon() const noexcept {

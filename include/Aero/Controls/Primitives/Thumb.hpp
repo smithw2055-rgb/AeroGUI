@@ -29,7 +29,7 @@ public:
     Result<bool> EndDrag(
         std::uint32_t pointerId) noexcept;
 
-    inline static constexpr ReadOnlyDependencyProperty<bool> IsDraggingProperty{"IsDragging"};
+    AERO_READONLY_PROPERTY(bool, IsDragging);
 
 private:
     std::uint32_t pointerId_ = 0U;

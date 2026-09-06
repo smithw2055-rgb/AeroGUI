@@ -13,18 +13,16 @@ class AERO_GUI_API HeaderedContentControl
         ContentControl)
 public:
     Value GetHeader() const noexcept;
-    void SetHeader(
-        const Value& value) noexcept;
-    Result<void> SetHeader(StringView value) noexcept;
+    void SetHeader(const Value& value) noexcept;
+    void SetHeader(StringView value) noexcept;
     Ref<DataTemplate> GetHeaderTemplate() const noexcept;
-    void SetHeaderTemplate(
-        Ref<DataTemplate> value) noexcept;
+    void SetHeaderTemplate(Ref<DataTemplate> value) noexcept;
 
     // WPF headers are content, not just text. They can hold an element, a
     // resource object, a scalar, or x:Null and are consumed by a
     // ContentPresenter through ContentSource="Header".
-    inline static constexpr DependencyProperty<Value> HeaderProperty{"Header"};
-    inline static constexpr DependencyProperty<Ref<DataTemplate>> HeaderTemplateProperty{"HeaderTemplate"};
+    AERO_DEPENDENCY_PROPERTY(Value, Header);
+    AERO_DEPENDENCY_PROPERTY(Ref<DataTemplate>, HeaderTemplate);
 
 protected:
     explicit HeaderedContentControl(

@@ -161,9 +161,8 @@ Base::Result<void> PopulateUiStyling(
                     Base::Ref<Data::Binding>::TryFromBorrowed(
                         static_cast<Data::Binding&>(*value));
                 if (retained) {
-                    static_cast<void>(
-                        static_cast<Data::MultiBinding&>(owner)
-                            .AddBinding(std::move(retained)));
+                    static_cast<Data::MultiBinding&>(owner)
+                        .AddBinding(std::move(retained));
                 }
             },
             [](Base::Object& owner, void*) noexcept {

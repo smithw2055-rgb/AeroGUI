@@ -5,24 +5,20 @@
 
 namespace Aero {
 
-Base::Result<void> MultiDataTrigger::AddCondition(
+void MultiDataTrigger::AddCondition(
     Base::Ref<Condition> condition) noexcept {
-    if (!condition) {
-        return InvalidStyle(
-            "MultiDataTrigger condition is null");
-    }
-    return conditions_.PushBack(
+    if (!condition) { AERO_ASSERT(false); return; }
+    Base::Result<void> pushed = conditions_.PushBack(
         std::move(condition));
+    if (!pushed) { AERO_ASSERT(false); return; }
 }
 
-Base::Result<void> MultiDataTrigger::AddAuthoredSetter(
+void MultiDataTrigger::AddAuthoredSetter(
     Base::Ref<Setter> setter) noexcept {
-    if (!setter) {
-        return InvalidStyle(
-            "MultiDataTrigger authored setter is null");
-    }
-    return authoredSetters_.PushBack(
+    if (!setter) { AERO_ASSERT(false); return; }
+    Base::Result<void> pushed = authoredSetters_.PushBack(
         std::move(setter));
+    if (!pushed) { AERO_ASSERT(false); return; }
 }
 
 } // namespace Aero

@@ -41,11 +41,11 @@ public:
     void SetSweepDirection(SweepDirection value) noexcept {
         SetValue(SweepDirectionProperty, value);
     }
-    inline static constexpr DependencyProperty<Point> PointProperty{"Point"};
-    inline static constexpr DependencyProperty<Size> SizeProperty{"Size"};
-    inline static constexpr DependencyProperty<double> RotationAngleProperty{"RotationAngle"};
-    inline static constexpr DependencyProperty<bool> IsLargeArcProperty{"IsLargeArc"};
-    inline static constexpr DependencyProperty<SweepDirection> SweepDirectionProperty{"SweepDirection"};
+    AERO_DEPENDENCY_PROPERTY(Point, Point);
+    AERO_DEPENDENCY_PROPERTY(Size, Size);
+    AERO_DEPENDENCY_PROPERTY(double, RotationAngle);
+    AERO_DEPENDENCY_PROPERTY(bool, IsLargeArc);
+    AERO_DEPENDENCY_PROPERTY(SweepDirection, SweepDirection);
     Result<void> Flatten(
         FlattenSink& sink,
         Point& currentPoint) const noexcept override;

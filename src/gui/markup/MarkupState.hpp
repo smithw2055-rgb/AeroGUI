@@ -1777,8 +1777,7 @@ public:
         SetValue(ResourceKeyProperty, value);
     }
 
-    inline static constexpr DependencyProperty<Base::String>
-        ResourceKeyProperty{"ResourceKey"};
+    AERO_DEPENDENCY_PROPERTY(Base::String, ResourceKey);
 };
 
 } // namespace Aero::Markup

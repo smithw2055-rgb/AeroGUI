@@ -11,7 +11,7 @@ class AERO_GUI_API TransformGroup : public Transform {
 public:
     TransformGroup() noexcept : Transform(StaticTypeId()) {}
     ~TransformGroup() override;
-    Result<void> AddChild(
+    void AddChild(
         Ref<Transform> value) noexcept;
     void ClearChildren() noexcept;
     Span<const Ref<Transform>>

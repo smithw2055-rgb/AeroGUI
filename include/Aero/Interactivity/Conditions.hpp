@@ -43,10 +43,10 @@ public:
     enum class ForwardChaining : std::uint8_t { And = 0U, Or };
     ConditionalExpression() noexcept : conditions_(&Base::GetDefaultAllocator()) {}
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
-    Result<void> AddCondition(Ref<ComparisonCondition> value) noexcept {
-        return value ? conditions_.PushBack(std::move(value))
-                     : Result<void>(Base::Status::Failure(
-                           Base::ErrorCode::InvalidArgument, "Condition is null"));
+    void AddCondition(Ref<ComparisonCondition> value) noexcept {
+        if (!value) { AERO_ASSERT(false); return; }
+        Base::Result<void> pushed = conditions_.PushBack(std::move(value));
+        if (!pushed) { AERO_ASSERT(false); return; }
     }
     void ClearConditions() noexcept { conditions_.Clear(); }
     Span<const Ref<ComparisonCondition>> GetConditions() const noexcept {

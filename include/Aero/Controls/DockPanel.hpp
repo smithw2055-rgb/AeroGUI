@@ -11,11 +11,10 @@ public:
     DockPanel() noexcept : Panel(StaticTypeId()) {}
     bool GetLastChildFill() const noexcept;
     void SetLastChildFill(bool value) noexcept;
-    void SetChildDock(
-        UIElement& child, Dock value) noexcept;
+    void SetChildDock(UIElement& child, Dock value) noexcept;
     Dock GetChildDock(const UIElement& child) const noexcept;
-    inline static constexpr DependencyProperty<bool> LastChildFillProperty{"LastChildFill"};
-    inline static constexpr AttachedProperty<Dock> DockProperty{"Dock"};
+    AERO_DEPENDENCY_PROPERTY(bool, LastChildFill);
+    AERO_ATTACHED_PROPERTY(Dock, Dock);
 protected:
     Size MeasureOverride(Size availableSize) noexcept override;
     Size ArrangeOverride(Size finalSize) noexcept override;

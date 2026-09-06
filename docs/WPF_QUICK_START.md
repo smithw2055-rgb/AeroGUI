@@ -1,8 +1,8 @@
 # AeroGUI for WPF and NoesisGUI developers
 
 AeroGUI keeps WPF/XAML names and semantics while using ordinary C++17 methods.
-Code-first desktop applications call `Application::Run()`; generated XAML
-bootstrap code may call `App::Run()` to load `App.xaml`. Engine and custom
+Desktop applications construct an `Application` and call `Application::Run()`.
+Engine and custom
 native hosts link `Aero::Gui` plus one Render backend and use an explicit
 RenderDevice/RenderTarget.
 
@@ -32,8 +32,9 @@ return run ? run.Value() : 1;
 }
 ```
 
-For a generated XAML application entry point, `Aero::App::Run()` still loads
-`App.xaml`, reads its `StartupUri`, and runs the same private desktop host.
+`App.xaml` is loaded through `Application::Run(App::RunOptions)` with
+`applicationFile` set, which reads its `StartupUri` and runs the same private
+desktop host.
 Backend, allocator, diagnostics and initial-window options are supplied through
 `Aero::App::RunOptions`; no public launcher or host object is required.
 

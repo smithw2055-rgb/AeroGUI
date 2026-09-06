@@ -16,7 +16,7 @@ public:
     Color GetColor() const noexcept;
     void SetColor(Color value) noexcept;
 
-    inline static constexpr DependencyProperty<Color> ColorProperty{"Color"};
+    AERO_DEPENDENCY_PROPERTY(Color, Color);
 
 private:
     Color initialColor_{};

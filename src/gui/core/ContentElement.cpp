@@ -40,7 +40,7 @@ ContentElement::~ContentElement() {
     CleanupHandlers();
 }
 
-Base::Result<void> ContentElement::AddHandlerErased(
+void ContentElement::AddHandlerErased(
     RoutedEventHandle event,
     const void* handler,
     std::size_t size,
@@ -48,12 +48,11 @@ Base::Result<void> ContentElement::AddHandlerErased(
     Meta::TypeId argsType,
     bool handledEventsToo) noexcept {
     Base::Result<void> access = VerifyAccess();
-    if (!access) return access.GetStatus();
+    if (!access) return;
     if (!event.IsValid() || handler == nullptr ||
         size > 4U * sizeof(void*) ||
         alignment > alignof(void*)) {
-        return InvalidArgument(
-            "Routed event handler requires a valid event and callback");
+        return;
     }
 
     auto* state = static_cast<ContentElementHandlerState*>(routedHandlers_);
@@ -64,17 +63,13 @@ Base::Result<void> ContentElement::AddHandlerErased(
             alignof(ContentElementHandlerState),
             Base::MemoryTag::Ui});
         if (memory == nullptr) {
-            return Base::Status::Failure(
-                Base::ErrorCode::OutOfMemory,
-                "Routed event handler state allocation failed");
+            return;
         }
         state = new (memory) ContentElementHandlerState();
         routedHandlers_ = state;
     }
     if (state->nextSequence == 0U) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfRange,
-            "Routed event handler sequence space exhausted");
+        return;
     }
 
     RoutedHandlerRecord record;
@@ -90,7 +85,7 @@ Base::Result<void> ContentElement::AddHandlerErased(
         &InvokeErasedDelegate);
     record.sequence = state->nextSequence++;
     record.handledEventsToo = handledEventsToo;
-    return state->handlers.PushBack(std::move(record));
+    (void)state->handlers.PushBack(std::move(record));
 }
 
 bool ContentElement::RemoveHandlerErased(

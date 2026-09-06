@@ -82,6 +82,18 @@ public:
     Value& operator=(const Value&) noexcept = default;
     Value& operator=(Value&&) noexcept = default;
     ~Value() = default;
+    Value(bool value) noexcept;
+    Value(std::int64_t value) noexcept;
+    Value(int value) noexcept;
+    Value(std::uint64_t value) noexcept;
+    Value(unsigned int value) noexcept;
+    Value(double value) noexcept;
+    Value(float value) noexcept;
+    Value(StringView value) noexcept;
+    Value(const char* value) noexcept;
+    Value(Ref<Base::Object> value) noexcept;
+    template<class T, class = std::enable_if_t<std::is_base_of_v<Base::Object, T> && !std::is_same_v<T, Base::Object>>>
+    Value(Ref<T> value) noexcept : Value(Ref<Base::Object>(std::move(value))) {}
     static Value Unset() noexcept;
     static Value FromBoolean(TypeId type, bool value) noexcept;
     static Value FromSignedInteger(TypeId type, std::int64_t value) noexcept;
@@ -142,9 +154,6 @@ public:
 
     constexpr bool GetHasValue() const noexcept { return hasValue_; }
     constexpr const T& GetValue() const noexcept { return value_; }
-    constexpr T GetValueOr(T fallback) const noexcept {
-        return hasValue_ ? value_ : fallback;
-    }
     constexpr void Reset() noexcept {
         value_ = T{};
         hasValue_ = false;
@@ -387,7 +396,7 @@ inline TypeId TypeOf() noexcept { return TypeTraits<T>::Id(); }
 namespace Aero::Meta { \
 template<> struct TypeTraits<typeName> { \
     static constexpr TypeId Token() noexcept { \
-        return Base::MakeMetaTypeId( \
+        return Base::MakeMetaTypeId(\
             StringView("AERO.CPP.ENUM"), \
             StringView(#typeName)); \
     } \
@@ -413,7 +422,7 @@ template<> struct TypeTraits<typeName> { \
 namespace Aero::Meta { \
 template<> struct TypeTraits<typeName> { \
     static constexpr TypeId Token() noexcept { \
-        return Base::MakeMetaTypeId( \
+        return Base::MakeMetaTypeId(\
             StringView("AERO.CPP.VALUE"), \
             StringView(#typeName)); \
     } \
@@ -449,7 +458,7 @@ AERO_GUI_API MemberId MakeMethodId(TypeId ownerType, StringView name, Span<const
 
 } // namespace Aero::Meta
 
-#define AERO_DECLARE_TYPE_NAMED( \
+#define AERO_DECLARE_TYPE_NAMED(\
     typeName, metadataBaseType, metadataNamespace, metadataName) \
 public: \
     using Self = typeName; \
@@ -471,7 +480,7 @@ public: \
         return Aero::StringView(metadataName); \
     } \
     inline static constexpr Aero::Base::TypeId StaticTypeIdValue_ = \
-        Aero::Meta::MakeTypeId( \
+        Aero::Meta::MakeTypeId(\
             Aero::StringView(metadataNamespace), \
             Aero::StringView(metadataName)); \
     static constexpr Aero::Base::TypeId StaticTypeId() noexcept { \
@@ -479,7 +488,7 @@ public: \
     }
 
 #define AERO_DECLARE_TYPE(typeName, metadataBaseType) \
-    AERO_DECLARE_TYPE_NAMED( \
+    AERO_DECLARE_TYPE_NAMED(\
         typeName, metadataBaseType, \
         Aero::Meta::AeroNamespaceUri(), #typeName)
 
@@ -1074,6 +1083,28 @@ struct ValueCodec<Ref<T>, void> {
 };
 
 } // namespace Aero::Meta
+
+namespace Aero::Base {
+
+inline Value::Value(bool value) noexcept : Value(FromBoolean(Meta::TypeOf<bool>(), value)) {}
+inline Value::Value(std::int64_t value) noexcept : Value(FromSignedInteger(Meta::TypeOf<std::int64_t>(), value)) {}
+inline Value::Value(int value) noexcept : Value(FromSignedInteger(Meta::TypeOf<int>(), value)) {}
+inline Value::Value(std::uint64_t value) noexcept : Value(FromUnsignedInteger(Meta::TypeOf<std::uint64_t>(), value)) {}
+inline Value::Value(unsigned int value) noexcept : Value(FromUnsignedInteger(Meta::TypeOf<unsigned int>(), value)) {}
+inline Value::Value(double value) noexcept : Value(FromDouble(Meta::TypeOf<double>(), value)) {}
+inline Value::Value(float value) noexcept : Value(FromDouble(Meta::TypeOf<double>(), static_cast<double>(value))) {}
+inline Value::Value(StringView value) noexcept {
+    auto res = TryFromString(Meta::TypeOf<String>(), value);
+    if (res) *this = std::move(res).Value();
+}
+inline Value::Value(const char* value) noexcept
+    : Value(value ? StringView(value, static_cast<std::uint32_t>(std::strlen(value))) : StringView()) {}
+inline Value::Value(Ref<Base::Object> value) noexcept {
+    TypeId type = value ? value->RuntimeType() : Meta::TypeOf<Base::Object>();
+    *this = FromObject(type, std::move(value));
+}
+
+} // namespace Aero::Base
 
 namespace Aero {
 

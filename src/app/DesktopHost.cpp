@@ -712,9 +712,6 @@ Base::Result<void> LoadFromUri(
         void Shutdown() noexcept {
             if (shutdown) return;
             shutdown = true;
-            if (renderContext) {
-                renderContext->Shutdown();
-            }
             if (window != nullptr) {
                 DesktopHost::NotifyWindowClosed(*window);
                 DesktopHost::DetachWindow(*window);
@@ -722,13 +719,16 @@ Base::Result<void> LoadFromUri(
 #if defined(_WIN32)
             static_cast<void>(inputMethod.Detach());
 #endif
-            if (nativeWindow) {
-                nativeWindow->Close();
-            }
             view.Reset();
             loadedDocument = {};
             windowOwner.Reset();
             window = nullptr;
+            if (renderContext) {
+                renderContext->Shutdown();
+            }
+            if (nativeWindow) {
+                nativeWindow->Close();
+            }
             nativeWindow.reset();
         }
 
@@ -1253,11 +1253,6 @@ Base::Result<void> LoadFromUri(
 };
 
 DesktopHost::DesktopHost(
-    const RunOptions& options) noexcept
-    : state_(new (std::nothrow)
-          DesktopHostState(options, nullptr, {})) {}
-
-DesktopHost::DesktopHost(
     Application& application,
     Base::Ref<Window> window,
     const RunOptions& options) noexcept
@@ -1359,13 +1354,3 @@ Base::StringView Window::ComponentUri() const noexcept {
 }
 
 } // namespace Aero
-
-namespace Aero::App {
-
-int Run(const RunOptions& options) noexcept {
-    ::Aero::App::DesktopHost host(options);
-    Base::Result<int> result = host.Run();
-    return result ? result.Value() : -1;
-}
-
-} // namespace Aero::App

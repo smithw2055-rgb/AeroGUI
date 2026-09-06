@@ -58,9 +58,7 @@ Base::Result<Base::Ref<Interactivity::Behavior>>
             if (local.IsUnset()) continue;
             clone->SetValue(property.Handle(), local);
         }
-        Base::Result<void> bindingsCopied =
-            prototype.CopyAuthoredBindingsTo(*clone);
-        if (!bindingsCopied) return bindingsCopied.GetStatus();
+        prototype.CopyAuthoredBindingsTo(*clone);
         return clone;
     }
 

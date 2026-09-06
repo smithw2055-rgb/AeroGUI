@@ -13,7 +13,7 @@ public:
     GridViewRowPresenter() noexcept
         : FrameworkElement(StaticTypeId()) {}
 
-    inline static constexpr DependencyProperty<Ref<Base::Object>> ColumnsProperty{"Columns"};
-    inline static constexpr DependencyProperty<Ref<Base::Object>> ContentProperty{"Content"};
+    AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, Columns);
+    AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, Content);
 };
 } // namespace Aero::Controls

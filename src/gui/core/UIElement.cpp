@@ -374,25 +374,20 @@ Base::Ref<Geometry> UIElement::GetClip() const noexcept {
     return GetValue(ClipProperty);
 }
 
-Base::Result<void> UIElement::AddInputBinding(
+void UIElement::AddInputBinding(
     Base::Ref<Input::InputBinding> binding) noexcept {
-    if (!binding) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
-            "InputBinding cannot be null");
-    }
+    if (!binding) { AERO_ASSERT(false); return; }
     Base::Result<void> finalized = binding->Finalize();
-    if (!finalized) return finalized.GetStatus();
+    if (!finalized) { AERO_ASSERT(false); return; }
     Rare& rare = EnsureRare();
     auto*& storage = reinterpret_cast<Base::Vector<Base::Ref<Input::InputBinding>>*&>(
         rare.inputBindings);
     if (storage == nullptr) {
         storage = new (std::nothrow) Base::Vector<Base::Ref<Input::InputBinding>>();
-        if (storage == nullptr) {
-            return Base::Status::Failure(
-                Base::ErrorCode::OutOfMemory, "InputBindings allocation failed");
-        }
+        if (storage == nullptr) { AERO_ASSERT(false); return; }
     }
-    return storage->PushBack(std::move(binding));
+    Base::Result<void> pushed = storage->PushBack(std::move(binding));
+    if (!pushed) { AERO_ASSERT(false); return; }
 }
 
 void UIElement::ClearInputBindings() noexcept {
@@ -411,25 +406,20 @@ UIElement::GetInputBindings() const noexcept {
     return {storage->Data(), storage->Size()};
 }
 
-Base::Result<void> UIElement::AddCommandBinding(
+void UIElement::AddCommandBinding(
     Base::Ref<Input::CommandBinding> binding) noexcept {
-    if (!binding) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
-            "CommandBinding cannot be null");
-    }
+    if (!binding) { AERO_ASSERT(false); return; }
     Base::Result<void> finalized = binding->Finalize();
-    if (!finalized) return finalized.GetStatus();
+    if (!finalized) { AERO_ASSERT(false); return; }
     Rare& rare = EnsureRare();
     auto*& storage = reinterpret_cast<Base::Vector<Base::Ref<Input::CommandBinding>>*&>(
         rare.commandBindings);
     if (storage == nullptr) {
         storage = new (std::nothrow) Base::Vector<Base::Ref<Input::CommandBinding>>();
-        if (storage == nullptr) {
-            return Base::Status::Failure(
-                Base::ErrorCode::OutOfMemory, "CommandBindings allocation failed");
-        }
+        if (storage == nullptr) { AERO_ASSERT(false); return; }
     }
-    return storage->PushBack(std::move(binding));
+    Base::Result<void> pushed = storage->PushBack(std::move(binding));
+    if (!pushed) { AERO_ASSERT(false); return; }
 }
 
 void UIElement::ClearCommandBindings() noexcept {
@@ -721,7 +711,7 @@ bool UIElement::RemoveHandlerErased(
 
 // from src/gui/controls/Layout.cpp
 
-Base::Result<void> UIElement::AddHandlerErased(
+void UIElement::AddHandlerErased(
     RoutedEventHandle event,
     const void* handler,
     std::size_t size,
@@ -729,11 +719,11 @@ Base::Result<void> UIElement::AddHandlerErased(
     Meta::TypeId argsType,
     bool handledEventsToo) noexcept {
     Base::Result<void> access = VerifyAccess();
-    if (!access) return access.GetStatus();
+    if (!access) return;
     if (!event.IsValid() || handler == nullptr ||
         size > 4U * sizeof(void*) ||
         alignment > alignof(void*)) {
-        return InvalidArgument("Routed event handler requires a valid event and callback");
+        return;
     }
 
     auto* state = static_cast<UIElementHandlerState*>((rare_ != nullptr ? rare_->routedHandlers : nullptr));
@@ -744,17 +734,13 @@ Base::Result<void> UIElement::AddHandlerErased(
             alignof(UIElementHandlerState),
             Base::MemoryTag::Ui});
         if (memory == nullptr) {
-            return Base::Status::Failure(
-                Base::ErrorCode::OutOfMemory,
-                "Routed event handler state allocation failed");
+            return;
         }
         state = new (memory) UIElementHandlerState();
         EnsureRare().routedHandlers = state;
     }
     if (state->nextSequence == 0U) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfRange,
-            "Routed event handler sequence space exhausted");
+        return;
     }
 
     RoutedHandlerRecord record;
@@ -770,7 +756,7 @@ Base::Result<void> UIElement::AddHandlerErased(
         &InvokeErasedDelegate);
     record.sequence = state->nextSequence++;
     record.handledEventsToo = handledEventsToo;
-    return state->handlers.PushBack(std::move(record));
+    (void)state->handlers.PushBack(std::move(record));
 }
 
 // from src/gui/input/Input.cpp

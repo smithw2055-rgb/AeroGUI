@@ -13,7 +13,7 @@ public:
         return GetValue(PowerProperty);
     }
     void SetPower(double value) noexcept;
-    inline static constexpr DependencyProperty<double> PowerProperty{"Power"};
+    AERO_DEPENDENCY_PROPERTY(double, Power);
 };
 
 } // namespace Aero::Media::Animation

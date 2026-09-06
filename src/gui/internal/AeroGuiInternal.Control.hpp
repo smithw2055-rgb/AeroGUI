@@ -8,10 +8,10 @@
         element.templatedParent_ = value;
         return {};
     }
-    static Base::Result<void> AddAuthoredTrigger(
+    static void AddAuthoredTrigger(
         FrameworkElement& element,
         Base::Ref<Base::Object> trigger) noexcept {
-        return element.AddAuthoredTrigger(std::move(trigger));
+        element.AddAuthoredTrigger(std::move(trigger));
     }
     static Base::Result<void> ClearAuthoredTriggers(
         FrameworkElement& element) noexcept {
@@ -22,10 +22,10 @@
         const FrameworkElement& element) noexcept {
         return element.AuthoredTriggers();
     }
-    static Base::Result<void> AddAuthoredBehavior(
+    static void AddAuthoredBehavior(
         FrameworkElement& element,
         Base::Ref<Base::Object> behavior) noexcept {
-        return element.AddAuthoredBehavior(std::move(behavior));
+        element.AddAuthoredBehavior(std::move(behavior));
     }
     static Base::Result<void> ClearAuthoredBehaviors(
         FrameworkElement& element) noexcept {
@@ -36,10 +36,10 @@
         const FrameworkElement& element) noexcept {
         return element.AuthoredBehaviors();
     }
-    static Base::Result<void> AddStyleTriggerPrototype(
+    static void AddStyleTriggerPrototype(
         FrameworkElement& element,
         Base::Ref<Base::Object> trigger) noexcept {
-        return element.AddStyleTriggerPrototype(std::move(trigger));
+        element.AddStyleTriggerPrototype(std::move(trigger));
     }
     static Base::Result<void> ClearStyleTriggerPrototypes(
         FrameworkElement& element) noexcept {
@@ -50,10 +50,10 @@
         const FrameworkElement& element) noexcept {
         return element.StyleTriggerPrototypes();
     }
-    static Base::Result<void> AddStyleBehaviorPrototype(
+    static void AddStyleBehaviorPrototype(
         FrameworkElement& element,
         Base::Ref<Base::Object> behavior) noexcept {
-        return element.AddStyleBehaviorPrototype(std::move(behavior));
+        element.AddStyleBehaviorPrototype(std::move(behavior));
     }
     static Base::Result<void> ClearStyleBehaviorPrototypes(
         FrameworkElement& element) noexcept {
@@ -64,10 +64,10 @@
         const FrameworkElement& element) noexcept {
         return element.StyleBehaviorPrototypes();
     }
-    static Base::Result<void> AddAuthoredTrigger(
+    static void AddAuthoredTrigger(
         FrameworkContentElement& element,
         Base::Ref<Base::Object> trigger) noexcept {
-        return element.AddAuthoredTrigger(std::move(trigger));
+        element.AddAuthoredTrigger(std::move(trigger));
     }
     static Base::Result<void> ClearAuthoredTriggers(
         FrameworkContentElement& element) noexcept {
@@ -88,11 +88,11 @@
         std::uint32_t index) noexcept {
         return panel.ChildAtCore(index);
     }
-    static Base::Result<void> PanelAddChild(
+    static void PanelAddChild(
         Controls::Panel& panel,
         const Base::Ref<Base::Object>& owner,
         UIElement& child) noexcept {
-        return panel.AddChildCore(owner, child);
+        panel.AddChildCore(owner, child);
     }
     static Base::Result<bool> PanelRemoveChild(
         Controls::Panel& panel,

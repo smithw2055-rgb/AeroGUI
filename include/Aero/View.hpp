@@ -55,21 +55,13 @@ public:
     View(const View&) = delete;
     View& operator=(const View&) = delete;
 
-    Result<void> SetContent(
-        Markup::XamlDocument&& document,
-        Aero::Size availableSize) noexcept;
-    Result<void> SetContent(
-        Ref<FrameworkElement> root,
-        Aero::Size availableSize) noexcept;
-    Result<void> SetContent(
-        Ref<FrameworkElement> root) noexcept;
+    Result<void> SetContent(Markup::XamlDocument&& document, Aero::Size availableSize) noexcept;
+    Result<void> SetContent(Ref<FrameworkElement> root, Aero::Size availableSize) noexcept;
+    Result<void> SetContent(Ref<FrameworkElement> root) noexcept;
     // Mounts a loaded UI document under a host root (for example a Window
     // wrapping a UserControl StartupUri root). The document's root is
     // attached as a visual child of the host.
-    Result<void> SetContent(
-        Ref<FrameworkElement> root,
-        Markup::XamlDocument&& document,
-        Aero::Size availableSize) noexcept;
+    Result<void> SetContent(Ref<FrameworkElement> root, Markup::XamlDocument&& document, Aero::Size availableSize) noexcept;
     FrameworkElement* GetContent() noexcept;
     const FrameworkElement* GetContent() const noexcept;
     Gui& GetGui() noexcept;
@@ -77,9 +69,7 @@ public:
 
     Result<void> SetViewport(const ViewViewport& viewport) noexcept;
     void SetSize(Aero::Size availableSize) noexcept;
-    void SetSize(
-        std::uint32_t width,
-        std::uint32_t height) noexcept;
+    void SetSize(std::uint32_t width, std::uint32_t height) noexcept;
     void SetScale(double scale) noexcept;
     // Advances this View to an absolute, monotonically increasing host time.
     // Frame failures are reported through ViewOptions::diagnostics; render

@@ -23,9 +23,7 @@ public:
         VirtualizingStackPanel& itemsHost) noexcept;
     Result<bool> Detach() noexcept;
     Result<void> Refresh() noexcept;
-    void SetRealizationRange(
-        std::uint32_t firstIndex,
-        std::uint32_t count) noexcept;
+    void SetRealizationRange(std::uint32_t firstIndex, std::uint32_t count) noexcept;
 
     std::uint32_t GetGeneratedCount() const noexcept;
     std::uint32_t GetFirstGeneratedIndex() const noexcept;
