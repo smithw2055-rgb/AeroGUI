@@ -107,7 +107,6 @@ Base::Result<Meta::PropertyValue> ResolveInteractionActionPath(
 
 InteractivityEngine::InteractivityEngine(ViewState& owner) noexcept
     : view(&owner),
-      allocator(owner.allocator),
       styleDataTriggerSubscriptions(owner.allocator),
       attachedBehaviorInstances(owner.allocator),
       propertyChangedTriggerSubscriptions(owner.allocator),
@@ -118,18 +117,44 @@ InteractivityEngine::InteractivityEngine(ViewState& owner) noexcept
       dataTemplateTriggerSubscriptions(owner.allocator) {}
 
 void InteractivityEngine::Bind() noexcept {
-    allocator = view->allocator;
-    metadata = view->metadata;
-    animations = view->Animations();
-    events = view->Events();
-    input = view->Input();
-    tree = view->tree;
-    styles = view->Styles();
-    values = view->values;
-    dispatcher = view->dispatcher;
-    templates = view->Templates();
-    bindings = view->Bindings();
-    storyboards = view->storyboards;
+    // ElementTree / ViewState services are read on demand; Bind only marks
+    // the host as attached to its owning view (already set in the ctor).
+}
+
+Base::IAllocator* InteractivityEngine::Allocator() const noexcept {
+    return view != nullptr ? view->allocator : nullptr;
+}
+
+::Aero::Meta::Registry* InteractivityEngine::Metadata() const noexcept {
+    return view != nullptr ? view->metadata : nullptr;
+}
+
+Aero::AnimationEngine* InteractivityEngine::Animations() const noexcept {
+    return view != nullptr ? view->Animations() : nullptr;
+}
+
+Aero::InputRouter* InteractivityEngine::Input() const noexcept {
+    return view != nullptr ? view->Input() : nullptr;
+}
+
+Aero::ElementTree* InteractivityEngine::Tree() const noexcept {
+    return view != nullptr ? view->tree : nullptr;
+}
+
+Aero::StyleEngine* InteractivityEngine::Styles() const noexcept {
+    return view != nullptr ? view->Styles() : nullptr;
+}
+
+Meta::EffectiveValueEngine* InteractivityEngine::Values() const noexcept {
+    return view != nullptr ? view->values : nullptr;
+}
+
+Aero::BindingEngine* InteractivityEngine::Bindings() const noexcept {
+    return view != nullptr ? view->Bindings() : nullptr;
+}
+
+StoryboardHost* InteractivityEngine::Storyboards() const noexcept {
+    return view != nullptr ? view->storyboards : nullptr;
 }
 
 bool InteractivityEngine::IsInVisualSubtree(
@@ -289,13 +314,13 @@ Base::Result<bool> InteractivityEngine::DataTemplateTriggerValuesMatch(
         }
         if (expected.Kind() == Meta::ValueKind::String &&
             expected.Type() != actual.Type()) {
-            if (metadata == nullptr) {
+            if (Metadata() == nullptr) {
                 return Base::Status::Failure(
                     Base::ErrorCode::InvalidState,
                     "DataTemplate Trigger metadata is unavailable");
             }
             Base::Result<Meta::PropertyValue> converted =
-                metadata->TryConvertText(
+                Metadata()->TryConvertText(
                     actual.Type(), expected.AsString());
             if (!converted) {
                 // WPF data conditions simply do not match when the authored
@@ -341,13 +366,13 @@ Base::Result<bool> InteractivityEngine::EvaluateTriggerComparison(
         Meta::PropertyValue rightValue = std::move(expected);
         if (rightValue.Kind() == Meta::ValueKind::String &&
             leftValue.Kind() != Meta::ValueKind::String) {
-            if (metadata == nullptr) {
+            if (Metadata() == nullptr) {
                 return Base::Status::Failure(
                     Base::ErrorCode::InvalidState,
                     "Interaction DataTrigger metadata is unavailable");
             }
             Base::Result<Meta::PropertyValue> parsed =
-                metadata->TryConvertText(
+                Metadata()->TryConvertText(
                     leftValue.Type(), rightValue.AsString());
             if (!parsed) return false;
             rightValue = std::move(parsed).Value();
@@ -466,8 +491,8 @@ Base::Object* InteractivityEngine::ResolveDataTemplateConditionSource(
         }
 
         if (condition.usesDataContext && source != nullptr &&
-            metadata != nullptr &&
-            metadata->Types().IsDerivedFrom(
+            Metadata() != nullptr &&
+            Metadata()->Types().IsDerivedFrom(
                 source->RuntimeType(), FrameworkElement::StaticTypeId())) {
             Meta::Value dataContext =
                 static_cast<FrameworkElement*>(source)->GetDataContext();
@@ -483,8 +508,8 @@ Base::Object* InteractivityEngine::ResolveDataTemplateConditionSource(
             path.SizeBytes() > TemplatedParentPrefix.SizeBytes() &&
             path.Substr(0U, TemplatedParentPrefix.SizeBytes()) ==
                 TemplatedParentPrefix &&
-            metadata != nullptr &&
-            metadata->Types().IsDerivedFrom(
+            Metadata() != nullptr &&
+            Metadata()->Types().IsDerivedFrom(
                 source->RuntimeType(), FrameworkElement::StaticTypeId())) {
             source = static_cast<FrameworkElement*>(source)->GetTemplatedParent();
             path = path.Substr(
@@ -517,7 +542,7 @@ Base::Result<bool> InteractivityEngine::EvaluateDataTemplateCondition(
             if (!value) return value.GetStatus();
             current = std::move(value).Value();
         } else {
-            if (!condition.binding || metadata == nullptr) {
+            if (!condition.binding || Metadata() == nullptr) {
                 return Base::Status::Failure(
                     Base::ErrorCode::InvalidState,
                     "DataTemplate DataTrigger Binding is unavailable");
@@ -531,12 +556,12 @@ Base::Result<bool> InteractivityEngine::EvaluateDataTemplateCondition(
             }
             Base::Result<Meta::BindingPathPlan> plan =
                 Meta::BindingPathPlan::Compile(
-                    *metadata,
+                    *Metadata(),
                     source->RuntimeType(),
                     path);
             if (!plan) return plan.GetStatus();
             Base::Result<Meta::PropertyValue> value =
-                plan.Value().Get(*metadata, *source);
+                plan.Value().Get(*Metadata(), *source);
             if (!value) return value.GetStatus();
             current = std::move(value).Value();
         }
@@ -545,14 +570,14 @@ Base::Result<bool> InteractivityEngine::EvaluateDataTemplateCondition(
 
 Base::Result<void> InteractivityEngine::EnsureDataTemplateProviderTokens(
         Aero::Controls::DataTemplateTriggerState& context) noexcept {
-        if (values == nullptr) {
+        if (Values() == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
                 "DataTemplate Trigger value engine is unavailable");
         }
         if (context.providerOrigin == 0U) {
             Base::Result<std::uint32_t> origin =
-                values->AllocateProviderOrigin();
+                Values()->AllocateProviderOrigin();
             if (!origin) return origin.GetStatus();
             context.providerOrigin = origin.Value();
         }
@@ -598,7 +623,7 @@ Base::Result<void> InteractivityEngine::EvaluateDataTemplateTrigger(
         Aero::Controls::DataTemplatePropertyTrigger& trigger =
             context.triggers[triggerIndex];
         if (!trigger.setters.Empty()) {
-            if (values == nullptr) {
+            if (Values() == nullptr) {
                 return Base::Status::Failure(
                     Base::ErrorCode::InvalidState,
                     "DataTemplate Trigger runtime is unavailable");
@@ -627,7 +652,7 @@ Base::Result<void> InteractivityEngine::EvaluateDataTemplateTrigger(
                     setter.target.Lock();
                 if (!target) continue;
                 Base::Result<void> applied =
-                    values->SetProviderContribution(
+                    Values()->SetProviderContribution(
                         *target,
                         setter.property,
                         setter.token,
@@ -643,7 +668,7 @@ Base::Result<void> InteractivityEngine::EvaluateDataTemplateTrigger(
                     setter.target.Lock();
                 if (!target) continue;
                 Base::Result<bool> cleared =
-                    values->ClearProviderContribution(
+                    Values()->ClearProviderContribution(
                         *target,
                         setter.property,
                         setter.token);
@@ -652,8 +677,8 @@ Base::Result<void> InteractivityEngine::EvaluateDataTemplateTrigger(
                 }
             }
         }
-        if (values != nullptr && !values->IsFlushing()) {
-            static_cast<void>(values->Flush());
+        if (Values() != nullptr && !Values()->IsFlushing()) {
+            static_cast<void>(Values()->Flush());
         }
 
         Base::Span<const Base::Ref<Base::Object>> actions =
@@ -664,13 +689,13 @@ Base::Result<void> InteractivityEngine::EvaluateDataTemplateTrigger(
              actions) {
             if (!authored) continue;
             const bool isAction =
-                metadata->Types().IsDerivedFrom(
+                Metadata()->Types().IsDerivedFrom(
                     authored->RuntimeType(),
                     Aero::Interactivity::TriggerAction::
                         StaticTypeId());
             if (!isAction) continue;
             Base::Result<void> executed =
-                storyboards->ExecuteAnimationAction(
+                Storyboards()->ExecuteAnimationAction(
                     static_cast<
                         Aero::Interactivity::TriggerAction&>(
                             *authored),
@@ -687,7 +712,7 @@ Base::Result<void> InteractivityEngine::EvaluateDataTemplateTrigger(
 Base::Result<void> InteractivityEngine::AttachDataTemplateClrSubscription(
         Aero::Controls::DataTemplateTriggerState& context,
         std::uint32_t triggerIndex) noexcept {
-        if (metadata == nullptr || triggerIndex >= context.triggers.Size()) {
+        if (Metadata() == nullptr || triggerIndex >= context.triggers.Size()) {
             return {};
         }
         Aero::Controls::DataTemplatePropertyTrigger& trigger =
@@ -702,11 +727,11 @@ Base::Result<void> InteractivityEngine::AttachDataTemplateClrSubscription(
             Base::Object* source = ResolveDataTemplateConditionSource(
                 context, condition, path);
             if (source == nullptr) continue;
-            if (metadata->Types().IsDerivedFrom(
+            if (Metadata()->Types().IsDerivedFrom(
                     source->RuntimeType(),
                     ::Aero::DependencyObject::StaticTypeId())) {
                 const Meta::DependencyProperty* property =
-                    ::Aero::MetadataPrivate::DependencyProperties(*metadata)
+                    ::Aero::MetadataPrivate::DependencyProperties(*Metadata())
                         .Find(source->RuntimeType(), path);
                 if (property != nullptr) continue;
             }
@@ -728,7 +753,7 @@ Base::Result<void> InteractivityEngine::AttachDataTemplateClrSubscription(
                 }
                 if (existing.metadataSource != nullptr &&
                     existing.metadataSubscription != 0U) {
-                    static_cast<void>(metadata->UnsubscribePropertyChanged(
+                    static_cast<void>(Metadata()->UnsubscribePropertyChanged(
                         *existing.metadataSource,
                         existing.metadataSubscription));
                     existing.metadataSource = nullptr;
@@ -739,7 +764,7 @@ Base::Result<void> InteractivityEngine::AttachDataTemplateClrSubscription(
 
             DataTemplateTriggerHandlerState* handlerContext = nullptr;
             Base::Result<void> created = AllocateObject(
-                *allocator, Base::MemoryTag::Ui, handlerContext);
+                *Allocator(), Base::MemoryTag::Ui, handlerContext);
             if (!created) return created.GetStatus();
             handlerContext->runtime = this;
             handlerContext->triggerContext =
@@ -749,23 +774,23 @@ Base::Result<void> InteractivityEngine::AttachDataTemplateClrSubscription(
             handlerContext->conditionIndex = conditionIndex;
             if (!path.Empty()) {
                 const Meta::PropertyInfo* clrProperty =
-                    metadata->Types().FindProperty(
+                    Metadata()->Types().FindProperty(
                         source->RuntimeType(), path, true);
                 if (clrProperty != nullptr) {
                     handlerContext->metadataProperty = clrProperty->Id();
                 }
             }
             Base::Result<std::uint64_t> notification =
-                metadata->SubscribePropertyChanged(
+                Metadata()->SubscribePropertyChanged(
                     *source,
                     &DataTemplateTriggerHandlerState::MetadataInvoke,
                     handlerContext);
             if (!notification) {
-                FreeObject(*allocator, Base::MemoryTag::Ui, handlerContext);
+                FreeObject(*Allocator(), Base::MemoryTag::Ui, handlerContext);
                 return notification.GetStatus();
             }
             if (notification.Value() == 0U) {
-                FreeObject(*allocator, Base::MemoryTag::Ui, handlerContext);
+                FreeObject(*Allocator(), Base::MemoryTag::Ui, handlerContext);
                 continue;
             }
             DataTemplateTriggerSubscription record;
@@ -775,9 +800,9 @@ Base::Result<void> InteractivityEngine::AttachDataTemplateClrSubscription(
             Base::Result<void> retained =
                 dataTemplateTriggerSubscriptions.PushBack(std::move(record));
             if (!retained) {
-                static_cast<void>(metadata->UnsubscribePropertyChanged(
+                static_cast<void>(Metadata()->UnsubscribePropertyChanged(
                     *source, notification.Value()));
-                FreeObject(*allocator, Base::MemoryTag::Ui, handlerContext);
+                FreeObject(*Allocator(), Base::MemoryTag::Ui, handlerContext);
                 return retained.GetStatus();
             }
         }
@@ -822,7 +847,7 @@ Base::Result<std::uint32_t>
                         ResolveDataTemplateConditionSource(
                             context, condition, path);
                     if (source != nullptr &&
-                        metadata->Types().IsDerivedFrom(
+                        Metadata()->Types().IsDerivedFrom(
                             source->RuntimeType(),
                             ::Aero::DependencyObject::
                                 StaticTypeId())) {
@@ -830,7 +855,7 @@ Base::Result<std::uint32_t>
                             property =
                                 ::Aero::MetadataPrivate::
                                     DependencyProperties(
-                                        *metadata)
+                                        *Metadata())
                                         .Find(
                                             source->
                                                 RuntimeType(),
@@ -873,7 +898,7 @@ Base::Result<std::uint32_t>
                     handlerContext = nullptr;
                 Base::Result<void> created =
                     AllocateObject(
-                        *allocator,
+                        *Allocator(),
                         Base::MemoryTag::Ui,
                         handlerContext);
                 if (!created) {
@@ -914,7 +939,7 @@ Base::Result<std::uint32_t>
                         dependencySource->RemoveValueChangedHandler(
                             condition.property, handler));
                     FreeObject(
-                        *allocator,
+                        *Allocator(),
                         Base::MemoryTag::Ui,
                         handlerContext);
                     return retained.GetStatus();
@@ -948,7 +973,7 @@ Base::Result<std::uint32_t>
                 if (!alreadyWatching) {
                     DataTemplateTriggerHandlerState* handlerContext = nullptr;
                     Base::Result<void> created = AllocateObject(
-                        *allocator, Base::MemoryTag::Ui, handlerContext);
+                        *Allocator(), Base::MemoryTag::Ui, handlerContext);
                     if (!created) return created.GetStatus();
                     handlerContext->runtime = this;
                     handlerContext->triggerContext =
@@ -982,7 +1007,7 @@ Base::Result<std::uint32_t>
                             FrameworkElement::DataContextProperty.Handle(),
                             handler));
                         FreeObject(
-                            *allocator, Base::MemoryTag::Ui, handlerContext);
+                            *Allocator(), Base::MemoryTag::Ui, handlerContext);
                         return retained.GetStatus();
                     }
                     ++count;
@@ -1060,8 +1085,8 @@ Base::Object* InteractivityEngine::ResolveAuthoredBindingSource(
             Aero::Media::Visual* current = &owner;
             while (current != nullptr) {
                 const Meta::TypeInfo* type =
-                    metadata != nullptr
-                    ? metadata->Types().FindType(
+                    Metadata() != nullptr
+                    ? Metadata()->Types().FindType(
                           current->RuntimeType())
                     : nullptr;
                 const bool matches = ancestorName.Empty() ||
@@ -1096,7 +1121,7 @@ Base::Result<Meta::PropertyValue> InteractivityEngine::EvaluateAuthoredBinding(
             dataTemplateContext,
         const Aero::NameScope* names,
         Base::Object* self) noexcept {
-        if (metadata == nullptr) {
+        if (Metadata() == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
                 "Authored Binding metadata is unavailable");
@@ -1132,12 +1157,12 @@ Base::Result<Meta::PropertyValue> InteractivityEngine::EvaluateAuthoredBinding(
                 Meta::BindingPathCompileError pathError;
                 Base::Result<Meta::BindingPathPlan> plan =
                     Meta::BindingPathPlan::Compile(
-                        *metadata,
+                        *Metadata(),
                         source->RuntimeType(),
                         path,
                         &pathError);
                 if (plan) {
-                    value = plan.Value().Get(*metadata, *source);
+                    value = plan.Value().Get(*Metadata(), *source);
                 } else {
                     value = plan.GetStatus();
                 }
@@ -1183,15 +1208,15 @@ Base::Result<void> InteractivityEngine::ExecuteTriggerActions(
         Aero::FrameworkElement& owner,
         const Aero::NameScope* names) noexcept {
         for (const Base::Ref<Base::Object>& authored : actions) {
-            if (!authored || metadata == nullptr ||
-                !metadata->Types().IsDerivedFrom(
+            if (!authored || Metadata() == nullptr ||
+                !Metadata()->Types().IsDerivedFrom(
                     authored->RuntimeType(),
                     Aero::Interactivity::TriggerAction::StaticTypeId())) {
                 return Base::Status::Failure(
                     Base::ErrorCode::InvalidArgument,
                     "Interaction Trigger contains an invalid action");
             }
-            Base::Result<void> executed = storyboards->ExecuteAnimationAction(
+            Base::Result<void> executed = Storyboards()->ExecuteAnimationAction(
                 static_cast<Aero::Interactivity::TriggerAction&>(*authored),
                 owner,
                 nullptr,
@@ -1208,7 +1233,7 @@ Base::Result<void> InteractivityEngine::ExecuteTriggerActions(
         for (const Base::Ref<Aero::Interactivity::TriggerAction>& action :
              actions) {
             if (!action) continue;
-            Base::Result<void> executed = storyboards->ExecuteAnimationAction(
+            Base::Result<void> executed = Storyboards()->ExecuteAnimationAction(
                 *action, owner, nullptr, names);
             if (!executed) return executed.GetStatus();
         }
@@ -1217,7 +1242,7 @@ Base::Result<void> InteractivityEngine::ExecuteTriggerActions(
 
 void InteractivityEngine::ClearDataTemplateTriggerProviders(
         Aero::Controls::DataTemplateTriggerState& context) noexcept {
-        if (values != nullptr) {
+        if (Values() != nullptr) {
             for (Aero::Controls::DataTemplatePropertyTrigger& trigger :
                  context.triggers) {
                 for (Aero::Controls::DataTemplateTriggerSetter& setter :
@@ -1226,7 +1251,7 @@ void InteractivityEngine::ClearDataTemplateTriggerProviders(
                         setter.target.Lock();
                     if (!target || !setter.token.IsValid()) continue;
                     static_cast<void>(
-                        values->ClearProviderContribution(
+                        Values()->ClearProviderContribution(
                             *target,
                             setter.property,
                             setter.token));
@@ -1270,7 +1295,7 @@ void InteractivityEngine::ClearAnimationSubscriptionsFor(
                 dataTemplateTriggerSubscriptions[index];
             const bool sourceMatches =
                 subscription.source != nullptr &&
-                metadata->Types().IsDerivedFrom(
+                Metadata()->Types().IsDerivedFrom(
                     subscription.source->RuntimeType(),
                     Aero::Media::Visual::StaticTypeId()) &&
                 IsInVisualSubtree(
@@ -1296,13 +1321,13 @@ void InteractivityEngine::ClearAnimationSubscriptionsFor(
                         subscription.property, subscription.handler));
             } else if (subscription.metadataSource != nullptr &&
                        subscription.metadataSubscription != 0U &&
-                       metadata != nullptr) {
-                static_cast<void>(metadata->UnsubscribePropertyChanged(
+                       Metadata() != nullptr) {
+                static_cast<void>(Metadata()->UnsubscribePropertyChanged(
                     *subscription.metadataSource,
                     subscription.metadataSubscription));
             }
             FreeObject(
-                *allocator, Base::MemoryTag::Ui,
+                *Allocator(), Base::MemoryTag::Ui,
                 subscription.context);
             for (std::uint32_t next = index + 1U;
                  next < dataTemplateTriggerSubscriptions.Size(); ++next) {
@@ -1327,13 +1352,13 @@ void InteractivityEngine::ClearAnimationSubscriptionsFor(
                         subscription.handler));
             } else if (subscription.metadataSource != nullptr &&
                        subscription.metadataSubscription != 0U &&
-                       metadata != nullptr) {
-                static_cast<void>(metadata->UnsubscribePropertyChanged(
+                       Metadata() != nullptr) {
+                static_cast<void>(Metadata()->UnsubscribePropertyChanged(
                     *subscription.metadataSource,
                     subscription.metadataSubscription));
             }
             FreeObject(
-                *allocator, Base::MemoryTag::Ui,
+                *Allocator(), Base::MemoryTag::Ui,
                 subscription.context);
             if (index + 1U !=
                 propertyChangedTriggerSubscriptions.Size()) {
@@ -1359,13 +1384,13 @@ void InteractivityEngine::ClearAnimationSubscriptionsFor(
                         subscription.handler));
             } else if (subscription.metadataSource != nullptr &&
                        subscription.metadataSubscription != 0U &&
-                       metadata != nullptr) {
-                static_cast<void>(metadata->UnsubscribePropertyChanged(
+                       Metadata() != nullptr) {
+                static_cast<void>(Metadata()->UnsubscribePropertyChanged(
                     *subscription.metadataSource,
                     subscription.metadataSubscription));
             }
             FreeObject(
-                *allocator, Base::MemoryTag::Ui,
+                *Allocator(), Base::MemoryTag::Ui,
                 subscription.context);
             if (index + 1U !=
                 interactionDataTriggerSubscriptions.Size()) {
@@ -1405,7 +1430,7 @@ void InteractivityEngine::ClearAnimationSubscriptionsFor(
                     subscription.handler));
             }
             FreeObject(
-                *allocator, Base::MemoryTag::Ui,
+                *Allocator(), Base::MemoryTag::Ui,
                 subscription.context);
             if (index + 1U != keyTriggerSubscriptions.Size()) {
                 keyTriggerSubscriptions[index] =
@@ -1413,55 +1438,55 @@ void InteractivityEngine::ClearAnimationSubscriptionsFor(
             }
             keyTriggerSubscriptions.PopBack();
         }
-        if (storyboards == nullptr) return;
-        storyboards->ClearEventTriggersFor(fragmentRoot);
+        if (Storyboards() == nullptr) return;
+        Storyboards()->ClearEventTriggersFor(fragmentRoot);
         for (std::uint32_t index = 0U;
-             index < storyboards->storyboardSessions.Size();) {
-            StoryboardHost::StoryboardSession& session = storyboards->storyboardSessions[index];
+             index < Storyboards()->storyboardSessions.Size();) {
+            StoryboardHost::StoryboardSession& session = Storyboards()->storyboardSessions[index];
             if (session.owner == nullptr ||
                 !IsInVisualSubtree(session.owner, fragmentRoot)) {
                 ++index;
                 continue;
             }
-            storyboards->CancelStoryboardCompletionSessions(session.handles.AsSpan());
-            if (animations != nullptr) {
+            Storyboards()->CancelStoryboardCompletionSessions(session.handles.AsSpan());
+            if (Animations() != nullptr) {
                 for (Aero::Media::Animation::Model::AnimationHandle handle : session.handles) {
-                    static_cast<void>(animations->Remove(handle));
+                    static_cast<void>(Animations()->Remove(handle));
                 }
             }
             for (std::uint32_t next = index + 1U;
-                 next < storyboards->storyboardSessions.Size(); ++next) {
-                storyboards->storyboardSessions[next - 1U] =
-                    std::move(storyboards->storyboardSessions[next]);
+                 next < Storyboards()->storyboardSessions.Size(); ++next) {
+                Storyboards()->storyboardSessions[next - 1U] =
+                    std::move(Storyboards()->storyboardSessions[next]);
             }
-            storyboards->storyboardSessions.PopBack();
+            Storyboards()->storyboardSessions.PopBack();
         }
         for (std::uint32_t index = 0U;
-             index < storyboards->storyboardCompletionSessions.Size();) {
+             index < Storyboards()->storyboardCompletionSessions.Size();) {
             StoryboardHost::StoryboardCompletionSession& session =
-                storyboards->storyboardCompletionSessions[index];
+                Storyboards()->storyboardCompletionSessions[index];
             if (session.owner == nullptr ||
                 !IsInVisualSubtree(session.owner, fragmentRoot)) {
                 ++index;
                 continue;
             }
-            if (animations != nullptr) {
+            if (Animations() != nullptr) {
                 for (Aero::Media::Animation::Model::AnimationHandle handle :
                      session.handles) {
-                    static_cast<void>(animations->Remove(handle));
+                    static_cast<void>(Animations()->Remove(handle));
                 }
             }
             for (std::uint32_t next = index + 1U;
-                 next < storyboards->storyboardCompletionSessions.Size(); ++next) {
-                storyboards->storyboardCompletionSessions[next - 1U] =
-                    std::move(storyboards->storyboardCompletionSessions[next]);
+                 next < Storyboards()->storyboardCompletionSessions.Size(); ++next) {
+                Storyboards()->storyboardCompletionSessions[next - 1U] =
+                    std::move(Storyboards()->storyboardCompletionSessions[next]);
             }
-            storyboards->storyboardCompletionSessions.PopBack();
+            Storyboards()->storyboardCompletionSessions.PopBack();
         }
         for (std::uint32_t index = 0U;
-             index < storyboards->storyboardCompletedSubscriptions.Size();) {
+             index < Storyboards()->storyboardCompletedSubscriptions.Size();) {
             const StoryboardHost::StoryboardCompletedSubscription& subscription =
-                storyboards->storyboardCompletedSubscriptions[index];
+                Storyboards()->storyboardCompletedSubscriptions[index];
             if (subscription.owner == nullptr ||
                 !IsInVisualSubtree(
                     subscription.owner, fragmentRoot)) {
@@ -1469,11 +1494,11 @@ void InteractivityEngine::ClearAnimationSubscriptionsFor(
                 continue;
             }
             for (std::uint32_t next = index + 1U;
-                 next < storyboards->storyboardCompletedSubscriptions.Size(); ++next) {
-                storyboards->storyboardCompletedSubscriptions[next - 1U] =
-                    std::move(storyboards->storyboardCompletedSubscriptions[next]);
+                 next < Storyboards()->storyboardCompletedSubscriptions.Size(); ++next) {
+                Storyboards()->storyboardCompletedSubscriptions[next - 1U] =
+                    std::move(Storyboards()->storyboardCompletedSubscriptions[next]);
             }
-            storyboards->storyboardCompletedSubscriptions.PopBack();
+            Storyboards()->storyboardCompletedSubscriptions.PopBack();
         }
     }
 
@@ -1489,13 +1514,13 @@ void InteractivityEngine::ClearAnimationEventSubscriptions() noexcept {
                             subscription.handler));
             } else if (subscription.metadataSource != nullptr &&
                        subscription.metadataSubscription != 0U &&
-                       metadata != nullptr) {
-                static_cast<void>(metadata->UnsubscribePropertyChanged(
+                       Metadata() != nullptr) {
+                static_cast<void>(Metadata()->UnsubscribePropertyChanged(
                     *subscription.metadataSource,
                     subscription.metadataSubscription));
             }
             FreeObject(
-                *allocator,
+                *Allocator(),
                 Base::MemoryTag::Ui,
                 subscription.context);
         }
@@ -1509,13 +1534,13 @@ void InteractivityEngine::ClearAnimationEventSubscriptions() noexcept {
                         subscription.handler));
             } else if (subscription.metadataSource != nullptr &&
                        subscription.metadataSubscription != 0U &&
-                       metadata != nullptr) {
-                static_cast<void>(metadata->UnsubscribePropertyChanged(
+                       Metadata() != nullptr) {
+                static_cast<void>(Metadata()->UnsubscribePropertyChanged(
                     *subscription.metadataSource,
                     subscription.metadataSubscription));
             }
             FreeObject(
-                *allocator, Base::MemoryTag::Ui,
+                *Allocator(), Base::MemoryTag::Ui,
                 subscription.context);
         }
         propertyChangedTriggerSubscriptions.Clear();
@@ -1528,13 +1553,13 @@ void InteractivityEngine::ClearAnimationEventSubscriptions() noexcept {
                         subscription.handler));
             } else if (subscription.metadataSource != nullptr &&
                        subscription.metadataSubscription != 0U &&
-                       metadata != nullptr) {
-                static_cast<void>(metadata->UnsubscribePropertyChanged(
+                       Metadata() != nullptr) {
+                static_cast<void>(Metadata()->UnsubscribePropertyChanged(
                     *subscription.metadataSource,
                     subscription.metadataSubscription));
             }
             FreeObject(
-                *allocator, Base::MemoryTag::Ui,
+                *Allocator(), Base::MemoryTag::Ui,
                 subscription.context);
         }
         interactionDataTriggerSubscriptions.Clear();
@@ -1549,14 +1574,14 @@ void InteractivityEngine::ClearAnimationEventSubscriptions() noexcept {
                     subscription.handler));
             }
             FreeObject(
-                *allocator, Base::MemoryTag::Ui,
+                *Allocator(), Base::MemoryTag::Ui,
                 subscription.context);
         }
         keyTriggerSubscriptions.Clear();
-        if (storyboards != nullptr) {
-            storyboards->ClearEventTriggers();
-            storyboards->storyboardCompletionSessions.Clear();
-            storyboards->storyboardCompletedSubscriptions.Clear();
+        if (Storyboards() != nullptr) {
+            Storyboards()->ClearEventTriggers();
+            Storyboards()->storyboardCompletionSessions.Clear();
+            Storyboards()->storyboardCompletedSubscriptions.Clear();
         }
         animationEventStatus = Base::Status::Ok();
     }

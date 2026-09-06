@@ -20,7 +20,7 @@ Base::Result<bool> StoryboardHost::AnimationEventState::EvaluateComparison(
             const Base::Ref<Data::Binding> binding =
                 condition.GetLeftOperand();
             if (!binding || runtime == nullptr ||
-                runtime->metadata == nullptr) {
+                runtime->Metadata() == nullptr) {
                 return Base::Status::Failure(
                     Base::ErrorCode::InvalidState,
                     "ConditionBehavior requires a bound left operand");
@@ -41,11 +41,11 @@ Base::Result<bool> StoryboardHost::AnimationEventState::EvaluateComparison(
             }
             Base::Result<Meta::BindingPathPlan> plan =
                 Meta::BindingPathPlan::Compile(
-                    *runtime->metadata,
+                    *runtime->Metadata(),
                     source->RuntimeType(), binding->GetPath().GetPath());
             if (!plan) return plan.GetStatus();
             Base::Result<Meta::PropertyValue> current =
-                plan.Value().Get(*runtime->metadata, *source);
+                plan.Value().Get(*runtime->Metadata(), *source);
             if (!current) return current.GetStatus();
             Meta::PropertyValue expected = condition.GetRightOperand();
             if (expected.IsNullObject()) {
@@ -234,9 +234,9 @@ Base::Result<bool> StoryboardHost::StartEventTrigger(
 
         const bool loadedEvent =
             eventName == Base::StringView("Loaded");
-        const bool uiSource = metadata->Types().IsDerivedFrom(
+        const bool uiSource = Metadata()->Types().IsDerivedFrom(
             eventSource->RuntimeType(), Aero::UIElement::StaticTypeId());
-        const bool contentSource = metadata->Types().IsDerivedFrom(
+        const bool contentSource = Metadata()->Types().IsDerivedFrom(
             eventSource->RuntimeType(), Aero::ContentElement::StaticTypeId());
         if (!uiSource && !contentSource) {
             return Base::Status::Failure(
@@ -255,14 +255,14 @@ Base::Result<bool> StoryboardHost::StartEventTrigger(
                 }
             }
             for (const Meta::TypeInfo& type :
-                 metadata->Types().Types()) {
+                 Metadata()->Types().Types()) {
                 if (type.Name() != ownerName) continue;
-                event = metadata->Types().FindEvent(
+                event = Metadata()->Types().FindEvent(
                     type.Id(), eventName, true);
                 if (event != nullptr) break;
             }
         } else {
-            event = metadata->Types().FindEvent(
+            event = Metadata()->Types().FindEvent(
                 eventSource->RuntimeType(), eventName, true);
         }
         if (event == nullptr && loadedEvent) {
@@ -284,7 +284,7 @@ Base::Result<bool> StoryboardHost::StartEventTrigger(
         const Aero::RoutedEventHandle eventHandle{event->Id()};
         AnimationEventState* eventContext = nullptr;
         Base::Result<void> created = AllocateObject(
-            *allocator, Base::MemoryTag::Ui, eventContext);
+            *Allocator(), Base::MemoryTag::Ui, eventContext);
         if (!created) return created.GetStatus();
         eventContext->runtime = this;
         eventContext->trigger = &trigger;
@@ -324,7 +324,7 @@ Base::Result<bool> StoryboardHost::StartEventTrigger(
                         ->RemoveHandler(eventHandle, handler));
             }
             FreeObject(
-                *allocator, Base::MemoryTag::Ui, eventContext);
+                *Allocator(), Base::MemoryTag::Ui, eventContext);
             return retained.GetStatus();
         }
         // Microsoft.Xaml.Behaviors EventTrigger fires Loaded immediately when
@@ -385,7 +385,7 @@ void StoryboardHost::ClearEventTriggersFor(
                 }
             }
             FreeObject(
-                *allocator, Base::MemoryTag::Ui,
+                *Allocator(), Base::MemoryTag::Ui,
                 subscription.context);
             for (std::uint32_t next = index + 1U;
                  next < animationEventSubscriptions.Size(); ++next) {
@@ -415,7 +415,7 @@ void StoryboardHost::ClearEventTriggers() noexcept {
                 }
             }
             FreeObject(
-                *allocator,
+                *Allocator(),
                 Base::MemoryTag::Ui,
                 subscription.context);
         }
@@ -425,7 +425,7 @@ void StoryboardHost::ClearEventTriggers() noexcept {
     }
 
 Base::Result<void> StoryboardHost::FlushPendingLoadedTriggers() noexcept {
-        Base::Vector<PendingLoadedTrigger> snapshot(allocator);
+        Base::Vector<PendingLoadedTrigger> snapshot(Allocator());
         for (const PendingLoadedTrigger& pending : pendingLoadedTriggers) {
             Base::Result<void> retained = snapshot.PushBack(pending);
             if (!retained) return retained.GetStatus();

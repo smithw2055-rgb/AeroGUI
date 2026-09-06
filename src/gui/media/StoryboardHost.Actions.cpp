@@ -37,7 +37,7 @@ StoryboardHost::ExecuteAnimationAction(
         if (Base::Ref<Data::Binding> targetBinding =
                 change.GetTargetObject()) {
             Base::Result<Meta::PropertyValue> evaluated =
-                interactivity->EvaluateAuthoredBinding(
+                Interactivity()->EvaluateAuthoredBinding(
                     *targetBinding,
                     owner,
                     dataTemplateContext,
@@ -62,7 +62,7 @@ StoryboardHost::ExecuteAnimationAction(
                               change.GetTargetName());
         }
         if (targetObject == nullptr ||
-            !metadata->Types().IsDerivedFrom(
+            !Metadata()->Types().IsDerivedFrom(
                 targetObject->RuntimeType(),
                 ::Aero::DependencyObject::StaticTypeId())) {
             return Base::Status::Failure(
@@ -83,7 +83,7 @@ StoryboardHost::ExecuteAnimationAction(
             resolved.Value().property;
         const Meta::DependencyProperty* property =
             ::Aero::MetadataPrivate::
-                DependencyProperties(*metadata)
+                DependencyProperties(*Metadata())
                     .Find(propertyHandle);
         if (property == nullptr) {
             return Base::Status::Failure(
@@ -96,7 +96,7 @@ StoryboardHost::ExecuteAnimationAction(
             change.GetValueBinding();
         if (valueBinding) {
             Base::Result<Meta::PropertyValue> evaluated =
-                interactivity->EvaluateAuthoredBinding(
+                Interactivity()->EvaluateAuthoredBinding(
                     *valueBinding,
                     owner,
                     dataTemplateContext,
@@ -109,7 +109,7 @@ StoryboardHost::ExecuteAnimationAction(
             propertyHandle ==
                 Controls::Primitives::ToggleButton::
                     IsCheckedProperty.Handle() &&
-            metadata->Types().IsDerivedFrom(
+            Metadata()->Types().IsDerivedFrom(
                 propertyTarget.RuntimeType(),
                 Controls::Primitives::ToggleButton::
                     StaticTypeId())) {
@@ -119,7 +119,7 @@ StoryboardHost::ExecuteAnimationAction(
         }
         Base::Result<Meta::PropertyValue> coerced =
             Data::CoerceBindingTargetValue(
-                metadata,
+                Metadata(),
                 *property,
                 std::move(value));
         if (!coerced) return coerced.GetStatus();
@@ -136,7 +136,7 @@ StoryboardHost::ExecuteAnimationAction(
         Base::Ref<Input::ICommand> command = invoke.GetCommand();
         if (!command && invoke.GetCommandBinding()) {
             Base::Result<Meta::PropertyValue> evaluated =
-                interactivity->EvaluateAuthoredBinding(
+                Interactivity()->EvaluateAuthoredBinding(
                     *invoke.GetCommandBinding(),
                     owner,
                     dataTemplateContext,
@@ -146,7 +146,7 @@ StoryboardHost::ExecuteAnimationAction(
             if (evaluated.Value().Kind() != Meta::ValueKind::Object ||
                 evaluated.Value().IsNullObject() ||
                 !evaluated.Value().AsObject() ||
-                !metadata->Types().IsDerivedFrom(
+                !Metadata()->Types().IsDerivedFrom(
                     evaluated.Value().AsObject()->RuntimeType(),
                     Input::ICommand::StaticTypeId())) {
                 return Base::Status::Failure(
@@ -166,7 +166,7 @@ StoryboardHost::ExecuteAnimationAction(
         Meta::PropertyValue parameter = invoke.GetCommandParameter();
         if (invoke.GetCommandParameterBinding()) {
             Base::Result<Meta::PropertyValue> evaluated =
-                interactivity->EvaluateAuthoredBinding(
+                Interactivity()->EvaluateAuthoredBinding(
                     *invoke.GetCommandParameterBinding(),
                     owner,
                     dataTemplateContext,
@@ -185,14 +185,14 @@ StoryboardHost::ExecuteAnimationAction(
                 Base::ErrorCode::InvalidState,
                 "InvokeCommandAction owner is not a UIElement");
         }
-        Base::Result<bool> canExecute = input != nullptr
-            ? input->CanExecute(*command, parameter, *target)
+        Base::Result<bool> canExecute = Input() != nullptr
+            ? Input()->CanExecute(*command, parameter, *target)
             : command->CanExecute(parameter, target);
         if (!canExecute) return canExecute.GetStatus();
         if (!canExecute.Value()) return {};
-        if (input != nullptr) {
+        if (Input() != nullptr) {
             Base::Result<bool> executed =
-                input->Execute(*command, parameter, *target);
+                Input()->Execute(*command, parameter, *target);
             return executed
                 ? Base::Result<void>()
                 : Base::Result<void>(executed.GetStatus());
@@ -203,13 +203,13 @@ StoryboardHost::ExecuteAnimationAction(
 
     if (type == Aero::Interactivity::SetFocusAction::StaticTypeId()) {
         auto& setFocus = static_cast<Aero::Interactivity::SetFocusAction&>(action);
-        if (!setFocus.GetEngage() || input == nullptr) return {};
+        if (!setFocus.GetEngage() || Input() == nullptr) return {};
         Meta::PropertyValue targetValue;
         Base::Object* targetObject = nullptr;
         if (Base::Ref<Data::Binding> targetBinding =
                 setFocus.GetTargetObject()) {
             Base::Result<Meta::PropertyValue> evaluated =
-                interactivity->EvaluateAuthoredBinding(
+                Interactivity()->EvaluateAuthoredBinding(
                     *targetBinding,
                     owner,
                     dataTemplateContext,
@@ -241,7 +241,7 @@ StoryboardHost::ExecuteAnimationAction(
             }
         }
         Aero::UIElement* target =
-            targetObject != nullptr && metadata->Types().IsDerivedFrom(
+            targetObject != nullptr && Metadata()->Types().IsDerivedFrom(
                 targetObject->RuntimeType(), Aero::UIElement::StaticTypeId())
             ? static_cast<Aero::UIElement*>(targetObject)
             : nullptr;
@@ -259,7 +259,7 @@ StoryboardHost::ExecuteAnimationAction(
             return view->focus->QueueFocus(*target);
         }
         if (!target->GetIsEnabled()) return {};
-        Base::Result<bool> focused = input->SetFocus(target);
+        Base::Result<bool> focused = Input()->SetFocus(target);
         // Focus is best-effort. A failed SetFocus must not fail the
         // EventTrigger (QuestLog MouseEnter → SelectAction).
         static_cast<void>(focused);
@@ -267,14 +267,14 @@ StoryboardHost::ExecuteAnimationAction(
     }
 
     if (type == Aero::Interactivity::SelectAction::StaticTypeId()) {
-        if (metadata->Types().IsDerivedFrom(
+        if (Metadata()->Types().IsDerivedFrom(
                 owner.RuntimeType(),
                 Controls::ListBoxItem::StaticTypeId())) {
             static_cast<Controls::ListBoxItem&>(owner)
                 .SetIsSelected(true);
             return {};
         }
-        if (metadata->Types().IsDerivedFrom(
+        if (Metadata()->Types().IsDerivedFrom(
                 owner.RuntimeType(),
                 Controls::TabItem::StaticTypeId())) {
             static_cast<Controls::TabItem&>(owner)
@@ -287,13 +287,13 @@ StoryboardHost::ExecuteAnimationAction(
     }
 
     if (type == Aero::Interactivity::SelectAllAction::StaticTypeId()) {
-        if (metadata->Types().IsDerivedFrom(
+        if (Metadata()->Types().IsDerivedFrom(
                 owner.RuntimeType(),
                 Controls::TextBox::StaticTypeId())) {
             return static_cast<Controls::TextBox&>(owner)
                 .SelectAll();
         }
-        if (metadata->Types().IsDerivedFrom(
+        if (Metadata()->Types().IsDerivedFrom(
                 owner.RuntimeType(),
                 Controls::PasswordBox::StaticTypeId())) {
             return static_cast<Controls::PasswordBox&>(owner)
@@ -361,7 +361,7 @@ StoryboardHost::ExecuteAnimationAction(
             Aero::Media::Visual* current = &owner;
             Controls::ContextMenu* contextMenu = nullptr;
             while (current != nullptr) {
-                if (metadata->Types().IsDerivedFrom(
+                if (Metadata()->Types().IsDerivedFrom(
                         current->RuntimeType(),
                         Controls::ContextMenu::StaticTypeId())) {
                     contextMenu = static_cast<Controls::ContextMenu*>(
@@ -379,7 +379,7 @@ StoryboardHost::ExecuteAnimationAction(
             targetObject = contextMenu->GetPlacementTarget().Get();
         }
         if (targetObject == nullptr ||
-            !metadata->Types().IsDerivedFrom(
+            !Metadata()->Types().IsDerivedFrom(
                 targetObject->RuntimeType(),
                 Aero::UIElement::StaticTypeId())) {
             return Base::Status::Failure(
@@ -391,7 +391,7 @@ StoryboardHost::ExecuteAnimationAction(
             ::Aero::TryCast<::Aero::Media::Visual>(target.GetLogicalParent());
         if (current == nullptr) current = target.GetVisualParent();
         while (current != nullptr) {
-            if (metadata->Types().IsDerivedFrom(
+            if (Metadata()->Types().IsDerivedFrom(
                     current->RuntimeType(),
                     Controls::ItemsControl::StaticTypeId())) {
                 auto& items = static_cast<Controls::ItemsControl&>(*current);
@@ -419,7 +419,7 @@ StoryboardHost::ExecuteAnimationAction(
             "RemoveElementAction target is not owned by an ItemsControl");
     }
 
-    if (animations == nullptr) {
+    if (Animations() == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
             "Storyboard action requires the animation manager");
@@ -448,7 +448,7 @@ StoryboardHost::ExecuteAnimationAction(
                 for (Aero::Media::Animation::Model::AnimationHandle handle :
                      existing.handles) {
                     static_cast<void>(
-                        animations->Remove(handle));
+                        Animations()->Remove(handle));
                 }
                 for (std::uint32_t next = index + 1U;
                      next < storyboardSessions.Size();
@@ -461,7 +461,7 @@ StoryboardHost::ExecuteAnimationAction(
                 break;
             }
         }
-        StoryboardCompletionSession completion(allocator);
+        StoryboardCompletionSession completion(Allocator());
         completion.storyboard = begin.GetStoryboard();
         completion.owner = &owner;
         Base::Result<std::uint32_t> started =
@@ -474,14 +474,14 @@ StoryboardHost::ExecuteAnimationAction(
             for (Aero::Media::Animation::Model::AnimationHandle handle :
                  completion.handles) {
                 static_cast<void>(
-                    animations->Remove(handle));
+                    Animations()->Remove(handle));
             }
             return started.GetStatus();
         }
         if (completion.handles.Empty()) {
             return {};
         }
-        StoryboardSession namedSession(allocator);
+        StoryboardSession namedSession(Allocator());
         if (!begin.GetName().Empty()) {
             namedSession.owner = &owner;
             Base::Result<void> named =
@@ -494,7 +494,7 @@ StoryboardHost::ExecuteAnimationAction(
                 for (Aero::Media::Animation::Model::AnimationHandle handle :
                      completion.handles) {
                     static_cast<void>(
-                        animations->Remove(handle));
+                        Animations()->Remove(handle));
                 }
                 return named.GetStatus();
             }
@@ -506,7 +506,7 @@ StoryboardHost::ExecuteAnimationAction(
             for (Aero::Media::Animation::Model::AnimationHandle handle :
                  completion.handles) {
                 static_cast<void>(
-                    animations->Remove(handle));
+                    Animations()->Remove(handle));
             }
             return retained.GetStatus();
         }
@@ -518,7 +518,7 @@ StoryboardHost::ExecuteAnimationAction(
                      storyboardCompletionSessions.Back().
                          handles) {
                     static_cast<void>(
-                        animations->Remove(handle));
+                        Animations()->Remove(handle));
                 }
                 storyboardCompletionSessions.PopBack();
                 return retained.GetStatus();
@@ -538,7 +538,7 @@ StoryboardHost::ExecuteAnimationAction(
         }
         bool found = false;
         Base::Vector<Aero::Media::Animation::Model::AnimationHandle> stopped(
-            allocator);
+            Allocator());
         for (StoryboardCompletionSession& session : storyboardCompletionSessions) {
             // Shared resource storyboards (DataBinding ShowPopup) are started
             // from one ListBoxItem and stopped from another. Match the
@@ -548,13 +548,13 @@ StoryboardHost::ExecuteAnimationAction(
             for (Aero::Media::Animation::Model::AnimationHandle handle : session.handles) {
                 Base::Result<void> result;
                 if (control.GetControlOption() == MediaAnimation::ControlStoryboardAction::Option::Stop) {
-                    result = animations->Stop(handle);
+                    result = Animations()->Stop(handle);
                     if (result) {
                         Base::Result<void> retained = stopped.PushBack(handle);
                         if (!retained) return retained.GetStatus();
                     }
-                } else if (control.GetControlOption() == MediaAnimation::ControlStoryboardAction::Option::Pause) result = animations->Pause(handle);
-                else if (control.GetControlOption() == MediaAnimation::ControlStoryboardAction::Option::Resume) result = animations->Resume(handle);
+                } else if (control.GetControlOption() == MediaAnimation::ControlStoryboardAction::Option::Pause) result = Animations()->Pause(handle);
+                else if (control.GetControlOption() == MediaAnimation::ControlStoryboardAction::Option::Resume) result = Animations()->Resume(handle);
                 else return Base::Status::Failure(Base::ErrorCode::Unsupported, "ControlStoryboardAction option is not implemented");
                 if (!result) return result.GetStatus();
             }
@@ -588,7 +588,7 @@ StoryboardHost::ExecuteAnimationAction(
                 ? names->Find(targetName)
                 : view->loadedDocument.names.Find(targetName);
         if (targetObject == nullptr ||
-            !metadata->Types().IsDerivedFrom(
+            !Metadata()->Types().IsDerivedFrom(
                 targetObject->RuntimeType(),
                 Aero::Media::MediaElement::StaticTypeId())) {
             return Base::Status::Failure(
@@ -608,7 +608,7 @@ StoryboardHost::ExecuteAnimationAction(
         return {};
     }
 
-    if (!metadata->Types().IsDerivedFrom(
+    if (!Metadata()->Types().IsDerivedFrom(
             type,
             MediaAnimation::
                 ControllableStoryboardAction::
@@ -644,23 +644,23 @@ StoryboardHost::ExecuteAnimationAction(
         if (type ==
             MediaAnimation::PauseStoryboard::
                 StaticTypeId()) {
-            result = animations->Pause(handle);
+            result = Animations()->Pause(handle);
         } else if (type ==
             MediaAnimation::ResumeStoryboard::
                 StaticTypeId()) {
-            result = animations->Resume(handle);
+            result = Animations()->Resume(handle);
         } else if (type ==
             MediaAnimation::StopStoryboard::
                 StaticTypeId()) {
-            result = animations->Stop(handle);
+            result = Animations()->Stop(handle);
         } else if (type ==
             MediaAnimation::RemoveStoryboard::
                 StaticTypeId()) {
-            result = animations->Remove(handle);
+            result = Animations()->Remove(handle);
         } else if (type ==
             MediaAnimation::SeekStoryboard::
                 StaticTypeId()) {
-            result = animations->Seek(
+            result = Animations()->Seek(
                 handle,
                 static_cast<
                     MediaAnimation::SeekStoryboard&>(

@@ -80,7 +80,7 @@ StoryboardHost::ResolveAnimationProperty(
             }
             const Meta::DependencyProperty* dataProperty =
                 ::Aero::MetadataPrivate::
-                    DependencyProperties(*metadata).Find(
+                    DependencyProperties(*Metadata()).Find(
                         target.RuntimeType(), "Data");
             if (found != 2U || dataProperty == nullptr) {
                 return Base::Status::Failure(
@@ -144,7 +144,7 @@ StoryboardHost::ResolveAnimationProperty(
             }
             auto& properties =
                 ::Aero::MetadataPrivate::
-                    DependencyProperties(*metadata);
+                    DependencyProperties(*Metadata());
             if (separator == UINT32_MAX) {
                 return properties.Find(
                     object.RuntimeType(), authored);
@@ -169,13 +169,13 @@ StoryboardHost::ResolveAnimationProperty(
                         ownerName.SizeBytes() - index - 1U);
                 }
             }
-            for (const Meta::TypeInfo& type : metadata->Types().Types()) {
+            for (const Meta::TypeInfo& type : Metadata()->Types().Types()) {
                 if (type.Name() != ownerName) continue;
                 const Meta::DependencyProperty* property =
                     properties.Find(type.Id(), propertyName);
                 if (property != nullptr &&
                     (property->IsAttached() ||
-                     metadata->Types().IsDerivedFrom(
+                     Metadata()->Types().IsDerivedFrom(
                          object.RuntimeType(), type.Id()))) {
                     return property;
                 }
@@ -365,7 +365,7 @@ StoryboardHost::ResolveAnimationProperty(
                               ownerDot - 1U);
                 const Meta::DependencyProperty* background =
                     ::Aero::MetadataPrivate::
-                        DependencyProperties(*metadata)
+                        DependencyProperties(*Metadata())
                             .Find(
                                 target.RuntimeType(),
                                 brushProperty);
@@ -380,7 +380,7 @@ StoryboardHost::ResolveAnimationProperty(
                     value.Value().Kind() !=
                         Meta::ValueKind::Object ||
                     !value.Value().AsObject() ||
-                    !metadata->Types().IsDerivedFrom(
+                    !Metadata()->Types().IsDerivedFrom(
                         value.Value().AsObject()->RuntimeType(),
                         Media::GradientBrush::StaticTypeId())) {
                     return Base::Status::Failure(
@@ -408,7 +408,7 @@ StoryboardHost::ResolveAnimationProperty(
                 if (beforeIndex ==
                         Base::StringView(
                             "(TransformGroup.Children)") &&
-                    metadata->Types().IsDerivedFrom(
+                    Metadata()->Types().IsDerivedFrom(
                         target.RuntimeType(),
                         Media::TransformGroup::StaticTypeId())) {
                     transform =
@@ -426,7 +426,7 @@ StoryboardHost::ResolveAnimationProperty(
                             Base::StringView(
                                 "LayoutTransform.Children");
                     if (layoutPath) {
-                        if (!metadata->Types().IsDerivedFrom(
+                        if (!Metadata()->Types().IsDerivedFrom(
                                 target.RuntimeType(),
                                 Aero::FrameworkElement::StaticTypeId())) {
                             return Base::Status::Failure(
@@ -437,7 +437,7 @@ StoryboardHost::ResolveAnimationProperty(
                             static_cast<Aero::FrameworkElement&>(
                                 target).GetLayoutTransform();
                     } else {
-                        if (!metadata->Types().IsDerivedFrom(
+                        if (!Metadata()->Types().IsDerivedFrom(
                                 target.RuntimeType(),
                                 Aero::UIElement::StaticTypeId())) {
                             return Base::Status::Failure(
@@ -450,14 +450,14 @@ StoryboardHost::ResolveAnimationProperty(
                     }
                 }
                 if (!transform ||
-                    !metadata->Types().IsDerivedFrom(
+                    !Metadata()->Types().IsDerivedFrom(
                         transform->RuntimeType(),
                         Media::TransformGroup::StaticTypeId())) {
                     // Blend/WPF intro storyboards target
                     // RenderTransform.Children[0]/[3] of the default
                     // Scale/Skew/Rotate/Translate group. If the Style has
                     // not applied yet (Loaded clocks), materialize that group.
-                    if (!metadata->Types().IsDerivedFrom(
+                    if (!Metadata()->Types().IsDerivedFrom(
                             target.RuntimeType(),
                             Aero::UIElement::StaticTypeId())) {
                         return Base::Status::Failure(
@@ -499,7 +499,7 @@ StoryboardHost::ResolveAnimationProperty(
                             Base::StringView(
                                 "LayoutTransform.Children");
                     if (layoutPath) {
-                        if (!metadata->Types().IsDerivedFrom(
+                        if (!Metadata()->Types().IsDerivedFrom(
                                 target.RuntimeType(),
                                 Aero::FrameworkElement::StaticTypeId())) {
                             return Base::Status::Failure(
@@ -576,7 +576,7 @@ StoryboardHost::ResolveAnimationProperty(
                         ownerPath.SizeBytes() - 11U,
                         11U) == Base::StringView("Transform3D");
                 if (transform3DOwner &&
-                    metadata->Types().IsDerivedFrom(
+                    Metadata()->Types().IsDerivedFrom(
                         target.RuntimeType(),
                         Aero::UIElement::StaticTypeId())) {
                     // `(aero:Element.Transform3D).(…RotationY)` is a
@@ -619,14 +619,14 @@ StoryboardHost::ResolveAnimationProperty(
                         ownerValue.Value().Kind() !=
                             Meta::ValueKind::Object ||
                         !ownerValue.Value().AsObject() ||
-                        !metadata->Types().IsDerivedFrom(
+                        !Metadata()->Types().IsDerivedFrom(
                             ownerValue.Value().
                                 AsObject()->RuntimeType(),
                             ::Aero::DependencyObject::
                                 StaticTypeId())) {
                         thread_local char message[384];
                         const Meta::TypeInfo* targetType =
-                            metadata->Types().FindType(
+                            Metadata()->Types().FindType(
                                 target.RuntimeType());
                         const Base::StringView targetTypeName =
                             targetType != nullptr
@@ -696,7 +696,7 @@ StoryboardHost::ResolveAnimationProperty(
                     const bool terminal = segmentEnd == path.SizeBytes();
                     const Meta::DependencyProperty* segmentProperty =
                         ::Aero::MetadataPrivate::
-                            DependencyProperties(*metadata)
+                            DependencyProperties(*Metadata())
                                 .Find(currentTarget->RuntimeType(), segment);
                     if (segmentProperty == nullptr) {
                         return Base::Status::Failure(
@@ -714,7 +714,7 @@ StoryboardHost::ResolveAnimationProperty(
                             Meta::ValueKind::Object ||
                         segmentValue.Value().IsNullObject() ||
                         !segmentValue.Value().AsObject() ||
-                        !metadata->Types().IsDerivedFrom(
+                        !Metadata()->Types().IsDerivedFrom(
                             segmentValue.Value().AsObject()->RuntimeType(),
                             ::Aero::DependencyObject::StaticTypeId())) {
                         return Base::Status::Failure(
@@ -745,7 +745,7 @@ StoryboardHost::ResolveAnimationProperty(
                         "LayoutTransform");
                 Base::Ref<Media::Transform> transform;
                 if (layoutPath) {
-                    if (!metadata->Types().IsDerivedFrom(
+                    if (!Metadata()->Types().IsDerivedFrom(
                             target.RuntimeType(),
                             Aero::FrameworkElement::StaticTypeId())) {
                         return Base::Status::Failure(
@@ -756,7 +756,7 @@ StoryboardHost::ResolveAnimationProperty(
                         static_cast<Aero::FrameworkElement&>(
                             target).GetLayoutTransform();
                 } else {
-                    if (!metadata->Types().IsDerivedFrom(
+                    if (!Metadata()->Types().IsDerivedFrom(
                             target.RuntimeType(),
                             Aero::UIElement::StaticTypeId())) {
                         return Base::Status::Failure(
@@ -782,7 +782,7 @@ StoryboardHost::ResolveAnimationProperty(
                     ownerDependency =
                         ::Aero::MetadataPrivate::
                                 DependencyProperties(
-                                    *metadata)
+                                    *Metadata())
                                     .Find(
                                         target.
                                             RuntimeType(),
@@ -799,7 +799,7 @@ StoryboardHost::ResolveAnimationProperty(
                     ownerValue.Value().Kind() !=
                         Meta::ValueKind::Object ||
                     !ownerValue.Value().AsObject() ||
-                    !metadata->Types().IsDerivedFrom(
+                    !Metadata()->Types().IsDerivedFrom(
                         ownerValue.Value().
                             AsObject()->RuntimeType(),
                         ::Aero::DependencyObject::
@@ -822,7 +822,7 @@ StoryboardHost::ResolveAnimationProperty(
                 const Meta::DependencyProperty* ownerDependency =
                     ::Aero::MetadataPrivate::
                             DependencyProperties(
-                                *metadata)
+                                *Metadata())
                             .Find(
                                 target.RuntimeType(),
                                 ownerProperty);
@@ -834,7 +834,7 @@ StoryboardHost::ResolveAnimationProperty(
                         ownerValue.Value().Kind() ==
                             Meta::ValueKind::Object &&
                         ownerValue.Value().AsObject() &&
-                        metadata->Types().IsDerivedFrom(
+                        Metadata()->Types().IsDerivedFrom(
                             ownerValue.Value().
                                 AsObject()->RuntimeType(),
                             ::Aero::DependencyObject::
@@ -894,7 +894,7 @@ StoryboardHost::ResolveAnimationProperty(
                 }
                 const Meta::DependencyProperty* dependency =
                     ::Aero::MetadataPrivate::
-                        DependencyProperties(*metadata).Find(
+                        DependencyProperties(*Metadata()).Find(
                             current->RuntimeType(), token);
                 if (dependency == nullptr) break;
                 if (end >= path.SizeBytes()) {
@@ -906,11 +906,11 @@ StoryboardHost::ResolveAnimationProperty(
                 if (!value ||
                     value.Value().Kind() != Meta::ValueKind::Object ||
                     !value.Value().AsObject() ||
-                    !metadata->Types().IsDerivedFrom(
+                    !Metadata()->Types().IsDerivedFrom(
                         value.Value().AsObject()->RuntimeType(),
                         ::Aero::DependencyObject::StaticTypeId())) {
                     if (token == Base::StringView("Transform3D") &&
-                        metadata->Types().IsDerivedFrom(
+                        Metadata()->Types().IsDerivedFrom(
                             current->RuntimeType(),
                             Aero::UIElement::StaticTypeId())) {
                         auto& element =
@@ -958,7 +958,7 @@ StoryboardHost::ResolveAnimationProperty(
         }
         const Meta::DependencyProperty* property =
             ::Aero::MetadataPrivate::
-                DependencyProperties(*metadata)
+                DependencyProperties(*Metadata())
                     .Find(propertyTarget->RuntimeType(), path);
         if (property == nullptr) {
             return Base::Status::Failure(

@@ -15,12 +15,13 @@ public:
     void Bind() noexcept;
 
     ViewState* view = nullptr;
-    Base::IAllocator* allocator = nullptr;
-    ::Aero::Meta::Registry* metadata = nullptr;
-    Aero::AnimationEngine* animations = nullptr;
-    Aero::InputRouter* input = nullptr;
-    Aero::StyleEngine* styles = nullptr;
-    InteractivityEngine* interactivity = nullptr;
+
+    Base::IAllocator* Allocator() const noexcept;
+    ::Aero::Meta::Registry* Metadata() const noexcept;
+    Aero::AnimationEngine* Animations() const noexcept;
+    Aero::InputRouter* Input() const noexcept;
+    Aero::StyleEngine* Styles() const noexcept;
+    InteractivityEngine* Interactivity() const noexcept;
 
     struct StoryboardSession {
         explicit StoryboardSession(Base::IAllocator* allocator) noexcept;

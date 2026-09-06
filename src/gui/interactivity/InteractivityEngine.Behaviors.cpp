@@ -27,12 +27,12 @@ void InteractivityEngine::NotifyLayoutUpdated() noexcept {
 Base::Result<Base::Ref<Interactivity::Behavior>>
  InteractivityEngine::CloneBehaviorPrototype(
         const Interactivity::Behavior& prototype) noexcept {
-        if (metadata == nullptr) {
+        if (Metadata() == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
                 "Behavior metadata is unavailable");
         }
-        return Interactivity::Behavior::ClonePrototype(prototype, *metadata);
+        return Interactivity::Behavior::ClonePrototype(prototype, *Metadata());
     }
 
 Base::Object* InteractivityEngine::ResolveBehaviorBindingSource(
@@ -82,7 +82,7 @@ Base::Object* InteractivityEngine::ResolveBehaviorBindingSource(
         if (current == nullptr) current = owner.GetVisualParent();
         while (current != nullptr) {
             const Meta::TypeInfo* type =
-                metadata->Types().FindType(current->RuntimeType());
+                Metadata()->Types().FindType(current->RuntimeType());
             const bool matches = ancestorName.Empty() ||
                 (type != nullptr && type->Name() == ancestorName);
             if (matches && ++matched == relative->GetAncestorLevel()) {
@@ -141,7 +141,7 @@ Base::Result<void> InteractivityEngine::AttachBehavior(
                     "Behavior Binding source was not found");
             }
             Data::MetadataBindingDescriptor descriptor;
-            descriptor.metadata = metadata;
+            descriptor.metadata = Metadata();
             descriptor.source = source;
             descriptor.target = record.instance.Get();
             descriptor.targetProperty = authored.property;
@@ -152,12 +152,12 @@ Base::Result<void> InteractivityEngine::AttachBehavior(
             descriptor.stringFormat =
                 authored.binding->GetStringFormat();
             descriptor.bindsToSource = descriptor.path.Empty();
-            descriptor.mode = bindings->ResolveBindingMode(
+            descriptor.mode = Bindings()->ResolveBindingMode(
                 *record.instance.Get(),
                 authored.property,
                 authored.binding->GetMode());
             descriptor.updateSourceTrigger =
-                bindings->ResolveUpdateSourceTrigger(
+                Bindings()->ResolveUpdateSourceTrigger(
                     *record.instance.Get(),
                     authored.property,
                     authored.binding->GetUpdateSourceTrigger());
@@ -166,19 +166,19 @@ Base::Result<void> InteractivityEngine::AttachBehavior(
             descriptor.targetNullValue =
                 authored.binding->GetTargetNullValue();
             Base::Result<Data::BindingHandle> attached =
-                bindings->Attach(descriptor);
+                Bindings()->Attach(descriptor);
             if (!attached) {
                 for (const Data::BindingHandle handle : record.bindings) {
-                    static_cast<void>(bindings->Detach(handle));
+                    static_cast<void>(Bindings()->Detach(handle));
                 }
                 return attached.GetStatus();
             }
             Base::Result<void> retained = record.bindings.PushBack(
                 attached.Value());
             if (!retained) {
-                static_cast<void>(bindings->Detach(attached.Value()));
+                static_cast<void>(Bindings()->Detach(attached.Value()));
                 for (const Data::BindingHandle handle : record.bindings) {
-                    static_cast<void>(bindings->Detach(handle));
+                    static_cast<void>(Bindings()->Detach(handle));
                 }
                 return retained.GetStatus();
             }
@@ -186,7 +186,7 @@ Base::Result<void> InteractivityEngine::AttachBehavior(
         Base::Result<void> attached = record.instance->Attach(owner);
         if (!attached) {
             for (const Data::BindingHandle handle : record.bindings) {
-                static_cast<void>(bindings->Detach(handle));
+                static_cast<void>(Bindings()->Detach(handle));
             }
             return attached.GetStatus();
         }
@@ -195,7 +195,7 @@ Base::Result<void> InteractivityEngine::AttachBehavior(
         if (!retained) {
             record.instance->Detach();
             for (const Data::BindingHandle handle : record.bindings) {
-                static_cast<void>(bindings->Detach(handle));
+                static_cast<void>(Bindings()->Detach(handle));
             }
             return retained.GetStatus();
         }
@@ -213,8 +213,8 @@ void InteractivityEngine::DetachBehaviorsInSubtree(Aero::Media::Visual& visual) 
                 continue;
             }
             for (const Data::BindingHandle handle : record.bindings) {
-                if (bindings != nullptr) {
-                    static_cast<void>(bindings->Detach(handle));
+                if (Bindings() != nullptr) {
+                    static_cast<void>(Bindings()->Detach(handle));
                 }
             }
             if (record.instance) record.instance->Detach();

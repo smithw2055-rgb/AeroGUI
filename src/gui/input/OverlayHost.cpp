@@ -11,16 +11,28 @@ using namespace ::Aero;
 
 OverlayHost::OverlayHost(ViewState& owner) noexcept
     : view(&owner),
-      allocator(owner.allocator),
       renderOverlays(owner.allocator),
       inputOverlays(owner.allocator),
       overlayTransforms(owner.allocator) {}
 
 void OverlayHost::Bind() noexcept {
-    allocator = view->allocator;
-    metadata = view->metadata;
-    input = view->Input();
-    renderTree = view->RenderTree();
+    // Services are read on demand from the owning ViewState / ElementTree hub.
+}
+
+Base::IAllocator* OverlayHost::Allocator() const noexcept {
+    return view != nullptr ? view->allocator : nullptr;
+}
+
+::Aero::Meta::Registry* OverlayHost::Metadata() const noexcept {
+    return view != nullptr ? view->metadata : nullptr;
+}
+
+Aero::InputRouter* OverlayHost::Input() const noexcept {
+    return view != nullptr ? view->Input() : nullptr;
+}
+
+::Aero::Render::RenderTree* OverlayHost::RenderTree() const noexcept {
+    return view != nullptr ? view->RenderTree() : nullptr;
 }
 
 Base::Result<void> OverlayHost::SynchronizeOverlays() noexcept {
@@ -30,12 +42,12 @@ Base::Result<void> OverlayHost::SynchronizeOverlays() noexcept {
         Aero::Media::Visual* rootVisual =
             view->RootVisual();
         if (rootVisual == nullptr ||
-            renderTree == nullptr) {
-            if (input != nullptr) input->ClearOverlays();
+            RenderTree() == nullptr) {
+            if (Input() != nullptr) Input()->ClearOverlays();
             return {};
         }
         Base::Vector<Aero::Media::Visual*> stack(
-            allocator);
+            Allocator());
         Base::Result<void> appended =
             stack.PushBack(rootVisual);
         if (!appended) return appended.GetStatus();
@@ -47,7 +59,7 @@ Base::Result<void> OverlayHost::SynchronizeOverlays() noexcept {
             const Meta::TypeId type =
                 node->RuntimeType();
             bool open = false;
-            if (metadata->Types().IsDerivedFrom(
+            if (Metadata()->Types().IsDerivedFrom(
                     type,
                     Controls::Primitives::Popup::
                         StaticTypeId())) {
@@ -55,7 +67,7 @@ Base::Result<void> OverlayHost::SynchronizeOverlays() noexcept {
                     static_cast<Controls::Primitives::Popup*>(
                         node)->GetIsOpen();
             } else if (
-                metadata->Types().IsDerivedFrom(
+                Metadata()->Types().IsDerivedFrom(
                     type,
                     Controls::ContextMenu::
                         StaticTypeId())) {
@@ -146,7 +158,7 @@ Base::Result<void> OverlayHost::SynchronizeOverlays() noexcept {
                     };
                     Base::Transform2D transform =
                         rootTransform(*inputElement);
-                    if (metadata->Types().
+                    if (Metadata()->Types().
                             IsDerivedFrom(
                                 type,
                                 Controls::
@@ -195,7 +207,7 @@ Base::Result<void> OverlayHost::SynchronizeOverlays() noexcept {
                     }
                 }
             }
-            if (metadata->Types().IsDerivedFrom(
+            if (Metadata()->Types().IsDerivedFrom(
                     type,
                     Documents::AdornerLayer::StaticTypeId())) {
                 auto* layer = static_cast<Documents::AdornerLayer*>(node);
@@ -267,25 +279,25 @@ Base::Result<void> OverlayHost::SynchronizeOverlays() noexcept {
             }
         }
         Base::Result<void> render =
-            renderTree->SetOverlays(
+            RenderTree()->SetOverlays(
                 renderOverlays.AsSpan(),
                 overlayTransforms.AsSpan());
         if (!render) return render.GetStatus();
-        return input != nullptr
-            ? input->SetOverlays(
+        return Input() != nullptr
+            ? Input()->SetOverlays(
                   inputOverlays.AsSpan(),
                   overlayTransforms.AsSpan())
             : Base::Result<void>();
     }
 
 void OverlayHost::ClearOverlays() noexcept {
-        if (input != nullptr) input->ClearOverlays();
+        if (Input() != nullptr) Input()->ClearOverlays();
         renderOverlays.Clear();
         inputOverlays.Clear();
         overlayTransforms.Clear();
-        if (renderTree != nullptr) {
+        if (RenderTree() != nullptr) {
             static_cast<void>(
-                renderTree->SetOverlays(
+                RenderTree()->SetOverlays(
                     renderOverlays.AsSpan(),
                     overlayTransforms.AsSpan()));
         }
@@ -297,7 +309,7 @@ void OverlayHost::CloseAllOverlays() noexcept {
             if (overlay == nullptr) continue;
             const Meta::TypeId type =
                 overlay->RuntimeType();
-            if (metadata->Types().IsDerivedFrom(
+            if (Metadata()->Types().IsDerivedFrom(
                     type,
                     Controls::Primitives::Popup::
                         StaticTypeId())) {
@@ -309,7 +321,7 @@ void OverlayHost::CloseAllOverlays() noexcept {
                 static_cast<void>(
                     popup->SetPlacementTarget({}));
             } else if (
-                metadata->Types().IsDerivedFrom(
+                Metadata()->Types().IsDerivedFrom(
                     type,
                     Controls::ContextMenu::
                         StaticTypeId())) {
@@ -341,7 +353,7 @@ bool OverlayHost::IsVisualDescendantOrSelf(
 Base::Result<void> OverlayHost::RestoreOverlayFocus()
         noexcept {
         if (!overlayFocusReturn ||
-            input == nullptr) {
+            Input() == nullptr) {
             overlayFocusReturn.Reset();
             return {};
         }
@@ -349,7 +361,7 @@ Base::Result<void> OverlayHost::RestoreOverlayFocus()
             target =
                 std::move(overlayFocusReturn);
         Base::Result<bool> restored =
-            input->SetFocus(target.Get());
+            Input()->SetFocus(target.Get());
         if (!restored &&
             restored.GetStatus().code !=
                 Base::ErrorCode::NotFound &&
@@ -387,7 +399,7 @@ Base::Result<void> OverlayHost::DismissOverlaysForPointer(
             }
             const Meta::TypeId type =
                 overlay->RuntimeType();
-            if (metadata->Types().IsDerivedFrom(
+            if (Metadata()->Types().IsDerivedFrom(
                     type,
                     Controls::Primitives::Popup::
                         StaticTypeId())) {
@@ -399,7 +411,7 @@ Base::Result<void> OverlayHost::DismissOverlaysForPointer(
                     if (placement == nullptr) {
                         DependencyObject* templated = popup->GetTemplatedParent();
                         if (templated != nullptr &&
-                            metadata->Types().IsDerivedFrom(
+                            Metadata()->Types().IsDerivedFrom(
                                 templated->RuntimeType(),
                                 UIElement::StaticTypeId())) {
                             placement = static_cast<UIElement*>(templated);
@@ -417,7 +429,7 @@ Base::Result<void> OverlayHost::DismissOverlaysForPointer(
                     popup->SetIsOpen(false);
                 }
             } else if (
-                metadata->Types().IsDerivedFrom(
+                Metadata()->Types().IsDerivedFrom(
                     type,
                     Controls::ContextMenu::
                         StaticTypeId())) {
@@ -451,7 +463,7 @@ Base::Result<bool> OverlayHost::DismissTopOverlayForEscape()
             if (overlay == nullptr) continue;
             const Meta::TypeId type =
                 overlay->RuntimeType();
-            if (metadata->Types().IsDerivedFrom(
+            if (Metadata()->Types().IsDerivedFrom(
                     type,
                     Controls::Primitives::Popup::
                         StaticTypeId())) {
@@ -471,7 +483,7 @@ Base::Result<bool> OverlayHost::DismissTopOverlayForEscape()
                     : Base::Result<bool>(
                           restored.GetStatus());
             }
-            if (metadata->Types().IsDerivedFrom(
+            if (Metadata()->Types().IsDerivedFrom(
                     type,
                     Controls::ContextMenu::
                         StaticTypeId())) {
@@ -520,11 +532,11 @@ Base::Result<void> OverlayHost::OpenContextMenuForPointer(
                                 GetContextMenu(
                                     *element);
                 if (menu) {
-                    if (this->input != nullptr &&
+                    if (this->Input() != nullptr &&
                         !overlayFocusReturn) {
                         Aero::UIElement*
                             focused =
-                                this->input->GetFocusedElement();
+                                this->Input()->GetFocusedElement();
                         if (focused != nullptr) {
                             overlayFocusReturn =
                                 Base::Ref<
@@ -544,9 +556,9 @@ Base::Result<void> OverlayHost::OpenContextMenuForPointer(
                         menu->SetPlacementTarget(std::move(target));
                     }
                     menu->SetIsOpen(true);
-                    if (this->input != nullptr) {
+                    if (this->Input() != nullptr) {
                         Base::Result<bool> focused =
-                            this->input->SetFocus(
+                            this->Input()->SetFocus(
                                 menu.Get());
                         if (!focused) {
                             static_cast<void>(

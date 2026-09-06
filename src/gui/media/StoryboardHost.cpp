@@ -27,7 +27,6 @@ namespace MediaAnimation = ::Aero::Media::Animation;
 
 StoryboardHost::StoryboardHost(ViewState& owner) noexcept
     : view(&owner),
-      allocator(owner.allocator),
       storyboardSessions(owner.allocator),
       storyboardCompletionSessions(owner.allocator),
       storyboardCompletedSubscriptions(owner.allocator),
@@ -35,12 +34,31 @@ StoryboardHost::StoryboardHost(ViewState& owner) noexcept
       pendingLoadedTriggers(owner.allocator) {}
 
 void StoryboardHost::Bind() noexcept {
-    allocator = view->allocator;
-    metadata = view->metadata;
-    animations = view->Animations();
-    input = view->Input();
-    styles = view->Styles();
-    interactivity = view->interactivity;
+    // Services are read on demand from the owning ViewState / ElementTree hub.
+}
+
+Base::IAllocator* StoryboardHost::Allocator() const noexcept {
+    return view != nullptr ? view->allocator : nullptr;
+}
+
+::Aero::Meta::Registry* StoryboardHost::Metadata() const noexcept {
+    return view != nullptr ? view->metadata : nullptr;
+}
+
+Aero::AnimationEngine* StoryboardHost::Animations() const noexcept {
+    return view != nullptr ? view->Animations() : nullptr;
+}
+
+Aero::InputRouter* StoryboardHost::Input() const noexcept {
+    return view != nullptr ? view->Input() : nullptr;
+}
+
+Aero::StyleEngine* StoryboardHost::Styles() const noexcept {
+    return view != nullptr ? view->Styles() : nullptr;
+}
+
+InteractivityEngine* StoryboardHost::Interactivity() const noexcept {
+    return view != nullptr ? view->interactivity : nullptr;
 }
 
 
@@ -188,7 +206,7 @@ Base::Result<std::uint32_t>
                     started.Value());
             if (!retained) {
                 static_cast<void>(
-                    animations->Remove(
+                    Animations()->Remove(
                         started.Value()));
                 return retained.GetStatus();
             }
@@ -217,7 +235,7 @@ Base::Result<std::uint32_t> StoryboardHost::StartContentElementAnimations(
                 names);
             if (started && started.Value()) ++count;
         }
-        if (metadata->Types().IsDerivedFrom(
+        if (Metadata()->Types().IsDerivedFrom(
                 content.RuntimeType(),
                 Documents::Span::StaticTypeId())) {
             const Documents::InlineCollectionView inlines =
@@ -255,12 +273,12 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                  AeroGuiInternal::AuthoredBehaviors(
                      *element)) {
                 if (!authoredBehavior ||
-                    !metadata->Types().IsDerivedFrom(
+                    !Metadata()->Types().IsDerivedFrom(
                         authoredBehavior->RuntimeType(),
                         Interactivity::Behavior::StaticTypeId())) {
                     continue;
                 }
-                Base::Result<void> attached = interactivity->AttachBehavior(
+                Base::Result<void> attached = Interactivity()->AttachBehavior(
                     static_cast<const Interactivity::Behavior&>(
                         *authoredBehavior),
                     *element,
@@ -272,12 +290,12 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                  AeroGuiInternal::StyleBehaviorPrototypes(
                      *element)) {
                 if (!behaviorPrototype ||
-                    !metadata->Types().IsDerivedFrom(
+                    !Metadata()->Types().IsDerivedFrom(
                         behaviorPrototype->RuntimeType(),
                         Interactivity::Behavior::StaticTypeId())) {
                     continue;
                 }
-                Base::Result<void> attached = interactivity->AttachBehavior(
+                Base::Result<void> attached = Interactivity()->AttachBehavior(
                     static_cast<const Interactivity::Behavior&>(
                         *behaviorPrototype),
                     *element,
@@ -285,19 +303,19 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                     true);
                 if (!attached) return attached.GetStatus();
             }
-            if (input != nullptr) {
+            if (Input() != nullptr) {
                 for (const Base::Ref<Input::InputBinding>& binding :
                      element->GetInputBindings()) {
                     if (!binding) continue;
                     Base::Result<Input::InputBindingHandle> added =
-                        input->AddInputBinding(*element, binding);
+                        Input()->AddInputBinding(*element, binding);
                     if (!added) return added.GetStatus();
                 }
                 for (const Base::Ref<Input::CommandBinding>& binding :
                      element->GetCommandBindings()) {
                     if (!binding) continue;
                     Base::Result<Input::CommandBindingHandle> added =
-                        input->AddCommandBinding(*element, *binding);
+                        Input()->AddCommandBinding(*element, *binding);
                     if (!added) return added.GetStatus();
                 }
             }
@@ -310,7 +328,7 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                     Aero::Controls::DataTemplateTriggerState::
                             StaticTypeId()) {
                     Base::Result<std::uint32_t> started =
-                        interactivity->StartDataTemplateTriggers(
+                        Interactivity()->StartDataTemplateTriggers(
                             static_cast<
                                 Aero::Controls::DataTemplateTriggerState&>(
                                         *authored));
@@ -347,7 +365,7 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                     Aero::Interactivity::PropertyChangedTrigger::
                         StaticTypeId()) {
                     Base::Result<bool> started =
-                        interactivity->StartPropertyChangedTrigger(
+                        Interactivity()->StartPropertyChangedTrigger(
                             static_cast<
                                 Aero::Interactivity::PropertyChangedTrigger&>(
                                     *authored),
@@ -358,7 +376,7 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                 }
                 if (authored->RuntimeType() ==
                     Aero::Interactivity::KeyTrigger::StaticTypeId()) {
-                    Base::Result<bool> started = interactivity->StartKeyTrigger(
+                    Base::Result<bool> started = Interactivity()->StartKeyTrigger(
                         static_cast<Aero::Interactivity::KeyTrigger&>(
                             *authored),
                         *element,
@@ -369,7 +387,7 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                 if (authored->RuntimeType() ==
                     Aero::DataTrigger::StaticTypeId()) {
                     Base::Result<bool> started =
-                        interactivity->StartInteractionDataTrigger(
+                        Interactivity()->StartInteractionDataTrigger(
                             static_cast<Aero::DataTrigger&>(*authored),
                             *element,
                             names);
@@ -404,7 +422,7 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                 }
                 if (authored->RuntimeType() ==
                     Aero::Interactivity::PropertyChangedTrigger::StaticTypeId()) {
-                    Base::Result<bool> started = interactivity->StartPropertyChangedTrigger(
+                    Base::Result<bool> started = Interactivity()->StartPropertyChangedTrigger(
                         static_cast<Aero::Interactivity::PropertyChangedTrigger&>(
                             *authored),
                         *element,
@@ -414,7 +432,7 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                 }
                 if (authored->RuntimeType() ==
                     Aero::Interactivity::KeyTrigger::StaticTypeId()) {
-                    Base::Result<bool> started = interactivity->StartKeyTrigger(
+                    Base::Result<bool> started = Interactivity()->StartKeyTrigger(
                         static_cast<Aero::Interactivity::KeyTrigger&>(*authored),
                         *element,
                         names);
@@ -424,7 +442,7 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                 if (authored->RuntimeType() ==
                     Aero::DataTrigger::StaticTypeId()) {
                     Base::Result<bool> started =
-                        interactivity->StartInteractionDataTrigger(
+                        Interactivity()->StartInteractionDataTrigger(
                             static_cast<Aero::DataTrigger&>(*authored),
                             *element,
                             names);
@@ -441,13 +459,13 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                     if (started && started.Value()) ++count;
                 }
             }
-            if (styles != nullptr) {
-                const Aero::Style* applied = styles->AppliedStyle(*element);
+            if (Styles() != nullptr) {
+                const Aero::Style* applied = Styles()->AppliedStyle(*element);
                 if (applied != nullptr) {
                     for (const Base::Ref<Aero::TriggerBase>& authored :
                          applied->GetAuthoredTriggers()) {
                         if (!authored ||
-                            !metadata->Types().IsDerivedFrom(
+                            !Metadata()->Types().IsDerivedFrom(
                                 authored->RuntimeType(),
                                 MediaAnimation::EventTrigger::StaticTypeId())) {
                             continue;
@@ -470,7 +488,7 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                     FrameworkElement::LoadedEvent.Handle(),
                     &loadedArgs));
             }
-            if (metadata->Types().IsDerivedFrom(
+            if (Metadata()->Types().IsDerivedFrom(
                     element->RuntimeType(),
                     Controls::TextBlock::StaticTypeId())) {
                 const Documents::InlineCollectionView inlines =

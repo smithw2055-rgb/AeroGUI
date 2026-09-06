@@ -238,9 +238,9 @@ public:
         std::uint32_t index) const noexcept;
     std::uint64_t Generation() const noexcept;
 
-    // Nested implementation storage (TU-local definition). Not a separate
+    // Nested dictionary storage (TU-local definition). Not a separate
     // public companion type.
-    struct Impl;
+    struct DictionaryState;
 
 private:
     Result<void> StoreResource(
@@ -261,17 +261,17 @@ private:
         const Ref<Base::Object>& object,
         ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
 
-    friend struct Impl;
+    friend struct DictionaryState;
 
     explicit ResourceDictionary(
-        Impl* impl,
+        DictionaryState* state,
         bool addReference) noexcept;
 
-    Impl* impl_ = nullptr;
+    DictionaryState* state_ = nullptr;
 
-    Result<Impl*> EnsureImpl() noexcept;
-    static void AddImplRef(Impl* impl) noexcept;
-    static void ReleaseImpl(Impl* impl) noexcept;
+    Result<DictionaryState*> EnsureState() noexcept;
+    static void AddStateRef(DictionaryState* state) noexcept;
+    static void ReleaseState(DictionaryState* state) noexcept;
 };
 
 struct ResourceEnvironment {

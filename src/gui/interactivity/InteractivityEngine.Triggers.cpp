@@ -22,7 +22,7 @@ InteractivityEngine::ResolveInteractionTriggerProperty(
         const Aero::NameScope* names) noexcept {
         Base::Object* sourceObject = ResolveAuthoredBindingSource(
             binding, owner, nullptr, names, nullptr);
-        if (sourceObject == nullptr || metadata == nullptr) {
+        if (sourceObject == nullptr || Metadata() == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::NotFound,
                 "Interaction Trigger Binding source was not found");
@@ -36,14 +36,14 @@ InteractivityEngine::ResolveInteractionTriggerProperty(
 
         InteractionTriggerProperty resolved;
         resolved.source = sourceObject;
-        if (metadata->Types().IsDerivedFrom(
+        if (Metadata()->Types().IsDerivedFrom(
                 sourceObject->RuntimeType(),
                 ::Aero::DependencyObject::StaticTypeId())) {
             resolved.dependencySource =
                 static_cast<::Aero::DependencyObject*>(sourceObject);
             const Meta::DependencyProperty* property =
                 Aero::MetadataPrivate::DependencyProperties(
-                    *metadata).Find(sourceObject->RuntimeType(), path);
+                    *Metadata()).Find(sourceObject->RuntimeType(), path);
             if (property != nullptr) {
                 resolved.dependencyProperty = property->Handle();
                 return resolved;
@@ -60,10 +60,10 @@ InteractivityEngine::ResolveInteractionTriggerProperty(
                 break;
             }
         }
-        const Meta::PropertyInfo* property = metadata->Types().FindProperty(
+        const Meta::PropertyInfo* property = Metadata()->Types().FindProperty(
             sourceObject->RuntimeType(), rootPath, true);
         if (property == nullptr ||
-            !metadata->CanReadProperty(property->Id())) {
+            !Metadata()->CanReadProperty(property->Id())) {
             return Base::Status::Failure(
                 Base::ErrorCode::NotFound,
                 "Interaction Trigger Binding property was not found");
@@ -135,7 +135,7 @@ Base::Result<bool> InteractivityEngine::StartPropertyChangedTrigger(
         if (!property) return property.GetStatus();
         PropertyChangedTriggerState* context = nullptr;
         Base::Result<void> allocated = AllocateObject(
-            *allocator, Base::MemoryTag::Ui, context);
+            *Allocator(), Base::MemoryTag::Ui, context);
         if (!allocated) return allocated.GetStatus();
         context->runtime = this;
         context->trigger = &trigger;
@@ -156,7 +156,7 @@ Base::Result<bool> InteractivityEngine::StartPropertyChangedTrigger(
                     property.Value().dependencyProperty, handler);
         } else {
             Base::Result<std::uint64_t> notification =
-                metadata->SubscribePropertyChanged(
+                Metadata()->SubscribePropertyChanged(
                     *property.Value().source,
                     &PropertyChangedTriggerState::MetadataInvoke,
                     context);
@@ -168,7 +168,7 @@ Base::Result<bool> InteractivityEngine::StartPropertyChangedTrigger(
         }
         if (!subscribed) {
             FreeObject(
-                *allocator, Base::MemoryTag::Ui, context);
+                *Allocator(), Base::MemoryTag::Ui, context);
             return subscribed.GetStatus();
         }
         PropertyChangedTriggerSubscription subscription;
@@ -189,11 +189,11 @@ Base::Result<bool> InteractivityEngine::StartPropertyChangedTrigger(
                     ->RemoveValueChangedHandler(
                         property.Value().dependencyProperty, handler));
             } else if (metadataSubscription != 0U) {
-                static_cast<void>(metadata->UnsubscribePropertyChanged(
+                static_cast<void>(Metadata()->UnsubscribePropertyChanged(
                     *property.Value().source, metadataSubscription));
             }
             FreeObject(
-                *allocator, Base::MemoryTag::Ui, context);
+                *Allocator(), Base::MemoryTag::Ui, context);
             return retained.GetStatus();
         }
         return true;
@@ -223,7 +223,7 @@ Base::Result<bool> InteractivityEngine::StartInteractionDataTrigger(
         if (!property) return property.GetStatus();
         InteractionDataTriggerState* context = nullptr;
         Base::Result<void> allocated = AllocateObject(
-            *allocator, Base::MemoryTag::Ui, context);
+            *Allocator(), Base::MemoryTag::Ui, context);
         if (!allocated) return allocated.GetStatus();
         context->runtime = this;
         context->trigger = &trigger;
@@ -244,7 +244,7 @@ Base::Result<bool> InteractivityEngine::StartInteractionDataTrigger(
                     property.Value().dependencyProperty, handler);
         } else {
             Base::Result<std::uint64_t> notification =
-                metadata->SubscribePropertyChanged(
+                Metadata()->SubscribePropertyChanged(
                     *property.Value().source,
                     &InteractionDataTriggerState::MetadataInvoke,
                     context);
@@ -256,7 +256,7 @@ Base::Result<bool> InteractivityEngine::StartInteractionDataTrigger(
         }
         if (!subscribed) {
             FreeObject(
-                *allocator, Base::MemoryTag::Ui, context);
+                *Allocator(), Base::MemoryTag::Ui, context);
             return subscribed.GetStatus();
         }
         InteractionDataTriggerSubscription subscription;
@@ -277,11 +277,11 @@ Base::Result<bool> InteractivityEngine::StartInteractionDataTrigger(
                     ->RemoveValueChangedHandler(
                         property.Value().dependencyProperty, handler));
             } else if (metadataSubscription != 0U) {
-                static_cast<void>(metadata->UnsubscribePropertyChanged(
+                static_cast<void>(Metadata()->UnsubscribePropertyChanged(
                     *property.Value().source, metadataSubscription));
             }
             FreeObject(
-                *allocator, Base::MemoryTag::Ui, context);
+                *Allocator(), Base::MemoryTag::Ui, context);
             return retained.GetStatus();
         }
         Base::Result<bool> evaluated =
@@ -351,7 +351,7 @@ Base::Result<bool> InteractivityEngine::StartKeyTrigger(
         }
         KeyTriggerState* context = nullptr;
         Base::Result<void> allocated = AllocateObject(
-            *allocator, Base::MemoryTag::Ui, context);
+            *Allocator(), Base::MemoryTag::Ui, context);
         if (!allocated) return allocated.GetStatus();
         context->runtime = this;
         context->trigger = &trigger;
@@ -369,7 +369,7 @@ Base::Result<bool> InteractivityEngine::StartKeyTrigger(
             static_cast<void>(source->RemoveHandler(
                 Aero::UIElement::KeyDownEvent.Handle(), handler));
             FreeObject(
-                *allocator, Base::MemoryTag::Ui, context);
+                *Allocator(), Base::MemoryTag::Ui, context);
             return retained.GetStatus();
         }
         return true;
@@ -461,8 +461,8 @@ void InteractivityEngine::KeyTriggerState::Invoke(
     }
     if (trigger->GetActiveOnFocus()) {
         Aero::UIElement* expected = ::Aero::TryCast<::Aero::UIElement>(owner);
-        if (expected == nullptr || runtime->input == nullptr ||
-            runtime->input->GetFocusedElement() != expected) {
+        if (expected == nullptr || runtime->Input() == nullptr ||
+            runtime->Input()->GetFocusedElement() != expected) {
             return;
         }
     }
@@ -508,7 +508,7 @@ void InteractivityEngine::RetryPendingInteractionTriggers() noexcept {
         return;
     }
     retryingPendingInteractionTriggers_ = true;
-    Base::Vector<PendingInteractionTrigger> snapshot(allocator);
+    Base::Vector<PendingInteractionTrigger> snapshot(Allocator());
     for (PendingInteractionTrigger& pending : pendingInteractionTriggers) {
         Base::Result<void> retained =
             snapshot.PushBack(std::move(pending));

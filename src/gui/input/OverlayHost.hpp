@@ -13,10 +13,11 @@ public:
     void Bind() noexcept;
 
     ViewState* view = nullptr;
-    Base::IAllocator* allocator = nullptr;
-    ::Aero::Meta::Registry* metadata = nullptr;
-    Aero::InputRouter* input = nullptr;
-    ::Aero::Render::RenderTree* renderTree = nullptr;
+
+    Base::IAllocator* Allocator() const noexcept;
+    ::Aero::Meta::Registry* Metadata() const noexcept;
+    Aero::InputRouter* Input() const noexcept;
+    ::Aero::Render::RenderTree* RenderTree() const noexcept;
 
     Base::Vector<Aero::FrameworkElement*> renderOverlays;
     Base::Vector<Aero::UIElement*> inputOverlays;

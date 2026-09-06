@@ -61,7 +61,7 @@ StoryboardHost::ProcessStoryboardCompletions() noexcept
         for (Aero::Media::Animation::Model::AnimationHandle handle :
              session.handles) {
             const Aero::Media::Animation::Model::AnimationState state =
-                animations->State(handle);
+                Animations()->State(handle);
             if (state ==
                     Aero::Media::Animation::Model::AnimationState::Active ||
                 state ==
@@ -105,7 +105,7 @@ StoryboardHost::ProcessStoryboardCompletions() noexcept
                     storyboard.Get()) {
                 continue;
             }
-            Base::Result<bool> allowed = interactivity->ConditionBehaviorsAllowExecution(
+            Base::Result<bool> allowed = Interactivity()->ConditionBehaviorsAllowExecution(
                 subscription.trigger->GetBehaviors(),
                 *subscription.owner,
                 subscription.names);

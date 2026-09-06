@@ -22,7 +22,7 @@ Base::Result<void> InteractivityEngine::ExecuteStyleTriggerActions(
         void* context) noexcept {
         auto* runtime = static_cast<InteractivityEngine*>(context);
         if (runtime == nullptr ||
-            !runtime->metadata->Types().IsDerivedFrom(
+            !runtime->Metadata()->Types().IsDerivedFrom(
                 owner.RuntimeType(),
                 Aero::FrameworkElement::
                     StaticTypeId())) {
@@ -36,7 +36,7 @@ Base::Result<void> InteractivityEngine::ExecuteStyleTriggerActions(
         for (const Base::Ref<Base::Object>& authored :
              actions) {
             if (!authored ||
-                !runtime->metadata->Types().IsDerivedFrom(
+                !runtime->Metadata()->Types().IsDerivedFrom(
                     authored->RuntimeType(),
                     Aero::Interactivity::TriggerAction::
                         StaticTypeId())) {
@@ -45,7 +45,7 @@ Base::Result<void> InteractivityEngine::ExecuteStyleTriggerActions(
                     "Style Trigger contains an invalid action");
             }
             Base::Result<void> executed =
-                runtime->storyboards->ExecuteAnimationAction(
+                runtime->Storyboards()->ExecuteAnimationAction(
                     static_cast<Aero::Interactivity::TriggerAction&>(
                         *authored),
                     element);
@@ -76,7 +76,7 @@ Base::Result<bool> InteractivityEngine::StyleDataTriggerValuesMatch(
         if (expected.Kind() == Meta::ValueKind::String &&
             expected.Type() != actual.Type()) {
             Base::Result<Meta::PropertyValue> converted =
-                metadata->TryConvertText(
+                Metadata()->TryConvertText(
                     actual.Type(), expected.AsString());
             if (!converted) return false;
             expected = std::move(converted).Value();
@@ -86,7 +86,7 @@ Base::Result<bool> InteractivityEngine::StyleDataTriggerValuesMatch(
 
 Base::Result<void> InteractivityEngine::EvaluateStyleDataTrigger(
         StyleDataTriggerHandlerState& state) noexcept {
-        if (styles == nullptr || state.target == nullptr ||
+        if (Styles() == nullptr || state.target == nullptr ||
             state.style == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
@@ -97,7 +97,7 @@ Base::Result<void> InteractivityEngine::EvaluateStyleDataTrigger(
         const bool hasMetadata =
             state.metadataSource != nullptr &&
             state.metadataProperty != Meta::InvalidMemberId &&
-            metadata != nullptr;
+            Metadata() != nullptr;
         if (!hasDependency && !hasMetadata) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
@@ -105,7 +105,7 @@ Base::Result<void> InteractivityEngine::EvaluateStyleDataTrigger(
         }
         Base::Result<Meta::PropertyValue> actual = hasDependency
             ? state.source->GetValue(state.property)
-            : metadata->GetProperty(
+            : Metadata()->GetProperty(
                   *state.metadataSource, state.metadataProperty);
         if (!actual) return actual.GetStatus();
         Base::Result<bool> matches = StyleDataTriggerValuesMatch(
@@ -134,13 +134,13 @@ Base::Result<void> InteractivityEngine::EvaluateStyleDataTrigger(
             if (!allKnown) {
                 return {};
             }
-            return styles->SetBindingTriggerState(
+            return Styles()->SetBindingTriggerState(
                 *state.target,
                 *state.style,
                 state.triggerIndex,
                 allActive);
         }
-        return styles->SetBindingTriggerState(
+        return Styles()->SetBindingTriggerState(
             *state.target,
             *state.style,
             state.triggerIndex,
@@ -153,7 +153,7 @@ void InteractivityEngine::FlushPendingStyleDataTriggerEvaluations() noexcept {
             return;
         }
         flushingPendingStyleDataTriggers_ = true;
-        Base::Vector<StyleDataTriggerHandlerState*> snapshot(allocator);
+        Base::Vector<StyleDataTriggerHandlerState*> snapshot(Allocator());
         for (StyleDataTriggerHandlerState* context :
              pendingStyleDataTriggerEvaluations) {
             Base::Result<void> retained = snapshot.PushBack(context);
@@ -214,8 +214,8 @@ void InteractivityEngine::ClearStyleDataTriggersFor(
             }
             if (subscription.metadataSource != nullptr &&
                 subscription.metadataSubscription != 0U &&
-                metadata != nullptr) {
-                static_cast<void>(metadata->UnsubscribePropertyChanged(
+                Metadata() != nullptr) {
+                static_cast<void>(Metadata()->UnsubscribePropertyChanged(
                     *subscription.metadataSource,
                     subscription.metadataSubscription));
             }
@@ -223,12 +223,12 @@ void InteractivityEngine::ClearStyleDataTriggersFor(
                 if (subscription.context->ownsAggregate &&
                     subscription.context->aggregate != nullptr) {
                     FreeObject(
-                        *allocator,
+                        *Allocator(),
                         Base::MemoryTag::Ui,
                         subscription.context->aggregate);
                 }
                 FreeObject(
-                    *allocator,
+                    *Allocator(),
                     Base::MemoryTag::Ui,
                     subscription.context);
             }
@@ -272,7 +272,7 @@ Base::Result<std::uint32_t> InteractivityEngine::StartStyleDataTriggers(
             StyleDataTriggerAggregate* aggregate = nullptr;
             if (conditionCount > 1U) {
                 Base::Result<void> allocated = AllocateObject(
-                    *allocator,
+                    *Allocator(),
                     Base::MemoryTag::Ui,
                     aggregate);
                 if (!allocated) return allocated.GetStatus();
@@ -283,7 +283,7 @@ Base::Result<std::uint32_t> InteractivityEngine::StartStyleDataTriggers(
                 }
                 if (!sized) {
                     FreeObject(
-                        *allocator,
+                        *Allocator(),
                         Base::MemoryTag::Ui,
                         aggregate);
                     return sized.GetStatus();
@@ -318,7 +318,7 @@ Base::Result<std::uint32_t> InteractivityEngine::StartStyleDataTriggers(
             if (deferred) {
                 if (aggregate != nullptr) {
                     FreeObject(
-                        *allocator,
+                        *Allocator(),
                         Base::MemoryTag::Ui,
                         aggregate);
                 }
@@ -367,7 +367,7 @@ Base::Result<std::uint32_t> InteractivityEngine::StartStyleDataTriggers(
                         }
                         while (current != nullptr) {
                             const Meta::TypeInfo* type =
-                                metadata->Types().FindType(
+                                Metadata()->Types().FindType(
                                     current->RuntimeType());
                             const bool matchesType = ancestorName.Empty() ||
                                 (type != nullptr &&
@@ -409,14 +409,14 @@ Base::Result<std::uint32_t> InteractivityEngine::StartStyleDataTriggers(
                 ::Aero::DependencyObject* dependencySource = nullptr;
                 const Meta::DependencyProperty* dependencyProperty = nullptr;
                 Meta::MemberId metadataProperty = Meta::InvalidMemberId;
-                if (metadata->Types().IsDerivedFrom(
+                if (Metadata()->Types().IsDerivedFrom(
                         sourceObject->RuntimeType(),
                         ::Aero::DependencyObject::StaticTypeId())) {
                     dependencySource =
                         static_cast<::Aero::DependencyObject*>(sourceObject);
                     dependencyProperty =
                         ::Aero::MetadataPrivate::
-                            DependencyProperties(*metadata).Find(
+                            DependencyProperties(*Metadata()).Find(
                                 sourceObject->RuntimeType(), path);
                 }
                 if (dependencyProperty == nullptr) {
@@ -429,10 +429,10 @@ Base::Result<std::uint32_t> InteractivityEngine::StartStyleDataTriggers(
                         }
                     }
                     const Meta::PropertyInfo* clrProperty =
-                        metadata->Types().FindProperty(
+                        Metadata()->Types().FindProperty(
                             sourceObject->RuntimeType(), rootPath, true);
                     if (clrProperty == nullptr ||
-                        !metadata->CanReadProperty(clrProperty->Id())) {
+                        !Metadata()->CanReadProperty(clrProperty->Id())) {
                         return Base::Status::Failure(
                             Base::ErrorCode::NotFound,
                             "Style DataTrigger Binding path was not found");
@@ -443,7 +443,7 @@ Base::Result<std::uint32_t> InteractivityEngine::StartStyleDataTriggers(
 
                 StyleDataTriggerHandlerState* context = nullptr;
                 Base::Result<void> allocated = AllocateObject(
-                    *allocator,
+                    *Allocator(),
                     Base::MemoryTag::Ui,
                     context);
                 if (!allocated) return allocated.GetStatus();
@@ -476,7 +476,7 @@ Base::Result<std::uint32_t> InteractivityEngine::StartStyleDataTriggers(
                         dependencyProperty->Handle(), handler);
                 } else {
                     Base::Result<std::uint64_t> notification =
-                        metadata->SubscribePropertyChanged(
+                        Metadata()->SubscribePropertyChanged(
                             *sourceObject,
                             &StyleDataTriggerHandlerState::MetadataInvoke,
                             context);
@@ -488,7 +488,7 @@ Base::Result<std::uint32_t> InteractivityEngine::StartStyleDataTriggers(
                 }
                 if (!subscribed) {
                     FreeObject(
-                        *allocator,
+                        *Allocator(),
                         Base::MemoryTag::Ui,
                         context);
                     return subscribed.GetStatus();
@@ -512,11 +512,11 @@ Base::Result<std::uint32_t> InteractivityEngine::StartStyleDataTriggers(
                         (void)dependencySource->RemoveValueChangedHandler(
                             dependencyProperty->Handle(), handler);
                     } else if (metadataSubscription != 0U) {
-                        static_cast<void>(metadata->UnsubscribePropertyChanged(
+                        static_cast<void>(Metadata()->UnsubscribePropertyChanged(
                             *sourceObject, metadataSubscription));
                     }
                     FreeObject(
-                        *allocator,
+                        *Allocator(),
                         Base::MemoryTag::Ui,
                         context);
                     return retained.GetStatus();
@@ -544,7 +544,7 @@ Base::Result<std::uint32_t> InteractivityEngine::StartStyleDataTriggers(
                     }
                     if (!owned) {
                         FreeObject(
-                            *allocator,
+                            *Allocator(),
                             Base::MemoryTag::Ui,
                             aggregate);
                     }

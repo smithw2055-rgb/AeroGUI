@@ -282,8 +282,8 @@ UIElement* TemplateBuilder::RootElement() const noexcept {
 Aero::BindingEngine&
 TemplateBuilder::Bindings() const noexcept {
     auto& state = *static_cast<Aero::Controls::TemplateBuildState*>(state_);
-    AERO_ASSERT(state.bindings != nullptr);
-    return *state.bindings;
+    AERO_ASSERT(state.Bindings() != nullptr);
+    return *state.Bindings();
 }
 
 Base::Result<bool>
@@ -385,9 +385,9 @@ TemplateBuilder::ProjectContentCore(
         original.visualParent = projection.originalVisualParent;
         original.child = content;
         original.visualAttached = true;
-        original.layoutAttached = state.layout != nullptr &&
+        original.layoutAttached = state.Layout() != nullptr &&
             ::Aero::TryCast<::Aero::UIElement>(projection.originalVisualParent) != nullptr;
-        original.renderAttached = state.renderer != nullptr &&
+        original.renderAttached = state.RenderTree() != nullptr &&
             ::Aero::TryCast<::Aero::FrameworkElement>(projection.originalVisualParent) != nullptr &&
             ::Aero::TryCast<::Aero::FrameworkElement>(content) != nullptr;
         Base::Result<void> detached = state.tree->DetachVisual(original);
@@ -1835,7 +1835,7 @@ Base::Result<TemplateHandle> TemplateEngine::Apply(
     }
 
     Aero::Controls::TemplateBuildState buildState(
-        *tree_, control, layout_, renderer_, bindings_);
+        *tree_, control);
     TemplateBuilder context(&buildState);
     Base::Result<void> materialized =
         TemplatePrivate::Materialize(

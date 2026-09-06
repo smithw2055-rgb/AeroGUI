@@ -14,18 +14,18 @@ public:
     void FlushPendingStyleDataTriggerEvaluations() noexcept;
 
     ViewState* view = nullptr;
-    Base::IAllocator* allocator = nullptr;
-    ::Aero::Meta::Registry* metadata = nullptr;
-    Aero::AnimationEngine* animations = nullptr;
-    Aero::EventRouter* events = nullptr;
-    Aero::InputRouter* input = nullptr;
-    Aero::ElementTree* tree = nullptr;
-    Aero::StyleEngine* styles = nullptr;
-    Meta::EffectiveValueEngine* values = nullptr;
-    ::Aero::Threading::Dispatcher* dispatcher = nullptr;
-    Aero::Controls::TemplateEngine* templates = nullptr;
-    Aero::BindingEngine* bindings = nullptr;
-    class StoryboardHost* storyboards = nullptr;
+
+    // Service pointers are not cached after Bind; read the ElementTree hub /
+    // ViewState owners through these accessors.
+    Base::IAllocator* Allocator() const noexcept;
+    ::Aero::Meta::Registry* Metadata() const noexcept;
+    Aero::AnimationEngine* Animations() const noexcept;
+    Aero::InputRouter* Input() const noexcept;
+    Aero::ElementTree* Tree() const noexcept;
+    Aero::StyleEngine* Styles() const noexcept;
+    Meta::EffectiveValueEngine* Values() const noexcept;
+    Aero::BindingEngine* Bindings() const noexcept;
+    class StoryboardHost* Storyboards() const noexcept;
 
     static Base::Result<void> ExecuteStyleTriggerActions(
         ::Aero::DependencyObject& owner,

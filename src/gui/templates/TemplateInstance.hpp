@@ -36,22 +36,25 @@ struct TemplateContentProjection {
 };
 
 struct TemplateBuildState {
-    TemplateBuildState(ElementTree& tree, Control& parent,
-        Aero::LayoutEngine* layout,
-        Aero::Render::RenderTree* renderer,
-        Aero::BindingEngine* bindings) noexcept
-        : tree(&tree), layout(layout), renderer(renderer),
-          bindings(bindings), parent(&parent) {}
+    TemplateBuildState(ElementTree& tree, Control& parent) noexcept
+        : tree(&tree), parent(&parent) {}
 
     ElementTree* tree = nullptr;
-    Aero::LayoutEngine* layout = nullptr;
-    Aero::Render::RenderTree* renderer = nullptr;
-    Aero::BindingEngine* bindings = nullptr;
     Control* parent = nullptr;
     ::Aero::Media::Visual* rootVisual = nullptr;
     UIElement* rootElement = nullptr;
     Base::Vector<TemplatePart> parts;
     Base::Vector<TemplateContentProjection> projections;
+
+    Aero::LayoutEngine* Layout() const noexcept {
+        return tree != nullptr ? tree->Layout() : nullptr;
+    }
+    Aero::Render::RenderTree* RenderTree() const noexcept {
+        return tree != nullptr ? tree->RenderTree() : nullptr;
+    }
+    Aero::BindingEngine* Bindings() const noexcept {
+        return tree != nullptr ? tree->Bindings() : nullptr;
+    }
 };
 
 } // namespace Aero::Controls

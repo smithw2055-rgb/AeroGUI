@@ -11,7 +11,7 @@ public:
     void Bind() noexcept;
 
     ViewState* view = nullptr;
-    Aero::InputRouter* input = nullptr;
+    Aero::InputRouter* Input() const noexcept;
     Base::Vector<Base::WeakRef<Aero::UIElement>> pendingFocusTargets;
 
     Base::Result<void> QueueFocus(Aero::UIElement& target) noexcept;
