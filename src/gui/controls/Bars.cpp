@@ -171,7 +171,7 @@ ToolBar::OnApplyTemplate() noexcept {
         GetTemplateChild("HeaderText");
     headerText_ =
         header != nullptr &&
-        PropertyRegistry().Types().IsDerivedFrom(
+        PropertyRegistry(*this).Types().IsDerivedFrom(
             header->RuntimeType(),
             TextBlock::StaticTypeId())
         ? static_cast<TextBlock*>(header)
@@ -183,7 +183,7 @@ ToolBar::OnApplyTemplate() noexcept {
         GetTemplateChild("OverflowGlyph");
     overflowGlyph_ =
         overflow != nullptr &&
-        PropertyRegistry().Types().IsDerivedFrom(
+        PropertyRegistry(*this).Types().IsDerivedFrom(
             overflow->RuntimeType(),
             TextBlock::StaticTypeId())
         ? static_cast<TextBlock*>(overflow)
@@ -222,7 +222,7 @@ ToolBar::SynchronizeToolBar() noexcept {
     }
     Panel* host = GetItemsHost();
     if (host != nullptr &&
-        PropertyRegistry().Types().IsDerivedFrom(
+        PropertyRegistry(*this).Types().IsDerivedFrom(
             host->RuntimeType(),
             StackPanel::StaticTypeId())) {
         static_cast<StackPanel*>(host)->

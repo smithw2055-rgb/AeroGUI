@@ -362,7 +362,7 @@ void ScrollBar::OnApplyTemplate()
         GetTemplateChild("PART_Track");
     track_ =
         part != nullptr &&
-        PropertyRegistry().Types().IsDerivedFrom(
+        PropertyRegistry(*this).Types().IsDerivedFrom(
             part->RuntimeType(),
             Track::StaticTypeId())
         ? static_cast<Track*>(part)
@@ -610,7 +610,7 @@ void Slider::OnApplyTemplate() noexcept {
     Control::OnApplyTemplate();
     DependencyObject* part = GetTemplateChild("PART_Track");
     track_ = part != nullptr &&
-        PropertyRegistry().Types().IsDerivedFrom(
+        PropertyRegistry(*this).Types().IsDerivedFrom(
             part->RuntimeType(), Track::StaticTypeId())
         ? static_cast<Track*>(part)
         : nullptr;
@@ -1130,7 +1130,7 @@ void TickBar::OnRender(
     auto& builder = Aero::Render::DrawingPrivate::Builder(context);
     DependencyObject* parent = GetTemplatedParent();
     if (parent == nullptr ||
-        !PropertyRegistry().Types().IsDerivedFrom(
+        !PropertyRegistry(*this).Types().IsDerivedFrom(
             parent->RuntimeType(), Slider::StaticTypeId())) {
         return;
     }

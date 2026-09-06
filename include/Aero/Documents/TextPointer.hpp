@@ -47,9 +47,7 @@ public:
 private:
     friend class Aero::Controls::TextBlock;
     friend class TextRange;
-#if defined(AERO_GUI_IMPLEMENTATION)
     friend struct Aero::Controls::TextBlockDocumentHelper;
-#endif
     TextPointer(
         Controls::TextBlock& container,
         std::uint32_t offset,

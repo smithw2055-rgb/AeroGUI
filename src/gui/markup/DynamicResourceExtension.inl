@@ -27,7 +27,7 @@ struct DynamicResourceState {
           sources(),
           allocator(&Base::GetDefaultAllocator()) {
         const Meta::DependencyProperty* descriptor =
-            dependencyObject.PropertyRegistry().Find(dependencyProperty);
+            PropertyRegistry(dependencyObject).Find(dependencyProperty);
         if (descriptor != nullptr) property = descriptor->Handle();
     }
 
@@ -125,7 +125,7 @@ Base::Result<Meta::PropertyValue> EvaluateDynamicResource(
     Meta::DependencyPropertyHandle property) noexcept {
     DynamicResourceState* state = static_cast<DynamicResourceState*>(context);
     const Meta::DependencyProperty* descriptor =
-        object.PropertyRegistry().Find(property);
+        PropertyRegistry(object).Find(property);
     if (descriptor != nullptr) property = descriptor->Handle();
     if (state == nullptr ||
         state->target != &object || state->property != property) {
@@ -599,7 +599,7 @@ Base::Result<ProvidedValue> DynamicResourceExtension::ProvideValue(
     }
     state->target = state->targetOwner.Get();
     const Meta::DependencyProperty* descriptor =
-        target->PropertyRegistry().Find(property);
+        PropertyRegistry(target).Find(property);
     state->property = descriptor != nullptr
         ? descriptor->Handle()
         : property;

@@ -134,9 +134,6 @@ protected:
 private:
     friend class TextEditBehavior;
     friend class PasswordBox;
-#if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::AeroGuiInternal;
-#endif
 
     struct CaretStop {
         double x = 0.0;

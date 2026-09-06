@@ -407,11 +407,11 @@ void OnPathDoubleChanged(
     ::Aero::DependencyObject& object,
     const double&,
     const double&) noexcept {
-    if (object.PropertyRegistry().Types().IsDerivedFrom(
+    if (PropertyRegistry(object).Types().IsDerivedFrom(
             object.RuntimeType(), Path::StaticTypeId())) {
         AeroGuiInternal::PathInvalidateGeometry(
             static_cast<Path&>(object));
-    } else if (object.PropertyRegistry().Types().IsDerivedFrom(
+    } else if (PropertyRegistry(object).Types().IsDerivedFrom(
                    object.RuntimeType(), FrameworkElement::StaticTypeId())) {
         static_cast<void>(
             static_cast<FrameworkElement&>(object).InvalidateVisual());
@@ -438,7 +438,7 @@ void OnPathStringChanged(
     ::Aero::DependencyObject& object,
     const Base::String&,
     const Base::String&) noexcept {
-    if (object.PropertyRegistry().Types().IsDerivedFrom(
+    if (PropertyRegistry(object).Types().IsDerivedFrom(
             object.RuntimeType(), Path::StaticTypeId())) {
         AeroGuiInternal::PathInvalidateGeometry(
             static_cast<Path&>(object));
@@ -464,11 +464,11 @@ void OnPathFillRuleChanged(
 void OnShapePenChanged(
     ::Aero::DependencyObject& object,
     const Meta::DependencyPropertyChangedEventArgs&) noexcept {
-    if (object.PropertyRegistry().Types().IsDerivedFrom(
+    if (PropertyRegistry(object).Types().IsDerivedFrom(
             object.RuntimeType(), Path::StaticTypeId())) {
         AeroGuiInternal::PathInvalidateGeometry(
             static_cast<Path&>(object));
-    } else if (object.PropertyRegistry().Types().IsDerivedFrom(
+    } else if (PropertyRegistry(object).Types().IsDerivedFrom(
                    object.RuntimeType(), FrameworkElement::StaticTypeId())) {
         static_cast<void>(
             static_cast<FrameworkElement&>(object).InvalidateVisual());
@@ -483,7 +483,7 @@ void OnShapeFillChanged(
 void OnScrollViewerVisibilityChanged(
     ::Aero::DependencyObject& object,
     const Meta::DependencyPropertyChangedEventArgs&) noexcept {
-    if (!object.PropertyRegistry().Types().IsDerivedFrom(
+    if (!PropertyRegistry(object).Types().IsDerivedFrom(
             object.RuntimeType(),
             ScrollViewer::StaticTypeId())) {
         return;
@@ -684,7 +684,7 @@ void AddTextBlockInline(
         return;
     }
     auto& text = static_cast<TextBlock&>(owner);
-    if (!text.PropertyRegistry().Types().IsDerivedFrom(
+    if (!PropertyRegistry(text).Types().IsDerivedFrom(
             child->RuntimeType(),
             Aero::Documents::Inline::StaticTypeId())) {
         return;
@@ -706,7 +706,7 @@ void AddSpanInline(
         return;
     }
     auto& span = static_cast<Documents::Span&>(owner);
-    if (!span.PropertyRegistry().Types().IsDerivedFrom(
+    if (!PropertyRegistry(span).Types().IsDerivedFrom(
             child->RuntimeType(),
             Documents::Inline::StaticTypeId())) {
         return;

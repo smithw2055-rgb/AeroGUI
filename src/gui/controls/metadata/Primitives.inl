@@ -135,7 +135,7 @@ Base::Result<void> PopulateControlsPrimitives(
             Control::TemplateProperty,
             FrameworkPropertyMetadata(Base::Ref<ControlTemplate>{})
                 .AffectsMeasure())
-        .Factory(&CreateBasicControl);
+        .Factory<BasicControl>();
     status = control.Result();
     if (!status) return status.GetStatus();
 
@@ -170,7 +170,7 @@ Base::Result<void> PopulateControlsPrimitives(
             &SetContentControlContent,
             &ClearContentControlContent,
             ContentFlags::Visual)
-        .Factory(&CreateBasicContentControl);
+        .Factory<BasicContentControl>();
     status = contentControl.Result();
     if (!status) return status.GetStatus();
 

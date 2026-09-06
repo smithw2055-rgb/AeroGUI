@@ -104,9 +104,6 @@ protected:
     void OnItemsSourceCoreChanged() noexcept override;
 
 private:
-#if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::AeroGuiInternal;
-#endif
     Base::Vector<std::uint32_t> selectedIndices_;
     std::uint32_t primaryIndex_ = UINT32_MAX;
     std::uint32_t pendingIndex_ = UINT32_MAX;

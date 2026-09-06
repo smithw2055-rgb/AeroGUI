@@ -16,6 +16,7 @@
 #include <Aero/Visual.hpp>
 
 #include "gui/meta/MetadataState.hpp"
+#include "gui/core/PropertyRegistryAccess.hpp"
 
 #include <cstddef>
 #include <new>
@@ -201,7 +202,7 @@ public:
 private:
     static DependencyObject* GetParent(
         DependencyObject& object) noexcept {
-        const Meta::TypeRegistry& types = object.PropertyRegistry().Types();
+        const Meta::TypeRegistry& types = PropertyRegistry(object).Types();
         if (types.IsDerivedFrom(
                 object.RuntimeType(), ContentElement::StaticTypeId())) {
             auto& content = static_cast<ContentElement&>(object);

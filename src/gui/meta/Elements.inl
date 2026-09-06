@@ -286,7 +286,7 @@ Base::Result<void> PopulateUiElements(
             "Triggers",
             &AddFrameworkEventTrigger,
             &ClearFrameworkEventTriggers)
-        .Factory(&CreateFrameworkElementPlaceholder);
+        .Factory<PlaceholderFrameworkElement>();
     status = frameworkElement.Result();
     if (!status) return status.GetStatus();
     return {};

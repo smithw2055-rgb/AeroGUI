@@ -39,9 +39,6 @@ public:
 
 private:
     friend struct ItemContainerGeneratorRuntime;
-#if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::AeroGuiInternal;
-#endif
 
     ItemContainerGenerator() noexcept = default;
     void* impl_ = nullptr;

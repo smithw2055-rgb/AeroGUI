@@ -16,7 +16,7 @@ Installed headers keep the WPF surface. Kernel-private operations live in
 `View` / `ElementTree` is the service hub: named pointers to layout, bindings,
 styles, events, input, animations, visual states, templates, text layout,
 control behaviors, mesh resources, and name scope. Visual/UIElement reach that
-hub through `GetTree()`.
+hub through `VisualTree()`.
 
 Hot layout/visual fields stay on the object. Cold data uses a lazy rare
 pointer. The dependency-property store is an opaque hashmap handle on

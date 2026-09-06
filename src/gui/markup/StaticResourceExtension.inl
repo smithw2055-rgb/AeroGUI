@@ -106,7 +106,7 @@ Base::Result<ProvidedValue> StaticResourceExtension::ProvideValue(
             : Base::Result<ProvidedValue>(retained.GetStatus());
     }
     const Meta::DependencyProperty* descriptor =
-        target->PropertyRegistry().Find(property);
+        PropertyRegistry(target).Find(property);
     auto resolveFrom =
         [&](const ResourceDictionary* resources)
             -> Base::Result<Meta::PropertyValue> {

@@ -253,7 +253,7 @@ Base::Object* FrameworkElement::FindNameObject(
             if (expectedType == Meta::InvalidTypeId) {
                 return object;
             }
-            return PropertyRegistry().Types().IsDerivedFrom(
+            return PropertyRegistry(*this).Types().IsDerivedFrom(
                 object->RuntimeType(), expectedType)
                 ? object
                 : nullptr;

@@ -204,13 +204,13 @@ void ScrollViewer::OnApplyTemplate()
 void ScrollViewer::AttachScrollBars() noexcept {
     DetachScrollBars();
     DependencyObject* vert = GetTemplateChild(Base::StringView("PART_VerticalScrollBar"));
-    if (vert != nullptr && PropertyRegistry().Types().IsDerivedFrom(vert->RuntimeType(), ScrollBar::StaticTypeId())) {
+    if (vert != nullptr && PropertyRegistry(*this).Types().IsDerivedFrom(vert->RuntimeType(), ScrollBar::StaticTypeId())) {
         verticalScrollBar_ = static_cast<Primitives::ScrollBar*>(vert);
         static_cast<void>(verticalScrollBar_->AddValueChangedHandler(
             ScrollBar::ValueProperty, scrollBarValueChangedHandler_));
     }
     DependencyObject* horz = GetTemplateChild(Base::StringView("PART_HorizontalScrollBar"));
-    if (horz != nullptr && PropertyRegistry().Types().IsDerivedFrom(horz->RuntimeType(), ScrollBar::StaticTypeId())) {
+    if (horz != nullptr && PropertyRegistry(*this).Types().IsDerivedFrom(horz->RuntimeType(), ScrollBar::StaticTypeId())) {
         horizontalScrollBar_ = static_cast<Primitives::ScrollBar*>(horz);
         static_cast<void>(horizontalScrollBar_->AddValueChangedHandler(
             ScrollBar::ValueProperty, scrollBarValueChangedHandler_));
@@ -345,7 +345,7 @@ void ScrollViewer::OnScrollDataChanged(
         DependencyObject* part =
             GetTemplateChild(name);
         if (part == nullptr ||
-            !PropertyRegistry().Types().IsDerivedFrom(
+            !PropertyRegistry(*this).Types().IsDerivedFrom(
                 part->RuntimeType(),
                 ScrollBar::StaticTypeId())) {
             return;

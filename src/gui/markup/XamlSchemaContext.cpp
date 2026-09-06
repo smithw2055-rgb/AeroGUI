@@ -498,7 +498,7 @@ Schema::ResolvePropertyTarget(
             Base::ErrorCode::InvalidArgument,
             "XAML target does not support dependency properties");
     }
-    if (&target->PropertyRegistry() !=
+    if (&PropertyRegistry(target) !=
         &static_cast<const ::Aero::Meta::Registry&>(
             *domain_).DependencyProperties()) {
         return Base::Status::Failure(

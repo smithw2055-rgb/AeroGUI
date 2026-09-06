@@ -309,7 +309,7 @@ Base::Result<void> ButtonBehavior::Attach(
             Base::ErrorCode::AlreadyExists,
             "Button is already attached to interaction services");
     }
-    if (!button.GetIsLoaded() || button.GetTree() != tree_) {
+    if (!button.GetIsLoaded() || VisualTree(button) != tree_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Button must be loaded in the interaction tree");
@@ -542,7 +542,7 @@ Base::Result<void> ButtonBehavior::InvokeClick(
         !isRadio &&
         (type == ToggleButton::StaticTypeId() ||
          type == CheckBox::StaticTypeId() ||
-         button.PropertyRegistry().Types().IsDerivedFrom(
+         PropertyRegistry(button).Types().IsDerivedFrom(
              type, ToggleButton::StaticTypeId()));
     if (isToggle) {
         auto& toggle = static_cast<ToggleButton&>(button);

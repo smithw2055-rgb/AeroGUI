@@ -150,9 +150,6 @@ protected:
     void OnRender(
         ::Aero::Media::DrawingContext& context) noexcept override;
 private:
-#if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::AeroGuiInternal;
-#endif
     friend class ::Aero::VisualStateManager;
     void SetTemplateChildCore(UIElement* child) noexcept {
         if (child != nullptr && child->LayoutParent() != this) {

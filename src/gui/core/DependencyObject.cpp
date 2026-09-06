@@ -47,7 +47,6 @@ thread_local ActiveMutation t_mutationStack[MaxMutationDepth]{};
 thread_local std::uint32_t t_mutationDepth = 0U;
 
 } // namespace
-
 // from src/gui/core/PropertySystem.cpp
 
 PropertyInvalidationFlags DependencyObject::AccumulateInvalidations(

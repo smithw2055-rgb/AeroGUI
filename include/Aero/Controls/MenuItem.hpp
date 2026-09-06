@@ -63,9 +63,6 @@ protected:
     void OnTemplateDetached() noexcept override;
 
 private:
-#if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::AeroGuiInternal;
-#endif
     TextBlock* gestureText_ = nullptr;
     TextBlock* checkGlyph_ = nullptr;
     Primitives::Popup* submenuPopup_ = nullptr;

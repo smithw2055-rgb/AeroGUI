@@ -63,9 +63,6 @@ protected:
 private:
     friend class TextBox;
     friend class TextEditBehavior;
-#if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::AeroGuiInternal;
-#endif
 
     String password_;
     void* validation_ = nullptr;

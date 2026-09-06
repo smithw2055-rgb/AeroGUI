@@ -70,6 +70,16 @@ public:
     }
     Base::Status LastError() const noexcept { return lastError_; }
 
+    static Base::Result<ItemContainerGenerator*> Create(
+        ElementTree& tree,
+        Aero::LayoutEngine& layout,
+        Meta::EffectiveValueEngine& values,
+        Aero::StyleEngine* styles,
+        ::Aero::Render::RenderTree* renderer,
+        TemplateEngine* templates,
+        ItemSubtreeCallback subtreeCallback,
+        void* subtreeContext) noexcept;
+
 private:
     struct Record {
         Base::Ref<Base::Object> item;
@@ -182,8 +192,8 @@ Base::Result<void> ItemContainerGeneratorRuntime::Attach(
     Panel& itemsHost) noexcept {
     if (owner_ != nullptr ||
         owner.generator_ != nullptr ||
-        owner.GetTree() != tree_ ||
-        itemsHost.GetTree() != tree_) {
+        VisualTree(owner) != tree_ ||
+        VisualTree(itemsHost) != tree_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "ItemContainerGenerator attach state is invalid");
@@ -219,8 +229,8 @@ ItemContainerGeneratorRuntime::AttachVirtualized(
     VirtualizingStackPanel& itemsHost) noexcept {
     if (owner_ != nullptr ||
         owner.generator_ != nullptr ||
-        owner.GetTree() != tree_ ||
-        itemsHost.GetTree() != tree_) {
+        VisualTree(owner) != tree_ ||
+        VisualTree(itemsHost) != tree_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Virtualized item generator attach state is invalid");
@@ -310,7 +320,7 @@ ItemContainerGeneratorRuntime::CreateRecord(
             Base::ErrorCode::InvalidState,
             "ItemsSource returned null");
     }
-    if (owner_->PropertyRegistry().Types().IsDerivedFrom(
+    if (PropertyRegistry(owner_).Types().IsDerivedFrom(
             record.item->RuntimeType(),
             FrameworkElement::StaticTypeId())) {
         record.container =
@@ -488,12 +498,12 @@ ItemContainerGeneratorRuntime::CreateRecord(
             Base::Ref<Base::Object>(
                 std::move(text).Value());
         record.generatedTextContent = true;
-    } else if (owner_->PropertyRegistry().Types()
+    } else if (PropertyRegistry(owner_).Types()
         .IsDerivedFrom(
             record.item->RuntimeType(),
             UIElement::StaticTypeId())) {
         record.content = record.item;
-    } else if (owner_->PropertyRegistry().Types().IsDerivedFrom(
+    } else if (PropertyRegistry(owner_).Types().IsDerivedFrom(
                    owner_->RuntimeType(),
                    ListView::StaticTypeId()) &&
                static_cast<ListView*>(owner_)->GetView()) {
@@ -519,7 +529,7 @@ ItemContainerGeneratorRuntime::CreateRecord(
         record.generatedTextContent = true;
     }
     if (!record.content ||
-        !owner_->PropertyRegistry().Types()
+        !PropertyRegistry(owner_).Types()
             .IsDerivedFrom(
                 record.content->RuntimeType(),
                 UIElement::StaticTypeId())) {
@@ -564,7 +574,7 @@ ItemContainerGeneratorRuntime::AttachOwnedSubtree(
             const Base::Ref<Base::Object>& owned)
             noexcept -> Base::Result<void> {
         if (!owned ||
-            !owner_->PropertyRegistry().Types().
+            !PropertyRegistry(owner_).Types().
                 IsDerivedFrom(
                     owned->RuntimeType(),
                     UIElement::StaticTypeId())) {
@@ -575,12 +585,12 @@ ItemContainerGeneratorRuntime::AttachOwnedSubtree(
                 owned.Get());
         auto* childElement = static_cast<UIElement*>(owned.Get());
         if (child.GetVisualParent() == &parent &&
-            child.GetTree() == tree_ &&
+            VisualTree(child) == tree_ &&
             childElement->GetIsLayoutAttached()) {
             return pending.PushBack(&child);
         }
         if (child.GetVisualParent() == &parent) {
-            if (child.GetTree() == nullptr &&
+            if (VisualTree(child) == nullptr &&
                 child.GetLogicalParent() == nullptr) {
                 Base::Result<ElementAttachment> mounted =
                     tree_->AttachElement(parent, child);
@@ -618,7 +628,7 @@ ItemContainerGeneratorRuntime::AttachOwnedSubtree(
                 "Owned item-template child is already mounted elsewhere");
         }
         if (child.GetLogicalParent() != nullptr ||
-            child.GetTree() != nullptr) {
+            VisualTree(child) != nullptr) {
             Base::Result<Aero::VisualAttachment> visual =
                 tree_->AttachVisualChild(parent, child);
             if (!visual) return visual.GetStatus();
@@ -669,7 +679,7 @@ ItemContainerGeneratorRuntime::AttachOwnedSubtree(
         if (current == nullptr) continue;
         const Meta::TypeId type =
             current->RuntimeType();
-        if (owner_->PropertyRegistry().Types().
+        if (PropertyRegistry(owner_).Types().
                 IsDerivedFrom(
                     type, Panel::StaticTypeId())) {
             auto& panel =
@@ -686,7 +696,7 @@ ItemContainerGeneratorRuntime::AttachOwnedSubtree(
                     return attached.GetStatus();
                 }
             }
-        } else if (owner_->PropertyRegistry().Types().
+        } else if (PropertyRegistry(owner_).Types().
                        IsDerivedFrom(
                            type,
                            Decorator::StaticTypeId())) {
@@ -700,7 +710,7 @@ ItemContainerGeneratorRuntime::AttachOwnedSubtree(
                 (void)DetachOwnedSubtree(record);
                 return attached.GetStatus();
             }
-        } else if (owner_->PropertyRegistry().Types().
+        } else if (PropertyRegistry(owner_).Types().
                        IsDerivedFrom(
                            type,
                            ContentControl::StaticTypeId())) {
@@ -714,7 +724,7 @@ ItemContainerGeneratorRuntime::AttachOwnedSubtree(
                 (void)DetachOwnedSubtree(record);
                 return attached.GetStatus();
             }
-        } else if (owner_->PropertyRegistry().Types().
+        } else if (PropertyRegistry(owner_).Types().
                        IsDerivedFrom(
                            type,
                            ContentPresenter::StaticTypeId())) {
@@ -789,26 +799,26 @@ ItemContainerGeneratorRuntime::AttachRecord(
     ContentControl* contentControl = nullptr;
     ContentPresenter* contentPresenter = nullptr;
     HeaderedItemsControl* headeredItemsControl = nullptr;
-    if (owner_->PropertyRegistry().Types().IsDerivedFrom(
+    if (PropertyRegistry(owner_).Types().IsDerivedFrom(
             container.RuntimeType(),
             ContentControl::StaticTypeId())) {
         contentControl = static_cast<ContentControl*>(&container);
     }
-    if (owner_->PropertyRegistry().Types().IsDerivedFrom(
+    if (PropertyRegistry(owner_).Types().IsDerivedFrom(
             container.RuntimeType(),
             ContentPresenter::StaticTypeId())) {
         contentPresenter = static_cast<ContentPresenter*>(&container);
     }
-    if (owner_->PropertyRegistry().Types().IsDerivedFrom(
+    if (PropertyRegistry(owner_).Types().IsDerivedFrom(
             container.RuntimeType(),
             HeaderedItemsControl::StaticTypeId())) {
         headeredItemsControl = static_cast<HeaderedItemsControl*>(&container);
     }
     if (!record.itemIsOwnContainer && headeredItemsControl != nullptr &&
         record.content.Get() != nullptr &&
-        owner_->PropertyRegistry().Types().IsDerivedFrom(
+        PropertyRegistry(owner_).Types().IsDerivedFrom(
             record.content->RuntimeType(), UIElement::StaticTypeId())) {
-        if (owner_->PropertyRegistry().Types().IsDerivedFrom(
+        if (PropertyRegistry(owner_).Types().IsDerivedFrom(
                 record.content->RuntimeType(), TextBlock::StaticTypeId())) {
             static_cast<TextBlock*>(record.content.Get())
                 ->AddValueChangedHandler(
@@ -832,7 +842,7 @@ ItemContainerGeneratorRuntime::AttachRecord(
             // display them. Extracting TextBlock.Text only covers string headers.
             const Value header = Value::FromObject(
                 record.content->RuntimeType(), record.content);
-            if (owner_->PropertyRegistry().Types().IsDerivedFrom(
+            if (PropertyRegistry(owner_).Types().IsDerivedFrom(
                     container.RuntimeType(),
                     TreeViewItem::StaticTypeId())) {
                 static_cast<TreeViewItem&>(container).SetHeader(header);
@@ -857,7 +867,7 @@ ItemContainerGeneratorRuntime::AttachRecord(
             return selected.GetStatus();
         }
         if (record.generatedTextContent &&
-            owner_->PropertyRegistry().Types().IsDerivedFrom(
+            PropertyRegistry(owner_).Types().IsDerivedFrom(
                 container.RuntimeType(), Control::StaticTypeId())) {
             auto* text = static_cast<TextBlock*>(record.content.Get());
             auto& hostControl = static_cast<Control&>(container);
@@ -941,13 +951,13 @@ ItemContainerGeneratorRuntime::AttachRecord(
     if (subtreeCallback_ != nullptr &&
         record.generatedHeader &&
         record.content &&
-        owner_->PropertyRegistry().Types().IsDerivedFrom(
+        PropertyRegistry(owner_).Types().IsDerivedFrom(
             record.content->RuntimeType(), UIElement::StaticTypeId()) &&
-        !owner_->PropertyRegistry().Types().IsDerivedFrom(
+        !PropertyRegistry(owner_).Types().IsDerivedFrom(
             record.content->RuntimeType(), TextBlock::StaticTypeId())) {
         auto& headerVisual =
             *static_cast<Aero::Media::Visual*>(record.content.Get());
-        if (headerVisual.GetTree() != nullptr) {
+        if (VisualTree(headerVisual) != nullptr) {
             Base::Result<void> headerPresented =
                 subtreeCallback_(
                     headerVisual,
@@ -966,7 +976,7 @@ Base::Result<void>
 ItemContainerGeneratorRuntime::ProjectGeneratedContent(
     Record& record) noexcept {
     if (record.itemIsOwnContainer || !record.content || !record.container ||
-        !owner_->PropertyRegistry().Types().IsDerivedFrom(
+        !PropertyRegistry(owner_).Types().IsDerivedFrom(
             record.content->RuntimeType(), UIElement::StaticTypeId())) {
         return {};
     }
@@ -974,21 +984,21 @@ ItemContainerGeneratorRuntime::ProjectGeneratedContent(
     // String headers already live on Header; do not also mount the
     // extracted TextBlock into PART_Header.
     if (record.generatedHeader &&
-        owner_->PropertyRegistry().Types().IsDerivedFrom(
+        PropertyRegistry(owner_).Types().IsDerivedFrom(
             record.content->RuntimeType(), TextBlock::StaticTypeId())) {
         return {};
     }
     if (record.generatedTextContent &&
-        owner_->PropertyRegistry().Types().IsDerivedFrom(
+        PropertyRegistry(owner_).Types().IsDerivedFrom(
             record.content->RuntimeType(), TextBlock::StaticTypeId()) &&
-        owner_->PropertyRegistry().Types().IsDerivedFrom(
+        PropertyRegistry(owner_).Types().IsDerivedFrom(
             record.container->RuntimeType(), Control::StaticTypeId())) {
         auto* text = static_cast<TextBlock*>(record.content.Get());
         auto& hostControl = static_cast<Control&>(*record.container);
         text->SetValue(
             TextBlock::FontSizeProperty, hostControl.GetFontSize());
     }
-    if (!owner_->PropertyRegistry().Types().IsDerivedFrom(
+    if (!PropertyRegistry(owner_).Types().IsDerivedFrom(
             record.container->RuntimeType(), Control::StaticTypeId())) {
         return {};
     }
@@ -1006,7 +1016,7 @@ ItemContainerGeneratorRuntime::ProjectGeneratedContent(
     }
     auto isHeaderPresenter = [&](DependencyObject* node) noexcept -> bool {
         return node != nullptr &&
-            owner_->PropertyRegistry().Types().IsDerivedFrom(
+            PropertyRegistry(owner_).Types().IsDerivedFrom(
                 node->RuntimeType(), ContentPresenter::StaticTypeId()) &&
             static_cast<ContentPresenter*>(node)->GetContentSource() ==
                 Base::StringView("Header");
@@ -1096,7 +1106,7 @@ ItemContainerGeneratorRuntime::ProjectGeneratedContent(
             if (!attached) {
                 return attached.GetStatus();
             }
-        } else if (content.GetTree() == nullptr &&
+        } else if (VisualTree(content) == nullptr &&
                    content.GetLogicalParent() == nullptr) {
             Base::Result<ElementAttachment> mounted =
                 tree_->AttachElement(presenter, content);
@@ -1125,16 +1135,16 @@ Base::Result<void>
 ItemContainerGeneratorRuntime::UpdateGeneratedHeader(
     Record& record) noexcept {
     if (!record.generatedHeader || !record.content || !record.container ||
-        !owner_->PropertyRegistry().Types().IsDerivedFrom(
+        !PropertyRegistry(owner_).Types().IsDerivedFrom(
             record.content->RuntimeType(), TextBlock::StaticTypeId()) ||
-        !owner_->PropertyRegistry().Types().IsDerivedFrom(
+        !PropertyRegistry(owner_).Types().IsDerivedFrom(
             record.container->RuntimeType(),
             HeaderedItemsControl::StaticTypeId())) {
         return {};
     }
     const Base::StringView text =
         static_cast<TextBlock*>(record.content.Get())->GetText();
-    if (owner_->PropertyRegistry().Types().IsDerivedFrom(
+    if (PropertyRegistry(owner_).Types().IsDerivedFrom(
             record.container->RuntimeType(),
             TreeViewItem::StaticTypeId())) {
         static_cast<TreeViewItem*>(record.container.Get())
@@ -1167,17 +1177,17 @@ ItemContainerGeneratorRuntime::DetachRecord(
     ContentControl* contentControl = nullptr;
     ContentPresenter* contentPresenter = nullptr;
     HeaderedItemsControl* headeredItemsControl = nullptr;
-    if (owner_->PropertyRegistry().Types().IsDerivedFrom(
+    if (PropertyRegistry(owner_).Types().IsDerivedFrom(
             container.RuntimeType(),
             ContentControl::StaticTypeId())) {
         contentControl = static_cast<ContentControl*>(&container);
     }
-    if (owner_->PropertyRegistry().Types().IsDerivedFrom(
+    if (PropertyRegistry(owner_).Types().IsDerivedFrom(
             container.RuntimeType(),
             ContentPresenter::StaticTypeId())) {
         contentPresenter = static_cast<ContentPresenter*>(&container);
     }
-    if (owner_->PropertyRegistry().Types().IsDerivedFrom(
+    if (PropertyRegistry(owner_).Types().IsDerivedFrom(
             container.RuntimeType(),
             HeaderedItemsControl::StaticTypeId())) {
         headeredItemsControl = static_cast<HeaderedItemsControl*>(&container);
@@ -1203,7 +1213,7 @@ ItemContainerGeneratorRuntime::DetachRecord(
     // an explicit teardown because the container subtree walk cannot reach it.
     if (record.generatedHeader && record.content &&
         subtreeCallback_ != nullptr &&
-        owner_->PropertyRegistry().Types().IsDerivedFrom(
+        PropertyRegistry(owner_).Types().IsDerivedFrom(
             record.content->RuntimeType(), UIElement::StaticTypeId())) {
         capture(subtreeCallback_(
             *static_cast<Aero::Media::Visual*>(record.content.Get()),
@@ -1213,7 +1223,7 @@ ItemContainerGeneratorRuntime::DetachRecord(
     capture(DetachOwnedSubtree(record));
     owner_->ClearContainer(container);
     if (record.generatedHeader && headeredItemsControl != nullptr) {
-        if (record.content && owner_->PropertyRegistry().Types().IsDerivedFrom(
+        if (record.content && PropertyRegistry(owner_).Types().IsDerivedFrom(
                 record.content->RuntimeType(), TextBlock::StaticTypeId())) {
             static_cast<void>(
                 static_cast<TextBlock*>(record.content.Get())
@@ -1222,7 +1232,7 @@ ItemContainerGeneratorRuntime::DetachRecord(
                         generatedHeaderChangedHandler_));
         }
         const auto clearHeader = [&]() noexcept {
-            if (owner_->PropertyRegistry().Types().IsDerivedFrom(
+            if (PropertyRegistry(owner_).Types().IsDerivedFrom(
                     container.RuntimeType(), TreeViewItem::StaticTypeId())) {
                 static_cast<TreeViewItem&>(container).SetHeader(
                     Value::NullObject(Meta::TypeOf<Base::Object>()));
@@ -1241,7 +1251,7 @@ ItemContainerGeneratorRuntime::DetachRecord(
     }
     if (!record.itemIsOwnContainer &&
         templates_ != nullptr &&
-        owner_->PropertyRegistry().Types().IsDerivedFrom(
+        PropertyRegistry(owner_).Types().IsDerivedFrom(
             container.RuntimeType(), Control::StaticTypeId()) &&
         AeroGuiInternal::IsTemplateApplied(
             static_cast<Control&>(container))) {
@@ -1807,27 +1817,23 @@ Base::Status ItemContainerGenerator::LastError() const noexcept {
               "ItemContainerGenerator is not initialized");
 }
 
-} // namespace Aero::Controls
-
-namespace Aero {
-
-Base::Result<Controls::ItemContainerGenerator*>
-AeroGuiInternal::CreateItemContainerGenerator(
+Base::Result<ItemContainerGenerator*>
+ItemContainerGeneratorRuntime::Create(
     ElementTree& tree,
     Aero::LayoutEngine& layout,
     Meta::EffectiveValueEngine& values,
     Aero::StyleEngine* styles,
     ::Aero::Render::RenderTree* renderer,
-    Controls::TemplateEngine* templates,
-    Controls::ItemSubtreeCallback subtreeCallback,
+    TemplateEngine* templates,
+    ItemSubtreeCallback subtreeCallback,
     void* subtreeContext) noexcept {
-    auto* generator = new (std::nothrow) Controls::ItemContainerGenerator();
+    auto* generator = new (std::nothrow) ItemContainerGenerator();
     if (generator == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfMemory,
             "ItemContainerGenerator allocation failed");
     }
-    generator->impl_ = new (std::nothrow) Controls::ItemContainerGeneratorImpl(
+    generator->impl_ = new (std::nothrow) ItemContainerGeneratorRuntime(
         *generator,
         tree,
         layout,
@@ -1844,6 +1850,31 @@ AeroGuiInternal::CreateItemContainerGenerator(
             "ItemContainerGenerator runtime allocation failed");
     }
     return generator;
+}
+
+} // namespace Aero::Controls
+
+namespace Aero {
+
+Base::Result<Controls::ItemContainerGenerator*>
+AeroGuiInternal::CreateItemContainerGenerator(
+    ElementTree& tree,
+    Aero::LayoutEngine& layout,
+    Meta::EffectiveValueEngine& values,
+    Aero::StyleEngine* styles,
+    ::Aero::Render::RenderTree* renderer,
+    Controls::TemplateEngine* templates,
+    Controls::ItemSubtreeCallback subtreeCallback,
+    void* subtreeContext) noexcept {
+    return Controls::ItemContainerGeneratorRuntime::Create(
+        tree,
+        layout,
+        values,
+        styles,
+        renderer,
+        templates,
+        subtreeCallback,
+        subtreeContext);
 }
 
 } // namespace Aero

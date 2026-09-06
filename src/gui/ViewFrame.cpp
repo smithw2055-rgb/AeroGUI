@@ -801,7 +801,7 @@ Base::Result<void> ViewState::AttachItemGenerator(
         }
         Controls::Panel* host = itemsControl.GetItemsHost();
         if (host == nullptr) return {};
-        if (itemsControl.GetTree() != tree || host->GetTree() != tree) {
+        if (VisualTree(itemsControl) != tree || VisualTree(host) != tree) {
             return {};
         }
 

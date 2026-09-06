@@ -32,7 +32,7 @@ bool ContainsTransform(
     const Transform& value,
     const Transform* sought) noexcept {
     if (&value == sought) return true;
-    if (!value.PropertyRegistry().Types().IsDerivedFrom(
+    if (!PropertyRegistry(value).Types().IsDerivedFrom(
             value.RuntimeType(), TransformGroup::StaticTypeId())) {
         return false;
     }

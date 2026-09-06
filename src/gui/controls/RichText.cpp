@@ -160,7 +160,7 @@ Base::Result<bool> AppendRichTextBinding(
     Base::StringView path,
     Base::StringView format,
     Base::String& output) noexcept {
-    if (!object.PropertyRegistry().Types().IsDerivedFrom(
+    if (!PropertyRegistry(object).Types().IsDerivedFrom(
             object.RuntimeType(),
             FrameworkElement::StaticTypeId())) {
         return false;
@@ -212,7 +212,7 @@ bool SameRichTextState(
 } // namespace
 
 void ApplyRichText(DependencyObject& object) noexcept {
-    if (!object.PropertyRegistry().Types().IsDerivedFrom(
+    if (!PropertyRegistry(object).Types().IsDerivedFrom(
             object.RuntimeType(),
             Controls::TextBlock::StaticTypeId())) return;
     const Base::StringView source = object.GetValue(RichText::TextProperty);

@@ -157,7 +157,7 @@ Implementation `.cpp` files include that header.
 (`Layout()`, `Bindings()`, `Styles()`, `Events()`, `Input()`, `Animations()`,
 `VisualStates()`, `Templates()`, `TextLayout()`, `ControlBehaviors()`,
 `MeshResources()`, `FindName()`). Visual/UIElement reach the tree through
-`GetTree()`. Engines are ordinary objects; they do not inherit a Facet base
+`VisualTree()`. Engines are ordinary objects; they do not inherit a Facet base
 just to sit in an array.
 
 Hot private data stays on the object (required for `sizeof` when types are

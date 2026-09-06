@@ -55,9 +55,6 @@ protected:
         ::Aero::Media::DrawingContext& context) noexcept override;
 private:
     friend class UIElementCollection;
-#if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::AeroGuiInternal;
-#endif
     std::uint32_t ChildCountCore() const noexcept { return ownedChildren_.Size(); }
     Ref<Base::Object> ChildAtCore(std::uint32_t index) const noexcept {
         return index < ownedChildren_.Size() ? ownedChildren_[index] : Ref<Base::Object>{};

@@ -459,7 +459,7 @@ Base::Result<void> Gui::LoadComponent(
             externalRootReferences);
     if (!retained) return retained.GetStatus();
     if (UIElement* element = TryCast<UIElement>(&component)) {
-        if (ElementTree* tree = element->GetTree()) {
+        if (ElementTree* tree = VisualTree(element)) {
             if (ViewState* viewState = tree->GetViewState()) {
                 for (std::uint32_t index = 0U;
                      index < state.pendingDocuments.Size(); ++index) {

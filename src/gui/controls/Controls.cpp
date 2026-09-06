@@ -16,6 +16,7 @@
 #include <Aero/TryCast.hpp>
 #include "RichText.hpp"
 
+#include "gui/internal/AeroGuiInternal.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -28,14 +29,14 @@ namespace Aero {
 
 void AeroGuiInternal::PathInvalidateGeometry(
     Shapes::Path& path) noexcept {
-    path.ResetGeometry();
+    AERO_CALL_METHOD(path, Path_ResetGeometry);
 }
 
 void AeroGuiInternal::PathAttachMeshResources(
     Shapes::Path& path,
     void* services,
     bool invalidate) noexcept {
-    path.AttachMeshResources(services, invalidate);
+    AERO_CALL_METHOD(path, Path_AttachMeshResources, services, invalidate);
     if (invalidate) {
         static_cast<void>(path.InvalidateVisual());
     }
@@ -44,12 +45,12 @@ void AeroGuiInternal::PathAttachMeshResources(
 void AeroGuiInternal::SetMenuItemHighlighted(
     Controls::MenuItem& item,
     bool value) noexcept {
-    item.SetHighlightedState(value);
+    AERO_CALL_METHOD(item, MenuItem_SetHighlightedState, value);
 }
 
 void AeroGuiInternal::SyncSelectorContainers(
     Controls::Primitives::Selector& selector) noexcept {
-    selector.SyncContainers();
+    AERO_CALL_METHOD(selector, Selector_SyncContainers);
 }
 
 std::uint32_t AeroGuiInternal::TreeViewItemCount(
@@ -60,13 +61,13 @@ std::uint32_t AeroGuiInternal::TreeViewItemCount(
 void AeroGuiInternal::OnContentControlPropertyChanged(
     ::Aero::DependencyObject& object,
     const Meta::DependencyPropertyChangedEventArgs& change) noexcept {
-    Controls::ContentControl::OnContentPropertyChanged(object, change);
+    AERO_CALL_STATIC_METHOD(ContentControl_OnContentPropertyChanged, object, change);
 }
 
 void AeroGuiInternal::SetItemsSource(
     Controls::ItemsControl& control,
     Collections::IItemsSource* source) noexcept {
-    control.SetItemsSourceCore(source);
+    AERO_CALL_METHOD(control, ItemsControl_SetItemsSourceCore, source);
 }
 
 void AeroGuiInternal::SetItemsSource(
@@ -77,7 +78,7 @@ void AeroGuiInternal::SetItemsSource(
     if (directSource == nullptr) {
         directSource = Collections::CollectionAsItemsSource(source.Get());
     }
-    control.SetItemsSourceCore(directSource);
+    AERO_CALL_METHOD(control, ItemsControl_SetItemsSourceCore, directSource);
 }
 
 void AeroGuiInternal::SetItemsSourceBorrowed(
@@ -86,36 +87,36 @@ void AeroGuiInternal::SetItemsSourceBorrowed(
     control.SetValue(
         Controls::ItemsControl::ItemsSourceProperty,
         Base::Ref<Base::Object>{});
-    control.SetItemsSourceCore(source);
+    AERO_CALL_METHOD(control, ItemsControl_SetItemsSourceCore, source);
 }
 
 void AeroGuiInternal::SetItemTemplate(
     Controls::ItemsControl& control,
     const DataTemplate* value) noexcept {
-    control.SetItemTemplateCore(value);
+    AERO_CALL_METHOD(control, ItemsControl_SetItemTemplateCore, value);
 }
 
 void AeroGuiInternal::SetItemTemplateSelector(
     Controls::ItemsControl& control,
     const DataTemplateSelector* value) noexcept {
-    control.SetItemTemplateSelectorCore(value);
+    AERO_CALL_METHOD(control, ItemsControl_SetItemTemplateSelectorCore, value);
 }
 
 void AeroGuiInternal::SetItemsPanel(
     Controls::ItemsControl& control,
     const Controls::ItemsPanelTemplate* value) noexcept {
-    control.SetItemsPanelCore(value);
+    AERO_CALL_METHOD(control, ItemsControl_SetItemsPanelCore, value);
 }
 
 void AeroGuiInternal::SetItemContainerStyle(
     Controls::ItemsControl& control,
     const Style* value) noexcept {
-    control.SetItemContainerStyleCore(value);
+    AERO_CALL_METHOD(control, ItemsControl_SetItemContainerStyleCore, value);
 }
 
 void AeroGuiInternal::RefreshDisplayMemberPath(
     Controls::ItemsControl& control) noexcept {
-    control.PublishReset();
+    AERO_CALL_METHOD(control, ItemsControl_PublishReset);
 }
 
 void AeroGuiInternal::AttachTextLayout(

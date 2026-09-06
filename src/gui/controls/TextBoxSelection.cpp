@@ -540,7 +540,7 @@ Size TextBox::ArrangeOverride(
 void TextBox::OnApplyTemplate() noexcept {
     Control::OnApplyTemplate();
     DependencyObject* part = GetTemplateChild(Base::StringView("PART_ContentHost"));
-    if (part != nullptr && PropertyRegistry().Types().IsDerivedFrom(
+    if (part != nullptr && PropertyRegistry(*this).Types().IsDerivedFrom(
             part->RuntimeType(), ScrollViewer::StaticTypeId())) {
         static_cast<void>(AttachScrollViewer(static_cast<ScrollViewer*>(part)));
     } else {

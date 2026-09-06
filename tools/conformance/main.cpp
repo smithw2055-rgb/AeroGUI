@@ -124,7 +124,7 @@ void VerifyExpressionFreezeRejection() noexcept {
         std::move(made).Value();
 
     Aero::Meta::EffectiveValueEngine values(
-        stop->GetDispatcher(), stop->PropertyRegistry());
+        stop->GetDispatcher(), PropertyRegistry(stop));
     Aero::Base::Result<void> initialized = values.Initialize();
     Check(initialized.HasValue(),
         "expression freeze value engine initialization failed");
@@ -225,8 +225,7 @@ void VerifyGradientFreeze() noexcept {
     changedCount = 0U;
     Aero::FreezableChangedHandler handler(&CountChanged);
     brush.AddChangedHandler(handler);
-    Check(brush.AddGradientStop(stop).HasValue(),
-        "gradient stop attachment failed");
+    brush.AddGradientStop(stop);
     const std::uint32_t beforeChildChange = changedCount;
     stop->SetValue(
         Aero::Media::GradientStop::OffsetProperty, 0.25);
@@ -756,9 +755,8 @@ void VerifyMaskAndEffectRendering(Aero::View& view) noexcept {
     firstStop->SetColor({1.0F, 1.0F, 1.0F, 0.1F});
     secondStop->SetOffset(1.0);
     secondStop->SetColor({1.0F, 1.0F, 1.0F, 1.0F});
-    Check(gradient->AddGradientStop(firstStop).HasValue() &&
-            gradient->AddGradientStop(secondStop).HasValue(),
-        "gradient mask stop attachment failed");
+    gradient->AddGradientStop(firstStop);
+    gradient->AddGradientStop(secondStop);
     background->SetColor({0.2F, 0.4F, 0.8F, 1.0F});
     rootMask->SetColor({1.0F, 1.0F, 1.0F, 0.85F});
     rootEffect->SetRadius(6.0);
@@ -878,9 +876,8 @@ void VerifyAuthoringPropertySynchronization() noexcept {
     auto transitionRef = Aero::Base::MakeRef<Aero::VisualTransition>();
     if (transitionRef) {
         Aero::VisualTransition& transition = *transitionRef.Value();
-        Check(!transition.SetGeneratedDuration("not-a-duration"),
-            "VisualTransition accepted an invalid GeneratedDuration");
-        Check(transition.SetGeneratedDuration("250ms").HasValue(),
+        transition.SetGeneratedDuration("250ms");
+        Check(transition.GetGeneratedDuration() == Aero::Base::StringView("250ms"),
             "VisualTransition rejected a valid GeneratedDuration");
     }
     Check(

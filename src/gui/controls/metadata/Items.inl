@@ -718,7 +718,7 @@ Base::Result<void> PopulateControlsItems(
             HeaderedContentControl::HeaderTemplateProperty,
             FrameworkPropertyMetadata(Base::Ref<DataTemplate>{})
                 .AffectsMeasure())
-        .Factory(&CreateBasicHeaderedContentControl);
+        .Factory<BasicHeaderedContentControl>();
     status = headered.Result();
     if (!status) return status.GetStatus();
 

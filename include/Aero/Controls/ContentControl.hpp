@@ -11,9 +11,6 @@ using ::Aero::Meta::DependencyPropertyChangedEventHandler;
 using ::Aero::Meta::TypeId;
 class AERO_GUI_API ContentControl : public Control {
     AERO_DECLARE_TYPE(ContentControl, Control)
-#if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::AeroGuiInternal;
-#endif
 public:
     AERO_DEPENDENCY_PROPERTY(Value, Content);
     AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, ContentTemplate);

@@ -48,7 +48,7 @@ Base::Result<void> EnsureVisualChildStorage(
     ::Aero::Media::Visual& child) noexcept {
     UIElement* childElement = ::Aero::TryCast<::Aero::UIElement>(&(child));
     if (childElement == nullptr) return {};
-    const TypeRegistry& types = parent.PropertyRegistry().Types();
+    const TypeRegistry& types = PropertyRegistry(parent).Types();
     if (types.IsDerivedFrom(
             parent.RuntimeType(), Controls::Panel::StaticTypeId())) {
         auto& panel = static_cast<Controls::Panel&>(parent);
@@ -160,7 +160,7 @@ std::uint32_t Media::VisualTreeHelper::GetChildrenCount(const ::Aero::Media::Vis
 
 DependencyObject* LogicalTreeHelper::GetParent(
     const DependencyObject& object) noexcept {
-    const TypeRegistry& types = object.PropertyRegistry().Types();
+    const TypeRegistry& types = PropertyRegistry(object).Types();
     if (types.IsDerivedFrom(
             object.RuntimeType(), FrameworkContentElement::StaticTypeId())) {
         return static_cast<const FrameworkContentElement&>(object).GetParent();
@@ -177,7 +177,7 @@ DependencyObject* LogicalTreeHelper::GetParent(
 
 std::uint32_t LogicalTreeHelper::GetChildrenCount(
     const DependencyObject& object) noexcept {
-    const TypeRegistry& types = object.PropertyRegistry().Types();
+    const TypeRegistry& types = PropertyRegistry(object).Types();
     if (types.IsDerivedFrom(
             object.RuntimeType(), FrameworkContentElement::StaticTypeId())) {
         return AeroGuiInternal::LogicalChildrenCount(
@@ -194,7 +194,7 @@ std::uint32_t LogicalTreeHelper::GetChildrenCount(
 DependencyObject* LogicalTreeHelper::GetChild(
     const DependencyObject& object,
     std::uint32_t index) noexcept {
-    const TypeRegistry& types = object.PropertyRegistry().Types();
+    const TypeRegistry& types = PropertyRegistry(object).Types();
     if (types.IsDerivedFrom(
             object.RuntimeType(), FrameworkContentElement::StaticTypeId())) {
         return AeroGuiInternal::LogicalChild(
@@ -480,7 +480,7 @@ Base::Result<void> ElementTree::TrackInheritedValues(
     ::Aero::Media::Visual& node) noexcept {
     FrameworkElement* element = ::Aero::TryCast<::Aero::FrameworkElement>(&(node));
     if (element == nullptr ||
-        element->PropertyRegistry().Find(
+        PropertyRegistry(element).Find(
             FrameworkElement::DataContextProperty) == nullptr) {
         return {};
     }
@@ -501,7 +501,7 @@ Base::Result<void> ElementTree::TrackInheritedValues(
 void ElementTree::UntrackInheritedValues(::Aero::Media::Visual& node) noexcept {
     FrameworkElement* element = ::Aero::TryCast<::Aero::FrameworkElement>(&(node));
     if (element == nullptr ||
-        element->PropertyRegistry().Find(
+        PropertyRegistry(element).Find(
             FrameworkElement::DataContextProperty) == nullptr) {
         return;
     }
@@ -832,12 +832,12 @@ Base::Result<void> ElementTree::AttachVisual(
     if (parent.tree_ == this && child.tree_ != this) {
         SetTreeSubtree(child, this);
     }
-    if (parent.PropertyRegistry().Types().IsDerivedFrom(
+    if (PropertyRegistry(parent).Types().IsDerivedFrom(
             parent.RuntimeType(), Controls::Control::StaticTypeId()) &&
         ::Aero::TryCast<::Aero::UIElement>(&(child)) != nullptr) {
         auto& control = static_cast<Controls::Control&>(parent);
         const bool isContentControl =
-            parent.PropertyRegistry().Types().IsDerivedFrom(
+            PropertyRegistry(parent).Types().IsDerivedFrom(
                 parent.RuntimeType(),
                 Controls::ContentControl::StaticTypeId());
         const bool contentVisual =
@@ -1372,7 +1372,7 @@ Base::Result<void> ElementTree::AttachVisualGraph(
         for (Markup::VisualEdge& edge : edges) {
             if (edge.state.logicalAttached || edge.parent == nullptr ||
                 edge.child == nullptr ||
-                edge.parent->GetTree() != this ||
+                VisualTree(edge.parent) != this ||
                 !parentRenderReady(*edge.parent)) {
                 continue;
             }
@@ -1406,7 +1406,7 @@ Base::Result<void> ElementTree::CompleteVisualEdges(
         for (Markup::VisualEdge& edge : edges) {
             if (edge.state.logicalAttached ||
                 edge.parent == nullptr || edge.child == nullptr ||
-                edge.parent->GetTree() != this) {
+                VisualTree(edge.parent) != this) {
                 continue;
             }
             if (renderer_ != nullptr &&
@@ -1415,7 +1415,7 @@ Base::Result<void> ElementTree::CompleteVisualEdges(
                 edge.parent != root_) {
                 continue;
             }
-            if (edge.child->GetTree() == this &&
+            if (VisualTree(edge.child) == this &&
                 AeroGuiInternal::RenderAttached(*edge.child)) {
                 continue;
             }

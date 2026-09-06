@@ -75,9 +75,6 @@ protected:
 
 private:
     friend class ResourceResolver;
-#if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::AeroGuiInternal;
-#endif
     void AddAuthoredTrigger(
         Ref<Base::Object> trigger) noexcept;
     void ClearAuthoredTriggers() noexcept;

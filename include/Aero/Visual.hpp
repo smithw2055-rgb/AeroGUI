@@ -12,7 +12,6 @@ namespace Aero {
 
 class ElementTree;
 class LogicalTreeHelper;
-class AeroGuiInternal;
 
 } // namespace Aero
 
@@ -45,10 +44,6 @@ public:
         Base::Point point,
         Base::Point& local) const noexcept;
 
-#if defined(AERO_GUI_IMPLEMENTATION)
-    ::Aero::ElementTree* GetTree() const noexcept { return tree_; }
-#endif
-
 protected:
     virtual std::uint32_t GetVisualChildrenCount() const noexcept { return 0U; }
     virtual Visual* GetVisualChild(std::uint32_t) const noexcept { return nullptr; }
@@ -70,9 +65,6 @@ private:
     friend class ::Aero::LogicalTreeHelper;
     friend class ::Aero::ElementTree;
     friend class VisualTreeHelper;
-#if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::AeroGuiInternal;
-#endif
     Result<Ref<Base::Object>> AcquireLifetime() noexcept;
 
     static constexpr std::uint8_t kFlagRenderAttached = 1U << 0U;

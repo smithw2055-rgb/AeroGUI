@@ -224,7 +224,7 @@ Base::Result<BindingHandle> BindingEngine::Attach(
         }
         record.pathPlan = std::move(compiled).Value();
         const DependencyProperty* targetProperty =
-            descriptor.target->PropertyRegistry().Find(
+            PropertyRegistry(descriptor.target).Find(
                 descriptor.targetProperty);
         if (targetProperty == nullptr ||
             (descriptor.convert == nullptr &&
@@ -278,7 +278,7 @@ Base::Result<BindingHandle> BindingEngine::Attach(
         }
     } else if (record.sourceKind == BindingSourceKind::MetadataObject) {
         const DependencyProperty* targetProperty =
-            descriptor.target->PropertyRegistry().Find(
+            PropertyRegistry(descriptor.target).Find(
                 descriptor.targetProperty);
         if (targetProperty == nullptr ||
             (!targetProperty->AcceptsAnyValue() &&
@@ -584,7 +584,7 @@ UpdateSourceTrigger BindingEngine::ResolveUpdateSourceTrigger(
         return requested;
     }
     const DependencyProperty* info =
-        target.PropertyRegistry().Find(property);
+        PropertyRegistry(target).Find(property);
     if (info == nullptr) {
         return UpdateSourceTrigger::PropertyChanged;
     }
@@ -606,7 +606,7 @@ BindingMode BindingEngine::ResolveBindingMode(
         return requested;
     }
     const DependencyProperty* info =
-        target.PropertyRegistry().Find(property);
+        PropertyRegistry(target).Find(property);
     if (info == nullptr) {
         return BindingMode::OneWay;
     }

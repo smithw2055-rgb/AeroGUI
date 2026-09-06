@@ -20,6 +20,7 @@
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include "gui/meta/MetadataState.hpp"
+#include "gui/core/DependencyPropertyRegistry.hpp"
 #include "gui/internal/ErasedRoutedHandler.hpp"
 
 using namespace Aero;
@@ -67,10 +68,10 @@ Base::Result<void> UIElement::ArrangeChild(
         child.LayoutParent() != this) {
         thread_local char message[512];
         const TypeInfo* parentType =
-            PropertyRegistry().Types().FindType(
+            PropertyRegistry(*this).Types().FindType(
                 RuntimeType());
         const TypeInfo* childType =
-            child.PropertyRegistry().Types().FindType(
+            PropertyRegistry(child).Types().FindType(
                 child.RuntimeType());
         const Base::StringView parentName =
             parentType != nullptr
@@ -82,7 +83,7 @@ Base::Result<void> UIElement::ArrangeChild(
             : Base::StringView("<unknown>");
         const TypeInfo* actualParentType =
             child.LayoutParent() != nullptr
-            ? PropertyRegistry().Types().FindType(
+            ? PropertyRegistry(*this).Types().FindType(
                   child.LayoutParent()->
                       RuntimeType())
             : nullptr;
@@ -170,10 +171,10 @@ Base::Result<void> UIElement::MeasureChild(
         child.LayoutParent() != this) {
         thread_local char message[512];
         const TypeInfo* parentType =
-            PropertyRegistry().Types().FindType(
+            PropertyRegistry(*this).Types().FindType(
                 RuntimeType());
         const TypeInfo* childType =
-            child.PropertyRegistry().Types().FindType(
+            PropertyRegistry(child).Types().FindType(
                 child.RuntimeType());
         const Base::StringView parentName =
             parentType != nullptr
@@ -185,7 +186,7 @@ Base::Result<void> UIElement::MeasureChild(
             : Base::StringView("<unknown>");
         const TypeInfo* actualParentType =
             child.LayoutParent() != nullptr
-            ? PropertyRegistry().Types().FindType(
+            ? PropertyRegistry(*this).Types().FindType(
                   child.LayoutParent()->
                       RuntimeType())
             : nullptr;

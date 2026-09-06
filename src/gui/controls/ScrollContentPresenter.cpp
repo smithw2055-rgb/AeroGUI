@@ -441,7 +441,7 @@ void ScrollContentPresenter::OnScrollDataChanged(
         GetTemplatedParent();
     if (templatedParent == nullptr ||
         templatedParent == this ||
-        !PropertyRegistry().Types().IsDerivedFrom(
+        !PropertyRegistry(*this).Types().IsDerivedFrom(
             templatedParent->RuntimeType(),
             ScrollViewer::StaticTypeId())) {
         return;

@@ -40,7 +40,7 @@ function(aero_forbid_text relative_path needle description)
 endfunction()
 
 # Public include-closure budget. Counts unique installed Aero* headers reachable
-# from a start header, skipping AERO_GUI_IMPLEMENTATION-only includes. Caps are
+# from a start header. Caps are
 # filled from a post-cut measurement (measured + 10%), never invented first.
 set(AERO_INCLUDE_CLOSURE_SCRIPT
     "${AERO_SOURCE_DIR}/cmake/CountPublicIncludeClosure.py")
@@ -986,13 +986,18 @@ foreach(aero_low_level_spelling IN ITEMS
             "Meta.hpp: typed authoring facade exposes ${aero_low_level_spelling}")
     endif()
 endforeach()
-foreach(aero_private_access_header IN ITEMS
-        "include/Aero/Controls/Control.hpp"
-        "include/Aero/Media/Brush.hpp")
-    aero_require_text(
-        "${aero_private_access_header}"
-        "#if defined(AERO_GUI_IMPLEMENTATION)"
-        "Access implementation seams must be private to SDK consumers")
+file(GLOB_RECURSE aero_all_public_headers
+    RELATIVE "${AERO_SOURCE_DIR}"
+    "${AERO_SOURCE_DIR}/include/*.hpp")
+foreach(aero_pub_hdr IN LISTS aero_all_public_headers)
+    aero_forbid_text(
+        "${aero_pub_hdr}"
+        "AERO_GUI_IMPLEMENTATION"
+        "Public SDK headers must not contain AERO_GUI_IMPLEMENTATION")
+    aero_forbid_text(
+        "${aero_pub_hdr}"
+        "AeroGuiInternal"
+        "Public SDK headers must not contain AeroGuiInternal")
 endforeach()
 file(GLOB_RECURSE aero_public_headers_with_access
     RELATIVE "${AERO_SOURCE_DIR}"
@@ -2124,9 +2129,9 @@ aero_forbid_text(
     "include/Aero/FrameworkContentElement.hpp"
     "class AERO_GUI_API ContentElement"
     "ContentElement must live in ContentElement.hpp")
-aero_require_text(
+aero_forbid_text(
     "include/Aero/Visual.hpp"
-    "#if defined(AERO_GUI_IMPLEMENTATION)\n    ::Aero::ElementTree* GetTree() const noexcept { return tree_; }\n#endif"
+    "GetTree"
     "Visual.GetTree must not be declared on the installed SDK class")
 aero_require_text(
     "include/Aero/Visual.hpp"

@@ -62,9 +62,6 @@ protected:
     void OnTemplateDetached() noexcept override;
 
 private:
-#if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::AeroGuiInternal;
-#endif
     friend class ItemsControl;
     friend class TreeView;
     TextBlock* headerText_ = nullptr;

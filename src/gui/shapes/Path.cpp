@@ -699,7 +699,7 @@ Base::Result<void> Path::EnsureMesh() noexcept {
     if (!geometry) {
         return geometry.GetStatus();
     }
-    auto* tree = this->GetTree();
+    auto* tree = VisualTree(this);
     auto* services = tree != nullptr ? tree->MeshResources() : nullptr;
     if (services == nullptr ||
         services->create == nullptr) {

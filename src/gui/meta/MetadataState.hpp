@@ -1,6 +1,8 @@
 #pragma once
 
 #include <Aero/Meta.hpp>
+#include <Aero/Base/HashMap.hpp>
+#include "gui/core/DependencyPropertyRegistry.hpp"
 
 namespace Aero {
 class MetadataPrivate;

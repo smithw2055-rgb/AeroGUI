@@ -15,6 +15,8 @@
 
 namespace Aero {
 
+using Meta::PropertyProviderSet;
+
 // Uncommon DP data. Allocated when an inherited/provider/expression/
 // animation/current/queue payload exists. Simple local values live inline in
 // StoredValueEntry::inlineLocal (P2.1), so GetValue/SetValue of an ordinary

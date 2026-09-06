@@ -118,7 +118,7 @@ ListView::OnApplyTemplate() noexcept {
         GetTemplateChild("ColumnHeaders");
     columnHeaders_ =
         headers != nullptr &&
-        PropertyRegistry().Types().IsDerivedFrom(
+        PropertyRegistry(*this).Types().IsDerivedFrom(
             headers->RuntimeType(),
             TextBlock::StaticTypeId())
         ? static_cast<TextBlock*>(headers)

@@ -63,10 +63,6 @@ protected:
     void OnRender(::Aero::Media::DrawingContext& context) noexcept override;
 
 private:
-#if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::AeroGuiInternal;
-#endif
-
     Result<void> EnsureGeometry() noexcept;
     Result<void> EnsureMesh() noexcept;
     void ResetGeometry() noexcept;

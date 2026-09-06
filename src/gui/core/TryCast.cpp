@@ -47,8 +47,7 @@ bool IsRuntimeTypeDerivedFrom(
     if (types != nullptr &&
         types->IsDerivedFrom(
             runtimeType, DependencyObject::StaticTypeId())) {
-        return static_cast<const DependencyObject*>(object)
-            ->PropertyRegistry()
+        return PropertyRegistry(static_cast<const DependencyObject*>(object))
             .Types()
             .IsDerivedFrom(runtimeType, baseType);
     }
@@ -72,8 +71,7 @@ void* TryCastToInterface(
     if (types != nullptr &&
         types->IsDerivedFrom(
             object->RuntimeType(), DependencyObject::StaticTypeId())) {
-        return static_cast<DependencyObject*>(object)
-            ->PropertyRegistry()
+        return PropertyRegistry(static_cast<DependencyObject*>(object))
             .Types()
             .TryCastToInterface(*object, interfaceType);
     }

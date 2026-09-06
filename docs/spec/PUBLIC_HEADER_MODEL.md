@@ -94,7 +94,7 @@ spine does not compile the command object model.
 
 Installed spine headers keep include-closure thin: `DependencyProperty.hpp`
 uses `Diagnostics/EffectiveValueSource.hpp` (not `PropertyValueSource.hpp`)
-and keeps `HashMap` behind `AERO_GUI_IMPLEMENTATION`; `DependencyObject.hpp`
+and keeps `HashMap` in internal headers; `DependencyObject.hpp`
 includes `DispatcherReentrancyGuard.hpp` instead of `Threading.hpp`;
 `Resources.hpp` includes `Diagnostics/SourceSpan.hpp` instead of
 `Diagnostics.hpp`. `CheckArchitecture.cmake` budgets public include-closure

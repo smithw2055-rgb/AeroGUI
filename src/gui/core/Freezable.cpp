@@ -1,10 +1,12 @@
 #include <Aero/Freezable.hpp>
 
 #include "gui/meta/MetadataState.hpp"
+#include "gui/core/DependencyPropertyRegistry.hpp"
 #include "gui/core/State.hpp"
 #include "gui/core/state/FreezableState.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
 
 #include <new>
 #include <utility>
@@ -32,7 +34,7 @@ Freezable* AsFreezable(
         return nullptr;
     }
     Base::Object* object = value.AsObject().Get();
-    if (!owner.PropertyRegistry().Types().IsDerivedFrom(
+    if (!PropertyRegistry(owner).Types().IsDerivedFrom(
             object->RuntimeType(), Freezable::StaticTypeId())) {
         return nullptr;
     }
@@ -339,12 +341,13 @@ Base::Result<void> AeroGuiInternal::AttachFreezableConsumer(
     DependencyObject& object,
     Meta::DependencyPropertyHandle property) noexcept {
     if (value.IsFrozen() || !property.IsValid()) return {};
-    if (!value.EnsureState()) {
+    if (!AERO_CALL_METHOD(value, Freezable_EnsureState)) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfMemory,
             "Freezable consumer state allocation failed");
     }
-    for (const FreezableState::ConsumerRecord& record : value.impl_->consumers) {
+    FreezableState* impl = AERO_GET_FIELD(value, Freezable_impl);
+    for (const FreezableState::ConsumerRecord& record : impl->consumers) {
         Base::Ref<DependencyObject> retained = record.object.Lock();
         DependencyObject* candidate = retained
             ? retained.Get()
@@ -360,23 +363,24 @@ Base::Result<void> AeroGuiInternal::AttachFreezableConsumer(
         record.unmanagedObject = &object;
     }
     record.property = property;
-    return value.impl_->consumers.PushBack(std::move(record));
+    return impl->consumers.PushBack(std::move(record));
 }
 
 void AeroGuiInternal::DetachFreezableConsumer(
     Freezable& value,
     DependencyObject& object,
     Meta::DependencyPropertyHandle property) noexcept {
-    if (value.impl_ == nullptr) return;
+    FreezableState* impl = AERO_GET_FIELD(value, Freezable_impl);
+    if (impl == nullptr) return;
     for (std::uint32_t index = 0U;
-         index < value.impl_->consumers.Size(); ++index) {
-        FreezableState::ConsumerRecord& record = value.impl_->consumers[index];
+         index < impl->consumers.Size(); ++index) {
+        FreezableState::ConsumerRecord& record = impl->consumers[index];
         Base::Ref<DependencyObject> retained = record.object.Lock();
         DependencyObject* candidate = retained
             ? retained.Get()
             : record.unmanagedObject;
         if (candidate == &object && record.property == property) {
-            RemoveConsumerAt(value.impl_->consumers, index);
+            RemoveConsumerAt(impl->consumers, index);
             return;
         }
     }
@@ -384,12 +388,13 @@ void AeroGuiInternal::DetachFreezableConsumer(
 
 std::uint64_t AeroGuiInternal::FreezableRevision(
     const Freezable& value) noexcept {
-    return value.impl_ != nullptr ? value.impl_->revision : 0U;
+    FreezableState* impl = AERO_GET_FIELD(value, Freezable_impl);
+    return impl != nullptr ? impl->revision : 0U;
 }
 
 bool AeroGuiInternal::FreezableCheckCore(
     Freezable& value) noexcept {
-    return value.FreezeCore(true);
+    return AERO_CALL_METHOD(value, Freezable_FreezeCore, true);
 }
 
 bool AeroGuiInternal::HasUnfreezableValueState(
@@ -414,8 +419,8 @@ Base::Result<void> AeroGuiInternal::VisitFreezableChildren(
     FreezableVisitor visitor) noexcept {
     if (visitor == nullptr) return {};
     for (const Meta::DependencyProperty& property :
-         object.registry_->Properties()) {
-        if (property.MetadataFor(object.runtimeType_) == nullptr) continue;
+         PropertyRegistry(object).Properties()) {
+        if (property.MetadataFor(object.RuntimeType()) == nullptr) continue;
         const Meta::PropertyValue value = object.GetValue(property.Handle());
         Freezable* child = AsFreezable(object, value);
         if (child == nullptr) continue;
@@ -454,14 +459,14 @@ void AeroGuiInternal::InvalidateSubProperty(
     DependencyObject& object,
     Meta::DependencyPropertyHandle propertyHandle) noexcept {
     const Meta::DependencyProperty* property =
-        object.registry_->Find(propertyHandle);
+        PropertyRegistry(object).Find(propertyHandle);
     const Meta::PropertyMetadata* metadata = property != nullptr
-        ? property->MetadataFor(object.runtimeType_)
+        ? property->MetadataFor(object.RuntimeType())
         : nullptr;
     if (metadata == nullptr) return;
     const Meta::PropertyInvalidationFlags flags =
-        object.AccumulateInvalidations(metadata->flags);
-    object.OnPropertyInvalidated(flags);
+        AERO_CALL_METHOD(object, DO_AccumulateInvalidations, metadata->flags);
+    AERO_CALL_METHOD(object, DO_OnPropertyInvalidated, flags);
 }
 
 } // namespace Aero

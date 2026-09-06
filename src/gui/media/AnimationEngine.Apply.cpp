@@ -707,7 +707,7 @@ Base::Result<bool> AnimationEngine::ApplyTrack(
     }
 
     const Meta::DependencyProperty* targetProperty =
-        track.target->PropertyRegistry().Find(
+        PropertyRegistry(track.target).Find(
             track.property);
     if (targetProperty != nullptr &&
         targetProperty->ValueType() ==

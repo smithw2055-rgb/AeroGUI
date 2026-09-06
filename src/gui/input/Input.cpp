@@ -29,7 +29,7 @@ bool HasAssignedObject(
     UIElement& element,
     Base::StringView name) noexcept {
     const Meta::DependencyProperty* property =
-        element.PropertyRegistry().Find(
+        PropertyRegistry(element).Find(
             element.RuntimeType(), name);
     if (property == nullptr) return false;
     const Meta::PropertyValue value =
@@ -41,7 +41,7 @@ bool HasAssignedObject(
 
 bool HasSelfHitSurface(UIElement& element) noexcept {
     const Meta::DependencyPropertyRegistry& properties =
-        element.PropertyRegistry();
+        PropertyRegistry(element);
     const Meta::TypeId type = element.RuntimeType();
     // Hit-testing lives in the GUI kernel and must not take a Controls
     // dependency. Identify painted content through DPs, matching WPF:
@@ -477,7 +477,7 @@ bool PointerStateMachine::HasHover(
     VisualHandle target, std::uint32_t ignoredIndex) const noexcept {
     if (!target.IsValid()) return false;
     ElementTree* tree = root_ != nullptr
-        ? root_->GetTree()
+        ? VisualTree(root_)
         : nullptr;
     ::Aero::Media::Visual* targetVisual =
         tree != nullptr
@@ -511,7 +511,7 @@ bool PointerStateMachine::HasPressed(
 
 Base::Result<void> PointerStateMachine::UpdateHover(
     std::uint32_t pointerId, UIElement* target) noexcept {
-    ElementTree* tree = root_->GetTree();
+    ElementTree* tree = VisualTree(root_);
     if (tree == nullptr) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Pointer state requires an ElementTree");
@@ -641,7 +641,7 @@ Base::Result<void> PointerStateMachine::UpdateHover(
 
 Base::Result<void> PointerStateMachine::UpdatePressed(
     std::uint32_t pointerId, UIElement* target) noexcept {
-    ElementTree* tree = root_->GetTree();
+    ElementTree* tree = VisualTree(root_);
     if (tree == nullptr) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Pointer state requires an ElementTree");
@@ -701,7 +701,7 @@ Base::Result<void> PointerStateMachine::UpdatePressed(
 UIElement* PointerStateMachine::CapturedNode(std::uint32_t pointerId) noexcept {
     const std::uint32_t index = FindCapture(pointerId);
     if (index == UINT32_MAX) return nullptr;
-    ElementTree* tree = root_->GetTree();
+    ElementTree* tree = VisualTree(root_);
     ::Aero::Media::Visual* target = tree != nullptr
         ? tree->ResolveHandle(captures_[index].target) : nullptr;
     UIElement* element = target != nullptr ? ::Aero::TryCast<::Aero::UIElement>(target) : nullptr;
@@ -722,8 +722,8 @@ Base::Result<void> PointerStateMachine::CapturePointer(
     std::uint32_t pointerId, UIElement& target) noexcept {
     Base::Result<void> access = root_->VerifyAccess();
     if (!access) return access.GetStatus();
-    ElementTree* tree = root_->GetTree();
-    if (tree == nullptr || target.GetTree() != tree || !target.GetIsLoaded()) {
+    ElementTree* tree = VisualTree(root_);
+    if (tree == nullptr || VisualTree(target) != tree || !target.GetIsLoaded()) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Pointer capture target must be loaded in the input tree");
     }
@@ -762,7 +762,7 @@ Base::Result<bool> PointerStateMachine::ReleasePointer(
     if (index == UINT32_MAX) return false;
     Base::Result<void> state = UpdatePressed(pointerId, nullptr);
     if (!state) return state.GetStatus();
-    ::Aero::Media::Visual* visual = root_->GetTree()->ResolveHandle(
+    ::Aero::Media::Visual* visual = VisualTree(root_)->ResolveHandle(
         captures_[index].target);
     UIElement* target =
         visual != nullptr ? ::Aero::TryCast<::Aero::UIElement>(visual) : nullptr;
@@ -918,7 +918,7 @@ Base::Result<PointerDispatchResult> PointerStateMachine::Dispatch(
     if (input.action == PointerAction::Up) {
         const std::uint32_t index = FindCapture(input.pointerId);
         if (index != UINT32_MAX) {
-            ::Aero::Media::Visual* visual = root_->GetTree()->ResolveHandle(
+            ::Aero::Media::Visual* visual = VisualTree(root_)->ResolveHandle(
                 captures_[index].target);
             UIElement* target =
                 visual != nullptr ? ::Aero::TryCast<::Aero::UIElement>(visual) : nullptr;
@@ -1614,7 +1614,7 @@ Base::Result<KeyboardDispatchResult> KeyboardState::Dispatch(
         result.target = nullptr;
         return result;
     }
-    if (!result.target->GetIsLoaded() || result.target->GetTree() != tree_) {
+    if (!result.target->GetIsLoaded() || VisualTree(result.target) != tree_) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Keyboard focus target is not loaded in the input tree");
     }
@@ -1669,7 +1669,7 @@ Base::Result<TextInputDispatchResult> TextInputState::Dispatch(
     TextInputDispatchResult result;
     result.target = focus_->FocusedNode();
     if (result.target == nullptr) return result;
-    if (!result.target->GetIsLoaded() || result.target->GetTree() != tree_) {
+    if (!result.target->GetIsLoaded() || VisualTree(result.target) != tree_) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Text input focus target is not loaded in the input tree");
     }

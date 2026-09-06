@@ -48,7 +48,7 @@ Base::Result<Base::Ref<Interactivity::Behavior>>
                 *static_cast<Interactivity::Behavior*>(
                     created.Value().Get()));
         for (const Meta::DependencyProperty& property :
-             prototype.PropertyRegistry().Properties()) {
+             PropertyRegistry(prototype).Properties()) {
             if (property.MetadataFor(prototype.RuntimeType()) == nullptr ||
                 property.MetadataFor(clone->RuntimeType()) == nullptr) {
                 continue;

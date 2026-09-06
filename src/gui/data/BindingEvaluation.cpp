@@ -291,7 +291,7 @@ Base::Result<PropertyValue> ReadDataContextValue(
             ::Aero::TryCast<::Aero::FrameworkElement>(&node)) {
         return element->GetDataContextResult();
     }
-    if (node.PropertyRegistry().Find(handle) == nullptr) {
+    if (PropertyRegistry(node).Find(handle) == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
             "DataContext property is not registered on this object");

@@ -206,7 +206,7 @@ Size Popup::ArrangeOverride(
         DependencyObject* templatedParent =
             GetTemplatedParent();
         if (templatedParent != nullptr &&
-            PropertyRegistry().Types().IsDerivedFrom(
+            PropertyRegistry(*this).Types().IsDerivedFrom(
                 templatedParent->RuntimeType(),
                 UIElement::StaticTypeId())) {
             placementTarget =
@@ -512,7 +512,7 @@ void HeaderedContentControl::ProjectHeaderContent() noexcept {
         return;
     }
     Base::Object* obj = header.AsObject().Get();
-    if (!PropertyRegistry().Types().IsDerivedFrom(
+    if (!PropertyRegistry(*this).Types().IsDerivedFrom(
             obj->RuntimeType(), UIElement::StaticTypeId())) {
         return;
     }
@@ -775,7 +775,7 @@ TabItem* TabControl::GetSelectedTab() const noexcept {
     if (selected == UINT32_MAX) return nullptr;
     const Ref<Base::Object> item = GetItem(selected);
     if (item &&
-        PropertyRegistry().Types().IsDerivedFrom(
+        PropertyRegistry(*this).Types().IsDerivedFrom(
             item->RuntimeType(), TabItem::StaticTypeId())) {
         return static_cast<TabItem*>(item.Get());
     }
@@ -783,7 +783,7 @@ TabItem* TabControl::GetSelectedTab() const noexcept {
     if (generator == nullptr) return nullptr;
     FrameworkElement* container = generator->ContainerFromIndex(selected);
     if (container != nullptr &&
-        PropertyRegistry().Types().IsDerivedFrom(
+        PropertyRegistry(*this).Types().IsDerivedFrom(
             container->RuntimeType(), TabItem::StaticTypeId())) {
         return static_cast<TabItem*>(container);
     }
@@ -806,13 +806,13 @@ TabControl::SynchronizeSelection() noexcept {
         TabItem* tab = nullptr;
         const Ref<Base::Object> item = GetItem(index);
         if (item &&
-            PropertyRegistry().Types().IsDerivedFrom(
+            PropertyRegistry(*this).Types().IsDerivedFrom(
                 item->RuntimeType(), TabItem::StaticTypeId())) {
             tab = static_cast<TabItem*>(item.Get());
         } else if (generator != nullptr) {
             FrameworkElement* container = generator->ContainerFromIndex(index);
             if (container != nullptr &&
-                PropertyRegistry().Types().IsDerivedFrom(
+                PropertyRegistry(*this).Types().IsDerivedFrom(
                     container->RuntimeType(), TabItem::StaticTypeId())) {
                 tab = static_cast<TabItem*>(container);
             }
@@ -889,7 +889,7 @@ Size TabControl::ArrangeOverride(
         TabItem* tab = nullptr;
         const Ref<Base::Object> item = GetItem(index);
         if (item &&
-            PropertyRegistry().Types().IsDerivedFrom(
+            PropertyRegistry(*this).Types().IsDerivedFrom(
                 item->RuntimeType(), TabItem::StaticTypeId())) {
             tab = static_cast<TabItem*>(item.Get());
         }
@@ -916,7 +916,7 @@ Size TabControl::ArrangeOverride(
 bool TabPanel::GetIsVertical() const noexcept {
     const DependencyObject* parent = GetTemplatedParent();
     return parent != nullptr &&
-        PropertyRegistry().Types().IsDerivedFrom(
+        PropertyRegistry(*this).Types().IsDerivedFrom(
             parent->RuntimeType(), TabControl::StaticTypeId()) &&
         (static_cast<const TabControl*>(parent)->GetTabStripPlacement() ==
              Dock::Left ||
@@ -1449,7 +1449,7 @@ void AttachOwnedContentSubtree(
     UIElement& parent) noexcept {
     const auto attachChild = [&](UIElement& child) noexcept {
         if (child.GetVisualParent() == &parent &&
-            child.GetTree() == &tree &&
+            VisualTree(child) == &tree &&
             child.GetIsLayoutAttached()) {
             AttachOwnedContentSubtree(tree, child);
             return;
@@ -1460,7 +1460,7 @@ void AttachOwnedContentSubtree(
                 *child.GetVisualParent(),
                 static_cast<::Aero::Media::Visual&>(child)));
         }
-        if (child.GetTree() == nullptr &&
+        if (VisualTree(child) == nullptr &&
             child.GetLogicalParent() == nullptr) {
             static_cast<void>(tree.AttachElement(parent, child));
         } else if (child.GetVisualParent() != &parent ||
@@ -1474,7 +1474,7 @@ void AttachOwnedContentSubtree(
         AttachOwnedContentSubtree(tree, child);
     };
 
-    if (parent.PropertyRegistry().Types().IsDerivedFrom(
+    if (PropertyRegistry(parent).Types().IsDerivedFrom(
             parent.RuntimeType(), Controls::Panel::StaticTypeId())) {
         auto& panel = static_cast<Controls::Panel&>(parent);
         const std::uint32_t count = AeroGuiInternal::PanelChildCount(panel);
@@ -1482,7 +1482,7 @@ void AttachOwnedContentSubtree(
             const Base::Ref<Base::Object> owned =
                 AeroGuiInternal::PanelChildAt(panel, index);
             if (!owned ||
-                !parent.PropertyRegistry().Types().IsDerivedFrom(
+                !PropertyRegistry(parent).Types().IsDerivedFrom(
                     owned->RuntimeType(), UIElement::StaticTypeId())) {
                 continue;
             }
@@ -1490,36 +1490,36 @@ void AttachOwnedContentSubtree(
         }
         return;
     }
-    if (parent.PropertyRegistry().Types().IsDerivedFrom(
+    if (PropertyRegistry(parent).Types().IsDerivedFrom(
             parent.RuntimeType(), Controls::Decorator::StaticTypeId())) {
         const Base::Ref<Base::Object>& owned =
             AeroGuiInternal::DecoratorOwnedChild(
                 static_cast<Controls::Decorator&>(parent));
         if (owned &&
-            parent.PropertyRegistry().Types().IsDerivedFrom(
+            PropertyRegistry(parent).Types().IsDerivedFrom(
                 owned->RuntimeType(), UIElement::StaticTypeId())) {
             attachChild(*static_cast<UIElement*>(owned.Get()));
         }
         return;
     }
-    if (parent.PropertyRegistry().Types().IsDerivedFrom(
+    if (PropertyRegistry(parent).Types().IsDerivedFrom(
             parent.RuntimeType(), ContentPresenter::StaticTypeId())) {
         auto& presenter = static_cast<ContentPresenter&>(parent);
         const Base::Ref<Base::Object>& owned = presenter.GetOwnedContent();
         if (owned &&
-            parent.PropertyRegistry().Types().IsDerivedFrom(
+            PropertyRegistry(parent).Types().IsDerivedFrom(
                 owned->RuntimeType(), UIElement::StaticTypeId())) {
             attachChild(*static_cast<UIElement*>(owned.Get()));
         }
         return;
     }
-    if (parent.PropertyRegistry().Types().IsDerivedFrom(
+    if (PropertyRegistry(parent).Types().IsDerivedFrom(
             parent.RuntimeType(), Controls::ContentControl::StaticTypeId())) {
         const Base::Ref<Base::Object>& owned =
             AeroGuiInternal::OwnedContent(
                 static_cast<Controls::ContentControl&>(parent));
         if (owned &&
-            parent.PropertyRegistry().Types().IsDerivedFrom(
+            PropertyRegistry(parent).Types().IsDerivedFrom(
                 owned->RuntimeType(), UIElement::StaticTypeId())) {
             attachChild(*static_cast<UIElement*>(owned.Get()));
         }
@@ -1534,7 +1534,7 @@ void ContentPresenter::HostUiElement(
     if (!owner || owner.Get() != &element) {
         return;
     }
-    ElementTree* tree = GetTree();
+    ElementTree* tree = VisualTree(this);
     const auto detachHosted = [&](UIElement& hosted) noexcept {
         if (tree == nullptr) {
             return;
@@ -1585,7 +1585,7 @@ void ContentPresenter::HostUiElement(
         // Authored Header visuals and DataTemplate roots often are not;
         // AttachElement joins them first. LoadComponent can also leave the
         // visual parent set while layout is still detached.
-        if (element.GetTree() == nullptr &&
+        if (VisualTree(element) == nullptr &&
             element.GetLogicalParent() == nullptr) {
             static_cast<void>(tree->AttachElement(*this, element));
         } else if (element.GetVisualParent() == nullptr ||
@@ -1616,7 +1616,7 @@ void ContentPresenter::OnContentPropertyChanged(
         !value.IsNullObject() &&
         value.AsObject()) {
         Base::Object* obj = value.AsObject().Get();
-        if (presenter.PropertyRegistry().Types().IsDerivedFrom(
+        if (PropertyRegistry(presenter).Types().IsDerivedFrom(
                 obj->RuntimeType(), UIElement::StaticTypeId())) {
             auto* element = static_cast<UIElement*>(obj);
             presenter.HostUiElement(value.AsObject(), *element);
@@ -1629,7 +1629,7 @@ void ContentPresenter::OnContentPropertyChanged(
 Base::Result<void>
 ContentPresenter::UpdatePresentedText() noexcept {
     if (content_ == nullptr ||
-        !PropertyRegistry().Types().IsDerivedFrom(
+        !PropertyRegistry(*this).Types().IsDerivedFrom(
             content_->RuntimeType(),
             TextBlock::StaticTypeId())) {
         return {};
@@ -1738,7 +1738,7 @@ void ContentPresenter::SetOwnedContent(
     ownedContent_ = contentObject;
     (void)UpdatePresentedText();
     (void)InvalidateMeasure();
-    if (ElementTree* tree = GetTree()) {
+    if (ElementTree* tree = VisualTree(this)) {
         AttachOwnedContentSubtree(*tree, content);
     }
 }

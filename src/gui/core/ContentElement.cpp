@@ -4,6 +4,7 @@
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include "gui/internal/ErasedRoutedHandler.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
 
 #include <Aero/Base/Assert.hpp>
 
@@ -180,43 +181,43 @@ void AeroGuiInternal::Attach(
     DependencyObject* logicalParent,
     UIElement* contentHost,
     EventRouter* eventRouter) noexcept {
-    element.logicalParent_ = logicalParent;
-    element.contentHost_ = contentHost;
-    element.eventRouter_ = eventRouter;
+    AERO_GET_FIELD(element, ContentElement_logicalParent) = logicalParent;
+    AERO_GET_FIELD(element, ContentElement_contentHost) = contentHost;
+    AERO_GET_FIELD(element, ContentElement_eventRouter) = eventRouter;
 }
 
 void AeroGuiInternal::Detach(ContentElement& element) noexcept {
-    element.logicalParent_ = nullptr;
-    element.contentHost_ = nullptr;
-    element.eventRouter_ = nullptr;
+    AERO_GET_FIELD(element, ContentElement_logicalParent) = nullptr;
+    AERO_GET_FIELD(element, ContentElement_contentHost) = nullptr;
+    AERO_GET_FIELD(element, ContentElement_eventRouter) = nullptr;
 }
 
 DependencyObject* AeroGuiInternal::Parent(
     const ContentElement& element) noexcept {
-    return element.logicalParent_;
+    return AERO_GET_FIELD(element, ContentElement_logicalParent);
 }
 
 UIElement* AeroGuiInternal::ContentHost(
     const ContentElement& element) noexcept {
-    return element.contentHost_;
+    return AERO_GET_FIELD(element, ContentElement_contentHost);
 }
 
 std::uint32_t AeroGuiInternal::LogicalChildrenCount(
     const FrameworkContentElement& element) noexcept {
-    return element.GetLogicalChildrenCount();
+    return AERO_CALL_METHOD(element, FCE_GetLogicalChildrenCount);
 }
 
 DependencyObject* AeroGuiInternal::LogicalChild(
     const FrameworkContentElement& element,
     std::uint32_t index) noexcept {
-    return element.GetLogicalChild(index);
+    return AERO_CALL_METHOD(element, FCE_GetLogicalChild, index);
 }
 
 void AeroGuiInternal::InvokeContentHandlers(
     Aero::ContentElement& element,
     RoutedEventHandle event,
     RoutedEventArgs& args) noexcept {
-    element.InvokeHandlers(event, args);
+    AERO_CALL_METHOD(element, ContentElement_InvokeHandlers, event, args);
 }
 
 } // namespace Aero

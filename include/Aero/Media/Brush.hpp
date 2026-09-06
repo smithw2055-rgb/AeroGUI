@@ -69,11 +69,6 @@ protected:
     explicit Brush(TypeId runtimeType) noexcept
         : Freezable(runtimeType) {}
     ~Brush() override = default;
-
-private:
-#if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::AeroGuiInternal;
-#endif
 };
 } // namespace Aero::Media
 

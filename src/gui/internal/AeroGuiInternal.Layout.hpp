@@ -3,28 +3,28 @@
 
     // --- View / ElementTree services ---
     static ElementTree* Tree(const ::Aero::Media::Visual& visual) noexcept {
-        return visual.tree_;
+        return AERO_GET_FIELD(visual, Visual_tree);
     }
     static ElementTree* Tree(const UIElement& element) noexcept {
-        return element.GetTree();
+        return Tree(static_cast<const ::Aero::Media::Visual&>(element));
     }
     static LayoutEngine* LayoutEngineOf(const ::Aero::Media::Visual& visual) noexcept {
-        ElementTree* tree = visual.GetTree();
+        ElementTree* tree = Tree(visual);
         return tree != nullptr ? tree->Layout() : nullptr;
     }
     static LayoutEngine* LayoutEngineOf(const UIElement& element) noexcept {
         return LayoutEngineOf(static_cast<const ::Aero::Media::Visual&>(element));
     }
     static EventRouter* EventRouterOf(const UIElement& element) noexcept {
-        ElementTree* tree = element.GetTree();
+        ElementTree* tree = Tree(element);
         return tree != nullptr ? tree->Events() : nullptr;
     }
     static InputRouter* InputRouterOf(const UIElement& element) noexcept {
-        ElementTree* tree = element.GetTree();
+        ElementTree* tree = Tree(element);
         return tree != nullptr ? tree->Input() : nullptr;
     }
     static BindingEngine* BindingEngineOf(const UIElement& element) noexcept {
-        ElementTree* tree = element.GetTree();
+        ElementTree* tree = Tree(element);
         return tree != nullptr ? tree->Bindings() : nullptr;
     }
     static BindingEngine* BindingEngineOf(const DependencyObject& object) noexcept {
@@ -32,43 +32,43 @@
         return element != nullptr ? BindingEngineOf(*element) : nullptr;
     }
     static StyleEngine* StyleEngineOf(const UIElement& element) noexcept {
-        ElementTree* tree = element.GetTree();
+        ElementTree* tree = Tree(element);
         return tree != nullptr ? tree->Styles() : nullptr;
     }
     static AnimationEngine* AnimationEngineOf(const UIElement& element) noexcept {
-        ElementTree* tree = element.GetTree();
+        ElementTree* tree = Tree(element);
         return tree != nullptr ? tree->Animations() : nullptr;
     }
     static Controls::TemplateEngine* TemplatesOf(
         const ::Aero::Media::Visual& visual) noexcept {
-        ElementTree* tree = visual.GetTree();
+        ElementTree* tree = Tree(visual);
         return tree != nullptr ? tree->Templates() : nullptr;
     }
     static VisualStateManager* VisualStatesOf(
         const ::Aero::Media::Visual& visual) noexcept {
-        ElementTree* tree = visual.GetTree();
+        ElementTree* tree = Tree(visual);
         return tree != nullptr ? tree->VisualStates() : nullptr;
     }
     static Controls::TextBlockLayout* TextLayoutOf(
         const ::Aero::Media::Visual& visual) noexcept {
-        ElementTree* tree = visual.GetTree();
+        ElementTree* tree = Tree(visual);
         return tree != nullptr ? tree->TextLayout() : nullptr;
     }
     static Controls::ControlBehavior* ControlBehaviorsOf(
         const ::Aero::Media::Visual& visual) noexcept {
-        ElementTree* tree = visual.GetTree();
+        ElementTree* tree = Tree(visual);
         return tree != nullptr ? tree->ControlBehaviors() : nullptr;
     }
     static Render::MeshResources* MeshResourcesOf(
         const ::Aero::Media::Visual& visual) noexcept {
-        ElementTree* tree = visual.GetTree();
+        ElementTree* tree = Tree(visual);
         return tree != nullptr ? tree->MeshResources() : nullptr;
     }
     static Base::Object* FindName(
         const UIElement& element,
         Base::StringView name,
         Meta::TypeId expectedType = Meta::InvalidTypeId) noexcept {
-        ElementTree* tree = element.GetTree();
+        ElementTree* tree = Tree(element);
         return tree != nullptr ? tree->FindName(name, expectedType) : nullptr;
     }
     static ResourceEnvironment ResourceEnvironmentOf(
@@ -99,10 +99,10 @@
 
     // --- Layout hot state ---
     static UIElement::LayoutHot& Layout(UIElement& element) noexcept {
-        return element.layout_;
+        return AERO_GET_FIELD(element, UIElement_layout);
     }
     static const UIElement::LayoutHot& Layout(const UIElement& element) noexcept {
-        return element.layout_;
+        return AERO_GET_FIELD(element, UIElement_layout);
     }
     static Size MeasureOverride(UIElement& element, Size availableSize) noexcept;
     static Size ArrangeOverride(UIElement& element, Size finalSize) noexcept;
@@ -110,36 +110,38 @@
         FrameworkElement& element,
         double width,
         double height) noexcept {
-        element.SetReadOnlyCurrentValue(
-            FrameworkElement::ActualWidthProperty, width);
-        element.SetReadOnlyCurrentValue(
-            FrameworkElement::ActualHeightProperty, height);
+        Meta::PropertyValue widthVal(width);
+        Meta::PropertyValue heightVal(height);
+        AERO_CALL_METHOD(element, DO_SetReadOnlyCurrentValue,
+            FrameworkElement::ActualWidthProperty.Handle(), widthVal);
+        AERO_CALL_METHOD(element, DO_SetReadOnlyCurrentValue,
+            FrameworkElement::ActualHeightProperty.Handle(), heightVal);
     }
 
     // --- Input / routed events ---
     static Base::Result<void> SetMouseOver(UIElement& element, bool value) noexcept {
-        element.SetMouseOverState(value);
+        AERO_CALL_METHOD(element, UIElement_SetMouseOverState, value);
         return {};
     }
     static Base::Result<void> SetPressed(UIElement& element, bool value) noexcept {
-        element.SetPressedState(value);
+        AERO_CALL_METHOD(element, UIElement_SetPressedState, value);
         return {};
     }
     static Base::Result<void> SetKeyboardFocused(
         UIElement& element, bool value) noexcept {
-        element.SetKeyboardFocusedState(value);
+        AERO_CALL_METHOD(element, UIElement_SetKeyboardFocusedState, value);
         return {};
     }
     static Base::Result<void> SetKeyboardFocusWithin(
         UIElement& element, bool value) noexcept {
-        element.SetKeyboardFocusWithinState(value);
+        AERO_CALL_METHOD(element, UIElement_SetKeyboardFocusWithinState, value);
         return {};
     }
     static void InvokeHandlers(
         UIElement& element,
         RoutedEventHandle event,
         RoutedEventArgs& args) noexcept {
-        element.InvokeHandlers(event, args);
+        AERO_CALL_METHOD(element, UIElement_InvokeHandlers, event, args);
     }
     static void InvokeContentHandlers(
         ContentElement& element,
@@ -160,11 +162,3 @@
     static DependencyObject* LogicalChild(
         const FrameworkContentElement& element,
         std::uint32_t index) noexcept;
-
-    // --- Rare data ---
-    static void* RoutedHandlers(const UIElement& element) noexcept {
-        return element.rare_ != nullptr ? element.rare_->routedHandlers : nullptr;
-    }
-    static void SetRoutedHandlers(UIElement& element, void* handlers) noexcept {
-        element.EnsureRare().routedHandlers = handlers;
-    }

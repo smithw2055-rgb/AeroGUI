@@ -9,26 +9,17 @@ namespace Aero {
 
 using ::Aero::Threading::DispatcherReentrancyGuard;
 
-class AeroGuiInternal;
-#if defined(AERO_GUI_IMPLEMENTATION)
+namespace Meta {
+class DependencyPropertyRegistry;
+}
 struct StoredValueEntry;
-#endif
 
 class AERO_GUI_API DependencyObject : public DispatcherObject {
     AERO_DECLARE_TYPE(DependencyObject, DispatcherObject)
-#if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::AeroGuiInternal;
-#endif
 public:
-
     TypeId RuntimeType() const noexcept override {
         return runtimeType_;
     }
-#if defined(AERO_GUI_IMPLEMENTATION)
-    DependencyPropertyRegistry& PropertyRegistry() const noexcept {
-        return *registry_;
-    }
-#endif
 
     PropertyValue GetValue(
         DependencyPropertyHandle property) const noexcept;
@@ -188,7 +179,6 @@ private:
         DependencyPropertyHandle property) noexcept;
     void LeaveMutation() noexcept;
 
-#if defined(AERO_GUI_IMPLEMENTATION)
     StoredValueEntry* FindStoredEntry(
         DependencyPropertyHandle property) noexcept;
     const StoredValueEntry* FindStoredEntry(
@@ -200,7 +190,6 @@ private:
         const PropertyMetadata& metadata) noexcept;
     MemberId CanonicalPropertyKey(
         DependencyPropertyHandle property) const noexcept;
-#endif
     Result<void> ApplyProviderContributionInternal(
         DependencyPropertyHandle property,
         PropertyProviderToken token,
@@ -238,10 +227,8 @@ private:
         const PropertyMetadata& metadata,
         const PropertyValue& oldEffective,
         const PropertyValueSourceInfo& oldSourceInfo) noexcept;
-#if defined(AERO_GUI_IMPLEMENTATION)
     void ReleaseExpression(StoredValueEntry& entry) noexcept;
     void RemoveStoredEntry(MemberId key) noexcept;
-#endif
     static EffectiveValueSource ToLegacySource(
         const PropertyValueSourceInfo& source) noexcept;
 

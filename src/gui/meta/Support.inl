@@ -2,18 +2,11 @@
 // Shared implementation helpers for the semantic metadata units.
 constexpr double DefaultMaximum = 1.0e12;
 
-Base::Result<Base::Ref<Base::Object>>
-CreateFrameworkElementPlaceholder() noexcept {
-    Base::Result<Base::Ref<FrameworkElement>> created =
-        Base::MakeRef<FrameworkElement>(
-            FrameworkElement::StaticTypeId());
-    return created
-        ? Base::Result<Base::Ref<Base::Object>>(
-            Base::Ref<Base::Object>(
-                std::move(created).Value()))
-        : Base::Result<Base::Ref<Base::Object>>(
-            created.GetStatus());
-}
+class PlaceholderFrameworkElement : public FrameworkElement {
+public:
+    PlaceholderFrameworkElement() noexcept
+        : FrameworkElement(FrameworkElement::StaticTypeId()) {}
+};
 
 Base::Result<Value> ConvertRoutedCommandReference(
     TypeId targetType,
@@ -1412,7 +1405,7 @@ void AddInteractionTrigger(
     auto& dependencyObject =
         static_cast<DependencyObject&>(owner);
     const Meta::TypeRegistry& types =
-        dependencyObject.PropertyRegistry().Types();
+        PropertyRegistry(dependencyObject).Types();
     if (types.IsDerivedFrom(
             owner.RuntimeType(), FrameworkElement::StaticTypeId())) {
         static_cast<void>(
@@ -1433,7 +1426,7 @@ void ClearInteractionTriggers(
     auto& dependencyObject =
         static_cast<DependencyObject&>(owner);
     const Meta::TypeRegistry& types =
-        dependencyObject.PropertyRegistry().Types();
+        PropertyRegistry(dependencyObject).Types();
     if (types.IsDerivedFrom(
             owner.RuntimeType(), FrameworkElement::StaticTypeId())) {
         static_cast<void>(

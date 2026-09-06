@@ -82,9 +82,9 @@ Aero types expose WPF-shaped virtuals you can override when subclassing:
 | `DependencyObject.OnPropertyChanged` | `DependencyObject::OnPropertyChanged(const DependencyPropertyChangedEventArgs&)` | new WPF-bridge hook; fires with `PropertyMetadata::PropertyChangedCallback` |
 | `Visual.OnVisualParentChanged` | `Visual::OnVisualParentChanged(Visual* oldParent)` | new WPF-bridge hook |
 
-Runtime engines are reached through `Visual::GetTree()` / `ElementTree`
-named accessors (`Layout()`, `Events()`, `Bindings()`, …) and the single
-kernel friend `AeroGuiInternal`. There is no `Core::GetFacet` matrix.
+Runtime engines are reached through `VisualTree()` / `ElementTree`
+named accessors (`Layout()`, `Events()`, `Bindings()`, …) and internal
+`AeroGuiInternal` accessors. There is no `Core::GetFacet` matrix.
 
 ## Platform code (two trees, by design)
 

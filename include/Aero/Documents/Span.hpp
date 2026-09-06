@@ -34,10 +34,7 @@ protected:
 
 private:
     friend class Aero::Controls::TextBlock;
-#if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::AeroGuiInternal;
     friend struct Aero::Controls::TextBlockDocumentHelper;
-#endif
     Base::Vector<Ref<Inline>> inlines_;
     Ref<Inline> pendingInline_;
 };

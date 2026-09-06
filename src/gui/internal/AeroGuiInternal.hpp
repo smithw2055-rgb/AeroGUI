@@ -36,6 +36,7 @@
 #include "gui/core/VisualHandle.hpp"
 #include "gui/core/state/ElementTree.hpp"
 #include "gui/internal/PropertyStore.hpp"
+#include "gui/internal/PrivateAccess.hpp"
 
 namespace Aero {
 class AnimationEngine;

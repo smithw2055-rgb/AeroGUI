@@ -251,7 +251,7 @@ Base::Result<bool> ImageCache::Synchronize(
         Base::Ref<Media::ImageSource>
             source;
         if (targetIndex == 0U &&
-            visual->PropertyRegistry().Types().IsDerivedFrom(
+            PropertyRegistry(visual).Types().IsDerivedFrom(
                 visual->RuntimeType(),
                 Controls::Image::StaticTypeId())) {
             imageControl =
@@ -260,18 +260,18 @@ Base::Result<bool> ImageCache::Synchronize(
             source = imageControl->GetSource();
         } else if (targetIndex == 0U) {
             Base::Ref<Media::Brush> fill;
-            if (visual->PropertyRegistry().Types().IsDerivedFrom(
+            if (PropertyRegistry(visual).Types().IsDerivedFrom(
                     visual->RuntimeType(),
                     Shapes::Shape::StaticTypeId())) {
                 fill = static_cast<Shapes::Shape*>(visual)->GetFill();
             } else if (visual->RuntimeType() ==
                        Controls::Border::StaticTypeId()) {
                 fill = static_cast<Controls::Border*>(visual)->GetBackground();
-            } else if (visual->PropertyRegistry().Types().IsDerivedFrom(
+            } else if (PropertyRegistry(visual).Types().IsDerivedFrom(
                            visual->RuntimeType(),
                            Controls::Panel::StaticTypeId())) {
                 fill = static_cast<Controls::Panel*>(visual)->GetBackground();
-            } else if (visual->PropertyRegistry().Types().IsDerivedFrom(
+            } else if (PropertyRegistry(visual).Types().IsDerivedFrom(
                            visual->RuntimeType(),
                            Controls::Control::StaticTypeId())) {
                 fill = static_cast<Controls::Control*>(visual)->GetBackground();

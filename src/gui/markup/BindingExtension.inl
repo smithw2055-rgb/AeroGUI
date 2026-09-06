@@ -670,7 +670,7 @@ struct DeferredMultiBindingState {
         }
 
         const Meta::DependencyProperty* targetInfo =
-            target->PropertyRegistry().Find(targetProperty);
+            PropertyRegistry(target).Find(targetProperty);
         if (targetInfo == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::NotFound,
@@ -970,7 +970,7 @@ Base::Result<ProvidedValue> CreateMultiBindingValueImpl(
         SchemaPrivate::Metadata(
             *services.schema);
     if (metadata == nullptr ||
-        target.Value()->PropertyRegistry().Find(
+        PropertyRegistry(target.Value()).Find(
             Meta::DependencyPropertyHandle{
                 services.targetMember}) == nullptr) {
         return Base::Status::Failure(
@@ -1402,7 +1402,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
     const Meta::DependencyPropertyHandle targetHandle{
         services.targetMember};
     const Meta::DependencyProperty* targetProperty =
-        target->PropertyRegistry().Find(targetHandle);
+        PropertyRegistry(target).Find(targetHandle);
     if (targetProperty == nullptr ||
         SchemaPrivate::Metadata(
             *services.schema) == nullptr) {
@@ -1573,7 +1573,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
             SchemaPrivate::Metadata(*services.schema)->Types().IsDerivedFrom(
                 target->RuntimeType(), FrameworkElement::StaticTypeId());
         if (!targetCanInheritDataContext &&
-            root->PropertyRegistry().Find(
+            PropertyRegistry(root).Find(
                 extension->options_.dataContextProperty) != nullptr) {
             state->dataContextOwner = root;
         }

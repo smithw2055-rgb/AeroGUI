@@ -718,7 +718,7 @@ Base::Result<void> MountViewFragment(
             Base::ErrorCode::InvalidArgument,
             "content fragment document must not be empty");
     }
-    if (host.GetTree() != state_->tree) {
+    if (VisualTree(host) != state_->tree) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "content fragment host does not belong to this View");
@@ -839,8 +839,8 @@ Base::Result<void> MountViewFragment(
                     progressed = true;
                     continue;
                 }
-                if (edge.parent->GetTree() != state_->tree ||
-                    (deferred && edge.child->GetTree() == state_->tree)) {
+                if (VisualTree(edge.parent) != state_->tree ||
+                    (deferred && VisualTree(edge.child) == state_->tree)) {
                     continue;
                 }
                 Base::Result<Aero::ElementAttachment> mounted =
@@ -1086,13 +1086,13 @@ Base::Result<void> AdoptLoadedComponent(
                     progressed = true;
                     continue;
                 }
-                if (edge.parent->GetTree() != &context) {
+                if (VisualTree(edge.parent) != &context) {
                     continue;
                 }
                 if (UIElement* childEl =
                         ::Aero::TryCast<UIElement>(edge.child);
                     childEl != nullptr &&
-                    childEl->GetTree() == &context) {
+                    VisualTree(childEl) == &context) {
                     // LoadComponent may join the logical/tree membership of
                     // UserControl content before layout edges exist. Skipping
                     // here left ColorSelector/NumericUpDown Grids with no
@@ -1112,7 +1112,7 @@ Base::Result<void> AdoptLoadedComponent(
                     progressed = true;
                     continue;
                 }
-                if (edge.child->GetTree() == &context) {
+                if (VisualTree(edge.child) == &context) {
                     continue;
                 }
                 Base::Result<ElementAttachment> mounted =
@@ -1131,7 +1131,7 @@ Base::Result<void> AdoptLoadedComponent(
         Controls::ContentControl* host =
             ::Aero::TryCast<Controls::ContentControl>(
                 document.root.Get());
-        if (host == nullptr || host->GetTree() != &context) {
+        if (host == nullptr || VisualTree(host) != &context) {
             return {};
         }
         UIElement* content =
@@ -1159,7 +1159,7 @@ Base::Result<void> AdoptLoadedComponent(
              content->GetIsLayoutAttached())) {
             return {};
         }
-        if (content->GetTree() == nullptr &&
+        if (VisualTree(content) == nullptr &&
             content->GetLogicalParent() == nullptr) {
             Base::Result<ElementAttachment> mounted =
                 context.AttachElement(*host, *content);

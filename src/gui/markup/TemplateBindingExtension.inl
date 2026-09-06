@@ -115,11 +115,11 @@ TemplateBindingExtension::ProvideValue(
     if (!target) return target.GetStatus();
 
     const Meta::DependencyProperty* source =
-        target.Value()->PropertyRegistry().Find(
+        PropertyRegistry(target.Value()).Find(
             controlTemplate.GetTargetType(),
             propertyName);
     const Meta::DependencyProperty* destination =
-        target.Value()->PropertyRegistry().Find(
+        PropertyRegistry(target.Value()).Find(
             Meta::DependencyPropertyHandle{
                 services.targetMember});
     if (source == nullptr) {

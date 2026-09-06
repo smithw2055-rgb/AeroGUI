@@ -129,7 +129,7 @@ MenuItem::OnApplyTemplate() noexcept {
         GetTemplateChild("GestureText");
     gestureText_ =
         gesture != nullptr &&
-        PropertyRegistry().Types().IsDerivedFrom(
+        PropertyRegistry(*this).Types().IsDerivedFrom(
             gesture->RuntimeType(),
             TextBlock::StaticTypeId())
         ? static_cast<TextBlock*>(gesture)
@@ -138,7 +138,7 @@ MenuItem::OnApplyTemplate() noexcept {
         GetTemplateChild("CheckGlyph");
     checkGlyph_ =
         check != nullptr &&
-        PropertyRegistry().Types().IsDerivedFrom(
+        PropertyRegistry(*this).Types().IsDerivedFrom(
             check->RuntimeType(),
             TextBlock::StaticTypeId())
         ? static_cast<TextBlock*>(check)
@@ -147,7 +147,7 @@ MenuItem::OnApplyTemplate() noexcept {
         GetTemplateChild("SubmenuPopup");
     submenuPopup_ =
         submenu != nullptr &&
-        PropertyRegistry().Types().IsDerivedFrom(
+        PropertyRegistry(*this).Types().IsDerivedFrom(
             submenu->RuntimeType(),
             Popup::StaticTypeId())
         ? static_cast<Popup*>(submenu)
@@ -387,7 +387,7 @@ Menu* MenuBehavior::ResolveMenu(
 Base::Result<void>
 MenuBehavior::Attach(
     Menu& menu) noexcept {
-    if (menu.GetTree() != tree_ ||
+    if (VisualTree(menu) != tree_ ||
         FindMenu(menu) != UINT32_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -438,7 +438,7 @@ MenuItem* MenuBehavior::FindItem(
     Menu& menu,
     Base::Object* source) const noexcept {
     if (source == nullptr ||
-        !menu.PropertyRegistry().Types().
+        !PropertyRegistry(menu).Types().
             IsDerivedFrom(
                 source->RuntimeType(),
                 UIElement::StaticTypeId())) {
@@ -451,7 +451,7 @@ MenuItem* MenuBehavior::FindItem(
         UIElement* element =
             ::Aero::TryCast<::Aero::UIElement>(visual);
         if (element != nullptr &&
-            menu.PropertyRegistry().Types().
+            PropertyRegistry(menu).Types().
                 IsDerivedFrom(
                     element->RuntimeType(),
                     MenuItem::StaticTypeId())) {
@@ -488,7 +488,7 @@ Base::Result<void>
             return executed.GetStatus();
         }
     }
-    if (menu.PropertyRegistry().Types().
+    if (PropertyRegistry(menu).Types().
         IsDerivedFrom(
             menu.RuntimeType(),
             ContextMenu::StaticTypeId())) {

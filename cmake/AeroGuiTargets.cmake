@@ -296,7 +296,6 @@ if(AERO_WITH_EXPAT)
     endif()
 endif()
 target_compile_definitions(AeroGui PRIVATE
-    AERO_GUI_IMPLEMENTATION=1
     $<$<BOOL:${AERO_BUILD_SHARED}>:AERO_GUI_EXPORTS>
     AERO_UI_RESOURCE_MODEL=2
     AERO_CONTROLS_TEMPLATE_ABI=10
@@ -459,7 +458,6 @@ target_include_directories(AeroRenderOpenGL33
         "${CMAKE_CURRENT_BINARY_DIR}/generated")
 target_link_libraries(AeroRenderOpenGL33 PUBLIC Aero::Render)
 target_compile_definitions(AeroRenderOpenGL33 PRIVATE
-    AERO_GUI_IMPLEMENTATION=1
     $<$<BOOL:${AERO_BUILD_SHARED}>:AERO_RENDER_OPENGL33_EXPORTS>)
 target_compile_features(AeroRenderOpenGL33 PUBLIC cxx_std_17)
 set_target_properties(AeroRenderOpenGL33 PROPERTIES
@@ -625,7 +623,6 @@ if(AERO_ENABLE_D3D11_BACKEND)
         PUBLIC Aero::Render
         PRIVATE d3d11 dxgi d3dcompiler)
     target_compile_definitions(AeroRenderD3D11 PRIVATE
-        AERO_GUI_IMPLEMENTATION=1
         $<$<BOOL:${AERO_BUILD_SHARED}>:AERO_RENDER_D3D11_EXPORTS>)
     target_compile_features(AeroRenderD3D11 PUBLIC cxx_std_17)
     set_target_properties(AeroRenderD3D11 PROPERTIES

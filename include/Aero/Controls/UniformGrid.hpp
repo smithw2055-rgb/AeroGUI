@@ -7,9 +7,6 @@ using ::Aero::Meta::TypeId;
 
 class AERO_GUI_API UniformGrid : public Panel {
     AERO_DECLARE_TYPE(UniformGrid, Panel)
-    #if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::AeroGuiInternal;
-    #endif
 public:
     UniformGrid() noexcept : Panel(StaticTypeId()) {}
     std::uint32_t GetRows() const noexcept;

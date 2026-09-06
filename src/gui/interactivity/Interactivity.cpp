@@ -68,7 +68,7 @@ void StyleTriggerCollection::Add(
 void StyleInteraction::OnBehaviorsChanged(
     DependencyObject& object,
     const Meta::DependencyPropertyChangedEventArgs& args) noexcept {
-    if (!object.PropertyRegistry().Types().IsDerivedFrom(
+    if (!PropertyRegistry(object).Types().IsDerivedFrom(
             object.RuntimeType(), FrameworkElement::StaticTypeId())) {
         return;
     }
@@ -92,7 +92,7 @@ void StyleInteraction::OnBehaviorsChanged(
 void StyleInteraction::OnTriggersChanged(
     DependencyObject& object,
     const Meta::DependencyPropertyChangedEventArgs& args) noexcept {
-    if (!object.PropertyRegistry().Types().IsDerivedFrom(
+    if (!PropertyRegistry(object).Types().IsDerivedFrom(
             object.RuntimeType(), FrameworkElement::StaticTypeId())) {
         return;
     }

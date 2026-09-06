@@ -237,9 +237,6 @@ private:
     friend class LogicalTreeHelper;
     friend class Controls::Viewbox;
     friend class ResourceResolver;
-#if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::AeroGuiInternal;
-#endif
     double dpiScale_ = 1.0;
     DependencyObject* templatedParent_ = nullptr;
     mutable ResourceDictionary* resources_ = nullptr;

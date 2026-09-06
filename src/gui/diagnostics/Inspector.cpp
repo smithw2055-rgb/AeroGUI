@@ -99,7 +99,7 @@ using namespace Aero::Threading;
         bindings_ == nullptr ||
         renderer_ == nullptr ||
         maxTreeNodes == 0U ||
-        target.GetTree() != tree_) {
+        VisualTree(target) != tree_) {
         return Status::Failure(
             ErrorCode::InvalidArgument,
             "Inspector render target "
@@ -138,7 +138,7 @@ using namespace Aero::Threading;
 
     for (const DependencyProperty&
         property :
-        target.PropertyRegistry().
+        PropertyRegistry(target).
             Properties()) {
         if (property.MetadataFor(
                 target.RuntimeType()) ==
@@ -218,7 +218,7 @@ using namespace Aero::Threading;
             styles_->AppliedStyle(target);
     }
     if (templates_ != nullptr &&
-        target.PropertyRegistry().
+        PropertyRegistry(target).
             Types().IsDerivedFrom(
                 target.RuntimeType(),
                 Control::StaticTypeId())) {

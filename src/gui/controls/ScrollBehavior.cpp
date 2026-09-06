@@ -64,7 +64,7 @@ Base::Result<void> ScrollBehavior::Attach(
             Base::ErrorCode::AlreadyExists,
             "ScrollViewer is already attached");
     }
-    if (viewer.GetTree() != tree_ ||
+    if (VisualTree(viewer) != tree_ ||
         !AeroGuiInternal::Handle(viewer).IsValid()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -195,7 +195,7 @@ Slider* SliderBehavior::Resolve(
         tree_->ResolveHandle(
             sliders_[index].handle);
     if (node == nullptr ||
-        !node->PropertyRegistry().Types().
+        !PropertyRegistry(node).Types().
             IsDerivedFrom(
                 node->RuntimeType(),
                 Slider::StaticTypeId())) {
@@ -221,7 +221,7 @@ Base::Result<void> SliderBehavior::Attach(
             Base::ErrorCode::AlreadyExists,
             "Slider is already attached");
     }
-    if (slider.GetTree() != tree_ ||
+    if (VisualTree(slider) != tree_ ||
         !AeroGuiInternal::Handle(slider).IsValid()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -809,7 +809,7 @@ Base::Result<void> ScrollBarBehavior::AttachThumb(
             Base::ErrorCode::AlreadyExists,
             "Thumb is already attached");
     }
-    if (thumb.GetTree() != tree_ ||
+    if (VisualTree(thumb) != tree_ ||
         !AeroGuiInternal::Handle(thumb).IsValid()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -866,7 +866,7 @@ Base::Result<void> ScrollBarBehavior::Attach(
             Base::ErrorCode::AlreadyExists,
             "ScrollBar is already attached");
     }
-    if (scrollBar.GetTree() != tree_ ||
+    if (VisualTree(scrollBar) != tree_ ||
         !AeroGuiInternal::Handle(scrollBar).IsValid()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,

@@ -97,10 +97,7 @@ protected:
     std::uint32_t GetVisualChildrenCount() const noexcept override;
     ::Aero::Media::Visual* GetVisualChild(std::uint32_t index) const noexcept override;
 private:
-#if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::AeroGuiInternal;
     friend struct TextBlockDocumentHelper;
-#endif
 
     StringView EffectiveFontFamily() const noexcept;
     void ReleaseServiceGlyphRun() noexcept;

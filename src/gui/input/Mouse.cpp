@@ -39,7 +39,7 @@ Base::Point Mouse::GetPosition(::Aero::UIElement* relativeTo) {
     InputRouter* router = DeviceState::ActiveRouter();
     Base::Point position = DeviceState::LastPointerPosition();
     if (relativeTo != nullptr && router != nullptr) {
-        ElementTree* tree = relativeTo->GetTree();
+        ElementTree* tree = VisualTree(relativeTo);
         if (tree != nullptr) {
             ::Aero::Media::Visual* root = tree->Root();
             if (root != nullptr) {

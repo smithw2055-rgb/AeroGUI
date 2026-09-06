@@ -550,7 +550,7 @@ Base::Result<void> CommandState::VerifyTarget(
     }
     Base::Result<void> access = root->VerifyAccess();
     if (!access) return access.GetStatus();
-    if (!target.GetIsLoaded() || target.GetTree() != tree_) {
+    if (!target.GetIsLoaded() || VisualTree(target) != tree_) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Command target must be loaded in the command tree");
     }
@@ -713,7 +713,7 @@ Base::Result<bool> CommandState::CanExecute(
     Base::Result<void> routed = events_->VisitRoute(
         target, RoutingStrategy::Bubble,
         [&](DependencyObject& owner) noexcept {
-            if (!owner.PropertyRegistry().Types().IsDerivedFrom(
+            if (!PropertyRegistry(owner).Types().IsDerivedFrom(
                     owner.RuntimeType(), UIElement::StaticTypeId())) {
                 return true;
             }
@@ -761,7 +761,7 @@ Base::Result<bool> CommandState::Execute(
     Base::Result<void> routed = events_->VisitRoute(
         target, RoutingStrategy::Bubble,
         [&](DependencyObject& owner) noexcept {
-            if (!owner.PropertyRegistry().Types().IsDerivedFrom(
+            if (!PropertyRegistry(owner).Types().IsDerivedFrom(
                     owner.RuntimeType(), UIElement::StaticTypeId())) {
                 return true;
             }
@@ -801,7 +801,7 @@ Base::Result<bool> CommandState::ProcessInput(
     Base::Result<void> routed = events_->VisitRoute(
         target, RoutingStrategy::Bubble,
         [&](DependencyObject& current) noexcept {
-            if (!current.PropertyRegistry().Types().IsDerivedFrom(
+            if (!PropertyRegistry(current).Types().IsDerivedFrom(
                     current.RuntimeType(), UIElement::StaticTypeId())) {
                 return true;
             }
@@ -855,7 +855,7 @@ Base::Result<bool> CommandState::ProcessInput(
     Base::Result<void> routed = events_->VisitRoute(
         target, RoutingStrategy::Bubble,
         [&](DependencyObject& current) noexcept {
-            if (!current.PropertyRegistry().Types().IsDerivedFrom(
+            if (!PropertyRegistry(current).Types().IsDerivedFrom(
                     current.RuntimeType(), UIElement::StaticTypeId())) {
                 return true;
             }

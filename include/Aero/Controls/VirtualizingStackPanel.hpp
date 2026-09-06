@@ -96,9 +96,7 @@ protected:
 
 private:
     friend class ItemContainerGenerator;
-#if defined(AERO_GUI_IMPLEMENTATION)
     friend struct ItemContainerGeneratorRuntime;
-#endif
 
     Base::Vector<double> extentTree_;
     double crossExtent_ = 0.0;

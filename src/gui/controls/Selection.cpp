@@ -111,7 +111,7 @@ void ListBoxItem::OnIsSelectedChanged(
     while (visual != nullptr) {
         UIElement* element = ::Aero::TryCast<UIElement>(visual);
         if (element != nullptr &&
-            PropertyRegistry().Types().IsDerivedFrom(
+            PropertyRegistry(*this).Types().IsDerivedFrom(
                 element->RuntimeType(), ListBox::StaticTypeId())) {
             auto& listBox = *static_cast<ListBox*>(element);
             ItemContainerGenerator* generator =
@@ -626,7 +626,7 @@ void Selector::SyncContainers() noexcept {
         FrameworkElement* container =
             generator->ContainerFromIndex(index);
         if (container == nullptr ||
-            !PropertyRegistry().Types().IsDerivedFrom(
+            !PropertyRegistry(*this).Types().IsDerivedFrom(
                 container->RuntimeType(),
                 ListBoxItem::StaticTypeId())) {
             continue;
@@ -933,7 +933,7 @@ Base::Result<void> Selector::PrepareContainer(
         ItemsControl::PrepareContainer(
             container, item, index);
     if (!prepared) return prepared.GetStatus();
-    if (PropertyRegistry().Types().IsDerivedFrom(
+    if (PropertyRegistry(*this).Types().IsDerivedFrom(
             container.RuntimeType(),
             ListBoxItem::StaticTypeId())) {
         auto& listBoxItem =
@@ -947,7 +947,7 @@ Base::Result<void> Selector::PrepareContainer(
 
 void Selector::ClearContainer(
     FrameworkElement& container) noexcept {
-    if (PropertyRegistry().Types().IsDerivedFrom(
+    if (PropertyRegistry(*this).Types().IsDerivedFrom(
             container.RuntimeType(),
             ListBoxItem::StaticTypeId())) {
         static_cast<ListBoxItem&>(container).SetIsSelected(false);
@@ -1001,7 +1001,7 @@ Base::Result<bool> ListBox::BringIntoView(
         UIElement* parentElement =
             ::Aero::TryCast<::Aero::UIElement>(parent);
         if (parentElement != nullptr &&
-            PropertyRegistry().Types().IsDerivedFrom(
+            PropertyRegistry(*this).Types().IsDerivedFrom(
                 parentElement->RuntimeType(),
                 ScrollViewer::StaticTypeId())) {
             viewer =
@@ -1209,7 +1209,7 @@ Base::Result<void> ComboBox::PrepareContainer(
         Selector::PrepareContainer(
             container, item, index);
     if (!prepared) return prepared.GetStatus();
-    if (PropertyRegistry().Types().IsDerivedFrom(
+    if (PropertyRegistry(*this).Types().IsDerivedFrom(
             container.RuntimeType(),
             ComboBoxItem::StaticTypeId())) {
         auto& comboItem =
@@ -1224,7 +1224,7 @@ Base::Result<void> ComboBox::PrepareContainer(
 
 void ComboBox::ClearContainer(
     FrameworkElement& container) noexcept {
-    if (PropertyRegistry().Types().IsDerivedFrom(
+    if (PropertyRegistry(*this).Types().IsDerivedFrom(
             container.RuntimeType(),
             ComboBoxItem::StaticTypeId())) {
         static_cast<ComboBoxItem&>(container).SetIsSelected(false);
@@ -1245,7 +1245,7 @@ void ComboBox::SynchronizeContainers() noexcept {
         FrameworkElement* container =
             generator->ContainerFromIndex(index);
         if (container == nullptr ||
-            !PropertyRegistry().Types().
+            !PropertyRegistry(*this).Types().
                 IsDerivedFrom(
                     container->RuntimeType(),
                     ComboBoxItem::StaticTypeId())) {
@@ -1274,7 +1274,7 @@ void ComboBox::OnApplyTemplate()
         GetTemplateChild("SelectionBox");
     selectionBox_ =
         selection != nullptr &&
-        PropertyRegistry().Types().
+        PropertyRegistry(*this).Types().
             IsDerivedFrom(
                 selection->RuntimeType(),
                 TextBlock::StaticTypeId())
@@ -1284,7 +1284,7 @@ void ComboBox::OnApplyTemplate()
         GetTemplateChild("ContentSite");
     selectionPresenter_ =
         contentSite != nullptr &&
-        PropertyRegistry().Types().
+        PropertyRegistry(*this).Types().
             IsDerivedFrom(
                 contentSite->RuntimeType(),
                 ContentPresenter::StaticTypeId())
@@ -1294,7 +1294,7 @@ void ComboBox::OnApplyTemplate()
     if (selectionBox_ == nullptr &&
         selectionPresenter_ != nullptr &&
         selectionPresenter_->GetContent() != nullptr &&
-        PropertyRegistry().Types().
+        PropertyRegistry(*this).Types().
             IsDerivedFrom(
         selectionPresenter_->GetContent()->
                     RuntimeType(),
@@ -1310,7 +1310,7 @@ void ComboBox::OnApplyTemplate()
         GetTemplateChild("PART_EditableTextBox");
     editableTextBox_ =
         editable != nullptr &&
-        PropertyRegistry().Types().
+        PropertyRegistry(*this).Types().
             IsDerivedFrom(
                 editable->RuntimeType(),
                 TextBox::StaticTypeId())
@@ -1320,7 +1320,7 @@ void ComboBox::OnApplyTemplate()
         GetTemplateChild("DropDownBorder");
     dropDownBorder_ =
         border != nullptr &&
-        PropertyRegistry().Types().
+        PropertyRegistry(*this).Types().
             IsDerivedFrom(
                 border->RuntimeType(),
                 FrameworkElement::StaticTypeId())
@@ -1330,7 +1330,7 @@ void ComboBox::OnApplyTemplate()
         GetTemplateChild("PART_Popup");
     popup_ =
         popup != nullptr &&
-        PropertyRegistry().Types().
+        PropertyRegistry(*this).Types().
             IsDerivedFrom(
                 popup->RuntimeType(),
                 Popup::StaticTypeId())
@@ -1541,7 +1541,7 @@ ComboBox::UpdateSelectionBox() noexcept {
             text = value.AsString();
         }
     } else if (selected &&
-        PropertyRegistry().Types().
+        PropertyRegistry(*this).Types().
             IsDerivedFrom(
                 selected->RuntimeType(),
                 TextBlock::StaticTypeId())) {
@@ -1549,7 +1549,7 @@ ComboBox::UpdateSelectionBox() noexcept {
             selected.Get())->GetText();
     } else if (
         selected &&
-        PropertyRegistry().Types().
+        PropertyRegistry(*this).Types().
             IsDerivedFrom(
                 selected->RuntimeType(),
                 ContentControl::StaticTypeId())) {
@@ -1557,7 +1557,7 @@ ComboBox::UpdateSelectionBox() noexcept {
             AeroGuiInternal::ContentControlContent(*static_cast<ContentControl*>(
                 selected.Get()));
         if (content != nullptr &&
-            PropertyRegistry().Types().
+            PropertyRegistry(*this).Types().
                 IsDerivedFrom(
                     content->RuntimeType(),
                     TextBlock::StaticTypeId())) {
@@ -1576,13 +1576,13 @@ ComboBox::UpdateSelectionBox() noexcept {
             ? generator->ContainerFromIndex(index)
             : nullptr;
         if (container != nullptr &&
-            PropertyRegistry().Types().IsDerivedFrom(
+            PropertyRegistry(*this).Types().IsDerivedFrom(
                 container->RuntimeType(),
                 ContentControl::StaticTypeId())) {
             UIElement* content = AeroGuiInternal::ContentControlContent(
                 *static_cast<ContentControl*>(container));
             if (content != nullptr &&
-                PropertyRegistry().Types().IsDerivedFrom(
+                PropertyRegistry(*this).Types().IsDerivedFrom(
                     content->RuntimeType(), TextBlock::StaticTypeId())) {
                 selectedProjection = static_cast<TextBlock*>(content);
                 text = selectedProjection->GetText();
@@ -1663,7 +1663,7 @@ ComboBox::UpdateEditableVisualState() noexcept {
 std::uint32_t ComboBox::FindContainerIndex(
     Base::Object* source) const noexcept {
     if (source == nullptr ||
-        !PropertyRegistry().Types().
+        !PropertyRegistry(*this).Types().
             IsDerivedFrom(
                 source->RuntimeType(),
                 UIElement::StaticTypeId())) {
@@ -1676,7 +1676,7 @@ std::uint32_t ComboBox::FindContainerIndex(
         UIElement* element =
             ::Aero::TryCast<::Aero::UIElement>(visual);
         if (element != nullptr &&
-            PropertyRegistry().Types().
+            PropertyRegistry(*this).Types().
                 IsDerivedFrom(
                     element->RuntimeType(),
                     ComboBoxItem::StaticTypeId())) {
@@ -1777,7 +1777,7 @@ ComboBehavior::Attach(
     if (FindComboBox(comboBox) != UINT32_MAX) {
         return {};
     }
-    if (comboBox.GetTree() != tree_) {
+    if (VisualTree(comboBox) != tree_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "ComboBox interaction attach state is invalid");
@@ -1942,7 +1942,7 @@ void ComboBehavior::OnPointerStateChanged(
                 FrameworkElement* container =
                     generator->ContainerFromIndex(index);
                 if (container != nullptr &&
-                    comboBox->PropertyRegistry().Types().IsDerivedFrom(
+                    PropertyRegistry(comboBox).Types().IsDerivedFrom(
                         container->RuntimeType(),
                         ComboBoxItem::StaticTypeId())) {
                     auto& item =
@@ -2037,7 +2037,7 @@ ListBox* ListBehavior::ResolveListBox(
 
 Base::Result<void> ListBehavior::Attach(
     ListBox& listBox) noexcept {
-    if (listBox.GetTree() != tree_ ||
+    if (VisualTree(listBox) != tree_ ||
         FindListBox(listBox) != UINT32_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -2098,7 +2098,7 @@ ListBehavior::FindContainerIndex(
     ListBox& listBox,
     Base::Object* source) const noexcept {
     if (source == nullptr ||
-        !listBox.PropertyRegistry().Types()
+        !PropertyRegistry(listBox).Types()
             .IsDerivedFrom(
                 source->RuntimeType(),
                 UIElement::StaticTypeId())) {
@@ -2111,7 +2111,7 @@ ListBehavior::FindContainerIndex(
         UIElement* element =
             ::Aero::TryCast<::Aero::UIElement>(visual);
         if (element != nullptr &&
-            listBox.PropertyRegistry().Types()
+            PropertyRegistry(listBox).Types()
                 .IsDerivedFrom(
                     element->RuntimeType(),
                     ListBoxItem::StaticTypeId())) {
@@ -2303,7 +2303,7 @@ void ListBehavior::OnPointerStateChanged(
                 FrameworkElement* container =
                     generator->ContainerFromIndex(index);
                 if (container != nullptr &&
-                    listBox->PropertyRegistry().Types().IsDerivedFrom(
+                    PropertyRegistry(listBox).Types().IsDerivedFrom(
                         container->RuntimeType(),
                         ListBoxItem::StaticTypeId())) {
                     auto& item =

@@ -190,7 +190,7 @@ Size PasswordBox::MeasureOverride(
 void PasswordBox::OnApplyTemplate() noexcept {
     Control::OnApplyTemplate();
     DependencyObject* part = GetTemplateChild(Base::StringView("PART_ContentHost"));
-    if (part != nullptr && PropertyRegistry().Types().IsDerivedFrom(
+    if (part != nullptr && PropertyRegistry(*this).Types().IsDerivedFrom(
             part->RuntimeType(), ScrollViewer::StaticTypeId())) {
         static_cast<void>(editor_.AttachScrollViewer(static_cast<ScrollViewer*>(part)));
     } else {
@@ -210,7 +210,7 @@ Size PasswordBox::ArrangeOverride(
 void PasswordBox::OnRender(
     ::Aero::Media::DrawingContext& context) noexcept {
     DependencyObject* part = GetTemplateChild(Base::StringView("PART_ContentHost"));
-    if (part != nullptr && PropertyRegistry().Types().IsDerivedFrom(
+    if (part != nullptr && PropertyRegistry(*this).Types().IsDerivedFrom(
             part->RuntimeType(), ScrollViewer::StaticTypeId())) {
         return;
     }

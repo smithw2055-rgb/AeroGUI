@@ -448,10 +448,6 @@ private:
 
 } // namespace Aero::Meta
 
-#if defined(AERO_GUI_IMPLEMENTATION)
-#include "gui/core/DependencyPropertyRegistry.hpp"
-#endif
-
 namespace Aero {
 
 using Meta::AttachedPropertyRef;
@@ -460,9 +456,6 @@ using Meta::DependencyPropertyFlags;
 using Meta::DependencyPropertyHandle;
 using Meta::DependencyPropertyKey;
 using Meta::DependencyPropertyRef;
-#if defined(AERO_GUI_IMPLEMENTATION)
-using Meta::DependencyPropertyRegistry;
-#endif
 using Meta::DependencyPropertyChangedEventArgs;
 using Meta::DependencyPropertyChangedEventHandler;
 using Meta::EffectiveValueSource;

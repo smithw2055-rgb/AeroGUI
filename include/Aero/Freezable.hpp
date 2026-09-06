@@ -40,9 +40,6 @@ protected:
 
 private:
     friend struct FreezableState;
-    #if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::AeroGuiInternal;
-    #endif
 
     bool EnsureState() noexcept;
     FreezableState* impl_ = nullptr;

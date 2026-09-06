@@ -72,10 +72,6 @@ protected:
         RoutedEventArgs* args = nullptr) noexcept;
 
 private:
-#if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::AeroGuiInternal;
-#endif
-
     void AddHandlerErased(
         RoutedEventHandle event,
         const void* handler,

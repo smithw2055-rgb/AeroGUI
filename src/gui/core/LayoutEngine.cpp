@@ -893,7 +893,7 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
         flushing_ = false;
         UIElement* invalid = FindInvalidVisibleLayout(*root_);
         const TypeInfo* type = invalid != nullptr
-            ? invalid->PropertyRegistry().Types().FindType(
+            ? PropertyRegistry(invalid).Types().FindType(
                   invalid->RuntimeType())
             : nullptr;
         const Base::StringView typeName = type != nullptr
@@ -903,7 +903,7 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
             ? invalid->LayoutParent()
             : nullptr;
         const TypeInfo* parentType = layoutParent != nullptr
-            ? layoutParent->PropertyRegistry().Types().FindType(
+            ? PropertyRegistry(layoutParent).Types().FindType(
                   layoutParent->RuntimeType())
             : nullptr;
         const Base::StringView parentName = parentType != nullptr
@@ -965,38 +965,12 @@ void LayoutEngine::LayoutHook(void* context) noexcept {
 
 Size AeroGuiInternal::MeasureOverride(
     UIElement& element, Size availableSize) noexcept {
-    const TypeId type = element.RuntimeType();
-    if (type == Controls::StackPanel::StaticTypeId()) {
-        return static_cast<Controls::StackPanel&>(element)
-            .StackPanel::MeasureOverride(availableSize);
-    }
-    if (type == Controls::Grid::StaticTypeId()) {
-        return static_cast<Controls::Grid&>(element)
-            .Grid::MeasureOverride(availableSize);
-    }
-    if (type == Controls::Canvas::StaticTypeId()) {
-        return static_cast<Controls::Canvas&>(element)
-            .Canvas::MeasureOverride(availableSize);
-    }
-    return element.MeasureOverride(availableSize);
+    return AERO_CALL_METHOD(element, UIElement_MeasureOverride, availableSize);
 }
 
 Size AeroGuiInternal::ArrangeOverride(
     UIElement& element, Size finalSize) noexcept {
-    const TypeId type = element.RuntimeType();
-    if (type == Controls::StackPanel::StaticTypeId()) {
-        return static_cast<Controls::StackPanel&>(element)
-            .StackPanel::ArrangeOverride(finalSize);
-    }
-    if (type == Controls::Grid::StaticTypeId()) {
-        return static_cast<Controls::Grid&>(element)
-            .Grid::ArrangeOverride(finalSize);
-    }
-    if (type == Controls::Canvas::StaticTypeId()) {
-        return static_cast<Controls::Canvas&>(element)
-            .Canvas::ArrangeOverride(finalSize);
-    }
-    return element.ArrangeOverride(finalSize);
+    return AERO_CALL_METHOD(element, UIElement_ArrangeOverride, finalSize);
 }
 
 } // namespace Aero

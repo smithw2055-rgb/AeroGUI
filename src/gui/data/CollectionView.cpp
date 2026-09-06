@@ -3,6 +3,8 @@
 #include <Aero/DependencyObject.hpp>
 #include <Aero/Layout.hpp>
 #include <Aero/TryCast.hpp>
+#include "gui/core/DependencyPropertyRegistry.hpp"
+#include "gui/core/PropertyRegistryAccess.hpp"
 
 #include <algorithm>
 #include <cstdint>
@@ -53,10 +55,10 @@ int ComparePropertyValues(
         return left < right ? -1 : (left > right ? 1 : 0);
     }
     const Meta::DependencyProperty* leftProperty =
-        leftDo->PropertyRegistry().Find(
+        PropertyRegistry(leftDo).Find(
             leftDo->RuntimeType(), propertyName);
     const Meta::DependencyProperty* rightProperty =
-        rightDo->PropertyRegistry().Find(
+        PropertyRegistry(rightDo).Find(
             rightDo->RuntimeType(), propertyName);
     if (leftProperty == nullptr || rightProperty == nullptr) {
         return left < right ? -1 : (left > right ? 1 : 0);

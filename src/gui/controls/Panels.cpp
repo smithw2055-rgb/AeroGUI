@@ -1104,9 +1104,9 @@ void UIElementCollection::Add(Base::Ref<UIElement> child) noexcept {
     owner_->AddChildCore(object, element);
     // AttachVisual already calls PanelAddChild. Nested AttachElement here
     // double-mounts layout/render and drops ControlTemplates.
-    ElementTree* tree = owner_->GetTree();
+    ElementTree* tree = VisualTree(owner_);
     if (tree != nullptr) {
-        if (element.GetTree() == nullptr &&
+        if (VisualTree(element) == nullptr &&
             element.GetLogicalParent() == nullptr) {
             Base::Result<ElementAttachment> attached =
                 tree->AttachElement(*owner_, element);
@@ -1219,11 +1219,11 @@ void Panel::AddChildCore(const Base::Ref<Base::Object>& childObject, UIElement& 
     Base::Result<void> appended = ownedChildren_.PushBack(childObject);
     if (!appended) return;
     if (child.GetVisualParent() != this) {
-        if (ElementTree* tree = GetTree()) {
+        if (ElementTree* tree = VisualTree(this)) {
             // XAML Panel content uses AddChildCore, not UIElementCollection::Add.
             // A live-tree Grid (LoadComponent ColorSelector) must still parent
             // children visually or star rows measure 0 and ColorRect stays 0x0.
-            if (child.GetTree() == nullptr &&
+            if (VisualTree(child) == nullptr &&
                 child.GetLogicalParent() == nullptr) {
                 Base::Result<ElementAttachment> attached =
                     tree->AttachElement(*this, child);
@@ -1257,8 +1257,8 @@ Base::Result<bool> Panel::RemoveChildCore(UIElement& child) noexcept {
     if (!access) return access.GetStatus();
     for (std::uint32_t index = 0U; index < ownedChildren_.Size(); ++index) {
         if (ownedChildren_[index].Get() != &child) continue;
-        ElementTree* tree = GetTree();
-        if (tree != nullptr && child.GetTree() == tree) {
+        ElementTree* tree = VisualTree(this);
+        if (tree != nullptr && VisualTree(child) == tree) {
             if (child.GetVisualParent() == this) {
                 Base::Result<void> detached = tree->DetachVisual(*this, child);
                 if (!detached) return detached.GetStatus();
@@ -1282,13 +1282,13 @@ Base::Result<bool> Panel::RemoveChildCore(UIElement& child) noexcept {
 void Panel::ClearChildrenCore() noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) return;
-    ElementTree* tree = GetTree();
+    ElementTree* tree = VisualTree(this);
     for (std::uint32_t index = 0U; index < ownedChildren_.Size(); ++index) {
         UIElement* child = ownedChildren_[index]
             ? static_cast<UIElement*>(ownedChildren_[index].Get())
             : nullptr;
         if (child == nullptr) continue;
-        if (tree != nullptr && child->GetTree() == tree) {
+        if (tree != nullptr && VisualTree(child) == tree) {
             if (child->GetVisualParent() == this) {
                 (void)tree->DetachVisual(*this, *child);
             }

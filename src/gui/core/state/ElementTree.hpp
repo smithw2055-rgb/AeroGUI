@@ -8,6 +8,7 @@
 #include <Aero/Base/Span.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
+#include <Aero/Visual.hpp>
 
 namespace Aero {
 
@@ -130,6 +131,12 @@ public:
     ElementTree& operator=(const ElementTree&) = delete;
 
     Base::Result<void> Initialize() noexcept;
+    static ElementTree* Of(const ::Aero::Media::Visual& visual) noexcept {
+        return visual.tree_;
+    }
+    static ElementTree* Of(const ::Aero::Media::Visual* visual) noexcept {
+        return visual != nullptr ? visual->tree_ : nullptr;
+    }
     Base::Result<void> SetRoot(::Aero::Media::Visual* root) noexcept;
     ::Aero::Media::Visual* Root() const noexcept { return root_; }
     Base::Result<VisualHandle> GetHandle(
@@ -354,6 +361,13 @@ private:
     Base::Result<void> DetachLayout(::Aero::Media::Visual& parent, ::Aero::Media::Visual& child, bool& attached) noexcept;
     Base::Result<void> DetachRender(::Aero::Media::Visual& parent, ::Aero::Media::Visual& child, bool& attached) noexcept;
 };
+
+inline ElementTree* VisualTree(const ::Aero::Media::Visual& visual) noexcept {
+    return ElementTree::Of(visual);
+}
+inline ElementTree* VisualTree(const ::Aero::Media::Visual* visual) noexcept {
+    return ElementTree::Of(visual);
+}
 
 } // namespace Aero
 

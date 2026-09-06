@@ -25,7 +25,6 @@ using Meta::PropertyInvalidationFlags;
 using Meta::TypeId;
 
 class UIElement;
-class AeroGuiInternal;
 namespace Media { class Transform; class Transform3D; class Effect; class Brush; class Geometry; }
 namespace Input { class RoutedCommand; class InputBinding; class CommandBinding; }
 
@@ -306,6 +305,30 @@ public:
     void SetTransform3D(Ref<Media::Transform3D> value) noexcept;
     void SetRenderTransformOrigin(Point value) noexcept;
 
+    struct LayoutHot {
+        Size desiredSize{};
+        Size untransformedDesiredSize{};
+        Size renderSize{};
+        Size previousMeasureConstraint{};
+        Rect layoutSlot{};
+        Rect layoutClip{};
+        Rect visualRect{};
+        std::uint64_t layoutRevision = 0U;
+        bool layoutAttached : 1;
+        bool measureValid : 1;
+        bool arrangeValid : 1;
+        bool measureQueued : 1;
+        bool arrangeQueued : 1;
+        bool measuring : 1;
+        bool arranging : 1;
+    };
+
+    struct Rare {
+        void* routedHandlers = nullptr;
+        void* inputBindings = nullptr;
+        void* commandBindings = nullptr;
+    };
+
 protected:
     void RaiseEvent(RoutedEventHandle event, RoutedEventArgs* args = nullptr) noexcept;
     void OnVisualChildrenChanged(
@@ -326,9 +349,6 @@ protected:
     }
 
 private:
-#if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::AeroGuiInternal;
-#endif
     friend class UIElementChildRange;
     friend class UIElementChildRange::Iterator;
     friend class Aero::Input::RoutedCommand;
@@ -354,30 +374,6 @@ private:
     void SetKeyboardFocusWithinState(bool value) noexcept;
     void CleanupHandlers() noexcept;
     Result<void> EnsureRoutedHandlers() noexcept;
-
-    struct LayoutHot {
-        Size desiredSize{};
-        Size untransformedDesiredSize{};
-        Size renderSize{};
-        Size previousMeasureConstraint{};
-        Rect layoutSlot{};
-        Rect layoutClip{};
-        Rect visualRect{};
-        std::uint64_t layoutRevision = 0U;
-        bool layoutAttached : 1;
-        bool measureValid : 1;
-        bool arrangeValid : 1;
-        bool measureQueued : 1;
-        bool arrangeQueued : 1;
-        bool measuring : 1;
-        bool arranging : 1;
-    };
-
-    struct Rare {
-        void* routedHandlers = nullptr;
-        void* inputBindings = nullptr;
-        void* commandBindings = nullptr;
-    };
 
     Rare& EnsureRare() noexcept;
 

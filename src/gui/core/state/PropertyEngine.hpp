@@ -10,6 +10,7 @@
 #include <Aero/DependencyProperty.hpp>
 #include <Aero/Diagnostics/PropertyValueSource.hpp>
 #include <Aero/Threading.hpp>
+#include "gui/core/PropertyRegistryAccess.hpp"
 
 #include <cstdint>
 

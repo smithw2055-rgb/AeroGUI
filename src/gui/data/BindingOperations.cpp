@@ -599,7 +599,7 @@ Base::Result<void> BindingEngine::ResolveMetadataSource(
 
     if (record.bindsToSource) {
         const DependencyProperty* targetProperty =
-            record.descriptor.target->PropertyRegistry().Find(
+            PropertyRegistry(record.descriptor.target).Find(
                 record.descriptor.targetProperty);
         if (targetProperty == nullptr ||
             (!targetProperty->AcceptsAnyValue() &&
@@ -642,7 +642,7 @@ Base::Result<void> BindingEngine::ResolveMetadataSource(
                 compiled.GetStatus());
         }
     const DependencyProperty* targetProperty =
-        record.descriptor.target->PropertyRegistry().Find(
+        PropertyRegistry(record.descriptor.target).Find(
             record.descriptor.targetProperty);
     if (targetProperty == nullptr ||
         (record.descriptor.convert == nullptr &&
@@ -752,7 +752,7 @@ Base::Result<PropertyValue> BindingEngine::ConvertForTarget(
     record.conversionFailureStage =
         BindingDiagnosticStage::Convert;
     const DependencyProperty* targetProperty =
-        record.descriptor.target->PropertyRegistry().Find(
+        PropertyRegistry(record.descriptor.target).Find(
             record.descriptor.targetProperty);
     if (targetProperty == nullptr) {
         return Base::Status::Failure(
@@ -848,7 +848,7 @@ Base::Result<PropertyValue> BindingEngine::ConvertForSource(
     TypeId sourceType = InvalidTypeId;
     if (record.sourceKind == BindingSourceKind::DependencyProperty) {
         const DependencyProperty* sourceProperty =
-            record.descriptor.source->PropertyRegistry().Find(
+            PropertyRegistry(record.descriptor.source).Find(
                 record.descriptor.sourceProperty);
         if (sourceProperty != nullptr) {
             sourceType = sourceProperty->ValueType();
@@ -975,7 +975,7 @@ Base::Result<void> BindingEngine::SubscribeMetadataSource(
                 record.pathPlan.Segments()[0];
             if (!first.dynamic && first.member != InvalidMemberId) {
                 DependencyPropertyHandle handle{first.member};
-                if (sourceObject->PropertyRegistry().Find(handle) !=
+                if (PropertyRegistry(sourceObject).Find(handle) !=
                     nullptr) {
                     sourceObject->AddValueChangedHandler(
                         handle, propertyChangedHandler_);

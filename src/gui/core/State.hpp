@@ -42,6 +42,7 @@ class StyleEngine;
 
 // Tree and named view services
 #include "gui/core/state/ElementTree.hpp"
+#include "gui/core/PropertyRegistryAccess.hpp"
 
 // State headers
 #include "gui/core/state/LayoutEngine.hpp"

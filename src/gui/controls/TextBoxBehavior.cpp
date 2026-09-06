@@ -153,7 +153,7 @@ TextEditBehavior::Attach(
             "TextBox is already attached");
     }
     if (!textBox.GetIsLoaded() ||
-        textBox.GetTree() != tree_) {
+        VisualTree(textBox) != tree_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "TextBox must be loaded in the interaction tree");
@@ -196,7 +196,7 @@ TextEditBehavior::Attach(
             "PasswordBox is already attached");
     }
     if (!passwordBox.GetIsLoaded() ||
-        passwordBox.GetTree() != tree_) {
+        VisualTree(passwordBox) != tree_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "PasswordBox must be loaded in the interaction tree");
