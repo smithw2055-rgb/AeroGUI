@@ -153,26 +153,25 @@ private:
 };
 
 } // namespace Aero::Render
-namespace Aero {
+namespace Aero::Media {
 
 // Source-private bridge used by FrameworkElement::OnRender implementations.
-// Keep it next to DisplayListBuilder instead of recreating a broad render
-// umbrella header.
-struct Media::DrawingContextRuntime {
-    static ::Aero::Media::DrawingContext Create(
-        Render::DisplayListBuilder& builder) noexcept {
-        return ::Aero::Media::DrawingContext(&builder);
+// Nested on DrawingContext so no parallel *Runtime companion is exported.
+struct DrawingContext::Private {
+    static DrawingContext Create(
+        ::Aero::Render::DisplayListBuilder& builder) noexcept {
+        return DrawingContext(&builder);
     }
 
-    static Render::DisplayListBuilder& Builder(
-        ::Aero::Media::DrawingContext& context) noexcept {
-        return *static_cast<Render::DisplayListBuilder*>(
+    static ::Aero::Render::DisplayListBuilder& Builder(
+        DrawingContext& context) noexcept {
+        return *static_cast<::Aero::Render::DisplayListBuilder*>(
             context.implementation_);
     }
 };
 
-} // namespace Aero
+} // namespace Aero::Media
 
 namespace Aero::Render {
-using DrawingPrivate = ::Aero::Media::DrawingContextRuntime;
+using DrawingPrivate = ::Aero::Media::DrawingContext::Private;
 } // namespace Aero::Render

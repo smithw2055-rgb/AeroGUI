@@ -6,9 +6,8 @@
 
 namespace Aero::Media {
 
-std::uint64_t EffectRuntime::Revision(
-    const Effect& effect) noexcept {
-    return AeroGuiInternal::FreezableRevision(effect);
+std::uint64_t Effect::GetRevision() const noexcept {
+    return AeroGuiInternal::FreezableRevision(*this);
 }
 
 double BlurEffect::GetRadius() const noexcept {

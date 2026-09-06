@@ -38,12 +38,13 @@ public:
         Elastic
     };
 
+    Kind GetKind() const noexcept { return kind_; }
+
 protected:
     EasingFunctionBase(Meta::TypeId runtimeType, Kind kind) noexcept
         : Freezable(runtimeType), kind_(kind) {}
 
 private:
-    friend struct TimelineRuntime;
     Kind kind_ = Kind::Linear;
 };
 

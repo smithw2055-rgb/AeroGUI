@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Aero/Base/Geometry.hpp>
+#include <cstdint>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/DependencyProperty.hpp>
@@ -15,6 +16,9 @@ class AERO_GUI_API Transform : public ::Aero::Freezable {
 public:
 
     virtual Base::Transform2D GetMatrix() const noexcept = 0;
+
+    // Freezable content revision (render cache invalidation).
+    std::uint64_t GetRevision() const noexcept;
 
 protected:
     explicit Transform(Meta::TypeId runtimeType) noexcept

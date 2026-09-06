@@ -219,7 +219,7 @@ inline Base::Color SampleBrush(
 
 namespace Aero::Media::Animation {
 
-struct TimelineRuntime {
+struct TimelinePrivate {
 public:
     static Model::TimelineTiming Timing(
         const Timeline& timeline) noexcept {
@@ -296,7 +296,7 @@ public:
         const EasingFunctionBase& easing) noexcept {
         Model::EasingFunction result;
         result.kind = static_cast<Model::EasingFunctionKind>(
-            static_cast<std::uint8_t>(easing.kind_));
+            static_cast<std::uint8_t>(easing.GetKind()));
         result.mode = easing.GetEasingMode();
         if (easing.RuntimeType() == PowerEase::StaticTypeId()) {
             result.power = static_cast<const PowerEase&>(easing).GetPower();
@@ -634,38 +634,6 @@ public:
 } // namespace Aero::Media::Animation
 
 namespace Aero::Media {
-using AnimationPrivate = ::Aero::Media::Animation::TimelineRuntime;
+using AnimationPrivate = ::Aero::Media::Animation::TimelinePrivate;
 }
 
-namespace Aero::Media {
-
-struct TransformRuntime {
-public:
-    static std::uint64_t Revision(
-        const Aero::Media::Transform& transform) noexcept;
-};
-
-} // namespace Aero::Media
-
-namespace Aero::Media {
-using TransformPrivate = ::Aero::Media::TransformRuntime;
-
-} // namespace Aero::Media
-
-namespace Aero::Media {
-
-// Effect ownership is a runtime attachment detail.  Keep it out of the SDK
-// surface while allowing the metadata bridge to update it when an Effect
-// property is assigned to a FrameworkElement.
-struct EffectRuntime {
-public:
-    static std::uint64_t Revision(
-        const Aero::Media::Effect& effect) noexcept;
-};
-
-} // namespace Aero::Media
-
-namespace Aero::Media {
-using EffectPrivate = ::Aero::Media::EffectRuntime;
-
-} // namespace Aero::Media

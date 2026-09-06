@@ -49,9 +49,8 @@ bool ContainsTransform(
 
 namespace Aero::Media {
 
-std::uint64_t TransformRuntime::Revision(
-    const Transform& transform) noexcept {
-    return AeroGuiInternal::FreezableRevision(transform);
+std::uint64_t Transform::GetRevision() const noexcept {
+    return AeroGuiInternal::FreezableRevision(*this);
 }
 
 } // namespace Aero::Media
