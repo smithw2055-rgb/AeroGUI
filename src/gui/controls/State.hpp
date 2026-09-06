@@ -14,29 +14,5 @@
 namespace Aero::Controls {
 
 class TemplateEngine;
-struct ItemContainerGeneratorRuntime;
-
-// Internal adapter for scalar ItemsSource values. It is deliberately kept out
-// of the public controls surface; callers use AddBoxedItem helpers instead.
-class BoxedItemValue : public Base::Object {
-    AERO_DECLARE_TYPE(BoxedItemValue, Base::Object)
-public:
-    explicit BoxedItemValue(Meta::Value value) noexcept
-        : value_(std::move(value)) {}
-
-    TypeId RuntimeType() const noexcept override {
-        return StaticTypeId();
-    }
-
-    const Meta::Value& Value() const noexcept {
-        return value_;
-    }
-
-private:
-    Meta::Value value_;
-};
-
-using ItemContainerGeneratorImpl =
-    ::Aero::Controls::ItemContainerGeneratorRuntime;
 
 } // namespace Aero::Controls

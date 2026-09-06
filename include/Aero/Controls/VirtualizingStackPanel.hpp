@@ -96,7 +96,6 @@ protected:
 
 private:
     friend class ItemContainerGenerator;
-    friend struct ItemContainerGeneratorRuntime;
 
     Base::Vector<double> extentTree_;
     double crossExtent_ = 0.0;

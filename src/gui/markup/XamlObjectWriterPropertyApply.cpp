@@ -5,6 +5,7 @@
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include "gui/controls/State.hpp"
+#include "gui/controls/ItemsDetail.hpp"
 #include "gui/templates/TemplateState.hpp"
 #include "gui/markup/MarkupState.hpp"
 #include "gui/markup/MarkupWriterState.hpp"

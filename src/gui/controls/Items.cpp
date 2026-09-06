@@ -10,7 +10,8 @@
 #include "gui/data/BindingEngine.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleEngine.hpp"
-#include "gui/controls/State.hpp" 
+#include "gui/controls/State.hpp"
+#include "gui/controls/ItemsDetail.hpp" 
 #include "gui/templates/TemplateState.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
 

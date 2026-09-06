@@ -4,6 +4,7 @@
 #include "gui/core/State.hpp"
 #include "gui/data/BindingEngine.hpp"
 #include "gui/controls/State.hpp"
+#include "gui/controls/ItemsDetail.hpp"
 #include <Aero/Data/Binding.hpp>
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/LogicalTreeHelper.hpp>

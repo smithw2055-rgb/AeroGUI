@@ -19,7 +19,6 @@ using ::Aero::Meta::DependencyPropertyHandle;
 using ::Aero::Meta::TypeId;
 class VirtualizingStackPanel;
 class ItemContainerGenerator;
-struct ItemContainerGeneratorRuntime;
 
 class AERO_GUI_API ItemsControl : public Control {
     AERO_DECLARE_TYPE(ItemsControl, Control)
@@ -172,7 +171,6 @@ protected:
 
 private:
     friend class ItemContainerGenerator;
-    friend struct ItemContainerGeneratorRuntime;
 
     ItemCollection items_;
     Collections::IItemsSource* source_ = nullptr;

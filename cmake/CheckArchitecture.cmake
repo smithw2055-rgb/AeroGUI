@@ -537,7 +537,6 @@ foreach(required_source_entry IN ITEMS
         "src/gui/interactivity/InteractivityEngine.Triggers.cpp"
         "src/gui/interactivity/InteractivityEngine.Style.cpp"
         "src/gui/controls/VisualStateManager.cpp"
-        "src/gui/controls/VisualStateManagerImpl.hpp"
         "src/gui/internal"
         "src/gui/internal/AeroGuiInternal.hpp"
         "src/gui/internal/AeroGuiInternal.Layout.hpp"

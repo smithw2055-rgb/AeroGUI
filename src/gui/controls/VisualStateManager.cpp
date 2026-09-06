@@ -6,7 +6,6 @@
 #include "gui/styles/StyleState.hpp"
 #include "gui/controls/State.hpp"
 #include "gui/templates/TemplateState.hpp"
-#include "gui/controls/VisualStateManagerImpl.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
 
 #include <Aero/Value.hpp>
@@ -18,6 +17,126 @@
 #include <utility>
 #include "ControlBehavior.hpp"
 
+namespace Aero::Controls {
+
+// File-local VSM execution state (merged companion; not exported).
+class VisualStateManagerState {
+public:
+    VisualStateManagerState(
+        EffectiveValueEngine& values,
+        TemplateEngine& templates,
+        Aero::AnimationEngine& animations,
+        DependencyPropertyRegistry& properties) noexcept
+        : values_(&values),
+          templates_(&templates),
+          animations_(&animations),
+          properties_(&properties) {}
+
+    Base::Result<bool> GoToState(
+        Control& control,
+        Base::StringView groupName,
+        Base::StringView stateName,
+        bool useTransitions) noexcept;
+    Base::Result<bool> ClearState(
+        Control& control,
+        Base::StringView groupName) noexcept;
+    Base::Result<std::uint32_t> Clear(Control& control) noexcept;
+    Base::StringView CurrentState(
+        const Control& control,
+        Base::StringView groupName) const noexcept;
+
+private:
+    struct ActiveGroup {
+        std::uint64_t templateValue = 0U;
+        Base::String groupName;
+        Base::String stateName;
+        Base::Vector<Aero::Media::Animation::Model::AnimationHandle> animations;
+        std::uint32_t providerOrigin = 0U;
+        std::uint32_t nextOrdinal = 0U;
+    };
+
+    struct TransitionValue {
+        DependencyObject* target = nullptr;
+        DependencyPropertyHandle property;
+        PropertyValue from;
+        PropertyValue to;
+    };
+
+    EffectiveValueEngine* values_ = nullptr;
+    TemplateEngine* templates_ = nullptr;
+    Aero::AnimationEngine* animations_ = nullptr;
+    DependencyPropertyRegistry* properties_ = nullptr;
+    Base::Vector<ActiveGroup> active_;
+    std::uint32_t goToStateDepth_ = 0U;
+
+    std::uint32_t FindActive(
+        TemplateHandle handle,
+        Base::StringView groupName) const noexcept;
+    static const VisualStateGroupPlan* FindGroup(
+        const ControlTemplate& plan,
+        Base::StringView groupName) noexcept;
+    static const VisualStatePlan* FindState(
+        const VisualStateGroupPlan& group,
+        Base::StringView stateName) noexcept;
+    static const VisualTransitionPlan* FindTransition(
+        const VisualStateGroupPlan& group,
+        Base::StringView fromState,
+        Base::StringView toState) noexcept;
+    Base::Result<void> ApplyState(
+        TemplateHandle handle,
+        const VisualStatePlan& state,
+        ActiveGroup& active) noexcept;
+    Base::Result<void> ClearStateValues(
+        TemplateHandle handle,
+        const VisualStatePlan& state,
+        ActiveGroup& active) noexcept;
+    Base::Result<void> StartStateAnimations(
+        Control& control,
+        TemplateHandle handle,
+        const VisualStatePlan& state,
+        ActiveGroup& active,
+        const Aero::Media::Animation::Model::TimelineTiming& parent = {}) noexcept;
+    Base::Result<void> StartStoryboardAnimations(
+        Control& control,
+        TemplateHandle handle,
+        Media::Animation::Storyboard& storyboard,
+        ActiveGroup& active,
+        const Aero::Media::Animation::Model::TimelineTiming& parent = {}) noexcept;
+    Base::Result<void> CaptureTransitionValues(
+        TemplateHandle handle,
+        const VisualStatePlan& next,
+        Base::Vector<TransitionValue>& values) noexcept;
+    Base::Result<void> CaptureStoryboardTransitionValues(
+        Control& control,
+        TemplateHandle handle,
+        const VisualStatePlan& next,
+        Base::Vector<TransitionValue>& values) noexcept;
+    static Base::Result<void> CaptureStoryboardTimeline(
+        Control& control,
+        TemplateHandle handle,
+        TemplateEngine& templates,
+        DependencyPropertyRegistry& properties,
+        Media::Animation::Timeline& timeline,
+        Base::Vector<TransitionValue>& values,
+        bool revertToBase) noexcept;
+    Base::Result<void> CaptureStoryboardRevertToBase(
+        Control& control,
+        TemplateHandle handle,
+        const VisualStatePlan& previous,
+        Base::Vector<TransitionValue>& values) noexcept;
+    Base::Result<void> StartTransitionAnimations(
+        Control& control,
+        TemplateHandle handle,
+        const VisualTransitionPlan& transition,
+        Base::Span<const TransitionValue> values,
+        ActiveGroup& active) noexcept;
+    Base::Result<void> ClearStateAnimations(ActiveGroup& active) noexcept;
+    void PruneStale() noexcept;
+    void RemoveActiveAt(std::uint32_t index) noexcept;
+};
+
+} // namespace Aero::Controls
+
 namespace Aero {
 using Aero::Controls::TemplateEngine;
 using Aero::Controls::TemplateHandle;
@@ -27,6 +146,7 @@ using namespace ::Aero::Media;
 using namespace ::Aero::Controls;
 using namespace ::Aero;
 namespace {
+
 
 struct AnimationTarget {
     DependencyObject* object = nullptr;
@@ -543,7 +663,7 @@ VisualStateManagerRuntime::Create(
             Base::ErrorCode::OutOfMemory,
             "VisualStateManager allocation failed");
     }
-    Runtime(*manager) = new (std::nothrow) Controls::VisualStateManagerImpl(
+    Runtime(*manager) = new (std::nothrow) VisualStateManagerState(
         values, templates, animations, properties);
     if (Runtime(*manager) == nullptr) {
         delete manager;
@@ -565,7 +685,10 @@ using namespace ::Aero::Media;
 using namespace ::Aero::Controls;
 using namespace ::Aero;
 
-std::uint32_t VisualStateManagerImpl::FindActive(
+
+
+
+std::uint32_t VisualStateManagerState::FindActive(
     TemplateHandle handle,
     Base::StringView groupName) const noexcept {
     for (std::uint32_t index = 0U;
@@ -578,7 +701,7 @@ std::uint32_t VisualStateManagerImpl::FindActive(
     return UINT32_MAX;
 }
 
-const VisualStateGroupPlan* VisualStateManagerImpl::FindGroup(
+const VisualStateGroupPlan* VisualStateManagerState::FindGroup(
     const ControlTemplate& plan,
     Base::StringView groupName) noexcept {
     for (const VisualStateGroupPlan& group :
@@ -588,7 +711,7 @@ const VisualStateGroupPlan* VisualStateManagerImpl::FindGroup(
     return nullptr;
 }
 
-const VisualStatePlan* VisualStateManagerImpl::FindState(
+const VisualStatePlan* VisualStateManagerState::FindState(
     const VisualStateGroupPlan& group,
     Base::StringView stateName) noexcept {
     for (const VisualStatePlan& state : group.states) {
@@ -597,7 +720,7 @@ const VisualStatePlan* VisualStateManagerImpl::FindState(
     return nullptr;
 }
 
-const VisualTransitionPlan* VisualStateManagerImpl::FindTransition(
+const VisualTransitionPlan* VisualStateManagerState::FindTransition(
     const VisualStateGroupPlan& group,
     Base::StringView fromState,
     Base::StringView toState) noexcept {
@@ -624,7 +747,7 @@ const VisualTransitionPlan* VisualStateManagerImpl::FindTransition(
     return best;
 }
 
-Base::Result<void> VisualStateManagerImpl::ApplyState(
+Base::Result<void> VisualStateManagerState::ApplyState(
     TemplateHandle handle,
     const VisualStatePlan& state,
     ActiveGroup& active) noexcept {
@@ -661,7 +784,7 @@ Base::Result<void> VisualStateManagerImpl::ApplyState(
     return {};
 }
 
-Base::Result<void> VisualStateManagerImpl::ClearStateValues(
+Base::Result<void> VisualStateManagerState::ClearStateValues(
     TemplateHandle handle,
     const VisualStatePlan& state,
     ActiveGroup& active) noexcept {
@@ -681,7 +804,7 @@ Base::Result<void> VisualStateManagerImpl::ClearStateValues(
     return {};
 }
 
-void VisualStateManagerImpl::RemoveActiveAt(
+void VisualStateManagerState::RemoveActiveAt(
     std::uint32_t index) noexcept {
     if (index + 1U != active_.Size()) {
         active_[index] =
@@ -690,7 +813,7 @@ void VisualStateManagerImpl::RemoveActiveAt(
     active_.PopBack();
 }
 
-void VisualStateManagerImpl::PruneStale() noexcept {
+void VisualStateManagerState::PruneStale() noexcept {
     for (std::uint32_t index = active_.Size();
         index > 0U; --index) {
         TemplateHandle handle;
@@ -703,7 +826,7 @@ void VisualStateManagerImpl::PruneStale() noexcept {
     }
 }
 
-Base::Result<void> VisualStateManagerImpl::ClearStateAnimations(
+Base::Result<void> VisualStateManagerState::ClearStateAnimations(
     ActiveGroup& active) noexcept {
     Base::Status first;
     for (Aero::Media::Animation::Model::AnimationHandle animation :
@@ -729,7 +852,7 @@ Base::Result<void> VisualStateManagerImpl::ClearStateAnimations(
         : Base::Result<void>(first);
 }
 
-Base::Result<void> VisualStateManagerImpl::StartStateAnimations(
+Base::Result<void> VisualStateManagerState::StartStateAnimations(
     Control& control,
     TemplateHandle handle,
     const VisualStatePlan& state,
@@ -744,7 +867,7 @@ Base::Result<void> VisualStateManagerImpl::StartStateAnimations(
         parent);
 }
 
-Base::Result<void> VisualStateManagerImpl::StartStoryboardAnimations(
+Base::Result<void> VisualStateManagerState::StartStoryboardAnimations(
     Control& control,
     TemplateHandle handle,
     Media::Animation::Storyboard& root,
@@ -1084,7 +1207,7 @@ Base::Result<void> VisualStateManagerImpl::StartStoryboardAnimations(
     return {};
 }
 
-Base::Result<void> VisualStateManagerImpl::CaptureTransitionValues(
+Base::Result<void> VisualStateManagerState::CaptureTransitionValues(
     TemplateHandle handle,
     const VisualStatePlan& next,
     Base::Vector<TransitionValue>& output) noexcept {
@@ -1151,7 +1274,7 @@ PropertyValue BaseValueWithoutAnimation(
 // VisualState expresses its effect through a Storyboard rather than Setters.
 // revertToBase uses the local/default value as `to` so empty Unchecked
 // states can fade HoldEnd clocks back to rest.
-Base::Result<void> VisualStateManagerImpl::CaptureStoryboardTimeline(
+Base::Result<void> VisualStateManagerState::CaptureStoryboardTimeline(
     Control& control,
     TemplateHandle handle,
     TemplateEngine& templates,
@@ -1296,7 +1419,7 @@ Base::Result<void> VisualStateManagerImpl::CaptureStoryboardTimeline(
 }
 
 Base::Result<void>
-VisualStateManagerImpl::CaptureStoryboardTransitionValues(
+VisualStateManagerState::CaptureStoryboardTransitionValues(
     Control& control,
     TemplateHandle handle,
     const VisualStatePlan& next,
@@ -1316,7 +1439,7 @@ VisualStateManagerImpl::CaptureStoryboardTransitionValues(
 }
 
 Base::Result<void>
-VisualStateManagerImpl::CaptureStoryboardRevertToBase(
+VisualStateManagerState::CaptureStoryboardRevertToBase(
     Control& control,
     TemplateHandle handle,
     const VisualStatePlan& previous,
@@ -1332,7 +1455,7 @@ VisualStateManagerImpl::CaptureStoryboardRevertToBase(
         true);
 }
 
-Base::Result<void> VisualStateManagerImpl::StartTransitionAnimations(
+Base::Result<void> VisualStateManagerState::StartTransitionAnimations(
     Control& control,
     TemplateHandle handle,
     const VisualTransitionPlan& transition,
@@ -1427,7 +1550,7 @@ Base::Result<void> VisualStateManagerImpl::StartTransitionAnimations(
     return {};
 }
 
-Base::Result<bool> VisualStateManagerImpl::GoToState(
+Base::Result<bool> VisualStateManagerState::GoToState(
     Control& control,
     Base::StringView groupName,
     Base::StringView stateName,
@@ -1688,7 +1811,7 @@ Base::Result<bool> VisualStateManagerImpl::GoToState(
     return true;
 }
 
-Base::Result<bool> VisualStateManagerImpl::ClearState(
+Base::Result<bool> VisualStateManagerState::ClearState(
     Control& control,
     Base::StringView groupName) noexcept {
     PruneStale();
@@ -1719,7 +1842,7 @@ Base::Result<bool> VisualStateManagerImpl::ClearState(
     return true;
 }
 
-Base::Result<std::uint32_t> VisualStateManagerImpl::Clear(
+Base::Result<std::uint32_t> VisualStateManagerState::Clear(
     Control& control) noexcept {
     PruneStale();
     const TemplateHandle handle =
@@ -1739,7 +1862,7 @@ Base::Result<std::uint32_t> VisualStateManagerImpl::Clear(
     return clearedCount;
 }
 
-Base::StringView VisualStateManagerImpl::CurrentState(
+Base::StringView VisualStateManagerState::CurrentState(
     const Control& control,
     Base::StringView groupName) const noexcept {
     const TemplateHandle handle =
@@ -1763,7 +1886,7 @@ bool VisualStateManager::GoToState(
     auto* manager = static_cast<VisualStateManager*>(
         AeroGuiInternal::VisualStateRuntime(control));
     if (manager == nullptr) return false;
-    auto* runtime = static_cast<Controls::VisualStateManagerImpl*>(
+    auto* runtime = static_cast<VisualStateManagerState*>(
         VisualStateManagerRuntime::Runtime(*manager));
     if (runtime == nullptr) return false;
     Base::Result<bool> changed = runtime->GoToState(
@@ -1772,7 +1895,7 @@ bool VisualStateManager::GoToState(
 }
 
 VisualStateManager::~VisualStateManager() noexcept {
-    delete static_cast<Controls::VisualStateManagerImpl*>(impl_);
+    delete static_cast<VisualStateManagerState*>(impl_);
     impl_ = nullptr;
 }
 
@@ -1782,7 +1905,7 @@ Base::Result<bool> VisualStateManagerRuntime::GoToState(
     Base::StringView groupName,
     Base::StringView stateName,
     bool useTransitions) noexcept {
-    auto* runtime = static_cast<Controls::VisualStateManagerImpl*>(
+    auto* runtime = static_cast<VisualStateManagerState*>(
         Runtime(manager));
     return runtime != nullptr
         ? runtime->GoToState(control, groupName, stateName, useTransitions)
@@ -1795,7 +1918,7 @@ Base::Result<bool> VisualStateManagerRuntime::ClearState(
     VisualStateManager& manager,
     Controls::Control& control,
     Base::StringView groupName) noexcept {
-    auto* runtime = static_cast<Controls::VisualStateManagerImpl*>(
+    auto* runtime = static_cast<VisualStateManagerState*>(
         Runtime(manager));
     return runtime != nullptr
         ? runtime->ClearState(control, groupName)
@@ -1805,7 +1928,7 @@ Base::Result<bool> VisualStateManagerRuntime::ClearState(
 Base::Result<std::uint32_t> VisualStateManagerRuntime::Clear(
     VisualStateManager& manager,
     Controls::Control& control) noexcept {
-    auto* runtime = static_cast<Controls::VisualStateManagerImpl*>(
+    auto* runtime = static_cast<VisualStateManagerState*>(
         Runtime(manager));
     return runtime != nullptr
         ? runtime->Clear(control)
@@ -1816,7 +1939,7 @@ Base::StringView VisualStateManagerRuntime::CurrentState(
     const VisualStateManager& manager,
     const Controls::Control& control,
     Base::StringView groupName) noexcept {
-    auto* runtime = static_cast<const Controls::VisualStateManagerImpl*>(
+    auto* runtime = static_cast<const VisualStateManagerState*>(
         Runtime(manager));
     return runtime != nullptr
         ? runtime->CurrentState(control, groupName)

@@ -3,10 +3,11 @@
 #include <Aero/Controls/ItemsControl.hpp>
 
 
+namespace Aero { class AeroGuiInternal; }
+
 namespace Aero::Controls {
 
 class VirtualizingStackPanel;
-struct ItemContainerGeneratorRuntime;
 
 class AERO_GUI_API ItemContainerGenerator {
 public:
@@ -38,10 +39,32 @@ public:
     Base::Status LastError() const noexcept;
 
 private:
-    friend struct ItemContainerGeneratorRuntime;
+    struct Impl;
+    friend struct Impl;
+    friend class ::Aero::AeroGuiInternal;
 
     ItemContainerGenerator() noexcept = default;
-    void* impl_ = nullptr;
+    Impl* impl_ = nullptr;
+
+    // Privileged helpers: ItemContainerGenerator is the sole friend of
+    // ItemsControl / VirtualizingStackPanel; Impl calls these instead of
+    // touching their private members directly.
+    static bool OwnerHasGenerator(const ItemsControl& owner) noexcept;
+    static void SetOwnerGenerator(
+        ItemsControl& owner,
+        ItemContainerGenerator* generator) noexcept;
+    static void NotifyOwnerContainersChanged(ItemsControl& owner) noexcept;
+    static Result<void> AttachHostGenerator(
+        VirtualizingStackPanel& host,
+        ItemContainerGenerator& generator,
+        std::uint32_t itemCount) noexcept;
+    static void DetachHostGenerator(
+        VirtualizingStackPanel& host,
+        ItemContainerGenerator& generator) noexcept;
+    static Result<void> HostHandleItemsChanged(
+        VirtualizingStackPanel& host,
+        const ItemsChangedEvent& event,
+        std::uint32_t itemCount) noexcept;
 };
 
 } // namespace Aero::Controls

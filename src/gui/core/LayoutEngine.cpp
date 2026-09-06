@@ -443,9 +443,10 @@ Base::Result<void> LayoutEngine::InvalidateArrange(
     return {};
 }
 
-Base::Result<void> LayoutEngine::MeasureElement(
-    UIElement& element,
+Base::Result<void> UIElement::MeasureCore(
+    LayoutEngine& layout,
     Size constraint) noexcept {
+    UIElement& element = *this;
     if (!IsValidLayoutSize(constraint)) {
         return InvalidArgument("Measure constraint must be finite and nonnegative");
     }
@@ -459,11 +460,11 @@ Base::Result<void> LayoutEngine::MeasureElement(
     VisualHandle pendingArrange{};
     const bool queueArrange = !element.GetIsArrangeQueued();
     if (queueArrange) {
-        Base::Result<VisualHandle> handle = EnqueueHandle(element);
+        Base::Result<VisualHandle> handle = layout.EnqueueHandle(element);
         if (!handle) return handle.GetStatus();
         pendingArrange = handle.Value();
-        Base::Result<void> reserved = arrangeQueue_.Reserve(
-            arrangeQueue_.Size() + 1U);
+        Base::Result<void> reserved = layout.arrangeQueue_.Reserve(
+            layout.arrangeQueue_.Size() + 1U);
         if (!reserved) return reserved.GetStatus();
     }
 
@@ -475,9 +476,9 @@ Base::Result<void> LayoutEngine::MeasureElement(
         AeroGuiInternal::Layout(element).arrangeValid = false;
         AeroGuiInternal::Layout(element).measureQueued = false;
         ++AeroGuiInternal::Layout(element).layoutRevision;
-        ++measuredCount_;
+        ++layout.measuredCount_;
         if (queueArrange) {
-            Base::Result<void> queued = arrangeQueue_.PushBack(
+            Base::Result<void> queued = layout.arrangeQueue_.PushBack(
                 pendingArrange);
             AERO_ASSERT(queued);
             (void)queued;
@@ -496,7 +497,7 @@ Base::Result<void> LayoutEngine::MeasureElement(
     // Window.Width/Height size the native chrome. The layout root must fill
     // the view client (DPI-converted, user-resized) so Viewbox Uniform can
     // scale. Nested elements still honor explicit Width/Height.
-    const bool isLayoutRoot = root_ != nullptr && &element == root_;
+    const bool isLayoutRoot = layout.root_ != nullptr && &element == layout.root_;
     const bool hasWidth =
         !isLayoutRoot && framework != nullptr && framework->GetHasWidth();
     const bool hasHeight =
@@ -586,9 +587,9 @@ Base::Result<void> LayoutEngine::MeasureElement(
     AeroGuiInternal::Layout(element).arrangeValid = false;
     AeroGuiInternal::Layout(element).measureQueued = false;
     ++AeroGuiInternal::Layout(element).layoutRevision;
-    ++measuredCount_;
+    ++layout.measuredCount_;
     if (queueArrange) {
-        Base::Result<void> queued = arrangeQueue_.PushBack(
+        Base::Result<void> queued = layout.arrangeQueue_.PushBack(
             pendingArrange);
         AERO_ASSERT(queued);
         (void)queued;
@@ -597,15 +598,16 @@ Base::Result<void> LayoutEngine::MeasureElement(
     return {};
 }
 
-Base::Result<void> LayoutEngine::ArrangeElement(
-    UIElement& element,
+Base::Result<void> UIElement::ArrangeCore(
+    LayoutEngine& layout,
     Rect slot) noexcept {
+    UIElement& element = *this;
     if (!IsValidLayoutRect(slot)) {
         return InvalidArgument("Arrange slot must be finite and nonnegative");
     }
     if (!element.GetIsMeasureValid()) {
-        Base::Result<void> measured = MeasureElement(
-            element, {slot.width, slot.height});
+        Base::Result<void> measured = MeasureCore(
+            layout, {slot.width, slot.height});
         if (!measured) {
             return measured;
         }
@@ -625,7 +627,7 @@ Base::Result<void> LayoutEngine::ArrangeElement(
         AeroGuiInternal::Layout(element).arrangeValid = true;
         AeroGuiInternal::Layout(element).arrangeQueued = false;
         ++AeroGuiInternal::Layout(element).layoutRevision;
-        ++arrangedCount_;
+        ++layout.arrangedCount_;
         return {};
     }
     FrameworkElement* framework =
@@ -643,7 +645,7 @@ Base::Result<void> LayoutEngine::ArrangeElement(
         ? framework->GetMinSize() : Size{};
     const Size maximum = framework != nullptr
         ? framework->GetMaxSize() : Size{1.0e12, 1.0e12};
-    const bool isLayoutRoot = root_ != nullptr && &element == root_;
+    const bool isLayoutRoot = layout.root_ != nullptr && &element == layout.root_;
     const bool hasWidth =
         !isLayoutRoot && framework != nullptr && framework->GetHasWidth();
     const bool hasHeight =
@@ -778,9 +780,23 @@ Base::Result<void> LayoutEngine::ArrangeElement(
     AeroGuiInternal::Layout(element).arrangeValid = true;
     AeroGuiInternal::Layout(element).arrangeQueued = false;
     ++AeroGuiInternal::Layout(element).layoutRevision;
-    ++arrangedCount_;
+    ++layout.arrangedCount_;
     return {};
 }
+
+
+Base::Result<void> LayoutEngine::MeasureElement(
+    UIElement& element,
+    Size constraint) noexcept {
+    return element.MeasureCore(*this, constraint);
+}
+
+Base::Result<void> LayoutEngine::ArrangeElement(
+    UIElement& element,
+    Rect slot) noexcept {
+    return element.ArrangeCore(*this, slot);
+}
+
 
 Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
     Base::Result<void> access = dispatcher_->VerifyAccess();

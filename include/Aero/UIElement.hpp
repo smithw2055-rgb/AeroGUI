@@ -16,6 +16,7 @@
 #include <cstddef>
 
 namespace Aero {
+class LayoutEngine;
 
 using Point = Base::Point;
 using Size = Base::Size;
@@ -349,9 +350,17 @@ protected:
     }
 
 private:
+    friend class LayoutEngine;
     friend class UIElementChildRange;
     friend class UIElementChildRange::Iterator;
     friend class Aero::Input::RoutedCommand;
+
+    Result<void> MeasureCore(
+        LayoutEngine& layout,
+        Size constraint) noexcept;
+    Result<void> ArrangeCore(
+        LayoutEngine& layout,
+        Rect slot) noexcept;
 
     void AddHandlerErased(
         RoutedEventHandle event,
