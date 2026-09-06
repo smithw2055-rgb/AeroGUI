@@ -6,7 +6,7 @@
 
 namespace Aero {
 
-struct FrameworkTemplateRuntime;
+namespace Controls { class TemplatePrivate; }
 
 // WPF-shaped template object. XAML compilation, factory callbacks, bindings,
 // triggers, namescopes and the immutable runtime program are implementation
@@ -29,7 +29,7 @@ public:
     void SetResources(Ref<ResourceDictionary> value) noexcept;
 
 private:
-    friend struct FrameworkTemplateRuntime;
+    friend class Controls::TemplatePrivate;
     void* state_ = nullptr;
 };
 

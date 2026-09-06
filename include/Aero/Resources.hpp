@@ -119,8 +119,6 @@ struct ResourceChangeSubscription {
     }
 };
 
-struct ResourceDictionaryImpl;
-
 // StringView is empty for type-keyed and dictionary-wide notifications.
 using ResourceChangedCallback = void (*)(
     void* context,
@@ -240,6 +238,10 @@ public:
         std::uint32_t index) const noexcept;
     std::uint64_t Generation() const noexcept;
 
+    // Nested implementation storage (TU-local definition). Not a separate
+    // public companion type.
+    struct Impl;
+
 private:
     Result<void> StoreResource(
         const ResourceKey& key,
@@ -259,17 +261,17 @@ private:
         const Ref<Base::Object>& object,
         ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
 
-    friend struct ResourceDictionaryImpl;
+    friend struct Impl;
 
     explicit ResourceDictionary(
-        ResourceDictionaryImpl* impl,
+        Impl* impl,
         bool addReference) noexcept;
 
-    ResourceDictionaryImpl* impl_ = nullptr;
+    Impl* impl_ = nullptr;
 
-    Result<ResourceDictionaryImpl*> EnsureImpl() noexcept;
-    static void AddImplRef(ResourceDictionaryImpl* impl) noexcept;
-    static void ReleaseImpl(ResourceDictionaryImpl* impl) noexcept;
+    Result<Impl*> EnsureImpl() noexcept;
+    static void AddImplRef(Impl* impl) noexcept;
+    static void ReleaseImpl(Impl* impl) noexcept;
 };
 
 struct ResourceEnvironment {

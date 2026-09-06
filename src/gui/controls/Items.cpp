@@ -559,7 +559,7 @@ ContentControl::CreateTemplatedContent() const noexcept {
             "ContentControl ContentTemplate is not a DataTemplate");
     }
     Base::Result<Base::Ref<Base::Object>> created =
-        DataTemplateRuntime::Instantiate(
+        TemplatePrivate::Instantiate(
             *static_cast<DataTemplate*>(contentTemplate.Get()),
             contentValue_,
             AeroGuiInternal::BindingEngineOf(*this));
@@ -712,7 +712,7 @@ bool ItemsControl::EnsureDefaultItemsPresenter() noexcept {
         const ItemsPanelTemplate* itemsPanel = GetItemsPanel();
         if (itemsPanel != nullptr) {
             Base::Result<Base::Ref<Base::Object>> created =
-                ::Aero::Controls::ItemsPanelTemplateRuntime::Instantiate(*itemsPanel);
+                ::Aero::Controls::TemplatePrivate::Instantiate(*itemsPanel);
             if (created && created.Value() &&
                 PropertyRegistry(*this).Types().IsDerivedFrom(
                     created.Value()->RuntimeType(), Panel::StaticTypeId())) {

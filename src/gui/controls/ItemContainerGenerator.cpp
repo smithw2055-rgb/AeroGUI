@@ -336,7 +336,7 @@ ItemContainerGenerator::Impl::CreateRecord(
     if (itemTemplate) {
         Base::Result<Base::Ref<Base::Object>>
             content =
-                DataTemplateRuntime::Instantiate(
+                TemplatePrivate::Instantiate(
                     *itemTemplate, record.item,
                     AeroGuiInternal::BindingEngineOf(*owner_));
         if (!content) return content.GetStatus();

@@ -7,7 +7,7 @@
 
 namespace Aero {
 using Meta::TypeId;
-struct DataTemplateRuntime;
+namespace Controls { class TemplatePrivate; }
 
 class AERO_GUI_API DataTemplate : public Base::Object {
     AERO_DECLARE_TYPE(DataTemplate, Base::Object)
@@ -28,7 +28,7 @@ public:
     bool GetIsSealed() const noexcept;
 
 private:
-    friend struct DataTemplateRuntime;
+    friend class Controls::TemplatePrivate;
     friend class HierarchicalDataTemplate;
     void* state_ = nullptr;
 };

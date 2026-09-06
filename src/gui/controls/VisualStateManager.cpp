@@ -652,7 +652,7 @@ using namespace ::Aero::Controls;
 using namespace ::Aero;
 
 Base::Result<VisualStateManager*>
-VisualStateManagerRuntime::Create(
+Controls::TemplatePrivate::CreateVisualStateManager(
     Meta::EffectiveValueEngine& values,
     ::Aero::Controls::TemplateEngine& templates,
     ::Aero::AnimationEngine& animations,
@@ -663,9 +663,9 @@ VisualStateManagerRuntime::Create(
             Base::ErrorCode::OutOfMemory,
             "VisualStateManager allocation failed");
     }
-    Runtime(*manager) = new (std::nothrow) VisualStateManagerState(
+    manager->impl_ = new (std::nothrow) VisualStateManagerState(
         values, templates, animations, properties);
-    if (Runtime(*manager) == nullptr) {
+    if (manager->impl_ == nullptr) {
         delete manager;
         return Base::Status::Failure(
             Base::ErrorCode::OutOfMemory,
@@ -1887,7 +1887,7 @@ bool VisualStateManager::GoToState(
         AeroGuiInternal::VisualStateRuntime(control));
     if (manager == nullptr) return false;
     auto* runtime = static_cast<VisualStateManagerState*>(
-        VisualStateManagerRuntime::Runtime(*manager));
+        manager->impl_);
     if (runtime == nullptr) return false;
     Base::Result<bool> changed = runtime->GoToState(
         control, {}, stateName, useTransitions);
@@ -1899,14 +1899,14 @@ VisualStateManager::~VisualStateManager() noexcept {
     impl_ = nullptr;
 }
 
-Base::Result<bool> VisualStateManagerRuntime::GoToState(
+Base::Result<bool> Controls::TemplatePrivate::GoToState(
     VisualStateManager& manager,
     Controls::Control& control,
     Base::StringView groupName,
     Base::StringView stateName,
     bool useTransitions) noexcept {
     auto* runtime = static_cast<VisualStateManagerState*>(
-        Runtime(manager));
+        manager.impl_);
     return runtime != nullptr
         ? runtime->GoToState(control, groupName, stateName, useTransitions)
         : Base::Result<bool>(Base::Status::Failure(
@@ -1914,33 +1914,33 @@ Base::Result<bool> VisualStateManagerRuntime::GoToState(
               "VisualStateManager is not initialized"));
 }
 
-Base::Result<bool> VisualStateManagerRuntime::ClearState(
+Base::Result<bool> Controls::TemplatePrivate::ClearState(
     VisualStateManager& manager,
     Controls::Control& control,
     Base::StringView groupName) noexcept {
     auto* runtime = static_cast<VisualStateManagerState*>(
-        Runtime(manager));
+        manager.impl_);
     return runtime != nullptr
         ? runtime->ClearState(control, groupName)
         : Base::Result<bool>(false);
 }
 
-Base::Result<std::uint32_t> VisualStateManagerRuntime::Clear(
+Base::Result<std::uint32_t> Controls::TemplatePrivate::Clear(
     VisualStateManager& manager,
     Controls::Control& control) noexcept {
     auto* runtime = static_cast<VisualStateManagerState*>(
-        Runtime(manager));
+        manager.impl_);
     return runtime != nullptr
         ? runtime->Clear(control)
         : Base::Result<std::uint32_t>(0U);
 }
 
-Base::StringView VisualStateManagerRuntime::CurrentState(
+Base::StringView Controls::TemplatePrivate::CurrentState(
     const VisualStateManager& manager,
     const Controls::Control& control,
     Base::StringView groupName) noexcept {
     auto* runtime = static_cast<const VisualStateManagerState*>(
-        Runtime(manager));
+        manager.impl_);
     return runtime != nullptr
         ? runtime->CurrentState(control, groupName)
         : Base::StringView{};

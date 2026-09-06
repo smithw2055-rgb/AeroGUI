@@ -794,7 +794,7 @@ void ScrollBarBehavior::SyncThumbVisualState(
         common = "MouseOver";
     }
     static_cast<void>(
-        Aero::VisualStateManagerRuntime::GoToState(
+        Aero::Controls::TemplatePrivate::GoToState(
             *states_,
             thumb,
             "CommonStates",

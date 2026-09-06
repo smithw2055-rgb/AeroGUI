@@ -183,7 +183,7 @@ void UnselectOtherTreeViewItems(
                 node->SetIsSelected(false);
                 if (states != nullptr) {
                     static_cast<void>(
-                        Aero::VisualStateManagerRuntime::GoToState(
+                        Aero::Controls::TemplatePrivate::GoToState(
                             *states,
                             *node,
                             "SelectionStates",
@@ -850,7 +850,7 @@ bool TreeView::SelectItem(
             // SelectionStates. Missing visual states must not block
             // SelectedItem / SelectedItemChanged (Tag → SelectedSample).
             static_cast<void>(
-                Aero::VisualStateManagerRuntime::GoToState(*states,
+                Aero::Controls::TemplatePrivate::GoToState(*states,
                     *item,
                     "SelectionStates",
                     "Selected"));

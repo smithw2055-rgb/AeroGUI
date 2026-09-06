@@ -507,7 +507,7 @@ void DetachViewUi(
                     node->RuntimeType(), Controls::Control::StaticTypeId())) {
                 auto& control = *static_cast<Controls::Control*>(node);
                 if (state.visualStates != nullptr) {
-                    (void)::Aero::VisualStateManagerRuntime::Clear(
+                    (void)::Aero::Controls::TemplatePrivate::Clear(
                         *state.visualStates, control);
                 }
                 if (state.templates != nullptr) {
@@ -542,7 +542,7 @@ Base::Result<void> ViewState::CreateUiEngines() noexcept {
             &resources->dynamicResourceEnvironment);
         if (!status) return status.GetStatus();
         Base::Result<VisualStateManager*> createdStates =
-            ::Aero::VisualStateManagerRuntime::Create(
+            ::Aero::Controls::TemplatePrivate::CreateVisualStateManager(
                 *values,
                 *templates,
                 *animations,

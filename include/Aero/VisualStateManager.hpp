@@ -10,11 +10,12 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/DependencyProperty.hpp>
 
-namespace Aero::Controls { class Control; }
+namespace Aero::Controls {
+class Control;
+class TemplatePrivate;
+}
 
 namespace Aero {
-
-struct VisualStateManagerRuntime;
 
 // Public authoring uses the WPF static entry point. Runtime state and animation
 // bookkeeping remain private and are accessed only by the controls runtime.
@@ -38,7 +39,7 @@ public:
     VisualStateManager& operator=(const VisualStateManager&) = delete;
 
 private:
-    friend struct VisualStateManagerRuntime;
+    friend class Controls::TemplatePrivate;
     VisualStateManager() noexcept = default;
     void* impl_ = nullptr;
 };
