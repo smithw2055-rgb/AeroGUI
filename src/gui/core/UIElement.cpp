@@ -42,10 +42,6 @@ struct UIElementHandlerState {
     std::uint64_t nextSequence = 1U;
 };
 
-Base::Status InvalidArgument(const char* message) noexcept {
-    return Base::Status::Failure(Base::ErrorCode::InvalidArgument, message);
-}
-
 Base::Status InvalidState(const char* message) noexcept {
     return Base::Status::Failure(Base::ErrorCode::InvalidState, message);
 }

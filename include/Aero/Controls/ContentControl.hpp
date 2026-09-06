@@ -3,7 +3,6 @@
 #include <Aero/Controls/Control.hpp>
 
 #include <cstddef>
-#include <cstdio>
 
 namespace Aero::Controls {
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
@@ -139,18 +138,14 @@ protected:
 private:
     void SetOwnedContent(const Ref<Base::Object>& contentObject, UIElement& content) noexcept {
         if (!contentObject || contentObject.Get() != &content) {
-            std::fprintf(stderr, "SetOwnedContent: ptr mismatch obj=%p content=%p\n",
-                contentObject ? contentObject.Get() : nullptr, (void*)&content);
             return;
         }
         Result<void> access = VerifyAccess();
         if (!access) {
-            std::fprintf(stderr, "SetOwnedContent: access failed\n");
             return;
         }
         Result<void> valid = ValidateContent(&content);
         if (!valid) {
-            std::fprintf(stderr, "SetOwnedContent: validate failed: %s\n", valid.GetStatus().message);
             return;
         }
         Result<void> stored =
@@ -159,7 +154,6 @@ private:
                     contentObject->RuntimeType(),
                     contentObject));
         if (!stored) {
-            std::fprintf(stderr, "SetOwnedContent: store failed: %s\n", stored.GetStatus().message);
             return;
         }
         content_ = &content;
