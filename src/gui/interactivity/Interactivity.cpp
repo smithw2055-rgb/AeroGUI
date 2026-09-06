@@ -1,4 +1,5 @@
 #include <Aero/Interactivity/Behavior.hpp>
+#include "gui/meta/MetadataState.hpp"
 #include <Aero/FrameworkElement.hpp>
 #include "gui/core/State.hpp" 
 #include "gui/media/AnimationEngine.hpp"
@@ -49,6 +50,38 @@ void Behavior::CopyAuthoredBindingsTo(
         destination.AddAuthoredBinding(
             binding.property, binding.binding);
     }
+}
+
+Base::Result<Base::Ref<Behavior>> Behavior::ClonePrototype(
+    const Behavior& prototype,
+    Meta::Registry& metadata) noexcept {
+    Base::Result<Base::Ref<Base::Object>> created =
+        metadata.CreateObject(prototype.RuntimeType());
+    if (!created) return created.GetStatus();
+    if (!created.Value() ||
+        !metadata.Types().IsDerivedFrom(
+            created.Value()->RuntimeType(),
+            Behavior::StaticTypeId())) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Behavior factory returned an incompatible object");
+    }
+    Base::Ref<Behavior> clone =
+        Base::Ref<Behavior>::FromBorrowed(
+            *static_cast<Behavior*>(created.Value().Get()));
+    for (const Meta::DependencyProperty& property :
+         PropertyRegistry(prototype).Properties()) {
+        if (property.MetadataFor(prototype.RuntimeType()) == nullptr ||
+            property.MetadataFor(clone->RuntimeType()) == nullptr) {
+            continue;
+        }
+        Meta::PropertyValue local =
+            prototype.ReadLocalValue(property.Handle());
+        if (local.IsUnset()) continue;
+        clone->SetValue(property.Handle(), local);
+    }
+    prototype.CopyAuthoredBindingsTo(*clone);
+    return clone;
 }
 
 void StyleBehaviorCollection::Add(

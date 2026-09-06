@@ -79,11 +79,21 @@ struct StyleSetter {
 struct StyleState {
     static Base::Result<void> Seal(
         Style& style,
-        const void* properties) noexcept;
+        const Meta::DependencyPropertyRegistry& properties) noexcept;
     static Base::Span<const StyleSetter> RuntimeSetters(
         const Style& style) noexcept;
     static Base::Span<const TriggerPlan> RuntimeTriggers(
         const Style& style) noexcept;
+    // Per-instance setter application (StyleEngine tracks applications /
+    // triggers; these only push/clear style-source values + EventSetters).
+    static Base::Result<void> ApplySetters(
+        const Style& style,
+        DependencyObject& object,
+        StyleProviderSession& values) noexcept;
+    static Base::Result<void> ClearSetters(
+        const Style& style,
+        DependencyObject& object,
+        StyleProviderSession& values) noexcept;
 
     StyleState() noexcept
         : authoredSetters(&Base::GetDefaultAllocator()),

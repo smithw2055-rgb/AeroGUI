@@ -83,6 +83,13 @@ public:
         static Base::Span<const TemplatePropertyTrigger> Triggers(const FrameworkTemplate& value) noexcept;
         static Base::Span<const VisualStateGroupPlan> VisualStateGroups(const FrameworkTemplate& value) noexcept;
         static Base::Result<void> Seal(FrameworkTemplate& value, const Meta::DependencyPropertyRegistry& properties) noexcept;
+        // Expand a sealed ControlTemplate into buildState (factory + presenters).
+        // TemplateEngine keeps instance registry / bindings / trigger Flush.
+        static Base::Result<void> Materialize(
+            const ControlTemplate& plan,
+            TemplateBuildState& buildState,
+            TemplateBuilder& context,
+            const Meta::DependencyPropertyRegistry& properties) noexcept;
 
         // VisualStateManager execution path (merged companion).
         static Base::Result<VisualStateManager*> CreateVisualStateManager(

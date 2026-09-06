@@ -12,6 +12,8 @@
 
 namespace Aero {
 
+class DependencyObject;
+
 struct StyleTriggerSetter {
     DependencyPropertyHandle property;
     PropertyValue value;
@@ -30,6 +32,10 @@ struct TriggerPlan {
     bool IsBindingTrigger() const noexcept {
         return static_cast<bool>(binding) || !extraBindings.Empty();
     }
+    // Property-trigger condition eval lives on the plan; binding triggers use
+    // recorded StyleApplication binding state instead.
+    Base::Result<bool> IsConditionMet(
+        const DependencyObject& object) const noexcept;
     Base::Vector<StyleTriggerSetter> setters;
     Base::Vector<Base::Ref<Base::Object>> enterActions;
     Base::Vector<Base::Ref<Base::Object>> exitActions;

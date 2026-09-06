@@ -57,12 +57,13 @@ bool IsDeferredBindingSetterValue(
             Data::Binding::StaticTypeId();
 }
 
-bool MatchesTemplateCondition(
+} // namespace
+
+bool TemplateTriggerCondition::IsMet(
     DependencyObject& source,
-    const TemplateTriggerCondition& condition,
-    const PropertyValue& current) noexcept {
-    if (condition.value.IsNullObject() &&
-        condition.property ==
+    const PropertyValue& current) const noexcept {
+    if (value.IsNullObject() &&
+        property ==
             Primitives::ToggleButton::
                 IsCheckedProperty.Handle() &&
         PropertyRegistry(source).Types().IsDerivedFrom(
@@ -71,8 +72,10 @@ bool MatchesTemplateCondition(
         return !static_cast<Primitives::ToggleButton&>(
             source).GetIsChecked().GetHasValue();
     }
-    return current == condition.value;
+    return current == value;
 }
+
+namespace {
 
 Base::Result<PropertyValue> ConvertTemplateBindingValue(
     const TypeRegistry& types,
@@ -1732,6 +1735,69 @@ using namespace Aero::Meta;
 using namespace Aero::Threading;
 using namespace Aero::Controls;
 
+Base::Result<void> TemplatePrivate::Materialize(
+    const ControlTemplate& plan,
+    TemplateBuildState& buildState,
+    TemplateBuilder& context,
+    const Meta::DependencyPropertyRegistry& properties) noexcept {
+    Base::Result<void> built =
+        Factory(plan)(context, FactoryContext(plan));
+    if (!built || context.RootVisual() == nullptr) {
+        context.Rollback();
+        return built
+            ? InvalidTemplate(
+                "ControlTemplate factory did not set a root")
+            : built.GetStatus();
+    }
+
+    {
+        const std::uint32_t authoredPartCount = buildState.parts.Size();
+        for (std::uint32_t index = 0U; index < authoredPartCount; ++index) {
+            TemplatePart& part = buildState.parts[index];
+            if (part.object == nullptr ||
+                !properties.Types().IsDerivedFrom(
+                    part.object->RuntimeType(),
+                    ContentPresenter::StaticTypeId())) {
+                continue;
+            }
+            Base::Result<void> populated =
+                context.PopulateContentPresenter(
+                    *static_cast<ContentPresenter*>(part.object));
+            if (!populated) {
+                context.Rollback();
+                return populated.GetStatus();
+            }
+        }
+    }
+
+    Control* control = buildState.parent;
+    if (control != nullptr &&
+        properties.Types().IsDerivedFrom(
+            control->RuntimeType(),
+            ItemsControl::StaticTypeId())) {
+        auto& itemsControl = static_cast<ItemsControl&>(*control);
+        const std::uint32_t authoredPartCount = buildState.parts.Size();
+        for (std::uint32_t index = 0U; index < authoredPartCount; ++index) {
+            TemplatePart& part = buildState.parts[index];
+            if (part.object == nullptr ||
+                !properties.Types().IsDerivedFrom(
+                    part.object->RuntimeType(),
+                    ItemsPresenter::StaticTypeId())) {
+                continue;
+            }
+            Base::Result<void> populated =
+                context.PopulateItemsPresenter(
+                    *static_cast<ItemsPresenter*>(part.object),
+                    itemsControl.GetItemsPanel());
+            if (!populated) {
+                context.Rollback();
+                return populated.GetStatus();
+            }
+        }
+    }
+    return {};
+}
+
 TemplateEngine::~TemplateEngine() noexcept {
     while (!instances_.Empty()) {
         if (!ClearAt(instances_.Size() - 1U)) {
@@ -1771,68 +1837,11 @@ Base::Result<TemplateHandle> TemplateEngine::Apply(
     Aero::Controls::TemplateBuildState buildState(
         *tree_, control, layout_, renderer_, bindings_);
     TemplateBuilder context(&buildState);
-    Base::Result<void> built =
-        Aero::Controls::TemplatePrivate::Factory(plan)(context, Aero::Controls::TemplatePrivate::FactoryContext(plan));
-    if (!built || context.RootVisual() == nullptr) {
-        context.Rollback();
-        return built
-            ? InvalidTemplate(
-                "ControlTemplate factory did not set a root")
-            : built.GetStatus();
-    }
-
-    {
-        const std::uint32_t authoredPartCount =
-            buildState.parts.Size();
-        for (std::uint32_t index = 0U;
-             index < authoredPartCount;
-             ++index) {
-            Aero::Controls::TemplatePart& part =
-                buildState.parts[index];
-            if (part.object == nullptr ||
-                !properties_->Types().IsDerivedFrom(
-                    part.object->RuntimeType(),
-                    ContentPresenter::StaticTypeId())) {
-                continue;
-            }
-            Base::Result<void> populated =
-                context.PopulateContentPresenter(
-                    *static_cast<ContentPresenter*>(
-                        part.object));
-            if (!populated) {
-                context.Rollback();
-                return populated.GetStatus();
-            }
-        }
-    }
-
-    if (properties_->Types().IsDerivedFrom(
-            control.RuntimeType(),
-            ItemsControl::StaticTypeId())) {
-        auto& itemsControl =
-            static_cast<ItemsControl&>(control);
-        const std::uint32_t authoredPartCount =
-            buildState.parts.Size();
-        for (std::uint32_t index = 0U;
-             index < authoredPartCount;
-             ++index) {
-            Aero::Controls::TemplatePart& part = buildState.parts[index];
-            if (part.object == nullptr ||
-                !properties_->Types().IsDerivedFrom(
-                    part.object->RuntimeType(),
-                    ItemsPresenter::StaticTypeId())) {
-                continue;
-            }
-            Base::Result<void> populated =
-                context.PopulateItemsPresenter(
-                    *static_cast<ItemsPresenter*>(
-                        part.object),
-                    itemsControl.GetItemsPanel());
-            if (!populated) {
-                context.Rollback();
-                return populated.GetStatus();
-            }
-        }
+    Base::Result<void> materialized =
+        TemplatePrivate::Materialize(
+            plan, buildState, context, *properties_);
+    if (!materialized) {
+        return materialized.GetStatus();
     }
 
     Instance instance;
@@ -2389,9 +2398,8 @@ Base::Result<void> TemplateEngine::EvaluateTriggers(
             Base::Result<PropertyValue> current =
                 source->GetValue(triggerCondition.property);
             if (!current) return current.GetStatus();
-            if (!MatchesTemplateCondition(
+            if (!triggerCondition.IsMet(
                     *source,
-                    triggerCondition,
                     current.Value())) {
                 active = false;
                 break;

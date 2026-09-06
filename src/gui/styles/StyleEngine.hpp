@@ -59,6 +59,9 @@ public:
     TriggerEngine* Triggers() noexcept {
         return triggerEngine_;
     }
+    // Thin DataBind pump: flushes deferred property-trigger re-evals queued
+    // while EffectiveValueEngine was flushing.
+    Base::Result<std::uint32_t> Flush() noexcept;
 
 private:
     ::Aero::StyleProviderSession providerSession_;

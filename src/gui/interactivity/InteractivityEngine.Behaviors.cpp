@@ -32,34 +32,7 @@ Base::Result<Base::Ref<Interactivity::Behavior>>
                 Base::ErrorCode::InvalidState,
                 "Behavior metadata is unavailable");
         }
-        Base::Result<Base::Ref<Base::Object>> created =
-            metadata->CreateObject(prototype.RuntimeType());
-        if (!created) return created.GetStatus();
-        if (!created.Value() ||
-            !metadata->Types().IsDerivedFrom(
-                created.Value()->RuntimeType(),
-                Interactivity::Behavior::StaticTypeId())) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidState,
-                "Behavior factory returned an incompatible object");
-        }
-        Base::Ref<Interactivity::Behavior> clone =
-            Base::Ref<Interactivity::Behavior>::FromBorrowed(
-                *static_cast<Interactivity::Behavior*>(
-                    created.Value().Get()));
-        for (const Meta::DependencyProperty& property :
-             PropertyRegistry(prototype).Properties()) {
-            if (property.MetadataFor(prototype.RuntimeType()) == nullptr ||
-                property.MetadataFor(clone->RuntimeType()) == nullptr) {
-                continue;
-            }
-            Meta::PropertyValue local =
-                prototype.ReadLocalValue(property.Handle());
-            if (local.IsUnset()) continue;
-            clone->SetValue(property.Handle(), local);
-        }
-        prototype.CopyAuthoredBindingsTo(*clone);
-        return clone;
+        return Interactivity::Behavior::ClonePrototype(prototype, *metadata);
     }
 
 Base::Object* InteractivityEngine::ResolveBehaviorBindingSource(

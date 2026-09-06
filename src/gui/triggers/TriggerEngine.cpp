@@ -4,6 +4,13 @@
 
 namespace Aero {
 
+Base::Result<bool> TriggerPlan::IsConditionMet(
+    const DependencyObject& object) const noexcept {
+    Base::Result<PropertyValue> current = object.GetValue(property);
+    if (!current) return current.GetStatus();
+    return current.Value() == value;
+}
+
 TriggerEngine::TriggerEngine(
     StyleProviderSession& values,
     DependencyPropertyRegistry& properties,
@@ -91,7 +98,7 @@ Base::Result<void> TriggerEngine::EvaluateTriggers(
                 application.bindingTriggerStates[index] != 0U;
         } else {
             Base::Result<bool> met =
-                IsTriggerConditionMet(object, trigger);
+                trigger.IsConditionMet(object);
             if (!met) return met.GetStatus();
             active = met.Value();
         }
@@ -124,7 +131,7 @@ Base::Result<void> TriggerEngine::EvaluateTriggers(
                 application.bindingTriggerStates[index] != 0U;
         } else {
             Base::Result<bool> met =
-                IsTriggerConditionMet(object, trigger);
+                trigger.IsConditionMet(object);
             if (!met) return met.GetStatus();
             active = met.Value();
         }

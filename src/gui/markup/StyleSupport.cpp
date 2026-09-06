@@ -710,7 +710,7 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
             "Style trigger type is not supported");
     }
     return Aero::StylePrivate::Seal(
-        style, options_.properties);
+        style, *options_.properties);
 }
 
 Base::Result<void> XamlStyleSchemaFacet::EndStyleInit(

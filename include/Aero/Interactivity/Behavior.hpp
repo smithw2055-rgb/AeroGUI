@@ -10,6 +10,7 @@
 #include <Aero/Data/Binding.hpp>
 
 namespace Aero { class FrameworkElement; }
+namespace Aero::Meta { class Registry; }
 
 namespace Aero::Interactivity {
 
@@ -41,6 +42,11 @@ public:
     }
     void CopyAuthoredBindingsTo(
         Behavior& destination) const noexcept;
+    // Instance clone for style/template authored prototypes. Metadata creates
+    // the typed object; local DP values + authored bindings are copied here.
+    static Result<Ref<Behavior>> ClonePrototype(
+        const Behavior& prototype,
+        Meta::Registry& metadata) noexcept;
     void NotifyLayoutUpdated() noexcept {
         if (associatedObject_ != nullptr) OnLayoutUpdated();
     }

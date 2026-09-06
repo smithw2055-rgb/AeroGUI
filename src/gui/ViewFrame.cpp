@@ -1138,6 +1138,13 @@ Base::Result<std::uint32_t> ExecuteViewFrame(ViewState& state, View& view) noexc
                 state.AttachPendingItemGenerators(*rootVisual);
             if (!generators) return generators.GetStatus();
         }
+        if (state.styles != nullptr) {
+            Base::Result<std::uint32_t> styleTriggers =
+                state.styles->Flush();
+            if (!styleTriggers) {
+                return styleTriggers.GetStatus();
+            }
+        }
         if (state.interactivity != nullptr) {
             state.interactivity->FlushPendingStyleDataTriggerEvaluations();
             state.interactivity->RetryPendingInteractionTriggers();

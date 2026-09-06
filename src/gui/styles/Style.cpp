@@ -502,13 +502,8 @@ void Style::AddTrigger(
     if (!planned) { AERO_ASSERT(false); return; }
 }
 
-Base::Result<void> Style::SealRuntime(
-    const void* propertiesState) noexcept {
-    if (propertiesState == nullptr) {
-        return InvalidStyle("Style has no dependency-property registry");
-    }
-    const auto& properties = *static_cast<
-        const DependencyPropertyRegistry*>(propertiesState);
+Base::Result<void> Style::Seal(
+    const DependencyPropertyRegistry& properties) noexcept {
     if (sealed_) {
         return {};
     }
@@ -710,8 +705,8 @@ void Style::SetResources(
 
 Base::Result<void> StyleState::Seal(
     Style& style,
-    const void* properties) noexcept {
-    return style.SealRuntime(properties);
+    const DependencyPropertyRegistry& properties) noexcept {
+    return style.Seal(properties);
 }
 
 Base::Span<const StyleSetter> StyleState::RuntimeSetters(
@@ -735,6 +730,70 @@ namespace Aero {
 using namespace Aero::Meta;
 using namespace Aero::Threading;
 using namespace Aero;
+
+Base::Result<void> StyleState::ApplySetters(
+    const Style& style,
+    DependencyObject& object,
+    StyleProviderSession& values) noexcept {
+    for (const StyleSetter& setter : RuntimeSetters(style)) {
+        if (IsDeferredBindingSetterValue(setter.value)) {
+            continue;
+        }
+        Base::Result<void> applied = values.SetStyleValue(
+            object, setter.property, setter.value);
+        if (!applied) {
+            return applied.GetStatus();
+        }
+    }
+    UIElement* element = ::Aero::TryCast<UIElement>(&object);
+    if (element != nullptr) {
+        for (const Base::Ref<SetterBase>& authored : style.GetAuthoredSetters()) {
+            EventSetter* eventSetter =
+                ::Aero::TryCast<EventSetter>(authored.Get());
+            if (eventSetter == nullptr ||
+                !eventSetter->GetEvent().IsValid() ||
+                eventSetter->GetHandler().Empty()) {
+                continue;
+            }
+            element->AddHandler(
+                eventSetter->GetEvent(),
+                eventSetter->GetHandler());
+        }
+    }
+    return {};
+}
+
+Base::Result<void> StyleState::ClearSetters(
+    const Style& style,
+    DependencyObject& object,
+    StyleProviderSession& values) noexcept {
+    for (const StyleSetter& setter : RuntimeSetters(style)) {
+        if (IsDeferredBindingSetterValue(setter.value)) {
+            continue;
+        }
+        Base::Result<void> cleared = values.ClearStyleValue(
+            object, setter.property);
+        if (!cleared) {
+            return cleared.GetStatus();
+        }
+    }
+    UIElement* element = ::Aero::TryCast<UIElement>(&object);
+    if (element != nullptr) {
+        for (const Base::Ref<SetterBase>& authored : style.GetAuthoredSetters()) {
+            EventSetter* eventSetter =
+                ::Aero::TryCast<EventSetter>(authored.Get());
+            if (eventSetter == nullptr ||
+                !eventSetter->GetEvent().IsValid() ||
+                eventSetter->GetHandler().Empty()) {
+                continue;
+            }
+            static_cast<void>(element->RemoveHandler(
+                eventSetter->GetEvent(),
+                eventSetter->GetHandler()));
+        }
+    }
+    return {};
+}
 
 Base::Result<void> StyleEngine::VerifyTarget(
     const DependencyObject& object,
@@ -779,30 +838,10 @@ Base::Result<void> StyleEngine::Apply(
             return cleared.GetStatus();
         }
     }
-    for (const StyleSetter& setter : StylePrivate::RuntimeSetters(style)) {
-        if (IsDeferredBindingSetterValue(setter.value)) {
-            continue;
-        }
-        Base::Result<void> applied = values_->SetStyleValue(
-            object, setter.property, setter.value);
-        if (!applied) {
-            return applied.GetStatus();
-        }
-    }
-    UIElement* element = ::Aero::TryCast<UIElement>(&object);
-    if (element != nullptr) {
-        for (const Base::Ref<SetterBase>& authored : style.GetAuthoredSetters()) {
-            EventSetter* eventSetter =
-                ::Aero::TryCast<EventSetter>(authored.Get());
-            if (eventSetter == nullptr ||
-                !eventSetter->GetEvent().IsValid() ||
-                eventSetter->GetHandler().Empty()) {
-                continue;
-            }
-            element->AddHandler(
-                eventSetter->GetEvent(),
-                eventSetter->GetHandler());
-        }
+    Base::Result<void> setters =
+        StylePrivate::ApplySetters(style, object, *values_);
+    if (!setters) {
+        return setters.GetStatus();
     }
     if (existing == UINT32_MAX) {
         StyleApplication application;
@@ -927,31 +966,7 @@ Base::Result<void> StyleEngine::ClearSetters(
     DependencyObject& object,
     const Style& style) noexcept {
     DetachSetterBindings(object);
-    for (const StyleSetter& setter : StylePrivate::RuntimeSetters(style)) {
-        if (IsDeferredBindingSetterValue(setter.value)) {
-            continue;
-        }
-        Base::Result<void> cleared = values_->ClearStyleValue(object, setter.property);
-        if (!cleared) {
-            return cleared.GetStatus();
-        }
-    }
-    UIElement* element = ::Aero::TryCast<UIElement>(&object);
-    if (element != nullptr) {
-        for (const Base::Ref<SetterBase>& authored : style.GetAuthoredSetters()) {
-            EventSetter* eventSetter =
-                ::Aero::TryCast<EventSetter>(authored.Get());
-            if (eventSetter == nullptr ||
-                !eventSetter->GetEvent().IsValid() ||
-                eventSetter->GetHandler().Empty()) {
-                continue;
-            }
-            static_cast<void>(element->RemoveHandler(
-                eventSetter->GetEvent(),
-                eventSetter->GetHandler()));
-        }
-    }
-    return {};
+    return StylePrivate::ClearSetters(style, object, *values_);
 }
 
 Base::Result<void> StyleEngine::AttachSetterBindings(
@@ -1044,6 +1059,13 @@ StyleEngine::~StyleEngine() noexcept {
 void StyleEngine::SetTriggerActionHandler(
     TriggerActionHandler handler, void* context) noexcept {
     triggerEngine_->SetTriggerActionHandler(handler, context);
+}
+
+Base::Result<std::uint32_t> StyleEngine::Flush() noexcept {
+    if (triggerEngine_ == nullptr) {
+        return 0U;
+    }
+    return triggerEngine_->FlushPendingTriggerEvaluations();
 }
 
 const Base::Status& StyleEngine::LastActionStatus() const noexcept {

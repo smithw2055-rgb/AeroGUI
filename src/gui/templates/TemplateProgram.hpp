@@ -73,6 +73,7 @@ public:
 
 private:
     friend class Aero::Controls::TemplateEngine;
+    friend class Aero::Controls::TemplatePrivate;
     explicit TemplateBuilder(void* state) noexcept : state_(state) {}
     DependencyObject* FindObject(Base::StringView name) const noexcept;
     Base::Result<void> AddOwnedPart(Base::StringView name, Base::Ref<Base::Object> owner, ::Aero::Media::Visual& visual, void* mount) noexcept;
@@ -123,6 +124,10 @@ struct TemplateTriggerCondition {
     Base::String sourceName;
     DependencyPropertyHandle property;
     Meta::PropertyValue value;
+    // Per-condition eval (ToggleButton IsChecked null sentinel included).
+    bool IsMet(
+        DependencyObject& source,
+        const Meta::PropertyValue& current) const noexcept;
 };
 
 struct TemplatePropertyTrigger {

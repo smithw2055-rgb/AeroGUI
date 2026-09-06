@@ -177,9 +177,11 @@ private:
         const PropertyValue& conditionValue,
         DependencyPropertyHandle property,
         PropertyValue value) noexcept;
-    Result<void> SealRuntime(const void* properties) noexcept;
+    // Compiled by StyleState::Seal / markup finalize; not a public authoring API.
+    Result<void> Seal(const Meta::DependencyPropertyRegistry& properties) noexcept;
 
     friend struct StyleState;
+    friend class StyleEngine;
 
     TypeId runtimeType_ = StaticTypeId();
     TypeId targetType_ = InvalidTypeId;
