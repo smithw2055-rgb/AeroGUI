@@ -26,10 +26,6 @@ struct ContentElementHandlerState {
     std::uint64_t nextSequence = 1U;
 };
 
-Base::Status InvalidArgument(const char* message) noexcept {
-    return Base::Status::Failure(Base::ErrorCode::InvalidArgument, message);
-}
-
 } // namespace
 
 ContentElement::ContentElement(Meta::TypeId runtimeType) noexcept
