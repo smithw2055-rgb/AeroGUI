@@ -341,7 +341,7 @@ Base::Result<void> AeroGuiInternal::AttachFreezableConsumer(
     DependencyObject& object,
     Meta::DependencyPropertyHandle property) noexcept {
     if (value.IsFrozen() || !property.IsValid()) return {};
-    if (!AERO_CALL_METHOD(value, Freezable_EnsureState)) {
+    if (!AERO_CALL_METHOD0(value, Freezable_EnsureState)) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfMemory,
             "Freezable consumer state allocation failed");

@@ -7,34 +7,11 @@ public:
     BasicControl() noexcept : Control(Control::StaticTypeId()) {}
 };
 
-Base::Result<Base::Ref<Base::Object>>
-CreateBasicControl() noexcept {
-    Base::Result<Base::Ref<BasicControl>> created =
-        Base::MakeRef<BasicControl>();
-    return created
-        ? Base::Result<Base::Ref<Base::Object>>(
-            Base::Ref<Base::Object>(
-                std::move(created).Value()))
-        : Base::Result<Base::Ref<Base::Object>>(
-            created.GetStatus());
-}
-
-
 class BasicContentControl : public ContentControl {
 public:
     BasicContentControl() noexcept
         : ContentControl(ContentControl::StaticTypeId()) {}
 };
-
-Base::Result<Base::Ref<Base::Object>>
-CreateBasicContentControl() noexcept {
-    Base::Result<Base::Ref<BasicContentControl>> created =
-        Base::MakeRef<BasicContentControl>();
-    return created
-        ? Base::Result<Base::Ref<Base::Object>>(
-              Base::Ref<Base::Object>(std::move(created).Value()))
-        : Base::Result<Base::Ref<Base::Object>>(created.GetStatus());
-}
 
 class BasicHeaderedContentControl : public HeaderedContentControl {
 public:
@@ -42,16 +19,6 @@ public:
         : HeaderedContentControl(
               HeaderedContentControl::StaticTypeId()) {}
 };
-
-Base::Result<Base::Ref<Base::Object>>
-CreateBasicHeaderedContentControl() noexcept {
-    Base::Result<Base::Ref<BasicHeaderedContentControl>> created =
-        Base::MakeRef<BasicHeaderedContentControl>();
-    return created
-        ? Base::Result<Base::Ref<Base::Object>>(
-              Base::Ref<Base::Object>(std::move(created).Value()))
-        : Base::Result<Base::Ref<Base::Object>>(created.GetStatus());
-}
 void AddTemplateTrigger(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,

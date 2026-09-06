@@ -29,7 +29,7 @@ namespace Aero {
 
 void AeroGuiInternal::PathInvalidateGeometry(
     Shapes::Path& path) noexcept {
-    AERO_CALL_METHOD(path, Path_ResetGeometry);
+    AERO_CALL_METHOD0(path, Path_ResetGeometry);
 }
 
 void AeroGuiInternal::PathAttachMeshResources(
@@ -50,7 +50,7 @@ void AeroGuiInternal::SetMenuItemHighlighted(
 
 void AeroGuiInternal::SyncSelectorContainers(
     Controls::Primitives::Selector& selector) noexcept {
-    AERO_CALL_METHOD(selector, Selector_SyncContainers);
+    AERO_CALL_METHOD0(selector, Selector_SyncContainers);
 }
 
 std::uint32_t AeroGuiInternal::TreeViewItemCount(
@@ -116,7 +116,7 @@ void AeroGuiInternal::SetItemContainerStyle(
 
 void AeroGuiInternal::RefreshDisplayMemberPath(
     Controls::ItemsControl& control) noexcept {
-    AERO_CALL_METHOD(control, ItemsControl_PublishReset);
+    AERO_CALL_METHOD0(control, ItemsControl_PublishReset);
 }
 
 void AeroGuiInternal::AttachTextLayout(

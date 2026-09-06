@@ -15,12 +15,12 @@
     }
     static Base::Result<void> ClearAuthoredTriggers(
         FrameworkElement& element) noexcept {
-        AERO_CALL_METHOD(element, FE_ClearAuthoredTriggers);
+        AERO_CALL_METHOD0(element, FE_ClearAuthoredTriggers);
         return {};
     }
     static Base::Span<const Base::Ref<Base::Object>> AuthoredTriggers(
         const FrameworkElement& element) noexcept {
-        return AERO_CALL_METHOD(element, FE_AuthoredTriggers);
+        return AERO_CALL_METHOD0(element, FE_AuthoredTriggers);
     }
     static void AddAuthoredBehavior(
         FrameworkElement& element,
@@ -29,12 +29,12 @@
     }
     static Base::Result<void> ClearAuthoredBehaviors(
         FrameworkElement& element) noexcept {
-        AERO_CALL_METHOD(element, FE_ClearAuthoredBehaviors);
+        AERO_CALL_METHOD0(element, FE_ClearAuthoredBehaviors);
         return {};
     }
     static Base::Span<const Base::Ref<Base::Object>> AuthoredBehaviors(
         const FrameworkElement& element) noexcept {
-        return AERO_CALL_METHOD(element, FE_AuthoredBehaviors);
+        return AERO_CALL_METHOD0(element, FE_AuthoredBehaviors);
     }
     static void AddStyleTriggerPrototype(
         FrameworkElement& element,
@@ -43,12 +43,12 @@
     }
     static Base::Result<void> ClearStyleTriggerPrototypes(
         FrameworkElement& element) noexcept {
-        AERO_CALL_METHOD(element, FE_ClearStyleTriggerPrototypes);
+        AERO_CALL_METHOD0(element, FE_ClearStyleTriggerPrototypes);
         return {};
     }
     static Base::Span<const Base::Ref<Base::Object>> StyleTriggerPrototypes(
         const FrameworkElement& element) noexcept {
-        return AERO_CALL_METHOD(element, FE_StyleTriggerPrototypes);
+        return AERO_CALL_METHOD0(element, FE_StyleTriggerPrototypes);
     }
     static void AddStyleBehaviorPrototype(
         FrameworkElement& element,
@@ -57,12 +57,12 @@
     }
     static Base::Result<void> ClearStyleBehaviorPrototypes(
         FrameworkElement& element) noexcept {
-        AERO_CALL_METHOD(element, FE_ClearStyleBehaviorPrototypes);
+        AERO_CALL_METHOD0(element, FE_ClearStyleBehaviorPrototypes);
         return {};
     }
     static Base::Span<const Base::Ref<Base::Object>> StyleBehaviorPrototypes(
         const FrameworkElement& element) noexcept {
-        return AERO_CALL_METHOD(element, FE_StyleBehaviorPrototypes);
+        return AERO_CALL_METHOD0(element, FE_StyleBehaviorPrototypes);
     }
     static void AddAuthoredTrigger(
         FrameworkContentElement& element,
@@ -71,17 +71,17 @@
     }
     static Base::Result<void> ClearAuthoredTriggers(
         FrameworkContentElement& element) noexcept {
-        AERO_CALL_METHOD(element, FCE_ClearAuthoredTriggers);
+        AERO_CALL_METHOD0(element, FCE_ClearAuthoredTriggers);
         return {};
     }
     static Base::Span<const Base::Ref<Base::Object>> AuthoredTriggers(
         const FrameworkContentElement& element) noexcept {
-        return AERO_CALL_METHOD(element, FCE_AuthoredTriggers);
+        return AERO_CALL_METHOD0(element, FCE_AuthoredTriggers);
     }
 
     // --- Panel / decorator ---
     static std::uint32_t PanelChildCount(const Controls::Panel& panel) noexcept {
-        return AERO_CALL_METHOD(panel, Panel_ChildCountCore);
+        return AERO_CALL_METHOD0(panel, Panel_ChildCountCore);
     }
     static Base::Ref<Base::Object> PanelChildAt(
         const Controls::Panel& panel,
@@ -100,7 +100,7 @@
         return AERO_CALL_METHOD(panel, Panel_RemoveChildCore, child);
     }
     static void PanelClearChildren(Controls::Panel& panel) noexcept {
-        AERO_CALL_METHOD(panel, Panel_ClearChildrenCore);
+        AERO_CALL_METHOD0(panel, Panel_ClearChildrenCore);
     }
     static const Base::Ref<Base::Object>& DecoratorOwnedChild(
         const Controls::Decorator& decorator) noexcept {
@@ -141,10 +141,10 @@
         AERO_CALL_METHOD(control, Control_NotifyTemplateApplied, handleValue);
     }
     static void NotifyTemplateDetached(Controls::Control& control) noexcept {
-        AERO_CALL_METHOD(control, Control_NotifyTemplateDetached);
+        AERO_CALL_METHOD0(control, Control_NotifyTemplateDetached);
     }
     static void InvokeTemplateApplied(Controls::Control& control) noexcept {
-        AERO_CALL_METHOD(control, Control_OnApplyTemplate);
+        AERO_CALL_METHOD0(control, Control_OnApplyTemplate);
     }
     static UIElement* ContentControlContent(
         const Controls::ContentControl& control) noexcept {

@@ -200,7 +200,7 @@ UIElement* AeroGuiInternal::ContentHost(
 
 std::uint32_t AeroGuiInternal::LogicalChildrenCount(
     const FrameworkContentElement& element) noexcept {
-    return AERO_CALL_METHOD(element, FCE_GetLogicalChildrenCount);
+    return AERO_CALL_METHOD0(element, FCE_GetLogicalChildrenCount);
 }
 
 DependencyObject* AeroGuiInternal::LogicalChild(

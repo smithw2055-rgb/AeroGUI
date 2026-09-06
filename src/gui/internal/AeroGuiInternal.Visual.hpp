@@ -14,7 +14,7 @@
     }
     static Base::Result<Base::Ref<Base::Object>> AcquireLifetime(
         ::Aero::Media::Visual& visual) noexcept {
-        return AERO_CALL_METHOD(visual, Visual_AcquireLifetime);
+        return AERO_CALL_METHOD0(visual, Visual_AcquireLifetime);
     }
     static Base::RenderNodeId& NodeId(::Aero::Media::Visual& visual) noexcept {
         return AERO_GET_FIELD(visual, Visual_renderNodeId);
@@ -81,7 +81,7 @@
         };
 
         explicit RenderChildRange(const ::Aero::Media::Visual& visual) noexcept
-            : owner_(&visual), count_(AERO_CALL_METHOD(visual, Visual_GetVisualChildrenCount)) {}
+            : owner_(&visual), count_(AERO_CALL_METHOD0(visual, Visual_GetVisualChildrenCount)) {}
         Iterator begin() const noexcept { return Iterator(owner_, 0U); }
         Iterator end() const noexcept { return Iterator(owner_, count_); }
         std::uint32_t Size() const noexcept { return count_; }

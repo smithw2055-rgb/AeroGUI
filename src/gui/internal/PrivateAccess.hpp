@@ -60,6 +60,10 @@ struct PrivateMemberThief {
 #define AERO_GET_FIELD(Object, TagPrefix) \
     ((Object).*GetPrivateMember(::Aero::Internal::TagPrefix##_ThiefTag{}))
 
+// C++17 + GCC -Wpedantic rejects an empty __VA_ARGS__ at the call site.
+#define AERO_CALL_METHOD0(Object, TagPrefix) \
+    (((Object).*GetPrivateMember(::Aero::Internal::TagPrefix##_ThiefTag{}))())
+
 #define AERO_CALL_METHOD(Object, TagPrefix, ...) \
     (((Object).*GetPrivateMember(::Aero::Internal::TagPrefix##_ThiefTag{}))(__VA_ARGS__))
 
