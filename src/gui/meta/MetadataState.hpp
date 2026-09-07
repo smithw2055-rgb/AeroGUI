@@ -3,6 +3,9 @@
 #include <Aero/Meta.hpp>
 #include <Aero/Base/HashMap.hpp>
 #include "gui/core/DependencyPropertyRegistry.hpp"
+#include <Aero/Base/Object.hpp>
+#include <Aero/Media/BlendMode.hpp>
+#include <Aero/Media/Transform3D.hpp>
 
 namespace Aero {
 class MetaTable;
@@ -1222,5 +1225,58 @@ using namespace ::Aero::Meta;
 Base::Result<Base::HashCode> ComputeMetadataValueFacetHash(
     const MetaTable& facets,
     const TypeRegistry& descriptors) noexcept;
+
+} // namespace Aero
+
+namespace Aero {
+
+// Private compatibility owners used by the built-in theme schema. They are
+// registered for XAML compatibility but are not C++ authoring APIs.
+// (Moved out of styles/StyleState.hpp — that header is Style program state only.)
+class Element : public Base::Object {
+    AERO_DECLARE_TYPE(Element, Base::Object)
+public:
+    Meta::TypeId RuntimeType() const noexcept override {
+        return StaticTypeId();
+    }
+    inline static constexpr Meta::AttachedPropertyRef<Element, double>
+        PPAAInProperty{"PPAAIn"};
+    inline static constexpr Meta::AttachedPropertyRef<Element, double>
+        PPAAOutProperty{"PPAAOut"};
+    // Compatibility setting retained for authored AeroGUI XAML. SDF text is
+    // the renderer default, so this marker never switches back to grayscale.
+    inline static constexpr Meta::AttachedPropertyRef<Element, Base::String>
+        PPAAModeProperty{"PPAAMode"};
+    inline static constexpr Meta::AttachedPropertyRef<Element, bool>
+        IsFocusEngagedProperty{"IsFocusEngaged"};
+    inline static constexpr Meta::AttachedPropertyRef<Element, BlendMode>
+        BlendingModeProperty{"BlendingMode"};
+    static void OnBlendingModeChanged(
+        DependencyObject& object,
+        const DependencyPropertyChangedEventArgs& args) noexcept;
+    // XAML compatibility forwarder: aero:Element.Transform3D writes
+    // UIElement::Transform3DProperty. Render/hit read the UIElement DP.
+    inline static constexpr Meta::AttachedPropertyRef<
+        Element, Base::Ref<Media::Transform3D>>
+        Transform3DProperty{"Transform3D"};
+    static void OnTransform3DChanged(
+        DependencyObject& object,
+        const DependencyPropertyChangedEventArgs& args) noexcept;
+};
+
+class RichText : public Base::Object {
+    AERO_DECLARE_TYPE_NAMED(
+        RichText, Base::Object, "urn:aero", "RichText")
+public:
+    Meta::TypeId RuntimeType() const noexcept override {
+        return StaticTypeId();
+    }
+    inline static constexpr Meta::AttachedPropertyRef<
+        RichText, Base::String>
+        TextProperty{"Text"};
+    static void OnTextChanged(
+        DependencyObject& object,
+        const DependencyPropertyChangedEventArgs& args) noexcept;
+};
 
 } // namespace Aero

@@ -21,7 +21,7 @@ public:
 
     // Nested bridge for DisplayListBuilder (TU-local definition). Not a
     // separate public companion type.
-    struct Private;
+    struct Bridge;
 
     Result<void> PushClip(Base::Rect clip) noexcept;
     Result<void> PopClip() noexcept;
@@ -68,7 +68,7 @@ public:
         const Geometry& geometry) noexcept;
 
 private:
-    friend struct Private;
+    friend struct Bridge;
 
     explicit DrawingContext(void* implementation) noexcept
         : implementation_(implementation) {}

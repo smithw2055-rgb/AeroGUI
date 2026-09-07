@@ -4,13 +4,13 @@
 #include "gui/core/state/ElementTree.hpp"
 #include "gui/core/state/LayoutEngine.hpp"
 #include "gui/core/state/FreezableState.hpp"
-#include "gui/core/state/PropertyEngine.hpp"
+#include "gui/core/state/EffectiveValueEngine.hpp"
 #include "gui/core/state/RoutedEvents.hpp"
 #include "gui/core/state/EventRouter.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
-#include "gui/media/MediaState.hpp"
+#include "gui/media/MediaHelpers.hpp"
 
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Controls/Image.hpp>
@@ -1920,7 +1920,7 @@ Base::Result<void> RenderTree::DescribeVisual(
         AeroGuiInternal::Rendering(visual) = true;
         DisplayListBuilder builder;
         ::Aero::Media::DrawingContext context =
-            Aero::Render::DrawingPrivate::
+            Aero::Render::DrawingBridge::
                 Create(builder);
         AeroGuiInternal::Render(visual, context);
         Base::Result<DisplayList> recorded =

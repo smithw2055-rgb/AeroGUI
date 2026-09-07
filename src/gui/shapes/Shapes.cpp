@@ -6,12 +6,12 @@
 #include "gui/core/state/ElementTree.hpp"
 #include "gui/core/state/LayoutEngine.hpp"
 #include "gui/core/state/FreezableState.hpp"
-#include "gui/core/state/PropertyEngine.hpp"
+#include "gui/core/state/EffectiveValueEngine.hpp"
 #include "gui/core/state/RoutedEvents.hpp"
 #include "gui/core/state/EventRouter.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/media/MediaState.hpp"
+#include "gui/media/MediaHelpers.hpp"
 #include "gui/media/BrushRendering.hpp"
 
 #include <algorithm>
@@ -134,7 +134,7 @@ ImageBrushGeometry FitImageBrush(
     ::Aero::Media::DrawingContext& context,
     const ImageBrush& brush,
     Rect bounds) noexcept {
-    auto& builder = Aero::Render::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::DrawingBridge::Builder(context);
     const RenderImageId image =
         brush.
             GetRenderImageId();
@@ -353,7 +353,7 @@ Size Rectangle::MeasureOverride(
 
 void Rectangle::OnRender(
     ::Aero::Media::DrawingContext& context) noexcept {
-    auto& builder = Aero::Render::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::DrawingBridge::Builder(context);
     const Size renderSize = GetRenderSize();
     if (renderSize.width <= 0.0 ||
         renderSize.height <= 0.0) {
@@ -387,7 +387,7 @@ Size Ellipse::MeasureOverride(
 
 void Ellipse::OnRender(
     ::Aero::Media::DrawingContext& context) noexcept {
-    auto& builder = Aero::Render::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::DrawingBridge::Builder(context);
     const Size renderSize = GetRenderSize();
     if (renderSize.width <= 0.0 ||
         renderSize.height <= 0.0) {
@@ -603,7 +603,7 @@ Size Line::MeasureOverride(Size) noexcept {
 }
 
 void Line::OnRender(::Aero::Media::DrawingContext& context) noexcept {
-    auto& builder = Aero::Render::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::DrawingBridge::Builder(context);
     StrokeLineSegment(
         builder,
         Point{GetX1(), GetY1()},
@@ -650,7 +650,7 @@ Size Polygon::MeasureOverride(Size) noexcept {
     return PointsExtent(points_.AsSpan(), std::max(0.0, GetStrokeThickness()));
 }
 void Polygon::OnRender(::Aero::Media::DrawingContext& context) noexcept {
-    auto& builder = Aero::Render::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::DrawingBridge::Builder(context);
     FillPointFan(builder, points_.AsSpan(), ::Aero::Media::SampleBrush(GetFill()));
     const Color stroke = ::Aero::Media::SampleBrush(GetStroke());
     const double thickness = GetStrokeThickness();
@@ -695,7 +695,7 @@ Size Polyline::MeasureOverride(Size) noexcept {
     return PointsExtent(points_.AsSpan(), std::max(0.0, GetStrokeThickness()));
 }
 void Polyline::OnRender(::Aero::Media::DrawingContext& context) noexcept {
-    auto& builder = Aero::Render::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::DrawingBridge::Builder(context);
     const Color stroke = ::Aero::Media::SampleBrush(GetStroke());
     const double thickness = GetStrokeThickness();
     for (std::uint32_t index = 0U; index + 1U < points_.Size(); ++index) {

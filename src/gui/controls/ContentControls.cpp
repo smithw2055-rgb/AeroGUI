@@ -1,7 +1,7 @@
 #include "gui/core/state/ElementTree.hpp"
 #include "gui/core/state/LayoutEngine.hpp"
 #include "gui/core/state/FreezableState.hpp"
-#include "gui/core/state/PropertyEngine.hpp"
+#include "gui/core/state/EffectiveValueEngine.hpp"
 #include "gui/core/state/RoutedEvents.hpp"
 #include "gui/core/state/EventRouter.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
@@ -1014,7 +1014,7 @@ Size TabPanel::ArrangeOverride(
 #include <Aero/Shapes.hpp>
 #include <Aero/Media/Transforms.hpp>
 #include "gui/media/BrushRendering.hpp"
-#include "gui/media/MediaState.hpp"
+#include "gui/media/MediaHelpers.hpp"
 #include <Aero/Documents.hpp>
 #include "RichText.hpp"
 
@@ -1314,7 +1314,7 @@ Size Border::ArrangeOverride(Size finalSize) noexcept {
 }
 void Border::OnRender(
     ::Aero::Media::DrawingContext& context) noexcept {
-    auto& builder = Aero::Render::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::DrawingBridge::Builder(context);
     const Rect bounds{0.0, 0.0, GetRenderSize().width, GetRenderSize().height};
     if (bounds.width <= 0.0 ||
         bounds.height <= 0.0) {

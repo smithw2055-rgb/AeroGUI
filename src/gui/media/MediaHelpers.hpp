@@ -1,5 +1,8 @@
 #pragma once
 
+// Gradient/brush sampling and Animation→Model conversion helpers.
+// Not engine "state" — renamed from MediaState.hpp.
+
 #include "gui/internal/AeroGuiInternal.hpp"
 
 #include "gui/meta/MetadataState.hpp"

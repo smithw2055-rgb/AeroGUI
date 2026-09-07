@@ -184,7 +184,7 @@ XAML metadata type-capability tables (`XamlFacets` / TypeRecord masks under
 
 Per-domain engine headers remain under `src/gui/core/state/`
 (`ElementTree.hpp`, `FreezableState.hpp`, `LayoutEngine.hpp`,
-`PropertyEngine.hpp`, `RoutedEvents.hpp`, `EventRouter.hpp`). `State.hpp`
+`EffectiveValueEngine.hpp`, `RoutedEvents.hpp`, `EventRouter.hpp`). `State.hpp`
 remains the umbrella that includes them plus `AeroGuiInternal.hpp`.
 
 WPF-bridge virtuals for developers who subclass Aero types:

@@ -1,76 +1,17 @@
 #pragma once
 
-// Style authoring bridge, compiled state and theme-style lookup.
+// Style program state, Seal/Apply statics, and resource-assignment helpers
+// used by style and markup application. Theme-compat Element/RichText live in
+// gui/meta/MetadataState.hpp.
 
-#include <Aero/Base/Object.hpp>
 #include <Aero/Value.hpp>
-#include <Aero/Layout.hpp>
-#include <Aero/Media/Transform3D.hpp>
-#include <Aero/DependencyProperty.hpp>
 #include <Aero/TextProperties.hpp>
+#include <Aero/DependencyProperty.hpp>
 #include "gui/meta/MetadataState.hpp"
-#include "gui/core/state/ElementTree.hpp"
-#include "gui/core/state/LayoutEngine.hpp"
-#include "gui/core/state/FreezableState.hpp"
-#include "gui/core/state/PropertyEngine.hpp"
-#include "gui/core/state/RoutedEvents.hpp"
-#include "gui/core/state/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
+#include "gui/core/state/EffectiveValueEngine.hpp"
 #include "gui/triggers/TriggerPlan.hpp"
 
 #include <cstdint>
-
-namespace Aero {
-
-// Private compatibility owners used by the built-in theme schema. They are
-// registered for XAML compatibility but are not C++ authoring APIs.
-class Element : public Base::Object {
-    AERO_DECLARE_TYPE(Element, Base::Object)
-public:
-    Meta::TypeId RuntimeType() const noexcept override {
-        return StaticTypeId();
-    }
-    inline static constexpr Meta::AttachedPropertyRef<Element, double>
-        PPAAInProperty{"PPAAIn"};
-    inline static constexpr Meta::AttachedPropertyRef<Element, double>
-        PPAAOutProperty{"PPAAOut"};
-    // Compatibility setting retained for authored AeroGUI XAML. SDF text is
-    // the renderer default, so this marker never switches back to grayscale.
-    inline static constexpr Meta::AttachedPropertyRef<Element, Base::String>
-        PPAAModeProperty{"PPAAMode"};
-    inline static constexpr Meta::AttachedPropertyRef<Element, bool>
-        IsFocusEngagedProperty{"IsFocusEngaged"};
-    inline static constexpr Meta::AttachedPropertyRef<Element, BlendMode>
-        BlendingModeProperty{"BlendingMode"};
-    static void OnBlendingModeChanged(
-        DependencyObject& object,
-        const DependencyPropertyChangedEventArgs& args) noexcept;
-    // XAML compatibility forwarder: aero:Element.Transform3D writes
-    // UIElement::Transform3DProperty. Render/hit read the UIElement DP.
-    inline static constexpr Meta::AttachedPropertyRef<
-        Element, Base::Ref<Media::Transform3D>>
-        Transform3DProperty{"Transform3D"};
-    static void OnTransform3DChanged(
-        DependencyObject& object,
-        const DependencyPropertyChangedEventArgs& args) noexcept;
-};
-
-class RichText : public Base::Object {
-    AERO_DECLARE_TYPE_NAMED(
-        RichText, Base::Object, "urn:aero", "RichText")
-public:
-    Meta::TypeId RuntimeType() const noexcept override {
-        return StaticTypeId();
-    }
-    inline static constexpr Meta::AttachedPropertyRef<
-        RichText, Base::String>
-        TextProperty{"Text"};
-    static void OnTextChanged(
-        DependencyObject& object,
-        const DependencyPropertyChangedEventArgs& args) noexcept;
-};
-
-} // namespace Aero
 
 #include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/Style.hpp>

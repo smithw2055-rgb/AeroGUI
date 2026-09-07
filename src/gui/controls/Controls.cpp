@@ -2,7 +2,7 @@
 #include "gui/core/state/ElementTree.hpp"
 #include "gui/core/state/LayoutEngine.hpp"
 #include "gui/core/state/FreezableState.hpp"
-#include "gui/core/state/PropertyEngine.hpp"
+#include "gui/core/state/EffectiveValueEngine.hpp"
 #include "gui/core/state/RoutedEvents.hpp"
 #include "gui/core/state/EventRouter.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
@@ -16,7 +16,7 @@
 #include <Aero/Shapes.hpp>
 #include <Aero/Media/Transforms.hpp>
 #include "gui/media/BrushRendering.hpp"
-#include "gui/media/MediaState.hpp"
+#include "gui/media/MediaHelpers.hpp"
 #include <Aero/Collections.hpp>
 #include <Aero/Documents.hpp>
 #include <Aero/TryCast.hpp>
@@ -167,7 +167,7 @@ void Control::OnRender(
     // base Background as well produces an extra full-control rectangle behind
     // custom ComboBox, TreeView, Button and similar templates.
     if (GetTemplateRoot() != nullptr) return;
-    auto& builder = Aero::Render::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::DrawingBridge::Builder(context);
     static_cast<void>(PaintBrushRect(
         builder,
         GetBackground(),

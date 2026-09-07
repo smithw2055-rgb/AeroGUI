@@ -3,7 +3,7 @@
 #include "gui/core/state/ElementTree.hpp"
 #include "gui/core/state/LayoutEngine.hpp"
 #include "gui/core/state/FreezableState.hpp"
-#include "gui/core/state/PropertyEngine.hpp"
+#include "gui/core/state/EffectiveValueEngine.hpp"
 #include "gui/core/state/RoutedEvents.hpp"
 #include "gui/core/state/EventRouter.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
@@ -12,7 +12,7 @@
 #include "gui/styles/StyleState.hpp"
 #include "render/DisplayList.hpp"
 #include <Aero/Controls.hpp>
-#include "gui/media/MediaState.hpp"
+#include "gui/media/MediaHelpers.hpp"
 #include <Aero/Input/Mouse.hpp>
 #include <Aero/TryCast.hpp>
 #include <Aero/Value.hpp>
@@ -922,7 +922,7 @@ Size Slider::ArrangeOverride(
 
 void Slider::OnRender(
     ::Aero::Media::DrawingContext& context) noexcept {
-    auto& builder = Aero::Render::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::DrawingBridge::Builder(context);
     const TickPlacement placement =
         GetTickPlacement();
     const Size size = GetRenderSize();
@@ -1133,7 +1133,7 @@ void TickBar::SetPlacement(
 
 void TickBar::OnRender(
     ::Aero::Media::DrawingContext& context) noexcept {
-    auto& builder = Aero::Render::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::DrawingBridge::Builder(context);
     DependencyObject* parent = GetTemplatedParent();
     if (parent == nullptr ||
         !AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(

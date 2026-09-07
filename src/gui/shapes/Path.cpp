@@ -10,13 +10,13 @@
 #include "gui/core/state/ElementTree.hpp"
 #include "gui/core/state/LayoutEngine.hpp"
 #include "gui/core/state/FreezableState.hpp"
-#include "gui/core/state/PropertyEngine.hpp"
+#include "gui/core/state/EffectiveValueEngine.hpp"
 #include "gui/core/state/RoutedEvents.hpp"
 #include "gui/core/state/EventRouter.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
-#include "gui/media/MediaState.hpp"
+#include "gui/media/MediaHelpers.hpp"
 #include "gui/media/BrushRendering.hpp"
 
 #include <algorithm>
@@ -817,7 +817,7 @@ Size Path::MeasureOverride(
 
 void Path::OnRender(
     ::Aero::Media::DrawingContext& context) noexcept {
-    auto& builder = Aero::Render::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::DrawingBridge::Builder(context);
     Base::Ref<Geometry> authoredGeometry = GetData();
     if (authoredGeometry && authoredGeometry->RuntimeType() ==
             PathGeometry::StaticTypeId()) {

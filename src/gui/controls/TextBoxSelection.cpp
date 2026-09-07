@@ -7,14 +7,14 @@
 #include "gui/core/state/ElementTree.hpp"
 #include "gui/core/state/LayoutEngine.hpp"
 #include "gui/core/state/FreezableState.hpp"
-#include "gui/core/state/PropertyEngine.hpp"
+#include "gui/core/state/EffectiveValueEngine.hpp"
 #include "gui/core/state/RoutedEvents.hpp"
 #include "gui/core/state/EventRouter.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/input/InputState.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
-#include "gui/media/MediaState.hpp"
+#include "gui/media/MediaHelpers.hpp"
 #include "TextBlockLayout.hpp"
 
 #include <algorithm>
@@ -557,7 +557,7 @@ void TextBox::OnApplyTemplate() noexcept {
 void TextBox::OnRender(
     ::Aero::Media::DrawingContext& context) noexcept {
     if (GetTemplateRoot() != nullptr) return;
-    auto& builder = Aero::Render::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::DrawingBridge::Builder(context);
     const Rect bounds{
         0.0, 0.0,
         GetRenderSize().width,
@@ -613,7 +613,7 @@ TextBox::RenderEditor(
     ::Aero::Media::DrawingContext& context,
     Size viewport,
     bool drawCaret) noexcept {
-    auto& builder = Aero::Render::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::DrawingBridge::Builder(context);
     Thickness padding = GetPadding();
     if (scrollViewer_ != nullptr) {
         const Rect svSlot = scrollViewer_->GetLayoutSlot();

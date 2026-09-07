@@ -12,12 +12,12 @@
 #include "gui/core/state/ElementTree.hpp"
 #include "gui/core/state/LayoutEngine.hpp"
 #include "gui/core/state/FreezableState.hpp"
-#include "gui/core/state/PropertyEngine.hpp"
+#include "gui/core/state/EffectiveValueEngine.hpp"
 #include "gui/core/state/RoutedEvents.hpp"
 #include "gui/core/state/EventRouter.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/media/MediaState.hpp"
+#include "gui/media/MediaHelpers.hpp"
 
 namespace Aero::Media {
 namespace {
@@ -148,41 +148,41 @@ Result<void> StrokePenGeometry(
 
 Base::Result<void> DrawingContext::PushClip(
     Base::Rect clip) noexcept {
-    return ::Aero::Render::DrawingPrivate::Builder(*this)
+    return ::Aero::Render::DrawingBridge::Builder(*this)
         .PushClip(clip);
 }
 
 Base::Result<void> DrawingContext::PopClip() noexcept {
-    return ::Aero::Render::DrawingPrivate::Builder(*this)
+    return ::Aero::Render::DrawingBridge::Builder(*this)
         .PopClip();
 }
 
 Base::Result<void> DrawingContext::PushOpacity(
     double opacity) noexcept {
-    return ::Aero::Render::DrawingPrivate::Builder(*this)
+    return ::Aero::Render::DrawingBridge::Builder(*this)
         .PushOpacity(opacity);
 }
 
 Base::Result<void> DrawingContext::PopOpacity() noexcept {
-    return ::Aero::Render::DrawingPrivate::Builder(*this)
+    return ::Aero::Render::DrawingBridge::Builder(*this)
         .PopOpacity();
 }
 
 Base::Result<void> DrawingContext::PushTransform(
     Base::Transform2D transform) noexcept {
-    return ::Aero::Render::DrawingPrivate::Builder(*this)
+    return ::Aero::Render::DrawingBridge::Builder(*this)
         .PushTransform(transform);
 }
 
 Base::Result<void> DrawingContext::PopTransform() noexcept {
-    return ::Aero::Render::DrawingPrivate::Builder(*this)
+    return ::Aero::Render::DrawingBridge::Builder(*this)
         .PopTransform();
 }
 
 Base::Result<void> DrawingContext::DrawRectangle(
     Base::Rect bounds,
     Base::Color color) noexcept {
-    return ::Aero::Render::DrawingPrivate::Builder(*this)
+    return ::Aero::Render::DrawingBridge::Builder(*this)
         .FillRect(bounds, color);
 }
 
@@ -190,7 +190,7 @@ Base::Result<void> DrawingContext::DrawRectangle(
     Base::Rect bounds,
     const Base::Ref<Media::Brush>& brush) noexcept {
     return Media::PaintBrushRect(
-        ::Aero::Render::DrawingPrivate::Builder(*this),
+        ::Aero::Render::DrawingBridge::Builder(*this),
         brush,
         bounds);
 }
@@ -212,7 +212,7 @@ Base::Result<void> DrawingContext::DrawRoundedRectangle(
     Base::Rect bounds,
     Base::Color color,
     double radius) noexcept {
-    return ::Aero::Render::DrawingPrivate::Builder(*this)
+    return ::Aero::Render::DrawingBridge::Builder(*this)
         .FillRoundedRect(bounds, color, radius);
 }
 
@@ -221,7 +221,7 @@ Base::Result<void> DrawingContext::DrawRoundedRectangle(
     const Base::Ref<Media::Brush>& brush,
     double radius) noexcept {
     return Media::PaintBrushRect(
-        ::Aero::Render::DrawingPrivate::Builder(*this),
+        ::Aero::Render::DrawingBridge::Builder(*this),
         brush,
         bounds,
         radius);
@@ -231,7 +231,7 @@ Base::Result<void> DrawingContext::DrawRectangleOutline(
     Base::Rect bounds,
     Base::Color color,
     double thickness) noexcept {
-    return ::Aero::Render::DrawingPrivate::Builder(*this)
+    return ::Aero::Render::DrawingBridge::Builder(*this)
         .StrokeRect(bounds, color, thickness);
 }
 
@@ -242,7 +242,7 @@ Base::Result<void> DrawingContext::DrawRectangleOutline(
     const Base::Color color =
         Media::SampleBrush(brush);
     return color.alpha > 0.0F
-        ? ::Aero::Render::DrawingPrivate::Builder(*this)
+        ? ::Aero::Render::DrawingBridge::Builder(*this)
               .StrokeRect(bounds, color, thickness)
         : Base::Result<void>();
 }
@@ -256,7 +256,7 @@ Result<void> DrawingContext::DrawLine(
     line.SetStartPoint(start);
     line.SetEndPoint(end);
     return StrokePenGeometry(
-        ::Aero::Render::DrawingPrivate::Builder(*this),
+        ::Aero::Render::DrawingBridge::Builder(*this),
         *pen,
         line);
 }
@@ -265,7 +265,7 @@ Result<void> DrawingContext::DrawGeometry(
     const Ref<Brush>& brush,
     const Ref<Pen>& pen,
     const Geometry& geometry) noexcept {
-    auto& builder = ::Aero::Render::DrawingPrivate::Builder(*this);
+    auto& builder = ::Aero::Render::DrawingBridge::Builder(*this);
     if (brush && pen) {
         // P4.4: unified Fill/Stroke single entry. One geometry.Flatten
         // feeds both the fill contour set and the stroke contour set, so a

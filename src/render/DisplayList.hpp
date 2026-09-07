@@ -157,7 +157,7 @@ namespace Aero::Media {
 
 // Source-private bridge used by FrameworkElement::OnRender implementations.
 // Nested on DrawingContext so no parallel *Runtime companion is exported.
-struct DrawingContext::Private {
+struct DrawingContext::Bridge {
     static DrawingContext Create(
         ::Aero::Render::DisplayListBuilder& builder) noexcept {
         return DrawingContext(&builder);
@@ -173,5 +173,5 @@ struct DrawingContext::Private {
 } // namespace Aero::Media
 
 namespace Aero::Render {
-using DrawingPrivate = ::Aero::Media::DrawingContext::Private;
+using DrawingBridge = ::Aero::Media::DrawingContext::Bridge;
 } // namespace Aero::Render

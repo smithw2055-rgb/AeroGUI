@@ -2,7 +2,7 @@
 #include "gui/core/state/ElementTree.hpp"
 #include "gui/core/state/LayoutEngine.hpp"
 #include "gui/core/state/FreezableState.hpp"
-#include "gui/core/state/PropertyEngine.hpp"
+#include "gui/core/state/EffectiveValueEngine.hpp"
 #include "gui/core/state/RoutedEvents.hpp"
 #include "gui/core/state/EventRouter.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
@@ -767,7 +767,7 @@ void NavigationService::OnRequestNavigate(
 #include <Aero/Shapes.hpp>
 #include <Aero/Media/Transforms.hpp>
 #include "gui/media/BrushRendering.hpp"
-#include "gui/media/MediaState.hpp"
+#include "gui/media/MediaHelpers.hpp"
 #include <Aero/Documents.hpp>
 #include "gui/controls/RichText.hpp"
 
@@ -1352,7 +1352,7 @@ void TextBlock::OnRender(
     ::Aero::Media::DrawingContext& context) noexcept {
     const Size renderSize = GetRenderSize();
     if (renderSize.width <= 0.0 || renderSize.height <= 0.0) return;
-    auto& builder = Aero::Render::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::DrawingBridge::Builder(context);
     const Color background = ::Aero::Media::SampleBrush(GetBackground());
     if (background.alpha > 0.0F) {
         Base::Result<void> filled =
