@@ -221,7 +221,7 @@ Base::Result<void> ModuleSet::RegisterResourceScopes(
         for (const Markup::ResourceScopeRegistration& scope :
              module.resourceScopes) {
             Base::Result<void> registered =
-                Markup::SchemaPrivate::AddResourceScope(schema, {
+                schema.AddResourceScope({
                     scope.type,
                     scope.inherited,
                     scope.addResource,

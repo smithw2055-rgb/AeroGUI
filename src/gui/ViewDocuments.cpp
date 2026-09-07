@@ -163,15 +163,13 @@ Base::Result<void> ResourceHost::LoadLayer(
         if (!loadOptions) {
             return loadOptions.GetStatus();
         }
-        if (view->xamlRuntime == nullptr) {
+        if (view->gui == nullptr || view->schemaBundle == nullptr) {
             return AeroNotInitialized(
                 "Gui XAML runtime is unavailable");
         }
         Base::Result<Markup::XamlDocument> loaded =
-            view->xamlRuntime->Load(
-            view->xamlRuntime->Providers(),
+            static_cast<GuiState&>(*view->gui).Load(
             &view->loadContext,
-            view->allocator,
             uri, loadOptions.Value(), diagnostics);
         if (!loaded) {
             return loaded.GetStatus();
@@ -198,13 +196,13 @@ Base::Result<void> ResourceHost::LoadCompiledLayer(
         Base::Result<Markup::XamlReaderSettings> loadOptions =
             XamlSettings(*view);
         if (!loadOptions) return loadOptions.GetStatus();
-        if (view->xamlRuntime == nullptr) {
+        if (view->gui == nullptr || view->schemaBundle == nullptr) {
             return AeroNotInitialized(
                 "Gui XAML runtime is unavailable");
         }
         Base::Result<Markup::XamlDocument> loaded =
-            view->xamlRuntime->LoadCompiled(
-                view->xamlRuntime->Providers(), &view->loadContext, view->allocator,
+            static_cast<GuiState&>(*view->gui).LoadCompiled(
+                &view->loadContext,
                 bytes, originUri, loadOptions.Value());
         if (!loaded) return loaded.GetStatus();
 

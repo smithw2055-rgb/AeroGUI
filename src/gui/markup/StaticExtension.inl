@@ -21,7 +21,7 @@ Base::Result<void> StaticExtension::Register(
             Base::ErrorCode::InvalidState,
             "x:Static extension registration is invalid");
     }
-    return SchemaPrivate::AddMarkupExtension(schema, {
+    return schema.AddMarkupExtension({
         markupExtensionType, &ProvideValue, nullptr});
 }
 
@@ -87,8 +87,7 @@ Base::Result<ProvidedValue> StaticExtension::ProvideValue(
         services.namespaces.Lookup(prefix);
     if (!xamlNamespace) return xamlNamespace.GetStatus();
     Base::Result<const Meta::TypeInfo*> type =
-        SchemaPrivate::ResolveType(
-            *services.schema,
+        services.schema->ResolveType(
             xamlNamespace.Value(),
             typeName);
     if (!type) return type.GetStatus();

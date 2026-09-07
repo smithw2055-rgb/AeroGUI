@@ -25,9 +25,9 @@ ViewState::ViewState(
           gui(std::move(guiState)),
           publicRenderer(owner, value),
           dispatcher(&static_cast<GuiState&>(*gui).dispatcher),
-          xamlRuntime(&static_cast<GuiState&>(*gui).xaml),
-          schemaBundle(&xamlRuntime->SchemaBundle()),
-          documentCache(&xamlRuntime->Documents()),
+          schemaBundle(&static_cast<GuiState&>(*gui).schema),
+          documentCache(&static_cast<GuiState&>(*gui).documents),
+          xamlProviders(&static_cast<GuiState&>(*gui).xamlProviders),
           itemGenerators(&value),
           fragmentMounts(&value),
           componentMounts(&value) {}

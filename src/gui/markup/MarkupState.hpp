@@ -13,7 +13,9 @@
 #include <cstdint>
 #include <utility>
 
-// Canonical compiled-document API.
+// Markup parse/contract surface (nodes, schema, loader, load session).
+// WPF notes: Schema ≈ XamlSchemaContext; LoadState ≈ ParserContext
+// (session dies with Load). Schema/DocumentCache/GuiSchema stay process-level.
 
 namespace Aero::Markup {
 
@@ -21,11 +23,18 @@ class Schema;
 class SchemaManifest;
 class CompiledDocument;
 class NodeReader;
-struct SchemaState;
+class XamlFacets;
+struct XamlTypeFacet;
+struct XamlLifecycleFacet;
+struct XamlNameScopeFacet;
+struct XamlResourceScopeFacet;
+struct XamlDeferredContentFacet;
+struct XamlImplicitResourceKeyFacet;
+struct XamlPropertyTargetFacet;
+struct XamlMarkupExtensionFacet;
 struct SchemaManifestState;
 struct DependencyGraphState;
 struct DocumentCacheState;
-struct LoaderState;
 struct UiObjectModelState;
 struct XamlTemplateSchemaFacetState;
 
@@ -356,7 +365,7 @@ inline constexpr ::Aero::Diagnostics::DiagnosticCode InvalidNodeStreamState =
 
 // Runtime-only replay record. AXB2 continues to persist only MemberId; a
 // compatible frozen Registry expands each unique id to this record once during
-// binding/deserialization so ObjectBuilder does not repeat schema lookup or
+// binding/deserialization so ObjectWriter does not repeat schema lookup or
 // write-policy discovery for every member occurrence.
 struct CompiledMemberBinding {
     Meta::MemberId id = Meta::InvalidMemberId;
@@ -783,6 +792,8 @@ private:
 // Canonical public schema API.
 
 namespace Aero { class DependencyObject; class ResourceDictionary; class ResourceKey; }
+namespace Aero { class ModuleSet; }
+namespace Aero::Data { class MultiBinding; }
 
 namespace Aero {
 class GuiSchema;
@@ -794,14 +805,12 @@ struct ExtensionServices;
 struct ProvidedValue;
 class Loader;
 class ObjectWriter;
-class ObjectBuilder;
 class SchemaManifest;
 struct LoadState;
 
 } // namespace Aero::Markup
 
 namespace Aero::Markup {
-class SchemaPrivate;
 class XamlStyleSchemaFacet;
 
 Base::Result<void> PopulateMarkupMetadata(
@@ -844,6 +853,12 @@ struct MemberWritePolicy {
     bool writable = false;
 };
 
+namespace WriterBindingSupport {
+Base::Result<ProvidedValue> CreateMultiBindingValueImpl(
+    class ::Aero::Data::MultiBinding& binding,
+    const struct ExtensionServices& services) noexcept;
+}
+
 class Schema {
 public:
     Schema(
@@ -870,17 +885,35 @@ public:
         Meta::MemberId member) const noexcept;
     Base::Result<ResolvedMember> ResolveContentMember(
         Meta::TypeId targetType) const noexcept;
+    Base::Result<Meta::Value> ConvertText(
+        Meta::TypeId type,
+        Base::StringView text,
+        const ExtensionServices* services = nullptr) const noexcept;
+    MemberWritePolicy ResolveMemberWritePolicy(
+        const ResolvedMember& member) const noexcept;
+
 
 private:
     friend class ::Aero::GuiSchema;
     friend class CompiledDocument;
-    friend class SchemaPrivate;
     friend class Loader;
-    friend struct LoaderState;
     friend class ObjectWriter;
-    friend class ObjectBuilder;
     friend class SchemaManifest;
     friend class XamlStyleSchemaFacet;
+    friend class ResourceExtension;
+    friend class XamlTemplateSchemaFacet;
+    friend class BindingExtension;
+    friend Base::Result<ProvidedValue>
+        WriterBindingSupport::CreateMultiBindingValueImpl(
+            ::Aero::Data::MultiBinding& binding,
+            const ExtensionServices& services) noexcept;
+    friend class StaticResourceExtension;
+    friend class DynamicResourceExtension;
+    friend class TypeExtension;
+    friend class LocExtension;
+    friend class TemplateBindingExtension;
+    friend class StaticExtension;
+    friend class ::Aero::ModuleSet;
 
     Base::Result<void> Freeze() noexcept;
     ::Aero::Meta::Registry* Metadata() const noexcept { return domain_; }
@@ -892,10 +925,6 @@ private:
         Meta::TypeId type) const noexcept;
     Base::Result<::Aero::DependencyObject*> ResolvePropertyTarget(
         Base::Object& object) const noexcept;
-    Base::Result<Meta::Value> ConvertText(
-        Meta::TypeId type,
-        Base::StringView text,
-        const ExtensionServices* services = nullptr) const noexcept;
     Base::Result<void> SetMember(
         Base::Object& object,
         Meta::TypeId objectType,
@@ -935,14 +964,30 @@ private:
         Meta::TypeId type,
         const Base::Object& object) const noexcept;
 
-    MemberWritePolicy ResolveMemberWritePolicy(
-        const ResolvedMember& member) const noexcept;
 
     Base::IAllocator* allocator_ = nullptr;
     alignas(std::max_align_t) std::uint8_t stateStorage_[32768]{};
-    SchemaState* state_ = nullptr;
+    XamlFacets* facets_ = nullptr;
     ::Aero::Meta::Registry* domain_ = nullptr;
     bool frozen_ = false;
+
+
+    Base::Result<void> AddType(
+        const XamlTypeFacet& registration) noexcept;
+    Base::Result<void> AddLifecycle(
+        const XamlLifecycleFacet& registration) noexcept;
+    Base::Result<void> AddNameScope(
+        const XamlNameScopeFacet& registration) noexcept;
+    Base::Result<void> AddResourceScope(
+        const XamlResourceScopeFacet& registration) noexcept;
+    Base::Result<void> AddDeferredContent(
+        const XamlDeferredContentFacet& registration) noexcept;
+    Base::Result<void> AddImplicitResourceKey(
+        const XamlImplicitResourceKeyFacet& registration) noexcept;
+    Base::Result<void> AddPropertyTarget(
+        const XamlPropertyTargetFacet& registration) noexcept;
+    Base::Result<void> AddMarkupExtension(
+        const XamlMarkupExtensionFacet& registration) noexcept;
 
     Base::Result<ResolvedMember> ResolvePropertyOrEvent(
         Meta::TypeId targetType,
@@ -1040,6 +1085,8 @@ inline Base::Result<void> RegisterMarkupMetadata(
 // Consolidated private Markup runtime and schema contract.
 
 // ===== Loader contract =====
+// XamlReader → Loader → ObjectWriter → Schema. Loader owns a short-lived
+// LoaderState session; LoadState (≈ ParserContext) is per-Load only.
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Hash.hpp>
@@ -1368,6 +1415,25 @@ public:
         const XamlReaderSettings& options = {}) noexcept;
 
 private:
+    // Per-Loader URI/provider session storage. Distinct from LoadState
+    // (≈ ParserContext), which is supplied per Load and dies with that load.
+    struct LoaderState;
+
+    static ::Aero::Meta::Registry* SchemaMetadata(
+        Schema& schema) noexcept {
+        return schema.Metadata();
+    }
+    static const ::Aero::Meta::Registry& SchemaDomain(
+        Schema& schema) noexcept {
+        return schema.Domain();
+    }
+    static Aero::ResourceDictionary* SchemaResolveResourceScope(
+        Schema& schema,
+        Meta::TypeId scopeType,
+        Base::Object& scopeOwner) noexcept {
+        return schema.ResolveResourceScope(scopeType, scopeOwner);
+    }
+
     Base::IAllocator* allocator_ = nullptr;
     alignas(std::max_align_t) std::uint8_t stateStorage_[512]{};
     LoaderState* state_ = nullptr;

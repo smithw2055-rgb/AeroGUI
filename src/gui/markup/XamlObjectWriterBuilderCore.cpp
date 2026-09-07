@@ -16,11 +16,11 @@
 #include <Aero/Markup/ServiceProvider.hpp>
 #include <Aero/VisualStateManager.hpp>
 
-// ===== ObjectBuilder core / node stack =====
+// ===== ObjectWriter core / node stack =====
 
 namespace Aero::Markup {
 
-ObjectBuilder::ObjectBuilder(
+ObjectWriter::ObjectWriter(
     ::Aero::Markup::Schema& schema,
     Diagnostics::IDiagnosticSink* diagnostics) noexcept
     : schema_(&schema),
@@ -38,11 +38,11 @@ ObjectBuilder::ObjectBuilder(
       committedResources_(),
       resultVisualContent_() {}
 
-ObjectBuilder::~ObjectBuilder() noexcept {
+ObjectWriter::~ObjectWriter() noexcept {
     AbortTransaction();
 }
 
-Base::Result<LoaderResult> ObjectBuilder::Load(
+Base::Result<LoaderResult> ObjectWriter::Load(
     NodeReader& reader) noexcept {
     const LoadState* previous = loadContext_;
     loadContext_ = nullptr;
@@ -54,7 +54,7 @@ Base::Result<LoaderResult> ObjectBuilder::Load(
     return result;
 }
 
-Base::Result<LoaderResult> ObjectBuilder::Load(
+Base::Result<LoaderResult> ObjectWriter::Load(
     NodeReader& reader,
     const LoadState& context) noexcept {
     const LoadState* previous = loadContext_;
@@ -67,7 +67,7 @@ Base::Result<LoaderResult> ObjectBuilder::Load(
     return result;
 }
 
-Base::Result<LoaderResult> ObjectBuilder::Load(
+Base::Result<LoaderResult> ObjectWriter::Load(
     const CompiledDocument& document) noexcept {
     const LoadState* previous = loadContext_;
     loadContext_ = nullptr;
@@ -79,7 +79,7 @@ Base::Result<LoaderResult> ObjectBuilder::Load(
     return result;
 }
 
-Base::Result<LoaderResult> ObjectBuilder::Load(
+Base::Result<LoaderResult> ObjectWriter::Load(
     const CompiledDocument& document,
     const LoadState& context) noexcept {
     const LoadState* previous = loadContext_;
@@ -92,7 +92,7 @@ Base::Result<LoaderResult> ObjectBuilder::Load(
     return result;
 }
 
-Base::Result<LoaderResult> ObjectBuilder::CompleteLoad(
+Base::Result<LoaderResult> ObjectWriter::CompleteLoad(
     Base::Result<Base::Ref<Base::Object>> loaded) noexcept {
     if (!loaded) return loaded.GetStatus();
     LoaderResult result;
@@ -163,7 +163,7 @@ Base::Result<LoaderResult> ObjectBuilder::CompleteLoad(
     return result;
 }
 
-Base::Result<void> ObjectBuilder::ResolveDeferredStaticResources() noexcept {
+Base::Result<void> ObjectWriter::ResolveDeferredStaticResources() noexcept {
     for (DeferredStaticResourceRecord& deferred :
          deferredStaticResources_) {
         Base::Result<Aero::ResourceValue> resource =
@@ -194,7 +194,7 @@ Base::Result<void> ObjectBuilder::ResolveDeferredStaticResources() noexcept {
     return {};
 }
 
-Base::Result<void> ObjectBuilder::FinalizeDeferredStyles() noexcept {
+Base::Result<void> ObjectWriter::FinalizeDeferredStyles() noexcept {
     for (std::uint32_t index = 0U; index < created_.Size(); ++index) {
         CreatedObjectRecord& record = created_[index];
         if (!record.endCalled || !record.object) {
@@ -217,13 +217,13 @@ Base::Result<void> ObjectBuilder::FinalizeDeferredStyles() noexcept {
     return {};
 }
 
-Base::Result<Base::Ref<Base::Object>> ObjectBuilder::LoadReaderCore(
+Base::Result<Base::Ref<Base::Object>> ObjectWriter::LoadReaderCore(
     NodeReader& reader) noexcept {
     StreamingXamlNodeCursor cursor(reader);
     return LoadCursorCore(cursor);
 }
 
-Base::Result<Base::Ref<Base::Object>> ObjectBuilder::LoadCursorCore(
+Base::Result<Base::Ref<Base::Object>> ObjectWriter::LoadCursorCore(
     NodeCursor& cursor) noexcept {
     if (consumed_ || loading_) return SessionConsumedStatus();
     consumed_ = true;
@@ -313,7 +313,7 @@ Base::Result<Base::Ref<Base::Object>> ObjectBuilder::LoadCursorCore(
     return result;
 }
 
-Base::Result<Base::Ref<Base::Object>> ObjectBuilder::LoadCompiledCore(
+Base::Result<Base::Ref<Base::Object>> ObjectWriter::LoadCompiledCore(
     const CompiledDocument& document) noexcept {
     if (consumed_ || loading_) return SessionConsumedStatus();
     if (!schema_->IsFrozen() || !document.IsValid()) {
@@ -334,7 +334,7 @@ Base::Result<Base::Ref<Base::Object>> ObjectBuilder::LoadCompiledCore(
     return LoadCursorCore(cursor);
 }
 
-Base::Result<Base::Ref<Base::Object>> ObjectBuilder::CreateObject(
+Base::Result<Base::Ref<Base::Object>> ObjectWriter::CreateObject(
     Meta::TypeId type) const noexcept {
     if (loadContext_ != nullptr &&
         created_.Size() >= loadContext_->maxObjects) {
@@ -359,7 +359,7 @@ Base::Result<Base::Ref<Base::Object>> ObjectBuilder::CreateObject(
     return schema_->CreateObject(type);
 }
 
-Base::Result<void> ObjectBuilder::ProcessNode(
+Base::Result<void> ObjectWriter::ProcessNode(
     const Node& node) noexcept {
     switch (node.Kind()) {
     case NodeKind::NamespaceDeclaration:
@@ -396,7 +396,7 @@ Base::Result<void> ObjectBuilder::ProcessNode(
         node.Source());
 }
 
-Base::Result<void> ObjectBuilder::QueueNamespaceDeclaration(
+Base::Result<void> ObjectWriter::QueueNamespaceDeclaration(
     const Node& node) noexcept {
     if (node.NamespaceUri().Empty()) {
         return Failure(
@@ -422,7 +422,7 @@ Base::Result<void> ObjectBuilder::QueueNamespaceDeclaration(
     record.source = node.Source();
     return pendingNamespaces_.PushBack(std::move(record));
 }
-Base::Result<void> ObjectBuilder::StartObject(
+Base::Result<void> ObjectWriter::StartObject(
     const Node& node) noexcept {
     if (frames_.Empty() && root_) {
         return Failure(
@@ -635,7 +635,7 @@ Base::Result<void> ObjectBuilder::StartObject(
     return {};
 }
 
-Base::Result<void> ObjectBuilder::StartValueObject(
+Base::Result<void> ObjectWriter::StartValueObject(
     const Node& node,
     std::uint32_t bindingStart,
     Meta::TypeId type) noexcept {
@@ -669,7 +669,7 @@ Base::Result<void> ObjectBuilder::StartValueObject(
     return {};
 }
 
-Base::Result<void> ObjectBuilder::StartNullObject(
+Base::Result<void> ObjectWriter::StartNullObject(
     const Node& node,
     std::uint32_t bindingStart) noexcept {
     if (frames_.Empty() ||
@@ -695,7 +695,7 @@ Base::Result<void> ObjectBuilder::StartNullObject(
     return {};
 }
 
-Base::Result<void> ObjectBuilder::EndObject(
+Base::Result<void> ObjectWriter::EndObject(
     const Node& node) noexcept {
     if (frames_.Empty()) {
         return Failure(
@@ -755,7 +755,7 @@ Base::Result<void> ObjectBuilder::EndObject(
 
     return CompleteObject(node);
 }
-Base::Result<void> ObjectBuilder::StartMember(
+Base::Result<void> ObjectWriter::StartMember(
     const Node& node) noexcept {
     if (frames_.Empty() ||
         (frames_.Back().kind != FrameKind::Object &&
@@ -953,7 +953,7 @@ Base::Result<void> ObjectBuilder::StartMember(
     return {};
 }
 
-Base::Result<void> ObjectBuilder::StartDirective(
+Base::Result<void> ObjectWriter::StartDirective(
     const Node& node,
     DirectiveKind directive,
     std::uint32_t targetObjectIndex) noexcept {
@@ -993,7 +993,7 @@ Base::Result<void> ObjectBuilder::StartDirective(
     return {};
 }
 
-Base::Result<void> ObjectBuilder::EndMember(
+Base::Result<void> ObjectWriter::EndMember(
     const Node& node) noexcept {
     if (frames_.Empty()) {
         return Failure(

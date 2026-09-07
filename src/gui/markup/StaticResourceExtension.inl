@@ -5,7 +5,7 @@ namespace Aero::Markup {
 Base::Result<void> StaticResourceExtension::Register(
     Schema& schema,
     Meta::TypeId staticResourceExtensionType) noexcept {
-    return SchemaPrivate::AddMarkupExtension(schema, {
+    return schema.AddMarkupExtension({
         staticResourceExtensionType,
         &StaticResourceExtension::ProvideValue,
         this});
@@ -75,8 +75,7 @@ Base::Result<ProvidedValue> StaticResourceExtension::ProvideValue(
                 Meta::TypeOf<Base::Object>()));
     }
     Base::Result<::Aero::DependencyObject*> targetResult =
-        SchemaPrivate::ResolvePropertyTarget(
-            *services.schema,
+        services.schema->ResolvePropertyTarget(
             *services.targetObject);
     if (!targetResult) {
         return targetResult.GetStatus();

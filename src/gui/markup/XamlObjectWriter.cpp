@@ -267,22 +267,14 @@ void DeferredContentPlan::ReleaseAll() noexcept {
     }
 }
 
-ObjectWriter::ObjectWriter(
-    ::Aero::Markup::Schema& schema,
-    Diagnostics::IDiagnosticSink* diagnostics) noexcept
-    : schema_(&schema),
-      diagnostics_(diagnostics) {}
-
 Base::Result<LoaderResult> ObjectWriter::LoadDocument(
     NodeReader& reader) noexcept {
-    ObjectBuilder state(*this);
-    return state.Load(reader);
+    return Load(reader);
 }
 
 Base::Result<LoaderResult> ObjectWriter::LoadDocument(
     const CompiledDocument& document) noexcept {
-    ObjectBuilder state(*this);
-    return state.Load(document);
+    return Load(document);
 }
 
 Base::Result<Aero::Media::Visual*> ObjectWriter::ResolveVisual(

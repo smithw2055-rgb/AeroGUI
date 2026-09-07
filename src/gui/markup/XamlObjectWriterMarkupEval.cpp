@@ -16,11 +16,11 @@
 #include <Aero/Markup/ServiceProvider.hpp>
 #include <Aero/VisualStateManager.hpp>
 
-// ===== ObjectBuilder markup-extension evaluation =====
+// ===== ObjectWriter markup-extension evaluation =====
 
 namespace Aero::Markup {
 
-ObjectBuilder::MarkupValueKind ObjectBuilder::ParseMarkupValue(
+ObjectWriter::MarkupValueKind ObjectWriter::ParseMarkupValue(
     Base::StringView text,
     Base::StringView& extensionName,
     Base::StringView& argument) const noexcept {
@@ -100,7 +100,7 @@ ObjectBuilder::MarkupValueKind ObjectBuilder::ParseMarkupValue(
     return MarkupValueKind::Extension;
 }
 
-Base::Result<ProvidedValue> ObjectBuilder::EvaluateMarkupExtension(
+Base::Result<ProvidedValue> ObjectWriter::EvaluateMarkupExtension(
     std::uint32_t targetObjectIndex,
     const ResolvedMember& member,
     Base::StringView extensionName,

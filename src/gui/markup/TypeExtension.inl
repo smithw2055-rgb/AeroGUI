@@ -25,7 +25,7 @@ Base::Result<void> TypeExtension::Register(
             Base::ErrorCode::InvalidArgument,
             "x:Type reference token must be a value type");
     }
-    return SchemaPrivate::AddMarkupExtension(schema, {
+    return schema.AddMarkupExtension({
         markupExtensionType, &ProvideValue, nullptr});
 }
 
@@ -39,8 +39,7 @@ Base::Result<ProvidedValue> TypeExtension::ProvideValue(
             "x:Type extension context is invalid");
     }
     Base::Result<Meta::Value> value =
-        SchemaPrivate::ConvertText(
-            *services.schema,
+        services.schema->ConvertText(
             Meta::TypeOf<Meta::TypeReference>(),
             arguments,
             &services);

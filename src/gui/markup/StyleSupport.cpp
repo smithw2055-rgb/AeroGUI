@@ -266,7 +266,7 @@ Base::Result<void> XamlStyleSchemaFacet::Register(
     setterType_ = setterType;
     triggerType_ = triggerType;
     Base::Result<void> styleAdapter =
-        SchemaPrivate::AddType(schema, {
+        schema.AddType({
         styleType_,
         nullptr,
         &EndStyleInit,
@@ -452,7 +452,7 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
     // callback. A Setter.Value="{StaticResource ...}" whose key lives in a
     // theme/merged dictionary is queued as a deferred write; sealing now
     // would report "Style Setter requires Value". Leave the Style unsealed
-    // until ObjectBuilder reapplies EndInit after those writes.
+    // until ObjectWriter reapplies EndInit after those writes.
     if (StyleHasPendingResourceValues(style)) {
         return {};
     }

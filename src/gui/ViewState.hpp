@@ -224,9 +224,9 @@ struct ViewState {
     RenderingEventHandler renderingHandlers;
     Audio::Engine audio;
     ::Aero::Threading::Dispatcher* dispatcher = nullptr;
-    Markup::XamlRuntime* xamlRuntime = nullptr;
     GuiSchema* schemaBundle = nullptr;
     Markup::DocumentCache* documentCache = nullptr;
+    Markup::XamlProviderRegistry* xamlProviders = nullptr;
     ::Aero::Meta::Registry* metadata = nullptr;
     ViewOptions options;
     // Frame/device state. These are direct values; ViewState remains the sole

@@ -10,12 +10,12 @@
 #include "gui/templates/TemplateState.hpp"
 #include "gui/markup/MarkupState.hpp"
 #include "gui/markup/MarkupWriterState.hpp"
-#include "gui/markup/XamlState.hpp"
 #include <Aero/Gui.hpp>
 #include <Aero/Markup/XamlProvider.hpp>
 #include <Aero/Media/FontProvider.hpp>
 #include <Aero/Media/TextureProvider.hpp>
 #include <Aero/Threading.hpp>
+#include <Aero/Base/Hash.hpp>
 
 #include <cstdint>
 #include <utility>
@@ -45,7 +45,6 @@ struct GuiState final : public Base::Object {
           xamlChanges(&value),
           textureChanges(&value),
           pendingDocuments(&value),
-          xaml(schema, documents, xamlProviders),
           xamlChanged(this, &GuiState::OnXamlChanged),
           textureChanged(this, &GuiState::OnTextureChanged),
           fontChanged(this, &GuiState::OnFontChanged) {}
@@ -113,7 +112,134 @@ struct GuiState final : public Base::Object {
     Base::Vector<XamlProviderChangeRecord> xamlChanges;
     Base::Vector<XamlProviderChangeRecord> textureChanges;
     Base::Vector<PendingXamlDocument> pendingDocuments;
-    Markup::XamlRuntime xaml;
+
+    Base::Result<Markup::XamlDocument> Load(
+        const Markup::LoadState* state,
+        Base::StringView uri,
+        const Markup::XamlReaderSettings& settings,
+        Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept {
+        Markup::Loader loader(
+            schema.Schema(), xamlProviders, diagnostics, allocator, state);
+        return loader.Load(uri, settings);
+    }
+
+    Base::Result<Markup::XamlDocument> LoadComponentInto(
+        const Markup::LoadState* state,
+        Base::Object& existingRoot,
+        Base::StringView uri,
+        const Markup::XamlReaderSettings& settings,
+        Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept {
+        Markup::Loader loader(
+            schema.Schema(), xamlProviders, diagnostics, allocator, state);
+        return loader.LoadComponent(existingRoot, uri, settings);
+    }
+
+    Base::Result<Markup::XamlDocument> Parse(
+        const Markup::LoadState* state,
+        Base::StringView source,
+        const Base::ResourceUri& baseUri,
+        const Markup::XamlReaderSettings& settings,
+        Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept {
+        Markup::Loader loader(
+            schema.Schema(), xamlProviders, diagnostics, allocator, state);
+        return loader.Parse(source, baseUri, settings);
+    }
+
+    Base::Result<Markup::XamlDocument> Parse(
+        const Markup::LoadState* state,
+        Base::Stream& source,
+        const Base::ResourceUri& baseUri,
+        const Markup::XamlReaderSettings& settings,
+        Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept {
+        Markup::Loader loader(
+            schema.Schema(), xamlProviders, diagnostics, allocator, state);
+        return loader.Parse(source, baseUri, settings);
+    }
+
+    Base::Result<Markup::XamlDocument> LoadCompiled(
+        const Markup::LoadState* state,
+        Base::Span<const std::uint8_t> bytes,
+        const Base::ResourceUri& originUri,
+        const Markup::XamlReaderSettings& settings) noexcept {
+        Markup::Loader loader(
+            schema.Schema(), xamlProviders, nullptr, allocator, state);
+        return loader.LoadCompiled(bytes, originUri, settings);
+    }
+
+    Base::Result<void> QuerySource(
+        const Base::ResourceUri& uri,
+        std::uint64_t& sourceIdentity,
+        std::uint64_t& revision) noexcept {
+        if (uri.Empty()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "XAML source URI is empty");
+        }
+        Base::Result<Markup::XamlProviderResolution> resolved =
+            xamlProviders.ResolveDetailed(uri);
+        if (!resolved) return resolved.GetStatus();
+        if (resolved.Value().provider == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "XAML source provider is unavailable");
+        }
+        sourceIdentity = resolved.Value().cacheIdentity;
+
+        Base::Result<std::uint64_t> probed =
+            resolved.Value().provider->Revision(uri);
+        if (probed && probed.Value() != 0U) {
+            revision = probed.Value();
+            return {};
+        }
+        Base::Result<::Aero::Markup::StreamResourceInfo> source =
+            resolved.Value().provider->Open(uri);
+        if (!source) return source.GetStatus();
+        if (source.Value().revision != 0U) {
+            revision = source.Value().revision;
+            return {};
+        }
+        if (!source.Value().stream) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "XAML source stream is invalid");
+        }
+
+        constexpr Base::HashCode OffsetBasis =
+            UINT64_C(14695981039346656037);
+        constexpr Base::HashCode Prime = UINT64_C(1099511628211);
+        Base::HashCode hash = OffsetBasis ^ Base::MixHash64(0U);
+        std::uint64_t size = 0U;
+        std::uint8_t buffer[4096];
+        for (;;) {
+            Base::Result<std::uint32_t> read =
+                source.Value().stream->Read({buffer, sizeof(buffer)});
+            if (!read) return read.GetStatus();
+            if (read.Value() == 0U) break;
+            for (std::uint32_t index = 0U;
+                 index < read.Value(); ++index) {
+                hash ^= static_cast<Base::HashCode>(buffer[index]);
+                hash *= Prime;
+            }
+            size += read.Value();
+        }
+        revision = Base::MixHash64(hash ^ size);
+        return {};
+    }
+
+    bool TryGetCachedRevision(
+        const Base::ResourceUri& uri,
+        std::uint64_t sourceIdentity,
+        std::uint64_t& revision) noexcept {
+        return documents.GetSourceRevision(
+            uri, sourceIdentity, revision);
+    }
+
+    Base::Result<std::uint32_t> Invalidate(
+        const Base::ResourceUri& uri,
+        bool includeDependents) noexcept {
+        return documents.Invalidate(uri, includeDependents);
+    }
+
     Ref<Media::TextureProvider> textureProvider;
     Ref<Media::FontProvider> fontProvider;
     Markup::XamlProviderChangedHandler xamlChanged;

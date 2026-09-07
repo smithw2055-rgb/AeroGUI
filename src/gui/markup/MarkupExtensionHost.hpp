@@ -56,7 +56,7 @@
 namespace Aero::Markup {
 
 // Shared helpers defined in BindingExtension.cpp (formerly private to the
-// amalgamated Writer TU). Visible to ObjectBuilder property-apply and other
+// amalgamated Writer TU). Visible to ObjectWriter property-apply and other
 // extension TUs.
 Base::Result<long double> ReadConstantBindingNumber(
     const Meta::Value& value) noexcept;

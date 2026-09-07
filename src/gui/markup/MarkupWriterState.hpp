@@ -2,7 +2,7 @@
 #include "gui/controls/State.hpp" 
 #include "gui/templates/TemplateState.hpp"
 #include "gui/markup/MarkupState.hpp"
-// Consolidated private Markup writing, facet and template contract.
+// Markup materialize surface (extensions, ObjectWriter, facets, template compiler).
 
 // ===== Extensions contract =====
 
@@ -459,13 +459,9 @@ private:
 
 // ===== ObjectWriter contract =====
 
-
-// Private object materializer used by Loader.
-
-#include <Aero/Base/Allocator.hpp>
-
-
-
+// Private object materializer used by Loader. One-shot load session
+// (transaction stacks / scopes do not survive a load). WPF note: closest to
+// ObjectWriterSettings + XamlObjectWriter materialize path.
 
 namespace Aero {
 class UIElement;
@@ -535,77 +531,15 @@ inline constexpr ::Aero::Diagnostics::DiagnosticCode MarkupExtensionFailed =
     ::Aero::Diagnostics::MakeDiagnosticCode(::Aero::Diagnostics::DiagnosticDomain::Xaml, 227U);
 } // namespace XamlObjectWriterDiagnosticCodes
 
-// Immutable writer configuration. Every call creates a fresh one-shot
-// private writer state so transaction stacks and document scopes never
-// survive a load operation.
 class ObjectWriter {
 public:
     explicit ObjectWriter(
         Schema& schema,
         Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept;
+    ~ObjectWriter() noexcept;
 
     ObjectWriter(const ObjectWriter&) = delete;
     ObjectWriter& operator=(const ObjectWriter&) = delete;
-
-    Base::Result<LoaderResult> LoadDocument(
-        NodeReader& reader) noexcept;
-    Base::Result<LoaderResult> LoadDocument(
-        const CompiledDocument& document) noexcept;
-
-    Markup::Schema& GetSchema() const noexcept {
-        return *schema_;
-    }
-    Diagnostics::IDiagnosticSink* Diagnostics() const noexcept {
-        return diagnostics_;
-    }
-
-private:
-    friend class ObjectBuilder;
-
-    static Base::Result<Aero::Media::Visual*> ResolveVisual(
-        Markup::Schema& schema,
-        Base::Object& object,
-        Meta::TypeId type) noexcept;
-    static Base::Result<Aero::UIElement*> ResolveUIElement(
-        Markup::Schema& schema,
-        Base::Object& object,
-        Meta::TypeId type) noexcept;
-    static Base::Result<void> StageContent(
-        Markup::Schema& schema,
-        Base::Object& object,
-        const Meta::Value& value,
-        const ExtensionServices& services) noexcept;
-    Markup::Schema* schema_ = nullptr;
-    Diagnostics::IDiagnosticSink* diagnostics_ = nullptr;
-};
-
-} // namespace Aero::Markup
-
-
-// ===== ObjectBuilder contract =====
-
-
-
-
-
-
-
-namespace Aero::Markup {
-
-class ObjectBuilder {
-public:
-    explicit ObjectBuilder(
-        Schema& schema,
-        Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept;
-    explicit ObjectBuilder(
-        const ObjectWriter& writer) noexcept
-        : ObjectBuilder(
-              writer.GetSchema(),
-              writer.Diagnostics()) {}
-    ~ObjectBuilder() noexcept;
-
-    ObjectBuilder(const ObjectBuilder&) = delete;
-    ObjectBuilder& operator=(const ObjectBuilder&) = delete;
 
     Base::Result<LoaderResult> Load(
         NodeReader& reader) noexcept;
@@ -625,8 +559,30 @@ public:
     Schema& GetSchema() const noexcept {
         return *schema_;
     }
+    Diagnostics::IDiagnosticSink* Diagnostics() const noexcept {
+        return diagnostics_;
+    }
+
+    Base::Result<LoaderResult> LoadDocument(
+        NodeReader& reader) noexcept;
+    Base::Result<LoaderResult> LoadDocument(
+        const CompiledDocument& document) noexcept;
 
 private:
+    static Base::Result<Aero::Media::Visual*> ResolveVisual(
+        Markup::Schema& schema,
+        Base::Object& object,
+        Meta::TypeId type) noexcept;
+    static Base::Result<Aero::UIElement*> ResolveUIElement(
+        Markup::Schema& schema,
+        Base::Object& object,
+        Meta::TypeId type) noexcept;
+    static Base::Result<void> StageContent(
+        Markup::Schema& schema,
+        Base::Object& object,
+        const Meta::Value& value,
+        const ExtensionServices& services) noexcept;
+
     static constexpr std::uint32_t InvalidIndex = UINT32_MAX;
 
     enum class FrameKind : std::uint8_t {
@@ -961,6 +917,8 @@ private:
 };
 
 
+
+
 } // namespace Aero::Markup
 
 
@@ -1284,119 +1242,15 @@ using ::Aero::Markup::XamlPropertyTargetFacet;
 }
 
 
+
 namespace Aero::Markup {
 
-struct SchemaState {
-    XamlFacets facets;
-};
-
 static_assert(
-    sizeof(SchemaState) <= 32768,
+    sizeof(XamlFacets) <= 32768,
     "Schema inline state storage is too small");
 static_assert(
-    alignof(SchemaState) <= alignof(std::max_align_t),
+    alignof(XamlFacets) <= alignof(std::max_align_t),
     "Schema inline state alignment is insufficient");
-
-} // namespace Aero::Markup
-
-namespace Aero::Markup {
-
-using namespace ::Aero::Controls;
-using namespace ::Aero;
-
-class SchemaPrivate {
-public:
-    // Compatibility aggregate input. XamlFacets projects it atomically and
-    // retains only narrow facet records.
-    static Base::Result<void> AddType(
-        Schema& schema,
-        const XamlTypeFacet& registration) noexcept {
-        return schema.state_->facets.Add(
-            registration, schema.Types());
-    }
-
-    static Base::Result<void> AddLifecycle(
-        Schema& schema,
-        const XamlLifecycleFacet& registration) noexcept {
-        return schema.state_->facets.Add(
-            registration, schema.Types());
-    }
-
-    static Base::Result<void> AddNameScope(
-        Schema& schema,
-        const XamlNameScopeFacet& registration) noexcept {
-        return schema.state_->facets.Add(
-            registration, schema.Types());
-    }
-
-    static Base::Result<void> AddResourceScope(
-        Schema& schema,
-        const XamlResourceScopeFacet& registration) noexcept {
-        return schema.state_->facets.Add(
-            registration, schema.Types());
-    }
-
-    static Base::Result<void> AddDeferredContent(
-        Schema& schema,
-        const XamlDeferredContentFacet& registration) noexcept {
-        return schema.state_->facets.Add(
-            registration, schema.Types());
-    }
-
-    static Base::Result<void> AddImplicitResourceKey(
-        Schema& schema,
-        const XamlImplicitResourceKeyFacet& registration) noexcept {
-        return schema.state_->facets.Add(
-            registration, schema.Types());
-    }
-
-    static Base::Result<void> AddPropertyTarget(
-        Schema& schema,
-        const XamlPropertyTargetFacet& registration) noexcept {
-        return schema.state_->facets.Add(
-            registration, schema.Types());
-    }
-
-    static Base::Result<void> AddMarkupExtension(
-        Schema& schema,
-        const XamlMarkupExtensionFacet& registration) noexcept {
-        return schema.state_->facets.Add(
-            registration, schema.Types());
-    }
-
-    static Base::Result<Meta::Value> ConvertText(
-        const Schema& schema,
-        Meta::TypeId type,
-        Base::StringView text,
-        const ExtensionServices* services = nullptr) noexcept {
-        return schema.ConvertText(type, text, services);
-    }
-
-    static MemberWritePolicy ResolveMemberWritePolicy(
-        const Schema& schema,
-        const ResolvedMember& member) noexcept {
-        return schema.ResolveMemberWritePolicy(member);
-    }
-
-    static Base::Result<::Aero::DependencyObject*>
-    ResolvePropertyTarget(
-        const Schema& schema,
-        Base::Object& object) noexcept {
-        return schema.ResolvePropertyTarget(object);
-    }
-
-    static ::Aero::Meta::Registry* Metadata(
-        const Schema& schema) noexcept {
-        return schema.Metadata();
-    }
-
-    static Base::Result<const Meta::TypeInfo*> ResolveType(
-        const Schema& schema,
-        Base::StringView xamlNamespace,
-        Base::StringView localName) noexcept {
-        return schema.ResolveType(xamlNamespace, localName);
-    }
-};
 
 } // namespace Aero::Markup
 

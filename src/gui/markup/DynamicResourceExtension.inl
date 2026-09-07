@@ -461,7 +461,7 @@ DynamicResourceExtension::DynamicResourceExtension(
 Base::Result<void> DynamicResourceExtension::Register(
     Schema& schema,
     Meta::TypeId dynamicResourceExtensionType) noexcept {
-    return SchemaPrivate::AddMarkupExtension(schema, {
+    return schema.AddMarkupExtension({
         dynamicResourceExtensionType,
         &DynamicResourceExtension::ProvideValue,
         this});
@@ -538,8 +538,7 @@ Base::Result<ProvidedValue> DynamicResourceExtension::ProvideValue(
                 Meta::TypeOf<Base::Object>()));
     }
     Base::Result<::Aero::DependencyObject*> targetResult =
-        SchemaPrivate::ResolvePropertyTarget(
-            *services.schema,
+        services.schema->ResolvePropertyTarget(
             *services.targetObject);
     if (!targetResult) {
         return targetResult.GetStatus();

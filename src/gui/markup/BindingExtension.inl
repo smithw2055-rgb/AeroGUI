@@ -962,13 +962,11 @@ Base::Result<ProvidedValue> CreateMultiBindingValueImpl(
             "MultiBinding has no target service context");
     }
     Base::Result<DependencyObject*> target =
-        SchemaPrivate::ResolvePropertyTarget(
-            *services.schema,
+        services.schema->ResolvePropertyTarget(
             *services.targetObject);
     if (!target) return target.GetStatus();
     ::Aero::Meta::Registry* metadata =
-        SchemaPrivate::Metadata(
-            *services.schema);
+        services.schema->Metadata();
     if (metadata == nullptr ||
         PropertyRegistry(target.Value()).Find(
             Meta::DependencyPropertyHandle{
@@ -1111,7 +1109,7 @@ BindingExtension::BindingExtension(
 Base::Result<void> BindingExtension::Register(
     Schema& schema,
     Meta::TypeId bindingExtensionType) noexcept {
-    return SchemaPrivate::AddMarkupExtension(schema, {
+    return schema.AddMarkupExtension({
         bindingExtensionType,
         &BindingExtension::ProvideValue,
         this});
@@ -1175,8 +1173,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
     }
 
     ::Aero::Meta::Registry* metadata =
-        SchemaPrivate::Metadata(
-            *services.schema);
+        services.schema->Metadata();
     const Meta::PropertyInfo* targetMember =
         metadata != nullptr
         ? metadata->Types().FindProperty(
@@ -1391,8 +1388,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
     }
 
     Base::Result<::Aero::DependencyObject*> targetResult =
-        SchemaPrivate::ResolvePropertyTarget(
-            *services.schema,
+        services.schema->ResolvePropertyTarget(
             *services.targetObject);
     if (!targetResult) {
         return targetResult.GetStatus();
@@ -1404,8 +1400,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
     const Meta::DependencyProperty* targetProperty =
         PropertyRegistry(target).Find(targetHandle);
     if (targetProperty == nullptr ||
-        SchemaPrivate::Metadata(
-            *services.schema) == nullptr) {
+        services.schema->Metadata() == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
             "Binding target property or metadata program was not found");
@@ -1518,8 +1513,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
                     ? ancestorLevel
                     : 0U,
                 *target,
-                *SchemaPrivate::Metadata(
-                    *services.schema),
+                *services.schema->Metadata(),
                 targetHandle,
                 extension->options_.dataContextProperty,
                 path,
@@ -1547,8 +1541,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
             "Deferred Binding allocation failed");
     }
     auto* state = new (memory) DeferredBindingState();
-    state->metadata = SchemaPrivate::Metadata(
-        *services.schema);
+    state->metadata = services.schema->Metadata();
     state->source = source;
     state->targetOwner =
         Base::Ref<::Aero::DependencyObject>::TryFromBorrowed(*target);
@@ -1564,13 +1557,13 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
     state->dataContextOwner = target;
     if (source == nullptr &&
         services.rootObject != nullptr &&
-        SchemaPrivate::Metadata(*services.schema)->Types().IsDerivedFrom(
+        services.schema->Metadata()->Types().IsDerivedFrom(
             services.rootObject->RuntimeType(),
             ::Aero::DependencyObject::StaticTypeId())) {
         auto* root = static_cast<::Aero::DependencyObject*>(
             services.rootObject);
         const bool targetCanInheritDataContext =
-            SchemaPrivate::Metadata(*services.schema)->Types().IsDerivedFrom(
+            services.schema->Metadata()->Types().IsDerivedFrom(
                 target->RuntimeType(), FrameworkElement::StaticTypeId());
         if (!targetCanInheritDataContext &&
             PropertyRegistry(root).Find(

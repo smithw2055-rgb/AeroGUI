@@ -17,11 +17,11 @@
 #include <Aero/Markup/ServiceProvider.hpp>
 #include <Aero/VisualStateManager.hpp>
 
-// ===== ObjectBuilder property / content apply =====
+// ===== ObjectWriter property / content apply =====
 
 namespace Aero::Markup {
 
-Base::Result<void> ObjectBuilder::WriteText(
+Base::Result<void> ObjectWriter::WriteText(
     const Node& node) noexcept {
     if (!node.HasCompiledValue() &&
         !node.IsFromAttribute() &&
@@ -524,7 +524,7 @@ Base::Result<void> ObjectBuilder::WriteText(
         &contentOwner.contentPolicy);
 }
 
-Base::Result<void> ObjectBuilder::WriteDirectiveText(
+Base::Result<void> ObjectWriter::WriteDirectiveText(
     Frame& frame,
     const Node& node) noexcept {
     if (frame.targetObjectIndex >= created_.Size() ||
@@ -754,7 +754,7 @@ Base::Result<void> ObjectBuilder::WriteDirectiveText(
     return {};
 }
 
-Base::Result<void> ObjectBuilder::StartPropertyElement(
+Base::Result<void> ObjectWriter::StartPropertyElement(
     const Node& node,
     std::uint32_t targetFrameIndex,
     std::uint32_t bindingStart) noexcept {
@@ -877,7 +877,7 @@ Base::Result<void> ObjectBuilder::StartPropertyElement(
     return {};
 }
 
-Base::Result<void> ObjectBuilder::CompleteObject(
+Base::Result<void> ObjectWriter::CompleteObject(
     const Node& node) noexcept {
     if (frames_.Empty() || frames_.Back().kind != FrameKind::Object) {
         return Failure(
@@ -1038,7 +1038,7 @@ Base::Result<void> ObjectBuilder::CompleteObject(
     return WriteObjectToParent(objectIndex, node.Source());
 }
 
-Base::Result<void> ObjectBuilder::CompleteValueObject(
+Base::Result<void> ObjectWriter::CompleteValueObject(
     const Node& node) noexcept {
     if (frames_.Empty() ||
         frames_.Back().kind != FrameKind::ValueObject) {
@@ -1070,7 +1070,7 @@ Base::Result<void> ObjectBuilder::CompleteValueObject(
         node.Source());
 }
 
-Base::Result<void> ObjectBuilder::CompleteNullObject(
+Base::Result<void> ObjectWriter::CompleteNullObject(
     const Node& node) noexcept {
     if (frames_.Empty() || frames_.Back().kind != FrameKind::NullObject) {
         return Failure(
@@ -1086,7 +1086,7 @@ Base::Result<void> ObjectBuilder::CompleteNullObject(
     return WriteNullToParent(node.Source());
 }
 
-Base::Result<void> ObjectBuilder::WriteValueToParent(
+Base::Result<void> ObjectWriter::WriteValueToParent(
     Meta::Value&& value,
     ::Aero::Diagnostics::SourceSpan source) noexcept {
     if (frames_.Empty()) {
@@ -1127,7 +1127,7 @@ Base::Result<void> ObjectBuilder::WriteValueToParent(
         source);
 }
 
-Base::Result<void> ObjectBuilder::WriteObjectToParent(
+Base::Result<void> ObjectWriter::WriteObjectToParent(
     std::uint32_t objectIndex,
     ::Aero::Diagnostics::SourceSpan source) noexcept {
     if (objectIndex >= created_.Size()) {
@@ -1173,7 +1173,7 @@ Base::Result<void> ObjectBuilder::WriteObjectToParent(
         source);
 }
 
-Base::Result<void> ObjectBuilder::WriteObjectToContent(
+Base::Result<void> ObjectWriter::WriteObjectToContent(
     std::uint32_t parentObjectIndex,
     std::uint32_t childObjectIndex,
     ::Aero::Diagnostics::SourceSpan source) noexcept {
@@ -1209,7 +1209,7 @@ Base::Result<void> ObjectBuilder::WriteObjectToContent(
         &contentOwner.contentPolicy);
 }
 
-Base::Result<void> ObjectBuilder::WriteNullToParent(
+Base::Result<void> ObjectWriter::WriteNullToParent(
     ::Aero::Diagnostics::SourceSpan source) noexcept {
     if (frames_.Empty()) {
         return Failure(
@@ -1302,7 +1302,7 @@ Base::Result<void> ObjectBuilder::WriteNullToParent(
         &contentOwner.contentPolicy);
 }
 
-Base::Result<void> ObjectBuilder::WriteValueToMember(
+Base::Result<void> ObjectWriter::WriteValueToMember(
     Frame& memberFrame,
     Meta::Value&& value,
     ::Aero::Diagnostics::SourceSpan source) noexcept {
@@ -1330,7 +1330,7 @@ Base::Result<void> ObjectBuilder::WriteValueToMember(
     return {};
 }
 
-Base::Result<void> ObjectBuilder::WriteProvidedValueToMember(
+Base::Result<void> ObjectWriter::WriteProvidedValueToMember(
     Frame& memberFrame,
     ProvidedValue&& provided,
     ::Aero::Diagnostics::SourceSpan source) noexcept {
@@ -1356,7 +1356,7 @@ Base::Result<void> ObjectBuilder::WriteProvidedValueToMember(
     return {};
 }
 
-Base::Result<void> ObjectBuilder::WriteProvidedValue(
+Base::Result<void> ObjectWriter::WriteProvidedValue(
     std::uint32_t targetObjectIndex,
     const ResolvedMember& member,
     ProvidedValue&& provided,
@@ -1499,7 +1499,7 @@ Base::Result<void> ObjectBuilder::WriteProvidedValue(
     return {};
 }
 
-Base::Result<void> ObjectBuilder::WriteValue(
+Base::Result<void> ObjectWriter::WriteValue(
     std::uint32_t targetObjectIndex,
     const ResolvedMember& member,
     Meta::Value&& value,

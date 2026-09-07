@@ -7,7 +7,7 @@ scope and binds presentation-instance effects only when a document is mounted.
 
 `Gui` owns the thread dispatcher, frozen `GuiSchema`, shared `DocumentCache`,
 canonical `XamlProviderRegistry`, default embedded/file providers, and one
-source-private `Markup::XamlRuntime`.
+Gui-private load/parse/query helpers on `GuiState`.
 
 `Markup::XamlReader` is constructed from `Gui&`:
 
@@ -42,7 +42,7 @@ Gui
   dispatcher
   schema + providers
   document cache
-  XamlRuntime
+  GuiState load/parse/query
        |
        | load / parse / compiled replay
        v

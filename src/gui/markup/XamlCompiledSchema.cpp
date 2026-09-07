@@ -551,8 +551,7 @@ Base::Result<void> BindCompiledValue(
         return {};
     }
     Base::Result<Meta::Value> converted =
-        SchemaPrivate::ConvertText(
-            schema, valueType, literal);
+        schema.ConvertText( valueType, literal);
     if (converted &&
         IsPersistableCompiledValue(converted.Value())) {
         node.BindCompiledValue(
@@ -596,8 +595,7 @@ CompiledMemberBinding BuildCompiledMemberBinding(
     const Schema& schema,
     const ResolvedMember& member) noexcept {
     const MemberWritePolicy policy =
-        SchemaPrivate::ResolveMemberWritePolicy(
-            schema, member);
+        schema.ResolveMemberWritePolicy( member);
     CompiledMemberBinding binding;
     binding.id = member.id;
     binding.kind = member.kind;

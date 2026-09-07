@@ -19,8 +19,7 @@
 
 #include <Aero/FrameworkElement.hpp>
 
-// Query surface is public; execution operations are reached by source-side
-// friends and SchemaPrivate.
+// Query surface is public; registration/execution ops are private (friends).
 
 namespace Aero::Markup {
 
@@ -144,13 +143,54 @@ Schema::Schema(
           : &Base::GetDefaultAllocator()),
       domain_(&metadata) {
     AERO_ASSERT(metadata.IsSealed());
-    state_ = new (stateStorage_) SchemaState();
+    facets_ = new (stateStorage_) XamlFacets();
 }
 
 Schema::~Schema() noexcept {
-    if (state_ == nullptr) return;
-    state_->~SchemaState();
-    state_ = nullptr;
+    if (facets_ == nullptr) return;
+    facets_->~XamlFacets();
+    facets_ = nullptr;
+}
+
+
+Base::Result<void> Schema::AddType(
+    const XamlTypeFacet& registration) noexcept {
+    return facets_->Add(registration, Types());
+}
+
+Base::Result<void> Schema::AddLifecycle(
+    const XamlLifecycleFacet& registration) noexcept {
+    return facets_->Add(registration, Types());
+}
+
+Base::Result<void> Schema::AddNameScope(
+    const XamlNameScopeFacet& registration) noexcept {
+    return facets_->Add(registration, Types());
+}
+
+Base::Result<void> Schema::AddResourceScope(
+    const XamlResourceScopeFacet& registration) noexcept {
+    return facets_->Add(registration, Types());
+}
+
+Base::Result<void> Schema::AddDeferredContent(
+    const XamlDeferredContentFacet& registration) noexcept {
+    return facets_->Add(registration, Types());
+}
+
+Base::Result<void> Schema::AddImplicitResourceKey(
+    const XamlImplicitResourceKeyFacet& registration) noexcept {
+    return facets_->Add(registration, Types());
+}
+
+Base::Result<void> Schema::AddPropertyTarget(
+    const XamlPropertyTargetFacet& registration) noexcept {
+    return facets_->Add(registration, Types());
+}
+
+Base::Result<void> Schema::AddMarkupExtension(
+    const XamlMarkupExtensionFacet& registration) noexcept {
+    return facets_->Add(registration, Types());
 }
 
 Base::Result<const Meta::TypeInfo*> Schema::ResolveType(
@@ -487,7 +527,7 @@ Schema::ResolvePropertyTarget(
         target = static_cast<::Aero::DependencyObject*>(&object);
     } else {
         const XamlPropertyTargetFacet* facet =
-            state_->facets.FindPropertyTarget(
+            facets_->FindPropertyTarget(
                 object.RuntimeType(), domain_->Types());
         if (facet != nullptr && facet->resolve != nullptr) {
             target = facet->resolve(object, facet->context);
@@ -761,7 +801,7 @@ Base::Result<void> Schema::Freeze() noexcept {
             "Meta::Registry must be complete before XAML schema freeze");
     }
     Base::Result<void> facetsFrozen =
-        state_->facets.Freeze(domain_->Types());
+        facets_->Freeze(domain_->Types());
     if (!facetsFrozen) return facetsFrozen.GetStatus();
     frozen_ = true;
     return {};
@@ -898,7 +938,7 @@ Base::Result<ProvidedValue> Schema::ProvideMarkupExtensionValue(
     const Meta::TypeInfo* info =
         domain_->Types().FindType(type);
     const XamlMarkupExtensionFacet* registration =
-        state_->facets.FindMarkupExtension(type);
+        facets_->FindMarkupExtension(type);
     if (registration != nullptr && registration->provideValue != nullptr) {
         return registration->provideValue(
             arguments,
@@ -935,10 +975,10 @@ Base::Result<void> Schema::BeginInit(
     Meta::TypeId type,
     Base::Object& object) const noexcept {
     const Base::Span<const std::uint32_t> lifecycle =
-        state_->facets.LifecyclePlan(type);
+        facets_->LifecyclePlan(type);
     for (std::uint32_t reference : lifecycle) {
         const XamlLifecycleFacet* facet =
-            state_->facets.LifecycleAt(reference);
+            facets_->LifecycleAt(reference);
         if (facet == nullptr || facet->beginInit == nullptr) continue;
         Base::Result<void> initialized =
             facet->beginInit(object, facet->context);
@@ -952,12 +992,12 @@ Base::Result<void> Schema::EndInit(
     Base::Object& object,
     const ExtensionServices& services) const noexcept {
     const Base::Span<const std::uint32_t> lifecycle =
-        state_->facets.LifecyclePlan(type);
+        facets_->LifecyclePlan(type);
     for (std::uint32_t index = lifecycle.Size();
          index > 0U;
          --index) {
         const XamlLifecycleFacet* facet =
-            state_->facets.LifecycleAt(lifecycle[index - 1U]);
+            facets_->LifecycleAt(lifecycle[index - 1U]);
         if (facet == nullptr) continue;
         Base::Result<void> initialized;
         if (facet->endInitWithServices != nullptr) {
@@ -976,12 +1016,12 @@ void Schema::AbortInit(
     Meta::TypeId type,
     Base::Object& object) const noexcept {
     const Base::Span<const std::uint32_t> lifecycle =
-        state_->facets.LifecyclePlan(type);
+        facets_->LifecyclePlan(type);
     for (std::uint32_t index = lifecycle.Size();
          index > 0U;
          --index) {
         const XamlLifecycleFacet* facet =
-            state_->facets.LifecycleAt(lifecycle[index - 1U]);
+            facets_->LifecycleAt(lifecycle[index - 1U]);
         if (facet != nullptr && facet->abortInit != nullptr) {
             facet->abortInit(object, facet->context);
         }
@@ -989,14 +1029,14 @@ void Schema::AbortInit(
 }
 
 bool Schema::CreatesNameScope(Meta::TypeId type) const noexcept {
-    const XamlNameScopeFacet* facet = state_->facets.FindNameScope(
+    const XamlNameScopeFacet* facet = facets_->FindNameScope(
         type, domain_->Types());
     return facet != nullptr && facet->createsNameScope;
 }
 
 bool Schema::CreatesResourceScope(
     Meta::TypeId type) const noexcept {
-    const XamlResourceScopeFacet* facet = state_->facets.FindResourceScope(
+    const XamlResourceScopeFacet* facet = facets_->FindResourceScope(
         type, domain_->Types());
     return facet != nullptr && facet->createsResourceScope;
 }
@@ -1004,7 +1044,7 @@ bool Schema::CreatesResourceScope(
 bool Schema::DefersVisualContent(
     Meta::TypeId type) const noexcept {
     const XamlDeferredContentFacet* facet =
-        state_->facets.FindDeferredContent(
+        facets_->FindDeferredContent(
         type, domain_->Types());
     return facet != nullptr && facet->defersVisualContent;
 }
@@ -1014,7 +1054,7 @@ Base::Result<void> Schema::RegisterName(
     Base::Object& scopeOwner,
     Base::StringView name,
     Base::Object& object) const noexcept {
-    const XamlNameScopeFacet* facet = state_->facets.FindNameScope(
+    const XamlNameScopeFacet* facet = facets_->FindNameScope(
         scopeType, domain_->Types());
     if (facet == nullptr || facet->registerName == nullptr) return {};
     return facet->registerName(
@@ -1026,7 +1066,7 @@ Base::Result<void> Schema::AddResource(
     Base::Object& scopeOwner,
     const Aero::ResourceKey& key,
     const Meta::Value& value) const noexcept {
-    const XamlResourceScopeFacet* facet = state_->facets.FindResourceScope(
+    const XamlResourceScopeFacet* facet = facets_->FindResourceScope(
         scopeType, domain_->Types());
     if (facet == nullptr) return {};
     if (facet->addResource != nullptr) {
@@ -1047,7 +1087,7 @@ Base::Result<void> Schema::AddResource(
 Aero::ResourceDictionary* Schema::ResolveResourceScope(
     Meta::TypeId scopeType,
     Base::Object& scopeOwner) const noexcept {
-    const XamlResourceScopeFacet* facet = state_->facets.FindResourceScope(
+    const XamlResourceScopeFacet* facet = facets_->FindResourceScope(
         scopeType, domain_->Types());
     return facet != nullptr && facet->resolveResourceScope != nullptr
         ? facet->resolveResourceScope(scopeOwner, facet->context)
@@ -1059,7 +1099,7 @@ Schema::ResolveImplicitResourceKey(
     Meta::TypeId type,
     const Base::Object& object) const noexcept {
     const XamlImplicitResourceKeyFacet* facet =
-        state_->facets.FindImplicitResourceKey(
+        facets_->FindImplicitResourceKey(
             type, domain_->Types());
     if (facet == nullptr || facet->resolve == nullptr) {
         return Base::Status::Failure(

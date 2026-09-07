@@ -73,8 +73,7 @@ Base::Result<void> TemplateBindingExtension::Register(
             Base::ErrorCode::InvalidState,
             "TemplateBinding extension registration is invalid");
     }
-    return SchemaPrivate::AddMarkupExtension(
-        schema,
+    return schema.AddMarkupExtension(
         {markupExtensionType, &ProvideValue, nullptr});
 }
 
@@ -109,8 +108,7 @@ TemplateBindingExtension::ProvideValue(
         static_cast<Controls::ControlTemplate&>(
             *services.deferredContentOwner);
     Base::Result<::Aero::DependencyObject*> target =
-        SchemaPrivate::ResolvePropertyTarget(
-            *services.schema,
+        services.schema->ResolvePropertyTarget(
             *services.targetObject);
     if (!target) return target.GetStatus();
 

@@ -1057,7 +1057,7 @@ Base::Result<void> SynchronizeFrameResources(ViewState& state) noexcept {
         Base::Result<bool> synchronized = state.images->Synchronize(
             state.RootVisual(),
             state.loadedDocument.canonicalUri,
-            state.xamlRuntime->Providers(),
+            *state.xamlProviders,
             guiState.textureProvider.Get(),
             state.GetImageResources(),
             deviceGenerationChanged);

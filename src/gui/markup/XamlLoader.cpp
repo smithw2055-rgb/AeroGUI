@@ -217,7 +217,7 @@ Base::Result<void> ResourceExtension::Register(
 
     schema_ = &schema;
     Base::Result<void> status =
-        SchemaPrivate::AddResourceScope(schema, {
+        schema.AddResourceScope({
             ResourceDictionary::StaticTypeId(),
             true,
             &AddResource,
@@ -227,7 +227,7 @@ Base::Result<void> ResourceExtension::Register(
         schema_ = nullptr;
         return status.GetStatus();
     }
-    status = SchemaPrivate::AddResourceScope(schema, {
+    status = schema.AddResourceScope({
         FrameworkElement::StaticTypeId(),
         true,
         &AddFrameworkResource,
@@ -237,7 +237,7 @@ Base::Result<void> ResourceExtension::Register(
         schema_ = nullptr;
         return status.GetStatus();
     }
-    status = SchemaPrivate::AddNameScope(schema, {
+    status = schema.AddNameScope({
         FrameworkElement::StaticTypeId(),
         false,
         &RegisterFrameworkName,
@@ -246,7 +246,7 @@ Base::Result<void> ResourceExtension::Register(
         schema_ = nullptr;
         return status.GetStatus();
     }
-    status = SchemaPrivate::AddNameScope(schema, {
+    status = schema.AddNameScope({
         ::Aero::Controls::UserControl::StaticTypeId(),
         true,
         &RegisterFrameworkName,

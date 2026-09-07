@@ -44,9 +44,8 @@ Base::Result<XamlDocument> XamlReader::Load(
     }
     GuiState& state = static_cast<GuiState&>(*gui_->state_);
     XamlLoadScope scope(state.dispatcher, state.schema, state.documents);
-    return state.xaml.Load(
-        state.xamlProviders, &scope.load, state.allocator,
-        uri, settings, diagnostics);
+    return state.Load(
+        &scope.load, uri, settings, diagnostics);
 }
 
 Base::Result<XamlDocument> XamlReader::Load(
@@ -63,9 +62,8 @@ Base::Result<XamlDocument> XamlReader::Load(
     XamlLoadScope scope(state.dispatcher, state.schema, state.documents);
     scope.load.resources = &resources;
     scope.load.fallbackResources = &resources;
-    return state.xaml.Load(
-        state.xamlProviders, &scope.load, state.allocator,
-        uri, settings, diagnostics);
+    return state.Load(
+        &scope.load, uri, settings, diagnostics);
 }
 
 Base::Result<XamlDocument> XamlReader::Load(
@@ -79,9 +77,8 @@ Base::Result<XamlDocument> XamlReader::Load(
     }
     GuiState& state = static_cast<GuiState&>(*gui_->state_);
     XamlLoadScope scope(state.dispatcher, state.schema, state.documents);
-    return state.xaml.Parse(
-        state.xamlProviders, &scope.load, state.allocator,
-        source, baseUri, settings, diagnostics);
+    return state.Parse(
+        &scope.load, source, baseUri, settings, diagnostics);
 }
 
 Base::Result<XamlDocument> XamlReader::LoadComponentCore(
@@ -132,10 +129,8 @@ Base::Result<XamlDocument> XamlReader::LoadComponentInto(
         // styles and drops Button/Thumb hover storyboards.
         scope.load.fallbackResources = resources;
     }
-    Base::Result<XamlDocument> loaded = state.xaml.LoadComponentInto(
-        state.xamlProviders,
+    Base::Result<XamlDocument> loaded = state.LoadComponentInto(
         &scope.load,
-        state.allocator,
         *existingRoot,
         uri,
         settings,
@@ -160,9 +155,8 @@ Base::Result<XamlDocument> XamlReader::Parse(
     }
     GuiState& state = static_cast<GuiState&>(*gui_->state_);
     XamlLoadScope scope(state.dispatcher, state.schema, state.documents);
-    return state.xaml.Parse(
-        state.xamlProviders, &scope.load, state.allocator,
-        source, baseUri, settings, diagnostics);
+    return state.Parse(
+        &scope.load, source, baseUri, settings, diagnostics);
 }
 
 Base::Result<XamlDocument> XamlReader::LoadCompiled(
@@ -174,9 +168,8 @@ Base::Result<XamlDocument> XamlReader::LoadCompiled(
     }
     GuiState& state = static_cast<GuiState&>(*gui_->state_);
     XamlLoadScope scope(state.dispatcher, state.schema, state.documents);
-    return state.xaml.LoadCompiled(
-        state.xamlProviders, &scope.load, state.allocator,
-        bytes, originUri, XamlReaderSettings{});
+    return state.LoadCompiled(
+        &scope.load, bytes, originUri, XamlReaderSettings{});
 }
 
 } // namespace Aero::Markup

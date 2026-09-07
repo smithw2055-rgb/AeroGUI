@@ -549,7 +549,7 @@ Base::Result<void> XamlTemplateSchemaFacet::Register(
 
     state_->schema = &schema;
     Base::Result<void> status =
-        SchemaPrivate::AddType(schema, {
+        schema.AddType({
             ControlTemplate::StaticTypeId(),
             nullptr,
             nullptr,
@@ -564,7 +564,7 @@ Base::Result<void> XamlTemplateSchemaFacet::Register(
             true,
             &ResolveTemplateImplicitKey});
     if (status) {
-        status = SchemaPrivate::AddType(schema, {
+        status = schema.AddType({
             DataTemplate::StaticTypeId(),
             nullptr,
             nullptr,
@@ -580,7 +580,7 @@ Base::Result<void> XamlTemplateSchemaFacet::Register(
             &ResolveTemplateImplicitKey});
     }
     if (status) {
-        status = SchemaPrivate::AddType(schema, {
+        status = schema.AddType({
             HierarchicalDataTemplate::StaticTypeId(),
             nullptr,
             nullptr,
@@ -596,7 +596,7 @@ Base::Result<void> XamlTemplateSchemaFacet::Register(
             &ResolveTemplateImplicitKey});
     }
     if (status) {
-        status = SchemaPrivate::AddType(schema, {
+        status = schema.AddType({
             ItemsPanelTemplate::StaticTypeId(),
             nullptr,
             nullptr,

@@ -16,11 +16,11 @@
 #include <Aero/Markup/ServiceProvider.hpp>
 #include <Aero/VisualStateManager.hpp>
 
-// ===== ObjectBuilder name-scope / deferrals =====
+// ===== ObjectWriter name-scope / deferrals =====
 
 namespace Aero::Markup {
 
-Base::Result<void> ObjectBuilder::RegisterObjectName(
+Base::Result<void> ObjectWriter::RegisterObjectName(
     std::uint32_t objectIndex,
     ::Aero::Diagnostics::SourceSpan source) noexcept {
     if (objectIndex >= created_.Size()) {
@@ -87,7 +87,7 @@ Base::Result<void> ObjectBuilder::RegisterObjectName(
     return {};
 }
 
-Base::Result<void> ObjectBuilder::ConnectEvent(
+Base::Result<void> ObjectWriter::ConnectEvent(
     Frame& memberFrame,
     Base::StringView handlerName,
     ::Aero::Diagnostics::SourceSpan source) noexcept {
@@ -172,7 +172,7 @@ Base::Result<void> ObjectBuilder::ConnectEvent(
               source));
 }
 
-Base::Result<bool> ObjectBuilder::RegisterObjectResource(
+Base::Result<bool> ObjectWriter::RegisterObjectResource(
     std::uint32_t objectIndex,
     ::Aero::Diagnostics::SourceSpan source) noexcept {
     if (objectIndex >= created_.Size()) {
@@ -367,7 +367,7 @@ Base::Result<bool> ObjectBuilder::RegisterObjectResource(
     return true;
 }
 
-Base::Result<Aero::ResourceValue> ObjectBuilder::LookupResource(
+Base::Result<Aero::ResourceValue> ObjectWriter::LookupResource(
     Base::StringView key) const noexcept {
     constexpr Base::StringView PresentationNamespace(
         "http://schemas.microsoft.com/winfx/2006/xaml/presentation");
@@ -646,7 +646,7 @@ Base::Result<Aero::ResourceValue> ObjectBuilder::LookupResource(
     return last;
 }
 
-Base::Result<void> ObjectBuilder::CreateScopesForObject(
+Base::Result<void> ObjectWriter::CreateScopesForObject(
     std::uint32_t objectIndex,
     Frame& frame,
     ::Aero::Diagnostics::SourceSpan source) noexcept {
@@ -695,7 +695,7 @@ Base::Result<void> ObjectBuilder::CreateScopesForObject(
     return {};
 }
 
-Base::Result<void> ObjectBuilder::ActivatePendingNamespaces(
+Base::Result<void> ObjectWriter::ActivatePendingNamespaces(
     std::uint32_t& bindingStart) noexcept {
     bindingStart = namespaceBindings_.Size();
     for (PendingNamespaceRecord& pending : pendingNamespaces_) {
@@ -720,7 +720,7 @@ Base::Result<void> ObjectBuilder::ActivatePendingNamespaces(
     return {};
 }
 
-void ObjectBuilder::PopNamespaceBindings(
+void ObjectWriter::PopNamespaceBindings(
     std::uint32_t bindingStart) noexcept {
     if (bindingStart == InvalidIndex) {
         return;
@@ -730,7 +730,7 @@ void ObjectBuilder::PopNamespaceBindings(
     }
 }
 
-Base::Result<Base::StringView> ObjectBuilder::LookupNamespace(
+Base::Result<Base::StringView> ObjectWriter::LookupNamespace(
     Base::StringView prefix) const noexcept {
     if (prefix == XmlPrefix) {
         return XmlNamespaceUri;
@@ -749,7 +749,7 @@ Base::Result<Base::StringView> ObjectBuilder::LookupNamespace(
         "XAML namespace prefix is not bound in the active scope");
 }
 
-ExtensionServices ObjectBuilder::BuildExtensionServices(
+ExtensionServices ObjectWriter::BuildExtensionServices(
     std::uint32_t targetObjectIndex,
     const ResolvedMember& member,
     ::Aero::Diagnostics::SourceSpan source) noexcept {
@@ -774,10 +774,10 @@ ExtensionServices ObjectBuilder::BuildExtensionServices(
     services.source = source;
     services.nameScope = FindActiveNameScope();
     services.namespaces = NamespaceScope(
-        &ObjectBuilder::NamespaceLookupCallback,
+        &ObjectWriter::NamespaceLookupCallback,
         this);
     services.resources = ResourceResolver(
-        &ObjectBuilder::ResourceLookupCallback,
+        &ObjectWriter::ResourceLookupCallback,
         this);
     serviceResourceChain_.Clear();
     for (std::uint32_t index = frames_.Size();
@@ -843,7 +843,7 @@ ExtensionServices ObjectBuilder::BuildExtensionServices(
 }
 
 const Aero::NameScope*
-ObjectBuilder::FindActiveNameScope() const noexcept {
+ObjectWriter::FindActiveNameScope() const noexcept {
     for (std::uint32_t index = frames_.Size(); index > 0U; --index) {
         const Frame& frame = frames_[index - 1U];
         if (frame.kind == FrameKind::Object &&
@@ -856,7 +856,7 @@ ObjectBuilder::FindActiveNameScope() const noexcept {
 }
 
 Base::Object*
-ObjectBuilder::FindDeferredContentOwner() const noexcept {
+ObjectWriter::FindDeferredContentOwner() const noexcept {
     for (std::uint32_t index = frames_.Size();
          index > 0U;
          --index) {
@@ -875,7 +875,7 @@ ObjectBuilder::FindDeferredContentOwner() const noexcept {
     return nullptr;
 }
 
-std::uint32_t ObjectBuilder::FindNameScopeIndexForObject(
+std::uint32_t ObjectWriter::FindNameScopeIndexForObject(
     std::uint32_t objectIndex) const noexcept {
     const std::uint32_t objectFrame = FindObjectFrameIndex(objectIndex);
     if (objectFrame == InvalidIndex) {
@@ -899,7 +899,7 @@ std::uint32_t ObjectBuilder::FindNameScopeIndexForObject(
     return documentNameScopeIndex_;
 }
 
-std::uint32_t ObjectBuilder::FindResourceScopeIndexForParent() const noexcept {
+std::uint32_t ObjectWriter::FindResourceScopeIndexForParent() const noexcept {
     for (std::uint32_t index = frames_.Size(); index > 0U; --index) {
         const Frame& frame = frames_[index - 1U];
         if (frame.kind == FrameKind::Object &&
@@ -910,7 +910,7 @@ std::uint32_t ObjectBuilder::FindResourceScopeIndexForParent() const noexcept {
     return InvalidIndex;
 }
 
-std::uint32_t ObjectBuilder::FindObjectFrameIndex(
+std::uint32_t ObjectWriter::FindObjectFrameIndex(
     std::uint32_t objectIndex) const noexcept {
     for (std::uint32_t index = frames_.Size(); index > 0U; --index) {
         const Frame& frame = frames_[index - 1U];
@@ -922,19 +922,19 @@ std::uint32_t ObjectBuilder::FindObjectFrameIndex(
     return InvalidIndex;
 }
 
-bool ObjectBuilder::IsXamlDirective(
+bool ObjectWriter::IsXamlDirective(
     const QualifiedName& name,
     Base::StringView localName) const noexcept {
     return name.NamespaceUri() == LanguageNamespaceUri() &&
         name.LocalName() == localName;
 }
 
-bool ObjectBuilder::IsXamlNullObject(
+bool ObjectWriter::IsXamlNullObject(
     const QualifiedName& name) const noexcept {
     return IsXamlDirective(name, DirectiveNull);
 }
 
-bool ObjectBuilder::HasPropertyElementSyntax(
+bool ObjectWriter::HasPropertyElementSyntax(
     const QualifiedName& name) const noexcept {
     for (char character : name.LocalName()) {
         if (character == '.') {
@@ -944,7 +944,7 @@ bool ObjectBuilder::HasPropertyElementSyntax(
     return false;
 }
 
-bool ObjectBuilder::IsWhitespaceOnly(
+bool ObjectWriter::IsWhitespaceOnly(
     Base::StringView value) const noexcept {
     for (char character : value) {
         if (!IsAsciiWhitespace(character)) {
@@ -954,7 +954,7 @@ bool ObjectBuilder::IsWhitespaceOnly(
     return true;
 }
 
-ObjectBuilder::AssignmentRecord* ObjectBuilder::FindAssignment(
+ObjectWriter::AssignmentRecord* ObjectWriter::FindAssignment(
     std::uint32_t objectIndex,
     Meta::MemberId member) noexcept {
     for (AssignmentRecord& assignment : assignments_) {
@@ -966,7 +966,7 @@ ObjectBuilder::AssignmentRecord* ObjectBuilder::FindAssignment(
     return nullptr;
 }
 
-void ObjectBuilder::CommitDocumentScopes() noexcept {
+void ObjectWriter::CommitDocumentScopes() noexcept {
     committedNames_.Clear();
     committedResources_.Clear();
     if (documentNameScopeIndex_ < nameScopes_.Size()) {
@@ -979,7 +979,7 @@ void ObjectBuilder::CommitDocumentScopes() noexcept {
     }
 }
 
-void ObjectBuilder::AbortTransaction() noexcept {
+void ObjectWriter::AbortTransaction() noexcept {
     root_.Reset();
     resultVisualContent_.ReleaseContent();
     resultVisualContent_.Clear();
@@ -998,7 +998,7 @@ void ObjectBuilder::AbortTransaction() noexcept {
     ClearTransaction();
 }
 
-void ObjectBuilder::ClearTransaction() noexcept {
+void ObjectWriter::ClearTransaction() noexcept {
     deferredContent_.ReleaseAll();
     frames_.Clear();
     assignments_.Clear();
@@ -1018,7 +1018,7 @@ void ObjectBuilder::ClearTransaction() noexcept {
     hasDeferredStaticResources_ = false;
 }
 
-Base::Status ObjectBuilder::Failure(
+Base::Status ObjectWriter::Failure(
     Base::Status status,
     ::Aero::Diagnostics::DiagnosticCode diagnostic,
     Base::StringView message,
@@ -1043,7 +1043,7 @@ Base::Status ObjectBuilder::Failure(
     return status;
 }
 
-Base::Result<Base::StringView> ObjectBuilder::NamespaceLookupCallback(
+Base::Result<Base::StringView> ObjectWriter::NamespaceLookupCallback(
     void* context,
     Base::StringView prefix) noexcept {
     if (context == nullptr) {
@@ -1051,10 +1051,10 @@ Base::Result<Base::StringView> ObjectBuilder::NamespaceLookupCallback(
             Base::ErrorCode::InvalidArgument,
             MessageNamespaceState.Data());
     }
-    return static_cast<ObjectBuilder*>(context)->LookupNamespace(prefix);
+    return static_cast<ObjectWriter*>(context)->LookupNamespace(prefix);
 }
 
-Base::Result<Aero::ResourceValue> ObjectBuilder::ResourceLookupCallback(
+Base::Result<Aero::ResourceValue> ObjectWriter::ResourceLookupCallback(
     void* context,
     Base::StringView key) noexcept {
     if (context == nullptr) {
@@ -1062,7 +1062,7 @@ Base::Result<Aero::ResourceValue> ObjectBuilder::ResourceLookupCallback(
             Base::ErrorCode::InvalidArgument,
             MessageStaticResourceNotFound.Data());
     }
-    return static_cast<ObjectBuilder*>(context)->LookupResource(key);
+    return static_cast<ObjectWriter*>(context)->LookupResource(key);
 }
 
 } // namespace Aero::Markup

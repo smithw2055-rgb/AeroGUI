@@ -154,8 +154,7 @@ Base::Result<void> LocExtension::Register(
             Base::ErrorCode::InvalidState,
             "Loc extension registration is invalid");
     }
-    return SchemaPrivate::AddMarkupExtension(
-        schema, {markupExtensionType, &ProvideValue, nullptr});
+    return schema.AddMarkupExtension({markupExtensionType, &ProvideValue, nullptr});
 }
 
 Base::Result<ProvidedValue> LocExtension::ProvideValue(
@@ -170,8 +169,7 @@ Base::Result<ProvidedValue> LocExtension::ProvideValue(
     }
 
     Base::Result<::Aero::DependencyObject*> targetResult =
-        SchemaPrivate::ResolvePropertyTarget(
-            *services.schema, *services.targetObject);
+        services.schema->ResolvePropertyTarget( *services.targetObject);
     if (!targetResult) return targetResult.GetStatus();
     ::Aero::DependencyObject* target = targetResult.Value();
     const Meta::DependencyPropertyHandle property{services.targetMember};

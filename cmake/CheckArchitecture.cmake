@@ -1039,7 +1039,7 @@ aero_forbid_text(
     "FrameworkElement must not expose an unused Access seam")
 aero_require_text(
     "src/gui/markup/XamlObjectWriterNameScope.cpp"
-    "ObjectBuilder::ConnectEvent("
+    "ObjectWriter::ConnectEvent("
     "XAML event attributes must connect through the object-writer pipeline")
 aero_require_file("templates/AeroApp/App.xaml")
 aero_require_file("templates/AeroApp/MainWindow.xaml")
@@ -1100,8 +1100,8 @@ foreach(view_private_operation IN ITEMS
 endforeach()
 aero_require_text(
     "src/gui/markup/ReloadCoordinator.cpp"
-    "gui->xaml.QuerySource"
-    "ReloadCoordinator must query the Gui-owned XAML runtime directly")
+    "gui->QuerySource"
+    "ReloadCoordinator must query Gui-owned XAML sources directly")
 aero_require_file("src/gui/ViewRenderer.hpp")
 aero_forbid_file("cmake/AeroRuntimeTargets.cmake")
 aero_forbid_file("cmake/AeroGuiRuntimeTargets.cmake")
