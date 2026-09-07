@@ -1,4 +1,10 @@
-#include "gui/core/State.hpp" 
+#include "gui/core/state/ElementTree.hpp"
+#include "gui/core/state/LayoutEngine.hpp"
+#include "gui/core/state/FreezableState.hpp"
+#include "gui/core/state/PropertyEngine.hpp"
+#include "gui/core/state/RoutedEvents.hpp"
+#include "gui/core/state/EventRouter.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include "gui/markup/MarkupState.hpp"
@@ -251,7 +257,7 @@ Base::Result<bool> ImageCache::Synchronize(
         Base::Ref<Media::ImageSource>
             source;
         if (targetIndex == 0U &&
-            PropertyRegistry(visual).Types().IsDerivedFrom(
+            AeroGuiInternal::PropertyRegistry(visual).Types().IsDerivedFrom(
                 visual->RuntimeType(),
                 Controls::Image::StaticTypeId())) {
             imageControl =
@@ -260,18 +266,18 @@ Base::Result<bool> ImageCache::Synchronize(
             source = imageControl->GetSource();
         } else if (targetIndex == 0U) {
             Base::Ref<Media::Brush> fill;
-            if (PropertyRegistry(visual).Types().IsDerivedFrom(
+            if (AeroGuiInternal::PropertyRegistry(visual).Types().IsDerivedFrom(
                     visual->RuntimeType(),
                     Shapes::Shape::StaticTypeId())) {
                 fill = static_cast<Shapes::Shape*>(visual)->GetFill();
             } else if (visual->RuntimeType() ==
                        Controls::Border::StaticTypeId()) {
                 fill = static_cast<Controls::Border*>(visual)->GetBackground();
-            } else if (PropertyRegistry(visual).Types().IsDerivedFrom(
+            } else if (AeroGuiInternal::PropertyRegistry(visual).Types().IsDerivedFrom(
                            visual->RuntimeType(),
                            Controls::Panel::StaticTypeId())) {
                 fill = static_cast<Controls::Panel*>(visual)->GetBackground();
-            } else if (PropertyRegistry(visual).Types().IsDerivedFrom(
+            } else if (AeroGuiInternal::PropertyRegistry(visual).Types().IsDerivedFrom(
                            visual->RuntimeType(),
                            Controls::Control::StaticTypeId())) {
                 fill = static_cast<Controls::Control*>(visual)->GetBackground();

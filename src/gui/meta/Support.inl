@@ -1405,7 +1405,7 @@ void AddInteractionTrigger(
     auto& dependencyObject =
         static_cast<DependencyObject&>(owner);
     const Meta::TypeRegistry& types =
-        PropertyRegistry(dependencyObject).Types();
+        AeroGuiInternal::PropertyRegistry(dependencyObject).Types();
     if (types.IsDerivedFrom(
             owner.RuntimeType(), FrameworkElement::StaticTypeId())) {
         static_cast<void>(
@@ -1426,7 +1426,7 @@ void ClearInteractionTriggers(
     auto& dependencyObject =
         static_cast<DependencyObject&>(owner);
     const Meta::TypeRegistry& types =
-        PropertyRegistry(dependencyObject).Types();
+        AeroGuiInternal::PropertyRegistry(dependencyObject).Types();
     if (types.IsDerivedFrom(
             owner.RuntimeType(), FrameworkElement::StaticTypeId())) {
         static_cast<void>(

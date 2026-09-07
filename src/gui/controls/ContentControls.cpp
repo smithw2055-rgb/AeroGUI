@@ -1,11 +1,15 @@
-#include "gui/core/State.hpp" 
+#include "gui/core/state/ElementTree.hpp"
+#include "gui/core/state/LayoutEngine.hpp"
+#include "gui/core/state/FreezableState.hpp"
+#include "gui/core/state/PropertyEngine.hpp"
+#include "gui/core/state/RoutedEvents.hpp"
+#include "gui/core/state/EventRouter.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include <Aero/Controls.hpp>
 #include <Aero/Controls/ItemContainerGenerator.hpp>
-#include "gui/controls/State.hpp"
-#include "gui/templates/TemplateState.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
+#include "gui/templates/TemplateInstance.hpp"
 #include "gui/data/BindingEngine.hpp"
 #include <Aero/TryCast.hpp>
 #include <Aero/VisualTreeHelper.hpp>
@@ -206,7 +210,7 @@ Size Popup::ArrangeOverride(
         DependencyObject* templatedParent =
             GetTemplatedParent();
         if (templatedParent != nullptr &&
-            PropertyRegistry(*this).Types().IsDerivedFrom(
+            AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
                 templatedParent->RuntimeType(),
                 UIElement::StaticTypeId())) {
             placementTarget =
@@ -512,7 +516,7 @@ void HeaderedContentControl::ProjectHeaderContent() noexcept {
         return;
     }
     Base::Object* obj = header.AsObject().Get();
-    if (!PropertyRegistry(*this).Types().IsDerivedFrom(
+    if (!AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             obj->RuntimeType(), UIElement::StaticTypeId())) {
         return;
     }
@@ -775,7 +779,7 @@ TabItem* TabControl::GetSelectedTab() const noexcept {
     if (selected == UINT32_MAX) return nullptr;
     const Ref<Base::Object> item = GetItem(selected);
     if (item &&
-        PropertyRegistry(*this).Types().IsDerivedFrom(
+        AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             item->RuntimeType(), TabItem::StaticTypeId())) {
         return static_cast<TabItem*>(item.Get());
     }
@@ -783,7 +787,7 @@ TabItem* TabControl::GetSelectedTab() const noexcept {
     if (generator == nullptr) return nullptr;
     FrameworkElement* container = generator->ContainerFromIndex(selected);
     if (container != nullptr &&
-        PropertyRegistry(*this).Types().IsDerivedFrom(
+        AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             container->RuntimeType(), TabItem::StaticTypeId())) {
         return static_cast<TabItem*>(container);
     }
@@ -806,13 +810,13 @@ TabControl::SynchronizeSelection() noexcept {
         TabItem* tab = nullptr;
         const Ref<Base::Object> item = GetItem(index);
         if (item &&
-            PropertyRegistry(*this).Types().IsDerivedFrom(
+            AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
                 item->RuntimeType(), TabItem::StaticTypeId())) {
             tab = static_cast<TabItem*>(item.Get());
         } else if (generator != nullptr) {
             FrameworkElement* container = generator->ContainerFromIndex(index);
             if (container != nullptr &&
-                PropertyRegistry(*this).Types().IsDerivedFrom(
+                AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
                     container->RuntimeType(), TabItem::StaticTypeId())) {
                 tab = static_cast<TabItem*>(container);
             }
@@ -889,7 +893,7 @@ Size TabControl::ArrangeOverride(
         TabItem* tab = nullptr;
         const Ref<Base::Object> item = GetItem(index);
         if (item &&
-            PropertyRegistry(*this).Types().IsDerivedFrom(
+            AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
                 item->RuntimeType(), TabItem::StaticTypeId())) {
             tab = static_cast<TabItem*>(item.Get());
         }
@@ -916,7 +920,7 @@ Size TabControl::ArrangeOverride(
 bool TabPanel::GetIsVertical() const noexcept {
     const DependencyObject* parent = GetTemplatedParent();
     return parent != nullptr &&
-        PropertyRegistry(*this).Types().IsDerivedFrom(
+        AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             parent->RuntimeType(), TabControl::StaticTypeId()) &&
         (static_cast<const TabControl*>(parent)->GetTabStripPlacement() ==
              Dock::Left ||
@@ -1000,7 +1004,6 @@ Size TabPanel::ArrangeOverride(
 
 } // namespace Aero::Controls
 #include "gui/meta/MetadataState.hpp"
-#include "gui/core/State.hpp"
 #include "gui/data/BindingEngine.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
@@ -1474,7 +1477,7 @@ void AttachOwnedContentSubtree(
         AttachOwnedContentSubtree(tree, child);
     };
 
-    if (PropertyRegistry(parent).Types().IsDerivedFrom(
+    if (AeroGuiInternal::PropertyRegistry(parent).Types().IsDerivedFrom(
             parent.RuntimeType(), Controls::Panel::StaticTypeId())) {
         auto& panel = static_cast<Controls::Panel&>(parent);
         const std::uint32_t count = AeroGuiInternal::PanelChildCount(panel);
@@ -1482,7 +1485,7 @@ void AttachOwnedContentSubtree(
             const Base::Ref<Base::Object> owned =
                 AeroGuiInternal::PanelChildAt(panel, index);
             if (!owned ||
-                !PropertyRegistry(parent).Types().IsDerivedFrom(
+                !AeroGuiInternal::PropertyRegistry(parent).Types().IsDerivedFrom(
                     owned->RuntimeType(), UIElement::StaticTypeId())) {
                 continue;
             }
@@ -1490,36 +1493,36 @@ void AttachOwnedContentSubtree(
         }
         return;
     }
-    if (PropertyRegistry(parent).Types().IsDerivedFrom(
+    if (AeroGuiInternal::PropertyRegistry(parent).Types().IsDerivedFrom(
             parent.RuntimeType(), Controls::Decorator::StaticTypeId())) {
         const Base::Ref<Base::Object>& owned =
             AeroGuiInternal::DecoratorOwnedChild(
                 static_cast<Controls::Decorator&>(parent));
         if (owned &&
-            PropertyRegistry(parent).Types().IsDerivedFrom(
+            AeroGuiInternal::PropertyRegistry(parent).Types().IsDerivedFrom(
                 owned->RuntimeType(), UIElement::StaticTypeId())) {
             attachChild(*static_cast<UIElement*>(owned.Get()));
         }
         return;
     }
-    if (PropertyRegistry(parent).Types().IsDerivedFrom(
+    if (AeroGuiInternal::PropertyRegistry(parent).Types().IsDerivedFrom(
             parent.RuntimeType(), ContentPresenter::StaticTypeId())) {
         auto& presenter = static_cast<ContentPresenter&>(parent);
         const Base::Ref<Base::Object>& owned = presenter.GetOwnedContent();
         if (owned &&
-            PropertyRegistry(parent).Types().IsDerivedFrom(
+            AeroGuiInternal::PropertyRegistry(parent).Types().IsDerivedFrom(
                 owned->RuntimeType(), UIElement::StaticTypeId())) {
             attachChild(*static_cast<UIElement*>(owned.Get()));
         }
         return;
     }
-    if (PropertyRegistry(parent).Types().IsDerivedFrom(
+    if (AeroGuiInternal::PropertyRegistry(parent).Types().IsDerivedFrom(
             parent.RuntimeType(), Controls::ContentControl::StaticTypeId())) {
         const Base::Ref<Base::Object>& owned =
             AeroGuiInternal::OwnedContent(
                 static_cast<Controls::ContentControl&>(parent));
         if (owned &&
-            PropertyRegistry(parent).Types().IsDerivedFrom(
+            AeroGuiInternal::PropertyRegistry(parent).Types().IsDerivedFrom(
                 owned->RuntimeType(), UIElement::StaticTypeId())) {
             attachChild(*static_cast<UIElement*>(owned.Get()));
         }
@@ -1616,7 +1619,7 @@ void ContentPresenter::OnContentPropertyChanged(
         !value.IsNullObject() &&
         value.AsObject()) {
         Base::Object* obj = value.AsObject().Get();
-        if (PropertyRegistry(presenter).Types().IsDerivedFrom(
+        if (AeroGuiInternal::PropertyRegistry(presenter).Types().IsDerivedFrom(
                 obj->RuntimeType(), UIElement::StaticTypeId())) {
             auto* element = static_cast<UIElement*>(obj);
             presenter.HostUiElement(value.AsObject(), *element);
@@ -1629,7 +1632,7 @@ void ContentPresenter::OnContentPropertyChanged(
 Base::Result<void>
 ContentPresenter::UpdatePresentedText() noexcept {
     if (content_ == nullptr ||
-        !PropertyRegistry(*this).Types().IsDerivedFrom(
+        !AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             content_->RuntimeType(),
             TextBlock::StaticTypeId())) {
         return {};

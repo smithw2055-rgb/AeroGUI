@@ -105,7 +105,7 @@ Base::Result<ProvidedValue> StaticResourceExtension::ProvideValue(
             : Base::Result<ProvidedValue>(retained.GetStatus());
     }
     const Meta::DependencyProperty* descriptor =
-        PropertyRegistry(target).Find(property);
+        AeroGuiInternal::PropertyRegistry(target).Find(property);
     auto resolveFrom =
         [&](const ResourceDictionary* resources)
             -> Base::Result<Meta::PropertyValue> {

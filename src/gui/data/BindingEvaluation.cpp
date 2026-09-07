@@ -1,9 +1,14 @@
 #include "gui/data/BindingCommon.hpp"
 
 #include "gui/meta/MetadataState.hpp"
-#include "gui/core/State.hpp"
+#include "gui/core/state/ElementTree.hpp"
+#include "gui/core/state/LayoutEngine.hpp"
+#include "gui/core/state/FreezableState.hpp"
+#include "gui/core/state/PropertyEngine.hpp"
+#include "gui/core/state/RoutedEvents.hpp"
+#include "gui/core/state/EventRouter.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/data/BindingEngine.hpp"
-#include "gui/controls/State.hpp"
 #include "gui/controls/ItemsDetail.hpp"
 #include <Aero/Data/Binding.hpp>
 #include <Aero/FrameworkElement.hpp>
@@ -292,7 +297,7 @@ Base::Result<PropertyValue> ReadDataContextValue(
             ::Aero::TryCast<::Aero::FrameworkElement>(&node)) {
         return element->GetDataContextResult();
     }
-    if (PropertyRegistry(node).Find(handle) == nullptr) {
+    if (AeroGuiInternal::PropertyRegistry(node).Find(handle) == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
             "DataContext property is not registered on this object");

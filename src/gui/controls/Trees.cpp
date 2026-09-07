@@ -1,10 +1,16 @@
-#include "gui/core/State.hpp" 
+#include "gui/core/state/ElementTree.hpp"
+#include "gui/core/state/LayoutEngine.hpp"
+#include "gui/core/state/FreezableState.hpp"
+#include "gui/core/state/PropertyEngine.hpp"
+#include "gui/core/state/RoutedEvents.hpp"
+#include "gui/core/state/EventRouter.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/input/InputState.hpp" 
 #include "gui/data/BindingEngine.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
-#include "gui/controls/State.hpp"
-#include "gui/templates/TemplateState.hpp"
+#include "gui/templates/TemplateInstance.hpp"
+#include <Aero/VisualStateManager.hpp>
 #include <Aero/Controls.hpp>
 #include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/TryCast.hpp>
@@ -20,7 +26,6 @@
 #include <Aero/Controls/ItemsPresenter.hpp>
 #include <Aero/Visual.hpp>
 #include <Aero/VisualTreeHelper.hpp>
-#include "gui/internal/AeroGuiInternal.hpp"
 
 namespace Aero::Controls {
 using Aero::Controls::TreeBehavior;
@@ -69,7 +74,7 @@ void AttachOwnedUiSubtree(
         AttachOwnedUiSubtree(tree, child);
     };
 
-    if (PropertyRegistry(parent).Types().IsDerivedFrom(
+    if (AeroGuiInternal::PropertyRegistry(parent).Types().IsDerivedFrom(
             parent.RuntimeType(), Panel::StaticTypeId())) {
         auto& panel = static_cast<Panel&>(parent);
         const std::uint32_t count = AeroGuiInternal::PanelChildCount(panel);
@@ -77,7 +82,7 @@ void AttachOwnedUiSubtree(
             const Base::Ref<Base::Object> owned =
                 AeroGuiInternal::PanelChildAt(panel, index);
             if (!owned ||
-                !PropertyRegistry(parent).Types().IsDerivedFrom(
+                !AeroGuiInternal::PropertyRegistry(parent).Types().IsDerivedFrom(
                     owned->RuntimeType(), UIElement::StaticTypeId())) {
                 continue;
             }
@@ -85,36 +90,36 @@ void AttachOwnedUiSubtree(
         }
         return;
     }
-    if (PropertyRegistry(parent).Types().IsDerivedFrom(
+    if (AeroGuiInternal::PropertyRegistry(parent).Types().IsDerivedFrom(
             parent.RuntimeType(), Decorator::StaticTypeId())) {
         const Base::Ref<Base::Object>& owned =
             AeroGuiInternal::DecoratorOwnedChild(
                 static_cast<Decorator&>(parent));
         if (owned &&
-            PropertyRegistry(parent).Types().IsDerivedFrom(
+            AeroGuiInternal::PropertyRegistry(parent).Types().IsDerivedFrom(
                 owned->RuntimeType(), UIElement::StaticTypeId())) {
             attachChild(*static_cast<UIElement*>(owned.Get()));
         }
         return;
     }
-    if (PropertyRegistry(parent).Types().IsDerivedFrom(
+    if (AeroGuiInternal::PropertyRegistry(parent).Types().IsDerivedFrom(
             parent.RuntimeType(), ContentPresenter::StaticTypeId())) {
         auto& presenter = static_cast<ContentPresenter&>(parent);
         const Base::Ref<Base::Object>& owned = presenter.GetOwnedContent();
         if (owned &&
-            PropertyRegistry(parent).Types().IsDerivedFrom(
+            AeroGuiInternal::PropertyRegistry(parent).Types().IsDerivedFrom(
                 owned->RuntimeType(), UIElement::StaticTypeId())) {
             attachChild(*static_cast<UIElement*>(owned.Get()));
         }
         return;
     }
-    if (PropertyRegistry(parent).Types().IsDerivedFrom(
+    if (AeroGuiInternal::PropertyRegistry(parent).Types().IsDerivedFrom(
             parent.RuntimeType(), ContentControl::StaticTypeId())) {
         const Base::Ref<Base::Object>& owned =
             AeroGuiInternal::OwnedContent(
                 static_cast<ContentControl&>(parent));
         if (owned &&
-            PropertyRegistry(parent).Types().IsDerivedFrom(
+            AeroGuiInternal::PropertyRegistry(parent).Types().IsDerivedFrom(
                 owned->RuntimeType(), UIElement::StaticTypeId())) {
             attachChild(*static_cast<UIElement*>(owned.Get()));
         }
@@ -143,7 +148,7 @@ Base::Ref<Base::Object> DataItemFromContainer(
     while (visual != nullptr) {
         UIElement* element = ::Aero::TryCast<::Aero::UIElement>(visual);
         if (element != nullptr &&
-            PropertyRegistry(item).Types().IsDerivedFrom(
+            AeroGuiInternal::PropertyRegistry(item).Types().IsDerivedFrom(
                 element->RuntimeType(),
                 ItemsControl::StaticTypeId())) {
             auto& items = static_cast<ItemsControl&>(*element);
@@ -175,7 +180,7 @@ void UnselectOtherTreeViewItems(
         UIElement* element =
             ::Aero::TryCast<::Aero::UIElement>(child);
         if (element != nullptr &&
-            PropertyRegistry(element).Types().IsDerivedFrom(
+            AeroGuiInternal::PropertyRegistry(element).Types().IsDerivedFrom(
                 element->RuntimeType(),
                 TreeViewItem::StaticTypeId())) {
             auto* node = static_cast<TreeViewItem*>(element);
@@ -414,7 +419,7 @@ TreeViewItem::OnApplyTemplate() noexcept {
         GetTemplateChild("HeaderText");
     headerText_ =
         header != nullptr &&
-        PropertyRegistry(*this).Types().IsDerivedFrom(
+        AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             header->RuntimeType(),
             TextBlock::StaticTypeId())
         ? static_cast<TextBlock*>(header)
@@ -423,7 +428,7 @@ TreeViewItem::OnApplyTemplate() noexcept {
         GetTemplateChild("IconText");
     iconText_ =
         icon != nullptr &&
-        PropertyRegistry(*this).Types().IsDerivedFrom(
+        AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             icon->RuntimeType(),
             TextBlock::StaticTypeId())
         ? static_cast<TextBlock*>(icon)
@@ -432,7 +437,7 @@ TreeViewItem::OnApplyTemplate() noexcept {
         GetTemplateChild("ExpanderGlyph");
     expanderGlyph_ =
         glyph != nullptr &&
-        PropertyRegistry(*this).Types().IsDerivedFrom(
+        AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             glyph->RuntimeType(),
             TextBlock::StaticTypeId())
         ? static_cast<TextBlock*>(glyph)
@@ -441,7 +446,7 @@ TreeViewItem::OnApplyTemplate() noexcept {
         GetTemplateChild("ChildItems");
     childItems_ =
         children != nullptr &&
-        PropertyRegistry(*this).Types().IsDerivedFrom(
+        AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             children->RuntimeType(),
             ItemsControl::StaticTypeId())
         ? static_cast<ItemsControl*>(children)
@@ -665,7 +670,7 @@ ContentPresenter* FindHeaderPresenter(
             !content.IsNullObject() &&
             content.AsObject()) {
             Base::Object* hosted = content.AsObject().Get();
-            if (PropertyRegistry(item).Types().IsDerivedFrom(
+            if (AeroGuiInternal::PropertyRegistry(item).Types().IsDerivedFrom(
                     hosted->RuntimeType(),
                     ::Aero::Media::Visual::StaticTypeId())) {
                 walk(walk, *static_cast<::Aero::Media::Visual*>(hosted));
@@ -685,7 +690,7 @@ void TreeViewItem::ProjectHeaderContent() noexcept {
         return;
     }
     Base::Object* obj = header.AsObject().Get();
-    if (!PropertyRegistry(*this).Types().IsDerivedFrom(
+    if (!AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             obj->RuntimeType(), UIElement::StaticTypeId())) {
         return;
     }
@@ -714,7 +719,7 @@ void TreeViewItem::ProjectRealizedHeaders() noexcept {
     for (std::uint32_t index = 0U; index < count; ++index) {
         FrameworkElement* container = generator->ContainerFromIndex(index);
         if (container == nullptr ||
-            !PropertyRegistry(*this).Types().IsDerivedFrom(
+            !AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
                 container->RuntimeType(), TreeViewItem::StaticTypeId())) {
             continue;
         }
@@ -1012,7 +1017,7 @@ TreeBehavior::FindItem(
     TreeView& treeView,
     Base::Object* source) const noexcept {
     if (source == nullptr ||
-        !PropertyRegistry(treeView).Types().
+        !AeroGuiInternal::PropertyRegistry(treeView).Types().
             IsDerivedFrom(
                 source->RuntimeType(),
                 UIElement::StaticTypeId())) {
@@ -1025,7 +1030,7 @@ TreeBehavior::FindItem(
         UIElement* element =
             ::Aero::TryCast<::Aero::UIElement>(visual);
         if (element != nullptr &&
-            PropertyRegistry(treeView).Types().
+            AeroGuiInternal::PropertyRegistry(treeView).Types().
                 IsDerivedFrom(
                     element->RuntimeType(),
                     TreeViewItem::StaticTypeId())) {
@@ -1053,7 +1058,7 @@ TreeBehavior::CollectVisibleItems(
             continue;
         }
         if (element != nullptr &&
-            PropertyRegistry(element).Types().
+            AeroGuiInternal::PropertyRegistry(element).Types().
                 IsDerivedFrom(
                     element->RuntimeType(),
                     TreeViewItem::StaticTypeId())) {
@@ -1087,7 +1092,7 @@ void TreeBehavior::OnMouseDown(
     if (item == nullptr) return;
     UIElement* sourceElement =
         args.GetOriginalSource() != nullptr &&
-                PropertyRegistry(treeView).Types().IsDerivedFrom(
+                AeroGuiInternal::PropertyRegistry(treeView).Types().IsDerivedFrom(
                     args.GetOriginalSource()->RuntimeType(),
                     UIElement::StaticTypeId())
             ? static_cast<UIElement*>(args.GetOriginalSource())
@@ -1186,7 +1191,7 @@ void TreeBehavior::OnKeyDown(
         Base::Ref<Base::Object> selected =
             treeView.GetSelectedItem();
         if (selected &&
-            PropertyRegistry(treeView).Types().
+            AeroGuiInternal::PropertyRegistry(treeView).Types().
                 IsDerivedFrom(
                     selected->RuntimeType(),
                     TreeViewItem::StaticTypeId())) {

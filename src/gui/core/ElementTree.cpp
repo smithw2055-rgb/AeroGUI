@@ -1,5 +1,11 @@
 #include "gui/meta/MetadataState.hpp"
-#include "gui/core/State.hpp" 
+#include "gui/core/state/ElementTree.hpp"
+#include "gui/core/state/LayoutEngine.hpp"
+#include "gui/core/state/FreezableState.hpp"
+#include "gui/core/state/PropertyEngine.hpp"
+#include "gui/core/state/RoutedEvents.hpp"
+#include "gui/core/state/EventRouter.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include <Aero/Layout.hpp>
@@ -17,7 +23,6 @@
 #include "gui/data/BindingEngine.hpp"
 #include "gui/styles/StyleEngine.hpp"
 #include "render/RenderTree.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/markup/MarkupState.hpp"
 
 namespace Aero {
@@ -48,7 +53,7 @@ Base::Result<void> EnsureVisualChildStorage(
     ::Aero::Media::Visual& child) noexcept {
     UIElement* childElement = ::Aero::TryCast<::Aero::UIElement>(&(child));
     if (childElement == nullptr) return {};
-    const TypeRegistry& types = PropertyRegistry(parent).Types();
+    const TypeRegistry& types = AeroGuiInternal::PropertyRegistry(parent).Types();
     if (types.IsDerivedFrom(
             parent.RuntimeType(), Controls::Panel::StaticTypeId())) {
         auto& panel = static_cast<Controls::Panel&>(parent);
@@ -160,7 +165,7 @@ std::uint32_t Media::VisualTreeHelper::GetChildrenCount(const ::Aero::Media::Vis
 
 DependencyObject* LogicalTreeHelper::GetParent(
     const DependencyObject& object) noexcept {
-    const TypeRegistry& types = PropertyRegistry(object).Types();
+    const TypeRegistry& types = AeroGuiInternal::PropertyRegistry(object).Types();
     if (types.IsDerivedFrom(
             object.RuntimeType(), FrameworkContentElement::StaticTypeId())) {
         return static_cast<const FrameworkContentElement&>(object).GetParent();
@@ -177,7 +182,7 @@ DependencyObject* LogicalTreeHelper::GetParent(
 
 std::uint32_t LogicalTreeHelper::GetChildrenCount(
     const DependencyObject& object) noexcept {
-    const TypeRegistry& types = PropertyRegistry(object).Types();
+    const TypeRegistry& types = AeroGuiInternal::PropertyRegistry(object).Types();
     if (types.IsDerivedFrom(
             object.RuntimeType(), FrameworkContentElement::StaticTypeId())) {
         return AeroGuiInternal::LogicalChildrenCount(
@@ -194,7 +199,7 @@ std::uint32_t LogicalTreeHelper::GetChildrenCount(
 DependencyObject* LogicalTreeHelper::GetChild(
     const DependencyObject& object,
     std::uint32_t index) noexcept {
-    const TypeRegistry& types = PropertyRegistry(object).Types();
+    const TypeRegistry& types = AeroGuiInternal::PropertyRegistry(object).Types();
     if (types.IsDerivedFrom(
             object.RuntimeType(), FrameworkContentElement::StaticTypeId())) {
         return AeroGuiInternal::LogicalChild(
@@ -480,7 +485,7 @@ Base::Result<void> ElementTree::TrackInheritedValues(
     ::Aero::Media::Visual& node) noexcept {
     FrameworkElement* element = ::Aero::TryCast<::Aero::FrameworkElement>(&(node));
     if (element == nullptr ||
-        PropertyRegistry(element).Find(
+        AeroGuiInternal::PropertyRegistry(element).Find(
             FrameworkElement::DataContextProperty) == nullptr) {
         return {};
     }
@@ -501,7 +506,7 @@ Base::Result<void> ElementTree::TrackInheritedValues(
 void ElementTree::UntrackInheritedValues(::Aero::Media::Visual& node) noexcept {
     FrameworkElement* element = ::Aero::TryCast<::Aero::FrameworkElement>(&(node));
     if (element == nullptr ||
-        PropertyRegistry(element).Find(
+        AeroGuiInternal::PropertyRegistry(element).Find(
             FrameworkElement::DataContextProperty) == nullptr) {
         return;
     }
@@ -832,12 +837,12 @@ Base::Result<void> ElementTree::AttachVisual(
     if (parent.tree_ == this && child.tree_ != this) {
         SetTreeSubtree(child, this);
     }
-    if (PropertyRegistry(parent).Types().IsDerivedFrom(
+    if (AeroGuiInternal::PropertyRegistry(parent).Types().IsDerivedFrom(
             parent.RuntimeType(), Controls::Control::StaticTypeId()) &&
         ::Aero::TryCast<::Aero::UIElement>(&(child)) != nullptr) {
         auto& control = static_cast<Controls::Control&>(parent);
         const bool isContentControl =
-            PropertyRegistry(parent).Types().IsDerivedFrom(
+            AeroGuiInternal::PropertyRegistry(parent).Types().IsDerivedFrom(
                 parent.RuntimeType(),
                 Controls::ContentControl::StaticTypeId());
         const bool contentVisual =

@@ -6,14 +6,18 @@
 #include <Aero/HierarchicalDataTemplate.hpp>
 #include <Aero/TryCast.hpp>
 #include "gui/meta/MetadataState.hpp"
-#include "gui/core/State.hpp" 
+#include "gui/core/state/ElementTree.hpp"
+#include "gui/core/state/LayoutEngine.hpp"
+#include "gui/core/state/FreezableState.hpp"
+#include "gui/core/state/PropertyEngine.hpp"
+#include "gui/core/state/RoutedEvents.hpp"
+#include "gui/core/state/EventRouter.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/data/BindingEngine.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleEngine.hpp"
-#include "gui/controls/State.hpp"
 #include "gui/controls/ItemsDetail.hpp" 
-#include "gui/templates/TemplateState.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
+#include "gui/templates/TemplateInstance.hpp"
 
 #include <Aero/FrameworkElement.hpp>
 
@@ -85,7 +89,7 @@ Base::Result<Value> AlternationConverter::ConvertBack(
 Panel* ItemsPresenter::GetItemsHost() const noexcept {
     UIElement* child = GetChild();
     return child != nullptr &&
-        PropertyRegistry(*this).Types().IsDerivedFrom(
+        AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             child->RuntimeType(), Panel::StaticTypeId())
         ? static_cast<Panel*>(child)
         : nullptr;
@@ -155,7 +159,7 @@ ContentControl::~ContentControl() {
 
 void ContentControl::SyncGeneratedTextFormatting() noexcept {
     if (!literalTextContent_ || content_ == nullptr ||
-        !PropertyRegistry(*this).Types().IsDerivedFrom(
+        !AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             content_->RuntimeType(), TextBlock::StaticTypeId())) {
         return;
     }
@@ -183,7 +187,7 @@ void ContentControl::OnFontSizeChanged(
 void ContentControl::SetGeneratedTextContent(
     const Base::Ref<Base::Object>& contentObject,
     UIElement& content) noexcept {
-    if (!PropertyRegistry(*this).Types().IsDerivedFrom(
+    if (!AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             content.RuntimeType(),
             TextBlock::StaticTypeId())) {
         return;
@@ -380,7 +384,7 @@ void ContentControl::SetContentValue(
     Base::Result<void> access = VerifyAccess();
     if (!access) return;
     if (value &&
-        PropertyRegistry(*this).Types().IsDerivedFrom(
+        AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             value->RuntimeType(),
             UIElement::StaticTypeId())) {
         authoredContent_ = Meta::Value::FromObject(
@@ -403,7 +407,7 @@ void ContentControl::SetContentValue(
             }
         }
         if (ElementTree* tree = VisualTree(this)) {
-            if (PropertyRegistry(*this).Types().IsDerivedFrom(
+            if (AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
                     content.RuntimeType(), Panel::StaticTypeId())) {
                 auto& panel = static_cast<Panel&>(content);
                 const std::uint32_t count = panel.GetChildren().GetCount();
@@ -491,7 +495,7 @@ void ContentControl::SetContentValue(
     }
 
     if (literalTextContent_ && content_ != nullptr &&
-        PropertyRegistry(*this).Types().IsDerivedFrom(
+        AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             content_->RuntimeType(), TextBlock::StaticTypeId())) {
         auto* textBlock = static_cast<TextBlock*>(content_);
         textBlock->SetValue(RichText::TextProperty, value.AsString());
@@ -565,7 +569,7 @@ ContentControl::CreateTemplatedContent() const noexcept {
             AeroGuiInternal::BindingEngineOf(*this));
     if (!created) return created.GetStatus();
     if (!created.Value() ||
-        !PropertyRegistry(*this).Types().IsDerivedFrom(
+        !AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             created.Value()->RuntimeType(),
             UIElement::StaticTypeId())) {
         return Base::Status::Failure(
@@ -632,7 +636,7 @@ void ItemsControl::OnApplyTemplate() noexcept {
             ::Aero::Media::Visual* current = pending.Back();
             pending.PopBack();
             if (current == nullptr) continue;
-            if (PropertyRegistry(*this).Types().IsDerivedFrom(
+            if (AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
                     current->RuntimeType(), Panel::StaticTypeId())) {
                 auto& panel = *static_cast<Panel*>(current);
                 if (panel.GetValue(Panel::IsItemsHostProperty)) {
@@ -640,7 +644,7 @@ void ItemsControl::OnApplyTemplate() noexcept {
                     break;
                 }
             }
-            if (PropertyRegistry(*this).Types().IsDerivedFrom(
+            if (AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
                     current->RuntimeType(), ContentControl::StaticTypeId())) {
                 UIElement* content = AeroGuiInternal::ContentControlContent(
                     *static_cast<ContentControl*>(current));
@@ -663,7 +667,7 @@ void ItemsControl::OnApplyTemplate() noexcept {
         static_cast<void>(EnsureDefaultItemsPresenter());
         return;
     }
-    if (PropertyRegistry(*this).Types().IsDerivedFrom(
+    if (AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             part->RuntimeType(),
             ItemsPresenter::StaticTypeId())) {
         itemsHost_ =
@@ -672,7 +676,7 @@ void ItemsControl::OnApplyTemplate() noexcept {
         if (itemsHost_ == nullptr) {
             static_cast<void>(EnsureDefaultItemsPresenter());
         }
-    } else if (PropertyRegistry(*this).Types().IsDerivedFrom(
+    } else if (AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
                    part->RuntimeType(),
                    Panel::StaticTypeId())) {
         itemsHost_ = static_cast<Panel*>(part);
@@ -714,7 +718,7 @@ bool ItemsControl::EnsureDefaultItemsPresenter() noexcept {
             Base::Result<Base::Ref<Base::Object>> created =
                 ::Aero::Controls::FrameworkTemplateState::Instantiate(*itemsPanel);
             if (created && created.Value() &&
-                PropertyRegistry(*this).Types().IsDerivedFrom(
+                AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
                     created.Value()->RuntimeType(), Panel::StaticTypeId())) {
                 panelOwner = std::move(created).Value();
                 panel = static_cast<Panel*>(panelOwner.Get());
@@ -737,7 +741,7 @@ bool ItemsControl::EnsureDefaultItemsPresenter() noexcept {
         part = GetTemplateChild("ItemsPresenter");
     }
     if (part != nullptr &&
-        PropertyRegistry(*this).Types().IsDerivedFrom(
+        AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             part->RuntimeType(), ItemsPresenter::StaticTypeId())) {
         templatedPresenter = static_cast<ItemsPresenter*>(part);
     }
@@ -872,7 +876,7 @@ Base::Ref<DataTemplate> ItemsControl::ResolveItemTemplate(
     if (!item) {
         return {};
     }
-    const Meta::TypeRegistry& types = PropertyRegistry(*this).Types();
+    const Meta::TypeRegistry& types = AeroGuiInternal::PropertyRegistry(*this).Types();
     Meta::TypeId type = item->RuntimeType();
     while (type != Meta::InvalidTypeId) {
         Base::Result<ResourceValue> found =
@@ -968,7 +972,7 @@ Base::Result<void> ItemsControl::PrepareContainer(
                 item->RuntimeType(), item));
     }
     if (!item ||
-        !PropertyRegistry(*this).Types().IsDerivedFrom(
+        !AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             container.RuntimeType(), ItemsControl::StaticTypeId())) {
         return {};
     }
@@ -990,7 +994,7 @@ Base::Result<void> ItemsControl::PrepareContainer(
     auto& childItems = static_cast<ItemsControl&>(container);
     Base::Ref<DataTemplate> childItemTemplate;
     if (hierarchicalTemplate &&
-        PropertyRegistry(*this).Types().IsDerivedFrom(
+        AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             hierarchicalTemplate->RuntimeType(),
             DataTemplate::StaticTypeId())) {
         childItemTemplate = Base::Ref<DataTemplate>::FromBorrowed(
@@ -1000,10 +1004,10 @@ Base::Result<void> ItemsControl::PrepareContainer(
         childItems.SetItemTemplate(std::move(childItemTemplate));
         return {};
     }
-    if (!PropertyRegistry(*this).Types().IsDerivedFrom(
+    if (!AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             hierarchicalSource->RuntimeType(),
             Data::Binding::StaticTypeId())) {
-        if (PropertyRegistry(*this).Types().IsDerivedFrom(
+        if (AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
                 container.RuntimeType(),
                 TreeViewItem::StaticTypeId())) {
             static_cast<TreeViewItem&>(container).SetHierarchicalContent(
@@ -1024,7 +1028,7 @@ Base::Result<void> ItemsControl::PrepareContainer(
     }
     const auto& binding =
         static_cast<const Data::Binding&>(*hierarchicalSource);
-    if (PropertyRegistry(*this).Types().IsDerivedFrom(
+    if (AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             container.RuntimeType(),
             TreeViewItem::StaticTypeId())) {
         static_cast<TreeViewItem&>(container).SetHierarchicalBinding(
@@ -1071,10 +1075,10 @@ void ItemsControl::ClearContainer(
     const Base::Ref<DataTemplate> resolved =
         ResolveItemTemplate(item, 0U);
     if (TryCast<HierarchicalDataTemplate>(resolved.Get()) != nullptr &&
-        PropertyRegistry(*this).Types().IsDerivedFrom(
+        AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             container.RuntimeType(), ItemsControl::StaticTypeId())) {
         auto& childItems = static_cast<ItemsControl&>(container);
-        if (PropertyRegistry(*this).Types().IsDerivedFrom(
+        if (AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
                 container.RuntimeType(),
                 TreeViewItem::StaticTypeId())) {
             static_cast<TreeViewItem&>(container)

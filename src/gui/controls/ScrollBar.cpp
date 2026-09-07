@@ -1,6 +1,12 @@
 #include "gui/controls/ScrollCommon.hpp"
 #include "gui/meta/ValueConversion.hpp"
-#include "gui/core/State.hpp"
+#include "gui/core/state/ElementTree.hpp"
+#include "gui/core/state/LayoutEngine.hpp"
+#include "gui/core/state/FreezableState.hpp"
+#include "gui/core/state/PropertyEngine.hpp"
+#include "gui/core/state/RoutedEvents.hpp"
+#include "gui/core/state/EventRouter.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/input/InputState.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
@@ -15,7 +21,7 @@
 #include <cmath>
 #include <limits>
 #include "ControlBehavior.hpp"
-#include "gui/templates/TemplateState.hpp"
+#include "gui/templates/TemplateInstance.hpp"
 
 namespace Aero::Controls {
 using namespace Primitives;
@@ -362,7 +368,7 @@ void ScrollBar::OnApplyTemplate()
         GetTemplateChild("PART_Track");
     track_ =
         part != nullptr &&
-        PropertyRegistry(*this).Types().IsDerivedFrom(
+        AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             part->RuntimeType(),
             Track::StaticTypeId())
         ? static_cast<Track*>(part)
@@ -610,7 +616,7 @@ void Slider::OnApplyTemplate() noexcept {
     Control::OnApplyTemplate();
     DependencyObject* part = GetTemplateChild("PART_Track");
     track_ = part != nullptr &&
-        PropertyRegistry(*this).Types().IsDerivedFrom(
+        AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             part->RuntimeType(), Track::StaticTypeId())
         ? static_cast<Track*>(part)
         : nullptr;
@@ -1130,7 +1136,7 @@ void TickBar::OnRender(
     auto& builder = Aero::Render::DrawingPrivate::Builder(context);
     DependencyObject* parent = GetTemplatedParent();
     if (parent == nullptr ||
-        !PropertyRegistry(*this).Types().IsDerivedFrom(
+        !AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             parent->RuntimeType(), Slider::StaticTypeId())) {
         return;
     }

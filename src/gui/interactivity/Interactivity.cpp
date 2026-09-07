@@ -1,7 +1,13 @@
 #include <Aero/Interactivity/Behavior.hpp>
 #include "gui/meta/MetadataState.hpp"
 #include <Aero/FrameworkElement.hpp>
-#include "gui/core/State.hpp" 
+#include "gui/core/state/ElementTree.hpp"
+#include "gui/core/state/LayoutEngine.hpp"
+#include "gui/core/state/FreezableState.hpp"
+#include "gui/core/state/PropertyEngine.hpp"
+#include "gui/core/state/RoutedEvents.hpp"
+#include "gui/core/state/EventRouter.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 
@@ -70,7 +76,7 @@ Base::Result<Base::Ref<Behavior>> Behavior::ClonePrototype(
         Base::Ref<Behavior>::FromBorrowed(
             *static_cast<Behavior*>(created.Value().Get()));
     for (const Meta::DependencyProperty& property :
-         PropertyRegistry(prototype).Properties()) {
+         AeroGuiInternal::PropertyRegistry(prototype).Properties()) {
         if (property.MetadataFor(prototype.RuntimeType()) == nullptr ||
             property.MetadataFor(clone->RuntimeType()) == nullptr) {
             continue;
@@ -101,7 +107,7 @@ void StyleTriggerCollection::Add(
 void StyleInteraction::OnBehaviorsChanged(
     DependencyObject& object,
     const Meta::DependencyPropertyChangedEventArgs& args) noexcept {
-    if (!PropertyRegistry(object).Types().IsDerivedFrom(
+    if (!AeroGuiInternal::PropertyRegistry(object).Types().IsDerivedFrom(
             object.RuntimeType(), FrameworkElement::StaticTypeId())) {
         return;
     }
@@ -125,7 +131,7 @@ void StyleInteraction::OnBehaviorsChanged(
 void StyleInteraction::OnTriggersChanged(
     DependencyObject& object,
     const Meta::DependencyPropertyChangedEventArgs& args) noexcept {
-    if (!PropertyRegistry(object).Types().IsDerivedFrom(
+    if (!AeroGuiInternal::PropertyRegistry(object).Types().IsDerivedFrom(
             object.RuntimeType(), FrameworkElement::StaticTypeId())) {
         return;
     }

@@ -1,12 +1,17 @@
 #include "gui/meta/MetadataState.hpp"
 #include "gui/meta/ValueConversion.hpp"
-#include "gui/core/State.hpp" 
+#include "gui/core/state/ElementTree.hpp"
+#include "gui/core/state/LayoutEngine.hpp"
+#include "gui/core/state/FreezableState.hpp"
+#include "gui/core/state/PropertyEngine.hpp"
+#include "gui/core/state/RoutedEvents.hpp"
+#include "gui/core/state/EventRouter.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleEngine.hpp"
 #include "gui/triggers/TriggerDiagnostics.hpp"
 #include "gui/triggers/TriggerEngine.hpp"
 #include "gui/data/BindingEngine.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
 #include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/Data/Binding.hpp>
 #include <Aero/FrameworkElement.hpp>
@@ -23,7 +28,7 @@ namespace Aero {
 void Element::OnBlendingModeChanged(
     DependencyObject& object,
     const DependencyPropertyChangedEventArgs& args) noexcept {
-    if (!PropertyRegistry(object).Types().IsDerivedFrom(
+    if (!AeroGuiInternal::PropertyRegistry(object).Types().IsDerivedFrom(
             object.RuntimeType(), UIElement::StaticTypeId())) {
         return;
     }
@@ -48,18 +53,18 @@ void TextProperties::OnCompatibilityPropertyChanged(
     DependencyObject& object,
     const DependencyPropertyChangedEventArgs& args) noexcept {
     const Meta::DependencyProperty* source =
-        PropertyRegistry(object).Find(args.GetProperty());
+        AeroGuiInternal::PropertyRegistry(object).Find(args.GetProperty());
     if (source == nullptr) return;
 
     const Meta::PropertyInfo* targetInfo =
-        PropertyRegistry(object).Types().FindProperty(
+        AeroGuiInternal::PropertyRegistry(object).Types().FindProperty(
             object.RuntimeType(), source->Name(), false);
     if (targetInfo == nullptr ||
         targetInfo->Id() == source->Handle().value) {
         return;
     }
     const Meta::DependencyProperty* target =
-        PropertyRegistry(object).Find(
+        AeroGuiInternal::PropertyRegistry(object).Find(
             Meta::DependencyPropertyHandle{targetInfo->Id()});
     if (target == nullptr ||
         target->MetadataFor(object.RuntimeType()) == nullptr) {
@@ -71,7 +76,7 @@ void TextProperties::OnCompatibilityPropertyChanged(
         value.Type() != target->ValueType() &&
         value.Kind() == Meta::ValueKind::Object &&
         !value.IsNullObject() && value.AsObject() &&
-        PropertyRegistry(object).Types().IsDerivedFrom(
+        AeroGuiInternal::PropertyRegistry(object).Types().IsDerivedFrom(
             value.AsObject()->RuntimeType(), target->ValueType())) {
         value = Meta::Value::FromObject(
             target->ValueType(), value.AsObject());

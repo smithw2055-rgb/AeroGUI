@@ -1,13 +1,21 @@
 #pragma once
 
+// Gui process/module state (type GuiState). Filename matches the type;
+// former GuiData.hpp name was misleading — this is not a DTO bag.
+
 #include "gui/meta/MetadataState.hpp"
-#include "gui/core/State.hpp" 
+#include "gui/core/state/ElementTree.hpp"
+#include "gui/core/state/LayoutEngine.hpp"
+#include "gui/core/state/FreezableState.hpp"
+#include "gui/core/state/PropertyEngine.hpp"
+#include "gui/core/state/RoutedEvents.hpp"
+#include "gui/core/state/EventRouter.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/input/InputState.hpp" 
 #include "gui/data/BindingEngine.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
-#include "gui/controls/State.hpp" 
-#include "gui/templates/TemplateState.hpp"
+#include "gui/templates/TemplateInstance.hpp"
 #include "gui/markup/MarkupState.hpp"
 #include "gui/markup/MarkupWriterState.hpp"
 #include <Aero/Gui.hpp>

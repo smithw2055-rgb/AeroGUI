@@ -12,7 +12,13 @@
 #include <Aero/Markup/XamlReader.hpp>
 #include <Aero/Controls.hpp>
 #include <cstdio>
-#include "gui/core/State.hpp" 
+#include "gui/core/state/ElementTree.hpp"
+#include "gui/core/state/LayoutEngine.hpp"
+#include "gui/core/state/FreezableState.hpp"
+#include "gui/core/state/PropertyEngine.hpp"
+#include "gui/core/state/RoutedEvents.hpp"
+#include "gui/core/state/EventRouter.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/input/InputState.hpp"
 #include "gui/styles/StyleState.hpp"
 #include "gui/meta/MetadataState.hpp"
@@ -253,7 +259,7 @@ Base::Object* FrameworkElement::FindNameObject(
             if (expectedType == Meta::InvalidTypeId) {
                 return object;
             }
-            return PropertyRegistry(*this).Types().IsDerivedFrom(
+            return AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
                 object->RuntimeType(), expectedType)
                 ? object
                 : nullptr;

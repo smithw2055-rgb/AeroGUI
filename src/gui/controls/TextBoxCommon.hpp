@@ -3,7 +3,13 @@
 // Shared helpers / display policies for TextBox* translation units
 // (formerly anonymous helpers + TextBoxPolicy.inl amalgamated into TextBox.cpp).
 
-#include "gui/core/State.hpp"
+#include "gui/core/state/ElementTree.hpp"
+#include "gui/core/state/LayoutEngine.hpp"
+#include "gui/core/state/FreezableState.hpp"
+#include "gui/core/state/PropertyEngine.hpp"
+#include "gui/core/state/RoutedEvents.hpp"
+#include "gui/core/state/EventRouter.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/text/EditableText.hpp"
 #include "TextBlockLayout.hpp"
 

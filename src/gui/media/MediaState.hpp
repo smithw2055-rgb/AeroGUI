@@ -1,7 +1,8 @@
 #pragma once
 
+#include "gui/internal/AeroGuiInternal.hpp"
+
 #include "gui/meta/MetadataState.hpp"
-#include "gui/core/PropertyRegistryAccess.hpp"
 #include "render/DisplayList.hpp"
 
 #include <Aero/Media/Animation.hpp>
@@ -75,7 +76,7 @@ inline double ShaderDouble(
     Base::StringView name,
     double fallback) noexcept {
     const Meta::DependencyProperty* property =
-        PropertyRegistry(shader).Find(shader.RuntimeType(), name);
+        AeroGuiInternal::PropertyRegistry(shader).Find(shader.RuntimeType(), name);
     if (property == nullptr) return fallback;
     Base::Result<Meta::Value> value =
         shader.GetValue(property->Handle());
@@ -90,7 +91,7 @@ inline Base::Color ShaderColor(
     Base::StringView name,
     Base::Color fallback) noexcept {
     const Meta::DependencyProperty* property =
-        PropertyRegistry(shader).Find(shader.RuntimeType(), name);
+        AeroGuiInternal::PropertyRegistry(shader).Find(shader.RuntimeType(), name);
     if (property == nullptr) return fallback;
     Base::Result<Meta::Value> value =
         shader.GetValue(property->Handle());
@@ -206,7 +207,7 @@ inline Base::Color SampleBrush(
             static_cast<float>(brush->GetOpacity())};
     }
     Base::Ref<Base::Object> shaderObject = brush->GetShader();
-    if (shaderObject && PropertyRegistry(brush).Types().IsDerivedFrom(
+    if (shaderObject && AeroGuiInternal::PropertyRegistry(brush.Get()).Types().IsDerivedFrom(
             shaderObject->RuntimeType(), Media::BrushShader::StaticTypeId())) {
         sampled = ApplyShader(
             static_cast<const Media::BrushShader&>(*shaderObject),

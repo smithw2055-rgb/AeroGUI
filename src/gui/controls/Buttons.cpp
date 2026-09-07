@@ -1,9 +1,15 @@
-#include "gui/core/State.hpp" 
+#include "gui/core/state/ElementTree.hpp"
+#include "gui/core/state/LayoutEngine.hpp"
+#include "gui/core/state/FreezableState.hpp"
+#include "gui/core/state/PropertyEngine.hpp"
+#include "gui/core/state/RoutedEvents.hpp"
+#include "gui/core/state/EventRouter.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/input/InputState.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
-#include "gui/controls/State.hpp"
-#include "gui/templates/TemplateState.hpp"
+#include "gui/templates/TemplateInstance.hpp"
+#include <Aero/VisualStateManager.hpp>
 #include <Aero/Controls.hpp>
 
 #include <utility>
@@ -542,7 +548,7 @@ Base::Result<void> ButtonBehavior::InvokeClick(
         !isRadio &&
         (type == ToggleButton::StaticTypeId() ||
          type == CheckBox::StaticTypeId() ||
-         PropertyRegistry(button).Types().IsDerivedFrom(
+         AeroGuiInternal::PropertyRegistry(button).Types().IsDerivedFrom(
              type, ToggleButton::StaticTypeId()));
     if (isToggle) {
         auto& toggle = static_cast<ToggleButton&>(button);

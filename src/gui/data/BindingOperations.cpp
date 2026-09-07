@@ -1,11 +1,16 @@
 #include "gui/data/BindingCommon.hpp"
 
 #include "gui/meta/MetadataState.hpp"
-#include "gui/core/State.hpp"
+#include "gui/core/state/ElementTree.hpp"
+#include "gui/core/state/LayoutEngine.hpp"
+#include "gui/core/state/FreezableState.hpp"
+#include "gui/core/state/PropertyEngine.hpp"
+#include "gui/core/state/RoutedEvents.hpp"
+#include "gui/core/state/EventRouter.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/data/BindingEngine.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
-#include "gui/controls/State.hpp"
 #include <Aero/Data/Binding.hpp>
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/UIElement.hpp>
@@ -551,7 +556,7 @@ Base::Result<void> BindingEngine::ResolveMetadataSource(
 
     if (record.bindsToSource) {
         const DependencyProperty* targetProperty =
-            PropertyRegistry(record.descriptor.target).Find(
+            AeroGuiInternal::PropertyRegistry(record.descriptor.target).Find(
                 record.descriptor.targetProperty);
         if (targetProperty == nullptr ||
             (!targetProperty->AcceptsAnyValue() &&
@@ -594,7 +599,7 @@ Base::Result<void> BindingEngine::ResolveMetadataSource(
                 compiled.GetStatus());
         }
     const DependencyProperty* targetProperty =
-        PropertyRegistry(record.descriptor.target).Find(
+        AeroGuiInternal::PropertyRegistry(record.descriptor.target).Find(
             record.descriptor.targetProperty);
     if (targetProperty == nullptr ||
         (record.descriptor.convert == nullptr &&
@@ -694,7 +699,7 @@ Base::Result<void> BindingEngine::SubscribeMetadataSource(
                 record.pathPlan.Segments()[0];
             if (!first.dynamic && first.member != InvalidMemberId) {
                 DependencyPropertyHandle handle{first.member};
-                if (PropertyRegistry(sourceObject).Find(handle) !=
+                if (AeroGuiInternal::PropertyRegistry(sourceObject).Find(handle) !=
                     nullptr) {
                     sourceObject->AddValueChangedHandler(
                         handle, propertyChangedHandler_);

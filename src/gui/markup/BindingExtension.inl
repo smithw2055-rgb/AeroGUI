@@ -670,7 +670,7 @@ struct DeferredMultiBindingState {
         }
 
         const Meta::DependencyProperty* targetInfo =
-            PropertyRegistry(target).Find(targetProperty);
+            AeroGuiInternal::PropertyRegistry(target).Find(targetProperty);
         if (targetInfo == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::NotFound,
@@ -968,7 +968,7 @@ Base::Result<ProvidedValue> CreateMultiBindingValueImpl(
     ::Aero::Meta::Registry* metadata =
         services.schema->Metadata();
     if (metadata == nullptr ||
-        PropertyRegistry(target.Value()).Find(
+        AeroGuiInternal::PropertyRegistry(target.Value()).Find(
             Meta::DependencyPropertyHandle{
                 services.targetMember}) == nullptr) {
         return Base::Status::Failure(
@@ -1398,7 +1398,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
     const Meta::DependencyPropertyHandle targetHandle{
         services.targetMember};
     const Meta::DependencyProperty* targetProperty =
-        PropertyRegistry(target).Find(targetHandle);
+        AeroGuiInternal::PropertyRegistry(target).Find(targetHandle);
     if (targetProperty == nullptr ||
         services.schema->Metadata() == nullptr) {
         return Base::Status::Failure(
@@ -1566,7 +1566,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
             services.schema->Metadata()->Types().IsDerivedFrom(
                 target->RuntimeType(), FrameworkElement::StaticTypeId());
         if (!targetCanInheritDataContext &&
-            PropertyRegistry(root).Find(
+            AeroGuiInternal::PropertyRegistry(root).Find(
                 extension->options_.dataContextProperty) != nullptr) {
             state->dataContextOwner = root;
         }

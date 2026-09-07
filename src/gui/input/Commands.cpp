@@ -1,4 +1,10 @@
-#include "gui/core/State.hpp" 
+#include "gui/core/state/ElementTree.hpp"
+#include "gui/core/state/LayoutEngine.hpp"
+#include "gui/core/state/FreezableState.hpp"
+#include "gui/core/state/PropertyEngine.hpp"
+#include "gui/core/state/RoutedEvents.hpp"
+#include "gui/core/state/EventRouter.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/input/InputState.hpp" 
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
@@ -713,7 +719,7 @@ Base::Result<bool> CommandState::CanExecute(
     Base::Result<void> routed = events_->VisitRoute(
         target, RoutingStrategy::Bubble,
         [&](DependencyObject& owner) noexcept {
-            if (!PropertyRegistry(owner).Types().IsDerivedFrom(
+            if (!AeroGuiInternal::PropertyRegistry(owner).Types().IsDerivedFrom(
                     owner.RuntimeType(), UIElement::StaticTypeId())) {
                 return true;
             }
@@ -761,7 +767,7 @@ Base::Result<bool> CommandState::Execute(
     Base::Result<void> routed = events_->VisitRoute(
         target, RoutingStrategy::Bubble,
         [&](DependencyObject& owner) noexcept {
-            if (!PropertyRegistry(owner).Types().IsDerivedFrom(
+            if (!AeroGuiInternal::PropertyRegistry(owner).Types().IsDerivedFrom(
                     owner.RuntimeType(), UIElement::StaticTypeId())) {
                 return true;
             }
@@ -801,7 +807,7 @@ Base::Result<bool> CommandState::ProcessInput(
     Base::Result<void> routed = events_->VisitRoute(
         target, RoutingStrategy::Bubble,
         [&](DependencyObject& current) noexcept {
-            if (!PropertyRegistry(current).Types().IsDerivedFrom(
+            if (!AeroGuiInternal::PropertyRegistry(current).Types().IsDerivedFrom(
                     current.RuntimeType(), UIElement::StaticTypeId())) {
                 return true;
             }
@@ -855,7 +861,7 @@ Base::Result<bool> CommandState::ProcessInput(
     Base::Result<void> routed = events_->VisitRoute(
         target, RoutingStrategy::Bubble,
         [&](DependencyObject& current) noexcept {
-            if (!PropertyRegistry(current).Types().IsDerivedFrom(
+            if (!AeroGuiInternal::PropertyRegistry(current).Types().IsDerivedFrom(
                     current.RuntimeType(), UIElement::StaticTypeId())) {
                 return true;
             }

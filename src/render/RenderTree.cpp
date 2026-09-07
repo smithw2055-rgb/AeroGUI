@@ -1,7 +1,13 @@
 #include "DisplayList.hpp"
 #include "RenderTree.hpp"
 #include "gui/meta/MetadataState.hpp"
-#include "gui/core/State.hpp"
+#include "gui/core/state/ElementTree.hpp"
+#include "gui/core/state/LayoutEngine.hpp"
+#include "gui/core/state/FreezableState.hpp"
+#include "gui/core/state/PropertyEngine.hpp"
+#include "gui/core/state/RoutedEvents.hpp"
+#include "gui/core/state/EventRouter.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include "gui/media/MediaState.hpp"
@@ -1816,7 +1822,7 @@ bool RenderTree::IsEmittedChild(
     const ::Aero::Media::Visual& child) noexcept {
     const Meta::TypeId childType = child.RuntimeType();
     const Meta::TypeRegistry& childTypes =
-        PropertyRegistry(child).Types();
+        AeroGuiInternal::PropertyRegistry(child).Types();
     // Popup-style visuals remain logical/template children so bindings,
     // layout and routed events keep their WPF shape. They must never be
     // emitted inline, though: an open popup is committed exactly once via

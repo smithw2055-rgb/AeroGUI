@@ -1,5 +1,5 @@
 #include <Aero/Gui.hpp>
-#include "gui/GuiData.hpp"
+#include "gui/GuiState.hpp"
 #include <AeroApp/App.hpp>
 #include <Aero/Module.hpp>
 #include "gui/meta/ModuleSet.hpp"

@@ -1,7 +1,13 @@
 #include <Aero/TryCast.hpp>
 
 #include <Aero/DependencyObject.hpp>
-#include "gui/core/State.hpp"
+#include "gui/core/state/ElementTree.hpp"
+#include "gui/core/state/LayoutEngine.hpp"
+#include "gui/core/state/FreezableState.hpp"
+#include "gui/core/state/PropertyEngine.hpp"
+#include "gui/core/state/RoutedEvents.hpp"
+#include "gui/core/state/EventRouter.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/meta/MetadataState.hpp"
 
 namespace Aero {
@@ -47,7 +53,7 @@ bool IsRuntimeTypeDerivedFrom(
     if (types != nullptr &&
         types->IsDerivedFrom(
             runtimeType, DependencyObject::StaticTypeId())) {
-        return PropertyRegistry(static_cast<const DependencyObject*>(object))
+        return AeroGuiInternal::PropertyRegistry(static_cast<const DependencyObject*>(object))
             .Types()
             .IsDerivedFrom(runtimeType, baseType);
     }
@@ -71,7 +77,7 @@ void* TryCastToInterface(
     if (types != nullptr &&
         types->IsDerivedFrom(
             object->RuntimeType(), DependencyObject::StaticTypeId())) {
-        return PropertyRegistry(static_cast<DependencyObject*>(object))
+        return AeroGuiInternal::PropertyRegistry(static_cast<DependencyObject*>(object))
             .Types()
             .TryCastToInterface(*object, interfaceType);
     }

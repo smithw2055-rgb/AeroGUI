@@ -1,5 +1,11 @@
 #include "gui/meta/MetadataState.hpp"
-#include "gui/core/State.hpp" 
+#include "gui/core/state/ElementTree.hpp"
+#include "gui/core/state/LayoutEngine.hpp"
+#include "gui/core/state/FreezableState.hpp"
+#include "gui/core/state/PropertyEngine.hpp"
+#include "gui/core/state/RoutedEvents.hpp"
+#include "gui/core/state/EventRouter.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/input/InputState.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
@@ -909,7 +915,7 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
         flushing_ = false;
         UIElement* invalid = FindInvalidVisibleLayout(*root_);
         const TypeInfo* type = invalid != nullptr
-            ? PropertyRegistry(invalid).Types().FindType(
+            ? AeroGuiInternal::PropertyRegistry(invalid).Types().FindType(
                   invalid->RuntimeType())
             : nullptr;
         const Base::StringView typeName = type != nullptr
@@ -919,7 +925,7 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
             ? invalid->LayoutParent()
             : nullptr;
         const TypeInfo* parentType = layoutParent != nullptr
-            ? PropertyRegistry(layoutParent).Types().FindType(
+            ? AeroGuiInternal::PropertyRegistry(layoutParent).Types().FindType(
                   layoutParent->RuntimeType())
             : nullptr;
         const Base::StringView parentName = parentType != nullptr

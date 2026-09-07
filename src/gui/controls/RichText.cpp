@@ -1,5 +1,11 @@
 #include "gui/meta/MetadataState.hpp"
-#include "gui/core/State.hpp" 
+#include "gui/core/state/ElementTree.hpp"
+#include "gui/core/state/LayoutEngine.hpp"
+#include "gui/core/state/FreezableState.hpp"
+#include "gui/core/state/PropertyEngine.hpp"
+#include "gui/core/state/RoutedEvents.hpp"
+#include "gui/core/state/EventRouter.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/data/BindingEngine.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
@@ -160,7 +166,7 @@ Base::Result<bool> AppendRichTextBinding(
     Base::StringView path,
     Base::StringView format,
     Base::String& output) noexcept {
-    if (!PropertyRegistry(object).Types().IsDerivedFrom(
+    if (!AeroGuiInternal::PropertyRegistry(object).Types().IsDerivedFrom(
             object.RuntimeType(),
             FrameworkElement::StaticTypeId())) {
         return false;
@@ -212,7 +218,7 @@ bool SameRichTextState(
 } // namespace
 
 void ApplyRichText(DependencyObject& object) noexcept {
-    if (!PropertyRegistry(object).Types().IsDerivedFrom(
+    if (!AeroGuiInternal::PropertyRegistry(object).Types().IsDerivedFrom(
             object.RuntimeType(),
             Controls::TextBlock::StaticTypeId())) return;
     const Base::StringView source = object.GetValue(RichText::TextProperty);

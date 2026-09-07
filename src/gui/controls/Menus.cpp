@@ -1,4 +1,10 @@
-#include "gui/core/State.hpp" 
+#include "gui/core/state/ElementTree.hpp"
+#include "gui/core/state/LayoutEngine.hpp"
+#include "gui/core/state/FreezableState.hpp"
+#include "gui/core/state/PropertyEngine.hpp"
+#include "gui/core/state/RoutedEvents.hpp"
+#include "gui/core/state/EventRouter.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/input/InputState.hpp" 
 #include "gui/media/AnimationEngine.hpp"
 #include <Aero/Controls.hpp>
@@ -129,7 +135,7 @@ MenuItem::OnApplyTemplate() noexcept {
         GetTemplateChild("GestureText");
     gestureText_ =
         gesture != nullptr &&
-        PropertyRegistry(*this).Types().IsDerivedFrom(
+        AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             gesture->RuntimeType(),
             TextBlock::StaticTypeId())
         ? static_cast<TextBlock*>(gesture)
@@ -138,7 +144,7 @@ MenuItem::OnApplyTemplate() noexcept {
         GetTemplateChild("CheckGlyph");
     checkGlyph_ =
         check != nullptr &&
-        PropertyRegistry(*this).Types().IsDerivedFrom(
+        AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             check->RuntimeType(),
             TextBlock::StaticTypeId())
         ? static_cast<TextBlock*>(check)
@@ -147,7 +153,7 @@ MenuItem::OnApplyTemplate() noexcept {
         GetTemplateChild("SubmenuPopup");
     submenuPopup_ =
         submenu != nullptr &&
-        PropertyRegistry(*this).Types().IsDerivedFrom(
+        AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             submenu->RuntimeType(),
             Popup::StaticTypeId())
         ? static_cast<Popup*>(submenu)
@@ -438,7 +444,7 @@ MenuItem* MenuBehavior::FindItem(
     Menu& menu,
     Base::Object* source) const noexcept {
     if (source == nullptr ||
-        !PropertyRegistry(menu).Types().
+        !AeroGuiInternal::PropertyRegistry(menu).Types().
             IsDerivedFrom(
                 source->RuntimeType(),
                 UIElement::StaticTypeId())) {
@@ -451,7 +457,7 @@ MenuItem* MenuBehavior::FindItem(
         UIElement* element =
             ::Aero::TryCast<::Aero::UIElement>(visual);
         if (element != nullptr &&
-            PropertyRegistry(menu).Types().
+            AeroGuiInternal::PropertyRegistry(menu).Types().
                 IsDerivedFrom(
                     element->RuntimeType(),
                     MenuItem::StaticTypeId())) {
@@ -488,7 +494,7 @@ Base::Result<void>
             return executed.GetStatus();
         }
     }
-    if (PropertyRegistry(menu).Types().
+    if (AeroGuiInternal::PropertyRegistry(menu).Types().
         IsDerivedFrom(
             menu.RuntimeType(),
             ContextMenu::StaticTypeId())) {

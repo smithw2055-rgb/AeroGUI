@@ -643,7 +643,7 @@ file(GLOB aero_gui_root_files
     "${AERO_SOURCE_DIR}/src/gui/*.hpp")
 set(aero_allowed_gui_root_files
     "src/gui/Gui.cpp"
-    "src/gui/GuiData.hpp"
+    "src/gui/GuiState.hpp"
     "src/gui/View.cpp"
     "src/gui/ViewFrame.cpp"
     "src/gui/ViewInput.cpp"
@@ -700,13 +700,13 @@ aero_forbid_text(
     "include/Aero/Media/TextureProvider.hpp" "CacheIdentity"
     "Provider cache identity must remain registry-private")
 aero_forbid_text(
-    "src/gui/GuiData.hpp" "XamlProvider*"
+    "src/gui/GuiState.hpp" "XamlProvider*"
     "Gui provider ownership must not use raw XAML pointers")
 aero_forbid_text(
-    "src/gui/GuiData.hpp" "TextureProvider*"
+    "src/gui/GuiState.hpp" "TextureProvider*"
     "Gui provider ownership must not use raw texture pointers")
 aero_forbid_text(
-    "src/gui/GuiData.hpp" "FontProvider*"
+    "src/gui/GuiState.hpp" "FontProvider*"
     "Gui provider ownership must not use raw font pointers")
 file(GLOB_RECURSE aero_provider_api_consumers
     RELATIVE "${AERO_SOURCE_DIR}"

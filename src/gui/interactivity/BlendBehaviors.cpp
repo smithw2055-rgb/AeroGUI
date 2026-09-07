@@ -2,7 +2,13 @@
 #include <Aero/Controls.hpp> 
 #include <Aero/Shapes.hpp>
 #include "gui/meta/MetadataState.hpp"
-#include "gui/core/State.hpp" 
+#include "gui/core/state/ElementTree.hpp"
+#include "gui/core/state/LayoutEngine.hpp"
+#include "gui/core/state/FreezableState.hpp"
+#include "gui/core/state/PropertyEngine.hpp"
+#include "gui/core/state/RoutedEvents.hpp"
+#include "gui/core/state/EventRouter.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/input/InputState.hpp" 
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
@@ -49,7 +55,7 @@ Base::Transform2D ToRootTransform(const ::Aero::Media::Visual& visual) noexcept 
 Base::Result<Base::Ref<Media::Brush>> ReadBackground(
     FrameworkElement& source) noexcept {
     const Meta::PropertyInfo* property =
-        PropertyRegistry(source).Types().FindProperty(
+        AeroGuiInternal::PropertyRegistry(source).Types().FindProperty(
             source.RuntimeType(), "Background", false);
     if (property == nullptr) {
         return Base::Status::Failure(
@@ -60,7 +66,7 @@ Base::Result<Base::Ref<Media::Brush>> ReadBackground(
         Meta::DependencyPropertyHandle{property->Id()});
     if (value.Kind() != Meta::ValueKind::Object ||
         value.IsNullObject() || !value.AsObject() ||
-        !PropertyRegistry(source).Types().IsDerivedFrom(
+        !AeroGuiInternal::PropertyRegistry(source).Types().IsDerivedFrom(
             value.AsObject()->RuntimeType(),
             Media::Brush::StaticTypeId())) {
         return Base::Status::Failure(
@@ -75,7 +81,7 @@ Base::Result<void> SetShapeFill(
     FrameworkElement& target,
     Base::Ref<Media::Brush> brush) noexcept {
     const Meta::TypeRegistry& types =
-        PropertyRegistry(target).Types();
+        AeroGuiInternal::PropertyRegistry(target).Types();
     if (types.IsDerivedFrom(
             target.RuntimeType(), Shapes::Shape::StaticTypeId())) {
         static_cast<Shapes::Shape&>(target).SetFill(std::move(brush));
@@ -94,7 +100,7 @@ Base::Result<void> SetShapeFill(
 Base::Ref<Media::Brush> GetShapeFill(
     FrameworkElement& target) noexcept {
     const Meta::TypeRegistry& types =
-        PropertyRegistry(target).Types();
+        AeroGuiInternal::PropertyRegistry(target).Types();
     if (types.IsDerivedFrom(
             target.RuntimeType(), Shapes::Shape::StaticTypeId())) {
         return static_cast<Shapes::Shape&>(target).GetFill();
@@ -393,7 +399,7 @@ void MouseDragElementBehavior::OnMouseUp(
 
 Base::Ref<FrameworkElement> BackgroundEffectBehavior::GetSource() const noexcept {
     Base::Ref<Base::Object> source = GetValue(SourceProperty);
-    if (!source || !PropertyRegistry(*this).Types().IsDerivedFrom(
+    if (!source || !AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             source->RuntimeType(), FrameworkElement::StaticTypeId())) {
         return {};
     }

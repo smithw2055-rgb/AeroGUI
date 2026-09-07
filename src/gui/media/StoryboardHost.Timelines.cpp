@@ -932,7 +932,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 ++keyIndex;
                 runtime.value = frame->GetValue();
                 const Meta::DependencyProperty* targetProperty =
-                    PropertyRegistry(propertyTarget).Find(
+                    AeroGuiInternal::PropertyRegistry(propertyTarget).Find(
                         propertyHandle);
                 if (targetProperty != nullptr &&
                     runtime.value.IsNullObject() &&

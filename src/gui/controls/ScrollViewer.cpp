@@ -1,6 +1,12 @@
 #include "gui/controls/ScrollCommon.hpp"
 #include "gui/meta/ValueConversion.hpp"
-#include "gui/core/State.hpp"
+#include "gui/core/state/ElementTree.hpp"
+#include "gui/core/state/LayoutEngine.hpp"
+#include "gui/core/state/FreezableState.hpp"
+#include "gui/core/state/PropertyEngine.hpp"
+#include "gui/core/state/RoutedEvents.hpp"
+#include "gui/core/state/EventRouter.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/input/InputState.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
@@ -15,7 +21,7 @@
 #include <cmath>
 #include <limits>
 #include "ControlBehavior.hpp"
-#include "gui/templates/TemplateState.hpp"
+#include "gui/templates/TemplateInstance.hpp"
 
 namespace Aero::Controls {
 using namespace Primitives;
@@ -204,13 +210,13 @@ void ScrollViewer::OnApplyTemplate()
 void ScrollViewer::AttachScrollBars() noexcept {
     DetachScrollBars();
     DependencyObject* vert = GetTemplateChild(Base::StringView("PART_VerticalScrollBar"));
-    if (vert != nullptr && PropertyRegistry(*this).Types().IsDerivedFrom(vert->RuntimeType(), ScrollBar::StaticTypeId())) {
+    if (vert != nullptr && AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(vert->RuntimeType(), ScrollBar::StaticTypeId())) {
         verticalScrollBar_ = static_cast<Primitives::ScrollBar*>(vert);
         static_cast<void>(verticalScrollBar_->AddValueChangedHandler(
             ScrollBar::ValueProperty, scrollBarValueChangedHandler_));
     }
     DependencyObject* horz = GetTemplateChild(Base::StringView("PART_HorizontalScrollBar"));
-    if (horz != nullptr && PropertyRegistry(*this).Types().IsDerivedFrom(horz->RuntimeType(), ScrollBar::StaticTypeId())) {
+    if (horz != nullptr && AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(horz->RuntimeType(), ScrollBar::StaticTypeId())) {
         horizontalScrollBar_ = static_cast<Primitives::ScrollBar*>(horz);
         static_cast<void>(horizontalScrollBar_->AddValueChangedHandler(
             ScrollBar::ValueProperty, scrollBarValueChangedHandler_));
@@ -345,7 +351,7 @@ void ScrollViewer::OnScrollDataChanged(
         DependencyObject* part =
             GetTemplateChild(name);
         if (part == nullptr ||
-            !PropertyRegistry(*this).Types().IsDerivedFrom(
+            !AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
                 part->RuntimeType(),
                 ScrollBar::StaticTypeId())) {
             return;

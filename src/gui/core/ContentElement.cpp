@@ -1,10 +1,15 @@
 #include <Aero/ContentElement.hpp>
 
-#include "gui/core/State.hpp" 
+#include "gui/core/state/ElementTree.hpp"
+#include "gui/core/state/LayoutEngine.hpp"
+#include "gui/core/state/FreezableState.hpp"
+#include "gui/core/state/PropertyEngine.hpp"
+#include "gui/core/state/RoutedEvents.hpp"
+#include "gui/core/state/EventRouter.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include "gui/internal/ErasedRoutedHandler.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
 
 #include <Aero/Base/Assert.hpp>
 

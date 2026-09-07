@@ -1,13 +1,18 @@
 #include "gui/meta/MetadataState.hpp"
-#include "gui/core/State.hpp" 
+#include "gui/core/state/ElementTree.hpp"
+#include "gui/core/state/LayoutEngine.hpp"
+#include "gui/core/state/FreezableState.hpp"
+#include "gui/core/state/PropertyEngine.hpp"
+#include "gui/core/state/RoutedEvents.hpp"
+#include "gui/core/state/EventRouter.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/data/BindingEngine.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/HierarchicalDataTemplate.hpp>
 #include <Aero/Controls/ItemsPanelTemplate.hpp>
-#include "gui/controls/State.hpp" 
-#include "gui/templates/TemplateState.hpp"
+#include "gui/templates/TemplateInstance.hpp"
 #include "gui/markup/MarkupWriterState.hpp"
 
 #include "render/RenderTree.hpp"
@@ -20,7 +25,6 @@
 #include <cstdio>
 #include <new>
 #include <utility>
-#include "gui/controls/ControlBehavior.hpp"
 
 
 namespace Aero::Controls {
@@ -66,7 +70,7 @@ bool TemplateTriggerCondition::IsMet(
         property ==
             Primitives::ToggleButton::
                 IsCheckedProperty.Handle() &&
-        PropertyRegistry(source).Types().IsDerivedFrom(
+        AeroGuiInternal::PropertyRegistry(source).Types().IsDerivedFrom(
             source.RuntimeType(),
             Primitives::ToggleButton::StaticTypeId())) {
         return !static_cast<Primitives::ToggleButton&>(
@@ -442,7 +446,7 @@ Base::Result<void> TemplateBuilder::PopulateItemsPresenter(
             std::move(created).Value());
     }
     if (!owner ||
-        !PropertyRegistry(presenter).Types().IsDerivedFrom(
+        !AeroGuiInternal::PropertyRegistry(presenter).Types().IsDerivedFrom(
             owner->RuntimeType(), Panel::StaticTypeId())) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -472,13 +476,13 @@ TemplateBuilder::PopulateContentPresenter(
         state.parent != nullptr) {
         const Value* header = nullptr;
         Value stored;
-        if (PropertyRegistry(state.parent).Types().IsDerivedFrom(
+        if (AeroGuiInternal::PropertyRegistry(state.parent).Types().IsDerivedFrom(
                 state.parent->RuntimeType(),
                 HeaderedItemsControl::StaticTypeId())) {
             stored = static_cast<HeaderedItemsControl*>(state.parent)
                 ->GetHeader();
             header = &stored;
-        } else if (PropertyRegistry(state.parent).Types().IsDerivedFrom(
+        } else if (AeroGuiInternal::PropertyRegistry(state.parent).Types().IsDerivedFrom(
                        state.parent->RuntimeType(),
                        HeaderedContentControl::StaticTypeId())) {
             stored = static_cast<HeaderedContentControl*>(state.parent)
@@ -489,7 +493,7 @@ TemplateBuilder::PopulateContentPresenter(
             header->Kind() == ValueKind::Object &&
             !header->IsNullObject() &&
             header->AsObject() &&
-            PropertyRegistry(state.parent).Types().IsDerivedFrom(
+            AeroGuiInternal::PropertyRegistry(state.parent).Types().IsDerivedFrom(
                 header->AsObject()->RuntimeType(),
                 UIElement::StaticTypeId())) {
             // Gallery SampleTemplate StackPanel already lives on Header.

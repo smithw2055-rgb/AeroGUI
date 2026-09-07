@@ -113,11 +113,11 @@ TemplateBindingExtension::ProvideValue(
     if (!target) return target.GetStatus();
 
     const Meta::DependencyProperty* source =
-        PropertyRegistry(target.Value()).Find(
+        AeroGuiInternal::PropertyRegistry(target.Value()).Find(
             controlTemplate.GetTargetType(),
             propertyName);
     const Meta::DependencyProperty* destination =
-        PropertyRegistry(target.Value()).Find(
+        AeroGuiInternal::PropertyRegistry(target.Value()).Find(
             Meta::DependencyPropertyHandle{
                 services.targetMember});
     if (source == nullptr) {

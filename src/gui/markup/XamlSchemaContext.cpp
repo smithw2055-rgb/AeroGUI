@@ -1,9 +1,16 @@
 #include "gui/meta/MetadataState.hpp"
 #include "gui/meta/ValueConversion.hpp"
-#include "gui/core/State.hpp" 
+#include "gui/core/state/ElementTree.hpp"
+#include "gui/core/state/LayoutEngine.hpp"
+#include "gui/core/state/FreezableState.hpp"
+#include "gui/core/state/PropertyEngine.hpp"
+#include "gui/core/state/RoutedEvents.hpp"
+#include "gui/core/state/EventRouter.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
-#include "gui/templates/TemplateState.hpp"
+#include "gui/templates/TemplateInstance.hpp"
+#include <Aero/VisualStateManager.hpp>
 #include "gui/markup/MarkupState.hpp"
 #include "gui/markup/MarkupWriterState.hpp"
 #include <Aero/Markup/MarkupExtension.hpp>
@@ -538,7 +545,7 @@ Schema::ResolvePropertyTarget(
             Base::ErrorCode::InvalidArgument,
             "XAML target does not support dependency properties");
     }
-    if (&PropertyRegistry(target) !=
+    if (&AeroGuiInternal::PropertyRegistry(target) !=
         &static_cast<const ::Aero::Meta::Registry&>(
             *domain_).DependencyProperties()) {
         return Base::Status::Failure(

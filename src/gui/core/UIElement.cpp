@@ -15,7 +15,13 @@
 #include <Aero/Controls.hpp>
 #include <cstdio>
 #include <new>
-#include "gui/core/State.hpp" 
+#include "gui/core/state/ElementTree.hpp"
+#include "gui/core/state/LayoutEngine.hpp"
+#include "gui/core/state/FreezableState.hpp"
+#include "gui/core/state/PropertyEngine.hpp"
+#include "gui/core/state/RoutedEvents.hpp"
+#include "gui/core/state/EventRouter.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/input/InputState.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
@@ -64,10 +70,10 @@ Base::Result<void> UIElement::ArrangeChild(
         child.LayoutParent() != this) {
         thread_local char message[512];
         const TypeInfo* parentType =
-            PropertyRegistry(*this).Types().FindType(
+            AeroGuiInternal::PropertyRegistry(*this).Types().FindType(
                 RuntimeType());
         const TypeInfo* childType =
-            PropertyRegistry(child).Types().FindType(
+            AeroGuiInternal::PropertyRegistry(child).Types().FindType(
                 child.RuntimeType());
         const Base::StringView parentName =
             parentType != nullptr
@@ -79,7 +85,7 @@ Base::Result<void> UIElement::ArrangeChild(
             : Base::StringView("<unknown>");
         const TypeInfo* actualParentType =
             child.LayoutParent() != nullptr
-            ? PropertyRegistry(*this).Types().FindType(
+            ? AeroGuiInternal::PropertyRegistry(*this).Types().FindType(
                   child.LayoutParent()->
                       RuntimeType())
             : nullptr;
@@ -167,10 +173,10 @@ Base::Result<void> UIElement::MeasureChild(
         child.LayoutParent() != this) {
         thread_local char message[512];
         const TypeInfo* parentType =
-            PropertyRegistry(*this).Types().FindType(
+            AeroGuiInternal::PropertyRegistry(*this).Types().FindType(
                 RuntimeType());
         const TypeInfo* childType =
-            PropertyRegistry(child).Types().FindType(
+            AeroGuiInternal::PropertyRegistry(child).Types().FindType(
                 child.RuntimeType());
         const Base::StringView parentName =
             parentType != nullptr
@@ -182,7 +188,7 @@ Base::Result<void> UIElement::MeasureChild(
             : Base::StringView("<unknown>");
         const TypeInfo* actualParentType =
             child.LayoutParent() != nullptr
-            ? PropertyRegistry(*this).Types().FindType(
+            ? AeroGuiInternal::PropertyRegistry(*this).Types().FindType(
                   child.LayoutParent()->
                       RuntimeType())
             : nullptr;

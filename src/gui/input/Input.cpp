@@ -9,7 +9,13 @@
 
 #include <cmath>
 #include "gui/meta/MetadataState.hpp"
-#include "gui/core/State.hpp" 
+#include "gui/core/state/ElementTree.hpp"
+#include "gui/core/state/LayoutEngine.hpp"
+#include "gui/core/state/FreezableState.hpp"
+#include "gui/core/state/PropertyEngine.hpp"
+#include "gui/core/state/RoutedEvents.hpp"
+#include "gui/core/state/EventRouter.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/input/InputState.hpp" 
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
@@ -29,7 +35,7 @@ bool HasAssignedObject(
     UIElement& element,
     Base::StringView name) noexcept {
     const Meta::DependencyProperty* property =
-        PropertyRegistry(element).Find(
+        AeroGuiInternal::PropertyRegistry(element).Find(
             element.RuntimeType(), name);
     if (property == nullptr) return false;
     const Meta::PropertyValue value =
@@ -41,7 +47,7 @@ bool HasAssignedObject(
 
 bool HasSelfHitSurface(UIElement& element) noexcept {
     const Meta::DependencyPropertyRegistry& properties =
-        PropertyRegistry(element);
+        AeroGuiInternal::PropertyRegistry(element);
     const Meta::TypeId type = element.RuntimeType();
     // Hit-testing lives in the GUI kernel and must not take a Controls
     // dependency. Identify painted content through DPs, matching WPF:

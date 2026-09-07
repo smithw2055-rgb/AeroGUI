@@ -2,11 +2,15 @@
 
 #include "gui/meta/MetadataState.hpp"
 #include "gui/core/DependencyPropertyRegistry.hpp"
-#include "gui/core/State.hpp"
+#include "gui/core/state/ElementTree.hpp"
+#include "gui/core/state/LayoutEngine.hpp"
 #include "gui/core/state/FreezableState.hpp"
+#include "gui/core/state/PropertyEngine.hpp"
+#include "gui/core/state/RoutedEvents.hpp"
+#include "gui/core/state/EventRouter.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
 
 #include <new>
 #include <utility>
@@ -34,7 +38,7 @@ Freezable* AsFreezable(
         return nullptr;
     }
     Base::Object* object = value.AsObject().Get();
-    if (!PropertyRegistry(owner).Types().IsDerivedFrom(
+    if (!AeroGuiInternal::PropertyRegistry(owner).Types().IsDerivedFrom(
             object->RuntimeType(), Freezable::StaticTypeId())) {
         return nullptr;
     }
@@ -419,7 +423,7 @@ Base::Result<void> AeroGuiInternal::VisitFreezableChildren(
     FreezableVisitor visitor) noexcept {
     if (visitor == nullptr) return {};
     for (const Meta::DependencyProperty& property :
-         PropertyRegistry(object).Properties()) {
+         AeroGuiInternal::PropertyRegistry(object).Properties()) {
         if (property.MetadataFor(object.RuntimeType()) == nullptr) continue;
         const Meta::PropertyValue value = object.GetValue(property.Handle());
         Freezable* child = AsFreezable(object, value);
@@ -459,7 +463,7 @@ void AeroGuiInternal::InvalidateSubProperty(
     DependencyObject& object,
     Meta::DependencyPropertyHandle propertyHandle) noexcept {
     const Meta::DependencyProperty* property =
-        PropertyRegistry(object).Find(propertyHandle);
+        AeroGuiInternal::PropertyRegistry(object).Find(propertyHandle);
     const Meta::PropertyMetadata* metadata = property != nullptr
         ? property->MetadataFor(object.RuntimeType())
         : nullptr;

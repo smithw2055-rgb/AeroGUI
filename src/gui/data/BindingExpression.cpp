@@ -344,7 +344,7 @@ Base::Result<BindingHandle> BindingEngine::Attach(
         }
         record.pathPlan = std::move(compiled).Value();
         const DependencyProperty* targetProperty =
-            PropertyRegistry(descriptor.target).Find(
+            AeroGuiInternal::PropertyRegistry(descriptor.target).Find(
                 descriptor.targetProperty);
         if (targetProperty == nullptr ||
             (descriptor.convert == nullptr &&
@@ -398,7 +398,7 @@ Base::Result<BindingHandle> BindingEngine::Attach(
         }
     } else if (record.sourceKind == BindingSourceKind::MetadataObject) {
         const DependencyProperty* targetProperty =
-            PropertyRegistry(descriptor.target).Find(
+            AeroGuiInternal::PropertyRegistry(descriptor.target).Find(
                 descriptor.targetProperty);
         if (targetProperty == nullptr ||
             (!targetProperty->AcceptsAnyValue() &&
@@ -618,7 +618,7 @@ Base::Result<PropertyValue> BindingEngine::ConvertForTarget(
     record.conversionFailureStage =
         BindingDiagnosticStage::Convert;
     const DependencyProperty* targetProperty =
-        PropertyRegistry(record.descriptor.target).Find(
+        AeroGuiInternal::PropertyRegistry(record.descriptor.target).Find(
             record.descriptor.targetProperty);
     if (targetProperty == nullptr) {
         return Base::Status::Failure(
@@ -714,7 +714,7 @@ Base::Result<PropertyValue> BindingEngine::ConvertForSource(
     TypeId sourceType = InvalidTypeId;
     if (record.sourceKind == BindingSourceKind::DependencyProperty) {
         const DependencyProperty* sourceProperty =
-            PropertyRegistry(record.descriptor.source).Find(
+            AeroGuiInternal::PropertyRegistry(record.descriptor.source).Find(
                 record.descriptor.sourceProperty);
         if (sourceProperty != nullptr) {
             sourceType = sourceProperty->ValueType();

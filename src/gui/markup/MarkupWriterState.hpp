@@ -1,6 +1,5 @@
 #pragma once
-#include "gui/controls/State.hpp" 
-#include "gui/templates/TemplateState.hpp"
+#include "gui/templates/TemplateInstance.hpp"
 #include "gui/markup/MarkupState.hpp"
 // Markup materialize surface (extensions, ObjectWriter, facets, template compiler).
 
@@ -1258,9 +1257,6 @@ static_assert(
 
 
 #include <Aero/Controls/ControlTemplate.hpp>
-#include "gui/controls/State.hpp"
-#include "gui/controls/State.hpp"
-#include "gui/templates/TemplateState.hpp"
 #include <Aero/Controls.hpp>
 
 #include <Aero/Media/Animation.hpp>

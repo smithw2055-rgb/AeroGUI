@@ -1,4 +1,10 @@
-#include "gui/core/State.hpp" 
+#include "gui/core/state/ElementTree.hpp"
+#include "gui/core/state/LayoutEngine.hpp"
+#include "gui/core/state/FreezableState.hpp"
+#include "gui/core/state/PropertyEngine.hpp"
+#include "gui/core/state/RoutedEvents.hpp"
+#include "gui/core/state/EventRouter.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include <Aero/Controls.hpp>
@@ -171,7 +177,7 @@ ToolBar::OnApplyTemplate() noexcept {
         GetTemplateChild("HeaderText");
     headerText_ =
         header != nullptr &&
-        PropertyRegistry(*this).Types().IsDerivedFrom(
+        AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             header->RuntimeType(),
             TextBlock::StaticTypeId())
         ? static_cast<TextBlock*>(header)
@@ -183,7 +189,7 @@ ToolBar::OnApplyTemplate() noexcept {
         GetTemplateChild("OverflowGlyph");
     overflowGlyph_ =
         overflow != nullptr &&
-        PropertyRegistry(*this).Types().IsDerivedFrom(
+        AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             overflow->RuntimeType(),
             TextBlock::StaticTypeId())
         ? static_cast<TextBlock*>(overflow)
@@ -222,7 +228,7 @@ ToolBar::SynchronizeToolBar() noexcept {
     }
     Panel* host = GetItemsHost();
     if (host != nullptr &&
-        PropertyRegistry(*this).Types().IsDerivedFrom(
+        AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             host->RuntimeType(),
             StackPanel::StaticTypeId())) {
         static_cast<StackPanel*>(host)->
