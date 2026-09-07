@@ -246,7 +246,7 @@ Base::Result<std::uint32_t> InteractivityEngine::StartStyleDataTriggers(
         const Aero::Style& style) noexcept {
         std::uint32_t started = 0U;
         const Base::Span<const Aero::TriggerPlan> triggers =
-            Aero::StylePrivate::RuntimeTriggers(style);
+            Aero::StyleState::RuntimeTriggers(style);
         for (std::uint32_t index = 0U;
              index < triggers.Size(); ++index) {
             const Aero::TriggerPlan& trigger = triggers[index];
@@ -415,8 +415,7 @@ Base::Result<std::uint32_t> InteractivityEngine::StartStyleDataTriggers(
                     dependencySource =
                         static_cast<::Aero::DependencyObject*>(sourceObject);
                     dependencyProperty =
-                        ::Aero::MetadataPrivate::
-                            DependencyProperties(*Metadata()).Find(
+                        (*Metadata()).DependencyProperties().Find(
                                 sourceObject->RuntimeType(), path);
                 }
                 if (dependencyProperty == nullptr) {

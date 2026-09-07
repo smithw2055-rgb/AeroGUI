@@ -26,14 +26,14 @@ void AddTemplateTrigger(
     if (!value) {
         return;
     }
-    (void)::Aero::Controls::TemplatePrivate::AddAuthoredTrigger(
+    (void)::Aero::Controls::FrameworkTemplateState::AddAuthoredTrigger(
         static_cast<FrameworkTemplate&>(owner), value);
 }
 
 void ClearTemplateTriggers(
     Base::Object& owner,
     void*) noexcept {
-    ::Aero::Controls::TemplatePrivate::ClearAuthoredTriggers(
+    ::Aero::Controls::FrameworkTemplateState::ClearAuthoredTriggers(
         static_cast<FrameworkTemplate&>(owner));
 }
 
@@ -43,13 +43,13 @@ void SetDeferredTemplateVisualTree(
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
     if constexpr (std::is_same_v<T, ControlTemplate>) {
-        (void)::Aero::Controls::TemplatePrivate::SetAuthoredVisualTree(
+        (void)::Aero::Controls::FrameworkTemplateState::SetAuthoredVisualTree(
             static_cast<ControlTemplate&>(object), value);
     } else if constexpr (std::is_same_v<T, DataTemplate>) {
-        (void)::Aero::Controls::TemplatePrivate::SetAuthoredVisualTree(
+        (void)::Aero::Controls::FrameworkTemplateState::SetAuthoredVisualTree(
             static_cast<DataTemplate&>(object), value);
     } else {
-        (void)::Aero::Controls::TemplatePrivate::SetAuthoredVisualTree(
+        (void)::Aero::Controls::FrameworkTemplateState::SetAuthoredVisualTree(
             static_cast<ItemsPanelTemplate&>(object), value);
     }
 }
@@ -59,13 +59,13 @@ void ClearDeferredTemplateVisualTree(
     Base::Object& object,
     void*) noexcept {
     if constexpr (std::is_same_v<T, ControlTemplate>) {
-        ::Aero::Controls::TemplatePrivate::ClearAuthoredVisualTree(
+        ::Aero::Controls::FrameworkTemplateState::ClearAuthoredVisualTree(
             static_cast<ControlTemplate&>(object));
     } else if constexpr (std::is_same_v<T, DataTemplate>) {
-        ::Aero::Controls::TemplatePrivate::ClearAuthoredVisualTree(
+        ::Aero::Controls::FrameworkTemplateState::ClearAuthoredVisualTree(
             static_cast<DataTemplate&>(object));
     } else {
-        ::Aero::Controls::TemplatePrivate::ClearAuthoredVisualTree(
+        ::Aero::Controls::FrameworkTemplateState::ClearAuthoredVisualTree(
             static_cast<ItemsPanelTemplate&>(object));
     }
 }
@@ -74,14 +74,14 @@ void AddTemplateVisualStateGroup(
     Base::Object& object,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
-    (void)::Aero::Controls::TemplatePrivate::AddAuthoredVisualStateGroup(
+    (void)::Aero::Controls::FrameworkTemplateState::AddAuthoredVisualStateGroup(
         static_cast<ControlTemplate&>(object), value);
 }
 
 void ClearTemplateVisualStateGroups(
     Base::Object& object,
     void*) noexcept {
-    ::Aero::Controls::TemplatePrivate::ClearAuthoredVisualStateGroups(
+    ::Aero::Controls::FrameworkTemplateState::ClearAuthoredVisualStateGroups(
         static_cast<ControlTemplate&>(object));
 }
 
@@ -93,7 +93,7 @@ Meta::TypeReference GetControlTemplateTargetType(
 void SetControlTemplateTargetType(
     ControlTemplate& target,
     Meta::TypeReference value) noexcept {
-    (void)::Aero::Controls::TemplatePrivate::SetTargetType(target, value.type);
+    (void)::Aero::Controls::FrameworkTemplateState::SetTargetType(target, value.type);
 }
 
 Meta::TypeReference GetDataTemplateType(
@@ -267,14 +267,14 @@ void AddDataTemplateTrigger(
     if (!retained) {
         return;
     }
-    (void)::Aero::Controls::TemplatePrivate::AddAuthoredTrigger(
+    (void)::Aero::Controls::FrameworkTemplateState::AddAuthoredTrigger(
         static_cast<DataTemplate&>(owner), std::move(retained));
 }
 
 void ClearDataTemplateTriggers(
     Base::Object& owner,
     void*) noexcept {
-    ::Aero::Controls::TemplatePrivate::ClearAuthoredTriggers(
+    ::Aero::Controls::FrameworkTemplateState::ClearAuthoredTriggers(
         static_cast<DataTemplate&>(owner));
 }
 

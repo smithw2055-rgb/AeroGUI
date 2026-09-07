@@ -59,7 +59,7 @@ void RemoveKey(
 
 } // namespace
 
-struct DependencyGraphState {
+struct DependencyGraph::State {
     struct Node {
         explicit Node(Base::IAllocator& allocator) noexcept
             : dependencies(&allocator), dependents(&allocator) {}
@@ -69,7 +69,7 @@ struct DependencyGraphState {
         Base::Vector<Base::String> dependents;
     };
 
-    explicit DependencyGraphState(Base::IAllocator& allocator) noexcept
+    explicit State(Base::IAllocator& allocator) noexcept
         : allocator(&allocator), nodes(&allocator) {}
 
     Base::Result<Node*> EnsureNode(
@@ -94,10 +94,10 @@ struct DependencyGraphState {
 };
 
 static_assert(
-    sizeof(DependencyGraphState) <= 2048,
+    sizeof(DependencyGraph::State) <= 2048,
     "DependencyGraph inline state storage is too small");
 static_assert(
-    alignof(DependencyGraphState) <= alignof(std::max_align_t),
+    alignof(DependencyGraph::State) <= alignof(std::max_align_t),
     "DependencyGraph inline state alignment is insufficient");
 
 DependencyGraph::DependencyGraph(
@@ -105,12 +105,12 @@ DependencyGraph::DependencyGraph(
     : allocator_(allocator != nullptr
           ? allocator
           : &Base::GetDefaultAllocator()) {
-    state_ = new (stateStorage_) DependencyGraphState(*allocator_);
+    state_ = new (stateStorage_) DependencyGraph::State(*allocator_);
 }
 
 DependencyGraph::~DependencyGraph() noexcept {
     if (state_ == nullptr) return;
-    state_->~DependencyGraphState();
+    state_->~State();
     state_ = nullptr;
 }
 
@@ -119,8 +119,8 @@ DependencyGraph::DependencyGraph(
     : allocator_(other.allocator_) {
     if (other.state_ != nullptr) {
         state_ = new (stateStorage_)
-            DependencyGraphState(std::move(*other.state_));
-        other.state_->~DependencyGraphState();
+            State(std::move(*other.state_));
+        other.state_->~State();
         other.state_ = nullptr;
     }
     other.allocator_ = nullptr;
@@ -130,14 +130,14 @@ DependencyGraph& DependencyGraph::operator=(
     DependencyGraph&& other) noexcept {
     if (this == &other) return *this;
     if (state_ != nullptr) {
-        state_->~DependencyGraphState();
+        state_->~State();
         state_ = nullptr;
     }
     allocator_ = other.allocator_;
     if (other.state_ != nullptr) {
         state_ = new (stateStorage_)
-            DependencyGraphState(std::move(*other.state_));
-        other.state_->~DependencyGraphState();
+            State(std::move(*other.state_));
+        other.state_->~State();
         other.state_ = nullptr;
     }
     other.allocator_ = nullptr;
@@ -155,7 +155,7 @@ Base::Result<void> DependencyGraph::Update(
     Base::Result<Base::String> documentKey =
         MakeKey(document, *allocator_);
     if (!documentKey) return documentKey.GetStatus();
-    Base::Result<DependencyGraphState::Node*> documentNode =
+    Base::Result<DependencyGraph::State::Node*> documentNode =
         state_->EnsureNode(document);
     if (!documentNode) return documentNode.GetStatus();
 
@@ -171,7 +171,7 @@ Base::Result<void> DependencyGraph::Update(
         if (ContainsKey(newDependencies, dependencyKey.Value().View())) {
             continue;
         }
-        Base::Result<DependencyGraphState::Node*> dependencyNode =
+        Base::Result<DependencyGraph::State::Node*> dependencyNode =
             state_->EnsureNode(dependencyUri);
         if (!dependencyNode) return dependencyNode.GetStatus();
         Base::Result<void> appended = newDependencies.PushBack(
@@ -187,7 +187,7 @@ Base::Result<void> DependencyGraph::Update(
         reverseKeys.Reserve(newDependencies.Size());
     if (!reverseReserved) return reverseReserved.GetStatus();
     for (const Base::String& dependencyKey : newDependencies) {
-        DependencyGraphState::Node* dependency = state_->nodes.Find(dependencyKey);
+        DependencyGraph::State::Node* dependency = state_->nodes.Find(dependencyKey);
         if (dependency == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
@@ -206,14 +206,14 @@ Base::Result<void> DependencyGraph::Update(
         if (!stored) return stored.GetStatus();
     }
 
-    DependencyGraphState::Node* node = state_->nodes.Find(documentKey.Value());
+    DependencyGraph::State::Node* node = state_->nodes.Find(documentKey.Value());
     if (node == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "XAML dependency graph lost the document node");
     }
     for (const Base::String& oldDependency : node->dependencies) {
-        DependencyGraphState::Node* dependency = state_->nodes.Find(oldDependency);
+        DependencyGraph::State::Node* dependency = state_->nodes.Find(oldDependency);
         if (dependency == nullptr) continue;
         RemoveKey(
             dependency->dependents,
@@ -228,7 +228,7 @@ Base::Result<void> DependencyGraph::Update(
     for (std::uint32_t index = 0U;
          index < node->dependencies.Size();
          ++index) {
-        DependencyGraphState::Node* dependency =
+        DependencyGraph::State::Node* dependency =
             state_->nodes.Find(node->dependencies[index]);
         if (dependency == nullptr) continue;
         if (ContainsKey(
@@ -251,7 +251,7 @@ bool DependencyGraph::Remove(
     Base::Result<Base::String> key =
         MakeKey(document, *allocator_);
     if (!key) return false;
-    DependencyGraphState::Node* node = state_->nodes.Find(key.Value());
+    DependencyGraph::State::Node* node = state_->nodes.Find(key.Value());
     if (node == nullptr) return false;
 
     Base::Vector<Base::String> previousDependencies(allocator_);
@@ -261,7 +261,7 @@ bool DependencyGraph::Remove(
     }
     node->dependencies.Clear();
     for (const Base::String& dependencyKey : previousDependencies) {
-        DependencyGraphState::Node* dependency = state_->nodes.Find(dependencyKey);
+        DependencyGraph::State::Node* dependency = state_->nodes.Find(dependencyKey);
         if (dependency == nullptr) continue;
         RemoveKey(dependency->dependents, key.Value().View());
         if (dependency->dependencies.Empty() &&
@@ -290,13 +290,13 @@ Base::Result<void> DependencyGraph::CopyDependencies(
     Base::Result<Base::String> key =
         MakeKey(document, *allocator_);
     if (!key) return key.GetStatus();
-    const DependencyGraphState::Node* node = state_->nodes.Find(key.Value());
+    const DependencyGraph::State::Node* node = state_->nodes.Find(key.Value());
     if (node == nullptr) return {};
     Base::Result<void> reserved =
         output.Reserve(node->dependencies.Size());
     if (!reserved) return reserved.GetStatus();
     for (const Base::String& dependencyKey : node->dependencies) {
-        const DependencyGraphState::Node* dependency = state_->nodes.Find(dependencyKey);
+        const DependencyGraph::State::Node* dependency = state_->nodes.Find(dependencyKey);
         if (dependency == nullptr) continue;
         Base::Result<void> pushed = output.PushBack(dependency->uri);
         if (!pushed) return pushed.GetStatus();
@@ -312,13 +312,13 @@ Base::Result<void> DependencyGraph::CopyDependents(
     Base::Result<Base::String> key =
         MakeKey(dependency, *allocator_);
     if (!key) return key.GetStatus();
-    const DependencyGraphState::Node* node = state_->nodes.Find(key.Value());
+    const DependencyGraph::State::Node* node = state_->nodes.Find(key.Value());
     if (node == nullptr) return {};
     Base::Result<void> reserved =
         output.Reserve(node->dependents.Size());
     if (!reserved) return reserved.GetStatus();
     for (const Base::String& dependentKey : node->dependents) {
-        const DependencyGraphState::Node* dependent = state_->nodes.Find(dependentKey);
+        const DependencyGraph::State::Node* dependent = state_->nodes.Find(dependentKey);
         if (dependent == nullptr) continue;
         Base::Result<void> pushed = output.PushBack(dependent->uri);
         if (!pushed) return pushed.GetStatus();
@@ -349,7 +349,7 @@ Base::Result<void> DependencyGraph::CollectAffected(
         if (!inserted) return inserted.GetStatus();
         if (!inserted.Value().inserted) continue;
 
-        const DependencyGraphState::Node* node = state_->nodes.Find(key);
+        const DependencyGraph::State::Node* node = state_->nodes.Find(key);
         Base::ResourceUri uri = node != nullptr
             ? node->uri
             : changed;
@@ -373,7 +373,7 @@ std::uint64_t DependencyGraph::Generation() const noexcept {
     return state_ != nullptr ? state_->generation : 0U;
 }
 
-struct DocumentCacheState {
+struct DocumentCache::State {
     struct Entry {
         explicit Entry(Base::IAllocator& allocator) noexcept
             : compiledBytes(&allocator) {}
@@ -385,7 +385,7 @@ struct DocumentCacheState {
         std::uint64_t lastAccess = 0U;
     };
 
-    DocumentCacheState(
+    State(
         Base::IAllocator& allocator,
         const DocumentCacheLimits& valueLimits) noexcept
         : allocator(&allocator),
@@ -444,10 +444,10 @@ struct DocumentCacheState {
 };
 
 static_assert(
-    sizeof(DocumentCacheState) <= 8192,
+    sizeof(DocumentCache::State) <= 8192,
     "DocumentCache inline state storage is too small");
 static_assert(
-    alignof(DocumentCacheState) <= alignof(std::max_align_t),
+    alignof(DocumentCache::State) <= alignof(std::max_align_t),
     "DocumentCache inline state alignment is insufficient");
 
 DocumentCache::DocumentCache(
@@ -457,12 +457,12 @@ DocumentCache::DocumentCache(
           ? allocator
           : &Base::GetDefaultAllocator()) {
     state_ = new (stateStorage_)
-        DocumentCacheState(*allocator_, limits);
+        State(*allocator_, limits);
 }
 
 DocumentCache::~DocumentCache() noexcept {
     if (state_ == nullptr) return;
-    state_->~DocumentCacheState();
+    state_->~State();
     state_ = nullptr;
 }
 
@@ -471,8 +471,8 @@ DocumentCache::DocumentCache(
     : allocator_(other.allocator_) {
     if (other.state_ != nullptr) {
         state_ = new (stateStorage_)
-            DocumentCacheState(std::move(*other.state_));
-        other.state_->~DocumentCacheState();
+            State(std::move(*other.state_));
+        other.state_->~State();
         other.state_ = nullptr;
     }
     other.allocator_ = nullptr;
@@ -482,14 +482,14 @@ DocumentCache& DocumentCache::operator=(
     DocumentCache&& other) noexcept {
     if (this == &other) return *this;
     if (state_ != nullptr) {
-        state_->~DocumentCacheState();
+        state_->~State();
         state_ = nullptr;
     }
     allocator_ = other.allocator_;
     if (other.state_ != nullptr) {
         state_ = new (stateStorage_)
-            DocumentCacheState(std::move(*other.state_));
-        other.state_->~DocumentCacheState();
+            State(std::move(*other.state_));
+        other.state_->~State();
         other.state_ = nullptr;
     }
     other.allocator_ = nullptr;
@@ -506,7 +506,7 @@ Base::Result<DocumentCacheLookup> DocumentCache::Lookup(
     if (state_ == nullptr || uri.Empty()) return result;
     Base::Result<Base::String> key = MakeKey(uri, *allocator_);
     if (!key) return key.GetStatus();
-    DocumentCacheState::Entry* entry = state_->entries.Find(key.Value());
+    DocumentCache::State::Entry* entry = state_->entries.Find(key.Value());
     if (entry == nullptr) {
         ++state_->misses;
         return result;
@@ -557,7 +557,7 @@ Base::Result<void> DocumentCache::Store(
 
     Base::Result<Base::String> key = MakeKey(uri, *allocator_);
     if (!key) return key.GetStatus();
-    DocumentCacheState::Entry* existing = state_->entries.Find(key.Value());
+    DocumentCache::State::Entry* existing = state_->entries.Find(key.Value());
     if (existing != nullptr) {
         state_->compiledBytes -= existing->compiledBytes.Size();
         existing->uri = uri;
@@ -567,14 +567,14 @@ Base::Result<void> DocumentCache::Store(
         existing->lastAccess = ++state_->accessSequence;
         state_->compiledBytes += existing->compiledBytes.Size();
     } else {
-        DocumentCacheState::Entry entry(*allocator_);
+        DocumentCache::State::Entry entry(*allocator_);
         entry.uri = uri;
         entry.compiledBytes = std::move(serialized).Value();
         entry.sourceRevision = sourceRevision;
         entry.sourceIdentity = sourceIdentity;
         entry.lastAccess = ++state_->accessSequence;
         state_->compiledBytes += entry.compiledBytes.Size();
-        Base::Result<typename Base::HashMap<Base::String, DocumentCacheState::Entry>::InsertResult>
+        Base::Result<typename Base::HashMap<Base::String, DocumentCache::State::Entry>::InsertResult>
             inserted = state_->entries.Insert(
                 std::move(key).Value(), std::move(entry));
         if (!inserted) {
@@ -644,7 +644,7 @@ bool DocumentCache::GetSourceRevision(
     if (state_ == nullptr || uri.Empty()) return false;
     Base::Result<Base::String> key = MakeKey(uri, *allocator_);
     if (!key) return false;
-    const DocumentCacheState::Entry* entry = state_->entries.Find(key.Value());
+    const DocumentCache::State::Entry* entry = state_->entries.Find(key.Value());
     if (entry == nullptr || entry->sourceIdentity != sourceIdentity) {
         return false;
     }

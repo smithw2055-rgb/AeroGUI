@@ -12,7 +12,7 @@
 
 namespace Aero::Controls {
 class Control;
-class TemplatePrivate;
+struct FrameworkTemplateState;
 }
 
 namespace Aero {
@@ -39,7 +39,7 @@ public:
     VisualStateManager& operator=(const VisualStateManager&) = delete;
 
 private:
-    friend class Controls::TemplatePrivate;
+    friend struct Controls::FrameworkTemplateState;
     VisualStateManager() noexcept = default;
     void* impl_ = nullptr;
 };

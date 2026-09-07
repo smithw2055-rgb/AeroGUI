@@ -5,7 +5,6 @@
 #include "gui/core/DependencyPropertyRegistry.hpp"
 
 namespace Aero {
-class MetadataPrivate;
 class MetaTable;
 }
 
@@ -391,16 +390,16 @@ public:
     // is confined to module callbacks and their Registration.
     const TypeRegistry& Types() const noexcept;
     const DependencyPropertyRegistry& DependencyProperties() const noexcept;
+    // Non-const accessors for runtime engines (former MetadataPrivate bridge).
+    DependencyPropertyRegistry& DependencyProperties() noexcept;
+    void* RoutedEventState() noexcept;
     Base::Result<Base::HashCode> ComputeSchemaHash() const noexcept;
 
 private:
-    friend class ::Aero::MetadataPrivate;
 
     struct Storage;
     Storage* storage_ = nullptr;
 
-    DependencyPropertyRegistry& DependencyProperties() noexcept;
-    void* RoutedEventState() noexcept;
     const ::Aero::MetaTable& RuntimeData() const noexcept;
 
     static Base::Status OutOfMemoryStatus() noexcept;
@@ -611,22 +610,6 @@ inline Base::Result<void> RegisterUiMetadata(
 } // namespace Aero
 
 
-namespace Aero {
-
-class MetadataPrivate {
-public:
-    static ::Aero::Meta::DependencyPropertyRegistry& DependencyProperties(
-        ::Aero::Meta::Registry& domain) noexcept {
-        return domain.DependencyProperties();
-    }
-
-    static void* RoutedEventState(
-        ::Aero::Meta::Registry& domain) noexcept {
-        return domain.RoutedEventState();
-    }
-};
-
-} // namespace Aero
 
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/String.hpp>

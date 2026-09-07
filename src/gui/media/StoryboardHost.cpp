@@ -95,7 +95,7 @@ StoryboardHost::StoryboardTimingState StoryboardHost::ComposeStoryboardTiming(
             ? *inherited
             : StoryboardTimingState{};
         const Aero::Media::Animation::Model::TimelineTiming authored =
-            Aero::Media::AnimationPrivate::Timing(storyboard);
+            Aero::Media::Animation::Timing(storyboard);
         if (UINT64_MAX - result.beginTimeMicroseconds <
             authored.beginTimeMicroseconds) {
             result.beginTimeMicroseconds = UINT64_MAX;
@@ -125,7 +125,7 @@ Aero::Media::Animation::Model::TimelineTiming StoryboardHost::EffectiveTimelineT
         const MediaAnimation::Timeline& timeline,
         const StoryboardTimingState* inherited) noexcept {
         Aero::Media::Animation::Model::TimelineTiming result =
-            Aero::Media::AnimationPrivate::Timing(timeline);
+            Aero::Media::Animation::Timing(timeline);
         if (inherited == nullptr) return result;
         if (UINT64_MAX - inherited->beginTimeMicroseconds <
             result.beginTimeMicroseconds) {
@@ -141,7 +141,7 @@ Aero::Media::Animation::Model::TimelineTiming StoryboardHost::EffectiveTimelineT
         } else if (inherited->hasDuration &&
                    inherited->preservesChildDuration) {
             const Aero::Media::Animation::AnimationTime childBegin =
-                Aero::Media::AnimationPrivate::
+                Aero::Media::Animation::
                     Timing(timeline).beginTimeMicroseconds;
             const Aero::Media::Animation::AnimationTime available =
                 childBegin >= inherited->durationMicroseconds

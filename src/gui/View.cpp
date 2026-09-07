@@ -192,14 +192,12 @@ Base::Result<void> ViewState::Initialize(
 
         if (status) {
             status = AllocateObject(*allocator, Base::MemoryTag::Ui, objectFactory, *dispatcher,
-                ::Aero::MetadataPrivate::
-                    DependencyProperties(*metadata),
+                (*metadata).DependencyProperties(),
                 *metadata);
         }
         if (status) {
             status = AllocateObject(*allocator, Base::MemoryTag::Ui, values, *dispatcher,
-                ::Aero::MetadataPrivate::
-                    DependencyProperties(*metadata));
+                (*metadata).DependencyProperties());
         }
         if (status) status = values->Initialize();
         Aero::AnimationEngine* animations = nullptr;
@@ -264,8 +262,7 @@ Base::Result<void> ViewState::Initialize(
         Aero::EventRouter* events = nullptr;
         if (status) {
             status = AllocateObject(*allocator, Base::MemoryTag::Ui, events,
-                ::Aero::MetadataPrivate::
-                    RoutedEventState(*metadata));
+                (*metadata).RoutedEventState());
         }
         if (status) {
             tree->SetEvents(events);

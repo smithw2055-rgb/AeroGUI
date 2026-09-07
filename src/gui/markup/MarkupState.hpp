@@ -32,11 +32,6 @@ struct XamlDeferredContentFacet;
 struct XamlImplicitResourceKeyFacet;
 struct XamlPropertyTargetFacet;
 struct XamlMarkupExtensionFacet;
-struct SchemaManifestState;
-struct DependencyGraphState;
-struct DocumentCacheState;
-struct UiObjectModelState;
-struct XamlTemplateSchemaFacetState;
 
 enum class XmlTokenKind : std::uint8_t {
     None = 0U,
@@ -1013,6 +1008,7 @@ struct SchemaTypeInfo {
 
 class SchemaManifest {
 public:
+    struct State;
     explicit SchemaManifest(
         Base::IAllocator* allocator = nullptr) noexcept;
     ~SchemaManifest() noexcept;
@@ -1054,11 +1050,11 @@ public:
 private:
     Base::IAllocator* allocator_ = nullptr;
     alignas(std::max_align_t) std::uint8_t stateStorage_[2048]{};
-    SchemaManifestState* state_ = nullptr;
+    State* state_ = nullptr;
 
     explicit SchemaManifest(
         Base::IAllocator& allocator,
-        SchemaManifestState* state) noexcept;
+        State* state) noexcept;
 };
 
 inline constexpr Base::StringView
@@ -1261,6 +1257,7 @@ struct DocumentCacheLookup {
 
 class DependencyGraph {
 public:
+    struct State;
     explicit DependencyGraph(
         Base::IAllocator* allocator = nullptr) noexcept;
     ~DependencyGraph() noexcept;
@@ -1295,11 +1292,12 @@ public:
 private:
     Base::IAllocator* allocator_ = nullptr;
     alignas(std::max_align_t) std::uint8_t stateStorage_[2048]{};
-    DependencyGraphState* state_ = nullptr;
+    State* state_ = nullptr;
 };
 
 class DocumentCache {
 public:
+    struct State;
     explicit DocumentCache(
         Base::IAllocator* allocator = nullptr,
         const DocumentCacheLimits& limits = {}) noexcept;
@@ -1369,7 +1367,7 @@ public:
 private:
     Base::IAllocator* allocator_ = nullptr;
     alignas(std::max_align_t) std::uint8_t stateStorage_[8192]{};
-    DocumentCacheState* state_ = nullptr;
+    State* state_ = nullptr;
 };
 
 class Loader {
@@ -1379,7 +1377,7 @@ public:
         XamlProviderRegistry& providers,
         Diagnostics::IDiagnosticSink* diagnostics = nullptr,
         Base::IAllocator* allocator = nullptr,
-        const LoadState* runtime = nullptr) noexcept;
+        const LoadState* loadState = nullptr) noexcept;
     ~Loader() noexcept;
 
     Loader(const Loader&) = delete;
@@ -1419,20 +1417,6 @@ private:
     // (≈ ParserContext), which is supplied per Load and dies with that load.
     struct LoaderState;
 
-    static ::Aero::Meta::Registry* SchemaMetadata(
-        Schema& schema) noexcept {
-        return schema.Metadata();
-    }
-    static const ::Aero::Meta::Registry& SchemaDomain(
-        Schema& schema) noexcept {
-        return schema.Domain();
-    }
-    static Aero::ResourceDictionary* SchemaResolveResourceScope(
-        Schema& schema,
-        Meta::TypeId scopeType,
-        Base::Object& scopeOwner) noexcept {
-        return schema.ResolveResourceScope(scopeType, scopeOwner);
-    }
 
     Base::IAllocator* allocator_ = nullptr;
     alignas(std::max_align_t) std::uint8_t stateStorage_[512]{};
@@ -1472,14 +1456,14 @@ using EffectRollbackCallback = void (*)(
     std::uint64_t token) noexcept;
 using EffectCleanupCallback = void (*)(void* context) noexcept;
 
-struct EffectRuntimeServices {
+struct EffectServices {
     Meta::EffectiveValueEngine* effectiveValues = nullptr;
     Aero::BindingEngine* bindings = nullptr;
     Aero::ResourceDictionary* fallbackResources = nullptr;
     Base::Ref<EffectLifetime> lifetime;
 };
 using EffectBindCallback = Base::Result<void> (*)(
-    void* context, const EffectRuntimeServices& services) noexcept;
+    void* context, const EffectServices& services) noexcept;
 
 struct VisualContentEdge {
     Base::Ref<Base::Object> parentOwner;
@@ -1531,7 +1515,7 @@ struct CommittedEffect {
     bool committed = false;
 
     Base::Result<void> Bind(
-        const EffectRuntimeServices& services) noexcept {
+        const EffectServices& services) noexcept {
         if (!lifetime && services.lifetime) lifetime = services.lifetime;
         if (effectiveValues == nullptr && services.effectiveValues != nullptr) {
             effectiveValues = services.effectiveValues;
@@ -1635,7 +1619,7 @@ public:
         const CommittedEffectPlan&) = delete;
 
     Base::Result<void> Bind(
-        const EffectRuntimeServices& services) noexcept {
+        const EffectServices& services) noexcept {
         for (CommittedEffect& effect : effects_) {
             Base::Result<void> bound = effect.Bind(services);
             if (!bound) return bound.GetStatus();
@@ -1761,14 +1745,13 @@ class Schema;
 
 namespace Aero {
 
-struct GuiSchemaState;
-
 struct GuiSchemaOptions {
     Base::IAllocator* allocator = nullptr;
 };
 
 class GuiSchema {
 public:
+    struct State;
     explicit GuiSchema(
         Base::IAllocator* allocator = nullptr) noexcept;
     ~GuiSchema() noexcept;
@@ -1790,7 +1773,7 @@ public:
 private:
     Base::IAllocator* allocator_ = nullptr;
     alignas(std::max_align_t) std::uint8_t stateStorage_[65536]{};
-    GuiSchemaState* state_ = nullptr;
+    State* state_ = nullptr;
 };
 
 } // namespace Aero
@@ -1893,6 +1876,7 @@ struct UiObjectModelTypes {
 // object model instead of constructing independent Style or Template paths.
 class UiObjectModel {
 public:
+    struct State;
     explicit UiObjectModel(
         const UiObjectModelOptions& options) noexcept;
     ~UiObjectModel() noexcept;
@@ -1911,7 +1895,7 @@ public:
 private:
     Base::IAllocator* allocator_ = nullptr;
     alignas(std::max_align_t) std::uint8_t stateStorage_[4096]{};
-    UiObjectModelState* state_ = nullptr;
+    State* state_ = nullptr;
     bool optionsValid_ = false;
 };
 
@@ -1957,6 +1941,7 @@ private:
 
 class XamlTemplateSchemaFacet {
 public:
+    struct State;
     XamlTemplateSchemaFacet(
         ::Aero::Meta::Registry& metadata,
         Meta::DependencyPropertyRegistry& properties,
@@ -1974,7 +1959,7 @@ public:
 private:
     Base::IAllocator* allocator_ = nullptr;
     alignas(std::max_align_t) std::uint8_t stateStorage_[1024]{};
-    XamlTemplateSchemaFacetState* state_ = nullptr;
+    State* state_ = nullptr;
 };
 
 } // namespace Aero::Markup
@@ -1993,7 +1978,7 @@ namespace Aero::Markup {
 Base::Result<::Aero::Markup::XamlDocument> AdoptXamlDocument(
     ::Aero::Markup::LoaderResult&& result,
     Base::IAllocator& allocator) noexcept;
-const ::Aero::Markup::EffectLifetime* XamlDocumentRuntimeLifetime(
+const ::Aero::Markup::EffectLifetime* XamlDocumentEffectLifetime(
     const ::Aero::Markup::XamlDocument& document) noexcept;
 ::Aero::Markup::LoaderResult TakeXamlDocument(
     ::Aero::Markup::XamlDocument& document) noexcept;

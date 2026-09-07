@@ -82,8 +82,7 @@ StoryboardHost::ExecuteAnimationAction(
         const Meta::DependencyPropertyHandle propertyHandle =
             resolved.Value().property;
         const Meta::DependencyProperty* property =
-            ::Aero::MetadataPrivate::
-                DependencyProperties(*Metadata())
+            (*Metadata()).DependencyProperties()
                     .Find(propertyHandle);
         if (property == nullptr) {
             return Base::Status::Failure(

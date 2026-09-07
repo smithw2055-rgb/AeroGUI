@@ -267,15 +267,6 @@ void DeferredContentPlan::ReleaseAll() noexcept {
     }
 }
 
-Base::Result<LoaderResult> ObjectWriter::LoadDocument(
-    NodeReader& reader) noexcept {
-    return Load(reader);
-}
-
-Base::Result<LoaderResult> ObjectWriter::LoadDocument(
-    const CompiledDocument& document) noexcept {
-    return Load(document);
-}
 
 Base::Result<Aero::Media::Visual*> ObjectWriter::ResolveVisual(
     ::Aero::Markup::Schema& schema,

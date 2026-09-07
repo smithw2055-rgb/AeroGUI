@@ -47,7 +47,8 @@ struct VisualStateGroupPlan {
 
 } // namespace Aero::Controls
 
-namespace Aero::Controls { class TemplateEngine; }
+namespace Aero { class VisualStateManager; class AnimationEngine; }
+namespace Aero::Controls { class TemplateEngine; class Control; }
 
 namespace Aero::Controls {
 
@@ -73,7 +74,7 @@ public:
 
 private:
     friend class Aero::Controls::TemplateEngine;
-    friend class Aero::Controls::TemplatePrivate;
+    friend struct Aero::Controls::FrameworkTemplateState;
     explicit TemplateBuilder(void* state) noexcept : state_(state) {}
     DependencyObject* FindObject(Base::StringView name) const noexcept;
     Base::Result<void> AddOwnedPart(Base::StringView name, Base::Ref<Base::Object> owner, ::Aero::Media::Visual& visual, void* mount) noexcept;
@@ -164,7 +165,112 @@ struct TemplateProgram {
     bool sealed = false;
 };
 
+struct DataTemplateState;
+struct ItemsPanelTemplateState;
+struct TemplateBuildState;
+
+using DeferredObjectFactory = Base::Result<Base::Ref<Base::Object>> (*)(
+    const Base::Ref<Base::Object>& item, void* context,
+    Aero::BindingEngine* bindings) noexcept;
+
 struct FrameworkTemplateState {
+
+    static DataTemplateState* State(DataTemplate& value) noexcept;
+    static const DataTemplateState* State(const DataTemplate& value) noexcept;
+    static ItemsPanelTemplateState* State(ItemsPanelTemplate& value) noexcept;
+    static const ItemsPanelTemplateState* State(const ItemsPanelTemplate& value) noexcept;
+    static Base::Result<void> Configure(DataTemplate& value, DeferredObjectFactory factory, void* context = nullptr, Base::Ref<Base::Object> owner = {}) noexcept;
+    static Base::Result<void> Configure(ItemsPanelTemplate& value, DeferredObjectFactory factory, void* context = nullptr, Base::Ref<Base::Object> owner = {}) noexcept;
+    static Base::Result<void> SetBaseUri(DataTemplate& value, const Base::ResourceUri& uri) noexcept;
+    static Base::Result<void> SetBaseUri(ItemsPanelTemplate& value, const Base::ResourceUri& uri) noexcept;
+    static const Base::ResourceUri& BaseUri(const DataTemplate& value) noexcept;
+    static const Base::ResourceUri& BaseUri(const ItemsPanelTemplate& value) noexcept;
+    static Base::Result<void> SetAuthoredVisualTree(DataTemplate& value, const Base::Ref<Base::Object>& tree) noexcept;
+    static Base::Result<void> SetAuthoredVisualTree(ItemsPanelTemplate& value, const Base::Ref<Base::Object>& tree) noexcept;
+    static void ClearAuthoredVisualTree(DataTemplate& value) noexcept;
+    static void ClearAuthoredVisualTree(ItemsPanelTemplate& value) noexcept;
+    static Base::Result<void> AddAuthoredTrigger(DataTemplate& value, Base::Ref<Aero::TriggerBase> trigger) noexcept;
+    static void ClearAuthoredTriggers(DataTemplate& value) noexcept;
+    static Base::Span<const Base::Ref<Aero::TriggerBase>> AuthoredTriggers(const DataTemplate& value) noexcept;
+    static Base::Result<void> RegisterAuthoredName(DataTemplate& value, Base::StringView name, Base::Object& object) noexcept;
+    static void ClearAuthoredNames(DataTemplate& value) noexcept;
+    static const Aero::NameScope& AuthoredNames(const DataTemplate& value) noexcept;
+    static const Base::Ref<Base::Object>& AuthoredVisualTree(const DataTemplate& value) noexcept;
+    static const Base::Ref<Base::Object>& AuthoredVisualTree(const ItemsPanelTemplate& value) noexcept;
+    static Base::Result<void> Seal(DataTemplate& value) noexcept;
+    static Base::Result<void> Seal(ItemsPanelTemplate& value) noexcept;
+    static Base::Result<Base::Ref<Base::Object>> Instantiate(
+        const DataTemplate& value, const Base::Ref<Base::Object>& item,
+        Aero::BindingEngine* bindings = nullptr) noexcept;
+    static Base::Result<Base::Ref<Base::Object>> Instantiate(const ItemsPanelTemplate& value) noexcept;
+
+    static FrameworkTemplateState* State(FrameworkTemplate& value) noexcept;
+    static const FrameworkTemplateState* State(const FrameworkTemplate& value) noexcept;
+    static Base::Result<void> SetTargetType(FrameworkTemplate& value, Meta::TypeId type) noexcept;
+    static Base::Result<void> ConfigureFactory(FrameworkTemplate& value, TemplateFactoryCallback factory, void* context = nullptr, Base::Ref<Base::Object> owner = {}) noexcept;
+    static Base::Result<void> AddTemplateBinding(FrameworkTemplate& value, Base::StringView targetName, DependencyPropertyHandle sourceProperty, DependencyPropertyHandle targetProperty) noexcept;
+    static Base::Result<void> AddTemplatedParentBinding(FrameworkTemplate& value, Base::StringView targetName, Base::StringView path, Base::StringView stringFormat, DependencyPropertyHandle targetProperty, Data::BindingMode mode, UpdateSourceTrigger updateSourceTrigger, const Base::Ref<Data::IValueConverter>& converter = {}, const Meta::PropertyValue& converterParameter = {}) noexcept;
+    static Base::Result<void> AddDynamicResource(FrameworkTemplate& value, Base::StringView targetName, Base::StringView key, DependencyPropertyHandle targetProperty) noexcept;
+    static Base::Result<void> AddPropertyTrigger(FrameworkTemplate& value, TemplatePropertyTrigger trigger) noexcept;
+    static Base::Result<void> AddVisualStateGroup(FrameworkTemplate& value, VisualStateGroupPlan group) noexcept;
+    static Base::Result<void> AddAuthoredTrigger(FrameworkTemplate& value, Base::Ref<Base::Object> trigger) noexcept;
+    static Base::Result<void> SetAuthoredVisualTree(ControlTemplate& value, const Base::Ref<Base::Object>& tree) noexcept;
+    static Base::Result<void> AddAuthoredVisualStateGroup(ControlTemplate& value, const Base::Ref<Base::Object>& group) noexcept;
+    static void ClearAuthoredVisualTree(ControlTemplate& value) noexcept;
+    static void ClearAuthoredVisualStateGroups(ControlTemplate& value) noexcept;
+    static void ClearAuthoredTriggers(FrameworkTemplate& value) noexcept;
+    static Base::Result<void> RegisterAuthoredName(ControlTemplate& value, Base::StringView name, Base::Object& object) noexcept;
+    static Base::Result<Base::String> EnsureAuthoredName(ControlTemplate& value, Base::Object& object) noexcept;
+    static void ClearAuthoredNames(ControlTemplate& value) noexcept;
+    static const Base::Ref<Base::Object>& AuthoredVisualTree(const ControlTemplate& value) noexcept;
+    static Base::Span<const Base::Ref<Base::Object>> AuthoredVisualStateGroups(const ControlTemplate& value) noexcept;
+    static const NameScope& AuthoredNames(const ControlTemplate& value) noexcept;
+    static Base::Span<const Base::Ref<Base::Object>> AuthoredTriggers(const FrameworkTemplate& value) noexcept;
+    static TemplateFactoryCallback Factory(const FrameworkTemplate& value) noexcept;
+    static void* FactoryContext(const FrameworkTemplate& value) noexcept;
+    static const Base::Ref<Base::Object>& FactoryOwner(const FrameworkTemplate& value) noexcept;
+    static const Base::ResourceUri& BaseUri(const FrameworkTemplate& value) noexcept;
+    static Base::Result<void> SetBaseUri(FrameworkTemplate& value, const Base::ResourceUri& uri) noexcept;
+    static Base::Result<void> AddNamespace(FrameworkTemplate& value, Base::StringView prefix, Base::StringView uri) noexcept;
+    static Base::Span<const TemplateNamespace> Namespaces(const FrameworkTemplate& value) noexcept;
+    static Base::Span<const TemplateBindingPlan> Bindings(const FrameworkTemplate& value) noexcept;
+    static Base::Span<const TemplateMetadataBindingPlan> MetadataBindings(const FrameworkTemplate& value) noexcept;
+    static Base::Span<const TemplateDynamicResourcePlan> DynamicResources(const FrameworkTemplate& value) noexcept;
+    static Base::Span<const TemplatePropertyTrigger> Triggers(const FrameworkTemplate& value) noexcept;
+    static Base::Span<const VisualStateGroupPlan> VisualStateGroups(const FrameworkTemplate& value) noexcept;
+    static Base::Result<void> Seal(FrameworkTemplate& value, const Meta::DependencyPropertyRegistry& properties) noexcept;
+    // Expand a sealed ControlTemplate into buildState (factory + presenters).
+    // TemplateEngine keeps instance registry / bindings / trigger Flush.
+    static Base::Result<void> Materialize(
+        const ControlTemplate& plan,
+        TemplateBuildState& buildState,
+        TemplateBuilder& context,
+        const Meta::DependencyPropertyRegistry& properties) noexcept;
+
+    // VisualStateManager execution path (merged companion).
+    static Base::Result<::Aero::VisualStateManager*> CreateVisualStateManager(
+        Meta::EffectiveValueEngine& values,
+        ::Aero::Controls::TemplateEngine& templates,
+        ::Aero::AnimationEngine& animations,
+        Meta::DependencyPropertyRegistry& properties) noexcept;
+    static Base::Result<bool> GoToState(
+        ::Aero::VisualStateManager& manager,
+        ::Aero::Controls::Control& control,
+        Base::StringView groupName,
+        Base::StringView stateName,
+        bool useTransitions = true) noexcept;
+    static Base::Result<bool> ClearState(
+        ::Aero::VisualStateManager& manager,
+        ::Aero::Controls::Control& control,
+        Base::StringView groupName) noexcept;
+    static Base::Result<std::uint32_t> Clear(
+        ::Aero::VisualStateManager& manager,
+        ::Aero::Controls::Control& control) noexcept;
+    static Base::StringView CurrentState(
+        const ::Aero::VisualStateManager& manager,
+        const ::Aero::Controls::Control& control,
+        Base::StringView groupName) noexcept;
+
     Meta::TypeId targetType = Meta::InvalidTypeId;
     TemplateProgram program;
     ResourceDictionary resources;
@@ -180,10 +286,6 @@ struct FrameworkTemplateState {
     std::uint32_t generatedNameSequence = 0U;
     bool sealed = false;
 };
-
-using DeferredObjectFactory = Base::Result<Base::Ref<Base::Object>> (*)(
-    const Base::Ref<Base::Object>& item, void* context,
-    Aero::BindingEngine* bindings) noexcept;
 
 struct DeferredObjectProgram {
     Base::Result<void> Configure(DeferredObjectFactory factory, void* context = nullptr) noexcept;

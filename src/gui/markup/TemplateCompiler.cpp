@@ -1024,7 +1024,7 @@ CompilePropertyTriggers(
                     // serialized definition vectors; their trigger mutation
                     // is deferred until that declaration-object runtime is
                     // materialized.
-                    if (::Aero::Controls::TemplatePrivate::AuthoredNames(controlTemplate).Find(
+                    if (::Aero::Controls::FrameworkTemplateState::AuthoredNames(controlTemplate).Find(
                             targetName) != nullptr) {
                         continue;
                     }
@@ -1057,7 +1057,7 @@ CompilePropertyTriggers(
         return {};
     };
     for (const Base::Ref<Base::Object>& object :
-         ::Aero::Controls::TemplatePrivate::AuthoredTriggers(controlTemplate)) {
+         ::Aero::Controls::FrameworkTemplateState::AuthoredTriggers(controlTemplate)) {
         TemplatePropertyTrigger trigger;
         Base::Result<void> configured;
         if (object && object->RuntimeType() == Trigger::StaticTypeId()) {
@@ -1323,7 +1323,7 @@ CompileVisualStates(
                 Media::Animation::Storyboard duration;
                 duration.SetDuration(sourceTransition.GetGeneratedDuration());
                 transition.generatedDurationMicroseconds =
-                    Aero::Media::AnimationPrivate::Timing(duration).durationMicroseconds;
+                    Aero::Media::Animation::Timing(duration).durationMicroseconds;
             }
             transition.generatedEasingFunction =
                 sourceTransition.GetGeneratedEasingFunction();
@@ -1349,12 +1349,12 @@ CompileVisualStates(
         return {};
     };
     for (const Base::Ref<Base::Object>& groupObject :
-         ::Aero::Controls::TemplatePrivate::AuthoredVisualStateGroups(controlTemplate)) {
+         ::Aero::Controls::FrameworkTemplateState::AuthoredVisualStateGroups(controlTemplate)) {
         Base::Result<void> compiled = compileGroup(groupObject);
         if (!compiled) return compiled.GetStatus();
     }
     Base::Ref<Base::Object> authoredRoot =
-        ::Aero::Controls::TemplatePrivate::AuthoredVisualTree(controlTemplate);
+        ::Aero::Controls::FrameworkTemplateState::AuthoredVisualTree(controlTemplate);
     if (authoredRoot &&
         runtime.Types().IsDerivedFrom(
             authoredRoot->RuntimeType(),
@@ -1384,13 +1384,13 @@ CompileControlTemplateDefinition(
     DependencyPropertyRegistry& properties) noexcept {
     Base::Result<CompiledTemplateBlueprint> blueprint =
         CompileBlueprint(
-        ::Aero::Controls::TemplatePrivate::AuthoredVisualTree(controlTemplate),
-        &::Aero::Controls::TemplatePrivate::AuthoredNames(controlTemplate),
+        ::Aero::Controls::FrameworkTemplateState::AuthoredVisualTree(controlTemplate),
+        &::Aero::Controls::FrameworkTemplateState::AuthoredNames(controlTemplate),
         edges,
         bindings,
-        ::Aero::Controls::TemplatePrivate::MetadataBindings(
+        ::Aero::Controls::FrameworkTemplateState::MetadataBindings(
             controlTemplate),
-        ::Aero::Controls::TemplatePrivate::DynamicResources(
+        ::Aero::Controls::FrameworkTemplateState::DynamicResources(
             controlTemplate),
         runtime,
         properties);
@@ -1413,7 +1413,7 @@ CompileControlTemplateDefinition(
     if (!triggers) return triggers.GetStatus();
 
     for (const Base::Ref<Base::Object>& authored :
-         ::Aero::Controls::TemplatePrivate::AuthoredTriggers(controlTemplate)) {
+         ::Aero::Controls::FrameworkTemplateState::AuthoredTriggers(controlTemplate)) {
         if (!authored) continue;
         if (authored->RuntimeType() == DataTrigger::StaticTypeId() ||
             authored->RuntimeType() == MultiDataTrigger::StaticTypeId() ||

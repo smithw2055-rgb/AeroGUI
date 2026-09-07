@@ -220,7 +220,7 @@ struct DeferredDynamicResourceState {
 
 
 Base::Result<void> BindDynamicResourceRuntime(
-    void* context, const EffectRuntimeServices& services) noexcept {
+    void* context, const EffectServices& services) noexcept {
     auto* state = static_cast<DeferredDynamicResourceState*>(context);
     if (state == nullptr || services.effectiveValues == nullptr) {
         return Base::Status::Failure(
@@ -559,7 +559,7 @@ Base::Result<ProvidedValue> DynamicResourceExtension::ProvideValue(
             targetName);
         if (!captured) return captured.GetStatus();
         Base::Result<void> retained =
-            ::Aero::Controls::TemplatePrivate::AddDynamicResource(
+            ::Aero::Controls::FrameworkTemplateState::AddDynamicResource(
                 controlTemplate,
                 targetName.View(),
                 key,

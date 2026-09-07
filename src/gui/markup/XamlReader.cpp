@@ -16,14 +16,14 @@ struct XamlLoadScope {
         DocumentCache& documents) noexcept
         : factory(
               dispatcher,
-              ::Aero::MetadataPrivate::DependencyProperties(
-                  schema.Metadata()),
+              (
+                  schema.Metadata()).DependencyProperties(),
               schema.Metadata()) {
         load.documentCache = &documents;
         load.dispatcher = &dispatcher;
         load.dependencyProperties =
-            &::Aero::MetadataPrivate::DependencyProperties(
-                schema.Metadata());
+            &(
+                schema.Metadata()).DependencyProperties();
         load.effectCommitMode = EffectCommitMode::Deferred;
     }
 

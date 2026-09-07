@@ -42,8 +42,8 @@ InteractivityEngine::ResolveInteractionTriggerProperty(
             resolved.dependencySource =
                 static_cast<::Aero::DependencyObject*>(sourceObject);
             const Meta::DependencyProperty* property =
-                Aero::MetadataPrivate::DependencyProperties(
-                    *Metadata()).Find(sourceObject->RuntimeType(), path);
+                (
+                    *Metadata()).DependencyProperties().Find(sourceObject->RuntimeType(), path);
             if (property != nullptr) {
                 resolved.dependencyProperty = property->Handle();
                 return resolved;

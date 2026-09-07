@@ -49,7 +49,7 @@ using ProvidedRollbackCallback = void (*)(
     std::uint64_t token) noexcept;
 using ProvidedCleanupCallback = void (*)(void* context) noexcept;
 using ProvidedBindCallback = Base::Result<void> (*)(
-    void* context, const EffectRuntimeServices& services) noexcept;
+    void* context, const EffectServices& services) noexcept;
 
 struct ProvidedValue {
     ProvidedValueKind kind = ProvidedValueKind::Value;
@@ -563,10 +563,6 @@ public:
         return diagnostics_;
     }
 
-    Base::Result<LoaderResult> LoadDocument(
-        NodeReader& reader) noexcept;
-    Base::Result<LoaderResult> LoadDocument(
-        const CompiledDocument& document) noexcept;
 
 private:
     static Base::Result<Aero::Media::Visual*> ResolveVisual(

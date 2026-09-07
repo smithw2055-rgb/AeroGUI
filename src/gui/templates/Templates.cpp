@@ -431,7 +431,7 @@ Base::Result<void> TemplateBuilder::PopulateItemsPresenter(
     Base::Ref<Base::Object> owner;
     if (itemsPanel != nullptr) {
         Base::Result<Base::Ref<Base::Object>> created =
-            TemplatePrivate::Instantiate(*itemsPanel);
+            FrameworkTemplateState::Instantiate(*itemsPanel);
         if (!created) return created.GetStatus();
         owner = std::move(created).Value();
     } else {
@@ -806,12 +806,12 @@ const ResourceDictionary& FrameworkTemplate::GetResources() const noexcept {
     return fallback;
 }
 
-Controls::FrameworkTemplateState* Controls::TemplatePrivate::State(
+Controls::FrameworkTemplateState* Controls::FrameworkTemplateState::State(
     FrameworkTemplate& value) noexcept {
     return static_cast<Controls::FrameworkTemplateState*>(value.state_);
 }
 
-const Controls::FrameworkTemplateState* Controls::TemplatePrivate::State(
+const Controls::FrameworkTemplateState* Controls::FrameworkTemplateState::State(
     const FrameworkTemplate& value) noexcept {
     return static_cast<const Controls::FrameworkTemplateState*>(value.state_);
 }
@@ -896,33 +896,33 @@ bool DataTemplate::GetIsSealed() const noexcept {
     return state != nullptr && state->program.sealed;
 }
 
-::Aero::Controls::DataTemplateState* TemplatePrivate::State(DataTemplate& value) noexcept {
+::Aero::Controls::DataTemplateState* FrameworkTemplateState::State(DataTemplate& value) noexcept {
     return static_cast<Controls::DataTemplateState*>(value.state_);
 }
 
-const ::Aero::Controls::DataTemplateState* TemplatePrivate::State(const DataTemplate& value) noexcept {
+const ::Aero::Controls::DataTemplateState* FrameworkTemplateState::State(const DataTemplate& value) noexcept {
     return static_cast<const Controls::DataTemplateState*>(value.state_);
 }
 
-Base::Result<void> TemplatePrivate::Configure(DataTemplate& value, Controls::DeferredObjectFactory factory, void* context, Base::Ref<Base::Object> owner) noexcept {
+Base::Result<void> FrameworkTemplateState::Configure(DataTemplate& value, Controls::DeferredObjectFactory factory, void* context, Base::Ref<Base::Object> owner) noexcept {
     Controls::DataTemplateState* state = State(value);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "DataTemplate state allocation failed");
     return state->program.Configure(factory, context, std::move(owner));
 }
 
-Base::Result<void> TemplatePrivate::SetBaseUri(DataTemplate& value, const Base::ResourceUri& uri) noexcept {
+Base::Result<void> FrameworkTemplateState::SetBaseUri(DataTemplate& value, const Base::ResourceUri& uri) noexcept {
     Controls::DataTemplateState* state = State(value);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "DataTemplate state allocation failed");
     return state->program.SetBaseUri(uri);
 }
 
-const Base::ResourceUri& TemplatePrivate::BaseUri(const DataTemplate& value) noexcept {
+const Base::ResourceUri& FrameworkTemplateState::BaseUri(const DataTemplate& value) noexcept {
     static Base::ResourceUri empty;
     const Controls::DataTemplateState* state = State(value);
     return state != nullptr ? state->program.baseUri : empty;
 }
 
-Base::Result<void> TemplatePrivate::SetAuthoredVisualTree(DataTemplate& value, const Base::Ref<Base::Object>& tree) noexcept {
+Base::Result<void> FrameworkTemplateState::SetAuthoredVisualTree(DataTemplate& value, const Base::Ref<Base::Object>& tree) noexcept {
     Controls::DataTemplateState* state = State(value);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "DataTemplate state allocation failed");
     if (state->program.sealed || !tree) return Base::Status::Failure(Base::ErrorCode::InvalidState, "DataTemplate VisualTree assignment is invalid");
@@ -930,52 +930,52 @@ Base::Result<void> TemplatePrivate::SetAuthoredVisualTree(DataTemplate& value, c
     return {};
 }
 
-void TemplatePrivate::ClearAuthoredVisualTree(DataTemplate& value) noexcept {
+void FrameworkTemplateState::ClearAuthoredVisualTree(DataTemplate& value) noexcept {
     Controls::DataTemplateState* state = State(value);
     if (state != nullptr) state->authoredVisualTree.Reset();
 }
 
-Base::Result<void> TemplatePrivate::AddAuthoredTrigger(DataTemplate& value, Base::Ref<Aero::TriggerBase> trigger) noexcept {
+Base::Result<void> FrameworkTemplateState::AddAuthoredTrigger(DataTemplate& value, Base::Ref<Aero::TriggerBase> trigger) noexcept {
     Controls::DataTemplateState* state = State(value);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "DataTemplate state allocation failed");
     if (!trigger || state->program.factory != nullptr) return Base::Status::Failure(Base::ErrorCode::InvalidState, "DataTemplate Trigger cannot be added after sealing");
     return state->authoredTriggers.PushBack(std::move(trigger));
 }
 
-void TemplatePrivate::ClearAuthoredTriggers(DataTemplate& value) noexcept {
+void FrameworkTemplateState::ClearAuthoredTriggers(DataTemplate& value) noexcept {
     Controls::DataTemplateState* state = State(value);
     if (state != nullptr) state->authoredTriggers.Clear();
 }
 
-Base::Span<const Base::Ref<Aero::TriggerBase>> TemplatePrivate::AuthoredTriggers(const DataTemplate& value) noexcept {
+Base::Span<const Base::Ref<Aero::TriggerBase>> FrameworkTemplateState::AuthoredTriggers(const DataTemplate& value) noexcept {
     const Controls::DataTemplateState* state = State(value);
     return state != nullptr ? Base::Span<const Base::Ref<Aero::TriggerBase>>(state->authoredTriggers.Data(), state->authoredTriggers.Size()) : Base::Span<const Base::Ref<Aero::TriggerBase>>{};
 }
 
-Base::Result<void> TemplatePrivate::RegisterAuthoredName(DataTemplate& value, Base::StringView name, Base::Object& object) noexcept {
+Base::Result<void> FrameworkTemplateState::RegisterAuthoredName(DataTemplate& value, Base::StringView name, Base::Object& object) noexcept {
     Controls::DataTemplateState* state = State(value);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "DataTemplate state allocation failed");
     return state->authoredNames.Register(name, object);
 }
 
-void TemplatePrivate::ClearAuthoredNames(DataTemplate& value) noexcept {
+void FrameworkTemplateState::ClearAuthoredNames(DataTemplate& value) noexcept {
     Controls::DataTemplateState* state = State(value);
     if (state != nullptr) state->authoredNames.Clear();
 }
 
-const Aero::NameScope& TemplatePrivate::AuthoredNames(const DataTemplate& value) noexcept {
+const Aero::NameScope& FrameworkTemplateState::AuthoredNames(const DataTemplate& value) noexcept {
     static Aero::NameScope empty;
     const Controls::DataTemplateState* state = State(value);
     return state != nullptr ? state->authoredNames : empty;
 }
 
-const Base::Ref<Base::Object>& TemplatePrivate::AuthoredVisualTree(const DataTemplate& value) noexcept {
+const Base::Ref<Base::Object>& FrameworkTemplateState::AuthoredVisualTree(const DataTemplate& value) noexcept {
     static Base::Ref<Base::Object> empty;
     const Controls::DataTemplateState* state = State(value);
     return state != nullptr ? state->authoredVisualTree : empty;
 }
 
-Base::Result<void> TemplatePrivate::Seal(DataTemplate& value) noexcept {
+Base::Result<void> FrameworkTemplateState::Seal(DataTemplate& value) noexcept {
     Controls::DataTemplateState* state = State(value);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "DataTemplate state allocation failed");
     Base::Result<void> program = state->program.Seal();
@@ -983,7 +983,7 @@ Base::Result<void> TemplatePrivate::Seal(DataTemplate& value) noexcept {
     return state->resources.Seal();
 }
 
-Base::Result<Base::Ref<Base::Object>> TemplatePrivate::Instantiate(
+Base::Result<Base::Ref<Base::Object>> FrameworkTemplateState::Instantiate(
     const DataTemplate& value, const Base::Ref<Base::Object>& item,
     Aero::BindingEngine* bindings) noexcept {
     const Controls::DataTemplateState* state = State(value);
@@ -1032,33 +1032,33 @@ void ItemsPanelTemplate::SetResources(Base::Ref<ResourceDictionary> value) noexc
     (void)Aero::AssignResourceDictionary(state->resources, std::move(value), "ItemsPanelTemplate Resources is already assigned");
 }
 
-ItemsPanelTemplateState* TemplatePrivate::State(ItemsPanelTemplate& value) noexcept {
+ItemsPanelTemplateState* FrameworkTemplateState::State(ItemsPanelTemplate& value) noexcept {
     return static_cast<Controls::ItemsPanelTemplateState*>(value.state_);
 }
 
-const ItemsPanelTemplateState* TemplatePrivate::State(const ItemsPanelTemplate& value) noexcept {
+const ItemsPanelTemplateState* FrameworkTemplateState::State(const ItemsPanelTemplate& value) noexcept {
     return static_cast<const Controls::ItemsPanelTemplateState*>(value.state_);
 }
 
-Base::Result<void> TemplatePrivate::Configure(ItemsPanelTemplate& value, DeferredObjectFactory factory, void* context, Base::Ref<Base::Object> owner) noexcept {
+Base::Result<void> FrameworkTemplateState::Configure(ItemsPanelTemplate& value, DeferredObjectFactory factory, void* context, Base::Ref<Base::Object> owner) noexcept {
     Controls::ItemsPanelTemplateState* state = State(value);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "ItemsPanelTemplate state allocation failed");
     return state->program.Configure(factory, context, std::move(owner));
 }
 
-Base::Result<void> TemplatePrivate::SetBaseUri(ItemsPanelTemplate& value, const Base::ResourceUri& uri) noexcept {
+Base::Result<void> FrameworkTemplateState::SetBaseUri(ItemsPanelTemplate& value, const Base::ResourceUri& uri) noexcept {
     Controls::ItemsPanelTemplateState* state = State(value);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "ItemsPanelTemplate state allocation failed");
     return state->program.SetBaseUri(uri);
 }
 
-const Base::ResourceUri& TemplatePrivate::BaseUri(const ItemsPanelTemplate& value) noexcept {
+const Base::ResourceUri& FrameworkTemplateState::BaseUri(const ItemsPanelTemplate& value) noexcept {
     static Base::ResourceUri empty;
     const Controls::ItemsPanelTemplateState* state = State(value);
     return state != nullptr ? state->program.baseUri : empty;
 }
 
-Base::Result<void> TemplatePrivate::SetAuthoredVisualTree(ItemsPanelTemplate& value, const Base::Ref<Base::Object>& tree) noexcept {
+Base::Result<void> FrameworkTemplateState::SetAuthoredVisualTree(ItemsPanelTemplate& value, const Base::Ref<Base::Object>& tree) noexcept {
     Controls::ItemsPanelTemplateState* state = State(value);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "ItemsPanelTemplate state allocation failed");
     if (state->program.sealed || !tree) return Base::Status::Failure(Base::ErrorCode::InvalidState, "ItemsPanelTemplate VisualTree assignment is invalid");
@@ -1066,18 +1066,18 @@ Base::Result<void> TemplatePrivate::SetAuthoredVisualTree(ItemsPanelTemplate& va
     return {};
 }
 
-void TemplatePrivate::ClearAuthoredVisualTree(ItemsPanelTemplate& value) noexcept {
+void FrameworkTemplateState::ClearAuthoredVisualTree(ItemsPanelTemplate& value) noexcept {
     Controls::ItemsPanelTemplateState* state = State(value);
     if (state != nullptr) state->authoredVisualTree.Reset();
 }
 
-const Base::Ref<Base::Object>& TemplatePrivate::AuthoredVisualTree(const ItemsPanelTemplate& value) noexcept {
+const Base::Ref<Base::Object>& FrameworkTemplateState::AuthoredVisualTree(const ItemsPanelTemplate& value) noexcept {
     static Base::Ref<Base::Object> empty;
     const Controls::ItemsPanelTemplateState* state = State(value);
     return state != nullptr ? state->authoredVisualTree : empty;
 }
 
-Base::Result<void> TemplatePrivate::Seal(ItemsPanelTemplate& value) noexcept {
+Base::Result<void> FrameworkTemplateState::Seal(ItemsPanelTemplate& value) noexcept {
     Controls::ItemsPanelTemplateState* state = State(value);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "ItemsPanelTemplate state allocation failed");
     Base::Result<void> program = state->program.Seal();
@@ -1085,13 +1085,13 @@ Base::Result<void> TemplatePrivate::Seal(ItemsPanelTemplate& value) noexcept {
     return state->resources.Seal();
 }
 
-Base::Result<Base::Ref<Base::Object>> TemplatePrivate::Instantiate(const ItemsPanelTemplate& value) noexcept {
+Base::Result<Base::Ref<Base::Object>> FrameworkTemplateState::Instantiate(const ItemsPanelTemplate& value) noexcept {
     const Controls::ItemsPanelTemplateState* state = State(value);
     if (state == nullptr || state->program.factory == nullptr) return Base::Status::Failure(Base::ErrorCode::InvalidState, "ItemsPanelTemplate is not ready");
     return state->program.Instantiate();
 }
 
-Base::Result<void> TemplatePrivate::SetTargetType(
+Base::Result<void> FrameworkTemplateState::SetTargetType(
     FrameworkTemplate& templateValue,
     TypeId value) noexcept {
     FrameworkTemplateState* state = State(templateValue);
@@ -1102,7 +1102,7 @@ Base::Result<void> TemplatePrivate::SetTargetType(
     return {};
 }
 
-Base::Result<void> TemplatePrivate::ConfigureFactory(
+Base::Result<void> FrameworkTemplateState::ConfigureFactory(
     FrameworkTemplate& templateValue,
     TemplateFactoryCallback factory,
     void* factoryContext,
@@ -1113,7 +1113,7 @@ Base::Result<void> TemplatePrivate::ConfigureFactory(
     return state->program.Configure(factory, factoryContext, std::move(factoryOwner));
 }
 
-Base::Result<void> TemplatePrivate::AddTemplateBinding(
+Base::Result<void> FrameworkTemplateState::AddTemplateBinding(
     FrameworkTemplate& templateValue,
     Base::StringView targetName,
     DependencyPropertyHandle sourceProperty,
@@ -1130,7 +1130,7 @@ Base::Result<void> TemplatePrivate::AddTemplateBinding(
     return state->bindings.PushBack(std::move(binding));
 }
 
-Base::Result<void> TemplatePrivate::AddTemplatedParentBinding(
+Base::Result<void> FrameworkTemplateState::AddTemplatedParentBinding(
     FrameworkTemplate& templateValue,
     Base::StringView targetName,
     Base::StringView path,
@@ -1159,7 +1159,7 @@ Base::Result<void> TemplatePrivate::AddTemplatedParentBinding(
     return state->metadataBindings.PushBack(std::move(binding));
 }
 
-Base::Result<void> TemplatePrivate::AddDynamicResource(
+Base::Result<void> FrameworkTemplateState::AddDynamicResource(
     FrameworkTemplate& templateValue,
     Base::StringView targetName,
     Base::StringView key,
@@ -1187,7 +1187,7 @@ Base::Result<void> TemplatePrivate::AddDynamicResource(
     return state->dynamicResources.PushBack(std::move(resource));
 }
 
-Base::Result<void> TemplatePrivate::SetAuthoredVisualTree(
+Base::Result<void> FrameworkTemplateState::SetAuthoredVisualTree(
     ControlTemplate& templateValue,
     const Base::Ref<Base::Object>& value) noexcept {
     FrameworkTemplateState* state = State(templateValue);
@@ -1197,7 +1197,7 @@ Base::Result<void> TemplatePrivate::SetAuthoredVisualTree(
     return {};
 }
 
-Base::Result<void> TemplatePrivate::AddAuthoredVisualStateGroup(
+Base::Result<void> FrameworkTemplateState::AddAuthoredVisualStateGroup(
     ControlTemplate& templateValue,
     const Base::Ref<Base::Object>& value) noexcept {
     FrameworkTemplateState* state = State(templateValue);
@@ -1206,22 +1206,22 @@ Base::Result<void> TemplatePrivate::AddAuthoredVisualStateGroup(
     return state->authoredVisualStateGroups.PushBack(value);
 }
 
-void TemplatePrivate::ClearAuthoredVisualTree(ControlTemplate& value) noexcept {
+void FrameworkTemplateState::ClearAuthoredVisualTree(ControlTemplate& value) noexcept {
     FrameworkTemplateState* state = State(value);
     if (state != nullptr) state->authoredVisualTree.Reset();
 }
 
-void TemplatePrivate::ClearAuthoredVisualStateGroups(ControlTemplate& value) noexcept {
+void FrameworkTemplateState::ClearAuthoredVisualStateGroups(ControlTemplate& value) noexcept {
     FrameworkTemplateState* state = State(value);
     if (state != nullptr) state->authoredVisualStateGroups.Clear();
 }
 
-void TemplatePrivate::ClearAuthoredTriggers(FrameworkTemplate& value) noexcept {
+void FrameworkTemplateState::ClearAuthoredTriggers(FrameworkTemplate& value) noexcept {
     FrameworkTemplateState* state = State(value);
     if (state != nullptr) state->authoredTriggers.Clear();
 }
 
-Base::Result<void> TemplatePrivate::AddPropertyTrigger(
+Base::Result<void> FrameworkTemplateState::AddPropertyTrigger(
     FrameworkTemplate& templateValue,
     TemplatePropertyTrigger trigger) noexcept {
     FrameworkTemplateState* state = State(templateValue);
@@ -1231,7 +1231,7 @@ Base::Result<void> TemplatePrivate::AddPropertyTrigger(
     return state->triggers.PushBack(std::move(trigger));
 }
 
-Base::Result<void> TemplatePrivate::AddVisualStateGroup(
+Base::Result<void> FrameworkTemplateState::AddVisualStateGroup(
     FrameworkTemplate& templateValue,
     VisualStateGroupPlan group) noexcept {
     FrameworkTemplateState* state = State(templateValue);
@@ -1335,14 +1335,14 @@ Base::Result<void> TemplatePrivate::AddVisualStateGroup(
 }
 
 
-Base::Result<void> TemplatePrivate::RegisterAuthoredName(
+Base::Result<void> FrameworkTemplateState::RegisterAuthoredName(
     ControlTemplate& templateValue, Base::StringView name, Base::Object& object) noexcept {
     FrameworkTemplateState* state = State(templateValue);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "ControlTemplate state allocation failed");
     return state->authoredNames.Register(name, object);
 }
 
-Base::Result<Base::String> TemplatePrivate::EnsureAuthoredName(
+Base::Result<Base::String> FrameworkTemplateState::EnsureAuthoredName(
     ControlTemplate& templateValue,
     Base::Object& object) noexcept {
     FrameworkTemplateState* state = State(templateValue);
@@ -1405,7 +1405,7 @@ Base::Result<Base::String> TemplatePrivate::EnsureAuthoredName(
 }
 
 
-Base::Result<void> TemplatePrivate::AddAuthoredTrigger(
+Base::Result<void> FrameworkTemplateState::AddAuthoredTrigger(
     FrameworkTemplate& templateValue, Base::Ref<Base::Object> trigger) noexcept {
     FrameworkTemplateState* state = State(templateValue);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "FrameworkTemplate state allocation failed");
@@ -1413,87 +1413,87 @@ Base::Result<void> TemplatePrivate::AddAuthoredTrigger(
     return state->authoredTriggers.PushBack(std::move(trigger));
 }
 
-const Base::Ref<Base::Object>& TemplatePrivate::AuthoredVisualTree(const ControlTemplate& value) noexcept {
+const Base::Ref<Base::Object>& FrameworkTemplateState::AuthoredVisualTree(const ControlTemplate& value) noexcept {
     static Base::Ref<Base::Object> empty;
     const FrameworkTemplateState* state = State(value);
     return state != nullptr ? state->authoredVisualTree : empty;
 }
 
-Base::Span<const Base::Ref<Base::Object>> TemplatePrivate::AuthoredVisualStateGroups(const ControlTemplate& value) noexcept {
+Base::Span<const Base::Ref<Base::Object>> FrameworkTemplateState::AuthoredVisualStateGroups(const ControlTemplate& value) noexcept {
     const FrameworkTemplateState* state = State(value);
     return state != nullptr ? Base::Span<const Base::Ref<Base::Object>>(state->authoredVisualStateGroups.Data(), state->authoredVisualStateGroups.Size()) : Base::Span<const Base::Ref<Base::Object>>{};
 }
 
-const NameScope& TemplatePrivate::AuthoredNames(const ControlTemplate& value) noexcept {
+const NameScope& FrameworkTemplateState::AuthoredNames(const ControlTemplate& value) noexcept {
     static NameScope empty;
     const FrameworkTemplateState* state = State(value);
     return state != nullptr ? state->authoredNames : empty;
 }
 
-void TemplatePrivate::ClearAuthoredNames(ControlTemplate& value) noexcept {
+void FrameworkTemplateState::ClearAuthoredNames(ControlTemplate& value) noexcept {
     FrameworkTemplateState* state = State(value);
     if (state != nullptr) state->authoredNames.Clear();
 }
 
-Base::Span<const Base::Ref<Base::Object>> TemplatePrivate::AuthoredTriggers(const FrameworkTemplate& value) noexcept {
+Base::Span<const Base::Ref<Base::Object>> FrameworkTemplateState::AuthoredTriggers(const FrameworkTemplate& value) noexcept {
     const FrameworkTemplateState* state = State(value);
     return state != nullptr ? Base::Span<const Base::Ref<Base::Object>>(state->authoredTriggers.Data(), state->authoredTriggers.Size()) : Base::Span<const Base::Ref<Base::Object>>{};
 }
 
-TemplateFactoryCallback TemplatePrivate::Factory(const FrameworkTemplate& value) noexcept {
+TemplateFactoryCallback FrameworkTemplateState::Factory(const FrameworkTemplate& value) noexcept {
     const FrameworkTemplateState* state = State(value);
     return state != nullptr ? state->program.factory : nullptr;
 }
 
-void* TemplatePrivate::FactoryContext(const FrameworkTemplate& value) noexcept {
+void* FrameworkTemplateState::FactoryContext(const FrameworkTemplate& value) noexcept {
     const FrameworkTemplateState* state = State(value);
     return state != nullptr ? state->program.factoryContext : nullptr;
 }
 
-const Base::Ref<Base::Object>& TemplatePrivate::FactoryOwner(const FrameworkTemplate& value) noexcept {
+const Base::Ref<Base::Object>& FrameworkTemplateState::FactoryOwner(const FrameworkTemplate& value) noexcept {
     static Base::Ref<Base::Object> empty;
     const FrameworkTemplateState* state = State(value);
     return state != nullptr ? state->program.factoryOwner : empty;
 }
 
-const Base::ResourceUri& TemplatePrivate::BaseUri(const FrameworkTemplate& value) noexcept {
+const Base::ResourceUri& FrameworkTemplateState::BaseUri(const FrameworkTemplate& value) noexcept {
     static Base::ResourceUri empty;
     const FrameworkTemplateState* state = State(value);
     return state != nullptr ? state->program.baseUri : empty;
 }
 
-Base::Result<void> TemplatePrivate::SetBaseUri(FrameworkTemplate& value, const Base::ResourceUri& uri) noexcept {
+Base::Result<void> FrameworkTemplateState::SetBaseUri(FrameworkTemplate& value, const Base::ResourceUri& uri) noexcept {
     FrameworkTemplateState* state = State(value);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "FrameworkTemplate state allocation failed");
     return state->program.SetBaseUri(uri);
 }
 
-Base::Result<void> TemplatePrivate::AddNamespace(FrameworkTemplate& value, Base::StringView prefix, Base::StringView uri) noexcept {
+Base::Result<void> FrameworkTemplateState::AddNamespace(FrameworkTemplate& value, Base::StringView prefix, Base::StringView uri) noexcept {
     FrameworkTemplateState* state = State(value);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "FrameworkTemplate state allocation failed");
     return state->program.AddNamespace(prefix, uri);
 }
 
-Base::Span<const TemplateNamespace> TemplatePrivate::Namespaces(const FrameworkTemplate& value) noexcept {
+Base::Span<const TemplateNamespace> FrameworkTemplateState::Namespaces(const FrameworkTemplate& value) noexcept {
     const FrameworkTemplateState* state = State(value);
     return state != nullptr ? Base::Span<const TemplateNamespace>(state->program.namespaces.Data(), state->program.namespaces.Size()) : Base::Span<const TemplateNamespace>{};
 }
 
-Base::Span<const TemplateBindingPlan> TemplatePrivate::Bindings(const FrameworkTemplate& value) noexcept {
+Base::Span<const TemplateBindingPlan> FrameworkTemplateState::Bindings(const FrameworkTemplate& value) noexcept {
     const FrameworkTemplateState* state = State(value);
     if (state == nullptr) return {};
     const auto& values = state->sealed ? state->program.bindings : state->bindings;
     return {values.Data(), values.Size()};
 }
 
-Base::Span<const TemplateMetadataBindingPlan> TemplatePrivate::MetadataBindings(const FrameworkTemplate& value) noexcept {
+Base::Span<const TemplateMetadataBindingPlan> FrameworkTemplateState::MetadataBindings(const FrameworkTemplate& value) noexcept {
     const FrameworkTemplateState* state = State(value);
     if (state == nullptr) return {};
     const auto& values = state->sealed ? state->program.metadataBindings : state->metadataBindings;
     return {values.Data(), values.Size()};
 }
 
-Base::Span<const TemplateDynamicResourcePlan> TemplatePrivate::DynamicResources(const FrameworkTemplate& value) noexcept {
+Base::Span<const TemplateDynamicResourcePlan> FrameworkTemplateState::DynamicResources(const FrameworkTemplate& value) noexcept {
     const FrameworkTemplateState* state = State(value);
     if (state == nullptr) return {};
     const auto& values = state->sealed
@@ -1502,21 +1502,21 @@ Base::Span<const TemplateDynamicResourcePlan> TemplatePrivate::DynamicResources(
     return {values.Data(), values.Size()};
 }
 
-Base::Span<const TemplatePropertyTrigger> TemplatePrivate::Triggers(const FrameworkTemplate& value) noexcept {
+Base::Span<const TemplatePropertyTrigger> FrameworkTemplateState::Triggers(const FrameworkTemplate& value) noexcept {
     const FrameworkTemplateState* state = State(value);
     if (state == nullptr) return {};
     const auto& values = state->sealed ? state->program.triggers : state->triggers;
     return {values.Data(), values.Size()};
 }
 
-Base::Span<const VisualStateGroupPlan> TemplatePrivate::VisualStateGroups(const FrameworkTemplate& value) noexcept {
+Base::Span<const VisualStateGroupPlan> FrameworkTemplateState::VisualStateGroups(const FrameworkTemplate& value) noexcept {
     const FrameworkTemplateState* state = State(value);
     if (state == nullptr) return {};
     const auto& values = state->sealed ? state->program.visualStateGroups : state->visualStateGroups;
     return {values.Data(), values.Size()};
 }
 
-Base::Result<void> TemplatePrivate::Seal(
+Base::Result<void> FrameworkTemplateState::Seal(
     FrameworkTemplate& templateValue,
     const DependencyPropertyRegistry& properties) noexcept {
     FrameworkTemplateState* templateState = State(templateValue);
@@ -1735,7 +1735,7 @@ using namespace Aero::Meta;
 using namespace Aero::Threading;
 using namespace Aero::Controls;
 
-Base::Result<void> TemplatePrivate::Materialize(
+Base::Result<void> FrameworkTemplateState::Materialize(
     const ControlTemplate& plan,
     TemplateBuildState& buildState,
     TemplateBuilder& context,
@@ -1838,7 +1838,7 @@ Base::Result<TemplateHandle> TemplateEngine::Apply(
         *tree_, control);
     TemplateBuilder context(&buildState);
     Base::Result<void> materialized =
-        TemplatePrivate::Materialize(
+        FrameworkTemplateState::Materialize(
             plan, buildState, context, *properties_);
     if (!materialized) {
         return materialized.GetStatus();
@@ -2050,7 +2050,7 @@ bool TemplateEngine::HasTemplateBinding(
     for (const Instance& instance : instances_) {
         if (instance.plan == nullptr) continue;
         for (const TemplateBindingPlan& binding :
-             Aero::Controls::TemplatePrivate::Bindings(*instance.plan)) {
+             Aero::Controls::FrameworkTemplateState::Bindings(*instance.plan)) {
             if (binding.targetProperty != property) continue;
             DependencyObject* found =
                 FindTarget(instance, binding.targetName.View());
@@ -2067,7 +2067,7 @@ Base::Result<void> TemplateEngine::RefreshTemplateBinding(
         if (instance.plan == nullptr) continue;
         bool matches = false;
         for (const TemplateBindingPlan& binding :
-             Aero::Controls::TemplatePrivate::Bindings(*instance.plan)) {
+             Aero::Controls::FrameworkTemplateState::Bindings(*instance.plan)) {
             if (binding.targetProperty != property) continue;
             DependencyObject* found =
                 FindTarget(instance, binding.targetName.View());
@@ -2088,16 +2088,16 @@ Base::Result<void> TemplateEngine::RefreshTemplateBinding(
 Base::Result<void> TemplateEngine::Subscribe(
     Instance& instance) noexcept {
     for (std::uint32_t index = 0U;
-         index < Aero::Controls::TemplatePrivate::Bindings(*instance.plan).Size();
+         index < Aero::Controls::FrameworkTemplateState::Bindings(*instance.plan).Size();
          ++index) {
         const DependencyPropertyHandle property =
-            Aero::Controls::TemplatePrivate::Bindings(*instance.plan)[index].sourceProperty;
+            Aero::Controls::FrameworkTemplateState::Bindings(*instance.plan)[index].sourceProperty;
         bool first = true;
         for (std::uint32_t previous = 0U;
              previous < index;
              ++previous) {
             first = first &&
-                Aero::Controls::TemplatePrivate::Bindings(*instance.plan)[previous].sourceProperty !=
+                Aero::Controls::FrameworkTemplateState::Bindings(*instance.plan)[previous].sourceProperty !=
                     property;
         }
         if (first) {
@@ -2106,10 +2106,10 @@ Base::Result<void> TemplateEngine::Subscribe(
         }
     }
     for (std::uint32_t index = 0U;
-         index < Aero::Controls::TemplatePrivate::Triggers(*instance.plan).Size();
+         index < Aero::Controls::FrameworkTemplateState::Triggers(*instance.plan).Size();
          ++index) {
         for (const TemplateTriggerCondition& condition :
-             Aero::Controls::TemplatePrivate::Triggers(*instance.plan)[index].conditions) {
+             Aero::Controls::FrameworkTemplateState::Triggers(*instance.plan)[index].conditions) {
             DependencyObject* source =
                 FindTarget(
                     instance,
@@ -2130,16 +2130,16 @@ Base::Result<void> TemplateEngine::Subscribe(
 void TemplateEngine::Unsubscribe(
     Instance& instance) noexcept {
     for (std::uint32_t index = 0U;
-         index < Aero::Controls::TemplatePrivate::Bindings(*instance.plan).Size();
+         index < Aero::Controls::FrameworkTemplateState::Bindings(*instance.plan).Size();
          ++index) {
         const DependencyPropertyHandle property =
-            Aero::Controls::TemplatePrivate::Bindings(*instance.plan)[index].sourceProperty;
+            Aero::Controls::FrameworkTemplateState::Bindings(*instance.plan)[index].sourceProperty;
         bool first = true;
         for (std::uint32_t previous = 0U;
              previous < index;
              ++previous) {
             first = first &&
-                Aero::Controls::TemplatePrivate::Bindings(*instance.plan)[previous].sourceProperty !=
+                Aero::Controls::FrameworkTemplateState::Bindings(*instance.plan)[previous].sourceProperty !=
                     property;
         }
         if (first) {
@@ -2148,10 +2148,10 @@ void TemplateEngine::Unsubscribe(
         }
     }
     for (std::uint32_t index = 0U;
-         index < Aero::Controls::TemplatePrivate::Triggers(*instance.plan).Size();
+         index < Aero::Controls::FrameworkTemplateState::Triggers(*instance.plan).Size();
          ++index) {
         for (const TemplateTriggerCondition& condition :
-             Aero::Controls::TemplatePrivate::Triggers(*instance.plan)[index].conditions) {
+             Aero::Controls::FrameworkTemplateState::Triggers(*instance.plan)[index].conditions) {
             DependencyObject* source =
                 FindTarget(
                     instance,
@@ -2169,7 +2169,7 @@ Base::Result<void> TemplateEngine::ApplyBindings(
     Instance& instance,
     DependencyPropertyHandle changed) noexcept {
     for (const TemplateBindingPlan& binding :
-         Aero::Controls::TemplatePrivate::Bindings(*instance.plan)) {
+         Aero::Controls::FrameworkTemplateState::Bindings(*instance.plan)) {
         if (changed.IsValid() &&
             binding.sourceProperty != changed) {
             continue;
@@ -2223,7 +2223,7 @@ Base::Result<void> TemplateEngine::ApplyBindings(
 
 Base::Result<void> TemplateEngine::AttachMetadataBindings(
     Instance& instance) noexcept {
-    if (Aero::Controls::TemplatePrivate::MetadataBindings(*instance.plan).Empty()) {
+    if (Aero::Controls::FrameworkTemplateState::MetadataBindings(*instance.plan).Empty()) {
         return {};
     }
     if (metadata_ == nullptr || bindings_ == nullptr) {
@@ -2233,10 +2233,10 @@ Base::Result<void> TemplateEngine::AttachMetadataBindings(
     }
     Base::Result<void> reserved =
         instance.metadataBindings.Reserve(
-            Aero::Controls::TemplatePrivate::MetadataBindings(*instance.plan).Size());
+            Aero::Controls::FrameworkTemplateState::MetadataBindings(*instance.plan).Size());
     if (!reserved) return reserved.GetStatus();
     for (const TemplateMetadataBindingPlan& binding :
-         Aero::Controls::TemplatePrivate::MetadataBindings(*instance.plan)) {
+         Aero::Controls::FrameworkTemplateState::MetadataBindings(*instance.plan)) {
         DependencyObject* target =
             FindTarget(instance, binding.targetName.View());
         if (target == nullptr) {
@@ -2304,7 +2304,7 @@ void TemplateEngine::DetachMetadataBindings(
 Base::Result<void> TemplateEngine::AttachDynamicResources(
     Instance& instance) noexcept {
     const auto declarations =
-        Aero::Controls::TemplatePrivate::DynamicResources(*instance.plan);
+        Aero::Controls::FrameworkTemplateState::DynamicResources(*instance.plan);
     if (declarations.Empty()) return {};
     if (effectiveValues_ == nullptr || resources_ == nullptr) {
         return Base::Status::Failure(
@@ -2364,7 +2364,7 @@ void TemplateEngine::DetachDynamicResources(
 Base::Result<void> TemplateEngine::EvaluateTriggers(
     Instance& instance) noexcept {
     for (const TemplatePropertyTrigger& trigger :
-         Aero::Controls::TemplatePrivate::Triggers(*instance.plan)) {
+         Aero::Controls::FrameworkTemplateState::Triggers(*instance.plan)) {
         for (const TemplateTriggerSetter& setter :
              trigger.setters) {
             if (IsDeferredBindingSetterValue(setter.value)) {
@@ -2384,7 +2384,7 @@ Base::Result<void> TemplateEngine::EvaluateTriggers(
         }
     }
     for (const TemplatePropertyTrigger& trigger :
-         Aero::Controls::TemplatePrivate::Triggers(*instance.plan)) {
+         Aero::Controls::FrameworkTemplateState::Triggers(*instance.plan)) {
         bool active = true;
         for (const TemplateTriggerCondition& triggerCondition :
              trigger.conditions) {
@@ -2427,7 +2427,7 @@ Base::Result<void> TemplateEngine::EvaluateTriggers(
 Base::Result<void> TemplateEngine::ClearProviders(
     Instance& instance) noexcept {
     for (const TemplateBindingPlan& binding :
-         Aero::Controls::TemplatePrivate::Bindings(*instance.plan)) {
+         Aero::Controls::FrameworkTemplateState::Bindings(*instance.plan)) {
         DependencyObject* target =
             FindTarget(instance, binding.targetName.View());
         if (target != nullptr) {
@@ -2438,7 +2438,7 @@ Base::Result<void> TemplateEngine::ClearProviders(
         }
     }
     for (const TemplatePropertyTrigger& trigger :
-         Aero::Controls::TemplatePrivate::Triggers(*instance.plan)) {
+         Aero::Controls::FrameworkTemplateState::Triggers(*instance.plan)) {
         for (const TemplateTriggerSetter& setter :
              trigger.setters) {
             if (IsDeferredBindingSetterValue(setter.value)) {
@@ -2549,7 +2549,7 @@ void TemplateEngine::OnPropertyChanged(
         }
         bool triggerChanged = false;
         for (const TemplatePropertyTrigger& trigger :
-             Aero::Controls::TemplatePrivate::Triggers(*instance.plan)) {
+             Aero::Controls::FrameworkTemplateState::Triggers(*instance.plan)) {
             for (const TemplateTriggerCondition& triggerCondition :
                  trigger.conditions) {
                 DependencyObject* source = FindTarget(

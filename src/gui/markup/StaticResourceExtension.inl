@@ -94,7 +94,7 @@ Base::Result<ProvidedValue> StaticResourceExtension::ProvideValue(
             targetName);
         if (!captured) return captured.GetStatus();
         Base::Result<void> retained =
-            ::Aero::Controls::TemplatePrivate::AddDynamicResource(
+            ::Aero::Controls::FrameworkTemplateState::AddDynamicResource(
                 static_cast<Controls::ControlTemplate&>(
                     *services.deferredContentOwner),
                 targetName.View(),

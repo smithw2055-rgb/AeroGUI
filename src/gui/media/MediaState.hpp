@@ -219,9 +219,7 @@ inline Base::Color SampleBrush(
 
 namespace Aero::Media::Animation {
 
-struct TimelinePrivate {
-public:
-    static Model::TimelineTiming Timing(
+inline Model::TimelineTiming Timing(
         const Timeline& timeline) noexcept {
         Model::TimelineTiming result;
         result.beginTimeMicroseconds =
@@ -257,13 +255,13 @@ public:
         return result;
     }
 
-    struct KeyframeSchedule {
-        AnimationTime duration = 0U;
-        std::uint32_t count = 0U;
-    };
+struct KeyframeSchedule {
+    AnimationTime duration = 0U;
+    std::uint32_t count = 0U;
+};
 
-    template<class TKeyFrame>
-    static KeyframeSchedule MakeSchedule(
+template<class TKeyFrame>
+inline KeyframeSchedule MakeSchedule(
         Base::Span<const Base::Ref<TKeyFrame>> frames,
         AnimationTime authoredDuration) noexcept {
         KeyframeSchedule schedule;
@@ -284,7 +282,7 @@ public:
         return schedule;
     }
 
-    static AnimationTime ResolveKeyTime(
+inline AnimationTime ResolveKeyTime(
         const KeyTime& keyTime,
         AnimationTime duration,
         std::uint32_t index,
@@ -292,7 +290,7 @@ public:
         return keyTime.ResolveMicroseconds(duration, index, count);
     }
 
-    static Model::EasingFunction Easing(
+inline Model::EasingFunction Easing(
         const EasingFunctionBase& easing) noexcept {
         Model::EasingFunction result;
         result.kind = static_cast<Model::EasingFunctionKind>(
@@ -316,7 +314,7 @@ public:
         return result;
     }
 
-    static Model::DoubleAnimation Double(
+inline Model::DoubleAnimation Double(
         const DoubleAnimation& animation) noexcept {
         Model::DoubleAnimation result;
         result.from = animation.GetFrom();
@@ -330,7 +328,7 @@ public:
         return result;
     }
 
-    static Model::ColorAnimation Color(
+inline Model::ColorAnimation Color(
         const ColorAnimation& animation) noexcept {
         Model::ColorAnimation result;
         result.from = animation.GetFrom();
@@ -342,7 +340,7 @@ public:
         return result;
     }
 
-    static Model::PointAnimation Point(
+inline Model::PointAnimation Point(
         const PointAnimation& animation) noexcept {
         Model::PointAnimation result;
         result.from = animation.GetFrom();
@@ -354,7 +352,7 @@ public:
         return result;
     }
 
-    static Model::RectAnimation Rect(
+inline Model::RectAnimation Rect(
         const RectAnimation& animation) noexcept {
         Model::RectAnimation result;
         result.from = animation.GetFrom();
@@ -366,7 +364,7 @@ public:
         return result;
     }
 
-    static Model::ThicknessAnimation Thickness(
+inline Model::ThicknessAnimation Thickness(
         const ThicknessAnimation& animation) noexcept {
         Model::ThicknessAnimation result;
         result.from = animation.GetFrom();
@@ -378,7 +376,7 @@ public:
         return result;
     }
 
-    static Model::IntegerAnimation Integer16(
+inline Model::IntegerAnimation Integer16(
         const Int16Animation& animation) noexcept {
         Model::IntegerAnimation result;
         result.from = animation.GetFrom();
@@ -391,7 +389,7 @@ public:
         return result;
     }
 
-    static Model::IntegerAnimation Integer32(
+inline Model::IntegerAnimation Integer32(
         const Int32Animation& animation) noexcept {
         Model::IntegerAnimation result;
         result.from = animation.GetFrom();
@@ -404,7 +402,7 @@ public:
         return result;
     }
 
-    static Model::IntegerAnimation Integer64(
+inline Model::IntegerAnimation Integer64(
         const Int64Animation& animation) noexcept {
         Model::IntegerAnimation result;
         result.from = animation.GetFrom();
@@ -417,7 +415,7 @@ public:
         return result;
     }
 
-    static Model::SizeAnimation Size(
+inline Model::SizeAnimation Size(
         const SizeAnimation& animation) noexcept {
         Model::SizeAnimation result;
         result.from = animation.GetFrom();
@@ -429,7 +427,7 @@ public:
         return result;
     }
 
-    static Model::MatrixAnimation Matrix(
+inline Model::MatrixAnimation Matrix(
         const MatrixAnimation& animation) noexcept {
         Model::MatrixAnimation result;
         result.from = animation.GetFrom();
@@ -441,7 +439,7 @@ public:
         return result;
     }
 
-    static Model::DoubleKeyFrame DoubleFrame(
+inline Model::DoubleKeyFrame DoubleFrame(
         const DoubleKeyFrame& frame,
         AnimationTime durationMicroseconds,
         std::uint32_t index,
@@ -462,7 +460,7 @@ public:
         return result;
     }
 
-    static Model::ColorKeyFrame ColorFrame(
+inline Model::ColorKeyFrame ColorFrame(
         const ColorKeyFrame& frame,
         AnimationTime durationMicroseconds,
         std::uint32_t index,
@@ -483,7 +481,7 @@ public:
         return result;
     }
 
-    static Model::PointKeyFrame PointFrame(
+inline Model::PointKeyFrame PointFrame(
         const PointKeyFrame& frame,
         AnimationTime durationMicroseconds,
         std::uint32_t index,
@@ -504,7 +502,7 @@ public:
         return result;
     }
 
-    static Model::ThicknessKeyFrame ThicknessFrame(
+inline Model::ThicknessKeyFrame ThicknessFrame(
         const ThicknessKeyFrame& frame,
         AnimationTime durationMicroseconds,
         std::uint32_t index,
@@ -525,7 +523,7 @@ public:
         return result;
     }
 
-    static Model::IntegerKeyFrame IntegerFrame(
+inline Model::IntegerKeyFrame IntegerFrame(
         const Int16KeyFrame& frame,
         AnimationTime durationMicroseconds,
         std::uint32_t index,
@@ -546,7 +544,7 @@ public:
         return result;
     }
 
-    static Model::IntegerKeyFrame IntegerFrame(
+inline Model::IntegerKeyFrame IntegerFrame(
         const Int32KeyFrame& frame,
         AnimationTime durationMicroseconds,
         std::uint32_t index,
@@ -567,7 +565,7 @@ public:
         return result;
     }
 
-    static Model::IntegerKeyFrame IntegerFrame(
+inline Model::IntegerKeyFrame IntegerFrame(
         const Int64KeyFrame& frame,
         AnimationTime durationMicroseconds,
         std::uint32_t index,
@@ -588,7 +586,7 @@ public:
         return result;
     }
 
-    static Model::SizeKeyFrame SizeFrame(
+inline Model::SizeKeyFrame SizeFrame(
         const SizeKeyFrame& frame,
         AnimationTime durationMicroseconds,
         std::uint32_t index,
@@ -609,7 +607,7 @@ public:
         return result;
     }
 
-    static Model::MatrixKeyFrame MatrixFrame(
+inline Model::MatrixKeyFrame MatrixFrame(
         const MatrixKeyFrame& frame,
         AnimationTime durationMicroseconds,
         std::uint32_t index,
@@ -628,12 +626,7 @@ public:
         Base::Ref<EasingFunctionBase> easing = frame.GetEasingFunction();
         if (easing) result.easing = Easing(*easing);
         return result;
-    }
-};
+}
 
 } // namespace Aero::Media::Animation
-
-namespace Aero::Media {
-using AnimationPrivate = ::Aero::Media::Animation::TimelinePrivate;
-}
 

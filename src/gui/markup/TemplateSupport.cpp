@@ -63,8 +63,8 @@ bool TemplateHasTypeFlag(
 template <typename TTemplate>
 inline Base::Result<void> ApplyTemplateBaseUriIfEmpty(
     TTemplate& tpl, const Base::ResourceUri* uri) noexcept {
-    if (uri != nullptr && ::Aero::Controls::TemplatePrivate::BaseUri(tpl).Empty()) {
-        return ::Aero::Controls::TemplatePrivate::SetBaseUri(tpl, *uri);
+    if (uri != nullptr && ::Aero::Controls::FrameworkTemplateState::BaseUri(tpl).Empty()) {
+        return ::Aero::Controls::FrameworkTemplateState::SetBaseUri(tpl, *uri);
     }
     return {};
 }
@@ -116,8 +116,8 @@ ResolveTemplateImplicitKey(
 
 namespace Aero::Markup {
 
-struct XamlTemplateSchemaFacetState {
-    XamlTemplateSchemaFacetState(
+struct XamlTemplateSchemaFacet::State {
+    State(
         Meta::Registry& metadata,
         DependencyPropertyRegistry& dependencyProperties,
         Base::IAllocator& programAllocator) noexcept
@@ -134,7 +134,7 @@ struct XamlTemplateSchemaFacetState {
         Base::Object& object,
         const ExtensionServices& services,
         void* context) noexcept {
-        auto* self = static_cast<XamlTemplateSchemaFacetState*>(context);
+        auto* self = static_cast<XamlTemplateSchemaFacet::State*>(context);
         const TypeId type = object.RuntimeType();
         const bool isControlTemplate =
             type == ControlTemplate::StaticTypeId();
@@ -229,10 +229,10 @@ struct XamlTemplateSchemaFacetState {
             const Base::Ref<Base::Object>* authored = nullptr;
             if (isDataTemplateFamily) {
                 authored =
-                    &::Aero::Controls::TemplatePrivate::AuthoredVisualTree(static_cast<DataTemplate&>(object));
+                    &::Aero::Controls::FrameworkTemplateState::AuthoredVisualTree(static_cast<DataTemplate&>(object));
             } else {
                 authored =
-                    &::Aero::Controls::TemplatePrivate::AuthoredVisualTree(static_cast<ItemsPanelTemplate&>(object));
+                    &::Aero::Controls::FrameworkTemplateState::AuthoredVisualTree(static_cast<ItemsPanelTemplate&>(object));
             }
             Base::Ref<Base::Object> visualTree =
                 authored != nullptr ? *authored : Base::Ref<Base::Object>{};
@@ -251,7 +251,7 @@ struct XamlTemplateSchemaFacetState {
                     auto& dataTemplate =
                         static_cast<DataTemplate&>(object);
                     Base::Result<void> sealedDt =
-                        ::Aero::Controls::TemplatePrivate::Seal(dataTemplate);
+                        ::Aero::Controls::FrameworkTemplateState::Seal(dataTemplate);
                     if (!sealedDt) return sealedDt.GetStatus();
                     services.deferredContent->ReleaseOwner(object);
                     return {};
@@ -263,7 +263,7 @@ struct XamlTemplateSchemaFacetState {
                     CompileDeferredTemplateBlueprint(
                         visualTree,
                         isDataTemplateFamily
-                            ? &::Aero::Controls::TemplatePrivate::AuthoredNames(static_cast<DataTemplate&>(object))
+                            ? &::Aero::Controls::FrameworkTemplateState::AuthoredNames(static_cast<DataTemplate&>(object))
                             : nullptr,
                         {
                             edges.Data(),
@@ -282,13 +282,13 @@ struct XamlTemplateSchemaFacetState {
                 Base::Result<void> reserved =
                     compiled.Value().
                         dataTemplateTriggers.Reserve(
-                            ::Aero::Controls::TemplatePrivate::AuthoredTriggers(dataTemplate).Size());
+                            ::Aero::Controls::FrameworkTemplateState::AuthoredTriggers(dataTemplate).Size());
                 if (!reserved) {
                     return reserved.GetStatus();
                 }
                 for (const Base::Ref<
                          Aero::TriggerBase>& trigger :
-                     ::Aero::Controls::TemplatePrivate::AuthoredTriggers(dataTemplate)) {
+                     ::Aero::Controls::FrameworkTemplateState::AuthoredTriggers(dataTemplate)) {
                     Base::Result<void> retained =
                         compiled.Value().
                             dataTemplateTriggers.
@@ -315,22 +315,22 @@ struct XamlTemplateSchemaFacetState {
             if (isDataTemplateFamily) {
                 auto& dataTemplate =
                     static_cast<DataTemplate&>(object);
-                configured = ::Aero::Controls::TemplatePrivate::Configure(dataTemplate,
+                configured = ::Aero::Controls::FrameworkTemplateState::Configure(dataTemplate,
                     &BuildCompiledDeferredTemplate,
                     programContext,
                     std::move(programOwner));
                 if (configured) {
-                    configured = ::Aero::Controls::TemplatePrivate::Seal(dataTemplate);
+                    configured = ::Aero::Controls::FrameworkTemplateState::Seal(dataTemplate);
                 }
             } else {
                 auto& itemsPanel =
                     static_cast<ItemsPanelTemplate&>(object);
-                configured = ::Aero::Controls::TemplatePrivate::Configure(itemsPanel,
+                configured = ::Aero::Controls::FrameworkTemplateState::Configure(itemsPanel,
                     &BuildCompiledDeferredTemplate,
                     programContext,
                     std::move(programOwner));
                 if (configured) {
-                    configured = ::Aero::Controls::TemplatePrivate::Seal(itemsPanel);
+                    configured = ::Aero::Controls::FrameworkTemplateState::Seal(itemsPanel);
                 }
             }
             if (!configured) {
@@ -341,11 +341,11 @@ struct XamlTemplateSchemaFacetState {
             if (isDataTemplateFamily) {
                 auto& dataTemplate =
                     static_cast<DataTemplate&>(object);
-                ::Aero::Controls::TemplatePrivate::ClearAuthoredVisualTree(dataTemplate);
-                ::Aero::Controls::TemplatePrivate::ClearAuthoredTriggers(dataTemplate);
-                ::Aero::Controls::TemplatePrivate::ClearAuthoredNames(dataTemplate);
+                ::Aero::Controls::FrameworkTemplateState::ClearAuthoredVisualTree(dataTemplate);
+                ::Aero::Controls::FrameworkTemplateState::ClearAuthoredTriggers(dataTemplate);
+                ::Aero::Controls::FrameworkTemplateState::ClearAuthoredNames(dataTemplate);
             } else {
-                ::Aero::Controls::TemplatePrivate::ClearAuthoredVisualTree(
+                ::Aero::Controls::FrameworkTemplateState::ClearAuthoredVisualTree(
                     static_cast<ItemsPanelTemplate&>(object));
             }
             return {};
@@ -359,7 +359,7 @@ struct XamlTemplateSchemaFacetState {
             // compile against the common Control contract so its authored
             // bindings and triggers remain valid until then.
             Base::Result<void> inferred =
-                ::Aero::Controls::TemplatePrivate::SetTargetType(controlTemplate,
+                ::Aero::Controls::FrameworkTemplateState::SetTargetType(controlTemplate,
                     Control::StaticTypeId());
             if (!inferred) return inferred.GetStatus();
         }
@@ -395,7 +395,7 @@ struct XamlTemplateSchemaFacetState {
             program.Value();
 
         Base::Result<void> configured =
-            ::Aero::Controls::TemplatePrivate::ConfigureFactory(controlTemplate,
+            ::Aero::Controls::FrameworkTemplateState::ConfigureFactory(controlTemplate,
                 &BuildCompiledTemplate,
                 programContext,
                 std::move(programOwner));
@@ -404,7 +404,7 @@ struct XamlTemplateSchemaFacetState {
                  compiled.Value().
                      contentSourceBindings) {
                 configured =
-                    ::Aero::Controls::TemplatePrivate::AddTemplateBinding(controlTemplate,
+                    ::Aero::Controls::FrameworkTemplateState::AddTemplateBinding(controlTemplate,
                             binding.targetName.View(),
                             binding.sourceProperty,
                             binding.targetProperty);
@@ -417,7 +417,7 @@ struct XamlTemplateSchemaFacetState {
             for (TemplatePropertyTrigger& trigger :
                  compiled.Value().propertyTriggers) {
                 configured =
-                    ::Aero::Controls::TemplatePrivate::AddPropertyTrigger(controlTemplate,
+                    ::Aero::Controls::FrameworkTemplateState::AddPropertyTrigger(controlTemplate,
                         std::move(trigger));
                 if (!configured) {
                     break;
@@ -428,7 +428,7 @@ struct XamlTemplateSchemaFacetState {
             for (Controls::VisualStateGroupPlan& group :
                  compiled.Value().visualStateGroups) {
                 configured =
-                    ::Aero::Controls::TemplatePrivate::AddVisualStateGroup(controlTemplate,
+                    ::Aero::Controls::FrameworkTemplateState::AddVisualStateGroup(controlTemplate,
                         std::move(group));
                 if (!configured) {
                     break;
@@ -437,7 +437,7 @@ struct XamlTemplateSchemaFacetState {
         }
         if (configured) {
             configured =
-                ::Aero::Controls::TemplatePrivate::Seal(
+                ::Aero::Controls::FrameworkTemplateState::Seal(
                     controlTemplate,
                     *self->properties);
         }
@@ -447,10 +447,10 @@ struct XamlTemplateSchemaFacetState {
 
         services.deferredContent->ReleaseOwner(
             object);
-        ::Aero::Controls::TemplatePrivate::ClearAuthoredVisualTree(controlTemplate);
-        ::Aero::Controls::TemplatePrivate::ClearAuthoredVisualStateGroups(controlTemplate);
-        ::Aero::Controls::TemplatePrivate::ClearAuthoredTriggers(controlTemplate);
-        ::Aero::Controls::TemplatePrivate::ClearAuthoredNames(controlTemplate);
+        ::Aero::Controls::FrameworkTemplateState::ClearAuthoredVisualTree(controlTemplate);
+        ::Aero::Controls::FrameworkTemplateState::ClearAuthoredVisualStateGroups(controlTemplate);
+        ::Aero::Controls::FrameworkTemplateState::ClearAuthoredTriggers(controlTemplate);
+        ::Aero::Controls::FrameworkTemplateState::ClearAuthoredNames(controlTemplate);
         return {};
     }
 
@@ -471,18 +471,18 @@ struct XamlTemplateSchemaFacetState {
         }
         return scopeOwner.RuntimeType() ==
                 ControlTemplate::StaticTypeId()
-            ? ::Aero::Controls::TemplatePrivate::RegisterAuthoredName(
+            ? ::Aero::Controls::FrameworkTemplateState::RegisterAuthoredName(
                   static_cast<ControlTemplate&>(scopeOwner), name, object)
-            : ::Aero::Controls::TemplatePrivate::RegisterAuthoredName(
+            : ::Aero::Controls::FrameworkTemplateState::RegisterAuthoredName(
                   static_cast<DataTemplate&>(scopeOwner), name, object);
     }
 };
 
 static_assert(
-    sizeof(XamlTemplateSchemaFacetState) <= 1024,
+    sizeof(XamlTemplateSchemaFacet::State) <= 1024,
     "XamlTemplateSchemaFacet inline state storage is too small");
 static_assert(
-    alignof(XamlTemplateSchemaFacetState) <= alignof(std::max_align_t),
+    alignof(XamlTemplateSchemaFacet::State) <= alignof(std::max_align_t),
     "XamlTemplateSchemaFacet inline state alignment is insufficient");
 
 XamlTemplateSchemaFacet::XamlTemplateSchemaFacet(
@@ -492,7 +492,7 @@ XamlTemplateSchemaFacet::XamlTemplateSchemaFacet(
     : allocator_(allocator != nullptr
           ? allocator
           : &Base::GetDefaultAllocator()) {
-    state_ = new (stateStorage_) XamlTemplateSchemaFacetState(
+    state_ = new (stateStorage_) XamlTemplateSchemaFacet::State(
         runtime,
         properties,
         *allocator_);
@@ -502,7 +502,7 @@ XamlTemplateSchemaFacet::~XamlTemplateSchemaFacet() noexcept {
     if (state_ == nullptr) {
         return;
     }
-    state_->~XamlTemplateSchemaFacetState();
+    state_->~State();
     state_ = nullptr;
 }
 
@@ -557,10 +557,10 @@ Base::Result<void> XamlTemplateSchemaFacet::Register(
             state_,
             true,
             true,
-            &XamlTemplateSchemaFacetState::RegisterTemplateName,
+            &XamlTemplateSchemaFacet::State::RegisterTemplateName,
             nullptr,
             &ResolveTemplateResources,
-            &XamlTemplateSchemaFacetState::EndTemplate,
+            &XamlTemplateSchemaFacet::State::EndTemplate,
             true,
             &ResolveTemplateImplicitKey});
     if (status) {
@@ -572,10 +572,10 @@ Base::Result<void> XamlTemplateSchemaFacet::Register(
             state_,
             true,
             true,
-            &XamlTemplateSchemaFacetState::RegisterTemplateName,
+            &XamlTemplateSchemaFacet::State::RegisterTemplateName,
             nullptr,
             &ResolveTemplateResources,
-            &XamlTemplateSchemaFacetState::EndTemplate,
+            &XamlTemplateSchemaFacet::State::EndTemplate,
             true,
             &ResolveTemplateImplicitKey});
     }
@@ -588,10 +588,10 @@ Base::Result<void> XamlTemplateSchemaFacet::Register(
             state_,
             true,
             true,
-            &XamlTemplateSchemaFacetState::RegisterTemplateName,
+            &XamlTemplateSchemaFacet::State::RegisterTemplateName,
             nullptr,
             &ResolveTemplateResources,
-            &XamlTemplateSchemaFacetState::EndTemplate,
+            &XamlTemplateSchemaFacet::State::EndTemplate,
             true,
             &ResolveTemplateImplicitKey});
     }
@@ -607,7 +607,7 @@ Base::Result<void> XamlTemplateSchemaFacet::Register(
             nullptr,
             nullptr,
             &ResolveTemplateResources,
-            &XamlTemplateSchemaFacetState::EndTemplate,
+            &XamlTemplateSchemaFacet::State::EndTemplate,
             true,
             nullptr});
     }

@@ -709,7 +709,7 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
             Base::ErrorCode::Unsupported,
             "Style trigger type is not supported");
     }
-    return Aero::StylePrivate::Seal(
+    return Aero::StyleState::Seal(
         style, *options_.properties);
 }
 
@@ -729,8 +729,8 @@ Base::Result<void> XamlStyleSchemaFacet::EndStyleInit(
 
 namespace Aero::Markup {
 
-struct UiObjectModelState {
-    explicit UiObjectModelState(
+struct UiObjectModel::State {
+    explicit State(
         const UiObjectModelOptions& options) noexcept
         : style(options),
           templates(
@@ -744,10 +744,10 @@ struct UiObjectModelState {
 };
 
 static_assert(
-    sizeof(UiObjectModelState) <= 4096,
+    sizeof(UiObjectModel::State) <= 4096,
     "UiObjectModel inline state storage is too small");
 static_assert(
-    alignof(UiObjectModelState) <= alignof(std::max_align_t),
+    alignof(UiObjectModel::State) <= alignof(std::max_align_t),
     "UiObjectModel inline state alignment is insufficient");
 
 UiObjectModel::UiObjectModel(
@@ -760,12 +760,12 @@ UiObjectModel::UiObjectModel(
         return;
     }
     optionsValid_ = true;
-    state_ = new (stateStorage_) UiObjectModelState(options);
+    state_ = new (stateStorage_) UiObjectModel::State(options);
 }
 
 UiObjectModel::~UiObjectModel() noexcept {
     if (state_ == nullptr) return;
-    state_->~UiObjectModelState();
+    state_->~State();
     state_ = nullptr;
 }
 

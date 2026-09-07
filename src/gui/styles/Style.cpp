@@ -839,7 +839,7 @@ Base::Result<void> StyleEngine::Apply(
         }
     }
     Base::Result<void> setters =
-        StylePrivate::ApplySetters(style, object, *values_);
+        StyleState::ApplySetters(style, object, *values_);
     if (!setters) {
         return setters.GetStatus();
     }
@@ -849,11 +849,11 @@ Base::Result<void> StyleEngine::Apply(
         application.style = &style;
         Base::Result<void> states =
             application.triggerStates.Resize(
-                StylePrivate::RuntimeTriggers(style).Size(), 0U);
+                StyleState::RuntimeTriggers(style).Size(), 0U);
         if (states) states = application.bindingTriggerStates.Resize(
-            StylePrivate::RuntimeTriggers(style).Size(), 0U);
+            StyleState::RuntimeTriggers(style).Size(), 0U);
         if (states) states = application.bindingTriggerKnown.Resize(
-            StylePrivate::RuntimeTriggers(style).Size(), 0U);
+            StyleState::RuntimeTriggers(style).Size(), 0U);
         if (!states) return states.GetStatus();
         const std::uint32_t newIndex = applications_.Size();
         Base::Result<void> tracked =
@@ -867,11 +867,11 @@ Base::Result<void> StyleEngine::Apply(
         applications_[existing].style = &style;
         Base::Result<void> states =
             applications_[existing].triggerStates.Resize(
-                StylePrivate::RuntimeTriggers(style).Size(), 0U);
+                StyleState::RuntimeTriggers(style).Size(), 0U);
         if (states) states = applications_[existing].bindingTriggerStates.Resize(
-            StylePrivate::RuntimeTriggers(style).Size(), 0U);
+            StyleState::RuntimeTriggers(style).Size(), 0U);
         if (states) states = applications_[existing].bindingTriggerKnown.Resize(
-            StylePrivate::RuntimeTriggers(style).Size(), 0U);
+            StyleState::RuntimeTriggers(style).Size(), 0U);
         if (!states) return states.GetStatus();
     }
     if (requiresSubscription) {
@@ -966,14 +966,14 @@ Base::Result<void> StyleEngine::ClearSetters(
     DependencyObject& object,
     const Style& style) noexcept {
     DetachSetterBindings(object);
-    return StylePrivate::ClearSetters(style, object, *values_);
+    return StyleState::ClearSetters(style, object, *values_);
 }
 
 Base::Result<void> StyleEngine::AttachSetterBindings(
     DependencyObject& object,
     const Style& style) noexcept {
     BindingEngine* bindings = AeroGuiInternal::BindingEngineOf(object);
-    for (const StyleSetter& setter : StylePrivate::RuntimeSetters(style)) {
+    for (const StyleSetter& setter : StyleState::RuntimeSetters(style)) {
         if (!IsDeferredBindingSetterValue(setter.value)) {
             continue;
         }

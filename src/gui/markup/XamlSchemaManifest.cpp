@@ -249,7 +249,7 @@ private:
 
 } // namespace
 
-struct SchemaManifestState {
+struct SchemaManifest::State {
     struct TypeRecord {
         explicit TypeRecord(Base::IAllocator& allocator) noexcept
             : xamlNamespace(&allocator), name(&allocator) {}
@@ -275,7 +275,7 @@ struct SchemaManifestState {
         Base::String name;
     };
 
-    explicit SchemaManifestState(Base::IAllocator& allocator) noexcept
+    explicit State(Base::IAllocator& allocator) noexcept
         : types(&allocator),
           members(&allocator),
           typeIndex(&allocator),
@@ -459,10 +459,10 @@ struct SchemaManifestState {
 };
 
 static_assert(
-    sizeof(SchemaManifestState) <= 2048,
+    sizeof(SchemaManifest::State) <= 2048,
     "SchemaManifest inline state storage is too small");
 static_assert(
-    alignof(SchemaManifestState) <= alignof(std::max_align_t),
+    alignof(SchemaManifest::State) <= alignof(std::max_align_t),
     "SchemaManifest inline state alignment is insufficient");
 
 namespace {
@@ -482,13 +482,13 @@ Base::Result<T*> AllocateObject(
 
 void DestroyManifestState(
     Base::IAllocator& allocator,
-    SchemaManifestState*& state) noexcept {
+    SchemaManifest::State*& state) noexcept {
     if (state == nullptr) return;
-    state->~SchemaManifestState();
+    state->~State();
     allocator.Deallocate(
         state,
-        sizeof(SchemaManifestState),
-        alignof(SchemaManifestState),
+        sizeof(SchemaManifest::State),
+        alignof(SchemaManifest::State),
         Base::MemoryTag::Markup);
     state = nullptr;
 }
@@ -543,16 +543,16 @@ SchemaManifest::SchemaManifest(
 
 SchemaManifest::SchemaManifest(
     Base::IAllocator& allocator,
-    SchemaManifestState* state) noexcept
+    SchemaManifest::State* state) noexcept
     : allocator_(&allocator) {
     if (state == nullptr) return;
-    state_ = new (stateStorage_) SchemaManifestState(std::move(*state));
+    state_ = new (stateStorage_) SchemaManifest::State(std::move(*state));
     DestroyManifestState(allocator, state);
 }
 
 SchemaManifest::~SchemaManifest() noexcept {
     if (state_ == nullptr) return;
-    state_->~SchemaManifestState();
+    state_->~State();
     state_ = nullptr;
 }
 
@@ -561,8 +561,8 @@ SchemaManifest::SchemaManifest(
     : allocator_(other.allocator_) {
     if (other.state_ != nullptr) {
         state_ = new (stateStorage_)
-            SchemaManifestState(std::move(*other.state_));
-        other.state_->~SchemaManifestState();
+            State(std::move(*other.state_));
+        other.state_->~State();
         other.state_ = nullptr;
     }
     other.allocator_ = &Base::GetDefaultAllocator();
@@ -572,14 +572,14 @@ SchemaManifest& SchemaManifest::operator=(
     SchemaManifest&& other) noexcept {
     if (this == &other) return *this;
     if (state_ != nullptr) {
-        state_->~SchemaManifestState();
+        state_->~State();
         state_ = nullptr;
     }
     allocator_ = other.allocator_;
     if (other.state_ != nullptr) {
         state_ = new (stateStorage_)
-            SchemaManifestState(std::move(*other.state_));
-        other.state_->~SchemaManifestState();
+            State(std::move(*other.state_));
+        other.state_->~State();
         other.state_ = nullptr;
     }
     other.allocator_ = &Base::GetDefaultAllocator();
@@ -596,9 +596,9 @@ Base::Result<SchemaManifest> SchemaManifest::Capture(
     }
     Base::IAllocator& selected = allocator != nullptr
         ? *allocator : Base::GetDefaultAllocator();
-    Base::Result<SchemaManifestState*> created = AllocateObject<SchemaManifestState>(selected);
+    Base::Result<SchemaManifest::State*> created = AllocateObject<SchemaManifest::State>(selected);
     if (!created) return created.GetStatus();
-    SchemaManifestState* impl = created.Value();
+    SchemaManifest::State* impl = created.Value();
 
     Base::Result<CompiledCacheIdentity> identity =
         BuildCompiledCacheIdentity(schema.Domain());
@@ -622,7 +622,7 @@ Base::Result<SchemaManifest> SchemaManifest::Capture(
     }
 
     for (const Meta::TypeInfo& type : descriptors.Types()) {
-        SchemaManifestState::TypeRecord record(selected);
+        SchemaManifest::State::TypeRecord record(selected);
         record.id = type.Id();
         record.baseType = type.BaseType();
         record.kind = type.Kind();
@@ -650,7 +650,7 @@ Base::Result<SchemaManifest> SchemaManifest::Capture(
         }
 
         for (const Meta::PropertyInfo& property : type.Properties()) {
-            SchemaManifestState::MemberRecord member(selected);
+            SchemaManifest::State::MemberRecord member(selected);
             member.id = property.Id();
             member.kind = ManifestMemberKind::Property;
             member.ownerType = property.OwnerType();
@@ -669,7 +669,7 @@ Base::Result<SchemaManifest> SchemaManifest::Capture(
         }
 
         for (const Meta::EventInfo& event : type.Events()) {
-            SchemaManifestState::MemberRecord member(selected);
+            SchemaManifest::State::MemberRecord member(selected);
             member.id = event.Id();
             member.kind = ManifestMemberKind::Event;
             member.ownerType = event.OwnerType();
@@ -725,9 +725,9 @@ Base::Result<SchemaManifest> SchemaManifest::Deserialize(
             "XAML schema manifest format is not supported");
     }
 
-    Base::Result<SchemaManifestState*> created = AllocateObject<SchemaManifestState>(selected);
+    Base::Result<SchemaManifest::State*> created = AllocateObject<SchemaManifest::State>(selected);
     if (!created) return created.GetStatus();
-    SchemaManifestState* impl = created.Value();
+    SchemaManifest::State* impl = created.Value();
 
     Base::Result<CompiledCacheIdentity> identity = ReadIdentity(decoder);
     if (!identity) {
@@ -771,7 +771,7 @@ Base::Result<SchemaManifest> SchemaManifest::Deserialize(
 
     std::uint32_t totalStringBytes = 0U;
     for (std::uint32_t index = 0U; index < typeCount.Value(); ++index) {
-        SchemaManifestState::TypeRecord record(selected);
+        SchemaManifest::State::TypeRecord record(selected);
         Base::Result<std::uint64_t> id = decoder.ReadU64();
         if (!id) {
             DestroyManifestState(selected, impl);
@@ -832,7 +832,7 @@ Base::Result<SchemaManifest> SchemaManifest::Deserialize(
     }
 
     for (std::uint32_t index = 0U; index < memberCount.Value(); ++index) {
-        SchemaManifestState::MemberRecord record(selected);
+        SchemaManifest::State::MemberRecord record(selected);
         Base::Result<std::uint64_t> id = decoder.ReadU64();
         if (!id) {
             DestroyManifestState(selected, impl);
@@ -908,7 +908,7 @@ Base::Result<SchemaManifest> SchemaManifest::Deserialize(
         DestroyManifestState(selected, impl);
         return indexed.GetStatus();
     }
-    for (const SchemaManifestState::TypeRecord& type : impl->types) {
+    for (const SchemaManifest::State::TypeRecord& type : impl->types) {
         if (type.baseType != Meta::InvalidTypeId &&
             impl->FindType(type.baseType) == nullptr) {
             DestroyManifestState(selected, impl);
@@ -917,7 +917,7 @@ Base::Result<SchemaManifest> SchemaManifest::Deserialize(
         Meta::TypeId current = type.id;
         std::uint32_t depth = 0U;
         while (current != Meta::InvalidTypeId && depth <= impl->types.Size()) {
-            const SchemaManifestState::TypeRecord* currentType = impl->FindType(current);
+            const SchemaManifest::State::TypeRecord* currentType = impl->FindType(current);
             if (currentType == nullptr) break;
             current = currentType->baseType;
             ++depth;
@@ -927,7 +927,7 @@ Base::Result<SchemaManifest> SchemaManifest::Deserialize(
             return InvalidManifest("XAML schema manifest type hierarchy contains a cycle");
         }
         if (type.contentMember != Meta::InvalidMemberId) {
-            const SchemaManifestState::MemberRecord* content = impl->FindMember(type.contentMember);
+            const SchemaManifest::State::MemberRecord* content = impl->FindMember(type.contentMember);
             if (content == nullptr ||
                 content->kind != ManifestMemberKind::Property ||
                 !impl->IsDerivedFrom(type.id, content->ownerType)) {
@@ -936,7 +936,7 @@ Base::Result<SchemaManifest> SchemaManifest::Deserialize(
             }
         }
     }
-    for (const SchemaManifestState::MemberRecord& member : impl->members) {
+    for (const SchemaManifest::State::MemberRecord& member : impl->members) {
         if (impl->FindType(member.ownerType) == nullptr ||
             impl->FindType(member.valueType) == nullptr) {
             DestroyManifestState(selected, impl);
@@ -959,7 +959,7 @@ SchemaManifest::Serialize() const noexcept {
     if (result) result = AppendU32(output, state_->members.Size());
     if (!result) return result.GetStatus();
 
-    for (const SchemaManifestState::TypeRecord& type : state_->types) {
+    for (const SchemaManifest::State::TypeRecord& type : state_->types) {
         result = AppendU64(output, type.id);
         if (result) result = AppendU64(output, type.baseType);
         if (result) result = AppendU32(
@@ -971,7 +971,7 @@ SchemaManifest::Serialize() const noexcept {
         if (result) result = AppendString(output, type.name.View());
         if (!result) return result.GetStatus();
     }
-    for (const SchemaManifestState::MemberRecord& member : state_->members) {
+    for (const SchemaManifest::State::MemberRecord& member : state_->members) {
         result = AppendU64(output, member.id);
         if (result) result = AppendU8(
             output, static_cast<std::uint8_t>(member.kind));
@@ -1006,7 +1006,7 @@ Base::Result<SchemaTypeInfo> SchemaManifest::ResolveType(
     Base::StringView xamlNamespace,
     Base::StringView localName) const noexcept {
     if (!IsValid()) return ManifestNotReady();
-    const SchemaManifestState::TypeRecord* type = state_->FindType(
+    const SchemaManifest::State::TypeRecord* type = state_->FindType(
         IsSystemNamespace(xamlNamespace)
             ? Meta::AeroNamespaceUri()
             : CanonicalXamlNamespace(xamlNamespace),
@@ -1020,7 +1020,7 @@ Base::Result<ResolvedMember> SchemaManifest::ResolveMember(
     const QualifiedName& name,
     MemberSyntax syntax) const noexcept {
     if (!IsValid()) return ManifestNotReady();
-    const SchemaManifestState::TypeRecord* target = state_->FindType(targetType);
+    const SchemaManifest::State::TypeRecord* target = state_->FindType(targetType);
     if (target == nullptr || name.LocalName().Empty()) return MemberNotFound();
 
     const Base::StringView localName = name.LocalName();
@@ -1074,7 +1074,7 @@ Base::Result<ResolvedMember> SchemaManifest::ResolveMember(
         // properties. Prefer a registered Aero owner (for example
         // aero:Path.TrimEnd) and retain the facade only for extension-only
         // members such as aero:Text.*.
-        const SchemaManifestState::TypeRecord* aeroOwner = state_->FindType(
+        const SchemaManifest::State::TypeRecord* aeroOwner = state_->FindType(
             Meta::AeroNamespaceUri(),
             CanonicalXamlTypeName(ownerName));
         if (aeroOwner != nullptr) {
@@ -1088,7 +1088,7 @@ Base::Result<ResolvedMember> SchemaManifest::ResolveMember(
             syntax,
             false);
     }
-    const SchemaManifestState::TypeRecord* owner = state_->FindType(
+    const SchemaManifest::State::TypeRecord* owner = state_->FindType(
         CanonicalXamlNamespace(ownerNamespace),
         CanonicalXamlTypeName(ownerName));
     if (owner == nullptr && name.NamespaceUri().Empty()) {
@@ -1101,7 +1101,7 @@ Base::Result<ResolvedMember> SchemaManifest::ResolveMember(
     // syntax (for example Border.ContextMenu) while storage is supplied by
     // the attached ContextMenuService property.
     if (memberName == Base::StringView("ContextMenu")) {
-        const SchemaManifestState::TypeRecord* service = state_->FindType(
+        const SchemaManifest::State::TypeRecord* service = state_->FindType(
             Meta::AeroNamespaceUri(), "ContextMenuService");
         if (service != nullptr) {
             return state_->ResolvePropertyOrEvent(
@@ -1115,14 +1115,14 @@ Base::Result<ResolvedMember> SchemaManifest::ResolveMember(
 Base::Result<ResolvedMember> SchemaManifest::ResolveContentMember(
     Meta::TypeId targetType) const noexcept {
     if (!IsValid()) return ManifestNotReady();
-    const SchemaManifestState::TypeRecord* type = state_->FindType(targetType);
+    const SchemaManifest::State::TypeRecord* type = state_->FindType(targetType);
     if (type == nullptr) return TypeNotFound();
     if (type->contentMember == Meta::InvalidMemberId) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
             "XAML schema manifest type has no content member");
     }
-    const SchemaManifestState::MemberRecord* member = state_->FindMember(type->contentMember);
+    const SchemaManifest::State::MemberRecord* member = state_->FindMember(type->contentMember);
     if (member == nullptr || member->kind != ManifestMemberKind::Property) {
         return InvalidManifest("XAML schema manifest content member is invalid");
     }

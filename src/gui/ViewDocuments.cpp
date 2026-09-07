@@ -42,8 +42,7 @@ Base::Result<Markup::XamlReaderSettings> XamlSettings(ViewState& state,
         state.loadContext.documentCache = state.documentCache;
         state.loadContext.dispatcher = state.dispatcher;
         state.loadContext.dependencyProperties =
-            &::Aero::MetadataPrivate::
-                DependencyProperties(*state.metadata);
+            &(*state.metadata).DependencyProperties();
         state.loadContext.effectLifetime = state.effectLifetime;
         state.loadContext.effectCommitMode = deferredEffects
             ? Markup::EffectCommitMode::Deferred
@@ -283,7 +282,7 @@ Base::Result<void> MountRoot(ViewState& state,
         if (!mountedResult) return mountedResult.GetStatus();
         state.root = std::move(requestedRoot);
         state.mounted = true;
-        Markup::EffectRuntimeServices runtimeServices;
+        Markup::EffectServices runtimeServices;
         runtimeServices.effectiveValues = state.values;
         runtimeServices.bindings = state.Bindings();
         runtimeServices.fallbackResources = &state.resources->dynamicResourceEnvironment;
@@ -874,7 +873,7 @@ Base::Result<void> MountViewFragment(
         detachFailedFragment();
         return applied.GetStatus();
     }
-    Markup::EffectRuntimeServices runtimeServices;
+    Markup::EffectServices runtimeServices;
     runtimeServices.effectiveValues = state_->values;
     runtimeServices.bindings = state_->Bindings();
     runtimeServices.fallbackResources = &state_->resources->dynamicResourceEnvironment;
@@ -1208,7 +1207,7 @@ Base::Result<void> AdoptLoadedComponent(
         }
     }
 
-    Markup::EffectRuntimeServices runtimeServices;
+    Markup::EffectServices runtimeServices;
     runtimeServices.effectiveValues = state.values;
     runtimeServices.bindings = state.Bindings();
     runtimeServices.fallbackResources =

@@ -119,18 +119,18 @@ struct Loader::LoaderState {
         Schema& schema,
         XamlProviderRegistry& providers,
         Diagnostics::IDiagnosticSink* diagnostics = nullptr,
-        const LoadState* runtime = nullptr) noexcept
+        const LoadState* loadState = nullptr) noexcept
         : schema_(&schema),
           providers_(&providers),
           diagnostics_(diagnostics),
-          runtime_(runtime) {}
+          loadState_(loadState) {}
 
     struct Operation;
 
     Schema* schema_ = nullptr;
     XamlProviderRegistry* providers_ = nullptr;
     Diagnostics::IDiagnosticSink* diagnostics_ = nullptr;
-    const LoadState* runtime_ = nullptr;
+    const LoadState* loadState_ = nullptr;
 };
 
 using Aero::ResourceDictionary;
@@ -719,15 +719,15 @@ struct Loader::LoaderState::Operation {
         Schema& schema,
         XamlProviderRegistry& providers,
         Diagnostics::IDiagnosticSink* diagnostics,
-        const LoadState* runtime) noexcept
+        const LoadState* loadState) noexcept
         : schema_(&schema),
           providers_(&providers),
           diagnostics_(diagnostics),
-          runtime_(runtime) {}
+          loadState_(loadState) {}
 
-    const LoadState& Runtime() const noexcept {
+    const LoadState& LoadContext() const noexcept {
         static const LoadState empty;
-        return runtime_ != nullptr ? *runtime_ : empty;
+        return loadState_ != nullptr ? *loadState_ : empty;
     }
 
     Base::Result<LoaderResult> LoadCore(
@@ -797,7 +797,7 @@ struct Loader::LoaderState::Operation {
     Schema* schema_ = nullptr;
     XamlProviderRegistry* providers_ = nullptr;
     Diagnostics::IDiagnosticSink* diagnostics_ = nullptr;
-    const LoadState* runtime_ = nullptr;
+    const LoadState* loadState_ = nullptr;
     Base::Vector<Base::ResourceUri> loadStack_;
 };
 
@@ -823,7 +823,7 @@ Loader::LoaderState::Operation::LoadCompiled(
     Base::Result<CompiledDocument> document =
         CompiledDocument::Deserialize(
             bytes,
-            Loader::SchemaDomain(*schema_),
+            schema_->Domain(),
             options.limits.compiled);
     if (!document) {
         const Base::Status status = document.GetStatus();
@@ -848,17 +848,17 @@ Loader::LoaderState::Operation::LoadCompiledDocument(
     const Base::ResourceUri& originUri,
     const XamlReaderSettings& options,
     const Base::Ref<Base::Object>& existingRoot) noexcept {
-    const LoadState& runtime = Runtime();
+    const LoadState& loadState = LoadContext();
     LoadState context;
-    context.resources = runtime.resources;
-    context.effectiveValues = runtime.effectiveValues;
-    context.bindings = runtime.bindings;
-    context.fallbackResources = runtime.fallbackResources;
+    context.resources = loadState.resources;
+    context.effectiveValues = loadState.effectiveValues;
+    context.bindings = loadState.bindings;
+    context.fallbackResources = loadState.fallbackResources;
     context.baseUri = &originUri;
-    context.templatedParent = runtime.templatedParent;
+    context.templatedParent = loadState.templatedParent;
     context.existingRoot = existingRoot;
-    context.effectLifetime = runtime.effectLifetime;
-    context.effectCommitMode = runtime.effectCommitMode;
+    context.effectLifetime = loadState.effectLifetime;
+    context.effectCommitMode = loadState.effectCommitMode;
     context.maxObjects = options.limits.maxObjects;
     // Source-backed compiled documents need the same two-phase resource
     // resolution as streamed documents. Merged ResourceDictionary sources
@@ -871,13 +871,13 @@ Loader::LoaderState::Operation::LoadCompiledDocument(
     context.finalizeContext = &finalize;
     ObjectWriter writer(*schema_, diagnostics_);
     Base::Result<LoaderResult> loaded =
-        runtime.dispatcher != nullptr &&
-        runtime.dependencyProperties != nullptr
+        loadState.dispatcher != nullptr &&
+        loadState.dependencyProperties != nullptr
         ? [&]() noexcept -> Base::Result<LoaderResult> {
               Meta::ObjectFactoryScope services(
-                  *runtime.dispatcher,
-                  *runtime.dependencyProperties,
-                  Loader::SchemaMetadata(*schema_));
+                  *loadState.dispatcher,
+                  *loadState.dependencyProperties,
+                  schema_->Metadata());
               return writer.Load(document, context);
           }()
         : [&]() noexcept {
@@ -891,7 +891,7 @@ Base::Result<LoaderResult> Loader::LoaderState::Operation::LoadCore(
     const Base::ResourceUri& uri,
     const XamlReaderSettings& options,
     const Base::Ref<Base::Object>& existingRoot) noexcept {
-    const LoadState& runtime = Runtime();
+    const LoadState& loadState = LoadContext();
     Base::Result<void> validOptions =
         ValidateOptions(options);
     if (!validOptions) {
@@ -936,16 +936,16 @@ Base::Result<LoaderResult> Loader::LoaderState::Operation::LoadCore(
         return pushed.GetStatus();
     }
 
-    if (runtime.documentCache != nullptr) {
+    if (loadState.documentCache != nullptr) {
         Base::Result<std::uint64_t> probedRevision =
             provider.Value().provider->Revision(uri);
         if (probedRevision && probedRevision.Value() != 0U) {
             Base::Result<DocumentCacheLookup> cached =
-                runtime.documentCache->Lookup(
+                loadState.documentCache->Lookup(
                     uri,
                     probedRevision.Value(),
                     provider.Value().cacheIdentity,
-                    Loader::SchemaDomain(*schema_),
+                    schema_->Domain(),
                     options.limits.compiled);
             if (cached && cached.Value().hit) {
                 Base::Result<LoaderResult> loaded =
@@ -955,7 +955,7 @@ Base::Result<LoaderResult> Loader::LoaderState::Operation::LoadCore(
                         options,
                         existingRoot);
                 if (loaded) {
-                    static_cast<void>(runtime.documentCache->Store(
+                    static_cast<void>(loadState.documentCache->Store(
                         uri,
                         probedRevision.Value(),
                         provider.Value().cacheIdentity,
@@ -1004,13 +1004,13 @@ Base::Result<LoaderResult> Loader::LoaderState::Operation::LoadCore(
         options,
         existingRoot,
         true,
-        runtime.documentCache != nullptr
+        loadState.documentCache != nullptr
             ? &recordedNodes
             : nullptr);
     if (sourceInfo.revision == 0U) {
         sourceInfo.revision = hashing.Hash();
     }
-    if (loaded && runtime.documentCache != nullptr &&
+    if (loaded && loadState.documentCache != nullptr &&
         !recordedNodes.Empty()) {
         Base::Result<CompiledDocument> compiled =
             CompiledDocument::Compile(
@@ -1029,7 +1029,7 @@ Base::Result<LoaderResult> Loader::LoaderState::Operation::LoadCore(
             }
         }
         if (compiled) {
-            static_cast<void>(runtime.documentCache->Store(
+            static_cast<void>(loadState.documentCache->Store(
                 uri,
                 sourceInfo.revision,
                 provider.Value().cacheIdentity,
@@ -1085,7 +1085,7 @@ Base::Result<LoaderResult> Loader::LoaderState::Operation::ParseStreamCore(
     const Base::Ref<Base::Object>& existingRoot,
     bool deferUnresolvedStaticResources,
     Base::Vector<Node>* recordingNodes) noexcept {
-    const LoadState& runtime = Runtime();
+    const LoadState& loadState = LoadContext();
     Base::Result<void> validOptions =
         ValidateOptions(options);
     if (!validOptions) {
@@ -1103,15 +1103,15 @@ Base::Result<LoaderResult> Loader::LoaderState::Operation::ParseStreamCore(
 
     NodeReader reader(tokenizer, diagnostics_);
     LoadState context;
-    context.resources = runtime.resources;
-    context.effectiveValues = runtime.effectiveValues;
-    context.bindings = runtime.bindings;
-    context.fallbackResources = runtime.fallbackResources;
+    context.resources = loadState.resources;
+    context.effectiveValues = loadState.effectiveValues;
+    context.bindings = loadState.bindings;
+    context.fallbackResources = loadState.fallbackResources;
     context.baseUri = &baseUri;
-    context.templatedParent = runtime.templatedParent;
+    context.templatedParent = loadState.templatedParent;
     context.existingRoot = existingRoot;
-    context.effectLifetime = runtime.effectLifetime;
-    context.effectCommitMode = runtime.effectCommitMode;
+    context.effectLifetime = loadState.effectLifetime;
+    context.effectCommitMode = loadState.effectCommitMode;
     context.maxObjects = options.limits.maxObjects;
     context.deferUnresolvedStaticResources =
         deferUnresolvedStaticResources;
@@ -1122,13 +1122,13 @@ Base::Result<LoaderResult> Loader::LoaderState::Operation::ParseStreamCore(
     context.finalizeContext = &finalize;
     ObjectWriter writer(*schema_, diagnostics_);
     Base::Result<LoaderResult> loaded =
-        runtime.dispatcher != nullptr &&
-        runtime.dependencyProperties != nullptr
+        loadState.dispatcher != nullptr &&
+        loadState.dependencyProperties != nullptr
         ? [&]() noexcept -> Base::Result<LoaderResult> {
               Meta::ObjectFactoryScope services(
-                  *runtime.dispatcher,
-                  *runtime.dependencyProperties,
-                  Loader::SchemaMetadata(*schema_));
+                  *loadState.dispatcher,
+                  *loadState.dependencyProperties,
+                  schema_->Metadata());
               return writer.Load(reader, context);
           }()
         : [&]() noexcept -> Base::Result<LoaderResult> {
@@ -1214,8 +1214,7 @@ Loader::LoaderState::Operation::ResolveResourceDependencies(
 
     ResourceDictionary* rootResources = nullptr;
     if (result.root) {
-        rootResources = Loader::SchemaResolveResourceScope(*schema_, 
-            result.root->RuntimeType(), *result.root);
+        rootResources = schema_->ResolveResourceScope(result.root->RuntimeType(), *result.root);
         if (rootResources != nullptr) {
             resolved = resolveDictionary(*rootResources);
             if (!resolved) return resolved.GetStatus();
@@ -1227,8 +1226,7 @@ Loader::LoaderState::Operation::ResolveResourceDependencies(
             (result.root && visual == result.root.Get())) {
             continue;
         }
-        ResourceDictionary* resources = Loader::SchemaResolveResourceScope(*schema_, 
-            visual->RuntimeType(), *visual);
+        ResourceDictionary* resources = schema_->ResolveResourceScope(visual->RuntimeType(), *visual);
         if (resources == nullptr || resources == rootResources) continue;
         resolved = resolveDictionary(*resources);
         if (!resolved) return resolved.GetStatus();
@@ -1270,8 +1268,7 @@ Loader::LoaderState::Operation::ResolveDictionaryDependencies(
             continue;
         }
         Base::Object& object = *value.AsObject();
-        ResourceDictionary* nested = Loader::SchemaResolveResourceScope(*schema_, 
-            object.RuntimeType(), object);
+        ResourceDictionary* nested = schema_->ResolveResourceScope(object.RuntimeType(), object);
         if (nested == nullptr ||
             (nested->Size() == 0U &&
              nested->MergedDictionaryCount() == 0U &&
@@ -1342,15 +1339,15 @@ Loader::LoaderState::Operation::ResolveDictionaryDependencies(
         ambientMerged = ambientResources.AddMerged(dictionary);
     }
     if (!ambientMerged) return ambientMerged.GetStatus();
-    const LoadState& runtime = Runtime();
-    LoadState resourceContext = runtime;
+    const LoadState& loadState = LoadContext();
+    LoadState resourceContext = loadState;
     resourceContext.resources = &ambientResources;
     resourceContext.fallbackResources = &ambientResources;
-    const LoadState* previousRuntime = runtime_;
-    runtime_ = &resourceContext;
+    const LoadState* previousLoadState = loadState_;
+    loadState_ = &resourceContext;
     Base::Result<LoaderResult> loaded =
         LoadCore(source, options, {});
-    runtime_ = previousRuntime;
+    loadState_ = previousLoadState;
     if (!loaded) {
         return Failure(
             loaded.GetStatus(),
@@ -1472,7 +1469,7 @@ Base::Result<void> Loader::LoaderState::Operation::AppendDependency(
 
 Base::Result<void> Loader::LoaderState::Operation::ValidateOptions(
     const XamlReaderSettings& options) const noexcept {
-    const LoadState& runtime = Runtime();
+    const LoadState& loadState = LoadContext();
     if (schema_ == nullptr || providers_ == nullptr ||
         !schema_->IsFrozen()) {
         return Base::Status::Failure(
@@ -1491,8 +1488,8 @@ Base::Result<void> Loader::LoaderState::Operation::ValidateOptions(
             Base::ErrorCode::InvalidArgument,
             "XAML load limits must be positive");
     }
-    if ((runtime.dispatcher == nullptr) !=
-        (runtime.dependencyProperties == nullptr)) {
+    if ((loadState.dispatcher == nullptr) !=
+        (loadState.dependencyProperties == nullptr)) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "XAML object factory require dispatcher and property metadata");
@@ -1605,7 +1602,7 @@ Loader::Loader(
     XamlProviderRegistry& providers,
     Diagnostics::IDiagnosticSink* diagnostics,
     Base::IAllocator* allocator,
-    const LoadState* runtime) noexcept
+    const LoadState* loadState) noexcept
     : allocator_(allocator != nullptr
           ? allocator
           : &Base::GetDefaultAllocator()) {
@@ -1616,7 +1613,7 @@ Loader::Loader(
         alignof(LoaderState) <= alignof(std::max_align_t),
         "Loader inline state alignment is insufficient");
     state_ = new (stateStorage_) LoaderState(
-        schema, providers, diagnostics, runtime);
+        schema, providers, diagnostics, loadState);
 }
 
 Loader::~Loader() noexcept {
@@ -1635,7 +1632,7 @@ Base::Result<XamlDocument> Loader::Load(
     }
     LoaderState::Operation operation(
         *state_->schema_, *state_->providers_,
-        state_->diagnostics_, state_->runtime_);
+        state_->diagnostics_, state_->loadState_);
     Base::Result<Base::ResourceUri> resolved =
         ResolveRequestedUri(uri, {});
     if (!resolved) {
@@ -1661,7 +1658,7 @@ Base::Result<XamlDocument> Loader::Load(
     }
     LoaderState::Operation operation(
         *state_->schema_, *state_->providers_,
-        state_->diagnostics_, state_->runtime_);
+        state_->diagnostics_, state_->loadState_);
     return AdoptResult(
         operation.LoadCore(uri, options, {}), *allocator_);
 }
@@ -1677,7 +1674,7 @@ Base::Result<XamlDocument> Loader::Parse(
     }
     LoaderState::Operation operation(
         *state_->schema_, *state_->providers_,
-        state_->diagnostics_, state_->runtime_);
+        state_->diagnostics_, state_->loadState_);
     return AdoptResult(
         operation.ParseCore(text, baseUri, options, {}, true),
         *allocator_);
@@ -1694,7 +1691,7 @@ Base::Result<XamlDocument> Loader::Parse(
     }
     LoaderState::Operation operation(
         *state_->schema_, *state_->providers_,
-        state_->diagnostics_, state_->runtime_);
+        state_->diagnostics_, state_->loadState_);
     return AdoptResult(
         operation.ParseStreamCore(
             stream, baseUri, options, {}, true),
@@ -1712,7 +1709,7 @@ Base::Result<XamlDocument> Loader::LoadComponent(
     }
     LoaderState::Operation operation(
         *state_->schema_, *state_->providers_,
-        state_->diagnostics_, state_->runtime_);
+        state_->diagnostics_, state_->loadState_);
     Base::Result<Base::ResourceUri> resolved =
         ResolveRequestedUri(uri, {});
     if (!resolved) {
@@ -1752,7 +1749,7 @@ Base::Result<XamlDocument> Loader::LoadComponent(
     }
     LoaderState::Operation operation(
         *state_->schema_, *state_->providers_,
-        state_->diagnostics_, state_->runtime_);
+        state_->diagnostics_, state_->loadState_);
     Base::Ref<Base::Object> retained =
         Base::Ref<Base::Object>::TryFromBorrowed(existingRoot);
     if (!retained) {
@@ -1780,7 +1777,7 @@ Base::Result<XamlDocument> Loader::LoadCompiled(
     }
     LoaderState::Operation operation(
         *state_->schema_, *state_->providers_,
-        state_->diagnostics_, state_->runtime_);
+        state_->diagnostics_, state_->loadState_);
     return AdoptResult(
         operation.LoadCompiled(bytes, originUri, options),
         *allocator_);

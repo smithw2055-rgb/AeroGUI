@@ -130,7 +130,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             auto& animation =
                 static_cast<MediaAnimation::DoubleAnimation&>(timeline);
             Aero::Media::Animation::Model::DoubleAnimation runtime =
-                Aero::Media::AnimationPrivate::Double(animation);
+                Aero::Media::Animation::Double(animation);
             runtime.timing =
                 EffectiveTimelineTiming(
                     animation, inherited);
@@ -184,7 +184,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             auto& animation =
                 static_cast<MediaAnimation::ColorAnimation&>(timeline);
             Aero::Media::Animation::Model::ColorAnimation runtime =
-                Aero::Media::AnimationPrivate::Color(animation);
+                Aero::Media::Animation::Color(animation);
             runtime.timing =
                 EffectiveTimelineTiming(
                     animation, inherited);
@@ -205,7 +205,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                     MediaAnimation::PointAnimation&>(
                         timeline);
             Aero::Media::Animation::Model::PointAnimation runtime =
-                Aero::Media::AnimationPrivate::Point(animation);
+                Aero::Media::Animation::Point(animation);
             runtime.timing =
                 EffectiveTimelineTiming(
                     animation, inherited);
@@ -227,7 +227,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                     MediaAnimation::RectAnimation&>(
                         timeline);
             Aero::Media::Animation::Model::RectAnimation runtime =
-                Aero::Media::AnimationPrivate::Rect(animation);
+                Aero::Media::Animation::Rect(animation);
             runtime.timing =
                 EffectiveTimelineTiming(
                     animation, inherited);
@@ -249,7 +249,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                     MediaAnimation::ThicknessAnimation&>(
                         timeline);
             Aero::Media::Animation::Model::ThicknessAnimation runtime =
-                Aero::Media::AnimationPrivate::Thickness(animation);
+                Aero::Media::Animation::Thickness(animation);
             runtime.timing =
                 EffectiveTimelineTiming(
                     animation, inherited);
@@ -268,7 +268,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             auto& animation =
                 static_cast<MediaAnimation::Int16Animation&>(timeline);
             Aero::Media::Animation::Model::IntegerAnimation runtime =
-                Aero::Media::AnimationPrivate::Integer16(animation);
+                Aero::Media::Animation::Integer16(animation);
             runtime.timing =
                 EffectiveTimelineTiming(animation, inherited);
             Base::Result<Aero::Media::Animation::Model::AnimationHandle>
@@ -282,7 +282,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             auto& animation =
                 static_cast<MediaAnimation::Int32Animation&>(timeline);
             Aero::Media::Animation::Model::IntegerAnimation runtime =
-                Aero::Media::AnimationPrivate::Integer32(animation);
+                Aero::Media::Animation::Integer32(animation);
             runtime.timing =
                 EffectiveTimelineTiming(animation, inherited);
             Base::Result<Aero::Media::Animation::Model::AnimationHandle>
@@ -296,7 +296,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             auto& animation =
                 static_cast<MediaAnimation::Int64Animation&>(timeline);
             Aero::Media::Animation::Model::IntegerAnimation runtime =
-                Aero::Media::AnimationPrivate::Integer64(animation);
+                Aero::Media::Animation::Integer64(animation);
             runtime.timing =
                 EffectiveTimelineTiming(animation, inherited);
             Base::Result<Aero::Media::Animation::Model::AnimationHandle>
@@ -310,7 +310,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             auto& animation =
                 static_cast<MediaAnimation::SizeAnimation&>(timeline);
             Aero::Media::Animation::Model::SizeAnimation runtime =
-                Aero::Media::AnimationPrivate::Size(animation);
+                Aero::Media::Animation::Size(animation);
             runtime.timing =
                 EffectiveTimelineTiming(animation, inherited);
             Base::Result<Aero::Media::Animation::Model::AnimationHandle>
@@ -324,7 +324,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             auto& animation =
                 static_cast<MediaAnimation::MatrixAnimation&>(timeline);
             Aero::Media::Animation::Model::MatrixAnimation runtime =
-                Aero::Media::AnimationPrivate::Matrix(animation);
+                Aero::Media::Animation::Matrix(animation);
             runtime.timing =
                 EffectiveTimelineTiming(animation, inherited);
             Base::Result<Aero::Media::Animation::Model::AnimationHandle>
@@ -346,7 +346,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                  animation.GetKeyFrames()) {
                 if (!frame) continue;
                 Base::Result<void> appended =
-                    frames.PushBack(Aero::Media::AnimationPrivate::DoubleFrame(
+                    frames.PushBack(Aero::Media::Animation::DoubleFrame(
                         *frame,
                         schedule.duration,
                         keyIndex,
@@ -422,7 +422,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 if (!frame) continue;
                 Base::Result<void> appended =
                     frames.PushBack(
-                        Aero::Media::AnimationPrivate::ColorFrame(
+                        Aero::Media::Animation::ColorFrame(
                             *frame,
                             schedule.duration,
                             keyIndex,
@@ -496,7 +496,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                  animation.GetKeyFrames()) {
                 if (!frame) continue;
                 Base::Result<void> appended = frames.PushBack(
-                    Aero::Media::AnimationPrivate::PointFrame(
+                    Aero::Media::Animation::PointFrame(
                         *frame,
                         schedule.duration,
                         keyIndex,
@@ -556,7 +556,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                  animation.GetKeyFrames()) {
                 if (!frame) continue;
                 Base::Result<void> appended = frames.PushBack(
-                    Aero::Media::AnimationPrivate::ThicknessFrame(
+                    Aero::Media::Animation::ThicknessFrame(
                         *frame,
                         schedule.duration,
                         keyIndex,
@@ -694,7 +694,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                          animation.GetKeyFrames()) {
                         if (!frame) continue;
                         Base::Result<void> appended = frames.PushBack(
-                            Aero::Media::AnimationPrivate::IntegerFrame(
+                            Aero::Media::Animation::IntegerFrame(
                                 *frame,
                                 schedule.duration,
                                 keyIndex,
@@ -721,7 +721,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                          animation.GetKeyFrames()) {
                         if (!frame) continue;
                         Base::Result<void> appended = frames.PushBack(
-                            Aero::Media::AnimationPrivate::IntegerFrame(
+                            Aero::Media::Animation::IntegerFrame(
                                 *frame,
                                 schedule.duration,
                                 keyIndex,
@@ -748,7 +748,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                          animation.GetKeyFrames()) {
                         if (!frame) continue;
                         Base::Result<void> appended = frames.PushBack(
-                            Aero::Media::AnimationPrivate::IntegerFrame(
+                            Aero::Media::Animation::IntegerFrame(
                                 *frame,
                                 schedule.duration,
                                 keyIndex,
@@ -773,7 +773,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                  animation.GetKeyFrames()) {
                 if (!frame) continue;
                 Base::Result<void> appended = frames.PushBack(
-                    Aero::Media::AnimationPrivate::SizeFrame(
+                    Aero::Media::Animation::SizeFrame(
                         *frame,
                         schedule.duration,
                         keyIndex,
@@ -833,7 +833,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                  animation.GetKeyFrames()) {
                 if (!frame) continue;
                 Base::Result<void> appended = frames.PushBack(
-                    Aero::Media::AnimationPrivate::MatrixFrame(
+                    Aero::Media::Animation::MatrixFrame(
                         *frame,
                         schedule.duration,
                         keyIndex,
@@ -896,7 +896,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 if (!frame) continue;
                 Aero::Media::Animation::Model::DiscreteAnimationKeyFrame runtime;
                 runtime.keyTimeMicroseconds =
-                    Aero::Media::AnimationPrivate::ResolveKeyTime(
+                    Aero::Media::Animation::ResolveKeyTime(
                         frame->GetKeyTime(),
                         schedule.duration,
                         keyIndex,
@@ -924,7 +924,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 if (!frame) continue;
                 Aero::Media::Animation::Model::DiscreteAnimationKeyFrame runtime;
                 runtime.keyTimeMicroseconds =
-                    Aero::Media::AnimationPrivate::ResolveKeyTime(
+                    Aero::Media::Animation::ResolveKeyTime(
                         frame->GetKeyTime(),
                         schedule.duration,
                         keyIndex,
@@ -960,7 +960,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 if (!frame) continue;
                 Aero::Media::Animation::Model::DiscreteAnimationKeyFrame runtime;
                 runtime.keyTimeMicroseconds =
-                    Aero::Media::AnimationPrivate::ResolveKeyTime(
+                    Aero::Media::Animation::ResolveKeyTime(
                         frame->GetKeyTime(),
                         schedule.duration,
                         keyIndex,

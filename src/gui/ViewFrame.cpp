@@ -507,7 +507,7 @@ void DetachViewUi(
                     node->RuntimeType(), Controls::Control::StaticTypeId())) {
                 auto& control = *static_cast<Controls::Control*>(node);
                 if (state.VisualStates() != nullptr) {
-                    (void)::Aero::Controls::TemplatePrivate::Clear(
+                    (void)::Aero::Controls::FrameworkTemplateState::Clear(
                         *state.VisualStates(), control);
                 }
                 if (state.Templates() != nullptr) {
@@ -537,26 +537,23 @@ Base::Result<void> ViewState::CreateUiEngines() noexcept {
         if (!status) return status.GetStatus();
         Aero::Controls::TemplateEngine* templates = nullptr;
         status = AllocateObject(*allocator, Base::MemoryTag::Ui, templates, *tree, *values,
-            ::Aero::MetadataPrivate::
-                DependencyProperties(*metadata),
+            (*metadata).DependencyProperties(),
             Layout(), RenderTree(), metadata, Bindings(),
             &resources->dynamicResourceEnvironment);
         if (!status) return status.GetStatus();
         // Publish onto the hub immediately so Shutdown can free on failure.
         tree->SetTemplates(templates);
         Base::Result<VisualStateManager*> createdStates =
-            ::Aero::Controls::TemplatePrivate::CreateVisualStateManager(
+            ::Aero::Controls::FrameworkTemplateState::CreateVisualStateManager(
                 *values,
                 *templates,
                 *Animations(),
-                ::Aero::MetadataPrivate::
-                    DependencyProperties(*metadata));
+                (*metadata).DependencyProperties());
         if (!createdStates) return createdStates.GetStatus();
         tree->SetVisualStates(createdStates.Value());
         Aero::StyleEngine* styles = nullptr;
         status = AllocateObject(*allocator, Base::MemoryTag::Ui, styles, *values,
-            ::Aero::MetadataPrivate::
-                DependencyProperties(*metadata));
+            (*metadata).DependencyProperties());
         if (!status) return status.GetStatus();
         styles->SetTriggerActionHandler(
             &InteractivityEngine::ExecuteStyleTriggerActions, interactivity);

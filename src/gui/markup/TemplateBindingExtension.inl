@@ -142,7 +142,7 @@ TemplateBindingExtension::ProvideValue(
         return captured.GetStatus();
     }
     Base::Result<void> added =
-        ::Aero::Controls::TemplatePrivate::AddTemplateBinding(controlTemplate,
+        ::Aero::Controls::FrameworkTemplateState::AddTemplateBinding(controlTemplate,
             targetName.View(),
             source->Handle(),
             destination->Handle());

@@ -573,7 +573,7 @@ Base::Result<std::uint64_t> CommitBinding(void* context) noexcept {
 
 
 Base::Result<void> BindBindingRuntime(
-    void* context, const EffectRuntimeServices& services) noexcept {
+    void* context, const EffectServices& services) noexcept {
     auto* state = static_cast<DeferredBindingState*>(context);
     if (state == nullptr || services.bindings == nullptr) {
         return Base::Status::Failure(
@@ -735,7 +735,7 @@ struct DeferredMultiBindingState {
 
 
 Base::Result<void> BindMultiBindingRuntime(
-    void* context, const EffectRuntimeServices& services) noexcept {
+    void* context, const EffectServices& services) noexcept {
     auto* state = static_cast<DeferredMultiBindingState*>(context);
     if (state == nullptr || services.bindings == nullptr) {
         return Base::Status::Failure(
@@ -1062,12 +1062,12 @@ Base::Result<void> CaptureControlTemplateChildName(
     }
     if (authoredName.Empty()) {
         authoredName =
-            ::Aero::Controls::TemplatePrivate::AuthoredNames(
+            ::Aero::Controls::FrameworkTemplateState::AuthoredNames(
                 controlTemplate).NameOf(target);
     }
     if (authoredName.Empty()) {
         Base::Result<Base::String> generated =
-            ::Aero::Controls::TemplatePrivate::EnsureAuthoredName(
+            ::Aero::Controls::FrameworkTemplateState::EnsureAuthoredName(
                 controlTemplate, target);
         if (!generated) return generated.GetStatus();
         storage = std::move(generated).Value();
@@ -1076,10 +1076,10 @@ Base::Result<void> CaptureControlTemplateChildName(
         Base::Result<void> assigned = storage.Assign(authoredName);
         if (!assigned) return assigned.GetStatus();
         authoredName = storage.View();
-        if (::Aero::Controls::TemplatePrivate::AuthoredNames(
+        if (::Aero::Controls::FrameworkTemplateState::AuthoredNames(
                 controlTemplate).Find(authoredName) == nullptr) {
             Base::Result<void> registered =
-                ::Aero::Controls::TemplatePrivate::RegisterAuthoredName(
+                ::Aero::Controls::FrameworkTemplateState::RegisterAuthoredName(
                     controlTemplate, authoredName, target);
             if (!registered) return registered.GetStatus();
         }
@@ -1433,7 +1433,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
             stagedParameter = std::move(parameter).Value();
         }
         Base::Result<void> added =
-            ::Aero::Controls::TemplatePrivate::AddTemplatedParentBinding(controlTemplate,
+            ::Aero::Controls::FrameworkTemplateState::AddTemplatedParentBinding(controlTemplate,
                 targetName.View(),
                 path,
                 stringFormat,

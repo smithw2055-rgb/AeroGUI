@@ -79,8 +79,7 @@ StoryboardHost::ResolveAnimationProperty(
                 indices[found++] = value;
             }
             const Meta::DependencyProperty* dataProperty =
-                ::Aero::MetadataPrivate::
-                    DependencyProperties(*Metadata()).Find(
+                (*Metadata()).DependencyProperties().Find(
                         target.RuntimeType(), "Data");
             if (found != 2U || dataProperty == nullptr) {
                 return Base::Status::Failure(
@@ -143,8 +142,7 @@ StoryboardHost::ResolveAnimationProperty(
                 if (authored[index] == '.') separator = index;
             }
             auto& properties =
-                ::Aero::MetadataPrivate::
-                    DependencyProperties(*Metadata());
+                (*Metadata()).DependencyProperties();
             if (separator == UINT32_MAX) {
                 return properties.Find(
                     object.RuntimeType(), authored);
@@ -364,8 +362,7 @@ StoryboardHost::ResolveAnimationProperty(
                           brushOwnerPath.SizeBytes() -
                               ownerDot - 1U);
                 const Meta::DependencyProperty* background =
-                    ::Aero::MetadataPrivate::
-                        DependencyProperties(*Metadata())
+                    (*Metadata()).DependencyProperties()
                             .Find(
                                 target.RuntimeType(),
                                 brushProperty);
@@ -695,8 +692,7 @@ StoryboardHost::ResolveAnimationProperty(
                         segmentBegin, segmentEnd - segmentBegin);
                     const bool terminal = segmentEnd == path.SizeBytes();
                     const Meta::DependencyProperty* segmentProperty =
-                        ::Aero::MetadataPrivate::
-                            DependencyProperties(*Metadata())
+                        (*Metadata()).DependencyProperties()
                                 .Find(currentTarget->RuntimeType(), segment);
                     if (segmentProperty == nullptr) {
                         return Base::Status::Failure(
@@ -780,9 +776,7 @@ StoryboardHost::ResolveAnimationProperty(
                 nestedProperty == Base::StringView("Color")) {
                 const Meta::DependencyProperty*
                     ownerDependency =
-                        ::Aero::MetadataPrivate::
-                                DependencyProperties(
-                                    *Metadata())
+                        (*Metadata()).DependencyProperties()
                                     .Find(
                                         target.
                                             RuntimeType(),
@@ -820,9 +814,7 @@ StoryboardHost::ResolveAnimationProperty(
                 // property. Owner-qualified direct properties such as
                 // FrameworkElement.MinWidth resolve on the original target.
                 const Meta::DependencyProperty* ownerDependency =
-                    ::Aero::MetadataPrivate::
-                            DependencyProperties(
-                                *Metadata())
+                    (*Metadata()).DependencyProperties()
                             .Find(
                                 target.RuntimeType(),
                                 ownerProperty);
@@ -893,8 +885,7 @@ StoryboardHost::ResolveAnimationProperty(
                         token.SizeBytes() - owner - 1U);
                 }
                 const Meta::DependencyProperty* dependency =
-                    ::Aero::MetadataPrivate::
-                        DependencyProperties(*Metadata()).Find(
+                    (*Metadata()).DependencyProperties().Find(
                             current->RuntimeType(), token);
                 if (dependency == nullptr) break;
                 if (end >= path.SizeBytes()) {
@@ -957,8 +948,7 @@ StoryboardHost::ResolveAnimationProperty(
                 path.SizeBytes() - ownerDot - 1U);
         }
         const Meta::DependencyProperty* property =
-            ::Aero::MetadataPrivate::
-                DependencyProperties(*Metadata())
+            (*Metadata()).DependencyProperties()
                     .Find(propertyTarget->RuntimeType(), path);
         if (property == nullptr) {
             return Base::Status::Failure(

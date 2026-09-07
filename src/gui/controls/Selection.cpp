@@ -638,7 +638,7 @@ void Selector::SyncContainers() noexcept {
         item.SetIsSelected(selected);
         if (states != nullptr) {
             static_cast<void>(
-                Aero::Controls::TemplatePrivate::GoToState(*states,
+                Aero::Controls::FrameworkTemplateState::GoToState(*states,
                     item,
                     "SelectionStates",
                     selected
@@ -1927,7 +1927,7 @@ void ComboBehavior::OnPointerStateChanged(
             comboCommon = "MouseOver";
         }
         static_cast<void>(
-            Aero::Controls::TemplatePrivate::GoToState(
+            Aero::Controls::FrameworkTemplateState::GoToState(
                 *states_,
                 *comboBox,
                 "CommonStates",
@@ -1955,7 +1955,7 @@ void ComboBehavior::OnPointerStateChanged(
                         common = "MouseOver";
                     }
                     static_cast<void>(
-                        Aero::Controls::TemplatePrivate::GoToState(
+                        Aero::Controls::FrameworkTemplateState::GoToState(
                             *states_,
                             item,
                             "CommonStates",
@@ -1963,7 +1963,7 @@ void ComboBehavior::OnPointerStateChanged(
                             true));
                     const bool selected = item.GetIsSelected();
                     static_cast<void>(
-                        Aero::Controls::TemplatePrivate::GoToState(
+                        Aero::Controls::FrameworkTemplateState::GoToState(
                             *states_,
                             item,
                             "SelectionStates",
@@ -2323,7 +2323,7 @@ void ListBehavior::OnPointerStateChanged(
                         common = "MouseOver";
                     }
                     static_cast<void>(
-                        Aero::Controls::TemplatePrivate::GoToState(
+                        Aero::Controls::FrameworkTemplateState::GoToState(
                             *states_,
                             item,
                             "CommonStates",
@@ -2331,7 +2331,7 @@ void ListBehavior::OnPointerStateChanged(
                             true));
                     const bool selected = item.GetIsSelected();
                     static_cast<void>(
-                        Aero::Controls::TemplatePrivate::GoToState(
+                        Aero::Controls::FrameworkTemplateState::GoToState(
                             *states_,
                             item,
                             "SelectionStates",

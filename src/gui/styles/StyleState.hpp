@@ -134,9 +134,6 @@ struct StyleState {
 
 } // namespace Aero
 
-namespace Aero {
-using StylePrivate = ::Aero::StyleState;
-}
 
 // Resource-assignment helpers used by style and markup application.
 

@@ -10,11 +10,11 @@ namespace Aero {
 namespace StoryboardSupport {
 
 template<class TAnimation>
-inline Aero::Media::Animation::TimelinePrivate::KeyframeSchedule
+inline Aero::Media::Animation::KeyframeSchedule
 MakeKeyframeSchedule(
     const TAnimation& animation,
     Aero::Media::Animation::AnimationTime authoredDuration) noexcept {
-    return Aero::Media::Animation::TimelinePrivate::MakeSchedule(
+    return Aero::Media::Animation::MakeSchedule(
         animation.GetKeyFrames(), authoredDuration);
 }
 

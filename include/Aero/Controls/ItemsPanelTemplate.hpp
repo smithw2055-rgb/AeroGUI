@@ -4,7 +4,7 @@
 
 namespace Aero::Controls {
 
-class TemplatePrivate;
+struct FrameworkTemplateState;
 
 class AERO_GUI_API ItemsPanelTemplate : public Base::Object {
     AERO_DECLARE_TYPE(ItemsPanelTemplate, Base::Object)
@@ -22,7 +22,7 @@ public:
     bool GetIsSealed() const noexcept;
 
 private:
-    friend class TemplatePrivate;
+    friend struct FrameworkTemplateState;
     void* state_ = nullptr;
 };
 

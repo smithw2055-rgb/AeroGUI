@@ -731,7 +731,7 @@ Base::Result<void> InteractivityEngine::AttachDataTemplateClrSubscription(
                     source->RuntimeType(),
                     ::Aero::DependencyObject::StaticTypeId())) {
                 const Meta::DependencyProperty* property =
-                    ::Aero::MetadataPrivate::DependencyProperties(*Metadata())
+                    (*Metadata()).DependencyProperties()
                         .Find(source->RuntimeType(), path);
                 if (property != nullptr) continue;
             }
@@ -853,9 +853,7 @@ Base::Result<std::uint32_t>
                                 StaticTypeId())) {
                         const Meta::DependencyProperty*
                             property =
-                                ::Aero::MetadataPrivate::
-                                    DependencyProperties(
-                                        *Metadata())
+                                (*Metadata()).DependencyProperties()
                                         .Find(
                                             source->
                                                 RuntimeType(),

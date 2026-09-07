@@ -451,7 +451,7 @@ LoaderResult XamlDocumentState::Take(
 namespace Aero::Markup {
 
 const ::Aero::Markup::EffectLifetime*
-XamlDocumentRuntimeLifetime(
+XamlDocumentEffectLifetime(
     const ::Aero::Markup::XamlDocument& document) noexcept {
     return ::Aero::Markup::XamlDocumentState::RuntimeLifetime(document);
 }
