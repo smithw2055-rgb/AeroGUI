@@ -177,8 +177,6 @@ set(_aero_gui_markup_sources
     src/gui/markup/MarkupExtensionHost.hpp
     src/gui/markup/XamlObjectWriterCommon.cpp
     src/gui/markup/XamlObjectWriterBuilderCore.cpp
-    src/gui/markup/XamlObjectWriterPropertyApply.cpp
-    src/gui/markup/XamlObjectWriterMarkupEval.cpp
     src/gui/markup/XamlObjectWriterNameScope.cpp
     src/gui/markup/XamlObjectWriter.cpp
     src/gui/markup/XamlMarkupExtensions.cpp
