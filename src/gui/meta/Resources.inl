@@ -19,12 +19,12 @@ Base::Result<void> PopulateUiResources(
 
     Register<Media::Pen>(context)
         .Property<Base::Ref<Media::Brush>, &Media::Pen::GetBrush, &Media::Pen::SetBrush>("Brush", PropertyFlags::None)
-        .Property(Media::Pen::ThicknessProperty, FrameworkPropertyMetadata(1.0) .Validate(&Base::Validate::NonNegative<double>))
+        .Property(Media::Pen::ThicknessProperty, 1.0, FrameworkPropertyMetadataOptions::None, &Base::Validate::NonNegative<double>)
         .Property<Base::Ref<Media::DashStyle>, &Media::Pen::GetDashStyle, &Media::Pen::SetDashStyle>("DashStyle", PropertyFlags::None)
         .Property(Media::Pen::LineJoinProperty, Media::PenLineJoin::Miter)
         .Property(Media::Pen::StartLineCapProperty, Media::PenLineCap::Flat)
         .Property(Media::Pen::EndLineCapProperty, Media::PenLineCap::Flat)
-        .Property(Media::Pen::MiterLimitProperty, FrameworkPropertyMetadata(10.0) .Validate(&Base::Validate::NonNegative<double>))
+        .Property(Media::Pen::MiterLimitProperty, 10.0, FrameworkPropertyMetadataOptions::None, &Base::Validate::NonNegative<double>)
         .Factory();
 
     Register<Media::StreamGeometry>(context)

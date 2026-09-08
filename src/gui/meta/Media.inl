@@ -56,7 +56,7 @@ Base::Result<void> PopulateUiMedia(
     Register<Transform>(context, TypeFlags::Abstract);
 
     Register<Brush>(context, TypeFlags::Abstract)
-        .Property(Brush::OpacityProperty, FrameworkPropertyMetadata(1.0, AffectsRender).Validate(&ValidateUnitDouble))
+        .Property(Brush::OpacityProperty, 1.0, AffectsRender, &ValidateUnitDouble)
         .Property(Brush::ShaderProperty, Base::Ref<Base::Object>{}, AffectsRender)
         .Property(Brush::RelativeTransformProperty, Base::Ref<Transform>{}, AffectsRender)
         .TextConverter(&ConvertBrushText);
@@ -67,7 +67,7 @@ Base::Result<void> PopulateUiMedia(
         .Factory();
 
     Register<GradientStop>(context)
-        .Property(GradientStop::OffsetProperty, FrameworkPropertyMetadata(0.0) .Validate(&ValidateUnitDouble))
+        .Property(GradientStop::OffsetProperty, 0.0, FrameworkPropertyMetadataOptions::None, &ValidateUnitDouble)
         .Property(GradientStop::ColorProperty, Color{})
         .Factory();
 
@@ -104,8 +104,8 @@ Base::Result<void> PopulateUiMedia(
     Register<RadialGradientBrush>(context)
         .Property(RadialGradientBrush::CenterProperty, Point{0.5, 0.5})
         .Property(RadialGradientBrush::GradientOriginProperty, Point{0.5, 0.5})
-        .Property(RadialGradientBrush::RadiusXProperty, FrameworkPropertyMetadata(0.5) .Validate(&Base::Validate::Positive<double>))
-        .Property(RadialGradientBrush::RadiusYProperty, FrameworkPropertyMetadata(0.5) .Validate(&Base::Validate::Positive<double>))
+        .Property(RadialGradientBrush::RadiusXProperty, 0.5, FrameworkPropertyMetadataOptions::None, &Base::Validate::Positive<double>)
+        .Property(RadialGradientBrush::RadiusYProperty, 0.5, FrameworkPropertyMetadataOptions::None, &Base::Validate::Positive<double>)
         .Factory();
 
     Register<ImageSource>(context, TypeFlags::Abstract)
@@ -235,19 +235,19 @@ Base::Result<void> PopulateUiMedia(
     Register<Effect>(context, TypeFlags::Abstract);
 
     Register<BlurEffect>(context)
-        .Property(BlurEffect::RadiusProperty, FrameworkPropertyMetadata(5.0, AffectsRender).Validate(&Base::Validate::NonNegative<double>))
+        .Property(BlurEffect::RadiusProperty, 5.0, AffectsRender, &Base::Validate::NonNegative<double>)
         .Factory();
 
     Register<DropShadowEffect>(context)
-        .Property(DropShadowEffect::BlurRadiusProperty, FrameworkPropertyMetadata(5.0, AffectsRender).Validate(&Base::Validate::NonNegative<double>))
+        .Property(DropShadowEffect::BlurRadiusProperty, 5.0, AffectsRender, &Base::Validate::NonNegative<double>)
         .Property(DropShadowEffect::DirectionProperty, 315.0, AffectsRender)
-        .Property(DropShadowEffect::ShadowDepthProperty, FrameworkPropertyMetadata(5.0, AffectsRender).Validate(&Base::Validate::NonNegative<double>))
-        .Property(DropShadowEffect::OpacityProperty, FrameworkPropertyMetadata(1.0, AffectsRender).Validate(&ValidateUnitDouble))
+        .Property(DropShadowEffect::ShadowDepthProperty, 5.0, AffectsRender, &Base::Validate::NonNegative<double>)
+        .Property(DropShadowEffect::OpacityProperty, 1.0, AffectsRender, &ValidateUnitDouble)
         .Property(DropShadowEffect::ColorProperty, Base::Color{ 0.0F, 0.0F, 0.0F, 1.0F}, AffectsRender)
         .Factory();
 
     Register<PixelateEffect>(context)
-        .Property(PixelateEffect::SizeProperty, FrameworkPropertyMetadata(1.0, AffectsRender).Validate(&Base::Validate::Positive<double>))
+        .Property(PixelateEffect::SizeProperty, 1.0, AffectsRender, &Base::Validate::Positive<double>)
         .Factory();
 
     Register<TintEffect>(context)
@@ -255,7 +255,7 @@ Base::Result<void> PopulateUiMedia(
         .Factory();
 
     Register<DirectionalBlurEffect>(context)
-        .Property(DirectionalBlurEffect::RadiusProperty, FrameworkPropertyMetadata(0.0, AffectsRender).Validate(&Base::Validate::NonNegative<double>))
+        .Property(DirectionalBlurEffect::RadiusProperty, 0.0, AffectsRender, &Base::Validate::NonNegative<double>)
         .Property(DirectionalBlurEffect::AngleProperty, 0.0, AffectsRender)
         .Factory();
 

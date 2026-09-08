@@ -501,13 +501,9 @@ Base::Result<void> FillFrameworkElementMetadata(
             Meta::Value::NullObject(
                 Meta::TypeOf<Base::Object>()))
         .Property(
-            FrameworkElement::WidthProperty,
-            FrameworkPropertyMetadata(Length::Auto(), AffectsMeasure)
-                .Validate(&ValidateLength))
+            FrameworkElement::WidthProperty, Length::Auto(), AffectsMeasure, &ValidateLength)
         .Property(
-            FrameworkElement::HeightProperty,
-            FrameworkPropertyMetadata(Length::Auto(), AffectsMeasure)
-                .Validate(&ValidateLength))
+            FrameworkElement::HeightProperty, Length::Auto(), AffectsMeasure, &ValidateLength)
         .Property(
             FrameworkElement::ActualWidthProperty,
             0.0)
@@ -515,25 +511,15 @@ Base::Result<void> FillFrameworkElementMetadata(
             FrameworkElement::ActualHeightProperty,
             0.0)
         .Property(
-            FrameworkElement::MinWidthProperty,
-            FrameworkPropertyMetadata(0.0, AffectsMeasure)
-                .Validate(&::Aero::Base::Validate::NonNegative<double>))
+            FrameworkElement::MinWidthProperty, 0.0, AffectsMeasure, &::Aero::Base::Validate::NonNegative<double>)
         .Property(
-            FrameworkElement::MaxWidthProperty,
-            FrameworkPropertyMetadata(DefaultMaximum, AffectsMeasure)
-                .Validate(&::Aero::Base::Validate::NonNegative<double>))
+            FrameworkElement::MaxWidthProperty, DefaultMaximum, AffectsMeasure, &::Aero::Base::Validate::NonNegative<double>)
         .Property(
-            FrameworkElement::MinHeightProperty,
-            FrameworkPropertyMetadata(0.0, AffectsMeasure)
-                .Validate(&::Aero::Base::Validate::NonNegative<double>))
+            FrameworkElement::MinHeightProperty, 0.0, AffectsMeasure, &::Aero::Base::Validate::NonNegative<double>)
         .Property(
-            FrameworkElement::MaxHeightProperty,
-            FrameworkPropertyMetadata(DefaultMaximum, AffectsMeasure)
-                .Validate(&::Aero::Base::Validate::NonNegative<double>))
+            FrameworkElement::MaxHeightProperty, DefaultMaximum, AffectsMeasure, &::Aero::Base::Validate::NonNegative<double>)
         .Property(
-            FrameworkElement::MarginProperty,
-            FrameworkPropertyMetadata(Thickness{}, AffectsMeasure)
-                .Validate(&ValidateMarginValue))
+            FrameworkElement::MarginProperty, Thickness{}, AffectsMeasure, &ValidateMarginValue)
         .Property(
             FrameworkElement::HorizontalAlignmentProperty,
             HorizontalAlignment::Stretch, AffectsArrange)

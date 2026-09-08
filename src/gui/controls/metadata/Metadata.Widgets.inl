@@ -72,16 +72,16 @@ Base::Result<void> PopulateControlsPrimitives(
     Register<Control>(context)
         .Event(Control::PreviewMouseDoubleClickEvent, RoutingStrategy::Tunnel)
         .Event(Control::MouseDoubleClickEvent)
-        .Override(UIElement::FocusableProperty, FrameworkPropertyMetadata(true))
-        .Override(UIElement::IsTabStopProperty, FrameworkPropertyMetadata(true))
+        .Override(UIElement::FocusableProperty, true, FrameworkPropertyMetadataOptions::None)
+        .Override(UIElement::IsTabStopProperty, true, FrameworkPropertyMetadataOptions::None)
         .Property(Control::BackgroundProperty, Base::Ref<Media::Brush>{}, AffectsRender)
         .Property(Control::BorderBrushProperty, Base::Ref<Media::Brush>{}, AffectsRender)
-        .Property(Control::BorderThicknessProperty, FrameworkPropertyMetadata(Aero::Thickness{}, AffectsMeasure | AffectsRender).Validate(&ValidateThicknessValue))
-        .Property(Control::PaddingProperty, FrameworkPropertyMetadata(Aero::Thickness{}, AffectsMeasure).Validate(&ValidateThicknessValue))
+        .Property(Control::BorderThicknessProperty, Aero::Thickness{}, AffectsMeasure | AffectsRender, &ValidateThicknessValue)
+        .Property(Control::PaddingProperty, Aero::Thickness{}, AffectsMeasure, &ValidateThicknessValue)
         .Property(Control::FontWeightProperty, FontWeight::Normal, AffectsMeasure)
         .Property(Control::HorizontalContentAlignmentProperty, Aero::HorizontalAlignment::Left, AffectsArrange)
         .Property(Control::VerticalContentAlignmentProperty, Aero::VerticalAlignment::Top, AffectsArrange)
-        .Property(Control::FontSizeProperty, FrameworkPropertyMetadata(16.0, Inherits | AffectsMeasure).Validate(&ValidatePositiveFiniteDouble))
+        .Property(Control::FontSizeProperty, 16.0, Inherits | AffectsMeasure, &ValidatePositiveFiniteDouble)
         .Property(Control::FocusVisualStyleProperty, Base::Ref<Aero::Style>{})
         .Property(Control::OverridesDefaultStyleProperty, false)
         .Property(Control::TemplateProperty, Base::Ref<ControlTemplate>{}, AffectsMeasure)
@@ -107,15 +107,15 @@ Base::Result<void> PopulateControlsPrimitives(
         .Property(ButtonBase::CommandParameterProperty, Value::NullObject(TypeOf<Base::Object>()))
         .Property(ButtonBase::CommandTargetProperty, Base::Ref<UIElement>{})
         .Override(UIElement::IsEnabledProperty, FrameworkPropertyMetadata(true, Inherits | AffectsRender).Coerce(&CoerceButtonEnabled))
-        .Override(UIElement::IsTabStopProperty, FrameworkPropertyMetadata(true));
+        .Override(UIElement::IsTabStopProperty, true, FrameworkPropertyMetadataOptions::None);
 
     Register<Button>(context)
         .Factory();
 
     Register<RepeatButton>(context)
         .Property(RepeatButton::DelayProperty, std::uint32_t{400})
-        .Property(RepeatButton::IntervalProperty, FrameworkPropertyMetadata(std::uint32_t{100}).Validate(&Base::Validate::Positive<std::uint32_t>))
-        .Override(ButtonBase::ClickModeProperty, FrameworkPropertyMetadata(ClickMode::Press))
+        .Property(RepeatButton::IntervalProperty, std::uint32_t{100}, FrameworkPropertyMetadataOptions::None, &Base::Validate::Positive<std::uint32_t>)
+        .Override(ButtonBase::ClickModeProperty, ClickMode::Press, FrameworkPropertyMetadataOptions::None)
         .Factory();
 
     Register<ToggleButton>(context)
@@ -139,14 +139,14 @@ Base::Result<void> PopulateControlsPrimitives(
 
     Register<ScrollViewer>(context)
         .Event(ScrollViewer::ScrollChangedEvent)
-        .Property(ScrollViewer::HorizontalOffsetProperty, FrameworkPropertyMetadata(0.0).Validate(&::Aero::Base::Validate::NonNegative<double>))
-        .Property(ScrollViewer::VerticalOffsetProperty, FrameworkPropertyMetadata(0.0).Validate(&::Aero::Base::Validate::NonNegative<double>))
-        .Property(ScrollViewer::ExtentWidthProperty, FrameworkPropertyMetadata(0.0).Validate(&::Aero::Base::Validate::NonNegative<double>))
-        .Property(ScrollViewer::ExtentHeightProperty, FrameworkPropertyMetadata(0.0).Validate(&::Aero::Base::Validate::NonNegative<double>))
-        .Property(ScrollViewer::ViewportWidthProperty, FrameworkPropertyMetadata(0.0).Validate(&::Aero::Base::Validate::NonNegative<double>))
-        .Property(ScrollViewer::ViewportHeightProperty, FrameworkPropertyMetadata(0.0).Validate(&::Aero::Base::Validate::NonNegative<double>))
-        .Property(ScrollViewer::ScrollableWidthProperty, FrameworkPropertyMetadata(0.0).Validate(&::Aero::Base::Validate::NonNegative<double>))
-        .Property(ScrollViewer::ScrollableHeightProperty, FrameworkPropertyMetadata(0.0).Validate(&::Aero::Base::Validate::NonNegative<double>))
+        .Property(ScrollViewer::HorizontalOffsetProperty, 0.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::NonNegative<double>)
+        .Property(ScrollViewer::VerticalOffsetProperty, 0.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::NonNegative<double>)
+        .Property(ScrollViewer::ExtentWidthProperty, 0.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::NonNegative<double>)
+        .Property(ScrollViewer::ExtentHeightProperty, 0.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::NonNegative<double>)
+        .Property(ScrollViewer::ViewportWidthProperty, 0.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::NonNegative<double>)
+        .Property(ScrollViewer::ViewportHeightProperty, 0.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::NonNegative<double>)
+        .Property(ScrollViewer::ScrollableWidthProperty, 0.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::NonNegative<double>)
+        .Property(ScrollViewer::ScrollableHeightProperty, 0.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::NonNegative<double>)
         .Property(ScrollViewer::ComputedHorizontalScrollBarVisibilityProperty, Visibility::Collapsed, AffectsMeasure | AffectsRender)
         .Property(ScrollViewer::ComputedVerticalScrollBarVisibilityProperty, Visibility::Collapsed, AffectsMeasure | AffectsRender)
         .Property(ScrollViewer::HorizontalScrollBarVisibilityProperty, FrameworkPropertyMetadata(ScrollBarVisibility::Disabled, AffectsMeasure | AffectsRender).Changed(&OnScrollViewerVisibilityChanged))
@@ -165,10 +165,10 @@ Base::Result<void> PopulateControlsPrimitives(
 
     Register<Track>(context)
         .Property(Track::OrientationProperty, Orientation::Vertical, AffectsMeasure)
-        .Property(Track::MinimumProperty, FrameworkPropertyMetadata(0.0, AffectsArrange).Validate(&::Aero::Base::Validate::Finite<double>))
-        .Property(Track::MaximumProperty, FrameworkPropertyMetadata(1.0, AffectsArrange).Validate(&::Aero::Base::Validate::Finite<double>))
-        .Property(Track::ValueProperty, FrameworkPropertyMetadata(0.0, AffectsArrange | BindsTwoWayByDefault).Validate(&::Aero::Base::Validate::Finite<double>))
-        .Property(Track::ViewportSizeProperty, FrameworkPropertyMetadata(0.0, AffectsArrange).Validate(&::Aero::Base::Validate::NonNegative<double>))
+        .Property(Track::MinimumProperty, 0.0, AffectsArrange, &::Aero::Base::Validate::Finite<double>)
+        .Property(Track::MaximumProperty, 1.0, AffectsArrange, &::Aero::Base::Validate::Finite<double>)
+        .Property(Track::ValueProperty, 0.0, AffectsArrange | BindsTwoWayByDefault, &::Aero::Base::Validate::Finite<double>)
+        .Property(Track::ViewportSizeProperty, 0.0, AffectsArrange, &::Aero::Base::Validate::NonNegative<double>)
         .Property(Track::IsDirectionReversedProperty, false, AffectsArrange)
         .Property<Base::Ref<RepeatButton>, &Track::SetDecreaseRepeatButton>("DecreaseRepeatButton", PropertyFlags::Structural)
         .Property<Base::Ref<Thumb>, &Track::SetThumb>("Thumb", PropertyFlags::Structural)
@@ -176,8 +176,8 @@ Base::Result<void> PopulateControlsPrimitives(
         .Factory();
 
     Register<GridSplitter>(context)
-        .Property(GridSplitter::DragIncrementProperty, FrameworkPropertyMetadata(1.0).Validate(&::Aero::Base::Validate::Positive<double>))
-        .Property(GridSplitter::KeyboardIncrementProperty, FrameworkPropertyMetadata(10.0).Validate(&::Aero::Base::Validate::Positive<double>))
+        .Property(GridSplitter::DragIncrementProperty, 1.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::Positive<double>)
+        .Property(GridSplitter::KeyboardIncrementProperty, 10.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::Positive<double>)
         .Property(GridSplitter::ResizeDirectionProperty, GridResizeDirection::Auto)
         .Property(GridSplitter::ResizeBehaviorProperty, GridResizeBehavior::BasedOnAlignment)
         .Property(GridSplitter::ShowsPreviewProperty, false)
@@ -192,9 +192,9 @@ Base::Result<void> PopulateControlsPrimitives(
 
     Register<ScrollBar>(context)
         .Property(ScrollBar::OrientationProperty, Orientation::Vertical, AffectsMeasure)
-        .Property(ScrollBar::ViewportSizeProperty, FrameworkPropertyMetadata(0.0, AffectsArrange).Validate(&::Aero::Base::Validate::NonNegative<double>))
-        .Property(ScrollBar::SmallChangeProperty, FrameworkPropertyMetadata(16.0).Validate(&::Aero::Base::Validate::Positive<double>))
-        .Property(ScrollBar::LargeChangeProperty, FrameworkPropertyMetadata(0.0).Validate(&::Aero::Base::Validate::NonNegative<double>))
+        .Property(ScrollBar::ViewportSizeProperty, 0.0, AffectsArrange, &::Aero::Base::Validate::NonNegative<double>)
+        .Property(ScrollBar::SmallChangeProperty, 16.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::Positive<double>)
+        .Property(ScrollBar::LargeChangeProperty, 0.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::NonNegative<double>)
         .TemplatePart("PART_Track", TypeOf<Track>())
         .Factory();
 
@@ -248,15 +248,15 @@ Base::Result<void> PopulateControlsPrimitives(
 
     Register<Slider>(context)
         .Property(Slider::OrientationProperty, Orientation::Horizontal, AffectsMeasure)
-        .Property(Slider::SmallChangeProperty, FrameworkPropertyMetadata(1.0).Validate(&Base::Validate::Positive<double>))
-        .Property(Slider::LargeChangeProperty, FrameworkPropertyMetadata(10.0).Validate(&Base::Validate::Positive<double>))
+        .Property(Slider::SmallChangeProperty, 1.0, FrameworkPropertyMetadataOptions::None, &Base::Validate::Positive<double>)
+        .Property(Slider::LargeChangeProperty, 10.0, FrameworkPropertyMetadataOptions::None, &Base::Validate::Positive<double>)
         .Property(Slider::TickPlacementProperty, TickPlacement::None, AffectsRender)
-        .Property(Slider::TickFrequencyProperty, FrameworkPropertyMetadata(1.0, AffectsRender).Validate(&Base::Validate::Positive<double>))
-        .Property(Slider::TicksProperty, FrameworkPropertyMetadata(Base::String{}, AffectsRender).Validate(&ValidateSliderTicks))
+        .Property(Slider::TickFrequencyProperty, 1.0, AffectsRender, &Base::Validate::Positive<double>)
+        .Property(Slider::TicksProperty, Base::String{}, AffectsRender, &ValidateSliderTicks)
         .Property(Slider::IsSnapToTickEnabledProperty, false)
         .Property(Slider::IsDirectionReversedProperty, false, AffectsArrange | AffectsRender)
         .Property(Slider::IsMoveToPointEnabledProperty, false)
-        .Override(UIElement::IsTabStopProperty, FrameworkPropertyMetadata(true))
+        .Override(UIElement::IsTabStopProperty, true, FrameworkPropertyMetadataOptions::None)
         .Factory();
 
     Register<TickBar>(context)
@@ -307,13 +307,13 @@ Base::Result<void> PopulateControlsItems(
     Register<ItemsControl>(context)
         .Property(ItemsControl::ItemCountProperty, std::uint32_t{0})
         .Property(ItemsControl::HasItemsProperty, false)
-        .Property(ItemsControl::ItemsSourceProperty, FrameworkPropertyMetadata(Base::Ref<Base::Object>{}, AffectsMeasure).Changed(&OnItemsSourceChanged))
+        .Property(ItemsControl::ItemsSourceProperty, Base::Ref<Base::Object>{}, AffectsMeasure, &OnItemsSourceChanged)
         .Property(ItemsControl::AlternationCountProperty, std::uint32_t{0}, AffectsMeasure)
-        .Property(ItemsControl::DisplayMemberPathProperty, FrameworkPropertyMetadata(Base::String{}, AffectsMeasure).Changed(&OnDisplayMemberPathChanged))
-        .Property(ItemsControl::ItemTemplateProperty, FrameworkPropertyMetadata(Base::Ref<DataTemplate>{}, AffectsMeasure).Changed(&OnItemTemplateChanged))
-        .Property(ItemsControl::ItemTemplateSelectorProperty, FrameworkPropertyMetadata(Base::Ref<DataTemplateSelector>{}, AffectsMeasure).Changed(&OnItemTemplateSelectorChanged))
-        .Property(ItemsControl::ItemsPanelProperty, FrameworkPropertyMetadata(Base::Ref<ItemsPanelTemplate>{}, AffectsMeasure).Changed(&OnItemsPanelChanged))
-        .Property(ItemsControl::ItemContainerStyleProperty, FrameworkPropertyMetadata(Base::Ref<Style>{}, AffectsMeasure).Changed(&OnItemContainerStyleChanged))
+        .Property(ItemsControl::DisplayMemberPathProperty, Base::String{}, AffectsMeasure, &OnDisplayMemberPathChanged)
+        .Property(ItemsControl::ItemTemplateProperty, Base::Ref<DataTemplate>{}, AffectsMeasure, &OnItemTemplateChanged)
+        .Property(ItemsControl::ItemTemplateSelectorProperty, Base::Ref<DataTemplateSelector>{}, AffectsMeasure, &OnItemTemplateSelectorChanged)
+        .Property(ItemsControl::ItemsPanelProperty, Base::Ref<ItemsPanelTemplate>{}, AffectsMeasure, &OnItemsPanelChanged)
+        .Property(ItemsControl::ItemContainerStyleProperty, Base::Ref<Style>{}, AffectsMeasure, &OnItemContainerStyleChanged)
         .Content<Base::Object>("Items", ContentKind::Collection, &AddItemsControlItem, &ClearItemsControlItems)
         .Factory();
 
@@ -339,28 +339,28 @@ Base::Result<void> PopulateControlsItems(
 
     Register<ListBoxItem>(context)
         .Property(ListBoxItem::IsSelectedProperty, false, AffectsRender | BindsTwoWayByDefault)
-        .Override(Aero::UIElement::IsTabStopProperty, FrameworkPropertyMetadata(true))
+        .Override(Aero::UIElement::IsTabStopProperty, true, FrameworkPropertyMetadataOptions::None)
         .Factory();
 
     Register<ComboBox>(context)
         .Event(ComboBox::DropDownOpenedEvent)
         .Event(ComboBox::DropDownClosedEvent)
         .Property(ComboBox::IsDropDownOpenProperty, false, AffectsMeasure | AffectsRender | BindsTwoWayByDefault)
-        .Property(ComboBox::MaxDropDownHeightProperty, FrameworkPropertyMetadata(240.0, AffectsMeasure).Validate(&Base::Validate::Positive<double>))
+        .Property(ComboBox::MaxDropDownHeightProperty, 240.0, AffectsMeasure, &Base::Validate::Positive<double>)
         .Property(ComboBox::IsEditableProperty, false, AffectsMeasure | AffectsRender)
         .Property(ComboBox::IsReadOnlyProperty, false, AffectsRender)
         .Property(ComboBox::TextProperty, Base::String{}, AffectsMeasure | BindsTwoWayByDefault)
         .Property(ComboBox::PlaceholderProperty, Base::String{}, AffectsMeasure | AffectsRender)
         .Property(ComboBox::SelectionBoxTextProperty, Base::String{})
         .Property(ComboBox::SelectionBoxItemProperty, Meta::Value::NullObject(Meta::TypeOf<Base::Object>()))
-        .Override(Aero::UIElement::IsTabStopProperty, FrameworkPropertyMetadata(true))
+        .Override(Aero::UIElement::IsTabStopProperty, true, FrameworkPropertyMetadataOptions::None)
         .TemplatePart("PART_EditableTextBox", TypeOf<TextBox>())
         .TemplatePart("PART_Popup", TypeOf<Popup>())
         .Factory();
 
     Register<ComboBoxItem>(context)
         .Property(ComboBoxItem::IsSelectedProperty, false, AffectsRender | BindsTwoWayByDefault)
-        .Override(Aero::UIElement::IsTabStopProperty, FrameworkPropertyMetadata(true))
+        .Override(Aero::UIElement::IsTabStopProperty, true, FrameworkPropertyMetadataOptions::None)
         .Factory();
 
     Register<Page>(context)
@@ -371,8 +371,8 @@ Base::Result<void> PopulateControlsItems(
         .Event(Popup::ClosedEvent)
         .Property(Popup::IsOpenProperty, false, AffectsMeasure | AffectsRender | BindsTwoWayByDefault)
         .Property(Popup::PlacementProperty, PlacementMode::Bottom, AffectsArrange)
-        .Property(Popup::HorizontalOffsetProperty, FrameworkPropertyMetadata(0.0, AffectsArrange).Validate(&Base::Validate::Finite<double>))
-        .Property(Popup::VerticalOffsetProperty, FrameworkPropertyMetadata(0.0, AffectsArrange).Validate(&Base::Validate::Finite<double>))
+        .Property(Popup::HorizontalOffsetProperty, 0.0, AffectsArrange, &Base::Validate::Finite<double>)
+        .Property(Popup::VerticalOffsetProperty, 0.0, AffectsArrange, &Base::Validate::Finite<double>)
         .Property(Popup::StaysOpenProperty, true)
         .Property(Popup::MatchPlacementTargetWidthProperty, false, AffectsArrange)
         .Property(Popup::PlacementTargetProperty, Base::Ref<UIElement>{}, AffectsArrange)
@@ -393,7 +393,7 @@ Base::Result<void> PopulateControlsItems(
         .Property(TreeViewItem::IconProperty, Base::String{}, AffectsMeasure)
         .Property(TreeViewItem::IsExpandedProperty, false, AffectsMeasure | BindsTwoWayByDefault)
         .Property(TreeViewItem::IsSelectedProperty, false, AffectsRender | BindsTwoWayByDefault)
-        .Override(Aero::UIElement::IsTabStopProperty, FrameworkPropertyMetadata(true))
+        .Override(Aero::UIElement::IsTabStopProperty, true, FrameworkPropertyMetadataOptions::None)
         .Content<Base::Object>("Items", ContentKind::Collection, &AddTreeViewItem, &ClearTreeViewItems)
         .Factory();
 
@@ -429,7 +429,7 @@ Base::Result<void> PopulateControlsItems(
 
     Register<GridViewColumn>(context)
         .Property(GridViewColumn::HeaderProperty, Value::NullObject(TypeOf<Base::Object>()))
-        .Property(GridViewColumn::WidthProperty, FrameworkPropertyMetadata(100.0).Validate(&Base::Validate::NonNegative<double>))
+        .Property(GridViewColumn::WidthProperty, 100.0, FrameworkPropertyMetadataOptions::None, &Base::Validate::NonNegative<double>)
         .Property(GridViewColumn::CellTemplateProperty, Base::Ref<DataTemplate>{})
         .Property(GridViewColumn::HeaderTemplateProperty, Base::Ref<DataTemplate>{})
         .Property(GridViewColumn::DisplayMemberPathProperty, Base::String{})
@@ -468,7 +468,7 @@ Base::Result<void> PopulateControlsItems(
         .Factory();
 
     Register<ListViewItem>(context)
-        .Override(Aero::UIElement::IsTabStopProperty, FrameworkPropertyMetadata(true))
+        .Override(Aero::UIElement::IsTabStopProperty, true, FrameworkPropertyMetadataOptions::None)
         .Factory();
 
     Register<Separator>(context)
