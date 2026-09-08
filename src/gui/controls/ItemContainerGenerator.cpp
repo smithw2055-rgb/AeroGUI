@@ -16,7 +16,7 @@
 #include "gui/data/BindingEngine.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleEngine.hpp"
-#include "gui/controls/ItemsDetail.hpp" 
+#include "gui/controls/ItemsContainers.hpp" 
 #include "gui/templates/TemplateInstance.hpp"
 
 #include <Aero/FrameworkElement.hpp>

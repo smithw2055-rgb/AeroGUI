@@ -2,6 +2,7 @@
 
 // Items implementation detail — not part of the public Controls umbrella.
 // BoxedItemValue adapts scalar ItemsSource values for the items pipeline.
+// NOTE: renamed from ItemsDetail.hpp (responsibility name; no behavior change).
 
 #include <Aero/Base/Object.hpp>
 #include <Aero/Value.hpp>

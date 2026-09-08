@@ -9,7 +9,7 @@
 #include <new>
 #include <utility>
 
-#include "gui/controls/ItemsDetail.hpp"
+#include "gui/controls/ItemsContainers.hpp"
 namespace Aero {
 
 using namespace ::Aero;

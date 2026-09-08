@@ -13,6 +13,11 @@ namespace Meta {
 class DependencyPropertyRegistry;
 }
 struct StoredValueEntry;
+// Engine-owned state (definitions in src/gui/internal/PropertyStore.hpp).
+// Kept out of the public header for Noesis-parity slimness; ChangeKind stays
+// here because include/Aero/Resources.hpp references it.
+struct DependencyObjectRare;
+class DependencyMutationScope;
 
 class AERO_GUI_API DependencyObject : public DispatcherObject {
     AERO_DECLARE_TYPE(DependencyObject, DispatcherObject)
@@ -124,45 +129,13 @@ protected:
     virtual Result<void> VerifyMutationAllowed() const noexcept;
 
 private:
+    friend class DependencyMutationScope;
+
     enum class ChangeKind : std::uint8_t {
         SetLocal,
         SetCurrent,
         Clear,
         ReCoerce
-    };
-
-    struct ChangeHandlerRecord {
-        DependencyPropertyHandle property;
-        DependencyPropertyChangedEventHandler handler;
-        bool active = false;
-    };
-
-    struct DependencyObjectRare {
-        Base::Vector<ChangeHandlerRecord> changeHandlers;
-        std::uint32_t changeHandlerNotificationDepth = 0U;
-    };
-
-    class MutationScope {
-    public:
-        MutationScope() noexcept = default;
-        MutationScope(MutationScope&& other) noexcept;
-        MutationScope& operator=(MutationScope&& other) noexcept;
-        ~MutationScope();
-
-        MutationScope(const MutationScope&) = delete;
-        MutationScope& operator=(const MutationScope&) = delete;
-
-        void Release() noexcept;
-
-    private:
-        friend class DependencyObject;
-
-        MutationScope(
-            DependencyObject* owner,
-            DispatcherReentrancyGuard&& guard) noexcept;
-
-        DependencyObject* owner_ = nullptr;
-        DispatcherReentrancyGuard dispatcherGuard_;
     };
 
     Meta::DependencyPropertyRegistry* registry_ = nullptr;
@@ -175,7 +148,7 @@ private:
     std::uint64_t nextValueRevision_ = 1U;
 
     Result<void> VerifyReady() const noexcept;
-    Result<MutationScope> BeginMutation(
+    Result<DependencyMutationScope> BeginMutation(
         DependencyPropertyHandle property) noexcept;
     void LeaveMutation() noexcept;
 

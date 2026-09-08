@@ -40,7 +40,10 @@
 #include "gui/styles/StyleEngine.hpp"
 #include "gui/media/MediaHelpers.hpp"
 
-#include <Aero/Controls.hpp>
+// NOTE: <Aero/Controls.hpp> umbrella intentionally not included here.
+// ContentControl/ItemsControl/ItemContainerGenerator are already available
+// via gui/internal/AeroGuiInternal.hpp; source-only Controls types via
+// gui/controls/{ControlBehavior,TextBlockLayout,Metadata}.hpp below.
 #include "gui/controls/Metadata.hpp"
 
 #include "gui/templates/DataTemplateTriggerState.hpp"
@@ -445,7 +448,6 @@ struct ViewState {
 #include "gui/interactivity/InteractivityEngine.hpp"
 #include "gui/media/StoryboardHost.hpp"
 #include "gui/input/OverlayHost.hpp"
-#include "gui/input/FocusHost.hpp"
 #include "gui/styles/ResourceHost.hpp"
 
 namespace Aero {

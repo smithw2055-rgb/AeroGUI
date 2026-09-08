@@ -73,39 +73,9 @@ struct GuiState final : public Base::Object {
         }
     }
 
-    void OnXamlChanged(const Base::ResourceUri& uri) noexcept {
-        if (!dispatcher.CheckAccess()) return;
-        if (uri.Empty()) {
-            documents.Clear();
-        } else {
-            static_cast<void>(documents.Invalidate(uri, true));
-        }
-        XamlProviderChangeRecord record;
-        record.uri = uri;
-        record.generation = ++xamlChangeGeneration;
-        if (!xamlChanges.PushBack(std::move(record))) {
-            xamlChanges.Clear();
-            xamlChangesLost = true;
-        }
-    }
-
-    void OnTextureChanged(const Base::ResourceUri& uri) noexcept {
-        if (!dispatcher.CheckAccess()) return;
-        XamlProviderChangeRecord record;
-        record.uri = uri;
-        record.generation = ++textureChangeGeneration;
-        if (!textureChanges.PushBack(std::move(record))) {
-            textureChanges.Clear();
-            textureChangesLost = true;
-        }
-    }
-
-    void OnFontChanged(const Media::FontProviderChange& change) noexcept {
-        if (!dispatcher.CheckAccess()) return;
-        fontChangedBaseUri = change.baseUri;
-        static_cast<void>(fontChangedFamily.Assign(change.familyName));
-        ++fontChangeGeneration;
-    }
+    void OnXamlChanged(const Base::ResourceUri& uri) noexcept;
+    void OnTextureChanged(const Base::ResourceUri& uri) noexcept;
+    void OnFontChanged(const Media::FontProviderChange& change) noexcept;
 
     Base::IAllocator* allocator = nullptr;
     ModuleSet modules;
@@ -177,62 +147,7 @@ struct GuiState final : public Base::Object {
     Base::Result<void> QuerySource(
         const Base::ResourceUri& uri,
         std::uint64_t& sourceIdentity,
-        std::uint64_t& revision) noexcept {
-        if (uri.Empty()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "XAML source URI is empty");
-        }
-        Base::Result<Markup::XamlProviderResolution> resolved =
-            xamlProviders.ResolveDetailed(uri);
-        if (!resolved) return resolved.GetStatus();
-        if (resolved.Value().provider == nullptr) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidState,
-                "XAML source provider is unavailable");
-        }
-        sourceIdentity = resolved.Value().cacheIdentity;
-
-        Base::Result<std::uint64_t> probed =
-            resolved.Value().provider->Revision(uri);
-        if (probed && probed.Value() != 0U) {
-            revision = probed.Value();
-            return {};
-        }
-        Base::Result<::Aero::Markup::StreamResourceInfo> source =
-            resolved.Value().provider->Open(uri);
-        if (!source) return source.GetStatus();
-        if (source.Value().revision != 0U) {
-            revision = source.Value().revision;
-            return {};
-        }
-        if (!source.Value().stream) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidState,
-                "XAML source stream is invalid");
-        }
-
-        constexpr Base::HashCode OffsetBasis =
-            UINT64_C(14695981039346656037);
-        constexpr Base::HashCode Prime = UINT64_C(1099511628211);
-        Base::HashCode hash = OffsetBasis ^ Base::MixHash64(0U);
-        std::uint64_t size = 0U;
-        std::uint8_t buffer[4096];
-        for (;;) {
-            Base::Result<std::uint32_t> read =
-                source.Value().stream->Read({buffer, sizeof(buffer)});
-            if (!read) return read.GetStatus();
-            if (read.Value() == 0U) break;
-            for (std::uint32_t index = 0U;
-                 index < read.Value(); ++index) {
-                hash ^= static_cast<Base::HashCode>(buffer[index]);
-                hash *= Prime;
-            }
-            size += read.Value();
-        }
-        revision = Base::MixHash64(hash ^ size);
-        return {};
-    }
+        std::uint64_t& revision) noexcept;
 
     bool TryGetCachedRevision(
         const Base::ResourceUri& uri,

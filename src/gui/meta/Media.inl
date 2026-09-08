@@ -3,321 +3,138 @@
 Base::Result<void> PopulateUiMedia(
     ::Aero::Meta::Registration& context) noexcept {
     Base::Result<void> status;
-    auto length = Meta::Register<Length>(context);
-    length
-        .ValueSemantics({sizeof(Length), alignof(Length), nullptr, nullptr,
-            &EqualLength, nullptr, true})
+    Register<Length>(context)
+        .ValueSemantics({sizeof(Length), alignof(Length), nullptr, nullptr, &EqualLength, nullptr, true})
         .TextConverter<&ConvertLength>();
-    status = length.Result();
-    if (!status) return status.GetStatus();
 
-    auto thickness = Meta::Register<Thickness>(context);
-    thickness
+    Register<Thickness>(context)
         .Field<&Thickness::left>("Left")
         .Field<&Thickness::top>("Top")
         .Field<&Thickness::right>("Right")
         .Field<&Thickness::bottom>("Bottom")
-        .ValueSemantics({sizeof(Thickness), alignof(Thickness), nullptr,
-            nullptr, &EqualThickness, nullptr, true})
+        .ValueSemantics({sizeof(Thickness), alignof(Thickness), nullptr, nullptr, &EqualThickness, nullptr, true})
         .TextConverter<&ConvertThickness>();
-    status = thickness.Result();
-    if (!status) return status.GetStatus();
 
-    auto cornerRadius = Meta::Register<CornerRadius>(context);
-    cornerRadius
+    Register<CornerRadius>(context)
         .Field<&CornerRadius::topLeft>("TopLeft")
         .Field<&CornerRadius::topRight>("TopRight")
         .Field<&CornerRadius::bottomRight>("BottomRight")
         .Field<&CornerRadius::bottomLeft>("BottomLeft")
-        .ValueSemantics({
-            sizeof(CornerRadius),
-            alignof(CornerRadius),
-            nullptr,
-            nullptr,
-            &EqualCornerRadius,
-            nullptr,
-            true})
+        .ValueSemantics({ sizeof(CornerRadius), alignof(CornerRadius), nullptr, nullptr, &EqualCornerRadius, nullptr, true})
         .TextConverter<&ConvertCornerRadius>();
-    status = cornerRadius.Result();
-    if (!status) return status.GetStatus();
 
-    auto color = Meta::Register<Color>(context);
-    color
+    Register<Color>(context)
         .Field<&Color::red>("Red")
         .Field<&Color::green>("Green")
         .Field<&Color::blue>("Blue")
         .Field<&Color::alpha>("Alpha")
-        .ValueSemantics({sizeof(Color), alignof(Color), nullptr, nullptr,
-            &EqualColor, nullptr, true})
+        .ValueSemantics({sizeof(Color), alignof(Color), nullptr, nullptr, &EqualColor, nullptr, true})
         .TextConverter<&ConvertColor>();
-    status = color.Result();
-    if (!status) return status.GetStatus();
 
-    auto point = Meta::Register<Point>(context);
-    point
+    Register<Point>(context)
         .Field<&Point::x>("X")
         .Field<&Point::y>("Y")
         .ValueSemantics()
         .TextConverter<&ConvertPoint>();
-    status = point.Result();
-    if (!status) return status.GetStatus();
 
-    auto rect = Meta::Register<Rect>(context);
-    rect
+    Register<Rect>(context)
         .Field<&Rect::x>("X")
         .Field<&Rect::y>("Y")
         .Field<&Rect::width>("Width")
         .Field<&Rect::height>("Height")
         .ValueSemantics()
         .TextConverter<&ConvertRect>();
-    status = rect.Result();
-    if (!status) return status.GetStatus();
 
-    auto size = Meta::Register<Base::Size>(context);
-    size
+    Register<Base::Size>(context)
         .Field<&Base::Size::width>("Width")
         .Field<&Base::Size::height>("Height")
         .ValueSemantics()
         .TextConverter<&ConvertSize>();
-    status = size.Result();
-    if (!status) return status.GetStatus();
 
     // Brush.RelativeTransform is a Transform-valued dependency property, so
     // the abstract value type must exist before Brush metadata is authored.
-    status = Meta::Register<Transform>(
-        context, TypeFlags::Abstract).Result();
-    if (!status) return status.GetStatus();
+    Register<Transform>(context, TypeFlags::Abstract);
 
-    auto brush = Meta::Register<Brush>(
-        context, TypeFlags::Abstract);
-    brush
-        .Property(
-            Brush::OpacityProperty,
-            FrameworkPropertyMetadata(1.0)
-                .Validate(&ValidateUnitDouble)
-                .AffectsRender())
-        .Property(
-            Brush::ShaderProperty,
-            FrameworkPropertyMetadata(Base::Ref<Base::Object>{})
-                .AffectsRender())
-        .Property(
-            Brush::RelativeTransformProperty,
-            FrameworkPropertyMetadata(Base::Ref<Transform>{})
-                .AffectsRender())
+    Register<Brush>(context, TypeFlags::Abstract)
+        .Property(Brush::OpacityProperty, FrameworkPropertyMetadata(1.0) .Validate(&ValidateUnitDouble) .AffectsRender())
+        .Property(Brush::ShaderProperty, FrameworkPropertyMetadata(Base::Ref<Base::Object>{}) .AffectsRender())
+        .Property(Brush::RelativeTransformProperty, FrameworkPropertyMetadata(Base::Ref<Transform>{}) .AffectsRender())
         .TextConverter(&ConvertBrushText);
-    status = brush.Result();
-    if (!status) return status.GetStatus();
 
-    auto solidBrush =
-        Meta::Register<SolidColorBrush>(context);
-    solidBrush
-        .Property(
-            SolidColorBrush::ColorProperty,
-            FrameworkPropertyMetadata(Color{}).Structural())
-        .Content(MakeMemberId(
-            SolidColorBrush::StaticTypeId(),
-            MemberKind::Property,
-            "Color"))
+    Register<SolidColorBrush>(context)
+        .Property(SolidColorBrush::ColorProperty, FrameworkPropertyMetadata(Color{}).Structural())
+        .Content(MakeMemberId(SolidColorBrush::StaticTypeId(), MemberKind::Property, "Color"))
         .Factory();
-    status = solidBrush.Result();
-    if (!status) return status.GetStatus();
 
-    auto gradientStop =
-        Meta::Register<GradientStop>(context);
-    gradientStop
-        .Property(
-            GradientStop::OffsetProperty,
-            FrameworkPropertyMetadata(0.0)
-                .Validate(&ValidateUnitDouble))
-        .Property(
-            GradientStop::ColorProperty,
-            FrameworkPropertyMetadata(Color{}))
+    Register<GradientStop>(context)
+        .Property(GradientStop::OffsetProperty, FrameworkPropertyMetadata(0.0) .Validate(&ValidateUnitDouble))
+        .Property(GradientStop::ColorProperty, FrameworkPropertyMetadata(Color{}))
         .Factory();
-    status = gradientStop.Result();
-    if (!status) return status.GetStatus();
 
-    auto gradientStopCollection =
-        Meta::Register<GradientStopCollection>(context);
-    gradientStopCollection
+    Register<GradientStopCollection>(context)
         .Implements<Collections::IItemsSource>()
-        .Content<GradientStop>(
-            "Items", ContentKind::Collection,
-            &AddGradientStopCollectionItem,
-            &ClearGradientStopCollectionItems)
+        .Content<GradientStop>("Items", ContentKind::Collection, &AddGradientStopCollectionItem, &ClearGradientStopCollectionItems)
         .Factory();
-    status = gradientStopCollection.Result();
-    if (!status) return status.GetStatus();
 
-    auto brushShader = Meta::Register<BrushShader>(
-        context, TypeFlags::Abstract);
-    brushShader.Factory();
-    status = brushShader.Result();
-    if (!status) return status.GetStatus();
-
-    auto monochromeBrush = Meta::Register<MonochromeShader>(context);
-    monochromeBrush
-        .Property(
-            MonochromeShader::ColorProperty,
-            FrameworkPropertyMetadata(Color{}).AffectsRender())
+    Register<BrushShader>(context, TypeFlags::Abstract)
         .Factory();
-    status = monochromeBrush.Result();
-    if (!status) return status.GetStatus();
 
-    auto conicGradientBrush = Meta::Register<ConicGradientShader>(context);
-    conicGradientBrush
-        .Content<GradientStop>(
-            "GradientStops", ContentKind::Collection,
-            [](Base::Object& owner, const Base::Ref<Base::Object>& value, void*) noexcept {
-                static_cast<ConicGradientShader&>(owner).AddGradientStop(
-                    Base::Ref<GradientStop>::FromBorrowed(
-                        static_cast<GradientStop&>(*value)));
-            },
-            [](Base::Object& owner, void*) noexcept {
-                static_cast<ConicGradientShader&>(owner).ClearGradientStops();
-            })
+    Register<MonochromeShader>(context)
+        .Property(MonochromeShader::ColorProperty, FrameworkPropertyMetadata(Color{}).AffectsRender())
         .Factory();
-    status = conicGradientBrush.Result();
-    if (!status) return status.GetStatus();
 
-    auto wavesBrush = Meta::Register<WavesShader>(context);
-    wavesBrush
-        .Property(
-            WavesShader::TimeProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
+    Register<ConicGradientShader>(context)
+        .Content<GradientStop>("GradientStops", ContentKind::Collection, [](Base::Object& owner, const Base::Ref<Base::Object>& value, void*) noexcept { static_cast<ConicGradientShader&>(owner).AddGradientStop(Base::Ref<GradientStop>::FromBorrowed(static_cast<GradientStop&>(*value))); }, [](Base::Object& owner, void*) noexcept { static_cast<ConicGradientShader&>(owner).ClearGradientStops(); })
         .Factory();
-    status = wavesBrush.Result();
-    if (!status) return status.GetStatus();
 
-    auto gradientBrush = Meta::Register<GradientBrush>(
-        context, TypeFlags::Abstract);
-    gradientBrush
-        .Property(
-            GradientBrush::MappingModeProperty,
-            FrameworkPropertyMetadata(
-                BrushMappingMode::RelativeToBoundingBox))
-        .Property(
-            GradientBrush::SpreadMethodProperty,
-            FrameworkPropertyMetadata(GradientSpreadMethod::Pad)
-                .AffectsRender())
-        .Content<GradientStop>(
-            "GradientStops",
-            ContentKind::Collection,
-            &AddGradientStop,
-            &ClearGradientStops);
-    status = gradientBrush.Result();
-    if (!status) return status.GetStatus();
-
-    auto linearBrush =
-        Meta::Register<LinearGradientBrush>(context);
-    linearBrush
-        .Property(
-            LinearGradientBrush::StartPointProperty,
-            FrameworkPropertyMetadata(Point{0.0, 0.0}))
-        .Property(
-            LinearGradientBrush::EndPointProperty,
-            FrameworkPropertyMetadata(Point{1.0, 1.0}))
+    Register<WavesShader>(context)
+        .Property(WavesShader::TimeProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
         .Factory();
-    status = linearBrush.Result();
-    if (!status) return status.GetStatus();
 
-    auto radialBrush =
-        Meta::Register<RadialGradientBrush>(context);
-    radialBrush
-        .Property(
-            RadialGradientBrush::CenterProperty,
-            FrameworkPropertyMetadata(Point{0.5, 0.5}))
-        .Property(
-            RadialGradientBrush::GradientOriginProperty,
-            FrameworkPropertyMetadata(Point{0.5, 0.5}))
-        .Property(
-            RadialGradientBrush::RadiusXProperty,
-            FrameworkPropertyMetadata(0.5)
-                .Validate(&::Aero::Base::Validate::Positive<double>))
-        .Property(
-            RadialGradientBrush::RadiusYProperty,
-            FrameworkPropertyMetadata(0.5)
-                .Validate(&::Aero::Base::Validate::Positive<double>))
+    Register<GradientBrush>(context, TypeFlags::Abstract)
+        .Property(GradientBrush::MappingModeProperty, FrameworkPropertyMetadata(BrushMappingMode::RelativeToBoundingBox))
+        .Property(GradientBrush::SpreadMethodProperty, FrameworkPropertyMetadata(GradientSpreadMethod::Pad) .AffectsRender())
+        .Content<GradientStop>("GradientStops", ContentKind::Collection, &AddGradientStop, &ClearGradientStops);
+
+    Register<LinearGradientBrush>(context)
+        .Property(LinearGradientBrush::StartPointProperty, FrameworkPropertyMetadata(Point{0.0, 0.0}))
+        .Property(LinearGradientBrush::EndPointProperty, FrameworkPropertyMetadata(Point{1.0, 1.0}))
         .Factory();
-    status = radialBrush.Result();
-    if (!status) return status.GetStatus();
 
-    auto imageSource = Meta::Register<ImageSource>(
-        context, TypeFlags::Abstract);
-    imageSource.TextConverter(
-        &ConvertImageSourceText);
-    status = imageSource.Result();
-    if (!status) return status.GetStatus();
-
-    auto tileBrush = Meta::Register<TileBrush>(
-        context, TypeFlags::Abstract);
-    tileBrush
-        .Property(
-            TileBrush::StretchProperty,
-            FrameworkPropertyMetadata(Stretch::Fill))
-        .Property(
-            TileBrush::ViewboxProperty,
-            FrameworkPropertyMetadata(Rect{0.0, 0.0, 1.0, 1.0}))
-        .Property(
-            TileBrush::ViewportProperty,
-            FrameworkPropertyMetadata(Rect{0.0, 0.0, 1.0, 1.0}))
-        .Property(
-            TileBrush::ViewboxUnitsProperty,
-            FrameworkPropertyMetadata(
-                BrushMappingMode::RelativeToBoundingBox))
-        .Property(
-            TileBrush::ViewportUnitsProperty,
-            FrameworkPropertyMetadata(
-                BrushMappingMode::RelativeToBoundingBox))
-        .Property(
-            TileBrush::TileModeProperty,
-            FrameworkPropertyMetadata(TileMode::None))
-        .Property(
-            TileBrush::AlignmentXProperty,
-            FrameworkPropertyMetadata(HorizontalAlignment::Center))
-        .Property(
-            TileBrush::AlignmentYProperty,
-            FrameworkPropertyMetadata(VerticalAlignment::Center));
-    status = tileBrush.Result();
-    if (!status) return status.GetStatus();
-
-    auto bitmapImage =
-        Meta::Register<BitmapImage>(context);
-    bitmapImage
-        .Property(
-            BitmapImage::UriSourceProperty,
-            FrameworkPropertyMetadata(
-                Base::ResourceUri{}))
+    Register<RadialGradientBrush>(context)
+        .Property(RadialGradientBrush::CenterProperty, FrameworkPropertyMetadata(Point{0.5, 0.5}))
+        .Property(RadialGradientBrush::GradientOriginProperty, FrameworkPropertyMetadata(Point{0.5, 0.5}))
+        .Property(RadialGradientBrush::RadiusXProperty, FrameworkPropertyMetadata(0.5) .Validate(&Base::Validate::Positive<double>))
+        .Property(RadialGradientBrush::RadiusYProperty, FrameworkPropertyMetadata(0.5) .Validate(&Base::Validate::Positive<double>))
         .Factory();
-    status = bitmapImage.Result();
-    if (!status) return status.GetStatus();
 
-    auto croppedBitmap =
-        Meta::Register<CroppedBitmap>(context);
-    croppedBitmap
-        .Property(
-            CroppedBitmap::SourceProperty,
-            FrameworkPropertyMetadata(
-                Base::Ref<ImageSource>{}))
-        .Property(
-            CroppedBitmap::SourceRectProperty,
-            FrameworkPropertyMetadata(Base::Rect{}))
+    Register<ImageSource>(context, TypeFlags::Abstract)
+        .TextConverter(&ConvertImageSourceText);
+
+    Register<TileBrush>(context, TypeFlags::Abstract)
+        .Property(TileBrush::StretchProperty, FrameworkPropertyMetadata(Stretch::Fill))
+        .Property(TileBrush::ViewboxProperty, FrameworkPropertyMetadata(Rect{0.0, 0.0, 1.0, 1.0}))
+        .Property(TileBrush::ViewportProperty, FrameworkPropertyMetadata(Rect{0.0, 0.0, 1.0, 1.0}))
+        .Property(TileBrush::ViewboxUnitsProperty, FrameworkPropertyMetadata(BrushMappingMode::RelativeToBoundingBox))
+        .Property(TileBrush::ViewportUnitsProperty, FrameworkPropertyMetadata(BrushMappingMode::RelativeToBoundingBox))
+        .Property(TileBrush::TileModeProperty, FrameworkPropertyMetadata(TileMode::None))
+        .Property(TileBrush::AlignmentXProperty, FrameworkPropertyMetadata(HorizontalAlignment::Center))
+        .Property(TileBrush::AlignmentYProperty, FrameworkPropertyMetadata(VerticalAlignment::Center));
+
+    Register<BitmapImage>(context)
+        .Property(BitmapImage::UriSourceProperty, FrameworkPropertyMetadata(Base::ResourceUri{}))
         .Factory();
-    status = croppedBitmap.Result();
-    if (!status) return status.GetStatus();
 
-    auto imageBrush =
-        Meta::Register<ImageBrush>(context);
-    imageBrush
-        .Property(
-            ImageBrush::ImageSourceProperty,
-            FrameworkPropertyMetadata(
-                Base::Ref<ImageSource>{}))
+    Register<CroppedBitmap>(context)
+        .Property(CroppedBitmap::SourceProperty, FrameworkPropertyMetadata(Base::Ref<ImageSource>{}))
+        .Property(CroppedBitmap::SourceRectProperty, FrameworkPropertyMetadata(Base::Rect{}))
         .Factory();
-    status = imageBrush.Result();
-    if (!status) return status.GetStatus();
 
-    auto matrix = Meta::Register<Base::Transform2D>(context);
-    matrix
+    Register<ImageBrush>(context)
+        .Property(ImageBrush::ImageSourceProperty, FrameworkPropertyMetadata(Base::Ref<ImageSource>{}))
+        .Factory();
+
+    Register<Base::Transform2D>(context)
         .Field<&Base::Transform2D::m11>("M11")
         .Field<&Base::Transform2D::m12>("M12")
         .Field<&Base::Transform2D::m21>("M21")
@@ -326,11 +143,8 @@ Base::Result<void> PopulateUiMedia(
         .Field<&Base::Transform2D::dy>("OffsetY")
         .ValueSemantics()
         .TextConverter<&ConvertMatrix>();
-    status = matrix.Result();
-    if (!status) return status.GetStatus();
 
-    auto transform3 = Meta::Register<Base::Transform3>(context);
-    transform3
+    Register<Base::Transform3>(context)
         .Field<&Base::Transform3::m11>("M11")
         .Field<&Base::Transform3::m12>("M12")
         .Field<&Base::Transform3::m13>("M13")
@@ -345,358 +159,145 @@ Base::Result<void> PopulateUiMedia(
         .Field<&Base::Transform3::dz>("OffsetZ")
         .ValueSemantics()
         .TextConverter<&ConvertTransform3>();
-    status = transform3.Result();
-    if (!status) return status.GetStatus();
 
-    auto translate = Meta::Register<TranslateTransform>(context);
-    translate
-        .Property(
-            TranslateTransform::XProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(
-            TranslateTransform::YProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
+    Register<TranslateTransform>(context)
+        .Property(TranslateTransform::XProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(TranslateTransform::YProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
         .Factory();
-    status = translate.Result();
-    if (!status) return status.GetStatus();
 
-    auto scale = Meta::Register<ScaleTransform>(context);
-    scale
-        .Property(
-            ScaleTransform::ScaleXProperty,
-            FrameworkPropertyMetadata(1.0).AffectsRender())
-        .Property(
-            ScaleTransform::ScaleYProperty,
-            FrameworkPropertyMetadata(1.0).AffectsRender())
-        .Property(
-            ScaleTransform::CenterXProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(
-            ScaleTransform::CenterYProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
+    Register<ScaleTransform>(context)
+        .Property(ScaleTransform::ScaleXProperty, FrameworkPropertyMetadata(1.0).AffectsRender())
+        .Property(ScaleTransform::ScaleYProperty, FrameworkPropertyMetadata(1.0).AffectsRender())
+        .Property(ScaleTransform::CenterXProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(ScaleTransform::CenterYProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
         .Factory();
-    status = scale.Result();
-    if (!status) return status.GetStatus();
 
-    auto rotate = Meta::Register<RotateTransform>(context);
-    rotate
-        .Property(
-            RotateTransform::AngleProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(
-            RotateTransform::CenterXProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(
-            RotateTransform::CenterYProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
+    Register<RotateTransform>(context)
+        .Property(RotateTransform::AngleProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(RotateTransform::CenterXProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(RotateTransform::CenterYProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
         .Factory();
-    status = rotate.Result();
-    if (!status) return status.GetStatus();
 
-    auto skew = Meta::Register<SkewTransform>(context);
-    skew
-        .Property(
-            SkewTransform::AngleXProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(
-            SkewTransform::AngleYProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(
-            SkewTransform::CenterXProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(
-            SkewTransform::CenterYProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
+    Register<SkewTransform>(context)
+        .Property(SkewTransform::AngleXProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(SkewTransform::AngleYProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(SkewTransform::CenterXProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(SkewTransform::CenterYProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
         .Factory();
-    status = skew.Result();
-    if (!status) return status.GetStatus();
 
-    auto matrixTransform = Meta::Register<MatrixTransform>(context);
-    matrixTransform
-        .Property(
-            MatrixTransform::MatrixProperty,
-            FrameworkPropertyMetadata(Base::Transform2D{}).AffectsRender())
+    Register<MatrixTransform>(context)
+        .Property(MatrixTransform::MatrixProperty, FrameworkPropertyMetadata(Base::Transform2D{}).AffectsRender())
         .Factory();
-    status = matrixTransform.Result();
-    if (!status) return status.GetStatus();
 
-    auto compositeTransform = Meta::Register<CompositeTransform>(context);
-    compositeTransform
-        .Property(CompositeTransform::CenterXProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(CompositeTransform::CenterYProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(CompositeTransform::ScaleXProperty,
-            FrameworkPropertyMetadata(1.0).AffectsRender())
-        .Property(CompositeTransform::ScaleYProperty,
-            FrameworkPropertyMetadata(1.0).AffectsRender())
-        .Property(CompositeTransform::SkewXProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(CompositeTransform::SkewYProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(CompositeTransform::RotationProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(CompositeTransform::TranslateXProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(CompositeTransform::TranslateYProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
+    Register<CompositeTransform>(context)
+        .Property(CompositeTransform::CenterXProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform::CenterYProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform::ScaleXProperty, FrameworkPropertyMetadata(1.0).AffectsRender())
+        .Property(CompositeTransform::ScaleYProperty, FrameworkPropertyMetadata(1.0).AffectsRender())
+        .Property(CompositeTransform::SkewXProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform::SkewYProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform::RotationProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform::TranslateXProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform::TranslateYProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
         .Factory();
-    status = compositeTransform.Result();
-    if (!status) return status.GetStatus();
 
-    auto transformGroup = Meta::Register<TransformGroup>(context);
-    transformGroup
-        .Content<Transform>(
-            "Children",
-            ContentKind::Collection,
-            &AddTransformGroupChild,
-            &ClearTransformGroupChildren)
+    Register<TransformGroup>(context)
+        .Content<Transform>("Children", ContentKind::Collection, &AddTransformGroupChild, &ClearTransformGroupChildren)
         .Factory();
-    status = transformGroup.Result();
-    if (!status) return status.GetStatus();
 
-    status = Meta::Register<Transform3D>(
-        context, TypeFlags::Abstract).Result();
-    if (!status) return status.GetStatus();
+    Register<Transform3D>(context, TypeFlags::Abstract);
 
-    auto compositeTransform3D =
-        Meta::Register<CompositeTransform3D>(context);
-    compositeTransform3D
-        .Property(CompositeTransform3D::CenterXProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(CompositeTransform3D::CenterYProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(CompositeTransform3D::CenterZProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(CompositeTransform3D::RotationXProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(CompositeTransform3D::RotationYProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(CompositeTransform3D::RotationZProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(CompositeTransform3D::ScaleXProperty,
-            FrameworkPropertyMetadata(1.0).AffectsRender())
-        .Property(CompositeTransform3D::ScaleYProperty,
-            FrameworkPropertyMetadata(1.0).AffectsRender())
-        .Property(CompositeTransform3D::ScaleZProperty,
-            FrameworkPropertyMetadata(1.0).AffectsRender())
-        .Property(CompositeTransform3D::TranslateXProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(CompositeTransform3D::TranslateYProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(CompositeTransform3D::TranslateZProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
+    Register<CompositeTransform3D>(context)
+        .Property(CompositeTransform3D::CenterXProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform3D::CenterYProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform3D::CenterZProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform3D::RotationXProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform3D::RotationYProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform3D::RotationZProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform3D::ScaleXProperty, FrameworkPropertyMetadata(1.0).AffectsRender())
+        .Property(CompositeTransform3D::ScaleYProperty, FrameworkPropertyMetadata(1.0).AffectsRender())
+        .Property(CompositeTransform3D::ScaleZProperty, FrameworkPropertyMetadata(1.0).AffectsRender())
+        .Property(CompositeTransform3D::TranslateXProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform3D::TranslateYProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform3D::TranslateZProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
         .Factory();
-    status = compositeTransform3D.Result();
-    if (!status) return status.GetStatus();
 
-    auto perspectiveTransform3D =
-        Meta::Register<PerspectiveTransform3D>(context);
-    perspectiveTransform3D
-        .Property(
-            PerspectiveTransform3D::DepthProperty,
-            FrameworkPropertyMetadata(Base::DefaultPerspectiveDepth)
-                .AffectsRender())
-        .Property(
-            PerspectiveTransform3D::OffsetXProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(
-            PerspectiveTransform3D::OffsetYProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
+    Register<PerspectiveTransform3D>(context)
+        .Property(PerspectiveTransform3D::DepthProperty, FrameworkPropertyMetadata(Base::DefaultPerspectiveDepth) .AffectsRender())
+        .Property(PerspectiveTransform3D::OffsetXProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(PerspectiveTransform3D::OffsetYProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
         .Factory();
-    status = perspectiveTransform3D.Result();
-    if (!status) return status.GetStatus();
 
-    auto matrixTransform3D = Meta::Register<MatrixTransform3D>(context);
-    matrixTransform3D
-        .Property(
-            MatrixTransform3D::MatrixProperty,
-            FrameworkPropertyMetadata(Base::IdentityTransform3())
-                .AffectsRender())
+    Register<MatrixTransform3D>(context)
+        .Property(MatrixTransform3D::MatrixProperty, FrameworkPropertyMetadata(Base::IdentityTransform3()) .AffectsRender())
         .Factory();
-    status = matrixTransform3D.Result();
-    if (!status) return status.GetStatus();
 
-    status = Meta::Register<Effect>(
-        context, TypeFlags::Abstract).Result();
-    if (!status) return status.GetStatus();
+    Register<Effect>(context, TypeFlags::Abstract);
 
-    auto blurEffect = Meta::Register<BlurEffect>(context);
-    blurEffect
-        .Property(
-            BlurEffect::RadiusProperty,
-            FrameworkPropertyMetadata(5.0)
-                .AffectsRender()
-                .Validate(&::Aero::Base::Validate::NonNegative<double>))
+    Register<BlurEffect>(context)
+        .Property(BlurEffect::RadiusProperty, FrameworkPropertyMetadata(5.0) .AffectsRender() .Validate(&Base::Validate::NonNegative<double>))
         .Factory();
-    status = blurEffect.Result();
-    if (!status) return status.GetStatus();
 
-    auto dropShadowEffect =
-        Meta::Register<DropShadowEffect>(context);
-    dropShadowEffect
-        .Property(
-            DropShadowEffect::BlurRadiusProperty,
-            FrameworkPropertyMetadata(5.0)
-                .AffectsRender()
-                .Validate(&::Aero::Base::Validate::NonNegative<double>))
-        .Property(
-            DropShadowEffect::DirectionProperty,
-            FrameworkPropertyMetadata(315.0)
-                .AffectsRender())
-        .Property(
-            DropShadowEffect::ShadowDepthProperty,
-            FrameworkPropertyMetadata(5.0)
-                .AffectsRender()
-                .Validate(&::Aero::Base::Validate::NonNegative<double>))
-        .Property(
-            DropShadowEffect::OpacityProperty,
-            FrameworkPropertyMetadata(1.0)
-                .AffectsRender()
-                .Validate(&ValidateUnitDouble))
-        .Property(
-            DropShadowEffect::ColorProperty,
-            FrameworkPropertyMetadata(
-                Base::Color{
-                    0.0F, 0.0F, 0.0F, 1.0F})
-                .AffectsRender())
+    Register<DropShadowEffect>(context)
+        .Property(DropShadowEffect::BlurRadiusProperty, FrameworkPropertyMetadata(5.0) .AffectsRender() .Validate(&Base::Validate::NonNegative<double>))
+        .Property(DropShadowEffect::DirectionProperty, FrameworkPropertyMetadata(315.0) .AffectsRender())
+        .Property(DropShadowEffect::ShadowDepthProperty, FrameworkPropertyMetadata(5.0) .AffectsRender() .Validate(&Base::Validate::NonNegative<double>))
+        .Property(DropShadowEffect::OpacityProperty, FrameworkPropertyMetadata(1.0) .AffectsRender() .Validate(&ValidateUnitDouble))
+        .Property(DropShadowEffect::ColorProperty, FrameworkPropertyMetadata(Base::Color{ 0.0F, 0.0F, 0.0F, 1.0F}) .AffectsRender())
         .Factory();
-    status = dropShadowEffect.Result();
-    if (!status) return status.GetStatus();
 
-    auto pixelateEffect = Meta::Register<PixelateEffect>(context);
-    pixelateEffect
-        .Property(
-            PixelateEffect::SizeProperty,
-            FrameworkPropertyMetadata(1.0)
-                .AffectsRender()
-                .Validate(&::Aero::Base::Validate::Positive<double>))
+    Register<PixelateEffect>(context)
+        .Property(PixelateEffect::SizeProperty, FrameworkPropertyMetadata(1.0) .AffectsRender() .Validate(&Base::Validate::Positive<double>))
         .Factory();
-    status = pixelateEffect.Result();
-    if (!status) return status.GetStatus();
 
-    auto tintEffect = Meta::Register<TintEffect>(context);
-    tintEffect
-        .Property(
-            TintEffect::ColorProperty,
-            FrameworkPropertyMetadata(
-                Base::Color{0.0F, 0.0F, 1.0F, 1.0F})
-                .AffectsRender())
+    Register<TintEffect>(context)
+        .Property(TintEffect::ColorProperty, FrameworkPropertyMetadata(Base::Color{0.0F, 0.0F, 1.0F, 1.0F}) .AffectsRender())
         .Factory();
-    status = tintEffect.Result();
-    if (!status) return status.GetStatus();
 
-    auto directionalBlurEffect =
-        Meta::Register<DirectionalBlurEffect>(context);
-    directionalBlurEffect
-        .Property(
-            DirectionalBlurEffect::RadiusProperty,
-            FrameworkPropertyMetadata(0.0)
-                .AffectsRender()
-                .Validate(&::Aero::Base::Validate::NonNegative<double>))
-        .Property(
-            DirectionalBlurEffect::AngleProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
+    Register<DirectionalBlurEffect>(context)
+        .Property(DirectionalBlurEffect::RadiusProperty, FrameworkPropertyMetadata(0.0) .AffectsRender() .Validate(&Base::Validate::NonNegative<double>))
+        .Property(DirectionalBlurEffect::AngleProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
         .Factory();
-    status = directionalBlurEffect.Result();
-    if (!status) return status.GetStatus();
 
-    auto shaderEffect = Meta::Register<ShaderEffect>(context);
-    shaderEffect
-        .Property(
-            ShaderEffect::PixelShaderProperty,
-            FrameworkPropertyMetadata(Base::String{})
-                .AffectsRender()
-                .Changed(&ShaderEffect::OnPixelShaderChanged))
+    Register<ShaderEffect>(context)
+        .Property(ShaderEffect::PixelShaderProperty, FrameworkPropertyMetadata(Base::String{}) .AffectsRender() .Changed(&ShaderEffect::OnPixelShaderChanged))
         .Factory();
-    status = shaderEffect.Result();
-    if (!status) return status.GetStatus();
 
-    auto mediaElement = Meta::Register<MediaElement>(context);
-    mediaElement
+    Register<MediaElement>(context)
         .Event(MediaElement::BufferingEndedEvent, RoutingStrategy::Direct)
         .Event(MediaElement::BufferingStartedEvent, RoutingStrategy::Direct)
         .Event(MediaElement::MediaEndedEvent, RoutingStrategy::Direct)
         .Event(MediaElement::MediaFailedEvent, RoutingStrategy::Direct)
         .Event(MediaElement::MediaOpenedEvent, RoutingStrategy::Direct)
-        .Property(
-            MediaElement::SourceProperty,
-            FrameworkPropertyMetadata(Base::String{}))
-        .Property(
-            MediaElement::StretchProperty,
-            FrameworkPropertyMetadata(Stretch::Uniform)
-                .AffectsMeasure()
-                .AffectsRender())
-        .Property(
-            MediaElement::StretchDirectionProperty,
-            FrameworkPropertyMetadata(StretchDirection::Both)
-                .AffectsMeasure()
-                .AffectsRender())
-        .Property(
-            MediaElement::LoadedBehaviorProperty,
-            FrameworkPropertyMetadata(MediaState::Play))
-        .Property(
-            MediaElement::UnloadedBehaviorProperty,
-            FrameworkPropertyMetadata(MediaState::Close))
-        .Property(
-            MediaElement::IsMutedProperty,
-            FrameworkPropertyMetadata(false))
-        .Property(
-            MediaElement::VolumeProperty,
-            FrameworkPropertyMetadata(0.5))
-        .Property(
-            MediaElement::BalanceProperty,
-            FrameworkPropertyMetadata(0.0))
-        .Property(
-            MediaElement::ScrubbingEnabledProperty,
-            FrameworkPropertyMetadata(false))
+        .Property(MediaElement::SourceProperty, FrameworkPropertyMetadata(Base::String{}))
+        .Property(MediaElement::StretchProperty, FrameworkPropertyMetadata(Stretch::Uniform) .AffectsMeasure() .AffectsRender())
+        .Property(MediaElement::StretchDirectionProperty, FrameworkPropertyMetadata(StretchDirection::Both) .AffectsMeasure() .AffectsRender())
+        .Property(MediaElement::LoadedBehaviorProperty, FrameworkPropertyMetadata(MediaState::Play))
+        .Property(MediaElement::UnloadedBehaviorProperty, FrameworkPropertyMetadata(MediaState::Close))
+        .Property(MediaElement::IsMutedProperty, FrameworkPropertyMetadata(false))
+        .Property(MediaElement::VolumeProperty, FrameworkPropertyMetadata(0.5))
+        .Property(MediaElement::BalanceProperty, FrameworkPropertyMetadata(0.0))
+        .Property(MediaElement::ScrubbingEnabledProperty, FrameworkPropertyMetadata(false))
         .Factory();
-    status = mediaElement.Result();
-    if (!status) return status.GetStatus();
 
-    auto visualBrush = Meta::Register<VisualBrush>(context);
-    visualBrush
-        .Property(
-            VisualBrush::VisualProperty,
-            FrameworkPropertyMetadata(Base::Ref<Base::Object>{}))
+    Register<VisualBrush>(context)
+        .Property(VisualBrush::VisualProperty, FrameworkPropertyMetadata(Base::Ref<Base::Object>{}))
         .Factory();
-    status = visualBrush.Result();
-    if (!status) return status.GetStatus();
 
-    auto command = Meta::Register<ICommand>(
-        context, TypeFlags::Abstract);
-    command.TextConverter(
-        &ConvertRoutedCommandReference);
-    status = command.Result();
-    if (!status) return status.GetStatus();
-    status = Meta::Register<InputGesture>(
-        context, TypeFlags::Abstract).Result();
-    if (!status) return status.GetStatus();
-    status = Meta::Register<KeyGesture>(context).Result();
-    if (!status) return status.GetStatus();
-    status = Meta::Register<RoutedCommand>(context)
-        .TextConverter(&ConvertRoutedCommandReference)
-        .Result();
-    if (!status) return status.GetStatus();
-    status = Meta::Register<RoutedUICommand>(context).Result();
-    if (!status) return status.GetStatus();
-    status = Meta::Register<InputBinding>(
-        context, TypeFlags::Abstract).Result();
-    if (!status) return status.GetStatus();
-    auto commandBinding = Meta::Register<CommandBinding>(context);
-    commandBinding
-        .Property("Command", &CommandBinding::GetCommandName,
-            &CommandBinding::SetCommandName)
-        .Property("Executed", &CommandBinding::GetExecutedName,
-            &CommandBinding::SetExecutedName)
-        .Property("CanExecute", &CommandBinding::GetCanExecuteName,
-            &CommandBinding::SetCanExecuteName)
+    Register<ICommand>(context, TypeFlags::Abstract)
+        .TextConverter(&ConvertRoutedCommandReference);
+    Register<InputGesture>(context, TypeFlags::Abstract);
+    Register<KeyGesture>(context);
+    Register<RoutedCommand>(context)
+        .TextConverter(&ConvertRoutedCommandReference);
+    Register<RoutedUICommand>(context);
+    Register<InputBinding>(context, TypeFlags::Abstract);
+    Register<CommandBinding>(context)
+        .Property("Command", &CommandBinding::GetCommandName, &CommandBinding::SetCommandName)
+        .Property("Executed", &CommandBinding::GetExecutedName, &CommandBinding::SetExecutedName)
+        .Property("CanExecute", &CommandBinding::GetCanExecuteName, &CommandBinding::SetCanExecuteName)
         .Factory();
-    status = commandBinding.Result();
-    if (!status) return status.GetStatus();
-    status = Meta::Register<ApplicationCommands>(
-        context, TypeFlags::Abstract).Result();
-    if (!status) return status.GetStatus();
+    Register<ApplicationCommands>(context, TypeFlags::Abstract);
     status = ApplicationCommands::RegisterDefaults();
     if (!status) return status.GetStatus();
     return {};

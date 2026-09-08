@@ -494,7 +494,6 @@ foreach(required_source_entry IN ITEMS
         "src/gui/View.cpp"
         "src/gui/ViewFrame.cpp"
         "src/gui/ViewInput.cpp"
-        "src/gui/ViewFocus.cpp"
         "src/gui/ViewRender.cpp"
         "src/gui/ViewRenderer.hpp"
         "src/gui/ViewState.hpp"
@@ -517,7 +516,6 @@ foreach(required_source_entry IN ITEMS
         "src/gui/input/Clipboard.cpp"
         "src/gui/input/OverlayHost.cpp"
         "src/gui/input/OverlayHost.hpp"
-        "src/gui/input/FocusHost.hpp"
         "src/gui/styles/ResourceHost.hpp"
         "src/render/RenderDevice.cpp"
         "src/render/RenderTarget.cpp"
@@ -607,7 +605,7 @@ foreach(source_contract_file IN LISTS aero_source_contract_files)
             "AERO_(BASE|AUDIO|GUI|APP)_API")
         file(RELATIVE_PATH source_contract_relative
             "${AERO_SOURCE_DIR}" "${source_contract_file}")
-        if(NOT source_contract_relative MATCHES "TypeBuilderDetail")
+        if(NOT source_contract_relative MATCHES "TypeBuilderCore")
             message(FATAL_ERROR
                 "Source implementation must not carry an API export macro: ${source_contract_relative}")
         endif()
@@ -647,7 +645,6 @@ set(aero_allowed_gui_root_files
     "src/gui/View.cpp"
     "src/gui/ViewFrame.cpp"
     "src/gui/ViewInput.cpp"
-    "src/gui/ViewFocus.cpp"
     "src/gui/ViewRender.cpp"
     "src/gui/ViewState.hpp"
     "src/gui/ViewRenderer.hpp"

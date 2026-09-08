@@ -73,7 +73,7 @@ lifetime.
 `modules`. Its root is reserved for the `Gui`, `View`, `ViewState`, and
 `ViewRenderer` composition files. `View.cpp` is the composition root
 (construct, mount, viewport, `Update`). Clock slices live beside it
-(`ViewFrame.cpp`, `ViewInput.cpp`, `ViewFocus.cpp`, `ViewRender.cpp`).
+(`ViewFrame.cpp`, `ViewInput.cpp` including the focus queue, `ViewRender.cpp`).
 Storyboard sessions live next to `AnimationEngine`, trigger evaluation in
 `interactivity/`, and XamlReader fragment mounts in `markup/`. View remains
 the host; layout, input, and media stay separate collaborators.

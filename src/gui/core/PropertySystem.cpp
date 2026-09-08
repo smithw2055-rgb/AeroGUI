@@ -812,21 +812,21 @@ namespace Aero {
 
 using namespace Meta;
 
-DependencyObject::MutationScope::MutationScope(
+DependencyMutationScope::DependencyMutationScope(
     DependencyObject* owner,
     DispatcherReentrancyGuard&& guard) noexcept
     : owner_(owner),
       dispatcherGuard_(std::move(guard)) {}
 
-DependencyObject::MutationScope::MutationScope(
-    MutationScope&& other) noexcept
+DependencyMutationScope::DependencyMutationScope(
+    DependencyMutationScope&& other) noexcept
     : owner_(other.owner_),
       dispatcherGuard_(std::move(other.dispatcherGuard_)) {
     other.owner_ = nullptr;
 }
 
-DependencyObject::MutationScope& DependencyObject::MutationScope::operator=(
-    MutationScope&& other) noexcept {
+DependencyMutationScope& DependencyMutationScope::operator=(
+    DependencyMutationScope&& other) noexcept {
     if (this != &other) {
         Release();
         owner_ = other.owner_;
@@ -836,11 +836,11 @@ DependencyObject::MutationScope& DependencyObject::MutationScope::operator=(
     return *this;
 }
 
-DependencyObject::MutationScope::~MutationScope() {
+DependencyMutationScope::~DependencyMutationScope() {
     Release();
 }
 
-void DependencyObject::MutationScope::Release() noexcept {
+void DependencyMutationScope::Release() noexcept {
     if (owner_ == nullptr) {
         return;
     }

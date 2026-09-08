@@ -1,5 +1,6 @@
 // ===== MetadataAuthoring =====
 
+#include <Aero/Base/Assert.hpp>
 #include <Aero/Meta.hpp>
 
 
@@ -12,15 +13,13 @@ MetadataAuthoringSession::MetadataAuthoringSession(
     : context_(&context) {
     Base::Result<TypeId> result =
         context_->Types().RegisterType(registration);
-    if (!result) {
-        status_ = result.GetStatus();
-        return;
-    }
+    Record(result);
+    if (!result) return;
     type_ = result.Value();
     if (type_ != expectedType) {
-        status_ = Base::Status::Failure(
+        Fail(Base::Status::Failure(
             Base::ErrorCode::IdCollision,
-            "Typed metadata descriptor does not match TypeOf<T>()");
+            "Typed metadata descriptor does not match TypeOf<T>()"));
     }
 }
 
@@ -324,6 +323,19 @@ MetadataAuthoringSession::EventHandler(
 }
 
 MetadataAuthoringSession&
+MetadataAuthoringSession::TemplatePart(
+    Base::StringView name,
+    TypeId partType) noexcept {
+    if (Ok()) {
+        Base::Result<void> result =
+            context_->Types().RegisterTemplatePart(
+                type_, name, partType);
+        Record(result);
+    }
+    return *this;
+}
+
+MetadataAuthoringSession&
 MetadataAuthoringSession::EnumValueRaw(
     Base::StringView name,
     std::uint64_t rawValue) noexcept {
@@ -404,6 +416,7 @@ MetadataAuthoringSession::TextConverter(
 MetadataAuthoringSession&
 MetadataAuthoringSession::Fail(
     Base::Status status) noexcept {
+    AERO_ASSERT(status.IsOk());
     if (status_.IsOk() && !status.IsOk()) {
         status_ = status;
     }
@@ -441,6 +454,7 @@ MetadataAuthoringSession::Finish() const noexcept {
 
 void MetadataAuthoringSession::Record(
     Base::Result<void> result) noexcept {
+    AERO_ASSERT(static_cast<bool>(result));
     if (status_.IsOk() && !result) {
         status_ = result.GetStatus();
     }

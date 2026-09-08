@@ -580,6 +580,33 @@ Base::Result<void> TypeRegistry::RegisterEventHandler(
     return owner.eventHandlers_.PushBack(std::move(descriptor));
 }
 
+Base::Result<void> TypeRegistry::RegisterTemplatePart(
+    TypeId ownerType,
+    Base::StringView name,
+    TypeId partType) noexcept {
+    if (frozen_) return RegistryFrozenStatus();
+    if (name.Empty() || partType == InvalidTypeId) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Template part name and part type are required");
+    }
+    std::uint32_t* ownerIndex = typeIndex_.Find(ownerType);
+    if (ownerIndex == nullptr) return MissingOwnerStatus();
+
+    TypeInfo& owner = types_[*ownerIndex];
+    for (const TemplatePartDescriptor& existing : owner.templateParts_) {
+        if (existing.name == name) {
+            return DuplicateMemberStatus();
+        }
+    }
+
+    TemplatePartDescriptor descriptor;
+    descriptor.partType = partType;
+    Base::Result<void> result = descriptor.name.Assign(name);
+    if (!result) return result.GetStatus();
+
+    return owner.templateParts_.PushBack(std::move(descriptor));
+}
 Base::Result<void> TypeRegistry::SetFactory(
     BehaviorTable& behaviors,
     TypeId type,
@@ -969,6 +996,25 @@ EventHandlerThunk TypeRegistry::FindEventHandler(
     return nullptr;
 }
 
+TypeId TypeRegistry::FindTemplatePart(
+    TypeId ownerType,
+    Base::StringView name,
+    bool includeBaseTypes) const noexcept {
+    TypeId current = ownerType;
+    for (std::uint32_t depth = 0U;
+         current != InvalidTypeId && depth <= types_.Size(); ++depth) {
+        const TypeInfo* type = FindType(current);
+        if (type == nullptr) return InvalidTypeId;
+        for (const TemplatePartDescriptor& part : type->TemplateParts()) {
+            if (part.name == name) {
+                return part.partType;
+            }
+        }
+        if (!includeBaseTypes) return InvalidTypeId;
+        current = type->BaseType();
+    }
+    return InvalidTypeId;
+}
 MemberId TypeRegistry::FindContentMember(TypeId type) const noexcept {
     TypeId current = type;
     for (std::uint32_t depth = 0U;

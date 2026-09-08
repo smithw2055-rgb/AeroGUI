@@ -39,6 +39,13 @@ struct EventHandlerDescriptor {
     EventHandlerThunk thunk = nullptr;
 };
 
+// Noesis-parity template-part declaration (ADR-0006): named visual part
+// expected from a control template, resolved via Control::GetTemplateChild.
+struct TemplatePartDescriptor {
+    Base::String name;
+    TypeId partType = InvalidTypeId;
+};
+
 class EnumValueInfo {
 public:
     EnumValueInfo(EnumValueInfo&&) noexcept = default;
@@ -106,6 +113,9 @@ public:
     Base::Span<const EventHandlerDescriptor> EventHandlers() const noexcept {
         return {eventHandlers_.Data(), eventHandlers_.Size()};
     }
+    Base::Span<const TemplatePartDescriptor> TemplateParts() const noexcept {
+        return {templateParts_.Data(), templateParts_.Size()};
+    }
     MemberId ContentMember() const noexcept { return contentMember_; }
 private:
     friend class TypeRegistry;
@@ -123,6 +133,7 @@ private:
     Base::Vector<EnumValueInfo> enumValues_;
     Base::Vector<EventInfo> events_;
     Base::Vector<EventHandlerDescriptor> eventHandlers_;
+    Base::Vector<TemplatePartDescriptor> templateParts_;
     MemberId contentMember_ = InvalidMemberId;
 };
 
@@ -166,6 +177,13 @@ public:
         }
         return count;
     }
+    std::uint32_t TemplatePartCount() const noexcept {
+        std::uint32_t count = 0U;
+        for (const TypeInfo& type : types_) {
+            count += type.TemplateParts().Size();
+        }
+        return count;
+    }
     Base::Span<const TypeInfo> Types() const noexcept { return {types_.Data(), types_.Size()}; }
     const TypeInfo* FindType(TypeId id) const noexcept;
     const TypeInfo* FindType(Base::StringView xamlNamespace, Base::StringView name) const noexcept;
@@ -178,6 +196,10 @@ public:
     const EventInfo* FindEvent(MemberId id) const noexcept;
     const EventInfo* FindEvent(TypeId ownerType, Base::StringView name, bool includeBaseTypes = true) const noexcept;
     EventHandlerThunk FindEventHandler(
+        TypeId ownerType,
+        Base::StringView name,
+        bool includeBaseTypes = true) const noexcept;
+    TypeId FindTemplatePart(
         TypeId ownerType,
         Base::StringView name,
         bool includeBaseTypes = true) const noexcept;
@@ -200,6 +222,7 @@ private:
     Base::Result<MemberId> RegisterEnumValue(TypeId ownerType, const EnumValueRegistration& registration) noexcept;
     Base::Result<MemberId> RegisterEvent(TypeId ownerType, const EventRegistration& registration) noexcept;
     Base::Result<void> RegisterEventHandler(TypeId ownerType, Base::StringView name, EventHandlerThunk thunk) noexcept;
+    Base::Result<void> RegisterTemplatePart(TypeId ownerType, Base::StringView name, TypeId partType) noexcept;
     Base::Result<void> SetFactory(BehaviorTable& behaviors, TypeId type, ObjectFactory factory) noexcept;
     Base::Result<void> SetContentMember(TypeId type, MemberId member) noexcept;
     struct MemberLocation { std::uint32_t typeIndex = 0U; std::uint32_t memberIndex = 0U; MemberKind kind = MemberKind::Property; };
@@ -383,6 +406,10 @@ public:
         MemberId member,
         const Value& value) const noexcept;
     EventHandlerThunk FindEventHandler(
+        TypeId ownerType,
+        Base::StringView name,
+        bool includeBaseTypes = true) const noexcept;
+    TypeId FindTemplatePart(
         TypeId ownerType,
         Base::StringView name,
         bool includeBaseTypes = true) const noexcept;
@@ -772,6 +799,10 @@ public:
         TypeId ownerType,
         Base::StringView name,
         EventHandlerThunk thunk) const noexcept;
+    Base::Result<void> RegisterTemplatePart(
+        TypeId ownerType,
+        Base::StringView name,
+        TypeId partType) const noexcept;
     Base::Result<void> SetFactory(
         TypeId type,
         ObjectFactory factory) const noexcept;

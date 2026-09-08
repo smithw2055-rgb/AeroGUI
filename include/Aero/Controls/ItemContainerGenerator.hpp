@@ -3,8 +3,6 @@
 #include <Aero/Controls/ItemsControl.hpp>
 
 
-namespace Aero { class AeroGuiInternal; }
-
 namespace Aero::Controls {
 
 class VirtualizingStackPanel;
@@ -38,10 +36,10 @@ public:
         const FrameworkElement& container) const noexcept;
     Base::Status LastError() const noexcept;
 
-private:
     struct GeneratorState;
+
+private:
     friend struct GeneratorState;
-    friend class ::Aero::AeroGuiInternal;
 
     ItemContainerGenerator() noexcept = default;
     GeneratorState* state_ = nullptr;

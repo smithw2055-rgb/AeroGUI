@@ -134,7 +134,6 @@ set(_aero_gui_media_sources
     src/gui/media/MediaElement.cpp
     src/gui/media/StbImageImplementation.cpp
     src/gui/media/Transforms.cpp
-    src/gui/media/StoryboardHostCommon.hpp
     src/gui/media/StoryboardHost.cpp
     src/gui/media/StoryboardHost.Properties.cpp
     src/gui/media/StoryboardHost.Timelines.cpp
@@ -165,8 +164,7 @@ set(_aero_gui_controls_sources
     src/gui/controls/TextBoxCommon.hpp
     src/gui/controls/TextBox.cpp
     src/gui/controls/PasswordBox.cpp
-    src/gui/controls/TextBoxSelection.cpp
-    src/gui/controls/TextBoxBehavior.cpp
+    src/gui/controls/TextBoxInteraction.cpp
     src/gui/controls/Trees.cpp
     src/gui/controls/Virtualization.cpp
     src/gui/controls/VisualStateManager.cpp)
@@ -176,7 +174,10 @@ set(_aero_gui_markup_sources
     src/gui/markup/XamlObjectWriterCommon.hpp
     src/gui/markup/MarkupExtensionHost.hpp
     src/gui/markup/XamlObjectWriterCommon.cpp
-    src/gui/markup/XamlObjectWriterBuilderCore.cpp
+    src/gui/markup/XamlObjectWriterBuilderLoad.cpp
+    src/gui/markup/XamlObjectWriterBuilderNodes.cpp
+    src/gui/markup/XamlObjectWriterBuilderValues.cpp
+    src/gui/markup/XamlObjectWriterBuilderWrite.cpp
     src/gui/markup/XamlObjectWriterNameScope.cpp
     src/gui/markup/XamlObjectWriter.cpp
     src/gui/markup/XamlMarkupExtensions.cpp
@@ -243,7 +244,6 @@ set(_aero_gui_composition_sources
     src/gui/View.cpp
     src/gui/ViewFrame.cpp
     src/gui/ViewInput.cpp
-    src/gui/ViewFocus.cpp
     src/gui/ViewRender.cpp
     src/gui/ViewRenderer.hpp
     src/gui/ViewRenderer.cpp
@@ -268,6 +268,18 @@ set(_aero_gui_sources
     ${_aero_gui_diagnostics_sources}
     ${_aero_gui_render_contract_sources}
     ${_aero_gui_composition_sources})
+
+# IDE-only virtual folders (filesystem stays flat per repo policy:
+# no subdirectories under src/gui/controls, no host/ dir).
+source_group("gui\\host" FILES ${_aero_gui_composition_sources})
+source_group("gui\\controls\\text" REGULAR_EXPRESSION
+    "src/gui/controls/(TextBox.*|TextBlockLayout|PasswordBox|RichText).*")
+source_group("gui\\controls\\scroll" REGULAR_EXPRESSION
+    "src/gui/controls/(Scroll.*).*")
+source_group("gui\\controls\\items" REGULAR_EXPRESSION
+    "src/gui/controls/(Items.*|ItemContainerGenerator|ListView|Selection|Trees|Virtualization).*")
+source_group("gui\\controls\\chrome" REGULAR_EXPRESSION
+    "src/gui/controls/(Bars|Buttons|Menus|ContentControls|ControlBehavior|Controls.*|Images|VisualStateManager).*")
 
 add_library(AeroGui ${AERO_LIBRARY_TYPE} ${_aero_gui_sources})
 add_library(Aero::Gui ALIAS AeroGui)

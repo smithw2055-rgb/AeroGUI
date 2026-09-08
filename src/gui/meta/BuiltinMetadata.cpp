@@ -18,6 +18,8 @@
 #include <Aero/Interactivity/Behavior.hpp>
 #include <Aero/Interactivity/BlendBehaviors.hpp>
 #include "gui/media/MediaHelpers.hpp"
+#include "gui/meta/ElementsFill.hpp"
+#include "gui/meta/RenderStateCallbacks.hpp"
 
 #include <Aero/Meta.hpp>
 #include <Aero/Value.hpp>
@@ -33,95 +35,50 @@
 namespace Aero::Meta {
 Base::Result<void> PopulateCoreMetadata(
     Meta::Registration& context) noexcept {
-    Base::Result<void> status;
 
-    status = Meta::Register<Base::Object>(context).Result();
-    if (!status) return status.GetStatus();
+    Register<Base::Object>(context);
 
-    status = Meta::Register<bool>(context)
-        .TextConverter<&::Aero::Base::ValueConversion::ConvertBoolean>()
-        .Result();
-    if (!status) return status.GetStatus();
+    Register<bool>(context)
+        .TextConverter<&Base::ValueConversion::ConvertBoolean>();
 
-    status = Meta::Register<::Aero::Nullable<bool>>(context)
-        .TextConverter<
-            &::Aero::Base::ValueConversion::
-                ConvertNullableBoolean>()
-        .Result();
-    if (!status) return status.GetStatus();
+    Register<::Aero::Nullable<bool>>(context)
+        .TextConverter<&Base::ValueConversion::ConvertNullableBoolean>();
 
-    status = Meta::Register<std::int8_t>(context)
-        .TextConverter<
-            &::Aero::Base::ValueConversion::ConvertInteger<std::int8_t>>()
-        .Result();
-    if (!status) return status.GetStatus();
-    status = Meta::Register<std::int16_t>(context)
-        .TextConverter<
-            &::Aero::Base::ValueConversion::ConvertInteger<std::int16_t>>()
-        .Result();
-    if (!status) return status.GetStatus();
-    status = Meta::Register<std::int32_t>(context)
-        .TextConverter<
-            &::Aero::Base::ValueConversion::ConvertInteger<std::int32_t>>()
-        .Result();
-    if (!status) return status.GetStatus();
-    status = Meta::Register<std::int64_t>(context)
-        .TextConverter<
-            &::Aero::Base::ValueConversion::ConvertInteger<std::int64_t>>()
-        .Result();
-    if (!status) return status.GetStatus();
-    status = Meta::Register<std::uint8_t>(context)
-        .TextConverter<
-            &::Aero::Base::ValueConversion::ConvertInteger<std::uint8_t>>()
-        .Result();
-    if (!status) return status.GetStatus();
-    status = Meta::Register<std::uint16_t>(context)
-        .TextConverter<
-            &::Aero::Base::ValueConversion::ConvertInteger<std::uint16_t>>()
-        .Result();
-    if (!status) return status.GetStatus();
-    status = Meta::Register<std::uint32_t>(context)
-        .TextConverter<
-            &::Aero::Base::ValueConversion::ConvertInteger<std::uint32_t>>()
-        .Result();
-    if (!status) return status.GetStatus();
-    status = Meta::Register<std::uint64_t>(context)
-        .TextConverter<
-            &::Aero::Base::ValueConversion::ConvertInteger<std::uint64_t>>()
-        .Result();
-    if (!status) return status.GetStatus();
+    Register<std::int8_t>(context)
+        .TextConverter<&Base::ValueConversion::ConvertInteger<std::int8_t>>();
+    Register<std::int16_t>(context)
+        .TextConverter<&Base::ValueConversion::ConvertInteger<std::int16_t>>();
+    Register<std::int32_t>(context)
+        .TextConverter<&Base::ValueConversion::ConvertInteger<std::int32_t>>();
+    Register<std::int64_t>(context)
+        .TextConverter<&Base::ValueConversion::ConvertInteger<std::int64_t>>();
+    Register<std::uint8_t>(context)
+        .TextConverter<&Base::ValueConversion::ConvertInteger<std::uint8_t>>();
+    Register<std::uint16_t>(context)
+        .TextConverter<&Base::ValueConversion::ConvertInteger<std::uint16_t>>();
+    Register<std::uint32_t>(context)
+        .TextConverter<&Base::ValueConversion::ConvertInteger<std::uint32_t>>();
+    Register<std::uint64_t>(context)
+        .TextConverter<&Base::ValueConversion::ConvertInteger<std::uint64_t>>();
 
-    status = Meta::Register<double>(context)
-        .TextConverter<&::Aero::Base::ValueConversion::ConvertDouble>()
-        .Result();
-    if (!status) return status.GetStatus();
+    Register<double>(context)
+        .TextConverter<&Base::ValueConversion::ConvertDouble>();
 
-    status = Meta::Register<Base::String>(context)
-        .TextConverter<&::Aero::Base::ValueConversion::ConvertString>()
-        .Result();
-    if (!status) return status.GetStatus();
+    Register<Base::String>(context)
+        .TextConverter<&Base::ValueConversion::ConvertString>();
 
-    status = Meta::Register<Value>(context)
+    Register<Value>(context)
+        .ValueSemantics();
+
+    Register<TypeReference>(context);
+
+    Register<Base::ResourceUri>(context)
         .ValueSemantics()
-        .Result();
-    if (!status) return status.GetStatus();
+        .TextConverter<&Base::ValueConversion::ConvertResourceUri>();
 
-    status = Meta::Register<TypeReference>(context).Result();
-    if (!status) return status.GetStatus();
+    Register<Threading::DispatcherObject>(context, TypeFlags::Abstract);
 
-    status = Meta::Register<Base::ResourceUri>(context)
-        .ValueSemantics()
-        .TextConverter<&::Aero::Base::ValueConversion::ConvertResourceUri>()
-        .Result();
-    if (!status) return status.GetStatus();
-
-    status = Meta::Register<Threading::DispatcherObject>(
-        context, TypeFlags::Abstract).Result();
-    if (!status) return status.GetStatus();
-
-    status = Meta::Register<DependencyObject>(
-        context, TypeFlags::Abstract).Result();
-    if (!status) return status.GetStatus();
+    Register<DependencyObject>(context, TypeFlags::Abstract);
 
     return Meta::Register<Freezable>(
         context, TypeFlags::Abstract).Result();
@@ -213,26 +170,17 @@ namespace {
 
 Base::Result<void> PopulateUiMetadata(
     ::Aero::Meta::Registration& context) noexcept {
-    Base::Result<void> status;
-    status = PopulateEnumMetadata(context);
-    if (!status) return status.GetStatus();
-    status = PopulateUiInput(context);
-    if (!status) return status.GetStatus();
+    PopulateEnumMetadata(context);
+    PopulateUiInput(context);
     // Media registers foundational value types such as Point. Resources author
     // Geometry dependency-property defaults that consume those values, so keep
     // Media ahead of Resources in the deterministic metadata bootstrap.
-    status = PopulateUiMedia(context);
-    if (!status) return status.GetStatus();
-    status = PopulateUiResources(context);
-    if (!status) return status.GetStatus();
-    status = PopulateUiStyling(context);
-    if (!status) return status.GetStatus();
-    status = PopulateUiAnimation(context);
-    if (!status) return status.GetStatus();
-    status = PopulateUiElements(context);
-    if (!status) return status.GetStatus();
-    status = PopulateInputDevices(context);
-    if (!status) return status.GetStatus();
+    PopulateUiMedia(context);
+    PopulateUiResources(context);
+    PopulateUiStyling(context);
+    PopulateUiAnimation(context);
+    PopulateUiElements(context);
+    PopulateInputDevices(context);
     return {};
 }
 

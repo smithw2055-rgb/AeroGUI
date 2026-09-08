@@ -450,4 +450,22 @@ private:
     TextInputState text_;
 };
 
+
+// Source-only focus queue next to InputRouter
+// (merged from FocusHost.hpp; single owner ViewState keeps wiring).
+struct ViewState;
+
+class FocusHost {
+public:
+    explicit FocusHost(ViewState& owner) noexcept;
+    void Bind() noexcept;
+
+    ViewState* view = nullptr;
+    Aero::InputRouter* Input() const noexcept;
+    Base::Vector<Base::WeakRef<Aero::UIElement>> pendingFocusTargets;
+
+    Base::Result<void> QueueFocus(Aero::UIElement& target) noexcept;
+    Base::Result<std::uint32_t> ProcessPendingFocus() noexcept;
+};
+
 } // namespace Aero

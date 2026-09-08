@@ -24,6 +24,8 @@
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include "gui/meta/MetadataState.hpp"
+#include <Aero/Meta.hpp>
+#include "gui/meta/ElementsFill.hpp"
 
 using namespace Aero;
 using namespace Aero::Media;
@@ -96,3 +98,26 @@ void FrameworkContentElement::AddAuthoredTrigger(
     if (!pushed) { AERO_ASSERT(false); return; }
 }
 } // namespace Aero {
+
+
+// ---- Builtin metadata Fill (colocated from meta/Elements.inl) ----
+namespace Aero::Meta {
+using namespace ::Aero::Threading;
+using namespace ::Aero::Input;
+using namespace ::Aero::Media;
+using namespace ::Aero::Data;
+using namespace ::Aero::Media::Animation::Model;
+Base::Result<void> FillFrameworkContentElementMetadata(
+    ::Aero::Meta::Registration& context) noexcept {
+    Register<FrameworkContentElement>(context, TypeFlags::Abstract)
+        .Property<Base::Ref<ResourceDictionary>, &FrameworkContentElement::SetResources>("Resources", PropertyFlags::Structural)
+        .Property(FrameworkContentElement::DataContextProperty, FrameworkPropertyMetadata(Value::NullObject(TypeOf<Base::Object>())).Inherits())
+        .Property(FrameworkContentElement::StyleProperty, FrameworkPropertyMetadata(Base::Ref<Style>{}))
+        .Property(FrameworkContentElement::TagProperty, FrameworkPropertyMetadata(Value::NullObject(TypeOf<Base::Object>())))
+        .Property(FrameworkContentElement::IsEnabledProperty, FrameworkPropertyMetadata(true).Inherits())
+        .Property(FrameworkContentElement::IsMouseOverProperty, FrameworkPropertyMetadata(false))
+        .Property(FrameworkContentElement::CursorProperty, FrameworkPropertyMetadata(Base::String{}).Inherits())
+        .Property(FrameworkContentElement::OverridesDefaultStyleProperty, FrameworkPropertyMetadata(false));
+    return {};
+}
+} // namespace Aero::Meta

@@ -9,7 +9,7 @@
 #include "gui/core/state/EventRouter.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/data/BindingEngine.hpp"
-#include "gui/controls/ItemsDetail.hpp"
+#include "gui/controls/ItemsContainers.hpp"
 #include <Aero/Data/Binding.hpp>
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/LogicalTreeHelper.hpp>

@@ -5,6 +5,7 @@
 // Canonical path: src/gui/meta (exposed via aero-meta-authoring include root).
 
 #include "gui/meta/MetadataRegistrations.hpp"
+#include <Aero/Base/Assert.hpp>
 
 #include <cstring>
 #include <functional>
@@ -248,6 +249,9 @@ private:
     MetadataAuthoringSession& EventHandler(
         Base::StringView name,
         EventHandlerThunk thunk) noexcept;
+    MetadataAuthoringSession& TemplatePart(
+        Base::StringView name,
+        TypeId partType) noexcept;
     MetadataAuthoringSession& EnumValueRaw(
         Base::StringView name,
         std::uint64_t rawValue) noexcept;
@@ -312,7 +316,11 @@ private:
     void Record(Base::Result<void> result) noexcept;
 
     template<class TValue>
-    void Record(Base::Result<TValue>& result) noexcept {
+    void Record(const Base::Result<TValue>& result) noexcept {
+        // Central authoring guard (assert-only policy): builtin Populate
+        // chains no longer check per-type status; every failure aborts here
+        // in debug, release continues best-effort.
+        AERO_ASSERT(static_cast<bool>(result));
         if (status_.IsOk() && !result) {
             status_ = result.GetStatus();
         }

@@ -15,6 +15,12 @@ namespace Aero {
 using namespace ::Aero;
 namespace MediaAnimation = ::Aero::Media::Animation;
 
+// ============================================================================
+// Section 1: Document load (Begin/XamlSettings/Clear/FindName)
+// Section 2: Resource layers (ResourceHost::Commit/Load*) starts at CommitLayer
+// Section 3: Mount/Fragment lifecycle (MountRoot ... UnmountFragment) starts at MountRoot
+// ============================================================================
+
 Base::Result<void> BeginDocumentLoad(ViewState& state) noexcept {
         if (!state.initialized) {
             return AeroNotInitialized(

@@ -242,6 +242,12 @@ Base::Result<Registry::Storage*> Registry::BuildCandidate(
                     type.Id(), handler.name.View(), handler.thunk);
             if (!registered) return fail(registered.GetStatus());
         }
+        for (const TemplatePartDescriptor& part : type.TemplateParts()) {
+            Base::Result<void> registered =
+                registrations.RegisterTemplatePart(
+                    type.Id(), part.name.View(), part.partType);
+            if (!registered) return fail(registered.GetStatus());
+        }
     }
 
     for (const TypeInfo& type : storage_->types.Types()) {
@@ -956,6 +962,13 @@ EventHandlerThunk Registry::FindEventHandler(
     Base::StringView name,
     bool includeBaseTypes) const noexcept {
     return Types().FindEventHandler(ownerType, name, includeBaseTypes);
+}
+
+TypeId Registry::FindTemplatePart(
+    TypeId ownerType,
+    Base::StringView name,
+    bool includeBaseTypes) const noexcept {
+    return Types().FindTemplatePart(ownerType, name, includeBaseTypes);
 }
 
 EventHandlerThunk Registry::FindEventHandlerThunk(

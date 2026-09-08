@@ -2,83 +2,33 @@
 // metadata bootstrap. Keep registration order stable within this unit.
 Base::Result<void> PopulateUiInput(
     ::Aero::Meta::Registration& context) noexcept {
-    Base::Result<void> status;
-    status = Meta::Register<EventArgs>(context).Result();
-    if (!status) return status.GetStatus();
-    status = Meta::Register<RoutedEventArgs>(context).Result();
-    if (!status) return status.GetStatus();
-    status = Meta::Register<InputEventArgs>(context).Result();
-    if (!status) return status.GetStatus();
-    status = Meta::Register<MouseEventArgs>(context).Result();
-    if (!status) return status.GetStatus();
-    status = Meta::Register<MouseButtonEventArgs>(context).Result();
-    if (!status) return status.GetStatus();
-    status = Meta::Register<MouseWheelEventArgs>(context).Result();
-    if (!status) return status.GetStatus();
-    status = Meta::Register<DragEventArgs>(context).Result();
-    if (!status) return status.GetStatus();
-    status = Meta::Register<GiveFeedbackEventArgs>(context).Result();
-    if (!status) return status.GetStatus();
-    status = Meta::Register<DragCompletedEventArgs>(context).Result();
-    if (!status) return status.GetStatus();
-    status = Meta::Register<KeyEventArgs>(context).Result();
-    if (!status) return status.GetStatus();
-    status = Meta::Register<TextCompositionEventArgs>(context).Result();
-    if (!status) return status.GetStatus();
-    status = Meta::Register<KeyboardFocusChangedEventArgs>(
-        context).Result();
-    if (!status) return status.GetStatus();
-    auto keyboardNavigation =
-        Meta::Register<KeyboardNavigation>(
-            context, TypeFlags::Abstract);
-    keyboardNavigation.Property(
-        KeyboardNavigation::
-            DirectionalNavigationProperty,
-        FrameworkPropertyMetadata(
-            KeyboardNavigationMode::Continue));
-    keyboardNavigation.Property(
-        KeyboardNavigation::TabNavigationProperty,
-        FrameworkPropertyMetadata(
-            KeyboardNavigationMode::Continue));
-    keyboardNavigation.Property(
-        KeyboardNavigation::
-            ControlTabNavigationProperty,
-        FrameworkPropertyMetadata(
-            KeyboardNavigationMode::Continue));
-    keyboardNavigation.Property(
-        KeyboardNavigation::TabIndexProperty,
-        FrameworkPropertyMetadata(std::uint32_t{0}));
-    keyboardNavigation.Property(
-        KeyboardNavigation::AcceptsReturnProperty,
-        FrameworkPropertyMetadata(false));
-    keyboardNavigation.Property(
-        KeyboardNavigation::IsTabStopProperty,
-        FrameworkPropertyMetadata(false));
-    status = keyboardNavigation.Result();
-    if (!status) return status.GetStatus();
+    Register<EventArgs>(context);
+    Register<RoutedEventArgs>(context);
+    Register<InputEventArgs>(context);
+    Register<MouseEventArgs>(context);
+    Register<MouseButtonEventArgs>(context);
+    Register<MouseWheelEventArgs>(context);
+    Register<DragEventArgs>(context);
+    Register<GiveFeedbackEventArgs>(context);
+    Register<DragCompletedEventArgs>(context);
+    Register<KeyEventArgs>(context);
+    Register<TextCompositionEventArgs>(context);
+    Register<KeyboardFocusChangedEventArgs>(context);
+    Register<KeyboardNavigation>(context, TypeFlags::Abstract)
+        .Property(KeyboardNavigation::DirectionalNavigationProperty, FrameworkPropertyMetadata(KeyboardNavigationMode::Continue))
+        .Property(KeyboardNavigation::TabNavigationProperty, FrameworkPropertyMetadata(KeyboardNavigationMode::Continue))
+        .Property(KeyboardNavigation::ControlTabNavigationProperty, FrameworkPropertyMetadata(KeyboardNavigationMode::Continue))
+        .Property(KeyboardNavigation::TabIndexProperty, FrameworkPropertyMetadata(std::uint32_t{0}))
+        .Property(KeyboardNavigation::AcceptsReturnProperty, FrameworkPropertyMetadata(false))
+        .Property(KeyboardNavigation::IsTabStopProperty, FrameworkPropertyMetadata(false));
 
-    auto focusManager =
-        Meta::Register<FocusManager>(
-            context, TypeFlags::Abstract);
-    focusManager
-        .Property(
-            FocusManager::IsFocusScopeProperty,
-            FrameworkPropertyMetadata(false))
-        .Property(
-            FocusManager::FocusedElementProperty,
-            FrameworkPropertyMetadata(
-                Base::Ref<Base::Object>{}));
-    status = focusManager.Result();
-    if (!status) return status.GetStatus();
+    Register<FocusManager>(context, TypeFlags::Abstract)
+        .Property(FocusManager::IsFocusScopeProperty, FrameworkPropertyMetadata(false))
+        .Property(FocusManager::FocusedElementProperty, FrameworkPropertyMetadata(Base::Ref<Base::Object>{}));
 
-    status = Meta::Register<CanExecuteRoutedEventArgs>(
-        context).Result();
-    if (!status) return status.GetStatus();
-    status = Meta::Register<ExecutedRoutedEventArgs>(
-        context).Result();
-    if (!status) return status.GetStatus();
+    Register<CanExecuteRoutedEventArgs>(context);
+    Register<ExecutedRoutedEventArgs>(context);
 
-    status = Meta::Register<Cursor>(context).Result();
-    if (!status) return status.GetStatus();
+    Register<Cursor>(context);
     return {};
 }

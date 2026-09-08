@@ -4,6 +4,8 @@
 #include <Aero/Base/HashMap.hpp>
 #include <Aero/Base/MetadataId.hpp>
 #include <Aero/Base/Result.hpp>
+#include <Aero/Base/Vector.hpp>
+#include <Aero/DispatcherReentrancyGuard.hpp>
 #include <Aero/Diagnostics/PropertyValueSource.hpp>
 #include <Aero/DependencyProperty.hpp>
 #include <Aero/PropertySlab.hpp>
@@ -14,6 +16,9 @@
 #include <utility>
 
 namespace Aero {
+
+class DependencyObject;
+using ::Aero::Threading::DispatcherReentrancyGuard;
 
 using Meta::PropertyProviderSet;
 
@@ -415,6 +420,45 @@ struct PropertyStore {
     }
     static void operator delete(void*, void*) noexcept {
     }
+};
+
+
+// ---- Moved from include/Aero/DependencyObject.hpp (Noesis-parity slimming) ----
+// Change notification records and the mutation guard are engine details;
+// the public header keeps only forward declarations. ChangeKind stays public
+// (referenced by include/Aero/Resources.hpp).
+struct ChangeHandlerRecord {
+    DependencyPropertyHandle property;
+    DependencyPropertyChangedEventHandler handler;
+    bool active = false;
+};
+
+struct DependencyObjectRare {
+    Base::Vector<ChangeHandlerRecord> changeHandlers;
+    std::uint32_t changeHandlerNotificationDepth = 0U;
+};
+
+class DependencyMutationScope {
+public:
+    DependencyMutationScope() noexcept = default;
+    DependencyMutationScope(DependencyMutationScope&& other) noexcept;
+    DependencyMutationScope& operator=(DependencyMutationScope&& other) noexcept;
+    ~DependencyMutationScope();
+
+    DependencyMutationScope(const DependencyMutationScope&) = delete;
+    DependencyMutationScope& operator=(const DependencyMutationScope&) = delete;
+
+    void Release() noexcept;
+
+private:
+    friend class DependencyObject;
+
+    DependencyMutationScope(
+        DependencyObject* owner,
+        DispatcherReentrancyGuard&& guard) noexcept;
+
+    DependencyObject* owner_ = nullptr;
+    DispatcherReentrancyGuard dispatcherGuard_;
 };
 
 static_assert(

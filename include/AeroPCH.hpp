@@ -37,3 +37,11 @@
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Transforms.hpp>
 #include <Aero/Media/Animation.hpp>
+
+// Host integration: input values, providers, fragment loading
+// (cf. NsGui/Providers). Every host configures these; kept out of the
+// spine above so type-header-direct users pay nothing.
+#include <Aero/Input.hpp>
+#include <Aero/Media/TextureProvider.hpp>
+#include <Aero/Media/FontProvider.hpp>
+#include <Aero/Markup/XamlReader.hpp>

@@ -1,5 +1,5 @@
 #include "gui/ViewState.hpp"
-#include "gui/media/StoryboardHostCommon.hpp"
+#include "gui/media/StoryboardHost.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/core/state/EventRouter.hpp"
 #include <Aero/CommandBinding.hpp>

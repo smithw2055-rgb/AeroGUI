@@ -2,286 +2,115 @@
 // metadata bootstrap. Keep registration order stable within this unit.
 Base::Result<void> PopulateUiResources(
     ::Aero::Meta::Registration& context) noexcept {
-    Base::Result<void> status;
-    auto resourceDictionary =
-        Meta::Register<ResourceDictionary>(context);
-    resourceDictionary
-        .Property<
-            Base::ResourceUri,
-            &ResourceDictionary::GetSource,
-            &ResourceDictionary::SetSource>(
-            "Source",
-            PropertyFlags::None)
-        .Collection<ResourceDictionary>(
-            "MergedDictionaries",
-            &AddMergedDictionary,
-            &ClearMergedDictionaries)
-        .Content<Base::Object>(
-            "Entries",
-            ContentKind::Collection)
+    Register<ResourceDictionary>(context)
+        .Property<Base::ResourceUri, &ResourceDictionary::GetSource, &ResourceDictionary::SetSource>("Source", PropertyFlags::None)
+        .Collection<ResourceDictionary>("MergedDictionaries", &AddMergedDictionary, &ClearMergedDictionaries)
+        .Content<Base::Object>("Entries", ContentKind::Collection)
         .Factory();
-    status = resourceDictionary.Result();
-    if (!status) return status.GetStatus();
 
-    auto geometry = Meta::Register<Media::Geometry>(context);
-    geometry
-        .Property(
-            "Transform", &Media::Geometry::GetTransform, &Media::Geometry::SetTransform,
-            PropertyFlags::Structural)
-        .Content(MakeMemberId(
-            Media::Geometry::StaticTypeId(), MemberKind::Property, "Transform"))
+    Register<Media::Geometry>(context)
+        .Property("Transform", &Media::Geometry::GetTransform, &Media::Geometry::SetTransform, PropertyFlags::Structural)
+        .Content(MakeMemberId(Media::Geometry::StaticTypeId(), MemberKind::Property, "Transform"))
         .TextConverter(&ConvertGeometryText)
         .Factory();
-    status = geometry.Result();
-    if (!status) return status.GetStatus();
 
-    auto dashStyle = Meta::Register<Media::DashStyle>(context);
-    dashStyle.Factory();
-    status = dashStyle.Result();
-    if (!status) return status.GetStatus();
-
-    auto pen = Meta::Register<Media::Pen>(context);
-    pen
-        .Property<
-            Base::Ref<Media::Brush>,
-            &Media::Pen::GetBrush,
-            &Media::Pen::SetBrush>(
-            "Brush",
-            PropertyFlags::None)
-        .Property(
-            Media::Pen::ThicknessProperty,
-            FrameworkPropertyMetadata(1.0)
-                .Validate(&::Aero::Base::Validate::NonNegative<double>))
-        .Property<
-            Base::Ref<Media::DashStyle>,
-            &Media::Pen::GetDashStyle,
-            &Media::Pen::SetDashStyle>(
-            "DashStyle",
-            PropertyFlags::None)
-        .Property(
-            Media::Pen::LineJoinProperty,
-            FrameworkPropertyMetadata(Media::PenLineJoin::Miter))
-        .Property(
-            Media::Pen::StartLineCapProperty,
-            FrameworkPropertyMetadata(Media::PenLineCap::Flat))
-        .Property(
-            Media::Pen::EndLineCapProperty,
-            FrameworkPropertyMetadata(Media::PenLineCap::Flat))
-        .Property(
-            Media::Pen::MiterLimitProperty,
-            FrameworkPropertyMetadata(10.0)
-                .Validate(&::Aero::Base::Validate::NonNegative<double>))
+    Register<Media::DashStyle>(context)
         .Factory();
-    status = pen.Result();
-    if (!status) return status.GetStatus();
 
-    auto streamGeometry = Meta::Register<Media::StreamGeometry>(context);
-    streamGeometry
-        .Property(
-            "Data", &Media::StreamGeometry::GetData, &Media::StreamGeometry::SetData,
-            PropertyFlags::Structural)
-        .Content(MakeMemberId(
-            Media::StreamGeometry::StaticTypeId(), MemberKind::Property, "Data"))
+    Register<Media::Pen>(context)
+        .Property<Base::Ref<Media::Brush>, &Media::Pen::GetBrush, &Media::Pen::SetBrush>("Brush", PropertyFlags::None)
+        .Property(Media::Pen::ThicknessProperty, FrameworkPropertyMetadata(1.0) .Validate(&Base::Validate::NonNegative<double>))
+        .Property<Base::Ref<Media::DashStyle>, &Media::Pen::GetDashStyle, &Media::Pen::SetDashStyle>("DashStyle", PropertyFlags::None)
+        .Property(Media::Pen::LineJoinProperty, FrameworkPropertyMetadata(Media::PenLineJoin::Miter))
+        .Property(Media::Pen::StartLineCapProperty, FrameworkPropertyMetadata(Media::PenLineCap::Flat))
+        .Property(Media::Pen::EndLineCapProperty, FrameworkPropertyMetadata(Media::PenLineCap::Flat))
+        .Property(Media::Pen::MiterLimitProperty, FrameworkPropertyMetadata(10.0) .Validate(&Base::Validate::NonNegative<double>))
+        .Factory();
+
+    Register<Media::StreamGeometry>(context)
+        .Property("Data", &Media::StreamGeometry::GetData, &Media::StreamGeometry::SetData, PropertyFlags::Structural)
+        .Content(MakeMemberId(Media::StreamGeometry::StaticTypeId(), MemberKind::Property, "Data"))
         .TextConverter(&ConvertGeometryText)
         .Factory();
-    status = streamGeometry.Result();
-    if (!status) return status.GetStatus();
 
-    status = Meta::Register<Media::PathSegment>(
-        context, TypeFlags::Abstract).Result();
-    if (!status) return status.GetStatus();
+    Register<Media::PathSegment>(context, TypeFlags::Abstract);
 
-    auto lineSegment = Meta::Register<Media::LineSegment>(context);
-    lineSegment
-        .Property(
-            Media::LineSegment::PointProperty,
-            FrameworkPropertyMetadata(Point{}).AffectsRender())
+    Register<Media::LineSegment>(context)
+        .Property(Media::LineSegment::PointProperty, FrameworkPropertyMetadata(Point{}).AffectsRender())
         .Factory();
-    status = lineSegment.Result();
-    if (!status) return status.GetStatus();
 
-    auto pathFigure = Meta::Register<Media::PathFigure>(context);
-    pathFigure
-        .Property(
-            Media::PathFigure::StartPointProperty,
-            FrameworkPropertyMetadata(Point{}).AffectsRender())
-        .Property(
-            Media::PathFigure::IsClosedProperty,
-            FrameworkPropertyMetadata(false).AffectsRender())
-        .Content<Media::PathSegment>(
-            "Segments", ContentKind::Collection,
-            &AddPathFigureSegment, &ClearPathFigureSegments)
+    Register<Media::PathFigure>(context)
+        .Property(Media::PathFigure::StartPointProperty, FrameworkPropertyMetadata(Point{}).AffectsRender())
+        .Property(Media::PathFigure::IsClosedProperty, FrameworkPropertyMetadata(false).AffectsRender())
+        .Content<Media::PathSegment>("Segments", ContentKind::Collection, &AddPathFigureSegment, &ClearPathFigureSegments)
         .Factory();
-    status = pathFigure.Result();
-    if (!status) return status.GetStatus();
 
-    auto pathGeometry = Meta::Register<Media::PathGeometry>(context);
-    pathGeometry
-        .Content<Media::PathFigure>(
-            "Figures", ContentKind::Collection,
-            &AddPathGeometryFigure, &ClearPathGeometryFigures)
+    Register<Media::PathGeometry>(context)
+        .Content<Media::PathFigure>("Figures", ContentKind::Collection, &AddPathGeometryFigure, &ClearPathGeometryFigures)
         .Factory();
-    status = pathGeometry.Result();
-    if (!status) return status.GetStatus();
 
-    auto bezierSegment = Meta::Register<Media::BezierSegment>(context);
-    bezierSegment
-        .Property(
-            Media::BezierSegment::Point1Property,
-            FrameworkPropertyMetadata(Point{}).AffectsRender())
-        .Property(
-            Media::BezierSegment::Point2Property,
-            FrameworkPropertyMetadata(Point{}).AffectsRender())
-        .Property(
-            Media::BezierSegment::Point3Property,
-            FrameworkPropertyMetadata(Point{}).AffectsRender())
+    Register<Media::BezierSegment>(context)
+        .Property(Media::BezierSegment::Point1Property, FrameworkPropertyMetadata(Point{}).AffectsRender())
+        .Property(Media::BezierSegment::Point2Property, FrameworkPropertyMetadata(Point{}).AffectsRender())
+        .Property(Media::BezierSegment::Point3Property, FrameworkPropertyMetadata(Point{}).AffectsRender())
         .Factory();
-    status = bezierSegment.Result();
-    if (!status) return status.GetStatus();
 
-    auto quadraticBezierSegment =
-        Meta::Register<Media::QuadraticBezierSegment>(context);
-    quadraticBezierSegment
-        .Property(
-            Media::QuadraticBezierSegment::Point1Property,
-            FrameworkPropertyMetadata(Point{}).AffectsRender())
-        .Property(
-            Media::QuadraticBezierSegment::Point2Property,
-            FrameworkPropertyMetadata(Point{}).AffectsRender())
+    Register<Media::QuadraticBezierSegment>(context)
+        .Property(Media::QuadraticBezierSegment::Point1Property, FrameworkPropertyMetadata(Point{}).AffectsRender())
+        .Property(Media::QuadraticBezierSegment::Point2Property, FrameworkPropertyMetadata(Point{}).AffectsRender())
         .Factory();
-    status = quadraticBezierSegment.Result();
-    if (!status) return status.GetStatus();
 
-    auto arcSegment = Meta::Register<Media::ArcSegment>(context);
-    arcSegment
-        .Property(
-            Media::ArcSegment::PointProperty,
-            FrameworkPropertyMetadata(Point{}).AffectsRender())
-        .Property(
-            Media::ArcSegment::SizeProperty,
-            FrameworkPropertyMetadata(Size{}).AffectsRender())
-        .Property(
-            Media::ArcSegment::RotationAngleProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(
-            Media::ArcSegment::IsLargeArcProperty,
-            FrameworkPropertyMetadata(false).AffectsRender())
-        .Property(
-            Media::ArcSegment::SweepDirectionProperty,
-            FrameworkPropertyMetadata(Media::SweepDirection::Counterclockwise)
-                .AffectsRender())
+    Register<Media::ArcSegment>(context)
+        .Property(Media::ArcSegment::PointProperty, FrameworkPropertyMetadata(Point{}).AffectsRender())
+        .Property(Media::ArcSegment::SizeProperty, FrameworkPropertyMetadata(Size{}).AffectsRender())
+        .Property(Media::ArcSegment::RotationAngleProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(Media::ArcSegment::IsLargeArcProperty, FrameworkPropertyMetadata(false).AffectsRender())
+        .Property(Media::ArcSegment::SweepDirectionProperty, FrameworkPropertyMetadata(Media::SweepDirection::Counterclockwise) .AffectsRender())
         .Factory();
-    status = arcSegment.Result();
-    if (!status) return status.GetStatus();
 
-    auto polyLineSegment = Meta::Register<Media::PolyLineSegment>(context);
-    polyLineSegment
-        .Property<Base::String, &Media::PolyLineSegment::SetPointsText>(
-            "Points", PropertyFlags::None)
+    Register<Media::PolyLineSegment>(context)
+        .Property<Base::String, &Media::PolyLineSegment::SetPointsText>("Points", PropertyFlags::None)
         .Factory();
-    status = polyLineSegment.Result();
-    if (!status) return status.GetStatus();
 
-    auto polyBezierSegment = Meta::Register<Media::PolyBezierSegment>(context);
-    polyBezierSegment
-        .Property<Base::String, &Media::PolyBezierSegment::SetPointsText>(
-            "Points", PropertyFlags::None)
+    Register<Media::PolyBezierSegment>(context)
+        .Property<Base::String, &Media::PolyBezierSegment::SetPointsText>("Points", PropertyFlags::None)
         .Factory();
-    status = polyBezierSegment.Result();
-    if (!status) return status.GetStatus();
 
-    auto polyQuadraticBezierSegment =
-        Meta::Register<Media::PolyQuadraticBezierSegment>(context);
-    polyQuadraticBezierSegment
-        .Property<
-            Base::String,
-            &Media::PolyQuadraticBezierSegment::SetPointsText>(
-            "Points", PropertyFlags::None)
+    Register<Media::PolyQuadraticBezierSegment>(context)
+        .Property<Base::String, &Media::PolyQuadraticBezierSegment::SetPointsText>("Points", PropertyFlags::None)
         .Factory();
-    status = polyQuadraticBezierSegment.Result();
-    if (!status) return status.GetStatus();
 
-    auto lineGeometry = Meta::Register<Media::LineGeometry>(context);
-    lineGeometry
-        .Property(
-            Media::LineGeometry::StartPointProperty,
-            FrameworkPropertyMetadata(Point{}).AffectsRender())
-        .Property(
-            Media::LineGeometry::EndPointProperty,
-            FrameworkPropertyMetadata(Point{}).AffectsRender())
+    Register<Media::LineGeometry>(context)
+        .Property(Media::LineGeometry::StartPointProperty, FrameworkPropertyMetadata(Point{}).AffectsRender())
+        .Property(Media::LineGeometry::EndPointProperty, FrameworkPropertyMetadata(Point{}).AffectsRender())
         .Factory();
-    status = lineGeometry.Result();
-    if (!status) return status.GetStatus();
 
-    auto rectangleGeometry = Meta::Register<Media::RectangleGeometry>(context);
-    rectangleGeometry
-        .Property(
-            Media::RectangleGeometry::RectProperty,
-            FrameworkPropertyMetadata(Rect{}).AffectsRender())
-        .Property(
-            Media::RectangleGeometry::RadiusXProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(
-            Media::RectangleGeometry::RadiusYProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
+    Register<Media::RectangleGeometry>(context)
+        .Property(Media::RectangleGeometry::RectProperty, FrameworkPropertyMetadata(Rect{}).AffectsRender())
+        .Property(Media::RectangleGeometry::RadiusXProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(Media::RectangleGeometry::RadiusYProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
         .Factory();
-    status = rectangleGeometry.Result();
-    if (!status) return status.GetStatus();
 
-    auto ellipseGeometry = Meta::Register<Media::EllipseGeometry>(context);
-    ellipseGeometry
-        .Property(
-            Media::EllipseGeometry::CenterProperty,
-            FrameworkPropertyMetadata(Point{}).AffectsRender())
-        .Property(
-            Media::EllipseGeometry::RadiusXProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(
-            Media::EllipseGeometry::RadiusYProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
+    Register<Media::EllipseGeometry>(context)
+        .Property(Media::EllipseGeometry::CenterProperty, FrameworkPropertyMetadata(Point{}).AffectsRender())
+        .Property(Media::EllipseGeometry::RadiusXProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(Media::EllipseGeometry::RadiusYProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
         .Factory();
-    status = ellipseGeometry.Result();
-    if (!status) return status.GetStatus();
 
-    auto geometryGroup = Meta::Register<Media::GeometryGroup>(context);
-    geometryGroup
-        .Content<Media::Geometry>(
-            "Children", ContentKind::Collection,
-            &AddGeometryGroupChild, &ClearGeometryGroupChildren)
+    Register<Media::GeometryGroup>(context)
+        .Content<Media::Geometry>("Children", ContentKind::Collection, &AddGeometryGroupChild, &ClearGeometryGroupChildren)
         .Factory();
-    status = geometryGroup.Result();
-    if (!status) return status.GetStatus();
 
-    auto combinedGeometry = Meta::Register<Media::CombinedGeometry>(context);
-    combinedGeometry
-        .Property(
-            "Geometry1",
-            &Media::CombinedGeometry::GetGeometry1,
-            &Media::CombinedGeometry::SetGeometry1,
-            PropertyFlags::Structural)
-        .Property(
-            "Geometry2",
-            &Media::CombinedGeometry::GetGeometry2,
-            &Media::CombinedGeometry::SetGeometry2,
-            PropertyFlags::Structural)
-        .Property(
-            Media::CombinedGeometry::GeometryCombineModeProperty,
-            FrameworkPropertyMetadata(Media::GeometryCombineMode::Union)
-                .AffectsRender())
+    Register<Media::CombinedGeometry>(context)
+        .Property("Geometry1", &Media::CombinedGeometry::GetGeometry1, &Media::CombinedGeometry::SetGeometry1, PropertyFlags::Structural)
+        .Property("Geometry2", &Media::CombinedGeometry::GetGeometry2, &Media::CombinedGeometry::SetGeometry2, PropertyFlags::Structural)
+        .Property(Media::CombinedGeometry::GeometryCombineModeProperty, FrameworkPropertyMetadata(Media::GeometryCombineMode::Union) .AffectsRender())
         .Factory();
-    status = combinedGeometry.Result();
-    if (!status) return status.GetStatus();
 
-    auto fontFamily = Meta::Register<Media::FontFamily>(context);
-    fontFamily
-        .Property(
-            "Source", &Media::FontFamily::GetSource, &Media::FontFamily::SetSource,
-            PropertyFlags::Structural)
-        .Content(MakeMemberId(
-            Media::FontFamily::StaticTypeId(), MemberKind::Property, "Source"))
+    Register<Media::FontFamily>(context)
+        .Property("Source", &Media::FontFamily::GetSource, &Media::FontFamily::SetSource, PropertyFlags::Structural)
+        .Content(MakeMemberId(Media::FontFamily::StaticTypeId(), MemberKind::Property, "Source"))
         .TextConverter(&ConvertFontFamilyText)
         .Factory();
-    status = fontFamily.Result();
-    if (!status) return status.GetStatus();
     return {};
 }

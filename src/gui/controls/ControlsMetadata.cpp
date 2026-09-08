@@ -11,7 +11,7 @@
 #include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
-#include "gui/controls/ItemsDetail.hpp"
+#include "gui/controls/ItemsContainers.hpp"
 #include "gui/templates/TemplateInstance.hpp"
 #include "gui/media/MediaHelpers.hpp"
 
@@ -53,30 +53,21 @@ using namespace Aero::Threading;
     using Aero::Shapes::PenLineCap;
     using Aero::TryCastToInterface;
 namespace {
-#include "metadata/Support.inl"
-#include "metadata/Values.inl"
-#include "metadata/Templates.inl"
-#include "metadata/Primitives.inl"
-#include "metadata/Items.inl"
-#include "metadata/Panels.inl"
-#include "metadata/TextMedia.inl"
+// Grouped metadata units; include order preserves the original stable
+// registration sequence (Foundation -> Widgets -> Layout).
+#include "metadata/Metadata.Foundation.inl"
+#include "metadata/Metadata.Widgets.inl"
+#include "metadata/Metadata.Layout.inl"
 } // namespace
 
 Base::Result<void> PopulateControlsMetadata(
     ::Aero::Meta::Registration& context) noexcept {
-    Base::Result<void> status;
-    status = PopulateControlsValues(context);
-    if (!status) return status.GetStatus();
-    status = PopulateControlsTemplates(context);
-    if (!status) return status.GetStatus();
-    status = PopulateControlsPrimitives(context);
-    if (!status) return status.GetStatus();
-    status = PopulateControlsItems(context);
-    if (!status) return status.GetStatus();
-    status = PopulateControlsPanels(context);
-    if (!status) return status.GetStatus();
-    status = PopulateControlsTextMedia(context);
-    if (!status) return status.GetStatus();
+    PopulateControlsValues(context);
+    PopulateControlsTemplates(context);
+    PopulateControlsPrimitives(context);
+    PopulateControlsItems(context);
+    PopulateControlsPanels(context);
+    PopulateControlsTextMedia(context);
     return {};
 }
 

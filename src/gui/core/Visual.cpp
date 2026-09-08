@@ -26,6 +26,8 @@
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include "gui/meta/MetadataState.hpp"
+#include <Aero/Meta.hpp>
+#include "gui/meta/ElementsFill.hpp"
 
 using namespace Aero;
 using namespace Aero::Media;
@@ -228,3 +230,17 @@ bool Visual::TryPointFromScreen(
 }
 } // namespace Media {
 } // namespace Aero {
+
+// ---- Builtin metadata Fill (colocated from meta/Elements.inl) ----
+namespace Aero::Meta {
+using namespace ::Aero::Threading;
+using namespace ::Aero::Input;
+using namespace ::Aero::Media;
+using namespace ::Aero::Data;
+using namespace ::Aero::Media::Animation::Model;
+Base::Result<void> FillVisualMetadata(
+    ::Aero::Meta::Registration& context) noexcept {
+    Register<Visual>(context, TypeFlags::Abstract);
+    return {};
+}
+} // namespace Aero::Meta

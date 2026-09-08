@@ -146,4 +146,22 @@ public:
         const Aero::NameScope* names = nullptr) noexcept;
 };
 
+// Shared keyframe-schedule helper for StoryboardHost TUs
+// (merged from StoryboardHostCommon.hpp; no ViewState re-include needed
+// as this header is consumed after ViewState).
+namespace StoryboardSupport {
+
+template<class TAnimation>
+inline Aero::Media::Animation::KeyframeSchedule
+MakeKeyframeSchedule(
+    const TAnimation& animation,
+    Aero::Media::Animation::AnimationTime authoredDuration) noexcept {
+    return Aero::Media::Animation::MakeSchedule(
+        animation.GetKeyFrames(), authoredDuration);
+}
+
+} // namespace StoryboardSupport
+
+using StoryboardSupport::MakeKeyframeSchedule;
+
 } // namespace Aero

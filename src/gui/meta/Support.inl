@@ -1,12 +1,5 @@
 #include <Aero/Interactivity/Conditions.hpp>
 // Shared implementation helpers for the semantic metadata units.
-constexpr double DefaultMaximum = 1.0e12;
-
-class PlaceholderFrameworkElement : public FrameworkElement {
-public:
-    PlaceholderFrameworkElement() noexcept
-        : FrameworkElement(FrameworkElement::StaticTypeId()) {}
-};
 
 Base::Result<Value> ConvertRoutedCommandReference(
     TypeId targetType,
@@ -30,11 +23,6 @@ Base::Result<Value> ConvertRoutedCommandReference(
             std::move(command).Value()));
 }
 
-bool ValidateUnitDouble(
-    const double& value) noexcept {
-    return std::isfinite(value) &&
-        value >= 0.0 && value <= 1.0;
-}
 
 Base::Result<Length> ConvertLength(
     Base::StringView text) noexcept {
@@ -418,13 +406,6 @@ bool EqualCornerRadius(
         a.bottomRight == b.bottomRight &&
         a.bottomLeft == b.bottomLeft;
 }
-bool ValidateLength(const Length& length) noexcept {
-    return length.isAuto || (std::isfinite(length.value) && length.value >= 0.0);
-}
-bool ValidateMarginValue(const Thickness& t) noexcept {
-    // WPF permits negative margins for overlap and shared-border layouts.
-    return IsFinite(t);
-}
 TypeReference GetStyleTargetType(
     const Style& style) noexcept {
     return {style.GetTargetType()};
@@ -675,70 +656,7 @@ void ClearMultiTriggerSetters(
     return;
 }
 
-void AddFrameworkEventTrigger(
-    Base::Object& owner,
-    const Base::Ref<Base::Object>& value,
-    void*) noexcept {
-    if (!value) return;
-    Base::Ref<Media::Animation::EventTrigger> retained =
-        Base::Ref<Media::Animation::EventTrigger>::TryFromBorrowed(
-            static_cast<Media::Animation::EventTrigger&>(*value));
-    if (!retained) {
-        return;
-    }
-    static_cast<void>(
-        AeroGuiInternal::AddAuthoredTrigger(
-            static_cast<FrameworkElement&>(owner),
-            Base::Ref<Base::Object>(std::move(retained))));
-}
 
-void ClearFrameworkEventTriggers(
-    Base::Object& owner,
-    void*) noexcept {
-    static_cast<void>(
-        AeroGuiInternal::ClearAuthoredTriggers(
-            static_cast<FrameworkElement&>(owner)));
-}
-
-void AddUiElementInputBinding(
-    Base::Object& owner,
-    const Base::Ref<Base::Object>& value,
-    void*) noexcept {
-    InputBinding* binding = ::Aero::TryCast<InputBinding>(value.Get());
-    if (binding == nullptr) return;
-    Base::Ref<InputBinding> retained =
-        Base::Ref<InputBinding>::TryFromBorrowed(*binding);
-    if (retained) {
-        (void)static_cast<UIElement&>(owner).AddInputBinding(
-            std::move(retained));
-    }
-}
-
-void ClearUiElementInputBindings(
-    Base::Object& owner,
-    void*) noexcept {
-    static_cast<UIElement&>(owner).ClearInputBindings();
-}
-
-void AddUiElementCommandBinding(
-    Base::Object& owner,
-    const Base::Ref<Base::Object>& value,
-    void*) noexcept {
-    CommandBinding* binding = ::Aero::TryCast<CommandBinding>(value.Get());
-    if (binding == nullptr) return;
-    Base::Ref<CommandBinding> retained =
-        Base::Ref<CommandBinding>::TryFromBorrowed(*binding);
-    if (retained) {
-        (void)static_cast<UIElement&>(owner).AddCommandBinding(
-            std::move(retained));
-    }
-}
-
-void ClearUiElementCommandBindings(
-    Base::Object& owner,
-    void*) noexcept {
-    static_cast<UIElement&>(owner).ClearCommandBindings();
-}
 
 void AddStoryboardTimeline(
     Base::Object& owner,
@@ -1487,50 +1405,5 @@ void ClearTransformGroupChildren(
     return;
 }
 
-void OnRenderStateChanged(
-    DependencyObject& object,
-    const DependencyPropertyChangedEventArgs&) noexcept {
-    auto& visual =
-        static_cast<UIElement&>(object);
-    static_cast<void>(
-        AeroGuiInternal::
-            InvalidateRenderState(visual));
-}
 
-void OnOpacityMaskChanged(
-    DependencyObject& object,
-    const DependencyPropertyChangedEventArgs&) noexcept {
-    FrameworkElement* owner =
-        ::Aero::TryCast<::Aero::FrameworkElement>(&object);
-    if (owner == nullptr) return;
-    static_cast<void>(
-        AeroGuiInternal::
-            InvalidateRenderState(*owner));
-}
 
-void OnRenderTransformChanged(
-    DependencyObject& object,
-    const DependencyPropertyChangedEventArgs&) noexcept {
-    FrameworkElement* owner =
-        ::Aero::TryCast<::Aero::FrameworkElement>(&object);
-    if (owner == nullptr) return;
-    static_cast<void>(
-        AeroGuiInternal::
-            InvalidateRenderState(*owner));
-}
-
-void OnLayoutTransformChanged(
-    DependencyObject&,
-    const DependencyPropertyChangedEventArgs&) noexcept {
-}
-
-void OnEffectChanged(
-    DependencyObject& object,
-    const DependencyPropertyChangedEventArgs&) noexcept {
-    FrameworkElement* owner =
-        ::Aero::TryCast<::Aero::FrameworkElement>(&object);
-    if (owner == nullptr) return;
-    static_cast<void>(
-        AeroGuiInternal::
-            InvalidateRenderState(*owner));
-}

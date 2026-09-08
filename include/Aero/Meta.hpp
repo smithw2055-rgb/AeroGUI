@@ -334,7 +334,7 @@ private:
 } // namespace Aero::Meta
 
 // Authoring session + TypeBuilder helpers (non-Aero private path).
-#include "gui/meta/TypeBuilderDetail.hpp"
+#include "gui/meta/TypeBuilderCore.hpp"
 
 namespace Aero::Meta {
 
@@ -729,6 +729,17 @@ public:
                             static_cast<TArgs&>(args));
                     }
                 }));
+        return *this;
+    }
+
+    // Declares a named visual part expected from this control template
+    // (Noesis TemplatePart parity, ADR-0006), resolved at runtime with
+    // Control::GetTemplateChild. Recorded per type; base-type parts apply.
+    TypeBuilder& TemplatePart(
+        StringView name,
+        TypeId partType) noexcept {
+        if (!builder_.Ok()) return *this;
+        builder_.TemplatePart(name, partType);
         return *this;
     }
 

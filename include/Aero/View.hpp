@@ -57,10 +57,14 @@ public:
 
     Result<void> SetContent(Markup::XamlDocument&& document, Aero::Size availableSize) noexcept;
     Result<void> SetContent(Ref<FrameworkElement> root, Aero::Size availableSize) noexcept;
+    // Transitional: prefers the current viewport size. New code calls
+    // SetContent(root, size) explicitly; this overload will be removed.
+    [[deprecated("Use SetContent(root, availableSize) instead")]]
     Result<void> SetContent(Ref<FrameworkElement> root) noexcept;
     // Mounts a loaded UI document under a host root (for example a Window
     // wrapping a UserControl StartupUri root). The document's root is
-    // attached as a visual child of the host.
+    // attached as a visual child of the host. New fragment-style mounts
+    // should use Markup::XamlReader::MountFragment instead.
     Result<void> SetContent(Ref<FrameworkElement> root, Markup::XamlDocument&& document, Aero::Size availableSize) noexcept;
     FrameworkElement* GetContent() noexcept;
     const FrameworkElement* GetContent() const noexcept;

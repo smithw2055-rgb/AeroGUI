@@ -13,8 +13,7 @@ Base::Result<void> PopulateInputDevices(
     using namespace Aero::Meta;
     using namespace Aero::Input;
 
-    auto mouse = Meta::Register<Mouse>(context, TypeFlags::Abstract);
-    mouse
+    Register<Mouse>(context, TypeFlags::Abstract)
         .Event(Mouse::MouseDownEvent)
         .Event(Mouse::PreviewMouseDownEvent)
         .Event(Mouse::MouseUpEvent)
@@ -28,26 +27,18 @@ Base::Result<void> PopulateInputDevices(
         .Event(Mouse::GotMouseCaptureEvent)
         .Event(Mouse::LostMouseCaptureEvent)
         .Event(Mouse::QueryCursorEvent);
-    Base::Result<void> status = mouse.Result();
-    if (!status) return status.GetStatus();
 
-    auto keyboard = Meta::Register<Keyboard>(context, TypeFlags::Abstract);
-    keyboard
+    Register<Keyboard>(context, TypeFlags::Abstract)
         .Event(Keyboard::KeyDownEvent)
         .Event(Keyboard::PreviewKeyDownEvent)
         .Event(Keyboard::KeyUpEvent)
         .Event(Keyboard::PreviewKeyUpEvent)
         .Event(Keyboard::GotKeyboardFocusEvent)
         .Event(Keyboard::LostKeyboardFocusEvent);
-    status = keyboard.Result();
-    if (!status) return status.GetStatus();
 
-    auto dataObject = Meta::Register<DataObject>(context);
-    status = dataObject.Result();
-    if (!status) return status.GetStatus();
+    Register<DataObject>(context);
 
-    auto dragDrop = Meta::Register<DragDrop>(context, TypeFlags::Abstract);
-    dragDrop
+    Register<DragDrop>(context, TypeFlags::Abstract)
         .Event(DragDrop::PreviewDragEnterEvent)
         .Event(DragDrop::DragEnterEvent)
         .Event(DragDrop::PreviewDragOverEvent)
@@ -56,8 +47,6 @@ Base::Result<void> PopulateInputDevices(
         .Event(DragDrop::DragLeaveEvent)
         .Event(DragDrop::PreviewDropEvent)
         .Event(DragDrop::DropEvent);
-    status = dragDrop.Result();
-    if (!status) return status.GetStatus();
 
     return {};
 }

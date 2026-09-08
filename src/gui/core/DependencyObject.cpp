@@ -170,9 +170,9 @@ Base::Result<void> DependencyObject::ApplyChange(
         requestedValue == nullptr) return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "Dependency property set operation requires a value");
-    Base::Result<MutationScope> mutationResult = BeginMutation(propertyHandle);
+    Base::Result<DependencyMutationScope> mutationResult = BeginMutation(propertyHandle);
     if (!mutationResult) return mutationResult.GetStatus();
-    MutationScope mutation = std::move(mutationResult).Value();
+    DependencyMutationScope mutation = std::move(mutationResult).Value();
     StoredValueEntry* storedEntry = FindStoredEntry(propertyHandle);
     const bool hadEntry = storedEntry != nullptr;
     if (!hadEntry && kind == ChangeKind::Clear) return {};
@@ -314,9 +314,9 @@ Base::Result<void> DependencyObject::RecomputeEffectiveValueInternal(
     if (property == nullptr || metadata == nullptr) return Base::Status::Failure(
         Base::ErrorCode::NotFound, "Dependency property does not apply to this object type");
     propertyHandle = property->Handle();
-    Base::Result<MutationScope> mutationResult = BeginMutation(propertyHandle);
+    Base::Result<DependencyMutationScope> mutationResult = BeginMutation(propertyHandle);
     if (!mutationResult) return mutationResult.GetStatus();
-    MutationScope mutation = std::move(mutationResult).Value();
+    DependencyMutationScope mutation = std::move(mutationResult).Value();
         auto* storedEntry = FindStoredEntry(propertyHandle);
     const PropertyValue oldEffective = storedEntry != nullptr
         ? storedEntry->effectiveValue : metadata->defaultValue;
@@ -753,7 +753,7 @@ void DependencyObject::LeaveMutation() noexcept {
 
 // from src/gui/core/PropertySystem.cpp
 
-Base::Result<DependencyObject::MutationScope>
+Base::Result<DependencyMutationScope>
 DependencyObject::BeginMutation(
     DependencyPropertyHandle property) noexcept {
     Base::Result<void> writable = VerifyMutationAllowed();
@@ -783,7 +783,7 @@ DependencyObject::BeginMutation(
         return guard.GetStatus();
     }
 
-    return MutationScope(this, std::move(guard).Value());
+    return DependencyMutationScope(this, std::move(guard).Value());
 }
 
 // from src/gui/core/PropertySystem.cpp

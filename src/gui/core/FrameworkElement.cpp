@@ -9,9 +9,14 @@
 #include <Aero/Media/Fonts.hpp>
 #include <Aero/Media/Transforms.hpp>
 #include <Aero/Media/Effects.hpp>
+#include <Aero/Media/Geometry.hpp>
+#include <Aero/Media/Animation/EventTrigger.hpp>
 #include <Aero/Markup/XamlReader.hpp>
 #include <Aero/Controls.hpp>
+#include <cmath>
 #include <cstdio>
+#include "gui/meta/ElementsFill.hpp"
+#include "gui/meta/ValueConversion.hpp"
 #include "gui/core/state/ElementTree.hpp"
 #include "gui/core/state/LayoutEngine.hpp"
 #include "gui/core/state/FreezableState.hpp"
@@ -394,4 +399,181 @@ std::uint32_t FrameworkElementChildRange::Size() const noexcept {
     return count;
 }
 
-} // namespace Aero {
+} // namespace Aero
+
+// ---- Fill helpers (colocated from meta/Support.inl, single TU use) ----
+namespace {
+constexpr double DefaultMaximum = 1.0e12;
+
+class PlaceholderFrameworkElement : public FrameworkElement {
+public:
+    PlaceholderFrameworkElement() noexcept
+        : FrameworkElement(FrameworkElement::StaticTypeId()) {}
+};
+
+bool ValidateLength(const Length& length) noexcept {
+    return length.isAuto || (std::isfinite(length.value) && length.value >= 0.0);
+}
+bool ValidateMarginValue(const Thickness& t) noexcept {
+    // WPF permits negative margins for overlap and shared-border layouts.
+    return IsFinite(t);
+}
+
+void AddFrameworkEventTrigger(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    if (!value) return;
+    Base::Ref<Media::Animation::EventTrigger> retained =
+        Base::Ref<Media::Animation::EventTrigger>::TryFromBorrowed(
+            static_cast<Media::Animation::EventTrigger&>(*value));
+    if (!retained) {
+        return;
+    }
+    static_cast<void>(
+        AeroGuiInternal::AddAuthoredTrigger(
+            static_cast<FrameworkElement&>(owner),
+            Base::Ref<Base::Object>(std::move(retained))));
+}
+
+void ClearFrameworkEventTriggers(
+    Base::Object& owner,
+    void*) noexcept {
+    static_cast<void>(
+        AeroGuiInternal::ClearAuthoredTriggers(
+            static_cast<FrameworkElement&>(owner)));
+}
+
+void OnLayoutTransformChanged(
+    DependencyObject&,
+    const DependencyPropertyChangedEventArgs&) noexcept {
+}
+} // namespace
+
+// ---- Builtin metadata Fill (colocated from meta/Elements.inl) ----
+namespace Aero::Meta {
+using namespace ::Aero::Threading;
+using namespace ::Aero::Input;
+using namespace ::Aero::Media;
+using namespace ::Aero::Data;
+using namespace ::Aero::Media::Animation::Model;
+
+Base::Result<void> FillFrameworkElementMetadata(
+    ::Aero::Meta::Registration& context) noexcept {
+    Register<FrameworkElement>(context)
+        .Event(FrameworkElement::LoadedEvent, RoutingStrategy::Direct)
+        .Property<
+            Base::Ref<ResourceDictionary>,
+            &FrameworkElement::SetResources>(
+                "Resources",
+                PropertyFlags::Structural)
+        .Property(
+            FrameworkElement::DataContextProperty,
+            FrameworkPropertyMetadata(Value::NullObject(
+                TypeOf<Base::Object>()))
+                .Inherits())
+        .Property(
+            FrameworkElement::FontFamilyProperty,
+            FrameworkPropertyMetadata(Base::Ref<Media::FontFamily>{})
+                .Inherits()
+                .AffectsMeasure())
+        .Property(
+            FrameworkElement::FlowDirectionProperty,
+            FrameworkPropertyMetadata(FlowDirection::LeftToRight)
+                .Inherits()
+                .AffectsMeasure())
+        .Property(
+            FrameworkElement::CursorProperty,
+            FrameworkPropertyMetadata(Base::String{}).Inherits())
+        .Property(
+            FrameworkElement::ForceCursorProperty,
+            FrameworkPropertyMetadata(false))
+        .Property(
+            FrameworkElement::InputScopeProperty,
+            FrameworkPropertyMetadata(InputScope::Default))
+        .Property(
+            FrameworkElementForegroundProperty,
+            FrameworkPropertyMetadata(Base::Ref<Brush>{})
+                .Inherits()
+                .AffectsRender())
+        .Property(
+            FrameworkElement::StyleProperty,
+            FrameworkPropertyMetadata(Base::Ref<Style>{}))
+        .Property(
+            FrameworkElement::TagProperty,
+            FrameworkPropertyMetadata(Meta::Value::NullObject(
+                Meta::TypeOf<Base::Object>())))
+        .Property(
+            FrameworkElement::ToolTipProperty,
+            FrameworkPropertyMetadata(Meta::Value::NullObject(
+                Meta::TypeOf<Base::Object>())))
+        .Property(
+            FrameworkElement::WidthProperty,
+            FrameworkPropertyMetadata(Length::Auto())
+                .AffectsMeasure()
+                .Validate(&ValidateLength))
+        .Property(
+            FrameworkElement::HeightProperty,
+            FrameworkPropertyMetadata(Length::Auto())
+                .AffectsMeasure()
+                .Validate(&ValidateLength))
+        .Property(
+            FrameworkElement::ActualWidthProperty,
+            FrameworkPropertyMetadata(0.0))
+        .Property(
+            FrameworkElement::ActualHeightProperty,
+            FrameworkPropertyMetadata(0.0))
+        .Property(
+            FrameworkElement::MinWidthProperty,
+            FrameworkPropertyMetadata(0.0)
+                .AffectsMeasure()
+                .Validate(&::Aero::Base::Validate::NonNegative<double>))
+        .Property(
+            FrameworkElement::MaxWidthProperty,
+            FrameworkPropertyMetadata(DefaultMaximum)
+                .AffectsMeasure()
+                .Validate(&::Aero::Base::Validate::NonNegative<double>))
+        .Property(
+            FrameworkElement::MinHeightProperty,
+            FrameworkPropertyMetadata(0.0)
+                .AffectsMeasure()
+                .Validate(&::Aero::Base::Validate::NonNegative<double>))
+        .Property(
+            FrameworkElement::MaxHeightProperty,
+            FrameworkPropertyMetadata(DefaultMaximum)
+                .AffectsMeasure()
+                .Validate(&::Aero::Base::Validate::NonNegative<double>))
+        .Property(
+            FrameworkElement::MarginProperty,
+            FrameworkPropertyMetadata(Thickness{})
+                .AffectsMeasure()
+                .Validate(&ValidateMarginValue))
+        .Property(
+            FrameworkElement::HorizontalAlignmentProperty,
+            FrameworkPropertyMetadata(HorizontalAlignment::Stretch)
+                .AffectsArrange())
+        .Property(
+            FrameworkElement::VerticalAlignmentProperty,
+            FrameworkPropertyMetadata(VerticalAlignment::Stretch)
+                .AffectsArrange())
+        .Property(
+            FrameworkElement::UseLayoutRoundingProperty,
+            FrameworkPropertyMetadata(false).AffectsMeasure())
+        .Property(
+            FrameworkElement::SnapsToDevicePixelsProperty,
+            FrameworkPropertyMetadata(false).Inherits().AffectsArrange().AffectsRender())
+        .Property(
+            FrameworkElement::LayoutTransformProperty,
+            FrameworkPropertyMetadata(Base::Ref<Transform>{})
+                .AffectsMeasure()
+                .Changed(&OnLayoutTransformChanged))
+        .Collection<Media::Animation::EventTrigger>(
+            "Triggers",
+            &AddFrameworkEventTrigger,
+            &ClearFrameworkEventTriggers)
+        .Factory<PlaceholderFrameworkElement>();
+    return {};
+}
+
+} // namespace Aero::Meta
+

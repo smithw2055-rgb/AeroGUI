@@ -355,6 +355,14 @@ Base::Result<void> RegistrationTypes::RegisterEventHandler(
     return types_->RegisterEventHandler(ownerType, name, thunk);
 }
 
+Base::Result<void> RegistrationTypes::RegisterTemplatePart(
+    TypeId ownerType,
+    Base::StringView name,
+    TypeId partType) const noexcept {
+    Base::Result<void> valid = ValidateRegistrationPair();
+    if (!valid) return valid.GetStatus();
+    return types_->RegisterTemplatePart(ownerType, name, partType);
+}
 Base::Result<void> RegistrationTypes::SetFactory(
     TypeId type,
     ObjectFactory factory) const noexcept {

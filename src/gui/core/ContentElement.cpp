@@ -10,6 +10,9 @@
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
 #include "gui/internal/ErasedRoutedHandler.hpp"
+#include "gui/meta/MetadataState.hpp"
+#include <Aero/Meta.hpp>
+#include "gui/meta/ElementsFill.hpp"
 
 #include <Aero/Base/Assert.hpp>
 
@@ -222,3 +225,17 @@ void AeroGuiInternal::InvokeContentHandlers(
 }
 
 } // namespace Aero
+
+// ---- Builtin metadata Fill (colocated from meta/Elements.inl) ----
+namespace Aero::Meta {
+using namespace ::Aero::Threading;
+using namespace ::Aero::Input;
+using namespace ::Aero::Media;
+using namespace ::Aero::Data;
+using namespace ::Aero::Media::Animation::Model;
+Base::Result<void> FillContentElementMetadata(
+    ::Aero::Meta::Registration& context) noexcept {
+    Register<ContentElement>(context, TypeFlags::Abstract);
+    return {};
+}
+} // namespace Aero::Meta

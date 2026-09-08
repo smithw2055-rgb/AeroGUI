@@ -78,7 +78,7 @@ unset(_aero_public_install_directory)
 # so it stays off the AeroPublicHeaders whitelist while remaining usable via
 # <Aero/Meta.hpp> ("gui/meta/..." through aero-meta-authoring include root).
 install(FILES
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/gui/meta/TypeBuilderDetail.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/gui/meta/TypeBuilderCore.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/gui/meta/MetadataRegistrations.hpp"
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/aero-meta-authoring/gui/meta")
 

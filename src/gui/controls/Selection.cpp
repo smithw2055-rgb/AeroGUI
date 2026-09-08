@@ -9,7 +9,7 @@
 #include "gui/input/InputState.hpp" 
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleState.hpp"
-#include "gui/controls/ItemsDetail.hpp"
+#include "gui/controls/ItemsContainers.hpp"
 #include "gui/templates/TemplateInstance.hpp"
 #include <Aero/VisualStateManager.hpp>
 #include <Aero/Controls.hpp>

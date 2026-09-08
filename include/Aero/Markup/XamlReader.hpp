@@ -74,6 +74,14 @@ namespace Aero::Markup {
 // XAML object-graph reader bound to the process-level Gui runtime. Loading is
 // independent of any View; presentation-affine effects are bound when a
 // document is mounted into a View.
+//
+// Entry-point guide (WPF/Noesis shape): ordinary code uses Gui::LoadXaml<T>,
+// Gui::LoadComponent and Gui::CreateView; XamlReader is the advanced surface
+// for fragment workflows (Parse/LoadCompiled/MountFragment) and custom load
+// settings. View::SetContent(XamlDocument, size) mounts whole documents;
+// View::SetContent(root, doc, size) mounts a document under a host root;
+// MountFragment below is the fragment-lifetime alternative for ContentControl
+// hosts already in a View.
 class AERO_GUI_API XamlReader {
 public:
     explicit XamlReader(Aero::Gui& gui) noexcept : gui_(&gui) {}
