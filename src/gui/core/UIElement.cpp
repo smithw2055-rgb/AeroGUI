@@ -452,17 +452,17 @@ UIElement::GetCommandBindings() const noexcept {
 void UIElement::OnPropertyInvalidated(
     PropertyInvalidationFlags flags) noexcept {
     if (HasFlag(flags, PropertyInvalidationFlags::Measure)) {
-        (void)InvalidateMeasure();
+        InvalidateMeasure();
     } else if (HasFlag(flags, PropertyInvalidationFlags::Arrange)) {
-        (void)InvalidateArrange();
+        InvalidateArrange();
     }
     UIElement* parent = AeroGuiInternal::Layout(*this).layoutAttached ? LayoutParent() : nullptr;
     if (parent != nullptr &&
         HasFlag(flags, PropertyInvalidationFlags::ParentMeasure)) {
-        (void)parent->InvalidateMeasure();
+        parent->InvalidateMeasure();
     } else if (parent != nullptr &&
         HasFlag(flags, PropertyInvalidationFlags::ParentArrange)) {
-        (void)parent->InvalidateArrange();
+        parent->InvalidateArrange();
     }
     if (HasFlag(flags, PropertyInvalidationFlags::Render)) {
         static_cast<void>(
@@ -541,7 +541,7 @@ bool UIElement::GetIsEnabled() const noexcept {
 void UIElement::OnVisualChildrenChanged(
     ::Aero::Media::Visual*,
     ::Aero::Media::Visual*) noexcept {
-    (void)InvalidateMeasure();
+    InvalidateMeasure();
 }
 
 // from src/gui/controls/Layout.cpp
@@ -592,27 +592,27 @@ bool UIElement::GetClipToBounds() const noexcept {
 
 // from src/gui/controls/Layout.cpp
 
-Base::Result<void> UIElement::InvalidateArrange() noexcept {
+void UIElement::InvalidateArrange() noexcept {
     auto* layout = static_cast<Aero::LayoutEngine*>(
         AeroGuiInternal::LayoutEngineOf(*this));
     if (layout == nullptr) {
         AeroGuiInternal::Layout(*this).arrangeValid = false;
-        return {};
+        return;
     }
-    return layout->InvalidateArrange(*this);
+    layout->InvalidateArrange(*this);
 }
 
 // from src/gui/controls/Layout.cpp
 
-Base::Result<void> UIElement::InvalidateMeasure() noexcept {
+void UIElement::InvalidateMeasure() noexcept {
     auto* layout = static_cast<Aero::LayoutEngine*>(
         AeroGuiInternal::LayoutEngineOf(*this));
     if (layout == nullptr) {
         AeroGuiInternal::Layout(*this).measureValid = false;
         AeroGuiInternal::Layout(*this).arrangeValid = false;
-        return {};
+        return;
     }
-    return layout->InvalidateMeasure(*this);
+    layout->InvalidateMeasure(*this);
 }
 
 // from src/gui/controls/Layout.cpp

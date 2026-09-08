@@ -635,17 +635,19 @@ void FrameworkElement::OnPropertyInvalidated(
     PropertyInvalidationFlags flags) noexcept {
     UIElement::OnPropertyInvalidated(flags);
     if (HasFlag(flags, PropertyInvalidationFlags::Render)) {
-        (void)InvalidateVisual();
+        InvalidateVisual();
     }
 }
 
-Base::Result<void> FrameworkElement::InvalidateVisual() noexcept {
+void FrameworkElement::InvalidateVisual() noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) {
-        return access;
+        return;
     }
-    return AeroGuiInternal::
+    Base::Result<void> invalidated = AeroGuiInternal::
         InvalidateRenderDrawing(*this);
+    AERO_ASSERT(invalidated);
+    (void)invalidated;
 }
 
 void FrameworkElement::OnRender(
@@ -1400,8 +1402,14 @@ Base::Result<void> AeroGuiInternal::SetImageRuntimeData(
     AERO_GET_FIELD(image, Image_renderImage) = renderImage;
     AERO_GET_FIELD(image, Image_pixelWidth) = pixelWidth;
     AERO_GET_FIELD(image, Image_pixelHeight) = pixelHeight;
-    if (measureChanged) return image.InvalidateMeasure();
-    return renderChanged ? image.InvalidateVisual() : Base::Result<void>();
+    if (measureChanged) {
+        image.InvalidateMeasure();
+        return {};
+    }
+    if (renderChanged) {
+        image.InvalidateVisual();
+    }
+    return {};
 }
 
 Base::Span<const Base::Ref<Base::Object>>

@@ -43,7 +43,7 @@ void AeroGuiInternal::PathAttachMeshResources(
     bool invalidate) noexcept {
     AERO_CALL_METHOD(path, Path_AttachMeshResources, services, invalidate);
     if (invalidate) {
-        static_cast<void>(path.InvalidateVisual());
+        path.InvalidateVisual();
     }
 }
 

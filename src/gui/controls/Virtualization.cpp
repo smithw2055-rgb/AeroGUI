@@ -546,12 +546,9 @@ VirtualizingStackPanel::HandleItemsChanged(
     SetMainExtent(GetItemOffset(itemCount));
     ClampOffsets();
     CalculateRealizationRange();
-    Base::Result<void> invalidated =
-        InvalidateMeasure();
-    if (!invalidated) {
-        return invalidated.GetStatus();
-    }
-    return InvalidateArrange();
+    InvalidateMeasure();
+    InvalidateArrange();
+    return {};
 }
 
 Base::Result<void>
@@ -613,8 +610,8 @@ void VirtualizingStackPanel::SetViewport(
     data_.viewportHeight = viewport.height;
     ClampOffsets();
     (void)UpdateRealization(true);
-    (void)InvalidateMeasure();
-    (void)InvalidateArrange();
+    InvalidateMeasure();
+    InvalidateArrange();
 }
 
 void VirtualizingStackPanel::SetMainScrollOffset(
@@ -628,8 +625,8 @@ void VirtualizingStackPanel::SetMainScrollOffset(
     if (Same(next, MainOffset())) return;
     SetMainOffset(next);
     (void)UpdateRealization(true);
-    (void)InvalidateMeasure();
-    (void)InvalidateArrange();
+    InvalidateMeasure();
+    InvalidateArrange();
 }
 
 void VirtualizingStackPanel::SetCrossScrollOffset(
@@ -651,7 +648,7 @@ void VirtualizingStackPanel::SetCrossScrollOffset(
         : data_.verticalOffset;
     if (Same(next, current)) return;
     current = next;
-    (void)InvalidateArrange();
+    InvalidateArrange();
 }
 
 void VirtualizingStackPanel::SetHorizontalOffset(

@@ -247,7 +247,7 @@ void FrameworkElement::SetUseLayoutRounding(
     const bool scaleChanged = dpiScale_ != dpiScale;
     dpiScale_ = dpiScale;
     SetValue(UseLayoutRoundingProperty, enabled);
-    if (scaleChanged && enabled) (void)InvalidateMeasure();
+    if (scaleChanged && enabled) InvalidateMeasure();
 }
 
 // from src/gui/core/ElementTree.cpp

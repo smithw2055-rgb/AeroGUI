@@ -38,8 +38,7 @@ void AdornerLayer::Add(Base::Ref<Adorner> adorner) noexcept {
     Base::Result<void> appended = adorners_.PushBack(std::move(adorner));
     if (!appended) { AERO_ASSERT(false); return; }
     AddVisualChild(child);
-    Base::Result<void> invalidated = InvalidateMeasure();
-    if (!invalidated) { AERO_ASSERT(false); return; }
+    InvalidateMeasure();
 }
 
 void AdornerLayer::Remove(Adorner& adorner) noexcept {
@@ -51,8 +50,7 @@ void AdornerLayer::Remove(Adorner& adorner) noexcept {
                 adorners_[shift] = std::move(adorners_[shift + 1U]);
             }
             adorners_.PopBack();
-            Base::Result<void> invalidated = InvalidateMeasure();
-            if (!invalidated) { AERO_ASSERT(false); return; }
+            InvalidateMeasure();
             return;
         }
     }

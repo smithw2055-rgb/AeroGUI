@@ -157,8 +157,8 @@ protected:
     virtual void ClearContainer(
         FrameworkElement& container) noexcept;
     virtual void OnContainersChanged() noexcept {
-        static_cast<void>(InvalidateMeasure());
-        static_cast<void>(InvalidateArrange());
+        InvalidateMeasure();
+        InvalidateArrange();
     }
     virtual void OnItemsSourceCoreChanged() noexcept {}
     Collections::IItemsSource* GetItemsSourceCore() const noexcept {

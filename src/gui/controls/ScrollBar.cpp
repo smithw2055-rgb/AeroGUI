@@ -149,19 +149,19 @@ void Track::SetIsDirectionReversed(
 void Track::SetDecreaseRepeatButton(
     Base::Ref<RepeatButton> value) noexcept {
     decreaseRepeatButton_ = std::move(value);
-    (void)InvalidateMeasure();
+    InvalidateMeasure();
 }
 
 void Track::SetThumb(
     Base::Ref<Thumb> value) noexcept {
     thumb_ = std::move(value);
-    (void)InvalidateMeasure();
+    InvalidateMeasure();
 }
 
 void Track::SetIncreaseRepeatButton(
     Base::Ref<RepeatButton> value) noexcept {
     increaseRepeatButton_ = std::move(value);
-    (void)InvalidateMeasure();
+    InvalidateMeasure();
 }
 
 double Track::GetThumbLength(

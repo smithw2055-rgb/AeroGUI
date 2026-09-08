@@ -566,8 +566,8 @@ Base::Result<void> Gui::LoadComponent(
                         AdoptLoadedComponent(
                             *viewState, std::move(taken));
                     if (!adopted) return adopted.GetStatus();
-                    (void)element->InvalidateMeasure();
-                    (void)element->InvalidateArrange();
+                    element->InvalidateMeasure();
+                    element->InvalidateArrange();
                     break;
                 }
             }

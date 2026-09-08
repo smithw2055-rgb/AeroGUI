@@ -213,8 +213,8 @@ public:
             TArgs::StaticTypeId());
     }
 
-    Result<void> InvalidateMeasure() noexcept;
-    Result<void> InvalidateArrange() noexcept;
+    void InvalidateMeasure() noexcept;
+    void InvalidateArrange() noexcept;
     Size GetDesiredSize() const noexcept;
     Size GetRenderSize() const noexcept;
     Rect GetLayoutSlot() const noexcept;

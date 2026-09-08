@@ -1007,8 +1007,8 @@ Base::Result<void> MountOwnedLayoutChildren(
 }
 
 void InvalidateLayoutSubtree(UIElement& element) noexcept {
-    (void)element.InvalidateMeasure();
-    (void)element.InvalidateArrange();
+    element.InvalidateMeasure();
+    element.InvalidateArrange();
     const std::uint32_t visualCount =
         Aero::Media::VisualTreeHelper::GetChildrenCount(element);
     for (std::uint32_t index = 0U; index < visualCount; ++index) {

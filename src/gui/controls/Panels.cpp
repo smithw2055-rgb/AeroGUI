@@ -611,7 +611,7 @@ void Grid::SetColumnDefinitions(
     if (!copied) return;
     columns_ = std::move(next);
     columnDefinitionObjects_.Clear();
-    (void)InvalidateMeasure();
+    InvalidateMeasure();
 }
 void Grid::SetRowDefinitions(
     Base::Span<const GridLength> definitions) noexcept {
@@ -624,7 +624,7 @@ void Grid::SetRowDefinitions(
     if (!copied) return;
     rows_ = std::move(next);
     rowDefinitionObjects_.Clear();
-    (void)InvalidateMeasure();
+    InvalidateMeasure();
 }
 void Grid::SetChildCell(
     UIElement& child, std::uint32_t row, std::uint32_t column) noexcept {
@@ -666,8 +666,7 @@ void Grid::AddColumnDefinition(
         AERO_ASSERT(false);
         return;
     }
-    Base::Result<void> invalidated = InvalidateMeasure();
-    if (!invalidated) { AERO_ASSERT(false); return; }
+    InvalidateMeasure();
 }
 void Grid::AddRowDefinition(
     Base::Ref<RowDefinition> definition) noexcept {
@@ -684,8 +683,7 @@ void Grid::AddRowDefinition(
         AERO_ASSERT(false);
         return;
     }
-    Base::Result<void> invalidated = InvalidateMeasure();
-    if (!invalidated) { AERO_ASSERT(false); return; }
+    InvalidateMeasure();
 }
 void
 Grid::ClearColumnDefinitionObjects() noexcept {
@@ -693,7 +691,7 @@ Grid::ClearColumnDefinitionObjects() noexcept {
     if (!access) return;
     columnDefinitionObjects_.Clear();
     columns_.Clear();
-    (void)InvalidateMeasure();
+    InvalidateMeasure();
 }
 void
 Grid::ClearRowDefinitionObjects() noexcept {
@@ -701,7 +699,7 @@ Grid::ClearRowDefinitionObjects() noexcept {
     if (!access) return;
     rowDefinitionObjects_.Clear();
     rows_.Clear();
-    (void)InvalidateMeasure();
+    InvalidateMeasure();
 }
 Base::StringView Grid::GetColumnDefinitionsText() const noexcept {
     return GetValue(ColumnDefinitionsTextProperty);
@@ -1239,7 +1237,7 @@ void Panel::AddChildCore(const Base::Ref<Base::Object>& childObject, UIElement& 
                 !child.GetIsLayoutAttached()) {
                 if (child.GetVisualParent() != nullptr &&
                     child.GetVisualParent() != this) {
-                    (void)InvalidateMeasure();
+                    InvalidateMeasure();
                     return;
                 }
                 Base::Result<VisualAttachment> attached =
@@ -1253,7 +1251,7 @@ void Panel::AddChildCore(const Base::Ref<Base::Object>& childObject, UIElement& 
             AddVisualChild(&child);
         }
     }
-    (void)InvalidateMeasure();
+    InvalidateMeasure();
 }
 Base::Result<bool> Panel::RemoveChildCore(UIElement& child) noexcept {
     Base::Result<void> access = VerifyAccess();
@@ -1277,8 +1275,8 @@ Base::Result<bool> Panel::RemoveChildCore(UIElement& child) noexcept {
             ownedChildren_[next - 1U] = std::move(ownedChildren_[next]);
         }
         ownedChildren_.PopBack();
-        Base::Result<void> invalidated = InvalidateMeasure();
-        return invalidated ? Base::Result<bool>(true) : Base::Result<bool>(invalidated.GetStatus());
+        InvalidateMeasure();
+        return true;
     }
     return false;
 }
@@ -1303,7 +1301,7 @@ void Panel::ClearChildrenCore() noexcept {
         }
     }
     ownedChildren_.Clear();
-    (void)InvalidateMeasure();
+    InvalidateMeasure();
 }
 
 } // namespace Aero

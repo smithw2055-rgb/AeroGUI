@@ -33,7 +33,7 @@ public:
         if (content_ == nullptr) return;
         content_ = nullptr;
         ownedContent_.Reset();
-        (void)InvalidateMeasure();
+        InvalidateMeasure();
         return;
     }
 

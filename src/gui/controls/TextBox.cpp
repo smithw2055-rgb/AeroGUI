@@ -301,7 +301,7 @@ void TextBox::SetSelection(
         Model(model_).SetSelection(anchor, caret);
     if (!changed) return;
     (void)EnsureCaretVisible();
-    (void)InvalidateVisual();
+    InvalidateVisual();
 }
 
 Base::Result<void> TextBox::SelectAll() noexcept {
@@ -322,7 +322,8 @@ Base::Result<void> TextBox::SelectAll() noexcept {
     if (!visible) {
         return visible;
     }
-    return InvalidateVisual();
+    InvalidateVisual();
+    return {};
 }
 
 Base::Result<void> TextBox::Undo() noexcept {
@@ -444,18 +445,8 @@ TextBox::BeginComposition() noexcept {
     }
     compositionText_.Clear();
     compositionActive_ = true;
-    Base::Result<void> measure =
-        InvalidateMeasure();
-    if (!measure) {
-        compositionActive_ = false;
-        return measure;
-    }
-    Base::Result<void> render =
-        InvalidateVisual();
-    if (!render) {
-        compositionActive_ = false;
-        return render;
-    }
+    InvalidateMeasure();
+    InvalidateVisual();
     return UpdateCandidateWindow();
 }
 
@@ -511,16 +502,8 @@ Base::Result<void> TextBox::UpdateComposition(
     if (!stored) {
         return stored;
     }
-    Base::Result<void> measure =
-        InvalidateMeasure();
-    if (!measure) {
-        return measure;
-    }
-    Base::Result<void> render =
-        InvalidateVisual();
-    if (!render) {
-        return render;
-    }
+    InvalidateMeasure();
+    InvalidateVisual();
     return UpdateCandidateWindow();
 }
 
@@ -580,16 +563,8 @@ TextBox::CancelComposition() noexcept {
     }
     compositionActive_ = false;
     compositionText_.Clear();
-    Base::Result<void> measure =
-        InvalidateMeasure();
-    if (!measure) {
-        return measure;
-    }
-    Base::Result<void> render =
-        InvalidateVisual();
-    if (!render) {
-        return render;
-    }
+    InvalidateMeasure();
+    InvalidateVisual();
     return EnsureCaretVisible();
 }
 
@@ -633,12 +608,9 @@ Base::Result<void> TextBox::SynchronizeModel() noexcept {
     if (!readOnly) {
         return readOnly;
     }
-    Base::Result<void> measure =
-        InvalidateMeasure();
-    if (!measure) {
-        return measure;
-    }
-    return InvalidateVisual();
+    InvalidateMeasure();
+    InvalidateVisual();
+    return {};
 }
 
 Base::Result<void> TextBox::CommitModelText() noexcept {
@@ -659,17 +631,14 @@ Base::Result<void> TextBox::CommitModelText() noexcept {
             return password.GetStatus();
         }
     }
-    Base::Result<void> measure =
-        InvalidateMeasure();
-    if (!measure) {
-        return measure;
-    }
+    InvalidateMeasure();
     Base::Result<void> visible =
         EnsureCaretVisible();
     if (!visible) {
         return visible;
     }
-    return InvalidateVisual();
+    InvalidateVisual();
+    return {};
 }
 
 Base::Result<void> TextBox::SanitizeInput(

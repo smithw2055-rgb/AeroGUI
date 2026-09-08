@@ -666,12 +666,8 @@ void TextEditBehavior::OnPropertyChanged(
                     SetMask(
                         passwordBox.
                             GetPasswordChar()));
-            static_cast<void>(
-                passwordBox.editor_.
-                    InvalidateMeasure());
-            static_cast<void>(
-                passwordBox.editor_.
-                    InvalidateVisual());
+            passwordBox.editor_.InvalidateMeasure();
+            passwordBox.editor_.InvalidateVisual();
         } else if (args.GetProperty() ==
                 PasswordBox::
                     MaxLengthProperty) {
@@ -1555,7 +1551,7 @@ void TextBox::SetViewport(
         old.verticalOffset !=
             scroll_.verticalOffset;
     if (changed) {
-        (void)InvalidateVisual();
+        InvalidateVisual();
     }
 }
 
@@ -1572,7 +1568,7 @@ void TextBox::SetHorizontalOffset(
         return;
     }
     scroll_.horizontalOffset = next;
-    (void)InvalidateVisual();
+    InvalidateVisual();
 }
 
 void TextBox::SetVerticalOffset(
@@ -1588,7 +1584,7 @@ void TextBox::SetVerticalOffset(
         return;
     }
     scroll_.verticalOffset = next;
-    (void)InvalidateVisual();
+    InvalidateVisual();
 }
 
 Base::Result<bool> TextBox::LineHorizontal(

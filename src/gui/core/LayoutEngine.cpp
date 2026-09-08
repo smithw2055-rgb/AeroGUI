@@ -210,8 +210,7 @@ Base::Result<void> LayoutEngine::Attach(
         AeroGuiInternal::Layout(child).measureValid = false;
         AeroGuiInternal::Layout(child).arrangeValid = false;
         if (oldParent != nullptr && oldParent != &parent) {
-            Base::Result<void> released = InvalidateMeasure(*oldParent);
-            if (!released) return released.GetStatus();
+            InvalidateMeasure(*oldParent);
         }
     }
     // A stale LayoutParent on a detached child is irrelevant and must not block
@@ -219,8 +218,7 @@ Base::Result<void> LayoutEngine::Attach(
     // genuine double-attach conflicts.
 
     // Queue all parent invalidation work before publishing the child state.
-    Base::Result<void> invalidated = InvalidateMeasure(parent);
-    if (!invalidated) return invalidated.GetStatus();
+    InvalidateMeasure(parent);
 
     AeroGuiInternal::Layout(child).layoutAttached = true;
     AeroGuiInternal::Layout(child).measureValid = false;
@@ -244,8 +242,7 @@ Base::Result<void> LayoutEngine::Detach(
     UIElement* attachParent = child.LayoutParent();
     if (attachParent == nullptr) attachParent = &parent;
 
-    Base::Result<void> invalidated = InvalidateMeasure(*attachParent);
-    if (!invalidated) return invalidated.GetStatus();
+    InvalidateMeasure(*attachParent);
 
     RemoveQueued(child);
     AeroGuiInternal::Layout(child).layoutAttached = false;
@@ -284,8 +281,7 @@ Base::Result<void> LayoutEngine::SetRoot(
     root_ = root;
     rootAvailableSize_ = availableSize;
     if (root != nullptr) {
-        Base::Result<void> invalidated = InvalidateMeasure(*root);
-        if (!invalidated) return invalidated.GetStatus();
+        InvalidateMeasure(*root);
     }
     return {};
 }
@@ -358,34 +354,34 @@ void LayoutEngine::RemoveQueued(UIElement& element) noexcept {
     AeroGuiInternal::Layout(element).arrangeQueued = false;
 }
 
-Base::Result<void> LayoutEngine::InvalidateMeasure(
+void LayoutEngine::InvalidateMeasure(
     UIElement& element) noexcept {
     Base::Vector<UIElement*> path;
     UIElement* current = &element;
     while (current != nullptr) {
         Base::Result<void> verified = VerifyElement(*current);
-        if (!verified) return verified.GetStatus();
+        if (!verified) { AERO_ASSERT(false); return; }
         Base::Result<void> appended = path.PushBack(current);
-        if (!appended) return appended.GetStatus();
+        if (!appended) { AERO_ASSERT(false); return; }
         current = current->GetIsLayoutAttached()
             ? current->LayoutParent() : nullptr;
     }
 
     Base::Vector<VisualHandle> handles;
     Base::Result<void> reserved = handles.Reserve(path.Size());
-    if (!reserved) return reserved.GetStatus();
+    if (!reserved) { AERO_ASSERT(false); return; }
     for (UIElement* item : path) {
         if (item->GetIsMeasureQueued()) continue;
         const VisualHandle handle = AeroGuiInternal::Handle(*item);
         if (handle.IsValid()) {
             Base::Result<void> staged =
                 handles.PushBack(handle);
-            if (!staged) return staged.GetStatus();
+            if (!staged) { AERO_ASSERT(false); return; }
         }
     }
     reserved = measureQueue_.Reserve(
         measureQueue_.Size() + handles.Size());
-    if (!reserved) return reserved.GetStatus();
+    if (!reserved) { AERO_ASSERT(false); return; }
 
     std::uint32_t handleIndex = 0U;
     for (UIElement* item : path) {
@@ -401,37 +397,36 @@ Base::Result<void> LayoutEngine::InvalidateMeasure(
             AeroGuiInternal::Layout(*item).measureQueued = true;
         }
     }
-    return {};
 }
 
-Base::Result<void> LayoutEngine::InvalidateArrange(
+void LayoutEngine::InvalidateArrange(
     UIElement& element) noexcept {
     Base::Vector<UIElement*> path;
     UIElement* current = &element;
     while (current != nullptr) {
         Base::Result<void> verified = VerifyElement(*current);
-        if (!verified) return verified.GetStatus();
+        if (!verified) { AERO_ASSERT(false); return; }
         Base::Result<void> appended = path.PushBack(current);
-        if (!appended) return appended.GetStatus();
+        if (!appended) { AERO_ASSERT(false); return; }
         current = current->GetIsLayoutAttached()
             ? current->LayoutParent() : nullptr;
     }
 
     Base::Vector<VisualHandle> handles;
     Base::Result<void> reserved = handles.Reserve(path.Size());
-    if (!reserved) return reserved.GetStatus();
+    if (!reserved) { AERO_ASSERT(false); return; }
     for (UIElement* item : path) {
         if (item->GetIsArrangeQueued()) continue;
         const VisualHandle handle = AeroGuiInternal::Handle(*item);
         if (handle.IsValid()) {
             Base::Result<void> staged =
                 handles.PushBack(handle);
-            if (!staged) return staged.GetStatus();
+            if (!staged) { AERO_ASSERT(false); return; }
         }
     }
     reserved = arrangeQueue_.Reserve(
         arrangeQueue_.Size() + handles.Size());
-    if (!reserved) return reserved.GetStatus();
+    if (!reserved) { AERO_ASSERT(false); return; }
 
     std::uint32_t handleIndex = 0U;
     for (UIElement* item : path) {
@@ -446,7 +441,6 @@ Base::Result<void> LayoutEngine::InvalidateArrange(
             AeroGuiInternal::Layout(*item).arrangeQueued = true;
         }
     }
-    return {};
 }
 
 Base::Result<void> UIElement::MeasureCore(

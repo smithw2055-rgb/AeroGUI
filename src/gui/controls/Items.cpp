@@ -102,7 +102,7 @@ void ItemsPresenter::SetItemsHost(
         AeroGuiInternal::DecoratorSetOwnedChild(
             *this, owner, panel);
     if (assigned) {
-        static_cast<void>(InvalidateMeasure());
+        InvalidateMeasure();
     }
 }
 
@@ -431,10 +431,10 @@ void ContentControl::SetContentValue(
                         (void)tree->AttachVisualChild(panel, *nested);
                     }
                 }
-                (void)panel.InvalidateMeasure();
+                panel.InvalidateMeasure();
             }
         }
-        (void)InvalidateMeasure();
+        InvalidateMeasure();
         return;
     }
     literalTextContent_ = false;
@@ -449,7 +449,7 @@ void ContentControl::SetContentValue(
             contentValue_)
         : Meta::Value::NullObject(
             Meta::TypeOf<Base::Object>());
-    (void)InvalidateMeasure();
+    InvalidateMeasure();
 }
 
 void ContentControl::EnsureHostedContent() noexcept {
@@ -490,7 +490,7 @@ void ContentControl::SetContentValue(
         authoredContent_ = std::move(value);
         contentValue_.Reset();
         ownedContent_.Reset();
-        (void)InvalidateMeasure();
+        InvalidateMeasure();
         return;
     }
 
@@ -503,8 +503,8 @@ void ContentControl::SetContentValue(
         (void)StoreContentProperty(value);
         authoredContent_ = std::move(value);
         contentValue_.Reset();
-        (void)InvalidateMeasure();
-        (void)InvalidateVisual();
+        InvalidateMeasure();
+        InvalidateVisual();
         return;
     }
 

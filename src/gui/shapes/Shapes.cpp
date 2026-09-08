@@ -625,20 +625,20 @@ void Polygon::SetPoints(Span<const Point> points) noexcept {
     points_.Clear();
     Result<void> stored = points_.Append(points);
     if (!stored) { AERO_ASSERT(false); return; }
-    static_cast<void>(InvalidateMeasure());
-    static_cast<void>(InvalidateVisual());
+    InvalidateMeasure();
+    InvalidateVisual();
 }
 void Polygon::AddPoint(Point point) noexcept {
     Result<void> stored = points_.PushBack(point);
     if (!stored) { AERO_ASSERT(false); return; }
-    static_cast<void>(InvalidateMeasure());
-    static_cast<void>(InvalidateVisual());
+    InvalidateMeasure();
+    InvalidateVisual();
 }
 void Polygon::ClearPoints() noexcept {
     if (points_.Empty()) return;
     points_.Clear();
-    static_cast<void>(InvalidateMeasure());
-    static_cast<void>(InvalidateVisual());
+    InvalidateMeasure();
+    InvalidateVisual();
 }
 void Polygon::SetPoints(StringView text) noexcept {
     Base::Vector<Point> parsed;
@@ -670,20 +670,20 @@ void Polyline::SetPoints(Span<const Point> points) noexcept {
     points_.Clear();
     Result<void> stored = points_.Append(points);
     if (!stored) { AERO_ASSERT(false); return; }
-    static_cast<void>(InvalidateMeasure());
-    static_cast<void>(InvalidateVisual());
+    InvalidateMeasure();
+    InvalidateVisual();
 }
 void Polyline::AddPoint(Point point) noexcept {
     Result<void> stored = points_.PushBack(point);
     if (!stored) { AERO_ASSERT(false); return; }
-    static_cast<void>(InvalidateMeasure());
-    static_cast<void>(InvalidateVisual());
+    InvalidateMeasure();
+    InvalidateVisual();
 }
 void Polyline::ClearPoints() noexcept {
     if (points_.Empty()) return;
     points_.Clear();
-    static_cast<void>(InvalidateMeasure());
-    static_cast<void>(InvalidateVisual());
+    InvalidateMeasure();
+    InvalidateVisual();
 }
 void Polyline::SetPoints(StringView text) noexcept {
     Base::Vector<Point> parsed;

@@ -78,7 +78,7 @@ public:
             ownedContent_.Reset();
             contentValue_.Reset();
         }
-        (void)InvalidateMeasure();
+        InvalidateMeasure();
         return;
     }
 protected:

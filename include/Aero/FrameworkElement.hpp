@@ -178,7 +178,7 @@ public:
     void SetHorizontalAlignment(HorizontalAlignment value) noexcept;
     void SetVerticalAlignment(VerticalAlignment value) noexcept;
     void SetLayoutTransform(Ref<Media::Transform> value) noexcept;
-    Result<void> InvalidateVisual() noexcept;
+    void InvalidateVisual() noexcept;
 
 protected:
     virtual std::uint32_t GetLogicalChildrenCount() const noexcept { return GetVisualChildrenCount(); }

@@ -203,8 +203,7 @@ public:
                 text.pendingInline_ = text.ownedInlines_.Empty()
                     ? Base::Ref<Base::Object>{}
                     : text.ownedInlines_.Back();
-                Base::Result<void> invalidated = text.InvalidateMeasure();
-                if (!invalidated) return invalidated.GetStatus();
+                text.InvalidateMeasure();
                 return true;
             }
             return false;
@@ -226,8 +225,7 @@ public:
                 : span.inlines_.Back();
             Controls::TextBlock* host = Host(owner);
             if (host != nullptr) {
-                Base::Result<void> invalidated = host->InvalidateMeasure();
-                if (!invalidated) return invalidated.GetStatus();
+                host->InvalidateMeasure();
             }
             return true;
         }
@@ -550,8 +548,7 @@ void Span::AddOwnedInline(Base::Ref<Inline> value) noexcept {
     pendingInline_ = std::move(value);
     Controls::TextBlock* host = Aero::Controls::TextBlockDocumentHelper::Host(*this);
     if (host != nullptr) {
-        Base::Result<void> invalidated = host->InvalidateMeasure();
-        if (!invalidated) { AERO_ASSERT(false); return; }
+        host->InvalidateMeasure();
     }
 }
 
@@ -564,7 +561,7 @@ void Span::ClearOwnedInlines() noexcept {
     Controls::TextBlock* host = GetContentHost() != nullptr
         ? static_cast<Controls::TextBlock*>(GetContentHost())
         : nullptr;
-    if (host != nullptr) (void)host->InvalidateMeasure();
+    if (host != nullptr) host->InvalidateMeasure();
 }
 
 Base::Result<void> CopyText(
@@ -980,7 +977,7 @@ void TextBlock::SetRichTextStyleRanges(
     Base::Vector<RichTextStyleRange> next;
     if (!next.Append(ranges)) return;
     richTextStyleRanges_ = std::move(next);
-    (void)InvalidateVisual();
+    InvalidateVisual();
 }
 Meta::Value TextBlock::GetMetadataInlines() const noexcept {
     if (pendingInline_) {
@@ -1043,8 +1040,7 @@ void TextBlock::AddOwnedInline(
         }
     }
     pendingInline_ = inlineObject;
-    Base::Result<void> invalidated = InvalidateMeasure();
-    if (!invalidated) { AERO_ASSERT(false); return; }
+    InvalidateMeasure();
 }
 void TextBlock::ClearOwnedInlines() noexcept {
     Base::Result<void> access = VerifyAccess();
@@ -1063,7 +1059,7 @@ void TextBlock::ClearOwnedInlines() noexcept {
     }
     ownedInlines_.Clear();
     pendingInline_.Reset();
-    (void)InvalidateMeasure();
+    InvalidateMeasure();
 }
 
 namespace {
@@ -1175,8 +1171,8 @@ void TextBlock::SetGlyphRun(
         if (!appended) return;
     }
     glyphRunSize_ = size;
-    (void)InvalidateMeasure();
-    (void)InvalidateVisual();
+    InvalidateMeasure();
+    InvalidateVisual();
 }
 Size TextBlock::MeasureOverride(Size availableSize) noexcept {
     if (!GetValue(RichText::TextProperty).Empty()) {
@@ -1222,8 +1218,7 @@ Size TextBlock::MeasureOverride(Size availableSize) noexcept {
             glyphRunSize_ = {};
             textHitRegions_.Clear();
             if (changed) {
-                Base::Result<void> invalidated = InvalidateVisual();
-                if (!invalidated) return Size{};
+                InvalidateVisual();
             }
         } else {
             ::Aero::Controls::TextLayoutRequest request;
@@ -1283,8 +1278,7 @@ Size TextBlock::MeasureOverride(Size availableSize) noexcept {
                     glyphRunSize_ = output.desiredSize;
                     serviceOwnsGlyphRun_ = !glyphRuns_.Empty();
                     if (changed) {
-                        Base::Result<void> invalidated = InvalidateVisual();
-                        if (!invalidated) return Size{};
+                        InvalidateVisual();
                     }
                 }
             }

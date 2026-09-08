@@ -73,8 +73,8 @@ void PasswordBox::SetPassword(
     editor_.SetText(value);
     synchronizingEditor_ = false;
     password_ = std::move(nextPassword);
-    (void)InvalidateMeasure();
-    (void)InvalidateVisual();
+    InvalidateMeasure();
+    InvalidateVisual();
     RoutedEventArgs args;
     RaiseEvent(PasswordChangedEvent, &args);
 }
@@ -96,9 +96,9 @@ void PasswordBox::SetPasswordChar(
         PasswordPolicy(passwordPolicy_)->SetMask(value);
     if (!mask) return;
     SetValue(PasswordCharProperty, value);
-    (void)editor_.InvalidateMeasure();
-    (void)InvalidateMeasure();
-    (void)InvalidateVisual();
+    editor_.InvalidateMeasure();
+    InvalidateMeasure();
+    InvalidateVisual();
 }
 
 std::uint32_t PasswordBox::GetMaxLength() const noexcept {
@@ -260,12 +260,8 @@ PasswordBox::SynchronizePasswordFromEditor()
     }
     if (!model) return model.GetStatus();
     password_ = std::move(next);
-    Base::Result<void> measure =
-        InvalidateMeasure();
-    if (!measure) return measure.GetStatus();
-    Base::Result<void> render =
-        InvalidateVisual();
-    if (!render) return render.GetStatus();
+    InvalidateMeasure();
+    InvalidateVisual();
     RoutedEventArgs args;
     RaiseEvent(PasswordChangedEvent, &args);
     return {};

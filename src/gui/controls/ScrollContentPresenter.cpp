@@ -59,7 +59,7 @@ void ScrollContentPresenter::SetContentScrollInfo(
     IScrollInfo* value) noexcept {
     if (contentScrollInfo_ == value) return;
     contentScrollInfo_ = value;
-    (void)InvalidateMeasure();
+    InvalidateMeasure();
     (void)SyncLogicalData(ScrollInputKind::Line);
 }
 
@@ -79,14 +79,14 @@ void ScrollContentPresenter::SetCanHorizontallyScroll(
     bool value) noexcept {
     if (canHorizontallyScroll_ == value) return;
     canHorizontallyScroll_ = value;
-    (void)InvalidateMeasure();
+    InvalidateMeasure();
 }
 
 void ScrollContentPresenter::SetCanVerticallyScroll(
     bool value) noexcept {
     if (canVerticallyScroll_ == value) return;
     canVerticallyScroll_ = value;
-    (void)InvalidateMeasure();
+    InvalidateMeasure();
 }
 
 void ScrollContentPresenter::SetCanContentScroll(
@@ -140,12 +140,7 @@ Base::Result<bool> ScrollContentPresenter::UpdateData(
     data_ = value;
     pendingInputKind_ = kind;
     if (invalidateArrange) {
-        Base::Result<void> invalidated =
-            InvalidateArrange();
-        if (!invalidated) {
-            data_ = oldData;
-            return invalidated.GetStatus();
-        }
+        InvalidateArrange();
     }
     OnScrollDataChanged(oldData, data_, kind);
     return true;

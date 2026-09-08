@@ -20,8 +20,8 @@ public:
     Base::Result<void> Attach(UIElement& parent, UIElement& child) noexcept;
     Base::Result<void> Detach(UIElement& parent, UIElement& child) noexcept;
     Base::Result<void> SetRoot(UIElement* root, Size availableSize) noexcept;
-    Base::Result<void> InvalidateMeasure(UIElement& element) noexcept;
-    Base::Result<void> InvalidateArrange(UIElement& element) noexcept;
+    void InvalidateMeasure(UIElement& element) noexcept;
+    void InvalidateArrange(UIElement& element) noexcept;
     Base::Result<std::uint32_t> Flush() noexcept;
     // P3.2 explicit Layout phase entry (formerly the frame-hook body).
     // ViewFrame calls it directly; no hook registration remains.

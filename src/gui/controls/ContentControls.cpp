@@ -158,7 +158,7 @@ void Popup::OnOpenPropertyChanged(
         }
     }
     static_cast<void>(SetIsHitTestVisible(hitTest));
-    static_cast<void>(InvalidateMeasure());
+    InvalidateMeasure();
     RoutedEventArgs eventArgs;
     RaiseEvent(
         open ? OpenedEvent : ClosedEvent,
@@ -579,7 +579,7 @@ void Expander::OnExpandedPropertyChanged(
             synchronizingHeader_ = false;
         }
     }
-    static_cast<void>(InvalidateMeasure());
+    InvalidateMeasure();
     RoutedEventArgs eventArgs;
     RaiseEvent(
         expanded
@@ -832,8 +832,7 @@ TabControl::SynchronizeSelection() noexcept {
         : Meta::Value::NullObject(
               Meta::TypeOf<Base::Object>());
     SetReadOnlyCurrentValue(SelectedContentProperty, selectedContent);
-    Base::Result<void> measure = InvalidateMeasure();
-    if (!measure) return measure.GetStatus();
+    InvalidateMeasure();
     return {};
 }
 
@@ -1600,7 +1599,7 @@ void ContentPresenter::HostUiElement(
     if (content_ != &element) {
         content_ = &element;
         ownedContent_ = owner;
-        (void)InvalidateMeasure();
+        InvalidateMeasure();
     }
     if (tree != nullptr) {
         AttachOwnedContentSubtree(*tree, element);
@@ -1725,7 +1724,7 @@ void ContentPresenter::SetContent(UIElement* content) noexcept {
     if (content == content_) return;
     content_ = content;
     if (content == nullptr) ownedContent_.Reset();
-    (void)InvalidateMeasure();
+    InvalidateMeasure();
 }
 void ContentPresenter::SetOwnedContent(
     const Base::Ref<Base::Object>& contentObject,
@@ -1740,7 +1739,7 @@ void ContentPresenter::SetOwnedContent(
     content_ = &content;
     ownedContent_ = contentObject;
     (void)UpdatePresentedText();
-    (void)InvalidateMeasure();
+    InvalidateMeasure();
     if (ElementTree* tree = VisualTree(this)) {
         AttachOwnedContentSubtree(*tree, content);
     }

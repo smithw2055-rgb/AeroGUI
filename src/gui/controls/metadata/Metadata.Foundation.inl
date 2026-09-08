@@ -382,8 +382,7 @@ void OnPathDoubleChanged(
             static_cast<Path&>(object));
     } else if (AeroGuiInternal::PropertyRegistry(object).Types().IsDerivedFrom(
                    object.RuntimeType(), FrameworkElement::StaticTypeId())) {
-        static_cast<void>(
-            static_cast<FrameworkElement&>(object).InvalidateVisual());
+        static_cast<FrameworkElement&>(object).InvalidateVisual();
     }
 }
 
@@ -439,8 +438,7 @@ void OnShapePenChanged(
             static_cast<Path&>(object));
     } else if (AeroGuiInternal::PropertyRegistry(object).Types().IsDerivedFrom(
                    object.RuntimeType(), FrameworkElement::StaticTypeId())) {
-        static_cast<void>(
-            static_cast<FrameworkElement&>(object).InvalidateVisual());
+        static_cast<FrameworkElement&>(object).InvalidateVisual();
     }
 }
 
