@@ -81,7 +81,7 @@ Base::Result<void> PopulateControlsPrimitives(
         .Property(Control::FontWeightProperty, FontWeight::Normal, AffectsMeasure)
         .Property(Control::HorizontalContentAlignmentProperty, Aero::HorizontalAlignment::Left, AffectsArrange)
         .Property(Control::VerticalContentAlignmentProperty, Aero::VerticalAlignment::Top, AffectsArrange)
-        .Property(Control::FontSizeProperty, 16.0, Inherits | AffectsMeasure, &ValidatePositiveFiniteDouble)
+        .Property(Control::FontSizeProperty, 15.0, Inherits | AffectsMeasure, &ValidatePositiveFiniteDouble)
         .Property(Control::FocusVisualStyleProperty, Base::Ref<Aero::Style>{})
         .Property(Control::OverridesDefaultStyleProperty, false)
         .Property(Control::TemplateProperty, Base::Ref<ControlTemplate>{}, AffectsMeasure)

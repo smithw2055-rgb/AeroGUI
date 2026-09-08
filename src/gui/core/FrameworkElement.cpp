@@ -460,6 +460,12 @@ using namespace ::Aero::Media::Animation::Model;
 
 Base::Result<void> FillFrameworkElementMetadata(
     ::Aero::Meta::Registration& context) noexcept {
+    // WPF TextElement/Control.Foreground defaults to Brushes.Black.
+    Base::Ref<Brush> defaultForeground{};
+    if (Base::Result<Base::Ref<Brush>> made =
+            MakeSolidColorBrush(Color{0.0F, 0.0F, 0.0F, 1.0F})) {
+        defaultForeground = std::move(made).Value();
+    }
     Register<FrameworkElement>(context)
         .Event(FrameworkElement::LoadedEvent, RoutingStrategy::Direct)
         .Property<
@@ -488,7 +494,7 @@ Base::Result<void> FillFrameworkElementMetadata(
             InputScope::Default)
         .Property(
             FrameworkElement::ForegroundProperty,
-            Base::Ref<Brush>{}, Inherits | AffectsRender)
+            defaultForeground, Inherits | AffectsRender)
         .Property(
             FrameworkElement::StyleProperty,
             Base::Ref<Style>{})

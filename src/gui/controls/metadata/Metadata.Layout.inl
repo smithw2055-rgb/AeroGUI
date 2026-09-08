@@ -106,7 +106,7 @@ Base::Result<void> PopulateControlsTextMedia(
         .Property(TextBlock::TextProperty, Base::String{}, AffectsMeasure)
         .Property(TextBlock::BackgroundProperty, Base::Ref<Media::Brush>{}, AffectsRender)
         .Property(TextBlock::StrokeProperty, Base::Ref<Media::Brush>{}, AffectsRender)
-        .AddOwner(TextBlock::FontSizeProperty, 16.0, Inherits | AffectsMeasure, &ValidatePositiveFiniteDouble)
+        .AddOwner(TextBlock::FontSizeProperty, 15.0, Inherits | AffectsMeasure, &ValidatePositiveFiniteDouble)
         .Property(TextBlock::FontWeightProperty, FontWeight::Normal, AffectsMeasure)
         .Property(TextBlock::FontStyleProperty, FontStyle::Normal, AffectsMeasure)
         .Property(TextBlock::TextDecorationsProperty, TextDecorations::None, AffectsRender)
@@ -123,8 +123,8 @@ Base::Result<void> PopulateControlsTextMedia(
     Register<Documents::TextElement>(context, TypeFlags::Abstract)
         .AddOwner(Documents::TextElement::FontFamilyProperty, Aero::FrameworkElement::FontFamilyProperty, Base::Ref<Media::FontFamily>{}, Inherits | AffectsMeasure)
         .Property(Documents::TextElement::FontWeightProperty, FontWeight::Normal, Inherits | AffectsMeasure)
-        .AddOwner(Documents::TextElement::ForegroundProperty, Aero::FrameworkElement::ForegroundProperty, Base::Ref<Brush>{}, Inherits)
-        .Property(Documents::TextElement::FontSizeProperty, 16.0, Inherits, &ValidatePositiveFiniteDouble)
+        .AddOwner(Documents::TextElement::ForegroundProperty, Aero::FrameworkElement::ForegroundProperty, black, Inherits)
+        .Property(Documents::TextElement::FontSizeProperty, 15.0, Inherits, &ValidatePositiveFiniteDouble)
         .Property(Documents::TextElement::FontStyleProperty, FontStyle::Normal, Inherits)
         .Property(Documents::TextElement::TextDecorationsProperty, TextDecorations::None, Inherits);
 
@@ -272,10 +272,14 @@ Base::Result<void> PopulateControlsTextMedia(
         .TemplatePart("PART_ContentHost", TypeOf<ScrollViewer>())
         .Factory();
 
+    Base::String defaultContentSource;
+    status = defaultContentSource.Assign(Base::StringView("Content"));
+    if (!status) return status.GetStatus();
+
     Register<ContentPresenter>(context)
         .Property(ContentPresenter::ContentProperty, FrameworkPropertyMetadata(Meta::Value::NullObject(Meta::TypeOf<Base::Object>()), AffectsMeasure).Structural().Changed(&ContentPresenter::OnContentPropertyChanged))
         .Property(ContentPresenter::ContentTemplateProperty, Base::Ref<Base::Object>{}, AffectsMeasure)
-        .Property(ContentPresenter::ContentSourceProperty, Base::String{})
+        .Property(ContentPresenter::ContentSourceProperty, std::move(defaultContentSource))
         .ContentAccessor(MakeMemberId(ContentPresenter::StaticTypeId(), MemberKind::Property, "Content"), ContentKind::Single, &SetContentPresenterContent, &ClearContentPresenterContent, ContentFlags::Visual)
         .Factory();
 
