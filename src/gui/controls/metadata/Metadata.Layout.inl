@@ -94,18 +94,26 @@ Base::Result<void> PopulateControlsPanels(
 // metadata bootstrap. Keep registration order stable within this unit.
 Base::Result<void> PopulateControlsTextMedia(
     ::Aero::Meta::Registration& context) noexcept {
+    namespace Docs = Aero::Documents;
+    using Aero::Media::Brush;
+    using Aero::Media::FontFamily;
+    using Aero::Media::Pen;
+    using Aero::Media::Geometry;
+    using Aero::Media::DashStyle;
+    using Aero::Media::ImageSource;
+    using Aero::Media::MakeSolidColorBrush;
     Base::Result<void> status;
 
     const auto makeBrush = [](Base::Color color) noexcept {
-        Base::Result<Base::Ref<Brush>> made = Media::MakeSolidColorBrush(color);
+        Base::Result<Base::Ref<Brush>> made = MakeSolidColorBrush(color);
         return made ? std::move(made).Value() : Base::Ref<Brush>{};
     };
     const Base::Ref<Brush> black = makeBrush({0.0F, 0.0F, 0.0F, 1.0F});
 
     Register<TextBlock>(context)
         .Property(TextBlock::TextProperty, Base::String{}, AffectsMeasure)
-        .Property(TextBlock::BackgroundProperty, Base::Ref<Media::Brush>{}, AffectsRender)
-        .Property(TextBlock::StrokeProperty, Base::Ref<Media::Brush>{}, AffectsRender)
+        .Property(TextBlock::BackgroundProperty, Base::Ref<Brush>{}, AffectsRender)
+        .Property(TextBlock::StrokeProperty, Base::Ref<Brush>{}, AffectsRender)
         .AddOwner(TextBlock::FontSizeProperty, 15.0, Inherits | AffectsMeasure, &ValidatePositiveFiniteDouble)
         .Property(TextBlock::FontWeightProperty, FontWeight::Normal, AffectsMeasure)
         .Property(TextBlock::FontStyleProperty, FontStyle::Normal, AffectsMeasure)
@@ -120,64 +128,64 @@ Base::Result<void> PopulateControlsTextMedia(
         .ContentAccessor(MakeMemberId(TextBlock::StaticTypeId(), MemberKind::Property, "Inlines"), ContentKind::Collection, &AddTextBlockInline, &ClearTextBlockInlines, ContentFlags::None)
         .Factory();
 
-    Register<Documents::TextElement>(context, TypeFlags::Abstract)
-        .AddOwner(Documents::TextElement::FontFamilyProperty, Aero::FrameworkElement::FontFamilyProperty, Base::Ref<Media::FontFamily>{}, Inherits | AffectsMeasure)
-        .Property(Documents::TextElement::FontWeightProperty, FontWeight::Normal, Inherits | AffectsMeasure)
-        .AddOwner(Documents::TextElement::ForegroundProperty, Aero::FrameworkElement::ForegroundProperty, black, Inherits)
-        .Property(Documents::TextElement::FontSizeProperty, 15.0, Inherits, &ValidatePositiveFiniteDouble)
-        .Property(Documents::TextElement::FontStyleProperty, FontStyle::Normal, Inherits)
-        .Property(Documents::TextElement::TextDecorationsProperty, TextDecorations::None, Inherits);
+    Register<Docs::TextElement>(context, TypeFlags::Abstract)
+        .AddOwner(Docs::TextElement::FontFamilyProperty, Aero::FrameworkElement::FontFamilyProperty, Base::Ref<FontFamily>{}, Inherits | AffectsMeasure)
+        .Property(Docs::TextElement::FontWeightProperty, FontWeight::Normal, Inherits | AffectsMeasure)
+        .AddOwner(Docs::TextElement::ForegroundProperty, Aero::FrameworkElement::ForegroundProperty, black, Inherits)
+        .Property(Docs::TextElement::FontSizeProperty, 15.0, Inherits, &ValidatePositiveFiniteDouble)
+        .Property(Docs::TextElement::FontStyleProperty, FontStyle::Normal, Inherits)
+        .Property(Docs::TextElement::TextDecorationsProperty, TextDecorations::None, Inherits);
 
-    Register<Documents::Inline>(context, TypeFlags::Abstract);
+    Register<Docs::Inline>(context, TypeFlags::Abstract);
 
-    Register<Documents::Run>(context)
-        .Property(Documents::Run::TextProperty, FrameworkPropertyMetadata(Base::String{}).Structural())
-        .Content(Documents::Run::TextProperty.Id())
+    Register<Docs::Run>(context)
+        .Property(Docs::Run::TextProperty, FrameworkPropertyMetadata(Base::String{}).Structural())
+        .Content(Docs::Run::TextProperty.Id())
         .Factory();
 
-    Register<Documents::Span>(context)
-        .Property<Value, &Documents::Span::GetMetadataInlines, &Documents::Span::SetInlineValue>("Inlines", PropertyFlags::AnyValue | PropertyFlags::Collection | PropertyFlags::Structural)
-        .ContentAccessor(MakeMemberId(Documents::Span::StaticTypeId(), MemberKind::Property, "Inlines"), ContentKind::Collection, &AddSpanInline, &ClearSpanInlines, ContentFlags::None)
+    Register<Docs::Span>(context)
+        .Property<Value, &Docs::Span::GetMetadataInlines, &Docs::Span::SetInlineValue>("Inlines", PropertyFlags::AnyValue | PropertyFlags::Collection | PropertyFlags::Structural)
+        .ContentAccessor(MakeMemberId(Docs::Span::StaticTypeId(), MemberKind::Property, "Inlines"), ContentKind::Collection, &AddSpanInline, &ClearSpanInlines, ContentFlags::None)
         .Factory();
 
-    Register<Documents::Bold>(context)
-        .Override(Documents::TextElement::FontWeightProperty, FontWeight::Bold, AffectsMeasure)
+    Register<Docs::Bold>(context)
+        .Override(Docs::TextElement::FontWeightProperty, FontWeight::Bold, AffectsMeasure)
         .Factory();
 
-    Register<Documents::Italic>(context)
-        .Override(Documents::TextElement::FontStyleProperty, FontStyle::Italic, AffectsMeasure)
+    Register<Docs::Italic>(context)
+        .Override(Docs::TextElement::FontStyleProperty, FontStyle::Italic, AffectsMeasure)
         .Factory();
 
-    Register<Documents::Underline>(context)
-        .Override(Documents::TextElement::TextDecorationsProperty, TextDecorations::Underline, AffectsRender)
+    Register<Docs::Underline>(context)
+        .Override(Docs::TextElement::TextDecorationsProperty, TextDecorations::Underline, AffectsRender)
         .Factory();
 
-    Register<Documents::LineBreak>(context)
+    Register<Docs::LineBreak>(context)
         .Factory();
 
-    Register<Documents::RequestNavigateEventArgs>(context);
+    Register<Docs::RequestNavigateEventArgs>(context);
 
-    Register<Documents::Hyperlink>(context)
-        .Event(Documents::Hyperlink::ClickEvent)
-        .Event(Documents::Hyperlink::RequestNavigateEvent)
-        .Property(Documents::Hyperlink::NavigateUriProperty, Base::String{})
-        .Property(Documents::Hyperlink::CommandProperty, Base::Ref<ICommand>{})
-        .Property(Documents::Hyperlink::CommandParameterProperty, Value::NullObject(TypeOf<Base::Object>()))
-        .Property(Documents::Hyperlink::CommandTargetProperty, Base::Ref<UIElement>{})
-        .Override(Documents::TextElement::TextDecorationsProperty, TextDecorations::Underline, AffectsRender)
+    Register<Docs::Hyperlink>(context)
+        .Event(Docs::Hyperlink::ClickEvent)
+        .Event(Docs::Hyperlink::RequestNavigateEvent)
+        .Property(Docs::Hyperlink::NavigateUriProperty, Base::String{})
+        .Property(Docs::Hyperlink::CommandProperty, Base::Ref<ICommand>{})
+        .Property(Docs::Hyperlink::CommandParameterProperty, Value::NullObject(TypeOf<Base::Object>()))
+        .Property(Docs::Hyperlink::CommandTargetProperty, Base::Ref<UIElement>{})
+        .Override(Docs::TextElement::TextDecorationsProperty, TextDecorations::Underline, AffectsRender)
         .Factory();
 
-    Register<Documents::InlineUIContainer>(context)
-        .Property(Documents::InlineUIContainer::ChildProperty, Base::Ref<UIElement>{})
+    Register<Docs::InlineUIContainer>(context)
+        .Property(Docs::InlineUIContainer::ChildProperty, Base::Ref<UIElement>{})
         .Factory();
 
-    Register<Documents::Adorner>(context)
+    Register<Docs::Adorner>(context)
         .Factory();
 
-    Register<Documents::AdornerLayer>(context)
+    Register<Docs::AdornerLayer>(context)
         .Factory();
 
-    Register<Documents::AdornerDecorator>(context)
+    Register<Docs::AdornerDecorator>(context)
         .Factory();
 
     Register<Image>(context)
@@ -189,7 +197,7 @@ Base::Result<void> PopulateControlsTextMedia(
     Register<Shape>(context, TypeFlags::Abstract)
         .Property(Shape::FillProperty, FrameworkPropertyMetadata(Base::Ref<Brush>{}, AffectsRender).Changed(&OnShapeFillChanged))
         .Property(Shape::StrokeProperty, FrameworkPropertyMetadata(Base::Ref<Brush>{}, AffectsRender).Changed(&OnShapeFillChanged))
-        .Property(Shape::PenProperty, FrameworkPropertyMetadata(Base::Ref<Media::Pen>{}, AffectsMeasure | AffectsRender).Changed(&OnShapePenChanged))
+        .Property(Shape::PenProperty, FrameworkPropertyMetadata(Base::Ref<Pen>{}, AffectsMeasure | AffectsRender).Changed(&OnShapePenChanged))
         .Property(Shape::StrokeThicknessProperty, 1.0, AffectsMeasure | AffectsRender, &Base::Validate::NonNegative<double>)
         .Property(Shape::StretchProperty, Stretch::Fill, AffectsMeasure | AffectsRender);
 
@@ -202,10 +210,10 @@ Base::Result<void> PopulateControlsTextMedia(
         .Factory();
 
     Register<Path>(context)
-        .Property(Path::DataProperty, FrameworkPropertyMetadata(Base::Ref<Media::Geometry>{}, AffectsMeasure | AffectsRender).Changed(&OnPathDataChanged))
+        .Property(Path::DataProperty, FrameworkPropertyMetadata(Base::Ref<Geometry>{}, AffectsMeasure | AffectsRender).Changed(&OnPathDataChanged))
         .Property(Path::FillRuleProperty, FillRule::EvenOdd, AffectsRender, &OnPathFillRuleChanged)
-        .Override(Shape::FillProperty, Base::Ref<Media::Brush>{}, AffectsRender, &OnPathColorChanged)
-        .Override(Shape::StrokeProperty, Base::Ref<Media::Brush>{}, AffectsRender, &OnPathColorChanged)
+        .Override(Shape::FillProperty, Base::Ref<Brush>{}, AffectsRender, &OnPathColorChanged)
+        .Override(Shape::StrokeProperty, Base::Ref<Brush>{}, AffectsRender, &OnPathColorChanged)
         .Override(Shape::StrokeThicknessProperty, 1.0, AffectsMeasure | AffectsRender, &Base::Validate::NonNegative<double>, &OnPathDoubleChanged)
         .Property(Path::StrokeLineJoinProperty, PenLineJoin::Miter, AffectsRender, &OnPathLineJoinChanged)
         .Property(Path::StrokeStartLineCapProperty, PenLineCap::Flat, AffectsRender, &OnPathLineCapChanged)
@@ -214,7 +222,7 @@ Base::Result<void> PopulateControlsTextMedia(
         .Property(Path::TrimEndProperty, 1.0, AffectsRender, &ValidateNormalizedDouble, &OnPathDoubleChanged)
         .Property(Path::StrokeDashArrayProperty, Base::String{}, AffectsRender, &OnPathStringChanged)
         .Property(Path::StrokeDashOffsetProperty, 0.0, AffectsRender, &OnPathDoubleChanged)
-        .Property(Path::DashStyleProperty, Base::Ref<Media::DashStyle>{}, AffectsRender, &OnPathDashStyleChanged)
+        .Property(Path::DashStyleProperty, Base::Ref<DashStyle>{}, AffectsRender, &OnPathDashStyleChanged)
         .Override(Shape::StretchProperty, Stretch::None, AffectsMeasure | AffectsRender)
         .Factory();
 

@@ -2,114 +2,115 @@
 // metadata bootstrap. Keep registration order stable within this unit.
 Base::Result<void> PopulateUiResources(
     ::Aero::Meta::Registration& context) noexcept {
+    using namespace Media;
     Register<ResourceDictionary>(context)
         .Property<Base::ResourceUri, &ResourceDictionary::GetSource, &ResourceDictionary::SetSource>("Source", PropertyFlags::None)
         .Collection<ResourceDictionary>("MergedDictionaries", &AddMergedDictionary, &ClearMergedDictionaries)
         .Content<Base::Object>("Entries", ContentKind::Collection)
         .Factory();
 
-    Register<Media::Geometry>(context)
-        .Property("Transform", &Media::Geometry::GetTransform, &Media::Geometry::SetTransform, PropertyFlags::Structural)
-        .Content(MakeMemberId(Media::Geometry::StaticTypeId(), MemberKind::Property, "Transform"))
+    Register<Geometry>(context)
+        .Property("Transform", &Geometry::GetTransform, &Geometry::SetTransform, PropertyFlags::Structural)
+        .Content(MakeMemberId(Geometry::StaticTypeId(), MemberKind::Property, "Transform"))
         .TextConverter(&ConvertGeometryText)
         .Factory();
 
-    Register<Media::DashStyle>(context)
+    Register<DashStyle>(context)
         .Factory();
 
-    Register<Media::Pen>(context)
-        .Property<Base::Ref<Media::Brush>, &Media::Pen::GetBrush, &Media::Pen::SetBrush>("Brush", PropertyFlags::None)
-        .Property(Media::Pen::ThicknessProperty, 1.0, FrameworkPropertyMetadataOptions::None, &Base::Validate::NonNegative<double>)
-        .Property<Base::Ref<Media::DashStyle>, &Media::Pen::GetDashStyle, &Media::Pen::SetDashStyle>("DashStyle", PropertyFlags::None)
-        .Property(Media::Pen::LineJoinProperty, Media::PenLineJoin::Miter)
-        .Property(Media::Pen::StartLineCapProperty, Media::PenLineCap::Flat)
-        .Property(Media::Pen::EndLineCapProperty, Media::PenLineCap::Flat)
-        .Property(Media::Pen::MiterLimitProperty, 10.0, FrameworkPropertyMetadataOptions::None, &Base::Validate::NonNegative<double>)
+    Register<Pen>(context)
+        .Property<Base::Ref<Brush>, &Pen::GetBrush, &Pen::SetBrush>("Brush", PropertyFlags::None)
+        .Property(Pen::ThicknessProperty, 1.0, FrameworkPropertyMetadataOptions::None, &Base::Validate::NonNegative<double>)
+        .Property<Base::Ref<DashStyle>, &Pen::GetDashStyle, &Pen::SetDashStyle>("DashStyle", PropertyFlags::None)
+        .Property(Pen::LineJoinProperty, PenLineJoin::Miter)
+        .Property(Pen::StartLineCapProperty, PenLineCap::Flat)
+        .Property(Pen::EndLineCapProperty, PenLineCap::Flat)
+        .Property(Pen::MiterLimitProperty, 10.0, FrameworkPropertyMetadataOptions::None, &Base::Validate::NonNegative<double>)
         .Factory();
 
-    Register<Media::StreamGeometry>(context)
-        .Property("Data", &Media::StreamGeometry::GetData, &Media::StreamGeometry::SetData, PropertyFlags::Structural)
-        .Content(MakeMemberId(Media::StreamGeometry::StaticTypeId(), MemberKind::Property, "Data"))
+    Register<StreamGeometry>(context)
+        .Property("Data", &StreamGeometry::GetData, &StreamGeometry::SetData, PropertyFlags::Structural)
+        .Content(MakeMemberId(StreamGeometry::StaticTypeId(), MemberKind::Property, "Data"))
         .TextConverter(&ConvertGeometryText)
         .Factory();
 
-    Register<Media::PathSegment>(context, TypeFlags::Abstract);
+    Register<PathSegment>(context, TypeFlags::Abstract);
 
-    Register<Media::LineSegment>(context)
-        .Property(Media::LineSegment::PointProperty, Point{}, AffectsRender)
+    Register<LineSegment>(context)
+        .Property(LineSegment::PointProperty, Point{}, AffectsRender)
         .Factory();
 
-    Register<Media::PathFigure>(context)
-        .Property(Media::PathFigure::StartPointProperty, Point{}, AffectsRender)
-        .Property(Media::PathFigure::IsClosedProperty, false, AffectsRender)
-        .Content<Media::PathSegment>("Segments", ContentKind::Collection, &AddPathFigureSegment, &ClearPathFigureSegments)
+    Register<PathFigure>(context)
+        .Property(PathFigure::StartPointProperty, Point{}, AffectsRender)
+        .Property(PathFigure::IsClosedProperty, false, AffectsRender)
+        .Content<PathSegment>("Segments", ContentKind::Collection, &AddPathFigureSegment, &ClearPathFigureSegments)
         .Factory();
 
-    Register<Media::PathGeometry>(context)
-        .Content<Media::PathFigure>("Figures", ContentKind::Collection, &AddPathGeometryFigure, &ClearPathGeometryFigures)
+    Register<PathGeometry>(context)
+        .Content<PathFigure>("Figures", ContentKind::Collection, &AddPathGeometryFigure, &ClearPathGeometryFigures)
         .Factory();
 
-    Register<Media::BezierSegment>(context)
-        .Property(Media::BezierSegment::Point1Property, Point{}, AffectsRender)
-        .Property(Media::BezierSegment::Point2Property, Point{}, AffectsRender)
-        .Property(Media::BezierSegment::Point3Property, Point{}, AffectsRender)
+    Register<BezierSegment>(context)
+        .Property(BezierSegment::Point1Property, Point{}, AffectsRender)
+        .Property(BezierSegment::Point2Property, Point{}, AffectsRender)
+        .Property(BezierSegment::Point3Property, Point{}, AffectsRender)
         .Factory();
 
-    Register<Media::QuadraticBezierSegment>(context)
-        .Property(Media::QuadraticBezierSegment::Point1Property, Point{}, AffectsRender)
-        .Property(Media::QuadraticBezierSegment::Point2Property, Point{}, AffectsRender)
+    Register<QuadraticBezierSegment>(context)
+        .Property(QuadraticBezierSegment::Point1Property, Point{}, AffectsRender)
+        .Property(QuadraticBezierSegment::Point2Property, Point{}, AffectsRender)
         .Factory();
 
-    Register<Media::ArcSegment>(context)
-        .Property(Media::ArcSegment::PointProperty, Point{}, AffectsRender)
-        .Property(Media::ArcSegment::SizeProperty, Size{}, AffectsRender)
-        .Property(Media::ArcSegment::RotationAngleProperty, 0.0, AffectsRender)
-        .Property(Media::ArcSegment::IsLargeArcProperty, false, AffectsRender)
-        .Property(Media::ArcSegment::SweepDirectionProperty, Media::SweepDirection::Counterclockwise, AffectsRender)
+    Register<ArcSegment>(context)
+        .Property(ArcSegment::PointProperty, Point{}, AffectsRender)
+        .Property(ArcSegment::SizeProperty, Size{}, AffectsRender)
+        .Property(ArcSegment::RotationAngleProperty, 0.0, AffectsRender)
+        .Property(ArcSegment::IsLargeArcProperty, false, AffectsRender)
+        .Property(ArcSegment::SweepDirectionProperty, SweepDirection::Counterclockwise, AffectsRender)
         .Factory();
 
-    Register<Media::PolyLineSegment>(context)
-        .Property<Base::String, &Media::PolyLineSegment::SetPointsText>("Points", PropertyFlags::None)
+    Register<PolyLineSegment>(context)
+        .Property<Base::String, &PolyLineSegment::SetPointsText>("Points", PropertyFlags::None)
         .Factory();
 
-    Register<Media::PolyBezierSegment>(context)
-        .Property<Base::String, &Media::PolyBezierSegment::SetPointsText>("Points", PropertyFlags::None)
+    Register<PolyBezierSegment>(context)
+        .Property<Base::String, &PolyBezierSegment::SetPointsText>("Points", PropertyFlags::None)
         .Factory();
 
-    Register<Media::PolyQuadraticBezierSegment>(context)
-        .Property<Base::String, &Media::PolyQuadraticBezierSegment::SetPointsText>("Points", PropertyFlags::None)
+    Register<PolyQuadraticBezierSegment>(context)
+        .Property<Base::String, &PolyQuadraticBezierSegment::SetPointsText>("Points", PropertyFlags::None)
         .Factory();
 
-    Register<Media::LineGeometry>(context)
-        .Property(Media::LineGeometry::StartPointProperty, Point{}, AffectsRender)
-        .Property(Media::LineGeometry::EndPointProperty, Point{}, AffectsRender)
+    Register<LineGeometry>(context)
+        .Property(LineGeometry::StartPointProperty, Point{}, AffectsRender)
+        .Property(LineGeometry::EndPointProperty, Point{}, AffectsRender)
         .Factory();
 
-    Register<Media::RectangleGeometry>(context)
-        .Property(Media::RectangleGeometry::RectProperty, Rect{}, AffectsRender)
-        .Property(Media::RectangleGeometry::RadiusXProperty, 0.0, AffectsRender)
-        .Property(Media::RectangleGeometry::RadiusYProperty, 0.0, AffectsRender)
+    Register<RectangleGeometry>(context)
+        .Property(RectangleGeometry::RectProperty, Rect{}, AffectsRender)
+        .Property(RectangleGeometry::RadiusXProperty, 0.0, AffectsRender)
+        .Property(RectangleGeometry::RadiusYProperty, 0.0, AffectsRender)
         .Factory();
 
-    Register<Media::EllipseGeometry>(context)
-        .Property(Media::EllipseGeometry::CenterProperty, Point{}, AffectsRender)
-        .Property(Media::EllipseGeometry::RadiusXProperty, 0.0, AffectsRender)
-        .Property(Media::EllipseGeometry::RadiusYProperty, 0.0, AffectsRender)
+    Register<EllipseGeometry>(context)
+        .Property(EllipseGeometry::CenterProperty, Point{}, AffectsRender)
+        .Property(EllipseGeometry::RadiusXProperty, 0.0, AffectsRender)
+        .Property(EllipseGeometry::RadiusYProperty, 0.0, AffectsRender)
         .Factory();
 
-    Register<Media::GeometryGroup>(context)
-        .Content<Media::Geometry>("Children", ContentKind::Collection, &AddGeometryGroupChild, &ClearGeometryGroupChildren)
+    Register<GeometryGroup>(context)
+        .Content<Geometry>("Children", ContentKind::Collection, &AddGeometryGroupChild, &ClearGeometryGroupChildren)
         .Factory();
 
-    Register<Media::CombinedGeometry>(context)
-        .Property("Geometry1", &Media::CombinedGeometry::GetGeometry1, &Media::CombinedGeometry::SetGeometry1, PropertyFlags::Structural)
-        .Property("Geometry2", &Media::CombinedGeometry::GetGeometry2, &Media::CombinedGeometry::SetGeometry2, PropertyFlags::Structural)
-        .Property(Media::CombinedGeometry::GeometryCombineModeProperty, Media::GeometryCombineMode::Union, AffectsRender)
+    Register<CombinedGeometry>(context)
+        .Property("Geometry1", &CombinedGeometry::GetGeometry1, &CombinedGeometry::SetGeometry1, PropertyFlags::Structural)
+        .Property("Geometry2", &CombinedGeometry::GetGeometry2, &CombinedGeometry::SetGeometry2, PropertyFlags::Structural)
+        .Property(CombinedGeometry::GeometryCombineModeProperty, GeometryCombineMode::Union, AffectsRender)
         .Factory();
 
-    Register<Media::FontFamily>(context)
-        .Property("Source", &Media::FontFamily::GetSource, &Media::FontFamily::SetSource, PropertyFlags::Structural)
-        .Content(MakeMemberId(Media::FontFamily::StaticTypeId(), MemberKind::Property, "Source"))
+    Register<FontFamily>(context)
+        .Property("Source", &FontFamily::GetSource, &FontFamily::SetSource, PropertyFlags::Structural)
+        .Content(MakeMemberId(FontFamily::StaticTypeId(), MemberKind::Property, "Source"))
         .TextConverter(&ConvertFontFamilyText)
         .Factory();
     return {};

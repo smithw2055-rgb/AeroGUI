@@ -2,6 +2,7 @@
 // metadata bootstrap. Keep registration order stable within this unit.
 Base::Result<void> PopulateUiStyling(
     ::Aero::Meta::Registration& context) noexcept {
+    using namespace Data;
     Register<Element>(context, TypeFlags::Abstract)
         .Property(Element::PPAAInProperty, 0.0, AffectsRender)
         .Property(Element::PPAAOutProperty, 0.0, AffectsRender)
@@ -31,47 +32,47 @@ Base::Result<void> PopulateUiStyling(
         .Property("Handler", &EventSetter::GetHandlerName, &EventSetter::SetHandlerName)
         .Factory();
 
-    Register<Data::IValueConverter>(context, TypeFlags::Abstract);
-    Register<Data::IMultiValueConverter>(context, TypeFlags::Abstract);
+    Register<IValueConverter>(context, TypeFlags::Abstract);
+    Register<IMultiValueConverter>(context, TypeFlags::Abstract);
 
-    Register<Data::BooleanToVisibilityConverter>(context)
+    Register<BooleanToVisibilityConverter>(context)
         .Factory();
 
-    Register<Data::BindingBase>(context, TypeFlags::Abstract);
+    Register<BindingBase>(context, TypeFlags::Abstract);
 
-    Register<Data::RelativeSource>(context).Factory();
+    Register<RelativeSource>(context).Factory();
 
-    Register<Data::Binding>(context, TypeFlags::MarkupExtension | TypeFlags::Sealed)
-        .Property("Path", &Data::Binding::GetPathText, static_cast<void (Data::Binding::*)(Base::StringView) noexcept>(&Data::Binding::SetPath))
-        .Property("ElementName", &Data::Binding::GetElementName, &Data::Binding::SetElementName)
-        .Property("Converter", &Data::Binding::GetConverter, &Data::Binding::SetConverter)
-        .Property<Value, &Data::Binding::GetConverterParameter, &Data::Binding::SetConverterParameter>("ConverterParameter", PropertyFlags::AnyValue)
+    Register<Binding>(context, TypeFlags::MarkupExtension | TypeFlags::Sealed)
+        .Property("Path", &Binding::GetPathText, static_cast<void (Binding::*)(Base::StringView) noexcept>(&Binding::SetPath))
+        .Property("ElementName", &Binding::GetElementName, &Binding::SetElementName)
+        .Property("Converter", &Binding::GetConverter, &Binding::SetConverter)
+        .Property<Value, &Binding::GetConverterParameter, &Binding::SetConverterParameter>("ConverterParameter", PropertyFlags::AnyValue)
         .Factory();
 
-    Register<Data::MultiBinding>(context, TypeFlags::MarkupExtension | TypeFlags::Sealed)
-        .Property("Converter", &Data::MultiBinding::GetConverter, &Data::MultiBinding::SetConverter)
-        .Property<Value, &Data::MultiBinding::GetConverterParameter, &Data::MultiBinding::SetConverterParameter>("ConverterParameter", PropertyFlags::AnyValue)
-        .Content<Data::Binding>("Bindings", ContentKind::Collection,
+    Register<MultiBinding>(context, TypeFlags::MarkupExtension | TypeFlags::Sealed)
+        .Property("Converter", &MultiBinding::GetConverter, &MultiBinding::SetConverter)
+        .Property<Value, &MultiBinding::GetConverterParameter, &MultiBinding::SetConverterParameter>("ConverterParameter", PropertyFlags::AnyValue)
+        .Content<Binding>("Bindings", ContentKind::Collection,
             [](Base::Object& owner,
                const Base::Ref<Base::Object>& value,
                void*) noexcept {
                 if (!value) return;
-                Base::Ref<Data::Binding> retained =
-                    Base::Ref<Data::Binding>::TryFromBorrowed(
-                        static_cast<Data::Binding&>(*value));
+                Base::Ref<Binding> retained =
+                    Base::Ref<Binding>::TryFromBorrowed(
+                        static_cast<Binding&>(*value));
                 if (retained) {
-                    static_cast<Data::MultiBinding&>(owner)
+                    static_cast<MultiBinding&>(owner)
                         .AddBinding(std::move(retained));
                 }
             },
             [](Base::Object& owner, void*) noexcept {
-                static_cast<Data::MultiBinding&>(owner)
+                static_cast<MultiBinding&>(owner)
                     .ClearBindings();
             })
         .Factory();
 
-    Register<Data::MultiBindingProxy>(context)
-        .Property(Data::MultiBindingProxy::ValueProperty, Value::NullObject(TypeOf<Base::Object>()))
+    Register<MultiBindingProxy>(context)
+        .Property(MultiBindingProxy::ValueProperty, Value::NullObject(TypeOf<Base::Object>()))
         .Factory();
 
     Register<TriggerBase>(context, TypeFlags::Abstract)
@@ -86,14 +87,14 @@ Base::Result<void> PopulateUiStyling(
         .Factory();
 
     Register<DataTrigger>(context)
-        .Property<Base::Ref<Data::Binding>, &DataTrigger::SetBinding>("Binding", PropertyFlags::Structural)
+        .Property<Base::Ref<Binding>, &DataTrigger::SetBinding>("Binding", PropertyFlags::Structural)
         .Property<Value, &DataTrigger::GetAuthoredValue, &DataTrigger::SetAuthoredValue>("Value", PropertyFlags::AnyValue)
         .Property("Comparison", &DataTrigger::GetComparison, &DataTrigger::SetComparison)
         .Content<Base::Object>("Setters", ContentKind::Collection, &AddDataTriggerContent, &ClearDataTriggerContent)
         .Factory();
 
     Register<Condition>(context)
-        .Property<Base::Ref<Data::Binding>, &Condition::SetBinding>("Binding", PropertyFlags::Structural)
+        .Property<Base::Ref<Binding>, &Condition::SetBinding>("Binding", PropertyFlags::Structural)
         .Property("Property", &Condition::GetPropertyName, &Condition::SetPropertyName)
         .Property("SourceName", &Condition::GetSourceName, &Condition::SetSourceName)
         .Property<Value, &Condition::GetAuthoredValue, &Condition::SetAuthoredValue>("Value", PropertyFlags::AnyValue)

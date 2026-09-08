@@ -5,274 +5,276 @@
 // metadata bootstrap. Keep registration order stable within this unit.
 Base::Result<void> PopulateUiAnimation(
     ::Aero::Meta::Registration& context) noexcept {
-    Register<Media::Animation::Duration>(context)
+    namespace Anim = Media::Animation;
+    namespace Ix = Interactivity;
+    Register<Anim::Duration>(context)
         .ValueSemantics()
-        .TextConverter<&Media::Animation::Duration::TryParse>();
+        .TextConverter<&Anim::Duration::TryParse>();
 
-    Register<Media::Animation::TimeSpan>(context)
+    Register<Anim::TimeSpan>(context)
         .ValueSemantics()
-        .TextConverter<&Media::Animation::TimeSpan::TryParse>();
+        .TextConverter<&Anim::TimeSpan::TryParse>();
 
-    Register<Media::Animation::RepeatBehavior>(context)
+    Register<Anim::RepeatBehavior>(context)
         .ValueSemantics()
-        .TextConverter<&Media::Animation::RepeatBehavior::TryParse>();
+        .TextConverter<&Anim::RepeatBehavior::TryParse>();
 
-    Register<Media::Animation::KeyTime>(context)
+    Register<Anim::KeyTime>(context)
         .ValueSemantics()
-        .TextConverter<&Media::Animation::KeyTime::TryParse>();
+        .TextConverter<&Anim::KeyTime::TryParse>();
 
-    Register<Media::Animation::Timeline>(context, TypeFlags::Abstract)
-        .Property(Media::Animation::Timeline::BeginTimeProperty, Media::Animation::TimeSpan::Zero())
-        .Property(Media::Animation::Timeline::DurationProperty, Media::Animation::Duration::Automatic())
-        .Property(Media::Animation::Timeline::RepeatBehaviorProperty, Media::Animation::RepeatBehavior::Once())
-        .Property(Media::Animation::Timeline::SpeedRatioProperty, 1.0)
-        .Property(Media::Animation::Timeline::AutoReverseProperty, false)
-        .Property(Media::Animation::Timeline::FillBehaviorProperty, FillBehavior::HoldEnd);
+    Register<Anim::Timeline>(context, TypeFlags::Abstract)
+        .Property(Anim::Timeline::BeginTimeProperty, Anim::TimeSpan::Zero())
+        .Property(Anim::Timeline::DurationProperty, Anim::Duration::Automatic())
+        .Property(Anim::Timeline::RepeatBehaviorProperty, Anim::RepeatBehavior::Once())
+        .Property(Anim::Timeline::SpeedRatioProperty, 1.0)
+        .Property(Anim::Timeline::AutoReverseProperty, false)
+        .Property(Anim::Timeline::FillBehaviorProperty, FillBehavior::HoldEnd);
 
-    Register<Media::Animation::AnimationTimeline>(context, TypeFlags::Abstract);
-    Register<Media::Animation::TimelineGroup>(context, TypeFlags::Abstract);
+    Register<Anim::AnimationTimeline>(context, TypeFlags::Abstract);
+    Register<Anim::TimelineGroup>(context, TypeFlags::Abstract);
 
-    Register<Media::Animation::ParallelTimeline>(context)
-        .Content<Media::Animation::Timeline>("Children", ContentKind::Collection, &AddStoryboardTimeline, &ClearStoryboardTimelines)
+    Register<Anim::ParallelTimeline>(context)
+        .Content<Anim::Timeline>("Children", ContentKind::Collection, &AddStoryboardTimeline, &ClearStoryboardTimelines)
         .Factory();
 
-    Register<Media::Animation::Storyboard>(context)
-        .Property(Media::Animation::Storyboard::TargetNameProperty, Base::String{})
-        .Property(Media::Animation::Storyboard::TargetPropertyProperty, Base::String{})
-        .Content<Media::Animation::Timeline>("Children", ContentKind::Collection, &AddStoryboardTimeline, &ClearStoryboardTimelines)
+    Register<Anim::Storyboard>(context)
+        .Property(Anim::Storyboard::TargetNameProperty, Base::String{})
+        .Property(Anim::Storyboard::TargetPropertyProperty, Base::String{})
+        .Content<Anim::Timeline>("Children", ContentKind::Collection, &AddStoryboardTimeline, &ClearStoryboardTimelines)
         .Factory();
 
-    Register<Media::Animation::EasingFunctionBase>(context, TypeFlags::Abstract)
-        .Property(Media::Animation::EasingFunctionBase::EasingModeProperty, EasingMode::EaseOut);
+    Register<Anim::EasingFunctionBase>(context, TypeFlags::Abstract)
+        .Property(Anim::EasingFunctionBase::EasingModeProperty, EasingMode::EaseOut);
 
-    Register<Media::Animation::SineEase>(context).Factory();
-    Register<Media::Animation::QuadraticEase>(context).Factory();
-    Register<Media::Animation::CubicEase>(context).Factory();
-    Register<Media::Animation::QuarticEase>(context).Factory();
-    Register<Media::Animation::QuinticEase>(context).Factory();
-    Register<Media::Animation::CircleEase>(context).Factory();
-    Register<Media::Animation::ExponentialEase>(context)
-        .Property(Media::Animation::ExponentialEase::ExponentProperty, 2.0)
+    Register<Anim::SineEase>(context).Factory();
+    Register<Anim::QuadraticEase>(context).Factory();
+    Register<Anim::CubicEase>(context).Factory();
+    Register<Anim::QuarticEase>(context).Factory();
+    Register<Anim::QuinticEase>(context).Factory();
+    Register<Anim::CircleEase>(context).Factory();
+    Register<Anim::ExponentialEase>(context)
+        .Property(Anim::ExponentialEase::ExponentProperty, 2.0)
         .Factory();
 
-    Register<Media::Animation::PowerEase>(context)
-        .Property(Media::Animation::PowerEase::PowerProperty, 2.0)
+    Register<Anim::PowerEase>(context)
+        .Property(Anim::PowerEase::PowerProperty, 2.0)
         .Factory();
 
-    Register<Media::Animation::BackEase>(context)
-        .Property(Media::Animation::BackEase::AmplitudeProperty, 1.0)
+    Register<Anim::BackEase>(context)
+        .Property(Anim::BackEase::AmplitudeProperty, 1.0)
         .Factory();
 
-    Register<Media::Animation::BounceEase>(context)
-        .Property(Media::Animation::BounceEase::BouncesProperty, 3.0)
-        .Property(Media::Animation::BounceEase::BouncinessProperty, 3.0)
+    Register<Anim::BounceEase>(context)
+        .Property(Anim::BounceEase::BouncesProperty, 3.0)
+        .Property(Anim::BounceEase::BouncinessProperty, 3.0)
         .Factory();
 
-    Register<Media::Animation::ElasticEase>(context)
-        .Property(Media::Animation::ElasticEase::OscillationsProperty, 3.0)
-        .Property(Media::Animation::ElasticEase::SpringinessProperty, 3.0)
+    Register<Anim::ElasticEase>(context)
+        .Property(Anim::ElasticEase::OscillationsProperty, 3.0)
+        .Property(Anim::ElasticEase::SpringinessProperty, 3.0)
         .Factory();
 
-    Register<Media::Animation::DoubleAnimationBase>(context, TypeFlags::Abstract)
-        .Property<double, &Media::Animation::DoubleAnimationBase::GetFrom, &Media::Animation::DoubleAnimationBase::SetFrom>("From")
-        .Property<double, &Media::Animation::DoubleAnimationBase::GetTo, &Media::Animation::DoubleAnimationBase::SetTo>("To");
+    Register<Anim::DoubleAnimationBase>(context, TypeFlags::Abstract)
+        .Property<double, &Anim::DoubleAnimationBase::GetFrom, &Anim::DoubleAnimationBase::SetFrom>("From")
+        .Property<double, &Anim::DoubleAnimationBase::GetTo, &Anim::DoubleAnimationBase::SetTo>("To");
 
-    Register<Media::Animation::DoubleAnimation>(context)
-        .Property<double, &Media::Animation::DoubleAnimation::GetAccelerationRatio, &Media::Animation::DoubleAnimation::SetAccelerationRatio>("AccelerationRatio")
-        .Property<double, &Media::Animation::DoubleAnimation::GetDecelerationRatio, &Media::Animation::DoubleAnimation::SetDecelerationRatio>("DecelerationRatio")
-        .Property<Base::Ref<Media::Animation::EasingFunctionBase>, &Media::Animation::DoubleAnimation::GetEasingFunction, &Media::Animation::DoubleAnimation::SetEasingFunction>("EasingFunction", PropertyFlags::Structural)
+    Register<Anim::DoubleAnimation>(context)
+        .Property<double, &Anim::DoubleAnimation::GetAccelerationRatio, &Anim::DoubleAnimation::SetAccelerationRatio>("AccelerationRatio")
+        .Property<double, &Anim::DoubleAnimation::GetDecelerationRatio, &Anim::DoubleAnimation::SetDecelerationRatio>("DecelerationRatio")
+        .Property<Base::Ref<Anim::EasingFunctionBase>, &Anim::DoubleAnimation::GetEasingFunction, &Anim::DoubleAnimation::SetEasingFunction>("EasingFunction", PropertyFlags::Structural)
         .Factory();
 
-    Register<Media::Animation::ColorAnimationBase>(context, TypeFlags::Abstract)
-        .Property<Color, &Media::Animation::ColorAnimationBase::GetFrom, &Media::Animation::ColorAnimationBase::SetFrom>("From")
-        .Property<Color, &Media::Animation::ColorAnimationBase::GetTo, &Media::Animation::ColorAnimationBase::SetTo>("To");
+    Register<Anim::ColorAnimationBase>(context, TypeFlags::Abstract)
+        .Property<Color, &Anim::ColorAnimationBase::GetFrom, &Anim::ColorAnimationBase::SetFrom>("From")
+        .Property<Color, &Anim::ColorAnimationBase::GetTo, &Anim::ColorAnimationBase::SetTo>("To");
 
-    Register<Media::Animation::ColorAnimation>(context)
-        .Property<Base::Ref<Media::Animation::EasingFunctionBase>, &Media::Animation::ColorAnimation::GetEasingFunction, &Media::Animation::ColorAnimation::SetEasingFunction>("EasingFunction", PropertyFlags::Structural)
+    Register<Anim::ColorAnimation>(context)
+        .Property<Base::Ref<Anim::EasingFunctionBase>, &Anim::ColorAnimation::GetEasingFunction, &Anim::ColorAnimation::SetEasingFunction>("EasingFunction", PropertyFlags::Structural)
         .Factory();
 
-    Register<Media::Animation::PointAnimationBase>(context, TypeFlags::Abstract)
-        .Property<Point, &Media::Animation::PointAnimationBase::GetFrom, &Media::Animation::PointAnimationBase::SetFrom>("From")
-        .Property<Point, &Media::Animation::PointAnimationBase::GetTo, &Media::Animation::PointAnimationBase::SetTo>("To");
+    Register<Anim::PointAnimationBase>(context, TypeFlags::Abstract)
+        .Property<Point, &Anim::PointAnimationBase::GetFrom, &Anim::PointAnimationBase::SetFrom>("From")
+        .Property<Point, &Anim::PointAnimationBase::GetTo, &Anim::PointAnimationBase::SetTo>("To");
 
-    Register<Media::Animation::PointAnimation>(context)
-        .Property<Base::Ref<Media::Animation::EasingFunctionBase>, &Media::Animation::PointAnimation::GetEasingFunction, &Media::Animation::PointAnimation::SetEasingFunction>("EasingFunction", PropertyFlags::Structural)
+    Register<Anim::PointAnimation>(context)
+        .Property<Base::Ref<Anim::EasingFunctionBase>, &Anim::PointAnimation::GetEasingFunction, &Anim::PointAnimation::SetEasingFunction>("EasingFunction", PropertyFlags::Structural)
         .Factory();
 
-    Register<Media::Animation::RectAnimationBase>(context, TypeFlags::Abstract)
-        .Property<Rect, &Media::Animation::RectAnimationBase::GetFrom, &Media::Animation::RectAnimationBase::SetFrom>("From")
-        .Property<Rect, &Media::Animation::RectAnimationBase::GetTo, &Media::Animation::RectAnimationBase::SetTo>("To");
+    Register<Anim::RectAnimationBase>(context, TypeFlags::Abstract)
+        .Property<Rect, &Anim::RectAnimationBase::GetFrom, &Anim::RectAnimationBase::SetFrom>("From")
+        .Property<Rect, &Anim::RectAnimationBase::GetTo, &Anim::RectAnimationBase::SetTo>("To");
 
-    Register<Media::Animation::RectAnimation>(context)
-        .Property<Base::Ref<Media::Animation::EasingFunctionBase>, &Media::Animation::RectAnimation::GetEasingFunction, &Media::Animation::RectAnimation::SetEasingFunction>("EasingFunction", PropertyFlags::Structural)
+    Register<Anim::RectAnimation>(context)
+        .Property<Base::Ref<Anim::EasingFunctionBase>, &Anim::RectAnimation::GetEasingFunction, &Anim::RectAnimation::SetEasingFunction>("EasingFunction", PropertyFlags::Structural)
         .Factory();
 
-    Register<Media::Animation::ThicknessAnimationBase>(context, TypeFlags::Abstract)
-        .Property<Base::Thickness, &Media::Animation::ThicknessAnimationBase::GetFrom, &Media::Animation::ThicknessAnimationBase::SetFrom>("From")
-        .Property<Base::Thickness, &Media::Animation::ThicknessAnimationBase::GetTo, &Media::Animation::ThicknessAnimationBase::SetTo>("To");
+    Register<Anim::ThicknessAnimationBase>(context, TypeFlags::Abstract)
+        .Property<Base::Thickness, &Anim::ThicknessAnimationBase::GetFrom, &Anim::ThicknessAnimationBase::SetFrom>("From")
+        .Property<Base::Thickness, &Anim::ThicknessAnimationBase::GetTo, &Anim::ThicknessAnimationBase::SetTo>("To");
 
-    Register<Media::Animation::ThicknessAnimation>(context)
-        .Property<Base::Ref<Media::Animation::EasingFunctionBase>, &Media::Animation::ThicknessAnimation::GetEasingFunction, &Media::Animation::ThicknessAnimation::SetEasingFunction>("EasingFunction", PropertyFlags::Structural)
+    Register<Anim::ThicknessAnimation>(context)
+        .Property<Base::Ref<Anim::EasingFunctionBase>, &Anim::ThicknessAnimation::GetEasingFunction, &Anim::ThicknessAnimation::SetEasingFunction>("EasingFunction", PropertyFlags::Structural)
         .Factory();
 
-    Register<Media::Animation::Int16AnimationBase>(context, TypeFlags::Abstract)
-        .Property<std::int16_t, &Media::Animation::Int16AnimationBase::GetFrom, &Media::Animation::Int16AnimationBase::SetFrom>("From")
-        .Property<std::int16_t, &Media::Animation::Int16AnimationBase::GetTo, &Media::Animation::Int16AnimationBase::SetTo>("To");
-    Register<Media::Animation::Int16Animation>(context)
-        .Property<Base::Ref<Media::Animation::EasingFunctionBase>, &Media::Animation::Int16Animation::GetEasingFunction, &Media::Animation::Int16Animation::SetEasingFunction>("EasingFunction", PropertyFlags::Structural)
+    Register<Anim::Int16AnimationBase>(context, TypeFlags::Abstract)
+        .Property<std::int16_t, &Anim::Int16AnimationBase::GetFrom, &Anim::Int16AnimationBase::SetFrom>("From")
+        .Property<std::int16_t, &Anim::Int16AnimationBase::GetTo, &Anim::Int16AnimationBase::SetTo>("To");
+    Register<Anim::Int16Animation>(context)
+        .Property<Base::Ref<Anim::EasingFunctionBase>, &Anim::Int16Animation::GetEasingFunction, &Anim::Int16Animation::SetEasingFunction>("EasingFunction", PropertyFlags::Structural)
         .Factory();
 
-    Register<Media::Animation::Int32AnimationBase>(context, TypeFlags::Abstract)
-        .Property<std::int32_t, &Media::Animation::Int32AnimationBase::GetFrom, &Media::Animation::Int32AnimationBase::SetFrom>("From")
-        .Property<std::int32_t, &Media::Animation::Int32AnimationBase::GetTo, &Media::Animation::Int32AnimationBase::SetTo>("To");
-    Register<Media::Animation::Int32Animation>(context)
-        .Property<Base::Ref<Media::Animation::EasingFunctionBase>, &Media::Animation::Int32Animation::GetEasingFunction, &Media::Animation::Int32Animation::SetEasingFunction>("EasingFunction", PropertyFlags::Structural)
+    Register<Anim::Int32AnimationBase>(context, TypeFlags::Abstract)
+        .Property<std::int32_t, &Anim::Int32AnimationBase::GetFrom, &Anim::Int32AnimationBase::SetFrom>("From")
+        .Property<std::int32_t, &Anim::Int32AnimationBase::GetTo, &Anim::Int32AnimationBase::SetTo>("To");
+    Register<Anim::Int32Animation>(context)
+        .Property<Base::Ref<Anim::EasingFunctionBase>, &Anim::Int32Animation::GetEasingFunction, &Anim::Int32Animation::SetEasingFunction>("EasingFunction", PropertyFlags::Structural)
         .Factory();
 
-    Register<Media::Animation::Int64AnimationBase>(context, TypeFlags::Abstract)
-        .Property<std::int64_t, &Media::Animation::Int64AnimationBase::GetFrom, &Media::Animation::Int64AnimationBase::SetFrom>("From")
-        .Property<std::int64_t, &Media::Animation::Int64AnimationBase::GetTo, &Media::Animation::Int64AnimationBase::SetTo>("To");
-    Register<Media::Animation::Int64Animation>(context)
-        .Property<Base::Ref<Media::Animation::EasingFunctionBase>, &Media::Animation::Int64Animation::GetEasingFunction, &Media::Animation::Int64Animation::SetEasingFunction>("EasingFunction", PropertyFlags::Structural)
+    Register<Anim::Int64AnimationBase>(context, TypeFlags::Abstract)
+        .Property<std::int64_t, &Anim::Int64AnimationBase::GetFrom, &Anim::Int64AnimationBase::SetFrom>("From")
+        .Property<std::int64_t, &Anim::Int64AnimationBase::GetTo, &Anim::Int64AnimationBase::SetTo>("To");
+    Register<Anim::Int64Animation>(context)
+        .Property<Base::Ref<Anim::EasingFunctionBase>, &Anim::Int64Animation::GetEasingFunction, &Anim::Int64Animation::SetEasingFunction>("EasingFunction", PropertyFlags::Structural)
         .Factory();
 
-    Register<Media::Animation::SizeAnimationBase>(context, TypeFlags::Abstract)
-        .Property<Base::Size, &Media::Animation::SizeAnimationBase::GetFrom, &Media::Animation::SizeAnimationBase::SetFrom>("From")
-        .Property<Base::Size, &Media::Animation::SizeAnimationBase::GetTo, &Media::Animation::SizeAnimationBase::SetTo>("To");
-    Register<Media::Animation::SizeAnimation>(context)
-        .Property<Base::Ref<Media::Animation::EasingFunctionBase>, &Media::Animation::SizeAnimation::GetEasingFunction, &Media::Animation::SizeAnimation::SetEasingFunction>("EasingFunction", PropertyFlags::Structural)
+    Register<Anim::SizeAnimationBase>(context, TypeFlags::Abstract)
+        .Property<Base::Size, &Anim::SizeAnimationBase::GetFrom, &Anim::SizeAnimationBase::SetFrom>("From")
+        .Property<Base::Size, &Anim::SizeAnimationBase::GetTo, &Anim::SizeAnimationBase::SetTo>("To");
+    Register<Anim::SizeAnimation>(context)
+        .Property<Base::Ref<Anim::EasingFunctionBase>, &Anim::SizeAnimation::GetEasingFunction, &Anim::SizeAnimation::SetEasingFunction>("EasingFunction", PropertyFlags::Structural)
         .Factory();
 
-    Register<Media::Animation::MatrixAnimationBase>(context, TypeFlags::Abstract)
-        .Property<Base::Transform2D, &Media::Animation::MatrixAnimationBase::GetFrom, &Media::Animation::MatrixAnimationBase::SetFrom>("From")
-        .Property<Base::Transform2D, &Media::Animation::MatrixAnimationBase::GetTo, &Media::Animation::MatrixAnimationBase::SetTo>("To");
-    Register<Media::Animation::MatrixAnimation>(context)
-        .Property<Base::Ref<Media::Animation::EasingFunctionBase>, &Media::Animation::MatrixAnimation::GetEasingFunction, &Media::Animation::MatrixAnimation::SetEasingFunction>("EasingFunction", PropertyFlags::Structural)
+    Register<Anim::MatrixAnimationBase>(context, TypeFlags::Abstract)
+        .Property<Base::Transform2D, &Anim::MatrixAnimationBase::GetFrom, &Anim::MatrixAnimationBase::SetFrom>("From")
+        .Property<Base::Transform2D, &Anim::MatrixAnimationBase::GetTo, &Anim::MatrixAnimationBase::SetTo>("To");
+    Register<Anim::MatrixAnimation>(context)
+        .Property<Base::Ref<Anim::EasingFunctionBase>, &Anim::MatrixAnimation::GetEasingFunction, &Anim::MatrixAnimation::SetEasingFunction>("EasingFunction", PropertyFlags::Structural)
         .Factory();
 
-    Register<Media::Animation::KeyFrameBase>(context, TypeFlags::Abstract)
-        .Property(Media::Animation::KeyFrameBase::KeyTimeProperty, Media::Animation::KeyTime{})
-        .Property(Media::Animation::KeyFrameBase::EasingFunctionProperty, Base::Ref<Media::Animation::EasingFunctionBase>{}, AffectsRender)
-        .Property(Media::Animation::KeyFrameBase::KeySplineProperty, FrameworkPropertyMetadata(Base::String{}) .Changed(&Media::Animation::KeyFrameBase::OnKeySplineChanged));
+    Register<Anim::KeyFrameBase>(context, TypeFlags::Abstract)
+        .Property(Anim::KeyFrameBase::KeyTimeProperty, Anim::KeyTime{})
+        .Property(Anim::KeyFrameBase::EasingFunctionProperty, Base::Ref<Anim::EasingFunctionBase>{}, AffectsRender)
+        .Property(Anim::KeyFrameBase::KeySplineProperty, FrameworkPropertyMetadata(Base::String{}) .Changed(&Anim::KeyFrameBase::OnKeySplineChanged));
 
-    Register<Media::Animation::DoubleKeyFrame>(context, TypeFlags::Abstract)
-        .Property<double, &Media::Animation::DoubleKeyFrame::GetValue, &Media::Animation::DoubleKeyFrame::SetValue>("Value");
-    Register<Media::Animation::LinearDoubleKeyFrame>(context).Factory();
-    Register<Media::Animation::DiscreteDoubleKeyFrame>(context).Factory();
-    Register<Media::Animation::EasingDoubleKeyFrame>(context).Factory();
-    Register<Media::Animation::SplineDoubleKeyFrame>(context).Factory();
+    Register<Anim::DoubleKeyFrame>(context, TypeFlags::Abstract)
+        .Property<double, &Anim::DoubleKeyFrame::GetValue, &Anim::DoubleKeyFrame::SetValue>("Value");
+    Register<Anim::LinearDoubleKeyFrame>(context).Factory();
+    Register<Anim::DiscreteDoubleKeyFrame>(context).Factory();
+    Register<Anim::EasingDoubleKeyFrame>(context).Factory();
+    Register<Anim::SplineDoubleKeyFrame>(context).Factory();
 
-    Register<Media::Animation::DoubleAnimationUsingKeyFrames>(context)
-        .Content<Media::Animation::DoubleKeyFrame>("KeyFrames", ContentKind::Collection, &AddDoubleKeyFrame, &ClearDoubleKeyFrames)
+    Register<Anim::DoubleAnimationUsingKeyFrames>(context)
+        .Content<Anim::DoubleKeyFrame>("KeyFrames", ContentKind::Collection, &AddDoubleKeyFrame, &ClearDoubleKeyFrames)
         .Factory();
 
-    Register<Media::Animation::PointKeyFrame>(context, TypeFlags::Abstract)
-        .Property("Value", &Media::Animation::PointKeyFrame::GetValue, &Media::Animation::PointKeyFrame::SetValue);
-    Register<Media::Animation::LinearPointKeyFrame>(context).Factory();
-    Register<Media::Animation::DiscretePointKeyFrame>(context).Factory();
-    Register<Media::Animation::EasingPointKeyFrame>(context).Factory();
-    Register<Media::Animation::SplinePointKeyFrame>(context).Factory();
+    Register<Anim::PointKeyFrame>(context, TypeFlags::Abstract)
+        .Property("Value", &Anim::PointKeyFrame::GetValue, &Anim::PointKeyFrame::SetValue);
+    Register<Anim::LinearPointKeyFrame>(context).Factory();
+    Register<Anim::DiscretePointKeyFrame>(context).Factory();
+    Register<Anim::EasingPointKeyFrame>(context).Factory();
+    Register<Anim::SplinePointKeyFrame>(context).Factory();
 
-    Register<Media::Animation::PointAnimationUsingKeyFrames>(context)
-        .Content<Media::Animation::PointKeyFrame>("KeyFrames", ContentKind::Collection, &AddPointKeyFrame, &ClearPointKeyFrames)
+    Register<Anim::PointAnimationUsingKeyFrames>(context)
+        .Content<Anim::PointKeyFrame>("KeyFrames", ContentKind::Collection, &AddPointKeyFrame, &ClearPointKeyFrames)
         .Factory();
 
-    Register<Media::Animation::ThicknessKeyFrame>(context, TypeFlags::Abstract)
-        .Property<Thickness, &Media::Animation::ThicknessKeyFrame::GetValue, &Media::Animation::ThicknessKeyFrame::SetValue>("Value");
-    Register<Media::Animation::LinearThicknessKeyFrame>(context).Factory();
-    Register<Media::Animation::DiscreteThicknessKeyFrame>(context).Factory();
-    Register<Media::Animation::EasingThicknessKeyFrame>(context).Factory();
-    Register<Media::Animation::SplineThicknessKeyFrame>(context).Factory();
+    Register<Anim::ThicknessKeyFrame>(context, TypeFlags::Abstract)
+        .Property<Thickness, &Anim::ThicknessKeyFrame::GetValue, &Anim::ThicknessKeyFrame::SetValue>("Value");
+    Register<Anim::LinearThicknessKeyFrame>(context).Factory();
+    Register<Anim::DiscreteThicknessKeyFrame>(context).Factory();
+    Register<Anim::EasingThicknessKeyFrame>(context).Factory();
+    Register<Anim::SplineThicknessKeyFrame>(context).Factory();
 
-    Register<Media::Animation::ThicknessAnimationUsingKeyFrames>(context)
-        .Content<Media::Animation::ThicknessKeyFrame>("KeyFrames", ContentKind::Collection, &AddThicknessKeyFrame, &ClearThicknessKeyFrames)
+    Register<Anim::ThicknessAnimationUsingKeyFrames>(context)
+        .Content<Anim::ThicknessKeyFrame>("KeyFrames", ContentKind::Collection, &AddThicknessKeyFrame, &ClearThicknessKeyFrames)
         .Factory();
 
-    Register<Media::Animation::ColorKeyFrame>(context, TypeFlags::Abstract)
-        .Property<Base::Color, &Media::Animation::ColorKeyFrame::GetValue, &Media::Animation::ColorKeyFrame::SetValue>("Value");
-    Register<Media::Animation::LinearColorKeyFrame>(context).Factory();
-    Register<Media::Animation::DiscreteColorKeyFrame>(context).Factory();
-    Register<Media::Animation::EasingColorKeyFrame>(context).Factory();
-    Register<Media::Animation::SplineColorKeyFrame>(context).Factory();
+    Register<Anim::ColorKeyFrame>(context, TypeFlags::Abstract)
+        .Property<Base::Color, &Anim::ColorKeyFrame::GetValue, &Anim::ColorKeyFrame::SetValue>("Value");
+    Register<Anim::LinearColorKeyFrame>(context).Factory();
+    Register<Anim::DiscreteColorKeyFrame>(context).Factory();
+    Register<Anim::EasingColorKeyFrame>(context).Factory();
+    Register<Anim::SplineColorKeyFrame>(context).Factory();
 
-    Register<Media::Animation::ColorAnimationUsingKeyFrames>(context)
-        .Content<Media::Animation::ColorKeyFrame>("KeyFrames", ContentKind::Collection, &AddColorKeyFrame, &ClearColorKeyFrames)
+    Register<Anim::ColorAnimationUsingKeyFrames>(context)
+        .Content<Anim::ColorKeyFrame>("KeyFrames", ContentKind::Collection, &AddColorKeyFrame, &ClearColorKeyFrames)
         .Factory();
 
-    Register<Media::Animation::ObjectKeyFrame>(context, TypeFlags::Abstract)
-        .Property<Value, &Media::Animation::ObjectKeyFrame::GetValue, &Media::Animation::ObjectKeyFrame::SetValue>("Value", PropertyFlags::AnyValue);
-    Register<Media::Animation::DiscreteObjectKeyFrame>(context).Factory();
+    Register<Anim::ObjectKeyFrame>(context, TypeFlags::Abstract)
+        .Property<Value, &Anim::ObjectKeyFrame::GetValue, &Anim::ObjectKeyFrame::SetValue>("Value", PropertyFlags::AnyValue);
+    Register<Anim::DiscreteObjectKeyFrame>(context).Factory();
 
-    Register<Media::Animation::ObjectAnimationUsingKeyFrames>(context)
-        .Content<Media::Animation::ObjectKeyFrame>("KeyFrames", ContentKind::Collection, &AddObjectKeyFrame, &ClearObjectKeyFrames)
+    Register<Anim::ObjectAnimationUsingKeyFrames>(context)
+        .Content<Anim::ObjectKeyFrame>("KeyFrames", ContentKind::Collection, &AddObjectKeyFrame, &ClearObjectKeyFrames)
         .Factory();
 
-    Register<Media::Animation::BooleanKeyFrame>(context, TypeFlags::Abstract)
-        .Property<bool, &Media::Animation::BooleanKeyFrame::GetValue, &Media::Animation::BooleanKeyFrame::SetValue>("Value");
-    Register<Media::Animation::DiscreteBooleanKeyFrame>(context).Factory();
+    Register<Anim::BooleanKeyFrame>(context, TypeFlags::Abstract)
+        .Property<bool, &Anim::BooleanKeyFrame::GetValue, &Anim::BooleanKeyFrame::SetValue>("Value");
+    Register<Anim::DiscreteBooleanKeyFrame>(context).Factory();
 
-    Register<Media::Animation::BooleanAnimationUsingKeyFrames>(context)
-        .Content<Media::Animation::BooleanKeyFrame>("KeyFrames", ContentKind::Collection, &AddBooleanKeyFrame, &ClearBooleanKeyFrames)
+    Register<Anim::BooleanAnimationUsingKeyFrames>(context)
+        .Content<Anim::BooleanKeyFrame>("KeyFrames", ContentKind::Collection, &AddBooleanKeyFrame, &ClearBooleanKeyFrames)
         .Factory();
 
-    Register<Media::Animation::Int16KeyFrame>(context, TypeFlags::Abstract)
-        .Property<std::int16_t, &Media::Animation::Int16KeyFrame::GetValue, &Media::Animation::Int16KeyFrame::SetValue>("Value");
-    Register<Media::Animation::LinearInt16KeyFrame>(context).Factory();
-    Register<Media::Animation::DiscreteInt16KeyFrame>(context).Factory();
-    Register<Media::Animation::EasingInt16KeyFrame>(context).Factory();
-    Register<Media::Animation::SplineInt16KeyFrame>(context).Factory();
-    Register<Media::Animation::Int16AnimationUsingKeyFrames>(context)
-        .Content<Media::Animation::Int16KeyFrame>("KeyFrames", ContentKind::Collection, &AddInt16KeyFrame, &ClearInt16KeyFrames)
+    Register<Anim::Int16KeyFrame>(context, TypeFlags::Abstract)
+        .Property<std::int16_t, &Anim::Int16KeyFrame::GetValue, &Anim::Int16KeyFrame::SetValue>("Value");
+    Register<Anim::LinearInt16KeyFrame>(context).Factory();
+    Register<Anim::DiscreteInt16KeyFrame>(context).Factory();
+    Register<Anim::EasingInt16KeyFrame>(context).Factory();
+    Register<Anim::SplineInt16KeyFrame>(context).Factory();
+    Register<Anim::Int16AnimationUsingKeyFrames>(context)
+        .Content<Anim::Int16KeyFrame>("KeyFrames", ContentKind::Collection, &AddInt16KeyFrame, &ClearInt16KeyFrames)
         .Factory();
 
-    Register<Media::Animation::Int32KeyFrame>(context, TypeFlags::Abstract)
-        .Property<std::int32_t, &Media::Animation::Int32KeyFrame::GetValue, &Media::Animation::Int32KeyFrame::SetValue>("Value");
-    Register<Media::Animation::LinearInt32KeyFrame>(context).Factory();
-    Register<Media::Animation::DiscreteInt32KeyFrame>(context).Factory();
-    Register<Media::Animation::EasingInt32KeyFrame>(context).Factory();
-    Register<Media::Animation::SplineInt32KeyFrame>(context).Factory();
-    Register<Media::Animation::Int32AnimationUsingKeyFrames>(context)
-        .Content<Media::Animation::Int32KeyFrame>("KeyFrames", ContentKind::Collection, &AddInt32KeyFrame, &ClearInt32KeyFrames)
+    Register<Anim::Int32KeyFrame>(context, TypeFlags::Abstract)
+        .Property<std::int32_t, &Anim::Int32KeyFrame::GetValue, &Anim::Int32KeyFrame::SetValue>("Value");
+    Register<Anim::LinearInt32KeyFrame>(context).Factory();
+    Register<Anim::DiscreteInt32KeyFrame>(context).Factory();
+    Register<Anim::EasingInt32KeyFrame>(context).Factory();
+    Register<Anim::SplineInt32KeyFrame>(context).Factory();
+    Register<Anim::Int32AnimationUsingKeyFrames>(context)
+        .Content<Anim::Int32KeyFrame>("KeyFrames", ContentKind::Collection, &AddInt32KeyFrame, &ClearInt32KeyFrames)
         .Factory();
 
-    Register<Media::Animation::Int64KeyFrame>(context, TypeFlags::Abstract)
-        .Property<std::int64_t, &Media::Animation::Int64KeyFrame::GetValue, &Media::Animation::Int64KeyFrame::SetValue>("Value");
-    Register<Media::Animation::LinearInt64KeyFrame>(context).Factory();
-    Register<Media::Animation::DiscreteInt64KeyFrame>(context).Factory();
-    Register<Media::Animation::EasingInt64KeyFrame>(context).Factory();
-    Register<Media::Animation::SplineInt64KeyFrame>(context).Factory();
-    Register<Media::Animation::Int64AnimationUsingKeyFrames>(context)
-        .Content<Media::Animation::Int64KeyFrame>("KeyFrames", ContentKind::Collection, &AddInt64KeyFrame, &ClearInt64KeyFrames)
+    Register<Anim::Int64KeyFrame>(context, TypeFlags::Abstract)
+        .Property<std::int64_t, &Anim::Int64KeyFrame::GetValue, &Anim::Int64KeyFrame::SetValue>("Value");
+    Register<Anim::LinearInt64KeyFrame>(context).Factory();
+    Register<Anim::DiscreteInt64KeyFrame>(context).Factory();
+    Register<Anim::EasingInt64KeyFrame>(context).Factory();
+    Register<Anim::SplineInt64KeyFrame>(context).Factory();
+    Register<Anim::Int64AnimationUsingKeyFrames>(context)
+        .Content<Anim::Int64KeyFrame>("KeyFrames", ContentKind::Collection, &AddInt64KeyFrame, &ClearInt64KeyFrames)
         .Factory();
 
-    Register<Media::Animation::SizeKeyFrame>(context, TypeFlags::Abstract)
-        .Property<Base::Size, &Media::Animation::SizeKeyFrame::GetValue, &Media::Animation::SizeKeyFrame::SetValue>("Value");
-    Register<Media::Animation::LinearSizeKeyFrame>(context).Factory();
-    Register<Media::Animation::DiscreteSizeKeyFrame>(context).Factory();
-    Register<Media::Animation::EasingSizeKeyFrame>(context).Factory();
-    Register<Media::Animation::SplineSizeKeyFrame>(context).Factory();
-    Register<Media::Animation::SizeAnimationUsingKeyFrames>(context)
-        .Content<Media::Animation::SizeKeyFrame>("KeyFrames", ContentKind::Collection, &AddSizeKeyFrame, &ClearSizeKeyFrames)
+    Register<Anim::SizeKeyFrame>(context, TypeFlags::Abstract)
+        .Property<Base::Size, &Anim::SizeKeyFrame::GetValue, &Anim::SizeKeyFrame::SetValue>("Value");
+    Register<Anim::LinearSizeKeyFrame>(context).Factory();
+    Register<Anim::DiscreteSizeKeyFrame>(context).Factory();
+    Register<Anim::EasingSizeKeyFrame>(context).Factory();
+    Register<Anim::SplineSizeKeyFrame>(context).Factory();
+    Register<Anim::SizeAnimationUsingKeyFrames>(context)
+        .Content<Anim::SizeKeyFrame>("KeyFrames", ContentKind::Collection, &AddSizeKeyFrame, &ClearSizeKeyFrames)
         .Factory();
 
-    Register<Media::Animation::MatrixKeyFrame>(context, TypeFlags::Abstract)
-        .Property<Base::Transform2D, &Media::Animation::MatrixKeyFrame::GetValue, &Media::Animation::MatrixKeyFrame::SetValue>("Value");
-    Register<Media::Animation::LinearMatrixKeyFrame>(context).Factory();
-    Register<Media::Animation::DiscreteMatrixKeyFrame>(context).Factory();
-    Register<Media::Animation::EasingMatrixKeyFrame>(context).Factory();
-    Register<Media::Animation::SplineMatrixKeyFrame>(context).Factory();
-    Register<Media::Animation::MatrixAnimationUsingKeyFrames>(context)
-        .Content<Media::Animation::MatrixKeyFrame>("KeyFrames", ContentKind::Collection, &AddMatrixKeyFrame, &ClearMatrixKeyFrames)
+    Register<Anim::MatrixKeyFrame>(context, TypeFlags::Abstract)
+        .Property<Base::Transform2D, &Anim::MatrixKeyFrame::GetValue, &Anim::MatrixKeyFrame::SetValue>("Value");
+    Register<Anim::LinearMatrixKeyFrame>(context).Factory();
+    Register<Anim::DiscreteMatrixKeyFrame>(context).Factory();
+    Register<Anim::EasingMatrixKeyFrame>(context).Factory();
+    Register<Anim::SplineMatrixKeyFrame>(context).Factory();
+    Register<Anim::MatrixAnimationUsingKeyFrames>(context)
+        .Content<Anim::MatrixKeyFrame>("KeyFrames", ContentKind::Collection, &AddMatrixKeyFrame, &ClearMatrixKeyFrames)
         .Factory();
 
-    Register<Media::Animation::StringKeyFrame>(context, TypeFlags::Abstract)
-        .Property<Base::String, &Media::Animation::StringKeyFrame::GetValue, &Media::Animation::StringKeyFrame::SetValue>("Value");
-    Register<Media::Animation::DiscreteStringKeyFrame>(context).Factory();
-    Register<Media::Animation::StringAnimationUsingKeyFrames>(context)
-        .Content<Media::Animation::StringKeyFrame>("KeyFrames", ContentKind::Collection, &AddStringKeyFrame, &ClearStringKeyFrames)
+    Register<Anim::StringKeyFrame>(context, TypeFlags::Abstract)
+        .Property<Base::String, &Anim::StringKeyFrame::GetValue, &Anim::StringKeyFrame::SetValue>("Value");
+    Register<Anim::DiscreteStringKeyFrame>(context).Factory();
+    Register<Anim::StringAnimationUsingKeyFrames>(context)
+        .Content<Anim::StringKeyFrame>("KeyFrames", ContentKind::Collection, &AddStringKeyFrame, &ClearStringKeyFrames)
         .Factory();
 
-    Register<Aero::Interactivity::TriggerAction>(context, TypeFlags::Abstract);
+    Register<Ix::TriggerAction>(context, TypeFlags::Abstract);
 
     Register<KeyBinding>(context)
         .Property("Command", &KeyBinding::GetCommandName, &KeyBinding::SetCommandName)
@@ -284,146 +286,146 @@ Base::Result<void> PopulateUiAnimation(
         .Property("Command", &MouseBinding::GetCommandName, &MouseBinding::SetCommandName)
         .Factory();
 
-    Register<Aero::Interactivity::ChangePropertyAction>(context)
-        .Property("TargetName", &Aero::Interactivity::ChangePropertyAction::GetTargetName, &Aero::Interactivity::ChangePropertyAction::SetTargetName)
-        .Property<Base::Ref<Data::Binding>, &Aero::Interactivity::ChangePropertyAction::GetTargetObject, &Aero::Interactivity::ChangePropertyAction::SetTargetObject>("TargetObject", PropertyFlags::Structural)
-        .Property("PropertyName", &Aero::Interactivity::ChangePropertyAction::GetPropertyName, &Aero::Interactivity::ChangePropertyAction::SetPropertyName)
-        .Property<Meta::PropertyValue, &Aero::Interactivity::ChangePropertyAction::GetValue, &Aero::Interactivity::ChangePropertyAction::SetValue>("Value", PropertyFlags::AnyValue)
+    Register<Ix::ChangePropertyAction>(context)
+        .Property("TargetName", &Ix::ChangePropertyAction::GetTargetName, &Ix::ChangePropertyAction::SetTargetName)
+        .Property<Base::Ref<Data::Binding>, &Ix::ChangePropertyAction::GetTargetObject, &Ix::ChangePropertyAction::SetTargetObject>("TargetObject", PropertyFlags::Structural)
+        .Property("PropertyName", &Ix::ChangePropertyAction::GetPropertyName, &Ix::ChangePropertyAction::SetPropertyName)
+        .Property<Meta::PropertyValue, &Ix::ChangePropertyAction::GetValue, &Ix::ChangePropertyAction::SetValue>("Value", PropertyFlags::AnyValue)
         .Factory();
 
-    Register<Aero::Interactivity::SetFocusAction>(context)
-        .Property("TargetName", &Aero::Interactivity::SetFocusAction::GetTargetName, &Aero::Interactivity::SetFocusAction::SetTargetName)
-        .Property<Base::Ref<Data::Binding>, &Aero::Interactivity::SetFocusAction::GetTargetObject, &Aero::Interactivity::SetFocusAction::SetTargetObject>("TargetObject", PropertyFlags::Structural)
-        .Property("Engage", &Aero::Interactivity::SetFocusAction::GetEngage, &Aero::Interactivity::SetFocusAction::SetEngage)
+    Register<Ix::SetFocusAction>(context)
+        .Property("TargetName", &Ix::SetFocusAction::GetTargetName, &Ix::SetFocusAction::SetTargetName)
+        .Property<Base::Ref<Data::Binding>, &Ix::SetFocusAction::GetTargetObject, &Ix::SetFocusAction::SetTargetObject>("TargetObject", PropertyFlags::Structural)
+        .Property("Engage", &Ix::SetFocusAction::GetEngage, &Ix::SetFocusAction::SetEngage)
         .Factory();
 
-    Register<Aero::Interactivity::LaunchUriOrFileAction>(context)
-        .Property("Path", &Aero::Interactivity::LaunchUriOrFileAction::GetPath, &Aero::Interactivity::LaunchUriOrFileAction::SetPath)
+    Register<Ix::LaunchUriOrFileAction>(context)
+        .Property("Path", &Ix::LaunchUriOrFileAction::GetPath, &Ix::LaunchUriOrFileAction::SetPath)
         .Factory();
 
-    Register<Aero::Interactivity::RemoveElementAction>(context)
-        .Property<Base::Ref<Data::Binding>, &Aero::Interactivity::RemoveElementAction::GetTargetObject, &Aero::Interactivity::RemoveElementAction::SetTargetObject>("TargetObject", PropertyFlags::Structural)
+    Register<Ix::RemoveElementAction>(context)
+        .Property<Base::Ref<Data::Binding>, &Ix::RemoveElementAction::GetTargetObject, &Ix::RemoveElementAction::SetTargetObject>("TargetObject", PropertyFlags::Structural)
         .Factory();
 
-    Register<Media::Animation::ControllableStoryboardAction>(context, TypeFlags::Abstract)
-        .Property("BeginStoryboardName", &Media::Animation::ControllableStoryboardAction::GetBeginStoryboardName, &Media::Animation::ControllableStoryboardAction::SetBeginStoryboardName);
+    Register<Anim::ControllableStoryboardAction>(context, TypeFlags::Abstract)
+        .Property("BeginStoryboardName", &Anim::ControllableStoryboardAction::GetBeginStoryboardName, &Anim::ControllableStoryboardAction::SetBeginStoryboardName);
 
-    Register<Media::Animation::BeginStoryboard>(context)
-        .Property("Name", &Media::Animation::BeginStoryboard::GetName, &Media::Animation::BeginStoryboard::SetName)
-        .Content<Media::Animation::Storyboard>("Storyboard", ContentKind::Single, &SetBeginStoryboardContent, &ClearBeginStoryboardContent)
+    Register<Anim::BeginStoryboard>(context)
+        .Property("Name", &Anim::BeginStoryboard::GetName, &Anim::BeginStoryboard::SetName)
+        .Content<Anim::Storyboard>("Storyboard", ContentKind::Single, &SetBeginStoryboardContent, &ClearBeginStoryboardContent)
         .Factory();
 
-    Register<Media::Animation::ControlStoryboardAction>(context)
-        .Property("Storyboard", &Media::Animation::ControlStoryboardAction::GetStoryboard, &Media::Animation::ControlStoryboardAction::SetStoryboard)
-        .Property("ControlStoryboardOption", &Media::Animation::ControlStoryboardAction::GetControlOption, &Media::Animation::ControlStoryboardAction::SetControlOption)
+    Register<Anim::ControlStoryboardAction>(context)
+        .Property("Storyboard", &Anim::ControlStoryboardAction::GetStoryboard, &Anim::ControlStoryboardAction::SetStoryboard)
+        .Property("ControlStoryboardOption", &Anim::ControlStoryboardAction::GetControlOption, &Anim::ControlStoryboardAction::SetControlOption)
         .Factory();
 
-    Register<Media::Animation::PauseStoryboard>(context).Factory();
-    Register<Media::Animation::ResumeStoryboard>(context).Factory();
-    Register<Media::Animation::StopStoryboard>(context).Factory();
-    Register<Media::Animation::RemoveStoryboard>(context).Factory();
-    Register<Media::Animation::SeekStoryboard>(context)
-        .Property("Offset", &Media::Animation::SeekStoryboard::GetOffset, &Media::Animation::SeekStoryboard::SetOffset)
+    Register<Anim::PauseStoryboard>(context).Factory();
+    Register<Anim::ResumeStoryboard>(context).Factory();
+    Register<Anim::StopStoryboard>(context).Factory();
+    Register<Anim::RemoveStoryboard>(context).Factory();
+    Register<Anim::SeekStoryboard>(context)
+        .Property("Offset", &Anim::SeekStoryboard::GetOffset, &Anim::SeekStoryboard::SetOffset)
         .Factory();
 
-    Register<Media::Animation::EventTrigger>(context)
-        .Property("RoutedEvent", &Media::Animation::EventTrigger::GetRoutedEvent, &Media::Animation::EventTrigger::SetRoutedEvent)
-        .Property("EventName", &Media::Animation::EventTrigger::GetEventName, &Media::Animation::EventTrigger::SetEventName)
-        .Property("SourceName", &Media::Animation::EventTrigger::GetSourceName, &Media::Animation::EventTrigger::SetSourceName)
-        .Content<Aero::Interactivity::TriggerAction>("Actions", ContentKind::Collection, &AddEventTriggerAction, &ClearEventTriggerActions)
+    Register<Anim::EventTrigger>(context)
+        .Property("RoutedEvent", &Anim::EventTrigger::GetRoutedEvent, &Anim::EventTrigger::SetRoutedEvent)
+        .Property("EventName", &Anim::EventTrigger::GetEventName, &Anim::EventTrigger::SetEventName)
+        .Property("SourceName", &Anim::EventTrigger::GetSourceName, &Anim::EventTrigger::SetSourceName)
+        .Content<Ix::TriggerAction>("Actions", ContentKind::Collection, &AddEventTriggerAction, &ClearEventTriggerActions)
         .Factory();
 
-    Register<Media::Animation::TimerTrigger>(context)
-        .Property("TotalTicks", &Media::Animation::TimerTrigger::GetTotalTicks, &Media::Animation::TimerTrigger::SetTotalTicks)
-        .Property<Meta::PropertyValue, &Media::Animation::TimerTrigger::GetMillisecondsPerTick, &Media::Animation::TimerTrigger::SetMillisecondsPerTick>("MillisecondsPerTick", PropertyFlags::AnyValue)
+    Register<Anim::TimerTrigger>(context)
+        .Property("TotalTicks", &Anim::TimerTrigger::GetTotalTicks, &Anim::TimerTrigger::SetTotalTicks)
+        .Property<Meta::PropertyValue, &Anim::TimerTrigger::GetMillisecondsPerTick, &Anim::TimerTrigger::SetMillisecondsPerTick>("MillisecondsPerTick", PropertyFlags::AnyValue)
         .Factory();
 
-    Register<Aero::Interactivity::PropertyChangedTrigger>(context)
-        .Property<Base::Ref<Data::Binding>, &Aero::Interactivity::PropertyChangedTrigger::GetBinding, &Aero::Interactivity::PropertyChangedTrigger::SetBinding>("Binding")
-        .Content<Aero::Interactivity::TriggerAction>("Actions", ContentKind::Collection, &AddPropertyChangedTriggerAction, &ClearPropertyChangedTriggerActions)
+    Register<Ix::PropertyChangedTrigger>(context)
+        .Property<Base::Ref<Data::Binding>, &Ix::PropertyChangedTrigger::GetBinding, &Ix::PropertyChangedTrigger::SetBinding>("Binding")
+        .Content<Ix::TriggerAction>("Actions", ContentKind::Collection, &AddPropertyChangedTriggerAction, &ClearPropertyChangedTriggerActions)
         .Factory();
 
-    Register<Aero::Interactivity::KeyTrigger>(context)
-        .Property("Key", &Aero::Interactivity::KeyTrigger::GetKey, &Aero::Interactivity::KeyTrigger::SetKey)
-        .Property("ActiveOnFocus", &Aero::Interactivity::KeyTrigger::GetActiveOnFocus, &Aero::Interactivity::KeyTrigger::SetActiveOnFocus)
-        .Content<Aero::Interactivity::TriggerAction>("Actions", ContentKind::Collection, &AddKeyTriggerAction, &ClearKeyTriggerActions)
+    Register<Ix::KeyTrigger>(context)
+        .Property("Key", &Ix::KeyTrigger::GetKey, &Ix::KeyTrigger::SetKey)
+        .Property("ActiveOnFocus", &Ix::KeyTrigger::GetActiveOnFocus, &Ix::KeyTrigger::SetActiveOnFocus)
+        .Content<Ix::TriggerAction>("Actions", ContentKind::Collection, &AddKeyTriggerAction, &ClearKeyTriggerActions)
         .Factory();
 
-    Register<Aero::Interactivity::InvokeCommandAction>(context)
-        .Property("Command", &Aero::Interactivity::InvokeCommandAction::GetCommand, &Aero::Interactivity::InvokeCommandAction::SetCommand)
-        .Property<Meta::PropertyValue, &Aero::Interactivity::InvokeCommandAction::GetCommandParameter, &Aero::Interactivity::InvokeCommandAction::SetCommandParameter>("CommandParameter", PropertyFlags::AnyValue)
+    Register<Ix::InvokeCommandAction>(context)
+        .Property("Command", &Ix::InvokeCommandAction::GetCommand, &Ix::InvokeCommandAction::SetCommand)
+        .Property<Meta::PropertyValue, &Ix::InvokeCommandAction::GetCommandParameter, &Ix::InvokeCommandAction::SetCommandParameter>("CommandParameter", PropertyFlags::AnyValue)
         .Factory();
 
-    Register<Aero::Interactivity::SelectAction>(context)
+    Register<Ix::SelectAction>(context)
         .Factory();
-    Register<Aero::Interactivity::SelectAllAction>(context)
-        .Factory();
-
-    Register<Aero::Interactivity::PlaySoundAction>(context)
-        .Property("Source", &Aero::Interactivity::PlaySoundAction::GetSource, &Aero::Interactivity::PlaySoundAction::SetSource)
-        .Property("Volume", &Aero::Interactivity::PlaySoundAction::GetVolume, &Aero::Interactivity::PlaySoundAction::SetVolume)
-        .Property(Aero::Interactivity::PlaySoundAction::IsEnabledProperty, true)
+    Register<Ix::SelectAllAction>(context)
         .Factory();
 
-    Register<Media::Animation::PlayMediaAction>(context)
-        .Property("TargetName", &Media::Animation::PlayMediaAction::GetTargetName, &Media::Animation::PlayMediaAction::SetTargetName)
+    Register<Ix::PlaySoundAction>(context)
+        .Property("Source", &Ix::PlaySoundAction::GetSource, &Ix::PlaySoundAction::SetSource)
+        .Property("Volume", &Ix::PlaySoundAction::GetVolume, &Ix::PlaySoundAction::SetVolume)
+        .Property(Ix::PlaySoundAction::IsEnabledProperty, true)
         .Factory();
 
-    Register<Media::Animation::PauseMediaAction>(context)
-        .Property("TargetName", &Media::Animation::PauseMediaAction::GetTargetName, &Media::Animation::PauseMediaAction::SetTargetName)
+    Register<Anim::PlayMediaAction>(context)
+        .Property("TargetName", &Anim::PlayMediaAction::GetTargetName, &Anim::PlayMediaAction::SetTargetName)
         .Factory();
 
-    Register<Media::Animation::StopMediaAction>(context)
-        .Property("TargetName", &Media::Animation::StopMediaAction::GetTargetName, &Media::Animation::StopMediaAction::SetTargetName)
+    Register<Anim::PauseMediaAction>(context)
+        .Property("TargetName", &Anim::PauseMediaAction::GetTargetName, &Anim::PauseMediaAction::SetTargetName)
         .Factory();
 
-    Register<Aero::Interactivity::ComparisonCondition>(context)
-        .Property<Base::Ref<Data::Binding>, &Aero::Interactivity::ComparisonCondition::GetLeftOperand, &Aero::Interactivity::ComparisonCondition::SetLeftOperand>("LeftOperand")
-        .Property<Meta::PropertyValue, &Aero::Interactivity::ComparisonCondition::GetRightOperand, &Aero::Interactivity::ComparisonCondition::SetRightOperand>("RightOperand", PropertyFlags::AnyValue)
-        .Property("Operator", &Aero::Interactivity::ComparisonCondition::GetComparisonOperator, &Aero::Interactivity::ComparisonCondition::SetComparisonOperator)
+    Register<Anim::StopMediaAction>(context)
+        .Property("TargetName", &Anim::StopMediaAction::GetTargetName, &Anim::StopMediaAction::SetTargetName)
         .Factory();
 
-    Register<Aero::Interactivity::ConditionalExpression>(context)
-        .Property("ForwardChaining", &Aero::Interactivity::ConditionalExpression::GetChaining, &Aero::Interactivity::ConditionalExpression::SetChaining)
-        .Content<Aero::Interactivity::ComparisonCondition>("Conditions", ContentKind::Collection, &AddConditionalComparison, &ClearConditionalComparisons)
+    Register<Ix::ComparisonCondition>(context)
+        .Property<Base::Ref<Data::Binding>, &Ix::ComparisonCondition::GetLeftOperand, &Ix::ComparisonCondition::SetLeftOperand>("LeftOperand")
+        .Property<Meta::PropertyValue, &Ix::ComparisonCondition::GetRightOperand, &Ix::ComparisonCondition::SetRightOperand>("RightOperand", PropertyFlags::AnyValue)
+        .Property("Operator", &Ix::ComparisonCondition::GetComparisonOperator, &Ix::ComparisonCondition::SetComparisonOperator)
         .Factory();
 
-    Register<Aero::Interactivity::ConditionBehavior>(context)
-        .Content<Aero::Interactivity::ConditionalExpression>("Expression", ContentKind::Single, &SetConditionBehaviorExpression, &ClearConditionBehaviorExpression)
+    Register<Ix::ConditionalExpression>(context)
+        .Property("ForwardChaining", &Ix::ConditionalExpression::GetChaining, &Ix::ConditionalExpression::SetChaining)
+        .Content<Ix::ComparisonCondition>("Conditions", ContentKind::Collection, &AddConditionalComparison, &ClearConditionalComparisons)
         .Factory();
 
-    Register<Media::Animation::StoryboardCompletedTrigger>(context)
-        .Property("Storyboard", &Media::Animation::StoryboardCompletedTrigger::GetStoryboard, &Media::Animation::StoryboardCompletedTrigger::SetStoryboard)
-        .Content<Aero::Interactivity::TriggerAction>("Actions", ContentKind::Collection, &AddStoryboardCompletedTriggerAction, &ClearStoryboardCompletedTriggerActions)
+    Register<Ix::ConditionBehavior>(context)
+        .Content<Ix::ConditionalExpression>("Expression", ContentKind::Single, &SetConditionBehaviorExpression, &ClearConditionBehaviorExpression)
         .Factory();
 
-    Register<Interactivity::Behavior>(context, TypeFlags::Abstract);
-
-    Register<Interactivity::MouseDragElementBehavior>(context)
-        .Property(Interactivity::MouseDragElementBehavior::XProperty, FrameworkPropertyMetadata(0.0) .Changed(&Interactivity::MouseDragElementBehavior::OnPositionChanged))
-        .Property(Interactivity::MouseDragElementBehavior::YProperty, FrameworkPropertyMetadata(0.0) .Changed(&Interactivity::MouseDragElementBehavior::OnPositionChanged))
-        .Property(Interactivity::MouseDragElementBehavior::ConstrainToParentBoundsProperty, false)
+    Register<Anim::StoryboardCompletedTrigger>(context)
+        .Property("Storyboard", &Anim::StoryboardCompletedTrigger::GetStoryboard, &Anim::StoryboardCompletedTrigger::SetStoryboard)
+        .Content<Ix::TriggerAction>("Actions", ContentKind::Collection, &AddStoryboardCompletedTriggerAction, &ClearStoryboardCompletedTriggerActions)
         .Factory();
 
-    Register<Interactivity::BackgroundEffectBehavior>(context)
-        .Property(Interactivity::BackgroundEffectBehavior::SourceProperty, FrameworkPropertyMetadata(Base::Ref<Base::Object>{}) .Changed(&Interactivity::BackgroundEffectBehavior::OnBehaviorPropertyChanged))
-        .Property(Interactivity::BackgroundEffectBehavior::EffectProperty, FrameworkPropertyMetadata(Base::Ref<Media::Effect>{}) .Changed(&Interactivity::BackgroundEffectBehavior::OnBehaviorPropertyChanged))
+    Register<Ix::Behavior>(context, TypeFlags::Abstract);
+
+    Register<Ix::MouseDragElementBehavior>(context)
+        .Property(Ix::MouseDragElementBehavior::XProperty, FrameworkPropertyMetadata(0.0) .Changed(&Ix::MouseDragElementBehavior::OnPositionChanged))
+        .Property(Ix::MouseDragElementBehavior::YProperty, FrameworkPropertyMetadata(0.0) .Changed(&Ix::MouseDragElementBehavior::OnPositionChanged))
+        .Property(Ix::MouseDragElementBehavior::ConstrainToParentBoundsProperty, false)
+        .Factory();
+
+    Register<Ix::BackgroundEffectBehavior>(context)
+        .Property(Ix::BackgroundEffectBehavior::SourceProperty, FrameworkPropertyMetadata(Base::Ref<Base::Object>{}) .Changed(&Ix::BackgroundEffectBehavior::OnBehaviorPropertyChanged))
+        .Property(Ix::BackgroundEffectBehavior::EffectProperty, FrameworkPropertyMetadata(Base::Ref<Media::Effect>{}) .Changed(&Ix::BackgroundEffectBehavior::OnBehaviorPropertyChanged))
         .Content<Media::Effect>("Content", ContentKind::Single, &SetBackgroundEffectBehaviorEffect, &ClearBackgroundEffectBehaviorEffect)
         .Factory();
 
-    Register<Interactivity::StyleBehaviorCollection>(context)
+    Register<Ix::StyleBehaviorCollection>(context)
         .Content<Base::Object>("Items", ContentKind::Collection, &AddStyleBehaviorItem, &ClearStyleBehaviorItems)
         .Factory();
 
-    Register<Interactivity::StyleTriggerCollection>(context)
+    Register<Ix::StyleTriggerCollection>(context)
         .Content<Base::Object>("Items", ContentKind::Collection, &AddStyleTriggerItem, &ClearStyleTriggerItems)
         .Factory();
 
-    Register<Interactivity::StyleInteraction>(context, TypeFlags::Abstract)
-        .Property(Interactivity::StyleInteraction::BehaviorsProperty, FrameworkPropertyMetadata(Base::Ref<Interactivity::StyleBehaviorCollection>{}) .Changed(&Interactivity::StyleInteraction::OnBehaviorsChanged))
-        .Property(Interactivity::StyleInteraction::TriggersProperty, FrameworkPropertyMetadata(Base::Ref<Interactivity::StyleTriggerCollection>{}) .Changed(&Interactivity::StyleInteraction::OnTriggersChanged));
+    Register<Ix::StyleInteraction>(context, TypeFlags::Abstract)
+        .Property(Ix::StyleInteraction::BehaviorsProperty, FrameworkPropertyMetadata(Base::Ref<Ix::StyleBehaviorCollection>{}) .Changed(&Ix::StyleInteraction::OnBehaviorsChanged))
+        .Property(Ix::StyleInteraction::TriggersProperty, FrameworkPropertyMetadata(Base::Ref<Ix::StyleTriggerCollection>{}) .Changed(&Ix::StyleInteraction::OnTriggersChanged));
 
-    Register<Interactivity::Interaction>(context, TypeFlags::Abstract)
+    Register<Ix::Interaction>(context, TypeFlags::Abstract)
         .Collection<Base::Object>("Triggers", &AddInteractionTrigger, &ClearInteractionTriggers, PropertyFlags::Attached | PropertyFlags::Structural)
         .Collection<Base::Object>("Behaviors", &AddInteractionBehavior, &ClearInteractionBehaviors, PropertyFlags::Attached | PropertyFlags::Structural);
     return {};
