@@ -5,29 +5,29 @@
 Base::Result<void> PopulateControlsPanels(
     ::Aero::Meta::Registration& context) noexcept {
     Register<StackPanel>(context)
-        .Property(StackPanel::OrientationProperty, FrameworkPropertyMetadata(Orientation::Vertical).AffectsMeasure())
+        .Property(StackPanel::OrientationProperty, Orientation::Vertical, AffectsMeasure)
         .Factory();
 
     Register<DockPanel>(context)
-        .Property(DockPanel::LastChildFillProperty, FrameworkPropertyMetadata(true).AffectsArrange())
-        .Property(DockPanel::DockProperty, FrameworkPropertyMetadata(Dock::Left).AffectsParentMeasure())
+        .Property(DockPanel::LastChildFillProperty, true, AffectsArrange)
+        .Property(DockPanel::DockProperty, Dock::Left, AffectsParentMeasure)
         .Factory();
 
     Register<WrapPanel>(context)
-        .Property(WrapPanel::OrientationProperty, FrameworkPropertyMetadata(Orientation::Horizontal).AffectsMeasure())
-        .Property(WrapPanel::ItemWidthProperty, FrameworkPropertyMetadata(0.0).AffectsMeasure().Validate(&Base::Validate::NonNegative<double>))
-        .Property(WrapPanel::ItemHeightProperty, FrameworkPropertyMetadata(0.0).AffectsMeasure().Validate(&Base::Validate::NonNegative<double>))
+        .Property(WrapPanel::OrientationProperty, Orientation::Horizontal, AffectsMeasure)
+        .Property(WrapPanel::ItemWidthProperty, FrameworkPropertyMetadata(0.0, AffectsMeasure).Validate(&Base::Validate::NonNegative<double>))
+        .Property(WrapPanel::ItemHeightProperty, FrameworkPropertyMetadata(0.0, AffectsMeasure).Validate(&Base::Validate::NonNegative<double>))
         .Factory();
 
     Register<UniformGrid>(context)
-        .Property(UniformGrid::RowsProperty, FrameworkPropertyMetadata(std::uint32_t{0}).AffectsMeasure())
-        .Property(UniformGrid::ColumnsProperty, FrameworkPropertyMetadata(std::uint32_t{0}).AffectsMeasure())
-        .Property(UniformGrid::FirstColumnProperty, FrameworkPropertyMetadata(std::uint32_t{0}).AffectsMeasure().AffectsArrange())
+        .Property(UniformGrid::RowsProperty, std::uint32_t{0}, AffectsMeasure)
+        .Property(UniformGrid::ColumnsProperty, std::uint32_t{0}, AffectsMeasure)
+        .Property(UniformGrid::FirstColumnProperty, std::uint32_t{0}, AffectsMeasure | AffectsArrange)
         .Factory();
 
     Register<VirtualizingPanel>(context, TypeFlags::Abstract)
-        .Property(VirtualizingPanel::ScrollUnitProperty, FrameworkPropertyMetadata(ScrollUnit::Item).AffectsParentMeasure())
-        .Property(VirtualizingPanel::VirtualizationModeProperty, FrameworkPropertyMetadata(VirtualizationMode::Standard).AffectsParentMeasure());
+        .Property(VirtualizingPanel::ScrollUnitProperty, ScrollUnit::Item, AffectsParentMeasure)
+        .Property(VirtualizingPanel::VirtualizationModeProperty, VirtualizationMode::Standard, AffectsParentMeasure);
 
     Register<VirtualizationCacheLength>(context)
         .Field<&VirtualizationCacheLength::cacheBeforeViewport>("CacheBeforeViewport")
@@ -35,23 +35,23 @@ Base::Result<void> PopulateControlsPanels(
         .ValueSemantics();
 
     Register<VirtualizingStackPanel>(context)
-        .Property(VirtualizingStackPanel::OrientationProperty, FrameworkPropertyMetadata(Orientation::Vertical).AffectsMeasure())
-        .Property(VirtualizingStackPanel::OverscanCountProperty, FrameworkPropertyMetadata(std::uint32_t{2}).AffectsMeasure())
-        .Property(VirtualizingStackPanel::EstimatedItemExtentProperty, FrameworkPropertyMetadata(24.0).AffectsMeasure().Validate(&Base::Validate::Positive<double>))
-        .Property(VirtualizingStackPanel::CacheLengthProperty, FrameworkPropertyMetadata(VirtualizationCacheLength{}).AffectsMeasure())
-        .Property(VirtualizingStackPanel::CacheLengthUnitProperty, FrameworkPropertyMetadata(VirtualizationCacheLengthUnit::Item).AffectsMeasure())
+        .Property(VirtualizingStackPanel::OrientationProperty, Orientation::Vertical, AffectsMeasure)
+        .Property(VirtualizingStackPanel::OverscanCountProperty, std::uint32_t{2}, AffectsMeasure)
+        .Property(VirtualizingStackPanel::EstimatedItemExtentProperty, FrameworkPropertyMetadata(24.0, AffectsMeasure).Validate(&Base::Validate::Positive<double>))
+        .Property(VirtualizingStackPanel::CacheLengthProperty, VirtualizationCacheLength{}, AffectsMeasure)
+        .Property(VirtualizingStackPanel::CacheLengthUnitProperty, VirtualizationCacheLengthUnit::Item, AffectsMeasure)
         .Factory();
 
     Register<VirtualizingWrapPanel>(context)
-        .Property(VirtualizingWrapPanel::ItemWidthProperty, FrameworkPropertyMetadata(0.0).AffectsMeasure().Validate(&Base::Validate::NonNegative<double>))
-        .Property(VirtualizingWrapPanel::ItemHeightProperty, FrameworkPropertyMetadata(0.0).AffectsMeasure().Validate(&Base::Validate::NonNegative<double>))
+        .Property(VirtualizingWrapPanel::ItemWidthProperty, FrameworkPropertyMetadata(0.0, AffectsMeasure).Validate(&Base::Validate::NonNegative<double>))
+        .Property(VirtualizingWrapPanel::ItemHeightProperty, FrameworkPropertyMetadata(0.0, AffectsMeasure).Validate(&Base::Validate::NonNegative<double>))
         .Factory();
 
     Register<Canvas>(context)
-        .Property(Canvas::LeftProperty, FrameworkPropertyMetadata(std::numeric_limits<double>::infinity()).AffectsParentArrange())
-        .Property(Canvas::TopProperty, FrameworkPropertyMetadata(std::numeric_limits<double>::infinity()).AffectsParentArrange())
-        .Property(Canvas::RightProperty, FrameworkPropertyMetadata(std::numeric_limits<double>::infinity()).AffectsParentArrange())
-        .Property(Canvas::BottomProperty, FrameworkPropertyMetadata(std::numeric_limits<double>::infinity()).AffectsParentArrange())
+        .Property(Canvas::LeftProperty, std::numeric_limits<double>::infinity(), AffectsParentArrange)
+        .Property(Canvas::TopProperty, std::numeric_limits<double>::infinity(), AffectsParentArrange)
+        .Property(Canvas::RightProperty, std::numeric_limits<double>::infinity(), AffectsParentArrange)
+        .Property(Canvas::BottomProperty, std::numeric_limits<double>::infinity(), AffectsParentArrange)
         .Factory();
 
     Register<ColumnDefinition>(context)
@@ -67,23 +67,23 @@ Base::Result<void> PopulateControlsPanels(
         .Factory();
 
     Register<Grid>(context)
-        .Property(Grid::IsSharedSizeScopeProperty, FrameworkPropertyMetadata(false))
-        .Property(Grid::ColumnDefinitionsTextProperty, FrameworkPropertyMetadata(Base::String{}).AffectsMeasure().Validate(&ValidateGridDefinitionsText).Changed(&OnGridColumnsChanged))
-        .Property(Grid::RowDefinitionsTextProperty, FrameworkPropertyMetadata(Base::String{}).AffectsMeasure().Validate(&ValidateGridDefinitionsText).Changed(&OnGridRowsChanged))
+        .Property(Grid::IsSharedSizeScopeProperty, false)
+        .Property(Grid::ColumnDefinitionsTextProperty, FrameworkPropertyMetadata(Base::String{}, AffectsMeasure).Validate(&ValidateGridDefinitionsText).Changed(&OnGridColumnsChanged))
+        .Property(Grid::RowDefinitionsTextProperty, FrameworkPropertyMetadata(Base::String{}, AffectsMeasure).Validate(&ValidateGridDefinitionsText).Changed(&OnGridRowsChanged))
         .Collection<ColumnDefinition>("ColumnDefinitions", &AddGridColumnDefinition, &ClearGridColumnDefinitions)
         .Collection<RowDefinition>("RowDefinitions", &AddGridRowDefinition, &ClearGridRowDefinitions)
-        .Property(Grid::RowProperty, FrameworkPropertyMetadata(std::uint32_t{0}).AffectsParentMeasure())
-        .Property(Grid::ColumnProperty, FrameworkPropertyMetadata(std::uint32_t{0}).AffectsParentMeasure())
-        .Property(Grid::RowSpanProperty, FrameworkPropertyMetadata(std::uint32_t{1}).AffectsParentMeasure().Validate(&Base::Validate::Positive<std::uint32_t>))
-        .Property(Grid::ColumnSpanProperty, FrameworkPropertyMetadata(std::uint32_t{1}).AffectsParentMeasure().Validate(&Base::Validate::Positive<std::uint32_t>))
+        .Property(Grid::RowProperty, std::uint32_t{0}, AffectsParentMeasure)
+        .Property(Grid::ColumnProperty, std::uint32_t{0}, AffectsParentMeasure)
+        .Property(Grid::RowSpanProperty, FrameworkPropertyMetadata(std::uint32_t{1}, AffectsParentMeasure).Validate(&Base::Validate::Positive<std::uint32_t>))
+        .Property(Grid::ColumnSpanProperty, FrameworkPropertyMetadata(std::uint32_t{1}, AffectsParentMeasure).Validate(&Base::Validate::Positive<std::uint32_t>))
         .Factory();
 
     Register<Border>(context)
-        .Property(Border::BackgroundProperty, FrameworkPropertyMetadata(Base::Ref<Media::Brush>{}).AffectsRender())
-        .Property(Border::BorderBrushProperty, FrameworkPropertyMetadata(Base::Ref<Media::Brush>{}).AffectsRender())
-        .Property(Border::BorderThicknessProperty, FrameworkPropertyMetadata(Aero::Thickness{}).AffectsMeasure().AffectsRender().Validate(&ValidateThicknessValue))
-        .Property(Border::CornerRadiusProperty, FrameworkPropertyMetadata(Aero::CornerRadius{}).AffectsRender().Validate(&ValidateCornerRadiusValue))
-        .Property(Border::PaddingProperty, FrameworkPropertyMetadata(Aero::Thickness{}).AffectsMeasure().Validate(&ValidateThicknessValue))
+        .Property(Border::BackgroundProperty, Base::Ref<Media::Brush>{}, AffectsRender)
+        .Property(Border::BorderBrushProperty, Base::Ref<Media::Brush>{}, AffectsRender)
+        .Property(Border::BorderThicknessProperty, FrameworkPropertyMetadata(Aero::Thickness{}, AffectsMeasure | AffectsRender).Validate(&ValidateThicknessValue))
+        .Property(Border::CornerRadiusProperty, FrameworkPropertyMetadata(Aero::CornerRadius{}, AffectsRender).Validate(&ValidateCornerRadiusValue))
+        .Property(Border::PaddingProperty, FrameworkPropertyMetadata(Aero::Thickness{}, AffectsMeasure).Validate(&ValidateThicknessValue))
         .Factory();
 
     return {};
@@ -103,30 +103,30 @@ Base::Result<void> PopulateControlsTextMedia(
     const Base::Ref<Brush> black = makeBrush({0.0F, 0.0F, 0.0F, 1.0F});
 
     Register<TextBlock>(context)
-        .Property(TextBlock::TextProperty, FrameworkPropertyMetadata(Base::String{}).AffectsMeasure())
-        .Property(TextBlock::BackgroundProperty, FrameworkPropertyMetadata(Base::Ref<Media::Brush>{}).AffectsRender())
-        .Property(TextBlock::StrokeProperty, FrameworkPropertyMetadata(Base::Ref<Media::Brush>{}).AffectsRender())
-        .AddOwner(TextBlock::FontSizeProperty, FrameworkPropertyMetadata(16.0).Inherits().AffectsMeasure().Validate(&ValidatePositiveFiniteDouble))
-        .Property(TextBlock::FontWeightProperty, FrameworkPropertyMetadata(FontWeight::Normal).AffectsMeasure())
-        .Property(TextBlock::FontStyleProperty, FrameworkPropertyMetadata(FontStyle::Normal).AffectsMeasure())
-        .Property(TextBlock::TextDecorationsProperty, FrameworkPropertyMetadata(TextDecorations::None).AffectsRender())
-        .Property(TextBlock::StrokeThicknessProperty, FrameworkPropertyMetadata(0.0).AffectsMeasure().AffectsRender().Validate(&Base::Validate::NonNegative<double>))
-        .Property(TextBlock::TextWrappingProperty, FrameworkPropertyMetadata(TextWrapping::NoWrap).AffectsMeasure())
-        .Property(TextBlock::TextTrimmingProperty, FrameworkPropertyMetadata(TextTrimming::None).AffectsMeasure())
-        .Property(TextBlock::TextAlignmentProperty, FrameworkPropertyMetadata(TextAlignment::Left).AffectsMeasure())
-        .Property(TextBlock::LineHeightProperty, FrameworkPropertyMetadata(0.0).AffectsMeasure().Validate(&Base::Validate::NonNegative<double>))
-        .Property(TextBlock::PaddingProperty, FrameworkPropertyMetadata(Aero::Thickness{}).AffectsMeasure().AffectsArrange().Validate(&ValidateThicknessValue))
+        .Property(TextBlock::TextProperty, Base::String{}, AffectsMeasure)
+        .Property(TextBlock::BackgroundProperty, Base::Ref<Media::Brush>{}, AffectsRender)
+        .Property(TextBlock::StrokeProperty, Base::Ref<Media::Brush>{}, AffectsRender)
+        .AddOwner(TextBlock::FontSizeProperty, FrameworkPropertyMetadata(16.0, Inherits | AffectsMeasure).Validate(&ValidatePositiveFiniteDouble))
+        .Property(TextBlock::FontWeightProperty, FontWeight::Normal, AffectsMeasure)
+        .Property(TextBlock::FontStyleProperty, FontStyle::Normal, AffectsMeasure)
+        .Property(TextBlock::TextDecorationsProperty, TextDecorations::None, AffectsRender)
+        .Property(TextBlock::StrokeThicknessProperty, FrameworkPropertyMetadata(0.0, AffectsMeasure | AffectsRender).Validate(&Base::Validate::NonNegative<double>))
+        .Property(TextBlock::TextWrappingProperty, TextWrapping::NoWrap, AffectsMeasure)
+        .Property(TextBlock::TextTrimmingProperty, TextTrimming::None, AffectsMeasure)
+        .Property(TextBlock::TextAlignmentProperty, TextAlignment::Left, AffectsMeasure)
+        .Property(TextBlock::LineHeightProperty, FrameworkPropertyMetadata(0.0, AffectsMeasure).Validate(&Base::Validate::NonNegative<double>))
+        .Property(TextBlock::PaddingProperty, FrameworkPropertyMetadata(Aero::Thickness{}, AffectsMeasure | AffectsArrange).Validate(&ValidateThicknessValue))
         .Property<Value, &TextBlock::GetMetadataInlines, &TextBlock::SetInlineValue>("Inlines", PropertyFlags::AnyValue | PropertyFlags::Collection | PropertyFlags::Structural)
         .ContentAccessor(MakeMemberId(TextBlock::StaticTypeId(), MemberKind::Property, "Inlines"), ContentKind::Collection, &AddTextBlockInline, &ClearTextBlockInlines, ContentFlags::None)
         .Factory();
 
     Register<Documents::TextElement>(context, TypeFlags::Abstract)
-        .AddOwner(Documents::TextElement::FontFamilyProperty, Aero::FrameworkElement::FontFamilyProperty, FrameworkPropertyMetadata(Base::Ref<Media::FontFamily>{}).Inherits().AffectsMeasure())
-        .Property(Documents::TextElement::FontWeightProperty, FrameworkPropertyMetadata(FontWeight::Normal).Inherits().AffectsMeasure())
-        .AddOwner(Documents::TextElement::ForegroundProperty, Aero::FrameworkElement::ForegroundProperty, FrameworkPropertyMetadata(Base::Ref<Brush>{}).Inherits())
-        .Property(Documents::TextElement::FontSizeProperty, FrameworkPropertyMetadata(16.0).Inherits().Validate(&ValidatePositiveFiniteDouble))
-        .Property(Documents::TextElement::FontStyleProperty, FrameworkPropertyMetadata(FontStyle::Normal).Inherits())
-        .Property(Documents::TextElement::TextDecorationsProperty, FrameworkPropertyMetadata(TextDecorations::None).Inherits());
+        .AddOwner(Documents::TextElement::FontFamilyProperty, Aero::FrameworkElement::FontFamilyProperty, Base::Ref<Media::FontFamily>{}, Inherits | AffectsMeasure)
+        .Property(Documents::TextElement::FontWeightProperty, FontWeight::Normal, Inherits | AffectsMeasure)
+        .AddOwner(Documents::TextElement::ForegroundProperty, Aero::FrameworkElement::ForegroundProperty, Base::Ref<Brush>{}, Inherits)
+        .Property(Documents::TextElement::FontSizeProperty, FrameworkPropertyMetadata(16.0, Inherits).Validate(&ValidatePositiveFiniteDouble))
+        .Property(Documents::TextElement::FontStyleProperty, FontStyle::Normal, Inherits)
+        .Property(Documents::TextElement::TextDecorationsProperty, TextDecorations::None, Inherits);
 
     Register<Documents::Inline>(context, TypeFlags::Abstract);
 
@@ -141,15 +141,15 @@ Base::Result<void> PopulateControlsTextMedia(
         .Factory();
 
     Register<Documents::Bold>(context)
-        .Override(Documents::TextElement::FontWeightProperty, FrameworkPropertyMetadata(FontWeight::Bold).AffectsMeasure())
+        .Override(Documents::TextElement::FontWeightProperty, FrameworkPropertyMetadata(FontWeight::Bold, AffectsMeasure))
         .Factory();
 
     Register<Documents::Italic>(context)
-        .Override(Documents::TextElement::FontStyleProperty, FrameworkPropertyMetadata(FontStyle::Italic).AffectsMeasure())
+        .Override(Documents::TextElement::FontStyleProperty, FrameworkPropertyMetadata(FontStyle::Italic, AffectsMeasure))
         .Factory();
 
     Register<Documents::Underline>(context)
-        .Override(Documents::TextElement::TextDecorationsProperty, FrameworkPropertyMetadata(TextDecorations::Underline).AffectsRender())
+        .Override(Documents::TextElement::TextDecorationsProperty, FrameworkPropertyMetadata(TextDecorations::Underline, AffectsRender))
         .Factory();
 
     Register<Documents::LineBreak>(context)
@@ -160,15 +160,15 @@ Base::Result<void> PopulateControlsTextMedia(
     Register<Documents::Hyperlink>(context)
         .Event(Documents::Hyperlink::ClickEvent)
         .Event(Documents::Hyperlink::RequestNavigateEvent)
-        .Property(Documents::Hyperlink::NavigateUriProperty, FrameworkPropertyMetadata(Base::String{}))
-        .Property(Documents::Hyperlink::CommandProperty, FrameworkPropertyMetadata(Base::Ref<ICommand>{}))
-        .Property(Documents::Hyperlink::CommandParameterProperty, FrameworkPropertyMetadata(Value::NullObject(TypeOf<Base::Object>())))
-        .Property(Documents::Hyperlink::CommandTargetProperty, FrameworkPropertyMetadata(Base::Ref<UIElement>{}))
-        .Override(Documents::TextElement::TextDecorationsProperty, FrameworkPropertyMetadata(TextDecorations::Underline).AffectsRender())
+        .Property(Documents::Hyperlink::NavigateUriProperty, Base::String{})
+        .Property(Documents::Hyperlink::CommandProperty, Base::Ref<ICommand>{})
+        .Property(Documents::Hyperlink::CommandParameterProperty, Value::NullObject(TypeOf<Base::Object>()))
+        .Property(Documents::Hyperlink::CommandTargetProperty, Base::Ref<UIElement>{})
+        .Override(Documents::TextElement::TextDecorationsProperty, FrameworkPropertyMetadata(TextDecorations::Underline, AffectsRender))
         .Factory();
 
     Register<Documents::InlineUIContainer>(context)
-        .Property(Documents::InlineUIContainer::ChildProperty, FrameworkPropertyMetadata(Base::Ref<UIElement>{}))
+        .Property(Documents::InlineUIContainer::ChildProperty, Base::Ref<UIElement>{})
         .Factory();
 
     Register<Documents::Adorner>(context)
@@ -181,52 +181,52 @@ Base::Result<void> PopulateControlsTextMedia(
         .Factory();
 
     Register<Image>(context)
-        .Property(Image::SourceProperty, FrameworkPropertyMetadata(Base::Ref<ImageSource>{}).AffectsMeasure().AffectsRender())
-        .Property(Image::StretchProperty, FrameworkPropertyMetadata(Stretch::Uniform).AffectsMeasure().AffectsRender())
-        .Property(Image::StretchDirectionProperty, FrameworkPropertyMetadata(StretchDirection::Both).AffectsMeasure().AffectsRender())
+        .Property(Image::SourceProperty, Base::Ref<ImageSource>{}, AffectsMeasure | AffectsRender)
+        .Property(Image::StretchProperty, Stretch::Uniform, AffectsMeasure | AffectsRender)
+        .Property(Image::StretchDirectionProperty, StretchDirection::Both, AffectsMeasure | AffectsRender)
         .Factory();
 
     Register<Shape>(context, TypeFlags::Abstract)
-        .Property(Shape::FillProperty, FrameworkPropertyMetadata(Base::Ref<Brush>{}).AffectsRender().Changed(&OnShapeFillChanged))
-        .Property(Shape::StrokeProperty, FrameworkPropertyMetadata(Base::Ref<Brush>{}).AffectsRender().Changed(&OnShapeFillChanged))
-        .Property(Shape::PenProperty, FrameworkPropertyMetadata(Base::Ref<Media::Pen>{}).AffectsMeasure().AffectsRender().Changed(&OnShapePenChanged))
-        .Property(Shape::StrokeThicknessProperty, FrameworkPropertyMetadata(1.0).AffectsMeasure().AffectsRender().Validate(&Base::Validate::NonNegative<double>))
-        .Property(Shape::StretchProperty, FrameworkPropertyMetadata(Stretch::Fill).AffectsMeasure().AffectsRender());
+        .Property(Shape::FillProperty, FrameworkPropertyMetadata(Base::Ref<Brush>{}, AffectsRender).Changed(&OnShapeFillChanged))
+        .Property(Shape::StrokeProperty, FrameworkPropertyMetadata(Base::Ref<Brush>{}, AffectsRender).Changed(&OnShapeFillChanged))
+        .Property(Shape::PenProperty, FrameworkPropertyMetadata(Base::Ref<Media::Pen>{}, AffectsMeasure | AffectsRender).Changed(&OnShapePenChanged))
+        .Property(Shape::StrokeThicknessProperty, FrameworkPropertyMetadata(1.0, AffectsMeasure | AffectsRender).Validate(&Base::Validate::NonNegative<double>))
+        .Property(Shape::StretchProperty, Stretch::Fill, AffectsMeasure | AffectsRender);
 
     Register<Rectangle>(context)
-        .Property(Rectangle::RadiusXProperty, FrameworkPropertyMetadata(0.0).AffectsRender().Validate(&Base::Validate::NonNegative<double>))
-        .Property(Rectangle::RadiusYProperty, FrameworkPropertyMetadata(0.0).AffectsRender().Validate(&Base::Validate::NonNegative<double>))
+        .Property(Rectangle::RadiusXProperty, FrameworkPropertyMetadata(0.0, AffectsRender).Validate(&Base::Validate::NonNegative<double>))
+        .Property(Rectangle::RadiusYProperty, FrameworkPropertyMetadata(0.0, AffectsRender).Validate(&Base::Validate::NonNegative<double>))
         .Factory();
 
     Register<Ellipse>(context)
         .Factory();
 
     Register<Path>(context)
-        .Property(Path::DataProperty, FrameworkPropertyMetadata(Base::Ref<Media::Geometry>{}).AffectsMeasure().AffectsRender().Changed(&OnPathDataChanged))
-        .Property(Path::FillRuleProperty, FrameworkPropertyMetadata(FillRule::EvenOdd).AffectsRender().Changed(&OnPathFillRuleChanged))
-        .Override(Shape::FillProperty, FrameworkPropertyMetadata(Base::Ref<Media::Brush>{}).AffectsRender().Changed(&OnPathColorChanged))
-        .Override(Shape::StrokeProperty, FrameworkPropertyMetadata(Base::Ref<Media::Brush>{}).AffectsRender().Changed(&OnPathColorChanged))
-        .Override(Shape::StrokeThicknessProperty, FrameworkPropertyMetadata(1.0).AffectsMeasure().AffectsRender().Validate(&Base::Validate::NonNegative<double>).Changed(&OnPathDoubleChanged))
-        .Property(Path::StrokeLineJoinProperty, FrameworkPropertyMetadata(PenLineJoin::Miter).AffectsRender().Changed(&OnPathLineJoinChanged))
-        .Property(Path::StrokeStartLineCapProperty, FrameworkPropertyMetadata(PenLineCap::Flat).AffectsRender().Changed(&OnPathLineCapChanged))
-        .Property(Path::StrokeEndLineCapProperty, FrameworkPropertyMetadata(PenLineCap::Flat).AffectsRender().Changed(&OnPathLineCapChanged))
-        .Property(Path::TrimStartProperty, FrameworkPropertyMetadata(0.0).AffectsRender().Validate(&ValidateNormalizedDouble).Changed(&OnPathDoubleChanged))
-        .Property(Path::TrimEndProperty, FrameworkPropertyMetadata(1.0).AffectsRender().Validate(&ValidateNormalizedDouble).Changed(&OnPathDoubleChanged))
-        .Property(Path::StrokeDashArrayProperty, FrameworkPropertyMetadata(Base::String{}).AffectsRender().Changed(&OnPathStringChanged))
-        .Property(Path::StrokeDashOffsetProperty, FrameworkPropertyMetadata(0.0).AffectsRender().Changed(&OnPathDoubleChanged))
-        .Property(Path::DashStyleProperty, FrameworkPropertyMetadata(Base::Ref<Media::DashStyle>{}).AffectsRender().Changed(&OnPathDashStyleChanged))
-        .Override(Shape::StretchProperty, FrameworkPropertyMetadata(Stretch::None).AffectsMeasure().AffectsRender())
+        .Property(Path::DataProperty, FrameworkPropertyMetadata(Base::Ref<Media::Geometry>{}, AffectsMeasure | AffectsRender).Changed(&OnPathDataChanged))
+        .Property(Path::FillRuleProperty, FrameworkPropertyMetadata(FillRule::EvenOdd, AffectsRender).Changed(&OnPathFillRuleChanged))
+        .Override(Shape::FillProperty, FrameworkPropertyMetadata(Base::Ref<Media::Brush>{}, AffectsRender).Changed(&OnPathColorChanged))
+        .Override(Shape::StrokeProperty, FrameworkPropertyMetadata(Base::Ref<Media::Brush>{}, AffectsRender).Changed(&OnPathColorChanged))
+        .Override(Shape::StrokeThicknessProperty, FrameworkPropertyMetadata(1.0, AffectsMeasure | AffectsRender).Validate(&Base::Validate::NonNegative<double>).Changed(&OnPathDoubleChanged))
+        .Property(Path::StrokeLineJoinProperty, FrameworkPropertyMetadata(PenLineJoin::Miter, AffectsRender).Changed(&OnPathLineJoinChanged))
+        .Property(Path::StrokeStartLineCapProperty, FrameworkPropertyMetadata(PenLineCap::Flat, AffectsRender).Changed(&OnPathLineCapChanged))
+        .Property(Path::StrokeEndLineCapProperty, FrameworkPropertyMetadata(PenLineCap::Flat, AffectsRender).Changed(&OnPathLineCapChanged))
+        .Property(Path::TrimStartProperty, FrameworkPropertyMetadata(0.0, AffectsRender).Validate(&ValidateNormalizedDouble).Changed(&OnPathDoubleChanged))
+        .Property(Path::TrimEndProperty, FrameworkPropertyMetadata(1.0, AffectsRender).Validate(&ValidateNormalizedDouble).Changed(&OnPathDoubleChanged))
+        .Property(Path::StrokeDashArrayProperty, FrameworkPropertyMetadata(Base::String{}, AffectsRender).Changed(&OnPathStringChanged))
+        .Property(Path::StrokeDashOffsetProperty, FrameworkPropertyMetadata(0.0, AffectsRender).Changed(&OnPathDoubleChanged))
+        .Property(Path::DashStyleProperty, FrameworkPropertyMetadata(Base::Ref<Media::DashStyle>{}, AffectsRender).Changed(&OnPathDashStyleChanged))
+        .Override(Shape::StretchProperty, FrameworkPropertyMetadata(Stretch::None, AffectsMeasure | AffectsRender))
         .Factory();
 
     Register<Line>(context)
-        .Property(Line::X1Property, FrameworkPropertyMetadata(0.0).AffectsMeasure().AffectsRender())
-        .Property(Line::Y1Property, FrameworkPropertyMetadata(0.0).AffectsMeasure().AffectsRender())
-        .Property(Line::X2Property, FrameworkPropertyMetadata(0.0).AffectsMeasure().AffectsRender())
-        .Property(Line::Y2Property, FrameworkPropertyMetadata(0.0).AffectsMeasure().AffectsRender())
+        .Property(Line::X1Property, 0.0, AffectsMeasure | AffectsRender)
+        .Property(Line::Y1Property, 0.0, AffectsMeasure | AffectsRender)
+        .Property(Line::X2Property, 0.0, AffectsMeasure | AffectsRender)
+        .Property(Line::Y2Property, 0.0, AffectsMeasure | AffectsRender)
         .Factory();
 
     Register<Polygon>(context)
-        .Property(Polygon::FillRuleProperty, FrameworkPropertyMetadata(FillRule::EvenOdd).AffectsRender())
+        .Property(Polygon::FillRuleProperty, FillRule::EvenOdd, AffectsRender)
         .Property<Base::String, &Polygon::SetPointsText>("Points", PropertyFlags::None)
         .Factory();
 
@@ -238,25 +238,25 @@ Base::Result<void> PopulateControlsTextMedia(
     const Base::Ref<Brush> placeholder = makeBrush({123.0F / 255.0F, 128.0F / 255.0F, 133.0F / 255.0F, 1.0F});
 
     Register<TextBoxBase>(context, TypeFlags::Abstract)
-        .Property(TextBoxBase::SelectionBrushProperty, FrameworkPropertyMetadata(selection).AffectsRender())
-        .Property(TextBoxBase::SelectionOpacityProperty, FrameworkPropertyMetadata(0.25).AffectsRender().Validate(&ValidateNormalizedDouble))
-        .Property(TextBoxBase::CaretBrushProperty, FrameworkPropertyMetadata(black).AffectsRender());
+        .Property(TextBoxBase::SelectionBrushProperty, selection, AffectsRender)
+        .Property(TextBoxBase::SelectionOpacityProperty, FrameworkPropertyMetadata(0.25, AffectsRender).Validate(&ValidateNormalizedDouble))
+        .Property(TextBoxBase::CaretBrushProperty, black, AffectsRender);
 
     Register<TextBox>(context)
         .Event(TextBox::TextChangedEvent)
-        .Property(TextBox::TextProperty, FrameworkPropertyMetadata(Base::String{}).AffectsMeasure().AffectsRender().BindsTwoWayByDefault().UpdateSource(UpdateSourceTrigger::LostFocus).Coerce(&CoerceTextBoxText))
-        .Property(TextBox::IsReadOnlyProperty, FrameworkPropertyMetadata(false).AffectsRender())
-        .Property(TextBox::MaxLengthProperty, FrameworkPropertyMetadata(std::uint32_t{0}))
-        .Property(TextBox::AcceptsReturnProperty, FrameworkPropertyMetadata(false).AffectsMeasure().AffectsRender())
-        .Property(TextBox::TextWrappingProperty, FrameworkPropertyMetadata(TextWrapping::NoWrap).AffectsMeasure().AffectsRender())
-        .Property(TextBox::PlaceholderProperty, FrameworkPropertyMetadata(Base::String{}).AffectsMeasure())
-        .Property(TextBox::PlaceholderForegroundProperty, FrameworkPropertyMetadata(placeholder).AffectsRender())
-        .Property(TextBox::FontSizeProperty, FrameworkPropertyMetadata(15.0).AffectsMeasure().Validate(&ValidatePositiveFiniteDouble))
-        .Property(TextBox::FontWeightProperty, FrameworkPropertyMetadata(FontWeight::Normal).AffectsMeasure())
-        .Property(TextBox::FontStyleProperty, FrameworkPropertyMetadata(FontStyle::Normal).AffectsMeasure())
-        .Property(TextBox::TextAlignmentProperty, FrameworkPropertyMetadata(TextAlignment::Left).AffectsMeasure())
-        .Property(TextBox::MaxLinesProperty, FrameworkPropertyMetadata(std::uint32_t{0}).AffectsMeasure().AffectsRender())
-        .Property(TextBox::MinLinesProperty, FrameworkPropertyMetadata(std::uint32_t{1}).AffectsMeasure().AffectsRender().Validate(&Base::Validate::Positive<std::uint32_t>))
+        .Property(TextBox::TextProperty, FrameworkPropertyMetadata(Base::String{}, AffectsMeasure | AffectsRender | BindsTwoWayByDefault).UpdateSource(UpdateSourceTrigger::LostFocus).Coerce(&CoerceTextBoxText))
+        .Property(TextBox::IsReadOnlyProperty, false, AffectsRender)
+        .Property(TextBox::MaxLengthProperty, std::uint32_t{0})
+        .Property(TextBox::AcceptsReturnProperty, false, AffectsMeasure | AffectsRender)
+        .Property(TextBox::TextWrappingProperty, TextWrapping::NoWrap, AffectsMeasure | AffectsRender)
+        .Property(TextBox::PlaceholderProperty, Base::String{}, AffectsMeasure)
+        .Property(TextBox::PlaceholderForegroundProperty, placeholder, AffectsRender)
+        .Property(TextBox::FontSizeProperty, FrameworkPropertyMetadata(15.0, AffectsMeasure).Validate(&ValidatePositiveFiniteDouble))
+        .Property(TextBox::FontWeightProperty, FontWeight::Normal, AffectsMeasure)
+        .Property(TextBox::FontStyleProperty, FontStyle::Normal, AffectsMeasure)
+        .Property(TextBox::TextAlignmentProperty, TextAlignment::Left, AffectsMeasure)
+        .Property(TextBox::MaxLinesProperty, std::uint32_t{0}, AffectsMeasure | AffectsRender)
+        .Property(TextBox::MinLinesProperty, FrameworkPropertyMetadata(std::uint32_t{1}, AffectsMeasure | AffectsRender).Validate(&Base::Validate::Positive<std::uint32_t>))
         .Factory();
 
     Base::String defaultPasswordChar;
@@ -266,16 +266,16 @@ Base::Result<void> PopulateControlsTextMedia(
     Register<PasswordBox>(context)
         .Event(PasswordBox::PasswordChangedEvent)
         .Property<Base::String, &PasswordBox::GetPassword, &PasswordBox::SetPassword>("Password", PropertyFlags::None)
-        .Property(PasswordBox::PasswordCharProperty, FrameworkPropertyMetadata(std::move(defaultPasswordChar)).AffectsMeasure().Validate(&ValidatePasswordChar))
-        .Property(PasswordBox::MaxLengthProperty, FrameworkPropertyMetadata(std::uint32_t{0}).AffectsMeasure())
-        .Property(PasswordBox::PlaceholderProperty, FrameworkPropertyMetadata(Base::String{}).AffectsMeasure().AffectsRender())
+        .Property(PasswordBox::PasswordCharProperty, FrameworkPropertyMetadata(std::move(defaultPasswordChar), AffectsMeasure).Validate(&ValidatePasswordChar))
+        .Property(PasswordBox::MaxLengthProperty, std::uint32_t{0}, AffectsMeasure)
+        .Property(PasswordBox::PlaceholderProperty, Base::String{}, AffectsMeasure | AffectsRender)
         .TemplatePart("PART_ContentHost", TypeOf<ScrollViewer>())
         .Factory();
 
     Register<ContentPresenter>(context)
-        .Property(ContentPresenter::ContentProperty, FrameworkPropertyMetadata(Meta::Value::NullObject(Meta::TypeOf<Base::Object>())).AffectsMeasure().Structural().Changed(&ContentPresenter::OnContentPropertyChanged))
-        .Property(ContentPresenter::ContentTemplateProperty, FrameworkPropertyMetadata(Base::Ref<Base::Object>{}).AffectsMeasure())
-        .Property(ContentPresenter::ContentSourceProperty, FrameworkPropertyMetadata(Base::String{}))
+        .Property(ContentPresenter::ContentProperty, FrameworkPropertyMetadata(Meta::Value::NullObject(Meta::TypeOf<Base::Object>()), AffectsMeasure).Structural().Changed(&ContentPresenter::OnContentPropertyChanged))
+        .Property(ContentPresenter::ContentTemplateProperty, Base::Ref<Base::Object>{}, AffectsMeasure)
+        .Property(ContentPresenter::ContentSourceProperty, Base::String{})
         .ContentAccessor(MakeMemberId(ContentPresenter::StaticTypeId(), MemberKind::Property, "Content"), ContentKind::Single, &SetContentPresenterContent, &ClearContentPresenterContent, ContentFlags::Visual)
         .Factory();
 

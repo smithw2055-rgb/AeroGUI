@@ -21,9 +21,9 @@ Base::Result<void> PopulateUiResources(
         .Property<Base::Ref<Media::Brush>, &Media::Pen::GetBrush, &Media::Pen::SetBrush>("Brush", PropertyFlags::None)
         .Property(Media::Pen::ThicknessProperty, FrameworkPropertyMetadata(1.0) .Validate(&Base::Validate::NonNegative<double>))
         .Property<Base::Ref<Media::DashStyle>, &Media::Pen::GetDashStyle, &Media::Pen::SetDashStyle>("DashStyle", PropertyFlags::None)
-        .Property(Media::Pen::LineJoinProperty, FrameworkPropertyMetadata(Media::PenLineJoin::Miter))
-        .Property(Media::Pen::StartLineCapProperty, FrameworkPropertyMetadata(Media::PenLineCap::Flat))
-        .Property(Media::Pen::EndLineCapProperty, FrameworkPropertyMetadata(Media::PenLineCap::Flat))
+        .Property(Media::Pen::LineJoinProperty, Media::PenLineJoin::Miter)
+        .Property(Media::Pen::StartLineCapProperty, Media::PenLineCap::Flat)
+        .Property(Media::Pen::EndLineCapProperty, Media::PenLineCap::Flat)
         .Property(Media::Pen::MiterLimitProperty, FrameworkPropertyMetadata(10.0) .Validate(&Base::Validate::NonNegative<double>))
         .Factory();
 
@@ -36,12 +36,12 @@ Base::Result<void> PopulateUiResources(
     Register<Media::PathSegment>(context, TypeFlags::Abstract);
 
     Register<Media::LineSegment>(context)
-        .Property(Media::LineSegment::PointProperty, FrameworkPropertyMetadata(Point{}).AffectsRender())
+        .Property(Media::LineSegment::PointProperty, Point{}, AffectsRender)
         .Factory();
 
     Register<Media::PathFigure>(context)
-        .Property(Media::PathFigure::StartPointProperty, FrameworkPropertyMetadata(Point{}).AffectsRender())
-        .Property(Media::PathFigure::IsClosedProperty, FrameworkPropertyMetadata(false).AffectsRender())
+        .Property(Media::PathFigure::StartPointProperty, Point{}, AffectsRender)
+        .Property(Media::PathFigure::IsClosedProperty, false, AffectsRender)
         .Content<Media::PathSegment>("Segments", ContentKind::Collection, &AddPathFigureSegment, &ClearPathFigureSegments)
         .Factory();
 
@@ -50,22 +50,22 @@ Base::Result<void> PopulateUiResources(
         .Factory();
 
     Register<Media::BezierSegment>(context)
-        .Property(Media::BezierSegment::Point1Property, FrameworkPropertyMetadata(Point{}).AffectsRender())
-        .Property(Media::BezierSegment::Point2Property, FrameworkPropertyMetadata(Point{}).AffectsRender())
-        .Property(Media::BezierSegment::Point3Property, FrameworkPropertyMetadata(Point{}).AffectsRender())
+        .Property(Media::BezierSegment::Point1Property, Point{}, AffectsRender)
+        .Property(Media::BezierSegment::Point2Property, Point{}, AffectsRender)
+        .Property(Media::BezierSegment::Point3Property, Point{}, AffectsRender)
         .Factory();
 
     Register<Media::QuadraticBezierSegment>(context)
-        .Property(Media::QuadraticBezierSegment::Point1Property, FrameworkPropertyMetadata(Point{}).AffectsRender())
-        .Property(Media::QuadraticBezierSegment::Point2Property, FrameworkPropertyMetadata(Point{}).AffectsRender())
+        .Property(Media::QuadraticBezierSegment::Point1Property, Point{}, AffectsRender)
+        .Property(Media::QuadraticBezierSegment::Point2Property, Point{}, AffectsRender)
         .Factory();
 
     Register<Media::ArcSegment>(context)
-        .Property(Media::ArcSegment::PointProperty, FrameworkPropertyMetadata(Point{}).AffectsRender())
-        .Property(Media::ArcSegment::SizeProperty, FrameworkPropertyMetadata(Size{}).AffectsRender())
-        .Property(Media::ArcSegment::RotationAngleProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(Media::ArcSegment::IsLargeArcProperty, FrameworkPropertyMetadata(false).AffectsRender())
-        .Property(Media::ArcSegment::SweepDirectionProperty, FrameworkPropertyMetadata(Media::SweepDirection::Counterclockwise) .AffectsRender())
+        .Property(Media::ArcSegment::PointProperty, Point{}, AffectsRender)
+        .Property(Media::ArcSegment::SizeProperty, Size{}, AffectsRender)
+        .Property(Media::ArcSegment::RotationAngleProperty, 0.0, AffectsRender)
+        .Property(Media::ArcSegment::IsLargeArcProperty, false, AffectsRender)
+        .Property(Media::ArcSegment::SweepDirectionProperty, Media::SweepDirection::Counterclockwise, AffectsRender)
         .Factory();
 
     Register<Media::PolyLineSegment>(context)
@@ -81,20 +81,20 @@ Base::Result<void> PopulateUiResources(
         .Factory();
 
     Register<Media::LineGeometry>(context)
-        .Property(Media::LineGeometry::StartPointProperty, FrameworkPropertyMetadata(Point{}).AffectsRender())
-        .Property(Media::LineGeometry::EndPointProperty, FrameworkPropertyMetadata(Point{}).AffectsRender())
+        .Property(Media::LineGeometry::StartPointProperty, Point{}, AffectsRender)
+        .Property(Media::LineGeometry::EndPointProperty, Point{}, AffectsRender)
         .Factory();
 
     Register<Media::RectangleGeometry>(context)
-        .Property(Media::RectangleGeometry::RectProperty, FrameworkPropertyMetadata(Rect{}).AffectsRender())
-        .Property(Media::RectangleGeometry::RadiusXProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(Media::RectangleGeometry::RadiusYProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(Media::RectangleGeometry::RectProperty, Rect{}, AffectsRender)
+        .Property(Media::RectangleGeometry::RadiusXProperty, 0.0, AffectsRender)
+        .Property(Media::RectangleGeometry::RadiusYProperty, 0.0, AffectsRender)
         .Factory();
 
     Register<Media::EllipseGeometry>(context)
-        .Property(Media::EllipseGeometry::CenterProperty, FrameworkPropertyMetadata(Point{}).AffectsRender())
-        .Property(Media::EllipseGeometry::RadiusXProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(Media::EllipseGeometry::RadiusYProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(Media::EllipseGeometry::CenterProperty, Point{}, AffectsRender)
+        .Property(Media::EllipseGeometry::RadiusXProperty, 0.0, AffectsRender)
+        .Property(Media::EllipseGeometry::RadiusYProperty, 0.0, AffectsRender)
         .Factory();
 
     Register<Media::GeometryGroup>(context)
@@ -104,7 +104,7 @@ Base::Result<void> PopulateUiResources(
     Register<Media::CombinedGeometry>(context)
         .Property("Geometry1", &Media::CombinedGeometry::GetGeometry1, &Media::CombinedGeometry::SetGeometry1, PropertyFlags::Structural)
         .Property("Geometry2", &Media::CombinedGeometry::GetGeometry2, &Media::CombinedGeometry::SetGeometry2, PropertyFlags::Structural)
-        .Property(Media::CombinedGeometry::GeometryCombineModeProperty, FrameworkPropertyMetadata(Media::GeometryCombineMode::Union) .AffectsRender())
+        .Property(Media::CombinedGeometry::GeometryCombineModeProperty, Media::GeometryCombineMode::Union, AffectsRender)
         .Factory();
 
     Register<Media::FontFamily>(context)

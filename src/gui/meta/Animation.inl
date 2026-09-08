@@ -22,12 +22,12 @@ Base::Result<void> PopulateUiAnimation(
         .TextConverter<&Media::Animation::KeyTime::TryParse>();
 
     Register<Media::Animation::Timeline>(context, TypeFlags::Abstract)
-        .Property(Media::Animation::Timeline::BeginTimeProperty, FrameworkPropertyMetadata(Media::Animation::TimeSpan::Zero()))
-        .Property(Media::Animation::Timeline::DurationProperty, FrameworkPropertyMetadata(Media::Animation::Duration::Automatic()))
-        .Property(Media::Animation::Timeline::RepeatBehaviorProperty, FrameworkPropertyMetadata(Media::Animation::RepeatBehavior::Once()))
-        .Property(Media::Animation::Timeline::SpeedRatioProperty, FrameworkPropertyMetadata(1.0))
-        .Property(Media::Animation::Timeline::AutoReverseProperty, FrameworkPropertyMetadata(false))
-        .Property(Media::Animation::Timeline::FillBehaviorProperty, FrameworkPropertyMetadata(FillBehavior::HoldEnd));
+        .Property(Media::Animation::Timeline::BeginTimeProperty, Media::Animation::TimeSpan::Zero())
+        .Property(Media::Animation::Timeline::DurationProperty, Media::Animation::Duration::Automatic())
+        .Property(Media::Animation::Timeline::RepeatBehaviorProperty, Media::Animation::RepeatBehavior::Once())
+        .Property(Media::Animation::Timeline::SpeedRatioProperty, 1.0)
+        .Property(Media::Animation::Timeline::AutoReverseProperty, false)
+        .Property(Media::Animation::Timeline::FillBehaviorProperty, FillBehavior::HoldEnd);
 
     Register<Media::Animation::AnimationTimeline>(context, TypeFlags::Abstract);
     Register<Media::Animation::TimelineGroup>(context, TypeFlags::Abstract);
@@ -37,13 +37,13 @@ Base::Result<void> PopulateUiAnimation(
         .Factory();
 
     Register<Media::Animation::Storyboard>(context)
-        .Property(Media::Animation::Storyboard::TargetNameProperty, FrameworkPropertyMetadata(Base::String{}))
-        .Property(Media::Animation::Storyboard::TargetPropertyProperty, FrameworkPropertyMetadata(Base::String{}))
+        .Property(Media::Animation::Storyboard::TargetNameProperty, Base::String{})
+        .Property(Media::Animation::Storyboard::TargetPropertyProperty, Base::String{})
         .Content<Media::Animation::Timeline>("Children", ContentKind::Collection, &AddStoryboardTimeline, &ClearStoryboardTimelines)
         .Factory();
 
     Register<Media::Animation::EasingFunctionBase>(context, TypeFlags::Abstract)
-        .Property(Media::Animation::EasingFunctionBase::EasingModeProperty, FrameworkPropertyMetadata(EasingMode::EaseOut));
+        .Property(Media::Animation::EasingFunctionBase::EasingModeProperty, EasingMode::EaseOut);
 
     Register<Media::Animation::SineEase>(context).Factory();
     Register<Media::Animation::QuadraticEase>(context).Factory();
@@ -52,25 +52,25 @@ Base::Result<void> PopulateUiAnimation(
     Register<Media::Animation::QuinticEase>(context).Factory();
     Register<Media::Animation::CircleEase>(context).Factory();
     Register<Media::Animation::ExponentialEase>(context)
-        .Property(Media::Animation::ExponentialEase::ExponentProperty, FrameworkPropertyMetadata(2.0))
+        .Property(Media::Animation::ExponentialEase::ExponentProperty, 2.0)
         .Factory();
 
     Register<Media::Animation::PowerEase>(context)
-        .Property(Media::Animation::PowerEase::PowerProperty, FrameworkPropertyMetadata(2.0))
+        .Property(Media::Animation::PowerEase::PowerProperty, 2.0)
         .Factory();
 
     Register<Media::Animation::BackEase>(context)
-        .Property(Media::Animation::BackEase::AmplitudeProperty, FrameworkPropertyMetadata(1.0))
+        .Property(Media::Animation::BackEase::AmplitudeProperty, 1.0)
         .Factory();
 
     Register<Media::Animation::BounceEase>(context)
-        .Property(Media::Animation::BounceEase::BouncesProperty, FrameworkPropertyMetadata(3.0))
-        .Property(Media::Animation::BounceEase::BouncinessProperty, FrameworkPropertyMetadata(3.0))
+        .Property(Media::Animation::BounceEase::BouncesProperty, 3.0)
+        .Property(Media::Animation::BounceEase::BouncinessProperty, 3.0)
         .Factory();
 
     Register<Media::Animation::ElasticEase>(context)
-        .Property(Media::Animation::ElasticEase::OscillationsProperty, FrameworkPropertyMetadata(3.0))
-        .Property(Media::Animation::ElasticEase::SpringinessProperty, FrameworkPropertyMetadata(3.0))
+        .Property(Media::Animation::ElasticEase::OscillationsProperty, 3.0)
+        .Property(Media::Animation::ElasticEase::SpringinessProperty, 3.0)
         .Factory();
 
     Register<Media::Animation::DoubleAnimationBase>(context, TypeFlags::Abstract)
@@ -151,8 +151,8 @@ Base::Result<void> PopulateUiAnimation(
         .Factory();
 
     Register<Media::Animation::KeyFrameBase>(context, TypeFlags::Abstract)
-        .Property(Media::Animation::KeyFrameBase::KeyTimeProperty, FrameworkPropertyMetadata(Media::Animation::KeyTime{}))
-        .Property(Media::Animation::KeyFrameBase::EasingFunctionProperty, FrameworkPropertyMetadata(Base::Ref<Media::Animation::EasingFunctionBase>{}) .AffectsRender())
+        .Property(Media::Animation::KeyFrameBase::KeyTimeProperty, Media::Animation::KeyTime{})
+        .Property(Media::Animation::KeyFrameBase::EasingFunctionProperty, Base::Ref<Media::Animation::EasingFunctionBase>{}, AffectsRender)
         .Property(Media::Animation::KeyFrameBase::KeySplineProperty, FrameworkPropertyMetadata(Base::String{}) .Changed(&Media::Animation::KeyFrameBase::OnKeySplineChanged));
 
     Register<Media::Animation::DoubleKeyFrame>(context, TypeFlags::Abstract)
@@ -362,7 +362,7 @@ Base::Result<void> PopulateUiAnimation(
     Register<Aero::Interactivity::PlaySoundAction>(context)
         .Property("Source", &Aero::Interactivity::PlaySoundAction::GetSource, &Aero::Interactivity::PlaySoundAction::SetSource)
         .Property("Volume", &Aero::Interactivity::PlaySoundAction::GetVolume, &Aero::Interactivity::PlaySoundAction::SetVolume)
-        .Property(Aero::Interactivity::PlaySoundAction::IsEnabledProperty, FrameworkPropertyMetadata(true))
+        .Property(Aero::Interactivity::PlaySoundAction::IsEnabledProperty, true)
         .Factory();
 
     Register<Media::Animation::PlayMediaAction>(context)
@@ -402,7 +402,7 @@ Base::Result<void> PopulateUiAnimation(
     Register<Interactivity::MouseDragElementBehavior>(context)
         .Property(Interactivity::MouseDragElementBehavior::XProperty, FrameworkPropertyMetadata(0.0) .Changed(&Interactivity::MouseDragElementBehavior::OnPositionChanged))
         .Property(Interactivity::MouseDragElementBehavior::YProperty, FrameworkPropertyMetadata(0.0) .Changed(&Interactivity::MouseDragElementBehavior::OnPositionChanged))
-        .Property(Interactivity::MouseDragElementBehavior::ConstrainToParentBoundsProperty, FrameworkPropertyMetadata(false))
+        .Property(Interactivity::MouseDragElementBehavior::ConstrainToParentBoundsProperty, false)
         .Factory();
 
     Register<Interactivity::BackgroundEffectBehavior>(context)

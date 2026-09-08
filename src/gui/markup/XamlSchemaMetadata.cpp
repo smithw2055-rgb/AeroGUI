@@ -301,14 +301,14 @@ Base::Result<void> PopulateMarkupMetadata(
         TypeFlags::MarkupExtension | TypeFlags::Abstract);
     loc.Property(
         LocExtensionToken::SourceProperty,
-        FrameworkPropertyMetadata(Base::ResourceUri{}).Inherits().Changed(
+        FrameworkPropertyMetadata(Base::ResourceUri{}, Inherits).Changed(
             &LocExtension::OnSourceChanged));
     status = loc.Result();
     if (!status) return status.GetStatus();
     status = Meta::Register<StaticResourceObject>(context)
         .Property(
             StaticResourceObject::ResourceKeyProperty,
-            FrameworkPropertyMetadata(Base::String{}))
+            Base::String{})
         .Factory()
         .Result();
     if (!status) return status.GetStatus();

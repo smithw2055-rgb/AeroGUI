@@ -56,9 +56,9 @@ Base::Result<void> PopulateUiMedia(
     Register<Transform>(context, TypeFlags::Abstract);
 
     Register<Brush>(context, TypeFlags::Abstract)
-        .Property(Brush::OpacityProperty, FrameworkPropertyMetadata(1.0) .Validate(&ValidateUnitDouble) .AffectsRender())
-        .Property(Brush::ShaderProperty, FrameworkPropertyMetadata(Base::Ref<Base::Object>{}) .AffectsRender())
-        .Property(Brush::RelativeTransformProperty, FrameworkPropertyMetadata(Base::Ref<Transform>{}) .AffectsRender())
+        .Property(Brush::OpacityProperty, FrameworkPropertyMetadata(1.0, AffectsRender).Validate(&ValidateUnitDouble))
+        .Property(Brush::ShaderProperty, Base::Ref<Base::Object>{}, AffectsRender)
+        .Property(Brush::RelativeTransformProperty, Base::Ref<Transform>{}, AffectsRender)
         .TextConverter(&ConvertBrushText);
 
     Register<SolidColorBrush>(context)
@@ -68,7 +68,7 @@ Base::Result<void> PopulateUiMedia(
 
     Register<GradientStop>(context)
         .Property(GradientStop::OffsetProperty, FrameworkPropertyMetadata(0.0) .Validate(&ValidateUnitDouble))
-        .Property(GradientStop::ColorProperty, FrameworkPropertyMetadata(Color{}))
+        .Property(GradientStop::ColorProperty, Color{})
         .Factory();
 
     Register<GradientStopCollection>(context)
@@ -80,7 +80,7 @@ Base::Result<void> PopulateUiMedia(
         .Factory();
 
     Register<MonochromeShader>(context)
-        .Property(MonochromeShader::ColorProperty, FrameworkPropertyMetadata(Color{}).AffectsRender())
+        .Property(MonochromeShader::ColorProperty, Color{}, AffectsRender)
         .Factory();
 
     Register<ConicGradientShader>(context)
@@ -88,22 +88,22 @@ Base::Result<void> PopulateUiMedia(
         .Factory();
 
     Register<WavesShader>(context)
-        .Property(WavesShader::TimeProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(WavesShader::TimeProperty, 0.0, AffectsRender)
         .Factory();
 
     Register<GradientBrush>(context, TypeFlags::Abstract)
-        .Property(GradientBrush::MappingModeProperty, FrameworkPropertyMetadata(BrushMappingMode::RelativeToBoundingBox))
-        .Property(GradientBrush::SpreadMethodProperty, FrameworkPropertyMetadata(GradientSpreadMethod::Pad) .AffectsRender())
+        .Property(GradientBrush::MappingModeProperty, BrushMappingMode::RelativeToBoundingBox)
+        .Property(GradientBrush::SpreadMethodProperty, GradientSpreadMethod::Pad, AffectsRender)
         .Content<GradientStop>("GradientStops", ContentKind::Collection, &AddGradientStop, &ClearGradientStops);
 
     Register<LinearGradientBrush>(context)
-        .Property(LinearGradientBrush::StartPointProperty, FrameworkPropertyMetadata(Point{0.0, 0.0}))
-        .Property(LinearGradientBrush::EndPointProperty, FrameworkPropertyMetadata(Point{1.0, 1.0}))
+        .Property(LinearGradientBrush::StartPointProperty, Point{0.0, 0.0})
+        .Property(LinearGradientBrush::EndPointProperty, Point{1.0, 1.0})
         .Factory();
 
     Register<RadialGradientBrush>(context)
-        .Property(RadialGradientBrush::CenterProperty, FrameworkPropertyMetadata(Point{0.5, 0.5}))
-        .Property(RadialGradientBrush::GradientOriginProperty, FrameworkPropertyMetadata(Point{0.5, 0.5}))
+        .Property(RadialGradientBrush::CenterProperty, Point{0.5, 0.5})
+        .Property(RadialGradientBrush::GradientOriginProperty, Point{0.5, 0.5})
         .Property(RadialGradientBrush::RadiusXProperty, FrameworkPropertyMetadata(0.5) .Validate(&Base::Validate::Positive<double>))
         .Property(RadialGradientBrush::RadiusYProperty, FrameworkPropertyMetadata(0.5) .Validate(&Base::Validate::Positive<double>))
         .Factory();
@@ -112,26 +112,26 @@ Base::Result<void> PopulateUiMedia(
         .TextConverter(&ConvertImageSourceText);
 
     Register<TileBrush>(context, TypeFlags::Abstract)
-        .Property(TileBrush::StretchProperty, FrameworkPropertyMetadata(Stretch::Fill))
-        .Property(TileBrush::ViewboxProperty, FrameworkPropertyMetadata(Rect{0.0, 0.0, 1.0, 1.0}))
-        .Property(TileBrush::ViewportProperty, FrameworkPropertyMetadata(Rect{0.0, 0.0, 1.0, 1.0}))
-        .Property(TileBrush::ViewboxUnitsProperty, FrameworkPropertyMetadata(BrushMappingMode::RelativeToBoundingBox))
-        .Property(TileBrush::ViewportUnitsProperty, FrameworkPropertyMetadata(BrushMappingMode::RelativeToBoundingBox))
-        .Property(TileBrush::TileModeProperty, FrameworkPropertyMetadata(TileMode::None))
-        .Property(TileBrush::AlignmentXProperty, FrameworkPropertyMetadata(HorizontalAlignment::Center))
-        .Property(TileBrush::AlignmentYProperty, FrameworkPropertyMetadata(VerticalAlignment::Center));
+        .Property(TileBrush::StretchProperty, Stretch::Fill)
+        .Property(TileBrush::ViewboxProperty, Rect{0.0, 0.0, 1.0, 1.0})
+        .Property(TileBrush::ViewportProperty, Rect{0.0, 0.0, 1.0, 1.0})
+        .Property(TileBrush::ViewboxUnitsProperty, BrushMappingMode::RelativeToBoundingBox)
+        .Property(TileBrush::ViewportUnitsProperty, BrushMappingMode::RelativeToBoundingBox)
+        .Property(TileBrush::TileModeProperty, TileMode::None)
+        .Property(TileBrush::AlignmentXProperty, HorizontalAlignment::Center)
+        .Property(TileBrush::AlignmentYProperty, VerticalAlignment::Center);
 
     Register<BitmapImage>(context)
-        .Property(BitmapImage::UriSourceProperty, FrameworkPropertyMetadata(Base::ResourceUri{}))
+        .Property(BitmapImage::UriSourceProperty, Base::ResourceUri{})
         .Factory();
 
     Register<CroppedBitmap>(context)
-        .Property(CroppedBitmap::SourceProperty, FrameworkPropertyMetadata(Base::Ref<ImageSource>{}))
-        .Property(CroppedBitmap::SourceRectProperty, FrameworkPropertyMetadata(Base::Rect{}))
+        .Property(CroppedBitmap::SourceProperty, Base::Ref<ImageSource>{})
+        .Property(CroppedBitmap::SourceRectProperty, Base::Rect{})
         .Factory();
 
     Register<ImageBrush>(context)
-        .Property(ImageBrush::ImageSourceProperty, FrameworkPropertyMetadata(Base::Ref<ImageSource>{}))
+        .Property(ImageBrush::ImageSourceProperty, Base::Ref<ImageSource>{})
         .Factory();
 
     Register<Base::Transform2D>(context)
@@ -161,44 +161,44 @@ Base::Result<void> PopulateUiMedia(
         .TextConverter<&ConvertTransform3>();
 
     Register<TranslateTransform>(context)
-        .Property(TranslateTransform::XProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(TranslateTransform::YProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(TranslateTransform::XProperty, 0.0, AffectsRender)
+        .Property(TranslateTransform::YProperty, 0.0, AffectsRender)
         .Factory();
 
     Register<ScaleTransform>(context)
-        .Property(ScaleTransform::ScaleXProperty, FrameworkPropertyMetadata(1.0).AffectsRender())
-        .Property(ScaleTransform::ScaleYProperty, FrameworkPropertyMetadata(1.0).AffectsRender())
-        .Property(ScaleTransform::CenterXProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(ScaleTransform::CenterYProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(ScaleTransform::ScaleXProperty, 1.0, AffectsRender)
+        .Property(ScaleTransform::ScaleYProperty, 1.0, AffectsRender)
+        .Property(ScaleTransform::CenterXProperty, 0.0, AffectsRender)
+        .Property(ScaleTransform::CenterYProperty, 0.0, AffectsRender)
         .Factory();
 
     Register<RotateTransform>(context)
-        .Property(RotateTransform::AngleProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(RotateTransform::CenterXProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(RotateTransform::CenterYProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(RotateTransform::AngleProperty, 0.0, AffectsRender)
+        .Property(RotateTransform::CenterXProperty, 0.0, AffectsRender)
+        .Property(RotateTransform::CenterYProperty, 0.0, AffectsRender)
         .Factory();
 
     Register<SkewTransform>(context)
-        .Property(SkewTransform::AngleXProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(SkewTransform::AngleYProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(SkewTransform::CenterXProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(SkewTransform::CenterYProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(SkewTransform::AngleXProperty, 0.0, AffectsRender)
+        .Property(SkewTransform::AngleYProperty, 0.0, AffectsRender)
+        .Property(SkewTransform::CenterXProperty, 0.0, AffectsRender)
+        .Property(SkewTransform::CenterYProperty, 0.0, AffectsRender)
         .Factory();
 
     Register<MatrixTransform>(context)
-        .Property(MatrixTransform::MatrixProperty, FrameworkPropertyMetadata(Base::Transform2D{}).AffectsRender())
+        .Property(MatrixTransform::MatrixProperty, Base::Transform2D{}, AffectsRender)
         .Factory();
 
     Register<CompositeTransform>(context)
-        .Property(CompositeTransform::CenterXProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(CompositeTransform::CenterYProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(CompositeTransform::ScaleXProperty, FrameworkPropertyMetadata(1.0).AffectsRender())
-        .Property(CompositeTransform::ScaleYProperty, FrameworkPropertyMetadata(1.0).AffectsRender())
-        .Property(CompositeTransform::SkewXProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(CompositeTransform::SkewYProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(CompositeTransform::RotationProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(CompositeTransform::TranslateXProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(CompositeTransform::TranslateYProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform::CenterXProperty, 0.0, AffectsRender)
+        .Property(CompositeTransform::CenterYProperty, 0.0, AffectsRender)
+        .Property(CompositeTransform::ScaleXProperty, 1.0, AffectsRender)
+        .Property(CompositeTransform::ScaleYProperty, 1.0, AffectsRender)
+        .Property(CompositeTransform::SkewXProperty, 0.0, AffectsRender)
+        .Property(CompositeTransform::SkewYProperty, 0.0, AffectsRender)
+        .Property(CompositeTransform::RotationProperty, 0.0, AffectsRender)
+        .Property(CompositeTransform::TranslateXProperty, 0.0, AffectsRender)
+        .Property(CompositeTransform::TranslateYProperty, 0.0, AffectsRender)
         .Factory();
 
     Register<TransformGroup>(context)
@@ -208,59 +208,59 @@ Base::Result<void> PopulateUiMedia(
     Register<Transform3D>(context, TypeFlags::Abstract);
 
     Register<CompositeTransform3D>(context)
-        .Property(CompositeTransform3D::CenterXProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(CompositeTransform3D::CenterYProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(CompositeTransform3D::CenterZProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(CompositeTransform3D::RotationXProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(CompositeTransform3D::RotationYProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(CompositeTransform3D::RotationZProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(CompositeTransform3D::ScaleXProperty, FrameworkPropertyMetadata(1.0).AffectsRender())
-        .Property(CompositeTransform3D::ScaleYProperty, FrameworkPropertyMetadata(1.0).AffectsRender())
-        .Property(CompositeTransform3D::ScaleZProperty, FrameworkPropertyMetadata(1.0).AffectsRender())
-        .Property(CompositeTransform3D::TranslateXProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(CompositeTransform3D::TranslateYProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(CompositeTransform3D::TranslateZProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(CompositeTransform3D::CenterXProperty, 0.0, AffectsRender)
+        .Property(CompositeTransform3D::CenterYProperty, 0.0, AffectsRender)
+        .Property(CompositeTransform3D::CenterZProperty, 0.0, AffectsRender)
+        .Property(CompositeTransform3D::RotationXProperty, 0.0, AffectsRender)
+        .Property(CompositeTransform3D::RotationYProperty, 0.0, AffectsRender)
+        .Property(CompositeTransform3D::RotationZProperty, 0.0, AffectsRender)
+        .Property(CompositeTransform3D::ScaleXProperty, 1.0, AffectsRender)
+        .Property(CompositeTransform3D::ScaleYProperty, 1.0, AffectsRender)
+        .Property(CompositeTransform3D::ScaleZProperty, 1.0, AffectsRender)
+        .Property(CompositeTransform3D::TranslateXProperty, 0.0, AffectsRender)
+        .Property(CompositeTransform3D::TranslateYProperty, 0.0, AffectsRender)
+        .Property(CompositeTransform3D::TranslateZProperty, 0.0, AffectsRender)
         .Factory();
 
     Register<PerspectiveTransform3D>(context)
-        .Property(PerspectiveTransform3D::DepthProperty, FrameworkPropertyMetadata(Base::DefaultPerspectiveDepth) .AffectsRender())
-        .Property(PerspectiveTransform3D::OffsetXProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(PerspectiveTransform3D::OffsetYProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(PerspectiveTransform3D::DepthProperty, Base::DefaultPerspectiveDepth, AffectsRender)
+        .Property(PerspectiveTransform3D::OffsetXProperty, 0.0, AffectsRender)
+        .Property(PerspectiveTransform3D::OffsetYProperty, 0.0, AffectsRender)
         .Factory();
 
     Register<MatrixTransform3D>(context)
-        .Property(MatrixTransform3D::MatrixProperty, FrameworkPropertyMetadata(Base::IdentityTransform3()) .AffectsRender())
+        .Property(MatrixTransform3D::MatrixProperty, Base::IdentityTransform3(), AffectsRender)
         .Factory();
 
     Register<Effect>(context, TypeFlags::Abstract);
 
     Register<BlurEffect>(context)
-        .Property(BlurEffect::RadiusProperty, FrameworkPropertyMetadata(5.0) .AffectsRender() .Validate(&Base::Validate::NonNegative<double>))
+        .Property(BlurEffect::RadiusProperty, FrameworkPropertyMetadata(5.0, AffectsRender).Validate(&Base::Validate::NonNegative<double>))
         .Factory();
 
     Register<DropShadowEffect>(context)
-        .Property(DropShadowEffect::BlurRadiusProperty, FrameworkPropertyMetadata(5.0) .AffectsRender() .Validate(&Base::Validate::NonNegative<double>))
-        .Property(DropShadowEffect::DirectionProperty, FrameworkPropertyMetadata(315.0) .AffectsRender())
-        .Property(DropShadowEffect::ShadowDepthProperty, FrameworkPropertyMetadata(5.0) .AffectsRender() .Validate(&Base::Validate::NonNegative<double>))
-        .Property(DropShadowEffect::OpacityProperty, FrameworkPropertyMetadata(1.0) .AffectsRender() .Validate(&ValidateUnitDouble))
-        .Property(DropShadowEffect::ColorProperty, FrameworkPropertyMetadata(Base::Color{ 0.0F, 0.0F, 0.0F, 1.0F}) .AffectsRender())
+        .Property(DropShadowEffect::BlurRadiusProperty, FrameworkPropertyMetadata(5.0, AffectsRender).Validate(&Base::Validate::NonNegative<double>))
+        .Property(DropShadowEffect::DirectionProperty, 315.0, AffectsRender)
+        .Property(DropShadowEffect::ShadowDepthProperty, FrameworkPropertyMetadata(5.0, AffectsRender).Validate(&Base::Validate::NonNegative<double>))
+        .Property(DropShadowEffect::OpacityProperty, FrameworkPropertyMetadata(1.0, AffectsRender).Validate(&ValidateUnitDouble))
+        .Property(DropShadowEffect::ColorProperty, Base::Color{ 0.0F, 0.0F, 0.0F, 1.0F}, AffectsRender)
         .Factory();
 
     Register<PixelateEffect>(context)
-        .Property(PixelateEffect::SizeProperty, FrameworkPropertyMetadata(1.0) .AffectsRender() .Validate(&Base::Validate::Positive<double>))
+        .Property(PixelateEffect::SizeProperty, FrameworkPropertyMetadata(1.0, AffectsRender).Validate(&Base::Validate::Positive<double>))
         .Factory();
 
     Register<TintEffect>(context)
-        .Property(TintEffect::ColorProperty, FrameworkPropertyMetadata(Base::Color{0.0F, 0.0F, 1.0F, 1.0F}) .AffectsRender())
+        .Property(TintEffect::ColorProperty, Base::Color{0.0F, 0.0F, 1.0F, 1.0F}, AffectsRender)
         .Factory();
 
     Register<DirectionalBlurEffect>(context)
-        .Property(DirectionalBlurEffect::RadiusProperty, FrameworkPropertyMetadata(0.0) .AffectsRender() .Validate(&Base::Validate::NonNegative<double>))
-        .Property(DirectionalBlurEffect::AngleProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
+        .Property(DirectionalBlurEffect::RadiusProperty, FrameworkPropertyMetadata(0.0, AffectsRender).Validate(&Base::Validate::NonNegative<double>))
+        .Property(DirectionalBlurEffect::AngleProperty, 0.0, AffectsRender)
         .Factory();
 
     Register<ShaderEffect>(context)
-        .Property(ShaderEffect::PixelShaderProperty, FrameworkPropertyMetadata(Base::String{}) .AffectsRender() .Changed(&ShaderEffect::OnPixelShaderChanged))
+        .Property(ShaderEffect::PixelShaderProperty, FrameworkPropertyMetadata(Base::String{}, AffectsRender).Changed(&ShaderEffect::OnPixelShaderChanged))
         .Factory();
 
     Register<MediaElement>(context)
@@ -269,19 +269,19 @@ Base::Result<void> PopulateUiMedia(
         .Event(MediaElement::MediaEndedEvent, RoutingStrategy::Direct)
         .Event(MediaElement::MediaFailedEvent, RoutingStrategy::Direct)
         .Event(MediaElement::MediaOpenedEvent, RoutingStrategy::Direct)
-        .Property(MediaElement::SourceProperty, FrameworkPropertyMetadata(Base::String{}))
-        .Property(MediaElement::StretchProperty, FrameworkPropertyMetadata(Stretch::Uniform) .AffectsMeasure() .AffectsRender())
-        .Property(MediaElement::StretchDirectionProperty, FrameworkPropertyMetadata(StretchDirection::Both) .AffectsMeasure() .AffectsRender())
-        .Property(MediaElement::LoadedBehaviorProperty, FrameworkPropertyMetadata(MediaState::Play))
-        .Property(MediaElement::UnloadedBehaviorProperty, FrameworkPropertyMetadata(MediaState::Close))
-        .Property(MediaElement::IsMutedProperty, FrameworkPropertyMetadata(false))
-        .Property(MediaElement::VolumeProperty, FrameworkPropertyMetadata(0.5))
-        .Property(MediaElement::BalanceProperty, FrameworkPropertyMetadata(0.0))
-        .Property(MediaElement::ScrubbingEnabledProperty, FrameworkPropertyMetadata(false))
+        .Property(MediaElement::SourceProperty, Base::String{})
+        .Property(MediaElement::StretchProperty, Stretch::Uniform, AffectsMeasure | AffectsRender)
+        .Property(MediaElement::StretchDirectionProperty, StretchDirection::Both, AffectsMeasure | AffectsRender)
+        .Property(MediaElement::LoadedBehaviorProperty, MediaState::Play)
+        .Property(MediaElement::UnloadedBehaviorProperty, MediaState::Close)
+        .Property(MediaElement::IsMutedProperty, false)
+        .Property(MediaElement::VolumeProperty, 0.5)
+        .Property(MediaElement::BalanceProperty, 0.0)
+        .Property(MediaElement::ScrubbingEnabledProperty, false)
         .Factory();
 
     Register<VisualBrush>(context)
-        .Property(VisualBrush::VisualProperty, FrameworkPropertyMetadata(Base::Ref<Base::Object>{}))
+        .Property(VisualBrush::VisualProperty, Base::Ref<Base::Object>{})
         .Factory();
 
     Register<ICommand>(context, TypeFlags::Abstract)

@@ -46,9 +46,9 @@ Base::Result<void> PopulateControlsPrimitives(
     Base::Result<void> status;
 
     Register<Panel>(context, TypeFlags::Abstract)
-        .Property(Panel::BackgroundProperty, FrameworkPropertyMetadata(Base::Ref<Media::Brush>{}).AffectsRender())
-        .Property(Panel::ZIndexProperty, FrameworkPropertyMetadata(std::int32_t{0}).AffectsParentArrange())
-        .Property(Panel::IsItemsHostProperty, FrameworkPropertyMetadata(false))
+        .Property(Panel::BackgroundProperty, Base::Ref<Media::Brush>{}, AffectsRender)
+        .Property(Panel::ZIndexProperty, std::int32_t{0}, AffectsParentArrange)
+        .Property(Panel::IsItemsHostProperty, false)
         .Content<Aero::UIElement>("Children", ContentKind::Collection, &SetPanelContent, &ClearPanelContent, ContentFlags::Visual);
 
     Register<Decorator>(context)
@@ -59,13 +59,13 @@ Base::Result<void> PopulateControlsPrimitives(
     // visual collection as implicit content lets the following child element
     // populate the regular content slot while retaining both tree edges.
     Register<BulletDecorator>(context)
-        .Property(BulletDecorator::BackgroundProperty, FrameworkPropertyMetadata(Base::Ref<Aero::Media::Brush>{}).AffectsRender())
+        .Property(BulletDecorator::BackgroundProperty, Base::Ref<Aero::Media::Brush>{}, AffectsRender)
         .Content<Aero::UIElement>("Bullet", ContentKind::Collection, &AddBulletDecoratorContent, &ClearBulletDecoratorContent, ContentFlags::Visual)
         .Factory();
 
     Register<Viewbox>(context)
-        .Property(Viewbox::StretchProperty, FrameworkPropertyMetadata(Stretch::Uniform).AffectsMeasure())
-        .Property(Viewbox::StretchDirectionProperty, FrameworkPropertyMetadata(StretchDirection::Both).AffectsMeasure())
+        .Property(Viewbox::StretchProperty, Stretch::Uniform, AffectsMeasure)
+        .Property(Viewbox::StretchDirectionProperty, StretchDirection::Both, AffectsMeasure)
         .Content<Aero::UIElement>("Content", ContentKind::Single, &SetDecoratorContent, &ClearDecoratorContent, ContentFlags::Visual)
         .Factory();
 
@@ -74,23 +74,23 @@ Base::Result<void> PopulateControlsPrimitives(
         .Event(Control::MouseDoubleClickEvent)
         .Override(UIElement::FocusableProperty, FrameworkPropertyMetadata(true))
         .Override(UIElement::IsTabStopProperty, FrameworkPropertyMetadata(true))
-        .Property(Control::BackgroundProperty, FrameworkPropertyMetadata(Base::Ref<Media::Brush>{}).AffectsRender())
-        .Property(Control::BorderBrushProperty, FrameworkPropertyMetadata(Base::Ref<Media::Brush>{}).AffectsRender())
-        .Property(Control::BorderThicknessProperty, FrameworkPropertyMetadata(Aero::Thickness{}).AffectsMeasure().AffectsRender().Validate(&ValidateThicknessValue))
-        .Property(Control::PaddingProperty, FrameworkPropertyMetadata(Aero::Thickness{}).AffectsMeasure().Validate(&ValidateThicknessValue))
-        .Property(Control::FontWeightProperty, FrameworkPropertyMetadata(FontWeight::Normal).AffectsMeasure())
-        .Property(Control::HorizontalContentAlignmentProperty, FrameworkPropertyMetadata(Aero::HorizontalAlignment::Left).AffectsArrange())
-        .Property(Control::VerticalContentAlignmentProperty, FrameworkPropertyMetadata(Aero::VerticalAlignment::Top).AffectsArrange())
-        .Property(Control::FontSizeProperty, FrameworkPropertyMetadata(16.0).Inherits().AffectsMeasure().Validate(&ValidatePositiveFiniteDouble))
-        .Property(Control::FocusVisualStyleProperty, FrameworkPropertyMetadata(Base::Ref<Aero::Style>{}))
-        .Property(Control::OverridesDefaultStyleProperty, FrameworkPropertyMetadata(false))
-        .Property(Control::TemplateProperty, FrameworkPropertyMetadata(Base::Ref<ControlTemplate>{}).AffectsMeasure())
+        .Property(Control::BackgroundProperty, Base::Ref<Media::Brush>{}, AffectsRender)
+        .Property(Control::BorderBrushProperty, Base::Ref<Media::Brush>{}, AffectsRender)
+        .Property(Control::BorderThicknessProperty, FrameworkPropertyMetadata(Aero::Thickness{}, AffectsMeasure | AffectsRender).Validate(&ValidateThicknessValue))
+        .Property(Control::PaddingProperty, FrameworkPropertyMetadata(Aero::Thickness{}, AffectsMeasure).Validate(&ValidateThicknessValue))
+        .Property(Control::FontWeightProperty, FontWeight::Normal, AffectsMeasure)
+        .Property(Control::HorizontalContentAlignmentProperty, Aero::HorizontalAlignment::Left, AffectsArrange)
+        .Property(Control::VerticalContentAlignmentProperty, Aero::VerticalAlignment::Top, AffectsArrange)
+        .Property(Control::FontSizeProperty, FrameworkPropertyMetadata(16.0, Inherits | AffectsMeasure).Validate(&ValidatePositiveFiniteDouble))
+        .Property(Control::FocusVisualStyleProperty, Base::Ref<Aero::Style>{})
+        .Property(Control::OverridesDefaultStyleProperty, false)
+        .Property(Control::TemplateProperty, Base::Ref<ControlTemplate>{}, AffectsMeasure)
         .Factory<BasicControl>();
 
     Register<ContentControl>(context)
-        .Property(ContentControl::ContentProperty, FrameworkPropertyMetadata(Meta::Value::NullObject(Meta::TypeOf<Base::Object>())).AffectsMeasure().Structural().Changed(&AeroGuiInternal::OnContentControlPropertyChanged))
-        .Property(ContentControl::ContentTemplateProperty, FrameworkPropertyMetadata(Base::Ref<Base::Object>{}).AffectsMeasure())
-        .Property(ContentControl::ContentTemplateSelectorProperty, FrameworkPropertyMetadata(Base::Ref<Base::Object>{}).AffectsMeasure())
+        .Property(ContentControl::ContentProperty, FrameworkPropertyMetadata(Meta::Value::NullObject(Meta::TypeOf<Base::Object>()), AffectsMeasure).Structural().Changed(&AeroGuiInternal::OnContentControlPropertyChanged))
+        .Property(ContentControl::ContentTemplateProperty, Base::Ref<Base::Object>{}, AffectsMeasure)
+        .Property(ContentControl::ContentTemplateSelectorProperty, Base::Ref<Base::Object>{}, AffectsMeasure)
         .ContentAccessor(MakeMemberId(ContentControl::StaticTypeId(), MemberKind::Property, "Content"), ContentKind::Single, &SetContentControlContent, &ClearContentControlContent, ContentFlags::Visual)
         .Factory<BasicContentControl>();
 
@@ -102,18 +102,18 @@ Base::Result<void> PopulateControlsPrimitives(
 
     Register<ButtonBase>(context, TypeFlags::Abstract)
         .Event(ButtonBase::ClickEvent)
-        .Property(ButtonBase::ClickModeProperty, FrameworkPropertyMetadata(ClickMode::Release))
-        .Property(ButtonBase::CommandProperty, FrameworkPropertyMetadata(Base::Ref<ICommand>{}))
-        .Property(ButtonBase::CommandParameterProperty, FrameworkPropertyMetadata(Value::NullObject(TypeOf<Base::Object>())))
-        .Property(ButtonBase::CommandTargetProperty, FrameworkPropertyMetadata(Base::Ref<UIElement>{}))
-        .Override(UIElement::IsEnabledProperty, FrameworkPropertyMetadata(true).Inherits().AffectsRender().Coerce(&CoerceButtonEnabled))
+        .Property(ButtonBase::ClickModeProperty, ClickMode::Release)
+        .Property(ButtonBase::CommandProperty, Base::Ref<ICommand>{})
+        .Property(ButtonBase::CommandParameterProperty, Value::NullObject(TypeOf<Base::Object>()))
+        .Property(ButtonBase::CommandTargetProperty, Base::Ref<UIElement>{})
+        .Override(UIElement::IsEnabledProperty, FrameworkPropertyMetadata(true, Inherits | AffectsRender).Coerce(&CoerceButtonEnabled))
         .Override(UIElement::IsTabStopProperty, FrameworkPropertyMetadata(true));
 
     Register<Button>(context)
         .Factory();
 
     Register<RepeatButton>(context)
-        .Property(RepeatButton::DelayProperty, FrameworkPropertyMetadata(std::uint32_t{400}))
+        .Property(RepeatButton::DelayProperty, std::uint32_t{400})
         .Property(RepeatButton::IntervalProperty, FrameworkPropertyMetadata(std::uint32_t{100}).Validate(&Base::Validate::Positive<std::uint32_t>))
         .Override(ButtonBase::ClickModeProperty, FrameworkPropertyMetadata(ClickMode::Press))
         .Factory();
@@ -122,19 +122,19 @@ Base::Result<void> PopulateControlsPrimitives(
         .Event(ToggleButton::CheckedEvent)
         .Event(ToggleButton::UncheckedEvent)
         .Event(ToggleButton::IndeterminateEvent)
-        .Property(ToggleButton::IsCheckedProperty, FrameworkPropertyMetadata(Nullable<bool>{false}).BindsTwoWayByDefault().AffectsRender())
-        .Property(ToggleButton::IsThreeStateProperty, FrameworkPropertyMetadata(false).AffectsRender())
+        .Property(ToggleButton::IsCheckedProperty, Nullable<bool>{false}, BindsTwoWayByDefault | AffectsRender)
+        .Property(ToggleButton::IsThreeStateProperty, false, AffectsRender)
         .Factory();
 
     Register<CheckBox>(context)
         .Factory();
 
     Register<RadioButton>(context)
-        .Property(RadioButton::GroupNameProperty, FrameworkPropertyMetadata(Base::String{}))
+        .Property(RadioButton::GroupNameProperty, Base::String{})
         .Factory();
 
     Register<ScrollContentPresenter>(context)
-        .Property(ScrollContentPresenter::CanContentScrollProperty, FrameworkPropertyMetadata(false).AffectsMeasure())
+        .Property(ScrollContentPresenter::CanContentScrollProperty, false, AffectsMeasure)
         .Factory();
 
     Register<ScrollViewer>(context)
@@ -147,29 +147,29 @@ Base::Result<void> PopulateControlsPrimitives(
         .Property(ScrollViewer::ViewportHeightProperty, FrameworkPropertyMetadata(0.0).Validate(&::Aero::Base::Validate::NonNegative<double>))
         .Property(ScrollViewer::ScrollableWidthProperty, FrameworkPropertyMetadata(0.0).Validate(&::Aero::Base::Validate::NonNegative<double>))
         .Property(ScrollViewer::ScrollableHeightProperty, FrameworkPropertyMetadata(0.0).Validate(&::Aero::Base::Validate::NonNegative<double>))
-        .Property(ScrollViewer::ComputedHorizontalScrollBarVisibilityProperty, FrameworkPropertyMetadata(Visibility::Collapsed).AffectsMeasure().AffectsRender())
-        .Property(ScrollViewer::ComputedVerticalScrollBarVisibilityProperty, FrameworkPropertyMetadata(Visibility::Collapsed).AffectsMeasure().AffectsRender())
-        .Property(ScrollViewer::HorizontalScrollBarVisibilityProperty, FrameworkPropertyMetadata(ScrollBarVisibility::Disabled).AffectsMeasure().AffectsRender().Changed(&OnScrollViewerVisibilityChanged))
-        .Property(ScrollViewer::VerticalScrollBarVisibilityProperty, FrameworkPropertyMetadata(ScrollBarVisibility::Visible).AffectsMeasure().AffectsRender().Changed(&OnScrollViewerVisibilityChanged))
-        .Property(ScrollViewer::CanHorizontallyScrollProperty, FrameworkPropertyMetadata(true).AffectsMeasure())
-        .Property(ScrollViewer::CanVerticallyScrollProperty, FrameworkPropertyMetadata(true).AffectsMeasure())
-        .Property(ScrollViewer::CanContentScrollProperty, FrameworkPropertyMetadata(false).AffectsMeasure())
-        .Property(ScrollViewer::PanningModeProperty, FrameworkPropertyMetadata(PanningMode::None))
+        .Property(ScrollViewer::ComputedHorizontalScrollBarVisibilityProperty, Visibility::Collapsed, AffectsMeasure | AffectsRender)
+        .Property(ScrollViewer::ComputedVerticalScrollBarVisibilityProperty, Visibility::Collapsed, AffectsMeasure | AffectsRender)
+        .Property(ScrollViewer::HorizontalScrollBarVisibilityProperty, FrameworkPropertyMetadata(ScrollBarVisibility::Disabled, AffectsMeasure | AffectsRender).Changed(&OnScrollViewerVisibilityChanged))
+        .Property(ScrollViewer::VerticalScrollBarVisibilityProperty, FrameworkPropertyMetadata(ScrollBarVisibility::Visible, AffectsMeasure | AffectsRender).Changed(&OnScrollViewerVisibilityChanged))
+        .Property(ScrollViewer::CanHorizontallyScrollProperty, true, AffectsMeasure)
+        .Property(ScrollViewer::CanVerticallyScrollProperty, true, AffectsMeasure)
+        .Property(ScrollViewer::CanContentScrollProperty, false, AffectsMeasure)
+        .Property(ScrollViewer::PanningModeProperty, PanningMode::None)
         .TemplatePart("PART_VerticalScrollBar", TypeOf<ScrollBar>())
         .TemplatePart("PART_HorizontalScrollBar", TypeOf<ScrollBar>())
         .Factory();
 
     Register<Thumb>(context)
-        .Property(Thumb::IsDraggingProperty, FrameworkPropertyMetadata(false).AffectsRender())
+        .Property(Thumb::IsDraggingProperty, false, AffectsRender)
         .Factory();
 
     Register<Track>(context)
-        .Property(Track::OrientationProperty, FrameworkPropertyMetadata(Orientation::Vertical).AffectsMeasure())
-        .Property(Track::MinimumProperty, FrameworkPropertyMetadata(0.0).AffectsArrange().Validate(&::Aero::Base::Validate::Finite<double>))
-        .Property(Track::MaximumProperty, FrameworkPropertyMetadata(1.0).AffectsArrange().Validate(&::Aero::Base::Validate::Finite<double>))
-        .Property(Track::ValueProperty, FrameworkPropertyMetadata(0.0).AffectsArrange().BindsTwoWayByDefault().Validate(&::Aero::Base::Validate::Finite<double>))
-        .Property(Track::ViewportSizeProperty, FrameworkPropertyMetadata(0.0).AffectsArrange().Validate(&::Aero::Base::Validate::NonNegative<double>))
-        .Property(Track::IsDirectionReversedProperty, FrameworkPropertyMetadata(false).AffectsArrange())
+        .Property(Track::OrientationProperty, Orientation::Vertical, AffectsMeasure)
+        .Property(Track::MinimumProperty, FrameworkPropertyMetadata(0.0, AffectsArrange).Validate(&::Aero::Base::Validate::Finite<double>))
+        .Property(Track::MaximumProperty, FrameworkPropertyMetadata(1.0, AffectsArrange).Validate(&::Aero::Base::Validate::Finite<double>))
+        .Property(Track::ValueProperty, FrameworkPropertyMetadata(0.0, AffectsArrange | BindsTwoWayByDefault).Validate(&::Aero::Base::Validate::Finite<double>))
+        .Property(Track::ViewportSizeProperty, FrameworkPropertyMetadata(0.0, AffectsArrange).Validate(&::Aero::Base::Validate::NonNegative<double>))
+        .Property(Track::IsDirectionReversedProperty, false, AffectsArrange)
         .Property<Base::Ref<RepeatButton>, &Track::SetDecreaseRepeatButton>("DecreaseRepeatButton", PropertyFlags::Structural)
         .Property<Base::Ref<Thumb>, &Track::SetThumb>("Thumb", PropertyFlags::Structural)
         .Property<Base::Ref<RepeatButton>, &Track::SetIncreaseRepeatButton>("IncreaseRepeatButton", PropertyFlags::Structural)
@@ -178,21 +178,21 @@ Base::Result<void> PopulateControlsPrimitives(
     Register<GridSplitter>(context)
         .Property(GridSplitter::DragIncrementProperty, FrameworkPropertyMetadata(1.0).Validate(&::Aero::Base::Validate::Positive<double>))
         .Property(GridSplitter::KeyboardIncrementProperty, FrameworkPropertyMetadata(10.0).Validate(&::Aero::Base::Validate::Positive<double>))
-        .Property(GridSplitter::ResizeDirectionProperty, FrameworkPropertyMetadata(GridResizeDirection::Auto))
-        .Property(GridSplitter::ResizeBehaviorProperty, FrameworkPropertyMetadata(GridResizeBehavior::BasedOnAlignment))
-        .Property(GridSplitter::ShowsPreviewProperty, FrameworkPropertyMetadata(false))
-        .Property(GridSplitter::PreviewStyleProperty, FrameworkPropertyMetadata(Base::Ref<Aero::Style>{}))
+        .Property(GridSplitter::ResizeDirectionProperty, GridResizeDirection::Auto)
+        .Property(GridSplitter::ResizeBehaviorProperty, GridResizeBehavior::BasedOnAlignment)
+        .Property(GridSplitter::ShowsPreviewProperty, false)
+        .Property(GridSplitter::PreviewStyleProperty, Base::Ref<Aero::Style>{})
         .Factory();
 
     Register<RangeBase>(context, TypeFlags::Abstract)
         .Event(RangeBase::ValueChangedEvent)
-        .Property(RangeBase::MinimumProperty, FrameworkPropertyMetadata(0.0).AffectsArrange().Validate(&::Aero::Base::Validate::Finite<double>).Coerce(&CoerceRangeMinimum))
-        .Property(RangeBase::MaximumProperty, FrameworkPropertyMetadata(100.0).AffectsArrange().Validate(&::Aero::Base::Validate::Finite<double>).Coerce(&CoerceRangeMaximum))
-        .Property(RangeBase::ValueProperty, FrameworkPropertyMetadata(0.0).AffectsArrange().BindsTwoWayByDefault().Validate(&::Aero::Base::Validate::Finite<double>).Coerce(&CoerceRangeValue));
+        .Property(RangeBase::MinimumProperty, FrameworkPropertyMetadata(0.0, AffectsArrange).Validate(&::Aero::Base::Validate::Finite<double>).Coerce(&CoerceRangeMinimum))
+        .Property(RangeBase::MaximumProperty, FrameworkPropertyMetadata(100.0, AffectsArrange).Validate(&::Aero::Base::Validate::Finite<double>).Coerce(&CoerceRangeMaximum))
+        .Property(RangeBase::ValueProperty, FrameworkPropertyMetadata(0.0, AffectsArrange | BindsTwoWayByDefault).Validate(&::Aero::Base::Validate::Finite<double>).Coerce(&CoerceRangeValue));
 
     Register<ScrollBar>(context)
-        .Property(ScrollBar::OrientationProperty, FrameworkPropertyMetadata(Orientation::Vertical).AffectsMeasure())
-        .Property(ScrollBar::ViewportSizeProperty, FrameworkPropertyMetadata(0.0).AffectsArrange().Validate(&::Aero::Base::Validate::NonNegative<double>))
+        .Property(ScrollBar::OrientationProperty, Orientation::Vertical, AffectsMeasure)
+        .Property(ScrollBar::ViewportSizeProperty, FrameworkPropertyMetadata(0.0, AffectsArrange).Validate(&::Aero::Base::Validate::NonNegative<double>))
         .Property(ScrollBar::SmallChangeProperty, FrameworkPropertyMetadata(16.0).Validate(&::Aero::Base::Validate::Positive<double>))
         .Property(ScrollBar::LargeChangeProperty, FrameworkPropertyMetadata(0.0).Validate(&::Aero::Base::Validate::NonNegative<double>))
         .TemplatePart("PART_Track", TypeOf<Track>())
@@ -247,26 +247,26 @@ Base::Result<void> PopulateControlsPrimitives(
     }
 
     Register<Slider>(context)
-        .Property(Slider::OrientationProperty, FrameworkPropertyMetadata(Orientation::Horizontal).AffectsMeasure())
+        .Property(Slider::OrientationProperty, Orientation::Horizontal, AffectsMeasure)
         .Property(Slider::SmallChangeProperty, FrameworkPropertyMetadata(1.0).Validate(&Base::Validate::Positive<double>))
         .Property(Slider::LargeChangeProperty, FrameworkPropertyMetadata(10.0).Validate(&Base::Validate::Positive<double>))
-        .Property(Slider::TickPlacementProperty, FrameworkPropertyMetadata(TickPlacement::None).AffectsRender())
-        .Property(Slider::TickFrequencyProperty, FrameworkPropertyMetadata(1.0).AffectsRender().Validate(&Base::Validate::Positive<double>))
-        .Property(Slider::TicksProperty, FrameworkPropertyMetadata(Base::String{}).AffectsRender().Validate(&ValidateSliderTicks))
-        .Property(Slider::IsSnapToTickEnabledProperty, FrameworkPropertyMetadata(false))
-        .Property(Slider::IsDirectionReversedProperty, FrameworkPropertyMetadata(false).AffectsArrange().AffectsRender())
-        .Property(Slider::IsMoveToPointEnabledProperty, FrameworkPropertyMetadata(false))
+        .Property(Slider::TickPlacementProperty, TickPlacement::None, AffectsRender)
+        .Property(Slider::TickFrequencyProperty, FrameworkPropertyMetadata(1.0, AffectsRender).Validate(&Base::Validate::Positive<double>))
+        .Property(Slider::TicksProperty, FrameworkPropertyMetadata(Base::String{}, AffectsRender).Validate(&ValidateSliderTicks))
+        .Property(Slider::IsSnapToTickEnabledProperty, false)
+        .Property(Slider::IsDirectionReversedProperty, false, AffectsArrange | AffectsRender)
+        .Property(Slider::IsMoveToPointEnabledProperty, false)
         .Override(UIElement::IsTabStopProperty, FrameworkPropertyMetadata(true))
         .Factory();
 
     Register<TickBar>(context)
-        .Property(TickBar::FillProperty, FrameworkPropertyMetadata(Base::Ref<Media::Brush>{}).AffectsRender())
-        .Property(TickBar::PlacementProperty, FrameworkPropertyMetadata(TickBarPlacement::Top).AffectsRender())
+        .Property(TickBar::FillProperty, Base::Ref<Media::Brush>{}, AffectsRender)
+        .Property(TickBar::PlacementProperty, TickBarPlacement::Top, AffectsRender)
         .Factory();
 
     Register<ProgressBar>(context)
-        .Property(ProgressBar::IsIndeterminateProperty, FrameworkPropertyMetadata(false).AffectsRender())
-        .Property(ProgressBar::OrientationProperty, FrameworkPropertyMetadata(Orientation::Horizontal).AffectsMeasure())
+        .Property(ProgressBar::IsIndeterminateProperty, false, AffectsRender)
+        .Property(ProgressBar::OrientationProperty, Orientation::Horizontal, AffectsMeasure)
         .Factory();
 
     return {};
@@ -305,61 +305,61 @@ Base::Result<void> PopulateControlsItems(
     Register<::Aero::Controls::BoxedItemValue>(context);
 
     Register<ItemsControl>(context)
-        .Property(ItemsControl::ItemCountProperty, FrameworkPropertyMetadata(std::uint32_t{0}))
-        .Property(ItemsControl::HasItemsProperty, FrameworkPropertyMetadata(false))
-        .Property(ItemsControl::ItemsSourceProperty, FrameworkPropertyMetadata(Base::Ref<Base::Object>{}).AffectsMeasure().Changed(&OnItemsSourceChanged))
-        .Property(ItemsControl::AlternationCountProperty, FrameworkPropertyMetadata(std::uint32_t{0}).AffectsMeasure())
-        .Property(ItemsControl::DisplayMemberPathProperty, FrameworkPropertyMetadata(Base::String{}).AffectsMeasure().Changed(&OnDisplayMemberPathChanged))
-        .Property(ItemsControl::ItemTemplateProperty, FrameworkPropertyMetadata(Base::Ref<DataTemplate>{}).AffectsMeasure().Changed(&OnItemTemplateChanged))
-        .Property(ItemsControl::ItemTemplateSelectorProperty, FrameworkPropertyMetadata(Base::Ref<DataTemplateSelector>{}).AffectsMeasure().Changed(&OnItemTemplateSelectorChanged))
-        .Property(ItemsControl::ItemsPanelProperty, FrameworkPropertyMetadata(Base::Ref<ItemsPanelTemplate>{}).AffectsMeasure().Changed(&OnItemsPanelChanged))
-        .Property(ItemsControl::ItemContainerStyleProperty, FrameworkPropertyMetadata(Base::Ref<Style>{}).AffectsMeasure().Changed(&OnItemContainerStyleChanged))
+        .Property(ItemsControl::ItemCountProperty, std::uint32_t{0})
+        .Property(ItemsControl::HasItemsProperty, false)
+        .Property(ItemsControl::ItemsSourceProperty, FrameworkPropertyMetadata(Base::Ref<Base::Object>{}, AffectsMeasure).Changed(&OnItemsSourceChanged))
+        .Property(ItemsControl::AlternationCountProperty, std::uint32_t{0}, AffectsMeasure)
+        .Property(ItemsControl::DisplayMemberPathProperty, FrameworkPropertyMetadata(Base::String{}, AffectsMeasure).Changed(&OnDisplayMemberPathChanged))
+        .Property(ItemsControl::ItemTemplateProperty, FrameworkPropertyMetadata(Base::Ref<DataTemplate>{}, AffectsMeasure).Changed(&OnItemTemplateChanged))
+        .Property(ItemsControl::ItemTemplateSelectorProperty, FrameworkPropertyMetadata(Base::Ref<DataTemplateSelector>{}, AffectsMeasure).Changed(&OnItemTemplateSelectorChanged))
+        .Property(ItemsControl::ItemsPanelProperty, FrameworkPropertyMetadata(Base::Ref<ItemsPanelTemplate>{}, AffectsMeasure).Changed(&OnItemsPanelChanged))
+        .Property(ItemsControl::ItemContainerStyleProperty, FrameworkPropertyMetadata(Base::Ref<Style>{}, AffectsMeasure).Changed(&OnItemContainerStyleChanged))
         .Content<Base::Object>("Items", ContentKind::Collection, &AddItemsControlItem, &ClearItemsControlItems)
         .Factory();
 
     Register<HeaderedItemsControl>(context, TypeFlags::Abstract)
-        .Property(HeaderedItemsControl::HeaderProperty, FrameworkPropertyMetadata(Value::NullObject(TypeOf<Base::Object>())).AffectsMeasure())
-        .Property(HeaderedItemsControl::HeaderTemplateProperty, FrameworkPropertyMetadata(Base::Ref<DataTemplate>{}).AffectsMeasure());
+        .Property(HeaderedItemsControl::HeaderProperty, Value::NullObject(TypeOf<Base::Object>()), AffectsMeasure)
+        .Property(HeaderedItemsControl::HeaderTemplateProperty, Base::Ref<DataTemplate>{}, AffectsMeasure);
 
     Register<ItemsPresenter>(context)
         .Factory();
 
     Register<Selector>(context, TypeFlags::Abstract)
         .Event(Selector::SelectionChangedRoutedEvent)
-        .Property(Selector::SelectionModeProperty, FrameworkPropertyMetadata(SelectionMode::Single))
-        .Property(Selector::SelectedIndexProperty, FrameworkPropertyMetadata(UINT32_MAX).BindsTwoWayByDefault())
-        .Property(Selector::SelectedItemProperty, FrameworkPropertyMetadata(Base::Ref<Base::Object>{}).BindsTwoWayByDefault().Coerce(&CoerceSelectedObject))
-        .Property(Selector::SelectedValueProperty, FrameworkPropertyMetadata(Base::Ref<Base::Object>{}).BindsTwoWayByDefault().Coerce(&CoerceSelectedObject))
-        .Property(Selector::SelectedValuePathProperty, FrameworkPropertyMetadata(Base::String{}))
-        .Property(Selector::IsSelectedProperty, FrameworkPropertyMetadata(false).AffectsRender().BindsTwoWayByDefault())
-        .Property(Selector::IsSynchronizedWithCurrentItemProperty, FrameworkPropertyMetadata(false));
+        .Property(Selector::SelectionModeProperty, SelectionMode::Single)
+        .Property(Selector::SelectedIndexProperty, UINT32_MAX, BindsTwoWayByDefault)
+        .Property(Selector::SelectedItemProperty, FrameworkPropertyMetadata(Base::Ref<Base::Object>{}, BindsTwoWayByDefault).Coerce(&CoerceSelectedObject))
+        .Property(Selector::SelectedValueProperty, FrameworkPropertyMetadata(Base::Ref<Base::Object>{}, BindsTwoWayByDefault).Coerce(&CoerceSelectedObject))
+        .Property(Selector::SelectedValuePathProperty, Base::String{})
+        .Property(Selector::IsSelectedProperty, false, AffectsRender | BindsTwoWayByDefault)
+        .Property(Selector::IsSynchronizedWithCurrentItemProperty, false);
 
     Register<ListBox>(context)
         .Factory();
 
     Register<ListBoxItem>(context)
-        .Property(ListBoxItem::IsSelectedProperty, FrameworkPropertyMetadata(false).AffectsRender().BindsTwoWayByDefault())
+        .Property(ListBoxItem::IsSelectedProperty, false, AffectsRender | BindsTwoWayByDefault)
         .Override(Aero::UIElement::IsTabStopProperty, FrameworkPropertyMetadata(true))
         .Factory();
 
     Register<ComboBox>(context)
         .Event(ComboBox::DropDownOpenedEvent)
         .Event(ComboBox::DropDownClosedEvent)
-        .Property(ComboBox::IsDropDownOpenProperty, FrameworkPropertyMetadata(false).AffectsMeasure().AffectsRender().BindsTwoWayByDefault())
-        .Property(ComboBox::MaxDropDownHeightProperty, FrameworkPropertyMetadata(240.0).AffectsMeasure().Validate(&Base::Validate::Positive<double>))
-        .Property(ComboBox::IsEditableProperty, FrameworkPropertyMetadata(false).AffectsMeasure().AffectsRender())
-        .Property(ComboBox::IsReadOnlyProperty, FrameworkPropertyMetadata(false).AffectsRender())
-        .Property(ComboBox::TextProperty, FrameworkPropertyMetadata(Base::String{}).AffectsMeasure().BindsTwoWayByDefault())
-        .Property(ComboBox::PlaceholderProperty, FrameworkPropertyMetadata(Base::String{}).AffectsMeasure().AffectsRender())
-        .Property(ComboBox::SelectionBoxTextProperty, FrameworkPropertyMetadata(Base::String{}))
-        .Property(ComboBox::SelectionBoxItemProperty, FrameworkPropertyMetadata(Meta::Value::NullObject(Meta::TypeOf<Base::Object>())))
+        .Property(ComboBox::IsDropDownOpenProperty, false, AffectsMeasure | AffectsRender | BindsTwoWayByDefault)
+        .Property(ComboBox::MaxDropDownHeightProperty, FrameworkPropertyMetadata(240.0, AffectsMeasure).Validate(&Base::Validate::Positive<double>))
+        .Property(ComboBox::IsEditableProperty, false, AffectsMeasure | AffectsRender)
+        .Property(ComboBox::IsReadOnlyProperty, false, AffectsRender)
+        .Property(ComboBox::TextProperty, Base::String{}, AffectsMeasure | BindsTwoWayByDefault)
+        .Property(ComboBox::PlaceholderProperty, Base::String{}, AffectsMeasure | AffectsRender)
+        .Property(ComboBox::SelectionBoxTextProperty, Base::String{})
+        .Property(ComboBox::SelectionBoxItemProperty, Meta::Value::NullObject(Meta::TypeOf<Base::Object>()))
         .Override(Aero::UIElement::IsTabStopProperty, FrameworkPropertyMetadata(true))
         .TemplatePart("PART_EditableTextBox", TypeOf<TextBox>())
         .TemplatePart("PART_Popup", TypeOf<Popup>())
         .Factory();
 
     Register<ComboBoxItem>(context)
-        .Property(ComboBoxItem::IsSelectedProperty, FrameworkPropertyMetadata(false).AffectsRender().BindsTwoWayByDefault())
+        .Property(ComboBoxItem::IsSelectedProperty, false, AffectsRender | BindsTwoWayByDefault)
         .Override(Aero::UIElement::IsTabStopProperty, FrameworkPropertyMetadata(true))
         .Factory();
 
@@ -369,20 +369,20 @@ Base::Result<void> PopulateControlsItems(
     Register<Popup>(context)
         .Event(Popup::OpenedEvent)
         .Event(Popup::ClosedEvent)
-        .Property(Popup::IsOpenProperty, FrameworkPropertyMetadata(false).AffectsMeasure().AffectsRender().BindsTwoWayByDefault())
-        .Property(Popup::PlacementProperty, FrameworkPropertyMetadata(PlacementMode::Bottom).AffectsArrange())
-        .Property(Popup::HorizontalOffsetProperty, FrameworkPropertyMetadata(0.0).AffectsArrange().Validate(&Base::Validate::Finite<double>))
-        .Property(Popup::VerticalOffsetProperty, FrameworkPropertyMetadata(0.0).AffectsArrange().Validate(&Base::Validate::Finite<double>))
-        .Property(Popup::StaysOpenProperty, FrameworkPropertyMetadata(true))
-        .Property(Popup::MatchPlacementTargetWidthProperty, FrameworkPropertyMetadata(false).AffectsArrange())
-        .Property(Popup::PlacementTargetProperty, FrameworkPropertyMetadata(Base::Ref<UIElement>{}).AffectsArrange())
-        .Property(Popup::PopupAnimationProperty, FrameworkPropertyMetadata(PopupAnimation::None).AffectsRender())
-        .Property(Popup::AllowsTransparencyProperty, FrameworkPropertyMetadata(false).AffectsRender())
+        .Property(Popup::IsOpenProperty, false, AffectsMeasure | AffectsRender | BindsTwoWayByDefault)
+        .Property(Popup::PlacementProperty, PlacementMode::Bottom, AffectsArrange)
+        .Property(Popup::HorizontalOffsetProperty, FrameworkPropertyMetadata(0.0, AffectsArrange).Validate(&Base::Validate::Finite<double>))
+        .Property(Popup::VerticalOffsetProperty, FrameworkPropertyMetadata(0.0, AffectsArrange).Validate(&Base::Validate::Finite<double>))
+        .Property(Popup::StaysOpenProperty, true)
+        .Property(Popup::MatchPlacementTargetWidthProperty, false, AffectsArrange)
+        .Property(Popup::PlacementTargetProperty, Base::Ref<UIElement>{}, AffectsArrange)
+        .Property(Popup::PopupAnimationProperty, PopupAnimation::None, AffectsRender)
+        .Property(Popup::AllowsTransparencyProperty, false, AffectsRender)
         .Factory();
 
     Register<TreeView>(context)
         .Event(TreeView::SelectedItemChangedEvent)
-        .Property(TreeView::SelectedItemProperty, FrameworkPropertyMetadata(Base::Ref<Base::Object>{}))
+        .Property(TreeView::SelectedItemProperty, Base::Ref<Base::Object>{})
         .Factory();
 
     Register<TreeViewItem>(context)
@@ -390,9 +390,9 @@ Base::Result<void> PopulateControlsItems(
         .Event(TreeViewItem::CollapsedEvent)
         .Event(TreeViewItem::SelectedEvent)
         .Event(TreeViewItem::UnselectedEvent)
-        .Property(TreeViewItem::IconProperty, FrameworkPropertyMetadata(Base::String{}).AffectsMeasure())
-        .Property(TreeViewItem::IsExpandedProperty, FrameworkPropertyMetadata(false).AffectsMeasure().BindsTwoWayByDefault())
-        .Property(TreeViewItem::IsSelectedProperty, FrameworkPropertyMetadata(false).AffectsRender().BindsTwoWayByDefault())
+        .Property(TreeViewItem::IconProperty, Base::String{}, AffectsMeasure)
+        .Property(TreeViewItem::IsExpandedProperty, false, AffectsMeasure | BindsTwoWayByDefault)
+        .Property(TreeViewItem::IsSelectedProperty, false, AffectsRender | BindsTwoWayByDefault)
         .Override(Aero::UIElement::IsTabStopProperty, FrameworkPropertyMetadata(true))
         .Content<Base::Object>("Items", ContentKind::Collection, &AddTreeViewItem, &ClearTreeViewItems)
         .Factory();
@@ -402,39 +402,39 @@ Base::Result<void> PopulateControlsItems(
 
     Register<MenuItem>(context)
         .Event(MenuItem::ClickEvent)
-        .Property(MenuItem::InputGestureTextProperty, FrameworkPropertyMetadata(Base::String{}).AffectsMeasure())
-        .Property(MenuItem::IsCheckableProperty, FrameworkPropertyMetadata(false).AffectsMeasure())
-        .Property(MenuItem::IsCheckedProperty, FrameworkPropertyMetadata(false).AffectsRender().BindsTwoWayByDefault())
-        .Property(MenuItem::IsHighlightedProperty, FrameworkPropertyMetadata(false).AffectsRender())
-        .Property(MenuItem::IsSubmenuOpenProperty, FrameworkPropertyMetadata(false).AffectsMeasure().AffectsRender().BindsTwoWayByDefault())
-        .Property(MenuItem::RoleProperty, FrameworkPropertyMetadata(MenuItemRole::TopLevelItem).AffectsMeasure().AffectsRender())
-        .Property(MenuItem::CommandProperty, FrameworkPropertyMetadata(Base::Ref<ICommand>{}))
-        .Property(MenuItem::CommandParameterProperty, FrameworkPropertyMetadata(Value::NullObject(TypeOf<Base::Object>())))
-        .Property(MenuItem::IconProperty, FrameworkPropertyMetadata(Value::NullObject(TypeOf<Base::Object>())).AffectsMeasure())
+        .Property(MenuItem::InputGestureTextProperty, Base::String{}, AffectsMeasure)
+        .Property(MenuItem::IsCheckableProperty, false, AffectsMeasure)
+        .Property(MenuItem::IsCheckedProperty, false, AffectsRender | BindsTwoWayByDefault)
+        .Property(MenuItem::IsHighlightedProperty, false, AffectsRender)
+        .Property(MenuItem::IsSubmenuOpenProperty, false, AffectsMeasure | AffectsRender | BindsTwoWayByDefault)
+        .Property(MenuItem::RoleProperty, MenuItemRole::TopLevelItem, AffectsMeasure | AffectsRender)
+        .Property(MenuItem::CommandProperty, Base::Ref<ICommand>{})
+        .Property(MenuItem::CommandParameterProperty, Value::NullObject(TypeOf<Base::Object>()))
+        .Property(MenuItem::IconProperty, Value::NullObject(TypeOf<Base::Object>()), AffectsMeasure)
         .Factory();
 
     Register<ContextMenu>(context)
         .Event(ContextMenu::OpenedEvent)
         .Event(ContextMenu::ClosedEvent)
-        .Property(ContextMenu::IsOpenProperty, FrameworkPropertyMetadata(false).AffectsMeasure().AffectsRender().BindsTwoWayByDefault())
-        .Property(ContextMenu::PlacementTargetProperty, FrameworkPropertyMetadata(Base::Ref<UIElement>{}))
+        .Property(ContextMenu::IsOpenProperty, false, AffectsMeasure | AffectsRender | BindsTwoWayByDefault)
+        .Property(ContextMenu::PlacementTargetProperty, Base::Ref<UIElement>{})
         .Factory();
 
     Register<ContextMenuService>(context, TypeFlags::Abstract)
-        .Property(ContextMenuService::ContextMenuProperty, FrameworkPropertyMetadata(Base::Ref<ContextMenu>{}));
+        .Property(ContextMenuService::ContextMenuProperty, Base::Ref<ContextMenu>{});
 
     Register<GridViewColumnHeader>(context)
-        .Property(GridViewColumnHeader::RoleProperty, FrameworkPropertyMetadata(GridViewColumnHeaderRole::Normal))
+        .Property(GridViewColumnHeader::RoleProperty, GridViewColumnHeaderRole::Normal)
         .Factory();
 
     Register<GridViewColumn>(context)
-        .Property(GridViewColumn::HeaderProperty, FrameworkPropertyMetadata(Value::NullObject(TypeOf<Base::Object>())))
+        .Property(GridViewColumn::HeaderProperty, Value::NullObject(TypeOf<Base::Object>()))
         .Property(GridViewColumn::WidthProperty, FrameworkPropertyMetadata(100.0).Validate(&Base::Validate::NonNegative<double>))
-        .Property(GridViewColumn::CellTemplateProperty, FrameworkPropertyMetadata(Base::Ref<DataTemplate>{}))
-        .Property(GridViewColumn::HeaderTemplateProperty, FrameworkPropertyMetadata(Base::Ref<DataTemplate>{}))
-        .Property(GridViewColumn::DisplayMemberPathProperty, FrameworkPropertyMetadata(Base::String{}))
-        .Property(GridViewColumn::DisplayMemberBindingProperty, FrameworkPropertyMetadata(Base::Ref<Data::Binding>{}))
-        .Property(GridViewColumn::HeaderContainerStyleProperty, FrameworkPropertyMetadata(Base::Ref<Style>{}))
+        .Property(GridViewColumn::CellTemplateProperty, Base::Ref<DataTemplate>{})
+        .Property(GridViewColumn::HeaderTemplateProperty, Base::Ref<DataTemplate>{})
+        .Property(GridViewColumn::DisplayMemberPathProperty, Base::String{})
+        .Property(GridViewColumn::DisplayMemberBindingProperty, Base::Ref<Data::Binding>{})
+        .Property(GridViewColumn::HeaderContainerStyleProperty, Base::Ref<Style>{})
         .Factory();
 
     Register<GridView>(context)
@@ -449,22 +449,22 @@ Base::Result<void> PopulateControlsItems(
         .Factory();
 
     Register<GridViewHeaderRowPresenter>(context)
-        .Property(GridViewHeaderRowPresenter::AllowsColumnReorderProperty, FrameworkPropertyMetadata(false))
-        .Property(GridViewHeaderRowPresenter::ColumnHeaderContainerStyleProperty, FrameworkPropertyMetadata(Base::Ref<Base::Object>{}))
-        .Property(GridViewHeaderRowPresenter::ColumnHeaderContextMenuProperty, FrameworkPropertyMetadata(Base::Ref<Base::Object>{}))
-        .Property(GridViewHeaderRowPresenter::ColumnHeaderTemplateProperty, FrameworkPropertyMetadata(Base::Ref<Base::Object>{}))
-        .Property(GridViewHeaderRowPresenter::ColumnHeaderTemplateSelectorProperty, FrameworkPropertyMetadata(Base::Ref<Base::Object>{}))
-        .Property(GridViewHeaderRowPresenter::ColumnHeaderToolTipProperty, FrameworkPropertyMetadata(Base::Ref<Base::Object>{}))
-        .Property(GridViewHeaderRowPresenter::ColumnsProperty, FrameworkPropertyMetadata(Base::Ref<Base::Object>{}))
+        .Property(GridViewHeaderRowPresenter::AllowsColumnReorderProperty, false)
+        .Property(GridViewHeaderRowPresenter::ColumnHeaderContainerStyleProperty, Base::Ref<Base::Object>{})
+        .Property(GridViewHeaderRowPresenter::ColumnHeaderContextMenuProperty, Base::Ref<Base::Object>{})
+        .Property(GridViewHeaderRowPresenter::ColumnHeaderTemplateProperty, Base::Ref<Base::Object>{})
+        .Property(GridViewHeaderRowPresenter::ColumnHeaderTemplateSelectorProperty, Base::Ref<Base::Object>{})
+        .Property(GridViewHeaderRowPresenter::ColumnHeaderToolTipProperty, Base::Ref<Base::Object>{})
+        .Property(GridViewHeaderRowPresenter::ColumnsProperty, Base::Ref<Base::Object>{})
         .Factory();
 
     Register<GridViewRowPresenter>(context)
-        .Property(GridViewRowPresenter::ColumnsProperty, FrameworkPropertyMetadata(Base::Ref<Base::Object>{}))
-        .Property(GridViewRowPresenter::ContentProperty, FrameworkPropertyMetadata(Base::Ref<Base::Object>{}))
+        .Property(GridViewRowPresenter::ColumnsProperty, Base::Ref<Base::Object>{})
+        .Property(GridViewRowPresenter::ContentProperty, Base::Ref<Base::Object>{})
         .Factory();
 
     Register<ListView>(context)
-        .Property(ListView::ViewProperty, FrameworkPropertyMetadata(Base::Ref<GridView>{}).AffectsMeasure())
+        .Property(ListView::ViewProperty, Base::Ref<GridView>{}, AffectsMeasure)
         .Factory();
 
     Register<ListViewItem>(context)
@@ -475,13 +475,13 @@ Base::Result<void> PopulateControlsItems(
         .Factory();
 
     Register<ToolBar>(context)
-        .Property(ToolBar::HeaderProperty, FrameworkPropertyMetadata(Meta::Value::NullObject(Meta::TypeOf<Base::Object>())).AffectsMeasure())
-        .Property(ToolBar::HeaderTemplateProperty, FrameworkPropertyMetadata(Base::Ref<DataTemplate>{}).AffectsMeasure())
-        .Property(ToolBar::OrientationProperty, FrameworkPropertyMetadata(Orientation::Horizontal).AffectsMeasure())
-        .Property(ToolBar::OverflowCapacityProperty, FrameworkPropertyMetadata(UINT32_MAX).AffectsMeasure())
-        .Property(ToolBar::IsOverflowOpenProperty, FrameworkPropertyMetadata(false).AffectsRender())
-        .Property(ToolBar::HasOverflowItemsProperty, FrameworkPropertyMetadata(false))
-        .Property(ToolBar::OverflowItemCountProperty, FrameworkPropertyMetadata(std::uint32_t{0U}))
+        .Property(ToolBar::HeaderProperty, Meta::Value::NullObject(Meta::TypeOf<Base::Object>()), AffectsMeasure)
+        .Property(ToolBar::HeaderTemplateProperty, Base::Ref<DataTemplate>{}, AffectsMeasure)
+        .Property(ToolBar::OrientationProperty, Orientation::Horizontal, AffectsMeasure)
+        .Property(ToolBar::OverflowCapacityProperty, UINT32_MAX, AffectsMeasure)
+        .Property(ToolBar::IsOverflowOpenProperty, false, AffectsRender)
+        .Property(ToolBar::HasOverflowItemsProperty, false)
+        .Property(ToolBar::OverflowItemCountProperty, std::uint32_t{0U})
         .Factory();
 
     Register<ToolBarPanel>(context)
@@ -491,28 +491,28 @@ Base::Result<void> PopulateControlsItems(
         .Factory();
 
     Register<ToolBarTray>(context, TypeFlags::Abstract)
-        .Property(ToolBarTray::IsLockedProperty, FrameworkPropertyMetadata(false));
+        .Property(ToolBarTray::IsLockedProperty, false);
 
     Register<StatusBar>(context)
-        .Property(StatusBar::IsSizingGripVisibleProperty, FrameworkPropertyMetadata(true).AffectsRender())
+        .Property(StatusBar::IsSizingGripVisibleProperty, true, AffectsRender)
         .Factory();
 
     Register<StatusBarItem>(context)
         .Factory();
 
     Register<ToolTip>(context)
-        .Property(ToolTip::InitialShowDelayProperty, FrameworkPropertyMetadata(std::uint32_t{500U}))
-        .Property(ToolTip::ShowDurationProperty, FrameworkPropertyMetadata(std::uint32_t{5000U}))
+        .Property(ToolTip::InitialShowDelayProperty, std::uint32_t{500U})
+        .Property(ToolTip::ShowDurationProperty, std::uint32_t{5000U})
         .Factory();
 
     Register<ToolTipService>(context, TypeFlags::Abstract)
-        .Property(ToolTipService::ToolTipProperty, FrameworkPropertyMetadata(Base::Ref<ToolTip>{}))
-        .Property(ToolTipService::InitialShowDelayProperty, FrameworkPropertyMetadata(std::uint32_t{500U}))
-        .Property(ToolTipService::ShowDurationProperty, FrameworkPropertyMetadata(std::uint32_t{5000U}));
+        .Property(ToolTipService::ToolTipProperty, Base::Ref<ToolTip>{})
+        .Property(ToolTipService::InitialShowDelayProperty, std::uint32_t{500U})
+        .Property(ToolTipService::ShowDurationProperty, std::uint32_t{5000U});
 
     Register<HeaderedContentControl>(context)
-        .Property(HeaderedContentControl::HeaderProperty, FrameworkPropertyMetadata(Meta::Value::NullObject(Meta::TypeOf<Base::Object>())).AffectsMeasure())
-        .Property(HeaderedContentControl::HeaderTemplateProperty, FrameworkPropertyMetadata(Base::Ref<DataTemplate>{}).AffectsMeasure())
+        .Property(HeaderedContentControl::HeaderProperty, Meta::Value::NullObject(Meta::TypeOf<Base::Object>()), AffectsMeasure)
+        .Property(HeaderedContentControl::HeaderTemplateProperty, Base::Ref<DataTemplate>{}, AffectsMeasure)
         .Factory<BasicHeaderedContentControl>();
 
     Register<GroupBox>(context)
@@ -524,18 +524,18 @@ Base::Result<void> PopulateControlsItems(
     Register<Expander>(context)
         .Event(Expander::ExpandedEvent)
         .Event(Expander::CollapsedEvent)
-        .Property(Expander::IsExpandedProperty, FrameworkPropertyMetadata(false).AffectsMeasure())
-        .Property(Expander::ExpandDirectionProperty, FrameworkPropertyMetadata(ExpandDirection::Down).AffectsMeasure())
+        .Property(Expander::IsExpandedProperty, false, AffectsMeasure)
+        .Property(Expander::ExpandDirectionProperty, ExpandDirection::Down, AffectsMeasure)
         .Factory();
 
     Register<TabItem>(context)
-        .Property(TabItem::IsSelectedProperty, FrameworkPropertyMetadata(false).AffectsRender())
+        .Property(TabItem::IsSelectedProperty, false, AffectsRender)
         .Factory();
 
     Register<TabControl>(context)
-        .Property(TabControl::SelectedContentProperty, FrameworkPropertyMetadata(Meta::Value::NullObject(Meta::TypeOf<Base::Object>())))
-        .Property(TabControl::ContentTemplateProperty, FrameworkPropertyMetadata(Base::Ref<DataTemplate>{}).AffectsMeasure())
-        .Property(TabControl::TabStripPlacementProperty, FrameworkPropertyMetadata(Dock::Top).AffectsMeasure())
+        .Property(TabControl::SelectedContentProperty, Meta::Value::NullObject(Meta::TypeOf<Base::Object>()))
+        .Property(TabControl::ContentTemplateProperty, Base::Ref<DataTemplate>{}, AffectsMeasure)
+        .Property(TabControl::TabStripPlacementProperty, Dock::Top, AffectsMeasure)
         .Factory();
 
     Register<TabPanel>(context)

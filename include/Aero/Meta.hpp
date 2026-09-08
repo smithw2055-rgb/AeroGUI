@@ -561,6 +561,42 @@ public:
             DependencyPropertyFlags::ReadOnly, options);
     }
 
+    template<class TOwner, class TValue>
+    TypeBuilder& Property(
+        const DependencyPropertyRef<TOwner, TValue>& property,
+        TValue defaultValue,
+        FrameworkPropertyMetadataOptions options =
+            FrameworkPropertyMetadataOptions::None) noexcept {
+        return Property(
+            property,
+            FrameworkPropertyMetadata<TValue>(
+                std::move(defaultValue), options));
+    }
+
+    template<class TOwner, class TValue>
+    TypeBuilder& Property(
+        const AttachedPropertyRef<TOwner, TValue>& property,
+        TValue defaultValue,
+        FrameworkPropertyMetadataOptions options =
+            FrameworkPropertyMetadataOptions::None) noexcept {
+        return Property(
+            property,
+            FrameworkPropertyMetadata<TValue>(
+                std::move(defaultValue), options));
+    }
+
+    template<class TOwner, class TValue>
+    TypeBuilder& Property(
+        const ReadOnlyPropertyRef<TOwner, TValue>& property,
+        TValue defaultValue,
+        FrameworkPropertyMetadataOptions options =
+            FrameworkPropertyMetadataOptions::None) noexcept {
+        return Property(
+            property,
+            FrameworkPropertyMetadata<TValue>(
+                std::move(defaultValue), options));
+    }
+
     template<
         class TValue,
         auto Getter,
@@ -892,6 +928,44 @@ public:
             std::move(metadata),
             DependencyPropertyFlags::Attached);
         return *this;
+    }
+
+    template<class TOwner, class TValue>
+    TypeBuilder& AddOwner(
+        const DependencyPropertyRef<TOwner, TValue>& property,
+        TValue defaultValue,
+        FrameworkPropertyMetadataOptions options =
+            FrameworkPropertyMetadataOptions::None) noexcept {
+        return AddOwner(
+            property,
+            FrameworkPropertyMetadata<TValue>(
+                std::move(defaultValue), options));
+    }
+
+    template<class TOwner, class TValue>
+    TypeBuilder& AddOwner(
+        const AttachedPropertyRef<TOwner, TValue>& property,
+        TValue defaultValue,
+        FrameworkPropertyMetadataOptions options =
+            FrameworkPropertyMetadataOptions::None) noexcept {
+        return AddOwner(
+            property,
+            FrameworkPropertyMetadata<TValue>(
+                std::move(defaultValue), options));
+    }
+
+    template<class TAliasOwner, class TOwner, class TValue>
+    TypeBuilder& AddOwner(
+        const AttachedPropertyRef<TAliasOwner, TValue>& aliasProperty,
+        const DependencyPropertyRef<TOwner, TValue>& sourceProperty,
+        TValue defaultValue,
+        FrameworkPropertyMetadataOptions options =
+            FrameworkPropertyMetadataOptions::None) noexcept {
+        return AddOwner(
+            aliasProperty,
+            sourceProperty,
+            FrameworkPropertyMetadata<TValue>(
+                std::move(defaultValue), options));
     }
 
     TypeBuilder& ValueSemantics() noexcept {

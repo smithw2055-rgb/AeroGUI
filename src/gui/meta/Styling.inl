@@ -3,21 +3,21 @@
 Base::Result<void> PopulateUiStyling(
     ::Aero::Meta::Registration& context) noexcept {
     Register<Element>(context, TypeFlags::Abstract)
-        .Property(Element::PPAAInProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(Element::PPAAOutProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(Element::PPAAModeProperty, FrameworkPropertyMetadata(Base::String{}).AffectsRender())
-        .Property(Element::IsFocusEngagedProperty, FrameworkPropertyMetadata(false).AffectsRender())
-        .Property(Element::BlendingModeProperty, FrameworkPropertyMetadata(BlendMode::Normal) .AffectsRender() .Changed(&Element::OnBlendingModeChanged))
-        .Property(Element::Transform3DProperty, FrameworkPropertyMetadata(Base::Ref<Media::Transform3D>{}) .AffectsRender() .Changed(&Element::OnTransform3DChanged));
+        .Property(Element::PPAAInProperty, 0.0, AffectsRender)
+        .Property(Element::PPAAOutProperty, 0.0, AffectsRender)
+        .Property(Element::PPAAModeProperty, Base::String{}, AffectsRender)
+        .Property(Element::IsFocusEngagedProperty, false, AffectsRender)
+        .Property(Element::BlendingModeProperty, FrameworkPropertyMetadata(BlendMode::Normal, AffectsRender).Changed(&Element::OnBlendingModeChanged))
+        .Property(Element::Transform3DProperty, FrameworkPropertyMetadata(Base::Ref<Media::Transform3D>{}, AffectsRender).Changed(&Element::OnTransform3DChanged));
 
     Register<TextProperties>(context, TypeFlags::Abstract)
-        .Property(TextProperties::PasswordLengthProperty, FrameworkPropertyMetadata(std::uint32_t{0}).AffectsRender())
-        .Property(TextProperties::PlaceholderProperty, FrameworkPropertyMetadata(Base::String{}) .AffectsRender() .Changed(&TextProperties::OnCompatibilityPropertyChanged))
-        .Property(TextProperties::StrokeProperty, FrameworkPropertyMetadata(Value::NullObject(TypeOf<Base::Object>())) .AffectsRender() .Changed(&TextProperties::OnCompatibilityPropertyChanged))
-        .Property(TextProperties::StrokeThicknessProperty, FrameworkPropertyMetadata(0.0) .AffectsRender() .Changed(&TextProperties::OnCompatibilityPropertyChanged));
+        .Property(TextProperties::PasswordLengthProperty, std::uint32_t{0}, AffectsRender)
+        .Property(TextProperties::PlaceholderProperty, FrameworkPropertyMetadata(Base::String{}, AffectsRender).Changed(&TextProperties::OnCompatibilityPropertyChanged))
+        .Property(TextProperties::StrokeProperty, FrameworkPropertyMetadata(Value::NullObject(TypeOf<Base::Object>()), AffectsRender).Changed(&TextProperties::OnCompatibilityPropertyChanged))
+        .Property(TextProperties::StrokeThicknessProperty, FrameworkPropertyMetadata(0.0, AffectsRender).Changed(&TextProperties::OnCompatibilityPropertyChanged));
 
     Register<RichText>(context, TypeFlags::Abstract)
-        .Property(RichText::TextProperty, FrameworkPropertyMetadata(Base::String{}).AffectsMeasure().Changed(&RichText::OnTextChanged));
+        .Property(RichText::TextProperty, FrameworkPropertyMetadata(Base::String{}, AffectsMeasure).Changed(&RichText::OnTextChanged));
 
     Register<SetterBase>(context, TypeFlags::Abstract);
 
@@ -71,7 +71,7 @@ Base::Result<void> PopulateUiStyling(
         .Factory();
 
     Register<Data::MultiBindingProxy>(context)
-        .Property(Data::MultiBindingProxy::ValueProperty, FrameworkPropertyMetadata(Value::NullObject(TypeOf<Base::Object>())))
+        .Property(Data::MultiBindingProxy::ValueProperty, Value::NullObject(TypeOf<Base::Object>()))
         .Factory();
 
     Register<TriggerBase>(context, TypeFlags::Abstract)

@@ -111,13 +111,13 @@ Base::Result<void> FillFrameworkContentElementMetadata(
     ::Aero::Meta::Registration& context) noexcept {
     Register<FrameworkContentElement>(context, TypeFlags::Abstract)
         .Property<Base::Ref<ResourceDictionary>, &FrameworkContentElement::SetResources>("Resources", PropertyFlags::Structural)
-        .Property(FrameworkContentElement::DataContextProperty, FrameworkPropertyMetadata(Value::NullObject(TypeOf<Base::Object>())).Inherits())
-        .Property(FrameworkContentElement::StyleProperty, FrameworkPropertyMetadata(Base::Ref<Style>{}))
-        .Property(FrameworkContentElement::TagProperty, FrameworkPropertyMetadata(Value::NullObject(TypeOf<Base::Object>())))
-        .Property(FrameworkContentElement::IsEnabledProperty, FrameworkPropertyMetadata(true).Inherits())
-        .Property(FrameworkContentElement::IsMouseOverProperty, FrameworkPropertyMetadata(false))
-        .Property(FrameworkContentElement::CursorProperty, FrameworkPropertyMetadata(Base::String{}).Inherits())
-        .Property(FrameworkContentElement::OverridesDefaultStyleProperty, FrameworkPropertyMetadata(false));
+        .Property(FrameworkContentElement::DataContextProperty, Value::NullObject(TypeOf<Base::Object>()), Inherits)
+        .Property(FrameworkContentElement::StyleProperty, Base::Ref<Style>{})
+        .Property(FrameworkContentElement::TagProperty, Value::NullObject(TypeOf<Base::Object>()))
+        .Property(FrameworkContentElement::IsEnabledProperty, true, Inherits)
+        .Property(FrameworkContentElement::IsMouseOverProperty, false)
+        .Property(FrameworkContentElement::CursorProperty, Base::String{}, Inherits)
+        .Property(FrameworkContentElement::OverridesDefaultStyleProperty, false);
     return {};
 }
 } // namespace Aero::Meta

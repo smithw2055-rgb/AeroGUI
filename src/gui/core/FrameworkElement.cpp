@@ -469,103 +469,86 @@ Base::Result<void> FillFrameworkElementMetadata(
                 PropertyFlags::Structural)
         .Property(
             FrameworkElement::DataContextProperty,
-            FrameworkPropertyMetadata(Value::NullObject(
-                TypeOf<Base::Object>()))
-                .Inherits())
+            Value::NullObject(
+                TypeOf<Base::Object>()), Inherits)
         .Property(
             FrameworkElement::FontFamilyProperty,
-            FrameworkPropertyMetadata(Base::Ref<Media::FontFamily>{})
-                .Inherits()
-                .AffectsMeasure())
+            Base::Ref<Media::FontFamily>{}, Inherits | AffectsMeasure)
         .Property(
             FrameworkElement::FlowDirectionProperty,
-            FrameworkPropertyMetadata(FlowDirection::LeftToRight)
-                .Inherits()
-                .AffectsMeasure())
+            FlowDirection::LeftToRight, Inherits | AffectsMeasure)
         .Property(
             FrameworkElement::CursorProperty,
-            FrameworkPropertyMetadata(Base::String{}).Inherits())
+            Base::String{}, Inherits)
         .Property(
             FrameworkElement::ForceCursorProperty,
-            FrameworkPropertyMetadata(false))
+            false)
         .Property(
             FrameworkElement::InputScopeProperty,
-            FrameworkPropertyMetadata(InputScope::Default))
+            InputScope::Default)
         .Property(
-            FrameworkElementForegroundProperty,
-            FrameworkPropertyMetadata(Base::Ref<Brush>{})
-                .Inherits()
-                .AffectsRender())
+            FrameworkElement::ForegroundProperty,
+            Base::Ref<Brush>{}, Inherits | AffectsRender)
         .Property(
             FrameworkElement::StyleProperty,
-            FrameworkPropertyMetadata(Base::Ref<Style>{}))
+            Base::Ref<Style>{})
         .Property(
             FrameworkElement::TagProperty,
-            FrameworkPropertyMetadata(Meta::Value::NullObject(
-                Meta::TypeOf<Base::Object>())))
+            Meta::Value::NullObject(
+                Meta::TypeOf<Base::Object>()))
         .Property(
             FrameworkElement::ToolTipProperty,
-            FrameworkPropertyMetadata(Meta::Value::NullObject(
-                Meta::TypeOf<Base::Object>())))
+            Meta::Value::NullObject(
+                Meta::TypeOf<Base::Object>()))
         .Property(
             FrameworkElement::WidthProperty,
-            FrameworkPropertyMetadata(Length::Auto())
-                .AffectsMeasure()
+            FrameworkPropertyMetadata(Length::Auto(), AffectsMeasure)
                 .Validate(&ValidateLength))
         .Property(
             FrameworkElement::HeightProperty,
-            FrameworkPropertyMetadata(Length::Auto())
-                .AffectsMeasure()
+            FrameworkPropertyMetadata(Length::Auto(), AffectsMeasure)
                 .Validate(&ValidateLength))
         .Property(
             FrameworkElement::ActualWidthProperty,
-            FrameworkPropertyMetadata(0.0))
+            0.0)
         .Property(
             FrameworkElement::ActualHeightProperty,
-            FrameworkPropertyMetadata(0.0))
+            0.0)
         .Property(
             FrameworkElement::MinWidthProperty,
-            FrameworkPropertyMetadata(0.0)
-                .AffectsMeasure()
+            FrameworkPropertyMetadata(0.0, AffectsMeasure)
                 .Validate(&::Aero::Base::Validate::NonNegative<double>))
         .Property(
             FrameworkElement::MaxWidthProperty,
-            FrameworkPropertyMetadata(DefaultMaximum)
-                .AffectsMeasure()
+            FrameworkPropertyMetadata(DefaultMaximum, AffectsMeasure)
                 .Validate(&::Aero::Base::Validate::NonNegative<double>))
         .Property(
             FrameworkElement::MinHeightProperty,
-            FrameworkPropertyMetadata(0.0)
-                .AffectsMeasure()
+            FrameworkPropertyMetadata(0.0, AffectsMeasure)
                 .Validate(&::Aero::Base::Validate::NonNegative<double>))
         .Property(
             FrameworkElement::MaxHeightProperty,
-            FrameworkPropertyMetadata(DefaultMaximum)
-                .AffectsMeasure()
+            FrameworkPropertyMetadata(DefaultMaximum, AffectsMeasure)
                 .Validate(&::Aero::Base::Validate::NonNegative<double>))
         .Property(
             FrameworkElement::MarginProperty,
-            FrameworkPropertyMetadata(Thickness{})
-                .AffectsMeasure()
+            FrameworkPropertyMetadata(Thickness{}, AffectsMeasure)
                 .Validate(&ValidateMarginValue))
         .Property(
             FrameworkElement::HorizontalAlignmentProperty,
-            FrameworkPropertyMetadata(HorizontalAlignment::Stretch)
-                .AffectsArrange())
+            HorizontalAlignment::Stretch, AffectsArrange)
         .Property(
             FrameworkElement::VerticalAlignmentProperty,
-            FrameworkPropertyMetadata(VerticalAlignment::Stretch)
-                .AffectsArrange())
+            VerticalAlignment::Stretch, AffectsArrange)
         .Property(
             FrameworkElement::UseLayoutRoundingProperty,
-            FrameworkPropertyMetadata(false).AffectsMeasure())
+            false, AffectsMeasure)
         .Property(
             FrameworkElement::SnapsToDevicePixelsProperty,
-            FrameworkPropertyMetadata(false).Inherits().AffectsArrange().AffectsRender())
+            false, Inherits | AffectsArrange | AffectsRender)
         .Property(
             FrameworkElement::LayoutTransformProperty,
-            FrameworkPropertyMetadata(Base::Ref<Transform>{})
-                .AffectsMeasure()
+            FrameworkPropertyMetadata(Base::Ref<Transform>{}, AffectsMeasure)
                 .Changed(&OnLayoutTransformChanged))
         .Collection<Media::Animation::EventTrigger>(
             "Triggers",

@@ -15,16 +15,16 @@ Base::Result<void> PopulateUiInput(
     Register<TextCompositionEventArgs>(context);
     Register<KeyboardFocusChangedEventArgs>(context);
     Register<KeyboardNavigation>(context, TypeFlags::Abstract)
-        .Property(KeyboardNavigation::DirectionalNavigationProperty, FrameworkPropertyMetadata(KeyboardNavigationMode::Continue))
-        .Property(KeyboardNavigation::TabNavigationProperty, FrameworkPropertyMetadata(KeyboardNavigationMode::Continue))
-        .Property(KeyboardNavigation::ControlTabNavigationProperty, FrameworkPropertyMetadata(KeyboardNavigationMode::Continue))
-        .Property(KeyboardNavigation::TabIndexProperty, FrameworkPropertyMetadata(std::uint32_t{0}))
-        .Property(KeyboardNavigation::AcceptsReturnProperty, FrameworkPropertyMetadata(false))
-        .Property(KeyboardNavigation::IsTabStopProperty, FrameworkPropertyMetadata(false));
+        .Property(KeyboardNavigation::DirectionalNavigationProperty, KeyboardNavigationMode::Continue)
+        .Property(KeyboardNavigation::TabNavigationProperty, KeyboardNavigationMode::Continue)
+        .Property(KeyboardNavigation::ControlTabNavigationProperty, KeyboardNavigationMode::Continue)
+        .Property(KeyboardNavigation::TabIndexProperty, std::uint32_t{0})
+        .Property(KeyboardNavigation::AcceptsReturnProperty, false)
+        .Property(KeyboardNavigation::IsTabStopProperty, false);
 
     Register<FocusManager>(context, TypeFlags::Abstract)
-        .Property(FocusManager::IsFocusScopeProperty, FrameworkPropertyMetadata(false))
-        .Property(FocusManager::FocusedElementProperty, FrameworkPropertyMetadata(Base::Ref<Base::Object>{}));
+        .Property(FocusManager::IsFocusScopeProperty, false)
+        .Property(FocusManager::FocusedElementProperty, Base::Ref<Base::Object>{});
 
     Register<CanExecuteRoutedEventArgs>(context);
     Register<ExecutedRoutedEventArgs>(context);

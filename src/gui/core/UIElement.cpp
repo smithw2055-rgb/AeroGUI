@@ -1026,13 +1026,11 @@ Base::Result<void> FillUIElementMetadata(
         .Event(UIElement::TextInputEvent)
         .Property(
             UIElement::ClipToBoundsProperty,
-            FrameworkPropertyMetadata(false)
-                .AffectsArrange()
+            FrameworkPropertyMetadata(false, AffectsArrange)
                 .Changed(&OnRenderStateChanged))
         .Property(
             UIElement::ClipProperty,
-            FrameworkPropertyMetadata(Base::Ref<Geometry>{})
-                .AffectsRender()
+            FrameworkPropertyMetadata(Base::Ref<Geometry>{}, AffectsRender)
                 .Changed(&OnRenderStateChanged))
         .Property(
             UIElement::BlendModeProperty,
@@ -1040,54 +1038,49 @@ Base::Result<void> FillUIElementMetadata(
                 .Changed(&OnRenderStateChanged))
         .Property(
             UIElement::EffectProperty,
-            FrameworkPropertyMetadata(Base::Ref<Effect>{})
-                .AffectsRender()
+            FrameworkPropertyMetadata(Base::Ref<Effect>{}, AffectsRender)
                 .Changed(&OnEffectChanged))
         .Property(
             UIElement::OpacityMaskProperty,
-            FrameworkPropertyMetadata(Base::Ref<Brush>{})
-                .AffectsRender()
+            FrameworkPropertyMetadata(Base::Ref<Brush>{}, AffectsRender)
                 .Changed(&OnOpacityMaskChanged))
         .Property(
             UIElement::IsHitTestVisibleProperty,
-            FrameworkPropertyMetadata(true))
+            true)
         .Property(
             UIElement::VisibilityProperty,
-            FrameworkPropertyMetadata(Visibility::Visible)
-                .AffectsMeasure()
+            FrameworkPropertyMetadata(Visibility::Visible, AffectsMeasure)
                 .Changed(&OnRenderStateChanged))
         .Property(
             UIElement::IsEnabledProperty,
-            FrameworkPropertyMetadata(true)
-                .Inherits()
-                .AffectsRender())
+            true, Inherits | AffectsRender)
         .Property(
             UIElement::AllowDropProperty,
-            FrameworkPropertyMetadata(false))
+            false)
         .Property(
             UIElement::IsMouseOverProperty,
-            FrameworkPropertyMetadata(false).AffectsRender())
+            false, AffectsRender)
         .Property(
             UIElement::IsPressedProperty,
-            FrameworkPropertyMetadata(false).AffectsRender())
+            false, AffectsRender)
         .Property(
             UIElement::IsKeyboardFocusedProperty,
-            FrameworkPropertyMetadata(false).AffectsRender())
+            false, AffectsRender)
         .Property(
             UIElement::IsKeyboardFocusWithinProperty,
-            FrameworkPropertyMetadata(false).AffectsRender())
+            false, AffectsRender)
         .Property(
             UIElement::FocusableProperty,
-            FrameworkPropertyMetadata(false))
+            false)
         .AddOwner(
             KeyboardNavigation::IsTabStopProperty,
-            FrameworkPropertyMetadata(false))
+            false)
         .AddOwner(
             KeyboardNavigation::TabIndexProperty,
-            FrameworkPropertyMetadata(std::uint32_t{0}))
+            std::uint32_t{0})
         .AddOwner(
             FocusManager::IsFocusScopeProperty,
-            FrameworkPropertyMetadata(false))
+            false)
         .Property(
             UIElement::OpacityProperty,
             FrameworkPropertyMetadata(1.0)
@@ -1095,13 +1088,11 @@ Base::Result<void> FillUIElementMetadata(
                 .Validate(&ValidateUnitDouble))
         .Property(
             UIElement::RenderTransformProperty,
-            FrameworkPropertyMetadata(Base::Ref<Transform>{})
-                .AffectsRender()
+            FrameworkPropertyMetadata(Base::Ref<Transform>{}, AffectsRender)
                 .Changed(&OnRenderTransformChanged))
         .Property(
             UIElement::Transform3DProperty,
-            FrameworkPropertyMetadata(Base::Ref<Media::Transform3D>{})
-                .AffectsRender()
+            FrameworkPropertyMetadata(Base::Ref<Media::Transform3D>{}, AffectsRender)
                 .Changed(&OnRenderTransformChanged))
         .Property(
             UIElement::RenderTransformOriginProperty,
