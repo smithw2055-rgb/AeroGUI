@@ -399,8 +399,7 @@ Base::Result<void> ElementTree::CollectLogicalSubtree(
             return {};
         }
     }
-    Base::Result<void> appended = nodes.PushBack(&node);
-    if (!appended) return appended.GetStatus();
+    nodes.PushBack(&node);
     Base::Result<void> childStatus{};
     ForEachElementTreeChild(node, [&](::Aero::Media::Visual& child) noexcept {
         if (!childStatus) {
@@ -433,22 +432,17 @@ Base::Result<void> ElementTree::RegisterHandleSubtree(::Aero::Media::Visual& nod
         }
     }
 
-    Base::Result<void> reserved =
-        handles_.Reserve(handles_.Size() + required);
-    if (!reserved) return reserved.GetStatus();
+    handles_.Reserve(handles_.Size() + required);
 
     Base::Vector<::Aero::Media::Visual*> added;
-    reserved = added.Reserve(required);
-    if (!reserved) return reserved.GetStatus();
+    added.Reserve(required);
 
     for (::Aero::Media::Visual* current : nodes) {
         if (VisualHandle{current->handleIndex_, current->handleGeneration_}.IsValid()) continue;
 
         HandleEntry entry;
         entry.node = current;
-        Base::Result<void> appended = handles_.PushBack(entry);
-        AERO_ASSERT(appended);
-        (void)appended;
+        handles_.PushBack(entry);
         current->handleIndex_ = handles_.Size() - 1U;
         current->handleGeneration_ = entry.generation;
 
@@ -467,9 +461,7 @@ Base::Result<void> ElementTree::RegisterHandleSubtree(::Aero::Media::Visual& nod
             }
             return tracked.GetStatus();
         }
-        Base::Result<void> remembered = added.PushBack(current);
-        AERO_ASSERT(remembered);
-        (void)remembered;
+        added.PushBack(current);
     }
     return {};
 }
@@ -588,9 +580,7 @@ Base::Result<void> ElementTree::StageLifecycleSubtree(
         LifecycleRecord record;
         record.node = std::move(lease).Value();
         record.loaded = loaded;
-        Base::Result<void> appended =
-            staged.PushBack(std::move(record));
-        if (!appended) return appended.GetStatus();
+        staged.PushBack(std::move(record));
     }
     Base::Result<void> childStatus{};
     ForEachElementTreeChild(node, [&](::Aero::Media::Visual& child) noexcept {
@@ -607,10 +597,7 @@ void ElementTree::PublishLifecycle(
     for (LifecycleRecord& record : staged) {
         record.sequence = nextLifecycleSequence_++;
         record.treeVersion = version_;
-        Base::Result<void> appended =
-            lifecycleQueue_.PushBack(std::move(record));
-        AERO_ASSERT(appended);
-        (void)appended;
+        lifecycleQueue_.PushBack(std::move(record));
     }
     staged.Clear();
 }
@@ -668,9 +655,8 @@ Base::Result<void> ElementTree::SetRoot(::Aero::Media::Visual* root) noexcept {
             StageLifecycleSubtree(*root, true, staged);
         if (!prepared) return prepared.GetStatus();
     }
-    Base::Result<void> queueReserved = lifecycleQueue_.Reserve(
+    lifecycleQueue_.Reserve(
         lifecycleQueue_.Size() + staged.Size());
-    if (!queueReserved) return queueReserved.GetStatus();
 
     if (root != nullptr) {
         Base::Result<void> registered = RegisterHandleSubtree(*root);
@@ -741,9 +727,8 @@ Base::Result<void> ElementTree::AttachLogical(
             StageLifecycleSubtree(child, true, staged);
         if (!prepared) return prepared.GetStatus();
     }
-    Base::Result<void> queueReserved = lifecycleQueue_.Reserve(
+    lifecycleQueue_.Reserve(
         lifecycleQueue_.Size() + staged.Size());
-    if (!queueReserved) return queueReserved.GetStatus();
 
     Base::Result<void> registered = RegisterHandleSubtree(child);
     if (!registered) return registered.GetStatus();
@@ -787,9 +772,8 @@ Base::Result<void> ElementTree::DetachLogical(
             StageLifecycleSubtree(child, false, staged);
         if (!prepared) return prepared.GetStatus();
     }
-    Base::Result<void> queueReserved = lifecycleQueue_.Reserve(
+    lifecycleQueue_.Reserve(
         lifecycleQueue_.Size() + staged.Size());
-    if (!queueReserved) return queueReserved.GetStatus();
 
     Base::Result<void> inherited =
         values_->SetInheritanceParent(child, nullptr);
@@ -897,14 +881,12 @@ Base::Result<void> ElementTree::DetachNode(::Aero::Media::Visual& node) noexcept
     Base::Vector<::Aero::Media::Visual*> visualChildren;
     const std::uint32_t visualCount =
         Media::VisualTreeHelper::GetChildrenCount(node);
-    Base::Result<void> reserved = visualChildren.Reserve(visualCount);
-    if (!reserved) return reserved.GetStatus();
+    visualChildren.Reserve(visualCount);
     for (std::uint32_t index = 0U; index < visualCount; ++index) {
         ::Aero::Media::Visual* child =
             Media::VisualTreeHelper::GetChild(node, index);
         if (child != nullptr) {
-            Base::Result<void> appended = visualChildren.PushBack(child);
-            if (!appended) return appended.GetStatus();
+            visualChildren.PushBack(child);
         }
     }
     for (std::uint32_t index = visualChildren.Size(); index > 0U; --index) {
@@ -922,14 +904,12 @@ Base::Result<void> ElementTree::DetachNode(::Aero::Media::Visual& node) noexcept
     }
     Base::Vector<::Aero::Media::Visual*> logicalChildren;
     const std::uint32_t logicalCount = LogicalTreeHelper::GetChildrenCount(node);
-    reserved = logicalChildren.Reserve(logicalCount);
-    if (!reserved) return reserved.GetStatus();
+    logicalChildren.Reserve(logicalCount);
     for (std::uint32_t index = 0U; index < logicalCount; ++index) {
         ::Aero::Media::Visual* child = ::Aero::TryCast<::Aero::Media::Visual>(
             LogicalTreeHelper::GetChild(node, index));
         if (child != nullptr) {
-            Base::Result<void> appended = logicalChildren.PushBack(child);
-            if (!appended) return appended.GetStatus();
+            logicalChildren.PushBack(child);
         }
     }
     for (std::uint32_t index = logicalChildren.Size(); index > 0U; --index) {
@@ -961,10 +941,9 @@ Base::Result<std::uint32_t> ElementTree::FlushLifecycle() noexcept {
     std::uint32_t count = 0U;
     {
         Base::Vector<LifecycleRecord> snapshot;
-        Base::Result<void> assigned = snapshot.Assign(
+        snapshot.Assign(
             Base::Span<const LifecycleRecord>(
                 lifecycleQueue_.Data(), lifecycleQueue_.Size()));
-        if (!assigned) return assigned.GetStatus();
         lifecycleQueue_.Clear();
 
         for (std::uint32_t i = 0U; i < snapshot.Size(); ++i) {

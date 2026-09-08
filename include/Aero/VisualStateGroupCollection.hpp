@@ -20,8 +20,7 @@ public:
         return {items_.Data(), items_.Size()};
     }
     void Add(Ref<VisualStateGroup> value) noexcept {
-        Base::Result<void> pushed = items_.PushBack(std::move(value));
-        if (!pushed) { AERO_ASSERT(false); return; }
+        items_.PushBack(std::move(value));
     }
     void Clear() noexcept { items_.Clear(); }
 

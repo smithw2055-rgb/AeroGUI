@@ -247,15 +247,11 @@ Base::Result<std::uint64_t> CommitDynamicResource(void* context) noexcept {
             "Deferred DynamicResource state is invalid");
     }
     Base::Vector<const ResourceDictionary*> chain;
-    Base::Result<void> prepared = chain.Reserve(
+    chain.Reserve(
         state->resources.Size());
-    if (prepared) {
-        for (const ResourceDictionary& resources : state->resources) {
-            prepared = chain.PushBack(&resources);
-            if (!prepared) break;
-        }
+    for (const ResourceDictionary& resources : state->resources) {
+        chain.PushBack(&resources);
     }
-    if (!prepared) return prepared.GetStatus();
     Base::Result<void> attached = DynamicResource::Attach(
         *state->engine,
         {chain.Data(), chain.Size()},
@@ -388,14 +384,7 @@ Base::Result<Meta::PropertyExpression> DynamicResource::CreateExpression(
         source.identity = resources;
         source.resources = std::move(shared).Value();
         source.subscription = subscription.Value();
-        Base::Result<void> added =
-            state->sources.PushBack(std::move(source));
-        if (!added) {
-            static_cast<void>(
-                resources->Unsubscribe(
-                    subscription.Value()));
-            return added.GetStatus();
-        }
+        state->sources.PushBack(std::move(source));
         return {};
     };
     for (const ResourceDictionary* resources :
@@ -603,22 +592,20 @@ Base::Result<ProvidedValue> DynamicResourceExtension::ProvideValue(
         ? descriptor->Handle()
         : property;
     state->allocator = &allocator;
-    Base::Result<void> reserved = state->resources.Reserve(
+    state->resources.Reserve(
         services.ambientResourceChain.Size());
-    if (reserved) {
-        for (const ResourceDictionary* resource :
-             services.ambientResourceChain) {
-            if (resource == nullptr) continue;
-            Base::Result<ResourceDictionary> shared =
-                resource->Share();
-            if (!shared) {
-                reserved = shared.GetStatus();
-                break;
-            }
-            reserved = state->resources.PushBack(
-                std::move(shared).Value());
-            if (!reserved) break;
+    Base::Result<void> reserved{};
+    for (const ResourceDictionary* resource :
+         services.ambientResourceChain) {
+        if (resource == nullptr) continue;
+        Base::Result<ResourceDictionary> shared =
+            resource->Share();
+        if (!shared) {
+            reserved = shared.GetStatus();
+            break;
         }
+        state->resources.PushBack(
+            std::move(shared).Value());
     }
     if (reserved && fallbackResources != nullptr) {
         Base::Result<ResourceDictionary> shared =

@@ -948,17 +948,13 @@ Base::Result<void> VisualStateManagerState::StartStoryboardAnimations(
             for (const Base::Ref<Media::Animation::DoubleKeyFrame>&
                      frame : authored.GetKeyFrames()) {
                 if (!frame) continue;
-                Base::Result<void> appended =
-                    frames.PushBack(
+                frames.PushBack(
                         Aero::Media::Animation::DoubleFrame(
                             *frame,
                             schedule.duration,
                             keyIndex,
                             schedule.count));
                 ++keyIndex;
-                if (!appended) {
-                    return appended.GetStatus();
-                }
             }
             for (std::uint32_t index = 1U;
                  index < frames.Size(); ++index) {
@@ -1021,17 +1017,13 @@ Base::Result<void> VisualStateManagerState::StartStoryboardAnimations(
             for (const Base::Ref<Media::Animation::ColorKeyFrame>&
                      frame : authored.GetKeyFrames()) {
                 if (!frame) continue;
-                Base::Result<void> appended =
-                    frames.PushBack(
+                frames.PushBack(
                         Aero::Media::Animation::ColorFrame(
                             *frame,
                             schedule.duration,
                             keyIndex,
                             schedule.count));
                 ++keyIndex;
-                if (!appended) {
-                    return appended.GetStatus();
-                }
             }
             for (std::uint32_t index = 1U;
                  index < frames.Size(); ++index) {
@@ -1108,12 +1100,8 @@ Base::Result<void> VisualStateManagerState::StartStoryboardAnimations(
                             schedule.count);
                     ++keyIndex;
                     runtime.value = frame->GetValue();
-                    Base::Result<void> appended =
-                        frames.PushBack(
+                    frames.PushBack(
                             std::move(runtime));
-                    if (!appended) {
-                        return appended.GetStatus();
-                    }
                 }
             } else {
                 auto& authored = static_cast<
@@ -1145,12 +1133,8 @@ Base::Result<void> VisualStateManagerState::StartStoryboardAnimations(
                     ++keyIndex;
                     runtime.value =
                         std::move(encoded).Value();
-                    Base::Result<void> appended =
-                        frames.PushBack(
+                    frames.PushBack(
                             std::move(runtime));
-                    if (!appended) {
-                        return appended.GetStatus();
-                    }
                 }
             }
             for (std::uint32_t index = 1U;
@@ -1193,8 +1177,9 @@ Base::Result<void> VisualStateManagerState::StartStoryboardAnimations(
                 runtime);
         }
         if (!started) return started.GetStatus();
-        return active.animations.PushBack(
+        active.animations.PushBack(
             started.Value());
+        return {};
     };
 
     Aero::Media::Animation::Model::TimelineTiming rootTiming;
@@ -1235,9 +1220,7 @@ Base::Result<void> VisualStateManagerState::CaptureTransitionValues(
         value.property = setter.property;
         value.from = current.Value();
         value.to = setter.value;
-        Base::Result<void> appended =
-            output.PushBack(std::move(value));
-        if (!appended) return appended.GetStatus();
+        output.PushBack(std::move(value));
     }
     return {};
 }
@@ -1326,12 +1309,13 @@ Base::Result<void> VisualStateManagerState::CaptureStoryboardTimeline(
         if (to.IsUnset()) {
             return {};
         }
-        return values.PushBack(
+        values.PushBack(
             TransitionValue{
                 target,
                 property,
                 from.Value(),
                 to});
+        return {};
     }
     if (timeline.RuntimeType() ==
             Media::Animation::DoubleAnimationUsingKeyFrames::
@@ -1350,13 +1334,12 @@ Base::Result<void> VisualStateManagerState::CaptureStoryboardTimeline(
                     frames.Size() - 1U,
                     frames.Size()).value);
         if (!to) return to.GetStatus();
-        Base::Result<void> appended = values.PushBack(
+        values.PushBack(
             TransitionValue{
                 target,
                 property,
                 from.Value(),
                 std::move(to).Value()});
-        if (!appended) return appended.GetStatus();
         return {};
     }
     if (timeline.RuntimeType() ==
@@ -1376,13 +1359,12 @@ Base::Result<void> VisualStateManagerState::CaptureStoryboardTimeline(
                     frames.Size() - 1U,
                     frames.Size()).value);
         if (!to) return to.GetStatus();
-        Base::Result<void> appended = values.PushBack(
+        values.PushBack(
             TransitionValue{
                 target,
                 property,
                 from.Value(),
                 std::move(to).Value()});
-        if (!appended) return appended.GetStatus();
         return {};
     }
     if (timeline.RuntimeType() ==
@@ -1392,13 +1374,12 @@ Base::Result<void> VisualStateManagerState::CaptureStoryboardTimeline(
         Base::Result<PropertyValue> to =
             ValueCodec<double>::Encode(authored.GetTo());
         if (!to) return to.GetStatus();
-        Base::Result<void> appended = values.PushBack(
+        values.PushBack(
             TransitionValue{
                 target,
                 property,
                 from.Value(),
                 std::move(to).Value()});
-        if (!appended) return appended.GetStatus();
         return {};
     }
     if (timeline.RuntimeType() ==
@@ -1408,13 +1389,12 @@ Base::Result<void> VisualStateManagerState::CaptureStoryboardTimeline(
         Base::Result<PropertyValue> to =
             ValueCodec<Base::Color>::Encode(authored.GetTo());
         if (!to) return to.GetStatus();
-        Base::Result<void> appended = values.PushBack(
+        values.PushBack(
             TransitionValue{
                 target,
                 property,
                 from.Value(),
                 std::move(to).Value()});
-        if (!appended) return appended.GetStatus();
         return {};
     }
     // Unsupported timeline kind for a generated transition: leave it to the
@@ -1539,17 +1519,8 @@ Base::Result<void> VisualStateManagerState::StartTransitionAnimations(
                 ClearStateAnimations(active));
             return started.GetStatus();
         }
-        Base::Result<void> retained =
-            active.animations.PushBack(
+        active.animations.PushBack(
                 started.Value());
-        if (!retained) {
-            static_cast<void>(
-                animations_->Remove(
-                    started.Value()));
-            static_cast<void>(
-                ClearStateAnimations(active));
-            return retained.GetStatus();
-        }
     }
     return {};
 }
@@ -1630,21 +1601,15 @@ Base::Result<bool> VisualStateManagerState::GoToState(
         return false;
     }
     Base::String nextGroup;
-    Base::Result<void> groupAssigned =
-        nextGroup.Assign(groupName);
-    if (!groupAssigned) return groupAssigned.GetStatus();
+    nextGroup.Assign(groupName);
     Base::String nextName;
-    Base::Result<void> nameAssigned =
-        nextName.Assign(stateName);
-    if (!nameAssigned) return nameAssigned.GetStatus();
+    nextName.Assign(stateName);
     bool addedRecord = false;
     if (activeIndex == UINT32_MAX) {
         ActiveGroup active;
         active.templateValue = handle.value;
         active.groupName = std::move(nextGroup);
-        Base::Result<void> appended =
-            active_.PushBack(std::move(active));
-        if (!appended) return appended.GetStatus();
+        active_.PushBack(std::move(active));
         activeIndex = active_.Size() - 1U;
         addedRecord = true;
     }

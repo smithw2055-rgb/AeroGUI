@@ -468,21 +468,12 @@ DependencyPropertyRegistry::Register(
     ownerMetadata.forType = registration.ownerType;
     ownerMetadata.owner = true;
     ownerMetadata.metadata = registration.metadata;
-    Base::Result<void> metadataResult = property.metadata_.PushBack(
+    property.metadata_.PushBack(
         std::move(ownerMetadata));
-    if (!metadataResult) {
-        return metadataResult.GetStatus();
-    }
 
-    Base::Result<void> reserveResult = properties_.Reserve(
+    properties_.Reserve(
         properties_.Size() + 1U);
-    if (!reserveResult) {
-        return reserveResult.GetStatus();
-    }
-    reserveResult = memberIndex_.Reserve(memberIndex_.Size() + 1U);
-    if (!reserveResult) {
-        return reserveResult.GetStatus();
-    }
+    memberIndex_.Reserve(memberIndex_.Size() + 1U);
 
     if (property.GetIsReadOnly() &&
         nextReadOnlySecret_ == std::numeric_limits<std::uint64_t>::max()) {
@@ -503,19 +494,13 @@ DependencyPropertyRegistry::Register(
     }
 
     const std::uint32_t propertyIndex = properties_.Size();
-    Base::Result<void> appendResult = properties_.PushBack(
+    properties_.PushBack(
         std::move(property));
-    AERO_ASSERT(appendResult);
-    if (!appendResult) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InternalError,
-            "Reserved dependency property append unexpectedly failed");
-    }
 
-    Base::Result<Base::HashMap<MemberId, std::uint32_t>::InsertResult> indexResult =
+    Base::HashMap<MemberId, std::uint32_t>::InsertResult indexResult =
         memberIndex_.Insert(member, propertyIndex);
-    AERO_ASSERT(indexResult && indexResult.Value().inserted);
-    if (!indexResult || !indexResult.Value().inserted) {
+    AERO_ASSERT(indexResult.inserted);
+    if (!indexResult.inserted) {
         properties_.PopBack();
         return Base::Status::Failure(
             Base::ErrorCode::InternalError,
@@ -594,35 +579,23 @@ Base::Result<void> DependencyPropertyRegistry::AddOwner(
         return validation.GetStatus();
     }
 
-    Base::Result<void> reserveResult = property.metadata_.Reserve(
+    property.metadata_.Reserve(
         property.metadata_.Size() + 1U);
-    if (!reserveResult) {
-        return reserveResult.GetStatus();
-    }
-    reserveResult = memberIndex_.Reserve(memberIndex_.Size() + 1U);
-    if (!reserveResult) {
-        return reserveResult.GetStatus();
-    }
+    memberIndex_.Reserve(memberIndex_.Size() + 1U);
 
     DependencyProperty::MetadataEntry entry;
     entry.forType = ownerType;
     entry.owner = true;
     entry.metadata = metadata;
-    Base::Result<void> appendResult = property.metadata_.PushBack(
+    property.metadata_.PushBack(
         std::move(entry));
-    AERO_ASSERT(appendResult);
-    if (!appendResult) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InternalError,
-            "Reserved owner metadata append unexpectedly failed");
-    }
 
-    Base::Result<Base::HashMap<MemberId, std::uint32_t>::InsertResult> indexResult =
+    Base::HashMap<MemberId, std::uint32_t>::InsertResult indexResult =
         memberIndex_.Insert(
             MakeMemberId(ownerType, MemberKind::Property, property.Name()),
             propertyIndex);
-    AERO_ASSERT(indexResult && indexResult.Value().inserted);
-    if (!indexResult || !indexResult.Value().inserted) {
+    AERO_ASSERT(indexResult.inserted);
+    if (!indexResult.inserted) {
         property.metadata_.PopBack();
         return Base::Status::Failure(
             Base::ErrorCode::InternalError,
@@ -694,17 +667,15 @@ Base::Result<void> DependencyPropertyRegistry::OverrideMetadata(
         return validation.GetStatus();
     }
 
-    Base::Result<void> reserveResult = property.metadata_.Reserve(
+    property.metadata_.Reserve(
         property.metadata_.Size() + 1U);
-    if (!reserveResult) {
-        return reserveResult.GetStatus();
-    }
 
     DependencyProperty::MetadataEntry entry;
     entry.forType = forType;
     entry.owner = false;
     entry.metadata = metadata;
-    return property.metadata_.PushBack(std::move(entry));
+    property.metadata_.PushBack(std::move(entry));
+    return {};
 }
 
 Base::Result<void> DependencyPropertyRegistry::Freeze() noexcept {
@@ -1162,8 +1133,7 @@ Base::Result<void> EffectiveValueEngine::SetInheritanceParent(
         if (!subscribed) return subscribed.GetStatus();
         subscribed = EnsureInheritanceSubscription(*parent);
         if (!subscribed) return subscribed.GetStatus();
-        auto stored = parents_.Set(&child, parent);
-        if (!stored) return stored.GetStatus();
+        parents_.Set(&child, parent);
     } else {
         parents_.Erase(&child);
         Base::Result<void> subscribed = EnsureInheritanceSubscription(child);
@@ -1206,8 +1176,7 @@ Base::Result<void> EffectiveValueEngine::QueueDescendants(
     DependencyObject& parent,
     DependencyPropertyHandle property) noexcept {
     Base::Vector<DependencyObject*> frontier;
-    Base::Result<void> root = frontier.PushBack(&parent);
-    if (!root) return root.GetStatus();
+    frontier.PushBack(&parent);
     const DependencyProperty* registered = registry_->Find(property);
     std::uint32_t cursor = 0U;
     while (cursor < frontier.Size()) {
@@ -1234,14 +1203,14 @@ Base::Result<void> EffectiveValueEngine::QueueDescendants(
                     QueueObjectProperty(*child, property);
                 if (!queued) return queued.GetStatus();
             }
-            return frontier.PushBack(child);
+            frontier.PushBack(child);
+            return {};
         };
 
         Base::Vector<DependencyObject*> children;
         for (auto& link : parents_) {
             if (link.Value() != current || link.Key() == nullptr) continue;
-            Base::Result<void> stored = children.PushBack(link.Key());
-            if (!stored) return stored.GetStatus();
+            children.PushBack(link.Key());
         }
 
         if (::Aero::Media::Visual* visual =
@@ -1252,8 +1221,7 @@ Base::Result<void> EffectiveValueEngine::QueueDescendants(
                 ::Aero::Media::Visual* childVisual =
                     ::Aero::Media::VisualTreeHelper::GetChild(*visual, index);
                 if (childVisual == nullptr) continue;
-                Base::Result<void> stored = children.PushBack(childVisual);
-                if (!stored) return stored.GetStatus();
+                children.PushBack(childVisual);
             }
         }
 
@@ -1263,8 +1231,7 @@ Base::Result<void> EffectiveValueEngine::QueueDescendants(
             DependencyObject* child =
                 ::Aero::LogicalTreeHelper::GetChild(*current, index);
             if (child == nullptr) continue;
-            Base::Result<void> stored = children.PushBack(child);
-            if (!stored) return stored.GetStatus();
+            children.PushBack(child);
         }
 
         for (DependencyObject* child : children) {
@@ -1306,24 +1273,7 @@ EffectiveValueEngine::EnsureInheritanceSubscription(
         }
     }
 
-    Base::Result<void> retained =
-        inheritanceSubscriptions_.PushBack(&object);
-    if (!retained) {
-        for (const DependencyProperty& property : registry_->Properties()) {
-            const PropertyMetadata* metadata =
-                property.MetadataFor(object.RuntimeType());
-            if (metadata != nullptr &&
-                HasFlag(
-                    metadata->flags,
-                    PropertyMetadataFlags::Inherits)) {
-                static_cast<void>(
-                    object.RemoveValueChangedHandler(
-                        property.Handle(),
-                        inheritanceChangedHandler_));
-            }
-        }
-        return retained.GetStatus();
-    }
+    inheritanceSubscriptions_.PushBack(&object);
     return {};
 }
 

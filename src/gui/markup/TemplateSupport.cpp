@@ -284,23 +284,15 @@ struct XamlTemplateSchemaFacet::State {
             if (isDataTemplateFamily) {
                 auto& dataTemplate =
                     static_cast<DataTemplate&>(object);
-                Base::Result<void> reserved =
-                    compiled.Value().
+                compiled.Value().
                         dataTemplateTriggers.Reserve(
                             ::Aero::Controls::FrameworkTemplateState::AuthoredTriggers(dataTemplate).Size());
-                if (!reserved) {
-                    return reserved.GetStatus();
-                }
                 for (const Base::Ref<
                          Aero::TriggerBase>& trigger :
                      ::Aero::Controls::FrameworkTemplateState::AuthoredTriggers(dataTemplate)) {
-                    Base::Result<void> retained =
-                        compiled.Value().
-                            dataTemplateTriggers.
-                                PushBack(trigger);
-                    if (!retained) {
-                        return retained.GetStatus();
-                    }
+                    compiled.Value().
+                        dataTemplateTriggers.
+                            PushBack(trigger);
                 }
             }
             Base::Result<Base::Ref<CompiledTemplateProgramOwner>>

@@ -30,8 +30,7 @@ public:
         return {states_.Data(), states_.Size()};
     }
     void AddState(Ref<VisualState> value) noexcept {
-        Base::Result<void> pushed = states_.PushBack(std::move(value));
-        if (!pushed) { AERO_ASSERT(false); return; }
+        states_.PushBack(std::move(value));
     }
     void ClearStates() noexcept { states_.Clear(); }
     Span<const Ref<VisualTransition>>
@@ -40,8 +39,7 @@ public:
     }
     void AddTransition(
         Ref<VisualTransition> value) noexcept {
-        Base::Result<void> pushed = transitions_.PushBack(std::move(value));
-        if (!pushed) { AERO_ASSERT(false); return; }
+        transitions_.PushBack(std::move(value));
     }
     void ClearTransitions() noexcept { transitions_.Clear(); }
 

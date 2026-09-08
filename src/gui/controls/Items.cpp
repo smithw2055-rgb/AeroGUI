@@ -218,12 +218,8 @@ void ItemCollection::Insert(
     std::uint32_t index,
     Base::Ref<Base::Object> item) noexcept {
     if (!item || index > items_.Size()) { AERO_ASSERT(false); return; }
-    Base::Result<void> reserved =
-        items_.Reserve(items_.Size() + 1U);
-    if (!reserved) { AERO_ASSERT(false); return; }
-    Base::Result<void> added =
-        items_.PushBack(std::move(item));
-    if (!added) { AERO_ASSERT(false); return; }
+    items_.Reserve(items_.Size() + 1U);
+    items_.PushBack(std::move(item));
     Base::Ref<Base::Object> moving =
         std::move(items_.Back());
     for (std::uint32_t current =
@@ -334,18 +330,14 @@ Base::Result<void> ItemCollection::Reset(
     Base::Span<const Base::Ref<Base::Object>>
         items) noexcept {
     Base::Vector<Base::Ref<Base::Object>> replacement;
-    Base::Result<void> reserved =
-        replacement.Reserve(items.Size());
-    if (!reserved) return reserved.GetStatus();
+    replacement.Reserve(items.Size());
     for (const Base::Ref<Base::Object>& item : items) {
         if (!item) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
                 "ItemCollection reset item must not be null");
         }
-        Base::Result<void> added =
-            replacement.PushBack(item);
-        if (!added) return added.GetStatus();
+        replacement.PushBack(item);
     }
     const std::uint32_t oldCount = items_.Size();
     items_ = std::move(replacement);

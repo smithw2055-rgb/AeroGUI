@@ -240,12 +240,9 @@ struct EditableTextState {
             return OutOfRange(
                 "Editable text size exceeds index capacity");
         }
-        Base::Result<void> graphemeCapacity =
-            graphemeOffsets.Reserve(newTextBytes + 1U);
-        if (!graphemeCapacity) {
-            return graphemeCapacity;
-        }
-        return lineStarts.Reserve(newTextBytes + 1U);
+        graphemeOffsets.Reserve(newTextBytes + 1U);
+        lineStarts.Reserve(newTextBytes + 1U);
+        return {};
     }
 
     Base::Result<void> EnsureGap(
@@ -270,11 +267,7 @@ struct EditableTextState {
             capacity *= 2U;
         }
         Base::Vector<char> replacement(&bytes.Allocator());
-        Base::Result<void> resized =
-            replacement.Resize(capacity);
-        if (!resized) {
-            return resized;
-        }
+        replacement.Resize(capacity);
         if (gapBegin != 0U) {
             std::memcpy(
                 replacement.Data(),
@@ -327,14 +320,8 @@ struct EditableTextState {
     Base::Result<void> RebuildIndexes() noexcept {
         graphemeOffsets.Clear();
         lineStarts.Clear();
-        Base::Result<void> start =
-            graphemeOffsets.PushBack(0U);
-        if (start) {
-            start = lineStarts.PushBack(0U);
-        }
-        if (!start) {
-            return start;
-        }
+        graphemeOffsets.PushBack(0U);
+        lineStarts.PushBack(0U);
         if (textBytes == 0U) {
             codePoints = 0U;
             return {};
@@ -357,11 +344,7 @@ struct EditableTextState {
                     decoded.value,
                     regionalRun);
             if (breakBefore && !first) {
-                Base::Result<void> boundary =
-                    graphemeOffsets.PushBack(offset);
-                if (!boundary) {
-                    return boundary;
-                }
+                graphemeOffsets.PushBack(offset);
             }
             if (IsRegionalIndicator(decoded.value)) {
                 regionalRun =
@@ -378,11 +361,7 @@ struct EditableTextState {
             ++points;
             offset += decoded.length;
         }
-        Base::Result<void> end =
-            graphemeOffsets.PushBack(textBytes);
-        if (!end) {
-            return end;
-        }
+        graphemeOffsets.PushBack(textBytes);
         codePoints = points;
 
         for (std::uint32_t grapheme = 0U;
@@ -393,11 +372,7 @@ struct EditableTextState {
             const DecodedCodePoint decoded =
                 Decode(clusterOffset, byteAt);
             if (IsNewline(decoded.value)) {
-                Base::Result<void> line =
-                    lineStarts.PushBack(grapheme + 1U);
-                if (!line) {
-                    return line;
-                }
+                lineStarts.PushBack(grapheme + 1U);
             }
         }
         return {};
@@ -413,11 +388,7 @@ struct EditableTextState {
                 "Editable text byte range is out of bounds");
         }
         output.Clear();
-        Base::Result<void> reserved =
-            output.Reserve(count);
-        if (!reserved) {
-            return reserved;
-        }
+        output.Reserve(count);
         if (count == 0U) {
             return {};
         }
@@ -552,14 +523,10 @@ struct EditableTextState {
             record.after = {
                 range.start + insertedCount.Value(),
                 range.start + insertedCount.Value()};
-            Base::Result<void> history =
-                undo.Reserve(
+            undo.Reserve(
                     std::min(
                         HistoryLimit,
                         undo.Size() + 1U));
-            if (!history) {
-                return history;
-            }
         }
 
         Base::Result<void> replaced =
@@ -577,11 +544,7 @@ struct EditableTextState {
         if (recordHistory) {
             redo.Clear();
             TrimHistory(undo);
-            Base::Result<void> appended =
-                undo.PushBack(std::move(record));
-            if (!appended) {
-                return appended;
-            }
+            undo.PushBack(std::move(record));
         }
         return {};
     }
@@ -650,12 +613,8 @@ Base::Result<void> EditableTextModel::SetText(
             "Editable text exceeds byte capacity");
     }
     Base::Vector<char> replacement(allocator_);
-    Base::Result<void> resized =
-        replacement.Resize(
+    replacement.Resize(
             text.SizeBytes() + InitialGapBytes);
-    if (!resized) {
-        return resized;
-    }
     if (text.SizeBytes() != 0U) {
         std::memcpy(
             replacement.Data(),
@@ -922,14 +881,10 @@ Base::Result<void> EditableTextModel::Undo() noexcept {
         return InvalidState(
             "Editable text model is read-only");
     }
-    Base::Result<void> capacity =
-        state_->redo.Reserve(
+    state_->redo.Reserve(
             std::min(
                 HistoryLimit,
                 state_->redo.Size() + 1U));
-    if (!capacity) {
-        return capacity;
-    }
     EditableTextState::EditRecord& record = state_->undo.Back();
     const TextSelection selection = record.before;
     Base::Result<void> undone = state_->Replace(
@@ -943,7 +898,8 @@ Base::Result<void> EditableTextModel::Undo() noexcept {
     EditableTextState::EditRecord moved = std::move(record);
     state_->undo.PopBack();
     state_->TrimHistory(state_->redo);
-    return state_->redo.PushBack(std::move(moved));
+    state_->redo.PushBack(std::move(moved));
+    return {};
 }
 
 Base::Result<void> EditableTextModel::Redo() noexcept {
@@ -955,14 +911,10 @@ Base::Result<void> EditableTextModel::Redo() noexcept {
         return InvalidState(
             "Editable text model is read-only");
     }
-    Base::Result<void> capacity =
-        state_->undo.Reserve(
+    state_->undo.Reserve(
             std::min(
                 HistoryLimit,
                 state_->undo.Size() + 1U));
-    if (!capacity) {
-        return capacity;
-    }
     EditableTextState::EditRecord& record = state_->redo.Back();
     const TextSelection selection = record.after;
     Base::Result<void> redone = state_->Replace(
@@ -976,7 +928,8 @@ Base::Result<void> EditableTextModel::Redo() noexcept {
     EditableTextState::EditRecord moved = std::move(record);
     state_->redo.PopBack();
     state_->TrimHistory(state_->undo);
-    return state_->undo.PushBack(std::move(moved));
+    state_->undo.PushBack(std::move(moved));
+    return {};
 }
 
 void EditableTextModel::ClearHistory() noexcept {

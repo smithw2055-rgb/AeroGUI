@@ -19,7 +19,7 @@ std::uint32_t SegmentCount(double controlLength) noexcept {
 
 } // namespace
 
-Result<void> FlattenCubicBezier(
+void FlattenCubicBezier(
     FlattenSink& sink,
     Point start,
     Point control1,
@@ -43,13 +43,12 @@ Result<void> FlattenCubicBezier(
                 3.0 * inverse * inverse * t * control1.y +
                 3.0 * inverse * t * t * control2.y +
                 t * t * t * end.y};
-        Result<void> added = sink.AddPoint(point);
-        if (!added) return added.GetStatus();
+        sink.AddPoint(point);
     }
-    return {};
+    return;
 }
 
-Result<void> FlattenQuadraticBezier(
+void FlattenQuadraticBezier(
     FlattenSink& sink,
     Point start,
     Point control,
@@ -69,13 +68,12 @@ Result<void> FlattenQuadraticBezier(
             inverse * inverse * start.y +
                 2.0 * inverse * t * control.y +
                 t * t * end.y};
-        Result<void> added = sink.AddPoint(point);
-        if (!added) return added.GetStatus();
+        sink.AddPoint(point);
     }
-    return {};
+    return;
 }
 
-Result<void> FlattenArc(
+void FlattenArc(
     FlattenSink& sink,
     Point start,
     Size radii,
@@ -83,11 +81,12 @@ Result<void> FlattenArc(
     bool isLargeArc,
     bool sweepClockwise,
     Point end) noexcept {
-    if (FlattenSinksSamePoint(start, end)) return {};
+    if (FlattenSinksSamePoint(start, end)) return;
     double rx = std::fabs(radii.width);
     double ry = std::fabs(radii.height);
     if (rx < 1.0e-12 || ry < 1.0e-12) {
-        return sink.AddPoint(end);
+        sink.AddPoint(end);
+        return;
     }
     const double phi = rotationDegrees * Pi / 180.0;
     const double cosPhi = std::cos(phi);
@@ -176,15 +175,15 @@ Result<void> FlattenArc(
         } else {
             previous = p0;
         }
-        Result<void> flattened = FlattenCubicBezier(
+        FlattenCubicBezier(
             sink, previous, c1, c2, p1);
-        if (!flattened) return flattened.GetStatus();
         previous = p1;
     }
     if (!FlattenSinksSamePoint(previous, end)) {
-        return sink.AddPoint(end);
+        sink.AddPoint(end);
+        return;
     }
-    return {};
+    return;
 }
 
 Result<void> ParsePointList(
@@ -227,8 +226,7 @@ Result<void> ParsePointList(
                 "Point list coordinate is invalid");
         }
         cursor = parsedEnd;
-        Result<void> added = points.PushBack(Point{x, y});
-        if (!added) return added.GetStatus();
+        points.PushBack(Point{x, y});
     }
     return {};
 }
@@ -245,25 +243,21 @@ public:
         StrokeContourSink& stroke) noexcept
         : fill_(&fill), stroke_(&stroke) {}
 
-    Result<void> BeginFigure(Point start, bool isClosed) noexcept override {
-        Result<void> filled = fill_->BeginFigure(start, isClosed);
-        if (!filled) return filled.GetStatus();
-        return stroke_->BeginFigure(start, isClosed);
+    void BeginFigure(Point start, bool isClosed) noexcept override {
+        fill_->BeginFigure(start, isClosed);
+        stroke_->BeginFigure(start, isClosed);
     }
-    Result<void> AddPoint(Point point) noexcept override {
-        Result<void> filled = fill_->AddPoint(point);
-        if (!filled) return filled.GetStatus();
-        return stroke_->AddPoint(point);
+    void AddPoint(Point point) noexcept override {
+        fill_->AddPoint(point);
+        stroke_->AddPoint(point);
     }
-    Result<void> EndFigure(bool isClosed) noexcept override {
-        Result<void> filled = fill_->EndFigure(isClosed);
-        if (!filled) return filled.GetStatus();
-        return stroke_->EndFigure(isClosed);
+    void EndFigure(bool isClosed) noexcept override {
+        fill_->EndFigure(isClosed);
+        stroke_->EndFigure(isClosed);
     }
-    Result<void> Finish() noexcept {
-        Result<void> filled = fill_->Finish();
-        if (!filled) return filled.GetStatus();
-        return stroke_->Finish();
+    void Finish() noexcept {
+        fill_->Finish();
+        stroke_->Finish();
     }
 
 private:
@@ -281,7 +275,7 @@ double FillEdgeX(Point start, Point end, double y) noexcept {
 
 } // namespace
 
-Result<void> FlattenGeometryContours(
+void FlattenGeometryContours(
     const Geometry& geometry,
     Base::Vector<Point>& fillPoints,
     Base::Vector<FillContour>& fillContours,
@@ -299,9 +293,8 @@ Result<void> FlattenGeometryContours(
     StrokeContourSink strokeSink(
         strokePoints, strokeStarts, strokeCounts, strokeClosed);
     FillAndStrokeFanOut fanOut(fillSink, strokeSink);
-    Result<void> flattened = geometry.Flatten(fanOut);
-    if (!flattened) return flattened.GetStatus();
-    return fanOut.Finish();
+    geometry.Flatten(fanOut);
+    fanOut.Finish();
 }
 
 Result<void> TessellateGeometryFill(
@@ -313,10 +306,8 @@ Result<void> TessellateGeometryFill(
     Base::Vector<Point> points;
     Base::Vector<FillContour> contours;
     GeometryFillSink sink(points, contours);
-    Result<void> flattened = geometry.Flatten(sink);
-    if (!flattened) return flattened.GetStatus();
-    flattened = sink.Finish();
-    if (!flattened) return flattened.GetStatus();
+    geometry.Flatten(sink);
+    sink.Finish();
     return TessellateFillContours(points, contours, vertices, indices);
 }
 
@@ -330,11 +321,9 @@ Result<void> TessellateFillContours(
     if (points.Empty() || contours.Empty()) return {};
 
     Base::Vector<double> levels;
-    Result<void> reserved = levels.Reserve(points.Size());
-    if (!reserved) return reserved.GetStatus();
+    levels.Reserve(points.Size());
     for (const Point point : points) {
-        Result<void> added = levels.PushBack(point.y);
-        if (!added) return added.GetStatus();
+        levels.PushBack(point.y);
     }
     std::sort(levels.Data(), levels.Data() + levels.Size());
     std::uint32_t uniqueCount = 0U;
@@ -370,11 +359,10 @@ Result<void> TessellateFillContours(
                 const double minimum = std::min(start.y, end.y);
                 const double maximum = std::max(start.y, end.y);
                 if (middleY <= minimum || middleY >= maximum) continue;
-                Result<void> added = hits.PushBack({
+                hits.PushBack({
                     FillEdgeX(start, end, topY),
                     FillEdgeX(start, end, bottomY),
                     FillEdgeX(start, end, middleY)});
-                if (!added) return added.GetStatus();
             }
         }
         if (hits.Empty()) continue;
@@ -400,13 +388,11 @@ Result<void> TessellateFillContours(
                 {right.top, topY},
                 {right.bottom, bottomY},
                 {left.bottom, bottomY}};
-            Result<void> added = vertices.Append({quad, 4U});
-            if (!added) return added.GetStatus();
+            vertices.Append({quad, 4U});
             const std::uint32_t triangles[] = {
                 base, base + 1U, base + 2U,
                 base, base + 2U, base + 3U};
-            added = indices.Append({triangles, 6U});
-            if (!added) return added.GetStatus();
+            indices.Append({triangles, 6U});
         }
     }
     return {};
@@ -436,25 +422,20 @@ public:
         bool figureOpen = false;
         bool figureClosed = false;
 
-        auto beginFigure = [&](Point start, bool closed) noexcept -> Result<void> {
+        auto beginFigure = [&](Point start, bool closed) noexcept {
             if (figureOpen) {
-                Result<void> ended = sink_->EndFigure(figureClosed);
-                if (!ended) return ended.GetStatus();
+                sink_->EndFigure(figureClosed);
                 figureOpen = false;
             }
             figureClosed = closed;
-            Result<void> started = sink_->BeginFigure(start, closed);
-            if (!started) return started.GetStatus();
+            sink_->BeginFigure(start, closed);
             figureOpen = true;
-            return {};
         };
-        auto endFigure = [&](bool closed) noexcept -> Result<void> {
-            if (!figureOpen) return {};
-            Result<void> ended = sink_->EndFigure(closed);
-            if (!ended) return ended.GetStatus();
+        auto endFigure = [&](bool closed) noexcept {
+            if (!figureOpen) return;
+            sink_->EndFigure(closed);
             figureOpen = false;
             figureClosed = false;
-            return {};
         };
 
         while (true) {
@@ -472,8 +453,7 @@ public:
                     // is inset from that vertex, not treated as absolute.
                     current = first;
                     lastControl = first;
-                    Result<void> ended = endFigure(true);
-                    if (!ended) return ended.GetStatus();
+                    endFigure(true);
                     hasCurrent = true;
                     command = '\0';
                     lastCommand = 'Z';
@@ -500,16 +480,14 @@ public:
                     point.y += current.y;
                 }
                 if (absolute == 'M') {
-                    Result<void> started = beginFigure(point, false);
-                    if (!started) return started.GetStatus();
+                    beginFigure(point, false);
                     first = point;
                     command = relative ? 'l' : 'L';
                 } else if (!hasCurrent || !figureOpen) {
                     return InvalidPathData(
                         "Path line command requires an active contour");
                 } else {
-                    Result<void> added = sink_->AddPoint(point);
-                    if (!added) return added.GetStatus();
+                    sink_->AddPoint(point);
                 }
                 current = point;
                 hasCurrent = true;
@@ -532,8 +510,7 @@ public:
                 } else {
                     point.y = relative ? current.y + value : value;
                 }
-                Result<void> added = sink_->AddPoint(point);
-                if (!added) return added.GetStatus();
+                sink_->AddPoint(point);
                 current = point;
                 lastControl = point;
                 lastCommand = absolute;
@@ -584,9 +561,8 @@ public:
                 }
                 lastControl = control2;
                 lastCommand = absolute;
-                Result<void> flattened = FlattenCubicBezier(
+                FlattenCubicBezier(
                     *sink_, current, control1, control2, endPoint);
-                if (!flattened) return flattened.GetStatus();
                 current = endPoint;
                 continue;
             }
@@ -628,9 +604,8 @@ public:
                 }
                 lastControl = control;
                 lastCommand = absolute;
-                Result<void> flattened = FlattenQuadraticBezier(
+                FlattenQuadraticBezier(
                     *sink_, current, control, endPoint);
-                if (!flattened) return flattened.GetStatus();
                 current = endPoint;
                 continue;
             }
@@ -655,7 +630,7 @@ public:
                 }
                 lastControl = endPoint;
                 lastCommand = absolute;
-                Result<void> flattened = FlattenArc(
+                FlattenArc(
                     *sink_,
                     current,
                     Size{std::fabs(rx), std::fabs(ry)},
@@ -663,7 +638,6 @@ public:
                     large != 0.0,
                     sweep != 0.0,
                     endPoint);
-                if (!flattened) return flattened.GetStatus();
                 current = endPoint;
                 continue;
             }
@@ -671,7 +645,8 @@ public:
             return InvalidPathData(
                 "Path supports commands M, L, H, V, C, S, Q, T, A, and Z");
         }
-        return endFigure(false);
+        endFigure(false);
+        return {};
     }
 
 private:
@@ -749,7 +724,8 @@ bool GeometryContainsLocalPoint(
     Base::Vector<Point> points;
     Base::Vector<FillContour> contours;
     GeometryFillSink sink(points, contours);
-    if (!geometry.Flatten(sink) || !sink.Finish()) return false;
+    geometry.Flatten(sink);
+    sink.Finish();
     int crossings = 0;
     for (const FillContour contour : contours) {
         if (contour.count < 3U) continue;

@@ -27,6 +27,6 @@ public:
     AERO_DEPENDENCY_PROPERTY(Point, StartPoint);
     AERO_DEPENDENCY_PROPERTY(Point, EndPoint);
 protected:
-    Result<void> FlattenCore(FlattenSink& sink) const noexcept override;
+    void FlattenCore(FlattenSink& sink) const noexcept override;
 };
 } // namespace Aero::Media

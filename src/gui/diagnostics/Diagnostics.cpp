@@ -195,11 +195,7 @@ Base::Result<void> DiagnosticBag::Report(Diagnostic&& diagnostic) noexcept {
     }
 
     const DiagnosticSeverity severity = diagnostic.Severity();
-    Base::Result<void> appendResult = items_.PushBack(std::move(diagnostic));
-    if (!appendResult) {
-        return appendResult.GetStatus();
-    }
-
+    items_.PushBack(std::move(diagnostic));
     if (severity == DiagnosticSeverity::Warning) {
         IncrementSaturated(warningCount_);
     } else if (severity == DiagnosticSeverity::Error ||

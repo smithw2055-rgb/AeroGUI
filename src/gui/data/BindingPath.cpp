@@ -512,9 +512,7 @@ Base::Result<BindingPathPlan> BindingPathPlan::Compile(
         }
 
         const TypeId propertyOutputType = segment.outputType;
-        Base::Result<void> appended =
-            plan.segments_.PushBack(std::move(segment));
-        if (!appended) return appended.GetStatus();
+        plan.segments_.PushBack(std::move(segment));
         currentType = propertyOutputType;
         ++segmentIndex;
 
@@ -536,8 +534,7 @@ Base::Result<BindingPathPlan> BindingPathPlan::Compile(
             indexSegment.collectionIndex = collectionIndex;
             indexSegment.readable = true;
             indexSegment.writable = true;
-            appended = plan.segments_.PushBack(std::move(indexSegment));
-            if (!appended) return appended.GetStatus();
+            plan.segments_.PushBack(std::move(indexSegment));
             currentType = Meta::TypeOf<Base::Object>();
             plan.hasDynamicResult_ = true;
             ++segmentIndex;

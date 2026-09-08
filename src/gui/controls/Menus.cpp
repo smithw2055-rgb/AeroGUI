@@ -404,17 +404,7 @@ MenuBehavior::Attach(
     if (!handle) return handle.GetStatus();
     menu.AddHandler(UIElement::MouseDownEvent, mouseDownHandler_);
     menu.AddHandler(UIElement::KeyDownEvent, keyDownHandler_);
-    Base::Result<void> stored =
-        records_.PushBack(handle.Value());
-    if (!stored) {
-        static_cast<void>(menu.RemoveHandler(
-            UIElement::KeyDownEvent,
-            keyDownHandler_));
-        static_cast<void>(menu.RemoveHandler(
-            UIElement::MouseDownEvent,
-            mouseDownHandler_));
-        return stored.GetStatus();
-    }
+    records_.PushBack(handle.Value());
     return {};
 }
 

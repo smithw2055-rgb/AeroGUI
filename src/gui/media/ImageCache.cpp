@@ -232,9 +232,7 @@ Base::Result<bool> ImageCache::Synchronize(
     Base::Vector<Aero::Media::Visual*> pending(
         allocator_);
     if (root != nullptr) {
-        Base::Result<void> queued =
-            pending.PushBack(root);
-        if (!queued) return queued.GetStatus();
+        pending.PushBack(root);
     }
     while (!pending.Empty()) {
         Aero::Media::Visual* visual =
@@ -243,9 +241,7 @@ Base::Result<bool> ImageCache::Synchronize(
         if (visual == nullptr) continue;
         for (Aero::Media::Visual* child :
              AeroGuiInternal::RenderChildren(*visual)) {
-            Base::Result<void> queued =
-                pending.PushBack(child);
-            if (!queued) return queued.GetStatus();
+            pending.PushBack(child);
         }
         // A visual may reference one bitmap for its content/fill and another
         // for OpacityMask. Process both through the same device image table.
@@ -404,10 +400,8 @@ Base::Result<bool> ImageCache::Synchronize(
                 resolved.Value();
             created.sourceRect =
                 sourceRect;
-            Base::Result<void> stored =
-                records_.PushBack(
+            records_.PushBack(
                     std::move(created));
-            if (!stored) return stored.GetStatus();
             record =
                 &records_[records_.Size() - 1U];
         }
@@ -502,13 +496,8 @@ Base::Result<bool> ImageCache::Synchronize(
                         width) *
                     static_cast<std::uint64_t>(
                         height) * 4U);
-            Base::Result<void> resized =
-                record->pixels.Resize(
+            record->pixels.Resize(
                     byteCount);
-            if (!resized) {
-                stbi_image_free(decoded);
-                return resized.GetStatus();
-            }
             for (std::uint32_t index = 0U;
                  index < byteCount; ++index) {
                 record->pixels[index] =
@@ -554,9 +543,7 @@ Base::Result<bool> ImageCache::Synchronize(
                     cropWidth * cropHeight * 4U;
                 Base::Vector<std::uint8_t> cropped(
                     allocator_);
-                Base::Result<void> reserved =
-                    cropped.Resize(cropBytes);
-                if (!reserved) return reserved.GetStatus();
+                cropped.Resize(cropBytes);
                 for (std::uint32_t row = 0U;
                      row < cropHeight; ++row) {
                     const std::uint32_t sourceOffset =

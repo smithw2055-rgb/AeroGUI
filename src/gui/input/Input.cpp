@@ -202,14 +202,12 @@ Base::Result<void> HitTestState::SetOverlays(
             "Input overlay elements and origins must have equal lengths");
     }
     Base::Vector<Base::Transform2D> transforms;
-    Base::Result<void> reserved = transforms.Reserve(origins.Size());
-    if (!reserved) return reserved.GetStatus();
+    transforms.Reserve(origins.Size());
     for (std::uint32_t index = 0U; index < origins.Size(); ++index) {
         Base::Transform2D t{};
         t.dx = origins[index].x;
         t.dy = origins[index].y;
-        Base::Result<void> appended = transforms.PushBack(t);
-        if (!appended) return appended.GetStatus();
+        transforms.PushBack(t);
     }
     return SetOverlays(overlays, transforms.AsSpan());
 }
@@ -223,9 +221,7 @@ Base::Result<void> HitTestState::SetOverlays(
             "Input overlay elements and transforms must have equal lengths");
     }
     Base::Vector<OverlayRecord> next;
-    Base::Result<void> reserved =
-        next.Reserve(overlays.Size());
-    if (!reserved) return reserved.GetStatus();
+    next.Reserve(overlays.Size());
     for (std::uint32_t index = 0U;
          index < overlays.Size();
          ++index) {
@@ -243,10 +239,8 @@ Base::Result<void> HitTestState::SetOverlays(
                 current.element == overlay;
         }
         if (duplicate) continue;
-        Base::Result<void> appended =
-            next.PushBack(
+        next.PushBack(
                 {overlay, transforms[index]});
-        if (!appended) return appended.GetStatus();
     }
     overlays_ = std::move(next);
     return {};
@@ -340,11 +334,7 @@ Base::Result<HitTestResult> HitTestState::RootToLocal(
             return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
                 "Pointer capture target is not below the input root");
         }
-        Base::Result<void> appended =
-            path.PushBack(currentElement);
-        if (!appended) {
-            return appended.GetStatus();
-        }
+        path.PushBack(currentElement);
         current = parent;
     }
     Point local;
@@ -530,9 +520,7 @@ Base::Result<void> PointerStateMachine::UpdateHover(
     }
     std::uint32_t index = FindState(pointerId);
     if (index == UINT32_MAX) {
-        Base::Result<void> appended =
-            states_.PushBack({pointerId, {}, {}});
-        if (!appended) return appended.GetStatus();
+        states_.PushBack({pointerId, {}, {}});
         index = states_.Size() - 1U;
     }
     const VisualHandle previous = states_[index].hover;
@@ -660,9 +648,7 @@ Base::Result<void> PointerStateMachine::UpdatePressed(
     }
     std::uint32_t index = FindState(pointerId);
     if (index == UINT32_MAX) {
-        Base::Result<void> appended =
-            states_.PushBack({pointerId, {}, {}});
-        if (!appended) return appended.GetStatus();
+        states_.PushBack({pointerId, {}, {}});
         index = states_.Size() - 1U;
     }
     const VisualHandle previous = states_[index].pressed;
@@ -751,9 +737,7 @@ Base::Result<void> PointerStateMachine::CapturePointer(
         }
         return {};
     }
-    Base::Result<void> appended =
-        captures_.PushBack({pointerId, handle.Value()});
-    if (!appended) return appended.GetStatus();
+    captures_.PushBack({pointerId, handle.Value()});
     if (!captureChanged_.Empty()) {
         captureChanged_.Invoke(pointerId, &target, true);
     }
@@ -1262,9 +1246,8 @@ Base::Result<void> FocusState::RememberFocus(
                 }
             }
             if (recordIndex == UINT32_MAX) {
-                Base::Result<void> appended = scopeFocus_.PushBack(
+                scopeFocus_.PushBack(
                     {scope.Value(), AeroGuiInternal::Handle(node)});
-                if (!appended) return appended.GetStatus();
             } else {
                 scopeFocus_[recordIndex].focused = AeroGuiInternal::Handle(node);
             }
@@ -1309,11 +1292,10 @@ Base::Result<void> FocusState::CollectCandidates(
             element->GetIsEnabled() &&
             element->GetFocusable() &&
             element->GetIsTabStop()) {
-            Base::Result<void> appended = candidates.PushBack(
+            candidates.PushBack(
                 {element,
                  element->GetValue(KeyboardNavigation::TabIndexProperty),
                  candidateOrder});
-            if (!appended) return appended.GetStatus();
             std::uint32_t index = candidates.Size() - 1U;
             while (index > 0U) {
                 FocusCandidate& previous = candidates[index - 1U];
@@ -1394,9 +1376,8 @@ Base::Result<bool> FocusState::SetFocus(UIElement* node) noexcept {
         if (ancestor == nullptr) break;
         ++ancestorCount;
     }
-    Base::Result<void> reserved = scopeFocus_.Reserve(
+    scopeFocus_.Reserve(
         scopeFocus_.Size() + ancestorCount);
-    if (!reserved) return reserved.GetStatus();
     auto setFocusWithin = [](UIElement& element, bool value)
         -> Base::Result<void> {
         ::Aero::Media::Visual* current = &element;

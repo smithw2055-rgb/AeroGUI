@@ -53,7 +53,7 @@ struct X11WindowState {
     bool ownsWindow = false;
 
     void Push(const WindowEvent& event) noexcept {
-        Base::Result<void> pushed = events.PushBack(event);
+        events.PushBack(event);
         static_cast<void>(pushed);
     }
 
@@ -93,11 +93,8 @@ struct X11WindowState {
             ? Base::StringView("AeroGUI")
             : title;
         Base::Vector<char> storage(&events.Allocator());
-        Base::Result<void> resized = storage.Resize(
+        storage.Resize(
             source.SizeBytes() + 1U);
-        if (!resized) {
-            return resized.GetStatus();
-        }
         for (std::uint32_t index = 0U;
              index < source.SizeBytes(); ++index) {
             storage[index] = source[index];

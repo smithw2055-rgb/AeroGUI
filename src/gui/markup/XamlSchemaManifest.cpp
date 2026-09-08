@@ -149,16 +149,16 @@ bool IsAeroExtensionsFacade(
 Base::Result<void> AppendU8(
     Base::Vector<std::uint8_t>& output,
     std::uint8_t value) noexcept {
-    return output.PushBack(value);
+    output.PushBack(value);
+    return {};
 }
 
 Base::Result<void> AppendU32(
     Base::Vector<std::uint8_t>& output,
     std::uint32_t value) noexcept {
     for (std::uint32_t shift = 0U; shift < 32U; shift += 8U) {
-        Base::Result<void> appended = output.PushBack(
+        output.PushBack(
             static_cast<std::uint8_t>(value >> shift));
-        if (!appended) return appended.GetStatus();
     }
     return {};
 }
@@ -167,9 +167,8 @@ Base::Result<void> AppendU64(
     Base::Vector<std::uint8_t>& output,
     std::uint64_t value) noexcept {
     for (std::uint32_t shift = 0U; shift < 64U; shift += 8U) {
-        Base::Result<void> appended = output.PushBack(
+        output.PushBack(
             static_cast<std::uint8_t>(value >> shift));
-        if (!appended) return appended.GetStatus();
     }
     return {};
 }
@@ -298,18 +297,14 @@ struct SchemaManifest::State {
         typeIndex.Clear();
         memberIndex.Clear();
         for (std::uint32_t index = 0U; index < types.Size(); ++index) {
-            Base::Result<typename Base::HashMap<Meta::TypeId, std::uint32_t>::InsertResult>
-                inserted = typeIndex.Insert(types[index].id, index);
-            if (!inserted) return inserted.GetStatus();
-            if (!inserted.Value().inserted) {
+            typename Base::HashMap<Meta::TypeId, std::uint32_t>::InsertResult inserted = typeIndex.Insert(types[index].id, index);
+            if (!inserted.inserted) {
                 return InvalidManifest("XAML schema manifest contains duplicate TypeId values");
             }
         }
         for (std::uint32_t index = 0U; index < members.Size(); ++index) {
-            Base::Result<typename Base::HashMap<Meta::MemberId, std::uint32_t>::InsertResult>
-                inserted = memberIndex.Insert(members[index].id, index);
-            if (!inserted) return inserted.GetStatus();
-            if (!inserted.Value().inserted) {
+            typename Base::HashMap<Meta::MemberId, std::uint32_t>::InsertResult inserted = memberIndex.Insert(members[index].id, index);
+            if (!inserted.inserted) {
                 return InvalidManifest("XAML schema manifest contains duplicate MemberId values");
             }
         }
@@ -615,17 +610,9 @@ Base::Result<SchemaManifest> SchemaManifest::Capture(
     impl->identity = identity.Value();
 
     const Meta::TypeRegistry& descriptors = schema.Types();
-    Base::Result<void> reserved = impl->types.Reserve(descriptors.TypeCount());
-    if (!reserved) {
-        DestroyManifestState(selected, impl);
-        return reserved.GetStatus();
-    }
-    reserved = impl->members.Reserve(
+    impl->types.Reserve(descriptors.TypeCount());
+    impl->members.Reserve(
         descriptors.PropertyCount() + descriptors.EventCount());
-    if (!reserved) {
-        DestroyManifestState(selected, impl);
-        return reserved.GetStatus();
-    }
 
     for (const Meta::TypeInfo& type : descriptors.Types()) {
         SchemaManifest::State::TypeRecord record(selected);
@@ -648,12 +635,8 @@ Base::Result<SchemaManifest> SchemaManifest::Capture(
             DestroyManifestState(selected, impl);
             return content.GetStatus();
         }
-        Base::Result<void> appended = impl->types.PushBack(
+        impl->types.PushBack(
             std::move(record));
-        if (!appended) {
-            DestroyManifestState(selected, impl);
-            return appended.GetStatus();
-        }
 
         for (const Meta::PropertyInfo& property : type.Properties()) {
             SchemaManifest::State::MemberRecord member(selected);
@@ -667,11 +650,7 @@ Base::Result<SchemaManifest> SchemaManifest::Capture(
                 DestroyManifestState(selected, impl);
                 return assigned.GetStatus();
             }
-            appended = impl->members.PushBack(std::move(member));
-            if (!appended) {
-                DestroyManifestState(selected, impl);
-                return appended.GetStatus();
-            }
+            impl->members.PushBack(std::move(member));
         }
 
         for (const Meta::EventInfo& event : type.Events()) {
@@ -686,11 +665,7 @@ Base::Result<SchemaManifest> SchemaManifest::Capture(
                 DestroyManifestState(selected, impl);
                 return assigned.GetStatus();
             }
-            appended = impl->members.PushBack(std::move(member));
-            if (!appended) {
-                DestroyManifestState(selected, impl);
-                return appended.GetStatus();
-            }
+            impl->members.PushBack(std::move(member));
         }
     }
 
@@ -768,12 +743,8 @@ Base::Result<SchemaManifest> SchemaManifest::Deserialize(
             Base::ErrorCode::OutOfRange,
             "XAML schema manifest descriptor count exceeds limits");
     }
-    Base::Result<void> reserved = impl->types.Reserve(typeCount.Value());
-    if (reserved) reserved = impl->members.Reserve(memberCount.Value());
-    if (!reserved) {
-        DestroyManifestState(selected, impl);
-        return reserved.GetStatus();
-    }
+    impl->types.Reserve(typeCount.Value());
+    impl->members.Reserve(memberCount.Value());
 
     std::uint32_t totalStringBytes = 0U;
     for (std::uint32_t index = 0U; index < typeCount.Value(); ++index) {
@@ -830,11 +801,7 @@ Base::Result<SchemaManifest> SchemaManifest::Deserialize(
         record.contentMember = content.Value();
         record.xamlNamespace = std::move(xamlNamespace).Value();
         record.name = std::move(name).Value();
-        Base::Result<void> appended = impl->types.PushBack(std::move(record));
-        if (!appended) {
-            DestroyManifestState(selected, impl);
-            return appended.GetStatus();
-        }
+        impl->types.PushBack(std::move(record));
     }
 
     for (std::uint32_t index = 0U; index < memberCount.Value(); ++index) {
@@ -898,11 +865,7 @@ Base::Result<SchemaManifest> SchemaManifest::Deserialize(
         record.valueType = valueType.Value();
         record.flags = flags.Value();
         record.name = std::move(name).Value();
-        Base::Result<void> appended = impl->members.PushBack(std::move(record));
-        if (!appended) {
-            DestroyManifestState(selected, impl);
-            return appended.GetStatus();
-        }
+        impl->members.PushBack(std::move(record));
     }
 
     if (!decoder.AtEnd()) {

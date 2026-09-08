@@ -23,11 +23,10 @@ Base::Result<void> VisualContentPlan::Reserve(
     std::uint32_t contentEdgeCount,
     std::uint32_t mountEdgeCount,
     std::uint32_t nodeCount) noexcept {
-    Base::Result<void> reserved = contentEdges.Reserve(contentEdgeCount);
-    if (!reserved) return reserved.GetStatus();
-    reserved = mountEdges.Reserve(mountEdgeCount);
-    if (!reserved) return reserved.GetStatus();
-    return nodes.Reserve(nodeCount);
+    contentEdges.Reserve(contentEdgeCount);
+    mountEdges.Reserve(mountEdgeCount);
+    nodes.Reserve(nodeCount);
+    return {};
 }
 
 Base::Result<void> VisualContentPlan::AddNode(
@@ -35,7 +34,8 @@ Base::Result<void> VisualContentPlan::AddNode(
     for (Aero::Media::Visual* existing : nodes) {
         if (existing == &node) return {};
     }
-    return nodes.PushBack(&node);
+    nodes.PushBack(&node);
+    return {};
 }
 
 void VisualContentPlan::ReleaseContent() noexcept {
@@ -322,11 +322,7 @@ Base::Result<void> AssignLowerAscii(
     Base::String& output,
     Base::StringView value) noexcept {
     Base::String replacement(&output.Allocator());
-    Base::Result<void> reserve =
-        replacement.Reserve(value.SizeBytes());
-    if (!reserve) {
-        return reserve.GetStatus();
-    }
+    replacement.Reserve(value.SizeBytes());
     for (char character : value) {
         const char lower = ToLowerAscii(character);
         Base::Result<void> append =
@@ -443,8 +439,9 @@ Base::Result<void> XamlProviderRegistry::Set(
             return {};
         }
     }
-    return registrations_.PushBack(
+    registrations_.PushBack(
         std::move(registration));
+    return {};
 }
 
 Base::Result<XamlProviderResolution>
@@ -551,14 +548,9 @@ Base::Result<void> EmbeddedXamlProvider::Add(
 
     Entry entry;
     entry.uri = uri;
-    Base::Result<void> copied =
-        entry.bytes.Append(bytes);
-    if (!copied) {
-        return copied.GetStatus();
-    }
+    entry.bytes.Append(bytes);
     entry.revision = revision;
-    Base::Result<void> stored = entries_.PushBack(std::move(entry));
-    if (!stored) return stored.GetStatus();
+    entries_.PushBack(std::move(entry));
     return {};
 }
 
@@ -936,11 +928,7 @@ Base::Result<LoaderResult> Loader::LoaderState::Operation::LoadCore(
             Base::StringView(
                 "No XAML source provider matches the resource URI"));
     }
-    Base::Result<void> pushed =
-        loadStack_.PushBack(uri);
-    if (!pushed) {
-        return pushed.GetStatus();
-    }
+    loadStack_.PushBack(uri);
 
     if (loadState.documentCache != nullptr) {
         Base::Result<std::uint64_t> probedRevision =
@@ -1391,10 +1379,9 @@ Loader::LoaderState::Operation::ResolveDictionaryDependencies(
     }
     merge.target = std::move(target).Value();
     merge.source = std::move(sourceDictionary);
-    Base::Result<void> staged =
-        pending.PushBack(std::move(merge));
+    pending.PushBack(std::move(merge));
     loaded.Value().Clear();
-    return staged;
+    return {};
 }
 
 Base::Result<void>
@@ -1469,8 +1456,9 @@ Base::Result<void> Loader::LoaderState::Operation::AppendDependency(
             Base::StringView(
                 "XAML dependency count exceeds configured limits"));
     }
-    return destination.dependencies.PushBack(
+    destination.dependencies.PushBack(
         dependency);
+    return {};
 }
 
 Base::Result<void> Loader::LoaderState::Operation::ValidateOptions(

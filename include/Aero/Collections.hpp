@@ -90,12 +90,9 @@ public:
         std::uint32_t index,
         Ref<T> item) noexcept {
         if (!item || index > items_.Size()) { AERO_ASSERT(false); return; }
-        Result<void> reserved =
-            items_.Reserve(items_.Size() + 1U);
-        if (!reserved) { AERO_ASSERT(false); return; }
+        items_.Reserve(items_.Size() + 1U);
         Ref<T> placeholder;
-        Result<void> pushed = items_.PushBack(std::move(placeholder));
-        if (!pushed) { AERO_ASSERT(false); return; }
+        items_.PushBack(std::move(placeholder));
         for (std::uint32_t current = items_.Size() - 1U;
              current > index; --current) {
             items_[current] = std::move(items_[current - 1U]);

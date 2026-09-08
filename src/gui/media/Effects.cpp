@@ -131,8 +131,7 @@ void ShaderEffect::SetBytecode(
     Base::Span<const std::uint8_t> value) noexcept {
     bytecode_.Clear();
     for (std::uint32_t index = 0U; index < value.Size(); ++index) {
-        Base::Result<void> added = bytecode_.PushBack(value[index]);
-        if (!added) { AERO_ASSERT(false); return; }
+        bytecode_.PushBack(value[index]);
     }
 }
 

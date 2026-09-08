@@ -668,11 +668,7 @@ Base::Result<void> ObjectWriter::CreateScopesForObject(
         NameScopeRecord scope;
         scope.ownerObjectIndex = objectIndex;
         const std::uint32_t index = nameScopes_.Size();
-        Base::Result<void> appendResult =
-            nameScopes_.PushBack(std::move(scope));
-        if (!appendResult) {
-            return appendResult.GetStatus();
-        }
+        nameScopes_.PushBack(std::move(scope));
         frame.nameScopeIndex = index;
         if (documentRoot) {
             documentNameScopeIndex_ = index;
@@ -687,11 +683,7 @@ Base::Result<void> ObjectWriter::CreateScopesForObject(
             created_[objectIndex].type,
             *created_[objectIndex].object);
         const std::uint32_t index = resourceScopes_.Size();
-        Base::Result<void> appendResult =
-            resourceScopes_.PushBack(std::move(scope));
-        if (!appendResult) {
-            return appendResult.GetStatus();
-        }
+        resourceScopes_.PushBack(std::move(scope));
         frame.resourceScopeIndex = index;
         if (documentRoot) {
             documentResourceScopeIndex_ = index;
@@ -715,11 +707,7 @@ Base::Result<void> ObjectWriter::ActivatePendingNamespaces(
         if (!uriResult) {
             return uriResult.GetStatus();
         }
-        Base::Result<void> appendResult =
-            namespaceBindings_.PushBack(std::move(binding));
-        if (!appendResult) {
-            return appendResult.GetStatus();
-        }
+        namespaceBindings_.PushBack(std::move(binding));
     }
     pendingNamespaces_.Clear();
     return {};
@@ -809,12 +797,7 @@ ExtensionServices ObjectWriter::BuildExtensionServices(
             }
         }
         if (!duplicate) {
-            Base::Result<void> added =
-                serviceResourceChain_.PushBack(dictionary);
-            if (!added) {
-                serviceResourceChain_.Clear();
-                break;
-            }
+            serviceResourceChain_.PushBack(dictionary);
         }
     }
     if (loadContext_ != nullptr &&
@@ -828,12 +811,8 @@ ExtensionServices ObjectWriter::BuildExtensionServices(
             }
         }
         if (!duplicate) {
-            Base::Result<void> added =
-                serviceResourceChain_.PushBack(
+            serviceResourceChain_.PushBack(
                     loadContext_->resources);
-            if (!added) {
-                serviceResourceChain_.Clear();
-            }
         }
     }
     services.ambientResourceChain = {

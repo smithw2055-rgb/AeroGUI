@@ -87,7 +87,8 @@ Base::Result<void> ObjectWriter::QueueNamespaceDeclaration(
         return uriResult.GetStatus();
     }
     record.source = node.Source();
-    return pendingNamespaces_.PushBack(std::move(record));
+    pendingNamespaces_.PushBack(std::move(record));
+    return {};
 }
 Base::Result<void> ObjectWriter::StartObject(
     const Node& node) noexcept {
@@ -251,15 +252,7 @@ Base::Result<void> ObjectWriter::StartObject(
         }
     }
     const std::uint32_t objectIndex = created_.Size();
-    Base::Result<void> appendObject =
-        created_.PushBack(std::move(record));
-    if (!appendObject) {
-        return Failure(
-            appendObject.GetStatus(),
-            XamlObjectWriterDiagnosticCodes::FactoryFailed,
-            MessageFactoryFailed,
-            node.Source());
-    }
+    created_.PushBack(std::move(record));
 
     if (rootObjectIndex_ == InvalidIndex) {
         rootObjectIndex_ = objectIndex;
@@ -291,14 +284,7 @@ Base::Result<void> ObjectWriter::StartObject(
         return scopeResult.GetStatus();
     }
 
-    Base::Result<void> appendFrame = frames_.PushBack(frame);
-    if (!appendFrame) {
-        return Failure(
-            appendFrame.GetStatus(),
-            XamlObjectWriterDiagnosticCodes::InvalidWriterState,
-            MessageInvalidWriterState,
-            node.Source());
-    }
+    frames_.PushBack(frame);
     return {};
 }
 
@@ -322,17 +308,15 @@ Base::Result<void> ObjectWriter::StartValueObject(
     record.type = type;
     record.valueElement = true;
     const std::uint32_t objectIndex = created_.Size();
-    Base::Result<void> appended = created_.PushBack(
+    created_.PushBack(
         std::move(record));
-    if (!appended) return appended.GetStatus();
 
     Frame frame;
     frame.kind = FrameKind::ValueObject;
     frame.objectIndex = objectIndex;
     frame.namespaceBindingStart = bindingStart;
     frame.source = node.Source();
-    appended = frames_.PushBack(frame);
-    if (!appended) return appended.GetStatus();
+    frames_.PushBack(frame);
     return {};
 }
 
@@ -355,10 +339,7 @@ Base::Result<void> ObjectWriter::StartNullObject(
     frame.kind = FrameKind::NullObject;
     frame.namespaceBindingStart = bindingStart;
     frame.source = node.Source();
-    Base::Result<void> appendResult = frames_.PushBack(frame);
-    if (!appendResult) {
-        return appendResult.GetStatus();
-    }
+    frames_.PushBack(frame);
     return {};
 }
 
@@ -471,8 +452,7 @@ Base::Result<void> ObjectWriter::StartMember(
         frame.kind = FrameKind::ValueMember;
         frame.targetObjectIndex = objectFrame.objectIndex;
         frame.source = node.Source();
-        Base::Result<void> appended = frames_.PushBack(frame);
-        if (!appended) return appended.GetStatus();
+        frames_.PushBack(frame);
         return {};
     }
 
@@ -609,14 +589,7 @@ Base::Result<void> ObjectWriter::StartMember(
         memberValueTypeIsValueType;
     frame.source = node.Source();
     frame.propertyElement = false;
-    Base::Result<void> appendResult = frames_.PushBack(frame);
-    if (!appendResult) {
-        return Failure(
-            appendResult.GetStatus(),
-            XamlObjectWriterDiagnosticCodes::InvalidWriterState,
-            MessageInvalidWriterState,
-            node.Source());
-    }
+    frames_.PushBack(frame);
     return {};
 }
 
@@ -653,10 +626,7 @@ Base::Result<void> ObjectWriter::StartDirective(
     frame.directive = directive;
     frame.targetObjectIndex = targetObjectIndex;
     frame.source = node.Source();
-    Base::Result<void> appendResult = frames_.PushBack(frame);
-    if (!appendResult) {
-        return appendResult.GetStatus();
-    }
+    frames_.PushBack(frame);
     return {};
 }
 

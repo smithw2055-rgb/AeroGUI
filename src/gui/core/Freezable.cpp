@@ -88,8 +88,7 @@ Base::Result<void> CheckFreezeNode(
         return FreezeGraphStatus(
             "A Freezable with an expression or animation cannot be frozen");
     }
-    Base::Result<void> pushed = context.visiting.PushBack(&value);
-    if (!pushed) return pushed.GetStatus();
+    context.visiting.PushBack(&value);
     Base::Result<void> children =
         AeroGuiInternal::VisitFreezableChildren(
             value, &context, &CheckFreezeChild);
@@ -103,7 +102,8 @@ Base::Result<void> CheckFreezeNode(
             "A Freezable child rejected the freeze operation");
     }
     context.visiting.PopBack();
-    return context.complete.PushBack(&value);
+    context.complete.PushBack(&value);
+    return {};
 }
 
 void RemoveHandlerAt(
@@ -367,7 +367,8 @@ Base::Result<void> AeroGuiInternal::AttachFreezableConsumer(
         record.unmanagedObject = &object;
     }
     record.property = property;
-    return impl->consumers.PushBack(std::move(record));
+    impl->consumers.PushBack(std::move(record));
+    return {};
 }
 
 void AeroGuiInternal::DetachFreezableConsumer(

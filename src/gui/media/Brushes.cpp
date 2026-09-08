@@ -69,16 +69,7 @@ void GradientBrush::AddGradientStop(
     if (!retained->IsFrozen()) {
         retained->AddChangedHandler(stopChangedHandler_);
     }
-    Base::Result<void> added =
-        stops_.PushBack(std::move(stop));
-    if (!added) {
-        if (!retained->IsFrozen()) {
-            static_cast<void>(
-                retained->RemoveChangedHandler(stopChangedHandler_));
-        }
-        AERO_ASSERT(false);
-        return;
-    }
+    stops_.PushBack(std::move(stop));
     WritePostscript();
 }
 
@@ -95,16 +86,7 @@ void GradientStopCollection::Add(
     if (!retained->IsFrozen()) {
         retained->AddChangedHandler(stopChangedHandler_);
     }
-    Base::Result<void> added =
-        stops_.PushBack(std::move(stop));
-    if (!added) {
-        if (!retained->IsFrozen()) {
-            static_cast<void>(
-                retained->RemoveChangedHandler(stopChangedHandler_));
-        }
-        AERO_ASSERT(false);
-        return;
-    }
+    stops_.PushBack(std::move(stop));
     if (!changed_.Empty()) {
         changed_.Invoke({
             Collections::ItemsChangeAction::Add,

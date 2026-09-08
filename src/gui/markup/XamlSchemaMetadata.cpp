@@ -511,10 +511,9 @@ Base::Result<XamlFacets::DraftType*>
 XamlFacets::EnsureType(Meta::TypeId type) noexcept {
     DraftType* existing = FindDraft(type);
     if (existing != nullptr) return existing;
-    Base::Result<DraftType*> added = drafts_.EmplaceBack();
-    if (!added) return added.GetStatus();
-    added.Value()->type = type;
-    return added.Value();
+    DraftType* added = drafts_.EmplaceBack();
+    added->type = type;
+    return added;
 }
 
 const XamlFacets::XamlTypePlan* XamlFacets::FindPlan(
@@ -591,33 +590,26 @@ Base::Result<void> XamlFacets::Add(
             "XAML aggregate facet overlaps an existing capability");
     }
 
-    Base::Result<void> reserved = drafts_.Reserve(
+    drafts_.Reserve(
         drafts_.Size() + (existing == nullptr ? 1U : 0U));
-    if (!reserved) return reserved.GetStatus();
     if (addLifecycle) {
-        reserved = lifecycles_.Reserve(lifecycles_.Size() + 1U);
-        if (!reserved) return reserved.GetStatus();
+        lifecycles_.Reserve(lifecycles_.Size() + 1U);
     }
     if (addNameScope) {
-        reserved = nameScopes_.Reserve(nameScopes_.Size() + 1U);
-        if (!reserved) return reserved.GetStatus();
+        nameScopes_.Reserve(nameScopes_.Size() + 1U);
     }
     if (addResourceScope) {
-        reserved = resourceScopes_.Reserve(resourceScopes_.Size() + 1U);
-        if (!reserved) return reserved.GetStatus();
+        resourceScopes_.Reserve(resourceScopes_.Size() + 1U);
     }
     if (addDeferredContent) {
-        reserved = deferredContents_.Reserve(deferredContents_.Size() + 1U);
-        if (!reserved) return reserved.GetStatus();
+        deferredContents_.Reserve(deferredContents_.Size() + 1U);
     }
     if (addImplicitResourceKey) {
-        reserved = implicitResourceKeys_.Reserve(
+        implicitResourceKeys_.Reserve(
             implicitResourceKeys_.Size() + 1U);
-        if (!reserved) return reserved.GetStatus();
     }
     if (addPropertyTarget) {
-        reserved = propertyTargets_.Reserve(propertyTargets_.Size() + 1U);
-        if (!reserved) return reserved.GetStatus();
+        propertyTargets_.Reserve(propertyTargets_.Size() + 1U);
     }
 
     Base::Result<DraftType*> ensured = EnsureType(facet.type);
@@ -683,16 +675,15 @@ Base::Result<void> XamlFacets::Add(
             InvalidFacetIndex) {                                          \
         return DuplicateFacet(DuplicateMessage);                          \
     }                                                                     \
-    Base::Result<void> reserved = drafts_.Reserve(                     \
+    drafts_.Reserve(                                                     \
         drafts_.Size() + (existing == nullptr ? 1U : 0U));                \
-    if (!reserved) return reserved.GetStatus();                           \
-    reserved = Column.Reserve(Column.Size() + 1U);                     \
-    if (!reserved) return reserved.GetStatus();                           \
+    Column.Reserve(Column.Size() + 1U);                                    \
     Base::Result<DraftType*> ensured = EnsureType(facet.type);            \
     if (!ensured) return ensured.GetStatus();                             \
     ensured.Value()->facets[static_cast<std::uint8_t>(KindValue)] =       \
         Column.Size();                                                     \
-    return Column.PushBack(facet)
+    Column.PushBack(facet);                                               \
+    return {}
 
 Base::Result<void> XamlFacets::Add(
     const XamlLifecycleFacet& facet,
@@ -779,23 +770,21 @@ Base::Result<void> XamlFacets::Add(
         return DuplicateFacet(
             "XAML markup-extension facet is already registered");
     }
-    Base::Result<void> reserved = drafts_.Reserve(
+    drafts_.Reserve(
         drafts_.Size() + (existing == nullptr ? 1U : 0U));
-    if (!reserved) return reserved.GetStatus();
-    reserved = markupExtensions_.Reserve(markupExtensions_.Size() + 1U);
-    if (!reserved) return reserved.GetStatus();
+    markupExtensions_.Reserve(markupExtensions_.Size() + 1U);
     Base::Result<DraftType*> ensured = EnsureType(facet.type);
     if (!ensured) return ensured.GetStatus();
     ensured.Value()->facets[static_cast<std::uint8_t>(
         FacetKind::MarkupExtension)] = markupExtensions_.Size();
-    return markupExtensions_.PushBack(facet);
+    markupExtensions_.PushBack(facet);
+    return {};
 }
 
 Base::Result<void> XamlFacets::BuildLifecyclePlans(
     const Meta::TypeRegistry& descriptors) noexcept {
     Base::Vector<Meta::TypeId> ancestry;
-    Base::Result<void> reserved = ancestry.Reserve(descriptors.TypeCount());
-    if (!reserved) return reserved.GetStatus();
+    ancestry.Reserve(descriptors.TypeCount());
 
     for (XamlTypePlan& plan : plans_) {
         plan.firstLifecycleRef = lifecycleRefs_.Size();
@@ -804,8 +793,7 @@ Base::Result<void> XamlFacets::BuildLifecyclePlans(
         std::uint32_t depth = 0U;
         while (current != Meta::InvalidTypeId &&
                depth <= descriptors.TypeCount()) {
-            Base::Result<void> added = ancestry.PushBack(current);
-            if (!added) return added.GetStatus();
+            ancestry.PushBack(current);
             const Meta::TypeInfo* descriptor = descriptors.FindType(current);
             if (descriptor == nullptr) break;
             current = descriptor->BaseType();
@@ -830,8 +818,7 @@ Base::Result<void> XamlFacets::BuildLifecyclePlans(
                     Base::ErrorCode::OutOfRange,
                     "XAML lifecycle plan exceeds the compact record limit");
             }
-            Base::Result<void> added = lifecycleRefs_.PushBack(facet);
-            if (!added) return added.GetStatus();
+            lifecycleRefs_.PushBack(facet);
             ++count;
         }
         plan.lifecycleCount = static_cast<std::uint16_t>(count);
@@ -848,15 +835,12 @@ Base::Result<void> XamlFacets::Freeze(
     lifecycleRefs_.Clear();
     index_.Clear();
 
-    Base::Result<void> reserved = plans_.Reserve(descriptors.TypeCount());
-    if (!reserved) return reserved.GetStatus();
-    reserved = index_.Reserve(descriptors.TypeCount());
-    if (!reserved) return reserved.GetStatus();
-    reserved = facetRefs_.Reserve(
+    plans_.Reserve(descriptors.TypeCount());
+    index_.Reserve(descriptors.TypeCount());
+    facetRefs_.Reserve(
         lifecycles_.Size() + nameScopes_.Size() + resourceScopes_.Size() +
         deferredContents_.Size() + implicitResourceKeys_.Size() +
         propertyTargets_.Size() + markupExtensions_.Size());
-    if (!reserved) return reserved.GetStatus();
 
     for (const Meta::TypeInfo& descriptor : descriptors.Types()) {
         XamlTypePlan plan;
@@ -869,19 +853,16 @@ Base::Result<void> XamlFacets::Freeze(
                  ++kind) {
                 const std::uint32_t facet = draft->facets[kind];
                 if (facet == InvalidFacetIndex) continue;
-                Base::Result<void> added = facetRefs_.PushBack(facet);
-                if (!added) return added.GetStatus();
+                facetRefs_.PushBack(facet);
                 plan.facetMask |= static_cast<FacetMask>(1U << kind);
                 ++plan.facetCount;
             }
         }
         const std::uint32_t position = plans_.Size();
-        Base::Result<void> added = plans_.PushBack(plan);
-        if (!added) return added.GetStatus();
-        Base::Result<FacetIndex::InsertResult> inserted =
+        plans_.PushBack(plan);
+        FacetIndex::InsertResult inserted =
             index_.Insert(plan.type, position);
-        if (!inserted) return inserted.GetStatus();
-        if (!inserted.Value().inserted) {
+        if (!inserted.inserted) {
             return Base::Status::Failure(
                 Base::ErrorCode::AlreadyExists,
                 "XAML facet index contains a duplicate type");

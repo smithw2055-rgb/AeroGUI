@@ -57,15 +57,7 @@ public:
         if (!retained->IsFrozen()) {
             retained->AddChangedHandler(itemChangedHandler_);
         }
-        Result<void> added = items_.PushBack(std::move(item));
-        if (!added) {
-            if (!retained->IsFrozen() && !itemChangedHandler_.Empty()) {
-                static_cast<void>(retained->RemoveChangedHandler(
-                    itemChangedHandler_));
-            }
-            AERO_ASSERT(false);
-            return;
-        }
+        items_.PushBack(std::move(item));
         if (!changed_.Empty()) {
             changed_.Invoke({
                 Collections::ItemsChangeAction::Add,

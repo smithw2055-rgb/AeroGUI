@@ -176,9 +176,7 @@ public:
 
         DependencyObject* current = &source;
         while (current != nullptr) {
-            Base::Result<void> appended =
-                nodes_.PushBack(EventRouteNode::Acquire(*current));
-            if (!appended) return appended.GetStatus();
+            nodes_.PushBack(EventRouteNode::Acquire(*current));
             if (strategy == RoutingStrategy::Direct) break;
             current = GetParent(*current);
         }

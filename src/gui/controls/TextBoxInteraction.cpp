@@ -171,11 +171,7 @@ TextEditBehavior::Attach(
     }
     Record record;
     record.handle = AeroGuiInternal::Handle(textBox);
-    Base::Result<void> appended =
-        records_.PushBack(record);
-    if (!appended) {
-        return appended;
-    }
+    records_.PushBack(record);
     if (!captureSubscribed_) {
         input_->AddPointerCaptureChanged(captureChangedHandler_);
         captureSubscribed_ = true;
@@ -226,9 +222,7 @@ TextEditBehavior::Attach(
     Record record;
     record.handle = AeroGuiInternal::Handle(passwordBox);
     record.password = true;
-    Base::Result<void> appended =
-        records_.PushBack(record);
-    if (!appended) return appended.GetStatus();
+    records_.PushBack(record);
     if (!captureSubscribed_) {
         input_->AddPointerCaptureChanged(captureChangedHandler_);
         captureSubscribed_ = true;
@@ -917,12 +911,8 @@ TextBox::RebuildCaretStops() noexcept {
     const auto& active = Model(GetActiveModel());
     const std::uint32_t graphemes =
         active.GraphemeCount();
-    Base::Result<void> capacity =
-        caretStops_.Reserve(
+    caretStops_.Reserve(
             graphemes + 1U);
-    if (!capacity) {
-        return capacity;
-    }
     const std::uint32_t lines =
         std::max(1U, active.LineCount());
     std::uint32_t maximumLineLength = 0U;
@@ -978,12 +968,8 @@ TextBox::RebuildCaretStops() noexcept {
               GetFontSize() / 16.0 /
             std::max(1.0, GetDpiScale());
 
-    Base::Result<void> initial =
-        caretStops_.Resize(
+    caretStops_.Resize(
             graphemes + 1U);
-    if (!initial) {
-        return initial;
-    }
     std::uint32_t visualLineBase = 0U;
     for (std::uint32_t line = 0U;
          line < lines; ++line) {

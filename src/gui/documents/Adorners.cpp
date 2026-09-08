@@ -35,8 +35,7 @@ void AdornerLayer::Add(Base::Ref<Adorner> adorner) noexcept {
         if (owned.Get() == adorner.Get()) { AERO_ASSERT(false); return; }
     }
     Adorner* child = adorner.Get();
-    Base::Result<void> appended = adorners_.PushBack(std::move(adorner));
-    if (!appended) { AERO_ASSERT(false); return; }
+    adorners_.PushBack(std::move(adorner));
     AddVisualChild(child);
     InvalidateMeasure();
 }

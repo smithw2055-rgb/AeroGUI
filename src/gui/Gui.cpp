@@ -240,10 +240,7 @@ void GuiState::OnXamlChanged(const Base::ResourceUri& uri) noexcept {
     XamlProviderChangeRecord record;
     record.uri = uri;
     record.generation = ++xamlChangeGeneration;
-    if (!xamlChanges.PushBack(std::move(record))) {
-        xamlChanges.Clear();
-        xamlChangesLost = true;
-    }
+    xamlChanges.PushBack(std::move(record));
 }
 
 void GuiState::OnTextureChanged(const Base::ResourceUri& uri) noexcept {
@@ -251,10 +248,7 @@ void GuiState::OnTextureChanged(const Base::ResourceUri& uri) noexcept {
     XamlProviderChangeRecord record;
     record.uri = uri;
     record.generation = ++textureChangeGeneration;
-    if (!textureChanges.PushBack(std::move(record))) {
-        textureChanges.Clear();
-        textureChangesLost = true;
-    }
+    textureChanges.PushBack(std::move(record));
 }
 
 void GuiState::OnFontChanged(const Media::FontProviderChange& change) noexcept {
@@ -381,13 +375,7 @@ Base::Result<void> Gui::SetXamlProvider(
     }
     if (newlySubscribed) {
         provider->AddChangedHandler(state.xamlChanged);
-        Base::Result<void> retained =
-            state.subscribedXamlProviders.PushBack(provider);
-        if (!retained) {
-            static_cast<void>(provider->RemoveChangedHandler(
-                state.xamlChanged));
-            return retained.GetStatus();
-        }
+        state.subscribedXamlProviders.PushBack(provider);
     }
     Ref<Markup::XamlProvider> replaced;
     Base::Result<void> configured = state.xamlProviders.Set(

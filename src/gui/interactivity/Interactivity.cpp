@@ -45,9 +45,8 @@ void Behavior::AddAuthoredBinding(
             return;
         }
     }
-    Base::Result<void> pushed = authoredBindings_.PushBack(
+    authoredBindings_.PushBack(
         {property, std::move(binding)});
-    if (!pushed) { AERO_ASSERT(false); return; }
 }
 
 void Behavior::CopyAuthoredBindingsTo(
@@ -93,15 +92,13 @@ Base::Result<Base::Ref<Behavior>> Behavior::ClonePrototype(
 void StyleBehaviorCollection::Add(
     Base::Ref<Base::Object> value) noexcept {
     if (!value) { AERO_ASSERT(false); return; }
-    Base::Result<void> pushed = items_.PushBack(std::move(value));
-    if (!pushed) { AERO_ASSERT(false); return; }
+    items_.PushBack(std::move(value));
 }
 
 void StyleTriggerCollection::Add(
     Base::Ref<Base::Object> value) noexcept {
     if (!value) { AERO_ASSERT(false); return; }
-    Base::Result<void> pushed = items_.PushBack(std::move(value));
-    if (!pushed) { AERO_ASSERT(false); return; }
+    items_.PushBack(std::move(value));
 }
 
 void StyleInteraction::OnBehaviorsChanged(

@@ -49,15 +49,13 @@ Base::Result<void> DeferredContentPlan::Stage(
         return InvalidContentState(
             "Deferred XAML content edge is invalid");
     }
-    Base::Result<void> retained =
-        edges_.PushBack({
+    edges_.PushBack({
             &owner,
             &parent,
             child,
             &metadata,
             member,
             false});
-    if (!retained) return retained.GetStatus();
     Base::Result<void> written =
         metadata.WriteContent(parent, member, child);
     if (!written) {
@@ -84,15 +82,13 @@ Base::Result<void> DeferredContentPlan::StageProperty(
         return InvalidContent(
             "Deferred XAML structural property was not found");
     }
-    Base::Result<void> retained =
-        edges_.PushBack({
+    edges_.PushBack({
             &owner,
             &parent,
             child,
             &metadata,
             member,
             true});
-    if (!retained) return retained.GetStatus();
     const Meta::Value value =
         Meta::Value::FromObject(
             property->ValueType(), child);
@@ -112,12 +108,7 @@ Base::Result<void> DeferredContentPlan::CopyForOwner(
     output.Clear();
     for (const DeferredContentEdge& edge : edges_) {
         if (edge.owner != &owner) continue;
-        Base::Result<void> copied =
-            output.PushBack(edge);
-        if (!copied) {
-            output.Clear();
-            return copied.GetStatus();
-        }
+        output.PushBack(edge);
     }
     return {};
 }
@@ -170,7 +161,8 @@ Base::Result<void> DeferredContentPlan::StageBinding(
     assigned = edge.stringFormat.Assign(
         stringFormat);
     if (!assigned) return assigned.GetStatus();
-    return bindings_.PushBack(std::move(edge));
+    bindings_.PushBack(std::move(edge));
+    return {};
 }
 
 Base::Result<void>
@@ -180,12 +172,7 @@ DeferredContentPlan::CopyBindingsForOwner(
     output.Clear();
     for (const DeferredBindingEdge& edge : bindings_) {
         if (edge.owner != &owner) continue;
-        Base::Result<void> copied =
-            output.PushBack(edge);
-        if (!copied) {
-            output.Clear();
-            return copied.GetStatus();
-        }
+        output.PushBack(edge);
     }
     return {};
 }
@@ -463,19 +450,13 @@ Base::Result<void> ObjectWriter::StageContent(
 
     Base::Ref<Base::Object> parentOwner =
         Base::Ref<Base::Object>::FromBorrowed(object);
-    Base::Result<void> tracked =
-        plan->contentEdges.PushBack({
+    plan->contentEdges.PushBack({
             std::move(parentOwner), value.AsObject(),
             metadata, services.targetMember,
             structuralProperty});
-    if (!tracked) return tracked.GetStatus();
 
-    tracked = plan->mountEdges.PushBack({
+    plan->mountEdges.PushBack({
         parentResult.Value(), childResult.Value(), {}});
-    if (!tracked) {
-        plan->contentEdges.PopBack();
-        return tracked.GetStatus();
-    }
 
     Base::Result<void> written =
         structuralProperty

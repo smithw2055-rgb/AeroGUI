@@ -22,16 +22,8 @@ void Trigger::AddSetter(
     const Setter& setter) noexcept {
     if (!setter.GetProperty().IsValid() ||
         setter.GetValue().IsUnset()) { AERO_ASSERT(false); return; }
-    Base::Result<void> property =
-        setterProperties_.PushBack(setter.GetProperty());
-    if (!property) { AERO_ASSERT(false); return; }
-    Base::Result<void> value =
-        setterValues_.PushBack(setter.GetValue());
-    if (!value) {
-        setterProperties_.PopBack();
-        AERO_ASSERT(false);
-        return;
-    }
+    setterProperties_.PushBack(setter.GetProperty());
+    setterValues_.PushBack(setter.GetValue());
 }
 
 void Trigger::SetPropertyName(
@@ -59,9 +51,8 @@ void Trigger::SetAuthoredValue(
 void Trigger::AddAuthoredSetter(
     Base::Ref<Setter> setter) noexcept {
     if (!setter) { AERO_ASSERT(false); return; }
-    Base::Result<void> pushed = authoredSetters_.PushBack(
+    authoredSetters_.PushBack(
         std::move(setter));
-    if (!pushed) { AERO_ASSERT(false); return; }
 }
 
 void Trigger::ClearAuthoredSetters() noexcept {

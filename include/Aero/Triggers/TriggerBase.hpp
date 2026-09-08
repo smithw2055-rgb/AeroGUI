@@ -32,8 +32,7 @@ public:
     }
     void AddBehavior(Ref<Base::Object> behavior) noexcept {
         if (!behavior) { AERO_ASSERT(false); return; }
-        Base::Result<void> pushed = behaviors_.PushBack(std::move(behavior));
-        if (!pushed) { AERO_ASSERT(false); return; }
+        behaviors_.PushBack(std::move(behavior));
     }
     void ClearBehaviors() noexcept { behaviors_.Clear(); }
     Span<const Ref<Base::Object>> GetBehaviors() const noexcept {

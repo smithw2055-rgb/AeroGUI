@@ -71,14 +71,7 @@ public:
             contributions_[existing].value = value;
             return true;
         }
-        Result<void> added = contributions_.PushBack({token, value});
-        if (!added) {
-            Base::ReportOutOfMemory(
-                sizeof(PropertyProviderContribution),
-                alignof(PropertyProviderContribution),
-                Base::MemoryTag::Container);
-            return true;
-        }
+        contributions_.PushBack({token, value});
         NoteInserted(contributions_.Size() - 1U);
         return true;
     }
@@ -97,15 +90,7 @@ public:
         PropertyProviderContribution contribution;
         contribution.token = token;
         contribution.value = std::move(value);
-        Result<void> added =
-            contributions_.PushBack(std::move(contribution));
-        if (!added) {
-            Base::ReportOutOfMemory(
-                sizeof(PropertyProviderContribution),
-                alignof(PropertyProviderContribution),
-                Base::MemoryTag::Container);
-            return true;
-        }
+        contributions_.PushBack(std::move(contribution));
         NoteInserted(contributions_.Size() - 1U);
         return true;
     }

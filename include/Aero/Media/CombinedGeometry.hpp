@@ -32,7 +32,7 @@ public:
     }
     AERO_DEPENDENCY_PROPERTY(GeometryCombineMode, GeometryCombineMode);
 protected:
-    Result<void> FlattenCore(FlattenSink& sink) const noexcept override;
+    void FlattenCore(FlattenSink& sink) const noexcept override;
     bool FreezeCore(bool isChecking) noexcept override;
 private:
     void OnChildChanged(Freezable&) noexcept;

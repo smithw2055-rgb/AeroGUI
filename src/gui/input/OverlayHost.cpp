@@ -48,9 +48,7 @@ Base::Result<void> OverlayHost::SynchronizeOverlays() noexcept {
         }
         Base::Vector<Aero::Media::Visual*> stack(
             Allocator());
-        Base::Result<void> appended =
-            stack.PushBack(rootVisual);
-        if (!appended) return appended.GetStatus();
+        stack.PushBack(rootVisual);
         while (!stack.Empty()) {
             Aero::Media::Visual* node =
                 stack.Back();
@@ -187,24 +185,12 @@ Base::Result<void> OverlayHost::SynchronizeOverlays() noexcept {
                                     transform);
                         }
                     }
-                    appended =
-                        renderOverlays.PushBack(
+                    renderOverlays.PushBack(
                             framework);
-                    if (!appended) {
-                        return appended.GetStatus();
-                    }
-                    appended =
-                        overlayTransforms.PushBack(
+                    overlayTransforms.PushBack(
                             transform);
-                    if (!appended) {
-                        return appended.GetStatus();
-                    }
-                    appended =
-                        inputOverlays.PushBack(
+                    inputOverlays.PushBack(
                             inputElement);
-                    if (!appended) {
-                        return appended.GetStatus();
-                    }
                 }
             }
             if (Metadata()->Types().IsDerivedFrom(
@@ -256,12 +242,9 @@ Base::Result<void> OverlayHost::SynchronizeOverlays() noexcept {
                         target = adorner.Get();
                     }
                     Base::Transform2D transform = rootTransform(*target);
-                    appended = renderOverlays.PushBack(adorner.Get());
-                    if (!appended) return appended.GetStatus();
-                    appended = overlayTransforms.PushBack(transform);
-                    if (!appended) return appended.GetStatus();
-                    appended = inputOverlays.PushBack(adorner.Get());
-                    if (!appended) return appended.GetStatus();
+                    renderOverlays.PushBack(adorner.Get());
+                    overlayTransforms.PushBack(transform);
+                    inputOverlays.PushBack(adorner.Get());
                 }
             }
             const auto children =
@@ -270,12 +253,8 @@ Base::Result<void> OverlayHost::SynchronizeOverlays() noexcept {
                      children.Size();
                  index > 0U;
                  --index) {
-                appended =
-                    stack.PushBack(
+                stack.PushBack(
                         children[index - 1U]);
-                if (!appended) {
-                    return appended.GetStatus();
-                }
             }
         }
         Base::Result<void> render =

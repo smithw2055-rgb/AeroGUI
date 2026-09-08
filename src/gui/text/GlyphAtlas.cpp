@@ -41,10 +41,9 @@ Base::Result<void> ConvertCoverageToSdf(
     Base::Vector<float> foreground(allocator);
     Base::Vector<float> background(allocator);
     Base::Vector<std::uint8_t> pixels(allocator);
-    Base::Result<void> status = foreground.Resize(count);
-    if (status) status = background.Resize(count);
-    if (status) status = pixels.Resize(count);
-    if (!status) return status.GetStatus();
+    foreground.Resize(count);
+    background.Resize(count);
+    pixels.Resize(count);
     constexpr float Infinity = std::numeric_limits<float>::max() / 8.0F;
     auto at = [width](std::uint32_t x, std::uint32_t y) noexcept {
         return y * width + x;
@@ -340,9 +339,7 @@ Base::Result<void> GlyphAtlas::EnsureGlyph(
     }
     if (pageIndex == UINT32_MAX &&
         state_->pages.Size() < state_->config.maxPages) {
-        Base::Result<GlyphAtlasState::Page*> appended =
-            state_->pages.EmplaceBack();
-        if (!appended) return appended.GetStatus();
+        (void)state_->pages.EmplaceBack();
         pageIndex = state_->pages.Size() - 1U;
         if (!state_->Place(
                 state_->pages[pageIndex],
@@ -405,16 +402,11 @@ Base::Result<void> GlyphAtlas::EnsureGlyph(
     if (!stored) return stored.GetStatus();
     const std::uint32_t entryIndex =
         state_->entries.Size() - 1U;
-    Base::Result<
-        Base::HashMap<
+    Base::HashMap<
             GlyphAtlasKey, std::uint32_t,
-            GlyphAtlasKeyHash>::InsertResult> indexed =
+            GlyphAtlasKeyHash>::InsertResult indexed =
         state_->entryIndex.Insert(key, entryIndex);
-    if (!indexed) {
-        state_->entries.PopBack();
-        return indexed.GetStatus();
-    }
-    if (!indexed.Value().inserted) {
+    if (!indexed.inserted) {
         state_->entries.PopBack();
         return Base::Status::Failure(
             Base::ErrorCode::AlreadyExists,
@@ -433,13 +425,8 @@ Base::Result<void> GlyphAtlas::EnsureGlyph(
     const std::uint64_t byteCount =
         static_cast<std::uint64_t>(bitmap.width) *
         static_cast<std::uint64_t>(bitmap.height);
-    Base::Result<void> resized = upload.pixels.Resize(
+    upload.pixels.Resize(
         static_cast<std::uint32_t>(byteCount));
-    if (!resized) {
-        static_cast<void>(state_->entryIndex.Erase(key));
-        state_->entries.PopBack();
-        return resized.GetStatus();
-    }
     for (std::uint32_t row = 0U;
          row < bitmap.height; ++row) {
         std::memcpy(
@@ -447,13 +434,7 @@ Base::Result<void> GlyphAtlas::EnsureGlyph(
             bitmap.pixels.Data() + row * bitmap.strideBytes,
             bitmap.width);
     }
-    Base::Result<GlyphAtlasUpload*> queued =
-        state_->uploads.EmplaceBack(std::move(upload));
-    if (!queued) {
-        static_cast<void>(state_->entryIndex.Erase(key));
-        state_->entries.PopBack();
-        return queued.GetStatus();
-    }
+    (void)state_->uploads.EmplaceBack(std::move(upload));
     page.hasPendingUploads = true;
     output = placement;
     return {};

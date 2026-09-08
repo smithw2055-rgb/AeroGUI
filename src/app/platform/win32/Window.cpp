@@ -150,11 +150,8 @@ Base::Result<void> ConvertWindowTitle(
             Base::ErrorCode::InvalidUtf8,
             "Win32 window title is not valid UTF-8");
     }
-    Base::Result<void> resized = output.Resize(
+    output.Resize(
         static_cast<std::uint32_t>(required) + 1U);
-    if (!resized) {
-        return resized.GetStatus();
-    }
     if (MultiByteToWideChar(
             CP_UTF8,
             MB_ERR_INVALID_CHARS,
@@ -190,7 +187,7 @@ struct Win32WindowState {
     std::uint16_t pendingHighSurrogate = 0U;
 
     void Push(const WindowEvent& event) noexcept {
-        Base::Result<void> pushed = events.PushBack(event);
+        events.PushBack(event);
         static_cast<void>(pushed);
     }
 

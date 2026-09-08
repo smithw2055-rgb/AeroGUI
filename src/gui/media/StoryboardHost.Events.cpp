@@ -310,23 +310,8 @@ Base::Result<bool> StoryboardHost::StartEventTrigger(
         subscription.handler = handler;
         subscription.context = eventContext;
         subscription.contentSource = contentSource;
-        Base::Result<void> retained =
-            animationEventSubscriptions.PushBack(
+        animationEventSubscriptions.PushBack(
                 std::move(subscription));
-        if (!retained) {
-            if (contentSource) {
-                static_cast<void>(
-                    static_cast<Aero::ContentElement*>(eventSource)
-                        ->RemoveHandler(eventHandle, handler));
-            } else {
-                static_cast<void>(
-                    static_cast<Aero::UIElement*>(eventSource)
-                        ->RemoveHandler(eventHandle, handler));
-            }
-            FreeObject(
-                *Allocator(), Base::MemoryTag::Ui, eventContext);
-            return retained.GetStatus();
-        }
         // Microsoft.Xaml.Behaviors EventTrigger fires Loaded immediately when
         // the associated object is already loaded (InitializeComponent / mount
         // often raises Loaded before Interaction.Triggers are attached).
@@ -335,9 +320,8 @@ Base::Result<bool> StoryboardHost::StartEventTrigger(
             // Defer until after the next layout/image pass so ElementName
             // bindings (Menu3D parallax TranslateTransform.X) see measured
             // ActualWidth before BackgroundAnim captures its From value.
-            Base::Result<void> queued = pendingLoadedTriggers.PushBack(
+            pendingLoadedTriggers.PushBack(
                 {&trigger, &actionOwner, names});
-            if (!queued) return queued.GetStatus();
         }
         return true;
     }
@@ -427,8 +411,7 @@ void StoryboardHost::ClearEventTriggers() noexcept {
 Base::Result<void> StoryboardHost::FlushPendingLoadedTriggers() noexcept {
         Base::Vector<PendingLoadedTrigger> snapshot(Allocator());
         for (const PendingLoadedTrigger& pending : pendingLoadedTriggers) {
-            Base::Result<void> retained = snapshot.PushBack(pending);
-            if (!retained) return retained.GetStatus();
+            snapshot.PushBack(pending);
         }
         pendingLoadedTriggers.Clear();
         for (const PendingLoadedTrigger& pending : snapshot) {

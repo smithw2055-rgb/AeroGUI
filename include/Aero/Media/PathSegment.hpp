@@ -8,12 +8,11 @@ namespace Aero::Media {
 class AERO_GUI_API PathSegment : public Freezable {
     AERO_DECLARE_TYPE(PathSegment, Freezable)
 public:
-    virtual Result<void> Flatten(
+    virtual void Flatten(
         FlattenSink& sink,
         Point& currentPoint) const noexcept {
         (void)sink;
         (void)currentPoint;
-        return {};
     }
 protected:
     explicit PathSegment(Meta::TypeId runtimeType) noexcept

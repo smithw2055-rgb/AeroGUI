@@ -119,7 +119,8 @@ public:
                 Base::ErrorCode::InvalidState,
                 "Focused accessibility node must be enabled, visible and focusable");
         }
-        return nodes_.PushBack(std::move(node));
+        nodes_.PushBack(std::move(node));
+        return {};
     }
 
     const AccessibilityNode* Find(std::uint64_t id) const noexcept {
@@ -346,8 +347,7 @@ private:
             node.renderRevision = AeroGuiInternal::RenderRevision(const_cast<Aero::FrameworkElement&>(*framework));
             node.renderValid = AeroGuiInternal::RenderValid(const_cast<Aero::FrameworkElement&>(*framework));
         }
-        Base::Result<void> appended = nodes_.PushBack(node);
-        if (!appended) return appended.GetStatus();
+        nodes_.PushBack(node);
         const std::uint32_t childCount =
             LogicalTreeHelper::GetChildrenCount(visual);
         for (std::uint32_t index = 0U; index < childCount; ++index) {
@@ -407,7 +407,8 @@ public:
                 return {};
             }
         }
-        return budgets_.PushBack({metric, limit});
+        budgets_.PushBack({metric, limit});
+        return {};
     }
 
     Base::Result<void> Record(
@@ -418,7 +419,8 @@ public:
                 Base::ErrorCode::InvalidArgument,
                 "Performance measurement must be nonnegative");
         }
-        return measurements_.PushBack({metric, value});
+        measurements_.PushBack({metric, value});
+        return {};
     }
 
     Base::Result<PerformanceGateResult> Evaluate() const noexcept {
@@ -487,7 +489,8 @@ public:
         if (!named) return named.GetStatus();
         target.callback = callback;
         target.context = context;
-        return targets_.PushBack(std::move(target));
+        targets_.PushBack(std::move(target));
+        return {};
     }
 
     FuzzRunResult Run(

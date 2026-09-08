@@ -78,9 +78,8 @@ private:
         if (nextId_ == 0U) {
             nextId_ = 1U;
         }
-        Base::Result<void> stored = handlers_.PushBack({
+        handlers_.PushBack({
             callback, callbackContext, id});
-        if (!stored) return stored.GetStatus();
         return id;
     }
     Base::Result<bool> Unsubscribe(std::uint64_t subscription) noexcept {

@@ -123,8 +123,9 @@ Base::Result<void> BindingEngine::QueueDeferred(
     assigned = record.stringFormat.Assign(
         descriptor.stringFormat);
     if (!assigned) return assigned.GetStatus();
-    return deferredBindings_.PushBack(
+    deferredBindings_.PushBack(
         std::move(record));
+    return {};
 }
 
 Base::Result<std::uint32_t>
@@ -202,7 +203,8 @@ Base::Result<void> BindingEngine::ActivateDeferredWhenReady(
     for (DependencyObject* pending : pendingDeferredActivations_) {
         if (pending == &target) return {};
     }
-    return pendingDeferredActivations_.PushBack(&target);
+    pendingDeferredActivations_.PushBack(&target);
+    return {};
 }
 
 Base::Result<std::uint32_t>
@@ -322,7 +324,7 @@ void BindingEngine::RegisterMultiBinding(
     group.target = &target;
     group.targetProperty = property;
     for (std::uint32_t index = 0U; index < handles.Size(); ++index) {
-        if (!group.handles.PushBack(handles[index])) return;
+        group.handles.PushBack(handles[index]);
     }
     static_cast<void>(multiBindings_.PushBack(std::move(group)));
 }
@@ -337,9 +339,7 @@ Data::MultiBindingExpression BindingEngine::FindMultiBinding(
             continue;
         }
         for (std::uint32_t index = 0U; index < group.handles.Size(); ++index) {
-            if (!expression.handles_.PushBack(group.handles[index])) {
-                return {};
-            }
+            expression.handles_.PushBack(group.handles[index]);
         }
         return expression;
     }

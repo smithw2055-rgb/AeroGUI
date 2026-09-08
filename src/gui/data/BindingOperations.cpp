@@ -273,13 +273,8 @@ BindingEngine::InspectBindings(
             output.Clear();
             return assigned.GetStatus();
         }
-        Base::Result<void> appended =
-            output.PushBack(
+        output.PushBack(
                 std::move(inspection));
-        if (!appended) {
-            output.Clear();
-            return appended.GetStatus();
-        }
     }
     return output.Size();
 }

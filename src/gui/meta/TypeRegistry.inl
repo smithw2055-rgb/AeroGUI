@@ -85,9 +85,8 @@ Base::Status BindRuntimeTypeInfo(
     Base::Result<void> copiedName = binding.name.Assign(info.name);
     if (!copiedName) return copiedName.GetStatus();
 
-    Base::Result<Base::HashMap<TypeId, RuntimeTypeBinding>::InsertResult>
+    Base::HashMap<TypeId, RuntimeTypeBinding>::InsertResult
         inserted = bindings.Insert(token, std::move(binding));
-    if (!inserted) return inserted.GetStatus();
     return Base::Status::Ok();
 }
 
@@ -292,9 +291,8 @@ Base::Result<TypeId> TypeRegistry::RegisterType(
     }
 
     if (registration.factory != nullptr) {
-        Base::Result<void> reserved = behaviors.typeFactories_.Reserve(
+        behaviors.typeFactories_.Reserve(
             behaviors.typeFactories_.Size() + 1U);
-        if (!reserved) return reserved.GetStatus();
     }
 
     TypeInfo info;
@@ -308,8 +306,7 @@ Base::Result<TypeId> TypeRegistry::RegisterType(
     if (!result) return result.GetStatus();
     result = info.name_.Assign(registration.name);
     if (!result) return result.GetStatus();
-    result = info.interfaces_.Reserve(registration.interfaces.Size());
-    if (!result) return result.GetStatus();
+    info.interfaces_.Reserve(registration.interfaces.Size());
     for (TypeId interfaceType : registration.interfaces) {
         if (interfaceType == InvalidTypeId) {
             return Base::Status::Failure(
@@ -319,32 +316,24 @@ Base::Result<TypeId> TypeRegistry::RegisterType(
         for (TypeId existing : info.interfaces_) {
             if (existing == interfaceType) return DuplicateMemberStatus();
         }
-        result = info.interfaces_.PushBack(interfaceType);
-        if (!result) return result.GetStatus();
-        result = info.interfaceCasts_.PushBack(nullptr);
-        if (!result) return result.GetStatus();
+        info.interfaces_.PushBack(interfaceType);
+        info.interfaceCasts_.PushBack(nullptr);
     }
 
     const std::uint32_t index = types_.Size();
-    result = types_.PushBack(std::move(info));
-    if (!result) return result.GetStatus();
-
+    types_.PushBack(std::move(info));
     bool factoryAdded = false;
     if (registration.factory != nullptr) {
-        result = behaviors.typeFactories_.PushBack({id, registration.factory});
-        if (!result) {
-            types_.PopBack();
-            return result.GetStatus();
-        }
+        behaviors.typeFactories_.PushBack({id, registration.factory});
         factoryAdded = true;
     }
 
-    Base::Result<Base::HashMap<TypeId, std::uint32_t>::InsertResult> inserted =
+    Base::HashMap<TypeId, std::uint32_t>::InsertResult inserted =
         typeIndex_.Insert(id, index);
-    if (!inserted || !inserted.Value().inserted) {
+    if (!inserted.inserted) {
         if (factoryAdded) behaviors.typeFactories_.PopBack();
         types_.PopBack();
-        return !inserted ? inserted.GetStatus() : IdCollisionStatus();
+        return IdCollisionStatus();
     }
     return id;
 }
@@ -369,12 +358,11 @@ Base::Result<void> TypeRegistry::RegisterInterface(
         }
     }
     while (owner->interfaceCasts_.Size() < owner->interfaces_.Size()) {
-        Base::Result<void> padded = owner->interfaceCasts_.PushBack(nullptr);
-        if (!padded) return padded.GetStatus();
+        owner->interfaceCasts_.PushBack(nullptr);
     }
-    Base::Result<void> stored = owner->interfaces_.PushBack(interfaceType);
-    if (!stored) return stored.GetStatus();
-    return owner->interfaceCasts_.PushBack(cast);
+    owner->interfaces_.PushBack(interfaceType);
+    owner->interfaceCasts_.PushBack(cast);
+    return {};
 }
 
 Base::Result<MemberId> TypeRegistry::RegisterProperty(
@@ -415,9 +403,8 @@ Base::Result<MemberId> TypeRegistry::RegisterProperty(
 
     const bool hasBehavior = HasPropertyBehavior(registration);
     if (hasBehavior) {
-        Base::Result<void> reserved = behaviors.propertyAccessors_.Reserve(
+        behaviors.propertyAccessors_.Reserve(
             behaviors.propertyAccessors_.Size() + 1U);
-        if (!reserved) return reserved.GetStatus();
     }
 
     TypeInfo& owner = types_[*ownerIndex];
@@ -430,12 +417,10 @@ Base::Result<MemberId> TypeRegistry::RegisterProperty(
     if (!result) return result.GetStatus();
 
     const std::uint32_t propertyIndex = owner.properties_.Size();
-    result = owner.properties_.PushBack(std::move(property));
-    if (!result) return result.GetStatus();
-
+    owner.properties_.PushBack(std::move(property));
     bool behaviorAdded = false;
     if (hasBehavior) {
-        result = behaviors.propertyAccessors_.PushBack({
+        behaviors.propertyAccessors_.PushBack({
             id, registration.access, registration.get, registration.set,
             registration.provider, registration.context});
         if (!result) {
@@ -447,12 +432,12 @@ Base::Result<MemberId> TypeRegistry::RegisterProperty(
 
     const MemberLocation location{
         *ownerIndex, propertyIndex, MemberKind::Property};
-    Base::Result<Base::HashMap<MemberId, MemberLocation>::InsertResult> inserted =
+    Base::HashMap<MemberId, MemberLocation>::InsertResult inserted =
         memberIndex_.Insert(id, location);
-    if (!inserted || !inserted.Value().inserted) {
+    if (!inserted.inserted) {
         if (behaviorAdded) behaviors.propertyAccessors_.PopBack();
         owner.properties_.PopBack();
-        return !inserted ? inserted.GetStatus() : IdCollisionStatus();
+        return IdCollisionStatus();
     }
     return id;
 }
@@ -490,15 +475,13 @@ Base::Result<MemberId> TypeRegistry::RegisterEnumValue(
     Base::Result<void> result = value.name_.Assign(registration.name);
     if (!result) return result.GetStatus();
     const std::uint32_t valueIndex = owner.enumValues_.Size();
-    result = owner.enumValues_.PushBack(std::move(value));
-    if (!result) return result.GetStatus();
-
-    Base::Result<Base::HashMap<MemberId, MemberLocation>::InsertResult> inserted =
+    owner.enumValues_.PushBack(std::move(value));
+    Base::HashMap<MemberId, MemberLocation>::InsertResult inserted =
         memberIndex_.Insert(
             id, {*ownerIndex, valueIndex, MemberKind::EnumValue});
-    if (!inserted || !inserted.Value().inserted) {
+    if (!inserted.inserted) {
         owner.enumValues_.PopBack();
-        return !inserted ? inserted.GetStatus() : IdCollisionStatus();
+        return IdCollisionStatus();
     }
     return id;
 }
@@ -538,16 +521,14 @@ Base::Result<MemberId> TypeRegistry::RegisterEvent(
     if (!result) return result.GetStatus();
 
     const std::uint32_t eventIndex = owner.events_.Size();
-    result = owner.events_.PushBack(std::move(eventInfo));
-    if (!result) return result.GetStatus();
-
+    owner.events_.PushBack(std::move(eventInfo));
     const MemberLocation location{
         *ownerIndex, eventIndex, MemberKind::Event};
-    Base::Result<Base::HashMap<MemberId, MemberLocation>::InsertResult> inserted =
+    Base::HashMap<MemberId, MemberLocation>::InsertResult inserted =
         memberIndex_.Insert(id, location);
-    if (!inserted || !inserted.Value().inserted) {
+    if (!inserted.inserted) {
         owner.events_.PopBack();
-        return !inserted ? inserted.GetStatus() : IdCollisionStatus();
+        return IdCollisionStatus();
     }
     return id;
 }
@@ -577,7 +558,8 @@ Base::Result<void> TypeRegistry::RegisterEventHandler(
     Base::Result<void> result = descriptor.name.Assign(name);
     if (!result) return result.GetStatus();
 
-    return owner.eventHandlers_.PushBack(std::move(descriptor));
+    owner.eventHandlers_.PushBack(std::move(descriptor));
+    return {};
 }
 
 Base::Result<void> TypeRegistry::RegisterTemplatePart(
@@ -605,7 +587,8 @@ Base::Result<void> TypeRegistry::RegisterTemplatePart(
     Base::Result<void> result = descriptor.name.Assign(name);
     if (!result) return result.GetStatus();
 
-    return owner.templateParts_.PushBack(std::move(descriptor));
+    owner.templateParts_.PushBack(std::move(descriptor));
+    return {};
 }
 Base::Result<void> TypeRegistry::SetFactory(
     BehaviorTable& behaviors,
@@ -628,7 +611,8 @@ Base::Result<void> TypeRegistry::SetFactory(
             Base::ErrorCode::AlreadyExists,
             "Type factory is already registered");
     }
-    return behaviors.typeFactories_.PushBack({type, factory});
+    behaviors.typeFactories_.PushBack({type, factory});
+    return {};
 }
 
 Base::Result<void> TypeRegistry::SetContentMember(
@@ -728,14 +712,11 @@ Base::Result<void> TypeRegistry::Freeze() noexcept {
     }
 
     Base::Vector<std::uint8_t> state;
-    Base::Result<void> result = state.Resize(
+    state.Resize(
         types_.Size(), std::uint8_t{0U});
-    if (!result) return result.GetStatus();
 
     Base::Vector<std::uint32_t> path;
-    result = path.Reserve(types_.Size());
-    if (!result) return result.GetStatus();
-
+    path.Reserve(types_.Size());
     for (std::uint32_t start = 0U; start < types_.Size(); ++start) {
         if (state[start] == 2U) continue;
         path.Clear();
@@ -743,8 +724,7 @@ Base::Result<void> TypeRegistry::Freeze() noexcept {
         while (state[current] != 2U) {
             if (state[current] == 1U) return InheritanceCycleStatus();
             state[current] = 1U;
-            result = path.PushBack(current);
-            if (!result) return result.GetStatus();
+            path.PushBack(current);
             const TypeId baseType = types_[current].BaseType();
             if (baseType == InvalidTypeId) break;
             const std::uint32_t* baseIndex = typeIndex_.Find(baseType);
@@ -773,13 +753,11 @@ Base::Result<Base::HashCode> TypeRegistry::ComputeHash() const noexcept {
     builder.AddU32(2U);
 
     Base::Vector<const TypeInfo*> types;
-    Base::Result<void> result = types.Reserve(TypeCount());
-    if (!result) return result.GetStatus();
+    types.Reserve(TypeCount());
     for (const TypeInfo& type : Types()) {
-        result = types.PushBack(&type);
-        if (!result) return result.GetStatus();
+        types.PushBack(&type);
     }
-    result = SortInfoById(types);
+    Base::Result<void> result = SortInfoById(types);
     if (!result) return result.GetStatus();
 
     builder.AddU32(types.Size());
@@ -793,8 +771,7 @@ Base::Result<Base::HashCode> TypeRegistry::ComputeHash() const noexcept {
         builder.AddString(type->Name());
 
         Base::Vector<TypeId> interfaces;
-        result = interfaces.Append(type->Interfaces());
-        if (!result) return result.GetStatus();
+        interfaces.Append(type->Interfaces());
         for (std::uint32_t index = 1U;
              index < interfaces.Size(); ++index) {
             const TypeId value = interfaces[index];
@@ -813,26 +790,20 @@ Base::Result<Base::HashCode> TypeRegistry::ComputeHash() const noexcept {
     }
 
     Base::Vector<const PropertyInfo*> properties;
-    result = properties.Reserve(PropertyCount());
-    if (!result) return result.GetStatus();
+    properties.Reserve(PropertyCount());
     Base::Vector<const EnumValueInfo*> enumValues;
-    result = enumValues.Reserve(EnumValueCount());
-    if (!result) return result.GetStatus();
+    enumValues.Reserve(EnumValueCount());
     Base::Vector<const EventInfo*> events;
-    result = events.Reserve(EventCount());
-    if (!result) return result.GetStatus();
+    events.Reserve(EventCount());
     for (const TypeInfo& type : Types()) {
         for (const PropertyInfo& property : type.Properties()) {
-            result = properties.PushBack(&property);
-            if (!result) return result.GetStatus();
+            properties.PushBack(&property);
         }
         for (const EnumValueInfo& value : type.EnumValues()) {
-            result = enumValues.PushBack(&value);
-            if (!result) return result.GetStatus();
+            enumValues.PushBack(&value);
         }
         for (const EventInfo& eventInfo : type.Events()) {
-            result = events.PushBack(&eventInfo);
-            if (!result) return result.GetStatus();
+            events.PushBack(&eventInfo);
         }
     }
 

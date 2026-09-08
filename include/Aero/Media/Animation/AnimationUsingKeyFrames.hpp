@@ -16,8 +16,7 @@ public:
         Result<void> writable = WritePreamble();
         if (!writable) { AERO_ASSERT(false); return; }
         if (!value) { AERO_ASSERT(false); return; }
-        Result<void> added = keyFrames_.PushBack(std::move(value));
-        if (!added) { AERO_ASSERT(false); return; }
+        keyFrames_.PushBack(std::move(value));
         WritePostscript();
     }
     void ClearKeyFrames() noexcept {

@@ -45,8 +45,7 @@ public:
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
     void AddCondition(Ref<ComparisonCondition> value) noexcept {
         if (!value) { AERO_ASSERT(false); return; }
-        Base::Result<void> pushed = conditions_.PushBack(std::move(value));
-        if (!pushed) { AERO_ASSERT(false); return; }
+        conditions_.PushBack(std::move(value));
     }
     void ClearConditions() noexcept { conditions_.Clear(); }
     Span<const Ref<ComparisonCondition>> GetConditions() const noexcept {

@@ -30,8 +30,7 @@ public:
     }
     void AddSetter(
         Ref<Base::Object> value) noexcept {
-        Base::Result<void> pushed = setters_.PushBack(std::move(value));
-        if (!pushed) { AERO_ASSERT(false); return; }
+        setters_.PushBack(std::move(value));
     }
     void ClearSetters() noexcept { setters_.Clear(); }
     const Ref<Media::Animation::Storyboard>&

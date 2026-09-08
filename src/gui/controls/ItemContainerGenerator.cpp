@@ -569,9 +569,7 @@ ItemContainerGenerator::GeneratorState::AttachOwnedSubtree(
     Record& record,
     Aero::Media::Visual& root) noexcept {
     Base::Vector<Aero::Media::Visual*> pending;
-    Base::Result<void> pushed =
-        pending.PushBack(&root);
-    if (!pushed) return pushed.GetStatus();
+    pending.PushBack(&root);
 
     const auto attachChild =
         [this, &record, &pending](
@@ -592,7 +590,8 @@ ItemContainerGenerator::GeneratorState::AttachOwnedSubtree(
         if (child.GetVisualParent() == &parent &&
             VisualTree(child) == tree_ &&
             childElement->GetIsLayoutAttached()) {
-            return pending.PushBack(&child);
+            pending.PushBack(&child);
+            return {};
         }
         if (child.GetVisualParent() == &parent) {
             if (VisualTree(child) == nullptr &&
@@ -600,9 +599,7 @@ ItemContainerGenerator::GeneratorState::AttachOwnedSubtree(
                 Base::Result<ElementAttachment> mounted =
                     tree_->AttachElement(parent, child);
                 if (!mounted) return mounted.GetStatus();
-                Base::Result<void> tracked =
-                    record.subtreeMounts.PushBack(std::move(mounted).Value());
-                if (!tracked) return tracked.GetStatus();
+                record.subtreeMounts.PushBack(std::move(mounted).Value());
             } else if (!childElement->GetIsLayoutAttached()) {
                 Base::Result<Aero::VisualAttachment> visual =
                     tree_->AttachVisualChild(parent, child);
@@ -615,11 +612,10 @@ ItemContainerGenerator::GeneratorState::AttachOwnedSubtree(
                 edge.visualAttached = visual.Value().visualAttached;
                 edge.layoutAttached = visual.Value().layoutAttached;
                 edge.renderAttached = visual.Value().renderAttached;
-                Base::Result<void> tracked =
-                    record.subtreeMounts.PushBack(std::move(edge));
-                if (!tracked) return tracked.GetStatus();
+                record.subtreeMounts.PushBack(std::move(edge));
             }
-            return pending.PushBack(&child);
+            pending.PushBack(&child);
+            return {};
         }
         if (child.GetVisualParent() != nullptr) {
             return Base::Status::Failure(
@@ -645,35 +641,18 @@ ItemContainerGenerator::GeneratorState::AttachOwnedSubtree(
             edge.visualAttached = visual.Value().visualAttached;
             edge.layoutAttached = visual.Value().layoutAttached;
             edge.renderAttached = visual.Value().renderAttached;
-            Base::Result<void> tracked =
-                record.subtreeMounts.PushBack(std::move(edge));
-            if (!tracked) {
-                (void)tree_->DetachVisual(visual.Value());
-                return tracked.GetStatus();
-            }
-            return pending.PushBack(&child);
+            record.subtreeMounts.PushBack(std::move(edge));
+            pending.PushBack(&child);
+            return {};
         }
         Base::Result<ElementAttachment> mounted =
             tree_->AttachElement(parent, child);
         if (!mounted) return mounted.GetStatus();
         ElementAttachment edge =
             std::move(mounted).Value();
-        Base::Result<void> tracked =
-            record.subtreeMounts.PushBack(
+        record.subtreeMounts.PushBack(
                 std::move(edge));
-        if (!tracked) {
-            (void)tree_->DetachElement(edge);
-            return tracked.GetStatus();
-        }
-        Base::Result<void> queued =
-            pending.PushBack(&child);
-        if (!queued) {
-            ElementAttachment rollback =
-                std::move(record.subtreeMounts.Back());
-            record.subtreeMounts.PopBack();
-            (void)tree_->DetachElement(rollback);
-            return queued.GetStatus();
-        }
+        pending.PushBack(&child);
         return {};
     };
 
@@ -1286,11 +1265,7 @@ ItemContainerGenerator::GeneratorState::DetachRecord(
     capture(tree_->DetachElement(record.containerMount));
     if (!record.itemIsOwnContainer &&
         recycleContainer && firstError.IsOk()) {
-        Base::Result<void> recycled = recycledContainers_.PushBack(std::move(record.container));
-        if (!recycled) {
-            tree_->InvalidateNodeHandle(container);
-            if (firstError.IsOk()) firstError = recycled.GetStatus();
-        }
+        recycledContainers_.PushBack(std::move(record.container));
     } else {
         tree_->InvalidateNodeHandle(container);
     }
@@ -1329,20 +1304,8 @@ ItemContainerGenerator::GeneratorState::InsertRecord(
             Base::ErrorCode::OutOfRange,
             "Generated container insert is out of range");
     }
-    Base::Result<void> reserved =
-        records_.Reserve(records_.Size() + 1U);
-    if (!reserved) {
-        const Base::Status error = reserved.GetStatus();
-        static_cast<void>(DetachRecord(record));
-        return error;
-    }
-    Base::Result<void> appended =
-        records_.PushBack(std::move(record));
-    if (!appended) {
-        const Base::Status error = appended.GetStatus();
-        static_cast<void>(DetachRecord(record));
-        return error;
-    }
+    records_.Reserve(records_.Size() + 1U);
+    records_.PushBack(std::move(record));
     if (index + 1U == records_.Size()) return {};
     Record moving = std::move(records_.Back());
     for (std::uint32_t current =
@@ -1415,9 +1378,7 @@ ItemContainerGenerator::GeneratorState::SetRealizationRangeInternal(
         return firstError;
     }
 
-    Base::Result<void> reserved =
-        records_.Reserve(count);
-    if (!reserved) return reserved.GetStatus();
+    records_.Reserve(count);
     for (std::uint32_t offset = 0U;
         offset < count; ++offset) {
         const std::uint32_t index =
@@ -1435,14 +1396,7 @@ ItemContainerGenerator::GeneratorState::SetRealizationRangeInternal(
             firstError = attached.GetStatus();
             break;
         }
-        Base::Result<void> added =
-            records_.PushBack(std::move(record));
-        if (!added) {
-            firstError = added.GetStatus();
-            static_cast<void>(
-                DetachRecord(record, true));
-            break;
-        }
+        records_.PushBack(std::move(record));
     }
     if (!firstError.IsOk()) {
         for (std::uint32_t index = records_.Size();
@@ -1499,9 +1453,7 @@ Base::Result<void> ItemContainerGenerator::GeneratorState::Refresh() noexcept {
         if (!detached) return detached.GetStatus();
     }
     records_.Clear();
-    Base::Result<void> reserved =
-        records_.Reserve(owner_->GetCount());
-    if (!reserved) return reserved.GetStatus();
+    records_.Reserve(owner_->GetCount());
     for (std::uint32_t index = 0U;
         index < owner_->GetCount(); ++index) {
         Base::Result<Record> made =
@@ -1529,20 +1481,8 @@ Base::Result<void> ItemContainerGenerator::GeneratorState::Refresh() noexcept {
             records_.Clear();
             return error;
         }
-        Base::Result<void> added =
-            records_.PushBack(
+        records_.PushBack(
                 std::move(record));
-        if (!added) {
-            const Base::Status error = added.GetStatus();
-            static_cast<void>(DetachRecord(record));
-            for (std::uint32_t cleanup = records_.Size();
-                cleanup > 0U; --cleanup) {
-                static_cast<void>(
-                    DetachRecord(records_[cleanup - 1U]));
-            }
-            records_.Clear();
-            return error;
-        }
     }
     return {};
 }

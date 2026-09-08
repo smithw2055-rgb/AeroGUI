@@ -536,10 +536,9 @@ public:
           allocator_(allocator),
           fallbackFaces_(allocator) {
         config_ = config;
-        Base::Result<void> copied =
-            fallbackFaces_.Append(
-                config.fallbackFaces);
-        valid_ = static_cast<bool>(copied);
+        fallbackFaces_.Append(
+            config.fallbackFaces);
+        valid_ = true;
         config_.fallbackFaces =
             fallbackFaces_.AsSpan();
         nextGlyphRun_ = config.firstGlyphRunId;
@@ -607,10 +606,8 @@ public:
                     Base::ErrorCode::OutOfRange,
                     "Headless glyph-run ID space is exhausted");
             }
-            Base::Result<void> appended =
-                output.glyphRuns.PushBack(
+            output.glyphRuns.PushBack(
                     nextGlyphRun_++);
-            if (!appended) return appended.GetStatus();
         }
         output.hitRegions.Clear();
         for (const Text::TextLine& line : layout.Lines()) {
@@ -944,7 +941,7 @@ Base::Result<void> TextPipeline::Initialize(
                 typeface,
                 face);
             if (status) {
-                status = state_->fallbackFaces.PushBack(
+                state_->fallbackFaces.PushBack(
                     face);
             }
         }

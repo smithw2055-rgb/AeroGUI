@@ -845,8 +845,7 @@ void EventTrigger::SetSourceName(
 void EventTrigger::AddAction(
     Base::Ref<TriggerAction> value) noexcept {
     if (!value) { AERO_ASSERT(false); return; }
-    Base::Result<void> pushed = actions_.PushBack(std::move(value));
-    if (!pushed) { AERO_ASSERT(false); return; }
+    actions_.PushBack(std::move(value));
 }
 
 void EventTrigger::ClearActions() noexcept {
@@ -863,8 +862,7 @@ void StoryboardCompletedTrigger::SetStoryboard(
 void StoryboardCompletedTrigger::AddAction(
     Base::Ref<TriggerAction> value) noexcept {
     if (!value) { AERO_ASSERT(false); return; }
-    Base::Result<void> pushed = actions_.PushBack(std::move(value));
-    if (!pushed) { AERO_ASSERT(false); return; }
+    actions_.PushBack(std::move(value));
 }
 
 void

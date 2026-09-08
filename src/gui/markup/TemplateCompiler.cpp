@@ -242,12 +242,11 @@ CompileBlueprint(
     blueprint.properties = &properties;
 
     Base::Vector<PendingPrototypeNode> pending;
-    Base::Result<void> appended =
-        pending.PushBack({
+    Base::Result<void> appended{};
+    pending.PushBack({
             visualTree,
             UINT32_MAX,
             InvalidMemberId});
-    if (!appended) return appended.GetStatus();
 
     // Templated-parent bindings may target Freezables nested in a visual
     // property (for example a GradientStop.Color binding). Visuals and
@@ -272,11 +271,10 @@ CompileBlueprint(
                 "TemplatedParent Binding target is not a DependencyObject");
         }
         if (FindPrototypeObject(pending, target) != UINT32_MAX) continue;
-        appended = pending.PushBack({
+        pending.PushBack({
             Base::Ref<Base::Object>::FromBorrowed(*target),
             UINT32_MAX,
             InvalidMemberId});
-        if (!appended) return appended.GetStatus();
     }
     for (const Controls::TemplateDynamicResourcePlan& resource :
          dynamicResources) {
@@ -296,11 +294,10 @@ CompileBlueprint(
                 "DynamicResource target is not a DependencyObject");
         }
         if (FindPrototypeObject(pending, target) != UINT32_MAX) continue;
-        appended = pending.PushBack({
+        pending.PushBack({
             Base::Ref<Base::Object>::FromBorrowed(*target),
             UINT32_MAX,
             InvalidMemberId});
-        if (!appended) return appended.GetStatus();
     }
 
     for (std::uint32_t index = 0U;
@@ -370,18 +367,14 @@ CompileBlueprint(
                 if (requiresClone &&
                     prototypeProperty.objectNode == UINT32_MAX) {
                     prototypeProperty.objectNode = pending.Size();
-                    appended = pending.PushBack({
+                    pending.PushBack({
                         local.Value().AsObject(),
                         UINT32_MAX,
                         InvalidMemberId});
-                    if (!appended) return appended.GetStatus();
                 }
             }
-            appended = node.properties.PushBack(
+            node.properties.PushBack(
                 std::move(prototypeProperty));
-            if (!appended) {
-                return appended.GetStatus();
-            }
         }
 
         if (runtime.Types().IsDerivedFrom(
@@ -389,16 +382,10 @@ CompileBlueprint(
                 Grid::StaticTypeId())) {
             const auto& grid =
                 static_cast<const Grid&>(*object);
-            appended = node.gridColumns.Assign(
+            node.gridColumns.Assign(
                 grid.GetColumnDefinitions());
-            if (!appended) {
-                return appended.GetStatus();
-            }
-            appended = node.gridRows.Assign(
+            node.gridRows.Assign(
                 grid.GetRowDefinitions());
-            if (!appended) {
-                return appended.GetStatus();
-            }
         }
 
         if (runtime.Types().IsDerivedFrom(
@@ -428,11 +415,8 @@ CompileBlueprint(
                         names->NameOf(*stop));
                     if (!appended) return appended.GetStatus();
                 }
-                appended = node.gradientStops.PushBack(
+                node.gradientStops.PushBack(
                     std::move(record));
-                if (!appended) {
-                    return appended.GetStatus();
-                }
             }
         }
 
@@ -487,9 +471,8 @@ CompileBlueprint(
             }
         }
 
-        appended = blueprint.nodes.PushBack(
+        blueprint.nodes.PushBack(
             std::move(node));
-        if (!appended) return appended.GetStatus();
 
         for (const DeferredContentEdge& edge :
              edges) {
@@ -536,13 +519,10 @@ CompileBlueprint(
                 return InvalidTemplateCompiler(
                     "ControlTemplate visual content contains a duplicate child");
             }
-            appended = pending.PushBack({
+            pending.PushBack({
                 edge.child,
                 index,
                 edge.member});
-            if (!appended) {
-                return appended.GetStatus();
-            }
         }
 
         // String inlines (Hyperlink "Show XAML", inter-Run spaces) live on
@@ -600,13 +580,10 @@ CompileBlueprint(
                     }
                     continue;
                 }
-                appended = pending.PushBack({
+                pending.PushBack({
                     Base::Ref<Base::Object>::FromBorrowed(*inlineValue),
                     index,
                     inlinesMember});
-                if (!appended) {
-                    return appended.GetStatus();
-                }
             }
         }
     }
@@ -722,11 +699,8 @@ CompileBlueprint(
         if (!assigned) {
             return assigned.GetStatus();
         }
-        assigned = blueprint.bindings.PushBack(
+        blueprint.bindings.PushBack(
             std::move(binding));
-        if (!assigned) {
-            return assigned.GetStatus();
-        }
     }
 
     return blueprint;
@@ -1008,7 +982,8 @@ CompilePropertyTriggers(
         if (!assigned) return assigned.GetStatus();
         condition.property = property->Handle();
         condition.value = std::move(value).Value();
-        return trigger.conditions.PushBack(std::move(condition));
+        trigger.conditions.PushBack(std::move(condition));
+        return {};
     };
     auto appendSetters = [&controlTemplate, &blueprint, &runtime, &properties](
         Base::Span<const Base::Ref<Setter>> setters,
@@ -1057,8 +1032,7 @@ CompilePropertyTriggers(
             if (!assigned) return assigned.GetStatus();
             setter.property = property->Handle();
             setter.value = std::move(value).Value();
-            assigned = trigger.setters.PushBack(std::move(setter));
-            if (!assigned) return assigned.GetStatus();
+            trigger.setters.PushBack(std::move(setter));
         }
         return {};
     };
@@ -1088,10 +1062,9 @@ CompilePropertyTriggers(
             continue;
         }
         if (!configured) return configured.GetStatus();
-        Base::Result<void> added =
-            compiled.PushBack(
+        Base::Result<void> added{};
+        compiled.PushBack(
                 std::move(trigger));
-        if (!added) return added.GetStatus();
     }
     return compiled;
 }
@@ -1255,19 +1228,11 @@ CompileVisualStates(
                 setter.property = property->Handle();
                 setter.value =
                     std::move(value).Value();
-                assigned =
-                    state.setters.PushBack(
+                state.setters.PushBack(
                         std::move(setter));
-                if (!assigned) {
-                    return assigned.GetStatus();
-                }
             }
-            assigned =
-                group.states.PushBack(
+            group.states.PushBack(
                     std::move(state));
-            if (!assigned) {
-                return assigned.GetStatus();
-            }
         }
         for (const Base::Ref<VisualTransition>&
                   transitionObject :
@@ -1345,13 +1310,11 @@ CompileVisualStates(
             } else {
                 transition.storyboard.Reset();
             }
-            assigned = group.transitions.PushBack(
+            group.transitions.PushBack(
                 std::move(transition));
-            if (!assigned) return assigned.GetStatus();
         }
-        assigned = groups.PushBack(
+        groups.PushBack(
             std::move(group));
-        if (!assigned) return assigned.GetStatus();
         return {};
     };
     for (const Base::Ref<Base::Object>& groupObject :
@@ -1435,10 +1398,9 @@ CompileControlTemplateDefinition(
                 return InvalidTemplateCompiler(
                     "ControlTemplate instance trigger cannot be retained");
             }
-            Base::Result<void> added =
-                blueprint.Value().controlTemplateDataTriggers.PushBack(
+            Base::Result<void> added{};
+            blueprint.Value().controlTemplateDataTriggers.PushBack(
                     std::move(retained));
-            if (!added) return added.GetStatus();
         } else if (authored->RuntimeType() ==
                    Media::Animation::EventTrigger::StaticTypeId()) {
             Base::Ref<Media::Animation::EventTrigger> retained =
@@ -1448,10 +1410,9 @@ CompileControlTemplateDefinition(
                 return InvalidTemplateCompiler(
                     "ControlTemplate EventTrigger cannot be retained");
             }
-            Base::Result<void> added =
-                blueprint.Value().controlTemplateEventTriggers.PushBack(
+            Base::Result<void> added{};
+            blueprint.Value().controlTemplateEventTriggers.PushBack(
                     std::move(retained));
-            if (!added) return added.GetStatus();
         }
     }
 
@@ -1551,12 +1512,8 @@ CompileControlTemplateDefinition(
             source->Handle();
         binding.targetProperty =
             contentProperty->Handle();
-        assigned =
-            definition.contentSourceBindings.
-                PushBack(std::move(binding));
-        if (!assigned) {
-            return assigned.GetStatus();
-        }
+        definition.contentSourceBindings.
+            PushBack(std::move(binding));
     }
     definition.propertyTriggers =
         std::move(triggers).Value();
@@ -1816,12 +1773,10 @@ Base::Result<void> BuildCompiledTemplate(
     }
 
     Base::Vector<Base::Ref<Base::Object>> objects;
-    Base::Result<void> reserved =
-        objects.Reserve(blueprint->nodes.Size());
-    if (!reserved) return reserved.GetStatus();
+    Base::Result<void> reserved{};
+    objects.Reserve(blueprint->nodes.Size());
     Base::Vector<::Aero::Media::Visual*> visuals;
-    reserved = visuals.Reserve(blueprint->nodes.Size());
-    if (!reserved) return reserved.GetStatus();
+    visuals.Reserve(blueprint->nodes.Size());
     for (std::uint32_t index = 0U;
          index < blueprint->nodes.Size();
          ++index) {
@@ -1842,10 +1797,9 @@ Base::Result<void> BuildCompiledTemplate(
         ::Aero::Media::Visual* visual = blueprint->runtime->Types().IsDerivedFrom(
             node.type, ::Aero::Media::Visual::StaticTypeId())
             ? static_cast<::Aero::Media::Visual*>(owner.Get()) : nullptr;
-        Base::Result<void> added = objects.PushBack(std::move(owner));
-        if (!added) return added.GetStatus();
-        added = visuals.PushBack(visual);
-        if (!added) return added.GetStatus();
+        Base::Result<void> added{};
+        objects.PushBack(std::move(owner));
+        visuals.PushBack(visual);
     }
     for (std::uint32_t index = 0U;
          index < blueprint->nodes.Size();
@@ -2051,9 +2005,8 @@ Base::Result<void> BuildCompiledTemplate(
             if (!namedAssigned) return namedAssigned.GetStatus();
             named.object = Base::WeakRef<Base::Object>(
                 Base::Ref<Base::Object>::FromBorrowed(*objects[index]));
-            namedAssigned = triggerContext->names.PushBack(
+            triggerContext->names.PushBack(
                 std::move(named));
-            if (!namedAssigned) return namedAssigned.GetStatus();
         }
         auto appendSetters =
             [&](Base::Span<const Base::Ref<Setter>> setters,
@@ -2085,9 +2038,9 @@ Base::Result<void> BuildCompiledTemplate(
                             *static_cast<DependencyObject*>(visuals[target])));
                 runtimeSetter.property = property->Handle();
                 runtimeSetter.value = std::move(value).Value();
-                Base::Result<void> added = runtimeTrigger.setters.PushBack(
+                Base::Result<void> added{};
+                runtimeTrigger.setters.PushBack(
                     std::move(runtimeSetter));
-                if (!added) return added.GetStatus();
             }
             return {};
         };
@@ -2185,9 +2138,9 @@ Base::Result<void> BuildCompiledTemplate(
                     *blueprint->runtime, *blueprint->properties);
                 if (!converted) return converted.GetStatus();
                 condition.value = std::move(converted).Value();
-                Base::Result<void> added = runtimeTrigger.conditions.PushBack(
+                Base::Result<void> added{};
+                runtimeTrigger.conditions.PushBack(
                     std::move(condition));
-                if (!added) return added.GetStatus();
                 // Property-trigger setters continue to be owned by
                 // TemplateEngine, which preserves their trigger precedence.
                 // This per-instance plan supplies only the action lifecycle.
@@ -2207,9 +2160,9 @@ Base::Result<void> BuildCompiledTemplate(
                     !data.GetBinding()->GetRelativeSource();
                 condition.binding = data.GetBinding();
                 condition.value = data.GetAuthoredValue();
-                Base::Result<void> added = runtimeTrigger.conditions.PushBack(
+                Base::Result<void> added{};
+                runtimeTrigger.conditions.PushBack(
                     std::move(condition));
-                if (!added) return added.GetStatus();
                 setters = data.GetAuthoredSetters();
             } else if (authored->RuntimeType() ==
                        MultiDataTrigger::StaticTypeId()) {
@@ -2232,9 +2185,8 @@ Base::Result<void> BuildCompiledTemplate(
                         !authoredCondition->GetBinding()->GetRelativeSource();
                     condition.binding = authoredCondition->GetBinding();
                     condition.value = authoredCondition->GetAuthoredValue();
-                    Base::Result<void> added =
-                        runtimeTrigger.conditions.PushBack(std::move(condition));
-                    if (!added) return added.GetStatus();
+                    Base::Result<void> added{};
+                    runtimeTrigger.conditions.PushBack(std::move(condition));
                 }
                 setters = multi.GetAuthoredSetters();
             } else {
@@ -2242,15 +2194,15 @@ Base::Result<void> BuildCompiledTemplate(
             }
             Base::Result<void> configured = appendSetters(setters, runtimeTrigger);
             if (configured) {
-                configured = runtimeTrigger.enterActions.Append(
+                runtimeTrigger.enterActions.Append(
                     authored->GetEnterActions());
             }
             if (configured) {
-                configured = runtimeTrigger.exitActions.Append(
+                runtimeTrigger.exitActions.Append(
                     authored->GetExitActions());
             }
             if (configured) {
-                configured = triggerContext->triggers.PushBack(
+                triggerContext->triggers.PushBack(
                     std::move(runtimeTrigger));
             }
             if (!configured) return configured.GetStatus();
@@ -2283,9 +2235,8 @@ BuildCompiledDeferredTemplate(
     }
 
     Base::Vector<Base::Ref<Base::Object>> objects;
-    Base::Result<void> reserved =
-        objects.Reserve(blueprint->nodes.Size());
-    if (!reserved) return reserved.GetStatus();
+    Base::Result<void> reserved{};
+    objects.Reserve(blueprint->nodes.Size());
 
     for (const TemplatePrototypeNode& node : blueprint->nodes) {
         Base::Result<Base::Ref<Base::Object>> created =
@@ -2297,8 +2248,8 @@ BuildCompiledDeferredTemplate(
             return InvalidTemplateCompiler(
                 "Deferred template created an incompatible object");
         }
-        Base::Result<void> added = objects.PushBack(std::move(owner));
-        if (!added) return added.GetStatus();
+        Base::Result<void> added{};
+        objects.PushBack(std::move(owner));
     }
     for (std::uint32_t index = 0U;
          index < blueprint->nodes.Size();
@@ -2484,12 +2435,8 @@ BuildCompiledDeferredTemplate(
                 return assigned.GetStatus();
             }
             named.object = Base::WeakRef<Base::Object>(objects[index]);
-            assigned =
-                triggerContext->names.PushBack(
+            triggerContext->names.PushBack(
                     std::move(named));
-            if (!assigned) {
-                return assigned.GetStatus();
-            }
             auto* rootElement =
                 static_cast<FrameworkElement*>(root.Get());
             assigned = rootElement->RegisterName(
@@ -2549,10 +2496,9 @@ BuildCompiledDeferredTemplate(
                 targetProperty->Handle();
             runtimeSetter.value =
                 std::move(converted).Value();
-            Base::Result<void> added =
-                runtimeTrigger.setters.PushBack(
+            Base::Result<void> added{};
+            runtimeTrigger.setters.PushBack(
                     std::move(runtimeSetter));
-            if (!added) return added.GetStatus();
         }
         return {};
     };
@@ -2608,10 +2554,9 @@ BuildCompiledDeferredTemplate(
                 return converted.GetStatus();
             }
             condition.value = std::move(converted).Value();
-            Base::Result<void> added =
-                runtimeTrigger.conditions.PushBack(
+            Base::Result<void> added{};
+            runtimeTrigger.conditions.PushBack(
                     std::move(condition));
-            if (!added) return added.GetStatus();
             authoredSetters =
                 propertyTrigger.GetAuthoredSetters();
         } else if (triggerType ==
@@ -2633,10 +2578,9 @@ BuildCompiledDeferredTemplate(
                 dataTrigger.GetBinding();
             condition.value =
                 dataTrigger.GetAuthoredValue();
-            Base::Result<void> added =
-                runtimeTrigger.conditions.PushBack(
+            Base::Result<void> added{};
+            runtimeTrigger.conditions.PushBack(
                     std::move(condition));
-            if (!added) return added.GetStatus();
             authoredSetters =
                 dataTrigger.GetAuthoredSetters();
         } else {
@@ -2660,10 +2604,9 @@ BuildCompiledDeferredTemplate(
                     authoredCondition->GetBinding();
                 condition.value =
                     authoredCondition->GetAuthoredValue();
-                Base::Result<void> added =
-                    runtimeTrigger.conditions.PushBack(
+                Base::Result<void> added{};
+                runtimeTrigger.conditions.PushBack(
                         std::move(condition));
-                if (!added) return added.GetStatus();
             }
             authoredSetters =
                 multi.GetAuthoredSetters();
@@ -2672,16 +2615,14 @@ BuildCompiledDeferredTemplate(
             appendRuntimeSetters(
                 authoredSetters, runtimeTrigger);
         if (!retained) return retained.GetStatus();
-        retained = runtimeTrigger.enterActions.Append(
+        runtimeTrigger.enterActions.Append(
                 authored->GetEnterActions());
         if (retained) {
-            retained =
-                runtimeTrigger.exitActions.Append(
+            runtimeTrigger.exitActions.Append(
                     authored->GetExitActions());
         }
         if (retained) {
-            retained =
-                triggerContext->triggers.PushBack(
+            triggerContext->triggers.PushBack(
                     std::move(runtimeTrigger));
         }
         if (!retained) return retained.GetStatus();

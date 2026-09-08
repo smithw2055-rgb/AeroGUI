@@ -87,11 +87,10 @@ struct DependencyGraph::State {
         if (current != nullptr) return current;
         Node node(*allocator);
         node.uri = uri;
-        Base::Result<typename Base::HashMap<Base::String, Node>::InsertResult>
+        typename Base::HashMap<Base::String, Node>::InsertResult
             inserted = nodes.Insert(
                 std::move(key).Value(), std::move(node));
-        if (!inserted) return inserted.GetStatus();
-        return &inserted.Value().entry->Value();
+        return &inserted.entry->Value();
     }
 
     Base::IAllocator* allocator = nullptr;
@@ -166,9 +165,7 @@ Base::Result<void> DependencyGraph::Update(
     if (!documentNode) return documentNode.GetStatus();
 
     Base::Vector<Base::String> newDependencies(allocator_);
-    Base::Result<void> reserved =
-        newDependencies.Reserve(dependencies.Size());
-    if (!reserved) return reserved.GetStatus();
+    newDependencies.Reserve(dependencies.Size());
     for (const Base::ResourceUri& dependencyUri : dependencies) {
         if (dependencyUri.Empty() || dependencyUri == document) continue;
         Base::Result<Base::String> dependencyKey =
@@ -180,18 +177,15 @@ Base::Result<void> DependencyGraph::Update(
         Base::Result<DependencyGraph::State::Node*> dependencyNode =
             state_->EnsureNode(dependencyUri);
         if (!dependencyNode) return dependencyNode.GetStatus();
-        Base::Result<void> appended = newDependencies.PushBack(
+        newDependencies.PushBack(
             std::move(dependencyKey).Value());
-        if (!appended) return appended.GetStatus();
     }
 
     // Prepare reverse-edge key ownership and vector capacity before mutating
     // any edge. No hash-map insertions occur after this point, so node
     // references remain stable even when EnsureNode() previously rehashed.
     Base::Vector<Base::String> reverseKeys(allocator_);
-    Base::Result<void> reverseReserved =
-        reverseKeys.Reserve(newDependencies.Size());
-    if (!reverseReserved) return reverseReserved.GetStatus();
+    reverseKeys.Reserve(newDependencies.Size());
     for (const Base::String& dependencyKey : newDependencies) {
         DependencyGraph::State::Node* dependency = state_->nodes.Find(dependencyKey);
         if (dependency == nullptr) {
@@ -199,17 +193,14 @@ Base::Result<void> DependencyGraph::Update(
                 Base::ErrorCode::InvalidState,
                 "XAML dependency graph lost a prepared node");
         }
-        Base::Result<void> reverseCapacity =
-            dependency->dependents.Reserve(
+        dependency->dependents.Reserve(
                 dependency->dependents.Size() + 1U);
-        if (!reverseCapacity) return reverseCapacity.GetStatus();
         Base::String reverseKey(allocator_);
         Base::Result<void> copied = reverseKey.Assign(
             documentKey.Value().View());
         if (!copied) return copied.GetStatus();
-        Base::Result<void> stored = reverseKeys.PushBack(
+        reverseKeys.PushBack(
             std::move(reverseKey));
-        if (!stored) return stored.GetStatus();
     }
 
     DependencyGraph::State::Node* node = state_->nodes.Find(documentKey.Value());
@@ -242,10 +233,8 @@ Base::Result<void> DependencyGraph::Update(
                 documentKey.Value().View())) {
             continue;
         }
-        Base::Result<void> reverse =
-            dependency->dependents.PushBack(
+        dependency->dependents.PushBack(
                 std::move(reverseKeys[index]));
-        if (!reverse) return reverse.GetStatus();
     }
     ++state_->generation;
     return {};
@@ -261,10 +250,8 @@ bool DependencyGraph::Remove(
     if (node == nullptr) return false;
 
     Base::Vector<Base::String> previousDependencies(allocator_);
-    if (!previousDependencies.Append(
-            node->dependencies.AsSpan())) {
-        return false;
-    }
+    previousDependencies.Append(
+            node->dependencies.AsSpan());
     node->dependencies.Clear();
     for (const Base::String& dependencyKey : previousDependencies) {
         DependencyGraph::State::Node* dependency = state_->nodes.Find(dependencyKey);
@@ -298,14 +285,11 @@ Base::Result<void> DependencyGraph::CopyDependencies(
     if (!key) return key.GetStatus();
     const DependencyGraph::State::Node* node = state_->nodes.Find(key.Value());
     if (node == nullptr) return {};
-    Base::Result<void> reserved =
-        output.Reserve(node->dependencies.Size());
-    if (!reserved) return reserved.GetStatus();
+    output.Reserve(node->dependencies.Size());
     for (const Base::String& dependencyKey : node->dependencies) {
         const DependencyGraph::State::Node* dependency = state_->nodes.Find(dependencyKey);
         if (dependency == nullptr) continue;
-        Base::Result<void> pushed = output.PushBack(dependency->uri);
-        if (!pushed) return pushed.GetStatus();
+        output.PushBack(dependency->uri);
     }
     return {};
 }
@@ -320,14 +304,11 @@ Base::Result<void> DependencyGraph::CopyDependents(
     if (!key) return key.GetStatus();
     const DependencyGraph::State::Node* node = state_->nodes.Find(key.Value());
     if (node == nullptr) return {};
-    Base::Result<void> reserved =
-        output.Reserve(node->dependents.Size());
-    if (!reserved) return reserved.GetStatus();
+    output.Reserve(node->dependents.Size());
     for (const Base::String& dependentKey : node->dependents) {
         const DependencyGraph::State::Node* dependent = state_->nodes.Find(dependentKey);
         if (dependent == nullptr) continue;
-        Base::Result<void> pushed = output.PushBack(dependent->uri);
-        if (!pushed) return pushed.GetStatus();
+        output.PushBack(dependent->uri);
     }
     return {};
 }
@@ -343,29 +324,24 @@ Base::Result<void> DependencyGraph::CollectAffected(
     Base::Result<Base::String> changedKey =
         MakeKey(changed, *allocator_);
     if (!changedKey) return changedKey.GetStatus();
-    Base::Result<void> queued =
-        queue.PushBack(changedKey.Value());
-    if (!queued) return queued.GetStatus();
+    queue.PushBack(changedKey.Value());
 
     std::uint32_t cursor = 0U;
     while (cursor < queue.Size()) {
         Base::String key = queue[cursor++];
-        Base::Result<typename Base::HashSet<Base::String>::InsertResult>
+        typename Base::HashSet<Base::String>::InsertResult
             inserted = visited.Insert(key);
-        if (!inserted) return inserted.GetStatus();
-        if (!inserted.Value().inserted) continue;
+        if (!inserted.inserted) continue;
 
         const DependencyGraph::State::Node* node = state_->nodes.Find(key);
         Base::ResourceUri uri = node != nullptr
             ? node->uri
             : changed;
-        Base::Result<void> appended = output.PushBack(uri);
-        if (!appended) return appended.GetStatus();
+        output.PushBack(uri);
         if (node == nullptr) continue;
         for (const Base::String& dependent : node->dependents) {
             if (visited.Contains(dependent)) continue;
-            Base::Result<void> next = queue.PushBack(dependent);
-            if (!next) return next.GetStatus();
+            queue.PushBack(dependent);
         }
     }
     return {};
@@ -580,12 +556,14 @@ Base::Result<void> DocumentCache::Store(
         entry.sourceIdentity = sourceIdentity;
         entry.lastAccess = ++state_->accessSequence;
         state_->compiledBytes += entry.compiledBytes.Size();
-        Base::Result<typename Base::HashMap<Base::String, DocumentCache::State::Entry>::InsertResult>
+        typename Base::HashMap<Base::String, DocumentCache::State::Entry>::InsertResult
             inserted = state_->entries.Insert(
                 std::move(key).Value(), std::move(entry));
-        if (!inserted) {
+        if (!inserted.inserted) {
             state_->compiledBytes -= serializedSize;
-            return inserted.GetStatus();
+            return Base::Status::Failure(
+                Base::ErrorCode::AlreadyExists,
+                "Document cache entry already exists");
         }
     }
     Base::Result<void> graph =
@@ -610,8 +588,7 @@ Base::Result<std::uint32_t> DocumentCache::Invalidate(
             state_->graph.CollectAffected(uri, affected);
         if (!collected) return collected.GetStatus();
     } else {
-        Base::Result<void> pushed = affected.PushBack(uri);
-        if (!pushed) return pushed.GetStatus();
+        affected.PushBack(uri);
     }
     std::uint32_t count = 0U;
     for (std::uint32_t index = affected.Size();

@@ -607,8 +607,7 @@ void Grid::SetColumnDefinitions(
     Base::Result<void> valid = ValidateDefinitions(definitions);
     if (!valid) return;
     Base::Vector<GridLength> next;
-    Base::Result<void> copied = next.Assign(definitions);
-    if (!copied) return;
+    next.Assign(definitions);
     columns_ = std::move(next);
     columnDefinitionObjects_.Clear();
     InvalidateMeasure();
@@ -620,8 +619,7 @@ void Grid::SetRowDefinitions(
     Base::Result<void> valid = ValidateDefinitions(definitions);
     if (!valid) return;
     Base::Vector<GridLength> next;
-    Base::Result<void> copied = next.Assign(definitions);
-    if (!copied) return;
+    next.Assign(definitions);
     rows_ = std::move(next);
     rowDefinitionObjects_.Clear();
     InvalidateMeasure();
@@ -656,16 +654,8 @@ void Grid::AddColumnDefinition(
     Base::Result<void> access = VerifyAccess();
     if (!access) { AERO_ASSERT(false); return; }
     if (!definition) { AERO_ASSERT(false); return; }
-    Base::Result<void> objectAdded =
-        columnDefinitionObjects_.PushBack(definition);
-    if (!objectAdded) { AERO_ASSERT(false); return; }
-    Base::Result<void> lengthAdded =
-        columns_.PushBack(definition->GetWidth());
-    if (!lengthAdded) {
-        columnDefinitionObjects_.PopBack();
-        AERO_ASSERT(false);
-        return;
-    }
+    columnDefinitionObjects_.PushBack(definition);
+    columns_.PushBack(definition->GetWidth());
     InvalidateMeasure();
 }
 void Grid::AddRowDefinition(
@@ -673,16 +663,8 @@ void Grid::AddRowDefinition(
     Base::Result<void> access = VerifyAccess();
     if (!access) { AERO_ASSERT(false); return; }
     if (!definition) { AERO_ASSERT(false); return; }
-    Base::Result<void> objectAdded =
-        rowDefinitionObjects_.PushBack(definition);
-    if (!objectAdded) { AERO_ASSERT(false); return; }
-    Base::Result<void> lengthAdded =
-        rows_.PushBack(definition->GetHeight());
-    if (!lengthAdded) {
-        rowDefinitionObjects_.PopBack();
-        AERO_ASSERT(false);
-        return;
-    }
+    rowDefinitionObjects_.PushBack(definition);
+    rows_.PushBack(definition->GetHeight());
     InvalidateMeasure();
 }
 void
@@ -736,10 +718,8 @@ Size Grid::MeasureOverride(
     const std::uint32_t rows = GetRowCount();
     Base::Vector<double> desiredColumns;
     Base::Vector<double> desiredRows;
-    Base::Result<void> resized = desiredColumns.Resize(columns, 0.0);
-    if (!resized) return Size{};
-    resized = desiredRows.Resize(rows, 0.0);
-    if (!resized) return Size{};
+    desiredColumns.Resize(columns, 0.0);
+    desiredRows.Resize(rows, 0.0);
 
     for (std::uint32_t index = 0U; index < columns; ++index) {
         const GridLength definition = ColumnAt(index);
@@ -1051,8 +1031,7 @@ Base::Result<void> Grid::ResolveTracks(
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "Grid track resolution input is invalid");
     }
-    Base::Result<void> resized = resolved.Resize(count, 0.0);
-    if (!resized) return resized.GetStatus();
+    resolved.Resize(count, 0.0);
     double occupied = 0.0;
     double totalStarWeight = 0.0;
     for (std::uint32_t index = 0U; index < count; ++index) {
@@ -1176,7 +1155,7 @@ struct PanelZOrder {
         record.z = child->GetValue(ZIndexProperty);
         record.document = document++;
         record.child = child;
-        if (!ordered.PushBack(record)) return nullptr;
+        ordered.PushBack(record);
     }
     std::sort(
         ordered.Data(),
@@ -1217,8 +1196,7 @@ void Panel::AddChildCore(const Base::Ref<Base::Object>& childObject, UIElement& 
             return;
         }
     }
-    Base::Result<void> appended = ownedChildren_.PushBack(childObject);
-    if (!appended) return;
+    ownedChildren_.PushBack(childObject);
     if (child.GetVisualParent() != this) {
         if (ElementTree* tree = VisualTree(this)) {
             // XAML Panel content uses AddChildCore, not UIElementCollection::Add.

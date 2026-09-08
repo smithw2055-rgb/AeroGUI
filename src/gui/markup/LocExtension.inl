@@ -197,9 +197,7 @@ Base::Result<ProvidedValue> LocExtension::ProvideValue(
     Base::Result<void> key = subscription.key.Assign(arguments);
     if (!key) return key.GetStatus();
     subscription.baseUri = english.Value();
-    Base::Result<void> retained =
-        LocTargets().PushBack(std::move(subscription));
-    if (!retained) return retained.GetStatus();
+    LocTargets().PushBack(std::move(subscription));
     return ProvidedValue::FromValue(std::move(initial).Value());
 }
 

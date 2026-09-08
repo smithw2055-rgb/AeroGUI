@@ -14,8 +14,7 @@ public:
           stops_(&Base::GetDefaultAllocator()) {}
     void AddGradientStop(Ref<GradientStop> value) noexcept {
         if (!value) { AERO_ASSERT(false); return; }
-        Base::Result<void> pushed = stops_.PushBack(std::move(value));
-        if (!pushed) { AERO_ASSERT(false); return; }
+        stops_.PushBack(std::move(value));
     }
     void ClearGradientStops() noexcept { stops_.Clear(); }
     Span<const Ref<GradientStop>> GetGradientStops() const noexcept {

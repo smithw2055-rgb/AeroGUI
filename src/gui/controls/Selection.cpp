@@ -54,12 +54,8 @@ Base::Result<void> InsertSortedUnique(
         values[index] == value) {
         return {};
     }
-    Base::Result<void> reserved =
-        values.Reserve(values.Size() + 1U);
-    if (!reserved) return reserved.GetStatus();
-    Base::Result<void> appended =
-        values.PushBack(value);
-    if (!appended) return appended.GetStatus();
+    values.Reserve(values.Size() + 1U);
+    values.PushBack(value);
     for (std::uint32_t current =
             values.Size() - 1U;
         current > index; --current) {
@@ -316,21 +312,11 @@ bool Selector::Select(
         return result.Value();
     }
     Base::Vector<std::uint32_t> selection;
-    Base::Result<void> reserved =
-        selection.Reserve(
+    selection.Reserve(
             selectedIndices_.Size() + 1U);
-    if (!reserved) {
-        lastSelectionError_ = reserved.GetStatus();
-        return false;
-    }
     for (std::uint32_t selected :
         selectedIndices_) {
-        Base::Result<void> copied =
-            selection.PushBack(selected);
-        if (!copied) {
-            lastSelectionError_ = copied.GetStatus();
-            return false;
-        }
+        selection.PushBack(selected);
     }
     Base::Result<void> inserted =
         InsertSortedUnique(selection, index);
@@ -362,22 +348,12 @@ bool Selector::Unselect(
         return false;
     }
     Base::Vector<std::uint32_t> selection;
-    Base::Result<void> reserved =
-        selection.Reserve(
+    selection.Reserve(
             selectedIndices_.Size() - 1U);
-    if (!reserved) {
-        lastSelectionError_ = reserved.GetStatus();
-        return false;
-    }
     for (std::uint32_t selected :
         selectedIndices_) {
         if (selected == index) continue;
-        Base::Result<void> copied =
-            selection.PushBack(selected);
-        if (!copied) {
-            lastSelectionError_ = copied.GetStatus();
-            return false;
-        }
+        selection.PushBack(selected);
     }
     const std::uint32_t primary =
         primaryIndex_ != index
@@ -429,25 +405,15 @@ bool Selector::SelectRange(
     const std::uint32_t end =
         std::max(first, last);
     Base::Vector<std::uint32_t> selection;
-    Base::Result<void> reserved =
-        selection.Reserve(
+    selection.Reserve(
             (preserveExisting
                 ? selectedIndices_.Size()
                 : 0U) +
             (end - begin + 1U));
-    if (!reserved) {
-        lastSelectionError_ = reserved.GetStatus();
-        return false;
-    }
     if (preserveExisting) {
         for (std::uint32_t selected :
             selectedIndices_) {
-            Base::Result<void> copied =
-                selection.PushBack(selected);
-            if (!copied) {
-                lastSelectionError_ = copied.GetStatus();
-                return false;
-            }
+            selection.PushBack(selected);
         }
     }
     for (std::uint32_t index = begin;
@@ -484,9 +450,7 @@ Base::Result<bool> Selector::ApplySelection(
     Base::Span<const std::uint32_t> indices,
     std::uint32_t primaryIndex) noexcept {
     Base::Vector<std::uint32_t> normalized;
-    Base::Result<void> reserved =
-        normalized.Reserve(indices.Size());
-    if (!reserved) return reserved.GetStatus();
+    normalized.Reserve(indices.Size());
     for (std::uint32_t index : indices) {
         if (index >= GetCount()) {
             return Base::Status::Failure(
@@ -506,9 +470,7 @@ Base::Result<bool> Selector::ApplySelection(
             ? primaryIndex
             : normalized[0U];
         normalized.Clear();
-        Base::Result<void> added =
-            normalized.PushBack(selected);
-        if (!added) return added.GetStatus();
+        normalized.PushBack(selected);
     }
     if (normalized.Empty()) {
         primaryIndex = UINT32_MAX;
@@ -531,26 +493,16 @@ Base::Result<bool> Selector::ApplySelection(
 
     Base::Vector<std::uint32_t> removed;
     Base::Vector<std::uint32_t> added;
-    Base::Result<void> removedReserve =
-        removed.Reserve(selectedIndices_.Size());
-    if (!removedReserve) {
-        return removedReserve.GetStatus();
-    }
-    Base::Result<void> addedReserve =
-        added.Reserve(normalized.Size());
-    if (!addedReserve) return addedReserve.GetStatus();
+    removed.Reserve(selectedIndices_.Size());
+    added.Reserve(normalized.Size());
     for (std::uint32_t index : selectedIndices_) {
         if (!ContainsIndex(newSelection, index)) {
-            Base::Result<void> stored =
-                removed.PushBack(index);
-            if (!stored) return stored.GetStatus();
+            removed.PushBack(index);
         }
     }
     for (std::uint32_t index : normalized) {
         if (!ContainsIndex(oldSelection, index)) {
-            Base::Result<void> stored =
-                added.PushBack(index);
-            if (!stored) return stored.GetStatus();
+            added.PushBack(index);
         }
     }
 
@@ -779,14 +731,8 @@ void Selector::OnItemsChanged(
     }
 
     Base::Vector<std::uint32_t> mapped;
-    Base::Result<void> reserved =
-        mapped.Reserve(
+    mapped.Reserve(
             selectedIndices_.Size());
-    if (!reserved) {
-        lastSelectionError_ =
-            reserved.GetStatus();
-        return;
-    }
     std::uint32_t mappedPrimary =
         primaryIndex_;
     for (std::uint32_t selected :
@@ -1804,24 +1750,7 @@ ComboBehavior::Attach(
             input_->AddPointerStateChanged(
                 pointerStateChangedHandler_));
     }
-    Base::Result<void> stored =
-        records_.PushBack(handle.Value());
-    if (!stored) {
-        if (records_.Empty() && input_ != nullptr) {
-            static_cast<void>(
-                input_->RemovePointerStateChanged(
-                    pointerStateChangedHandler_));
-        }
-        static_cast<void>(
-            comboBox.RemoveHandler(
-                UIElement::KeyDownEvent,
-                keyDownHandler_));
-        static_cast<void>(
-            comboBox.RemoveHandler(
-                UIElement::MouseDownEvent,
-                mouseDownHandler_));
-        return stored.GetStatus();
-    }
+    records_.PushBack(handle.Value());
     return {};
 }
 
@@ -2064,17 +1993,7 @@ Base::Result<void> ListBehavior::Attach(
         keyDownHandler_);
     Record record;
     record.handle = handle.Value();
-    Base::Result<void> added =
-        records_.PushBack(record);
-    if (!added) {
-        static_cast<void>(listBox.RemoveHandler(
-            UIElement::KeyDownEvent,
-            keyDownHandler_));
-        static_cast<void>(listBox.RemoveHandler(
-            UIElement::MouseDownEvent,
-            mouseDownHandler_));
-        return added.GetStatus();
-    }
+    records_.PushBack(record);
     AeroGuiInternal::SyncSelectorContainers(listBox);
     return {};
 }

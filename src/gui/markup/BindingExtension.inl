@@ -652,9 +652,7 @@ struct DeferredMultiBindingState {
         }
 
         Base::Vector<Meta::Value> values(allocator);
-        Base::Result<void> reserved =
-            values.Reserve(inputs.Size());
-        if (!reserved) return reserved.GetStatus();
+        values.Reserve(inputs.Size());
         for (const Base::Ref<Data::MultiBindingProxy>& input :
              inputs) {
             if (!input) {
@@ -664,9 +662,7 @@ struct DeferredMultiBindingState {
             }
             const Meta::Value current = input->GetValue(
                 Data::MultiBindingProxy::ValueProperty.Handle());
-            Base::Result<void> added =
-                values.PushBack(current);
-            if (!added) return added.GetStatus();
+            values.PushBack(current);
         }
 
         const Meta::DependencyProperty* targetInfo =
@@ -757,10 +753,8 @@ Base::Result<void> PrepareMultiBinding(
             "Deferred MultiBinding state is invalid");
     }
     state->sources.Clear();
-    Base::Result<void> reserved =
-        state->sources.Reserve(
+    state->sources.Reserve(
             state->binding->GetBindings().Size());
-    if (!reserved) return reserved.GetStatus();
     for (const Base::Ref<Data::Binding>& child :
          state->binding->GetBindings()) {
         if (!child) {
@@ -788,9 +782,7 @@ Base::Result<void> PrepareMultiBinding(
                     "MultiBinding child RelativeSource mode is unsupported");
             }
         }
-        Base::Result<void> added =
-            state->sources.PushBack(source);
-        if (!added) return added.GetStatus();
+        state->sources.PushBack(source);
     }
     return {};
 }
@@ -825,16 +817,8 @@ Base::Result<std::uint64_t> CommitMultiBinding(
         Data::MultiBindingProxy::ValueProperty.Handle(),
         initial);
 
-    Base::Result<void> reservedInputs =
-        state->inputs.Reserve(children.Size());
-    if (reservedInputs) {
-        reservedInputs =
-            state->ready.Reserve(children.Size());
-    }
-    if (!reservedInputs) {
-        state->Detach();
-        return reservedInputs.GetStatus();
-    }
+    state->inputs.Reserve(children.Size());
+    state->ready.Reserve(children.Size());
 
     for (std::uint32_t index = 0U;
          index < children.Size(); ++index) {
@@ -844,15 +828,8 @@ Base::Result<std::uint64_t> CommitMultiBinding(
             state->Detach();
             return input.GetStatus();
         }
-        Base::Result<void> retained =
-            state->inputs.PushBack(input.Value());
-        if (retained) {
-            retained = state->ready.PushBack(0U);
-        }
-        if (!retained) {
-            state->Detach();
-            return retained.GetStatus();
-        }
+        state->inputs.PushBack(input.Value());
+        state->ready.PushBack(0U);
         input.Value()->AddValueChangedHandler(
             Data::MultiBindingProxy::ValueProperty.Handle(),
             state->changed);
@@ -887,14 +864,7 @@ Base::Result<std::uint64_t> CommitMultiBinding(
             state->Detach();
             return attached.GetStatus();
         }
-        Base::Result<void> retainedHandle =
-            state->handles.PushBack(attached.Value());
-        if (!retainedHandle) {
-            static_cast<void>(
-                state->manager->Detach(attached.Value()));
-            state->Detach();
-            return retainedHandle.GetStatus();
-        }
+        state->handles.PushBack(attached.Value());
     }
 
     // Attach the aggregate expression after its child expressions. During a
@@ -913,14 +883,7 @@ Base::Result<std::uint64_t> CommitMultiBinding(
         state->Detach();
         return outputHandle.GetStatus();
     }
-    Base::Result<void> retainedOutput =
-        state->handles.PushBack(outputHandle.Value());
-    if (!retainedOutput) {
-        static_cast<void>(
-            state->manager->Detach(outputHandle.Value()));
-        state->Detach();
-        return retainedOutput.GetStatus();
-    }
+    state->handles.PushBack(outputHandle.Value());
     state->manager->RegisterMultiBinding(
         *state->target,
         state->targetProperty,

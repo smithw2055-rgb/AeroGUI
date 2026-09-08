@@ -46,7 +46,7 @@ public:
     AERO_DEPENDENCY_PROPERTY(double, RotationAngle);
     AERO_DEPENDENCY_PROPERTY(bool, IsLargeArc);
     AERO_DEPENDENCY_PROPERTY(SweepDirection, SweepDirection);
-    Result<void> Flatten(
+    void Flatten(
         FlattenSink& sink,
         Point& currentPoint) const noexcept override;
 };

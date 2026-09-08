@@ -148,8 +148,7 @@ CollectionView* CollectionViewSource::GetDefaultView(
     }
     entry.view = std::move(created).Value();
     CollectionView* view = entry.view.Get();
-    Base::Result<void> stored = views.PushBack(std::move(entry));
-    if (!stored) return nullptr;
+    views.PushBack(std::move(entry));
     return view;
 }
 

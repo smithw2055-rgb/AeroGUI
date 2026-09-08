@@ -485,10 +485,6 @@ StoryboardHost::ExecuteAnimationAction(
             namedSession.owner = &owner;
             Base::Result<void> named =
                 namedSession.name.Assign(begin.GetName());
-            if (named) {
-                named = namedSession.handles.Append(
-                    completion.handles.AsSpan());
-            }
             if (!named) {
                 for (Aero::Media::Animation::Model::AnimationHandle handle :
                      completion.handles) {
@@ -497,31 +493,14 @@ StoryboardHost::ExecuteAnimationAction(
                 }
                 return named.GetStatus();
             }
+            namedSession.handles.Append(
+                completion.handles.AsSpan());
         }
-        Base::Result<void> retained =
-            storyboardCompletionSessions.PushBack(
+        storyboardCompletionSessions.PushBack(
                 std::move(completion));
-        if (!retained) {
-            for (Aero::Media::Animation::Model::AnimationHandle handle :
-                 completion.handles) {
-                static_cast<void>(
-                    Animations()->Remove(handle));
-            }
-            return retained.GetStatus();
-        }
         if (!begin.GetName().Empty()) {
-            retained = storyboardSessions.PushBack(
+            storyboardSessions.PushBack(
                 std::move(namedSession));
-            if (!retained) {
-                for (Aero::Media::Animation::Model::AnimationHandle handle :
-                     storyboardCompletionSessions.Back().
-                         handles) {
-                    static_cast<void>(
-                        Animations()->Remove(handle));
-                }
-                storyboardCompletionSessions.PopBack();
-                return retained.GetStatus();
-            }
         }
         return {};
     }
@@ -549,8 +528,7 @@ StoryboardHost::ExecuteAnimationAction(
                 if (control.GetControlOption() == MediaAnimation::ControlStoryboardAction::Option::Stop) {
                     result = Animations()->Stop(handle);
                     if (result) {
-                        Base::Result<void> retained = stopped.PushBack(handle);
-                        if (!retained) return retained.GetStatus();
+                        stopped.PushBack(handle);
                     }
                 } else if (control.GetControlOption() == MediaAnimation::ControlStoryboardAction::Option::Pause) result = Animations()->Pause(handle);
                 else if (control.GetControlOption() == MediaAnimation::ControlStoryboardAction::Option::Resume) result = Animations()->Resume(handle);

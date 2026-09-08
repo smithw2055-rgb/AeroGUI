@@ -890,20 +890,21 @@ void VerifyAuthoringPropertySynchronization() noexcept {
 void VerifyClosedPathRelativeMove() noexcept {
     struct StartSink final : Aero::Media::FlattenSink {
         Aero::Base::Vector<Aero::Media::Point> starts;
-        Aero::Base::Result<void> AddPoint(Aero::Media::Point) noexcept override {
-            return {};
+        void AddPoint(Aero::Media::Point) noexcept override {
         }
-        Aero::Base::Result<void> BeginFigure(
+        void BeginFigure(
             Aero::Media::Point start, bool) noexcept override {
-            return starts.PushBack(start);
+            starts.PushBack(start);
+        }
+        void EndFigure(bool) noexcept override {
         }
     };
 
     Aero::Media::StreamGeometry ring;
     ring.SetData("M10,10 L30,10 L30,30 L10,30 Z m2,2 h16 v16 h-16 Z");
     StartSink sink;
-    const Aero::Base::Result<void> flattened = ring.Flatten(sink);
-    Check(flattened.HasValue() && sink.starts.Size() == 2U,
+    ring.Flatten(sink);
+    Check(sink.starts.Size() == 2U,
         "Closed path with relative moveto must keep two figures");
     if (sink.starts.Size() >= 2U) {
         Check(std::fabs(sink.starts[1].x - 12.0) < 0.01 &&

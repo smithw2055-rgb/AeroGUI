@@ -425,13 +425,7 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
     Base::Result<Track*> added = AddTrack(&target, property);
     if (!added) return added.GetStatus();
     Track& track = *added.Value();
-    Base::Result<void> copied =
-        track.doubleFrames.Append(animation.keyFrames);
-    if (!copied) {
-        track.state = AnimationState::Stopped;
-        CompactStopped();
-        return copied.GetStatus();
-    }
+    track.doubleFrames.Append(animation.keyFrames);
     track.handle = {nextHandle_++};
     track.target = &target;
     track.property = property;
@@ -471,13 +465,7 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
     Base::Result<Track*> added = AddTrack(&target, property);
     if (!added) return added.GetStatus();
     Track& track = *added.Value();
-    Base::Result<void> copied =
-        track.colorFrames.Append(animation.keyFrames);
-    if (!copied) {
-        track.state = AnimationState::Stopped;
-        CompactStopped();
-        return copied.GetStatus();
-    }
+    track.colorFrames.Append(animation.keyFrames);
     track.handle = {nextHandle_++};
     track.target = &target;
     track.property = property;
@@ -516,13 +504,7 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
     Base::Result<Track*> added = AddTrack(&target, property);
     if (!added) return added.GetStatus();
     Track& track = *added.Value();
-    Base::Result<void> copied =
-        track.pointFrames.Append(animation.keyFrames);
-    if (!copied) {
-        track.state = AnimationState::Stopped;
-        CompactStopped();
-        return copied.GetStatus();
-    }
+    track.pointFrames.Append(animation.keyFrames);
     track.handle = {nextHandle_++};
     track.target = &target;
     track.property = property;
@@ -565,13 +547,7 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
     Base::Result<Track*> added = AddTrack(&target, property);
     if (!added) return added.GetStatus();
     Track& track = *added.Value();
-    Base::Result<void> copied =
-        track.thicknessFrames.Append(animation.keyFrames);
-    if (!copied) {
-        track.state = AnimationState::Stopped;
-        CompactStopped();
-        return copied.GetStatus();
-    }
+    track.thicknessFrames.Append(animation.keyFrames);
     track.handle = {nextHandle_++};
     track.target = &target;
     track.property = property;
@@ -607,13 +583,7 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
     Base::Result<Track*> added = AddTrack(&target, property);
     if (!added) return added.GetStatus();
     Track& track = *added.Value();
-    Base::Result<void> copied =
-        track.integerFrames.Append(animation.keyFrames);
-    if (!copied) {
-        track.state = AnimationState::Stopped;
-        CompactStopped();
-        return copied.GetStatus();
-    }
+    track.integerFrames.Append(animation.keyFrames);
     track.handle = {nextHandle_++};
     track.target = &target;
     track.property = property;
@@ -653,13 +623,7 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
     Base::Result<Track*> added = AddTrack(&target, property);
     if (!added) return added.GetStatus();
     Track& track = *added.Value();
-    Base::Result<void> copied =
-        track.sizeFrames.Append(animation.keyFrames);
-    if (!copied) {
-        track.state = AnimationState::Stopped;
-        CompactStopped();
-        return copied.GetStatus();
-    }
+    track.sizeFrames.Append(animation.keyFrames);
     track.handle = {nextHandle_++};
     track.target = &target;
     track.property = property;
@@ -696,13 +660,7 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
     Base::Result<Track*> added = AddTrack(&target, property);
     if (!added) return added.GetStatus();
     Track& track = *added.Value();
-    Base::Result<void> copied =
-        track.matrixFrames.Append(animation.keyFrames);
-    if (!copied) {
-        track.state = AnimationState::Stopped;
-        CompactStopped();
-        return copied.GetStatus();
-    }
+    track.matrixFrames.Append(animation.keyFrames);
     track.handle = {nextHandle_++};
     track.target = &target;
     track.property = property;
@@ -741,13 +699,7 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
     Base::Result<Track*> added = AddTrack(&target, property);
     if (!added) return added.GetStatus();
     Track& track = *added.Value();
-    Base::Result<void> copied =
-        track.discreteFrames.Append(animation.keyFrames);
-    if (!copied) {
-        track.state = AnimationState::Stopped;
-        CompactStopped();
-        return copied.GetStatus();
-    }
+    track.discreteFrames.Append(animation.keyFrames);
     track.handle = {nextHandle_++};
     track.target = &target;
     track.property = property;

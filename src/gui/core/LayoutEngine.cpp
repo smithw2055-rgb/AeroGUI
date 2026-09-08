@@ -311,9 +311,7 @@ Base::Result<void> LayoutEngine::QueueMeasure(
         AeroGuiInternal::Layout(element).measureValid = false;
         return {};
     }
-    Base::Result<void> appended =
-        measureQueue_.PushBack(handle);
-    if (!appended) return appended.GetStatus();
+    measureQueue_.PushBack(handle);
     AeroGuiInternal::Layout(element).measureQueued = true;
     return {};
 }
@@ -326,9 +324,7 @@ Base::Result<void> LayoutEngine::QueueArrange(
         AeroGuiInternal::Layout(element).arrangeValid = false;
         return {};
     }
-    Base::Result<void> appended =
-        arrangeQueue_.PushBack(handle);
-    if (!appended) return appended.GetStatus();
+    arrangeQueue_.PushBack(handle);
     AeroGuiInternal::Layout(element).arrangeQueued = true;
     return {};
 }
@@ -361,27 +357,22 @@ void LayoutEngine::InvalidateMeasure(
     while (current != nullptr) {
         Base::Result<void> verified = VerifyElement(*current);
         if (!verified) { AERO_ASSERT(false); return; }
-        Base::Result<void> appended = path.PushBack(current);
-        if (!appended) { AERO_ASSERT(false); return; }
+        path.PushBack(current);
         current = current->GetIsLayoutAttached()
             ? current->LayoutParent() : nullptr;
     }
 
     Base::Vector<VisualHandle> handles;
-    Base::Result<void> reserved = handles.Reserve(path.Size());
-    if (!reserved) { AERO_ASSERT(false); return; }
+    handles.Reserve(path.Size());
     for (UIElement* item : path) {
         if (item->GetIsMeasureQueued()) continue;
         const VisualHandle handle = AeroGuiInternal::Handle(*item);
         if (handle.IsValid()) {
-            Base::Result<void> staged =
-                handles.PushBack(handle);
-            if (!staged) { AERO_ASSERT(false); return; }
+            handles.PushBack(handle);
         }
     }
-    reserved = measureQueue_.Reserve(
+    measureQueue_.Reserve(
         measureQueue_.Size() + handles.Size());
-    if (!reserved) { AERO_ASSERT(false); return; }
 
     std::uint32_t handleIndex = 0U;
     for (UIElement* item : path) {
@@ -390,10 +381,8 @@ void LayoutEngine::InvalidateMeasure(
         if (item->GetIsMeasureQueued()) continue;
         const VisualHandle handle = AeroGuiInternal::Handle(*item);
         if (handle.IsValid()) {
-            Base::Result<void> queued = measureQueue_.PushBack(
+            measureQueue_.PushBack(
                 handles[handleIndex++]);
-            AERO_ASSERT(queued);
-            (void)queued;
             AeroGuiInternal::Layout(*item).measureQueued = true;
         }
     }
@@ -406,27 +395,22 @@ void LayoutEngine::InvalidateArrange(
     while (current != nullptr) {
         Base::Result<void> verified = VerifyElement(*current);
         if (!verified) { AERO_ASSERT(false); return; }
-        Base::Result<void> appended = path.PushBack(current);
-        if (!appended) { AERO_ASSERT(false); return; }
+        path.PushBack(current);
         current = current->GetIsLayoutAttached()
             ? current->LayoutParent() : nullptr;
     }
 
     Base::Vector<VisualHandle> handles;
-    Base::Result<void> reserved = handles.Reserve(path.Size());
-    if (!reserved) { AERO_ASSERT(false); return; }
+    handles.Reserve(path.Size());
     for (UIElement* item : path) {
         if (item->GetIsArrangeQueued()) continue;
         const VisualHandle handle = AeroGuiInternal::Handle(*item);
         if (handle.IsValid()) {
-            Base::Result<void> staged =
-                handles.PushBack(handle);
-            if (!staged) { AERO_ASSERT(false); return; }
+            handles.PushBack(handle);
         }
     }
-    reserved = arrangeQueue_.Reserve(
+    arrangeQueue_.Reserve(
         arrangeQueue_.Size() + handles.Size());
-    if (!reserved) { AERO_ASSERT(false); return; }
 
     std::uint32_t handleIndex = 0U;
     for (UIElement* item : path) {
@@ -434,10 +418,8 @@ void LayoutEngine::InvalidateArrange(
         if (item->GetIsArrangeQueued()) continue;
         const VisualHandle handle = AeroGuiInternal::Handle(*item);
         if (handle.IsValid()) {
-            Base::Result<void> queued = arrangeQueue_.PushBack(
+            arrangeQueue_.PushBack(
                 handles[handleIndex++]);
-            AERO_ASSERT(queued);
-            (void)queued;
             AeroGuiInternal::Layout(*item).arrangeQueued = true;
         }
     }
@@ -463,9 +445,8 @@ Base::Result<void> UIElement::MeasureCore(
         Base::Result<VisualHandle> handle = layout.EnqueueHandle(element);
         if (!handle) return handle.GetStatus();
         pendingArrange = handle.Value();
-        Base::Result<void> reserved = layout.arrangeQueue_.Reserve(
+        layout.arrangeQueue_.Reserve(
             layout.arrangeQueue_.Size() + 1U);
-        if (!reserved) return reserved.GetStatus();
     }
 
     if (element.GetVisibility() == Visibility::Collapsed) {
@@ -478,10 +459,8 @@ Base::Result<void> UIElement::MeasureCore(
         ++AeroGuiInternal::Layout(element).layoutRevision;
         ++layout.measuredCount_;
         if (queueArrange) {
-            Base::Result<void> queued = layout.arrangeQueue_.PushBack(
+            layout.arrangeQueue_.PushBack(
                 pendingArrange);
-            AERO_ASSERT(queued);
-            (void)queued;
             AeroGuiInternal::Layout(element).arrangeQueued = true;
         }
         return {};
@@ -589,10 +568,8 @@ Base::Result<void> UIElement::MeasureCore(
     ++AeroGuiInternal::Layout(element).layoutRevision;
     ++layout.measuredCount_;
     if (queueArrange) {
-        Base::Result<void> queued = layout.arrangeQueue_.PushBack(
+        layout.arrangeQueue_.PushBack(
             pendingArrange);
-        AERO_ASSERT(queued);
-        (void)queued;
         AeroGuiInternal::Layout(element).arrangeQueued = true;
     }
     return {};

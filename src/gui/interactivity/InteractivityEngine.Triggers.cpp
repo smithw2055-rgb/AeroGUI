@@ -180,22 +180,8 @@ Base::Result<bool> InteractivityEngine::StartPropertyChangedTrigger(
         subscription.metadataSubscription = metadataSubscription;
         subscription.handler = handler;
         subscription.context = context;
-        Base::Result<void> retained =
-            propertyChangedTriggerSubscriptions.PushBack(
+        propertyChangedTriggerSubscriptions.PushBack(
                 std::move(subscription));
-        if (!retained) {
-            if (property.Value().dependencySource != nullptr) {
-                static_cast<void>(property.Value().dependencySource
-                    ->RemoveValueChangedHandler(
-                        property.Value().dependencyProperty, handler));
-            } else if (metadataSubscription != 0U) {
-                static_cast<void>(Metadata()->UnsubscribePropertyChanged(
-                    *property.Value().source, metadataSubscription));
-            }
-            FreeObject(
-                *Allocator(), Base::MemoryTag::Ui, context);
-            return retained.GetStatus();
-        }
         return true;
     }
 
@@ -268,22 +254,8 @@ Base::Result<bool> InteractivityEngine::StartInteractionDataTrigger(
         subscription.metadataSubscription = metadataSubscription;
         subscription.handler = handler;
         subscription.context = context;
-        Base::Result<void> retained =
-            interactionDataTriggerSubscriptions.PushBack(
+        interactionDataTriggerSubscriptions.PushBack(
                 std::move(subscription));
-        if (!retained) {
-            if (property.Value().dependencySource != nullptr) {
-                static_cast<void>(property.Value().dependencySource
-                    ->RemoveValueChangedHandler(
-                        property.Value().dependencyProperty, handler));
-            } else if (metadataSubscription != 0U) {
-                static_cast<void>(Metadata()->UnsubscribePropertyChanged(
-                    *property.Value().source, metadataSubscription));
-            }
-            FreeObject(
-                *Allocator(), Base::MemoryTag::Ui, context);
-            return retained.GetStatus();
-        }
         Base::Result<bool> evaluated =
             EvaluateInteractionDataTrigger(*context);
         if (!evaluated) return evaluated.GetStatus();
@@ -363,15 +335,8 @@ Base::Result<bool> InteractivityEngine::StartKeyTrigger(
             });
         source->AddHandler(
             Aero::UIElement::KeyDownEvent.Handle(), handler);
-        Base::Result<void> retained = keyTriggerSubscriptions.PushBack({
+        keyTriggerSubscriptions.PushBack({
             &owner, source, handler, context});
-        if (!retained) {
-            static_cast<void>(source->RemoveHandler(
-                Aero::UIElement::KeyDownEvent.Handle(), handler));
-            FreeObject(
-                *Allocator(), Base::MemoryTag::Ui, context);
-            return retained.GetStatus();
-        }
         return true;
     }
 
@@ -495,7 +460,8 @@ Base::Result<void> InteractivityEngine::PendUntilDataContext(
     pending.names = names;
     pending.dataTrigger = dataTrigger;
     pending.propertyTrigger = propertyTrigger;
-    return pendingInteractionTriggers.PushBack(std::move(pending));
+    pendingInteractionTriggers.PushBack(std::move(pending));
+    return {};
 }
 
 void InteractivityEngine::ClearPendingInteractionTriggers() noexcept {
@@ -510,12 +476,7 @@ void InteractivityEngine::RetryPendingInteractionTriggers() noexcept {
     retryingPendingInteractionTriggers_ = true;
     Base::Vector<PendingInteractionTrigger> snapshot(Allocator());
     for (PendingInteractionTrigger& pending : pendingInteractionTriggers) {
-        Base::Result<void> retained =
-            snapshot.PushBack(std::move(pending));
-        if (!retained) {
-            retryingPendingInteractionTriggers_ = false;
-            return;
-        }
+        snapshot.PushBack(std::move(pending));
     }
     pendingInteractionTriggers.Clear();
     for (PendingInteractionTrigger& pending : snapshot) {

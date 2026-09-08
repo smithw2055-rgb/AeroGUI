@@ -493,10 +493,8 @@ Base::Result<void> ObjectWriter::WriteText(
                     Base::Result<void> key = deferred.key.Assign(
                         argument);
                     if (!key) return key.GetStatus();
-                    Base::Result<void> stored =
-                        deferredStaticResources_.PushBack(
+                    deferredStaticResources_.PushBack(
                             std::move(deferred));
-                    if (!stored) return stored.GetStatus();
                     return {};
                 }
                 Base::Result<Base::String> message =
@@ -629,10 +627,8 @@ Base::Result<void> ObjectWriter::WriteText(
                 Base::Result<void> key = deferred.key.Assign(
                     argument);
                 if (!key) return key.GetStatus();
-                Base::Result<void> stored =
-                    deferredStaticResources_.PushBack(
+                deferredStaticResources_.PushBack(
                         std::move(deferred));
-                if (!stored) return stored.GetStatus();
                 return {};
             }
             Base::Result<Base::String> message =

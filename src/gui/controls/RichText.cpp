@@ -225,7 +225,7 @@ void ApplyRichText(DependencyObject& object) noexcept {
     Base::String plain;
     Base::Vector<RichTextParseState> states;
     Base::Vector<Controls::TextBlock::RichTextStyleRange> ranges;
-    if (!states.PushBack({})) return;
+    states.PushBack({});
 
     const auto recordRange = [&ranges, &states](
         std::uint32_t start,
@@ -251,7 +251,8 @@ void ApplyRichText(DependencyObject& object) noexcept {
         range.hasForeground = state.hasForeground;
         range.bold = state.bold;
         range.italic = state.italic;
-        return static_cast<bool>(ranges.PushBack(range));
+        ranges.PushBack(range);
+        return true;
     };
     const auto appendText = [&plain, &recordRange](
         Base::StringView value) noexcept -> bool {
@@ -338,7 +339,7 @@ void ApplyRichText(DependencyObject& object) noexcept {
                 }
                 stateTag = true;
             }
-            if (stateTag && !states.PushBack(nextState)) return;
+            if (stateTag) states.PushBack(nextState);
         }
         index = tagEnd + 1U;
     }

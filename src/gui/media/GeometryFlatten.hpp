@@ -5,18 +5,18 @@
 
 namespace Aero::Media {
 
-Result<void> FlattenCubicBezier(
+void FlattenCubicBezier(
     FlattenSink& sink,
     Point start,
     Point control1,
     Point control2,
     Point end) noexcept;
-Result<void> FlattenQuadraticBezier(
+void FlattenQuadraticBezier(
     FlattenSink& sink,
     Point start,
     Point control,
     Point end) noexcept;
-Result<void> FlattenArc(
+void FlattenArc(
     FlattenSink& sink,
     Point start,
     Size radii,
@@ -51,7 +51,7 @@ struct FillContour {
 };
 
 // Phase A: flatten only.
-Result<void> FlattenGeometryContours(
+void FlattenGeometryContours(
     const Geometry& geometry,
     Base::Vector<Point>& fillPoints,
     Base::Vector<FillContour>& fillContours,

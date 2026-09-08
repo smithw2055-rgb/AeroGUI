@@ -167,7 +167,8 @@ Base::Result<void> DisplayListBuilder::Append(
     if (finished_) {
         return InvalidState("DisplayListBuilder has already been finished");
     }
-    return list_.commands_.PushBack(command);
+    list_.commands_.PushBack(command);
+    return {};
 }
 
 Base::Result<void> DisplayListBuilder::PushClip(Rect clip) noexcept {
@@ -1065,9 +1066,7 @@ Base::Result<void> RenderTree::SetRoot(
     Base::Result<Aero::VisualLease> lease =
         Aero::VisualLease::Acquire(*root);
     if (!lease) return lease.GetStatus();
-    Base::Result<void> reserved =
-        dirty_.Reserve(dirty_.Size() + 1U);
-    if (!reserved) return reserved.GetStatus();
+    dirty_.Reserve(dirty_.Size() + 1U);
 
     root_ = root;
     AeroGuiInternal::NodeId(*root) = nextNodeId_++;
@@ -1075,10 +1074,7 @@ Base::Result<void> RenderTree::SetRoot(
     AeroGuiInternal::RenderDirtyFlags(*root) =
         static_cast<std::uint8_t>(
             RenderInvalidation::All);
-    Base::Result<void> queued =
-        dirty_.PushBack(std::move(lease).Value());
-    AERO_ASSERT(queued);
-    (void)queued;
+    dirty_.PushBack(std::move(lease).Value());
     AeroGuiInternal::RenderQueued(*root) = true;
     // P4.3: new root identity; committed node order is no longer valid.
     ++structureVersion_;
@@ -1122,9 +1118,7 @@ Base::Result<void> RenderTree::Attach(
              ? AeroGuiInternal::RenderParent(*current) : nullptr) {
         if (!AeroGuiInternal::RenderQueued(*current)) ++required;
     }
-    Base::Result<void> reserved =
-        dirty_.Reserve(dirty_.Size() + required);
-    if (!reserved) return reserved.GetStatus();
+    dirty_.Reserve(dirty_.Size() + required);
 
     Base::Result<void> invalidated = Invalidate(
         parent, RenderInvalidation::Children);
@@ -1136,10 +1130,8 @@ Base::Result<void> RenderTree::Attach(
     AeroGuiInternal::RenderDirtyFlags(child) =
         static_cast<std::uint8_t>(
             RenderInvalidation::All);
-    Base::Result<void> queued = dirty_.PushBack(
+    dirty_.PushBack(
         std::move(childLease).Value());
-    AERO_ASSERT(queued);
-    (void)queued;
     AeroGuiInternal::RenderQueued(child) = true;
     // P4.3: new node identity; committed node order is no longer valid.
     ++structureVersion_;
@@ -1195,9 +1187,7 @@ Base::Result<void> RenderTree::QueueDirty(
     Base::Result<Aero::VisualLease> lease =
         Aero::VisualLease::Acquire(element);
     if (!lease) return lease.GetStatus();
-    Base::Result<void> appended =
-        dirty_.PushBack(std::move(lease).Value());
-    if (!appended) return appended.GetStatus();
+    dirty_.PushBack(std::move(lease).Value());
     AeroGuiInternal::RenderQueued(element) = true;
     return {};
 }
@@ -1318,32 +1308,25 @@ Base::Result<void> RenderTree::Invalidate(
              ? AeroGuiInternal::RenderParent(*current) : nullptr) {
         Base::Result<void> currentVerified = VerifyElement(*current);
         if (!currentVerified) return currentVerified.GetStatus();
-        Base::Result<void> appended = path.PushBack(current);
-        if (!appended) return appended.GetStatus();
+        path.PushBack(current);
     }
 
     Base::Vector<Aero::VisualLease> leases;
-    Base::Result<void> reserved = leases.Reserve(path.Size());
-    if (!reserved) return reserved.GetStatus();
+    leases.Reserve(path.Size());
     for (::Aero::Media::Visual* current : path) {
         if (AeroGuiInternal::RenderQueued(*current)) continue;
         Base::Result<Aero::VisualLease> lease =
             Aero::VisualLease::Acquire(*current);
         if (!lease) return lease.GetStatus();
-        Base::Result<void> staged =
-            leases.PushBack(std::move(lease).Value());
-        if (!staged) return staged.GetStatus();
+        leases.PushBack(std::move(lease).Value());
     }
-    reserved = dirty_.Reserve(dirty_.Size() + leases.Size());
-    if (!reserved) return reserved.GetStatus();
+    dirty_.Reserve(dirty_.Size() + leases.Size());
 
     std::uint32_t leaseIndex = 0U;
     for (::Aero::Media::Visual* current : path) {
         if (AeroGuiInternal::RenderQueued(*current)) continue;
-        Base::Result<void> queued = dirty_.PushBack(
+        dirty_.PushBack(
             std::move(leases[leaseIndex++]));
-        AERO_ASSERT(queued);
-        (void)queued;
         AeroGuiInternal::RenderQueued(*current) = true;
     }
     return {};
@@ -1424,8 +1407,7 @@ void FrameworkElement::AddAuthoredTrigger(
     if (!trigger) { AERO_ASSERT(false); return; }
     FrameworkRare* rare = EnsureFrameworkRare();
     if (rare == nullptr) { AERO_ASSERT(false); return; }
-    Base::Result<void> pushed = rare->authoredTriggers.PushBack(std::move(trigger));
-    if (!pushed) { AERO_ASSERT(false); return; }
+    rare->authoredTriggers.PushBack(std::move(trigger));
 }
 
 void
@@ -1440,8 +1422,7 @@ void FrameworkElement::AddAuthoredBehavior(
     if (!behavior) { AERO_ASSERT(false); return; }
     FrameworkRare* rare = EnsureFrameworkRare();
     if (rare == nullptr) { AERO_ASSERT(false); return; }
-    Base::Result<void> pushed = rare->authoredBehaviors.PushBack(std::move(behavior));
-    if (!pushed) { AERO_ASSERT(false); return; }
+    rare->authoredBehaviors.PushBack(std::move(behavior));
 }
 
 void FrameworkElement::ClearAuthoredBehaviors() noexcept {
@@ -1455,8 +1436,7 @@ void FrameworkElement::AddStyleBehaviorPrototype(
     if (!behavior) { AERO_ASSERT(false); return; }
     FrameworkRare* rare = EnsureFrameworkRare();
     if (rare == nullptr) { AERO_ASSERT(false); return; }
-    Base::Result<void> pushed = rare->styleBehaviorPrototypes.PushBack(std::move(behavior));
-    if (!pushed) { AERO_ASSERT(false); return; }
+    rare->styleBehaviorPrototypes.PushBack(std::move(behavior));
 }
 
 void FrameworkElement::ClearStyleBehaviorPrototypes() noexcept {
@@ -1470,8 +1450,7 @@ void FrameworkElement::AddStyleTriggerPrototype(
     if (!trigger) { AERO_ASSERT(false); return; }
     FrameworkRare* rare = EnsureFrameworkRare();
     if (rare == nullptr) { AERO_ASSERT(false); return; }
-    Base::Result<void> pushed = rare->styleTriggerPrototypes.PushBack(std::move(trigger));
-    if (!pushed) { AERO_ASSERT(false); return; }
+    rare->styleTriggerPrototypes.PushBack(std::move(trigger));
 }
 
 void FrameworkElement::ClearStyleTriggerPrototypes() noexcept {
@@ -1531,14 +1510,12 @@ Base::Result<void> RenderTree::SetOverlays(
             "Render overlay elements and origins must have equal lengths");
     }
     Base::Vector<Base::Transform2D> transforms;
-    Base::Result<void> reserved = transforms.Reserve(origins.Size());
-    if (!reserved) return reserved.GetStatus();
+    transforms.Reserve(origins.Size());
     for (std::uint32_t index = 0U; index < origins.Size(); ++index) {
         Base::Transform2D t{};
         t.dx = origins[index].x;
         t.dy = origins[index].y;
-        Base::Result<void> appended = transforms.PushBack(t);
-        if (!appended) return appended.GetStatus();
+        transforms.PushBack(t);
     }
     return SetOverlays(overlays, transforms.AsSpan());
 }
@@ -1559,9 +1536,7 @@ Base::Result<void> RenderTree::SetOverlays(
             "Render overlay elements and transforms must have equal lengths");
     }
     Base::Vector<OverlayRecord> next;
-    Base::Result<void> reserved =
-        next.Reserve(overlays.Size());
-    if (!reserved) return reserved.GetStatus();
+    next.Reserve(overlays.Size());
     for (std::uint32_t index = 0U;
          index < overlays.Size();
          ++index) {
@@ -1585,10 +1560,8 @@ Base::Result<void> RenderTree::SetOverlays(
                 current.element == overlay;
         }
         if (duplicate) continue;
-        Base::Result<void> appended =
-            next.PushBack(
+        next.PushBack(
                 {overlay, transforms[index]});
-        if (!appended) return appended.GetStatus();
     }
 
     bool changed = next.Size() != overlays_.Size();
@@ -1938,10 +1911,7 @@ Base::Result<void> RenderTree::DescribeVisual(
             return recorded.GetStatus();
         }
         if (record == nullptr) {
-            Base::Result<DrawingRecord*> added =
-                drawings_.EmplaceBack();
-            if (!added) return added.GetStatus();
-            record = added.Value();
+            record = drawings_.EmplaceBack();
             record->visual = &visual;
         }
         record->drawing =
@@ -1949,10 +1919,7 @@ Base::Result<void> RenderTree::DescribeVisual(
         record->valid = true;
     }
     if (record == nullptr) {
-        Base::Result<DrawingRecord*> added =
-            drawings_.EmplaceBack();
-        if (!added) return added.GetStatus();
-        record = added.Value();
+        record = drawings_.EmplaceBack();
         record->visual = &visual;
         record->valid = framework == nullptr;
     }
@@ -2006,11 +1973,8 @@ Base::Result<void> RenderTree::DescribeVisual(
                 snapshot.geometryClipIndexOffset = plan.geometryClipIndices_.Size();
                 snapshot.geometryClipVertexCount = vertices.Size();
                 snapshot.geometryClipIndexCount = indices.Size();
-                Base::Result<void> appended =
-                    plan.geometryClipVertices_.Append(vertices.AsSpan());
-                if (!appended) return appended;
-                appended = plan.geometryClipIndices_.Append(indices.AsSpan());
-                if (!appended) return appended;
+                plan.geometryClipVertices_.Append(vertices.AsSpan());
+                plan.geometryClipIndices_.Append(indices.AsSpan());
                 clippedOut = true;
             }
         }
@@ -2142,20 +2106,10 @@ Base::Result<void> RenderTree::BuildSubtree(
     static_cast<void>(clipped);
 
     snapshot.commandOffset = plan.commands_.Size();
-    Base::Result<void> nodeAppend = plan.nodes_.PushBack(snapshot);
-    if (!nodeAppend) {
-        return nodeAppend;
-    }
+    plan.nodes_.PushBack(snapshot);
     const std::uint32_t commandCount = snapshot.commandCount;
-    Base::Result<void> commandAppend =
-        commandCount != 0U
-        ? plan.commands_.Append(drawing->Commands())
-        : Base::Result<void>();
-    if (!commandAppend) {
-        plan.nodes_.PopBack();
-        return commandAppend;
-    }
     if (commandCount != 0U) {
+        plan.commands_.Append(drawing->Commands());
         ResolveCommandGradients(plan, snapshot.commandOffset, commandCount);
     }
 

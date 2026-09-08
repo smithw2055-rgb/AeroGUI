@@ -282,9 +282,7 @@ Base::Result<Registry::Storage*> Registry::BuildCandidate(
         record.schemaVersion = source.schemaVersion;
         Base::Result<void> assigned = record.name.Assign(source.name.View());
         if (!assigned) return fail(assigned.GetStatus());
-        Base::Result<void> added =
-            candidate->modules.PushBack(std::move(record));
-        if (!added) return fail(added.GetStatus());
+        candidate->modules.PushBack(std::move(record));
     }
 
     auto applyAndAppend = [candidate](
@@ -308,7 +306,8 @@ Base::Result<Registry::Storage*> Registry::BuildCandidate(
         record.schemaVersion = registration.schemaVersion;
         Base::Result<void> assigned = record.name.Assign(registration.name);
         if (!assigned) return assigned.GetStatus();
-        return candidate->modules.PushBack(std::move(record));
+        candidate->modules.PushBack(std::move(record));
+        return {};
     };
 
     if (extra != nullptr) {
@@ -397,7 +396,8 @@ Base::Result<void> Registry::RegisterModule(
     record.schemaVersion = registration.schemaVersion;
     Base::Result<void> assigned = record.name.Assign(registration.name);
     if (!assigned) return assigned.GetStatus();
-    return storage_->modules.PushBack(std::move(record));
+    storage_->modules.PushBack(std::move(record));
+    return {};
 }
 
 Base::Result<void> Registry::Seal() noexcept {
@@ -508,7 +508,8 @@ Base::Result<void> Registry::RegisterPropertyProvider(
             Base::ErrorCode::AlreadyExists,
             "Metadata property provider is already registered");
     }
-    return storage_->providers.PushBack(registration);
+    storage_->providers.PushBack(registration);
+    return {};
 }
 
 Base::Result<void> Registry::Complete() noexcept {

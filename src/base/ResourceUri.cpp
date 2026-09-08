@@ -57,10 +57,7 @@ Result<void> AssignLowerAscii(
     String& output,
     StringView value) noexcept {
     String replacement(&output.Allocator());
-    Result<void> reserve = replacement.Reserve(value.SizeBytes());
-    if (!reserve) {
-        return reserve.GetStatus();
-    }
+    replacement.Reserve(value.SizeBytes());
     for (char character : value) {
         const char lower = ToLowerAscii(character);
         Result<void> append = AppendCharacter(replacement, lower);
@@ -148,16 +145,10 @@ Result<String> NormalizePath(
                 continue;
             }
         }
-        Result<void> append = segments.PushBack(segment);
-        if (!append) {
-            return append.GetStatus();
-        }
+        segments.PushBack(segment);
     }
 
-    Result<void> reserve = normalized.Reserve(path.SizeBytes());
-    if (!reserve) {
-        return reserve.GetStatus();
-    }
+    normalized.Reserve(path.SizeBytes());
     if (absolute) {
         Result<void> slash = normalized.AppendUnchecked(
             doubleLeading ? StringView("//") : StringView("/"));
@@ -238,11 +229,8 @@ Result<void> AppendCombined(
     String& output,
     StringView prefix,
     StringView reference) noexcept {
-    Result<void> reserve = output.Reserve(
+    output.Reserve(
         prefix.SizeBytes() + 1U + reference.SizeBytes());
-    if (!reserve) {
-        return reserve.GetStatus();
-    }
     Result<void> first = output.AppendUnchecked(prefix);
     if (!first) {
         return first.GetStatus();
@@ -268,15 +256,9 @@ Result<void> ResourceUri::Build(
     if (!schemeResult) {
         return schemeResult.GetStatus();
     }
-    Result<void> pathResult = uri.path_.Assign(path);
-    if (!pathResult) {
-        return pathResult.GetStatus();
-    }
-    Result<void> reserve = uri.canonical_.Reserve(
+    uri.path_.Assign(path);
+    uri.canonical_.Reserve(
         prefix.SizeBytes() + path.SizeBytes());
-    if (!reserve) {
-        return reserve.GetStatus();
-    }
     Result<void> prefixResult =
         uri.canonical_.AppendUnchecked(prefix);
     if (!prefixResult) {
@@ -342,16 +324,8 @@ Result<ResourceUri> ResourceUri::Parse(StringView text) noexcept {
         if (!path) {
             return path.GetStatus();
         }
-        Result<void> canonical =
-            uri.canonical_.Assign(path.Value().View());
-        if (!canonical) {
-            return canonical.GetStatus();
-        }
-        Result<void> resourcePath =
-            uri.path_.Assign(path.Value().View());
-        if (!resourcePath) {
-            return resourcePath.GetStatus();
-        }
+        uri.canonical_.Assign(path.Value().View());
+        uri.path_.Assign(path.Value().View());
         Result<void> assembly =
             AssignAssembly(uri.assembly_, uri.path_.View());
         if (!assembly) {
@@ -498,11 +472,7 @@ Result<ResourceUri> ResourceUri::Resolve(
                 return append.GetStatus();
             }
         } else {
-            Result<void> append =
-                rooted.Assign(reference);
-            if (!append) {
-                return append.GetStatus();
-            }
+            rooted.Assign(reference);
         }
         return Parse(rooted.View());
     }

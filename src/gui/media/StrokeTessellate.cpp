@@ -30,10 +30,10 @@ Result<void> AppendStrokeTriangle(
     }
     const std::uint32_t base = vertices.Size();
     const Point triangle[] = {a, b, c};
-    Result<void> added = vertices.Append({triangle, 3U});
-    if (!added) return added.GetStatus();
+    vertices.Append({triangle, 3U});
     const std::uint32_t indices3[] = {base, base + 1U, base + 2U};
-    return indices.Append({indices3, 3U});
+    indices.Append({indices3, 3U});
+    return {};
 }
 
 Result<void> AppendStrokeQuad(
@@ -50,12 +50,12 @@ Result<void> AppendStrokeQuad(
     }
     const std::uint32_t base = vertices.Size();
     const Point quad[] = {a, b, c, d};
-    Result<void> added = vertices.Append({quad, 4U});
-    if (!added) return added.GetStatus();
+    vertices.Append({quad, 4U});
     const std::uint32_t triangles[] = {
         base, base + 1U, base + 2U,
         base, base + 2U, base + 3U};
-    return indices.Append({triangles, 6U});
+    indices.Append({triangles, 6U});
+    return {};
 }
 
 Result<void> AppendStrokeFan(
@@ -290,14 +290,12 @@ Result<void> ExpandDashPattern(
     for (std::uint32_t index = 0U; index < dashes.Size(); ++index) {
         const double value = dashes[index];
         if (!std::isfinite(value) || value <= 0.0) continue;
-        Result<void> added = pattern.PushBack(value);
-        if (!added) return added.GetStatus();
+        pattern.PushBack(value);
     }
     if (pattern.Size() % 2U == 1U) {
         const std::uint32_t count = pattern.Size();
         for (std::uint32_t index = 0U; index < count; ++index) {
-            Result<void> added = pattern.PushBack(pattern[index]);
-            if (!added) return added.GetStatus();
+            pattern.PushBack(pattern[index]);
         }
     }
     return {};
@@ -313,14 +311,16 @@ Result<void> SplitDashedSegments(
     Result<void> expanded = ExpandDashPattern(dashes, pattern);
     if (!expanded) return expanded.GetStatus();
     if (pattern.Size() < 2U) {
-        return dashed.Append(visible.AsSpan());
+        dashed.Append(visible.AsSpan());
+        return {};
     }
     double period = 0.0;
     for (std::uint32_t index = 0U; index < pattern.Size(); ++index) {
         period += pattern[index];
     }
     if (!(period > 1.0e-9) || !std::isfinite(period)) {
-        return dashed.Append(visible.AsSpan());
+        dashed.Append(visible.AsSpan());
+        return {};
     }
     double patternPos = std::fmod(dashOffset, period);
     if (patternPos < 0.0) patternPos += period;
@@ -377,8 +377,7 @@ Result<void> SplitDashedSegments(
                     dashed.Back().endVertex = true;
                     piece.startVertex = true;
                 }
-                Result<void> added = dashed.PushBack(piece);
-                if (!added) return added.GetStatus();
+                dashed.PushBack(piece);
                 previousEnd = piece.b;
                 havePrevious = true;
                 runIndex += 1U;
@@ -492,8 +491,7 @@ Result<void> TessellateStroke(
             record.index = segment;
             record.startVertex = from <= 1.0e-9;
             record.endVertex = to >= 1.0 - 1.0e-9;
-            Result<void> added = visible.PushBack(record);
-            if (!added) return added.GetStatus();
+            visible.PushBack(record);
         }
         if (visible.Empty()) continue;
         const Base::Vector<StrokeSegment>* runs = &visible;

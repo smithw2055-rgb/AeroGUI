@@ -974,19 +974,7 @@ TreeBehavior::Attach(
     treeView.AddHandler(
         UIElement::KeyDownEvent,
         keyDownHandler_);
-    Base::Result<void> stored =
-        records_.PushBack(handle.Value());
-    if (!stored) {
-        static_cast<void>(
-            treeView.RemoveHandler(
-                UIElement::KeyDownEvent,
-                keyDownHandler_));
-        static_cast<void>(
-            treeView.RemoveHandler(
-                UIElement::MouseDownEvent,
-                mouseDownHandler_));
-        return stored.GetStatus();
-    }
+    records_.PushBack(handle.Value());
     return {};
 }
 
@@ -1062,11 +1050,9 @@ TreeBehavior::CollectVisibleItems(
                 IsDerivedFrom(
                     element->RuntimeType(),
                     TreeViewItem::StaticTypeId())) {
-            Base::Result<void> added =
-                items.PushBack(
+            items.PushBack(
                     static_cast<TreeViewItem*>(
                         element));
-            if (!added) return added.GetStatus();
         }
         Base::Result<void> nested =
             CollectVisibleItems(*child, items);

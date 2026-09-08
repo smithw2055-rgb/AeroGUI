@@ -80,15 +80,8 @@ Base::Result<void> ScrollBehavior::Attach(
     viewer.AddHandler(
         UIElement::MouseWheelEvent,
         wheelHandler_);
-    Base::Result<void> added =
-        viewers_.PushBack(
+    viewers_.PushBack(
             {&viewer, AeroGuiInternal::Handle(viewer)});
-    if (!added) {
-        static_cast<void>(viewer.RemoveHandler(
-            UIElement::MouseWheelEvent,
-            wheelHandler_));
-        return added.GetStatus();
-    }
     return {};
 }
 
@@ -321,36 +314,7 @@ Base::Result<void> SliderBehavior::Attach(
         }
         return status.GetStatus();
     }
-    Base::Result<void> appended =
-        sliders_.PushBack(record);
-    if (!appended) {
-        static_cast<void>(input_->RemoveCommandBinding(
-            record.decreaseSmallCommand));
-        static_cast<void>(input_->RemoveCommandBinding(
-            record.increaseSmallCommand));
-        static_cast<void>(input_->RemoveCommandBinding(
-            record.decreaseLargeCommand));
-        static_cast<void>(input_->RemoveCommandBinding(
-            record.increaseLargeCommand));
-        static_cast<void>(slider.RemoveHandler(
-            UIElement::MouseDownEvent,
-            mouseDownHandler_));
-        static_cast<void>(slider.RemoveHandler(
-            UIElement::MouseMoveEvent,
-            mouseMoveHandler_));
-        static_cast<void>(slider.RemoveHandler(
-            UIElement::MouseUpEvent,
-            mouseUpHandler_));
-        static_cast<void>(slider.RemoveHandler(
-            UIElement::KeyDownEvent,
-            keyDownHandler_));
-        if (sliders_.Empty()) {
-            static_cast<void>(
-                input_->RemovePointerCaptureChanged(
-                    captureChangedHandler_));
-        }
-        return appended.GetStatus();
-    }
+    sliders_.PushBack(record);
     return {};
 }
 
@@ -825,16 +789,7 @@ Base::Result<void> ScrollBarBehavior::AttachThumb(
     if (thumbs_.Empty()) {
         input_->AddPointerStateChanged(pointerStateChangedHandler_);
     }
-    Base::Result<void> added =
-        thumbs_.PushBack(AeroGuiInternal::Handle(thumb));
-    if (!added) {
-        if (thumbs_.Empty()) {
-            static_cast<void>(
-                input_->RemovePointerStateChanged(
-                    pointerStateChangedHandler_));
-        }
-        return added.GetStatus();
-    }
+    thumbs_.PushBack(AeroGuiInternal::Handle(thumb));
     SyncThumbVisualState(thumb);
     return {};
 }
@@ -913,7 +868,8 @@ Base::Result<void> ScrollBarBehavior::Attach(
                 Input::CommandBinding(
                     std::move(command).Value(), handler));
         if (!added) return added.GetStatus();
-        return record.commands.PushBack(added.Value());
+        record.commands.PushBack(added.Value());
+        return {};
     };
 
     static_cast<void>(addCommand("LineUpCommand", lineUpHandler_));
@@ -945,7 +901,8 @@ Base::Result<void> ScrollBarBehavior::Attach(
     static_cast<void>(addCommand("ScrollToVerticalOffsetCommand", scrollToVerticalOffsetHandler_));
     static_cast<void>(addCommand("ScrollToVerticalOffset", scrollToVerticalOffsetHandler_));
 
-    return scrollBars_.PushBack(std::move(record));
+    scrollBars_.PushBack(std::move(record));
+    return {};
 }
 
 Base::Result<bool> ScrollBarBehavior::Detach(

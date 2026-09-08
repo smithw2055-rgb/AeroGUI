@@ -628,12 +628,7 @@ Base::Result<void> View::SetContent(
     Aero::Markup::VisualEdge edge;
     edge.parent = hostRoot.Value();
     edge.child = documentRoot.Value();
-    Base::Result<void> pushed =
-        next.visualContent.mountEdges.PushBack(std::move(edge));
-    if (!pushed) {
-        next.Clear();
-        return pushed.GetStatus();
-    }
+    next.visualContent.mountEdges.PushBack(std::move(edge));
 
     Base::Result<void> assigned =
         AeroGuiInternal::SetOwnedContent(

@@ -259,8 +259,7 @@ Base::Result<void> ApplyViewUi(ViewState& state, Aero::Media::Visual& root) noex
         const Aero::ResourceEnvironment resources =
             state.resources->Environment();
         Base::Vector<Aero::Media::Visual*> stack(state.allocator);
-        Base::Result<void> pushed = stack.PushBack(&root);
-        if (!pushed) return pushed.GetStatus();
+        stack.PushBack(&root);
         while (!stack.Empty()) {
             Aero::Media::Visual* node = stack.Back();
             stack.PopBack();
@@ -411,8 +410,7 @@ Base::Result<void> ApplyViewUi(ViewState& state, Aero::Media::Visual& root) noex
 
             for (Aero::Media::Visual* child :
                  AeroGuiInternal::RenderChildren(*node)) {
-                pushed = stack.PushBack(child);
-                if (!pushed) return pushed.GetStatus();
+                stack.PushBack(child);
             }
             if (auto* panel = ::Aero::TryCast<Controls::Panel>(node)) {
                 const std::uint32_t count = panel->GetChildren().GetCount();
@@ -421,8 +419,7 @@ Base::Result<void> ApplyViewUi(ViewState& state, Aero::Media::Visual& root) noex
                     if (child == nullptr || child->GetVisualParent() == node) {
                         continue;
                     }
-                    pushed = stack.PushBack(child);
-                    if (!pushed) return pushed.GetStatus();
+                    stack.PushBack(child);
                 }
             }
             if (auto* host = ::Aero::TryCast<Controls::ContentControl>(node)) {
@@ -431,8 +428,7 @@ Base::Result<void> ApplyViewUi(ViewState& state, Aero::Media::Visual& root) noex
                         AeroGuiInternal::ContentControlContent(*host);
                     if (content != nullptr &&
                         content->GetVisualParent() != host) {
-                        pushed = stack.PushBack(content);
-                        if (!pushed) return pushed.GetStatus();
+                        stack.PushBack(content);
                     }
                 }
             }
@@ -644,9 +640,11 @@ Base::Result<void> ViewState::GeneratedItemSubtreeChanged(
                 // header children after the control template is applied.
                 return {};
             }
-            return runtime->
+            runtime->
                 pendingGeneratedVisuals.
                     PushBack(handle.Value());
+
+            return {};
         }
         Base::Result<void> applied =
             ApplyViewUi(*runtime, root);
@@ -831,20 +829,14 @@ Base::Result<void> ViewState::AttachItemGenerator(
             delete generator;
             return generatedUiApplied.GetStatus();
         }
-        Base::Result<void> tracked = itemGenerators.PushBack(generator);
-        if (!tracked) {
-            static_cast<void>(generator->Detach());
-            delete generator;
-            return tracked.GetStatus();
-        }
+        itemGenerators.PushBack(generator);
         return {};
     }
 
 Base::Result<void> ViewState::AttachPendingItemGenerators(
         Aero::Media::Visual& rootVisual) noexcept {
         Base::Vector<Aero::Media::Visual*> stack(allocator);
-        Base::Result<void> pushed = stack.PushBack(&rootVisual);
-        if (!pushed) return pushed.GetStatus();
+        stack.PushBack(&rootVisual);
         while (!stack.Empty()) {
             Aero::Media::Visual* node = stack.Back();
             stack.PopBack();
@@ -858,8 +850,7 @@ Base::Result<void> ViewState::AttachPendingItemGenerators(
             }
             for (Aero::Media::Visual* child :
                  AeroGuiInternal::RenderChildren(*node)) {
-                pushed = stack.PushBack(child);
-                if (!pushed) return pushed.GetStatus();
+                stack.PushBack(child);
             }
         }
         return {};
@@ -897,9 +888,7 @@ void ViewState::DestroyUiEngines() noexcept {
 Base::Result<void> ViewState::VisitAndAttach(
         Aero::Media::Visual& rootVisual) noexcept {
         Base::Vector<Aero::Media::Visual*> stack(allocator);
-        Base::Result<void> pushed =
-            stack.PushBack(&rootVisual);
-        if (!pushed) return pushed.GetStatus();
+        stack.PushBack(&rootVisual);
         while (!stack.Empty()) {
             Aero::Media::Visual* node = stack.Back();
             stack.PopBack();
@@ -926,8 +915,7 @@ Base::Result<void> ViewState::VisitAndAttach(
             const auto children = AeroGuiInternal::RenderChildren(*node);
             for (std::uint32_t index = 0U;
                  index < children.Size(); ++index) {
-                pushed = stack.PushBack(children[index]);
-                if (!pushed) return pushed.GetStatus();
+                stack.PushBack(children[index]);
             }
             if (auto* panel = ::Aero::TryCast<Controls::Panel>(node)) {
                 const std::uint32_t count = panel->GetChildren().GetCount();
@@ -936,8 +924,7 @@ Base::Result<void> ViewState::VisitAndAttach(
                     if (child == nullptr || child->GetVisualParent() == node) {
                         continue;
                     }
-                    pushed = stack.PushBack(child);
-                    if (!pushed) return pushed.GetStatus();
+                    stack.PushBack(child);
                 }
             }
             if (auto* host = ::Aero::TryCast<Controls::ContentControl>(node)) {
@@ -946,8 +933,7 @@ Base::Result<void> ViewState::VisitAndAttach(
                         AeroGuiInternal::ContentControlContent(*host);
                     if (content != nullptr &&
                         content->GetVisualParent() != host) {
-                        pushed = stack.PushBack(content);
-                        if (!pushed) return pushed.GetStatus();
+                        stack.PushBack(content);
                     }
                 }
             }

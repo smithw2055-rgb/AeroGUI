@@ -115,7 +115,8 @@ Base::Result<void> RoutedCommand::RegisterStatic(
     Base::Result<void> assigned = entry.memberName.Assign(memberName);
     if (!assigned) return assigned.GetStatus();
     entry.command = std::move(created).Value();
-    return StaticRoutedCommands().PushBack(std::move(entry));
+    StaticRoutedCommands().PushBack(std::move(entry));
+    return {};
 }
 
 Base::Result<Base::Ref<RoutedCommand>> RoutedCommand::ResolveStatic(
@@ -193,8 +194,7 @@ Base::Result<Base::Ref<RoutedCommand>> RoutedCommand::ResolveAuthored(
     Base::Result<void> assigned = interned.name.Assign(member);
     if (!assigned) return assigned.GetStatus();
     interned.command = created.Value();
-    Base::Result<void> stored = InternedCommands().PushBack(std::move(interned));
-    if (!stored) return stored.GetStatus();
+    InternedCommands().PushBack(std::move(interned));
     return created;
 }
 
@@ -615,9 +615,7 @@ Base::Result<CommandBindingHandle> CommandState::AddBinding(
     }
     record.canExecute = binding.GetCanExecute();
     record.executed = binding.GetExecuted();
-    Base::Result<void> appended =
-        bindings_.PushBack(std::move(record));
-    if (!appended) return appended.GetStatus();
+    bindings_.PushBack(std::move(record));
     return bindings_[bindings_.Size() - 1U].handle;
 }
 
@@ -671,8 +669,7 @@ Base::Result<InputBindingHandle> CommandState::AddInputBinding(
     record.handle.value = nextInputBinding_++;
     record.owner = ownerHandle.Value();
     record.binding = std::move(binding);
-    Base::Result<void> appended = inputBindings_.PushBack(std::move(record));
-    if (!appended) return appended.GetStatus();
+    inputBindings_.PushBack(std::move(record));
     return inputBindings_.Back().handle;
 }
 

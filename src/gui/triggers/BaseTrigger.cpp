@@ -28,17 +28,15 @@ bool IsDeferredBindingSetterValue(
 void TriggerBase::AddEnterAction(
     Base::Ref<Base::Object> action) noexcept {
     if (!action) { AERO_ASSERT(false); return; }
-    Base::Result<void> pushed = enterActions_.PushBack(
+    enterActions_.PushBack(
         std::move(action));
-    if (!pushed) { AERO_ASSERT(false); return; }
 }
 
 void TriggerBase::AddExitAction(
     Base::Ref<Base::Object> action) noexcept {
     if (!action) { AERO_ASSERT(false); return; }
-    Base::Result<void> pushed = exitActions_.PushBack(
+    exitActions_.PushBack(
         std::move(action));
-    if (!pushed) { AERO_ASSERT(false); return; }
 }
 
 } // namespace Aero

@@ -23,8 +23,7 @@ public:
         return {actions_.Data(), actions_.Size()};
     }
     void AddConditionBehavior(Ref<Base::Object> value) noexcept {
-        Base::Result<void> pushed = behaviors_.PushBack(std::move(value));
-        if (!pushed) { AERO_ASSERT(false); return; }
+        behaviors_.PushBack(std::move(value));
     }
     void ClearConditionBehaviors() noexcept { behaviors_.Clear(); }
     Span<const Ref<Base::Object>> GetBehaviors() const noexcept {

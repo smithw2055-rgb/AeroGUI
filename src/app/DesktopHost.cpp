@@ -973,11 +973,7 @@ Base::Result<void> LoadFromUri(
                 Base::ErrorCode::OutOfMemory,
                 "Unable to allocate application Window host");
         }
-        Base::Result<void> appended = windows.PushBack(host);
-        if (!appended) {
-            delete host;
-            return appended.GetStatus();
-        }
+        windows.PushBack(host);
         return host;
     }
 

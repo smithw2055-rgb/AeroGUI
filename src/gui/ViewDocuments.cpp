@@ -749,9 +749,8 @@ Base::Result<void> MountViewFragment(
             Base::ErrorCode::InvalidState,
               "content fragment host already owns non-fragment content");
     }
-    Base::Result<void> capacity = state_->fragmentMounts.Reserve(
+    state_->fragmentMounts.Reserve(
         state_->fragmentMounts.Size() + 1U);
-    if (!capacity) return capacity.GetStatus();
 
     ::Aero::ViewState::FragmentMount fragment;
     fragment.host = &host;
@@ -902,12 +901,7 @@ Base::Result<void> MountViewFragment(
         return animations.GetStatus();
     }
     restoreActiveNames();
-    Base::Result<void> retained =
-        state_->fragmentMounts.PushBack(std::move(fragment));
-    if (!retained) {
-        static_cast<void>(DetachFragment(*state_, fragment));
-        return retained.GetStatus();
-    }
+    state_->fragmentMounts.PushBack(std::move(fragment));
     return {};
 }
 
@@ -1054,11 +1048,7 @@ Base::Result<void> AdoptLoadedComponent(
         *state.allocator, Base::MemoryTag::Ui, mount);
     if (!allocated) return allocated.GetStatus();
     mount->document = std::move(incoming);
-    Base::Result<void> retained = state.componentMounts.PushBack(mount);
-    if (!retained) {
-        FreeObject(*state.allocator, Base::MemoryTag::Ui, mount);
-        return retained.GetStatus();
-    }
+    state.componentMounts.PushBack(mount);
     Markup::LoaderResult& document = mount->document;
 
     ElementTree& context = *state.tree;

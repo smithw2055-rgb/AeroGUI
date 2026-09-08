@@ -395,8 +395,7 @@ void UIElement::AddInputBinding(
         storage = new (std::nothrow) Base::Vector<Base::Ref<Input::InputBinding>>();
         if (storage == nullptr) { AERO_ASSERT(false); return; }
     }
-    Base::Result<void> pushed = storage->PushBack(std::move(binding));
-    if (!pushed) { AERO_ASSERT(false); return; }
+    storage->PushBack(std::move(binding));
 }
 
 void UIElement::ClearInputBindings() noexcept {
@@ -427,8 +426,7 @@ void UIElement::AddCommandBinding(
         storage = new (std::nothrow) Base::Vector<Base::Ref<Input::CommandBinding>>();
         if (storage == nullptr) { AERO_ASSERT(false); return; }
     }
-    Base::Result<void> pushed = storage->PushBack(std::move(binding));
-    if (!pushed) { AERO_ASSERT(false); return; }
+    storage->PushBack(std::move(binding));
 }
 
 void UIElement::ClearCommandBindings() noexcept {

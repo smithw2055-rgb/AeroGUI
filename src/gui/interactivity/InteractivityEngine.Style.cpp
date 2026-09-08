@@ -156,11 +156,7 @@ void InteractivityEngine::FlushPendingStyleDataTriggerEvaluations() noexcept {
         Base::Vector<StyleDataTriggerHandlerState*> snapshot(Allocator());
         for (StyleDataTriggerHandlerState* context :
              pendingStyleDataTriggerEvaluations) {
-            Base::Result<void> retained = snapshot.PushBack(context);
-            if (!retained) {
-                flushingPendingStyleDataTriggers_ = false;
-                return;
-            }
+            snapshot.PushBack(context);
         }
         pendingStyleDataTriggerEvaluations.Clear();
         for (StyleDataTriggerHandlerState* context : snapshot) {
@@ -276,18 +272,8 @@ Base::Result<std::uint32_t> InteractivityEngine::StartStyleDataTriggers(
                     Base::MemoryTag::Ui,
                     aggregate);
                 if (!allocated) return allocated.GetStatus();
-                Base::Result<void> sized =
-                    aggregate->known.Resize(conditionCount, 0U);
-                if (sized) {
-                    sized = aggregate->active.Resize(conditionCount, 0U);
-                }
-                if (!sized) {
-                    FreeObject(
-                        *Allocator(),
-                        Base::MemoryTag::Ui,
-                        aggregate);
-                    return sized.GetStatus();
-                }
+                aggregate->known.Resize(conditionCount, 0U);
+                aggregate->active.Resize(conditionCount, 0U);
             }
 
             // {Binding Path} DataTriggers use DataContext. Item containers often
@@ -503,28 +489,14 @@ Base::Result<std::uint32_t> InteractivityEngine::StartStyleDataTriggers(
                 subscription.metadataSubscription = metadataSubscription;
                 subscription.handler = handler;
                 subscription.context = context;
-                Base::Result<void> retained =
-                    styleDataTriggerSubscriptions.PushBack(
+                styleDataTriggerSubscriptions.PushBack(
                         std::move(subscription));
-                if (!retained) {
-                    if (dependencyProperty != nullptr) {
-                        (void)dependencySource->RemoveValueChangedHandler(
-                            dependencyProperty->Handle(), handler);
-                    } else if (metadataSubscription != 0U) {
-                        static_cast<void>(Metadata()->UnsubscribePropertyChanged(
-                            *sourceObject, metadataSubscription));
-                    }
-                    FreeObject(
-                        *Allocator(),
-                        Base::MemoryTag::Ui,
-                        context);
-                    return retained.GetStatus();
-                }
                 // Defer the first evaluation until DataBind. Evaluating
                 // here runs SetBindingTriggerState inside ApplyViewUi /
                 // item generation, which can re-enter the property engine
                 // and prevent the first frame from completing.
-                return pendingStyleDataTriggerEvaluations.PushBack(context);
+                pendingStyleDataTriggerEvaluations.PushBack(context);
+                return {};
             };
 
             Base::Result<void> attached = attachCondition(

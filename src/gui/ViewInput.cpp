@@ -373,8 +373,9 @@ Base::Result<void> FocusHost::QueueFocus(Aero::UIElement& target) noexcept {
             Base::Ref<Aero::UIElement> existing = pending.Lock();
             if (existing.Get() == &target) return {};
         }
-        return pendingFocusTargets.PushBack(
+        pendingFocusTargets.PushBack(
             Base::WeakRef<Aero::UIElement>(retained));
+        return {};
     }
 
 Base::Result<std::uint32_t> FocusHost::ProcessPendingFocus() noexcept {
@@ -400,9 +401,7 @@ Base::Result<std::uint32_t> FocusHost::ProcessPendingFocus() noexcept {
             if (!focused) return focused.GetStatus();
             if (focused.Value()) ++focusedCount;
         }
-        Base::Result<void> resized =
-            pendingFocusTargets.Resize(output);
-        if (!resized) return resized.GetStatus();
+        pendingFocusTargets.Resize(output);
         return focusedCount;
     }
 

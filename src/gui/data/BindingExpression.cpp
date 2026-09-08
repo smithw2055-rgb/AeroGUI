@@ -222,11 +222,7 @@ Base::Result<BindingHandle> BindingEngine::Attach(
         descriptor.targetProperty,
         descriptor.updateSourceTrigger);
     const std::uint32_t newIndex = bindings_.Size();
-    Base::Result<void> appended = bindings_.PushBack(std::move(record));
-    if (!appended) {
-        --nextHandle_;
-        return appended.GetStatus();
-    }
+    bindings_.PushBack(std::move(record));
     static_cast<void>(handleIndexMap_.Insert(bindings_.Back().handle.value, newIndex));
     descriptor.source->AddValueChangedHandler(
         descriptor.sourceProperty, propertyChangedHandler_);
@@ -427,12 +423,7 @@ Base::Result<BindingHandle> BindingEngine::Attach(
     }
 
     const std::uint32_t newIndex = bindings_.Size();
-    Base::Result<void> appended =
-        bindings_.PushBack(std::move(record));
-    if (!appended) {
-        --nextHandle_;
-        return appended.GetStatus();
-    }
+    bindings_.PushBack(std::move(record));
     BindingRecord& stored = bindings_.Back();
     static_cast<void>(handleIndexMap_.Insert(stored.handle.value, newIndex));
     descriptor.target->AddValueChangedHandler(

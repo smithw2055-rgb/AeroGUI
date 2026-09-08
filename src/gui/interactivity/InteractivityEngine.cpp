@@ -797,14 +797,7 @@ Base::Result<void> InteractivityEngine::AttachDataTemplateClrSubscription(
             record.metadataSource = source;
             record.metadataSubscription = notification.Value();
             record.context = handlerContext;
-            Base::Result<void> retained =
-                dataTemplateTriggerSubscriptions.PushBack(std::move(record));
-            if (!retained) {
-                static_cast<void>(Metadata()->UnsubscribePropertyChanged(
-                    *source, notification.Value()));
-                FreeObject(*Allocator(), Base::MemoryTag::Ui, handlerContext);
-                return retained.GetStatus();
-            }
+            dataTemplateTriggerSubscriptions.PushBack(std::move(record));
         }
         return {};
     }
@@ -929,19 +922,8 @@ Base::Result<std::uint32_t>
                 record.property = condition.property;
                 record.handler = handler;
                 record.context = handlerContext;
-                Base::Result<void> retained =
-                    dataTemplateTriggerSubscriptions.
-                        PushBack(std::move(record));
-                if (!retained) {
-                    static_cast<void>(
-                        dependencySource->RemoveValueChangedHandler(
-                            condition.property, handler));
-                    FreeObject(
-                        *Allocator(),
-                        Base::MemoryTag::Ui,
-                        handlerContext);
-                    return retained.GetStatus();
-                }
+                dataTemplateTriggerSubscriptions.
+                    PushBack(std::move(record));
                 ++count;
             }
             bool watchesDataContext = false;
@@ -997,17 +979,8 @@ Base::Result<std::uint32_t>
                         FrameworkElement::DataContextProperty.Handle();
                     record.handler = handler;
                     record.context = handlerContext;
-                    Base::Result<void> retained =
-                        dataTemplateTriggerSubscriptions.PushBack(
+                    dataTemplateTriggerSubscriptions.PushBack(
                             std::move(record));
-                    if (!retained) {
-                        static_cast<void>(dcOwner->RemoveValueChangedHandler(
-                            FrameworkElement::DataContextProperty.Handle(),
-                            handler));
-                        FreeObject(
-                            *Allocator(), Base::MemoryTag::Ui, handlerContext);
-                        return retained.GetStatus();
-                    }
                     ++count;
                 }
             }

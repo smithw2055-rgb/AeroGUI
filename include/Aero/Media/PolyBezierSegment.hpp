@@ -18,7 +18,7 @@ public:
     void SetPointsText(Base::String text) noexcept {
         SetPoints(text.View());
     }
-    Result<void> Flatten(
+    void Flatten(
         FlattenSink& sink,
         Point& currentPoint) const noexcept override;
 private:

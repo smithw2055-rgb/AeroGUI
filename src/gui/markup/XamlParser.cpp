@@ -527,11 +527,8 @@ Base::Result<XmlTokenKind> Utf8XmlTokenizer::ParseStartElement(
         }
         attribute.source_ = SpanFrom(attributeBegin);
 
-        Base::Result<void> appendAttribute = token.attributes_.PushBack(
+        token.attributes_.PushBack(
             std::move(attribute));
-        if (!appendAttribute) {
-            return appendAttribute.GetStatus();
-        }
     }
 
     token.kind_ = XmlTokenKind::StartElement;
@@ -550,10 +547,7 @@ Base::Result<XmlTokenKind> Utf8XmlTokenizer::ParseStartElement(
     if (!copyResult) {
         return copyResult.GetStatus();
     }
-    Base::Result<void> pushResult = openElements_.PushBack(std::move(openName));
-    if (!pushResult) {
-        return pushResult.GetStatus();
-    }
+    openElements_.PushBack(std::move(openName));
     return token.kind_;
 }
 
@@ -1321,10 +1315,7 @@ Base::Result<void> NodeReader::QueueStartElement(
         return endResult;
     }
 
-    Base::Result<void> scopeResult = scopes_.PushBack(std::move(frame));
-    if (!scopeResult) {
-        return scopeResult.GetStatus();
-    }
+    scopes_.PushBack(std::move(frame));
     return {};
 }
 
@@ -1472,7 +1463,8 @@ Base::Result<void> NodeReader::QueueMemberNodes(
 }
 
 Base::Result<void> NodeReader::AppendPending(Node&& node) noexcept {
-    return pending_.PushBack(std::move(node));
+    pending_.PushBack(std::move(node));
+    return {};
 }
 
 Base::Result<void> NodeReader::AddNamespaceBinding(
@@ -1510,7 +1502,8 @@ Base::Result<void> NodeReader::AddNamespaceBinding(
     if (!uriResult) {
         return uriResult.GetStatus();
     }
-    return bindings_.PushBack(std::move(binding));
+    bindings_.PushBack(std::move(binding));
+    return {};
 }
 
 Base::Result<void> NodeReader::AddIgnorableNamespaces(
@@ -1542,9 +1535,8 @@ Base::Result<void> NodeReader::AddIgnorableNamespaces(
         Base::String copied;
         Base::Result<void> assigned = copied.Assign(uri);
         if (!assigned) return assigned.GetStatus();
-        Base::Result<void> appended = ignorableNamespaces_.PushBack(
+        ignorableNamespaces_.PushBack(
             std::move(copied));
-        if (!appended) return appended.GetStatus();
     }
     return {};
 }
@@ -1815,15 +1807,8 @@ void ExpatXmlTokenizer::Stop(
 Base::Result<void> ExpatXmlTokenizer::PushToken(
     XmlToken&& token,
     std::uint32_t depth) noexcept {
-    Base::Result<void> stored =
-        tokens_.PushBack(std::move(token));
-    if (!stored) return stored.GetStatus();
-    Base::Result<void> depthStored =
-        tokenDepths_.PushBack(depth);
-    if (!depthStored) {
-        tokens_.PopBack();
-        return depthStored.GetStatus();
-    }
+    tokens_.PushBack(std::move(token));
+    tokenDepths_.PushBack(depth);
     return {};
 }
 
@@ -1879,15 +1864,8 @@ void ExpatXmlTokenizer::HandleStart(
             ExpatMessageMalformed);
         return;
     }
-    assigned = token.attributes_.Reserve(
+    token.attributes_.Reserve(
         attributeCount);
-    if (!assigned) {
-        Stop(
-            assigned.GetStatus(),
-            XmlDiagnosticCodes::MalformedMarkup,
-            ExpatMessageMalformed);
-        return;
-    }
     for (std::uint32_t index = 0U;
          index < attributeCount; ++index) {
         const char* attributeName =
@@ -1930,11 +1908,9 @@ void ExpatXmlTokenizer::HandleStart(
             attribute.source_ = {begin, begin};
             attribute.nameSource_ = {begin, begin};
             attribute.valueSource_ = {begin, begin};
-            assigned =
-                token.attributes_.PushBack(
-                    std::move(attribute));
-        }
-        if (!assigned) {
+            token.attributes_.PushBack(
+                std::move(attribute));
+        } else {
             Stop(
                 assigned.GetStatus(),
                 XmlDiagnosticCodes::MalformedMarkup,

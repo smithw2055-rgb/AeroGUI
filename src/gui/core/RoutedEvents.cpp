@@ -46,9 +46,7 @@ Base::Result<RoutedEventHandle> RoutedEventTable::Register(
     Base::Result<void> nameResult =
         definition.name.Assign(registration.name);
     if (!nameResult) return nameResult.GetStatus();
-    Base::Result<void> reserveResult =
-        definitions_.Reserve(definitions_.Size() + 1U);
-    if (!reserveResult) return reserveResult.GetStatus();
+    definitions_.Reserve(definitions_.Size() + 1U);
 
     Base::Result<MemberId> member = RegistrationTypes(
         *types_, *behaviorRegistrations_).RegisterEvent(
@@ -58,14 +56,7 @@ Base::Result<RoutedEventHandle> RoutedEventTable::Register(
     if (!member) return member.GetStatus();
 
     definition.handle.value = member.Value();
-    Base::Result<void> appended =
-        definitions_.PushBack(std::move(definition));
-    AERO_ASSERT(appended);
-    if (!appended) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InternalError,
-            "Reserved routed event append unexpectedly failed");
-    }
+    definitions_.PushBack(std::move(definition));
     return definitions_[definitions_.Size() - 1U].handle;
 }
 

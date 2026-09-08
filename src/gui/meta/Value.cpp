@@ -285,7 +285,8 @@ Base::Result<void> ValueTable::RegisterValueSemantics(
     Base::Result<Base::Ref<ValueTypeSemantics>> created =
         Base::MakeRef<ValueTypeSemantics>(registration);
     if (!created) return created.GetStatus();
-    return valueSemantics_.PushBack({type, std::move(created).Value()});
+    valueSemantics_.PushBack({type, std::move(created).Value()});
+    return {};
 }
 
 Base::Result<void> ValueTable::RegisterTextConverter(
@@ -302,7 +303,8 @@ Base::Result<void> ValueTable::RegisterTextConverter(
             Base::ErrorCode::AlreadyExists,
             "Text value converter is already registered");
     }
-    return textConverters_.PushBack(registration);
+    textConverters_.PushBack(registration);
+    return {};
 }
 
 Base::Result<void> ValueTable::Freeze() noexcept {

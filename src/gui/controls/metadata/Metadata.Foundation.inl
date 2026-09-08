@@ -247,9 +247,7 @@ Base::Result<void> ParseGridDefinitions(
         Base::Result<GridLength> parsed =
             ConvertGridLength(token);
         if (!parsed) return parsed.GetStatus();
-        Base::Result<void> added =
-            output.PushBack(parsed.Value());
-        if (!added) return added.GetStatus();
+        output.PushBack(parsed.Value());
         if (end == value.SizeBytes()) break;
         start = end + 1U;
     }

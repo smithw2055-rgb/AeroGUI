@@ -1119,16 +1119,9 @@ Base::Result<StoredValueEntry*> DependencyObject::EnsureStoredEntryDirect(
     PropertyStore* store = static_cast<PropertyStore*>(valueStore_);
     StoredValueEntry entry;
     entry.effectiveValue = metadata.defaultValue;
-    Base::Result<Base::HashMap<MemberId, StoredValueEntry>::InsertResult> inserted =
+    Base::HashMap<MemberId, StoredValueEntry>::InsertResult inserted =
         store->entries.Insert(canonicalHandle.value, std::move(entry));
-    if (!inserted) {
-        if (store->entries.Empty()) {
-            delete store;
-            valueStore_ = nullptr;
-        }
-        return inserted.GetStatus();
-    }
-    return &inserted.Value().entry->Value();
+    return &inserted.entry->Value();
 }
 
 void DependencyObject::RemoveStoredEntry(MemberId key) noexcept {

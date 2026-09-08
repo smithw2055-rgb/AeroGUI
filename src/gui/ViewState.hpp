@@ -132,8 +132,7 @@ inline Base::Result<Base::ResourceUri> BuiltInThemeUri(
         Base::StringView(
             "pack://application:,,,/Aero.Themes;component/"));
     if (!assigned) return assigned.GetStatus();
-    Base::Result<void> appended = text.Append(name);
-    if (!appended) return appended.GetStatus();
+    text.Append(name);
     return Base::ResourceUri::Parse(text.View());
 }
 

@@ -262,8 +262,9 @@ Base::Result<void> TriggerEngine::QueueTriggerEvaluation(
          pendingTriggerEvaluations_) {
         if (pending == &object) return {};
     }
-    return pendingTriggerEvaluations_.PushBack(
+    pendingTriggerEvaluations_.PushBack(
         &object);
+    return {};
 }
 
 void TriggerEngine::RemovePendingTriggerEvaluation(

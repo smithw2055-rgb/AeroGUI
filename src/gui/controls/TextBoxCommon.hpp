@@ -140,9 +140,7 @@ public:
                 Base::ErrorCode::OutOfRange,
                 "Password display text exceeds capacity");
         }
-        Base::Result<void> reserved =
-            output.Reserve(mask_.SizeBytes() * count);
-        if (!reserved) return reserved;
+        output.Reserve(mask_.SizeBytes() * count);
         Base::String source;
         Base::Result<void> snapshot = model.Snapshot(source);
         if (!snapshot) return snapshot;
@@ -157,9 +155,8 @@ public:
                 begin.Value(), end.Value() - begin.Value());
             const bool newline = !cluster.Empty() &&
                 (cluster[0] == '\r' || cluster[0] == '\n');
-            Base::Result<void> appended = output.Append(
+            output.Append(
                 newline ? cluster : mask_.View());
-            if (!appended) return appended;
         }
         return {};
     }

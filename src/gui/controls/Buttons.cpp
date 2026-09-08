@@ -335,9 +335,7 @@ Base::Result<void> ButtonBehavior::Attach(
         record.toggleState = ReadToggleState(
             static_cast<ToggleButton&>(button));
     }
-    Base::Result<void> appended =
-        buttons_.PushBack(std::move(record));
-    if (!appended) return appended.GetStatus();
+    buttons_.PushBack(std::move(record));
 
     button.AddHandler(UIElement::MouseDownEvent, mouseDownHandler_);
     button.AddHandler(UIElement::MouseUpEvent, mouseUpHandler_);

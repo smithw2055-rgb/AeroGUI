@@ -90,17 +90,13 @@ Base::Result<void> StoreContour(
     }
     const ContourRecord record{
         points.Size(), contour.Size(), closed};
-    Base::Result<void> appended =
-        points.Append(contour.AsSpan());
-    if (!appended) return appended.GetStatus();
-    appended = contours.PushBack(record);
-    if (!appended) return appended.GetStatus();
-    appended = contourStarts.PushBack(record.offset);
-    if (!appended) return appended.GetStatus();
-    appended = contourCounts.PushBack(record.count);
-    if (!appended) return appended.GetStatus();
-    return contourClosed.PushBack(
+    points.Append(contour.AsSpan());
+    contours.PushBack(record);
+    contourStarts.PushBack(record.offset);
+    contourCounts.PushBack(record.count);
+    contourClosed.PushBack(
         closed ? std::uint8_t{1U} : std::uint8_t{0U});
+    return {};
 }
 
 double EdgeXAt(
@@ -124,13 +120,9 @@ Base::Result<void> TessellateFill(
     Base::Vector<Point>& vertices,
     Base::Vector<std::uint32_t>& indices) noexcept {
     Base::Vector<double> levels;
-    Base::Result<void> reserved =
-        levels.Reserve(points.Size());
-    if (!reserved) return reserved.GetStatus();
+    levels.Reserve(points.Size());
     for (const Point point : points) {
-        Base::Result<void> added =
-            levels.PushBack(point.y);
-        if (!added) return added.GetStatus();
+        levels.PushBack(point.y);
     }
     std::sort(
         levels.Data(),
@@ -189,15 +181,11 @@ Base::Result<void> TessellateFill(
                     middleY >= maximum) {
                     continue;
                 }
-                Base::Result<void> added =
-                    intersections.PushBack({
+                intersections.PushBack({
                         EdgeXAt(start, end, topY),
                         EdgeXAt(start, end, bottomY),
                         EdgeXAt(start, end, middleY),
                         end.y > start.y ? 1 : -1});
-                if (!added) {
-                    return added.GetStatus();
-                }
             }
         }
         if (intersections.Empty()) continue;
@@ -226,13 +214,12 @@ Base::Result<void> TessellateFill(
                 {right.top, topY},
                 {right.bottom, bottomY},
                 {left.bottom, bottomY}};
-            Base::Result<void> added =
-                vertices.Append({quad, 4U});
-            if (!added) return added.GetStatus();
+            vertices.Append({quad, 4U});
             const std::uint32_t triangles[] = {
                 base, base + 1U, base + 2U,
                 base, base + 2U, base + 3U};
-            return indices.Append({triangles, 6U});
+            indices.Append({triangles, 6U});
+            return {};
         };
         if (fillRule == FillRule::EvenOdd) {
             const std::uint32_t pairCount =
@@ -279,27 +266,26 @@ public:
           contourClosed_(&contourClosed),
           bounds_(&bounds),
           hasBounds_(&hasBounds) {}
-    Result<void> BeginFigure(Point start, bool isClosed) noexcept override {
-        Result<void> finished = Flush(closed_);
-        if (!finished) return finished.GetStatus();
+    void BeginFigure(Point start, bool isClosed) noexcept override {
+        Flush(closed_);
         closed_ = isClosed;
         contour_.Clear();
         Include(start);
-        return contour_.PushBack(start);
+        contour_.PushBack(start);
     }
-    Result<void> AddPoint(Point point) noexcept override {
+    void AddPoint(Point point) noexcept override {
         if (contour_.Empty()) {
-            Result<void> started = BeginFigure(point, closed_);
-            return started;
+            BeginFigure(point, closed_);
+            return;
         }
         Include(point);
-        return contour_.PushBack(point);
+        contour_.PushBack(point);
     }
-    Result<void> EndFigure(bool isClosed) noexcept override {
+    void EndFigure(bool isClosed) noexcept override {
         closed_ = isClosed;
-        return Flush(isClosed);
+        Flush(isClosed);
     }
-    Result<void> Finish() noexcept { return Flush(closed_); }
+    void Finish() noexcept { Flush(closed_); }
 private:
     void Include(Point point) noexcept {
         if (!*hasBounds_) {
@@ -314,8 +300,8 @@ private:
         bounds_->width = right - bounds_->x;
         bounds_->height = bottom - bounds_->y;
     }
-    Result<void> Flush(bool closed) noexcept {
-        Result<void> stored = StoreContour(
+    void Flush(bool closed) noexcept {
+        (void)StoreContour(
             contour_,
             *points_,
             *contours_,
@@ -324,7 +310,6 @@ private:
             *contourClosed_,
             closed);
         contour_.Clear();
-        return stored;
     }
     Base::Vector<Point> contour_;
     Base::Vector<Point>* points_ = nullptr;
@@ -461,8 +446,7 @@ Base::Result<void> ParseStrokeDashArray(
                 Base::ErrorCode::ValidationFailed,
                 "StrokeDashArray value is invalid");
         }
-        Base::Result<void> added = dashes.PushBack(dash);
-        if (!added) return added.GetStatus();
+        dashes.PushBack(dash);
         cursor = parsedEnd;
     }
     return {};
@@ -478,8 +462,7 @@ Base::Result<void> ResolvePathDashes(
             const Base::Span<const double> values = style->GetDashes();
             dashes.Clear();
             for (std::uint32_t index = 0U; index < values.Size(); ++index) {
-                Base::Result<void> added = dashes.PushBack(values[index]);
-                if (!added) return added.GetStatus();
+                dashes.PushBack(values[index]);
             }
             offset = style->GetOffset();
             return {};
@@ -489,8 +472,7 @@ Base::Result<void> ResolvePathDashes(
         const Base::Span<const double> values = style->GetDashes();
         dashes.Clear();
         for (std::uint32_t index = 0U; index < values.Size(); ++index) {
-            Base::Result<void> added = dashes.PushBack(values[index]);
-            if (!added) return added.GetStatus();
+            dashes.PushBack(values[index]);
         }
         offset = style->GetOffset();
         return {};
@@ -571,9 +553,9 @@ Base::Result<void> Path::EnsureGeometry() noexcept {
                 pathContourClosed_,
                 bounds,
                 hasBounds);
-            Base::Result<void> flattened = geometry->Flatten(sink);
-            if (flattened) flattened = sink.Finish();
-            if (flattened && hasBounds) {
+            geometry->Flatten(sink);
+            sink.Finish();
+            if (hasBounds) {
                 geometryBounds_ = bounds;
             }
         }
@@ -591,17 +573,8 @@ Base::Result<void> Path::EnsureGeometry() noexcept {
         pathContourClosed_,
         bounds,
         hasBounds);
-    Base::Result<void> flattened = geometry->Flatten(sink);
-    if (flattened) flattened = sink.Finish();
-    if (!flattened) {
-        geometryVertices_.Clear();
-        geometryIndices_.Clear();
-        pathPoints_.Clear();
-        pathContourStarts_.Clear();
-        pathContourCounts_.Clear();
-        pathContourClosed_.Clear();
-        return flattened.GetStatus();
-    }
+    geometry->Flatten(sink);
+    sink.Finish();
     if (hasBounds && !pathPoints_.Empty() && !contours.Empty()) {
         geometryBounds_ = bounds;
         if (GetFill()) {

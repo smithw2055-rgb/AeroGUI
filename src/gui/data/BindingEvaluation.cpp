@@ -441,9 +441,7 @@ Base::Result<Base::String> FormatBindingString(
     // slashes ("Orbit: {0:F2} AU"). Unescape before looking up {0:...}.
     Base::String unescapedFormat;
     if (!format.Empty()) {
-        Base::Result<void> reserved =
-            unescapedFormat.Reserve(format.SizeBytes());
-        if (!reserved) return reserved.GetStatus();
+        unescapedFormat.Reserve(format.SizeBytes());
         for (std::uint32_t index = 0U;
              index < format.SizeBytes();
              ++index) {

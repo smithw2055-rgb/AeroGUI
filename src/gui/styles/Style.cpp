@@ -216,12 +216,14 @@ Base::Result<void> StyleState::AddAuthoredSetter(
                 "Style already has a setter for this property");
         }
     }
-    return authoredSetters.PushBack({property, value});
+    authoredSetters.PushBack({property, value});
+    return {};
 }
 
 Base::Result<void> StyleState::AddAuthoredTrigger(
     TriggerPlan trigger) noexcept {
-    return authoredTriggers.PushBack(std::move(trigger));
+    authoredTriggers.PushBack(std::move(trigger));
+    return {};
 }
 
 void StyleState::ClearAuthored() noexcept {
@@ -354,9 +356,8 @@ void Style::AddAuthoredSetter(
     Base::Ref<SetterBase> setter) noexcept {
     if (sealed_) { AERO_ASSERT(false); return; }
     if (!setter) { AERO_ASSERT(false); return; }
-    Base::Result<void> pushed = authoredSetterObjects_.PushBack(
+    authoredSetterObjects_.PushBack(
         std::move(setter));
-    if (!pushed) { AERO_ASSERT(false); return; }
 }
 
 void Style::AddAuthoredSetter(
@@ -368,9 +369,8 @@ void Style::AddAuthoredTrigger(
     Base::Ref<TriggerBase> trigger) noexcept {
     if (sealed_) { AERO_ASSERT(false); return; }
     if (!trigger) { AERO_ASSERT(false); return; }
-    Base::Result<void> pushed = authoredTriggerObjects_.PushBack(
+    authoredTriggerObjects_.PushBack(
         std::move(trigger));
-    if (!pushed) { AERO_ASSERT(false); return; }
 }
 
 void Style::ClearAuthoredSetters() noexcept {
@@ -408,9 +408,8 @@ void Style::AddPropertyTrigger(
     TriggerPlan trigger;
     trigger.property = condition;
     trigger.value = conditionValue;
-    Base::Result<void> setter = trigger.setters.PushBack(
+    trigger.setters.PushBack(
         {property, std::move(value)});
-    if (!setter) { AERO_ASSERT(false); return; }
     Base::Result<void> planned =
         program_->AddAuthoredTrigger(std::move(trigger));
     if (!planned) { AERO_ASSERT(false); return; }
@@ -426,15 +425,12 @@ void Style::AddTrigger(
     plan.value = trigger.value_;
     for (std::uint32_t index = 0U;
          index < trigger.setterProperties_.Size(); ++index) {
-        Base::Result<void> copied = plan.setters.PushBack({
+        plan.setters.PushBack({
             trigger.setterProperties_[index], trigger.setterValues_[index]});
-        if (!copied) { AERO_ASSERT(false); return; }
     }
-    Base::Result<void> copied = plan.enterActions.Append(
+    plan.enterActions.Append(
         trigger.GetEnterActions());
-    if (!copied) { AERO_ASSERT(false); return; }
-    copied = plan.exitActions.Append(trigger.GetExitActions());
-    if (!copied) { AERO_ASSERT(false); return; }
+    plan.exitActions.Append(trigger.GetExitActions());
     Base::Result<void> planned =
         program_->AddAuthoredTrigger(std::move(plan));
     if (!planned) { AERO_ASSERT(false); return; }
@@ -452,15 +448,12 @@ void Style::AddTrigger(
          trigger.GetAuthoredSetters()) {
         if (!authored || !authored->GetProperty().IsValid() ||
             authored->GetValue().IsUnset()) { AERO_ASSERT(false); return; }
-        Base::Result<void> copied = plan.setters.PushBack({
+        plan.setters.PushBack({
             authored->GetProperty(), authored->GetValue()});
-        if (!copied) { AERO_ASSERT(false); return; }
     }
-    Base::Result<void> copied = plan.enterActions.Append(
+    plan.enterActions.Append(
         trigger.GetEnterActions());
-    if (!copied) { AERO_ASSERT(false); return; }
-    copied = plan.exitActions.Append(trigger.GetExitActions());
-    if (!copied) { AERO_ASSERT(false); return; }
+    plan.exitActions.Append(trigger.GetExitActions());
     Base::Result<void> planned =
         program_->AddAuthoredTrigger(std::move(plan));
     if (!planned) { AERO_ASSERT(false); return; }
@@ -486,23 +479,18 @@ void Style::AddTrigger(
         TriggerBindingCondition extra;
         extra.binding = condition->GetBinding();
         extra.value = condition->GetAuthoredValue();
-        Base::Result<void> copied =
-            plan.extraBindings.PushBack(std::move(extra));
-        if (!copied) { AERO_ASSERT(false); return; }
+        plan.extraBindings.PushBack(std::move(extra));
     }
     for (const Base::Ref<Setter>& authored :
          trigger.GetAuthoredSetters()) {
         if (!authored || !authored->GetProperty().IsValid() ||
             authored->GetValue().IsUnset()) { AERO_ASSERT(false); return; }
-        Base::Result<void> copied = plan.setters.PushBack({
+        plan.setters.PushBack({
             authored->GetProperty(), authored->GetValue()});
-        if (!copied) { AERO_ASSERT(false); return; }
     }
-    Base::Result<void> copied = plan.enterActions.Append(
+    plan.enterActions.Append(
         trigger.GetEnterActions());
-    if (!copied) { AERO_ASSERT(false); return; }
-    copied = plan.exitActions.Append(trigger.GetExitActions());
-    if (!copied) { AERO_ASSERT(false); return; }
+    plan.exitActions.Append(trigger.GetExitActions());
     Base::Result<void> planned =
         program_->AddAuthoredTrigger(std::move(plan));
     if (!planned) { AERO_ASSERT(false); return; }
@@ -575,11 +563,8 @@ Base::Result<void> Style::Seal(
 
     Base::Vector<StyleSetter> next;
     if (basedOn_ != nullptr) {
-        Base::Result<void> inherited = next.Append(
+        next.Append(
             StyleState::RuntimeSetters(*basedOn_));
-        if (!inherited) {
-            return inherited.GetStatus();
-        }
     }
     for (const StyleSetter& setter : program_->authoredSetters) {
         const Meta::DependencyProperty* property =
@@ -610,18 +595,13 @@ Base::Result<void> Style::Seal(
             }
         }
         if (!replaced) {
-            Base::Result<void> appended = next.PushBack({
+            next.PushBack({
                 setter.property, normalizedValue});
-            if (!appended) {
-                return appended.GetStatus();
-            }
         }
     }
     Base::Vector<TriggerPlan> nextTriggers;
     if (basedOn_ != nullptr) {
-        Base::Result<void> inherited =
-            nextTriggers.Append(StyleState::RuntimeTriggers(*basedOn_));
-        if (!inherited) return inherited.GetStatus();
+        nextTriggers.Append(StyleState::RuntimeTriggers(*basedOn_));
     }
     for (const TriggerPlan& trigger : program_->authoredTriggers) {
         if (trigger.IsBindingTrigger()) {
@@ -679,9 +659,7 @@ Base::Result<void> Style::Seal(
                 }
             }
         }
-        Base::Result<void> appended =
-            nextTriggers.PushBack(trigger);
-        if (!appended) return appended.GetStatus();
+        nextTriggers.PushBack(trigger);
     }
     Base::Result<void> frozenProgram = program_->Freeze(
         targetType_, std::move(next), std::move(nextTriggers));
@@ -853,32 +831,24 @@ Base::Result<void> StyleEngine::Apply(
         StyleApplication application;
         application.object = &object;
         application.style = &style;
-        Base::Result<void> states =
-            application.triggerStates.Resize(
+        application.triggerStates.Resize(
                 StyleState::RuntimeTriggers(style).Size(), 0U);
-        if (states) states = application.bindingTriggerStates.Resize(
+        application.bindingTriggerStates.Resize(
             StyleState::RuntimeTriggers(style).Size(), 0U);
-        if (states) states = application.bindingTriggerKnown.Resize(
+        application.bindingTriggerKnown.Resize(
             StyleState::RuntimeTriggers(style).Size(), 0U);
-        if (!states) return states.GetStatus();
         const std::uint32_t newIndex = applications_.Size();
-        Base::Result<void> tracked =
-            applications_.PushBack(
+        applications_.PushBack(
                 std::move(application));
-        if (!tracked) {
-            return tracked.GetStatus();
-        }
         static_cast<void>(objectIndexMap_.Insert(&object, newIndex));
     } else if (requiresSubscription) {
         applications_[existing].style = &style;
-        Base::Result<void> states =
-            applications_[existing].triggerStates.Resize(
+        applications_[existing].triggerStates.Resize(
                 StyleState::RuntimeTriggers(style).Size(), 0U);
-        if (states) states = applications_[existing].bindingTriggerStates.Resize(
+        applications_[existing].bindingTriggerStates.Resize(
             StyleState::RuntimeTriggers(style).Size(), 0U);
-        if (states) states = applications_[existing].bindingTriggerKnown.Resize(
+        applications_[existing].bindingTriggerKnown.Resize(
             StyleState::RuntimeTriggers(style).Size(), 0U);
-        if (!states) return states.GetStatus();
     }
     if (requiresSubscription) {
         Base::Result<void> attached = AttachSetterBindings(object, style);
@@ -1020,12 +990,8 @@ Base::Result<void> StyleEngine::AttachSetterBindings(
         Base::Result<Data::BindingHandle> attached =
             bindings->Attach(descriptor);
         if (!attached) return attached.GetStatus();
-        Base::Result<void> tracked = setterBindings_.PushBack(
+        setterBindings_.PushBack(
             {&object, attached.Value()});
-        if (!tracked) {
-            static_cast<void>(bindings->Detach(attached.Value()));
-            return tracked.GetStatus();
-        }
     }
     return {};
 }

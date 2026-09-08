@@ -168,7 +168,8 @@ Base::Result<void> MutationJournal::AddRollback(
         return InvalidArgument(
             "Mutation rollback callback is null");
     }
-    return actions_.PushBack({rollback, context});
+    actions_.PushBack({rollback, context});
+    return {};
 }
 
 void MutationJournal::Commit() noexcept {
@@ -230,11 +231,7 @@ SafeDeferredWorkQueue::Enqueue(
     record.object = Base::WeakRef<Base::Object>(strong);
     record.callback = callback;
     record.context = context;
-    Base::Result<void> appended =
-        records_.PushBack(std::move(record));
-    if (!appended) {
-        return appended.GetStatus();
-    }
+    records_.PushBack(std::move(record));
     ++queued_;
     return records_.Back().handle;
 }
@@ -327,9 +324,10 @@ EventRouteLifetimeSnapshot::EventRouteLifetimeSnapshot(
 
 Base::Result<void> EventRouteLifetimeSnapshot::Add(
     Aero::Media::Visual& visual) noexcept {
-    return nodes_.PushBack(
+    nodes_.PushBack(
         Base::Ref<Aero::Media::Visual>::FromBorrowed(
             visual));
+    return {};
 }
 
 } // namespace Aero

@@ -24,8 +24,7 @@ public:
     }
     void AddAction(Ref<TriggerAction> value) noexcept {
         if (!value) { AERO_ASSERT(false); return; }
-        Base::Result<void> pushed = actions_.PushBack(std::move(value));
-        if (!pushed) { AERO_ASSERT(false); return; }
+        actions_.PushBack(std::move(value));
     }
     void ClearActions() noexcept { actions_.Clear(); }
     Span<const Ref<TriggerAction>> GetActions() const noexcept {
@@ -53,8 +52,7 @@ public:
     void SetActiveOnFocus(bool value) noexcept { activeOnFocus_ = value; }
     void AddAction(Ref<TriggerAction> value) noexcept {
         if (!value) { AERO_ASSERT(false); return; }
-        Base::Result<void> pushed = actions_.PushBack(std::move(value));
-        if (!pushed) { AERO_ASSERT(false); return; }
+        actions_.PushBack(std::move(value));
     }
     void ClearActions() noexcept { actions_.Clear(); }
     Span<const Ref<TriggerAction>> GetActions() const noexcept {

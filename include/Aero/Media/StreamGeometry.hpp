@@ -29,7 +29,7 @@ public:
     StreamGeometryContext Open() noexcept;
 
 protected:
-    Result<void> FlattenCore(FlattenSink& sink) const noexcept override;
+    void FlattenCore(FlattenSink& sink) const noexcept override;
 
 private:
     friend class StreamGeometryContext;
@@ -59,7 +59,7 @@ private:
     };
 
     Result<void> AppendCommand(const Command& command) noexcept;
-    Result<void> ReplayCommands(FlattenSink& sink) const noexcept;
+    void ReplayCommands(FlattenSink& sink) const noexcept;
     void InvalidateBounds() noexcept {
         bounds_ = {};
         boundsValid_ = false;

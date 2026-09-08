@@ -73,7 +73,8 @@ struct ReloadCoordinatorState final {
         RevisionRecord record;
         record.uri = uri;
         record.revision = revision;
-        return records.PushBack(std::move(record));
+        records.PushBack(std::move(record));
+        return {};
     }
 
     Base::Result<void> BuildTrackedSources(

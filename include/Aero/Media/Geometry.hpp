@@ -17,14 +17,13 @@ using CornerRadius = Base::CornerRadius;
 
 struct FlattenSink {
     virtual ~FlattenSink() = default;
-    virtual Result<void> AddPoint(Point point) noexcept = 0;
-    virtual Result<void> BeginFigure(Point start, bool isClosed) noexcept {
+    virtual void AddPoint(Point point) noexcept = 0;
+    virtual void BeginFigure(Point start, bool isClosed) noexcept {
         (void)isClosed;
-        return AddPoint(start);
+        AddPoint(start);
     }
-    virtual Result<void> EndFigure(bool isClosed) noexcept {
+    virtual void EndFigure(bool isClosed) noexcept {
         (void)isClosed;
-        return {};
     }
 };
 
@@ -37,7 +36,7 @@ public:
     virtual Rect GetBounds() const noexcept { return {}; }
     // Applies Geometry.Transform, then FlattenCore. Rendering must Flatten
     // rather than round-trip PathGeometry through ToStreamData.
-    Result<void> Flatten(FlattenSink& sink) const noexcept;
+    void Flatten(FlattenSink& sink) const noexcept;
     Ref<Transform> GetTransform() const noexcept {
         return transform_;
     }
@@ -51,7 +50,7 @@ private:
 protected:
     explicit Geometry(Meta::TypeId runtimeType) noexcept
         : Freezable(runtimeType) {}
-    virtual Result<void> FlattenCore(FlattenSink& sink) const noexcept;
+    virtual void FlattenCore(FlattenSink& sink) const noexcept;
     bool FreezeCore(bool isChecking) noexcept override;
 };
 } // namespace Aero::Media

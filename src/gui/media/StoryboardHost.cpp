@@ -201,15 +201,8 @@ Base::Result<std::uint32_t>
             return started.GetStatus();
         }
         if (retainedHandles != nullptr) {
-            Base::Result<void> retained =
-                retainedHandles->PushBack(
-                    started.Value());
-            if (!retained) {
-                static_cast<void>(
-                    Animations()->Remove(
-                        started.Value()));
-                return retained.GetStatus();
-            }
+            retainedHandles->PushBack(
+                started.Value());
         }
         return std::uint32_t{1U};
     }
@@ -347,18 +340,14 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                 if (authored->RuntimeType() ==
                     MediaAnimation::StoryboardCompletedTrigger::
                         StaticTypeId()) {
-                    Base::Result<void> retained =
-                        storyboardCompletedSubscriptions.
-                            PushBack({
-                                static_cast<
-                                    MediaAnimation::
-                                        StoryboardCompletedTrigger*>(
-                                            authored.Get()),
-                                element,
-                                names});
-                    if (!retained) {
-                        return retained.GetStatus();
-                    }
+                    storyboardCompletedSubscriptions.
+                        PushBack({
+                            static_cast<
+                                MediaAnimation::
+                                    StoryboardCompletedTrigger*>(
+                                        authored.Get()),
+                            element,
+                            names});
                     continue;
                 }
                 if (authored->RuntimeType() ==
@@ -411,13 +400,11 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                 if (!authored) continue;
                 if (authored->RuntimeType() ==
                     MediaAnimation::StoryboardCompletedTrigger::StaticTypeId()) {
-                    Base::Result<void> retained =
-                        storyboardCompletedSubscriptions.PushBack({
+                    storyboardCompletedSubscriptions.PushBack({
                             static_cast<MediaAnimation::StoryboardCompletedTrigger*>(
                                 authored.Get()),
                             element,
                             names});
-                    if (!retained) return retained.GetStatus();
                     continue;
                 }
                 if (authored->RuntimeType() ==

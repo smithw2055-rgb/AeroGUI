@@ -130,7 +130,8 @@ Base::Result<void> UiFrameEncoder::RegisterImage(
             return {};
         }
     }
-    return images_.PushBack(ImageEntry{imageId, std::move(texture)});
+    images_.PushBack(ImageEntry{imageId, std::move(texture)});
+    return {};
 }
 
 void UiFrameEncoder::UnregisterImage(RenderImageId imageId) noexcept {
@@ -154,7 +155,8 @@ Base::Result<void> UiFrameEncoder::RegisterGlyphAtlas(
             return {};
         }
     }
-    return atlases_.PushBack(AtlasEntry{page, std::move(texture)});
+    atlases_.PushBack(AtlasEntry{page, std::move(texture)});
+    return {};
 }
 
 Base::Result<void> UiFrameEncoder::RegisterGlyphRun(
@@ -163,14 +165,15 @@ Base::Result<void> UiFrameEncoder::RegisterGlyphRun(
     for (auto& entry : glyphRuns_) {
         if (entry.glyphRun == glyphRun) {
             entry.quads.Clear();
-            return entry.quads.Append(quads);
+            entry.quads.Append(quads);
+            return {};
         }
     }
     GlyphRunEntry entry;
     entry.glyphRun = glyphRun;
-    Base::Result<void> copied = entry.quads.Append(quads);
-    if (!copied) return copied.GetStatus();
-    return glyphRuns_.PushBack(std::move(entry));
+    entry.quads.Append(quads);
+    glyphRuns_.PushBack(std::move(entry));
+    return {};
 }
 
 void UiFrameEncoder::UnregisterGlyphRun(RenderGlyphRunId glyphRun) noexcept {
@@ -193,18 +196,17 @@ Base::Result<void> UiFrameEncoder::RegisterMesh(
         if (entry.mesh == mesh) {
             entry.vertices.Clear();
             entry.indices.Clear();
-            Base::Result<void> v = entry.vertices.Append(vertices);
-            if (!v) return v.GetStatus();
-            return entry.indices.Append(indices);
+            entry.vertices.Append(vertices);
+            entry.indices.Append(indices);
+            return {};
         }
     }
     MeshEntry entry;
     entry.mesh = mesh;
-    Base::Result<void> v = entry.vertices.Append(vertices);
-    if (!v) return v.GetStatus();
-    Base::Result<void> i = entry.indices.Append(indices);
-    if (!i) return i.GetStatus();
-    return meshes_.PushBack(std::move(entry));
+    entry.vertices.Append(vertices);
+    entry.indices.Append(indices);
+    meshes_.PushBack(std::move(entry));
+    return {};
 }
 
 void UiFrameEncoder::UnregisterMesh(RenderMeshId mesh) noexcept {

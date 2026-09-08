@@ -546,18 +546,15 @@ Base::Result<void> Dispatcher::InsertReadyLocked(
     // P3.1: pure FIFO append. Priority is an admission filter applied by
     // ProcessPending, never an ordering key; the O(n) sorted insertion is
     // gone, so cross-thread Post is O(1).
-    return ready_.PushBack(record);
+    ready_.PushBack(record);
+    return {};
 }
 
 Base::Result<void> Dispatcher::InsertDelayedLocked(
     const TaskRecord& record) noexcept {
     // P3.1: ordered by due time only (stable for equal dues: strict < keeps
     // insertion order). Priority no longer participates.
-    const Base::Result<void> appendResult =
-        delayed_.PushBack(record);
-    if (!appendResult) {
-        return appendResult.GetStatus();
-    }
+    delayed_.PushBack(record);
 
     std::uint32_t index = delayed_.Size() - 1U;
     while (index > delayedHead_ &&

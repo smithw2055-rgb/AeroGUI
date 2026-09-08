@@ -544,8 +544,7 @@ Base::Result<void> ParsePoints(
                 "Shape point list is invalid");
         }
         cursor = afterY;
-        Base::Result<void> stored = points.PushBack(Point{x, y});
-        if (!stored) return stored.GetStatus();
+        points.PushBack(Point{x, y});
     }
     return {};
 }
@@ -623,14 +622,12 @@ Span<const Point> Polygon::GetPoints() const noexcept {
 }
 void Polygon::SetPoints(Span<const Point> points) noexcept {
     points_.Clear();
-    Result<void> stored = points_.Append(points);
-    if (!stored) { AERO_ASSERT(false); return; }
+    points_.Append(points);
     InvalidateMeasure();
     InvalidateVisual();
 }
 void Polygon::AddPoint(Point point) noexcept {
-    Result<void> stored = points_.PushBack(point);
-    if (!stored) { AERO_ASSERT(false); return; }
+    points_.PushBack(point);
     InvalidateMeasure();
     InvalidateVisual();
 }
@@ -668,14 +665,12 @@ Span<const Point> Polyline::GetPoints() const noexcept {
 }
 void Polyline::SetPoints(Span<const Point> points) noexcept {
     points_.Clear();
-    Result<void> stored = points_.Append(points);
-    if (!stored) { AERO_ASSERT(false); return; }
+    points_.Append(points);
     InvalidateMeasure();
     InvalidateVisual();
 }
 void Polyline::AddPoint(Point point) noexcept {
-    Result<void> stored = points_.PushBack(point);
-    if (!stored) { AERO_ASSERT(false); return; }
+    points_.PushBack(point);
     InvalidateMeasure();
     InvalidateVisual();
 }

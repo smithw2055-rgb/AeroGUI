@@ -94,8 +94,7 @@ void FrameworkContentElement::AddAuthoredTrigger(
     if (!trigger) { AERO_ASSERT(false); return; }
     FrameworkContentRare* rare = EnsureFrameworkContentRare();
     if (rare == nullptr) { AERO_ASSERT(false); return; }
-    Base::Result<void> pushed = rare->authoredTriggers.PushBack(std::move(trigger));
-    if (!pushed) { AERO_ASSERT(false); return; }
+    rare->authoredTriggers.PushBack(std::move(trigger));
 }
 } // namespace Aero {
 

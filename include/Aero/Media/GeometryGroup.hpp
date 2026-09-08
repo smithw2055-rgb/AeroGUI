@@ -22,7 +22,7 @@ public:
         return children_.AsSpan();
     }
 protected:
-    Result<void> FlattenCore(FlattenSink& sink) const noexcept override;
+    void FlattenCore(FlattenSink& sink) const noexcept override;
 private:
     FreezableCollection<Geometry> children_;
 };

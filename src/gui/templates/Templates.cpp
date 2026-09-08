@@ -418,12 +418,7 @@ TemplateBuilder::ProjectContentCore(
     } else {
         contentHost->SetContent(content);
     }
-    Base::Result<void> tracked =
-        state.projections.PushBack(std::move(projection));
-    if (!tracked) {
-        restore();
-        return tracked.GetStatus();
-    }
+    state.projections.PushBack(std::move(projection));
     return true;
 }
 
@@ -546,7 +541,8 @@ Base::Result<void> TemplateBuilder::AddObjectPart(
     if (!assigned) return assigned.GetStatus();
     part.owner = std::move(owner);
     part.object = &object;
-    return state.parts.PushBack(std::move(part));
+    state.parts.PushBack(std::move(part));
+    return {};
 }
 
 Base::Result<void> TemplateBuilder::AddOwnedPart(
@@ -564,7 +560,8 @@ Base::Result<void> TemplateBuilder::AddOwnedPart(
     part.object = &visual;
     part.frameworkElement = ::Aero::TryCast<::Aero::FrameworkElement>(&(visual));
     part.mount = mount;
-    return state.parts.PushBack(std::move(part));
+    state.parts.PushBack(std::move(part));
+    return {};
 }
 
 void TemplateBuilder::Rollback() noexcept {
@@ -666,7 +663,8 @@ Base::Result<void> TemplateProgram::AddNamespace(
     if (!assigned) return assigned.GetStatus();
     assigned = entry.uri.Assign(uri);
     if (!assigned) return assigned.GetStatus();
-    return namespaces.PushBack(std::move(entry));
+    namespaces.PushBack(std::move(entry));
+    return {};
 }
 
 Base::Result<void> TemplateProgram::Seal() noexcept {
@@ -943,7 +941,8 @@ Base::Result<void> FrameworkTemplateState::AddAuthoredTrigger(DataTemplate& valu
     Controls::DataTemplateState* state = State(value);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "DataTemplate state allocation failed");
     if (!trigger || state->program.factory != nullptr) return Base::Status::Failure(Base::ErrorCode::InvalidState, "DataTemplate Trigger cannot be added after sealing");
-    return state->authoredTriggers.PushBack(std::move(trigger));
+    state->authoredTriggers.PushBack(std::move(trigger));
+    return {};
 }
 
 void FrameworkTemplateState::ClearAuthoredTriggers(DataTemplate& value) noexcept {
@@ -1131,7 +1130,8 @@ Base::Result<void> FrameworkTemplateState::AddTemplateBinding(
     if (!assigned) return assigned.GetStatus();
     binding.sourceProperty = sourceProperty;
     binding.targetProperty = targetProperty;
-    return state->bindings.PushBack(std::move(binding));
+    state->bindings.PushBack(std::move(binding));
+    return {};
 }
 
 Base::Result<void> FrameworkTemplateState::AddTemplatedParentBinding(
@@ -1160,7 +1160,8 @@ Base::Result<void> FrameworkTemplateState::AddTemplatedParentBinding(
     binding.updateSourceTrigger = updateSourceTrigger;
     binding.converter = converter;
     binding.converterParameter = converterParameter;
-    return state->metadataBindings.PushBack(std::move(binding));
+    state->metadataBindings.PushBack(std::move(binding));
+    return {};
 }
 
 Base::Result<void> FrameworkTemplateState::AddDynamicResource(
@@ -1188,7 +1189,8 @@ Base::Result<void> FrameworkTemplateState::AddDynamicResource(
     if (assigned) assigned = resource.key.Assign(key);
     if (!assigned) return assigned.GetStatus();
     resource.targetProperty = targetProperty;
-    return state->dynamicResources.PushBack(std::move(resource));
+    state->dynamicResources.PushBack(std::move(resource));
+    return {};
 }
 
 Base::Result<void> FrameworkTemplateState::SetAuthoredVisualTree(
@@ -1207,7 +1209,8 @@ Base::Result<void> FrameworkTemplateState::AddAuthoredVisualStateGroup(
     FrameworkTemplateState* state = State(templateValue);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "ControlTemplate state allocation failed");
     if (state->sealed || !value) return InvalidTemplate("ControlTemplate authored visual state group is invalid");
-    return state->authoredVisualStateGroups.PushBack(value);
+    state->authoredVisualStateGroups.PushBack(value);
+    return {};
 }
 
 void FrameworkTemplateState::ClearAuthoredVisualTree(ControlTemplate& value) noexcept {
@@ -1232,7 +1235,8 @@ Base::Result<void> FrameworkTemplateState::AddPropertyTrigger(
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "FrameworkTemplate state allocation failed");
     if (state->sealed) return InvalidTemplate("Cannot modify a sealed FrameworkTemplate");
     if (trigger.conditions.Empty()) return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Template property trigger is incomplete");
-    return state->triggers.PushBack(std::move(trigger));
+    state->triggers.PushBack(std::move(trigger));
+    return {};
 }
 
 Base::Result<void> FrameworkTemplateState::AddVisualStateGroup(
@@ -1335,7 +1339,8 @@ Base::Result<void> FrameworkTemplateState::AddVisualStateGroup(
             }
         }
     }
-    return state->visualStateGroups.PushBack(std::move(group));
+    state->visualStateGroups.PushBack(std::move(group));
+    return {};
 }
 
 
@@ -1414,7 +1419,8 @@ Base::Result<void> FrameworkTemplateState::AddAuthoredTrigger(
     FrameworkTemplateState* state = State(templateValue);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "FrameworkTemplate state allocation failed");
     if (!trigger || state->sealed) return Base::Status::Failure(Base::ErrorCode::InvalidState, "Template Trigger cannot be added after sealing");
-    return state->authoredTriggers.PushBack(std::move(trigger));
+    state->authoredTriggers.PushBack(std::move(trigger));
+    return {};
 }
 
 const Base::Ref<Base::Object>& FrameworkTemplateState::AuthoredVisualTree(const ControlTemplate& value) noexcept {
@@ -1881,18 +1887,7 @@ Base::Result<TemplateHandle> TemplateEngine::Apply(
     buildState.rootVisual = nullptr;
     buildState.rootElement = nullptr;
     const std::uint32_t newIndex = instances_.Size();
-    Base::Result<void> tracked =
-        instances_.PushBack(std::move(instance));
-    if (!tracked) {
-        --nextHandle_;
-        buildState.parts = std::move(instance.parts);
-        buildState.projections =
-            std::move(instance.projections);
-        buildState.rootVisual = instance.rootVisual;
-        buildState.rootElement = instance.rootElement;
-        context.Rollback();
-        return tracked.GetStatus();
-    }
+    instances_.PushBack(std::move(instance));
     Instance& stored = instances_.Back();
     static_cast<void>(controlToInstance_.Insert(stored.parent, newIndex));
     static_cast<void>(handleToInstance_.Insert(stored.handle.value, newIndex));
@@ -2235,10 +2230,8 @@ Base::Result<void> TemplateEngine::AttachMetadataBindings(
             Base::ErrorCode::NotInitialized,
             "TemplatedParent Binding services are unavailable");
     }
-    Base::Result<void> reserved =
-        instance.metadataBindings.Reserve(
+    instance.metadataBindings.Reserve(
             Aero::Controls::FrameworkTemplateState::MetadataBindings(*instance.plan).Size());
-    if (!reserved) return reserved.GetStatus();
     for (const TemplateMetadataBindingPlan& binding :
          Aero::Controls::FrameworkTemplateState::MetadataBindings(*instance.plan)) {
         DependencyObject* target =
@@ -2283,13 +2276,8 @@ Base::Result<void> TemplateEngine::AttachMetadataBindings(
         Base::Result<Data::BindingHandle> attached =
             bindings_->Attach(descriptor);
         if (!attached) return attached.GetStatus();
-        Base::Result<void> tracked =
-            instance.metadataBindings.PushBack(
+        instance.metadataBindings.PushBack(
                 attached.Value());
-        if (!tracked) {
-            (void)bindings_->Detach(attached.Value());
-            return tracked.GetStatus();
-        }
     }
     return {};
 }
@@ -2315,9 +2303,7 @@ Base::Result<void> TemplateEngine::AttachDynamicResources(
             Base::ErrorCode::NotInitialized,
             "Template DynamicResource services are unavailable");
     }
-    Base::Result<void> reserved =
-        instance.dynamicResourceTargets.Reserve(declarations.Size());
-    if (!reserved) return reserved.GetStatus();
+    instance.dynamicResourceTargets.Reserve(declarations.Size());
     const Aero::ResourceDictionary* templateResources[] = {
         &instance.plan->GetResources()};
     for (const TemplateDynamicResourcePlan& declaration : declarations) {
@@ -2337,8 +2323,7 @@ Base::Result<void> TemplateEngine::AttachDynamicResources(
             }
         }
         if (!tracked) {
-            reserved = instance.dynamicResourceTargets.PushBack(target);
-            if (!reserved) return reserved.GetStatus();
+            instance.dynamicResourceTargets.PushBack(target);
         }
         Base::Result<void> attached = Markup::DynamicResource::Attach(
             *effectiveValues_,

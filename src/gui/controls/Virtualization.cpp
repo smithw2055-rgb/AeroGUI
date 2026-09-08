@@ -169,10 +169,8 @@ double VirtualizingStackPanel::PrefixDeviation(
 
 Base::Result<void>
 VirtualizingStackPanel::RebuildExtentTree() noexcept {
-    Base::Result<void> resized =
-        extentTree_.Resize(
+    extentTree_.Resize(
             itemExtents_.Size() + 1U, 0.0);
-    if (!resized) return resized.GetStatus();
     for (double& value : extentTree_) {
         value = 0.0;
     }
@@ -368,8 +366,9 @@ VirtualizingStackPanel::UpdateRealization(
 Base::Result<void>
 VirtualizingStackPanel::ResizeExtentCache(
     std::uint32_t itemCount) noexcept {
-    return itemExtents_.Resize(
+    itemExtents_.Resize(
         itemCount, 0.0);
+    return {};
 }
 
 void
@@ -409,10 +408,8 @@ VirtualizingStackPanel::ApplyExtentDelta(
             itemCount - itemExtents_.Size()) {
         const std::uint32_t oldSize =
             itemExtents_.Size();
-        Base::Result<void> resized =
-            itemExtents_.Resize(
+        itemExtents_.Resize(
                 oldSize + event.newCount, 0.0);
-        if (!resized) return resized.GetStatus();
         for (std::uint32_t index = oldSize;
             index > event.newIndex; --index) {
             itemExtents_[
@@ -441,7 +438,8 @@ VirtualizingStackPanel::ApplyExtentDelta(
                 itemExtents_[
                     index + event.oldCount];
         }
-        return itemExtents_.Resize(itemCount);
+        itemExtents_.Resize(itemCount);
+        return {};
     }
     if (event.action == ItemsChangeAction::Replace &&
         event.oldCount == event.newCount &&

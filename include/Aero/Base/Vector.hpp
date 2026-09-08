@@ -2,7 +2,6 @@
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Assert.hpp>
-#include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
 
 #include <cstddef>
@@ -52,10 +51,7 @@ public:
     BasicVector(const BasicVector& other)
         : allocator_(&other.Allocator()) {
         ResetEmptyStorage();
-        const Result<void> result = Append(other.AsSpan());
-        if (!result) {
-            ReportOutOfMemory(BytesForCount(other.size_), alignof(T), MemoryTag::Container);
-        }
+        Append(other.AsSpan());
     }
 
     BasicVector(BasicVector&& other) noexcept
@@ -71,10 +67,7 @@ public:
 
     BasicVector& operator=(const BasicVector& other) {
         if (this != &other) {
-            const Result<void> result = Assign(other.AsSpan());
-            if (!result) {
-                ReportOutOfMemory(BytesForCount(other.size_), alignof(T), MemoryTag::Container);
-            }
+            Assign(other.AsSpan());
         }
         return *this;
     }
@@ -88,16 +81,10 @@ public:
                 MoveConstructFrom(other);
             } else {
                 BasicVector temporary(allocator_);
-                const Result<void> reserveResult = temporary.Reserve(other.size_);
-                if (!reserveResult) {
-                    ReportOutOfMemory(BytesForCount(other.size_), alignof(T), MemoryTag::Container);
-                }
+                temporary.Reserve(other.size_);
                 for (SizeType index = 0U; index < other.size_; ++index) {
-                    const Result<T*> appendResult = temporary.EmplaceBack(
+                    temporary.EmplaceBack(
                         std::move_if_noexcept(other.data_[index]));
-                    if (!appendResult) {
-                        ReportOutOfMemory(BytesForCount(other.size_), alignof(T), MemoryTag::Container);
-                    }
                 }
                 other.Clear();
                 other.ReleaseHeap();
@@ -182,22 +169,21 @@ public:
         data_[size_].~T();
     }
 
-    Result<void> Reserve(SizeType requestedCapacity) noexcept {
+    void Reserve(SizeType requestedCapacity) noexcept {
         if (requestedCapacity <= capacity_) {
-            return {};
+            return;
         }
 
         const std::size_t bytes = BytesForCount(requestedCapacity);
         if (bytes == 0U) {
-            return Status::Failure(ErrorCode::OutOfRange,
-                "Vector capacity exceeds addressable storage");
+            ReportOutOfMemory(requestedCapacity * sizeof(T), alignof(T),
+                MemoryTag::Container);
         }
 
         void* allocation = allocator_->Allocate(
             {bytes, alignof(T), MemoryTag::Container});
         if (allocation == nullptr) {
-            return Status::Failure(ErrorCode::OutOfMemory,
-                "Vector allocation failed");
+            ReportOutOfMemory(bytes, alignof(T), MemoryTag::Container);
         }
 
         T* replacement = static_cast<T*>(allocation);
@@ -206,98 +192,73 @@ public:
         ReleaseHeap();
         data_ = replacement;
         capacity_ = requestedCapacity;
-        return {};
     }
 
-    Result<void> Resize(SizeType requestedSize) noexcept {
+    void Resize(SizeType requestedSize) noexcept {
         if (requestedSize < size_) {
             DestroyRange(data_ + requestedSize, size_ - requestedSize);
             size_ = requestedSize;
-            return {};
+            return;
         }
 
         if (requestedSize == size_) {
-            return {};
+            return;
         }
 
-        const Result<void> reserveResult = EnsureCapacity(requestedSize);
-        if (!reserveResult) {
-            return reserveResult.GetStatus();
-        }
+        EnsureCapacity(requestedSize);
 
         while (size_ < requestedSize) {
             new (data_ + size_) T();
             ++size_;
         }
-        return {};
     }
 
-    Result<void> Resize(
-        SizeType requestedSize, const T& value) noexcept {
+    void Resize(SizeType requestedSize, const T& value) noexcept {
         if (requestedSize < size_) {
             DestroyRange(data_ + requestedSize, size_ - requestedSize);
             size_ = requestedSize;
-            return {};
+            return;
         }
 
         if (requestedSize == size_) {
-            return {};
+            return;
         }
 
-        const Result<void> reserveResult = EnsureCapacity(requestedSize);
-        if (!reserveResult) {
-            return reserveResult.GetStatus();
-        }
+        EnsureCapacity(requestedSize);
 
         while (size_ < requestedSize) {
             new (data_ + size_) T(value);
             ++size_;
         }
-        return {};
     }
 
     template<class... Args>
-    Result<T*> EmplaceBack(Args&&... args) noexcept {
-        if (size_ == UINT32_MAX) {
-            return Status::Failure(ErrorCode::OutOfRange,
-                "Vector size limit reached");
-        }
-
-        const Result<void> reserveResult = EnsureCapacity(size_ + 1U);
-        if (!reserveResult) {
-            return reserveResult.GetStatus();
-        }
+    T* EmplaceBack(Args&&... args) noexcept {
+        AERO_ASSERT(size_ != UINT32_MAX);
+        EnsureCapacity(size_ + 1U);
 
         T* value = new (data_ + size_) T(std::forward<Args>(args)...);
         ++size_;
         return value;
     }
 
-    Result<void> PushBack(const T& value) noexcept {
-        const Result<T*> result = EmplaceBack(value);
-        return result ? Result<void>() : Result<void>(result.GetStatus());
+    void PushBack(const T& value) noexcept {
+        (void)EmplaceBack(value);
     }
 
-    Result<void> PushBack(T&& value) noexcept {
-        const Result<T*> result = EmplaceBack(std::move(value));
-        return result ? Result<void>() : Result<void>(result.GetStatus());
+    void PushBack(T&& value) noexcept {
+        (void)EmplaceBack(std::move(value));
     }
 
-    Result<void> Assign(Span<const T> values) noexcept {
+    void Assign(Span<const T> values) noexcept {
         if (IsAliased(values.Data(), values.Size())) {
             BasicVector temporary(allocator_);
-            const Result<void> temporaryResult = temporary.Append(values);
-            if (!temporaryResult) {
-                return temporaryResult.GetStatus();
-            }
+            temporary.Append(values);
             AdoptStorageFrom(temporary);
-            return {};
+            return;
         }
 
-        const Result<void> reserveResult = Reserve(values.Size());
-        if (!reserveResult) {
-            return reserveResult.GetStatus();
-        }
+        Reserve(values.Size());
 
         DestroyRange(data_, size_);
         size_ = 0U;
@@ -305,35 +266,27 @@ public:
             new (data_ + size_) T(value);
             ++size_;
         }
-        return {};
     }
 
-    Result<void> Append(Span<const T> values) noexcept {
+    void Append(Span<const T> values) noexcept {
         if (values.Empty()) {
-            return {};
+            return;
         }
 
-        if (values.Size() > UINT32_MAX - size_) {
-            return Status::Failure(ErrorCode::OutOfRange,
-                "Vector append exceeds size limit");
-        }
+        AERO_ASSERT(values.Size() <= UINT32_MAX - size_);
 
         const bool aliased = IsAliased(values.Data(), values.Size());
         const SizeType sourceOffset = aliased
             ? static_cast<SizeType>(values.Data() - data_)
             : 0U;
         const SizeType sourceCount = values.Size();
-        const Result<void> reserveResult = EnsureCapacity(size_ + sourceCount);
-        if (!reserveResult) {
-            return reserveResult.GetStatus();
-        }
+        EnsureCapacity(size_ + sourceCount);
 
         const T* source = aliased ? data_ + sourceOffset : values.Data();
         for (SizeType index = 0U; index < sourceCount; ++index) {
             new (data_ + size_) T(source[index]);
             ++size_;
         }
-        return {};
     }
 
 private:
@@ -384,9 +337,9 @@ private:
         return static_cast<std::size_t>(count) * sizeof(T);
     }
 
-    Result<void> EnsureCapacity(SizeType required) noexcept {
+    void EnsureCapacity(SizeType required) noexcept {
         if (required <= capacity_) {
-            return {};
+            return;
         }
 
         SizeType grown = capacity_ == 0U ? 4U : capacity_;
@@ -401,7 +354,7 @@ private:
         if (grown < required) {
             grown = required;
         }
-        return Reserve(grown);
+        Reserve(grown);
     }
 
     bool IsAliased(

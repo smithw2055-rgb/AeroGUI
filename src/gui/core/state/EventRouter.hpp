@@ -105,7 +105,8 @@ Base::Result<void> EventRouter::RegisterClassHandler(
     value.handler = Aero::RoutedHandlerStorage(handler);
     value.handledEventsToo = handledEventsToo;
     value.sequence = nextClassSequence_++;
-    return classHandlers_.PushBack(std::move(value));
+    classHandlers_.PushBack(std::move(value));
+    return {};
 }
 
 template<class TArgs>

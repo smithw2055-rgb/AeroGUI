@@ -283,14 +283,7 @@ public:
             object, property, token, value);
         if (!applied) return applied.GetStatus();
 
-        Base::Result<Base::HashMap<ContributionKey, PropertyProviderToken,
-            ContributionKeyHash>::InsertResult> retained =
-            setterRecords_.Insert(key, token);
-        if (!retained) {
-            static_cast<void>(engine_->ClearProviderContribution(
-                object, property, token));
-            return retained.GetStatus();
-        }
+        setterRecords_.Insert(key, token);
         ++state.liveContributions;
         return {};
     }
@@ -344,28 +337,15 @@ public:
         const ContributionKey key{&object, property};
         Base::Vector<PropertyProviderToken>* stored =
             triggerRecords_.Find(key);
-        bool fresh = false;
         if (stored == nullptr) {
-            Base::Result<Base::HashMap<ContributionKey,
+            Base::HashMap<ContributionKey,
                 Base::Vector<PropertyProviderToken>,
-                ContributionKeyHash>::InsertResult> inserted =
+                ContributionKeyHash>::InsertResult inserted =
                 triggerRecords_.Insert(
                     key, Base::Vector<PropertyProviderToken>{});
-            if (!inserted) {
-                static_cast<void>(engine_->ClearProviderContribution(
-                    object, property, token));
-                return inserted.GetStatus();
-            }
-            stored = &inserted.Value().entry->Value();
-            fresh = true;
+            stored = &inserted.entry->Value();
         }
-        Base::Result<void> retained = stored->PushBack(token);
-        if (!retained) {
-            static_cast<void>(engine_->ClearProviderContribution(
-                object, property, token));
-            if (fresh) triggerRecords_.Erase(key);
-            return retained.GetStatus();
-        }
+        stored->PushBack(token);
         ++state.liveContributions;
         return {};
     }
@@ -513,11 +493,10 @@ private:
         if (ObjectState* existing = states_.Find(&object)) {
             return existing;
         }
-        Base::Result<Base::HashMap<DependencyObject*, ObjectState>::
-            InsertResult> inserted = states_.Insert(
+        Base::HashMap<DependencyObject*, ObjectState>::
+            InsertResult inserted = states_.Insert(
                 &object, ObjectState{});
-        if (!inserted) return inserted.GetStatus();
-        return &inserted.Value().entry->Value();
+        return &inserted.entry->Value();
     }
 
     Base::Result<std::uint32_t> EnsureOrigin(

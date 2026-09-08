@@ -345,14 +345,12 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             for (const Base::Ref<MediaAnimation::DoubleKeyFrame>& frame :
                  animation.GetKeyFrames()) {
                 if (!frame) continue;
-                Base::Result<void> appended =
-                    frames.PushBack(Aero::Media::Animation::DoubleFrame(
+                frames.PushBack(Aero::Media::Animation::DoubleFrame(
                         *frame,
                         schedule.duration,
                         keyIndex,
                         schedule.count));
                 ++keyIndex;
-                if (!appended) return appended.GetStatus();
             }
             for (std::uint32_t index = 1U;
                  index < frames.Size(); ++index) {
@@ -420,17 +418,13 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                      MediaAnimation::ColorKeyFrame>& frame :
                  animation.GetKeyFrames()) {
                 if (!frame) continue;
-                Base::Result<void> appended =
-                    frames.PushBack(
+                frames.PushBack(
                         Aero::Media::Animation::ColorFrame(
                             *frame,
                             schedule.duration,
                             keyIndex,
                             schedule.count));
                 ++keyIndex;
-                if (!appended) {
-                    return appended.GetStatus();
-                }
             }
             for (std::uint32_t index = 1U;
                  index < frames.Size();
@@ -495,14 +489,13 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             for (const Base::Ref<MediaAnimation::PointKeyFrame>& frame :
                  animation.GetKeyFrames()) {
                 if (!frame) continue;
-                Base::Result<void> appended = frames.PushBack(
+                frames.PushBack(
                     Aero::Media::Animation::PointFrame(
                         *frame,
                         schedule.duration,
                         keyIndex,
                         schedule.count));
                 ++keyIndex;
-                if (!appended) return appended.GetStatus();
             }
             for (std::uint32_t index = 1U; index < frames.Size(); ++index) {
                 Aero::Media::Animation::Model::PointKeyFrame current =
@@ -555,14 +548,13 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             for (const Base::Ref<MediaAnimation::ThicknessKeyFrame>& frame :
                  animation.GetKeyFrames()) {
                 if (!frame) continue;
-                Base::Result<void> appended = frames.PushBack(
+                frames.PushBack(
                     Aero::Media::Animation::ThicknessFrame(
                         *frame,
                         schedule.duration,
                         keyIndex,
                         schedule.count));
                 ++keyIndex;
-                if (!appended) return appended.GetStatus();
             }
             for (std::uint32_t index = 1U; index < frames.Size(); ++index) {
                 Aero::Media::Animation::Model::ThicknessKeyFrame current =
@@ -693,14 +685,13 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                     for (const Base::Ref<MediaAnimation::Int16KeyFrame>& frame :
                          animation.GetKeyFrames()) {
                         if (!frame) continue;
-                        Base::Result<void> appended = frames.PushBack(
+                        frames.PushBack(
                             Aero::Media::Animation::IntegerFrame(
                                 *frame,
                                 schedule.duration,
                                 keyIndex,
                                 schedule.count));
                         ++keyIndex;
-                        if (!appended) return appended.GetStatus();
                     }
                     return {};
                 });
@@ -720,14 +711,13 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                     for (const Base::Ref<MediaAnimation::Int32KeyFrame>& frame :
                          animation.GetKeyFrames()) {
                         if (!frame) continue;
-                        Base::Result<void> appended = frames.PushBack(
+                        frames.PushBack(
                             Aero::Media::Animation::IntegerFrame(
                                 *frame,
                                 schedule.duration,
                                 keyIndex,
                                 schedule.count));
                         ++keyIndex;
-                        if (!appended) return appended.GetStatus();
                     }
                     return {};
                 });
@@ -747,14 +737,13 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                     for (const Base::Ref<MediaAnimation::Int64KeyFrame>& frame :
                          animation.GetKeyFrames()) {
                         if (!frame) continue;
-                        Base::Result<void> appended = frames.PushBack(
+                        frames.PushBack(
                             Aero::Media::Animation::IntegerFrame(
                                 *frame,
                                 schedule.duration,
                                 keyIndex,
                                 schedule.count));
                         ++keyIndex;
-                        if (!appended) return appended.GetStatus();
                     }
                     return {};
                 });
@@ -772,14 +761,13 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             for (const Base::Ref<MediaAnimation::SizeKeyFrame>& frame :
                  animation.GetKeyFrames()) {
                 if (!frame) continue;
-                Base::Result<void> appended = frames.PushBack(
+                frames.PushBack(
                     Aero::Media::Animation::SizeFrame(
                         *frame,
                         schedule.duration,
                         keyIndex,
                         schedule.count));
                 ++keyIndex;
-                if (!appended) return appended.GetStatus();
             }
             for (std::uint32_t index = 1U; index < frames.Size(); ++index) {
                 Aero::Media::Animation::Model::SizeKeyFrame current =
@@ -832,14 +820,13 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             for (const Base::Ref<MediaAnimation::MatrixKeyFrame>& frame :
                  animation.GetKeyFrames()) {
                 if (!frame) continue;
-                Base::Result<void> appended = frames.PushBack(
+                frames.PushBack(
                     Aero::Media::Animation::MatrixFrame(
                         *frame,
                         schedule.duration,
                         keyIndex,
                         schedule.count));
                 ++keyIndex;
-                if (!appended) return appended.GetStatus();
             }
             for (std::uint32_t index = 1U; index < frames.Size(); ++index) {
                 Aero::Media::Animation::Model::MatrixKeyFrame current =
@@ -906,9 +893,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                     Meta::ValueCodec<bool>::Encode(frame->GetValue());
                 if (!encoded) return encoded.GetStatus();
                 runtime.value = std::move(encoded).Value();
-                Base::Result<void> appended =
-                    frames.PushBack(std::move(runtime));
-                if (!appended) return appended.GetStatus();
+                frames.PushBack(std::move(runtime));
             }
         } else if (type ==
             MediaAnimation::ObjectAnimationUsingKeyFrames::StaticTypeId()) {
@@ -942,9 +927,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                         Meta::PropertyValue::NullObject(
                             targetProperty->ValueType());
                 }
-                Base::Result<void> appended =
-                    frames.PushBack(std::move(runtime));
-                if (!appended) return appended.GetStatus();
+                frames.PushBack(std::move(runtime));
             }
         } else if (type ==
             MediaAnimation::StringAnimationUsingKeyFrames::StaticTypeId()) {
@@ -970,9 +953,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                     Meta::ValueCodec<Base::String>::Encode(frame->GetValue());
                 if (!encoded) return encoded.GetStatus();
                 runtime.value = std::move(encoded).Value();
-                Base::Result<void> appended =
-                    frames.PushBack(std::move(runtime));
-                if (!appended) return appended.GetStatus();
+                frames.PushBack(std::move(runtime));
             }
         } else {
             return Base::Status::Failure(

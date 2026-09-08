@@ -138,14 +138,7 @@ Base::Result<void> ObjectWriter::StartPropertyElement(
     frame.memberValueTypeIsValueType = memberValueTypeIsValueType;
     frame.source = node.Source();
     frame.propertyElement = true;
-    Base::Result<void> appendResult = frames_.PushBack(frame);
-    if (!appendResult) {
-        return Failure(
-            appendResult.GetStatus(),
-            XamlObjectWriterDiagnosticCodes::InvalidWriterState,
-            MessageInvalidWriterState,
-            node.Source());
-    }
+    frames_.PushBack(frame);
     return {};
 }
 
@@ -241,10 +234,8 @@ Base::Result<void> ObjectWriter::CompleteObject(
                     Base::Result<void> key = deferred.key.Assign(
                         extension.ResourceKey());
                     if (!key) return key.GetStatus();
-                    Base::Result<void> stored =
-                        deferredStaticResources_.PushBack(
+                    deferredStaticResources_.PushBack(
                             std::move(deferred));
-                    if (!stored) return stored.GetStatus();
                 }
                 hasDeferredStaticResources_ = true;
                 return {};
@@ -678,12 +669,8 @@ Base::Result<void> ObjectWriter::WriteProvidedValue(
             source);
     }
     if (assignment == nullptr) {
-        Base::Result<void> appended = assignments_.PushBack({
+        assignments_.PushBack({
             targetObjectIndex, member.id, 0U});
-        if (!appended) {
-            provided.Discard();
-            return appended.GetStatus();
-        }
         assignment = &assignments_.Back();
     }
 
@@ -756,12 +743,7 @@ Base::Result<void> ObjectWriter::WriteProvidedValue(
             return committed.GetStatus();
         }
     }
-    Base::Result<void> effectStored =
-        extensionEffects_.PushBack(std::move(effect));
-    if (!effectStored) {
-        effect.Rollback();
-        return effectStored.GetStatus();
-    }
+    extensionEffects_.PushBack(std::move(effect));
     if (assignment->count == UINT32_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfRange,
@@ -860,17 +842,10 @@ Base::Result<void> ObjectWriter::WriteValue(
     }
 
     if (assignment == nullptr) {
-        Base::Result<void> appendResult = assignments_.PushBack({
+        assignments_.PushBack({
             targetObjectIndex,
             member.id,
             0U});
-        if (!appendResult) {
-            return Failure(
-                appendResult.GetStatus(),
-                XamlObjectWriterDiagnosticCodes::InvalidWriterState,
-                MessageInvalidWriterState,
-                source);
-        }
         assignment = &assignments_.Back();
     }
 

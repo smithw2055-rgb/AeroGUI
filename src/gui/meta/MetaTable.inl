@@ -16,11 +16,9 @@ Base::Result<void> BuildOrder(
     std::uint32_t count,
     Base::Vector<std::uint32_t>& order,
     Less less) noexcept {
-    Base::Result<void> result = order.Reserve(count);
-    if (!result) return result.GetStatus();
+    order.Reserve(count);
     for (std::uint32_t index = 0U; index < count; ++index) {
-        result = order.PushBack(index);
-        if (!result) return result.GetStatus();
+        order.PushBack(index);
     }
     for (std::uint32_t index = 1U; index < count; ++index) {
         const std::uint32_t value = order[index];
@@ -61,13 +59,11 @@ Base::Result<void> MetaTable::SetTypeFacet(
         draft = &typeDrafts_[*draftPos];
     } else {
         const std::uint32_t newPos = typeDrafts_.Size();
-        Base::Result<FacetDraft*> added = typeDrafts_.EmplaceBack();
-        if (!added) return added.GetStatus();
-        added.Value()->key = type;
-        draft = added.Value();
-        Base::Result<Base::HashMap<TypeId, std::uint32_t>::InsertResult> inserted =
+        FacetDraft* added = typeDrafts_.EmplaceBack();
+        added->key = type;
+        draft = added;
+        Base::HashMap<TypeId, std::uint32_t>::InsertResult inserted =
             typeDraftIndex_.Insert(type, newPos);
-        if (!inserted) return inserted.GetStatus();
     }
     const std::uint8_t slot = static_cast<std::uint8_t>(kind);
     if (draft->facets[slot] != InvalidFacetIndex) {
@@ -94,13 +90,11 @@ Base::Result<void> MetaTable::SetMemberFacet(
         draft = &memberDrafts_[*draftPos];
     } else {
         const std::uint32_t newPos = memberDrafts_.Size();
-        Base::Result<FacetDraft*> added = memberDrafts_.EmplaceBack();
-        if (!added) return added.GetStatus();
-        added.Value()->key = member;
-        draft = added.Value();
-        Base::Result<Base::HashMap<MemberId, std::uint32_t>::InsertResult> inserted =
+        FacetDraft* added = memberDrafts_.EmplaceBack();
+        added->key = member;
+        draft = added;
+        Base::HashMap<MemberId, std::uint32_t>::InsertResult inserted =
             memberDraftIndex_.Insert(member, newPos);
-        if (!inserted) return inserted.GetStatus();
     }
     const std::uint8_t slot = static_cast<std::uint8_t>(kind);
     if (draft->facets[slot] != InvalidFacetIndex) {
@@ -131,8 +125,7 @@ Base::Result<void> MetaTable::Build(
             behaviors.FindTypeFactory(type.Id());
         if (factory != nullptr && factory->factory != nullptr) {
             const std::uint32_t index = factories_.Size();
-            result = factories_.PushBack({type.Id(), factory->factory});
-            if (!result) return result.GetStatus();
+            factories_.PushBack({type.Id(), factory->factory});
             result = SetTypeFacet(
                 type.Id(), MetadataFacetKind::TypeFactory, index);
             if (!result) return result.GetStatus();
@@ -154,13 +147,12 @@ Base::Result<void> MetaTable::Build(
                 ? content->kind
                 : (collection ? ContentKind::Collection : ContentKind::Single);
             const std::uint32_t index = contents_.Size();
-            result = contents_.PushBack({
+            contents_.PushBack({
                 type.Id(), type.ContentMember(), kind,
                 content != nullptr ? content->flags : ContentFlags::None,
                 content != nullptr ? content->write : nullptr,
                 content != nullptr ? content->clear : nullptr,
                 content != nullptr ? content->context : nullptr});
-            if (!result) return result.GetStatus();
             result = SetTypeFacet(
                 type.Id(), MetadataFacetKind::Content, index);
             if (!result) return result.GetStatus();
@@ -178,7 +170,7 @@ Base::Result<void> MetaTable::Build(
                     property.Id());
             if (content == nullptr) continue;
             const std::uint32_t index = contents_.Size();
-            result = contents_.PushBack({
+            contents_.PushBack({
                 type.Id(),
                 property.Id(),
                 content->kind,
@@ -186,7 +178,6 @@ Base::Result<void> MetaTable::Build(
                 content->write,
                 content->clear,
                 content->context});
-            if (!result) return result.GetStatus();
             result = SetMemberFacet(
                 property.Id(), MetadataFacetKind::Content, index);
             if (!result) return result.GetStatus();
@@ -196,12 +187,11 @@ Base::Result<void> MetaTable::Build(
         if (notification != nullptr) {
             const std::uint32_t index =
                 propertyChangeNotifications_.Size();
-            result = propertyChangeNotifications_.PushBack({
+            propertyChangeNotifications_.PushBack({
                 type.Id(),
                 notification->subscribe,
                 notification->unsubscribe,
                 notification->context});
-            if (!result) return result.GetStatus();
             result = SetTypeFacet(
                 type.Id(), MetadataFacetKind::PropertyChangeNotification,
                 index);
@@ -213,12 +203,11 @@ Base::Result<void> MetaTable::Build(
         if (collectionNotification != nullptr) {
             const std::uint32_t index =
                 collectionChangeNotifications_.Size();
-            result = collectionChangeNotifications_.PushBack({
+            collectionChangeNotifications_.PushBack({
                 type.Id(),
                 collectionNotification->subscribe,
                 collectionNotification->unsubscribe,
                 collectionNotification->context});
-            if (!result) return result.GetStatus();
             result = SetTypeFacet(
                 type.Id(), MetadataFacetKind::CollectionChangeNotification,
                 index);
@@ -231,10 +220,9 @@ Base::Result<void> MetaTable::Build(
             if (accessor != nullptr &&
                 accessor->access != PropertyAccessKind::External) {
                 const std::uint32_t index = propertyAccessors_.Size();
-                result = propertyAccessors_.PushBack({
+                propertyAccessors_.PushBack({
                     property.Id(), accessor->access, accessor->get,
                     accessor->set, accessor->provider, accessor->context});
-                if (!result) return result.GetStatus();
                 result = SetMemberFacet(
                     property.Id(), MetadataFacetKind::PropertyAccessor,
                     index);
@@ -245,12 +233,11 @@ Base::Result<void> MetaTable::Build(
                 DependencyPropertyHandle{property.Id()});
             if (dependency != nullptr) {
                 const std::uint32_t index = dependencyProperties_.Size();
-                result = dependencyProperties_.PushBack({
+                dependencyProperties_.PushBack({
                     property.Id(), dependency->Handle().value,
                     dependency->RegisteredOwnerType(), dependency->ValueType(),
                     static_cast<std::uint32_t>(dependency->Flags()),
                     dependency->MetadataCount(), dependency});
-                if (!result) return result.GetStatus();
                 result = SetMemberFacet(
                     property.Id(), MetadataFacetKind::DependencyProperty,
                     index);
@@ -267,10 +254,9 @@ Base::Result<void> MetaTable::Build(
                     "Routed event metadata has no catalog definition");
             }
             const std::uint32_t index = routedEvents_.Size();
-            result = routedEvents_.PushBack({
+            routedEvents_.PushBack({
                 event.Id(), event.OwnerType(), event.EventArgsType(),
                 definition->strategy});
-            if (!result) return result.GetStatus();
             result = SetMemberFacet(
                 event.Id(), MetadataFacetKind::RoutedEvent, index);
             if (!result) return result.GetStatus();
@@ -287,15 +273,10 @@ Base::Result<void> MetaTable::SealIndex() noexcept {
     typeIndex_.Clear();
     memberIndex_.Clear();
 
-    Base::Result<void> result = typeRecords_.Reserve(typeDrafts_.Size());
-    if (!result) return result.GetStatus();
-    result = memberRecords_.Reserve(memberDrafts_.Size());
-    if (!result) return result.GetStatus();
-    result = typeIndex_.Reserve(typeDrafts_.Size());
-    if (!result) return result.GetStatus();
-    result = memberIndex_.Reserve(memberDrafts_.Size());
-    if (!result) return result.GetStatus();
-
+    typeRecords_.Reserve(typeDrafts_.Size());
+    memberRecords_.Reserve(memberDrafts_.Size());
+    typeIndex_.Reserve(typeDrafts_.Size());
+    memberIndex_.Reserve(memberDrafts_.Size());
     for (const FacetDraft& draft : typeDrafts_) {
         TypeRecord record;
         record.id = static_cast<TypeId>(draft.key);
@@ -311,12 +292,10 @@ Base::Result<void> MetaTable::SealIndex() noexcept {
         record.collectionChangeIndex = draft.facets[static_cast<std::uint8_t>(MetadataFacetKind::CollectionChangeNotification)];
 
         const std::uint32_t position = typeRecords_.Size();
-        result = typeRecords_.PushBack(record);
-        if (!result) return result.GetStatus();
-        Base::Result<Base::HashMap<TypeId, std::uint32_t>::InsertResult> inserted =
+        typeRecords_.PushBack(record);
+        Base::HashMap<TypeId, std::uint32_t>::InsertResult inserted =
             typeIndex_.Insert(record.id, position);
-        if (!inserted) return inserted.GetStatus();
-        if (!inserted.Value().inserted) {
+        if (!inserted.inserted) {
             return Base::Status::Failure(
                 Base::ErrorCode::AlreadyExists,
                 "Metadata type facet record is duplicated");
@@ -337,12 +316,10 @@ Base::Result<void> MetaTable::SealIndex() noexcept {
         record.methodInvokerIndex = draft.facets[static_cast<std::uint8_t>(MetadataFacetKind::MethodInvoker)];
 
         const std::uint32_t position = memberRecords_.Size();
-        result = memberRecords_.PushBack(record);
-        if (!result) return result.GetStatus();
-        Base::Result<Base::HashMap<MemberId, std::uint32_t>::InsertResult> inserted =
+        memberRecords_.PushBack(record);
+        Base::HashMap<MemberId, std::uint32_t>::InsertResult inserted =
             memberIndex_.Insert(record.id, position);
-        if (!inserted) return inserted.GetStatus();
-        if (!inserted.Value().inserted) {
+        if (!inserted.inserted) {
             return Base::Status::Failure(
                 Base::ErrorCode::AlreadyExists,
                 "Metadata member facet record is duplicated");
@@ -609,10 +586,9 @@ Base::Result<void> MetaTable::BuildValueFacets(
     for (const TypeInfo& type : types.Types()) {
         if (IsValueType(type)) ++valueTypeCount;
     }
-    Base::Result<void> result = valueSemantics_.Reserve(valueTypeCount);
-    if (!result) return result.GetStatus();
-    result = textConverters_.Reserve(valueTypeCount);
-    if (!result) return result.GetStatus();
+    valueSemantics_.Reserve(valueTypeCount);
+    textConverters_.Reserve(valueTypeCount);
+    Base::Result<void> result;
     for (const TypeInfo& type : types.Types()) {
         if (IsValueType(type)) {
             const Base::Ref<ValueTypeSemantics>* semantics =
@@ -624,9 +600,8 @@ Base::Result<void> MetaTable::BuildValueFacets(
                 facet.semantics = *semantics;
                 const std::uint32_t index =
                     valueSemantics_.Size();
-                result = valueSemantics_.PushBack(
+                valueSemantics_.PushBack(
                     std::move(facet));
-                if (!result) return result.GetStatus();
                 result = SetTypeFacet(
                     type.Id(), MetadataFacetKind::ValueSemantics, index);
                 if (!result) return result.GetStatus();
@@ -641,8 +616,7 @@ Base::Result<void> MetaTable::BuildValueFacets(
             facet.convert = converter->convert;
             facet.context = converter->context;
             const std::uint32_t index = textConverters_.Size();
-            result = textConverters_.PushBack(facet);
-            if (!result) return result.GetStatus();
+            textConverters_.PushBack(facet);
             result = SetTypeFacet(
                 type.Id(), MetadataFacetKind::TextConverter, index);
             if (!result) return result.GetStatus();

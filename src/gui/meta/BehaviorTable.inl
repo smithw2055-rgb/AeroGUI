@@ -50,12 +50,7 @@ BehaviorTable::OwnContextRaw(
                 Base::MemoryTag::General);
             owned = {};
         };
-    Base::Result<void> retained =
-        ownedContexts_.PushBack(context);
-    if (!retained) {
-        context.destroy(context);
-        return retained.GetStatus();
-    }
+    ownedContexts_.PushBack(context);
     return memory;
 }
 namespace {
@@ -113,17 +108,10 @@ void BehaviorTable::ReleaseLastContext(
 Base::Result<void> BehaviorTable::AdoptOwnedContextsFrom(
     BehaviorTable& source) noexcept {
     if (&source == this || source.ownedContexts_.Empty()) return {};
-    Base::Result<void> reserved = ownedContexts_.Reserve(
+    ownedContexts_.Reserve(
         ownedContexts_.Size() + source.ownedContexts_.Size());
-    if (!reserved) return reserved.GetStatus();
     for (OwnedBehaviorData& context : source.ownedContexts_) {
-        Base::Result<void> added = ownedContexts_.PushBack(context);
-        AERO_ASSERT(added);
-        if (!added) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InternalError,
-                "Reserved metadata context adoption unexpectedly failed");
-        }
+        ownedContexts_.PushBack(context);
         context = {};
     }
     source.ownedContexts_.Clear();
@@ -403,7 +391,8 @@ Base::Result<void> RegistrationTypes::SetContentAccessor(
             Base::ErrorCode::AlreadyExists,
             "Content accessor is already registered");
     }
-    return behaviors_->contentAccessors_.PushBack(registration);
+    behaviors_->contentAccessors_.PushBack(registration);
+    return {};
 }
 
 Base::Result<void>
@@ -428,8 +417,9 @@ RegistrationTypes::RegisterPropertyChangeNotification(
             Base::ErrorCode::AlreadyExists,
             "Property-change notification is already registered");
     }
-    return behaviors_->propertyChangeNotifications_.PushBack(
+    behaviors_->propertyChangeNotifications_.PushBack(
         registration);
+    return {};
 }
 
 Base::Result<void>
@@ -455,8 +445,9 @@ RegistrationTypes::RegisterCollectionChangeNotification(
             Base::ErrorCode::AlreadyExists,
             "Collection-change notification is already registered");
     }
-    return behaviors_->collectionChangeNotifications_.PushBack(
+    behaviors_->collectionChangeNotifications_.PushBack(
         registration);
+    return {};
 }
 
 } // namespace Aero::Meta

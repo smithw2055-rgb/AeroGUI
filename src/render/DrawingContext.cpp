@@ -80,8 +80,7 @@ Result<void> StrokeContours(
     if (Ref<DashStyle> style = pen.GetDashStyle()) {
         const Base::Span<const double> values = style->GetDashes();
         for (std::uint32_t index = 0U; index < values.Size(); ++index) {
-            Result<void> added = dashes.PushBack(values[index]);
-            if (!added) return added.GetStatus();
+            dashes.PushBack(values[index]);
         }
         dashOffset = style->GetOffset();
     }
@@ -136,9 +135,8 @@ Result<void> StrokePenGeometry(
     Base::Vector<std::uint32_t> counts;
     Base::Vector<std::uint8_t> closed;
     StrokeContourSink sink(points, starts, counts, closed);
-    Result<void> flattened = geometry.Flatten(sink);
-    if (flattened) flattened = sink.Finish();
-    if (!flattened) return flattened.GetStatus();
+    geometry.Flatten(sink);
+    sink.Finish();
     return StrokeContours(
         builder, pen, brush, color, spatial, geometry.GetBounds(), points,
         starts, counts, closed);
@@ -277,10 +275,9 @@ Result<void> DrawingContext::DrawGeometry(
         Base::Vector<std::uint32_t> starts;
         Base::Vector<std::uint32_t> counts;
         Base::Vector<std::uint8_t> closed;
-        Result<void> flattened = FlattenGeometryContours(
+        FlattenGeometryContours(
             geometry, fillPoints, fillContours, strokePoints, starts,
             counts, closed);
-        if (!flattened) return flattened.GetStatus();
         Base::Vector<Point> vertices;
         Base::Vector<std::uint32_t> indices;
         Result<void> filled = TessellateFillContours(

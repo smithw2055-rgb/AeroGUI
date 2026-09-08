@@ -180,16 +180,16 @@ Base::Result<Meta::Value> MakeStoredCustomValue(
 Base::Result<void> AppendU8(
     Base::Vector<std::uint8_t>& output,
     std::uint8_t value) noexcept {
-    return output.PushBack(value);
+    output.PushBack(value);
+    return {};
 }
 
 Base::Result<void> AppendU32(
     Base::Vector<std::uint8_t>& output,
     std::uint32_t value) noexcept {
     for (std::uint32_t shift = 0U; shift < 32U; shift += 8U) {
-        Base::Result<void> appended = output.PushBack(
+        output.PushBack(
             static_cast<std::uint8_t>(value >> shift));
-        if (!appended) return appended.GetStatus();
     }
     return {};
 }
@@ -197,19 +197,18 @@ Base::Result<void> AppendU32(
 Base::Result<void> AppendU16(
     Base::Vector<std::uint8_t>& output,
     std::uint16_t value) noexcept {
-    Base::Result<void> appended = output.PushBack(
+    output.PushBack(
         static_cast<std::uint8_t>(value));
-    if (!appended) return appended.GetStatus();
-    return output.PushBack(static_cast<std::uint8_t>(value >> 8U));
+    output.PushBack(static_cast<std::uint8_t>(value >> 8U));
+    return {};
 }
 
 Base::Result<void> AppendU64(
     Base::Vector<std::uint8_t>& output,
     std::uint64_t value) noexcept {
     for (std::uint32_t shift = 0U; shift < 64U; shift += 8U) {
-        Base::Result<void> appended = output.PushBack(
+        output.PushBack(
             static_cast<std::uint8_t>(value >> shift));
-        if (!appended) return appended.GetStatus();
     }
     return {};
 }
@@ -225,9 +224,7 @@ Base::Result<void> AppendVarU64(
             byte = static_cast<std::uint8_t>(
                 byte | 0x80U);
         }
-        Base::Result<void> appended =
-            output.PushBack(byte);
-        if (!appended) return appended.GetStatus();
+        output.PushBack(byte);
     } while (value != 0U);
     return {};
 }
@@ -247,9 +244,8 @@ Base::Result<void> AppendString(
     for (std::uint32_t index = 0U;
          index < value.SizeBytes();
          ++index) {
-        Base::Result<void> appended = output.PushBack(
+        output.PushBack(
             static_cast<std::uint8_t>(value[index]));
-        if (!appended) return appended.GetStatus();
     }
     return {};
 }
@@ -340,12 +336,11 @@ public:
                 "Compiled XAML string bounds are invalid");
         }
         Base::String value;
-        Base::Result<void> assigned = value.Assign(
+        value.Assign(
             Base::StringView(
                 reinterpret_cast<const char*>(
                     bytes_.Data() + offset_),
                 length.Value()));
-        if (!assigned) return assigned.GetStatus();
         offset_ += length.Value();
         totalStringBytes += length.Value();
         return value;
@@ -407,10 +402,8 @@ Base::Result<std::uint32_t> InternString(
         if (strings[index].View() == value) return index;
     }
     Base::String stored;
-    Base::Result<void> assigned = stored.Assign(value);
-    if (!assigned) return assigned.GetStatus();
-    Base::Result<void> appended = strings.PushBack(std::move(stored));
-    if (!appended) return appended.GetStatus();
+    stored.Assign(value);
+    strings.PushBack(std::move(stored));
     return strings.Size() - 1U;
 }
 
@@ -421,8 +414,7 @@ Base::Result<std::uint32_t> InternId(
     for (std::uint32_t index = 0U; index < ids.Size(); ++index) {
         if (ids[index] == value) return index;
     }
-    Base::Result<void> appended = ids.PushBack(value);
-    if (!appended) return appended.GetStatus();
+    ids.PushBack(value);
     return ids.Size() - 1U;
 }
 
@@ -682,9 +674,7 @@ Base::Result<std::uint32_t> InternAxbValue(
         }
         if (equal) return index;
     }
-    Base::Result<void> appended =
-        values.PushBack(value);
-    if (!appended) return appended.GetStatus();
+    values.PushBack(value);
     return values.Size() - 1U;
 }
 
@@ -1030,19 +1020,14 @@ CompiledDocument::Compile(
     document.identity_ = identity.Value();
     document.originUri_ = originUri;
     if (!originUri.Empty()) {
-        Base::Result<void> dependency =
-            document.dependencies_.PushBack(originUri);
-        if (!dependency) return dependency.GetStatus();
+        document.dependencies_.PushBack(originUri);
     }
-    Base::Result<void> reserved =
-        document.nodes_.Reserve(nodes.Size());
-    if (!reserved) return reserved.GetStatus();
+    document.nodes_.Reserve(nodes.Size());
     for (const Node& node : nodes) {
         Base::Result<Node> cloned = Node::Clone(node);
         if (!cloned) return cloned.GetStatus();
-        Base::Result<void> appended = document.nodes_.PushBack(
+        document.nodes_.PushBack(
             std::move(cloned).Value());
-        if (!appended) return appended.GetStatus();
     }
     return document;
 }
@@ -1069,9 +1054,7 @@ CompiledDocument::CompileWithIdentity(
     document.identity_ = identity;
     document.originUri_ = originUri;
     if (!originUri.Empty()) {
-        Base::Result<void> dependency =
-            document.dependencies_.PushBack(originUri);
-        if (!dependency) return dependency.GetStatus();
+        document.dependencies_.PushBack(originUri);
     }
     Node node;
     while (true) {
@@ -1079,9 +1062,8 @@ CompiledDocument::CompileWithIdentity(
         if (!read) return read.GetStatus();
         Base::Result<Node> cloned = Node::Clone(node);
         if (!cloned) return cloned.GetStatus();
-        Base::Result<void> appended = document.nodes_.PushBack(
+        document.nodes_.PushBack(
             std::move(cloned).Value());
-        if (!appended) return appended.GetStatus();
         if (read.Value() == NodeKind::EndOfDocument) break;
     }
     return document;
@@ -1100,7 +1082,8 @@ Base::Result<void> CompiledDocument::AddDependency(
             return {};
         }
     }
-    return dependencies_.PushBack(dependency);
+    dependencies_.PushBack(dependency);
+    return {};
 }
 
 Base::Result<Base::Vector<std::uint8_t>>
@@ -1126,11 +1109,7 @@ CompiledDocument::Serialize(
             strings, dependency.Canonical());
         if (!index) return index.GetStatus();
     }
-    Base::Result<void> valueIndexCapacity =
-        nodeValueIndices.Reserve(nodes_.Size());
-    if (!valueIndexCapacity) {
-        return valueIndexCapacity.GetStatus();
-    }
+    nodeValueIndices.Reserve(nodes_.Size());
 
     for (const Node& node : nodes_) {
         if (NeedsInstructionQualifiedName(node)) {
@@ -1167,9 +1146,7 @@ CompiledDocument::Serialize(
             if (!interned) return interned.GetStatus();
             valueIndex = interned.Value();
         }
-        Base::Result<void> tracked =
-            nodeValueIndices.PushBack(valueIndex);
-        if (!tracked) return tracked.GetStatus();
+        nodeValueIndices.PushBack(valueIndex);
 
         Base::Result<std::uint32_t> typeIndex = InternId(
             types, node.compiledTypeId_);
@@ -1188,7 +1165,8 @@ CompiledDocument::Serialize(
         section.kind = kind;
         section.count = count;
         section.bytes = std::move(bytes);
-        return sections.PushBack(std::move(section));
+        sections.PushBack(std::move(section));
+        return {};
     };
 
     Base::Vector<std::uint8_t> dependencyBytes;
@@ -1466,8 +1444,7 @@ CompiledDocument::Serialize(
     }
     for (const AxbSection& section : sections) {
         for (std::uint8_t byte : section.bytes) {
-            result = output.PushBack(byte);
-            if (!result) return result.GetStatus();
+            output.PushBack(byte);
         }
     }
     return output;
@@ -1527,8 +1504,7 @@ CompiledDocument::Deserialize(
             "AXB2 section count is invalid");
     }
     Base::Vector<AxbSectionDirectoryEntry> directory;
-    Base::Result<void> reserved = directory.Reserve(sectionCount.Value());
-    if (!reserved) return reserved.GetStatus();
+    directory.Reserve(sectionCount.Value());
     const std::uint32_t payloadBegin =
         40U + sectionCount.Value() * 16U;
     for (std::uint32_t index = 0U; index < sectionCount.Value(); ++index) {
@@ -1563,10 +1539,9 @@ CompiledDocument::Deserialize(
                     "AXB2 sections are duplicated or overlapping");
             }
         }
-        reserved = directory.PushBack({
+        directory.PushBack({
             static_cast<AxbSectionKind>(kind.Value()),
             offset.Value(), size.Value(), count.Value()});
-        if (!reserved) return reserved.GetStatus();
     }
 
     const Base::Span<const AxbSectionDirectoryEntry> directorySpan{
@@ -1604,15 +1579,13 @@ CompiledDocument::Deserialize(
             "AXB2 string table count is invalid");
     }
     Base::Vector<Base::String> strings;
-    reserved = strings.Reserve(stringCount.Value());
-    if (!reserved) return reserved.GetStatus();
+    strings.Reserve(stringCount.Value());
     std::uint32_t totalStringBytes = 0U;
     for (std::uint32_t index = 0U; index < stringCount.Value(); ++index) {
         Base::Result<Base::String> string = stringsDecoder.ReadString(
             totalStringBytes, limits.maxStringBytes);
         if (!string) return string.GetStatus();
-        reserved = strings.PushBack(std::move(string).Value());
-        if (!reserved) return reserved.GetStatus();
+        strings.PushBack(std::move(string).Value());
     }
     if (!stringsDecoder.AtEnd()) {
         return Base::Status::Failure(
@@ -1633,10 +1606,8 @@ CompiledDocument::Deserialize(
     }
     Base::Vector<std::uint64_t> types;
     Base::Vector<CompiledTypeBinding> typeBindings;
-    reserved = types.Reserve(typeCount.Value());
-    if (!reserved) return reserved.GetStatus();
-    reserved = typeBindings.Reserve(typeCount.Value());
-    if (!reserved) return reserved.GetStatus();
+    types.Reserve(typeCount.Value());
+    typeBindings.Reserve(typeCount.Value());
     for (std::uint32_t index = 0U; index < typeCount.Value(); ++index) {
         Base::Result<std::uint64_t> id = typesDecoder.ReadU64();
         if (!id) return id.GetStatus();
@@ -1648,10 +1619,8 @@ CompiledDocument::Deserialize(
         Base::Result<CompiledTypeBinding> binding =
             ResolveCompiledTypeBinding(domain, id.Value());
         if (!binding) return binding.GetStatus();
-        reserved = types.PushBack(id.Value());
-        if (!reserved) return reserved.GetStatus();
-        reserved = typeBindings.PushBack(binding.Value());
-        if (!reserved) return reserved.GetStatus();
+        types.PushBack(id.Value());
+        typeBindings.PushBack(binding.Value());
     }
     if (!typesDecoder.AtEnd()) {
         return Base::Status::Failure(
@@ -1671,8 +1640,7 @@ CompiledDocument::Deserialize(
             "AXB2 member table count exceeds limits");
     }
     Base::Vector<CompiledMemberBinding> members;
-    reserved = members.Reserve(memberCount.Value());
-    if (!reserved) return reserved.GetStatus();
+    members.Reserve(memberCount.Value());
     for (std::uint32_t index = 0U; index < memberCount.Value(); ++index) {
         Base::Result<std::uint64_t> id =
             membersDecoder.ReadU64();
@@ -1686,9 +1654,8 @@ CompiledDocument::Deserialize(
             ResolveCompiledMemberBinding(
                 domain, id.Value());
         if (!binding) return binding.GetStatus();
-        reserved = members.PushBack(
+        members.PushBack(
             binding.Value());
-        if (!reserved) return reserved.GetStatus();
     }
     if (!membersDecoder.AtEnd()) {
         return Base::Status::Failure(
@@ -1708,8 +1675,7 @@ CompiledDocument::Deserialize(
             "AXB2 value table count exceeds limits");
     }
     Base::Vector<AxbValueRecord> values;
-    reserved = values.Reserve(valueCount.Value());
-    if (!reserved) return reserved.GetStatus();
+    values.Reserve(valueCount.Value());
     for (std::uint32_t index = 0U;
          index < valueCount.Value(); ++index) {
         Base::Result<std::uint8_t> kind =
@@ -1782,8 +1748,7 @@ CompiledDocument::Deserialize(
                 Base::ErrorCode::ValidationFailed,
                 "AXB2 Boolean payload is invalid");
         }
-        reserved = values.PushBack(record);
-        if (!reserved) return reserved.GetStatus();
+        values.PushBack(record);
     }
     if (!valuesDecoder.AtEnd()) {
         return Base::Status::Failure(
@@ -1812,8 +1777,7 @@ CompiledDocument::Deserialize(
         if (!parsed) return parsed.GetStatus();
         document.originUri_ = std::move(parsed).Value();
     }
-    reserved = document.dependencies_.Reserve(dependencyCount.Value());
-    if (!reserved) return reserved.GetStatus();
+    document.dependencies_.Reserve(dependencyCount.Value());
     for (std::uint32_t index = 0U; index < dependencyCount.Value(); ++index) {
         Base::Result<std::uint32_t> stringIndex =
             dependenciesDecoder.ReadU32();
@@ -1849,8 +1813,7 @@ CompiledDocument::Deserialize(
                 Base::ErrorCode::OutOfRange,
                 "AXB2 source map count exceeds limits");
         }
-        reserved = sourceMap.Reserve(sourceCount.Value());
-        if (!reserved) return reserved.GetStatus();
+        sourceMap.Reserve(sourceCount.Value());
         for (std::uint32_t index = 0U; index < sourceCount.Value(); ++index) {
             Base::Result<::Aero::Diagnostics::SourcePosition> begin =
                 ReadPosition(sourceDecoder);
@@ -1864,8 +1827,7 @@ CompiledDocument::Deserialize(
                     Base::ErrorCode::ValidationFailed,
                     "AXB2 source map span is invalid");
             }
-            reserved = sourceMap.PushBack(span);
-            if (!reserved) return reserved.GetStatus();
+            sourceMap.PushBack(span);
         }
         if (!sourceDecoder.AtEnd()) {
             return Base::Status::Failure(
@@ -1894,8 +1856,7 @@ CompiledDocument::Deserialize(
             "AXB2 source map is not aligned with instructions");
     }
 
-    reserved = document.nodes_.Reserve(instructionCount.Value());
-    if (!reserved) return reserved.GetStatus();
+    document.nodes_.Reserve(instructionCount.Value());
     for (std::uint32_t index = 0U;
          index < instructionCount.Value(); ++index) {
         Base::Result<std::uint8_t> kind =
@@ -2084,9 +2045,8 @@ CompiledDocument::Deserialize(
         if (!sourceMap.Empty()) {
             node.source_ = sourceMap[index];
         }
-        reserved = document.nodes_.PushBack(
+        document.nodes_.PushBack(
             std::move(node));
-        if (!reserved) return reserved.GetStatus();
     }
     if (!instructionsDecoder.AtEnd()) {
         return Base::Status::Failure(

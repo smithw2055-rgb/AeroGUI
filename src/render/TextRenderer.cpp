@@ -194,8 +194,7 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
             quad.u1 = static_cast<float>(placement.x + placement.width) / pageWidth;
             quad.v1 = static_cast<float>(placement.y + placement.height) / pageHeight;
             quad.page = placement.page;
-            Base::Result<void> appended = quads.PushBack(quad);
-            if (!appended) return appended.GetStatus();
+            quads.PushBack(quad);
         }
     }
 
@@ -241,10 +240,8 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
             encoder_->RegisterGlyphRun(glyphRun, quads.AsSpan());
         if (!registered) return registered.GetStatus();
     }
-    Base::Result<void> tracked = state_->glyphRuns.PushBack(glyphRun);
-    if (!tracked) return tracked.GetStatus();
-    Base::Result<void> emitted = output.glyphRuns.PushBack(glyphRun);
-    if (!emitted) return emitted.GetStatus();
+    state_->glyphRuns.PushBack(glyphRun);
+    output.glyphRuns.PushBack(glyphRun);
 
     output.hitRegions.Clear();
     for (const Text::TextLine& line : layout.Lines()) {

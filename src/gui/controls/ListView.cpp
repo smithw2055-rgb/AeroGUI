@@ -101,9 +101,8 @@ void GridView::AddColumn(
     Base::Ref<GridViewColumn> column)
     noexcept {
     if (!column) { AERO_ASSERT(false); return; }
-    Base::Result<void> pushed = columns_.PushBack(
+    columns_.PushBack(
         std::move(column));
-    if (!pushed) { AERO_ASSERT(false); return; }
 }
 
 Base::Ref<GridView>

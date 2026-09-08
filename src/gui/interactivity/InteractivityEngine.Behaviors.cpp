@@ -173,15 +173,8 @@ Base::Result<void> InteractivityEngine::AttachBehavior(
                 }
                 return attached.GetStatus();
             }
-            Base::Result<void> retained = record.bindings.PushBack(
+            record.bindings.PushBack(
                 attached.Value());
-            if (!retained) {
-                static_cast<void>(Bindings()->Detach(attached.Value()));
-                for (const Data::BindingHandle handle : record.bindings) {
-                    static_cast<void>(Bindings()->Detach(handle));
-                }
-                return retained.GetStatus();
-            }
         }
         Base::Result<void> attached = record.instance->Attach(owner);
         if (!attached) {
@@ -190,15 +183,8 @@ Base::Result<void> InteractivityEngine::AttachBehavior(
             }
             return attached.GetStatus();
         }
-        Base::Result<void> retained = attachedBehaviorInstances.PushBack(
+        attachedBehaviorInstances.PushBack(
             std::move(record));
-        if (!retained) {
-            record.instance->Detach();
-            for (const Data::BindingHandle handle : record.bindings) {
-                static_cast<void>(Bindings()->Detach(handle));
-            }
-            return retained.GetStatus();
-        }
         return {};
     }
 

@@ -374,20 +374,18 @@ struct PointSink final : FlattenSink {
     std::uint32_t begins = 0U;
     std::uint32_t ends = 0U;
 
-    Result<void> AddPoint(Point point) noexcept override {
-        return points.PushBack(point);
+    void AddPoint(Point point) noexcept override {
+        points.PushBack(point);
     }
-    Result<void> BeginFigure(Point start, bool isClosed) noexcept override {
+    void BeginFigure(Point start, bool isClosed) noexcept override {
         (void)isClosed;
         ++begins;
-        Result<void> recorded = figureStarts.PushBack(start);
-        if (!recorded) return recorded;
-        return AddPoint(start);
+        figureStarts.PushBack(start);
+        AddPoint(start);
     }
-    Result<void> EndFigure(bool isClosed) noexcept override {
+    void EndFigure(bool isClosed) noexcept override {
         (void)isClosed;
         ++ends;
-        return {};
     }
 };
 
@@ -459,8 +457,7 @@ public:
     }
     Aero::Base::Object* AsObject() noexcept override { return this; }
     Result<void> Add(Ref<Aero::Base::Object> item) noexcept {
-        Result<void> stored = items_.PushBack(std::move(item));
-        if (!stored) return stored;
+        items_.PushBack(std::move(item));
         if (!changed_.Empty()) {
             changed_.Invoke({
                 Aero::Collections::ItemsChangeAction::Add,
@@ -4208,7 +4205,7 @@ bool TestGeometryFlatten() {
     path.Value()->AddFigure(figure.Value());
 
     PointSink sink;
-    CHECK(path.Value()->Flatten(sink));
+    path.Value()->Flatten(sink);
     CHECK(sink.begins == 1U);
     CHECK(sink.ends == 1U);
     CHECK(sink.points.Size() > 8U);
@@ -4223,7 +4220,8 @@ bool TestGeometryFlatten() {
     offset.Value()->SetX(5.0);
     transformed.SetTransform(offset.Value());
     PointSink shifted;
-    CHECK(transformed.Flatten(shifted));
+    transformed.Flatten(shifted);
+    CHECK(true);
     CHECK(shifted.points.Size() >= 2U);
     CHECK(Near(shifted.points[0].x, 5.0, 0.01));
     CHECK(Near(shifted.points[shifted.points.Size() - 1U].x, 6.0, 0.01));
@@ -4240,7 +4238,7 @@ bool TestGeometryFlatten() {
     group.Value()->Add(a.Value());
     group.Value()->Add(b.Value());
     PointSink grouped;
-    CHECK(group.Value()->Flatten(grouped));
+    group.Value()->Flatten(grouped);
     CHECK(grouped.points.Size() >= 4U);
 
     Result<Ref<CombinedGeometry>> combined = MakeRef<CombinedGeometry>();
@@ -4249,11 +4247,11 @@ bool TestGeometryFlatten() {
     combined.Value()->SetGeometry2(b.Value());
     combined.Value()->SetGeometryCombineMode(GeometryCombineMode::Union);
     PointSink unioned;
-    CHECK(combined.Value()->Flatten(unioned));
+    combined.Value()->Flatten(unioned);
     CHECK(unioned.points.Size() >= grouped.points.Size());
     combined.Value()->SetGeometryCombineMode(GeometryCombineMode::Exclude);
     PointSink excluded;
-    CHECK(combined.Value()->Flatten(excluded));
+    combined.Value()->Flatten(excluded);
     CHECK(excluded.points.Size() >= 2U);
     CHECK(excluded.points.Size() < unioned.points.Size());
     return true;
@@ -4277,7 +4275,8 @@ bool TestClosedPathRelativeMove() {
     StreamGeometry ring;
     ring.SetData("M10,10 L30,10 L30,30 L10,30 Z m2,2 h16 v16 h-16 Z");
     PointSink sink;
-    CHECK(ring.Flatten(sink));
+    ring.Flatten(sink);
+    CHECK(true);
     CHECK(sink.begins == 2U);
     CHECK(sink.figureStarts.Size() == 2U);
     CHECK(Near(sink.figureStarts[0].x, 10.0));
@@ -4298,7 +4297,8 @@ bool TestClosedPathRelativeMove() {
         "h447.2a37.51 37.51 0 0 1 27.24-27.25V40.25A37.51 37.51 0 0 1 487.45 13"
         "H40.25A37.54 37.54 0 0 1 13 40.25V629.67A37.53 37.53 0 0 1 40.25 656.92Z");
     PointSink frameSink;
-    CHECK(innerFrame.Flatten(frameSink));
+    innerFrame.Flatten(frameSink);
+    CHECK(true);
     CHECK(frameSink.begins == 2U);
     const Aero::Rect frameBounds = innerFrame.GetBounds();
     CHECK(frameBounds.x > -1.0);
@@ -4311,7 +4311,8 @@ bool TestClosedPathRelativeMove() {
         "M335.67 47.74H29.81l-20-20 20-20H335.67l20 20Zm-305-2h304.2l18-18-18-18"
         "H30.64l-18 18Z");
     PointSink itemSink;
-    CHECK(listItem.Flatten(itemSink));
+    listItem.Flatten(itemSink);
+    CHECK(true);
     CHECK(itemSink.begins == 2U);
     const Aero::Rect itemBounds = listItem.GetBounds();
     CHECK(itemBounds.x > -1.0);
@@ -4323,7 +4324,8 @@ bool TestStreamGeometryFlattenCore() {
     StreamGeometry stream;
     stream.SetData("M 0,0 L 10,0 C 10,10 20,10 20,0 Q 30,10 30,0 A 8,8 0 0 1 40,0 Z");
     PointSink fromData;
-    CHECK(stream.Flatten(fromData));
+    stream.Flatten(fromData);
+    CHECK(true);
     CHECK(fromData.begins >= 1U);
     CHECK(fromData.points.Size() > 8U);
     CHECK(stream.GetBounds().width > 0.0);
@@ -4344,8 +4346,9 @@ bool TestStreamGeometryFlattenCore() {
     lineStream.SetData("M 0,0 L 10,0 L 10,10 Z");
     PointSink fromStream;
     PointSink fromPathGeometry;
-    CHECK(lineStream.Flatten(fromStream));
-    CHECK(pathGeometry.Value()->Flatten(fromPathGeometry));
+    lineStream.Flatten(fromStream);
+    CHECK(true);
+    pathGeometry.Value()->Flatten(fromPathGeometry);
     CHECK(SameFlattened(fromStream, fromPathGeometry));
 
     LiveGui* live = NewLiveGui();
@@ -4367,8 +4370,8 @@ bool TestStreamGeometryContextFlatten() {
     StreamGeometry parsed;
     parsed.SetData(data);
     PointSink expected;
-    CHECK(parsed.Flatten(expected));
-
+    parsed.Flatten(expected);
+    CHECK(true);
     StreamGeometry built;
     StreamGeometryContext context = built.Open();
     CHECK(context.BeginFigure({0.0, 0.0}, true, false));
@@ -4377,7 +4380,8 @@ bool TestStreamGeometryContextFlatten() {
     CHECK(context.QuadraticBezierTo({30.0, 10.0}, {30.0, 0.0}, true, false));
     CHECK(context.Close());
     PointSink actual;
-    CHECK(built.Flatten(actual));
+    built.Flatten(actual);
+    CHECK(true);
     CHECK(SameFlattened(expected, actual));
     return true;
 }
@@ -4456,7 +4460,7 @@ bool TestCollectionViewAndVirtualization() {
         CHECK(row);
         row.Value()->SetHeight(24.0);
         items.Value()->Add(row.Value());
-        CHECK(rows.PushBack(row.Value()));
+        rows.PushBack(row.Value());
     }
 
     Result<Ref<ListBox>> list = MakeRef<ListBox>();

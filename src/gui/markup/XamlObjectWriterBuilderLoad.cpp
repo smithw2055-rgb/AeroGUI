@@ -281,15 +281,8 @@ Base::Result<Base::Ref<Base::Object>> ObjectWriter::LoadCursorCore(
                 loading_ = false;
                 return status;
             }
-            Base::Result<void> recorded =
-                loadContext_->recordingNodes->PushBack(
-                    std::move(cloned).Value());
-            if (!recorded) {
-                const Base::Status status = recorded.GetStatus();
-                AbortTransaction();
-                loading_ = false;
-                return status;
-            }
+            loadContext_->recordingNodes->PushBack(
+                std::move(cloned).Value());
         }
         Base::Result<void> processResult =
             ProcessNode(*current);

@@ -72,7 +72,8 @@ Base::Result<void> NameScope::Register(
         return assigned.GetStatus();
     }
     entry.object = &object;
-    return entries_.PushBack(std::move(entry));
+    entries_.PushBack(std::move(entry));
+    return {};
 }
 
 Base::Object* NameScope::Find(
@@ -262,11 +263,7 @@ Base::Result<ResourceValue> LookupImpl(
                 "ResourceDictionary merge cycle was detected");
         }
     }
-    Base::Result<void> pushed =
-        visited.PushBack(&impl);
-    if (!pushed) {
-        return pushed.GetStatus();
-    }
+    visited.PushBack(&impl);
     const ResourceDictionary::DictionaryState::Entry* local =
         FindLocal(impl, key);
     if (local != nullptr) {
@@ -312,9 +309,7 @@ bool DependsOn(
             return false;
         }
     }
-    if (!visited.PushBack(&root)) {
-        return true;
-    }
+    visited.PushBack(&root);
     for (const ResourceDictionary::DictionaryState::Merged& merged :
          root.merged) {
         if (merged.dictionary != nullptr &&
@@ -342,12 +337,8 @@ Base::Result<ResourceChangeSubscription> SubscribeImpl(
     }
     const ResourceChangeSubscription subscription{
         impl.nextSubscription++};
-    Base::Result<void> appended =
-        impl.listeners.PushBack({
+    impl.listeners.PushBack({
             subscription, callback, context});
-    if (!appended) {
-        return appended.GetStatus();
-    }
     return subscription;
 }
 
@@ -507,12 +498,8 @@ Base::Result<void> ResourceDictionary::Add(
     entry.key = key;
     entry.value = value;
     entry.source = source;
-    Base::Result<void> appended =
-        storage.Value()->entries.PushBack(
+    storage.Value()->entries.PushBack(
             std::move(entry));
-    if (!appended) {
-        return appended.GetStatus();
-    }
     Notify(
         *storage.Value(),
         CallbackKey(key),
@@ -833,16 +820,8 @@ Base::Result<void> ResourceDictionary::AddMerged(
         return subscribed.GetStatus();
     }
     AddStateRef(child.Value());
-    Base::Result<void> appended =
-        owner.Value()->merged.PushBack({
+    owner.Value()->merged.PushBack({
             child.Value(), subscribed.Value()});
-    if (!appended) {
-        UnsubscribeImpl(
-            *child.Value(),
-            subscribed.Value());
-        ReleaseState(child.Value());
-        return appended.GetStatus();
-    }
     Notify(
         *owner.Value(),
         {},

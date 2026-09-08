@@ -8,9 +8,8 @@ namespace {
 
 class BoundsSink final : public FlattenSink {
 public:
-    Result<void> AddPoint(Point point) noexcept override {
+    void AddPoint(Point point) noexcept override {
         Include(point);
-        return {};
     }
     Rect Bounds() const noexcept { return bounds_; }
     bool HasBounds() const noexcept { return hasBounds_; }
@@ -44,7 +43,8 @@ void StreamGeometry::SetData(StringView value) noexcept {
 Rect StreamGeometry::GetBounds() const noexcept {
     if (boundsValid_) return bounds_;
     BoundsSink sink;
-    if (FlattenCore(sink) && sink.HasBounds()) {
+    FlattenCore(sink);
+    if (sink.HasBounds()) {
         bounds_ = sink.Bounds();
         boundsValid_ = true;
     }
@@ -66,12 +66,12 @@ Result<void> StreamGeometry::AppendCommand(const Command& command) noexcept {
     if (!writable) return writable.GetStatus();
     data_.Clear();
     InvalidateBounds();
-    Result<void> added = commands_.PushBack(command);
-    if (added) WritePostscript();
-    return added;
+    commands_.PushBack(command);
+    WritePostscript();
+    return {};
 }
 
-Result<void> StreamGeometry::ReplayCommands(FlattenSink& sink) const noexcept {
+void StreamGeometry::ReplayCommands(FlattenSink& sink) const noexcept {
     Point current{};
     bool figureOpen = false;
     bool figureClosed = false;
@@ -80,39 +80,33 @@ Result<void> StreamGeometry::ReplayCommands(FlattenSink& sink) const noexcept {
         switch (command.kind) {
         case CommandKind::BeginFigure: {
             if (figureOpen) {
-                Result<void> ended = sink.EndFigure(figureClosed);
-                if (!ended) return ended.GetStatus();
+                sink.EndFigure(figureClosed);
             }
             figureClosed = command.closed;
-            Result<void> started =
-                sink.BeginFigure(command.p0, command.closed);
-            if (!started) return started.GetStatus();
+            sink.BeginFigure(command.p0, command.closed);
             current = command.p0;
             figureOpen = true;
             break;
         }
         case CommandKind::LineTo: {
-            Result<void> added = sink.AddPoint(command.p0);
-            if (!added) return added.GetStatus();
+            sink.AddPoint(command.p0);
             current = command.p0;
             break;
         }
         case CommandKind::BezierTo: {
-            Result<void> flattened = FlattenCubicBezier(
+            FlattenCubicBezier(
                 sink, current, command.p0, command.p1, command.p2);
-            if (!flattened) return flattened.GetStatus();
             current = command.p2;
             break;
         }
         case CommandKind::QuadraticBezierTo: {
-            Result<void> flattened = FlattenQuadraticBezier(
+            FlattenQuadraticBezier(
                 sink, current, command.p0, command.p1);
-            if (!flattened) return flattened.GetStatus();
             current = command.p1;
             break;
         }
         case CommandKind::ArcTo: {
-            Result<void> flattened = FlattenArc(
+            FlattenArc(
                 sink,
                 current,
                 command.size,
@@ -120,14 +114,12 @@ Result<void> StreamGeometry::ReplayCommands(FlattenSink& sink) const noexcept {
                 command.largeArc,
                 command.sweepClockwise,
                 command.p0);
-            if (!flattened) return flattened.GetStatus();
             current = command.p0;
             break;
         }
         case CommandKind::Close: {
             if (!figureOpen) break;
-            Result<void> ended = sink.EndFigure(figureClosed);
-            if (!ended) return ended.GetStatus();
+            sink.EndFigure(figureClosed);
             figureOpen = false;
             figureClosed = false;
             break;
@@ -135,16 +127,18 @@ Result<void> StreamGeometry::ReplayCommands(FlattenSink& sink) const noexcept {
         }
     }
     if (figureOpen) {
-        return sink.EndFigure(figureClosed);
+        sink.EndFigure(figureClosed);
     }
-    return {};
 }
 
-Result<void> StreamGeometry::FlattenCore(FlattenSink& sink) const noexcept {
+void StreamGeometry::FlattenCore(FlattenSink& sink) const noexcept {
     if (!commands_.Empty()) {
-        return ReplayCommands(sink);
+        ReplayCommands(sink);
+        return;
     }
-    return FlattenPathData(data_.View(), sink);
+    if (!FlattenPathData(data_.View(), sink)) {
+        AERO_ASSERT(false);
+    }
 }
 
 StreamGeometryContext::StreamGeometryContext(StreamGeometry* owner) noexcept

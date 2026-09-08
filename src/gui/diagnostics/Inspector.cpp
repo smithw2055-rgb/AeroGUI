@@ -51,11 +51,7 @@ Base::Result<void> AppendTree(
     record.runtimeType =
         node.RuntimeType();
     record.depth = depth;
-    Base::Result<void> appended =
-        output.PushBack(record);
-    if (!appended) {
-        return appended.GetStatus();
-    }
+    output.PushBack(record);
     const std::uint32_t childCount =
         kind == TreeKind::Logical
         ? LogicalTreeHelper::GetChildrenCount(node)
@@ -185,13 +181,9 @@ using namespace Aero::Threading;
                 ErrorCode::NotFound) {
             return diagnostics.GetStatus();
         }
-        Base::Result<void> appended =
-            output.effectiveProperties.
+        output.effectiveProperties.
                 PushBack(
                     std::move(inspected));
-        if (!appended) {
-            return appended.GetStatus();
-        }
     }
 
     Base::Result<std::uint32_t> bindings =

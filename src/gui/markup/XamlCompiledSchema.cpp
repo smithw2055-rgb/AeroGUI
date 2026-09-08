@@ -313,8 +313,7 @@ ConvertManifestPrimitive(
     }
 
     Base::String owned;
-    Base::Result<void> assigned = owned.Assign(text);
-    if (!assigned) return assigned.GetStatus();
+    owned.Assign(text);
     char* end = nullptr;
 
     if (type == Meta::TypeOf<double>()) {
@@ -747,17 +746,15 @@ Base::Result<void> ValidateSchemaCore(
                         const_cast<Node&>(node),
                         member.Value());
                 }
-                Base::Result<void> appended = frames.PushBack({
+                frames.PushBack({
                     FrameKind::PropertyElement,
                     member.Value().valueType});
-                if (!appended) return appended.GetStatus();
                 break;
             }
             if (nullObject) {
-                Base::Result<void> appended = frames.PushBack({
+                frames.PushBack({
                     FrameKind::NullObject,
                     Meta::InvalidTypeId});
-                if (!appended) return appended.GetStatus();
                 break;
             }
             Base::Result<SchemaTypeInfo> type = ResolveTypeInfo(
@@ -796,14 +793,13 @@ Base::Result<void> ValidateSchemaCore(
                 }
                 rootSeen = true;
             }
-            Base::Result<void> appended = frames.PushBack({
+            frames.PushBack({
                 Meta::HasTypeFlag(
                     type.Value().flags,
                     Meta::TypeFlags::ValueType)
                     ? FrameKind::ValueObject
                     : FrameKind::Object,
                 type.Value().id});
-            if (!appended) return appended.GetStatus();
             break;
         }
         case NodeKind::EndObject:
@@ -870,10 +866,9 @@ Base::Result<void> ValidateSchemaCore(
                     Base::ErrorCode::Unsupported,
                     "Compiled XAML directive is not supported");
             }
-            Base::Result<void> appended = frames.PushBack({
+            frames.PushBack({
                 FrameKind::Member,
                 memberValueType});
-            if (!appended) return appended.GetStatus();
             break;
         }
         case NodeKind::EndMember:

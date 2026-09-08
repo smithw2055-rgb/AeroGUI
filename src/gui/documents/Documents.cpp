@@ -541,15 +541,7 @@ void Span::AddOwnedInline(Base::Ref<Inline> value) noexcept {
     for (const Base::Ref<Inline>& current : inlines_) {
         if (current.Get() == value.Get()) { AERO_ASSERT(false); return; }
     }
-    Base::Result<void> appended = inlines_.PushBack(value);
-    if (!appended) { AERO_ASSERT(false); return; }
-    AeroGuiInternal::Attach(
-        *value, this, GetContentHost(), nullptr);
-    pendingInline_ = std::move(value);
-    Controls::TextBlock* host = Aero::Controls::TextBlockDocumentHelper::Host(*this);
-    if (host != nullptr) {
-        host->InvalidateMeasure();
-    }
+    inlines_.PushBack(value);
 }
 
 void Span::ClearOwnedInlines() noexcept {
@@ -975,7 +967,7 @@ void TextBlock::SetRichTextStyleRanges(
     }
     if (!changed) return;
     Base::Vector<RichTextStyleRange> next;
-    if (!next.Append(ranges)) return;
+    next.Append(ranges);
     richTextStyleRanges_ = std::move(next);
     InvalidateVisual();
 }
@@ -1027,18 +1019,7 @@ void TextBlock::AddOwnedInline(
          ownedInlines_) {
         if (owned.Get() == inlineObject.Get()) { AERO_ASSERT(false); return; }
     }
-    Base::Result<void> appended =
-        ownedInlines_.PushBack(inlineObject);
-    if (!appended) { AERO_ASSERT(false); return; }
-    auto& inlineValue = *static_cast<Documents::Inline*>(inlineObject.Get());
-    AeroGuiInternal::Attach(
-        inlineValue, this, this, nullptr);
-    if (Documents::InlineUIContainer* container =
-            ::Aero::TryCast<Documents::InlineUIContainer>(&inlineValue)) {
-        if (UIElement* child = container->GetChild()) {
-            AddVisualChild(child);
-        }
-    }
+    ownedInlines_.PushBack(inlineObject);
     pendingInline_ = inlineObject;
     InvalidateMeasure();
 }
@@ -1166,9 +1147,7 @@ void TextBlock::SetGlyphRun(
     glyphRuns_.Clear();
     textHitRegions_.Clear();
     if (glyphRun != InvalidRenderGlyphRunId) {
-        Base::Result<void> appended =
-            glyphRuns_.PushBack(glyphRun);
-        if (!appended) return;
+        glyphRuns_.PushBack(glyphRun);
     }
     glyphRunSize_ = size;
     InvalidateMeasure();
@@ -1419,7 +1398,7 @@ void TextBlock::OnRender(
                 StyleSpan unstyled;
                 unstyled.start = currentOffset;
                 unstyled.length = range.start - currentOffset;
-                if (!spans.PushBack(unstyled)) return;
+                spans.PushBack(unstyled);
             }
             const bool isStyled = range.hasForeground || range.italic ||
                 (range.bold && GetFontWeight() != FontWeight::Bold);
@@ -1431,12 +1410,12 @@ void TextBlock::OnRender(
                 styled.hasForeground = range.hasForeground;
                 styled.bold = range.bold && GetFontWeight() != FontWeight::Bold;
                 styled.italic = range.italic;
-                if (!spans.PushBack(styled)) return;
+                spans.PushBack(styled);
             } else {
                 StyleSpan unstyled;
                 unstyled.start = range.start;
                 unstyled.length = range.length;
-                if (!spans.PushBack(unstyled)) return;
+                spans.PushBack(unstyled);
             }
             currentOffset = std::max(currentOffset, range.start + range.length);
         }
@@ -1444,7 +1423,7 @@ void TextBlock::OnRender(
             StyleSpan unstyled;
             unstyled.start = currentOffset;
             unstyled.length = maxTextEnd - currentOffset;
-            if (!spans.PushBack(unstyled)) return;
+            spans.PushBack(unstyled);
         }
 
         for (const StyleSpan& span : spans) {
@@ -1474,8 +1453,7 @@ void TextBlock::OnRender(
                     added.y = region.y;
                     added.right = region.x + region.width;
                     added.height = region.height;
-                    Base::Result<void> appended = clips.PushBack(added);
-                    if (!appended) return;
+                    clips.PushBack(added);
                 } else {
                     line->x = std::min(line->x, region.x);
                     line->right = std::max(
