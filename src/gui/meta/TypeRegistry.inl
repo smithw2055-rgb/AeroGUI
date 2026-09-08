@@ -85,8 +85,7 @@ Base::Status BindRuntimeTypeInfo(
     Base::Result<void> copiedName = binding.name.Assign(info.name);
     if (!copiedName) return copiedName.GetStatus();
 
-    Base::HashMap<TypeId, RuntimeTypeBinding>::InsertResult
-        inserted = bindings.Insert(token, std::move(binding));
+    bindings.Insert(token, std::move(binding));
     return Base::Status::Ok();
 }
 

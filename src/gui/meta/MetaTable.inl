@@ -62,8 +62,7 @@ Base::Result<void> MetaTable::SetTypeFacet(
         FacetDraft* added = typeDrafts_.EmplaceBack();
         added->key = type;
         draft = added;
-        Base::HashMap<TypeId, std::uint32_t>::InsertResult inserted =
-            typeDraftIndex_.Insert(type, newPos);
+        typeDraftIndex_.Insert(type, newPos);
     }
     const std::uint8_t slot = static_cast<std::uint8_t>(kind);
     if (draft->facets[slot] != InvalidFacetIndex) {
@@ -93,8 +92,7 @@ Base::Result<void> MetaTable::SetMemberFacet(
         FacetDraft* added = memberDrafts_.EmplaceBack();
         added->key = member;
         draft = added;
-        Base::HashMap<MemberId, std::uint32_t>::InsertResult inserted =
-            memberDraftIndex_.Insert(member, newPos);
+        memberDraftIndex_.Insert(member, newPos);
     }
     const std::uint8_t slot = static_cast<std::uint8_t>(kind);
     if (draft->facets[slot] != InvalidFacetIndex) {
