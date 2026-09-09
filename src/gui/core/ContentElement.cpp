@@ -9,7 +9,7 @@
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleEngine.hpp"
 #include "gui/internal/ErasedRoutedHandler.hpp"
-#include "gui/meta/MetadataState.hpp"
+#include "gui/meta/TypeRegistryDetail.hpp"
 #include <Aero/Meta.hpp>
 #include "gui/meta/ElementsFill.hpp"
 

@@ -1,6 +1,6 @@
 #include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/VisualStateManager.hpp>
-#include "gui/meta/MetadataState.hpp"
+#include "gui/meta/TypeRegistryDetail.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
@@ -13,8 +13,7 @@
 
 #include <Aero/Value.hpp>
 #include <Aero/Media/Transforms.hpp>
-#include "gui/media/MediaHelpers.hpp"
-
+#include "gui/media/AnimationModel.hpp"
 #include <algorithm>
 #include <new>
 #include <utility>

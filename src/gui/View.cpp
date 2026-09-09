@@ -1,4 +1,4 @@
-#include "gui/ViewState.hpp"
+#include "gui/ViewFrame.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
 #include <Aero/BuiltinThemes.generated.hpp>
 
@@ -14,7 +14,7 @@ namespace Aero {
 
 using namespace ::Aero;
 
-ViewState::ViewState(
+ViewFrame::ViewFrame(
         View& owner,
         Gui& guiOwner,
         Base::IAllocator& value,
@@ -23,15 +23,15 @@ ViewState::ViewState(
           guiOwner(&guiOwner),
           gui(std::move(guiState)),
           publicRenderer(owner, value),
-          dispatcher(&static_cast<GuiState&>(*gui).dispatcher),
-          schemaBundle(&static_cast<GuiState&>(*gui).schema),
-          documentCache(&static_cast<GuiState&>(*gui).documents),
-          xamlProviders(&static_cast<GuiState&>(*gui).xamlProviders),
+          dispatcher(&static_cast<GuiRuntime&>(*gui).dispatcher),
+          schemaBundle(&static_cast<GuiRuntime&>(*gui).schema),
+          documentCache(&static_cast<GuiRuntime&>(*gui).documents),
+          xamlProviders(&static_cast<GuiRuntime&>(*gui).xamlProviders),
           itemGenerators(&value),
           fragmentMounts(&value),
           componentMounts(&value) {}
 
-Base::Result<void> ViewState::ApplyViewport(
+Base::Result<void> ViewFrame::ApplyViewport(
         const ViewViewport& next) noexcept {
         ::Aero::Render::RenderTree* renderTree = RenderTree();
         if (renderTree == nullptr) {
@@ -60,7 +60,7 @@ Base::Result<void> ViewState::ApplyViewport(
         return {};
     }
 
-void ViewState::Shutdown() noexcept {
+void ViewFrame::Shutdown() noexcept {
     audio.Shutdown();
     if (storyboards != nullptr) {
         storyboards->storyboardSessions.Clear();
@@ -137,7 +137,7 @@ void ViewState::Shutdown() noexcept {
     initialized = false;
 }
 
-Base::Result<void> ViewState::Initialize(
+Base::Result<void> ViewFrame::Initialize(
         const ViewOptions& requested) noexcept {
         if (initialized) {
             return Base::Status::Failure(
@@ -152,8 +152,8 @@ Base::Result<void> ViewState::Initialize(
         if (!gui) {
             return ViewInvalidState("View has no Gui provider state");
         }
-        const GuiState& guiState =
-            static_cast<const GuiState&>(*gui);
+        const GuiRuntime& guiState =
+            static_cast<const GuiRuntime&>(*gui);
         seenTextureProviderChange = guiState.textureChangeGeneration;
         seenFontProviderChange = guiState.fontChangeGeneration;
 
@@ -316,12 +316,12 @@ View::View(
         ? allocator
         : &Base::GetDefaultAllocator();
     void* stateMemory = selected->Allocate({
-        sizeof(ViewState), alignof(ViewState), Base::MemoryTag::Markup});
+        sizeof(ViewFrame), alignof(ViewFrame), Base::MemoryTag::Markup});
     if (stateMemory == nullptr) {
         Base::ReportOutOfMemory(
-            sizeof(ViewState), alignof(ViewState), Base::MemoryTag::Markup);
+            sizeof(ViewFrame), alignof(ViewFrame), Base::MemoryTag::Markup);
     }
-    state_ = new (stateMemory) ViewState(
+    state_ = new (stateMemory) ViewFrame(
         *this, gui, *selected, gui.state_);
 }
 
@@ -333,9 +333,9 @@ View::~View() noexcept {
     }
     state_->publicRenderer.Shutdown();
     Base::IAllocator* allocator = state_->allocator;
-    state_->~ViewState();
+    state_->~ViewFrame();
     allocator->Deallocate(
-        state_, sizeof(ViewState), alignof(ViewState), Base::MemoryTag::Markup);
+        state_, sizeof(ViewFrame), alignof(ViewFrame), Base::MemoryTag::Markup);
     state_ = nullptr;
 }
 
@@ -344,8 +344,8 @@ Base::Result<void> View::Initialize(
     if (state_ == nullptr || !state_->gui) {
         return ViewApiInvalidState("View has no Gui state");
     }
-    const GuiState& guiState =
-        static_cast<const GuiState&>(*state_->gui);
+    const GuiRuntime& guiState =
+        static_cast<const GuiRuntime&>(*state_->gui);
     if (!guiState.initialized) {
         return ViewNotInitialized(
             "Gui must be initialized before creating a View");
@@ -365,7 +365,7 @@ Base::Result<void> View::Initialize(
 }
 
 Base::Result<void> LoadViewResources(
-    ViewState& state,
+    ViewFrame& state,
     ResourceLayer layer,
     Base::StringView uri,
     ResourceLoadMode mode,
@@ -386,7 +386,7 @@ Base::Result<void> LoadViewResources(
 
 Base::Result<void>
 LoadViewCompiledResources(
-    ViewState& state,
+    ViewFrame& state,
     ResourceLayer layer,
     Base::Span<const std::uint8_t> bytes,
     const Base::ResourceUri& originUri,
@@ -406,7 +406,7 @@ LoadViewCompiledResources(
 }
 
 void SetViewResourceDictionary(
-    ViewState& state,
+    ViewFrame& state,
     ResourceLayer layer,
     Aero::ResourceDictionary& dictionary,
     ResourceLoadMode mode) noexcept {
@@ -444,7 +444,7 @@ void SetViewResourceDictionary(
 }
 
 Base::Result<void> LoadViewBuiltInTheme(
-    ViewState& state,
+    ViewFrame& state,
     BuiltInTheme theme) noexcept {
     if (state.resources == nullptr) {
         return AeroNotInitialized(
@@ -698,7 +698,7 @@ bool View::Update(double timeInSeconds) noexcept {
         return false;
     }
     const ::Aero::Render::RenderFrame* before =
-        ViewState::CurrentFrame(*this);
+        ViewFrame::CurrentFrame(*this);
     const std::uint64_t beforeVersion =
         before != nullptr ? before->Version() : 0U;
     double elapsedSeconds = 0.0;
@@ -727,7 +727,7 @@ bool View::Update(double timeInSeconds) noexcept {
     }
     state_->ClearUpdateFailure();
     const ::Aero::Render::RenderFrame* after =
-        ViewState::CurrentFrame(*this);
+        ViewFrame::CurrentFrame(*this);
     return after != nullptr && after->Version() != 0U &&
         after->Version() != beforeVersion;
 }

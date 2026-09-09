@@ -58,7 +58,7 @@ namespace Aero {
 class LayoutEngine;
 class BindingEngine;
 class StyleEngine;
-struct ViewState;
+struct ViewFrame;
 class EventRouter;
 class InputRouter;
 class AnimationEngine;
@@ -251,10 +251,10 @@ public:
     void SetMeshResources(Render::MeshResources* resources) noexcept {
         meshResources_ = resources;
     }
-    void SetViewState(ViewState* viewState) noexcept {
+    void SetViewState(ViewFrame* viewState) noexcept {
         viewState_ = viewState;
     }
-    ViewState* GetViewState() const noexcept { return viewState_; }
+    ViewFrame* GetViewState() const noexcept { return viewState_; }
 
     using FindNameFn = Base::Object* (*)(
         void* context,
@@ -312,7 +312,7 @@ private:
     Controls::TextBlockLayout* textLayout_ = nullptr;
     Controls::ControlBehavior* controlBehaviors_ = nullptr;
     Render::MeshResources* meshResources_ = nullptr;
-    ViewState* viewState_ = nullptr;
+    ViewFrame* viewState_ = nullptr;
     Aero::ResourceEnvironment resourceEnvironment_{};
     void* nameScopeContext_ = nullptr;
     FindNameFn findName_ = nullptr;

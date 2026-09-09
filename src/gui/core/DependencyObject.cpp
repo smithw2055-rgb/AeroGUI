@@ -23,10 +23,10 @@
 #include "gui/internal/PropertyStore.hpp"
 #include <new>
 
-#include "gui/input/InputState.hpp"
+#include "gui/input/InputManager.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleEngine.hpp"
-#include "gui/meta/MetadataState.hpp"
+#include "gui/meta/TypeRegistryDetail.hpp"
 
 using namespace Aero;
 using namespace Aero::Media;

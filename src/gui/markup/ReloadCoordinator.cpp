@@ -9,7 +9,7 @@
 #include <new>
 #include <utility>
 
-#include "gui/GuiState.hpp"
+#include "gui/GuiDetail.hpp"
 
 namespace Aero::Markup {
 
@@ -22,7 +22,7 @@ struct ReloadCoordinatorState final {
     ReloadCoordinatorState(
         View& valueView,
         Base::IAllocator& valueAllocator,
-        GuiState* valueGui) noexcept
+        GuiRuntime* valueGui) noexcept
         : view(&valueView),
           allocator(&valueAllocator),
           gui(valueGui),
@@ -148,7 +148,7 @@ struct ReloadCoordinatorState final {
 
     View* view = nullptr;
     Base::IAllocator* allocator = nullptr;
-    GuiState* gui = nullptr;
+    GuiRuntime* gui = nullptr;
     Base::ResourceUri rootUri;
     Aero::Size availableSize;
     Base::Vector<RevisionRecord> revisions;
@@ -164,8 +164,8 @@ ReloadCoordinator::ReloadCoordinator(
           ? allocator
           : &Base::GetDefaultAllocator()) {
     Gui& gui = view.GetGui();
-    GuiState* guiState = gui.state_
-        ? &static_cast<GuiState&>(*gui.state_)
+    GuiRuntime* guiState = gui.state_
+        ? &static_cast<GuiRuntime&>(*gui.state_)
         : nullptr;
     void* memory = allocator_->Allocate({sizeof(ReloadCoordinatorState),
         alignof(ReloadCoordinatorState), Base::MemoryTag::Markup});

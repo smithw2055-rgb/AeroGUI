@@ -1,6 +1,6 @@
 #include "DisplayList.hpp"
 #include "RenderTree.hpp"
-#include "gui/meta/MetadataState.hpp"
+#include "gui/meta/TypeRegistryDetail.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
@@ -9,8 +9,7 @@
 #include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleEngine.hpp"
-#include "gui/media/MediaHelpers.hpp"
-
+#include "gui/media/BrushRendering.hpp"
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Controls/Image.hpp>
 #include <Aero/Controls/Menu.hpp>

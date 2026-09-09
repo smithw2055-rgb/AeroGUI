@@ -6,7 +6,7 @@
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
-#include "gui/meta/MetadataState.hpp"
+#include "gui/meta/TypeRegistryDetail.hpp"
 
 namespace Aero::Data {
 

@@ -1,9 +1,9 @@
 #pragma once
 
-// Gui process/module state (type GuiState). Filename matches the type;
-// former GuiData.hpp name was misleading — this is not a DTO bag.
+// Private Gui impl (GuiDetail.hpp / type GuiRuntime). Keep source-only;
+// former GuiData.hpp / GuiState names retired.
 
-#include "gui/meta/MetadataState.hpp"
+#include "gui/meta/TypeRegistryDetail.hpp"
 #include "gui/markup/XamlSchema.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
@@ -11,7 +11,7 @@
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
-#include "gui/input/InputState.hpp" 
+#include "gui/input/InputManager.hpp" 
 #include "gui/data/BindingEngine.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleEngine.hpp"
@@ -40,8 +40,8 @@ struct XamlProviderChangeRecord {
     std::uint64_t generation = 0U;
 };
 
-struct GuiState final : public Base::Object {
-    explicit GuiState(Base::IAllocator& value) noexcept
+struct GuiRuntime final : public Base::Object {
+    explicit GuiRuntime(Base::IAllocator& value) noexcept
         : allocator(&value),
           schema(&value),
           documents(&value),
@@ -51,11 +51,11 @@ struct GuiState final : public Base::Object {
           xamlChanges(&value),
           textureChanges(&value),
           pendingDocuments(&value),
-          xamlChanged(this, &GuiState::OnXamlChanged),
-          textureChanged(this, &GuiState::OnTextureChanged),
-          fontChanged(this, &GuiState::OnFontChanged) {}
+          xamlChanged(this, &GuiRuntime::OnXamlChanged),
+          textureChanged(this, &GuiRuntime::OnTextureChanged),
+          fontChanged(this, &GuiRuntime::OnFontChanged) {}
 
-    ~GuiState() noexcept override {
+    ~GuiRuntime() noexcept override {
         for (const Base::Ref<Markup::XamlProvider>& provider :
              subscribedXamlProviders) {
             if (provider) {

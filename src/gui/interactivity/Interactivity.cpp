@@ -1,5 +1,5 @@
 #include <Aero/Interactivity/Behavior.hpp>
-#include "gui/meta/MetadataState.hpp"
+#include "gui/meta/TypeRegistryDetail.hpp"
 #include <Aero/FrameworkElement.hpp>
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"

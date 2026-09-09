@@ -1,7 +1,7 @@
 #pragma once
 
 // Source-only popup / tooltip / context-menu chrome next to InputRouter.
-// Not installed under include/Aero. Included from ViewState.hpp after ViewState.
+// Not installed under include/Aero. Included from ViewFrame.hpp after ViewFrame.
 
 #include <cstdint>
 
@@ -9,10 +9,10 @@ namespace Aero {
 
 class OverlayHost {
 public:
-    explicit OverlayHost(ViewState& owner) noexcept;
+    explicit OverlayHost(ViewFrame& owner) noexcept;
     void Bind() noexcept;
 
-    ViewState* view = nullptr;
+    ViewFrame* view = nullptr;
 
     Base::IAllocator* Allocator() const noexcept;
     ::Aero::Meta::Registry* Metadata() const noexcept;

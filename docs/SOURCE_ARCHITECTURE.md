@@ -31,9 +31,10 @@ src/audio/      optional audio product
 The `src/gui` tree intentionally mirrors the installed WPF-semantic namespaces
 (`Aero`, `Aero::Controls`, `Aero::Data`, `Aero::Markup`, `Aero::Media`,
 `Aero::Meta`) so that a WPF developer can locate the
-implementation of a public type by its namespace. Domain state headers keep the
-`*State.hpp` spelling (for example `MetadataState.hpp`) rather than the retired
-`*Runtime.hpp` / `*Access.hpp` pattern. Kernel-private operations that must
+implementation of a public type by its namespace. Private composition hubs use responsibility names without a `State` suffix
+(for example `TypeRegistryDetail.hpp`, `GuiDetail.hpp`, `ViewFrame.hpp`,
+`InputManager.hpp`). Avoid reintroducing `*State.hpp` god-headers or the retired
+`*Runtime.hpp` / `*Access.hpp` / `detail/` folder patterns. Kernel-private operations that must
 touch WPF type internals live in `src/gui/internal/` and are not installed.
 
 App-owned XAML behavior is supplied to the Gui schema through copied module
@@ -112,10 +113,10 @@ own headers.
 
 ## View composition
 
-`ViewState` is source-only frame/POD data (`src/gui/ViewState.hpp`, not
+`ViewFrame` is source-only frame/POD data (`src/gui/ViewFrame.hpp`, not
 installed). `ElementTree` is the service hub (`Layout()`, `Bindings()`,
 `Styles()`, `Events()`, `Input()`, `Animations()`, `VisualStates()`,
-`Templates()`, `RenderTree()`, …). `ViewState` owns the tree plus hosts that
+`Templates()`, `RenderTree()`, …). `ViewFrame` owns the tree plus hosts that
 are not on the tree yet (interactivity, storyboards, overlays, focus,
 resources, values, text, images) and forwards hub access through thin
 accessors. Domain methods are defined out of line next to their engine:
@@ -126,7 +127,7 @@ ConditionBehavior / EventTrigger / KeyTrigger / DataTrigger, and
 
 The public `View` surface stays small and WPF/Noesis shaped. `Gui` and
 `XamlReader` are the only trusted construction/loading peers. `DesktopHost`
-uses public `View` methods and does not operate on `ViewState`.
+uses public `View` methods and does not operate on `ViewFrame`.
 
 No source-only object uses a heap-allocated `Impl`/`Access` Pimpl. Where a
 large implementation type must remain out of a source header, the owner keeps
@@ -185,7 +186,7 @@ XAML metadata type-capability tables (`XamlFacets` / TypeRecord masks under
 Per-domain engine headers live under `src/gui/core/`
 (`ElementTree.hpp`, `LayoutEngine.hpp`, `EffectiveValueEngine.hpp`,
 `RoutedEvents.hpp`, `EventRouter.hpp`). Freezable program data is nested in
-`Freezable::Impl` inside `Freezable.cpp`. `GuiState.hpp` / `ViewState.hpp`
+`Freezable::Impl` inside `Freezable.cpp`. `GuiDetail.hpp` / `ViewFrame.hpp`
 remain the umbrellas that include the engines plus `AeroGuiInternal.hpp`.
 
 WPF-bridge virtuals for developers who subclass Aero types:

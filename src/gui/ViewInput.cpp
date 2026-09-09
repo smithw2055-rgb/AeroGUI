@@ -1,4 +1,4 @@
-#include "gui/ViewState.hpp"
+#include "gui/ViewFrame.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/internal/InputDevicesState.hpp"
 
@@ -16,7 +16,7 @@ using namespace ::Aero;
 namespace {
 
 Base::Result<Input::PointerDispatchResult> DispatchPointer(
-    ViewState& state,
+    ViewFrame& state,
     const Input::PointerInput& input) noexcept {
     if (!state.mounted || state.Input() == nullptr) {
         return ViewNotInitialized(
@@ -80,7 +80,7 @@ Base::Result<Input::PointerDispatchResult> DispatchPointer(
 
 Base::Result<Input::KeyboardDispatchResult>
 DispatchKeyboard(
-    ViewState& state,
+    ViewFrame& state,
     const Input::KeyboardInput& input) noexcept {
     if (!state.mounted || state.Input() == nullptr) {
         return ViewNotInitialized(
@@ -118,7 +118,7 @@ DispatchKeyboard(
 
 Base::Result<Input::TextInputDispatchResult>
 DispatchText(
-    ViewState& state,
+    ViewFrame& state,
     const Input::TextInput& input) noexcept {
     if (!state.mounted || state.Input() == nullptr) {
         return ViewNotInitialized(
@@ -128,7 +128,7 @@ DispatchText(
 }
 
 bool DispatchTouch(
-    ViewState* state,
+    ViewFrame* state,
     Input::PointerAction action,
     int x,
     int y,
@@ -352,7 +352,7 @@ bool View::TouchUp(
 
 // ---- Section: Focus queue (merged from ViewFocus.cpp) ----
 
-FocusHost::FocusHost(ViewState& owner) noexcept
+FocusHost::FocusHost(ViewFrame& owner) noexcept
     : view(&owner),
       pendingFocusTargets(owner.allocator) {}
 

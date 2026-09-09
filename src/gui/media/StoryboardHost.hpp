@@ -1,7 +1,7 @@
 #pragma once
 
 // Source-only storyboard session host next to AnimationEngine.
-// Not installed under include/Aero. Included from ViewState.hpp after ViewState.
+// Not installed under include/Aero. Included from ViewFrame.hpp after ViewFrame.
 
 #include <Aero/Media/Animation/EventTrigger.hpp>
 #include <Aero/Media/Animation/Storyboard.hpp>
@@ -11,10 +11,10 @@ namespace Aero {
 
 class StoryboardHost {
 public:
-    explicit StoryboardHost(ViewState& owner) noexcept;
+    explicit StoryboardHost(ViewFrame& owner) noexcept;
     void Bind() noexcept;
 
-    ViewState* view = nullptr;
+    ViewFrame* view = nullptr;
 
     Base::IAllocator* Allocator() const noexcept;
     ::Aero::Meta::Registry* Metadata() const noexcept;
@@ -147,8 +147,8 @@ public:
 };
 
 // Shared keyframe-schedule helper for StoryboardHost TUs
-// (merged from StoryboardHostCommon.hpp; no ViewState re-include needed
-// as this header is consumed after ViewState).
+// (merged from StoryboardHostCommon.hpp; no ViewFrame re-include needed
+// as this header is consumed after ViewFrame).
 namespace StoryboardSupport {
 
 template<class TAnimation>

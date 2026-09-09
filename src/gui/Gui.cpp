@@ -8,8 +8,8 @@
 #include <Aero/Media/TextureProvider.hpp>
 #include <Aero/Media/FontProvider.hpp>
 #include <Aero/ViewOptions.hpp>
-#include "gui/GuiState.hpp"
-#include "gui/ViewState.hpp"
+#include "gui/GuiDetail.hpp"
+#include "gui/ViewFrame.hpp"
 #include <Aero/BuiltinThemes.generated.hpp>
 #include <Aero/Base/String.hpp>
 
@@ -173,7 +173,7 @@ namespace Aero {
 namespace {
 
 void RemovePendingDocument(
-    GuiState& state,
+    GuiRuntime& state,
     std::uint32_t index) noexcept {
     if (index + 1U < state.pendingDocuments.Size()) {
         state.pendingDocuments[index] =
@@ -182,7 +182,7 @@ void RemovePendingDocument(
     state.pendingDocuments.PopBack();
 }
 
-void CollectUnclaimedDocuments(GuiState& state) noexcept {
+void CollectUnclaimedDocuments(GuiRuntime& state) noexcept {
     std::uint32_t index = 0U;
     while (index < state.pendingDocuments.Size()) {
         const PendingXamlDocument& pending =
@@ -199,7 +199,7 @@ void CollectUnclaimedDocuments(GuiState& state) noexcept {
 }
 
 Base::Result<Base::Ref<Base::Object>> RetainLoadedDocument(
-    GuiState& state,
+    GuiRuntime& state,
     Markup::XamlDocument&& document,
     std::uint32_t externalRootReferences = 0U) noexcept {
     Base::Ref<Base::Object> root = document.Root();
@@ -230,7 +230,7 @@ Base::Result<Base::Ref<Base::Object>> RetainLoadedDocument(
 } // namespace
 
 
-void GuiState::OnXamlChanged(const Base::ResourceUri& uri) noexcept {
+void GuiRuntime::OnXamlChanged(const Base::ResourceUri& uri) noexcept {
     if (!dispatcher.CheckAccess()) return;
     if (uri.Empty()) {
         documents.Clear();
@@ -243,7 +243,7 @@ void GuiState::OnXamlChanged(const Base::ResourceUri& uri) noexcept {
     xamlChanges.PushBack(std::move(record));
 }
 
-void GuiState::OnTextureChanged(const Base::ResourceUri& uri) noexcept {
+void GuiRuntime::OnTextureChanged(const Base::ResourceUri& uri) noexcept {
     if (!dispatcher.CheckAccess()) return;
     XamlProviderChangeRecord record;
     record.uri = uri;
@@ -251,14 +251,14 @@ void GuiState::OnTextureChanged(const Base::ResourceUri& uri) noexcept {
     textureChanges.PushBack(std::move(record));
 }
 
-void GuiState::OnFontChanged(const Media::FontProviderChange& change) noexcept {
+void GuiRuntime::OnFontChanged(const Media::FontProviderChange& change) noexcept {
     if (!dispatcher.CheckAccess()) return;
     fontChangedBaseUri = change.baseUri;
     static_cast<void>(fontChangedFamily.Assign(change.familyName));
     ++fontChangeGeneration;
 }
 
-Base::Result<void> GuiState::QuerySource(
+Base::Result<void> GuiRuntime::QuerySource(
     const Base::ResourceUri& uri,
     std::uint64_t& sourceIdentity,
     std::uint64_t& revision) noexcept {
@@ -323,13 +323,13 @@ Gui::Gui(
     : allocator_(allocator != nullptr
           ? allocator
           : &Base::GetDefaultAllocator()) {
-    Base::Result<Base::Ref<GuiState>> made =
-        Base::MakeRefWithAllocator<GuiState>(
+    Base::Result<Base::Ref<GuiRuntime>> made =
+        Base::MakeRefWithAllocator<GuiRuntime>(
             *allocator_, *allocator_);
     if (!made) {
         Base::ReportOutOfMemory(
-            sizeof(GuiState),
-            alignof(GuiState),
+            sizeof(GuiRuntime),
+            alignof(GuiRuntime),
             Base::MemoryTag::Object);
     }
     state_ = Base::Ref<Base::Object>(std::move(made).Value());
@@ -341,7 +341,7 @@ Gui::~Gui() noexcept {
 
 Base::Result<void> Gui::AddModule(
     const ModuleRegistration& registration) noexcept {
-    GuiState& state = static_cast<GuiState&>(*state_);
+    GuiRuntime& state = static_cast<GuiRuntime&>(*state_);
     if (state.initialized) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -354,7 +354,7 @@ Base::Result<void> Gui::SetXamlProvider(
     Ref<Markup::XamlProvider> provider,
     Base::StringView scheme,
     Base::StringView assembly) noexcept {
-    GuiState& state = static_cast<GuiState&>(*state_);
+    GuiRuntime& state = static_cast<GuiRuntime&>(*state_);
     if (state.initialized) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -412,7 +412,7 @@ Base::Result<void> Gui::SetXamlProvider(
 
 Base::Result<void> Gui::SetTextureProvider(
     Ref<Media::TextureProvider> provider) noexcept {
-    GuiState& state = static_cast<GuiState&>(*state_);
+    GuiRuntime& state = static_cast<GuiRuntime&>(*state_);
     if (state.initialized) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -434,7 +434,7 @@ Base::Result<void> Gui::SetTextureProvider(
 
 Base::Result<void> Gui::SetFontProvider(
     Ref<Media::FontProvider> provider) noexcept {
-    GuiState& state = static_cast<GuiState&>(*state_);
+    GuiRuntime& state = static_cast<GuiRuntime&>(*state_);
     if (state.initialized) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -455,7 +455,7 @@ Base::Result<void> Gui::SetFontProvider(
 }
 
 Base::Result<void> Gui::Initialize() noexcept {
-    GuiState& state = static_cast<GuiState&>(*state_);
+    GuiRuntime& state = static_cast<GuiRuntime&>(*state_);
     if (state.initialized) return {};
     Base::Result<void> prepared = state.schema.Prepare(state.modules);
     if (!prepared) return prepared.GetStatus();
@@ -492,7 +492,7 @@ Base::Result<Base::Ref<Base::Object>> Gui::LoadXamlRoot(
             Base::ErrorCode::NotInitialized,
             "Gui must be initialized before XAML loading");
     }
-    GuiState& state = static_cast<GuiState&>(*state_);
+    GuiRuntime& state = static_cast<GuiRuntime&>(*state_);
     CollectUnclaimedDocuments(state);
     Markup::XamlReader reader(*this);
     Base::Result<Markup::XamlDocument> loaded = reader.Load(uri);
@@ -527,7 +527,7 @@ Base::Result<void> Gui::LoadComponent(
             Base::ErrorCode::InvalidArgument,
             "XAML component requires a managed root object");
     }
-    GuiState& state = static_cast<GuiState&>(*state_);
+    GuiRuntime& state = static_cast<GuiRuntime&>(*state_);
     CollectUnclaimedDocuments(state);
     Markup::XamlReader reader(*this);
     Base::Result<Markup::XamlDocument> loaded =
@@ -542,7 +542,7 @@ Base::Result<void> Gui::LoadComponent(
     if (!retained) return retained.GetStatus();
     if (UIElement* element = TryCast<UIElement>(&component)) {
         if (ElementTree* tree = VisualTree(element)) {
-            if (ViewState* viewState = tree->GetViewState()) {
+            if (ViewFrame* viewState = tree->GetViewState()) {
                 for (std::uint32_t index = 0U;
                      index < state.pendingDocuments.Size(); ++index) {
                     Markup::LoaderResult& pending =
@@ -567,7 +567,7 @@ Base::Result<void> Gui::LoadComponent(
 Base::Result<bool> Gui::TakeLoadedDocument(
     Base::Object& root,
     Markup::XamlDocument& document) noexcept {
-    GuiState& state = static_cast<GuiState&>(*state_);
+    GuiRuntime& state = static_cast<GuiRuntime&>(*state_);
     for (std::uint32_t index = 0U;
          index < state.pendingDocuments.Size(); ++index) {
         Markup::LoaderResult& pending =
@@ -631,7 +631,7 @@ Base::Result<Base::Ref<View>> Gui::CreateView(
 }
 
 bool Gui::IsInitialized() const noexcept {
-    const GuiState& state = static_cast<const GuiState&>(*state_);
+    const GuiRuntime& state = static_cast<const GuiRuntime&>(*state_);
     return state.initialized && state.schema.IsFrozen();
 }
 

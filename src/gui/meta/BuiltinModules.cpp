@@ -1,7 +1,7 @@
 #include "BuiltinModules.hpp"
 
 #include "gui/controls/Metadata.hpp"
-#include "gui/meta/MetadataState.hpp"
+#include "gui/meta/TypeRegistryDetail.hpp"
 #include "gui/markup/XamlSchema.hpp"
 #include "gui/media/AnimationEngine.hpp"
 

@@ -3,7 +3,7 @@
 
 using namespace Interactivity;
 // Selective Animation/Media usings — file-scope `using namespace Media::Animation`
-// would also pull MediaHelpers conversion fns (Point/Color/Thickness/Size) into
+// would also pull BrushRendering/AnimationModel conversion fns (Point/Color/Thickness/Size) into
 // later inl includes in BuiltinMetadata.cpp and collide with geometry types.
 using Media::Animation::BeginStoryboard;
 using Media::Animation::BooleanAnimationUsingKeyFrames;

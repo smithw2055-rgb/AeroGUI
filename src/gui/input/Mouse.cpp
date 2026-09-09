@@ -3,7 +3,7 @@
 #include <Aero/Visual.hpp>
 
 #include "gui/internal/InputDevicesState.hpp"
-#include "gui/input/InputState.hpp"
+#include "gui/input/InputManager.hpp"
 
 namespace Aero::Input {
 

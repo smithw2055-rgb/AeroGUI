@@ -16,8 +16,7 @@
 #include "gui/core/EventRouter.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/media/MediaHelpers.hpp"
-
+#include "gui/media/BrushRendering.hpp"
 namespace Aero::Media {
 namespace {
 

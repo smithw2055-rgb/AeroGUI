@@ -20,9 +20,9 @@ class FrameworkElement;
 class Gui;
 class View;
 class ViewRenderer;
-// Source-only hub state defined in src/gui/ViewState.hpp. Incomplete here so
-// View methods can keep a private pointer without installing ViewState.
-struct ViewState;
+// Source-only hub state defined in src/gui/ViewFrame.hpp. Incomplete here so
+// View methods can keep a private pointer without installing ViewFrame.
+struct ViewFrame;
 
 namespace Markup {
 class XamlReader;
@@ -127,7 +127,7 @@ private:
 
     friend class Gui;
     friend class ViewRenderer;
-    friend struct ViewState;
+    friend struct ViewFrame;
     friend class Media::CompositionTarget;
     friend class Markup::XamlReader;
     friend class App::DesktopHost;
@@ -137,7 +137,7 @@ private:
         Base::IAllocator&,
         Args&&...) noexcept;
 
-    ViewState* state_ = nullptr;
+    ViewFrame* state_ = nullptr;
     double updateTimeSeconds_ = 0.0;
     bool hasUpdateTime_ = false;
     bool active_ = true;

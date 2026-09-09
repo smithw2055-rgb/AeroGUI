@@ -1,4 +1,4 @@
-#include "gui/meta/MetadataState.hpp"
+#include "gui/meta/TypeRegistryDetail.hpp"
 #include "gui/media/AnimationEngine.hpp"
 
 #include <Aero/Base/Assert.hpp>

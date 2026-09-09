@@ -3,7 +3,7 @@
 // Shared include set formerly provided transitively when all markup-extension
 // .inl files were amalgamated into XamlObjectWriter.cpp after BindingExtension.inl.
 
-#include "gui/meta/MetadataState.hpp"
+#include "gui/meta/TypeRegistryDetail.hpp"
 #include "gui/meta/ValueConversion.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"

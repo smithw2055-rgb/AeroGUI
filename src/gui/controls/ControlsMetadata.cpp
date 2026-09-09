@@ -1,6 +1,6 @@
 #include "Metadata.hpp"
 #include <Aero/Documents.hpp>
-#include "gui/meta/MetadataState.hpp"
+#include "gui/meta/TypeRegistryDetail.hpp"
 #include "gui/meta/ValueConversion.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
@@ -12,8 +12,6 @@
 #include "gui/styles/StyleEngine.hpp"
 #include "gui/controls/ItemsContainers.hpp"
 #include "gui/templates/TemplateInstance.hpp"
-#include "gui/media/MediaHelpers.hpp"
-
 #include <Aero/Controls.hpp>
 #include <Aero/Shapes.hpp>
 #include <Aero/Controls/TextBoxBase.hpp>

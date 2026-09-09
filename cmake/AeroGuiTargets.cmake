@@ -247,7 +247,7 @@ set(_aero_gui_composition_sources
     src/gui/ViewRender.cpp
     src/gui/ViewRenderer.hpp
     src/gui/ViewRenderer.cpp
-    src/gui/ViewState.hpp
+    src/gui/ViewFrame.hpp
     src/gui/ViewDocuments.cpp)
 
 set(_aero_gui_sources

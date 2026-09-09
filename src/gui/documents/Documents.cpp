@@ -1,4 +1,4 @@
-#include "gui/meta/MetadataState.hpp"
+#include "gui/meta/TypeRegistryDetail.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
@@ -744,7 +744,7 @@ void NavigationService::OnRequestNavigate(
 }
 
 } // namespace Aero::Documents
-#include "gui/meta/MetadataState.hpp"
+#include "gui/meta/TypeRegistryDetail.hpp"
 #include "gui/data/BindingEngine.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleEngine.hpp"
@@ -755,7 +755,6 @@ void NavigationService::OnRequestNavigate(
 #include <Aero/Shapes.hpp>
 #include <Aero/Media/Transforms.hpp>
 #include "gui/media/BrushRendering.hpp"
-#include "gui/media/MediaHelpers.hpp"
 #include <Aero/Documents.hpp>
 #include "gui/controls/RichText.hpp"
 

@@ -1,4 +1,4 @@
-#include "gui/meta/MetadataState.hpp"
+#include "gui/meta/TypeRegistryDetail.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
@@ -15,7 +15,6 @@
 #include <Aero/Shapes.hpp>
 #include <Aero/Media/Transforms.hpp>
 #include "gui/media/BrushRendering.hpp"
-#include "gui/media/MediaHelpers.hpp"
 #include <Aero/Collections.hpp>
 #include <Aero/Documents.hpp>
 #include <Aero/TryCast.hpp>

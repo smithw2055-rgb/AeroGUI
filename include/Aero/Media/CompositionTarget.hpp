@@ -6,7 +6,7 @@
 namespace Aero {
 
 class View;
-struct ViewState;
+struct ViewFrame;
 
 // Global frame notification matching WPF CompositionTarget.Rendering. Hosts
 // still own the frame clock through View::Update; subscribers use this event to
@@ -33,7 +33,7 @@ public:
 
 private:
     friend class ::Aero::View;
-    friend struct ::Aero::ViewState;
+    friend struct ::Aero::ViewFrame;
     static void RaiseRendering(::Aero::View& view) noexcept;
 };
 

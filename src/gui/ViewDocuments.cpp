@@ -1,4 +1,4 @@
-#include "gui/ViewState.hpp"
+#include "gui/ViewFrame.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
 #include <Aero/VisualTreeHelper.hpp>
 
@@ -20,7 +20,7 @@ using namespace ::Aero;
 // Section 3: Mount/Fragment lifecycle (MountRoot ... UnmountFragment) starts at MountRoot
 // ============================================================================
 
-Base::Result<void> BeginDocumentLoad(ViewState& state) noexcept {
+Base::Result<void> BeginDocumentLoad(ViewFrame& state) noexcept {
         if (!state.initialized) {
             return AeroNotInitialized(
                 "View must be initialized before XAML loading");
@@ -32,7 +32,7 @@ Base::Result<void> BeginDocumentLoad(ViewState& state) noexcept {
         return {};
     }
 
-Base::Result<Markup::XamlReaderSettings> XamlSettings(ViewState& state, 
+Base::Result<Markup::XamlReaderSettings> XamlSettings(ViewFrame& state, 
         bool deferredEffects,
         const Markup::XamlReaderSettings* override) noexcept {
         Markup::XamlReaderSettings result;
@@ -55,15 +55,15 @@ Base::Result<Markup::XamlReaderSettings> XamlSettings(ViewState& state,
         return result;
     }
 
-void ClearLoadedDocument(ViewState& state) noexcept {
+void ClearLoadedDocument(ViewFrame& state) noexcept {
         state.loadedDocument.Clear();
     }
 
-Base::Object* ViewState::FindNameForElement(
+Base::Object* ViewFrame::FindNameForElement(
         void* context,
         Base::StringView name,
         Meta::TypeId expectedType) noexcept {
-        auto* runtime = static_cast<ViewState*>(context);
+        auto* runtime = static_cast<ViewFrame*>(context);
         if (runtime == nullptr || name.Empty()) return nullptr;
         Base::Object* object = runtime->activeFragmentNames != nullptr
             ? runtime->activeFragmentNames->Find(name)
@@ -72,14 +72,14 @@ Base::Object* ViewState::FindNameForElement(
             object = runtime->loadedDocument.names.Find(name);
         }
         if (object == nullptr) {
-            for (ViewState::FragmentMount& fragment :
+            for (ViewFrame::FragmentMount& fragment :
                  runtime->fragmentMounts) {
                 object = fragment.document.names.Find(name);
                 if (object != nullptr) break;
             }
         }
         if (object == nullptr) {
-            for (ViewState::FragmentMount* component :
+            for (ViewFrame::FragmentMount* component :
                  runtime->componentMounts) {
                 if (component == nullptr) continue;
                 object = component->document.names.Find(name);
@@ -172,7 +172,7 @@ Base::Result<void> ResourceHost::LoadLayer(
                 "Gui XAML runtime is unavailable");
         }
         Base::Result<Markup::XamlDocument> loaded =
-            static_cast<GuiState&>(*view->gui).Load(
+            static_cast<GuiRuntime&>(*view->gui).Load(
             &view->loadContext,
             uri, loadOptions.Value(), diagnostics);
         if (!loaded) {
@@ -205,7 +205,7 @@ Base::Result<void> ResourceHost::LoadCompiledLayer(
                 "Gui XAML runtime is unavailable");
         }
         Base::Result<Markup::XamlDocument> loaded =
-            static_cast<GuiState&>(*view->gui).LoadCompiled(
+            static_cast<GuiRuntime&>(*view->gui).LoadCompiled(
                 &view->loadContext,
                 bytes, originUri, loadOptions.Value());
         if (!loaded) return loaded.GetStatus();
@@ -216,7 +216,7 @@ Base::Result<void> ResourceHost::LoadCompiledLayer(
             merge);
     }
 
-Base::Result<void> ValidateDocumentRoot(ViewState& state, 
+Base::Result<void> ValidateDocumentRoot(ViewFrame& state, 
         const Base::Ref<Base::Object>& requestedRoot) noexcept {
         if (!requestedRoot) {
             return Base::Status::Failure(
@@ -237,7 +237,7 @@ Base::Result<void> ValidateDocumentRoot(ViewState& state,
             : Base::Result<void>(rootLayout.GetStatus());
     }
 
-Base::Result<void> MountRoot(ViewState& state, 
+Base::Result<void> MountRoot(ViewFrame& state, 
         Base::Ref<Base::Object> requestedRoot,
         Aero::Size availableSize) noexcept {
         if (!state.initialized) {
@@ -450,8 +450,8 @@ Base::Result<void> MountRoot(ViewState& state,
         return {};
     }
 
-Base::Result<void> DetachFragment(ViewState& state, 
-        ViewState::FragmentMount& fragment) noexcept {
+Base::Result<void> DetachFragment(ViewFrame& state, 
+        ViewFrame::FragmentMount& fragment) noexcept {
         if (!fragment.document.root) return {};
         Base::Result<Aero::Media::Visual*> rootVisual =
             state.ResolveVisual(
@@ -555,7 +555,7 @@ Base::Result<void> DetachFragment(ViewState& state,
         return {};
     }
 
-Base::Result<void> UnmountFragmentAt(ViewState& state, 
+Base::Result<void> UnmountFragmentAt(ViewFrame& state, 
         std::uint32_t index) noexcept {
         if (index >= state.fragmentMounts.Size()) {
             return Base::Status::Failure(
@@ -573,7 +573,7 @@ Base::Result<void> UnmountFragmentAt(ViewState& state,
         return {};
     }
 
-Base::Result<void> UnmountAllFragments(ViewState& state) noexcept {
+Base::Result<void> UnmountAllFragments(ViewFrame& state) noexcept {
         while (!state.fragmentMounts.Empty()) {
             Base::Result<void> detached =
                 UnmountFragmentAt(state, state.fragmentMounts.Size() - 1U);
@@ -582,7 +582,7 @@ Base::Result<void> UnmountAllFragments(ViewState& state) noexcept {
         return {};
     }
 
-Base::Result<void> DetachMountedRoot(ViewState& state, 
+Base::Result<void> DetachMountedRoot(ViewFrame& state, 
         bool clearDocument) noexcept {
         if (!state.initialized) return {};
         if (!state.mounted) {
@@ -620,12 +620,12 @@ Base::Result<void> DetachMountedRoot(ViewState& state,
         return unmounted;
     }
 
-Base::Result<void> UnmountRoot(ViewState& state) noexcept {
+Base::Result<void> UnmountRoot(ViewFrame& state) noexcept {
         return DetachMountedRoot(state, true);
     }
 
 Base::Result<void> MountViewContent(
-    ViewState& state,
+    ViewFrame& state,
     Base::Ref<Base::Object> root,
     Aero::Size availableSize) noexcept {
     return MountRoot(state, 
@@ -633,7 +633,7 @@ Base::Result<void> MountViewContent(
 }
 
 Base::Result<void> MountViewDocument(
-    ViewState& state,
+    ViewFrame& state,
     Markup::XamlDocument&& document,
     Aero::Size availableSize) noexcept {
     Base::Result<void> ready = BeginDocumentLoad(state);
@@ -652,10 +652,10 @@ Base::Result<void> MountViewDocument(
 }
 
 Base::Result<void> ReplaceViewDocument(
-    ViewState& state,
+    ViewFrame& state,
     Markup::XamlDocument&& document,
     Aero::Size availableSize) noexcept {
-    ViewState* state_ = &state;
+    ViewFrame* state_ = &state;
     if (state_ == nullptr || !state_->initialized || !state_->mounted) {
         return ViewApiInvalidState(
             "View document replacement requires a mounted view");
@@ -706,10 +706,10 @@ Base::Result<void> ReplaceViewDocument(
 }
 
 Base::Result<void> MountViewFragment(
-    ViewState& state,
+    ViewFrame& state,
     Controls::ContentControl& host,
     Markup::XamlDocument&& document) noexcept {
-    ViewState* state_ = &state;
+    ViewFrame* state_ = &state;
     if (state_ == nullptr || !state_->initialized || !state_->mounted ||
         state_->tree == nullptr || state_->Layout() == nullptr) {
         return ViewApiInvalidState(
@@ -751,7 +751,7 @@ Base::Result<void> MountViewFragment(
     state_->fragmentMounts.Reserve(
         state_->fragmentMounts.Size() + 1U);
 
-    ::Aero::ViewState::FragmentMount fragment;
+    ::Aero::ViewFrame::FragmentMount fragment;
     fragment.host = &host;
     fragment.document = Aero::Markup::TakeXamlDocument(document);
     const Aero::NameScope* previousActiveNames =
@@ -905,9 +905,9 @@ Base::Result<void> MountViewFragment(
 }
 
 Base::Result<void> UnmountViewFragment(
-    ViewState& state,
+    ViewFrame& state,
     Controls::ContentControl& host) noexcept {
-    ViewState* state_ = &state;
+    ViewFrame* state_ = &state;
     if (state_ == nullptr || !state_->initialized || !state_->mounted) {
         return ViewApiInvalidState(
             "content fragment unmounting requires a mounted View");
@@ -1029,7 +1029,7 @@ void InvalidateLayoutSubtree(UIElement& element) noexcept {
 } // namespace
 
 Base::Result<void> AdoptLoadedComponent(
-    ViewState& state,
+    ViewFrame& state,
     Markup::LoaderResult&& incoming) noexcept {
     if (!state.initialized || !state.mounted ||
         state.tree == nullptr || state.Bindings() == nullptr ||
@@ -1042,7 +1042,7 @@ Base::Result<void> AdoptLoadedComponent(
             "LoadComponent document has no root object");
     }
 
-    ViewState::FragmentMount* mount = nullptr;
+    ViewFrame::FragmentMount* mount = nullptr;
     Base::Result<void> allocated = AllocateObject(
         *state.allocator, Base::MemoryTag::Ui, mount);
     if (!allocated) return allocated.GetStatus();

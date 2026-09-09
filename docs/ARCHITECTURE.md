@@ -70,7 +70,7 @@ lifetime.
 `src/gui` is divided into the stable implementation domains `base`,
 `metadata`, `property`, `binding`, `resources`, `layout`, `input`,
 `interactivity`, `controls`, `markup`, `media`, `text`, `diagnostics`, and
-`modules`. Its root is reserved for the `Gui`, `View`, `ViewState`, and
+`modules`. Its root is reserved for the `Gui`, `View`, `ViewFrame`, and
 `ViewRenderer` composition files. `View.cpp` is the composition root
 (construct, mount, viewport, `Update`). Clock slices live beside it
 (`ViewFrame.cpp`, `ViewInput.cpp` including the focus queue, `ViewRender.cpp`).
@@ -80,7 +80,7 @@ the host; layout, input, and media stay separate collaborators.
 
 ## View and rendering
 
-Each `View` owns one `ViewState` and one concrete `ViewRenderer`. The device is
+Each `View` owns one `ViewFrame` and one concrete `ViewRenderer`. The device is
 shareable across views and does not own a renderer.
 
 Hosts may submit a complete logical/pixel/DPI viewport transaction through

@@ -1,7 +1,7 @@
 #include <Aero/Markup/XamlReader.hpp>
 #include <Aero/Gui.hpp>
 
-#include "gui/GuiState.hpp"
+#include "gui/GuiDetail.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
@@ -46,7 +46,7 @@ Base::Result<XamlDocument> XamlReader::Load(
             Base::ErrorCode::NotInitialized,
             "Gui must be initialized before XAML loading");
     }
-    GuiState& state = static_cast<GuiState&>(*gui_->state_);
+    GuiRuntime& state = static_cast<GuiRuntime&>(*gui_->state_);
     XamlLoadScope scope(state.dispatcher, state.schema, state.documents);
     return state.Load(
         &scope.load, uri, settings, diagnostics);
@@ -62,7 +62,7 @@ Base::Result<XamlDocument> XamlReader::Load(
             Base::ErrorCode::NotInitialized,
             "Gui must be initialized before XAML loading");
     }
-    GuiState& state = static_cast<GuiState&>(*gui_->state_);
+    GuiRuntime& state = static_cast<GuiRuntime&>(*gui_->state_);
     XamlLoadScope scope(state.dispatcher, state.schema, state.documents);
     scope.load.resources = &resources;
     scope.load.fallbackResources = &resources;
@@ -79,7 +79,7 @@ Base::Result<XamlDocument> XamlReader::Load(
         return Base::Status::Failure(Base::ErrorCode::NotInitialized,
             "Gui must be initialized before XAML loading");
     }
-    GuiState& state = static_cast<GuiState&>(*gui_->state_);
+    GuiRuntime& state = static_cast<GuiRuntime&>(*gui_->state_);
     XamlLoadScope scope(state.dispatcher, state.schema, state.documents);
     return state.Parse(
         &scope.load, source, baseUri, settings, diagnostics);
@@ -100,7 +100,7 @@ Base::Result<XamlDocument> XamlReader::LoadComponentCore(
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "XAML component root is incompatible with the requested type");
     }
-    const GuiState& state = static_cast<const GuiState&>(*gui_->state_);
+    const GuiRuntime& state = static_cast<const GuiRuntime&>(*gui_->state_);
     if (!state.schema.Metadata().Types().IsDerivedFrom(
             root->RuntimeType(), expectedRoot)) {
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
@@ -125,7 +125,7 @@ Base::Result<XamlDocument> XamlReader::LoadComponentInto(
             Base::ErrorCode::InvalidArgument,
             "XAML component requires an existing root object");
     }
-    GuiState& state = static_cast<GuiState&>(*gui_->state_);
+    GuiRuntime& state = static_cast<GuiRuntime&>(*gui_->state_);
     XamlLoadScope scope(state.dispatcher, state.schema, state.documents);
     if (resources != nullptr) {
         // Ambient lookup only. `resources` is the document dictionary; wiring
@@ -157,7 +157,7 @@ Base::Result<XamlDocument> XamlReader::Parse(
         return Base::Status::Failure(Base::ErrorCode::NotInitialized,
             "Gui must be initialized before XAML parsing");
     }
-    GuiState& state = static_cast<GuiState&>(*gui_->state_);
+    GuiRuntime& state = static_cast<GuiRuntime&>(*gui_->state_);
     XamlLoadScope scope(state.dispatcher, state.schema, state.documents);
     return state.Parse(
         &scope.load, source, baseUri, settings, diagnostics);
@@ -170,7 +170,7 @@ Base::Result<XamlDocument> XamlReader::LoadCompiled(
         return Base::Status::Failure(Base::ErrorCode::NotInitialized,
             "Gui must be initialized before compiled XAML loading");
     }
-    GuiState& state = static_cast<GuiState&>(*gui_->state_);
+    GuiRuntime& state = static_cast<GuiRuntime&>(*gui_->state_);
     XamlLoadScope scope(state.dispatcher, state.schema, state.documents);
     return state.LoadCompiled(
         &scope.load, bytes, originUri, XamlReaderSettings{});

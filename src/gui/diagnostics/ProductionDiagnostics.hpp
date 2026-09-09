@@ -14,8 +14,8 @@
 #include <Aero/VisualTreeHelper.hpp>
 #include <Aero/Documents.hpp>
 #include <Aero/Layout.hpp>
-#include "gui/meta/MetadataState.hpp" 
-#include "gui/input/InputState.hpp"
+#include "gui/meta/TypeRegistryDetail.hpp" 
+#include "gui/input/InputManager.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"

@@ -1,4 +1,4 @@
-#include "gui/ViewState.hpp"
+#include "gui/ViewFrame.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
 #include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/Controls/ContentControl.hpp>
@@ -18,7 +18,7 @@ namespace Aero {
 
 using namespace ::Aero;
 
-void ViewState::ReportFrameFailure(
+void ViewFrame::ReportFrameFailure(
         Base::Status& slot,
         Base::Status status,
         std::uint16_t diagnosticNumber) noexcept {
@@ -43,27 +43,27 @@ void ViewState::ReportFrameFailure(
             std::move(diagnostic).Value()));
     }
 
-void ViewState::ReportUpdateFailure(Base::Status status) noexcept {
+void ViewFrame::ReportUpdateFailure(Base::Status status) noexcept {
         ReportFrameFailure(updateStatus, status, 101U);
     }
 
-void ViewState::ReportRendererFailure(Base::Status status) noexcept {
+void ViewFrame::ReportRendererFailure(Base::Status status) noexcept {
         ReportFrameFailure(rendererStatus, status, 102U);
     }
 
-void ViewState::ClearUpdateFailure() noexcept { updateStatus = {}; }
+void ViewFrame::ClearUpdateFailure() noexcept { updateStatus = {}; }
 
-void ViewState::ClearRendererFailure() noexcept { rendererStatus = {}; }
+void ViewFrame::ClearRendererFailure() noexcept { rendererStatus = {}; }
 
-void ViewState::RaiseFrameRendering(View& view) noexcept {
+void ViewFrame::RaiseFrameRendering(View& view) noexcept {
         ::Aero::Media::CompositionTarget::RaiseRendering(view);
     }
 
-bool ViewState::HasAttachedRoot() const noexcept {
+bool ViewFrame::HasAttachedRoot() const noexcept {
         return rootAttachment.IsAttached();
     }
 
-Base::Result<void> ViewState::AttachVisualGraph(
+Base::Result<void> ViewFrame::AttachVisualGraph(
         ::Aero::Media::Visual& rootVisual,
         UIElement& rootLayout,
         FrameworkElement* rootRender,
@@ -82,7 +82,7 @@ Base::Result<void> ViewState::AttachVisualGraph(
         return {};
     }
 
-Base::Result<void> ViewState::CompleteVisualEdges(
+Base::Result<void> ViewFrame::CompleteVisualEdges(
         Base::Span<Aero::Markup::VisualEdge> edges) noexcept {
         if (tree == nullptr || !HasAttachedRoot()) {
             return ViewInvalidState(
@@ -91,7 +91,7 @@ Base::Result<void> ViewState::CompleteVisualEdges(
         return tree->CompleteVisualEdges(edges);
     }
 
-Base::Result<void> ViewState::ResizeVisualRoot(Size availableSize) noexcept {
+Base::Result<void> ViewFrame::ResizeVisualRoot(Size availableSize) noexcept {
         if (!HasAttachedRoot() || attachedRootLayout == nullptr ||
             tree == nullptr) {
             return AeroNotInitialized(
@@ -101,7 +101,7 @@ Base::Result<void> ViewState::ResizeVisualRoot(Size availableSize) noexcept {
             *attachedRootLayout, availableSize, attachedRootVisual);
     }
 
-Base::Result<void> ViewState::DetachVisualGraph(
+Base::Result<void> ViewFrame::DetachVisualGraph(
         Base::Span<Aero::Markup::VisualEdge> edges) noexcept {
         if (!HasAttachedRoot() && attachedRootVisual == nullptr) return {};
         if (tree == nullptr) {
@@ -117,7 +117,7 @@ Base::Result<void> ViewState::DetachVisualGraph(
         return {};
     }
 
-ResourceHost::ResourceHost(ViewState& owner) noexcept
+ResourceHost::ResourceHost(ViewFrame& owner) noexcept
     : view(&owner) {}
 
 void ResourceHost::Bind() noexcept {}
@@ -163,7 +163,7 @@ Base::Result<void> ResourceHost::RebuildDynamicEnvironment() noexcept {
         return rebuilt;
     }
 
-Aero::Media::Visual* ViewState::RootVisual() noexcept {
+Aero::Media::Visual* ViewFrame::RootVisual() noexcept {
         if (!root) return nullptr;
         if (!metadata->Types().IsDerivedFrom(
                 root->RuntimeType(),
@@ -173,7 +173,7 @@ Aero::Media::Visual* ViewState::RootVisual() noexcept {
         return static_cast<Aero::Media::Visual*>(root.Get());
     }
 
-Base::Result<Aero::Media::Visual*> ViewState::ResolveVisual(
+Base::Result<Aero::Media::Visual*> ViewFrame::ResolveVisual(
         Base::Object& object, Meta::TypeId type) noexcept {
         if (!metadata->Types().IsDerivedFrom(object.RuntimeType(), type) ||
             !metadata->Types().IsDerivedFrom(
@@ -185,7 +185,7 @@ Base::Result<Aero::Media::Visual*> ViewState::ResolveVisual(
         return static_cast<Aero::Media::Visual*>(&object);
     }
 
-Base::Result<Aero::UIElement*> ViewState::ResolveUIElement(
+Base::Result<Aero::UIElement*> ViewFrame::ResolveUIElement(
         Base::Object& object, Meta::TypeId type) noexcept {
         Base::Result<Aero::Media::Visual*> visual =
             ResolveVisual(object, type);
@@ -200,7 +200,7 @@ Base::Result<Aero::UIElement*> ViewState::ResolveUIElement(
         return element;
     }
 
-Aero::FrameworkElement* ViewState::ResolveFrameworkElement(
+Aero::FrameworkElement* ViewFrame::ResolveFrameworkElement(
         Base::Object& object, Meta::TypeId type) noexcept {
         Base::Result<Aero::Media::Visual*> visual =
             ResolveVisual(object, type);
@@ -241,7 +241,7 @@ Base::Result<const T*> ResolveUiValue(
     return static_cast<const T*>(implicit.Value().AsObject().Get());
 }
 
-Base::Result<void> ApplyViewUi(ViewState& state, Aero::Media::Visual& root) noexcept {
+Base::Result<void> ApplyViewUi(ViewFrame& state, Aero::Media::Visual& root) noexcept {
         if (state.metadata == nullptr || state.values == nullptr || state.Bindings() == nullptr ||
             state.Events() == nullptr || state.Input() == nullptr || state.Styles() == nullptr ||
             state.Templates() == nullptr) {
@@ -438,7 +438,7 @@ Base::Result<void> ApplyViewUi(ViewState& state, Aero::Media::Visual& root) noex
     }
 
 void DetachViewUi(
-        ViewState& state,
+        ViewFrame& state,
         Aero::Media::Visual* root,
         Base::Span<Aero::Media::Visual* const> declarationNodes) noexcept {
         if (state.values == nullptr) return;
@@ -526,7 +526,7 @@ void DetachViewUi(
         }
     }
 
-Base::Result<void> ViewState::CreateUiEngines() noexcept {
+Base::Result<void> ViewFrame::CreateUiEngines() noexcept {
         Base::Result<void> status = AllocateObject(
             *allocator, Base::MemoryTag::Ui, resources, *this);
         if (!status) return status.GetStatus();
@@ -559,7 +559,7 @@ Base::Result<void> ViewState::CreateUiEngines() noexcept {
             tree->SetControlBehaviors(controlBehaviors);
         }
         tree->AttachResourceEnvironment(resources->Environment());
-        tree->SetNameScope(this, &ViewState::FindNameForElement);
+        tree->SetNameScope(this, &ViewFrame::FindNameForElement);
         tree->SetViewState(this);
         status = AllocateObject(*allocator, Base::MemoryTag::Ui, overlays, *this);
         if (!status) return status.GetStatus();
@@ -568,11 +568,11 @@ Base::Result<void> ViewState::CreateUiEngines() noexcept {
         return {};
     }
 
-Base::Result<void> ViewState::GeneratedItemSubtreeChanged(
+Base::Result<void> ViewFrame::GeneratedItemSubtreeChanged(
         Aero::Media::Visual& root,
         Controls::ItemSubtreeChange change,
         void* context) noexcept {
-        auto* runtime = static_cast<ViewState*>(context);
+        auto* runtime = static_cast<ViewFrame*>(context);
         if (runtime == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
@@ -697,7 +697,7 @@ Base::Result<void> ViewState::GeneratedItemSubtreeChanged(
     }
 
 Base::Result<void>
- ViewState::FlushGeneratedVisuals() noexcept {
+ ViewFrame::FlushGeneratedVisuals() noexcept {
         constexpr std::uint32_t MaximumWaves = 16U;
         for (std::uint32_t wave = 0U;
              wave < MaximumWaves;
@@ -764,7 +764,7 @@ Base::Result<void>
             "Generated item visual activation exceeded the bounded activation waves");
     }
 
-Base::Result<void> ViewState::AttachItemGenerator(
+Base::Result<void> ViewFrame::AttachItemGenerator(
         Controls::ItemsControl& itemsControl) noexcept {
         if (AeroGuiInternal::
                 HasAttachedGenerator(itemsControl)) {
@@ -802,7 +802,7 @@ Base::Result<void> ViewState::AttachItemGenerator(
                 Styles(),
                 RenderTree(),
                 Templates(),
-                &ViewState::GeneratedItemSubtreeChanged,
+                &ViewFrame::GeneratedItemSubtreeChanged,
                 this);
         if (!created) return created.GetStatus();
         Controls::ItemContainerGenerator* generator = created.Value();
@@ -832,7 +832,7 @@ Base::Result<void> ViewState::AttachItemGenerator(
         return {};
     }
 
-Base::Result<void> ViewState::AttachPendingItemGenerators(
+Base::Result<void> ViewFrame::AttachPendingItemGenerators(
         Aero::Media::Visual& rootVisual) noexcept {
         Base::Vector<Aero::Media::Visual*> stack(allocator);
         stack.PushBack(&rootVisual);
@@ -855,7 +855,7 @@ Base::Result<void> ViewState::AttachPendingItemGenerators(
         return {};
     }
 
-void ViewState::DestroyUiEngines() noexcept {
+void ViewFrame::DestroyUiEngines() noexcept {
         Aero::StyleEngine* styles = Styles();
         VisualStateManager* visualStates = VisualStates();
         Aero::Controls::TemplateEngine* templates = Templates();
@@ -884,7 +884,7 @@ void ViewState::DestroyUiEngines() noexcept {
         FreeObject(*allocator, Base::MemoryTag::Ui, resources);
     }
 
-Base::Result<void> ViewState::VisitAndAttach(
+Base::Result<void> ViewFrame::VisitAndAttach(
         Aero::Media::Visual& rootVisual) noexcept {
         Base::Vector<Aero::Media::Visual*> stack(allocator);
         stack.PushBack(&rootVisual);
@@ -940,7 +940,7 @@ Base::Result<void> ViewState::VisitAndAttach(
         return {};
     }
 
-void ViewState::ClearTextInputHosts(
+void ViewFrame::ClearTextInputHosts(
         Aero::Media::Visual* node) noexcept {
         if (node == nullptr) return;
         if (metadata->Types().IsDerivedFrom(
@@ -980,9 +980,9 @@ Base::Result<void> AddFrameCallbacks(
     return {};
 }
 
-Base::Result<void> SynchronizeFrameResources(ViewState& state) noexcept {
+Base::Result<void> SynchronizeFrameResources(ViewFrame& state) noexcept {
     bool deviceGenerationChanged = false;
-    GuiState& guiState = static_cast<GuiState&>(*state.gui);
+    GuiRuntime& guiState = static_cast<GuiRuntime&>(*state.gui);
     const bool fontProviderChanged =
         guiState.fontChangeGeneration != state.seenFontProviderChange;
     if (fontProviderChanged) {
@@ -1058,7 +1058,7 @@ Base::Result<void> SynchronizeFrameResources(ViewState& state) noexcept {
 
 } // namespace
 
-Base::Result<std::uint32_t> ExecuteViewFrame(ViewState& state, View& view) noexcept {
+Base::Result<std::uint32_t> ExecuteViewFrame(ViewFrame& state, View& view) noexcept {
     if (!state.initialized) {
         return ViewNotInitialized(
             "View must be initialized before running frames");
@@ -1289,9 +1289,9 @@ Base::Result<std::uint32_t> ExecuteViewFrame(ViewState& state, View& view) noexc
 namespace {
 
 [[maybe_unused]] Base::Result<std::uint32_t> AdvanceViewAnimations(
-    ViewState& state,
+    ViewFrame& state,
     std::uint32_t elapsedMilliseconds) noexcept {
-    ViewState* state_ = &state;
+    ViewFrame* state_ = &state;
     if (!state_->mounted || state_->Animations() == nullptr) {
         return ViewNotInitialized(
             "Animation timing requires a mounted View");
@@ -1316,9 +1316,9 @@ namespace {
 } // namespace
 
 Base::Result<std::uint32_t> AdvanceViewClocks(
-    ViewState& state,
+    ViewFrame& state,
     std::uint32_t elapsedMilliseconds) noexcept {
-    ViewState* state_ = &state;
+    ViewFrame* state_ = &state;
     if (!state_->mounted || state_->Animations() == nullptr) {
         return ViewNotInitialized(
             "View timing requires a mounted animation manager");
@@ -1369,7 +1369,7 @@ Base::Result<std::uint32_t> AdvanceViewClocks(
 }
 
 
-void ViewState::ClearElementEvents(
+void ViewFrame::ClearElementEvents(
         Aero::Media::Visual* node) noexcept {
         if (node == nullptr) return;
         for (Aero::Media::Visual* child :
@@ -1378,7 +1378,7 @@ void ViewState::ClearElementEvents(
         }
     }
 
-void ViewState::BeginDestroyInteractions() noexcept {
+void ViewFrame::BeginDestroyInteractions() noexcept {
         if (Aero::Media::Visual* rootVisual = RootVisual()) {
             if (interactivity != nullptr) {
                 interactivity->DetachBehaviorsInSubtree(*rootVisual);
@@ -1406,7 +1406,7 @@ void ViewState::BeginDestroyInteractions() noexcept {
         if (tree != nullptr) tree->SetControlBehaviors(nullptr);
     }
 
-void ViewState::FinishDestroyInteractions() noexcept {
+void ViewFrame::FinishDestroyInteractions() noexcept {
         while (!itemGenerators.Empty()) {
             Controls::ItemContainerGenerator*
                 generator = itemGenerators.Back();
@@ -1423,12 +1423,12 @@ void ViewState::FinishDestroyInteractions() noexcept {
         }
     }
 
-void ViewState::DestroyInteractions() noexcept {
+void ViewFrame::DestroyInteractions() noexcept {
         BeginDestroyInteractions();
         FinishDestroyInteractions();
     }
 
-Base::Result<void> ViewState::CreateInteractions() noexcept {
+Base::Result<void> ViewFrame::CreateInteractions() noexcept {
         Aero::Media::Visual* rootVisual = RootVisual();
         if (rootVisual == nullptr) {
             return Base::Status::Failure(

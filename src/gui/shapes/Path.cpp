@@ -15,9 +15,7 @@
 #include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleEngine.hpp"
-#include "gui/media/MediaHelpers.hpp"
 #include "gui/media/BrushRendering.hpp"
-
 #include <algorithm>
 #include <cerrno>
 #include <cmath>

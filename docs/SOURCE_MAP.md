@@ -12,10 +12,10 @@ dir. IDE-only virtual folders are defined via `source_group()` in
 
 | Public surface | Implementation |
 | --- | --- |
-| `Aero::Gui` | `Gui.cpp` + `GuiState.hpp` (provider handlers live in `Gui.cpp`) |
+| `Aero::Gui` | `Gui.cpp` + `GuiDetail.hpp` (provider handlers live in `Gui.cpp`) |
 | `Aero::View` | `View.cpp` (construct/mount) + `ViewFrame.cpp` (clocks) + `ViewInput.cpp` (pointer/keyboard/text **+ focus queue**, merged from `ViewFocus.cpp`) + `ViewRender.cpp` (render sync) + `ViewDocuments.cpp` (§1 mount, §2 resources, §3 fragments) |
 | `Aero::IRenderer` | `ViewRenderer.hpp` / `ViewRenderer.cpp` (only concrete renderer) |
-| Hub state | `ViewState.hpp` (no `<Aero/Controls.hpp>` umbrella; Controls types via `internal/AeroGuiInternal.hpp`) |
+| Hub state | `ViewFrame.hpp` (no `<Aero/Controls.hpp>` umbrella; Controls types via `internal/AeroGuiInternal.hpp`) |
 
 ## Controls (`src/gui/controls/`, flat)
 
@@ -51,7 +51,7 @@ dir. IDE-only virtual folders are defined via `source_group()` in
 | `Meta.hpp` / `Module.hpp` | `meta/Metadata.cpp`, `Module.cpp`, `BuiltinMetadata.cpp`, `BuiltinModules.cpp`, `EnumMetadata.cpp`, `Value.cpp` + `*.inl` tables + `TypeBuilderCore.hpp` (renamed from `TypeBuilderDetail.hpp`) |
 | `Triggers/*`, `Interactivity/*` | `triggers/Trigger*.cpp` + `interactivity/InteractivityEngine*.cpp` + `BlendBehaviors.cpp` |
 | Text stack | `text/TextPipeline.cpp`, `TextLayout.cpp`, `GlyphAtlas.cpp`, `FontManager.cpp`, `EditableText.cpp` + `freetype/` + `harfbuzz/` adapters |
-| Input | `input/Input.cpp` (routing), `Commands.cpp`, `OverlayHost.cpp`, `Clipboard.cpp`, `DragDrop.cpp`, `Cursor(s).cpp`, `Mouse.cpp`, `Keyboard.cpp`, `DataObject.cpp`; focus queue in `ViewInput.cpp`, declaration in `input/InputState.hpp` (merged from `FocusHost.hpp`) |
+| Input | `input/Input.cpp` (routing), `Commands.cpp`, `OverlayHost.cpp`, `Clipboard.cpp`, `DragDrop.cpp`, `Cursor(s).cpp`, `Mouse.cpp`, `Keyboard.cpp`, `DataObject.cpp`; focus queue in `ViewInput.cpp`, declaration in `input/InputManager.hpp` (merged from `FocusHost.hpp`) |
 | Core kernel | `core/ElementTree.cpp`, `PropertySystem.cpp`, `DependencyObject.cpp`, `LayoutEngine.cpp`, `Visual.cpp`, `UIElement.cpp`, `FrameworkElement.cpp`, `Dispatcher.cpp`, `RoutedEvents.cpp` (+ `core/{ElementTree,LayoutEngine,EffectiveValueEngine,RoutedEvents,EventRouter}.hpp`, `internal/AeroGuiInternal*.hpp`, `internal/PropertyStore.hpp`); single-TU helpers live in their `.cpp` (e.g. `Invariants.cpp`, merged from `Invariants.hpp`) |
 | Styles / templates | `styles/Resources.cpp`, `Style.cpp` (+ `StyleEngine.hpp`, `ResourceHost.hpp`); `templates/Templates.cpp` |
 | Documents / shapes / diagnostics | `documents/Documents.cpp`, `Adorners.cpp`; `shapes/Shapes.cpp`, `Path.cpp`; `diagnostics/Diagnostics.cpp`, `Inspector.cpp` |
@@ -60,7 +60,7 @@ dir. IDE-only virtual folders are defined via `source_group()` in
 
 `ViewFocus.cpp` → `ViewInput.cpp` §focus · `ItemsDetail.hpp` → `ItemsContainers.hpp` ·
 `TypeBuilderDetail.hpp` → `TypeBuilderCore.hpp` · `StoryboardHostCommon.hpp` → `StoryboardHost.hpp` ·
-`FocusHost.hpp` → `input/InputState.hpp` · `TextBoxBehavior.cpp` + `TextBoxSelection.cpp` → `TextBoxInteraction.cpp` ·
+`FocusHost.hpp` → `input/InputManager.hpp` · `TextBoxBehavior.cpp` + `TextBoxSelection.cpp` → `TextBoxInteraction.cpp` ·
 `Invariants.hpp` → `Invariants.cpp` · `metadata/{Support,Values,Templates,Primitives,Items,Panels,TextMedia}.inl` → `metadata/Metadata.{Foundation,Widgets,Layout}.inl`
 
 ## Noesis-parity round (2nd pass)

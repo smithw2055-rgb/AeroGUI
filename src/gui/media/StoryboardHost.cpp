@@ -1,4 +1,4 @@
-#include "gui/ViewState.hpp"
+#include "gui/ViewFrame.hpp"
 #include "gui/media/StoryboardHost.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/core/EventRouter.hpp"
@@ -25,7 +25,7 @@ using namespace ::Aero;
 using namespace Media::Animation;
 
 
-StoryboardHost::StoryboardHost(ViewState& owner) noexcept
+StoryboardHost::StoryboardHost(ViewFrame& owner) noexcept
     : view(&owner),
       storyboardSessions(owner.allocator),
       storyboardCompletionSessions(owner.allocator),
@@ -34,7 +34,7 @@ StoryboardHost::StoryboardHost(ViewState& owner) noexcept
       pendingLoadedTriggers(owner.allocator) {}
 
 void StoryboardHost::Bind() noexcept {
-    // Services are read on demand from the owning ViewState / ElementTree hub.
+    // Services are read on demand from the owning ViewFrame / ElementTree hub.
 }
 
 Base::IAllocator* StoryboardHost::Allocator() const noexcept {

@@ -1,4 +1,4 @@
-#include "gui/ViewState.hpp"
+#include "gui/ViewFrame.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
 #include <Aero/Documents.hpp>
 
@@ -9,14 +9,14 @@ namespace Aero {
 
 using namespace ::Aero;
 
-OverlayHost::OverlayHost(ViewState& owner) noexcept
+OverlayHost::OverlayHost(ViewFrame& owner) noexcept
     : view(&owner),
       renderOverlays(owner.allocator),
       inputOverlays(owner.allocator),
       overlayTransforms(owner.allocator) {}
 
 void OverlayHost::Bind() noexcept {
-    // Services are read on demand from the owning ViewState / ElementTree hub.
+    // Services are read on demand from the owning ViewFrame / ElementTree hub.
 }
 
 Base::IAllocator* OverlayHost::Allocator() const noexcept {

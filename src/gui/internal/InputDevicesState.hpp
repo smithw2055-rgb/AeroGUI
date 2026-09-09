@@ -3,7 +3,7 @@
 #include <Aero/Base/Geometry.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Input/Cursor.hpp>
-#include "gui/input/InputState.hpp"
+#include "gui/input/InputManager.hpp"
 
 namespace Aero::Input::DeviceState {
 

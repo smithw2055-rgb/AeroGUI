@@ -496,7 +496,7 @@ foreach(required_source_entry IN ITEMS
         "src/gui/ViewInput.cpp"
         "src/gui/ViewRender.cpp"
         "src/gui/ViewRenderer.hpp"
-        "src/gui/ViewState.hpp"
+        "src/gui/ViewFrame.hpp"
         "src/gui/core"
         "src/gui/meta"
         "src/gui/data"
@@ -641,12 +641,12 @@ file(GLOB aero_gui_root_files
     "${AERO_SOURCE_DIR}/src/gui/*.hpp")
 set(aero_allowed_gui_root_files
     "src/gui/Gui.cpp"
-    "src/gui/GuiState.hpp"
+    "src/gui/GuiDetail.hpp"
     "src/gui/View.cpp"
     "src/gui/ViewFrame.cpp"
     "src/gui/ViewInput.cpp"
     "src/gui/ViewRender.cpp"
-    "src/gui/ViewState.hpp"
+    "src/gui/ViewFrame.hpp"
     "src/gui/ViewRenderer.hpp"
     "src/gui/ViewRenderer.cpp"
     "src/gui/ViewDocuments.cpp")
@@ -697,13 +697,13 @@ aero_forbid_text(
     "include/Aero/Media/TextureProvider.hpp" "CacheIdentity"
     "Provider cache identity must remain registry-private")
 aero_forbid_text(
-    "src/gui/GuiState.hpp" "XamlProvider*"
+    "src/gui/GuiDetail.hpp" "XamlProvider*"
     "Gui provider ownership must not use raw XAML pointers")
 aero_forbid_text(
-    "src/gui/GuiState.hpp" "TextureProvider*"
+    "src/gui/GuiDetail.hpp" "TextureProvider*"
     "Gui provider ownership must not use raw texture pointers")
 aero_forbid_text(
-    "src/gui/GuiState.hpp" "FontProvider*"
+    "src/gui/GuiDetail.hpp" "FontProvider*"
     "Gui provider ownership must not use raw font pointers")
 file(GLOB_RECURSE aero_provider_api_consumers
     RELATIVE "${AERO_SOURCE_DIR}"

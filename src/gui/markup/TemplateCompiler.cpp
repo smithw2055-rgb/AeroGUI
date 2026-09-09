@@ -1,4 +1,4 @@
-#include "gui/meta/MetadataState.hpp"
+#include "gui/meta/TypeRegistryDetail.hpp"
 #include "gui/markup/XamlObjectWriterCommon.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
@@ -18,9 +18,7 @@
 
 
 #include "gui/templates/DataTemplateTriggerInstance.hpp"
-#include "gui/media/MediaHelpers.hpp"
-
-
+#include "gui/media/AnimationModel.hpp"
 #include "gui/controls/ControlBehavior.hpp"
 
 #include <Aero/Media/StreamGeometry.hpp>

@@ -1,10 +1,10 @@
 #pragma once
 
-// View-owned input, focus, capture and routed-command state.
+// View-owned input services (InputManager): focus, capture, hit-test, commands.
 
 #include <Aero/Base/Delegate.hpp>
 #include <Aero/Media/Transform3D.hpp>
-#include "gui/meta/MetadataState.hpp"
+#include "gui/meta/TypeRegistryDetail.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
@@ -451,15 +451,15 @@ private:
 
 
 // Source-only focus queue next to InputRouter
-// (merged from FocusHost.hpp; single owner ViewState keeps wiring).
-struct ViewState;
+// (merged from FocusHost.hpp; single owner ViewFrame keeps wiring).
+struct ViewFrame;
 
 class FocusHost {
 public:
-    explicit FocusHost(ViewState& owner) noexcept;
+    explicit FocusHost(ViewFrame& owner) noexcept;
     void Bind() noexcept;
 
-    ViewState* view = nullptr;
+    ViewFrame* view = nullptr;
     Aero::InputRouter* Input() const noexcept;
     Base::Vector<Base::WeakRef<Aero::UIElement>> pendingFocusTargets;
 

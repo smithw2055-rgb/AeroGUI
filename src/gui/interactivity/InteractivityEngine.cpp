@@ -1,4 +1,4 @@
-#include "gui/ViewState.hpp"
+#include "gui/ViewFrame.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/meta/ValueConversion.hpp"
 
@@ -110,7 +110,7 @@ Base::Result<Meta::PropertyValue> ResolveInteractionActionPath(
 
 } // namespace
 
-InteractivityEngine::InteractivityEngine(ViewState& owner) noexcept
+InteractivityEngine::InteractivityEngine(ViewFrame& owner) noexcept
     : view(&owner),
       styleDataTriggerSubscriptions(owner.allocator),
       attachedBehaviorInstances(owner.allocator),
@@ -122,7 +122,7 @@ InteractivityEngine::InteractivityEngine(ViewState& owner) noexcept
       dataTemplateTriggerSubscriptions(owner.allocator) {}
 
 void InteractivityEngine::Bind() noexcept {
-    // ElementTree / ViewState services are read on demand; Bind only marks
+    // ElementTree / ViewFrame services are read on demand; Bind only marks
     // the host as attached to its owning view (already set in the ctor).
 }
 

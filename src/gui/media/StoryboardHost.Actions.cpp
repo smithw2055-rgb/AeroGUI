@@ -1,4 +1,4 @@
-#include "gui/ViewState.hpp"
+#include "gui/ViewFrame.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
 #include <Aero/Media/MediaElement.hpp>
 #include <Aero/Media/Animation/MediaActions.hpp>

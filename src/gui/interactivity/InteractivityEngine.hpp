@@ -1,22 +1,22 @@
 #pragma once
 
 // Source-only interactivity evaluation engine. Not installed under include/Aero.
-// Included from ViewState.hpp after ViewState is defined.
+// Included from ViewFrame.hpp after ViewFrame is defined.
 
 namespace Aero {
 
 class InteractivityEngine {
 public:
-    explicit InteractivityEngine(ViewState& owner) noexcept;
+    explicit InteractivityEngine(ViewFrame& owner) noexcept;
     void Bind() noexcept;
     void NotifyLayoutUpdated() noexcept;
     void RetryPendingInteractionTriggers() noexcept;
     void FlushPendingStyleDataTriggerEvaluations() noexcept;
 
-    ViewState* view = nullptr;
+    ViewFrame* view = nullptr;
 
     // Service pointers are not cached after Bind; read the ElementTree hub /
-    // ViewState owners through these accessors.
+    // ViewFrame owners through these accessors.
     Base::IAllocator* Allocator() const noexcept;
     ::Aero::Meta::Registry* Metadata() const noexcept;
     Aero::AnimationEngine* Animations() const noexcept;

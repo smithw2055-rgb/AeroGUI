@@ -8,8 +8,6 @@
 #include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleEngine.hpp"
-#include "gui/media/MediaHelpers.hpp"
-
 #include <Aero/TryCast.hpp>
 
 #include <algorithm>

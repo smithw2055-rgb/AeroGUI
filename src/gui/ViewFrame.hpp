@@ -1,7 +1,7 @@
 #pragma once
 
 // Source-only View hub state. Not installed under include/Aero.
-// ViewState is frame/POD ownership; ElementTree is the service hub
+// ViewFrame is frame/POD ownership; ElementTree is the service hub
 // (Layout/Bindings/Styles/…). Domain work lives on the engines,
 // OverlayHost, FocusHost, ResourceHost, and free functions in
 // ViewDocuments.cpp / ViewFrame.cpp.
@@ -15,7 +15,7 @@
 #include <Aero/Interactivity/Behavior.hpp>
 #include <Aero/Interactivity/Conditions.hpp>
 #include <Aero/Interactivity/InteractionTriggers.hpp>
-#include "gui/GuiState.hpp"
+#include "gui/GuiDetail.hpp"
 #include "gui/ViewRenderer.hpp"
 #include <Aero/FrameworkElement.hpp>
 #include "gui/media/ImageCache.hpp"
@@ -26,7 +26,7 @@
 #include <Aero/VisualStateManager.hpp>
 #include "gui/controls/ControlBehavior.hpp"
 #include "gui/controls/TextBlockLayout.hpp"
-#include "gui/meta/MetadataState.hpp"
+#include "gui/meta/TypeRegistryDetail.hpp"
 #include "gui/meta/ValueConversion.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
@@ -34,12 +34,12 @@
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
-#include "gui/input/InputState.hpp"
+#include "gui/input/InputManager.hpp"
 #include "gui/data/BindingEngine.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleEngine.hpp"
-#include "gui/media/MediaHelpers.hpp"
-
+#include "gui/media/BrushRendering.hpp"
+#include "gui/media/AnimationModel.hpp"
 // NOTE: <Aero/Controls.hpp> umbrella intentionally not included here.
 // ContentControl/ItemsControl/ItemContainerGenerator are already available
 // via gui/internal/AeroGuiInternal.hpp; source-only Controls types via
@@ -208,7 +208,7 @@ struct ViewFrameResult {
     Render render;
 };
 
-struct ViewState {
+struct ViewFrame {
     static const ::Aero::Render::RenderFrame* CurrentFrame(
         const View& view) noexcept;
 
@@ -219,7 +219,7 @@ struct ViewState {
         Aero::ElementAttachment rootEdge;
     };
 
-    ViewState(
+    ViewFrame(
         View& owner,
         Gui& guiOwner,
         Base::IAllocator& value,
@@ -238,7 +238,7 @@ struct ViewState {
     Markup::XamlProviderRegistry* xamlProviders = nullptr;
     ::Aero::Meta::Registry* metadata = nullptr;
     ViewOptions options;
-    // Frame/device state. These are direct values; ViewState remains the sole
+    // Frame/device state. These are direct values; ViewFrame remains the sole
     // owner and no forwarding object is introduced.
     Base::Status updateStatus;
     Base::Status rendererStatus;
@@ -248,7 +248,7 @@ struct ViewState {
 
     // Frame ownership + ElementTree hub.
     // Domain callers reach Layout/Bindings/Styles/Animations/… through
-    // ElementTree (VisualTree()); ViewState keeps ownership for hosts that are
+    // ElementTree (VisualTree()); ViewFrame keeps ownership for hosts that are
     // not yet on the tree, and thin accessors that forward to tree once wired.
     Meta::ObjectFactoryScope* objectFactory = nullptr;
     Meta::EffectiveValueEngine* values = nullptr;
@@ -452,13 +452,13 @@ struct ViewState {
 namespace Aero {
 
 Base::Result<void> ApplyViewUi(
-    ViewState& state,
+    ViewFrame& state,
     Aero::Media::Visual& root) noexcept;
 void DetachViewUi(
-    ViewState& state,
+    ViewFrame& state,
     Aero::Media::Visual* root,
     Base::Span<Aero::Media::Visual* const> declarationNodes) noexcept;
-inline void DetachViewUi(ViewState& state) noexcept {
+inline void DetachViewUi(ViewFrame& state) noexcept {
     DetachViewUi(
         state,
         state.RootVisual(),
@@ -466,83 +466,83 @@ inline void DetachViewUi(ViewState& state) noexcept {
          state.loadedDocument.visualContent.nodes.Size()});
 }
 Base::Result<std::uint32_t> ExecuteViewFrame(
-    ViewState& state,
+    ViewFrame& state,
     View& view) noexcept;
 
 Base::Result<void> LoadViewResources(
-    ViewState& state,
+    ViewFrame& state,
     ResourceLayer layer,
     Base::StringView uri,
     ResourceLoadMode mode = ResourceLoadMode::Replace,
     Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept;
 Base::Result<void> LoadViewCompiledResources(
-    ViewState& state,
+    ViewFrame& state,
     ResourceLayer layer,
     Base::Span<const std::uint8_t> bytes,
     const Base::ResourceUri& originUri,
     ResourceLoadMode mode = ResourceLoadMode::Replace) noexcept;
 void SetViewResourceDictionary(
-    ViewState& state,
+    ViewFrame& state,
     ResourceLayer layer,
     Aero::ResourceDictionary& dictionary,
     ResourceLoadMode mode) noexcept;
 Base::Result<void> LoadViewBuiltInTheme(
-    ViewState& state,
+    ViewFrame& state,
     BuiltInTheme theme) noexcept;
 
-void ClearLoadedDocument(ViewState& state) noexcept;
-Base::Result<void> BeginDocumentLoad(ViewState& state) noexcept;
+void ClearLoadedDocument(ViewFrame& state) noexcept;
+Base::Result<void> BeginDocumentLoad(ViewFrame& state) noexcept;
 Base::Result<Markup::XamlReaderSettings> XamlSettings(
-    ViewState& state,
+    ViewFrame& state,
     bool deferredEffects = false,
     const Markup::XamlReaderSettings* override = nullptr) noexcept;
 Base::Result<void> ValidateDocumentRoot(
-    ViewState& state,
+    ViewFrame& state,
     const Base::Ref<Base::Object>& requestedRoot) noexcept;
 Base::Result<void> MountRoot(
-    ViewState& state,
+    ViewFrame& state,
     Base::Ref<Base::Object> requestedRoot,
     Aero::Size availableSize) noexcept;
 Base::Result<void> DetachFragment(
-    ViewState& state,
-    ViewState::FragmentMount& fragment) noexcept;
+    ViewFrame& state,
+    ViewFrame::FragmentMount& fragment) noexcept;
 Base::Result<void> UnmountFragmentAt(
-    ViewState& state,
+    ViewFrame& state,
     std::uint32_t index) noexcept;
-Base::Result<void> UnmountAllFragments(ViewState& state) noexcept;
+Base::Result<void> UnmountAllFragments(ViewFrame& state) noexcept;
 Base::Result<void> DetachMountedRoot(
-    ViewState& state,
+    ViewFrame& state,
     bool clearDocument) noexcept;
-Base::Result<void> UnmountRoot(ViewState& state) noexcept;
+Base::Result<void> UnmountRoot(ViewFrame& state) noexcept;
 
 Base::Result<void> MountViewContent(
-    ViewState& state,
+    ViewFrame& state,
     Base::Ref<Base::Object> root,
     Aero::Size availableSize) noexcept;
 Base::Result<void> MountViewDocument(
-    ViewState& state,
+    ViewFrame& state,
     Markup::XamlDocument&& document,
     Aero::Size availableSize) noexcept;
 Base::Result<void> ReplaceViewDocument(
-    ViewState& state,
+    ViewFrame& state,
     Markup::XamlDocument&& document,
     Aero::Size availableSize) noexcept;
 Base::Result<std::uint32_t> AdvanceViewClocks(
-    ViewState& state,
+    ViewFrame& state,
     std::uint32_t elapsedMilliseconds) noexcept;
 Base::Result<void> MountViewFragment(
-    ViewState& state,
+    ViewFrame& state,
     Controls::ContentControl& host,
     Markup::XamlDocument&& document) noexcept;
 Base::Result<void> UnmountViewFragment(
-    ViewState& state,
+    ViewFrame& state,
     Controls::ContentControl& host) noexcept;
 // Binds deferred LoadComponent effects into a View that already contains the
 // component root (UserControl.InitializeComponent after the host Window is
 // mounted). LoadComponent itself is View-independent; this adopts the pending
 // document's bindings, visual edges, and Loaded storyboards.
 Base::Result<void> AdoptLoadedComponent(
-    ViewState& state,
+    ViewFrame& state,
     Markup::LoaderResult&& document) noexcept;
 
 } // namespace Aero

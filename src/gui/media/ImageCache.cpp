@@ -10,8 +10,6 @@
 #include "render/DisplayList.hpp"
 #include "ImageCache.hpp"
 
-#include "gui/media/MediaHelpers.hpp"
-
 #include <Aero/Controls.hpp>
 #include <Aero/Shapes.hpp>
 

@@ -4,7 +4,7 @@
 // BindingOperations.cpp (formerly anonymous helpers in BindingEvaluation.inl).
 
 #include "gui/data/BindingEngine.hpp"
-#include "gui/meta/MetadataState.hpp"
+#include "gui/meta/TypeRegistryDetail.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"

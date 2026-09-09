@@ -4,7 +4,7 @@
 #include <Aero/Meta.hpp>
 #include <Aero/TryCast.hpp>
 
-#include "gui/input/InputState.hpp"
+#include "gui/input/InputManager.hpp"
 #include "gui/internal/InputDevicesState.hpp"
 
 namespace Aero {

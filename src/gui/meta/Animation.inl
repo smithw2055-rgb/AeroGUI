@@ -22,7 +22,7 @@ Base::Result<void> PopulateUiAnimation(
     using Media::Animation::SizeKeyFrame;
     using Media::Animation::ThicknessAnimation;
     using Media::Animation::ThicknessKeyFrame;
-    // Prefer geometry typedefs over MediaHelpers conversion fns in Animation.
+    // Prefer geometry typedefs over BrushRendering/AnimationModel conversion fns in Animation.
     using ::Aero::Base::Color;
     using ::Aero::Base::Point;
     using ::Aero::Base::Rect;

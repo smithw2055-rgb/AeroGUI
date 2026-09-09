@@ -57,8 +57,8 @@ endif()
 # contract: no source-only owner or migration vocabulary may escape a DLL.
 foreach(forbidden_export IN ITEMS
         "ViewRenderer"
-        "ViewState"
-        "GuiState"
+        "ViewFrame"
+        "GuiRuntime"
         "UiFrameEncoder"
         "DesktopHost"
         "ApplicationHost"

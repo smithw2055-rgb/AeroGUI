@@ -17,7 +17,7 @@
 #include <Aero/LogicalTreeHelper.hpp>
 #include <Aero/Visual.hpp>
 
-#include "gui/meta/MetadataState.hpp"
+#include "gui/meta/TypeRegistryDetail.hpp"
 
 #include <cstddef>
 #include <new>

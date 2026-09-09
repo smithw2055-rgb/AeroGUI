@@ -8,7 +8,7 @@
 
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
-#include "gui/meta/MetadataState.hpp"
+#include "gui/meta/TypeRegistryDetail.hpp"
 
 #include <Aero/Style.hpp>
 

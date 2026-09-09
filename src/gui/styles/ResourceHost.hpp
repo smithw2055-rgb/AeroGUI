@@ -1,7 +1,7 @@
 #pragma once
 
 // Source-only resource-layer host next to StyleEngine / Resources.cpp.
-// Not installed under include/Aero. Included from ViewState.hpp after ViewState.
+// Not installed under include/Aero. Included from ViewFrame.hpp after ViewFrame.
 
 #include <Aero/Resources.hpp>
 #include <Aero/ViewOptions.hpp>
@@ -12,10 +12,10 @@ namespace Aero {
 
 class ResourceHost {
 public:
-    explicit ResourceHost(ViewState& owner) noexcept;
+    explicit ResourceHost(ViewFrame& owner) noexcept;
     void Bind() noexcept;
 
-    ViewState* view = nullptr;
+    ViewFrame* view = nullptr;
 
     ResourceDictionary applicationResources;
     ResourceDictionary themeResources;

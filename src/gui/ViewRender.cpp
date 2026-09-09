@@ -1,4 +1,4 @@
-#include "gui/ViewState.hpp"
+#include "gui/ViewFrame.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
 
 #include <algorithm>
@@ -36,7 +36,7 @@ bool Media::CompositionTarget::RemoveRendering(
 }
 
 
-void ViewState::AttachTextLayout(
+void ViewFrame::AttachTextLayout(
         Aero::Media::Visual& node,
         ::Aero::Controls::TextBlockLayout* service,
         bool invalidate) noexcept {
@@ -71,16 +71,16 @@ void ViewState::AttachTextLayout(
     }
 
 Aero::Render::MeshResources*
- ViewState::GetMeshResources() noexcept {
+ ViewFrame::GetMeshResources() noexcept {
         return publicRenderer.Resources().meshes;
     }
 
 Aero::Render::ImageResources*
- ViewState::GetImageResources() noexcept {
+ ViewFrame::GetImageResources() noexcept {
         return publicRenderer.Resources().images;
     }
 
-void ViewState::AttachPathResources(
+void ViewFrame::AttachPathResources(
         Aero::Media::Visual& node,
         Aero::Render::MeshResources* service,
         bool invalidate) noexcept {
@@ -96,7 +96,7 @@ void ViewState::AttachPathResources(
         }
     }
 
-void ViewState::VisitTextElements(
+void ViewFrame::VisitTextElements(
         Aero::Media::Visual* rootVisual,
         ::Aero::Controls::TextBlockLayout* service,
         bool invalidate,
@@ -125,7 +125,7 @@ void ViewState::VisitTextElements(
         }
     }
 
-void ViewState::VisitPaths(
+void ViewFrame::VisitPaths(
         Aero::Media::Visual* rootVisual,
         Aero::Render::MeshResources* service,
         bool invalidate,
@@ -154,10 +154,10 @@ void ViewState::VisitPaths(
         }
     }
 
-void ViewState::TextLifecycleHook(
+void ViewFrame::TextLifecycleHook(
         const Aero::ElementTreeLifecycleEvent& event,
         void* context) noexcept {
-        auto* runtime = static_cast<ViewState*>(context);
+        auto* runtime = static_cast<ViewFrame*>(context);
         if (runtime == nullptr || event.node == nullptr) {
             return;
         }
@@ -173,7 +173,7 @@ void ViewState::TextLifecycleHook(
                 : nullptr);
     }
 
-const ::Aero::Render::RenderFrame* ViewState::CurrentFrame(
+const ::Aero::Render::RenderFrame* ViewFrame::CurrentFrame(
     const View& view) noexcept
 {
     return view.state_ != nullptr && view.state_->RenderTree() != nullptr
@@ -476,12 +476,12 @@ void ViewRenderer::Render(
 
 const ::Aero::Render::RenderFrame* CurrentFrameForConformance(
     const View& view) noexcept {
-    return ViewState::CurrentFrame(view);
+    return ViewFrame::CurrentFrame(view);
 }
 
 double MaxAbsCommittedProjectiveM13(const View& view) noexcept {
     const ::Aero::Render::RenderFrame* frame =
-        ViewState::CurrentFrame(view);
+        ViewFrame::CurrentFrame(view);
     if (frame == nullptr) return 0.0;
     double maxAbs = 0.0;
     for (const ::Aero::Render::RenderNodeSnapshot& node : frame->Nodes()) {

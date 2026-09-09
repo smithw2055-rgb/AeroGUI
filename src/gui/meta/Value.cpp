@@ -107,7 +107,7 @@ Base::Result<Base::ResourceUri> ConvertResourceUri(
 
 #include <Aero/Meta.hpp>
 
-#include "gui/meta/MetadataState.hpp"
+#include "gui/meta/TypeRegistryDetail.hpp"
 #include "gui/media/AnimationEngine.hpp"
 
 namespace Aero::Meta {

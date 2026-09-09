@@ -1001,7 +1001,7 @@ Size TabPanel::ArrangeOverride(
 }
 
 } // namespace Aero::Controls
-#include "gui/meta/MetadataState.hpp"
+#include "gui/meta/TypeRegistryDetail.hpp"
 #include "gui/data/BindingEngine.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleEngine.hpp"
@@ -1012,7 +1012,6 @@ Size TabPanel::ArrangeOverride(
 #include <Aero/Shapes.hpp>
 #include <Aero/Media/Transforms.hpp>
 #include "gui/media/BrushRendering.hpp"
-#include "gui/media/MediaHelpers.hpp"
 #include <Aero/Documents.hpp>
 #include "RichText.hpp"
 

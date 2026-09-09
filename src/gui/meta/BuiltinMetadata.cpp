@@ -2,7 +2,7 @@
 
 // ===== CoreMetadata =====
 
-#include "gui/meta/MetadataState.hpp"
+#include "gui/meta/TypeRegistryDetail.hpp"
 #include "gui/meta/ValueConversion.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
@@ -16,7 +16,6 @@
 #include <Aero/TextProperties.hpp>
 #include <Aero/Interactivity/Behavior.hpp>
 #include <Aero/Interactivity/BlendBehaviors.hpp>
-#include "gui/media/MediaHelpers.hpp"
 #include "gui/meta/ElementsFill.hpp"
 #include "gui/meta/RenderStateCallbacks.hpp"
 
