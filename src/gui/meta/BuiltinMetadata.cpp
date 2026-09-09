@@ -157,7 +157,6 @@ using namespace Aero::Threading;
 using namespace Aero::Input;
 using namespace Aero::Media;
 using namespace Aero::Data;
-using namespace Aero::Media::Animation::Model;
 namespace {
 #include "gui/meta/Support.inl"
 #include "gui/meta/Resources.inl"

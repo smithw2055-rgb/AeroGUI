@@ -12,19 +12,19 @@
 namespace Aero {
 
 using namespace ::Aero;
-using Media::Animation::Storyboard;
+using namespace Media::Animation;
 
 void StoryboardHost::
 CancelStoryboardCompletionSessions(
-    Base::Span<const Media::Animation::Model::AnimationHandle>
+    Base::Span<const Model::AnimationHandle>
         handles) noexcept
 {
     for (std::uint32_t index = 0U;
          index < storyboardCompletionSessions.Size();) {
         bool matches = false;
-        for (Media::Animation::Model::AnimationHandle sessionHandle :
+        for (Model::AnimationHandle sessionHandle :
              storyboardCompletionSessions[index].handles) {
-            for (Media::Animation::Model::AnimationHandle handle :
+            for (Model::AnimationHandle handle :
                  handles) {
                 if (sessionHandle == handle) {
                     matches = true;
@@ -58,19 +58,19 @@ StoryboardHost::ProcessStoryboardCompletions() noexcept
             storyboardCompletionSessions[index];
         bool running = false;
         bool filling = false;
-        for (Media::Animation::Model::AnimationHandle handle :
+        for (Model::AnimationHandle handle :
              session.handles) {
-            const Media::Animation::Model::AnimationState state =
+            const Model::AnimationState state =
                 Animations()->State(handle);
             if (state ==
-                    Media::Animation::Model::AnimationState::Active ||
+                    Model::AnimationState::Active ||
                 state ==
-                    Media::Animation::Model::AnimationState::Paused) {
+                    Model::AnimationState::Paused) {
                 running = true;
                 break;
             }
             if (state ==
-                Media::Animation::Model::AnimationState::Filling) {
+                Model::AnimationState::Filling) {
                 filling = true;
             }
         }

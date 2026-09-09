@@ -43,46 +43,17 @@ Base::Result<void> RegisterEnum(
 
 Base::Result<void> PopulateEnumMetadata(
     Meta::Registration& context) noexcept {
-    using Input::InputScope;
-    using Input::DragDropEffects;
-    using Input::CursorType;
-    using Input::KeyboardNavigationMode;
+    using namespace Input;
+    using namespace Media::Animation;
+    using namespace Interactivity;
+    using namespace Media;
+    using namespace Shapes;
+    using namespace Data;
+    using namespace Controls;
+    using namespace Controls::Primitives;
+    // Prefer public Animation enums over Model aliases (AnimationEngine.hpp).
     using Media::Animation::FillBehavior;
     using Media::Animation::EasingMode;
-    using Media::Animation::ControlStoryboardAction;
-    using Interactivity::ComparisonCondition;
-    using Interactivity::ConditionalExpression;
-    using Media::Stretch;
-    using Media::StretchDirection;
-    using Media::MediaState;
-    using Media::TileMode;
-    using Media::BrushMappingMode;
-    using Media::GradientSpreadMethod;
-    using Shapes::FillRule;
-    using Media::PenLineJoin;
-    using Media::PenLineCap;
-    using Media::SweepDirection;
-    using Media::GeometryCombineMode;
-    using Data::ListSortDirection;
-    using Controls::TextDecorations;
-    using Controls::Orientation;
-    using Controls::Dock;
-    using Controls::MenuItemRole;
-    using Controls::ClickMode;
-    using Controls::TickPlacement;
-    using Controls::TickBarPlacement;
-    using Controls::ScrollBarVisibility;
-    using Controls::PanningMode;
-    using Controls::GridResizeDirection;
-    using Controls::GridResizeBehavior;
-    using Controls::SelectionMode;
-    using Controls::ExpandDirection;
-    using Controls::Primitives::PlacementMode;
-    using Controls::Primitives::PopupAnimation;
-    using Controls::GridViewColumnHeaderRole;
-    using Controls::ScrollUnit;
-    using Controls::VirtualizationMode;
-    using Controls::VirtualizationCacheLengthUnit;
 
     Base::Result<void> status;
 

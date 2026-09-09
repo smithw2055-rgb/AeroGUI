@@ -22,9 +22,7 @@
 namespace Aero {
 
 using namespace ::Aero;
-using Media::Animation::EventTrigger;
-using Media::Animation::StoryboardCompletedTrigger;
-using Media::Animation::Timeline;
+using namespace Media::Animation;
 
 
 StoryboardHost::StoryboardHost(ViewState& owner) noexcept
@@ -96,7 +94,7 @@ StoryboardHost::StoryboardTimingState StoryboardHost::ComposeStoryboardTiming(
             inherited != nullptr
             ? *inherited
             : StoryboardTimingState{};
-        const Media::Animation::Model::TimelineTiming authored =
+        const Model::TimelineTiming authored =
             Media::Animation::Timing(storyboard);
         if (UINT64_MAX - result.beginTimeMicroseconds <
             authored.beginTimeMicroseconds) {
@@ -123,10 +121,10 @@ StoryboardHost::StoryboardTimingState StoryboardHost::ComposeStoryboardTiming(
         return result;
     }
 
-Media::Animation::Model::TimelineTiming StoryboardHost::EffectiveTimelineTiming(
+Model::TimelineTiming StoryboardHost::EffectiveTimelineTiming(
         const Timeline& timeline,
         const StoryboardTimingState* inherited) noexcept {
-        Media::Animation::Model::TimelineTiming result =
+        Model::TimelineTiming result =
             Media::Animation::Timing(timeline);
         if (inherited == nullptr) return result;
         if (UINT64_MAX - inherited->beginTimeMicroseconds <
@@ -152,7 +150,7 @@ Media::Animation::Model::TimelineTiming StoryboardHost::EffectiveTimelineTiming(
             if (result.durationMicroseconds == 0U) {
                 result.durationMicroseconds = available;
                 result.repeat =
-                    Media::Animation::Model::
+                    Model::
                         RepeatBehavior::Once();
             } else {
                 const long double cycle =
@@ -168,13 +166,13 @@ Media::Animation::Model::TimelineTiming StoryboardHost::EffectiveTimelineTiming(
                 if (available == 0U) {
                     result.durationMicroseconds = 0U;
                     result.repeat =
-                        Media::Animation::Model::
+                        Model::
                             RepeatBehavior::Once();
                 } else if (result.repeat.forever ||
                            result.repeat.count >
                                maximumCount) {
                     result.repeat =
-                        Media::Animation::Model::
+                        Model::
                             RepeatBehavior::Count(
                                 std::max(
                                     maximumCount,
@@ -194,10 +192,10 @@ Media::Animation::Model::TimelineTiming StoryboardHost::EffectiveTimelineTiming(
 Base::Result<std::uint32_t>
  StoryboardHost::RetainStartedAnimation(
         Base::Result<
-            Media::Animation::Model::AnimationHandle>
+            Model::AnimationHandle>
             started,
         Base::Vector<
-            Media::Animation::Model::AnimationHandle>*
+            Model::AnimationHandle>*
             retainedHandles) noexcept {
         if (!started) {
             return started.GetStatus();

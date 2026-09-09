@@ -15,17 +15,7 @@
 namespace Aero {
 
 using namespace ::Aero;
-using Media::Animation::BeginStoryboard;
-using Media::Animation::ControlStoryboardAction;
-using Media::Animation::ControllableStoryboardAction;
-using Media::Animation::PauseMediaAction;
-using Media::Animation::PauseStoryboard;
-using Media::Animation::PlayMediaAction;
-using Media::Animation::RemoveStoryboard;
-using Media::Animation::ResumeStoryboard;
-using Media::Animation::SeekStoryboard;
-using Media::Animation::StopMediaAction;
-using Media::Animation::StopStoryboard;
+using namespace Media::Animation;
 
 Base::Result<void>
 StoryboardHost::ExecuteAnimationAction(
@@ -454,7 +444,7 @@ StoryboardHost::ExecuteAnimationAction(
                 }
                 CancelStoryboardCompletionSessions(
                     existing.handles.AsSpan());
-                for (Media::Animation::Model::AnimationHandle handle :
+                for (Model::AnimationHandle handle :
                      existing.handles) {
                     static_cast<void>(
                         Animations()->Remove(handle));
@@ -480,7 +470,7 @@ StoryboardHost::ExecuteAnimationAction(
                 &completion.handles,
                 dataTemplateContext);
         if (!started) {
-            for (Media::Animation::Model::AnimationHandle handle :
+            for (Model::AnimationHandle handle :
                  completion.handles) {
                 static_cast<void>(
                     Animations()->Remove(handle));
@@ -496,7 +486,7 @@ StoryboardHost::ExecuteAnimationAction(
             Base::Result<void> named =
                 namedSession.name.Assign(begin.GetName());
             if (!named) {
-                for (Media::Animation::Model::AnimationHandle handle :
+                for (Model::AnimationHandle handle :
                      completion.handles) {
                     static_cast<void>(
                         Animations()->Remove(handle));
@@ -525,7 +515,7 @@ StoryboardHost::ExecuteAnimationAction(
                 begin, owner, dataTemplateContext, names);
         }
         bool found = false;
-        Base::Vector<Media::Animation::Model::AnimationHandle> stopped(
+        Base::Vector<Model::AnimationHandle> stopped(
             Allocator());
         for (StoryboardCompletionSession& session : storyboardCompletionSessions) {
             // Shared resource storyboards (DataBinding ShowPopup) are started
@@ -533,7 +523,7 @@ StoryboardHost::ExecuteAnimationAction(
             // storyboard instance, not the element that began it.
             if (session.storyboard.Get() != control.GetStoryboard().Get()) continue;
             found = true;
-            for (Media::Animation::Model::AnimationHandle handle : session.handles) {
+            for (Model::AnimationHandle handle : session.handles) {
                 Base::Result<void> result;
                 if (control.GetControlOption() == ControlStoryboardAction::Option::Stop) {
                     result = Animations()->Stop(handle);
@@ -624,7 +614,7 @@ StoryboardHost::ExecuteAnimationAction(
     }
     StoryboardSession& session =
         storyboardSessions[sessionIndex];
-    for (Media::Animation::Model::AnimationHandle handle :
+    for (Model::AnimationHandle handle :
          session.handles) {
         Base::Result<void> result;
         if (type ==

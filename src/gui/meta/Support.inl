@@ -1,15 +1,10 @@
 #include <Aero/Interactivity/Conditions.hpp>
 // Shared implementation helpers for the semantic metadata units.
 
-using Interactivity::BackgroundEffectBehavior;
-using Interactivity::ComparisonCondition;
-using Interactivity::ConditionBehavior;
-using Interactivity::ConditionalExpression;
-using Interactivity::KeyTrigger;
-using Interactivity::PropertyChangedTrigger;
-using Interactivity::StyleBehaviorCollection;
-using Interactivity::StyleTriggerCollection;
-using Interactivity::TriggerAction;
+using namespace Interactivity;
+// Selective Animation/Media usings — file-scope `using namespace Media::Animation`
+// would also pull MediaHelpers conversion fns (Point/Color/Thickness/Size) into
+// later inl includes in BuiltinMetadata.cpp and collide with geometry types.
 using Media::Animation::BeginStoryboard;
 using Media::Animation::BooleanAnimationUsingKeyFrames;
 using Media::Animation::BooleanKeyFrame;

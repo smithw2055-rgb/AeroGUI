@@ -24,32 +24,7 @@
 namespace Aero {
 
 using namespace ::Aero;
-using Media::Animation::BooleanAnimationUsingKeyFrames;
-using Media::Animation::BooleanKeyFrame;
-using Media::Animation::ColorAnimationUsingKeyFrames;
-using Media::Animation::DoubleAnimationBase;
-using Media::Animation::DoubleAnimationUsingKeyFrames;
-using Media::Animation::Int16Animation;
-using Media::Animation::Int16AnimationUsingKeyFrames;
-using Media::Animation::Int16KeyFrame;
-using Media::Animation::Int32Animation;
-using Media::Animation::Int32AnimationUsingKeyFrames;
-using Media::Animation::Int32KeyFrame;
-using Media::Animation::Int64Animation;
-using Media::Animation::Int64AnimationUsingKeyFrames;
-using Media::Animation::Int64KeyFrame;
-using Media::Animation::MatrixAnimationUsingKeyFrames;
-using Media::Animation::ObjectAnimationUsingKeyFrames;
-using Media::Animation::ObjectKeyFrame;
-using Media::Animation::ParallelTimeline;
-using Media::Animation::PointAnimationUsingKeyFrames;
-using Media::Animation::SizeAnimationUsingKeyFrames;
-using Media::Animation::Storyboard;
-using Media::Animation::StringAnimationUsingKeyFrames;
-using Media::Animation::StringKeyFrame;
-using Media::Animation::ThicknessAnimationUsingKeyFrames;
-using Media::Animation::Timeline;
-using Media::Animation::TimelineGroup;
+using namespace Media::Animation;
 
 Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
         Timeline& timeline,
@@ -57,10 +32,11 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
         const NameScope* names,
         const StoryboardTimingState* inherited,
         Base::Vector<
-            Media::Animation::Model::AnimationHandle>*
+            Model::AnimationHandle>*
             retainedHandles,
         Controls::DataTemplateTriggerState*
             dataTemplateContext) noexcept {
+        // Disambiguate public Media::Animation types vs Model::* (AnimationEngine.hpp).
         using Media::Animation::ColorAnimation;
         using Media::Animation::ColorKeyFrame;
         using Media::Animation::DoubleAnimation;
@@ -169,12 +145,12 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
         if (type == DoubleAnimation::StaticTypeId()) {
             auto& animation =
                 static_cast<DoubleAnimation&>(timeline);
-            Media::Animation::Model::DoubleAnimation runtime =
+            Model::DoubleAnimation runtime =
                 Media::Animation::Double(animation);
             runtime.timing =
                 EffectiveTimelineTiming(
                     animation, inherited);
-            Base::Result<Media::Animation::Model::AnimationHandle> started =
+            Base::Result<Model::AnimationHandle> started =
                 Animations()->Begin(
                     propertyTarget,
                     propertyHandle,
@@ -195,7 +171,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 Meta::ValueCodec<double>::Decode(current.Value());
             if (!origin) return origin.GetStatus();
 
-            Media::Animation::Model::CustomDoubleAnimation runtime;
+            Model::CustomDoubleAnimation runtime;
             runtime.animation =
                 Base::Ref<DoubleAnimationBase>::
                     TryFromBorrowed(animation);
@@ -211,7 +187,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 EffectiveTimelineTiming(
                     animation, inherited);
             Base::Result<
-                Media::Animation::Model::AnimationHandle>
+                Model::AnimationHandle>
                 started = Animations()->Begin(
                     propertyTarget,
                     propertyHandle,
@@ -223,12 +199,12 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
         if (type == ColorAnimation::StaticTypeId()) {
             auto& animation =
                 static_cast<ColorAnimation&>(timeline);
-            Media::Animation::Model::ColorAnimation runtime =
+            Model::ColorAnimation runtime =
                 Media::Animation::Color(animation);
             runtime.timing =
                 EffectiveTimelineTiming(
                     animation, inherited);
-            Base::Result<Media::Animation::Model::AnimationHandle> started =
+            Base::Result<Model::AnimationHandle> started =
                 Animations()->Begin(
                     propertyTarget,
                     propertyHandle,
@@ -244,13 +220,13 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 static_cast<
                     PointAnimation&>(
                         timeline);
-            Media::Animation::Model::PointAnimation runtime =
+            Model::PointAnimation runtime =
                 Media::Animation::Point(animation);
             runtime.timing =
                 EffectiveTimelineTiming(
                     animation, inherited);
             Base::Result<
-                Media::Animation::Model::AnimationHandle>
+                Model::AnimationHandle>
                 started = Animations()->Begin(
                     propertyTarget,
                     propertyHandle,
@@ -266,13 +242,13 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 static_cast<
                     RectAnimation&>(
                         timeline);
-            Media::Animation::Model::RectAnimation runtime =
+            Model::RectAnimation runtime =
                 Media::Animation::Rect(animation);
             runtime.timing =
                 EffectiveTimelineTiming(
                     animation, inherited);
             Base::Result<
-                Media::Animation::Model::AnimationHandle>
+                Model::AnimationHandle>
                 started = Animations()->Begin(
                     propertyTarget,
                     propertyHandle,
@@ -288,13 +264,13 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 static_cast<
                     ThicknessAnimation&>(
                         timeline);
-            Media::Animation::Model::ThicknessAnimation runtime =
+            Model::ThicknessAnimation runtime =
                 Media::Animation::Thickness(animation);
             runtime.timing =
                 EffectiveTimelineTiming(
                     animation, inherited);
             Base::Result<
-                Media::Animation::Model::AnimationHandle>
+                Model::AnimationHandle>
                 started = Animations()->Begin(
                     propertyTarget,
                     propertyHandle,
@@ -307,11 +283,11 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             Int16Animation::StaticTypeId()) {
             auto& animation =
                 static_cast<Int16Animation&>(timeline);
-            Media::Animation::Model::IntegerAnimation runtime =
+            Model::IntegerAnimation runtime =
                 Media::Animation::Integer16(animation);
             runtime.timing =
                 EffectiveTimelineTiming(animation, inherited);
-            Base::Result<Media::Animation::Model::AnimationHandle>
+            Base::Result<Model::AnimationHandle>
                 started = Animations()->Begin(
                     propertyTarget, propertyHandle, runtime);
             return RetainStartedAnimation(
@@ -321,11 +297,11 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             Int32Animation::StaticTypeId()) {
             auto& animation =
                 static_cast<Int32Animation&>(timeline);
-            Media::Animation::Model::IntegerAnimation runtime =
+            Model::IntegerAnimation runtime =
                 Media::Animation::Integer32(animation);
             runtime.timing =
                 EffectiveTimelineTiming(animation, inherited);
-            Base::Result<Media::Animation::Model::AnimationHandle>
+            Base::Result<Model::AnimationHandle>
                 started = Animations()->Begin(
                     propertyTarget, propertyHandle, runtime);
             return RetainStartedAnimation(
@@ -335,11 +311,11 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             Int64Animation::StaticTypeId()) {
             auto& animation =
                 static_cast<Int64Animation&>(timeline);
-            Media::Animation::Model::IntegerAnimation runtime =
+            Model::IntegerAnimation runtime =
                 Media::Animation::Integer64(animation);
             runtime.timing =
                 EffectiveTimelineTiming(animation, inherited);
-            Base::Result<Media::Animation::Model::AnimationHandle>
+            Base::Result<Model::AnimationHandle>
                 started = Animations()->Begin(
                     propertyTarget, propertyHandle, runtime);
             return RetainStartedAnimation(
@@ -349,11 +325,11 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             SizeAnimation::StaticTypeId()) {
             auto& animation =
                 static_cast<SizeAnimation&>(timeline);
-            Media::Animation::Model::SizeAnimation runtime =
+            Model::SizeAnimation runtime =
                 Media::Animation::Size(animation);
             runtime.timing =
                 EffectiveTimelineTiming(animation, inherited);
-            Base::Result<Media::Animation::Model::AnimationHandle>
+            Base::Result<Model::AnimationHandle>
                 started = Animations()->Begin(
                     propertyTarget, propertyHandle, runtime);
             return RetainStartedAnimation(
@@ -363,11 +339,11 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             MatrixAnimation::StaticTypeId()) {
             auto& animation =
                 static_cast<MatrixAnimation&>(timeline);
-            Media::Animation::Model::MatrixAnimation runtime =
+            Model::MatrixAnimation runtime =
                 Media::Animation::Matrix(animation);
             runtime.timing =
                 EffectiveTimelineTiming(animation, inherited);
-            Base::Result<Media::Animation::Model::AnimationHandle>
+            Base::Result<Model::AnimationHandle>
                 started = Animations()->Begin(
                     propertyTarget, propertyHandle, runtime);
             return RetainStartedAnimation(
@@ -377,7 +353,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             DoubleAnimationUsingKeyFrames::StaticTypeId()) {
             auto& animation = static_cast<
                 DoubleAnimationUsingKeyFrames&>(timeline);
-            Base::Vector<Media::Animation::Model::DoubleKeyFrame> frames(Allocator());
+            Base::Vector<Model::DoubleKeyFrame> frames(Allocator());
             const auto schedule = MakeKeyframeSchedule(
                 animation,
                 EffectiveTimelineTiming(animation, inherited).durationMicroseconds);
@@ -394,7 +370,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             }
             for (std::uint32_t index = 1U;
                  index < frames.Size(); ++index) {
-                Media::Animation::Model::DoubleKeyFrame current =
+                Model::DoubleKeyFrame current =
                     frames[index];
                 std::uint32_t position = index;
                 while (position > 0U &&
@@ -412,7 +388,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             if (!base) return base.GetStatus();
             Base::Result<double> baseDouble =
                 Meta::ValueCodec<double>::Decode(base.Value());
-            Media::Animation::Model::DoubleKeyFrameAnimation runtime;
+            Model::DoubleKeyFrameAnimation runtime;
             if (baseDouble) {
                 runtime.baseValue = baseDouble.Value();
             } else if (!frames.Empty() &&
@@ -435,7 +411,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                     frames.Back().keyTimeMicroseconds;
             }
             runtime.keyFrames = frames.AsSpan();
-            Base::Result<Media::Animation::Model::AnimationHandle> started =
+            Base::Result<Model::AnimationHandle> started =
                 Animations()->Begin(
                     propertyTarget, propertyHandle, runtime);
             return RetainStartedAnimation(
@@ -448,7 +424,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             auto& animation = static_cast<
                 ColorAnimationUsingKeyFrames&>(
                     timeline);
-            Base::Vector<Media::Animation::Model::ColorKeyFrame>
+            Base::Vector<Model::ColorKeyFrame>
                 frames(Allocator());
             const auto schedule = MakeKeyframeSchedule(
                 animation,
@@ -469,7 +445,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             for (std::uint32_t index = 1U;
                  index < frames.Size();
                  ++index) {
-                Media::Animation::Model::ColorKeyFrame current =
+                Model::ColorKeyFrame current =
                     frames[index];
                 std::uint32_t position = index;
                 while (position > 0U &&
@@ -492,7 +468,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             if (!baseColor) {
                 return baseColor.GetStatus();
             }
-            Media::Animation::Model::ColorKeyFrameAnimation
+            Model::ColorKeyFrameAnimation
                 runtime;
             runtime.baseValue = baseColor.Value();
             runtime.timing =
@@ -507,7 +483,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             }
             runtime.keyFrames = frames.AsSpan();
             Base::Result<
-                Media::Animation::Model::AnimationHandle>
+                Model::AnimationHandle>
                 started = Animations()->Begin(
                     propertyTarget,
                     propertyHandle,
@@ -520,7 +496,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             PointAnimationUsingKeyFrames::StaticTypeId()) {
             auto& animation = static_cast<
                 PointAnimationUsingKeyFrames&>(timeline);
-            Base::Vector<Media::Animation::Model::PointKeyFrame> frames(
+            Base::Vector<Model::PointKeyFrame> frames(
                 Allocator());
             const auto schedule = MakeKeyframeSchedule(
                 animation,
@@ -538,7 +514,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 ++keyIndex;
             }
             for (std::uint32_t index = 1U; index < frames.Size(); ++index) {
-                Media::Animation::Model::PointKeyFrame current =
+                Model::PointKeyFrame current =
                     frames[index];
                 std::uint32_t position = index;
                 while (position > 0U &&
@@ -554,7 +530,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             if (!base) return base.GetStatus();
             Base::Result<Base::Point> basePoint =
                 Meta::ValueCodec<Base::Point>::Decode(base.Value());
-            Media::Animation::Model::PointKeyFrameAnimation runtime;
+            Model::PointKeyFrameAnimation runtime;
             if (basePoint) {
                 runtime.baseValue = basePoint.Value();
             } else if (!frames.Empty() &&
@@ -569,7 +545,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                     frames.Back().keyTimeMicroseconds;
             }
             runtime.keyFrames = frames.AsSpan();
-            Base::Result<Media::Animation::Model::AnimationHandle>
+            Base::Result<Model::AnimationHandle>
                 started = Animations()->Begin(
                     propertyTarget, propertyHandle, runtime);
             return RetainStartedAnimation(
@@ -579,7 +555,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             ThicknessAnimationUsingKeyFrames::StaticTypeId()) {
             auto& animation = static_cast<
                 ThicknessAnimationUsingKeyFrames&>(timeline);
-            Base::Vector<Media::Animation::Model::ThicknessKeyFrame>
+            Base::Vector<Model::ThicknessKeyFrame>
                 frames(Allocator());
             const auto schedule = MakeKeyframeSchedule(
                 animation,
@@ -597,7 +573,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 ++keyIndex;
             }
             for (std::uint32_t index = 1U; index < frames.Size(); ++index) {
-                Media::Animation::Model::ThicknessKeyFrame current =
+                Model::ThicknessKeyFrame current =
                     frames[index];
                 std::uint32_t position = index;
                 while (position > 0U &&
@@ -613,7 +589,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             if (!base) return base.GetStatus();
             Base::Result<Base::Thickness> baseThickness =
                 Meta::ValueCodec<Base::Thickness>::Decode(base.Value());
-            Media::Animation::Model::ThicknessKeyFrameAnimation runtime;
+            Model::ThicknessKeyFrameAnimation runtime;
             if (baseThickness) {
                 runtime.baseValue = baseThickness.Value();
             } else if (!frames.Empty() &&
@@ -628,7 +604,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                     frames.Back().keyTimeMicroseconds;
             }
             runtime.keyFrames = frames.AsSpan();
-            Base::Result<Media::Animation::Model::AnimationHandle>
+            Base::Result<Model::AnimationHandle>
                 started = Animations()->Begin(
                     propertyTarget, propertyHandle, runtime);
             return RetainStartedAnimation(
@@ -636,15 +612,15 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
         }
 
             auto startIntegerKeyFrames =
-            [&](Media::Animation::Model::IntegerAnimationWidth width,
+            [&](Model::IntegerAnimationWidth width,
                 auto&& collect)
                 -> Base::Result<std::uint32_t> {
-            Base::Vector<Media::Animation::Model::IntegerKeyFrame>
+            Base::Vector<Model::IntegerKeyFrame>
                 frames(Allocator());
             Base::Result<void> collected = collect(frames);
             if (!collected) return collected.GetStatus();
             for (std::uint32_t index = 1U; index < frames.Size(); ++index) {
-                Media::Animation::Model::IntegerKeyFrame current =
+                Model::IntegerKeyFrame current =
                     frames[index];
                 std::uint32_t position = index;
                 while (position > 0U &&
@@ -658,10 +634,10 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             Base::Result<Meta::PropertyValue> base =
                 propertyTarget.GetValue(propertyHandle);
             if (!base) return base.GetStatus();
-            Media::Animation::Model::IntegerKeyFrameAnimation runtime;
+            Model::IntegerKeyFrameAnimation runtime;
             runtime.width = width;
             if (width ==
-                Media::Animation::Model::IntegerAnimationWidth::Int16) {
+                Model::IntegerAnimationWidth::Int16) {
                 Base::Result<std::int16_t> decoded =
                     Meta::ValueCodec<std::int16_t>::Decode(base.Value());
                 if (decoded) {
@@ -674,7 +650,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 }
             } else if (
                 width ==
-                Media::Animation::Model::IntegerAnimationWidth::Int64) {
+                Model::IntegerAnimationWidth::Int64) {
                 Base::Result<std::int64_t> decoded =
                     Meta::ValueCodec<std::int64_t>::Decode(base.Value());
                 if (decoded) {
@@ -703,7 +679,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                     frames.Back().keyTimeMicroseconds;
             }
             runtime.keyFrames = frames.AsSpan();
-            Base::Result<Media::Animation::Model::AnimationHandle>
+            Base::Result<Model::AnimationHandle>
                 started = Animations()->Begin(
                     propertyTarget, propertyHandle, runtime);
             return RetainStartedAnimation(
@@ -715,7 +691,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             auto& animation = static_cast<
                 Int16AnimationUsingKeyFrames&>(timeline);
             return startIntegerKeyFrames(
-                Media::Animation::Model::IntegerAnimationWidth::Int16,
+                Model::IntegerAnimationWidth::Int16,
                 [&](auto& frames) -> Base::Result<void> {
                     const auto schedule = MakeKeyframeSchedule(
                         animation,
@@ -741,7 +717,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             auto& animation = static_cast<
                 Int32AnimationUsingKeyFrames&>(timeline);
             return startIntegerKeyFrames(
-                Media::Animation::Model::IntegerAnimationWidth::Int32,
+                Model::IntegerAnimationWidth::Int32,
                 [&](auto& frames) -> Base::Result<void> {
                     const auto schedule = MakeKeyframeSchedule(
                         animation,
@@ -767,7 +743,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             auto& animation = static_cast<
                 Int64AnimationUsingKeyFrames&>(timeline);
             return startIntegerKeyFrames(
-                Media::Animation::Model::IntegerAnimationWidth::Int64,
+                Model::IntegerAnimationWidth::Int64,
                 [&](auto& frames) -> Base::Result<void> {
                     const auto schedule = MakeKeyframeSchedule(
                         animation,
@@ -792,7 +768,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             SizeAnimationUsingKeyFrames::StaticTypeId()) {
             auto& animation = static_cast<
                 SizeAnimationUsingKeyFrames&>(timeline);
-            Base::Vector<Media::Animation::Model::SizeKeyFrame>
+            Base::Vector<Model::SizeKeyFrame>
                 frames(Allocator());
             const auto schedule = MakeKeyframeSchedule(
                 animation,
@@ -810,7 +786,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 ++keyIndex;
             }
             for (std::uint32_t index = 1U; index < frames.Size(); ++index) {
-                Media::Animation::Model::SizeKeyFrame current =
+                Model::SizeKeyFrame current =
                     frames[index];
                 std::uint32_t position = index;
                 while (position > 0U &&
@@ -826,7 +802,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             if (!base) return base.GetStatus();
             Base::Result<Base::Size> baseSize =
                 Meta::ValueCodec<Base::Size>::Decode(base.Value());
-            Media::Animation::Model::SizeKeyFrameAnimation runtime;
+            Model::SizeKeyFrameAnimation runtime;
             if (baseSize) {
                 runtime.baseValue = baseSize.Value();
             } else if (!frames.Empty() &&
@@ -841,7 +817,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                     frames.Back().keyTimeMicroseconds;
             }
             runtime.keyFrames = frames.AsSpan();
-            Base::Result<Media::Animation::Model::AnimationHandle>
+            Base::Result<Model::AnimationHandle>
                 started = Animations()->Begin(
                     propertyTarget, propertyHandle, runtime);
             return RetainStartedAnimation(
@@ -851,7 +827,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             MatrixAnimationUsingKeyFrames::StaticTypeId()) {
             auto& animation = static_cast<
                 MatrixAnimationUsingKeyFrames&>(timeline);
-            Base::Vector<Media::Animation::Model::MatrixKeyFrame>
+            Base::Vector<Model::MatrixKeyFrame>
                 frames(Allocator());
             const auto schedule = MakeKeyframeSchedule(
                 animation,
@@ -869,7 +845,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 ++keyIndex;
             }
             for (std::uint32_t index = 1U; index < frames.Size(); ++index) {
-                Media::Animation::Model::MatrixKeyFrame current =
+                Model::MatrixKeyFrame current =
                     frames[index];
                 std::uint32_t position = index;
                 while (position > 0U &&
@@ -885,7 +861,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             if (!base) return base.GetStatus();
             Base::Result<Base::Transform2D> baseMatrix =
                 Meta::ValueCodec<Base::Transform2D>::Decode(base.Value());
-            Media::Animation::Model::MatrixKeyFrameAnimation runtime;
+            Model::MatrixKeyFrameAnimation runtime;
             if (baseMatrix) {
                 runtime.baseValue = baseMatrix.Value();
             } else if (!frames.Empty() &&
@@ -900,14 +876,14 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                     frames.Back().keyTimeMicroseconds;
             }
             runtime.keyFrames = frames.AsSpan();
-            Base::Result<Media::Animation::Model::AnimationHandle>
+            Base::Result<Model::AnimationHandle>
                 started = Animations()->Begin(
                     propertyTarget, propertyHandle, runtime);
             return RetainStartedAnimation(
                 std::move(started), retainedHandles);
         }
 
-        Base::Vector<Media::Animation::Model::DiscreteAnimationKeyFrame>
+        Base::Vector<Model::DiscreteAnimationKeyFrame>
             frames(Allocator());
         if (type ==
             BooleanAnimationUsingKeyFrames::StaticTypeId()) {
@@ -921,7 +897,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                      BooleanKeyFrame>& frame :
                  animation.GetKeyFrames()) {
                 if (!frame) continue;
-                Media::Animation::Model::DiscreteAnimationKeyFrame runtime;
+                Model::DiscreteAnimationKeyFrame runtime;
                 runtime.keyTimeMicroseconds =
                     Media::Animation::ResolveKeyTime(
                         frame->GetKeyTime(),
@@ -947,7 +923,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                      ObjectKeyFrame>& frame :
                  animation.GetKeyFrames()) {
                 if (!frame) continue;
-                Media::Animation::Model::DiscreteAnimationKeyFrame runtime;
+                Model::DiscreteAnimationKeyFrame runtime;
                 runtime.keyTimeMicroseconds =
                     Media::Animation::ResolveKeyTime(
                         frame->GetKeyTime(),
@@ -981,7 +957,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                      StringKeyFrame>& frame :
                  animation.GetKeyFrames()) {
                 if (!frame) continue;
-                Media::Animation::Model::DiscreteAnimationKeyFrame runtime;
+                Model::DiscreteAnimationKeyFrame runtime;
                 runtime.keyTimeMicroseconds =
                     Media::Animation::ResolveKeyTime(
                         frame->GetKeyTime(),
@@ -1002,7 +978,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
         }
         for (std::uint32_t index = 1U;
              index < frames.Size(); ++index) {
-            Media::Animation::Model::DiscreteAnimationKeyFrame current =
+            Model::DiscreteAnimationKeyFrame current =
                 std::move(frames[index]);
             std::uint32_t position = index;
             while (position > 0U &&
@@ -1018,7 +994,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
         Base::Result<Meta::PropertyValue> base =
             propertyTarget.GetValue(propertyHandle);
         if (!base) return base.GetStatus();
-        Media::Animation::Model::DiscreteAnimation runtime;
+        Model::DiscreteAnimation runtime;
         runtime.baseValue = base.Value();
         runtime.timing =
             EffectiveTimelineTiming(
@@ -1029,7 +1005,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 frames.Back().keyTimeMicroseconds;
         }
         runtime.keyFrames = frames.AsSpan();
-        Base::Result<Media::Animation::Model::AnimationHandle> started =
+        Base::Result<Model::AnimationHandle> started =
             Animations()->Begin(
                 propertyTarget, propertyHandle, runtime);
         return RetainStartedAnimation(

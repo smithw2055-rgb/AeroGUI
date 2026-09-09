@@ -446,9 +446,7 @@ namespace Aero {
 
 using namespace Aero::Meta;
 using namespace Aero::Threading;
-using Media::Transform;
-using Media::TransformBounds;
-using Media::ComposeTransforms;
+using namespace Media;
 using Render::DisplayListBuilder;
 
 FrameworkElement::FrameworkElement(TypeId runtimeType) noexcept

@@ -40,16 +40,9 @@ using namespace Aero::Threading;
 using namespace Aero::Controls;
 using namespace Aero::Media;
 using Controls::Primitives::Selector;
-using Data::Binding;
-using Data::RelativeSource;
-using Data::RelativeSourceMode;
-using Documents::Inline;
-using Media::Animation::ColorAnimationUsingKeyFrames;
-using Media::Animation::DoubleAnimationUsingKeyFrames;
-using Media::Animation::EventTrigger;
-using Media::Animation::Storyboard;
-using Media::Animation::Timeline;
-
+using namespace Data;
+using Documents::Inline; // not Documents:: — avoid Span collision with Aero::Span
+using namespace Media::Animation;
 
 Base::Status InvalidTemplateCompiler(
     const char* message) noexcept {

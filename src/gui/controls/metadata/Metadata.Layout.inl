@@ -94,14 +94,8 @@ Base::Result<void> PopulateControlsPanels(
 // metadata bootstrap. Keep registration order stable within this unit.
 Base::Result<void> PopulateControlsTextMedia(
     ::Aero::Meta::Registration& context) noexcept {
-    namespace Docs = Aero::Documents;
-    using Aero::Media::Brush;
-    using Aero::Media::FontFamily;
-    using Aero::Media::Pen;
-    using Aero::Media::Geometry;
-    using Aero::Media::DashStyle;
-    using Aero::Media::ImageSource;
-    using Aero::Media::MakeSolidColorBrush;
+    namespace Docs = Aero::Documents; // alias — do not using namespace Documents (Span collision)
+    using namespace Aero::Media;
     Base::Result<void> status;
 
     const auto makeBrush = [](Base::Color color) noexcept {

@@ -13,7 +13,8 @@
 namespace Aero {
 
 using namespace ::Aero;
-using Media::Animation::EventTrigger;
+using namespace Media::Animation;
+
 
 Base::Result<bool> StoryboardHost::AnimationEventState::EvaluateComparison(
             const Interactivity::ComparisonCondition& condition) noexcept {

@@ -13,21 +13,12 @@
 namespace Aero {
 
 using namespace ::Aero;
-using Media::Animation::EventTrigger;
-using Controls::BoxedItemValue;
-using Controls::DataTemplatePropertyTrigger;
-using Controls::DataTemplateTriggerCondition;
-using Controls::DataTemplateTriggerSetter;
-using Controls::DataTemplateTriggerState;
-using Data::Binding;
-using Data::RelativeSource;
-using Data::RelativeSourceMode;
-using Interactivity::ComparisonCondition;
-using Interactivity::ConditionBehavior;
-using Interactivity::ConditionalExpression;
-using Interactivity::TriggerAction;
-using Media::Animation::Model::AnimationHandle;
-using Media::Visual;
+using namespace Media::Animation;
+using namespace Controls;
+using namespace Data;
+using namespace Interactivity;
+using namespace Media;
+using Model::AnimationHandle;
 
 namespace {
 

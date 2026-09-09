@@ -41,16 +41,7 @@ namespace Aero::Controls {
     using namespace Aero::Meta;
 using namespace Aero::Threading;
     using namespace Aero::Controls::Primitives;
-    using Aero::Shapes::Shape;
-    using Aero::Shapes::Rectangle;
-    using Aero::Shapes::Ellipse;
-    using Aero::Shapes::Path;
-    using Aero::Shapes::Line;
-    using Aero::Shapes::Polygon;
-    using Aero::Shapes::Polyline;
-    using Aero::Shapes::FillRule;
-    using Aero::Shapes::PenLineJoin;
-    using Aero::Shapes::PenLineCap;
+    using namespace Aero::Shapes;
     using Aero::TryCastToInterface;
 namespace {
 // Grouped metadata units; include order preserves the original stable
