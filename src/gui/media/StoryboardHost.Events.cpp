@@ -13,10 +13,10 @@
 namespace Aero {
 
 using namespace ::Aero;
-namespace MediaAnimation = ::Aero::Media::Animation;
+using Media::Animation::EventTrigger;
 
 Base::Result<bool> StoryboardHost::AnimationEventState::EvaluateComparison(
-            const Aero::Interactivity::ComparisonCondition& condition) noexcept {
+            const Interactivity::ComparisonCondition& condition) noexcept {
             const Base::Ref<Data::Binding> binding =
                 condition.GetLeftOperand();
             if (!binding || runtime == nullptr ||
@@ -63,11 +63,11 @@ Base::Result<bool> StoryboardHost::AnimationEventState::EvaluateComparison(
             }
             const auto comparison = condition.GetComparisonOperator();
             if (comparison ==
-                Aero::Interactivity::ComparisonCondition::Operator::Equal) {
+                Interactivity::ComparisonCondition::Operator::Equal) {
                 return current.Value().Equals(expected);
             }
             if (comparison ==
-                Aero::Interactivity::ComparisonCondition::Operator::NotEqual) {
+                Interactivity::ComparisonCondition::Operator::NotEqual) {
                 return !current.Value().Equals(expected);
             }
 
@@ -92,13 +92,13 @@ Base::Result<bool> StoryboardHost::AnimationEventState::EvaluateComparison(
                 const long double left = numericValue(current.Value());
                 const long double right = numericValue(expected);
                 switch (comparison) {
-                case Aero::Interactivity::ComparisonCondition::Operator::LessThan:
+                case Interactivity::ComparisonCondition::Operator::LessThan:
                     return left < right;
-                case Aero::Interactivity::ComparisonCondition::Operator::LessThanOrEqual:
+                case Interactivity::ComparisonCondition::Operator::LessThanOrEqual:
                     return left <= right;
-                case Aero::Interactivity::ComparisonCondition::Operator::GreaterThan:
+                case Interactivity::ComparisonCondition::Operator::GreaterThan:
                     return left > right;
-                case Aero::Interactivity::ComparisonCondition::Operator::GreaterThanOrEqual:
+                case Interactivity::ComparisonCondition::Operator::GreaterThanOrEqual:
                     return left >= right;
                 default:
                     break;
@@ -109,13 +109,13 @@ Base::Result<bool> StoryboardHost::AnimationEventState::EvaluateComparison(
                 const int result = current.Value().AsString().Compare(
                     expected.AsString());
                 switch (comparison) {
-                case Aero::Interactivity::ComparisonCondition::Operator::LessThan:
+                case Interactivity::ComparisonCondition::Operator::LessThan:
                     return result < 0;
-                case Aero::Interactivity::ComparisonCondition::Operator::LessThanOrEqual:
+                case Interactivity::ComparisonCondition::Operator::LessThanOrEqual:
                     return result <= 0;
-                case Aero::Interactivity::ComparisonCondition::Operator::GreaterThan:
+                case Interactivity::ComparisonCondition::Operator::GreaterThan:
                     return result > 0;
-                case Aero::Interactivity::ComparisonCondition::Operator::GreaterThanOrEqual:
+                case Interactivity::ComparisonCondition::Operator::GreaterThanOrEqual:
                     return result >= 0;
                 default:
                     break;
@@ -129,31 +129,31 @@ Base::Result<bool> StoryboardHost::AnimationEventState::BehaviorsAllowExecution(
                  trigger->GetBehaviors()) {
                 if (!behavior) continue;
                 if (behavior->RuntimeType() !=
-                    Aero::Interactivity::ConditionBehavior::StaticTypeId()) {
+                    Interactivity::ConditionBehavior::StaticTypeId()) {
                     return Base::Status::Failure(
                         Base::ErrorCode::Unsupported,
                         "EventTrigger contains an unsupported behavior");
                 }
-                const Base::Ref<Aero::Interactivity::ConditionalExpression> expression =
-                    static_cast<Aero::Interactivity::ConditionBehavior&>(*behavior).GetExpression();
+                const Base::Ref<Interactivity::ConditionalExpression> expression =
+                    static_cast<Interactivity::ConditionBehavior&>(*behavior).GetExpression();
                 if (!expression) {
                     return Base::Status::Failure(
                         Base::ErrorCode::InvalidState,
                         "ConditionBehavior has no expression");
                 }
                 bool expressionResult = false;
-                for (const Base::Ref<Aero::Interactivity::ComparisonCondition>& condition :
+                for (const Base::Ref<Interactivity::ComparisonCondition>& condition :
                      expression->GetConditions()) {
                     if (!condition) continue;
                     Base::Result<bool> matches = EvaluateComparison(*condition);
                     if (!matches) return matches.GetStatus();
                     expressionResult = matches.Value();
                     if (!expressionResult && expression->GetChaining() ==
-                        Aero::Interactivity::ConditionalExpression::ForwardChaining::And) {
+                        Interactivity::ConditionalExpression::ForwardChaining::And) {
                         return false;
                     }
                     if (expressionResult && expression->GetChaining() ==
-                        Aero::Interactivity::ConditionalExpression::ForwardChaining::Or) {
+                        Interactivity::ConditionalExpression::ForwardChaining::Or) {
                         break;
                     }
                 }
@@ -164,7 +164,7 @@ Base::Result<bool> StoryboardHost::AnimationEventState::BehaviorsAllowExecution(
 
 void StoryboardHost::AnimationEventState::Invoke(
             Base::Object*,
-            Aero::RoutedEventArgs&) noexcept {
+            RoutedEventArgs&) noexcept {
             if (runtime == nullptr || trigger == nullptr ||
                 owner == nullptr) {
                 return;
@@ -174,7 +174,7 @@ void StoryboardHost::AnimationEventState::Invoke(
                 return;
             }
             if (!allowed.Value()) return;
-            for (const Base::Ref<Aero::Interactivity::TriggerAction>& action :
+            for (const Base::Ref<Interactivity::TriggerAction>& action :
                  trigger->GetActions()) {
                 if (!action) continue;
                 Base::Result<void> executed =
@@ -192,10 +192,10 @@ void StoryboardHost::AnimationEventState::Invoke(
         }
 
 Base::Result<bool> StoryboardHost::StartEventTrigger(
-        MediaAnimation::EventTrigger& trigger,
+        EventTrigger& trigger,
         Base::Object& defaultSource,
-        Aero::FrameworkElement& actionOwner,
-        const Aero::NameScope* names) noexcept {
+        FrameworkElement& actionOwner,
+        const NameScope* names) noexcept {
         const Base::StringView routedEvent =
             trigger.GetRoutedEvent();
         Base::Object* eventSource =
@@ -235,9 +235,9 @@ Base::Result<bool> StoryboardHost::StartEventTrigger(
         const bool loadedEvent =
             eventName == Base::StringView("Loaded");
         const bool uiSource = Metadata()->Types().IsDerivedFrom(
-            eventSource->RuntimeType(), Aero::UIElement::StaticTypeId());
+            eventSource->RuntimeType(), UIElement::StaticTypeId());
         const bool contentSource = Metadata()->Types().IsDerivedFrom(
-            eventSource->RuntimeType(), Aero::ContentElement::StaticTypeId());
+            eventSource->RuntimeType(), ContentElement::StaticTypeId());
         if (!uiSource && !contentSource) {
             return Base::Status::Failure(
                 Base::ErrorCode::NotFound,
@@ -266,7 +266,7 @@ Base::Result<bool> StoryboardHost::StartEventTrigger(
                 eventSource->RuntimeType(), eventName, true);
         }
         if (event == nullptr && loadedEvent) {
-            for (const Base::Ref<Aero::Interactivity::TriggerAction>& action :
+            for (const Base::Ref<Interactivity::TriggerAction>& action :
                  trigger.GetActions()) {
                 if (!action) continue;
                 Base::Result<void> executed =
@@ -281,7 +281,7 @@ Base::Result<bool> StoryboardHost::StartEventTrigger(
                 Base::ErrorCode::NotFound,
                 "EventTrigger RoutedEvent was not found on its source");
         }
-        const Aero::RoutedEventHandle eventHandle{event->Id()};
+        const RoutedEventHandle eventHandle{event->Id()};
         AnimationEventState* eventContext = nullptr;
         Base::Result<void> created = AllocateObject(
             *Allocator(), Base::MemoryTag::Ui, eventContext);
@@ -292,15 +292,15 @@ Base::Result<bool> StoryboardHost::StartEventTrigger(
         eventContext->names = names;
         auto callback = [eventContext](
             Base::Object* sender,
-            Aero::RoutedEventArgs& args) noexcept {
+            RoutedEventArgs& args) noexcept {
             eventContext->Invoke(sender, args);
         };
-        Aero::RoutedEventHandler handler(callback);
+        RoutedEventHandler handler(callback);
         if (uiSource) {
-            static_cast<Aero::UIElement*>(eventSource)->AddHandler(
+            static_cast<UIElement*>(eventSource)->AddHandler(
                 eventHandle, handler);
         } else {
-            static_cast<Aero::ContentElement*>(eventSource)->AddHandler(
+            static_cast<ContentElement*>(eventSource)->AddHandler(
                 eventHandle, handler);
         }
         AnimationEventSubscription subscription;
@@ -316,7 +316,7 @@ Base::Result<bool> StoryboardHost::StartEventTrigger(
         // the associated object is already loaded (InitializeComponent / mount
         // often raises Loaded before Interaction.Triggers are attached).
         if (loadedEvent && uiSource &&
-            static_cast<Aero::UIElement*>(eventSource)->GetIsLoaded()) {
+            static_cast<UIElement*>(eventSource)->GetIsLoaded()) {
             // Defer until after the next layout/image pass so ElementName
             // bindings (Menu3D parallax TranslateTransform.X) see measured
             // ActualWidth before BackgroundAnim captures its From value.
@@ -330,11 +330,11 @@ Base::Result<bool> StoryboardHost::StartEventTrigger(
 namespace {
 
 bool EventTriggerOwnerInSubtree(
-        Aero::Media::Visual* node,
-        const Aero::Media::Visual& fragmentRoot) noexcept {
+        Media::Visual* node,
+        const Media::Visual& fragmentRoot) noexcept {
     while (node != nullptr) {
         if (node == &fragmentRoot) return true;
-        node = ::Aero::TryCast<::Aero::Media::Visual>(node->GetLogicalParent()) != nullptr ? ::Aero::TryCast<::Aero::Media::Visual>(node->GetLogicalParent()) : node->GetVisualParent();
+        node = TryCast<Media::Visual>(node->GetLogicalParent()) != nullptr ? TryCast<Media::Visual>(node->GetLogicalParent()) : node->GetVisualParent();
     }
     return false;
 }
@@ -342,7 +342,7 @@ bool EventTriggerOwnerInSubtree(
 } // namespace
 
 void StoryboardHost::ClearEventTriggersFor(
-        Aero::Media::Visual& fragmentRoot) noexcept {
+        Media::Visual& fragmentRoot) noexcept {
         for (std::uint32_t index = 0U;
              index < animationEventSubscriptions.Size();) {
             AnimationEventSubscription& subscription =
@@ -356,13 +356,13 @@ void StoryboardHost::ClearEventTriggersFor(
             if (subscription.source != nullptr) {
                 if (subscription.contentSource) {
                     static_cast<void>(
-                        static_cast<Aero::ContentElement*>(subscription.source)
+                        static_cast<ContentElement*>(subscription.source)
                             ->RemoveHandler(
                                 subscription.event,
                                 subscription.handler));
                 } else {
                     static_cast<void>(
-                        static_cast<Aero::UIElement*>(subscription.source)
+                        static_cast<UIElement*>(subscription.source)
                             ->RemoveHandler(
                                 subscription.event,
                                 subscription.handler));
@@ -386,13 +386,13 @@ void StoryboardHost::ClearEventTriggers() noexcept {
             if (subscription.source != nullptr) {
                 if (subscription.contentSource) {
                     static_cast<void>(
-                        static_cast<Aero::ContentElement*>(subscription.source)
+                        static_cast<ContentElement*>(subscription.source)
                             ->RemoveHandler(
                                 subscription.event,
                                 subscription.handler));
                 } else {
                     static_cast<void>(
-                        static_cast<Aero::UIElement*>(subscription.source)
+                        static_cast<UIElement*>(subscription.source)
                             ->RemoveHandler(
                                 subscription.event,
                                 subscription.handler));
@@ -418,7 +418,7 @@ Base::Result<void> StoryboardHost::FlushPendingLoadedTriggers() noexcept {
             if (pending.trigger == nullptr || pending.owner == nullptr) {
                 continue;
             }
-            for (const Base::Ref<Aero::Interactivity::TriggerAction>& action :
+            for (const Base::Ref<Interactivity::TriggerAction>& action :
                  pending.trigger->GetActions()) {
                 if (!action) continue;
                 Base::Result<void> executed = ExecuteAnimationAction(

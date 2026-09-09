@@ -39,6 +39,16 @@ using namespace Aero::Meta;
 using namespace Aero::Threading;
 using namespace Aero::Controls;
 using namespace Aero::Media;
+using Controls::Primitives::Selector;
+using Data::Binding;
+using Data::RelativeSource;
+using Data::RelativeSourceMode;
+using Documents::Inline;
+using Media::Animation::ColorAnimationUsingKeyFrames;
+using Media::Animation::DoubleAnimationUsingKeyFrames;
+using Media::Animation::EventTrigger;
+using Media::Animation::Storyboard;
+using Media::Animation::Timeline;
 
 
 Base::Status InvalidTemplateCompiler(
@@ -55,7 +65,7 @@ Base::Object* ResolveTemplateBindingAncestor(
     if (binding.relativeAncestorType.Empty() ||
         binding.relativeAncestorLevel == 0U ||
         !runtime.Types().IsDerivedFrom(
-            target.RuntimeType(), ::Aero::Media::Visual::StaticTypeId())) {
+            target.RuntimeType(), Visual::StaticTypeId())) {
         return nullptr;
     }
     Base::StringView ancestorName =
@@ -69,9 +79,9 @@ Base::Object* ResolveTemplateBindingAncestor(
         break;
     }
     std::uint32_t matched = 0U;
-    auto* targetVisual = static_cast<::Aero::Media::Visual*>(&target);
-    ::Aero::Media::Visual* current = targetVisual->GetVisualParent();
-    if (current == nullptr) current = ::Aero::TryCast<::Aero::Media::Visual>(targetVisual->GetLogicalParent());
+    auto* targetVisual = static_cast<Visual*>(&target);
+    Visual* current = targetVisual->GetVisualParent();
+    if (current == nullptr) current = TryCast<Visual>(targetVisual->GetLogicalParent());
     while (current != nullptr) {
         const TypeInfo* type =
             runtime.Types().FindType(current->RuntimeType());
@@ -80,8 +90,8 @@ Base::Object* ResolveTemplateBindingAncestor(
             ++matched == binding.relativeAncestorLevel) {
             return current;
         }
-        ::Aero::Media::Visual* next = current->GetVisualParent();
-        if (next == nullptr) next = ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent());
+        Visual* next = current->GetVisualParent();
+        if (next == nullptr) next = TryCast<Visual>(current->GetLogicalParent());
         current = next;
     }
     return nullptr;
@@ -122,7 +132,7 @@ Base::Result<Value> ConvertTemplateTextValue(
     Base::StringView text) noexcept {
     // WPF uses -1 for no selection. Internally selection keeps UINT32_MAX;
     // translate only the standard selection properties at the XAML boundary.
-    if ((property.Handle() == Controls::Primitives::Selector::SelectedIndexProperty.Handle() ||
+    if ((property.Handle() == Selector::SelectedIndexProperty.Handle() ||
          property.Handle() == TabControl::SelectedIndexProperty.Handle()) &&
         text == Base::StringView("-1")) {
         return ValueCodec<std::uint32_t>::Encode(UINT32_MAX);
@@ -192,19 +202,19 @@ bool IsGradientStopObject(
     const Base::Object& object) noexcept {
     return runtime.Types().IsDerivedFrom(
         object.RuntimeType(),
-        ::Aero::Media::GradientStop::StaticTypeId());
+        GradientStop::StaticTypeId());
 }
 
 Base::Result<void> ApplyPrototypeGradientStops(
-    ::Aero::Media::GradientBrush& gradient,
+    GradientBrush& gradient,
     const Base::Vector<TemplatePrototypeGradientStop>& stops,
     TemplateBuilder* context) noexcept {
     gradient.ClearGradientStops();
     for (const TemplatePrototypeGradientStop& stopRecord : stops) {
-        Base::Result<Base::Ref<::Aero::Media::GradientStop>> made =
-            Base::MakeRef<::Aero::Media::GradientStop>();
+        Base::Result<Base::Ref<GradientStop>> made =
+            Base::MakeRef<GradientStop>();
         if (!made) return made.GetStatus();
-        Base::Ref<::Aero::Media::GradientStop> stop =
+        Base::Ref<GradientStop> stop =
             std::move(made).Value();
         stop->SetOffset(stopRecord.offset);
         stop->SetColor(stopRecord.color);
@@ -223,12 +233,12 @@ Base::Result<void> ApplyPrototypeGradientStops(
 Base::Result<CompiledTemplateBlueprint>
 CompileBlueprint(
     const Base::Ref<Base::Object>& visualTree,
-    const Aero::NameScope* names,
+    const NameScope* names,
     Base::Span<const DeferredContentEdge> edges,
     Base::Span<const DeferredBindingEdge> bindings,
-    Base::Span<const Controls::TemplateMetadataBindingPlan>
+    Base::Span<const TemplateMetadataBindingPlan>
         metadataBindings,
-    Base::Span<const Controls::TemplateDynamicResourcePlan>
+    Base::Span<const TemplateDynamicResourcePlan>
         dynamicResources,
     Meta::Registry& runtime,
     DependencyPropertyRegistry& properties) noexcept {
@@ -253,16 +263,16 @@ CompileBlueprint(
     // TransformGroup children are discovered from content edges so authored
     // order is preserved; pre-inserting RotateTransform made clock hands
     // compile as parentless nodes and drop out of TransformGroup.Children.
-    for (const Controls::TemplateMetadataBindingPlan& binding :
+    for (const TemplateMetadataBindingPlan& binding :
          metadataBindings) {
         if (binding.targetName.Empty() || names == nullptr) continue;
         Base::Object* target = names->Find(binding.targetName.View());
         if (target == nullptr ||
             IsGradientStopObject(runtime, *target) ||
             runtime.Types().IsDerivedFrom(
-                target->RuntimeType(), ::Aero::Media::Visual::StaticTypeId()) ||
+                target->RuntimeType(), Visual::StaticTypeId()) ||
             runtime.Types().IsDerivedFrom(
-                target->RuntimeType(), ::Aero::Media::Transform::StaticTypeId())) {
+                target->RuntimeType(), Transform::StaticTypeId())) {
             continue;
         }
         if (!runtime.Types().IsDerivedFrom(
@@ -276,16 +286,16 @@ CompileBlueprint(
             UINT32_MAX,
             InvalidMemberId});
     }
-    for (const Controls::TemplateDynamicResourcePlan& resource :
+    for (const TemplateDynamicResourcePlan& resource :
          dynamicResources) {
         if (resource.targetName.Empty() || names == nullptr) continue;
         Base::Object* target = names->Find(resource.targetName.View());
         if (target == nullptr ||
             IsGradientStopObject(runtime, *target) ||
             runtime.Types().IsDerivedFrom(
-                target->RuntimeType(), ::Aero::Media::Visual::StaticTypeId()) ||
+                target->RuntimeType(), Visual::StaticTypeId()) ||
             runtime.Types().IsDerivedFrom(
-                target->RuntimeType(), ::Aero::Media::Transform::StaticTypeId())) {
+                target->RuntimeType(), Transform::StaticTypeId())) {
             continue;
         }
         if (!runtime.Types().IsDerivedFrom(
@@ -313,7 +323,7 @@ CompileBlueprint(
                 "Template graph contains a non-dependency object");
         }
         const bool visual = runtime.Types().IsDerivedFrom(
-            object->RuntimeType(), ::Aero::Media::Visual::StaticTypeId());
+            object->RuntimeType(), Visual::StaticTypeId());
         if (index == 0U && !visual) {
             return InvalidTemplateCompiler(
                 "Template VisualTree root must be a Visual object");
@@ -390,9 +400,9 @@ CompileBlueprint(
 
         if (runtime.Types().IsDerivedFrom(
                 node.type,
-                ::Aero::Media::StreamGeometry::StaticTypeId())) {
+                StreamGeometry::StaticTypeId())) {
             const auto& geom =
-                static_cast<const ::Aero::Media::StreamGeometry&>(*object);
+                static_cast<const StreamGeometry&>(*object);
             appended = node.streamGeometryData.Assign(
                 geom.GetData());
             if (!appended) {
@@ -402,10 +412,10 @@ CompileBlueprint(
 
         if (runtime.Types().IsDerivedFrom(
                 node.type,
-                ::Aero::Media::GradientBrush::StaticTypeId())) {
+                GradientBrush::StaticTypeId())) {
             const auto& gradient =
-                static_cast<const ::Aero::Media::GradientBrush&>(*object);
-            for (const Base::Ref<::Aero::Media::GradientStop>& stop : gradient.GetGradientStops()) {
+                static_cast<const GradientBrush&>(*object);
+            for (const Base::Ref<GradientStop>& stop : gradient.GetGradientStops()) {
                 if (!stop) continue;
                 TemplatePrototypeGradientStop record;
                 record.offset = stop->GetOffset();
@@ -530,7 +540,7 @@ CompileBlueprint(
         // records. Clone them so ControlTemplate instances keep the text.
         if (runtime.Types().IsDerivedFrom(
                 object->RuntimeType(),
-                Controls::TextBlock::StaticTypeId()) ||
+                TextBlock::StaticTypeId()) ||
             runtime.Types().IsDerivedFrom(
                 object->RuntimeType(),
                 Documents::Span::StaticTypeId())) {
@@ -546,17 +556,17 @@ CompileBlueprint(
             const std::uint32_t inlineCount =
                 runtime.Types().IsDerivedFrom(
                     object->RuntimeType(),
-                    Controls::TextBlock::StaticTypeId())
-                ? static_cast<Controls::TextBlock&>(*object).GetInlineCount()
+                    TextBlock::StaticTypeId())
+                ? static_cast<TextBlock&>(*object).GetInlineCount()
                 : static_cast<Documents::Span&>(*object).GetInlines().GetCount();
             for (std::uint32_t inlineIndex = 0U;
                  inlineIndex < inlineCount;
                  ++inlineIndex) {
-                Documents::Inline* inlineValue = nullptr;
+                Inline* inlineValue = nullptr;
                 if (runtime.Types().IsDerivedFrom(
                         object->RuntimeType(),
-                        Controls::TextBlock::StaticTypeId())) {
-                    inlineValue = static_cast<Controls::TextBlock&>(*object)
+                        TextBlock::StaticTypeId())) {
+                    inlineValue = static_cast<TextBlock&>(*object)
                         .GetInlines().GetItem(inlineIndex);
                 } else {
                     inlineValue = static_cast<Documents::Span&>(*object)
@@ -592,7 +602,7 @@ CompileBlueprint(
     // Unnamed TemplatedParent Binding targets must carry that name onto the
     // prototype node so apply-time FindTarget can find the part. WPF binds the
     // unnamed child itself, not the templated parent.
-    for (const Controls::TemplateMetadataBindingPlan& binding :
+    for (const TemplateMetadataBindingPlan& binding :
          metadataBindings) {
         if (binding.targetName.Empty() || names == nullptr) {
             continue;
@@ -615,7 +625,7 @@ CompileBlueprint(
                 binding.targetName.View());
         if (!named) return named.GetStatus();
     }
-    for (const Controls::TemplateDynamicResourcePlan& resource :
+    for (const TemplateDynamicResourcePlan& resource :
          dynamicResources) {
         if (resource.targetName.Empty() || names == nullptr) {
             continue;
@@ -733,7 +743,7 @@ Base::Result<Value> ConvertSetterValue(
     // available after the template has an instance and a templated parent.
     if (value.Kind() == ValueKind::Object &&
         !value.IsNullObject() &&
-        value.Type() == Data::Binding::StaticTypeId()) {
+        value.Type() == Binding::StaticTypeId()) {
         return value;
     }
     if (property.AcceptsAnyValue()) {
@@ -959,14 +969,14 @@ CompilePropertyTriggers(
              propertyName == Base::StringView(
                 "aero:Element.IsFocusEngaged"))
             ? properties.Find(
-                Aero::Element::
+                Element::
                     IsFocusEngagedProperty.Handle())
             : (propertyName == Base::StringView(
                    "local:Text.PasswordLength") ||
                propertyName == Base::StringView(
                    "aero:Text.PasswordLength"))
             ? properties.Find(
-                Aero::TextProperties::
+                TextProperties::
                     PasswordLengthProperty.Handle())
             : ResolveTemplateProperty(properties, targetType, propertyName);
         if (property == nullptr) {
@@ -1005,7 +1015,7 @@ CompilePropertyTriggers(
                     // serialized definition vectors; their trigger mutation
                     // is deferred until that declaration-object runtime is
                     // materialized.
-                    if (::Aero::Controls::FrameworkTemplateState::AuthoredNames(controlTemplate).Find(
+                    if (FrameworkTemplateState::AuthoredNames(controlTemplate).Find(
                             targetName) != nullptr) {
                         continue;
                     }
@@ -1037,7 +1047,7 @@ CompilePropertyTriggers(
         return {};
     };
     for (const Base::Ref<Base::Object>& object :
-         ::Aero::Controls::FrameworkTemplateState::AuthoredTriggers(controlTemplate)) {
+         FrameworkTemplateState::AuthoredTriggers(controlTemplate)) {
         TemplatePropertyTrigger trigger;
         Base::Result<void> configured;
         if (object && object->RuntimeType() == Trigger::StaticTypeId()) {
@@ -1069,13 +1079,13 @@ CompilePropertyTriggers(
     return compiled;
 }
 
-Base::Result<Base::Vector<Controls::VisualStateGroupPlan>>
+Base::Result<Base::Vector<VisualStateGroupPlan>>
 CompileVisualStates(
     ControlTemplate& controlTemplate,
     const CompiledTemplateBlueprint& blueprint,
     Meta::Registry& runtime,
     DependencyPropertyRegistry& properties) noexcept {
-    Base::Vector<Controls::VisualStateGroupPlan> groups;
+    Base::Vector<VisualStateGroupPlan> groups;
     auto compileGroup = [&groups, &blueprint, &runtime, &properties](
         const Base::Ref<Base::Object>& groupObject)
         -> Base::Result<void> {
@@ -1094,7 +1104,7 @@ CompileVisualStates(
             return InvalidTemplateCompiler(
                 "VisualStateGroup requires Name");
         }
-        Controls::VisualStateGroupPlan group;
+        VisualStateGroupPlan group;
         Base::Result<void> assigned =
             group.name.Assign(
                 sourceGroup.GetName());
@@ -1117,7 +1127,7 @@ CompileVisualStates(
                 return InvalidTemplateCompiler(
                     "VisualState requires Name");
             }
-            Controls::VisualStatePlan state;
+            VisualStatePlan state;
             assigned = state.name.Assign(
                 sourceState.GetName());
             if (!assigned) {
@@ -1125,39 +1135,39 @@ CompileVisualStates(
             }
             if (auto srcStoryboard = sourceState.GetStoryboard()) {
                 auto storyboardCopy =
-                    Aero::Base::MakeRef<Aero::Media::Animation::Storyboard>();
+                    Base::MakeRef<Storyboard>();
                 if (!storyboardCopy) return storyboardCopy.GetStatus();
                 for (const auto& tl : srcStoryboard->GetTimelines()) {
                     if (!tl) continue;
-                    Base::Ref<Aero::Media::Animation::Timeline> cloned;
-                    if (tl->RuntimeType() == Aero::Media::Animation::DoubleAnimationUsingKeyFrames::StaticTypeId()) {
-                        auto* srcDouble = static_cast<Aero::Media::Animation::DoubleAnimationUsingKeyFrames*>(tl.Get());
-                        auto dst = Aero::Base::MakeRef<Aero::Media::Animation::DoubleAnimationUsingKeyFrames>();
+                    Base::Ref<Timeline> cloned;
+                    if (tl->RuntimeType() == DoubleAnimationUsingKeyFrames::StaticTypeId()) {
+                        auto* srcDouble = static_cast<DoubleAnimationUsingKeyFrames*>(tl.Get());
+                        auto dst = Base::MakeRef<DoubleAnimationUsingKeyFrames>();
                         if (!dst) return dst.GetStatus();
-                        Base::Result<PropertyValue> nameVal = srcDouble->GetValue(Aero::Media::Animation::Storyboard::TargetNameProperty.Handle());
-                        if (nameVal && nameVal.Value().Kind() == Aero::Meta::ValueKind::String) {
-                            (void)dst.Value()->SetValue(Aero::Media::Animation::Storyboard::TargetNameProperty.Handle(), nameVal.Value());
+                        Base::Result<PropertyValue> nameVal = srcDouble->GetValue(Storyboard::TargetNameProperty.Handle());
+                        if (nameVal && nameVal.Value().Kind() == Meta::ValueKind::String) {
+                            (void)dst.Value()->SetValue(Storyboard::TargetNameProperty.Handle(), nameVal.Value());
                         }
-                        Base::Result<PropertyValue> propVal = srcDouble->GetValue(Aero::Media::Animation::Storyboard::TargetPropertyProperty.Handle());
-                        if (propVal && propVal.Value().Kind() == Aero::Meta::ValueKind::String) {
-                            (void)dst.Value()->SetValue(Aero::Media::Animation::Storyboard::TargetPropertyProperty.Handle(), propVal.Value());
+                        Base::Result<PropertyValue> propVal = srcDouble->GetValue(Storyboard::TargetPropertyProperty.Handle());
+                        if (propVal && propVal.Value().Kind() == Meta::ValueKind::String) {
+                            (void)dst.Value()->SetValue(Storyboard::TargetPropertyProperty.Handle(), propVal.Value());
                         }
                         for (auto& kf : srcDouble->GetKeyFrames()) {
                             if (!kf) continue;
                             dst.Value()->AddKeyFrame(kf);
                         }
                         cloned = dst.Value();
-                    } else if (tl->RuntimeType() == Aero::Media::Animation::ColorAnimationUsingKeyFrames::StaticTypeId()) {
-                        auto* srcColor = static_cast<Aero::Media::Animation::ColorAnimationUsingKeyFrames*>(tl.Get());
-                        auto dst = Aero::Base::MakeRef<Aero::Media::Animation::ColorAnimationUsingKeyFrames>();
+                    } else if (tl->RuntimeType() == ColorAnimationUsingKeyFrames::StaticTypeId()) {
+                        auto* srcColor = static_cast<ColorAnimationUsingKeyFrames*>(tl.Get());
+                        auto dst = Base::MakeRef<ColorAnimationUsingKeyFrames>();
                         if (!dst) return dst.GetStatus();
-                        Base::Result<PropertyValue> nameVal = srcColor->GetValue(Aero::Media::Animation::Storyboard::TargetNameProperty.Handle());
-                        if (nameVal && nameVal.Value().Kind() == Aero::Meta::ValueKind::String) {
-                            (void)dst.Value()->SetValue(Aero::Media::Animation::Storyboard::TargetNameProperty.Handle(), nameVal.Value());
+                        Base::Result<PropertyValue> nameVal = srcColor->GetValue(Storyboard::TargetNameProperty.Handle());
+                        if (nameVal && nameVal.Value().Kind() == Meta::ValueKind::String) {
+                            (void)dst.Value()->SetValue(Storyboard::TargetNameProperty.Handle(), nameVal.Value());
                         }
-                        Base::Result<PropertyValue> propVal = srcColor->GetValue(Aero::Media::Animation::Storyboard::TargetPropertyProperty.Handle());
-                        if (propVal && propVal.Value().Kind() == Aero::Meta::ValueKind::String) {
-                            (void)dst.Value()->SetValue(Aero::Media::Animation::Storyboard::TargetPropertyProperty.Handle(), propVal.Value());
+                        Base::Result<PropertyValue> propVal = srcColor->GetValue(Storyboard::TargetPropertyProperty.Handle());
+                        if (propVal && propVal.Value().Kind() == Meta::ValueKind::String) {
+                            (void)dst.Value()->SetValue(Storyboard::TargetPropertyProperty.Handle(), propVal.Value());
                         }
                         for (auto& kf : srcColor->GetKeyFrames()) {
                             if (!kf) continue;
@@ -1218,7 +1228,7 @@ CompileVisualStates(
                     return value.GetStatus();
                 }
 
-                Controls::VisualStateSetterPlan setter;
+                VisualStateSetterPlan setter;
                 assigned =
                     setter.targetName.Assign(
                         sourceSetter.GetTargetName());
@@ -1257,7 +1267,7 @@ CompileVisualStates(
             }
             if (!sourceTransition.GetFrom().Empty()) {
                 bool found = false;
-                for (const Controls::VisualStatePlan& state :
+                for (const VisualStatePlan& state :
                      group.states) {
                     found = found ||
                         state.name.View() ==
@@ -1270,7 +1280,7 @@ CompileVisualStates(
             }
             if (!sourceTransition.GetTo().Empty()) {
                 bool found = false;
-                for (const Controls::VisualStatePlan& state :
+                for (const VisualStatePlan& state :
                      group.states) {
                     found = found ||
                         state.name.View() ==
@@ -1282,7 +1292,7 @@ CompileVisualStates(
                 }
             }
 
-            Controls::VisualTransitionPlan transition;
+            VisualTransitionPlan transition;
             assigned = transition.from.Assign(
                 sourceTransition.GetFrom());
             if (assigned) {
@@ -1291,16 +1301,16 @@ CompileVisualStates(
             }
             if (!assigned) return assigned.GetStatus();
             if (!sourceTransition.GetGeneratedDuration().Empty()) {
-                Media::Animation::Storyboard duration;
+                Storyboard duration;
                 duration.SetDuration(sourceTransition.GetGeneratedDuration());
                 transition.generatedDurationMicroseconds =
-                    Aero::Media::Animation::Timing(duration).durationMicroseconds;
+                    Timing(duration).durationMicroseconds;
             }
             transition.generatedEasingFunction =
                 sourceTransition.GetGeneratedEasingFunction();
             if (auto srcStoryboard = sourceTransition.GetStoryboard()) {
                 auto storyboardCopy =
-                    Aero::Base::MakeRef<Aero::Media::Animation::Storyboard>();
+                    Base::MakeRef<Storyboard>();
                 if (!storyboardCopy) return storyboardCopy.GetStatus();
                 for (const auto& tl : srcStoryboard->GetTimelines()) {
                     if (!tl) continue;
@@ -1318,17 +1328,17 @@ CompileVisualStates(
         return {};
     };
     for (const Base::Ref<Base::Object>& groupObject :
-         ::Aero::Controls::FrameworkTemplateState::AuthoredVisualStateGroups(controlTemplate)) {
+         FrameworkTemplateState::AuthoredVisualStateGroups(controlTemplate)) {
         Base::Result<void> compiled = compileGroup(groupObject);
         if (!compiled) return compiled.GetStatus();
     }
     Base::Ref<Base::Object> authoredRoot =
-        ::Aero::Controls::FrameworkTemplateState::AuthoredVisualTree(controlTemplate);
+        FrameworkTemplateState::AuthoredVisualTree(controlTemplate);
     if (authoredRoot &&
         runtime.Types().IsDerivedFrom(
             authoredRoot->RuntimeType(),
-            ::Aero::DependencyObject::StaticTypeId())) {
-        auto& root = static_cast<::Aero::DependencyObject&>(*authoredRoot);
+            DependencyObject::StaticTypeId())) {
+        auto& root = static_cast<DependencyObject&>(*authoredRoot);
         Base::Ref<VisualStateGroupCollection> valueStore = root.GetValue(VisualStateManager::VisualStateGroupsProperty);
         if (valueStore) {
             for (const Base::Ref<VisualStateGroup>& groupObject :
@@ -1353,20 +1363,20 @@ CompileControlTemplateDefinition(
     DependencyPropertyRegistry& properties) noexcept {
     Base::Result<CompiledTemplateBlueprint> blueprint =
         CompileBlueprint(
-        ::Aero::Controls::FrameworkTemplateState::AuthoredVisualTree(controlTemplate),
-        &::Aero::Controls::FrameworkTemplateState::AuthoredNames(controlTemplate),
+        FrameworkTemplateState::AuthoredVisualTree(controlTemplate),
+        &FrameworkTemplateState::AuthoredNames(controlTemplate),
         edges,
         bindings,
-        ::Aero::Controls::FrameworkTemplateState::MetadataBindings(
+        FrameworkTemplateState::MetadataBindings(
             controlTemplate),
-        ::Aero::Controls::FrameworkTemplateState::DynamicResources(
+        FrameworkTemplateState::DynamicResources(
             controlTemplate),
         runtime,
         properties);
     if (!blueprint) {
         return blueprint.GetStatus();
     }
-    Base::Result<Base::Vector<Controls::VisualStateGroupPlan>>
+    Base::Result<Base::Vector<VisualStateGroupPlan>>
         groups = CompileVisualStates(
             controlTemplate,
             blueprint.Value(),
@@ -1382,7 +1392,7 @@ CompileControlTemplateDefinition(
     if (!triggers) return triggers.GetStatus();
 
     for (const Base::Ref<Base::Object>& authored :
-         ::Aero::Controls::FrameworkTemplateState::AuthoredTriggers(controlTemplate)) {
+         FrameworkTemplateState::AuthoredTriggers(controlTemplate)) {
         if (!authored) continue;
         if (authored->RuntimeType() == DataTrigger::StaticTypeId() ||
             authored->RuntimeType() == MultiDataTrigger::StaticTypeId() ||
@@ -1402,10 +1412,10 @@ CompileControlTemplateDefinition(
             blueprint.Value().controlTemplateDataTriggers.PushBack(
                     std::move(retained));
         } else if (authored->RuntimeType() ==
-                   Media::Animation::EventTrigger::StaticTypeId()) {
-            Base::Ref<Media::Animation::EventTrigger> retained =
-                Base::Ref<Media::Animation::EventTrigger>::TryFromBorrowed(
-                    static_cast<Media::Animation::EventTrigger&>(*authored));
+                   EventTrigger::StaticTypeId()) {
+            Base::Ref<EventTrigger> retained =
+                Base::Ref<EventTrigger>::TryFromBorrowed(
+                    static_cast<EventTrigger&>(*authored));
             if (!retained) {
                 return InvalidTemplateCompiler(
                     "ControlTemplate EventTrigger cannot be retained");
@@ -1525,7 +1535,7 @@ CompileControlTemplateDefinition(
 Base::Result<CompiledTemplateBlueprint>
 CompileDeferredTemplateBlueprint(
     const Base::Ref<Base::Object>& visualTree,
-    const Aero::NameScope* names,
+    const NameScope* names,
     Base::Span<const DeferredContentEdge> edges,
     Base::Span<const DeferredBindingEdge> bindings,
     Meta::Registry& runtime,
@@ -1563,9 +1573,9 @@ Base::Result<bool> DeferredTriggerValuesMatch(
         !actual.IsNullObject() &&
         actual.AsObject() &&
         actual.AsObject()->RuntimeType() ==
-            ::Aero::Controls::BoxedItemValue::StaticTypeId()) {
+            BoxedItemValue::StaticTypeId()) {
         return DeferredTriggerValuesMatch(
-            static_cast<const ::Aero::Controls::BoxedItemValue&>(
+            static_cast<const BoxedItemValue&>(
                 *actual.AsObject()).Value(),
             std::move(expected),
             runtime);
@@ -1585,7 +1595,7 @@ Base::Result<bool> DeferredTriggerValuesMatch(
 }
 
 Base::Result<Value> ReadDeferredTriggerBinding(
-    const Data::Binding& binding,
+    const Binding& binding,
     const Base::Ref<Base::Object>& payload,
     Meta::Registry& runtime) noexcept {
     if (!payload || binding.GetPath().GetPath().Empty()) {
@@ -1775,7 +1785,7 @@ Base::Result<void> BuildCompiledTemplate(
     Base::Vector<Base::Ref<Base::Object>> objects;
     Base::Result<void> reserved{};
     objects.Reserve(blueprint->nodes.Size());
-    Base::Vector<::Aero::Media::Visual*> visuals;
+    Base::Vector<Visual*> visuals;
     visuals.Reserve(blueprint->nodes.Size());
     for (std::uint32_t index = 0U;
          index < blueprint->nodes.Size();
@@ -1794,9 +1804,9 @@ Base::Result<void> BuildCompiledTemplate(
             return InvalidTemplateCompiler(
                 "Compiled template factory created an incompatible object");
         }
-        ::Aero::Media::Visual* visual = blueprint->runtime->Types().IsDerivedFrom(
-            node.type, ::Aero::Media::Visual::StaticTypeId())
-            ? static_cast<::Aero::Media::Visual*>(owner.Get()) : nullptr;
+        Visual* visual = blueprint->runtime->Types().IsDerivedFrom(
+            node.type, Visual::StaticTypeId())
+            ? static_cast<Visual*>(owner.Get()) : nullptr;
         Base::Result<void> added{};
         objects.PushBack(std::move(owner));
         visuals.PushBack(visual);
@@ -1824,13 +1834,13 @@ Base::Result<void> BuildCompiledTemplate(
             grid.SetRowDefinitions(node.gridRows.AsSpan());
         }
         if (blueprint->runtime->Types().IsDerivedFrom(
-                node.type, ::Aero::Media::StreamGeometry::StaticTypeId())) {
-            auto& geom = static_cast<::Aero::Media::StreamGeometry&>(*objects[index]);
+                node.type, StreamGeometry::StaticTypeId())) {
+            auto& geom = static_cast<StreamGeometry&>(*objects[index]);
             geom.SetData(node.streamGeometryData.View());
         }
         if (blueprint->runtime->Types().IsDerivedFrom(
-                node.type, ::Aero::Media::GradientBrush::StaticTypeId())) {
-            auto& gradient = static_cast<::Aero::Media::GradientBrush&>(
+                node.type, GradientBrush::StaticTypeId())) {
+            auto& gradient = static_cast<GradientBrush&>(
                 *objects[index]);
             Base::Result<void> stops = ApplyPrototypeGradientStops(
                 gradient, node.gradientStops, &context);
@@ -1876,7 +1886,7 @@ Base::Result<void> BuildCompiledTemplate(
         if (node.parent != UINT32_MAX &&
             visuals[node.parent] == nullptr) {
             return InvalidTemplateCompiler(
-                "::Aero::Media::Visual template child has a non-Visual parent");
+                "Visual template child has a non-Visual parent");
         }
         Base::Result<void> added = node.parent == UINT32_MAX
             ? context.SetRoot(node.name.View(),
@@ -1897,7 +1907,7 @@ Base::Result<void> BuildCompiledTemplate(
                     context.TemplatedParent()
                         .RuntimeType(),
                     ContentControl::StaticTypeId())) {
-            ::Aero::Media::Visual& contentHost =
+            Visual& contentHost =
                 *visuals[
                     blueprint->contentPresenter];
             Base::Result<bool> projected =
@@ -1990,16 +2000,16 @@ Base::Result<void> BuildCompiledTemplate(
                 "ControlTemplate root does not support runtime triggers");
         }
         Base::Result<Base::Ref<
-            Aero::Controls::DataTemplateTriggerState>> created =
-            Base::MakeRef<Aero::Controls::DataTemplateTriggerState>();
+            DataTemplateTriggerState>> created =
+            Base::MakeRef<DataTemplateTriggerState>();
         if (!created) return created.GetStatus();
-        Base::Ref<Aero::Controls::DataTemplateTriggerState> triggerContext =
+        Base::Ref<DataTemplateTriggerState> triggerContext =
             std::move(created).Value();
         triggerContext->root =
             static_cast<FrameworkElement*>(visuals[0U]);
         for (std::uint32_t index = 0U; index < visuals.Size(); ++index) {
             if (blueprint->nodes[index].name.Empty()) continue;
-            Aero::Controls::DataTemplateTriggerState::NamedObject named;
+            DataTemplateTriggerState::NamedObject named;
             Base::Result<void> namedAssigned = named.name.Assign(
                 blueprint->nodes[index].name.View());
             if (!namedAssigned) return namedAssigned.GetStatus();
@@ -2010,7 +2020,7 @@ Base::Result<void> BuildCompiledTemplate(
         }
         auto appendSetters =
             [&](Base::Span<const Base::Ref<Setter>> setters,
-                Aero::Controls::DataTemplatePropertyTrigger& runtimeTrigger)
+                DataTemplatePropertyTrigger& runtimeTrigger)
                 noexcept -> Base::Result<void> {
             for (const Base::Ref<Setter>& setter : setters) {
                 if (!setter) continue;
@@ -2031,7 +2041,7 @@ Base::Result<void> BuildCompiledTemplate(
                     *setter, blueprint->nodes[target], *property,
                     *blueprint->runtime, *blueprint->properties);
                 if (!value) return value.GetStatus();
-                Aero::Controls::DataTemplateTriggerSetter runtimeSetter;
+                DataTemplateTriggerSetter runtimeSetter;
                 runtimeSetter.target =
                     Base::WeakRef<DependencyObject>(
                         Base::Ref<DependencyObject>::FromBorrowed(
@@ -2044,12 +2054,12 @@ Base::Result<void> BuildCompiledTemplate(
             }
             return {};
         };
-        auto sourceFor = [&](const Data::Binding& binding) noexcept
+        auto sourceFor = [&](const Binding& binding) noexcept
             -> Base::Object* {
             if (!binding.GetElementName().Empty()) {
                 return triggerContext->FindName(binding.GetElementName());
             }
-            const Base::Ref<Data::RelativeSource> relative =
+            const Base::Ref<RelativeSource> relative =
                 binding.GetRelativeSource();
             if (!relative) {
                 // The default source is not the object visible while the
@@ -2059,7 +2069,7 @@ Base::Result<void> BuildCompiledTemplate(
                 return static_cast<Base::Object*>(&context.TemplatedParent());
             }
             if (relative && relative->GetMode() ==
-                    Data::RelativeSourceMode::FindAncestor) {
+                    RelativeSourceMode::FindAncestor) {
                 Base::StringView ancestorName = relative->GetAncestorType();
                 for (std::uint32_t nameIndex = 0U;
                      nameIndex < ancestorName.SizeBytes(); ++nameIndex) {
@@ -2071,8 +2081,8 @@ Base::Result<void> BuildCompiledTemplate(
                     }
                 }
                 std::uint32_t matchedLevel = 0U;
-                ::Aero::Media::Visual* current =
-                    ::Aero::TryCast<::Aero::Media::Visual>(context.TemplatedParent().GetLogicalParent());
+                Visual* current =
+                    TryCast<Visual>(context.TemplatedParent().GetLogicalParent());
                 if (current == nullptr) {
                     current = context.TemplatedParent().GetVisualParent();
                 }
@@ -2085,7 +2095,7 @@ Base::Result<void> BuildCompiledTemplate(
                             relative->GetAncestorLevel()) {
                         return static_cast<Base::Object*>(current);
                     }
-                    ::Aero::Media::Visual* next = ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent());
+                    Visual* next = TryCast<Visual>(current->GetLogicalParent());
                     if (next == nullptr) next = current->GetVisualParent();
                     current = next;
                 }
@@ -2098,7 +2108,7 @@ Base::Result<void> BuildCompiledTemplate(
         for (const Base::Ref<TriggerBase>& authored :
              blueprint->controlTemplateDataTriggers) {
             if (!authored) continue;
-            Aero::Controls::DataTemplatePropertyTrigger runtimeTrigger;
+            DataTemplatePropertyTrigger runtimeTrigger;
             Base::Span<const Base::Ref<Setter>> setters;
             if (authored->RuntimeType() == Trigger::StaticTypeId()) {
                 const auto& property =
@@ -2125,7 +2135,7 @@ Base::Result<void> BuildCompiledTemplate(
                         property.GetPropertyName(), sourceType,
                         blueprint->runtime->Types());
                 }
-                Aero::Controls::DataTemplateTriggerCondition condition;
+                DataTemplateTriggerCondition condition;
                 condition.source = Base::WeakRef<Base::Object>(
                     Base::Ref<Base::Object>::FromBorrowed(*source));
                 condition.dependencySource =
@@ -2148,7 +2158,7 @@ Base::Result<void> BuildCompiledTemplate(
                 const auto& data = static_cast<const DataTrigger&>(*authored);
                 if (!data.GetBinding()) return InvalidTemplateCompiler(
                     "ControlTemplate DataTrigger requires Binding");
-                Aero::Controls::DataTemplateTriggerCondition condition;
+                DataTemplateTriggerCondition condition;
                 Base::Object* source = sourceFor(*data.GetBinding());
                 if (source != nullptr) {
                     condition.source =
@@ -2173,7 +2183,7 @@ Base::Result<void> BuildCompiledTemplate(
                         return InvalidTemplateCompiler(
                             "ControlTemplate MultiDataTrigger requires complete Conditions");
                     }
-                    Aero::Controls::DataTemplateTriggerCondition condition;
+                    DataTemplateTriggerCondition condition;
                     Base::Object* source = sourceFor(*authoredCondition->GetBinding());
                     if (source != nullptr) {
                         condition.source =
@@ -2223,7 +2233,7 @@ Base::Result<Base::Ref<Base::Object>>
 BuildCompiledDeferredTemplate(
     const Base::Ref<Base::Object>& payload,
     void* factoryContext,
-    Aero::BindingEngine* bindings) noexcept {
+    BindingEngine* bindings) noexcept {
     auto* blueprint =
         static_cast<CompiledTemplateBlueprint*>(
             factoryContext);
@@ -2275,13 +2285,13 @@ BuildCompiledDeferredTemplate(
             grid.SetRowDefinitions(node.gridRows.AsSpan());
         }
         if (blueprint->runtime->Types().IsDerivedFrom(
-                node.type, ::Aero::Media::StreamGeometry::StaticTypeId())) {
-            auto& geom = static_cast<::Aero::Media::StreamGeometry&>(*objects[index]);
+                node.type, StreamGeometry::StaticTypeId())) {
+            auto& geom = static_cast<StreamGeometry&>(*objects[index]);
             geom.SetData(node.streamGeometryData.View());
         }
         if (blueprint->runtime->Types().IsDerivedFrom(
-                node.type, ::Aero::Media::GradientBrush::StaticTypeId())) {
-            auto& gradient = static_cast<::Aero::Media::GradientBrush&>(
+                node.type, GradientBrush::StaticTypeId())) {
+            auto& gradient = static_cast<GradientBrush&>(
                 *objects[index]);
             Base::Result<void> stops = ApplyPrototypeGradientStops(
                 gradient, node.gradientStops, nullptr);
@@ -2401,19 +2411,19 @@ BuildCompiledDeferredTemplate(
             if (!activated) return activated.GetStatus();
         }
     }
-    Base::Ref<Aero::Controls::DataTemplateTriggerState>
+    Base::Ref<DataTemplateTriggerState>
         triggerContext;
     auto ensureTriggerContext =
         [&]() noexcept
         -> Base::Result<
-            Aero::Controls::DataTemplateTriggerState*> {
+            DataTemplateTriggerState*> {
         if (triggerContext) {
             return triggerContext.Get();
         }
         Base::Result<Base::Ref<
-            Aero::Controls::DataTemplateTriggerState>>
+            DataTemplateTriggerState>>
             created = Base::MakeRef<
-                Aero::Controls::DataTemplateTriggerState>();
+                DataTemplateTriggerState>();
         if (!created) {
             return created.GetStatus();
         }
@@ -2426,7 +2436,7 @@ BuildCompiledDeferredTemplate(
             if (blueprint->nodes[index].name.Empty()) {
                 continue;
             }
-            Aero::Controls::DataTemplateTriggerState::
+            DataTemplateTriggerState::
                 NamedObject named;
             Base::Result<void> assigned =
                 named.name.Assign(
@@ -2452,7 +2462,7 @@ BuildCompiledDeferredTemplate(
     };
     auto appendRuntimeSetters =
         [&](Base::Span<const Base::Ref<Setter>> setters,
-            Aero::Controls::DataTemplatePropertyTrigger&
+            DataTemplatePropertyTrigger&
                 runtimeTrigger) noexcept
         -> Base::Result<void> {
         for (const Base::Ref<Setter>& setter : setters) {
@@ -2485,7 +2495,7 @@ BuildCompiledDeferredTemplate(
             if (!converted) {
                 return converted.GetStatus();
             }
-            Aero::Controls::DataTemplateTriggerSetter
+            DataTemplateTriggerSetter
                 runtimeSetter;
             runtimeSetter.target =
                 Base::WeakRef<DependencyObject>(
@@ -2515,10 +2525,10 @@ BuildCompiledDeferredTemplate(
             continue;
         }
         Base::Result<
-            Aero::Controls::DataTemplateTriggerState*>
+            DataTemplateTriggerState*>
             ensured = ensureTriggerContext();
         if (!ensured) return ensured.GetStatus();
-        Aero::Controls::DataTemplatePropertyTrigger
+        DataTemplatePropertyTrigger
             runtimeTrigger;
         Base::Span<const Base::Ref<Setter>>
             authoredSetters;
@@ -2535,7 +2545,7 @@ BuildCompiledDeferredTemplate(
                 return InvalidTemplateCompiler(
                     "DataTemplate Trigger source property was not found");
             }
-            Aero::Controls::DataTemplateTriggerCondition
+            DataTemplateTriggerCondition
                 condition;
             condition.source = Base::WeakRef<Base::Object>(root);
             condition.dependencySource =
@@ -2568,7 +2578,7 @@ BuildCompiledDeferredTemplate(
                 return InvalidTemplateCompiler(
                     "DataTemplate DataTrigger requires Binding");
             }
-            Aero::Controls::DataTemplateTriggerCondition
+            DataTemplateTriggerCondition
                 condition;
             condition.source = Base::WeakRef<Base::Object>(payload);
             condition.usesDataContext =
@@ -2594,7 +2604,7 @@ BuildCompiledDeferredTemplate(
                     return InvalidTemplateCompiler(
                         "DataTemplate MultiDataTrigger requires complete Conditions");
                 }
-                Aero::Controls::DataTemplateTriggerCondition
+                DataTemplateTriggerCondition
                     condition;
                 condition.source = Base::WeakRef<Base::Object>(payload);
                 condition.usesDataContext =

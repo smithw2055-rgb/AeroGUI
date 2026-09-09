@@ -22,7 +22,9 @@
 namespace Aero {
 
 using namespace ::Aero;
-namespace MediaAnimation = ::Aero::Media::Animation;
+using Media::Animation::EventTrigger;
+using Media::Animation::StoryboardCompletedTrigger;
+using Media::Animation::Timeline;
 
 
 StoryboardHost::StoryboardHost(ViewState& owner) noexcept
@@ -41,19 +43,19 @@ Base::IAllocator* StoryboardHost::Allocator() const noexcept {
     return view != nullptr ? view->allocator : nullptr;
 }
 
-::Aero::Meta::Registry* StoryboardHost::Metadata() const noexcept {
+Meta::Registry* StoryboardHost::Metadata() const noexcept {
     return view != nullptr ? view->metadata : nullptr;
 }
 
-Aero::AnimationEngine* StoryboardHost::Animations() const noexcept {
+AnimationEngine* StoryboardHost::Animations() const noexcept {
     return view != nullptr ? view->Animations() : nullptr;
 }
 
-Aero::InputRouter* StoryboardHost::Input() const noexcept {
+InputRouter* StoryboardHost::Input() const noexcept {
     return view != nullptr ? view->Input() : nullptr;
 }
 
-Aero::StyleEngine* StoryboardHost::Styles() const noexcept {
+StyleEngine* StoryboardHost::Styles() const noexcept {
     return view != nullptr ? view->Styles() : nullptr;
 }
 
@@ -71,7 +73,7 @@ StoryboardHost::StoryboardCompletionSession::StoryboardCompletionSession(
     : handles(allocator) {}
 
 Base::Result<Base::StringView> StoryboardHost::AnimationAttachedString(
-        MediaAnimation::Timeline& timeline,
+        Timeline& timeline,
         Meta::DependencyPropertyHandle property) noexcept {
         Base::Result<Meta::PropertyValue> value =
             timeline.GetValue(property);
@@ -88,14 +90,14 @@ Base::Result<Base::StringView> StoryboardHost::AnimationAttachedString(
 
 StoryboardHost::StoryboardTimingState StoryboardHost::ComposeStoryboardTiming(
         const StoryboardTimingState* inherited,
-        const MediaAnimation::Timeline& storyboard,
+        const Timeline& storyboard,
         bool preservesChildDuration) noexcept {
         StoryboardTimingState result =
             inherited != nullptr
             ? *inherited
             : StoryboardTimingState{};
-        const Aero::Media::Animation::Model::TimelineTiming authored =
-            Aero::Media::Animation::Timing(storyboard);
+        const Media::Animation::Model::TimelineTiming authored =
+            Media::Animation::Timing(storyboard);
         if (UINT64_MAX - result.beginTimeMicroseconds <
             authored.beginTimeMicroseconds) {
             result.beginTimeMicroseconds = UINT64_MAX;
@@ -111,7 +113,7 @@ StoryboardHost::StoryboardTimingState StoryboardHost::ComposeStoryboardTiming(
                 preservesChildDuration;
         }
         if (!storyboard.ReadLocalValue(
-                MediaAnimation::Timeline::RepeatBehaviorProperty).IsUnset()) {
+                Timeline::RepeatBehaviorProperty).IsUnset()) {
             result.repeat = authored.repeat;
             result.hasRepeat = true;
         }
@@ -121,11 +123,11 @@ StoryboardHost::StoryboardTimingState StoryboardHost::ComposeStoryboardTiming(
         return result;
     }
 
-Aero::Media::Animation::Model::TimelineTiming StoryboardHost::EffectiveTimelineTiming(
-        const MediaAnimation::Timeline& timeline,
+Media::Animation::Model::TimelineTiming StoryboardHost::EffectiveTimelineTiming(
+        const Timeline& timeline,
         const StoryboardTimingState* inherited) noexcept {
-        Aero::Media::Animation::Model::TimelineTiming result =
-            Aero::Media::Animation::Timing(timeline);
+        Media::Animation::Model::TimelineTiming result =
+            Media::Animation::Timing(timeline);
         if (inherited == nullptr) return result;
         if (UINT64_MAX - inherited->beginTimeMicroseconds <
             result.beginTimeMicroseconds) {
@@ -140,17 +142,17 @@ Aero::Media::Animation::Model::TimelineTiming StoryboardHost::EffectiveTimelineT
                 inherited->durationMicroseconds;
         } else if (inherited->hasDuration &&
                    inherited->preservesChildDuration) {
-            const Aero::Media::Animation::AnimationTime childBegin =
-                Aero::Media::Animation::
+            const Media::Animation::AnimationTime childBegin =
+                Media::Animation::
                     Timing(timeline).beginTimeMicroseconds;
-            const Aero::Media::Animation::AnimationTime available =
+            const Media::Animation::AnimationTime available =
                 childBegin >= inherited->durationMicroseconds
                 ? 0U
                 : inherited->durationMicroseconds - childBegin;
             if (result.durationMicroseconds == 0U) {
                 result.durationMicroseconds = available;
                 result.repeat =
-                    Aero::Media::Animation::Model::
+                    Media::Animation::Model::
                         RepeatBehavior::Once();
             } else {
                 const long double cycle =
@@ -166,13 +168,13 @@ Aero::Media::Animation::Model::TimelineTiming StoryboardHost::EffectiveTimelineT
                 if (available == 0U) {
                     result.durationMicroseconds = 0U;
                     result.repeat =
-                        Aero::Media::Animation::Model::
+                        Media::Animation::Model::
                             RepeatBehavior::Once();
                 } else if (result.repeat.forever ||
                            result.repeat.count >
                                maximumCount) {
                     result.repeat =
-                        Aero::Media::Animation::Model::
+                        Media::Animation::Model::
                             RepeatBehavior::Count(
                                 std::max(
                                     maximumCount,
@@ -192,10 +194,10 @@ Aero::Media::Animation::Model::TimelineTiming StoryboardHost::EffectiveTimelineT
 Base::Result<std::uint32_t>
  StoryboardHost::RetainStartedAnimation(
         Base::Result<
-            Aero::Media::Animation::Model::AnimationHandle>
+            Media::Animation::Model::AnimationHandle>
             started,
         Base::Vector<
-            Aero::Media::Animation::Model::AnimationHandle>*
+            Media::Animation::Model::AnimationHandle>*
             retainedHandles) noexcept {
         if (!started) {
             return started.GetStatus();
@@ -210,19 +212,19 @@ Base::Result<std::uint32_t>
 
 
 Base::Result<std::uint32_t> StoryboardHost::StartContentElementAnimations(
-        Aero::FrameworkContentElement& content,
-        Aero::FrameworkElement& actionOwner,
-        const Aero::NameScope* names) noexcept {
+        FrameworkContentElement& content,
+        FrameworkElement& actionOwner,
+        const NameScope* names) noexcept {
         std::uint32_t count = 0U;
         for (const Base::Ref<Base::Object>& authored :
              AeroGuiInternal::AuthoredTriggers(
                  content)) {
             if (!authored || authored->RuntimeType() !=
-                    MediaAnimation::EventTrigger::StaticTypeId()) {
+                    EventTrigger::StaticTypeId()) {
                 continue;
             }
             Base::Result<bool> started = StartEventTrigger(
-                static_cast<MediaAnimation::EventTrigger&>(*authored),
+                static_cast<EventTrigger&>(*authored),
                 content,
                 actionOwner,
                 names);
@@ -255,12 +257,12 @@ Base::Result<std::uint32_t> StoryboardHost::StartContentElementAnimations(
     }
 
 Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
-        Aero::Media::Visual* visual,
-        const Aero::NameScope* names) noexcept {
+        Media::Visual* visual,
+        const NameScope* names) noexcept {
         if (visual == nullptr) return std::uint32_t{0U};
         std::uint32_t count = 0U;
-        Aero::FrameworkElement* element =
-            ::Aero::TryCast<::Aero::FrameworkElement>(visual);
+        FrameworkElement* element =
+            TryCast<FrameworkElement>(visual);
         if (element != nullptr) {
             for (const Base::Ref<Base::Object>& authoredBehavior :
                  AeroGuiInternal::AuthoredBehaviors(
@@ -318,12 +320,12 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                     continue;
                 }
                 if (authored->RuntimeType() ==
-                    Aero::Controls::DataTemplateTriggerState::
+                    Controls::DataTemplateTriggerState::
                             StaticTypeId()) {
                     Base::Result<std::uint32_t> started =
                         Interactivity()->StartDataTemplateTriggers(
                             static_cast<
-                                Aero::Controls::DataTemplateTriggerState&>(
+                                Controls::DataTemplateTriggerState&>(
                                         *authored));
                     if (!started) {
                         return started.GetStatus();
@@ -338,25 +340,24 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                     continue;
                 }
                 if (authored->RuntimeType() ==
-                    MediaAnimation::StoryboardCompletedTrigger::
+                    StoryboardCompletedTrigger::
                         StaticTypeId()) {
                     storyboardCompletedSubscriptions.
                         PushBack({
                             static_cast<
-                                MediaAnimation::
-                                    StoryboardCompletedTrigger*>(
+                                StoryboardCompletedTrigger*>(
                                         authored.Get()),
                             element,
                             names});
                     continue;
                 }
                 if (authored->RuntimeType() ==
-                    Aero::Interactivity::PropertyChangedTrigger::
+                    Interactivity::PropertyChangedTrigger::
                         StaticTypeId()) {
                     Base::Result<bool> started =
                         Interactivity()->StartPropertyChangedTrigger(
                             static_cast<
-                                Aero::Interactivity::PropertyChangedTrigger&>(
+                                Interactivity::PropertyChangedTrigger&>(
                                     *authored),
                             *element,
                             names);
@@ -364,9 +365,9 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                     continue;
                 }
                 if (authored->RuntimeType() ==
-                    Aero::Interactivity::KeyTrigger::StaticTypeId()) {
+                    Interactivity::KeyTrigger::StaticTypeId()) {
                     Base::Result<bool> started = Interactivity()->StartKeyTrigger(
-                        static_cast<Aero::Interactivity::KeyTrigger&>(
+                        static_cast<Interactivity::KeyTrigger&>(
                             *authored),
                         *element,
                         names);
@@ -374,21 +375,21 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                     continue;
                 }
                 if (authored->RuntimeType() ==
-                    Aero::DataTrigger::StaticTypeId()) {
+                    DataTrigger::StaticTypeId()) {
                     Base::Result<bool> started =
                         Interactivity()->StartInteractionDataTrigger(
-                            static_cast<Aero::DataTrigger&>(*authored),
+                            static_cast<DataTrigger&>(*authored),
                             *element,
                             names);
                     if (started && started.Value()) ++count;
                     continue;
                 }
                 if (authored->RuntimeType() !=
-                    MediaAnimation::EventTrigger::StaticTypeId()) {
+                    EventTrigger::StaticTypeId()) {
                     continue;
                 }
                 Base::Result<bool> started = StartEventTrigger(
-                    static_cast<MediaAnimation::EventTrigger&>(*authored),
+                    static_cast<EventTrigger&>(*authored),
                     *element,
                     *element,
                     names);
@@ -399,18 +400,18 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                      *element)) {
                 if (!authored) continue;
                 if (authored->RuntimeType() ==
-                    MediaAnimation::StoryboardCompletedTrigger::StaticTypeId()) {
+                    StoryboardCompletedTrigger::StaticTypeId()) {
                     storyboardCompletedSubscriptions.PushBack({
-                            static_cast<MediaAnimation::StoryboardCompletedTrigger*>(
+                            static_cast<StoryboardCompletedTrigger*>(
                                 authored.Get()),
                             element,
                             names});
                     continue;
                 }
                 if (authored->RuntimeType() ==
-                    Aero::Interactivity::PropertyChangedTrigger::StaticTypeId()) {
+                    Interactivity::PropertyChangedTrigger::StaticTypeId()) {
                     Base::Result<bool> started = Interactivity()->StartPropertyChangedTrigger(
-                        static_cast<Aero::Interactivity::PropertyChangedTrigger&>(
+                        static_cast<Interactivity::PropertyChangedTrigger&>(
                             *authored),
                         *element,
                         names);
@@ -418,28 +419,28 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                     continue;
                 }
                 if (authored->RuntimeType() ==
-                    Aero::Interactivity::KeyTrigger::StaticTypeId()) {
+                    Interactivity::KeyTrigger::StaticTypeId()) {
                     Base::Result<bool> started = Interactivity()->StartKeyTrigger(
-                        static_cast<Aero::Interactivity::KeyTrigger&>(*authored),
+                        static_cast<Interactivity::KeyTrigger&>(*authored),
                         *element,
                         names);
                     if (started && started.Value()) ++count;
                     continue;
                 }
                 if (authored->RuntimeType() ==
-                    Aero::DataTrigger::StaticTypeId()) {
+                    DataTrigger::StaticTypeId()) {
                     Base::Result<bool> started =
                         Interactivity()->StartInteractionDataTrigger(
-                            static_cast<Aero::DataTrigger&>(*authored),
+                            static_cast<DataTrigger&>(*authored),
                             *element,
                             names);
                     if (started && started.Value()) ++count;
                     continue;
                 }
                 if (authored->RuntimeType() ==
-                    MediaAnimation::EventTrigger::StaticTypeId()) {
+                    EventTrigger::StaticTypeId()) {
                     Base::Result<bool> started = StartEventTrigger(
-                        static_cast<MediaAnimation::EventTrigger&>(*authored),
+                        static_cast<EventTrigger&>(*authored),
                         *element,
                         *element,
                         names);
@@ -447,18 +448,18 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                 }
             }
             if (Styles() != nullptr) {
-                const Aero::Style* applied = Styles()->AppliedStyle(*element);
+                const Style* applied = Styles()->AppliedStyle(*element);
                 if (applied != nullptr) {
-                    for (const Base::Ref<Aero::TriggerBase>& authored :
+                    for (const Base::Ref<TriggerBase>& authored :
                          applied->GetAuthoredTriggers()) {
                         if (!authored ||
                             !Metadata()->Types().IsDerivedFrom(
                                 authored->RuntimeType(),
-                                MediaAnimation::EventTrigger::StaticTypeId())) {
+                                EventTrigger::StaticTypeId())) {
                             continue;
                         }
                         Base::Result<bool> started = StartEventTrigger(
-                            static_cast<MediaAnimation::EventTrigger&>(
+                            static_cast<EventTrigger&>(
                                 *authored),
                             *element,
                             *element,
@@ -469,7 +470,7 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
             }
             if (element->GetIsLoaded() && view != nullptr &&
                 view->Events() != nullptr) {
-                Aero::RoutedEventArgs loadedArgs;
+                RoutedEventArgs loadedArgs;
                 static_cast<void>(view->Events()->RaiseEvent(
                     *element,
                     FrameworkElement::LoadedEvent.Handle(),
@@ -501,7 +502,7 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                 }
             }
         }
-        for (Aero::Media::Visual* child :
+        for (Media::Visual* child :
              AeroGuiInternal::RenderChildren(*visual)) {
             Base::Result<std::uint32_t> started =
                 StartLoadedAnimations(child, names);

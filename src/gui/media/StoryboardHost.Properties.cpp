@@ -24,7 +24,6 @@
 namespace Aero {
 
 using namespace ::Aero;
-namespace MediaAnimation = ::Aero::Media::Animation;
 
 Base::Result<StoryboardHost::ResolvedAnimationProperty>
 StoryboardHost::ResolveAnimationProperty(

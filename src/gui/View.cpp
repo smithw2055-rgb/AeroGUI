@@ -13,7 +13,6 @@
 namespace Aero {
 
 using namespace ::Aero;
-namespace MediaAnimation = ::Aero::Media::Animation;
 
 ViewState::ViewState(
         View& owner,

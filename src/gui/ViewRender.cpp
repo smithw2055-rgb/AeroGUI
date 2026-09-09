@@ -12,7 +12,6 @@
 namespace Aero {
 
 using namespace ::Aero;
-namespace MediaAnimation = ::Aero::Media::Animation;
 
 
 namespace {

@@ -24,18 +24,58 @@
 namespace Aero {
 
 using namespace ::Aero;
-namespace MediaAnimation = ::Aero::Media::Animation;
+using Media::Animation::BooleanAnimationUsingKeyFrames;
+using Media::Animation::BooleanKeyFrame;
+using Media::Animation::ColorAnimationUsingKeyFrames;
+using Media::Animation::DoubleAnimationBase;
+using Media::Animation::DoubleAnimationUsingKeyFrames;
+using Media::Animation::Int16Animation;
+using Media::Animation::Int16AnimationUsingKeyFrames;
+using Media::Animation::Int16KeyFrame;
+using Media::Animation::Int32Animation;
+using Media::Animation::Int32AnimationUsingKeyFrames;
+using Media::Animation::Int32KeyFrame;
+using Media::Animation::Int64Animation;
+using Media::Animation::Int64AnimationUsingKeyFrames;
+using Media::Animation::Int64KeyFrame;
+using Media::Animation::MatrixAnimationUsingKeyFrames;
+using Media::Animation::ObjectAnimationUsingKeyFrames;
+using Media::Animation::ObjectKeyFrame;
+using Media::Animation::ParallelTimeline;
+using Media::Animation::PointAnimationUsingKeyFrames;
+using Media::Animation::SizeAnimationUsingKeyFrames;
+using Media::Animation::Storyboard;
+using Media::Animation::StringAnimationUsingKeyFrames;
+using Media::Animation::StringKeyFrame;
+using Media::Animation::ThicknessAnimationUsingKeyFrames;
+using Media::Animation::Timeline;
+using Media::Animation::TimelineGroup;
 
 Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
-        MediaAnimation::Timeline& timeline,
-        Aero::FrameworkElement& triggerOwner,
-        const Aero::NameScope* names,
+        Timeline& timeline,
+        FrameworkElement& triggerOwner,
+        const NameScope* names,
         const StoryboardTimingState* inherited,
         Base::Vector<
-            Aero::Media::Animation::Model::AnimationHandle>*
+            Media::Animation::Model::AnimationHandle>*
             retainedHandles,
-        Aero::Controls::DataTemplateTriggerState*
+        Controls::DataTemplateTriggerState*
             dataTemplateContext) noexcept {
+        using Media::Animation::ColorAnimation;
+        using Media::Animation::ColorKeyFrame;
+        using Media::Animation::DoubleAnimation;
+        using Media::Animation::DoubleKeyFrame;
+        using Media::Animation::MatrixAnimation;
+        using Media::Animation::MatrixKeyFrame;
+        using Media::Animation::PointAnimation;
+        using Media::Animation::PointKeyFrame;
+        using Media::Animation::RectAnimation;
+        using Media::Animation::SizeAnimation;
+        using Media::Animation::SizeKeyFrame;
+        using Media::Animation::ThicknessAnimation;
+        using Media::Animation::ThicknessKeyFrame;
+
+
         if (Animations() == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::NotInitialized,
@@ -43,18 +83,18 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
         }
         if (Metadata()->Types().IsDerivedFrom(
                 timeline.RuntimeType(),
-                MediaAnimation::TimelineGroup::StaticTypeId())) {
+                TimelineGroup::StaticTypeId())) {
             auto& nested =
-                static_cast<MediaAnimation::TimelineGroup&>(timeline);
+                static_cast<TimelineGroup&>(timeline);
             const StoryboardTimingState timing =
                 ComposeStoryboardTiming(
                     inherited,
                     nested,
                     timeline.RuntimeType() ==
-                        MediaAnimation::ParallelTimeline::
+                        ParallelTimeline::
                             StaticTypeId());
             std::uint32_t count = 0U;
-            for (const Base::Ref<MediaAnimation::Timeline>& child :
+            for (const Base::Ref<Timeline>& child :
                  nested.GetTimelines()) {
                 if (!child) continue;
                 Base::Result<std::uint32_t> started =
@@ -81,12 +121,12 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
         Base::Result<Base::StringView> targetName =
             AnimationAttachedString(
                 timeline,
-                MediaAnimation::Storyboard::TargetNameProperty);
+                Storyboard::TargetNameProperty);
         if (!targetName) return targetName.GetStatus();
         Base::Result<Base::StringView> targetPath =
             AnimationAttachedString(
                 timeline,
-                MediaAnimation::Storyboard::TargetPropertyProperty);
+                Storyboard::TargetPropertyProperty);
         if (!targetPath) return targetPath.GetStatus();
 
         Base::Object* targetObject =
@@ -110,31 +150,31 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
         if (targetObject == nullptr ||
             !Metadata()->Types().IsDerivedFrom(
                 targetObject->RuntimeType(),
-                ::Aero::DependencyObject::StaticTypeId())) {
+                DependencyObject::StaticTypeId())) {
             return Base::Status::Failure(
                 Base::ErrorCode::NotFound,
                 "Storyboard target name does not resolve to a DependencyObject");
         }
         auto& target =
-            static_cast<::Aero::DependencyObject&>(*targetObject);
+            static_cast<DependencyObject&>(*targetObject);
         Base::Result<ResolvedAnimationProperty> property =
             ResolveAnimationProperty(target, targetPath.Value());
         if (!property) return property.GetStatus();
-        ::Aero::DependencyObject& propertyTarget =
+        DependencyObject& propertyTarget =
             *property.Value().target;
         const Meta::DependencyPropertyHandle propertyHandle =
             property.Value().property;
 
         const Meta::TypeId type = timeline.RuntimeType();
-        if (type == MediaAnimation::DoubleAnimation::StaticTypeId()) {
+        if (type == DoubleAnimation::StaticTypeId()) {
             auto& animation =
-                static_cast<MediaAnimation::DoubleAnimation&>(timeline);
-            Aero::Media::Animation::Model::DoubleAnimation runtime =
-                Aero::Media::Animation::Double(animation);
+                static_cast<DoubleAnimation&>(timeline);
+            Media::Animation::Model::DoubleAnimation runtime =
+                Media::Animation::Double(animation);
             runtime.timing =
                 EffectiveTimelineTiming(
                     animation, inherited);
-            Base::Result<Aero::Media::Animation::Model::AnimationHandle> started =
+            Base::Result<Media::Animation::Model::AnimationHandle> started =
                 Animations()->Begin(
                     propertyTarget,
                     propertyHandle,
@@ -145,9 +185,9 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
         }
         if (Metadata()->Types().IsDerivedFrom(
                 type,
-                MediaAnimation::DoubleAnimationBase::StaticTypeId())) {
+                DoubleAnimationBase::StaticTypeId())) {
             auto& animation = static_cast<
-                MediaAnimation::DoubleAnimationBase&>(timeline);
+                DoubleAnimationBase&>(timeline);
             Base::Result<Meta::PropertyValue> current =
                 propertyTarget.GetValue(propertyHandle);
             if (!current) return current.GetStatus();
@@ -155,9 +195,9 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 Meta::ValueCodec<double>::Decode(current.Value());
             if (!origin) return origin.GetStatus();
 
-            Aero::Media::Animation::Model::CustomDoubleAnimation runtime;
+            Media::Animation::Model::CustomDoubleAnimation runtime;
             runtime.animation =
-                Base::Ref<MediaAnimation::DoubleAnimationBase>::
+                Base::Ref<DoubleAnimationBase>::
                     TryFromBorrowed(animation);
             if (!runtime.animation) {
                 return Base::Status::Failure(
@@ -171,7 +211,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 EffectiveTimelineTiming(
                     animation, inherited);
             Base::Result<
-                Aero::Media::Animation::Model::AnimationHandle>
+                Media::Animation::Model::AnimationHandle>
                 started = Animations()->Begin(
                     propertyTarget,
                     propertyHandle,
@@ -180,15 +220,15 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 std::move(started),
                 retainedHandles);
         }
-        if (type == MediaAnimation::ColorAnimation::StaticTypeId()) {
+        if (type == ColorAnimation::StaticTypeId()) {
             auto& animation =
-                static_cast<MediaAnimation::ColorAnimation&>(timeline);
-            Aero::Media::Animation::Model::ColorAnimation runtime =
-                Aero::Media::Animation::Color(animation);
+                static_cast<ColorAnimation&>(timeline);
+            Media::Animation::Model::ColorAnimation runtime =
+                Media::Animation::Color(animation);
             runtime.timing =
                 EffectiveTimelineTiming(
                     animation, inherited);
-            Base::Result<Aero::Media::Animation::Model::AnimationHandle> started =
+            Base::Result<Media::Animation::Model::AnimationHandle> started =
                 Animations()->Begin(
                     propertyTarget,
                     propertyHandle,
@@ -198,19 +238,19 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 retainedHandles);
         }
         if (type ==
-            MediaAnimation::PointAnimation::
+            PointAnimation::
                 StaticTypeId()) {
             auto& animation =
                 static_cast<
-                    MediaAnimation::PointAnimation&>(
+                    PointAnimation&>(
                         timeline);
-            Aero::Media::Animation::Model::PointAnimation runtime =
-                Aero::Media::Animation::Point(animation);
+            Media::Animation::Model::PointAnimation runtime =
+                Media::Animation::Point(animation);
             runtime.timing =
                 EffectiveTimelineTiming(
                     animation, inherited);
             Base::Result<
-                Aero::Media::Animation::Model::AnimationHandle>
+                Media::Animation::Model::AnimationHandle>
                 started = Animations()->Begin(
                     propertyTarget,
                     propertyHandle,
@@ -220,19 +260,19 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 retainedHandles);
         }
         if (type ==
-            MediaAnimation::RectAnimation::
+            RectAnimation::
                 StaticTypeId()) {
             auto& animation =
                 static_cast<
-                    MediaAnimation::RectAnimation&>(
+                    RectAnimation&>(
                         timeline);
-            Aero::Media::Animation::Model::RectAnimation runtime =
-                Aero::Media::Animation::Rect(animation);
+            Media::Animation::Model::RectAnimation runtime =
+                Media::Animation::Rect(animation);
             runtime.timing =
                 EffectiveTimelineTiming(
                     animation, inherited);
             Base::Result<
-                Aero::Media::Animation::Model::AnimationHandle>
+                Media::Animation::Model::AnimationHandle>
                 started = Animations()->Begin(
                     propertyTarget,
                     propertyHandle,
@@ -242,19 +282,19 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 retainedHandles);
         }
         if (type ==
-            MediaAnimation::ThicknessAnimation::
+            ThicknessAnimation::
                 StaticTypeId()) {
             auto& animation =
                 static_cast<
-                    MediaAnimation::ThicknessAnimation&>(
+                    ThicknessAnimation&>(
                         timeline);
-            Aero::Media::Animation::Model::ThicknessAnimation runtime =
-                Aero::Media::Animation::Thickness(animation);
+            Media::Animation::Model::ThicknessAnimation runtime =
+                Media::Animation::Thickness(animation);
             runtime.timing =
                 EffectiveTimelineTiming(
                     animation, inherited);
             Base::Result<
-                Aero::Media::Animation::Model::AnimationHandle>
+                Media::Animation::Model::AnimationHandle>
                 started = Animations()->Begin(
                     propertyTarget,
                     propertyHandle,
@@ -264,88 +304,88 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 retainedHandles);
         }
         if (type ==
-            MediaAnimation::Int16Animation::StaticTypeId()) {
+            Int16Animation::StaticTypeId()) {
             auto& animation =
-                static_cast<MediaAnimation::Int16Animation&>(timeline);
-            Aero::Media::Animation::Model::IntegerAnimation runtime =
-                Aero::Media::Animation::Integer16(animation);
+                static_cast<Int16Animation&>(timeline);
+            Media::Animation::Model::IntegerAnimation runtime =
+                Media::Animation::Integer16(animation);
             runtime.timing =
                 EffectiveTimelineTiming(animation, inherited);
-            Base::Result<Aero::Media::Animation::Model::AnimationHandle>
+            Base::Result<Media::Animation::Model::AnimationHandle>
                 started = Animations()->Begin(
                     propertyTarget, propertyHandle, runtime);
             return RetainStartedAnimation(
                 std::move(started), retainedHandles);
         }
         if (type ==
-            MediaAnimation::Int32Animation::StaticTypeId()) {
+            Int32Animation::StaticTypeId()) {
             auto& animation =
-                static_cast<MediaAnimation::Int32Animation&>(timeline);
-            Aero::Media::Animation::Model::IntegerAnimation runtime =
-                Aero::Media::Animation::Integer32(animation);
+                static_cast<Int32Animation&>(timeline);
+            Media::Animation::Model::IntegerAnimation runtime =
+                Media::Animation::Integer32(animation);
             runtime.timing =
                 EffectiveTimelineTiming(animation, inherited);
-            Base::Result<Aero::Media::Animation::Model::AnimationHandle>
+            Base::Result<Media::Animation::Model::AnimationHandle>
                 started = Animations()->Begin(
                     propertyTarget, propertyHandle, runtime);
             return RetainStartedAnimation(
                 std::move(started), retainedHandles);
         }
         if (type ==
-            MediaAnimation::Int64Animation::StaticTypeId()) {
+            Int64Animation::StaticTypeId()) {
             auto& animation =
-                static_cast<MediaAnimation::Int64Animation&>(timeline);
-            Aero::Media::Animation::Model::IntegerAnimation runtime =
-                Aero::Media::Animation::Integer64(animation);
+                static_cast<Int64Animation&>(timeline);
+            Media::Animation::Model::IntegerAnimation runtime =
+                Media::Animation::Integer64(animation);
             runtime.timing =
                 EffectiveTimelineTiming(animation, inherited);
-            Base::Result<Aero::Media::Animation::Model::AnimationHandle>
+            Base::Result<Media::Animation::Model::AnimationHandle>
                 started = Animations()->Begin(
                     propertyTarget, propertyHandle, runtime);
             return RetainStartedAnimation(
                 std::move(started), retainedHandles);
         }
         if (type ==
-            MediaAnimation::SizeAnimation::StaticTypeId()) {
+            SizeAnimation::StaticTypeId()) {
             auto& animation =
-                static_cast<MediaAnimation::SizeAnimation&>(timeline);
-            Aero::Media::Animation::Model::SizeAnimation runtime =
-                Aero::Media::Animation::Size(animation);
+                static_cast<SizeAnimation&>(timeline);
+            Media::Animation::Model::SizeAnimation runtime =
+                Media::Animation::Size(animation);
             runtime.timing =
                 EffectiveTimelineTiming(animation, inherited);
-            Base::Result<Aero::Media::Animation::Model::AnimationHandle>
+            Base::Result<Media::Animation::Model::AnimationHandle>
                 started = Animations()->Begin(
                     propertyTarget, propertyHandle, runtime);
             return RetainStartedAnimation(
                 std::move(started), retainedHandles);
         }
         if (type ==
-            MediaAnimation::MatrixAnimation::StaticTypeId()) {
+            MatrixAnimation::StaticTypeId()) {
             auto& animation =
-                static_cast<MediaAnimation::MatrixAnimation&>(timeline);
-            Aero::Media::Animation::Model::MatrixAnimation runtime =
-                Aero::Media::Animation::Matrix(animation);
+                static_cast<MatrixAnimation&>(timeline);
+            Media::Animation::Model::MatrixAnimation runtime =
+                Media::Animation::Matrix(animation);
             runtime.timing =
                 EffectiveTimelineTiming(animation, inherited);
-            Base::Result<Aero::Media::Animation::Model::AnimationHandle>
+            Base::Result<Media::Animation::Model::AnimationHandle>
                 started = Animations()->Begin(
                     propertyTarget, propertyHandle, runtime);
             return RetainStartedAnimation(
                 std::move(started), retainedHandles);
         }
         if (type ==
-            MediaAnimation::DoubleAnimationUsingKeyFrames::StaticTypeId()) {
+            DoubleAnimationUsingKeyFrames::StaticTypeId()) {
             auto& animation = static_cast<
-                MediaAnimation::DoubleAnimationUsingKeyFrames&>(timeline);
-            Base::Vector<Aero::Media::Animation::Model::DoubleKeyFrame> frames(Allocator());
+                DoubleAnimationUsingKeyFrames&>(timeline);
+            Base::Vector<Media::Animation::Model::DoubleKeyFrame> frames(Allocator());
             const auto schedule = MakeKeyframeSchedule(
                 animation,
                 EffectiveTimelineTiming(animation, inherited).durationMicroseconds);
             std::uint32_t keyIndex = 0U;
-            for (const Base::Ref<MediaAnimation::DoubleKeyFrame>& frame :
+            for (const Base::Ref<DoubleKeyFrame>& frame :
                  animation.GetKeyFrames()) {
                 if (!frame) continue;
-                frames.PushBack(Aero::Media::Animation::DoubleFrame(
+                frames.PushBack(Media::Animation::DoubleFrame(
                         *frame,
                         schedule.duration,
                         keyIndex,
@@ -354,7 +394,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             }
             for (std::uint32_t index = 1U;
                  index < frames.Size(); ++index) {
-                Aero::Media::Animation::Model::DoubleKeyFrame current =
+                Media::Animation::Model::DoubleKeyFrame current =
                     frames[index];
                 std::uint32_t position = index;
                 while (position > 0U &&
@@ -372,7 +412,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             if (!base) return base.GetStatus();
             Base::Result<double> baseDouble =
                 Meta::ValueCodec<double>::Decode(base.Value());
-            Aero::Media::Animation::Model::DoubleKeyFrameAnimation runtime;
+            Media::Animation::Model::DoubleKeyFrameAnimation runtime;
             if (baseDouble) {
                 runtime.baseValue = baseDouble.Value();
             } else if (!frames.Empty() &&
@@ -395,7 +435,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                     frames.Back().keyTimeMicroseconds;
             }
             runtime.keyFrames = frames.AsSpan();
-            Base::Result<Aero::Media::Animation::Model::AnimationHandle> started =
+            Base::Result<Media::Animation::Model::AnimationHandle> started =
                 Animations()->Begin(
                     propertyTarget, propertyHandle, runtime);
             return RetainStartedAnimation(
@@ -403,23 +443,23 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 retainedHandles);
         }
         if (type ==
-            MediaAnimation::ColorAnimationUsingKeyFrames::
+            ColorAnimationUsingKeyFrames::
                 StaticTypeId()) {
             auto& animation = static_cast<
-                MediaAnimation::ColorAnimationUsingKeyFrames&>(
+                ColorAnimationUsingKeyFrames&>(
                     timeline);
-            Base::Vector<Aero::Media::Animation::Model::ColorKeyFrame>
+            Base::Vector<Media::Animation::Model::ColorKeyFrame>
                 frames(Allocator());
             const auto schedule = MakeKeyframeSchedule(
                 animation,
                 EffectiveTimelineTiming(animation, inherited).durationMicroseconds);
             std::uint32_t keyIndex = 0U;
             for (const Base::Ref<
-                     MediaAnimation::ColorKeyFrame>& frame :
+                     ColorKeyFrame>& frame :
                  animation.GetKeyFrames()) {
                 if (!frame) continue;
                 frames.PushBack(
-                        Aero::Media::Animation::ColorFrame(
+                        Media::Animation::ColorFrame(
                             *frame,
                             schedule.duration,
                             keyIndex,
@@ -429,7 +469,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             for (std::uint32_t index = 1U;
                  index < frames.Size();
                  ++index) {
-                Aero::Media::Animation::Model::ColorKeyFrame current =
+                Media::Animation::Model::ColorKeyFrame current =
                     frames[index];
                 std::uint32_t position = index;
                 while (position > 0U &&
@@ -452,7 +492,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             if (!baseColor) {
                 return baseColor.GetStatus();
             }
-            Aero::Media::Animation::Model::ColorKeyFrameAnimation
+            Media::Animation::Model::ColorKeyFrameAnimation
                 runtime;
             runtime.baseValue = baseColor.Value();
             runtime.timing =
@@ -467,7 +507,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             }
             runtime.keyFrames = frames.AsSpan();
             Base::Result<
-                Aero::Media::Animation::Model::AnimationHandle>
+                Media::Animation::Model::AnimationHandle>
                 started = Animations()->Begin(
                     propertyTarget,
                     propertyHandle,
@@ -477,20 +517,20 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 retainedHandles);
         }
         if (type ==
-            MediaAnimation::PointAnimationUsingKeyFrames::StaticTypeId()) {
+            PointAnimationUsingKeyFrames::StaticTypeId()) {
             auto& animation = static_cast<
-                MediaAnimation::PointAnimationUsingKeyFrames&>(timeline);
-            Base::Vector<Aero::Media::Animation::Model::PointKeyFrame> frames(
+                PointAnimationUsingKeyFrames&>(timeline);
+            Base::Vector<Media::Animation::Model::PointKeyFrame> frames(
                 Allocator());
             const auto schedule = MakeKeyframeSchedule(
                 animation,
                 EffectiveTimelineTiming(animation, inherited).durationMicroseconds);
             std::uint32_t keyIndex = 0U;
-            for (const Base::Ref<MediaAnimation::PointKeyFrame>& frame :
+            for (const Base::Ref<PointKeyFrame>& frame :
                  animation.GetKeyFrames()) {
                 if (!frame) continue;
                 frames.PushBack(
-                    Aero::Media::Animation::PointFrame(
+                    Media::Animation::PointFrame(
                         *frame,
                         schedule.duration,
                         keyIndex,
@@ -498,7 +538,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 ++keyIndex;
             }
             for (std::uint32_t index = 1U; index < frames.Size(); ++index) {
-                Aero::Media::Animation::Model::PointKeyFrame current =
+                Media::Animation::Model::PointKeyFrame current =
                     frames[index];
                 std::uint32_t position = index;
                 while (position > 0U &&
@@ -514,7 +554,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             if (!base) return base.GetStatus();
             Base::Result<Base::Point> basePoint =
                 Meta::ValueCodec<Base::Point>::Decode(base.Value());
-            Aero::Media::Animation::Model::PointKeyFrameAnimation runtime;
+            Media::Animation::Model::PointKeyFrameAnimation runtime;
             if (basePoint) {
                 runtime.baseValue = basePoint.Value();
             } else if (!frames.Empty() &&
@@ -529,27 +569,27 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                     frames.Back().keyTimeMicroseconds;
             }
             runtime.keyFrames = frames.AsSpan();
-            Base::Result<Aero::Media::Animation::Model::AnimationHandle>
+            Base::Result<Media::Animation::Model::AnimationHandle>
                 started = Animations()->Begin(
                     propertyTarget, propertyHandle, runtime);
             return RetainStartedAnimation(
                 std::move(started), retainedHandles);
         }
         if (type ==
-            MediaAnimation::ThicknessAnimationUsingKeyFrames::StaticTypeId()) {
+            ThicknessAnimationUsingKeyFrames::StaticTypeId()) {
             auto& animation = static_cast<
-                MediaAnimation::ThicknessAnimationUsingKeyFrames&>(timeline);
-            Base::Vector<Aero::Media::Animation::Model::ThicknessKeyFrame>
+                ThicknessAnimationUsingKeyFrames&>(timeline);
+            Base::Vector<Media::Animation::Model::ThicknessKeyFrame>
                 frames(Allocator());
             const auto schedule = MakeKeyframeSchedule(
                 animation,
                 EffectiveTimelineTiming(animation, inherited).durationMicroseconds);
             std::uint32_t keyIndex = 0U;
-            for (const Base::Ref<MediaAnimation::ThicknessKeyFrame>& frame :
+            for (const Base::Ref<ThicknessKeyFrame>& frame :
                  animation.GetKeyFrames()) {
                 if (!frame) continue;
                 frames.PushBack(
-                    Aero::Media::Animation::ThicknessFrame(
+                    Media::Animation::ThicknessFrame(
                         *frame,
                         schedule.duration,
                         keyIndex,
@@ -557,7 +597,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 ++keyIndex;
             }
             for (std::uint32_t index = 1U; index < frames.Size(); ++index) {
-                Aero::Media::Animation::Model::ThicknessKeyFrame current =
+                Media::Animation::Model::ThicknessKeyFrame current =
                     frames[index];
                 std::uint32_t position = index;
                 while (position > 0U &&
@@ -573,7 +613,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             if (!base) return base.GetStatus();
             Base::Result<Base::Thickness> baseThickness =
                 Meta::ValueCodec<Base::Thickness>::Decode(base.Value());
-            Aero::Media::Animation::Model::ThicknessKeyFrameAnimation runtime;
+            Media::Animation::Model::ThicknessKeyFrameAnimation runtime;
             if (baseThickness) {
                 runtime.baseValue = baseThickness.Value();
             } else if (!frames.Empty() &&
@@ -588,7 +628,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                     frames.Back().keyTimeMicroseconds;
             }
             runtime.keyFrames = frames.AsSpan();
-            Base::Result<Aero::Media::Animation::Model::AnimationHandle>
+            Base::Result<Media::Animation::Model::AnimationHandle>
                 started = Animations()->Begin(
                     propertyTarget, propertyHandle, runtime);
             return RetainStartedAnimation(
@@ -596,15 +636,15 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
         }
 
             auto startIntegerKeyFrames =
-            [&](Aero::Media::Animation::Model::IntegerAnimationWidth width,
+            [&](Media::Animation::Model::IntegerAnimationWidth width,
                 auto&& collect)
                 -> Base::Result<std::uint32_t> {
-            Base::Vector<Aero::Media::Animation::Model::IntegerKeyFrame>
+            Base::Vector<Media::Animation::Model::IntegerKeyFrame>
                 frames(Allocator());
             Base::Result<void> collected = collect(frames);
             if (!collected) return collected.GetStatus();
             for (std::uint32_t index = 1U; index < frames.Size(); ++index) {
-                Aero::Media::Animation::Model::IntegerKeyFrame current =
+                Media::Animation::Model::IntegerKeyFrame current =
                     frames[index];
                 std::uint32_t position = index;
                 while (position > 0U &&
@@ -618,10 +658,10 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             Base::Result<Meta::PropertyValue> base =
                 propertyTarget.GetValue(propertyHandle);
             if (!base) return base.GetStatus();
-            Aero::Media::Animation::Model::IntegerKeyFrameAnimation runtime;
+            Media::Animation::Model::IntegerKeyFrameAnimation runtime;
             runtime.width = width;
             if (width ==
-                Aero::Media::Animation::Model::IntegerAnimationWidth::Int16) {
+                Media::Animation::Model::IntegerAnimationWidth::Int16) {
                 Base::Result<std::int16_t> decoded =
                     Meta::ValueCodec<std::int16_t>::Decode(base.Value());
                 if (decoded) {
@@ -634,7 +674,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 }
             } else if (
                 width ==
-                Aero::Media::Animation::Model::IntegerAnimationWidth::Int64) {
+                Media::Animation::Model::IntegerAnimationWidth::Int64) {
                 Base::Result<std::int64_t> decoded =
                     Meta::ValueCodec<std::int64_t>::Decode(base.Value());
                 if (decoded) {
@@ -663,7 +703,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                     frames.Back().keyTimeMicroseconds;
             }
             runtime.keyFrames = frames.AsSpan();
-            Base::Result<Aero::Media::Animation::Model::AnimationHandle>
+            Base::Result<Media::Animation::Model::AnimationHandle>
                 started = Animations()->Begin(
                     propertyTarget, propertyHandle, runtime);
             return RetainStartedAnimation(
@@ -671,22 +711,22 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
         };
 
         if (type ==
-            MediaAnimation::Int16AnimationUsingKeyFrames::StaticTypeId()) {
+            Int16AnimationUsingKeyFrames::StaticTypeId()) {
             auto& animation = static_cast<
-                MediaAnimation::Int16AnimationUsingKeyFrames&>(timeline);
+                Int16AnimationUsingKeyFrames&>(timeline);
             return startIntegerKeyFrames(
-                Aero::Media::Animation::Model::IntegerAnimationWidth::Int16,
+                Media::Animation::Model::IntegerAnimationWidth::Int16,
                 [&](auto& frames) -> Base::Result<void> {
                     const auto schedule = MakeKeyframeSchedule(
                         animation,
                         EffectiveTimelineTiming(
                             animation, inherited).durationMicroseconds);
                     std::uint32_t keyIndex = 0U;
-                    for (const Base::Ref<MediaAnimation::Int16KeyFrame>& frame :
+                    for (const Base::Ref<Int16KeyFrame>& frame :
                          animation.GetKeyFrames()) {
                         if (!frame) continue;
                         frames.PushBack(
-                            Aero::Media::Animation::IntegerFrame(
+                            Media::Animation::IntegerFrame(
                                 *frame,
                                 schedule.duration,
                                 keyIndex,
@@ -697,22 +737,22 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 });
         }
         if (type ==
-            MediaAnimation::Int32AnimationUsingKeyFrames::StaticTypeId()) {
+            Int32AnimationUsingKeyFrames::StaticTypeId()) {
             auto& animation = static_cast<
-                MediaAnimation::Int32AnimationUsingKeyFrames&>(timeline);
+                Int32AnimationUsingKeyFrames&>(timeline);
             return startIntegerKeyFrames(
-                Aero::Media::Animation::Model::IntegerAnimationWidth::Int32,
+                Media::Animation::Model::IntegerAnimationWidth::Int32,
                 [&](auto& frames) -> Base::Result<void> {
                     const auto schedule = MakeKeyframeSchedule(
                         animation,
                         EffectiveTimelineTiming(
                             animation, inherited).durationMicroseconds);
                     std::uint32_t keyIndex = 0U;
-                    for (const Base::Ref<MediaAnimation::Int32KeyFrame>& frame :
+                    for (const Base::Ref<Int32KeyFrame>& frame :
                          animation.GetKeyFrames()) {
                         if (!frame) continue;
                         frames.PushBack(
-                            Aero::Media::Animation::IntegerFrame(
+                            Media::Animation::IntegerFrame(
                                 *frame,
                                 schedule.duration,
                                 keyIndex,
@@ -723,22 +763,22 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 });
         }
         if (type ==
-            MediaAnimation::Int64AnimationUsingKeyFrames::StaticTypeId()) {
+            Int64AnimationUsingKeyFrames::StaticTypeId()) {
             auto& animation = static_cast<
-                MediaAnimation::Int64AnimationUsingKeyFrames&>(timeline);
+                Int64AnimationUsingKeyFrames&>(timeline);
             return startIntegerKeyFrames(
-                Aero::Media::Animation::Model::IntegerAnimationWidth::Int64,
+                Media::Animation::Model::IntegerAnimationWidth::Int64,
                 [&](auto& frames) -> Base::Result<void> {
                     const auto schedule = MakeKeyframeSchedule(
                         animation,
                         EffectiveTimelineTiming(
                             animation, inherited).durationMicroseconds);
                     std::uint32_t keyIndex = 0U;
-                    for (const Base::Ref<MediaAnimation::Int64KeyFrame>& frame :
+                    for (const Base::Ref<Int64KeyFrame>& frame :
                          animation.GetKeyFrames()) {
                         if (!frame) continue;
                         frames.PushBack(
-                            Aero::Media::Animation::IntegerFrame(
+                            Media::Animation::IntegerFrame(
                                 *frame,
                                 schedule.duration,
                                 keyIndex,
@@ -749,20 +789,20 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 });
         }
         if (type ==
-            MediaAnimation::SizeAnimationUsingKeyFrames::StaticTypeId()) {
+            SizeAnimationUsingKeyFrames::StaticTypeId()) {
             auto& animation = static_cast<
-                MediaAnimation::SizeAnimationUsingKeyFrames&>(timeline);
-            Base::Vector<Aero::Media::Animation::Model::SizeKeyFrame>
+                SizeAnimationUsingKeyFrames&>(timeline);
+            Base::Vector<Media::Animation::Model::SizeKeyFrame>
                 frames(Allocator());
             const auto schedule = MakeKeyframeSchedule(
                 animation,
                 EffectiveTimelineTiming(animation, inherited).durationMicroseconds);
             std::uint32_t keyIndex = 0U;
-            for (const Base::Ref<MediaAnimation::SizeKeyFrame>& frame :
+            for (const Base::Ref<SizeKeyFrame>& frame :
                  animation.GetKeyFrames()) {
                 if (!frame) continue;
                 frames.PushBack(
-                    Aero::Media::Animation::SizeFrame(
+                    Media::Animation::SizeFrame(
                         *frame,
                         schedule.duration,
                         keyIndex,
@@ -770,7 +810,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 ++keyIndex;
             }
             for (std::uint32_t index = 1U; index < frames.Size(); ++index) {
-                Aero::Media::Animation::Model::SizeKeyFrame current =
+                Media::Animation::Model::SizeKeyFrame current =
                     frames[index];
                 std::uint32_t position = index;
                 while (position > 0U &&
@@ -786,7 +826,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             if (!base) return base.GetStatus();
             Base::Result<Base::Size> baseSize =
                 Meta::ValueCodec<Base::Size>::Decode(base.Value());
-            Aero::Media::Animation::Model::SizeKeyFrameAnimation runtime;
+            Media::Animation::Model::SizeKeyFrameAnimation runtime;
             if (baseSize) {
                 runtime.baseValue = baseSize.Value();
             } else if (!frames.Empty() &&
@@ -801,27 +841,27 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                     frames.Back().keyTimeMicroseconds;
             }
             runtime.keyFrames = frames.AsSpan();
-            Base::Result<Aero::Media::Animation::Model::AnimationHandle>
+            Base::Result<Media::Animation::Model::AnimationHandle>
                 started = Animations()->Begin(
                     propertyTarget, propertyHandle, runtime);
             return RetainStartedAnimation(
                 std::move(started), retainedHandles);
         }
         if (type ==
-            MediaAnimation::MatrixAnimationUsingKeyFrames::StaticTypeId()) {
+            MatrixAnimationUsingKeyFrames::StaticTypeId()) {
             auto& animation = static_cast<
-                MediaAnimation::MatrixAnimationUsingKeyFrames&>(timeline);
-            Base::Vector<Aero::Media::Animation::Model::MatrixKeyFrame>
+                MatrixAnimationUsingKeyFrames&>(timeline);
+            Base::Vector<Media::Animation::Model::MatrixKeyFrame>
                 frames(Allocator());
             const auto schedule = MakeKeyframeSchedule(
                 animation,
                 EffectiveTimelineTiming(animation, inherited).durationMicroseconds);
             std::uint32_t keyIndex = 0U;
-            for (const Base::Ref<MediaAnimation::MatrixKeyFrame>& frame :
+            for (const Base::Ref<MatrixKeyFrame>& frame :
                  animation.GetKeyFrames()) {
                 if (!frame) continue;
                 frames.PushBack(
-                    Aero::Media::Animation::MatrixFrame(
+                    Media::Animation::MatrixFrame(
                         *frame,
                         schedule.duration,
                         keyIndex,
@@ -829,7 +869,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 ++keyIndex;
             }
             for (std::uint32_t index = 1U; index < frames.Size(); ++index) {
-                Aero::Media::Animation::Model::MatrixKeyFrame current =
+                Media::Animation::Model::MatrixKeyFrame current =
                     frames[index];
                 std::uint32_t position = index;
                 while (position > 0U &&
@@ -845,7 +885,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             if (!base) return base.GetStatus();
             Base::Result<Base::Transform2D> baseMatrix =
                 Meta::ValueCodec<Base::Transform2D>::Decode(base.Value());
-            Aero::Media::Animation::Model::MatrixKeyFrameAnimation runtime;
+            Media::Animation::Model::MatrixKeyFrameAnimation runtime;
             if (baseMatrix) {
                 runtime.baseValue = baseMatrix.Value();
             } else if (!frames.Empty() &&
@@ -860,30 +900,30 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                     frames.Back().keyTimeMicroseconds;
             }
             runtime.keyFrames = frames.AsSpan();
-            Base::Result<Aero::Media::Animation::Model::AnimationHandle>
+            Base::Result<Media::Animation::Model::AnimationHandle>
                 started = Animations()->Begin(
                     propertyTarget, propertyHandle, runtime);
             return RetainStartedAnimation(
                 std::move(started), retainedHandles);
         }
 
-        Base::Vector<Aero::Media::Animation::Model::DiscreteAnimationKeyFrame>
+        Base::Vector<Media::Animation::Model::DiscreteAnimationKeyFrame>
             frames(Allocator());
         if (type ==
-            MediaAnimation::BooleanAnimationUsingKeyFrames::StaticTypeId()) {
+            BooleanAnimationUsingKeyFrames::StaticTypeId()) {
             auto& animation = static_cast<
-                MediaAnimation::BooleanAnimationUsingKeyFrames&>(timeline);
+                BooleanAnimationUsingKeyFrames&>(timeline);
             const auto schedule = MakeKeyframeSchedule(
                 animation,
                 EffectiveTimelineTiming(timeline, inherited).durationMicroseconds);
             std::uint32_t keyIndex = 0U;
             for (const Base::Ref<
-                     MediaAnimation::BooleanKeyFrame>& frame :
+                     BooleanKeyFrame>& frame :
                  animation.GetKeyFrames()) {
                 if (!frame) continue;
-                Aero::Media::Animation::Model::DiscreteAnimationKeyFrame runtime;
+                Media::Animation::Model::DiscreteAnimationKeyFrame runtime;
                 runtime.keyTimeMicroseconds =
-                    Aero::Media::Animation::ResolveKeyTime(
+                    Media::Animation::ResolveKeyTime(
                         frame->GetKeyTime(),
                         schedule.duration,
                         keyIndex,
@@ -896,20 +936,20 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 frames.PushBack(std::move(runtime));
             }
         } else if (type ==
-            MediaAnimation::ObjectAnimationUsingKeyFrames::StaticTypeId()) {
+            ObjectAnimationUsingKeyFrames::StaticTypeId()) {
             auto& animation = static_cast<
-                MediaAnimation::ObjectAnimationUsingKeyFrames&>(timeline);
+                ObjectAnimationUsingKeyFrames&>(timeline);
             const auto schedule = MakeKeyframeSchedule(
                 animation,
                 EffectiveTimelineTiming(timeline, inherited).durationMicroseconds);
             std::uint32_t keyIndex = 0U;
             for (const Base::Ref<
-                     MediaAnimation::ObjectKeyFrame>& frame :
+                     ObjectKeyFrame>& frame :
                  animation.GetKeyFrames()) {
                 if (!frame) continue;
-                Aero::Media::Animation::Model::DiscreteAnimationKeyFrame runtime;
+                Media::Animation::Model::DiscreteAnimationKeyFrame runtime;
                 runtime.keyTimeMicroseconds =
-                    Aero::Media::Animation::ResolveKeyTime(
+                    Media::Animation::ResolveKeyTime(
                         frame->GetKeyTime(),
                         schedule.duration,
                         keyIndex,
@@ -930,20 +970,20 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 frames.PushBack(std::move(runtime));
             }
         } else if (type ==
-            MediaAnimation::StringAnimationUsingKeyFrames::StaticTypeId()) {
+            StringAnimationUsingKeyFrames::StaticTypeId()) {
             auto& animation = static_cast<
-                MediaAnimation::StringAnimationUsingKeyFrames&>(timeline);
+                StringAnimationUsingKeyFrames&>(timeline);
             const auto schedule = MakeKeyframeSchedule(
                 animation,
                 EffectiveTimelineTiming(timeline, inherited).durationMicroseconds);
             std::uint32_t keyIndex = 0U;
             for (const Base::Ref<
-                     MediaAnimation::StringKeyFrame>& frame :
+                     StringKeyFrame>& frame :
                  animation.GetKeyFrames()) {
                 if (!frame) continue;
-                Aero::Media::Animation::Model::DiscreteAnimationKeyFrame runtime;
+                Media::Animation::Model::DiscreteAnimationKeyFrame runtime;
                 runtime.keyTimeMicroseconds =
-                    Aero::Media::Animation::ResolveKeyTime(
+                    Media::Animation::ResolveKeyTime(
                         frame->GetKeyTime(),
                         schedule.duration,
                         keyIndex,
@@ -962,7 +1002,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
         }
         for (std::uint32_t index = 1U;
              index < frames.Size(); ++index) {
-            Aero::Media::Animation::Model::DiscreteAnimationKeyFrame current =
+            Media::Animation::Model::DiscreteAnimationKeyFrame current =
                 std::move(frames[index]);
             std::uint32_t position = index;
             while (position > 0U &&
@@ -978,7 +1018,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
         Base::Result<Meta::PropertyValue> base =
             propertyTarget.GetValue(propertyHandle);
         if (!base) return base.GetStatus();
-        Aero::Media::Animation::Model::DiscreteAnimation runtime;
+        Media::Animation::Model::DiscreteAnimation runtime;
         runtime.baseValue = base.Value();
         runtime.timing =
             EffectiveTimelineTiming(
@@ -989,7 +1029,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 frames.Back().keyTimeMicroseconds;
         }
         runtime.keyFrames = frames.AsSpan();
-        Base::Result<Aero::Media::Animation::Model::AnimationHandle> started =
+        Base::Result<Media::Animation::Model::AnimationHandle> started =
             Animations()->Begin(
                 propertyTarget, propertyHandle, runtime);
         return RetainStartedAnimation(

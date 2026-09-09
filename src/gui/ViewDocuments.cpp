@@ -13,7 +13,6 @@
 namespace Aero {
 
 using namespace ::Aero;
-namespace MediaAnimation = ::Aero::Media::Animation;
 
 // ============================================================================
 // Section 1: Document load (Begin/XamlSettings/Clear/FindName)

@@ -17,7 +17,6 @@
 namespace Aero {
 
 using namespace ::Aero;
-namespace MediaAnimation = ::Aero::Media::Animation;
 
 void ViewState::ReportFrameFailure(
         Base::Status& slot,
