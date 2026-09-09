@@ -1,13 +1,85 @@
 #pragma once
 
-#include "gui/styles/StyleState.hpp"
+#include "gui/core/EffectiveValueEngine.hpp"
+#include "gui/triggers/TriggerPlan.hpp"
 #include <Aero/Base/HashMap.hpp>
+#include <Aero/Base/Allocator.hpp>
+#include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/Data/BindingExpression.hpp>
+#include <Aero/Resources.hpp>
+#include <Aero/Style.hpp>
+#include <Aero/TextProperties.hpp>
+#include <Aero/Value.hpp>
+
+#include <cstdint>
+#include <new>
+#include <utility>
 
 namespace Aero {
 
 using namespace Aero::Meta;
 using namespace Aero::Threading;
+
+struct StyleSetter {
+    DependencyPropertyHandle property;
+    PropertyValue value;
+};
+
+// Resource-assignment helpers used by style and markup application.
+inline ResourceDictionary& EnsureOwnedResources(
+    ResourceDictionary*& slot) noexcept {
+    if (slot != nullptr) {
+        return *slot;
+    }
+    slot = new (std::nothrow) ResourceDictionary();
+    if (slot == nullptr) {
+        Base::ReportOutOfMemory(
+            sizeof(ResourceDictionary),
+            alignof(ResourceDictionary),
+            Base::MemoryTag::Object);
+        static ResourceDictionary fallback;
+        return fallback;
+    }
+    return *slot;
+}
+
+inline Base::Result<void> AssignResourceDictionary(
+    ResourceDictionary& target,
+    Base::Ref<ResourceDictionary> source,
+    const char* alreadyAssignedMessage) noexcept {
+    if (!source) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Resources expects a non-null ResourceDictionary");
+    }
+    if (target.Size() != 0U ||
+        target.MergedDictionaryCount() != 0U ||
+        !target.GetSource().Empty()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::AlreadyExists,
+            alreadyAssignedMessage);
+    }
+    target = std::move(*source);
+    return {};
+}
+
+// Style program accessors (formerly StyleState statics).
+Base::Result<void> SealStyle(
+    Style& style,
+    const Meta::DependencyPropertyRegistry& properties) noexcept;
+Base::Span<const StyleSetter> StyleRuntimeSetters(
+    const Style& style) noexcept;
+Base::Span<const TriggerPlan> StyleRuntimeTriggers(
+    const Style& style) noexcept;
+Base::Result<void> ApplyStyleSetters(
+    const Style& style,
+    DependencyObject& object,
+    StyleProviderSession& values) noexcept;
+Base::Result<void> ClearStyleSetters(
+    const Style& style,
+    DependencyObject& object,
+    StyleProviderSession& values) noexcept;
+
 
 class TriggerEngine;
 

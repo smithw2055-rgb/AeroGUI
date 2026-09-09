@@ -182,10 +182,11 @@ XAML metadata type-capability tables (`XamlFacets` / TypeRecord masks under
 `src/gui/meta/` and `src/gui/markup/`) are a different system. They are not
 `Core::Facet` and must not be confused with the deleted element/engine bags.
 
-Per-domain engine headers remain under `src/gui/core/state/`
-(`ElementTree.hpp`, `FreezableState.hpp`, `LayoutEngine.hpp`,
-`EffectiveValueEngine.hpp`, `RoutedEvents.hpp`, `EventRouter.hpp`). `State.hpp`
-remains the umbrella that includes them plus `AeroGuiInternal.hpp`.
+Per-domain engine headers live under `src/gui/core/`
+(`ElementTree.hpp`, `LayoutEngine.hpp`, `EffectiveValueEngine.hpp`,
+`RoutedEvents.hpp`, `EventRouter.hpp`). Freezable program data is nested in
+`Freezable::Impl` inside `Freezable.cpp`. `GuiState.hpp` / `ViewState.hpp`
+remain the umbrellas that include the engines plus `AeroGuiInternal.hpp`.
 
 WPF-bridge virtuals for developers who subclass Aero types:
 - `DependencyObject::OnPropertyChanged(const DependencyPropertyChangedEventArgs&)`

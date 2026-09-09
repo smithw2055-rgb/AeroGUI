@@ -88,7 +88,7 @@ public:
     Base::Result<void> ExecuteAnimationAction(
         Aero::Interactivity::TriggerAction& action,
         Aero::FrameworkElement& owner,
-        Aero::Controls::DataTemplateTriggerState* dataTemplateContext = nullptr,
+        Aero::Controls::DataTemplateTriggerInstance* dataTemplateContext = nullptr,
         const Aero::NameScope* names = nullptr) noexcept;
     void CancelStoryboardCompletionSessions(
         Base::Span<const Aero::Media::Animation::Model::AnimationHandle>
@@ -135,7 +135,7 @@ public:
         const StoryboardTimingState* inherited = nullptr,
         Base::Vector<Aero::Media::Animation::Model::AnimationHandle>*
             retainedHandles = nullptr,
-        Aero::Controls::DataTemplateTriggerState* dataTemplateContext =
+        Aero::Controls::DataTemplateTriggerInstance* dataTemplateContext =
             nullptr) noexcept;
     Base::Result<std::uint32_t> StartContentElementAnimations(
         Aero::FrameworkContentElement& content,

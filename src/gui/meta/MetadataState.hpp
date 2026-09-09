@@ -1263,7 +1263,7 @@ namespace Aero {
 
 // Private compatibility owners used by the built-in theme schema. They are
 // registered for XAML compatibility but are not C++ authoring APIs.
-// (Moved out of styles/StyleState.hpp — that header is Style program state only.)
+// (Moved out of styles/StyleEngine.hpp — that header is Style program state only.)
 class Element : public Base::Object {
     AERO_DECLARE_TYPE(Element, Base::Object)
 public:

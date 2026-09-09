@@ -5,7 +5,6 @@
 namespace Aero {
 
 class Freezable;
-struct FreezableState;
 
 using FreezableChangedHandler = Base::Delegate<void(Freezable&)>;
 
@@ -15,6 +14,7 @@ using FreezableChangedHandler = Base::Delegate<void(Freezable&)>;
 class AERO_GUI_API Freezable : public DependencyObject {
     AERO_DECLARE_TYPE(Freezable, DependencyObject)
 public:
+    struct Impl;  // Freezable.cpp-local program data (nested; definition private to TU)
 
     bool IsFrozen() const noexcept;
     bool CanFreeze() const noexcept;
@@ -39,10 +39,8 @@ protected:
     Result<void> VerifyMutationAllowed() const noexcept override;
 
 private:
-    friend struct FreezableState;
-
     bool EnsureState() noexcept;
-    FreezableState* impl_ = nullptr;
+    Impl* impl_ = nullptr;
 };
 
 } // namespace Aero

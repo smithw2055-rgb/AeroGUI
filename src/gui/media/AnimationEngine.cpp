@@ -15,12 +15,11 @@
 #include <new>
 #include <utility>
 #include "gui/meta/MetadataState.hpp"
-#include "gui/core/state/ElementTree.hpp"
-#include "gui/core/state/LayoutEngine.hpp"
-#include "gui/core/state/FreezableState.hpp"
-#include "gui/core/state/EffectiveValueEngine.hpp"
-#include "gui/core/state/RoutedEvents.hpp"
-#include "gui/core/state/EventRouter.hpp"
+#include "gui/core/ElementTree.hpp"
+#include "gui/core/LayoutEngine.hpp"
+#include "gui/core/EffectiveValueEngine.hpp"
+#include "gui/core/RoutedEvents.hpp"
+#include "gui/core/EventRouter.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
 namespace Aero {
 

@@ -1,11 +1,10 @@
 #include "gui/meta/MetadataState.hpp"
 #include "gui/meta/ValueConversion.hpp"
-#include "gui/core/state/ElementTree.hpp"
-#include "gui/core/state/LayoutEngine.hpp"
-#include "gui/core/state/FreezableState.hpp"
-#include "gui/core/state/EffectiveValueEngine.hpp"
-#include "gui/core/state/RoutedEvents.hpp"
-#include "gui/core/state/EventRouter.hpp"
+#include "gui/core/ElementTree.hpp"
+#include "gui/core/LayoutEngine.hpp"
+#include "gui/core/EffectiveValueEngine.hpp"
+#include "gui/core/RoutedEvents.hpp"
+#include "gui/core/EventRouter.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleEngine.hpp"
@@ -178,7 +177,62 @@ Base::Result<PropertyValue> NormalizeStyleValue(
 } // namespace
 
 
-Base::Result<void> StyleState::Freeze(
+
+struct Style::Program {
+    static Base::Result<void> Seal(
+        Style& style,
+        const Meta::DependencyPropertyRegistry& properties) noexcept;
+    static Base::Span<const StyleSetter> RuntimeSetters(
+        const Style& style) noexcept;
+    static Base::Span<const TriggerPlan> RuntimeTriggers(
+        const Style& style) noexcept;
+    static Base::Result<void> ApplySetters(
+        const Style& style,
+        DependencyObject& object,
+        StyleProviderSession& values) noexcept;
+    static Base::Result<void> ClearSetters(
+        const Style& style,
+        DependencyObject& object,
+        StyleProviderSession& values) noexcept;
+
+    Program() noexcept
+        : authoredSetters(&Base::GetDefaultAllocator()),
+          authoredTriggers(&Base::GetDefaultAllocator()),
+          setters(&Base::GetDefaultAllocator()),
+          triggers(&Base::GetDefaultAllocator()) {}
+    Program(Program&&) noexcept = default;
+    Program& operator=(Program&&) noexcept = default;
+    Program(const Program&) = delete;
+    Program& operator=(const Program&) = delete;
+
+    TypeId TargetType() const noexcept { return targetType; }
+    Base::Span<const StyleSetter> Setters() const noexcept {
+        return {setters.Data(), setters.Size()};
+    }
+    Base::Span<const TriggerPlan> Triggers() const noexcept {
+        return {triggers.Data(), triggers.Size()};
+    }
+    Base::Result<void> Freeze(
+        TypeId valueTargetType,
+        Base::Vector<StyleSetter>&& valueSetters,
+        Base::Vector<TriggerPlan>&& valueTriggers) noexcept;
+    Base::Result<void> AddAuthoredSetter(
+        DependencyPropertyHandle property,
+        const PropertyValue& value) noexcept;
+    Base::Result<void> AddAuthoredTrigger(
+        TriggerPlan trigger) noexcept;
+    void ClearAuthored() noexcept;
+    void Reset() noexcept;
+
+    TypeId targetType = InvalidTypeId;
+    Base::Vector<StyleSetter> authoredSetters;
+    Base::Vector<TriggerPlan> authoredTriggers;
+    Base::Vector<StyleSetter> setters;
+    Base::Vector<TriggerPlan> triggers;
+    bool frozen = false;
+};
+
+Base::Result<void> Style::Program::Freeze(
     TypeId valueTargetType,
     Base::Vector<StyleSetter>&& valueSetters,
     Base::Vector<TriggerPlan>&& valueTriggers) noexcept {
@@ -199,14 +253,14 @@ Base::Result<void> StyleState::Freeze(
     return {};
 }
 
-void StyleState::Reset() noexcept {
+void Style::Program::Reset() noexcept {
     targetType = InvalidTypeId;
     setters.Clear();
     triggers.Clear();
     frozen = false;
 }
 
-Base::Result<void> StyleState::AddAuthoredSetter(
+Base::Result<void> Style::Program::AddAuthoredSetter(
     DependencyPropertyHandle property,
     const PropertyValue& value) noexcept {
     for (const StyleSetter& setter : authoredSetters) {
@@ -220,13 +274,13 @@ Base::Result<void> StyleState::AddAuthoredSetter(
     return {};
 }
 
-Base::Result<void> StyleState::AddAuthoredTrigger(
+Base::Result<void> Style::Program::AddAuthoredTrigger(
     TriggerPlan trigger) noexcept {
     authoredTriggers.PushBack(std::move(trigger));
     return {};
 }
 
-void StyleState::ClearAuthored() noexcept {
+void Style::Program::ClearAuthored() noexcept {
     authoredSetters.Clear();
     authoredTriggers.Clear();
 }
@@ -289,19 +343,19 @@ Style::Style(
       implAllocator_(&Base::GetDefaultAllocator()),
       resources_() {
     void* memory = implAllocator_->Allocate({
-        sizeof(StyleState), alignof(StyleState), Base::MemoryTag::Ui});
+        sizeof(Style::Program), alignof(Style::Program), Base::MemoryTag::Ui});
     if (memory == nullptr) {
         Base::ReportOutOfMemory(
-            sizeof(StyleState), alignof(StyleState), Base::MemoryTag::Ui);
+            sizeof(Style::Program), alignof(Style::Program), Base::MemoryTag::Ui);
     }
-    program_ = new (memory) StyleState{};
+    program_ = new (memory) Style::Program{};
 }
 
 Style::~Style() {
     if (program_ == nullptr) return;
-    program_->~StyleState();
+    program_->~Program();
     implAllocator_->Deallocate(
-        program_, sizeof(StyleState), alignof(StyleState), Base::MemoryTag::Ui);
+        program_, sizeof(Style::Program), alignof(Style::Program), Base::MemoryTag::Ui);
     program_ = nullptr;
 }
 
@@ -564,7 +618,7 @@ Base::Result<void> Style::Seal(
     Base::Vector<StyleSetter> next;
     if (basedOn_ != nullptr) {
         next.Append(
-            StyleState::RuntimeSetters(*basedOn_));
+            Style::Program::RuntimeSetters(*basedOn_));
     }
     for (const StyleSetter& setter : program_->authoredSetters) {
         const Meta::DependencyProperty* property =
@@ -601,7 +655,7 @@ Base::Result<void> Style::Seal(
     }
     Base::Vector<TriggerPlan> nextTriggers;
     if (basedOn_ != nullptr) {
-        nextTriggers.Append(StyleState::RuntimeTriggers(*basedOn_));
+        nextTriggers.Append(Style::Program::RuntimeTriggers(*basedOn_));
     }
     for (const TriggerPlan& trigger : program_->authoredTriggers) {
         if (trigger.IsBindingTrigger()) {
@@ -687,20 +741,20 @@ void Style::SetResources(
         "Style Resources is already assigned");
 }
 
-Base::Result<void> StyleState::Seal(
+Base::Result<void> Style::Program::Seal(
     Style& style,
     const DependencyPropertyRegistry& properties) noexcept {
     return style.Seal(properties);
 }
 
-Base::Span<const StyleSetter> StyleState::RuntimeSetters(
+Base::Span<const StyleSetter> Style::Program::RuntimeSetters(
     const Style& style) noexcept {
     return style.program_ != nullptr
         ? style.program_->Setters()
         : Base::Span<const StyleSetter>{};
 }
 
-Base::Span<const TriggerPlan> StyleState::RuntimeTriggers(
+Base::Span<const TriggerPlan> Style::Program::RuntimeTriggers(
     const Style& style) noexcept {
     return style.program_ != nullptr
         ? style.program_->Triggers()
@@ -715,7 +769,7 @@ using namespace Aero::Meta;
 using namespace Aero::Threading;
 using namespace Aero;
 
-Base::Result<void> StyleState::ApplySetters(
+Base::Result<void> Style::Program::ApplySetters(
     const Style& style,
     DependencyObject& object,
     StyleProviderSession& values) noexcept {
@@ -747,7 +801,7 @@ Base::Result<void> StyleState::ApplySetters(
     return {};
 }
 
-Base::Result<void> StyleState::ClearSetters(
+Base::Result<void> Style::Program::ClearSetters(
     const Style& style,
     DependencyObject& object,
     StyleProviderSession& values) noexcept {
@@ -823,7 +877,7 @@ Base::Result<void> StyleEngine::Apply(
         }
     }
     Base::Result<void> setters =
-        StyleState::ApplySetters(style, object, *values_);
+        Style::Program::ApplySetters(style, object, *values_);
     if (!setters) {
         return setters.GetStatus();
     }
@@ -832,11 +886,11 @@ Base::Result<void> StyleEngine::Apply(
         application.object = &object;
         application.style = &style;
         application.triggerStates.Resize(
-                StyleState::RuntimeTriggers(style).Size(), 0U);
+                Style::Program::RuntimeTriggers(style).Size(), 0U);
         application.bindingTriggerStates.Resize(
-            StyleState::RuntimeTriggers(style).Size(), 0U);
+            Style::Program::RuntimeTriggers(style).Size(), 0U);
         application.bindingTriggerKnown.Resize(
-            StyleState::RuntimeTriggers(style).Size(), 0U);
+            Style::Program::RuntimeTriggers(style).Size(), 0U);
         const std::uint32_t newIndex = applications_.Size();
         applications_.PushBack(
                 std::move(application));
@@ -844,11 +898,11 @@ Base::Result<void> StyleEngine::Apply(
     } else if (requiresSubscription) {
         applications_[existing].style = &style;
         applications_[existing].triggerStates.Resize(
-                StyleState::RuntimeTriggers(style).Size(), 0U);
+                Style::Program::RuntimeTriggers(style).Size(), 0U);
         applications_[existing].bindingTriggerStates.Resize(
-            StyleState::RuntimeTriggers(style).Size(), 0U);
+            Style::Program::RuntimeTriggers(style).Size(), 0U);
         applications_[existing].bindingTriggerKnown.Resize(
-            StyleState::RuntimeTriggers(style).Size(), 0U);
+            Style::Program::RuntimeTriggers(style).Size(), 0U);
     }
     if (requiresSubscription) {
         Base::Result<void> attached = AttachSetterBindings(object, style);
@@ -942,14 +996,14 @@ Base::Result<void> StyleEngine::ClearSetters(
     DependencyObject& object,
     const Style& style) noexcept {
     DetachSetterBindings(object);
-    return StyleState::ClearSetters(style, object, *values_);
+    return Style::Program::ClearSetters(style, object, *values_);
 }
 
 Base::Result<void> StyleEngine::AttachSetterBindings(
     DependencyObject& object,
     const Style& style) noexcept {
     BindingEngine* bindings = AeroGuiInternal::BindingEngineOf(object);
-    for (const StyleSetter& setter : StyleState::RuntimeSetters(style)) {
+    for (const StyleSetter& setter : Style::Program::RuntimeSetters(style)) {
         if (!IsDeferredBindingSetterValue(setter.value)) {
             continue;
         }
@@ -1011,6 +1065,41 @@ void StyleEngine::DetachSetterBindings(DependencyObject& object) noexcept {
         }
     }
     static_cast<void>(setterBindings_.Resize(keep));
+}
+
+
+Base::Result<void> SealStyle(
+    Style& style,
+    const Meta::DependencyPropertyRegistry& properties) noexcept {
+    return style.Seal(properties);
+}
+
+Base::Span<const StyleSetter> StyleRuntimeSetters(
+    const Style& style) noexcept {
+    return style.program_ != nullptr
+        ? style.program_->Setters()
+        : Base::Span<const StyleSetter>{};
+}
+
+Base::Span<const TriggerPlan> StyleRuntimeTriggers(
+    const Style& style) noexcept {
+    return style.program_ != nullptr
+        ? style.program_->Triggers()
+        : Base::Span<const TriggerPlan>{};
+}
+
+Base::Result<void> ApplyStyleSetters(
+    const Style& style,
+    DependencyObject& object,
+    StyleProviderSession& values) noexcept {
+    return Style::Program::ApplySetters(style, object, values);
+}
+
+Base::Result<void> ClearStyleSetters(
+    const Style& style,
+    DependencyObject& object,
+    StyleProviderSession& values) noexcept {
+    return Style::Program::ClearSetters(style, object, values);
 }
 
 StyleEngine::StyleEngine(

@@ -27,10 +27,10 @@ TriggerEngine::~TriggerEngine() noexcept {
 Base::Result<void> TriggerEngine::SubscribeTriggers(
     DependencyObject& object, const Style& style) noexcept {
     for (std::uint32_t index = 0U;
-         index < StyleState::RuntimeTriggers(style).Size();
+         index < StyleRuntimeTriggers(style).Size();
          ++index) {
         const TriggerPlan& trigger =
-            StyleState::RuntimeTriggers(style)[index];
+            StyleRuntimeTriggers(style)[index];
         if (trigger.IsBindingTrigger()) continue;
         const DependencyPropertyHandle property = trigger.property;
         bool first = true;
@@ -38,8 +38,8 @@ Base::Result<void> TriggerEngine::SubscribeTriggers(
              previous < index;
              ++previous) {
             first = first &&
-                (StyleState::RuntimeTriggers(style)[previous].IsBindingTrigger() ||
-                 StyleState::RuntimeTriggers(style)[previous].property != property);
+                (StyleRuntimeTriggers(style)[previous].IsBindingTrigger() ||
+                 StyleRuntimeTriggers(style)[previous].property != property);
         }
         if (!first) continue;
         object.AddValueChangedHandler(
@@ -51,10 +51,10 @@ Base::Result<void> TriggerEngine::SubscribeTriggers(
 void TriggerEngine::UnsubscribeTriggers(
     DependencyObject& object, const Style& style) noexcept {
     for (std::uint32_t index = 0U;
-         index < StyleState::RuntimeTriggers(style).Size();
+         index < StyleRuntimeTriggers(style).Size();
          ++index) {
         const TriggerPlan& trigger =
-            StyleState::RuntimeTriggers(style)[index];
+            StyleRuntimeTriggers(style)[index];
         if (trigger.IsBindingTrigger()) continue;
         const DependencyPropertyHandle property = trigger.property;
         bool first = true;
@@ -62,8 +62,8 @@ void TriggerEngine::UnsubscribeTriggers(
              previous < index;
              ++previous) {
             first = first &&
-                (StyleState::RuntimeTriggers(style)[previous].IsBindingTrigger() ||
-                 StyleState::RuntimeTriggers(style)[previous].property != property);
+                (StyleRuntimeTriggers(style)[previous].IsBindingTrigger() ||
+                 StyleRuntimeTriggers(style)[previous].property != property);
         }
         if (first) {
             (void)object.RemoveValueChangedHandler(
@@ -87,7 +87,7 @@ Base::Result<void> TriggerEngine::EvaluateTriggers(
         ClearTriggerSetters(object, style);
     if (!cleared) return cleared.GetStatus();
     const Base::Span<const TriggerPlan> triggers =
-        StyleState::RuntimeTriggers(style);
+        StyleRuntimeTriggers(style);
     for (std::uint32_t index = 0U;
          index < triggers.Size(); ++index) {
         const TriggerPlan& trigger =
@@ -169,7 +169,7 @@ Base::Result<void> TriggerEngine::ExecuteTriggerActions(
 Base::Result<void> TriggerEngine::ClearTriggerSetters(
     DependencyObject& object, const Style& style) noexcept {
     const Base::Span<const TriggerPlan> triggers =
-        StyleState::RuntimeTriggers(style);
+        StyleRuntimeTriggers(style);
     for (std::uint32_t triggerIndex = 0U;
          triggerIndex < triggers.Size();
          ++triggerIndex) {
@@ -216,7 +216,7 @@ void TriggerEngine::OnPropertyChanged(
     const std::uint32_t index = FindApplication(object);
     if (index == UINT32_MAX) return;
     const Style& style = *applications_[index].style;
-    for (const TriggerPlan& trigger : StyleState::RuntimeTriggers(style)) {
+    for (const TriggerPlan& trigger : StyleRuntimeTriggers(style)) {
         if (!trigger.IsBindingTrigger() &&
             trigger.property == args.GetProperty()) {
             if (values_.IsFlushing()) {
@@ -329,8 +329,8 @@ Base::Result<void> TriggerEngine::SetBindingTriggerState(
     const std::uint32_t applicationIndex = FindApplication(object);
     if (applicationIndex == UINT32_MAX ||
         applications_[applicationIndex].style != &style ||
-        triggerIndex >= StyleState::RuntimeTriggers(style).Size() ||
-        !StyleState::RuntimeTriggers(style)[triggerIndex].IsBindingTrigger()) {
+        triggerIndex >= StyleRuntimeTriggers(style).Size() ||
+        !StyleRuntimeTriggers(style)[triggerIndex].IsBindingTrigger()) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
             "Style DataTrigger application was not found");

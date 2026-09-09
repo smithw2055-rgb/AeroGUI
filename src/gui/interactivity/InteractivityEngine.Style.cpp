@@ -241,7 +241,7 @@ Base::Result<std::uint32_t> InteractivityEngine::StartStyleDataTriggers(
         const Aero::Style& style) noexcept {
         std::uint32_t started = 0U;
         const Base::Span<const Aero::TriggerPlan> triggers =
-            Aero::StyleState::RuntimeTriggers(style);
+            Aero::StyleRuntimeTriggers(style);
         for (std::uint32_t index = 0U;
              index < triggers.Size(); ++index) {
             const Aero::TriggerPlan& trigger = triggers[index];

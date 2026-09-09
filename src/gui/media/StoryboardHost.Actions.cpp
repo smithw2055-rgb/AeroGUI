@@ -21,7 +21,7 @@ Base::Result<void>
 StoryboardHost::ExecuteAnimationAction(
     Interactivity::TriggerAction& action,
     FrameworkElement& owner,
-    Controls::DataTemplateTriggerState*
+    Controls::DataTemplateTriggerInstance*
         dataTemplateContext,
     const NameScope* names) noexcept
 {

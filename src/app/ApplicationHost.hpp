@@ -15,7 +15,7 @@ namespace Aero::App {
 // Private bridge between the WPF-facing Application object and the optional
 // desktop host. The callback table keeps native lifetime out of public class
 // layouts while supporting the real multi-window Application.Windows model.
-struct ApplicationHostState {
+struct ApplicationHost {
     void* context = nullptr;
     void (*requestExit)(void* context, int exitCode) noexcept = nullptr;
     Base::Result<void> (*showWindow)(
@@ -31,10 +31,10 @@ struct ApplicationHostState {
         Window* window) noexcept = nullptr;
 };
 
-// One state record is created per hosted Window. This intentionally points at
+// One host bridge is created per hosted Window. This intentionally points at
 // a window record rather than the application host so independent top-level
 // windows can own distinct View, native surface and input-service lifetimes.
-struct WindowHostState {
+struct WindowHostBridge {
     void* context = nullptr;
     Base::Result<void> (*show)(void* context) noexcept = nullptr;
     void (*close)(void* context) noexcept = nullptr;

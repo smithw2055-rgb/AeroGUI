@@ -25,7 +25,6 @@ using Meta::InvalidTypeId;
 using Meta::PropertyValue;
 using Meta::TypeId;
 
-struct StyleState;
 class Style;
 
 class AERO_GUI_API SetterBaseCollection {
@@ -177,11 +176,27 @@ private:
         const PropertyValue& conditionValue,
         DependencyPropertyHandle property,
         PropertyValue value) noexcept;
-    // Compiled by StyleState::Seal / markup finalize; not a public authoring API.
+    // Compiled by SealStyle / markup finalize; not a public authoring API.
     Result<void> Seal(const Meta::DependencyPropertyRegistry& properties) noexcept;
 
-    friend struct StyleState;
+    struct Program;
+    friend struct Program;
     friend class StyleEngine;
+    friend Result<void> SealStyle(
+        Style& style,
+        const Meta::DependencyPropertyRegistry& properties) noexcept;
+    friend Span<const struct StyleSetter> StyleRuntimeSetters(
+        const Style& style) noexcept;
+    friend Span<const struct TriggerPlan> StyleRuntimeTriggers(
+        const Style& style) noexcept;
+    friend Result<void> ApplyStyleSetters(
+        const Style& style,
+        DependencyObject& object,
+        class StyleProviderSession& values) noexcept;
+    friend Result<void> ClearStyleSetters(
+        const Style& style,
+        DependencyObject& object,
+        class StyleProviderSession& values) noexcept;
 
     TypeId runtimeType_ = StaticTypeId();
     TypeId targetType_ = InvalidTypeId;
@@ -190,7 +205,7 @@ private:
     Base::Vector<Ref<SetterBase>> authoredSetterObjects_;
     Base::Vector<Ref<TriggerBase>> authoredTriggerObjects_;
     Base::IAllocator* implAllocator_ = nullptr;
-    StyleState* program_ = nullptr;
+    Program* program_ = nullptr;
     ResourceDictionary resources_;
     bool sealed_ = false;
 };

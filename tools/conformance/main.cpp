@@ -13,7 +13,7 @@
 #include <Aero/VisualStateManager.hpp>
 
 #include "render/FrameEncoder.hpp"
-#include "gui/core/state/EffectiveValueEngine.hpp"
+#include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/ViewRenderer.hpp"
 #include "render/opengl33/OpenGL33RenderDevice.hpp"

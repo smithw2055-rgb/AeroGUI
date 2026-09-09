@@ -45,7 +45,7 @@ struct DataTemplatePropertyTrigger {
     bool active = false;
 };
 
-class DataTemplateTriggerState
+class DataTemplateTriggerInstance
     : public Base::Object {
 public:
     struct NamedObject {
@@ -56,7 +56,7 @@ public:
     static constexpr Meta::TypeId StaticTypeId() noexcept {
         return Meta::MakeTypeId(
             "urn:aero-internal",
-            "DataTemplateTriggerState");
+            "DataTemplateTriggerInstance");
     }
 
     Meta::TypeId RuntimeType() const noexcept override {

@@ -1,7 +1,7 @@
 #include "gui/ViewState.hpp"
 #include "gui/media/StoryboardHost.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
-#include "gui/core/state/EventRouter.hpp"
+#include "gui/core/EventRouter.hpp"
 #include <Aero/CommandBinding.hpp>
 #include <Aero/Media/Animation/EventTrigger.hpp>
 #include <Aero/Media/Animation/StoryboardActions.hpp>
@@ -318,12 +318,12 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                     continue;
                 }
                 if (authored->RuntimeType() ==
-                    Controls::DataTemplateTriggerState::
+                    Controls::DataTemplateTriggerInstance::
                             StaticTypeId()) {
                     Base::Result<std::uint32_t> started =
                         Interactivity()->StartDataTemplateTriggers(
                             static_cast<
-                                Controls::DataTemplateTriggerState&>(
+                                Controls::DataTemplateTriggerInstance&>(
                                         *authored));
                     if (!started) {
                         return started.GetStatus();

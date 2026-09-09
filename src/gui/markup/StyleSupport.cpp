@@ -1,14 +1,13 @@
 #include "gui/meta/MetadataState.hpp"
-#include "gui/core/state/ElementTree.hpp"
-#include "gui/core/state/LayoutEngine.hpp"
-#include "gui/core/state/FreezableState.hpp"
-#include "gui/core/state/EffectiveValueEngine.hpp"
-#include "gui/core/state/RoutedEvents.hpp"
-#include "gui/core/state/EventRouter.hpp"
+#include "gui/core/ElementTree.hpp"
+#include "gui/core/LayoutEngine.hpp"
+#include "gui/core/EffectiveValueEngine.hpp"
+#include "gui/core/RoutedEvents.hpp"
+#include "gui/core/EventRouter.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/data/BindingEngine.hpp"
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleState.hpp"
+#include "gui/styles/StyleEngine.hpp"
 #include "gui/templates/TemplateInstance.hpp"
 #include "gui/markup/MarkupState.hpp"
 #include "gui/markup/MarkupWriterState.hpp"
@@ -714,7 +713,7 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
             Base::ErrorCode::Unsupported,
             "Style trigger type is not supported");
     }
-    return Aero::StyleState::Seal(
+    return Aero::SealStyle(
         style, *options_.properties);
 }
 

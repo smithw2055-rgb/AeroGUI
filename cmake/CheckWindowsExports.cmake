@@ -61,7 +61,7 @@ foreach(forbidden_export IN ITEMS
         "GuiState"
         "UiFrameEncoder"
         "DesktopHost"
-        "ApplicationHostState"
+        "ApplicationHost"
         "D3D11RenderDevice"
         "OpenGL33RenderDevice"
         "D3D11RenderDeviceState"

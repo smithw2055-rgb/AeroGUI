@@ -65,7 +65,7 @@ its types below.
 
 Domain state headers use `*State.hpp`. Kernel-private operations live in
 `src/gui/internal/AeroGuiInternal.hpp` (not installed) plus
-`src/gui/core/state/*.hpp`. View/`ElementTree` is the named service hub
+`src/gui/core/{ElementTree,LayoutEngine,EffectiveValueEngine,RoutedEvents,EventRouter}.hpp`. View/`ElementTree` is the named service hub
 (`tree->Layout()`, `tree->Bindings()`, …). There is no `Core::Facet` matrix
 and no per-type `Access` facade.
 

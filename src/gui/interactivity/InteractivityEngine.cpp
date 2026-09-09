@@ -446,7 +446,7 @@ Base::Result<bool> InteractivityEngine::EvaluateTriggerComparison(
     }
 
 Base::Object* InteractivityEngine::ResolveDataTemplateConditionSource(
-        DataTemplateTriggerState& context,
+        DataTemplateTriggerInstance& context,
         DataTemplateTriggerCondition& condition,
         Base::StringView& path) noexcept {
         path = condition.binding
@@ -525,7 +525,7 @@ Base::Object* InteractivityEngine::ResolveDataTemplateConditionSource(
     }
 
 Base::Result<bool> InteractivityEngine::EvaluateDataTemplateCondition(
-        DataTemplateTriggerState& context,
+        DataTemplateTriggerInstance& context,
         DataTemplateTriggerCondition& condition) noexcept {
         Meta::PropertyValue current;
         Base::Ref<DependencyObject> dependencySource =
@@ -574,7 +574,7 @@ Base::Result<bool> InteractivityEngine::EvaluateDataTemplateCondition(
     }
 
 Base::Result<void> InteractivityEngine::EnsureDataTemplateProviderTokens(
-        DataTemplateTriggerState& context) noexcept {
+        DataTemplateTriggerInstance& context) noexcept {
         if (Values() == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
@@ -614,7 +614,7 @@ Base::Result<void> InteractivityEngine::EnsureDataTemplateProviderTokens(
     }
 
 Base::Result<void> InteractivityEngine::EvaluateDataTemplateTrigger(
-        DataTemplateTriggerState& context,
+        DataTemplateTriggerInstance& context,
         std::uint32_t triggerIndex) noexcept {
         if (triggerIndex >= context.triggers.Size() ||
             context.root == nullptr) {
@@ -715,7 +715,7 @@ Base::Result<void> InteractivityEngine::EvaluateDataTemplateTrigger(
     }
 
 Base::Result<void> InteractivityEngine::AttachDataTemplateClrSubscription(
-        DataTemplateTriggerState& context,
+        DataTemplateTriggerInstance& context,
         std::uint32_t triggerIndex) noexcept {
         if (Metadata() == nullptr || triggerIndex >= context.triggers.Size()) {
             return {};
@@ -773,7 +773,7 @@ Base::Result<void> InteractivityEngine::AttachDataTemplateClrSubscription(
             if (!created) return created.GetStatus();
             handlerContext->runtime = this;
             handlerContext->triggerContext =
-                Base::Ref<DataTemplateTriggerState>::
+                Base::Ref<DataTemplateTriggerInstance>::
                     FromBorrowed(context);
             handlerContext->triggerIndex = triggerIndex;
             handlerContext->conditionIndex = conditionIndex;
@@ -809,7 +809,7 @@ Base::Result<void> InteractivityEngine::AttachDataTemplateClrSubscription(
 
 Base::Result<std::uint32_t>
  InteractivityEngine::StartDataTemplateTriggers(
-        DataTemplateTriggerState&
+        DataTemplateTriggerInstance&
             context) noexcept {
         std::uint32_t count = 0U;
         for (std::uint32_t triggerIndex = 0U;
@@ -903,7 +903,7 @@ Base::Result<std::uint32_t>
                 handlerContext->runtime = this;
                 handlerContext->triggerContext =
                     Base::Ref<
-                        DataTemplateTriggerState>::
+                        DataTemplateTriggerInstance>::
                         FromBorrowed(context);
                 handlerContext->triggerIndex =
                     triggerIndex;
@@ -962,7 +962,7 @@ Base::Result<std::uint32_t>
                     if (!created) return created.GetStatus();
                     handlerContext->runtime = this;
                     handlerContext->triggerContext =
-                        Base::Ref<DataTemplateTriggerState>::
+                        Base::Ref<DataTemplateTriggerInstance>::
                             FromBorrowed(context);
                     handlerContext->triggerIndex = triggerIndex;
                     handlerContext->conditionIndex = 0U;
@@ -1002,7 +1002,7 @@ Base::Result<std::uint32_t>
 Base::Object* InteractivityEngine::ResolveAuthoredBindingSource(
         const Binding& binding,
         FrameworkElement& owner,
-        DataTemplateTriggerState*
+        DataTemplateTriggerInstance*
             dataTemplateContext,
         const NameScope* names,
         Base::Object* self) noexcept {
@@ -1093,7 +1093,7 @@ Base::Object* InteractivityEngine::ResolveAuthoredBindingSource(
 Base::Result<Meta::PropertyValue> InteractivityEngine::EvaluateAuthoredBinding(
         const Binding& binding,
         FrameworkElement& owner,
-        DataTemplateTriggerState*
+        DataTemplateTriggerInstance*
             dataTemplateContext,
         const NameScope* names,
         Base::Object* self) noexcept {
@@ -1217,7 +1217,7 @@ Base::Result<void> InteractivityEngine::ExecuteTriggerActions(
     }
 
 void InteractivityEngine::ClearDataTemplateTriggerProviders(
-        DataTemplateTriggerState& context) noexcept {
+        DataTemplateTriggerInstance& context) noexcept {
         if (Values() != nullptr) {
             for (DataTemplatePropertyTrigger& trigger :
                  context.triggers) {
@@ -1247,9 +1247,9 @@ void InteractivityEngine::ClearDataTemplateTriggerProvidersInSubtree(
             for (const Base::Ref<Base::Object>& authored :
                  AeroGuiInternal::AuthoredTriggers(*element)) {
                 if (authored && authored->RuntimeType() ==
-                    DataTemplateTriggerState::StaticTypeId()) {
+                    DataTemplateTriggerInstance::StaticTypeId()) {
                     ClearDataTemplateTriggerProviders(
-                        static_cast<DataTemplateTriggerState&>(
+                        static_cast<DataTemplateTriggerInstance&>(
                             *authored));
                 }
             }

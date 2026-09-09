@@ -52,8 +52,8 @@ dir. IDE-only virtual folders are defined via `source_group()` in
 | `Triggers/*`, `Interactivity/*` | `triggers/Trigger*.cpp` + `interactivity/InteractivityEngine*.cpp` + `BlendBehaviors.cpp` |
 | Text stack | `text/TextPipeline.cpp`, `TextLayout.cpp`, `GlyphAtlas.cpp`, `FontManager.cpp`, `EditableText.cpp` + `freetype/` + `harfbuzz/` adapters |
 | Input | `input/Input.cpp` (routing), `Commands.cpp`, `OverlayHost.cpp`, `Clipboard.cpp`, `DragDrop.cpp`, `Cursor(s).cpp`, `Mouse.cpp`, `Keyboard.cpp`, `DataObject.cpp`; focus queue in `ViewInput.cpp`, declaration in `input/InputState.hpp` (merged from `FocusHost.hpp`) |
-| Core kernel | `core/ElementTree.cpp`, `PropertySystem.cpp`, `DependencyObject.cpp`, `LayoutEngine.cpp`, `Visual.cpp`, `UIElement.cpp`, `FrameworkElement.cpp`, `Dispatcher.cpp`, `RoutedEvents.cpp` (+ `core/state/*Engine.hpp`, `internal/AeroGuiInternal*.hpp`, `internal/PropertyStore.hpp`); single-TU helpers live in their `.cpp` (e.g. `Invariants.cpp`, merged from `Invariants.hpp`) |
-| Styles / templates | `styles/Resources.cpp`, `Style.cpp` (+ `StyleEngine.hpp`, `StyleState.hpp`, `ResourceHost.hpp`); `templates/Templates.cpp` |
+| Core kernel | `core/ElementTree.cpp`, `PropertySystem.cpp`, `DependencyObject.cpp`, `LayoutEngine.cpp`, `Visual.cpp`, `UIElement.cpp`, `FrameworkElement.cpp`, `Dispatcher.cpp`, `RoutedEvents.cpp` (+ `core/{ElementTree,LayoutEngine,EffectiveValueEngine,RoutedEvents,EventRouter}.hpp`, `internal/AeroGuiInternal*.hpp`, `internal/PropertyStore.hpp`); single-TU helpers live in their `.cpp` (e.g. `Invariants.cpp`, merged from `Invariants.hpp`) |
+| Styles / templates | `styles/Resources.cpp`, `Style.cpp` (+ `StyleEngine.hpp`, `ResourceHost.hpp`); `templates/Templates.cpp` |
 | Documents / shapes / diagnostics | `documents/Documents.cpp`, `Adorners.cpp`; `shapes/Shapes.cpp`, `Path.cpp`; `diagnostics/Diagnostics.cpp`, `Inspector.cpp` |
 
 ## Retired names (do not reintroduce)

@@ -1,14 +1,13 @@
 #include "gui/meta/MetadataState.hpp"
-#include "gui/core/state/ElementTree.hpp"
-#include "gui/core/state/LayoutEngine.hpp"
-#include "gui/core/state/FreezableState.hpp"
-#include "gui/core/state/EffectiveValueEngine.hpp"
-#include "gui/core/state/RoutedEvents.hpp"
-#include "gui/core/state/EventRouter.hpp"
+#include "gui/core/ElementTree.hpp"
+#include "gui/core/LayoutEngine.hpp"
+#include "gui/core/EffectiveValueEngine.hpp"
+#include "gui/core/RoutedEvents.hpp"
+#include "gui/core/EventRouter.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/data/BindingEngine.hpp"
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleState.hpp"
+#include "gui/styles/StyleEngine.hpp"
 #include "gui/controls/ItemsContainers.hpp"
 #include "gui/templates/TemplateInstance.hpp"
 #include <Aero/VisualStateManager.hpp>
@@ -19,7 +18,7 @@
 // ===== TemplateCompiler =====
 
 
-#include "gui/templates/DataTemplateTriggerState.hpp"
+#include "gui/templates/DataTemplateTriggerInstance.hpp"
 #include "gui/media/MediaHelpers.hpp"
 
 
@@ -1993,16 +1992,16 @@ Base::Result<void> BuildCompiledTemplate(
                 "ControlTemplate root does not support runtime triggers");
         }
         Base::Result<Base::Ref<
-            DataTemplateTriggerState>> created =
-            Base::MakeRef<DataTemplateTriggerState>();
+            DataTemplateTriggerInstance>> created =
+            Base::MakeRef<DataTemplateTriggerInstance>();
         if (!created) return created.GetStatus();
-        Base::Ref<DataTemplateTriggerState> triggerContext =
+        Base::Ref<DataTemplateTriggerInstance> triggerContext =
             std::move(created).Value();
         triggerContext->root =
             static_cast<FrameworkElement*>(visuals[0U]);
         for (std::uint32_t index = 0U; index < visuals.Size(); ++index) {
             if (blueprint->nodes[index].name.Empty()) continue;
-            DataTemplateTriggerState::NamedObject named;
+            DataTemplateTriggerInstance::NamedObject named;
             Base::Result<void> namedAssigned = named.name.Assign(
                 blueprint->nodes[index].name.View());
             if (!namedAssigned) return namedAssigned.GetStatus();
@@ -2404,19 +2403,19 @@ BuildCompiledDeferredTemplate(
             if (!activated) return activated.GetStatus();
         }
     }
-    Base::Ref<DataTemplateTriggerState>
+    Base::Ref<DataTemplateTriggerInstance>
         triggerContext;
     auto ensureTriggerContext =
         [&]() noexcept
         -> Base::Result<
-            DataTemplateTriggerState*> {
+            DataTemplateTriggerInstance*> {
         if (triggerContext) {
             return triggerContext.Get();
         }
         Base::Result<Base::Ref<
-            DataTemplateTriggerState>>
+            DataTemplateTriggerInstance>>
             created = Base::MakeRef<
-                DataTemplateTriggerState>();
+                DataTemplateTriggerInstance>();
         if (!created) {
             return created.GetStatus();
         }
@@ -2429,7 +2428,7 @@ BuildCompiledDeferredTemplate(
             if (blueprint->nodes[index].name.Empty()) {
                 continue;
             }
-            DataTemplateTriggerState::
+            DataTemplateTriggerInstance::
                 NamedObject named;
             Base::Result<void> assigned =
                 named.name.Assign(
@@ -2518,7 +2517,7 @@ BuildCompiledDeferredTemplate(
             continue;
         }
         Base::Result<
-            DataTemplateTriggerState*>
+            DataTemplateTriggerInstance*>
             ensured = ensureTriggerContext();
         if (!ensured) return ensured.GetStatus();
         DataTemplatePropertyTrigger

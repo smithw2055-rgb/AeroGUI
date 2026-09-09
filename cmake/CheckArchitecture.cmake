@@ -1135,7 +1135,7 @@ aero_forbid_text(
     "Aero::Runtime::Detail"
     "View must not depend on the retired generic Runtime namespace")
 aero_forbid_text(
-    "src/gui/templates/DataTemplateTriggerState.hpp"
+    "src/gui/templates/DataTemplateTriggerInstance.hpp"
     "Aero::Runtime::Detail"
     "DataTemplate trigger state belongs to Templates")
 aero_forbid_text(
@@ -1211,10 +1211,9 @@ aero_require_text(
     "src/gui/styles/StyleEngine.hpp"
     "class StyleEngine"
     "StyleEngine.hpp must own the StyleEngine declaration")
-aero_forbid_text(
-    "src/gui/styles/StyleState.hpp"
-    "class StyleEngine"
-    "StyleEngine must not remain declared in StyleState.hpp")
+aero_forbid_file("src/gui/styles/StyleState.hpp")
+aero_forbid_file("src/gui/core/state/FreezableState.hpp")
+aero_forbid_file("src/gui/core/state/ElementTree.hpp")
 aero_forbid_file("src/gui/core/Facet.hpp")
 aero_forbid_file("src/gui/core/facets/VisualFacet.hpp")
 aero_forbid_file("src/gui/core/facets/RenderFacet.hpp")
@@ -1862,7 +1861,7 @@ aero_require_text(
     "Canonical-handle hot path"
     "GetValue must skip registry Find for a canonical handle that already has a store entry")
 aero_require_text(
-    "src/gui/styles/StyleState.hpp"
+    "src/gui/styles/StyleEngine.hpp"
     "struct StyleSetter {\n    DependencyPropertyHandle property;"
     "Style setters must key by DependencyPropertyHandle, not property name")
 aero_require_text(

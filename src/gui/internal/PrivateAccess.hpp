@@ -284,7 +284,7 @@ AERO_DECLARE_METHOD_THIEF(Selector_SyncContainers, ::Aero::Controls::Primitives:
     &::Aero::Controls::Primitives::Selector::SyncContainers)
 
 // --- Freezable private field and methods ---
-AERO_DECLARE_FIELD_THIEF(Freezable_impl, ::Aero::Freezable, impl_, FreezableState*)
+AERO_DECLARE_FIELD_THIEF(Freezable_impl, ::Aero::Freezable, impl_, ::Aero::Freezable::Impl*)
 AERO_DECLARE_METHOD_THIEF(Freezable_FreezeCore, ::Aero::Freezable, FreezeCore,
     bool (::Aero::Freezable::*)(bool) noexcept,
     &::Aero::Freezable::FreezeCore)

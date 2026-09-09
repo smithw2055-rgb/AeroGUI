@@ -4,7 +4,7 @@
 
 #include <AeroApp/Application.hpp>
 #include <AeroApp/Window.hpp>
-#include "ApplicationState.hpp"
+#include "ApplicationHost.hpp"
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/ResourceUri.hpp>
 #include <Aero/Base/String.hpp>
@@ -750,7 +750,7 @@ Base::Result<void> LoadFromUri(
         }
 
         DesktopHostState* owner = nullptr;
-        WindowHostState runtime;
+        WindowHostBridge runtime;
         Base::Ref<View> view;
         std::unique_ptr<Render::RenderContext> renderContext;
         Base::Ref<Base::Object> windowOwner;
@@ -1219,7 +1219,7 @@ Base::Result<void> LoadFromUri(
         static_cast<DesktopHostState*>(context)->SetMainWindow(window);
     }
 
-    ApplicationHostState applicationRuntime;
+    ApplicationHost applicationRuntime;
     Base::IAllocator* allocator = nullptr;
     Gui environment;
     Base::Vector<WindowHost*> windows;

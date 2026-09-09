@@ -1,7 +1,7 @@
 #include "gui/ViewState.hpp"
 #include "gui/media/StoryboardHost.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
-#include "gui/core/state/EventRouter.hpp"
+#include "gui/core/EventRouter.hpp"
 #include <Aero/CommandBinding.hpp>
 #include <Aero/Media/Animation/EventTrigger.hpp>
 #include <Aero/Media/Animation/StoryboardActions.hpp>
@@ -34,7 +34,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
         Base::Vector<
             Model::AnimationHandle>*
             retainedHandles,
-        Controls::DataTemplateTriggerState*
+        Controls::DataTemplateTriggerInstance*
             dataTemplateContext) noexcept {
         // Disambiguate public Media::Animation types vs Model::* (AnimationEngine.hpp).
         using Media::Animation::ColorAnimation;

@@ -167,7 +167,7 @@ public:
 
     struct DataTemplateTriggerHandlerState {
         InteractivityEngine* runtime = nullptr;
-        Base::Ref<Aero::Controls::DataTemplateTriggerState> triggerContext;
+        Base::Ref<Aero::Controls::DataTemplateTriggerInstance> triggerContext;
         std::uint32_t triggerIndex = 0U;
         std::uint32_t conditionIndex = 0U;
         Meta::MemberId metadataProperty = Meta::InvalidMemberId;
@@ -200,16 +200,16 @@ public:
         Meta::PropertyValue expected,
         Base::StringView comparison) noexcept;
     Base::Object* ResolveDataTemplateConditionSource(
-        Aero::Controls::DataTemplateTriggerState& context,
+        Aero::Controls::DataTemplateTriggerInstance& context,
         Aero::Controls::DataTemplateTriggerCondition& condition,
         Base::StringView& path) noexcept;
     Base::Result<bool> EvaluateDataTemplateCondition(
-        Aero::Controls::DataTemplateTriggerState& context,
+        Aero::Controls::DataTemplateTriggerInstance& context,
         Aero::Controls::DataTemplateTriggerCondition& condition) noexcept;
     Base::Result<void> EnsureDataTemplateProviderTokens(
-        Aero::Controls::DataTemplateTriggerState& context) noexcept;
+        Aero::Controls::DataTemplateTriggerInstance& context) noexcept;
     Base::Result<void> EvaluateDataTemplateTrigger(
-        Aero::Controls::DataTemplateTriggerState& context,
+        Aero::Controls::DataTemplateTriggerInstance& context,
         std::uint32_t triggerIndex) noexcept;
     Base::Result<bool> StyleDataTriggerValuesMatch(
         const Meta::PropertyValue& actual,
@@ -221,9 +221,9 @@ public:
         Aero::FrameworkElement& target,
         const Aero::Style& style) noexcept;
     Base::Result<std::uint32_t> StartDataTemplateTriggers(
-        Aero::Controls::DataTemplateTriggerState& context) noexcept;
+        Aero::Controls::DataTemplateTriggerInstance& context) noexcept;
     Base::Result<void> AttachDataTemplateClrSubscription(
-        Aero::Controls::DataTemplateTriggerState& context,
+        Aero::Controls::DataTemplateTriggerInstance& context,
         std::uint32_t triggerIndex) noexcept;
     Base::Result<Base::Ref<Interactivity::Behavior>> CloneBehaviorPrototype(
         const Interactivity::Behavior& prototype) noexcept;
@@ -235,13 +235,13 @@ public:
     Base::Object* ResolveAuthoredBindingSource(
         const Data::Binding& binding,
         Aero::FrameworkElement& owner,
-        Aero::Controls::DataTemplateTriggerState* dataTemplateContext,
+        Aero::Controls::DataTemplateTriggerInstance* dataTemplateContext,
         const Aero::NameScope* names,
         Base::Object* self) noexcept;
     Base::Result<Meta::PropertyValue> EvaluateAuthoredBinding(
         const Data::Binding& binding,
         Aero::FrameworkElement& owner,
-        Aero::Controls::DataTemplateTriggerState* dataTemplateContext,
+        Aero::Controls::DataTemplateTriggerInstance* dataTemplateContext,
         const Aero::NameScope* names,
         Base::Object* self) noexcept;
     Base::Result<void> ExecuteTriggerActions(
@@ -294,7 +294,7 @@ public:
         Aero::Media::Visual* node,
         const Aero::Media::Visual& fragmentRoot) const noexcept;
     void ClearDataTemplateTriggerProviders(
-        Aero::Controls::DataTemplateTriggerState& context) noexcept;
+        Aero::Controls::DataTemplateTriggerInstance& context) noexcept;
     void ClearDataTemplateTriggerProvidersInSubtree(
         Aero::Media::Visual& visual) noexcept;
     void DetachBehaviorsInSubtree(Aero::Media::Visual& visual) noexcept;
