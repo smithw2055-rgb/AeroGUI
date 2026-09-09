@@ -1,4 +1,5 @@
 #include "gui/meta/MetadataState.hpp"
+#include "gui/markup/XamlObjectWriterCommon.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
@@ -9,8 +10,6 @@
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleEngine.hpp"
 #include "gui/templates/TemplateInstance.hpp"
-#include "gui/markup/MarkupState.hpp"
-#include "gui/markup/MarkupWriterState.hpp"
 #include <cstdio>
 
 // ===== StyleSupport =====

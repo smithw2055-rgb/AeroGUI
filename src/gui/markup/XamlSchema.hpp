@@ -7,20 +7,18 @@
 #include <Aero/Version.hpp>
 
 #include "gui/core/ElementTree.hpp"
-#include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
-#include "gui/core/RoutedEvents.hpp"
-#include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/meta/MetadataState.hpp"
+
+#include <Aero/Style.hpp>
 
 #include <cstddef>
 #include <cstdint>
 #include <utility>
 
-// Markup parse/contract surface (nodes, schema, loader, load session).
-// WPF notes: Schema ≈ XamlSchemaContext; LoadState ≈ ParserContext
-// (session dies with Load). Schema/DocumentCache/GuiSchema stay process-level.
+// Private XAML schema/loader/parse contract (WPF: XamlSchemaContext /
+// ParserContext / XamlReader node surface). Not an include umbrella —
+// consumers that need ElementTree/Layout/Metadata include those directly.
 
 namespace Aero::Markup {
 

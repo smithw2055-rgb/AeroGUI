@@ -4,6 +4,7 @@
 // former GuiData.hpp name was misleading — this is not a DTO bag.
 
 #include "gui/meta/MetadataState.hpp"
+#include "gui/markup/XamlSchema.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
@@ -15,8 +16,6 @@
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleEngine.hpp"
 #include "gui/templates/TemplateInstance.hpp"
-#include "gui/markup/MarkupState.hpp"
-#include "gui/markup/MarkupWriterState.hpp"
 #include <Aero/Gui.hpp>
 #include <Aero/Markup/XamlProvider.hpp>
 #include <Aero/Media/FontProvider.hpp>

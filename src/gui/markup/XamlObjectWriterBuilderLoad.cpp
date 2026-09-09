@@ -11,8 +11,6 @@
 #include "gui/styles/StyleEngine.hpp"
 #include "gui/controls/ItemsContainers.hpp"
 #include "gui/templates/TemplateInstance.hpp"
-#include "gui/markup/MarkupState.hpp"
-#include "gui/markup/MarkupWriterState.hpp"
 #include "gui/markup/MarkupCommon.hpp"
 #include "gui/markup/XamlObjectWriterCommon.hpp"
 #include "gui/markup/MarkupExtensionHost.hpp"
@@ -23,6 +21,7 @@
 // ===== ObjectWriter core / node stack =====
 
 namespace Aero::Markup {
+using namespace WriterSupport;
 // ===== ObjectWriter load lifecycle (ctor/Load/Complete/Create) =====
 
 ObjectWriter::ObjectWriter(

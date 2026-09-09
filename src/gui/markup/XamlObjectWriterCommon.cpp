@@ -10,8 +10,6 @@
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleEngine.hpp"
 #include "gui/templates/TemplateInstance.hpp"
-#include "gui/markup/MarkupState.hpp"
-#include "gui/markup/MarkupWriterState.hpp"
 #include "gui/markup/MarkupCommon.hpp"
 #include "gui/markup/XamlObjectWriterCommon.hpp"
 #include "gui/markup/MarkupExtensionHost.hpp"
@@ -21,6 +19,7 @@
 #include <Aero/VisualStateManager.hpp>
 
 namespace Aero::Markup {
+using namespace WriterSupport;
 namespace WriterSupport {
 
 Base::Result<Base::String> StaticResourceNotFoundMessage(

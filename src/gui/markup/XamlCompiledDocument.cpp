@@ -1,4 +1,5 @@
 #include "gui/meta/MetadataState.hpp"
+#include "gui/markup/XamlSchema.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
@@ -7,8 +8,6 @@
 #include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleEngine.hpp"
-#include "gui/markup/MarkupState.hpp"
-#include "gui/markup/MarkupWriterState.hpp"
 #include <Aero/VisualStateManager.hpp>
 #include <cmath>
 #include <cstring>

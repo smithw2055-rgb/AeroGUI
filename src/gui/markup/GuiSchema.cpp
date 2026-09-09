@@ -1,9 +1,8 @@
 #include <Aero/Base/Assert.hpp>
 
 #include "gui/meta/MetadataState.hpp"
+#include "gui/markup/XamlObjectWriterCommon.hpp"
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/markup/MarkupState.hpp"
-#include "gui/markup/MarkupWriterState.hpp"
 
 #include <new>
 #include <utility>

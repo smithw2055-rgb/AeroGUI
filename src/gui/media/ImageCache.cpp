@@ -6,8 +6,7 @@
 #include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleEngine.hpp"
-#include "gui/markup/MarkupState.hpp"
-#include "gui/markup/MarkupWriterState.hpp"
+#include "gui/markup/XamlSchema.hpp"
 #include "render/DisplayList.hpp"
 #include "ImageCache.hpp"
 

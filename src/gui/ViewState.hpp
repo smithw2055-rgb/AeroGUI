@@ -14,6 +14,7 @@
 #include <Aero/Media/Geometry.hpp>
 #include <Aero/Interactivity/Behavior.hpp>
 #include <Aero/Interactivity/Conditions.hpp>
+#include <Aero/Interactivity/InteractionTriggers.hpp>
 #include "gui/GuiState.hpp"
 #include "gui/ViewRenderer.hpp"
 #include <Aero/FrameworkElement.hpp>

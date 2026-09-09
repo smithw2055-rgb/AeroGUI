@@ -1,4 +1,5 @@
 #include "gui/meta/MetadataState.hpp"
+#include "gui/markup/XamlSchema.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
@@ -21,7 +22,6 @@
 #include "gui/data/BindingEngine.hpp"
 #include "gui/styles/StyleEngine.hpp"
 #include "render/RenderTree.hpp"
-#include "gui/markup/MarkupState.hpp"
 
 namespace Aero {
 
