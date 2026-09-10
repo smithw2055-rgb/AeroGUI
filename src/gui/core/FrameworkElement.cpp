@@ -26,7 +26,9 @@
 #include "gui/input/InputManager.hpp"
 #include "gui/styles/StyleEngine.hpp"
 #include "gui/meta/TypeRegistryDetail.hpp"
-#include "gui/controls/ControlBehavior.hpp"
+#include "gui/templates/TemplateInstance.hpp"
+#include "gui/media/AnimationModel.hpp"
+
 
 using namespace Aero;
 using namespace Aero::Media;

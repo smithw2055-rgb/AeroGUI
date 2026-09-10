@@ -63,10 +63,11 @@ class EventRouter;
 class InputRouter;
 class AnimationEngine;
 class VisualStateManager;
+namespace Input { class IClipboard; }
 namespace Controls {
 class TemplateEngine;
 class TextBlockLayout;
-class ControlBehavior;
+namespace Primitives { class RepeatButton; }
 } // namespace Controls
 
 struct ElementTreeLifecycleEvent {
@@ -216,9 +217,7 @@ public:
     VisualStateManager* VisualStates() const noexcept { return visualStates_; }
     Controls::TemplateEngine* Templates() const noexcept { return templates_; }
     Controls::TextBlockLayout* TextLayout() const noexcept { return textLayout_; }
-    Controls::ControlBehavior* ControlBehaviors() const noexcept {
-        return controlBehaviors_;
-    }
+    Aero::Input::IClipboard* Clipboard() const noexcept { return clipboard_; }
     Render::MeshResources* MeshResources() const noexcept {
         return meshResources_;
     }
@@ -245,9 +244,20 @@ public:
     void SetTextLayout(Controls::TextBlockLayout* textLayout) noexcept {
         textLayout_ = textLayout;
     }
-    void SetControlBehaviors(Controls::ControlBehavior* behaviors) noexcept {
-        controlBehaviors_ = behaviors;
+    void SetClipboard(Aero::Input::IClipboard* clipboard) noexcept {
+        clipboard_ = clipboard;
     }
+
+    Controls::Primitives::RepeatButton* ActiveRepeatButton() const noexcept {
+        return activeRepeatButton_;
+    }
+    void SetActiveRepeatButton(Controls::Primitives::RepeatButton* button) noexcept {
+        if (activeRepeatButton_ == button) return;
+        activeRepeatButton_ = button;
+        repeatElapsed_ = 0U;
+        nextRepeat_ = 0U;
+    }
+    std::uint32_t AdvanceRepeatButtonTime(std::uint32_t elapsedMilliseconds) noexcept;
     void SetMeshResources(Render::MeshResources* resources) noexcept {
         meshResources_ = resources;
     }
@@ -310,7 +320,10 @@ private:
     VisualStateManager* visualStates_ = nullptr;
     Controls::TemplateEngine* templates_ = nullptr;
     Controls::TextBlockLayout* textLayout_ = nullptr;
-    Controls::ControlBehavior* controlBehaviors_ = nullptr;
+    Aero::Input::IClipboard* clipboard_ = nullptr;
+    Controls::Primitives::RepeatButton* activeRepeatButton_ = nullptr;
+    std::uint64_t repeatElapsed_ = 0U;
+    std::uint64_t nextRepeat_ = 0U;
     Render::MeshResources* meshResources_ = nullptr;
     ViewFrame* viewState_ = nullptr;
     Aero::ResourceEnvironment resourceEnvironment_{};

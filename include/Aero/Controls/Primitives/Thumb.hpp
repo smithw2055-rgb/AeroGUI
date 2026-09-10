@@ -14,8 +14,8 @@ namespace Primitives {
 class AERO_GUI_API Thumb : public Control {
     AERO_DECLARE_TYPE(Thumb, Control)
 public:
-    Thumb() noexcept : Control(StaticTypeId()) {}
-    ~Thumb() override = default;
+    Thumb() noexcept;
+    ~Thumb() override;
 
     bool GetIsDragging() const noexcept {
         return GetValue(IsDraggingProperty);
@@ -29,12 +29,21 @@ public:
     Result<bool> EndDrag(
         std::uint32_t pointerId) noexcept;
 
+    void UpdateVisualState(bool useTransitions = true) noexcept;
+
     AERO_READONLY_PROPERTY(bool, IsDragging);
+
+protected:
+    void OnApplyTemplate() noexcept override;
 
 private:
     std::uint32_t pointerId_ = 0U;
-    Point lastPosition_;
+    Point lastPosition_{};
     bool dragging_ = false;
+    DependencyPropertyChangedEventHandler propertyChangedHandler_;
+    void OnPropertyChanged(
+        DependencyObject& object,
+        const DependencyPropertyChangedEventArgs& args) noexcept;
 };
 
 } // namespace Primitives

@@ -17,7 +17,6 @@
 #include <Aero/Controls/ItemContainerGenerator.hpp>
 
 #include <utility>
-#include "ControlBehavior.hpp"
 #include <Aero/Media/ScaleTransform.hpp>
 #include <Aero/Media/RotateTransform.hpp>
 #include <Aero/Controls/Decorator.hpp>
@@ -27,7 +26,6 @@
 #include <Aero/VisualTreeHelper.hpp>
 
 namespace Aero::Controls {
-using Aero::Controls::TreeBehavior;
 
 using namespace Primitives;
 
@@ -809,12 +807,21 @@ void TreeViewItem::ApplyExpanderGesture() noexcept {
     static_cast<void>(SynchronizeTemplate());
 }
 
+TreeView::TreeView() noexcept
+    : ItemsControl(StaticTypeId()),
+      mouseDownHandler_(this, &TreeView::HandleMouseDown),
+      keyDownHandler_(this, &TreeView::HandleKeyDown) {
+    AddHandler(UIElement::MouseDownEvent, mouseDownHandler_, true);
+    AddHandler(UIElement::KeyDownEvent, keyDownHandler_);
+}
+
 TreeView::~TreeView() {
-    auto* behaviors = static_cast<ControlBehavior*>(
-        AeroGuiInternal::ControlBehaviorRuntime(*this));
-    if (behaviors != nullptr) {
-        static_cast<void>(behaviors->Detach(*this));
-    }
+    static_cast<void>(RemoveHandler(
+        UIElement::MouseDownEvent,
+        mouseDownHandler_));
+    static_cast<void>(RemoveHandler(
+        UIElement::KeyDownEvent,
+        keyDownHandler_));
 }
 
 Base::Ref<Base::Object>
@@ -883,128 +890,17 @@ bool TreeView::SelectItem(
     return true;
 }
 
-} // namespace Aero::Controls
-
-namespace Aero::Controls {
-
-using namespace Aero::Meta;
-using namespace Aero::Threading;
-using namespace Aero::Controls;
-using namespace ::Aero::Controls;
-using namespace ::Aero;
-
-TreeBehavior::
-TreeBehavior(
-    ElementTree& tree,
-    EventRouter& events,
-    InputRouter& input,
-    VisualStateManager* states) noexcept
-    : tree_(&tree),
-      events_(&events),
-      input_(&input),
-      states_(states),
-      mouseDownHandler_(
-          this,
-          &TreeBehavior::
-              OnMouseDown),
-      keyDownHandler_(
-          this,
-          &TreeBehavior::
-              OnKeyDown) {}
-
-TreeBehavior::
-~TreeBehavior() noexcept {
-    while (!records_.Empty()) {
-        TreeView* treeView =
-            ResolveTreeView(
-                records_.Size() - 1U);
-        if (treeView == nullptr) {
-            records_.PopBack();
-        } else {
-            static_cast<void>(
-                Detach(*treeView));
-        }
-    }
+void TreeView::HandleMouseDown(Base::Object*, MouseButtonEventArgs& args) noexcept {
+    OnMouseLeftButtonDown(args);
 }
 
-std::uint32_t
-TreeBehavior::FindTreeView(
-    const TreeView& treeView) const noexcept {
-    for (std::uint32_t index = 0U;
-        index < records_.Size(); ++index) {
-        if (tree_->ResolveHandle(
-                records_[index]) ==
-            &treeView) {
-            return index;
-        }
-    }
-    return UINT32_MAX;
+void TreeView::HandleKeyDown(Base::Object*, KeyEventArgs& args) noexcept {
+    OnKeyDown(args);
 }
 
-TreeView*
-TreeBehavior::ResolveTreeView(
-    std::uint32_t index) noexcept {
-    ::Aero::Media::Visual* visual =
-        index < records_.Size()
-        ? tree_->ResolveHandle(records_[index])
-        : nullptr;
-    return visual != nullptr
-        ? static_cast<TreeView*>(
-            ::Aero::TryCast<::Aero::UIElement>(visual))
-        : nullptr;
-}
-
-Base::Result<void>
-TreeBehavior::Attach(
-    TreeView& treeView) noexcept {
-    if (VisualTree(treeView) != tree_ ||
-        FindTreeView(treeView) != UINT32_MAX) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "TreeView interaction attach state is invalid");
-    }
-    Base::Result<VisualHandle> handle =
-        tree_->GetHandle(treeView);
-    if (!handle) return handle.GetStatus();
-    treeView.AddHandler(
-        UIElement::MouseDownEvent,
-        mouseDownHandler_,
-        true);
-    treeView.AddHandler(
-        UIElement::KeyDownEvent,
-        keyDownHandler_);
-    records_.PushBack(handle.Value());
-    return {};
-}
-
-Base::Result<bool>
-TreeBehavior::Detach(
-    TreeView& treeView) noexcept {
-    const std::uint32_t index =
-        FindTreeView(treeView);
-    if (index == UINT32_MAX) return false;
-    static_cast<void>(treeView.RemoveHandler(
-        UIElement::MouseDownEvent,
-        mouseDownHandler_));
-    static_cast<void>(treeView.RemoveHandler(
-        UIElement::KeyDownEvent,
-        keyDownHandler_));
-    for (std::uint32_t current = index;
-        current + 1U < records_.Size();
-        ++current) {
-        records_[current] =
-            records_[current + 1U];
-    }
-    records_.PopBack();
-    return true;
-}
-
-TreeViewItem*
-TreeBehavior::FindItem(
-    TreeView& treeView,
-    Base::Object* source) const noexcept {
+TreeViewItem* TreeView::FindItem(Base::Object* source) const noexcept {
     if (source == nullptr ||
-        !AeroGuiInternal::PropertyRegistry(treeView).Types().
+        !AeroGuiInternal::PropertyRegistry(*this).Types().
             IsDerivedFrom(
                 source->RuntimeType(),
                 UIElement::StaticTypeId())) {
@@ -1013,27 +909,24 @@ TreeBehavior::FindItem(
     ::Aero::Media::Visual* visual =
         static_cast<UIElement*>(source);
     while (visual != nullptr &&
-        visual != &treeView) {
+        visual != this) {
         UIElement* element =
             ::Aero::TryCast<::Aero::UIElement>(visual);
         if (element != nullptr &&
-            AeroGuiInternal::PropertyRegistry(treeView).Types().
+            AeroGuiInternal::PropertyRegistry(*this).Types().
                 IsDerivedFrom(
                     element->RuntimeType(),
                     TreeViewItem::StaticTypeId())) {
-            return static_cast<TreeViewItem*>(
-                element);
+            return static_cast<TreeViewItem*>(element);
         }
         visual = visual->GetVisualParent();
     }
     return nullptr;
 }
 
-Base::Result<void>
-TreeBehavior::CollectVisibleItems(
+Base::Result<void> TreeView::CollectVisibleItems(
     ::Aero::Media::Visual& parent,
-    Base::Vector<TreeViewItem*>& items)
-    noexcept {
+    Base::Vector<TreeViewItem*>& items) noexcept {
     for (::Aero::Media::Visual* child :
         AeroGuiInternal::RenderChildren(parent)) {
         if (child == nullptr) continue;
@@ -1060,24 +953,16 @@ TreeBehavior::CollectVisibleItems(
     return {};
 }
 
-void TreeBehavior::OnMouseDown(
-    Base::Object* sender,
-    MouseButtonEventArgs& args)
-    noexcept {
-    if (args.GetChangedButton() !=
-        MouseButton::Left) {
+void TreeView::OnMouseLeftButtonDown(MouseButtonEventArgs& args) {
+    if (args.GetChangedButton() != MouseButton::Left) {
         return;
     }
-    auto& treeView =
-        *static_cast<TreeView*>(sender);
-    if (!treeView.GetIsEnabled()) return;
-    TreeViewItem* item =
-        FindItem(
-            treeView, args.GetOriginalSource());
+    if (!GetIsEnabled()) return;
+    TreeViewItem* item = FindItem(args.GetOriginalSource());
     if (item == nullptr) return;
     UIElement* sourceElement =
         args.GetOriginalSource() != nullptr &&
-                AeroGuiInternal::PropertyRegistry(treeView).Types().IsDerivedFrom(
+                AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
                     args.GetOriginalSource()->RuntimeType(),
                     UIElement::StaticTypeId())
             ? static_cast<UIElement*>(args.GetOriginalSource())
@@ -1097,10 +982,6 @@ void TreeBehavior::OnMouseDown(
         return false;
     };
     if (inItemsRegion(*item, sourceElement)) {
-        // Gallery leaves put PART_Header inside a HasItems=False disabled
-        // ExpandButton. Hits often land on the parent's ItemsPresenter
-        // instead of the leaf. Pick the child whose box contains the point
-        // so sibling rows stay expanded and SelectedItem is the Sample.
         TreeViewItem* child = nullptr;
         ::Aero::Media::Visual* walk = sourceElement;
         while (walk != nullptr && walk != item) {
@@ -1146,19 +1027,12 @@ void TreeBehavior::OnMouseDown(
             item = child;
         }
     }
-    // Expand/collapse is owned by ExpandButton Click + TwoWay IsChecked.
-    // MouseDown must not toggle: gallery leaves live inside a disabled
-    // ExpandButton, so a miss lands on the parent Grid and would collapse
-    // Basic Input (hiding RepeatButton/ToggleButton/CheckBox/RadioButton/Slider).
-    static_cast<void>(treeView.SelectItem(item));
-    static_cast<void>(
-        input_->SetFocus(item));
+    static_cast<void>(SelectItem(item));
+    static_cast<void>(item->Focus());
     args.SetHandled(true);
 }
 
-void TreeBehavior::OnKeyDown(
-    Base::Object* sender,
-    KeyEventArgs& args) noexcept {
+void TreeView::OnKeyDown(KeyEventArgs& args) {
     if (args.GetKey() != KeyboardKeyUp &&
         args.GetKey() != KeyboardKeyDown &&
         args.GetKey() != KeyboardKeyLeft &&
@@ -1167,28 +1041,20 @@ void TreeBehavior::OnKeyDown(
         args.GetKey() != KeyboardKeySpace) {
         return;
     }
-    auto& treeView =
-        *static_cast<TreeView*>(sender);
-    TreeViewItem* current =
-        FindItem(
-            treeView, args.GetOriginalSource());
+    TreeViewItem* current = FindItem(args.GetOriginalSource());
     if (current == nullptr) {
-        Base::Ref<Base::Object> selected =
-            treeView.GetSelectedItem();
+        Base::Ref<Base::Object> selected = GetSelectedItem();
         if (selected &&
-            AeroGuiInternal::PropertyRegistry(treeView).Types().
+            AeroGuiInternal::PropertyRegistry(*this).Types().
                 IsDerivedFrom(
                     selected->RuntimeType(),
                     TreeViewItem::StaticTypeId())) {
-            current =
-                static_cast<TreeViewItem*>(
-                    selected.Get());
+            current = static_cast<TreeViewItem*>(selected.Get());
         } else if (selected) {
             Base::Vector<TreeViewItem*> visible;
-            if (CollectVisibleItems(treeView, visible)) {
+            if (CollectVisibleItems(*this, visible)) {
                 for (TreeViewItem* candidate : visible) {
-                    if (candidate != nullptr &&
-                        candidate->GetIsSelected()) {
+                    if (candidate != nullptr && candidate->GetIsSelected()) {
                         current = candidate;
                         break;
                     }
@@ -1200,15 +1066,13 @@ void TreeBehavior::OnKeyDown(
     if (args.GetKey() == KeyboardKeyRight &&
         AeroGuiInternal::TreeViewItemCount(*current) != 0U &&
         !current->GetIsExpanded()) {
-        static_cast<void>(
-            current->SetIsExpanded(true));
+        static_cast<void>(current->SetIsExpanded(true));
         args.SetHandled(true);
         return;
     }
     if (args.GetKey() == KeyboardKeyLeft &&
         current->GetIsExpanded()) {
-        static_cast<void>(
-            current->SetIsExpanded(false));
+        static_cast<void>(current->SetIsExpanded(false));
         args.SetHandled(true);
         return;
     }
@@ -1219,14 +1083,12 @@ void TreeBehavior::OnKeyDown(
                 current->SetIsExpanded(
                     !current->GetIsExpanded()));
         }
-        treeView.SelectItem(current);
+        SelectItem(current);
         args.SetHandled(true);
         return;
     }
     Base::Vector<TreeViewItem*> visible;
-    Base::Result<void> collected =
-        CollectVisibleItems(
-            treeView, visible);
+    Base::Result<void> collected = CollectVisibleItems(*this, visible);
     if (!collected || visible.Empty()) return;
     std::uint32_t index = UINT32_MAX;
     for (std::uint32_t currentIndex = 0U;
@@ -1239,8 +1101,7 @@ void TreeBehavior::OnKeyDown(
     }
     if (index == UINT32_MAX) return;
     std::uint32_t target = index;
-    if (args.GetKey() == KeyboardKeyUp &&
-        target > 0U) {
+    if (args.GetKey() == KeyboardKeyUp && target > 0U) {
         --target;
     } else if (
         args.GetKey() == KeyboardKeyDown &&
@@ -1249,9 +1110,8 @@ void TreeBehavior::OnKeyDown(
     } else {
         return;
     }
-    treeView.SelectItem(visible[target]);
-    static_cast<void>(
-        input_->SetFocus(visible[target]));
+    SelectItem(visible[target]);
+    static_cast<void>(visible[target]->Focus());
     args.SetHandled(true);
 }
 

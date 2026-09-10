@@ -3,10 +3,12 @@
 #include <Aero/Controls/Panel.hpp>
 #include <Aero/Controls/Primitives/RangeBase.hpp>
 #include <Aero/Media/DrawingContext.hpp>
+#include <Aero/Events/EventArgs.hpp>
+#include <Aero/Events/CommandEventArgs.hpp>
+#include <Aero/CommandBinding.hpp>
 
 namespace Aero::Controls {
 namespace Primitives { class Track; }
-class SliderBehavior;
 
 enum class TickPlacement : std::uint8_t {
     None = 0U,
@@ -60,16 +62,49 @@ public:
 protected:
     void OnApplyTemplate() noexcept override;
     void OnTemplateDetached() noexcept override;
+    void OnVisualParentChanged(Visual* oldParent) noexcept override;
     Size MeasureOverride(Size availableSize) noexcept override;
     Size ArrangeOverride(
         Size finalSize) noexcept override;
     void OnRender(
         ::Aero::Media::DrawingContext& context) noexcept override;
 
+    virtual void OnMouseLeftButtonDown(MouseButtonEventArgs& args);
+    virtual void OnMouseLeftButtonUp(MouseButtonEventArgs& args);
+    virtual void OnMouseMove(MouseEventArgs& args);
+    virtual void OnKeyDown(KeyEventArgs& args);
+
 private:
-    friend class SliderBehavior;
     Primitives::Track* track_ = nullptr;
     DependencyPropertyChangedEventHandler trackPropertyChangedHandler_;
+    std::uint32_t pointerId_ = 0U;
+    bool dragging_ = false;
+
+    MouseButtonEventHandler mouseDownHandler_;
+    MouseEventHandler mouseMoveHandler_;
+    MouseButtonEventHandler mouseUpHandler_;
+    KeyEventHandler keyDownHandler_;
+    ExecutedRoutedEventHandler decreaseSmallHandler_;
+    ExecutedRoutedEventHandler increaseSmallHandler_;
+    ExecutedRoutedEventHandler decreaseLargeHandler_;
+    ExecutedRoutedEventHandler increaseLargeHandler_;
+    Input::CommandBindingHandle decreaseSmallCommand_;
+    Input::CommandBindingHandle increaseSmallCommand_;
+    Input::CommandBindingHandle decreaseLargeCommand_;
+    Input::CommandBindingHandle increaseLargeCommand_;
+
+    void OnMouseDownHandler(Base::Object* sender, MouseButtonEventArgs& args) noexcept;
+    void OnMouseMoveHandler(Base::Object* sender, MouseEventArgs& args) noexcept;
+    void OnMouseUpHandler(Base::Object* sender, MouseButtonEventArgs& args) noexcept;
+    void OnKeyDownHandler(Base::Object* sender, KeyEventArgs& args) noexcept;
+    void OnDecreaseSmallCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
+    void OnIncreaseSmallCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
+    void OnDecreaseLargeCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
+    void OnIncreaseLargeCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
+    void SetFromPoint() noexcept;
+    void EnsureCommands() noexcept;
+    void UnregisterCommands() noexcept;
+
     void OnTrackPropertyChanged(
         DependencyObject& object,
         const DependencyPropertyChangedEventArgs& args) noexcept;

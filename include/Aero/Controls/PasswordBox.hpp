@@ -5,8 +5,6 @@
 
 namespace Aero::Controls {
 
-class TextEditBehavior;
-
 using ::Aero::Meta::TypeId;
 class AERO_GUI_API PasswordBox : public Primitives::TextBoxBase {
     AERO_DECLARE_TYPE(PasswordBox, Primitives::TextBoxBase)
@@ -60,9 +58,38 @@ protected:
     void OnRender(
         ::Aero::Media::DrawingContext& context) noexcept override;
 
+    virtual void OnMouseDown(MouseButtonEventArgs& args) noexcept;
+    virtual void OnMouseMove(MouseEventArgs& args) noexcept;
+    virtual void OnMouseUp(MouseButtonEventArgs& args) noexcept;
+    virtual void OnKeyDown(KeyEventArgs& args) noexcept;
+    virtual void OnTextInput(TextCompositionEventArgs& args) noexcept;
+    virtual void OnLostKeyboardFocus(KeyboardFocusChangedEventArgs& args) noexcept;
+
 private:
     friend class TextBox;
-    friend class TextEditBehavior;
+
+    MouseButtonEventHandler mouseDownHandler_;
+    MouseEventHandler mouseMoveHandler_;
+    MouseButtonEventHandler mouseUpHandler_;
+    KeyEventHandler keyDownHandler_;
+    TextCompositionEventHandler textInputHandler_;
+    KeyboardFocusChangedEventHandler focusChangedHandler_;
+    DependencyPropertyChangedEventHandler propertyChangedHandler_;
+
+    std::uint32_t pointerId_ = 0U;
+    std::uint32_t dragAnchor_ = 0U;
+    bool isDragging_ = false;
+
+    void OnMouseDownHandler(Base::Object* sender, MouseButtonEventArgs& args) noexcept;
+    void OnMouseMoveHandler(Base::Object* sender, MouseEventArgs& args) noexcept;
+    void OnMouseUpHandler(Base::Object* sender, MouseButtonEventArgs& args) noexcept;
+    void OnKeyDownHandler(Base::Object* sender, KeyEventArgs& args) noexcept;
+    void OnTextInputHandler(Base::Object* sender, TextCompositionEventArgs& args) noexcept;
+    void OnLostKeyboardFocusHandler(Base::Object* sender, KeyboardFocusChangedEventArgs& args) noexcept;
+
+    void OnPropertyChanged(
+        DependencyObject& object,
+        const DependencyPropertyChangedEventArgs& args) noexcept;
 
     String password_;
     void* validation_ = nullptr;

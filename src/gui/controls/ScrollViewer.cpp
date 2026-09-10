@@ -18,8 +18,8 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
-#include "ControlBehavior.hpp"
 #include "gui/templates/TemplateInstance.hpp"
+#include <Aero/VisualStateManager.hpp>
 
 namespace Aero::Controls {
 using namespace Primitives;
@@ -29,16 +29,38 @@ ScrollViewer::ScrollViewer() noexcept
     : ScrollContentPresenter(StaticTypeId()),
       scrollBarValueChangedHandler_(
           this,
-          &ScrollViewer::OnScrollBarValueChanged) {
+          &ScrollViewer::OnScrollBarValueChanged),
+      mouseWheelHandler_(
+          this,
+          &ScrollViewer::HandleMouseWheel) {
+    AddHandler(UIElement::MouseWheelEvent, mouseWheelHandler_);
     UpdateComputedScrollBarVisibility(GetData());
 }
 
 ScrollViewer::~ScrollViewer() {
+    RemoveHandler(UIElement::MouseWheelEvent, mouseWheelHandler_);
     DetachScrollBars();
-    auto* behaviors = static_cast<ControlBehavior*>(
-        AeroGuiInternal::ControlBehaviorRuntime(*this));
-    if (behaviors != nullptr) {
-        static_cast<void>(behaviors->Detach(*this));
+}
+
+void ScrollViewer::HandleMouseWheel(
+    Base::Object*,
+    MouseWheelEventArgs& args) noexcept {
+    OnMouseWheel(args);
+}
+
+void ScrollViewer::OnMouseWheel(
+    MouseWheelEventArgs& args) {
+    const double horizontal =
+        -args.GetDeltaX() * GetLineScrollAmount();
+    const double vertical =
+        -args.GetDeltaY() * GetLineScrollAmount();
+    Base::Result<bool> changed =
+        ApplyScrollDelta(
+            horizontal,
+            vertical,
+            ScrollInputKind::Wheel);
+    if (changed && changed.Value()) {
+        args.SetHandled(true);
     }
 }
 
@@ -413,6 +435,47 @@ void ScrollViewer::UpdateComputedScrollBarVisibility(
             data.viewportHeight)));
 }
 
+Thumb::Thumb() noexcept
+    : Control(StaticTypeId()),
+      propertyChangedHandler_(this, &Thumb::OnPropertyChanged) {
+    AddValueChangedHandler(UIElement::IsEnabledProperty, propertyChangedHandler_);
+    AddValueChangedHandler(UIElement::IsMouseOverProperty, propertyChangedHandler_);
+    AddValueChangedHandler(Thumb::IsDraggingProperty, propertyChangedHandler_);
+}
+
+Thumb::~Thumb() {
+    RemoveValueChangedHandler(UIElement::IsEnabledProperty, propertyChangedHandler_);
+    RemoveValueChangedHandler(UIElement::IsMouseOverProperty, propertyChangedHandler_);
+    RemoveValueChangedHandler(Thumb::IsDraggingProperty, propertyChangedHandler_);
+}
+
+void Thumb::OnApplyTemplate() noexcept {
+    Control::OnApplyTemplate();
+    UpdateVisualState(false);
+}
+
+void Thumb::OnPropertyChanged(
+    DependencyObject&,
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    if (args.GetProperty() == UIElement::IsEnabledProperty ||
+        args.GetProperty() == UIElement::IsMouseOverProperty ||
+        args.GetProperty() == Thumb::IsDraggingProperty) {
+        UpdateVisualState(true);
+    }
+}
+
+void Thumb::UpdateVisualState(bool useTransitions) noexcept {
+    Base::StringView common = "Normal";
+    if (!GetIsEnabled()) {
+        common = "Disabled";
+    } else if (GetIsDragging()) {
+        common = "Pressed";
+    } else if (GetIsMouseOver()) {
+        common = "MouseOver";
+    }
+    static_cast<void>(VisualStateManager::GoToState(*this, common, useTransitions));
+}
+
 Base::Result<void> Thumb::BeginDrag(
     std::uint32_t pointerId,
     Point position) noexcept {
@@ -429,6 +492,7 @@ Base::Result<void> Thumb::BeginDrag(
     pointerId_ = pointerId;
     lastPosition_ = position;
     dragging_ = true;
+    UpdateVisualState(true);
     return {};
 }
 
@@ -463,6 +527,7 @@ Base::Result<bool> Thumb::EndDrag(
     SetReadOnlyCurrentValue(IsDraggingProperty, false);
     pointerId_ = 0U;
     dragging_ = false;
+    UpdateVisualState(true);
     return true;
 }
 

@@ -3,6 +3,8 @@
 #include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/Controls/ContentControl.hpp>
 #include <Aero/Controls/Panel.hpp>
+#include <Aero/Controls/TextBox.hpp>
+#include <Aero/Controls/PasswordBox.hpp>
 #include <Aero/Media/Transform.hpp>
 #include <Aero/VisualTreeHelper.hpp>
 
@@ -558,9 +560,7 @@ Base::Result<void> ViewFrame::CreateUiEngines() noexcept {
         tree->SetStyles(styles);
         tree->SetTextLayout(text != nullptr ? text->Layout() : nullptr);
         tree->SetMeshResources(GetMeshResources());
-        if (controlBehaviors != nullptr) {
-            tree->SetControlBehaviors(controlBehaviors);
-        }
+        tree->SetClipboard(options.clipboard);
         tree->AttachResourceEnvironment(resources->Environment());
         tree->SetNameScope(this, &ViewFrame::FindNameForElement);
         tree->SetViewState(this);
@@ -873,7 +873,6 @@ void ViewFrame::DestroyUiEngines() noexcept {
             tree->SetTemplates(nullptr);
             tree->SetTextLayout(nullptr);
             tree->SetMeshResources(nullptr);
-            tree->SetControlBehaviors(nullptr);
             tree->AttachResourceEnvironment({});
             tree->SetNameScope(nullptr, nullptr);
             tree->SetViewState(nullptr);
@@ -896,10 +895,12 @@ Base::Result<void> ViewFrame::VisitAndAttach(
             stack.PopBack();
             if (node == nullptr) continue;
             const Meta::TypeId type = node->RuntimeType();
-            if (controlBehaviors != nullptr) {
-                Base::Result<void> attached = controlBehaviors->Attach(
-                    *node, options.textInputMethodHost);
-                if (!attached) return attached.GetStatus();
+            if (options.textInputMethodHost != nullptr) {
+                if (metadata->Types().IsDerivedFrom(type, Controls::TextBox::StaticTypeId())) {
+                    static_cast<Controls::TextBox*>(node)->SetInputMethodHost(options.textInputMethodHost);
+                } else if (metadata->Types().IsDerivedFrom(type, Controls::PasswordBox::StaticTypeId())) {
+                    static_cast<Controls::PasswordBox*>(node)->SetInputMethodHost(options.textInputMethodHost);
+                }
             }
             AttachTextLayout(
                 *node,
@@ -1327,12 +1328,8 @@ Base::Result<std::uint32_t> AdvanceViewClocks(
             "View timing requires a mounted animation manager");
     }
     std::uint32_t actionCount = 0U;
-    if (state_->controlBehaviors != nullptr) {
-        Base::Result<std::uint32_t> controls =
-            state_->controlBehaviors->AdvanceTime(
-                elapsedMilliseconds);
-        if (!controls) return controls.GetStatus();
-        actionCount = controls.Value();
+    if (state.tree != nullptr) {
+        actionCount += state.tree->AdvanceRepeatButtonTime(elapsedMilliseconds);
     }
     Base::Result<std::uint32_t> toolTips =
         state.overlays != nullptr
@@ -1405,8 +1402,6 @@ void ViewFrame::BeginDestroyInteractions() noexcept {
         }
         ClearTextInputHosts(RootVisual());
         ClearElementEvents(RootVisual());
-        FreeObject(*allocator, Base::MemoryTag::Ui, controlBehaviors);
-        if (tree != nullptr) tree->SetControlBehaviors(nullptr);
     }
 
 void ViewFrame::FinishDestroyInteractions() noexcept {
@@ -1446,17 +1441,6 @@ Base::Result<void> ViewFrame::CreateInteractions() noexcept {
         Input()->SetRoot(rootVisual);
         Base::Result<void> status;
 
-        if (options.attachControlInteractions || options.attachTextEditing) {
-            status = AllocateObject(*allocator, Base::MemoryTag::Ui, controlBehaviors,
-                *allocator, *metadata, *tree, *Events(), *Input(),
-                VisualStates(), options.clipboard,
-                options.attachControlInteractions,
-                options.attachTextEditing);
-            if (!status) return status.GetStatus();
-            status = controlBehaviors->Initialize();
-            if (!status) return status.GetStatus();
-            if (tree != nullptr) tree->SetControlBehaviors(controlBehaviors);
-        }
         status = VisitAndAttach(*rootVisual);
         if (!status) {
             return status.GetStatus();

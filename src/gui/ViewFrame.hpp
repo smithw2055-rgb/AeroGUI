@@ -24,7 +24,6 @@
 
 #include "gui/templates/TemplateInstance.hpp"
 #include <Aero/VisualStateManager.hpp>
-#include "gui/controls/ControlBehavior.hpp"
 #include "gui/controls/TextBlockLayout.hpp"
 #include "gui/meta/TypeRegistryDetail.hpp"
 #include "gui/meta/ValueConversion.hpp"
@@ -43,7 +42,7 @@
 // NOTE: <Aero/Controls.hpp> umbrella intentionally not included here.
 // ContentControl/ItemsControl/ItemContainerGenerator are already available
 // via gui/internal/AeroGuiInternal.hpp; source-only Controls types via
-// gui/controls/{ControlBehavior,TextBlockLayout,Metadata}.hpp below.
+// gui/controls/{TextBlockLayout,Metadata}.hpp below.
 #include "gui/controls/Metadata.hpp"
 
 #include "gui/templates/DataTemplateTriggerInstance.hpp"
@@ -299,8 +298,7 @@ struct ViewFrame {
     std::uint64_t seenTextureProviderChange = 0U;
     std::uint64_t seenFontProviderChange = 0U;
 
-    // Interaction attachment state.
-    ::Aero::Controls::ControlBehavior* controlBehaviors = nullptr;
+
 
     void ReportFrameFailure(
         Base::Status& slot,

@@ -11,8 +11,7 @@ class AERO_GUI_API TreeView
     AERO_DECLARE_TYPE(TreeView, ItemsControl)
 public:
 
-    TreeView() noexcept
-        : ItemsControl(StaticTypeId()) {}
+    TreeView() noexcept;
     ~TreeView() override;
 
     Ref<Base::Object>
@@ -27,5 +26,18 @@ protected:
         CreateContainer(
             const Ref<Base::Object>& item)
             noexcept override;
+    virtual void OnMouseLeftButtonDown(MouseButtonEventArgs& args);
+    virtual void OnKeyDown(KeyEventArgs& args);
+
+private:
+    MouseButtonEventHandler mouseDownHandler_;
+    KeyEventHandler keyDownHandler_;
+
+    void HandleMouseDown(Base::Object* sender, MouseButtonEventArgs& args) noexcept;
+    void HandleKeyDown(Base::Object* sender, KeyEventArgs& args) noexcept;
+    TreeViewItem* FindItem(Base::Object* source) const noexcept;
+    static Result<void> CollectVisibleItems(
+        ::Aero::Media::Visual& parent,
+        Base::Vector<TreeViewItem*>& items) noexcept;
 };
 } // namespace Aero::Controls

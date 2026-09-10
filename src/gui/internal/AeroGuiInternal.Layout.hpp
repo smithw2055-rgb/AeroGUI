@@ -54,10 +54,18 @@
         ElementTree* tree = Tree(visual);
         return tree != nullptr ? tree->TextLayout() : nullptr;
     }
-    static Controls::ControlBehavior* ControlBehaviorsOf(
+    static Aero::Input::IClipboard* ClipboardOf(
         const ::Aero::Media::Visual& visual) noexcept {
         ElementTree* tree = Tree(visual);
-        return tree != nullptr ? tree->ControlBehaviors() : nullptr;
+        return tree != nullptr ? tree->Clipboard() : nullptr;
+    }
+    static void SetActiveRepeatButton(
+        const ::Aero::Media::Visual& visual,
+        Controls::Primitives::RepeatButton* button) noexcept {
+        ElementTree* tree = Tree(visual);
+        if (tree != nullptr) {
+            tree->SetActiveRepeatButton(button);
+        }
     }
     static Render::MeshResources* MeshResourcesOf(
         const ::Aero::Media::Visual& visual) noexcept {
@@ -85,9 +93,7 @@
     static void* VisualStateRuntime(const ::Aero::Media::Visual& visual) noexcept {
         return static_cast<void*>(VisualStatesOf(visual));
     }
-    static void* ControlBehaviorRuntime(const ::Aero::Media::Visual& visual) noexcept {
-        return static_cast<void*>(ControlBehaviorsOf(visual));
-    }
+
     static void* TextLayoutRuntime(const ::Aero::Media::Visual& visual) noexcept {
         return static_cast<void*>(TextLayoutOf(visual));
     }

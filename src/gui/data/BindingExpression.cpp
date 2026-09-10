@@ -5,7 +5,8 @@
 #include "gui/data/BindingCommon.hpp"
 #include "gui/data/BindingEngine.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
-#include "gui/controls/ControlBehavior.hpp"
+#include "gui/templates/TemplateInstance.hpp"
+
 
 namespace Aero::Data {
 

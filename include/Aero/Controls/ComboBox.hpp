@@ -12,8 +12,6 @@ using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::DependencyPropertyChangedEventHandler;
 using ::Aero::Meta::TypeId;
 
-class ComboBehavior;
-
 class AERO_GUI_API ComboBox : public Primitives::Selector {
     AERO_DECLARE_TYPE(ComboBox, Primitives::Selector)
 public:
@@ -76,15 +74,20 @@ protected:
     void OnContainersChanged() noexcept override;
     void OnApplyTemplate() noexcept override;
     void OnTemplateDetached() noexcept override;
+    virtual void OnMouseLeftButtonDown(MouseButtonEventArgs& args);
+    virtual void OnKeyDown(KeyEventArgs& args);
 
 private:
-    friend class ComboBehavior;
     TextBlock* selectionBox_ = nullptr;
     ContentPresenter* selectionPresenter_ =
         nullptr;
     TextBox* editableTextBox_ = nullptr;
     Primitives::Popup* popup_ = nullptr;
     FrameworkElement* dropDownBorder_ = nullptr;
+    MouseButtonEventHandler mouseDownHandler_;
+    KeyEventHandler keyDownHandler_;
+    DependencyPropertyChangedEventHandler mouseOverChangedHandler_;
+    DependencyPropertyChangedEventHandler isEnabledChangedHandler_;
     SelectionChangedHandler selectionChangedHandler_;
     DependencyPropertyChangedEventHandler
         dropDownChangedHandler_;
@@ -154,5 +157,14 @@ private:
     void SynchronizeContainers() noexcept;
     std::uint32_t FindContainerIndex(
         Base::Object* source) const noexcept;
+    void UpdateVisualState(bool useTransitions = true) noexcept;
+    void HandleMouseDown(Base::Object* sender, MouseButtonEventArgs& args) noexcept;
+    void HandleKeyDown(Base::Object* sender, KeyEventArgs& args) noexcept;
+    void OnIsMouseOverChanged(
+        DependencyObject& object,
+        const DependencyPropertyChangedEventArgs& args) noexcept;
+    void OnIsEnabledChanged(
+        DependencyObject& object,
+        const DependencyPropertyChangedEventArgs& args) noexcept;
 };
 } // namespace Aero::Controls

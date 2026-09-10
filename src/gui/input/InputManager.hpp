@@ -12,15 +12,11 @@
 #include "gui/core/EventRouter.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
 #include <cstdint>
+#include <Aero/CommandBinding.hpp>
 
 namespace Aero { class UIElement; }
 
 namespace Aero::Input {
-
-struct CommandBindingHandle {
-    std::uint64_t value = 0U;
-    constexpr bool IsValid() const noexcept { return value != 0U; }
-};
 
 struct InputBindingHandle {
     std::uint64_t value = 0U;

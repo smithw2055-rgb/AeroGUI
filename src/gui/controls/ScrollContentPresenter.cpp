@@ -18,7 +18,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
-#include "ControlBehavior.hpp"
+
 #include "gui/templates/TemplateInstance.hpp"
 
 namespace Aero::Controls {

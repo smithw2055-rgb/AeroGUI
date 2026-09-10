@@ -19,7 +19,6 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
-#include "ControlBehavior.hpp"
 #include "gui/templates/TemplateInstance.hpp"
 
 namespace Aero::Controls {
@@ -324,7 +323,26 @@ ScrollBar::ScrollBar() noexcept
     : RangeBase(StaticTypeId()),
       trackPropertyChangedHandler_(
           this,
-          &ScrollBar::OnTrackPropertyChanged) {
+          &ScrollBar::OnTrackPropertyChanged),
+      mouseDownHandler_(this, &ScrollBar::OnMouseDownHandler),
+      mouseMoveHandler_(this, &ScrollBar::OnMouseMoveHandler),
+      mouseUpHandler_(this, &ScrollBar::OnMouseUpHandler),
+      keyDownHandler_(this, &ScrollBar::OnKeyDownHandler),
+      lineUpHandler_(&ScrollBar::OnLineUpCommand),
+      lineDownHandler_(&ScrollBar::OnLineDownCommand),
+      lineLeftHandler_(&ScrollBar::OnLineLeftCommand),
+      lineRightHandler_(&ScrollBar::OnLineRightCommand),
+      pageUpHandler_(&ScrollBar::OnPageUpCommand),
+      pageDownHandler_(&ScrollBar::OnPageDownCommand),
+      pageLeftHandler_(&ScrollBar::OnPageLeftCommand),
+      pageRightHandler_(&ScrollBar::OnPageRightCommand),
+      scrollToTopHandler_(&ScrollBar::OnScrollToTopCommand),
+      scrollToBottomHandler_(&ScrollBar::OnScrollToBottomCommand),
+      scrollToLeftEndHandler_(&ScrollBar::OnScrollToLeftEndCommand),
+      scrollToRightEndHandler_(&ScrollBar::OnScrollToRightEndCommand),
+      scrollToHorizontalOffsetHandler_(&ScrollBar::OnScrollToHorizontalOffsetCommand),
+      scrollToVerticalOffsetHandler_(&ScrollBar::OnScrollToVerticalOffsetCommand),
+      commandHandles_(&Base::GetDefaultAllocator()) {
     static_cast<void>(AddValueChangedHandler(
         OrientationProperty,
         trackPropertyChangedHandler_));
@@ -340,9 +358,22 @@ ScrollBar::ScrollBar() noexcept
     static_cast<void>(AddValueChangedHandler(
         ViewportSizeProperty,
         trackPropertyChangedHandler_));
+    AddHandler(UIElement::MouseDownEvent, mouseDownHandler_);
+    AddHandler(UIElement::MouseMoveEvent, mouseMoveHandler_);
+    AddHandler(UIElement::MouseUpEvent, mouseUpHandler_);
+    AddHandler(UIElement::KeyDownEvent, keyDownHandler_);
 }
 
 ScrollBar::~ScrollBar() {
+    if (dragging_) {
+        static_cast<void>(ReleasePointer(pointerId_));
+        dragging_ = false;
+    }
+    RemoveHandler(UIElement::MouseDownEvent, mouseDownHandler_);
+    RemoveHandler(UIElement::MouseMoveEvent, mouseMoveHandler_);
+    RemoveHandler(UIElement::MouseUpEvent, mouseUpHandler_);
+    RemoveHandler(UIElement::KeyDownEvent, keyDownHandler_);
+    UnregisterCommands();
     static_cast<void>(RemoveValueChangedHandler(
         OrientationProperty,
         trackPropertyChangedHandler_));
@@ -360,8 +391,7 @@ ScrollBar::~ScrollBar() {
         trackPropertyChangedHandler_));
 }
 
-void ScrollBar::OnApplyTemplate()
-    noexcept {
+void ScrollBar::OnApplyTemplate() noexcept {
     Control::OnApplyTemplate();
     DependencyObject* part =
         GetTemplateChild("PART_Track");
@@ -373,12 +403,286 @@ void ScrollBar::OnApplyTemplate()
         ? static_cast<Track*>(part)
         : nullptr;
     SynchronizeTrack();
-    return;
+    EnsureCommands();
 }
 
 void ScrollBar::OnTemplateDetached() noexcept {
     track_ = nullptr;
     Control::OnTemplateDetached();
+}
+
+void ScrollBar::OnVisualParentChanged(Visual* oldParent) noexcept {
+    Control::OnVisualParentChanged(oldParent);
+    if (GetVisualParent() != nullptr) {
+        EnsureCommands();
+    } else {
+        if (dragging_) {
+            static_cast<void>(ReleasePointer(pointerId_));
+            dragging_ = false;
+        }
+        UnregisterCommands();
+    }
+}
+
+void ScrollBar::EnsureCommands() noexcept {
+    if (!commandHandles_.Empty()) return;
+    Aero::InputRouter* input = AeroGuiInternal::InputRouterOf(*this);
+    if (input == nullptr) return;
+    auto addCmd = [this, input](Base::StringView name, const ExecutedRoutedEventHandler& handler) {
+        auto cmd = Input::RoutedCommand::ResolveStatic(StaticTypeId(), name);
+        if (cmd) {
+            auto added = input->AddCommandBinding(*this, Input::CommandBinding(std::move(cmd).Value(), handler));
+            if (added) commandHandles_.PushBack(added.Value());
+        }
+    };
+    addCmd("LineUpCommand", lineUpHandler_);
+    addCmd("LineUp", lineUpHandler_);
+    addCmd("LineDownCommand", lineDownHandler_);
+    addCmd("LineDown", lineDownHandler_);
+    addCmd("LineLeftCommand", lineLeftHandler_);
+    addCmd("LineLeft", lineLeftHandler_);
+    addCmd("LineRightCommand", lineRightHandler_);
+    addCmd("LineRight", lineRightHandler_);
+    addCmd("PageUpCommand", pageUpHandler_);
+    addCmd("PageUp", pageUpHandler_);
+    addCmd("PageDownCommand", pageDownHandler_);
+    addCmd("PageDown", pageDownHandler_);
+    addCmd("PageLeftCommand", pageLeftHandler_);
+    addCmd("PageLeft", pageLeftHandler_);
+    addCmd("PageRightCommand", pageRightHandler_);
+    addCmd("PageRight", pageRightHandler_);
+    addCmd("ScrollToTopCommand", scrollToTopHandler_);
+    addCmd("ScrollToTop", scrollToTopHandler_);
+    addCmd("ScrollToBottomCommand", scrollToBottomHandler_);
+    addCmd("ScrollToBottom", scrollToBottomHandler_);
+    addCmd("ScrollToLeftEndCommand", scrollToLeftEndHandler_);
+    addCmd("ScrollToLeftEnd", scrollToLeftEndHandler_);
+    addCmd("ScrollToRightEndCommand", scrollToRightEndHandler_);
+    addCmd("ScrollToRightEnd", scrollToRightEndHandler_);
+    addCmd("ScrollToHorizontalOffsetCommand", scrollToHorizontalOffsetHandler_);
+    addCmd("ScrollToHorizontalOffset", scrollToHorizontalOffsetHandler_);
+    addCmd("ScrollToVerticalOffsetCommand", scrollToVerticalOffsetHandler_);
+    addCmd("ScrollToVerticalOffset", scrollToVerticalOffsetHandler_);
+}
+
+void ScrollBar::UnregisterCommands() noexcept {
+    Aero::InputRouter* input = AeroGuiInternal::InputRouterOf(*this);
+    if (input != nullptr) {
+        for (Input::CommandBindingHandle handle : commandHandles_) {
+            static_cast<void>(input->RemoveCommandBinding(handle));
+        }
+    }
+    commandHandles_.Clear();
+}
+
+void ScrollBar::OnMouseDownHandler(Base::Object*, MouseButtonEventArgs& args) noexcept {
+    if (args.GetChangedButton() == MouseButton::Left) {
+        OnMouseLeftButtonDown(args);
+    }
+}
+
+void ScrollBar::OnMouseMoveHandler(Base::Object*, MouseEventArgs& args) noexcept {
+    OnMouseMove(args);
+}
+
+void ScrollBar::OnMouseUpHandler(Base::Object*, MouseButtonEventArgs& args) noexcept {
+    if (args.GetChangedButton() == MouseButton::Left) {
+        OnMouseLeftButtonUp(args);
+    }
+}
+
+void ScrollBar::OnKeyDownHandler(Base::Object*, KeyEventArgs& args) noexcept {
+    OnKeyDown(args);
+}
+
+void ScrollBar::OnMouseLeftButtonDown(MouseButtonEventArgs& args) {
+    if (args.GetHandled() || !GetIsEnabled() || args.GetChangedButton() != MouseButton::Left) {
+        return;
+    }
+    const Point local = args.GetPosition();
+    const bool horizontal = GetOrientation() == Orientation::Horizontal;
+    const double position = horizontal ? local.x : local.y;
+    const double length = horizontal ? GetRenderSize().width : GetRenderSize().height;
+    const double range = GetMaximum() - GetMinimum();
+    const double normalized = range > 0.0 ? (GetValue() - GetMinimum()) / range : 0.0;
+    const double thumbPosition = std::clamp(normalized, 0.0, 1.0) * std::max(0.0, length - 16.0);
+    const bool isThumb = std::fabs(position - thumbPosition) <= 16.0;
+
+    if (isThumb) {
+        dragging_ = true;
+        pointerId_ = args.GetPointerId();
+        dragOrigin_ = local;
+        dragStartValue_ = GetValue();
+        static_cast<void>(CapturePointer(args.GetPointerId()));
+        args.SetHandled(true);
+    } else if (position < thumbPosition) {
+        static_cast<void>(PageDecrement());
+        args.SetHandled(true);
+    } else {
+        static_cast<void>(PageIncrement());
+        args.SetHandled(true);
+    }
+}
+
+void ScrollBar::OnMouseMove(MouseEventArgs& args) {
+    if (!dragging_ || pointerId_ != args.GetPointerId()) {
+        return;
+    }
+    const Point current = args.GetPosition();
+    const Point origin = dragOrigin_;
+    const double range = GetMaximum() - GetMinimum();
+    if (range <= 0.0) return;
+
+    if (GetOrientation() == Orientation::Vertical) {
+        const double trackHeight = GetRenderSize().height;
+        const double available = std::max(1.0, trackHeight - 16.0);
+        const double deltaY = current.y - origin.y;
+        const double deltaVal = deltaY * range / available;
+        SetValue(std::clamp(dragStartValue_ + deltaVal, GetMinimum(), GetMaximum()));
+        args.SetHandled(true);
+    } else {
+        const double trackWidth = GetRenderSize().width;
+        const double available = std::max(1.0, trackWidth - 16.0);
+        const double deltaX = current.x - origin.x;
+        const double deltaVal = deltaX * range / available;
+        SetValue(std::clamp(dragStartValue_ + deltaVal, GetMinimum(), GetMaximum()));
+        args.SetHandled(true);
+    }
+}
+
+void ScrollBar::OnMouseLeftButtonUp(MouseButtonEventArgs& args) {
+    if (args.GetChangedButton() != MouseButton::Left || !dragging_) {
+        return;
+    }
+    dragging_ = false;
+    static_cast<void>(ReleasePointer(pointerId_));
+    args.SetHandled(true);
+}
+
+void ScrollBar::OnKeyDown(KeyEventArgs& args) {
+    if (!GetIsEnabled()) return;
+    if (args.GetKey() == KeyboardKeyHome) {
+        SetValue(GetMinimum());
+        args.SetHandled(true);
+    } else if (args.GetKey() == KeyboardKeyEnd) {
+        SetValue(GetMaximum());
+        args.SetHandled(true);
+    } else if (args.GetKey() == KeyboardKeyUp || args.GetKey() == KeyboardKeyLeft) {
+        static_cast<void>(LineDecrement());
+        args.SetHandled(true);
+    } else if (args.GetKey() == KeyboardKeyDown || args.GetKey() == KeyboardKeyRight) {
+        static_cast<void>(LineIncrement());
+        args.SetHandled(true);
+    } else if (args.GetKey() == KeyboardKeyPageUp) {
+        static_cast<void>(PageDecrement());
+        args.SetHandled(true);
+    } else if (args.GetKey() == KeyboardKeyPageDown) {
+        static_cast<void>(PageIncrement());
+        args.SetHandled(true);
+    }
+}
+
+void ScrollBar::OnLineUpCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    auto* bar = static_cast<ScrollBar*>(sender);
+    if (bar != nullptr) {
+        static_cast<void>(bar->LineDecrement());
+        args.SetHandled(true);
+    }
+}
+void ScrollBar::OnLineDownCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    auto* bar = static_cast<ScrollBar*>(sender);
+    if (bar != nullptr) {
+        static_cast<void>(bar->LineIncrement());
+        args.SetHandled(true);
+    }
+}
+void ScrollBar::OnLineLeftCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    auto* bar = static_cast<ScrollBar*>(sender);
+    if (bar != nullptr) {
+        static_cast<void>(bar->LineDecrement());
+        args.SetHandled(true);
+    }
+}
+void ScrollBar::OnLineRightCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    auto* bar = static_cast<ScrollBar*>(sender);
+    if (bar != nullptr) {
+        static_cast<void>(bar->LineIncrement());
+        args.SetHandled(true);
+    }
+}
+void ScrollBar::OnPageUpCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    auto* bar = static_cast<ScrollBar*>(sender);
+    if (bar != nullptr) {
+        static_cast<void>(bar->PageDecrement());
+        args.SetHandled(true);
+    }
+}
+void ScrollBar::OnPageDownCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    auto* bar = static_cast<ScrollBar*>(sender);
+    if (bar != nullptr) {
+        static_cast<void>(bar->PageIncrement());
+        args.SetHandled(true);
+    }
+}
+void ScrollBar::OnPageLeftCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    auto* bar = static_cast<ScrollBar*>(sender);
+    if (bar != nullptr) {
+        static_cast<void>(bar->PageDecrement());
+        args.SetHandled(true);
+    }
+}
+void ScrollBar::OnPageRightCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    auto* bar = static_cast<ScrollBar*>(sender);
+    if (bar != nullptr) {
+        static_cast<void>(bar->PageIncrement());
+        args.SetHandled(true);
+    }
+}
+void ScrollBar::OnScrollToTopCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    auto* bar = static_cast<ScrollBar*>(sender);
+    if (bar != nullptr) {
+        bar->SetValue(bar->GetMinimum());
+        args.SetHandled(true);
+    }
+}
+void ScrollBar::OnScrollToBottomCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    auto* bar = static_cast<ScrollBar*>(sender);
+    if (bar != nullptr) {
+        bar->SetValue(bar->GetMaximum());
+        args.SetHandled(true);
+    }
+}
+void ScrollBar::OnScrollToLeftEndCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    auto* bar = static_cast<ScrollBar*>(sender);
+    if (bar != nullptr) {
+        bar->SetValue(bar->GetMinimum());
+        args.SetHandled(true);
+    }
+}
+void ScrollBar::OnScrollToRightEndCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    auto* bar = static_cast<ScrollBar*>(sender);
+    if (bar != nullptr) {
+        bar->SetValue(bar->GetMaximum());
+        args.SetHandled(true);
+    }
+}
+void ScrollBar::OnScrollToHorizontalOffsetCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    auto* bar = static_cast<ScrollBar*>(sender);
+    if (bar != nullptr) {
+        const double value = args.GetParameter().Kind() == Meta::ValueKind::Double
+            ? args.GetParameter().AsDouble() : 0.0;
+        bar->SetValue(std::clamp(value, bar->GetMinimum(), bar->GetMaximum()));
+        args.SetHandled(true);
+    }
+}
+void ScrollBar::OnScrollToVerticalOffsetCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    auto* bar = static_cast<ScrollBar*>(sender);
+    if (bar != nullptr) {
+        const double value = args.GetParameter().Kind() == Meta::ValueKind::Double
+            ? args.GetParameter().AsDouble() : 0.0;
+        bar->SetValue(std::clamp(value, bar->GetMinimum(), bar->GetMaximum()));
+        args.SetHandled(true);
+    }
 }
 
 void ScrollBar::OnTrackPropertyChanged(
@@ -585,7 +889,15 @@ Base::Result<bool> ScrollBar::DragThumb(
 Slider::Slider() noexcept
     : Primitives::RangeBase(StaticTypeId()),
       trackPropertyChangedHandler_(
-          this, &Slider::OnTrackPropertyChanged) {
+          this, &Slider::OnTrackPropertyChanged),
+      mouseDownHandler_(this, &Slider::OnMouseDownHandler),
+      mouseMoveHandler_(this, &Slider::OnMouseMoveHandler),
+      mouseUpHandler_(this, &Slider::OnMouseUpHandler),
+      keyDownHandler_(this, &Slider::OnKeyDownHandler),
+      decreaseSmallHandler_(this, &Slider::OnDecreaseSmallCommand),
+      increaseSmallHandler_(this, &Slider::OnIncreaseSmallCommand),
+      decreaseLargeHandler_(this, &Slider::OnDecreaseLargeCommand),
+      increaseLargeHandler_(this, &Slider::OnIncreaseLargeCommand) {
     static_cast<void>(AddValueChangedHandler(
         OrientationProperty, trackPropertyChangedHandler_));
     static_cast<void>(AddValueChangedHandler(
@@ -596,9 +908,22 @@ Slider::Slider() noexcept
         ValueProperty, trackPropertyChangedHandler_));
     static_cast<void>(AddValueChangedHandler(
         IsDirectionReversedProperty, trackPropertyChangedHandler_));
+    AddHandler(UIElement::MouseDownEvent, mouseDownHandler_);
+    AddHandler(UIElement::MouseMoveEvent, mouseMoveHandler_);
+    AddHandler(UIElement::MouseUpEvent, mouseUpHandler_);
+    AddHandler(UIElement::KeyDownEvent, keyDownHandler_);
 }
 
 Slider::~Slider() {
+    if (dragging_) {
+        static_cast<void>(ReleasePointer(pointerId_));
+        dragging_ = false;
+    }
+    RemoveHandler(UIElement::MouseDownEvent, mouseDownHandler_);
+    RemoveHandler(UIElement::MouseMoveEvent, mouseMoveHandler_);
+    RemoveHandler(UIElement::MouseUpEvent, mouseUpHandler_);
+    RemoveHandler(UIElement::KeyDownEvent, keyDownHandler_);
+    UnregisterCommands();
     static_cast<void>(RemoveValueChangedHandler(
         OrientationProperty, trackPropertyChangedHandler_));
     static_cast<void>(RemoveValueChangedHandler(
@@ -620,11 +945,197 @@ void Slider::OnApplyTemplate() noexcept {
         ? static_cast<Track*>(part)
         : nullptr;
     SynchronizeTrack();
+    EnsureCommands();
 }
 
 void Slider::OnTemplateDetached() noexcept {
     track_ = nullptr;
     Control::OnTemplateDetached();
+}
+
+void Slider::OnVisualParentChanged(Visual* oldParent) noexcept {
+    Control::OnVisualParentChanged(oldParent);
+    if (GetVisualParent() != nullptr) {
+        EnsureCommands();
+    } else {
+        if (dragging_) {
+            static_cast<void>(ReleasePointer(pointerId_));
+            dragging_ = false;
+        }
+        UnregisterCommands();
+    }
+}
+
+void Slider::EnsureCommands() noexcept {
+    if (decreaseSmallCommand_.IsValid()) return;
+    Aero::InputRouter* input = AeroGuiInternal::InputRouterOf(*this);
+    if (input == nullptr) return;
+    auto addCmd = [this, input](Base::StringView name, const ExecutedRoutedEventHandler& handler, Input::CommandBindingHandle& out) {
+        auto cmd = Input::RoutedCommand::ResolveStatic(StaticTypeId(), name);
+        if (cmd) {
+            auto added = input->AddCommandBinding(*this, Input::CommandBinding(std::move(cmd).Value(), handler));
+            if (added) out = added.Value();
+        }
+    };
+    addCmd("DecreaseSmall", decreaseSmallHandler_, decreaseSmallCommand_);
+    addCmd("IncreaseSmall", increaseSmallHandler_, increaseSmallCommand_);
+    addCmd("DecreaseLarge", decreaseLargeHandler_, decreaseLargeCommand_);
+    addCmd("IncreaseLarge", increaseLargeHandler_, increaseLargeCommand_);
+}
+
+void Slider::UnregisterCommands() noexcept {
+    Aero::InputRouter* input = AeroGuiInternal::InputRouterOf(*this);
+    if (input != nullptr) {
+        if (decreaseSmallCommand_.IsValid()) input->RemoveCommandBinding(decreaseSmallCommand_);
+        if (increaseSmallCommand_.IsValid()) input->RemoveCommandBinding(increaseSmallCommand_);
+        if (decreaseLargeCommand_.IsValid()) input->RemoveCommandBinding(decreaseLargeCommand_);
+        if (increaseLargeCommand_.IsValid()) input->RemoveCommandBinding(increaseLargeCommand_);
+    }
+    decreaseSmallCommand_ = {};
+    increaseSmallCommand_ = {};
+    decreaseLargeCommand_ = {};
+    increaseLargeCommand_ = {};
+}
+
+void Slider::OnMouseDownHandler(Base::Object*, MouseButtonEventArgs& args) noexcept {
+    if (args.GetChangedButton() == MouseButton::Left) {
+        OnMouseLeftButtonDown(args);
+    }
+}
+
+void Slider::OnMouseMoveHandler(Base::Object*, MouseEventArgs& args) noexcept {
+    OnMouseMove(args);
+}
+
+void Slider::OnMouseUpHandler(Base::Object*, MouseButtonEventArgs& args) noexcept {
+    if (args.GetChangedButton() == MouseButton::Left) {
+        OnMouseLeftButtonUp(args);
+    }
+}
+
+void Slider::OnKeyDownHandler(Base::Object*, KeyEventArgs& args) noexcept {
+    OnKeyDown(args);
+}
+
+void Slider::SetFromPoint() noexcept {
+    if (track_ != nullptr) {
+        SetValueFromTrackPoint(Input::Mouse::GetPosition(track_));
+        return;
+    }
+    const Point local = Input::Mouse::GetPosition(this);
+    const bool horizontal = GetOrientation() == Orientation::Horizontal;
+    SetValueFromPosition(
+        horizontal ? local.x : local.y,
+        horizontal ? GetRenderSize().width : GetRenderSize().height);
+}
+
+void Slider::OnMouseLeftButtonDown(MouseButtonEventArgs& args) {
+    if (!GetIsEnabled() || args.GetChangedButton() != MouseButton::Left) {
+        return;
+    }
+    pointerId_ = args.GetPointerId();
+    static_cast<void>(Focus());
+    Track* track = track_;
+    Thumb* thumb = track != nullptr ? track->GetThumbElement().Get() : nullptr;
+    auto* source = ::Aero::TryCast<UIElement>(args.GetOriginalSource());
+    const bool onThumb = thumb != nullptr && source != nullptr && (source == thumb || thumb->IsAncestorOf(*source));
+    const bool onTrack = track != nullptr && source != nullptr && (source == track || track->IsAncestorOf(*source));
+    const bool onSlider = source == nullptr || source == this || IsAncestorOf(*source);
+    const bool hasRepeatButtons = track != nullptr && (track->GetDecreaseRepeatButton() || track->GetIncreaseRepeatButton());
+
+    const bool moveToPoint = GetIsMoveToPointEnabled() || ((onTrack || onSlider) && !hasRepeatButtons);
+    dragging_ = onThumb || moveToPoint;
+    if (!dragging_ && track != nullptr && onTrack) {
+        const Point local = Input::Mouse::GetPosition(track);
+        const bool horizontal = GetOrientation() == Orientation::Horizontal;
+        const Size size = track->GetRenderSize();
+        const double length = horizontal ? size.width : size.height;
+        const double position = horizontal ? local.x : local.y;
+        const double thumbOffset = track->GetThumbOffset(length);
+        const double thumbLength = track->GetThumbLength(length);
+        dragging_ = std::fabs(position - (thumbOffset + thumbLength * 0.5)) <= std::max(10.0, thumbLength);
+    }
+    if (dragging_) {
+        static_cast<void>(CapturePointer(args.GetPointerId()));
+    }
+    if (moveToPoint || (dragging_ && onThumb)) {
+        SetFromPoint();
+    } else if (!dragging_) {
+        const Point local = track != nullptr
+            ? Input::Mouse::GetPosition(track)
+            : Input::Mouse::GetPosition(this);
+        const bool horizontal = GetOrientation() == Orientation::Horizontal;
+        const double position = horizontal ? local.x : local.y;
+        const double length = horizontal
+            ? (track != nullptr ? track->GetRenderSize().width : GetRenderSize().width)
+            : (track != nullptr ? track->GetRenderSize().height : GetRenderSize().height);
+        const bool after = position >= length * 0.5;
+        const bool increase = GetIsDirectionReversed() ? !after : after;
+        static_cast<void>(increase ? IncreaseLarge() : DecreaseLarge());
+    }
+    args.SetHandled(true);
+}
+
+void Slider::OnMouseMove(MouseEventArgs& args) {
+    if (!dragging_ || pointerId_ != args.GetPointerId()) {
+        return;
+    }
+    SetFromPoint();
+    args.SetHandled(true);
+}
+
+void Slider::OnMouseLeftButtonUp(MouseButtonEventArgs& args) {
+    if (args.GetChangedButton() != MouseButton::Left || !dragging_ || pointerId_ != args.GetPointerId()) {
+        return;
+    }
+    SetFromPoint();
+    dragging_ = false;
+    static_cast<void>(ReleasePointer(args.GetPointerId()));
+    args.SetHandled(true);
+}
+
+void Slider::OnKeyDown(KeyEventArgs& args) {
+    if (!GetIsEnabled()) return;
+    bool changed = false;
+    bool handled = true;
+    const bool reversed = GetIsDirectionReversed();
+    if (args.GetKey() == KeyboardKeyHome) {
+        const double oldValue = GetValue();
+        SetValue(reversed ? GetMaximum() : GetMinimum());
+        changed = !Same(oldValue, GetValue());
+    } else if (args.GetKey() == KeyboardKeyEnd) {
+        const double oldValue = GetValue();
+        SetValue(reversed ? GetMinimum() : GetMaximum());
+        changed = !Same(oldValue, GetValue());
+    } else if (args.GetKey() == KeyboardKeyLeft || args.GetKey() == KeyboardKeyDown) {
+        Result<bool> result = reversed ? IncreaseSmall() : DecreaseSmall();
+        changed = result && result.Value();
+    } else if (args.GetKey() == KeyboardKeyRight || args.GetKey() == KeyboardKeyUp) {
+        Result<bool> result = reversed ? DecreaseSmall() : IncreaseSmall();
+        changed = result && result.Value();
+    } else {
+        handled = false;
+    }
+    if (handled && changed) {
+        args.SetHandled(true);
+    }
+}
+
+void Slider::OnDecreaseSmallCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
+    static_cast<void>(DecreaseSmall());
+    args.SetHandled(true);
+}
+void Slider::OnIncreaseSmallCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
+    static_cast<void>(IncreaseSmall());
+    args.SetHandled(true);
+}
+void Slider::OnDecreaseLargeCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
+    static_cast<void>(DecreaseLarge());
+    args.SetHandled(true);
+}
+void Slider::OnIncreaseLargeCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
+    static_cast<void>(IncreaseLarge());
+    args.SetHandled(true);
 }
 
 Size Slider::MeasureOverride(Size availableSize) noexcept {

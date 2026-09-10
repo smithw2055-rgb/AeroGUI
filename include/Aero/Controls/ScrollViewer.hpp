@@ -115,10 +115,10 @@ protected:
     bool GetAllowsVerticalScroll() const noexcept override;
     bool GetUsesContentScrolling() const noexcept override;
     void OnTemplateDetached() noexcept override;
+    virtual void OnMouseWheel(MouseWheelEventArgs& args);
 
 private:
     friend class ScrollContentPresenter;
-    friend class ScrollBehavior;
     ScrollContentPresenter* contentPresenter_ = nullptr;
     void AdoptPresenterData(
         ScrollContentPresenter& presenter,
@@ -131,11 +131,15 @@ private:
     void OnScrollBarValueChanged(
         DependencyObject& sender,
         const DependencyPropertyChangedEventArgs& args) noexcept;
+    void HandleMouseWheel(
+        Base::Object* sender,
+        MouseWheelEventArgs& args) noexcept;
 
     Primitives::ScrollBar* verticalScrollBar_ = nullptr;
     Primitives::ScrollBar* horizontalScrollBar_ = nullptr;
     bool synchronizingScrollBars_ = false;
     DependencyPropertyChangedEventHandler scrollBarValueChangedHandler_;
+    MouseWheelEventHandler mouseWheelHandler_;
 };
 } // namespace Aero::Controls
 AERO_DECLARE_TYPE_ENUM(Aero::Controls::ScrollBarVisibility)

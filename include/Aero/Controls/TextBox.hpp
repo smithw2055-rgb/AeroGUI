@@ -4,14 +4,13 @@
 #include <Aero/Controls/TextBoxBase.hpp>
 #include <Aero/Controls/ScrollViewer.hpp>
 #include <Aero/TextFormatting.hpp>
-
+#include <Aero/Events/EventArgs.hpp>
 
 namespace Aero::Controls {
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::DependencyPropertyChangedEventHandler;
 using ::Aero::Meta::TypeId;
 class PasswordBox;
-class TextEditBehavior;
 class AERO_GUI_API TextBox
     : public Primitives::TextBoxBase,
       private IScrollInfo,
@@ -131,9 +130,34 @@ protected:
     void OnRender(
         ::Aero::Media::DrawingContext& context) noexcept override;
 
+    virtual void OnMouseDown(MouseButtonEventArgs& args) noexcept;
+    virtual void OnMouseMove(MouseEventArgs& args) noexcept;
+    virtual void OnMouseUp(MouseButtonEventArgs& args) noexcept;
+    virtual void OnKeyDown(KeyEventArgs& args) noexcept;
+    virtual void OnTextInput(TextCompositionEventArgs& args) noexcept;
+    virtual void OnLostKeyboardFocus(KeyboardFocusChangedEventArgs& args) noexcept;
+
 private:
-    friend class TextEditBehavior;
     friend class PasswordBox;
+
+    MouseButtonEventHandler mouseDownHandler_;
+    MouseEventHandler mouseMoveHandler_;
+    MouseButtonEventHandler mouseUpHandler_;
+    KeyEventHandler keyDownHandler_;
+    TextCompositionEventHandler textInputHandler_;
+    KeyboardFocusChangedEventHandler focusChangedHandler_;
+    DependencyPropertyChangedEventHandler propertyChangedHandler_;
+
+    std::uint32_t pointerId_ = 0U;
+    std::uint32_t dragAnchor_ = 0U;
+    bool isDragging_ = false;
+
+    void OnMouseDownHandler(Base::Object* sender, MouseButtonEventArgs& args) noexcept;
+    void OnMouseMoveHandler(Base::Object* sender, MouseEventArgs& args) noexcept;
+    void OnMouseUpHandler(Base::Object* sender, MouseButtonEventArgs& args) noexcept;
+    void OnKeyDownHandler(Base::Object* sender, KeyEventArgs& args) noexcept;
+    void OnTextInputHandler(Base::Object* sender, TextCompositionEventArgs& args) noexcept;
+    void OnLostKeyboardFocusHandler(Base::Object* sender, KeyboardFocusChangedEventArgs& args) noexcept;
 
     struct CaretStop {
         double x = 0.0;
@@ -163,8 +187,10 @@ private:
     bool showingPlaceholder_ = false;
     UIElement* coordinateOwner_ = nullptr;
     PasswordBox* passwordOwner_ = nullptr;
-    DependencyPropertyChangedEventHandler
-        textChangedHandler_;
+
+    void OnPropertyChanged(
+        DependencyObject& object,
+        const DependencyPropertyChangedEventArgs& args) noexcept;
 
     Result<void> SynchronizeModel() noexcept;
     Result<void> CommitModelText() noexcept;

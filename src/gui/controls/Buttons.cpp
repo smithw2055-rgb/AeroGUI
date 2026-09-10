@@ -15,7 +15,6 @@
 
 #include <utility>
 #include <new>
-#include "ControlBehavior.hpp"
 
 namespace Aero::Controls {
 
@@ -539,11 +538,7 @@ RepeatButton::RepeatButton(TypeId runtimeType) noexcept
 }
 
 RepeatButton::~RepeatButton() {
-    auto* behaviors = static_cast<ControlBehavior*>(
-        AeroGuiInternal::ControlBehaviorRuntime(*this));
-    if (behaviors != nullptr) {
-        behaviors->SetActiveRepeatButton(nullptr);
-    }
+    AeroGuiInternal::SetActiveRepeatButton(*this, nullptr);
 }
 
 std::uint32_t RepeatButton::GetDelay() const noexcept {
@@ -565,42 +560,26 @@ void RepeatButton::SetInterval(std::uint32_t value) noexcept {
 void RepeatButton::OnMouseLeftButtonDown(MouseButtonEventArgs& args) {
     ButtonBase::OnMouseLeftButtonDown(args);
     if (GetIsEnabled()) {
-        auto* behaviors = static_cast<ControlBehavior*>(
-            AeroGuiInternal::ControlBehaviorRuntime(*this));
-        if (behaviors != nullptr) {
-            behaviors->SetActiveRepeatButton(this);
-        }
+        AeroGuiInternal::SetActiveRepeatButton(*this, this);
     }
 }
 
 void RepeatButton::OnMouseLeftButtonUp(MouseButtonEventArgs& args) {
     ButtonBase::OnMouseLeftButtonUp(args);
-    auto* behaviors = static_cast<ControlBehavior*>(
-        AeroGuiInternal::ControlBehaviorRuntime(*this));
-    if (behaviors != nullptr) {
-        behaviors->SetActiveRepeatButton(nullptr);
-    }
+    AeroGuiInternal::SetActiveRepeatButton(*this, nullptr);
 }
 
 void RepeatButton::OnKeyDown(KeyEventArgs& args) {
     ButtonBase::OnKeyDown(args);
     if (GetIsEnabled() && (args.GetKey() == KeyboardKeySpace || args.GetKey() == KeyboardKeyEnter)) {
-        auto* behaviors = static_cast<ControlBehavior*>(
-            AeroGuiInternal::ControlBehaviorRuntime(*this));
-        if (behaviors != nullptr) {
-            behaviors->SetActiveRepeatButton(this);
-        }
+        AeroGuiInternal::SetActiveRepeatButton(*this, this);
     }
 }
 
 void RepeatButton::OnKeyUp(KeyEventArgs& args) {
     ButtonBase::OnKeyUp(args);
     if (args.GetKey() == KeyboardKeySpace || args.GetKey() == KeyboardKeyEnter) {
-        auto* behaviors = static_cast<ControlBehavior*>(
-            AeroGuiInternal::ControlBehaviorRuntime(*this));
-        if (behaviors != nullptr) {
-            behaviors->SetActiveRepeatButton(nullptr);
-        }
+        AeroGuiInternal::SetActiveRepeatButton(*this, nullptr);
     }
 }
 

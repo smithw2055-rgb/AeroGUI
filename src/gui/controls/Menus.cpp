@@ -9,10 +9,8 @@
 #include <Aero/Controls.hpp>
 
 #include <utility>
-#include "ControlBehavior.hpp"
 
 namespace Aero::Controls {
-using Aero::Controls::MenuBehavior;
 
 using namespace Primitives;
 using namespace Meta;
@@ -227,12 +225,136 @@ void MenuItem::SetRoleState(
     SetReadOnlyCurrentValue(RoleProperty, value);
 }
 
+Menu::Menu() noexcept
+    : Menu(StaticTypeId()) {}
+
+Menu::Menu(TypeId runtimeType) noexcept
+    : ItemsControl(runtimeType),
+      mouseDownHandler_(this, &Menu::HandleMouseDown),
+      keyDownHandler_(this, &Menu::HandleKeyDown) {
+    AddHandler(UIElement::MouseDownEvent, mouseDownHandler_);
+    AddHandler(UIElement::KeyDownEvent, keyDownHandler_);
+}
+
 Menu::~Menu() {
-    auto* behaviors = static_cast<ControlBehavior*>(
-        AeroGuiInternal::ControlBehaviorRuntime(*this));
-    if (behaviors != nullptr) {
-        static_cast<void>(behaviors->Detach(*this));
+    static_cast<void>(RemoveHandler(
+        UIElement::MouseDownEvent,
+        mouseDownHandler_));
+    static_cast<void>(RemoveHandler(
+        UIElement::KeyDownEvent,
+        keyDownHandler_));
+}
+
+void Menu::HandleMouseDown(Base::Object*, MouseButtonEventArgs& args) noexcept {
+    OnMouseLeftButtonDown(args);
+}
+
+void Menu::HandleKeyDown(Base::Object*, KeyEventArgs& args) noexcept {
+    OnKeyDown(args);
+}
+
+MenuItem* Menu::FindItem(Base::Object* source) const noexcept {
+    if (source == nullptr ||
+        !AeroGuiInternal::PropertyRegistry(*this).Types().
+            IsDerivedFrom(
+                source->RuntimeType(),
+                UIElement::StaticTypeId())) {
+        return nullptr;
     }
+    ::Aero::Media::Visual* visual =
+        static_cast<UIElement*>(source);
+    while (visual != nullptr &&
+        visual != this) {
+        UIElement* element =
+            ::Aero::TryCast<::Aero::UIElement>(visual);
+        if (element != nullptr &&
+            AeroGuiInternal::PropertyRegistry(*this).Types().
+                IsDerivedFrom(
+                    element->RuntimeType(),
+                    MenuItem::StaticTypeId())) {
+            return static_cast<MenuItem*>(element);
+        }
+        visual = visual->GetVisualParent();
+    }
+    return nullptr;
+}
+
+Base::Result<void> Menu::Invoke(MenuItem& item) noexcept {
+    if (item.GetCount() != 0U) {
+        item.SetIsSubmenuOpen(!item.GetIsSubmenuOpen());
+        return {};
+    }
+    if (item.GetIsCheckable()) {
+        item.SetIsChecked(!item.GetIsChecked());
+    }
+    RoutedEventArgs event;
+    if (auto* events = AeroGuiInternal::EventRouterOf(*this)) {
+        Base::Result<void> raised =
+            events->RaiseEvent(item, MenuItem::ClickEvent, &event);
+        if (!raised) return raised.GetStatus();
+    }
+    ICommand* command = item.GetCommand();
+    if (command != nullptr) {
+        const Value parameter = item.GetCommandParameter();
+        Aero::InputRouter* input = AeroGuiInternal::InputRouterOf(*this);
+        if (input != nullptr) {
+            Base::Result<bool> executed =
+                input->Execute(*command, parameter, item);
+            if (!executed) {
+                return executed.GetStatus();
+            }
+        } else {
+            command->Execute(parameter, &item);
+        }
+    }
+    if (AeroGuiInternal::PropertyRegistry(*this).Types().
+        IsDerivedFrom(
+            RuntimeType(),
+            ContextMenu::StaticTypeId())) {
+        static_cast<void>(
+            static_cast<ContextMenu&>(
+                *this).SetIsOpen(false));
+    }
+    return {};
+}
+
+void Menu::OnMouseLeftButtonDown(MouseButtonEventArgs& args) {
+    if (args.GetChangedButton() != MouseButton::Left) {
+        return;
+    }
+    MenuItem* item = FindItem(args.GetOriginalSource());
+    if (item == nullptr) return;
+    AeroGuiInternal::SetMenuItemHighlighted(*item, true);
+    Base::Result<void> invoked = Invoke(*item);
+    if (!invoked) return;
+    static_cast<void>(item->Focus());
+    args.SetHandled(true);
+}
+
+void Menu::OnKeyDown(KeyEventArgs& args) {
+    if (args.GetKey() != KeyboardKeyEnter &&
+        args.GetKey() != KeyboardKeySpace &&
+        args.GetKey() != KeyboardKeyRight &&
+        args.GetKey() != KeyboardKeyLeft &&
+        args.GetKey() != KeyboardKeyEscape) {
+        return;
+    }
+    MenuItem* item = FindItem(args.GetOriginalSource());
+    if (item == nullptr) return;
+    if (args.GetKey() == KeyboardKeyEscape ||
+        args.GetKey() == KeyboardKeyLeft) {
+        static_cast<void>(
+            item->SetIsSubmenuOpen(false));
+    } else if (args.GetKey() == KeyboardKeyRight) {
+        if (item->GetCount() != 0U) {
+            static_cast<void>(
+                item->SetIsSubmenuOpen(true));
+        }
+    } else {
+        static_cast<void>(
+            Invoke(*item));
+    }
+    args.SetHandled(true);
 }
 
 Base::Result<Base::Ref<FrameworkElement>>
@@ -326,228 +448,3 @@ ContextMenuService::SetContextMenu(
 
 } // namespace Aero::Controls
 
-namespace Aero::Controls {
-
-using namespace Aero::Meta;
-using namespace Aero::Threading;
-using namespace Aero::Controls;
-using namespace ::Aero::Controls;
-using namespace ::Aero;
-
-MenuBehavior::
-MenuBehavior(
-    ElementTree& tree,
-    EventRouter& events,
-    InputRouter& input) noexcept
-    : tree_(&tree),
-      events_(&events),
-      input_(&input),
-      mouseDownHandler_(
-          this,
-          &MenuBehavior::
-              OnMouseDown),
-      keyDownHandler_(
-          this,
-          &MenuBehavior::
-              OnKeyDown) {}
-
-MenuBehavior::
-~MenuBehavior() noexcept {
-    while (!records_.Empty()) {
-        Menu* menu =
-            ResolveMenu(records_.Size() - 1U);
-        if (menu == nullptr) {
-            records_.PopBack();
-        } else {
-            static_cast<void>(Detach(*menu));
-        }
-    }
-}
-
-std::uint32_t
-MenuBehavior::FindMenu(
-    const Menu& menu) const noexcept {
-    for (std::uint32_t index = 0U;
-        index < records_.Size(); ++index) {
-        if (tree_->ResolveHandle(
-                records_[index]) == &menu) {
-            return index;
-        }
-    }
-    return UINT32_MAX;
-}
-
-Menu* MenuBehavior::ResolveMenu(
-    std::uint32_t index) noexcept {
-    ::Aero::Media::Visual* visual =
-        index < records_.Size()
-        ? tree_->ResolveHandle(records_[index])
-        : nullptr;
-    return visual != nullptr
-        ? static_cast<Menu*>(
-            ::Aero::TryCast<::Aero::UIElement>(visual))
-        : nullptr;
-}
-
-Base::Result<void>
-MenuBehavior::Attach(
-    Menu& menu) noexcept {
-    if (VisualTree(menu) != tree_ ||
-        FindMenu(menu) != UINT32_MAX) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "Menu interaction attach state is invalid");
-    }
-    Base::Result<VisualHandle> handle =
-        tree_->GetHandle(menu);
-    if (!handle) return handle.GetStatus();
-    menu.AddHandler(UIElement::MouseDownEvent, mouseDownHandler_);
-    menu.AddHandler(UIElement::KeyDownEvent, keyDownHandler_);
-    records_.PushBack(handle.Value());
-    return {};
-}
-
-Base::Result<bool>
-MenuBehavior::Detach(
-    Menu& menu) noexcept {
-    const std::uint32_t index =
-        FindMenu(menu);
-    if (index == UINT32_MAX) return false;
-    static_cast<void>(menu.RemoveHandler(
-        UIElement::MouseDownEvent,
-        mouseDownHandler_));
-    static_cast<void>(menu.RemoveHandler(
-        UIElement::KeyDownEvent,
-        keyDownHandler_));
-    for (std::uint32_t current = index;
-        current + 1U < records_.Size();
-        ++current) {
-        records_[current] =
-            records_[current + 1U];
-    }
-    records_.PopBack();
-    return true;
-}
-
-MenuItem* MenuBehavior::FindItem(
-    Menu& menu,
-    Base::Object* source) const noexcept {
-    if (source == nullptr ||
-        !AeroGuiInternal::PropertyRegistry(menu).Types().
-            IsDerivedFrom(
-                source->RuntimeType(),
-                UIElement::StaticTypeId())) {
-        return nullptr;
-    }
-    ::Aero::Media::Visual* visual =
-        static_cast<UIElement*>(source);
-    while (visual != nullptr &&
-        visual != &menu) {
-        UIElement* element =
-            ::Aero::TryCast<::Aero::UIElement>(visual);
-        if (element != nullptr &&
-            AeroGuiInternal::PropertyRegistry(menu).Types().
-                IsDerivedFrom(
-                    element->RuntimeType(),
-                    MenuItem::StaticTypeId())) {
-            return static_cast<MenuItem*>(
-                element);
-        }
-        visual = visual->GetVisualParent();
-    }
-    return nullptr;
-}
-
-Base::Result<void>
-    MenuBehavior::Invoke(
-    Menu& menu,
-    MenuItem& item) noexcept {
-    if (item.GetCount() != 0U) {
-        item.SetIsSubmenuOpen(!item.GetIsSubmenuOpen());
-        return {};
-    }
-    if (item.GetIsCheckable()) {
-        item.SetIsChecked(!item.GetIsChecked());
-    }
-    RoutedEventArgs event;
-    Base::Result<void> raised =
-        events_->RaiseEvent(
-            item, MenuItem::ClickEvent, &event);
-    if (!raised) return raised.GetStatus();
-    ICommand* command = item.GetCommand();
-    if (command != nullptr) {
-        const Value parameter = item.GetCommandParameter();
-        Base::Result<bool> executed =
-            input_->Execute(*command, parameter, item);
-        if (!executed) {
-            return executed.GetStatus();
-        }
-    }
-    if (AeroGuiInternal::PropertyRegistry(menu).Types().
-        IsDerivedFrom(
-            menu.RuntimeType(),
-            ContextMenu::StaticTypeId())) {
-        static_cast<void>(
-            static_cast<ContextMenu&>(
-                menu).SetIsOpen(false));
-    }
-    return {};
-}
-
-void MenuBehavior::OnMouseDown(
-    Base::Object* sender,
-    MouseButtonEventArgs& args)
-    noexcept {
-    if (args.GetChangedButton() !=
-        MouseButton::Left) {
-        return;
-    }
-    auto& menu =
-        *static_cast<Menu*>(sender);
-    MenuItem* item =
-        FindItem(
-            menu, args.GetOriginalSource());
-    if (item == nullptr) return;
-    AeroGuiInternal::SetMenuItemHighlighted(*item, true);
-    Base::Result<void> invoked =
-        Invoke(menu, *item);
-    if (!invoked) return;
-    static_cast<void>(
-        input_->SetFocus(item));
-    args.SetHandled(true);
-}
-
-void MenuBehavior::OnKeyDown(
-    Base::Object* sender,
-    KeyEventArgs& args) noexcept {
-    if (args.GetKey() != KeyboardKeyEnter &&
-        args.GetKey() != KeyboardKeySpace &&
-        args.GetKey() != KeyboardKeyRight &&
-        args.GetKey() != KeyboardKeyLeft &&
-        args.GetKey() != KeyboardKeyEscape) {
-        return;
-    }
-    auto& menu =
-        *static_cast<Menu*>(sender);
-    MenuItem* item =
-        FindItem(
-            menu, args.GetOriginalSource());
-    if (item == nullptr) return;
-    if (args.GetKey() == KeyboardKeyEscape ||
-        args.GetKey() == KeyboardKeyLeft) {
-        static_cast<void>(
-            item->SetIsSubmenuOpen(false));
-    } else if (
-        args.GetKey() == KeyboardKeyRight) {
-        if (item->GetCount() != 0U) {
-            static_cast<void>(
-                item->SetIsSubmenuOpen(true));
-        }
-    } else {
-        static_cast<void>(
-            Invoke(menu, *item));
-    }
-    args.SetHandled(true);
-}
-
-} // namespace Aero::Controls

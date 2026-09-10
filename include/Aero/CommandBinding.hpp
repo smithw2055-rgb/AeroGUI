@@ -5,8 +5,14 @@
 #include <Aero/Value.hpp>
 #include <Aero/RoutedCommand.hpp>
 #include <Aero/Events/CommandEventArgs.hpp>
+#include <cstdint>
 
 namespace Aero::Input {
+
+struct CommandBindingHandle {
+    std::uint64_t value = 0U;
+    constexpr bool IsValid() const noexcept { return value != 0U; }
+};
 
 class AERO_GUI_API CommandBinding : public Base::Object {
     AERO_DECLARE_TYPE(CommandBinding, Base::Object)

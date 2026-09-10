@@ -19,7 +19,8 @@
 
 #include "gui/templates/DataTemplateTriggerInstance.hpp"
 #include "gui/media/AnimationModel.hpp"
-#include "gui/controls/ControlBehavior.hpp"
+#include <Aero/Documents.hpp>
+
 
 #include <Aero/Media/StreamGeometry.hpp>
 #include <Aero/Media/Geometry.hpp>

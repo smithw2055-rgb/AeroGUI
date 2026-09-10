@@ -6,6 +6,8 @@
 #include <Aero/DependencyProperty.hpp>
 #include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/Visual.hpp>
+#include <Aero/Media/Animation/Storyboard.hpp>
+#include <Aero/Media/Animation/EasingFunctionBase.hpp>
 
 #include <cstdint>
 

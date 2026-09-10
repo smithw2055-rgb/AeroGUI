@@ -146,7 +146,6 @@ set(_aero_gui_controls_sources
     src/gui/controls/Bars.cpp
     src/gui/controls/Buttons.cpp
     src/gui/controls/ContentControls.cpp
-    src/gui/controls/ControlBehavior.cpp
     src/gui/controls/Controls.cpp
     src/gui/controls/Panels.cpp
     src/gui/controls/Images.cpp
@@ -159,12 +158,10 @@ set(_aero_gui_controls_sources
     src/gui/controls/ScrollContentPresenter.cpp
     src/gui/controls/ScrollViewer.cpp
     src/gui/controls/ScrollBar.cpp
-    src/gui/controls/ScrollBehavior.cpp
     src/gui/controls/Selection.cpp
     src/gui/controls/TextBoxCommon.hpp
     src/gui/controls/TextBox.cpp
     src/gui/controls/PasswordBox.cpp
-    src/gui/controls/TextBoxInteraction.cpp
     src/gui/controls/Trees.cpp
     src/gui/controls/Virtualization.cpp
     src/gui/controls/VisualStateManager.cpp)
@@ -279,7 +276,7 @@ source_group("gui\\controls\\scroll" REGULAR_EXPRESSION
 source_group("gui\\controls\\items" REGULAR_EXPRESSION
     "src/gui/controls/(Items.*|ItemContainerGenerator|ListView|Selection|Trees|Virtualization).*")
 source_group("gui\\controls\\chrome" REGULAR_EXPRESSION
-    "src/gui/controls/(Bars|Buttons|Menus|ContentControls|ControlBehavior|Controls.*|Images|VisualStateManager).*")
+    "src/gui/controls/(Bars|Buttons|Menus|ContentControls|Controls.*|Images|VisualStateManager).*")
 
 add_library(AeroGui ${AERO_LIBRARY_TYPE} ${_aero_gui_sources})
 add_library(Aero::Gui ALIAS AeroGui)

@@ -10,6 +10,7 @@
 #include <Aero/Media/Transforms.hpp>
 #include <Aero/Media/CompositeTransform3D.hpp>
 #include <Aero/UIElement.hpp>
+#include <Aero/Documents.hpp>
 
 #include <algorithm>
 #include <cmath>

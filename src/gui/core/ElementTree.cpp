@@ -17,6 +17,7 @@
 #include <Aero/Controls/Panel.hpp>
 #include <Aero/Controls/ContentControl.hpp>
 #include <Aero/Controls/ControlTemplate.hpp>
+#include <Aero/Controls/Primitives/RepeatButton.hpp>
 
 
 #include "gui/data/BindingEngine.hpp"
@@ -221,6 +222,11 @@ void ElementTree::InvalidateNodeHandle(::Aero::Media::Visual& node) noexcept {
             ++entry.generation;
             if (entry.generation == 0U) ++entry.generation;
         }
+    }
+    if (activeRepeatButton_ == static_cast<void*>(&node)) {
+        activeRepeatButton_ = nullptr;
+        repeatElapsed_ = 0U;
+        nextRepeat_ = 0U;
     }
     if (bindings_ != nullptr || values_ != nullptr) {
         Base::Vector<DependencyObject*> detachedProps;
@@ -977,6 +983,32 @@ Base::Result<std::uint32_t> ElementTree::FlushLifecycle() noexcept {
 void ElementTree::LifecycleHook(void* context) noexcept {
     ElementTree* tree = static_cast<ElementTree*>(context);
     (void)tree->FlushLifecycle();
+}
+
+std::uint32_t ElementTree::AdvanceRepeatButtonTime(
+    std::uint32_t elapsedMilliseconds) noexcept {
+    if (activeRepeatButton_ == nullptr || !activeRepeatButton_->GetIsEnabled()) {
+        return 0U;
+    }
+    if (!activeRepeatButton_->GetIsMouseOver() && !activeRepeatButton_->GetIsKeyboardFocused()) {
+        return 0U;
+    }
+    repeatElapsed_ += elapsedMilliseconds;
+    if (nextRepeat_ == 0U) {
+        nextRepeat_ = activeRepeatButton_->GetDelay();
+    }
+    const std::uint64_t interval = activeRepeatButton_->GetInterval();
+    if (interval == 0U) return 0U;
+    std::uint32_t emitted = 0U;
+    while (repeatElapsed_ >= nextRepeat_ && emitted < 1024U) {
+        AeroGuiInternal::Click(*activeRepeatButton_);
+        ++emitted;
+        nextRepeat_ += interval;
+    }
+    if (emitted == 1024U && repeatElapsed_ >= nextRepeat_) {
+        nextRepeat_ = repeatElapsed_ + interval;
+    }
+    return emitted;
 }
 
 

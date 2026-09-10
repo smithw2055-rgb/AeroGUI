@@ -48,10 +48,9 @@ class LayoutEngine;
 class StyleEngine;
 class VisualStateManager;
 class DataTemplate;
-class Style;
+namespace Input { class IClipboard; }
 namespace Controls {
 class TemplateEngine;
-class ControlBehavior;
 class TextBlockLayout;
 class ItemsPanelTemplate;
 enum class ItemSubtreeChange : std::uint8_t { Mounted = 0U, Unmounting };
