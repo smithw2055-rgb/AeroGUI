@@ -762,9 +762,6 @@ VirtualizingStackPanel::MeasureOverride(
         Base::Result<void> measured =
             MeasureChild(*child, childAvailable);
         if (!measured) {
-            std::fprintf(stderr, "DEBUG_VSP: MeasureChild failed on child %p: %s\n",
-                static_cast<void*>(child),
-                measured.GetStatus().message ? measured.GetStatus().message : "error");
             return Size{};
         }
         const Size desired = child->GetDesiredSize();
@@ -852,9 +849,6 @@ VirtualizingStackPanel::ArrangeOverride(
         Base::Result<void> arranged =
             ArrangeChild(*child, slot);
         if (!arranged) {
-            std::fprintf(stderr, "DEBUG_VSP: ArrangeChild failed on child %p: %s\n",
-                static_cast<void*>(child),
-                arranged.GetStatus().message ? arranged.GetStatus().message : "error");
             return finalSize;
         }
         ++localIndex;
