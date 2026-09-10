@@ -27,7 +27,6 @@ using namespace ::Aero::Render;
 
 PasswordBox::PasswordBox() noexcept
     : TextBoxBase(StaticTypeId()),
-      validation_(new (std::nothrow) ::Aero::Text::EditableTextModel()),
       passwordPolicy_(new (std::nothrow) PasswordTextDisplayPolicy()) {
     editor_.displayPolicy_ = passwordPolicy_;
     editor_.coordinateOwner_ = this;
@@ -44,8 +43,6 @@ PasswordBox::PasswordBox() noexcept
 }
 
 PasswordBox::~PasswordBox() {
-    delete static_cast<::Aero::Text::EditableTextModel*>(validation_);
-    validation_ = nullptr;
     delete static_cast<::Aero::Controls::PasswordTextDisplayPolicy*>(passwordPolicy_);
     passwordPolicy_ = nullptr;
 }
@@ -66,14 +63,6 @@ void PasswordBox::SetPassword(
     Base::Result<void> copied =
         nextPassword.Assign(value);
     if (!copied) return;
-    Base::Result<void> modelLimit =
-        Model(validation_).SetMaximumLength(
-            EffectiveMaximumLength(
-                GetMaxLength()));
-    if (modelLimit) {
-        modelLimit = Model(validation_).SetText(value);
-    }
-    if (!modelLimit) return;
     synchronizingEditor_ = true;
     editor_.SetText(value);
     synchronizingEditor_ = false;
@@ -114,12 +103,9 @@ void PasswordBox::SetMaxLength(
     std::uint32_t value) noexcept {
     const std::uint32_t effective =
         EffectiveMaximumLength(value);
-    if (Model(validation_).GraphemeCount() > effective) {
+    if (Model(editor_.model_).GraphemeCount() > effective) {
         return;
     }
-    Base::Result<void> validation =
-        Model(validation_).SetMaximumLength(effective);
-    if (!validation) return;
     editor_.SetMaxLength(value);
     SetValue(MaxLengthProperty, value);
 }
@@ -255,15 +241,6 @@ PasswordBox::SynchronizePasswordFromEditor()
     Base::Result<void> copied =
         next.Assign(editor_.GetText());
     if (!copied) return copied.GetStatus();
-    Base::Result<void> model =
-        Model(validation_).SetMaximumLength(
-            EffectiveMaximumLength(
-                GetMaxLength()));
-    if (model) {
-        model = Model(validation_).SetText(
-            next.View());
-    }
-    if (!model) return model.GetStatus();
     password_ = std::move(next);
     InvalidateMeasure();
     InvalidateVisual();
@@ -273,110 +250,27 @@ PasswordBox::SynchronizePasswordFromEditor()
 }
 
 void PasswordBox::OnMouseDown(MouseButtonEventArgs& args) {
-    if (args.GetChangedButton() != MouseButton::Left || !GetIsEnabled()) {
-        return;
-    }
-    const Point local = ToLocalPoint(*this, args.GetPosition());
-    const std::uint32_t caret = editor_.HitTestText(local);
-    static_cast<void>(editor_.SetSelection(caret, caret));
-    static_cast<void>(Focus());
-    Base::Result<void> captured = CapturePointer(args.GetPointerId());
-    if (captured) {
-        pointerId_ = args.GetPointerId();
-        dragAnchor_ = caret;
-        isDragging_ = true;
-    }
-    args.SetHandled(true);
+    editor_.HandleEditorMouseDown(*this, drag_, args);
 }
 
 void PasswordBox::OnMouseMove(MouseEventArgs& args) {
-    if (!isDragging_ || pointerId_ != args.GetPointerId()) {
-        return;
-    }
-    const Point local = ToLocalPoint(*this, args.GetPosition());
-    static_cast<void>(editor_.SetSelection(dragAnchor_, editor_.HitTestText(local)));
-    args.SetHandled(true);
+    editor_.HandleEditorMouseMove(*this, drag_, args);
 }
 
 void PasswordBox::OnMouseUp(MouseButtonEventArgs& args) {
-    if (args.GetChangedButton() != MouseButton::Left || !isDragging_ || pointerId_ != args.GetPointerId()) {
-        return;
-    }
-    const Point local = ToLocalPoint(*this, args.GetPosition());
-    static_cast<void>(editor_.SetSelection(dragAnchor_, editor_.HitTestText(local)));
-    isDragging_ = false;
-    static_cast<void>(ReleasePointer(args.GetPointerId()));
-    args.SetHandled(true);
+    editor_.HandleEditorMouseUp(*this, drag_, args);
 }
 
 void PasswordBox::OnKeyDown(KeyEventArgs& args) {
-    if (!GetIsEnabled()) {
-        return;
-    }
-    const bool shift = HasKeyboardModifier(args.GetModifiers(), KeyboardModifiers::Shift);
-    const bool control = HasKeyboardModifier(args.GetModifiers(), KeyboardModifiers::Control);
-    Base::Result<void> result;
-    bool handled = true;
-    if (control && args.GetKey() == KeyboardKeyA) {
-        result = editor_.SelectAll();
-    } else if (control && args.GetKey() == KeyboardKeyC) {
-        result = Base::Result<void>{};
-    } else if (control && args.GetKey() == KeyboardKeyX) {
-        result = editor_.ReplaceSelection(Base::StringView{});
-    } else if (control && args.GetKey() == KeyboardKeyV) {
-        Input::IClipboard* clipboard = AeroGuiInternal::ClipboardOf(*this);
-        if (clipboard != nullptr) {
-            result = editor_.Paste(*clipboard);
-        }
-    } else if (control && args.GetKey() == KeyboardKeyZ) {
-        result = shift ? editor_.Redo() : editor_.Undo();
-    } else if (control && args.GetKey() == KeyboardKeyY) {
-        result = editor_.Redo();
-    } else if (args.GetKey() == KeyboardKeyLeft) {
-        result = editor_.MoveCaretHorizontal(-1.0, shift);
-    } else if (args.GetKey() == KeyboardKeyRight) {
-        result = editor_.MoveCaretHorizontal(1.0, shift);
-    } else if (args.GetKey() == KeyboardKeyHome) {
-        result = editor_.MoveCaretLineBoundary(false, shift);
-    } else if (args.GetKey() == KeyboardKeyEnd) {
-        result = editor_.MoveCaretLineBoundary(true, shift);
-    } else if (args.GetKey() == KeyboardKeyBackspace) {
-        result = editor_.DeleteBackward();
-    } else if (args.GetKey() == KeyboardKeyDelete) {
-        result = editor_.DeleteForward();
-    } else if (args.GetKey() == KeyboardKeyEnter && editor_.GetAcceptsReturn()) {
-        result = editor_.ReplaceSelection(Base::StringView("\n"));
-    } else {
-        handled = false;
-    }
-    if (handled && result) {
-        args.SetHandled(true);
-    }
+    editor_.HandleEditorKeyDown(*this, args);
 }
 
 void PasswordBox::OnTextInput(TextCompositionEventArgs& args) {
-    if (!GetIsEnabled() || editor_.GetIsReadOnly()) {
-        return;
-    }
-    if (editor_.GetIsComposing()) {
-        Base::Result<void> cancelled = editor_.CancelCompositionForFocusLoss();
-        if (!cancelled) {
-            return;
-        }
-    }
-    Base::Result<void> inserted = editor_.ReplaceSelection(args.GetText());
-    if (inserted) {
-        args.SetHandled(true);
-    }
+    editor_.HandleEditorTextInput(args);
 }
 
-void PasswordBox::OnLostKeyboardFocus(KeyboardFocusChangedEventArgs&) {
-    static_cast<void>(editor_.CancelCompositionForFocusLoss());
-    if (!isDragging_) {
-        return;
-    }
-    isDragging_ = false;
-    static_cast<void>(ReleasePointer(pointerId_));
+void PasswordBox::OnLostKeyboardFocus(KeyboardFocusChangedEventArgs& args) {
+    editor_.HandleEditorLostFocus(*this, drag_, args);
 }
 
 void PasswordBox::OnPropertyChanged(
@@ -389,7 +283,6 @@ void PasswordBox::OnPropertyChanged(
         InvalidateVisual();
     } else if (args.GetProperty() == PasswordBox::MaxLengthProperty) {
         static_cast<void>(editor_.CancelCompositionForFocusLoss());
-        static_cast<void>(Model(validation_).SetMaximumLength(EffectiveMaximumLength(GetMaxLength())));
         static_cast<void>(editor_.SetMaxLength(GetMaxLength()));
     } else if (args.GetProperty() == PasswordBox::ForegroundProperty) {
         static_cast<void>(editor_.SetForeground(GetForeground()));

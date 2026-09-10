@@ -25,15 +25,10 @@ public:
     inline static constexpr RoutedEvent<RoutedEventArgs> ClosedEvent{"Closed"};
 
 protected:
-    void
-        OnApplyTemplate() noexcept override;
-
-private:
-    DependencyPropertyChangedEventHandler
-        openChangedHandler_;
-    void OnOpenChanged(
-        DependencyObject& object,
-        const DependencyPropertyChangedEventArgs&
-            args) noexcept;
+    virtual void OnOpened(RoutedEventArgs& e);
+    virtual void OnClosed(RoutedEventArgs& e);
+    void OnPropertyChanged(
+        const DependencyPropertyChangedEventArgs& args) noexcept override;
+    void OnApplyTemplate() noexcept override;
 };
 } // namespace Aero::Controls

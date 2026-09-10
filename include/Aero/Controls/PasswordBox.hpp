@@ -69,12 +69,7 @@ protected:
 private:
     friend class TextBox;
 
-    std::uint32_t pointerId_ = 0U;
-    std::uint32_t dragAnchor_ = 0U;
-    bool isDragging_ = false;
-
     String password_;
-    void* validation_ = nullptr;
     void* passwordPolicy_ = nullptr;
     TextBox editor_;
     bool synchronizingEditor_ = false;

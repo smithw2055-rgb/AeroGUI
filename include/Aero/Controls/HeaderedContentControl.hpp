@@ -28,14 +28,18 @@ protected:
     explicit HeaderedContentControl(
         TypeId runtimeType) noexcept;
     ~HeaderedContentControl() override;
+    virtual void OnHeaderChanged(
+        const Value& oldHeader,
+        const Value& newHeader);
+    virtual void OnHeaderTemplateChanged(
+        const Ref<DataTemplate>& oldTemplate,
+        const Ref<DataTemplate>& newTemplate);
+    void OnPropertyChanged(
+        const DependencyPropertyChangedEventArgs& args) noexcept override;
     void OnApplyTemplate() noexcept override;
 
 private:
-    void OnHeaderChanged(
-        DependencyObject&,
-        const DependencyPropertyChangedEventArgs&) noexcept;
     void ProjectHeaderContent() noexcept;
-    DependencyPropertyChangedEventHandler headerChangedHandler_;
 };
 
 } // namespace Aero::Controls

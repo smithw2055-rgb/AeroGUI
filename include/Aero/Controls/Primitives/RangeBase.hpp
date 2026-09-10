@@ -31,6 +31,12 @@ public:
 protected:
     explicit RangeBase(TypeId runtimeType) noexcept;
     ~RangeBase() override;
+    virtual void OnMinimumChanged(
+        double oldMinimum,
+        double newMinimum) noexcept;
+    virtual void OnMaximumChanged(
+        double oldMaximum,
+        double newMaximum) noexcept;
     virtual void OnValueChanged(
         double oldValue,
         double newValue) noexcept;

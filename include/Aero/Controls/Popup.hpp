@@ -68,6 +68,10 @@ public:
     AERO_DEPENDENCY_PROPERTY(bool, AllowsTransparency);
 
 protected:
+    virtual void OnOpened(RoutedEventArgs& e);
+    virtual void OnClosed(RoutedEventArgs& e);
+    void OnPropertyChanged(
+        const DependencyPropertyChangedEventArgs& args) noexcept override;
     explicit Popup(TypeId runtimeType) noexcept;
     Size MeasureOverride(
         Size availableSize) noexcept override;
@@ -75,13 +79,7 @@ protected:
         Size finalSize) noexcept override;
 
 private:
-    DependencyPropertyChangedEventHandler
-        openChangedHandler_;
     Size popupDesiredSize_;
-    void OnOpenPropertyChanged(
-        DependencyObject& object,
-        const DependencyPropertyChangedEventArgs&
-            args) noexcept;
 };
 } // namespace Aero::Controls::Primitives
 AERO_DECLARE_TYPE_ENUM(Aero::Controls::Primitives::PlacementMode)

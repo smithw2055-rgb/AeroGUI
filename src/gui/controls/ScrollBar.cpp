@@ -701,6 +701,18 @@ void RangeBase::SetValue(
     StoreDouble(*this, ValueProperty, clamped);
 }
 
+void RangeBase::OnMinimumChanged(
+    double,
+    double) noexcept {
+    SetValue(GetValue());
+}
+
+void RangeBase::OnMaximumChanged(
+    double,
+    double) noexcept {
+    SetValue(GetValue());
+}
+
 void RangeBase::OnPropertyChanged(
     const DependencyPropertyChangedEventArgs&
         args) noexcept {
@@ -709,10 +721,14 @@ void RangeBase::OnPropertyChanged(
         OnValueChanged(
             args.GetOldValue().AsDouble(),
             args.GetNewValue().AsDouble());
-    } else if (
-        args.GetProperty() == MinimumProperty ||
-        args.GetProperty() == MaximumProperty) {
-        SetValue(GetValue());
+    } else if (args.GetProperty() == MinimumProperty) {
+        OnMinimumChanged(
+            args.GetOldValue().AsDouble(),
+            args.GetNewValue().AsDouble());
+    } else if (args.GetProperty() == MaximumProperty) {
+        OnMaximumChanged(
+            args.GetOldValue().AsDouble(),
+            args.GetNewValue().AsDouble());
     }
 }
 

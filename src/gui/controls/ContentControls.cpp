@@ -28,21 +28,11 @@ Popup::Popup() noexcept
     : Popup(StaticTypeId()) {}
 
 Popup::Popup(TypeId runtimeType) noexcept
-    : ContentControl(runtimeType),
-      openChangedHandler_(
-          this,
-          &Popup::OnOpenPropertyChanged) {
+    : ContentControl(runtimeType) {
     static_cast<void>(SetIsHitTestVisible(false));
-    static_cast<void>(AddValueChangedHandler(
-        IsOpenProperty,
-        openChangedHandler_));
 }
 
-Popup::~Popup() {
-    static_cast<void>(RemoveValueChangedHandler(
-        IsOpenProperty,
-        openChangedHandler_));
-}
+Popup::~Popup() = default;
 
 bool Popup::GetIsOpen() const noexcept {
     return GetValue(IsOpenProperty);
@@ -137,31 +127,42 @@ void Popup::SetAllowsTransparency(
         AllowsTransparencyProperty, value);
 }
 
-void Popup::OnOpenPropertyChanged(
-    DependencyObject&,
-    const DependencyPropertyChangedEventArgs&
-        args) noexcept {
-    const bool open = args.GetNewValue().AsBoolean();
-    bool hitTest = open;
-    if (open) {
-        UIElement* popupChild =
-            GetTemplateRoot() != nullptr
-                ? GetTemplateRoot()
-                : ContentElement();
-        // Tooltips set IsHitTestVisible=False on the content so the pointer
-        // can keep hitting the placement target. Forcing the Popup itself
-        // hittable would steal MouseEnter/Leave from the planet underneath.
-        if (popupChild != nullptr &&
-            !popupChild->GetIsHitTestVisible()) {
-            hitTest = false;
+void Popup::OnOpened(RoutedEventArgs& e) {
+    RaiseEvent(OpenedEvent, &e);
+}
+
+void Popup::OnClosed(RoutedEventArgs& e) {
+    RaiseEvent(ClosedEvent, &e);
+}
+
+void Popup::OnPropertyChanged(
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    ContentControl::OnPropertyChanged(args);
+    if (args.GetProperty() == IsOpenProperty) {
+        const bool open = args.GetNewValue().AsBoolean();
+        bool hitTest = open;
+        if (open) {
+            UIElement* popupChild =
+                GetTemplateRoot() != nullptr
+                    ? GetTemplateRoot()
+                    : ContentElement();
+            // Tooltips set IsHitTestVisible=False on the content so the pointer
+            // can keep hitting the placement target. Forcing the Popup itself
+            // hittable would steal MouseEnter/Leave from the planet underneath.
+            if (popupChild != nullptr &&
+                !popupChild->GetIsHitTestVisible()) {
+                hitTest = false;
+            }
+        }
+        static_cast<void>(SetIsHitTestVisible(hitTest));
+        InvalidateMeasure();
+        RoutedEventArgs eventArgs;
+        if (open) {
+            OnOpened(eventArgs);
+        } else {
+            OnClosed(eventArgs);
         }
     }
-    static_cast<void>(SetIsHitTestVisible(hitTest));
-    InvalidateMeasure();
-    RoutedEventArgs eventArgs;
-    RaiseEvent(
-        open ? OpenedEvent : ClosedEvent,
-        &eventArgs);
 }
 
 Size Popup::MeasureOverride(
@@ -450,25 +451,39 @@ Size Popup::ArrangeOverride(
 
 HeaderedContentControl::HeaderedContentControl(
     TypeId runtimeType) noexcept
-    : ContentControl(runtimeType),
-      headerChangedHandler_(
-          this,
-          &HeaderedContentControl::OnHeaderChanged) {
-    static_cast<void>(AddValueChangedHandler(
-        HeaderProperty,
-        headerChangedHandler_));
-}
+    : ContentControl(runtimeType) {}
 
-HeaderedContentControl::~HeaderedContentControl() {
-    static_cast<void>(RemoveValueChangedHandler(
-        HeaderProperty,
-        headerChangedHandler_));
-}
+HeaderedContentControl::~HeaderedContentControl() = default;
 
 void HeaderedContentControl::OnHeaderChanged(
-    DependencyObject&,
-    const Meta::DependencyPropertyChangedEventArgs&) noexcept {
+    const Value&,
+    const Value&) {
     ProjectHeaderContent();
+}
+
+void HeaderedContentControl::OnHeaderTemplateChanged(
+    const Ref<DataTemplate>&,
+    const Ref<DataTemplate>&) {}
+
+void HeaderedContentControl::OnPropertyChanged(
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    ContentControl::OnPropertyChanged(args);
+    const DependencyPropertyHandle prop = args.GetProperty();
+    if (prop == HeaderProperty) {
+        OnHeaderChanged(args.GetOldValue(), args.GetNewValue());
+    } else if (prop == HeaderTemplateProperty) {
+        const auto toTemplate = [](const Value& v) -> Ref<DataTemplate> {
+            if (v.Kind() == ValueKind::Object && v.AsObject()) {
+                if (auto* dt = TryCast<DataTemplate>(v.AsObject().Get())) {
+                    return Ref<DataTemplate>::FromBorrowed(*dt);
+                }
+            }
+            return {};
+        };
+        OnHeaderTemplateChanged(
+            toTemplate(args.GetOldValue()),
+            toTemplate(args.GetNewValue()));
+    }
 }
 
 Meta::Value
@@ -534,22 +549,12 @@ void HeaderedContentControl::ProjectHeaderContent() noexcept {
 
 Expander::Expander() noexcept
     : HeaderedContentControl(StaticTypeId()),
-      expandedChangedHandler_(
-          this,
-          &Expander::OnExpandedPropertyChanged),
       headerCheckedHandler_(
           this,
-          &Expander::OnHeaderCheckedChanged) {
-    static_cast<void>(AddValueChangedHandler(
-        IsExpandedProperty,
-        expandedChangedHandler_));
-}
+          &Expander::OnHeaderCheckedChanged) {}
 
 Expander::~Expander() {
     UnbindHeaderToggle();
-    static_cast<void>(RemoveValueChangedHandler(
-        IsExpandedProperty,
-        expandedChangedHandler_));
 }
 
 bool Expander::GetIsExpanded() const noexcept {
@@ -563,28 +568,38 @@ void Expander::SetIsExpanded(
     SetValue(IsExpandedProperty, value);
 }
 
-void Expander::OnExpandedPropertyChanged(
-    DependencyObject&,
-    const DependencyPropertyChangedEventArgs&
-        change) noexcept {
-    const bool expanded = change.GetNewValue().AsBoolean();
-    if (!synchronizingHeader_ && headerToggle_ != nullptr) {
-        const Nullable<bool> isChecked = headerToggle_->GetIsChecked();
-        const bool checked =
-            isChecked.GetHasValue() ? isChecked.GetValue() : false;
-        if (checked != expanded) {
-            synchronizingHeader_ = true;
-            headerToggle_->SetIsChecked(Nullable<bool>{expanded});
-            synchronizingHeader_ = false;
+void Expander::OnExpanded() {
+    RoutedEventArgs eventArgs;
+    RaiseEvent(ExpandedEvent, &eventArgs);
+}
+
+void Expander::OnCollapsed() {
+    RoutedEventArgs eventArgs;
+    RaiseEvent(CollapsedEvent, &eventArgs);
+}
+
+void Expander::OnPropertyChanged(
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    HeaderedContentControl::OnPropertyChanged(args);
+    if (args.GetProperty() == IsExpandedProperty) {
+        const bool expanded = args.GetNewValue().AsBoolean();
+        if (!synchronizingHeader_ && headerToggle_ != nullptr) {
+            const Nullable<bool> isChecked = headerToggle_->GetIsChecked();
+            const bool checked =
+                isChecked.GetHasValue() ? isChecked.GetValue() : false;
+            if (checked != expanded) {
+                synchronizingHeader_ = true;
+                headerToggle_->SetIsChecked(Nullable<bool>{expanded});
+                synchronizingHeader_ = false;
+            }
+        }
+        InvalidateMeasure();
+        if (expanded) {
+            OnExpanded();
+        } else {
+            OnCollapsed();
         }
     }
-    InvalidateMeasure();
-    RoutedEventArgs eventArgs;
-    RaiseEvent(
-        expanded
-            ? ExpandedEvent
-            : CollapsedEvent,
-        &eventArgs);
 }
 
 void Expander::OnHeaderCheckedChanged(
@@ -758,20 +773,9 @@ void TabItem::SetIsSelected(
 }
 
 TabControl::TabControl() noexcept
-    : Selector(StaticTypeId()),
-      selectionChangedHandler_(
-          this,
-          &TabControl::OnSelectionPropertyChanged) {
-    static_cast<void>(AddValueChangedHandler(
-        SelectedIndexProperty,
-        selectionChangedHandler_));
-}
+    : Selector(StaticTypeId()) {}
 
-TabControl::~TabControl() {
-    static_cast<void>(RemoveValueChangedHandler(
-        SelectedIndexProperty,
-        selectionChangedHandler_));
-}
+TabControl::~TabControl() = default;
 
 TabItem* TabControl::GetSelectedTab() const noexcept {
     const std::uint32_t selected = GetSelectedIndex();
@@ -835,15 +839,18 @@ TabControl::SynchronizeSelection() noexcept {
     return {};
 }
 
-void TabControl::OnSelectionPropertyChanged(
-    DependencyObject&,
-    const DependencyPropertyChangedEventArgs&)
-        noexcept {
-    const Base::Result<void> synchronized =
-        SynchronizeSelection();
-    if (!synchronized) return;
-    RoutedEventArgs args;
-    RaiseEvent(SelectionChangedRoutedEvent, &args);
+void TabControl::OnSelectionChanged(
+    const Primitives::SelectionChangedEvent& event) {
+    Selector::OnSelectionChanged(event);
+    static_cast<void>(SynchronizeSelection());
+}
+
+void TabControl::OnPropertyChanged(
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    Selector::OnPropertyChanged(args);
+    if (args.GetProperty() == SelectedIndexProperty) {
+        static_cast<void>(SynchronizeSelection());
+    }
 }
 
 Size TabControl::MeasureOverride(

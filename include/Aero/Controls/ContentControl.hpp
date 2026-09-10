@@ -82,6 +82,17 @@ public:
         return;
     }
 protected:
+    virtual void OnContentChanged(
+        const Value& oldContent,
+        const Value& newContent);
+    virtual void OnContentTemplateChanged(
+        const Ref<Base::Object>& oldContentTemplate,
+        const Ref<Base::Object>& newContentTemplate);
+    virtual void OnContentTemplateSelectorChanged(
+        const Ref<Base::Object>& oldSelector,
+        const Ref<Base::Object>& newSelector);
+    void OnPropertyChanged(
+        const DependencyPropertyChangedEventArgs& args) noexcept override;
     UIElement* ContentElement() const noexcept { return content_; }
     explicit ContentControl(TypeId runtimeType) noexcept;
     ~ContentControl() override;
@@ -175,22 +186,12 @@ private:
     Ref<Base::Object> ownedContent_;
     Ref<Base::Object> contentValue_;
     Value authoredContent_;
-    DependencyPropertyChangedEventHandler
-        foregroundChangedHandler_;
-    DependencyPropertyChangedEventHandler
-        fontSizeChangedHandler_;
     bool literalTextContent_ = false;
     bool synchronizingContentProperty_ = false;
     Result<void> StoreContentProperty(
         Value value) noexcept;
     void SetGeneratedTextContent(const Ref<Base::Object>& contentObject, UIElement& content) noexcept;
     void SyncGeneratedTextFormatting() noexcept;
-    void OnForegroundChanged(
-        DependencyObject&,
-        const DependencyPropertyChangedEventArgs&) noexcept;
-    void OnFontSizeChanged(
-        DependencyObject&,
-        const DependencyPropertyChangedEventArgs&) noexcept;
     bool IsOnlyAttachedContent(const UIElement& content) const noexcept {
         const UIElementChildRange children = LayoutChildren();
         return children.Size() == 1U && children[0] == &content;

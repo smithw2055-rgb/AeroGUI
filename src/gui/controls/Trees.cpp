@@ -688,6 +688,22 @@ void TreeViewItem::ProjectRealizedHeaders() noexcept {
     }
 }
 
+void TreeViewItem::OnExpanded(RoutedEventArgs& e) {
+    static_cast<void>(RaiseEvent(ExpandedEvent, &e));
+}
+
+void TreeViewItem::OnCollapsed(RoutedEventArgs& e) {
+    static_cast<void>(RaiseEvent(CollapsedEvent, &e));
+}
+
+void TreeViewItem::OnSelected(RoutedEventArgs& e) {
+    static_cast<void>(RaiseEvent(SelectedEvent, &e));
+}
+
+void TreeViewItem::OnUnselected(RoutedEventArgs& e) {
+    static_cast<void>(RaiseEvent(UnselectedEvent, &e));
+}
+
 void TreeViewItem::OnPropertyChanged(
     const DependencyPropertyChangedEventArgs& args) noexcept {
     HeaderedItemsControl::OnPropertyChanged(args);
@@ -706,18 +722,18 @@ void TreeViewItem::OnPropertyChanged(
         }
         static_cast<void>(SynchronizeTemplate());
         RoutedEventArgs event;
-        static_cast<void>(RaiseEvent(
-            args.GetNewValue().AsBoolean()
-                ? ExpandedEvent
-                : CollapsedEvent,
-            &event));
+        if (args.GetNewValue().AsBoolean()) {
+            OnExpanded(event);
+        } else {
+            OnCollapsed(event);
+        }
     } else if (prop == IsSelectedProperty) {
         RoutedEventArgs event;
-        static_cast<void>(RaiseEvent(
-            args.GetNewValue().AsBoolean()
-                ? SelectedEvent
-                : UnselectedEvent,
-            &event));
+        if (args.GetNewValue().AsBoolean()) {
+            OnSelected(event);
+        } else {
+            OnUnselected(event);
+        }
     }
 }
 

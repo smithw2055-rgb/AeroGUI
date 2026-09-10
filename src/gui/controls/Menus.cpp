@@ -324,20 +324,9 @@ Menu::CreateContainer(
 }
 
 ContextMenu::ContextMenu() noexcept
-    : Menu(StaticTypeId()),
-      openChangedHandler_(
-          this,
-          &ContextMenu::OnOpenChanged) {
-    static_cast<void>(AddValueChangedHandler(
-        IsOpenProperty,
-        openChangedHandler_));
-}
+    : Menu(StaticTypeId()) {}
 
-ContextMenu::~ContextMenu() {
-    static_cast<void>(RemoveValueChangedHandler(
-        IsOpenProperty,
-        openChangedHandler_));
-}
+ContextMenu::~ContextMenu() = default;
 
 bool ContextMenu::GetIsOpen() const noexcept {
     return GetValue(IsOpenProperty);
@@ -371,20 +360,28 @@ ContextMenu::OnApplyTemplate() noexcept {
         : Visibility::Collapsed);
 }
 
-void ContextMenu::OnOpenChanged(
-    DependencyObject&,
-    const DependencyPropertyChangedEventArgs&
-        args) noexcept {
-    const bool opened =
-        args.GetNewValue().AsBoolean();
-    static_cast<void>(SetVisibility(
-        opened
-        ? Visibility::Visible
-        : Visibility::Collapsed));
-    RoutedEventArgs event;
-    static_cast<void>(RaiseEvent(
-        opened ? OpenedEvent : ClosedEvent,
-        &event));
+void ContextMenu::OnOpened(RoutedEventArgs& e) {
+    static_cast<void>(RaiseEvent(OpenedEvent, &e));
+}
+
+void ContextMenu::OnClosed(RoutedEventArgs& e) {
+    static_cast<void>(RaiseEvent(ClosedEvent, &e));
+}
+
+void ContextMenu::OnPropertyChanged(
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    Menu::OnPropertyChanged(args);
+    if (args.GetProperty() == IsOpenProperty) {
+        const bool opened = args.GetNewValue().AsBoolean();
+        static_cast<void>(SetVisibility(
+            opened ? Visibility::Visible : Visibility::Collapsed));
+        RoutedEventArgs event;
+        if (opened) {
+            OnOpened(event);
+        } else {
+            OnClosed(event);
+        }
+    }
 }
 
 Base::Ref<ContextMenu>

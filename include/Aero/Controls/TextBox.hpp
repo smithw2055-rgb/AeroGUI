@@ -141,9 +141,12 @@ protected:
 private:
     friend class PasswordBox;
 
-    std::uint32_t pointerId_ = 0U;
-    std::uint32_t dragAnchor_ = 0U;
-    bool isDragging_ = false;
+    void HandleEditorMouseDown(UIElement& owner, DragSelectionState& drag, MouseButtonEventArgs& args);
+    void HandleEditorMouseMove(UIElement& owner, DragSelectionState& drag, MouseEventArgs& args);
+    void HandleEditorMouseUp(UIElement& owner, DragSelectionState& drag, MouseButtonEventArgs& args);
+    void HandleEditorKeyDown(UIElement& owner, KeyEventArgs& args);
+    void HandleEditorTextInput(TextCompositionEventArgs& args);
+    void HandleEditorLostFocus(UIElement& owner, DragSelectionState& drag, KeyboardFocusChangedEventArgs& args);
 
     struct CaretStop {
         double x = 0.0;

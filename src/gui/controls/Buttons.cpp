@@ -298,17 +298,29 @@ void ToggleButton::UpdateVisualState(bool useTransitions) noexcept {
     VisualStateManager::GoToState(*this, check, useTransitions);
 }
 
+void ToggleButton::OnChecked(RoutedEventArgs& e) {
+    RaiseEvent(CheckedEvent, &e);
+}
+
+void ToggleButton::OnUnchecked(RoutedEventArgs& e) {
+    RaiseEvent(UncheckedEvent, &e);
+}
+
+void ToggleButton::OnIndeterminate(RoutedEventArgs& e) {
+    RaiseEvent(IndeterminateEvent, &e);
+}
+
 void ToggleButton::OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept {
     ButtonBase::OnPropertyChanged(args);
     if (args.GetProperty() == IsCheckedProperty) {
         const Nullable<bool> current = GetIsChecked();
         RoutedEventArgs eventArgs;
         if (!current.GetHasValue()) {
-            RaiseEvent(IndeterminateEvent, &eventArgs);
+            OnIndeterminate(eventArgs);
         } else if (current.GetValue()) {
-            RaiseEvent(CheckedEvent, &eventArgs);
+            OnChecked(eventArgs);
         } else {
-            RaiseEvent(UncheckedEvent, &eventArgs);
+            OnUnchecked(eventArgs);
         }
         UpdateVisualState();
     }

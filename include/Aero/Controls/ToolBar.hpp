@@ -48,16 +48,12 @@ protected:
         OnApplyTemplate() noexcept override;
     void OnTemplateDetached() noexcept override;
     void OnContainersChanged() noexcept override;
+    void OnPropertyChanged(
+        const DependencyPropertyChangedEventArgs& args) noexcept override;
 
 private:
     TextBlock* headerText_ = nullptr;
     TextBlock* overflowGlyph_ = nullptr;
-    DependencyPropertyChangedEventHandler
-        headerChangedHandler_;
-    void OnHeaderChanged(
-        DependencyObject& object,
-        const DependencyPropertyChangedEventArgs&
-            args) noexcept;
     Result<void>
         SynchronizeToolBar() noexcept;
 };

@@ -40,18 +40,16 @@ public:
 protected:
     Result<Ref<FrameworkElement>> CreateContainer(
         const Ref<Base::Object>& item) noexcept override;
+    void OnSelectionChanged(
+        const Primitives::SelectionChangedEvent& event) override;
+    void OnPropertyChanged(
+        const DependencyPropertyChangedEventArgs& args) noexcept override;
     Size MeasureOverride(
         Size availableSize) noexcept override;
     Size ArrangeOverride(
         Size finalSize) noexcept override;
 
 private:
-    DependencyPropertyChangedEventHandler
-        selectionChangedHandler_;
-    void OnSelectionPropertyChanged(
-        DependencyObject& object,
-        const DependencyPropertyChangedEventArgs&
-            args) noexcept;
     Result<void> SynchronizeSelection() noexcept;
 };
 

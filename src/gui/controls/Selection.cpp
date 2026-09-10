@@ -113,6 +113,14 @@ void ListBoxItem::UpdateVisualState(bool useTransitions) noexcept {
             useTransitions));
 }
 
+void ListBoxItem::OnSelected(RoutedEventArgs& e) {
+    RaiseEvent(SelectedEvent, &e);
+}
+
+void ListBoxItem::OnUnselected(RoutedEventArgs& e) {
+    RaiseEvent(UnselectedEvent, &e);
+}
+
 void ListBoxItem::OnPropertyChanged(
     const DependencyPropertyChangedEventArgs& args) noexcept {
     ContentControl::OnPropertyChanged(args);
@@ -122,6 +130,12 @@ void ListBoxItem::OnPropertyChanged(
         const bool selected =
             args.GetNewValue().Kind() == Meta::ValueKind::Boolean &&
             args.GetNewValue().AsBoolean();
+        RoutedEventArgs eventArgs;
+        if (selected) {
+            OnSelected(eventArgs);
+        } else {
+            OnUnselected(eventArgs);
+        }
         if (!selected) return;
         ::Aero::Media::Visual* visual = this;
         while (visual != nullptr) {

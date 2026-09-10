@@ -8,6 +8,13 @@ using ::Aero::Meta::TypeId;
 class AERO_GUI_API TextBoxBase : public Control {
     AERO_DECLARE_TYPE(TextBoxBase, Control)
 protected:
+    struct DragSelectionState {
+        std::uint32_t pointerId = 0U;
+        std::uint32_t dragAnchor = 0U;
+        bool isDragging = false;
+    };
+    DragSelectionState drag_;
+
     explicit TextBoxBase(TypeId runtimeType) noexcept
         : Control(runtimeType) {}
     ~TextBoxBase() override = default;

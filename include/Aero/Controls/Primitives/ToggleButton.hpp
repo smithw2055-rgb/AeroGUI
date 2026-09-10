@@ -36,6 +36,9 @@ protected:
 
     void OnClick() override;
     virtual void OnToggle() noexcept;
+    virtual void OnChecked(RoutedEventArgs& e);
+    virtual void OnUnchecked(RoutedEventArgs& e);
+    virtual void OnIndeterminate(RoutedEventArgs& e);
     void UpdateVisualState(bool useTransitions = true) noexcept override;
     void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
 };

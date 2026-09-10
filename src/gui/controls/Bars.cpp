@@ -67,37 +67,9 @@ Size ToolBarOverflowPanel::ArrangeOverride(Size finalSize) noexcept {
 }
 
 ToolBar::ToolBar() noexcept
-    : ItemsControl(StaticTypeId()),
-      headerChangedHandler_(
-          this, &ToolBar::OnHeaderChanged) {
-    static_cast<void>(AddValueChangedHandler(
-        HeaderProperty,
-        headerChangedHandler_));
-    static_cast<void>(AddValueChangedHandler(
-        OrientationProperty,
-        headerChangedHandler_));
-    static_cast<void>(AddValueChangedHandler(
-        OverflowCapacityProperty,
-        headerChangedHandler_));
-    static_cast<void>(AddValueChangedHandler(
-        IsOverflowOpenProperty,
-        headerChangedHandler_));
-}
+    : ItemsControl(StaticTypeId()) {}
 
-ToolBar::~ToolBar() {
-    static_cast<void>(RemoveValueChangedHandler(
-        HeaderProperty,
-        headerChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        OrientationProperty,
-        headerChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        OverflowCapacityProperty,
-        headerChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        IsOverflowOpenProperty,
-        headerChangedHandler_));
-}
+ToolBar::~ToolBar() = default;
 
 Meta::Value ToolBar::GetHeader()
     const noexcept {
@@ -205,11 +177,16 @@ void ToolBar::OnTemplateDetached() noexcept {
     ItemsControl::OnTemplateDetached();
 }
 
-void ToolBar::OnHeaderChanged(
-    DependencyObject&,
-    const DependencyPropertyChangedEventArgs&)
-    noexcept {
-    static_cast<void>(SynchronizeToolBar());
+void ToolBar::OnPropertyChanged(
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    ItemsControl::OnPropertyChanged(args);
+    const DependencyPropertyHandle prop = args.GetProperty();
+    if (prop == HeaderProperty ||
+        prop == OrientationProperty ||
+        prop == OverflowCapacityProperty ||
+        prop == IsOverflowOpenProperty) {
+        static_cast<void>(SynchronizeToolBar());
+    }
 }
 
 void ToolBar::OnContainersChanged() noexcept {

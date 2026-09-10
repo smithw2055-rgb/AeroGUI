@@ -43,6 +43,10 @@ public:
     AERO_DEPENDENCY_PROPERTY(ExpandDirection, ExpandDirection);
 
 protected:
+    virtual void OnExpanded();
+    virtual void OnCollapsed();
+    void OnPropertyChanged(
+        const DependencyPropertyChangedEventArgs& args) noexcept override;
     void OnApplyTemplate() noexcept override;
     void OnTemplateDetached() noexcept override;
     Size MeasureOverride(
@@ -52,17 +56,11 @@ protected:
 
 private:
     DependencyPropertyChangedEventHandler
-        expandedChangedHandler_;
-    DependencyPropertyChangedEventHandler
         headerCheckedHandler_;
     Primitives::ToggleButton* headerToggle_ = nullptr;
     bool synchronizingHeader_ = false;
     void BindHeaderToggle() noexcept;
     void UnbindHeaderToggle() noexcept;
-    void OnExpandedPropertyChanged(
-        DependencyObject& object,
-        const DependencyPropertyChangedEventArgs&
-            args) noexcept;
     void OnHeaderCheckedChanged(
         DependencyObject& object,
         const DependencyPropertyChangedEventArgs&

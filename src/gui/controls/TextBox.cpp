@@ -887,45 +887,45 @@ Base::Result<void> TextBox::Paste(
     return ReplaceSelection(text.View());
 }
 
-void TextBox::OnMouseDown(MouseButtonEventArgs& args) {
-    if (args.GetChangedButton() != MouseButton::Left || !GetIsEnabled()) {
+void TextBox::HandleEditorMouseDown(UIElement& owner, DragSelectionState& drag, MouseButtonEventArgs& args) {
+    if (args.GetChangedButton() != MouseButton::Left || !owner.GetIsEnabled()) {
         return;
     }
-    const Point local = ToLocalPoint(*this, args.GetPosition());
+    const Point local = ToLocalPoint(owner, args.GetPosition());
     const std::uint32_t caret = HitTestText(local);
     static_cast<void>(SetSelection(caret, caret));
-    static_cast<void>(Focus());
-    Base::Result<void> captured = CapturePointer(args.GetPointerId());
+    static_cast<void>(owner.Focus());
+    Base::Result<void> captured = owner.CapturePointer(args.GetPointerId());
     if (captured) {
-        pointerId_ = args.GetPointerId();
-        dragAnchor_ = caret;
-        isDragging_ = true;
+        drag.pointerId = args.GetPointerId();
+        drag.dragAnchor = caret;
+        drag.isDragging = true;
     }
     args.SetHandled(true);
 }
 
-void TextBox::OnMouseMove(MouseEventArgs& args) {
-    if (!isDragging_ || pointerId_ != args.GetPointerId()) {
+void TextBox::HandleEditorMouseMove(UIElement& owner, DragSelectionState& drag, MouseEventArgs& args) {
+    if (!drag.isDragging || drag.pointerId != args.GetPointerId()) {
         return;
     }
-    const Point local = ToLocalPoint(*this, args.GetPosition());
-    static_cast<void>(SetSelection(dragAnchor_, HitTestText(local)));
+    const Point local = ToLocalPoint(owner, args.GetPosition());
+    static_cast<void>(SetSelection(drag.dragAnchor, HitTestText(local)));
     args.SetHandled(true);
 }
 
-void TextBox::OnMouseUp(MouseButtonEventArgs& args) {
-    if (args.GetChangedButton() != MouseButton::Left || !isDragging_ || pointerId_ != args.GetPointerId()) {
+void TextBox::HandleEditorMouseUp(UIElement& owner, DragSelectionState& drag, MouseButtonEventArgs& args) {
+    if (args.GetChangedButton() != MouseButton::Left || !drag.isDragging || drag.pointerId != args.GetPointerId()) {
         return;
     }
-    const Point local = ToLocalPoint(*this, args.GetPosition());
-    static_cast<void>(SetSelection(dragAnchor_, HitTestText(local)));
-    isDragging_ = false;
-    static_cast<void>(ReleasePointer(args.GetPointerId()));
+    const Point local = ToLocalPoint(owner, args.GetPosition());
+    static_cast<void>(SetSelection(drag.dragAnchor, HitTestText(local)));
+    drag.isDragging = false;
+    static_cast<void>(owner.ReleasePointer(args.GetPointerId()));
     args.SetHandled(true);
 }
 
-void TextBox::OnKeyDown(KeyEventArgs& args) {
-    if (!GetIsEnabled()) {
+void TextBox::HandleEditorKeyDown(UIElement& owner, KeyEventArgs& args) {
+    if (!owner.GetIsEnabled()) {
         return;
     }
     const bool shift = HasKeyboardModifier(args.GetModifiers(), KeyboardModifiers::Shift);
@@ -935,17 +935,17 @@ void TextBox::OnKeyDown(KeyEventArgs& args) {
     if (control && args.GetKey() == KeyboardKeyA) {
         result = SelectAll();
     } else if (control && args.GetKey() == KeyboardKeyC) {
-        Input::IClipboard* clipboard = AeroGuiInternal::ClipboardOf(*this);
+        Input::IClipboard* clipboard = AeroGuiInternal::ClipboardOf(owner);
         if (clipboard != nullptr) {
             result = CopySelection(*clipboard);
         }
     } else if (control && args.GetKey() == KeyboardKeyX) {
-        Input::IClipboard* clipboard = AeroGuiInternal::ClipboardOf(*this);
+        Input::IClipboard* clipboard = AeroGuiInternal::ClipboardOf(owner);
         if (clipboard != nullptr) {
             result = CutSelection(*clipboard);
         }
     } else if (control && args.GetKey() == KeyboardKeyV) {
-        Input::IClipboard* clipboard = AeroGuiInternal::ClipboardOf(*this);
+        Input::IClipboard* clipboard = AeroGuiInternal::ClipboardOf(owner);
         if (clipboard != nullptr) {
             result = Paste(*clipboard);
         }
@@ -975,7 +975,7 @@ void TextBox::OnKeyDown(KeyEventArgs& args) {
     }
 }
 
-void TextBox::OnTextInput(TextCompositionEventArgs& args) {
+void TextBox::HandleEditorTextInput(TextCompositionEventArgs& args) {
     if (!GetIsEnabled() || GetIsReadOnly()) {
         return;
     }
@@ -991,13 +991,37 @@ void TextBox::OnTextInput(TextCompositionEventArgs& args) {
     }
 }
 
-void TextBox::OnLostKeyboardFocus(KeyboardFocusChangedEventArgs&) {
+void TextBox::HandleEditorLostFocus(UIElement& owner, DragSelectionState& drag, KeyboardFocusChangedEventArgs&) {
     static_cast<void>(CancelCompositionForFocusLoss());
-    if (!isDragging_) {
+    if (!drag.isDragging) {
         return;
     }
-    isDragging_ = false;
-    static_cast<void>(ReleasePointer(pointerId_));
+    drag.isDragging = false;
+    static_cast<void>(owner.ReleasePointer(drag.pointerId));
+}
+
+void TextBox::OnMouseDown(MouseButtonEventArgs& args) {
+    HandleEditorMouseDown(*this, drag_, args);
+}
+
+void TextBox::OnMouseMove(MouseEventArgs& args) {
+    HandleEditorMouseMove(*this, drag_, args);
+}
+
+void TextBox::OnMouseUp(MouseButtonEventArgs& args) {
+    HandleEditorMouseUp(*this, drag_, args);
+}
+
+void TextBox::OnKeyDown(KeyEventArgs& args) {
+    HandleEditorKeyDown(*this, args);
+}
+
+void TextBox::OnTextInput(TextCompositionEventArgs& args) {
+    HandleEditorTextInput(args);
+}
+
+void TextBox::OnLostKeyboardFocus(KeyboardFocusChangedEventArgs& args) {
+    HandleEditorLostFocus(*this, drag_, args);
 }
 
 void TextBox::OnPropertyChanged(

@@ -75,6 +75,12 @@ inline Rect ToRootRect(
     return rect;
 }
 
+struct DragSelectionState {
+    std::uint32_t pointerId = 0U;
+    std::uint32_t dragAnchor = 0U;
+    bool isDragging = false;
+};
+
 } // namespace TextBoxSupport
 
 using TextBoxSupport::DefaultAdvance;
@@ -85,6 +91,7 @@ using TextBoxSupport::EffectiveMaximumLength;
 using TextBoxSupport::ClampOffset;
 using TextBoxSupport::ToLocalPoint;
 using TextBoxSupport::ToRootRect;
+using TextBoxSupport::DragSelectionState;
 
 class TextDisplayPolicy {
 public:

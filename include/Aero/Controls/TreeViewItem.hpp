@@ -52,6 +52,10 @@ public:
     inline static constexpr RoutedEvent<RoutedEventArgs> UnselectedEvent{"Unselected"};
 
 protected:
+    virtual void OnExpanded(RoutedEventArgs& e);
+    virtual void OnCollapsed(RoutedEventArgs& e);
+    virtual void OnSelected(RoutedEventArgs& e);
+    virtual void OnUnselected(RoutedEventArgs& e);
     explicit TreeViewItem(TypeId runtimeType) noexcept;
     Result<Ref<FrameworkElement>>
         CreateContainer(

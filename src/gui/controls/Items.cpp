@@ -132,28 +132,40 @@ void AddBoxedStringItem(
 
 ContentControl::ContentControl(
     TypeId runtimeType) noexcept
-    : Control(runtimeType),
-      foregroundChangedHandler_(
-          this,
-          &ContentControl::OnForegroundChanged),
-      fontSizeChangedHandler_(
-          this,
-          &ContentControl::OnFontSizeChanged) {
-    static_cast<void>(AddValueChangedHandler(
-        Control::ForegroundProperty,
-        foregroundChangedHandler_));
-    static_cast<void>(AddValueChangedHandler(
-        Control::FontSizeProperty,
-        fontSizeChangedHandler_));
-}
+    : Control(runtimeType) {}
 
-ContentControl::~ContentControl() {
-    static_cast<void>(RemoveValueChangedHandler(
-        Control::ForegroundProperty,
-        foregroundChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        Control::FontSizeProperty,
-        fontSizeChangedHandler_));
+ContentControl::~ContentControl() = default;
+
+void ContentControl::OnContentChanged(
+    const Value&,
+    const Value&) {}
+
+void ContentControl::OnContentTemplateChanged(
+    const Ref<Base::Object>&,
+    const Ref<Base::Object>&) {}
+
+void ContentControl::OnContentTemplateSelectorChanged(
+    const Ref<Base::Object>&,
+    const Ref<Base::Object>&) {}
+
+void ContentControl::OnPropertyChanged(
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    Control::OnPropertyChanged(args);
+    const DependencyPropertyHandle prop = args.GetProperty();
+    if (prop == Control::ForegroundProperty ||
+        prop == Control::FontSizeProperty) {
+        SyncGeneratedTextFormatting();
+    } else if (prop == ContentProperty) {
+        OnContentChanged(args.GetOldValue(), args.GetNewValue());
+    } else if (prop == ContentTemplateProperty) {
+        OnContentTemplateChanged(
+            args.GetOldValue().Kind() == Meta::ValueKind::Object ? args.GetOldValue().AsObject() : Ref<Base::Object>{},
+            args.GetNewValue().Kind() == Meta::ValueKind::Object ? args.GetNewValue().AsObject() : Ref<Base::Object>{});
+    } else if (prop == ContentTemplateSelectorProperty) {
+        OnContentTemplateSelectorChanged(
+            args.GetOldValue().Kind() == Meta::ValueKind::Object ? args.GetOldValue().AsObject() : Ref<Base::Object>{},
+            args.GetNewValue().Kind() == Meta::ValueKind::Object ? args.GetNewValue().AsObject() : Ref<Base::Object>{});
+    }
 }
 
 void ContentControl::SyncGeneratedTextFormatting() noexcept {
@@ -167,20 +179,6 @@ void ContentControl::SyncGeneratedTextFormatting() noexcept {
     // content inherits Foreground (including ContentPresenter
     // TextElement.Foreground). A local copy would hide template opacity.
     text->SetValue(TextBlock::FontSizeProperty, GetFontSize());
-}
-
-void ContentControl::OnForegroundChanged(
-    DependencyObject&,
-    const DependencyPropertyChangedEventArgs&)
-        noexcept {
-    SyncGeneratedTextFormatting();
-}
-
-void ContentControl::OnFontSizeChanged(
-    DependencyObject&,
-    const DependencyPropertyChangedEventArgs&)
-        noexcept {
-    SyncGeneratedTextFormatting();
 }
 
 void ContentControl::SetGeneratedTextContent(
