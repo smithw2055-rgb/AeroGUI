@@ -27,15 +27,15 @@ using namespace ::Aero::Render;
 
 PasswordBox::PasswordBox() noexcept
     : TextBoxBase(StaticTypeId()),
-      validation_(new (std::nothrow) ::Aero::Text::EditableTextModel()),
-      passwordPolicy_(new (std::nothrow) PasswordTextDisplayPolicy()),
       mouseDownHandler_(this, &PasswordBox::OnMouseDownHandler),
       mouseMoveHandler_(this, &PasswordBox::OnMouseMoveHandler),
       mouseUpHandler_(this, &PasswordBox::OnMouseUpHandler),
       keyDownHandler_(this, &PasswordBox::OnKeyDownHandler),
       textInputHandler_(this, &PasswordBox::OnTextInputHandler),
       focusChangedHandler_(this, &PasswordBox::OnLostKeyboardFocusHandler),
-      propertyChangedHandler_(this, &PasswordBox::OnPropertyChanged) {
+      propertyChangedHandler_(this, &PasswordBox::OnPropertyChanged),
+      validation_(new (std::nothrow) ::Aero::Text::EditableTextModel()),
+      passwordPolicy_(new (std::nothrow) PasswordTextDisplayPolicy()) {
     editor_.displayPolicy_ = passwordPolicy_;
     editor_.coordinateOwner_ = this;
     editor_.passwordOwner_ = this;

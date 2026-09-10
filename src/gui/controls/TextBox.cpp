@@ -58,17 +58,17 @@ void TextBoxBase::SetCaretBrush(
 
 TextBox::TextBox() noexcept
     : TextBoxBase(StaticTypeId()),
-      model_(new (std::nothrow) ::Aero::Text::EditableTextModel()),
-      compositionModel_(new (std::nothrow) ::Aero::Text::EditableTextModel()),
-      displayPolicy_(nullptr),
-      plainPolicy_(new (std::nothrow) PlainTextDisplayPolicy()),
       mouseDownHandler_(this, &TextBox::OnMouseDownHandler),
       mouseMoveHandler_(this, &TextBox::OnMouseMoveHandler),
       mouseUpHandler_(this, &TextBox::OnMouseUpHandler),
       keyDownHandler_(this, &TextBox::OnKeyDownHandler),
       textInputHandler_(this, &TextBox::OnTextInputHandler),
       focusChangedHandler_(this, &TextBox::OnLostKeyboardFocusHandler),
-      propertyChangedHandler_(this, &TextBox::OnPropertyChanged) {
+      propertyChangedHandler_(this, &TextBox::OnPropertyChanged),
+      model_(new (std::nothrow) ::Aero::Text::EditableTextModel()),
+      compositionModel_(new (std::nothrow) ::Aero::Text::EditableTextModel()),
+      displayPolicy_(nullptr),
+      plainPolicy_(new (std::nothrow) PlainTextDisplayPolicy()) {
     displayPolicy_ = plainPolicy_;
     AddHandler(UIElement::MouseDownEvent, mouseDownHandler_);
     AddHandler(UIElement::MouseMoveEvent, mouseMoveHandler_);
