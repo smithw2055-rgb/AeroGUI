@@ -809,6 +809,26 @@ bool UIElement::GetIsDragging() const noexcept {
     return input != nullptr && input->IsDragSource(*this);
 }
 
+Base::Result<void> UIElement::CapturePointer(std::uint32_t pointerId) noexcept {
+    Aero::InputRouter* input = AeroGuiInternal::InputRouterOf(*this);
+    if (input == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotInitialized,
+            "UIElement CapturePointer requires a mounted View");
+    }
+    return input->CapturePointer(pointerId, *this);
+}
+
+Base::Result<bool> UIElement::ReleasePointer(std::uint32_t pointerId) noexcept {
+    Aero::InputRouter* input = AeroGuiInternal::InputRouterOf(*this);
+    if (input == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotInitialized,
+            "UIElement ReleasePointer requires a mounted View");
+    }
+    return input->ReleasePointer(pointerId);
+}
+
 UIElement::Rare& UIElement::EnsureRare() noexcept {
     if (rare_ == nullptr) {
         rare_ = new (std::nothrow) Rare();

@@ -93,7 +93,7 @@ protected:
     Base::Result<void> ResizePresentation(
         std::uint32_t width,
         std::uint32_t height) noexcept override {
-        window_.Resize({width, height});
+        Base::Result<void> resized = window_.Resize({width, height});
         if (resized) {
             ++surfaceGeneration_;
             if (Target() != nullptr) {

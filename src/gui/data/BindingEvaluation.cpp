@@ -16,6 +16,7 @@
 #include <Aero/Visual.hpp>
 #include <Aero/TryCast.hpp>
 #include <Aero/Resources.hpp>
+#include <Aero/Freezable.hpp>
 #include <Aero/Media/Geometry.hpp>
 #include <Aero/Media/SolidColorBrush.hpp>
 #include <Aero/Media/StreamGeometry.hpp>
@@ -271,6 +272,12 @@ bool TargetAcceptsPathResult(
         if (::Aero::Media::Visual* visual =
                 ::Aero::TryCast<::Aero::Media::Visual>(&node)) {
             parent = ::Aero::Media::VisualTreeHelper::GetParent(*visual);
+        }
+    }
+    if (parent == nullptr) {
+        if (::Aero::Freezable* freezable =
+                ::Aero::TryCast<::Aero::Freezable>(&node)) {
+            parent = AeroGuiInternal::FreezableParent(*freezable);
         }
     }
     return parent;

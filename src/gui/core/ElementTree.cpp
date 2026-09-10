@@ -222,6 +222,11 @@ void ElementTree::InvalidateNodeHandle(::Aero::Media::Visual& node) noexcept {
             if (entry.generation == 0U) ++entry.generation;
         }
     }
+    if (bindings_ != nullptr || values_ != nullptr) {
+        Base::Vector<DependencyObject*> detachedProps;
+        AeroGuiInternal::DetachPropertyDependencyObjects(
+            node, bindings_, values_, detachedProps);
+    }
     if (bindings_ != nullptr) {
         static_cast<void>(bindings_->DetachObject(node));
     }
@@ -750,8 +755,7 @@ Base::Result<void> ElementTree::AttachLogical(
 Base::Result<void> ElementTree::DetachLogical(
     ::Aero::Media::Visual& parent,
     ::Aero::Media::Visual& child) noexcept {
-    if (child.logicalParent_ == &parent &&
-        child.tree_ == nullptr && parent.tree_ == nullptr) {
+    if (child.logicalParent_ == &parent && child.tree_ == nullptr) {
         child.logicalParent_ = nullptr;
         return {};
     }
@@ -854,8 +858,18 @@ Base::Result<void> ElementTree::DetachVisual(
     if (child.visualParent_ == nullptr || child.visualParent_ != &parent) {
         return {};
     }
+    const auto cleanPanelStorage = [&]() noexcept {
+        if (UIElement* childElement = ::Aero::TryCast<::Aero::UIElement>(&child)) {
+            if (AeroGuiInternal::PropertyRegistry(parent).Types().IsDerivedFrom(
+                    parent.RuntimeType(), Controls::Panel::StaticTypeId())) {
+                auto& panel = static_cast<Controls::Panel&>(parent);
+                (void)AeroGuiInternal::PanelRemoveChild(panel, *childElement);
+            }
+        }
+    };
     if (child.tree_ == nullptr && parent.tree_ == nullptr) {
         parent.RemoveVisualChild(&child);
+        cleanPanelStorage();
         return {};
     }
     Base::Result<void> verified = VerifyMutation(parent, &child);
@@ -867,6 +881,7 @@ Base::Result<void> ElementTree::DetachVisual(
         return NotFound("Visual parent-child relationship was not found");
     }
     parent.RemoveVisualChild(&child);
+    cleanPanelStorage();
     ++version_;
     return {};
 }

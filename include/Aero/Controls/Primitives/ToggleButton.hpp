@@ -8,7 +8,7 @@ class AERO_GUI_API ToggleButton : public ButtonBase {
     AERO_DECLARE_TYPE(ToggleButton, ButtonBase)
 public:
     ToggleButton() noexcept : ToggleButton(StaticTypeId()) {}
-    ~ToggleButton() override = default;
+    ~ToggleButton() override;
 
     Nullable<bool> GetIsChecked() const noexcept;
     bool GetIsThreeState() const noexcept;
@@ -32,12 +32,15 @@ public:
     AERO_DEPENDENCY_PROPERTY(bool, IsThreeState);
 
 protected:
-    explicit ToggleButton(TypeId runtimeType) noexcept
-        : ButtonBase(runtimeType) {}
+    explicit ToggleButton(TypeId runtimeType) noexcept;
+
+    void OnClick() override;
+    virtual void OnToggle() noexcept;
+    void UpdateVisualState(bool useTransitions = true) noexcept override;
 
 private:
-    friend class ::Aero::Controls::ButtonBehavior;
-    void SetToggleState(std::uint8_t value) noexcept;
+    struct ToggleState;
+    ToggleState* toggleState_ = nullptr;
 };
 
 } // namespace Aero::Controls::Primitives

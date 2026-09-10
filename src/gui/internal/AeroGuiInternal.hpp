@@ -12,6 +12,7 @@
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Controls/Control.hpp>
 #include <Aero/Controls/ContentControl.hpp>
+#include <Aero/Controls/Primitives/ButtonBase.hpp>
 #include <Aero/Controls/Decorator.hpp>
 #include <Aero/Controls/Image.hpp>
 #include <Aero/Controls/ItemContainerGenerator.hpp>

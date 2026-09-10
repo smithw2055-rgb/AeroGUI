@@ -486,9 +486,12 @@ void DetachViewUi(
             }
         }
 
+        Base::Vector<DependencyObject*> detachedPropertyObjects(state.allocator);
         for (std::uint32_t index = reachable.Size(); index > 0U; --index) {
             Aero::Media::Visual* node = reachable[index - 1U];
             if (node == nullptr) continue;
+            AeroGuiInternal::DetachPropertyDependencyObjects(
+                *node, state.Bindings(), state.values, detachedPropertyObjects);
             if (state.metadata != nullptr &&
                 state.metadata->Types().IsDerivedFrom(
                     node->RuntimeType(), Controls::ItemsControl::StaticTypeId())) {
@@ -617,7 +620,7 @@ Base::Result<void> ViewFrame::GeneratedItemSubtreeChanged(
                     runtime->
                         pendingGeneratedVisuals.
                             PopBack();
-                    return {};
+                    break;
                 }
             }
             DetachViewUi(

@@ -10,6 +10,8 @@
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
+#include "gui/data/BindingEngine.hpp"
+#include <Aero/Collections.hpp>
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleEngine.hpp"
 
@@ -1570,18 +1572,7 @@ Base::Result<void> EffectiveValueEngine::Invalidate(
 
 Base::Result<void> EffectiveValueEngine::DetachObject(DependencyObject& object) noexcept {
     Base::Result<void> ready = VerifyMutable(); if (!ready) return ready.GetStatus();
-    Base::Vector<MemberId> keys;
-    AeroGuiInternal::ForEachStoredKey(
-        object,
-        [](void* context, MemberId key) noexcept {
-            static_cast<Base::Vector<MemberId>*>(context)->PushBack(key);
-        },
-        &keys);
-    for (MemberId key : keys) {
-        Base::Result<void> cleared =
-            AeroGuiInternal::DropEngineValueState(object, DependencyPropertyHandle{key});
-        if (!cleared) return cleared.GetStatus();
-    }
+    RemoveInheritanceSubscription(object);
     // P2.2: unlink every queued link for the detached object; links return
     // to the free list. O(n) single pass, no element shifting.
     QueueLink* previous = nullptr;
@@ -1614,7 +1605,18 @@ Base::Result<void> EffectiveValueEngine::DetachObject(DependencyObject& object) 
     for (DependencyObject* child : children) {
         parents_.Erase(child);
     }
-    RemoveInheritanceSubscription(object);
+    Base::Vector<MemberId> keys;
+    AeroGuiInternal::ForEachStoredKey(
+        object,
+        [](void* context, MemberId key) noexcept {
+            static_cast<Base::Vector<MemberId>*>(context)->PushBack(key);
+        },
+        &keys);
+    for (MemberId key : keys) {
+        Base::Result<void> cleared =
+            AeroGuiInternal::DropEngineValueState(object, DependencyPropertyHandle{key});
+        if (!cleared) return cleared.GetStatus();
+    }
     return {};
 }
 
@@ -1625,3 +1627,73 @@ std::uint32_t EffectiveValueEngine::PendingPropertyCount() const noexcept {
 }
 
 } // namespace Aero::Meta
+
+namespace Aero {
+
+void AeroGuiInternal::DetachPropertyDependencyObjects(
+    DependencyObject& object,
+    BindingEngine* bindings,
+    Meta::EffectiveValueEngine* values,
+    Base::Vector<DependencyObject*>& visited) noexcept {
+    for (DependencyObject* seen : visited) {
+        if (seen == &object) return;
+    }
+    (void)visited.PushBack(&object);
+
+    PropertyStore* store = AeroGuiInternal::Store(object);
+    if (store == nullptr) return;
+
+    Base::Vector<DependencyObject*> propertyObjects;
+
+    const auto inspectValue = [&](const Meta::PropertyValue& val) noexcept {
+        if (val.Kind() == Base::ValueKind::Object && !val.IsNullObject()) {
+            Base::Ref<Base::Object> ref = val.AsObject();
+            if (ref) {
+                if (auto* depObj = ::Aero::TryCast<DependencyObject>(ref.Get())) {
+                    if (::Aero::TryCast<Aero::Media::Visual>(depObj) == nullptr && depObj != &object) {
+                        bool found = false;
+                        for (DependencyObject* existing : propertyObjects) {
+                            if (existing == depObj) { found = true; break; }
+                        }
+                        if (!found) (void)propertyObjects.PushBack(depObj);
+                    }
+                }
+            }
+        }
+    };
+
+    for (auto& entry : store->entries) {
+        inspectValue(entry.Value().effectiveValue);
+        if (entry.Value().rare != nullptr) {
+            inspectValue(entry.Value().rare->localBackup);
+            inspectValue(entry.Value().rare->currentValue);
+            inspectValue(entry.Value().rare->inheritedValue);
+            inspectValue(entry.Value().rare->animationValue);
+        }
+    }
+
+    for (DependencyObject* child : propertyObjects) {
+        if (child == nullptr) continue;
+        if (auto* itemsSource = ::Aero::TryCastToInterface<Collections::IItemsSource>(child)) {
+            const std::uint32_t count = itemsSource->GetCount();
+            for (std::uint32_t i = 0U; i < count; ++i) {
+                Base::Ref<Base::Object> item = itemsSource->GetItem(i);
+                if (item) {
+                    if (auto* itemDO = ::Aero::TryCast<DependencyObject>(item.Get())) {
+                        if (::Aero::TryCast<Aero::Media::Visual>(itemDO) == nullptr) {
+                            DetachPropertyDependencyObjects(*itemDO, bindings, values, visited);
+                        }
+                    }
+                }
+            }
+        }
+        DetachPropertyDependencyObjects(*child, bindings, values, visited);
+    }
+
+    if (::Aero::TryCast<Aero::Media::Visual>(&object) == nullptr) {
+        if (bindings != nullptr) (void)bindings->DetachObject(object);
+        if (values != nullptr) (void)values->DetachObject(object);
+    }
+}
+
+} // namespace Aero

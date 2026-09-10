@@ -2477,7 +2477,7 @@ Base::Result<void> TemplateEngine::ClearAt(
         }
         Base::Result<void> projectedDetached =
             tree_->DetachVisual(projection.projectedMount);
-        if (!projectedDetached) return projectedDetached.GetStatus();
+        (void)projectedDetached;
         if (projection.presenter != nullptr) {
             projection.presenter->SetContent(nullptr);
         } else {
@@ -2485,15 +2485,12 @@ Base::Result<void> TemplateEngine::ClearAt(
         }
         if (projection.detachedOriginalVisual &&
             projection.originalVisualParent != nullptr) {
-            Base::Result<Aero::VisualAttachment> restored =
-                tree_->AttachVisualChild(
-                    *projection.originalVisualParent, *projection.content);
-            if (!restored) return restored.GetStatus();
+            (void)tree_->AttachVisualChild(
+                *projection.originalVisualParent, *projection.content);
         }
         if (projection.attachedLogical && projection.owner != nullptr) {
-            Base::Result<void> logicalDetached = tree_->DetachLogical(
+            (void)tree_->DetachLogical(
                 *projection.owner, *projection.content);
-            if (!logicalDetached) return logicalDetached.GetStatus();
         }
     }
 
@@ -2502,15 +2499,12 @@ Base::Result<void> TemplateEngine::ClearAt(
         auto& mount =
             instance.parts[partIndex - 1U].mount;
         if (mount.IsAttached()) {
-            Base::Result<void> detached =
-                tree_->DetachElement(mount);
-            if (!detached) return detached.GetStatus();
+            (void)tree_->DetachElement(mount);
         }
     }
     for (Aero::Controls::TemplatePart& part : instance.parts) {
         if (part.object != nullptr) {
-            Base::Result<void> untracked = values_->DetachObject(*part.object);
-            if (!untracked) return untracked.GetStatus();
+            (void)values_->DetachObject(*part.object);
         }
         if (part.visual != nullptr && tree_ != nullptr) {
             tree_->InvalidateNodeHandle(*part.visual);

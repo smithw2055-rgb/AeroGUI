@@ -57,6 +57,8 @@ private:
 class AERO_GUI_API FrameworkElement : public UIElement {
     AERO_DECLARE_TYPE(FrameworkElement, UIElement)
 public:
+    using DependencyObject::SetValue;
+
     explicit FrameworkElement(TypeId runtimeType) noexcept;
     ~FrameworkElement() override;
 

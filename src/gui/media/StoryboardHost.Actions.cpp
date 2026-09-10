@@ -537,11 +537,13 @@ StoryboardHost::ExecuteAnimationAction(
             }
         }
         if (control.GetControlOption() ==
-                ControlStoryboardAction::Option::Stop &&
-            !stopped.Empty()) {
-            // WPF ClockController.Stop does not raise Completed. Drop the
-            // session so StoryboardCompletedTrigger cannot steal focus.
-            CancelStoryboardCompletionSessions(stopped.AsSpan());
+                ControlStoryboardAction::Option::Stop) {
+            if (!stopped.Empty()) {
+                // WPF ClockController.Stop does not raise Completed. Drop the
+                // session so StoryboardCompletedTrigger cannot steal focus.
+                CancelStoryboardCompletionSessions(stopped.AsSpan());
+            }
+            return {};
         }
         return found ? Base::Result<void>{} : Base::Status::Failure(
             Base::ErrorCode::NotFound, "ControlStoryboardAction storyboard was not started");

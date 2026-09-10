@@ -8,7 +8,7 @@ class AERO_GUI_API RepeatButton : public ButtonBase {
     AERO_DECLARE_TYPE(RepeatButton, ButtonBase)
 public:
     RepeatButton() noexcept : RepeatButton(StaticTypeId()) {}
-    ~RepeatButton() override = default;
+    ~RepeatButton() override;
 
     std::uint32_t GetDelay() const noexcept;
     std::uint32_t GetInterval() const noexcept;
@@ -19,8 +19,12 @@ public:
     AERO_DEPENDENCY_PROPERTY(std::uint32_t, Interval);
 
 protected:
-    explicit RepeatButton(TypeId runtimeType) noexcept
-        : ButtonBase(runtimeType) {}
+    explicit RepeatButton(TypeId runtimeType) noexcept;
+
+    void OnMouseLeftButtonDown(MouseButtonEventArgs& args) override;
+    void OnMouseLeftButtonUp(MouseButtonEventArgs& args) override;
+    void OnKeyDown(KeyEventArgs& args) override;
+    void OnKeyUp(KeyEventArgs& args) override;
 };
 
 } // namespace Aero::Controls::Primitives

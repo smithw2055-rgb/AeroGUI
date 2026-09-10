@@ -28,117 +28,10 @@
 
 namespace Aero::Controls {
 
-// Interaction bookkeeping for ToggleButton lives in the control runtime, not
-// in the public WPF-shaped controls headers.
-enum class ToggleState : std::uint8_t {
-    Unchecked = 0U,
-    Checked,
-    Indeterminate,
-};
-
 using namespace Aero::Meta;
 using namespace Aero::Threading;
 using namespace Aero::Controls::Primitives;
 using Aero::Controls::TemplateHandle;
-
-class ButtonBehavior {
-public:
-    ButtonBehavior(
-        ElementTree& tree,
-        EventRouter& events,
-        InputRouter& input,
-        VisualStateManager* states = nullptr) noexcept;
-    ~ButtonBehavior() noexcept;
-
-    Base::Result<void> Initialize() noexcept;
-    Base::Result<void> Attach(ButtonBase& button) noexcept;
-    Base::Result<bool> Detach(ButtonBase& button) noexcept;
-    Base::Result<void> RefreshCanExecute(
-        ButtonBase& button) noexcept;
-    Base::Result<void> RefreshVisualState(
-        ButtonBase& button,
-        bool useTransitions = true) noexcept {
-        return SyncVisualState(button, useTransitions);
-    }
-    // Host-driven deterministic clock for RepeatButton. A single call emits
-    // at most 1024 repeats and skips excess backlog.
-    Base::Result<std::uint32_t> AdvanceTime(
-        std::uint32_t elapsedMilliseconds) noexcept;
-
-private:
-    friend class Aero::Controls::Primitives::ButtonBase;
-    struct ButtonRecord {
-        VisualHandle handle;
-        Base::Ref<ICommand> command;
-        std::uint32_t pointerId = 0U;
-        bool pointerDown = false;
-        bool keyboardDown = false;
-        bool wasMouseOver = false;
-        std::uint64_t repeatElapsed = 0U;
-        std::uint64_t nextRepeat = 0U;
-        ToggleState toggleState = ToggleState::Unchecked;
-        bool updatingToggle = false;
-    };
-
-    ElementTree* tree_ = nullptr;
-    EventRouter* events_ = nullptr;
-    InputRouter* input_ = nullptr;
-    VisualStateManager* states_ = nullptr;
-    Base::Vector<ButtonRecord> buttons_;
-    MouseButtonEventHandler mouseDownHandler_;
-    MouseButtonEventHandler mouseUpHandler_;
-    KeyEventHandler keyDownHandler_;
-    KeyEventHandler keyUpHandler_;
-    KeyboardFocusChangedEventHandler focusChangedHandler_;
-    DependencyPropertyChangedEventHandler propertyChangedHandler_;
-    PointerStateChangedHandler pointerStateChangedHandler_;
-    PointerCaptureChangedHandler captureChangedHandler_;
-    RequerySuggestedHandler requeryHandler_;
-    bool initialized_ = false;
-
-    std::uint32_t FindButton(const ButtonBase& button) const noexcept;
-    ButtonBase* ResolveButton(std::uint32_t index) noexcept;
-    Base::Result<void> SubscribeCommand(
-        ButtonBase& button,
-        ButtonRecord& record) noexcept;
-    void UnsubscribeCommand(ButtonRecord& record) noexcept;
-    void RemoveAt(std::uint32_t index) noexcept;
-    Base::Result<void> InvokeClick(ButtonBase& button) noexcept;
-    Base::Result<void> ApplyToggleState(
-        ToggleButton& button,
-        ToggleState state) noexcept;
-    void PublishToggleState(
-        ToggleButton& button,
-        ButtonRecord& record) noexcept;
-    void UncheckRadioPeers(RadioButton& button) noexcept;
-    Base::Result<void> SyncVisualState(
-        ButtonBase& button,
-        bool useTransitions = true) noexcept;
-    void OnMouseDown(
-        Base::Object* sender,
-        MouseButtonEventArgs& args) noexcept;
-    void OnMouseUp(
-        Base::Object* sender,
-        MouseButtonEventArgs& args) noexcept;
-    void OnKeyDown(
-        Base::Object* sender,
-        KeyEventArgs& args) noexcept;
-    void OnKeyUp(
-        Base::Object* sender,
-        KeyEventArgs& args) noexcept;
-    void OnFocusChanged(
-        Base::Object* sender,
-        KeyboardFocusChangedEventArgs& args) noexcept;
-    void OnPropertyChanged(
-        DependencyObject& object,
-        const DependencyPropertyChangedEventArgs& args) noexcept;
-    void OnPointerStateChanged(UIElement& element) noexcept;
-    void OnCaptureChanged(
-        std::uint32_t pointerId,
-        UIElement* target,
-        bool captured) noexcept;
-    void OnRequerySuggested() noexcept;
-};
 
 class TextEditBehavior {
 public:
@@ -655,9 +548,12 @@ public:
         ::Aero::Media::Visual& visual,
         ::Aero::Input::ITextInputMethodHost* inputMethodHost) noexcept;
     Base::Result<bool> Detach(::Aero::Media::Visual& visual) noexcept;
-    Base::Result<void> RefreshButtonVisualState(
-        Primitives::ButtonBase& button,
-        bool useTransitions = true) noexcept;
+    void SetActiveRepeatButton(Primitives::RepeatButton* button) noexcept {
+        if (activeRepeatButton_ == button) return;
+        activeRepeatButton_ = button;
+        repeatElapsed_ = 0U;
+        nextRepeat_ = 0U;
+    }
     Base::Result<std::uint32_t> AdvanceTime(
         std::uint32_t elapsedMilliseconds) noexcept;
     void Shutdown() noexcept;
@@ -669,7 +565,6 @@ private:
     void Destroy(T*& object) noexcept;
 
     static constexpr std::size_t StorageBytes =
-        sizeof(Aero::Controls::ButtonBehavior) +
         sizeof(Aero::Controls::TextEditBehavior) +
         sizeof(Aero::Controls::ScrollBehavior) +
         sizeof(Aero::Controls::SliderBehavior) +
@@ -693,7 +588,10 @@ private:
     std::size_t offset_ = 0U;
     alignas(std::max_align_t) std::byte storage_[StorageBytes]{};
 
-    Aero::Controls::ButtonBehavior* buttons_ = nullptr;
+    Primitives::RepeatButton* activeRepeatButton_ = nullptr;
+    std::uint64_t repeatElapsed_ = 0U;
+    std::uint64_t nextRepeat_ = 0U;
+
     Aero::Controls::TextEditBehavior* textBoxes_ = nullptr;
     Aero::Controls::ScrollBehavior* scrolling_ = nullptr;
     Aero::Controls::SliderBehavior* sliders_ = nullptr;

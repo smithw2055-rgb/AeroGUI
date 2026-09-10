@@ -297,6 +297,13 @@ Base::Result<VisualHandle> LayoutEngine::EnqueueHandle(
     UIElement& element) noexcept {
     const VisualHandle handle = AeroGuiInternal::Handle(element);
     if (!handle.IsValid()) {
+        std::fprintf(stderr, "DEBUG_ENQUEUE_FAIL: elem=%p type=%llu tree=%p vparent=%p lparent=%p layoutParent=%p\n",
+            static_cast<void*>(&element),
+            static_cast<unsigned long long>(element.RuntimeType()),
+            static_cast<void*>(AeroGuiInternal::Tree(element)),
+            static_cast<void*>(element.GetVisualParent()),
+            static_cast<void*>(element.GetLogicalParent()),
+            static_cast<void*>(element.LayoutParent()));
         return InvalidState("Layout element has no ElementTree handle");
     }
     return handle;
@@ -901,17 +908,24 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
         const Base::StringView parentName = parentType != nullptr
             ? parentType->Name()
             : Base::StringView("<none>");
-        thread_local char message[256];
+        thread_local char message[512];
         std::snprintf(
             message,
             sizeof(message),
-            "Layout did not converge for visible '%.*s' (measure=%u arrange=%u parent='%.*s') after template application",
+            "Layout did not converge for visible '%.*s' %p (measure=%u arrange=%u parent='%.*s' %p, isVisible=%d, vis=%u, layoutAttached=%d, layoutParent=%p, visualParent=%p) after template application",
             static_cast<int>(typeName.SizeBytes()),
             typeName.Data(),
+            static_cast<void*>(invalid),
             invalid != nullptr && invalid->GetIsMeasureValid() ? 1U : 0U,
             invalid != nullptr && invalid->GetIsArrangeValid() ? 1U : 0U,
             static_cast<int>(parentName.SizeBytes()),
-            parentName.Data());
+            parentName.Data(),
+            static_cast<void*>(layoutParent),
+            invalid != nullptr ? (int)invalid->GetIsVisible() : -1,
+            invalid != nullptr ? static_cast<unsigned>(invalid->GetVisibility()) : 99U,
+            invalid != nullptr ? (int)AeroGuiInternal::Layout(*invalid).layoutAttached : -1,
+            invalid != nullptr ? static_cast<void*>(invalid->LayoutParent()) : nullptr,
+            invalid != nullptr ? static_cast<void*>(invalid->GetVisualParent()) : nullptr);
         return InvalidState(message);
     }
 

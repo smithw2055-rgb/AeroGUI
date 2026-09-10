@@ -1177,7 +1177,9 @@ ItemContainerGenerator::GeneratorState::DetachRecord(
     }
     Base::Status firstError;
     const auto capture = [&firstError](const Base::Result<void>& result) noexcept {
-        if (!result && firstError.IsOk()) firstError = result.GetStatus();
+        if (!result && firstError.IsOk()) {
+            firstError = result.GetStatus();
+        }
     };
     if (record.subtreeMounted &&
         subtreeCallback_ != nullptr) {

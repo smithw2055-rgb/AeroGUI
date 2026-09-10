@@ -33,6 +33,8 @@ set_target_properties(aero-control-gallery-conformance PROPERTIES
     CXX_STANDARD_REQUIRED YES
     CXX_EXTENSIONS NO)
 aero_apply_compiler_options(aero-control-gallery-conformance)
+target_compile_options(aero-control-gallery-conformance PRIVATE "$<$<CXX_COMPILER_ID:MSVC>:/Zi>")
+target_link_options(aero-control-gallery-conformance PRIVATE "$<$<CXX_COMPILER_ID:MSVC>:/DEBUG>")
 
 add_executable(aero-inventory-conformance
     tools/inventory-conformance/main.cpp)

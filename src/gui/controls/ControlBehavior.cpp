@@ -70,14 +70,6 @@ Base::Result<void> ControlBehavior::Initialize() noexcept {
     }
 
     if (controlsEnabled_) {
-        Base::Result<Aero::Controls::ButtonBehavior*> buttons =
-            Construct<Aero::Controls::ButtonBehavior>(
-                *tree_, *events_, *input_, visualStates_);
-        if (!buttons) return buttons.GetStatus();
-        buttons_ = buttons.Value();
-        Base::Result<void> status = buttons_->Initialize();
-        if (!status) return status.GetStatus();
-
         Base::Result<Aero::Controls::ScrollBehavior*> scrolling =
             Construct<Aero::Controls::ScrollBehavior>(*tree_, *events_);
         if (!scrolling) return scrolling.GetStatus();
@@ -142,14 +134,6 @@ Base::Result<void> ControlBehavior::Attach(
     }
     const Meta::TypeId type = visual.RuntimeType();
     auto& types = metadata_->Types();
-    if (buttons_ != nullptr &&
-        types.IsDerivedFrom(type, Primitives::ButtonBase::StaticTypeId())) {
-        Base::Result<void> result = buttons_->Attach(
-            *static_cast<Primitives::ButtonBase*>(&visual));
-        if (!result && result.GetStatus().code != Base::ErrorCode::AlreadyExists) {
-            return result.GetStatus();
-        }
-    }
     if (types.IsDerivedFrom(type, TextBox::StaticTypeId())) {
         auto& textBox = *static_cast<TextBox*>(&visual);
         if (inputMethodHost != nullptr) {
@@ -247,13 +231,11 @@ Base::Result<bool> ControlBehavior::Detach(
     const Meta::TypeId type = visual.RuntimeType();
     auto& types = metadata_->Types();
     Base::Result<bool> detached = false;
-    if (buttons_ != nullptr &&
-        types.IsDerivedFrom(
-            type, Primitives::ButtonBase::StaticTypeId())) {
-        detached = buttons_->Detach(
-            *static_cast<Primitives::ButtonBase*>(&visual));
-    } else if (textBoxes_ != nullptr &&
-               types.IsDerivedFrom(type, TextBox::StaticTypeId())) {
+    if (&visual == activeRepeatButton_) {
+        SetActiveRepeatButton(nullptr);
+    }
+    if (textBoxes_ != nullptr &&
+        types.IsDerivedFrom(type, TextBox::StaticTypeId())) {
         detached = textBoxes_->Detach(
             *static_cast<TextBox*>(&visual));
     } else if (textBoxes_ != nullptr &&
@@ -297,27 +279,35 @@ Base::Result<bool> ControlBehavior::Detach(
     return detached.Value();
 }
 
-Base::Result<void> ControlBehavior::RefreshButtonVisualState(
-    Primitives::ButtonBase& button,
-    bool useTransitions) noexcept {
-    if (buttons_ == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotInitialized,
-            "Button behavior is unavailable");
-    }
-    return buttons_->RefreshVisualState(
-        button, useTransitions);
-}
-
 Base::Result<std::uint32_t> ControlBehavior::AdvanceTime(
     std::uint32_t elapsedMilliseconds) noexcept {
-    return buttons_ != nullptr
-        ? buttons_->AdvanceTime(elapsedMilliseconds)
-        : Base::Result<std::uint32_t>(std::uint32_t{0U});
+    if (activeRepeatButton_ == nullptr || !activeRepeatButton_->GetIsEnabled()) {
+        return 0U;
+    }
+    if (!activeRepeatButton_->GetIsMouseOver() && !activeRepeatButton_->GetIsKeyboardFocused()) {
+        return 0U;
+    }
+    repeatElapsed_ += elapsedMilliseconds;
+    if (nextRepeat_ == 0U) {
+        nextRepeat_ = activeRepeatButton_->GetDelay();
+    }
+    const std::uint64_t interval = activeRepeatButton_->GetInterval();
+    if (interval == 0U) return 0U;
+    std::uint32_t emitted = 0U;
+    while (repeatElapsed_ >= nextRepeat_ && emitted < 1024U) {
+        AeroGuiInternal::Click(*activeRepeatButton_);
+        ++emitted;
+        nextRepeat_ += interval;
+    }
+    if (emitted == 1024U && repeatElapsed_ >= nextRepeat_) {
+        nextRepeat_ = repeatElapsed_ + interval;
+    }
+    return emitted;
 }
 
 void ControlBehavior::Shutdown() noexcept {
     if (!initialized_ && offset_ == 0U) return;
+    activeRepeatButton_ = nullptr;
     Destroy(menus_);
     Destroy(trees_);
     Destroy(combos_);
@@ -326,7 +316,6 @@ void ControlBehavior::Shutdown() noexcept {
     Destroy(sliders_);
     Destroy(scrolling_);
     Destroy(textBoxes_);
-    Destroy(buttons_);
     offset_ = 0U;
     initialized_ = false;
 }

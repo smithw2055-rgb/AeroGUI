@@ -39,6 +39,12 @@
         Meta::DependencyPropertyHandle property) noexcept;
     static std::uint64_t FreezableRevision(const Freezable& value) noexcept;
     static bool FreezableCheckCore(Freezable& value) noexcept;
+    static DependencyObject* FreezableParent(const Freezable& value) noexcept;
+    static void DetachPropertyDependencyObjects(
+        DependencyObject& object,
+        BindingEngine* bindings,
+        Meta::EffectiveValueEngine* values,
+        Base::Vector<DependencyObject*>& visited) noexcept;
 
     // --- Property store ---
     static PropertyStore* Store(DependencyObject& object) noexcept {

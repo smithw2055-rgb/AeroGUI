@@ -238,3 +238,8 @@
         Controls::PasswordBox& element,
         void* service,
         bool invalidate = false) noexcept;
+
+    // --- ButtonBase ---
+    static void Click(Controls::Primitives::ButtonBase& button) noexcept {
+        AERO_CALL_METHOD0(button, ButtonBase_OnClick);
+    }

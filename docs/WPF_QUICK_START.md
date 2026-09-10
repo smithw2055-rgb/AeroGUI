@@ -65,7 +65,8 @@ Dependency-property and routed-event identifiers are declared on one physical
 line:
 
 ```cpp
-inline static constexpr Aero::DependencyProperty<double> RatingProperty{"Rating"};
+// Inside a control declaration:
+AERO_DEPENDENCY_PROPERTY(double, Rating);
 inline static constexpr Aero::RoutedEvent<Aero::RoutedEventArgs> RatingChangedEvent{"RatingChanged"};
 ```
 

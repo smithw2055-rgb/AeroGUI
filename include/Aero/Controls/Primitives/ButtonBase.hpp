@@ -6,7 +6,6 @@
 #include <Aero/Events/ControlEventArgs.hpp>
 
 namespace Aero::Controls {
-class ButtonBehavior;
 using ::Aero::Meta::TypeId;
 using ::Aero::Input::ICommand;
 enum class ClickMode : std::uint8_t {
@@ -28,9 +27,7 @@ public:
     ICommand* GetCommand() const noexcept;
     Value GetCommandParameter() const noexcept;
     UIElement* GetCommandTarget() const noexcept;
-    bool GetIsCommandEnabled() const noexcept {
-        return commandEnabled_;
-    }
+    bool GetIsCommandEnabled() const noexcept;
 
     void SetClickMode(ClickMode value) noexcept;
     void SetCommand(Ref<ICommand> command) noexcept;
@@ -43,14 +40,22 @@ public:
     AERO_DEPENDENCY_PROPERTY(Ref<UIElement>, CommandTarget);
 
 protected:
-    explicit ButtonBase(TypeId runtimeType) noexcept
-        : ContentControl(runtimeType) {}
+    explicit ButtonBase(TypeId runtimeType) noexcept;
     ~ButtonBase() override;
+
+    virtual void OnClick();
+    virtual void UpdateVisualState(bool useTransitions = true) noexcept;
+
+    virtual void OnMouseLeftButtonDown(MouseButtonEventArgs& args);
+    virtual void OnMouseLeftButtonUp(MouseButtonEventArgs& args);
+    virtual void OnKeyDown(KeyEventArgs& args);
+    virtual void OnKeyUp(KeyEventArgs& args);
+
     void OnApplyTemplate() noexcept override;
 
 private:
-    friend class ::Aero::Controls::ButtonBehavior;
-    bool commandEnabled_ = true;
+    struct State;
+    State* state_ = nullptr;
 };
 
 } // namespace Primitives

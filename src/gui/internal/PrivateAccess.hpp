@@ -14,6 +14,7 @@
 #include <Aero/Controls/ItemsControl.hpp>
 #include <Aero/Controls/MenuItem.hpp>
 #include <Aero/Controls/Panel.hpp>
+#include <Aero/Controls/Primitives/ButtonBase.hpp>
 #include <Aero/Controls/Primitives/Selector.hpp>
 #include <Aero/Controls/TreeViewItem.hpp>
 #include <Aero/DependencyObject.hpp>
@@ -367,5 +368,10 @@ AERO_DECLARE_METHOD_THIEF(DO_AccumulateInvalidations, ::Aero::DependencyObject, 
 AERO_DECLARE_METHOD_THIEF(DO_OnPropertyInvalidated, ::Aero::DependencyObject, OnPropertyInvalidated,
     void (::Aero::DependencyObject::*)(Meta::PropertyInvalidationFlags) noexcept,
     &::Aero::DependencyObject::OnPropertyInvalidated)
+
+// --- ButtonBase protected methods ---
+AERO_DECLARE_METHOD_THIEF(ButtonBase_OnClick, ::Aero::Controls::Primitives::ButtonBase, OnClick,
+    void (::Aero::Controls::Primitives::ButtonBase::*)(),
+    &::Aero::Controls::Primitives::ButtonBase::OnClick)
 
 } // namespace Aero::Internal

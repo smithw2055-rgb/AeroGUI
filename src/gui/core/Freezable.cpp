@@ -426,6 +426,18 @@ bool AeroGuiInternal::FreezableCheckCore(
     return AERO_CALL_METHOD(value, Freezable_FreezeCore, true);
 }
 
+DependencyObject* AeroGuiInternal::FreezableParent(
+    const Freezable& value) noexcept {
+    Freezable::Impl* impl = AERO_GET_FIELD(value, Freezable_impl);
+    if (impl == nullptr || impl->consumers.Empty()) return nullptr;
+    for (const auto& consumer : impl->consumers) {
+        Base::Ref<DependencyObject> retained = consumer.object.Lock();
+        if (retained) return retained.Get();
+        if (consumer.unmanagedObject != nullptr) return consumer.unmanagedObject;
+    }
+    return nullptr;
+}
+
 bool AeroGuiInternal::HasUnfreezableValueState(
     const DependencyObject& object) noexcept {
     const PropertyStore* store = AeroGuiInternal::Store(object);

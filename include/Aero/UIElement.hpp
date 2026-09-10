@@ -246,6 +246,10 @@ public:
         Input::DragDropEffects allowedEffects =
             Input::DragDropEffects::Move) noexcept;
     Result<bool> CancelDrag() noexcept;
+    Result<void> CapturePointer(std::uint32_t pointerId = 0U) noexcept;
+    Result<bool> ReleasePointer(std::uint32_t pointerId = 0U) noexcept;
+    Result<void> CaptureMouse() noexcept { return CapturePointer(0U); }
+    Result<bool> ReleaseMouseCapture() noexcept { return ReleasePointer(0U); }
     bool GetIsMouseOver() const noexcept;
     bool GetIsPressed() const noexcept;
     bool GetIsKeyboardFocused() const noexcept;
