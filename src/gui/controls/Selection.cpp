@@ -78,29 +78,9 @@ ListBoxItem::ListBoxItem() noexcept
     : ListBoxItem(StaticTypeId()) {}
 
 ListBoxItem::ListBoxItem(TypeId runtimeType) noexcept
-    : ContentControl(runtimeType),
-      selectedChangedHandler_(
-          this, &ListBoxItem::OnIsSelectedChanged),
-      mouseOverChangedHandler_(
-          this, &ListBoxItem::OnIsMouseOverChanged),
-      isEnabledChangedHandler_(
-          this, &ListBoxItem::OnIsEnabledChanged) {
-    static_cast<void>(AddValueChangedHandler(
-        IsSelectedProperty, selectedChangedHandler_));
-    static_cast<void>(AddValueChangedHandler(
-        UIElement::IsMouseOverProperty, mouseOverChangedHandler_));
-    static_cast<void>(AddValueChangedHandler(
-        UIElement::IsEnabledProperty, isEnabledChangedHandler_));
-}
+    : ContentControl(runtimeType) {}
 
-ListBoxItem::~ListBoxItem() {
-    static_cast<void>(RemoveValueChangedHandler(
-        IsSelectedProperty, selectedChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        UIElement::IsMouseOverProperty, mouseOverChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        UIElement::IsEnabledProperty, isEnabledChangedHandler_));
-}
+ListBoxItem::~ListBoxItem() = default;
 
 bool ListBoxItem::GetIsSelected() const noexcept {
     return GetValue(IsSelectedProperty);
@@ -133,41 +113,16 @@ void ListBoxItem::UpdateVisualState(bool useTransitions) noexcept {
             useTransitions));
 }
 
-void ListBoxItem::OnIsSelectedChanged(
-    DependencyObject&,
+void ListBoxItem::OnPropertyChanged(
     const DependencyPropertyChangedEventArgs& args) noexcept {
-    UpdateVisualState(true);
-    const bool selected =
-        args.GetNewValue().Kind() == Meta::ValueKind::Boolean &&
-        args.GetNewValue().AsBoolean();
-    if (!selected) return;
-    ::Aero::Media::Visual* visual = this;
-    while (visual != nullptr) {
-        UIElement* element = ::Aero::TryCast<UIElement>(visual);
-        if (element != nullptr &&
-            AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
-                element->RuntimeType(), ListBox::StaticTypeId())) {
-            auto& listBox = *static_cast<ListBox*>(element);
-            ItemContainerGenerator* generator =
-                listBox.GetItemContainerGenerator();
-            if (generator == nullptr) return;
-            const std::uint32_t index =
-                generator->IndexFromContainer(*this);
-            if (index != UINT32_MAX &&
-                listBox.GetSelectedIndex() != index) {
-                listBox.SetSelectedIndex(index);
-            }
-            return;
-        }
-        visual = visual->GetVisualParent();
-    }
-}
-
-void ListBoxItem::OnIsMouseOverChanged(
-    DependencyObject&,
-    const DependencyPropertyChangedEventArgs&) noexcept {
-    UpdateVisualState(true);
-    if (GetIsMouseOver() && GetIsEnabled()) {
+    ContentControl::OnPropertyChanged(args);
+    const DependencyPropertyHandle prop = args.GetProperty();
+    if (prop == IsSelectedProperty) {
+        UpdateVisualState(true);
+        const bool selected =
+            args.GetNewValue().Kind() == Meta::ValueKind::Boolean &&
+            args.GetNewValue().AsBoolean();
+        if (!selected) return;
         ::Aero::Media::Visual* visual = this;
         while (visual != nullptr) {
             UIElement* element = ::Aero::TryCast<UIElement>(visual);
@@ -175,29 +130,49 @@ void ListBoxItem::OnIsMouseOverChanged(
                 AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
                     element->RuntimeType(), ListBox::StaticTypeId())) {
                 auto& listBox = *static_cast<ListBox*>(element);
-                if (listBox.GetSelectionMode() == SelectionMode::Single) {
-                    ItemContainerGenerator* generator =
-                        listBox.GetItemContainerGenerator();
-                    if (generator != nullptr) {
-                        const std::uint32_t index =
-                            generator->IndexFromContainer(*this);
-                        if (index != UINT32_MAX &&
-                            listBox.GetSelectedIndex() != index) {
-                            listBox.SetSelectedIndex(index);
-                        }
-                    }
+                ItemContainerGenerator* generator =
+                    listBox.GetItemContainerGenerator();
+                if (generator == nullptr) return;
+                const std::uint32_t index =
+                    generator->IndexFromContainer(*this);
+                if (index != UINT32_MAX &&
+                    listBox.GetSelectedIndex() != index) {
+                    listBox.SetSelectedIndex(index);
                 }
-                break;
+                return;
             }
             visual = visual->GetVisualParent();
         }
+    } else if (prop == UIElement::IsMouseOverProperty) {
+        UpdateVisualState(true);
+        if (GetIsMouseOver() && GetIsEnabled()) {
+            ::Aero::Media::Visual* visual = this;
+            while (visual != nullptr) {
+                UIElement* element = ::Aero::TryCast<UIElement>(visual);
+                if (element != nullptr &&
+                    AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
+                        element->RuntimeType(), ListBox::StaticTypeId())) {
+                    auto& listBox = *static_cast<ListBox*>(element);
+                    if (listBox.GetSelectionMode() == SelectionMode::Single) {
+                        ItemContainerGenerator* generator =
+                            listBox.GetItemContainerGenerator();
+                        if (generator != nullptr) {
+                            const std::uint32_t index =
+                                generator->IndexFromContainer(*this);
+                            if (index != UINT32_MAX &&
+                                listBox.GetSelectedIndex() != index) {
+                                listBox.SetSelectedIndex(index);
+                            }
+                        }
+                    }
+                    break;
+                }
+                visual = visual->GetVisualParent();
+            }
+        }
+    } else if (prop == UIElement::IsEnabledProperty) {
+        UpdateVisualState(true);
     }
-}
-
-void ListBoxItem::OnIsEnabledChanged(
-    DependencyObject&,
-    const DependencyPropertyChangedEventArgs&) noexcept {
-    UpdateVisualState(true);
 }
 
 Selector::Selector() noexcept
@@ -207,47 +182,15 @@ Selector::Selector(TypeId runtimeType) noexcept
     : ItemsControl(runtimeType),
       itemsChangedHandler_(
           this, &Selector::OnItemsChanged),
-      propertyChangedHandler_(
-          this, &Selector::OnPropertyChanged),
       currentChangedHandler_(
           this, &Selector::OnViewCurrentChanged) {
     AddItemsChanged(itemsChangedHandler_);
-    static_cast<void>(AddValueChangedHandler(
-        SelectionModeProperty,
-        propertyChangedHandler_));
-    static_cast<void>(AddValueChangedHandler(
-        SelectedIndexProperty,
-        propertyChangedHandler_));
-    static_cast<void>(AddValueChangedHandler(
-        SelectedItemProperty,
-        propertyChangedHandler_));
-    static_cast<void>(AddValueChangedHandler(
-        SelectedValueProperty,
-        propertyChangedHandler_));
-    static_cast<void>(AddValueChangedHandler(
-        IsSynchronizedWithCurrentItemProperty,
-        propertyChangedHandler_));
 }
 
 Selector::~Selector() {
     UnhookCurrentView();
     static_cast<void>(
         RemoveItemsChanged(itemsChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        SelectionModeProperty,
-        propertyChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        SelectedIndexProperty,
-        propertyChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        SelectedItemProperty,
-        propertyChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        SelectedValueProperty,
-        propertyChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        IsSynchronizedWithCurrentItemProperty,
-        propertyChangedHandler_));
 }
 
 SelectionMode Selector::GetSelectionMode() const noexcept {
@@ -591,20 +534,21 @@ Base::Result<bool> Selector::ApplySelection(
         return published.GetStatus();
     }
     SyncContainers();
+    SelectionChangedEvent event;
+    event.removedIndices = {
+        removed.Data(), removed.Size()};
+    event.addedIndices = {
+        added.Data(), added.Size()};
+    event.oldPrimaryIndex = oldPrimary;
+    event.newPrimaryIndex = primaryIndex_;
+    event.oldPrimaryItem =
+        std::move(oldPrimaryItem);
+    event.newPrimaryItem =
+        primaryIndex_ < GetCount()
+        ? GetItem(primaryIndex_)
+        : Base::Ref<Base::Object>();
+    OnSelectionChanged(event);
     if (!selectionChanged_.Empty()) {
-        SelectionChangedEvent event;
-        event.removedIndices = {
-            removed.Data(), removed.Size()};
-        event.addedIndices = {
-            added.Data(), added.Size()};
-        event.oldPrimaryIndex = oldPrimary;
-        event.newPrimaryIndex = primaryIndex_;
-        event.oldPrimaryItem =
-            std::move(oldPrimaryItem);
-        event.newPrimaryItem =
-            primaryIndex_ < GetCount()
-            ? GetItem(primaryIndex_)
-            : Base::Ref<Base::Object>();
         selectionChanged_.Invoke(*this, event);
     }
     RoutedEventArgs routedArgs;
@@ -862,9 +806,11 @@ void Selector::OnItemsChanged(
     }
 }
 
+void Selector::OnSelectionChanged(const SelectionChangedEvent&) {}
+
 void Selector::OnPropertyChanged(
-    DependencyObject&,
     const DependencyPropertyChangedEventArgs& args) noexcept {
+    ItemsControl::OnPropertyChanged(args);
     if (synchronizingProperties_) return;
     activeProperty_ = args.GetProperty();
     Base::Result<bool> applied = false;
@@ -985,30 +931,11 @@ ListBox::ListBox() noexcept
     : ListBox(StaticTypeId()) {}
 
 ListBox::ListBox(TypeId runtimeType) noexcept
-    : Selector(runtimeType),
-      mouseDownHandler_(this, &ListBox::HandleMouseDown),
-      keyDownHandler_(this, &ListBox::HandleKeyDown) {
-    AddHandler(UIElement::MouseDownEvent, mouseDownHandler_);
-    AddHandler(UIElement::KeyDownEvent, keyDownHandler_);
+    : Selector(runtimeType) {
     AeroGuiInternal::SyncSelectorContainers(*this);
 }
 
-ListBox::~ListBox() {
-    static_cast<void>(RemoveHandler(
-        UIElement::MouseDownEvent,
-        mouseDownHandler_));
-    static_cast<void>(RemoveHandler(
-        UIElement::KeyDownEvent,
-        keyDownHandler_));
-}
-
-void ListBox::HandleMouseDown(Base::Object*, MouseButtonEventArgs& args) noexcept {
-    OnMouseLeftButtonDown(args);
-}
-
-void ListBox::HandleKeyDown(Base::Object*, KeyEventArgs& args) noexcept {
-    OnKeyDown(args);
-}
+ListBox::~ListBox() = default;
 
 std::uint32_t ListBox::FindContainerIndex(Base::Object* source) const noexcept {
     if (source == nullptr ||
@@ -1246,124 +1173,18 @@ void ComboBoxItem::SetIsSelected(
 
 ComboBox::ComboBox() noexcept
     : Selector(StaticTypeId()),
-      mouseDownHandler_(
-          this,
-          &ComboBox::HandleMouseDown),
-      keyDownHandler_(
-          this,
-          &ComboBox::HandleKeyDown),
-      mouseOverChangedHandler_(
-          this,
-          &ComboBox::OnIsMouseOverChanged),
-      isEnabledChangedHandler_(
-          this,
-          &ComboBox::OnIsEnabledChanged),
-      selectionChangedHandler_(
-          this,
-          &ComboBox::OnSelectionChanged),
-      dropDownChangedHandler_(
-          this,
-          &ComboBox::OnDropDownPropertyChanged),
       popupIsOpenChangedHandler_(
           this,
           &ComboBox::OnPopupIsOpenChanged),
-      maxDropDownHeightChangedHandler_(
-          this,
-          &ComboBox::
-              OnMaxDropDownHeightPropertyChanged),
-      editableChangedHandler_(
-          this,
-          &ComboBox::OnEditablePropertyChanged),
-      textChangedHandler_(
-          this,
-          &ComboBox::OnTextPropertyChanged),
-      foregroundChangedHandler_(
-          this,
-          &ComboBox::OnForegroundPropertyChanged),
-      selectedValueChangedHandler_(
-          this,
-          &ComboBox::OnSelectedValuePropertyChanged),
       selectedProjectionChangedHandler_(
           this,
           &ComboBox::OnSelectedProjectionChanged),
       editableTextChangedHandler_(
           this,
-          &ComboBox::OnEditableTextChanged) {
-    AddHandler(
-        UIElement::MouseDownEvent,
-        mouseDownHandler_,
-        true);
-    AddHandler(
-        UIElement::KeyDownEvent,
-        keyDownHandler_);
-    static_cast<void>(AddValueChangedHandler(
-        UIElement::IsMouseOverProperty,
-        mouseOverChangedHandler_));
-    static_cast<void>(AddValueChangedHandler(
-        UIElement::IsEnabledProperty,
-        isEnabledChangedHandler_));
-    static_cast<void>(AddSelectionChanged(
-        selectionChangedHandler_));
-    static_cast<void>(AddValueChangedHandler(
-        IsDropDownOpenProperty,
-        dropDownChangedHandler_));
-    static_cast<void>(AddValueChangedHandler(
-        MaxDropDownHeightProperty,
-        maxDropDownHeightChangedHandler_));
-    static_cast<void>(AddValueChangedHandler(
-        IsEditableProperty,
-        editableChangedHandler_));
-    static_cast<void>(AddValueChangedHandler(
-        TextProperty,
-        textChangedHandler_));
-    static_cast<void>(AddValueChangedHandler(
-        Control::ForegroundProperty,
-        foregroundChangedHandler_));
-    static_cast<void>(AddValueChangedHandler(
-        Selector::SelectedIndexProperty,
-        selectedValueChangedHandler_));
-    static_cast<void>(AddValueChangedHandler(
-        Selector::SelectedItemProperty,
-        selectedValueChangedHandler_));
-}
+          &ComboBox::OnEditableTextChanged) {}
 
 ComboBox::~ComboBox() {
     ObserveSelectedProjection(nullptr);
-    static_cast<void>(RemoveHandler(
-        UIElement::MouseDownEvent,
-        mouseDownHandler_));
-    static_cast<void>(RemoveHandler(
-        UIElement::KeyDownEvent,
-        keyDownHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        UIElement::IsMouseOverProperty,
-        mouseOverChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        UIElement::IsEnabledProperty,
-        isEnabledChangedHandler_));
-    static_cast<void>(RemoveSelectionChanged(
-        selectionChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        IsDropDownOpenProperty,
-        dropDownChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        MaxDropDownHeightProperty,
-        maxDropDownHeightChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        IsEditableProperty,
-        editableChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        TextProperty,
-        textChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        Control::ForegroundProperty,
-        foregroundChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        Selector::SelectedIndexProperty,
-        selectedValueChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        Selector::SelectedItemProperty,
-        selectedValueChangedHandler_));
 }
 
 bool ComboBox::GetIsDropDownOpen() const noexcept {
@@ -1610,8 +1431,8 @@ void ComboBox::OnTemplateDetached() noexcept {
 }
 
 void ComboBox::OnSelectionChanged(
-    Selector&,
-    const SelectionChangedEvent&) noexcept {
+    const SelectionChangedEvent& event) {
+    Selector::OnSelectionChanged(event);
     static_cast<void>(UpdateSelectionBox());
     SynchronizeContainers();
     if (GetIsDropDownOpen()) {
@@ -1619,25 +1440,64 @@ void ComboBox::OnSelectionChanged(
     }
 }
 
-void ComboBox::OnForegroundPropertyChanged(
-    DependencyObject&,
-    const DependencyPropertyChangedEventArgs&) noexcept {
-    if (selectionBox_ != nullptr) {
-        selectionBox_->SetForeground(GetForeground());
-    }
-    if (editableTextBox_ != nullptr) {
-        editableTextBox_->SetForeground(GetForeground());
+void ComboBox::OnPropertyChanged(
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    Selector::OnPropertyChanged(args);
+    const DependencyPropertyHandle prop = args.GetProperty();
+    if (prop == IsDropDownOpenProperty) {
+        if (popup_ != nullptr && popup_->GetIsOpen() != args.GetNewValue().AsBoolean()) {
+            static_cast<void>(
+                popup_->SetIsOpen(
+                    args.GetNewValue().AsBoolean()));
+        }
+        RoutedEventArgs eventArgs;
+        RaiseEvent(
+            args.GetNewValue().AsBoolean()
+                ? DropDownOpenedEvent
+                : DropDownClosedEvent,
+            &eventArgs);
+    } else if (prop == MaxDropDownHeightProperty) {
+        if (dropDownBorder_ != nullptr) {
+            static_cast<void>(
+                dropDownBorder_->SetMaxSize(
+                    {1.0e12,
+                     GetMaxDropDownHeight()}));
+        }
+    } else if (prop == IsEditableProperty) {
+        static_cast<void>(
+            UpdateEditableVisualState());
+    } else if (prop == TextProperty) {
+        if (editableTextBox_ == nullptr ||
+            synchronizingEditableText_ ||
+            editableTextBox_->GetText() == GetText()) {
+            return;
+        }
+        synchronizingEditableText_ = true;
+        editableTextBox_->SetText(GetText());
+        synchronizingEditableText_ = false;
+    } else if (prop == Control::ForegroundProperty) {
+        if (selectionBox_ != nullptr) {
+            selectionBox_->SetForeground(GetForeground());
+        }
+        if (editableTextBox_ != nullptr) {
+            editableTextBox_->SetForeground(GetForeground());
+        }
+    } else if (prop == Selector::SelectedIndexProperty ||
+               prop == Selector::SelectedItemProperty) {
+        static_cast<void>(UpdateSelectionBox());
+    } else if (prop == UIElement::IsMouseOverProperty ||
+               prop == UIElement::IsEnabledProperty) {
+        UpdateVisualState(true);
     }
 }
 
-void ComboBox::OnSelectedValuePropertyChanged(
+void ComboBox::OnPopupIsOpenChanged(
     DependencyObject&,
-    const DependencyPropertyChangedEventArgs&) noexcept {
-    // SelectedItem can be supplied before an ItemsSource has materialized.
-    // The later SelectedIndex publication is the point at which the closed
-    // presenter must refresh, even when the SelectedItem reference itself
-    // did not change.
-    static_cast<void>(UpdateSelectionBox());
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    const bool open = args.GetNewValue().AsBoolean();
+    if (open != GetIsDropDownOpen()) {
+        SetIsDropDownOpen(open);
+    }
 }
 
 void ComboBox::OnSelectedProjectionChanged(
@@ -1664,28 +1524,6 @@ void ComboBox::ObserveSelectedProjection(
     }
 }
 
-void ComboBox::OnEditablePropertyChanged(
-    DependencyObject&,
-    const DependencyPropertyChangedEventArgs&)
-        noexcept {
-    static_cast<void>(
-        UpdateEditableVisualState());
-}
-
-void ComboBox::OnTextPropertyChanged(
-    DependencyObject&,
-    const DependencyPropertyChangedEventArgs&)
-        noexcept {
-    if (editableTextBox_ == nullptr ||
-        synchronizingEditableText_ ||
-        editableTextBox_->GetText() == GetText()) {
-        return;
-    }
-    synchronizingEditableText_ = true;
-    editableTextBox_->SetText(GetText());
-    synchronizingEditableText_ = false;
-}
-
 void ComboBox::OnEditableTextChanged(
     Base::Object* sender,
     RoutedEventArgs&) noexcept {
@@ -1707,46 +1545,6 @@ void ComboBox::OnEditableTextChanged(
             TextProperty,
             std::move(edited)));
     synchronizingEditableText_ = false;
-}
-
-void ComboBox::OnDropDownPropertyChanged(
-    DependencyObject&,
-    const DependencyPropertyChangedEventArgs&
-        args) noexcept {
-    if (popup_ != nullptr && popup_->GetIsOpen() != args.GetNewValue().AsBoolean()) {
-        static_cast<void>(
-            popup_->SetIsOpen(
-                args.GetNewValue().AsBoolean()));
-    }
-    RoutedEventArgs eventArgs;
-    RaiseEvent(
-        args.GetNewValue().AsBoolean()
-            ? DropDownOpenedEvent
-            : DropDownClosedEvent,
-        &eventArgs);
-}
-
-void ComboBox::OnPopupIsOpenChanged(
-    DependencyObject&,
-    const DependencyPropertyChangedEventArgs&
-        args) noexcept {
-    const bool open = args.GetNewValue().AsBoolean();
-    if (open != GetIsDropDownOpen()) {
-        SetIsDropDownOpen(open);
-    }
-}
-
-void ComboBox::
-OnMaxDropDownHeightPropertyChanged(
-    DependencyObject&,
-    const DependencyPropertyChangedEventArgs&)
-    noexcept {
-    if (dropDownBorder_ != nullptr) {
-        static_cast<void>(
-            dropDownBorder_->SetMaxSize(
-                {1.0e12,
-                 GetMaxDropDownHeight()}));
-    }
 }
 
 Base::Result<void>
@@ -1918,25 +1716,6 @@ std::uint32_t ComboBox::FindContainerIndex(
     return UINT32_MAX;
 }
 
-void ComboBox::HandleMouseDown(Base::Object*, MouseButtonEventArgs& args) noexcept {
-    OnMouseLeftButtonDown(args);
-}
-
-void ComboBox::HandleKeyDown(Base::Object*, KeyEventArgs& args) noexcept {
-    OnKeyDown(args);
-}
-
-void ComboBox::OnIsMouseOverChanged(
-    DependencyObject&,
-    const DependencyPropertyChangedEventArgs&) noexcept {
-    UpdateVisualState(true);
-}
-
-void ComboBox::OnIsEnabledChanged(
-    DependencyObject&,
-    const DependencyPropertyChangedEventArgs&) noexcept {
-    UpdateVisualState(true);
-}
 
 void ComboBox::UpdateVisualState(bool useTransitions) noexcept {
     Base::StringView comboCommon = "Normal";

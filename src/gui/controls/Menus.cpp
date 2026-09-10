@@ -16,38 +16,9 @@ using namespace Primitives;
 using namespace Meta;
 
 MenuItem::MenuItem() noexcept
-    : HeaderedItemsControl(StaticTypeId()),
-      menuPropertyChangedHandler_(
-          this,
-          &MenuItem::OnMenuPropertyChanged) {
-    static_cast<void>(AddValueChangedHandler(
-        InputGestureTextProperty,
-        menuPropertyChangedHandler_));
-    static_cast<void>(AddValueChangedHandler(
-        IsCheckableProperty,
-        menuPropertyChangedHandler_));
-    static_cast<void>(AddValueChangedHandler(
-        IsCheckedProperty,
-        menuPropertyChangedHandler_));
-    static_cast<void>(AddValueChangedHandler(
-        IsSubmenuOpenProperty,
-        menuPropertyChangedHandler_));
-}
+    : HeaderedItemsControl(StaticTypeId()) {}
 
-MenuItem::~MenuItem() {
-    static_cast<void>(RemoveValueChangedHandler(
-        InputGestureTextProperty,
-        menuPropertyChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        IsCheckableProperty,
-        menuPropertyChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        IsCheckedProperty,
-        menuPropertyChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        IsSubmenuOpenProperty,
-        menuPropertyChangedHandler_));
-}
+MenuItem::~MenuItem() = default;
 
 Base::StringView
 MenuItem::GetInputGestureText() const noexcept {
@@ -207,12 +178,17 @@ MenuItem::SynchronizeMenuTemplate() noexcept {
     return {};
 }
 
-void MenuItem::OnMenuPropertyChanged(
-    DependencyObject&,
-    const DependencyPropertyChangedEventArgs&)
-    noexcept {
-    static_cast<void>(
-        SynchronizeMenuTemplate());
+void MenuItem::OnPropertyChanged(
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    HeaderedItemsControl::OnPropertyChanged(args);
+    const DependencyPropertyHandle prop = args.GetProperty();
+    if (prop == InputGestureTextProperty ||
+        prop == IsCheckableProperty ||
+        prop == IsCheckedProperty ||
+        prop == IsSubmenuOpenProperty) {
+        static_cast<void>(
+            SynchronizeMenuTemplate());
+    }
 }
 
 void MenuItem::SetHighlightedState(
@@ -229,29 +205,9 @@ Menu::Menu() noexcept
     : Menu(StaticTypeId()) {}
 
 Menu::Menu(TypeId runtimeType) noexcept
-    : ItemsControl(runtimeType),
-      mouseDownHandler_(this, &Menu::HandleMouseDown),
-      keyDownHandler_(this, &Menu::HandleKeyDown) {
-    AddHandler(UIElement::MouseDownEvent, mouseDownHandler_);
-    AddHandler(UIElement::KeyDownEvent, keyDownHandler_);
-}
+    : ItemsControl(runtimeType) {}
 
-Menu::~Menu() {
-    static_cast<void>(RemoveHandler(
-        UIElement::MouseDownEvent,
-        mouseDownHandler_));
-    static_cast<void>(RemoveHandler(
-        UIElement::KeyDownEvent,
-        keyDownHandler_));
-}
-
-void Menu::HandleMouseDown(Base::Object*, MouseButtonEventArgs& args) noexcept {
-    OnMouseLeftButtonDown(args);
-}
-
-void Menu::HandleKeyDown(Base::Object*, KeyEventArgs& args) noexcept {
-    OnKeyDown(args);
-}
+Menu::~Menu() = default;
 
 MenuItem* Menu::FindItem(Base::Object* source) const noexcept {
     if (source == nullptr ||

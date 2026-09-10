@@ -345,6 +345,29 @@ protected:
     virtual Size ArrangeOverride(Size finalSize) noexcept;
     virtual std::uint32_t GetLayoutChildrenCount() const noexcept;
     virtual UIElement* GetLayoutChild(std::uint32_t index) const noexcept;
+
+    virtual void OnPreviewMouseDown(MouseButtonEventArgs& args);
+    virtual void OnMouseDown(MouseButtonEventArgs& args);
+    virtual void OnMouseLeftButtonDown(MouseButtonEventArgs& args);
+    virtual void OnMouseRightButtonDown(MouseButtonEventArgs& args);
+    virtual void OnPreviewMouseUp(MouseButtonEventArgs& args);
+    virtual void OnMouseUp(MouseButtonEventArgs& args);
+    virtual void OnMouseLeftButtonUp(MouseButtonEventArgs& args);
+    virtual void OnMouseRightButtonUp(MouseButtonEventArgs& args);
+    virtual void OnPreviewMouseMove(MouseEventArgs& args);
+    virtual void OnMouseMove(MouseEventArgs& args);
+    virtual void OnMouseEnter(MouseEventArgs& args);
+    virtual void OnMouseLeave(MouseEventArgs& args);
+    virtual void OnPreviewMouseWheel(MouseWheelEventArgs& args);
+    virtual void OnMouseWheel(MouseWheelEventArgs& args);
+    virtual void OnPreviewKeyDown(KeyEventArgs& args);
+    virtual void OnKeyDown(KeyEventArgs& args);
+    virtual void OnPreviewKeyUp(KeyEventArgs& args);
+    virtual void OnKeyUp(KeyEventArgs& args);
+    virtual void OnPreviewTextInput(TextCompositionEventArgs& args);
+    virtual void OnTextInput(TextCompositionEventArgs& args);
+    virtual void OnGotKeyboardFocus(KeyboardFocusChangedEventArgs& args);
+    virtual void OnLostKeyboardFocus(KeyboardFocusChangedEventArgs& args);
     Result<void> MeasureChild(
         UIElement& child, Size availableSize) noexcept;
     Result<void> ArrangeChild(

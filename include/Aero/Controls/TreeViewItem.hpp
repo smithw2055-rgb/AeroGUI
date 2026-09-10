@@ -60,6 +60,8 @@ protected:
     void
         OnApplyTemplate() noexcept override;
     void OnTemplateDetached() noexcept override;
+    void OnPropertyChanged(
+        const DependencyPropertyChangedEventArgs& args) noexcept override;
 
 private:
     friend class ItemsControl;
@@ -75,32 +77,11 @@ private:
     Ref<Data::Binding> hierarchicalItemsBinding_;
     Ref<Base::Object> hierarchicalBindingSource_;
     Ref<DataTemplate> hierarchicalItemTemplate_;
-    DependencyPropertyChangedEventHandler
-        headerChangedHandler_;
-    DependencyPropertyChangedEventHandler
-        iconChangedHandler_;
-    DependencyPropertyChangedEventHandler
-        expandedChangedHandler_;
-    DependencyPropertyChangedEventHandler
-        selectedChangedHandler_;
     Base::Delegate<void(Base::Object*, RoutedEventArgs&)>
         expandClickHandler_;
     bool expanderGestureActive_ = false;
     bool expanderGestureTarget_ = false;
     bool expanderGestureArmed_ = false;
-
-    void OnHeaderChanged(
-        DependencyObject& object,
-        const DependencyPropertyChangedEventArgs&
-            args) noexcept;
-    void OnExpandedChanged(
-        DependencyObject& object,
-        const DependencyPropertyChangedEventArgs&
-            args) noexcept;
-    void OnSelectedChanged(
-        DependencyObject& object,
-        const DependencyPropertyChangedEventArgs&
-            args) noexcept;
     void OnExpandButtonClick(
         Base::Object* sender,
         RoutedEventArgs& args) noexcept;

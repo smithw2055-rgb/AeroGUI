@@ -42,24 +42,18 @@ protected:
     void OnTemplateDetached() noexcept override;
     void OnVisualParentChanged(Visual* oldParent) noexcept override;
 
-    virtual void OnMouseLeftButtonDown(MouseButtonEventArgs& args);
-    virtual void OnMouseLeftButtonUp(MouseButtonEventArgs& args);
-    virtual void OnMouseMove(MouseEventArgs& args);
-    virtual void OnKeyDown(KeyEventArgs& args);
+    void OnMouseLeftButtonDown(MouseButtonEventArgs& args) override;
+    void OnMouseLeftButtonUp(MouseButtonEventArgs& args) override;
+    void OnMouseMove(MouseEventArgs& args) override;
+    void OnKeyDown(KeyEventArgs& args) override;
+    void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
 
 private:
     Track* track_ = nullptr;
-    DependencyPropertyChangedEventHandler
-        trackPropertyChangedHandler_;
     std::uint32_t pointerId_ = 0U;
     bool dragging_ = false;
     Point dragOrigin_{};
     double dragStartValue_ = 0.0;
-
-    MouseButtonEventHandler mouseDownHandler_;
-    MouseEventHandler mouseMoveHandler_;
-    MouseButtonEventHandler mouseUpHandler_;
-    KeyEventHandler keyDownHandler_;
 
     ExecutedRoutedEventHandler lineUpHandler_;
     ExecutedRoutedEventHandler lineDownHandler_;
@@ -76,11 +70,6 @@ private:
     ExecutedRoutedEventHandler scrollToHorizontalOffsetHandler_;
     ExecutedRoutedEventHandler scrollToVerticalOffsetHandler_;
     Base::Vector<Input::CommandBindingHandle> commandHandles_;
-
-    void OnMouseDownHandler(Base::Object* sender, MouseButtonEventArgs& args) noexcept;
-    void OnMouseMoveHandler(Base::Object* sender, MouseEventArgs& args) noexcept;
-    void OnMouseUpHandler(Base::Object* sender, MouseButtonEventArgs& args) noexcept;
-    void OnKeyDownHandler(Base::Object* sender, KeyEventArgs& args) noexcept;
 
     static void OnLineUpCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
     static void OnLineDownCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
@@ -100,10 +89,6 @@ private:
     void EnsureCommands() noexcept;
     void UnregisterCommands() noexcept;
 
-    void OnTrackPropertyChanged(
-        DependencyObject& object,
-        const DependencyPropertyChangedEventArgs&
-            args) noexcept;
     void SynchronizeTrack() noexcept;
 };
 

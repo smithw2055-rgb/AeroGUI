@@ -205,27 +205,8 @@ TreeViewItem::TreeViewItem() noexcept
 TreeViewItem::TreeViewItem(
     TypeId runtimeType) noexcept
     : HeaderedItemsControl(runtimeType),
-      headerChangedHandler_(
-          this, &TreeViewItem::OnHeaderChanged),
-      iconChangedHandler_(
-          this, &TreeViewItem::OnHeaderChanged),
-      expandedChangedHandler_(
-          this, &TreeViewItem::OnExpandedChanged),
-      selectedChangedHandler_(
-          this, &TreeViewItem::OnSelectedChanged),
       expandClickHandler_(
-          this, &TreeViewItem::OnExpandButtonClick) {
-    static_cast<void>(AddValueChangedHandler(
-        HeaderProperty, headerChangedHandler_));
-    static_cast<void>(AddValueChangedHandler(
-        IconProperty, iconChangedHandler_));
-    static_cast<void>(AddValueChangedHandler(
-        IsExpandedProperty,
-        expandedChangedHandler_));
-    static_cast<void>(AddValueChangedHandler(
-        IsSelectedProperty,
-        selectedChangedHandler_));
-}
+          this, &TreeViewItem::OnExpandButtonClick) {}
 
 TreeViewItem::~TreeViewItem() {
     if (childItems_ != nullptr) {
@@ -237,16 +218,6 @@ TreeViewItem::~TreeViewItem() {
             ButtonBase::ClickEvent, expandClickHandler_));
         expandButton_ = nullptr;
     }
-    static_cast<void>(RemoveValueChangedHandler(
-        HeaderProperty, headerChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        IconProperty, iconChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        IsExpandedProperty,
-        expandedChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        IsSelectedProperty,
-        selectedChangedHandler_));
 }
 
 Value
@@ -594,13 +565,6 @@ TreeViewItem::SynchronizeTemplate() noexcept {
     return {};
 }
 
-void TreeViewItem::OnHeaderChanged(
-    DependencyObject&,
-    const DependencyPropertyChangedEventArgs&)
-    noexcept {
-    static_cast<void>(SynchronizeTemplate());
-    ProjectHeaderContent();
-}
 
 namespace {
 
@@ -724,37 +688,37 @@ void TreeViewItem::ProjectRealizedHeaders() noexcept {
     }
 }
 
-void TreeViewItem::OnExpandedChanged(
-    DependencyObject&,
-    const DependencyPropertyChangedEventArgs&
-        args) noexcept {
-    if (expanderGestureActive_ &&
-        args.GetNewValue().AsBoolean() != expanderGestureTarget_) {
-        SetIsExpanded(expanderGestureTarget_);
-        return;
+void TreeViewItem::OnPropertyChanged(
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    HeaderedItemsControl::OnPropertyChanged(args);
+    const DependencyPropertyHandle prop = args.GetProperty();
+    if (prop == HeaderProperty || prop == IconProperty) {
+        static_cast<void>(SynchronizeTemplate());
+        ProjectHeaderContent();
+    } else if (prop == IsExpandedProperty) {
+        if (expanderGestureActive_ &&
+            args.GetNewValue().AsBoolean() != expanderGestureTarget_) {
+            SetIsExpanded(expanderGestureTarget_);
+            return;
+        }
+        if (args.GetNewValue().AsBoolean()) {
+            ActivateHierarchicalContent();
+        }
+        static_cast<void>(SynchronizeTemplate());
+        RoutedEventArgs event;
+        static_cast<void>(RaiseEvent(
+            args.GetNewValue().AsBoolean()
+                ? ExpandedEvent
+                : CollapsedEvent,
+            &event));
+    } else if (prop == IsSelectedProperty) {
+        RoutedEventArgs event;
+        static_cast<void>(RaiseEvent(
+            args.GetNewValue().AsBoolean()
+                ? SelectedEvent
+                : UnselectedEvent,
+            &event));
     }
-    if (args.GetNewValue().AsBoolean()) {
-        ActivateHierarchicalContent();
-    }
-    static_cast<void>(SynchronizeTemplate());
-    RoutedEventArgs event;
-    static_cast<void>(RaiseEvent(
-        args.GetNewValue().AsBoolean()
-            ? ExpandedEvent
-            : CollapsedEvent,
-        &event));
-}
-
-void TreeViewItem::OnSelectedChanged(
-    DependencyObject&,
-    const DependencyPropertyChangedEventArgs&
-        args) noexcept {
-    RoutedEventArgs event;
-    static_cast<void>(RaiseEvent(
-        args.GetNewValue().AsBoolean()
-            ? SelectedEvent
-            : UnselectedEvent,
-        &event));
 }
 
 void TreeViewItem::BeginExpanderGesture() noexcept {
@@ -808,21 +772,9 @@ void TreeViewItem::ApplyExpanderGesture() noexcept {
 }
 
 TreeView::TreeView() noexcept
-    : ItemsControl(StaticTypeId()),
-      mouseDownHandler_(this, &TreeView::HandleMouseDown),
-      keyDownHandler_(this, &TreeView::HandleKeyDown) {
-    AddHandler(UIElement::MouseDownEvent, mouseDownHandler_, true);
-    AddHandler(UIElement::KeyDownEvent, keyDownHandler_);
-}
+    : ItemsControl(StaticTypeId()) {}
 
-TreeView::~TreeView() {
-    static_cast<void>(RemoveHandler(
-        UIElement::MouseDownEvent,
-        mouseDownHandler_));
-    static_cast<void>(RemoveHandler(
-        UIElement::KeyDownEvent,
-        keyDownHandler_));
-}
+TreeView::~TreeView() = default;
 
 Base::Ref<Base::Object>
 TreeView::GetSelectedItem() const noexcept {
@@ -890,13 +842,6 @@ bool TreeView::SelectItem(
     return true;
 }
 
-void TreeView::HandleMouseDown(Base::Object*, MouseButtonEventArgs& args) noexcept {
-    OnMouseLeftButtonDown(args);
-}
-
-void TreeView::HandleKeyDown(Base::Object*, KeyEventArgs& args) noexcept {
-    OnKeyDown(args);
-}
 
 TreeViewItem* TreeView::FindItem(Base::Object* source) const noexcept {
     if (source == nullptr ||

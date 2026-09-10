@@ -74,97 +74,40 @@ protected:
     void OnContainersChanged() noexcept override;
     void OnApplyTemplate() noexcept override;
     void OnTemplateDetached() noexcept override;
-    virtual void OnMouseLeftButtonDown(MouseButtonEventArgs& args);
-    virtual void OnKeyDown(KeyEventArgs& args);
+    void OnSelectionChanged(const SelectionChangedEvent& event) override;
+    void OnPropertyChanged(
+        const DependencyPropertyChangedEventArgs& args) noexcept override;
+    void OnMouseLeftButtonDown(MouseButtonEventArgs& args) override;
+    void OnKeyDown(KeyEventArgs& args) override;
 
 private:
     TextBlock* selectionBox_ = nullptr;
-    ContentPresenter* selectionPresenter_ =
-        nullptr;
+    ContentPresenter* selectionPresenter_ = nullptr;
     TextBox* editableTextBox_ = nullptr;
     Primitives::Popup* popup_ = nullptr;
     FrameworkElement* dropDownBorder_ = nullptr;
-    MouseButtonEventHandler mouseDownHandler_;
-    KeyEventHandler keyDownHandler_;
-    DependencyPropertyChangedEventHandler mouseOverChangedHandler_;
-    DependencyPropertyChangedEventHandler isEnabledChangedHandler_;
-    SelectionChangedHandler selectionChangedHandler_;
-    DependencyPropertyChangedEventHandler
-        dropDownChangedHandler_;
-    DependencyPropertyChangedEventHandler
-        popupIsOpenChangedHandler_;
-    DependencyPropertyChangedEventHandler
-        maxDropDownHeightChangedHandler_;
-    DependencyPropertyChangedEventHandler
-        editableChangedHandler_;
-    DependencyPropertyChangedEventHandler
-        textChangedHandler_;
-    DependencyPropertyChangedEventHandler
-        foregroundChangedHandler_;
-    DependencyPropertyChangedEventHandler
-        selectedValueChangedHandler_;
-    DependencyPropertyChangedEventHandler
-        selectedProjectionChangedHandler_;
+    DependencyPropertyChangedEventHandler popupIsOpenChangedHandler_;
+    DependencyPropertyChangedEventHandler selectedProjectionChangedHandler_;
     RoutedEventHandler editableTextChangedHandler_;
     TextBlock* selectedProjection_ = nullptr;
     bool synchronizingEditableText_ = false;
 
-    void OnSelectionChanged(
-        Selector& selector,
-        const SelectionChangedEvent& event)
-        noexcept;
-    void OnDropDownPropertyChanged(
-        DependencyObject& object,
-        const DependencyPropertyChangedEventArgs&
-            args) noexcept;
     void OnPopupIsOpenChanged(
         DependencyObject& object,
-        const DependencyPropertyChangedEventArgs&
-            args) noexcept;
-    void OnMaxDropDownHeightPropertyChanged(
-        DependencyObject& object,
-        const DependencyPropertyChangedEventArgs&
-            args) noexcept;
-    void OnEditablePropertyChanged(
-        DependencyObject& object,
-        const DependencyPropertyChangedEventArgs&
-            args) noexcept;
-    void OnTextPropertyChanged(
-        DependencyObject& object,
-        const DependencyPropertyChangedEventArgs&
-            args) noexcept;
-    void OnForegroundPropertyChanged(
-        DependencyObject& object,
-        const DependencyPropertyChangedEventArgs&
-            args) noexcept;
-    void OnSelectedValuePropertyChanged(
-        DependencyObject& object,
-        const DependencyPropertyChangedEventArgs&
-            args) noexcept;
+        const DependencyPropertyChangedEventArgs& args) noexcept;
     void OnSelectedProjectionChanged(
         DependencyObject& object,
-        const DependencyPropertyChangedEventArgs&
-            args) noexcept;
+        const DependencyPropertyChangedEventArgs& args) noexcept;
     void OnEditableTextChanged(
         Base::Object* sender,
         RoutedEventArgs& args) noexcept;
-    Result<void>
-        UpdateSelectionBox() noexcept;
-    Result<void>
-        UpdateEditableVisualState() noexcept;
+    Result<void> UpdateSelectionBox() noexcept;
+    Result<void> UpdateEditableVisualState() noexcept;
     void ObserveSelectedProjection(
         TextBlock* projection) noexcept;
     void SynchronizeContainers() noexcept;
     std::uint32_t FindContainerIndex(
         Base::Object* source) const noexcept;
     void UpdateVisualState(bool useTransitions = true) noexcept;
-    void HandleMouseDown(Base::Object* sender, MouseButtonEventArgs& args) noexcept;
-    void HandleKeyDown(Base::Object* sender, KeyEventArgs& args) noexcept;
-    void OnIsMouseOverChanged(
-        DependencyObject& object,
-        const DependencyPropertyChangedEventArgs& args) noexcept;
-    void OnIsEnabledChanged(
-        DependencyObject& object,
-        const DependencyPropertyChangedEventArgs& args) noexcept;
 };
 } // namespace Aero::Controls

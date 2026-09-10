@@ -34,14 +34,8 @@ protected:
     virtual void OnValueChanged(
         double oldValue,
         double newValue) noexcept;
-
-private:
-    DependencyPropertyChangedEventHandler
-        rangeChangedHandler_;
-    void OnRangePropertyChanged(
-        DependencyObject& object,
-        const DependencyPropertyChangedEventArgs&
-            args) noexcept;
+    void OnPropertyChanged(
+        const DependencyPropertyChangedEventArgs& args) noexcept override;
 };
 
 } // namespace Aero::Controls::Primitives

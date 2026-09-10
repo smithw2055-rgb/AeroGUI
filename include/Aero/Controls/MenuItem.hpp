@@ -61,17 +61,13 @@ protected:
     void
         OnApplyTemplate() noexcept override;
     void OnTemplateDetached() noexcept override;
+    void OnPropertyChanged(
+        const DependencyPropertyChangedEventArgs& args) noexcept override;
 
 private:
     TextBlock* gestureText_ = nullptr;
     TextBlock* checkGlyph_ = nullptr;
     Primitives::Popup* submenuPopup_ = nullptr;
-    DependencyPropertyChangedEventHandler
-        menuPropertyChangedHandler_;
-    void OnMenuPropertyChanged(
-        DependencyObject& object,
-        const DependencyPropertyChangedEventArgs&
-            args) noexcept;
     Result<void>
         SynchronizeMenuTemplate() noexcept;
     void SetHighlightedState(bool value) noexcept;

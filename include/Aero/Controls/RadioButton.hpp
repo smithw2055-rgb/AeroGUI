@@ -20,11 +20,10 @@ protected:
 
     void OnClick() override;
     void OnToggle() noexcept override;
+    void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
 
 private:
     void UncheckRadioPeers() noexcept;
-    struct RadioState;
-    RadioState* radioState_ = nullptr;
 };
 
 } // namespace Aero::Controls

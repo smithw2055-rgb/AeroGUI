@@ -61,38 +61,11 @@ TextBox::TextBox() noexcept
       model_(new (std::nothrow) ::Aero::Text::EditableTextModel()),
       compositionModel_(new (std::nothrow) ::Aero::Text::EditableTextModel()),
       displayPolicy_(nullptr),
-      plainPolicy_(new (std::nothrow) PlainTextDisplayPolicy()),
-      mouseDownHandler_(this, &TextBox::OnMouseDownHandler),
-      mouseMoveHandler_(this, &TextBox::OnMouseMoveHandler),
-      mouseUpHandler_(this, &TextBox::OnMouseUpHandler),
-      keyDownHandler_(this, &TextBox::OnKeyDownHandler),
-      textInputHandler_(this, &TextBox::OnTextInputHandler),
-      focusChangedHandler_(this, &TextBox::OnLostKeyboardFocusHandler),
-      propertyChangedHandler_(this, &TextBox::OnPropertyChanged) {
+      plainPolicy_(new (std::nothrow) PlainTextDisplayPolicy()) {
     displayPolicy_ = plainPolicy_;
-    AddHandler(UIElement::MouseDownEvent, mouseDownHandler_);
-    AddHandler(UIElement::MouseMoveEvent, mouseMoveHandler_);
-    AddHandler(UIElement::MouseUpEvent, mouseUpHandler_);
-    AddHandler(UIElement::KeyDownEvent, keyDownHandler_);
-    AddHandler(UIElement::TextInputEvent, textInputHandler_);
-    AddHandler(UIElement::LostKeyboardFocusEvent, focusChangedHandler_);
-    AddValueChangedHandler(TextProperty, propertyChangedHandler_);
-    AddValueChangedHandler(IsReadOnlyProperty, propertyChangedHandler_);
-    AddValueChangedHandler(MaxLengthProperty, propertyChangedHandler_);
-    AddValueChangedHandler(UIElement::IsEnabledProperty, propertyChangedHandler_);
 }
 
 TextBox::~TextBox() {
-    RemoveHandler(UIElement::MouseDownEvent, mouseDownHandler_);
-    RemoveHandler(UIElement::MouseMoveEvent, mouseMoveHandler_);
-    RemoveHandler(UIElement::MouseUpEvent, mouseUpHandler_);
-    RemoveHandler(UIElement::KeyDownEvent, keyDownHandler_);
-    RemoveHandler(UIElement::TextInputEvent, textInputHandler_);
-    RemoveHandler(UIElement::LostKeyboardFocusEvent, focusChangedHandler_);
-    RemoveValueChangedHandler(TextProperty, propertyChangedHandler_);
-    RemoveValueChangedHandler(IsReadOnlyProperty, propertyChangedHandler_);
-    RemoveValueChangedHandler(MaxLengthProperty, propertyChangedHandler_);
-    RemoveValueChangedHandler(UIElement::IsEnabledProperty, propertyChangedHandler_);
     if (inputMethodHost_ != nullptr) {
         static_cast<void>(
             inputMethodHost_->
@@ -146,7 +119,6 @@ void TextBox::SetText(
 }
 
 void TextBox::OnTextPropertyChanged(
-    DependencyObject&,
     const DependencyPropertyChangedEventArgs&)
         noexcept {
     if (!updatingTextProperty_) {
@@ -915,31 +887,7 @@ Base::Result<void> TextBox::Paste(
     return ReplaceSelection(text.View());
 }
 
-void TextBox::OnMouseDownHandler(Base::Object*, MouseButtonEventArgs& args) noexcept {
-    OnMouseDown(args);
-}
-
-void TextBox::OnMouseMoveHandler(Base::Object*, MouseEventArgs& args) noexcept {
-    OnMouseMove(args);
-}
-
-void TextBox::OnMouseUpHandler(Base::Object*, MouseButtonEventArgs& args) noexcept {
-    OnMouseUp(args);
-}
-
-void TextBox::OnKeyDownHandler(Base::Object*, KeyEventArgs& args) noexcept {
-    OnKeyDown(args);
-}
-
-void TextBox::OnTextInputHandler(Base::Object*, TextCompositionEventArgs& args) noexcept {
-    OnTextInput(args);
-}
-
-void TextBox::OnLostKeyboardFocusHandler(Base::Object*, KeyboardFocusChangedEventArgs& args) noexcept {
-    OnLostKeyboardFocus(args);
-}
-
-void TextBox::OnMouseDown(MouseButtonEventArgs& args) noexcept {
+void TextBox::OnMouseDown(MouseButtonEventArgs& args) {
     if (args.GetChangedButton() != MouseButton::Left || !GetIsEnabled()) {
         return;
     }
@@ -956,7 +904,7 @@ void TextBox::OnMouseDown(MouseButtonEventArgs& args) noexcept {
     args.SetHandled(true);
 }
 
-void TextBox::OnMouseMove(MouseEventArgs& args) noexcept {
+void TextBox::OnMouseMove(MouseEventArgs& args) {
     if (!isDragging_ || pointerId_ != args.GetPointerId()) {
         return;
     }
@@ -965,7 +913,7 @@ void TextBox::OnMouseMove(MouseEventArgs& args) noexcept {
     args.SetHandled(true);
 }
 
-void TextBox::OnMouseUp(MouseButtonEventArgs& args) noexcept {
+void TextBox::OnMouseUp(MouseButtonEventArgs& args) {
     if (args.GetChangedButton() != MouseButton::Left || !isDragging_ || pointerId_ != args.GetPointerId()) {
         return;
     }
@@ -976,7 +924,7 @@ void TextBox::OnMouseUp(MouseButtonEventArgs& args) noexcept {
     args.SetHandled(true);
 }
 
-void TextBox::OnKeyDown(KeyEventArgs& args) noexcept {
+void TextBox::OnKeyDown(KeyEventArgs& args) {
     if (!GetIsEnabled()) {
         return;
     }
@@ -1027,7 +975,7 @@ void TextBox::OnKeyDown(KeyEventArgs& args) noexcept {
     }
 }
 
-void TextBox::OnTextInput(TextCompositionEventArgs& args) noexcept {
+void TextBox::OnTextInput(TextCompositionEventArgs& args) {
     if (!GetIsEnabled() || GetIsReadOnly()) {
         return;
     }
@@ -1043,7 +991,7 @@ void TextBox::OnTextInput(TextCompositionEventArgs& args) noexcept {
     }
 }
 
-void TextBox::OnLostKeyboardFocus(KeyboardFocusChangedEventArgs&) noexcept {
+void TextBox::OnLostKeyboardFocus(KeyboardFocusChangedEventArgs&) {
     static_cast<void>(CancelCompositionForFocusLoss());
     if (!isDragging_) {
         return;
@@ -1053,10 +1001,10 @@ void TextBox::OnLostKeyboardFocus(KeyboardFocusChangedEventArgs&) noexcept {
 }
 
 void TextBox::OnPropertyChanged(
-    DependencyObject& object,
     const DependencyPropertyChangedEventArgs& args) noexcept {
+    TextBoxBase::OnPropertyChanged(args);
     if (args.GetProperty() == TextBox::TextProperty) {
-        OnTextPropertyChanged(object, args);
+        OnTextPropertyChanged(args);
     } else if (args.GetProperty() == TextBox::IsReadOnlyProperty) {
         if (args.GetNewValue().AsBoolean()) {
             static_cast<void>(CancelCompositionForFocusLoss());

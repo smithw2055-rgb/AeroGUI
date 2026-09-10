@@ -20,16 +20,12 @@ protected:
     Result<Ref<FrameworkElement>>
         CreateContainer(
             const Ref<Base::Object>& item) noexcept override;
-    virtual void OnMouseLeftButtonDown(MouseButtonEventArgs& args);
-    virtual void OnKeyDown(KeyEventArgs& args);
+    void OnMouseLeftButtonDown(MouseButtonEventArgs& args) override;
+    void OnKeyDown(KeyEventArgs& args) override;
 
 private:
     std::uint32_t anchorIndex_ = UINT32_MAX;
-    MouseButtonEventHandler mouseDownHandler_;
-    KeyEventHandler keyDownHandler_;
 
-    void HandleMouseDown(Base::Object* sender, MouseButtonEventArgs& args) noexcept;
-    void HandleKeyDown(Base::Object* sender, KeyEventArgs& args) noexcept;
     std::uint32_t FindContainerIndex(Base::Object* source) const noexcept;
     Result<bool> ApplyUserSelection(std::uint32_t index, std::uint32_t modifiers) noexcept;
 };

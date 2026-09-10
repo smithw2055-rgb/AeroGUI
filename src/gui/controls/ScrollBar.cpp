@@ -321,13 +321,6 @@ Orientation ScrollBar::GetOrientation() const noexcept {
 
 ScrollBar::ScrollBar() noexcept
     : RangeBase(StaticTypeId()),
-      trackPropertyChangedHandler_(
-          this,
-          &ScrollBar::OnTrackPropertyChanged),
-      mouseDownHandler_(this, &ScrollBar::OnMouseDownHandler),
-      mouseMoveHandler_(this, &ScrollBar::OnMouseMoveHandler),
-      mouseUpHandler_(this, &ScrollBar::OnMouseUpHandler),
-      keyDownHandler_(this, &ScrollBar::OnKeyDownHandler),
       lineUpHandler_(&ScrollBar::OnLineUpCommand),
       lineDownHandler_(&ScrollBar::OnLineDownCommand),
       lineLeftHandler_(&ScrollBar::OnLineLeftCommand),
@@ -343,25 +336,6 @@ ScrollBar::ScrollBar() noexcept
       scrollToHorizontalOffsetHandler_(&ScrollBar::OnScrollToHorizontalOffsetCommand),
       scrollToVerticalOffsetHandler_(&ScrollBar::OnScrollToVerticalOffsetCommand),
       commandHandles_(&Base::GetDefaultAllocator()) {
-    static_cast<void>(AddValueChangedHandler(
-        OrientationProperty,
-        trackPropertyChangedHandler_));
-    static_cast<void>(AddValueChangedHandler(
-        MinimumProperty,
-        trackPropertyChangedHandler_));
-    static_cast<void>(AddValueChangedHandler(
-        MaximumProperty,
-        trackPropertyChangedHandler_));
-    static_cast<void>(AddValueChangedHandler(
-        ValueProperty,
-        trackPropertyChangedHandler_));
-    static_cast<void>(AddValueChangedHandler(
-        ViewportSizeProperty,
-        trackPropertyChangedHandler_));
-    AddHandler(UIElement::MouseDownEvent, mouseDownHandler_);
-    AddHandler(UIElement::MouseMoveEvent, mouseMoveHandler_);
-    AddHandler(UIElement::MouseUpEvent, mouseUpHandler_);
-    AddHandler(UIElement::KeyDownEvent, keyDownHandler_);
 }
 
 ScrollBar::~ScrollBar() {
@@ -369,26 +343,7 @@ ScrollBar::~ScrollBar() {
         static_cast<void>(ReleasePointer(pointerId_));
         dragging_ = false;
     }
-    RemoveHandler(UIElement::MouseDownEvent, mouseDownHandler_);
-    RemoveHandler(UIElement::MouseMoveEvent, mouseMoveHandler_);
-    RemoveHandler(UIElement::MouseUpEvent, mouseUpHandler_);
-    RemoveHandler(UIElement::KeyDownEvent, keyDownHandler_);
     UnregisterCommands();
-    static_cast<void>(RemoveValueChangedHandler(
-        OrientationProperty,
-        trackPropertyChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        MinimumProperty,
-        trackPropertyChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        MaximumProperty,
-        trackPropertyChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        ValueProperty,
-        trackPropertyChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        ViewportSizeProperty,
-        trackPropertyChangedHandler_));
 }
 
 void ScrollBar::OnApplyTemplate() noexcept {
@@ -475,25 +430,6 @@ void ScrollBar::UnregisterCommands() noexcept {
     commandHandles_.Clear();
 }
 
-void ScrollBar::OnMouseDownHandler(Base::Object*, MouseButtonEventArgs& args) noexcept {
-    if (args.GetChangedButton() == MouseButton::Left) {
-        OnMouseLeftButtonDown(args);
-    }
-}
-
-void ScrollBar::OnMouseMoveHandler(Base::Object*, MouseEventArgs& args) noexcept {
-    OnMouseMove(args);
-}
-
-void ScrollBar::OnMouseUpHandler(Base::Object*, MouseButtonEventArgs& args) noexcept {
-    if (args.GetChangedButton() == MouseButton::Left) {
-        OnMouseLeftButtonUp(args);
-    }
-}
-
-void ScrollBar::OnKeyDownHandler(Base::Object*, KeyEventArgs& args) noexcept {
-    OnKeyDown(args);
-}
 
 void ScrollBar::OnMouseLeftButtonDown(MouseButtonEventArgs& args) {
     if (args.GetHandled() || !GetIsEnabled() || args.GetChangedButton() != MouseButton::Left) {
@@ -685,11 +621,16 @@ void ScrollBar::OnScrollToVerticalOffsetCommand(Base::Object* sender, ExecutedRo
     }
 }
 
-void ScrollBar::OnTrackPropertyChanged(
-    DependencyObject&,
-    const DependencyPropertyChangedEventArgs&)
-        noexcept {
-    SynchronizeTrack();
+void ScrollBar::OnPropertyChanged(
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    RangeBase::OnPropertyChanged(args);
+    if (args.GetProperty() == OrientationProperty ||
+        args.GetProperty() == MinimumProperty ||
+        args.GetProperty() == MaximumProperty ||
+        args.GetProperty() == ValueProperty ||
+        args.GetProperty() == ViewportSizeProperty) {
+        SynchronizeTrack();
+    }
 }
 
 void ScrollBar::SynchronizeTrack() noexcept {
@@ -705,26 +646,10 @@ void ScrollBar::SynchronizeTrack() noexcept {
 }
 
 RangeBase::RangeBase(TypeId runtimeType) noexcept
-    : Control(runtimeType),
-      rangeChangedHandler_(
-          this,
-          &RangeBase::OnRangePropertyChanged) {
-    static_cast<void>(AddValueChangedHandler(
-        MinimumProperty, rangeChangedHandler_));
-    static_cast<void>(AddValueChangedHandler(
-        MaximumProperty, rangeChangedHandler_));
-    static_cast<void>(AddValueChangedHandler(
-        ValueProperty, rangeChangedHandler_));
+    : Control(runtimeType) {
 }
 
-RangeBase::~RangeBase() {
-    static_cast<void>(RemoveValueChangedHandler(
-        MinimumProperty, rangeChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        MaximumProperty, rangeChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        ValueProperty, rangeChangedHandler_));
-}
+RangeBase::~RangeBase() = default;
 
 double RangeBase::GetMinimum() const noexcept {
     return ReadDouble(*this, MinimumProperty);
@@ -776,10 +701,10 @@ void RangeBase::SetValue(
     StoreDouble(*this, ValueProperty, clamped);
 }
 
-void RangeBase::OnRangePropertyChanged(
-    DependencyObject&,
+void RangeBase::OnPropertyChanged(
     const DependencyPropertyChangedEventArgs&
         args) noexcept {
+    Control::OnPropertyChanged(args);
     if (args.GetProperty() == ValueProperty) {
         OnValueChanged(
             args.GetOldValue().AsDouble(),
@@ -888,30 +813,10 @@ Base::Result<bool> ScrollBar::DragThumb(
 
 Slider::Slider() noexcept
     : Primitives::RangeBase(StaticTypeId()),
-      trackPropertyChangedHandler_(
-          this, &Slider::OnTrackPropertyChanged),
-      mouseDownHandler_(this, &Slider::OnMouseDownHandler),
-      mouseMoveHandler_(this, &Slider::OnMouseMoveHandler),
-      mouseUpHandler_(this, &Slider::OnMouseUpHandler),
-      keyDownHandler_(this, &Slider::OnKeyDownHandler),
       decreaseSmallHandler_(this, &Slider::OnDecreaseSmallCommand),
       increaseSmallHandler_(this, &Slider::OnIncreaseSmallCommand),
       decreaseLargeHandler_(this, &Slider::OnDecreaseLargeCommand),
       increaseLargeHandler_(this, &Slider::OnIncreaseLargeCommand) {
-    static_cast<void>(AddValueChangedHandler(
-        OrientationProperty, trackPropertyChangedHandler_));
-    static_cast<void>(AddValueChangedHandler(
-        MinimumProperty, trackPropertyChangedHandler_));
-    static_cast<void>(AddValueChangedHandler(
-        MaximumProperty, trackPropertyChangedHandler_));
-    static_cast<void>(AddValueChangedHandler(
-        ValueProperty, trackPropertyChangedHandler_));
-    static_cast<void>(AddValueChangedHandler(
-        IsDirectionReversedProperty, trackPropertyChangedHandler_));
-    AddHandler(UIElement::MouseDownEvent, mouseDownHandler_);
-    AddHandler(UIElement::MouseMoveEvent, mouseMoveHandler_);
-    AddHandler(UIElement::MouseUpEvent, mouseUpHandler_);
-    AddHandler(UIElement::KeyDownEvent, keyDownHandler_);
 }
 
 Slider::~Slider() {
@@ -919,21 +824,7 @@ Slider::~Slider() {
         static_cast<void>(ReleasePointer(pointerId_));
         dragging_ = false;
     }
-    RemoveHandler(UIElement::MouseDownEvent, mouseDownHandler_);
-    RemoveHandler(UIElement::MouseMoveEvent, mouseMoveHandler_);
-    RemoveHandler(UIElement::MouseUpEvent, mouseUpHandler_);
-    RemoveHandler(UIElement::KeyDownEvent, keyDownHandler_);
     UnregisterCommands();
-    static_cast<void>(RemoveValueChangedHandler(
-        OrientationProperty, trackPropertyChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        MinimumProperty, trackPropertyChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        MaximumProperty, trackPropertyChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        ValueProperty, trackPropertyChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        IsDirectionReversedProperty, trackPropertyChangedHandler_));
 }
 
 void Slider::OnApplyTemplate() noexcept {
@@ -997,25 +888,6 @@ void Slider::UnregisterCommands() noexcept {
     increaseLargeCommand_ = {};
 }
 
-void Slider::OnMouseDownHandler(Base::Object*, MouseButtonEventArgs& args) noexcept {
-    if (args.GetChangedButton() == MouseButton::Left) {
-        OnMouseLeftButtonDown(args);
-    }
-}
-
-void Slider::OnMouseMoveHandler(Base::Object*, MouseEventArgs& args) noexcept {
-    OnMouseMove(args);
-}
-
-void Slider::OnMouseUpHandler(Base::Object*, MouseButtonEventArgs& args) noexcept {
-    if (args.GetChangedButton() == MouseButton::Left) {
-        OnMouseLeftButtonUp(args);
-    }
-}
-
-void Slider::OnKeyDownHandler(Base::Object*, KeyEventArgs& args) noexcept {
-    OnKeyDown(args);
-}
 
 void Slider::SetFromPoint() noexcept {
     if (track_ != nullptr) {
@@ -1155,10 +1027,16 @@ Size Slider::MeasureOverride(Size availableSize) noexcept {
     return desired;
 }
 
-void Slider::OnTrackPropertyChanged(
-    DependencyObject&,
-    const DependencyPropertyChangedEventArgs&) noexcept {
-    SynchronizeTrack();
+void Slider::OnPropertyChanged(
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    RangeBase::OnPropertyChanged(args);
+    if (args.GetProperty() == OrientationProperty ||
+        args.GetProperty() == MinimumProperty ||
+        args.GetProperty() == MaximumProperty ||
+        args.GetProperty() == ValueProperty ||
+        args.GetProperty() == IsDirectionReversedProperty) {
+        SynchronizeTrack();
+    }
 }
 
 void Slider::SynchronizeTrack() noexcept {

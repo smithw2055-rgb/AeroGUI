@@ -28,32 +28,10 @@ using namespace ::Aero::Render;
 PasswordBox::PasswordBox() noexcept
     : TextBoxBase(StaticTypeId()),
       validation_(new (std::nothrow) ::Aero::Text::EditableTextModel()),
-      passwordPolicy_(new (std::nothrow) PasswordTextDisplayPolicy()),
-      mouseDownHandler_(this, &PasswordBox::OnMouseDownHandler),
-      mouseMoveHandler_(this, &PasswordBox::OnMouseMoveHandler),
-      mouseUpHandler_(this, &PasswordBox::OnMouseUpHandler),
-      keyDownHandler_(this, &PasswordBox::OnKeyDownHandler),
-      textInputHandler_(this, &PasswordBox::OnTextInputHandler),
-      focusChangedHandler_(this, &PasswordBox::OnLostKeyboardFocusHandler),
-      propertyChangedHandler_(this, &PasswordBox::OnPropertyChanged) {
+      passwordPolicy_(new (std::nothrow) PasswordTextDisplayPolicy()) {
     editor_.displayPolicy_ = passwordPolicy_;
     editor_.coordinateOwner_ = this;
     editor_.passwordOwner_ = this;
-
-    AddHandler(UIElement::MouseDownEvent, mouseDownHandler_);
-    AddHandler(UIElement::MouseMoveEvent, mouseMoveHandler_);
-    AddHandler(UIElement::MouseUpEvent, mouseUpHandler_);
-    AddHandler(UIElement::KeyDownEvent, keyDownHandler_);
-    AddHandler(UIElement::TextInputEvent, textInputHandler_);
-    AddHandler(UIElement::LostKeyboardFocusEvent, focusChangedHandler_);
-    AddValueChangedHandler(PasswordCharProperty, propertyChangedHandler_);
-    AddValueChangedHandler(MaxLengthProperty, propertyChangedHandler_);
-    AddValueChangedHandler(ForegroundProperty, propertyChangedHandler_);
-    AddValueChangedHandler(SelectionBrushProperty, propertyChangedHandler_);
-    AddValueChangedHandler(SelectionOpacityProperty, propertyChangedHandler_);
-    AddValueChangedHandler(CaretBrushProperty, propertyChangedHandler_);
-    AddValueChangedHandler(PlaceholderProperty, propertyChangedHandler_);
-    AddValueChangedHandler(UIElement::IsEnabledProperty, propertyChangedHandler_);
 
     if (passwordPolicy_ != nullptr) {
         static_cast<void>(PasswordPolicy(passwordPolicy_)->SetMask(GetPasswordChar()));
@@ -66,21 +44,6 @@ PasswordBox::PasswordBox() noexcept
 }
 
 PasswordBox::~PasswordBox() {
-    RemoveHandler(UIElement::MouseDownEvent, mouseDownHandler_);
-    RemoveHandler(UIElement::MouseMoveEvent, mouseMoveHandler_);
-    RemoveHandler(UIElement::MouseUpEvent, mouseUpHandler_);
-    RemoveHandler(UIElement::KeyDownEvent, keyDownHandler_);
-    RemoveHandler(UIElement::TextInputEvent, textInputHandler_);
-    RemoveHandler(UIElement::LostKeyboardFocusEvent, focusChangedHandler_);
-    RemoveValueChangedHandler(PasswordCharProperty, propertyChangedHandler_);
-    RemoveValueChangedHandler(MaxLengthProperty, propertyChangedHandler_);
-    RemoveValueChangedHandler(ForegroundProperty, propertyChangedHandler_);
-    RemoveValueChangedHandler(SelectionBrushProperty, propertyChangedHandler_);
-    RemoveValueChangedHandler(SelectionOpacityProperty, propertyChangedHandler_);
-    RemoveValueChangedHandler(CaretBrushProperty, propertyChangedHandler_);
-    RemoveValueChangedHandler(PlaceholderProperty, propertyChangedHandler_);
-    RemoveValueChangedHandler(UIElement::IsEnabledProperty, propertyChangedHandler_);
-
     delete static_cast<::Aero::Text::EditableTextModel*>(validation_);
     validation_ = nullptr;
     delete static_cast<::Aero::Controls::PasswordTextDisplayPolicy*>(passwordPolicy_);
@@ -309,31 +272,7 @@ PasswordBox::SynchronizePasswordFromEditor()
     return {};
 }
 
-void PasswordBox::OnMouseDownHandler(Base::Object*, MouseButtonEventArgs& args) noexcept {
-    OnMouseDown(args);
-}
-
-void PasswordBox::OnMouseMoveHandler(Base::Object*, MouseEventArgs& args) noexcept {
-    OnMouseMove(args);
-}
-
-void PasswordBox::OnMouseUpHandler(Base::Object*, MouseButtonEventArgs& args) noexcept {
-    OnMouseUp(args);
-}
-
-void PasswordBox::OnKeyDownHandler(Base::Object*, KeyEventArgs& args) noexcept {
-    OnKeyDown(args);
-}
-
-void PasswordBox::OnTextInputHandler(Base::Object*, TextCompositionEventArgs& args) noexcept {
-    OnTextInput(args);
-}
-
-void PasswordBox::OnLostKeyboardFocusHandler(Base::Object*, KeyboardFocusChangedEventArgs& args) noexcept {
-    OnLostKeyboardFocus(args);
-}
-
-void PasswordBox::OnMouseDown(MouseButtonEventArgs& args) noexcept {
+void PasswordBox::OnMouseDown(MouseButtonEventArgs& args) {
     if (args.GetChangedButton() != MouseButton::Left || !GetIsEnabled()) {
         return;
     }
@@ -350,7 +289,7 @@ void PasswordBox::OnMouseDown(MouseButtonEventArgs& args) noexcept {
     args.SetHandled(true);
 }
 
-void PasswordBox::OnMouseMove(MouseEventArgs& args) noexcept {
+void PasswordBox::OnMouseMove(MouseEventArgs& args) {
     if (!isDragging_ || pointerId_ != args.GetPointerId()) {
         return;
     }
@@ -359,7 +298,7 @@ void PasswordBox::OnMouseMove(MouseEventArgs& args) noexcept {
     args.SetHandled(true);
 }
 
-void PasswordBox::OnMouseUp(MouseButtonEventArgs& args) noexcept {
+void PasswordBox::OnMouseUp(MouseButtonEventArgs& args) {
     if (args.GetChangedButton() != MouseButton::Left || !isDragging_ || pointerId_ != args.GetPointerId()) {
         return;
     }
@@ -370,7 +309,7 @@ void PasswordBox::OnMouseUp(MouseButtonEventArgs& args) noexcept {
     args.SetHandled(true);
 }
 
-void PasswordBox::OnKeyDown(KeyEventArgs& args) noexcept {
+void PasswordBox::OnKeyDown(KeyEventArgs& args) {
     if (!GetIsEnabled()) {
         return;
     }
@@ -415,7 +354,7 @@ void PasswordBox::OnKeyDown(KeyEventArgs& args) noexcept {
     }
 }
 
-void PasswordBox::OnTextInput(TextCompositionEventArgs& args) noexcept {
+void PasswordBox::OnTextInput(TextCompositionEventArgs& args) {
     if (!GetIsEnabled() || editor_.GetIsReadOnly()) {
         return;
     }
@@ -431,7 +370,7 @@ void PasswordBox::OnTextInput(TextCompositionEventArgs& args) noexcept {
     }
 }
 
-void PasswordBox::OnLostKeyboardFocus(KeyboardFocusChangedEventArgs&) noexcept {
+void PasswordBox::OnLostKeyboardFocus(KeyboardFocusChangedEventArgs&) {
     static_cast<void>(editor_.CancelCompositionForFocusLoss());
     if (!isDragging_) {
         return;
@@ -441,8 +380,8 @@ void PasswordBox::OnLostKeyboardFocus(KeyboardFocusChangedEventArgs&) noexcept {
 }
 
 void PasswordBox::OnPropertyChanged(
-    DependencyObject&,
     const DependencyPropertyChangedEventArgs& args) noexcept {
+    TextBoxBase::OnPropertyChanged(args);
     if (args.GetProperty() == PasswordBox::PasswordCharProperty) {
         static_cast<void>(PasswordPolicy(passwordPolicy_)->SetMask(GetPasswordChar()));
         editor_.InvalidateMeasure();

@@ -26,15 +26,10 @@ protected:
         CreateContainer(
             const Ref<Base::Object>& item)
             noexcept override;
-    virtual void OnMouseLeftButtonDown(MouseButtonEventArgs& args);
-    virtual void OnKeyDown(KeyEventArgs& args);
+    void OnMouseLeftButtonDown(MouseButtonEventArgs& args) override;
+    void OnKeyDown(KeyEventArgs& args) override;
 
 private:
-    MouseButtonEventHandler mouseDownHandler_;
-    KeyEventHandler keyDownHandler_;
-
-    void HandleMouseDown(Base::Object* sender, MouseButtonEventArgs& args) noexcept;
-    void HandleKeyDown(Base::Object* sender, KeyEventArgs& args) noexcept;
     TreeViewItem* FindItem(Base::Object* source) const noexcept;
     static Result<void> CollectVisibleItems(
         ::Aero::Media::Visual& parent,

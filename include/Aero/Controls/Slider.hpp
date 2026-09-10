@@ -69,21 +69,17 @@ protected:
     void OnRender(
         ::Aero::Media::DrawingContext& context) noexcept override;
 
-    virtual void OnMouseLeftButtonDown(MouseButtonEventArgs& args);
-    virtual void OnMouseLeftButtonUp(MouseButtonEventArgs& args);
-    virtual void OnMouseMove(MouseEventArgs& args);
-    virtual void OnKeyDown(KeyEventArgs& args);
+    void OnMouseLeftButtonDown(MouseButtonEventArgs& args) override;
+    void OnMouseLeftButtonUp(MouseButtonEventArgs& args) override;
+    void OnMouseMove(MouseEventArgs& args) override;
+    void OnKeyDown(KeyEventArgs& args) override;
+    void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
 
 private:
     Primitives::Track* track_ = nullptr;
-    DependencyPropertyChangedEventHandler trackPropertyChangedHandler_;
     std::uint32_t pointerId_ = 0U;
     bool dragging_ = false;
 
-    MouseButtonEventHandler mouseDownHandler_;
-    MouseEventHandler mouseMoveHandler_;
-    MouseButtonEventHandler mouseUpHandler_;
-    KeyEventHandler keyDownHandler_;
     ExecutedRoutedEventHandler decreaseSmallHandler_;
     ExecutedRoutedEventHandler increaseSmallHandler_;
     ExecutedRoutedEventHandler decreaseLargeHandler_;
@@ -93,10 +89,6 @@ private:
     Input::CommandBindingHandle decreaseLargeCommand_;
     Input::CommandBindingHandle increaseLargeCommand_;
 
-    void OnMouseDownHandler(Base::Object* sender, MouseButtonEventArgs& args) noexcept;
-    void OnMouseMoveHandler(Base::Object* sender, MouseEventArgs& args) noexcept;
-    void OnMouseUpHandler(Base::Object* sender, MouseButtonEventArgs& args) noexcept;
-    void OnKeyDownHandler(Base::Object* sender, KeyEventArgs& args) noexcept;
     void OnDecreaseSmallCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
     void OnIncreaseSmallCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
     void OnDecreaseLargeCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
@@ -105,9 +97,6 @@ private:
     void EnsureCommands() noexcept;
     void UnregisterCommands() noexcept;
 
-    void OnTrackPropertyChanged(
-        DependencyObject& object,
-        const DependencyPropertyChangedEventArgs& args) noexcept;
     void SynchronizeTrack() noexcept;
     double GetNormalizedValueForLayout() const noexcept;
     double GetSnapValue(double value) const noexcept;

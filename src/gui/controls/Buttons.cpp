@@ -14,166 +14,10 @@
 #include <Aero/VisualTreeHelper.hpp>
 
 #include <utility>
-#include <new>
 
 namespace Aero::Controls {
 
 using namespace Primitives;
-
-// ---------------------------------------------------------------------------
-// ButtonBase::State
-// ---------------------------------------------------------------------------
-
-struct ButtonBase::State {
-    explicit State(ButtonBase& owner) noexcept
-        : owner_(&owner),
-          mouseDownHandler_(this, &State::OnMouseDown),
-          mouseUpHandler_(this, &State::OnMouseUp),
-          keyDownHandler_(this, &State::OnKeyDown),
-          keyUpHandler_(this, &State::OnKeyUp),
-          focusChangedHandler_(this, &State::OnFocusChanged),
-          propertyChangedHandler_(this, &State::OnPropertyChanged),
-          canExecuteChangedHandler_(this, &State::OnCanExecuteChanged) {
-        owner.AddHandler(UIElement::MouseDownEvent, mouseDownHandler_);
-        owner.AddHandler(UIElement::MouseUpEvent, mouseUpHandler_);
-        owner.AddHandler(UIElement::KeyDownEvent, keyDownHandler_);
-        owner.AddHandler(UIElement::KeyUpEvent, keyUpHandler_);
-        owner.AddHandler(UIElement::GotKeyboardFocusEvent, focusChangedHandler_);
-        owner.AddHandler(UIElement::LostKeyboardFocusEvent, focusChangedHandler_);
-
-        owner.AddValueChangedHandler(ButtonBase::CommandProperty, propertyChangedHandler_);
-        owner.AddValueChangedHandler(UIElement::IsEnabledProperty, propertyChangedHandler_);
-        owner.AddValueChangedHandler(UIElement::IsMouseOverProperty, propertyChangedHandler_);
-        owner.AddValueChangedHandler(UIElement::IsPressedProperty, propertyChangedHandler_);
-        owner.AddValueChangedHandler(UIElement::IsKeyboardFocusedProperty, propertyChangedHandler_);
-
-        HookCommand(owner.GetCommand());
-    }
-
-    ~State() noexcept {
-        UnhookCommand();
-        if (pointerDown_) {
-            static_cast<void>(owner_->ReleasePointer(pointerId_));
-            pointerDown_ = false;
-        }
-        owner_->RemoveHandler(UIElement::MouseDownEvent, mouseDownHandler_);
-        owner_->RemoveHandler(UIElement::MouseUpEvent, mouseUpHandler_);
-        owner_->RemoveHandler(UIElement::KeyDownEvent, keyDownHandler_);
-        owner_->RemoveHandler(UIElement::KeyUpEvent, keyUpHandler_);
-        owner_->RemoveHandler(UIElement::GotKeyboardFocusEvent, focusChangedHandler_);
-        owner_->RemoveHandler(UIElement::LostKeyboardFocusEvent, focusChangedHandler_);
-
-        owner_->RemoveValueChangedHandler(ButtonBase::CommandProperty, propertyChangedHandler_);
-        owner_->RemoveValueChangedHandler(UIElement::IsEnabledProperty, propertyChangedHandler_);
-        owner_->RemoveValueChangedHandler(UIElement::IsMouseOverProperty, propertyChangedHandler_);
-        owner_->RemoveValueChangedHandler(UIElement::IsPressedProperty, propertyChangedHandler_);
-        owner_->RemoveValueChangedHandler(UIElement::IsKeyboardFocusedProperty, propertyChangedHandler_);
-    }
-
-    void OnMouseDown(Base::Object*, MouseButtonEventArgs& args) noexcept {
-        if (args.GetChangedButton() == MouseButton::Left) {
-            owner_->OnMouseLeftButtonDown(args);
-        }
-    }
-
-    void OnMouseUp(Base::Object*, MouseButtonEventArgs& args) noexcept {
-        if (args.GetChangedButton() == MouseButton::Left) {
-            owner_->OnMouseLeftButtonUp(args);
-        }
-    }
-
-    void OnKeyDown(Base::Object*, KeyEventArgs& args) noexcept {
-        owner_->OnKeyDown(args);
-    }
-
-    void OnKeyUp(Base::Object*, KeyEventArgs& args) noexcept {
-        owner_->OnKeyUp(args);
-    }
-
-    void OnFocusChanged(Base::Object*, KeyboardFocusChangedEventArgs& args) noexcept {
-        if (args.GetNewFocus() != owner_ && keyboardDown_) {
-            keyboardDown_ = false;
-            static_cast<void>(AeroGuiInternal::SetPressed(*owner_, false));
-        }
-        owner_->UpdateVisualState();
-    }
-
-    void OnPropertyChanged(DependencyObject&, const DependencyPropertyChangedEventArgs& args) noexcept {
-        if (args.GetProperty() == ButtonBase::CommandProperty) {
-            HookCommand(owner_->GetCommand());
-            RefreshCanExecute();
-        } else if (args.GetProperty() == UIElement::IsMouseOverProperty) {
-            const bool mouseOver = owner_->GetIsMouseOver();
-            if (mouseOver && !wasMouseOver_ && owner_->GetIsEnabled() && owner_->GetClickMode() == ClickMode::Hover) {
-                owner_->OnClick();
-            }
-            wasMouseOver_ = mouseOver;
-            owner_->UpdateVisualState();
-        } else if (args.GetProperty() == UIElement::IsEnabledProperty ||
-                   args.GetProperty() == UIElement::IsPressedProperty ||
-                   args.GetProperty() == UIElement::IsKeyboardFocusedProperty) {
-            owner_->UpdateVisualState();
-        }
-    }
-
-    void OnCanExecuteChanged() noexcept {
-        RefreshCanExecute();
-    }
-
-    void HookCommand(ICommand* command) noexcept {
-        UnhookCommand();
-        if (command != nullptr) {
-            hookedCommand_ = Base::Ref<ICommand>::FromBorrowed(*command);
-            hookedCommand_->AddCanExecuteChanged(canExecuteChangedHandler_);
-        }
-    }
-
-    void UnhookCommand() noexcept {
-        if (hookedCommand_) {
-            hookedCommand_->RemoveCanExecuteChanged(canExecuteChangedHandler_);
-            hookedCommand_.Reset();
-        }
-    }
-
-    void RefreshCanExecute() noexcept {
-        ICommand* command = owner_->GetCommand();
-        bool enabled = true;
-        if (command != nullptr) {
-            UIElement* target = owner_->GetCommandTarget();
-            if (target == nullptr) target = owner_;
-            const Value parameter = owner_->GetCommandParameter();
-            Aero::InputRouter* input = AeroGuiInternal::InputRouterOf(*owner_);
-            if (input != nullptr) {
-                Base::Result<bool> allowed = input->CanExecute(*command, parameter, *target);
-                if (allowed) enabled = allowed.Value();
-            } else {
-                Base::Result<bool> allowed = command->CanExecute(parameter, target);
-                if (allowed) enabled = allowed.Value();
-            }
-        }
-        commandEnabled = enabled;
-        if (!enabled && owner_->GetIsEnabled()) {
-            owner_->SetIsEnabled(false);
-        }
-        owner_->UpdateVisualState();
-    }
-
-    ButtonBase* owner_ = nullptr;
-    MouseButtonEventHandler mouseDownHandler_;
-    MouseButtonEventHandler mouseUpHandler_;
-    KeyEventHandler keyDownHandler_;
-    KeyEventHandler keyUpHandler_;
-    KeyboardFocusChangedEventHandler focusChangedHandler_;
-    DependencyPropertyChangedEventHandler propertyChangedHandler_;
-    Base::Delegate<void()> canExecuteChangedHandler_;
-
-    Base::Ref<ICommand> hookedCommand_;
-    std::uint32_t pointerId_ = 0U;
-    bool pointerDown_ = false;
-    bool keyboardDown_ = false;
-    bool wasMouseOver_ = false;
-    bool commandEnabled = true;
-};
 
 // ---------------------------------------------------------------------------
 // ButtonBase
@@ -181,12 +25,16 @@ struct ButtonBase::State {
 
 ButtonBase::ButtonBase(TypeId runtimeType) noexcept
     : ContentControl(runtimeType),
-      state_(new (std::nothrow) State(*this)) {
+      canExecuteChangedHandler_(this, &ButtonBase::OnCanExecuteChanged) {
+    HookCommand(GetCommand());
 }
 
 ButtonBase::~ButtonBase() {
-    delete state_;
-    state_ = nullptr;
+    UnhookCommand();
+    if (pointerDown_) {
+        static_cast<void>(ReleasePointer(pointerId_));
+        pointerDown_ = false;
+    }
 }
 
 ClickMode ButtonBase::GetClickMode() const noexcept {
@@ -206,7 +54,7 @@ UIElement* ButtonBase::GetCommandTarget() const noexcept {
 }
 
 bool ButtonBase::GetIsCommandEnabled() const noexcept {
-    return state_ != nullptr ? state_->commandEnabled : true;
+    return commandEnabled_;
 }
 
 void ButtonBase::SetClickMode(ClickMode value) noexcept {
@@ -265,12 +113,85 @@ void ButtonBase::UpdateVisualState(bool useTransitions) noexcept {
     VisualStateManager::GoToState(*this, focus, useTransitions);
 }
 
+void ButtonBase::OnGotKeyboardFocus(KeyboardFocusChangedEventArgs& args) {
+    ContentControl::OnGotKeyboardFocus(args);
+    UpdateVisualState();
+}
+
+void ButtonBase::OnLostKeyboardFocus(KeyboardFocusChangedEventArgs& args) {
+    ContentControl::OnLostKeyboardFocus(args);
+    if (keyboardDown_) {
+        keyboardDown_ = false;
+        static_cast<void>(AeroGuiInternal::SetPressed(*this, false));
+    }
+    UpdateVisualState();
+}
+
+void ButtonBase::OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept {
+    ContentControl::OnPropertyChanged(args);
+    if (args.GetProperty() == CommandProperty) {
+        HookCommand(GetCommand());
+        RefreshCanExecute();
+    } else if (args.GetProperty() == IsMouseOverProperty) {
+        const bool mouseOver = GetIsMouseOver();
+        if (mouseOver && !wasMouseOver_ && GetIsEnabled() && GetClickMode() == ClickMode::Hover) {
+            OnClick();
+        }
+        wasMouseOver_ = mouseOver;
+        UpdateVisualState();
+    } else if (args.GetProperty() == IsEnabledProperty ||
+               args.GetProperty() == IsPressedProperty ||
+               args.GetProperty() == IsKeyboardFocusedProperty) {
+        UpdateVisualState();
+    }
+}
+
+void ButtonBase::OnCanExecuteChanged() noexcept {
+    RefreshCanExecute();
+}
+
+void ButtonBase::HookCommand(ICommand* command) noexcept {
+    UnhookCommand();
+    if (command != nullptr) {
+        hookedCommand_ = Base::Ref<ICommand>::FromBorrowed(*command);
+        hookedCommand_->AddCanExecuteChanged(canExecuteChangedHandler_);
+    }
+}
+
+void ButtonBase::UnhookCommand() noexcept {
+    if (hookedCommand_) {
+        hookedCommand_->RemoveCanExecuteChanged(canExecuteChangedHandler_);
+        hookedCommand_.Reset();
+    }
+}
+
+void ButtonBase::RefreshCanExecute() noexcept {
+    ICommand* command = GetCommand();
+    bool enabled = true;
+    if (command != nullptr) {
+        UIElement* target = GetCommandTarget();
+        if (target == nullptr) target = this;
+        const Value parameter = GetCommandParameter();
+        Aero::InputRouter* input = AeroGuiInternal::InputRouterOf(*this);
+        if (input != nullptr) {
+            Base::Result<bool> allowed = input->CanExecute(*command, parameter, *target);
+            if (allowed) enabled = allowed.Value();
+        } else {
+            Base::Result<bool> allowed = command->CanExecute(parameter, target);
+            if (allowed) enabled = allowed.Value();
+        }
+    }
+    commandEnabled_ = enabled;
+    if (!enabled && GetIsEnabled()) {
+        SetIsEnabled(false);
+    }
+    UpdateVisualState();
+}
+
 void ButtonBase::OnMouseLeftButtonDown(MouseButtonEventArgs& args) {
     if (!GetIsEnabled()) return;
-    if (state_ != nullptr) {
-        state_->pointerId_ = args.GetPointerId();
-        state_->pointerDown_ = true;
-    }
+    pointerId_ = args.GetPointerId();
+    pointerDown_ = true;
     static_cast<void>(CapturePointer(args.GetPointerId()));
     static_cast<void>(Focus());
     args.SetHandled(true);
@@ -281,9 +202,9 @@ void ButtonBase::OnMouseLeftButtonDown(MouseButtonEventArgs& args) {
 }
 
 void ButtonBase::OnMouseLeftButtonUp(MouseButtonEventArgs& args) {
-    if (state_ == nullptr || !state_->pointerDown_) return;
-    if (state_->pointerId_ != args.GetPointerId()) return;
-    state_->pointerDown_ = false;
+    if (!pointerDown_) return;
+    if (pointerId_ != args.GetPointerId()) return;
+    pointerDown_ = false;
     static_cast<void>(ReleasePointer(args.GetPointerId()));
     args.SetHandled(true);
     if (GetClickMode() == ClickMode::Release && GetIsEnabled() && GetIsMouseOver()) {
@@ -295,8 +216,8 @@ void ButtonBase::OnMouseLeftButtonUp(MouseButtonEventArgs& args) {
 void ButtonBase::OnKeyDown(KeyEventArgs& args) {
     if (!GetIsEnabled()) return;
     if (args.GetKey() != KeyboardKeySpace && args.GetKey() != KeyboardKeyEnter) return;
-    if (state_ != nullptr && !state_->keyboardDown_) {
-        state_->keyboardDown_ = true;
+    if (!keyboardDown_) {
+        keyboardDown_ = true;
         static_cast<void>(AeroGuiInternal::SetPressed(*this, true));
         if (GetClickMode() == ClickMode::Press) {
             OnClick();
@@ -308,8 +229,8 @@ void ButtonBase::OnKeyDown(KeyEventArgs& args) {
 
 void ButtonBase::OnKeyUp(KeyEventArgs& args) {
     if (args.GetKey() != KeyboardKeySpace && args.GetKey() != KeyboardKeyEnter) return;
-    if (state_ == nullptr || !state_->keyboardDown_) return;
-    state_->keyboardDown_ = false;
+    if (!keyboardDown_) return;
+    keyboardDown_ = false;
     static_cast<void>(AeroGuiInternal::SetPressed(*this, false));
     args.SetHandled(true);
     if (GetIsEnabled() && GetClickMode() == ClickMode::Release) {
@@ -319,54 +240,14 @@ void ButtonBase::OnKeyUp(KeyEventArgs& args) {
 }
 
 // ---------------------------------------------------------------------------
-// ToggleButton::ToggleState
-// ---------------------------------------------------------------------------
-
-struct ToggleButton::ToggleState {
-    explicit ToggleState(ToggleButton& owner) noexcept
-        : owner_(&owner),
-          propertyChangedHandler_(this, &ToggleState::OnPropertyChanged) {
-        owner.AddValueChangedHandler(ToggleButton::IsCheckedProperty, propertyChangedHandler_);
-        owner.AddValueChangedHandler(ToggleButton::IsThreeStateProperty, propertyChangedHandler_);
-    }
-
-    ~ToggleState() noexcept {
-        owner_->RemoveValueChangedHandler(ToggleButton::IsCheckedProperty, propertyChangedHandler_);
-        owner_->RemoveValueChangedHandler(ToggleButton::IsThreeStateProperty, propertyChangedHandler_);
-    }
-
-    void OnPropertyChanged(DependencyObject&, const DependencyPropertyChangedEventArgs& args) noexcept {
-        if (args.GetProperty() == ToggleButton::IsCheckedProperty) {
-            const Nullable<bool> current = owner_->GetIsChecked();
-            RoutedEventArgs eventArgs;
-            if (!current.GetHasValue()) {
-                owner_->RaiseEvent(ToggleButton::IndeterminateEvent, &eventArgs);
-            } else if (current.GetValue()) {
-                owner_->RaiseEvent(ToggleButton::CheckedEvent, &eventArgs);
-            } else {
-                owner_->RaiseEvent(ToggleButton::UncheckedEvent, &eventArgs);
-            }
-            owner_->UpdateVisualState();
-        }
-    }
-
-    ToggleButton* owner_ = nullptr;
-    DependencyPropertyChangedEventHandler propertyChangedHandler_;
-};
-
-// ---------------------------------------------------------------------------
 // ToggleButton
 // ---------------------------------------------------------------------------
 
 ToggleButton::ToggleButton(TypeId runtimeType) noexcept
-    : ButtonBase(runtimeType),
-      toggleState_(new (std::nothrow) ToggleState(*this)) {
+    : ButtonBase(runtimeType) {
 }
 
-ToggleButton::~ToggleButton() {
-    delete toggleState_;
-    toggleState_ = nullptr;
-}
+ToggleButton::~ToggleButton() = default;
 
 Nullable<bool> ToggleButton::GetIsChecked() const noexcept {
     return GetValue(IsCheckedProperty);
@@ -417,8 +298,24 @@ void ToggleButton::UpdateVisualState(bool useTransitions) noexcept {
     VisualStateManager::GoToState(*this, check, useTransitions);
 }
 
+void ToggleButton::OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept {
+    ButtonBase::OnPropertyChanged(args);
+    if (args.GetProperty() == IsCheckedProperty) {
+        const Nullable<bool> current = GetIsChecked();
+        RoutedEventArgs eventArgs;
+        if (!current.GetHasValue()) {
+            RaiseEvent(IndeterminateEvent, &eventArgs);
+        } else if (current.GetValue()) {
+            RaiseEvent(CheckedEvent, &eventArgs);
+        } else {
+            RaiseEvent(UncheckedEvent, &eventArgs);
+        }
+        UpdateVisualState();
+    }
+}
+
 // ---------------------------------------------------------------------------
-// RadioButton::RadioState & helpers
+// RadioButton helpers
 // ---------------------------------------------------------------------------
 
 static void UncheckRadioSiblings(DependencyObject& container, RadioButton& current, Base::StringView group) noexcept {
@@ -462,46 +359,15 @@ static void UncheckRadioSiblings(DependencyObject& container, RadioButton& curre
     }
 }
 
-struct RadioButton::RadioState {
-    explicit RadioState(RadioButton& owner) noexcept
-        : owner_(&owner),
-          propertyChangedHandler_(this, &RadioState::OnPropertyChanged) {
-        owner.AddValueChangedHandler(ToggleButton::IsCheckedProperty, propertyChangedHandler_);
-        owner.AddValueChangedHandler(RadioButton::GroupNameProperty, propertyChangedHandler_);
-    }
-
-    ~RadioState() noexcept {
-        owner_->RemoveValueChangedHandler(ToggleButton::IsCheckedProperty, propertyChangedHandler_);
-        owner_->RemoveValueChangedHandler(RadioButton::GroupNameProperty, propertyChangedHandler_);
-    }
-
-    void OnPropertyChanged(DependencyObject&, const DependencyPropertyChangedEventArgs& args) noexcept {
-        if (args.GetProperty() == ToggleButton::IsCheckedProperty ||
-            args.GetProperty() == RadioButton::GroupNameProperty) {
-            const Nullable<bool> current = owner_->GetIsChecked();
-            if (current.GetHasValue() && current.GetValue()) {
-                owner_->UncheckRadioPeers();
-            }
-        }
-    }
-
-    RadioButton* owner_ = nullptr;
-    DependencyPropertyChangedEventHandler propertyChangedHandler_;
-};
-
 // ---------------------------------------------------------------------------
 // RadioButton
 // ---------------------------------------------------------------------------
 
 RadioButton::RadioButton(TypeId runtimeType) noexcept
-    : Primitives::ToggleButton(runtimeType),
-      radioState_(new (std::nothrow) RadioState(*this)) {
+    : Primitives::ToggleButton(runtimeType) {
 }
 
-RadioButton::~RadioButton() {
-    delete radioState_;
-    radioState_ = nullptr;
-}
+RadioButton::~RadioButton() = default;
 
 Base::StringView RadioButton::GetGroupName() const noexcept {
     return GetValue(GroupNameProperty);
@@ -518,6 +384,17 @@ void RadioButton::OnClick() {
 
 void RadioButton::OnToggle() noexcept {
     SetIsChecked(true);
+}
+
+void RadioButton::OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept {
+    ToggleButton::OnPropertyChanged(args);
+    if (args.GetProperty() == IsCheckedProperty ||
+        args.GetProperty() == GroupNameProperty) {
+        const Nullable<bool> current = GetIsChecked();
+        if (current.GetHasValue() && current.GetValue()) {
+            UncheckRadioPeers();
+        }
+    }
 }
 
 void RadioButton::UncheckRadioPeers() noexcept {

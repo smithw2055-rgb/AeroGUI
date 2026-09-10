@@ -37,10 +37,7 @@ protected:
     void OnClick() override;
     virtual void OnToggle() noexcept;
     void UpdateVisualState(bool useTransitions = true) noexcept override;
-
-private:
-    struct ToggleState;
-    ToggleState* toggleState_ = nullptr;
+    void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
 };
 
 } // namespace Aero::Controls::Primitives

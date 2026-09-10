@@ -29,23 +29,12 @@ ScrollViewer::ScrollViewer() noexcept
     : ScrollContentPresenter(StaticTypeId()),
       scrollBarValueChangedHandler_(
           this,
-          &ScrollViewer::OnScrollBarValueChanged),
-      mouseWheelHandler_(
-          this,
-          &ScrollViewer::HandleMouseWheel) {
-    AddHandler(UIElement::MouseWheelEvent, mouseWheelHandler_);
+          &ScrollViewer::OnScrollBarValueChanged) {
     UpdateComputedScrollBarVisibility(GetData());
 }
 
 ScrollViewer::~ScrollViewer() {
-    RemoveHandler(UIElement::MouseWheelEvent, mouseWheelHandler_);
     DetachScrollBars();
-}
-
-void ScrollViewer::HandleMouseWheel(
-    Base::Object*,
-    MouseWheelEventArgs& args) noexcept {
-    OnMouseWheel(args);
 }
 
 void ScrollViewer::OnMouseWheel(
@@ -436,18 +425,10 @@ void ScrollViewer::UpdateComputedScrollBarVisibility(
 }
 
 Thumb::Thumb() noexcept
-    : Control(StaticTypeId()),
-      propertyChangedHandler_(this, &Thumb::OnPropertyChanged) {
-    AddValueChangedHandler(UIElement::IsEnabledProperty, propertyChangedHandler_);
-    AddValueChangedHandler(UIElement::IsMouseOverProperty, propertyChangedHandler_);
-    AddValueChangedHandler(Thumb::IsDraggingProperty, propertyChangedHandler_);
+    : Control(StaticTypeId()) {
 }
 
-Thumb::~Thumb() {
-    RemoveValueChangedHandler(UIElement::IsEnabledProperty, propertyChangedHandler_);
-    RemoveValueChangedHandler(UIElement::IsMouseOverProperty, propertyChangedHandler_);
-    RemoveValueChangedHandler(Thumb::IsDraggingProperty, propertyChangedHandler_);
-}
+Thumb::~Thumb() = default;
 
 void Thumb::OnApplyTemplate() noexcept {
     Control::OnApplyTemplate();
@@ -455,8 +436,8 @@ void Thumb::OnApplyTemplate() noexcept {
 }
 
 void Thumb::OnPropertyChanged(
-    DependencyObject&,
     const DependencyPropertyChangedEventArgs& args) noexcept {
+    Control::OnPropertyChanged(args);
     if (args.GetProperty() == UIElement::IsEnabledProperty ||
         args.GetProperty() == UIElement::IsMouseOverProperty ||
         args.GetProperty() == Thumb::IsDraggingProperty) {

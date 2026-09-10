@@ -35,15 +35,12 @@ public:
 
 protected:
     void OnApplyTemplate() noexcept override;
+    void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
 
 private:
     std::uint32_t pointerId_ = 0U;
     Point lastPosition_{};
     bool dragging_ = false;
-    DependencyPropertyChangedEventHandler propertyChangedHandler_;
-    void OnPropertyChanged(
-        DependencyObject& object,
-        const DependencyPropertyChangedEventArgs& args) noexcept;
 };
 
 } // namespace Primitives

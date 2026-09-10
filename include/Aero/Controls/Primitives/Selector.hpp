@@ -102,6 +102,9 @@ protected:
         FrameworkElement& container) noexcept override;
     void OnContainersChanged() noexcept override;
     void OnItemsSourceCoreChanged() noexcept override;
+    virtual void OnSelectionChanged(const SelectionChangedEvent& event);
+    void OnPropertyChanged(
+        const DependencyPropertyChangedEventArgs& args) noexcept override;
 
 private:
     Base::Vector<std::uint32_t> selectedIndices_;
@@ -113,7 +116,6 @@ private:
     Ref<Base::Object> pendingSelectedItem_;
     SelectionChangedHandler selectionChanged_;
     ItemsChangedHandler itemsChangedHandler_;
-    DependencyPropertyChangedEventHandler propertyChangedHandler_;
     Base::Status lastSelectionError_;
     DependencyPropertyHandle activeProperty_;
     bool synchronizingProperties_ = false;
@@ -123,9 +125,6 @@ private:
 
     void OnItemsChanged(
         const ItemsChangedEvent& event) noexcept;
-    void OnPropertyChanged(
-        DependencyObject& object,
-        const DependencyPropertyChangedEventArgs& args) noexcept;
     Result<bool> ApplySelection(
         Span<const std::uint32_t> indices,
         std::uint32_t primaryIndex) noexcept;

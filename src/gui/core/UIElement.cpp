@@ -662,11 +662,84 @@ Base::Result<void> UIElement::EnsureRoutedHandlers() noexcept {
     return Base::Result<void>();
 }
 
+void UIElement::OnPreviewMouseDown(MouseButtonEventArgs&) {}
+void UIElement::OnMouseDown(MouseButtonEventArgs& args) {
+    if (args.GetChangedButton() == MouseButton::Left) {
+        OnMouseLeftButtonDown(args);
+    } else if (args.GetChangedButton() == MouseButton::Right) {
+        OnMouseRightButtonDown(args);
+    }
+}
+void UIElement::OnMouseLeftButtonDown(MouseButtonEventArgs&) {}
+void UIElement::OnMouseRightButtonDown(MouseButtonEventArgs&) {}
+void UIElement::OnPreviewMouseUp(MouseButtonEventArgs&) {}
+void UIElement::OnMouseUp(MouseButtonEventArgs& args) {
+    if (args.GetChangedButton() == MouseButton::Left) {
+        OnMouseLeftButtonUp(args);
+    } else if (args.GetChangedButton() == MouseButton::Right) {
+        OnMouseRightButtonUp(args);
+    }
+}
+void UIElement::OnMouseLeftButtonUp(MouseButtonEventArgs&) {}
+void UIElement::OnMouseRightButtonUp(MouseButtonEventArgs&) {}
+void UIElement::OnPreviewMouseMove(MouseEventArgs&) {}
+void UIElement::OnMouseMove(MouseEventArgs&) {}
+void UIElement::OnMouseEnter(MouseEventArgs&) {}
+void UIElement::OnMouseLeave(MouseEventArgs&) {}
+void UIElement::OnPreviewMouseWheel(MouseWheelEventArgs&) {}
+void UIElement::OnMouseWheel(MouseWheelEventArgs&) {}
+void UIElement::OnPreviewKeyDown(KeyEventArgs&) {}
+void UIElement::OnKeyDown(KeyEventArgs&) {}
+void UIElement::OnPreviewKeyUp(KeyEventArgs&) {}
+void UIElement::OnKeyUp(KeyEventArgs&) {}
+void UIElement::OnPreviewTextInput(TextCompositionEventArgs&) {}
+void UIElement::OnTextInput(TextCompositionEventArgs&) {}
+void UIElement::OnGotKeyboardFocus(KeyboardFocusChangedEventArgs&) {}
+void UIElement::OnLostKeyboardFocus(KeyboardFocusChangedEventArgs&) {}
+
 // from src/gui/controls/Layout.cpp
 
 void UIElement::InvokeHandlers(
     RoutedEventHandle event,
     RoutedEventArgs& args) noexcept {
+    if (event == PreviewMouseDownEvent) {
+        OnPreviewMouseDown(static_cast<MouseButtonEventArgs&>(args));
+    } else if (event == MouseDownEvent) {
+        OnMouseDown(static_cast<MouseButtonEventArgs&>(args));
+    } else if (event == PreviewMouseUpEvent) {
+        OnPreviewMouseUp(static_cast<MouseButtonEventArgs&>(args));
+    } else if (event == MouseUpEvent) {
+        OnMouseUp(static_cast<MouseButtonEventArgs&>(args));
+    } else if (event == PreviewMouseMoveEvent) {
+        OnPreviewMouseMove(static_cast<MouseEventArgs&>(args));
+    } else if (event == MouseMoveEvent) {
+        OnMouseMove(static_cast<MouseEventArgs&>(args));
+    } else if (event == MouseEnterEvent) {
+        OnMouseEnter(static_cast<MouseEventArgs&>(args));
+    } else if (event == MouseLeaveEvent) {
+        OnMouseLeave(static_cast<MouseEventArgs&>(args));
+    } else if (event == PreviewMouseWheelEvent) {
+        OnPreviewMouseWheel(static_cast<MouseWheelEventArgs&>(args));
+    } else if (event == MouseWheelEvent) {
+        OnMouseWheel(static_cast<MouseWheelEventArgs&>(args));
+    } else if (event == PreviewKeyDownEvent) {
+        OnPreviewKeyDown(static_cast<KeyEventArgs&>(args));
+    } else if (event == KeyDownEvent) {
+        OnKeyDown(static_cast<KeyEventArgs&>(args));
+    } else if (event == PreviewKeyUpEvent) {
+        OnPreviewKeyUp(static_cast<KeyEventArgs&>(args));
+    } else if (event == KeyUpEvent) {
+        OnKeyUp(static_cast<KeyEventArgs&>(args));
+    } else if (event == PreviewTextInputEvent) {
+        OnPreviewTextInput(static_cast<TextCompositionEventArgs&>(args));
+    } else if (event == TextInputEvent) {
+        OnTextInput(static_cast<TextCompositionEventArgs&>(args));
+    } else if (event == GotKeyboardFocusEvent) {
+        OnGotKeyboardFocus(static_cast<KeyboardFocusChangedEventArgs&>(args));
+    } else if (event == LostKeyboardFocusEvent) {
+        OnLostKeyboardFocus(static_cast<KeyboardFocusChangedEventArgs&>(args));
+    }
+
     auto* state = static_cast<UIElementHandlerState*>((rare_ != nullptr ? rare_->routedHandlers : nullptr));
     if (state == nullptr) return;
     const std::uint32_t count = state->handlers.Size();

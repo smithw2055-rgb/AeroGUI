@@ -46,16 +46,29 @@ protected:
     virtual void OnClick();
     virtual void UpdateVisualState(bool useTransitions = true) noexcept;
 
-    virtual void OnMouseLeftButtonDown(MouseButtonEventArgs& args);
-    virtual void OnMouseLeftButtonUp(MouseButtonEventArgs& args);
-    virtual void OnKeyDown(KeyEventArgs& args);
-    virtual void OnKeyUp(KeyEventArgs& args);
+    void OnMouseLeftButtonDown(MouseButtonEventArgs& args) override;
+    void OnMouseLeftButtonUp(MouseButtonEventArgs& args) override;
+    void OnKeyDown(KeyEventArgs& args) override;
+    void OnKeyUp(KeyEventArgs& args) override;
+    void OnGotKeyboardFocus(KeyboardFocusChangedEventArgs& args) override;
+    void OnLostKeyboardFocus(KeyboardFocusChangedEventArgs& args) override;
 
+    void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
     void OnApplyTemplate() noexcept override;
 
 private:
-    struct State;
-    State* state_ = nullptr;
+    void HookCommand(ICommand* command) noexcept;
+    void UnhookCommand() noexcept;
+    void RefreshCanExecute() noexcept;
+    void OnCanExecuteChanged() noexcept;
+
+    Base::Ref<ICommand> hookedCommand_;
+    Base::Delegate<void()> canExecuteChangedHandler_;
+    std::uint32_t pointerId_ = 0U;
+    bool pointerDown_ = false;
+    bool keyboardDown_ = false;
+    bool wasMouseOver_ = false;
+    bool commandEnabled_ = true;
 };
 
 } // namespace Primitives
