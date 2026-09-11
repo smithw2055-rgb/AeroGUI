@@ -481,6 +481,7 @@ void DetachViewUi(
                     if (auto* childVis = ::Aero::TryCast<Aero::Media::Visual>(child)) {
                         addReachable(childVis);
                     } else {
+                        if (state.Animations() != nullptr) (void)state.Animations()->RemoveTarget(*child);
                         if (state.Bindings() != nullptr) (void)state.Bindings()->DetachObject(*child);
                         if (state.values != nullptr) (void)state.values->DetachObject(*child);
                     }
@@ -493,7 +494,7 @@ void DetachViewUi(
             Aero::Media::Visual* node = reachable[index - 1U];
             if (node == nullptr) continue;
             AeroGuiInternal::DetachPropertyDependencyObjects(
-                *node, state.Bindings(), state.values, detachedPropertyObjects);
+                *node, state.Bindings(), state.values, state.Animations(), detachedPropertyObjects);
             if (state.metadata != nullptr &&
                 state.metadata->Types().IsDerivedFrom(
                     node->RuntimeType(), Controls::ItemsControl::StaticTypeId())) {
@@ -501,6 +502,9 @@ void DetachViewUi(
                 if (auto* gen = itemsControl.GetItemContainerGenerator()) {
                     (void)gen->Detach();
                 }
+            }
+            if (state.Animations() != nullptr) {
+                (void)state.Animations()->RemoveTarget(*node);
             }
             if (state.metadata != nullptr &&
                 state.metadata->Types().IsDerivedFrom(

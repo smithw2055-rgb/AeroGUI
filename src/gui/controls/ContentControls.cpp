@@ -840,7 +840,7 @@ TabControl::SynchronizeSelection() noexcept {
 }
 
 void TabControl::OnSelectionChanged(
-    const Primitives::SelectionChangedEvent& event) {
+    const SelectionChangedEvent& event) {
     Selector::OnSelectionChanged(event);
     static_cast<void>(SynchronizeSelection());
 }

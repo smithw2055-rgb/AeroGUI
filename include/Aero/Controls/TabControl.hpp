@@ -41,7 +41,7 @@ protected:
     Result<Ref<FrameworkElement>> CreateContainer(
         const Ref<Base::Object>& item) noexcept override;
     void OnSelectionChanged(
-        const Primitives::SelectionChangedEvent& event) override;
+        const SelectionChangedEvent& event) override;
     void OnPropertyChanged(
         const DependencyPropertyChangedEventArgs& args) noexcept override;
     Size MeasureOverride(

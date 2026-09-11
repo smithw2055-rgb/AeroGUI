@@ -1634,6 +1634,7 @@ void AeroGuiInternal::DetachPropertyDependencyObjects(
     DependencyObject& object,
     BindingEngine* bindings,
     Meta::EffectiveValueEngine* values,
+    AnimationEngine* animations,
     Base::Vector<DependencyObject*>& visited) noexcept {
     for (DependencyObject* seen : visited) {
         if (seen == &object) return;
@@ -1681,16 +1682,17 @@ void AeroGuiInternal::DetachPropertyDependencyObjects(
                 if (item) {
                     if (auto* itemDO = ::Aero::TryCast<DependencyObject>(item.Get())) {
                         if (::Aero::TryCast<Aero::Media::Visual>(itemDO) == nullptr) {
-                            DetachPropertyDependencyObjects(*itemDO, bindings, values, visited);
+                            DetachPropertyDependencyObjects(*itemDO, bindings, values, animations, visited);
                         }
                     }
                 }
             }
         }
-        DetachPropertyDependencyObjects(*child, bindings, values, visited);
+        DetachPropertyDependencyObjects(*child, bindings, values, animations, visited);
     }
 
     if (::Aero::TryCast<Aero::Media::Visual>(&object) == nullptr) {
+        if (animations != nullptr) (void)animations->RemoveTarget(object);
         if (bindings != nullptr) (void)bindings->DetachObject(object);
         if (values != nullptr) (void)values->DetachObject(object);
     }

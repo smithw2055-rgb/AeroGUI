@@ -55,9 +55,6 @@ Base::Result<void> AnimationEngine::Initialize() noexcept {
 }
 
 void AnimationEngine::Shutdown() noexcept {
-    if (dispatcher_ != nullptr && dispatcher_->CheckAccess()) {
-        static_cast<void>(RemoveAll());
-    }
     initialized_ = false;
     ReleaseTracks();
 }

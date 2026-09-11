@@ -44,6 +44,7 @@
         DependencyObject& object,
         BindingEngine* bindings,
         Meta::EffectiveValueEngine* values,
+        AnimationEngine* animations,
         Base::Vector<DependencyObject*>& visited) noexcept;
 
     // --- Property store ---

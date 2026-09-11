@@ -1017,14 +1017,80 @@ Base::Result<void> StyleEngine::AttachSetterBindings(
             continue;
         }
         auto& binding = static_cast<Data::Binding&>(*stored);
+        Base::Object* source = binding.GetSource().Get();
+        if (source == nullptr && !binding.GetElementName().Empty()) {
+            if (auto* framework = ::Aero::TryCast<FrameworkElement>(&object)) {
+                source = framework->FindName(binding.GetElementName());
+            }
+        } else if (source == nullptr && binding.GetRelativeSource()) {
+            const Data::RelativeSourceMode mode =
+                binding.GetRelativeSource()->GetMode();
+            if (mode == Data::RelativeSourceMode::Self) {
+                source = &object;
+            } else if (mode == Data::RelativeSourceMode::TemplatedParent) {
+                if (auto* framework = ::Aero::TryCast<FrameworkElement>(&object)) {
+                    source = framework->GetTemplatedParent();
+                }
+            } else if (mode == Data::RelativeSourceMode::FindAncestor) {
+                Base::StringView ancestorName =
+                    binding.GetRelativeSource()->GetAncestorType();
+                for (std::uint32_t nameIndex = 0U;
+                     nameIndex < ancestorName.SizeBytes(); ++nameIndex) {
+                    if (ancestorName[nameIndex] == ':') {
+                        ancestorName = ancestorName.Substr(
+                            nameIndex + 1U,
+                            ancestorName.SizeBytes() - nameIndex - 1U);
+                        break;
+                    }
+                }
+                const std::uint32_t requestedLevel =
+                    binding.GetRelativeSource()->GetAncestorLevel();
+                std::uint32_t matchedLevel = 0U;
+                Media::Visual* current = ::Aero::TryCast<Media::Visual>(&object);
+                if (current != nullptr) {
+                    Media::Visual* parent = ::Aero::TryCast<Media::Visual>(
+                        current->GetLogicalParent());
+                    if (parent == nullptr) {
+                        parent = current->GetVisualParent();
+                    }
+                    current = parent;
+                }
+                while (current != nullptr) {
+                    const Meta::TypeInfo* type =
+                        bindings->Metadata()->Types().FindType(
+                            current->RuntimeType());
+                    const bool matchesType = ancestorName.Empty() ||
+                        (type != nullptr && type->Name() == ancestorName);
+                    if (matchesType && ++matchedLevel == requestedLevel) {
+                        source = current;
+                        break;
+                    }
+                    Media::Visual* next = ::Aero::TryCast<Media::Visual>(
+                        current->GetLogicalParent());
+                    if (next == nullptr) {
+                        next = current->GetVisualParent();
+                    }
+                    current = next;
+                }
+            }
+        }
+        const bool isExplicitSource = binding.GetSource() ||
+            !binding.GetElementName().Empty() ||
+            binding.GetRelativeSource();
+        if (isExplicitSource && source == nullptr) {
+            continue;
+        }
+
         Data::MetadataBindingDescriptor descriptor;
         descriptor.metadata = bindings->Metadata();
-        descriptor.source = binding.GetSource().Get();
+        descriptor.source = source;
         descriptor.target = &object;
         descriptor.targetProperty = setter.property;
-        descriptor.dataContextProperty =
-            FrameworkElement::DataContextProperty.Handle();
-        descriptor.dataContextOwner = &object;
+        if (!isExplicitSource) {
+            descriptor.dataContextProperty =
+                FrameworkElement::DataContextProperty.Handle();
+            descriptor.dataContextOwner = &object;
+        }
         descriptor.path = binding.GetPathText();
         descriptor.stringFormat = binding.GetStringFormat();
         descriptor.bindsToSource = binding.GetPath().GetIsEmpty();

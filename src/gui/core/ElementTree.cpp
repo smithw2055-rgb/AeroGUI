@@ -231,7 +231,7 @@ void ElementTree::InvalidateNodeHandle(::Aero::Media::Visual& node) noexcept {
     if (bindings_ != nullptr || values_ != nullptr) {
         Base::Vector<DependencyObject*> detachedProps;
         AeroGuiInternal::DetachPropertyDependencyObjects(
-            node, bindings_, values_, detachedProps);
+            node, bindings_, values_, nullptr, detachedProps);
     }
     if (bindings_ != nullptr) {
         static_cast<void>(bindings_->DetachObject(node));

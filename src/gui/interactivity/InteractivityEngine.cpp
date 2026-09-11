@@ -480,12 +480,18 @@ Base::Object* InteractivityEngine::ResolveDataTemplateConditionSource(
             // DataTrigger Bindings with RelativeSource (FindAncestor,
             // TemplatedParent, Self) are resolved from the generated template
             // root, not the item payload compiled into condition.source.
+            Base::Object* selfObject = context.root;
+            if (condition.binding->GetRelativeSource()->GetMode() ==
+                    Data::RelativeSourceMode::Self &&
+                context.root->GetTemplatedParent() != nullptr) {
+                selfObject = context.root->GetTemplatedParent();
+            }
             source = ResolveAuthoredBindingSource(
                 *condition.binding,
                 *context.root,
                 &context,
                 nullptr,
-                context.root);
+                selfObject);
         } else {
             Base::Ref<Base::Object> retainedSource =
                 condition.source.Lock();

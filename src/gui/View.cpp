@@ -66,7 +66,7 @@ void ViewFrame::Shutdown() noexcept {
         storyboards->storyboardSessions.Clear();
     }
     if (Animations() != nullptr) {
-        static_cast<void>(Animations()->RemoveAll());
+        Animations()->Shutdown();
     }
     if (Bindings() != nullptr) {
         Bindings()->Shutdown();
