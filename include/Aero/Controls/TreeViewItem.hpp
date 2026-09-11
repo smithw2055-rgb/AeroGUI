@@ -58,8 +58,7 @@ protected:
     virtual void OnUnselected(RoutedEventArgs& e);
     explicit TreeViewItem(TypeId runtimeType) noexcept;
     Result<Ref<FrameworkElement>>
-        CreateContainer(
-            const Ref<Base::Object>& item)
+        GetContainerForItemOverride() const
             noexcept override;
     void
         OnApplyTemplate() noexcept override;

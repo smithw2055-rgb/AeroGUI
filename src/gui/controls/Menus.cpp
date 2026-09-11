@@ -314,8 +314,7 @@ void Menu::OnKeyDown(KeyEventArgs& args) {
 }
 
 Base::Result<Base::Ref<FrameworkElement>>
-Menu::CreateContainer(
-    const Base::Ref<Base::Object>&) noexcept {
+Menu::GetContainerForItemOverride() const noexcept {
     Base::Result<Base::Ref<MenuItem>> made =
         Base::MakeRef<MenuItem>();
     if (!made) return made.GetStatus();

@@ -5,6 +5,11 @@
 
 namespace Aero::Controls::Primitives {
 
+using ::Aero::Meta::DependencyPropertyChangedEventArgs;
+using ::Aero::Meta::DependencyPropertyHandle;
+using ::Aero::Meta::PropertyValue;
+using ::Aero::Meta::TypeId;
+
 class AERO_GUI_API RangeBase : public Control {
     AERO_DECLARE_TYPE(RangeBase, Control)
 public:
@@ -42,6 +47,10 @@ protected:
         double newValue) noexcept;
     void OnPropertyChanged(
         const DependencyPropertyChangedEventArgs& args) noexcept override;
+    // Replaces the former CoerceRangeMinimum/Maximum/Value metadata delegates.
+    PropertyValue CoerceValueCore(
+        DependencyPropertyHandle property,
+        const PropertyValue& baseValue) noexcept override;
 };
 
 } // namespace Aero::Controls::Primitives

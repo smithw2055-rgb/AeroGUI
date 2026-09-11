@@ -15,6 +15,8 @@ using ::Aero::Media::Geometry;
 using ::Aero::Media::Brush;
 using ::Aero::Media::PenLineJoin;
 using ::Aero::Media::PenLineCap;
+using ::Aero::Meta::DependencyPropertyChangedEventArgs;
+using ::Aero::Meta::DependencyPropertyHandle;
 
 // WPF-shaped vector path. The textual Data value accepts the deterministic
 // SVG/WPF subset used by the Gallery vector assets.
@@ -61,6 +63,9 @@ public:
 protected:
     Size MeasureOverride(Size availableSize) noexcept override;
     void OnRender(::Aero::Media::DrawingContext& context) noexcept override;
+    // Replaces the OnPath* metadata delegates (all funnel to geometry reset).
+    void OnPropertyChanged(
+        const DependencyPropertyChangedEventArgs& args) noexcept override;
 
 private:
     Result<void> EnsureGeometry() noexcept;

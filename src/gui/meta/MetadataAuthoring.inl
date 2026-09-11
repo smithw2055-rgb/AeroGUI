@@ -85,7 +85,6 @@ MetadataAuthoringSession::DependencyProperty(
     PropertyMetadataFlags metadataFlags,
     DependencyPropertyFlags propertyFlags,
     ValidateValueCallback validate,
-    CoerceValueCallback coerce,
     PropertyChangedCallback changed,
     UpdateSourceTrigger updateSourceTrigger) noexcept {
     if (!Ok()) return *this;
@@ -106,7 +105,6 @@ MetadataAuthoringSession::DependencyProperty(
         std::move(defaultValue);
     registration.metadata.flags = metadataFlags;
     registration.metadata.validate = validate;
-    registration.metadata.coerce = coerce;
     registration.metadata.changed = changed;
     registration.metadata.defaultUpdateSourceTrigger =
         updateSourceTrigger;

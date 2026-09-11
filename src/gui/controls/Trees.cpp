@@ -279,8 +279,7 @@ TreeViewItem::SetIsSelected(
 }
 
 Base::Result<Base::Ref<FrameworkElement>>
-TreeViewItem::CreateContainer(
-    const Base::Ref<Base::Object>&) noexcept {
+TreeViewItem::GetContainerForItemOverride() const noexcept {
     Base::Result<Base::Ref<TreeViewItem>> made =
         Base::MakeRef<TreeViewItem>();
     if (!made) return made.GetStatus();
@@ -798,8 +797,7 @@ TreeView::GetSelectedItem() const noexcept {
 }
 
 Base::Result<Base::Ref<FrameworkElement>>
-TreeView::CreateContainer(
-    const Base::Ref<Base::Object>&) noexcept {
+TreeView::GetContainerForItemOverride() const noexcept {
     Base::Result<Base::Ref<TreeViewItem>> made =
         Base::MakeRef<TreeViewItem>();
     if (!made) return made.GetStatus();

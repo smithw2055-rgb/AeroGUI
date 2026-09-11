@@ -47,6 +47,12 @@ public:
 protected:
     virtual std::uint32_t GetVisualChildrenCount() const noexcept { return 0U; }
     virtual Visual* GetVisualChild(std::uint32_t) const noexcept { return nullptr; }
+    // WPF-friendly hit-test extension point. Default walks visual children;
+    // custom Visuals override to participate without going through UIElement.
+    virtual bool HitTestCore(Base::Point point) const noexcept {
+        static_cast<void>(point);
+        return false;
+    }
 
     void AddVisualChild(Visual* child) noexcept;
     void RemoveVisualChild(Visual* child) noexcept;
@@ -100,3 +106,9 @@ private:
 };
 
 } // namespace Aero::Media
+
+namespace Aero {
+// WPF/Noesis-friendly alias: Visual is conceptually in Aero root even though
+// the implementation lives in Aero::Media (mirrors System.Windows.Media.Visual).
+using Visual = Media::Visual;
+} // namespace Aero

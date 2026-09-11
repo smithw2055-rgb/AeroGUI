@@ -325,6 +325,22 @@ void Shape::SetStretch(Stretch value) noexcept {
     SetValue(StretchProperty, value);
 }
 
+void Shape::OnPropertyChanged(
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    // Former OnShapePenChanged delegate body, moved before base handling to
+    // preserve the delegate-then-virtual firing order.
+    if (args.GetProperty() == PenProperty.Handle()) {
+        if (AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
+                RuntimeType(), Path::StaticTypeId())) {
+            AeroGuiInternal::PathInvalidateGeometry(
+                static_cast<Path&>(*this));
+        } else {
+            InvalidateVisual();
+        }
+    }
+    FrameworkElement::OnPropertyChanged(args);
+}
+
 double Rectangle::GetRadiusX() const noexcept {
     return GetValue(RadiusXProperty);
 }

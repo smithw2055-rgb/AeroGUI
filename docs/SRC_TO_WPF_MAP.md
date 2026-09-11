@@ -80,7 +80,19 @@ Aero types expose WPF-shaped virtuals you can override when subclassing:
 | `FrameworkElement.GetLogicalChildrenCount` | `FrameworkElement::GetLogicalChildrenCount()` | renamed from `GetLogicalChildrenCountCore` |
 | `FrameworkElement.GetLogicalChild` | `FrameworkElement::GetLogicalChild(int)` | renamed from `GetLogicalChildCore` |
 | `DependencyObject.OnPropertyChanged` | `DependencyObject::OnPropertyChanged(const DependencyPropertyChangedEventArgs&)` | new WPF-bridge hook; fires with `PropertyMetadata::PropertyChangedCallback` |
+| `DependencyObject.CoerceValue` | `DependencyObject::CoerceValueCore(DPHandle, Value)` | replaces per-DP `Coerce` delegates (removed); return `Unset` to reject |
+| `DependencyObject.ValidateValue` | `DependencyObject::ValidateValueCore(DPHandle, Value)` | replaces per-DP `Validate` delegates for instance rules; shared predicates stay |
 | `Visual.OnVisualParentChanged` | `Visual::OnVisualParentChanged(Visual* oldParent)` | new WPF-bridge hook |
+| `Visual.HitTestCore` | `Visual::HitTestCore(Point)` | new; custom Visuals participate without UIElement |
+| `UIElement.Measure/Arrange` | `UIElement::Measure/Arrange` (non-virtual) + `MeasureOverride/ArrangeOverride` | public entry no longer leaks `LayoutEngine&` |
+| `UIElement.InvalidateVisual` | `UIElement::InvalidateVisual()` | moved up from FrameworkElement |
+| `FrameworkElement.OnInitialized/OnStyleChanged/OnDataContextChanged` | same names | new lifecycle hooks; no StyleEngine reading required |
+| `Control.OnApplyTemplate` | `Control::OnApplyTemplate()` + `OnTemplateChanged` | template handle/generation stays in .cpp |
+| `FrameworkTemplate.LoadContent` | `FrameworkTemplate::LoadContent()` | replaces `void* state_` template plumbing |
+| `ItemsControl.GetContainerForItem` | `GetContainerForItemOverride()` (+ `IsItemItsOwnContainer/Prepare/Clear…Override`, `OnItemsChanged`) | exact WPF names; legacy `CreateContainer/…Core` are deprecated shims |
+| `BindingBase.ProvideValue` | `BindingBase::CreateExpression(target, property)` | MultiBinding/PriorityBinding override; no `friend Engine` |
+| `IValueConverter.Convert` | `Data::IValueConverter::Convert/ConvertBack` | already virtual; kept |
+| `IScrollInfo` | `Controls::IScrollInfo::LineUp/Down/PageUp/…` | WPF verbs default-forward to legacy primitives |
 
 Runtime engines are reached through `VisualTree()` / `ElementTree`
 named accessors (`Layout()`, `Events()`, `Bindings()`, …) and internal

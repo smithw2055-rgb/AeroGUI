@@ -38,8 +38,7 @@ public:
     AERO_DEPENDENCY_PROPERTY(Dock, TabStripPlacement);
 
 protected:
-    Result<Ref<FrameworkElement>> CreateContainer(
-        const Ref<Base::Object>& item) noexcept override;
+    Result<Ref<FrameworkElement>> GetContainerForItemOverride() const noexcept override;
     void OnSelectionChanged(
         const SelectionChangedEvent& event) override;
     void OnPropertyChanged(

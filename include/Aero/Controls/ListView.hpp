@@ -28,8 +28,7 @@ protected:
         OnApplyTemplate() noexcept override;
     void OnTemplateDetached() noexcept override;
     Result<Ref<FrameworkElement>>
-        CreateContainer(
-            const Ref<Base::Object>& item)
+        GetContainerForItemOverride() const
             noexcept override;
 
 private:

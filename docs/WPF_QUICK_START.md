@@ -231,6 +231,38 @@ Aero::Result<void> RegisterDemoTypes(
 Effective-value providers, registry tables and render implementation details
 remain private.
 
+Property rules need no metadata delegates. Override the virtuals instead of
+registering per-DP callbacks (per-DP `Coerce` registration was removed;
+`Validate` delegates remain only for shared stateless predicates):
+
+```cpp
+#include <Aero/Controls/Control.hpp>
+
+class Rating : public Aero::Controls::Control {
+    // ... DP + registration as above ...
+
+protected:
+    // Clamp without a Coerce delegate.
+    Aero::Meta::PropertyValue CoerceValueCore(
+        Aero::Meta::DependencyPropertyHandle property,
+        const Aero::Meta::PropertyValue& base) noexcept override {
+        if (property != ValueProperty.Handle()) return base;
+        if (base.AsDouble() > 5.0) {
+            auto clamped =
+                Aero::Meta::ValueCodec<double>::Encode(5.0);
+            return clamped ? std::move(clamped).Value() : base;
+        }
+        return base;
+    }
+    void OnApplyTemplate() noexcept override {
+        // Template children via GetTemplateChild("PART_...").
+    }
+    Aero::Size MeasureOverride(Aero::Size available) noexcept override {
+        return available;
+    }
+};
+```
+
 ## Animation types
 
 `<Aero/Media/Animation.hpp>` is an umbrella. Prefer the type header when you

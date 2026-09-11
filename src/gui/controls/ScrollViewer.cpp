@@ -279,6 +279,24 @@ void ScrollViewer::OnTemplateDetached() noexcept {
     ScrollContentPresenter::OnTemplateDetached();
 }
 
+void ScrollViewer::OnPropertyChanged(
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    // Former OnScrollViewerVisibilityChanged delegate body: re-enter through
+    // the instance setters with the committed values. SetValue is then a
+    // no-op, while the setters refresh the read-only computed visibility.
+    const DependencyPropertyHandle prop = args.GetProperty();
+    if (prop == HorizontalScrollBarVisibilityProperty.Handle() ||
+        prop == VerticalScrollBarVisibilityProperty.Handle()) {
+        static_cast<void>(
+            SetHorizontalScrollBarVisibility(
+                GetHorizontalScrollBarVisibility()));
+        static_cast<void>(
+            SetVerticalScrollBarVisibility(
+                GetVerticalScrollBarVisibility()));
+    }
+    Control::OnPropertyChanged(args);
+}
+
 ScrollBarVisibility
 ScrollViewer::GetHorizontalScrollBarVisibility(
     const DependencyObject& element) noexcept {

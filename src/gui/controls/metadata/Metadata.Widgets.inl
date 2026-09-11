@@ -88,7 +88,7 @@ Base::Result<void> PopulateControlsPrimitives(
         .Factory<BasicControl>();
 
     Register<ContentControl>(context)
-        .Property(ContentControl::ContentProperty, FrameworkPropertyMetadata(Meta::Value::NullObject(Meta::TypeOf<Base::Object>()), AffectsMeasure).Structural().Changed(&AeroGuiInternal::OnContentControlPropertyChanged))
+        .Property(ContentControl::ContentProperty, FrameworkPropertyMetadata(Meta::Value::NullObject(Meta::TypeOf<Base::Object>()), AffectsMeasure).Structural())
         .Property(ContentControl::ContentTemplateProperty, Base::Ref<Base::Object>{}, AffectsMeasure)
         .Property(ContentControl::ContentTemplateSelectorProperty, Base::Ref<Base::Object>{}, AffectsMeasure)
         .ContentAccessor(MakeMemberId(ContentControl::StaticTypeId(), MemberKind::Property, "Content"), ContentKind::Single, &SetContentControlContent, &ClearContentControlContent, ContentFlags::Visual)
@@ -106,7 +106,7 @@ Base::Result<void> PopulateControlsPrimitives(
         .Property(ButtonBase::CommandProperty, Base::Ref<ICommand>{})
         .Property(ButtonBase::CommandParameterProperty, Value::NullObject(TypeOf<Base::Object>()))
         .Property(ButtonBase::CommandTargetProperty, Base::Ref<UIElement>{})
-        .Override(UIElement::IsEnabledProperty, FrameworkPropertyMetadata(true, Inherits | AffectsRender).Coerce(&CoerceButtonEnabled))
+        .Override(UIElement::IsEnabledProperty, FrameworkPropertyMetadata(true, Inherits | AffectsRender))
         .Override(UIElement::IsTabStopProperty, true, FrameworkPropertyMetadataOptions::None);
 
     Register<Button>(context)
@@ -149,8 +149,8 @@ Base::Result<void> PopulateControlsPrimitives(
         .Property(ScrollViewer::ScrollableHeightProperty, 0.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::NonNegative<double>)
         .Property(ScrollViewer::ComputedHorizontalScrollBarVisibilityProperty, Visibility::Collapsed, AffectsMeasure | AffectsRender)
         .Property(ScrollViewer::ComputedVerticalScrollBarVisibilityProperty, Visibility::Collapsed, AffectsMeasure | AffectsRender)
-        .Property(ScrollViewer::HorizontalScrollBarVisibilityProperty, FrameworkPropertyMetadata(ScrollBarVisibility::Disabled, AffectsMeasure | AffectsRender).Changed(&OnScrollViewerVisibilityChanged))
-        .Property(ScrollViewer::VerticalScrollBarVisibilityProperty, FrameworkPropertyMetadata(ScrollBarVisibility::Visible, AffectsMeasure | AffectsRender).Changed(&OnScrollViewerVisibilityChanged))
+        .Property(ScrollViewer::HorizontalScrollBarVisibilityProperty, ScrollBarVisibility::Disabled, AffectsMeasure | AffectsRender)
+        .Property(ScrollViewer::VerticalScrollBarVisibilityProperty, ScrollBarVisibility::Visible, AffectsMeasure | AffectsRender)
         .Property(ScrollViewer::CanHorizontallyScrollProperty, true, AffectsMeasure)
         .Property(ScrollViewer::CanVerticallyScrollProperty, true, AffectsMeasure)
         .Property(ScrollViewer::CanContentScrollProperty, false, AffectsMeasure)
@@ -186,9 +186,9 @@ Base::Result<void> PopulateControlsPrimitives(
 
     Register<RangeBase>(context, TypeFlags::Abstract)
         .Event(RangeBase::ValueChangedEvent)
-        .Property(RangeBase::MinimumProperty, FrameworkPropertyMetadata(0.0, AffectsArrange).Validate(&::Aero::Base::Validate::Finite<double>).Coerce(&CoerceRangeMinimum))
-        .Property(RangeBase::MaximumProperty, FrameworkPropertyMetadata(100.0, AffectsArrange).Validate(&::Aero::Base::Validate::Finite<double>).Coerce(&CoerceRangeMaximum))
-        .Property(RangeBase::ValueProperty, FrameworkPropertyMetadata(0.0, AffectsArrange | BindsTwoWayByDefault).Validate(&::Aero::Base::Validate::Finite<double>).Coerce(&CoerceRangeValue));
+        .Property(RangeBase::MinimumProperty, FrameworkPropertyMetadata(0.0, AffectsArrange).Validate(&::Aero::Base::Validate::Finite<double>))
+        .Property(RangeBase::MaximumProperty, FrameworkPropertyMetadata(100.0, AffectsArrange).Validate(&::Aero::Base::Validate::Finite<double>))
+        .Property(RangeBase::ValueProperty, FrameworkPropertyMetadata(0.0, AffectsArrange | BindsTwoWayByDefault).Validate(&::Aero::Base::Validate::Finite<double>));
 
     Register<ScrollBar>(context)
         .Property(ScrollBar::OrientationProperty, Orientation::Vertical, AffectsMeasure)
@@ -252,7 +252,7 @@ Base::Result<void> PopulateControlsPrimitives(
         .Property(Slider::LargeChangeProperty, 10.0, FrameworkPropertyMetadataOptions::None, &Base::Validate::Positive<double>)
         .Property(Slider::TickPlacementProperty, TickPlacement::None, AffectsRender)
         .Property(Slider::TickFrequencyProperty, 1.0, AffectsRender, &Base::Validate::Positive<double>)
-        .Property(Slider::TicksProperty, Base::String{}, AffectsRender, &ValidateSliderTicks)
+        .Property(Slider::TicksProperty, Base::String{}, AffectsRender)
         .Property(Slider::IsSnapToTickEnabledProperty, false)
         .Property(Slider::IsDirectionReversedProperty, false, AffectsArrange | AffectsRender)
         .Property(Slider::IsMoveToPointEnabledProperty, false)
@@ -307,13 +307,13 @@ Base::Result<void> PopulateControlsItems(
     Register<ItemsControl>(context)
         .Property(ItemsControl::ItemCountProperty, std::uint32_t{0})
         .Property(ItemsControl::HasItemsProperty, false)
-        .Property(ItemsControl::ItemsSourceProperty, Base::Ref<Base::Object>{}, AffectsMeasure, &OnItemsSourceChanged)
+        .Property(ItemsControl::ItemsSourceProperty, Base::Ref<Base::Object>{}, AffectsMeasure)
         .Property(ItemsControl::AlternationCountProperty, std::uint32_t{0}, AffectsMeasure)
-        .Property(ItemsControl::DisplayMemberPathProperty, Base::String{}, AffectsMeasure, &OnDisplayMemberPathChanged)
-        .Property(ItemsControl::ItemTemplateProperty, Base::Ref<DataTemplate>{}, AffectsMeasure, &OnItemTemplateChanged)
-        .Property(ItemsControl::ItemTemplateSelectorProperty, Base::Ref<DataTemplateSelector>{}, AffectsMeasure, &OnItemTemplateSelectorChanged)
-        .Property(ItemsControl::ItemsPanelProperty, Base::Ref<ItemsPanelTemplate>{}, AffectsMeasure, &OnItemsPanelChanged)
-        .Property(ItemsControl::ItemContainerStyleProperty, Base::Ref<Style>{}, AffectsMeasure, &OnItemContainerStyleChanged)
+        .Property(ItemsControl::DisplayMemberPathProperty, Base::String{}, AffectsMeasure)
+        .Property(ItemsControl::ItemTemplateProperty, Base::Ref<DataTemplate>{}, AffectsMeasure)
+        .Property(ItemsControl::ItemTemplateSelectorProperty, Base::Ref<DataTemplateSelector>{}, AffectsMeasure)
+        .Property(ItemsControl::ItemsPanelProperty, Base::Ref<ItemsPanelTemplate>{}, AffectsMeasure)
+        .Property(ItemsControl::ItemContainerStyleProperty, Base::Ref<Style>{}, AffectsMeasure)
         .Content<Base::Object>("Items", ContentKind::Collection, &AddItemsControlItem, &ClearItemsControlItems)
         .Factory();
 
@@ -328,8 +328,8 @@ Base::Result<void> PopulateControlsItems(
         .Event(Selector::SelectionChangedRoutedEvent)
         .Property(Selector::SelectionModeProperty, SelectionMode::Single)
         .Property(Selector::SelectedIndexProperty, UINT32_MAX, BindsTwoWayByDefault)
-        .Property(Selector::SelectedItemProperty, FrameworkPropertyMetadata(Base::Ref<Base::Object>{}, BindsTwoWayByDefault).Coerce(&CoerceSelectedObject))
-        .Property(Selector::SelectedValueProperty, FrameworkPropertyMetadata(Base::Ref<Base::Object>{}, BindsTwoWayByDefault).Coerce(&CoerceSelectedObject))
+        .Property(Selector::SelectedItemProperty, FrameworkPropertyMetadata(Base::Ref<Base::Object>{}, BindsTwoWayByDefault))
+        .Property(Selector::SelectedValueProperty, FrameworkPropertyMetadata(Base::Ref<Base::Object>{}, BindsTwoWayByDefault))
         .Property(Selector::SelectedValuePathProperty, Base::String{})
         .Property(Selector::IsSelectedProperty, false, AffectsRender | BindsTwoWayByDefault)
         .Property(Selector::IsSynchronizedWithCurrentItemProperty, false);

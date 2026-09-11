@@ -739,6 +739,31 @@ void RangeBase::OnValueChanged(
     RaiseEvent(ValueChangedEvent, &args);
 }
 
+PropertyValue RangeBase::CoerceValueCore(
+    DependencyPropertyHandle property,
+    const PropertyValue& baseValue) noexcept {
+    if (baseValue.Kind() != Meta::ValueKind::Double) {
+        return baseValue;
+    }
+    const double raw = baseValue.AsDouble();
+    double adjusted = raw;
+    if (property == MinimumProperty.Handle()) {
+        adjusted = std::min(raw, GetMaximum());
+    } else if (property == MaximumProperty.Handle()) {
+        adjusted = std::max(raw, GetMinimum());
+    } else if (property == ValueProperty.Handle()) {
+        adjusted = std::clamp(raw, GetMinimum(), GetMaximum());
+    } else {
+        return baseValue;
+    }
+    if (adjusted == raw) {
+        return baseValue;
+    }
+    Base::Result<PropertyValue> encoded =
+        Meta::ValueCodec<double>::Encode(adjusted);
+    return encoded ? std::move(encoded).Value() : baseValue;
+}
+
 double ScrollBar::GetViewportSize() const noexcept {
     return ReadDouble(*this, ViewportSizeProperty);
 }
@@ -1041,6 +1066,46 @@ Size Slider::MeasureOverride(Size availableSize) noexcept {
         desired.height = std::max(desired.height, kMinLength);
     }
     return desired;
+}
+
+bool Slider::ValidateValueCore(
+    DependencyPropertyHandle property,
+    const PropertyValue& value) const noexcept {
+    if (property == TicksProperty.Handle()) {
+        if (value.Kind() != Meta::ValueKind::String) {
+            return false;
+        }
+        const Base::StringView text = value.AsString();
+        std::uint32_t start = 0U;
+        while (start < text.SizeBytes()) {
+            while (start < text.SizeBytes() &&
+                (text[start] == ' ' ||
+                 text[start] == '\t' ||
+                 text[start] == ',' ||
+                 text[start] == ';')) {
+                ++start;
+            }
+            if (start >= text.SizeBytes()) break;
+            std::uint32_t end = start;
+            while (end < text.SizeBytes() &&
+                text[end] != ' ' &&
+                text[end] != '\t' &&
+                text[end] != ',' &&
+                text[end] != ';') {
+                ++end;
+            }
+            Base::Result<double> parsed =
+                ::Aero::Base::ValueConversion::ParseDouble(
+                    text.Substr(start, end - start));
+            if (!parsed ||
+                !std::isfinite(parsed.Value())) {
+                return false;
+            }
+            start = end;
+        }
+        return true;
+    }
+    return RangeBase::ValidateValueCore(property, value);
 }
 
 void Slider::OnPropertyChanged(

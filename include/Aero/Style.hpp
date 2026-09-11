@@ -178,6 +178,9 @@ private:
         PropertyValue value) noexcept;
     // Compiled by SealStyle / markup finalize; not a public authoring API.
     Result<void> Seal(const Meta::DependencyPropertyRegistry& properties) noexcept;
+    // WPF-parity no-arg hook. Called at the end of Seal(); override to
+    // validate without touching DependencyPropertyRegistry internals.
+    virtual void OnSeal() noexcept {}
 
     struct Program;
     friend struct Program;

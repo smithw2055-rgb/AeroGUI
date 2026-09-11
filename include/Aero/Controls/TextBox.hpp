@@ -9,6 +9,8 @@
 namespace Aero::Controls {
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::DependencyPropertyChangedEventHandler;
+using ::Aero::Meta::DependencyPropertyHandle;
+using ::Aero::Meta::PropertyValue;
 using ::Aero::Meta::TypeId;
 class PasswordBox;
 class AERO_GUI_API TextBox
@@ -137,6 +139,11 @@ protected:
     void OnTextInput(TextCompositionEventArgs& args) override;
     void OnLostKeyboardFocus(KeyboardFocusChangedEventArgs& args) override;
     void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
+    // Replaces the former CoerceTextBoxText metadata delegate. Invalid UTF-8
+    // is rejected by returning Unset (surfaced as ValidationFailed).
+    PropertyValue CoerceValueCore(
+        DependencyPropertyHandle property,
+        const PropertyValue& baseValue) noexcept override;
 
 private:
     friend class PasswordBox;

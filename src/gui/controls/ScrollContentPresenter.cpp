@@ -354,7 +354,7 @@ ScrollContentPresenter::MeasureOverride(
         return ContentControl::MeasureOverride(
             availableSize);
     }
-    UIElement* child = ContentElement();
+    UIElement* child = GetContentElement();
     if (child == nullptr) {
         ScrollData empty = data_;
         empty.extentWidth = 0.0;
@@ -411,7 +411,7 @@ ScrollContentPresenter::ArrangeOverride(
         return ContentControl::ArrangeOverride(
             finalSize);
     }
-    UIElement* child = ContentElement();
+    UIElement* child = GetContentElement();
     if (child == nullptr) {
         SetViewport(finalSize);
         return finalSize;

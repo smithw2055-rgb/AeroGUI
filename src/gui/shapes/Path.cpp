@@ -416,6 +416,30 @@ void Path::SetDashStyle(Base::Ref<Media::DashStyle> value) noexcept {
     SetValue(DashStyleProperty, std::move(value));
 }
 
+void Path::OnPropertyChanged(
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    // Former OnPathData/FillRule/Color/Double/LineJoin/LineCap/String/
+    // DashStyle delegate bodies: every one ends in PathInvalidateGeometry.
+    // Placed before the base call to preserve delegate-then-virtual order.
+    const DependencyPropertyHandle handle = args.GetProperty();
+    if (handle == DataProperty.Handle() ||
+        handle == FillRuleProperty.Handle() ||
+        handle == FillProperty.Handle() ||
+        handle == StrokeProperty.Handle() ||
+        handle == StrokeThicknessProperty.Handle() ||
+        handle == StrokeLineJoinProperty.Handle() ||
+        handle == StrokeStartLineCapProperty.Handle() ||
+        handle == StrokeEndLineCapProperty.Handle() ||
+        handle == TrimStartProperty.Handle() ||
+        handle == TrimEndProperty.Handle() ||
+        handle == StrokeDashArrayProperty.Handle() ||
+        handle == StrokeDashOffsetProperty.Handle() ||
+        handle == DashStyleProperty.Handle()) {
+        AeroGuiInternal::PathInvalidateGeometry(*this);
+    }
+    Shape::OnPropertyChanged(args);
+}
+
 namespace {
 
 Base::Result<void> ParseStrokeDashArray(

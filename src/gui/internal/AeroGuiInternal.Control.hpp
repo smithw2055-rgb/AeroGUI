@@ -184,9 +184,6 @@
         AERO_CALL_METHOD(control, ContentControl_SetContentValueVal, std::move(value));
         return {};
     }
-    static void OnContentControlPropertyChanged(
-        DependencyObject& object,
-        const Meta::DependencyPropertyChangedEventArgs& change) noexcept;
     static bool HasAttachedGenerator(
         const Controls::ItemsControl& control) noexcept {
         return AERO_GET_FIELD(control, ItemsControl_generator) != nullptr;
@@ -243,3 +240,10 @@
     static void Click(Controls::Primitives::ButtonBase& button) noexcept {
         AERO_CALL_METHOD0(button, ButtonBase_OnClick);
     }
+
+    // --- Grid ---
+    static Base::Result<GridLength> ConvertGridLength(
+        Base::StringView text) noexcept;
+    static Base::Result<void> ParseGridDefinitions(
+        Base::StringView text,
+        Base::Vector<GridLength>& output) noexcept;

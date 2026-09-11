@@ -691,6 +691,25 @@ void Selector::OnItemsSourceCoreChanged() noexcept {
     }
 }
 
+PropertyValue Selector::CoerceValueCore(
+    DependencyPropertyHandle property,
+    const PropertyValue& baseValue) noexcept {
+    if (property != SelectedItemProperty.Handle() &&
+        property != SelectedValueProperty.Handle()) {
+        return baseValue;
+    }
+    if (baseValue.Kind() != Meta::ValueKind::Object ||
+        baseValue.IsNullObject()) {
+        return baseValue;
+    }
+    const Base::Ref<Base::Object> item = baseValue.AsObject();
+    if (item && GetCount() != 0U &&
+        GetIndexOfItem(item.Get()) == UINT32_MAX) {
+        return PropertyValue::NullObject(Meta::TypeOf<Base::Object>());
+    }
+    return baseValue;
+}
+
 void Selector::OnItemsChanged(
     const ItemsChangedEvent& event) noexcept {
     if (pendingSelectedItem_) {
@@ -906,12 +925,12 @@ void Selector::OnPropertyChanged(
     activeProperty_ = {};
 }
 
-Base::Result<void> Selector::PrepareContainer(
+Base::Result<void> Selector::PrepareContainerForItemOverride(
     FrameworkElement& container,
     const Base::Ref<Base::Object>& item,
     std::uint32_t index) noexcept {
     Base::Result<void> prepared =
-        ItemsControl::PrepareContainer(
+        ItemsControl::PrepareContainerForItemOverride(
             container, item, index);
     if (!prepared) return prepared.GetStatus();
     if (AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
@@ -926,14 +945,14 @@ Base::Result<void> Selector::PrepareContainer(
     return {};
 }
 
-void Selector::ClearContainer(
+void Selector::ClearContainerForItemOverride(
     FrameworkElement& container) noexcept {
     if (AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             container.RuntimeType(),
             ListBoxItem::StaticTypeId())) {
         static_cast<ListBoxItem&>(container).SetIsSelected(false);
     }
-    ItemsControl::ClearContainer(container);
+    ItemsControl::ClearContainerForItemOverride(container);
 }
 
 void Selector::OnContainersChanged() noexcept {
@@ -1103,8 +1122,7 @@ void ListBox::OnKeyDown(KeyEventArgs& args) {
 }
 
 Base::Result<Base::Ref<FrameworkElement>>
-ListBox::CreateContainer(
-    const Base::Ref<Base::Object>&) noexcept {
+ListBox::GetContainerForItemOverride() const noexcept {
     Base::Result<Base::Ref<ListBoxItem>> made =
         Base::MakeRef<ListBoxItem>();
     if (!made) return made.GetStatus();
@@ -1252,8 +1270,7 @@ Base::StringView ComboBox::GetSelectionBoxText() const noexcept {
 }
 
 Base::Result<Base::Ref<FrameworkElement>>
-ComboBox::CreateContainer(
-    const Base::Ref<Base::Object>&) noexcept {
+ComboBox::GetContainerForItemOverride() const noexcept {
     Base::Result<Base::Ref<ComboBoxItem>> made =
         Base::MakeRef<ComboBoxItem>();
     if (!made) return made.GetStatus();
@@ -1261,12 +1278,12 @@ ComboBox::CreateContainer(
         std::move(made).Value());
 }
 
-Base::Result<void> ComboBox::PrepareContainer(
+Base::Result<void> ComboBox::PrepareContainerForItemOverride(
     FrameworkElement& container,
     const Base::Ref<Base::Object>& item,
     std::uint32_t index) noexcept {
     Base::Result<void> prepared =
-        Selector::PrepareContainer(
+        Selector::PrepareContainerForItemOverride(
             container, item, index);
     if (!prepared) return prepared.GetStatus();
     if (AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
@@ -1282,14 +1299,14 @@ Base::Result<void> ComboBox::PrepareContainer(
     return {};
 }
 
-void ComboBox::ClearContainer(
+void ComboBox::ClearContainerForItemOverride(
     FrameworkElement& container) noexcept {
     if (AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             container.RuntimeType(),
             ComboBoxItem::StaticTypeId())) {
         static_cast<ComboBoxItem&>(container).SetIsSelected(false);
     }
-    Selector::ClearContainer(container);
+    Selector::ClearContainerForItemOverride(container);
 }
 
 void ComboBox::SynchronizeContainers() noexcept {

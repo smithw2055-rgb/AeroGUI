@@ -324,9 +324,22 @@ ItemContainerGenerator::GeneratorState::CreateRecord(
             Base::ErrorCode::InvalidState,
             "ItemsSource returned null");
     }
-    if (AeroGuiInternal::PropertyRegistry(owner_).Types().IsDerivedFrom(
+    // WPF contract: derived controls decide via IsItemItsOwnContainerOverride
+    // (e.g. ListBoxItem added directly to a ListBox). Default returns false
+    // and falls through to the FrameworkElement borrow below.
+    const bool isOwnContainer =
+        owner_->IsItemItsOwnContainerOverride(record.item.Get()) ||
+        AeroGuiInternal::PropertyRegistry(owner_).Types().IsDerivedFrom(
             record.item->RuntimeType(),
-            FrameworkElement::StaticTypeId())) {
+            FrameworkElement::StaticTypeId());
+    if (isOwnContainer) {
+        if (!AeroGuiInternal::PropertyRegistry(owner_).Types().IsDerivedFrom(
+                record.item->RuntimeType(),
+                FrameworkElement::StaticTypeId())) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "IsItemItsOwnContainerOverride returned true for a non-visual item");
+        }
         record.container =
             Base::Ref<FrameworkElement>::FromBorrowed(
                 *static_cast<FrameworkElement*>(
@@ -335,7 +348,7 @@ ItemContainerGenerator::GeneratorState::CreateRecord(
         return record;
     }
     Base::Ref<DataTemplate> itemTemplate =
-        owner_->ResolveItemTemplate(record.item, index);
+        owner_->GetTemplateForItemOverride(record.item, index);
     if (itemTemplate) {
         Base::Result<Base::Ref<Base::Object>>
             content =
@@ -548,7 +561,7 @@ ItemContainerGenerator::GeneratorState::CreateRecord(
         ++recycledContainerUseCount_;
     } else {
         Base::Result<Base::Ref<FrameworkElement>> made =
-            owner_->CreateContainer(record.item);
+            owner_->GetContainerForItemOverride();
         if (!made || !made.Value()) {
             if (!made) return made.GetStatus();
             return Base::Status::Failure(
@@ -899,7 +912,7 @@ ItemContainerGenerator::GeneratorState::AttachRecord(
         (void)DetachRecord(record);
         return subtreeAttached.GetStatus();
     }
-    Base::Result<void> prepared = owner_->PrepareContainer(container, record.item, index);
+    Base::Result<void> prepared = owner_->PrepareContainerForItemOverride(container, record.item, index);
     if (!prepared) { (void)DetachRecord(record); return prepared.GetStatus(); }
     Base::Result<void> projected = ProjectGeneratedContent(record);
     if (!projected) {
@@ -1206,7 +1219,7 @@ ItemContainerGenerator::GeneratorState::DetachRecord(
             subtreeContext_));
     }
     capture(DetachOwnedSubtree(record));
-    owner_->ClearContainer(container);
+    owner_->ClearContainerForItemOverride(container);
     if (record.generatedHeader && headeredItemsControl != nullptr) {
         if (record.content && AeroGuiInternal::PropertyRegistry(owner_).Types().IsDerivedFrom(
                 record.content->RuntimeType(), TextBlock::StaticTypeId())) {

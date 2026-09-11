@@ -191,8 +191,7 @@ ListView::SynchronizeColumnHeaders() noexcept {
 }
 
 Base::Result<Base::Ref<FrameworkElement>>
-ListView::CreateContainer(
-    const Base::Ref<Base::Object>&) noexcept {
+ListView::GetContainerForItemOverride() const noexcept {
     Base::Result<Base::Ref<ListViewItem>>
         made =
             Base::MakeRef<ListViewItem>();

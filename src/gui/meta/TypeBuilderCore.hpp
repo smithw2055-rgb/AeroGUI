@@ -207,7 +207,6 @@ private:
         PropertyMetadataFlags metadataFlags,
         DependencyPropertyFlags propertyFlags,
         ValidateValueCallback validate,
-        CoerceValueCallback coerce,
         PropertyChangedCallback changed,
         UpdateSourceTrigger updateSourceTrigger) noexcept;
     MetadataAuthoringSession& Override(

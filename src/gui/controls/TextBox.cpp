@@ -1041,6 +1041,22 @@ void TextBox::OnPropertyChanged(
     }
 }
 
+PropertyValue TextBox::CoerceValueCore(
+    DependencyPropertyHandle property,
+    const PropertyValue& baseValue) noexcept {
+    if (property != TextBox::TextProperty.Handle()) {
+        return baseValue;
+    }
+    if (baseValue.Kind() != Meta::ValueKind::String) {
+        return baseValue;
+    }
+    ::Aero::Text::EditableTextModel validation;
+    if (!validation.SetText(baseValue.AsString())) {
+        return PropertyValue::Unset();
+    }
+    return baseValue;
+}
+
 // ---- Section: Selection/caret (merged from TextBoxSelection.cpp) ----
 
 using namespace Primitives;

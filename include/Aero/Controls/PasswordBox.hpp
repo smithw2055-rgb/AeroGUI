@@ -64,6 +64,9 @@ protected:
     void OnKeyDown(KeyEventArgs& args) override;
     void OnTextInput(TextCompositionEventArgs& args) override;
     void OnLostKeyboardFocus(KeyboardFocusChangedEventArgs& args) override;
+    bool ValidateValueCore(
+        Meta::DependencyPropertyHandle property,
+        const PropertyValue& value) const noexcept override;
     void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
 
 private:

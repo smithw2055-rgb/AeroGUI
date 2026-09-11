@@ -54,6 +54,11 @@ public:
     AERO_DEPENDENCY_PROPERTY(String, ColumnDefinitionsText);
     AERO_DEPENDENCY_PROPERTY(String, RowDefinitionsText);
 protected:
+    bool ValidateValueCore(
+        Meta::DependencyPropertyHandle property,
+        const PropertyValue& value) const noexcept override;
+    void OnPropertyChanged(
+        const Meta::DependencyPropertyChangedEventArgs& args) noexcept override;
     Size MeasureOverride(Size availableSize) noexcept override;
     Size ArrangeOverride(Size finalSize) noexcept override;
 private:

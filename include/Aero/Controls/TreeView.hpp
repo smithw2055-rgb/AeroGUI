@@ -23,8 +23,7 @@ public:
 
 protected:
     Result<Ref<FrameworkElement>>
-        CreateContainer(
-            const Ref<Base::Object>& item)
+        GetContainerForItemOverride() const
             noexcept override;
     void OnMouseLeftButtonDown(MouseButtonEventArgs& args) override;
     void OnKeyDown(KeyEventArgs& args) override;

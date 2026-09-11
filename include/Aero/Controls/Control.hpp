@@ -119,6 +119,10 @@ protected:
         return;
     }
     virtual void OnTemplateDetached() noexcept {}
+    virtual void OnTemplateChanged(ControlTemplate* oldTemplate, ControlTemplate* newTemplate) noexcept {
+        static_cast<void>(oldTemplate);
+        static_cast<void>(newTemplate);
+    }
     std::uint32_t GetVisualChildrenCount() const noexcept override {
         return templateChild_ != nullptr && templateChild_->GetVisualParent() == this
             ? 1U : 0U;

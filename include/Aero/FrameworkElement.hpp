@@ -187,12 +187,26 @@ protected:
     virtual DependencyObject* GetLogicalChild(std::uint32_t index) const noexcept { return GetVisualChild(index); }
     void OnPropertyInvalidated(
         PropertyInvalidationFlags flags) noexcept override;
+    // NOTE: empty default kept intentionally. Viewbox spacer and other
+    // non-visual FrameworkElements rely on zero desired size; UIElement's
+    // default (return available) would inflate them. Panel/Control override.
     Size MeasureOverride(Size availableSize) noexcept override {
         static_cast<void>(availableSize);
         return Size{};
     }
-    virtual void OnRender(
-        ::Aero::Media::DrawingContext& context) noexcept;
+    // WPF lifecycle extension points. Style/DataContext changes previously
+    // required reading StyleEngine/BindingEngine internals; override these.
+    virtual void OnInitialized() noexcept {}
+    virtual void OnStyleChanged(const Style* oldStyle, const Style* newStyle) noexcept {
+        static_cast<void>(oldStyle);
+        static_cast<void>(newStyle);
+    }
+    virtual void OnDataContextChanged(const Value& oldValue, const Value& newValue) noexcept {
+        static_cast<void>(oldValue);
+        static_cast<void>(newValue);
+    }
+    void OnRender(
+        ::Aero::Media::DrawingContext& context) noexcept override;
 
 private:
     FrameworkElement* GetRenderParent() const noexcept;

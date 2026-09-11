@@ -6,6 +6,9 @@
 #include <Aero/Events/ControlEventArgs.hpp>
 
 namespace Aero::Controls {
+using ::Aero::Meta::DependencyPropertyChangedEventArgs;
+using ::Aero::Meta::DependencyPropertyHandle;
+using ::Aero::Meta::PropertyValue;
 using ::Aero::Meta::TypeId;
 using ::Aero::Input::ICommand;
 enum class ClickMode : std::uint8_t {
@@ -55,6 +58,10 @@ protected:
 
     void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
     void OnApplyTemplate() noexcept override;
+    // Replaces the former CoerceButtonEnabled metadata delegate on IsEnabled.
+    PropertyValue CoerceValueCore(
+        DependencyPropertyHandle property,
+        const PropertyValue& baseValue) noexcept override;
 
 private:
     void HookCommand(ICommand* command) noexcept;

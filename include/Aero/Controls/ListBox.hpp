@@ -18,8 +18,8 @@ public:
 protected:
     explicit ListBox(TypeId runtimeType) noexcept;
     Result<Ref<FrameworkElement>>
-        CreateContainer(
-            const Ref<Base::Object>& item) noexcept override;
+        GetContainerForItemOverride() const
+            noexcept override;
     void OnMouseLeftButtonDown(MouseButtonEventArgs& args) override;
     void OnKeyDown(KeyEventArgs& args) override;
 

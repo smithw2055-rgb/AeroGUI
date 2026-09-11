@@ -188,6 +188,24 @@ void ButtonBase::RefreshCanExecute() noexcept {
     UpdateVisualState();
 }
 
+PropertyValue ButtonBase::CoerceValueCore(
+    DependencyPropertyHandle property,
+    const PropertyValue& baseValue) noexcept {
+    if (property != UIElement::IsEnabledProperty.Handle()) {
+        return baseValue;
+    }
+    if (baseValue.Kind() != Meta::ValueKind::Boolean) {
+        return baseValue;
+    }
+    const bool adjusted = baseValue.AsBoolean() && GetIsCommandEnabled();
+    if (adjusted == baseValue.AsBoolean()) {
+        return baseValue;
+    }
+    Base::Result<PropertyValue> encoded =
+        Meta::ValueCodec<bool>::Encode(adjusted);
+    return encoded ? std::move(encoded).Value() : baseValue;
+}
+
 void ButtonBase::OnMouseLeftButtonDown(MouseButtonEventArgs& args) {
     if (!GetIsEnabled()) return;
     pointerId_ = args.GetPointerId();

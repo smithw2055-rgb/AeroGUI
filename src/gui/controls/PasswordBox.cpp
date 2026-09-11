@@ -273,6 +273,22 @@ void PasswordBox::OnLostKeyboardFocus(KeyboardFocusChangedEventArgs& args) {
     editor_.HandleEditorLostFocus(*this, drag_, args);
 }
 
+bool PasswordBox::ValidateValueCore(
+    DependencyPropertyHandle property,
+    const PropertyValue& value) const noexcept {
+    if (property == PasswordCharProperty.Handle()) {
+        if (value.Kind() != Meta::ValueKind::String) {
+            return false;
+        }
+        ::Aero::Text::EditableTextModel validation;
+        Base::Result<void> text =
+            validation.SetText(value.AsString());
+        return text &&
+            validation.GraphemeCount() == 1U;
+    }
+    return TextBoxBase::ValidateValueCore(property, value);
+}
+
 void PasswordBox::OnPropertyChanged(
     const DependencyPropertyChangedEventArgs& args) noexcept {
     TextBoxBase::OnPropertyChanged(args);

@@ -12,6 +12,7 @@ namespace Aero::Controls {
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::DependencyPropertyChangedEventHandler;
 using ::Aero::Meta::DependencyPropertyHandle;
+using ::Aero::Meta::PropertyValue;
 using ::Aero::Meta::TypeId;
 
 enum class SelectionMode : std::uint8_t {
@@ -94,13 +95,19 @@ public:
 
 protected:
     explicit Selector(TypeId runtimeType) noexcept;
-    Result<void> PrepareContainer(
+    Result<void> PrepareContainerForItemOverride(
         FrameworkElement& container,
         const Ref<Base::Object>& item,
         std::uint32_t index) noexcept override;
-    void ClearContainer(
+    void ClearContainerForItemOverride(
         FrameworkElement& container) noexcept override;
     void OnContainersChanged() noexcept override;
+    void OnItemsChanged(const ItemsChangedEvent& event) noexcept override;
+    // Replaces the former CoerceSelectedObject metadata delegate.
+    PropertyValue CoerceValueCore(
+        DependencyPropertyHandle property,
+        const PropertyValue& baseValue) noexcept override;
+    [[deprecated("Use OnItemsChanged()")]]
     void OnItemsSourceCoreChanged() noexcept override;
     virtual void OnSelectionChanged(const SelectionChangedEvent& event);
     void OnPropertyChanged(
@@ -123,8 +130,8 @@ private:
     Data::CollectionView* subscribedView_ = nullptr;
     Base::Delegate<void()> currentChangedHandler_;
 
-    void OnItemsChanged(
-        const ItemsChangedEvent& event) noexcept;
+    void PushSelectionToCurrent() noexcept;
+    void OnViewCurrentChanged() noexcept;
     Result<bool> ApplySelection(
         Span<const std::uint32_t> indices,
         std::uint32_t primaryIndex) noexcept;
@@ -132,8 +139,6 @@ private:
     void SyncContainers() noexcept;
     void HookCurrentView() noexcept;
     void UnhookCurrentView() noexcept;
-    void PushSelectionToCurrent() noexcept;
-    void OnViewCurrentChanged() noexcept;
 };
 
 } // namespace Primitives

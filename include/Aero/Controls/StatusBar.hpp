@@ -23,8 +23,7 @@ public:
 
 protected:
     Result<Ref<FrameworkElement>>
-        CreateContainer(
-            const Ref<Base::Object>& item)
+        GetContainerForItemOverride() const
             noexcept override;
 };
 

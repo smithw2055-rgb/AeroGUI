@@ -730,6 +730,7 @@ Base::Result<void> Style::Seal(
     // Keep the BasedOn link so callers can still query the resolved base
     // style after sealing (GetBasedOn()).
     sealed_ = true;
+    OnSeal();
     return {};
 }
 

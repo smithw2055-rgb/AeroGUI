@@ -37,6 +37,8 @@ private:
     Dispatcher* dispatcher_ = nullptr;
     UIElement* root_ = nullptr;
     Size rootAvailableSize_;
+    // Reverted to Vector: SmallVector Swap/move path needs a dedicated
+    // bench before it rides the per-frame layout queues again.
     Base::Vector<VisualHandle> measureQueue_;
     Base::Vector<VisualHandle> arrangeQueue_;
     Base::Vector<VisualHandle> measureWorkQueue_;

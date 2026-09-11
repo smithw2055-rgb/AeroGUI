@@ -6,7 +6,13 @@
 #include <Aero/Value.hpp>
 #include <utility>
 
+namespace Aero {
+class DependencyObject;
+namespace Meta { struct DependencyPropertyHandle; }
+} // namespace Aero
 namespace Aero::Data {
+
+class BindingExpression;
 
 class AERO_GUI_API BindingBase : public Base::Object {
     AERO_DECLARE_TYPE(BindingBase, Base::Object)
@@ -20,6 +26,15 @@ public:
     void SetFallbackValue(Value value) noexcept { fallbackValue_ = std::move(value); }
     const Value& GetTargetNullValue() const noexcept { return targetNullValue_; }
     void SetTargetNullValue(Value value) noexcept { targetNullValue_ = std::move(value); }
+    // WPF-style factory: Binding/MultiBinding/PriorityBinding override to
+    // create their expression without exposing BindingEngine in headers.
+    virtual Ref<BindingExpression> CreateExpression(
+        DependencyObject* target,
+        Meta::DependencyPropertyHandle property) const noexcept {
+        static_cast<void>(target);
+        static_cast<void>(property);
+        return {};
+    }
 
 protected:
     explicit BindingBase(Meta::TypeId runtimeType) noexcept : runtimeType_(runtimeType) {}

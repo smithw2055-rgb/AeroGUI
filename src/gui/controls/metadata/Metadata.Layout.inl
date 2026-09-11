@@ -68,8 +68,8 @@ Base::Result<void> PopulateControlsPanels(
 
     Register<Grid>(context)
         .Property(Grid::IsSharedSizeScopeProperty, false)
-        .Property(Grid::ColumnDefinitionsTextProperty, Base::String{}, AffectsMeasure, &ValidateGridDefinitionsText, &OnGridColumnsChanged)
-        .Property(Grid::RowDefinitionsTextProperty, Base::String{}, AffectsMeasure, &ValidateGridDefinitionsText, &OnGridRowsChanged)
+        .Property(Grid::ColumnDefinitionsTextProperty, Base::String{}, AffectsMeasure)
+        .Property(Grid::RowDefinitionsTextProperty, Base::String{}, AffectsMeasure)
         .Collection<ColumnDefinition>("ColumnDefinitions", &AddGridColumnDefinition, &ClearGridColumnDefinitions)
         .Collection<RowDefinition>("RowDefinitions", &AddGridRowDefinition, &ClearGridRowDefinitions)
         .Property(Grid::RowProperty, std::uint32_t{0}, AffectsParentMeasure)
@@ -189,9 +189,9 @@ Base::Result<void> PopulateControlsTextMedia(
         .Factory();
 
     Register<Shape>(context, TypeFlags::Abstract)
-        .Property(Shape::FillProperty, FrameworkPropertyMetadata(Base::Ref<Brush>{}, AffectsRender).Changed(&OnShapeFillChanged))
-        .Property(Shape::StrokeProperty, FrameworkPropertyMetadata(Base::Ref<Brush>{}, AffectsRender).Changed(&OnShapeFillChanged))
-        .Property(Shape::PenProperty, FrameworkPropertyMetadata(Base::Ref<Pen>{}, AffectsMeasure | AffectsRender).Changed(&OnShapePenChanged))
+        .Property(Shape::FillProperty, FrameworkPropertyMetadata(Base::Ref<Brush>{}, AffectsRender))
+        .Property(Shape::StrokeProperty, FrameworkPropertyMetadata(Base::Ref<Brush>{}, AffectsRender))
+        .Property(Shape::PenProperty, FrameworkPropertyMetadata(Base::Ref<Pen>{}, AffectsMeasure | AffectsRender))
         .Property(Shape::StrokeThicknessProperty, 1.0, AffectsMeasure | AffectsRender, &Base::Validate::NonNegative<double>)
         .Property(Shape::StretchProperty, Stretch::Fill, AffectsMeasure | AffectsRender);
 
@@ -204,19 +204,19 @@ Base::Result<void> PopulateControlsTextMedia(
         .Factory();
 
     Register<Path>(context)
-        .Property(Path::DataProperty, FrameworkPropertyMetadata(Base::Ref<Geometry>{}, AffectsMeasure | AffectsRender).Changed(&OnPathDataChanged))
-        .Property(Path::FillRuleProperty, FillRule::EvenOdd, AffectsRender, &OnPathFillRuleChanged)
-        .Override(Shape::FillProperty, Base::Ref<Brush>{}, AffectsRender, &OnPathColorChanged)
-        .Override(Shape::StrokeProperty, Base::Ref<Brush>{}, AffectsRender, &OnPathColorChanged)
-        .Override(Shape::StrokeThicknessProperty, 1.0, AffectsMeasure | AffectsRender, &Base::Validate::NonNegative<double>, &OnPathDoubleChanged)
-        .Property(Path::StrokeLineJoinProperty, PenLineJoin::Miter, AffectsRender, &OnPathLineJoinChanged)
-        .Property(Path::StrokeStartLineCapProperty, PenLineCap::Flat, AffectsRender, &OnPathLineCapChanged)
-        .Property(Path::StrokeEndLineCapProperty, PenLineCap::Flat, AffectsRender, &OnPathLineCapChanged)
-        .Property(Path::TrimStartProperty, 0.0, AffectsRender, &ValidateNormalizedDouble, &OnPathDoubleChanged)
-        .Property(Path::TrimEndProperty, 1.0, AffectsRender, &ValidateNormalizedDouble, &OnPathDoubleChanged)
-        .Property(Path::StrokeDashArrayProperty, Base::String{}, AffectsRender, &OnPathStringChanged)
-        .Property(Path::StrokeDashOffsetProperty, 0.0, AffectsRender, &OnPathDoubleChanged)
-        .Property(Path::DashStyleProperty, Base::Ref<DashStyle>{}, AffectsRender, &OnPathDashStyleChanged)
+        .Property(Path::DataProperty, FrameworkPropertyMetadata(Base::Ref<Geometry>{}, AffectsMeasure | AffectsRender))
+        .Property(Path::FillRuleProperty, FillRule::EvenOdd, AffectsRender)
+        .Override(Shape::FillProperty, Base::Ref<Brush>{}, AffectsRender)
+        .Override(Shape::StrokeProperty, Base::Ref<Brush>{}, AffectsRender)
+        .Override(Shape::StrokeThicknessProperty, 1.0, AffectsMeasure | AffectsRender, &Base::Validate::NonNegative<double>)
+        .Property(Path::StrokeLineJoinProperty, PenLineJoin::Miter, AffectsRender)
+        .Property(Path::StrokeStartLineCapProperty, PenLineCap::Flat, AffectsRender)
+        .Property(Path::StrokeEndLineCapProperty, PenLineCap::Flat, AffectsRender)
+        .Property(Path::TrimStartProperty, 0.0, AffectsRender, &ValidateNormalizedDouble)
+        .Property(Path::TrimEndProperty, 1.0, AffectsRender, &ValidateNormalizedDouble)
+        .Property(Path::StrokeDashArrayProperty, Base::String{}, AffectsRender)
+        .Property(Path::StrokeDashOffsetProperty, 0.0, AffectsRender)
+        .Property(Path::DashStyleProperty, Base::Ref<DashStyle>{}, AffectsRender)
         .Override(Shape::StretchProperty, Stretch::None, AffectsMeasure | AffectsRender)
         .Factory();
 
@@ -246,7 +246,7 @@ Base::Result<void> PopulateControlsTextMedia(
 
     Register<TextBox>(context)
         .Event(TextBox::TextChangedEvent)
-        .Property(TextBox::TextProperty, FrameworkPropertyMetadata(Base::String{}, AffectsMeasure | AffectsRender | BindsTwoWayByDefault).UpdateSource(UpdateSourceTrigger::LostFocus).Coerce(&CoerceTextBoxText))
+        .Property(TextBox::TextProperty, FrameworkPropertyMetadata(Base::String{}, AffectsMeasure | AffectsRender | BindsTwoWayByDefault).UpdateSource(UpdateSourceTrigger::LostFocus))
         .Property(TextBox::IsReadOnlyProperty, false, AffectsRender)
         .Property(TextBox::MaxLengthProperty, std::uint32_t{0})
         .Property(TextBox::AcceptsReturnProperty, false, AffectsMeasure | AffectsRender)
@@ -268,7 +268,7 @@ Base::Result<void> PopulateControlsTextMedia(
     Register<PasswordBox>(context)
         .Event(PasswordBox::PasswordChangedEvent)
         .Property<Base::String, &PasswordBox::GetPassword, &PasswordBox::SetPassword>("Password", PropertyFlags::None)
-        .Property(PasswordBox::PasswordCharProperty, std::move(defaultPasswordChar), AffectsMeasure, &ValidatePasswordChar)
+        .Property(PasswordBox::PasswordCharProperty, std::move(defaultPasswordChar), AffectsMeasure)
         .Property(PasswordBox::MaxLengthProperty, std::uint32_t{0}, AffectsMeasure)
         .Property(PasswordBox::PlaceholderProperty, Base::String{}, AffectsMeasure | AffectsRender)
         .TemplatePart("PART_ContentHost", TypeOf<ScrollViewer>())
@@ -279,7 +279,7 @@ Base::Result<void> PopulateControlsTextMedia(
     if (!status) return status.GetStatus();
 
     Register<ContentPresenter>(context)
-        .Property(ContentPresenter::ContentProperty, FrameworkPropertyMetadata(Meta::Value::NullObject(Meta::TypeOf<Base::Object>()), AffectsMeasure).Structural().Changed(&ContentPresenter::OnContentPropertyChanged))
+        .Property(ContentPresenter::ContentProperty, FrameworkPropertyMetadata(Meta::Value::NullObject(Meta::TypeOf<Base::Object>()), AffectsMeasure).Structural())
         .Property(ContentPresenter::ContentTemplateProperty, Base::Ref<Base::Object>{}, AffectsMeasure)
         .Property(ContentPresenter::ContentSourceProperty, std::move(defaultContentSource))
         .ContentAccessor(MakeMemberId(ContentPresenter::StaticTypeId(), MemberKind::Property, "Content"), ContentKind::Single, &SetContentPresenterContent, &ClearContentPresenterContent, ContentFlags::Visual)

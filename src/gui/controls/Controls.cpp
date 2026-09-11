@@ -19,6 +19,7 @@
 #include <Aero/Documents.hpp>
 #include <Aero/TryCast.hpp>
 #include "RichText.hpp"
+#include "gui/meta/ValueConversion.hpp"
 
 
 #include <algorithm>
@@ -59,12 +60,6 @@ void AeroGuiInternal::SyncSelectorContainers(
 std::uint32_t AeroGuiInternal::TreeViewItemCount(
     const Controls::TreeViewItem& item) noexcept {
     return item.GetCount();
-}
-
-void AeroGuiInternal::OnContentControlPropertyChanged(
-    ::Aero::DependencyObject& object,
-    const Meta::DependencyPropertyChangedEventArgs& change) noexcept {
-    AERO_CALL_STATIC_METHOD(ContentControl_OnContentPropertyChanged, object, change);
 }
 
 void AeroGuiInternal::SetItemsSource(
@@ -147,6 +142,74 @@ void AeroGuiInternal::AttachTextLayout(
     if (invalidate) {
         element.InvalidateMeasure();
     }
+}
+
+Base::Result<GridLength> AeroGuiInternal::ConvertGridLength(
+    Base::StringView text) noexcept {
+    const Base::StringView value =
+        ::Aero::Base::ValueConversion::Trim(text);
+    if (::Aero::Base::ValueConversion::EqualsAsciiInsensitive(
+            value, "auto")) {
+        return GridLength::Auto();
+    }
+    if (!value.Empty() &&
+        value[value.SizeBytes() - 1U] == '*') {
+        const Base::StringView weightText =
+            value.Substr(0U, value.SizeBytes() - 1U);
+        double weight = 1.0;
+        if (!weightText.Empty()) {
+            Base::Result<double> parsed =
+                ::Aero::Base::ValueConversion::ParseDouble(weightText);
+            if (!parsed) return parsed.GetStatus();
+            weight = parsed.Value();
+        }
+        if (!std::isfinite(weight) || weight <= 0.0) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "GridLength star weight must be positive and finite");
+        }
+        return GridLength::Star(weight);
+    }
+    Base::Result<double> pixels =
+        ::Aero::Base::ValueConversion::ParseDouble(value);
+    if (!pixels || pixels.Value() < 0.0) {
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "GridLength must be Auto, a nonnegative pixel value, or a star weight");
+    }
+    return GridLength::Pixel(pixels.Value());
+}
+
+Base::Result<void> AeroGuiInternal::ParseGridDefinitions(
+    Base::StringView text,
+    Base::Vector<GridLength>& output) noexcept {
+    output.Clear();
+    const Base::StringView value =
+        ::Aero::Base::ValueConversion::Trim(text);
+    if (value.Empty()) return {};
+    std::uint32_t start = 0U;
+    while (start <= value.SizeBytes()) {
+        std::uint32_t end = start;
+        while (end < value.SizeBytes() &&
+            value[end] != ',') {
+            ++end;
+        }
+        const Base::StringView token =
+            ::Aero::Base::ValueConversion::Trim(
+                value.Substr(start, end - start));
+        if (token.Empty()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "Grid definitions contain an empty track");
+        }
+        Base::Result<GridLength> parsed =
+            ConvertGridLength(token);
+        if (!parsed) return parsed.GetStatus();
+        output.PushBack(parsed.Value());
+        if (end == value.SizeBytes()) break;
+        start = end + 1U;
+    }
+    return {};
 }
 
 } // namespace Aero

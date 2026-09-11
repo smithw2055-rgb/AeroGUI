@@ -421,6 +421,8 @@ Base::Result<void> ElementTree::CollectLogicalSubtree(
 
 Base::Result<void> ElementTree::RegisterHandleSubtree(::Aero::Media::Visual& node) noexcept {
     Base::Vector<::Aero::Media::Visual*> nodes;
+    // P1 perf: attach walks allocate once instead of per-PushBack growth.
+    nodes.Reserve(32U);
     Base::Result<void> collected = CollectLogicalSubtree(node, nodes);
     if (!collected) return collected.GetStatus();
 

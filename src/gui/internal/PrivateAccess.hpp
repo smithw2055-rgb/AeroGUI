@@ -227,9 +227,6 @@ AERO_DECLARE_METHOD_THIEF(ContentControl_SetContentValueRef, ::Aero::Controls::C
 AERO_DECLARE_METHOD_THIEF(ContentControl_SetContentValueVal, ::Aero::Controls::ContentControl, SetContentValue,
     void (::Aero::Controls::ContentControl::*)(Meta::Value) noexcept,
     static_cast<void (::Aero::Controls::ContentControl::*)(Meta::Value) noexcept>(&::Aero::Controls::ContentControl::SetContentValue))
-AERO_DECLARE_STATIC_METHOD_THIEF(ContentControl_OnContentPropertyChanged, ::Aero::Controls::ContentControl, OnContentPropertyChanged,
-    void (*)(::Aero::DependencyObject&, const Meta::DependencyPropertyChangedEventArgs&) noexcept)
-
 // --- Decorator private fields and methods ---
 AERO_DECLARE_FIELD_THIEF(Decorator_ownedChild, ::Aero::Controls::Decorator, ownedChild_, Base::Ref<Base::Object>)
 AERO_DECLARE_METHOD_THIEF(Decorator_SetOwnedChild, ::Aero::Controls::Decorator, SetOwnedChild,

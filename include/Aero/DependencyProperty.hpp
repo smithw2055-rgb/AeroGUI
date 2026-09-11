@@ -317,10 +317,6 @@ private:
 
 using ValidateValueCallback = Base::Delegate<bool(
     const PropertyValue& value)>;
-using CoerceValueCallback = Base::Delegate<Result<PropertyValue>(
-    DependencyObject& object,
-    const DependencyProperty& property,
-    const PropertyValue& baseValue)>;
 using PropertyChangedCallback = Base::Delegate<void(
     DependencyObject& object,
     const DependencyPropertyChangedEventArgs& args)>;
@@ -334,7 +330,6 @@ struct PropertyMetadata {
     UpdateSourceTrigger defaultUpdateSourceTrigger =
         UpdateSourceTrigger::Default;
     ValidateValueCallback validate = nullptr;
-    CoerceValueCallback coerce = nullptr;
     PropertyChangedCallback changed = nullptr;
 };
 

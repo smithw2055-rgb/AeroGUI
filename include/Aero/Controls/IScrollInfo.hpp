@@ -22,6 +22,19 @@ public:
         double direction) noexcept = 0;
     virtual Result<bool> PageVertical(
         double direction) noexcept = 0;
+    // WPF-parity directional verbs. Default forwards to the legacy
+    // Line/Page(double) primitives so existing implementers keep working;
+    // new code overrides these directly.
+    virtual Result<bool> LineUp() noexcept { return LineVertical(-1.0); }
+    virtual Result<bool> LineDown() noexcept { return LineVertical(1.0); }
+    virtual Result<bool> LineLeft() noexcept { return LineHorizontal(-1.0); }
+    virtual Result<bool> LineRight() noexcept { return LineHorizontal(1.0); }
+    virtual Result<bool> PageUp() noexcept { return PageVertical(-1.0); }
+    virtual Result<bool> PageDown() noexcept { return PageVertical(1.0); }
+    virtual Result<bool> MouseWheelUp() noexcept { return PageVertical(-1.0); }
+    virtual Result<bool> MouseWheelDown() noexcept { return PageVertical(1.0); }
+    virtual Result<bool> MouseWheelLeft() noexcept { return PageHorizontal(-1.0); }
+    virtual Result<bool> MouseWheelRight() noexcept { return PageHorizontal(1.0); }
 };
 
 } // namespace Aero::Controls

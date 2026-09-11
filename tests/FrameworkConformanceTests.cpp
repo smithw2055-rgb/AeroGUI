@@ -616,6 +616,50 @@ public:
     inline static constexpr DependencyProperty<std::int32_t> StepValueProperty{"StepValue"};
 };
 
+// DP虚函数试点： registru时不挂Validate/Coerce delegate，引擎回退到虚函数。
+// ValidateValueCore 拒收负数，CoerceValueCore 把 >100 钳到 100。
+class CoercePilot final : public UserControl {
+    AERO_DECLARE_TYPE_NAMED(
+        CoercePilot,
+        UserControl,
+        "clr-namespace:UserControls",
+        "CoercePilot")
+public:
+    CoercePilot() noexcept : UserControl(StaticTypeId()) {}
+
+    std::int32_t GetLevel() const noexcept {
+        return GetValue(LevelProperty);
+    }
+    void SetLevel(std::int32_t value) noexcept {
+        SetValue(LevelProperty, value);
+    }
+
+    inline static constexpr DependencyProperty<std::int32_t> LevelProperty{"Level"};
+
+protected:
+    bool ValidateValueCore(
+        Aero::Meta::DependencyPropertyHandle property,
+        const Aero::Meta::PropertyValue& value) const noexcept override {
+        if (property != LevelProperty.Handle()) return true;
+        if (value.Kind() != Aero::Base::ValueKind::SignedInteger) return true;
+        return value.AsSignedInteger() >= 0;
+    }
+    Aero::Meta::PropertyValue CoerceValueCore(
+        Aero::Meta::DependencyPropertyHandle property,
+        const Aero::Meta::PropertyValue& baseValue) noexcept override {
+        if (property != LevelProperty.Handle()) return baseValue;
+        if (baseValue.Kind() != Aero::Base::ValueKind::SignedInteger) {
+            return baseValue;
+        }
+        const std::int64_t raw = baseValue.AsSignedInteger();
+        if (raw <= 100) return baseValue;
+        Result<Aero::Meta::PropertyValue> clamped =
+            Aero::Meta::ValueCodec<std::int32_t>::Encode(
+                static_cast<std::int32_t>(100));
+        return clamped ? std::move(clamped).Value() : baseValue;
+    }
+};
+
 class ColorConverter final : public IMultiValueConverter {
     AERO_DECLARE_TYPE_NAMED(
         ColorConverter,
@@ -924,6 +968,16 @@ Result<void> RegisterTutorialTypes(Registration& registration) noexcept {
             "UpButton_Click")
         .EventHandler<Aero::RoutedEventArgs, &NumericUpDown::DownButton_Click>(
             "DownButton_Click")
+        .Factory()
+        .Result();
+    if (!status) return status;
+
+    // CoercePilot registers a plain default WITHOUT Validate/Coerce delegates;
+    // the engine must fall back to ValidateValueCore/CoerceValueCore virtuals.
+    status = Aero::Meta::Register<CoercePilot>(registration)
+        .Property(
+            CoercePilot::LevelProperty,
+            FrameworkPropertyMetadata(std::int32_t{0}))
         .Factory()
         .Result();
     if (!status) return status;
@@ -1323,6 +1377,45 @@ bool TestStreamContract() {
         1, Aero::Base::SeekOrigin::End);
     CHECK(!invalid);
     CHECK(invalid.GetStatus().code == ErrorCode::OutOfRange);
+    return true;
+}
+
+bool TestDependencyPropertyVirtualFallback() {
+    LiveGui* live = NewTutorialLiveGui();
+    CHECK(live != nullptr);
+    View& view = *live->view;
+    view.SetSize({200.0, 200.0});
+
+    Result<Ref<Canvas>> host = MakeRef<Canvas>();
+    CHECK(host);
+    CHECK(view.SetContent(
+        Ref<FrameworkElement>(host.Value()), {200.0, 200.0}));
+    Result<Ref<CoercePilot>> control = MakeRef<CoercePilot>();
+    CHECK(control);
+    host.Value()->GetChildren().Add(
+        Ref<Aero::UIElement>(control.Value()));
+    Pump(view, 0.016);
+
+    control.Value()->SetLevel(42);
+    CHECK(control.Value()->GetLevel() == 42);
+    // No delegate registered: >100 must clamp via CoerceValueCore.
+    control.Value()->SetLevel(150);
+    CHECK(control.Value()->GetLevel() == 100);
+    // Negative must be rejected via ValidateValueCore; effective stays 100.
+    control.Value()->SetLevel(-5);
+    CHECK(control.Value()->GetLevel() == 100);
+
+    // Moved TextBox coerce delegate: invalid UTF-8 is rejected, last good stays.
+    Result<Ref<TextBox>> textBox = MakeRef<TextBox>();
+    CHECK(textBox);
+    host.Value()->GetChildren().Add(
+        Ref<Aero::UIElement>(textBox.Value()));
+    Pump(view, 0.016);
+    textBox.Value()->SetText(StringView("hello"));
+    CHECK(textBox.Value()->GetText() == StringView("hello"));
+    const char badBytes[] = {'a', static_cast<char>(0xFF), 'b'};
+    textBox.Value()->SetText(StringView(badBytes, 3U));
+    CHECK(textBox.Value()->GetText() == StringView("hello"));
     return true;
 }
 
@@ -6100,6 +6193,7 @@ bool TestTutorialSampleXamlLoadApply();
 int main() {
     RUN(TestStreamContract);
     RUN(TestPublicNamesAndHierarchy);
+    RUN(TestDependencyPropertyVirtualFallback);
     RUN(TestXamlStreamReader);
     RUN(TestProviderOwnershipAndReplacement);
     RUN(TestViewFrameViewportAndInput);

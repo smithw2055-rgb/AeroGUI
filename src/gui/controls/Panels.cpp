@@ -697,6 +697,46 @@ void Grid::SetRowDefinitionsText(
     SetValue(
         RowDefinitionsTextProperty, value);
 }
+
+bool Grid::ValidateValueCore(
+    DependencyPropertyHandle property,
+    const PropertyValue& value) const noexcept {
+    if (property == ColumnDefinitionsTextProperty.Handle() ||
+        property == RowDefinitionsTextProperty.Handle()) {
+        if (value.Kind() != Meta::ValueKind::String) {
+            return false;
+        }
+        Base::Vector<GridLength> parsed;
+        return static_cast<bool>(
+            AeroGuiInternal::ParseGridDefinitions(
+                value.AsString(), parsed));
+    }
+    return Panel::ValidateValueCore(property, value);
+}
+
+void Grid::OnPropertyChanged(
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    const DependencyPropertyHandle prop = args.GetProperty();
+    if (prop == ColumnDefinitionsTextProperty.Handle()) {
+        if (args.GetNewValue().Kind() == Meta::ValueKind::String) {
+            Base::Vector<GridLength> parsed;
+            if (AeroGuiInternal::ParseGridDefinitions(
+                    args.GetNewValue().AsString(), parsed)) {
+                SetColumnDefinitions(parsed.AsSpan());
+            }
+        }
+    } else if (prop == RowDefinitionsTextProperty.Handle()) {
+        if (args.GetNewValue().Kind() == Meta::ValueKind::String) {
+            Base::Vector<GridLength> parsed;
+            if (AeroGuiInternal::ParseGridDefinitions(
+                    args.GetNewValue().AsString(), parsed)) {
+                SetRowDefinitions(parsed.AsSpan());
+            }
+        }
+    }
+    Panel::OnPropertyChanged(args);
+}
+
 Size Grid::MeasureOverride(
     Size availableSize) noexcept {
     if (!columnDefinitionObjects_.Empty()) {
@@ -1234,6 +1274,16 @@ Base::Result<bool> Panel::RemoveChildCore(UIElement& child) noexcept {
     if (!access) return access.GetStatus();
     for (std::uint32_t index = 0U; index < ownedChildren_.Size(); ++index) {
         if (ownedChildren_[index].Get() != &child) continue;
+        // Remove from storage BEFORE detach: DetachVisual/DetachLogical can
+        // re-enter (Unloaded/template cleanup) and mutate ownedChildren_.
+        // Detaching first then shifting+PopBack double-pops when re-entered.
+        Base::Ref<Base::Object> retained = ownedChildren_[index];
+        for (std::uint32_t next = index + 1U; next < ownedChildren_.Size(); ++next) {
+            ownedChildren_[next - 1U] = std::move(ownedChildren_[next]);
+        }
+        if (!ownedChildren_.Empty()) {
+            ownedChildren_.PopBack();
+        }
         ElementTree* tree = VisualTree(this);
         if (tree != nullptr && VisualTree(child) == tree) {
             if (child.GetVisualParent() == this) {
@@ -1247,10 +1297,6 @@ Base::Result<bool> Panel::RemoveChildCore(UIElement& child) noexcept {
         } else if (child.GetVisualParent() == this) {
             RemoveVisualChild(&child);
         }
-        for (std::uint32_t next = index + 1U; next < ownedChildren_.Size(); ++next) {
-            ownedChildren_[next - 1U] = std::move(ownedChildren_[next]);
-        }
-        ownedChildren_.PopBack();
         InvalidateMeasure();
         return true;
     }

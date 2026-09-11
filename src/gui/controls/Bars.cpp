@@ -250,8 +250,7 @@ ToolBar::SynchronizeToolBar() noexcept {
 }
 
 Base::Result<Base::Ref<FrameworkElement>>
-StatusBar::CreateContainer(
-    const Base::Ref<Base::Object>&) noexcept {
+StatusBar::GetContainerForItemOverride() const noexcept {
     Base::Result<Base::Ref<StatusBarItem>>
         made =
             Base::MakeRef<StatusBarItem>();

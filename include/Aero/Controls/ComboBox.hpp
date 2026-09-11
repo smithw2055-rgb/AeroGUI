@@ -62,14 +62,13 @@ public:
 
 protected:
     Result<Ref<FrameworkElement>>
-        CreateContainer(
-            const Ref<Base::Object>& item)
+        GetContainerForItemOverride() const
             noexcept override;
-    Result<void> PrepareContainer(
+    Result<void> PrepareContainerForItemOverride(
         FrameworkElement& container,
         const Ref<Base::Object>& item,
         std::uint32_t index) noexcept override;
-    void ClearContainer(
+    void ClearContainerForItemOverride(
         FrameworkElement& container) noexcept override;
     void OnContainersChanged() noexcept override;
     void OnApplyTemplate() noexcept override;

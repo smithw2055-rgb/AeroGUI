@@ -9,6 +9,7 @@ class ScrollBar;
 }
 
 namespace Aero::Controls {
+using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::TypeId;
 enum class ScrollBarVisibility : std::uint8_t {
     Disabled = 0U,
@@ -116,6 +117,9 @@ protected:
     bool GetUsesContentScrolling() const noexcept override;
     void OnTemplateDetached() noexcept override;
     void OnMouseWheel(MouseWheelEventArgs& args) override;
+    // Replaces OnScrollViewerVisibilityChanged delegate (setter re-entry).
+    void OnPropertyChanged(
+        const DependencyPropertyChangedEventArgs& args) noexcept override;
 
 private:
     friend class ScrollContentPresenter;

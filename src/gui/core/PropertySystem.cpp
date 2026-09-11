@@ -343,22 +343,27 @@ Base::Result<PropertyValue> DependencyPropertyRegistry::EvaluateValue(
     if (!validation) {
         return validation.GetStatus();
     }
-
-    if (metadata.coerce.Empty()) {
-        return baseValue;
+    // OOP fallback: the instance virtuals run for every evaluation, with or
+    // without a metadata delegate (AND semantics). Defaults are pass-through
+    // (Validate true / Coerce identity), so registered behavior is unchanged
+    // and authors can override instead of registering per-DP delegates.
+    if (!object.ValidateValueCore(property.Handle(), baseValue)) {
+        return ValidationFailedStatus();
     }
 
-    Base::Result<PropertyValue> coerced = metadata.coerce(
-        object, property, baseValue);
-    if (!coerced) {
-        return coerced.GetStatus();
+    // Coercion is virtual-only: per-DP coerce delegates were removed.
+    // Overrides adjust the value (or return Unset to reject); the default
+    // returns the base value unchanged.
+    const PropertyValue adjusted =
+        object.CoerceValueCore(property.Handle(), baseValue);
+    if (adjusted.IsUnset()) {
+        return ValidationFailedStatus();
     }
-
-    validation = ValidateValue(property, metadata, coerced.Value());
+    validation = ValidateValue(property, metadata, adjusted);
     if (!validation) {
         return validation.GetStatus();
     }
-    return std::move(coerced).Value();
+    return adjusted;
 }
 
 PropertyFlags DependencyPropertyRegistry::ToTypeRegistryFlags(

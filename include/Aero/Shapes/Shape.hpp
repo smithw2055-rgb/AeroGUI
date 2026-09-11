@@ -7,6 +7,9 @@
 
 namespace Aero::Shapes {
 
+using ::Aero::Meta::DependencyPropertyChangedEventArgs;
+using ::Aero::Meta::DependencyPropertyHandle;
+using ::Aero::Meta::PropertyValue;
 using ::Aero::Meta::TypeId;
 using ::Aero::Media::Brush;
 using ::Aero::Media::Stretch;
@@ -36,6 +39,9 @@ protected:
     explicit Shape(TypeId runtimeType) noexcept
         : FrameworkElement(runtimeType) {}
     ~Shape() override = default;
+    // Replaces OnShapePenChanged (Fill/Stroke had a no-op and were dropped).
+    void OnPropertyChanged(
+        const DependencyPropertyChangedEventArgs& args) noexcept override;
 };
 
 } // namespace Aero::Shapes

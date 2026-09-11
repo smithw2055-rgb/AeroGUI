@@ -7,6 +7,7 @@
 namespace Aero {
 
 namespace Controls { struct FrameworkTemplateState; }
+class DependencyObject;
 
 // WPF-shaped template object. XAML compilation, factory callbacks, bindings,
 // triggers, namescopes and the immutable runtime program are implementation
@@ -27,6 +28,10 @@ public:
     ResourceDictionary& GetResources() noexcept;
     const ResourceDictionary& GetResources() const noexcept;
     void SetResources(Ref<ResourceDictionary> value) noexcept;
+    // WPF FrameworkTemplate.LoadContent extension point. Default returns
+    // null; ControlTemplate/DataTemplate override to materialize content
+    // without exposing state_/Program to public headers.
+    virtual Ref<DependencyObject> LoadContent() const noexcept { return {}; }
 
 private:
     friend struct Controls::FrameworkTemplateState;

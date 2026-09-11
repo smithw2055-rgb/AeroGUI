@@ -407,32 +407,6 @@ public:
         };
         return *this;
     }
-    FrameworkPropertyMetadata& Coerce(
-        CoerceValueCallback coerce) noexcept {
-        coerce_ = coerce;
-        return *this;
-    }
-    FrameworkPropertyMetadata& Coerce(
-        Base::Result<TValue> (*coerce)(
-            DependencyObject&,
-            const DependencyProperty&,
-            const TValue&) noexcept) noexcept {
-        coerce_ = [coerce](
-            DependencyObject& object,
-            const DependencyProperty& property,
-            const Value& stored) noexcept
-            -> Base::Result<Value> {
-            Base::Result<TValue> decoded =
-                ValueCodec<TValue>::Decode(stored);
-            if (!decoded) return decoded.GetStatus();
-            Base::Result<TValue> result = coerce(
-                object, property, decoded.Value());
-            if (!result) return result.GetStatus();
-            return ValueCodec<TValue>::Encode(
-                result.Value());
-        };
-        return *this;
-    }
     FrameworkPropertyMetadata& Changed(
         PropertyChangedCallback changed) noexcept {
         changed_ = changed;
@@ -473,9 +447,6 @@ public:
     ValidateValueCallback Validator() const noexcept {
         return validate_;
     }
-    CoerceValueCallback Coercer() const noexcept {
-        return coerce_;
-    }
     PropertyChangedCallback ChangeCallback() const noexcept {
         return changed_;
     }
@@ -489,7 +460,6 @@ private:
     UpdateSourceTrigger updateSourceTrigger_ =
         UpdateSourceTrigger::Default;
     ValidateValueCallback validate_ = nullptr;
-    CoerceValueCallback coerce_ = nullptr;
     PropertyChangedCallback changed_ = nullptr;
     bool structural_ = false;
 };
@@ -937,7 +907,6 @@ public:
         metadata.defaultUpdateSourceTrigger =
             options.DefaultUpdateSourceTrigger();
         metadata.validate = options.Validator();
-        metadata.coerce = options.Coercer();
         metadata.changed = options.ChangeCallback();
         builder_.Override(
             property.Handle(), TypeOf<T>(),
@@ -1068,7 +1037,6 @@ public:
         metadata.defaultUpdateSourceTrigger =
             options.DefaultUpdateSourceTrigger();
         metadata.validate = options.Validator();
-        metadata.coerce = options.Coercer();
         metadata.changed = options.ChangeCallback();
         builder_.AddOwner(
             property.Handle(), TypeOf<T>(),
@@ -1094,7 +1062,6 @@ public:
         metadata.defaultUpdateSourceTrigger =
             options.DefaultUpdateSourceTrigger();
         metadata.validate = options.Validator();
-        metadata.coerce = options.Coercer();
         metadata.changed = options.ChangeCallback();
         builder_.AddOwner(
             property.Handle(), TypeOf<T>(),
@@ -1121,7 +1088,6 @@ public:
         metadata.defaultUpdateSourceTrigger =
             options.DefaultUpdateSourceTrigger();
         metadata.validate = options.Validator();
-        metadata.coerce = options.Coercer();
         metadata.changed = options.ChangeCallback();
         builder_.AddOwner(
             sourceProperty.Handle(), TypeOf<T>(),
@@ -1436,7 +1402,7 @@ private:
             handle, name, ValueCodec<TValue>::Type(),
             std::move(encoded).Value(), options.Flags(),
             propertyFlags,
-            options.Validator(), options.Coercer(),
+            options.Validator(),
             options.ChangeCallback(),
             options.DefaultUpdateSourceTrigger());
         return *this;

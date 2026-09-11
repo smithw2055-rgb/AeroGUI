@@ -145,7 +145,7 @@ void Popup::OnPropertyChanged(
             UIElement* popupChild =
                 GetTemplateRoot() != nullptr
                     ? GetTemplateRoot()
-                    : ContentElement();
+                    : GetContentElement();
             // Tooltips set IsHitTestVisible=False on the content so the pointer
             // can keep hitting the placement target. Forcing the Popup itself
             // hittable would steal MouseEnter/Leave from the planet underneath.
@@ -172,7 +172,7 @@ Size Popup::MeasureOverride(
     UIElement* popupChild =
         GetTemplateRoot() != nullptr
             ? GetTemplateRoot()
-            : ContentElement();
+            : GetContentElement();
     if (!GetIsOpen() || popupChild == nullptr) {
         return Size{};
     }
@@ -192,7 +192,7 @@ Size Popup::ArrangeOverride(
     UIElement* popupChild =
         GetTemplateRoot() != nullptr
             ? GetTemplateRoot()
-            : ContentElement();
+            : GetContentElement();
     if (popupChild == nullptr) return finalSize;
     if (!GetIsOpen()) {
         Base::Result<void> hidden =
@@ -700,7 +700,7 @@ Size Expander::MeasureOverride(
             availableSize);
     }
     constexpr double HeaderExtent = 24.0;
-    if (!GetIsExpanded() || ContentElement() == nullptr) {
+    if (!GetIsExpanded() || GetContentElement() == nullptr) {
         return GetDirection() == ExpandDirection::Left ||
                 GetDirection() == ExpandDirection::Right
             ? Size{HeaderExtent, 0.0}
@@ -716,9 +716,9 @@ Size Expander::MeasureOverride(
             std::max(0.0, childAvailable.height - HeaderExtent);
     }
     Base::Result<void> measured =
-        MeasureChild(*ContentElement(), childAvailable);
+        MeasureChild(*GetContentElement(), childAvailable);
     if (!measured) return Size{};
-    const Size desired = ContentElement()->GetDesiredSize();
+    const Size desired = GetContentElement()->GetDesiredSize();
     return GetDirection() == ExpandDirection::Left ||
             GetDirection() == ExpandDirection::Right
         ? Size{desired.width + HeaderExtent, desired.height}
@@ -731,7 +731,7 @@ Size Expander::ArrangeOverride(
         return ContentControl::ArrangeOverride(
             finalSize);
     }
-    if (!GetIsExpanded() || ContentElement() == nullptr) {
+    if (!GetIsExpanded() || GetContentElement() == nullptr) {
         return finalSize;
     }
     constexpr double HeaderExtent = 24.0;
@@ -757,7 +757,7 @@ Size Expander::ArrangeOverride(
         break;
     }
     Base::Result<void> arranged =
-        ArrangeChild(*ContentElement(), slot);
+        ArrangeChild(*GetContentElement(), slot);
     if (!arranged) return finalSize;
     return finalSize;
 }
@@ -797,8 +797,7 @@ TabItem* TabControl::GetSelectedTab() const noexcept {
     return nullptr;
 }
 
-Base::Result<Ref<FrameworkElement>> TabControl::CreateContainer(
-    const Ref<Base::Object>&) noexcept {
+Base::Result<Ref<FrameworkElement>> TabControl::GetContainerForItemOverride() const noexcept {
     Base::Result<Ref<TabItem>> made = Base::MakeRef<TabItem>();
     if (!made) return made.GetStatus();
     return Ref<FrameworkElement>(std::move(made).Value());
@@ -1632,6 +1631,14 @@ void ContentPresenter::OnContentPropertyChanged(
     }
     static_cast<void>(
         presenter.UpdatePresentedText());
+}
+
+void ContentPresenter::OnPropertyChanged(
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    if (args.GetProperty() == ContentProperty.Handle()) {
+        OnContentPropertyChanged(*this, args);
+    }
+    FrameworkElement::OnPropertyChanged(args);
 }
 Base::Result<void>
 ContentPresenter::UpdatePresentedText() noexcept {

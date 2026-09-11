@@ -4,6 +4,7 @@
 #include <Aero/Data/CollectionViewSource.hpp>
 #include <Aero/DataTemplateSelector.hpp>
 #include <Aero/HierarchicalDataTemplate.hpp>
+#include <Aero/Collections.hpp>
 #include <Aero/TryCast.hpp>
 #include "gui/meta/TypeRegistryDetail.hpp"
 #include "gui/core/ElementTree.hpp"
@@ -150,6 +151,11 @@ void ContentControl::OnContentTemplateSelectorChanged(
 
 void ContentControl::OnPropertyChanged(
     const DependencyPropertyChangedEventArgs& args) noexcept {
+    // Former OnContentPropertyChanged Changed-delegate body: runs before base
+    // handling to preserve delegate-then-virtual firing order.
+    if (args.GetProperty() == ContentProperty.Handle()) {
+        OnContentPropertyChanged(*this, args);
+    }
     Control::OnPropertyChanged(args);
     const DependencyPropertyHandle prop = args.GetProperty();
     if (prop == Control::ForegroundProperty ||
@@ -828,7 +834,10 @@ void ItemsControl::SetItemsSourceCore(
     source_ = source;
     PublishItemCount();
     PublishReset();
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     OnItemsSourceCoreChanged();
+#pragma GCC diagnostic pop
 }
 
 void ItemsControl::SetItemTemplateCore(
@@ -845,7 +854,7 @@ void ItemsControl::SetItemTemplateSelectorCore(
     PublishReset();
 }
 
-Base::Ref<DataTemplate> ItemsControl::ResolveItemTemplate(
+Base::Ref<DataTemplate> ItemsControl::GetTemplateForItemOverride(
     const Base::Ref<Base::Object>& item,
     std::uint32_t) const noexcept {
     if (itemTemplateSelector_ != nullptr) {
@@ -938,9 +947,47 @@ void ItemsControl::PublishItemCount() noexcept {
         HasItemsProperty, count != 0U));
 }
 
+void ItemsControl::OnPropertyChanged(
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    const DependencyPropertyHandle prop = args.GetProperty();
+    if (prop == ItemsSourceProperty.Handle()) {
+        Base::Object* obj = args.GetNewValue().Kind() == Meta::ValueKind::Object
+            ? args.GetNewValue().AsObject().Get()
+            : nullptr;
+        Collections::IItemsSource* source =
+            TryCastToInterface<Collections::IItemsSource>(obj);
+        if (source == nullptr && obj != nullptr) {
+            source = Collections::CollectionAsItemsSource(obj);
+        }
+        SetItemsSourceCore(source);
+    } else if (prop == DisplayMemberPathProperty.Handle()) {
+        PublishReset();
+    } else if (prop == ItemTemplateProperty.Handle()) {
+        Base::Object* obj = args.GetNewValue().Kind() == Meta::ValueKind::Object
+            ? args.GetNewValue().AsObject().Get()
+            : nullptr;
+        SetItemTemplateCore(TryCast<DataTemplate>(obj));
+    } else if (prop == ItemTemplateSelectorProperty.Handle()) {
+        Base::Object* obj = args.GetNewValue().Kind() == Meta::ValueKind::Object
+            ? args.GetNewValue().AsObject().Get()
+            : nullptr;
+        SetItemTemplateSelectorCore(TryCast<DataTemplateSelector>(obj));
+    } else if (prop == ItemsPanelProperty.Handle()) {
+        Base::Object* obj = args.GetNewValue().Kind() == Meta::ValueKind::Object
+            ? args.GetNewValue().AsObject().Get()
+            : nullptr;
+        SetItemsPanelCore(TryCast<ItemsPanelTemplate>(obj));
+    } else if (prop == ItemContainerStyleProperty.Handle()) {
+        Base::Object* obj = args.GetNewValue().Kind() == Meta::ValueKind::Object
+            ? args.GetNewValue().AsObject().Get()
+            : nullptr;
+        SetItemContainerStyleCore(TryCast<Style>(obj));
+    }
+    Control::OnPropertyChanged(args);
+}
+
 Base::Result<Base::Ref<FrameworkElement>>
-ItemsControl::CreateContainer(
-    const Base::Ref<Base::Object>&) noexcept {
+ItemsControl::GetContainerForItemOverride() const noexcept {
     // WPF/Noesis GetContainerForItemOverride returns ContentPresenter so
     // ItemContainerStyle TargetType="ContentPresenter" can apply. A generated
     // ContentControl rejects that style and aborts item UI activation.
@@ -951,7 +998,7 @@ ItemsControl::CreateContainer(
         std::move(made).Value());
 }
 
-Base::Result<void> ItemsControl::PrepareContainer(
+Base::Result<void> ItemsControl::PrepareContainerForItemOverride(
     FrameworkElement& container,
     const Base::Ref<Base::Object>& item,
     std::uint32_t index) noexcept {
@@ -967,7 +1014,7 @@ Base::Result<void> ItemsControl::PrepareContainer(
     }
 
     const Base::Ref<DataTemplate> resolved =
-        ResolveItemTemplate(item, index);
+        GetTemplateForItemOverride(item, index);
     const HierarchicalDataTemplate* hierarchical =
         TryCast<HierarchicalDataTemplate>(resolved.Get());
     if (hierarchical == nullptr) {
@@ -1053,7 +1100,7 @@ Base::Result<void> ItemsControl::PrepareContainer(
     return bindings->ActivateDeferredWhenReady(childItems);
 }
 
-void ItemsControl::ClearContainer(
+void ItemsControl::ClearContainerForItemOverride(
     FrameworkElement& container) noexcept {
     Base::Ref<Base::Object> item;
     const Value dataContext = container.GetDataContext();
@@ -1062,7 +1109,7 @@ void ItemsControl::ClearContainer(
         item = dataContext.AsObject();
     }
     const Base::Ref<DataTemplate> resolved =
-        ResolveItemTemplate(item, 0U);
+        GetTemplateForItemOverride(item, 0U);
     if (TryCast<HierarchicalDataTemplate>(resolved.Get()) != nullptr &&
         AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             container.RuntimeType(), ItemsControl::StaticTypeId())) {
@@ -1078,6 +1125,34 @@ void ItemsControl::ClearContainer(
     }
     container.ClearValue(
         FrameworkElement::DataContextProperty);
+}
+
+// Legacy WPF-compat shims: forward to the new Override entry points so
+// existing overrides keep working during migration.
+Base::Ref<DataTemplate> ItemsControl::ResolveItemTemplate(
+    const Base::Ref<Base::Object>& item,
+    std::uint32_t index) const noexcept {
+    return GetTemplateForItemOverride(item, index);
+}
+
+Base::Result<Base::Ref<FrameworkElement>> ItemsControl::CreateContainer(
+    const Base::Ref<Base::Object>&) noexcept {
+    return GetContainerForItemOverride();
+}
+
+Base::Result<void> ItemsControl::PrepareContainer(
+    FrameworkElement& container,
+    const Base::Ref<Base::Object>& item,
+    std::uint32_t index) noexcept {
+    return PrepareContainerForItemOverride(container, item, index);
+}
+
+void ItemsControl::ClearContainer(FrameworkElement& container) noexcept {
+    ClearContainerForItemOverride(container);
+}
+
+void ItemsControl::OnItemsSourceCoreChanged() noexcept {
+    OnItemsChanged({});
 }
 
 } // namespace Aero::Controls

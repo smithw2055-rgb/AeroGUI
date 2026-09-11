@@ -4,6 +4,7 @@
 #include <Aero/Value.hpp>
 
 namespace Aero::Controls {
+using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::TypeId;
 class AERO_GUI_API ContentPresenter : public FrameworkElement {
     AERO_DECLARE_TYPE(ContentPresenter, FrameworkElement)
@@ -55,6 +56,9 @@ public:
         const Meta::DependencyPropertyChangedEventArgs&
             change) noexcept;
 protected:
+    // Replaces the Content Changed-delegate registration.
+    void OnPropertyChanged(
+        const DependencyPropertyChangedEventArgs& args) noexcept override;
     std::uint32_t GetVisualChildrenCount() const noexcept override {
         return content_ != nullptr && content_->GetVisualParent() == this ? 1U : 0U;
     }

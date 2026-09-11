@@ -126,10 +126,27 @@ protected:
         PropertyInvalidationFlags flags) noexcept;
     virtual void OnPropertyChanged(
         const DependencyPropertyChangedEventArgs& args) noexcept;
+    // WPF-parity coercion/validation extension points. Default preserves
+    // current metadata-delegate behavior; overrides avoid per-DP delegates.
+    virtual PropertyValue CoerceValueCore(
+        DependencyPropertyHandle property,
+        const PropertyValue& baseValue) noexcept {
+        static_cast<void>(property);
+        return baseValue;
+    }
+    virtual bool ValidateValueCore(
+        DependencyPropertyHandle property,
+        const PropertyValue& value) const noexcept {
+        static_cast<void>(property);
+        static_cast<void>(value);
+        return true;
+    }
     virtual Result<void> VerifyMutationAllowed() const noexcept;
 
 private:
     friend class DependencyMutationScope;
+    // Property engine invokes the protected Coerce/Validate virtuals.
+    friend class Meta::DependencyPropertyRegistry;
 
     enum class ChangeKind : std::uint8_t {
         SetLocal,

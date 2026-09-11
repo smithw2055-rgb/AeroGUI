@@ -26,7 +26,7 @@ using Meta::PropertyInvalidationFlags;
 using Meta::TypeId;
 
 class UIElement;
-namespace Media { class Transform; class Transform3D; class Effect; class Brush; class Geometry; }
+namespace Media { class Transform; class Transform3D; class Effect; class Brush; class Geometry; class DrawingContext; }
 namespace Input { class RoutedCommand; class InputBinding; class CommandBinding; }
 
 class UIElementChildRange {
@@ -215,6 +215,12 @@ public:
 
     void InvalidateMeasure() noexcept;
     void InvalidateArrange() noexcept;
+    void InvalidateVisual() noexcept;
+    // WPF-friendly non-virtual entry points. They forward to the internal
+    // MeasureCore/ArrangeCore so LayoutEngine stays in .cpp and public
+    // headers no longer leak LayoutEngine&.
+    Result<void> Measure(Size availableSize) noexcept;
+    Result<void> Arrange(Rect finalRect) noexcept;
     Size GetDesiredSize() const noexcept;
     Size GetRenderSize() const noexcept;
     Rect GetLayoutSlot() const noexcept;
@@ -343,6 +349,7 @@ protected:
         PropertyInvalidationFlags flags) noexcept override;
     virtual Size MeasureOverride(Size availableSize) noexcept;
     virtual Size ArrangeOverride(Size finalSize) noexcept;
+    virtual void OnRender(Media::DrawingContext& context) noexcept;
     virtual std::uint32_t GetLayoutChildrenCount() const noexcept;
     virtual UIElement* GetLayoutChild(std::uint32_t index) const noexcept;
 

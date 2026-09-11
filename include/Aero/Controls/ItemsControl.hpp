@@ -82,6 +82,26 @@ public:
     virtual Ref<DataTemplate> ResolveItemTemplate(
         const Ref<Base::Object>& item,
         std::uint32_t index) const noexcept;
+    // WPF-parity names (primary). Legacy CreateContainer/PrepareContainer/
+    // ClearContainer/ResolveItemTemplate forward to these.
+    virtual bool IsItemItsOwnContainerOverride(Base::Object* item) const noexcept {
+        static_cast<void>(item);
+        return false;
+    }
+    virtual Result<Ref<FrameworkElement>> GetContainerForItemOverride() const noexcept;
+    virtual Result<void> PrepareContainerForItemOverride(
+        FrameworkElement& container,
+        const Ref<Base::Object>& item,
+        std::uint32_t index) noexcept;
+    virtual void ClearContainerForItemOverride(FrameworkElement& container) noexcept;
+    virtual void OnItemsChanged(const ItemsChangedEvent& event) noexcept {
+        static_cast<void>(event);
+        InvalidateMeasure();
+        InvalidateArrange();
+    }
+    virtual Ref<DataTemplate> GetTemplateForItemOverride(
+        const Ref<Base::Object>& item,
+        std::uint32_t index) const noexcept;
     const ItemsPanelTemplate* GetItemsPanel() const noexcept {
         return itemsPanel_;
     }
@@ -146,26 +166,32 @@ protected:
     ItemContainerGenerator* AttachedGenerator() const noexcept {
         return generator_;
     }
+    [[deprecated("Use GetContainerForItemOverride()")]]
     virtual Result<
         Ref<FrameworkElement>>
         CreateContainer(
             const Ref<Base::Object>& item) noexcept;
+    [[deprecated("Use PrepareContainerForItemOverride()")]]
     virtual Result<void> PrepareContainer(
         FrameworkElement& container,
         const Ref<Base::Object>& item,
         std::uint32_t index) noexcept;
+    [[deprecated("Use ClearContainerForItemOverride()")]]
     virtual void ClearContainer(
         FrameworkElement& container) noexcept;
     virtual void OnContainersChanged() noexcept {
         InvalidateMeasure();
         InvalidateArrange();
     }
-    virtual void OnItemsSourceCoreChanged() noexcept {}
+    [[deprecated("Use OnItemsChanged()")]]
+    virtual void OnItemsSourceCoreChanged() noexcept;
     Collections::IItemsSource* GetItemsSourceCore() const noexcept {
         return source_;
     }
     void OnApplyTemplate() noexcept override;
     void OnTemplateDetached() noexcept override;
+    void OnPropertyChanged(
+        const DependencyPropertyChangedEventArgs& args) noexcept override;
     Size MeasureOverride(Size availableSize) noexcept override;
     bool EnsureDefaultItemsPresenter() noexcept;
 

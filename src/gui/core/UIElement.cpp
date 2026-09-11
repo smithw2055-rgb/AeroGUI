@@ -612,6 +612,29 @@ void UIElement::InvalidateMeasure() noexcept {
     layout->InvalidateMeasure(*this);
 }
 
+Base::Result<void> UIElement::Measure(Size availableSize) noexcept {
+    return MeasureChild(*this, availableSize);
+}
+
+Base::Result<void> UIElement::Arrange(Rect finalRect) noexcept {
+    return ArrangeChild(*this, finalRect);
+}
+
+void UIElement::InvalidateVisual() noexcept {
+    Base::Result<void> access = VerifyAccess();
+    if (!access) {
+        return;
+    }
+    Base::Result<void> invalidated = AeroGuiInternal::
+        InvalidateRenderDrawing(*this);
+    AERO_ASSERT(invalidated);
+    (void)invalidated;
+}
+
+void UIElement::OnRender(Media::DrawingContext& context) noexcept {
+    static_cast<void>(context);
+}
+
 // from src/gui/controls/Layout.cpp
 
 void UIElement::RaiseEvent(

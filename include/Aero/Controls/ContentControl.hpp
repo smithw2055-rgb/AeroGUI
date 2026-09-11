@@ -93,6 +93,8 @@ protected:
         const Ref<Base::Object>& newSelector);
     void OnPropertyChanged(
         const DependencyPropertyChangedEventArgs& args) noexcept override;
+    UIElement* GetContentElement() const noexcept { return content_; }
+    [[deprecated("Use GetContentElement() for WPF parity")]]
     UIElement* ContentElement() const noexcept { return content_; }
     explicit ContentControl(TypeId runtimeType) noexcept;
     ~ContentControl() override;
