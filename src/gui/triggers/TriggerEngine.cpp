@@ -1,8 +1,47 @@
 #include "gui/triggers/TriggerEngine.hpp"
 #include "gui/triggers/TriggerDiagnostics.hpp"
 #include "gui/triggers/TriggerValueCompare.hpp"
+#include "gui/styles/StyleEngine.hpp"
+#include "gui/controls/ItemsContainers.hpp"
+#include <Aero/Meta.hpp>
 
 namespace Aero {
+
+Base::Result<bool> ComparePropertyValues(
+    const Meta::PropertyValue& actual,
+    Meta::PropertyValue expected,
+    const Meta::Registry* metadata) noexcept {
+    if (actual.Kind() == Meta::ValueKind::Object &&
+        !actual.IsNullObject() && actual.AsObject() &&
+        actual.AsObject()->RuntimeType() ==
+            ::Aero::Controls::BoxedItemValue::StaticTypeId()) {
+        return ComparePropertyValues(
+            static_cast<const ::Aero::Controls::BoxedItemValue&>(
+                *actual.AsObject()).Value(),
+            std::move(expected),
+            metadata);
+    }
+    if (expected.IsNullObject() || expected.IsUnset()) {
+        return actual.IsNullObject() || actual.IsUnset();
+    }
+    if (expected.Kind() == Meta::ValueKind::String &&
+        actual.Kind() == Meta::ValueKind::String) {
+        return actual.AsString() == expected.AsString();
+    }
+    if (expected.Kind() == Meta::ValueKind::String &&
+        expected.Type() != actual.Type()) {
+        if (metadata == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "Trigger metadata is unavailable for text conversion");
+        }
+        Base::Result<Meta::PropertyValue> converted =
+            metadata->TryConvertText(actual.Type(), expected.AsString());
+        if (!converted) return false;
+        expected = std::move(converted).Value();
+    }
+    return actual == expected;
+}
 
 Base::Result<bool> TriggerPlan::IsConditionMet(
     const DependencyObject& object) const noexcept {

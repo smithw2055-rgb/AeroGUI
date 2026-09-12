@@ -101,12 +101,7 @@ set(_aero_gui_input_sources
     src/gui/input/OverlayHost.cpp)
 
 set(_aero_gui_triggers_sources
-    src/gui/triggers/BaseTrigger.cpp
-    src/gui/triggers/Trigger.cpp
-    src/gui/triggers/DataTrigger.cpp
-    src/gui/triggers/Condition.cpp
-    src/gui/triggers/MultiTrigger.cpp
-    src/gui/triggers/MultiDataTrigger.cpp
+    src/gui/triggers/Triggers.cpp
     src/gui/triggers/TriggerEngine.cpp)
 
 set(_aero_gui_interactivity_sources
@@ -134,6 +129,7 @@ set(_aero_gui_media_sources
     src/gui/media/MediaElement.cpp
     src/gui/media/StbImageImplementation.cpp
     src/gui/media/Transforms.cpp
+    src/gui/media/AnimationPathResolver.cpp
     src/gui/media/StoryboardHost.cpp
     src/gui/media/StoryboardHost.Properties.cpp
     src/gui/media/StoryboardHost.Timelines.cpp

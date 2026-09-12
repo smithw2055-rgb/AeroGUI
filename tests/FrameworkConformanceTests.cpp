@@ -6187,6 +6187,7 @@ bool TestBoardFlipRotationYStoryboard() {
 bool TestStyleSetterMergedStaticResource();
 bool TestMergedNestedStaticResource();
 bool TestTypeKeyedStaticResourceBasedOn();
+bool TestControlTemplateBasedOn();
 bool TestInventoryTemplateApply();
 bool TestTutorialSampleXamlLoadApply();
 
@@ -6247,6 +6248,7 @@ int main() {
     RUN(TestStyleSetterMergedStaticResource);
     RUN(TestMergedNestedStaticResource);
     RUN(TestTypeKeyedStaticResourceBasedOn);
+    RUN(TestControlTemplateBasedOn);
     RUN(TestInventoryTemplateApply);
     RUN(TestTutorialSampleXamlLoadApply);
     std::puts("Aero framework conformance tests passed");

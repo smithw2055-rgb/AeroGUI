@@ -2,6 +2,7 @@
 
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/triggers/TriggerPlan.hpp"
+#include "gui/triggers/TriggerTypes.hpp"
 #include <Aero/Base/HashMap.hpp>
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Controls/ControlTemplate.hpp>
@@ -83,22 +84,9 @@ Base::Result<void> ClearStyleSetters(
 
 class TriggerEngine;
 
-// Per-object style-application record. Lifted to namespace scope so the
-// dedicated TriggerEngine can reference the same vector as StyleEngine.
-struct StyleApplication {
-    DependencyObject* object = nullptr;
-    const Style* style = nullptr;
-    Base::Vector<std::uint8_t> triggerStates;
-    Base::Vector<std::uint8_t> bindingTriggerStates;
-    Base::Vector<std::uint8_t> bindingTriggerKnown;
-};
-
 class StyleEngine {
 public:
-    using TriggerActionHandler = Base::Result<void>(*)(
-        DependencyObject& owner,
-        Base::Span<const Base::Ref<Base::Object>> actions,
-        void* context) noexcept;
+    using TriggerActionHandler = ::Aero::TriggerActionHandler;
 
     explicit StyleEngine(
         EffectiveValueEngine& values,

@@ -19,7 +19,7 @@
 #include "gui/core/EventRouter.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/data/BindingEngine.hpp"
-#include "gui/styles/StyleEngine.hpp"
+#include "gui/triggers/TriggerTypes.hpp"
 #include "gui/triggers/TriggerPlan.hpp"
 #include "gui/triggers/TriggerDiagnostics.hpp"
 
@@ -27,10 +27,7 @@ namespace Aero {
 
 class TriggerEngine {
 public:
-    using TriggerActionHandler = Base::Result<void>(*)(
-        DependencyObject& owner,
-        Base::Span<const Base::Ref<Base::Object>> actions,
-        void* context) noexcept;
+    using TriggerActionHandler = ::Aero::TriggerActionHandler;
 
     TriggerEngine(
         StyleProviderSession& values,

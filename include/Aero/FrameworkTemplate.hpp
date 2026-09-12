@@ -27,6 +27,13 @@ public:
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
     Meta::TypeId GetTargetType() const noexcept;
     bool GetIsSealed() const noexcept;
+    // Optional inheritance (ControlTemplate only). The base template must be
+    // sealed before this template seals; Seal() then inherits its factory
+    // when no VisualTree is authored and prepends its compiled plans.
+    // Available before Seal() only.
+    bool SetBasedOn(FrameworkTemplate* basedOn) noexcept;
+    bool SetBasedOn(Ref<Base::Object> basedOn) noexcept;
+    const FrameworkTemplate* GetBasedOn() const noexcept;
     ResourceDictionary& GetResources() noexcept;
     const ResourceDictionary& GetResources() const noexcept;
     void SetResources(Ref<ResourceDictionary> value) noexcept;

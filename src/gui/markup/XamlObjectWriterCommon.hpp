@@ -1388,6 +1388,17 @@ CompileControlTemplateDefinition(
     ::Aero::Meta::Registry& runtime,
     Meta::DependencyPropertyRegistry& properties) noexcept;
 
+// BasedOn inheritance for tree-less derived templates: compiles
+// derived-authored property triggers / visual states against the sealed base
+// blueprint and stages them on the derived template. Seal() then inherits
+// the base factory and prepends base plans.
+Base::Result<void>
+CompileInheritedControlTemplate(
+    Controls::ControlTemplate& derivedTemplate,
+    const CompiledTemplateBlueprint& baseBlueprint,
+    ::Aero::Meta::Registry& runtime,
+    Meta::DependencyPropertyRegistry& properties) noexcept;
+
 } // namespace Aero::Markup
 
 // Markup implementation sources historically referred to the template
@@ -1401,6 +1412,7 @@ using ::Aero::Markup::BuildCompiledTemplate;
 using ::Aero::Markup::BuildCompiledDeferredTemplate;
 using ::Aero::Markup::CompileDeferredTemplateBlueprint;
 using ::Aero::Markup::CompileControlTemplateDefinition;
+using ::Aero::Markup::CompileInheritedControlTemplate;
 }
 
 // ===== WriterSupport (shared Writer TU helpers) =====

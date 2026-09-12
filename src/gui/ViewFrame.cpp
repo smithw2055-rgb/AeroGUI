@@ -535,6 +535,34 @@ void DetachViewUi(
         }
     }
 
+Aero::LayoutEngine* ViewFrame::Layout() const noexcept {
+    return tree != nullptr ? tree->Layout() : nullptr;
+}
+::Aero::Render::RenderTree* ViewFrame::RenderTree() const noexcept {
+    return tree != nullptr ? tree->RenderTree() : nullptr;
+}
+Aero::BindingEngine* ViewFrame::Bindings() const noexcept {
+    return tree != nullptr ? tree->Bindings() : nullptr;
+}
+Aero::StyleEngine* ViewFrame::Styles() const noexcept {
+    return tree != nullptr ? tree->Styles() : nullptr;
+}
+Aero::EventRouter* ViewFrame::Events() const noexcept {
+    return tree != nullptr ? tree->Events() : nullptr;
+}
+Aero::InputRouter* ViewFrame::Input() const noexcept {
+    return tree != nullptr ? tree->Input() : nullptr;
+}
+Aero::AnimationEngine* ViewFrame::Animations() const noexcept {
+    return tree != nullptr ? tree->Animations() : nullptr;
+}
+VisualStateManager* ViewFrame::VisualStates() const noexcept {
+    return tree != nullptr ? tree->VisualStates() : nullptr;
+}
+Aero::Controls::TemplateEngine* ViewFrame::Templates() const noexcept {
+    return tree != nullptr ? tree->Templates() : nullptr;
+}
+
 Base::Result<void> ViewFrame::CreateUiEngines() noexcept {
         Base::Result<void> status = AllocateObject(
             *allocator, Base::MemoryTag::Ui, resources, *this);

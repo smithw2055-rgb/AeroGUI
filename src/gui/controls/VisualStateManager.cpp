@@ -14,6 +14,8 @@
 #include <Aero/Value.hpp>
 #include <Aero/Media/Transforms.hpp>
 #include "gui/media/AnimationModel.hpp"
+#include "gui/media/AnimationPathResolver.hpp"
+#include "gui/controls/VisualStateManagerExecution.hpp"
 #include <algorithm>
 #include <new>
 #include <utility>
@@ -146,7 +148,6 @@ using namespace Aero::Media::Animation::Model;
 using namespace ::Aero::Meta;
 using namespace ::Aero::Media;
 using namespace ::Aero::Controls;
-using namespace ::Aero;
 namespace {
 
 
@@ -154,16 +155,6 @@ struct AnimationTarget {
     DependencyObject* object = nullptr;
     DependencyPropertyHandle property;
 };
-
-Base::StringView NormalizePropertyPath(
-    Base::StringView path) noexcept {
-    if (path.SizeBytes() >= 2U &&
-        path[0] == '(' &&
-        path[path.SizeBytes() - 1U] == ')') {
-        return path.Substr(1U, path.SizeBytes() - 2U);
-    }
-    return path;
-}
 
 Base::Result<AnimationTarget> ResolveAnimationTarget(
     Control& control,
@@ -175,18 +166,15 @@ Base::Result<AnimationTarget> ResolveAnimationTarget(
         timeline.GetValue(
             Media::Animation::Storyboard::TargetNameProperty.Handle());
     if (!targetNameValue) return targetNameValue.GetStatus();
-    if (targetNameValue.Value().Kind() !=
-        ValueKind::String) {
+    if (targetNameValue.Value().Kind() != ValueKind::String) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "VisualState Storyboard target name is not a string");
     }
-    const Base::StringView targetName =
-        targetNameValue.Value().AsString();
+    const Base::StringView targetName = targetNameValue.Value().AsString();
     DependencyObject* target = targetName.Empty()
         ? static_cast<DependencyObject*>(&control)
-        : templates.FindName(
-              handle, targetName);
+        : templates.FindName(handle, targetName);
     if (target == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
@@ -198,421 +186,16 @@ Base::Result<AnimationTarget> ResolveAnimationTarget(
     if (!authoredPathValue) {
         return authoredPathValue.GetStatus();
     }
-    if (authoredPathValue.Value().Kind() !=
-        ValueKind::String) {
+    if (authoredPathValue.Value().Kind() != ValueKind::String) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "VisualState Storyboard target property is not a string");
     }
-    const Base::StringView authoredPath =
-        authoredPathValue.Value().AsString();
-    if (authoredPath.Empty()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "VisualState Storyboard target property is required");
-    }
-    Base::StringView path =
-        authoredPath;
-    bool compoundParenthesizedPath = false;
-    for (std::uint32_t index = 0U;
-         index + 1U < path.SizeBytes(); ++index) {
-        if (path[index] == ')' &&
-            (path[index + 1U] == '.' ||
-             path[index + 1U] == '[')) {
-            compoundParenthesizedPath = true;
-            break;
-        }
-    }
-    if (!compoundParenthesizedPath) {
-        path = NormalizePropertyPath(path);
-    }
-
-    std::uint32_t indexedOpen = UINT32_MAX;
-    std::uint32_t indexedClose = UINT32_MAX;
-    for (std::uint32_t index = 0U;
-         index < path.SizeBytes(); ++index) {
-        if (path[index] == '[' &&
-            indexedOpen == UINT32_MAX) {
-            indexedOpen = index;
-        } else if (path[index] == ']' &&
-                   indexedOpen != UINT32_MAX) {
-            indexedClose = index;
-            break;
-        }
-    }
-    bool nestedTargetResolved = false;
-    if (indexedOpen != UINT32_MAX) {
-        if (indexedClose == UINT32_MAX ||
-            indexedClose == indexedOpen + 1U) {
-            return Base::Status::Failure(
-                Base::ErrorCode::ValidationFailed,
-                "VisualState indexed Storyboard path has an invalid index");
-        }
-        std::uint64_t parsedIndex = 0U;
-        for (std::uint32_t index = indexedOpen + 1U;
-             index < indexedClose; ++index) {
-            if (path[index] < '0' ||
-                path[index] > '9') {
-                return Base::Status::Failure(
-                    Base::ErrorCode::ValidationFailed,
-                    "VisualState indexed Storyboard path index must be numeric");
-            }
-            parsedIndex =
-                parsedIndex * 10U +
-                static_cast<std::uint64_t>(
-                    path[index] - '0');
-            if (parsedIndex > UINT32_MAX) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::OutOfRange,
-                    "VisualState indexed Storyboard path index is too large");
-            }
-        }
-        const Base::StringView beforeIndex =
-            path.Substr(0U, indexedOpen);
-        Base::StringView terminalPath =
-            path.Substr(
-                indexedClose + 1U,
-                path.SizeBytes() -
-                    indexedClose - 1U);
-        if (!terminalPath.Empty() &&
-            terminalPath[0] == '.') {
-            terminalPath = terminalPath.Substr(
-                1U,
-                terminalPath.SizeBytes() - 1U);
-        }
-        terminalPath =
-            NormalizePropertyPath(terminalPath);
-        const bool transformChildren =
-            beforeIndex ==
-                Base::StringView(
-                    "(UIElement.RenderTransform).(TransformGroup.Children)") ||
-            beforeIndex ==
-                Base::StringView(
-                    "RenderTransform.Children") ||
-            beforeIndex ==
-                Base::StringView(
-                    "(FrameworkElement.LayoutTransform).(TransformGroup.Children)") ||
-            beforeIndex ==
-                Base::StringView(
-                    "LayoutTransform.Children") ||
-            beforeIndex ==
-                Base::StringView(
-                    "(TransformGroup.Children)");
-
-        auto endsWith =
-            [](Base::StringView value,
-               Base::StringView suffix) noexcept {
-                return value.SizeBytes() >= suffix.SizeBytes() &&
-                    value.Substr(
-                        value.SizeBytes() - suffix.SizeBytes(),
-                        suffix.SizeBytes()) == suffix;
-            };
-        const bool gradientStops =
-            endsWith(
-                beforeIndex,
-                Base::StringView(").(GradientBrush.GradientStops)")) ||
-            endsWith(
-                beforeIndex,
-                Base::StringView(".GradientStops"));
-
-        if (!transformChildren && !gradientStops) {
-            return Base::Status::Failure(
-                Base::ErrorCode::Unsupported,
-                "VisualState indexed Storyboard collection is not supported");
-        }
-
-        if (gradientStops) {
-            Base::Ref<GradientBrush> gradient;
-            if (properties.Types().IsDerivedFrom(
-                    target->RuntimeType(),
-                    GradientBrush::StaticTypeId())) {
-                gradient = Base::Ref<GradientBrush>::TryFromBorrowed(
-                    *static_cast<GradientBrush*>(target));
-            } else {
-                Base::StringView brushOwnerPath;
-                if (!beforeIndex.Empty() && beforeIndex[0] == '(') {
-                    std::uint32_t close = UINT32_MAX;
-                    for (std::uint32_t index = 1U;
-                         index < beforeIndex.SizeBytes();
-                         ++index) {
-                        if (beforeIndex[index] == ')') {
-                            close = index;
-                            break;
-                        }
-                    }
-                    if (close == UINT32_MAX || close <= 1U) {
-                        return Base::Status::Failure(
-                            Base::ErrorCode::ValidationFailed,
-                            "VisualState GradientStops owner path is invalid");
-                    }
-                    brushOwnerPath =
-                        beforeIndex.Substr(1U, close - 1U);
-                } else {
-                    std::uint32_t separator = UINT32_MAX;
-                    for (std::uint32_t index = 0U;
-                         index < beforeIndex.SizeBytes();
-                         ++index) {
-                        if (beforeIndex[index] == '.') {
-                            separator = index;
-                            break;
-                        }
-                    }
-                    if (separator == UINT32_MAX || separator == 0U) {
-                        return Base::Status::Failure(
-                            Base::ErrorCode::ValidationFailed,
-                            "VisualState GradientStops owner property is missing");
-                    }
-                    brushOwnerPath =
-                        beforeIndex.Substr(0U, separator);
-                }
-                std::uint32_t ownerDot = UINT32_MAX;
-                for (std::uint32_t index = 0U;
-                     index < brushOwnerPath.SizeBytes();
-                     ++index) {
-                    if (brushOwnerPath[index] == '.') {
-                        ownerDot = index;
-                    }
-                }
-                const Base::StringView brushProperty =
-                    ownerDot == UINT32_MAX
-                    ? brushOwnerPath
-                    : brushOwnerPath.Substr(
-                          ownerDot + 1U,
-                          brushOwnerPath.SizeBytes() - ownerDot - 1U);
-                const DependencyProperty* prop =
-                    properties.Find(
-                        target->RuntimeType(),
-                        brushProperty);
-                if (prop != nullptr) {
-                    Base::Result<PropertyValue> brushVal =
-                        target->GetValue(prop->Handle());
-                    if (brushVal &&
-                        brushVal.Value().Kind() == ValueKind::Object &&
-                        brushVal.Value().AsObject() &&
-                        properties.Types().IsDerivedFrom(
-                            brushVal.Value().AsObject()->RuntimeType(),
-                            GradientBrush::StaticTypeId())) {
-                        gradient = Base::Ref<GradientBrush>::TryFromBorrowed(
-                            *static_cast<GradientBrush*>(
-                                brushVal.Value().AsObject().Get()));
-                    }
-                }
-            }
-            if (!gradient) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::NotFound,
-                    "VisualState GradientBrush target was not found");
-            }
-            const auto stops = gradient->GetGradientStops();
-            if (parsedIndex >= stops.Size() || !stops[static_cast<std::uint32_t>(parsedIndex)]) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::OutOfRange,
-                    "VisualState GradientStop index is out of range");
-            }
-            target = stops[static_cast<std::uint32_t>(parsedIndex)].Get();
-            path = terminalPath;
-            nestedTargetResolved = true;
-        } else if (transformChildren) {
-            Base::Ref<Transform> transform;
-            if (beforeIndex ==
-                    Base::StringView(
-                        "(TransformGroup.Children)") &&
-                properties.Types().IsDerivedFrom(
-                    target->RuntimeType(),
-                    TransformGroup::StaticTypeId())) {
-                transform =
-                    Base::Ref<Transform>::TryFromBorrowed(
-                        *static_cast<Transform*>(target));
-            } else {
-                const bool layoutPath =
-                    beforeIndex ==
-                        Base::StringView(
-                            "(FrameworkElement.LayoutTransform).(TransformGroup.Children)") ||
-                    beforeIndex ==
-                        Base::StringView(
-                            "LayoutTransform.Children");
-                if (layoutPath) {
-                    if (!properties.Types().IsDerivedFrom(
-                            target->RuntimeType(),
-                            FrameworkElement::StaticTypeId())) {
-                        return Base::Status::Failure(
-                            Base::ErrorCode::InvalidArgument,
-                            "VisualState LayoutTransform target is not a FrameworkElement");
-                    }
-                    transform =
-                        static_cast<FrameworkElement*>(
-                            target)->GetLayoutTransform();
-                } else {
-                    if (!properties.Types().IsDerivedFrom(
-                            target->RuntimeType(),
-                            UIElement::StaticTypeId())) {
-                        return Base::Status::Failure(
-                            Base::ErrorCode::InvalidArgument,
-                            "VisualState RenderTransform target is not a UIElement");
-                    }
-                    transform =
-                        static_cast<UIElement*>(
-                            target)->GetRenderTransform();
-                }
-            }
-            if (!transform ||
-                !properties.Types().IsDerivedFrom(
-                    transform->RuntimeType(),
-                    TransformGroup::StaticTypeId())) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::NotFound,
-                    "VisualState transform path has no TransformGroup");
-            }
-            auto& group =
-                static_cast<TransformGroup&>(*transform);
-            const auto children = group.GetChildren();
-            if (parsedIndex >= children.Size() ||
-                !children[static_cast<std::uint32_t>(
-                    parsedIndex)]) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::OutOfRange,
-                    "VisualState TransformGroup index is out of range");
-            }
-            target =
-                children[static_cast<std::uint32_t>(
-                    parsedIndex)].Get();
-            path = terminalPath;
-            nestedTargetResolved = true;
-        }
-    }
-
-    constexpr Base::StringView TransformPrefix(
-        "RenderTransform.");
-    if (!nestedTargetResolved &&
-        path.SizeBytes() > TransformPrefix.SizeBytes() &&
-        path.Substr(0U, TransformPrefix.SizeBytes()) ==
-            TransformPrefix) {
-        if (!properties.Types().IsDerivedFrom(
-                target->RuntimeType(),
-                UIElement::StaticTypeId())) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "RenderTransform animation target is not a UIElement");
-        }
-        Base::Ref<Transform> transform =
-            static_cast<UIElement*>(target)->GetRenderTransform();
-        if (!transform) {
-            return Base::Status::Failure(
-                Base::ErrorCode::NotFound,
-                "RenderTransform animation target has no transform");
-        }
-        target = transform.Get();
-        path = path.Substr(
-            TransformPrefix.SizeBytes(),
-            path.SizeBytes() - TransformPrefix.SizeBytes());
-    } else if (!nestedTargetResolved &&
-               compoundParenthesizedPath &&
-               path.SizeBytes() >= 7U &&
-               path[0] == '(' &&
-               path[path.SizeBytes() - 1U] == ')') {
-        std::uint32_t separator = UINT32_MAX;
-        for (std::uint32_t index = 1U;
-             index + 2U < path.SizeBytes();
-             ++index) {
-            if (path[index] == ')' &&
-                path[index + 1U] == '.' &&
-                path[index + 2U] == '(') {
-                separator = index;
-                break;
-            }
-        }
-        if (separator == UINT32_MAX) {
-            return Base::Status::Failure(
-                Base::ErrorCode::ValidationFailed,
-                "VisualState compound Storyboard path is malformed");
-        }
-        Base::StringView ownerPath =
-            path.Substr(1U, separator - 1U);
-        std::uint32_t ownerDot = UINT32_MAX;
-        for (std::uint32_t index = 0U;
-             index < ownerPath.SizeBytes(); ++index) {
-            if (ownerPath[index] == '.') {
-                ownerDot = index;
-            }
-        }
-        const Base::StringView ownerProperty =
-            ownerDot == UINT32_MAX
-            ? ownerPath
-            : ownerPath.Substr(
-                  ownerDot + 1U,
-                  ownerPath.SizeBytes() -
-                      ownerDot - 1U);
-        const DependencyProperty* owner =
-            properties.Find(
-                target->RuntimeType(),
-                ownerProperty);
-        if (owner == nullptr) {
-            return Base::Status::Failure(
-                Base::ErrorCode::NotFound,
-                "VisualState compound object property was not found");
-        }
-        Base::Result<PropertyValue> ownerValue =
-            target->GetValue(owner->Handle());
-        if (!ownerValue ||
-            ownerValue.Value().Kind() !=
-                ValueKind::Object ||
-            !ownerValue.Value().AsObject() ||
-            !properties.Types().IsDerivedFrom(
-                ownerValue.Value().AsObject()->
-                    RuntimeType(),
-                DependencyObject::StaticTypeId())) {
-            return Base::Status::Failure(
-                Base::ErrorCode::NotFound,
-                "VisualState compound object property has no DependencyObject value");
-        }
-        target =
-            static_cast<DependencyObject*>(
-                ownerValue.Value().AsObject().Get());
-        const std::uint32_t terminalStart =
-            separator + 3U;
-        path = path.Substr(
-            terminalStart,
-            path.SizeBytes() -
-                terminalStart - 1U);
-        nestedTargetResolved = true;
-    } else if (!nestedTargetResolved &&
-               path.SizeBytes() > 6U &&
-               path.Substr(
-                   path.SizeBytes() - 6U, 6U) ==
-                   Base::StringView(".Color")) {
-        path = path.Substr(0U, path.SizeBytes() - 6U);
-    } else if (!nestedTargetResolved) {
-        for (std::uint32_t index = 0U;
-             index < path.SizeBytes(); ++index) {
-            if (path[index] == '.') {
-                path = path.Substr(
-                    index + 1U,
-                    path.SizeBytes() - index - 1U);
-            }
-        }
-    }
-    path = NormalizePropertyPath(path);
-    std::uint32_t ownerDot = UINT32_MAX;
-    for (std::uint32_t index = 0U;
-         index < path.SizeBytes(); ++index) {
-        if (path[index] == '.') {
-            ownerDot = index;
-        }
-    }
-    if (ownerDot != UINT32_MAX) {
-        path = path.Substr(
-            ownerDot + 1U,
-            path.SizeBytes() - ownerDot - 1U);
-    }
-
-    const DependencyProperty* property =
-        properties.Find(target->RuntimeType(), path);
-    if (property == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            "VisualState Storyboard target property was not found");
-    }
-    return AnimationTarget{target, property->Handle()};
+    const Base::StringView authoredPath = authoredPathValue.Value().AsString();
+    Base::Result<ResolvedAnimationProperty> resolved =
+        ResolveAnimationPropertyPath(*target, authoredPath, properties);
+    if (!resolved) return resolved.GetStatus();
+    return AnimationTarget{resolved.Value().target, resolved.Value().property};
 }
 
 Aero::Media::Animation::Model::TimelineTiming ComposeTiming(
@@ -651,10 +234,9 @@ using namespace Aero::Media::Animation::Model;
 using namespace ::Aero::Meta;
 using namespace ::Aero::Media;
 using namespace ::Aero::Controls;
-using namespace ::Aero;
 
 Base::Result<VisualStateManager*>
-Controls::FrameworkTemplateState::CreateVisualStateManager(
+Controls::VisualStateManagerExecution::Create(
     Meta::EffectiveValueEngine& values,
     ::Aero::Controls::TemplateEngine& templates,
     ::Aero::AnimationEngine& animations,
@@ -684,8 +266,6 @@ using Aero::Controls::TemplateHandle;
 using namespace Aero::Media::Animation::Model;
 using namespace ::Aero::Meta;
 using namespace ::Aero::Media;
-using namespace ::Aero::Controls;
-using namespace ::Aero;
 
 
 
@@ -1866,7 +1446,7 @@ VisualStateManager::~VisualStateManager() noexcept {
     impl_ = nullptr;
 }
 
-Base::Result<bool> Controls::FrameworkTemplateState::GoToState(
+Base::Result<bool> Controls::VisualStateManagerExecution::GoToState(
     VisualStateManager& manager,
     Controls::Control& control,
     Base::StringView groupName,
@@ -1881,7 +1461,7 @@ Base::Result<bool> Controls::FrameworkTemplateState::GoToState(
               "VisualStateManager is not initialized"));
 }
 
-Base::Result<bool> Controls::FrameworkTemplateState::ClearState(
+Base::Result<bool> Controls::VisualStateManagerExecution::ClearState(
     VisualStateManager& manager,
     Controls::Control& control,
     Base::StringView groupName) noexcept {
@@ -1892,7 +1472,7 @@ Base::Result<bool> Controls::FrameworkTemplateState::ClearState(
         : Base::Result<bool>(false);
 }
 
-Base::Result<std::uint32_t> Controls::FrameworkTemplateState::Clear(
+Base::Result<std::uint32_t> Controls::VisualStateManagerExecution::Clear(
     VisualStateManager& manager,
     Controls::Control& control) noexcept {
     auto* runtime = static_cast<VisualStateManagerState*>(
@@ -1902,7 +1482,7 @@ Base::Result<std::uint32_t> Controls::FrameworkTemplateState::Clear(
         : Base::Result<std::uint32_t>(0U);
 }
 
-Base::StringView Controls::FrameworkTemplateState::CurrentState(
+Base::StringView Controls::VisualStateManagerExecution::CurrentState(
     const VisualStateManager& manager,
     const Controls::Control& control,
     Base::StringView groupName) noexcept {

@@ -7,6 +7,7 @@
 #include <Aero/Collections.hpp>
 #include <Aero/Controls.hpp>
 #include <Aero/Controls/ControlTemplate.hpp>
+#include <Aero/Controls/Border.hpp>
 #include <Aero/Controls/Image.hpp>
 #include <Aero/Controls/Label.hpp>
 #include <Aero/Controls/ProgressBar.hpp>
@@ -29,6 +30,7 @@
 #include <Aero/Media/Animation/DoubleAnimationBase.hpp>
 #include <Aero/Media/Animation/Duration.hpp>
 #include <Aero/Media/BrushShader.hpp>
+#include <Aero/Media/SolidColorBrush.hpp>
 #include <Aero/Media/Images.hpp>
 #include <Aero/Meta.hpp>
 #include <Aero/Module.hpp>
@@ -2071,6 +2073,147 @@ bool TestTypeKeyedStaticResourceBasedOn() {
     SAMPLE_CHECK(
         implicitToggle->GetBasedOn()->GetTargetType() ==
         ContentControl::StaticTypeId());
+    return true;
+}
+
+bool TestControlTemplateBasedOn() {
+    LiveGui* live = NewSampleLiveGui();
+    SAMPLE_CHECK(live != nullptr);
+    Aero::Markup::XamlReader reader(live->gui);
+    Aero::Diagnostics::DiagnosticBag& diagnostics = live->diagnostics;
+
+    // The derived template inherits the base visual tree (no own tree) and
+    // adds one trigger. TargetName="Border" resolves into the BASE tree.
+    const char* surface =
+        "<ToggleButton xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+        " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\""
+        " x:Name=\"T\" Content=\"T\" Width=\"120\" Height=\"32\""
+        " Template=\"{StaticResource Template.Derived}\">"
+        "<ToggleButton.Resources>"
+        "<ResourceDictionary>"
+        "<ControlTemplate x:Key=\"Template.Base\" TargetType=\"ToggleButton\">"
+        "<Grid><Border x:Name=\"Border\" Background=\"#FFA0A0A0\"/>"
+        "<ContentPresenter HorizontalAlignment=\"Center\" VerticalAlignment=\"Center\"/>"
+        "</Grid>"
+        "<ControlTemplate.Triggers>"
+        "<Trigger Property=\"IsMouseOver\" Value=\"True\">"
+        "<Setter Property=\"Background\" Value=\"#FFFF0000\" TargetName=\"Border\"/>"
+        "</Trigger>"
+        "</ControlTemplate.Triggers>"
+        "</ControlTemplate>"
+        "<ControlTemplate x:Key=\"Template.Derived\" TargetType=\"ToggleButton\""
+        " BasedOn=\"{StaticResource Template.Base}\">"
+        "<ControlTemplate.Triggers>"
+        "<Trigger Property=\"IsChecked\" Value=\"True\">"
+        "<Setter Property=\"Opacity\" Value=\"0.5\"/>"
+        "</Trigger>"
+        "</ControlTemplate.Triggers>"
+        "</ControlTemplate>"
+        "</ResourceDictionary>"
+        "</ToggleButton.Resources>"
+        "</ToggleButton>";
+    diagnostics.Clear();
+    Result<Aero::Markup::XamlDocument> document = reader.Parse(
+        CStringView(surface), {}, {}, &diagnostics);
+    SAMPLE_CHECK(!FailIfSampleError(
+        StringView("Template BasedOn surface"),
+        document.GetStatus(),
+        diagnostics));
+    SAMPLE_CHECK(document);
+    SAMPLE_CHECK(MountAndLayout(
+        *live, std::move(document).Value(),
+        StringView("Template BasedOn surface"), false));
+    SAMPLE_CHECK(PumpSample(*live));
+    SAMPLE_CHECK(PumpSample(*live));
+
+    // Non-Window roots are hosted inside a Grid panel by MountAndLayout;
+    // the parsed document is retained as the sample document.
+    auto* toggle = live->sampleDocument
+        .Root<Aero::Controls::Primitives::ToggleButton>();
+    SAMPLE_CHECK(toggle != nullptr);
+    // GetTemplateChild is protected (WPF parity); walk the visual tree.
+    Aero::Controls::Border* border = nullptr;
+    if (VisualTreeHelper::GetChildrenCount(*toggle) > 0U) {
+        Aero::Media::Visual* root =
+            VisualTreeHelper::GetChild(*toggle, 0U);
+        if (root != nullptr) {
+            const std::uint32_t nested =
+                VisualTreeHelper::GetChildrenCount(*root);
+            for (std::uint32_t index = 0U; index < nested; ++index) {
+                border = TryCast<Aero::Controls::Border>(
+                    VisualTreeHelper::GetChild(*root, index));
+                if (border != nullptr) {
+                    break;
+                }
+            }
+        }
+    }
+    SAMPLE_CHECK(border != nullptr);
+
+    // The inherited IsMouseOver trigger drives the inherited Border.
+    const Aero::Size size = toggle->GetRenderSize();
+    SAMPLE_CHECK(size.width > 0.0 && size.height > 0.0);
+    Aero::Point screen{};
+    SAMPLE_CHECK(toggle->TryPointToScreen(
+        {size.width * 0.5, size.height * 0.5}, screen));
+    static_cast<void>(live->view->MouseMove(
+        static_cast<int>(screen.x), static_cast<int>(screen.y)));
+    SAMPLE_CHECK(PumpSample(*live));
+    SAMPLE_CHECK(toggle->GetIsMouseOver());
+    auto isRed = [](const Aero::Base::Color& color) noexcept {
+        const float near = 0.02F;
+        return color.alpha > 1.0F - near && color.red > 1.0F - near &&
+            color.green < near && color.blue < near;
+    };
+    Aero::Media::Brush* background = border->GetBackground().Get();
+    auto* red = TryCast<Aero::Media::SolidColorBrush>(background);
+    SAMPLE_CHECK(red != nullptr);
+    SAMPLE_CHECK(isRed(red->GetColor()));
+
+    // The derived IsChecked trigger applies to the templated control itself.
+    toggle->SetIsChecked(Aero::Nullable<bool>(true));
+    SAMPLE_CHECK(PumpSample(*live));
+    const double opacity = toggle->GetOpacity();
+    SAMPLE_CHECK(opacity > 0.49 && opacity < 0.51);
+
+    // Incompatible TargetType must fail instead of silently mismatching.
+    const char* badTarget =
+        "<ResourceDictionary xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+        " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
+        "<ControlTemplate x:Key=\"Template.Base\" TargetType=\"ToggleButton\">"
+        "<Grid><Border Background=\"Transparent\"/></Grid>"
+        "</ControlTemplate>"
+        "<ControlTemplate x:Key=\"Template.Bad\" TargetType=\"Button\""
+        " BasedOn=\"{StaticResource Template.Base}\">"
+        "<ControlTemplate.Triggers>"
+        "<Trigger Property=\"IsMouseOver\" Value=\"True\">"
+        "<Setter Property=\"Opacity\" Value=\"0.5\"/>"
+        "</Trigger>"
+        "</ControlTemplate.Triggers>"
+        "</ControlTemplate>"
+        "</ResourceDictionary>";
+    diagnostics.Clear();
+    Result<Aero::Markup::XamlDocument> rejected = reader.Parse(
+        CStringView(badTarget), {}, {}, &diagnostics);
+    SAMPLE_CHECK(!rejected);
+
+    // A BasedOn cycle must fail instead of recursing.
+    const char* cyclic =
+        "<ResourceDictionary xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\""
+        " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
+        "<ControlTemplate x:Key=\"Template.A\" TargetType=\"Button\""
+        " BasedOn=\"{StaticResource Template.B}\">"
+        "<Grid><Border Background=\"Transparent\"/></Grid>"
+        "</ControlTemplate>"
+        "<ControlTemplate x:Key=\"Template.B\" TargetType=\"Button\""
+        " BasedOn=\"{StaticResource Template.A}\">"
+        "<Grid><Border Background=\"Transparent\"/></Grid>"
+        "</ControlTemplate>"
+        "</ResourceDictionary>";
+    diagnostics.Clear();
+    Result<Aero::Markup::XamlDocument> looped = reader.Parse(
+        CStringView(cyclic), {}, {}, &diagnostics);
+    SAMPLE_CHECK(!looped);
     return true;
 }
 

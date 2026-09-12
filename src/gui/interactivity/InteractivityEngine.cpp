@@ -10,6 +10,7 @@
 #include <utility>
 
 #include "gui/controls/ItemsContainers.hpp"
+#include "gui/triggers/TriggerValueCompare.hpp"
 namespace Aero {
 
 using namespace ::Aero;
@@ -300,42 +301,8 @@ Base::Result<bool> InteractivityEngine::ConditionBehaviorsAllowExecution(
 Base::Result<bool> InteractivityEngine::DataTemplateTriggerValuesMatch(
         const Meta::PropertyValue& actual,
         Meta::PropertyValue expected) noexcept {
-        if (actual.Kind() == Meta::ValueKind::Object &&
-            !actual.IsNullObject() &&
-            actual.AsObject() &&
-            actual.AsObject()->RuntimeType() ==
-                BoxedItemValue::StaticTypeId()) {
-            return DataTemplateTriggerValuesMatch(
-                static_cast<const BoxedItemValue&>(
-                    *actual.AsObject()).Value(),
-                std::move(expected));
-        }
-        if (expected.IsNullObject() || expected.IsUnset()) {
-            return actual.IsNullObject() || actual.IsUnset();
-        }
-        if (expected.Kind() == Meta::ValueKind::String &&
-            actual.Kind() == Meta::ValueKind::String) {
-            return actual.AsString() == expected.AsString();
-        }
-        if (expected.Kind() == Meta::ValueKind::String &&
-            expected.Type() != actual.Type()) {
-            if (Metadata() == nullptr) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::InvalidState,
-                    "DataTemplate Trigger metadata is unavailable");
-            }
-            Base::Result<Meta::PropertyValue> converted =
-                Metadata()->TryConvertText(
-                    actual.Type(), expected.AsString());
-            if (!converted) {
-                // WPF data conditions simply do not match when the authored
-                // value cannot be converted to the source property's type.
-                return false;
-            }
-            expected = std::move(converted).Value();
-        }
-        return actual == expected;
-    }
+    return ComparePropertyValues(actual, std::move(expected), Metadata());
+}
 
 Base::Result<bool> InteractivityEngine::EvaluateTriggerComparison(
         const Meta::PropertyValue& actual,

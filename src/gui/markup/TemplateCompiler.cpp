@@ -1522,6 +1522,71 @@ CompileControlTemplateDefinition(
     return definition;
 }
 
+// Compiles a derived ControlTemplate that inherits its visual tree from a
+// sealed XAML-compiled base template (BasedOn without own VisualTree).
+// Derived-authored property triggers and visual states resolve
+// TargetName/SourceName against the BASE blueprint, i.e. the shared tree.
+// Action-bearing Trigger/DataTrigger/EventTrigger declarations cannot be
+// represented in the property-trigger table; they must live in a template
+// that authors its own VisualTree.
+Base::Result<void>
+CompileInheritedControlTemplate(
+    ControlTemplate& derivedTemplate,
+    const CompiledTemplateBlueprint& baseBlueprint,
+    Meta::Registry& runtime,
+    DependencyPropertyRegistry& properties) noexcept {
+    for (const Base::Ref<Base::Object>& object :
+        FrameworkTemplateState::AuthoredTriggers(derivedTemplate)) {
+        if (!object) {
+            continue;
+        }
+        const Meta::TypeId kind = object->RuntimeType();
+        if (kind == EventTrigger::StaticTypeId() ||
+            kind == DataTrigger::StaticTypeId() ||
+            kind == MultiDataTrigger::StaticTypeId()) {
+            return InvalidTemplateCompiler(
+                "Inherited ControlTemplate authoring an EventTrigger or DataTrigger requires its own VisualTree");
+        }
+        if (kind == Trigger::StaticTypeId()) {
+            const auto& source = static_cast<const Trigger&>(*object);
+            if (!source.GetEnterActions().Empty() ||
+                !source.GetExitActions().Empty()) {
+                return InvalidTemplateCompiler(
+                    "Inherited ControlTemplate Trigger with Enter/ExitActions requires its own VisualTree");
+            }
+        }
+    }
+    Base::Result<Base::Vector<TemplatePropertyTrigger>> triggers =
+        CompilePropertyTriggers(
+            derivedTemplate, baseBlueprint, runtime, properties);
+    if (!triggers) {
+        return triggers.GetStatus();
+    }
+    for (TemplatePropertyTrigger& trigger : triggers.Value()) {
+        Base::Result<void> added =
+            FrameworkTemplateState::AddPropertyTrigger(
+                derivedTemplate, std::move(trigger));
+        if (!added) {
+            return added.GetStatus();
+        }
+    }
+    Base::Result<Base::Vector<VisualStateGroupPlan>> groups =
+        CompileVisualStates(
+            derivedTemplate, baseBlueprint, runtime, properties);
+    if (!groups) {
+        return groups.GetStatus();
+    }
+    for (VisualStateGroupPlan& group : groups.Value()) {
+        Base::Result<void> added =
+            FrameworkTemplateState::AddVisualStateGroup(
+                derivedTemplate, std::move(group));
+        if (!added) {
+            return added.GetStatus();
+        }
+    }
+    return {};
+}
+
 Base::Result<CompiledTemplateBlueprint>
 CompileDeferredTemplateBlueprint(
     const Base::Ref<Base::Object>& visualTree,

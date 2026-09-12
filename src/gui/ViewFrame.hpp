@@ -261,33 +261,15 @@ struct ViewFrame {
     FocusHost* focus = nullptr;
     ResourceHost* resources = nullptr;
 
-    Aero::LayoutEngine* Layout() const noexcept {
-        return tree != nullptr ? tree->Layout() : nullptr;
-    }
-    ::Aero::Render::RenderTree* RenderTree() const noexcept {
-        return tree != nullptr ? tree->RenderTree() : nullptr;
-    }
-    Aero::BindingEngine* Bindings() const noexcept {
-        return tree != nullptr ? tree->Bindings() : nullptr;
-    }
-    Aero::StyleEngine* Styles() const noexcept {
-        return tree != nullptr ? tree->Styles() : nullptr;
-    }
-    Aero::EventRouter* Events() const noexcept {
-        return tree != nullptr ? tree->Events() : nullptr;
-    }
-    Aero::InputRouter* Input() const noexcept {
-        return tree != nullptr ? tree->Input() : nullptr;
-    }
-    Aero::AnimationEngine* Animations() const noexcept {
-        return tree != nullptr ? tree->Animations() : nullptr;
-    }
-    VisualStateManager* VisualStates() const noexcept {
-        return tree != nullptr ? tree->VisualStates() : nullptr;
-    }
-    Aero::Controls::TemplateEngine* Templates() const noexcept {
-        return tree != nullptr ? tree->Templates() : nullptr;
-    }
+    Aero::LayoutEngine* Layout() const noexcept;
+    ::Aero::Render::RenderTree* RenderTree() const noexcept;
+    Aero::BindingEngine* Bindings() const noexcept;
+    Aero::StyleEngine* Styles() const noexcept;
+    Aero::EventRouter* Events() const noexcept;
+    Aero::InputRouter* Input() const noexcept;
+    Aero::AnimationEngine* Animations() const noexcept;
+    VisualStateManager* VisualStates() const noexcept;
+    Aero::Controls::TemplateEngine* Templates() const noexcept;
 
     // Mount, provider-generation, and resource-layer state.
     Markup::Schema* schema = nullptr;

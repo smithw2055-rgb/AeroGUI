@@ -52,12 +52,7 @@ its types below.
 - `core/PropertySystem.cpp` — `DependencyProperty` effective-value engine
 - `styles/Style.cpp` — `StyleEngine` (style application/seal; delegates trigger evaluation to `TriggerEngine`)
 - `triggers/TriggerEngine.cpp` — `TriggerEngine` (style/control/template trigger evaluation, deferred trigger phase, `SetBindingTriggerState`)
-- `triggers/BaseTrigger.cpp` — `TriggerBase` (+ shared `InvalidStyle` diagnostic)
-- `triggers/Trigger.cpp` — `Trigger` (property trigger)
-- `triggers/DataTrigger.cpp` — `DataTrigger`
-- `triggers/Condition.cpp` — `Condition`
-- `triggers/MultiTrigger.cpp` — `MultiTrigger`
-- `triggers/MultiDataTrigger.cpp` — `MultiDataTrigger`
+- `triggers/Triggers.cpp` — `TriggerBase`, `Trigger`, `DataTrigger`, `Condition`, `MultiTrigger`, `MultiDataTrigger`
 - `interactivity/BlendBehaviors.cpp` — `Interaction::*` Blend behaviors (moved from `controls/`)
 - `interactivity/Interactivity.cpp` — `Interaction` attached properties
 

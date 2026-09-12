@@ -347,6 +347,90 @@ struct XamlTemplateSchemaFacet::State {
         }
         auto& controlTemplate =
             static_cast<ControlTemplate&>(object);
+        // BasedOn inheritance without own VisualTree: the derived template
+        // shares the sealed base tree/factory and only authors incremental
+        // triggers or visual states (resolved against the base blueprint).
+        // Seal() prepends the base plans base-first.
+        bool hasOwnTree =
+            static_cast<bool>(
+                ::Aero::Controls::FrameworkTemplateState::AuthoredVisualTree(
+                    controlTemplate));
+        if (!hasOwnTree) {
+            for (std::uint32_t index = 0U; index < edges.Size(); ++index) {
+                if (edges[index].owner == &object && edges[index].child) {
+                    hasOwnTree = true;
+                    break;
+                }
+            }
+        }
+        FrameworkTemplate* templateBase =
+            ::Aero::Controls::FrameworkTemplateState::BasedOn(
+                static_cast<FrameworkTemplate&>(controlTemplate));
+        if (!hasOwnTree && templateBase != nullptr) {
+            auto* baseControl =
+                TryCast<ControlTemplate>(templateBase);
+            if (baseControl == nullptr || !baseControl->GetIsSealed()) {
+                return InvalidTemplateXaml(
+                    "BasedOn template must be a sealed ControlTemplate");
+            }
+            const bool addsTriggers =
+                !::Aero::Controls::FrameworkTemplateState::AuthoredTriggers(
+                    static_cast<FrameworkTemplate&>(controlTemplate)).Empty();
+            const bool addsStates =
+                !::Aero::Controls::FrameworkTemplateState::AuthoredVisualStateGroups(
+                    controlTemplate).Empty();
+            const auto baseFactory =
+                ::Aero::Controls::FrameworkTemplateState::Factory(*baseControl);
+            void* const baseFactoryContext =
+                ::Aero::Controls::FrameworkTemplateState::FactoryContext(
+                    *baseControl);
+            if (addsTriggers || addsStates) {
+                if (baseFactory != &BuildCompiledTemplate ||
+                    baseFactoryContext == nullptr) {
+                    return InvalidTemplateXaml(
+                        "Inherited ControlTemplate triggers require a XAML-compiled BasedOn template");
+                }
+                Base::Result<void> inherited =
+                    CompileInheritedControlTemplate(
+                        controlTemplate,
+                        *static_cast<const CompiledTemplateBlueprint*>(
+                            baseFactoryContext),
+                        *self->runtime,
+                        *self->properties);
+                if (!inherited) {
+                    return inherited.GetStatus();
+                }
+            }
+            if (baseFactory == nullptr) {
+                return InvalidTemplateXaml(
+                    "BasedOn template has no factory to inherit");
+            }
+            Base::Ref<Base::Object> baseOwner =
+                ::Aero::Controls::FrameworkTemplateState::FactoryOwner(
+                    *baseControl);
+            Base::Result<void> configured =
+                ::Aero::Controls::FrameworkTemplateState::ConfigureFactory(
+                    controlTemplate,
+                    baseFactory,
+                    baseFactoryContext,
+                    std::move(baseOwner));
+            if (configured) {
+                configured =
+                    ::Aero::Controls::FrameworkTemplateState::Seal(
+                        controlTemplate,
+                        *self->properties);
+            }
+            if (!configured) {
+                return configured.GetStatus();
+            }
+            services.deferredContent->ReleaseOwner(
+                object);
+            ::Aero::Controls::FrameworkTemplateState::ClearAuthoredVisualTree(controlTemplate);
+            ::Aero::Controls::FrameworkTemplateState::ClearAuthoredVisualStateGroups(controlTemplate);
+            ::Aero::Controls::FrameworkTemplateState::ClearAuthoredTriggers(controlTemplate);
+            ::Aero::Controls::FrameworkTemplateState::ClearAuthoredNames(controlTemplate);
+            return {};
+        }
         if (controlTemplate.GetTargetType() ==
             Meta::InvalidTypeId) {
             // WPF permits a keyed ControlTemplate to omit TargetType. The

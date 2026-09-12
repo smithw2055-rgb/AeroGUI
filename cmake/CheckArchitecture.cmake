@@ -1041,8 +1041,24 @@ aero_require_text(
     "src/gui/markup/XamlObjectWriterNameScope.cpp"
     "ObjectWriter::ConnectEvent("
     "XAML event attributes must connect through the object-writer pipeline")
-aero_require_file("templates/AeroApp/App.xaml")
-aero_require_file("templates/AeroApp/MainWindow.xaml")
+aero_require_file("samples/HelloWpf/App.xaml")
+aero_require_file("samples/HelloWpf/MainWindow.xaml")
+# Built-in + extension themes are embedded into BuiltinThemes.generated.hpp;
+# every Source= pack URI registered in Gui.cpp must resolve to a file here.
+foreach(aero_required_theme IN ITEMS
+        "themes/Light.xaml"
+        "themes/Dark.xaml"
+        "themes/Generic.xaml"
+        "themes/AeroGUIExtensions/AeroTheme.LightBlue.xaml"
+        "themes/AeroGUIExtensions/AeroTheme.DarkBlue.xaml"
+        "themes/AeroGUIExtensions/AeroTheme.Brushes.LightBlue.xaml"
+        "themes/AeroGUIExtensions/AeroTheme.Brushes.DarkBlue.xaml"
+        "themes/AeroGUIExtensions/AeroTheme.Colors.Light.xaml"
+        "themes/AeroGUIExtensions/AeroTheme.Colors.Dark.xaml"
+        "themes/AeroGUIExtensions/AeroTheme.Fonts.xaml"
+        "themes/AeroGUIExtensions/AeroTheme.Styles.xaml")
+    aero_require_file("${aero_required_theme}")
+endforeach()
 
 # ---------------------------------------------------------------------------
 # Gui / XAML / View ownership

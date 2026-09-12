@@ -12,6 +12,7 @@
 
 namespace Aero::Controls {
 class Control;
+class VisualStateManagerExecution;
 struct FrameworkTemplateState;
 }
 
@@ -39,6 +40,7 @@ public:
     VisualStateManager& operator=(const VisualStateManager&) = delete;
 
 private:
+    friend class Controls::VisualStateManagerExecution;
     friend struct Controls::FrameworkTemplateState;
     VisualStateManager() noexcept = default;
     void* impl_ = nullptr;

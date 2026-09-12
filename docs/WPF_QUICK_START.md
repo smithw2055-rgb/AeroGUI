@@ -192,8 +192,32 @@ façade does not discard resources or deferred effects. Direct parsing,
 compiled-document loading, hot reload, and schema/tooling work remain on the
 advanced `Markup::XamlReader` surface.
 
-## Custom controls
+## ControlTemplate inheritance (Aero extension)
 
+WPF has no `ControlTemplate.BasedOn`; Aero adds one so theme variants share a
+visual tree without copy-paste. A derived template either authors a complete
+`VisualTree` (only plans are inherited) or omits it and inherits the sealed
+base factory, storyboards and all compiled plans:
+
+```xml
+<ControlTemplate x:Key="Template.ToggleButton" TargetType="ToggleButton"
+    BasedOn="{StaticResource Template.ButtonBase}">
+  <ControlTemplate.Triggers>
+    <Trigger Property="IsChecked" Value="True">
+      <Setter Property="Background" Value="{DynamicResource Brush.Background.Checked}"
+              TargetName="Border"/>
+    </Trigger>
+  </ControlTemplate.Triggers>
+</ControlTemplate>
+```
+
+Rules (mirroring `Style.BasedOn`): the base must seal first, the derived
+`TargetType` must match or derive from the base target, base plans merge
+base-first, and same-name `VisualStateGroup`s are rejected. `TargetName`s in
+derived triggers resolve against the inherited tree. A `BasedOn` cycle or an
+incompatible target fails the document load instead of rendering silently.
+
+## Custom controls
 Custom-control **authors** include their WPF base type plus `Aero/Meta.hpp` (for `AERO_DECLARE_TYPE` metadata and `Meta::Register`). Application code that only uses `Button`, `Grid`, and `LoadXaml` should **not** include `Meta.hpp`.
 
 ```cpp

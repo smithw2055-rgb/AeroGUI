@@ -8,6 +8,7 @@
 #include <Aero/Visual.hpp>
 #include <Aero/Media/Animation/Storyboard.hpp>
 #include <Aero/Media/Animation/EasingFunctionBase.hpp>
+#include "gui/controls/VisualStateManagerExecution.hpp"
 
 #include <cstdint>
 
@@ -140,6 +141,8 @@ struct TemplatePropertyTrigger {
 
 } // namespace Aero::Controls
 
+namespace Aero { class FrameworkTemplate; }
+
 namespace Aero::Controls {
 
 struct TemplateProgram {
@@ -209,6 +212,10 @@ struct FrameworkTemplateState {
     static FrameworkTemplateState* State(FrameworkTemplate& value) noexcept;
     static const FrameworkTemplateState* State(const FrameworkTemplate& value) noexcept;
     static Base::Result<void> SetTargetType(FrameworkTemplate& value, Meta::TypeId type) noexcept;
+    static Base::Result<void> SetBasedOn(FrameworkTemplate& value, ::Aero::FrameworkTemplate* basedOn) noexcept;
+    static Base::Result<void> SetBasedOn(FrameworkTemplate& value, Base::Ref<Base::Object> basedOn) noexcept;
+    static ::Aero::FrameworkTemplate* BasedOn(FrameworkTemplate& value) noexcept;
+    static const ::Aero::FrameworkTemplate* BasedOn(const FrameworkTemplate& value) noexcept;
     static Base::Result<void> ConfigureFactory(FrameworkTemplate& value, TemplateFactoryCallback factory, void* context = nullptr, Base::Ref<Base::Object> owner = {}) noexcept;
     static Base::Result<void> AddTemplateBinding(FrameworkTemplate& value, Base::StringView targetName, DependencyPropertyHandle sourceProperty, DependencyPropertyHandle targetProperty) noexcept;
     static Base::Result<void> AddTemplatedParentBinding(FrameworkTemplate& value, Base::StringView targetName, Base::StringView path, Base::StringView stringFormat, DependencyPropertyHandle targetProperty, Data::BindingMode mode, UpdateSourceTrigger updateSourceTrigger, const Base::Ref<Data::IValueConverter>& converter = {}, const Meta::PropertyValue& converterParameter = {}) noexcept;
@@ -249,33 +256,50 @@ struct FrameworkTemplateState {
         TemplateBuilder& context,
         const Meta::DependencyPropertyRegistry& properties) noexcept;
 
-    // VisualStateManager execution path (merged companion).
+    // VisualStateManager execution path (forwarding to VisualStateManagerExecution).
     static Base::Result<::Aero::VisualStateManager*> CreateVisualStateManager(
         Meta::EffectiveValueEngine& values,
         ::Aero::Controls::TemplateEngine& templates,
         ::Aero::AnimationEngine& animations,
-        Meta::DependencyPropertyRegistry& properties) noexcept;
+        Meta::DependencyPropertyRegistry& properties) noexcept {
+        return VisualStateManagerExecution::Create(values, templates, animations, properties);
+    }
     static Base::Result<bool> GoToState(
         ::Aero::VisualStateManager& manager,
         ::Aero::Controls::Control& control,
         Base::StringView groupName,
         Base::StringView stateName,
-        bool useTransitions = true) noexcept;
+        bool useTransitions = true) noexcept {
+        return VisualStateManagerExecution::GoToState(
+            manager, control, groupName, stateName, useTransitions);
+    }
     static Base::Result<bool> ClearState(
         ::Aero::VisualStateManager& manager,
         ::Aero::Controls::Control& control,
-        Base::StringView groupName) noexcept;
+        Base::StringView groupName) noexcept {
+        return VisualStateManagerExecution::ClearState(manager, control, groupName);
+    }
     static Base::Result<std::uint32_t> Clear(
         ::Aero::VisualStateManager& manager,
-        ::Aero::Controls::Control& control) noexcept;
+        ::Aero::Controls::Control& control) noexcept {
+        return VisualStateManagerExecution::Clear(manager, control);
+    }
     static Base::StringView CurrentState(
         const ::Aero::VisualStateManager& manager,
         const ::Aero::Controls::Control& control,
-        Base::StringView groupName) noexcept;
+        Base::StringView groupName) noexcept {
+        return VisualStateManagerExecution::CurrentState(manager, control, groupName);
+    }
 
     Meta::TypeId targetType = Meta::InvalidTypeId;
     TemplateProgram program;
     ResourceDictionary resources;
+    // Optional inheritance link. When set, Seal() requires the base template
+    // to be sealed first, inherits its factory when this template authors no
+    // VisualTree, and prepends its compiled plans base-first. The link is
+    // retained after sealing so GetBasedOn() keeps working (Style parity).
+    ::Aero::FrameworkTemplate* basedOn = nullptr;
+    Base::Ref<Base::Object> basedOnOwner;
     Base::Vector<TemplateBindingPlan> bindings;
     Base::Vector<TemplateMetadataBindingPlan> metadataBindings;
     Base::Vector<TemplateDynamicResourcePlan> dynamicResources;

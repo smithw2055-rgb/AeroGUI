@@ -15,6 +15,7 @@
 #include "gui/markup/XamlObjectWriterCommon.hpp"
 #include "gui/markup/MarkupExtensionHost.hpp"
 #include <Aero/Markup/XamlReader.hpp>
+#include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/Markup/ServiceProvider.hpp>
 #include <Aero/VisualStateManager.hpp>
 
@@ -262,11 +263,13 @@ Base::Result<void> ObjectWriter::CompleteObject(
         }
     }
 
-    // BasedOn="{StaticResource {x:Type T}}" is queued when the type key is
+    // BasedOn="{StaticResource ...}" is queued when the referenced key is
     // not yet visible (merged Source dictionaries commit after EndObject).
-    // Sealing now would reject the deferred BasedOn write.
+    // Sealing now would reject the deferred BasedOn write. Applies to Style
+    // and to ControlTemplate (template inheritance).
     if (!(record.deferredStaticResource &&
-          record.type == Aero::Style::StaticTypeId())) {
+          (record.type == Aero::Style::StaticTypeId() ||
+           record.type == Aero::Controls::ControlTemplate::StaticTypeId()))) {
     Base::Result<void> endResult = schema_->EndInit(
         record.type,
         *record.object,

@@ -14,6 +14,7 @@
 #include <Aero/DataTemplateSelector.hpp>
 #include <Aero/Controls/ItemsPanelTemplate.hpp>
 #include <Aero/Triggers/TriggerBase.hpp>
+#include "gui/triggers/TriggerValueCompare.hpp"
 #include "gui/templates/TemplateInstance.hpp"
 
 #include "render/RenderTree.hpp"
@@ -77,7 +78,8 @@ bool TemplateTriggerCondition::IsMet(
         return !static_cast<Primitives::ToggleButton&>(
             source).GetIsChecked().GetHasValue();
     }
-    return current == value;
+    Base::Result<bool> matched = ComparePropertyValues(current, value, nullptr);
+    return matched && matched.Value();
 }
 
 namespace {
@@ -795,6 +797,39 @@ bool FrameworkTemplate::GetIsSealed() const noexcept {
     return state != nullptr && state->sealed;
 }
 
+bool FrameworkTemplate::SetBasedOn(FrameworkTemplate* basedOn) noexcept {
+    Controls::FrameworkTemplateState* state = static_cast<Controls::FrameworkTemplateState*>(state_);
+    if (state == nullptr || state->sealed || basedOn == this) {
+        return false;
+    }
+    state->basedOn = basedOn;
+    if (basedOn == nullptr) {
+        state->basedOnOwner.Reset();
+    }
+    return true;
+}
+
+bool FrameworkTemplate::SetBasedOn(Ref<Base::Object> basedOn) noexcept {
+    if (basedOn &&
+        basedOn->RuntimeType() != Controls::ControlTemplate::StaticTypeId()) {
+        return false;
+    }
+    auto* plain = static_cast<FrameworkTemplate*>(basedOn.Get());
+    if (!SetBasedOn(plain)) {
+        return false;
+    }
+    Controls::FrameworkTemplateState* state = static_cast<Controls::FrameworkTemplateState*>(state_);
+    if (state != nullptr) {
+        state->basedOnOwner = std::move(basedOn);
+    }
+    return true;
+}
+
+const FrameworkTemplate* FrameworkTemplate::GetBasedOn() const noexcept {
+    const Controls::FrameworkTemplateState* state = static_cast<const Controls::FrameworkTemplateState*>(state_);
+    return state != nullptr ? state->basedOn : nullptr;
+}
+
 ResourceDictionary& FrameworkTemplate::GetResources() noexcept {
     auto* state = static_cast<Controls::FrameworkTemplateState*>(state_);
     if (state != nullptr) return state->resources;
@@ -1104,6 +1139,48 @@ Base::Result<void> FrameworkTemplateState::SetTargetType(
     if (value == InvalidTypeId) return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "FrameworkTemplate TargetType is invalid");
     state->targetType = value;
     return {};
+}
+
+Base::Result<void> FrameworkTemplateState::SetBasedOn(
+    FrameworkTemplate& templateValue,
+    ::Aero::FrameworkTemplate* basedOn) noexcept {
+    FrameworkTemplateState* state = State(templateValue);
+    if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "FrameworkTemplate state allocation failed");
+    if (state->sealed) return InvalidTemplate("Cannot modify a sealed FrameworkTemplate");
+    if (basedOn == &templateValue) return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "FrameworkTemplate BasedOn cannot reference itself");
+    state->basedOn = basedOn;
+    if (basedOn == nullptr) {
+        state->basedOnOwner.Reset();
+    }
+    return {};
+}
+
+Base::Result<void> FrameworkTemplateState::SetBasedOn(
+    FrameworkTemplate& templateValue,
+    Base::Ref<Base::Object> basedOn) noexcept {
+    if (basedOn &&
+        basedOn->RuntimeType() != ControlTemplate::StaticTypeId()) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "FrameworkTemplate BasedOn requires a ControlTemplate");
+    }
+    auto* plain = static_cast<::Aero::FrameworkTemplate*>(basedOn.Get());
+    Base::Result<void> assigned = SetBasedOn(templateValue, plain);
+    if (!assigned) return assigned.GetStatus();
+    if (plain != nullptr) {
+        if (FrameworkTemplateState* state = State(templateValue)) {
+            state->basedOnOwner = std::move(basedOn);
+        }
+    }
+    return {};
+}
+
+::Aero::FrameworkTemplate* FrameworkTemplateState::BasedOn(FrameworkTemplate& value) noexcept {
+    FrameworkTemplateState* state = State(value);
+    return state != nullptr ? state->basedOn : nullptr;
+}
+
+const ::Aero::FrameworkTemplate* FrameworkTemplateState::BasedOn(const FrameworkTemplate& value) noexcept {
+    const FrameworkTemplateState* state = State(value);
+    return state != nullptr ? state->basedOn : nullptr;
 }
 
 Base::Result<void> FrameworkTemplateState::ConfigureFactory(
@@ -1533,6 +1610,137 @@ Base::Result<void> FrameworkTemplateState::Seal(
     FrameworkTemplateState* templateState = State(templateValue);
     if (templateState == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "FrameworkTemplate state allocation failed");
     if (templateState->sealed) return {};
+    // BasedOn inheritance (ControlTemplate only): the base template must be
+    // sealed first so its compiled plans are complete. The derived template
+    // inherits the base factory when it authors no VisualTree, inherits the
+    // base TargetType when it omits one, and prepends base plans base-first.
+    // Visual content itself is never merged: a derived template either
+    // inherits the whole base tree (no own tree) or authors a complete one.
+    if (templateState->basedOn != nullptr) {
+        FrameworkTemplate* baseTemplate = templateState->basedOn;
+        const FrameworkTemplate* ancestor = baseTemplate;
+        while (ancestor != nullptr) {
+            if (ancestor == &templateValue) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::CycleDetected,
+                    "ControlTemplate BasedOn graph contains a cycle");
+            }
+            if (!ancestor->GetIsSealed()) {
+                return InvalidTemplate(
+                    "BasedOn template must be sealed before its derived template");
+            }
+            ancestor = FrameworkTemplateState::BasedOn(*ancestor);
+        }
+        const Meta::TypeId baseTarget = baseTemplate->GetTargetType();
+        if (templateState->targetType == InvalidTypeId) {
+            if (baseTarget == InvalidTypeId) {
+                return InvalidTemplate(
+                    "ControlTemplate BasedOn target type is invalid");
+            }
+            templateState->targetType = baseTarget;
+        } else if (baseTarget == InvalidTypeId ||
+            !IsTargetCompatible(
+                properties.Types(), templateState->targetType, baseTarget)) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "Derived ControlTemplate target type is incompatible with BasedOn target type");
+        }
+        if (templateState->program.factory == nullptr) {
+            const TemplateFactoryCallback baseFactory =
+                FrameworkTemplateState::Factory(*baseTemplate);
+            if (baseFactory != nullptr) {
+                Base::Ref<Base::Object> baseOwner =
+                    FrameworkTemplateState::FactoryOwner(*baseTemplate);
+                Base::Result<void> inherited =
+                    templateState->program.Configure(
+                        baseFactory,
+                        FrameworkTemplateState::FactoryContext(*baseTemplate),
+                        std::move(baseOwner));
+                if (!inherited) {
+                    return inherited.GetStatus();
+                }
+                if (templateState->program.baseUri.Empty() &&
+                    !FrameworkTemplateState::BaseUri(*baseTemplate).Empty()) {
+                    Base::Result<void> uri =
+                        templateState->program.SetBaseUri(
+                            FrameworkTemplateState::BaseUri(*baseTemplate));
+                    if (!uri) {
+                        return uri.GetStatus();
+                    }
+                }
+                for (const TemplateNamespace& space :
+                    FrameworkTemplateState::Namespaces(*baseTemplate)) {
+                    Base::Result<void> namespaced =
+                        templateState->program.AddNamespace(
+                            space.prefix.View(), space.uri.View());
+                    if (!namespaced) {
+                        // The derived template already declares this prefix;
+                        // its own declaration wins.
+                        continue;
+                    }
+                }
+            }
+        }
+        if (!FrameworkTemplateState::Bindings(*baseTemplate).Empty()) {
+            Base::Vector<TemplateBindingPlan> merged;
+            merged.Append(FrameworkTemplateState::Bindings(*baseTemplate));
+            merged.Append(
+                templateState->bindings.AsSpan());
+            templateState->bindings = std::move(merged);
+        }
+        if (!FrameworkTemplateState::MetadataBindings(*baseTemplate).Empty()) {
+            Base::Vector<TemplateMetadataBindingPlan> merged;
+            merged.Append(FrameworkTemplateState::MetadataBindings(*baseTemplate));
+            merged.Append(
+                templateState->metadataBindings.AsSpan());
+            templateState->metadataBindings = std::move(merged);
+        }
+        if (!FrameworkTemplateState::DynamicResources(*baseTemplate).Empty()) {
+            Base::Vector<TemplateDynamicResourcePlan> merged;
+            merged.Append(FrameworkTemplateState::DynamicResources(*baseTemplate));
+            merged.Append(
+                templateState->dynamicResources.AsSpan());
+            templateState->dynamicResources = std::move(merged);
+        }
+        if (!FrameworkTemplateState::Triggers(*baseTemplate).Empty()) {
+            Base::Vector<TemplatePropertyTrigger> merged;
+            merged.Append(FrameworkTemplateState::Triggers(*baseTemplate));
+            merged.Append(
+                templateState->triggers.AsSpan());
+            templateState->triggers = std::move(merged);
+        }
+        if (!FrameworkTemplateState::VisualStateGroups(*baseTemplate).Empty()) {
+            for (const VisualStateGroupPlan& baseGroup :
+                FrameworkTemplateState::VisualStateGroups(*baseTemplate)) {
+                for (const VisualStateGroupPlan& ownGroup :
+                    templateState->visualStateGroups) {
+                    if (ownGroup.name.View() == baseGroup.name.View()) {
+                        return Base::Status::Failure(
+                            Base::ErrorCode::AlreadyExists,
+                            "Visual state group is already defined by the BasedOn template");
+                    }
+                }
+            }
+            Base::Vector<VisualStateGroupPlan> merged;
+            merged.Append(FrameworkTemplateState::VisualStateGroups(*baseTemplate));
+            merged.Append(
+                templateState->visualStateGroups.AsSpan());
+            templateState->visualStateGroups = std::move(merged);
+        }
+        if (templateState->resources.Size() == 0U &&
+            templateState->resources.MergedDictionaryCount() == 0U) {
+            FrameworkTemplateState* baseState = State(*baseTemplate);
+            if (baseState != nullptr &&
+                (baseState->resources.Size() != 0U ||
+                 baseState->resources.MergedDictionaryCount() != 0U)) {
+                Base::Result<void> mergedResources =
+                    templateState->resources.AddMerged(baseState->resources);
+                if (!mergedResources) {
+                    return mergedResources.GetStatus();
+                }
+            }
+        }
+    }
     if (!properties.IsFrozen() ||
         templateState->targetType == InvalidTypeId ||
         templateState->program.factory == nullptr ||
@@ -2639,6 +2847,14 @@ void SetControlTemplateTargetType(
     (void)::Aero::Controls::FrameworkTemplateState::SetTargetType(target, value.type);
 }
 
+void SetControlTemplateBasedOn(
+    ControlTemplate& target,
+    Base::Ref<ControlTemplate> value) noexcept {
+    (void)::Aero::Controls::FrameworkTemplateState::SetBasedOn(
+        target,
+        Base::Ref<Base::Object>(std::move(value)));
+}
+
 Meta::TypeReference GetDataTemplateType(
     const DataTemplate& value) noexcept {
     return {value.GetDataType()};
@@ -2680,6 +2896,7 @@ void ControlTemplate::RegisterMetadata(::Aero::Meta::Registration& context) noex
     using namespace Aero::Meta;
     Register<ControlTemplate>(context)
         .Property<Meta::TypeReference, &GetControlTemplateTargetType, &SetControlTemplateTargetType>("TargetType", PropertyFlags::None)
+        .Property<Base::Ref<ControlTemplate>, &SetControlTemplateBasedOn>("BasedOn", PropertyFlags::WriteOnly)
         .Collection<Base::Object>("VisualStateGroups", &AddTemplateVisualStateGroup, &ClearTemplateVisualStateGroups)
         .Content<Base::Object>("VisualTree", ContentKind::Single, &SetDeferredTemplateVisualTree<ControlTemplate>, &ClearDeferredTemplateVisualTree<ControlTemplate>, ContentFlags::Visual)
         .Factory();

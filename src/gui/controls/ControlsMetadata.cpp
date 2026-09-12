@@ -136,6 +136,17 @@ Base::Result<void> PopulateControlsMetadata(
     Canvas::RegisterMetadata(context);
     Grid::RegisterMetadata(context);
 
+    // Content & Decorators (base types first: metadata Override() on a
+    // derived type requires its base chain to be registered already)
+    Control::RegisterMetadata(context);
+    ContentControl::RegisterMetadata(context);
+    HeaderedContentControl::RegisterMetadata(context);
+    Decorator::RegisterMetadata(context);
+    Border::RegisterMetadata(context);
+    BulletDecorator::RegisterMetadata(context);
+    Viewbox::RegisterMetadata(context);
+    ContentPresenter::RegisterMetadata(context);
+
     // Primitives & Buttons
     Primitives::ButtonBase::RegisterMetadata(context);
     Button::RegisterMetadata(context);
@@ -154,15 +165,6 @@ Base::Result<void> PopulateControlsMetadata(
     ScrollContentPresenter::RegisterMetadata(context);
     ScrollViewer::RegisterMetadata(context);
 
-    // Content & Decorators
-    Control::RegisterMetadata(context);
-    ContentControl::RegisterMetadata(context);
-    HeaderedContentControl::RegisterMetadata(context);
-    Decorator::RegisterMetadata(context);
-    Border::RegisterMetadata(context);
-    BulletDecorator::RegisterMetadata(context);
-    Viewbox::RegisterMetadata(context);
-    ContentPresenter::RegisterMetadata(context);
     UserControl::RegisterMetadata(context);
     Page::RegisterMetadata(context);
     GroupBox::RegisterMetadata(context);
