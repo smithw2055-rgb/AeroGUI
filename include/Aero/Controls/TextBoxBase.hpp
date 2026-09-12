@@ -3,10 +3,15 @@
 #include <Aero/Controls/Control.hpp>
 #include <Aero/Media/Brushes.hpp>
 
+namespace Aero::Meta { class Registration; }
+
 namespace Aero::Controls::Primitives {
 using ::Aero::Meta::TypeId;
 class AERO_GUI_API TextBoxBase : public Control {
     AERO_DECLARE_TYPE(TextBoxBase, Control)
+public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
 protected:
     struct DragSelectionState {
         std::uint32_t pointerId = 0U;

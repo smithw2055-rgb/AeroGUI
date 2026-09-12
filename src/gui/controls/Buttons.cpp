@@ -8,8 +8,13 @@
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleEngine.hpp"
 #include "gui/templates/TemplateInstance.hpp"
+#include "gui/meta/TypeRegistryDetail.hpp"
 #include <Aero/VisualStateManager.hpp>
 #include <Aero/Controls.hpp>
+#include <Aero/Base/String.hpp>
+#include <Aero/Value.hpp>
+#include <Aero/ICommand.hpp>
+#include "gui/meta/ValueConversion.hpp"
 #include <Aero/LogicalTreeHelper.hpp>
 #include <Aero/VisualTreeHelper.hpp>
 
@@ -488,6 +493,57 @@ void RepeatButton::OnKeyUp(KeyEventArgs& args) {
     if (args.GetKey() == KeyboardKeySpace || args.GetKey() == KeyboardKeyEnter) {
         AeroGuiInternal::SetActiveRepeatButton(*this, nullptr);
     }
+}
+
+void ButtonBase::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<ButtonBase>(context, TypeFlags::Abstract)
+        .Event(ButtonBase::ClickEvent)
+        .Property(ButtonBase::ClickModeProperty, ClickMode::Release)
+        .Property(ButtonBase::CommandProperty, Base::Ref<ICommand>{})
+        .Property(ButtonBase::CommandParameterProperty, Value::NullObject(TypeOf<Base::Object>()))
+        .Property(ButtonBase::CommandTargetProperty, Base::Ref<UIElement>{})
+        .Override(UIElement::IsEnabledProperty, FrameworkPropertyMetadata(true, Inherits | AffectsRender))
+        .Override(UIElement::IsTabStopProperty, true, FrameworkPropertyMetadataOptions::None);
+}
+
+void Button::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<Button>(context)
+        .Factory();
+}
+
+void RepeatButton::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<RepeatButton>(context)
+        .Property(RepeatButton::DelayProperty, std::uint32_t{400})
+        .Property(RepeatButton::IntervalProperty, std::uint32_t{100}, FrameworkPropertyMetadataOptions::None, &Base::Validate::Positive<std::uint32_t>)
+        .Override(ButtonBase::ClickModeProperty, ClickMode::Press, FrameworkPropertyMetadataOptions::None)
+        .Factory();
+}
+
+void ToggleButton::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<ToggleButton>(context)
+        .Event(ToggleButton::CheckedEvent)
+        .Event(ToggleButton::UncheckedEvent)
+        .Event(ToggleButton::IndeterminateEvent)
+        .Property(ToggleButton::IsCheckedProperty, Nullable<bool>{false}, BindsTwoWayByDefault | AffectsRender)
+        .Property(ToggleButton::IsThreeStateProperty, false, AffectsRender)
+        .Factory();
+}
+
+void CheckBox::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<CheckBox>(context)
+        .Factory();
+}
+
+void RadioButton::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<RadioButton>(context)
+        .Property(RadioButton::GroupNameProperty, Base::String{})
+        .Factory();
 }
 
 } // namespace Aero::Controls

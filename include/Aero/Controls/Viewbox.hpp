@@ -13,6 +13,8 @@ using ::Aero::Media::MatrixTransform;
 class AERO_GUI_API Viewbox : public Decorator {
     AERO_DECLARE_TYPE(Viewbox, Decorator)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     Viewbox() noexcept : Decorator(StaticTypeId()) {}
 
     Stretch GetStretch() const noexcept;

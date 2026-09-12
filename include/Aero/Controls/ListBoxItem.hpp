@@ -12,6 +12,8 @@ using ::Aero::Meta::TypeId;
 class AERO_GUI_API ListBoxItem : public ContentControl {
     AERO_DECLARE_TYPE(ListBoxItem, ContentControl)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     ListBoxItem() noexcept;
     ~ListBoxItem() override;
 

@@ -6,7 +6,7 @@
 #include <Aero/Style.hpp>
 #include <utility>
 
-namespace Aero { class VisualStateManager; }
+namespace Aero { class VisualStateManager; class AeroGuiInternal; }
 namespace Aero::Controls {
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::DependencyPropertyChangedEventHandler;
@@ -17,6 +17,7 @@ class ItemContainerGenerator;
 class AERO_GUI_API Control : public FrameworkElement {
     AERO_DECLARE_TYPE(Control, FrameworkElement)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
 
     inline static constexpr RoutedEvent<MouseButtonEventArgs> PreviewMouseDoubleClickEvent{"PreviewMouseDoubleClick"};
     Event<MouseButtonEventArgs> PreviewMouseDoubleClick() noexcept {
@@ -155,6 +156,7 @@ protected:
         ::Aero::Media::DrawingContext& context) noexcept override;
 private:
     friend class ::Aero::VisualStateManager;
+    friend class ::Aero::AeroGuiInternal;
     void SetTemplateChildCore(UIElement* child) noexcept {
         if (child != nullptr && child->LayoutParent() != this) {
             return;

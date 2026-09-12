@@ -2,6 +2,10 @@
 
 #include <Aero/Controls/UserControl.hpp>
 
+namespace Aero::Meta {
+class Registration;
+}
+
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
 
@@ -12,6 +16,8 @@ class AERO_GUI_API Page : public UserControl {
 public:
     Page() noexcept : UserControl(StaticTypeId()) {}
     ~Page() override = default;
+
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
 };
 
 } // namespace Aero::Controls

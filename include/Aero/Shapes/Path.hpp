@@ -9,6 +9,7 @@
 
 #include <cstdint>
 
+namespace Aero { class AeroGuiInternal; }
 namespace Aero::Shapes {
 
 using ::Aero::Media::Geometry;
@@ -23,6 +24,8 @@ using ::Aero::Meta::DependencyPropertyHandle;
 class AERO_GUI_API Path : public Shape {
     AERO_DECLARE_TYPE(Path, Shape)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     Path() noexcept;
     ~Path() override;
 
@@ -68,6 +71,7 @@ protected:
         const DependencyPropertyChangedEventArgs& args) noexcept override;
 
 private:
+    friend class ::Aero::AeroGuiInternal;
     Result<void> EnsureGeometry() noexcept;
     Result<void> EnsureMesh() noexcept;
     void ResetGeometry() noexcept;

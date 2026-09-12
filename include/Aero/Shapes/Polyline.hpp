@@ -9,6 +9,8 @@ namespace Aero::Shapes {
 class AERO_GUI_API Polyline : public Shape {
     AERO_DECLARE_TYPE(Polyline, Shape)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     Polyline() noexcept : Shape(StaticTypeId()) {}
     ~Polyline() override = default;
 

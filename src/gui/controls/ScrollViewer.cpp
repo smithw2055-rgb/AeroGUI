@@ -19,6 +19,7 @@
 #include <cmath>
 #include <limits>
 #include "gui/templates/TemplateInstance.hpp"
+#include "gui/meta/TypeRegistryDetail.hpp"
 #include <Aero/VisualStateManager.hpp>
 
 namespace Aero::Controls {
@@ -528,6 +529,38 @@ Base::Result<bool> Thumb::EndDrag(
     dragging_ = false;
     UpdateVisualState(true);
     return true;
+}
+
+void ScrollContentPresenter::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<ScrollContentPresenter>(context)
+        .Property(ScrollContentPresenter::CanContentScrollProperty, false, AffectsMeasure)
+        .Factory();
+}
+
+void ScrollViewer::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<ScrollViewer>(context)
+        .Event(ScrollViewer::ScrollChangedEvent)
+        .Property(ScrollViewer::HorizontalOffsetProperty, 0.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::NonNegative<double>)
+        .Property(ScrollViewer::VerticalOffsetProperty, 0.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::NonNegative<double>)
+        .Property(ScrollViewer::ExtentWidthProperty, 0.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::NonNegative<double>)
+        .Property(ScrollViewer::ExtentHeightProperty, 0.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::NonNegative<double>)
+        .Property(ScrollViewer::ViewportWidthProperty, 0.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::NonNegative<double>)
+        .Property(ScrollViewer::ViewportHeightProperty, 0.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::NonNegative<double>)
+        .Property(ScrollViewer::ScrollableWidthProperty, 0.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::NonNegative<double>)
+        .Property(ScrollViewer::ScrollableHeightProperty, 0.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::NonNegative<double>)
+        .Property(ScrollViewer::ComputedHorizontalScrollBarVisibilityProperty, Visibility::Collapsed, AffectsMeasure | AffectsRender)
+        .Property(ScrollViewer::ComputedVerticalScrollBarVisibilityProperty, Visibility::Collapsed, AffectsMeasure | AffectsRender)
+        .Property(ScrollViewer::HorizontalScrollBarVisibilityProperty, ScrollBarVisibility::Disabled, AffectsMeasure | AffectsRender)
+        .Property(ScrollViewer::VerticalScrollBarVisibilityProperty, ScrollBarVisibility::Visible, AffectsMeasure | AffectsRender)
+        .Property(ScrollViewer::CanHorizontallyScrollProperty, true, AffectsMeasure)
+        .Property(ScrollViewer::CanVerticallyScrollProperty, true, AffectsMeasure)
+        .Property(ScrollViewer::CanContentScrollProperty, false, AffectsMeasure)
+        .Property(ScrollViewer::PanningModeProperty, PanningMode::None)
+        .TemplatePart("PART_VerticalScrollBar", TypeOf<ScrollBar>())
+        .TemplatePart("PART_HorizontalScrollBar", TypeOf<ScrollBar>())
+        .Factory();
 }
 
 } // namespace Aero::Controls

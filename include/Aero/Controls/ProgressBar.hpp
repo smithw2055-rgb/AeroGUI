@@ -8,6 +8,8 @@ namespace Aero::Controls {
 class AERO_GUI_API ProgressBar : public Primitives::RangeBase {
     AERO_DECLARE_TYPE(ProgressBar, Primitives::RangeBase)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     ProgressBar() noexcept : Primitives::RangeBase(StaticTypeId()) {}
     ~ProgressBar() override = default;
 

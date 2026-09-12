@@ -12,6 +12,8 @@ class AERO_GUI_API VirtualizingStackPanel
       public IScrollInfo {
     AERO_DECLARE_TYPE(VirtualizingStackPanel, VirtualizingPanel)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     VirtualizingStackPanel() noexcept;
     ~VirtualizingStackPanel() override;
 

@@ -5,6 +5,8 @@
 #include <Aero/Media/Images.hpp>
 #include <Aero/Media/Pen.hpp>
 
+namespace Aero::Meta { class Registration; }
+
 namespace Aero::Shapes {
 
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
@@ -17,6 +19,8 @@ using ::Aero::Media::Stretch;
 class AERO_GUI_API Shape : public FrameworkElement {
     AERO_DECLARE_TYPE(Shape, FrameworkElement)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     Ref<Brush> GetFill() const noexcept;
     Ref<Brush> GetStroke() const noexcept;
     Ref<Media::Pen> GetPen() const noexcept;

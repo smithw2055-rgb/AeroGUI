@@ -4,6 +4,7 @@
 
 #include <cstddef>
 
+namespace Aero { class AeroGuiInternal; }
 namespace Aero::Controls {
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::DependencyPropertyChangedEventHandler;
@@ -11,6 +12,8 @@ using ::Aero::Meta::TypeId;
 class AERO_GUI_API ContentControl : public Control {
     AERO_DECLARE_TYPE(ContentControl, Control)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     AERO_DEPENDENCY_PROPERTY(Value, Content);
     AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, ContentTemplate);
     AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, ContentTemplateSelector);
@@ -146,6 +149,7 @@ protected:
         return finalSize;
     }
 private:
+    friend class ::Aero::AeroGuiInternal;
     void SetOwnedContent(const Ref<Base::Object>& contentObject, UIElement& content) noexcept {
         if (!contentObject || contentObject.Get() != &content) {
             return;

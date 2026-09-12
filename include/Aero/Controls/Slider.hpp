@@ -20,6 +20,7 @@ enum class TickPlacement : std::uint8_t {
 class AERO_GUI_API Slider : public Primitives::RangeBase {
     AERO_DECLARE_TYPE(Slider, Primitives::RangeBase)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
 
     Slider() noexcept;
     ~Slider() override;

@@ -8,6 +8,8 @@ using ::Aero::Meta::TypeId;
 class AERO_GUI_API UniformGrid : public Panel {
     AERO_DECLARE_TYPE(UniformGrid, Panel)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     UniformGrid() noexcept : Panel(StaticTypeId()) {}
     std::uint32_t GetRows() const noexcept;
     std::uint32_t GetColumns() const noexcept;

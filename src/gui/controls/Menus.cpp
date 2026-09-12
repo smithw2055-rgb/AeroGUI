@@ -6,7 +6,9 @@
 #include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/input/InputManager.hpp" 
 #include "gui/media/AnimationEngine.hpp"
+#include "gui/meta/TypeRegistryDetail.hpp"
 #include <Aero/Controls.hpp>
+#include <Aero/Controls/ContextMenuService.hpp>
 
 #include <utility>
 
@@ -396,6 +398,50 @@ ContextMenuService::SetContextMenu(
     target.SetValue(
         ContextMenuProperty,
         std::move(value));
+}
+
+void Menu::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<Menu>(context)
+        .Factory();
+}
+
+void MenuItem::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<MenuItem>(context)
+        .Event(MenuItem::ClickEvent)
+        .Property(MenuItem::InputGestureTextProperty, Base::String{}, AffectsMeasure)
+        .Property(MenuItem::IsCheckableProperty, false, AffectsMeasure)
+        .Property(MenuItem::IsCheckedProperty, false, AffectsRender | BindsTwoWayByDefault)
+        .Property(MenuItem::IsHighlightedProperty, false, AffectsRender)
+        .Property(MenuItem::IsSubmenuOpenProperty, false, AffectsMeasure | AffectsRender | BindsTwoWayByDefault)
+        .Property(MenuItem::RoleProperty, MenuItemRole::TopLevelItem, AffectsMeasure | AffectsRender)
+        .Property(MenuItem::CommandProperty, Base::Ref<ICommand>{})
+        .Property(MenuItem::CommandParameterProperty, Value::NullObject(TypeOf<Base::Object>()))
+        .Property(MenuItem::IconProperty, Value::NullObject(TypeOf<Base::Object>()), AffectsMeasure)
+        .Factory();
+}
+
+void ContextMenu::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<ContextMenu>(context)
+        .Event(ContextMenu::OpenedEvent)
+        .Event(ContextMenu::ClosedEvent)
+        .Property(ContextMenu::IsOpenProperty, false, AffectsMeasure | AffectsRender | BindsTwoWayByDefault)
+        .Property(ContextMenu::PlacementTargetProperty, Base::Ref<UIElement>{})
+        .Factory();
+}
+
+void ContextMenuService::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<ContextMenuService>(context, TypeFlags::Abstract)
+        .Property(ContextMenuService::ContextMenuProperty, Base::Ref<ContextMenu>{});
+}
+
+void Separator::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<Separator>(context)
+        .Factory();
 }
 
 } // namespace Aero::Controls

@@ -8,6 +8,7 @@
 #include "gui/styles/StyleEngine.hpp"
 #include <Aero/Controls.hpp>
 #include <Aero/Controls/StackPanel.hpp>
+#include "gui/meta/TypeRegistryDetail.hpp"
 
 #include <algorithm>
 #include <utility>
@@ -318,6 +319,66 @@ void ToolTipService::SetShowDuration(
     std::uint32_t value) noexcept {
     target.SetValue(
         ShowDurationProperty, value);
+}
+
+void ToolBar::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<ToolBar>(context)
+        .Property(ToolBar::HeaderProperty, Value::NullObject(TypeOf<Base::Object>()), AffectsMeasure)
+        .Property(ToolBar::HeaderTemplateProperty, Base::Ref<DataTemplate>{}, AffectsMeasure)
+        .Property(ToolBar::OrientationProperty, Orientation::Horizontal, AffectsMeasure)
+        .Property(ToolBar::OverflowCapacityProperty, std::uint32_t{4U})
+        .Property(ToolBar::IsOverflowOpenProperty, false)
+        .Property(ToolBar::HasOverflowItemsProperty, false)
+        .Property(ToolBar::OverflowItemCountProperty, std::uint32_t{0U})
+        .Factory();
+}
+
+void ToolBarPanel::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<ToolBarPanel>(context)
+        .Factory();
+}
+
+void ToolBarOverflowPanel::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<ToolBarOverflowPanel>(context)
+        .Factory();
+}
+
+void ToolBarTray::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<ToolBarTray>(context, TypeFlags::Abstract)
+        .Property(ToolBarTray::IsLockedProperty, false);
+}
+
+void StatusBar::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<StatusBar>(context)
+        .Property(StatusBar::IsSizingGripVisibleProperty, true, AffectsMeasure)
+        .Factory();
+}
+
+void StatusBarItem::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<StatusBarItem>(context)
+        .Factory();
+}
+
+void ToolTip::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<ToolTip>(context)
+        .Property(ToolTip::InitialShowDelayProperty, std::uint32_t{400U})
+        .Property(ToolTip::ShowDurationProperty, std::uint32_t{5000U})
+        .Factory();
+}
+
+void ToolTipService::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<ToolTipService>(context, TypeFlags::Abstract)
+        .Property(ToolTipService::ToolTipProperty, Base::Ref<ToolTip>{})
+        .Property(ToolTipService::InitialShowDelayProperty, std::uint32_t{400U})
+        .Property(ToolTipService::ShowDurationProperty, std::uint32_t{5000U});
 }
 
 } // namespace Aero::Controls

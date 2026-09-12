@@ -3,7 +3,7 @@
 
     // --- View / ElementTree services ---
     static ElementTree* Tree(const ::Aero::Media::Visual& visual) noexcept {
-        return AERO_GET_FIELD(visual, Visual_tree);
+        return visual.tree_;
     }
     static ElementTree* Tree(const UIElement& element) noexcept {
         return Tree(static_cast<const ::Aero::Media::Visual&>(element));
@@ -105,10 +105,10 @@
 
     // --- Layout hot state ---
     static UIElement::LayoutHot& Layout(UIElement& element) noexcept {
-        return AERO_GET_FIELD(element, UIElement_layout);
+        return element.layout_;
     }
     static const UIElement::LayoutHot& Layout(const UIElement& element) noexcept {
-        return AERO_GET_FIELD(element, UIElement_layout);
+        return element.layout_;
     }
     static Size MeasureOverride(UIElement& element, Size availableSize) noexcept;
     static Size ArrangeOverride(UIElement& element, Size finalSize) noexcept;
@@ -118,36 +118,36 @@
         double height) noexcept {
         Meta::PropertyValue widthVal(width);
         Meta::PropertyValue heightVal(height);
-        AERO_CALL_METHOD(element, DO_SetReadOnlyCurrentValue,
+        element.SetReadOnlyCurrentValue(
             FrameworkElement::ActualWidthProperty.Handle(), widthVal);
-        AERO_CALL_METHOD(element, DO_SetReadOnlyCurrentValue,
+        element.SetReadOnlyCurrentValue(
             FrameworkElement::ActualHeightProperty.Handle(), heightVal);
     }
 
     // --- Input / routed events ---
     static Base::Result<void> SetMouseOver(UIElement& element, bool value) noexcept {
-        AERO_CALL_METHOD(element, UIElement_SetMouseOverState, value);
+        element.SetMouseOverState(value);
         return {};
     }
     static Base::Result<void> SetPressed(UIElement& element, bool value) noexcept {
-        AERO_CALL_METHOD(element, UIElement_SetPressedState, value);
+        element.SetPressedState(value);
         return {};
     }
     static Base::Result<void> SetKeyboardFocused(
         UIElement& element, bool value) noexcept {
-        AERO_CALL_METHOD(element, UIElement_SetKeyboardFocusedState, value);
+        element.SetKeyboardFocusedState(value);
         return {};
     }
     static Base::Result<void> SetKeyboardFocusWithin(
         UIElement& element, bool value) noexcept {
-        AERO_CALL_METHOD(element, UIElement_SetKeyboardFocusWithinState, value);
+        element.SetKeyboardFocusWithinState(value);
         return {};
     }
     static void InvokeHandlers(
         UIElement& element,
         RoutedEventHandle event,
         RoutedEventArgs& args) noexcept {
-        AERO_CALL_METHOD(element, UIElement_InvokeHandlers, event, args);
+        element.InvokeHandlers(event, args);
     }
     static void InvokeContentHandlers(
         ContentElement& element,

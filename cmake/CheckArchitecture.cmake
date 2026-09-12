@@ -990,10 +990,13 @@ foreach(aero_pub_hdr IN LISTS aero_all_public_headers)
         "${aero_pub_hdr}"
         "AERO_GUI_IMPLEMENTATION"
         "Public SDK headers must not contain AERO_GUI_IMPLEMENTATION")
-    aero_forbid_text(
-        "${aero_pub_hdr}"
-        "AeroGuiInternal"
-        "Public SDK headers must not contain AeroGuiInternal")
+    # Public headers may grant friendship to AeroGuiInternal, but must not call or expose it.
+    file(READ "${AERO_SOURCE_DIR}/${aero_pub_hdr}" _pub_hdr_text)
+    string(REGEX REPLACE "(class|friend[ \t]+class)[ \t]+(::Aero::)?AeroGuiInternal;" "" _pub_hdr_no_friend "${_pub_hdr_text}")
+    if(_pub_hdr_no_friend MATCHES "AeroGuiInternal")
+        message(FATAL_ERROR
+            "Public SDK headers must not contain AeroGuiInternal: ${aero_pub_hdr}")
+    endif()
 endforeach()
 file(GLOB_RECURSE aero_public_headers_with_access
     RELATIVE "${AERO_SOURCE_DIR}"
@@ -1692,6 +1695,7 @@ set(aero_result_void_transitional
     "include/Aero/Resources.hpp|AddMerged"
     "include/Aero/Threading.hpp|InsertDelayedLocked"
     "include/Aero/Threading.hpp|InsertReadyLocked"
+    "include/Aero/Style.hpp|ClearStyleSetters"
     "include/Aero/View.hpp|SetContent"
     "include/Aero/View.hpp|SetViewport")
 foreach(aero_public_hpp_file IN LISTS aero_public_hpp)

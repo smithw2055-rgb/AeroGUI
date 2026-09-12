@@ -1,7 +1,11 @@
 #include <Aero/Controls.hpp>
 #include <Aero/Controls/ItemsPresenter.hpp>
+#include <Aero/Controls/AlternationConverter.hpp>
+#include <Aero/Controls/ItemsPanelTemplate.hpp>
+#include <Aero/Style.hpp>
 #include <Aero/VisualTreeHelper.hpp>
 #include <Aero/Data/CollectionViewSource.hpp>
+#include <Aero/DataTemplate.hpp>
 #include <Aero/DataTemplateSelector.hpp>
 #include <Aero/HierarchicalDataTemplate.hpp>
 #include <Aero/Collections.hpp>
@@ -1153,6 +1157,82 @@ void ItemsControl::ClearContainer(FrameworkElement& container) noexcept {
 
 void ItemsControl::OnItemsSourceCoreChanged() noexcept {
     OnItemsChanged({});
+}
+
+namespace {
+
+void AddItemsControlItem(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& item,
+    void*) noexcept {
+    if (!item) {
+        return;
+    }
+    static_cast<ItemsControl&>(owner).GetItems().Add(item);
+}
+
+void ClearItemsControlItems(
+    Base::Object& owner,
+    void*) noexcept {
+    static_cast<ItemsControl&>(owner).GetItems().Reset();
+}
+
+} // namespace
+
+void ItemsControl::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<Collections::IItemsSource>(context, TypeFlags::Abstract);
+
+    Register<Collections::ObservableCollectionBase>(context, TypeFlags::Abstract)
+        .Implements<Collections::IItemsSource>();
+
+    Register<Collections::ObservableObjectCollection>(context)
+        .Factory()
+        .Implements<Collections::IItemsSource>();
+
+    Register<Data::CollectionView>(context)
+        .Implements<Collections::IItemsSource>();
+
+    Register<Data::CollectionViewSource>(context)
+        .Factory();
+
+    Register<AlternationConverter>(context)
+        .Content<Base::Object>("Values", ContentKind::Collection,
+            [](Base::Object& owner, const Base::Ref<Base::Object>& value, void*) noexcept {
+                static_cast<AlternationConverter&>(owner).AddValue(value);
+            },
+            [](Base::Object& owner, void*) noexcept {
+                static_cast<AlternationConverter&>(owner).ClearValues();
+            })
+        .Factory();
+
+    Register<::Aero::Controls::BoxedItemValue>(context);
+
+    Register<ItemsControl>(context)
+        .Property(ItemsControl::ItemCountProperty, std::uint32_t{0})
+        .Property(ItemsControl::HasItemsProperty, false)
+        .Property(ItemsControl::ItemsSourceProperty, Base::Ref<Base::Object>{}, AffectsMeasure)
+        .Property(ItemsControl::AlternationCountProperty, std::uint32_t{0}, AffectsMeasure)
+        .Property(ItemsControl::DisplayMemberPathProperty, Base::String{}, AffectsMeasure)
+        .Property(ItemsControl::ItemTemplateProperty, Base::Ref<DataTemplate>{}, AffectsMeasure)
+        .Property(ItemsControl::ItemTemplateSelectorProperty, Base::Ref<DataTemplateSelector>{}, AffectsMeasure)
+        .Property(ItemsControl::ItemsPanelProperty, Base::Ref<ItemsPanelTemplate>{}, AffectsMeasure)
+        .Property(ItemsControl::ItemContainerStyleProperty, Base::Ref<Style>{}, AffectsMeasure)
+        .Content<Base::Object>("Items", ContentKind::Collection, &AddItemsControlItem, &ClearItemsControlItems)
+        .Factory();
+}
+
+void HeaderedItemsControl::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<HeaderedItemsControl>(context, TypeFlags::Abstract)
+        .Property(HeaderedItemsControl::HeaderProperty, Meta::Value::NullObject(Meta::TypeOf<Base::Object>()), AffectsMeasure)
+        .Property(HeaderedItemsControl::HeaderTemplateProperty, Base::Ref<DataTemplate>{}, AffectsMeasure);
+}
+
+void ItemsPresenter::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<ItemsPresenter>(context)
+        .Factory();
 }
 
 } // namespace Aero::Controls

@@ -12,6 +12,7 @@ namespace Aero {
 
 class ElementTree;
 class LogicalTreeHelper;
+class AeroGuiInternal;
 
 } // namespace Aero
 
@@ -71,6 +72,7 @@ private:
     friend class ::Aero::LogicalTreeHelper;
     friend class ::Aero::ElementTree;
     friend class VisualTreeHelper;
+    friend class ::Aero::AeroGuiInternal;
     Result<Ref<Base::Object>> AcquireLifetime() noexcept;
 
     static constexpr std::uint8_t kFlagRenderAttached = 1U << 0U;

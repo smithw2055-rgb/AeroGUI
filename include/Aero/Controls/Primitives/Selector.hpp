@@ -7,6 +7,7 @@ namespace Aero::Data {
 class CollectionView;
 }
 
+namespace Aero { class AeroGuiInternal; }
 namespace Aero::Controls {
 
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
@@ -26,6 +27,8 @@ namespace Primitives {
 class AERO_GUI_API Selector : public ItemsControl {
     AERO_DECLARE_TYPE(Selector, ItemsControl)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     Selector() noexcept;
     ~Selector() override;
 
@@ -114,6 +117,7 @@ protected:
         const DependencyPropertyChangedEventArgs& args) noexcept override;
 
 private:
+    friend class ::Aero::AeroGuiInternal;
     Base::Vector<std::uint32_t> selectedIndices_;
     std::uint32_t primaryIndex_ = UINT32_MAX;
     std::uint32_t pendingIndex_ = UINT32_MAX;

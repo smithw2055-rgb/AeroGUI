@@ -6,6 +6,10 @@
 #include <Aero/TextFormatting.hpp>
 #include <Aero/Events/EventArgs.hpp>
 
+namespace Aero::Meta {
+class Registration;
+}
+
 namespace Aero::Controls {
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::DependencyPropertyChangedEventHandler;
@@ -19,6 +23,7 @@ class AERO_GUI_API TextBox
       private Input::ITextCompositionClient {
     AERO_DECLARE_TYPE(TextBox, Primitives::TextBoxBase)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
 
     TextBox() noexcept;
     ~TextBox() override;

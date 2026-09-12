@@ -971,12 +971,12 @@ void LayoutEngine::LayoutHook(void* context) noexcept {
 
 Size AeroGuiInternal::MeasureOverride(
     UIElement& element, Size availableSize) noexcept {
-    return AERO_CALL_METHOD(element, UIElement_MeasureOverride, availableSize);
+    return element.MeasureOverride(availableSize);
 }
 
 Size AeroGuiInternal::ArrangeOverride(
     UIElement& element, Size finalSize) noexcept {
-    return AERO_CALL_METHOD(element, UIElement_ArrangeOverride, finalSize);
+    return element.ArrangeOverride(finalSize);
 }
 
 } // namespace Aero

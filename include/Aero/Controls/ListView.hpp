@@ -7,6 +7,8 @@
 #include <Aero/Controls/GridViewRowPresenter.hpp>
 #include <Aero/Controls/TextBlock.hpp>
 
+namespace Aero::Meta { class Registration; }
+
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
 
@@ -14,6 +16,8 @@ class AERO_GUI_API ListView
     : public ListBox {
     AERO_DECLARE_TYPE(ListView, ListBox)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     ListView() noexcept
         : ListBox(StaticTypeId()) {}
     ~ListView() override = default;

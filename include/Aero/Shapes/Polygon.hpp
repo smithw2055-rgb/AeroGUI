@@ -13,6 +13,8 @@ enum class FillRule : std::uint8_t { EvenOdd = 0U, Nonzero };
 class AERO_GUI_API Polygon : public Shape {
     AERO_DECLARE_TYPE(Polygon, Shape)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     Polygon() noexcept : Shape(StaticTypeId()) {}
     ~Polygon() override = default;
 

@@ -8,6 +8,8 @@ using ::Aero::Meta::TypeId;
 class AERO_GUI_API DockPanel : public Panel {
     AERO_DECLARE_TYPE(DockPanel, Panel)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     DockPanel() noexcept : Panel(StaticTypeId()) {}
     bool GetLastChildFill() const noexcept;
     void SetLastChildFill(bool value) noexcept;

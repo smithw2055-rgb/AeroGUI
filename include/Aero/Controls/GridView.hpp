@@ -3,6 +3,8 @@
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Controls/GridViewColumn.hpp>
 
+namespace Aero::Meta { class Registration; }
+
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
 
@@ -10,6 +12,8 @@ class AERO_GUI_API GridView
     : public Base::Object {
     AERO_DECLARE_TYPE(GridView, Base::Object)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     GridView() noexcept = default;
     TypeId RuntimeType() const noexcept override {
         return StaticTypeId();

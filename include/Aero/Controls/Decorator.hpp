@@ -8,11 +8,14 @@
 #include <algorithm>
 
 
+namespace Aero { class AeroGuiInternal; }
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
 class AERO_GUI_API Decorator : public FrameworkElement {
     AERO_DECLARE_TYPE(Decorator, FrameworkElement)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     // Decorator is constructible in the reference XAML surface and is used as
     // a lightweight single-child layout node in control templates.
     Decorator() noexcept : Decorator(StaticTypeId()) {}
@@ -64,6 +67,7 @@ protected:
         return finalSize;
     }
 private:
+    friend class ::Aero::AeroGuiInternal;
     void SetOwnedChild(const Ref<Base::Object>& childObject, UIElement& child) noexcept {
         if (!childObject || childObject.Get() != &child) {
             return;

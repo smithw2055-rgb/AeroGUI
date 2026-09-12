@@ -18,6 +18,7 @@ struct StoredValueEntry;
 // here because include/Aero/Resources.hpp references it.
 struct DependencyObjectRare;
 class DependencyMutationScope;
+class AeroGuiInternal;
 
 class AERO_GUI_API DependencyObject : public DispatcherObject {
     AERO_DECLARE_TYPE(DependencyObject, DispatcherObject)
@@ -147,6 +148,7 @@ private:
     friend class DependencyMutationScope;
     // Property engine invokes the protected Coerce/Validate virtuals.
     friend class Meta::DependencyPropertyRegistry;
+    friend class AeroGuiInternal;
 
     enum class ChangeKind : std::uint8_t {
         SetLocal,

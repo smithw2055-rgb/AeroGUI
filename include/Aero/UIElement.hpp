@@ -26,6 +26,7 @@ using Meta::PropertyInvalidationFlags;
 using Meta::TypeId;
 
 class UIElement;
+class AeroGuiInternal;
 namespace Media { class Transform; class Transform3D; class Effect; class Brush; class Geometry; class DrawingContext; }
 namespace Input { class RoutedCommand; class InputBinding; class CommandBinding; }
 
@@ -388,6 +389,7 @@ private:
     friend class UIElementChildRange;
     friend class UIElementChildRange::Iterator;
     friend class Aero::Input::RoutedCommand;
+    friend class AeroGuiInternal;
 
     Result<void> MeasureCore(
         LayoutEngine& layout,

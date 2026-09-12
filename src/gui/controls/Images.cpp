@@ -1,5 +1,6 @@
 #include "render/DisplayList.hpp"
-#include <Aero/Controls.hpp> 
+#include <Aero/Controls.hpp>
+#include "gui/meta/TypeRegistryDetail.hpp" 
 
 #include <algorithm>
 #include <cmath>
@@ -172,6 +173,15 @@ void Image::OnRender(
         (size.height - destination.height) * 0.5;
     static_cast<void>(builder.DrawImage(
         renderImage_, destination, uv));
+}
+
+void Image::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<Image>(context)
+        .Property(Image::SourceProperty, Base::Ref<Media::ImageSource>{}, AffectsMeasure | AffectsRender)
+        .Property(Image::StretchProperty, Media::Stretch::Uniform, AffectsMeasure | AffectsRender)
+        .Property(Image::StretchDirectionProperty, Media::StretchDirection::Both, AffectsMeasure | AffectsRender)
+        .Factory();
 }
 
 } // namespace Aero::Controls

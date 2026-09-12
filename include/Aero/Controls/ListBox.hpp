@@ -8,6 +8,7 @@ namespace Aero::Controls {
 class AERO_GUI_API ListBox : public Primitives::Selector {
     AERO_DECLARE_TYPE(ListBox, Primitives::Selector)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
 
     ListBox() noexcept;
     ~ListBox() override;

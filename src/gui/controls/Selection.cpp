@@ -17,10 +17,13 @@
 #include <Aero/Controls/TextBoxBase.hpp>
 #include <Aero/Controls/TextBox.hpp>
 #include <Aero/Controls/PasswordBox.hpp>
+#include <Aero/Controls/Popup.hpp>
 #include <Aero/Data/CollectionView.hpp>
 #include <Aero/Data/CollectionViewSource.hpp>
 
 
+#include <Aero/Base/String.hpp>
+#include "gui/meta/ValueConversion.hpp"
 #include <algorithm>
 #include <utility>
 
@@ -1811,6 +1814,64 @@ void ComboBox::OnKeyDown(KeyEventArgs& args) {
     }
     SetSelectedIndex(selected);
     args.SetHandled(true);
+}
+
+namespace Primitives {
+
+void Selector::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<Selector>(context, TypeFlags::Abstract)
+        .Event(Selector::SelectionChangedRoutedEvent)
+        .Property(Selector::SelectionModeProperty, SelectionMode::Single)
+        .Property(Selector::SelectedIndexProperty, UINT32_MAX, BindsTwoWayByDefault)
+        .Property(Selector::SelectedItemProperty, FrameworkPropertyMetadata(Base::Ref<Base::Object>{}, BindsTwoWayByDefault))
+        .Property(Selector::SelectedValueProperty, FrameworkPropertyMetadata(Base::Ref<Base::Object>{}, BindsTwoWayByDefault))
+        .Property(Selector::SelectedValuePathProperty, Base::String{})
+        .Property(Selector::IsSelectedProperty, false, AffectsRender | BindsTwoWayByDefault)
+        .Property(Selector::IsSynchronizedWithCurrentItemProperty, false);
+}
+
+} // namespace Primitives
+
+void ListBox::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<ListBox>(context)
+        .Factory();
+}
+
+void ListBoxItem::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<ListBoxItem>(context)
+        .Property(ListBoxItem::IsSelectedProperty, false, AffectsRender | BindsTwoWayByDefault)
+        .Override(Aero::UIElement::IsTabStopProperty, true, FrameworkPropertyMetadataOptions::None)
+        .Factory();
+}
+
+void ComboBox::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<ComboBox>(context)
+        .Event(ComboBox::DropDownOpenedEvent)
+        .Event(ComboBox::DropDownClosedEvent)
+        .Property(ComboBox::IsDropDownOpenProperty, false, AffectsMeasure | AffectsRender | BindsTwoWayByDefault)
+        .Property(ComboBox::MaxDropDownHeightProperty, 240.0, AffectsMeasure, &Base::Validate::Positive<double>)
+        .Property(ComboBox::IsEditableProperty, false, AffectsMeasure | AffectsRender)
+        .Property(ComboBox::IsReadOnlyProperty, false, AffectsRender)
+        .Property(ComboBox::TextProperty, Base::String{}, AffectsMeasure | BindsTwoWayByDefault)
+        .Property(ComboBox::PlaceholderProperty, Base::String{}, AffectsMeasure | AffectsRender)
+        .Property(ComboBox::SelectionBoxTextProperty, Base::String{})
+        .Property(ComboBox::SelectionBoxItemProperty, Meta::Value::NullObject(Meta::TypeOf<Base::Object>()))
+        .Override(Aero::UIElement::IsTabStopProperty, true, FrameworkPropertyMetadataOptions::None)
+        .TemplatePart("PART_EditableTextBox", TypeOf<TextBox>())
+        .TemplatePart("PART_Popup", TypeOf<Popup>())
+        .Factory();
+}
+
+void ComboBoxItem::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<ComboBoxItem>(context)
+        .Property(ComboBoxItem::IsSelectedProperty, false, AffectsRender | BindsTwoWayByDefault)
+        .Override(Aero::UIElement::IsTabStopProperty, true, FrameworkPropertyMetadataOptions::None)
+        .Factory();
 }
 
 } // namespace Aero::Controls

@@ -3,6 +3,9 @@
 #include <Aero/Controls/TextBoxBase.hpp>
 #include <Aero/Controls/TextBox.hpp>
 #include <Aero/Controls/PasswordBox.hpp>
+#include <Aero/Controls/ScrollViewer.hpp>
+#include "gui/meta/TypeRegistryDetail.hpp"
+#include "ControlsMetadata.hpp"
 #include "gui/text/EditableText.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
@@ -313,6 +316,21 @@ void PasswordBox::OnPropertyChanged(
     } else if (args.GetProperty() == UIElement::IsEnabledProperty && !args.GetNewValue().AsBoolean()) {
         static_cast<void>(editor_.CancelCompositionForFocusLoss());
     }
+}
+
+void PasswordBox::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Base::String defaultPasswordChar;
+    (void)defaultPasswordChar.Assign(Base::StringView(u8"\u2022"));
+
+    Register<PasswordBox>(context)
+        .Event(PasswordBox::PasswordChangedEvent)
+        .Property<Base::String, &PasswordBox::GetPassword, &PasswordBox::SetPassword>("Password", PropertyFlags::None)
+        .Property(PasswordBox::PasswordCharProperty, std::move(defaultPasswordChar), AffectsMeasure)
+        .Property(PasswordBox::MaxLengthProperty, std::uint32_t{0}, AffectsMeasure)
+        .Property(PasswordBox::PlaceholderProperty, Base::String{}, AffectsMeasure | AffectsRender)
+        .TemplatePart("PART_ContentHost", TypeOf<ScrollViewer>())
+        .Factory();
 }
 
 } // namespace Aero::Controls

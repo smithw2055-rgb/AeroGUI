@@ -1,4 +1,5 @@
 #include "gui/meta/TypeRegistryDetail.hpp"
+#include "gui/meta/ValueConversion.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
@@ -10,6 +11,8 @@
 #include "gui/styles/StyleEngine.hpp"
 #include "render/DisplayList.hpp"
 #include <Aero/Controls.hpp>
+#include <Aero/Controls/ColumnDefinition.hpp>
+#include <Aero/Controls/RowDefinition.hpp>
 #include <Aero/Controls/ListBox.hpp>
 #include <Aero/Controls/TreeView.hpp>
 #include <Aero/Shapes.hpp>
@@ -1324,6 +1327,160 @@ void Panel::ClearChildrenCore() noexcept {
     }
     ownedChildren_.Clear();
     InvalidateMeasure();
+}
+
+namespace {
+
+void SetPanelContent(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& child,
+    void*) noexcept {
+    if (!child) {
+        return;
+    }
+    AeroGuiInternal::PanelAddChild(
+        static_cast<Panel&>(owner), child, *static_cast<Aero::UIElement*>(child.Get()));
+}
+
+void ClearPanelContent(
+    Base::Object& owner,
+    void*) noexcept {
+    AeroGuiInternal::PanelClearChildren(static_cast<Panel&>(owner));
+}
+
+Base::Result<GridLength> ConvertGridLength(Base::StringView text) noexcept {
+    return AeroGuiInternal::ConvertGridLength(text);
+}
+
+bool EqualGridLength(const void* left, const void* right, void*) noexcept {
+    const auto& a = *static_cast<const GridLength*>(left);
+    const auto& b = *static_cast<const GridLength*>(right);
+    return a.unit == b.unit && a.value == b.value;
+}
+
+void AddGridColumnDefinition(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    Base::Ref<ColumnDefinition> retained =
+        Base::Ref<ColumnDefinition>::TryFromBorrowed(
+            static_cast<ColumnDefinition&>(*value));
+    if (!retained) {
+        return;
+    }
+    (void)static_cast<Grid&>(owner)
+        .AddColumnDefinition(std::move(retained));
+}
+
+void ClearGridColumnDefinitions(
+    Base::Object& owner,
+    void*) noexcept {
+    static_cast<Grid&>(owner).ClearColumnDefinitionObjects();
+}
+
+void AddGridRowDefinition(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    Base::Ref<RowDefinition> retained =
+        Base::Ref<RowDefinition>::TryFromBorrowed(
+            static_cast<RowDefinition&>(*value));
+    if (!retained) {
+        return;
+    }
+    (void)static_cast<Grid&>(owner)
+        .AddRowDefinition(std::move(retained));
+}
+
+void ClearGridRowDefinitions(
+    Base::Object& owner,
+    void*) noexcept {
+    static_cast<Grid&>(owner).ClearRowDefinitionObjects();
+}
+
+} // namespace
+
+void Panel::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<Panel>(context, TypeFlags::Abstract)
+        .Property(Panel::BackgroundProperty, Base::Ref<Media::Brush>{}, AffectsRender)
+        .Property(Panel::ZIndexProperty, std::int32_t{0}, AffectsParentArrange)
+        .Property(Panel::IsItemsHostProperty, false)
+        .Content<Aero::UIElement>("Children", ContentKind::Collection, &SetPanelContent, &ClearPanelContent, ContentFlags::Visual);
+}
+
+void StackPanel::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<StackPanel>(context)
+        .Property(StackPanel::OrientationProperty, Orientation::Vertical, AffectsMeasure)
+        .Factory();
+}
+
+void DockPanel::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<DockPanel>(context)
+        .Property(DockPanel::LastChildFillProperty, true, AffectsArrange)
+        .Property(DockPanel::DockProperty, Dock::Left, AffectsParentMeasure)
+        .Factory();
+}
+
+void WrapPanel::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<WrapPanel>(context)
+        .Property(WrapPanel::OrientationProperty, Orientation::Horizontal, AffectsMeasure)
+        .Property(WrapPanel::ItemWidthProperty, 0.0, AffectsMeasure, &Base::Validate::NonNegative<double>)
+        .Property(WrapPanel::ItemHeightProperty, 0.0, AffectsMeasure, &Base::Validate::NonNegative<double>)
+        .Factory();
+}
+
+void UniformGrid::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<UniformGrid>(context)
+        .Property(UniformGrid::RowsProperty, std::uint32_t{0}, AffectsMeasure)
+        .Property(UniformGrid::ColumnsProperty, std::uint32_t{0}, AffectsMeasure)
+        .Property(UniformGrid::FirstColumnProperty, std::uint32_t{0}, AffectsMeasure | AffectsArrange)
+        .Factory();
+}
+
+void Canvas::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<Canvas>(context)
+        .Property(Canvas::LeftProperty, std::numeric_limits<double>::infinity(), AffectsParentArrange)
+        .Property(Canvas::TopProperty, std::numeric_limits<double>::infinity(), AffectsParentArrange)
+        .Property(Canvas::RightProperty, std::numeric_limits<double>::infinity(), AffectsParentArrange)
+        .Property(Canvas::BottomProperty, std::numeric_limits<double>::infinity(), AffectsParentArrange)
+        .Factory();
+}
+
+void Grid::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<GridLength>(context)
+        .ValueSemantics({sizeof(GridLength), alignof(GridLength), nullptr, nullptr, &EqualGridLength, nullptr, true})
+        .TextConverter<&ConvertGridLength>();
+
+    Register<ColumnDefinition>(context)
+        .Property<GridLength, &ColumnDefinition::GetWidth, &ColumnDefinition::SetWidth>("Width", PropertyFlags::Structural)
+        .Property<double, &ColumnDefinition::GetMaxWidth, &ColumnDefinition::SetMaxWidth>("MaxWidth", PropertyFlags::Structural)
+        .Property<Base::String, &ColumnDefinition::GetSharedSizeGroup, &ColumnDefinition::SetSharedSizeGroup>("SharedSizeGroup", PropertyFlags::Structural)
+        .Factory();
+
+    Register<RowDefinition>(context)
+        .Property<GridLength, &RowDefinition::GetHeight, &RowDefinition::SetHeight>("Height", PropertyFlags::Structural)
+        .Property<double, &RowDefinition::GetMaxHeight, &RowDefinition::SetMaxHeight>("MaxHeight", PropertyFlags::Structural)
+        .Property<Base::String, &RowDefinition::GetSharedSizeGroup, &RowDefinition::SetSharedSizeGroup>("SharedSizeGroup", PropertyFlags::Structural)
+        .Factory();
+
+    Register<Grid>(context)
+        .Property(Grid::IsSharedSizeScopeProperty, false)
+        .Property(Grid::ColumnDefinitionsTextProperty, Base::String{}, AffectsMeasure)
+        .Property(Grid::RowDefinitionsTextProperty, Base::String{}, AffectsMeasure)
+        .Collection<ColumnDefinition>("ColumnDefinitions", &AddGridColumnDefinition, &ClearGridColumnDefinitions)
+        .Collection<RowDefinition>("RowDefinitions", &AddGridRowDefinition, &ClearGridRowDefinitions)
+        .Property(Grid::RowProperty, std::uint32_t{0}, AffectsParentMeasure)
+        .Property(Grid::ColumnProperty, std::uint32_t{0}, AffectsParentMeasure)
+        .Property(Grid::RowSpanProperty, std::uint32_t{1}, AffectsParentMeasure, &Base::Validate::Positive<std::uint32_t>)
+        .Property(Grid::ColumnSpanProperty, std::uint32_t{1}, AffectsParentMeasure, &Base::Validate::Positive<std::uint32_t>)
+        .Factory();
 }
 
 } // namespace Aero

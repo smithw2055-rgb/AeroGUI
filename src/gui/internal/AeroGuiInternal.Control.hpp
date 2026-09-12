@@ -5,112 +5,112 @@
     static Base::Result<void> SetTemplatedParent(
         FrameworkElement& element,
         DependencyObject* value) noexcept {
-        AERO_CALL_METHOD(element, FE_SetTemplatedParent, value);
+        element.SetTemplatedParent(value);
         return {};
     }
     static void AddAuthoredTrigger(
         FrameworkElement& element,
         Base::Ref<Base::Object> trigger) noexcept {
-        AERO_CALL_METHOD(element, FE_AddAuthoredTrigger, std::move(trigger));
+        element.AddAuthoredTrigger(std::move(trigger));
     }
     static Base::Result<void> ClearAuthoredTriggers(
         FrameworkElement& element) noexcept {
-        AERO_CALL_METHOD0(element, FE_ClearAuthoredTriggers);
+        element.ClearAuthoredTriggers();
         return {};
     }
     static Base::Span<const Base::Ref<Base::Object>> AuthoredTriggers(
         const FrameworkElement& element) noexcept {
-        return AERO_CALL_METHOD0(element, FE_AuthoredTriggers);
+        return element.AuthoredTriggers();
     }
     static void AddAuthoredBehavior(
         FrameworkElement& element,
         Base::Ref<Base::Object> behavior) noexcept {
-        AERO_CALL_METHOD(element, FE_AddAuthoredBehavior, std::move(behavior));
+        element.AddAuthoredBehavior(std::move(behavior));
     }
     static Base::Result<void> ClearAuthoredBehaviors(
         FrameworkElement& element) noexcept {
-        AERO_CALL_METHOD0(element, FE_ClearAuthoredBehaviors);
+        element.ClearAuthoredBehaviors();
         return {};
     }
     static Base::Span<const Base::Ref<Base::Object>> AuthoredBehaviors(
         const FrameworkElement& element) noexcept {
-        return AERO_CALL_METHOD0(element, FE_AuthoredBehaviors);
+        return element.AuthoredBehaviors();
     }
     static void AddStyleTriggerPrototype(
         FrameworkElement& element,
         Base::Ref<Base::Object> trigger) noexcept {
-        AERO_CALL_METHOD(element, FE_AddStyleTriggerPrototype, std::move(trigger));
+        element.AddStyleTriggerPrototype(std::move(trigger));
     }
     static Base::Result<void> ClearStyleTriggerPrototypes(
         FrameworkElement& element) noexcept {
-        AERO_CALL_METHOD0(element, FE_ClearStyleTriggerPrototypes);
+        element.ClearStyleTriggerPrototypes();
         return {};
     }
     static Base::Span<const Base::Ref<Base::Object>> StyleTriggerPrototypes(
         const FrameworkElement& element) noexcept {
-        return AERO_CALL_METHOD0(element, FE_StyleTriggerPrototypes);
+        return element.StyleTriggerPrototypes();
     }
     static void AddStyleBehaviorPrototype(
         FrameworkElement& element,
         Base::Ref<Base::Object> behavior) noexcept {
-        AERO_CALL_METHOD(element, FE_AddStyleBehaviorPrototype, std::move(behavior));
+        element.AddStyleBehaviorPrototype(std::move(behavior));
     }
     static Base::Result<void> ClearStyleBehaviorPrototypes(
         FrameworkElement& element) noexcept {
-        AERO_CALL_METHOD0(element, FE_ClearStyleBehaviorPrototypes);
+        element.ClearStyleBehaviorPrototypes();
         return {};
     }
     static Base::Span<const Base::Ref<Base::Object>> StyleBehaviorPrototypes(
         const FrameworkElement& element) noexcept {
-        return AERO_CALL_METHOD0(element, FE_StyleBehaviorPrototypes);
+        return element.StyleBehaviorPrototypes();
     }
     static void AddAuthoredTrigger(
         FrameworkContentElement& element,
         Base::Ref<Base::Object> trigger) noexcept {
-        AERO_CALL_METHOD(element, FCE_AddAuthoredTrigger, std::move(trigger));
+        element.AddAuthoredTrigger(std::move(trigger));
     }
     static Base::Result<void> ClearAuthoredTriggers(
         FrameworkContentElement& element) noexcept {
-        AERO_CALL_METHOD0(element, FCE_ClearAuthoredTriggers);
+        element.ClearAuthoredTriggers();
         return {};
     }
     static Base::Span<const Base::Ref<Base::Object>> AuthoredTriggers(
         const FrameworkContentElement& element) noexcept {
-        return AERO_CALL_METHOD0(element, FCE_AuthoredTriggers);
+        return element.AuthoredTriggers();
     }
 
     // --- Panel / decorator ---
     static std::uint32_t PanelChildCount(const Controls::Panel& panel) noexcept {
-        return AERO_CALL_METHOD0(panel, Panel_ChildCountCore);
+        return panel.ChildCountCore();
     }
     static Base::Ref<Base::Object> PanelChildAt(
         const Controls::Panel& panel,
         std::uint32_t index) noexcept {
-        return AERO_CALL_METHOD(panel, Panel_ChildAtCore, index);
+        return panel.ChildAtCore(index);
     }
     static void PanelAddChild(
         Controls::Panel& panel,
         const Base::Ref<Base::Object>& owner,
         UIElement& child) noexcept {
-        AERO_CALL_METHOD(panel, Panel_AddChildCore, owner, child);
+        panel.AddChildCore(owner, child);
     }
     static Base::Result<bool> PanelRemoveChild(
         Controls::Panel& panel,
         UIElement& child) noexcept {
-        return AERO_CALL_METHOD(panel, Panel_RemoveChildCore, child);
+        return panel.RemoveChildCore(child);
     }
     static void PanelClearChildren(Controls::Panel& panel) noexcept {
-        AERO_CALL_METHOD0(panel, Panel_ClearChildrenCore);
+        panel.ClearChildrenCore();
     }
     static const Base::Ref<Base::Object>& DecoratorOwnedChild(
         const Controls::Decorator& decorator) noexcept {
-        return AERO_GET_FIELD(decorator, Decorator_ownedChild);
+        return decorator.ownedChild_;
     }
     static Base::Result<void> DecoratorSetOwnedChild(
         Controls::Decorator& decorator,
         const Base::Ref<Base::Object>& owner,
         UIElement& child) noexcept {
-        AERO_CALL_METHOD(decorator, Decorator_SetOwnedChild, owner, child);
+        decorator.SetOwnedChild(owner, child);
         return {};
     }
 
@@ -122,71 +122,71 @@
     static std::uint32_t TreeViewItemCount(
         const Controls::TreeViewItem& item) noexcept;
     static bool IsTemplateApplied(const Controls::Control& control) noexcept {
-        return AERO_GET_FIELD(control, Control_templateHandleValue) != 0U;
+        return control.templateHandleValue_ != 0U;
     }
     static std::uint64_t TemplateGeneration(
         const Controls::Control& control) noexcept {
-        return AERO_GET_FIELD(control, Control_templateGeneration);
+        return control.templateGeneration_;
     }
     static UIElement* TemplateRoot(const Controls::Control& control) noexcept {
-        return AERO_GET_FIELD(control, Control_templateChild);
+        return control.templateChild_;
     }
     static Base::Result<void> SetTemplateRoot(
         Controls::Control& control, UIElement* child) noexcept {
-        AERO_CALL_METHOD(control, Control_SetTemplateChildCore, child);
+        control.SetTemplateChildCore(child);
         return {};
     }
     static void NotifyTemplateApplied(
         Controls::Control& control, std::uint64_t handleValue) noexcept {
-        AERO_CALL_METHOD(control, Control_NotifyTemplateApplied, handleValue);
+        control.NotifyTemplateApplied(handleValue);
     }
     static void NotifyTemplateDetached(Controls::Control& control) noexcept {
-        AERO_CALL_METHOD0(control, Control_NotifyTemplateDetached);
+        control.NotifyTemplateDetached();
     }
     static void InvokeTemplateApplied(Controls::Control& control) noexcept {
-        AERO_CALL_METHOD0(control, Control_OnApplyTemplate);
+        control.OnApplyTemplate();
     }
     static UIElement* ContentControlContent(
         const Controls::ContentControl& control) noexcept {
-        return AERO_GET_FIELD(control, ContentControl_content);
+        return control.content_;
     }
     static const Base::Ref<Base::Object>& OwnedContent(
         const Controls::ContentControl& control) noexcept {
-        return AERO_GET_FIELD(control, ContentControl_ownedContent);
+        return control.ownedContent_;
     }
     static const Base::Ref<Base::Object>& ContentValue(
         const Controls::ContentControl& control) noexcept {
-        return AERO_GET_FIELD(control, ContentControl_contentValue);
+        return control.contentValue_;
     }
     static Base::Result<void> SetOwnedContent(
         Controls::ContentControl& control,
         const Base::Ref<Base::Object>& owner,
         UIElement& content) noexcept {
-        AERO_CALL_METHOD(control, ContentControl_SetOwnedContent, owner, content);
+        control.SetOwnedContent(owner, content);
         return {};
     }
     static Base::Result<void> SetGeneratedTextContent(
         Controls::ContentControl& container,
         const Base::Ref<Base::Object>& contentObject,
         UIElement& content) noexcept {
-        AERO_CALL_METHOD(container, ContentControl_SetGeneratedTextContent, contentObject, content);
+        container.SetGeneratedTextContent(contentObject, content);
         return {};
     }
     static Base::Result<void> SetContentValue(
         Controls::ContentControl& control,
         Base::Ref<Base::Object> value) noexcept {
-        AERO_CALL_METHOD(control, ContentControl_SetContentValueRef, std::move(value));
+        control.SetContentValue(std::move(value));
         return {};
     }
     static Base::Result<void> SetContentValue(
         Controls::ContentControl& control,
         Meta::Value value) noexcept {
-        AERO_CALL_METHOD(control, ContentControl_SetContentValueVal, std::move(value));
+        control.SetContentValue(std::move(value));
         return {};
     }
     static bool HasAttachedGenerator(
         const Controls::ItemsControl& control) noexcept {
-        return AERO_GET_FIELD(control, ItemsControl_generator) != nullptr;
+        return control.generator_ != nullptr;
     }
     static void SetItemsSource(
         Controls::ItemsControl& control,
@@ -238,7 +238,7 @@
 
     // --- ButtonBase ---
     static void Click(Controls::Primitives::ButtonBase& button) noexcept {
-        AERO_CALL_METHOD0(button, ButtonBase_OnClick);
+        button.OnClick();
     }
 
     // --- Grid ---

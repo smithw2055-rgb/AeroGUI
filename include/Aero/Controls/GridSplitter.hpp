@@ -24,6 +24,8 @@ enum class GridResizeBehavior : std::uint8_t {
 class AERO_GUI_API GridSplitter : public Control {
     AERO_DECLARE_TYPE(GridSplitter, Control)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     GridSplitter() noexcept : Control(StaticTypeId()) {}
     ~GridSplitter() override = default;
 

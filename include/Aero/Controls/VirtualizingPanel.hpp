@@ -16,6 +16,8 @@ enum class VirtualizationMode : std::uint8_t { Standard = 0U, Recycling };
 class AERO_GUI_API VirtualizingPanel : public Panel {
     AERO_DECLARE_TYPE(VirtualizingPanel, Panel)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     AERO_ATTACHED_PROPERTY(ScrollUnit, ScrollUnit);
     AERO_ATTACHED_PROPERTY(VirtualizationMode, VirtualizationMode);
 

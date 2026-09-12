@@ -9,6 +9,7 @@ using ::Aero::Meta::TypeId;
 class AERO_GUI_API Menu : public ItemsControl {
     AERO_DECLARE_TYPE(Menu, ItemsControl)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
 
     Menu() noexcept;
     ~Menu() override;

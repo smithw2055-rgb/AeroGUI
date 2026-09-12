@@ -6,6 +6,8 @@
 
 namespace Aero {
 
+class AeroGuiInternal;
+
 // WPF-shaped non-visual content node with resources, DataContext, Style and
 // logical-tree participation. TextElement and other document nodes derive here.
 class AERO_GUI_API FrameworkContentElement : public ContentElement {
@@ -75,6 +77,7 @@ protected:
 
 private:
     friend class ResourceResolver;
+    friend class AeroGuiInternal;
     void AddAuthoredTrigger(
         Ref<Base::Object> trigger) noexcept;
     void ClearAuthoredTriggers() noexcept;

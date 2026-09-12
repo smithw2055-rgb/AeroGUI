@@ -2,6 +2,8 @@
 
 #include <Aero/FrameworkElement.hpp>
 
+namespace Aero::Meta { class Registration; }
+
 namespace Aero::Controls {
 
 class AERO_GUI_API GridViewHeaderRowPresenter
@@ -10,6 +12,8 @@ class AERO_GUI_API GridViewHeaderRowPresenter
         GridViewHeaderRowPresenter,
         Aero::FrameworkElement)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     GridViewHeaderRowPresenter() noexcept
         : FrameworkElement(StaticTypeId()) {}
 

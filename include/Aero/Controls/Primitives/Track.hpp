@@ -4,11 +4,15 @@
 #include <Aero/Controls/Primitives/Thumb.hpp>
 #include <Aero/Controls/Primitives/RepeatButton.hpp>
 
+namespace Aero::Meta { class Registration; }
+
 namespace Aero::Controls::Primitives {
 
 class AERO_GUI_API Track : public Control {
     AERO_DECLARE_TYPE(Track, Control)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     Track() noexcept : Control(StaticTypeId()) {}
     ~Track() override = default;
     using Control::GetValue;

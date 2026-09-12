@@ -1,4 +1,6 @@
 #include <Aero/Controls.hpp>
+#include "gui/meta/TypeRegistryDetail.hpp"
+#include "gui/meta/ValueConversion.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -1055,6 +1057,37 @@ Size VirtualizingWrapPanel::ArrangeOverride(Size finalSize) noexcept {
         lineCross = std::max(lineCross, childCross);
     }
     return finalSize;
+}
+
+void VirtualizingPanel::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<VirtualizingPanel>(context, TypeFlags::Abstract)
+        .Property(VirtualizingPanel::ScrollUnitProperty, ScrollUnit::Item, AffectsParentMeasure)
+        .Property(VirtualizingPanel::VirtualizationModeProperty, VirtualizationMode::Standard, AffectsParentMeasure);
+}
+
+void VirtualizingStackPanel::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<VirtualizationCacheLength>(context)
+        .Field<&VirtualizationCacheLength::cacheBeforeViewport>("CacheBeforeViewport")
+        .Field<&VirtualizationCacheLength::cacheAfterViewport>("CacheAfterViewport")
+        .ValueSemantics();
+
+    Register<VirtualizingStackPanel>(context)
+        .Property(VirtualizingStackPanel::OrientationProperty, Orientation::Vertical, AffectsMeasure)
+        .Property(VirtualizingStackPanel::OverscanCountProperty, std::uint32_t{2}, AffectsMeasure)
+        .Property(VirtualizingStackPanel::EstimatedItemExtentProperty, 24.0, AffectsMeasure, &Base::Validate::Positive<double>)
+        .Property(VirtualizingStackPanel::CacheLengthProperty, VirtualizationCacheLength{}, AffectsMeasure)
+        .Property(VirtualizingStackPanel::CacheLengthUnitProperty, VirtualizationCacheLengthUnit::Item, AffectsMeasure)
+        .Factory();
+}
+
+void VirtualizingWrapPanel::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<VirtualizingWrapPanel>(context)
+        .Property(VirtualizingWrapPanel::ItemWidthProperty, 0.0, AffectsMeasure, &Base::Validate::NonNegative<double>)
+        .Property(VirtualizingWrapPanel::ItemHeightProperty, 0.0, AffectsMeasure, &Base::Validate::NonNegative<double>)
+        .Factory();
 }
 
 } // namespace Aero::Controls

@@ -12,6 +12,8 @@ class AERO_GUI_API HeaderedContentControl
         HeaderedContentControl,
         ContentControl)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     Value GetHeader() const noexcept;
     void SetHeader(const Value& value) noexcept;
     void SetHeader(StringView value) noexcept;

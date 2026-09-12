@@ -3,12 +3,15 @@
 #include <Aero/Controls/TextBox.hpp>
 
 
+namespace Aero::Meta { class Registration; }
+
 namespace Aero::Controls {
 
 using ::Aero::Meta::TypeId;
 class AERO_GUI_API PasswordBox : public Primitives::TextBoxBase {
     AERO_DECLARE_TYPE(PasswordBox, Primitives::TextBoxBase)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
 
     PasswordBox() noexcept;
     ~PasswordBox() override;

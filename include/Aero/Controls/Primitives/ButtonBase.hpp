@@ -5,6 +5,8 @@
 #include <Aero/ICommand.hpp>
 #include <Aero/Events/ControlEventArgs.hpp>
 
+namespace Aero { class AeroGuiInternal; }
+namespace Aero::Meta { class Registration; }
 namespace Aero::Controls {
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::DependencyPropertyHandle;
@@ -20,6 +22,7 @@ namespace Primitives {
 class AERO_GUI_API ButtonBase : public ContentControl {
     AERO_DECLARE_TYPE(ButtonBase, ContentControl)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
 
     inline static constexpr RoutedEvent<RoutedEventArgs> ClickEvent{"Click"};
     UIElement::Event<RoutedEventArgs> Click() noexcept {
@@ -43,6 +46,7 @@ public:
     AERO_DEPENDENCY_PROPERTY(Ref<UIElement>, CommandTarget);
 
 protected:
+    friend class ::Aero::AeroGuiInternal;
     explicit ButtonBase(TypeId runtimeType) noexcept;
     ~ButtonBase() override;
 

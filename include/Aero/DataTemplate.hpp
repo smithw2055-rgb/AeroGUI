@@ -7,11 +7,13 @@
 
 namespace Aero {
 using Meta::TypeId;
+namespace Meta { class Registration; }
 namespace Controls { struct FrameworkTemplateState; }
 
 class AERO_GUI_API DataTemplate : public Base::Object {
     AERO_DECLARE_TYPE(DataTemplate, Base::Object)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
 
     DataTemplate() noexcept;
     ~DataTemplate() noexcept override;

@@ -23,6 +23,8 @@ enum class PopupAnimation : std::uint8_t {
 class AERO_GUI_API Popup : public ContentControl {
     AERO_DECLARE_TYPE(Popup, ContentControl)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     Popup() noexcept;
     ~Popup() override;
 

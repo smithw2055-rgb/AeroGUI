@@ -14,6 +14,8 @@ using ::Aero::Meta::TypeId;
 class AERO_GUI_API Grid : public Panel {
     AERO_DECLARE_TYPE(Grid, Panel)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     Grid() noexcept;
     void SetColumnDefinitions(Span<const GridLength> definitions) noexcept;
     void SetRowDefinitions(Span<const GridLength> definitions) noexcept;

@@ -49,45 +49,43 @@
 
     // --- Property store ---
     static PropertyStore* Store(DependencyObject& object) noexcept {
-        return static_cast<PropertyStore*>(
-            AERO_GET_FIELD(object, DO_valueStore));
+        return static_cast<PropertyStore*>(object.valueStore_);
     }
     static const PropertyStore* Store(const DependencyObject& object) noexcept {
-        return static_cast<const PropertyStore*>(
-            AERO_GET_FIELD(object, DO_valueStore));
+        return static_cast<const PropertyStore*>(object.valueStore_);
     }
     static Meta::DependencyPropertyRegistry& PropertyRegistry(
         const DependencyObject& object) noexcept {
-        return *AERO_GET_FIELD(object, DO_registry);
+        return *object.registry_;
     }
     static Meta::DependencyPropertyRegistry& PropertyRegistry(
         const DependencyObject* object) noexcept {
-        return *AERO_GET_FIELD(*object, DO_registry);
+        return *object->registry_;
     }
     static MemberId CanonicalKey(
         const DependencyObject& object,
         DependencyPropertyHandle property) noexcept {
-        return AERO_CALL_METHOD(object, DO_CanonicalPropertyKey, property);
+        return object.CanonicalPropertyKey(property);
     }
     static StoredValueEntry* FindEntry(
         DependencyObject& object,
         DependencyPropertyHandle property) noexcept {
-        return AERO_CALL_METHOD(object, DO_FindStoredEntry, property);
+        return object.FindStoredEntry(property);
     }
     static const StoredValueEntry* FindEntry(
         const DependencyObject& object,
         DependencyPropertyHandle property) noexcept {
-        return AERO_CALL_METHOD(object, DO_FindStoredEntryConst, property);
+        return object.FindStoredEntry(property);
     }
     static Base::Result<StoredValueEntry*> EnsureEntry(
         DependencyObject& object,
         DependencyPropertyHandle property) noexcept {
-        return AERO_CALL_METHOD(object, DO_EnsureStoredEntry, property);
+        return object.EnsureStoredEntry(property);
     }
     static void RemoveEntry(
         DependencyObject& object,
         MemberId key) noexcept {
-        AERO_CALL_METHOD(object, DO_RemoveStoredEntry, key);
+        object.RemoveStoredEntry(key);
     }
     static void ReleaseExpression(StoredValueEntry& entry) noexcept {
         // Implemented as DependencyObject::ReleaseExpression; callers pass
@@ -99,19 +97,19 @@
         DependencyPropertyHandle property,
         PropertyProviderToken token,
         const PropertyValue& value) noexcept {
-        return AERO_CALL_METHOD(object, DO_ApplyProviderContribution, property, token, value);
+        return object.ApplyProviderContributionInternal(property, token, value);
     }
     static Base::Result<bool> ClearProviderContribution(
         DependencyObject& object,
         DependencyPropertyHandle property,
         PropertyProviderToken token) noexcept {
-        return AERO_CALL_METHOD(object, DO_ClearProviderContribution, property, token);
+        return object.ClearProviderContributionInternal(property, token);
     }
     static Base::Result<bool> ClearProviderOrigin(
         DependencyObject& object,
         DependencyPropertyHandle property,
         std::uint32_t origin) noexcept {
-        return AERO_CALL_METHOD(object, DO_ClearProviderOrigin, property, origin);
+        return object.ClearProviderOriginInternal(property, origin);
     }
     static Base::Result<std::uint32_t> ClearProviderOrigin(
         DependencyObject& object,
@@ -126,7 +124,7 @@
             &keys);
         for (MemberId key : keys) {
             Base::Result<bool> cleared =
-                AERO_CALL_METHOD(object, DO_ClearProviderOrigin,
+                object.ClearProviderOriginInternal(
                     DependencyPropertyHandle{key}, origin);
             if (!cleared) return cleared.GetStatus();
             if (cleared.Value()) ++removed;
@@ -137,49 +135,49 @@
         DependencyObject& object,
         DependencyPropertyHandle property,
         const PropertyExpression& expression) noexcept {
-        return AERO_CALL_METHOD(object, DO_ApplyLocalExpression, property, expression);
+        return object.ApplyLocalExpressionInternal(property, expression);
     }
     static Base::Result<bool> ClearLocalExpression(
         DependencyObject& object,
         DependencyPropertyHandle property) noexcept {
-        return AERO_CALL_METHOD(object, DO_ClearLocalExpression, property);
+        return object.ClearLocalExpressionInternal(property);
     }
     static Base::Result<bool> InvalidateBaseValue(
         DependencyObject& object,
         DependencyPropertyHandle property) noexcept {
-        return AERO_CALL_METHOD(object, DO_InvalidateBaseValue, property);
+        return object.InvalidateBaseValueInternal(property);
     }
     static Base::Result<void> ApplyAnimationValue(
         DependencyObject& object,
         DependencyPropertyHandle property,
         const PropertyValue& value) noexcept {
-        return AERO_CALL_METHOD(object, DO_ApplyAnimationValue, property, value);
+        return object.ApplyAnimationValueInternal(property, value);
     }
     static Base::Result<bool> ClearAnimationValue(
         DependencyObject& object,
         DependencyPropertyHandle property) noexcept {
-        return AERO_CALL_METHOD(object, DO_ClearAnimationValue, property);
+        return object.ClearAnimationValueInternal(property);
     }
     static Base::Result<PropertyValue> GetAnimationBaseValue(
         DependencyObject& object,
         DependencyPropertyHandle property) noexcept {
-        return AERO_CALL_METHOD(object, DO_GetAnimationBaseValue, property);
+        return object.GetAnimationBaseValueInternal(property);
     }
     static Base::Result<void> ApplyInheritedValue(
         DependencyObject& object,
         DependencyPropertyHandle property,
         const PropertyValue* value) noexcept {
-        return AERO_CALL_METHOD(object, DO_ApplyInheritedValue, property, value);
+        return object.ApplyInheritedValueInternal(property, value);
     }
     static Base::Result<void> RecomputeEffectiveValue(
         DependencyObject& object,
         DependencyPropertyHandle property) noexcept {
-        return AERO_CALL_METHOD(object, DO_RecomputeEffectiveValue, property);
+        return object.RecomputeEffectiveValueInternal(property);
     }
     static Base::Result<void> DropEngineValueState(
         DependencyObject& object,
         DependencyPropertyHandle property) noexcept {
-        return AERO_CALL_METHOD(object, DO_DropEngineValueState, property);
+        return object.DropEngineValueStateInternal(property);
     }
     static Base::Result<void> DropAllEngineValueState(
         DependencyObject& object) noexcept {
@@ -192,7 +190,7 @@
             &keys);
         for (MemberId key : keys) {
             Base::Result<void> dropped =
-                AERO_CALL_METHOD(object, DO_DropEngineValueState,
+                object.DropEngineValueStateInternal(
                     DependencyPropertyHandle{key});
             if (!dropped) return dropped.GetStatus();
         }

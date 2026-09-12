@@ -5,6 +5,7 @@
 #include <Aero/Layout.hpp>
 #include <utility>
 
+namespace Aero { class AeroGuiInternal; }
 namespace Aero::Controls {
 
 using ::Aero::Meta::TypeId;
@@ -32,6 +33,8 @@ private:
 class AERO_GUI_API Panel : public FrameworkElement {
     AERO_DECLARE_TYPE(Panel, FrameworkElement)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     Ref<Aero::Media::Brush> GetBackground() const noexcept {
         return GetValue(BackgroundProperty);
     }
@@ -55,6 +58,7 @@ protected:
         ::Aero::Media::DrawingContext& context) noexcept override;
 private:
     friend class UIElementCollection;
+    friend class ::Aero::AeroGuiInternal;
     std::uint32_t ChildCountCore() const noexcept { return ownedChildren_.Size(); }
     Ref<Base::Object> ChildAtCore(std::uint32_t index) const noexcept {
         return index < ownedChildren_.Size() ? ownedChildren_[index] : Ref<Base::Object>{};

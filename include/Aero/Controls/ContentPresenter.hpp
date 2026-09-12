@@ -9,6 +9,8 @@ using ::Aero::Meta::TypeId;
 class AERO_GUI_API ContentPresenter : public FrameworkElement {
     AERO_DECLARE_TYPE(ContentPresenter, FrameworkElement)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     ContentPresenter() noexcept;
     UIElement* GetContent() const noexcept { return content_; }
     const Ref<Base::Object>& GetOwnedContent() const noexcept { return ownedContent_; }

@@ -7,6 +7,8 @@ namespace Aero::Controls {
 class AERO_GUI_API CheckBox : public Primitives::ToggleButton {
     AERO_DECLARE_TYPE(CheckBox, Primitives::ToggleButton)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     CheckBox() noexcept : CheckBox(StaticTypeId()) {}
     ~CheckBox() override = default;
 

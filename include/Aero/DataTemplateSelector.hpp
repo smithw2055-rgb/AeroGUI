@@ -11,6 +11,8 @@ class DependencyObject;
 class AERO_GUI_API DataTemplateSelector : public Base::Object {
     AERO_DECLARE_TYPE(DataTemplateSelector, Base::Object)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     DataTemplateSelector() noexcept = default;
 
     TypeId RuntimeType() const noexcept override {

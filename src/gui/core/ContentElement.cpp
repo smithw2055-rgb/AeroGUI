@@ -184,43 +184,43 @@ void AeroGuiInternal::Attach(
     DependencyObject* logicalParent,
     UIElement* contentHost,
     EventRouter* eventRouter) noexcept {
-    AERO_GET_FIELD(element, ContentElement_logicalParent) = logicalParent;
-    AERO_GET_FIELD(element, ContentElement_contentHost) = contentHost;
-    AERO_GET_FIELD(element, ContentElement_eventRouter) = eventRouter;
+    element.logicalParent_ = logicalParent;
+    element.contentHost_ = contentHost;
+    element.eventRouter_ = eventRouter;
 }
 
 void AeroGuiInternal::Detach(ContentElement& element) noexcept {
-    AERO_GET_FIELD(element, ContentElement_logicalParent) = nullptr;
-    AERO_GET_FIELD(element, ContentElement_contentHost) = nullptr;
-    AERO_GET_FIELD(element, ContentElement_eventRouter) = nullptr;
+    element.logicalParent_ = nullptr;
+    element.contentHost_ = nullptr;
+    element.eventRouter_ = nullptr;
 }
 
 DependencyObject* AeroGuiInternal::Parent(
     const ContentElement& element) noexcept {
-    return AERO_GET_FIELD(element, ContentElement_logicalParent);
+    return element.logicalParent_;
 }
 
 UIElement* AeroGuiInternal::ContentHost(
     const ContentElement& element) noexcept {
-    return AERO_GET_FIELD(element, ContentElement_contentHost);
+    return element.contentHost_;
 }
 
 std::uint32_t AeroGuiInternal::LogicalChildrenCount(
     const FrameworkContentElement& element) noexcept {
-    return AERO_CALL_METHOD0(element, FCE_GetLogicalChildrenCount);
+    return element.GetLogicalChildrenCount();
 }
 
 DependencyObject* AeroGuiInternal::LogicalChild(
     const FrameworkContentElement& element,
     std::uint32_t index) noexcept {
-    return AERO_CALL_METHOD(element, FCE_GetLogicalChild, index);
+    return element.GetLogicalChild(index);
 }
 
 void AeroGuiInternal::InvokeContentHandlers(
     Aero::ContentElement& element,
     RoutedEventHandle event,
     RoutedEventArgs& args) noexcept {
-    AERO_CALL_METHOD(element, ContentElement_InvokeHandlers, event, args);
+    element.InvokeHandlers(event, args);
 }
 
 } // namespace Aero

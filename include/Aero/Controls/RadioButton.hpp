@@ -7,6 +7,8 @@ namespace Aero::Controls {
 class AERO_GUI_API RadioButton : public Primitives::ToggleButton {
     AERO_DECLARE_TYPE(RadioButton, Primitives::ToggleButton)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     RadioButton() noexcept : RadioButton(StaticTypeId()) {}
     ~RadioButton() override;
 

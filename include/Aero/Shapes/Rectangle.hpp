@@ -7,6 +7,8 @@ namespace Aero::Shapes {
 class AERO_GUI_API Rectangle : public Shape {
     AERO_DECLARE_TYPE(Rectangle, Shape)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     Rectangle() noexcept : Shape(StaticTypeId()) {}
     ~Rectangle() override = default;
 

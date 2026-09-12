@@ -3,11 +3,15 @@
 #include <Aero/Controls/Decorator.hpp>
 #include <Aero/Controls/Panel.hpp>
 
+namespace Aero::Meta { class Registration; }
+
 namespace Aero::Controls {
 
 class AERO_GUI_API ItemsPresenter : public Decorator {
     AERO_DECLARE_TYPE(ItemsPresenter, Decorator)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     ItemsPresenter() noexcept : Decorator(StaticTypeId()) {}
     ~ItemsPresenter() override = default;
     Panel* GetItemsHost() const noexcept;

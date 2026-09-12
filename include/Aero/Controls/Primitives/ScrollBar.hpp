@@ -12,6 +12,8 @@ namespace Aero::Controls::Primitives {
 class AERO_GUI_API ScrollBar : public RangeBase {
     AERO_DECLARE_TYPE(ScrollBar, RangeBase)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     ScrollBar() noexcept;
     ~ScrollBar() override;
 

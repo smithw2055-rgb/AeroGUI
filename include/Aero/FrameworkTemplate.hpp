@@ -6,6 +6,7 @@
 
 namespace Aero {
 
+namespace Meta { class Registration; }
 namespace Controls { struct FrameworkTemplateState; }
 class DependencyObject;
 
@@ -15,6 +16,7 @@ class DependencyObject;
 class AERO_GUI_API FrameworkTemplate : public Base::Object {
     AERO_DECLARE_TYPE(FrameworkTemplate, Base::Object)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
 
     FrameworkTemplate() noexcept;
     ~FrameworkTemplate() noexcept override;

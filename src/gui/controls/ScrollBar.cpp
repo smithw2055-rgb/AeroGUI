@@ -20,6 +20,8 @@
 #include <cmath>
 #include <limits>
 #include "gui/templates/TemplateInstance.hpp"
+#include "gui/meta/TypeRegistryDetail.hpp"
+#include <Aero/Events/ControlEventArgs.hpp>
 
 namespace Aero::Controls {
 using namespace Primitives;
@@ -1726,6 +1728,144 @@ double ProgressBar::GetNormalizedValue() const noexcept {
             0.0,
             1.0)
         : 0.0;
+}
+
+namespace Primitives {
+
+void Track::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<Track>(context)
+        .Property(Track::OrientationProperty, Orientation::Vertical, AffectsMeasure)
+        .Property(Track::MinimumProperty, 0.0, AffectsArrange, &::Aero::Base::Validate::Finite<double>)
+        .Property(Track::MaximumProperty, 1.0, AffectsArrange, &::Aero::Base::Validate::Finite<double>)
+        .Property(Track::ValueProperty, 0.0, AffectsArrange | BindsTwoWayByDefault, &::Aero::Base::Validate::Finite<double>)
+        .Property(Track::ViewportSizeProperty, 0.0, AffectsArrange, &::Aero::Base::Validate::NonNegative<double>)
+        .Property(Track::IsDirectionReversedProperty, false, AffectsArrange)
+        .Property<Base::Ref<RepeatButton>, &Track::SetDecreaseRepeatButton>("DecreaseRepeatButton", PropertyFlags::Structural)
+        .Property<Base::Ref<Thumb>, &Track::SetThumb>("Thumb", PropertyFlags::Structural)
+        .Property<Base::Ref<RepeatButton>, &Track::SetIncreaseRepeatButton>("IncreaseRepeatButton", PropertyFlags::Structural)
+        .Factory();
+}
+
+void Thumb::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<Thumb>(context)
+        .Property(Thumb::IsDraggingProperty, false, AffectsRender)
+        .Factory();
+}
+
+void RangeBase::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<RangeValueChangedEventArgs>(context);
+    Register<RangeBase>(context, TypeFlags::Abstract)
+        .Event(RangeBase::ValueChangedEvent)
+        .Property(RangeBase::MinimumProperty, FrameworkPropertyMetadata(0.0, AffectsArrange).Validate(&::Aero::Base::Validate::Finite<double>))
+        .Property(RangeBase::MaximumProperty, FrameworkPropertyMetadata(100.0, AffectsArrange).Validate(&::Aero::Base::Validate::Finite<double>))
+        .Property(RangeBase::ValueProperty, FrameworkPropertyMetadata(0.0, AffectsArrange | BindsTwoWayByDefault).Validate(&::Aero::Base::Validate::Finite<double>));
+}
+
+void ScrollBar::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<ScrollChangedEventArgs>(context);
+    Register<ScrollBar>(context)
+        .Property(ScrollBar::OrientationProperty, Orientation::Vertical, AffectsMeasure)
+        .Property(ScrollBar::ViewportSizeProperty, 0.0, AffectsArrange, &::Aero::Base::Validate::NonNegative<double>)
+        .Property(ScrollBar::SmallChangeProperty, 16.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::Positive<double>)
+        .Property(ScrollBar::LargeChangeProperty, 0.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::NonNegative<double>)
+        .TemplatePart("PART_Track", TypeOf<Track>())
+        .Factory();
+
+    for (Base::StringView commandName : {
+             Base::StringView("LineUpCommand"),
+             Base::StringView("LineUp"),
+             Base::StringView("LineDownCommand"),
+             Base::StringView("LineDown"),
+             Base::StringView("LineLeftCommand"),
+             Base::StringView("LineLeft"),
+             Base::StringView("LineRightCommand"),
+             Base::StringView("LineRight"),
+             Base::StringView("PageUpCommand"),
+             Base::StringView("PageUp"),
+             Base::StringView("PageDownCommand"),
+             Base::StringView("PageDown"),
+             Base::StringView("PageLeftCommand"),
+             Base::StringView("PageLeft"),
+             Base::StringView("PageRightCommand"),
+             Base::StringView("PageRight"),
+             Base::StringView("ScrollToTopCommand"),
+             Base::StringView("ScrollToTop"),
+             Base::StringView("ScrollToBottomCommand"),
+             Base::StringView("ScrollToBottom"),
+             Base::StringView("ScrollToLeftEndCommand"),
+             Base::StringView("ScrollToLeftEnd"),
+             Base::StringView("ScrollToRightEndCommand"),
+             Base::StringView("ScrollToRightEnd"),
+             Base::StringView("ScrollToHorizontalOffsetCommand"),
+             Base::StringView("ScrollToHorizontalOffset"),
+             Base::StringView("ScrollToVerticalOffsetCommand"),
+             Base::StringView("ScrollToVerticalOffset"),
+             Base::StringView("DeferScrollToHorizontalOffsetCommand"),
+             Base::StringView("DeferScrollToHorizontalOffset"),
+             Base::StringView("DeferScrollToVerticalOffsetCommand"),
+             Base::StringView("DeferScrollToVerticalOffset")}) {
+        (void)Input::RoutedCommand::RegisterStatic(
+            ScrollBar::StaticTypeId(), commandName);
+    }
+}
+
+} // namespace Primitives
+
+void Slider::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    for (Base::StringView commandName : {
+             Base::StringView("DecreaseSmall"),
+             Base::StringView("IncreaseSmall"),
+             Base::StringView("DecreaseLarge"),
+             Base::StringView("IncreaseLarge")}) {
+        (void)Input::RoutedCommand::RegisterStatic(
+            Slider::StaticTypeId(), commandName);
+    }
+
+    Register<Slider>(context)
+        .Property(Slider::OrientationProperty, Orientation::Horizontal, AffectsMeasure)
+        .Property(Slider::SmallChangeProperty, 1.0, FrameworkPropertyMetadataOptions::None, &Base::Validate::Positive<double>)
+        .Property(Slider::LargeChangeProperty, 10.0, FrameworkPropertyMetadataOptions::None, &Base::Validate::Positive<double>)
+        .Property(Slider::TickPlacementProperty, TickPlacement::None, AffectsRender)
+        .Property(Slider::TickFrequencyProperty, 1.0, AffectsRender, &Base::Validate::Positive<double>)
+        .Property(Slider::TicksProperty, Base::String{}, AffectsRender)
+        .Property(Slider::IsSnapToTickEnabledProperty, false)
+        .Property(Slider::IsDirectionReversedProperty, false, AffectsArrange | AffectsRender)
+        .Property(Slider::IsMoveToPointEnabledProperty, false)
+        .Override(UIElement::IsTabStopProperty, true, FrameworkPropertyMetadataOptions::None)
+        .Factory();
+}
+
+void TickBar::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<TickBar>(context)
+        .Property(TickBar::FillProperty, Base::Ref<Media::Brush>{}, AffectsRender)
+        .Property(TickBar::PlacementProperty, TickBarPlacement::Top, AffectsRender)
+        .Factory();
+}
+
+void ProgressBar::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<ProgressBar>(context)
+        .Property(ProgressBar::IsIndeterminateProperty, false, AffectsRender)
+        .Property(ProgressBar::OrientationProperty, Orientation::Horizontal, AffectsMeasure)
+        .Factory();
+}
+
+void GridSplitter::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<GridSplitter>(context)
+        .Property(GridSplitter::DragIncrementProperty, 1.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::Positive<double>)
+        .Property(GridSplitter::KeyboardIncrementProperty, 10.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::Positive<double>)
+        .Property(GridSplitter::ResizeDirectionProperty, GridResizeDirection::Auto)
+        .Property(GridSplitter::ResizeBehaviorProperty, GridResizeBehavior::BasedOnAlignment)
+        .Property(GridSplitter::ShowsPreviewProperty, false)
+        .Property(GridSplitter::PreviewStyleProperty, Base::Ref<Aero::Style>{})
+        .Factory();
 }
 
 } // namespace Aero::Controls

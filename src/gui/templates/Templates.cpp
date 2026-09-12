@@ -11,7 +11,9 @@
 #include "gui/styles/StyleEngine.hpp"
 #include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/HierarchicalDataTemplate.hpp>
+#include <Aero/DataTemplateSelector.hpp>
 #include <Aero/Controls/ItemsPanelTemplate.hpp>
+#include <Aero/Triggers/TriggerBase.hpp>
 #include "gui/templates/TemplateInstance.hpp"
 
 #include "render/RenderTree.hpp"
@@ -2558,4 +2560,173 @@ void TemplateEngine::OnPropertyChanged(
     }
 }
 
+namespace {
+
+void AddTemplateTrigger(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    if (!value) {
+        return;
+    }
+    (void)::Aero::Controls::FrameworkTemplateState::AddAuthoredTrigger(
+        static_cast<FrameworkTemplate&>(owner), value);
+}
+
+void ClearTemplateTriggers(
+    Base::Object& owner,
+    void*) noexcept {
+    ::Aero::Controls::FrameworkTemplateState::ClearAuthoredTriggers(
+        static_cast<FrameworkTemplate&>(owner));
+}
+
+template<class T>
+void SetDeferredTemplateVisualTree(
+    Base::Object& object,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    if constexpr (std::is_same_v<T, ControlTemplate>) {
+        (void)::Aero::Controls::FrameworkTemplateState::SetAuthoredVisualTree(
+            static_cast<ControlTemplate&>(object), value);
+    } else if constexpr (std::is_same_v<T, DataTemplate>) {
+        (void)::Aero::Controls::FrameworkTemplateState::SetAuthoredVisualTree(
+            static_cast<DataTemplate&>(object), value);
+    } else {
+        (void)::Aero::Controls::FrameworkTemplateState::SetAuthoredVisualTree(
+            static_cast<ItemsPanelTemplate&>(object), value);
+    }
+}
+
+template<class T>
+void ClearDeferredTemplateVisualTree(
+    Base::Object& object,
+    void*) noexcept {
+    if constexpr (std::is_same_v<T, ControlTemplate>) {
+        ::Aero::Controls::FrameworkTemplateState::ClearAuthoredVisualTree(
+            static_cast<ControlTemplate&>(object));
+    } else if constexpr (std::is_same_v<T, DataTemplate>) {
+        ::Aero::Controls::FrameworkTemplateState::ClearAuthoredVisualTree(
+            static_cast<DataTemplate&>(object));
+    } else {
+        ::Aero::Controls::FrameworkTemplateState::ClearAuthoredVisualTree(
+            static_cast<ItemsPanelTemplate&>(object));
+    }
+}
+
+void AddTemplateVisualStateGroup(
+    Base::Object& object,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    (void)::Aero::Controls::FrameworkTemplateState::AddAuthoredVisualStateGroup(
+        static_cast<ControlTemplate&>(object), value);
+}
+
+void ClearTemplateVisualStateGroups(
+    Base::Object& object,
+    void*) noexcept {
+    ::Aero::Controls::FrameworkTemplateState::ClearAuthoredVisualStateGroups(
+        static_cast<ControlTemplate&>(object));
+}
+
+Meta::TypeReference GetControlTemplateTargetType(
+    const ControlTemplate& value) noexcept {
+    return {value.GetTargetType()};
+}
+
+void SetControlTemplateTargetType(
+    ControlTemplate& target,
+    Meta::TypeReference value) noexcept {
+    (void)::Aero::Controls::FrameworkTemplateState::SetTargetType(target, value.type);
+}
+
+Meta::TypeReference GetDataTemplateType(
+    const DataTemplate& value) noexcept {
+    return {value.GetDataType()};
+}
+
+void SetDataTemplateType(
+    DataTemplate& target,
+    Meta::TypeReference value) noexcept {
+    target.SetDataType(value.type);
+}
+
+void AddDataTemplateTrigger(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    Base::Ref<Aero::TriggerBase> retained =
+        Base::Ref<Aero::TriggerBase>::
+            TryFromBorrowed(
+                static_cast<
+                    Aero::TriggerBase&>(
+                        *value));
+    if (!retained) {
+        return;
+    }
+    (void)::Aero::Controls::FrameworkTemplateState::AddAuthoredTrigger(
+        static_cast<DataTemplate&>(owner), std::move(retained));
+}
+
+void ClearDataTemplateTriggers(
+    Base::Object& owner,
+    void*) noexcept {
+    ::Aero::Controls::FrameworkTemplateState::ClearAuthoredTriggers(
+        static_cast<DataTemplate&>(owner));
+}
+
+} // namespace
+
+void ControlTemplate::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<ControlTemplate>(context)
+        .Property<Meta::TypeReference, &GetControlTemplateTargetType, &SetControlTemplateTargetType>("TargetType", PropertyFlags::None)
+        .Collection<Base::Object>("VisualStateGroups", &AddTemplateVisualStateGroup, &ClearTemplateVisualStateGroups)
+        .Content<Base::Object>("VisualTree", ContentKind::Single, &SetDeferredTemplateVisualTree<ControlTemplate>, &ClearDeferredTemplateVisualTree<ControlTemplate>, ContentFlags::Visual)
+        .Factory();
+}
+
+void ItemsPanelTemplate::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<ItemsPanelTemplate>(context)
+        .Property<Base::Ref<Aero::ResourceDictionary>, &ItemsPanelTemplate::SetResources>("Resources", PropertyFlags::Structural)
+        .Content<Base::Object>("VisualTree", ContentKind::Single, &SetDeferredTemplateVisualTree<ItemsPanelTemplate>, &ClearDeferredTemplateVisualTree<ItemsPanelTemplate>, ContentFlags::Visual)
+        .Factory();
+}
+
 } // namespace Aero::Controls
+
+namespace Aero {
+
+void FrameworkTemplate::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<FrameworkTemplate>(context, TypeFlags::Abstract)
+        .Property<Base::Ref<Aero::ResourceDictionary>, &FrameworkTemplate::SetResources>("Resources", PropertyFlags::Structural)
+        .Collection<Base::Object>("Triggers", &Controls::AddTemplateTrigger, &Controls::ClearTemplateTriggers);
+}
+
+void DataTemplate::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<DataTemplate>(context)
+        .Property<Meta::TypeReference, &Controls::GetDataTemplateType, &Controls::SetDataTemplateType>("DataType", PropertyFlags::None)
+        .Property<Base::Ref<Aero::ResourceDictionary>, &DataTemplate::SetResources>("Resources", PropertyFlags::Structural)
+        .Collection<Aero::TriggerBase>("Triggers", &Controls::AddDataTemplateTrigger, &Controls::ClearDataTemplateTriggers)
+        .Content<Base::Object>("VisualTree", ContentKind::Single, &Controls::SetDeferredTemplateVisualTree<DataTemplate>, &Controls::ClearDeferredTemplateVisualTree<DataTemplate>, ContentFlags::Visual)
+        .Factory();
+}
+
+void DataTemplateSelector::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<DataTemplateSelector>(context)
+        .Factory();
+}
+
+void HierarchicalDataTemplate::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<HierarchicalDataTemplate>(context)
+        .Property<Base::Ref<Base::Object>, &HierarchicalDataTemplate::GetItemsSource, &HierarchicalDataTemplate::SetItemsSource>("ItemsSource", PropertyFlags::None)
+        .Property<Base::Ref<Base::Object>, &HierarchicalDataTemplate::GetItemTemplate, &HierarchicalDataTemplate::SetItemTemplate>("ItemTemplate", PropertyFlags::None)
+        .Content<Base::Object>("VisualTree", ContentKind::Single, &Controls::SetDeferredTemplateVisualTree<DataTemplate>, &Controls::ClearDeferredTemplateVisualTree<DataTemplate>, ContentFlags::Visual)
+        .Factory();
+}
+
+} // namespace Aero

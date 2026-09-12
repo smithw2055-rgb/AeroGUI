@@ -153,6 +153,7 @@ set(_aero_gui_controls_sources
     src/gui/controls/ItemContainerGenerator.cpp
     src/gui/controls/ListView.cpp
     src/gui/controls/Menus.cpp
+    src/gui/controls/ControlsMetadata.hpp
     src/gui/controls/ControlsMetadata.cpp
     src/gui/controls/ScrollCommon.hpp
     src/gui/controls/ScrollContentPresenter.cpp

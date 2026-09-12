@@ -7,6 +7,8 @@ namespace Aero::Shapes {
 class AERO_GUI_API Line : public Shape {
     AERO_DECLARE_TYPE(Line, Shape)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     Line() noexcept : Shape(StaticTypeId()) {}
     ~Line() override = default;
 

@@ -13,6 +13,7 @@
 #include <Aero/Controls.hpp>
 #include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/TryCast.hpp>
+#include "gui/meta/TypeRegistryDetail.hpp"
 #include <Aero/Controls/Primitives/ToggleButton.hpp>
 #include <Aero/Controls/ItemContainerGenerator.hpp>
 
@@ -1072,6 +1073,49 @@ void TreeView::OnKeyDown(KeyEventArgs& args) {
     SelectItem(visible[target]);
     static_cast<void>(visible[target]->Focus());
     args.SetHandled(true);
+}
+
+namespace {
+
+void AddTreeViewItem(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& item,
+    void*) noexcept {
+    if (!item) {
+        return;
+    }
+    static_cast<TreeViewItem&>(owner).GetItems().Add(item);
+}
+
+void ClearTreeViewItems(
+    Base::Object& owner,
+    void*) noexcept {
+    static_cast<TreeViewItem&>(owner).GetItems().Reset();
+}
+
+} // namespace
+
+void TreeView::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<TreeView>(context)
+        .Event(TreeView::SelectedItemChangedEvent)
+        .Property(TreeView::SelectedItemProperty, Base::Ref<Base::Object>{})
+        .Factory();
+}
+
+void TreeViewItem::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<TreeViewItem>(context)
+        .Event(TreeViewItem::ExpandedEvent)
+        .Event(TreeViewItem::CollapsedEvent)
+        .Event(TreeViewItem::SelectedEvent)
+        .Event(TreeViewItem::UnselectedEvent)
+        .Property(TreeViewItem::IconProperty, Base::String{}, AffectsMeasure)
+        .Property(TreeViewItem::IsExpandedProperty, false, AffectsMeasure | BindsTwoWayByDefault)
+        .Property(TreeViewItem::IsSelectedProperty, false, AffectsRender | BindsTwoWayByDefault)
+        .Override(Aero::UIElement::IsTabStopProperty, true, FrameworkPropertyMetadataOptions::None)
+        .Content<Base::Object>("Items", ContentKind::Collection, &AddTreeViewItem, &ClearTreeViewItems)
+        .Factory();
 }
 
 } // namespace Aero::Controls

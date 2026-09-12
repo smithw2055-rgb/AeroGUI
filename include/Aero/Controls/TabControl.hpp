@@ -10,6 +10,8 @@ namespace Aero::Controls {
 class AERO_GUI_API TabControl : public Primitives::Selector {
     AERO_DECLARE_TYPE(TabControl, Primitives::Selector)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     TabControl() noexcept;
     ~TabControl() override;
 

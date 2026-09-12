@@ -12,6 +12,7 @@
 #include <utility>
 
 
+namespace Aero { class AeroGuiInternal; }
 namespace Aero::Controls {
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::DependencyPropertyChangedEventHandler;
@@ -23,6 +24,7 @@ class ItemContainerGenerator;
 class AERO_GUI_API ItemsControl : public Control {
     AERO_DECLARE_TYPE(ItemsControl, Control)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
 
     ItemsControl() noexcept;
     ~ItemsControl() override;
@@ -197,6 +199,7 @@ protected:
 
 private:
     friend class ItemContainerGenerator;
+    friend class ::Aero::AeroGuiInternal;
 
     ItemCollection items_;
     Collections::IItemsSource* source_ = nullptr;

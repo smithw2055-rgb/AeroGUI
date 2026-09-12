@@ -10,6 +10,7 @@ class AERO_GUI_API TreeView
     : public ItemsControl {
     AERO_DECLARE_TYPE(TreeView, ItemsControl)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
 
     TreeView() noexcept;
     ~TreeView() override;

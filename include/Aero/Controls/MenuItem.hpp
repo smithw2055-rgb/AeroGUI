@@ -5,6 +5,7 @@
 #include <Aero/Controls/Popup.hpp>
 #include <Aero/Controls/TextBlock.hpp>
 
+namespace Aero { class AeroGuiInternal; }
 namespace Aero::Controls {
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::DependencyPropertyChangedEventHandler;
@@ -21,6 +22,8 @@ class AERO_GUI_API MenuItem
     : public HeaderedItemsControl {
     AERO_DECLARE_TYPE(MenuItem, HeaderedItemsControl)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     MenuItem() noexcept;
     ~MenuItem() override;
 
@@ -65,6 +68,7 @@ protected:
         const DependencyPropertyChangedEventArgs& args) noexcept override;
 
 private:
+    friend class ::Aero::AeroGuiInternal;
     TextBlock* gestureText_ = nullptr;
     TextBlock* checkGlyph_ = nullptr;
     Primitives::Popup* submenuPopup_ = nullptr;

@@ -8,6 +8,8 @@ namespace Aero::Controls {
 class AERO_GUI_API VirtualizingWrapPanel : public VirtualizingStackPanel {
     AERO_DECLARE_TYPE(VirtualizingWrapPanel, VirtualizingStackPanel)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     VirtualizingWrapPanel() noexcept;
 
     double GetItemWidth() const noexcept;

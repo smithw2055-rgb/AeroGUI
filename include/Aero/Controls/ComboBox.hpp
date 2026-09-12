@@ -15,6 +15,7 @@ using ::Aero::Meta::TypeId;
 class AERO_GUI_API ComboBox : public Primitives::Selector {
     AERO_DECLARE_TYPE(ComboBox, Primitives::Selector)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
 
     ComboBox() noexcept;
     ~ComboBox() override;

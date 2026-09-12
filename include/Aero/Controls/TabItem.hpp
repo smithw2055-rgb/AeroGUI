@@ -10,6 +10,8 @@ class AERO_GUI_API TabItem
         TabItem,
         HeaderedContentControl)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     TabItem() noexcept
         : HeaderedContentControl(StaticTypeId()) {}
     ~TabItem() override = default;

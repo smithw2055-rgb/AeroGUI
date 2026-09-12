@@ -7,6 +7,8 @@ namespace Aero::Controls::Primitives {
 class AERO_GUI_API RepeatButton : public ButtonBase {
     AERO_DECLARE_TYPE(RepeatButton, ButtonBase)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     RepeatButton() noexcept : RepeatButton(StaticTypeId()) {}
     ~RepeatButton() override;
 

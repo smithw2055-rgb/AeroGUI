@@ -10,6 +10,8 @@ class AERO_GUI_API GroupBox
         GroupBox,
         HeaderedContentControl)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     GroupBox() noexcept
         : HeaderedContentControl(StaticTypeId()) {}
     ~GroupBox() override = default;

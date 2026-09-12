@@ -5,16 +5,33 @@
 #include "gui/core/EventRouter.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/media/AnimationEngine.hpp"
+#include "gui/media/BrushRendering.hpp"
 #include "gui/styles/StyleEngine.hpp"
+#include "render/DisplayList.hpp"
 #include <Aero/Controls.hpp>
 #include <Aero/Controls/ItemContainerGenerator.hpp>
+#include <Aero/Controls/BulletDecorator.hpp>
+#include <Aero/Controls/ControlTemplate.hpp>
+#include <Aero/DataTemplate.hpp>
+#include <Aero/Base/String.hpp>
+#include <Aero/Media/Transforms.hpp>
+#include <Aero/Shapes.hpp>
+#include <Aero/Documents.hpp>
+#include "gui/meta/TypeRegistryDetail.hpp"
+#include "gui/meta/ValueConversion.hpp"
+#include "ControlsMetadata.hpp"
 #include "gui/templates/TemplateInstance.hpp"
 #include "gui/data/BindingEngine.hpp"
 #include <Aero/TryCast.hpp>
 #include <Aero/VisualTreeHelper.hpp>
 
 #include <algorithm>
+#include <cctype>
+#include <cmath>
+#include <cstdio>
+#include <cstring>
 #include <limits>
+#include <utility>
 
 namespace Aero::Controls {
 
@@ -22,6 +39,7 @@ using namespace Primitives;
 
 using namespace Aero::Meta;
 using namespace Aero::Threading;
+using namespace Aero::Render;
 
 
 Popup::Popup() noexcept
@@ -1006,36 +1024,6 @@ Size TabPanel::ArrangeOverride(
     return finalSize;
 }
 
-} // namespace Aero::Controls
-#include "gui/meta/TypeRegistryDetail.hpp"
-#include "gui/data/BindingEngine.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleEngine.hpp"
-#include "render/DisplayList.hpp"
-#include <Aero/Controls.hpp>
-#include <Aero/Controls/ListBox.hpp>
-#include <Aero/Controls/TreeView.hpp>
-#include <Aero/Shapes.hpp>
-#include <Aero/Media/Transforms.hpp>
-#include "gui/media/BrushRendering.hpp"
-#include <Aero/Documents.hpp>
-#include "RichText.hpp"
-
-#include "TextBlockLayout.hpp"
-
-#include <algorithm>
-#include <cctype>
-#include <cmath>
-#include <cstdio>
-#include <cstring>
-#include <utility>
-
-
-namespace Aero::Controls {
-using namespace Aero::Meta;
-using namespace Aero::Threading;
-using namespace Aero::Render;
-
 Stretch Viewbox::GetStretch() const noexcept {
     return GetValue(StretchProperty);
 }
@@ -1789,5 +1777,279 @@ Size ContentPresenter::ArrangeOverride(Size finalSize) noexcept {
     if (!arranged) return finalSize;
     return finalSize;
 }
+
+namespace {
+
+class BasicControl : public Control {
+public:
+    BasicControl() noexcept : Control(Control::StaticTypeId()) {}
+};
+
+class BasicContentControl : public ContentControl {
+public:
+    BasicContentControl() noexcept
+        : ContentControl(ContentControl::StaticTypeId()) {}
+};
+
+class BasicHeaderedContentControl : public HeaderedContentControl {
+public:
+    BasicHeaderedContentControl() noexcept
+        : HeaderedContentControl(HeaderedContentControl::StaticTypeId()) {}
+};
+
+void SetDecoratorContent(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& child,
+    void*) noexcept {
+    if (!child) {
+        return;
+    }
+    (void)AeroGuiInternal::DecoratorSetOwnedChild(
+        static_cast<Decorator&>(owner), child, *static_cast<Aero::UIElement*>(child.Get()));
+}
+
+void ClearDecoratorContent(
+    Base::Object& owner,
+    void*) noexcept {
+    static_cast<Decorator&>(owner).SetChild(nullptr);
+}
+
+void AddBulletDecoratorContent(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& child,
+    void*) noexcept {
+    if (!child) return;
+    auto& decorator = static_cast<BulletDecorator&>(owner);
+    Base::Ref<UIElement> retained =
+        Base::Ref<UIElement>::TryFromBorrowed(
+            *static_cast<UIElement*>(child.Get()));
+    if (!retained) return;
+    if (decorator.GetBullet() == nullptr) {
+        decorator.SetBullet(std::move(retained));
+    } else {
+        decorator.SetChild(std::move(retained));
+    }
+}
+
+void ClearBulletDecoratorContent(
+    Base::Object& owner,
+    void*) noexcept {
+    auto& decorator = static_cast<BulletDecorator&>(owner);
+    decorator.SetBullet({});
+    decorator.SetChild({});
+}
+
+void SetContentControlContent(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& child,
+    void*) noexcept {
+    if (!child) {
+        return;
+    }
+    (void)AeroGuiInternal::SetContentValue(
+        static_cast<ContentControl&>(owner), child);
+}
+
+void ClearContentControlContent(
+    Base::Object& owner,
+    void*) noexcept {
+    (void)AeroGuiInternal::SetContentValue(
+        static_cast<ContentControl&>(owner), Meta::Value::NullObject(Meta::TypeOf<Base::Object>()));
+}
+
+void SetContentPresenterContent(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& child,
+    void*) noexcept {
+    if (!child) {
+        return;
+    }
+    static_cast<ContentPresenter&>(owner).SetOwnedContent(
+        child, *static_cast<Aero::UIElement*>(child.Get()));
+}
+
+void ClearContentPresenterContent(
+    Base::Object& owner,
+    void*) noexcept {
+    static_cast<ContentPresenter&>(owner).SetContent(nullptr);
+}
+
+bool ValidateCornerRadiusValue(
+    const Aero::CornerRadius& radius) noexcept {
+    return std::isfinite(radius.topLeft) &&
+        std::isfinite(radius.topRight) &&
+        std::isfinite(radius.bottomRight) &&
+        std::isfinite(radius.bottomLeft) &&
+        radius.topLeft >= 0.0 &&
+        radius.topRight >= 0.0 &&
+        radius.bottomRight >= 0.0 &&
+        radius.bottomLeft >= 0.0;
+}
+
+} // namespace
+
+void Control::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<Control>(context)
+        .Event(Control::PreviewMouseDoubleClickEvent, RoutingStrategy::Tunnel)
+        .Event(Control::MouseDoubleClickEvent)
+        .Override(UIElement::FocusableProperty, true, FrameworkPropertyMetadataOptions::None)
+        .Override(UIElement::IsTabStopProperty, true, FrameworkPropertyMetadataOptions::None)
+        .Property(Control::BackgroundProperty, Base::Ref<Media::Brush>{}, AffectsRender)
+        .Property(Control::BorderBrushProperty, Base::Ref<Media::Brush>{}, AffectsRender)
+        .Property(Control::BorderThicknessProperty, Aero::Thickness{}, AffectsMeasure | AffectsRender, &ValidateThicknessValue)
+        .Property(Control::PaddingProperty, Aero::Thickness{}, AffectsMeasure, &ValidateThicknessValue)
+        .Property(Control::FontWeightProperty, FontWeight::Normal, AffectsMeasure)
+        .Property(Control::HorizontalContentAlignmentProperty, Aero::HorizontalAlignment::Left, AffectsArrange)
+        .Property(Control::VerticalContentAlignmentProperty, Aero::VerticalAlignment::Top, AffectsArrange)
+        .Property(Control::FontSizeProperty, 15.0, Inherits | AffectsMeasure, &ValidatePositiveFiniteDouble)
+        .Property(Control::FocusVisualStyleProperty, Base::Ref<Aero::Style>{})
+        .Property(Control::OverridesDefaultStyleProperty, false)
+        .Property(Control::TemplateProperty, Base::Ref<ControlTemplate>{}, AffectsMeasure)
+        .Factory<BasicControl>();
+}
+
+void ContentControl::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<ContentControl>(context)
+        .Property(ContentControl::ContentProperty, FrameworkPropertyMetadata(Meta::Value::NullObject(Meta::TypeOf<Base::Object>()), AffectsMeasure).Structural())
+        .Property(ContentControl::ContentTemplateProperty, Base::Ref<Base::Object>{}, AffectsMeasure)
+        .Property(ContentControl::ContentTemplateSelectorProperty, Base::Ref<Base::Object>{}, AffectsMeasure)
+        .ContentAccessor(MakeMemberId(ContentControl::StaticTypeId(), MemberKind::Property, "Content"), ContentKind::Single, &SetContentControlContent, &ClearContentControlContent, ContentFlags::Visual)
+        .Factory<BasicContentControl>();
+}
+
+void HeaderedContentControl::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<HeaderedContentControl>(context)
+        .Property(HeaderedContentControl::HeaderProperty, Meta::Value::NullObject(Meta::TypeOf<Base::Object>()), AffectsMeasure)
+        .Property(HeaderedContentControl::HeaderTemplateProperty, Base::Ref<DataTemplate>{}, AffectsMeasure)
+        .Factory<BasicHeaderedContentControl>();
+}
+
+void Decorator::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<Decorator>(context)
+        .Content<Aero::UIElement>("Content", ContentKind::Single, &SetDecoratorContent, &ClearDecoratorContent, ContentFlags::Visual)
+        .Factory();
+}
+
+void BulletDecorator::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<BulletDecorator>(context)
+        .Property(BulletDecorator::BackgroundProperty, Base::Ref<Aero::Media::Brush>{}, AffectsRender)
+        .Content<Aero::UIElement>("Bullet", ContentKind::Collection, &AddBulletDecoratorContent, &ClearBulletDecoratorContent, ContentFlags::Visual)
+        .Factory();
+}
+
+void Viewbox::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<Viewbox>(context)
+        .Property(Viewbox::StretchProperty, Stretch::Uniform, AffectsMeasure)
+        .Property(Viewbox::StretchDirectionProperty, StretchDirection::Both, AffectsMeasure)
+        .Content<Aero::UIElement>("Content", ContentKind::Single, &SetDecoratorContent, &ClearDecoratorContent, ContentFlags::Visual)
+        .Factory();
+}
+
+void Border::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<Border>(context)
+        .Property(Border::BackgroundProperty, Base::Ref<Media::Brush>{}, AffectsRender)
+        .Property(Border::BorderBrushProperty, Base::Ref<Media::Brush>{}, AffectsRender)
+        .Property(Border::BorderThicknessProperty, Aero::Thickness{}, AffectsMeasure | AffectsRender, &ValidateThicknessValue)
+        .Property(Border::CornerRadiusProperty, Aero::CornerRadius{}, AffectsRender, &ValidateCornerRadiusValue)
+        .Property(Border::PaddingProperty, Aero::Thickness{}, AffectsMeasure, &ValidateThicknessValue)
+        .Factory();
+}
+
+void ContentPresenter::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Base::String defaultContentSource;
+    (void)defaultContentSource.Assign(Base::StringView("Content"));
+
+    Register<ContentPresenter>(context)
+        .Property(ContentPresenter::ContentProperty, FrameworkPropertyMetadata(Meta::Value::NullObject(Meta::TypeOf<Base::Object>()), AffectsMeasure).Structural())
+        .Property(ContentPresenter::ContentTemplateProperty, Base::Ref<Base::Object>{}, AffectsMeasure)
+        .Property(ContentPresenter::ContentSourceProperty, std::move(defaultContentSource))
+        .ContentAccessor(MakeMemberId(ContentPresenter::StaticTypeId(), MemberKind::Property, "Content"), ContentKind::Single, &SetContentPresenterContent, &ClearContentPresenterContent, ContentFlags::Visual)
+        .Factory();
+}
+
+void UserControl::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<UserControl>(context)
+        .Factory();
+}
+
+void Page::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<Page>(context)
+        .Factory();
+}
+
+void GroupBox::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<GroupBox>(context)
+        .Factory();
+}
+
+void Label::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<Label>(context)
+        .Factory();
+}
+
+void Expander::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<Expander>(context)
+        .Event(Expander::ExpandedEvent)
+        .Event(Expander::CollapsedEvent)
+        .Property(Expander::IsExpandedProperty, false, AffectsMeasure)
+        .Property(Expander::ExpandDirectionProperty, ExpandDirection::Down, AffectsMeasure)
+        .Factory();
+}
+
+void TabItem::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<TabItem>(context)
+        .Property(TabItem::IsSelectedProperty, false, AffectsRender)
+        .Factory();
+}
+
+void TabControl::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<TabControl>(context)
+        .Property(TabControl::SelectedContentProperty, Meta::Value::NullObject(Meta::TypeOf<Base::Object>()))
+        .Property(TabControl::ContentTemplateProperty, Base::Ref<DataTemplate>{}, AffectsMeasure)
+        .Property(TabControl::TabStripPlacementProperty, Dock::Top, AffectsMeasure)
+        .Factory();
+}
+
+void TabPanel::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<TabPanel>(context)
+        .Factory();
+}
+
+namespace Primitives {
+
+void Popup::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<Popup>(context)
+        .Event(Popup::OpenedEvent)
+        .Event(Popup::ClosedEvent)
+        .Property(Popup::IsOpenProperty, false, AffectsMeasure | AffectsRender | BindsTwoWayByDefault)
+        .Property(Popup::PlacementProperty, PlacementMode::Bottom, AffectsArrange)
+        .Property(Popup::HorizontalOffsetProperty, 0.0, AffectsArrange, &Base::Validate::Finite<double>)
+        .Property(Popup::VerticalOffsetProperty, 0.0, AffectsArrange, &Base::Validate::Finite<double>)
+        .Property(Popup::StaysOpenProperty, true)
+        .Property(Popup::MatchPlacementTargetWidthProperty, false, AffectsArrange)
+        .Property(Popup::PlacementTargetProperty, Base::Ref<UIElement>{}, AffectsArrange)
+        .Property(Popup::PopupAnimationProperty, PopupAnimation::None, AffectsRender)
+        .Property(Popup::AllowsTransparencyProperty, false, AffectsRender)
+        .Factory();
+}
+
+} // namespace Primitives
 
 } // namespace Aero

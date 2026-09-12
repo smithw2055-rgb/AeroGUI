@@ -7,6 +7,8 @@ using ::Aero::Meta::TypeId;
 class AERO_GUI_API UserControl : public ContentControl {
     AERO_DECLARE_TYPE(UserControl, ContentControl)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     UserControl() noexcept : ContentControl(StaticTypeId()) {}
     ~UserControl() override = default;
 protected:

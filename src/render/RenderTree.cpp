@@ -1374,13 +1374,13 @@ Base::Result<void> AeroGuiInternal::SetImageRuntimeData(
     std::uint32_t pixelWidth,
     std::uint32_t pixelHeight) noexcept {
     const bool measureChanged =
-        AERO_GET_FIELD(image, Image_pixelWidth) != pixelWidth ||
-        AERO_GET_FIELD(image, Image_pixelHeight) != pixelHeight;
+        image.pixelWidth_ != pixelWidth ||
+        image.pixelHeight_ != pixelHeight;
     const bool renderChanged =
-        AERO_GET_FIELD(image, Image_renderImage) != renderImage;
-    AERO_GET_FIELD(image, Image_renderImage) = renderImage;
-    AERO_GET_FIELD(image, Image_pixelWidth) = pixelWidth;
-    AERO_GET_FIELD(image, Image_pixelHeight) = pixelHeight;
+        image.renderImage_ != renderImage;
+    image.renderImage_ = renderImage;
+    image.pixelWidth_ = pixelWidth;
+    image.pixelHeight_ = pixelHeight;
     if (measureChanged) {
         image.InvalidateMeasure();
         return {};

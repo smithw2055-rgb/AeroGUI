@@ -3,6 +3,11 @@
 #include <Aero/Controls/TextBoxBase.hpp>
 #include <Aero/Controls/TextBox.hpp>
 #include <Aero/Controls/PasswordBox.hpp>
+#include <Aero/Media/SolidColorBrush.hpp>
+#include <Aero/Base/String.hpp>
+#include "gui/meta/TypeRegistryDetail.hpp"
+#include "gui/meta/ValueConversion.hpp"
+#include "ControlsMetadata.hpp"
 #include "gui/text/EditableText.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
@@ -1931,5 +1936,53 @@ TextBox::UpdateCandidateWindow() noexcept {
     return {};
 }
 
+namespace Primitives {
+
+void TextBoxBase::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Media;
+    using namespace Aero::Meta;
+
+    const auto makeBrush = [](Base::Color color) noexcept {
+        Base::Result<Base::Ref<Brush>> made = MakeSolidColorBrush(color);
+        return made ? std::move(made).Value() : Base::Ref<Brush>{};
+    };
+    const Base::Ref<Brush> black = makeBrush({0.0F, 0.0F, 0.0F, 1.0F});
+    const Base::Ref<Brush> selection = makeBrush({46.0F / 255.0F, 174.0F / 255.0F, 235.0F / 255.0F, 1.0F});
+
+    Register<TextBoxBase>(context, TypeFlags::Abstract)
+        .Property(TextBoxBase::SelectionBrushProperty, selection, AffectsRender)
+        .Property(TextBoxBase::SelectionOpacityProperty, 0.25, AffectsRender, &ValidateNormalizedDouble)
+        .Property(TextBoxBase::CaretBrushProperty, black, AffectsRender);
+}
+
+} // namespace Primitives
+
+void TextBox::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Media;
+    using namespace Aero::Meta;
+
+    const auto makeBrush = [](Base::Color color) noexcept {
+        Base::Result<Base::Ref<Brush>> made = MakeSolidColorBrush(color);
+        return made ? std::move(made).Value() : Base::Ref<Brush>{};
+    };
+    const Base::Ref<Brush> placeholder = makeBrush({123.0F / 255.0F, 128.0F / 255.0F, 133.0F / 255.0F, 1.0F});
+
+    Register<TextBox>(context)
+        .Event(TextBox::TextChangedEvent)
+        .Property(TextBox::TextProperty, FrameworkPropertyMetadata(Base::String{}, AffectsMeasure | AffectsRender | BindsTwoWayByDefault).UpdateSource(UpdateSourceTrigger::LostFocus))
+        .Property(TextBox::IsReadOnlyProperty, false, AffectsRender)
+        .Property(TextBox::MaxLengthProperty, std::uint32_t{0})
+        .Property(TextBox::AcceptsReturnProperty, false, AffectsMeasure | AffectsRender)
+        .Property(TextBox::TextWrappingProperty, TextWrapping::NoWrap, AffectsMeasure | AffectsRender)
+        .Property(TextBox::PlaceholderProperty, Base::String{}, AffectsMeasure)
+        .Property(TextBox::PlaceholderForegroundProperty, placeholder, AffectsRender)
+        .Property(TextBox::FontSizeProperty, 15.0, AffectsMeasure, &ValidatePositiveFiniteDouble)
+        .Property(TextBox::FontWeightProperty, FontWeight::Normal, AffectsMeasure)
+        .Property(TextBox::FontStyleProperty, FontStyle::Normal, AffectsMeasure)
+        .Property(TextBox::TextAlignmentProperty, TextAlignment::Left, AffectsMeasure)
+        .Property(TextBox::MaxLinesProperty, std::uint32_t{0}, AffectsMeasure | AffectsRender)
+        .Property(TextBox::MinLinesProperty, std::uint32_t{1}, AffectsMeasure | AffectsRender, &Base::Validate::Positive<std::uint32_t>)
+        .Factory();
+}
 
 } // namespace Aero::Controls

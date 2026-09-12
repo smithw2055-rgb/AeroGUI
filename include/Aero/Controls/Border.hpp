@@ -12,6 +12,8 @@ using ::Aero::Media::Brush;
 class AERO_GUI_API Border : public Decorator {
     AERO_DECLARE_TYPE(Border, Decorator)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     Border() noexcept;
     void SetBackground(Ref<Brush> value) noexcept;
     void SetBorderBrush(Ref<Brush> value) noexcept;

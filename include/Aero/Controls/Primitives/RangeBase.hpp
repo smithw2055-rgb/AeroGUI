@@ -13,6 +13,8 @@ using ::Aero::Meta::TypeId;
 class AERO_GUI_API RangeBase : public Control {
     AERO_DECLARE_TYPE(RangeBase, Control)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     using Control::GetValue;
     using Control::SetValue;
 

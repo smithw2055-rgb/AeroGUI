@@ -14,6 +14,8 @@ namespace Primitives {
 class AERO_GUI_API Thumb : public Control {
     AERO_DECLARE_TYPE(Thumb, Control)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     Thumb() noexcept;
     ~Thumb() override;
 

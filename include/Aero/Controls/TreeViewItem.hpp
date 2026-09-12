@@ -18,6 +18,8 @@ class AERO_GUI_API TreeViewItem
     : public HeaderedItemsControl {
     AERO_DECLARE_TYPE(TreeViewItem, HeaderedItemsControl)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     TreeViewItem() noexcept;
     ~TreeViewItem() override;
 

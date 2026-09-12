@@ -4,6 +4,8 @@
 #include <Aero/Data/Binding.hpp>
 #include <Aero/Style.hpp>
 
+namespace Aero::Meta { class Registration; }
+
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
 
@@ -11,6 +13,8 @@ class AERO_GUI_API GridViewColumn
     : public DependencyObject {
     AERO_DECLARE_TYPE(GridViewColumn, DependencyObject)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     GridViewColumn() noexcept
         : DependencyObject(StaticTypeId()) {}
     Value GetHeader() const noexcept;

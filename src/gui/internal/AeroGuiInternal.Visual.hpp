@@ -3,21 +3,21 @@
 
     static VisualHandle Handle(const ::Aero::Media::Visual& visual) noexcept {
         return {
-            AERO_GET_FIELD(visual, Visual_handleIndex),
-            AERO_GET_FIELD(visual, Visual_handleGeneration)
+            visual.handleIndex_,
+            visual.handleGeneration_
         };
     }
     static void SetHandle(
         ::Aero::Media::Visual& visual, VisualHandle handle) noexcept {
-        AERO_GET_FIELD(visual, Visual_handleIndex) = handle.index;
-        AERO_GET_FIELD(visual, Visual_handleGeneration) = handle.generation;
+        visual.handleIndex_ = handle.index;
+        visual.handleGeneration_ = handle.generation;
     }
     static Base::Result<Base::Ref<Base::Object>> AcquireLifetime(
         ::Aero::Media::Visual& visual) noexcept {
-        return AERO_CALL_METHOD0(visual, Visual_AcquireLifetime);
+        return visual.AcquireLifetime();
     }
     static Base::RenderNodeId& NodeId(::Aero::Media::Visual& visual) noexcept {
-        return AERO_GET_FIELD(visual, Visual_renderNodeId);
+        return visual.renderNodeId_;
     }
     struct PackedFlagRef {
         std::uint8_t* bits = nullptr;
@@ -36,26 +36,26 @@
         }
     };
     static PackedFlagRef RenderAttached(::Aero::Media::Visual& visual) noexcept {
-        return {&AERO_GET_FIELD(visual, Visual_visualFlags), 1U << 0U};
+        return {&visual.visualFlags_, 1U << 0U};
     }
     static PackedFlagRef RenderValid(::Aero::Media::Visual& visual) noexcept {
-        return {&AERO_GET_FIELD(visual, Visual_visualFlags), 1U << 1U};
+        return {&visual.visualFlags_, 1U << 1U};
     }
     static PackedFlagRef RenderQueued(::Aero::Media::Visual& visual) noexcept {
-        return {&AERO_GET_FIELD(visual, Visual_visualFlags), 1U << 2U};
+        return {&visual.visualFlags_, 1U << 2U};
     }
     static PackedFlagRef Rendering(::Aero::Media::Visual& visual) noexcept {
-        return {&AERO_GET_FIELD(visual, Visual_visualFlags), 1U << 3U};
+        return {&visual.visualFlags_, 1U << 3U};
     }
     static std::uint8_t& RenderDirtyFlags(::Aero::Media::Visual& visual) noexcept {
-        return AERO_GET_FIELD(visual, Visual_renderDirtyFlags);
+        return visual.renderDirtyFlags_;
     }
     static std::uint64_t& RenderRevision(::Aero::Media::Visual& visual) noexcept {
-        return AERO_GET_FIELD(visual, Visual_renderRevision);
+        return visual.renderRevision_;
     }
     static ::Aero::Media::Visual* RenderParent(
         const ::Aero::Media::Visual& visual) noexcept {
-        return AERO_GET_FIELD(visual, Visual_visualParent);
+        return visual.visualParent_;
     }
     class RenderChildRange {
     public:
@@ -65,7 +65,7 @@
                 : owner_(owner), index_(index) {}
             ::Aero::Media::Visual* operator*() const noexcept {
                 return owner_ != nullptr
-                    ? AERO_CALL_METHOD(*owner_, Visual_GetVisualChild, index_)
+                    ? owner_->GetVisualChild(index_)
                     : nullptr;
             }
             Iterator& operator++() noexcept {
@@ -81,14 +81,14 @@
         };
 
         explicit RenderChildRange(const ::Aero::Media::Visual& visual) noexcept
-            : owner_(&visual), count_(AERO_CALL_METHOD0(visual, Visual_GetVisualChildrenCount)) {}
+            : owner_(&visual), count_(visual.GetVisualChildrenCount()) {}
         Iterator begin() const noexcept { return Iterator(owner_, 0U); }
         Iterator end() const noexcept { return Iterator(owner_, count_); }
         std::uint32_t Size() const noexcept { return count_; }
         bool Empty() const noexcept { return count_ == 0U; }
         ::Aero::Media::Visual* operator[](std::uint32_t index) const noexcept {
             return owner_ != nullptr
-                ? AERO_CALL_METHOD(*owner_, Visual_GetVisualChild, index)
+                ? owner_->GetVisualChild(index)
                 : nullptr;
         }
     private:
@@ -107,15 +107,15 @@
         return ::Aero::TryCast<::Aero::Media::Visual>(object);
     }
     static ElementTree* VisualTree(const ::Aero::Media::Visual& visual) noexcept {
-        return AERO_GET_FIELD(visual, Visual_tree);
+        return visual.tree_;
     }
     static ElementTree* VisualTree(const ::Aero::Media::Visual* visual) noexcept {
-        return visual != nullptr ? AERO_GET_FIELD(*visual, Visual_tree) : nullptr;
+        return visual != nullptr ? visual->tree_ : nullptr;
     }
     static void* RenderRuntime(const ::Aero::Media::Visual& visual) noexcept {
-        ElementTree* tree = AERO_GET_FIELD(visual, Visual_tree);
+        ElementTree* tree = visual.tree_;
         return tree != nullptr &&
-            AERO_GET_FIELD(visual, Visual_renderNodeId) != Base::InvalidRenderNodeId
+            visual.renderNodeId_ != Base::InvalidRenderNodeId
             ? static_cast<void*>(tree->RenderTree())
             : nullptr;
     }
@@ -125,7 +125,7 @@
         FrameworkElement* element =
             ::Aero::TryCast<FrameworkElement>(&visual);
         if (element != nullptr) {
-            AERO_CALL_METHOD(*element, FE_OnRender, context);
+            element->OnRender(context);
         }
     }
     static Base::Result<void> InvalidateRenderDrawing(

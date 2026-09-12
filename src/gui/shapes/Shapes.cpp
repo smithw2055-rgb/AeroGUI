@@ -2,6 +2,10 @@
 #include <Aero/Shapes.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Media/Pen.hpp>
+#include <Aero/Media/DashStyle.hpp>
+#include "gui/meta/TypeRegistryDetail.hpp"
+#include "gui/meta/ValueConversion.hpp"
+#include "gui/controls/ControlsMetadata.hpp"
 
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
@@ -710,6 +714,76 @@ void Polyline::OnRender(::Aero::Media::DrawingContext& context) noexcept {
         StrokeLineSegment(
             builder, points_[index], points_[index + 1U], stroke, thickness);
     }
+}
+
+void Shape::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<Shape>(context, TypeFlags::Abstract)
+        .Property(Shape::FillProperty, FrameworkPropertyMetadata(Base::Ref<Brush>{}, AffectsRender))
+        .Property(Shape::StrokeProperty, FrameworkPropertyMetadata(Base::Ref<Brush>{}, AffectsRender))
+        .Property(Shape::PenProperty, FrameworkPropertyMetadata(Base::Ref<Pen>{}, AffectsMeasure | AffectsRender))
+        .Property(Shape::StrokeThicknessProperty, 1.0, AffectsMeasure | AffectsRender, &Base::Validate::NonNegative<double>)
+        .Property(Shape::StretchProperty, Stretch::Fill, AffectsMeasure | AffectsRender);
+}
+
+void Rectangle::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<Rectangle>(context)
+        .Property(Rectangle::RadiusXProperty, 0.0, AffectsRender, &Base::Validate::NonNegative<double>)
+        .Property(Rectangle::RadiusYProperty, 0.0, AffectsRender, &Base::Validate::NonNegative<double>)
+        .Factory();
+}
+
+void Ellipse::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<Ellipse>(context)
+        .Factory();
+}
+
+void Path::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    using namespace Aero::Controls;
+    Register<Path>(context)
+        .Property(Path::DataProperty, FrameworkPropertyMetadata(Base::Ref<Geometry>{}, AffectsMeasure | AffectsRender))
+        .Property(Path::FillRuleProperty, FillRule::EvenOdd, AffectsRender)
+        .Override(Shape::FillProperty, Base::Ref<Brush>{}, AffectsRender)
+        .Override(Shape::StrokeProperty, Base::Ref<Brush>{}, AffectsRender)
+        .Override(Shape::StrokeThicknessProperty, 1.0, AffectsMeasure | AffectsRender, &Base::Validate::NonNegative<double>)
+        .Property(Path::StrokeLineJoinProperty, PenLineJoin::Miter, AffectsRender)
+        .Property(Path::StrokeStartLineCapProperty, PenLineCap::Flat, AffectsRender)
+        .Property(Path::StrokeEndLineCapProperty, PenLineCap::Flat, AffectsRender)
+        .Property(Path::TrimStartProperty, 0.0, AffectsRender, &ValidateNormalizedDouble)
+        .Property(Path::TrimEndProperty, 1.0, AffectsRender, &ValidateNormalizedDouble)
+        .Property(Path::StrokeDashArrayProperty, Base::String{}, AffectsRender)
+        .Property(Path::StrokeDashOffsetProperty, 0.0, AffectsRender)
+        .Property(Path::DashStyleProperty, Base::Ref<DashStyle>{}, AffectsRender)
+        .Override(Shape::StretchProperty, Stretch::None, AffectsMeasure | AffectsRender)
+        .Factory();
+}
+
+void Line::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<Line>(context)
+        .Property(Line::X1Property, 0.0, AffectsMeasure | AffectsRender)
+        .Property(Line::Y1Property, 0.0, AffectsMeasure | AffectsRender)
+        .Property(Line::X2Property, 0.0, AffectsMeasure | AffectsRender)
+        .Property(Line::Y2Property, 0.0, AffectsMeasure | AffectsRender)
+        .Factory();
+}
+
+void Polygon::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<Polygon>(context)
+        .Property(Polygon::FillRuleProperty, FillRule::EvenOdd, AffectsRender)
+        .Property<Base::String, &Polygon::SetPointsText>("Points", PropertyFlags::None)
+        .Factory();
+}
+
+void Polyline::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<Polyline>(context)
+        .Property<Base::String, &Polyline::SetPointsText>("Points", PropertyFlags::None)
+        .Factory();
 }
 
 } // namespace Aero::Shapes

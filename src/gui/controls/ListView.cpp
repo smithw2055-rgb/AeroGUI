@@ -6,7 +6,13 @@
 #include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleEngine.hpp"
+#include "gui/meta/TypeRegistryDetail.hpp"
 #include <Aero/Controls.hpp>
+#include <Aero/Base/String.hpp>
+#include <Aero/DataTemplate.hpp>
+#include <Aero/Style.hpp>
+#include <Aero/Data/Binding.hpp>
+#include "gui/meta/ValueConversion.hpp"
 
 #include <cmath>
 #include <utility>
@@ -198,6 +204,103 @@ ListView::GetContainerForItemOverride() const noexcept {
     if (!made) return made.GetStatus();
     return Base::Ref<FrameworkElement>(
         std::move(made).Value());
+}
+
+namespace {
+
+void AddGridViewColumn(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& item,
+    void*) noexcept {
+    if (!item ||
+        item->RuntimeType() !=
+            GridViewColumn::StaticTypeId()) {
+        return;
+    }
+    (void)static_cast<GridView&>(
+        owner).AddColumn(
+            Base::Ref<GridViewColumn>::
+                FromBorrowed(
+                    static_cast<GridViewColumn&>(
+                        *item)));
+}
+
+void ClearGridViewColumns(
+    Base::Object& owner,
+    void*) noexcept {
+    static_cast<GridView&>(
+        owner).ClearColumns();
+}
+
+} // namespace
+
+void GridViewColumnHeader::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<GridViewColumnHeader>(context)
+        .Property(GridViewColumnHeader::RoleProperty, GridViewColumnHeaderRole::Normal)
+        .Factory();
+}
+
+void GridViewColumn::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<GridViewColumn>(context)
+        .Property(GridViewColumn::HeaderProperty, Value::NullObject(TypeOf<Base::Object>()))
+        .Property(GridViewColumn::WidthProperty, 100.0, FrameworkPropertyMetadataOptions::None, &Base::Validate::NonNegative<double>)
+        .Property(GridViewColumn::CellTemplateProperty, Base::Ref<DataTemplate>{})
+        .Property(GridViewColumn::HeaderTemplateProperty, Base::Ref<DataTemplate>{})
+        .Property(GridViewColumn::DisplayMemberPathProperty, Base::String{})
+        .Property(GridViewColumn::DisplayMemberBindingProperty, Base::Ref<Data::Binding>{})
+        .Property(GridViewColumn::HeaderContainerStyleProperty, Base::Ref<Style>{})
+        .Factory();
+}
+
+void GridView::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<GridView>(context)
+        .Property<bool, &GridView::GetAllowsColumnReorder, &GridView::SetAllowsColumnReorder>("AllowsColumnReorder")
+        .Property<Base::Ref<Style>, &GridView::GetColumnHeaderContainerStyle, &GridView::SetColumnHeaderContainerStyle>("ColumnHeaderContainerStyle", PropertyFlags::Structural)
+        .Property<Base::Ref<Base::Object>, &GridView::GetColumnHeaderContextMenu, &GridView::SetColumnHeaderContextMenu>("ColumnHeaderContextMenu", PropertyFlags::Structural)
+        .Property<Base::Ref<Base::Object>, &GridView::GetColumnHeaderTemplate, &GridView::SetColumnHeaderTemplate>("ColumnHeaderTemplate", PropertyFlags::Structural)
+        .Property<Base::Ref<Base::Object>, &GridView::GetColumnHeaderTemplateSelector, &GridView::SetColumnHeaderTemplateSelector>("ColumnHeaderTemplateSelector", PropertyFlags::Structural)
+        .Property<Base::Ref<Base::Object>, &GridView::GetColumnHeaderToolTip, &GridView::SetColumnHeaderToolTip>("ColumnHeaderToolTip", PropertyFlags::Structural)
+        .Property<Base::Ref<Base::Object>, &GridView::GetColumnsObject, &GridView::SetColumnsObject>("Columns", PropertyFlags::Structural)
+        .Content<Base::Object>("ColumnItems", ContentKind::Collection, &AddGridViewColumn, &ClearGridViewColumns)
+        .Factory();
+}
+
+void GridViewHeaderRowPresenter::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<GridViewHeaderRowPresenter>(context)
+        .Property(GridViewHeaderRowPresenter::AllowsColumnReorderProperty, false)
+        .Property(GridViewHeaderRowPresenter::ColumnHeaderContainerStyleProperty, Base::Ref<Base::Object>{})
+        .Property(GridViewHeaderRowPresenter::ColumnHeaderContextMenuProperty, Base::Ref<Base::Object>{})
+        .Property(GridViewHeaderRowPresenter::ColumnHeaderTemplateProperty, Base::Ref<Base::Object>{})
+        .Property(GridViewHeaderRowPresenter::ColumnHeaderTemplateSelectorProperty, Base::Ref<Base::Object>{})
+        .Property(GridViewHeaderRowPresenter::ColumnHeaderToolTipProperty, Base::Ref<Base::Object>{})
+        .Property(GridViewHeaderRowPresenter::ColumnsProperty, Base::Ref<Base::Object>{})
+        .Factory();
+}
+
+void GridViewRowPresenter::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<GridViewRowPresenter>(context)
+        .Property(GridViewRowPresenter::ColumnsProperty, Base::Ref<Base::Object>{})
+        .Property(GridViewRowPresenter::ContentProperty, Base::Ref<Base::Object>{})
+        .Factory();
+}
+
+void ListView::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<ListView>(context)
+        .Property(ListView::ViewProperty, Base::Ref<GridView>{}, AffectsMeasure)
+        .Factory();
+}
+
+void ListViewItem::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<ListViewItem>(context)
+        .Override(Aero::UIElement::IsTabStopProperty, true, FrameworkPropertyMetadataOptions::None)
+        .Factory();
 }
 
 } // namespace Aero::Controls

@@ -2,6 +2,8 @@
 
 #include <Aero/Resources.hpp>
 
+namespace Aero::Meta { class Registration; }
+
 namespace Aero::Controls {
 
 struct FrameworkTemplateState;
@@ -9,6 +11,7 @@ struct FrameworkTemplateState;
 class AERO_GUI_API ItemsPanelTemplate : public Base::Object {
     AERO_DECLARE_TYPE(ItemsPanelTemplate, Base::Object)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
 
     ItemsPanelTemplate() noexcept;
     ~ItemsPanelTemplate() noexcept override;

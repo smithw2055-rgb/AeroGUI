@@ -8,6 +8,8 @@ using ::Aero::Meta::TypeId;
 class AERO_GUI_API StackPanel : public Panel {
     AERO_DECLARE_TYPE(StackPanel, Panel)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     StackPanel() noexcept;
     explicit StackPanel(Orientation orientation) noexcept;
     Orientation GetOrientation() const noexcept;

@@ -3,6 +3,8 @@
 #include <Aero/Controls/Control.hpp>
 #include <Aero/Media/Brushes.hpp>
 
+namespace Aero::Meta { class Registration; }
+
 namespace Aero::Controls {
 
 enum class TickBarPlacement : std::uint8_t {
@@ -15,6 +17,8 @@ enum class TickBarPlacement : std::uint8_t {
 class AERO_GUI_API TickBar : public Control {
     AERO_DECLARE_TYPE(TickBar, Control)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     TickBar() noexcept : Control(StaticTypeId()) {}
     ~TickBar() override = default;
 

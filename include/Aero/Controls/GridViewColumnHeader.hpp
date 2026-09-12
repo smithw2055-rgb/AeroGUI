@@ -2,6 +2,8 @@
 
 #include <Aero/Controls/ContentControl.hpp>
 
+namespace Aero::Meta { class Registration; }
+
 namespace Aero::Controls {
 enum class GridViewColumnHeaderRole : std::uint8_t {
     Normal = 0U,
@@ -13,6 +15,8 @@ class AERO_GUI_API GridViewColumnHeader
     : public ContentControl {
     AERO_DECLARE_TYPE(GridViewColumnHeader, ContentControl)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     GridViewColumnHeader() noexcept
         : ContentControl(StaticTypeId()) {}
 

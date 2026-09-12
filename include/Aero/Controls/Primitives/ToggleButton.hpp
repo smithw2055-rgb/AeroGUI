@@ -7,6 +7,8 @@ namespace Aero::Controls::Primitives {
 class AERO_GUI_API ToggleButton : public ButtonBase {
     AERO_DECLARE_TYPE(ToggleButton, ButtonBase)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     ToggleButton() noexcept : ToggleButton(StaticTypeId()) {}
     ~ToggleButton() override;
 

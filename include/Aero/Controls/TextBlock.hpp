@@ -10,6 +10,7 @@ class InlineCollection;
 class InlineCollectionView;
 class TextPointer;
 }
+namespace Aero::Meta { class Registration; }
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
 using ::Aero::Media::Brush;
@@ -17,6 +18,7 @@ using ::Aero::Media::FrameworkElementForegroundProperty;
 class AERO_GUI_API TextBlock : public FrameworkElement {
     AERO_DECLARE_TYPE(TextBlock, FrameworkElement)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
 
     // Source-retained formatting produced by RichText markup. Text layout
     // keeps byte offsets for hit testing, so the same ranges can tint shaped

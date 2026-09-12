@@ -19,6 +19,7 @@ using Meta::PropertyInvalidationFlags;
 using Meta::TypeId;
 
 class Style;
+class AeroGuiInternal;
 namespace Controls { class Viewbox; }
 class FrameworkElement;
 namespace Media {
@@ -253,6 +254,7 @@ private:
     friend class LogicalTreeHelper;
     friend class Controls::Viewbox;
     friend class ResourceResolver;
+    friend class AeroGuiInternal;
     double dpiScale_ = 1.0;
     DependencyObject* templatedParent_ = nullptr;
     mutable ResourceDictionary* resources_ = nullptr;
