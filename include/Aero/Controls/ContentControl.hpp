@@ -2,42 +2,36 @@
 
 #include <Aero/Controls/Control.hpp>
 
-namespace Aero::Core { class InteractionStateFacet; }
+#include <cstddef>
 
+namespace Aero { class AeroGuiInternal; }
 namespace Aero::Controls {
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::DependencyPropertyChangedEventHandler;
 using ::Aero::Meta::TypeId;
 class AERO_GUI_API ContentControl : public Control {
     AERO_DECLARE_TYPE(ContentControl, Control)
-#if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::Core::InteractionStateFacet;
-#endif
 public:
-    inline static constexpr DependencyProperty<Value> ContentProperty{"Content"};
-    inline static constexpr DependencyProperty<Ref<Base::Object>> ContentTemplateProperty{"ContentTemplate"};
-    inline static constexpr DependencyProperty<Ref<Base::Object>> ContentTemplateSelectorProperty{"ContentTemplateSelector"};
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
+    AERO_DEPENDENCY_PROPERTY(Value, Content);
+    AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, ContentTemplate);
+    AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, ContentTemplateSelector);
 
     Value GetContent() const noexcept {
-        return GetValueOr(ContentProperty, Value::NullObject(Meta::TypeOf<Base::Object>()));
+        return GetValue(ContentProperty);
     }
     Ref<Base::Object> GetContentTemplate() const noexcept {
-        return GetValueOr(
-            ContentTemplateProperty,
-            Ref<Base::Object>{});
+        return GetValue(ContentTemplateProperty);
     }
-    void SetContentTemplate(
-        Ref<Base::Object> value) noexcept {
+    void SetContentTemplate(Ref<Base::Object> value) noexcept {
         SetValue(ContentTemplateProperty, std::move(value));
     }
     Ref<Base::Object>
     GetContentTemplateSelector() const noexcept {
-        return GetValueOr(
-            ContentTemplateSelectorProperty,
-            Ref<Base::Object>{});
+        return GetValue(ContentTemplateSelectorProperty);
     }
-    void SetContentTemplateSelector(
-        Ref<Base::Object> value) noexcept {
+    void SetContentTemplateSelector(Ref<Base::Object> value) noexcept {
         SetValue(ContentTemplateSelectorProperty, std::move(value));
     }
     void SetContent(Ref<Base::Object> content) noexcept {
@@ -45,6 +39,18 @@ public:
     }
     void SetContent(Value content) noexcept {
         SetContentValue(std::move(content));
+    }
+    void SetContent(StringView text) noexcept;
+    void SetContent(const char* text) noexcept;
+    void SetContent(std::nullptr_t) noexcept {
+        SetContent(static_cast<UIElement*>(nullptr));
+    }
+    template<class T,
+        class = std::enable_if_t<
+            std::is_base_of_v<UIElement, T> &&
+            !std::is_same_v<T, Base::Object>>>
+    void SetContent(Ref<T> element) noexcept {
+        SetContent(element.Get());
     }
     void SetContent(UIElement* content) noexcept {
         Result<void> access = VerifyAccess();
@@ -64,64 +70,106 @@ public:
                 std::move(propertyValue));
         if (!stored) return;
         if (content_ == content) return;
+        if (content_ != nullptr && content == nullptr) {
+            if (content_->GetVisualParent() == this) {
+                RemoveVisualChild(content_);
+            }
+        }
         content_ = content;
         literalTextContent_ = false;
         if (content == nullptr) {
             ownedContent_.Reset();
             contentValue_.Reset();
         }
+        InvalidateMeasure();
         return;
     }
 protected:
+    virtual void OnContentChanged(
+        const Value& oldContent,
+        const Value& newContent);
+    virtual void OnContentTemplateChanged(
+        const Ref<Base::Object>& oldContentTemplate,
+        const Ref<Base::Object>& newContentTemplate);
+    virtual void OnContentTemplateSelectorChanged(
+        const Ref<Base::Object>& oldSelector,
+        const Ref<Base::Object>& newSelector);
+    void OnPropertyChanged(
+        const DependencyPropertyChangedEventArgs& args) noexcept override;
+    UIElement* GetContentElement() const noexcept { return content_; }
+    [[deprecated("Use GetContentElement() for WPF parity")]]
     UIElement* ContentElement() const noexcept { return content_; }
     explicit ContentControl(TypeId runtimeType) noexcept;
     ~ContentControl() override;
+    std::uint32_t GetVisualChildrenCount() const noexcept override {
+        if (GetTemplateRoot() != nullptr) {
+            return Control::GetVisualChildrenCount();
+        }
+        return content_ != nullptr && content_->GetVisualParent() == this ? 1U : 0U;
+    }
+    ::Aero::Media::Visual* GetVisualChild(std::uint32_t index) const noexcept override {
+        if (GetTemplateRoot() != nullptr) {
+            return Control::GetVisualChild(index);
+        }
+        if (index != 0U || content_ == nullptr || content_->GetVisualParent() != this) {
+            return nullptr;
+        }
+        return content_;
+    }
+    std::uint32_t GetLogicalChildrenCount() const noexcept override {
+        return content_ != nullptr ? 1U : Control::GetLogicalChildrenCount();
+    }
+    DependencyObject* GetLogicalChild(std::uint32_t index) const noexcept override {
+        if (content_ != nullptr) {
+            return index == 0U ? content_ : nullptr;
+        }
+        return Control::GetLogicalChild(index);
+    }
+    void EnsureHostedContent() noexcept;
     Size MeasureOverride(Size availableSize) noexcept override {
         if (GetTemplateRoot() != nullptr) {
             return Control::MeasureOverride(availableSize);
         }
+        EnsureHostedContent();
         if (content_ == nullptr) {
-            if (!LayoutChildren().Empty()) {
-                return Size{};
-            }
             return Size{};
         }
-        if (!IsOnlyAttachedContent(*content_)) {
-            return Size{};
-        }
-        Result<void> measured = MeasureChild(*content_, availableSize);
-        if (!measured) return Size{};
+        (void)MeasureChild(*content_, availableSize);
         return content_->GetDesiredSize();
     }
     Size ArrangeOverride(Size finalSize) noexcept override {
         if (GetTemplateRoot() != nullptr) {
             return Control::ArrangeOverride(finalSize);
         }
+        EnsureHostedContent();
         if (content_ == nullptr) return finalSize;
-        if (!IsOnlyAttachedContent(*content_)) {
-            return finalSize;
-        }
         Result<void> arranged = ArrangeChild(
             *content_, {0.0, 0.0, finalSize.width, finalSize.height});
         if (!arranged) return finalSize;
         return finalSize;
     }
 private:
-    void SetOwnedContent(
-        const Ref<Base::Object>& contentObject, UIElement& content) noexcept {
+    friend class ::Aero::AeroGuiInternal;
+    void SetOwnedContent(const Ref<Base::Object>& contentObject, UIElement& content) noexcept {
         if (!contentObject || contentObject.Get() != &content) {
             return;
         }
         Result<void> access = VerifyAccess();
-        if (!access) return;
+        if (!access) {
+            return;
+        }
         Result<void> valid = ValidateContent(&content);
-        if (!valid) return;
+        if (!valid) {
+            return;
+        }
         Result<void> stored =
             StoreContentProperty(
                 Value::FromObject(
                     contentObject->RuntimeType(),
                     contentObject));
-        if (!stored) return;
+        if (!stored) {
+            return;
+        }
         content_ = &content;
         ownedContent_ = contentObject;
         contentValue_ = contentObject;
@@ -132,10 +180,8 @@ private:
     // A matching ContentTemplate can materialize it through
     // CreateTemplatedContent(); the UIElement overloads remain the
     // source-compatible direct-content path.
-    void SetContentValue(
-        Ref<Base::Object> value) noexcept;
-    void SetContentValue(
-        Value value) noexcept;
+    void SetContentValue(Ref<Base::Object> value) noexcept;
+    void SetContentValue(Value value) noexcept;
     static void OnContentPropertyChanged(
         ::Aero::DependencyObject& object,
         const Meta::DependencyPropertyChangedEventArgs&
@@ -146,29 +192,21 @@ private:
     Ref<Base::Object> ownedContent_;
     Ref<Base::Object> contentValue_;
     Value authoredContent_;
-    DependencyPropertyChangedEventHandler
-        foregroundChangedHandler_;
     bool literalTextContent_ = false;
     bool synchronizingContentProperty_ = false;
     Result<void> StoreContentProperty(
         Value value) noexcept;
-    void SetGeneratedTextContent(
-        const Ref<Base::Object>& contentObject,
-        UIElement& content) noexcept;
-    void OnForegroundChanged(
-        DependencyObject&,
-        const DependencyPropertyChangedEventArgs&) noexcept;
+    void SetGeneratedTextContent(const Ref<Base::Object>& contentObject, UIElement& content) noexcept;
+    void SyncGeneratedTextFormatting() noexcept;
     bool IsOnlyAttachedContent(const UIElement& content) const noexcept {
         const UIElementChildRange children = LayoutChildren();
         return children.Size() == 1U && children[0] == &content;
     }
     Result<void> ValidateContent(UIElement* content) const noexcept {
         if (content == nullptr) {
-            if (!LayoutChildren().Empty()) {
-                return Base::Status::Failure(Base::ErrorCode::InvalidState,
-                    "ContentControl content must be detached before clearing it");
-            }
-        } else if (!LayoutChildren().Empty() && !IsOnlyAttachedContent(*content)) {
+            return {};
+        }
+        if (!LayoutChildren().Empty() && !IsOnlyAttachedContent(*content)) {
             return Base::Status::Failure(Base::ErrorCode::InvalidState,
                 "ContentControl content must be its only attached UIElement");
         }

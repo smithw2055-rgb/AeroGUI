@@ -8,6 +8,7 @@
 #include <AeroRender/RenderTarget.hpp>
 #include <AeroRender/Texture.hpp>
 #include <AeroRender/D3D11.hpp>
+#include "render/common/StateCache.hpp"
 
 #if defined(_WIN32)
 #ifndef WIN32_LEAN_AND_MEAN
@@ -178,11 +179,15 @@ private:
     ID3D11PixelShader* blurPixelShader_ = nullptr;
     ID3D11PixelShader* shadowPixelShader_ = nullptr;
     ID3D11PixelShader* maskPixelShader_ = nullptr;
+    ID3D11PixelShader* linearPixelShader_ = nullptr;
+    ID3D11PixelShader* radialPixelShader_ = nullptr;
+    ID3D11PixelShader* customEffectPixelShader_ = nullptr;
     ID3D11InputLayout* vertex2DInputLayout_ = nullptr;
 
     DeviceCaps caps_{};
     D3D11RenderTarget* currentTarget_ = nullptr;
     ID3D11RasterizerState* currentRasterizer_ = nullptr;
+    StateCache stateCache_{};
 };
 
 } // namespace Aero::Render

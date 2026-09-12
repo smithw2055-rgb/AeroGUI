@@ -1,0 +1,49 @@
+#pragma once
+
+#include <Aero/Controls/Control.hpp>
+
+namespace Aero::Controls {
+
+struct ThumbDragDelta {
+    double horizontalChange = 0.0;
+    double verticalChange = 0.0;
+};
+
+namespace Primitives {
+
+class AERO_GUI_API Thumb : public Control {
+    AERO_DECLARE_TYPE(Thumb, Control)
+public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
+    Thumb() noexcept;
+    ~Thumb() override;
+
+    bool GetIsDragging() const noexcept {
+        return GetValue(IsDraggingProperty);
+    }
+    Result<void> BeginDrag(
+        std::uint32_t pointerId,
+        Point position) noexcept;
+    Result<ThumbDragDelta> DragTo(
+        std::uint32_t pointerId,
+        Point position) noexcept;
+    Result<bool> EndDrag(
+        std::uint32_t pointerId) noexcept;
+
+    void UpdateVisualState(bool useTransitions = true) noexcept;
+
+    AERO_READONLY_PROPERTY(bool, IsDragging);
+
+protected:
+    void OnApplyTemplate() noexcept override;
+    void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
+
+private:
+    std::uint32_t pointerId_ = 0U;
+    Point lastPosition_{};
+    bool dragging_ = false;
+};
+
+} // namespace Primitives
+} // namespace Aero::Controls

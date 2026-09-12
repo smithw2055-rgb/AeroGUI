@@ -1,33 +1,37 @@
 #pragma once
 
-#include <Aero/Media/Animation.hpp>
 #include <Aero/Interactivity/TriggerAction.hpp>
+#include <Aero/Media/Animation/Storyboard.hpp>
+#include <Aero/Triggers/TriggerBase.hpp>
 
 namespace Aero::Media::Animation {
 
 using ::Aero::Interactivity::TriggerAction;
 
-class AERO_GUI_API StoryboardCompletedTrigger : public Base::Object {
-    AERO_DECLARE_TYPE(StoryboardCompletedTrigger, Base::Object)
+class AERO_GUI_API StoryboardCompletedTrigger : public ::Aero::TriggerBase {
+    AERO_DECLARE_TYPE(StoryboardCompletedTrigger, ::Aero::TriggerBase)
 public:
-    Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
+    StoryboardCompletedTrigger() noexcept
+        : StoryboardCompletedTrigger(StaticTypeId()) {}
     Ref<Storyboard> GetStoryboard() const noexcept { return storyboard_; }
     void SetStoryboard(Ref<Storyboard> value) noexcept;
-    Result<void> AddAction(Ref<TriggerAction> value) noexcept;
+    void AddAction(Ref<TriggerAction> value) noexcept;
     void ClearActions() noexcept;
     Span<const Ref<TriggerAction>> GetActions() const noexcept {
         return {actions_.Data(), actions_.Size()};
     }
-    Result<void> AddConditionBehavior(Ref<Base::Object> value) noexcept {
-        return value ? behaviors_.PushBack(std::move(value))
-                     : Result<void>(Base::Status::Failure(
-                           Base::ErrorCode::InvalidArgument,
-                           "StoryboardCompletedTrigger behavior cannot be null"));
+    void AddConditionBehavior(Ref<Base::Object> value) noexcept {
+        if (!value) { AERO_ASSERT(false); return; }
+        behaviors_.PushBack(std::move(value));
     }
     void ClearConditionBehaviors() noexcept { behaviors_.Clear(); }
     Span<const Ref<Base::Object>> GetBehaviors() const noexcept {
         return {behaviors_.Data(), behaviors_.Size()};
     }
+
+protected:
+    explicit StoryboardCompletedTrigger(Meta::TypeId runtimeType) noexcept
+        : ::Aero::TriggerBase(runtimeType) {}
 
 private:
     Ref<Storyboard> storyboard_;

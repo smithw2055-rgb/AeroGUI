@@ -2,6 +2,7 @@
 /out/
 /.vs/
 /.vscode/
+/.cursor/
 CMakeUserPresets.json
 *.user
 *.suo

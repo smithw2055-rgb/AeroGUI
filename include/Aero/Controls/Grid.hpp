@@ -1,101 +1,66 @@
 #pragma once
 
+#include <Aero/Controls/ColumnDefinition.hpp>
+#include <Aero/Controls/RowDefinition.hpp>
+#include <Aero/Controls/GridLength.hpp>
 #include <Aero/Controls/Panel.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Input.hpp>
+#include <Aero/InputBinding.hpp>
 
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
 
-class AERO_GUI_API ColumnDefinition : public Base::Object {
-    AERO_DECLARE_TYPE(ColumnDefinition, Base::Object)
-public:
-    ColumnDefinition() noexcept = default;
-    TypeId RuntimeType() const noexcept override {
-        return StaticTypeId();
-    }
-    GridLength GetWidth() const noexcept { return width_; }
-    double GetMaxWidth() const noexcept { return maxWidth_; }
-    StringView GetSharedSizeGroup() const noexcept {
-        return sharedSizeGroup_.View();
-    }
-    void SetWidth(GridLength value) noexcept;
-    void SetMaxWidth(double value) noexcept;
-    void SetSharedSizeGroup(
-        StringView value) noexcept;
-private:
-    GridLength width_ = GridLength::Star();
-    double maxWidth_ = 1.0e12;
-    String sharedSizeGroup_;
-};
-
-class AERO_GUI_API RowDefinition : public Base::Object {
-    AERO_DECLARE_TYPE(RowDefinition, Base::Object)
-public:
-    RowDefinition() noexcept = default;
-    TypeId RuntimeType() const noexcept override {
-        return StaticTypeId();
-    }
-    GridLength GetHeight() const noexcept { return height_; }
-    double GetMaxHeight() const noexcept { return maxHeight_; }
-    StringView GetSharedSizeGroup() const noexcept {
-        return sharedSizeGroup_.View();
-    }
-    void SetHeight(GridLength value) noexcept;
-    void SetMaxHeight(double value) noexcept;
-    void SetSharedSizeGroup(
-        StringView value) noexcept;
-private:
-    GridLength height_ = GridLength::Star();
-    double maxHeight_ = 1.0e12;
-    String sharedSizeGroup_;
-};
-
 class AERO_GUI_API Grid : public Panel {
     AERO_DECLARE_TYPE(Grid, Panel)
-    friend class ::Aero::Core::GridLayoutFacet;
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     Grid() noexcept;
     void SetColumnDefinitions(Span<const GridLength> definitions) noexcept;
     void SetRowDefinitions(Span<const GridLength> definitions) noexcept;
     void SetChildCell(UIElement& child, std::uint32_t row, std::uint32_t column) noexcept;
-    void SetChildCell(
-        UIElement& child,
-        std::uint32_t row,
-        std::uint32_t column,
-        std::uint32_t rowSpan,
-        std::uint32_t columnSpan) noexcept;
-    Result<void> AddColumnDefinition(
-        Ref<ColumnDefinition> definition) noexcept;
-    Result<void> AddRowDefinition(
-        Ref<RowDefinition> definition) noexcept;
+    void SetChildCell(UIElement& child, std::uint32_t row, std::uint32_t column, std::uint32_t rowSpan, std::uint32_t columnSpan) noexcept;
+    void AddColumnDefinition(Ref<ColumnDefinition> definition) noexcept;
+    void AddRowDefinition(Ref<RowDefinition> definition) noexcept;
     void ClearColumnDefinitionObjects() noexcept;
     void ClearRowDefinitionObjects() noexcept;
-    Result<void> AddInputBinding(
-        Ref<Aero::Input::KeyBinding> binding) noexcept;
-    void ClearInputBindings() noexcept { inputBindings_.Clear(); }
-    Span<const Ref<Aero::Input::KeyBinding>>
+    void AddInputBinding(
+        Ref<Aero::Input::InputBinding> binding) noexcept {
+        UIElement::AddInputBinding(std::move(binding));
+    }
+    void ClearInputBindings() noexcept {
+        UIElement::ClearInputBindings();
+    }
+    Span<const Ref<Aero::Input::InputBinding>>
     GetInputBindings() const noexcept {
-        return {inputBindings_.Data(), inputBindings_.Size()};
+        return UIElement::GetInputBindings();
     }
     StringView GetColumnDefinitionsText() const noexcept;
     StringView GetRowDefinitionsText() const noexcept;
-    void SetColumnDefinitionsText(
-        StringView value) noexcept;
-    void SetRowDefinitionsText(
-        StringView value) noexcept;
-    Span<const GridLength> GetColumnDefinitions() const noexcept { return {columns_.Data(), columns_.Size()}; }
-    Span<const GridLength> GetRowDefinitions() const noexcept { return {rows_.Data(), rows_.Size()}; }
-    inline static constexpr AttachedProperty<std::uint32_t> RowProperty{"Row"};
-    inline static constexpr AttachedProperty<std::uint32_t> ColumnProperty{"Column"};
-    inline static constexpr AttachedProperty<std::uint32_t> RowSpanProperty{"RowSpan"};
-    inline static constexpr AttachedProperty<std::uint32_t> ColumnSpanProperty{"ColumnSpan"};
-    inline static constexpr AttachedProperty<bool> IsSharedSizeScopeProperty{"IsSharedSizeScope"};
+    void SetColumnDefinitionsText(StringView value) noexcept;
+    void SetRowDefinitionsText(StringView value) noexcept;
+    Span<const GridLength> GetColumnDefinitions() const noexcept { 
+        return {columns_.Data(), columns_.Size()}; 
+    }
+    Span<const GridLength> GetRowDefinitions() const noexcept { 
+        return {rows_.Data(), rows_.Size()}; 
+    }
+    AERO_ATTACHED_PROPERTY(std::uint32_t, Row);
+    AERO_ATTACHED_PROPERTY(std::uint32_t, Column);
+    AERO_ATTACHED_PROPERTY(std::uint32_t, RowSpan);
+    AERO_ATTACHED_PROPERTY(std::uint32_t, ColumnSpan);
+    AERO_ATTACHED_PROPERTY(bool, IsSharedSizeScope);
     // Programmatic compact form; WPF XAML uses the structural
     // ColumnDefinitions and RowDefinitions collections.
-    inline static constexpr DependencyProperty<String> ColumnDefinitionsTextProperty{"ColumnDefinitionsText"};
-    inline static constexpr DependencyProperty<String> RowDefinitionsTextProperty{"RowDefinitionsText"};
+    AERO_DEPENDENCY_PROPERTY(String, ColumnDefinitionsText);
+    AERO_DEPENDENCY_PROPERTY(String, RowDefinitionsText);
 protected:
+    bool ValidateValueCore(
+        Meta::DependencyPropertyHandle property,
+        const PropertyValue& value) const noexcept override;
+    void OnPropertyChanged(
+        const Meta::DependencyPropertyChangedEventArgs& args) noexcept override;
     Size MeasureOverride(Size availableSize) noexcept override;
     Size ArrangeOverride(Size finalSize) noexcept override;
 private:
@@ -105,8 +70,6 @@ private:
         columnDefinitionObjects_;
     Base::Vector<Ref<RowDefinition>>
         rowDefinitionObjects_;
-    Base::Vector<Ref<Aero::Input::KeyBinding>>
-        inputBindings_;
     Base::Vector<double> desiredColumns_;
     Base::Vector<double> desiredRows_;
     std::uint32_t GetColumnCount() const noexcept;

@@ -7,6 +7,7 @@
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
+#include <Aero/Diagnostics/SourceSpan.hpp>
 #include <Aero/Value.hpp>
 
 #include <cstdint>
@@ -84,23 +85,6 @@ constexpr bool operator!=(
     return !(left == right);
 }
 
-struct SourcePosition  {
-    // Line and column are one-based. A zero pair represents an unknown position.
-    std::uint32_t line = 0U;
-    std::uint32_t column = 0U;
-    std::uint64_t byteOffset = 0U;
-
-    constexpr bool IsKnown() const noexcept {
-        return line != 0U || column != 0U;
-    }
-};
-
-struct SourceSpan  {
-    // End is exclusive when the source provider can identify it precisely.
-    SourcePosition begin;
-    SourcePosition end;
-};
-
 using DiagnosticObjectId = std::uint64_t;
 inline constexpr DiagnosticObjectId InvalidDiagnosticObjectId = 0U;
 
@@ -152,7 +136,7 @@ public:
         DiagnosticObjectId object = InvalidDiagnosticObjectId,
         MemberId member = InvalidMemberId) noexcept;
 
-    Result<void> AddNote(
+    void AddNote(
         StringView message,
         SourceSpan source = {}) noexcept;
 

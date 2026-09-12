@@ -1,13 +1,16 @@
 #include <Aero/Interactivity/BlendBehaviors.hpp>
 #include <Aero/Controls.hpp> 
 #include <Aero/Shapes.hpp>
-#include "gui/meta/MetadataState.hpp"
-#include "gui/core/State.hpp" 
-#include "gui/input/InputState.hpp" 
+#include "gui/meta/TypeRegistryDetail.hpp"
+#include "gui/core/ElementTree.hpp"
+#include "gui/core/LayoutEngine.hpp"
+#include "gui/core/EffectiveValueEngine.hpp"
+#include "gui/core/RoutedEvents.hpp"
+#include "gui/core/EventRouter.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
+#include "gui/input/InputManager.hpp" 
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleState.hpp"
-#include "gui/media/MediaState.hpp"
-
+#include "gui/styles/StyleEngine.hpp"
 #include <algorithm>
 #include <cmath>
 
@@ -22,30 +25,34 @@ Base::Transform2D Translation(double x, double y) noexcept {
 }
 
 Base::Transform2D ToRootTransform(const ::Aero::Media::Visual& visual) noexcept {
-    Base::Transform2D result;
+    Base::ProjectiveTransform2D result = Base::IdentityProjective();
     const ::Aero::Media::Visual* current = &visual;
     while (current != nullptr) {
-        const UIElement* element = current->AsUIElement();
+        const UIElement* element = ::Aero::TryCast<::Aero::UIElement>(current);
         const FrameworkElement* framework =
-            current->AsFrameworkElement();
+            ::Aero::TryCast<::Aero::FrameworkElement>(current);
         if (element != nullptr) {
-            Base::Transform2D local = framework != nullptr
+            Base::ProjectiveTransform2D local = framework != nullptr
                 ? framework->GetLocalVisualTransform()
-                : Base::Transform2D{};
+                : Base::IdentityProjective();
             const Rect slot = element->GetLayoutSlot();
-            local = Media::ComposeTransforms(
-                local, Translation(slot.x, slot.y));
-            result = Media::ComposeTransforms(result, local);
+            local = Base::Compose(
+                local, Base::ToProjective(Translation(slot.x, slot.y)));
+            result = Base::Compose(result, local);
         }
         current = current->GetVisualParent();
     }
-    return result;
+    Base::Transform2D affine;
+    if (!Base::TryToTransform2D(result, affine)) {
+        return {};
+    }
+    return affine;
 }
 
 Base::Result<Base::Ref<Media::Brush>> ReadBackground(
     FrameworkElement& source) noexcept {
     const Meta::PropertyInfo* property =
-        source.PropertyRegistry().Types().FindProperty(
+        AeroGuiInternal::PropertyRegistry(source).Types().FindProperty(
             source.RuntimeType(), "Background", false);
     if (property == nullptr) {
         return Base::Status::Failure(
@@ -56,7 +63,7 @@ Base::Result<Base::Ref<Media::Brush>> ReadBackground(
         Meta::DependencyPropertyHandle{property->Id()});
     if (value.Kind() != Meta::ValueKind::Object ||
         value.IsNullObject() || !value.AsObject() ||
-        !source.PropertyRegistry().Types().IsDerivedFrom(
+        !AeroGuiInternal::PropertyRegistry(source).Types().IsDerivedFrom(
             value.AsObject()->RuntimeType(),
             Media::Brush::StaticTypeId())) {
         return Base::Status::Failure(
@@ -71,7 +78,7 @@ Base::Result<void> SetShapeFill(
     FrameworkElement& target,
     Base::Ref<Media::Brush> brush) noexcept {
     const Meta::TypeRegistry& types =
-        target.PropertyRegistry().Types();
+        AeroGuiInternal::PropertyRegistry(target).Types();
     if (types.IsDerivedFrom(
             target.RuntimeType(), Shapes::Shape::StaticTypeId())) {
         static_cast<Shapes::Shape&>(target).SetFill(std::move(brush));
@@ -90,7 +97,7 @@ Base::Result<void> SetShapeFill(
 Base::Ref<Media::Brush> GetShapeFill(
     FrameworkElement& target) noexcept {
     const Meta::TypeRegistry& types =
-        target.PropertyRegistry().Types();
+        AeroGuiInternal::PropertyRegistry(target).Types();
     if (types.IsDerivedFrom(
             target.RuntimeType(), Shapes::Shape::StaticTypeId())) {
         return static_cast<Shapes::Shape&>(target).GetFill();
@@ -218,38 +225,29 @@ MouseDragElementBehavior::MouseDragElementBehavior() noexcept
       mouseMoveHandler_(this, &MouseDragElementBehavior::OnMouseMove),
       mouseUpHandler_(this, &MouseDragElementBehavior::OnMouseUp) {}
 
-Base::Result<void> MouseDragElementBehavior::OnAttached() noexcept {
+void MouseDragElementBehavior::OnAttached() noexcept {
     FrameworkElement* associated = GetAssociatedObject();
-    if (associated == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "MouseDragElementBehavior has no associated object");
-    }
+    if (associated == nullptr) { AERO_ASSERT(false); return; }
     originalTransform_ = associated->GetRenderTransform();
     Base::Result<Base::Ref<Media::TransformGroup>> group =
         Base::MakeRef<Media::TransformGroup>();
-    if (!group) return group.GetStatus();
+    if (!group) { AERO_ASSERT(false); return; }
     Base::Result<Base::Ref<Media::TranslateTransform>> translation =
         Base::MakeRef<Media::TranslateTransform>();
-    if (!translation) return translation.GetStatus();
+    if (!translation) { AERO_ASSERT(false); return; }
     transformGroup_ = std::move(group).Value();
     translation_ = std::move(translation).Value();
     if (originalTransform_) {
-        Base::Result<void> appended =
-            transformGroup_->AddChild(originalTransform_);
-        if (!appended) return appended.GetStatus();
+        transformGroup_->AddChild(originalTransform_);
     }
-    Base::Result<void> appended =
-        transformGroup_->AddChild(
-            Base::Ref<Media::Transform>(translation_));
-    if (!appended) return appended.GetStatus();
+    transformGroup_->AddChild(
+        Base::Ref<Media::Transform>(translation_));
     associated->SetRenderTransform(
         Base::Ref<Media::Transform>(transformGroup_));
     SynchronizeTransform();
     associated->PreviewMouseLeftButtonDown().Add(mouseDownHandler_);
     associated->PreviewMouseMove().Add(mouseMoveHandler_);
     associated->PreviewMouseLeftButtonUp().Add(mouseUpHandler_);
-    return {};
 }
 
 void MouseDragElementBehavior::OnDetaching() noexcept {
@@ -266,8 +264,7 @@ void MouseDragElementBehavior::OnDetaching() noexcept {
                 mouseUpHandler_));
         if (dragging_ && pointerId_ != UINT32_MAX) {
             Aero::InputRouter* input =
-                Aero::Core::GetFacet<::Aero::InputRouter>(
-                    *associated);
+                AeroGuiInternal::InputRouterOf(*associated);
             if (input != nullptr) {
                 static_cast<void>(input->ReleasePointer(pointerId_));
             }
@@ -337,7 +334,7 @@ void MouseDragElementBehavior::OnMouseMove(
             return;
         }
         Aero::InputRouter* input =
-            Aero::Core::GetFacet<::Aero::InputRouter>(*associated);
+            AeroGuiInternal::InputRouterOf(*associated);
         if (input == nullptr ||
             !input->CapturePointer(pointerId_, *associated)) {
             pointerId_ = UINT32_MAX;
@@ -349,7 +346,7 @@ void MouseDragElementBehavior::OnMouseMove(
     double y = dragStartY_ + deltaY;
     if (GetConstrainToParentBounds()) {
         UIElement* parent = associated->GetVisualParent() != nullptr
-            ? associated->GetVisualParent()->AsUIElement()
+            ? ::Aero::TryCast<::Aero::UIElement>(associated->GetVisualParent())
             : nullptr;
         if (parent != nullptr) {
             const Rect slot = associated->GetLayoutSlot();
@@ -386,7 +383,7 @@ void MouseDragElementBehavior::OnMouseUp(
     FrameworkElement* associated = GetAssociatedObject();
     if (dragging_ && associated != nullptr) {
         Aero::InputRouter* input =
-            Aero::Core::GetFacet<::Aero::InputRouter>(*associated);
+            AeroGuiInternal::InputRouterOf(*associated);
         if (input != nullptr) {
             static_cast<void>(input->ReleasePointer(pointerId_));
         }
@@ -398,9 +395,8 @@ void MouseDragElementBehavior::OnMouseUp(
 
 
 Base::Ref<FrameworkElement> BackgroundEffectBehavior::GetSource() const noexcept {
-    Base::Ref<Base::Object> source = GetValueOr(
-        SourceProperty, Base::Ref<Base::Object>{});
-    if (!source || !PropertyRegistry().Types().IsDerivedFrom(
+    Base::Ref<Base::Object> source = GetValue(SourceProperty);
+    if (!source || !AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             source->RuntimeType(), FrameworkElement::StaticTypeId())) {
         return {};
     }
@@ -408,16 +404,12 @@ Base::Ref<FrameworkElement> BackgroundEffectBehavior::GetSource() const noexcept
         *static_cast<FrameworkElement*>(source.Get()));
 }
 
-Base::Result<void> BackgroundEffectBehavior::OnAttached() noexcept {
+void BackgroundEffectBehavior::OnAttached() noexcept {
     FrameworkElement* associated = GetAssociatedObject();
-    if (associated == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "BackgroundEffectBehavior has no associated object");
-    }
+    if (associated == nullptr) { AERO_ASSERT(false); return; }
     originalFill_ = GetShapeFill(*associated);
     originalEffect_ = associated->GetEffect();
-    return Refresh();
+    static_cast<void>(Refresh());
 }
 
 void BackgroundEffectBehavior::OnDetaching() noexcept {

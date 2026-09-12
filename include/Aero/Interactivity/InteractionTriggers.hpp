@@ -2,6 +2,7 @@
 
 #include <Aero/Data/Binding.hpp>
 #include <Aero/Input.hpp>
+#include <Aero/ICommand.hpp>
 #include <Aero/Triggers/TriggerBase.hpp>
 #include <Aero/Interactivity/TriggerAction.hpp>
 
@@ -21,12 +22,9 @@ public:
     void SetBinding(Ref<Aero::Data::Binding> value) noexcept {
         binding_ = std::move(value);
     }
-    Result<void> AddAction(Ref<TriggerAction> value) noexcept {
-        return value
-            ? actions_.PushBack(std::move(value))
-            : Result<void>(Base::Status::Failure(
-                  Base::ErrorCode::InvalidArgument,
-                  "PropertyChangedTrigger action cannot be null"));
+    void AddAction(Ref<TriggerAction> value) noexcept {
+        if (!value) { AERO_ASSERT(false); return; }
+        actions_.PushBack(std::move(value));
     }
     void ClearActions() noexcept { actions_.Clear(); }
     Span<const Ref<TriggerAction>> GetActions() const noexcept {
@@ -52,12 +50,9 @@ public:
     }
     bool GetActiveOnFocus() const noexcept { return activeOnFocus_; }
     void SetActiveOnFocus(bool value) noexcept { activeOnFocus_ = value; }
-    Result<void> AddAction(Ref<TriggerAction> value) noexcept {
-        return value
-            ? actions_.PushBack(std::move(value))
-            : Result<void>(Base::Status::Failure(
-                  Base::ErrorCode::InvalidArgument,
-                  "KeyTrigger action cannot be null"));
+    void AddAction(Ref<TriggerAction> value) noexcept {
+        if (!value) { AERO_ASSERT(false); return; }
+        actions_.PushBack(std::move(value));
     }
     void ClearActions() noexcept { actions_.Clear(); }
     Span<const Ref<TriggerAction>> GetActions() const noexcept {
@@ -99,8 +94,7 @@ public:
     Ref<Aero::Data::Binding> GetCommandParameterBinding() const noexcept {
         return commandParameterBinding_;
     }
-    void SetCommandParameterBinding(
-        Ref<Aero::Data::Binding> value) noexcept {
+    void SetCommandParameterBinding(Ref<Aero::Data::Binding> value) noexcept {
         commandParameterBinding_ = std::move(value);
     }
 
@@ -142,13 +136,13 @@ public:
     double GetVolume() const noexcept { return volume_; }
     void SetVolume(double value) noexcept { volume_ = value; }
     bool GetIsEnabled() const noexcept {
-        return GetValueOr(IsEnabledProperty, true);
+        return GetValue(IsEnabledProperty);
     }
     void SetIsEnabled(bool value) noexcept {
         SetValue(IsEnabledProperty, value);
     }
 
-    inline static constexpr DependencyProperty<bool> IsEnabledProperty{"IsEnabled"};
+    AERO_DEPENDENCY_PROPERTY(bool, IsEnabled);
 
 private:
     String source_;

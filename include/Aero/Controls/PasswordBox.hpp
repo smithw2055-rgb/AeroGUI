@@ -2,16 +2,16 @@
 
 #include <Aero/Controls/TextBox.hpp>
 
-namespace Aero::Core { class TextLayoutFacet; }
+
+namespace Aero::Meta { class Registration; }
 
 namespace Aero::Controls {
-
-class TextEditBehavior;
 
 using ::Aero::Meta::TypeId;
 class AERO_GUI_API PasswordBox : public Primitives::TextBoxBase {
     AERO_DECLARE_TYPE(PasswordBox, Primitives::TextBoxBase)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
 
     PasswordBox() noexcept;
     ~PasswordBox() override;
@@ -19,28 +19,19 @@ public:
     StringView GetPassword() const noexcept {
         return password_.View();
     }
-    void SetPassword(
-        StringView value) noexcept;
+    void SetPassword(StringView value) noexcept;
     StringView GetPasswordChar() const noexcept;
-    void SetPasswordChar(
-        StringView value) noexcept;
+    void SetPasswordChar(StringView value) noexcept;
     std::uint32_t GetMaxLength() const noexcept;
-    void SetMaxLength(
-        std::uint32_t value) noexcept;
-    void SetSelectionBrush(
-        Ref<Media::Brush> value) noexcept override;
-    void SetSelectionOpacity(
-        double value) noexcept override;
-    void SetCaretBrush(
-        Ref<Media::Brush> value) noexcept override;
+    void SetMaxLength(std::uint32_t value) noexcept;
+    void SetSelectionBrush(Ref<Media::Brush> value) noexcept override;
+    void SetSelectionOpacity(double value) noexcept override;
+    void SetCaretBrush(Ref<Media::Brush> value) noexcept override;
     TextSelection GetSelection() const noexcept;
     std::uint32_t GetCaret() const noexcept;
-    void SetSelection(
-        std::uint32_t anchor,
-        std::uint32_t caret) noexcept;
+    void SetSelection(std::uint32_t anchor, std::uint32_t caret) noexcept;
     Result<void> SelectAll() noexcept;
-    void SetInputMethodHost(
-        Input::ITextInputMethodHost* host) noexcept;
+    void SetInputMethodHost(Input::ITextInputMethodHost* host) noexcept;
     Input::ITextInputMethodHost*
     GetInputMethodHost() const noexcept;
     bool GetIsComposing() const noexcept;
@@ -50,9 +41,15 @@ public:
         PasswordChanged() noexcept {
         return GetEvent(PasswordChangedEvent);
     }
-    inline static constexpr DependencyProperty<String> PasswordCharProperty{"PasswordChar"};
-    inline static constexpr DependencyProperty<std::uint32_t> MaxLengthProperty{"MaxLength"};
-    inline static constexpr DependencyProperty<String> PlaceholderProperty{"Placeholder"};
+    AERO_DEPENDENCY_PROPERTY(String, PasswordChar);
+    AERO_DEPENDENCY_PROPERTY(std::uint32_t, MaxLength);
+    AERO_DEPENDENCY_PROPERTY(String, Placeholder);
+    StringView GetPlaceholder() const noexcept {
+        return GetValue(PlaceholderProperty);
+    }
+    void SetPlaceholder(StringView value) noexcept {
+        SetValue(PlaceholderProperty, value);
+    }
     inline static constexpr auto ForegroundProperty = Control::ForegroundProperty;
 
 protected:
@@ -64,15 +61,21 @@ protected:
     void OnRender(
         ::Aero::Media::DrawingContext& context) noexcept override;
 
+    void OnMouseDown(MouseButtonEventArgs& args) override;
+    void OnMouseMove(MouseEventArgs& args) override;
+    void OnMouseUp(MouseButtonEventArgs& args) override;
+    void OnKeyDown(KeyEventArgs& args) override;
+    void OnTextInput(TextCompositionEventArgs& args) override;
+    void OnLostKeyboardFocus(KeyboardFocusChangedEventArgs& args) override;
+    bool ValidateValueCore(
+        Meta::DependencyPropertyHandle property,
+        const PropertyValue& value) const noexcept override;
+    void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
+
 private:
     friend class TextBox;
-    friend class TextEditBehavior;
-#if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::Core::TextLayoutFacet;
-#endif
 
     String password_;
-    void* validation_ = nullptr;
     void* passwordPolicy_ = nullptr;
     TextBox editor_;
     bool synchronizingEditor_ = false;

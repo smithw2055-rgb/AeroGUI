@@ -117,13 +117,8 @@ Base::Result<void> Win32Clipboard::ReadText(
             "Win32 failed to measure clipboard UTF-16 text");
     }
     Base::String converted(&output.Allocator());
-    Base::Result<void> reserved =
-        converted.Reserve(
+    converted.Reserve(
             static_cast<std::uint32_t>(required));
-    if (!reserved) {
-        static_cast<void>(GlobalUnlock(data));
-        return reserved;
-    }
     if (required != 0) {
         // String has no writable resize operation, so convert into a
         // temporary GlobalAlloc buffer and append the validated UTF-8 bytes.

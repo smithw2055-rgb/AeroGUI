@@ -1,13 +1,11 @@
 #pragma once
 
-#include <Aero/DependencyProperty.hpp>
+#include <Aero/DependencyObject.hpp>
 
 namespace Aero {
 
 class Freezable;
-struct FreezableState;
-
-namespace Core { class DependencyPropertyFacet; }
+class AeroGuiInternal;
 
 using FreezableChangedHandler = Base::Delegate<void(Freezable&)>;
 
@@ -17,13 +15,12 @@ using FreezableChangedHandler = Base::Delegate<void(Freezable&)>;
 class AERO_GUI_API Freezable : public DependencyObject {
     AERO_DECLARE_TYPE(Freezable, DependencyObject)
 public:
+    struct State;  // Freezable.cpp-local program data (nested; definition private to TU)
 
     bool IsFrozen() const noexcept;
     bool CanFreeze() const noexcept;
     Result<void> Freeze() noexcept;
 
-    Result<void> AddChangedHandlerChecked(
-        const FreezableChangedHandler& handler) noexcept;
     void AddChangedHandler(
         const FreezableChangedHandler& handler) noexcept;
     bool RemoveChangedHandler(
@@ -43,11 +40,9 @@ protected:
     Result<void> VerifyMutationAllowed() const noexcept override;
 
 private:
-    friend struct FreezableState;
-    friend class Core::DependencyPropertyFacet;
-
-    Base::IAllocator* implAllocator_ = nullptr;
-    FreezableState* impl_ = nullptr;
+    friend class AeroGuiInternal;
+    bool EnsureState() noexcept;
+    State* state_ = nullptr;
 };
 
 } // namespace Aero

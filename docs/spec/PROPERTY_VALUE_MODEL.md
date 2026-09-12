@@ -3,8 +3,9 @@
 ## Status
 
 This specification defines the authoritative dependency-property value model for
-AeroGUI. WPF observable behavior is the contract; Meta, Facet, Style compilers
-and Template runtimes are providers of that one property system.
+AeroGUI. WPF observable behavior is the contract; Meta, Style compilers,
+Template runtimes and VisualState setters are providers of that one property
+system.
 
 Phase 2 established ranked token storage, Phase 3 moved Style, ThemeStyle and
 ControlTemplate onto manager-owned sessions, and Phase 4 made the
@@ -22,20 +23,24 @@ current-value table with unrelated precedence or diagnostics.
 Base providers are ordered from strongest to weakest:
 
 1. Local value or local expression (`Binding`, `DynamicResource`).
-2. Templated-parent trigger.
-3. Templated-parent setter.
-4. Implicit style for the `Style` property.
-5. Style trigger.
-6. Template trigger.
-7. Style setter.
-8. Theme trigger.
-9. Theme setter.
-10. Inherited value.
-11. Metadata default.
+2. VisualState setter (own provider rank/origin; not an animation).
+3. Templated-parent trigger.
+4. Templated-parent setter.
+5. Implicit style for the `Style` property.
+6. Style trigger.
+7. Template trigger.
+8. Style setter.
+9. Theme trigger.
+10. Theme setter.
+11. Inherited value.
+12. Metadata default.
 
 Animation and coercion are applied after the winning base provider is selected.
-`SetCurrentValue()` changes the current value without replacing the winning
-provider identity.
+VisualState setters write through `SetProviderContribution` at
+`PropertyValueRank::VisualState` (between Local and Animation) and are cleared
+by origin when the state exits. Storyboards remain on the animation engine and
+use `SetAnimationValue`. `SetCurrentValue()` changes the current value without
+replacing the winning provider identity.
 
 ## Provider identity
 
@@ -62,11 +67,12 @@ token or origin. It must never clear an unrelated provider at the same rank.
 sessions attached to that engine allocate through it, so Style, ThemeStyle and
 Template origins cannot collide even when they target the same object/property.
 
-Origins `1` and `2` are fixed engine-owned identities for local/expression and
-animation diagnostics. Manager-owned provider sessions allocate unique origins
-from `FirstCanonicalProviderOrigin`; there are no compatibility origins or token
-normalization rules. Reusing an exact token replaces that contribution, while
-distinct ordinals represent simultaneous setters or triggers.
+Origins `1`, `2` and `3` are fixed engine-owned identities for
+local/expression, animation, and VisualState diagnostics. Manager-owned
+provider sessions allocate unique origins from `FirstCanonicalProviderOrigin`;
+there are no compatibility origins or token normalization rules. Reusing an
+exact token replaces that contribution, while distinct ordinals represent
+simultaneous setters or triggers.
 
 ## Manager-owned provider sessions
 
@@ -114,9 +120,12 @@ performing a second lookup.
 
 ## Unified effective entry
 
-Phase 4 makes `DependencyObject::EffectiveValueEntry` authoritative for provider
-contributions, local values and expressions, inherited and animated values, the
-unanimated base value, the coerced effective value and `PropertyValueSourceInfo`.
+The per-object store is authoritative for provider contributions, local values
+and expressions, inherited and animated values, the unanimated base value, the
+coerced effective value and `PropertyValueSourceInfo`. The installed
+`DependencyObject` header keeps an opaque `void*` handle; the entry layout is
+defined only in `src/gui/internal/PropertyStore.hpp` and is looked up by stable
+`MemberId`. Packed StoredValue bit layouts are not part of this contract.
 
 `EffectiveValueEngine` now retains only scheduling records and the semantic
 inheritance-parent graph. It no longer owns value state or lands values through
@@ -147,4 +156,5 @@ inheritance-parent graph. It no longer owns value state or lands values through
 - Provider removal is token- or origin-scoped and deterministic.
 - Manager sessions never reuse origins allocated by another session.
 - Animation retains the base value beneath the animated value.
+- VisualState is a distinct base provider, not an animation origin.
 - Coercion never destroys the uncoerced base value.

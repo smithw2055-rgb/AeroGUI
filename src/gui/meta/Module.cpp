@@ -1,10 +1,9 @@
 #include "ModuleSet.hpp"
 
 #include "BuiltinModules.hpp"
-#include "gui/meta/MetadataState.hpp"
+#include "gui/meta/TypeRegistryDetail.hpp"
+#include "gui/markup/XamlObjectWriterCommon.hpp"
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/markup/MarkupState.hpp"
-#include "gui/markup/MarkupWriterState.hpp"
 
 #include <utility>
 
@@ -13,17 +12,11 @@ namespace Aero {
 Base::Result<void> ModuleSet::ResolveOrder(
     Base::Vector<std::uint32_t>& order) const noexcept {
     order.Clear();
-    Base::Result<void> reserved =
-        order.Reserve(modules_.Size());
-    if (!reserved) return reserved.GetStatus();
+    order.Reserve(modules_.Size());
     Base::Vector<std::uint32_t> indegrees;
-    Base::Result<void> sized =
-        indegrees.Resize(modules_.Size(), 0U);
-    if (!sized) return sized.GetStatus();
+    indegrees.Resize(modules_.Size(), 0U);
     Base::Vector<bool> emitted;
-    sized = emitted.Resize(modules_.Size(), false);
-    if (!sized) return sized.GetStatus();
-
+    emitted.Resize(modules_.Size(), false);
     for (std::uint32_t index = 0U;
          index < modules_.Size();
          ++index) {
@@ -67,9 +60,7 @@ Base::Result<void> ModuleSet::ResolveOrder(
                 "Aero module dependency graph contains a cycle");
         }
         emitted[selected] = true;
-        Base::Result<void> appended =
-            order.PushBack(selected);
-        if (!appended) return appended.GetStatus();
+        order.PushBack(selected);
         const Base::StringView emittedName =
             modules_[selected].name.View();
         for (std::uint32_t index = 0U;
@@ -128,9 +119,8 @@ Base::Result<void> ModuleSet::Add(
         registration.registerModuleWithContext;
     module.context = registration.context;
     module.abiVersion = registration.abiVersion;
-    Base::Result<void> reserved = module.dependencies.Reserve(
+    module.dependencies.Reserve(
         registration.dependencies.Size());
-    if (!reserved) return reserved.GetStatus();
     for (const ModuleDependency& dependency :
          registration.dependencies) {
         if (dependency.name.Empty() ||
@@ -154,13 +144,10 @@ Base::Result<void> ModuleSet::Add(
         if (!dependencyName) return dependencyName.GetStatus();
         stored.minimumSchemaVersion =
             dependency.minimumSchemaVersion;
-        Base::Result<void> appended =
-            module.dependencies.PushBack(std::move(stored));
-        if (!appended) return appended.GetStatus();
+        module.dependencies.PushBack(std::move(stored));
     }
-    Base::Result<void> scopeCapacity = module.resourceScopes.Reserve(
+    module.resourceScopes.Reserve(
         registration.resourceScopes.Size());
-    if (!scopeCapacity) return scopeCapacity.GetStatus();
     for (const Markup::ResourceScopeRegistration& scope :
          registration.resourceScopes) {
         if (scope.type == Meta::InvalidTypeId ||
@@ -179,11 +166,10 @@ Base::Result<void> ModuleSet::Add(
                     "Aero module resource scope is duplicated");
             }
         }
-        Base::Result<void> appended =
-            module.resourceScopes.PushBack(scope);
-        if (!appended) return appended.GetStatus();
+        module.resourceScopes.PushBack(scope);
     }
-    return modules_.PushBack(std::move(module));
+    modules_.PushBack(std::move(module));
+    return {};
 }
 
 Base::Result<void> ModuleSet::RegisterMetadata(
@@ -221,7 +207,7 @@ Base::Result<void> ModuleSet::RegisterResourceScopes(
         for (const Markup::ResourceScopeRegistration& scope :
              module.resourceScopes) {
             Base::Result<void> registered =
-                Markup::SchemaPrivate::AddResourceScope(schema, {
+                schema.AddResourceScope({
                     scope.type,
                     scope.inherited,
                     scope.addResource,

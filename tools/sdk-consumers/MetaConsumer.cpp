@@ -5,6 +5,7 @@
 #include <Aero/Controls/Button.hpp>
 #include <Aero/Shapes.hpp>
 #include <Aero/Media/Animation.hpp>
+#include <Aero/Media/DrawingContext.hpp>
 
 #include <cstdint>
 #include <type_traits>
@@ -147,6 +148,9 @@ Aero::Result<void> RegisterConsumerModule(
             .Event(
                 ConsumerControl::ActivatedEvent,
                 Aero::RoutingStrategy::Bubble)
+            .TemplatePart(
+                "PART_ContentHost",
+                Aero::Meta::TypeOf<Aero::FrameworkElement>())
             .Factory()
             .Result();
     if (!status) return status.GetStatus();

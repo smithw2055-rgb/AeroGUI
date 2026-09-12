@@ -3,6 +3,7 @@
 #include <Aero/DependencyObject.hpp>
 #include <Aero/Base/Object.hpp>
 #include <Aero/Value.hpp>
+#include <Aero/Interactivity/Interaction.hpp>
 
 namespace Aero::Interactivity {
 
@@ -14,15 +15,6 @@ protected:
     explicit TriggerAction(Meta::TypeId runtimeType) noexcept
         : DependencyObject(runtimeType) {}
     ~TriggerAction() override = default;
-};
-
-// Marker object used by the interactivity metadata layer. It remains a
-// concrete public type so behavior XAML can register the same owner type as
-// the original Gallery model.
-class AERO_GUI_API Interaction : public Base::Object {
-    AERO_DECLARE_TYPE(Interaction, Base::Object)
-private:
-    Interaction() noexcept = default;
 };
 
 } // namespace Aero::Interactivity

@@ -17,13 +17,13 @@ public:
     void SetRoutedEvent(StringView value) noexcept;
     void SetEventName(StringView value) noexcept { SetRoutedEvent(value); }
     void SetSourceName(StringView value) noexcept;
-    Result<void> AddAction(Ref<TriggerAction> value) noexcept;
+    void AddAction(Ref<TriggerAction> value) noexcept;
     void ClearActions() noexcept;
     Span<const Ref<TriggerAction>> GetActions() const noexcept {
         return {actions_.Data(), actions_.Size()};
     }
-    Result<void> AddConditionBehavior(Ref<Base::Object> value) noexcept {
-        return behaviors_.PushBack(std::move(value));
+    void AddConditionBehavior(Ref<Base::Object> value) noexcept {
+        behaviors_.PushBack(std::move(value));
     }
     void ClearConditionBehaviors() noexcept { behaviors_.Clear(); }
     Span<const Ref<Base::Object>> GetBehaviors() const noexcept {

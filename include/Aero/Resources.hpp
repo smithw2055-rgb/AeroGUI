@@ -8,7 +8,7 @@
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Diagnostics.hpp>
+#include <Aero/Diagnostics/SourceSpan.hpp>
 #include <Aero/DependencyProperty.hpp>
 #include <Aero/Value.hpp>
 
@@ -119,8 +119,6 @@ struct ResourceChangeSubscription {
     }
 };
 
-struct ResourceDictionaryImpl;
-
 // StringView is empty for type-keyed and dictionary-wide notifications.
 using ResourceChangedCallback = void (*)(
     void* context,
@@ -222,8 +220,7 @@ public:
     // dictionary type implicitly copyable.
     Result<ResourceDictionary> Share() const noexcept;
 
-    void SetSource(
-        const Base::ResourceUri& source) noexcept;
+    void SetSource(const Base::ResourceUri& source) noexcept;
     const Base::ResourceUri& GetSource() const noexcept;
 
     Result<void> Seal() noexcept;
@@ -241,36 +238,40 @@ public:
         std::uint32_t index) const noexcept;
     std::uint64_t Generation() const noexcept;
 
+    // Nested dictionary storage (TU-local definition). Not a separate
+    // public companion type.
+    struct DictionaryState;
+
 private:
-    Result<void> ApplyChecked(
+    Result<void> StoreResource(
         const ResourceKey& key,
         const ResourceValue& value,
         ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
-    Result<void> ApplyChecked(
+    Result<void> StoreResource(
         StringView key,
         const ResourceValue& value,
         ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
-    Result<void> ApplyChecked(
+    Result<void> StoreResource(
         Meta::TypeId key,
         const ResourceValue& value,
         ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
-    Result<void> ApplyChecked(
+    Result<void> StoreResource(
         StringView key,
         Meta::TypeId type,
         const Ref<Base::Object>& object,
         ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
 
-    friend struct ResourceDictionaryImpl;
+    friend struct DictionaryState;
 
     explicit ResourceDictionary(
-        ResourceDictionaryImpl* impl,
+        DictionaryState* state,
         bool addReference) noexcept;
 
-    ResourceDictionaryImpl* impl_ = nullptr;
+    DictionaryState* state_ = nullptr;
 
-    Result<ResourceDictionaryImpl*> EnsureImpl() noexcept;
-    static void AddImplRef(ResourceDictionaryImpl* impl) noexcept;
-    static void ReleaseImpl(ResourceDictionaryImpl* impl) noexcept;
+    Result<DictionaryState*> EnsureState() noexcept;
+    static void AddStateRef(DictionaryState* state) noexcept;
+    static void ReleaseState(DictionaryState* state) noexcept;
 };
 
 struct ResourceEnvironment {

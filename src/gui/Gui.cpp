@@ -1,30 +1,23 @@
 #include <Aero/Gui.hpp>
 #include <Aero/View.hpp>
+#include <Aero/TryCast.hpp>
+#include <Aero/UIElement.hpp>
 
 #include <Aero/Markup/XamlReader.hpp>
 #include <Aero/Markup/XamlProvider.hpp>
 #include <Aero/Media/TextureProvider.hpp>
 #include <Aero/Media/FontProvider.hpp>
 #include <Aero/ViewOptions.hpp>
-#include "gui/GuiData.hpp"
+#include "gui/GuiDetail.hpp"
+#include "gui/ViewFrame.hpp"
 #include <Aero/BuiltinThemes.generated.hpp>
+#include <Aero/Base/String.hpp>
 
 #include <new>
 #include <utility>
 
 
 namespace Aero {
-
-Base::Result<Base::ResourceUri> BuiltInThemeUri(
-    Base::StringView name) noexcept {
-    Base::String text;
-    Base::Result<void> assigned = text.Assign(
-        Base::StringView("pack://application:,,,/Aero.Themes;component/"));
-    if (!assigned) return assigned.GetStatus();
-    Base::Result<void> appended = text.Append(name);
-    if (!appended) return appended.GetStatus();
-    return Base::ResourceUri::Parse(text.View());
-}
 
 Base::Result<void> RegisterDefaultXamlProviders(
     Markup::XamlProviderRegistry& providers,
@@ -87,16 +80,50 @@ Base::Result<void> RegisterDefaultXamlProviders(
             ::Aero::AeroExtensionsFontsSourceSize},
         {"AeroTheme.Styles.xaml", ::Aero::AeroExtensionsStylesSource,
             ::Aero::AeroExtensionsStylesSourceSize}};
-    for (const ExtensionSource& source : extensionSources) {
-        Base::String uri;
-        status = uri.Assign(
-            "pack://application:,,,/Aero.GUI.Extensions;component/Theme/");
-        if (!status) return status.GetStatus();
-        status = uri.Append(source.name);
-        if (!status) return status.GetStatus();
-        status = addEmbedded(
-            uri.View(), source.bytes, source.size);
-        if (!status) return status.GetStatus();
+    auto rewriteThemeFileName = [](Base::StringView aeroName,
+                                   Base::StringView themePrefix,
+                                   Base::String& out) noexcept -> Base::Result<void> {
+        constexpr Base::StringView aeroPrefix("AeroTheme");
+        Base::Result<void> assigned = out.Assign(themePrefix);
+        if (!assigned) return assigned.GetStatus();
+        if (aeroName.SizeBytes() >= aeroPrefix.SizeBytes() &&
+            aeroName.Substr(0U, aeroPrefix.SizeBytes()) == aeroPrefix) {
+            return out.Append(aeroName.Substr(
+                aeroPrefix.SizeBytes(),
+                aeroName.SizeBytes() - aeroPrefix.SizeBytes()));
+        }
+        return out.Append(aeroName);
+    };
+    const struct {
+        Base::StringView assembly;
+        Base::StringView themePrefix;
+    } extensionAssemblies[] = {
+        {Base::StringView("Aero.GUI.Extensions"),
+         Base::StringView("AeroTheme")},
+        // Tutorial/ControlGallery App.xaml still references the Noesis pack
+        // assembly and NoesisTheme.* file names. Serve the same Aero theme
+        // bytes under that spelling so Source= pack URIs load.
+        {Base::StringView("Noesis.GUI.Extensions"),
+         Base::StringView("NoesisTheme")}};
+    for (const auto& assembly : extensionAssemblies) {
+        for (const ExtensionSource& source : extensionSources) {
+            Base::String fileName;
+            status = rewriteThemeFileName(
+                source.name, assembly.themePrefix, fileName);
+            if (!status) return status.GetStatus();
+            Base::String uri;
+            status = uri.Assign("pack://application:,,,/");
+            if (!status) return status.GetStatus();
+            status = uri.Append(assembly.assembly);
+            if (!status) return status.GetStatus();
+            status = uri.Append(";component/Theme/");
+            if (!status) return status.GetStatus();
+            status = uri.Append(fileName.View());
+            if (!status) return status.GetStatus();
+            status = addEmbedded(
+                uri.View(), source.bytes, source.size);
+            if (!status) return status.GetStatus();
+        }
     }
     // WPF also accepts a leading-slash component URI without an explicit
     // pack scheme. Keep both root dictionaries available under that spelling.
@@ -110,6 +137,16 @@ Base::Result<void> RegisterDefaultXamlProviders(
         ::Aero::AeroExtensionsDarkSource,
         ::Aero::AeroExtensionsDarkSourceSize);
     if (!status) return status.GetStatus();
+    status = addEmbedded(
+        "/Noesis.GUI.Extensions;component/Theme/NoesisTheme.LightBlue.xaml",
+        ::Aero::AeroExtensionsLightSource,
+        ::Aero::AeroExtensionsLightSourceSize);
+    if (!status) return status.GetStatus();
+    status = addEmbedded(
+        "/Noesis.GUI.Extensions;component/Theme/NoesisTheme.DarkBlue.xaml",
+        ::Aero::AeroExtensionsDarkSource,
+        ::Aero::AeroExtensionsDarkSourceSize);
+    if (!status) return status.GetStatus();
 
     auto registerProvider = [&](Ref<Markup::XamlProvider> provider,
                                 Base::StringView scheme) noexcept -> Base::Result<void> {
@@ -119,6 +156,9 @@ Base::Result<void> RegisterDefaultXamlProviders(
     if (!status) return status.GetStatus();
     status = providers.Set(
         embedded, {}, "Aero.GUI.Extensions");
+    if (!status) return status.GetStatus();
+    status = providers.Set(
+        embedded, {}, "Noesis.GUI.Extensions");
     if (!status) return status.GetStatus();
     status = registerProvider(file, "file");
     if (!status) return status.GetStatus();
@@ -133,7 +173,7 @@ namespace Aero {
 namespace {
 
 void RemovePendingDocument(
-    GuiState& state,
+    GuiRuntime& state,
     std::uint32_t index) noexcept {
     if (index + 1U < state.pendingDocuments.Size()) {
         state.pendingDocuments[index] =
@@ -142,7 +182,7 @@ void RemovePendingDocument(
     state.pendingDocuments.PopBack();
 }
 
-void CollectUnclaimedDocuments(GuiState& state) noexcept {
+void CollectUnclaimedDocuments(GuiRuntime& state) noexcept {
     std::uint32_t index = 0U;
     while (index < state.pendingDocuments.Size()) {
         const PendingXamlDocument& pending =
@@ -159,7 +199,7 @@ void CollectUnclaimedDocuments(GuiState& state) noexcept {
 }
 
 Base::Result<Base::Ref<Base::Object>> RetainLoadedDocument(
-    GuiState& state,
+    GuiRuntime& state,
     Markup::XamlDocument&& document,
     std::uint32_t externalRootReferences = 0U) noexcept {
     Base::Ref<Base::Object> root = document.Root();
@@ -190,18 +230,106 @@ Base::Result<Base::Ref<Base::Object>> RetainLoadedDocument(
 } // namespace
 
 
+void GuiRuntime::OnXamlChanged(const Base::ResourceUri& uri) noexcept {
+    if (!dispatcher.CheckAccess()) return;
+    if (uri.Empty()) {
+        documents.Clear();
+    } else {
+        static_cast<void>(documents.Invalidate(uri, true));
+    }
+    XamlProviderChangeRecord record;
+    record.uri = uri;
+    record.generation = ++xamlChangeGeneration;
+    xamlChanges.PushBack(std::move(record));
+}
+
+void GuiRuntime::OnTextureChanged(const Base::ResourceUri& uri) noexcept {
+    if (!dispatcher.CheckAccess()) return;
+    XamlProviderChangeRecord record;
+    record.uri = uri;
+    record.generation = ++textureChangeGeneration;
+    textureChanges.PushBack(std::move(record));
+}
+
+void GuiRuntime::OnFontChanged(const Media::FontProviderChange& change) noexcept {
+    if (!dispatcher.CheckAccess()) return;
+    fontChangedBaseUri = change.baseUri;
+    static_cast<void>(fontChangedFamily.Assign(change.familyName));
+    ++fontChangeGeneration;
+}
+
+Base::Result<void> GuiRuntime::QuerySource(
+    const Base::ResourceUri& uri,
+    std::uint64_t& sourceIdentity,
+    std::uint64_t& revision) noexcept {
+    if (uri.Empty()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "XAML source URI is empty");
+    }
+    Base::Result<Markup::XamlProviderResolution> resolved =
+        xamlProviders.ResolveDetailed(uri);
+    if (!resolved) return resolved.GetStatus();
+    if (resolved.Value().provider == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "XAML source provider is unavailable");
+    }
+    sourceIdentity = resolved.Value().cacheIdentity;
+
+    Base::Result<std::uint64_t> probed =
+        resolved.Value().provider->Revision(uri);
+    if (probed && probed.Value() != 0U) {
+        revision = probed.Value();
+        return {};
+    }
+    Base::Result<::Aero::Markup::StreamResourceInfo> source =
+        resolved.Value().provider->Open(uri);
+    if (!source) return source.GetStatus();
+    if (source.Value().revision != 0U) {
+        revision = source.Value().revision;
+        return {};
+    }
+    if (!source.Value().stream) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "XAML source stream is invalid");
+    }
+
+    constexpr Base::HashCode OffsetBasis =
+        UINT64_C(14695981039346656037);
+    constexpr Base::HashCode Prime = UINT64_C(1099511628211);
+    Base::HashCode hash = OffsetBasis ^ Base::MixHash64(0U);
+    std::uint64_t size = 0U;
+    std::uint8_t buffer[4096];
+    for (;;) {
+        Base::Result<std::uint32_t> read =
+            source.Value().stream->Read({buffer, sizeof(buffer)});
+        if (!read) return read.GetStatus();
+        if (read.Value() == 0U) break;
+        for (std::uint32_t index = 0U;
+             index < read.Value(); ++index) {
+            hash ^= static_cast<Base::HashCode>(buffer[index]);
+            hash *= Prime;
+        }
+        size += read.Value();
+    }
+    revision = Base::MixHash64(hash ^ size);
+    return {};
+}
+
 Gui::Gui(
     Base::IAllocator* allocator) noexcept
     : allocator_(allocator != nullptr
           ? allocator
           : &Base::GetDefaultAllocator()) {
-    Base::Result<Base::Ref<GuiState>> made =
-        Base::MakeRefWithAllocator<GuiState>(
+    Base::Result<Base::Ref<GuiRuntime>> made =
+        Base::MakeRefWithAllocator<GuiRuntime>(
             *allocator_, *allocator_);
     if (!made) {
         Base::ReportOutOfMemory(
-            sizeof(GuiState),
-            alignof(GuiState),
+            sizeof(GuiRuntime),
+            alignof(GuiRuntime),
             Base::MemoryTag::Object);
     }
     state_ = Base::Ref<Base::Object>(std::move(made).Value());
@@ -213,7 +341,7 @@ Gui::~Gui() noexcept {
 
 Base::Result<void> Gui::AddModule(
     const ModuleRegistration& registration) noexcept {
-    GuiState& state = static_cast<GuiState&>(*state_);
+    GuiRuntime& state = static_cast<GuiRuntime&>(*state_);
     if (state.initialized) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -226,7 +354,7 @@ Base::Result<void> Gui::SetXamlProvider(
     Ref<Markup::XamlProvider> provider,
     Base::StringView scheme,
     Base::StringView assembly) noexcept {
-    GuiState& state = static_cast<GuiState&>(*state_);
+    GuiRuntime& state = static_cast<GuiRuntime&>(*state_);
     if (state.initialized) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -247,13 +375,7 @@ Base::Result<void> Gui::SetXamlProvider(
     }
     if (newlySubscribed) {
         provider->AddChangedHandler(state.xamlChanged);
-        Base::Result<void> retained =
-            state.subscribedXamlProviders.PushBack(provider);
-        if (!retained) {
-            static_cast<void>(provider->RemoveChangedHandler(
-                state.xamlChanged));
-            return retained.GetStatus();
-        }
+        state.subscribedXamlProviders.PushBack(provider);
     }
     Ref<Markup::XamlProvider> replaced;
     Base::Result<void> configured = state.xamlProviders.Set(
@@ -290,7 +412,7 @@ Base::Result<void> Gui::SetXamlProvider(
 
 Base::Result<void> Gui::SetTextureProvider(
     Ref<Media::TextureProvider> provider) noexcept {
-    GuiState& state = static_cast<GuiState&>(*state_);
+    GuiRuntime& state = static_cast<GuiRuntime&>(*state_);
     if (state.initialized) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -312,7 +434,7 @@ Base::Result<void> Gui::SetTextureProvider(
 
 Base::Result<void> Gui::SetFontProvider(
     Ref<Media::FontProvider> provider) noexcept {
-    GuiState& state = static_cast<GuiState&>(*state_);
+    GuiRuntime& state = static_cast<GuiRuntime&>(*state_);
     if (state.initialized) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -333,7 +455,7 @@ Base::Result<void> Gui::SetFontProvider(
 }
 
 Base::Result<void> Gui::Initialize() noexcept {
-    GuiState& state = static_cast<GuiState&>(*state_);
+    GuiRuntime& state = static_cast<GuiRuntime&>(*state_);
     if (state.initialized) return {};
     Base::Result<void> prepared = state.schema.Prepare(state.modules);
     if (!prepared) return prepared.GetStatus();
@@ -370,7 +492,7 @@ Base::Result<Base::Ref<Base::Object>> Gui::LoadXamlRoot(
             Base::ErrorCode::NotInitialized,
             "Gui must be initialized before XAML loading");
     }
-    GuiState& state = static_cast<GuiState&>(*state_);
+    GuiRuntime& state = static_cast<GuiRuntime&>(*state_);
     CollectUnclaimedDocuments(state);
     Markup::XamlReader reader(*this);
     Base::Result<Markup::XamlDocument> loaded = reader.Load(uri);
@@ -389,7 +511,8 @@ Base::Result<Base::Ref<Base::Object>> Gui::LoadXamlRoot(
 
 Base::Result<void> Gui::LoadComponent(
     Base::Object& component,
-    Base::StringView uri) noexcept {
+    Base::StringView uri,
+    ResourceDictionary* resources) noexcept {
     if (!IsInitialized()) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
@@ -404,11 +527,12 @@ Base::Result<void> Gui::LoadComponent(
             Base::ErrorCode::InvalidArgument,
             "XAML component requires a managed root object");
     }
-    GuiState& state = static_cast<GuiState&>(*state_);
+    GuiRuntime& state = static_cast<GuiRuntime&>(*state_);
     CollectUnclaimedDocuments(state);
     Markup::XamlReader reader(*this);
     Base::Result<Markup::XamlDocument> loaded =
-        reader.LoadComponentInto(std::move(root), uri);
+        reader.LoadComponentInto(
+            std::move(root), uri, {}, nullptr, resources);
     if (!loaded) return loaded.GetStatus();
     Base::Result<Base::Ref<Base::Object>> retained =
         RetainLoadedDocument(
@@ -416,13 +540,34 @@ Base::Result<void> Gui::LoadComponent(
             std::move(loaded).Value(),
             externalRootReferences);
     if (!retained) return retained.GetStatus();
+    if (UIElement* element = TryCast<UIElement>(&component)) {
+        if (ElementTree* tree = VisualTree(element)) {
+            if (ViewFrame* viewState = tree->GetViewState()) {
+                for (std::uint32_t index = 0U;
+                     index < state.pendingDocuments.Size(); ++index) {
+                    Markup::LoaderResult& pending =
+                        state.pendingDocuments[index].document;
+                    if (pending.root.Get() != &component) continue;
+                    Markup::LoaderResult taken = std::move(pending);
+                    RemovePendingDocument(state, index);
+                    Base::Result<void> adopted =
+                        AdoptLoadedComponent(
+                            *viewState, std::move(taken));
+                    if (!adopted) return adopted.GetStatus();
+                    element->InvalidateMeasure();
+                    element->InvalidateArrange();
+                    break;
+                }
+            }
+        }
+    }
     return {};
 }
 
 Base::Result<bool> Gui::TakeLoadedDocument(
     Base::Object& root,
     Markup::XamlDocument& document) noexcept {
-    GuiState& state = static_cast<GuiState&>(*state_);
+    GuiRuntime& state = static_cast<GuiRuntime&>(*state_);
     for (std::uint32_t index = 0U;
          index < state.pendingDocuments.Size(); ++index) {
         Markup::LoaderResult& pending =
@@ -480,13 +625,13 @@ Base::Result<Base::Ref<View>> Gui::CreateView(
         CreateView(options, allocator);
     if (!made) return made.GetStatus();
     Base::Result<void> mounted =
-        made.Value()->SetContent(std::move(content));
+        made.Value()->SetContent(std::move(content), Aero::Size{});
     if (!mounted) return mounted.GetStatus();
     return std::move(made).Value();
 }
 
 bool Gui::IsInitialized() const noexcept {
-    const GuiState& state = static_cast<const GuiState&>(*state_);
+    const GuiRuntime& state = static_cast<const GuiRuntime&>(*state_);
     return state.initialized && state.schema.IsFrozen();
 }
 

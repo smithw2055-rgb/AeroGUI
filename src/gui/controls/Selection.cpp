@@ -1,25 +1,33 @@
-#include "gui/meta/MetadataState.hpp"
-#include "gui/core/State.hpp" 
-#include "gui/input/InputState.hpp" 
+#include "gui/meta/TypeRegistryDetail.hpp"
+#include "gui/core/ElementTree.hpp"
+#include "gui/core/LayoutEngine.hpp"
+#include "gui/core/EffectiveValueEngine.hpp"
+#include "gui/core/RoutedEvents.hpp"
+#include "gui/core/EventRouter.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
+#include "gui/input/InputManager.hpp" 
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleState.hpp"
-#include "gui/controls/State.hpp"
-#include "gui/templates/TemplateState.hpp"
-#include "gui/core/facets/InteractionStateFacet.hpp"
+#include "gui/styles/StyleEngine.hpp"
+#include "gui/controls/ItemsContainers.hpp"
+#include "gui/templates/TemplateInstance.hpp"
+#include <Aero/VisualStateManager.hpp>
 #include <Aero/Controls.hpp>
+#include <Aero/TryCast.hpp>
 #include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/Controls/TextBoxBase.hpp>
 #include <Aero/Controls/TextBox.hpp>
 #include <Aero/Controls/PasswordBox.hpp>
+#include <Aero/Controls/Popup.hpp>
+#include <Aero/Data/CollectionView.hpp>
+#include <Aero/Data/CollectionViewSource.hpp>
 
 
+#include <Aero/Base/String.hpp>
+#include "gui/meta/ValueConversion.hpp"
 #include <algorithm>
 #include <utility>
-#include "ControlBehavior.hpp"
 
 namespace Aero::Controls {
-using Aero::Controls::ComboBehavior;
-using Aero::Controls::ListBehavior;
 
 using namespace Primitives;
 namespace {
@@ -45,12 +53,8 @@ Base::Result<void> InsertSortedUnique(
         values[index] == value) {
         return {};
     }
-    Base::Result<void> reserved =
-        values.Reserve(values.Size() + 1U);
-    if (!reserved) return reserved.GetStatus();
-    Base::Result<void> appended =
-        values.PushBack(value);
-    if (!appended) return appended.GetStatus();
+    values.Reserve(values.Size() + 1U);
+    values.PushBack(value);
     for (std::uint32_t current =
             values.Size() - 1U;
         current > index; --current) {
@@ -73,13 +77,119 @@ bool EqualIndices(
 
 } // namespace
 
+ListBoxItem::ListBoxItem() noexcept
+    : ListBoxItem(StaticTypeId()) {}
+
+ListBoxItem::ListBoxItem(TypeId runtimeType) noexcept
+    : ContentControl(runtimeType) {}
+
+ListBoxItem::~ListBoxItem() = default;
+
 bool ListBoxItem::GetIsSelected() const noexcept {
-    return GetValueOr(IsSelectedProperty, false);
+    return GetValue(IsSelectedProperty);
 }
 
 void ListBoxItem::SetIsSelected(
     bool value) noexcept {
     SetCurrentValue(IsSelectedProperty, value);
+}
+
+void ListBoxItem::UpdateVisualState(bool useTransitions) noexcept {
+    Base::StringView common = "Normal";
+    if (!GetIsEnabled()) {
+        common = "Disabled";
+    } else if (GetIsMouseOver()) {
+        common = "MouseOver";
+    }
+    static_cast<void>(
+        VisualStateManager::GoToState(
+            *this,
+            common,
+            useTransitions));
+    const bool selected = GetIsSelected();
+    static_cast<void>(
+        VisualStateManager::GoToState(
+            *this,
+            selected
+                ? Base::StringView("Selected")
+                : Base::StringView("Unselected"),
+            useTransitions));
+}
+
+void ListBoxItem::OnSelected(RoutedEventArgs& e) {
+    RaiseEvent(SelectedEvent, &e);
+}
+
+void ListBoxItem::OnUnselected(RoutedEventArgs& e) {
+    RaiseEvent(UnselectedEvent, &e);
+}
+
+void ListBoxItem::OnPropertyChanged(
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    ContentControl::OnPropertyChanged(args);
+    const DependencyPropertyHandle prop = args.GetProperty();
+    if (prop == IsSelectedProperty) {
+        UpdateVisualState(true);
+        const bool selected =
+            args.GetNewValue().Kind() == Meta::ValueKind::Boolean &&
+            args.GetNewValue().AsBoolean();
+        RoutedEventArgs eventArgs;
+        if (selected) {
+            OnSelected(eventArgs);
+        } else {
+            OnUnselected(eventArgs);
+        }
+        if (!selected) return;
+        ::Aero::Media::Visual* visual = this;
+        while (visual != nullptr) {
+            UIElement* element = ::Aero::TryCast<UIElement>(visual);
+            if (element != nullptr &&
+                AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
+                    element->RuntimeType(), ListBox::StaticTypeId())) {
+                auto& listBox = *static_cast<ListBox*>(element);
+                ItemContainerGenerator* generator =
+                    listBox.GetItemContainerGenerator();
+                if (generator == nullptr) return;
+                const std::uint32_t index =
+                    generator->IndexFromContainer(*this);
+                if (index != UINT32_MAX &&
+                    listBox.GetSelectedIndex() != index) {
+                    listBox.SetSelectedIndex(index);
+                }
+                return;
+            }
+            visual = visual->GetVisualParent();
+        }
+    } else if (prop == UIElement::IsMouseOverProperty) {
+        UpdateVisualState(true);
+        if (GetIsMouseOver() && GetIsEnabled()) {
+            ::Aero::Media::Visual* visual = this;
+            while (visual != nullptr) {
+                UIElement* element = ::Aero::TryCast<UIElement>(visual);
+                if (element != nullptr &&
+                    AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
+                        element->RuntimeType(), ListBox::StaticTypeId())) {
+                    auto& listBox = *static_cast<ListBox*>(element);
+                    if (listBox.GetSelectionMode() == SelectionMode::Single) {
+                        ItemContainerGenerator* generator =
+                            listBox.GetItemContainerGenerator();
+                        if (generator != nullptr) {
+                            const std::uint32_t index =
+                                generator->IndexFromContainer(*this);
+                            if (index != UINT32_MAX &&
+                                listBox.GetSelectedIndex() != index) {
+                                listBox.SetSelectedIndex(index);
+                            }
+                        }
+                    }
+                    break;
+                }
+                visual = visual->GetVisualParent();
+            }
+        }
+    } else if (prop == UIElement::IsEnabledProperty) {
+        UpdateVisualState(true);
+    }
 }
 
 Selector::Selector() noexcept
@@ -89,61 +199,33 @@ Selector::Selector(TypeId runtimeType) noexcept
     : ItemsControl(runtimeType),
       itemsChangedHandler_(
           this, &Selector::OnItemsChanged),
-      propertyChangedHandler_(
-          this, &Selector::OnPropertyChanged) {
+      currentChangedHandler_(
+          this, &Selector::OnViewCurrentChanged) {
     AddItemsChanged(itemsChangedHandler_);
-    static_cast<void>(AddValueChangedHandlerChecked(
-        SelectionModeProperty,
-        propertyChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
-        SelectedIndexProperty,
-        propertyChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
-        SelectedItemProperty,
-        propertyChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
-        SelectedValueProperty,
-        propertyChangedHandler_));
 }
 
 Selector::~Selector() {
+    UnhookCurrentView();
     static_cast<void>(
         RemoveItemsChanged(itemsChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        SelectionModeProperty,
-        propertyChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        SelectedIndexProperty,
-        propertyChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        SelectedItemProperty,
-        propertyChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        SelectedValueProperty,
-        propertyChangedHandler_));
 }
 
 SelectionMode Selector::GetSelectionMode() const noexcept {
-    return GetValueOr(
-        SelectionModeProperty, SelectionMode::Single);
+    return GetValue(SelectionModeProperty);
 }
 
 std::uint32_t Selector::GetSelectedIndex() const noexcept {
-    return GetValueOr(SelectedIndexProperty, UINT32_MAX);
+    return GetValue(SelectedIndexProperty);
 }
 
 Base::Ref<Base::Object>
 Selector::GetSelectedItem() const noexcept {
-    return GetValueOr(
-        SelectedItemProperty,
-        Base::Ref<Base::Object>{});
+    return GetValue(SelectedItemProperty);
 }
 
 Base::Ref<Base::Object>
 Selector::GetSelectedValue() const noexcept {
-    return GetValueOr(
-        SelectedValueProperty,
-        Base::Ref<Base::Object>{});
+    return GetValue(SelectedValueProperty);
 }
 
 bool Selector::GetIsSelected(
@@ -231,6 +313,14 @@ void Selector::SetSelectedValue(
     SetSelectedItem(std::move(value));
 }
 
+bool Selector::GetIsSynchronizedWithCurrentItem() const noexcept {
+    return GetValue(IsSynchronizedWithCurrentItemProperty);
+}
+
+void Selector::SetIsSynchronizedWithCurrentItem(bool value) noexcept {
+    SetValue(IsSynchronizedWithCurrentItemProperty, value);
+}
+
 bool Selector::Select(
     std::uint32_t index) noexcept {
     if (index >= GetCount()) {
@@ -250,21 +340,11 @@ bool Selector::Select(
         return result.Value();
     }
     Base::Vector<std::uint32_t> selection;
-    Base::Result<void> reserved =
-        selection.Reserve(
+    selection.Reserve(
             selectedIndices_.Size() + 1U);
-    if (!reserved) {
-        lastSelectionError_ = reserved.GetStatus();
-        return false;
-    }
     for (std::uint32_t selected :
         selectedIndices_) {
-        Base::Result<void> copied =
-            selection.PushBack(selected);
-        if (!copied) {
-            lastSelectionError_ = copied.GetStatus();
-            return false;
-        }
+        selection.PushBack(selected);
     }
     Base::Result<void> inserted =
         InsertSortedUnique(selection, index);
@@ -296,22 +376,12 @@ bool Selector::Unselect(
         return false;
     }
     Base::Vector<std::uint32_t> selection;
-    Base::Result<void> reserved =
-        selection.Reserve(
+    selection.Reserve(
             selectedIndices_.Size() - 1U);
-    if (!reserved) {
-        lastSelectionError_ = reserved.GetStatus();
-        return false;
-    }
     for (std::uint32_t selected :
         selectedIndices_) {
         if (selected == index) continue;
-        Base::Result<void> copied =
-            selection.PushBack(selected);
-        if (!copied) {
-            lastSelectionError_ = copied.GetStatus();
-            return false;
-        }
+        selection.PushBack(selected);
     }
     const std::uint32_t primary =
         primaryIndex_ != index
@@ -363,25 +433,15 @@ bool Selector::SelectRange(
     const std::uint32_t end =
         std::max(first, last);
     Base::Vector<std::uint32_t> selection;
-    Base::Result<void> reserved =
-        selection.Reserve(
+    selection.Reserve(
             (preserveExisting
                 ? selectedIndices_.Size()
                 : 0U) +
             (end - begin + 1U));
-    if (!reserved) {
-        lastSelectionError_ = reserved.GetStatus();
-        return false;
-    }
     if (preserveExisting) {
         for (std::uint32_t selected :
             selectedIndices_) {
-            Base::Result<void> copied =
-                selection.PushBack(selected);
-            if (!copied) {
-                lastSelectionError_ = copied.GetStatus();
-                return false;
-            }
+            selection.PushBack(selected);
         }
     }
     for (std::uint32_t index = begin;
@@ -418,9 +478,7 @@ Base::Result<bool> Selector::ApplySelection(
     Base::Span<const std::uint32_t> indices,
     std::uint32_t primaryIndex) noexcept {
     Base::Vector<std::uint32_t> normalized;
-    Base::Result<void> reserved =
-        normalized.Reserve(indices.Size());
-    if (!reserved) return reserved.GetStatus();
+    normalized.Reserve(indices.Size());
     for (std::uint32_t index : indices) {
         if (index >= GetCount()) {
             return Base::Status::Failure(
@@ -440,9 +498,7 @@ Base::Result<bool> Selector::ApplySelection(
             ? primaryIndex
             : normalized[0U];
         normalized.Clear();
-        Base::Result<void> added =
-            normalized.PushBack(selected);
-        if (!added) return added.GetStatus();
+        normalized.PushBack(selected);
     }
     if (normalized.Empty()) {
         primaryIndex = UINT32_MAX;
@@ -465,26 +521,16 @@ Base::Result<bool> Selector::ApplySelection(
 
     Base::Vector<std::uint32_t> removed;
     Base::Vector<std::uint32_t> added;
-    Base::Result<void> removedReserve =
-        removed.Reserve(selectedIndices_.Size());
-    if (!removedReserve) {
-        return removedReserve.GetStatus();
-    }
-    Base::Result<void> addedReserve =
-        added.Reserve(normalized.Size());
-    if (!addedReserve) return addedReserve.GetStatus();
+    removed.Reserve(selectedIndices_.Size());
+    added.Reserve(normalized.Size());
     for (std::uint32_t index : selectedIndices_) {
         if (!ContainsIndex(newSelection, index)) {
-            Base::Result<void> stored =
-                removed.PushBack(index);
-            if (!stored) return stored.GetStatus();
+            removed.PushBack(index);
         }
     }
     for (std::uint32_t index : normalized) {
         if (!ContainsIndex(oldSelection, index)) {
-            Base::Result<void> stored =
-                added.PushBack(index);
-            if (!stored) return stored.GetStatus();
+            added.PushBack(index);
         }
     }
 
@@ -505,20 +551,21 @@ Base::Result<bool> Selector::ApplySelection(
         return published.GetStatus();
     }
     SyncContainers();
+    SelectionChangedEvent event;
+    event.removedIndices = {
+        removed.Data(), removed.Size()};
+    event.addedIndices = {
+        added.Data(), added.Size()};
+    event.oldPrimaryIndex = oldPrimary;
+    event.newPrimaryIndex = primaryIndex_;
+    event.oldPrimaryItem =
+        std::move(oldPrimaryItem);
+    event.newPrimaryItem =
+        primaryIndex_ < GetCount()
+        ? GetItem(primaryIndex_)
+        : Base::Ref<Base::Object>();
+    OnSelectionChanged(event);
     if (!selectionChanged_.Empty()) {
-        SelectionChangedEvent event;
-        event.removedIndices = {
-            removed.Data(), removed.Size()};
-        event.addedIndices = {
-            added.Data(), added.Size()};
-        event.oldPrimaryIndex = oldPrimary;
-        event.newPrimaryIndex = primaryIndex_;
-        event.oldPrimaryItem =
-            std::move(oldPrimaryItem);
-        event.newPrimaryItem =
-            primaryIndex_ < GetCount()
-            ? GetItem(primaryIndex_)
-            : Base::Ref<Base::Object>();
         selectionChanged_.Invoke(*this, event);
     }
     RoutedEventArgs routedArgs;
@@ -545,21 +592,29 @@ Base::Result<void> Selector::PublishProperties() noexcept {
         SetCurrentValue(SelectedValueProperty, selected);
     }
     synchronizingProperties_ = false;
+    PushSelectionToCurrent();
     return {};
 }
 
 void Selector::SyncContainers() noexcept {
     auto* states = static_cast<Aero::VisualStateManager*>(
-        ::Aero::Core::InteractionStateFacet::VisualStateRuntime(*this));
+        AeroGuiInternal::VisualStateRuntime(*this));
     ItemContainerGenerator* generator =
         AttachedGenerator();
     if (generator == nullptr) return;
-    for (std::uint32_t index = 0U;
-        index < generator->GetGeneratedCount(); ++index) {
+    // ContainerFromIndex takes an item index. Virtualization may start at
+    // firstGeneratedIndex_ > 0; looping generated slots as item indices
+    // misses realized containers.
+    const std::uint32_t firstGeneratedIndex =
+        generator->GetFirstGeneratedIndex();
+    const std::uint32_t generatedCount =
+        generator->GetGeneratedCount();
+    for (std::uint32_t slot = 0U; slot < generatedCount; ++slot) {
+        const std::uint32_t index = firstGeneratedIndex + slot;
         FrameworkElement* container =
             generator->ContainerFromIndex(index);
         if (container == nullptr ||
-            !PropertyRegistry().Types().IsDerivedFrom(
+            !AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
                 container->RuntimeType(),
                 ListBoxItem::StaticTypeId())) {
             continue;
@@ -570,7 +625,7 @@ void Selector::SyncContainers() noexcept {
         item.SetIsSelected(selected);
         if (states != nullptr) {
             static_cast<void>(
-                Aero::Controls::TemplatePrivate::GoToState(*states,
+                Aero::Controls::FrameworkTemplateState::GoToState(*states,
                     item,
                     "SelectionStates",
                     selected
@@ -578,6 +633,84 @@ void Selector::SyncContainers() noexcept {
                         : Base::StringView("Unselected")));
         }
     }
+}
+
+void Selector::HookCurrentView() noexcept {
+    UnhookCurrentView();
+    Data::CollectionView* view =
+        Data::CollectionViewSource::GetDefaultView(GetItemsSourceCore());
+    if (view == nullptr) return;
+    view->AddCurrentChanged(currentChangedHandler_);
+    subscribedView_ = view;
+    if (GetSelectedItem()) {
+        PushSelectionToCurrent();
+        return;
+    }
+    Base::Ref<Base::Object> current = view->GetCurrentItem();
+    if (!current) return;
+    synchronizingCurrent_ = true;
+    SetSelectedItem(current);
+    synchronizingCurrent_ = false;
+}
+
+void Selector::UnhookCurrentView() noexcept {
+    if (subscribedView_ == nullptr) return;
+    static_cast<void>(
+        subscribedView_->RemoveCurrentChanged(currentChangedHandler_));
+    subscribedView_ = nullptr;
+}
+
+void Selector::PushSelectionToCurrent() noexcept {
+    if (synchronizingCurrent_ ||
+        !GetIsSynchronizedWithCurrentItem()) {
+        return;
+    }
+    Data::CollectionView* view = subscribedView_;
+    if (view == nullptr) {
+        view = Data::CollectionViewSource::GetDefaultView(
+            GetItemsSourceCore());
+    }
+    if (view == nullptr) return;
+    synchronizingCurrent_ = true;
+    static_cast<void>(view->MoveCurrentTo(GetSelectedItem().Get()));
+    synchronizingCurrent_ = false;
+}
+
+void Selector::OnViewCurrentChanged() noexcept {
+    if (synchronizingCurrent_ ||
+        !GetIsSynchronizedWithCurrentItem() ||
+        subscribedView_ == nullptr) {
+        return;
+    }
+    synchronizingCurrent_ = true;
+    SetSelectedItem(subscribedView_->GetCurrentItem());
+    synchronizingCurrent_ = false;
+}
+
+void Selector::OnItemsSourceCoreChanged() noexcept {
+    UnhookCurrentView();
+    if (GetIsSynchronizedWithCurrentItem()) {
+        HookCurrentView();
+    }
+}
+
+PropertyValue Selector::CoerceValueCore(
+    DependencyPropertyHandle property,
+    const PropertyValue& baseValue) noexcept {
+    if (property != SelectedItemProperty.Handle() &&
+        property != SelectedValueProperty.Handle()) {
+        return baseValue;
+    }
+    if (baseValue.Kind() != Meta::ValueKind::Object ||
+        baseValue.IsNullObject()) {
+        return baseValue;
+    }
+    const Base::Ref<Base::Object> item = baseValue.AsObject();
+    if (item && GetCount() != 0U &&
+        GetIndexOfItem(item.Get()) == UINT32_MAX) {
+        return PropertyValue::NullObject(Meta::TypeOf<Base::Object>());
+    }
+    return baseValue;
 }
 
 void Selector::OnItemsChanged(
@@ -646,14 +779,8 @@ void Selector::OnItemsChanged(
     }
 
     Base::Vector<std::uint32_t> mapped;
-    Base::Result<void> reserved =
-        mapped.Reserve(
+    mapped.Reserve(
             selectedIndices_.Size());
-    if (!reserved) {
-        lastSelectionError_ =
-            reserved.GetStatus();
-        return;
-    }
     std::uint32_t mappedPrimary =
         primaryIndex_;
     for (std::uint32_t selected :
@@ -715,9 +842,11 @@ void Selector::OnItemsChanged(
     }
 }
 
+void Selector::OnSelectionChanged(const SelectionChangedEvent&) {}
+
 void Selector::OnPropertyChanged(
-    DependencyObject&,
     const DependencyPropertyChangedEventArgs& args) noexcept {
+    ItemsControl::OnPropertyChanged(args);
     if (synchronizingProperties_) return;
     activeProperty_ = args.GetProperty();
     Base::Result<bool> applied = false;
@@ -784,6 +913,13 @@ void Selector::OnPropertyChanged(
                     values, index);
             }
         }
+    } else if (args.GetProperty() ==
+        IsSynchronizedWithCurrentItemProperty) {
+        UnhookCurrentView();
+        if (GetIsSynchronizedWithCurrentItem()) {
+            HookCurrentView();
+        }
+        applied = true;
     }
     if (!applied) {
         lastSelectionError_ =
@@ -792,15 +928,15 @@ void Selector::OnPropertyChanged(
     activeProperty_ = {};
 }
 
-Base::Result<void> Selector::PrepareContainer(
+Base::Result<void> Selector::PrepareContainerForItemOverride(
     FrameworkElement& container,
     const Base::Ref<Base::Object>& item,
     std::uint32_t index) noexcept {
     Base::Result<void> prepared =
-        ItemsControl::PrepareContainer(
+        ItemsControl::PrepareContainerForItemOverride(
             container, item, index);
     if (!prepared) return prepared.GetStatus();
-    if (PropertyRegistry().Types().IsDerivedFrom(
+    if (AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             container.RuntimeType(),
             ListBoxItem::StaticTypeId())) {
         auto& listBoxItem =
@@ -812,31 +948,184 @@ Base::Result<void> Selector::PrepareContainer(
     return {};
 }
 
-void Selector::ClearContainer(
+void Selector::ClearContainerForItemOverride(
     FrameworkElement& container) noexcept {
-    if (PropertyRegistry().Types().IsDerivedFrom(
+    if (AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             container.RuntimeType(),
             ListBoxItem::StaticTypeId())) {
         static_cast<ListBoxItem&>(container).SetIsSelected(false);
     }
-    ItemsControl::ClearContainer(container);
+    ItemsControl::ClearContainerForItemOverride(container);
 }
 
 void Selector::OnContainersChanged() noexcept {
+    ItemsControl::OnContainersChanged();
     SyncContainers();
 }
 
-ListBox::~ListBox() {
-    auto* behaviors = static_cast<ControlBehavior*>(
-        ::Aero::Core::InteractionStateFacet::ControlBehaviorRuntime(*this));
-    if (behaviors != nullptr) {
-        static_cast<void>(behaviors->Detach(*this));
+ListBox::ListBox() noexcept
+    : ListBox(StaticTypeId()) {}
+
+ListBox::ListBox(TypeId runtimeType) noexcept
+    : Selector(runtimeType) {
+    AeroGuiInternal::SyncSelectorContainers(*this);
+}
+
+ListBox::~ListBox() = default;
+
+std::uint32_t ListBox::FindContainerIndex(Base::Object* source) const noexcept {
+    if (source == nullptr ||
+        !AeroGuiInternal::PropertyRegistry(*this).Types()
+            .IsDerivedFrom(
+                source->RuntimeType(),
+                UIElement::StaticTypeId())) {
+        return UINT32_MAX;
     }
+    ::Aero::Media::Visual* visual =
+        static_cast<UIElement*>(source);
+    while (visual != nullptr &&
+        visual != this) {
+        UIElement* element =
+            ::Aero::TryCast<::Aero::UIElement>(visual);
+        if (element != nullptr &&
+            AeroGuiInternal::PropertyRegistry(*this).Types()
+                .IsDerivedFrom(
+                    element->RuntimeType(),
+                    ListBoxItem::StaticTypeId())) {
+            ItemContainerGenerator* generator =
+                GetItemContainerGenerator();
+            return generator != nullptr
+                ? generator->IndexFromContainer(
+                    static_cast<ListBoxItem&>(
+                        *element))
+                : UINT32_MAX;
+        }
+        visual = visual->GetVisualParent();
+    }
+    return UINT32_MAX;
+}
+
+Base::Result<bool> ListBox::ApplyUserSelection(
+    std::uint32_t index,
+    std::uint32_t modifiers) noexcept {
+    const SelectionMode mode = GetSelectionMode();
+    if (mode == SelectionMode::Single) {
+        anchorIndex_ = index;
+        SetSelectedIndex(index);
+        if (!LastSelectionError().IsOk()) {
+            return LastSelectionError();
+        }
+        return true;
+    }
+    if (mode == SelectionMode::Multiple) {
+        anchorIndex_ = index;
+        const bool changed = Toggle(index);
+        return LastSelectionError().IsOk()
+            ? Base::Result<bool>(changed)
+            : Base::Result<bool>(LastSelectionError());
+    }
+    const bool shift = HasKeyboardModifier(
+        modifiers, KeyboardModifiers::Shift);
+    const bool control = HasKeyboardModifier(
+        modifiers, KeyboardModifiers::Control);
+    if (shift) {
+        if (anchorIndex_ == UINT32_MAX ||
+            anchorIndex_ >= GetCount()) {
+            anchorIndex_ =
+                GetSelectedIndex() != UINT32_MAX
+                ? GetSelectedIndex()
+                : index;
+        }
+        const bool changed = SelectRange(
+                anchorIndex_,
+                index,
+                control);
+        return LastSelectionError().IsOk()
+            ? Base::Result<bool>(changed)
+            : Base::Result<bool>(LastSelectionError());
+    }
+    anchorIndex_ = index;
+    if (control) {
+        const bool changed = Toggle(index);
+        return LastSelectionError().IsOk()
+            ? Base::Result<bool>(changed)
+            : Base::Result<bool>(LastSelectionError());
+    }
+    SetSelectedIndex(index);
+    if (!LastSelectionError().IsOk()) {
+        return LastSelectionError();
+    }
+    return true;
+}
+
+void ListBox::OnMouseLeftButtonDown(MouseButtonEventArgs& args) {
+    if (args.GetChangedButton() != MouseButton::Left) {
+        return;
+    }
+    if (!GetIsEnabled()) return;
+    const std::uint32_t index = FindContainerIndex(args.GetOriginalSource());
+    if (index == UINT32_MAX) return;
+    Base::Result<bool> selected = ApplyUserSelection(index, args.GetModifiers());
+    if (!selected) return;
+    ItemContainerGenerator* generator = GetItemContainerGenerator();
+    if (generator != nullptr) {
+        FrameworkElement* container = generator->ContainerFromIndex(index);
+        if (container != nullptr) {
+            static_cast<void>(container->Focus());
+        }
+    }
+    static_cast<void>(BringIntoView(index));
+    args.SetHandled(true);
+}
+
+void ListBox::OnKeyDown(KeyEventArgs& args) {
+    if (args.GetKey() != KeyboardKeyUp &&
+        args.GetKey() != KeyboardKeyDown &&
+        args.GetKey() != KeyboardKeyHome &&
+        args.GetKey() != KeyboardKeyEnd) {
+        return;
+    }
+    if (!GetIsEnabled() || GetCount() == 0U) {
+        return;
+    }
+    std::uint32_t current = FindContainerIndex(args.GetOriginalSource());
+    if (current == UINT32_MAX) {
+        current =
+            GetSelectedIndex() != UINT32_MAX
+            ? GetSelectedIndex()
+            : 0U;
+    }
+    std::uint32_t target = current;
+    if (args.GetKey() == KeyboardKeyUp && target > 0U) {
+        --target;
+    } else if (args.GetKey() == KeyboardKeyDown && target + 1U < GetCount()) {
+        ++target;
+    } else if (args.GetKey() == KeyboardKeyHome) {
+        target = 0U;
+    } else if (args.GetKey() == KeyboardKeyEnd) {
+        target = GetCount() - 1U;
+    }
+    const bool control = HasKeyboardModifier(
+        args.GetModifiers(), KeyboardModifiers::Control);
+    const bool shift = HasKeyboardModifier(
+        args.GetModifiers(), KeyboardModifiers::Shift);
+    if (!control || GetSelectionMode() != SelectionMode::Extended || shift) {
+        Base::Result<bool> selected = ApplyUserSelection(target, args.GetModifiers());
+        if (!selected) return;
+    }
+    ItemContainerGenerator* generator = GetItemContainerGenerator();
+    if (generator != nullptr) {
+        FrameworkElement* container = generator->ContainerFromIndex(target);
+        if (container != nullptr) {
+            static_cast<void>(container->Focus());
+        }
+    }
+    static_cast<void>(BringIntoView(target));
+    args.SetHandled(true);
 }
 
 Base::Result<Base::Ref<FrameworkElement>>
-ListBox::CreateContainer(
-    const Base::Ref<Base::Object>&) noexcept {
+ListBox::GetContainerForItemOverride() const noexcept {
     Base::Result<Base::Ref<ListBoxItem>> made =
         Base::MakeRef<ListBoxItem>();
     if (!made) return made.GetStatus();
@@ -848,8 +1137,7 @@ Base::Result<bool> ListBox::BringIntoView(
     std::uint32_t index) noexcept {
     ItemContainerGenerator* generator =
         AttachedGenerator();
-    if (generator == nullptr ||
-        index >= generator->GetGeneratedCount()) {
+    if (generator == nullptr) {
         return false;
     }
     FrameworkElement* container =
@@ -866,9 +1154,9 @@ Base::Result<bool> ListBox::BringIntoView(
         ::Aero::Media::Visual* parent = node->GetVisualParent();
         if (parent == nullptr) break;
         UIElement* parentElement =
-            parent->AsUIElement();
+            ::Aero::TryCast<::Aero::UIElement>(parent);
         if (parentElement != nullptr &&
-            PropertyRegistry().Types().IsDerivedFrom(
+            AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
                 parentElement->RuntimeType(),
                 ScrollViewer::StaticTypeId())) {
             viewer =
@@ -910,8 +1198,7 @@ Base::Result<bool> ListBox::BringIntoView(
 }
 
 bool ComboBoxItem::GetIsSelected() const noexcept {
-    return GetValueOr(
-        IsSelectedProperty, false);
+    return GetValue(IsSelectedProperty);
 }
 
 void ComboBoxItem::SetIsSelected(
@@ -921,97 +1208,22 @@ void ComboBoxItem::SetIsSelected(
 
 ComboBox::ComboBox() noexcept
     : Selector(StaticTypeId()),
-      selectionChangedHandler_(
-          this,
-          &ComboBox::OnSelectionChanged),
-      dropDownChangedHandler_(
-          this,
-          &ComboBox::OnDropDownPropertyChanged),
       popupIsOpenChangedHandler_(
           this,
           &ComboBox::OnPopupIsOpenChanged),
-      maxDropDownHeightChangedHandler_(
-          this,
-          &ComboBox::
-              OnMaxDropDownHeightPropertyChanged),
-      editableChangedHandler_(
-          this,
-          &ComboBox::OnEditablePropertyChanged),
-      textChangedHandler_(
-          this,
-          &ComboBox::OnTextPropertyChanged),
-      foregroundChangedHandler_(
-          this,
-          &ComboBox::OnForegroundPropertyChanged),
-      selectedValueChangedHandler_(
-          this,
-          &ComboBox::OnSelectedValuePropertyChanged),
       selectedProjectionChangedHandler_(
           this,
           &ComboBox::OnSelectedProjectionChanged),
       editableTextChangedHandler_(
           this,
-          &ComboBox::OnEditableTextChanged) {
-    static_cast<void>(AddSelectionChanged(
-        selectionChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
-        IsDropDownOpenProperty,
-        dropDownChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
-        MaxDropDownHeightProperty,
-        maxDropDownHeightChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
-        IsEditableProperty,
-        editableChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
-        TextProperty,
-        textChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
-        Control::ForegroundProperty,
-        foregroundChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
-        Selector::SelectedIndexProperty,
-        selectedValueChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
-        Selector::SelectedItemProperty,
-        selectedValueChangedHandler_));
-}
+          &ComboBox::OnEditableTextChanged) {}
 
 ComboBox::~ComboBox() {
     ObserveSelectedProjection(nullptr);
-    auto* behaviors = static_cast<ControlBehavior*>(
-        ::Aero::Core::InteractionStateFacet::ControlBehaviorRuntime(*this));
-    if (behaviors != nullptr) {
-        static_cast<void>(behaviors->Detach(*this));
-    }
-    static_cast<void>(RemoveSelectionChanged(
-        selectionChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        IsDropDownOpenProperty,
-        dropDownChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        MaxDropDownHeightProperty,
-        maxDropDownHeightChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        IsEditableProperty,
-        editableChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        TextProperty,
-        textChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        Control::ForegroundProperty,
-        foregroundChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        Selector::SelectedIndexProperty,
-        selectedValueChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        Selector::SelectedItemProperty,
-        selectedValueChangedHandler_));
 }
 
 bool ComboBox::GetIsDropDownOpen() const noexcept {
-    return GetValueOr(
-        IsDropDownOpenProperty, false);
+    return GetValue(IsDropDownOpenProperty);
 }
 
 void ComboBox::SetIsDropDownOpen(
@@ -1020,8 +1232,7 @@ void ComboBox::SetIsDropDownOpen(
 }
 
 double ComboBox::GetMaxDropDownHeight() const noexcept {
-    return GetValueOr(
-        MaxDropDownHeightProperty, 240.0);
+    return GetValue(MaxDropDownHeightProperty);
 }
 
 void ComboBox::SetMaxDropDownHeight(
@@ -1031,12 +1242,11 @@ void ComboBox::SetMaxDropDownHeight(
 }
 
 bool ComboBox::GetIsEditable() const noexcept {
-    return GetValueOr(
-        IsEditableProperty, false);
+    return GetValue(IsEditableProperty);
 }
 
 bool ComboBox::GetIsReadOnly() const noexcept {
-    return GetValueOr(IsReadOnlyProperty, false);
+    return GetValue(IsReadOnlyProperty);
 }
 
 void ComboBox::SetIsReadOnly(
@@ -1050,8 +1260,7 @@ void ComboBox::SetIsEditable(
 }
 
 Base::StringView ComboBox::GetText() const noexcept {
-    return GetValueOr(
-        TextProperty, Base::StringView());
+    return GetValue(TextProperty);
 }
 
 void ComboBox::SetText(
@@ -1059,16 +1268,12 @@ void ComboBox::SetText(
     SetValue(TextProperty, value);
 }
 
-Base::String ComboBox::GetSelectionBoxText() const
-    noexcept {
-    return GetValueOr(
-        SelectionBoxTextProperty,
-        Base::String{});
+Base::StringView ComboBox::GetSelectionBoxText() const noexcept {
+    return GetValue(SelectionBoxTextProperty);
 }
 
 Base::Result<Base::Ref<FrameworkElement>>
-ComboBox::CreateContainer(
-    const Base::Ref<Base::Object>&) noexcept {
+ComboBox::GetContainerForItemOverride() const noexcept {
     Base::Result<Base::Ref<ComboBoxItem>> made =
         Base::MakeRef<ComboBoxItem>();
     if (!made) return made.GetStatus();
@@ -1076,15 +1281,15 @@ ComboBox::CreateContainer(
         std::move(made).Value());
 }
 
-Base::Result<void> ComboBox::PrepareContainer(
+Base::Result<void> ComboBox::PrepareContainerForItemOverride(
     FrameworkElement& container,
     const Base::Ref<Base::Object>& item,
     std::uint32_t index) noexcept {
     Base::Result<void> prepared =
-        Selector::PrepareContainer(
+        Selector::PrepareContainerForItemOverride(
             container, item, index);
     if (!prepared) return prepared.GetStatus();
-    if (PropertyRegistry().Types().IsDerivedFrom(
+    if (AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             container.RuntimeType(),
             ComboBoxItem::StaticTypeId())) {
         auto& comboItem =
@@ -1097,14 +1302,14 @@ Base::Result<void> ComboBox::PrepareContainer(
     return {};
 }
 
-void ComboBox::ClearContainer(
+void ComboBox::ClearContainerForItemOverride(
     FrameworkElement& container) noexcept {
-    if (PropertyRegistry().Types().IsDerivedFrom(
+    if (AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             container.RuntimeType(),
             ComboBoxItem::StaticTypeId())) {
         static_cast<ComboBoxItem&>(container).SetIsSelected(false);
     }
-    Selector::ClearContainer(container);
+    Selector::ClearContainerForItemOverride(container);
 }
 
 void ComboBox::SynchronizeContainers() noexcept {
@@ -1120,7 +1325,7 @@ void ComboBox::SynchronizeContainers() noexcept {
         FrameworkElement* container =
             generator->ContainerFromIndex(index);
         if (container == nullptr ||
-            !PropertyRegistry().Types().
+            !AeroGuiInternal::PropertyRegistry(*this).Types().
                 IsDerivedFrom(
                     container->RuntimeType(),
                     ComboBoxItem::StaticTypeId())) {
@@ -1149,7 +1354,7 @@ void ComboBox::OnApplyTemplate()
         GetTemplateChild("SelectionBox");
     selectionBox_ =
         selection != nullptr &&
-        PropertyRegistry().Types().
+        AeroGuiInternal::PropertyRegistry(*this).Types().
             IsDerivedFrom(
                 selection->RuntimeType(),
                 TextBlock::StaticTypeId())
@@ -1159,7 +1364,7 @@ void ComboBox::OnApplyTemplate()
         GetTemplateChild("ContentSite");
     selectionPresenter_ =
         contentSite != nullptr &&
-        PropertyRegistry().Types().
+        AeroGuiInternal::PropertyRegistry(*this).Types().
             IsDerivedFrom(
                 contentSite->RuntimeType(),
                 ContentPresenter::StaticTypeId())
@@ -1169,7 +1374,7 @@ void ComboBox::OnApplyTemplate()
     if (selectionBox_ == nullptr &&
         selectionPresenter_ != nullptr &&
         selectionPresenter_->GetContent() != nullptr &&
-        PropertyRegistry().Types().
+        AeroGuiInternal::PropertyRegistry(*this).Types().
             IsDerivedFrom(
         selectionPresenter_->GetContent()->
                     RuntimeType(),
@@ -1185,7 +1390,7 @@ void ComboBox::OnApplyTemplate()
         GetTemplateChild("PART_EditableTextBox");
     editableTextBox_ =
         editable != nullptr &&
-        PropertyRegistry().Types().
+        AeroGuiInternal::PropertyRegistry(*this).Types().
             IsDerivedFrom(
                 editable->RuntimeType(),
                 TextBox::StaticTypeId())
@@ -1195,7 +1400,7 @@ void ComboBox::OnApplyTemplate()
         GetTemplateChild("DropDownBorder");
     dropDownBorder_ =
         border != nullptr &&
-        PropertyRegistry().Types().
+        AeroGuiInternal::PropertyRegistry(*this).Types().
             IsDerivedFrom(
                 border->RuntimeType(),
                 FrameworkElement::StaticTypeId())
@@ -1205,23 +1410,19 @@ void ComboBox::OnApplyTemplate()
         GetTemplateChild("PART_Popup");
     popup_ =
         popup != nullptr &&
-        PropertyRegistry().Types().
+        AeroGuiInternal::PropertyRegistry(*this).Types().
             IsDerivedFrom(
                 popup->RuntimeType(),
                 Popup::StaticTypeId())
         ? static_cast<Popup*>(popup)
         : nullptr;
     if (editableTextBox_ != nullptr) {
-        Base::Result<void> editableHandler =
-            editableTextBox_->AddHandlerChecked(
-                TextBox::TextChangedEvent,
-                editableTextChangedHandler_);
-        if (!editableHandler) {
-            return;
-        }
+        editableTextBox_->AddHandler(
+            TextBox::TextChangedEvent,
+            editableTextChangedHandler_);
     }
     if (popup_ != nullptr) {
-        static_cast<void>(popup_->AddValueChangedHandlerChecked(
+        static_cast<void>(popup_->AddValueChangedHandler(
             Popup::IsOpenProperty,
             popupIsOpenChangedHandler_));
         popup_->SetPlacementTarget(
@@ -1264,8 +1465,8 @@ void ComboBox::OnTemplateDetached() noexcept {
 }
 
 void ComboBox::OnSelectionChanged(
-    Selector&,
-    const SelectionChangedEvent&) noexcept {
+    const SelectionChangedEvent& event) {
+    Selector::OnSelectionChanged(event);
     static_cast<void>(UpdateSelectionBox());
     SynchronizeContainers();
     if (GetIsDropDownOpen()) {
@@ -1273,25 +1474,64 @@ void ComboBox::OnSelectionChanged(
     }
 }
 
-void ComboBox::OnForegroundPropertyChanged(
-    DependencyObject&,
-    const DependencyPropertyChangedEventArgs&) noexcept {
-    if (selectionBox_ != nullptr) {
-        selectionBox_->SetForeground(GetForeground());
-    }
-    if (editableTextBox_ != nullptr) {
-        editableTextBox_->SetForeground(GetForeground());
+void ComboBox::OnPropertyChanged(
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    Selector::OnPropertyChanged(args);
+    const DependencyPropertyHandle prop = args.GetProperty();
+    if (prop == IsDropDownOpenProperty) {
+        if (popup_ != nullptr && popup_->GetIsOpen() != args.GetNewValue().AsBoolean()) {
+            static_cast<void>(
+                popup_->SetIsOpen(
+                    args.GetNewValue().AsBoolean()));
+        }
+        RoutedEventArgs eventArgs;
+        RaiseEvent(
+            args.GetNewValue().AsBoolean()
+                ? DropDownOpenedEvent
+                : DropDownClosedEvent,
+            &eventArgs);
+    } else if (prop == MaxDropDownHeightProperty) {
+        if (dropDownBorder_ != nullptr) {
+            static_cast<void>(
+                dropDownBorder_->SetMaxSize(
+                    {1.0e12,
+                     GetMaxDropDownHeight()}));
+        }
+    } else if (prop == IsEditableProperty) {
+        static_cast<void>(
+            UpdateEditableVisualState());
+    } else if (prop == TextProperty) {
+        if (editableTextBox_ == nullptr ||
+            synchronizingEditableText_ ||
+            editableTextBox_->GetText() == GetText()) {
+            return;
+        }
+        synchronizingEditableText_ = true;
+        editableTextBox_->SetText(GetText());
+        synchronizingEditableText_ = false;
+    } else if (prop == Control::ForegroundProperty) {
+        if (selectionBox_ != nullptr) {
+            selectionBox_->SetForeground(GetForeground());
+        }
+        if (editableTextBox_ != nullptr) {
+            editableTextBox_->SetForeground(GetForeground());
+        }
+    } else if (prop == Selector::SelectedIndexProperty ||
+               prop == Selector::SelectedItemProperty) {
+        static_cast<void>(UpdateSelectionBox());
+    } else if (prop == UIElement::IsMouseOverProperty ||
+               prop == UIElement::IsEnabledProperty) {
+        UpdateVisualState(true);
     }
 }
 
-void ComboBox::OnSelectedValuePropertyChanged(
+void ComboBox::OnPopupIsOpenChanged(
     DependencyObject&,
-    const DependencyPropertyChangedEventArgs&) noexcept {
-    // SelectedItem can be supplied before an ItemsSource has materialized.
-    // The later SelectedIndex publication is the point at which the closed
-    // presenter must refresh, even when the SelectedItem reference itself
-    // did not change.
-    static_cast<void>(UpdateSelectionBox());
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    const bool open = args.GetNewValue().AsBoolean();
+    if (open != GetIsDropDownOpen()) {
+        SetIsDropDownOpen(open);
+    }
 }
 
 void ComboBox::OnSelectedProjectionChanged(
@@ -1312,34 +1552,10 @@ void ComboBox::ObserveSelectedProjection(
     }
     selectedProjection_ = projection;
     if (selectedProjection_ != nullptr) {
-        Base::Result<void> observed =
-            selectedProjection_->AddValueChangedHandlerChecked(
-                TextBlock::TextProperty,
-                selectedProjectionChangedHandler_);
-        if (!observed) selectedProjection_ = nullptr;
+        selectedProjection_->AddValueChangedHandler(
+            TextBlock::TextProperty,
+            selectedProjectionChangedHandler_);
     }
-}
-
-void ComboBox::OnEditablePropertyChanged(
-    DependencyObject&,
-    const DependencyPropertyChangedEventArgs&)
-        noexcept {
-    static_cast<void>(
-        UpdateEditableVisualState());
-}
-
-void ComboBox::OnTextPropertyChanged(
-    DependencyObject&,
-    const DependencyPropertyChangedEventArgs&)
-        noexcept {
-    if (editableTextBox_ == nullptr ||
-        synchronizingEditableText_ ||
-        editableTextBox_->GetText() == GetText()) {
-        return;
-    }
-    synchronizingEditableText_ = true;
-    editableTextBox_->SetText(GetText());
-    synchronizingEditableText_ = false;
 }
 
 void ComboBox::OnEditableTextChanged(
@@ -1365,46 +1581,6 @@ void ComboBox::OnEditableTextChanged(
     synchronizingEditableText_ = false;
 }
 
-void ComboBox::OnDropDownPropertyChanged(
-    DependencyObject&,
-    const DependencyPropertyChangedEventArgs&
-        args) noexcept {
-    if (popup_ != nullptr && popup_->GetIsOpen() != args.GetNewValue().AsBoolean()) {
-        static_cast<void>(
-            popup_->SetIsOpen(
-                args.GetNewValue().AsBoolean()));
-    }
-    RoutedEventArgs eventArgs;
-    RaiseEvent(
-        args.GetNewValue().AsBoolean()
-            ? DropDownOpenedEvent
-            : DropDownClosedEvent,
-        &eventArgs);
-}
-
-void ComboBox::OnPopupIsOpenChanged(
-    DependencyObject&,
-    const DependencyPropertyChangedEventArgs&
-        args) noexcept {
-    const bool open = args.GetNewValue().AsBoolean();
-    if (open != GetIsDropDownOpen()) {
-        SetIsDropDownOpen(open);
-    }
-}
-
-void ComboBox::
-OnMaxDropDownHeightPropertyChanged(
-    DependencyObject&,
-    const DependencyPropertyChangedEventArgs&)
-    noexcept {
-    if (dropDownBorder_ != nullptr) {
-        static_cast<void>(
-            dropDownBorder_->SetMaxSize(
-                {1.0e12,
-                 GetMaxDropDownHeight()}));
-    }
-}
-
 Base::Result<void>
 ComboBox::UpdateSelectionBox() noexcept {
     Base::StringView text;
@@ -1422,7 +1598,7 @@ ComboBox::UpdateSelectionBox() noexcept {
             text = value.AsString();
         }
     } else if (selected &&
-        PropertyRegistry().Types().
+        AeroGuiInternal::PropertyRegistry(*this).Types().
             IsDerivedFrom(
                 selected->RuntimeType(),
                 TextBlock::StaticTypeId())) {
@@ -1430,15 +1606,15 @@ ComboBox::UpdateSelectionBox() noexcept {
             selected.Get())->GetText();
     } else if (
         selected &&
-        PropertyRegistry().Types().
+        AeroGuiInternal::PropertyRegistry(*this).Types().
             IsDerivedFrom(
                 selected->RuntimeType(),
                 ContentControl::StaticTypeId())) {
         UIElement* content =
-            ::Aero::Core::InteractionStateFacet::ContentElement(*static_cast<ContentControl*>(
+            AeroGuiInternal::ContentControlContent(*static_cast<ContentControl*>(
                 selected.Get()));
         if (content != nullptr &&
-            PropertyRegistry().Types().
+            AeroGuiInternal::PropertyRegistry(*this).Types().
                 IsDerivedFrom(
                     content->RuntimeType(),
                     TextBlock::StaticTypeId())) {
@@ -1457,13 +1633,13 @@ ComboBox::UpdateSelectionBox() noexcept {
             ? generator->ContainerFromIndex(index)
             : nullptr;
         if (container != nullptr &&
-            PropertyRegistry().Types().IsDerivedFrom(
+            AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
                 container->RuntimeType(),
                 ContentControl::StaticTypeId())) {
-            UIElement* content = ::Aero::Core::InteractionStateFacet::ContentElement(
+            UIElement* content = AeroGuiInternal::ContentControlContent(
                 *static_cast<ContentControl*>(container));
             if (content != nullptr &&
-                PropertyRegistry().Types().IsDerivedFrom(
+                AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
                     content->RuntimeType(), TextBlock::StaticTypeId())) {
                 selectedProjection = static_cast<TextBlock*>(content);
                 text = selectedProjection->GetText();
@@ -1544,7 +1720,7 @@ ComboBox::UpdateEditableVisualState() noexcept {
 std::uint32_t ComboBox::FindContainerIndex(
     Base::Object* source) const noexcept {
     if (source == nullptr ||
-        !PropertyRegistry().Types().
+        !AeroGuiInternal::PropertyRegistry(*this).Types().
             IsDerivedFrom(
                 source->RuntimeType(),
                 UIElement::StaticTypeId())) {
@@ -1555,9 +1731,9 @@ std::uint32_t ComboBox::FindContainerIndex(
     while (visual != nullptr &&
         visual != this) {
         UIElement* element =
-            visual->AsUIElement();
+            ::Aero::TryCast<::Aero::UIElement>(visual);
         if (element != nullptr &&
-            PropertyRegistry().Types().
+            AeroGuiInternal::PropertyRegistry(*this).Types().
                 IsDerivedFrom(
                     element->RuntimeType(),
                     ComboBoxItem::StaticTypeId())) {
@@ -1574,207 +1750,48 @@ std::uint32_t ComboBox::FindContainerIndex(
     return UINT32_MAX;
 }
 
-} // namespace Aero::Controls
 
-namespace Aero::Controls {
-
-using namespace Aero::Meta;
-using namespace Aero::Threading;
-using namespace Aero::Controls;
-using namespace ::Aero::Controls;
-using namespace ::Aero;
-
-ComboBehavior::
-ComboBehavior(
-    ElementTree& tree,
-    EventRouter& events,
-    InputRouter& input,
-    VisualStateManager* states) noexcept
-    : tree_(&tree),
-      events_(&events),
-      input_(&input),
-      states_(states),
-      mouseDownHandler_(
-          this,
-          &ComboBehavior::
-              OnMouseDown),
-      keyDownHandler_(
-          this,
-          &ComboBehavior::
-              OnKeyDown),
-      pointerStateChangedHandler_(
-          this,
-          &ComboBehavior::
-              OnPointerStateChanged) {}
-
-ComboBehavior::
-~ComboBehavior() noexcept {
-    if (input_ != nullptr) {
-        static_cast<void>(
-            input_->RemovePointerStateChanged(
-                pointerStateChangedHandler_));
+void ComboBox::UpdateVisualState(bool useTransitions) noexcept {
+    Base::StringView comboCommon = "Normal";
+    if (!GetIsEnabled()) {
+        comboCommon = "Disabled";
+    } else if (GetIsMouseOver()) {
+        comboCommon = "MouseOver";
     }
-    while (!records_.Empty()) {
-        ComboBox* comboBox =
-            ResolveComboBox(
-                records_.Size() - 1U);
-        if (comboBox == nullptr) {
-            records_.PopBack();
-        } else {
-            static_cast<void>(
-                Detach(*comboBox));
-        }
-    }
-}
-
-std::uint32_t
-ComboBehavior::FindComboBox(
-    const ComboBox& comboBox) const noexcept {
-    for (std::uint32_t index = 0U;
-         index < records_.Size(); ++index) {
-        if (tree_->ResolveHandle(
-                records_[index]) ==
-            &comboBox) {
-            return index;
-        }
-    }
-    return UINT32_MAX;
-}
-
-ComboBox*
-ComboBehavior::ResolveComboBox(
-    std::uint32_t index) noexcept {
-    ::Aero::Media::Visual* visual =
-        tree_->ResolveHandle(records_[index]);
-    return visual != nullptr
-        ? static_cast<ComboBox*>(
-            visual->AsUIElement())
-        : nullptr;
-}
-
-Base::Result<void>
-ComboBehavior::Attach(
-    ComboBox& comboBox) noexcept {
-    if (comboBox.GetTree() != tree_ ||
-        FindComboBox(comboBox) != UINT32_MAX) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "ComboBox interaction attach state is invalid");
-    }
-    Base::Result<VisualHandle> handle =
-        tree_->GetHandle(comboBox);
-    if (!handle) return handle.GetStatus();
-    Base::Result<void> mouse =
-        comboBox.AddHandlerChecked(
-            UIElement::MouseDownEvent,
-            mouseDownHandler_,
-            true);
-    if (!mouse) return mouse.GetStatus();
-    Base::Result<void> key =
-        comboBox.AddHandlerChecked(
-            UIElement::KeyDownEvent,
-            keyDownHandler_);
-    if (!key) {
-        static_cast<void>(
-            comboBox.RemoveHandler(
-                UIElement::MouseDownEvent,
-                mouseDownHandler_));
-        return key.GetStatus();
-    }
-    if (records_.Empty() && input_ != nullptr) {
-        static_cast<void>(
-            input_->AddPointerStateChanged(
-                pointerStateChangedHandler_));
-    }
-    Base::Result<void> stored =
-        records_.PushBack(handle.Value());
-    if (!stored) {
-        if (records_.Empty() && input_ != nullptr) {
-            static_cast<void>(
-                input_->RemovePointerStateChanged(
-                    pointerStateChangedHandler_));
-        }
-        static_cast<void>(
-            comboBox.RemoveHandler(
-                UIElement::KeyDownEvent,
-                keyDownHandler_));
-        static_cast<void>(
-            comboBox.RemoveHandler(
-                UIElement::MouseDownEvent,
-                mouseDownHandler_));
-        return stored.GetStatus();
-    }
-    return {};
-}
-
-Base::Result<bool>
-ComboBehavior::Detach(
-    ComboBox& comboBox) noexcept {
-    const std::uint32_t index =
-        FindComboBox(comboBox);
-    if (index == UINT32_MAX) return false;
     static_cast<void>(
-        comboBox.RemoveHandler(
-            UIElement::MouseDownEvent,
-            mouseDownHandler_));
-    static_cast<void>(
-        comboBox.RemoveHandler(
-            UIElement::KeyDownEvent,
-            keyDownHandler_));
-    for (std::uint32_t current = index;
-         current + 1U < records_.Size();
-         ++current) {
-        records_[current] =
-            records_[current + 1U];
-    }
-    records_.PopBack();
-    if (records_.Empty() && input_ != nullptr) {
-        static_cast<void>(
-            input_->RemovePointerStateChanged(
-                pointerStateChangedHandler_));
-    }
-    return true;
+        VisualStateManager::GoToState(
+            *this,
+            comboCommon,
+            useTransitions));
 }
 
-void ComboBehavior::OnMouseDown(
-    Base::Object* sender,
-    MouseButtonEventArgs& args) noexcept {
-    if (args.GetChangedButton() !=
-        MouseButton::Left) {
+void ComboBox::OnMouseLeftButtonDown(MouseButtonEventArgs& args) {
+    if (args.GetChangedButton() != MouseButton::Left) {
         return;
     }
-    auto& comboBox =
-        *static_cast<ComboBox*>(sender);
-    if (!comboBox.GetIsEnabled()) return;
-    const std::uint32_t index =
-        comboBox.FindContainerIndex(
-            args.GetOriginalSource());
+    if (!GetIsEnabled()) return;
+    const std::uint32_t index = FindContainerIndex(args.GetOriginalSource());
     if (index != UINT32_MAX) {
-        comboBox.SetSelectedIndex(index);
-        comboBox.SetIsDropDownOpen(false);
+        SetSelectedIndex(index);
+        SetIsDropDownOpen(false);
     } else {
-        comboBox.SetIsDropDownOpen(!comboBox.GetIsDropDownOpen());
+        SetIsDropDownOpen(!GetIsDropDownOpen());
     }
-    static_cast<void>(
-        input_->SetFocus(&comboBox));
+    static_cast<void>(Focus());
     args.SetHandled(true);
 }
 
-void ComboBehavior::OnKeyDown(
-    Base::Object* sender,
-    KeyEventArgs& args) noexcept {
-    auto& comboBox =
-        *static_cast<ComboBox*>(sender);
-    if (!comboBox.GetIsEnabled()) return;
+void ComboBox::OnKeyDown(KeyEventArgs& args) {
+    if (!GetIsEnabled()) return;
     if (args.GetKey() == KeyboardKeyEscape) {
-        if (!comboBox.GetIsDropDownOpen()) return;
-        comboBox.SetIsDropDownOpen(false);
+        if (!GetIsDropDownOpen()) return;
+        SetIsDropDownOpen(false);
         args.SetHandled(true);
         return;
     }
     if (args.GetKey() == KeyboardKeyEnter ||
         args.GetKey() == KeyboardKeySpace) {
-        comboBox.SetIsDropDownOpen(!comboBox.GetIsDropDownOpen());
+        SetIsDropDownOpen(!GetIsDropDownOpen());
         args.SetHandled(true);
         return;
     }
@@ -1782,458 +1799,79 @@ void ComboBehavior::OnKeyDown(
         args.GetKey() != KeyboardKeyDown) {
         return;
     }
-    if (comboBox.GetCount() == 0U) return;
-    std::uint32_t selected =
-        comboBox.GetSelectedIndex();
+    if (GetCount() == 0U) return;
+    std::uint32_t selected = GetSelectedIndex();
     if (selected == UINT32_MAX) {
         selected = 0U;
     } else if (
         args.GetKey() == KeyboardKeyDown &&
-        selected + 1U <
-            comboBox.GetCount()) {
+        selected + 1U < GetCount()) {
         ++selected;
     } else if (
         args.GetKey() == KeyboardKeyUp &&
         selected > 0U) {
         --selected;
     }
-    comboBox.SetSelectedIndex(selected);
+    SetSelectedIndex(selected);
     args.SetHandled(true);
 }
 
-void ComboBehavior::OnPointerStateChanged(
-    UIElement& element) noexcept {
-    if (states_ == nullptr) return;
-    for (std::uint32_t i = 0U; i < records_.Size(); ++i) {
-        ComboBox* comboBox = ResolveComboBox(i);
-        if (comboBox == nullptr) continue;
+namespace Primitives {
 
-        Base::StringView comboCommon = "Normal";
-        if (!comboBox->GetIsEnabled()) {
-            comboCommon = "Disabled";
-        } else if (comboBox->GetIsMouseOver()) {
-            comboCommon = "MouseOver";
-        }
-        static_cast<void>(
-            Aero::Controls::TemplatePrivate::GoToState(
-                *states_,
-                *comboBox,
-                "CommonStates",
-                comboCommon,
-                true));
-
-        const std::uint32_t index =
-            comboBox->FindContainerIndex(&element);
-        if (index != UINT32_MAX) {
-            ItemContainerGenerator* generator =
-                comboBox->GetItemContainerGenerator();
-            if (generator != nullptr) {
-                FrameworkElement* container =
-                    generator->ContainerFromIndex(index);
-                if (container != nullptr &&
-                    comboBox->PropertyRegistry().Types().IsDerivedFrom(
-                        container->RuntimeType(),
-                        ComboBoxItem::StaticTypeId())) {
-                    auto& item =
-                        *static_cast<ComboBoxItem*>(container);
-                    Base::StringView common = "Normal";
-                    if (!item.GetIsEnabled()) {
-                        common = "Disabled";
-                    } else if (item.GetIsMouseOver()) {
-                        common = "MouseOver";
-                    }
-                    static_cast<void>(
-                        Aero::Controls::TemplatePrivate::GoToState(
-                            *states_,
-                            item,
-                            "CommonStates",
-                            common,
-                            true));
-                    const bool selected = item.GetIsSelected();
-                    static_cast<void>(
-                        Aero::Controls::TemplatePrivate::GoToState(
-                            *states_,
-                            item,
-                            "SelectionStates",
-                            selected
-                                ? Base::StringView("Selected")
-                                : Base::StringView("Unselected"),
-                            true));
-                }
-            }
-        }
-    }
+void Selector::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<Selector>(context, TypeFlags::Abstract)
+        .Event(Selector::SelectionChangedRoutedEvent)
+        .Property(Selector::SelectionModeProperty, SelectionMode::Single)
+        .Property(Selector::SelectedIndexProperty, UINT32_MAX, BindsTwoWayByDefault)
+        .Property(Selector::SelectedItemProperty, FrameworkPropertyMetadata(Base::Ref<Base::Object>{}, BindsTwoWayByDefault))
+        .Property(Selector::SelectedValueProperty, FrameworkPropertyMetadata(Base::Ref<Base::Object>{}, BindsTwoWayByDefault))
+        .Property(Selector::SelectedValuePathProperty, Base::String{})
+        .Property(Selector::IsSelectedProperty, false, AffectsRender | BindsTwoWayByDefault)
+        .Property(Selector::IsSynchronizedWithCurrentItemProperty, false);
 }
 
-ListBehavior::ListBehavior(
-    ElementTree& tree,
-    EventRouter& events,
-    InputRouter& input,
-    VisualStateManager* states) noexcept
-    : tree_(&tree),
-      events_(&events),
-      input_(&input),
-      states_(states),
-      mouseDownHandler_(
-          this,
-          &ListBehavior::OnMouseDown),
-      keyDownHandler_(
-          this,
-          &ListBehavior::OnKeyDown),
-      pointerStateChangedHandler_(
-          this,
-          &ListBehavior::OnPointerStateChanged) {}
+} // namespace Primitives
 
-ListBehavior::~ListBehavior() noexcept {
-    if (input_ != nullptr) {
-        static_cast<void>(
-            input_->RemovePointerStateChanged(
-                pointerStateChangedHandler_));
-    }
-    while (!records_.Empty()) {
-        ListBox* listBox =
-            ResolveListBox(records_.Size() - 1U);
-        if (listBox == nullptr) {
-            records_.PopBack();
-        } else {
-            static_cast<void>(Detach(*listBox));
-        }
-    }
+void ListBox::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<ListBox>(context)
+        .Factory();
 }
 
-std::uint32_t ListBehavior::FindListBox(
-    const ListBox& listBox) const noexcept {
-    for (std::uint32_t index = 0U;
-        index < records_.Size(); ++index) {
-        if (tree_->ResolveHandle(
-                records_[index].handle) ==
-            &listBox) {
-            return index;
-        }
-    }
-    return UINT32_MAX;
+void ListBoxItem::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<ListBoxItem>(context)
+        .Property(ListBoxItem::IsSelectedProperty, false, AffectsRender | BindsTwoWayByDefault)
+        .Override(Aero::UIElement::IsTabStopProperty, true, FrameworkPropertyMetadataOptions::None)
+        .Factory();
 }
 
-ListBox* ListBehavior::ResolveListBox(
-    std::uint32_t index) noexcept {
-    ::Aero::Media::Visual* visual =
-        tree_->ResolveHandle(records_[index].handle);
-    return visual != nullptr
-        ? static_cast<ListBox*>(
-            visual->AsUIElement())
-        : nullptr;
+void ComboBox::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<ComboBox>(context)
+        .Event(ComboBox::DropDownOpenedEvent)
+        .Event(ComboBox::DropDownClosedEvent)
+        .Property(ComboBox::IsDropDownOpenProperty, false, AffectsMeasure | AffectsRender | BindsTwoWayByDefault)
+        .Property(ComboBox::MaxDropDownHeightProperty, 240.0, AffectsMeasure, &Base::Validate::Positive<double>)
+        .Property(ComboBox::IsEditableProperty, false, AffectsMeasure | AffectsRender)
+        .Property(ComboBox::IsReadOnlyProperty, false, AffectsRender)
+        .Property(ComboBox::TextProperty, Base::String{}, AffectsMeasure | BindsTwoWayByDefault)
+        .Property(ComboBox::PlaceholderProperty, Base::String{}, AffectsMeasure | AffectsRender)
+        .Property(ComboBox::SelectionBoxTextProperty, Base::String{})
+        .Property(ComboBox::SelectionBoxItemProperty, Meta::Value::NullObject(Meta::TypeOf<Base::Object>()))
+        .Override(Aero::UIElement::IsTabStopProperty, true, FrameworkPropertyMetadataOptions::None)
+        .TemplatePart("PART_EditableTextBox", TypeOf<TextBox>())
+        .TemplatePart("PART_Popup", TypeOf<Popup>())
+        .Factory();
 }
 
-Base::Result<void> ListBehavior::Attach(
-    ListBox& listBox) noexcept {
-    if (listBox.GetTree() != tree_ ||
-        FindListBox(listBox) != UINT32_MAX) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "ListBox interaction attach state is invalid");
-    }
-    Base::Result<VisualHandle> handle =
-        tree_->GetHandle(listBox);
-    if (!handle) return handle.GetStatus();
-    if (records_.Empty()) {
-        input_->AddPointerStateChanged(pointerStateChangedHandler_);
-    }
-    Base::Result<void> mouse =
-        listBox.AddHandlerChecked(
-            UIElement::MouseDownEvent,
-            mouseDownHandler_);
-    if (!mouse) return mouse.GetStatus();
-    Base::Result<void> key =
-        listBox.AddHandlerChecked(
-            UIElement::KeyDownEvent,
-            keyDownHandler_);
-    if (!key) {
-        static_cast<void>(listBox.RemoveHandler(
-            UIElement::MouseDownEvent,
-            mouseDownHandler_));
-        return key.GetStatus();
-    }
-    Record record;
-    record.handle = handle.Value();
-    Base::Result<void> added =
-        records_.PushBack(record);
-    if (!added) {
-        static_cast<void>(listBox.RemoveHandler(
-            UIElement::KeyDownEvent,
-            keyDownHandler_));
-        static_cast<void>(listBox.RemoveHandler(
-            UIElement::MouseDownEvent,
-            mouseDownHandler_));
-        return added.GetStatus();
-    }
-    ::Aero::Core::InteractionStateFacet::SyncSelectorContainers(listBox);
-    return {};
-}
-
-Base::Result<bool> ListBehavior::Detach(
-    ListBox& listBox) noexcept {
-    const std::uint32_t index =
-        FindListBox(listBox);
-    if (index == UINT32_MAX) return false;
-    static_cast<void>(listBox.RemoveHandler(
-        UIElement::MouseDownEvent,
-        mouseDownHandler_));
-    static_cast<void>(listBox.RemoveHandler(
-        UIElement::KeyDownEvent,
-        keyDownHandler_));
-    for (std::uint32_t current = index;
-        current + 1U < records_.Size();
-        ++current) {
-        records_[current] =
-            std::move(records_[current + 1U]);
-    }
-    records_.PopBack();
-    return true;
-}
-
-std::uint32_t
-ListBehavior::FindContainerIndex(
-    ListBox& listBox,
-    Base::Object* source) const noexcept {
-    if (source == nullptr ||
-        !listBox.PropertyRegistry().Types()
-            .IsDerivedFrom(
-                source->RuntimeType(),
-                UIElement::StaticTypeId())) {
-        return UINT32_MAX;
-    }
-    ::Aero::Media::Visual* visual =
-        static_cast<UIElement*>(source);
-    while (visual != nullptr &&
-        visual != &listBox) {
-        UIElement* element =
-            visual->AsUIElement();
-        if (element != nullptr &&
-            listBox.PropertyRegistry().Types()
-                .IsDerivedFrom(
-                    element->RuntimeType(),
-                    ListBoxItem::StaticTypeId())) {
-            ItemContainerGenerator* generator =
-                listBox.GetItemContainerGenerator();
-            return generator != nullptr
-                ? generator->IndexFromContainer(
-                    static_cast<ListBoxItem&>(
-                        *element))
-                : UINT32_MAX;
-        }
-        visual = visual->GetVisualParent();
-    }
-    return UINT32_MAX;
-}
-
-Base::Result<bool>
-ListBehavior::ApplyUserSelection(
-    ListBox& listBox,
-    Record& record,
-    std::uint32_t index,
-    std::uint32_t modifiers) noexcept {
-    const SelectionMode mode =
-        listBox.GetSelectionMode();
-    if (mode == SelectionMode::Single) {
-        record.anchorIndex = index;
-        listBox.SetSelectedIndex(index);
-        if (!listBox.LastSelectionError().IsOk()) {
-            return listBox.LastSelectionError();
-        }
-        return true;
-    }
-    if (mode == SelectionMode::Multiple) {
-        record.anchorIndex = index;
-        const bool changed = listBox.Toggle(index);
-        return listBox.LastSelectionError().IsOk()
-            ? Base::Result<bool>(changed)
-            : Base::Result<bool>(listBox.LastSelectionError());
-    }
-    const bool shift = HasKeyboardModifier(
-        modifiers, KeyboardModifiers::Shift);
-    const bool control = HasKeyboardModifier(
-        modifiers, KeyboardModifiers::Control);
-    if (shift) {
-        if (record.anchorIndex == UINT32_MAX ||
-            record.anchorIndex >=
-                listBox.GetCount()) {
-            record.anchorIndex =
-                listBox.GetSelectedIndex() != UINT32_MAX
-                ? listBox.GetSelectedIndex()
-                : index;
-        }
-        const bool changed = listBox.SelectRange(
-                record.anchorIndex,
-                index,
-                control);
-        return listBox.LastSelectionError().IsOk()
-            ? Base::Result<bool>(changed)
-            : Base::Result<bool>(listBox.LastSelectionError());
-    }
-    record.anchorIndex = index;
-    if (control) {
-        const bool changed = listBox.Toggle(index);
-        return listBox.LastSelectionError().IsOk()
-            ? Base::Result<bool>(changed)
-            : Base::Result<bool>(listBox.LastSelectionError());
-    }
-    listBox.SetSelectedIndex(index);
-    if (!listBox.LastSelectionError().IsOk()) {
-        return listBox.LastSelectionError();
-    }
-    return true;
-}
-
-void ListBehavior::OnMouseDown(
-    Base::Object* sender,
-    MouseButtonEventArgs& args) noexcept {
-    if (args.GetChangedButton() != MouseButton::Left) {
-        return;
-    }
-    auto& listBox =
-        *static_cast<ListBox*>(sender);
-    if (!listBox.GetIsEnabled()) return;
-    const std::uint32_t recordIndex =
-        FindListBox(listBox);
-    if (recordIndex == UINT32_MAX) return;
-    const std::uint32_t index =
-        FindContainerIndex(
-            listBox, args.GetOriginalSource());
-    if (index == UINT32_MAX) return;
-    Base::Result<bool> selected =
-        ApplyUserSelection(
-            listBox,
-            records_[recordIndex],
-            index,
-            args.GetModifiers());
-    if (!selected) return;
-    ItemContainerGenerator* generator =
-        listBox.GetItemContainerGenerator();
-    if (generator != nullptr) {
-        static_cast<void>(input_->SetFocus(
-            generator->ContainerFromIndex(index)));
-    }
-    static_cast<void>(
-        listBox.BringIntoView(index));
-    args.SetHandled(true);
-}
-
-void ListBehavior::OnKeyDown(
-    Base::Object* sender,
-    KeyEventArgs& args) noexcept {
-    if (args.GetKey() != KeyboardKeyUp &&
-        args.GetKey() != KeyboardKeyDown &&
-        args.GetKey() != KeyboardKeyHome &&
-        args.GetKey() != KeyboardKeyEnd) {
-        return;
-    }
-    auto& listBox =
-        *static_cast<ListBox*>(sender);
-    if (!listBox.GetIsEnabled() ||
-        listBox.GetCount() == 0U) {
-        return;
-    }
-    const std::uint32_t recordIndex =
-        FindListBox(listBox);
-    if (recordIndex == UINT32_MAX) return;
-    std::uint32_t current =
-        FindContainerIndex(
-            listBox, args.GetOriginalSource());
-    if (current == UINT32_MAX) {
-        current =
-            listBox.GetSelectedIndex() != UINT32_MAX
-            ? listBox.GetSelectedIndex()
-            : 0U;
-    }
-    std::uint32_t target = current;
-    if (args.GetKey() == KeyboardKeyUp &&
-        target > 0U) {
-        --target;
-    } else if (args.GetKey() == KeyboardKeyDown &&
-        target + 1U < listBox.GetCount()) {
-        ++target;
-    } else if (args.GetKey() == KeyboardKeyHome) {
-        target = 0U;
-    } else if (args.GetKey() == KeyboardKeyEnd) {
-        target = listBox.GetCount() - 1U;
-    }
-    const bool control = HasKeyboardModifier(
-        args.GetModifiers(),
-        KeyboardModifiers::Control);
-    const bool shift = HasKeyboardModifier(
-        args.GetModifiers(),
-        KeyboardModifiers::Shift);
-    if (!control ||
-        listBox.GetSelectionMode() !=
-            SelectionMode::Extended ||
-        shift) {
-        Base::Result<bool> selected =
-            ApplyUserSelection(
-                listBox,
-                records_[recordIndex],
-                target,
-                args.GetModifiers());
-        if (!selected) return;
-    }
-    ItemContainerGenerator* generator =
-        listBox.GetItemContainerGenerator();
-    if (generator != nullptr) {
-        static_cast<void>(input_->SetFocus(
-            generator->ContainerFromIndex(target)));
-    }
-    static_cast<void>(
-        listBox.BringIntoView(target));
-    args.SetHandled(true);
-}
-
-void ListBehavior::OnPointerStateChanged(
-    UIElement& element) noexcept {
-    if (states_ == nullptr) return;
-    for (std::uint32_t i = 0U; i < records_.Size(); ++i) {
-        ListBox* listBox = ResolveListBox(i);
-        if (listBox == nullptr) continue;
-        const std::uint32_t index =
-            FindContainerIndex(*listBox, &element);
-        if (index != UINT32_MAX) {
-            ItemContainerGenerator* generator =
-                listBox->GetItemContainerGenerator();
-            if (generator != nullptr) {
-                FrameworkElement* container =
-                    generator->ContainerFromIndex(index);
-                if (container != nullptr &&
-                    listBox->PropertyRegistry().Types().IsDerivedFrom(
-                        container->RuntimeType(),
-                        ListBoxItem::StaticTypeId())) {
-                    auto& item =
-                        *static_cast<ListBoxItem*>(container);
-                    Base::StringView common = "Normal";
-                    if (!item.GetIsEnabled()) {
-                        common = "Disabled";
-                    } else if (item.GetIsMouseOver()) {
-                        common = "MouseOver";
-                    }
-                    static_cast<void>(
-                        Aero::Controls::TemplatePrivate::GoToState(
-                            *states_,
-                            item,
-                            "CommonStates",
-                            common,
-                            true));
-                    const bool selected = item.GetIsSelected();
-                    static_cast<void>(
-                        Aero::Controls::TemplatePrivate::GoToState(
-                            *states_,
-                            item,
-                            "SelectionStates",
-                            selected
-                                ? Base::StringView("Selected")
-                                : Base::StringView("Unselected"),
-                            true));
-                }
-            }
-            return;
-        }
-    }
+void ComboBoxItem::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<ComboBoxItem>(context)
+        .Property(ComboBoxItem::IsSelectedProperty, false, AffectsRender | BindsTwoWayByDefault)
+        .Override(Aero::UIElement::IsTabStopProperty, true, FrameworkPropertyMetadataOptions::None)
+        .Factory();
 }
 
 } // namespace Aero::Controls

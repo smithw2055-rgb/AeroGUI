@@ -8,12 +8,12 @@ class AERO_GUI_API MultiDataTrigger : public TriggerBase {
     AERO_DECLARE_TYPE(MultiDataTrigger, TriggerBase)
 public:
     MultiDataTrigger() noexcept : TriggerBase(StaticTypeId()) {}
-    Result<void> AddCondition(Ref<Condition> condition) noexcept;
+    void AddCondition(Ref<Condition> condition) noexcept;
     void ClearConditions() noexcept { conditions_.Clear(); }
     Span<const Ref<Condition>> GetConditions() const noexcept {
         return {conditions_.Data(), conditions_.Size()};
     }
-    Result<void> AddAuthoredSetter(Ref<Setter> setter) noexcept;
+    void AddAuthoredSetter(Ref<Setter> setter) noexcept;
     void ClearAuthoredSetters() noexcept { authoredSetters_.Clear(); }
     Span<const Ref<Setter>> GetAuthoredSetters() const noexcept {
         return {authoredSetters_.Data(), authoredSetters_.Size()};

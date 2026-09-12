@@ -13,8 +13,8 @@ class AERO_GUI_API ItemCollection : public Collections::IItemsSource {
 public:
     std::uint32_t GetCount() const noexcept override { return items_.Size(); }
     Ref<Base::Object> GetItem(std::uint32_t index) const noexcept override;
-    Result<void> Add(Ref<Base::Object> item) noexcept;
-    Result<void> Insert(
+    void Add(Ref<Base::Object> item) noexcept;
+    void Insert(
         std::uint32_t index, Ref<Base::Object> item) noexcept;
     Result<Ref<Base::Object>> RemoveAt(
         std::uint32_t index) noexcept;
@@ -40,10 +40,10 @@ private:
     void Notify(const ItemsChangedEvent& event) noexcept;
 };
 
-AERO_GUI_API Result<void> AddBoxedItem(
-    Collections::ObservableCollection& source, Value value) noexcept;
-AERO_GUI_API Result<void> AddBoxedStringItem(
-    Collections::ObservableCollection& source,
+AERO_GUI_API void AddBoxedItem(
+    Collections::ObservableCollection<Base::Object>& source, Value value) noexcept;
+AERO_GUI_API void AddBoxedStringItem(
+    Collections::ObservableCollection<Base::Object>& source,
     StringView value) noexcept;
 
 } // namespace Aero::Controls

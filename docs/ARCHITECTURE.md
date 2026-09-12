@@ -38,7 +38,6 @@ The advanced rendering surface is split by responsibility:
 
 ```text
 include/Aero/IRenderer.hpp
-include/AeroRender/Render.hpp
 include/AeroRender/RenderDevice.hpp
 include/AeroRender/RenderTarget.hpp
 include/AeroRender/D3D11.hpp
@@ -60,8 +59,9 @@ Source location expresses visibility. Implementation types use their business
 namespace (`Aero`, `Aero::Controls`, `Aero::Markup`, `Aero::Media`,
 `Aero::Render`, or `Aero::App`) and single-translation-unit helpers use an
 anonymous namespace. There are no `private`/`detail` directories,
-`*Internal*`/`*Private*` filenames, domain `Detail` namespaces, or
-`View::Operations` bridge.
+`*Private*` filenames, domain `Detail` namespaces, or `View::Operations`
+bridge. Kernel-private operations that are not installed live in
+`src/gui/internal/` and are reached through one friend, `AeroGuiInternal`.
 
 Heavy source-only objects own their state directly. Delayed states use inline
 storage owned by the object, not a second heap allocation or virtual Pimpl
@@ -70,13 +70,17 @@ lifetime.
 `src/gui` is divided into the stable implementation domains `base`,
 `metadata`, `property`, `binding`, `resources`, `layout`, `input`,
 `interactivity`, `controls`, `markup`, `media`, `text`, `diagnostics`, and
-`modules`. Its root is reserved for the `Gui`, `View`, `ViewState`, and
-`ViewRenderer` composition files. The concrete View implementation remains in
-one `View.cpp`, matching the Noesis-style concrete View boundary.
+`modules`. Its root is reserved for the `Gui`, `View`, `ViewFrame`, and
+`ViewRenderer` composition files. `View.cpp` is the composition root
+(construct, mount, viewport, `Update`). Clock slices live beside it
+(`ViewFrame.cpp`, `ViewInput.cpp` including the focus queue, `ViewRender.cpp`).
+Storyboard sessions live next to `AnimationEngine`, trigger evaluation in
+`interactivity/`, and XamlReader fragment mounts in `markup/`. View remains
+the host; layout, input, and media stay separate collaborators.
 
 ## View and rendering
 
-Each `View` owns one `ViewState` and one concrete `ViewRenderer`. The device is
+Each `View` owns one `ViewFrame` and one concrete `ViewRenderer`. The device is
 shareable across views and does not own a renderer.
 
 Hosts may submit a complete logical/pixel/DPI viewport transaction through

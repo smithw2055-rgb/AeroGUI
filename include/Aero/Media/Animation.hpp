@@ -1,928 +1,111 @@
 #pragma once
 
-#include <Aero/Base/Geometry.hpp>
-#include <Aero/Base/Object.hpp>
-#include <Aero/Base/Ref.hpp>
-#include <Aero/Base/Result.hpp>
-#include <Aero/Base/String.hpp>
-#include <Aero/Base/Vector.hpp>
-#include <Aero/DependencyProperty.hpp>
-#include <Aero/Freezable.hpp>
-#include <Aero/Data/Binding.hpp>
-#include <cstdint>
-
-namespace Aero::Media::Animation {
-
-struct TimelineRuntime;
-
-using AnimationTime = std::uint64_t;
-
-enum class FillBehavior : std::uint8_t {
-    HoldEnd = 0U,
-    Stop
-};
-
-enum class EasingMode : std::uint8_t {
-    EaseOut = 0U,
-    EaseIn,
-    EaseInOut
-};
-
-class AERO_GUI_API Timeline : public ::Aero::Freezable {
-    AERO_DECLARE_TYPE(Timeline, ::Aero::Freezable)
-public:
-
-    StringView GetBeginTime() const noexcept {
-        return beginTimeText_.View();
-    }
-    StringView GetDuration() const noexcept {
-        return durationText_.View();
-    }
-    StringView GetRepeatBehavior() const noexcept {
-        return repeatBehaviorText_.View();
-    }
-    double GetSpeedRatio() const noexcept { return speedRatio_; }
-    bool GetAutoReverse() const noexcept { return autoReverse_; }
-    FillBehavior GetFillBehavior() const noexcept {
-        return fillBehavior_;
-    }
-
-    void SetBeginTime(StringView value) noexcept;
-    void SetDuration(StringView value) noexcept;
-    Result<void> SetDurationChecked(
-        StringView value) noexcept;
-    void SetRepeatBehavior(
-        StringView value) noexcept;
-    void SetSpeedRatio(double value) noexcept;
-    void SetAutoReverse(bool value) noexcept;
-    void SetFillBehavior(FillBehavior value) noexcept;
-
-protected:
-    explicit Timeline(Meta::TypeId runtimeType) noexcept
-        : Freezable(runtimeType) {}
-
-private:
-    friend struct TimelineRuntime;
-
-    String beginTimeText_;
-    String durationText_;
-    String repeatBehaviorText_;
-    AnimationTime beginTimeMicroseconds_ = 0U;
-    AnimationTime durationMicroseconds_ = 0U;
-    double repeatCount_ = 1.0;
-    double speedRatio_ = 1.0;
-    bool repeatForever_ = false;
-    bool autoReverse_ = false;
-    FillBehavior fillBehavior_ = FillBehavior::HoldEnd;
-};
-
-class AERO_GUI_API EasingFunctionBase : public ::Aero::DependencyObject {
-    AERO_DECLARE_TYPE(EasingFunctionBase, ::Aero::DependencyObject)
-public:
-    EasingMode GetEasingMode() const noexcept {
-        return GetValueOr(EasingModeProperty, EasingMode::EaseOut);
-    }
-    void SetEasingMode(EasingMode value) noexcept {
-        SetValue(EasingModeProperty, value);
-    }
-    inline static constexpr DependencyProperty<EasingMode> EasingModeProperty{"EasingMode"};
-
-protected:
-    enum class Kind : std::uint8_t {
-        Linear = 0U,
-        Sine,
-        Quadratic,
-        Cubic,
-        Quartic,
-        Quintic,
-        Circle,
-        Power,
-        Exponential,
-        Back,
-        Bounce,
-        Elastic
-    };
-
-    EasingFunctionBase(
-        Meta::TypeId runtimeType,
-        Kind kind) noexcept
-        : DependencyObject(runtimeType), kind_(kind) {}
-
-private:
-    friend struct ::Aero::Media::Animation::TimelineRuntime;
-    Kind kind_ = Kind::Linear;
-};
-
-#define AERO_DECLARE_SIMPLE_EASING(typeName, kindValue)                    \
-class AERO_GUI_API typeName : public EasingFunctionBase {                \
-    AERO_DECLARE_TYPE(typeName, EasingFunctionBase)                        \
-public:                                                                    \
-    typeName() noexcept                                                    \
-        : EasingFunctionBase(StaticTypeId(), kindValue) {}                 \
-};
-
-AERO_DECLARE_SIMPLE_EASING(
-    SineEase, EasingFunctionBase::Kind::Sine)
-AERO_DECLARE_SIMPLE_EASING(
-    QuadraticEase, EasingFunctionBase::Kind::Quadratic)
-AERO_DECLARE_SIMPLE_EASING(
-    CubicEase, EasingFunctionBase::Kind::Cubic)
-AERO_DECLARE_SIMPLE_EASING(
-    QuarticEase, EasingFunctionBase::Kind::Quartic)
-AERO_DECLARE_SIMPLE_EASING(
-    QuinticEase, EasingFunctionBase::Kind::Quintic)
-AERO_DECLARE_SIMPLE_EASING(
-    CircleEase, EasingFunctionBase::Kind::Circle)
-
-#undef AERO_DECLARE_SIMPLE_EASING
-
-class AERO_GUI_API ExponentialEase : public EasingFunctionBase {
-    AERO_DECLARE_TYPE(ExponentialEase, EasingFunctionBase)
-public:
-    ExponentialEase() noexcept
-        : EasingFunctionBase(
-              StaticTypeId(),
-              EasingFunctionBase::Kind::Exponential) {}
-    double GetExponent() const noexcept {
-        return GetValueOr(ExponentProperty, 2.0);
-    }
-    void SetExponent(double value) noexcept;
-    inline static constexpr DependencyProperty<double> ExponentProperty{"Exponent"};
-};
-
-class AERO_GUI_API PowerEase : public EasingFunctionBase {
-    AERO_DECLARE_TYPE(PowerEase, EasingFunctionBase)
-public:
-    PowerEase() noexcept
-        : EasingFunctionBase(
-              StaticTypeId(),
-              EasingFunctionBase::Kind::Power) {}
-    double GetPower() const noexcept {
-        return GetValueOr(PowerProperty, 2.0);
-    }
-    void SetPower(double value) noexcept;
-    inline static constexpr DependencyProperty<double> PowerProperty{"Power"};
-};
-
-class AERO_GUI_API BackEase : public EasingFunctionBase {
-    AERO_DECLARE_TYPE(BackEase, EasingFunctionBase)
-public:
-    BackEase() noexcept
-        : EasingFunctionBase(
-              StaticTypeId(),
-              EasingFunctionBase::Kind::Back) {}
-    double GetAmplitude() const noexcept {
-        return GetValueOr(AmplitudeProperty, 1.0);
-    }
-    void SetAmplitude(double value) noexcept;
-    inline static constexpr DependencyProperty<double> AmplitudeProperty{"Amplitude"};
-};
-
-class AERO_GUI_API BounceEase : public EasingFunctionBase {
-    AERO_DECLARE_TYPE(BounceEase, EasingFunctionBase)
-public:
-    BounceEase() noexcept
-        : EasingFunctionBase(
-              StaticTypeId(),
-              EasingFunctionBase::Kind::Bounce) {}
-    double GetBounces() const noexcept {
-        return GetValueOr(BouncesProperty, 3.0);
-    }
-    double GetBounciness() const noexcept {
-        return GetValueOr(BouncinessProperty, 3.0);
-    }
-    void SetBounces(double value) noexcept;
-    void SetBounciness(double value) noexcept;
-    inline static constexpr DependencyProperty<double> BouncesProperty{"Bounces"};
-    inline static constexpr DependencyProperty<double> BouncinessProperty{"Bounciness"};
-};
-
-class AERO_GUI_API ElasticEase : public EasingFunctionBase {
-    AERO_DECLARE_TYPE(ElasticEase, EasingFunctionBase)
-public:
-    ElasticEase() noexcept
-        : EasingFunctionBase(
-              StaticTypeId(),
-              EasingFunctionBase::Kind::Elastic) {}
-    double GetOscillations() const noexcept {
-        return GetValueOr(OscillationsProperty, 3.0);
-    }
-    double GetSpringiness() const noexcept {
-        return GetValueOr(SpringinessProperty, 3.0);
-    }
-    void SetOscillations(double value) noexcept;
-    void SetSpringiness(double value) noexcept;
-    inline static constexpr DependencyProperty<double> OscillationsProperty{"Oscillations"};
-    inline static constexpr DependencyProperty<double> SpringinessProperty{"Springiness"};
-};
-
-class AERO_GUI_API DoubleAnimationBase : public Timeline {
-    AERO_DECLARE_TYPE(DoubleAnimationBase, Timeline)
-public:
-    ~DoubleAnimationBase() override = default;
-    double GetFrom() const noexcept { return from_; }
-    double GetTo() const noexcept { return to_; }
-    bool GetHasFrom() const noexcept { return hasFrom_; }
-    bool GetHasTo() const noexcept { return hasTo_; }
-    double ResolveFrom(double defaultOriginValue) const noexcept {
-        return hasFrom_ ? from_ : defaultOriginValue;
-    }
-    double ResolveTo(double defaultDestinationValue) const noexcept {
-        return hasTo_ ? to_ : defaultDestinationValue;
-    }
-    void SetFrom(double value) noexcept;
-    void SetTo(double value) noexcept;
-
-    double GetCurrentValue(
-        double defaultOriginValue,
-        double defaultDestinationValue,
-        double progress) const noexcept {
-        return GetCurrentValueCore(
-            defaultOriginValue,
-            defaultDestinationValue,
-            progress);
-    }
-
-protected:
-    explicit DoubleAnimationBase(
-        Meta::TypeId runtimeType) noexcept
-        : Timeline(runtimeType) {}
-    virtual double GetCurrentValueCore(
-        double defaultOriginValue,
-        double defaultDestinationValue,
-        double progress) const noexcept = 0;
-
-private:
-    double from_ = 0.0;
-    double to_ = 0.0;
-    bool hasFrom_ = false;
-    bool hasTo_ = false;
-};
-
-class AERO_GUI_API DoubleAnimation : public DoubleAnimationBase {
-    AERO_DECLARE_TYPE(DoubleAnimation, DoubleAnimationBase)
-public:
-    DoubleAnimation() noexcept
-        : DoubleAnimationBase(StaticTypeId()) {}
-    double GetAccelerationRatio() const noexcept {
-        return accelerationRatio_;
-    }
-    double GetDecelerationRatio() const noexcept {
-        return decelerationRatio_;
-    }
-    Ref<EasingFunctionBase> GetEasingFunction() const noexcept {
-        return easing_;
-    }
-    void SetAccelerationRatio(double value) noexcept;
-    void SetDecelerationRatio(double value) noexcept;
-    void SetEasingFunction(
-        Ref<EasingFunctionBase> value) noexcept;
-
-protected:
-    double GetCurrentValueCore(
-        double defaultOriginValue,
-        double defaultDestinationValue,
-        double progress) const noexcept override {
-        const double from = ResolveFrom(defaultOriginValue);
-        const double to = ResolveTo(defaultDestinationValue);
-        return from + (to - from) * progress;
-    }
-
-private:
-    double accelerationRatio_ = 0.0;
-    double decelerationRatio_ = 0.0;
-    Ref<EasingFunctionBase> easing_;
-};
-
-class AERO_GUI_API ColorAnimation : public Timeline {
-    AERO_DECLARE_TYPE(ColorAnimation, Timeline)
-public:
-    ColorAnimation() noexcept : Timeline(StaticTypeId()) {}
-    Base::Color GetFrom() const noexcept { return from_; }
-    Base::Color GetTo() const noexcept { return to_; }
-    Ref<EasingFunctionBase> GetEasingFunction() const noexcept {
-        return easing_;
-    }
-    void SetFrom(Base::Color value) noexcept;
-    void SetTo(Base::Color value) noexcept;
-    void SetEasingFunction(
-        Ref<EasingFunctionBase> value) noexcept;
-
-private:
-    Base::Color from_;
-    Base::Color to_;
-    Ref<EasingFunctionBase> easing_;
-};
-
-class AERO_GUI_API PointAnimation : public Timeline {
-    AERO_DECLARE_TYPE(PointAnimation, Timeline)
-public:
-    PointAnimation() noexcept
-        : Timeline(StaticTypeId()) {}
-    Base::Point GetFrom() const noexcept {
-        return from_;
-    }
-    Base::Point GetTo() const noexcept {
-        return to_;
-    }
-    Ref<EasingFunctionBase>
-    GetEasingFunction() const noexcept {
-        return easing_;
-    }
-    void SetFrom(
-        Base::Point value) noexcept;
-    void SetTo(
-        Base::Point value) noexcept;
-    void SetEasingFunction(
-        Ref<EasingFunctionBase>
-            value) noexcept;
-
-private:
-    Base::Point from_;
-    Base::Point to_;
-    Ref<EasingFunctionBase> easing_;
-};
-
-class AERO_GUI_API RectAnimation : public Timeline {
-    AERO_DECLARE_TYPE(RectAnimation, Timeline)
-public:
-    RectAnimation() noexcept : Timeline(StaticTypeId()) {}
-    Base::Rect GetFrom() const noexcept { return from_; }
-    Base::Rect GetTo() const noexcept { return to_; }
-    Ref<EasingFunctionBase> GetEasingFunction() const noexcept {
-        return easing_;
-    }
-    void SetFrom(Base::Rect value) noexcept;
-    void SetTo(Base::Rect value) noexcept;
-    void SetEasingFunction(
-        Ref<EasingFunctionBase> value) noexcept;
-
-private:
-    Base::Rect from_;
-    Base::Rect to_;
-    Ref<EasingFunctionBase> easing_;
-};
-
-class AERO_GUI_API ThicknessAnimation : public Timeline {
-    AERO_DECLARE_TYPE(ThicknessAnimation, Timeline)
-public:
-    ThicknessAnimation() noexcept : Timeline(StaticTypeId()) {}
-    Base::Thickness GetFrom() const noexcept { return from_; }
-    Base::Thickness GetTo() const noexcept { return to_; }
-    Ref<EasingFunctionBase> GetEasingFunction() const noexcept {
-        return easing_;
-    }
-    void SetFrom(Base::Thickness value) noexcept;
-    void SetTo(Base::Thickness value) noexcept;
-    void SetEasingFunction(
-        Ref<EasingFunctionBase> value) noexcept;
-
-private:
-    Base::Thickness from_;
-    Base::Thickness to_;
-    Ref<EasingFunctionBase> easing_;
-};
-
-class AERO_GUI_API DoubleKeyFrame : public ::Aero::DependencyObject {
-    AERO_DECLARE_TYPE(DoubleKeyFrame, ::Aero::DependencyObject)
-public:
-    double GetValue() const noexcept { return value_; }
-    StringView GetKeyTime() const noexcept {
-        return keyTimeText_.View();
-    }
-    void SetValue(double value) noexcept;
-    void SetKeyTime(StringView value) noexcept;
-
-protected:
-    enum class Interpolation : std::uint8_t {
-        Linear = 0U,
-        Discrete,
-        Easing,
-        Spline
-    };
-
-    DoubleKeyFrame(
-        Meta::TypeId runtimeType,
-        Interpolation interpolation) noexcept
-        : DependencyObject(runtimeType), interpolation_(interpolation) {}
-
-    void SetSplineControlPoints(
-        double x1,
-        double y1,
-        double x2,
-        double y2) noexcept {
-        controlPoint1X_ = x1;
-        controlPoint1Y_ = y1;
-        controlPoint2X_ = x2;
-        controlPoint2Y_ = y2;
-    }
-
-private:
-    friend struct ::Aero::Media::Animation::TimelineRuntime;
-
-    double value_ = 0.0;
-    String keyTimeText_;
-    AnimationTime keyTimeMicroseconds_ = 0U;
-    Interpolation interpolation_ = Interpolation::Linear;
-    double controlPoint1X_ = 0.0;
-    double controlPoint1Y_ = 0.0;
-    double controlPoint2X_ = 1.0;
-    double controlPoint2Y_ = 1.0;
-};
-
-class AERO_GUI_API LinearDoubleKeyFrame : public DoubleKeyFrame {
-    AERO_DECLARE_TYPE(LinearDoubleKeyFrame, DoubleKeyFrame)
-public:
-    LinearDoubleKeyFrame() noexcept
-        : DoubleKeyFrame(
-              StaticTypeId(),
-              DoubleKeyFrame::Interpolation::Linear) {}
-};
-
-class AERO_GUI_API DiscreteDoubleKeyFrame : public DoubleKeyFrame {
-    AERO_DECLARE_TYPE(DiscreteDoubleKeyFrame, DoubleKeyFrame)
-public:
-    DiscreteDoubleKeyFrame() noexcept
-        : DoubleKeyFrame(
-              StaticTypeId(),
-              DoubleKeyFrame::Interpolation::Discrete) {}
-};
-
-class AERO_GUI_API EasingDoubleKeyFrame : public DoubleKeyFrame {
-    AERO_DECLARE_TYPE(EasingDoubleKeyFrame, DoubleKeyFrame)
-public:
-    EasingDoubleKeyFrame() noexcept
-        : DoubleKeyFrame(
-              StaticTypeId(),
-              DoubleKeyFrame::Interpolation::Easing) {}
-    Ref<EasingFunctionBase> GetEasingFunction() const noexcept {
-        return GetValueOr(
-            EasingFunctionProperty,
-            Ref<EasingFunctionBase>{});
-    }
-    void SetEasingFunction(
-        Ref<EasingFunctionBase> value) noexcept;
-    inline static constexpr DependencyProperty<Ref<EasingFunctionBase>> EasingFunctionProperty{"EasingFunction"};
-};
-
-class AERO_GUI_API SplineDoubleKeyFrame : public DoubleKeyFrame {
-    AERO_DECLARE_TYPE(SplineDoubleKeyFrame, DoubleKeyFrame)
-public:
-    SplineDoubleKeyFrame() noexcept
-        : DoubleKeyFrame(
-              StaticTypeId(),
-              DoubleKeyFrame::Interpolation::Spline) {}
-    StringView GetKeySpline() const noexcept {
-        return keySpline_.View();
-    }
-    void SetKeySpline(StringView value) noexcept;
-
-private:
-    String keySpline_;
-};
-
-class AERO_GUI_API DoubleAnimationUsingKeyFrames : public Timeline {
-    AERO_DECLARE_TYPE(DoubleAnimationUsingKeyFrames, Timeline)
-public:
-    DoubleAnimationUsingKeyFrames() noexcept
-        : Timeline(StaticTypeId()) {}
-    Result<void> AddKeyFrame(
-        Ref<DoubleKeyFrame> value) noexcept;
-    void ClearKeyFrames() noexcept;
-    Span<const Ref<DoubleKeyFrame>>
-    GetKeyFrames() const noexcept {
-        return {keyFrames_.Data(), keyFrames_.Size()};
-    }
-
-private:
-    Base::Vector<Ref<DoubleKeyFrame>> keyFrames_;
-};
-
-class AERO_GUI_API PointKeyFrame : public Base::Object {
-    AERO_DECLARE_TYPE(PointKeyFrame, Base::Object)
-public:
-    Meta::TypeId RuntimeType() const noexcept override {
-        return runtimeType_;
-    }
-    Base::Point GetValue() const noexcept { return value_; }
-    StringView GetKeyTime() const noexcept {
-        return keyTimeText_.View();
-    }
-    AnimationTime GetKeyTimeMicroseconds() const noexcept {
-        return keyTimeMicroseconds_;
-    }
-    void SetValue(Base::Point value) noexcept;
-    void SetKeyTime(StringView value) noexcept;
-
-protected:
-    explicit PointKeyFrame(Meta::TypeId runtimeType) noexcept
-        : runtimeType_(runtimeType) {}
-
-private:
-    Meta::TypeId runtimeType_ = StaticTypeId();
-    Base::Point value_;
-    String keyTimeText_;
-    AnimationTime keyTimeMicroseconds_ = 0U;
-};
-
-class AERO_GUI_API DiscretePointKeyFrame : public PointKeyFrame {
-    AERO_DECLARE_TYPE(DiscretePointKeyFrame, PointKeyFrame)
-public:
-    DiscretePointKeyFrame() noexcept
-        : PointKeyFrame(StaticTypeId()) {}
-};
-
-class AERO_GUI_API EasingPointKeyFrame : public PointKeyFrame {
-    AERO_DECLARE_TYPE(EasingPointKeyFrame, PointKeyFrame)
-public:
-    EasingPointKeyFrame() noexcept
-        : PointKeyFrame(StaticTypeId()) {}
-};
-
-class AERO_GUI_API PointAnimationUsingKeyFrames : public Timeline {
-    AERO_DECLARE_TYPE(PointAnimationUsingKeyFrames, Timeline)
-public:
-    PointAnimationUsingKeyFrames() noexcept
-        : Timeline(StaticTypeId()) {}
-    Result<void> AddKeyFrame(
-        Ref<PointKeyFrame> value) noexcept;
-    void ClearKeyFrames() noexcept;
-    Span<const Ref<PointKeyFrame>>
-    GetKeyFrames() const noexcept {
-        return {keyFrames_.Data(), keyFrames_.Size()};
-    }
-
-private:
-    Base::Vector<Ref<PointKeyFrame>> keyFrames_;
-};
-
-class AERO_GUI_API ThicknessKeyFrame : public Base::Object {
-    AERO_DECLARE_TYPE(ThicknessKeyFrame, Base::Object)
-public:
-    Meta::TypeId RuntimeType() const noexcept override {
-        return runtimeType_;
-    }
-    Base::Thickness GetValue() const noexcept {
-        return value_;
-    }
-    StringView GetKeyTime() const noexcept {
-        return keyTimeText_.View();
-    }
-    AnimationTime
-    GetKeyTimeMicroseconds() const noexcept {
-        return keyTimeMicroseconds_;
-    }
-    void SetValue(
-        Base::Thickness value) noexcept;
-    void SetKeyTime(
-        StringView value) noexcept;
-
-protected:
-    explicit ThicknessKeyFrame(
-        Meta::TypeId runtimeType) noexcept
-        : runtimeType_(runtimeType) {}
-
-private:
-    Meta::TypeId runtimeType_ = StaticTypeId();
-    Base::Thickness value_;
-    String keyTimeText_;
-    AnimationTime
-        keyTimeMicroseconds_ = 0U;
-};
-
-class AERO_GUI_API LinearThicknessKeyFrame
-    : public ThicknessKeyFrame {
-    AERO_DECLARE_TYPE(
-        LinearThicknessKeyFrame,
-        ThicknessKeyFrame)
-public:
-    LinearThicknessKeyFrame() noexcept
-        : ThicknessKeyFrame(StaticTypeId()) {}
-};
-
-class AERO_GUI_API DiscreteThicknessKeyFrame
-    : public ThicknessKeyFrame {
-    AERO_DECLARE_TYPE(
-        DiscreteThicknessKeyFrame,
-        ThicknessKeyFrame)
-public:
-    DiscreteThicknessKeyFrame() noexcept
-        : ThicknessKeyFrame(StaticTypeId()) {}
-};
-
-class AERO_GUI_API EasingThicknessKeyFrame
-    : public ThicknessKeyFrame {
-    AERO_DECLARE_TYPE(
-        EasingThicknessKeyFrame,
-        ThicknessKeyFrame)
-public:
-    EasingThicknessKeyFrame() noexcept
-        : ThicknessKeyFrame(StaticTypeId()) {}
-    Ref<EasingFunctionBase>
-    GetEasingFunction() const noexcept {
-        return easing_;
-    }
-    void SetEasingFunction(
-        Ref<EasingFunctionBase> value) noexcept;
-
-private:
-    Ref<EasingFunctionBase> easing_;
-};
-
-class AERO_GUI_API SplineThicknessKeyFrame
-    : public ThicknessKeyFrame {
-    AERO_DECLARE_TYPE(
-        SplineThicknessKeyFrame,
-        ThicknessKeyFrame)
-public:
-    SplineThicknessKeyFrame() noexcept
-        : ThicknessKeyFrame(StaticTypeId()) {}
-    StringView GetKeySpline() const noexcept {
-        return keySpline_.View();
-    }
-    void SetKeySpline(
-        StringView value) noexcept {
-        (void)keySpline_.Assign(value);
-    }
-
-private:
-    String keySpline_;
-};
-
-class AERO_GUI_API ThicknessAnimationUsingKeyFrames
-    : public Timeline {
-    AERO_DECLARE_TYPE(
-        ThicknessAnimationUsingKeyFrames,
-        Timeline)
-public:
-    ThicknessAnimationUsingKeyFrames() noexcept
-        : Timeline(StaticTypeId()) {}
-    Result<void> AddKeyFrame(
-        Ref<ThicknessKeyFrame> value) noexcept;
-    void ClearKeyFrames() noexcept;
-    Span<const Ref<ThicknessKeyFrame>>
-    GetKeyFrames() const noexcept {
-        return {
-            keyFrames_.Data(),
-            keyFrames_.Size()};
-    }
-
-private:
-    Base::Vector<Ref<ThicknessKeyFrame>>
-        keyFrames_;
-};
-
-class AERO_GUI_API ColorKeyFrame : public Base::Object {
-    AERO_DECLARE_TYPE(ColorKeyFrame, Base::Object)
-public:
-    Meta::TypeId RuntimeType() const noexcept override {
-        return runtimeType_;
-    }
-    Base::Color GetValue() const noexcept { return value_; }
-    StringView GetKeyTime() const noexcept {
-        return keyTimeText_.View();
-    }
-    void SetValue(Base::Color value) noexcept;
-    void SetKeyTime(StringView value) noexcept;
-
-protected:
-    enum class Interpolation : std::uint8_t {
-        Linear = 0U,
-        Discrete,
-        Easing,
-        Spline
-    };
-
-    ColorKeyFrame(
-        Meta::TypeId runtimeType,
-        Interpolation interpolation) noexcept
-        : runtimeType_(runtimeType), interpolation_(interpolation) {}
-
-    void SetSplineControlPoints(
-        double x1,
-        double y1,
-        double x2,
-        double y2) noexcept {
-        controlPoint1X_ = x1;
-        controlPoint1Y_ = y1;
-        controlPoint2X_ = x2;
-        controlPoint2Y_ = y2;
-    }
-
-private:
-    friend struct ::Aero::Media::Animation::TimelineRuntime;
-
-    Meta::TypeId runtimeType_ = StaticTypeId();
-    Base::Color value_;
-    String keyTimeText_;
-    AnimationTime keyTimeMicroseconds_ = 0U;
-    Interpolation interpolation_ = Interpolation::Linear;
-    double controlPoint1X_ = 0.0;
-    double controlPoint1Y_ = 0.0;
-    double controlPoint2X_ = 1.0;
-    double controlPoint2Y_ = 1.0;
-};
-
-class AERO_GUI_API LinearColorKeyFrame : public ColorKeyFrame {
-    AERO_DECLARE_TYPE(LinearColorKeyFrame, ColorKeyFrame)
-public:
-    LinearColorKeyFrame() noexcept
-        : ColorKeyFrame(
-              StaticTypeId(),
-              ColorKeyFrame::Interpolation::Linear) {}
-};
-
-class AERO_GUI_API DiscreteColorKeyFrame : public ColorKeyFrame {
-    AERO_DECLARE_TYPE(DiscreteColorKeyFrame, ColorKeyFrame)
-public:
-    DiscreteColorKeyFrame() noexcept
-        : ColorKeyFrame(
-              StaticTypeId(),
-              ColorKeyFrame::Interpolation::Discrete) {}
-};
-
-class AERO_GUI_API EasingColorKeyFrame : public ColorKeyFrame {
-    AERO_DECLARE_TYPE(EasingColorKeyFrame, ColorKeyFrame)
-public:
-    EasingColorKeyFrame() noexcept
-        : ColorKeyFrame(
-              StaticTypeId(),
-              ColorKeyFrame::Interpolation::Easing) {}
-    Ref<EasingFunctionBase> GetEasingFunction() const noexcept {
-        return easing_;
-    }
-    void SetEasingFunction(
-        Ref<EasingFunctionBase> value) noexcept;
-
-private:
-    Ref<EasingFunctionBase> easing_;
-};
-
-class AERO_GUI_API SplineColorKeyFrame : public ColorKeyFrame {
-    AERO_DECLARE_TYPE(SplineColorKeyFrame, ColorKeyFrame)
-public:
-    SplineColorKeyFrame() noexcept
-        : ColorKeyFrame(
-              StaticTypeId(),
-              ColorKeyFrame::Interpolation::Spline) {}
-    StringView GetKeySpline() const noexcept {
-        return keySpline_.View();
-    }
-    void SetKeySpline(StringView value) noexcept;
-
-private:
-    String keySpline_;
-};
-
-class AERO_GUI_API ColorAnimationUsingKeyFrames : public Timeline {
-    AERO_DECLARE_TYPE(ColorAnimationUsingKeyFrames, Timeline)
-public:
-    ColorAnimationUsingKeyFrames() noexcept
-        : Timeline(StaticTypeId()) {}
-    Result<void> AddKeyFrame(
-        Ref<ColorKeyFrame> value) noexcept;
-    void ClearKeyFrames() noexcept;
-    Span<const Ref<ColorKeyFrame>>
-    GetKeyFrames() const noexcept {
-        return {keyFrames_.Data(), keyFrames_.Size()};
-    }
-
-private:
-    Base::Vector<Ref<ColorKeyFrame>> keyFrames_;
-};
-
-class AERO_GUI_API DiscreteObjectKeyFrame : public Base::Object {
-    AERO_DECLARE_TYPE(DiscreteObjectKeyFrame, Base::Object)
-public:
-    Meta::TypeId RuntimeType() const noexcept override {
-        return StaticTypeId();
-    }
-    const Meta::PropertyValue& GetValue() const noexcept { return value_; }
-    StringView GetKeyTime() const noexcept {
-        return keyTimeText_.View();
-    }
-    AnimationTime GetKeyTimeMicroseconds() const noexcept {
-        return keyTimeMicroseconds_;
-    }
-    void SetValue(
-        const Meta::PropertyValue& value) noexcept;
-    void SetKeyTime(StringView value) noexcept;
-
-private:
-    Meta::PropertyValue value_;
-    String keyTimeText_;
-    AnimationTime keyTimeMicroseconds_ = 0U;
-};
-
-class AERO_GUI_API ObjectAnimationUsingKeyFrames : public Timeline {
-    AERO_DECLARE_TYPE(ObjectAnimationUsingKeyFrames, Timeline)
-public:
-    ObjectAnimationUsingKeyFrames() noexcept
-        : Timeline(StaticTypeId()) {}
-    Result<void> AddKeyFrame(
-        Ref<DiscreteObjectKeyFrame> value) noexcept;
-    void ClearKeyFrames() noexcept;
-    Span<const Ref<DiscreteObjectKeyFrame>>
-    GetKeyFrames() const noexcept {
-        return {keyFrames_.Data(), keyFrames_.Size()};
-    }
-
-private:
-    Base::Vector<Ref<DiscreteObjectKeyFrame>> keyFrames_;
-};
-
-class AERO_GUI_API DiscreteBooleanKeyFrame : public Base::Object {
-    AERO_DECLARE_TYPE(DiscreteBooleanKeyFrame, Base::Object)
-public:
-    Meta::TypeId RuntimeType() const noexcept override {
-        return StaticTypeId();
-    }
-    bool GetValue() const noexcept { return value_; }
-    StringView GetKeyTime() const noexcept {
-        return keyTimeText_.View();
-    }
-    AnimationTime GetKeyTimeMicroseconds() const noexcept {
-        return keyTimeMicroseconds_;
-    }
-    void SetValue(bool value) noexcept {
-        value_ = value;
-        return;
-    }
-    void SetKeyTime(StringView value) noexcept;
-
-private:
-    bool value_ = false;
-    String keyTimeText_;
-    AnimationTime keyTimeMicroseconds_ = 0U;
-};
-
-class AERO_GUI_API BooleanAnimationUsingKeyFrames : public Timeline {
-    AERO_DECLARE_TYPE(BooleanAnimationUsingKeyFrames, Timeline)
-public:
-    BooleanAnimationUsingKeyFrames() noexcept
-        : Timeline(StaticTypeId()) {}
-    Result<void> AddKeyFrame(
-        Ref<DiscreteBooleanKeyFrame> value) noexcept;
-    void ClearKeyFrames() noexcept;
-    Span<const Ref<DiscreteBooleanKeyFrame>>
-    GetKeyFrames() const noexcept {
-        return {keyFrames_.Data(), keyFrames_.Size()};
-    }
-
-private:
-    Base::Vector<Ref<DiscreteBooleanKeyFrame>> keyFrames_;
-};
-
-class AERO_GUI_API Storyboard : public Timeline {
-    AERO_DECLARE_TYPE(Storyboard, Timeline)
-public:
-    Storyboard() noexcept : Storyboard(StaticTypeId()) {}
-    ~Storyboard() override;
-
-    inline static constexpr AttachedProperty<String> TargetNameProperty{"TargetName"};
-    inline static constexpr AttachedProperty<String> TargetPropertyProperty{"TargetProperty"};
-
-    Result<void> AddTimeline(
-        Ref<Timeline> value) noexcept;
-    void ClearTimelines() noexcept;
-    Span<const Ref<Timeline>>
-    GetTimelines() const noexcept {
-        return {timelines_.Data(), timelines_.Size()};
-    }
-
-protected:
-    explicit Storyboard(Meta::TypeId runtimeType) noexcept
-        : Timeline(runtimeType) {}
-    bool FreezeCore(bool isChecking) noexcept override;
-
-private:
-    void OnTimelineChanged(Freezable&) noexcept;
-    Base::Vector<Ref<Timeline>> timelines_;
-    FreezableChangedHandler timelineChangedHandler_;
-};
-
-// Timeline group with independent BeginTime/Duration/RepeatBehavior. It shares
-// Storyboard's child collection but does not introduce a second clock model.
-class AERO_GUI_API ParallelTimeline final : public Storyboard {
-    AERO_DECLARE_TYPE(ParallelTimeline, Storyboard)
-public:
-    ParallelTimeline() noexcept
-        : Storyboard(StaticTypeId()) {}
-};
-
-
-} // namespace Aero::Media::Animation
-
-AERO_DECLARE_TYPE_ENUM(Aero::Media::Animation::FillBehavior)
-
-AERO_DECLARE_TYPE_ENUM(Aero::Media::Animation::EasingMode)
-
-// Trigger actions are exposed through concept-specific headers. They include
-// this animation core and therefore do not introduce a second declaration
-// owner or a dependency cycle.
-#include <Aero/Interactivity/TriggerAction.hpp>
-#include <Aero/Media/Animation/EventTrigger.hpp>
-#include <Aero/Media/Animation/StoryboardActions.hpp>
-#include <Aero/Media/Animation/StoryboardCompletedTrigger.hpp>
-#include <Aero/Media/Animation/TimerTrigger.hpp>
-#include <Aero/Media/Animation/MediaActions.hpp>
+// Animation type umbrella. Interactivity triggers and storyboard
+// actions live in their own headers and must not be pulled from here.
+#include <Aero/Media/Animation/TimeSpan.hpp>
+#include <Aero/Media/Animation/Duration.hpp>
+#include <Aero/Media/Animation/RepeatBehavior.hpp>
+#include <Aero/Media/Animation/KeyTime.hpp>
+#include <Aero/Media/Animation/Timeline.hpp>
+#include <Aero/Media/Animation/AnimationTimeline.hpp>
+#include <Aero/Media/Animation/TimelineGroup.hpp>
+#include <Aero/Media/Animation/ParallelTimeline.hpp>
+#include <Aero/Media/Animation/Storyboard.hpp>
+#include <Aero/Media/Animation/EasingFunctionBase.hpp>
+#include <Aero/Media/Animation/SineEase.hpp>
+#include <Aero/Media/Animation/QuadraticEase.hpp>
+#include <Aero/Media/Animation/CubicEase.hpp>
+#include <Aero/Media/Animation/QuarticEase.hpp>
+#include <Aero/Media/Animation/QuinticEase.hpp>
+#include <Aero/Media/Animation/CircleEase.hpp>
+#include <Aero/Media/Animation/ExponentialEase.hpp>
+#include <Aero/Media/Animation/PowerEase.hpp>
+#include <Aero/Media/Animation/BackEase.hpp>
+#include <Aero/Media/Animation/BounceEase.hpp>
+#include <Aero/Media/Animation/ElasticEase.hpp>
+#include <Aero/Media/Animation/KeyFrameBase.hpp>
+#include <Aero/Media/Animation/KeyFrame.hpp>
+#include <Aero/Media/Animation/DoubleKeyFrame.hpp>
+#include <Aero/Media/Animation/LinearDoubleKeyFrame.hpp>
+#include <Aero/Media/Animation/DiscreteDoubleKeyFrame.hpp>
+#include <Aero/Media/Animation/EasingDoubleKeyFrame.hpp>
+#include <Aero/Media/Animation/SplineDoubleKeyFrame.hpp>
+#include <Aero/Media/Animation/PointKeyFrame.hpp>
+#include <Aero/Media/Animation/LinearPointKeyFrame.hpp>
+#include <Aero/Media/Animation/DiscretePointKeyFrame.hpp>
+#include <Aero/Media/Animation/EasingPointKeyFrame.hpp>
+#include <Aero/Media/Animation/SplinePointKeyFrame.hpp>
+#include <Aero/Media/Animation/ColorKeyFrame.hpp>
+#include <Aero/Media/Animation/LinearColorKeyFrame.hpp>
+#include <Aero/Media/Animation/DiscreteColorKeyFrame.hpp>
+#include <Aero/Media/Animation/EasingColorKeyFrame.hpp>
+#include <Aero/Media/Animation/SplineColorKeyFrame.hpp>
+#include <Aero/Media/Animation/ThicknessKeyFrame.hpp>
+#include <Aero/Media/Animation/LinearThicknessKeyFrame.hpp>
+#include <Aero/Media/Animation/DiscreteThicknessKeyFrame.hpp>
+#include <Aero/Media/Animation/EasingThicknessKeyFrame.hpp>
+#include <Aero/Media/Animation/SplineThicknessKeyFrame.hpp>
+#include <Aero/Media/Animation/ObjectKeyFrame.hpp>
+#include <Aero/Media/Animation/DiscreteObjectKeyFrame.hpp>
+#include <Aero/Media/Animation/BooleanKeyFrame.hpp>
+#include <Aero/Media/Animation/DiscreteBooleanKeyFrame.hpp>
+#include <Aero/Media/Animation/DoubleAnimationBase.hpp>
+#include <Aero/Media/Animation/DoubleAnimation.hpp>
+#include <Aero/Media/Animation/ColorAnimationBase.hpp>
+#include <Aero/Media/Animation/ColorAnimation.hpp>
+#include <Aero/Media/Animation/PointAnimationBase.hpp>
+#include <Aero/Media/Animation/PointAnimation.hpp>
+#include <Aero/Media/Animation/RectAnimationBase.hpp>
+#include <Aero/Media/Animation/RectAnimation.hpp>
+#include <Aero/Media/Animation/ThicknessAnimationBase.hpp>
+#include <Aero/Media/Animation/ThicknessAnimation.hpp>
+#include <Aero/Media/Animation/AnimationUsingKeyFrames.hpp>
+#include <Aero/Media/Animation/DoubleAnimationUsingKeyFrames.hpp>
+#include <Aero/Media/Animation/PointAnimationUsingKeyFrames.hpp>
+#include <Aero/Media/Animation/ColorAnimationUsingKeyFrames.hpp>
+#include <Aero/Media/Animation/ThicknessAnimationUsingKeyFrames.hpp>
+#include <Aero/Media/Animation/ObjectAnimationUsingKeyFrames.hpp>
+#include <Aero/Media/Animation/BooleanAnimationUsingKeyFrames.hpp>
+#include <Aero/Media/Animation/Int16AnimationBase.hpp>
+#include <Aero/Media/Animation/Int16Animation.hpp>
+#include <Aero/Media/Animation/Int16KeyFrame.hpp>
+#include <Aero/Media/Animation/LinearInt16KeyFrame.hpp>
+#include <Aero/Media/Animation/DiscreteInt16KeyFrame.hpp>
+#include <Aero/Media/Animation/EasingInt16KeyFrame.hpp>
+#include <Aero/Media/Animation/SplineInt16KeyFrame.hpp>
+#include <Aero/Media/Animation/Int16AnimationUsingKeyFrames.hpp>
+#include <Aero/Media/Animation/Int32AnimationBase.hpp>
+#include <Aero/Media/Animation/Int32Animation.hpp>
+#include <Aero/Media/Animation/Int32KeyFrame.hpp>
+#include <Aero/Media/Animation/LinearInt32KeyFrame.hpp>
+#include <Aero/Media/Animation/DiscreteInt32KeyFrame.hpp>
+#include <Aero/Media/Animation/EasingInt32KeyFrame.hpp>
+#include <Aero/Media/Animation/SplineInt32KeyFrame.hpp>
+#include <Aero/Media/Animation/Int32AnimationUsingKeyFrames.hpp>
+#include <Aero/Media/Animation/Int64AnimationBase.hpp>
+#include <Aero/Media/Animation/Int64Animation.hpp>
+#include <Aero/Media/Animation/Int64KeyFrame.hpp>
+#include <Aero/Media/Animation/LinearInt64KeyFrame.hpp>
+#include <Aero/Media/Animation/DiscreteInt64KeyFrame.hpp>
+#include <Aero/Media/Animation/EasingInt64KeyFrame.hpp>
+#include <Aero/Media/Animation/SplineInt64KeyFrame.hpp>
+#include <Aero/Media/Animation/Int64AnimationUsingKeyFrames.hpp>
+#include <Aero/Media/Animation/SizeAnimationBase.hpp>
+#include <Aero/Media/Animation/SizeAnimation.hpp>
+#include <Aero/Media/Animation/SizeKeyFrame.hpp>
+#include <Aero/Media/Animation/LinearSizeKeyFrame.hpp>
+#include <Aero/Media/Animation/DiscreteSizeKeyFrame.hpp>
+#include <Aero/Media/Animation/EasingSizeKeyFrame.hpp>
+#include <Aero/Media/Animation/SplineSizeKeyFrame.hpp>
+#include <Aero/Media/Animation/SizeAnimationUsingKeyFrames.hpp>
+#include <Aero/Media/Animation/MatrixAnimationBase.hpp>
+#include <Aero/Media/Animation/MatrixAnimation.hpp>
+#include <Aero/Media/Animation/MatrixKeyFrame.hpp>
+#include <Aero/Media/Animation/LinearMatrixKeyFrame.hpp>
+#include <Aero/Media/Animation/DiscreteMatrixKeyFrame.hpp>
+#include <Aero/Media/Animation/EasingMatrixKeyFrame.hpp>
+#include <Aero/Media/Animation/SplineMatrixKeyFrame.hpp>
+#include <Aero/Media/Animation/MatrixAnimationUsingKeyFrames.hpp>
+#include <Aero/Media/Animation/StringKeyFrame.hpp>
+#include <Aero/Media/Animation/DiscreteStringKeyFrame.hpp>
+#include <Aero/Media/Animation/StringAnimationUsingKeyFrames.hpp>

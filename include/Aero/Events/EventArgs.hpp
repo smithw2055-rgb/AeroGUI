@@ -37,8 +37,7 @@ public:
     constexpr ::Aero::RoutedEvent GetRoutedEvent() const noexcept {
         return routedEvent_;
     }
-    constexpr void SetRoutedEvent(
-        ::Aero::RoutedEvent value) noexcept {
+    constexpr void SetRoutedEvent(::Aero::RoutedEvent value) noexcept {
         routedEvent_ = value;
     }
     Base::Object* GetSource() const noexcept { return source_; }
@@ -172,8 +171,7 @@ public:
         effects_ = value;
     }
     Base::Point GetPosition(const UIElement& relativeTo) const noexcept;
-    void SetRootPosition(
-        UIElement* root, Base::Point position) noexcept {
+    void SetRootPosition(UIElement* root, Base::Point position) noexcept {
         root_ = root;
         rootPosition_ = position;
     }

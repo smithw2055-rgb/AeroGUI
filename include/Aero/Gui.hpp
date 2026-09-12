@@ -14,6 +14,7 @@ namespace Aero {
 
 class View;
 class FrameworkElement;
+class ResourceDictionary;
 namespace Markup {
 class XamlDocument;
 class XamlProvider;
@@ -34,14 +35,9 @@ public:
 
     Result<void> AddModule(
         const ModuleRegistration& registration) noexcept;
-    Result<void> SetXamlProvider(
-        Ref<Markup::XamlProvider> provider,
-        StringView scheme = {},
-        StringView assembly = {}) noexcept;
-    Result<void> SetTextureProvider(
-        Ref<Media::TextureProvider> provider) noexcept;
-    Result<void> SetFontProvider(
-        Ref<Media::FontProvider> provider) noexcept;
+    Result<void> SetXamlProvider(Ref<Markup::XamlProvider> provider, StringView scheme = {}, StringView assembly = {}) noexcept;
+    Result<void> SetTextureProvider(Ref<Media::TextureProvider> provider) noexcept;
+    Result<void> SetFontProvider(Ref<Media::FontProvider> provider) noexcept;
     Result<void> Initialize() noexcept;
     template<class T = FrameworkElement>
     Result<Ref<T>> LoadXaml(
@@ -56,7 +52,8 @@ public:
     }
     Result<void> LoadComponent(
         Base::Object& component,
-        StringView uri) noexcept;
+        StringView uri,
+        ResourceDictionary* resources = nullptr) noexcept;
     Result<Ref<View>> CreateView(
         Base::IAllocator* allocator = nullptr) noexcept;
     Result<Ref<View>> CreateView(

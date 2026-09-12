@@ -9,7 +9,7 @@
 #include <new>
 #include <utility>
 
-#include "gui/GuiData.hpp"
+#include "gui/GuiDetail.hpp"
 
 namespace Aero::Markup {
 
@@ -22,7 +22,7 @@ struct ReloadCoordinatorState final {
     ReloadCoordinatorState(
         View& valueView,
         Base::IAllocator& valueAllocator,
-        GuiState* valueGui) noexcept
+        GuiRuntime* valueGui) noexcept
         : view(&valueView),
           allocator(&valueAllocator),
           gui(valueGui),
@@ -37,8 +37,8 @@ struct ReloadCoordinatorState final {
         }
         std::uint64_t sourceIdentity = 0U;
         std::uint64_t revision = 0U;
-        Base::Result<void> queried = gui->xaml.QuerySource(
-            gui->xamlProviders, uri, sourceIdentity, revision);
+        Base::Result<void> queried = gui->QuerySource(
+            uri, sourceIdentity, revision);
         return queried
             ? Base::Result<std::uint64_t>(revision)
             : Base::Result<std::uint64_t>(queried.GetStatus());
@@ -64,16 +64,17 @@ struct ReloadCoordinatorState final {
         }
         std::uint64_t sourceIdentity = 0U;
         std::uint64_t currentRevision = 0U;
-        Base::Result<void> queried = gui->xaml.QuerySource(
-            gui->xamlProviders, uri, sourceIdentity, currentRevision);
+        Base::Result<void> queried = gui->QuerySource(
+            uri, sourceIdentity, currentRevision);
         if (!queried) return queried.GetStatus();
         std::uint64_t revision = currentRevision;
-        static_cast<void>(gui->xaml.TryGetCachedRevision(
+        static_cast<void>(gui->TryGetCachedRevision(
             uri, sourceIdentity, revision));
         RevisionRecord record;
         record.uri = uri;
         record.revision = revision;
-        return records.PushBack(std::move(record));
+        records.PushBack(std::move(record));
+        return {};
     }
 
     Base::Result<void> BuildTrackedSources(
@@ -117,7 +118,7 @@ struct ReloadCoordinatorState final {
                 "XAML reload Gui state is unavailable");
         }
         Base::Result<std::uint32_t> invalidated =
-            gui->xaml.Invalidate(changed, true);
+            gui->Invalidate(changed, true);
         if (!invalidated) return invalidated.GetStatus();
         const std::uint32_t invalidatedCount = invalidated.Value();
 
@@ -147,7 +148,7 @@ struct ReloadCoordinatorState final {
 
     View* view = nullptr;
     Base::IAllocator* allocator = nullptr;
-    GuiState* gui = nullptr;
+    GuiRuntime* gui = nullptr;
     Base::ResourceUri rootUri;
     Aero::Size availableSize;
     Base::Vector<RevisionRecord> revisions;
@@ -163,8 +164,8 @@ ReloadCoordinator::ReloadCoordinator(
           ? allocator
           : &Base::GetDefaultAllocator()) {
     Gui& gui = view.GetGui();
-    GuiState* guiState = gui.state_
-        ? &static_cast<GuiState&>(*gui.state_)
+    GuiRuntime* guiState = gui.state_
+        ? &static_cast<GuiRuntime&>(*gui.state_)
         : nullptr;
     void* memory = allocator_->Allocate({sizeof(ReloadCoordinatorState),
         alignof(ReloadCoordinatorState), Base::MemoryTag::Markup});

@@ -1,13 +1,19 @@
 #include "Inspector.hpp"
-#include "gui/meta/MetadataState.hpp"
-#include "gui/core/State.hpp" 
+#include "gui/meta/TypeRegistryDetail.hpp"
+#include "gui/core/ElementTree.hpp"
+#include "gui/core/LayoutEngine.hpp"
+#include "gui/core/EffectiveValueEngine.hpp"
+#include "gui/core/RoutedEvents.hpp"
+#include "gui/core/EventRouter.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleState.hpp"
+#include "gui/styles/StyleEngine.hpp"
 
 #include <Aero/Controls.hpp>
-#include "gui/core/facets/VisualFacet.hpp"
+#include <Aero/LogicalTreeHelper.hpp>
+#include <Aero/VisualTreeHelper.hpp>
 
-#include "gui/controls/ControlBehavior.hpp"
+
 
 namespace Aero::Diagnostics {
 namespace {
@@ -39,22 +45,22 @@ Base::Result<void> AppendTree(
     }
     InspectorTreeNode record;
     record.node = &node;
-    record.handle = Aero::Core::VisualFacet::Handle(node);
+    record.handle = AeroGuiInternal::Handle(node);
     record.parent = parent;
     record.runtimeType =
         node.RuntimeType();
     record.depth = depth;
-    Base::Result<void> appended =
-        output.PushBack(record);
-    if (!appended) {
-        return appended.GetStatus();
-    }
-    const Base::Span<::Aero::Media::Visual* const> children =
+    output.PushBack(record);
+    const std::uint32_t childCount =
         kind == TreeKind::Logical
-        ? node.GetLogicalChildren()
-        : node.GetVisualChildren();
-    for (::Aero::Media::Visual* child : children) {
+        ? LogicalTreeHelper::GetChildrenCount(node)
+        : Media::VisualTreeHelper::GetChildrenCount(node);
+    for (std::uint32_t index = 0U; index < childCount; ++index) {
+        ::Aero::Media::Visual* child = kind == TreeKind::Logical
+            ? ::Aero::TryCast<::Aero::Media::Visual>(LogicalTreeHelper::GetChild(node, index))
+            : Media::VisualTreeHelper::GetChild(node, index);
         if (child == nullptr) {
+            if (kind == TreeKind::Logical) continue;
             return Status::Failure(
                 ErrorCode::InvalidState,
                 "Inspector tree contains "
@@ -94,7 +100,7 @@ using namespace Aero::Threading;
         bindings_ == nullptr ||
         renderer_ == nullptr ||
         maxTreeNodes == 0U ||
-        target.GetTree() != tree_) {
+        VisualTree(target) != tree_) {
         return Status::Failure(
             ErrorCode::InvalidArgument,
             "Inspector render target "
@@ -133,7 +139,7 @@ using namespace Aero::Threading;
 
     for (const DependencyProperty&
         property :
-        target.PropertyRegistry().
+        AeroGuiInternal::PropertyRegistry(target).
             Properties()) {
         if (property.MetadataFor(
                 target.RuntimeType()) ==
@@ -174,13 +180,9 @@ using namespace Aero::Threading;
                 ErrorCode::NotFound) {
             return diagnostics.GetStatus();
         }
-        Base::Result<void> appended =
-            output.effectiveProperties.
+        output.effectiveProperties.
                 PushBack(
                     std::move(inspected));
-        if (!appended) {
-            return appended.GetStatus();
-        }
     }
 
     Base::Result<std::uint32_t> bindings =
@@ -192,7 +194,7 @@ using namespace Aero::Threading;
     }
 
     FrameworkElement* element =
-        target.AsFrameworkElement();
+        ::Aero::TryCast<::Aero::FrameworkElement>(&(target));
     if (element != nullptr) {
         Base::Result<Value> context =
             element->GetDataContextResult();
@@ -213,7 +215,7 @@ using namespace Aero::Threading;
             styles_->AppliedStyle(target);
     }
     if (templates_ != nullptr &&
-        target.PropertyRegistry().
+        AeroGuiInternal::PropertyRegistry(target).
             Types().IsDerivedFrom(
                 target.RuntimeType(),
                 Control::StaticTypeId())) {

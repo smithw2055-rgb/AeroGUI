@@ -9,7 +9,7 @@ presentation adapters are not SDK products.
 | Product | Header | Purpose |
 | --- | --- | --- |
 | `Aero::Gui` | `<Aero/Gui.hpp>` | backend-neutral WPF/XAML object model, controls, View and runtime |
-| `Aero::Render` | `<AeroRender/Render.hpp>` | backend-neutral renderer, device and target contracts; no separate DLL |
+| `Aero::Render` | `<AeroRender/RenderDevice.hpp>` + `<Aero/IRenderer.hpp>` | backend-neutral renderer, device and target contracts; no separate DLL |
 | `Aero::RenderD3D11` | `<AeroRender/D3D11.hpp>` | opt-in D3D11 device/target factories |
 | `Aero::RenderOpenGL33` | `<AeroRender/OpenGL33.hpp>` | opt-in OpenGL 3.3 device/target factories |
 | `Aero::Meta` | `<Aero/Meta.hpp>` | custom type/member authoring facade over Gui |

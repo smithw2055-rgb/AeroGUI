@@ -10,7 +10,7 @@ class InlineCollection;
 class InlineCollectionView;
 class TextPointer;
 }
-namespace Aero::Core { class TextLayoutFacet; }
+namespace Aero::Meta { class Registration; }
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
 using ::Aero::Media::Brush;
@@ -18,6 +18,7 @@ using ::Aero::Media::FrameworkElementForegroundProperty;
 class AERO_GUI_API TextBlock : public FrameworkElement {
     AERO_DECLARE_TYPE(TextBlock, FrameworkElement)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
 
     // Source-retained formatting produced by RichText markup. Text layout
     // keeps byte offsets for hit testing, so the same ranges can tint shaped
@@ -54,67 +55,55 @@ public:
     Documents::TextPointer GetContentEnd() noexcept;
     Value GetMetadataInlines() const noexcept;
     void SetText(StringView value) noexcept;
-    void SetForeground(
-        Ref<Brush> value) noexcept;
-    void SetBackground(
-        Ref<Brush> value) noexcept;
+    void SetForeground(Ref<Brush> value) noexcept;
+    void SetBackground(Ref<Brush> value) noexcept;
     void SetFontSize(double value) noexcept;
     void SetFontFamily(Ref<Media::FontFamily> value) noexcept;
-    Result<void> SetFontFamily(StringView value) noexcept;
-    void SetFontWeight(
-        FontWeight value) noexcept;
-    void SetFontStyle(
-        FontStyle value) noexcept;
-    void SetTextDecorations(
-        TextDecorations value) noexcept;
-    void SetTextWrapping(
-        TextWrapping value) noexcept;
-    void SetTextTrimming(
-        TextTrimming value) noexcept;
-    void SetTextAlignment(
-        TextAlignment value) noexcept;
+    void SetFontFamily(StringView value) noexcept;
+    void SetFontWeight(FontWeight value) noexcept;
+    void SetFontStyle(FontStyle value) noexcept;
+    void SetTextDecorations(TextDecorations value) noexcept;
+    void SetTextWrapping(TextWrapping value) noexcept;
+    void SetTextTrimming(TextTrimming value) noexcept;
+    void SetTextAlignment(TextAlignment value) noexcept;
     void SetLineHeight(double value) noexcept;
-    void SetInlineValue(
-        Value value) noexcept;
-    void SetRichTextStyleRanges(
-        Base::Span<const RichTextStyleRange> ranges) noexcept;
-    Result<void> AddOwnedInline(
+    void SetInlineValue(Value value) noexcept;
+    void SetRichTextStyleRanges(Base::Span<const RichTextStyleRange> ranges) noexcept;
+    void AddOwnedInline(
         const Ref<Base::Object>& inlineObject) noexcept;
     void ClearOwnedInlines() noexcept;
-    inline static constexpr DependencyProperty<String> TextProperty{"Text"};
+    AERO_DEPENDENCY_PROPERTY(String, Text);
     inline static constexpr auto ForegroundProperty = FrameworkElementForegroundProperty;
-    inline static constexpr DependencyProperty<Ref<Aero::Media::Brush>> BackgroundProperty{"Background"};
-    inline static constexpr DependencyProperty<Ref<Aero::Media::Brush>> StrokeProperty{"Stroke"};
+    AERO_DEPENDENCY_PROPERTY(Ref<Aero::Media::Brush>, Background);
+    AERO_DEPENDENCY_PROPERTY(Ref<Aero::Media::Brush>, Stroke);
     // WPF exposes the same inheritable text formatting property through
     // Control and TextBlock owners. Sharing the handle here gives generated
     // text content the ComboBoxItem/Control FontSize instead of falling back
     // to an unrelated TextBlock default.
     inline static constexpr auto FontSizeProperty = Control::FontSizeProperty;
     inline static constexpr auto FontFamilyProperty = FrameworkElement::FontFamilyProperty;
-    inline static constexpr DependencyProperty<FontWeight> FontWeightProperty{"FontWeight"};
-    inline static constexpr DependencyProperty<FontStyle> FontStyleProperty{"FontStyle"};
-    inline static constexpr DependencyProperty<TextDecorations> TextDecorationsProperty{"TextDecorations"};
-    inline static constexpr DependencyProperty<double> StrokeThicknessProperty{"StrokeThickness"};
-    inline static constexpr DependencyProperty<TextWrapping> TextWrappingProperty{"TextWrapping"};
-    inline static constexpr DependencyProperty<TextTrimming> TextTrimmingProperty{"TextTrimming"};
-    inline static constexpr DependencyProperty<TextAlignment> TextAlignmentProperty{"TextAlignment"};
-    inline static constexpr DependencyProperty<double> LineHeightProperty{"LineHeight"};
-    inline static constexpr DependencyProperty<Thickness> PaddingProperty{"Padding"};
+    AERO_DEPENDENCY_PROPERTY(FontWeight, FontWeight);
+    AERO_DEPENDENCY_PROPERTY(FontStyle, FontStyle);
+    AERO_DEPENDENCY_PROPERTY(TextDecorations, TextDecorations);
+    AERO_DEPENDENCY_PROPERTY(double, StrokeThickness);
+    AERO_DEPENDENCY_PROPERTY(TextWrapping, TextWrapping);
+    AERO_DEPENDENCY_PROPERTY(TextTrimming, TextTrimming);
+    AERO_DEPENDENCY_PROPERTY(TextAlignment, TextAlignment);
+    AERO_DEPENDENCY_PROPERTY(double, LineHeight);
+    AERO_DEPENDENCY_PROPERTY(Thickness, Padding);
 protected:
     explicit TextBlock(TypeId runtimeType) noexcept;
     Size MeasureOverride(Size availableSize) noexcept override;
     Size ArrangeOverride(Size finalSize) noexcept override;
     void OnRender(::Aero::Media::DrawingContext& context) noexcept override;
+    std::uint32_t GetVisualChildrenCount() const noexcept override;
+    ::Aero::Media::Visual* GetVisualChild(std::uint32_t index) const noexcept override;
 private:
-#if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::Core::TextLayoutFacet;
     friend struct TextBlockDocumentHelper;
-#endif
 
     StringView EffectiveFontFamily() const noexcept;
     void ReleaseServiceGlyphRun() noexcept;
-    void SetGlyphRun(
-        std::uint64_t glyphRun, Size size) noexcept;
+    void SetGlyphRun(std::uint64_t glyphRun, Size size) noexcept;
 
     Base::Vector<std::uint64_t> glyphRuns_;
     Base::Vector<TextHitRegion> textHitRegions_;

@@ -1,9 +1,8 @@
 #include <Aero/Base/Assert.hpp>
 
-#include "gui/meta/MetadataState.hpp"
+#include "gui/meta/TypeRegistryDetail.hpp"
+#include "gui/markup/XamlObjectWriterCommon.hpp"
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/markup/MarkupState.hpp"
-#include "gui/markup/MarkupWriterState.hpp"
 
 #include <new>
 #include <utility>
@@ -42,8 +41,8 @@ Base::Status InvalidBundleState(const char* message) noexcept {
 
 } // namespace
 
-struct GuiSchemaState {
-    explicit GuiSchemaState(Base::IAllocator& value) noexcept
+struct GuiSchema::State {
+    explicit State(Base::IAllocator& value) noexcept
         : allocator(&value) {}
 
     Base::IAllocator* allocator = nullptr;
@@ -55,6 +54,7 @@ struct GuiSchemaState {
     Markup::UiObjectModel* uiObjectModel = nullptr;
     Markup::ResourceExtension resourceExtension;
     Markup::StaticExtension staticExtension;
+    Markup::StaticResourceExtension staticResourceExtension;
     Markup::TypeExtension typeExtension;
     Markup::LocExtension locExtension;
     Markup::TemplateBindingExtension templateBindingExtension;
@@ -62,7 +62,7 @@ struct GuiSchemaState {
     bool frozen = false;
     bool terminal = false;
 
-    ~GuiSchemaState() noexcept {
+    ~State() noexcept {
         Destroy(*allocator, Base::MemoryTag::Markup, uiObjectModel);
         Destroy(*allocator, Base::MemoryTag::Markup, binding);
         Destroy(*allocator, Base::MemoryTag::Markup, dynamicResource);
@@ -71,22 +71,22 @@ struct GuiSchemaState {
 };
 
 static_assert(
-    sizeof(GuiSchemaState) <= 65536,
+    sizeof(GuiSchema::State) <= 65536,
     "GuiSchema inline state storage is too small");
 static_assert(
-    alignof(GuiSchemaState) <= alignof(std::max_align_t),
+    alignof(GuiSchema::State) <= alignof(std::max_align_t),
     "GuiSchema inline state alignment is insufficient");
 
 GuiSchema::GuiSchema(Base::IAllocator* allocator) noexcept
     : allocator_(allocator != nullptr
           ? allocator
           : &Base::GetDefaultAllocator()) {
-    state_ = new (stateStorage_) GuiSchemaState(*allocator_);
+    state_ = new (stateStorage_) GuiSchema::State(*allocator_);
 }
 
 GuiSchema::~GuiSchema() noexcept {
     if (state_ == nullptr) return;
-    state_->~GuiSchemaState();
+    state_->~State();
     state_ = nullptr;
 }
 
@@ -168,8 +168,7 @@ Base::Result<void> GuiSchema::Finalize(
             Base::MemoryTag::Markup,
             Markup::UiObjectModelOptions{
                 &state_->metadata,
-                &::Aero::MetadataPrivate::
-                    DependencyProperties(state_->metadata),
+                &(state_->metadata).DependencyProperties(),
                 &programAllocator});
     if (!uiObjectModel) {
         state_->terminal = true;
@@ -199,6 +198,13 @@ Base::Result<void> GuiSchema::Finalize(
             Meta::MakeTypeId(
                 Markup::LanguageNamespaceUri(),
                 Base::StringView("Static")));
+    }
+    if (status) {
+        status = state_->staticResourceExtension.Register(
+            *state_->schema,
+            Meta::MakeTypeId(
+                Meta::AeroNamespaceUri(),
+                Base::StringView("StaticResourceExtension")));
     }
     if (status) {
         status = state_->typeExtension.Register(

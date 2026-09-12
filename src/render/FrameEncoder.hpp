@@ -111,6 +111,7 @@ private:
     struct OffscreenTargetEntry {
         RenderNodeId nodeId = InvalidRenderNodeId;
         bool isMask = false;
+        bool inUse = false;
         Ref<RenderTarget> target;
         std::uint32_t width = 0U;
         std::uint32_t height = 0U;
@@ -118,7 +119,12 @@ private:
 
     struct ClipEntry {
         Rect rect;
-        Transform2D transform;
+        ProjectiveTransform2D transform;
+        bool geometry = false;
+        std::uint32_t vertexOffset = 0U;
+        std::uint32_t vertexCount = 0U;
+        std::uint32_t indexOffset = 0U;
+        std::uint32_t indexCount = 0U;
     };
 
     void ResetFrame() noexcept;
@@ -132,6 +138,7 @@ private:
     RenderTarget* GetOrCreateOffscreenTarget(
         RenderNodeId nodeId, std::uint32_t width, std::uint32_t height,
         bool isMask = false) noexcept;
+    void BeginOffscreenTargetFrame() noexcept;
 
     void EmitQuad(
         const Point points[4],
@@ -152,7 +159,18 @@ private:
 
     void EmitClipQuad(
         const Rect& rect,
-        const Transform2D& transform,
+        const ProjectiveTransform2D& transform,
+        std::uint8_t stencilMode,
+        std::uint8_t stencilRef) noexcept;
+
+    void EmitClipTriangles(
+        Base::Span<const Point> vertices,
+        Base::Span<const std::uint32_t> indices,
+        std::uint32_t vertexOffset,
+        std::uint32_t vertexCount,
+        std::uint32_t indexOffset,
+        std::uint32_t indexCount,
+        const ProjectiveTransform2D& transform,
         std::uint8_t stencilMode,
         std::uint8_t stencilRef) noexcept;
 
@@ -168,12 +186,16 @@ private:
         Shader::Enum shader,
         Texture* texture,
         Texture* maskTexture = nullptr) noexcept;
+    void SetBatchRamp(
+        Shader::Enum shader,
+        Texture* ramp,
+        const float uniforms[8]) noexcept;
 
     void CompositeOffscreen(
         const RenderNodeSnapshot& node,
         RenderTarget* offscreen,
         RenderTarget* maskTarget,
-        const Transform2D& nodeTransform,
+        const ProjectiveTransform2D& nodeTransform,
         double nodeOpacity,
         double dpi,
         const RenderFrame& frame) noexcept;
@@ -186,7 +208,7 @@ private:
 
     void ProcessCommand(
         const RenderCommand& cmd,
-        const Transform2D& currentTransform,
+        const ProjectiveTransform2D& currentTransform,
         double currentOpacity) noexcept;
 
     RenderBlendMode::Enum currentBlendMode_ = BlendMode::SrcOver;
@@ -202,6 +224,9 @@ private:
     Base::Vector<OffscreenTargetEntry> offscreenTargets_{allocator_};
     Base::Vector<ClipEntry> clipStack_{allocator_};
     float offscreenSizeUniform_[2] = {0.0F, 0.0F};
+    float customEffectUniforms_[4] = {0.0F, 0.0F, 0.0F, 0.0F};
+    float paintUniforms_[8]{};
+    const RenderFrame* currentFrame_ = nullptr;
 
     std::uint8_t clipDepth_ = 0U;
 

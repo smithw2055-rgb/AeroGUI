@@ -1,11 +1,18 @@
-#include "gui/meta/MetadataState.hpp"
-#include "gui/core/State.hpp"
+#include "gui/meta/TypeRegistryDetail.hpp"
+#include "gui/core/ElementTree.hpp"
+#include "gui/core/LayoutEngine.hpp"
+#include "gui/core/EffectiveValueEngine.hpp"
+#include "gui/core/RoutedEvents.hpp"
+#include "gui/core/EventRouter.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/media/AnimationEngine.hpp"
 
 #include <Aero/Media/Animation.hpp>
 #include <AeroApp/Application.hpp>
 #include <Aero/Controls.hpp> 
+#include <Aero/Input/Cursor.hpp>
 #include <Aero/Input.hpp>
+#include <Aero/KeyboardNavigation.hpp>
 #include <Aero/Layout.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Images.hpp>
@@ -13,6 +20,9 @@
 #include <Aero/Shapes.hpp>
 #include <Aero/Interactivity/Conditions.hpp>
 #include <Aero/Media/Animation/StoryboardActions.hpp>
+#include <Aero/Data/SortDescription.hpp>
+#include <Aero/Media/ArcSegment.hpp>
+#include <Aero/Media/CombinedGeometry.hpp>
 #include <AeroApp/Window.hpp>
 
 namespace Aero {
@@ -32,6 +42,18 @@ Base::Result<void> RegisterEnum(
 
 Base::Result<void> PopulateEnumMetadata(
     Meta::Registration& context) noexcept {
+    using namespace Input;
+    using namespace Media::Animation;
+    using namespace Interactivity;
+    using namespace Media;
+    using namespace Shapes;
+    using namespace Data;
+    using namespace Controls;
+    using namespace Controls::Primitives;
+    // Prefer public Animation enums over Model aliases (AnimationEngine.hpp).
+    using Media::Animation::FillBehavior;
+    using Media::Animation::EasingMode;
+
     Base::Result<void> status;
 
 #define AERO_REGISTER_ENUM(Type, Name, Values) \
@@ -40,387 +62,453 @@ Base::Result<void> PopulateEnumMetadata(
     if (!status) return status.GetStatus()
 
     AERO_REGISTER_ENUM(
-        ::Aero::ShutdownMode,
+        ShutdownMode,
         "ShutdownMode",
         description
-            .Value("OnLastWindowClose", ::Aero::ShutdownMode::OnLastWindowClose)
-            .Value("OnMainWindowClose", ::Aero::ShutdownMode::OnMainWindowClose)
-            .Value("OnExplicitShutdown", ::Aero::ShutdownMode::OnExplicitShutdown););
+            .Value("OnLastWindowClose", ShutdownMode::OnLastWindowClose)
+            .Value("OnMainWindowClose", ShutdownMode::OnMainWindowClose)
+            .Value("OnExplicitShutdown", ShutdownMode::OnExplicitShutdown););
     AERO_REGISTER_ENUM(
-        ::Aero::WindowState,
+        WindowState,
         "WindowState",
         description
-            .Value("Normal", ::Aero::WindowState::Normal)
-            .Value("Minimized", ::Aero::WindowState::Minimized)
-            .Value("Maximized", ::Aero::WindowState::Maximized););
+            .Value("Normal", WindowState::Normal)
+            .Value("Minimized", WindowState::Minimized)
+            .Value("Maximized", WindowState::Maximized););
     AERO_REGISTER_ENUM(
-        ::Aero::WindowStyle,
+        WindowStyle,
         "WindowStyle",
         description
-            .Value("None", ::Aero::WindowStyle::None)
-            .Value("SingleBorderWindow", ::Aero::WindowStyle::SingleBorderWindow)
-            .Value("ThreeDBorderWindow", ::Aero::WindowStyle::ThreeDBorderWindow)
-            .Value("ToolWindow", ::Aero::WindowStyle::ToolWindow););
+            .Value("None", WindowStyle::None)
+            .Value("SingleBorderWindow", WindowStyle::SingleBorderWindow)
+            .Value("ThreeDBorderWindow", WindowStyle::ThreeDBorderWindow)
+            .Value("ToolWindow", WindowStyle::ToolWindow););
     AERO_REGISTER_ENUM(
-        ::Aero::ResizeMode,
+        ResizeMode,
         "ResizeMode",
         description
-            .Value("NoResize", ::Aero::ResizeMode::NoResize)
-            .Value("CanMinimize", ::Aero::ResizeMode::CanMinimize)
-            .Value("CanResize", ::Aero::ResizeMode::CanResize)
-            .Value("CanResizeWithGrip", ::Aero::ResizeMode::CanResizeWithGrip););
+            .Value("NoResize", ResizeMode::NoResize)
+            .Value("CanMinimize", ResizeMode::CanMinimize)
+            .Value("CanResize", ResizeMode::CanResize)
+            .Value("CanResizeWithGrip", ResizeMode::CanResizeWithGrip););
     AERO_REGISTER_ENUM(
-        ::Aero::SizeToContent,
+        SizeToContent,
         "SizeToContent",
         description
-            .Value("Manual", ::Aero::SizeToContent::Manual)
-            .Value("Width", ::Aero::SizeToContent::Width)
-            .Value("Height", ::Aero::SizeToContent::Height)
-            .Value("WidthAndHeight", ::Aero::SizeToContent::WidthAndHeight););
+            .Value("Manual", SizeToContent::Manual)
+            .Value("Width", SizeToContent::Width)
+            .Value("Height", SizeToContent::Height)
+            .Value("WidthAndHeight", SizeToContent::WidthAndHeight););
 
     AERO_REGISTER_ENUM(
-        ::Aero::Input::InputScope,
+        InputScope,
         "InputScope",
         description
-            .Value("Default", ::Aero::Input::InputScope::Default)
-            .Value("Url", ::Aero::Input::InputScope::Url)
-            .Value("EmailSmtpAddress", ::Aero::Input::InputScope::EmailSmtpAddress)
-            .Value("Digits", ::Aero::Input::InputScope::Digits)
-            .Value("Number", ::Aero::Input::InputScope::Number)
-            .Value("Password", ::Aero::Input::InputScope::Password)
-            .Value("TelephoneNumber", ::Aero::Input::InputScope::TelephoneNumber););
+            .Value("Default", InputScope::Default)
+            .Value("Url", InputScope::Url)
+            .Value("EmailSmtpAddress", InputScope::EmailSmtpAddress)
+            .Value("Digits", InputScope::Digits)
+            .Value("Number", InputScope::Number)
+            .Value("Password", InputScope::Password)
+            .Value("TelephoneNumber", InputScope::TelephoneNumber););
     AERO_REGISTER_ENUM(
-        ::Aero::Input::DragDropEffects,
+        DragDropEffects,
         "DragDropEffects",
         description
-            .Value("None", ::Aero::Input::DragDropEffects::None)
-            .Value("Copy", ::Aero::Input::DragDropEffects::Copy)
-            .Value("Move", ::Aero::Input::DragDropEffects::Move)
-            .Value("Link", ::Aero::Input::DragDropEffects::Link)
-            .Value("All", ::Aero::Input::DragDropEffects::All););
+            .Value("None", DragDropEffects::None)
+            .Value("Copy", DragDropEffects::Copy)
+            .Value("Move", DragDropEffects::Move)
+            .Value("Link", DragDropEffects::Link)
+            .Value("All", DragDropEffects::All););
     AERO_REGISTER_ENUM(
-        ::Aero::Input::KeyboardNavigationMode,
+        CursorType,
+        "CursorType",
+        description
+            .Value("None", CursorType::None)
+            .Value("No", CursorType::No)
+            .Value("Arrow", CursorType::Arrow)
+            .Value("AppStarting", CursorType::AppStarting)
+            .Value("Cross", CursorType::Cross)
+            .Value("Help", CursorType::Help)
+            .Value("IBeam", CursorType::IBeam)
+            .Value("SizeAll", CursorType::SizeAll)
+            .Value("SizeNESW", CursorType::SizeNESW)
+            .Value("SizeNS", CursorType::SizeNS)
+            .Value("SizeNWSE", CursorType::SizeNWSE)
+            .Value("SizeWE", CursorType::SizeWE)
+            .Value("UpArrow", CursorType::UpArrow)
+            .Value("Wait", CursorType::Wait)
+            .Value("Hand", CursorType::Hand)
+            .Value("Pen", CursorType::Pen)
+            .Value("ScrollNS", CursorType::ScrollNS)
+            .Value("ScrollWE", CursorType::ScrollWE)
+            .Value("ScrollAll", CursorType::ScrollAll)
+            .Value("ScrollN", CursorType::ScrollN)
+            .Value("ScrollS", CursorType::ScrollS)
+            .Value("ScrollW", CursorType::ScrollW)
+            .Value("ScrollE", CursorType::ScrollE)
+            .Value("ScrollNW", CursorType::ScrollNW)
+            .Value("ScrollNE", CursorType::ScrollNE)
+            .Value("ScrollSW", CursorType::ScrollSW)
+            .Value("ScrollSE", CursorType::ScrollSE)
+            .Value("ArrowCD", CursorType::ArrowCD)
+            .Value("Custom", CursorType::Custom););
+    AERO_REGISTER_ENUM(
+        KeyboardNavigationMode,
         "KeyboardNavigationMode",
         description
-            .Value("Continue", ::Aero::Input::KeyboardNavigationMode::Continue)
-            .Value("Once", ::Aero::Input::KeyboardNavigationMode::Once)
-            .Value("Cycle", ::Aero::Input::KeyboardNavigationMode::Cycle)
-            .Value("None", ::Aero::Input::KeyboardNavigationMode::None)
-            .Value("Contained", ::Aero::Input::KeyboardNavigationMode::Contained)
-            .Value("Local", ::Aero::Input::KeyboardNavigationMode::Local););
+            .Value("Continue", KeyboardNavigationMode::Continue)
+            .Value("Once", KeyboardNavigationMode::Once)
+            .Value("Cycle", KeyboardNavigationMode::Cycle)
+            .Value("None", KeyboardNavigationMode::None)
+            .Value("Contained", KeyboardNavigationMode::Contained)
+            .Value("Local", KeyboardNavigationMode::Local););
 
     AERO_REGISTER_ENUM(
-        ::Aero::Media::Animation::FillBehavior,
+        FillBehavior,
         "FillBehavior",
         description
-            .Value("HoldEnd", ::Aero::Media::Animation::FillBehavior::HoldEnd)
-            .Value("Stop", ::Aero::Media::Animation::FillBehavior::Stop););
+            .Value("HoldEnd", FillBehavior::HoldEnd)
+            .Value("Stop", FillBehavior::Stop););
     AERO_REGISTER_ENUM(
-        ::Aero::Media::Animation::EasingMode,
+        EasingMode,
         "EasingMode",
         description
-            .Value("EaseOut", ::Aero::Media::Animation::EasingMode::EaseOut)
-            .Value("EaseIn", ::Aero::Media::Animation::EasingMode::EaseIn)
-            .Value("EaseInOut", ::Aero::Media::Animation::EasingMode::EaseInOut););
+            .Value("EaseOut", EasingMode::EaseOut)
+            .Value("EaseIn", EasingMode::EaseIn)
+            .Value("EaseInOut", EasingMode::EaseInOut););
     AERO_REGISTER_ENUM(
-        ::Aero::Media::Animation::ControlStoryboardAction::Option,
+        ControlStoryboardAction::Option,
         "ControlStoryboardOption",
         description
-            .Value("Play", ::Aero::Media::Animation::ControlStoryboardAction::Option::Play)
-            .Value("Stop", ::Aero::Media::Animation::ControlStoryboardAction::Option::Stop)
-            .Value("TogglePlayPause", ::Aero::Media::Animation::ControlStoryboardAction::Option::TogglePlayPause)
-            .Value("Pause", ::Aero::Media::Animation::ControlStoryboardAction::Option::Pause)
-            .Value("Resume", ::Aero::Media::Animation::ControlStoryboardAction::Option::Resume)
-            .Value("SkipToFill", ::Aero::Media::Animation::ControlStoryboardAction::Option::SkipToFill););
+            .Value("Play", ControlStoryboardAction::Option::Play)
+            .Value("Stop", ControlStoryboardAction::Option::Stop)
+            .Value("TogglePlayPause", ControlStoryboardAction::Option::TogglePlayPause)
+            .Value("Pause", ControlStoryboardAction::Option::Pause)
+            .Value("Resume", ControlStoryboardAction::Option::Resume)
+            .Value("SkipToFill", ControlStoryboardAction::Option::SkipToFill););
     AERO_REGISTER_ENUM(
-        ::Aero::Interactivity::ComparisonCondition::Operator,
+        ComparisonCondition::Operator,
         "ComparisonConditionOperator",
         description
-            .Value("Equal", ::Aero::Interactivity::ComparisonCondition::Operator::Equal)
-            .Value("NotEqual", ::Aero::Interactivity::ComparisonCondition::Operator::NotEqual)
-            .Value("LessThan", ::Aero::Interactivity::ComparisonCondition::Operator::LessThan)
-            .Value("LessThanOrEqual", ::Aero::Interactivity::ComparisonCondition::Operator::LessThanOrEqual)
-            .Value("GreaterThan", ::Aero::Interactivity::ComparisonCondition::Operator::GreaterThan)
-            .Value("GreaterThanOrEqual", ::Aero::Interactivity::ComparisonCondition::Operator::GreaterThanOrEqual););
+            .Value("Equal", ComparisonCondition::Operator::Equal)
+            .Value("NotEqual", ComparisonCondition::Operator::NotEqual)
+            .Value("LessThan", ComparisonCondition::Operator::LessThan)
+            .Value("LessThanOrEqual", ComparisonCondition::Operator::LessThanOrEqual)
+            .Value("GreaterThan", ComparisonCondition::Operator::GreaterThan)
+            .Value("GreaterThanOrEqual", ComparisonCondition::Operator::GreaterThanOrEqual););
     AERO_REGISTER_ENUM(
-        ::Aero::Interactivity::ConditionalExpression::ForwardChaining,
+        ConditionalExpression::ForwardChaining,
         "ForwardChaining",
         description
-            .Value("And", ::Aero::Interactivity::ConditionalExpression::ForwardChaining::And)
-            .Value("Or", ::Aero::Interactivity::ConditionalExpression::ForwardChaining::Or););
+            .Value("And", ConditionalExpression::ForwardChaining::And)
+            .Value("Or", ConditionalExpression::ForwardChaining::Or););
 
     AERO_REGISTER_ENUM(
-        ::Aero::HorizontalAlignment,
+        HorizontalAlignment,
         "HorizontalAlignment",
         description
-            .Value("Stretch", ::Aero::HorizontalAlignment::Stretch)
-            .Value("Left", ::Aero::HorizontalAlignment::Left)
-            .Value("Center", ::Aero::HorizontalAlignment::Center)
-            .Value("Right", ::Aero::HorizontalAlignment::Right););
+            .Value("Stretch", HorizontalAlignment::Stretch)
+            .Value("Left", HorizontalAlignment::Left)
+            .Value("Center", HorizontalAlignment::Center)
+            .Value("Right", HorizontalAlignment::Right););
     AERO_REGISTER_ENUM(
-        ::Aero::VerticalAlignment,
+        VerticalAlignment,
         "VerticalAlignment",
         description
-            .Value("Stretch", ::Aero::VerticalAlignment::Stretch)
-            .Value("Top", ::Aero::VerticalAlignment::Top)
-            .Value("Center", ::Aero::VerticalAlignment::Center)
-            .Value("Bottom", ::Aero::VerticalAlignment::Bottom););
+            .Value("Stretch", VerticalAlignment::Stretch)
+            .Value("Top", VerticalAlignment::Top)
+            .Value("Center", VerticalAlignment::Center)
+            .Value("Bottom", VerticalAlignment::Bottom););
     AERO_REGISTER_ENUM(
-        ::Aero::Visibility,
+        Visibility,
         "Visibility",
         description
-            .Value("Visible", ::Aero::Visibility::Visible)
-            .Value("Hidden", ::Aero::Visibility::Hidden)
-            .Value("Collapsed", ::Aero::Visibility::Collapsed););
+            .Value("Visible", Visibility::Visible)
+            .Value("Hidden", Visibility::Hidden)
+            .Value("Collapsed", Visibility::Collapsed););
     AERO_REGISTER_ENUM(
-        ::Aero::BlendMode,
+        BlendMode,
         "BlendMode",
         description
-            .Value("Normal", ::Aero::BlendMode::Normal)
-            .Value("Multiply", ::Aero::BlendMode::Multiply)
-            .Value("Screen", ::Aero::BlendMode::Screen)
-            .Value("Additive", ::Aero::BlendMode::Additive););
+            .Value("Normal", BlendMode::Normal)
+            .Value("Multiply", BlendMode::Multiply)
+            .Value("Screen", BlendMode::Screen)
+            .Value("Additive", BlendMode::Additive););
     AERO_REGISTER_ENUM(
-        ::Aero::Media::Stretch,
+        Stretch,
         "Stretch",
         description
-            .Value("None", ::Aero::Media::Stretch::None)
-            .Value("Fill", ::Aero::Media::Stretch::Fill)
-            .Value("Uniform", ::Aero::Media::Stretch::Uniform)
-            .Value("UniformToFill", ::Aero::Media::Stretch::UniformToFill););
+            .Value("None", Stretch::None)
+            .Value("Fill", Stretch::Fill)
+            .Value("Uniform", Stretch::Uniform)
+            .Value("UniformToFill", Stretch::UniformToFill););
     AERO_REGISTER_ENUM(
-        ::Aero::Media::StretchDirection,
+        StretchDirection,
         "StretchDirection",
         description
-            .Value("UpOnly", ::Aero::Media::StretchDirection::UpOnly)
-            .Value("DownOnly", ::Aero::Media::StretchDirection::DownOnly)
-            .Value("Both", ::Aero::Media::StretchDirection::Both););
+            .Value("UpOnly", StretchDirection::UpOnly)
+            .Value("DownOnly", StretchDirection::DownOnly)
+            .Value("Both", StretchDirection::Both););
     AERO_REGISTER_ENUM(
-        ::Aero::Media::MediaState,
+        MediaState,
         "MediaState",
         description
-            .Value("Manual", ::Aero::Media::MediaState::Manual)
-            .Value("Play", ::Aero::Media::MediaState::Play)
-            .Value("Close", ::Aero::Media::MediaState::Close)
-            .Value("Pause", ::Aero::Media::MediaState::Pause)
-            .Value("Stop", ::Aero::Media::MediaState::Stop););
+            .Value("Manual", MediaState::Manual)
+            .Value("Play", MediaState::Play)
+            .Value("Close", MediaState::Close)
+            .Value("Pause", MediaState::Pause)
+            .Value("Stop", MediaState::Stop););
     AERO_REGISTER_ENUM(
-        ::Aero::Media::TileMode,
+        TileMode,
         "TileMode",
         description
-            .Value("None", ::Aero::Media::TileMode::None)
-            .Value("Tile", ::Aero::Media::TileMode::Tile)
-            .Value("FlipX", ::Aero::Media::TileMode::FlipX)
-            .Value("FlipY", ::Aero::Media::TileMode::FlipY)
-            .Value("FlipXY", ::Aero::Media::TileMode::FlipXY););
+            .Value("None", TileMode::None)
+            .Value("Tile", TileMode::Tile)
+            .Value("FlipX", TileMode::FlipX)
+            .Value("FlipY", TileMode::FlipY)
+            .Value("FlipXY", TileMode::FlipXY););
     AERO_REGISTER_ENUM(
-        ::Aero::Media::BrushMappingMode,
+        BrushMappingMode,
         "BrushMappingMode",
         description
-            .Value("RelativeToBoundingBox", ::Aero::Media::BrushMappingMode::RelativeToBoundingBox)
-            .Value("Absolute", ::Aero::Media::BrushMappingMode::Absolute););
+            .Value("RelativeToBoundingBox", BrushMappingMode::RelativeToBoundingBox)
+            .Value("Absolute", BrushMappingMode::Absolute););
     AERO_REGISTER_ENUM(
-        ::Aero::Media::GradientSpreadMethod,
+        GradientSpreadMethod,
         "GradientSpreadMethod",
         description
-            .Value("Pad", ::Aero::Media::GradientSpreadMethod::Pad)
-            .Value("Reflect", ::Aero::Media::GradientSpreadMethod::Reflect)
-            .Value("Repeat", ::Aero::Media::GradientSpreadMethod::Repeat););
+            .Value("Pad", GradientSpreadMethod::Pad)
+            .Value("Reflect", GradientSpreadMethod::Reflect)
+            .Value("Repeat", GradientSpreadMethod::Repeat););
     AERO_REGISTER_ENUM(
-        ::Aero::Shapes::PenLineJoin,
+        FillRule,
+        "FillRule",
+        description
+            .Value("EvenOdd", FillRule::EvenOdd)
+            .Value("Nonzero", FillRule::Nonzero););
+    AERO_REGISTER_ENUM(
+        PenLineJoin,
         "PenLineJoin",
         description
-            .Value("Miter", ::Aero::Shapes::PenLineJoin::Miter)
-            .Value("Bevel", ::Aero::Shapes::PenLineJoin::Bevel)
-            .Value("Round", ::Aero::Shapes::PenLineJoin::Round););
+            .Value("Miter", PenLineJoin::Miter)
+            .Value("Bevel", PenLineJoin::Bevel)
+            .Value("Round", PenLineJoin::Round););
     AERO_REGISTER_ENUM(
-        ::Aero::Shapes::PenLineCap,
+        PenLineCap,
         "PenLineCap",
         description
-            .Value("Flat", ::Aero::Shapes::PenLineCap::Flat)
-            .Value("Square", ::Aero::Shapes::PenLineCap::Square)
-            .Value("Round", ::Aero::Shapes::PenLineCap::Round)
-            .Value("Triangle", ::Aero::Shapes::PenLineCap::Triangle););
+            .Value("Flat", PenLineCap::Flat)
+            .Value("Square", PenLineCap::Square)
+            .Value("Round", PenLineCap::Round)
+            .Value("Triangle", PenLineCap::Triangle););
+    AERO_REGISTER_ENUM(
+        SweepDirection,
+        "SweepDirection",
+        description
+            .Value("Counterclockwise", SweepDirection::Counterclockwise)
+            .Value("Clockwise", SweepDirection::Clockwise););
+    AERO_REGISTER_ENUM(
+        GeometryCombineMode,
+        "GeometryCombineMode",
+        description
+            .Value("Union", GeometryCombineMode::Union)
+            .Value("Intersect", GeometryCombineMode::Intersect)
+            .Value("Xor", GeometryCombineMode::Xor)
+            .Value("Exclude", GeometryCombineMode::Exclude););
+    AERO_REGISTER_ENUM(
+        ListSortDirection,
+        "ListSortDirection",
+        description
+            .Value("Ascending", ListSortDirection::Ascending)
+            .Value("Descending", ListSortDirection::Descending););
 
     AERO_REGISTER_ENUM(
-        ::Aero::TextWrapping,
+        TextWrapping,
         "TextWrapping",
         description
-            .Value("NoWrap", ::Aero::TextWrapping::NoWrap)
-            .Value("Wrap", ::Aero::TextWrapping::Wrap)
-            .Value("WrapWithOverflow", ::Aero::TextWrapping::WrapWithOverflow););
+            .Value("NoWrap", TextWrapping::NoWrap)
+            .Value("Wrap", TextWrapping::Wrap)
+            .Value("WrapWithOverflow", TextWrapping::WrapWithOverflow););
     AERO_REGISTER_ENUM(
-        ::Aero::TextTrimming,
+        TextTrimming,
         "TextTrimming",
         description
-            .Value("None", ::Aero::TextTrimming::None)
-            .Value("CharacterEllipsis", ::Aero::TextTrimming::CharacterEllipsis)
-            .Value("WordEllipsis", ::Aero::TextTrimming::WordEllipsis););
+            .Value("None", TextTrimming::None)
+            .Value("CharacterEllipsis", TextTrimming::CharacterEllipsis)
+            .Value("WordEllipsis", TextTrimming::WordEllipsis););
     AERO_REGISTER_ENUM(
-        ::Aero::TextAlignment,
+        TextAlignment,
         "TextAlignment",
         description
-            .Value("Left", ::Aero::TextAlignment::Left)
-            .Value("Center", ::Aero::TextAlignment::Center)
-            .Value("Right", ::Aero::TextAlignment::Right)
-            .Value("Justify", ::Aero::TextAlignment::Justify););
+            .Value("Left", TextAlignment::Left)
+            .Value("Center", TextAlignment::Center)
+            .Value("Right", TextAlignment::Right)
+            .Value("Justify", TextAlignment::Justify););
     AERO_REGISTER_ENUM(
-        ::Aero::FlowDirection,
+        FlowDirection,
         "FlowDirection",
         description
-            .Value("LeftToRight", ::Aero::FlowDirection::LeftToRight)
-            .Value("RightToLeft", ::Aero::FlowDirection::RightToLeft););
+            .Value("LeftToRight", FlowDirection::LeftToRight)
+            .Value("RightToLeft", FlowDirection::RightToLeft););
     AERO_REGISTER_ENUM(
-        ::Aero::FontStyle,
+        FontStyle,
         "FontStyle",
         description
-            .Value("Normal", ::Aero::FontStyle::Normal)
-            .Value("Italic", ::Aero::FontStyle::Italic)
-            .Value("Oblique", ::Aero::FontStyle::Oblique););
+            .Value("Normal", FontStyle::Normal)
+            .Value("Italic", FontStyle::Italic)
+            .Value("Oblique", FontStyle::Oblique););
     AERO_REGISTER_ENUM(
-        ::Aero::FontWeight,
+        FontWeight,
         "FontWeight",
         description
-            .Value("Normal", ::Aero::FontWeight::Normal)
-            .Value("SemiBold", ::Aero::FontWeight::SemiBold)
-            .Value("Bold", ::Aero::FontWeight::Bold)
-            .Value("Regular", ::Aero::FontWeight::Regular););
+            .Value("Normal", FontWeight::Normal)
+            .Value("SemiBold", FontWeight::SemiBold)
+            .Value("Bold", FontWeight::Bold)
+            .Value("Regular", FontWeight::Regular););
     AERO_REGISTER_ENUM(
-        ::Aero::Controls::TextDecorations,
+        TextDecorations,
         "TextDecorations",
         description
-            .Value("None", ::Aero::Controls::TextDecorations::None)
-            .Value("Underline", ::Aero::Controls::TextDecorations::Underline););
+            .Value("None", TextDecorations::None)
+            .Value("Underline", TextDecorations::Underline););
     AERO_REGISTER_ENUM(
-        ::Aero::Controls::Orientation,
+        Orientation,
         "Orientation",
         description
-            .Value("Horizontal", ::Aero::Controls::Orientation::Horizontal)
-            .Value("Vertical", ::Aero::Controls::Orientation::Vertical););
+            .Value("Horizontal", Orientation::Horizontal)
+            .Value("Vertical", Orientation::Vertical););
     AERO_REGISTER_ENUM(
-        ::Aero::Controls::Dock,
+        Dock,
         "Dock",
         description
-            .Value("Left", ::Aero::Controls::Dock::Left)
-            .Value("Top", ::Aero::Controls::Dock::Top)
-            .Value("Right", ::Aero::Controls::Dock::Right)
-            .Value("Bottom", ::Aero::Controls::Dock::Bottom););
+            .Value("Left", Dock::Left)
+            .Value("Top", Dock::Top)
+            .Value("Right", Dock::Right)
+            .Value("Bottom", Dock::Bottom););
     AERO_REGISTER_ENUM(
-        ::Aero::Controls::MenuItemRole,
+        MenuItemRole,
         "MenuItemRole",
         description
-            .Value("TopLevelItem", ::Aero::Controls::MenuItemRole::TopLevelItem)
-            .Value("TopLevelHeader", ::Aero::Controls::MenuItemRole::TopLevelHeader)
-            .Value("SubmenuItem", ::Aero::Controls::MenuItemRole::SubmenuItem)
-            .Value("SubmenuHeader", ::Aero::Controls::MenuItemRole::SubmenuHeader););
+            .Value("TopLevelItem", MenuItemRole::TopLevelItem)
+            .Value("TopLevelHeader", MenuItemRole::TopLevelHeader)
+            .Value("SubmenuItem", MenuItemRole::SubmenuItem)
+            .Value("SubmenuHeader", MenuItemRole::SubmenuHeader););
     AERO_REGISTER_ENUM(
-        ::Aero::Controls::ClickMode,
+        ClickMode,
         "ClickMode",
         description
-            .Value("Release", ::Aero::Controls::ClickMode::Release)
-            .Value("Press", ::Aero::Controls::ClickMode::Press)
-            .Value("Hover", ::Aero::Controls::ClickMode::Hover););
+            .Value("Release", ClickMode::Release)
+            .Value("Press", ClickMode::Press)
+            .Value("Hover", ClickMode::Hover););
     AERO_REGISTER_ENUM(
-        ::Aero::Controls::TickPlacement,
+        TickPlacement,
         "TickPlacement",
         description
-            .Value("None", ::Aero::Controls::TickPlacement::None)
-            .Value("TopLeft", ::Aero::Controls::TickPlacement::TopLeft)
-            .Value("BottomRight", ::Aero::Controls::TickPlacement::BottomRight)
-            .Value("Both", ::Aero::Controls::TickPlacement::Both););
+            .Value("None", TickPlacement::None)
+            .Value("TopLeft", TickPlacement::TopLeft)
+            .Value("BottomRight", TickPlacement::BottomRight)
+            .Value("Both", TickPlacement::Both););
     AERO_REGISTER_ENUM(
-        ::Aero::Controls::TickBarPlacement,
+        TickBarPlacement,
         "TickBarPlacement",
         description
-            .Value("Top", ::Aero::Controls::TickBarPlacement::Top)
-            .Value("Bottom", ::Aero::Controls::TickBarPlacement::Bottom)
-            .Value("Left", ::Aero::Controls::TickBarPlacement::Left)
-            .Value("Right", ::Aero::Controls::TickBarPlacement::Right););
+            .Value("Top", TickBarPlacement::Top)
+            .Value("Bottom", TickBarPlacement::Bottom)
+            .Value("Left", TickBarPlacement::Left)
+            .Value("Right", TickBarPlacement::Right););
     AERO_REGISTER_ENUM(
-        ::Aero::Controls::ScrollBarVisibility,
+        ScrollBarVisibility,
         "ScrollBarVisibility",
         description
-            .Value("Disabled", ::Aero::Controls::ScrollBarVisibility::Disabled)
-            .Value("Auto", ::Aero::Controls::ScrollBarVisibility::Auto)
-            .Value("Hidden", ::Aero::Controls::ScrollBarVisibility::Hidden)
-            .Value("Visible", ::Aero::Controls::ScrollBarVisibility::Visible););
+            .Value("Disabled", ScrollBarVisibility::Disabled)
+            .Value("Auto", ScrollBarVisibility::Auto)
+            .Value("Hidden", ScrollBarVisibility::Hidden)
+            .Value("Visible", ScrollBarVisibility::Visible););
     AERO_REGISTER_ENUM(
-        ::Aero::Controls::PanningMode,
+        PanningMode,
         "PanningMode",
         description
-            .Value("None", ::Aero::Controls::PanningMode::None)
-            .Value("HorizontalOnly", ::Aero::Controls::PanningMode::HorizontalOnly)
-            .Value("VerticalOnly", ::Aero::Controls::PanningMode::VerticalOnly)
-            .Value("Both", ::Aero::Controls::PanningMode::Both)
-            .Value("HorizontalFirst", ::Aero::Controls::PanningMode::HorizontalFirst)
-            .Value("VerticalFirst", ::Aero::Controls::PanningMode::VerticalFirst););
+            .Value("None", PanningMode::None)
+            .Value("HorizontalOnly", PanningMode::HorizontalOnly)
+            .Value("VerticalOnly", PanningMode::VerticalOnly)
+            .Value("Both", PanningMode::Both)
+            .Value("HorizontalFirst", PanningMode::HorizontalFirst)
+            .Value("VerticalFirst", PanningMode::VerticalFirst););
     AERO_REGISTER_ENUM(
-        ::Aero::Controls::GridResizeDirection,
+        GridResizeDirection,
         "GridResizeDirection",
         description
-            .Value("Auto", ::Aero::Controls::GridResizeDirection::Auto)
-            .Value("Columns", ::Aero::Controls::GridResizeDirection::Columns)
-            .Value("Rows", ::Aero::Controls::GridResizeDirection::Rows););
+            .Value("Auto", GridResizeDirection::Auto)
+            .Value("Columns", GridResizeDirection::Columns)
+            .Value("Rows", GridResizeDirection::Rows););
     AERO_REGISTER_ENUM(
-        ::Aero::Controls::GridResizeBehavior,
+        GridResizeBehavior,
         "GridResizeBehavior",
         description
-            .Value("BasedOnAlignment", ::Aero::Controls::GridResizeBehavior::BasedOnAlignment)
-            .Value("CurrentAndNext", ::Aero::Controls::GridResizeBehavior::CurrentAndNext)
-            .Value("PreviousAndCurrent", ::Aero::Controls::GridResizeBehavior::PreviousAndCurrent)
-            .Value("PreviousAndNext", ::Aero::Controls::GridResizeBehavior::PreviousAndNext););
+            .Value("BasedOnAlignment", GridResizeBehavior::BasedOnAlignment)
+            .Value("CurrentAndNext", GridResizeBehavior::CurrentAndNext)
+            .Value("PreviousAndCurrent", GridResizeBehavior::PreviousAndCurrent)
+            .Value("PreviousAndNext", GridResizeBehavior::PreviousAndNext););
     AERO_REGISTER_ENUM(
-        ::Aero::Controls::SelectionMode,
+        SelectionMode,
         "SelectionMode",
         description
-            .Value("Single", ::Aero::Controls::SelectionMode::Single)
-            .Value("Multiple", ::Aero::Controls::SelectionMode::Multiple)
-            .Value("Extended", ::Aero::Controls::SelectionMode::Extended););
+            .Value("Single", SelectionMode::Single)
+            .Value("Multiple", SelectionMode::Multiple)
+            .Value("Extended", SelectionMode::Extended););
     AERO_REGISTER_ENUM(
-        ::Aero::Controls::ExpandDirection,
+        ExpandDirection,
         "ExpandDirection",
         description
-            .Value("Down", ::Aero::Controls::ExpandDirection::Down)
-            .Value("Up", ::Aero::Controls::ExpandDirection::Up)
-            .Value("Left", ::Aero::Controls::ExpandDirection::Left)
-            .Value("Right", ::Aero::Controls::ExpandDirection::Right););
+            .Value("Down", ExpandDirection::Down)
+            .Value("Up", ExpandDirection::Up)
+            .Value("Left", ExpandDirection::Left)
+            .Value("Right", ExpandDirection::Right););
     AERO_REGISTER_ENUM(
-        ::Aero::Controls::Primitives::PlacementMode,
+        PlacementMode,
         "PlacementMode",
         description
-            .Value("Bottom", ::Aero::Controls::Primitives::PlacementMode::Bottom)
-            .Value("Top", ::Aero::Controls::Primitives::PlacementMode::Top)
-            .Value("Left", ::Aero::Controls::Primitives::PlacementMode::Left)
-            .Value("Right", ::Aero::Controls::Primitives::PlacementMode::Right)
-            .Value("Center", ::Aero::Controls::Primitives::PlacementMode::Center)
-            .Value("Mouse", ::Aero::Controls::Primitives::PlacementMode::Mouse););
+            .Value("Bottom", PlacementMode::Bottom)
+            .Value("Top", PlacementMode::Top)
+            .Value("Left", PlacementMode::Left)
+            .Value("Right", PlacementMode::Right)
+            .Value("Center", PlacementMode::Center)
+            .Value("Mouse", PlacementMode::Mouse););
     AERO_REGISTER_ENUM(
-        ::Aero::Controls::Primitives::PopupAnimation,
+        PopupAnimation,
         "PopupAnimation",
         description
-            .Value("None", ::Aero::Controls::Primitives::PopupAnimation::None)
-            .Value("Fade", ::Aero::Controls::Primitives::PopupAnimation::Fade)
-            .Value("Slide", ::Aero::Controls::Primitives::PopupAnimation::Slide)
-            .Value("Scroll", ::Aero::Controls::Primitives::PopupAnimation::Scroll););
+            .Value("None", PopupAnimation::None)
+            .Value("Fade", PopupAnimation::Fade)
+            .Value("Slide", PopupAnimation::Slide)
+            .Value("Scroll", PopupAnimation::Scroll););
     AERO_REGISTER_ENUM(
-        ::Aero::Controls::GridViewColumnHeaderRole,
+        GridViewColumnHeaderRole,
         "GridViewColumnHeaderRole",
         description
-            .Value("Normal", ::Aero::Controls::GridViewColumnHeaderRole::Normal)
-            .Value("Floating", ::Aero::Controls::GridViewColumnHeaderRole::Floating)
-            .Value("Padding", ::Aero::Controls::GridViewColumnHeaderRole::Padding););
+            .Value("Normal", GridViewColumnHeaderRole::Normal)
+            .Value("Floating", GridViewColumnHeaderRole::Floating)
+            .Value("Padding", GridViewColumnHeaderRole::Padding););
     AERO_REGISTER_ENUM(
-        ::Aero::Controls::ScrollUnit,
+        ScrollUnit,
         "ScrollUnit",
         description
-            .Value("Item", ::Aero::Controls::ScrollUnit::Item)
-            .Value("Pixel", ::Aero::Controls::ScrollUnit::Pixel););
+            .Value("Item", ScrollUnit::Item)
+            .Value("Pixel", ScrollUnit::Pixel););
     AERO_REGISTER_ENUM(
-        ::Aero::Controls::VirtualizationMode,
+        VirtualizationMode,
         "VirtualizationMode",
         description
-            .Value("Standard", ::Aero::Controls::VirtualizationMode::Standard)
-            .Value("Recycling", ::Aero::Controls::VirtualizationMode::Recycling););
+            .Value("Standard", VirtualizationMode::Standard)
+            .Value("Recycling", VirtualizationMode::Recycling););
+    AERO_REGISTER_ENUM(
+        VirtualizationCacheLengthUnit,
+        "VirtualizationCacheLengthUnit",
+        description
+            .Value("Pixel", VirtualizationCacheLengthUnit::Pixel)
+            .Value("Item", VirtualizationCacheLengthUnit::Item)
+            .Value("Page", VirtualizationCacheLengthUnit::Page););
 
 #undef AERO_REGISTER_ENUM
     return {};
