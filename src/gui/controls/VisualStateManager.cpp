@@ -198,30 +198,6 @@ Base::Result<AnimationTarget> ResolveAnimationTarget(
     return AnimationTarget{resolved.Value().target, resolved.Value().property};
 }
 
-Aero::Media::Animation::Model::TimelineTiming ComposeTiming(
-    const Media::Animation::Timeline& timeline,
-    const Aero::Media::Animation::Model::TimelineTiming& parent) noexcept {
-    Aero::Media::Animation::Model::TimelineTiming timing =
-        Aero::Media::Animation::Timing(timeline);
-    if (UINT64_MAX - timing.beginTimeMicroseconds <
-        parent.beginTimeMicroseconds) {
-        timing.beginTimeMicroseconds = UINT64_MAX;
-    } else {
-        timing.beginTimeMicroseconds +=
-            parent.beginTimeMicroseconds;
-    }
-    if (timing.durationMicroseconds == 0U) {
-        timing.durationMicroseconds =
-            parent.durationMicroseconds;
-    }
-    if (parent.repeat.forever) {
-        timing.repeat = parent.repeat;
-    }
-    timing.speedRatio *= parent.speedRatio;
-    timing.autoReverse =
-        timing.autoReverse || parent.autoReverse;
-    return timing;
-}
 
 } // namespace
 

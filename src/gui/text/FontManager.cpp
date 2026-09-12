@@ -382,20 +382,18 @@ Base::Result<void> FontManager::ExtractGlyphOutline(
     return ValidateOutline(output);
 }
 
-FontManager::ProviderRecord* FontManager::FindProvider(
-    FontProviderId provider) noexcept {
-    for (ProviderRecord& record : registrations_) {
-        if (record.identity.id == provider) return &record;
-    }
-    return nullptr;
-}
-
 const FontManager::ProviderRecord* FontManager::FindProvider(
     FontProviderId provider) const noexcept {
     for (const ProviderRecord& record : registrations_) {
         if (record.identity.id == provider) return &record;
     }
     return nullptr;
+}
+
+FontManager::ProviderRecord* FontManager::FindProvider(
+    FontProviderId provider) noexcept {
+    return const_cast<ProviderRecord*>(
+        static_cast<const FontManager*>(this)->FindProvider(provider));
 }
 
 FontManager::ProviderRecord* FontManager::FindProvider(

@@ -112,6 +112,12 @@ Base::Result<void> UiFrameEncoder::Initialize() noexcept {
 }
 
 void UiFrameEncoder::Shutdown() noexcept {
+    lastImageId_ = InvalidRenderImageId;
+    lastImage_ = nullptr;
+    lastGlyphRunId_ = InvalidRenderGlyphRunId;
+    lastGlyphRun_ = nullptr;
+    lastMeshId_ = InvalidRenderMeshId;
+    lastMesh_ = nullptr;
     images_.Clear();
     atlases_.Clear();
     gradients_.Clear();
@@ -135,6 +141,10 @@ Base::Result<void> UiFrameEncoder::RegisterImage(
 }
 
 void UiFrameEncoder::UnregisterImage(RenderImageId imageId) noexcept {
+    if (lastImageId_ == imageId) {
+        lastImageId_ = InvalidRenderImageId;
+        lastImage_ = nullptr;
+    }
     for (std::uint32_t i = 0; i < images_.Size(); ++i) {
         if (images_[i].id == imageId) {
             if (i != images_.Size() - 1) {
@@ -177,6 +187,10 @@ Base::Result<void> UiFrameEncoder::RegisterGlyphRun(
 }
 
 void UiFrameEncoder::UnregisterGlyphRun(RenderGlyphRunId glyphRun) noexcept {
+    if (lastGlyphRunId_ == glyphRun) {
+        lastGlyphRunId_ = InvalidRenderGlyphRunId;
+        lastGlyphRun_ = nullptr;
+    }
     for (std::uint32_t i = 0U; i < glyphRuns_.Size(); ++i) {
         if (glyphRuns_[i].glyphRun == glyphRun) {
             if (i != glyphRuns_.Size() - 1U) {
@@ -210,6 +224,10 @@ Base::Result<void> UiFrameEncoder::RegisterMesh(
 }
 
 void UiFrameEncoder::UnregisterMesh(RenderMeshId mesh) noexcept {
+    if (lastMeshId_ == mesh) {
+        lastMeshId_ = InvalidRenderMeshId;
+        lastMesh_ = nullptr;
+    }
     for (std::uint32_t i = 0U; i < meshes_.Size(); ++i) {
         if (meshes_[i].mesh == mesh) {
             if (i != meshes_.Size() - 1U) {
@@ -222,8 +240,14 @@ void UiFrameEncoder::UnregisterMesh(RenderMeshId mesh) noexcept {
 }
 
 Texture* UiFrameEncoder::FindImage(RenderImageId id) const noexcept {
+    if (id == InvalidRenderImageId) return nullptr;
+    if (id == lastImageId_) return lastImage_;
     for (const auto& entry : images_) {
-        if (entry.id == id) return entry.texture.Get();
+        if (entry.id == id) {
+            lastImageId_ = id;
+            lastImage_ = entry.texture.Get();
+            return lastImage_;
+        }
     }
     return nullptr;
 }
@@ -237,16 +261,28 @@ Texture* UiFrameEncoder::FindAtlas(std::uint32_t page) const noexcept {
 
 const Base::Vector<RenderGlyphQuad>* UiFrameEncoder::FindGlyphRun(
     RenderGlyphRunId glyphRun) const noexcept {
+    if (glyphRun == InvalidRenderGlyphRunId) return nullptr;
+    if (glyphRun == lastGlyphRunId_) return lastGlyphRun_;
     for (const auto& entry : glyphRuns_) {
-        if (entry.glyphRun == glyphRun) return &entry.quads;
+        if (entry.glyphRun == glyphRun) {
+            lastGlyphRunId_ = glyphRun;
+            lastGlyphRun_ = &entry.quads;
+            return lastGlyphRun_;
+        }
     }
     return nullptr;
 }
 
 const UiFrameEncoder::MeshEntry* UiFrameEncoder::FindMesh(
     RenderMeshId mesh) const noexcept {
+    if (mesh == InvalidRenderMeshId) return nullptr;
+    if (mesh == lastMeshId_) return lastMesh_;
     for (const auto& entry : meshes_) {
-        if (entry.mesh == mesh) return &entry;
+        if (entry.mesh == mesh) {
+            lastMeshId_ = mesh;
+            lastMesh_ = &entry;
+            return lastMesh_;
+        }
     }
     return nullptr;
 }

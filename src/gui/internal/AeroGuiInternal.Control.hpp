@@ -247,3 +247,21 @@
     static Base::Result<void> ParseGridDefinitions(
         Base::StringView text,
         Base::Vector<GridLength>& output) noexcept;
+
+    // --- ElementTree visual child storage hooks ---
+    static Base::Result<void> EnsureVisualChildStorage(
+        Media::Visual& parent,
+        Media::Visual& child) noexcept;
+    static void AttachVisualControlTemplateRoot(
+        Media::Visual& parent,
+        Media::Visual& child) noexcept;
+    static void CleanVisualChildStorage(
+        Media::Visual& parent,
+        Media::Visual& child) noexcept;
+    static std::uint32_t AdvanceRepeatButtonTime(
+        Controls::Primitives::RepeatButton* button,
+        std::uint32_t elapsedMilliseconds,
+        std::uint64_t& repeatElapsed,
+        std::uint64_t& nextRepeat) noexcept;
+
+

@@ -1,5 +1,6 @@
 #include "gui/ViewFrame.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
+#include "gui/triggers/TriggerValueCompare.hpp"
 #include <Aero/Media/Animation/EventTrigger.hpp>
 
 #include <algorithm>
@@ -26,103 +27,46 @@ Base::Result<bool> StoryboardHost::AnimationEventState::EvaluateComparison(
                     Base::ErrorCode::InvalidState,
                     "ConditionBehavior requires a bound left operand");
             }
-            if (binding->GetElementName().Empty()) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::Unsupported,
-                    "ConditionBehavior currently requires Binding ElementName");
-            }
-            Base::Object* source = names != nullptr
-                ? names->Find(binding->GetElementName())
-                : runtime->view->loadedDocument.names.Find(
-                      binding->GetElementName());
-            if (source == nullptr) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::NotFound,
-                    "ConditionBehavior Binding ElementName was not found");
-            }
-            Base::Result<Meta::BindingPathPlan> plan =
-                Meta::BindingPathPlan::Compile(
-                    *runtime->Metadata(),
-                    source->RuntimeType(), binding->GetPath().GetPath());
-            if (!plan) return plan.GetStatus();
             Base::Result<Meta::PropertyValue> current =
-                plan.Value().Get(*runtime->Metadata(), *source);
+                Base::Status::Failure(Base::ErrorCode::NotFound, "Value not found");
+            if (runtime->Interactivity() != nullptr &&
+                owner != nullptr &&
+                TryCast<FrameworkElement>(owner) != nullptr) {
+                current = runtime->Interactivity()->EvaluateAuthoredBinding(
+                    *binding,
+                    *static_cast<FrameworkElement*>(owner),
+                    nullptr,
+                    names,
+                    nullptr);
+            } else {
+                if (binding->GetElementName().Empty()) {
+                    return Base::Status::Failure(
+                        Base::ErrorCode::Unsupported,
+                        "ConditionBehavior currently requires Binding ElementName");
+                }
+                Base::Object* source = names != nullptr
+                    ? names->Find(binding->GetElementName())
+                    : runtime->view->loadedDocument.names.Find(
+                          binding->GetElementName());
+                if (source == nullptr) {
+                    return Base::Status::Failure(
+                        Base::ErrorCode::NotFound,
+                        "ConditionBehavior Binding ElementName was not found");
+                }
+                Base::Result<Meta::BindingPathPlan> plan =
+                    Meta::BindingPathPlan::Compile(
+                        *runtime->Metadata(),
+                        source->RuntimeType(), binding->GetPath().GetPath());
+                if (!plan) return plan.GetStatus();
+                current = plan.Value().Get(*runtime->Metadata(), *source);
+            }
             if (!current) return current.GetStatus();
-            Meta::PropertyValue expected = condition.GetRightOperand();
-            if (expected.IsNullObject()) {
-                return current.Value().IsNullObject();
-            }
-            if (expected.Kind() == Meta::ValueKind::String &&
-                expected.Type() != current.Value().Type()) {
-                Base::Result<Meta::PropertyValue> converted =
-                    Meta::PropertyValue::TryFromString(
-                        current.Value().Type(), expected.AsString());
-                // WPF-style conditions simply do not match when their two
-                // operands cannot be converted to a comparable type.
-                if (!converted) return false;
-                expected = std::move(converted).Value();
-            }
-            const auto comparison = condition.GetComparisonOperator();
-            if (comparison ==
-                Interactivity::ComparisonCondition::Operator::Equal) {
-                return current.Value().Equals(expected);
-            }
-            if (comparison ==
-                Interactivity::ComparisonCondition::Operator::NotEqual) {
-                return !current.Value().Equals(expected);
-            }
-
-            const auto isNumeric = [](Meta::ValueKind kind) noexcept {
-                return kind == Meta::ValueKind::SignedInteger ||
-                    kind == Meta::ValueKind::UnsignedInteger ||
-                    kind == Meta::ValueKind::Double;
-            };
-            const auto numericValue = [](const Meta::PropertyValue& value) noexcept {
-                switch (value.Kind()) {
-                case Meta::ValueKind::SignedInteger:
-                    return static_cast<long double>(value.AsSignedInteger());
-                case Meta::ValueKind::UnsignedInteger:
-                    return static_cast<long double>(value.AsUnsignedInteger());
-                case Meta::ValueKind::Double:
-                    return static_cast<long double>(value.AsDouble());
-                default:
-                    return 0.0L;
-                }
-            };
-            if (isNumeric(current.Value().Kind()) && isNumeric(expected.Kind())) {
-                const long double left = numericValue(current.Value());
-                const long double right = numericValue(expected);
-                switch (comparison) {
-                case Interactivity::ComparisonCondition::Operator::LessThan:
-                    return left < right;
-                case Interactivity::ComparisonCondition::Operator::LessThanOrEqual:
-                    return left <= right;
-                case Interactivity::ComparisonCondition::Operator::GreaterThan:
-                    return left > right;
-                case Interactivity::ComparisonCondition::Operator::GreaterThanOrEqual:
-                    return left >= right;
-                default:
-                    break;
-                }
-            }
-            if (current.Value().Kind() == Meta::ValueKind::String &&
-                expected.Kind() == Meta::ValueKind::String) {
-                const int result = current.Value().AsString().Compare(
-                    expected.AsString());
-                switch (comparison) {
-                case Interactivity::ComparisonCondition::Operator::LessThan:
-                    return result < 0;
-                case Interactivity::ComparisonCondition::Operator::LessThanOrEqual:
-                    return result <= 0;
-                case Interactivity::ComparisonCondition::Operator::GreaterThan:
-                    return result > 0;
-                case Interactivity::ComparisonCondition::Operator::GreaterThanOrEqual:
-                    return result >= 0;
-                default:
-                    break;
-                }
-            }
-            return false;
+            return ComparePropertyValues(
+                current.Value(),
+                condition.GetRightOperand(),
+                runtime != nullptr ? runtime->Metadata() : nullptr,
+                static_cast<PropertyComparisonOperator>(
+                    condition.GetComparisonOperator()));
         }
 
 Base::Result<bool> StoryboardHost::AnimationEventState::BehaviorsAllowExecution() noexcept {
@@ -142,23 +86,21 @@ Base::Result<bool> StoryboardHost::AnimationEventState::BehaviorsAllowExecution(
                         Base::ErrorCode::InvalidState,
                         "ConditionBehavior has no expression");
                 }
-                bool expressionResult = false;
+                const bool conjunction = expression->GetChaining() ==
+                    Interactivity::ConditionalExpression::ForwardChaining::And;
+                bool expressionResult = conjunction;
+                bool hasCondition = false;
                 for (const Base::Ref<Interactivity::ComparisonCondition>& condition :
                      expression->GetConditions()) {
                     if (!condition) continue;
+                    hasCondition = true;
                     Base::Result<bool> matches = EvaluateComparison(*condition);
                     if (!matches) return matches.GetStatus();
                     expressionResult = matches.Value();
-                    if (!expressionResult && expression->GetChaining() ==
-                        Interactivity::ConditionalExpression::ForwardChaining::And) {
-                        return false;
-                    }
-                    if (expressionResult && expression->GetChaining() ==
-                        Interactivity::ConditionalExpression::ForwardChaining::Or) {
-                        break;
-                    }
+                    if (conjunction && !expressionResult) return false;
+                    if (!conjunction && expressionResult) break;
                 }
-                if (!expressionResult) return false;
+                if (!hasCondition || !expressionResult) return false;
             }
             return true;
         }

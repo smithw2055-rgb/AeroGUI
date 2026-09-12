@@ -3,14 +3,36 @@
 #include "gui/triggers/TriggerValueCompare.hpp"
 #include "gui/styles/StyleEngine.hpp"
 #include "gui/controls/ItemsContainers.hpp"
+#include "gui/meta/ValueConversion.hpp"
 #include <Aero/Meta.hpp>
 
 namespace Aero {
 
+namespace {
+
+bool TryExtractNumeric(const Meta::PropertyValue& value, long double& output) noexcept {
+    switch (value.Kind()) {
+    case Meta::ValueKind::SignedInteger:
+        output = static_cast<long double>(value.AsSignedInteger());
+        return true;
+    case Meta::ValueKind::UnsignedInteger:
+        output = static_cast<long double>(value.AsUnsignedInteger());
+        return true;
+    case Meta::ValueKind::Double:
+        output = static_cast<long double>(value.AsDouble());
+        return true;
+    default:
+        return false;
+    }
+}
+
+} // namespace
+
 Base::Result<bool> ComparePropertyValues(
     const Meta::PropertyValue& actual,
     Meta::PropertyValue expected,
-    const Meta::Registry* metadata) noexcept {
+    const Meta::Registry* metadata,
+    PropertyComparisonOperator op) noexcept {
     if (actual.Kind() == Meta::ValueKind::Object &&
         !actual.IsNullObject() && actual.AsObject() &&
         actual.AsObject()->RuntimeType() ==
@@ -19,35 +41,116 @@ Base::Result<bool> ComparePropertyValues(
             static_cast<const ::Aero::Controls::BoxedItemValue&>(
                 *actual.AsObject()).Value(),
             std::move(expected),
-            metadata);
+            metadata,
+            op);
     }
     if (expected.IsNullObject() || expected.IsUnset()) {
-        return actual.IsNullObject() || actual.IsUnset();
+        const bool eq = actual.IsNullObject() || actual.IsUnset();
+        if (op == PropertyComparisonOperator::Equal) return eq;
+        if (op == PropertyComparisonOperator::NotEqual) return !eq;
+        return false;
     }
-    if (expected.Kind() == Meta::ValueKind::String &&
-        actual.Kind() == Meta::ValueKind::String) {
-        return actual.AsString() == expected.AsString();
-    }
-    if (expected.Kind() == Meta::ValueKind::String &&
-        expected.Type() != actual.Type()) {
+
+    Meta::PropertyValue leftValue = actual;
+    Meta::PropertyValue rightValue = std::move(expected);
+
+    if (rightValue.Kind() == Meta::ValueKind::String &&
+        leftValue.Kind() != Meta::ValueKind::String) {
         if (metadata == nullptr) {
+            if (op == PropertyComparisonOperator::Equal ||
+                op == PropertyComparisonOperator::NotEqual) {
+                const bool eq = (leftValue == rightValue);
+                return op == PropertyComparisonOperator::Equal ? eq : !eq;
+            }
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
                 "Trigger metadata is unavailable for text conversion");
         }
         Base::Result<Meta::PropertyValue> converted =
-            metadata->TryConvertText(actual.Type(), expected.AsString());
+            metadata->TryConvertText(leftValue.Type(), rightValue.AsString());
         if (!converted) return false;
-        expected = std::move(converted).Value();
+        rightValue = std::move(converted).Value();
     }
-    return actual == expected;
+
+    if (op == PropertyComparisonOperator::Equal ||
+        op == PropertyComparisonOperator::NotEqual) {
+        const bool eq = (leftValue == rightValue);
+        return op == PropertyComparisonOperator::Equal ? eq : !eq;
+    }
+
+    if (leftValue.Kind() == Meta::ValueKind::String &&
+        rightValue.Kind() == Meta::ValueKind::String) {
+        const int order = leftValue.AsString().Compare(rightValue.AsString());
+        switch (op) {
+        case PropertyComparisonOperator::LessThan:
+            return order < 0;
+        case PropertyComparisonOperator::LessThanOrEqual:
+            return order <= 0;
+        case PropertyComparisonOperator::GreaterThan:
+            return order > 0;
+        case PropertyComparisonOperator::GreaterThanOrEqual:
+            return order >= 0;
+        default:
+            return false;
+        }
+    }
+
+    long double leftNumber = 0.0L;
+    long double rightNumber = 0.0L;
+    if (TryExtractNumeric(leftValue, leftNumber) &&
+        TryExtractNumeric(rightValue, rightNumber)) {
+        switch (op) {
+        case PropertyComparisonOperator::LessThan:
+            return leftNumber < rightNumber;
+        case PropertyComparisonOperator::LessThanOrEqual:
+            return leftNumber <= rightNumber;
+        case PropertyComparisonOperator::GreaterThan:
+            return leftNumber > rightNumber;
+        case PropertyComparisonOperator::GreaterThanOrEqual:
+            return leftNumber >= rightNumber;
+        default:
+            return false;
+        }
+    }
+
+    return false;
+}
+
+Base::Result<bool> ComparePropertyValues(
+    const Meta::PropertyValue& actual,
+    Meta::PropertyValue expected,
+    const Meta::Registry* metadata,
+    Base::StringView comparison) noexcept {
+    PropertyComparisonOperator op = PropertyComparisonOperator::Equal;
+    if (!comparison.Empty()) {
+        if (Base::ValueConversion::EqualsAsciiInsensitive(comparison, "Equal")) {
+            op = PropertyComparisonOperator::Equal;
+        } else if (Base::ValueConversion::EqualsAsciiInsensitive(comparison, "NotEqual")) {
+            op = PropertyComparisonOperator::NotEqual;
+        } else if (Base::ValueConversion::EqualsAsciiInsensitive(comparison, "LessThan")) {
+            op = PropertyComparisonOperator::LessThan;
+        } else if (Base::ValueConversion::EqualsAsciiInsensitive(comparison, "LessThanOrEqual")) {
+            op = PropertyComparisonOperator::LessThanOrEqual;
+        } else if (Base::ValueConversion::EqualsAsciiInsensitive(comparison, "GreaterThan")) {
+            op = PropertyComparisonOperator::GreaterThan;
+        } else if (Base::ValueConversion::EqualsAsciiInsensitive(comparison, "GreaterThanOrEqual")) {
+            op = PropertyComparisonOperator::GreaterThanOrEqual;
+        } else {
+            return false;
+        }
+    }
+    return ComparePropertyValues(actual, std::move(expected), metadata, op);
 }
 
 Base::Result<bool> TriggerPlan::IsConditionMet(
     const DependencyObject& object) const noexcept {
     Base::Result<PropertyValue> current = object.GetValue(property);
     if (!current) return current.GetStatus();
-    return current.Value() == value;
+    Base::Result<bool> matched = ComparePropertyValues(current.Value(), value, nullptr);
+    if (!matched) {
+        return current.Value() == value;
+    }
+    return matched.Value();
 }
 
 TriggerEngine::TriggerEngine(

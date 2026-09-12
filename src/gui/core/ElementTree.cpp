@@ -12,13 +12,6 @@
 #include <Aero/FrameworkContentElement.hpp>
 #include <Aero/LogicalTreeHelper.hpp>
 #include <Aero/VisualTreeHelper.hpp>
-#include <Aero/Controls/ContentPresenter.hpp>
-#include <Aero/Controls/Decorator.hpp>
-#include <Aero/Controls/Panel.hpp>
-#include <Aero/Controls/ContentControl.hpp>
-#include <Aero/Controls/ControlTemplate.hpp>
-#include <Aero/Controls/Primitives/RepeatButton.hpp>
-
 
 #include "gui/data/BindingEngine.hpp"
 #include "gui/styles/StyleEngine.hpp"
@@ -45,84 +38,6 @@ Base::Status NotFound(const char* message) noexcept {
 RoutedEventTable& Events(void* state) noexcept {
     AERO_ASSERT(state != nullptr);
     return *static_cast<RoutedEventTable*>(state);
-}
-
-Base::Result<void> EnsureVisualChildStorage(
-    ::Aero::Media::Visual& parent,
-    ::Aero::Media::Visual& child) noexcept {
-    UIElement* childElement = ::Aero::TryCast<::Aero::UIElement>(&(child));
-    if (childElement == nullptr) return {};
-    const TypeRegistry& types = AeroGuiInternal::PropertyRegistry(parent).Types();
-    if (types.IsDerivedFrom(
-            parent.RuntimeType(), Controls::Panel::StaticTypeId())) {
-        auto& panel = static_cast<Controls::Panel&>(parent);
-        const std::uint32_t count = AeroGuiInternal::PanelChildCount(panel);
-        for (std::uint32_t index = 0U; index < count; ++index) {
-            if (AeroGuiInternal::PanelChildAt(panel, index).Get() == childElement) {
-                return {};
-            }
-        }
-        Base::Ref<Base::Object> borrowed =
-            Base::Ref<Base::Object>::FromBorrowed(*childElement);
-        AeroGuiInternal::PanelAddChild(panel, borrowed, *childElement);
-        return {};
-    }
-    if (types.IsDerivedFrom(
-            parent.RuntimeType(), Controls::ContentPresenter::StaticTypeId())) {
-        auto& presenter = static_cast<Controls::ContentPresenter&>(parent);
-        if (presenter.GetContent() == nullptr) {
-            presenter.SetContent(childElement);
-        }
-        return {};
-    }
-    if (types.IsDerivedFrom(
-            parent.RuntimeType(), Controls::ContentControl::StaticTypeId())) {
-        auto& control = static_cast<Controls::ContentControl&>(parent);
-        UIElement* existing =
-            AeroGuiInternal::ContentControlContent(control);
-        if (existing == childElement) {
-            return {};
-        }
-        // Content is a logical property, not a side effect of visual attach.
-        // Assigning a ControlTemplate visual child as Content makes
-        // ProjectContent parent that subtree under a ContentPresenter inside
-        // itself ("Visual tree attachment would create a cycle").
-        const Base::Ref<Controls::ControlTemplate> templ =
-            control.GetValue(Controls::Control::TemplateProperty);
-        if (existing == nullptr &&
-            AeroGuiInternal::TemplateRoot(control) == nullptr &&
-            !templ) {
-            control.SetContent(childElement);
-        }
-        return {};
-    }
-    if (types.IsDerivedFrom(
-            parent.RuntimeType(), Controls::Decorator::StaticTypeId())) {
-        auto& decorator = static_cast<Controls::Decorator&>(parent);
-        if (decorator.GetChild() == nullptr) {
-            decorator.SetChild(childElement);
-        }
-        return {};
-    }
-    if (types.IsDerivedFrom(
-            parent.RuntimeType(), Controls::BulletDecorator::StaticTypeId())) {
-        auto& bullet = static_cast<Controls::BulletDecorator&>(parent);
-        if (bullet.GetChild() == childElement ||
-            bullet.GetBullet() == childElement) {
-            return {};
-        }
-        Base::Ref<UIElement> borrowed =
-            Base::Ref<UIElement>::FromBorrowed(*childElement);
-        if (bullet.GetChild() == nullptr) {
-            bullet.SetChild(std::move(borrowed));
-            return {};
-        }
-        if (bullet.GetBullet() == nullptr) {
-            bullet.SetBullet(std::move(borrowed));
-        }
-        return {};
-    }
-    return {};
 }
 
 } // namespace
@@ -823,7 +738,7 @@ Base::Result<void> ElementTree::AttachVisual(
     if (child.visualParent_ != nullptr && child.visualParent_ != &parent) {
         child.visualParent_->RemoveVisualChild(&child);
     }
-    Base::Result<void> stored = EnsureVisualChildStorage(parent, child);
+    Base::Result<void> stored = AeroGuiInternal::EnsureVisualChildStorage(parent, child);
     if (!stored) return stored.GetStatus();
     if (child.visualParent_ != &parent) {
         parent.AddVisualChild(&child);
@@ -831,31 +746,7 @@ Base::Result<void> ElementTree::AttachVisual(
     if (parent.tree_ == this && child.tree_ != this) {
         SetTreeSubtree(child, this);
     }
-    if (AeroGuiInternal::PropertyRegistry(parent).Types().IsDerivedFrom(
-            parent.RuntimeType(), Controls::Control::StaticTypeId()) &&
-        ::Aero::TryCast<::Aero::UIElement>(&(child)) != nullptr) {
-        auto& control = static_cast<Controls::Control&>(parent);
-        const bool isContentControl =
-            AeroGuiInternal::PropertyRegistry(parent).Types().IsDerivedFrom(
-                parent.RuntimeType(),
-                Controls::ContentControl::StaticTypeId());
-        const bool contentVisual =
-            isContentControl &&
-            AeroGuiInternal::ContentControlContent(
-                static_cast<Controls::ContentControl&>(parent)) ==
-                ::Aero::TryCast<::Aero::UIElement>(&(child));
-        // ContentControl visual children that arrive through a parent
-        // ControlTemplate (gallery SampleControlTemplate's ScrollViewer →
-        // ContentPresenter) are content, not this control's template root.
-        // Stealing TemplateRoot here prevents the real ScrollViewer template
-        // from laying out, so the sample body measures to 0 height.
-        // TemplateEngine::SetRoot assigns TemplateRoot after AttachElement.
-        if (AeroGuiInternal::TemplateRoot(control) == nullptr &&
-            !contentVisual &&
-            !isContentControl) {
-            (void)AeroGuiInternal::SetTemplateRoot(control, ::Aero::TryCast<::Aero::UIElement>(&(child)));
-        }
-    }
+    AeroGuiInternal::AttachVisualControlTemplateRoot(parent, child);
     ++version_;
     return {};
 }
@@ -866,18 +757,9 @@ Base::Result<void> ElementTree::DetachVisual(
     if (child.visualParent_ == nullptr || child.visualParent_ != &parent) {
         return {};
     }
-    const auto cleanPanelStorage = [&]() noexcept {
-        if (UIElement* childElement = ::Aero::TryCast<::Aero::UIElement>(&child)) {
-            if (AeroGuiInternal::PropertyRegistry(parent).Types().IsDerivedFrom(
-                    parent.RuntimeType(), Controls::Panel::StaticTypeId())) {
-                auto& panel = static_cast<Controls::Panel&>(parent);
-                (void)AeroGuiInternal::PanelRemoveChild(panel, *childElement);
-            }
-        }
-    };
     if (child.tree_ == nullptr && parent.tree_ == nullptr) {
         parent.RemoveVisualChild(&child);
-        cleanPanelStorage();
+        AeroGuiInternal::CleanVisualChildStorage(parent, child);
         return {};
     }
     Base::Result<void> verified = VerifyMutation(parent, &child);
@@ -889,7 +771,7 @@ Base::Result<void> ElementTree::DetachVisual(
         return NotFound("Visual parent-child relationship was not found");
     }
     parent.RemoveVisualChild(&child);
-    cleanPanelStorage();
+    AeroGuiInternal::CleanVisualChildStorage(parent, child);
     ++version_;
     return {};
 }
@@ -989,28 +871,8 @@ void ElementTree::LifecycleHook(void* context) noexcept {
 
 std::uint32_t ElementTree::AdvanceRepeatButtonTime(
     std::uint32_t elapsedMilliseconds) noexcept {
-    if (activeRepeatButton_ == nullptr || !activeRepeatButton_->GetIsEnabled()) {
-        return 0U;
-    }
-    if (!activeRepeatButton_->GetIsMouseOver() && !activeRepeatButton_->GetIsKeyboardFocused()) {
-        return 0U;
-    }
-    repeatElapsed_ += elapsedMilliseconds;
-    if (nextRepeat_ == 0U) {
-        nextRepeat_ = activeRepeatButton_->GetDelay();
-    }
-    const std::uint64_t interval = activeRepeatButton_->GetInterval();
-    if (interval == 0U) return 0U;
-    std::uint32_t emitted = 0U;
-    while (repeatElapsed_ >= nextRepeat_ && emitted < 1024U) {
-        AeroGuiInternal::Click(*activeRepeatButton_);
-        ++emitted;
-        nextRepeat_ += interval;
-    }
-    if (emitted == 1024U && repeatElapsed_ >= nextRepeat_) {
-        nextRepeat_ = repeatElapsed_ + interval;
-    }
-    return emitted;
+    return AeroGuiInternal::AdvanceRepeatButtonTime(
+        activeRepeatButton_, elapsedMilliseconds, repeatElapsed_, nextRepeat_);
 }
 
 

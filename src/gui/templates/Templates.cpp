@@ -78,6 +78,8 @@ bool TemplateTriggerCondition::IsMet(
         return !static_cast<Primitives::ToggleButton&>(
             source).GetIsChecked().GetHasValue();
     }
+    // Pass nullptr metadata: text conversion failures fall back to false (matching
+    // legacy operator== behavior) without aborting template condition checks.
     Base::Result<bool> matched = ComparePropertyValues(current, value, nullptr);
     return matched && matched.Value();
 }
@@ -85,63 +87,18 @@ bool TemplateTriggerCondition::IsMet(
 namespace {
 
 Base::Result<PropertyValue> ConvertTemplateBindingValue(
-    const TypeRegistry& types,
+    const TypeRegistry& /*types*/,
     const Registry* metadata,
     const DependencyProperty& target,
     const PropertyValue& value) noexcept {
     if (value.IsUnset()) {
         return PropertyValue{};
     }
-    if (target.AcceptsAnyValue() ||
-        value.Type() == target.ValueType()) {
-        return value;
-    }
-    if (value.Kind() == PropertyValueKind::Object &&
-        value.IsNullObject()) {
-        if (target.ValueType() == Meta::TypeOf<Base::String>()) {
-            return Meta::ValueCodec<Base::String>::Encode(Base::String{});
-        }
-        return PropertyValue::NullObject(target.ValueType());
-    }
-    if (value.Kind() == PropertyValueKind::Object &&
-        !value.IsNullObject() && value.AsObject()) {
-        const TypeId objectType = value.AsObject()->RuntimeType();
-        if (types.IsAssignableFrom(target.ValueType(), objectType) ||
-            types.IsDerivedFrom(objectType, target.ValueType()) ||
-            objectType == target.ValueType()) {
-            return PropertyValue::FromObject(
-                target.ValueType(),
-                Base::Ref<Base::Object>::FromBorrowed(
-                    *value.AsObject()));
-        }
-    }
-    if (target.ValueType() ==
-            Meta::TypeOf<Aero::Length>() &&
-        value.Type() == Meta::TypeOf<double>()) {
-        Base::Result<double> numeric =
-            Meta::ValueCodec<double>::Decode(value);
-        if (!numeric) return numeric.GetStatus();
-        return Meta::ValueCodec<
-            Aero::Length>::Encode(
-                Aero::Length::Pixels(
-                    numeric.Value()));
-    }
-    if (target.ValueType() == Meta::TypeOf<double>() &&
-        value.Type() == Meta::TypeOf<Aero::Length>()) {
-        Base::Result<Aero::Length> length =
-            Meta::ValueCodec<Aero::Length>::Decode(value);
-        if (!length) return length.GetStatus();
-        return Meta::ValueCodec<double>::Encode(
-            length.Value().isAuto ? 0.0 : length.Value().value);
-    }
-    if (value.Kind() == PropertyValueKind::String &&
-        metadata != nullptr) {
-        Base::Result<PropertyValue> converted =
-            metadata->TryConvertText(
-                target.ValueType(), value.AsString());
-        if (converted) {
-            return converted;
-        }
+    Base::Result<PropertyValue> normalized =
+        ::Aero::NormalizeValueForProperty(
+            const_cast<Registry*>(metadata), target, value);
+    if (normalized) {
+        return normalized;
     }
     if (target.ValueType() == Meta::TypeOf<Base::String>()) {
         if (value.Kind() == PropertyValueKind::String) {
@@ -2373,6 +2330,9 @@ void TemplateEngine::Unsubscribe(
     }
 }
 
+// Template Binding Dual-Path Execution Model:
+// Path 1 (Direct-Write Fast Path): ApplyBindings directly updates target values
+// via SetTemplateValue from static template binding plans, avoiding expression allocations.
 Base::Result<void> TemplateEngine::ApplyBindings(
     Instance& instance,
     DependencyPropertyHandle changed) noexcept {
@@ -2429,6 +2389,8 @@ Base::Result<void> TemplateEngine::ApplyBindings(
     return {};
 }
 
+// Path 2 (Reactive Attached Bindings): AttachMetadataBindings binds live expressions
+// for TemplatedParent metadata bindings requiring continuous two-way or complex updates.
 Base::Result<void> TemplateEngine::AttachMetadataBindings(
     Instance& instance) noexcept {
     if (Aero::Controls::FrameworkTemplateState::MetadataBindings(*instance.plan).Empty()) {

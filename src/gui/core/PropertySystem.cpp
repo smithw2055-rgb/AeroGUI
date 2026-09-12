@@ -17,6 +17,7 @@
 
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Base/Hash.hpp>
+#include <Aero/Layout.hpp>
 #include <Aero/LogicalTreeHelper.hpp>
 #include <Aero/TryCast.hpp>
 #include <Aero/Visual.hpp>
@@ -64,6 +65,29 @@ Base::Result<Meta::PropertyValue> NormalizeValueForProperty(
         }
         return Meta::PropertyValue::FromBoolean(
             targetType, decoded.Value().GetValue());
+    }
+
+    if (targetType == Meta::TypeOf<Base::String>() &&
+        value.Kind() == Meta::ValueKind::Object &&
+        value.IsNullObject()) {
+        return Meta::ValueCodec<Base::String>::Encode(Base::String{});
+    }
+
+    if (targetType == Meta::TypeOf<Aero::Length>() &&
+        value.Type() == Meta::TypeOf<double>()) {
+        Base::Result<double> numeric =
+            Meta::ValueCodec<double>::Decode(value);
+        if (!numeric) return numeric.GetStatus();
+        return Meta::ValueCodec<Aero::Length>::Encode(
+            Aero::Length::Pixels(numeric.Value()));
+    }
+    if (targetType == Meta::TypeOf<double>() &&
+        value.Type() == Meta::TypeOf<Aero::Length>()) {
+        Base::Result<Aero::Length> length =
+            Meta::ValueCodec<Aero::Length>::Decode(value);
+        if (!length) return length.GetStatus();
+        return Meta::ValueCodec<double>::Encode(
+            length.Value().isAuto ? 0.0 : length.Value().value);
     }
 
     if (value.Kind() == Meta::ValueKind::String) {

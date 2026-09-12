@@ -363,6 +363,30 @@ inline Model::TimelineTiming Timing(
         return result;
     }
 
+inline Model::TimelineTiming ComposeTiming(
+        const Timeline& timeline,
+        const Model::TimelineTiming& parent) noexcept {
+    Model::TimelineTiming timing = Timing(timeline);
+    if (UINT64_MAX - timing.beginTimeMicroseconds <
+        parent.beginTimeMicroseconds) {
+        timing.beginTimeMicroseconds = UINT64_MAX;
+    } else {
+        timing.beginTimeMicroseconds +=
+            parent.beginTimeMicroseconds;
+    }
+    if (timing.durationMicroseconds == 0U) {
+        timing.durationMicroseconds =
+            parent.durationMicroseconds;
+    }
+    if (parent.repeat.forever) {
+        timing.repeat = parent.repeat;
+    }
+    timing.speedRatio *= parent.speedRatio;
+    timing.autoReverse =
+        timing.autoReverse || parent.autoReverse;
+    return timing;
+}
+
 struct KeyframeSchedule {
     AnimationTime duration = 0U;
     std::uint32_t count = 0U;

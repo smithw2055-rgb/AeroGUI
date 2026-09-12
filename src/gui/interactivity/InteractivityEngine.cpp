@@ -308,109 +308,9 @@ Base::Result<bool> InteractivityEngine::EvaluateTriggerComparison(
         const Meta::PropertyValue& actual,
         Meta::PropertyValue expected,
         Base::StringView comparison) noexcept {
-        if (actual.Kind() == Meta::ValueKind::Object &&
-            !actual.IsNullObject() &&
-            actual.AsObject() &&
-            actual.AsObject()->RuntimeType() ==
-                BoxedItemValue::StaticTypeId()) {
-            return EvaluateTriggerComparison(
-                static_cast<const BoxedItemValue&>(
-                    *actual.AsObject()).Value(),
-                std::move(expected),
-                comparison);
-        }
-        if (comparison.Empty() ||
-            Base::ValueConversion::EqualsAsciiInsensitive(
-                comparison, "Equal") ||
-            Base::ValueConversion::EqualsAsciiInsensitive(
-                comparison, "NotEqual")) {
-            Base::Result<bool> equal = DataTemplateTriggerValuesMatch(
-                actual, expected);
-            if (!equal) return equal.GetStatus();
-            if (comparison.Empty() ||
-                Base::ValueConversion::EqualsAsciiInsensitive(
-                    comparison, "Equal")) {
-                return equal.Value();
-            }
-            return !equal.Value();
-        }
-        Meta::PropertyValue leftValue = actual;
-        Meta::PropertyValue rightValue = std::move(expected);
-        if (rightValue.Kind() == Meta::ValueKind::String &&
-            leftValue.Kind() != Meta::ValueKind::String) {
-            if (Metadata() == nullptr) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::InvalidState,
-                    "Interaction DataTrigger metadata is unavailable");
-            }
-            Base::Result<Meta::PropertyValue> parsed =
-                Metadata()->TryConvertText(
-                    leftValue.Type(), rightValue.AsString());
-            if (!parsed) return false;
-            rightValue = std::move(parsed).Value();
-        }
-        if (leftValue.Kind() == Meta::ValueKind::String &&
-            rightValue.Kind() == Meta::ValueKind::String) {
-            const int order = leftValue.AsString().Compare(
-                rightValue.AsString());
-            if (Base::ValueConversion::EqualsAsciiInsensitive(
-                    comparison, "LessThan")) {
-                return order < 0;
-            }
-            if (Base::ValueConversion::EqualsAsciiInsensitive(
-                    comparison, "LessThanOrEqual")) {
-                return order <= 0;
-            }
-            if (Base::ValueConversion::EqualsAsciiInsensitive(
-                    comparison, "GreaterThan")) {
-                return order > 0;
-            }
-            if (Base::ValueConversion::EqualsAsciiInsensitive(
-                    comparison, "GreaterThanOrEqual")) {
-                return order >= 0;
-            }
-            return false;
-        }
-        const auto numeric = [](const Meta::PropertyValue& value,
-                                long double& output) noexcept {
-            switch (value.Kind()) {
-            case Meta::ValueKind::SignedInteger:
-                output = static_cast<long double>(value.AsSignedInteger());
-                return true;
-            case Meta::ValueKind::UnsignedInteger:
-                output = static_cast<long double>(value.AsUnsignedInteger());
-                return true;
-            case Meta::ValueKind::Double:
-                output = static_cast<long double>(value.AsDouble());
-                return true;
-            default:
-                return false;
-            }
-        };
-        long double leftNumber = 0.0L;
-        long double rightNumber = 0.0L;
-        if (!numeric(leftValue, leftNumber) ||
-            !numeric(rightValue, rightNumber)) {
-            return false;
-        }
-        if (Base::ValueConversion::EqualsAsciiInsensitive(
-                comparison, "LessThan")) {
-            return leftNumber < rightNumber;
-        }
-        if (Base::ValueConversion::EqualsAsciiInsensitive(
-                comparison, "LessThanOrEqual")) {
-            return leftNumber <= rightNumber;
-        }
-        if (Base::ValueConversion::EqualsAsciiInsensitive(
-                comparison, "GreaterThan")) {
-            return leftNumber > rightNumber;
-        }
-        if (Base::ValueConversion::EqualsAsciiInsensitive(
-                comparison, "GreaterThanOrEqual")) {
-            return leftNumber >= rightNumber;
-        }
-        return false;
-    }
+    return ComparePropertyValues(
+        actual, std::move(expected), Metadata(), comparison);
+}
 
 Base::Object* InteractivityEngine::ResolveDataTemplateConditionSource(
         DataTemplateTriggerInstance& context,
@@ -532,14 +432,13 @@ Base::Result<bool> InteractivityEngine::EvaluateDataTemplateCondition(
             if (source == nullptr) {
                 return false;
             }
-            Base::Result<Meta::BindingPathPlan> plan =
-                Meta::BindingPathPlan::Compile(
-                    *Metadata(),
-                    source->RuntimeType(),
-                    path);
-            if (!plan) return plan.GetStatus();
             Base::Result<Meta::PropertyValue> value =
-                plan.Value().Get(*Metadata(), *source);
+                EvaluateAuthoredBinding(
+                    *condition.binding,
+                    *context.root,
+                    &context,
+                    nullptr,
+                    source);
             if (!value) return value.GetStatus();
             current = std::move(value).Value();
         }
@@ -1081,6 +980,9 @@ Base::Result<Meta::PropertyValue> InteractivityEngine::EvaluateAuthoredBinding(
             dataTemplateContext,
             names,
             self);
+        if (source == nullptr && self != nullptr) {
+            source = self;
+        }
         if (source == nullptr) {
             if (!binding.GetFallbackValue().IsUnset()) {
                 return binding.GetFallbackValue();

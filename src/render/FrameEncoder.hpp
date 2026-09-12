@@ -240,6 +240,15 @@ private:
     FrameStatistics stats_{};
     bool initialized_ = false;
     bool inRender_ = false;
+
+    mutable RenderImageId lastImageId_ = InvalidRenderImageId;
+    mutable Texture* lastImage_ = nullptr;
+
+    mutable RenderGlyphRunId lastGlyphRunId_ = InvalidRenderGlyphRunId;
+    mutable const Base::Vector<RenderGlyphQuad>* lastGlyphRun_ = nullptr;
+
+    mutable RenderMeshId lastMeshId_ = InvalidRenderMeshId;
+    mutable const MeshEntry* lastMesh_ = nullptr;
 };
 
 using FrameEncoderStatistics = FrameStatistics;

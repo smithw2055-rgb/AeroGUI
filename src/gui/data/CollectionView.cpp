@@ -43,7 +43,7 @@ Base::Vector<DefaultViewEntry>& DefaultViews() noexcept {
     return *views;
 }
 
-int ComparePropertyValues(
+int CompareSortPropertyValues(
     const Base::Object* left,
     const Base::Object* right,
     StringView propertyName) noexcept {
@@ -323,7 +323,7 @@ void CollectionView::Rebuild() noexcept {
         [this](std::uint32_t left, std::uint32_t right) noexcept {
             Ref<Base::Object> leftItem = inner_->GetItem(left);
             Ref<Base::Object> rightItem = inner_->GetItem(right);
-            const int order = ComparePropertyValues(
+            const int order = CompareSortPropertyValues(
                 leftItem.Get(),
                 rightItem.Get(),
                 sortProperty_.View());

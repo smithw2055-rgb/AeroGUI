@@ -10,6 +10,7 @@
 #include "gui/styles/StyleEngine.hpp"
 #include "render/DisplayList.hpp"
 #include <Aero/Controls.hpp>
+#include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/Controls/ListBox.hpp>
 #include <Aero/Controls/TreeView.hpp>
 #include <Aero/Shapes.hpp>
@@ -210,6 +211,145 @@ Base::Result<void> AeroGuiInternal::ParseGridDefinitions(
         start = end + 1U;
     }
     return {};
+}
+
+Base::Result<void> AeroGuiInternal::EnsureVisualChildStorage(
+    Media::Visual& parent,
+    Media::Visual& child) noexcept {
+    UIElement* childElement = ::Aero::TryCast<::Aero::UIElement>(&child);
+    if (childElement == nullptr) return {};
+    const Meta::TypeRegistry& types = AeroGuiInternal::PropertyRegistry(parent).Types();
+    if (types.IsDerivedFrom(
+            parent.RuntimeType(), Controls::Panel::StaticTypeId())) {
+        auto& panel = static_cast<Controls::Panel&>(parent);
+        const std::uint32_t count = AeroGuiInternal::PanelChildCount(panel);
+        for (std::uint32_t index = 0U; index < count; ++index) {
+            if (AeroGuiInternal::PanelChildAt(panel, index).Get() == childElement) {
+                return {};
+            }
+        }
+        Base::Ref<Base::Object> borrowed =
+            Base::Ref<Base::Object>::FromBorrowed(*childElement);
+        AeroGuiInternal::PanelAddChild(panel, borrowed, *childElement);
+        return {};
+    }
+    if (types.IsDerivedFrom(
+            parent.RuntimeType(), Controls::ContentPresenter::StaticTypeId())) {
+        auto& presenter = static_cast<Controls::ContentPresenter&>(parent);
+        if (presenter.GetContent() == nullptr) {
+            presenter.SetContent(childElement);
+        }
+        return {};
+    }
+    if (types.IsDerivedFrom(
+            parent.RuntimeType(), Controls::ContentControl::StaticTypeId())) {
+        auto& control = static_cast<Controls::ContentControl&>(parent);
+        UIElement* existing =
+            AeroGuiInternal::ContentControlContent(control);
+        if (existing == childElement) {
+            return {};
+        }
+        const Base::Ref<Controls::ControlTemplate> templ =
+            control.GetValue(Controls::Control::TemplateProperty);
+        if (existing == nullptr &&
+            AeroGuiInternal::TemplateRoot(control) == nullptr &&
+            !templ) {
+            control.SetContent(childElement);
+        }
+        return {};
+    }
+    if (types.IsDerivedFrom(
+            parent.RuntimeType(), Controls::Decorator::StaticTypeId())) {
+        auto& decorator = static_cast<Controls::Decorator&>(parent);
+        if (decorator.GetChild() == nullptr) {
+            decorator.SetChild(childElement);
+        }
+        return {};
+    }
+    if (types.IsDerivedFrom(
+            parent.RuntimeType(), Controls::BulletDecorator::StaticTypeId())) {
+        auto& bullet = static_cast<Controls::BulletDecorator&>(parent);
+        if (bullet.GetChild() == childElement ||
+            bullet.GetBullet() == childElement) {
+            return {};
+        }
+        Base::Ref<UIElement> borrowed =
+            Base::Ref<UIElement>::FromBorrowed(*childElement);
+        if (bullet.GetChild() == nullptr) {
+            bullet.SetChild(std::move(borrowed));
+            return {};
+        }
+        if (bullet.GetBullet() == nullptr) {
+            bullet.SetBullet(std::move(borrowed));
+        }
+        return {};
+    }
+    return {};
+}
+
+void AeroGuiInternal::AttachVisualControlTemplateRoot(
+    Media::Visual& parent,
+    Media::Visual& child) noexcept {
+    if (AeroGuiInternal::PropertyRegistry(parent).Types().IsDerivedFrom(
+            parent.RuntimeType(), Controls::Control::StaticTypeId()) &&
+        ::Aero::TryCast<::Aero::UIElement>(&child) != nullptr) {
+        auto& control = static_cast<Controls::Control&>(parent);
+        const bool isContentControl =
+            AeroGuiInternal::PropertyRegistry(parent).Types().IsDerivedFrom(
+                parent.RuntimeType(),
+                Controls::ContentControl::StaticTypeId());
+        const bool contentVisual =
+            isContentControl &&
+            AeroGuiInternal::ContentControlContent(
+                static_cast<Controls::ContentControl&>(parent)) ==
+                ::Aero::TryCast<::Aero::UIElement>(&child);
+        if (AeroGuiInternal::TemplateRoot(control) == nullptr &&
+            !contentVisual &&
+            !isContentControl) {
+            (void)AeroGuiInternal::SetTemplateRoot(control, ::Aero::TryCast<::Aero::UIElement>(&child));
+        }
+    }
+}
+
+void AeroGuiInternal::CleanVisualChildStorage(
+    Media::Visual& parent,
+    Media::Visual& child) noexcept {
+    if (UIElement* childElement = ::Aero::TryCast<::Aero::UIElement>(&child)) {
+        if (AeroGuiInternal::PropertyRegistry(parent).Types().IsDerivedFrom(
+                parent.RuntimeType(), Controls::Panel::StaticTypeId())) {
+            auto& panel = static_cast<Controls::Panel&>(parent);
+            (void)AeroGuiInternal::PanelRemoveChild(panel, *childElement);
+        }
+    }
+}
+
+std::uint32_t AeroGuiInternal::AdvanceRepeatButtonTime(
+    Controls::Primitives::RepeatButton* button,
+    std::uint32_t elapsedMilliseconds,
+    std::uint64_t& repeatElapsed,
+    std::uint64_t& nextRepeat) noexcept {
+    if (button == nullptr || !button->GetIsEnabled()) {
+        return 0U;
+    }
+    if (!button->GetIsMouseOver() && !button->GetIsKeyboardFocused()) {
+        return 0U;
+    }
+    repeatElapsed += elapsedMilliseconds;
+    if (nextRepeat == 0U) {
+        nextRepeat = button->GetDelay();
+    }
+    const std::uint64_t interval = button->GetInterval();
+    if (interval == 0U) return 0U;
+    std::uint32_t emitted = 0U;
+    while (repeatElapsed >= nextRepeat && emitted < 1024U) {
+        AeroGuiInternal::Click(*button);
+        ++emitted;
+        nextRepeat += interval;
+    }
+    if (emitted == 1024U && repeatElapsed >= nextRepeat) {
+        nextRepeat = repeatElapsed + interval;
+    }
+    return emitted;
 }
 
 } // namespace Aero

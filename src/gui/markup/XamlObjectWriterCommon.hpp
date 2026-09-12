@@ -935,8 +935,6 @@ private:
 
 namespace Aero::Markup {
 
-using namespace ::Aero::Markup;
-
 using XamlInitializationCallback = Base::Result<void> (*)(
     Base::Object& object,
     void* context) noexcept;
@@ -1275,8 +1273,6 @@ static_assert(
 
 
 namespace Aero::Markup {
-
-using namespace ::Aero::Markup;
 
 struct TemplatePrototypeProperty {
     Meta::DependencyPropertyHandle property;

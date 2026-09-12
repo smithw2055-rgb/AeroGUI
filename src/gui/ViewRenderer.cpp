@@ -64,8 +64,7 @@ Base::Result<Render::RenderImageId> CreateImageResource(
     if (renderer == nullptr || !renderer->Device() || renderer->FrameEncoder() == nullptr) {
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Renderer is null or uninitialized");
     }
-    static Render::RenderImageId nextId = 1000U;
-    const Render::RenderImageId id = ++nextId;
+    const Render::RenderImageId id = Render::RenderIdAllocator::AllocateImageId();
     const void* data = pixels.Data();
     Ref<Texture> tex = renderer->Device()->CreateTexture(
         "ImageResource", width, height, 1, TextureFormat::RGBA8, pixels.Empty() ? nullptr : &data);
@@ -94,8 +93,7 @@ Base::Result<Render::RenderMeshId> CreateMeshResource(
     if (renderer == nullptr || renderer->FrameEncoder() == nullptr) {
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Renderer is null or uninitialized");
     }
-    static Render::RenderMeshId nextMeshId = 1000U;
-    const Render::RenderMeshId meshId = ++nextMeshId;
+    const Render::RenderMeshId meshId = Render::RenderIdAllocator::AllocateMeshId();
     Base::Result<void> reg = renderer->FrameEncoder()->RegisterMesh(meshId, vertices, indices);
     if (!reg) return reg.GetStatus();
     return meshId;

@@ -293,74 +293,8 @@ Base::Result<std::uint32_t> InteractivityEngine::StartStyleDataTriggers(
                     const Meta::PropertyValue& expected,
                     std::uint32_t conditionIndex,
                     bool ownsAggregate) -> Base::Result<void> {
-                Base::Object* sourceObject = nullptr;
-                if (!binding->GetElementName().Empty()) {
-                    sourceObject = target.FindName(
-                        binding->GetElementName());
-                } else if (binding->GetRelativeSource()) {
-                    const Data::RelativeSourceMode mode =
-                        binding->GetRelativeSource()->GetMode();
-                    if (mode == Data::RelativeSourceMode::Self) {
-                        sourceObject = &target;
-                    } else if (mode ==
-                               Data::RelativeSourceMode::TemplatedParent) {
-                        sourceObject = target.GetTemplatedParent();
-                    } else if (mode ==
-                               Data::RelativeSourceMode::FindAncestor) {
-                        Base::StringView ancestorName =
-                            binding->GetRelativeSource()->GetAncestorType();
-                        for (std::uint32_t nameIndex = 0U;
-                             nameIndex < ancestorName.SizeBytes(); ++nameIndex) {
-                            if (ancestorName[nameIndex] == ':') {
-                                ancestorName = ancestorName.Substr(
-                                    nameIndex + 1U,
-                                    ancestorName.SizeBytes() - nameIndex - 1U);
-                                break;
-                            }
-                        }
-                        const std::uint32_t requestedLevel =
-                            binding->GetRelativeSource()->GetAncestorLevel();
-                        std::uint32_t matchedLevel = 0U;
-                        Aero::Media::Visual* current =
-                            ::Aero::TryCast<::Aero::Media::Visual>(
-                                target.GetLogicalParent());
-                        if (current == nullptr) {
-                            current = target.GetVisualParent();
-                        }
-                        while (current != nullptr) {
-                            const Meta::TypeInfo* type =
-                                Metadata()->Types().FindType(
-                                    current->RuntimeType());
-                            const bool matchesType = ancestorName.Empty() ||
-                                (type != nullptr &&
-                                 type->Name() == ancestorName);
-                            if (matchesType &&
-                                ++matchedLevel == requestedLevel) {
-                                sourceObject = current;
-                                break;
-                            }
-                            Aero::Media::Visual* next =
-                                ::Aero::TryCast<::Aero::Media::Visual>(
-                                    current->GetLogicalParent());
-                            if (next == nullptr) {
-                                next = current->GetVisualParent();
-                            }
-                            current = next;
-                        }
-                    }
-                } else {
-                    // Default binding source is the element's DataContext
-                    // (inherited from the logical tree), mirroring how a
-                    // plain {Binding Path} resolves its source.
-                    Base::Value dataContext = target.GetDataContext();
-                    if (!dataContext.IsNullObject()) {
-                        Base::Object* contextObject =
-                            dataContext.AsObject().Get();
-                        if (contextObject != nullptr) {
-                            sourceObject = contextObject;
-                        }
-                    }
-                }
+                Base::Object* sourceObject = ResolveAuthoredBindingSource(
+                    *binding, target, nullptr, nullptr, nullptr);
                 if (sourceObject == nullptr) {
                     return Base::Status::Failure(
                         Base::ErrorCode::NotFound,

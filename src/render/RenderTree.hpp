@@ -149,8 +149,6 @@ namespace Aero::Render { class RenderTree; }
 
 namespace Aero::Render {
 
-using namespace ::Aero::Render;
-
 class RenderFrame {
 public:
     RenderFrame() noexcept : nodes_(), commands_() {}
@@ -209,8 +207,6 @@ struct RenderDiagnostics {
 } // namespace Aero::Render
 
 namespace Aero::Render {
-
-using namespace ::Aero::Render;
 
 class RenderTree {
 public:
