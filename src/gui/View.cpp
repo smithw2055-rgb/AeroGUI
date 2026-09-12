@@ -12,8 +12,6 @@
 
 namespace Aero {
 
-using namespace ::Aero;
-
 ViewFrame::ViewFrame(
         View& owner,
         Gui& guiOwner,

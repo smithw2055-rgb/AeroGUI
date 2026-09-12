@@ -17,8 +17,6 @@
 
 namespace Aero {
 
-using namespace ::Aero;
-
 Base::Result<StoryboardHost::ResolvedAnimationProperty>
 StoryboardHost::ResolveAnimationProperty(
         ::Aero::DependencyObject& target,

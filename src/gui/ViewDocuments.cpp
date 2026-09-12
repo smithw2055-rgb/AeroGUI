@@ -12,8 +12,6 @@
 
 namespace Aero {
 
-using namespace ::Aero;
-
 // ============================================================================
 // Section 1: Document load (Begin/XamlSettings/Clear/FindName)
 // Section 2: Resource layers (ResourceHost::Commit/Load*) starts at CommitLayer

@@ -18,8 +18,6 @@
 
 namespace Aero {
 
-using namespace ::Aero;
-
 void ViewFrame::ReportFrameFailure(
         Base::Status& slot,
         Base::Status status,

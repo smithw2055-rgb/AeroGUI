@@ -47,7 +47,6 @@ struct VisualLease {
 #include <Aero/Threading.hpp>
 #include <Aero/Layout.hpp>
 #include <Aero/Resources.hpp>
-#include <Aero/Visual.hpp>
 #include <Aero/UIElement.hpp>
 
 namespace Aero::Render { class RenderTree; struct MeshResources; }

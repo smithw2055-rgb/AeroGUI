@@ -11,9 +11,6 @@
 
 namespace Aero {
 
-using namespace ::Aero;
-
-
 namespace {
 
 RenderingEventHandler& LegacyCompositionRenderingHandlers() noexcept {

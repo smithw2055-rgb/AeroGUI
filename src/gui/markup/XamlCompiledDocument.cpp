@@ -20,10 +20,6 @@
 
 // Canonical compiled-document implementation.
 
-#include <cmath>
-#include <cstring>
-#include <utility>
-
 namespace Aero::Markup {
 namespace {
 

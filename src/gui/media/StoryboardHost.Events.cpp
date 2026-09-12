@@ -13,7 +13,6 @@
 
 namespace Aero {
 
-using namespace ::Aero;
 using namespace Media::Animation;
 
 

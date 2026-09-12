@@ -980,7 +980,6 @@ struct RegistrationState {
 // Private executable metadata storage. TypeRegistry is the public structural
 // source of truth; these records never cross the Gui-kernel boundary.
 
-#include <Aero/Base/HashMap.hpp>
 #include <Aero/Base/Span.hpp>
 
 

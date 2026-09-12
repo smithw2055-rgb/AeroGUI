@@ -33,7 +33,6 @@ using PointerCaptureChangedHandler = Base::Delegate<void(std::uint32_t, UIElemen
 #include <Aero/Input.hpp>
 #include <Aero/ICommand.hpp>
 #include <Aero/RoutedCommand.hpp>
-#include <Aero/CommandBinding.hpp>
 #include <Aero/InputBinding.hpp>
 #include <Aero/KeyBinding.hpp>
 #include <Aero/KeyboardNavigation.hpp>

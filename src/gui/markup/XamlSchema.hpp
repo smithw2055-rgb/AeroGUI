@@ -1101,7 +1101,6 @@ inline Base::Result<void> RegisterMarkupMetadata(
 
 
 #include <atomic>
-#include <cstdint>
 
 namespace Aero { class ResourceDictionary; }
 
@@ -1431,11 +1430,6 @@ private:
 
 // ===== LoaderResult contract =====
 // Private transaction result consumed by Loader, XamlDocument, and View.
-
-#include <Aero/Value.hpp>
-
-
-#include <utility>
 
 namespace Aero::Markup {
 

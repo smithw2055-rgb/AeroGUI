@@ -31,7 +31,6 @@
 #include <Aero/Documents/Span.hpp>
 #include <Aero/Documents/Inline.hpp>
 
-#include <cstdio>
 #include <new>
 #include <utility>
 

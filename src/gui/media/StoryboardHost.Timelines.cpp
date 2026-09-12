@@ -23,7 +23,6 @@
 
 namespace Aero {
 
-using namespace ::Aero;
 using namespace Media::Animation;
 
 Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(

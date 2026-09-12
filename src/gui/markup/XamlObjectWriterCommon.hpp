@@ -1266,7 +1266,6 @@ static_assert(
 #include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/Controls.hpp>
 
-#include <Aero/Media/Animation.hpp>
 #include <Aero/Media/Animation/EventTrigger.hpp>
 
 
@@ -1413,18 +1412,9 @@ using ::Aero::Markup::CompileInheritedControlTemplate;
 
 // ===== WriterSupport (shared Writer TU helpers) =====
 
-#include <Aero/Base/Object.hpp>
-#include <Aero/Base/Ref.hpp>
-#include <Aero/Base/Result.hpp>
-#include <Aero/Base/Span.hpp>
-#include <Aero/Base/String.hpp>
-#include <Aero/Base/StringView.hpp>
-#include <Aero/Markup/XamlReader.hpp>
 #include <Aero/Markup/ServiceProvider.hpp>
 #include <Aero/Events/EventArgs.hpp>
 #include <Aero/VisualStateManager.hpp>
-
-#include <cstdint>
 #include <utility>
 
 namespace Aero::Markup {

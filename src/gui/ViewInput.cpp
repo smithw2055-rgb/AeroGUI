@@ -11,8 +11,6 @@
 
 namespace Aero {
 
-using namespace ::Aero;
-
 namespace {
 
 Base::Result<Input::PointerDispatchResult> DispatchPointer(

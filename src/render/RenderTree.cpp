@@ -656,7 +656,6 @@ void FrameworkElement::OnRender(
 
 namespace Aero::Render {
 
-using namespace ::Aero::Render;
 using Aero::FrameworkElement;
 
 void RenderFrame::Clear() noexcept {
@@ -948,7 +947,6 @@ namespace Aero::Render {
 
 using namespace ::Aero;
 using namespace ::Aero::Meta;
-using namespace ::Aero::Render;
 using namespace ::Aero::Threading;
 
 RenderTree::RenderTree(Dispatcher& dispatcher) noexcept
@@ -1483,7 +1481,6 @@ namespace Aero::Render {
 
 using namespace ::Aero;
 using namespace ::Aero::Meta;
-using namespace ::Aero::Render;
 using namespace ::Aero::Threading;
 
 bool RenderTree::IsOverlay(

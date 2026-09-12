@@ -5,14 +5,26 @@
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
+#include "gui/data/BindingEngine.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleEngine.hpp"
+#include "gui/media/BrushRendering.hpp"
+#include "gui/controls/RichText.hpp"
+#include "gui/controls/TextBlockLayout.hpp"
+#include "render/DisplayList.hpp"
 #include <Aero/Documents.hpp>
+#include <Aero/Controls.hpp>
+#include <Aero/Controls/ListBox.hpp>
+#include <Aero/Controls/TreeView.hpp>
+#include <Aero/Shapes.hpp>
+#include <Aero/Media/Transforms.hpp>
 #include <Aero/TryCast.hpp>
 
-
 #include <algorithm>
+#include <cctype>
 #include <cmath>
+#include <cstdio>
+#include <cstring>
 #include <utility>
 
 namespace Aero::Controls {
@@ -744,28 +756,6 @@ void NavigationService::OnRequestNavigate(
 }
 
 } // namespace Aero::Documents
-#include "gui/meta/TypeRegistryDetail.hpp"
-#include "gui/data/BindingEngine.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleEngine.hpp"
-#include "render/DisplayList.hpp"
-#include <Aero/Controls.hpp>
-#include <Aero/Controls/ListBox.hpp>
-#include <Aero/Controls/TreeView.hpp>
-#include <Aero/Shapes.hpp>
-#include <Aero/Media/Transforms.hpp>
-#include "gui/media/BrushRendering.hpp"
-#include <Aero/Documents.hpp>
-#include "gui/controls/RichText.hpp"
-
-#include "gui/controls/TextBlockLayout.hpp"
-
-#include <algorithm>
-#include <cctype>
-#include <cmath>
-#include <cstdio>
-#include <cstring>
-#include <utility>
 
 
 namespace Aero::Controls {

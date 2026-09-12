@@ -13,11 +13,6 @@ namespace Aero::Controls { class TemplateEngine; }
 #include "gui/data/BindingEngine.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleEngine.hpp"
-#include "gui/meta/TypeRegistryDetail.hpp" 
-#include "gui/input/InputManager.hpp" 
-#include "gui/data/BindingEngine.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleEngine.hpp"
 #include "gui/templates/TemplateInstance.hpp"
 
 #include "render/RenderTree.hpp"
