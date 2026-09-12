@@ -164,7 +164,6 @@ Base::Result<void> PopulateControlsMetadata(
     GridSplitter::RegisterMetadata(context);
     ScrollContentPresenter::RegisterMetadata(context);
     ScrollViewer::RegisterMetadata(context);
-
     UserControl::RegisterMetadata(context);
     Page::RegisterMetadata(context);
     GroupBox::RegisterMetadata(context);
