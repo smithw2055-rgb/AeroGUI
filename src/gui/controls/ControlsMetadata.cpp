@@ -136,6 +136,11 @@ Base::Result<void> PopulateControlsMetadata(
     Canvas::RegisterMetadata(context);
     Grid::RegisterMetadata(context);
 
+    // Control/ContentControl must exist before ButtonBase, RangeBase, and
+    // other derived primitives call Override/AddOwner on inherited DPs.
+    Control::RegisterMetadata(context);
+    ContentControl::RegisterMetadata(context);
+
     // Primitives & Buttons
     Primitives::ButtonBase::RegisterMetadata(context);
     Button::RegisterMetadata(context);
@@ -155,8 +160,6 @@ Base::Result<void> PopulateControlsMetadata(
     ScrollViewer::RegisterMetadata(context);
 
     // Content & Decorators
-    Control::RegisterMetadata(context);
-    ContentControl::RegisterMetadata(context);
     HeaderedContentControl::RegisterMetadata(context);
     Decorator::RegisterMetadata(context);
     Border::RegisterMetadata(context);
