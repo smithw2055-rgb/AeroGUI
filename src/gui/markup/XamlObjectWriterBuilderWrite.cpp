@@ -853,11 +853,12 @@ Base::Result<void> ObjectWriter::WriteValue(
     CreatedObjectRecord& targetRecord =
         created_[targetObjectIndex];
     if (value.Kind() != Meta::ValueKind::Object &&
-        targetRecord.hasContentMember &&
-        targetRecord.contentMember.id == member.id &&
-        schema_->Types().IsDerivedFrom(
-            targetRecord.type,
-            Controls::ItemsControl::StaticTypeId())) {
+        (member.valueType == Meta::TypeOf<Base::Object>() ||
+         (targetRecord.hasContentMember &&
+          targetRecord.contentMember.id == member.id &&
+          schema_->Types().IsDerivedFrom(
+              targetRecord.type,
+              Controls::ItemsControl::StaticTypeId())))) {
         Base::Result<Base::Ref<
             Controls::BoxedItemValue>> boxed =
                 Base::MakeRef<Controls::BoxedItemValue>(

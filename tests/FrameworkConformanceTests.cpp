@@ -2817,6 +2817,214 @@ bool TestGridStarRowsSizeInStackPanel() {
     return true;
 }
 
+bool TestThemeTagAndIndentationAndColor() {
+    LiveGui* live = NewLiveGui();
+    CHECK(live != nullptr);
+    View& view = *live->view;
+    view.SetSize({800.0, 600.0});
+
+    constexpr char kXAML[] =
+        "<Grid xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" "
+        "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
+        "<ComboBox x:Name=\"Picker\" Tag=\"Theme\">"
+        "<ComboBox.Template>"
+        "<ControlTemplate TargetType=\"ComboBox\">"
+        "<ToggleButton x:Name=\"DropDownButton\">"
+        "<StackPanel Orientation=\"Horizontal\">"
+        "<TextBlock x:Name=\"SelectionText\" Text=\"{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}\" Width=\"0\"/>"
+        "</StackPanel>"
+        "</ToggleButton>"
+        "<ControlTemplate.Triggers>"
+        "<Trigger Property=\"IsMouseOver\" Value=\"True\">"
+        "<Trigger.EnterActions>"
+        "<BeginStoryboard>"
+        "<Storyboard>"
+        "<DoubleAnimation Storyboard.TargetName=\"SelectionText\" Storyboard.TargetProperty=\"(FrameworkElement.Width)\" To=\"60\" Duration=\"0:0:0.1\"/>"
+        "</Storyboard>"
+        "</BeginStoryboard>"
+        "</Trigger.EnterActions>"
+        "</Trigger>"
+        "</ControlTemplate.Triggers>"
+        "</ControlTemplate>"
+        "</ComboBox.Template>"
+        "</ComboBox>"
+        "<TreeView x:Name=\"Tree\">"
+        "<TreeViewItem x:Name=\"ParentItem\" Header=\"Parent\" IsExpanded=\"True\">"
+        "<TreeViewItem.Template>"
+        "<ControlTemplate TargetType=\"TreeViewItem\">"
+        "<Grid>"
+        "<Grid.RowDefinitions><RowDefinition Height=\"Auto\"/><RowDefinition Height=\"*\"/></Grid.RowDefinitions>"
+        "<ContentPresenter ContentSource=\"Header\"/>"
+        "<ItemsPresenter x:Name=\"ItemsHost\" Grid.Row=\"1\" Tag=\"32\"/>"
+        "</Grid>"
+        "</ControlTemplate>"
+        "</TreeViewItem.Template>"
+        "<TreeViewItem x:Name=\"ChildItem\" Header=\"Child\">"
+        "<TreeViewItem.Template>"
+        "<ControlTemplate TargetType=\"TreeViewItem\">"
+        "<StackPanel Orientation=\"Horizontal\">"
+        "<Decorator x:Name=\"Indent\" Width=\"{Binding Tag, RelativeSource={RelativeSource AncestorType={x:Type ItemsPresenter}, AncestorLevel=1}}\"/>"
+        "<ContentPresenter ContentSource=\"Header\"/>"
+        "</StackPanel>"
+        "</ControlTemplate>"
+        "</TreeViewItem.Template>"
+        "</TreeViewItem>"
+        "</TreeViewItem>"
+        "</TreeView>"
+        "</Grid>";
+
+    Aero::Markup::XamlReader reader(live->gui);
+    Result<Aero::Markup::XamlDocument> document = reader.Parse(StringView(kXAML));
+    CHECK(document);
+    CHECK(view.SetContent(std::move(document).Value(), {800.0, 600.0}));
+    Pump(view, 0.016);
+    FrameworkElement* root = view.GetContent();
+    CHECK(root != nullptr);
+    ComboBox* picker = root->FindName<ComboBox>(StringView("Picker"));
+    CHECK(picker != nullptr);
+
+    std::function<TextBlock*(Aero::Media::Visual*)> findTb = [&](Aero::Media::Visual* node) -> TextBlock* {
+        if (node == nullptr) return nullptr;
+        if (auto* tb = ::Aero::TryCast<TextBlock>(node)) {
+            return tb;
+        }
+        for (std::uint32_t i = 0; i < Aero::Media::VisualTreeHelper::GetChildrenCount(*node); ++i) {
+            if (auto* res = findTb(Aero::Media::VisualTreeHelper::GetChild(*node, i))) return res;
+        }
+        return nullptr;
+    };
+    TextBlock* text = findTb(picker);
+    if (text != nullptr) {
+        std::printf("[DIAG] SelectionText Text='%s', Width=%f, ActualWidth=%f\n",
+            text->GetText().Data(), text->GetWidth(), text->GetActualWidth());
+    } else {
+        std::printf("[DIAG] SelectionText not found in visual tree!\n");
+    }
+
+    // Now test hover animation on ComboBox
+    Point pickerCenter{20.0, 20.0};
+    Point pickerScreen{};
+    if (picker->TryPointToScreen(pickerCenter, pickerScreen)) {
+        static_cast<void>(view.MouseMove(static_cast<int>(pickerScreen.x), static_cast<int>(pickerScreen.y)));
+    }
+    Pump(view, 0.15);
+    if (text != nullptr) {
+        std::printf("[DIAG] After hover: isMouseOver=%d, SelectionText Width=%f, ActualWidth=%f\n",
+            picker->GetIsMouseOver() ? 1 : 0, text->GetWidth(), text->GetActualWidth());
+    }
+
+    // Now check TreeView indentation
+    Aero::Controls::TreeViewItem* childItem = root->FindName<Aero::Controls::TreeViewItem>(StringView("ChildItem"));
+    CHECK(childItem != nullptr);
+    std::function<Aero::Controls::Decorator*(Aero::Media::Visual*)> findIndent = [&](Aero::Media::Visual* node) -> Aero::Controls::Decorator* {
+        if (node == nullptr) return nullptr;
+        if (auto* dec = ::Aero::TryCast<Aero::Controls::Decorator>(node)) {
+            return dec;
+        }
+        for (std::uint32_t i = 0; i < Aero::Media::VisualTreeHelper::GetChildrenCount(*node); ++i) {
+            if (auto* res = findIndent(Aero::Media::VisualTreeHelper::GetChild(*node, i))) return res;
+        }
+        return nullptr;
+    };
+    Aero::Controls::Decorator* indent = findIndent(childItem);
+    if (indent != nullptr) {
+        std::printf("[DIAG] Indent Decorator Width=%f, ActualWidth=%f\n",
+            indent->GetWidth(), indent->GetActualWidth());
+    } else {
+        std::printf("[DIAG] Indent Decorator not found in ChildItem!\n");
+    }
+    return true;
+}
+
+bool TestGridSpanningAndStarMeasure() {
+    LiveGui* live = NewLiveGui();
+    CHECK(live != nullptr);
+    View& view = *live->view;
+    view.SetSize({400.0, 400.0});
+
+    // 1. Spanning child across Auto and Star: Auto row must not be inflated by spanning child
+    {
+        constexpr char kTree1[] =
+            "<Grid xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" "
+            "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" "
+            "Width=\"200\" Height=\"200\">"
+            "<Grid.RowDefinitions>"
+            "<RowDefinition Height=\"Auto\"/>"
+            "<RowDefinition Height=\"*\"/>"
+            "</Grid.RowDefinitions>"
+            "<Border Grid.RowSpan=\"2\" Height=\"100\"/>"
+            "<Button x:Name=\"HeaderBtn\" Grid.Row=\"0\" Height=\"30\"/>"
+            "</Grid>";
+        Aero::Markup::XamlReader reader(live->gui);
+        Result<Aero::Markup::XamlDocument> document = reader.Parse(StringView(kTree1));
+        CHECK(document);
+        CHECK(view.SetContent(std::move(document).Value(), {400.0, 400.0}));
+        Pump(view, 0.016);
+        FrameworkElement* root = view.GetContent();
+        CHECK(root != nullptr);
+        Button* btn = root->FindName<Button>(StringView("HeaderBtn"));
+        CHECK(btn != nullptr);
+        // Header button must be 30px, at Y = 0
+        CHECK(std::abs(btn->GetActualHeight() - 30.0) < 0.1);
+        CHECK(std::abs(btn->GetLayoutSlot().y - 0.0) < 0.1);
+    }
+
+    // 2. Grid with Star row and VerticalAlignment=Top: must not inflate desired height to window height
+    {
+        constexpr char kTree2[] =
+            "<Grid xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" "
+            "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" "
+            "Width=\"200\" Height=\"400\">"
+            "<Grid x:Name=\"TopGrid\" VerticalAlignment=\"Top\">"
+            "<Button Height=\"40\"/>"
+            "</Grid>"
+            "</Grid>";
+        Aero::Markup::XamlReader reader(live->gui);
+        Result<Aero::Markup::XamlDocument> document = reader.Parse(StringView(kTree2));
+        CHECK(document);
+        CHECK(view.SetContent(std::move(document).Value(), {400.0, 400.0}));
+        Pump(view, 0.016);
+        FrameworkElement* root = view.GetContent();
+        CHECK(root != nullptr);
+        Grid* topGrid = root->FindName<Grid>(StringView("TopGrid"));
+        CHECK(topGrid != nullptr);
+        // TopGrid height must be 40, located at Y = 0 (not 400 or centered at 180)
+        CHECK(std::abs(topGrid->GetActualHeight() - 40.0) < 0.1);
+        CHECK(std::abs(topGrid->GetLayoutSlot().y - 0.0) < 0.1);
+    }
+
+    // 3. ScrollViewer layout pattern: Column 0 is *, Column 1 is Auto. Spanning content must not inflate Auto column.
+    {
+        constexpr char kTree3[] =
+            "<Grid xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" "
+            "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" "
+            "Width=\"200\" Height=\"200\">"
+            "<Grid Width=\"200\" Height=\"200\">"
+            "<Grid.ColumnDefinitions>"
+            "<ColumnDefinition Width=\"*\"/>"
+            "<ColumnDefinition Width=\"Auto\"/>"
+            "</Grid.ColumnDefinitions>"
+            "<Border Grid.ColumnSpan=\"2\" Width=\"180\"/>"
+            "<Border x:Name=\"ScrollBar\" Grid.Column=\"1\" Width=\"14\"/>"
+            "</Grid>"
+            "</Grid>";
+        Aero::Markup::XamlReader reader(live->gui);
+        Result<Aero::Markup::XamlDocument> document = reader.Parse(StringView(kTree3));
+        CHECK(document);
+        CHECK(view.SetContent(std::move(document).Value(), {400.0, 400.0}));
+        Pump(view, 0.016);
+        FrameworkElement* root = view.GetContent();
+        CHECK(root != nullptr);
+        Border* bar = root->FindName<Border>(StringView("ScrollBar"));
+        CHECK(bar != nullptr);
+        // ScrollBar must be 14px wide at X = 200 - 14 = 186 (not X = 125 or 100)
+        CHECK(std::abs(bar->GetActualWidth() - 14.0) < 0.1);
+        CHECK(std::abs(bar->GetLayoutSlot().x - 186.0) < 0.1);
+    }
+
+    return true;
+}
+
 bool TestBlendTutorialSidebarInteractions() {
     LiveGui* live = NewLiveGui();
     CHECK(live != nullptr);
@@ -6214,6 +6422,8 @@ int main() {
     RUN(TestExpanderResourceDictionaryHeaderClick);
     RUN(TestControlTemplateHoverStoryboard);
     RUN(TestGridStarRowsSizeInStackPanel);
+    RUN(TestThemeTagAndIndentationAndColor);
+    RUN(TestGridSpanningAndStarMeasure);
     RUN(TestBlendTutorialSidebarInteractions);
     RUN(TestLoadComponentUserControlInStackPanel);
     RUN(TestLoadComponentStarGridUserControlInStackPanel);

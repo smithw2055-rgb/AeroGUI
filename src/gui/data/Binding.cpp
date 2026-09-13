@@ -408,21 +408,36 @@ Base::Result<std::uint32_t> BindingEngine::DetachObject(
     if (!dispatcher_->CheckAccess()) {
         return dispatcher_->VerifyAccess().GetStatus();
     }
-    if (flushing_) {
-        return InvalidState("BindingEngine cannot detach objects while flushing");
-    }
     std::uint32_t detached = 0U;
-    for (std::uint32_t index = 0U; index < bindings_.Size();) {
-        const BindingRecord& record = bindings_[index];
-        if (record.descriptor.source != &object &&
-            record.metadataSource != &object &&
-            record.descriptor.target != &object &&
-            record.dataContextOwner != &object) {
-            ++index;
-            continue;
+    if (flushing_) {
+        for (std::uint32_t index = 0U; index < bindings_.Size(); ++index) {
+            BindingRecord& record = bindings_[index];
+            if (record.handle.value == 0U) continue;
+            if (record.descriptor.source != &object &&
+                record.metadataSource != &object &&
+                record.descriptor.target != &object &&
+                record.dataContextOwner != &object) {
+                continue;
+            }
+            handleIndexMap_.Erase(record.handle.value);
+            CleanupRecord(record);
+            record.handle.value = 0U;
+            hasPendingDetaches_ = true;
+            ++detached;
         }
-        RemoveAt(index);
-        ++detached;
+    } else {
+        for (std::uint32_t index = 0U; index < bindings_.Size();) {
+            const BindingRecord& record = bindings_[index];
+            if (record.descriptor.source != &object &&
+                record.metadataSource != &object &&
+                record.descriptor.target != &object &&
+                record.dataContextOwner != &object) {
+                ++index;
+                continue;
+            }
+            RemoveAt(index);
+            ++detached;
+        }
     }
     for (std::uint32_t index = 0U;
          index < deferredBindings_.Size();) {

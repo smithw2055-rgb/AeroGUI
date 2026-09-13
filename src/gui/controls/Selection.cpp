@@ -1766,6 +1766,7 @@ void ComboBox::UpdateVisualState(bool useTransitions) noexcept {
 }
 
 void ComboBox::OnMouseLeftButtonDown(MouseButtonEventArgs& args) {
+    if (args.GetHandled()) return;
     if (args.GetChangedButton() != MouseButton::Left) {
         return;
     }

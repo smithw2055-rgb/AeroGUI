@@ -484,6 +484,7 @@ private:
     bool initialized_ = false;
     std::uint64_t nextHandle_ = 1U;
     bool flushing_ = false;
+    bool hasPendingDetaches_ = false;
     Base::Status lastError_;
     DependencyPropertyChangedEventHandler propertyChangedHandler_;
 
@@ -536,6 +537,7 @@ private:
     Base::Result<void> SubscribeMetadataSource(
         BindingRecord& record) noexcept;
     void ReleaseMetadataSource(BindingRecord& record) noexcept;
+    void CleanupRecord(BindingRecord& record) noexcept;
     void RemoveAt(std::uint32_t index) noexcept;
 };
 

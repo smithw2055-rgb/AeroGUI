@@ -725,42 +725,44 @@ void UIElement::OnLostKeyboardFocus(KeyboardFocusChangedEventArgs&) {}
 void UIElement::InvokeHandlers(
     RoutedEventHandle event,
     RoutedEventArgs& args) noexcept {
-    if (event == PreviewMouseDownEvent) {
-        OnPreviewMouseDown(static_cast<MouseButtonEventArgs&>(args));
-    } else if (event == MouseDownEvent) {
-        OnMouseDown(static_cast<MouseButtonEventArgs&>(args));
-    } else if (event == PreviewMouseUpEvent) {
-        OnPreviewMouseUp(static_cast<MouseButtonEventArgs&>(args));
-    } else if (event == MouseUpEvent) {
-        OnMouseUp(static_cast<MouseButtonEventArgs&>(args));
-    } else if (event == PreviewMouseMoveEvent) {
-        OnPreviewMouseMove(static_cast<MouseEventArgs&>(args));
-    } else if (event == MouseMoveEvent) {
-        OnMouseMove(static_cast<MouseEventArgs&>(args));
-    } else if (event == MouseEnterEvent) {
-        OnMouseEnter(static_cast<MouseEventArgs&>(args));
-    } else if (event == MouseLeaveEvent) {
-        OnMouseLeave(static_cast<MouseEventArgs&>(args));
-    } else if (event == PreviewMouseWheelEvent) {
-        OnPreviewMouseWheel(static_cast<MouseWheelEventArgs&>(args));
-    } else if (event == MouseWheelEvent) {
-        OnMouseWheel(static_cast<MouseWheelEventArgs&>(args));
-    } else if (event == PreviewKeyDownEvent) {
-        OnPreviewKeyDown(static_cast<KeyEventArgs&>(args));
-    } else if (event == KeyDownEvent) {
-        OnKeyDown(static_cast<KeyEventArgs&>(args));
-    } else if (event == PreviewKeyUpEvent) {
-        OnPreviewKeyUp(static_cast<KeyEventArgs&>(args));
-    } else if (event == KeyUpEvent) {
-        OnKeyUp(static_cast<KeyEventArgs&>(args));
-    } else if (event == PreviewTextInputEvent) {
-        OnPreviewTextInput(static_cast<TextCompositionEventArgs&>(args));
-    } else if (event == TextInputEvent) {
-        OnTextInput(static_cast<TextCompositionEventArgs&>(args));
-    } else if (event == GotKeyboardFocusEvent) {
-        OnGotKeyboardFocus(static_cast<KeyboardFocusChangedEventArgs&>(args));
-    } else if (event == LostKeyboardFocusEvent) {
-        OnLostKeyboardFocus(static_cast<KeyboardFocusChangedEventArgs&>(args));
+    if (!args.GetHandled()) {
+        if (event == PreviewMouseDownEvent) {
+            OnPreviewMouseDown(static_cast<MouseButtonEventArgs&>(args));
+        } else if (event == MouseDownEvent) {
+            OnMouseDown(static_cast<MouseButtonEventArgs&>(args));
+        } else if (event == PreviewMouseUpEvent) {
+            OnPreviewMouseUp(static_cast<MouseButtonEventArgs&>(args));
+        } else if (event == MouseUpEvent) {
+            OnMouseUp(static_cast<MouseButtonEventArgs&>(args));
+        } else if (event == PreviewMouseMoveEvent) {
+            OnPreviewMouseMove(static_cast<MouseEventArgs&>(args));
+        } else if (event == MouseMoveEvent) {
+            OnMouseMove(static_cast<MouseEventArgs&>(args));
+        } else if (event == MouseEnterEvent) {
+            OnMouseEnter(static_cast<MouseEventArgs&>(args));
+        } else if (event == MouseLeaveEvent) {
+            OnMouseLeave(static_cast<MouseEventArgs&>(args));
+        } else if (event == PreviewMouseWheelEvent) {
+            OnPreviewMouseWheel(static_cast<MouseWheelEventArgs&>(args));
+        } else if (event == MouseWheelEvent) {
+            OnMouseWheel(static_cast<MouseWheelEventArgs&>(args));
+        } else if (event == PreviewKeyDownEvent) {
+            OnPreviewKeyDown(static_cast<KeyEventArgs&>(args));
+        } else if (event == KeyDownEvent) {
+            OnKeyDown(static_cast<KeyEventArgs&>(args));
+        } else if (event == PreviewKeyUpEvent) {
+            OnPreviewKeyUp(static_cast<KeyEventArgs&>(args));
+        } else if (event == KeyUpEvent) {
+            OnKeyUp(static_cast<KeyEventArgs&>(args));
+        } else if (event == PreviewTextInputEvent) {
+            OnPreviewTextInput(static_cast<TextCompositionEventArgs&>(args));
+        } else if (event == TextInputEvent) {
+            OnTextInput(static_cast<TextCompositionEventArgs&>(args));
+        } else if (event == GotKeyboardFocusEvent) {
+            OnGotKeyboardFocus(static_cast<KeyboardFocusChangedEventArgs&>(args));
+        } else if (event == LostKeyboardFocusEvent) {
+            OnLostKeyboardFocus(static_cast<KeyboardFocusChangedEventArgs&>(args));
+        }
     }
 
     auto* state = static_cast<UIElementHandlerState*>((rare_ != nullptr ? rare_->routedHandlers : nullptr));

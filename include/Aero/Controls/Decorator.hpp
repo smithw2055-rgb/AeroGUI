@@ -19,7 +19,11 @@ public:
     // Decorator is constructible in the reference XAML surface and is used as
     // a lightweight single-child layout node in control templates.
     Decorator() noexcept : Decorator(StaticTypeId()) {}
-    ~Decorator() override = default;
+    ~Decorator() override {
+        if (child_ != nullptr && child_->GetVisualParent() == this) {
+            RemoveVisualChild(child_);
+        }
+    }
     UIElement* GetChild() const noexcept {
         if (child_ != nullptr) return child_;
         const UIElementChildRange children = LayoutChildren();
@@ -31,7 +35,13 @@ public:
         Result<void> valid = ValidateChild(child);
         if (!valid) return;
         if (child_ == child) return;
+        if (child_ != nullptr && child_->GetVisualParent() == this) {
+            RemoveVisualChild(child_);
+        }
         child_ = child;
+        if (child_ != nullptr && child_->GetVisualParent() == nullptr) {
+            AddVisualChild(child_);
+        }
         if (child == nullptr) ownedChild_.Reset();
         return;
     }
@@ -76,8 +86,15 @@ private:
         if (!access) return;
         Result<void> valid = ValidateChild(&child);
         if (!valid) return;
+        if (child_ == &child) return;
+        if (child_ != nullptr && child_->GetVisualParent() == this) {
+            RemoveVisualChild(child_);
+        }
         child_ = &child;
         ownedChild_ = childObject;
+        if (child_->GetVisualParent() == nullptr) {
+            AddVisualChild(child_);
+        }
         return;
     }
     UIElement* child_ = nullptr;

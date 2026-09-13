@@ -45,181 +45,208 @@ Base::Result<std::uint32_t> BindingEngine::Flush() noexcept {
         return InvalidState("BindingEngine is not initialized");
     }
     if (flushing_) {
-        return InvalidState("BindingEngine cannot flush recursively");
+        return std::uint32_t{0U};
     }
 
     flushing_ = true;
     lastError_ = {};
-    const std::uint32_t snapshotCount = bindings_.Size();
     std::uint32_t updated = 0U;
-    // Equip slots author DataContext="{Binding Player.Slots[i]}" plus
-    // Content="{Binding}". Apply DataContext writes first so empty-path
-    // Content bindings in the same Flush see the slot object.
-    for (std::uint32_t pass = 0U; pass < 2U; ++pass) {
-    for (std::uint32_t index = 0U; index < snapshotCount; ++index) {
-        BindingRecord& record = bindings_[index];
-        const bool writesDataContext =
-            record.dataContextProperty.IsValid() &&
-            record.descriptor.targetProperty == record.dataContextProperty;
-        if (pass == 0U && !writesDataContext) {
-            continue;
-        }
-        if (pass == 1U && writesDataContext) {
-            continue;
-        }
-        if (record.descriptor.mode == BindingMode::OneTime && record.applied) {
-            continue;
-        }
-        const bool metadataPath =
-            record.sourceKind != BindingSourceKind::DependencyProperty;
-        const bool hasNotify =
-            record.notificationSubscription != 0U ||
-            record.sourceDependencyProperty.IsValid();
-        const bool unresolvedDataContext =
-            record.sourceKind == BindingSourceKind::DataContext &&
-            (!record.applied || record.metadataSource == nullptr ||
-             (!record.bindsToSource && !record.pathPlan.IsValid()));
-        const bool pollMetadata =
-            (metadataPath && !hasNotify) || unresolvedDataContext;
-        if (record.applied && !record.sourceDirty &&
-            !record.targetDirty && !pollMetadata) {
-            continue;
-        }
-        if (pollMetadata && !record.pollHintEmitted) {
-            record.pollHintEmitted = true;
-            ReportDiagnostic(
-                record,
-                BindingDiagnosticStage::ResolveSource,
-                Base::Status::Failure(
-                    Base::ErrorCode::Unsupported,
-                    "Binding source does not implement NotifyPropertyChanged; "
-                    "polling metadata path every frame"));
-        }
 
-        Base::Result<PropertyValue> source = ReadSource(record);
-        bool usedFallback = false;
-        if (!source) {
-            const BindingDiagnosticStage stage =
-                record.sourceKind == BindingSourceKind::DataContext &&
-                source.GetStatus().code == Base::ErrorCode::NotFound
-                    ? BindingDiagnosticStage::ResolveSource
-                    : BindingDiagnosticStage::ReadSource;
-            ReportDiagnostic(record, stage, source.GetStatus());
-            if (record.descriptor.fallbackValue.IsUnset()) {
-                record.applied = false;
-                record.sourceDirty = true;
-                continue;
-            }
-            source = record.descriptor.fallbackValue;
-            usedFallback = true;
-        }
-        Base::Result<PropertyValue> target =
-            record.descriptor.target->GetValue(record.descriptor.targetProperty);
-        if (!target) {
-            ReportDiagnostic(
-                record,
-                BindingDiagnosticStage::WriteTarget,
-                target.GetStatus());
-            continue;
-        }
+    for (std::uint32_t iteration = 0U; iteration < 4U; ++iteration) {
+        const std::uint32_t currentCount = bindings_.Size();
+        std::uint32_t iterationUpdated = 0U;
+        // Equip slots author DataContext="{Binding Player.Slots[i]}" plus
+        // Content="{Binding}". Apply DataContext writes first so empty-path
+        // Content bindings in the same Flush see the slot object.
+        for (std::uint32_t pass = 0U; pass < 2U; ++pass) {
+            for (std::uint32_t index = 0U; index < currentCount; ++index) {
+                if (index >= bindings_.Size() || bindings_[index].handle.value == 0U) {
+                    continue;
+                }
+                const bool writesDataContext =
+                    bindings_[index].dataContextProperty.IsValid() &&
+                    bindings_[index].descriptor.targetProperty == bindings_[index].dataContextProperty;
+                if (pass == 0U && !writesDataContext) {
+                    continue;
+                }
+                if (pass == 1U && writesDataContext) {
+                    continue;
+                }
+                if (bindings_[index].descriptor.mode == BindingMode::OneTime && bindings_[index].applied) {
+                    continue;
+                }
+                const bool metadataPath =
+                    bindings_[index].sourceKind != BindingSourceKind::DependencyProperty;
+                const bool hasNotify =
+                    bindings_[index].notificationSubscription != 0U ||
+                    bindings_[index].sourceDependencyProperty.IsValid();
+                const bool unresolvedDataContext =
+                    bindings_[index].sourceKind == BindingSourceKind::DataContext &&
+                    (!bindings_[index].applied || bindings_[index].metadataSource == nullptr ||
+                     (!bindings_[index].bindsToSource && !bindings_[index].pathPlan.IsValid()));
+                const bool pollMetadata =
+                    (metadataPath && !hasNotify) || unresolvedDataContext;
+                if (bindings_[index].applied && !bindings_[index].sourceDirty &&
+                    !bindings_[index].targetDirty && !pollMetadata) {
+                    continue;
+                }
+                if (pollMetadata && !bindings_[index].pollHintEmitted) {
+                    bindings_[index].pollHintEmitted = true;
+                    ReportDiagnostic(
+                        bindings_[index],
+                        BindingDiagnosticStage::ResolveSource,
+                        Base::Status::Failure(
+                            Base::ErrorCode::Unsupported,
+                            "Binding source does not implement NotifyPropertyChanged; "
+                            "polling metadata path every frame"));
+                }
 
-        const bool sourceChanged = !record.applied ||
-            record.sourceDirty ||
-            usedFallback ||
-            (pollMetadata &&
-             source.Value() != record.lastSourceValue);
-        const bool targetChanged =
-            record.descriptor.updateSourceTrigger ==
-                    UpdateSourceTrigger::Explicit ||
-                record.descriptor.updateSourceTrigger ==
-                    UpdateSourceTrigger::LostFocus
-            ? record.forceSourceUpdate
-            : (!record.applied || record.targetDirty);
-        if (!sourceChanged && !targetChanged) {
-            record.sourceDirty = false;
-            if (record.descriptor.updateSourceTrigger !=
-                    UpdateSourceTrigger::LostFocus &&
-                record.descriptor.updateSourceTrigger !=
-                    UpdateSourceTrigger::Explicit) {
-                record.targetDirty = false;
+                Base::Result<PropertyValue> source = ReadSource(bindings_[index]);
+                bool usedFallback = false;
+                if (!source) {
+                    const BindingDiagnosticStage stage =
+                        bindings_[index].sourceKind == BindingSourceKind::DataContext &&
+                        source.GetStatus().code == Base::ErrorCode::NotFound
+                            ? BindingDiagnosticStage::ResolveSource
+                            : BindingDiagnosticStage::ReadSource;
+                    ReportDiagnostic(bindings_[index], stage, source.GetStatus());
+                    if (bindings_[index].descriptor.fallbackValue.IsUnset()) {
+                        bindings_[index].applied = false;
+                        bindings_[index].sourceDirty = true;
+                        continue;
+                    }
+                    source = bindings_[index].descriptor.fallbackValue;
+                    usedFallback = true;
+                }
+                Base::Result<PropertyValue> target =
+                    bindings_[index].descriptor.target->GetValue(bindings_[index].descriptor.targetProperty);
+                if (!target) {
+                    ReportDiagnostic(
+                        bindings_[index],
+                        BindingDiagnosticStage::WriteTarget,
+                        target.GetStatus());
+                    continue;
+                }
+
+                const bool sourceChanged = !bindings_[index].applied ||
+                    bindings_[index].sourceDirty ||
+                    usedFallback ||
+                    (pollMetadata &&
+                     source.Value() != bindings_[index].lastSourceValue);
+                const bool targetChanged =
+                    bindings_[index].descriptor.updateSourceTrigger ==
+                            UpdateSourceTrigger::Explicit ||
+                        bindings_[index].descriptor.updateSourceTrigger ==
+                            UpdateSourceTrigger::LostFocus
+                    ? bindings_[index].forceSourceUpdate
+                    : (!bindings_[index].applied || bindings_[index].targetDirty);
+                if (!sourceChanged && !targetChanged) {
+                    bindings_[index].sourceDirty = false;
+                    if (bindings_[index].descriptor.updateSourceTrigger !=
+                            UpdateSourceTrigger::LostFocus &&
+                        bindings_[index].descriptor.updateSourceTrigger !=
+                            UpdateSourceTrigger::Explicit) {
+                        bindings_[index].targetDirty = false;
+                    }
+                    continue;
+                }
+                Base::Result<void> applied =
+                    Base::Status::Failure(
+                        Base::ErrorCode::InvalidState,
+                        "Binding update was not attempted");
+                switch (bindings_[index].descriptor.mode) {
+                case BindingMode::OneTime:
+                    if (!bindings_[index].applied) {
+                        applied = ApplySourceToTarget(
+                            bindings_[index],
+                            source.Value(),
+                            usedFallback,
+                            target.Value());
+                        if (applied) ++iterationUpdated;
+                    }
+                    break;
+                case BindingMode::Default:
+                case BindingMode::OneWay:
+                    if (sourceChanged) {
+                        applied = ApplySourceToTarget(
+                            bindings_[index],
+                            source.Value(),
+                            usedFallback,
+                            target.Value());
+                        if (applied) ++iterationUpdated;
+                    }
+                    break;
+                case BindingMode::OneWayToSource:
+                    if (targetChanged) {
+                        applied = ApplyTargetToSource(
+                            bindings_[index],
+                            target.Value(),
+                            source.Value());
+                        if (applied) ++iterationUpdated;
+                    }
+                    break;
+                case BindingMode::TwoWay:
+                    // A target edit (ToggleButton click) must write back even when
+                    // metadata-path polling reports a unchanged source as "changed".
+                    // Source still wins when the source property itself is dirty.
+                    if (targetChanged && !bindings_[index].sourceDirty) {
+                        applied = ApplyTargetToSource(
+                            bindings_[index],
+                            target.Value(),
+                            source.Value());
+                        if (applied) ++iterationUpdated;
+                    } else if (sourceChanged) {
+                        applied = ApplySourceToTarget(
+                            bindings_[index],
+                            source.Value(),
+                            usedFallback,
+                            target.Value());
+                        if (applied) ++iterationUpdated;
+                    } else if (targetChanged) {
+                        applied = ApplyTargetToSource(
+                            bindings_[index],
+                            target.Value(),
+                            source.Value());
+                        if (applied) ++iterationUpdated;
+                    }
+                    break;
+                }
+                if (index >= bindings_.Size() || bindings_[index].handle.value == 0U) {
+                    continue;
+                }
+                if (!applied && (sourceChanged || targetChanged)) {
+                    bindings_[index].sourceDirty = true;
+                    continue;
+                }
+                bindings_[index].lastSourceValue = source.Value();
+                bindings_[index].lastTargetValue = target.Value();
+                bindings_[index].applied = true;
+                bindings_[index].lastStatus = {};
+                bindings_[index].sourceDirty = false;
+                bindings_[index].targetDirty = false;
+                bindings_[index].forceSourceUpdate = false;
             }
-            continue;
         }
-        Base::Result<void> applied =
-            Base::Status::Failure(
-                Base::ErrorCode::InvalidState,
-                "Binding update was not attempted");
-        switch (record.descriptor.mode) {
-        case BindingMode::OneTime:
-            if (!record.applied) {
-                applied = ApplySourceToTarget(
-                    record,
-                    source.Value(),
-                    usedFallback,
-                    target.Value());
-                if (applied) ++updated;
-            }
-            break;
-        case BindingMode::Default:
-        case BindingMode::OneWay:
-            if (sourceChanged) {
-                applied = ApplySourceToTarget(
-                    record,
-                    source.Value(),
-                    usedFallback,
-                    target.Value());
-                if (applied) ++updated;
-            }
-            break;
-        case BindingMode::OneWayToSource:
-            if (targetChanged) {
-                applied = ApplyTargetToSource(
-                    record,
-                    target.Value(),
-                    source.Value());
-                if (applied) ++updated;
-            }
-            break;
-        case BindingMode::TwoWay:
-            // A target edit (ToggleButton click) must write back even when
-            // metadata-path polling reports a unchanged source as "changed".
-            // Source still wins when the source property itself is dirty.
-            if (targetChanged && !record.sourceDirty) {
-                applied = ApplyTargetToSource(
-                    record,
-                    target.Value(),
-                    source.Value());
-                if (applied) ++updated;
-            } else if (sourceChanged) {
-                applied = ApplySourceToTarget(
-                    record,
-                    source.Value(),
-                    usedFallback,
-                    target.Value());
-                if (applied) ++updated;
-            } else if (targetChanged) {
-                applied = ApplyTargetToSource(
-                    record,
-                    target.Value(),
-                    source.Value());
-                if (applied) ++updated;
-            }
+        updated += iterationUpdated;
+        if (iterationUpdated == 0U && bindings_.Size() == currentCount) {
             break;
         }
-        if (!applied && (sourceChanged || targetChanged)) {
-            record.sourceDirty = true;
-            continue;
-        }
-        record.lastSourceValue = source.Value();
-        record.lastTargetValue = target.Value();
-        record.applied = true;
-        record.lastStatus = {};
-        record.sourceDirty = false;
-        record.targetDirty = false;
-        record.forceSourceUpdate = false;
-    }
     }
     flushing_ = false;
+    if (hasPendingDetaches_) {
+        hasPendingDetaches_ = false;
+        std::uint32_t writeIndex = 0U;
+        for (std::uint32_t readIndex = 0U; readIndex < bindings_.Size(); ++readIndex) {
+            if (bindings_[readIndex].handle.value != 0U) {
+                if (writeIndex != readIndex) {
+                    bindings_[writeIndex] = std::move(bindings_[readIndex]);
+                    static_cast<void>(handleIndexMap_.Set(bindings_[writeIndex].handle.value, writeIndex));
+                }
+                ++writeIndex;
+            }
+        }
+        bindings_.Resize(writeIndex);
+    }
     return updated;
 }
 
@@ -728,26 +755,33 @@ void BindingEngine::ReleaseMetadataSource(
     record.notificationSubscription = 0U;
 }
 
-void BindingEngine::RemoveAt(std::uint32_t index) noexcept {
-    BindingRecord& removed = bindings_[index];
-    handleIndexMap_.Erase(removed.handle.value);
-    if (removed.sourceKind ==
-        BindingSourceKind::DependencyProperty) {
-        (void)removed.descriptor.source->RemoveValueChangedHandler(
-            removed.descriptor.sourceProperty,
-            propertyChangedHandler_);
+void BindingEngine::CleanupRecord(BindingRecord& record) noexcept {
+    if (record.sourceKind == BindingSourceKind::DependencyProperty) {
+        if (record.descriptor.source != nullptr && record.descriptor.sourceProperty.IsValid()) {
+            (void)record.descriptor.source->RemoveValueChangedHandler(
+                record.descriptor.sourceProperty,
+                propertyChangedHandler_);
+        }
     } else {
-        ReleaseMetadataSource(removed);
-        if (removed.sourceKind ==
-            BindingSourceKind::DataContext) {
-            (void)removed.dataContextOwner->RemoveValueChangedHandler(
-                removed.dataContextProperty,
+        ReleaseMetadataSource(record);
+        if (record.sourceKind == BindingSourceKind::DataContext &&
+            record.dataContextOwner != nullptr && record.dataContextProperty.IsValid()) {
+            (void)record.dataContextOwner->RemoveValueChangedHandler(
+                record.dataContextProperty,
                 propertyChangedHandler_);
         }
     }
-    (void)removed.descriptor.target->RemoveValueChangedHandler(
-        removed.descriptor.targetProperty, propertyChangedHandler_);
-    UnsubscribeLostFocus(removed);
+    if (record.descriptor.target != nullptr && record.descriptor.targetProperty.IsValid()) {
+        (void)record.descriptor.target->RemoveValueChangedHandler(
+            record.descriptor.targetProperty, propertyChangedHandler_);
+    }
+    UnsubscribeLostFocus(record);
+}
+
+void BindingEngine::RemoveAt(std::uint32_t index) noexcept {
+    if (index >= bindings_.Size()) return;
+    handleIndexMap_.Erase(bindings_[index].handle.value);
+    CleanupRecord(bindings_[index]);
     for (std::uint32_t current = index + 1U;
          current < bindings_.Size();
          ++current) {

@@ -70,9 +70,10 @@ Base::Object* ViewFrame::FindNameForElement(
             object = runtime->loadedDocument.names.Find(name);
         }
         if (object == nullptr) {
-            for (ViewFrame::FragmentMount& fragment :
+            for (ViewFrame::FragmentMount* fragment :
                  runtime->fragmentMounts) {
-                object = fragment.document.names.Find(name);
+                if (fragment == nullptr) continue;
+                object = fragment->document.names.Find(name);
                 if (object != nullptr) break;
             }
         }
@@ -560,15 +561,18 @@ Base::Result<void> UnmountFragmentAt(ViewFrame& state,
                 Base::ErrorCode::OutOfRange,
                 "content fragment index is out of range");
         }
-        Base::Result<void> detached = DetachFragment(state, state.fragmentMounts[index]);
-        if (!detached) return detached.GetStatus();
+        ViewFrame::FragmentMount* mount = state.fragmentMounts[index];
+        Base::Result<void> detached{};
+        if (mount != nullptr) {
+            detached = DetachFragment(state, *mount);
+            FreeObject(*state.allocator, Base::MemoryTag::Ui, mount);
+        }
         for (std::uint32_t next = index + 1U;
              next < state.fragmentMounts.Size(); ++next) {
-            state.fragmentMounts[next - 1U] =
-                std::move(state.fragmentMounts[next]);
+            state.fragmentMounts[next - 1U] = state.fragmentMounts[next];
         }
         state.fragmentMounts.PopBack();
-        return {};
+        return detached;
     }
 
 Base::Result<void> UnmountAllFragments(ViewFrame& state) noexcept {
@@ -727,7 +731,8 @@ Base::Result<void> MountViewFragment(
     std::uint32_t existing = UINT32_MAX;
     for (std::uint32_t index = 0U;
          index < state_->fragmentMounts.Size(); ++index) {
-        if (state_->fragmentMounts[index].host == &host) {
+        if (state_->fragmentMounts[index] != nullptr &&
+            state_->fragmentMounts[index]->host == &host) {
             existing = index;
             break;
         }
@@ -749,42 +754,50 @@ Base::Result<void> MountViewFragment(
     state_->fragmentMounts.Reserve(
         state_->fragmentMounts.Size() + 1U);
 
-    ::Aero::ViewFrame::FragmentMount fragment;
-    fragment.host = &host;
-    fragment.document = Aero::Markup::TakeXamlDocument(document);
+    ViewFrame::FragmentMount* fragment = nullptr;
+    Base::Result<void> allocated = AllocateObject(
+        *state_->allocator, Base::MemoryTag::Ui, fragment);
+    if (!allocated) return allocated.GetStatus();
+
+    fragment->host = &host;
+    fragment->document = Aero::Markup::TakeXamlDocument(document);
     const Aero::NameScope* previousActiveNames =
         state_->activeFragmentNames;
-    state_->activeFragmentNames = &fragment.document.names;
+    state_->activeFragmentNames = &fragment->document.names;
     const auto restoreActiveNames = [&]() noexcept {
         state_->activeFragmentNames = previousActiveNames;
     };
     Base::Result<Aero::Media::Visual*> rootVisual =
         state_->ResolveVisual(
-            *fragment.document.root,
-            fragment.document.root->RuntimeType());
+            *fragment->document.root,
+            fragment->document.root->RuntimeType());
     Base::Result<Aero::UIElement*> rootElement =
         state_->ResolveUIElement(
-            *fragment.document.root,
-            fragment.document.root->RuntimeType());
+            *fragment->document.root,
+            fragment->document.root->RuntimeType());
     if (!rootVisual || !rootElement) {
         restoreActiveNames();
-        fragment.document.Clear();
-        return !rootVisual
-            ? Base::Result<void>(rootVisual.GetStatus())
-            : Base::Result<void>(rootElement.GetStatus());
+        fragment->document.Clear();
+        Base::Status status = !rootVisual
+            ? rootVisual.GetStatus()
+            : rootElement.GetStatus();
+        FreeObject(*state_->allocator, Base::MemoryTag::Ui, fragment);
+        return status;
     }
     Base::Result<void> tracked =
-        fragment.document.visualContent.AddNode(*rootVisual.Value());
+        fragment->document.visualContent.AddNode(*rootVisual.Value());
     if (!tracked) {
         restoreActiveNames();
-        fragment.document.Clear();
+        fragment->document.Clear();
+        FreeObject(*state_->allocator, Base::MemoryTag::Ui, fragment);
         return tracked.GetStatus();
     }
     Base::Result<void> assigned = AeroGuiInternal::SetOwnedContent(host,
-        fragment.document.root, *rootElement.Value());
+        fragment->document.root, *rootElement.Value());
     if (!assigned) {
         restoreActiveNames();
-        fragment.document.Clear();
+        fragment->document.Clear();
+        FreeObject(*state_->allocator, Base::MemoryTag::Ui, fragment);
         return assigned.GetStatus();
     }
 
@@ -794,39 +807,41 @@ Base::Result<void> MountViewFragment(
     // A second AttachElement(host, root) then fails with "already attached".
     if (rootElement.Value()->GetIsLayoutAttached() ||
         AeroGuiInternal::TemplateRoot(host) != nullptr) {
-        fragment.rootEdge.logicalParent = &host;
-        fragment.rootEdge.visualParent =
+        fragment->rootEdge.logicalParent = &host;
+        fragment->rootEdge.visualParent =
             rootVisual.Value()->GetVisualParent() != nullptr
                 ? rootVisual.Value()->GetVisualParent()
                 : static_cast<Aero::Media::Visual*>(&host);
-        fragment.rootEdge.child = rootVisual.Value();
+        fragment->rootEdge.child = rootVisual.Value();
     } else {
         Base::Result<Aero::ElementAttachment> rootMounted =
             context.AttachElement(host, *rootVisual.Value());
         if (!rootMounted) {
             restoreActiveNames();
             static_cast<void>(host.SetContent(nullptr));
-            fragment.document.Clear();
+            fragment->document.Clear();
+            FreeObject(*state_->allocator, Base::MemoryTag::Ui, fragment);
             return rootMounted.GetStatus();
         }
-        fragment.rootEdge = std::move(rootMounted).Value();
+        fragment->rootEdge = std::move(rootMounted).Value();
     }
 
     const auto detachFailedFragment = [&]() noexcept {
         restoreActiveNames();
-        static_cast<void>(DetachFragment(*state_, fragment));
+        static_cast<void>(DetachFragment(*state_, *fragment));
+        FreeObject(*state_->allocator, Base::MemoryTag::Ui, fragment);
     };
     const auto attachEdges = [&](bool deferred) noexcept
         -> Base::Result<void> {
         std::uint32_t attached = 0U;
         for (const Aero::Markup::VisualEdge& edge :
-             fragment.document.visualContent.mountEdges) {
+             fragment->document.visualContent.mountEdges) {
             if (edge.state.logicalAttached) ++attached;
         }
-        while (attached < fragment.document.visualContent.mountEdges.Size()) {
+        while (attached < fragment->document.visualContent.mountEdges.Size()) {
             bool progressed = false;
             for (Aero::Markup::VisualEdge& edge :
-                 fragment.document.visualContent.mountEdges) {
+                 fragment->document.visualContent.mountEdges) {
                 if (edge.state.logicalAttached || edge.parent == nullptr ||
                     edge.child == nullptr) {
                     continue;
@@ -880,25 +895,25 @@ Base::Result<void> MountViewFragment(
     runtimeServices.bindings = state_->Bindings();
     runtimeServices.fallbackResources = &state_->resources->dynamicResourceEnvironment;
     runtimeServices.lifetime = state_->effectLifetime;
-    Base::Result<void> boundEffects = fragment.document.effects.Bind(runtimeServices);
+    Base::Result<void> boundEffects = fragment->document.effects.Bind(runtimeServices);
     if (!boundEffects) {
         detachFailedFragment();
         return boundEffects.GetStatus();
     }
-    Base::Result<void> effects = fragment.document.effects.Commit();
+    Base::Result<void> effects = fragment->document.effects.Commit();
     if (!effects) {
         detachFailedFragment();
         return effects.GetStatus();
     }
     Base::Result<std::uint32_t> animations =
         state_->storyboards->StartLoadedAnimations(
-            rootVisual.Value(), &fragment.document.names);
+            rootVisual.Value(), &fragment->document.names);
     if (!animations) {
         detachFailedFragment();
         return animations.GetStatus();
     }
     restoreActiveNames();
-    state_->fragmentMounts.PushBack(std::move(fragment));
+    state_->fragmentMounts.PushBack(fragment);
     return {};
 }
 
@@ -912,7 +927,8 @@ Base::Result<void> UnmountViewFragment(
     }
     for (std::uint32_t index = 0U;
          index < state_->fragmentMounts.Size(); ++index) {
-        if (state_->fragmentMounts[index].host == &host) {
+        if (state_->fragmentMounts[index] != nullptr &&
+            state_->fragmentMounts[index]->host == &host) {
             return UnmountFragmentAt(*state_, index);
         }
     }

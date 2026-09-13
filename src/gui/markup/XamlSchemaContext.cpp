@@ -10,6 +10,7 @@
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleEngine.hpp"
 #include "gui/templates/TemplateInstance.hpp"
+#include "gui/controls/ItemsContainers.hpp"
 #include <Aero/VisualStateManager.hpp>
 #include <Aero/Markup/MarkupExtension.hpp>
 #include <Aero/TryCast.hpp>
@@ -841,6 +842,17 @@ Base::Result<Meta::Value> Schema::ConvertText(
     if (type == Meta::TypeOf<Meta::Value>()) {
         return Meta::Value::TryFromString(
             Meta::TypeOf<Base::String>(), text);
+    }
+    if (type == Meta::TypeOf<Base::Object>()) {
+        Base::Result<Meta::Value> strVal =
+            Meta::Value::TryFromString(Meta::TypeOf<Base::String>(), text);
+        if (!strVal) return strVal.GetStatus();
+        Base::Result<Base::Ref<Controls::BoxedItemValue>> boxed =
+            Base::MakeRef<Controls::BoxedItemValue>(std::move(strVal).Value());
+        if (!boxed) return boxed.GetStatus();
+        return Meta::Value::FromObject(
+            type,
+            Base::Ref<Base::Object>(std::move(boxed).Value()));
     }
     const bool fontFamilyValue =
         type == Meta::TypeOf<Media::FontFamily>();

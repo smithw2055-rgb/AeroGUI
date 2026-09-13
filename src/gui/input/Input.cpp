@@ -2,6 +2,7 @@
 
 #include <Aero/Base/Utf8.hpp>
 #include <Aero/FrameworkElement.hpp>
+#include <Aero/Controls/Popup.hpp>
 #include <Aero/Media/Transforms.hpp>
 #include <Aero/Media/Geometry.hpp>
 #include "gui/media/GeometryFlatten.hpp"
@@ -65,16 +66,18 @@ bool HasSelfHitSurface(UIElement& element) noexcept {
     if (properties.Find(type, Base::StringView("Source")) != nullptr) {
         return HasAssignedObject(element, Base::StringView("Source"));
     }
+    if (properties.Find(type, Base::StringView("Template")) != nullptr) {
+        if (properties.Find(type, Base::StringView("IsDragging")) != nullptr ||
+            properties.Find(type, Base::StringView("Interval")) != nullptr) {
+            return true;
+        }
+        if (AeroGuiInternal::RenderChildren(element).Size() > 0U) {
+            return false;
+        }
+    }
     if (properties.Find(type, Base::StringView("Background")) != nullptr) {
         return HasAssignedObject(element, Base::StringView("Background")) ||
             HasAssignedObject(element, Base::StringView("BorderBrush"));
-    }
-    // Controls (ButtonBase / Thumb / Track / ScrollBar / ListBoxItem) hit-test
-    // their layout slot even when the template root has no Background. QuestLog
-    // page RepeatButtons are arranged to the full track region but paint only a
-    // 44x44 Border; without this, clicks fall through to decorative arrow Paths.
-    if (properties.Find(type, Base::StringView("Template")) != nullptr) {
-        return true;
     }
     // Track is not a Control (no Template DP) and typically has no Background.
     // BlendTutorial's slider groove is a Track inside a Border; without this,
@@ -552,13 +555,26 @@ Base::Result<void> PointerStateMachine::UpdateHover(
         next.IsValid()
         ? tree->ResolveHandle(next)
         : nullptr;
-    const auto isAncestorOrSelf = [](
+    const auto getVisualOrLogicalOrPlacementParent = [](::Aero::Media::Visual* node) noexcept -> ::Aero::Media::Visual* {
+        if (node == nullptr) return nullptr;
+        if (auto* p = node->GetVisualParent()) return p;
+        if (auto* p = ::Aero::TryCast<::Aero::Media::Visual>(node->GetLogicalParent())) return p;
+        if (auto* popup = ::Aero::TryCast<::Aero::Controls::Primitives::Popup>(node)) {
+            if (auto target = popup->GetPlacementTarget()) return target.Get();
+            if (auto* tp = ::Aero::TryCast<::Aero::Media::Visual>(popup->GetTemplatedParent())) return tp;
+        }
+        if (auto* fe = ::Aero::TryCast<::Aero::FrameworkElement>(node)) {
+            if (auto* tp = ::Aero::TryCast<::Aero::Media::Visual>(fe->GetTemplatedParent())) return tp;
+        }
+        return nullptr;
+    };
+    const auto isAncestorOrSelf = [&](
         ::Aero::Media::Visual* ancestor,
         ::Aero::Media::Visual* descendant) noexcept {
         ::Aero::Media::Visual* current = descendant;
         while (current != nullptr) {
             if (current == ancestor) return true;
-            current = current->GetVisualParent() != nullptr ? current->GetVisualParent() : ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent());
+            current = getVisualOrLogicalOrPlacementParent(current);
         }
         return false;
     };
@@ -593,7 +609,7 @@ Base::Result<void> PointerStateMachine::UpdateHover(
                 }
             }
         }
-        current = current->GetVisualParent() != nullptr ? current->GetVisualParent() : ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent());
+        current = getVisualOrLogicalOrPlacementParent(current);
     }
 
     current = previousVisual;
@@ -626,7 +642,7 @@ Base::Result<void> PointerStateMachine::UpdateHover(
                 }
             }
         }
-        current = current->GetVisualParent() != nullptr ? current->GetVisualParent() : ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent());
+        current = getVisualOrLogicalOrPlacementParent(current);
     }
     states_[index].hover = next;
     return {};

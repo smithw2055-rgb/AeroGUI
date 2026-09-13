@@ -1,5 +1,6 @@
 #include "gui/ViewFrame.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
+#include "gui/templates/TemplateInstance.hpp"
 #include <Aero/Media/MediaElement.hpp>
 #include <Aero/Media/Animation/MediaActions.hpp>
 #include <Aero/Media/Animation/StoryboardActions.hpp>
@@ -229,6 +230,20 @@ StoryboardHost::ExecuteAnimationAction(
             }
             if (targetObject == nullptr) {
                 targetObject = owner.FindName(setFocus.GetTargetName());
+            }
+            if (targetObject == nullptr) {
+                if (Controls::TemplateEngine* templates = AeroGuiInternal::TemplatesOf(owner)) {
+                    const Controls::Control* control = ::Aero::TryCast<Controls::Control>(&owner);
+                    if (control == nullptr) {
+                        control = ::Aero::TryCast<Controls::Control>(owner.GetTemplatedParent());
+                    }
+                    if (control != nullptr) {
+                        const Controls::TemplateHandle handle = templates->AppliedHandle(*control);
+                        if (handle.IsValid()) {
+                            targetObject = templates->FindName(handle, setFocus.GetTargetName());
+                        }
+                    }
+                }
             }
             if (targetObject == nullptr && names != nullptr) {
                 targetObject = names->Find(setFocus.GetTargetName());

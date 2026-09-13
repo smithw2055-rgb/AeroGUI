@@ -78,49 +78,53 @@ public:
     static constexpr uint8_t kSamplerTableSize = 64U;
 
     void Reset() noexcept {
-        valid_ = false;
+        blendValid_ = false;
+        depthStencilValid_ = false;
+        pipelineValid_ = false;
+        pipelineHandleValid_ = false;
         blend_ = {};
         depthStencil_ = {};
         pipeline_ = {};
         pipelineHandle_ = 0U;
         for (uint8_t i = 0U; i < kSamplerSlots; ++i) {
+            samplerValid_[i] = false;
             samplers_[i] = {};
         }
     }
 
     [[nodiscard]] bool UpdateBlend(BlendStateKey key) noexcept {
-        if (valid_ && blend_ == key) {
+        if (blendValid_ && blend_ == key) {
             return false;
         }
         blend_ = key;
-        valid_ = true;
+        blendValid_ = true;
         return true;
     }
 
     [[nodiscard]] bool UpdateDepthStencil(DepthStencilStateKey key) noexcept {
-        if (valid_ && depthStencil_ == key) {
+        if (depthStencilValid_ && depthStencil_ == key) {
             return false;
         }
         depthStencil_ = key;
-        valid_ = true;
+        depthStencilValid_ = true;
         return true;
     }
 
     [[nodiscard]] bool UpdatePipeline(ShaderPipelineKey key) noexcept {
-        if (valid_ && pipeline_ == key) {
+        if (pipelineValid_ && pipeline_ == key) {
             return false;
         }
         pipeline_ = key;
-        valid_ = true;
+        pipelineValid_ = true;
         return true;
     }
 
     [[nodiscard]] bool UpdatePipelineHandle(std::uintptr_t handle) noexcept {
-        if (valid_ && pipelineHandle_ == handle) {
+        if (pipelineHandleValid_ && pipelineHandle_ == handle) {
             return false;
         }
         pipelineHandle_ = handle;
-        valid_ = true;
+        pipelineHandleValid_ = true;
         return true;
     }
 
@@ -128,11 +132,11 @@ public:
         if (slot >= kSamplerSlots) {
             return true;
         }
-        if (valid_ && samplers_[slot] == key) {
+        if (samplerValid_[slot] && samplers_[slot] == key) {
             return false;
         }
         samplers_[slot] = key;
-        valid_ = true;
+        samplerValid_[slot] = true;
         return true;
     }
 
@@ -164,7 +168,11 @@ public:
     }
 
 private:
-    bool valid_ = false;
+    bool blendValid_ = false;
+    bool depthStencilValid_ = false;
+    bool pipelineValid_ = false;
+    bool pipelineHandleValid_ = false;
+    bool samplerValid_[kSamplerSlots]{};
     BlendStateKey blend_{};
     DepthStencilStateKey depthStencil_{};
     ShaderPipelineKey pipeline_{};

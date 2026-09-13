@@ -72,6 +72,11 @@ Base::Object* ResolveTemplateBindingAncestor(
     auto* targetVisual = static_cast<Visual*>(&target);
     Visual* current = targetVisual->GetVisualParent();
     if (current == nullptr) current = TryCast<Visual>(targetVisual->GetLogicalParent());
+    if (current == nullptr) {
+        if (auto* fe = TryCast<FrameworkElement>(targetVisual)) {
+            current = TryCast<Visual>(fe->GetTemplatedParent());
+        }
+    }
     while (current != nullptr) {
         const TypeInfo* type =
             runtime.Types().FindType(current->RuntimeType());
@@ -82,6 +87,11 @@ Base::Object* ResolveTemplateBindingAncestor(
         }
         Visual* next = current->GetVisualParent();
         if (next == nullptr) next = TryCast<Visual>(current->GetLogicalParent());
+        if (next == nullptr) {
+            if (auto* fe = TryCast<FrameworkElement>(current)) {
+                next = TryCast<Visual>(fe->GetTemplatedParent());
+            }
+        }
         current = next;
     }
     return nullptr;
@@ -126,6 +136,17 @@ Base::Result<Value> ConvertTemplateTextValue(
          property.Handle() == TabControl::SelectedIndexProperty.Handle()) &&
         text == Base::StringView("-1")) {
         return ValueCodec<std::uint32_t>::Encode(UINT32_MAX);
+    }
+    if (property.ValueType() == Meta::TypeOf<Base::Object>()) {
+        Base::Result<Value> strVal =
+            Value::TryFromString(Meta::TypeOf<Base::String>(), text);
+        if (!strVal) return strVal.GetStatus();
+        Base::Result<Base::Ref<Controls::BoxedItemValue>> boxed =
+            Base::MakeRef<Controls::BoxedItemValue>(std::move(strVal).Value());
+        if (!boxed) return boxed.GetStatus();
+        return Value::FromObject(
+            property.ValueType(),
+            Base::Ref<Base::Object>(std::move(boxed).Value()));
     }
     return runtime.TryConvertText(property.ValueType(), text);
 }
@@ -2136,10 +2157,9 @@ Base::Result<void> BuildCompiledTemplate(
                     }
                 }
                 std::uint32_t matchedLevel = 0U;
-                Visual* current =
-                    TryCast<Visual>(context.TemplatedParent().GetLogicalParent());
+                Visual* current = context.TemplatedParent().GetVisualParent();
                 if (current == nullptr) {
-                    current = context.TemplatedParent().GetVisualParent();
+                    current = TryCast<Visual>(context.TemplatedParent().GetLogicalParent());
                 }
                 while (current != nullptr) {
                     const TypeInfo* type = blueprint->runtime->Types().FindType(
@@ -2150,8 +2170,13 @@ Base::Result<void> BuildCompiledTemplate(
                             relative->GetAncestorLevel()) {
                         return static_cast<Base::Object*>(current);
                     }
-                    Visual* next = TryCast<Visual>(current->GetLogicalParent());
-                    if (next == nullptr) next = current->GetVisualParent();
+                    Visual* next = current->GetVisualParent();
+                    if (next == nullptr) next = TryCast<Visual>(current->GetLogicalParent());
+                    if (next == nullptr) {
+                        if (auto* fe = TryCast<FrameworkElement>(current)) {
+                            next = TryCast<Visual>(fe->GetTemplatedParent());
+                        }
+                    }
                     current = next;
                 }
                 return nullptr;

@@ -197,9 +197,6 @@ Base::Result<BindingHandle> BindingEngine::Attach(
     if (!initialized_) {
         return InvalidState("BindingEngine must be initialized before Attach");
     }
-    if (flushing_) {
-        return InvalidState("BindingEngine cannot attach while flushing");
-    }
     Base::Result<void> valid = VerifyDescriptor(descriptor);
     if (!valid) {
         return valid.GetStatus();
@@ -245,9 +242,6 @@ Base::Result<BindingHandle> BindingEngine::Attach(
     }
     if (!initialized_) {
         return InvalidState("BindingEngine must be initialized before Attach");
-    }
-    if (flushing_) {
-        return InvalidState("BindingEngine cannot attach while flushing");
     }
     Base::Result<void> valid = VerifyDescriptor(descriptor);
     if (!valid) return valid.GetStatus();
@@ -453,14 +447,19 @@ Base::Result<bool> BindingEngine::Detach(BindingHandle handle) noexcept {
     if (!dispatcher_->CheckAccess()) {
         return dispatcher_->VerifyAccess().GetStatus();
     }
-    if (flushing_) {
-        return InvalidState("BindingEngine cannot detach while flushing");
-    }
     if (handle.value == 0U) {
         return false;
     }
     const std::uint32_t* found = handleIndexMap_.Find(handle.value);
     if (found != nullptr && *found < bindings_.Size() && bindings_[*found].handle.value == handle.value) {
+        if (flushing_) {
+            const std::uint32_t index = *found;
+            handleIndexMap_.Erase(handle.value);
+            CleanupRecord(bindings_[index]);
+            bindings_[index].handle.value = 0U;
+            hasPendingDetaches_ = true;
+            return true;
+        }
         RemoveAt(*found);
         return true;
     }
@@ -471,7 +470,7 @@ Base::Result<bool> BindingEngine::UpdateSource(BindingHandle handle) noexcept {
     if (!dispatcher_->CheckAccess()) {
         return dispatcher_->VerifyAccess().GetStatus();
     }
-    if (!initialized_ || flushing_) {
+    if (!initialized_) {
         return InvalidState("BindingEngine is not ready to update a source");
     }
     BindingRecord* record = FindRecord(handle);
@@ -491,14 +490,16 @@ Base::Result<bool> BindingEngine::UpdateTarget(BindingHandle handle) noexcept {
     if (!dispatcher_->CheckAccess()) {
         return dispatcher_->VerifyAccess().GetStatus();
     }
-    if (!initialized_ || flushing_) {
+    if (!initialized_) {
         return InvalidState("BindingEngine is not ready to update a target");
     }
     BindingRecord* record = FindRecord(handle);
     if (record == nullptr) return false;
     record->sourceDirty = true;
-    Base::Result<std::uint32_t> flushed = Flush();
-    if (!flushed) return flushed.GetStatus();
+    if (!flushing_) {
+        Base::Result<std::uint32_t> flushed = Flush();
+        if (!flushed) return flushed.GetStatus();
+    }
     return true;
 }
 

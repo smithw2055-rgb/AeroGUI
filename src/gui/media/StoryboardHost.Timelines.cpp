@@ -1,6 +1,7 @@
 #include "gui/ViewFrame.hpp"
 #include "gui/media/StoryboardHost.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
+#include "gui/templates/TemplateInstance.hpp"
 #include "gui/core/EventRouter.hpp"
 #include <Aero/CommandBinding.hpp>
 #include <Aero/Media/Animation/EventTrigger.hpp>
@@ -117,6 +118,20 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                           targetName.Value());
         if (targetObject == nullptr) {
             targetObject = triggerOwner.FindName(targetName.Value());
+        }
+        if (targetObject == nullptr) {
+            if (Controls::TemplateEngine* templates = AeroGuiInternal::TemplatesOf(triggerOwner)) {
+                const Controls::Control* control = ::Aero::TryCast<Controls::Control>(&triggerOwner);
+                if (control == nullptr) {
+                    control = ::Aero::TryCast<Controls::Control>(triggerOwner.GetTemplatedParent());
+                }
+                if (control != nullptr) {
+                    const Controls::TemplateHandle handle = templates->AppliedHandle(*control);
+                    if (handle.IsValid()) {
+                        targetObject = templates->FindName(handle, targetName.Value());
+                    }
+                }
+            }
         }
         if (targetObject == nullptr && names != nullptr) {
             targetObject = view->loadedDocument.names.Find(

@@ -90,6 +90,14 @@ void ViewFrame::Shutdown() noexcept {
             componentMounts[index - 1U]);
     }
     componentMounts.Clear();
+    for (std::uint32_t index = fragmentMounts.Size();
+         index > 0U; --index) {
+        FreeObject(
+            *allocator,
+            Base::MemoryTag::Ui,
+            fragmentMounts[index - 1U]);
+    }
+    fragmentMounts.Clear();
     if (tree != nullptr) {
         static_cast<void>(tree->FlushLifecycle());
     }

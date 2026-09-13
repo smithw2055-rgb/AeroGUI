@@ -387,6 +387,24 @@ Base::Result<Meta::PropertyExpression> DynamicResource::CreateExpression(
         state->sources.PushBack(std::move(source));
         return {};
     };
+    FrameworkElement* current =
+        ::Aero::TryCast<FrameworkElement>(&target);
+    while (current != nullptr) {
+        assigned = subscribe(&current->GetResources());
+        if (!assigned) {
+            CleanupDynamicResource(state);
+            return assigned.GetStatus();
+        }
+        FrameworkElement* next = ::Aero::TryCast<FrameworkElement>(
+            current->GetLogicalParent());
+        if (next == nullptr) {
+            next = ::Aero::TryCast<FrameworkElement>(current->GetVisualParent());
+        }
+        if (next == nullptr) {
+            next = ::Aero::TryCast<FrameworkElement>(current->GetTemplatedParent());
+        }
+        current = next;
+    }
     for (const ResourceDictionary* resources :
          resourceChain) {
         assigned = subscribe(
@@ -400,17 +418,6 @@ Base::Result<Meta::PropertyExpression> DynamicResource::CreateExpression(
     if (!assigned) {
         CleanupDynamicResource(state);
         return assigned.GetStatus();
-    }
-    FrameworkElement* current =
-        ::Aero::TryCast<FrameworkElement>(&target);
-    while (current != nullptr) {
-        assigned = subscribe(&current->GetResources());
-        if (!assigned) {
-            CleanupDynamicResource(state);
-            return assigned.GetStatus();
-        }
-        current = ::Aero::TryCast<FrameworkElement>(
-            current->GetLogicalParent());
     }
 
     return Meta::PropertyExpression{
@@ -565,6 +572,29 @@ Base::Result<ProvidedValue> DynamicResourceExtension::ProvideValue(
         services.fallbackResources != nullptr
         ? services.fallbackResources
         : extension->options_.resources;
+
+    Base::Result<Aero::ResourceValue> initialResource =
+        Base::Status::Failure(Base::ErrorCode::NotFound, "Resource not found");
+    for (const ResourceDictionary* resDict : services.ambientResourceChain) {
+        if (resDict == nullptr) continue;
+        Base::Result<Aero::ResourceValue> found = resDict->Lookup(key);
+        if (found) {
+            initialResource = std::move(found);
+            break;
+        }
+    }
+    if (!initialResource && fallbackResources != nullptr) {
+        initialResource = fallbackResources->Lookup(key);
+    }
+    if (initialResource) {
+        const Meta::DependencyProperty* descriptor =
+            AeroGuiInternal::PropertyRegistry(*target).Find(property);
+        Base::Result<Meta::PropertyValue> converted =
+            ConvertLookedUpDynamicResource(initialResource.Value(), descriptor);
+        if (converted) {
+            static_cast<void>(target->SetValue(property, std::move(converted).Value()));
+        }
+    }
     Base::IAllocator& allocator = Base::GetDefaultAllocator();
     void* memory = allocator.Allocate({
         sizeof(DeferredDynamicResourceState),
