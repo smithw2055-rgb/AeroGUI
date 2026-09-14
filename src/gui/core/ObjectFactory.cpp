@@ -1,5 +1,10 @@
-#include "gui/meta/MetadataState.hpp"
-#include "gui/core/State.hpp"
+#include "gui/meta/TypeRegistryDetail.hpp"
+#include "gui/core/ElementTree.hpp"
+#include "gui/core/LayoutEngine.hpp"
+#include "gui/core/EffectiveValueEngine.hpp"
+#include "gui/core/RoutedEvents.hpp"
+#include "gui/core/EventRouter.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/media/AnimationEngine.hpp"
 
 #include <Aero/Base/Assert.hpp>

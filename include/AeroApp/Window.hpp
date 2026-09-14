@@ -20,32 +20,32 @@ public:
     Window() noexcept : Window(StaticTypeId()) {}
     ~Window() noexcept override;
 
-    StringView GetTitle() const noexcept { return GetValueOr(TitleProperty, StringView{}); }
+    StringView GetTitle() const noexcept { return GetValue(TitleProperty); }
     void SetTitle(StringView value) noexcept { SetValue(TitleProperty, value); }
-    WindowState GetWindowState() const noexcept { return GetValueOr(WindowStateProperty, WindowState::Normal); }
+    WindowState GetWindowState() const noexcept { return GetValue(WindowStateProperty); }
     void SetWindowState(WindowState value) noexcept;
-    WindowStyle GetWindowStyle() const noexcept { return GetValueOr(WindowStyleProperty, WindowStyle::SingleBorderWindow); }
+    WindowStyle GetWindowStyle() const noexcept { return GetValue(WindowStyleProperty); }
     void SetWindowStyle(WindowStyle value) noexcept { SetValue(WindowStyleProperty, value); }
-    ResizeMode GetResizeMode() const noexcept { return GetValueOr(ResizeModeProperty, ResizeMode::CanResize); }
+    ResizeMode GetResizeMode() const noexcept { return GetValue(ResizeModeProperty); }
     void SetResizeMode(ResizeMode value) noexcept { SetValue(ResizeModeProperty, value); }
-    SizeToContent GetSizeToContent() const noexcept { return GetValueOr(SizeToContentProperty, SizeToContent::Manual); }
+    SizeToContent GetSizeToContent() const noexcept { return GetValue(SizeToContentProperty); }
     void SetSizeToContent(SizeToContent value) noexcept { SetValue(SizeToContentProperty, value); }
-    bool GetShowInTaskbar() const noexcept { return GetValueOr(ShowInTaskbarProperty, true); }
+    bool GetShowInTaskbar() const noexcept { return GetValue(ShowInTaskbarProperty); }
     void SetShowInTaskbar(bool value) noexcept { SetValue(ShowInTaskbarProperty, value); }
-    bool GetTopmost() const noexcept { return GetValueOr(TopmostProperty, false); }
+    bool GetTopmost() const noexcept { return GetValue(TopmostProperty); }
     void SetTopmost(bool value) noexcept { SetValue(TopmostProperty, value); }
 
     Result<void> Show() noexcept;
     Result<void> Close() noexcept;
     bool GetIsOpen() const noexcept;
 
-    inline static constexpr DependencyProperty<String> TitleProperty{"Title"};
-    inline static constexpr DependencyProperty<WindowState> WindowStateProperty{"WindowState"};
-    inline static constexpr DependencyProperty<WindowStyle> WindowStyleProperty{"WindowStyle"};
-    inline static constexpr DependencyProperty<ResizeMode> ResizeModeProperty{"ResizeMode"};
-    inline static constexpr DependencyProperty<SizeToContent> SizeToContentProperty{"SizeToContent"};
-    inline static constexpr DependencyProperty<bool> ShowInTaskbarProperty{"ShowInTaskbar"};
-    inline static constexpr DependencyProperty<bool> TopmostProperty{"Topmost"};
+    AERO_DEPENDENCY_PROPERTY(String, Title);
+    AERO_DEPENDENCY_PROPERTY(WindowState, WindowState);
+    AERO_DEPENDENCY_PROPERTY(WindowStyle, WindowStyle);
+    AERO_DEPENDENCY_PROPERTY(ResizeMode, ResizeMode);
+    AERO_DEPENDENCY_PROPERTY(SizeToContent, SizeToContent);
+    AERO_DEPENDENCY_PROPERTY(bool, ShowInTaskbar);
+    AERO_DEPENDENCY_PROPERTY(bool, Topmost);
     inline static constexpr RoutedEvent<CancelEventArgs> ClosingEvent{"Closing"};
     inline static constexpr RoutedEvent<RoutedEventArgs> ClosedEvent{"Closed"};
     inline static constexpr RoutedEvent<RoutedEventArgs> ActivatedEvent{"Activated"};

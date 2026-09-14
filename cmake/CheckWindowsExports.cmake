@@ -57,11 +57,11 @@ endif()
 # contract: no source-only owner or migration vocabulary may escape a DLL.
 foreach(forbidden_export IN ITEMS
         "ViewRenderer"
-        "ViewState"
-        "GuiState"
+        "ViewFrame"
+        "GuiRuntime"
         "UiFrameEncoder"
         "DesktopHost"
-        "ApplicationHostState"
+        "ApplicationHost"
         "D3D11RenderDevice"
         "OpenGL33RenderDevice"
         "D3D11RenderDeviceState"

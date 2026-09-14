@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Aero/Controls/ItemsControl.hpp>
+#include <Aero/DataTemplate.hpp>
 
 #include <utility>
 
@@ -9,38 +10,67 @@ namespace Aero::Controls {
 class AERO_GUI_API HeaderedItemsControl : public ItemsControl {
     AERO_DECLARE_TYPE(HeaderedItemsControl, ItemsControl)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     HeaderedItemsControl() noexcept : ItemsControl(StaticTypeId()) {}
     ~HeaderedItemsControl() override = default;
 
     Value GetHeader() const noexcept {
-        return GetValueOr(
-            HeaderProperty,
-            Value::NullObject(Meta::TypeOf<Base::Object>()));
+        return GetValue(HeaderProperty);
     }
     void SetHeader(Value value) noexcept {
         SetValue(HeaderProperty, std::move(value));
     }
-    Result<void> SetHeader(StringView value) noexcept {
+    void SetHeader(StringView value) noexcept {
         Result<Value> boxed = Value::TryFromString(
             Meta::TypeOf<String>(), value);
-        if (!boxed) return boxed.GetStatus();
+        if (!boxed) { AERO_ASSERT(false); return; }
         SetHeader(std::move(boxed).Value());
-        return {};
     }
     Ref<DataTemplate> GetHeaderTemplate() const noexcept {
-        return GetValueOr(
-            HeaderTemplateProperty, Ref<DataTemplate>{});
+        return GetValue(HeaderTemplateProperty);
     }
     void SetHeaderTemplate(Ref<DataTemplate> value) noexcept {
         SetValue(HeaderTemplateProperty, std::move(value));
     }
 
-    inline static constexpr DependencyProperty<Value> HeaderProperty{"Header"};
-    inline static constexpr DependencyProperty<Ref<DataTemplate>> HeaderTemplateProperty{"HeaderTemplate"};
+    AERO_DEPENDENCY_PROPERTY(Value, Header);
+    AERO_DEPENDENCY_PROPERTY(Ref<DataTemplate>, HeaderTemplate);
 
 protected:
     explicit HeaderedItemsControl(Meta::TypeId runtimeType) noexcept
         : ItemsControl(runtimeType) {}
+    virtual void OnHeaderChanged(
+        const Value& oldHeader,
+        const Value& newHeader) {
+        (void)oldHeader;
+        (void)newHeader;
+    }
+    virtual void OnHeaderTemplateChanged(
+        const Ref<DataTemplate>& oldTemplate,
+        const Ref<DataTemplate>& newTemplate) {
+        (void)oldTemplate;
+        (void)newTemplate;
+    }
+    void OnPropertyChanged(
+        const DependencyPropertyChangedEventArgs& args) noexcept override {
+        ItemsControl::OnPropertyChanged(args);
+        if (args.GetProperty() == HeaderProperty) {
+            OnHeaderChanged(args.GetOldValue(), args.GetNewValue());
+        } else if (args.GetProperty() == HeaderTemplateProperty) {
+            const auto toTemplate = [](const Value& v) -> Ref<DataTemplate> {
+                if (v.Kind() == Meta::ValueKind::Object && v.AsObject()) {
+                    if (auto* dt = TryCast<DataTemplate>(v.AsObject().Get())) {
+                        return Ref<DataTemplate>::FromBorrowed(*dt);
+                    }
+                }
+                return {};
+            };
+            OnHeaderTemplateChanged(
+                toTemplate(args.GetOldValue()),
+                toTemplate(args.GetNewValue()));
+        }
+    }
 };
 
 } // namespace Aero::Controls

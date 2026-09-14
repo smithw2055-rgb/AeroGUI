@@ -2,108 +2,81 @@
 
 // ===== CoreMetadata =====
 
-#include "gui/meta/MetadataState.hpp"
+#include "gui/meta/TypeRegistryDetail.hpp"
 #include "gui/meta/ValueConversion.hpp"
-#include "gui/core/State.hpp" 
-#include "gui/data/BindingState.hpp"
+#include "gui/core/ElementTree.hpp"
+#include "gui/core/LayoutEngine.hpp"
+#include "gui/core/EffectiveValueEngine.hpp"
+#include "gui/core/RoutedEvents.hpp"
+#include "gui/core/EventRouter.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
+#include "gui/data/BindingEngine.hpp"
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleState.hpp"
+#include "gui/styles/StyleEngine.hpp"
+#include <Aero/TextProperties.hpp>
 #include <Aero/Interactivity/Behavior.hpp>
 #include <Aero/Interactivity/BlendBehaviors.hpp>
-#include "gui/media/MediaState.hpp"
+#include "gui/meta/ElementsFill.hpp"
+#include "gui/meta/RenderStateCallbacks.hpp"
 
 #include <Aero/Meta.hpp>
 #include <Aero/Value.hpp>
 #include <Aero/Freezable.hpp>
+#include <Aero/DispatcherObject.hpp>
+#include <Aero/Input/Cursor.hpp>
+#include <Aero/Input/Mouse.hpp>
+#include <Aero/Input/Keyboard.hpp>
+#include <Aero/DataObject.hpp>
+#include <Aero/DragDrop.hpp>
+#include "gui/meta/InputDevices.inl"
 
 namespace Aero::Meta {
 Base::Result<void> PopulateCoreMetadata(
     Meta::Registration& context) noexcept {
-    Base::Result<void> status;
 
-    status = Meta::Register<Base::Object>(context).Result();
-    if (!status) return status.GetStatus();
+    Register<Base::Object>(context);
 
-    status = Meta::Register<bool>(context)
-        .TextConverter<&::Aero::Base::ValueConversion::ConvertBoolean>()
-        .Result();
-    if (!status) return status.GetStatus();
+    Register<bool>(context)
+        .TextConverter<&Base::ValueConversion::ConvertBoolean>();
 
-    status = Meta::Register<::Aero::Nullable<bool>>(context)
-        .TextConverter<
-            &::Aero::Base::ValueConversion::
-                ConvertNullableBoolean>()
-        .Result();
-    if (!status) return status.GetStatus();
+    Register<::Aero::Nullable<bool>>(context)
+        .TextConverter<&Base::ValueConversion::ConvertNullableBoolean>();
 
-    status = Meta::Register<std::int8_t>(context)
-        .TextConverter<
-            &::Aero::Base::ValueConversion::ConvertInteger<std::int8_t>>()
-        .Result();
-    if (!status) return status.GetStatus();
-    status = Meta::Register<std::int16_t>(context)
-        .TextConverter<
-            &::Aero::Base::ValueConversion::ConvertInteger<std::int16_t>>()
-        .Result();
-    if (!status) return status.GetStatus();
-    status = Meta::Register<std::int32_t>(context)
-        .TextConverter<
-            &::Aero::Base::ValueConversion::ConvertInteger<std::int32_t>>()
-        .Result();
-    if (!status) return status.GetStatus();
-    status = Meta::Register<std::int64_t>(context)
-        .TextConverter<
-            &::Aero::Base::ValueConversion::ConvertInteger<std::int64_t>>()
-        .Result();
-    if (!status) return status.GetStatus();
-    status = Meta::Register<std::uint8_t>(context)
-        .TextConverter<
-            &::Aero::Base::ValueConversion::ConvertInteger<std::uint8_t>>()
-        .Result();
-    if (!status) return status.GetStatus();
-    status = Meta::Register<std::uint16_t>(context)
-        .TextConverter<
-            &::Aero::Base::ValueConversion::ConvertInteger<std::uint16_t>>()
-        .Result();
-    if (!status) return status.GetStatus();
-    status = Meta::Register<std::uint32_t>(context)
-        .TextConverter<
-            &::Aero::Base::ValueConversion::ConvertInteger<std::uint32_t>>()
-        .Result();
-    if (!status) return status.GetStatus();
-    status = Meta::Register<std::uint64_t>(context)
-        .TextConverter<
-            &::Aero::Base::ValueConversion::ConvertInteger<std::uint64_t>>()
-        .Result();
-    if (!status) return status.GetStatus();
+    Register<std::int8_t>(context)
+        .TextConverter<&Base::ValueConversion::ConvertInteger<std::int8_t>>();
+    Register<std::int16_t>(context)
+        .TextConverter<&Base::ValueConversion::ConvertInteger<std::int16_t>>();
+    Register<std::int32_t>(context)
+        .TextConverter<&Base::ValueConversion::ConvertInteger<std::int32_t>>();
+    Register<std::int64_t>(context)
+        .TextConverter<&Base::ValueConversion::ConvertInteger<std::int64_t>>();
+    Register<std::uint8_t>(context)
+        .TextConverter<&Base::ValueConversion::ConvertInteger<std::uint8_t>>();
+    Register<std::uint16_t>(context)
+        .TextConverter<&Base::ValueConversion::ConvertInteger<std::uint16_t>>();
+    Register<std::uint32_t>(context)
+        .TextConverter<&Base::ValueConversion::ConvertInteger<std::uint32_t>>();
+    Register<std::uint64_t>(context)
+        .TextConverter<&Base::ValueConversion::ConvertInteger<std::uint64_t>>();
 
-    status = Meta::Register<double>(context)
-        .TextConverter<&::Aero::Base::ValueConversion::ConvertDouble>()
-        .Result();
-    if (!status) return status.GetStatus();
+    Register<double>(context)
+        .TextConverter<&Base::ValueConversion::ConvertDouble>();
 
-    status = Meta::Register<Base::String>(context)
-        .TextConverter<&::Aero::Base::ValueConversion::ConvertString>()
-        .Result();
-    if (!status) return status.GetStatus();
+    Register<Base::String>(context)
+        .TextConverter<&Base::ValueConversion::ConvertString>();
 
-    status = Meta::Register<Value>(context)
+    Register<Value>(context)
+        .ValueSemantics();
+
+    Register<TypeReference>(context);
+
+    Register<Base::ResourceUri>(context)
         .ValueSemantics()
-        .Result();
-    if (!status) return status.GetStatus();
+        .TextConverter<&Base::ValueConversion::ConvertResourceUri>();
 
-    status = Meta::Register<TypeReference>(context).Result();
-    if (!status) return status.GetStatus();
+    Register<Threading::DispatcherObject>(context, TypeFlags::Abstract);
 
-    status = Meta::Register<Base::ResourceUri>(context)
-        .ValueSemantics()
-        .TextConverter<&::Aero::Base::ValueConversion::ConvertResourceUri>()
-        .Result();
-    if (!status) return status.GetStatus();
-
-    status = Meta::Register<DependencyObject>(
-        context, TypeFlags::Abstract).Result();
-    if (!status) return status.GetStatus();
+    Register<DependencyObject>(context, TypeFlags::Abstract);
 
     return Meta::Register<Freezable>(
         context, TypeFlags::Abstract).Result();
@@ -116,8 +89,29 @@ Base::Result<void> PopulateCoreMetadata(
 
 
 #include <Aero/Input.hpp>
+#include <Aero/ICommand.hpp>
+#include <Aero/RoutedCommand.hpp>
+#include <Aero/RoutedUICommand.hpp>
+#include <Aero/InputBinding.hpp>
+#include <Aero/MouseBinding.hpp>
+#include <Aero/EventSetter.hpp>
+#include <Aero/KeyboardNavigation.hpp>
+#include <Aero/FocusManager.hpp>
+#include <Aero/KeyBinding.hpp>
+#include <Aero/CommandBinding.hpp>
+#include <Aero/ApplicationCommands.hpp>
+#include <Aero/KeyGesture.hpp>
+#include <Aero/InputGesture.hpp>
 #include <Aero/Media/Animation.hpp>
+#include <Aero/Media/Animation/EventTrigger.hpp>
+#include <Aero/Media/Animation/MediaActions.hpp>
+#include <Aero/Media/Animation/StoryboardActions.hpp>
+#include <Aero/Media/Animation/StoryboardCompletedTrigger.hpp>
+#include <Aero/Media/Animation/TimerTrigger.hpp>
 #include <Aero/Data/Binding.hpp>
+#include <Aero/Data/MultiBinding.hpp>
+#include <Aero/Data/BooleanToVisibilityConverter.hpp>
+#include <Aero/Data/IMultiValueConverter.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Effects.hpp>
 #include <Aero/Media/Images.hpp>
@@ -128,6 +122,26 @@ Base::Result<void> PopulateCoreMetadata(
 #include <Aero/Resources.hpp>
 #include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/Media/Transforms.hpp>
+#include <Aero/Media/Geometry.hpp>
+#include <Aero/Media/DashStyle.hpp>
+#include <Aero/Media/Pen.hpp>
+#include <Aero/Media/StreamGeometry.hpp>
+#include <Aero/Media/PathSegment.hpp>
+#include <Aero/Media/LineSegment.hpp>
+#include <Aero/Media/PathFigure.hpp>
+#include <Aero/Media/PathGeometry.hpp>
+#include <Aero/Media/BezierSegment.hpp>
+#include <Aero/Media/QuadraticBezierSegment.hpp>
+#include <Aero/Media/ArcSegment.hpp>
+#include <Aero/Media/PolyLineSegment.hpp>
+#include <Aero/Media/PolyBezierSegment.hpp>
+#include <Aero/Media/PolyQuadraticBezierSegment.hpp>
+#include <Aero/Media/LineGeometry.hpp>
+#include <Aero/Media/RectangleGeometry.hpp>
+#include <Aero/Media/EllipseGeometry.hpp>
+#include <Aero/Media/GeometryGroup.hpp>
+#include <Aero/Media/CombinedGeometry.hpp>
+#include <Aero/Collections.hpp>
 
 #include <cctype>
 #include <cmath>
@@ -141,7 +155,6 @@ using namespace Aero::Threading;
 using namespace Aero::Input;
 using namespace Aero::Media;
 using namespace Aero::Data;
-using namespace Aero::Media::Animation::Model;
 namespace {
 #include "gui/meta/Support.inl"
 #include "gui/meta/Resources.inl"
@@ -154,24 +167,17 @@ namespace {
 
 Base::Result<void> PopulateUiMetadata(
     ::Aero::Meta::Registration& context) noexcept {
-    Base::Result<void> status;
-    status = PopulateEnumMetadata(context);
-    if (!status) return status.GetStatus();
-    status = PopulateUiInput(context);
-    if (!status) return status.GetStatus();
+    PopulateEnumMetadata(context);
+    PopulateUiInput(context);
     // Media registers foundational value types such as Point. Resources author
     // Geometry dependency-property defaults that consume those values, so keep
     // Media ahead of Resources in the deterministic metadata bootstrap.
-    status = PopulateUiMedia(context);
-    if (!status) return status.GetStatus();
-    status = PopulateUiResources(context);
-    if (!status) return status.GetStatus();
-    status = PopulateUiStyling(context);
-    if (!status) return status.GetStatus();
-    status = PopulateUiAnimation(context);
-    if (!status) return status.GetStatus();
-    status = PopulateUiElements(context);
-    if (!status) return status.GetStatus();
+    PopulateUiMedia(context);
+    PopulateUiResources(context);
+    PopulateUiStyling(context);
+    PopulateUiAnimation(context);
+    PopulateUiElements(context);
+    PopulateInputDevices(context);
     return {};
 }
 

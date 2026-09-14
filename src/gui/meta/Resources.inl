@@ -2,98 +2,116 @@
 // metadata bootstrap. Keep registration order stable within this unit.
 Base::Result<void> PopulateUiResources(
     ::Aero::Meta::Registration& context) noexcept {
-    Base::Result<void> status;
-    auto resourceDictionary =
-        Meta::Register<ResourceDictionary>(context);
-    resourceDictionary
-        .Property<
-            Base::ResourceUri,
-            &ResourceDictionary::GetSource,
-            &ResourceDictionary::SetSource>(
-            "Source",
-            PropertyFlags::None)
-        .Collection<ResourceDictionary>(
-            "MergedDictionaries",
-            &AddMergedDictionary,
-            &ClearMergedDictionaries)
-        .Content<Base::Object>(
-            "Entries",
-            ContentKind::Collection)
+    using namespace Media;
+    Register<ResourceDictionary>(context)
+        .Property<Base::ResourceUri, &ResourceDictionary::GetSource, &ResourceDictionary::SetSource>("Source", PropertyFlags::None)
+        .Collection<ResourceDictionary>("MergedDictionaries", &AddMergedDictionary, &ClearMergedDictionaries)
+        .Content<Base::Object>("Entries", ContentKind::Collection)
         .Factory();
-    status = resourceDictionary.Result();
-    if (!status) return status.GetStatus();
 
-    auto geometry = Meta::Register<Media::Geometry>(context);
-    geometry
-        .Property(
-            "Transform", &Media::Geometry::GetTransform, &Media::Geometry::SetTransform,
-            PropertyFlags::Structural)
-        .Content(MakeMemberId(
-            Media::Geometry::StaticTypeId(), MemberKind::Property, "Transform"))
+    Register<Geometry>(context)
+        .Property("Transform", &Geometry::GetTransform, &Geometry::SetTransform, PropertyFlags::Structural)
+        .Content(MakeMemberId(Geometry::StaticTypeId(), MemberKind::Property, "Transform"))
         .TextConverter(&ConvertGeometryText)
         .Factory();
-    status = geometry.Result();
-    if (!status) return status.GetStatus();
 
-    auto streamGeometry = Meta::Register<Media::StreamGeometry>(context);
-    streamGeometry
-        .Property(
-            "Data", &Media::StreamGeometry::GetData, &Media::StreamGeometry::SetData,
-            PropertyFlags::Structural)
-        .Content(MakeMemberId(
-            Media::StreamGeometry::StaticTypeId(), MemberKind::Property, "Data"))
+    Register<DashStyle>(context)
+        .Factory();
+
+    Register<Pen>(context)
+        .Property<Base::Ref<Brush>, &Pen::GetBrush, &Pen::SetBrush>("Brush", PropertyFlags::None)
+        .Property(Pen::ThicknessProperty, 1.0, FrameworkPropertyMetadataOptions::None, &Base::Validate::NonNegative<double>)
+        .Property<Base::Ref<DashStyle>, &Pen::GetDashStyle, &Pen::SetDashStyle>("DashStyle", PropertyFlags::None)
+        .Property(Pen::LineJoinProperty, PenLineJoin::Miter)
+        .Property(Pen::StartLineCapProperty, PenLineCap::Flat)
+        .Property(Pen::EndLineCapProperty, PenLineCap::Flat)
+        .Property(Pen::MiterLimitProperty, 10.0, FrameworkPropertyMetadataOptions::None, &Base::Validate::NonNegative<double>)
+        .Factory();
+
+    Register<StreamGeometry>(context)
+        .Property("Data", &StreamGeometry::GetData, &StreamGeometry::SetData, PropertyFlags::Structural)
+        .Content(MakeMemberId(StreamGeometry::StaticTypeId(), MemberKind::Property, "Data"))
         .TextConverter(&ConvertGeometryText)
         .Factory();
-    status = streamGeometry.Result();
-    if (!status) return status.GetStatus();
 
-    status = Meta::Register<Media::PathSegment>(
-        context, TypeFlags::Abstract).Result();
-    if (!status) return status.GetStatus();
+    Register<PathSegment>(context, TypeFlags::Abstract);
 
-    auto lineSegment = Meta::Register<Media::LineSegment>(context);
-    lineSegment
-        .Property(
-            Media::LineSegment::PointProperty,
-            FrameworkPropertyMetadata(Point{}).AffectsRender())
+    Register<LineSegment>(context)
+        .Property(LineSegment::PointProperty, Point{}, AffectsRender)
         .Factory();
-    status = lineSegment.Result();
-    if (!status) return status.GetStatus();
 
-    auto pathFigure = Meta::Register<Media::PathFigure>(context);
-    pathFigure
-        .Property(
-            Media::PathFigure::StartPointProperty,
-            FrameworkPropertyMetadata(Point{}).AffectsRender())
-        .Property(
-            Media::PathFigure::IsClosedProperty,
-            FrameworkPropertyMetadata(false).AffectsRender())
-        .Content<Media::PathSegment>(
-            "Segments", ContentKind::Collection,
-            &AddPathFigureSegment, &ClearPathFigureSegments)
+    Register<PathFigure>(context)
+        .Property(PathFigure::StartPointProperty, Point{}, AffectsRender)
+        .Property(PathFigure::IsClosedProperty, false, AffectsRender)
+        .Content<PathSegment>("Segments", ContentKind::Collection, &AddPathFigureSegment, &ClearPathFigureSegments)
         .Factory();
-    status = pathFigure.Result();
-    if (!status) return status.GetStatus();
 
-    auto pathGeometry = Meta::Register<Media::PathGeometry>(context);
-    pathGeometry
-        .Content<Media::PathFigure>(
-            "Figures", ContentKind::Collection,
-            &AddPathGeometryFigure, &ClearPathGeometryFigures)
+    Register<PathGeometry>(context)
+        .Content<PathFigure>("Figures", ContentKind::Collection, &AddPathGeometryFigure, &ClearPathGeometryFigures)
         .Factory();
-    status = pathGeometry.Result();
-    if (!status) return status.GetStatus();
 
-    auto fontFamily = Meta::Register<Media::FontFamily>(context);
-    fontFamily
-        .Property(
-            "Source", &Media::FontFamily::GetSource, &Media::FontFamily::SetSource,
-            PropertyFlags::Structural)
-        .Content(MakeMemberId(
-            Media::FontFamily::StaticTypeId(), MemberKind::Property, "Source"))
+    Register<BezierSegment>(context)
+        .Property(BezierSegment::Point1Property, Point{}, AffectsRender)
+        .Property(BezierSegment::Point2Property, Point{}, AffectsRender)
+        .Property(BezierSegment::Point3Property, Point{}, AffectsRender)
+        .Factory();
+
+    Register<QuadraticBezierSegment>(context)
+        .Property(QuadraticBezierSegment::Point1Property, Point{}, AffectsRender)
+        .Property(QuadraticBezierSegment::Point2Property, Point{}, AffectsRender)
+        .Factory();
+
+    Register<ArcSegment>(context)
+        .Property(ArcSegment::PointProperty, Point{}, AffectsRender)
+        .Property(ArcSegment::SizeProperty, Size{}, AffectsRender)
+        .Property(ArcSegment::RotationAngleProperty, 0.0, AffectsRender)
+        .Property(ArcSegment::IsLargeArcProperty, false, AffectsRender)
+        .Property(ArcSegment::SweepDirectionProperty, SweepDirection::Counterclockwise, AffectsRender)
+        .Factory();
+
+    Register<PolyLineSegment>(context)
+        .Property<Base::String, &PolyLineSegment::SetPointsText>("Points", PropertyFlags::None)
+        .Factory();
+
+    Register<PolyBezierSegment>(context)
+        .Property<Base::String, &PolyBezierSegment::SetPointsText>("Points", PropertyFlags::None)
+        .Factory();
+
+    Register<PolyQuadraticBezierSegment>(context)
+        .Property<Base::String, &PolyQuadraticBezierSegment::SetPointsText>("Points", PropertyFlags::None)
+        .Factory();
+
+    Register<LineGeometry>(context)
+        .Property(LineGeometry::StartPointProperty, Point{}, AffectsRender)
+        .Property(LineGeometry::EndPointProperty, Point{}, AffectsRender)
+        .Factory();
+
+    Register<RectangleGeometry>(context)
+        .Property(RectangleGeometry::RectProperty, Rect{}, AffectsRender)
+        .Property(RectangleGeometry::RadiusXProperty, 0.0, AffectsRender)
+        .Property(RectangleGeometry::RadiusYProperty, 0.0, AffectsRender)
+        .Factory();
+
+    Register<EllipseGeometry>(context)
+        .Property(EllipseGeometry::CenterProperty, Point{}, AffectsRender)
+        .Property(EllipseGeometry::RadiusXProperty, 0.0, AffectsRender)
+        .Property(EllipseGeometry::RadiusYProperty, 0.0, AffectsRender)
+        .Factory();
+
+    Register<GeometryGroup>(context)
+        .Content<Geometry>("Children", ContentKind::Collection, &AddGeometryGroupChild, &ClearGeometryGroupChildren)
+        .Factory();
+
+    Register<CombinedGeometry>(context)
+        .Property("Geometry1", &CombinedGeometry::GetGeometry1, &CombinedGeometry::SetGeometry1, PropertyFlags::Structural)
+        .Property("Geometry2", &CombinedGeometry::GetGeometry2, &CombinedGeometry::SetGeometry2, PropertyFlags::Structural)
+        .Property(CombinedGeometry::GeometryCombineModeProperty, GeometryCombineMode::Union, AffectsRender)
+        .Factory();
+
+    Register<FontFamily>(context)
+        .Property("Source", &FontFamily::GetSource, &FontFamily::SetSource, PropertyFlags::Structural)
+        .Content(MakeMemberId(FontFamily::StaticTypeId(), MemberKind::Property, "Source"))
         .TextConverter(&ConvertFontFamilyText)
         .Factory();
-    status = fontFamily.Result();
-    if (!status) return status.GetStatus();
     return {};
 }

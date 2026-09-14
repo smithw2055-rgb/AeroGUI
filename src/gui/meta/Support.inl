@@ -1,21 +1,48 @@
 #include <Aero/Interactivity/Conditions.hpp>
-#include "gui/core/facets/InteractionStateFacet.hpp"
-#include "gui/core/facets/RenderFacet.hpp"
 // Shared implementation helpers for the semantic metadata units.
-constexpr double DefaultMaximum = 1.0e12;
 
-Base::Result<Base::Ref<Base::Object>>
-CreateFrameworkElementPlaceholder() noexcept {
-    Base::Result<Base::Ref<FrameworkElement>> created =
-        Base::MakeRef<FrameworkElement>(
-            FrameworkElement::StaticTypeId());
-    return created
-        ? Base::Result<Base::Ref<Base::Object>>(
-            Base::Ref<Base::Object>(
-                std::move(created).Value()))
-        : Base::Result<Base::Ref<Base::Object>>(
-            created.GetStatus());
-}
+using namespace Interactivity;
+// Selective Animation/Media usings — file-scope `using namespace Media::Animation`
+// would also pull BrushRendering/AnimationModel conversion fns (Point/Color/Thickness/Size) into
+// later inl includes in BuiltinMetadata.cpp and collide with geometry types.
+using Media::Animation::BeginStoryboard;
+using Media::Animation::BooleanAnimationUsingKeyFrames;
+using Media::Animation::BooleanKeyFrame;
+using Media::Animation::ColorAnimationUsingKeyFrames;
+using Media::Animation::ColorKeyFrame;
+using Media::Animation::DoubleAnimationUsingKeyFrames;
+using Media::Animation::DoubleKeyFrame;
+using Media::Animation::EventTrigger;
+using Media::Animation::Int16AnimationUsingKeyFrames;
+using Media::Animation::Int16KeyFrame;
+using Media::Animation::Int32AnimationUsingKeyFrames;
+using Media::Animation::Int32KeyFrame;
+using Media::Animation::Int64AnimationUsingKeyFrames;
+using Media::Animation::Int64KeyFrame;
+using Media::Animation::MatrixAnimationUsingKeyFrames;
+using Media::Animation::MatrixKeyFrame;
+using Media::Animation::ObjectAnimationUsingKeyFrames;
+using Media::Animation::ObjectKeyFrame;
+using Media::Animation::PointAnimationUsingKeyFrames;
+using Media::Animation::PointKeyFrame;
+using Media::Animation::SizeAnimationUsingKeyFrames;
+using Media::Animation::SizeKeyFrame;
+using Media::Animation::Storyboard;
+using Media::Animation::StoryboardCompletedTrigger;
+using Media::Animation::StringAnimationUsingKeyFrames;
+using Media::Animation::StringKeyFrame;
+using Media::Animation::ThicknessAnimationUsingKeyFrames;
+using Media::Animation::ThicknessKeyFrame;
+using Media::Animation::Timeline;
+using Media::Animation::TimelineGroup;
+using Media::Effect;
+using Media::FontFamily;
+using Media::Geometry;
+using Media::GeometryGroup;
+using Media::PathFigure;
+using Media::PathGeometry;
+using Media::PathSegment;
+using Media::StreamGeometry;
 
 Base::Result<Value> ConvertRoutedCommandReference(
     TypeId targetType,
@@ -23,14 +50,15 @@ Base::Result<Value> ConvertRoutedCommandReference(
     void*) noexcept {
     const Base::StringView name =
         ::Aero::Base::ValueConversion::Trim(text);
-    if (targetType != ICommand::StaticTypeId() ||
+    if ((targetType != ICommand::StaticTypeId() &&
+         targetType != RoutedCommand::StaticTypeId()) ||
         name.Empty()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "Command reference requires a non-empty routed command name");
     }
     Base::Result<Base::Ref<RoutedCommand>> command =
-        Base::MakeRef<RoutedCommand>(name);
+        RoutedCommand::ResolveAuthored(name);
     if (!command) return command.GetStatus();
     return Value::FromObject(
         targetType,
@@ -38,11 +66,6 @@ Base::Result<Value> ConvertRoutedCommandReference(
             std::move(command).Value()));
 }
 
-bool ValidateUnitDouble(
-    const double& value) noexcept {
-    return std::isfinite(value) &&
-        value >= 0.0 && value <= 1.0;
-}
 
 Base::Result<Length> ConvertLength(
     Base::StringView text) noexcept {
@@ -158,6 +181,17 @@ Base::Result<Point> ConvertPoint(
     return Point{x, y};
 }
 
+Base::Result<Base::Size> ConvertSize(
+    Base::StringView input) noexcept {
+    Base::Result<Point> parsed = ConvertPoint(input);
+    if (!parsed) {
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "Size requires two finite values");
+    }
+    return Base::Size{parsed.Value().x, parsed.Value().y};
+}
+
 Base::Result<Rect> ConvertRect(
     Base::StringView input) noexcept {
     Base::String text;
@@ -226,6 +260,37 @@ Base::Result<Base::Transform2D> ConvertMatrix(
     return Base::Transform2D{
         values[0], values[1], values[2],
         values[3], values[4], values[5]};
+}
+
+Base::Result<Base::Transform3> ConvertTransform3(
+    Base::StringView input) noexcept {
+    Base::String text;
+    Base::Result<void> assigned = text.Assign(input);
+    if (!assigned) return assigned.GetStatus();
+    const char* cursor = text.CStr();
+    double values[12]{};
+    for (std::uint32_t index = 0U; index < 12U; ++index) {
+        while (*cursor == ' ' || *cursor == ',') ++cursor;
+        char* end = nullptr;
+        values[index] = std::strtod(cursor, &end);
+        if (end == cursor || !std::isfinite(values[index])) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "Transform3 requires twelve finite values");
+        }
+        cursor = end;
+    }
+    while (*cursor == ' ' || *cursor == ',') ++cursor;
+    if (*cursor != '\0') {
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "Transform3 contains trailing text");
+    }
+    return Base::Transform3{
+        values[0], values[1], values[2],
+        values[3], values[4], values[5],
+        values[6], values[7], values[8],
+        values[9], values[10], values[11]};
 }
 
 int Hex(char value) noexcept {
@@ -384,13 +449,6 @@ bool EqualCornerRadius(
         a.bottomRight == b.bottomRight &&
         a.bottomLeft == b.bottomLeft;
 }
-bool ValidateLength(const Length& length) noexcept {
-    return length.isAuto || (std::isfinite(length.value) && length.value >= 0.0);
-}
-bool ValidateMarginValue(const Thickness& t) noexcept {
-    // WPF permits negative margins for overlap and shared-border layouts.
-    return IsFinite(t);
-}
 TypeReference GetStyleTargetType(
     const Style& style) noexcept {
     return {style.GetTargetType()};
@@ -445,8 +503,8 @@ void AddStyleSetter(
     if (!retained) {
         return;
     }
-    static_cast<void>(static_cast<Style&>(owner).AddAuthoredSetter(
-        std::move(retained)));
+    static_cast<Style&>(owner).AddAuthoredSetter(
+        std::move(retained));
 }
 
 void ClearStyleSetters(
@@ -469,8 +527,8 @@ void AddStyleTrigger(
     if (!retained) {
         return;
     }
-    static_cast<void>(static_cast<Style&>(owner).AddAuthoredTrigger(
-        std::move(retained)));
+    static_cast<Style&>(owner).AddAuthoredTrigger(
+        std::move(retained));
 }
 
 void ClearStyleTriggers(
@@ -493,8 +551,8 @@ void AddTriggerSetter(
     if (!retained) {
         return;
     }
-    static_cast<void>(static_cast<Trigger&>(owner).AddAuthoredSetter(
-        std::move(retained)));
+    static_cast<Trigger&>(owner).AddAuthoredSetter(
+        std::move(retained));
 }
 
 void ClearTriggerSetters(
@@ -548,10 +606,10 @@ void AddDataTriggerContent(
     if (value->RuntimeType() == Setter::StaticTypeId()) {
         Base::Ref<Setter> setter = Base::Ref<Setter>::TryFromBorrowed(
             static_cast<Setter&>(*value));
-        if (setter) static_cast<void>(trigger.AddAuthoredSetter(std::move(setter)));
+        if (setter) trigger.AddAuthoredSetter(std::move(setter));
         return;
     }
-    static_cast<void>(trigger.AddEnterAction(value));
+    trigger.AddEnterAction(value);
 }
 
 void ClearDataTriggerContent(Base::Object& owner, void*) noexcept {
@@ -568,9 +626,8 @@ void AddMultiDataCondition(
         Base::Ref<Condition>::TryFromBorrowed(
             static_cast<Condition&>(*value));
     if (!retained) return;
-    static_cast<void>(
-        static_cast<MultiDataTrigger&>(owner).AddCondition(
-            std::move(retained)));
+    static_cast<MultiDataTrigger&>(owner).AddCondition(
+        std::move(retained));
 }
 
 void ClearMultiDataConditions(
@@ -590,9 +647,8 @@ void AddMultiDataSetter(
         Base::Ref<Setter>::TryFromBorrowed(
             static_cast<Setter&>(*value));
     if (!retained) return;
-    static_cast<void>(
-        static_cast<MultiDataTrigger&>(owner).AddAuthoredSetter(
-            std::move(retained)));
+    static_cast<MultiDataTrigger&>(owner).AddAuthoredSetter(
+        std::move(retained));
 }
 
 void ClearMultiDataSetters(
@@ -612,9 +668,8 @@ void AddMultiTriggerCondition(
         Base::Ref<Condition>::TryFromBorrowed(
             static_cast<Condition&>(*value));
     if (!retained) return;
-    static_cast<void>(
-        static_cast<MultiTrigger&>(owner).AddCondition(
-            std::move(retained)));
+    static_cast<MultiTrigger&>(owner).AddCondition(
+        std::move(retained));
 }
 
 void ClearMultiTriggerConditions(
@@ -633,9 +688,8 @@ void AddMultiTriggerSetter(
         Base::Ref<Setter>::TryFromBorrowed(
             static_cast<Setter&>(*value));
     if (!retained) return;
-    static_cast<void>(
-        static_cast<MultiTrigger&>(owner).AddAuthoredSetter(
-            std::move(retained)));
+    static_cast<MultiTrigger&>(owner).AddAuthoredSetter(
+        std::move(retained));
 }
 
 void ClearMultiTriggerSetters(
@@ -645,51 +699,24 @@ void ClearMultiTriggerSetters(
     return;
 }
 
-void AddFrameworkEventTrigger(
-    Base::Object& owner,
-    const Base::Ref<Base::Object>& value,
-    void*) noexcept {
-    if (!value) return;
-    Base::Ref<Media::Animation::EventTrigger> retained =
-        Base::Ref<Media::Animation::EventTrigger>::TryFromBorrowed(
-            static_cast<Media::Animation::EventTrigger&>(*value));
-    if (!retained) {
-        return;
-    }
-    static_cast<void>(
-        ::Aero::Core::InteractionStateFacet::AddAuthoredTrigger(
-            static_cast<FrameworkElement&>(owner),
-            Base::Ref<Base::Object>(std::move(retained))));
-}
 
-void ClearFrameworkEventTriggers(
-    Base::Object& owner,
-    void*) noexcept {
-    static_cast<void>(
-        ::Aero::Core::InteractionStateFacet::ClearAuthoredTriggers(
-            static_cast<FrameworkElement&>(owner)));
-}
 
 void AddStoryboardTimeline(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
     if (!value) return;
-    Base::Ref<Media::Animation::Timeline> retained =
-        Base::Ref<Media::Animation::Timeline>::TryFromBorrowed(
-            static_cast<Media::Animation::Timeline&>(*value));
-    if (!retained) {
-        return;
-    }
-    static_cast<void>(
-        static_cast<Media::Animation::Storyboard&>(owner)
-            .AddTimeline(std::move(retained)));
+    Base::Ref<Timeline> retained =
+        Base::Ref<Timeline>::FromBorrowed(
+            static_cast<Timeline&>(*value));
+    static_cast<TimelineGroup&>(owner)
+        .AddChild(std::move(retained));
 }
 
 void ClearStoryboardTimelines(
     Base::Object& owner,
     void*) noexcept {
-    static_cast<Media::Animation::Storyboard&>(owner).ClearTimelines();
+    static_cast<TimelineGroup&>(owner).Clear();
     return;
 }
 
@@ -707,9 +734,8 @@ void AddGradientStop(
     if (!retained) {
         return;
     }
-    static_cast<void>(
-        static_cast<GradientBrush&>(owner).AddGradientStop(
-            std::move(retained)));
+    static_cast<GradientBrush&>(owner).AddGradientStop(
+        std::move(retained));
 }
 
 void ClearGradientStops(
@@ -728,10 +754,9 @@ void AddGradientStopCollectionItem(
             GradientStop::StaticTypeId()) {
         return;
     }
-    static_cast<void>(
-        static_cast<GradientStopCollection&>(owner).Add(
-            Base::Ref<GradientStop>::FromBorrowed(
-                static_cast<GradientStop&>(*value))));
+    static_cast<GradientStopCollection&>(owner).Add(
+        Base::Ref<GradientStop>::FromBorrowed(
+            static_cast<GradientStop&>(*value)));
 }
 
 void ClearGradientStopCollectionItems(
@@ -746,20 +771,19 @@ void AddPathFigureSegment(
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
     if (!value) return;
-    Base::Ref<Media::PathSegment> retained =
-        Base::Ref<Media::PathSegment>::TryFromBorrowed(
-            static_cast<Media::PathSegment&>(*value));
+    Base::Ref<PathSegment> retained =
+        Base::Ref<PathSegment>::TryFromBorrowed(
+            static_cast<PathSegment&>(*value));
     if (retained) {
-        static_cast<void>(
-            static_cast<Media::PathFigure&>(owner)
-                .AddSegment(std::move(retained)));
+        static_cast<PathFigure&>(owner)
+            .AddSegment(std::move(retained));
     }
 }
 
 void ClearPathFigureSegments(
     Base::Object& owner,
     void*) noexcept {
-    static_cast<Media::PathFigure&>(owner).ClearSegments();
+    static_cast<PathFigure&>(owner).ClearSegments();
 }
 
 void AddPathGeometryFigure(
@@ -767,20 +791,39 @@ void AddPathGeometryFigure(
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
     if (!value) return;
-    Base::Ref<Media::PathFigure> retained =
-        Base::Ref<Media::PathFigure>::TryFromBorrowed(
-            static_cast<Media::PathFigure&>(*value));
+    Base::Ref<PathFigure> retained =
+        Base::Ref<PathFigure>::TryFromBorrowed(
+            static_cast<PathFigure&>(*value));
     if (retained) {
-        static_cast<void>(
-            static_cast<Media::PathGeometry&>(owner)
-                .AddFigure(std::move(retained)));
+        static_cast<PathGeometry&>(owner)
+            .AddFigure(std::move(retained));
     }
 }
 
 void ClearPathGeometryFigures(
     Base::Object& owner,
     void*) noexcept {
-    static_cast<Media::PathGeometry&>(owner).ClearFigures();
+    static_cast<PathGeometry&>(owner).ClearFigures();
+}
+
+void AddGeometryGroupChild(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    if (!value) return;
+    Base::Ref<Geometry> retained =
+        Base::Ref<Geometry>::TryFromBorrowed(
+            static_cast<Geometry&>(*value));
+    if (retained) {
+        static_cast<GeometryGroup&>(owner)
+            .Add(std::move(retained));
+    }
+}
+
+void ClearGeometryGroupChildren(
+    Base::Object& owner,
+    void*) noexcept {
+    static_cast<GeometryGroup&>(owner).Clear();
 }
 
 Base::Result<Value> ConvertBrushText(
@@ -822,19 +865,19 @@ Base::Result<Value> ConvertGeometryText(
     Base::StringView text,
     void*) noexcept {
     const bool streamGeometry =
-        targetType == Media::StreamGeometry::StaticTypeId();
-    if (targetType != Media::Geometry::StaticTypeId() &&
+        targetType == StreamGeometry::StaticTypeId();
+    if (targetType != Geometry::StaticTypeId() &&
         !streamGeometry) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "Geometry text conversion received an invalid target");
     }
-    Base::Result<Base::Ref<Media::StreamGeometry>> made =
-        Base::MakeRef<Media::StreamGeometry>();
+    Base::Result<Base::Ref<StreamGeometry>> made =
+        Base::MakeRef<StreamGeometry>();
     if (!made) return made.GetStatus();
-    Base::Ref<Media::Geometry> geometry =
-        Base::Ref<Media::Geometry>(std::move(made).Value());
-    static_cast<Media::StreamGeometry*>(geometry.Get())->SetData(text);
+    Base::Ref<Geometry> geometry =
+        Base::Ref<Geometry>(std::move(made).Value());
+    static_cast<StreamGeometry*>(geometry.Get())->SetData(text);
     return Value::FromObject(
         targetType,
         Base::Ref<Base::Object>(
@@ -843,14 +886,14 @@ Base::Result<Value> ConvertGeometryText(
 
 Base::Result<Value> ConvertFontFamilyText(
     TypeId targetType, Base::StringView text, void*) noexcept {
-    if (targetType != Media::FontFamily::StaticTypeId()) {
+    if (targetType != FontFamily::StaticTypeId()) {
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "FontFamily text conversion received an invalid target");
     }
-    Base::Result<Base::Ref<Media::FontFamily>> family = Base::MakeRef<Media::FontFamily>();
+    Base::Result<Base::Ref<FontFamily>> family = Base::MakeRef<FontFamily>();
     if (!family) return family.GetStatus();
     family.Value()->SetSource(text);
-    return Value::FromObject(Media::FontFamily::StaticTypeId(),
+    return Value::FromObject(FontFamily::StaticTypeId(),
         Base::Ref<Base::Object>(std::move(family).Value()));
 }
 
@@ -886,21 +929,20 @@ void AddDoubleKeyFrame(
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
     if (!value) return;
-    Base::Ref<Media::Animation::DoubleKeyFrame> retained =
-        Base::Ref<Media::Animation::DoubleKeyFrame>::TryFromBorrowed(
-            static_cast<Media::Animation::DoubleKeyFrame&>(*value));
+    Base::Ref<DoubleKeyFrame> retained =
+        Base::Ref<DoubleKeyFrame>::TryFromBorrowed(
+            static_cast<DoubleKeyFrame&>(*value));
     if (!retained) {
         return;
     }
-    static_cast<void>(
-        static_cast<Media::Animation::DoubleAnimationUsingKeyFrames&>(
-            owner).AddKeyFrame(std::move(retained)));
+    static_cast<DoubleAnimationUsingKeyFrames&>(
+        owner).AddKeyFrame(std::move(retained));
 }
 
 void ClearDoubleKeyFrames(
     Base::Object& owner,
     void*) noexcept {
-    static_cast<Media::Animation::DoubleAnimationUsingKeyFrames&>(owner)
+    static_cast<DoubleAnimationUsingKeyFrames&>(owner)
         .ClearKeyFrames();
     return;
 }
@@ -910,17 +952,16 @@ void AddPointKeyFrame(
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
     if (!value) return;
-    Base::Ref<Media::Animation::PointKeyFrame> retained =
-        Base::Ref<Media::Animation::PointKeyFrame>::TryFromBorrowed(
-            static_cast<Media::Animation::PointKeyFrame&>(*value));
+    Base::Ref<PointKeyFrame> retained =
+        Base::Ref<PointKeyFrame>::TryFromBorrowed(
+            static_cast<PointKeyFrame&>(*value));
     if (!retained) return;
-    static_cast<void>(
-        static_cast<Media::Animation::PointAnimationUsingKeyFrames&>(owner)
-            .AddKeyFrame(std::move(retained)));
+    static_cast<PointAnimationUsingKeyFrames&>(owner)
+        .AddKeyFrame(std::move(retained));
 }
 
 void ClearPointKeyFrames(Base::Object& owner, void*) noexcept {
-    static_cast<Media::Animation::PointAnimationUsingKeyFrames&>(owner)
+    static_cast<PointAnimationUsingKeyFrames&>(owner)
         .ClearKeyFrames();
 }
 
@@ -929,24 +970,23 @@ void AddThicknessKeyFrame(
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
     if (!value) return;
-    Base::Ref<Media::Animation::ThicknessKeyFrame> retained =
-        Base::Ref<Media::Animation::ThicknessKeyFrame>::
+    Base::Ref<ThicknessKeyFrame> retained =
+        Base::Ref<ThicknessKeyFrame>::
             TryFromBorrowed(
                 static_cast<
-                    Media::Animation::ThicknessKeyFrame&>(
+                    ThicknessKeyFrame&>(
                         *value));
     if (!retained) {
         return;
     }
-    static_cast<void>(
-        static_cast<Media::Animation::ThicknessAnimationUsingKeyFrames&>(
-            owner).AddKeyFrame(std::move(retained)));
+    static_cast<ThicknessAnimationUsingKeyFrames&>(
+        owner).AddKeyFrame(std::move(retained));
 }
 
 void ClearThicknessKeyFrames(
     Base::Object& owner,
     void*) noexcept {
-    static_cast<Media::Animation::ThicknessAnimationUsingKeyFrames&>(owner)
+    static_cast<ThicknessAnimationUsingKeyFrames&>(owner)
         .ClearKeyFrames();
     return;
 }
@@ -956,21 +996,20 @@ void AddColorKeyFrame(
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
     if (!value) return;
-    Base::Ref<Media::Animation::ColorKeyFrame> retained =
-        Base::Ref<Media::Animation::ColorKeyFrame>::TryFromBorrowed(
-            static_cast<Media::Animation::ColorKeyFrame&>(*value));
+    Base::Ref<ColorKeyFrame> retained =
+        Base::Ref<ColorKeyFrame>::TryFromBorrowed(
+            static_cast<ColorKeyFrame&>(*value));
     if (!retained) {
         return;
     }
-    static_cast<void>(
-        static_cast<Media::Animation::ColorAnimationUsingKeyFrames&>(
-            owner).AddKeyFrame(std::move(retained)));
+    static_cast<ColorAnimationUsingKeyFrames&>(
+        owner).AddKeyFrame(std::move(retained));
 }
 
 void ClearColorKeyFrames(
     Base::Object& owner,
     void*) noexcept {
-    static_cast<Media::Animation::ColorAnimationUsingKeyFrames&>(owner)
+    static_cast<ColorAnimationUsingKeyFrames&>(owner)
         .ClearKeyFrames();
     return;
 }
@@ -980,21 +1019,20 @@ void AddObjectKeyFrame(
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
     if (!value) return;
-    Base::Ref<Media::Animation::DiscreteObjectKeyFrame> retained =
-        Base::Ref<Media::Animation::DiscreteObjectKeyFrame>::TryFromBorrowed(
-            static_cast<Media::Animation::DiscreteObjectKeyFrame&>(*value));
+    Base::Ref<ObjectKeyFrame> retained =
+        Base::Ref<ObjectKeyFrame>::TryFromBorrowed(
+            static_cast<ObjectKeyFrame&>(*value));
     if (!retained) {
         return;
     }
-    static_cast<void>(
-        static_cast<Media::Animation::ObjectAnimationUsingKeyFrames&>(
-            owner).AddKeyFrame(std::move(retained)));
+    static_cast<ObjectAnimationUsingKeyFrames&>(
+        owner).AddKeyFrame(std::move(retained));
 }
 
 void ClearObjectKeyFrames(
     Base::Object& owner,
     void*) noexcept {
-    static_cast<Media::Animation::ObjectAnimationUsingKeyFrames&>(owner)
+    static_cast<ObjectAnimationUsingKeyFrames&>(owner)
         .ClearKeyFrames();
     return;
 }
@@ -1004,23 +1042,134 @@ void AddBooleanKeyFrame(
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
     if (!value) return;
-    Base::Ref<Media::Animation::DiscreteBooleanKeyFrame> retained =
-        Base::Ref<Media::Animation::DiscreteBooleanKeyFrame>::TryFromBorrowed(
-            static_cast<Media::Animation::DiscreteBooleanKeyFrame&>(*value));
+    Base::Ref<BooleanKeyFrame> retained =
+        Base::Ref<BooleanKeyFrame>::TryFromBorrowed(
+            static_cast<BooleanKeyFrame&>(*value));
     if (!retained) {
         return;
     }
-    static_cast<void>(
-        static_cast<Media::Animation::BooleanAnimationUsingKeyFrames&>(
-            owner).AddKeyFrame(std::move(retained)));
+    static_cast<BooleanAnimationUsingKeyFrames&>(
+        owner).AddKeyFrame(std::move(retained));
 }
 
 void ClearBooleanKeyFrames(
     Base::Object& owner,
     void*) noexcept {
-    static_cast<Media::Animation::BooleanAnimationUsingKeyFrames&>(owner)
+    static_cast<BooleanAnimationUsingKeyFrames&>(owner)
         .ClearKeyFrames();
     return;
+}
+
+void AddInt16KeyFrame(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    if (!value) return;
+    Base::Ref<Int16KeyFrame> retained =
+        Base::Ref<Int16KeyFrame>::TryFromBorrowed(
+            static_cast<Int16KeyFrame&>(*value));
+    if (!retained) return;
+    static_cast<Int16AnimationUsingKeyFrames&>(owner)
+        .AddKeyFrame(std::move(retained));
+}
+
+void ClearInt16KeyFrames(Base::Object& owner, void*) noexcept {
+    static_cast<Int16AnimationUsingKeyFrames&>(owner)
+        .ClearKeyFrames();
+}
+
+void AddInt32KeyFrame(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    if (!value) return;
+    Base::Ref<Int32KeyFrame> retained =
+        Base::Ref<Int32KeyFrame>::TryFromBorrowed(
+            static_cast<Int32KeyFrame&>(*value));
+    if (!retained) return;
+    static_cast<Int32AnimationUsingKeyFrames&>(owner)
+        .AddKeyFrame(std::move(retained));
+}
+
+void ClearInt32KeyFrames(Base::Object& owner, void*) noexcept {
+    static_cast<Int32AnimationUsingKeyFrames&>(owner)
+        .ClearKeyFrames();
+}
+
+void AddInt64KeyFrame(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    if (!value) return;
+    Base::Ref<Int64KeyFrame> retained =
+        Base::Ref<Int64KeyFrame>::TryFromBorrowed(
+            static_cast<Int64KeyFrame&>(*value));
+    if (!retained) return;
+    static_cast<void>(
+        static_cast<Int64AnimationUsingKeyFrames&>(owner)
+            .AddKeyFrame(std::move(retained)));
+}
+
+void ClearInt64KeyFrames(Base::Object& owner, void*) noexcept {
+    static_cast<Int64AnimationUsingKeyFrames&>(owner)
+        .ClearKeyFrames();
+}
+
+void AddSizeKeyFrame(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    if (!value) return;
+    Base::Ref<SizeKeyFrame> retained =
+        Base::Ref<SizeKeyFrame>::TryFromBorrowed(
+            static_cast<SizeKeyFrame&>(*value));
+    if (!retained) return;
+    static_cast<void>(
+        static_cast<SizeAnimationUsingKeyFrames&>(owner)
+            .AddKeyFrame(std::move(retained)));
+}
+
+void ClearSizeKeyFrames(Base::Object& owner, void*) noexcept {
+    static_cast<SizeAnimationUsingKeyFrames&>(owner)
+        .ClearKeyFrames();
+}
+
+void AddMatrixKeyFrame(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    if (!value) return;
+    Base::Ref<MatrixKeyFrame> retained =
+        Base::Ref<MatrixKeyFrame>::TryFromBorrowed(
+            static_cast<MatrixKeyFrame&>(*value));
+    if (!retained) return;
+    static_cast<void>(
+        static_cast<MatrixAnimationUsingKeyFrames&>(owner)
+            .AddKeyFrame(std::move(retained)));
+}
+
+void ClearMatrixKeyFrames(Base::Object& owner, void*) noexcept {
+    static_cast<MatrixAnimationUsingKeyFrames&>(owner)
+        .ClearKeyFrames();
+}
+
+void AddStringKeyFrame(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    if (!value) return;
+    Base::Ref<StringKeyFrame> retained =
+        Base::Ref<StringKeyFrame>::TryFromBorrowed(
+            static_cast<StringKeyFrame&>(*value));
+    if (!retained) return;
+    static_cast<void>(
+        static_cast<StringAnimationUsingKeyFrames&>(owner)
+            .AddKeyFrame(std::move(retained)));
+}
+
+void ClearStringKeyFrames(Base::Object& owner, void*) noexcept {
+    static_cast<StringAnimationUsingKeyFrames&>(owner)
+        .ClearKeyFrames();
 }
 
 void AddEventTriggerAction(
@@ -1028,21 +1177,20 @@ void AddEventTriggerAction(
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
     if (!value) return;
-    Base::Ref<Aero::Interactivity::TriggerAction> retained =
-        Base::Ref<Aero::Interactivity::TriggerAction>::TryFromBorrowed(
-            static_cast<Aero::Interactivity::TriggerAction&>(*value));
+    Base::Ref<TriggerAction> retained =
+        Base::Ref<TriggerAction>::TryFromBorrowed(
+            static_cast<TriggerAction&>(*value));
     if (!retained) {
         return;
     }
-    static_cast<void>(
-        static_cast<Media::Animation::EventTrigger&>(owner)
-            .AddAction(std::move(retained)));
+    static_cast<EventTrigger&>(owner)
+        .AddAction(std::move(retained));
 }
 
 void ClearEventTriggerActions(
     Base::Object& owner,
     void*) noexcept {
-    static_cast<Media::Animation::EventTrigger&>(owner).ClearActions();
+    static_cast<EventTrigger&>(owner).ClearActions();
     return;
 }
 
@@ -1051,19 +1199,18 @@ void AddPropertyChangedTriggerAction(
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
     if (!value) return;
-    Base::Ref<Aero::Interactivity::TriggerAction> retained =
-        Base::Ref<Aero::Interactivity::TriggerAction>::TryFromBorrowed(
-            static_cast<Aero::Interactivity::TriggerAction&>(*value));
+    Base::Ref<TriggerAction> retained =
+        Base::Ref<TriggerAction>::TryFromBorrowed(
+            static_cast<TriggerAction&>(*value));
     if (!retained) return;
-    static_cast<void>(
-        static_cast<Aero::Interactivity::PropertyChangedTrigger&>(owner)
-            .AddAction(std::move(retained)));
+    static_cast<PropertyChangedTrigger&>(owner)
+        .AddAction(std::move(retained));
 }
 
 void ClearPropertyChangedTriggerActions(
     Base::Object& owner,
     void*) noexcept {
-    static_cast<Aero::Interactivity::PropertyChangedTrigger&>(owner)
+    static_cast<PropertyChangedTrigger&>(owner)
         .ClearActions();
 }
 
@@ -1072,36 +1219,35 @@ void AddKeyTriggerAction(
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
     if (!value) return;
-    Base::Ref<Aero::Interactivity::TriggerAction> retained =
-        Base::Ref<Aero::Interactivity::TriggerAction>::TryFromBorrowed(
-            static_cast<Aero::Interactivity::TriggerAction&>(*value));
+    Base::Ref<TriggerAction> retained =
+        Base::Ref<TriggerAction>::TryFromBorrowed(
+            static_cast<TriggerAction&>(*value));
     if (!retained) return;
-    static_cast<void>(
-        static_cast<Aero::Interactivity::KeyTrigger&>(owner)
-            .AddAction(std::move(retained)));
+    static_cast<KeyTrigger&>(owner)
+        .AddAction(std::move(retained));
 }
 
 void ClearKeyTriggerActions(
     Base::Object& owner,
     void*) noexcept {
-    static_cast<Aero::Interactivity::KeyTrigger&>(owner).ClearActions();
+    static_cast<KeyTrigger&>(owner).ClearActions();
 }
 
 void AddInteractionBehavior(
     Base::Object& owner, const Base::Ref<Base::Object>& value, void*) noexcept {
     if (!value) return;
     if (owner.RuntimeType() == DataTrigger::StaticTypeId()) {
-        static_cast<void>(static_cast<DataTrigger&>(owner).AddBehavior(value));
+        static_cast<DataTrigger&>(owner).AddBehavior(value);
     } else if (owner.RuntimeType() ==
-               Media::Animation::StoryboardCompletedTrigger::StaticTypeId()) {
-        static_cast<void>(static_cast<Media::Animation::StoryboardCompletedTrigger&>(owner)
-            .AddConditionBehavior(value));
+               StoryboardCompletedTrigger::StaticTypeId()) {
+        static_cast<StoryboardCompletedTrigger&>(owner)
+            .AddConditionBehavior(value);
     } else if (owner.RuntimeType() ==
-               Media::Animation::EventTrigger::StaticTypeId()) {
-        static_cast<void>(static_cast<Media::Animation::EventTrigger&>(owner)
-            .AddConditionBehavior(value));
+               EventTrigger::StaticTypeId()) {
+        static_cast<EventTrigger&>(owner)
+            .AddConditionBehavior(value);
     } else {
-        static_cast<void>(::Aero::Core::InteractionStateFacet::AddAuthoredBehavior(
+        static_cast<void>(AeroGuiInternal::AddAuthoredBehavior(
             static_cast<FrameworkElement&>(owner), value));
     }
 }
@@ -1109,15 +1255,15 @@ void ClearInteractionBehaviors(Base::Object& owner, void*) noexcept {
     if (owner.RuntimeType() == DataTrigger::StaticTypeId()) {
         static_cast<DataTrigger&>(owner).ClearBehaviors();
     } else if (owner.RuntimeType() ==
-               Media::Animation::StoryboardCompletedTrigger::StaticTypeId()) {
-        static_cast<Media::Animation::StoryboardCompletedTrigger&>(owner)
+               StoryboardCompletedTrigger::StaticTypeId()) {
+        static_cast<StoryboardCompletedTrigger&>(owner)
             .ClearConditionBehaviors();
     } else if (owner.RuntimeType() ==
-               Media::Animation::EventTrigger::StaticTypeId()) {
-        static_cast<Media::Animation::EventTrigger&>(owner)
+               EventTrigger::StaticTypeId()) {
+        static_cast<EventTrigger&>(owner)
             .ClearConditionBehaviors();
     } else {
-        static_cast<void>(::Aero::Core::InteractionStateFacet::ClearAuthoredBehaviors(
+        static_cast<void>(AeroGuiInternal::ClearAuthoredBehaviors(
             static_cast<FrameworkElement&>(owner)));
     }
 }
@@ -1127,30 +1273,30 @@ void AddStyleBehaviorItem(
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
     static_cast<void>(
-        static_cast<Interactivity::StyleBehaviorCollection&>(owner)
+        static_cast<StyleBehaviorCollection&>(owner)
             .Add(value));
 }
 void ClearStyleBehaviorItems(Base::Object& owner, void*) noexcept {
-    static_cast<Interactivity::StyleBehaviorCollection&>(owner).Clear();
+    static_cast<StyleBehaviorCollection&>(owner).Clear();
 }
 void SetBackgroundEffectBehaviorEffect(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
     auto& behavior =
-        static_cast<Interactivity::BackgroundEffectBehavior&>(owner);
+        static_cast<BackgroundEffectBehavior&>(owner);
     if (!value) {
         behavior.SetEffect({});
         return;
     }
-    Base::Ref<Media::Effect> effect =
-        Base::Ref<Media::Effect>::TryFromBorrowed(
-            static_cast<Media::Effect&>(*value));
+    Base::Ref<Effect> effect =
+        Base::Ref<Effect>::TryFromBorrowed(
+            static_cast<Effect&>(*value));
     if (effect) behavior.SetEffect(std::move(effect));
 }
 void ClearBackgroundEffectBehaviorEffect(
     Base::Object& owner, void*) noexcept {
-    static_cast<Interactivity::BackgroundEffectBehavior&>(owner)
+    static_cast<BackgroundEffectBehavior&>(owner)
         .SetEffect({});
 }
 void AddStyleTriggerItem(
@@ -1158,35 +1304,34 @@ void AddStyleTriggerItem(
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
     static_cast<void>(
-        static_cast<Interactivity::StyleTriggerCollection&>(owner)
+        static_cast<StyleTriggerCollection&>(owner)
             .Add(value));
 }
 void ClearStyleTriggerItems(Base::Object& owner, void*) noexcept {
-    static_cast<Interactivity::StyleTriggerCollection&>(owner).Clear();
+    static_cast<StyleTriggerCollection&>(owner).Clear();
 }
 void AddConditionalComparison(
     Base::Object& owner, const Base::Ref<Base::Object>& value, void*) noexcept {
     if (!value) return;
-    Base::Ref<Aero::Interactivity::ComparisonCondition> retained =
-        Base::Ref<Aero::Interactivity::ComparisonCondition>::TryFromBorrowed(
-            static_cast<Aero::Interactivity::ComparisonCondition&>(*value));
+    Base::Ref<ComparisonCondition> retained =
+        Base::Ref<ComparisonCondition>::TryFromBorrowed(
+            static_cast<ComparisonCondition&>(*value));
     if (!retained) return;
-    static_cast<void>(
-        static_cast<Aero::Interactivity::ConditionalExpression&>(owner)
-            .AddCondition(std::move(retained)));
+    static_cast<ConditionalExpression&>(owner)
+        .AddCondition(std::move(retained));
 }
 void ClearConditionalComparisons(Base::Object& owner, void*) noexcept {
-    static_cast<Aero::Interactivity::ConditionalExpression&>(owner).ClearConditions(); return;
+    static_cast<ConditionalExpression&>(owner).ClearConditions(); return;
 }
 void SetConditionBehaviorExpression(
     Base::Object& owner, const Base::Ref<Base::Object>& value, void*) noexcept {
-    static_cast<Aero::Interactivity::ConditionBehavior&>(owner).SetExpression(
-        Base::Ref<Aero::Interactivity::ConditionalExpression>::FromBorrowed(
-            static_cast<Aero::Interactivity::ConditionalExpression&>(*value)));
+    static_cast<ConditionBehavior&>(owner).SetExpression(
+        Base::Ref<ConditionalExpression>::FromBorrowed(
+            static_cast<ConditionalExpression&>(*value)));
     return;
 }
 void ClearConditionBehaviorExpression(Base::Object& owner, void*) noexcept {
-    static_cast<Aero::Interactivity::ConditionBehavior&>(owner).SetExpression({});
+    static_cast<ConditionBehavior&>(owner).SetExpression({});
     return;
 }
 
@@ -1195,21 +1340,20 @@ void AddStoryboardCompletedTriggerAction(
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
     if (!value) return;
-    Base::Ref<Aero::Interactivity::TriggerAction> retained =
-        Base::Ref<Aero::Interactivity::TriggerAction>::TryFromBorrowed(
-            static_cast<Aero::Interactivity::TriggerAction&>(*value));
+    Base::Ref<TriggerAction> retained =
+        Base::Ref<TriggerAction>::TryFromBorrowed(
+            static_cast<TriggerAction&>(*value));
     if (!retained) {
         return;
     }
-    static_cast<void>(
-        static_cast<Media::Animation::StoryboardCompletedTrigger&>(owner)
-            .AddAction(std::move(retained)));
+    static_cast<StoryboardCompletedTrigger&>(owner)
+        .AddAction(std::move(retained));
 }
 
 void ClearStoryboardCompletedTriggerActions(
     Base::Object& owner,
     void*) noexcept {
-    static_cast<Media::Animation::StoryboardCompletedTrigger&>(owner)
+    static_cast<StoryboardCompletedTrigger&>(owner)
         .ClearActions();
     return;
 }
@@ -1222,17 +1366,17 @@ void AddInteractionTrigger(
     auto& dependencyObject =
         static_cast<DependencyObject&>(owner);
     const Meta::TypeRegistry& types =
-        dependencyObject.PropertyRegistry().Types();
+        AeroGuiInternal::PropertyRegistry(dependencyObject).Types();
     if (types.IsDerivedFrom(
             owner.RuntimeType(), FrameworkElement::StaticTypeId())) {
         static_cast<void>(
-            ::Aero::Core::InteractionStateFacet::AddAuthoredTrigger(
+            AeroGuiInternal::AddAuthoredTrigger(
                 static_cast<FrameworkElement&>(owner), value));
     } else if (types.IsDerivedFrom(
                    owner.RuntimeType(),
                    FrameworkContentElement::StaticTypeId())) {
         static_cast<void>(
-            ::Aero::Core::InteractionStateFacet::AddAuthoredTrigger(
+            AeroGuiInternal::AddAuthoredTrigger(
                 static_cast<FrameworkContentElement&>(owner), value));
     }
 }
@@ -1243,17 +1387,17 @@ void ClearInteractionTriggers(
     auto& dependencyObject =
         static_cast<DependencyObject&>(owner);
     const Meta::TypeRegistry& types =
-        dependencyObject.PropertyRegistry().Types();
+        AeroGuiInternal::PropertyRegistry(dependencyObject).Types();
     if (types.IsDerivedFrom(
             owner.RuntimeType(), FrameworkElement::StaticTypeId())) {
         static_cast<void>(
-            ::Aero::Core::InteractionStateFacet::ClearAuthoredTriggers(
+            AeroGuiInternal::ClearAuthoredTriggers(
                 static_cast<FrameworkElement&>(owner)));
     } else if (types.IsDerivedFrom(
                    owner.RuntimeType(),
                    FrameworkContentElement::StaticTypeId())) {
         static_cast<void>(
-            ::Aero::Core::InteractionStateFacet::ClearAuthoredTriggers(
+            AeroGuiInternal::ClearAuthoredTriggers(
                 static_cast<FrameworkContentElement&>(owner)));
     }
 }
@@ -1262,13 +1406,13 @@ void SetBeginStoryboardContent(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
-    Base::Ref<Media::Animation::Storyboard> retained =
-        Base::Ref<Media::Animation::Storyboard>::TryFromBorrowed(
-            static_cast<Media::Animation::Storyboard&>(*value));
+    Base::Ref<Storyboard> retained =
+        Base::Ref<Storyboard>::TryFromBorrowed(
+            static_cast<Storyboard&>(*value));
     if (!retained) {
         return;
     }
-    static_cast<Media::Animation::BeginStoryboard&>(owner)
+    static_cast<BeginStoryboard&>(owner)
         .SetStoryboard(std::move(retained));
     return;
 }
@@ -1276,7 +1420,7 @@ void SetBeginStoryboardContent(
 void ClearBeginStoryboardContent(
     Base::Object& owner,
     void*) noexcept {
-    static_cast<Media::Animation::BeginStoryboard&>(owner)
+    static_cast<BeginStoryboard&>(owner)
         .SetStoryboard({});
     return;
 }
@@ -1304,50 +1448,5 @@ void ClearTransformGroupChildren(
     return;
 }
 
-void OnRenderStateChanged(
-    DependencyObject& object,
-    const DependencyPropertyChangedEventArgs&) noexcept {
-    auto& visual =
-        static_cast<UIElement&>(object);
-    static_cast<void>(
-        Aero::Core::RenderFacet::
-            InvalidateRenderState(visual));
-}
 
-void OnOpacityMaskChanged(
-    DependencyObject& object,
-    const DependencyPropertyChangedEventArgs&) noexcept {
-    FrameworkElement* owner =
-        static_cast<UIElement&>(object).AsFrameworkElement();
-    if (owner == nullptr) return;
-    static_cast<void>(
-        Aero::Core::RenderFacet::
-            InvalidateRenderState(*owner));
-}
 
-void OnRenderTransformChanged(
-    DependencyObject& object,
-    const DependencyPropertyChangedEventArgs&) noexcept {
-    FrameworkElement* owner =
-        static_cast<UIElement&>(object).AsFrameworkElement();
-    if (owner == nullptr) return;
-    static_cast<void>(
-        Aero::Core::RenderFacet::
-            InvalidateRenderState(*owner));
-}
-
-void OnLayoutTransformChanged(
-    DependencyObject&,
-    const DependencyPropertyChangedEventArgs&) noexcept {
-}
-
-void OnEffectChanged(
-    DependencyObject& object,
-    const DependencyPropertyChangedEventArgs&) noexcept {
-    FrameworkElement* owner =
-        static_cast<UIElement&>(object).AsFrameworkElement();
-    if (owner == nullptr) return;
-    static_cast<void>(
-        Aero::Core::RenderFacet::
-            InvalidateRenderState(*owner));
-}

@@ -82,9 +82,7 @@ Base::Result<void> ReadCompositionText(
         static_cast<std::uint32_t>(
             byteCount / static_cast<LONG>(sizeof(wchar_t)));
     Base::Vector<wchar_t> wide;
-    Base::Result<void> resized =
-        wide.Resize(characterCount);
-    if (!resized) return resized;
+    wide.Resize(characterCount);
     const LONG copied = ImmGetCompositionStringW(
         input.Get(), kind, wide.Data(),
         static_cast<DWORD>(byteCount));
@@ -104,9 +102,8 @@ Base::Result<void> ReadCompositionText(
             "Win32 IME composition is not valid Unicode");
     }
     Base::Vector<char> bytes;
-    Base::Result<void> byteStorage = bytes.Resize(
+    bytes.Resize(
         static_cast<std::uint32_t>(required));
-    if (!byteStorage) return byteStorage;
     if (WideCharToMultiByte(
             CP_UTF8, WC_ERR_INVALID_CHARS,
             wide.Data(), static_cast<int>(characterCount),

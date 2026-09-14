@@ -3,7 +3,6 @@
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Base/Hash.hpp>
-#include <Aero/Base/Result.hpp>
 
 #include <cstddef>
 #include <cstdint>
@@ -189,24 +188,14 @@ public:
                 other.capacity_ = 0U;
             } else {
                 HashMap temporary(allocator_, other.seed_, other.hash_, other.equal_);
-                const Result<void> reserveResult = temporary.Reserve(other.size_);
-                if (!reserveResult) {
-                    ReportOutOfMemory(BucketBytesForCapacity(
-                        RequiredCapacityFor(other.size_)), alignof(Bucket),
-                        MemoryTag::Container);
-                }
+                temporary.Reserve(other.size_);
                 for (SizeType index = 0U; index < other.capacity_; ++index) {
                     Bucket& bucket = other.buckets_[index];
                     if (bucket.state == BucketState::Occupied) {
                         Entry* entry = bucket.GetEntry();
-                        const Result<InsertResult> insertResult = temporary.Insert(
+                        temporary.Insert(
                             std::move_if_noexcept(entry->key_),
                             std::move_if_noexcept(entry->value_));
-                        if (!insertResult) {
-                            ReportOutOfMemory(BucketBytesForCapacity(
-                                RequiredCapacityFor(other.size_)), alignof(Bucket),
-                                MemoryTag::Container);
-                        }
                     }
                 }
                 other.DestroyAndReleaseBuckets();
@@ -246,16 +235,16 @@ public:
         used_ = 0U;
     }
 
-    Result<void> Reserve(SizeType expectedElements) noexcept {
+    void Reserve(SizeType expectedElements) noexcept {
         const SizeType requiredCapacity = RequiredCapacityFor(expectedElements);
         if (expectedElements > 0U && requiredCapacity == 0U) {
-            return Status::Failure(ErrorCode::OutOfRange,
-                "HashMap requested size exceeds supported capacity");
+            ReportOutOfMemory(BucketBytesForCapacity(MaximumCapacity),
+                alignof(Bucket), MemoryTag::Container);
         }
         if (requiredCapacity <= capacity_) {
-            return {};
+            return;
         }
-        return Rehash(requiredCapacity);
+        Rehash(requiredCapacity);
     }
 
     V* Find(const K& key) noexcept {
@@ -286,42 +275,36 @@ public:
         return FindEntry(key) != nullptr;
     }
 
-    Result<InsertResult> Insert(
+    InsertResult Insert(
         const K& key, const V& value) noexcept {
         return InsertImpl(key, value);
     }
 
-    Result<InsertResult> Insert(
+    InsertResult Insert(
         K&& key, V&& value) noexcept {
         return InsertImpl(std::move(key), std::move(value));
     }
 
-    Result<V*> Set(
+    V* Set(
         const K& key, const V& value) noexcept {
         Entry* existing = FindEntry(key);
         if (existing != nullptr) {
             existing->value_ = value;
             return &existing->value_;
         }
-        Result<InsertResult> inserted = Insert(key, value);
-        if (!inserted) {
-            return inserted.GetStatus();
-        }
-        return &inserted.Value().entry->value_;
+        InsertResult inserted = Insert(key, value);
+        return &inserted.entry->value_;
     }
 
-    Result<V*> Set(K&& key, V&& value) noexcept {
+    V* Set(K&& key, V&& value) noexcept {
         Entry* existing = FindEntry(key);
         if (existing != nullptr) {
             existing->value_ = std::move(value);
             return &existing->value_;
         }
-        Result<InsertResult> inserted = Insert(
+        InsertResult inserted = Insert(
             std::move(key), std::move(value));
-        if (!inserted) {
-            return inserted.GetStatus();
-        }
-        return &inserted.Value().entry->value_;
+        return &inserted.entry->value_;
     }
 
     bool Erase(const K& key) noexcept {
@@ -373,7 +356,7 @@ private:
     }
 
     template<class KeyArg, class ValueArg>
-    Result<InsertResult> InsertImpl(
+    InsertResult InsertImpl(
         KeyArg&& key, ValueArg&& value) noexcept {
         HashCode hash = ComputeHash(key);
         if (capacity_ != 0U) {
@@ -383,10 +366,7 @@ private:
             }
         }
 
-        const Result<void> capacityResult = EnsureInsertCapacity();
-        if (!capacityResult) {
-            return capacityResult.GetStatus();
-        }
+        EnsureInsertCapacity();
 
         hash = ComputeHash(key);
         const ProbeResult target = Probe(key, hash);
@@ -403,28 +383,30 @@ private:
         return InsertResult{entry, true};
     }
 
-    Result<void> EnsureInsertCapacity() noexcept {
+    void EnsureInsertCapacity() noexcept {
         if (capacity_ == 0U) {
-            return Rehash(MinimumCapacity);
+            Rehash(MinimumCapacity);
+            return;
         }
 
         const std::uint64_t projectedUsed =
             static_cast<std::uint64_t>(used_) + 1U;
         if (projectedUsed * LoadDenominator <=
             static_cast<std::uint64_t>(capacity_) * LoadNumerator) {
-            return {};
+            return;
         }
 
         const SizeType tombstones = used_ - size_;
         if (tombstones > size_ / 2U) {
-            return Rehash(capacity_);
+            Rehash(capacity_);
+            return;
         }
 
         if (capacity_ >= MaximumCapacity) {
-            return Status::Failure(ErrorCode::OutOfRange,
-                "HashMap capacity limit reached");
+            ReportOutOfMemory(BucketBytesForCapacity(MaximumCapacity),
+                alignof(Bucket), MemoryTag::Container);
         }
-        return Rehash(capacity_ * 2U);
+        Rehash(capacity_ * 2U);
     }
 
     ProbeResult Probe(
@@ -456,27 +438,26 @@ private:
         return {false, firstTombstone};
     }
 
-    Result<void> Rehash(SizeType newCapacity) noexcept {
+    void Rehash(SizeType newCapacity) noexcept {
         if (newCapacity < MinimumCapacity) {
             newCapacity = MinimumCapacity;
         }
         if (newCapacity > MaximumCapacity ||
             (newCapacity & (newCapacity - 1U)) != 0U) {
-            return Status::Failure(ErrorCode::OutOfRange,
-                "HashMap capacity must be a supported power of two");
+            ReportOutOfMemory(BucketBytesForCapacity(newCapacity),
+                alignof(Bucket), MemoryTag::Container);
         }
 
         const std::size_t bytes = BucketBytesForCapacity(newCapacity);
         if (bytes == 0U) {
-            return Status::Failure(ErrorCode::OutOfRange,
-                "HashMap bucket storage exceeds addressable memory");
+            ReportOutOfMemory(static_cast<std::size_t>(newCapacity) * sizeof(Bucket),
+                alignof(Bucket), MemoryTag::Container);
         }
 
         void* memory = allocator_->Allocate(
             {bytes, alignof(Bucket), MemoryTag::Container});
         if (memory == nullptr) {
-            return Status::Failure(ErrorCode::OutOfMemory,
-                "HashMap bucket allocation failed");
+            ReportOutOfMemory(bytes, alignof(Bucket), MemoryTag::Container);
         }
 
         Bucket* replacement = static_cast<Bucket*>(memory);
@@ -506,7 +487,6 @@ private:
                 BucketBytesForCapacity(oldCapacity), alignof(Bucket),
                 MemoryTag::Container);
         }
-        return {};
     }
 
     void InsertTransferred(Entry& source) noexcept {
@@ -545,20 +525,9 @@ private:
     }
 
     void CopyFromOrAbort(const HashMap& other) {
-        const Result<void> reserveResult = Reserve(other.size_);
-        if (!reserveResult) {
-            ReportOutOfMemory(BucketBytesForCapacity(
-                RequiredCapacityFor(other.size_)), alignof(Bucket),
-                MemoryTag::Container);
-        }
+        Reserve(other.size_);
         for (const Entry& entry : other) {
-            const Result<InsertResult> insertResult = Insert(
-                entry.key_, entry.value_);
-            if (!insertResult) {
-                ReportOutOfMemory(BucketBytesForCapacity(
-                    RequiredCapacityFor(other.size_)), alignof(Bucket),
-                    MemoryTag::Container);
-            }
+            Insert(entry.key_, entry.value_);
         }
     }
 

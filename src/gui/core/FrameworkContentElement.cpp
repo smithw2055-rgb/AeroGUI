@@ -3,6 +3,7 @@
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Allocator.hpp>
+#include <Aero/Base/Vector.hpp>
 #include <Aero/DependencyProperty.hpp>
 #include <Aero/Events.hpp>
 #include <Aero/Media/Brushes.hpp>
@@ -11,11 +12,19 @@
 #include <Aero/Markup/XamlReader.hpp>
 #include <Aero/Controls.hpp>
 #include <cstdio>
-#include "gui/core/State.hpp" 
-#include "gui/input/InputState.hpp"
+#include <new>
+#include "gui/core/ElementTree.hpp"
+#include "gui/core/LayoutEngine.hpp"
+#include "gui/core/EffectiveValueEngine.hpp"
+#include "gui/core/RoutedEvents.hpp"
+#include "gui/core/EventRouter.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
+#include "gui/input/InputManager.hpp"
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleState.hpp"
-#include "gui/meta/MetadataState.hpp"
+#include "gui/styles/StyleEngine.hpp"
+#include "gui/meta/TypeRegistryDetail.hpp"
+#include <Aero/Meta.hpp>
+#include "gui/meta/ElementsFill.hpp"
 
 using namespace Aero;
 using namespace Aero::Media;
@@ -24,12 +33,40 @@ using namespace Aero::Threading;
 
 namespace Aero {
 
+struct FrameworkContentElement::FrameworkContentRare {
+    Base::Vector<Base::Ref<Base::Object>> authoredTriggers;
+};
+
+FrameworkContentElement::FrameworkContentRare*
+FrameworkContentElement::EnsureFrameworkContentRare() noexcept {
+    if (frameworkRare_ == nullptr) {
+        frameworkRare_ = new (std::nothrow) FrameworkContentRare();
+    }
+    return frameworkRare_;
+}
+
+FrameworkContentElement::~FrameworkContentElement() {
+    delete resources_;
+    resources_ = nullptr;
+    delete frameworkRare_;
+    frameworkRare_ = nullptr;
+}
+
 // from src/gui/core/ContentElement.cpp
+
+ResourceDictionary& FrameworkContentElement::GetResources() noexcept {
+    return EnsureOwnedResources(resources_);
+}
+
+const ResourceDictionary&
+FrameworkContentElement::GetResources() const noexcept {
+    return EnsureOwnedResources(resources_);
+}
 
 void FrameworkContentElement::SetResources(
     Base::Ref<ResourceDictionary> value) noexcept {
     (void)Aero::AssignResourceDictionary(
-        resources_,
+        EnsureOwnedResources(resources_),
         std::move(value),
         "FrameworkContentElement Resources is already assigned");
 }
@@ -37,18 +74,48 @@ void FrameworkContentElement::SetResources(
 // from src/gui/core/ContentElement.cpp
 
 void FrameworkContentElement::ClearAuthoredTriggers() noexcept {
-    authoredTriggers_.Clear();
+    if (frameworkRare_ != nullptr) {
+        frameworkRare_->authoredTriggers.Clear();
+    }
+}
+
+Base::Span<const Base::Ref<Base::Object>>
+FrameworkContentElement::AuthoredTriggers() const noexcept {
+    return frameworkRare_ != nullptr
+        ? frameworkRare_->authoredTriggers.AsSpan()
+        : Base::Span<const Base::Ref<Base::Object>>{};
 }
 
 // from src/gui/core/ContentElement.cpp
 
-Base::Result<void> FrameworkContentElement::AddAuthoredTrigger(
+void FrameworkContentElement::AddAuthoredTrigger(
     Base::Ref<Base::Object> trigger) noexcept {
-    if (!trigger) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "FrameworkContentElement trigger cannot be null");
-    }
-    return authoredTriggers_.PushBack(std::move(trigger));
+    if (!trigger) { AERO_ASSERT(false); return; }
+    FrameworkContentRare* rare = EnsureFrameworkContentRare();
+    if (rare == nullptr) { AERO_ASSERT(false); return; }
+    rare->authoredTriggers.PushBack(std::move(trigger));
 }
 } // namespace Aero {
+
+
+// ---- Builtin metadata Fill (colocated from meta/Elements.inl) ----
+namespace Aero::Meta {
+using namespace ::Aero::Threading;
+using namespace ::Aero::Input;
+using namespace ::Aero::Media;
+using namespace ::Aero::Data;
+using namespace ::Aero::Media::Animation::Model;
+Base::Result<void> FillFrameworkContentElementMetadata(
+    ::Aero::Meta::Registration& context) noexcept {
+    Register<FrameworkContentElement>(context, TypeFlags::Abstract)
+        .Property<Base::Ref<ResourceDictionary>, &FrameworkContentElement::SetResources>("Resources", PropertyFlags::Structural)
+        .Property(FrameworkContentElement::DataContextProperty, Value::NullObject(TypeOf<Base::Object>()), Inherits)
+        .Property(FrameworkContentElement::StyleProperty, Base::Ref<Style>{})
+        .Property(FrameworkContentElement::TagProperty, Value::NullObject(TypeOf<Base::Object>()))
+        .Property(FrameworkContentElement::IsEnabledProperty, true, Inherits)
+        .Property(FrameworkContentElement::IsMouseOverProperty, false)
+        .Property(FrameworkContentElement::CursorProperty, Base::String{}, Inherits)
+        .Property(FrameworkContentElement::OverridesDefaultStyleProperty, false);
+    return {};
+}
+} // namespace Aero::Meta

@@ -1,0 +1,55 @@
+#pragma once
+
+// Source-only popup / tooltip / context-menu chrome next to InputRouter.
+// Not installed under include/Aero. Included from ViewFrame.hpp after ViewFrame.
+
+#include <cstdint>
+
+namespace Aero {
+
+class OverlayHost {
+public:
+    explicit OverlayHost(ViewFrame& owner) noexcept;
+    void Bind() noexcept;
+
+    ViewFrame* view = nullptr;
+
+    Base::IAllocator* Allocator() const noexcept;
+    ::Aero::Meta::Registry* Metadata() const noexcept;
+    Aero::InputRouter* Input() const noexcept;
+    ::Aero::Render::RenderTree* RenderTree() const noexcept;
+
+    Base::Vector<Aero::FrameworkElement*> renderOverlays;
+    Base::Vector<Aero::UIElement*> inputOverlays;
+    Base::Vector<Aero::Base::Transform2D> overlayTransforms;
+    Base::Ref<Controls::ToolTip> pendingToolTip;
+    Base::Ref<Controls::ToolTip> activeToolTip;
+    Base::Ref<Aero::UIElement> toolTipTarget;
+    Base::Ref<Aero::UIElement> overlayFocusReturn;
+    std::uint32_t toolTipElapsed = 0U;
+    std::uint32_t toolTipVisibleElapsed = 0U;
+
+    Base::Result<void> SynchronizeOverlays() noexcept;
+    void ClearOverlays() noexcept;
+    void CloseAllOverlays() noexcept;
+    Base::Result<void> RestoreOverlayFocus() noexcept;
+    Base::Result<void> DismissOverlaysForPointer(
+        const Input::PointerInput& pointer,
+        Aero::UIElement* target) noexcept;
+    Base::Result<bool> DismissTopOverlayForEscape() noexcept;
+    Base::Result<void> OpenContextMenuForPointer(
+        const Input::PointerInput& pointer,
+        Aero::UIElement* hitTarget) noexcept;
+    Base::Result<void> UpdateToolTipForPointer(
+        const Input::PointerInput& pointer,
+        Aero::UIElement* hitTarget) noexcept;
+    Base::Result<std::uint32_t> AdvanceToolTipTime(
+        std::uint32_t elapsedMilliseconds) noexcept;
+
+private:
+    static bool IsVisualDescendantOrSelf(
+        const Aero::Media::Visual& root,
+        const Aero::Media::Visual& target) noexcept;
+};
+
+} // namespace Aero

@@ -23,7 +23,7 @@ public:
     }
     StringView GetComparison() const noexcept { return comparison_.View(); }
     void SetComparison(StringView value) noexcept { (void)comparison_.Assign(value); }
-    Result<void> AddAuthoredSetter(Ref<Setter> setter) noexcept;
+    void AddAuthoredSetter(Ref<Setter> setter) noexcept;
     void ClearAuthoredSetters() noexcept { authoredSetters_.Clear(); }
     Span<const Ref<Setter>> GetAuthoredSetters() const noexcept {
         return {authoredSetters_.Data(), authoredSetters_.Size()};

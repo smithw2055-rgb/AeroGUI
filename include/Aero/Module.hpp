@@ -44,4 +44,22 @@ constexpr ModuleRegistration DefineModule(
     return registration;
 }
 
+// One module declaration registers ordinary code-behind/custom-control types,
+// default factories, and optional DescribeComponent metadata. Applications no
+// longer author Registry or XAML facet callbacks for these types.
+// Defined here (rather than Meta.hpp) so all module composition lives in one
+// lightweight header; the component-type expansion is provided by Meta.
+namespace Meta {
+template<class... TComponents>
+Result<void> RegisterComponentTypes(Registration& registration) noexcept;
+} // namespace Meta
+
+template<class... TComponents>
+constexpr ModuleRegistration DefineComponentModule(
+    StringView name) noexcept {
+    return DefineModule(
+        name,
+        &Meta::RegisterComponentTypes<TComponents...>);
+}
+
 } // namespace Aero

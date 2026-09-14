@@ -1,8 +1,14 @@
-#include "gui/core/State.hpp" 
+#include "gui/core/ElementTree.hpp"
+#include "gui/core/LayoutEngine.hpp"
+#include "gui/core/EffectiveValueEngine.hpp"
+#include "gui/core/RoutedEvents.hpp"
+#include "gui/core/EventRouter.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleState.hpp"
+#include "gui/styles/StyleEngine.hpp"
 #include <Aero/Controls.hpp>
 #include <Aero/Controls/StackPanel.hpp>
+#include "gui/meta/TypeRegistryDetail.hpp"
 
 #include <algorithm>
 #include <utility>
@@ -62,44 +68,13 @@ Size ToolBarOverflowPanel::ArrangeOverride(Size finalSize) noexcept {
 }
 
 ToolBar::ToolBar() noexcept
-    : ItemsControl(StaticTypeId()),
-      headerChangedHandler_(
-          this, &ToolBar::OnHeaderChanged) {
-    static_cast<void>(AddValueChangedHandlerChecked(
-        HeaderProperty,
-        headerChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
-        OrientationProperty,
-        headerChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
-        OverflowCapacityProperty,
-        headerChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
-        IsOverflowOpenProperty,
-        headerChangedHandler_));
-}
+    : ItemsControl(StaticTypeId()) {}
 
-ToolBar::~ToolBar() {
-    static_cast<void>(RemoveValueChangedHandler(
-        HeaderProperty,
-        headerChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        OrientationProperty,
-        headerChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        OverflowCapacityProperty,
-        headerChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        IsOverflowOpenProperty,
-        headerChangedHandler_));
-}
+ToolBar::~ToolBar() = default;
 
 Meta::Value ToolBar::GetHeader()
     const noexcept {
-    return GetValueOr(
-        HeaderProperty,
-        Meta::Value::NullObject(
-            Meta::TypeOf<Base::Object>()));
+    return GetValue(HeaderProperty);
 }
 
 void ToolBar::SetHeader(
@@ -107,20 +82,17 @@ void ToolBar::SetHeader(
     SetValue(HeaderProperty, value);
 }
 
-Base::Result<void> ToolBar::SetHeader(
+void ToolBar::SetHeader(
     Base::StringView value) noexcept {
     Base::Result<Value> boxed = Value::TryFromString(
         Meta::TypeOf<Base::String>(), value);
-    if (!boxed) return boxed.GetStatus();
+    if (!boxed) { AERO_ASSERT(false); return; }
     SetHeader(std::move(boxed).Value());
-    return {};
 }
 
 Base::Ref<DataTemplate>
 ToolBar::GetHeaderTemplate() const noexcept {
-    return GetValueOr(
-        HeaderTemplateProperty,
-        Base::Ref<DataTemplate>{});
+    return GetValue(HeaderTemplateProperty);
 }
 
 void ToolBar::SetHeaderTemplate(
@@ -131,9 +103,7 @@ void ToolBar::SetHeaderTemplate(
 
 Orientation ToolBar::GetOrientation()
     const noexcept {
-    return GetValueOr(
-        OrientationProperty,
-        Orientation::Horizontal);
+    return GetValue(OrientationProperty);
 }
 
 void ToolBar::SetOrientation(
@@ -144,9 +114,7 @@ void ToolBar::SetOrientation(
 
 std::uint32_t ToolBar::GetOverflowCapacity()
     const noexcept {
-    return GetValueOr(
-        OverflowCapacityProperty,
-        UINT32_MAX);
+    return GetValue(OverflowCapacityProperty);
 }
 
 void
@@ -157,7 +125,7 @@ ToolBar::SetOverflowCapacity(
 }
 
 bool ToolBar::GetIsOverflowOpen() const noexcept {
-    return GetValueOr(IsOverflowOpenProperty, false);
+    return GetValue(IsOverflowOpenProperty);
 }
 
 void ToolBar::SetIsOverflowOpen(
@@ -166,15 +134,12 @@ void ToolBar::SetIsOverflowOpen(
 }
 
 bool ToolBar::GetHasOverflowItems() const noexcept {
-    return GetValueOr(
-        HasOverflowItemsProperty, false);
+    return GetValue(HasOverflowItemsProperty);
 }
 
 std::uint32_t ToolBar::GetOverflowItemCount()
     const noexcept {
-    return GetValueOr(
-        OverflowItemCountProperty,
-        std::uint32_t{0U});
+    return GetValue(OverflowItemCountProperty);
 }
 
 void
@@ -184,7 +149,7 @@ ToolBar::OnApplyTemplate() noexcept {
         GetTemplateChild("HeaderText");
     headerText_ =
         header != nullptr &&
-        PropertyRegistry().Types().IsDerivedFrom(
+        AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             header->RuntimeType(),
             TextBlock::StaticTypeId())
         ? static_cast<TextBlock*>(header)
@@ -196,7 +161,7 @@ ToolBar::OnApplyTemplate() noexcept {
         GetTemplateChild("OverflowGlyph");
     overflowGlyph_ =
         overflow != nullptr &&
-        PropertyRegistry().Types().IsDerivedFrom(
+        AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             overflow->RuntimeType(),
             TextBlock::StaticTypeId())
         ? static_cast<TextBlock*>(overflow)
@@ -213,11 +178,16 @@ void ToolBar::OnTemplateDetached() noexcept {
     ItemsControl::OnTemplateDetached();
 }
 
-void ToolBar::OnHeaderChanged(
-    DependencyObject&,
-    const DependencyPropertyChangedEventArgs&)
-    noexcept {
-    static_cast<void>(SynchronizeToolBar());
+void ToolBar::OnPropertyChanged(
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    ItemsControl::OnPropertyChanged(args);
+    const DependencyPropertyHandle prop = args.GetProperty();
+    if (prop == HeaderProperty ||
+        prop == OrientationProperty ||
+        prop == OverflowCapacityProperty ||
+        prop == IsOverflowOpenProperty) {
+        static_cast<void>(SynchronizeToolBar());
+    }
 }
 
 void ToolBar::OnContainersChanged() noexcept {
@@ -235,7 +205,7 @@ ToolBar::SynchronizeToolBar() noexcept {
     }
     Panel* host = GetItemsHost();
     if (host != nullptr &&
-        PropertyRegistry().Types().IsDerivedFrom(
+        AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
             host->RuntimeType(),
             StackPanel::StaticTypeId())) {
         static_cast<StackPanel*>(host)->
@@ -256,14 +226,13 @@ ToolBar::SynchronizeToolBar() noexcept {
         OverflowItemCountProperty,
         overflowCount);
     if (host != nullptr) {
-        const Base::Span<::Aero::Media::Visual* const> children =
-            host->GetVisualChildren();
+        const auto children = AeroGuiInternal::RenderChildren(*host);
         for (std::uint32_t index = 0U;
              index < children.Size();
              ++index) {
             UIElement* child =
                 children[index] != nullptr
-                ? children[index]->AsUIElement()
+                ? ::Aero::TryCast<::Aero::UIElement>(children[index])
                 : nullptr;
             if (child == nullptr) continue;
             child->SetVisibility(
@@ -282,8 +251,7 @@ ToolBar::SynchronizeToolBar() noexcept {
 }
 
 Base::Result<Base::Ref<FrameworkElement>>
-StatusBar::CreateContainer(
-    const Base::Ref<Base::Object>&) noexcept {
+StatusBar::GetContainerForItemOverride() const noexcept {
     Base::Result<Base::Ref<StatusBarItem>>
         made =
             Base::MakeRef<StatusBarItem>();
@@ -294,9 +262,7 @@ StatusBar::CreateContainer(
 
 std::uint32_t ToolTip::GetInitialShowDelay()
     const noexcept {
-    return GetValueOr(
-        InitialShowDelayProperty,
-        std::uint32_t{500U});
+    return GetValue(InitialShowDelayProperty);
 }
 
 void
@@ -308,9 +274,7 @@ ToolTip::SetInitialShowDelay(
 
 std::uint32_t ToolTip::GetShowDuration()
     const noexcept {
-    return GetValueOr(
-        ShowDurationProperty,
-        std::uint32_t{5000U});
+    return GetValue(ShowDurationProperty);
 }
 
 void ToolTip::SetShowDuration(
@@ -321,9 +285,7 @@ void ToolTip::SetShowDuration(
 
 Base::Ref<ToolTip> ToolTipService::GetToolTip(
     const DependencyObject& target) noexcept {
-    return target.GetValueOr(
-        ToolTipProperty,
-        Base::Ref<ToolTip>{});
+    return target.GetValue(ToolTipProperty);
 }
 
 void ToolTipService::SetToolTip(
@@ -336,9 +298,7 @@ void ToolTipService::SetToolTip(
 
 std::uint32_t ToolTipService::GetInitialShowDelay(
     const DependencyObject& target) noexcept {
-    return target.GetValueOr(
-        InitialShowDelayProperty,
-        std::uint32_t{500U});
+    return target.GetValue(InitialShowDelayProperty);
 }
 
 void
@@ -351,9 +311,7 @@ ToolTipService::SetInitialShowDelay(
 
 std::uint32_t ToolTipService::GetShowDuration(
     const DependencyObject& target) noexcept {
-    return target.GetValueOr(
-        ShowDurationProperty,
-        std::uint32_t{5000U});
+    return target.GetValue(ShowDurationProperty);
 }
 
 void ToolTipService::SetShowDuration(
@@ -361,6 +319,66 @@ void ToolTipService::SetShowDuration(
     std::uint32_t value) noexcept {
     target.SetValue(
         ShowDurationProperty, value);
+}
+
+void ToolBar::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<ToolBar>(context)
+        .Property(ToolBar::HeaderProperty, Value::NullObject(TypeOf<Base::Object>()), AffectsMeasure)
+        .Property(ToolBar::HeaderTemplateProperty, Base::Ref<DataTemplate>{}, AffectsMeasure)
+        .Property(ToolBar::OrientationProperty, Orientation::Horizontal, AffectsMeasure)
+        .Property(ToolBar::OverflowCapacityProperty, std::uint32_t{4U})
+        .Property(ToolBar::IsOverflowOpenProperty, false)
+        .Property(ToolBar::HasOverflowItemsProperty, false)
+        .Property(ToolBar::OverflowItemCountProperty, std::uint32_t{0U})
+        .Factory();
+}
+
+void ToolBarPanel::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<ToolBarPanel>(context)
+        .Factory();
+}
+
+void ToolBarOverflowPanel::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<ToolBarOverflowPanel>(context)
+        .Factory();
+}
+
+void ToolBarTray::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<ToolBarTray>(context, TypeFlags::Abstract)
+        .Property(ToolBarTray::IsLockedProperty, false);
+}
+
+void StatusBar::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<StatusBar>(context)
+        .Property(StatusBar::IsSizingGripVisibleProperty, true, AffectsMeasure)
+        .Factory();
+}
+
+void StatusBarItem::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<StatusBarItem>(context)
+        .Factory();
+}
+
+void ToolTip::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<ToolTip>(context)
+        .Property(ToolTip::InitialShowDelayProperty, std::uint32_t{400U})
+        .Property(ToolTip::ShowDurationProperty, std::uint32_t{5000U})
+        .Factory();
+}
+
+void ToolTipService::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    Register<ToolTipService>(context, TypeFlags::Abstract)
+        .Property(ToolTipService::ToolTipProperty, Base::Ref<ToolTip>{})
+        .Property(ToolTipService::InitialShowDelayProperty, std::uint32_t{400U})
+        .Property(ToolTipService::ShowDurationProperty, std::uint32_t{5000U});
 }
 
 } // namespace Aero::Controls

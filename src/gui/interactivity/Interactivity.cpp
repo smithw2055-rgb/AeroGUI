@@ -1,8 +1,14 @@
 #include <Aero/Interactivity/Behavior.hpp>
+#include "gui/meta/TypeRegistryDetail.hpp"
 #include <Aero/FrameworkElement.hpp>
-#include "gui/core/State.hpp" 
+#include "gui/core/ElementTree.hpp"
+#include "gui/core/LayoutEngine.hpp"
+#include "gui/core/EffectiveValueEngine.hpp"
+#include "gui/core/RoutedEvents.hpp"
+#include "gui/core/EventRouter.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleState.hpp"
+#include "gui/styles/StyleEngine.hpp"
 
 namespace Aero::Interactivity {
 
@@ -18,9 +24,8 @@ Base::Result<void> Behavior::Attach(FrameworkElement& object) noexcept {
             "Behavior is already attached to another object");
     }
     associatedObject_ = &object;
-    Base::Result<void> attached = OnAttached();
-    if (!attached) associatedObject_ = nullptr;
-    return attached;
+    OnAttached();
+    return {};
 }
 
 void Behavior::Detach() noexcept {
@@ -29,60 +34,82 @@ void Behavior::Detach() noexcept {
     associatedObject_ = nullptr;
 }
 
-Base::Result<void> Behavior::AddAuthoredBinding(
+void Behavior::AddAuthoredBinding(
     Meta::DependencyPropertyHandle property,
     Base::Ref<Aero::Data::Binding> binding) noexcept {
-    if (!property.IsValid() || !binding) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Behavior authored Binding is invalid");
-    }
+    if (!property.IsValid() || !binding) { AERO_ASSERT(false); return; }
     for (AuthoredBinding& existing : authoredBindings_) {
         if (existing.property == property) {
             existing.binding = std::move(binding);
-            return {};
+            return;
         }
     }
-    return authoredBindings_.PushBack(
+    authoredBindings_.PushBack(
         {property, std::move(binding)});
 }
 
-Base::Result<void> Behavior::CopyAuthoredBindingsTo(
+void Behavior::CopyAuthoredBindingsTo(
     Behavior& destination) const noexcept {
     for (const AuthoredBinding& binding : authoredBindings_) {
-        Base::Result<void> copied = destination.AddAuthoredBinding(
+        destination.AddAuthoredBinding(
             binding.property, binding.binding);
-        if (!copied) return copied.GetStatus();
     }
-    return {};
 }
 
-Base::Result<void> StyleBehaviorCollection::Add(
-    Base::Ref<Base::Object> value) noexcept {
-    return value ? items_.PushBack(std::move(value))
-                 : Base::Result<void>(Base::Status::Failure(
-                       Base::ErrorCode::InvalidArgument,
-                       "Style behavior cannot be null"));
+Base::Result<Base::Ref<Behavior>> Behavior::ClonePrototype(
+    const Behavior& prototype,
+    Meta::Registry& metadata) noexcept {
+    Base::Result<Base::Ref<Base::Object>> created =
+        metadata.CreateObject(prototype.RuntimeType());
+    if (!created) return created.GetStatus();
+    if (!created.Value() ||
+        !metadata.Types().IsDerivedFrom(
+            created.Value()->RuntimeType(),
+            Behavior::StaticTypeId())) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Behavior factory returned an incompatible object");
+    }
+    Base::Ref<Behavior> clone =
+        Base::Ref<Behavior>::FromBorrowed(
+            *static_cast<Behavior*>(created.Value().Get()));
+    for (const Meta::DependencyProperty& property :
+         AeroGuiInternal::PropertyRegistry(prototype).Properties()) {
+        if (property.MetadataFor(prototype.RuntimeType()) == nullptr ||
+            property.MetadataFor(clone->RuntimeType()) == nullptr) {
+            continue;
+        }
+        Meta::PropertyValue local =
+            prototype.ReadLocalValue(property.Handle());
+        if (local.IsUnset()) continue;
+        clone->SetValue(property.Handle(), local);
+    }
+    prototype.CopyAuthoredBindingsTo(*clone);
+    return clone;
 }
 
-Base::Result<void> StyleTriggerCollection::Add(
+void StyleBehaviorCollection::Add(
     Base::Ref<Base::Object> value) noexcept {
-    return value ? items_.PushBack(std::move(value))
-                 : Base::Result<void>(Base::Status::Failure(
-                       Base::ErrorCode::InvalidArgument,
-                       "Style trigger cannot be null"));
+    if (!value) { AERO_ASSERT(false); return; }
+    items_.PushBack(std::move(value));
+}
+
+void StyleTriggerCollection::Add(
+    Base::Ref<Base::Object> value) noexcept {
+    if (!value) { AERO_ASSERT(false); return; }
+    items_.PushBack(std::move(value));
 }
 
 void StyleInteraction::OnBehaviorsChanged(
     DependencyObject& object,
     const Meta::DependencyPropertyChangedEventArgs& args) noexcept {
-    if (!object.PropertyRegistry().Types().IsDerivedFrom(
+    if (!AeroGuiInternal::PropertyRegistry(object).Types().IsDerivedFrom(
             object.RuntimeType(), FrameworkElement::StaticTypeId())) {
         return;
     }
     auto& element = static_cast<FrameworkElement&>(object);
     static_cast<void>(
-        Aero::Core::InteractionStateFacet::ClearStyleBehaviorPrototypes(element));
+        AeroGuiInternal::ClearStyleBehaviorPrototypes(element));
     const Meta::Value& value = args.GetNewValue();
     if (value.Kind() != Meta::ValueKind::Object ||
         value.IsNullObject() || !value.AsObject() ||
@@ -92,22 +119,21 @@ void StyleInteraction::OnBehaviorsChanged(
     }
     for (const Base::Ref<Base::Object>& behavior :
          static_cast<StyleBehaviorCollection&>(*value.AsObject()).GetItems()) {
-        static_cast<void>(
-            Aero::Core::InteractionStateFacet::AddStyleBehaviorPrototype(
-                element, behavior));
+        AeroGuiInternal::AddStyleBehaviorPrototype(
+            element, behavior);
     }
 }
 
 void StyleInteraction::OnTriggersChanged(
     DependencyObject& object,
     const Meta::DependencyPropertyChangedEventArgs& args) noexcept {
-    if (!object.PropertyRegistry().Types().IsDerivedFrom(
+    if (!AeroGuiInternal::PropertyRegistry(object).Types().IsDerivedFrom(
             object.RuntimeType(), FrameworkElement::StaticTypeId())) {
         return;
     }
     auto& element = static_cast<FrameworkElement&>(object);
     static_cast<void>(
-        Aero::Core::InteractionStateFacet::ClearStyleTriggerPrototypes(element));
+        AeroGuiInternal::ClearStyleTriggerPrototypes(element));
     const Meta::Value& value = args.GetNewValue();
     if (value.Kind() != Meta::ValueKind::Object ||
         value.IsNullObject() || !value.AsObject() ||
@@ -117,9 +143,8 @@ void StyleInteraction::OnTriggersChanged(
     }
     for (const Base::Ref<Base::Object>& trigger :
          static_cast<StyleTriggerCollection&>(*value.AsObject()).GetItems()) {
-        static_cast<void>(
-            Aero::Core::InteractionStateFacet::AddStyleTriggerPrototype(
-                element, trigger));
+        AeroGuiInternal::AddStyleTriggerPrototype(
+            element, trigger);
     }
 }
 

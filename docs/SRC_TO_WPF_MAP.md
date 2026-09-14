@@ -8,7 +8,7 @@ its WPF namespace rather than by an implementation-mechanism folder.
 
 | Public namespace | Installed headers | Implementation (src/gui) |
 | --- | --- | --- |
-| `Aero` (root) | `Gui.hpp`, `View.hpp`, `DependencyObject.hpp`, `UIElement.hpp`, `FrameworkElement.hpp`, `Visual.hpp`, `Freezable.hpp`, `ContentElement.hpp`, `RoutedEvent.hpp`, `Value.hpp`, `Resources.hpp`, `Style.hpp`, `Events.hpp`, `Layout.hpp`, `Shapes.hpp`, `Documents.hpp`, `Threading.hpp`, `Collections.hpp`, `Meta.hpp`, `Module.hpp` | `core/` (elements, property system, Freezable, events, Dispatcher, layout engine; Resources/Style lives in `styles/`), `data/` (Aero::Data Binding), `styles/`, `meta/` (Meta/Module), `triggers/` (behavior), `controls/` (controls + layout engine implementation), root `Gui.cpp`/`View.cpp` |
+| `Aero` (root) | `Gui.hpp`, `View.hpp`, `DependencyObject.hpp`, `UIElement.hpp`, `FrameworkElement.hpp`, `Visual.hpp`, `Freezable.hpp`, `ContentElement.hpp`, `RoutedEvent.hpp`, `Value.hpp`, `Resources.hpp`, `Style.hpp`, `Events.hpp`, `Layout.hpp`, `Shapes.hpp`, `Documents.hpp`, `Threading.hpp`, `Collections.hpp`, `Meta.hpp`, `Module.hpp` | `core/` (elements, property system, Freezable, events, Dispatcher, layout engine; Resources/Style lives in `styles/`), `data/` (Aero::Data Binding), `styles/`, `meta/` (Meta/Module), `triggers/` (behavior), `controls/` (controls), root `Gui.cpp`/`View.cpp` |
 | `Aero::Controls` | `Controls/*.hpp` | `controls/` + `templates/` (ControlTemplate/DataTemplate) |
 | `Aero::Data` | `Data/Binding.hpp`, `DataTemplate.hpp` | `data/` (Binding) + `templates/` (DataTemplate) |
 | `Aero::Markup` | `Markup/*.hpp` | `markup/` |
@@ -27,8 +27,11 @@ its types below.
 
 - `controls/Buttons.cpp` — `ButtonBase`, `Button`, `RepeatButton`, `ToggleButton`, `CheckBox`, `RadioButton`
 - `controls/ContentControls.cpp` — `ContentControl`, `UserControl`, `ContentPresenter`, `Popup`, `HeaderedContentControl`, `HeaderedItemsControl`
-- `controls/Shapes.cpp` — `Rectangle`, `Ellipse`, `Path`, `Line`, `Polygon`, `Polyline`
-- `controls/Items.cpp` — `ItemsControl`, `ItemCollection`, `ItemContainerGenerator`
+- `shapes/Shapes.cpp` — `Rectangle`, `Ellipse`, `Path`, `Line`, `Polygon`, `Polyline`
+- `shapes/Path.cpp` — `Path` geometry tessellation
+- `documents/Documents.cpp` — `System.Windows.Documents` (`Run`, `Span`, `Paragraph`, …)
+- `controls/Items.cpp` — `ItemsControl`, `ItemCollection`, ItemsPresenter/Content helpers
+- `controls/ItemContainerGenerator.cpp` — `ItemContainerGenerator` runtime + facade
 - `controls/Selection.cpp` — `Selector`, `ListBox`
 - `controls/Scroll.cpp` — `ScrollViewer`, `ScrollBar`
 - `controls/TextBox.cpp` — `TextBox`, `TextBoxBase`
@@ -36,7 +39,7 @@ its types below.
 - `controls/Menus.cpp` — `Menu`, `TreeView` (menu parts)
 - `controls/Trees.cpp` — `TreeView`, `ListView` (tree parts)
 - `controls/Virtualization.cpp` — `VirtualizingStackPanel`
-- `controls/Layout.cpp` — `LayoutEngine` (Measure/Arrange engine) + `UIElement`/`FrameworkElement` layout method bodies
+- `core/LayoutEngine.cpp` — `LayoutEngine` (Measure/Arrange engine) + public layout helpers (`IsFinite`, `Deflate`, …)
 - `controls/VisualStates.cpp` — `VisualStateManager` groups
 - `controls/RichText.cpp` — rich-text token helpers (`TrimRichTextToken`, `FindRichTextToken`, `AppendRichTextValue/Binding`), `ApplyRichText`, `RichText::OnTextChanged` (the `Run`/`Span`/`Bold`/`Italic`/`Underline`/`LineBreak` bodies are inline in their public headers)
 - `templates/Templates.cpp` — `ControlTemplate`, `DataTemplate` runtime programs
@@ -49,25 +52,17 @@ its types below.
 - `core/PropertySystem.cpp` — `DependencyProperty` effective-value engine
 - `styles/Style.cpp` — `StyleEngine` (style application/seal; delegates trigger evaluation to `TriggerEngine`)
 - `triggers/TriggerEngine.cpp` — `TriggerEngine` (style/control/template trigger evaluation, deferred trigger phase, `SetBindingTriggerState`)
-- `triggers/BaseTrigger.cpp` — `TriggerBase` (+ shared `InvalidStyle` diagnostic)
-- `triggers/Trigger.cpp` — `Trigger` (property trigger)
-- `triggers/DataTrigger.cpp` — `DataTrigger`
-- `triggers/Condition.cpp` — `Condition`
-- `triggers/MultiTrigger.cpp` — `MultiTrigger`
-- `triggers/MultiDataTrigger.cpp` — `MultiDataTrigger`
+- `triggers/Triggers.cpp` — `TriggerBase`, `Trigger`, `DataTrigger`, `Condition`, `MultiTrigger`, `MultiDataTrigger`
 - `interactivity/BlendBehaviors.cpp` — `Interaction::*` Blend behaviors (moved from `controls/`)
 - `interactivity/Interactivity.cpp` — `Interaction` attached properties
 
-## Private implementation access headers
+## Private implementation headers
 
-Internal state/access headers use `*State.hpp` (formerly `*Runtime.hpp`):
-`core/ElementState.hpp`, `core/PropertyState.hpp`, `core/MetadataState.hpp`,
-`binding/BindingState.hpp`, `controls/ControlState.hpp`, `controls/ItemsState.hpp`,
-`templates/TemplateState.hpp`, `input/InputState.hpp`, `layout/LayoutState.hpp`,
-`markup/MarkupState.hpp`, `markup/XamlState.hpp`, `media/MediaState.hpp`,
-`styles/StyleState.hpp`, `core/LayoutState.hpp`, `data/BindingState.hpp`, `triggers/TriggerEngine.hpp`, `triggers/TriggerPlan.hpp`,
-`triggers/TriggerDiagnostics.hpp`, `triggers/TriggerValueCompare.hpp`,
-`core/state/*.hpp` (per-domain split of the former single `State.hpp` into the facet/engine headers).
+Domain state headers use `*State.hpp`. Kernel-private operations live in
+`src/gui/internal/AeroGuiInternal.hpp` (not installed) plus
+`src/gui/core/{ElementTree,LayoutEngine,EffectiveValueEngine,RoutedEvents,EventRouter}.hpp`. View/`ElementTree` is the named service hub
+(`tree->Layout()`, `tree->Bindings()`, …). There is no `Core::Facet` matrix
+and no per-type `Access` facade.
 
 ## WPF virtual override surface
 
@@ -80,10 +75,23 @@ Aero types expose WPF-shaped virtuals you can override when subclassing:
 | `FrameworkElement.GetLogicalChildrenCount` | `FrameworkElement::GetLogicalChildrenCount()` | renamed from `GetLogicalChildrenCountCore` |
 | `FrameworkElement.GetLogicalChild` | `FrameworkElement::GetLogicalChild(int)` | renamed from `GetLogicalChildCore` |
 | `DependencyObject.OnPropertyChanged` | `DependencyObject::OnPropertyChanged(const DependencyPropertyChangedEventArgs&)` | new WPF-bridge hook; fires with `PropertyMetadata::PropertyChangedCallback` |
+| `DependencyObject.CoerceValue` | `DependencyObject::CoerceValueCore(DPHandle, Value)` | replaces per-DP `Coerce` delegates (removed); return `Unset` to reject |
+| `DependencyObject.ValidateValue` | `DependencyObject::ValidateValueCore(DPHandle, Value)` | replaces per-DP `Validate` delegates for instance rules; shared predicates stay |
 | `Visual.OnVisualParentChanged` | `Visual::OnVisualParentChanged(Visual* oldParent)` | new WPF-bridge hook |
+| `Visual.HitTestCore` | `Visual::HitTestCore(Point)` | new; custom Visuals participate without UIElement |
+| `UIElement.Measure/Arrange` | `UIElement::Measure/Arrange` (non-virtual) + `MeasureOverride/ArrangeOverride` | public entry no longer leaks `LayoutEngine&` |
+| `UIElement.InvalidateVisual` | `UIElement::InvalidateVisual()` | moved up from FrameworkElement |
+| `FrameworkElement.OnInitialized/OnStyleChanged/OnDataContextChanged` | same names | new lifecycle hooks; no StyleEngine reading required |
+| `Control.OnApplyTemplate` | `Control::OnApplyTemplate()` + `OnTemplateChanged` | template handle/generation stays in .cpp |
+| `FrameworkTemplate.LoadContent` | `FrameworkTemplate::LoadContent()` | replaces `void* state_` template plumbing |
+| `ItemsControl.GetContainerForItem` | `GetContainerForItemOverride()` (+ `IsItemItsOwnContainer/Prepare/Clear…Override`, `OnItemsChanged`) | exact WPF names; legacy `CreateContainer/…Core` are deprecated shims |
+| `BindingBase.ProvideValue` | `BindingBase::CreateExpression(target, property)` | MultiBinding/PriorityBinding override; no `friend Engine` |
+| `IValueConverter.Convert` | `Data::IValueConverter::Convert/ConvertBack` | already virtual; kept |
+| `IScrollInfo` | `Controls::IScrollInfo::LineUp/Down/PageUp/…` | WPF verbs default-forward to legacy primitives |
 
-Runtime engines are reached through `Core::GetFacet<T>(element)`
-(`src/gui/core/Facet.hpp`) instead of per-facade static methods.
+Runtime engines are reached through `VisualTree()` / `ElementTree`
+named accessors (`Layout()`, `Events()`, `Bindings()`, …) and internal
+`AeroGuiInternal` accessors. There is no `Core::GetFacet` matrix.
 
 ## Platform code (two trees, by design)
 

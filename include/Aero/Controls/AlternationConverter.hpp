@@ -17,13 +17,10 @@ public:
     Span<const Ref<Base::Object>> GetValues() const noexcept {
         return values_.AsSpan();
     }
-    Result<void> AddValue(Ref<Base::Object> value) noexcept {
-        if (!value) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "AlternationConverter values cannot be null");
+    void AddValue(Ref<Base::Object> value) noexcept {
+        if (value) {
+            (void)values_.PushBack(std::move(value));
         }
-        return values_.PushBack(std::move(value));
     }
     void ClearValues() noexcept { values_.Clear(); }
 

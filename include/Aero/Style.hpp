@@ -25,7 +25,6 @@ using Meta::InvalidTypeId;
 using Meta::PropertyValue;
 using Meta::TypeId;
 
-struct StyleState;
 class Style;
 
 class AERO_GUI_API SetterBaseCollection {
@@ -33,7 +32,8 @@ public:
     std::uint32_t GetCount() const noexcept;
     SetterBase* GetItem(std::uint32_t index) const noexcept;
     bool GetIsEmpty() const noexcept { return GetCount() == 0U; }
-    Result<void> Add(Ref<Setter> setter) noexcept;
+    void Add(Ref<SetterBase> setter) noexcept;
+    void Add(Ref<Setter> setter) noexcept;
     void Clear() noexcept;
 
 private:
@@ -47,7 +47,7 @@ public:
     std::uint32_t GetCount() const noexcept;
     TriggerBase* GetItem(std::uint32_t index) const noexcept;
     bool GetIsEmpty() const noexcept { return GetCount() == 0U; }
-    Result<void> Add(Ref<TriggerBase> trigger) noexcept;
+    void Add(Ref<TriggerBase> trigger) noexcept;
     void Clear() noexcept;
 
 private:
@@ -77,27 +77,27 @@ public:
     TypeId RuntimeType() const noexcept override {
         return runtimeType_;
     }
-    Result<void> AddSetter(
+    void AddSetter(
         DependencyPropertyHandle property,
         const PropertyValue& value) noexcept;
-    Result<void> AddSetter(
+    void AddSetter(
         const Setter& setter) noexcept;
-    Result<void> AddTrigger(
+    void AddTrigger(
         const Trigger& trigger) noexcept;
-    Result<void> AddTrigger(
+    void AddTrigger(
         const DataTrigger& trigger) noexcept;
+    void AddTrigger(
+        const MultiDataTrigger& trigger) noexcept;
 
     class TriggerBuilder {
     public:
         template<class TOwner, class TValue>
-        Result<void> Set(
-            const Meta::DependencyPropertyRef<TOwner, TValue>& property,
-            const TValue& value) noexcept {
-            if (!status_.IsOk()) return status_;
+        void Set(const Meta::DependencyPropertyRef<TOwner, TValue>& property, const TValue& value) noexcept {
+            if (!status_.IsOk()) { AERO_ASSERT(false); return; }
             Result<PropertyValue> encoded =
                 Meta::ValueCodec<TValue>::Encode(value);
-            if (!encoded) return encoded.GetStatus();
-            return owner_->AddPropertyTrigger(
+            if (!encoded) { AERO_ASSERT(false); return; }
+            owner_->AddPropertyTrigger(
                 condition_, conditionValue_, property.Handle(),
                 std::move(encoded).Value());
         }
@@ -122,13 +122,11 @@ public:
     };
 
     template<class TOwner, class TValue>
-    Result<void> Set(
-        const Meta::DependencyPropertyRef<TOwner, TValue>& property,
-        const TValue& value) noexcept {
+    void Set(const Meta::DependencyPropertyRef<TOwner, TValue>& property, const TValue& value) noexcept {
         Result<PropertyValue> encoded =
             Meta::ValueCodec<TValue>::Encode(value);
-        if (!encoded) return encoded.GetStatus();
-        return AddSetter(property.Handle(), encoded.Value());
+        if (!encoded) { AERO_ASSERT(false); return; }
+        AddSetter(property.Handle(), encoded.Value());
     }
     template<class TOwner, class TValue>
     TriggerBuilder When(
@@ -152,11 +150,12 @@ public:
     bool SetTargetType(TypeId targetType) noexcept;
     bool SetBasedOn(const Style* basedOn) noexcept;
     bool SetBasedOn(Ref<Base::Object> basedOn) noexcept;
-    Result<void> AddAuthoredSetter(Ref<Setter> setter) noexcept;
-    Result<void> AddAuthoredTrigger(Ref<TriggerBase> trigger) noexcept;
+    void AddAuthoredSetter(Ref<SetterBase> setter) noexcept;
+    void AddAuthoredSetter(Ref<Setter> setter) noexcept;
+    void AddAuthoredTrigger(Ref<TriggerBase> trigger) noexcept;
     void ClearAuthoredSetters() noexcept;
     void ClearAuthoredTriggers() noexcept;
-    Span<const Ref<Setter>> GetAuthoredSetters() const noexcept {
+    Span<const Ref<SetterBase>> GetAuthoredSetters() const noexcept {
         return {authoredSetterObjects_.Data(), authoredSetterObjects_.Size()};
     }
     Span<const Ref<TriggerBase>> GetAuthoredTriggers() const noexcept {
@@ -172,23 +171,44 @@ public:
     void SetResources(Ref<ResourceDictionary> value) noexcept;
 
 private:
-    Result<void> AddPropertyTrigger(
+    void AddPropertyTrigger(
         DependencyPropertyHandle condition,
         const PropertyValue& conditionValue,
         DependencyPropertyHandle property,
         PropertyValue value) noexcept;
-    Result<void> SealRuntime(const void* properties) noexcept;
+    // Compiled by SealStyle / markup finalize; not a public authoring API.
+    Result<void> Seal(const Meta::DependencyPropertyRegistry& properties) noexcept;
+    // WPF-parity no-arg hook. Called at the end of Seal(); override to
+    // validate without touching DependencyPropertyRegistry internals.
+    virtual void OnSeal() noexcept {}
 
-    friend struct StyleState;
+    struct Program;
+    friend struct Program;
+    friend class StyleEngine;
+    friend Result<void> SealStyle(
+        Style& style,
+        const Meta::DependencyPropertyRegistry& properties) noexcept;
+    friend Span<const struct StyleSetter> StyleRuntimeSetters(
+        const Style& style) noexcept;
+    friend Span<const struct TriggerPlan> StyleRuntimeTriggers(
+        const Style& style) noexcept;
+    friend Result<void> ApplyStyleSetters(
+        const Style& style,
+        DependencyObject& object,
+        class StyleProviderSession& values) noexcept;
+    friend Result<void> ClearStyleSetters(
+        const Style& style,
+        DependencyObject& object,
+        class StyleProviderSession& values) noexcept;
 
     TypeId runtimeType_ = StaticTypeId();
     TypeId targetType_ = InvalidTypeId;
     const Style* basedOn_ = nullptr;
     Ref<Base::Object> basedOnOwner_;
-    Base::Vector<Ref<Setter>> authoredSetterObjects_;
+    Base::Vector<Ref<SetterBase>> authoredSetterObjects_;
     Base::Vector<Ref<TriggerBase>> authoredTriggerObjects_;
     Base::IAllocator* implAllocator_ = nullptr;
-    StyleState* program_ = nullptr;
+    Program* program_ = nullptr;
     ResourceDictionary resources_;
     bool sealed_ = false;
 };

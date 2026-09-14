@@ -3,9 +3,7 @@
 namespace Aero::Media {
 
 Base::ResourceUri BitmapImage::GetUriSource() const noexcept {
-    return GetValueOr(
-        UriSourceProperty,
-        Base::ResourceUri{});
+    return GetValue(UriSourceProperty);
 }
 
 void BitmapImage::SetUriSource(
@@ -14,9 +12,7 @@ void BitmapImage::SetUriSource(
 }
 
 Ref<ImageSource> CroppedBitmap::GetSource() const noexcept {
-    return GetValueOr(
-        SourceProperty,
-        Ref<ImageSource>{});
+    return GetValue(SourceProperty);
 }
 
 void CroppedBitmap::SetSource(
@@ -25,9 +21,7 @@ void CroppedBitmap::SetSource(
 }
 
 Base::Rect CroppedBitmap::GetSourceRect() const noexcept {
-    return GetValueOr(
-        SourceRectProperty,
-        Base::Rect{});
+    return GetValue(SourceRectProperty);
 }
 
 void CroppedBitmap::SetSourceRect(

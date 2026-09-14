@@ -12,12 +12,16 @@ public type names and observable behavior; it does not require AeroGUI to copy
 
 The supported product umbrellas are:
 
+- `<AeroPCH.hpp>` — single precompiled-header/umbrella for new hosts;
 - `<Aero/Gui.hpp>` — retained WPF/XAML authoring surface;
 - `<AeroApp/App.hpp>` — `Application::Run()` and optional default desktop lifetime;
-- `<Aero/Meta.hpp>` — typed metadata and custom-module authoring.
+- `<Aero/Meta.hpp>` — typed metadata and custom-module authoring
+  (`Aero/Module.hpp` is its lightweight composition header).
 
 Embedding uses the installed `RenderDevice`/`RenderTarget` contracts plus the
 opt-in `<AeroRender/D3D11.hpp>` and `<AeroRender/OpenGL33.hpp>` factories.
+`<AeroRender/BackendCommon.hpp>` owns the shared state-preservation policy so
+the two backend headers cannot drift.
 Advanced headers under `Aero/Markup`, provider contracts under their owning
 domains, and `Input/Platform.hpp` are specialist surfaces. Native
 Win32/X11 adapters remain private. These specialist headers are not transitively
@@ -57,16 +61,24 @@ Aero/Layout.hpp
 Aero/Resources.hpp
 Aero/Style.hpp
 Aero/DataTemplate.hpp
-Aero/Data/Binding.hpp
-Aero/Input.hpp
+Aero/HierarchicalDataTemplate.hpp
+Aero/Markup/MarkupExtension.hpp
+Aero/Media/FreezableCollection.hpp
+Aero/Data/Binding.hpp            Binding class; siblings in Data/<Type>.hpp
+                                 (NotifyPropertyChanged, MultiBinding, converters)
+Aero/Input.hpp                   Value types only; command types in Aero/<Type>.hpp
 Aero/Documents.hpp
 Aero/Shapes.hpp
 Aero/TextFormatting.hpp
-Aero/Media/Animation.hpp
-Aero/Media/Brushes.hpp
+Aero/Media/Animation.hpp          Umbrella only; types live in Media/Animation/<Type>.hpp
+Aero/Media/Brushes.hpp            Umbrella only; types live in Media/<Type>.hpp
 Aero/Media/Fonts.hpp
-Aero/Media/Geometry.hpp
-Aero/Media/Transforms.hpp
+Aero/Media/Geometry.hpp           Geometry class; siblings in Media/PathGeometry.hpp etc.
+                                 FlattenSink + Flatten/FlattenCore; BezierSegment,
+                                 ArcSegment, LineGeometry, GeometryGroup, CombinedGeometry
+                                 each own a header. ToStreamData is serialize/debug only.
+Aero/Media/Transforms.hpp         Umbrella only; types live in Media/<Type>.hpp
+Aero/Media/Effects.hpp            Umbrella only; types live in Media/<Type>.hpp
 ```
 
 Controls and templates use their WPF namespaces as their physical domains;
@@ -74,20 +86,39 @@ Controls and templates use their WPF namespaces as their physical domains;
 `DataTemplate` and `Style` types have root declaration owners. This keeps the
 existing include graph explicit without recreating compatibility umbrellas.
 
-`Input.hpp` owns both the input value types and the command/navigation object
-model. It forward-declares `UIElement` and owns the input value declarations
-before including `Aero/RoutedEvent.hpp`, so the routed-event header does not
-need a second input-values header or a cyclic include. The event umbrella is
-`<Aero/Events.hpp>`; `<Aero/RoutedEvent.hpp>` is the sole declaration owner for
-`RoutedEvent`, `RoutedEventHandle`, and routed-event metadata helpers.
+`Input.hpp` owns input value types (`Key`, `PointerInput`, `InputScope`, …).
+Command and navigation objects (`ICommand`, `RoutedCommand`, `KeyBinding`,
+`KeyboardNavigation`, `FocusManager`) each have a type-named header under
+`Aero/`. `Input.hpp` does not include those command headers, so the UIElement
+spine does not compile the command object model.
+
+Installed spine headers keep include-closure thin: `DependencyProperty.hpp`
+uses `Diagnostics/EffectiveValueSource.hpp` (not `PropertyValueSource.hpp`)
+and keeps `HashMap` in internal headers; `DependencyObject.hpp`
+includes `DispatcherReentrancyGuard.hpp` instead of `Threading.hpp`;
+`Resources.hpp` includes `Diagnostics/SourceSpan.hpp` instead of
+`Diagnostics.hpp`. `CheckArchitecture.cmake` budgets public include-closure
+line counts for `Controls/Button.hpp`, `Controls/TextBlock.hpp`, and
+`Controls/Panel.hpp`.
 
 Media is a specialist surface made up of concrete headers such as
-`Media/Brushes.hpp`, `Media/Fonts.hpp`, `Media/Geometry.hpp`,
-`Media/Images.hpp`, and `Media/Transforms.hpp`. WPF-visible formatting values
+`Media/Brush.hpp`, `Media/Fonts.hpp`, `Media/Geometry.hpp`,
+`Media/Images.hpp`, and `Media/Transform.hpp`. Family umbrellas
+`<Aero/Media/Brushes.hpp>`, `<Aero/Media/Transforms.hpp>`, and
+`<Aero/Media/Effects.hpp>` include the corresponding type headers.
+WPF-visible formatting values
 are owned by `<Aero/TextFormatting.hpp>`; the text provider, shaping and
 editing implementation remains private under `src/gui/text`.
 Generic `Media.hpp` and `Text/Text.hpp` aggregation headers are not part of
 the installed SDK.
+
+`<Aero/Media/Animation.hpp>` is an umbrella only. Each animation type is
+declared in `Media/Animation/<Type>.hpp` (one `AERO_GUI_API` class per file).
+The umbrella must not include interactivity triggers or storyboard actions.
+WPF hierarchy is preserved in C++: `AnimationTimeline` / `TimelineGroup` /
+`ParallelTimeline` / `Storyboard`, `*AnimationBase` : `AnimationTimeline`,
+`EasingFunctionBase` : `Freezable`, and `KeyFrameBase` : `Freezable` with
+template `KeyFrame<T>` underneath the WPF-named key-frame types.
 
 ## Controls headers
 
@@ -96,7 +127,20 @@ the installed SDK.
 `Controls/TextBox.hpp` physically own their declarations. Foundational family
 types such as `Control`, `Panel`, `ContentControl`, `ButtonBase`, and
 `ItemsControl` follow the same rule. The SDK contains no parallel `Aero/Gui/*`
-paths and no include-only `Text.hpp` compatibility facade.
+paths and no include-only `Text.hpp` compatibility facade. Foundational
+family types are owned by `Controls/Primitives/*` with no flat forwarding
+headers under `Controls/`.
+
+Trigger ownership follows WPF semantics: `Aero/Triggers/*` owns Style/Template
+triggers, `Aero/Interactivity/*` owns Blend behaviors/actions, and
+`Media/Animation/*Trigger|*Action` owns event-driven storyboard/media actions.
+`<Aero/Media/Animation.hpp>` stays trigger-free.
+
+Property declarations use `AERO_DEPENDENCY_PROPERTY` /
+`AERO_ATTACHED_PROPERTY` / `AERO_READONLY_PROPERTY` from
+`<Aero/DependencyProperty.hpp>`; hand-written `XxxProperty` refs and
+`Nullable::GetValueOr` are retired. Nullable values use explicit
+`GetHasValue() ? GetValue() : fallback` at the call site.
 
 ## Private implementation placement
 
@@ -142,15 +186,23 @@ Property setters and WPF lifecycle hooks use direct values: public `SetXxx`,
 returns `bool`, and measure/arrange/render hooks use `Size`/`void`. `Result<T>`
 is reserved for the canonical parsing/conversion `Try*` names, streams,
 resources, registration and other boundaries where the caller must observe
-failure. Dependency-property mutation additionally exposes explicit
-`SetValueChecked`, `SetCurrentValueChecked`, `ClearValueChecked` and
-`CoerceValueChecked` companions. The WPF-shaped `void` methods delegate to
-these checked paths; validation is completed before commit so a rejected
-assignment leaves the previous effective value unchanged. `Freezable` uses
-this contract to return `ReadOnly` after a successful freeze.
+failure. Dependency-property mutations (`SetValue`, `SetCurrentValue`,
+`ClearValue`, `CoerceValue`) strictly follow WPF-shaped `void` methods;
+validation and read-only checks are completed before commit so a rejected
+assignment leaves the previous effective value unchanged. `Freezable` freezes
+disallow subsequent mutations silently or via assertion.
+
+`void` is the default for fallible-looking conveniences that the caller cannot
+meaningfully handle: every property setter overload (including `StringView`
+conversion overloads), collection `Add`/`Insert`/`Clear`/`Remove` operations,
+and lifecycle hooks (`OnAttached`/`OnDetaching`/`OnLayoutUpdated`). Their
+allocation/conversion failures assert via `AERO_ASSERT` and keep the previous
+value (best-effort no-op in release). `Result<void>` stays reserved for `Try*`
+names, streams/files, module registration, XAML/schema loading, backend
+`Create*` factories, and codecs.
 
 Adding a public header is therefore an API decision: it must update the
 whitelist and namespace manifest when needed, fit an existing product/domain
 model, and pass the public-header consumer build. Header and source file size
-are organized by responsibility and dependency; the architecture check does
-not impose a line-count budget.
+are organized by responsibility and dependency. The architecture check
+budgets public include-closure line counts for Button, TextBlock, and Panel.

@@ -2,359 +2,120 @@
 // metadata bootstrap. Keep registration order stable within this unit.
 Base::Result<void> PopulateUiStyling(
     ::Aero::Meta::Registration& context) noexcept {
-    Base::Result<void> status;
-    auto transform3D = Meta::Register<Media::CompositeTransform3D>(context);
-    transform3D
-        .Property(Media::CompositeTransform3D::CenterXProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(Media::CompositeTransform3D::CenterYProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(Media::CompositeTransform3D::CenterZProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(Media::CompositeTransform3D::RotationXProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(Media::CompositeTransform3D::RotationYProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(Media::CompositeTransform3D::RotationZProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(Media::CompositeTransform3D::ScaleXProperty,
-            FrameworkPropertyMetadata(1.0).AffectsRender())
-        .Property(Media::CompositeTransform3D::ScaleYProperty,
-            FrameworkPropertyMetadata(1.0).AffectsRender())
-        .Property(Media::CompositeTransform3D::ScaleZProperty,
-            FrameworkPropertyMetadata(1.0).AffectsRender())
-        .Property(Media::CompositeTransform3D::TranslateXProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(Media::CompositeTransform3D::TranslateYProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(Media::CompositeTransform3D::TranslateZProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
+    using namespace Data;
+    Register<Element>(context, TypeFlags::Abstract)
+        .Property(Element::PPAAInProperty, 0.0, AffectsRender)
+        .Property(Element::PPAAOutProperty, 0.0, AffectsRender)
+        .Property(Element::PPAAModeProperty, Base::String{}, AffectsRender)
+        .Property(Element::IsFocusEngagedProperty, false, AffectsRender)
+        .Property(Element::BlendingModeProperty, FrameworkPropertyMetadata(BlendMode::Normal, AffectsRender).Changed(&Element::OnBlendingModeChanged))
+        .Property(Element::Transform3DProperty, FrameworkPropertyMetadata(Base::Ref<Media::Transform3D>{}, AffectsRender).Changed(&Element::OnTransform3DChanged));
+
+    Register<TextProperties>(context, TypeFlags::Abstract)
+        .Property(TextProperties::PasswordLengthProperty, std::uint32_t{0}, AffectsRender)
+        .Property(TextProperties::PlaceholderProperty, FrameworkPropertyMetadata(Base::String{}, AffectsRender).Changed(&TextProperties::OnCompatibilityPropertyChanged))
+        .Property(TextProperties::StrokeProperty, FrameworkPropertyMetadata(Value::NullObject(TypeOf<Base::Object>()), AffectsRender).Changed(&TextProperties::OnCompatibilityPropertyChanged))
+        .Property(TextProperties::StrokeThicknessProperty, FrameworkPropertyMetadata(0.0, AffectsRender).Changed(&TextProperties::OnCompatibilityPropertyChanged));
+
+    Register<RichText>(context, TypeFlags::Abstract)
+        .Property(RichText::TextProperty, FrameworkPropertyMetadata(Base::String{}, AffectsMeasure).Changed(&RichText::OnTextChanged));
+
+    Register<SetterBase>(context, TypeFlags::Abstract);
+
+    Register<Setter>(context)
+        .Property("TargetName", &Setter::GetTargetName, &Setter::SetTargetName)
+        .Property("Property", &Setter::GetPropertyName, &Setter::SetPropertyName)
+        .Property<Value, &Setter::GetAuthoredValue, &Setter::SetAuthoredValue>("Value", PropertyFlags::AnyValue)
         .Factory();
-    status = transform3D.Result();
-    if (!status) return status.GetStatus();
 
-    auto element = Meta::Register<Element>(context, TypeFlags::Abstract);
-    element
-        .Property(
-            Element::PPAAInProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(
-            Element::PPAAOutProperty,
-            FrameworkPropertyMetadata(0.0).AffectsRender())
-        .Property(
-            Element::PPAAModeProperty,
-            FrameworkPropertyMetadata(Base::String{}).AffectsRender())
-        .Property(
-            Element::IsFocusEngagedProperty,
-            FrameworkPropertyMetadata(false).AffectsRender())
-        .Property(
-            Element::BlendingModeProperty,
-            FrameworkPropertyMetadata(BlendMode::Normal)
-                .AffectsRender()
-                .Changed(&Element::OnBlendingModeChanged))
-        .Property(
-            Element::Transform3DProperty,
-            FrameworkPropertyMetadata(Base::Ref<Media::CompositeTransform3D>{})
-                .AffectsRender());
-    status = element.Result();
-    if (!status) return status.GetStatus();
-
-    auto text = Meta::Register<TextProperties>(context, TypeFlags::Abstract);
-    text
-        .Property(
-            TextProperties::PasswordLengthProperty,
-            FrameworkPropertyMetadata(std::uint32_t{0}).AffectsRender())
-        .Property(
-            TextProperties::PlaceholderProperty,
-            FrameworkPropertyMetadata(Base::String{})
-                .AffectsRender()
-                .Changed(&TextProperties::OnCompatibilityPropertyChanged))
-        .Property(
-            TextProperties::StrokeProperty,
-            FrameworkPropertyMetadata(Value::NullObject(TypeOf<Base::Object>()))
-                .AffectsRender()
-                .Changed(&TextProperties::OnCompatibilityPropertyChanged))
-        .Property(
-            TextProperties::StrokeThicknessProperty,
-            FrameworkPropertyMetadata(0.0)
-                .AffectsRender()
-                .Changed(&TextProperties::OnCompatibilityPropertyChanged));
-    status = text.Result();
-    if (!status) return status.GetStatus();
-
-    auto richText = Meta::Register<RichText>(context, TypeFlags::Abstract);
-    richText.Property(
-        RichText::TextProperty,
-        FrameworkPropertyMetadata(Base::String{}).AffectsMeasure().Changed(
-            &RichText::OnTextChanged));
-    status = richText.Result();
-    if (!status) return status.GetStatus();
-
-    status = Meta::Register<SetterBase>(context, TypeFlags::Abstract).Result();
-    if (!status) return status.GetStatus();
-
-    auto setter = Meta::Register<Setter>(context);
-    setter
-        .Property(
-            "TargetName",
-            &Setter::GetTargetName,
-            &Setter::SetTargetName)
-        .Property(
-            "Property",
-            &Setter::GetPropertyName,
-            &Setter::SetPropertyName)
-        .Property<
-            Value,
-            &Setter::GetAuthoredValue,
-            &Setter::SetAuthoredValue>(
-            "Value",
-            PropertyFlags::AnyValue)
+    Register<EventSetter>(context)
+        .Property("Handler", &EventSetter::GetHandlerName, &EventSetter::SetHandlerName)
         .Factory();
-    status = setter.Result();
-    if (!status) return status.GetStatus();
 
-    status = Meta::Register<Data::IValueConverter>(context, TypeFlags::Abstract).Result();
-    if (!status) return status.GetStatus();
-    status = Meta::Register<Data::IMultiValueConverter>(
-        context, TypeFlags::Abstract).Result();
-    if (!status) return status.GetStatus();
+    Register<IValueConverter>(context, TypeFlags::Abstract);
+    Register<IMultiValueConverter>(context, TypeFlags::Abstract);
 
-    status = Meta::Register<Data::BooleanToVisibilityConverter>(context)
-        .Factory()
-        .Result();
-    if (!status) return status.GetStatus();
-
-    status = Meta::Register<Data::BindingBase>(context, TypeFlags::Abstract).Result();
-    if (!status) return status.GetStatus();
-
-    status = Meta::Register<Data::RelativeSource>(context).Factory().Result();
-    if (!status) return status.GetStatus();
-
-    auto binding = Meta::Register<Data::Binding>(
-        context, TypeFlags::MarkupExtension | TypeFlags::Sealed);
-    binding
-        .Property(
-            "Path",
-            &Data::Binding::GetPathText,
-            static_cast<void (Data::Binding::*)(Base::StringView) noexcept>(
-                &Data::Binding::SetPath))
-        .Property(
-            "ElementName",
-            &Data::Binding::GetElementName,
-            &Data::Binding::SetElementName)
-        .Property(
-            "Converter",
-            &Data::Binding::GetConverter,
-            &Data::Binding::SetConverter)
-        .Property<
-            Value,
-            &Data::Binding::GetConverterParameter,
-            &Data::Binding::SetConverterParameter>(
-                "ConverterParameter",
-                PropertyFlags::AnyValue)
+    Register<BooleanToVisibilityConverter>(context)
         .Factory();
-    status = binding.Result();
-    if (!status) return status.GetStatus();
 
-    auto multiBinding = Meta::Register<Data::MultiBinding>(
-        context, TypeFlags::MarkupExtension | TypeFlags::Sealed);
-    multiBinding
-        .Property(
-            "Converter",
-            &Data::MultiBinding::GetConverter,
-            &Data::MultiBinding::SetConverter)
-        .Property<
-            Value,
-            &Data::MultiBinding::GetConverterParameter,
-            &Data::MultiBinding::SetConverterParameter>(
-                "ConverterParameter",
-                PropertyFlags::AnyValue)
-        .Content<Data::Binding>(
-            "Bindings",
-            ContentKind::Collection,
+    Register<BindingBase>(context, TypeFlags::Abstract);
+
+    Register<RelativeSource>(context).Factory();
+
+    Register<Binding>(context, TypeFlags::MarkupExtension | TypeFlags::Sealed)
+        .Property("Path", &Binding::GetPathText, static_cast<void (Binding::*)(Base::StringView) noexcept>(&Binding::SetPath))
+        .Property("ElementName", &Binding::GetElementName, &Binding::SetElementName)
+        .Property("Converter", &Binding::GetConverter, &Binding::SetConverter)
+        .Property<Value, &Binding::GetConverterParameter, &Binding::SetConverterParameter>("ConverterParameter", PropertyFlags::AnyValue)
+        .Factory();
+
+    Register<MultiBinding>(context, TypeFlags::MarkupExtension | TypeFlags::Sealed)
+        .Property("Converter", &MultiBinding::GetConverter, &MultiBinding::SetConverter)
+        .Property<Value, &MultiBinding::GetConverterParameter, &MultiBinding::SetConverterParameter>("ConverterParameter", PropertyFlags::AnyValue)
+        .Content<Binding>("Bindings", ContentKind::Collection,
             [](Base::Object& owner,
                const Base::Ref<Base::Object>& value,
                void*) noexcept {
                 if (!value) return;
-                Base::Ref<Data::Binding> retained =
-                    Base::Ref<Data::Binding>::TryFromBorrowed(
-                        static_cast<Data::Binding&>(*value));
+                Base::Ref<Binding> retained =
+                    Base::Ref<Binding>::TryFromBorrowed(
+                        static_cast<Binding&>(*value));
                 if (retained) {
-                    static_cast<void>(
-                        static_cast<Data::MultiBinding&>(owner)
-                            .AddBinding(std::move(retained)));
+                    static_cast<MultiBinding&>(owner)
+                        .AddBinding(std::move(retained));
                 }
             },
             [](Base::Object& owner, void*) noexcept {
-                static_cast<Data::MultiBinding&>(owner)
+                static_cast<MultiBinding&>(owner)
                     .ClearBindings();
             })
         .Factory();
-    status = multiBinding.Result();
-    if (!status) return status.GetStatus();
 
-    auto multiBindingProxy =
-        Meta::Register<Data::MultiBindingProxy>(context);
-    multiBindingProxy
-        .Property(
-            Data::MultiBindingProxy::ValueProperty,
-            FrameworkPropertyMetadata(
-                Value::NullObject(
-                    TypeOf<Base::Object>())))
+    Register<MultiBindingProxy>(context)
+        .Property(MultiBindingProxy::ValueProperty, Value::NullObject(TypeOf<Base::Object>()))
         .Factory();
-    status = multiBindingProxy.Result();
-    if (!status) return status.GetStatus();
 
-    auto triggerBase = Meta::Register<TriggerBase>(
-        context, TypeFlags::Abstract);
-    triggerBase
-        .Collection<Aero::Interactivity::TriggerAction>(
-            "EnterActions",
-            &AddTriggerEnterAction,
-            &ClearTriggerEnterActions)
-        .Collection<Aero::Interactivity::TriggerAction>(
-            "ExitActions",
-            &AddTriggerExitAction,
-            &ClearTriggerExitActions);
-    status = triggerBase.Result();
-    if (!status) return status.GetStatus();
+    Register<TriggerBase>(context, TypeFlags::Abstract)
+        .Collection<Aero::Interactivity::TriggerAction>("EnterActions", &AddTriggerEnterAction, &ClearTriggerEnterActions)
+        .Collection<Aero::Interactivity::TriggerAction>("ExitActions", &AddTriggerExitAction, &ClearTriggerExitActions);
 
-    auto trigger = Meta::Register<Trigger>(context);
-    trigger
-        .Property(
-            "Property",
-            &Trigger::GetPropertyName,
-            &Trigger::SetPropertyName)
-        .Property(
-            "SourceName",
-            &Trigger::GetSourceName,
-            &Trigger::SetSourceName)
-        .Property<
-            Value,
-            &Trigger::GetAuthoredValue,
-            &Trigger::SetAuthoredValue>(
-            "Value",
-            PropertyFlags::AnyValue)
-        .Content<Setter>(
-            "Setters",
-            ContentKind::Collection,
-            &AddTriggerSetter,
-            &ClearTriggerSetters)
+    Register<Trigger>(context)
+        .Property("Property", &Trigger::GetPropertyName, &Trigger::SetPropertyName)
+        .Property("SourceName", &Trigger::GetSourceName, &Trigger::SetSourceName)
+        .Property<Value, &Trigger::GetAuthoredValue, &Trigger::SetAuthoredValue>("Value", PropertyFlags::AnyValue)
+        .Content<Setter>("Setters", ContentKind::Collection, &AddTriggerSetter, &ClearTriggerSetters)
         .Factory();
-    status = trigger.Result();
-    if (!status) return status.GetStatus();
 
-    auto dataTrigger = Meta::Register<DataTrigger>(context);
-    dataTrigger
-        .Property<
-            Base::Ref<Data::Binding>,
-            &DataTrigger::SetBinding>(
-                "Binding",
-                PropertyFlags::Structural)
-        .Property<
-            Value,
-            &DataTrigger::GetAuthoredValue,
-            &DataTrigger::SetAuthoredValue>(
-                "Value",
-                PropertyFlags::AnyValue)
-        .Property(
-            "Comparison",
-            &DataTrigger::GetComparison,
-            &DataTrigger::SetComparison)
-        .Content<Base::Object>(
-            "Setters",
-            ContentKind::Collection,
-            &AddDataTriggerContent,
-            &ClearDataTriggerContent)
+    Register<DataTrigger>(context)
+        .Property<Base::Ref<Binding>, &DataTrigger::SetBinding>("Binding", PropertyFlags::Structural)
+        .Property<Value, &DataTrigger::GetAuthoredValue, &DataTrigger::SetAuthoredValue>("Value", PropertyFlags::AnyValue)
+        .Property("Comparison", &DataTrigger::GetComparison, &DataTrigger::SetComparison)
+        .Content<Base::Object>("Setters", ContentKind::Collection, &AddDataTriggerContent, &ClearDataTriggerContent)
         .Factory();
-    status = dataTrigger.Result();
-    if (!status) return status.GetStatus();
 
-    auto condition = Meta::Register<Condition>(context);
-    condition
-        .Property<
-            Base::Ref<Data::Binding>,
-            &Condition::SetBinding>(
-                "Binding",
-                PropertyFlags::Structural)
-        .Property(
-            "Property",
-            &Condition::GetPropertyName,
-            &Condition::SetPropertyName)
-        .Property(
-            "SourceName",
-            &Condition::GetSourceName,
-            &Condition::SetSourceName)
-        .Property<
-            Value,
-            &Condition::GetAuthoredValue,
-            &Condition::SetAuthoredValue>(
-                "Value",
-                PropertyFlags::AnyValue)
+    Register<Condition>(context)
+        .Property<Base::Ref<Binding>, &Condition::SetBinding>("Binding", PropertyFlags::Structural)
+        .Property("Property", &Condition::GetPropertyName, &Condition::SetPropertyName)
+        .Property("SourceName", &Condition::GetSourceName, &Condition::SetSourceName)
+        .Property<Value, &Condition::GetAuthoredValue, &Condition::SetAuthoredValue>("Value", PropertyFlags::AnyValue)
         .Factory();
-    status = condition.Result();
-    if (!status) return status.GetStatus();
 
-    auto multiDataTrigger =
-        Meta::Register<MultiDataTrigger>(context);
-    multiDataTrigger
-        .Collection<Condition>(
-            "Conditions",
-            &AddMultiDataCondition,
-            &ClearMultiDataConditions)
-        .Content<Setter>(
-            "Setters",
-            ContentKind::Collection,
-            &AddMultiDataSetter,
-            &ClearMultiDataSetters)
+    Register<MultiDataTrigger>(context)
+        .Collection<Condition>("Conditions", &AddMultiDataCondition, &ClearMultiDataConditions)
+        .Content<Setter>("Setters", ContentKind::Collection, &AddMultiDataSetter, &ClearMultiDataSetters)
         .Factory();
-    status = multiDataTrigger.Result();
-    if (!status) return status.GetStatus();
 
-    auto multiTrigger = Meta::Register<MultiTrigger>(context);
-    multiTrigger
-        .Collection<Condition>(
-            "Conditions",
-            &AddMultiTriggerCondition,
-            &ClearMultiTriggerConditions)
-        .Content<Setter>(
-            "Setters",
-            ContentKind::Collection,
-            &AddMultiTriggerSetter,
-            &ClearMultiTriggerSetters)
+    Register<MultiTrigger>(context)
+        .Collection<Condition>("Conditions", &AddMultiTriggerCondition, &ClearMultiTriggerConditions)
+        .Content<Setter>("Setters", ContentKind::Collection, &AddMultiTriggerSetter, &ClearMultiTriggerSetters)
         .Factory();
-    status = multiTrigger.Result();
-    if (!status) return status.GetStatus();
 
-    auto style = Meta::Register<Style>(context);
-    style
-        .Property<
-            TypeReference,
-            &GetStyleTargetType,
-            &SetStyleTargetType>(
-            "TargetType",
-            PropertyFlags::None)
-        .Property<
-            Base::Ref<Style>,
-            &SetStyleBasedOn>(
-            "BasedOn",
-            PropertyFlags::WriteOnly)
-        .Property<
-            Base::Ref<ResourceDictionary>,
-            &Style::SetResources>(
-                "Resources",
-                PropertyFlags::Structural)
-        .Collection<TriggerBase>(
-            "Triggers",
-            &AddStyleTrigger,
-            &ClearStyleTriggers)
-        .Content<Setter>(
-            "Setters",
-            ContentKind::Collection,
-            &AddStyleSetter,
-            &ClearStyleSetters)
+    Register<Style>(context)
+        .Property<TypeReference, &GetStyleTargetType, &SetStyleTargetType>("TargetType", PropertyFlags::None)
+        .Property<Base::Ref<Style>, &SetStyleBasedOn>("BasedOn", PropertyFlags::WriteOnly)
+        .Property<Base::Ref<ResourceDictionary>, &Style::SetResources>("Resources", PropertyFlags::Structural)
+        .Collection<TriggerBase>("Triggers", &AddStyleTrigger, &ClearStyleTriggers)
+        .Content<Setter>("Setters", ContentKind::Collection, &AddStyleSetter, &ClearStyleSetters)
         .Factory();
-    status = style.Result();
-    if (!status) return status.GetStatus();
     return {};
 }

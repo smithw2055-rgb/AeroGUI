@@ -2,20 +2,28 @@
 
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Media/Brushes.hpp>
+#include <Aero/Media/DrawingContext.hpp>
+#include <Aero/Controls/BulletDecorator.hpp>
 
 #include <algorithm>
 
-namespace Aero::Core { class VisualFacet; }
 
+namespace Aero { class AeroGuiInternal; }
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
 class AERO_GUI_API Decorator : public FrameworkElement {
     AERO_DECLARE_TYPE(Decorator, FrameworkElement)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
     // Decorator is constructible in the reference XAML surface and is used as
     // a lightweight single-child layout node in control templates.
     Decorator() noexcept : Decorator(StaticTypeId()) {}
-    ~Decorator() override = default;
+    ~Decorator() override {
+        if (child_ != nullptr && child_->GetVisualParent() == this) {
+            RemoveVisualChild(child_);
+        }
+    }
     UIElement* GetChild() const noexcept {
         if (child_ != nullptr) return child_;
         const UIElementChildRange children = LayoutChildren();
@@ -27,12 +35,27 @@ public:
         Result<void> valid = ValidateChild(child);
         if (!valid) return;
         if (child_ == child) return;
+        if (child_ != nullptr && child_->GetVisualParent() == this) {
+            RemoveVisualChild(child_);
+        }
         child_ = child;
+        if (child_ != nullptr && child_->GetVisualParent() == nullptr) {
+            AddVisualChild(child_);
+        }
         if (child == nullptr) ownedChild_.Reset();
         return;
     }
 protected:
     explicit Decorator(TypeId runtimeType) noexcept : FrameworkElement(runtimeType) {}
+    std::uint32_t GetVisualChildrenCount() const noexcept override {
+        return child_ != nullptr && child_->GetVisualParent() == this ? 1U : 0U;
+    }
+    ::Aero::Media::Visual* GetVisualChild(std::uint32_t index) const noexcept override {
+        if (index != 0U || child_ == nullptr || child_->GetVisualParent() != this) {
+            return nullptr;
+        }
+        return child_;
+    }
     Size MeasureOverride(Size availableSize) noexcept override {
         UIElement* child = GetChild();
         if (child == nullptr) {
@@ -54,11 +77,8 @@ protected:
         return finalSize;
     }
 private:
-#if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::Core::VisualFacet;
-#endif
-    void SetOwnedChild(
-        const Ref<Base::Object>& childObject, UIElement& child) noexcept {
+    friend class ::Aero::AeroGuiInternal;
+    void SetOwnedChild(const Ref<Base::Object>& childObject, UIElement& child) noexcept {
         if (!childObject || childObject.Get() != &child) {
             return;
         }
@@ -66,8 +86,15 @@ private:
         if (!access) return;
         Result<void> valid = ValidateChild(&child);
         if (!valid) return;
+        if (child_ == &child) return;
+        if (child_ != nullptr && child_->GetVisualParent() == this) {
+            RemoveVisualChild(child_);
+        }
         child_ = &child;
         ownedChild_ = childObject;
+        if (child_->GetVisualParent() == nullptr) {
+            AddVisualChild(child_);
+        }
         return;
     }
     UIElement* child_ = nullptr;
@@ -90,84 +117,4 @@ private:
     }
 };
 
-// WPF-compatible two-part decorator used by radio-button and check-box
-// templates. The bullet occupies its desired width on the leading edge while
-// the regular content receives the remaining slot.
-class AERO_GUI_API BulletDecorator : public FrameworkElement {
-    AERO_DECLARE_TYPE(BulletDecorator, FrameworkElement)
-public:
-    BulletDecorator() noexcept : FrameworkElement(StaticTypeId()) {}
-
-    UIElement* GetBullet() const noexcept { return bullet_.Get(); }
-    UIElement* GetChild() const noexcept { return child_.Get(); }
-    Ref<Media::Brush> GetBackground() const noexcept {
-        return GetValueOr(BackgroundProperty, Ref<Media::Brush>{});
-    }
-    void SetBackground(Ref<Media::Brush> value) noexcept {
-        SetValue(BackgroundProperty, std::move(value));
-    }
-    void SetBullet(Ref<UIElement> value) noexcept {
-        bullet_ = std::move(value);
-    }
-    void SetChild(Ref<UIElement> value) noexcept {
-        child_ = std::move(value);
-    }
-
-    inline static constexpr DependencyProperty<Ref<Media::Brush>> BackgroundProperty{"Background"};
-
-protected:
-    Size MeasureOverride(Size availableSize) noexcept override {
-        Size bulletSize{};
-        if (bullet_) {
-            if (MeasureChild(*bullet_, availableSize)) {
-                bulletSize = bullet_->GetDesiredSize();
-            }
-        }
-        Size childSize{};
-        if (child_) {
-            const Size childAvailable{
-                std::max(0.0, availableSize.width - bulletSize.width),
-                availableSize.height};
-            if (MeasureChild(*child_, childAvailable)) {
-                childSize = child_->GetDesiredSize();
-            }
-        }
-        return {
-            bulletSize.width + childSize.width,
-            std::max(bulletSize.height, childSize.height)};
-    }
-
-    Size ArrangeOverride(Size finalSize) noexcept override {
-        double bulletWidth = 0.0;
-        if (bullet_) {
-            const Size desired = bullet_->GetDesiredSize();
-            bulletWidth = std::min(finalSize.width, desired.width);
-            const double y = std::max(
-                0.0, (finalSize.height - desired.height) * 0.5);
-            (void)ArrangeChild(*bullet_, {
-                0.0, y, bulletWidth,
-                std::min(finalSize.height, desired.height)});
-        }
-        if (child_) {
-            (void)ArrangeChild(*child_, {
-                bulletWidth, 0.0,
-                std::max(0.0, finalSize.width - bulletWidth),
-                finalSize.height});
-        }
-        return finalSize;
-    }
-
-    void OnRender(Media::DrawingContext& context) noexcept override {
-        const Ref<Media::Brush> background = GetBackground();
-        if (background) {
-            (void)context.DrawRectangle(
-                {0.0, 0.0, GetRenderSize().width, GetRenderSize().height},
-                background);
-        }
-    }
-
-private:
-    Ref<UIElement> bullet_;
-    Ref<UIElement> child_;
-};
 } // namespace Aero::Controls

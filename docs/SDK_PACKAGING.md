@@ -80,7 +80,6 @@ metadata entry points explicitly:
 ```cpp
 #include <Aero/Gui.hpp>
 #include <Aero/Meta.hpp>
-#include <Aero/Module.hpp>
 
 Aero::Result<void> RegisterMyModule(
     Aero::Meta::Registration& context) noexcept;
@@ -88,6 +87,9 @@ Aero::Result<void> RegisterMyModule(
 constexpr Aero::ModuleRegistration MyModule =
     Aero::DefineModule("My.Module", &RegisterMyModule);
 ```
+
+`Aero/Module.hpp` is the lightweight composition header included by
+`Aero/Meta.hpp`; authors include `Meta.hpp` only.
 
 `Meta::Registration` is callback-scoped. Catalogs, registration stores, frozen
 execution data, XAML facets and dependency-property provider state remain

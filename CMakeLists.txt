@@ -114,7 +114,8 @@ add_library(AeroBase ${AERO_LIBRARY_TYPE}
     src/base/ResourceUri.cpp
     src/base/Stream.cpp
     src/base/String.cpp
-    src/base/Utf8.cpp)
+    src/base/Utf8.cpp
+    src/base/Value.cpp)
 
 add_library(Aero::Base ALIAS AeroBase)
 

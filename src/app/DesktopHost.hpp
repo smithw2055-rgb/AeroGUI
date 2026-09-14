@@ -15,7 +15,6 @@ struct DesktopHostState;
 // It is deliberately not installed and does not form a second authoring API.
 class DesktopHost {
 public:
-    explicit DesktopHost(const ::Aero::App::RunOptions& options) noexcept;
     DesktopHost(
         ::Aero::Application& application,
         Base::Ref<::Aero::Window> window,

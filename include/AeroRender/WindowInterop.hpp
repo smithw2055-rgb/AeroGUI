@@ -1,5 +1,8 @@
 #pragma once
 
+// Platform value types shared by render backends and the App escape hatch
+// (AeroApp/WindowInterop.hpp). Input services (clipboard/IME) live separately
+// in Aero/InputInterop.hpp.
 #include <Aero/Base/Config.hpp>
 
 #include <cstdint>

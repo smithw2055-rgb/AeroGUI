@@ -1,10 +1,17 @@
 # AeroGUI Facet Storage Model
 
+> **Scope:** XAML metadata type capabilities (`XamlFacets` / TypeRecord
+> masks). This is **not** the deleted `Core::Facet` / `ElementHost` element
+> bag. Engine and element kernel storage is described in
+> `docs/SOURCE_ARCHITECTURE.md`.
+
 ## Status
 
-This specification defines the internal Facet storage and lookup rules used by
-the XAML runtime. Facets are implementation capabilities; they are not a second
-public type system and do not alter WPF/XAML type identity.
+This specification defines the internal XAML type-capability storage and
+lookup rules used by the XAML runtime. These capabilities are implementation
+hooks for markup; they are not a second public type system and do not alter
+WPF/XAML type identity. They must not be confused with the retired
+`Aero::Core::Facet` ECS matrix.
 
 ## Canonical storage
 

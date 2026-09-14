@@ -31,7 +31,7 @@ authoring surfaces:
   controls, data binding, input, media and shapes.
 - `<AeroApp/App.hpp>` adds the optional default desktop lifetime to
   `Application` and `Window`; `App::RunOptions` configures optional host details.
-- `<AeroRender/Render.hpp>` exposes backend-neutral renderer/device/target
+- `<AeroRender/RenderDevice.hpp>` + `<Aero/IRenderer.hpp>` expose backend-neutral renderer/device/target
   contracts; D3D11 and OpenGL factories are opt-in backend products.
 - `<Aero/Meta.hpp>` and `<Aero/Module.hpp>` layer typed metadata and module
   authoring over the normal Gui class library for custom-control authors.
@@ -58,7 +58,7 @@ The matching CMake targets are `Aero::Base`, `Aero::Gui`, `Aero::Render`,
 | Stable value and ID contracts | `Aero::Base` | `TypeId`, `MemberId`, `Value`, `Result`, `Stream` |
 | Aero metadata authoring | `Aero::Meta` | `TypeTraits`, `TypeBuilder`, `Registration`, `Registry` |
 | Host and renderer integration | `Aero`, `Aero::Render` | `ViewOptions`, `View`, `IRenderer`, `RenderDevice`, `RenderTarget` |
-| Default application framework | `Aero::App` | `RunOptions`, generated `App::Run()` bootstrap |
+| Default application framework | `Aero::App` | `RunOptions`, `Application::Run()` single entry |
 | Transitional ABI implementation | `Aero::Base::Detail` | header-only helpers and private ABI seams; never user-facing |
 
 ## Root namespace rule
@@ -140,9 +140,9 @@ local name.
 ## Application framework boundary
 
 `Aero::Application` and `Aero::Window` are the WPF-facing XAML objects.
-`Application::Run()` owns the ordinary code-first desktop lifetime. The free
-`Aero::App::Run()` function is only the generated/XAML bootstrap that loads
-`App.xaml` before entering the same private host.
+`Application::Run()` is the single desktop lifetime entry point; generated
+`App.xaml` bootstrap passes `applicationFile` through `App::RunOptions` into
+the same private host.
 
 The native window, event loop, View and endpoint composition are private under
 `src/app`. Backend and allocator selection use the value-type

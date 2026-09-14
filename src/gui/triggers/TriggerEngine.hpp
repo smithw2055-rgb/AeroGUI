@@ -12,9 +12,14 @@
 #include <Aero/DependencyProperty.hpp>
 #include <Aero/Threading.hpp>
 
-#include "gui/core/State.hpp" 
-#include "gui/data/BindingState.hpp"
-#include "gui/styles/StyleState.hpp"
+#include "gui/core/ElementTree.hpp"
+#include "gui/core/LayoutEngine.hpp"
+#include "gui/core/EffectiveValueEngine.hpp"
+#include "gui/core/RoutedEvents.hpp"
+#include "gui/core/EventRouter.hpp"
+#include "gui/internal/AeroGuiInternal.hpp"
+#include "gui/data/BindingEngine.hpp"
+#include "gui/triggers/TriggerTypes.hpp"
 #include "gui/triggers/TriggerPlan.hpp"
 #include "gui/triggers/TriggerDiagnostics.hpp"
 
@@ -22,10 +27,7 @@ namespace Aero {
 
 class TriggerEngine {
 public:
-    using TriggerActionHandler = Base::Result<void>(*)(
-        DependencyObject& owner,
-        Base::Span<const Base::Ref<Base::Object>> actions,
-        void* context) noexcept;
+    using TriggerActionHandler = ::Aero::TriggerActionHandler;
 
     TriggerEngine(
         StyleProviderSession& values,
@@ -50,8 +52,14 @@ public:
         DependencyObject& object,
         Base::Span<const Base::Ref<Base::Object>>
             actions) noexcept;
-    Base::Result<void> EnsureTriggerPhaseHook(
+    // P3.2: opts the deferred evaluations into ViewFrame's explicit DataBind
+    // phase (formerly registered a frame hook). ViewFrame calls
+    // TriggerPhaseHook() directly when phase participation is enabled.
+    Base::Result<void> EnableDataBindPhase(
         DependencyObject& object) noexcept;
+    bool DataBindPhaseEnabled() const noexcept {
+        return dataBindPhaseEnabled_;
+    }
     Base::Result<void> QueueTriggerEvaluation(
         DependencyObject& object) noexcept;
     void RemovePendingTriggerEvaluation(
@@ -78,7 +86,7 @@ private:
     Base::Vector<StyleApplication>& applications_;
     DependencyPropertyChangedEventHandler propertyChangedHandler_;
     Dispatcher* dispatcher_ = nullptr;
-    DispatcherFrameHookHandle triggerPhaseHook_;
+    bool dataBindPhaseEnabled_ = false;
     Base::Vector<DependencyObject*>
         pendingTriggerEvaluations_;
     TriggerActionHandler triggerActionHandler_ = nullptr;

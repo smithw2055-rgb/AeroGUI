@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Aero/Data/Binding.hpp>
 #include <Aero/Media/Animation/EventTrigger.hpp>
 
 namespace Aero::Media::Animation {
@@ -19,8 +20,7 @@ public:
     Ref<Aero::Data::Binding> GetMillisecondsPerTickBinding() const noexcept {
         return millisecondsPerTickBinding_;
     }
-    void SetMillisecondsPerTickBinding(
-        Ref<Aero::Data::Binding> value) noexcept {
+    void SetMillisecondsPerTickBinding(Ref<Aero::Data::Binding> value) noexcept {
         millisecondsPerTickBinding_ = std::move(value);
     }
 

@@ -92,8 +92,8 @@ public:
 
     void Clear() noexcept { map_.Clear(); }
 
-    Result<void> Reserve(SizeType expectedElements) noexcept {
-        return map_.Reserve(expectedElements);
+    void Reserve(SizeType expectedElements) noexcept {
+        map_.Reserve(expectedElements);
     }
 
     bool Contains(const T& value) const noexcept {
@@ -104,22 +104,16 @@ public:
         return map_.Erase(value);
     }
 
-    Result<InsertResult> Insert(const T& value) noexcept {
-        Result<typename Map::InsertResult> result = map_.Insert(
+    InsertResult Insert(const T& value) noexcept {
+        typename Map::InsertResult result = map_.Insert(
             value, HashSetMarker{});
-        if (!result) {
-            return result.GetStatus();
-        }
-        return InsertResult{&result.Value().entry->Key(), result.Value().inserted};
+        return InsertResult{&result.entry->Key(), result.inserted};
     }
 
-    Result<InsertResult> Insert(T&& value) noexcept {
-        Result<typename Map::InsertResult> result = map_.Insert(
+    InsertResult Insert(T&& value) noexcept {
+        typename Map::InsertResult result = map_.Insert(
             std::move(value), HashSetMarker{});
-        if (!result) {
-            return result.GetStatus();
-        }
-        return InsertResult{&result.Value().entry->Key(), result.Value().inserted};
+        return InsertResult{&result.entry->Key(), result.inserted};
     }
 
 private:

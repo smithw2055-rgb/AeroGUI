@@ -1,8 +1,7 @@
 #pragma once
 
 // Optional default desktop application framework. WPF-style applications
-// construct an Aero::Application and call Application::Run(). App::Run() is
-// retained only as the generated/XAML bootstrap that loads App.xaml.
+// construct an Aero::Application and call Application::Run().
 #include <Aero/Gui.hpp>
 #include <AeroApp/Application.hpp>
 #include <AeroApp/Window.hpp>
@@ -25,7 +24,7 @@ enum class GraphicsBackend : std::uint8_t {
 };
 
 struct RunOptions  {
-    // Used as the XAML bootstrap document by App::Run() and as the URI/font
+    // Used as the XAML bootstrap document and as the URI/font
     // resolution base by Application::Run().
     StringView applicationFile = "App.xaml";
     GraphicsBackend graphicsBackend = GraphicsBackend::Automatic;
@@ -44,9 +43,5 @@ struct RunOptions  {
 // Registers the Application and Window XAML types for custom hosts and
 // tooling that initialize Gui directly instead of using Application::Run().
 AERO_APP_API ModuleRegistration AppMetadataModule() noexcept;
-
-// Generated/XAML-only bootstrap. Ordinary C++ applications should call
-// Application::Run() on their application instance.
-AERO_APP_API int Run(const RunOptions& options = {}) noexcept;
 
 } // namespace Aero::App

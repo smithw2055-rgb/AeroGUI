@@ -17,7 +17,7 @@
 namespace Aero::Render {
 namespace {
 
-Base::Status InvalidState(const char* message) noexcept {
+[[maybe_unused]] Base::Status InvalidState(const char* message) noexcept {
     return Base::Status::Failure(Base::ErrorCode::InvalidState, message);
 }
 

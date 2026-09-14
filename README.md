@@ -2,26 +2,30 @@
 
 ## Supported SDK boundary
 
-AeroGUI exposes a small product surface organized by WPF semantics:
+AeroGUI exposes a small product surface organized by WPF semantics.
+New hosts may include the single `<AeroPCH.hpp>` umbrella; advanced users
+include type headers directly:
 
 - `Aero/Gui.hpp` + `Aero::Gui` provide the complete backend-neutral WPF/XAML
   runtime. Ordinary engine code uses `Gui::LoadXaml<T>()`,
   `Gui::CreateView(root)`, and the explicit render contracts.
-- `AeroRender/Render.hpp` + `Aero::Render` provide the backend-neutral render
-  contract boundary without introducing another DLL.
+- `AeroRender/RenderDevice.hpp` + `Aero::Render` provide the backend-neutral render
+  contract boundary without introducing another DLL. Consumers include
+  `RenderDevice.hpp`/`RenderTarget.hpp` plus `Aero/IRenderer.hpp` directly.
 - `Aero::RenderD3D11` and `Aero::RenderOpenGL33` are opt-in backend products;
   an embedded engine links exactly the backend it owns, which brings in the
   render and Gui contracts transitively.
 - `AeroApp/App.hpp` + `Aero::App` add the optional default desktop lifetime;
-  ordinary C++ applications call `Aero::Application::Run()`, while
-  `Aero::App::Run()` is reserved for generated `App.xaml` bootstrap code.
+  ordinary C++ applications call `Aero::Application::Run()` with optional
+  `Aero::App::RunOptions`.
 - Host interop entry headers are rooted at `Aero/InputInterop.hpp` and
   `AeroApp/WindowInterop.hpp`; XAML, media, font-provider, and rendering contracts
   remain grouped under `Aero/Markup`, `Aero/Media`, and `AeroRender`.
 - `AeroAudio/Audio.hpp` + `Aero::Audio` expose the independent optional audio
   product.
-- `Aero/Meta.hpp` / `Aero/Module.hpp` + `Aero::Meta` provide typed custom-type
-  and module authoring.
+- `Aero/Meta.hpp` + `Aero::Meta` provide typed custom-type
+  and module authoring (`Aero/Module.hpp` is the lightweight composition
+  header owned by the same product).
 
 Legacy host facades, service locators, graphics support targets and runtime
 manager classes are implementation details. The installed tree is an explicit
@@ -376,7 +380,7 @@ AeroGUI/
 │   ├── triggers/           # Aero::Triggers: interactivity behaviors
 │   ├── meta/               # Aero::Meta / Aero::Module: type, value, metadata, modules
 │   ├── diagnostics/        # GUI inspection and rendering diagnostics
-│   └── (root)              # Gui/View composition: Gui.cpp, View.cpp, ViewRenderer*
+│   └── (root)              # Gui/View composition: Gui.cpp, View.cpp, ViewFrame.cpp, ViewInput.cpp, ViewFocus.cpp, ViewRender.cpp, ViewRenderer*
 ├── src/render/             # backend-neutral render contracts + native backends
 ├── src/app/                # Application, Window and private OS window/IME adapters
 ├── src/audio/              # optional audio product implementation

@@ -7,7 +7,8 @@
 
 namespace Aero::Media {
 class Brush;
-struct DrawingContextRuntime;
+class Pen;
+class Geometry;
 
 // WPF-facing retained drawing surface used by FrameworkElement::OnRender().
 // The context records semantic drawing operations; render plans, resource IDs
@@ -17,6 +18,10 @@ public:
 
     DrawingContext(const DrawingContext&) = delete;
     DrawingContext& operator=(const DrawingContext&) = delete;
+
+    // Nested bridge for DisplayListBuilder (TU-local definition). Not a
+    // separate public companion type.
+    struct Bridge;
 
     Result<void> PushClip(Base::Rect clip) noexcept;
     Result<void> PopClip() noexcept;
@@ -53,9 +58,17 @@ public:
         Base::Rect bounds,
         const Ref<Brush>& brush,
         double thickness) noexcept;
+    Result<void> DrawLine(
+        const Ref<Pen>& pen,
+        Base::Point start,
+        Base::Point end) noexcept;
+    Result<void> DrawGeometry(
+        const Ref<Brush>& brush,
+        const Ref<Pen>& pen,
+        const Geometry& geometry) noexcept;
 
 private:
-    friend struct DrawingContextRuntime;
+    friend struct Bridge;
 
     explicit DrawingContext(void* implementation) noexcept
         : implementation_(implementation) {}

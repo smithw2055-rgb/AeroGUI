@@ -7,11 +7,13 @@
 
 namespace Aero {
 using Meta::TypeId;
-struct DataTemplateRuntime;
+namespace Meta { class Registration; }
+namespace Controls { struct FrameworkTemplateState; }
 
 class AERO_GUI_API DataTemplate : public Base::Object {
     AERO_DECLARE_TYPE(DataTemplate, Base::Object)
 public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
 
     DataTemplate() noexcept;
     ~DataTemplate() noexcept override;
@@ -21,10 +23,6 @@ public:
     TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
     TypeId GetDataType() const noexcept;
     void SetDataType(TypeId value) noexcept;
-    Ref<Base::Object> GetHierarchicalItemsSource() const noexcept;
-    void SetHierarchicalItemsSource(Ref<Base::Object> value) noexcept;
-    Ref<Base::Object> GetHierarchicalItemTemplate() const noexcept;
-    void SetHierarchicalItemTemplate(Ref<Base::Object> value) noexcept;
     ResourceKey GetImplicitKey() const noexcept;
     ResourceDictionary& GetResources() noexcept;
     const ResourceDictionary& GetResources() const noexcept;
@@ -32,7 +30,8 @@ public:
     bool GetIsSealed() const noexcept;
 
 private:
-    friend struct DataTemplateRuntime;
+    friend struct Controls::FrameworkTemplateState;
+    friend class HierarchicalDataTemplate;
     void* state_ = nullptr;
 };
 } // namespace Aero

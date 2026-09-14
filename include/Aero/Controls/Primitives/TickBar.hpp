@@ -1,0 +1,39 @@
+#pragma once
+
+#include <Aero/Controls/Control.hpp>
+#include <Aero/Media/Brushes.hpp>
+
+namespace Aero::Meta { class Registration; }
+
+namespace Aero::Controls {
+
+enum class TickBarPlacement : std::uint8_t {
+    Top = 0U,
+    Bottom,
+    Left,
+    Right
+};
+
+class AERO_GUI_API TickBar : public Control {
+    AERO_DECLARE_TYPE(TickBar, Control)
+public:
+    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
+
+    TickBar() noexcept : Control(StaticTypeId()) {}
+    ~TickBar() override = default;
+
+    Ref<Aero::Media::Brush> GetFill() const noexcept;
+    TickBarPlacement GetPlacement() const noexcept;
+    void SetFill(Ref<Aero::Media::Brush> value) noexcept;
+    void SetPlacement(TickBarPlacement value) noexcept;
+
+    AERO_DEPENDENCY_PROPERTY(Ref<Aero::Media::Brush>, Fill);
+    AERO_DEPENDENCY_PROPERTY(TickBarPlacement, Placement);
+
+protected:
+    void OnRender(
+        Aero::Media::DrawingContext& context) noexcept override;
+};
+
+} // namespace Aero::Controls
+AERO_DECLARE_TYPE_ENUM(Aero::Controls::TickBarPlacement)

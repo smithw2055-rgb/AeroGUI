@@ -161,7 +161,7 @@ public:
     }
 
 private:
-    Result<void> AddChecked(
+    void AddInternal(
         const Delegate& delegate,
         IAllocator* allocator = nullptr) noexcept;
 
@@ -272,7 +272,7 @@ private:
     static const Operations& MulticastOperations() noexcept;
     DelegateMulticast<Signature>* Multicast() noexcept;
     const DelegateMulticast<Signature>* Multicast() const noexcept;
-    Result<void> EnsureUniqueMulticast(IAllocator& allocator) noexcept;
+    void EnsureUniqueMulticast(IAllocator& allocator) noexcept;
 
     alignas(void*) unsigned char storage_[StorageSize]{};
     const Operations* operations_ = nullptr;
@@ -370,44 +370,36 @@ Delegate<Ret(Args...)>::Multicast() const noexcept {
 }
 
 template<class Ret, class... Args>
-Result<void> Delegate<Ret(Args...)>::EnsureUniqueMulticast(
+void Delegate<Ret(Args...)>::EnsureUniqueMulticast(
     IAllocator& allocator) noexcept {
     using State = DelegateMulticast<Signature>;
     State* current = Multicast();
     if (current == nullptr ||
         current->references.load(std::memory_order_acquire) == 1U) {
-        return {};
+        return;
     }
     void* memory = allocator.Allocate(
         {sizeof(State), alignof(State), MemoryTag::General});
     if (memory == nullptr) {
-        return Status::Failure(ErrorCode::OutOfMemory,
-            "Delegate multicast copy allocation failed");
+        ReportOutOfMemory(sizeof(State), alignof(State), MemoryTag::General);
     }
     State* replacement = new (memory) State(allocator);
     for (const Delegate& item : current->delegates) {
-        Result<void> appended = replacement->delegates.PushBack(item);
-        if (!appended) {
-            replacement->~State();
-            allocator.Deallocate(memory, sizeof(State), alignof(State),
-                MemoryTag::General);
-            return appended.GetStatus();
-        }
+        replacement->delegates.PushBack(item);
     }
     operations_->destroy(storage_);
     *reinterpret_cast<State**>(storage_) = replacement;
     operations_ = &MulticastOperations();
-    return {};
 }
 
 template<class Ret, class... Args>
-Result<void> Delegate<Ret(Args...)>::AddChecked(
+void Delegate<Ret(Args...)>::AddInternal(
     const Delegate& delegate,
     IAllocator* allocator) noexcept {
-    if (delegate.Empty()) return {};
+    if (delegate.Empty()) return;
     if (Empty()) {
         *this = delegate;
-        return {};
+        return;
     }
     IAllocator& selected = allocator != nullptr ? *allocator : GetDefaultAllocator();
     using State = DelegateMulticast<Signature>;
@@ -415,39 +407,25 @@ Result<void> Delegate<Ret(Args...)>::AddChecked(
         void* memory = selected.Allocate(
             {sizeof(State), alignof(State), MemoryTag::General});
         if (memory == nullptr) {
-            return Status::Failure(ErrorCode::OutOfMemory,
-                "Delegate multicast allocation failed");
+            ReportOutOfMemory(sizeof(State), alignof(State), MemoryTag::General);
         }
         State* state = new (memory) State(selected);
-        Result<void> first = state->delegates.PushBack(*this);
-        Result<void> second = first
-            ? state->delegates.PushBack(delegate)
-            : Result<void>(first.GetStatus());
-        if (!second) {
-            state->~State();
-            selected.Deallocate(memory, sizeof(State), alignof(State),
-                MemoryTag::General);
-            return second.GetStatus();
-        }
+        state->delegates.PushBack(*this);
+        state->delegates.PushBack(delegate);
         Reset();
         *reinterpret_cast<State**>(storage_) = state;
         operations_ = &MulticastOperations();
-        return {};
+        return;
     }
-    Result<void> unique = EnsureUniqueMulticast(selected);
-    if (!unique) return unique;
-    return Multicast()->delegates.PushBack(delegate);
+    EnsureUniqueMulticast(selected);
+    Multicast()->delegates.PushBack(delegate);
 }
 
 template<class Ret, class... Args>
 void Delegate<Ret(Args...)>::Add(
     const Delegate& delegate,
     IAllocator* allocator) noexcept {
-    Result<void> result = AddChecked(delegate, allocator);
-    if (!result) {
-        ReportOutOfMemory(sizeof(DelegateMulticast<Signature>),
-            alignof(DelegateMulticast<Signature>), MemoryTag::General);
-    }
+    AddInternal(delegate, allocator);
 }
 
 template<class Ret, class... Args>
@@ -459,13 +437,7 @@ bool Delegate<Ret(Args...)>::Remove(const Delegate& delegate) noexcept {
         Reset();
         return true;
     }
-    Result<void> unique = EnsureUniqueMulticast(*state->allocator);
-    if (!unique) {
-        ReportOutOfMemory(
-            sizeof(DelegateMulticast<Signature>),
-            alignof(DelegateMulticast<Signature>),
-            MemoryTag::General);
-    }
+    EnsureUniqueMulticast(*state->allocator);
     state = Multicast();
     for (std::uint32_t index = state->delegates.Size(); index > 0U; --index) {
         const std::uint32_t current = index - 1U;

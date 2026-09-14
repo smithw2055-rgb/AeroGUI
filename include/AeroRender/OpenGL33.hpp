@@ -3,16 +3,14 @@
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
+#include <AeroRender/BackendCommon.hpp>
 #include <AeroRender/RenderTarget.hpp>
 
 #include <cstdint>
 
 namespace Aero::Render::OpenGL33 {
 
-enum class StatePreservationPolicy : std::uint8_t {
-    HostResetsState = 0U,
-    PreserveRequiredState
-};
+using Aero::Render::StatePreservationPolicy;
 
 using ProcAddress = void (*)();
 using ProcResolver = ProcAddress (*)(
