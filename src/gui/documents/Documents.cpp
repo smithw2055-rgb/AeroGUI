@@ -840,14 +840,14 @@ double TextBlock::GetFontSize() const noexcept {
     const auto ownedRank = static_cast<std::uint8_t>(owned.rank);
     if (attachedRank > ownedRank) return attachedSize;
     if (ownedRank > attachedRank) return ownedSize;
-    constexpr double kDefaultSize = 16.0;
+    constexpr double kDefaultSize = 15.0;
     if (attachedSize != kDefaultSize && ownedSize == kDefaultSize) {
         return attachedSize;
     }
     if (ownedSize != kDefaultSize && attachedSize == kDefaultSize) {
         return ownedSize;
     }
-    return attachedRank > 0U ? attachedSize : ownedSize;
+    return ownedSize;
 }
 Base::Ref<Media::FontFamily> TextBlock::GetFontFamily() const noexcept {
     return FrameworkElement::GetFontFamily();

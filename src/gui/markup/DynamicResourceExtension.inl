@@ -133,13 +133,11 @@ Base::Result<Meta::PropertyValue> EvaluateDynamicResource(
             Base::ErrorCode::InvalidState,
             "DynamicResource expression state is invalid");
     }
-    for (const DynamicResourceState::Source& source :
-         state->sources) {
-        if (source.identity == nullptr) {
-            continue;
-        }
+    FrameworkElement* element =
+        ::Aero::TryCast<FrameworkElement>(&object);
+    if (element != nullptr) {
         Base::Result<Aero::ResourceValue> resource =
-            source.resources.Lookup(state->key.View());
+            element->FindResource(state->key.View());
         if (resource) {
             return ConvertLookedUpDynamicResource(
                 resource.Value(), descriptor);
@@ -149,11 +147,13 @@ Base::Result<Meta::PropertyValue> EvaluateDynamicResource(
             return resource.GetStatus();
         }
     }
-    FrameworkElement* element =
-        ::Aero::TryCast<FrameworkElement>(&object);
-    if (element != nullptr) {
+    for (const DynamicResourceState::Source& source :
+         state->sources) {
+        if (source.identity == nullptr) {
+            continue;
+        }
         Base::Result<Aero::ResourceValue> resource =
-            element->FindResource(state->key.View());
+            source.resources.Lookup(state->key.View());
         if (resource) {
             return ConvertLookedUpDynamicResource(
                 resource.Value(), descriptor);

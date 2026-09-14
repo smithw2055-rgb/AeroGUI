@@ -371,9 +371,12 @@ Point ClipEdgeIntersection(
     return {from.x + t * dx, from.y + t * dy};
 }
 
+constexpr std::uint32_t kMaxRoundedContourPoints = 256U;
+
 void BuildRoundedRectContour(
     Rect bounds,
     double radius,
+    std::uint32_t cornerSegments,
     Point* out) noexcept {
     const double pi = 3.14159265358979323846;
     const double centers[4][2] = {
@@ -383,17 +386,23 @@ void BuildRoundedRectContour(
         {bounds.x + radius, bounds.y + bounds.height - radius}};
     const double start[4] = {pi, pi * 1.5, 0.0, pi * 0.5};
     std::uint32_t index = 0U;
+    const double segCount = static_cast<double>(cornerSegments);
     for (int corner = 0; corner < 4; ++corner) {
-        for (std::uint32_t i = 0U; i < kRoundedCornerSegments; ++i) {
+        for (std::uint32_t i = 0U; i < cornerSegments; ++i) {
             const double angle = start[corner] +
-                pi * 0.5 *
-                    (static_cast<double>(i) /
-                     static_cast<double>(kRoundedCornerSegments));
+                pi * 0.5 * (static_cast<double>(i) / segCount);
             out[index].x = centers[corner][0] + radius * std::cos(angle);
             out[index].y = centers[corner][1] + radius * std::sin(angle);
             ++index;
         }
     }
+}
+
+void BuildRoundedRectContour(
+    Rect bounds,
+    double radius,
+    Point* out) noexcept {
+    BuildRoundedRectContour(bounds, radius, kRoundedCornerSegments, out);
 }
 
 int ClipPolygonToConvex(
@@ -1185,7 +1194,7 @@ Base::Result<void> PaintBrushRoundedStroke(
         return {};
     }
     const double half = thickness * 0.5;
-    const double maxRadius = std::min(bounds.width, bounds.height) * 0.5 - half;
+    const double maxRadius = std::min(bounds.width, bounds.height) * 0.5;
     if (maxRadius <= kGeomEps) {
         return PaintBrushRect(builder, brush, bounds, cornerRadius, isRtl);
     }
@@ -1202,13 +1211,18 @@ Base::Result<void> PaintBrushRoundedStroke(
             bounds.y + half,
             std::max(0.0, bounds.width - thickness),
             std::max(0.0, bounds.height - thickness)};
-        Point outerPts[kRoundedContourPoints];
-        Point innerPts[kRoundedContourPoints];
-        BuildRoundedRectContour(outer, radius + half, outerPts);
+        const double outerRadius = radius + half;
+        const double arcLength = outerRadius * 3.14159265358979323846 * 0.5;
+        const std::uint32_t cornerSegments = std::clamp(
+            static_cast<std::uint32_t>(std::ceil(arcLength / 4.0)), 10U, 64U);
+        const std::uint32_t contourCount = cornerSegments * 4U;
+        Point outerPts[kMaxRoundedContourPoints];
+        Point innerPts[kMaxRoundedContourPoints];
+        BuildRoundedRectContour(outer, outerRadius, cornerSegments, outerPts);
         BuildRoundedRectContour(
-            inner, std::max(0.0, radius - half), innerPts);
-        for (std::uint32_t i = 0U; i < kRoundedContourPoints; ++i) {
-            const std::uint32_t next = (i + 1U) % kRoundedContourPoints;
+            inner, std::max(0.0, radius - half), cornerSegments, innerPts);
+        for (std::uint32_t i = 0U; i < contourCount; ++i) {
+            const std::uint32_t next = (i + 1U) % contourCount;
             const Point quad[4] = {
                 outerPts[i], outerPts[next], innerPts[next], innerPts[i]};
             const Point uvs[4] = {

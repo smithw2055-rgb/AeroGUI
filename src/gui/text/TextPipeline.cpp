@@ -86,30 +86,41 @@ std::string NormalizedFontName(
     return normalized;
 }
 
-std::string AbbreviatedPackFaceName(
-    const std::string& normalized) {
+bool MatchesAbbreviatedPackFace(
+    const std::string& candidate,
+    const std::string& normalizedRequest) {
     struct FaceSuffix {
         const char* name;
         const char* abbreviation;
     };
     constexpr FaceSuffix suffixes[] = {
+        {"semilight", "sl"},
         {"semilight", "l"},
-        {"semibold", "b"}};
+        {"semibold", "sb"},
+        {"semibold", "b"},
+        {"regular", "r"},
+        {"regular", ""},
+        {"light", "l"},
+        {"bold", "sb"},
+        {"bold", "b"},
+        {"bold", "bd"}};
     for (const FaceSuffix& suffix : suffixes) {
         const std::size_t length = std::strlen(suffix.name);
-        if (normalized.size() < length ||
-            normalized.compare(
-                normalized.size() - length,
+        if (normalizedRequest.size() < length ||
+            normalizedRequest.compare(
+                normalizedRequest.size() - length,
                 length,
                 suffix.name) != 0) {
             continue;
         }
         std::string abbreviated =
-            normalized.substr(0U, normalized.size() - length);
+            normalizedRequest.substr(0U, normalizedRequest.size() - length);
         abbreviated += suffix.abbreviation;
-        return abbreviated;
+        if (candidate == abbreviated) {
+            return true;
+        }
     }
-    return {};
+    return false;
 }
 
 bool IsSupportedFontFile(
@@ -159,8 +170,6 @@ Base::Result<bool> SelectPackFontPath(
         family.SizeBytes() - hash - 1U);
     const std::string normalizedRequest =
         NormalizedFontName(requested);
-    const std::string abbreviatedRequest =
-        AbbreviatedPackFaceName(normalizedRequest);
     if (directoryText.empty() ||
         normalizedRequest.empty()) {
         return false;
@@ -213,10 +222,10 @@ Base::Result<bool> SelectPackFontPath(
         else preferred += "regular";
         const bool candidateIsRegular =
             candidate == preferred ||
+            MatchesAbbreviatedPackFace(candidate, preferred) ||
             (!bold && !italic &&
              (candidate == normalizedRequest ||
-              (!abbreviatedRequest.empty() &&
-               candidate == abbreviatedRequest)));
+              MatchesAbbreviatedPackFace(candidate, normalizedRequest)));
         std::size_t prefix = 0U;
         while (prefix < candidate.size() &&
             prefix < normalizedRequest.size() &&

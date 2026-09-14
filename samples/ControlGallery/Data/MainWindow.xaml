@@ -1,4 +1,4 @@
-﻿<Window x:Class="Gallery.MainWindow"
+<Window x:Class="Gallery.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -303,9 +303,6 @@
                         <b:DataTrigger Binding="{Binding Content, ElementName=SampleContainer1}" Comparison="NotEqual" Value="{x:Null}">
                             <b:ControlStoryboardAction Storyboard="{StaticResource ShowContainer1}"/>
                         </b:DataTrigger>
-                        <b:StoryboardCompletedTrigger Storyboard="{StaticResource ShowContainer1}">
-                            <b:ChangePropertyAction PropertyName="Content" Value="{x:Null}" TargetName="SampleContainer2"/>
-                        </b:StoryboardCompletedTrigger>
                     </b:Interaction.Triggers>
                     <ContentControl.RenderTransform>
                         <TranslateTransform/>
@@ -316,9 +313,6 @@
                         <b:DataTrigger Binding="{Binding Content, ElementName=SampleContainer2}" Comparison="NotEqual" Value="{x:Null}">
                             <b:ControlStoryboardAction Storyboard="{StaticResource ShowContainer2}"/>
                         </b:DataTrigger>
-                        <b:StoryboardCompletedTrigger Storyboard="{StaticResource ShowContainer2}">
-                            <b:ChangePropertyAction PropertyName="Content" Value="{x:Null}" TargetName="SampleContainer1"/>
-                        </b:StoryboardCompletedTrigger>
                     </b:Interaction.Triggers>
                     <ContentControl.RenderTransform>
                         <TranslateTransform/>

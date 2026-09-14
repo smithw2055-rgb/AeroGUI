@@ -481,15 +481,42 @@ void Ellipse::OnRender(
             std::max(0.0, renderSize.width - thickness),
             std::max(0.0, renderSize.height - thickness)};
         if (strokeBounds.width > 0.0 && strokeBounds.height > 0.0) {
-            const double radius = std::min(
-                strokeBounds.width, strokeBounds.height) * 0.5;
-            static_cast<void>(::Aero::Media::PaintBrushRoundedStroke(
-                builder,
-                strokeBrush,
-                strokeBounds,
-                thickness,
-                radius,
-                GetFlowDirection() == FlowDirection::RightToLeft));
+            if (std::abs(strokeBounds.width - strokeBounds.height) <= 1.0e-3) {
+                const double radius = strokeBounds.width * 0.5;
+                static_cast<void>(::Aero::Media::PaintBrushRoundedStroke(
+                    builder,
+                    strokeBrush,
+                    strokeBounds,
+                    thickness,
+                    radius,
+                    GetFlowDirection() == FlowDirection::RightToLeft));
+            } else {
+                const Color stroke = ::Aero::Media::SampleBrush(strokeBrush);
+                if (stroke.alpha > 0.0F) {
+                    constexpr double pi = 3.14159265358979323846;
+                    const double Rx = renderSize.width * 0.5;
+                    const double Ry = renderSize.height * 0.5;
+                    const double rx = std::max(0.0, Rx - thickness);
+                    const double ry = std::max(0.0, Ry - thickness);
+                    const double perimeter = pi * (Rx + Ry);
+                    const std::uint32_t segments = std::clamp(
+                        static_cast<std::uint32_t>(std::ceil(perimeter / 4.0)), 32U, 256U);
+                    const double cx = Rx;
+                    const double cy = Ry;
+                    for (std::uint32_t i = 0U; i < segments; ++i) {
+                        const double a0 = 2.0 * pi * (static_cast<double>(i) / segments);
+                        const double a1 = 2.0 * pi * (static_cast<double>(i + 1U) / segments);
+                        const Point quad[4] = {
+                            {cx + Rx * std::cos(a0), cy + Ry * std::sin(a0)},
+                            {cx + Rx * std::cos(a1), cy + Ry * std::sin(a1)},
+                            {cx + rx * std::cos(a1), cy + ry * std::sin(a1)},
+                            {cx + rx * std::cos(a0), cy + ry * std::sin(a0)}
+                        };
+                        const Color colors[4] = {stroke, stroke, stroke, stroke};
+                        static_cast<void>(builder.FillGradientQuad(quad, colors));
+                    }
+                }
+            }
         }
     }
 }

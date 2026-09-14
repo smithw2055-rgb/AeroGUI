@@ -775,9 +775,38 @@ ItemContainerGenerator::GeneratorState::AttachRecord(
     // control template; applying the explicit container style afterwards
     // leaves the already-instantiated implicit template in place.
     const Style* style = owner_->GetItemContainerStyle();
+    const ItemsControl* styleSource = owner_;
+    if (style == nullptr) {
+        const DependencyObject* current = owner_->GetLogicalParent();
+        if (current == nullptr) {
+            current = owner_->GetVisualParent();
+        }
+        while (current != nullptr) {
+            if (const auto* itemsCtrl = TryCast<ItemsControl>(current)) {
+                if (itemsCtrl->GetItemContainerStyle() != nullptr) {
+                    style = itemsCtrl->GetItemContainerStyle();
+                    styleSource = itemsCtrl;
+                    break;
+                }
+            }
+            const DependencyObject* next = nullptr;
+            if (const auto* fe = TryCast<FrameworkElement>(current)) {
+                next = fe->GetLogicalParent();
+                if (next == nullptr) {
+                    next = fe->GetTemplatedParent();
+                }
+            }
+            if (next == nullptr) {
+                if (const auto* v = TryCast<::Aero::Media::Visual>(current)) {
+                    next = v->GetVisualParent();
+                }
+            }
+            current = next;
+        }
+    }
     if (style != nullptr && styles_ != nullptr) {
         Base::Result<Base::Ref<Style>> retained =
-            owner_->GetValue(ItemsControl::ItemContainerStyleProperty);
+            styleSource->GetValue(ItemsControl::ItemContainerStyleProperty);
         if (!retained || !retained.Value()) {
             (void)tree_->DetachElement(record.containerMount);
             return retained

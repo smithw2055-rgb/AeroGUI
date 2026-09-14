@@ -137,6 +137,10 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
             targetObject = view->loadedDocument.names.Find(
                 targetName.Value());
         }
+        if (targetObject == nullptr && view != nullptr) {
+            targetObject = ViewFrame::FindNameForElement(
+                view, targetName.Value(), DependencyObject::StaticTypeId());
+        }
         if (targetObject == nullptr ||
             !Metadata()->Types().IsDerivedFrom(
                 targetObject->RuntimeType(),

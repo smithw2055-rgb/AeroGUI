@@ -79,6 +79,25 @@ void EnablePerMonitorDpiAwareness() noexcept {
     static_cast<void>(initialized);
 }
 
+void EnsureInteractiveDesktop() noexcept {
+    const HWINSTA station = GetProcessWindowStation();
+    if (station != nullptr) {
+        wchar_t name[256]{};
+        DWORD needed = 0U;
+        if (GetUserObjectInformationW(
+                station, UOI_NAME, name, sizeof(name), &needed) != FALSE) {
+            if (_wcsicmp(name, L"WinSta0") == 0) {
+                const HDESK desktop = OpenDesktopW(
+                    L"Default", 0U, FALSE, GENERIC_ALL);
+                if (desktop != nullptr) {
+                    static_cast<void>(SetThreadDesktop(desktop));
+                    CloseDesktop(desktop);
+                }
+            }
+        }
+    }
+}
+
 UINT QuerySystemDpi() noexcept {
     using GetDpiForSystemFunction = UINT (WINAPI*)();
     const HMODULE user32 = GetModuleHandleW(L"user32.dll");
@@ -619,6 +638,7 @@ Base::Result<void> Win32Window::Create(
     state_->height = descriptor.height;
     state_->dpiScale = 1.0;
     state_->pendingHighSurrogate = 0U;
+    EnsureInteractiveDesktop();
     EnablePerMonitorDpiAwareness();
     const UINT dpi = QuerySystemDpi();
     state_->dpiScale = static_cast<double>(dpi) / 96.0;
@@ -721,7 +741,9 @@ Base::Result<void> Win32Window::Show() noexcept {
             Base::ErrorCode::NotInitialized,
             "Win32 window is not created");
     }
-    ShowWindow(state_->window, SW_SHOW);
+    ShowWindow(state_->window, SW_SHOWNORMAL);
+    SetForegroundWindow(state_->window);
+    BringWindowToTop(state_->window);
     if (UpdateWindow(state_->window) == FALSE) {
         return WindowFailure(
             Base::ErrorCode::InternalError,

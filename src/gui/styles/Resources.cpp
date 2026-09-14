@@ -1077,10 +1077,14 @@ Base::Result<ResourceValue> ResourceResolver::Lookup(
                 return local.GetStatus();
             }
         }
-        const ::Aero::Media::Visual* logical = ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent());
-        current = logical != nullptr
-            ? ::Aero::TryCast<::Aero::FrameworkElement>(logical)
-            : nullptr;
+        const FrameworkElement* next = ::Aero::TryCast<FrameworkElement>(current->GetLogicalParent());
+        if (next == nullptr) {
+            next = ::Aero::TryCast<FrameworkElement>(current->GetVisualParent());
+        }
+        if (next == nullptr) {
+            next = ::Aero::TryCast<FrameworkElement>(current->GetTemplatedParent());
+        }
+        current = next;
     }
     const ResourceDictionary* layers[] = {
         templateResources,

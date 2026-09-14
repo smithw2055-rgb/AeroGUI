@@ -2902,11 +2902,12 @@ bool TestThemeTagAndIndentationAndColor() {
     }
 
     // Now test hover animation on ComboBox
-    Point pickerCenter{20.0, 20.0};
+    const Aero::Size pickerSize = picker->GetRenderSize();
     Point pickerScreen{};
-    if (picker->TryPointToScreen(pickerCenter, pickerScreen)) {
+    if (picker->TryPointToScreen({pickerSize.width * 0.5, pickerSize.height * 0.5}, pickerScreen)) {
         static_cast<void>(view.MouseMove(static_cast<int>(pickerScreen.x), static_cast<int>(pickerScreen.y)));
     }
+    Pump(view, 0.05);
     Pump(view, 0.15);
     if (text != nullptr) {
         std::printf("[DIAG] After hover: isMouseOver=%d, SelectionText Width=%f, ActualWidth=%f\n",

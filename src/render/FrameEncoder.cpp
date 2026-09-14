@@ -64,15 +64,31 @@ ProjectiveTransform2D MakeTranslate(double x, double y) noexcept {
         Base::Transform2D{1.0, 0.0, 0.0, 1.0, x, y});
 }
 
-constexpr double kRoundedCornerSegments = 10.0;
-constexpr std::uint32_t kRoundedRectContourPoints = 40U;
+constexpr std::uint32_t kMaxRoundedRectContourPoints = 256U;
+
+std::uint32_t CalculateRoundedCornerSegments(
+    const ProjectiveTransform2D& currentTransform,
+    double x, double y, double radius) noexcept {
+    if (radius <= 0.0) return 1U;
+    const Point p0 = TransformPoint(currentTransform, x, y);
+    const Point p1 = TransformPoint(currentTransform, x + radius, y);
+    const Point p2 = TransformPoint(currentTransform, x, y + radius);
+    const double screenRadius = std::max(
+        std::hypot(p1.x - p0.x, p1.y - p0.y),
+        std::hypot(p2.x - p0.x, p2.y - p0.y));
+    const double arcLength = screenRadius * 3.14159265358979323846 * 0.5;
+    return std::clamp(
+        static_cast<std::uint32_t>(std::ceil(arcLength / 4.0)),
+        10U, 64U);
+}
 
 // Builds a closed convex contour approximating a rounded rectangle. The
-// corners are sampled as `kRoundedCornerSegments` arcs each; a radius of zero
+// corners are sampled as `cornerSegments` arcs each; a radius of zero
 // yields four repeated corner points, so the same path also covers plain
 // rectangles (degenerate fan/ring quads collapse harmlessly).
 void BuildRoundedRectContour(
     double x, double y, double width, double height, double radius,
+    std::uint32_t cornerSegments,
     Point* out) noexcept {
     const double pi = 3.14159265358979323846;
     const double centers[4][2] = {
@@ -84,10 +100,11 @@ void BuildRoundedRectContour(
     const double start[4] = {pi, pi * 1.5, 0.0, pi * 0.5};
 
     std::uint32_t index = 0U;
+    const double segCount = static_cast<double>(cornerSegments);
     for (int corner = 0; corner < 4; ++corner) {
-        for (std::uint32_t i = 0U; i < kRoundedCornerSegments; ++i) {
+        for (std::uint32_t i = 0U; i < cornerSegments; ++i) {
             const double angle = start[corner] +
-                pi * 0.5 * (static_cast<double>(i) / kRoundedCornerSegments);
+                pi * 0.5 * (static_cast<double>(i) / segCount);
             out[index].x = centers[corner][0] + radius * std::cos(angle);
             out[index].y = centers[corner][1] + radius * std::sin(angle);
             ++index;
@@ -919,6 +936,29 @@ void UiFrameEncoder::CompositeOffscreen(
                 EmitQuad(cellPoints, cellUvs, tint);
             }
         }
+    } else if (!Base::IsAffine(nodeTransform)) {
+        constexpr std::uint32_t kGridCols = 16U;
+        constexpr std::uint32_t kGridRows = 16U;
+        for (std::uint32_t row = 0U; row < kGridRows; ++row) {
+            for (std::uint32_t col = 0U; col < kGridCols; ++col) {
+                const double lx0 = -pad + quadW * static_cast<double>(col) / kGridCols;
+                const double ly0 = -pad + quadH * static_cast<double>(row) / kGridRows;
+                const double lx1 = -pad + quadW * static_cast<double>(col + 1U) / kGridCols;
+                const double ly1 = -pad + quadH * static_cast<double>(row + 1U) / kGridRows;
+                const double u0 = static_cast<double>(col) / kGridCols;
+                const double v0 = static_cast<double>(row) / kGridRows;
+                const double u1 = static_cast<double>(col + 1U) / kGridCols;
+                const double v1 = static_cast<double>(row + 1U) / kGridRows;
+                const Point cellPoints[4] = {
+                    TransformPoint(nodeTransform, lx0, ly0),
+                    TransformPoint(nodeTransform, lx1, ly0),
+                    TransformPoint(nodeTransform, lx1, ly1),
+                    TransformPoint(nodeTransform, lx0, ly1)};
+                const Point cellUvs[4] = {
+                    {u0, v0}, {u1, v0}, {u1, v1}, {u0, v1}};
+                EmitQuad(cellPoints, cellUvs, tint);
+            }
+        }
     } else {
         EmitQuad(points, uvs, tint);
     }
@@ -1128,19 +1168,23 @@ void UiFrameEncoder::ProcessCommand(
             break;
         }
 
-        Point contour[kRoundedRectContourPoints];
+        const std::uint32_t cornerSegments = CalculateRoundedCornerSegments(
+            currentTransform, cmd.rect.x, cmd.rect.y, radius);
+        const std::uint32_t contourCount = cornerSegments * 4U;
+
+        Point contour[kMaxRoundedRectContourPoints];
         BuildRoundedRectContour(
             cmd.rect.x, cmd.rect.y, cmd.rect.width, cmd.rect.height,
-            radius, contour);
+            radius, cornerSegments, contour);
 
         const Point centroid{
             cmd.rect.x + cmd.rect.width * 0.5,
             cmd.rect.y + cmd.rect.height * 0.5};
         const Point center = TransformPoint(currentTransform, centroid.x, centroid.y);
-        for (std::uint32_t i = 0U; i < kRoundedRectContourPoints; ++i) {
+        for (std::uint32_t i = 0U; i < contourCount; ++i) {
             contour[i] = TransformPoint(currentTransform, contour[i].x, contour[i].y);
         }
-        EmitTriangleFan(contour, kRoundedRectContourPoints, center, c);
+        EmitTriangleFan(contour, contourCount, center, c);
         break;
     }
     case RenderCommandKind::StrokeRect: {
@@ -1150,8 +1194,7 @@ void UiFrameEncoder::ProcessCommand(
         const double thickness = cmd.scalar > 0.0 ? cmd.scalar : 1.0;
         const double half = thickness * 0.5;
         const Rect& r = cmd.rect;
-        const double maxRadius =
-            std::fmin(r.width, r.height) * 0.5 - half;
+        const double maxRadius = std::fmin(r.width, r.height) * 0.5;
         const double radius = std::clamp(
             std::max(0.0, cmd.cornerRadius), 0.0, maxRadius);
 
@@ -1159,17 +1202,24 @@ void UiFrameEncoder::ProcessCommand(
         c.alpha = static_cast<float>(c.alpha * currentOpacity);
         const Point uvs[4] = {{0.0, 0.0}, {1.0, 0.0}, {1.0, 1.0}, {0.0, 1.0}};
 
-        Point outer[kRoundedRectContourPoints];
-        Point inner[kRoundedRectContourPoints];
+        const double outerRadius = radius > 0.0 ? radius + half : 0.0;
+        const double innerRadius = std::max(0.0, radius - half);
+        const std::uint32_t cornerSegments = radius > 0.0
+            ? CalculateRoundedCornerSegments(currentTransform, r.x, r.y, outerRadius)
+            : 1U;
+        const std::uint32_t contourCount = cornerSegments * 4U;
+
+        Point outer[kMaxRoundedRectContourPoints];
+        Point inner[kMaxRoundedRectContourPoints];
         BuildRoundedRectContour(
             r.x - half, r.y - half, r.width + 2.0 * half,
-            r.height + 2.0 * half, radius + half, outer);
+            r.height + 2.0 * half, outerRadius, cornerSegments, outer);
         BuildRoundedRectContour(
             r.x + half, r.y + half, r.width - 2.0 * half,
-            r.height - 2.0 * half, std::max(0.0, radius - half), inner);
+            r.height - 2.0 * half, innerRadius, cornerSegments, inner);
 
-        for (std::uint32_t i = 0U; i < kRoundedRectContourPoints; ++i) {
-            const std::uint32_t next = (i + 1U) % kRoundedRectContourPoints;
+        for (std::uint32_t i = 0U; i < contourCount; ++i) {
+            const std::uint32_t next = (i + 1U) % contourCount;
             const Point p0 = TransformPoint(currentTransform, outer[i].x, outer[i].y);
             const Point p1 = TransformPoint(currentTransform, outer[next].x, outer[next].y);
             const Point p2 = TransformPoint(currentTransform, inner[next].x, inner[next].y);
@@ -1744,14 +1794,25 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
         // for axis-aligned clips.
         const bool needsClipLayer =
             node.clipsToBounds && subtreeCommands > 0U;
+        const std::uint32_t subtreeEnd = subtreeEndOf(nodeIndex);
         // CompositeTransform3D (RotationY card-flip) stores a non-affine
-        // homography on this node. Descendants keep 2D local visuals and
-        // inherit via nodeTransform; DropShadow children each bake their
-        // own axis-aligned layer, so the board never turns as one card.
-        // Rasterize the subtree in local pixels, then warp that one quad.
+        // homography on this node. When descendants contain DropShadow / effects,
+        // they would otherwise bake separate axis-aligned layers, so rasterize
+        // the subtree in local pixels and warp that card. For clean vector trees
+        // without effects, descendants inherit nodeTransform directly and are
+        // rasterized with exact per-vertex projective division.
+        bool subtreeHasEffect = false;
+        for (std::uint32_t i = nodeIndex + 1U; i < subtreeEnd; ++i) {
+            if (nodes[i].effect.kind != RenderEffectKind::None ||
+                nodes[i].mask.kind != RenderMaskKind::None) {
+                subtreeHasEffect = true;
+                break;
+            }
+        }
         const bool needs3DLayer =
             subtreeCommands > 0U &&
-            !Base::IsAffine(node.renderTransform);
+            !Base::IsAffine(node.renderTransform) &&
+            subtreeHasEffect;
         const bool needsOffscreen =
             hasEffect || hasMask ||
             (node.opacity < 1.0 && subtreeCommands > 1U) ||
@@ -1763,7 +1824,7 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
         // was reallocating the default FBO and, before the SetRenderTarget
         // clear was removed, wiping the window/sidebar/welcome already drawn.
         if (node.opacity <= 0.0) {
-            nodeIndex = subtreeEndOf(nodeIndex);
+            nodeIndex = subtreeEnd;
             continue;
         }
 
@@ -1778,7 +1839,6 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
 
         // Offscreen compositing: record the subtree into an offscreen target,
         // then composite it back with the node's effect, mask and opacity.
-        const std::uint32_t subtreeEnd = subtreeEndOf(nodeIndex);
         const double effectPadLocal =
             (node.effect.kind == RenderEffectKind::DropShadow ||
              node.effect.kind == RenderEffectKind::Blur ||
