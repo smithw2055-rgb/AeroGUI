@@ -1,26 +1,5 @@
 # AeroGUI
-
-## Supported SDK boundary
-
-AeroGUI-R exposes three supported SDK layers:
-
-- Product SDK: `Aero/Runtime.hpp` and `Aero::Runtime`, with the sole runtime
-  path `RuntimeEnvironment -> View` and the sole public frame entry
-  `View::RunFrame()`.
-- Module SDK: `Aero/ModuleSdk.hpp` and `Aero::ModuleSdk`, for typed
-  metadata/property/event, control, Style/Template and safe Drawing authoring.
-- Integration SDK: `Aero/Integration.hpp` and `Aero::IntegrationSdk`, with an
-  opaque reference-counted `RenderEndpoint`.
-
-D3D11 and OpenGL factories are opt-in headers under `Aero/Integration`.
-Third-party graphics backends use the versioned C-compatible
-`Aero/Integration/HostedGraphics.hpp` contract. The default SDK headers do not
-expose the internal render snapshot, renderer, RHI device, surface session,
-presenter, resource registry or GPU handles. Embedded endpoints never Present;
-Window endpoints own their surface and Present. See
-[`docs/WINDOW_HOSTING.md`](docs/WINDOW_HOSTING.md) and
-[`docs/SDK_PACKAGING.md`](docs/SDK_PACKAGING.md).
-
+ 
 > 一个面向 C++17 的、跨平台的 WPF/XAML 语义运行时与原生 GPU UI 引擎。  
 > A clean-room, cross-platform WPF-style XAML runtime and native GPU UI engine for C++17.
 
@@ -31,24 +10,7 @@ Window endpoints own their surface and Present. See
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE)
 
 AeroGUI 的目标不是搬运 Windows WPF 二进制，也不是复制 NoesisGUI、Moonlight 或其他产品的内部实现。项目以 **WPF 的公开行为与 XAML 语义**为主要兼容基准，采用 clean-room 方法，以 C++17 自主实现对象系统、属性系统、XAML、布局、绑定、控件和原生 GPU 渲染器。
-
-本仓库当前处于 **runtime vertical slice** 阶段。架构基线、C++17 runtime、metadata-driven XAML、Binding/DataContext、Style/Template、compiled XAML、D3D11/WARP 垂直切片和模块 SDK 已落地主线；当前 M3.5 聚焦文本栈、交互控件、滚动/Items、OpenGL 3.3 与真实 ControlGallery。实现应遵循 [`docs/WPF_CPP_PORT_SPEC.md`](docs/WPF_CPP_PORT_SPEC.md)，重大决策由 [`docs/adr`](docs/adr) 中的 Accepted ADR 固化。
-
-## 项目状态
-
-- 主线基线：M0/M1 完成，M2 的 runtime XAML → layout → D3D11 垂直切片可构建并有自动化测试。
-- 已完成的 M3 基础：Binding/DataContext、通知驱动更新、Style/ControlTemplate/TemplateBinding/property trigger、compiled XAML document、module SDK、`aero-schema-gen`、manifest-driven `aero-xamlc`、共享 XAML document cache、URI 依赖图和完整文档热重载协调器；0.3 SDK 已提供 `Aero::IntegrationSdk` / `Aero::ModuleSdk` 分层入口、安装后消费门禁和标准 ControlGallery dogfood 流程。
-- 当前阶段：**M3.5 — Interactive Controls, Text and OpenGL Vertical Slice**。
-- compiled document encoding 固定为 v1，compiled cache format 固定为 v7；`aero-xamlc --check` smoke test 已纳入 CTest，并由正式 CI 执行。
-- 已建立 `AeroText` 的 provider-neutral 合同层，并完成可独立裁剪的 FreeType provider、HarfBuzz shaper、code-point coverage 查询与显式 fallback face 链分段、provider-neutral glyph atlas、`TextLayout::ShapeAndMeasure` 基础排版、TextBlock 自动布局服务 seam，以及 atlas-backed RHI 上传/注册和 fence 延迟回收；固定字体测试覆盖 Latin、数字、中文、Arabic、跨字体 fallback、稳定测量、word/character wrapping、ellipsis trimming、水平对齐、行高、glyph metrics、Gray8 raster、outline、DPI、face cache/lifetime、atlas page/shelf、fence-safe reuse 和 device-loss generation，TextBlock 测试覆盖多 atlas batch、文本变更、DPI 重排，并由真实 Roboto/Mplus + FreeType/HarfBuzz 字体通过 D3D11/WARP 像素门禁。
-- 已完成交互/集合基础切片：Command、统一 hover/pressed/focus/capture 状态、键盘焦点导航、setter-based VisualStateManager、Button/RepeatButton、ToggleButton/CheckBox/RadioButton、Generic/Light/Dark 主题、ScrollViewer/ScrollBar、ItemsControl/container generator、Selector/ListBox，以及带 realization window、overscan、recycling 和 10k benchmark 的 VirtualizingStackPanel。
-- 已完成 OpenGL 3.3 基础合同、RHI 及 Windows/WGL、Linux/X11/GLX 实现切片：host-injected function table、3.3 Core Profile/当前线程/context generation 验证、capability/limits 查询、完整 state cache，以及 buffer、texture、sampler、GLSL 330 pipeline、render pass、bind/draw、GLsync、readback 和外部导入；WGL/GLX adapter 支持 owned/borrowed context、native surface 配置、swap interval、resize、present 和 context recreation，并由 hidden-window 真 Core 3.3 绘制/present conformance 覆盖。`AeroRenderOpenGL33` 复用 backend-neutral `Renderer` 完成 RenderPlan lowering；D3D11/WARP、WGL 和 GLX 运行同一计划 hash、rectangle/image/mesh/glyph fixture 与像素容差门禁，borrowed GL context 另有真实 host-state 恢复验证。
-- 已完成独立 UTF-8 可编辑文本模型：gap buffer 避免逐次输入复制全文，公共位置统一使用 grapheme cluster 索引，并覆盖 caret/selection、range replacement、undo/redo、最大长度、只读模式、行模型和 UTF-8 边界诊断。
-- 已完成 TextBox 与剪贴板切片：`Text` 默认 TwoWay、UTF-8 文本输入、selection/caret 绘制、指针拖选、键盘导航与编辑、undo/redo、平台中立剪贴板、Win32 `CF_UNICODETEXT`、独立密码显示/复制策略，以及 `IScrollInfo`/ScrollViewer 接入均已有跨平台测试。
-- 已完成平台中立 IME host seam 与 Win32 Imm32 adapter：支持 composition 开始、预编辑、提交、取消和 DPI-aware candidate window；预编辑不会提前写回 Binding source，失焦、禁用、只读、宿主切换和控件销毁均安全终止 composition。
-- 已完成真实 `ControlGallery` 应用：同一份 XAML 支持 runtime/compiled 两条加载路径与等价性校验，覆盖 Light/Dark、基础控件、Binding、自定义模块和 10k recycling virtualization；Windows 可切换 D3D11/WARP 与 OpenGL 3.3/WGL，Linux 使用 OpenGL 3.3/GLX，并为两类原生后端提供 context/device-loss 恢复 smoke。
-- 尚未完成：完整 Unicode line breaking/bidi 与最终性能/稳健性门禁。TextBlock 渲染服务已支持在 loss 后放弃旧 handles、重绑定宿主重建的 device/backend，并由下一次布局重建 atlas 与 glyph runs。
-
+ 
 ## 已确定的技术方向
 
 - Runtime、工具和测试统一使用 **C++17**；项目不要求也不采用 C++20。
@@ -70,9 +32,7 @@ AeroGUI 只吸收公开、可观察的通用设计经验：
 - **WPF**：Dependency Property、逻辑树/视觉树、Measure/Arrange、Routed Event、Binding、Resource、Style 与 Template 的语义。
 - **Moonlight**：跨平台原生 runtime、宿主边界和可替换渲染后端的历史经验。
 - **NoesisGUI**：轻量 C++ 对象模型、intrusive 引用计数、保留模式视觉/渲染结构、宿主集成和原生 GPU UI 的公开架构思路。
-
-禁止复制、反编译或提交 NoesisGUI 私有实现；Moonlight 源码也不会默认并入项目。公开文档只能用于理解架构概念，具体数据结构、算法、API、shader 和实现由 AeroGUI 独立设计。
-
+ 
 ## 项目目标
 
 1. **WPF 语义优先**  
@@ -333,44 +293,7 @@ C++17 Runtime
 - 所有跨线程数据必须是不可变值、冻结资源或显式同步句柄；
 - native backend shader 使用离线 binary/package；GL/GLES/WebGL 使用离线生成和验证后的固定 GLSL source package；
 - WebGL 运行时 compile/link 是浏览器 API 所要求的显式例外。
-
-## ControlGallery
-
-`AERO_BUILD_SAMPLES=ON`（默认）会构建 `AeroControlGallery`，并在构建阶段用样例模块目录生成 compiled XAML 资产。以下命令启动真实窗口；去掉 `--interactive` 可用于无人值守 smoke：
-
-```powershell
-out\build\<preset>\samples\ControlGallery\AeroControlGallery.exe --backend=d3d11 --xaml=compiled --theme=light --interactive
-out\build\<preset>\samples\ControlGallery\AeroControlGallery.exe --backend=opengl --xaml=compiled --theme=dark --interactive
-```
-
-Linux 使用同一 `--backend=opengl` 命令并通过 GLX 呈现。`--xaml=both --theme=both --simulate-context-loss` 会同时验证 runtime/compiled 等价性、两套默认主题和后端恢复路径。
-
-## 计划目录
-
-```text
-AeroGUI/
-├── include/Aero/{Base,Core,Markup,Presentation,Controls,Render,Platform}
-├── src/{base,core,markup,presentation,controls,render,platform}
-├── backends/
-│   ├── rhi_d3d12/
-│   ├── rhi_d3d11/
-│   ├── rhi_vulkan/
-│   ├── rhi_metal/
-│   ├── rhi_opengl33/
-│   ├── rhi_gles30/
-│   ├── rhi_webgl2/
-│   ├── rhi_null/
-│   ├── rhi_sokol/          # optional
-│   ├── console_private/    # restricted SDK repositories
-│   └── platform_{win32,glx,egl,wgl,android,apple,web}/
-├── third_party/
-├── tools/{xamlc,shaderpack,inspector}/
-├── tests/{unit,conformance,golden,layout,render,rhi,web,fuzz,perf}/
-├── samples/
-├── docs/{adr,spec}/
-└── LICENSE
-```
-
+ 
 ## 路线图
 
 ### M0 — Architecture baseline
