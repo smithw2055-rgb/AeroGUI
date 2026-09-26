@@ -84,28 +84,39 @@ Base::Result<void> PopulateUiAnimation(
         if (!created) return created.GetStatus(); \
         return Base::Ref<Base::Object>(std::move(created).Value()); \
     }
-    RegisterAlias<EasingFunctionBase>(context, "SineEase")
-        .Factory(AERO_EASE_FACTORY(SineEase, Sine));
-    RegisterAlias<EasingFunctionBase>(context, "QuadraticEase")
-        .Factory(AERO_EASE_FACTORY(QuadraticEase, Quadratic));
-    RegisterAlias<EasingFunctionBase>(context, "CubicEase")
-        .Factory(AERO_EASE_FACTORY(CubicEase, Cubic));
-    RegisterAlias<EasingFunctionBase>(context, "QuarticEase")
-        .Factory(AERO_EASE_FACTORY(QuarticEase, Quartic));
-    RegisterAlias<EasingFunctionBase>(context, "QuinticEase")
-        .Factory(AERO_EASE_FACTORY(QuinticEase, Quintic));
-    RegisterAlias<EasingFunctionBase>(context, "CircleEase")
-        .Factory(AERO_EASE_FACTORY(CircleEase, Circle));
-    RegisterAlias<EasingFunctionBase>(context, "ExponentialEase")
-        .Factory(AERO_EASE_FACTORY(ExponentialEase, Exponential));
-    RegisterAlias<EasingFunctionBase>(context, "PowerEase")
-        .Factory(AERO_EASE_FACTORY(PowerEase, Power));
-    RegisterAlias<EasingFunctionBase>(context, "BackEase")
-        .Factory(AERO_EASE_FACTORY(BackEase, Back));
-    RegisterAlias<EasingFunctionBase>(context, "BounceEase")
-        .Factory(AERO_EASE_FACTORY(BounceEase, Bounce));
-    RegisterAlias<EasingFunctionBase>(context, "ElasticEase")
-        .Factory(AERO_EASE_FACTORY(ElasticEase, Elastic));
+    SetObjectFactory(
+        RegisterAlias<EasingFunctionBase>(context, "SineEase"),
+        AERO_EASE_FACTORY(SineEase, Sine));
+    SetObjectFactory(
+        RegisterAlias<EasingFunctionBase>(context, "QuadraticEase"),
+        AERO_EASE_FACTORY(QuadraticEase, Quadratic));
+    SetObjectFactory(
+        RegisterAlias<EasingFunctionBase>(context, "CubicEase"),
+        AERO_EASE_FACTORY(CubicEase, Cubic));
+    SetObjectFactory(
+        RegisterAlias<EasingFunctionBase>(context, "QuarticEase"),
+        AERO_EASE_FACTORY(QuarticEase, Quartic));
+    SetObjectFactory(
+        RegisterAlias<EasingFunctionBase>(context, "QuinticEase"),
+        AERO_EASE_FACTORY(QuinticEase, Quintic));
+    SetObjectFactory(
+        RegisterAlias<EasingFunctionBase>(context, "CircleEase"),
+        AERO_EASE_FACTORY(CircleEase, Circle));
+    SetObjectFactory(
+        RegisterAlias<EasingFunctionBase>(context, "ExponentialEase"),
+        AERO_EASE_FACTORY(ExponentialEase, Exponential));
+    SetObjectFactory(
+        RegisterAlias<EasingFunctionBase>(context, "PowerEase"),
+        AERO_EASE_FACTORY(PowerEase, Power));
+    SetObjectFactory(
+        RegisterAlias<EasingFunctionBase>(context, "BackEase"),
+        AERO_EASE_FACTORY(BackEase, Back));
+    SetObjectFactory(
+        RegisterAlias<EasingFunctionBase>(context, "BounceEase"),
+        AERO_EASE_FACTORY(BounceEase, Bounce));
+    SetObjectFactory(
+        RegisterAlias<EasingFunctionBase>(context, "ElasticEase"),
+        AERO_EASE_FACTORY(ElasticEase, Elastic));
 #undef AERO_EASE_FACTORY
 
 #define AERO_FROM_TO_BASE(Name, CppType) \
@@ -146,7 +157,9 @@ Base::Result<void> PopulateUiAnimation(
         return Base::Ref<Base::Object>(std::move(created).Value()); \
     }
 #define AERO_KEYFRAME_ALIAS(Name, Kind) \
-    RegisterAlias<Name##KeyFrame>(context, #Kind #Name "KeyFrame").Factory(AERO_KEY_FACTORY(Name##KeyFrame, Kind##Name##KeyFrame, Kind));
+    SetObjectFactory( \
+        RegisterAlias<Name##KeyFrame>(context, #Kind #Name "KeyFrame"), \
+        AERO_KEY_FACTORY(Name##KeyFrame, Kind##Name##KeyFrame, Kind));
 #define AERO_KEYFRAME_ALIASES(Name) \
     AERO_KEYFRAME_ALIAS(Name, Linear) \
     AERO_KEYFRAME_ALIAS(Name, Discrete) \

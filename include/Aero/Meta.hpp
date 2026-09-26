@@ -514,10 +514,6 @@ public:
             &CreateDefaultObject<TCreate>);
         return *this;
     }
-    TypeBuilder& Factory(ObjectFactory factory) noexcept {
-        builder_.Factory(factory);
-        return *this;
-    }
     template<class TInterface>
     TypeBuilder& Implements() noexcept {
         builder_.Implements(
@@ -1430,8 +1426,23 @@ private:
         return *this;
     }
 
+    template<class U>
+    friend TypeBuilder<U> SetObjectFactory(
+        TypeBuilder<U> type,
+        ObjectFactory factory) noexcept;
+
     MetadataAuthoringSession builder_;
 };
+
+// Kernel-only hook for alias factories that must construct T with a
+// non-default TypeId. SDK TypeBuilder does not expose Factory(ObjectFactory).
+template<class T>
+TypeBuilder<T> SetObjectFactory(
+    TypeBuilder<T> type,
+    ObjectFactory factory) noexcept {
+    type.builder_.Factory(factory);
+    return type;
+}
 
 } // namespace Aero::Meta
 
