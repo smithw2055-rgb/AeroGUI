@@ -1426,6 +1426,11 @@ private:
         return *this;
     }
 
+    TypeBuilder& AssignFactory(ObjectFactory factory) noexcept {
+        builder_.Factory(factory);
+        return *this;
+    }
+
     template<class U>
     friend TypeBuilder<U> SetObjectFactory(
         TypeBuilder<U> type,
@@ -1440,7 +1445,7 @@ template<class T>
 TypeBuilder<T> SetObjectFactory(
     TypeBuilder<T> type,
     ObjectFactory factory) noexcept {
-    type.builder_.Factory(factory);
+    type.AssignFactory(factory);
     return type;
 }
 
