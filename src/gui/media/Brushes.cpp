@@ -5,15 +5,68 @@
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleEngine.hpp"
 #include <Aero/TryCast.hpp>
 
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include "gui/core/Describe.hpp"
+#include "gui/core/TypeRegistryDetail.hpp"
+#include "gui/core/RenderStateCallbacks.hpp"
+#include "gui/core/ValueConversion.hpp"
+#include "gui/data/BindingEngine.hpp"
+#include <Aero/Interactivity/Conditions.hpp>
+#include <Aero/Interactivity/Behavior.hpp>
+#include <Aero/Interactivity/BlendBehaviors.hpp>
+#include <Aero/Interactivity/Interaction.hpp>
+#include <Aero/Interactivity/InteractionTriggers.hpp>
+#include <Aero/Interactivity/TriggerAction.hpp>
+#include <Aero/Style.hpp>
+#include <Aero/Triggers.hpp>
+#include <Aero/Resources.hpp>
+#include <Aero/EventTrigger.hpp>
+#include <Aero/Events/EventArgs.hpp>
+#include <Aero/Events/CommandEventArgs.hpp>
+#include <Aero/Media/Animation.hpp>
+#include <Aero/Media/Animation/MediaActions.hpp>
+#include <Aero/Media/Animation/StoryboardActions.hpp>
+#include <Aero/Media/Animation/StoryboardCompletedTrigger.hpp>
+#include <Aero/Media/Animation/TimerTrigger.hpp>
+#include <Aero/Media/Effects.hpp>
+#include <Aero/Media/Images.hpp>
+#include <Aero/Media/MediaElement.hpp>
+#include <Aero/Media/Transform2D.hpp>
+#include <Aero/Media/Transform3D.hpp>
+#include <Aero/Media/Geometries.hpp>
+#include <Aero/Media/Pen.hpp>
+#include <Aero/Media/Fonts.hpp>
+#include <Aero/Layout.hpp>
+#include <Aero/FrameworkElement.hpp>
+#include <Aero/Collections.hpp>
+#include <Aero/Input.hpp>
+#include <Aero/ICommand.hpp>
+#include <Aero/RoutedCommand.hpp>
+#include <Aero/InputBinding.hpp>
+#include <Aero/EventSetter.hpp>
+#include <Aero/KeyboardNavigation.hpp>
+#include <Aero/CommandBinding.hpp>
+#include <Aero/ApplicationCommands.hpp>
+#include <Aero/InputGesture.hpp>
+#include <Aero/Data/Binding.hpp>
+#include <Aero/Data/MultiBinding.hpp>
+#include <Aero/Data/BooleanToVisibilityConverter.hpp>
+#include <Aero/Data/IMultiValueConverter.hpp>
+#include <Aero/Data/IValueConverter.hpp>
+#include <Aero/DataObject.hpp>
+#include <Aero/DragDrop.hpp>
+#include <Aero/Input/Cursor.hpp>
+#include <Aero/Input/Mouse.hpp>
+#include <Aero/Input/Keyboard.hpp>
+#include <Aero/Animatable.hpp>
+#include <cctype>
+#include <cstdlib>
+#include <utility>
 
 namespace Aero::Media {
 
@@ -177,7 +230,7 @@ bool GradientStopCollection::FreezeCore(bool isChecking) noexcept {
 }
 
 std::uint64_t Brush::GetRevision() const noexcept {
-    return AeroGuiInternal::FreezableRevision(*this);
+    return (*this).Revision();
 }
 
 void ImageBrush::SetRuntimeImage(
@@ -1456,3 +1509,332 @@ Base::Result<void> PaintBrushGeometry(
 }
 
 } // namespace Aero::Media
+
+// Metadata registration for the types implemented in this file.
+namespace Aero::MetadataSupport {
+using namespace ::Aero::Meta;
+using namespace ::Aero::Threading;
+using namespace ::Aero::Input;
+using namespace ::Aero::Media;
+using namespace ::Aero::Data;
+using namespace ::Aero::Interactivity;
+    using namespace Interactivity;
+    using Media::Animation::BeginStoryboard;
+    using Media::Animation::BooleanAnimationUsingKeyFrames;
+    using Media::Animation::BooleanKeyFrame;
+    using Media::Animation::ColorAnimationUsingKeyFrames;
+    using Media::Animation::ColorKeyFrame;
+    using Media::Animation::DoubleAnimationUsingKeyFrames;
+    using Media::Animation::DoubleKeyFrame;
+    using Media::Animation::EventTrigger;
+    using Media::Animation::Int16AnimationUsingKeyFrames;
+    using Media::Animation::Int16KeyFrame;
+    using Media::Animation::Int32AnimationUsingKeyFrames;
+    using Media::Animation::Int32KeyFrame;
+    using Media::Animation::Int64AnimationUsingKeyFrames;
+    using Media::Animation::Int64KeyFrame;
+    using Media::Animation::MatrixAnimationUsingKeyFrames;
+    using Media::Animation::MatrixKeyFrame;
+    using Media::Animation::ObjectAnimationUsingKeyFrames;
+    using Media::Animation::ObjectKeyFrame;
+    using Media::Animation::PointAnimationUsingKeyFrames;
+    using Media::Animation::PointKeyFrame;
+    using Media::Animation::SizeAnimationUsingKeyFrames;
+    using Media::Animation::SizeKeyFrame;
+    using Media::Animation::Storyboard;
+    using Media::Animation::StoryboardCompletedTrigger;
+    using Media::Animation::StringAnimationUsingKeyFrames;
+    using Media::Animation::StringKeyFrame;
+    using Media::Animation::ThicknessAnimationUsingKeyFrames;
+    using Media::Animation::ThicknessKeyFrame;
+    using Media::Animation::Timeline;
+    using Media::Animation::TimelineGroup;
+    using Media::Effect;
+    using Media::FontFamily;
+    using Media::Geometry;
+    using Media::GeometryGroup;
+    using Media::PathFigure;
+    using Media::PathGeometry;
+    using Media::PathSegment;
+    using Media::StreamGeometry;
+namespace {
+
+void AddGradientStop(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    if (!value || value->RuntimeType() !=
+            GradientStop::StaticTypeId()) {
+        return;
+    }
+    Base::Ref<GradientStop> retained =
+        Base::Ref<GradientStop>::FromBorrowed(
+            static_cast<GradientStop&>(*value));
+    if (!retained) {
+        return;
+    }
+    static_cast<GradientBrush&>(owner).AddGradientStop(
+        std::move(retained));
+}
+
+void ClearGradientStops(
+    Base::Object& owner,
+    void*) noexcept {
+    static_cast<GradientBrush&>(owner)
+        .ClearGradientStops();
+    return;
+}
+
+void AddGradientStopCollectionItem(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    if (!value || value->RuntimeType() !=
+            GradientStop::StaticTypeId()) {
+        return;
+    }
+    static_cast<GradientStopCollection&>(owner).Add(
+        Base::Ref<GradientStop>::FromBorrowed(
+            static_cast<GradientStop&>(*value)));
+}
+
+void ClearGradientStopCollectionItems(
+    Base::Object& owner,
+    void*) noexcept {
+    static_cast<GradientStopCollection&>(owner).Clear();
+    return;
+}
+
+Base::Result<Value> ConvertBrushText(
+    TypeId targetType,
+    Base::StringView text,
+    void* context) noexcept {
+    if (targetType != Brush::StaticTypeId() ||
+        context == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Brush text conversion received invalid metadata");
+    }
+    RegistrationValues values =
+        ::Aero::Meta::MakeRegistrationValues(context);
+    Base::Result<Value> converted =
+        values.TryConvertText(
+            Meta::TypeOf<Color>(), text);
+    if (!converted) {
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "Brush text could not be converted to Color");
+    }
+    Base::Result<Color> color =
+        ValueCodec<Color>::Decode(
+            values, converted.Value());
+    if (!color) return color.GetStatus();
+    Base::Result<Base::Ref<SolidColorBrush>> made =
+        Base::MakeRef<SolidColorBrush>();
+    if (!made) return made.GetStatus();
+    made.Value()->SetColor(color.Value());
+    return Value::FromObject(
+        Brush::StaticTypeId(),
+        Base::Ref<Base::Object>(
+            made.Value()));
+}
+
+} // namespace
+} // namespace Aero::MetadataSupport
+
+AERO_DESCRIBE(::Aero::Media::Brush) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<Brush>(context, TypeFlags::Abstract)
+            .Property(Brush::OpacityProperty, 1.0, AffectsRender, &ValidateUnitDouble)
+            .Property(Brush::ShaderProperty, Base::Ref<Base::Object>{}, AffectsRender)
+            .Property(Brush::RelativeTransformProperty, Base::Ref<Transform>{}, AffectsRender)
+            .TextConverter(&::Aero::MetadataSupport::ConvertBrushText);
+}
+
+AERO_DESCRIBE(::Aero::Media::SolidColorBrush) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<SolidColorBrush>(context)
+            .Property(SolidColorBrush::ColorProperty, FrameworkPropertyMetadata(Color{}).Structural())
+            .Content(MakeMemberId(SolidColorBrush::StaticTypeId(), MemberKind::Property, "Color"))
+            .Factory();
+}
+
+AERO_DESCRIBE(::Aero::Media::GradientStop) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<GradientStop>(context)
+            .Property(GradientStop::OffsetProperty, 0.0, FrameworkPropertyMetadataOptions::None, &ValidateUnitDouble)
+            .Property(GradientStop::ColorProperty, Color{})
+            .Factory();
+}
+
+AERO_DESCRIBE(::Aero::Media::GradientStopCollection) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<GradientStopCollection>(context)
+            .Implements<Collections::IItemsSource>()
+            .Content<GradientStop>("Items", ContentKind::Collection, &::Aero::MetadataSupport::AddGradientStopCollectionItem, &::Aero::MetadataSupport::ClearGradientStopCollectionItems)
+            .Factory();
+}
+
+AERO_DESCRIBE(::Aero::Media::BrushShader) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<BrushShader>(context, TypeFlags::Abstract)
+            .Factory();
+}
+
+AERO_DESCRIBE(::Aero::Media::MonochromeShader) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<MonochromeShader>(context)
+            .Property<Color, &MonochromeShader::GetColor, &MonochromeShader::SetColor>("Color")
+            .Factory();
+}
+
+AERO_DESCRIBE(::Aero::Media::ConicGradientShader) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<ConicGradientShader>(context)
+            .Content<GradientStop>("GradientStops", ContentKind::Collection, [](Base::Object& owner, const Base::Ref<Base::Object>& value, void*) noexcept { static_cast<ConicGradientShader&>(owner).AddGradientStop(Base::Ref<GradientStop>::FromBorrowed(static_cast<GradientStop&>(*value))); }, [](Base::Object& owner, void*) noexcept { static_cast<ConicGradientShader&>(owner).ClearGradientStops(); })
+            .Factory();
+}
+
+AERO_DESCRIBE(::Aero::Media::WavesShader) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<WavesShader>(context)
+            .Property<double, &WavesShader::GetTime, &WavesShader::SetTime>("Time")
+            .Factory();
+}
+
+AERO_DESCRIBE(::Aero::Media::GradientBrush) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<GradientBrush>(context, TypeFlags::Abstract)
+            .Property(GradientBrush::MappingModeProperty, BrushMappingMode::RelativeToBoundingBox)
+            .Property(GradientBrush::SpreadMethodProperty, GradientSpreadMethod::Pad, AffectsRender)
+            .Content<GradientStop>("GradientStops", ContentKind::Collection, &::Aero::MetadataSupport::AddGradientStop, &::Aero::MetadataSupport::ClearGradientStops);
+}
+
+AERO_DESCRIBE(::Aero::Media::LinearGradientBrush) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<LinearGradientBrush>(context)
+            .Property(LinearGradientBrush::StartPointProperty, Point{0.0, 0.0})
+            .Property(LinearGradientBrush::EndPointProperty, Point{1.0, 1.0})
+            .Factory();
+}
+
+AERO_DESCRIBE(::Aero::Media::RadialGradientBrush) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<RadialGradientBrush>(context)
+            .Property(RadialGradientBrush::CenterProperty, Point{0.5, 0.5})
+            .Property(RadialGradientBrush::GradientOriginProperty, Point{0.5, 0.5})
+            .Property(RadialGradientBrush::RadiusXProperty, 0.5, FrameworkPropertyMetadataOptions::None, &Base::Validate::Positive<double>)
+            .Property(RadialGradientBrush::RadiusYProperty, 0.5, FrameworkPropertyMetadataOptions::None, &Base::Validate::Positive<double>)
+            .Factory();
+}
+
+AERO_DESCRIBE(::Aero::Media::TileBrush) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<TileBrush>(context, TypeFlags::Abstract)
+            .Property(TileBrush::StretchProperty, Stretch::Fill)
+            .Property(TileBrush::ViewboxProperty, Rect{0.0, 0.0, 1.0, 1.0})
+            .Property(TileBrush::ViewportProperty, Rect{0.0, 0.0, 1.0, 1.0})
+            .Property(TileBrush::ViewboxUnitsProperty, BrushMappingMode::RelativeToBoundingBox)
+            .Property(TileBrush::ViewportUnitsProperty, BrushMappingMode::RelativeToBoundingBox)
+            .Property(TileBrush::TileModeProperty, TileMode::None)
+            .Property(TileBrush::AlignmentXProperty, HorizontalAlignment::Center)
+            .Property(TileBrush::AlignmentYProperty, VerticalAlignment::Center);
+}
+
+AERO_DESCRIBE(::Aero::Media::ImageBrush) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<ImageBrush>(context)
+            .Property(ImageBrush::ImageSourceProperty, Base::Ref<ImageSource>{})
+            .Factory();
+}
+
+AERO_DESCRIBE(::Aero::Media::VisualBrush) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<VisualBrush>(context)
+            .Property(VisualBrush::VisualProperty, Base::Ref<Base::Object>{})
+            .Factory();
+}

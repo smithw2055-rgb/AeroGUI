@@ -1,15 +1,11 @@
 #include "gui/core/ElementTree.hpp"
-#include "gui/meta/Describe.hpp"
+#include "gui/core/Describe.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleEngine.hpp"
 #include <Aero/Controls.hpp>
 #include <Aero/Controls/Panels.hpp>
-#include "gui/meta/TypeRegistryDetail.hpp"
 
 #include <algorithm>
 #include <utility>
@@ -150,7 +146,7 @@ ToolBar::OnApplyTemplate() noexcept {
         GetTemplateChild("HeaderText");
     headerText_ =
         header != nullptr &&
-        AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
+        (*this).PropertyRegistry().Types().IsDerivedFrom(
             header->RuntimeType(),
             TextBlock::StaticTypeId())
         ? static_cast<TextBlock*>(header)
@@ -162,7 +158,7 @@ ToolBar::OnApplyTemplate() noexcept {
         GetTemplateChild("OverflowGlyph");
     overflowGlyph_ =
         overflow != nullptr &&
-        AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
+        (*this).PropertyRegistry().Types().IsDerivedFrom(
             overflow->RuntimeType(),
             TextBlock::StaticTypeId())
         ? static_cast<TextBlock*>(overflow)
@@ -205,7 +201,7 @@ void ToolBar::SynchronizeToolBar() noexcept {
     }
     Panel* host = GetItemsHost();
     if (host != nullptr &&
-        AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
+        (*this).PropertyRegistry().Types().IsDerivedFrom(
             host->RuntimeType(),
             StackPanel::StaticTypeId())) {
         static_cast<StackPanel*>(host)->
@@ -226,7 +222,7 @@ void ToolBar::SynchronizeToolBar() noexcept {
         OverflowItemCountProperty,
         overflowCount);
     if (host != nullptr) {
-        const auto children = AeroGuiInternal::RenderChildren(*host);
+        const auto children = (*host).RenderChildren();
         for (std::uint32_t index = 0U;
              index < children.Size();
              ++index) {
@@ -280,6 +276,66 @@ void ToolTip::SetShowDuration(
     std::uint32_t value) noexcept {
     SetValue(
         ShowDurationProperty, value);
+}
+
+bool ToolTip::GetIsOpen() const noexcept {
+    return GetValue(IsOpenProperty);
+}
+
+void ToolTip::SetIsOpen(bool value) noexcept {
+    SetValue(IsOpenProperty, value);
+}
+
+Base::Ref<UIElement> ToolTip::GetPlacementTarget() const noexcept {
+    return GetValue(PlacementTargetProperty);
+}
+
+void ToolTip::SetPlacementTarget(Base::Ref<UIElement> value) noexcept {
+    SetValue(PlacementTargetProperty, std::move(value));
+}
+
+void ToolTip::OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept {
+    ContentControl::OnPropertyChanged(args);
+    if (args.GetProperty() != IsOpenProperty) return;
+    const bool open = args.GetNewValue().AsBoolean();
+    UIElement* child = GetTemplateRoot() != nullptr ? GetTemplateRoot() : GetContentElement();
+    const bool hitTest = open && (child == nullptr || child->GetIsHitTestVisible());
+    static_cast<void>(SetIsHitTestVisible(hitTest));
+    InvalidateMeasure();
+}
+
+Size ToolTip::MeasureOverride(Size availableSize) noexcept {
+    static_cast<void>(availableSize);
+    UIElement* child = GetTemplateRoot() != nullptr ? GetTemplateRoot() : GetContentElement();
+    if (!GetIsOpen() || child == nullptr) return Size{};
+    constexpr double Unconstrained = 1.0e12;
+    Base::Result<void> measured = MeasureChild(*child, Size{Unconstrained, Unconstrained});
+    if (!measured) return Size{};
+    return Size{};
+}
+
+Primitives::PlacementMode ToolTip::GetPlacement() const noexcept {
+    return GetValue(PlacementProperty);
+}
+
+void ToolTip::SetPlacement(Primitives::PlacementMode value) noexcept {
+    SetValue(PlacementProperty, value);
+}
+
+double ToolTip::GetHorizontalOffset() const noexcept {
+    return GetValue(HorizontalOffsetProperty);
+}
+
+void ToolTip::SetHorizontalOffset(double value) noexcept {
+    SetValue(HorizontalOffsetProperty, value);
+}
+
+double ToolTip::GetVerticalOffset() const noexcept {
+    return GetValue(VerticalOffsetProperty);
+}
+
+void ToolTip::SetVerticalOffset(double value) noexcept {
+    SetValue(VerticalOffsetProperty, value);
 }
 
 Base::Ref<ToolTip> ToolTipService::GetToolTip(
@@ -353,6 +409,11 @@ AERO_DESCRIBE(ToolTip) {
     Register<ToolTip>(context)
         .Property(ToolTip::InitialShowDelayProperty, std::uint32_t{400U})
         .Property(ToolTip::ShowDurationProperty, std::uint32_t{5000U})
+        .Property(ToolTip::IsOpenProperty, false, AffectsMeasure | AffectsRender)
+        .Property(ToolTip::PlacementProperty, Primitives::PlacementMode::Mouse)
+        .Property(ToolTip::HorizontalOffsetProperty, 0.0)
+        .Property(ToolTip::VerticalOffsetProperty, 0.0)
+        .Property(ToolTip::PlacementTargetProperty, Base::Ref<UIElement>{})
         .Factory();
 }
 

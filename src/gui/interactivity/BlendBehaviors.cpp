@@ -1,18 +1,70 @@
 #include <Aero/Interactivity/BlendBehaviors.hpp>
 #include <Aero/Controls.hpp> 
 #include <Aero/Shapes.hpp>
-#include "gui/meta/TypeRegistryDetail.hpp"
+#include "gui/core/TypeRegistryDetail.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/input/InputManager.hpp" 
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleEngine.hpp"
 #include <algorithm>
 #include <cmath>
+#include "gui/core/Describe.hpp"
+#include "gui/core/RenderStateCallbacks.hpp"
+#include "gui/core/ValueConversion.hpp"
+#include "gui/data/BindingEngine.hpp"
+#include <Aero/Interactivity/Conditions.hpp>
+#include <Aero/Interactivity/Behavior.hpp>
+#include <Aero/Interactivity/Interaction.hpp>
+#include <Aero/Interactivity/InteractionTriggers.hpp>
+#include <Aero/Interactivity/TriggerAction.hpp>
+#include <Aero/Style.hpp>
+#include <Aero/Triggers.hpp>
+#include <Aero/Resources.hpp>
+#include <Aero/EventTrigger.hpp>
+#include <Aero/Events/EventArgs.hpp>
+#include <Aero/Events/CommandEventArgs.hpp>
+#include <Aero/Media/Animation.hpp>
+#include <Aero/Media/Animation/MediaActions.hpp>
+#include <Aero/Media/Animation/StoryboardActions.hpp>
+#include <Aero/Media/Animation/StoryboardCompletedTrigger.hpp>
+#include <Aero/Media/Animation/TimerTrigger.hpp>
+#include <Aero/Media/Brushes.hpp>
+#include <Aero/Media/Effects.hpp>
+#include <Aero/Media/Images.hpp>
+#include <Aero/Media/MediaElement.hpp>
+#include <Aero/Media/Transform2D.hpp>
+#include <Aero/Media/Transform3D.hpp>
+#include <Aero/Media/Geometries.hpp>
+#include <Aero/Media/Pen.hpp>
+#include <Aero/Media/Fonts.hpp>
+#include <Aero/Layout.hpp>
+#include <Aero/FrameworkElement.hpp>
+#include <Aero/Collections.hpp>
+#include <Aero/Input.hpp>
+#include <Aero/ICommand.hpp>
+#include <Aero/RoutedCommand.hpp>
+#include <Aero/InputBinding.hpp>
+#include <Aero/EventSetter.hpp>
+#include <Aero/KeyboardNavigation.hpp>
+#include <Aero/CommandBinding.hpp>
+#include <Aero/ApplicationCommands.hpp>
+#include <Aero/InputGesture.hpp>
+#include <Aero/Data/Binding.hpp>
+#include <Aero/Data/MultiBinding.hpp>
+#include <Aero/Data/BooleanToVisibilityConverter.hpp>
+#include <Aero/Data/IMultiValueConverter.hpp>
+#include <Aero/Data/IValueConverter.hpp>
+#include <Aero/DataObject.hpp>
+#include <Aero/DragDrop.hpp>
+#include <Aero/Input/Cursor.hpp>
+#include <Aero/Input/Mouse.hpp>
+#include <Aero/Input/Keyboard.hpp>
+#include <Aero/Animatable.hpp>
+#include <cctype>
+#include <cstdlib>
+#include <utility>
 
 namespace Aero::Interactivity {
 namespace {
@@ -52,7 +104,7 @@ Base::Transform2D ToRootTransform(const ::Aero::Media::Visual& visual) noexcept 
 Base::Result<Base::Ref<Media::Brush>> ReadBackground(
     FrameworkElement& source) noexcept {
     const Meta::PropertyInfo* property =
-        AeroGuiInternal::PropertyRegistry(source).Types().FindProperty(
+        (source).PropertyRegistry().Types().FindProperty(
             source.RuntimeType(), "Background", false);
     if (property == nullptr) {
         return Base::Status::Failure(
@@ -63,7 +115,7 @@ Base::Result<Base::Ref<Media::Brush>> ReadBackground(
         Meta::DependencyPropertyHandle{property->Id()});
     if (value.Kind() != Meta::ValueKind::Object ||
         value.IsNullObject() || !value.AsObject() ||
-        !AeroGuiInternal::PropertyRegistry(source).Types().IsDerivedFrom(
+        !(source).PropertyRegistry().Types().IsDerivedFrom(
             value.AsObject()->RuntimeType(),
             Media::Brush::StaticTypeId())) {
         return Base::Status::Failure(
@@ -78,7 +130,7 @@ Base::Result<void> SetShapeFill(
     FrameworkElement& target,
     Base::Ref<Media::Brush> brush) noexcept {
     const Meta::TypeRegistry& types =
-        AeroGuiInternal::PropertyRegistry(target).Types();
+        (target).PropertyRegistry().Types();
     if (types.IsDerivedFrom(
             target.RuntimeType(), Shapes::Shape::StaticTypeId())) {
         static_cast<Shapes::Shape&>(target).SetFill(std::move(brush));
@@ -97,7 +149,7 @@ Base::Result<void> SetShapeFill(
 Base::Ref<Media::Brush> GetShapeFill(
     FrameworkElement& target) noexcept {
     const Meta::TypeRegistry& types =
-        AeroGuiInternal::PropertyRegistry(target).Types();
+        (target).PropertyRegistry().Types();
     if (types.IsDerivedFrom(
             target.RuntimeType(), Shapes::Shape::StaticTypeId())) {
         return static_cast<Shapes::Shape&>(target).GetFill();
@@ -264,7 +316,7 @@ void MouseDragElementBehavior::OnDetaching() noexcept {
                 mouseUpHandler_));
         if (dragging_ && pointerId_ != UINT32_MAX) {
             Aero::InputRouter* input =
-                AeroGuiInternal::InputRouterOf(*associated);
+                ElementTree::InputOf(*associated);
             if (input != nullptr) {
                 static_cast<void>(input->ReleasePointer(pointerId_));
             }
@@ -334,7 +386,7 @@ void MouseDragElementBehavior::OnMouseMove(
             return;
         }
         Aero::InputRouter* input =
-            AeroGuiInternal::InputRouterOf(*associated);
+            ElementTree::InputOf(*associated);
         if (input == nullptr ||
             !input->CapturePointer(pointerId_, *associated)) {
             pointerId_ = UINT32_MAX;
@@ -383,7 +435,7 @@ void MouseDragElementBehavior::OnMouseUp(
     FrameworkElement* associated = GetAssociatedObject();
     if (dragging_ && associated != nullptr) {
         Aero::InputRouter* input =
-            AeroGuiInternal::InputRouterOf(*associated);
+            ElementTree::InputOf(*associated);
         if (input != nullptr) {
             static_cast<void>(input->ReleasePointer(pointerId_));
         }
@@ -396,7 +448,7 @@ void MouseDragElementBehavior::OnMouseUp(
 
 Base::Ref<FrameworkElement> BackgroundEffectBehavior::GetSource() const noexcept {
     Base::Ref<Base::Object> source = GetValue(SourceProperty);
-    if (!source || !AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
+    if (!source || !(*this).PropertyRegistry().Types().IsDerivedFrom(
             source->RuntimeType(), FrameworkElement::StaticTypeId())) {
         return {};
     }
@@ -467,3 +519,149 @@ Base::Result<void> BackgroundEffectBehavior::Refresh() noexcept {
 }
 
 } // namespace Aero::Interactivity
+
+// Metadata registration for the types implemented in this file.
+namespace Aero::MetadataSupport {
+using namespace ::Aero::Meta;
+using namespace ::Aero::Threading;
+using namespace ::Aero::Input;
+using namespace ::Aero::Media;
+using namespace ::Aero::Data;
+using namespace ::Aero::Interactivity;
+    using namespace Interactivity;
+    using Media::Animation::BeginStoryboard;
+    using Media::Animation::BooleanAnimationUsingKeyFrames;
+    using Media::Animation::BooleanKeyFrame;
+    using Media::Animation::ColorAnimationUsingKeyFrames;
+    using Media::Animation::ColorKeyFrame;
+    using Media::Animation::DoubleAnimationUsingKeyFrames;
+    using Media::Animation::DoubleKeyFrame;
+    using Media::Animation::EventTrigger;
+    using Media::Animation::Int16AnimationUsingKeyFrames;
+    using Media::Animation::Int16KeyFrame;
+    using Media::Animation::Int32AnimationUsingKeyFrames;
+    using Media::Animation::Int32KeyFrame;
+    using Media::Animation::Int64AnimationUsingKeyFrames;
+    using Media::Animation::Int64KeyFrame;
+    using Media::Animation::MatrixAnimationUsingKeyFrames;
+    using Media::Animation::MatrixKeyFrame;
+    using Media::Animation::ObjectAnimationUsingKeyFrames;
+    using Media::Animation::ObjectKeyFrame;
+    using Media::Animation::PointAnimationUsingKeyFrames;
+    using Media::Animation::PointKeyFrame;
+    using Media::Animation::SizeAnimationUsingKeyFrames;
+    using Media::Animation::SizeKeyFrame;
+    using Media::Animation::Storyboard;
+    using Media::Animation::StoryboardCompletedTrigger;
+    using Media::Animation::StringAnimationUsingKeyFrames;
+    using Media::Animation::StringKeyFrame;
+    using Media::Animation::ThicknessAnimationUsingKeyFrames;
+    using Media::Animation::ThicknessKeyFrame;
+    using Media::Animation::Timeline;
+    using Media::Animation::TimelineGroup;
+    using Media::Effect;
+    using Media::FontFamily;
+    using Media::Geometry;
+    using Media::GeometryGroup;
+    using Media::PathFigure;
+    using Media::PathGeometry;
+    using Media::PathSegment;
+    using Media::StreamGeometry;
+namespace {
+
+void SetBackgroundEffectBehaviorEffect(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    auto& behavior =
+        static_cast<BackgroundEffectBehavior&>(owner);
+    if (!value) {
+        behavior.SetEffect({});
+        return;
+    }
+    Base::Ref<Effect> effect =
+        Base::Ref<Effect>::TryFromBorrowed(
+            static_cast<Effect&>(*value));
+    if (effect) behavior.SetEffect(std::move(effect));
+}
+
+void ClearBackgroundEffectBehaviorEffect(
+    Base::Object& owner, void*) noexcept {
+    static_cast<BackgroundEffectBehavior&>(owner)
+        .SetEffect({});
+}
+
+} // namespace
+} // namespace Aero::MetadataSupport
+
+AERO_DESCRIBE(::Aero::Interactivity::MouseDragElementBehavior) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    using namespace Media::Animation;
+    using namespace Interactivity;
+    using Media::Animation::ColorAnimation;
+    using Media::Animation::ColorKeyFrame;
+    using Media::Animation::DoubleAnimation;
+    using Media::Animation::DoubleKeyFrame;
+    using Media::Animation::MatrixAnimation;
+    using Media::Animation::MatrixKeyFrame;
+    using Media::Animation::PointAnimation;
+    using Media::Animation::PointKeyFrame;
+    using Media::Animation::RectAnimation;
+    using Media::Animation::RepeatBehavior;
+    using Media::Animation::SizeAnimation;
+    using Media::Animation::SizeKeyFrame;
+    using Media::Animation::ThicknessAnimation;
+    using Media::Animation::ThicknessKeyFrame;
+    using ::Aero::Base::Color;
+    using ::Aero::Base::Point;
+    using ::Aero::Base::Rect;
+    using ::Aero::Base::Size;
+    using ::Aero::Base::Thickness;
+    Register<MouseDragElementBehavior>(context)
+            .Property(MouseDragElementBehavior::XProperty, FrameworkPropertyMetadata(0.0) .Changed(&MouseDragElementBehavior::OnPositionChanged))
+            .Property(MouseDragElementBehavior::YProperty, FrameworkPropertyMetadata(0.0) .Changed(&MouseDragElementBehavior::OnPositionChanged))
+            .Property(MouseDragElementBehavior::ConstrainToParentBoundsProperty, false)
+            .Factory();
+}
+
+AERO_DESCRIBE(::Aero::Interactivity::BackgroundEffectBehavior) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    using namespace Media::Animation;
+    using namespace Interactivity;
+    using Media::Animation::ColorAnimation;
+    using Media::Animation::ColorKeyFrame;
+    using Media::Animation::DoubleAnimation;
+    using Media::Animation::DoubleKeyFrame;
+    using Media::Animation::MatrixAnimation;
+    using Media::Animation::MatrixKeyFrame;
+    using Media::Animation::PointAnimation;
+    using Media::Animation::PointKeyFrame;
+    using Media::Animation::RectAnimation;
+    using Media::Animation::RepeatBehavior;
+    using Media::Animation::SizeAnimation;
+    using Media::Animation::SizeKeyFrame;
+    using Media::Animation::ThicknessAnimation;
+    using Media::Animation::ThicknessKeyFrame;
+    using ::Aero::Base::Color;
+    using ::Aero::Base::Point;
+    using ::Aero::Base::Rect;
+    using ::Aero::Base::Size;
+    using ::Aero::Base::Thickness;
+    Register<BackgroundEffectBehavior>(context)
+            .Property(BackgroundEffectBehavior::SourceProperty, FrameworkPropertyMetadata(Base::Ref<Base::Object>{}) .Changed(&BackgroundEffectBehavior::OnBehaviorPropertyChanged))
+            .Property(BackgroundEffectBehavior::EffectProperty, FrameworkPropertyMetadata(Base::Ref<Media::Effect>{}) .Changed(&BackgroundEffectBehavior::OnBehaviorPropertyChanged))
+            .Content<Media::Effect>("Content", ContentKind::Single, &::Aero::MetadataSupport::SetBackgroundEffectBehaviorEffect, &::Aero::MetadataSupport::ClearBackgroundEffectBehaviorEffect)
+            .Factory();
+}

@@ -3,8 +3,7 @@
 // Brush paint helpers + gradient/shader sampling (absorbed from BrushRendering/AnimationModel.hpp).
 
 #include "render/DisplayList.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
-#include "gui/meta/TypeRegistryDetail.hpp"
+#include "gui/core/TypeRegistryDetail.hpp"
 
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Effects.hpp>
@@ -210,7 +209,7 @@ inline Base::Color SampleBrush(
             static_cast<float>(brush->GetOpacity())};
     }
     Base::Ref<Base::Object> shaderObject = brush->GetShader();
-    if (shaderObject && AeroGuiInternal::PropertyRegistry(brush.Get()).Types().IsDerivedFrom(
+    if (shaderObject && brush.Get()->PropertyRegistry().Types().IsDerivedFrom(
             shaderObject->RuntimeType(), Media::BrushShader::StaticTypeId())) {
         sampled = ApplyShader(
             static_cast<const Media::BrushShader&>(*shaderObject),

@@ -11,12 +11,16 @@ using ::Aero::Threading::DispatcherReentrancyGuard;
 
 namespace Meta { class DependencyPropertyRegistry; }
 struct StoredValueEntry;
-// Engine-owned state (definitions in src/gui/internal/PropertyStore.hpp).
+// Engine-owned state (definitions in src/gui/core/PropertyStore.hpp).
 // Kept out of the public header for Noesis-parity slimness; ChangeKind stays
 // here because include/Aero/Resources.hpp references it.
+struct PropertyStore;
 struct DependencyObjectRare;
 class DependencyMutationScope;
-class AeroGuiInternal;
+class Freezable;
+class BindingEngine;
+class AnimationEngine;
+namespace Meta { class EffectiveValueEngine; }
 
 class AERO_GUI_API DependencyObject : public DispatcherObject {
     AERO_DECLARE_TYPE(DependencyObject, DispatcherObject)
@@ -107,11 +111,61 @@ protected:
     }
     virtual Result<void> VerifyMutationAllowed() const noexcept;
 
+public:
+    Meta::DependencyPropertyRegistry& PropertyRegistry() const noexcept { return *registry_; }
+    bool HasPropertyRegistry() const noexcept { return registry_ != nullptr; }
+    PropertyStore* Store() noexcept { return static_cast<PropertyStore*>(valueStore_); }
+    const PropertyStore* Store() const noexcept { return static_cast<const PropertyStore*>(valueStore_); }
+    void ForEachStoredKey(
+        void (*visitor)(void*, MemberId) noexcept,
+        void* context) noexcept;
+    Result<std::uint32_t> ClearAllProviderOrigin(std::uint32_t origin) noexcept;
+    Result<void> DropAllEngineValueState() noexcept;
+    bool HasUnfreezableValueState() const noexcept;
+    Base::Result<void> VisitFreezableChildren(
+        void* context,
+        Base::Result<void> (*visitor)(void* context, Freezable& child) noexcept) noexcept;
+    Base::Result<void> PrepareConsumerChange(
+        Meta::DependencyPropertyHandle property,
+        const Meta::PropertyValue& oldValue,
+        const Meta::PropertyValue& newValue) noexcept;
+    void CommitConsumerChange(
+        Meta::DependencyPropertyHandle property,
+        const Meta::PropertyValue& oldValue,
+        const Meta::PropertyValue& newValue) noexcept;
+    void InvalidateSubProperty(Meta::DependencyPropertyHandle property) noexcept;
+    void DetachPropertyDependencyObjects(
+        BindingEngine* bindings,
+        Meta::EffectiveValueEngine* values,
+        AnimationEngine* animations,
+        Base::Vector<DependencyObject*>& visited) noexcept;
+
+    StoredValueEntry* FindStoredEntry(DependencyPropertyHandle property) noexcept;
+    const StoredValueEntry* FindStoredEntry(DependencyPropertyHandle property) const noexcept;
+    Result<StoredValueEntry*> EnsureStoredEntry(DependencyPropertyHandle property) noexcept;
+    MemberId CanonicalPropertyKey(DependencyPropertyHandle property) const noexcept;
+    Result<void> ApplyProviderContributionInternal(DependencyPropertyHandle property,
+        PropertyProviderToken token, const PropertyValue& value) noexcept;
+    Result<bool> ClearProviderContributionInternal(DependencyPropertyHandle property,
+        PropertyProviderToken token) noexcept;
+    Result<bool> ClearProviderOriginInternal(DependencyPropertyHandle property, std::uint32_t origin) noexcept;
+    Result<void> ApplyLocalExpressionInternal(DependencyPropertyHandle property,
+        const PropertyExpression& expression) noexcept;
+    Result<bool> ClearLocalExpressionInternal(DependencyPropertyHandle property) noexcept;
+    Result<bool> InvalidateBaseValueInternal(DependencyPropertyHandle property) noexcept;
+    Result<void> ApplyAnimationValueInternal(DependencyPropertyHandle property, const PropertyValue& value) noexcept;
+    Result<bool> ClearAnimationValueInternal(DependencyPropertyHandle property) noexcept;
+    Result<PropertyValue> GetAnimationBaseValueInternal(DependencyPropertyHandle property) noexcept;
+    Result<void> ApplyInheritedValueInternal(DependencyPropertyHandle property, const PropertyValue* value) noexcept;
+    Result<void> RecomputeEffectiveValueInternal(DependencyPropertyHandle property) noexcept;
+    Result<void> DropEngineValueStateInternal(DependencyPropertyHandle property) noexcept;
+    void ReleaseExpression(StoredValueEntry& entry) noexcept;
+    void RemoveStoredEntry(MemberId key) noexcept;
+
 private:
     friend class DependencyMutationScope;
     // Property engine invokes the protected Coerce/Validate virtuals.
     friend class Meta::DependencyPropertyRegistry;
-    friend class AeroGuiInternal;
 
     enum class ChangeKind : std::uint8_t {
         SetLocal,
@@ -133,32 +187,11 @@ private:
     Result<DependencyMutationScope> BeginMutation(DependencyPropertyHandle property) noexcept;
     void LeaveMutation() noexcept;
 
-    StoredValueEntry* FindStoredEntry(DependencyPropertyHandle property) noexcept;
-    const StoredValueEntry* FindStoredEntry(DependencyPropertyHandle property) const noexcept;
-    Result<StoredValueEntry*> EnsureStoredEntry(DependencyPropertyHandle property) noexcept;
     Result<StoredValueEntry*> EnsureStoredEntryDirect(DependencyPropertyHandle canonicalHandle,
         const PropertyMetadata& metadata) noexcept;
-    MemberId CanonicalPropertyKey(DependencyPropertyHandle property) const noexcept;
-    Result<void> ApplyProviderContributionInternal(DependencyPropertyHandle property,
-        PropertyProviderToken token, const PropertyValue& value) noexcept;
-    Result<bool> ClearProviderContributionInternal(DependencyPropertyHandle property,
-        PropertyProviderToken token) noexcept;
-    Result<bool> ClearProviderOriginInternal(DependencyPropertyHandle property, std::uint32_t origin) noexcept;
-    Result<void> ApplyLocalExpressionInternal(DependencyPropertyHandle property,
-        const PropertyExpression& expression) noexcept;
-    Result<bool> ClearLocalExpressionInternal(DependencyPropertyHandle property) noexcept;
-    Result<bool> InvalidateBaseValueInternal(DependencyPropertyHandle property) noexcept;
-    Result<void> ApplyAnimationValueInternal(DependencyPropertyHandle property, const PropertyValue& value) noexcept;
-    Result<bool> ClearAnimationValueInternal(DependencyPropertyHandle property) noexcept;
-    Result<PropertyValue> GetAnimationBaseValueInternal(DependencyPropertyHandle property) noexcept;
-    Result<void> ApplyInheritedValueInternal(DependencyPropertyHandle property, const PropertyValue* value) noexcept;
-    Result<void> RecomputeEffectiveValueInternal(DependencyPropertyHandle property) noexcept;
-    Result<void> DropEngineValueStateInternal(DependencyPropertyHandle property) noexcept;
     Result<void> RecomputeEffectiveValueCore(DependencyPropertyHandle property,
         const Meta::DependencyProperty& registered, const PropertyMetadata& metadata,
         const PropertyValue& oldEffective, const PropertyValueSourceInfo& oldSourceInfo) noexcept;
-    void ReleaseExpression(StoredValueEntry& entry) noexcept;
-    void RemoveStoredEntry(MemberId key) noexcept;
     static EffectiveValueSource ToLegacySource(const PropertyValueSourceInfo& source) noexcept;
 
     Result<void> ApplyChange(DependencyPropertyHandle property, const DependencyPropertyKey* key,

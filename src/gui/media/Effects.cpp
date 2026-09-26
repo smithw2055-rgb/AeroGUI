@@ -5,12 +5,67 @@
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
-#include "gui/media/AnimationEngine.hpp"
+#include "gui/core/Describe.hpp"
+#include "gui/core/TypeRegistryDetail.hpp"
+#include "gui/core/RenderStateCallbacks.hpp"
+#include "gui/core/ValueConversion.hpp"
+#include "gui/data/BindingEngine.hpp"
+#include <Aero/Interactivity/Conditions.hpp>
+#include <Aero/Interactivity/Behavior.hpp>
+#include <Aero/Interactivity/BlendBehaviors.hpp>
+#include <Aero/Interactivity/Interaction.hpp>
+#include <Aero/Interactivity/InteractionTriggers.hpp>
+#include <Aero/Interactivity/TriggerAction.hpp>
+#include <Aero/Style.hpp>
+#include <Aero/Triggers.hpp>
+#include <Aero/Resources.hpp>
+#include <Aero/EventTrigger.hpp>
+#include <Aero/Events/EventArgs.hpp>
+#include <Aero/Events/CommandEventArgs.hpp>
+#include <Aero/Media/Animation.hpp>
+#include <Aero/Media/Animation/MediaActions.hpp>
+#include <Aero/Media/Animation/StoryboardActions.hpp>
+#include <Aero/Media/Animation/StoryboardCompletedTrigger.hpp>
+#include <Aero/Media/Animation/TimerTrigger.hpp>
+#include <Aero/Media/Brushes.hpp>
+#include <Aero/Media/Images.hpp>
+#include <Aero/Media/MediaElement.hpp>
+#include <Aero/Media/Transform2D.hpp>
+#include <Aero/Media/Transform3D.hpp>
+#include <Aero/Media/Geometries.hpp>
+#include <Aero/Media/Pen.hpp>
+#include <Aero/Media/Fonts.hpp>
+#include <Aero/Layout.hpp>
+#include <Aero/FrameworkElement.hpp>
+#include <Aero/Collections.hpp>
+#include <Aero/Input.hpp>
+#include <Aero/ICommand.hpp>
+#include <Aero/RoutedCommand.hpp>
+#include <Aero/InputBinding.hpp>
+#include <Aero/EventSetter.hpp>
+#include <Aero/KeyboardNavigation.hpp>
+#include <Aero/CommandBinding.hpp>
+#include <Aero/ApplicationCommands.hpp>
+#include <Aero/InputGesture.hpp>
+#include <Aero/Data/Binding.hpp>
+#include <Aero/Data/MultiBinding.hpp>
+#include <Aero/Data/BooleanToVisibilityConverter.hpp>
+#include <Aero/Data/IMultiValueConverter.hpp>
+#include <Aero/Data/IValueConverter.hpp>
+#include <Aero/DataObject.hpp>
+#include <Aero/DragDrop.hpp>
+#include <Aero/Input/Cursor.hpp>
+#include <Aero/Input/Mouse.hpp>
+#include <Aero/Input/Keyboard.hpp>
+#include <Aero/Animatable.hpp>
+#include <cctype>
+#include <cmath>
+#include <cstdlib>
+#include <utility>
 namespace Aero::Media {
 
 std::uint64_t Effect::GetRevision() const noexcept {
-    return AeroGuiInternal::FreezableRevision(*this);
+    return (*this).Revision();
 }
 
 double BlurEffect::GetRadius() const noexcept {
@@ -141,3 +196,98 @@ void ShaderEffect::SetUniform(std::uint32_t index, float value) noexcept {
 }
 
 } // namespace Aero::Media
+
+// Metadata registration for the types implemented in this file.
+AERO_DESCRIBE(::Aero::Media::Effect) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<Effect>(context, TypeFlags::Abstract);
+}
+
+AERO_DESCRIBE(::Aero::Media::BlurEffect) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<BlurEffect>(context)
+            .Property(BlurEffect::RadiusProperty, 5.0, AffectsRender, &Base::Validate::NonNegative<double>)
+            .Factory();
+}
+
+AERO_DESCRIBE(::Aero::Media::DropShadowEffect) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<DropShadowEffect>(context)
+            .Property(DropShadowEffect::BlurRadiusProperty, 5.0, AffectsRender, &Base::Validate::NonNegative<double>)
+            .Property(DropShadowEffect::DirectionProperty, 315.0, AffectsRender)
+            .Property(DropShadowEffect::ShadowDepthProperty, 5.0, AffectsRender, &Base::Validate::NonNegative<double>)
+            .Property(DropShadowEffect::OpacityProperty, 1.0, AffectsRender, &ValidateUnitDouble)
+            .Property(DropShadowEffect::ColorProperty, Base::Color{ 0.0F, 0.0F, 0.0F, 1.0F}, AffectsRender)
+            .Factory();
+}
+
+AERO_DESCRIBE(::Aero::Media::PixelateEffect) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<PixelateEffect>(context)
+            .Property(PixelateEffect::SizeProperty, 1.0, AffectsRender, &Base::Validate::Positive<double>)
+            .Factory();
+}
+
+AERO_DESCRIBE(::Aero::Media::TintEffect) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<TintEffect>(context)
+            .Property(TintEffect::ColorProperty, Base::Color{0.0F, 0.0F, 1.0F, 1.0F}, AffectsRender)
+            .Factory();
+}
+
+AERO_DESCRIBE(::Aero::Media::DirectionalBlurEffect) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<DirectionalBlurEffect>(context)
+            .Property(DirectionalBlurEffect::RadiusProperty, 0.0, AffectsRender, &Base::Validate::NonNegative<double>)
+            .Property(DirectionalBlurEffect::AngleProperty, 0.0, AffectsRender)
+            .Factory();
+}
+
+AERO_DESCRIBE(::Aero::Media::ShaderEffect) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<ShaderEffect>(context)
+            .Property(ShaderEffect::PixelShaderProperty, FrameworkPropertyMetadata(Base::String{}, AffectsRender).Changed(&ShaderEffect::OnPixelShaderChanged))
+            .Factory();
+}

@@ -1,13 +1,11 @@
 #pragma once
 
-// Menu, its item, and the context-menu host. ContextMenuService stays separate.
+// Menu, its item, the context-menu host, and the attached-property service.
 #include <Aero/ICommand.hpp>
 #include <Aero/Controls/HeaderedItemsControl.hpp>
 #include <Aero/Controls/ItemsControl.hpp>
 #include <Aero/Controls/Popup.hpp>
 #include <Aero/Controls/TextBlock.hpp>
-
-namespace Aero { class AeroGuiInternal; }
 
 namespace Aero::Controls {
 
@@ -62,24 +60,23 @@ protected:
     void OnTemplateDetached() noexcept override;
     void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
 
+public:
+    void SetHighlightedState(bool value) noexcept;
 private:
-    friend class ::Aero::AeroGuiInternal;
     TextBlock* gestureText_ = nullptr;
     TextBlock* checkGlyph_ = nullptr;
     Primitives::Popup* submenuPopup_ = nullptr;
     Result<void> SynchronizeMenuTemplate() noexcept;
-    void SetHighlightedState(bool value) noexcept;
     void SetRoleState(MenuItemRole value) noexcept;
 };
 
-class AERO_GUI_API Menu : public ItemsControl {
-    AERO_DECLARE_TYPE(Menu, ItemsControl)
+class AERO_GUI_API MenuBase : public ItemsControl {
+    AERO_DECLARE_TYPE(MenuBase, ItemsControl)
 public:
-    Menu() noexcept;
-    ~Menu() override;
+    ~MenuBase() override = default;
 
 protected:
-    explicit Menu(TypeId runtimeType) noexcept;
+    explicit MenuBase(TypeId runtimeType) noexcept;
     Result<Ref<FrameworkElement>> GetContainerForItemOverride() const noexcept override;
     void OnMouseLeftButtonDown(MouseButtonEventArgs& args);
     void OnKeyDown(KeyEventArgs& args);
@@ -89,8 +86,15 @@ private:
     Result<void> Invoke(MenuItem& item) noexcept;
 };
 
-class AERO_GUI_API ContextMenu : public Menu {
-    AERO_DECLARE_TYPE(ContextMenu, Menu)
+class AERO_GUI_API Menu : public MenuBase {
+    AERO_DECLARE_TYPE(Menu, MenuBase)
+public:
+    Menu() noexcept;
+    ~Menu() override;
+};
+
+class AERO_GUI_API ContextMenu : public MenuBase {
+    AERO_DECLARE_TYPE(ContextMenu, MenuBase)
 public:
     ContextMenu() noexcept;
     ~ContextMenu() override;
@@ -110,6 +114,16 @@ protected:
     virtual void OnClosed(RoutedEventArgs& e);
     void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
     void OnApplyTemplate() noexcept override;
+};
+
+class AERO_GUI_API ContextMenuService : public Base::Object {
+    AERO_DECLARE_TYPE(ContextMenuService, Base::Object)
+public:
+    TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
+    static Ref<ContextMenu> GetContextMenu(const DependencyObject& target) noexcept;
+    static void SetContextMenu(DependencyObject& target, Ref<ContextMenu> value) noexcept;
+
+    AERO_ATTACHED_PROPERTY(Ref<ContextMenu>, ContextMenu);
 };
 
 } // namespace Aero::Controls

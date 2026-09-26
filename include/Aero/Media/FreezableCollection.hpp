@@ -23,8 +23,10 @@ public:
     std::uint32_t GetCount() const noexcept override { return items_.Size(); }
     std::uint32_t Size() const noexcept { return items_.Size(); }
     bool Empty() const noexcept { return items_.Empty(); }
-    Ref<T>* begin() noexcept { return items_.begin(); } const Ref<T>* begin() const noexcept { return items_.begin(); }
-    Ref<T>* end() noexcept { return items_.end(); } const Ref<T>* end() const noexcept { return items_.end(); }
+    Ref<T>* begin() noexcept { return items_.begin(); }
+    const Ref<T>* begin() const noexcept { return items_.begin(); }
+    Ref<T>* end() noexcept { return items_.end(); }
+    const Ref<T>* end() const noexcept { return items_.end(); }
     Base::Object* AsObject() noexcept override { return this; }
     Ref<Base::Object> GetItem(std::uint32_t index) const noexcept override {
         return index < items_.Size() ? Ref<Base::Object>(items_[index]) : Ref<Base::Object>{};

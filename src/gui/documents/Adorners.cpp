@@ -5,7 +5,6 @@
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
 #include <algorithm>
 #include <cmath>
 

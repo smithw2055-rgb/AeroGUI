@@ -12,7 +12,6 @@ namespace Aero {
 
 class ElementTree;
 class LogicalTreeHelper;
-class AeroGuiInternal;
 
 } // namespace Aero
 
@@ -58,12 +57,70 @@ protected:
         static_cast<void>(visualRemoved);
     }
 
+public:
+    Result<Ref<Base::Object>> AcquireLifetime() noexcept;
+    Base::RenderNodeId& NodeId() noexcept { return renderNodeId_; }
+    std::uint8_t& RenderDirtyFlags() noexcept { return renderDirtyFlags_; }
+    std::uint64_t& RenderRevision() noexcept { return renderRevision_; }
+    Base::Result<void> InvalidateRenderDrawing() noexcept;
+    Base::Result<void> InvalidateRenderState() noexcept;
+
+    struct FlagRef {
+        std::uint8_t* bits = nullptr;
+        std::uint8_t mask = 0U;
+        FlagRef& operator=(bool value) noexcept {
+            if (value) {
+                *bits = static_cast<std::uint8_t>(*bits | mask);
+            } else {
+                *bits = static_cast<std::uint8_t>(*bits & static_cast<std::uint8_t>(~mask));
+            }
+            return *this;
+        }
+        operator bool() const noexcept {
+            return bits != nullptr && (*bits & mask) != 0U;
+        }
+    };
+    FlagRef RenderAttached() noexcept { return {&visualFlags_, kFlagRenderAttached}; }
+    FlagRef RenderValid() noexcept { return {&visualFlags_, kFlagRenderValid}; }
+    FlagRef RenderQueued() noexcept { return {&visualFlags_, kFlagRenderQueued}; }
+    FlagRef Rendering() noexcept { return {&visualFlags_, kFlagRendering}; }
+
+    class RenderChildRange {
+    public:
+        class Iterator {
+        public:
+            Iterator(const Visual* owner, std::uint32_t index) noexcept
+                : owner_(owner), index_(index) {}
+            Visual* operator*() const noexcept {
+                return owner_ != nullptr ? owner_->GetVisualChild(index_) : nullptr;
+            }
+            Iterator& operator++() noexcept { ++index_; return *this; }
+            bool operator!=(const Iterator& other) const noexcept {
+                return owner_ != other.owner_ || index_ != other.index_;
+            }
+        private:
+            const Visual* owner_ = nullptr;
+            std::uint32_t index_ = 0U;
+        };
+        explicit RenderChildRange(const Visual& visual) noexcept
+            : owner_(&visual), count_(visual.GetVisualChildrenCount()) {}
+        Iterator begin() const noexcept { return Iterator(owner_, 0U); }
+        Iterator end() const noexcept { return Iterator(owner_, count_); }
+        std::uint32_t Size() const noexcept { return count_; }
+        bool Empty() const noexcept { return count_ == 0U; }
+        Visual* operator[](std::uint32_t index) const noexcept {
+            return owner_ != nullptr ? owner_->GetVisualChild(index) : nullptr;
+        }
+    private:
+        const Visual* owner_ = nullptr;
+        std::uint32_t count_ = 0U;
+    };
+    RenderChildRange RenderChildren() const noexcept { return RenderChildRange(*this); }
+
 private:
     friend class ::Aero::LogicalTreeHelper;
     friend class ::Aero::ElementTree;
     friend class VisualTreeHelper;
-    friend class ::Aero::AeroGuiInternal;
-    Result<Ref<Base::Object>> AcquireLifetime() noexcept;
 
     static constexpr std::uint8_t kFlagRenderAttached = 1U << 0U;
     static constexpr std::uint8_t kFlagRenderValid = 1U << 1U;

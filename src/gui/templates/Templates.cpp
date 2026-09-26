@@ -1,15 +1,13 @@
-#include "gui/meta/TypeRegistryDetail.hpp"
-#include "gui/meta/Describe.hpp"
+#include "gui/core/TypeRegistryDetail.hpp"
+#include "gui/styles/StyleEngine.hpp"
+#include "gui/core/Describe.hpp"
 #include "gui/markup/XamlObjectWriterCommon.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/data/BindingEngine.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleEngine.hpp"
 #include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/DataTemplate.hpp>
 #include <Aero/Controls/ItemsPanelTemplate.hpp>
@@ -72,7 +70,7 @@ bool TemplateTriggerCondition::IsMet(
         property ==
             Primitives::ToggleButton::
                 IsCheckedProperty.Handle() &&
-        AeroGuiInternal::PropertyRegistry(source).Types().IsDerivedFrom(
+        (source).PropertyRegistry().Types().IsDerivedFrom(
             source.RuntimeType(),
             Primitives::ToggleButton::StaticTypeId())) {
         return !static_cast<Primitives::ToggleButton&>(
@@ -140,20 +138,17 @@ Base::Result<void> TemplateBuilder::SetRoot(
     if (!mounted) return mounted.GetStatus();
     Aero::ElementAttachment mount = std::move(mounted).Value();
 
-    AeroGuiInternal::SetTemplateRoot(
-        *state.parent, ::Aero::TryCast<::Aero::UIElement>(&(root)));
+    (*state.parent).SetTemplateChildCore( ::Aero::TryCast<::Aero::UIElement>(&(root)));
     if (::Aero::TryCast<::Aero::FrameworkElement>(&(root)) != nullptr) {
-        AeroGuiInternal::SetTemplatedParent(
-            *::Aero::TryCast<::Aero::FrameworkElement>(&root), state.parent);
+        (*::Aero::TryCast<::Aero::FrameworkElement>(&root)).SetTemplatedParent( state.parent);
     }
     Base::Result<void> added = AddOwnedPart(
         name, std::move(owner), root, &mount);
     if (!added) {
         if (::Aero::TryCast<::Aero::FrameworkElement>(&(root)) != nullptr) {
-            (void)AeroGuiInternal::SetTemplatedParent(
-                *::Aero::TryCast<::Aero::FrameworkElement>(&root), nullptr);
+            (void)(*::Aero::TryCast<::Aero::FrameworkElement>(&root)).SetTemplatedParent( nullptr);
         }
-        (void)AeroGuiInternal::SetTemplateRoot(*state.parent, nullptr);
+        (void)(*state.parent).SetTemplateChildCore( nullptr);
         (void)state.tree->DetachElement(mount);
         return added.GetStatus();
     }
@@ -183,15 +178,13 @@ Base::Result<void> TemplateBuilder::AddPart(
     Aero::ElementAttachment mount = std::move(mounted).Value();
 
     if (::Aero::TryCast<::Aero::FrameworkElement>(&(part)) != nullptr) {
-        AeroGuiInternal::SetTemplatedParent(
-            *::Aero::TryCast<::Aero::FrameworkElement>(&part), state.parent);
+        (*::Aero::TryCast<::Aero::FrameworkElement>(&part)).SetTemplatedParent( state.parent);
     }
     Base::Result<void> added = AddOwnedPart(
         name, std::move(owner), part, &mount);
     if (!added) {
         if (::Aero::TryCast<::Aero::FrameworkElement>(&(part)) != nullptr) {
-            (void)AeroGuiInternal::SetTemplatedParent(
-                *::Aero::TryCast<::Aero::FrameworkElement>(&part), nullptr);
+            (void)(*::Aero::TryCast<::Aero::FrameworkElement>(&part)).SetTemplatedParent( nullptr);
         }
         (void)state.tree->DetachElement(mount);
         return added.GetStatus();
@@ -250,7 +243,7 @@ TemplateBuilder::ProjectContentCore(
             Base::ErrorCode::InvalidArgument,
             "Template content projection owner is invalid");
     }
-    UIElement* content = AeroGuiInternal::ContentControlContent(owner);
+    UIElement* content = (owner).GetContentElement();
     if (content == nullptr) return false;
 
     const ::Aero::Media::Visual* ancestor = &presenterVisual;
@@ -386,7 +379,7 @@ Base::Result<void> TemplateBuilder::PopulateItemsPresenter(
             std::move(created).Value());
     }
     if (!owner ||
-        !AeroGuiInternal::PropertyRegistry(presenter).Types().IsDerivedFrom(
+        !(presenter).PropertyRegistry().Types().IsDerivedFrom(
             owner->RuntimeType(), Panel::StaticTypeId())) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -416,13 +409,13 @@ TemplateBuilder::PopulateContentPresenter(
         state.parent != nullptr) {
         const Value* header = nullptr;
         Value stored;
-        if (AeroGuiInternal::PropertyRegistry(state.parent).Types().IsDerivedFrom(
+        if (state.parent->PropertyRegistry().Types().IsDerivedFrom(
                 state.parent->RuntimeType(),
                 HeaderedItemsControl::StaticTypeId())) {
             stored = static_cast<HeaderedItemsControl*>(state.parent)
                 ->GetHeader();
             header = &stored;
-        } else if (AeroGuiInternal::PropertyRegistry(state.parent).Types().IsDerivedFrom(
+        } else if (state.parent->PropertyRegistry().Types().IsDerivedFrom(
                        state.parent->RuntimeType(),
                        HeaderedContentControl::StaticTypeId())) {
             stored = static_cast<HeaderedContentControl*>(state.parent)
@@ -433,7 +426,7 @@ TemplateBuilder::PopulateContentPresenter(
             header->Kind() == ValueKind::Object &&
             !header->IsNullObject() &&
             header->AsObject() &&
-            AeroGuiInternal::PropertyRegistry(state.parent).Types().IsDerivedFrom(
+            state.parent->PropertyRegistry().Types().IsDerivedFrom(
                 header->AsObject()->RuntimeType(),
                 UIElement::StaticTypeId())) {
             // Gallery SampleTemplate StackPanel already lives on Header.
@@ -541,13 +534,13 @@ void TemplateBuilder::Rollback() noexcept {
     for (std::uint32_t index = state.parts.Size(); index > 0U; --index) {
         Aero::Controls::TemplatePart& part = state.parts[index - 1U];
         if (part.frameworkElement != nullptr) {
-            (void)AeroGuiInternal::SetTemplatedParent(*part.frameworkElement, nullptr);
+            (void)(*part.frameworkElement).SetTemplatedParent( nullptr);
         }
         if (part.mount.IsAttached()) {
             (void)state.tree->DetachElement(part.mount);
         }
     }
-    if (state.parent != nullptr) (void)AeroGuiInternal::SetTemplateRoot(*state.parent, nullptr);
+    if (state.parent != nullptr) (void)(*state.parent).SetTemplateChildCore( nullptr);
     state.parts.Clear();
     state.rootVisual = nullptr;
     state.rootElement = nullptr;
@@ -727,6 +720,17 @@ FrameworkTemplate::~FrameworkTemplate() noexcept {
     state_ = nullptr;
 }
 
+void FrameworkTemplate::InstallTemplateState(void* state) noexcept {
+    delete static_cast<Controls::FrameworkTemplateState*>(state_);
+    state_ = state;
+}
+
+void* FrameworkTemplate::DetachTemplateState() noexcept {
+    void* state = state_;
+    state_ = nullptr;
+    return state;
+}
+
 Meta::TypeId FrameworkTemplate::GetTargetType() const noexcept {
     const Controls::FrameworkTemplateState* state = static_cast<const Controls::FrameworkTemplateState*>(state_);
     if (state == nullptr) return Meta::InvalidTypeId;
@@ -798,25 +802,25 @@ const Controls::FrameworkTemplateState* Controls::FrameworkTemplateState::State(
 
 using namespace Controls;
 
-DataTemplate::DataTemplate() noexcept
-    : state_(new (std::nothrow) Controls::DataTemplateState()) {
-    if (state_ == nullptr) {
+DataTemplate::DataTemplate() noexcept {
+    auto* state = new (std::nothrow) Controls::DataTemplateState();
+    if (state == nullptr) {
         Base::ReportOutOfMemory(sizeof(Controls::DataTemplateState), alignof(Controls::DataTemplateState), Base::MemoryTag::Ui);
     }
+    InstallTemplateState(state);
 }
 
 DataTemplate::~DataTemplate() noexcept {
-    delete static_cast<Controls::DataTemplateState*>(state_);
-    state_ = nullptr;
+    delete static_cast<Controls::DataTemplateState*>(DetachTemplateState());
 }
 
 TypeId DataTemplate::GetDataType() const noexcept {
-    const Controls::DataTemplateState* state = static_cast<const Controls::DataTemplateState*>(state_);
+    const Controls::DataTemplateState* state = static_cast<const Controls::DataTemplateState*>(TemplateState());
     return state != nullptr ? state->dataType : InvalidTypeId;
 }
 
 void DataTemplate::SetDataType(TypeId value) noexcept {
-    Controls::DataTemplateState* state = static_cast<Controls::DataTemplateState*>(state_);
+    Controls::DataTemplateState* state = static_cast<Controls::DataTemplateState*>(TemplateState());
     if (state == nullptr) return;
     if (state->program.sealed || value == InvalidTypeId) {
         return;
@@ -830,7 +834,7 @@ ResourceKey DataTemplate::GetImplicitKey() const noexcept {
 
 Ref<Base::Object> HierarchicalDataTemplate::GetItemsSource() const noexcept {
     const Controls::DataTemplateState* state =
-        static_cast<const Controls::DataTemplateState*>(state_);
+        static_cast<const Controls::DataTemplateState*>(TemplateState());
     return state != nullptr ? state->hierarchicalItemsSource
                             : Base::Ref<Base::Object>{};
 }
@@ -838,13 +842,13 @@ Ref<Base::Object> HierarchicalDataTemplate::GetItemsSource() const noexcept {
 void HierarchicalDataTemplate::SetItemsSource(
     Base::Ref<Base::Object> value) noexcept {
     Controls::DataTemplateState* state =
-        static_cast<Controls::DataTemplateState*>(state_);
+        static_cast<Controls::DataTemplateState*>(TemplateState());
     if (state != nullptr) state->hierarchicalItemsSource = std::move(value);
 }
 
 Ref<Base::Object> HierarchicalDataTemplate::GetItemTemplate() const noexcept {
     const Controls::DataTemplateState* state =
-        static_cast<const Controls::DataTemplateState*>(state_);
+        static_cast<const Controls::DataTemplateState*>(TemplateState());
     return state != nullptr ? state->hierarchicalItemTemplate
                             : Base::Ref<Base::Object>{};
 }
@@ -852,35 +856,35 @@ Ref<Base::Object> HierarchicalDataTemplate::GetItemTemplate() const noexcept {
 void HierarchicalDataTemplate::SetItemTemplate(
     Base::Ref<Base::Object> value) noexcept {
     Controls::DataTemplateState* state =
-        static_cast<Controls::DataTemplateState*>(state_);
+        static_cast<Controls::DataTemplateState*>(TemplateState());
     if (state != nullptr) state->hierarchicalItemTemplate = std::move(value);
 }
 
 ResourceDictionary& DataTemplate::GetResources() noexcept {
-    Controls::DataTemplateState* state = static_cast<Controls::DataTemplateState*>(state_);
+    Controls::DataTemplateState* state = static_cast<Controls::DataTemplateState*>(TemplateState());
     if (state != nullptr) return state->resources;
     static ResourceDictionary fallback;
     return fallback;
 }
 
 const ResourceDictionary& DataTemplate::GetResources() const noexcept {
-    const Controls::DataTemplateState* state = static_cast<const Controls::DataTemplateState*>(state_);
+    const Controls::DataTemplateState* state = static_cast<const Controls::DataTemplateState*>(TemplateState());
     if (state != nullptr) return state->resources;
     static ResourceDictionary fallback;
     return fallback;
 }
 
 bool DataTemplate::GetIsSealed() const noexcept {
-    const Controls::DataTemplateState* state = static_cast<const Controls::DataTemplateState*>(state_);
+    const Controls::DataTemplateState* state = static_cast<const Controls::DataTemplateState*>(TemplateState());
     return state != nullptr && state->program.sealed;
 }
 
 ::Aero::Controls::DataTemplateState* FrameworkTemplateState::State(DataTemplate& value) noexcept {
-    return static_cast<Controls::DataTemplateState*>(value.state_);
+    return static_cast<Controls::DataTemplateState*>(value.TemplateState());
 }
 
 const ::Aero::Controls::DataTemplateState* FrameworkTemplateState::State(const DataTemplate& value) noexcept {
-    return static_cast<const Controls::DataTemplateState*>(value.state_);
+    return static_cast<const Controls::DataTemplateState*>(value.TemplateState());
 }
 
 Base::Result<void> FrameworkTemplateState::Configure(DataTemplate& value, Controls::DeferredObjectFactory factory, void* context, Base::Ref<Base::Object> owner) noexcept {
@@ -975,49 +979,49 @@ Base::Result<Base::Ref<Base::Object>> FrameworkTemplateState::Instantiate(
 
 namespace Aero::Controls {
 
-ItemsPanelTemplate::ItemsPanelTemplate() noexcept
-    : state_(new (std::nothrow) Controls::ItemsPanelTemplateState()) {
-    if (state_ == nullptr) {
+ItemsPanelTemplate::ItemsPanelTemplate() noexcept {
+    auto* state = new (std::nothrow) Controls::ItemsPanelTemplateState();
+    if (state == nullptr) {
         Base::ReportOutOfMemory(sizeof(Controls::ItemsPanelTemplateState), alignof(Controls::ItemsPanelTemplateState), Base::MemoryTag::Ui);
     }
+    InstallTemplateState(state);
 }
 
 ItemsPanelTemplate::~ItemsPanelTemplate() noexcept {
-    delete static_cast<Controls::ItemsPanelTemplateState*>(state_);
-    state_ = nullptr;
+    delete static_cast<Controls::ItemsPanelTemplateState*>(DetachTemplateState());
 }
 
 ResourceDictionary& ItemsPanelTemplate::GetResources() noexcept {
-    Controls::ItemsPanelTemplateState* state = static_cast<Controls::ItemsPanelTemplateState*>(state_);
+    Controls::ItemsPanelTemplateState* state = static_cast<Controls::ItemsPanelTemplateState*>(TemplateState());
     if (state != nullptr) return state->resources;
     static ResourceDictionary fallback;
     return fallback;
 }
 
 const ResourceDictionary& ItemsPanelTemplate::GetResources() const noexcept {
-    const Controls::ItemsPanelTemplateState* state = static_cast<const Controls::ItemsPanelTemplateState*>(state_);
+    const Controls::ItemsPanelTemplateState* state = static_cast<const Controls::ItemsPanelTemplateState*>(TemplateState());
     if (state != nullptr) return state->resources;
     static ResourceDictionary fallback;
     return fallback;
 }
 
 bool ItemsPanelTemplate::GetIsSealed() const noexcept {
-    const Controls::ItemsPanelTemplateState* state = static_cast<const Controls::ItemsPanelTemplateState*>(state_);
+    const Controls::ItemsPanelTemplateState* state = static_cast<const Controls::ItemsPanelTemplateState*>(TemplateState());
     return state != nullptr && state->program.sealed;
 }
 
 void ItemsPanelTemplate::SetResources(Base::Ref<ResourceDictionary> value) noexcept {
-    Controls::ItemsPanelTemplateState* state = static_cast<Controls::ItemsPanelTemplateState*>(state_);
+    Controls::ItemsPanelTemplateState* state = static_cast<Controls::ItemsPanelTemplateState*>(TemplateState());
     if (state == nullptr) return;
     (void)Aero::AssignResourceDictionary(state->resources, std::move(value), "ItemsPanelTemplate Resources is already assigned");
 }
 
 ItemsPanelTemplateState* FrameworkTemplateState::State(ItemsPanelTemplate& value) noexcept {
-    return static_cast<Controls::ItemsPanelTemplateState*>(value.state_);
+    return static_cast<Controls::ItemsPanelTemplateState*>(value.TemplateState());
 }
 
 const ItemsPanelTemplateState* FrameworkTemplateState::State(const ItemsPanelTemplate& value) noexcept {
-    return static_cast<const Controls::ItemsPanelTemplateState*>(value.state_);
+    return static_cast<const Controls::ItemsPanelTemplateState*>(value.TemplateState());
 }
 
 Base::Result<void> FrameworkTemplateState::Configure(ItemsPanelTemplate& value, DeferredObjectFactory factory, void* context, Base::Ref<Base::Object> owner) noexcept {
@@ -1816,9 +1820,9 @@ namespace Aero::Controls {
 bool Control::ApplyTemplate() noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) return false;
-    if (AeroGuiInternal::IsTemplateApplied(*this)) return false;
+    if ((*this).IsTemplateApplied()) return false;
     auto* templateRuntime = static_cast<TemplateEngine*>(
-        AeroGuiInternal::TemplateRuntime(*this));
+        ElementTree::TemplatesOf(*this));
     if (templateRuntime == nullptr) {
         return false;
     }
@@ -1841,7 +1845,7 @@ bool Control::ApplyTemplate() noexcept {
 DependencyObject* Control::GetTemplateChild(
     Base::StringView name) const noexcept {
     auto* templateRuntime = static_cast<TemplateEngine*>(
-        AeroGuiInternal::TemplateRuntime(*this));
+        ElementTree::TemplatesOf(*this));
     if (templateRuntime == nullptr ||
         templateHandleValue_ == 0U ||
         name.Empty()) {
@@ -1854,7 +1858,7 @@ DependencyObject* Control::GetTemplateChild(
 DependencyObject* Control::GetTemplateChild(
     TypeId type) const noexcept {
     auto* templateRuntime = static_cast<TemplateEngine*>(
-        AeroGuiInternal::TemplateRuntime(*this));
+        ElementTree::TemplatesOf(*this));
     if (templateRuntime == nullptr ||
         templateHandleValue_ == 0U ||
         type == InvalidTypeId) {
@@ -1880,7 +1884,7 @@ void FrameworkTemplate::SetResources(
 }
 
 void DataTemplate::SetResources(Base::Ref<ResourceDictionary> value) noexcept {
-    Controls::DataTemplateState* state = static_cast<Controls::DataTemplateState*>(state_);
+    Controls::DataTemplateState* state = static_cast<Controls::DataTemplateState*>(TemplateState());
     if (state == nullptr) return;
     (void)Aero::AssignResourceDictionary(state->resources, std::move(value), "DataTemplate Resources is already assigned");
 }
@@ -2070,8 +2074,7 @@ Base::Result<TemplateHandle> TemplateEngine::Apply(
         (void)ClearAt(instances_.Size() - 1U);
         return status;
     }
-    AeroGuiInternal::NotifyTemplateApplied(
-        control, stored.handle.value);
+    (control).NotifyTemplateApplied( stored.handle.value);
     return stored.handle;
 }
 
@@ -2603,8 +2606,7 @@ Base::Result<void> TemplateEngine::ClearProviders(
 Base::Result<void> TemplateEngine::ClearAt(
     std::uint32_t index) noexcept {
     Instance& instance = instances_[index];
-    AeroGuiInternal::NotifyTemplateDetached(
-        *instance.parent);
+    (*instance.parent).NotifyTemplateDetached();
     DetachMetadataBindings(instance);
     DetachDynamicResources(instance);
     Unsubscribe(instance);
@@ -2613,11 +2615,10 @@ Base::Result<void> TemplateEngine::ClearAt(
 
     for (Aero::Controls::TemplatePart& part : instance.parts) {
         if (part.frameworkElement != nullptr) {
-            AeroGuiInternal::SetTemplatedParent(
-                *part.frameworkElement, nullptr);
+            (*part.frameworkElement).SetTemplatedParent( nullptr);
         }
     }
-    AeroGuiInternal::SetTemplateRoot(*instance.parent, nullptr);
+    (*instance.parent).SetTemplateChildCore( nullptr);
 
     for (std::uint32_t projectionIndex = instance.projections.Size();
          projectionIndex > 0U; --projectionIndex) {

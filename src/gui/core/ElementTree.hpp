@@ -134,9 +134,80 @@ public:
     static ElementTree* Of(const ::Aero::Media::Visual& visual) noexcept {
         return visual.tree_;
     }
+    static VisualHandle HandleOf(const ::Aero::Media::Visual& visual) noexcept {
+        return {visual.handleIndex_, visual.handleGeneration_};
+    }
     static ElementTree* Of(const ::Aero::Media::Visual* visual) noexcept {
         return visual != nullptr ? visual->tree_ : nullptr;
     }
+    static Aero::LayoutEngine* LayoutOf(const ::Aero::Media::Visual& visual) noexcept {
+        ElementTree* tree = Of(visual);
+        return tree != nullptr ? tree->Layout() : nullptr;
+    }
+    static Aero::EventRouter* EventsOf(const ::Aero::Media::Visual& visual) noexcept {
+        ElementTree* tree = Of(visual);
+        return tree != nullptr ? tree->Events() : nullptr;
+    }
+    static Aero::InputRouter* InputOf(const ::Aero::Media::Visual& visual) noexcept {
+        ElementTree* tree = Of(visual);
+        return tree != nullptr ? tree->Input() : nullptr;
+    }
+    static Aero::BindingEngine* BindingsOf(const DependencyObject& object) noexcept;
+    static Aero::StyleEngine* StylesOf(const ::Aero::Media::Visual& visual) noexcept {
+        ElementTree* tree = Of(visual);
+        return tree != nullptr ? tree->Styles() : nullptr;
+    }
+    static Aero::AnimationEngine* AnimationsOf(const ::Aero::Media::Visual& visual) noexcept {
+        ElementTree* tree = Of(visual);
+        return tree != nullptr ? tree->Animations() : nullptr;
+    }
+    static Controls::TemplateEngine* TemplatesOf(const ::Aero::Media::Visual& visual) noexcept {
+        ElementTree* tree = Of(visual);
+        return tree != nullptr ? tree->Templates() : nullptr;
+    }
+    static VisualStateManager* VisualStatesOf(const ::Aero::Media::Visual& visual) noexcept {
+        ElementTree* tree = Of(visual);
+        return tree != nullptr ? tree->VisualStates() : nullptr;
+    }
+    static Controls::TextBlockLayout* TextLayoutOf(const ::Aero::Media::Visual& visual) noexcept {
+        ElementTree* tree = Of(visual);
+        return tree != nullptr ? tree->TextLayout() : nullptr;
+    }
+    static Aero::Input::IClipboard* ClipboardOf(const ::Aero::Media::Visual& visual) noexcept {
+        ElementTree* tree = Of(visual);
+        return tree != nullptr ? tree->Clipboard() : nullptr;
+    }
+    static Render::MeshResources* MeshResourcesOf(const ::Aero::Media::Visual& visual) noexcept {
+        ElementTree* tree = Of(visual);
+        return tree != nullptr ? tree->MeshResources() : nullptr;
+    }
+    static ::Aero::Render::RenderTree* RenderTreeOf(const ::Aero::Media::Visual& visual) noexcept {
+        if (visual.renderNodeId_ == Base::InvalidRenderNodeId) return nullptr;
+        ElementTree* tree = Of(visual);
+        return tree != nullptr ? tree->RenderTree() : nullptr;
+    }
+    static void SetActiveRepeatButton(
+        const ::Aero::Media::Visual& visual,
+        Controls::Primitives::RepeatButton* button) noexcept {
+        if (ElementTree* tree = Of(visual)) tree->SetActiveRepeatButton(button);
+    }
+    static Base::Object* FindInTree(
+        const UIElement& element,
+        Base::StringView name,
+        Meta::TypeId expectedType = Meta::InvalidTypeId) noexcept {
+        ElementTree* tree = Of(element);
+        return tree != nullptr ? tree->FindName(name, expectedType) : nullptr;
+    }
+    static ResourceEnvironment EnvironmentOf(const ::Aero::Media::Visual& visual) noexcept {
+        ElementTree* tree = Of(visual);
+        return tree != nullptr ? tree->GetResourceEnvironment() : ResourceEnvironment{};
+    }
+    static void EnsureVisualChildStorage(
+        ::Aero::Media::Visual& parent, ::Aero::Media::Visual& child) noexcept;
+    static void AttachVisualControlTemplateRoot(
+        ::Aero::Media::Visual& parent, ::Aero::Media::Visual& child) noexcept;
+    static void CleanVisualChildStorage(
+        ::Aero::Media::Visual& parent, ::Aero::Media::Visual& child) noexcept;
     Base::Result<void> SetRoot(::Aero::Media::Visual* root) noexcept;
     ::Aero::Media::Visual* Root() const noexcept { return root_; }
     Base::Result<VisualHandle> GetHandle(

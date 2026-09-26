@@ -510,6 +510,60 @@ bool CombinedGeometry::FreezeCore(bool isChecking) noexcept {
 } // namespace Aero::Media
 
 #include <Aero/Media/Pen.hpp>
+#include "gui/core/Describe.hpp"
+#include "gui/core/TypeRegistryDetail.hpp"
+#include "gui/core/RenderStateCallbacks.hpp"
+#include "gui/core/ValueConversion.hpp"
+#include "gui/data/BindingEngine.hpp"
+#include <Aero/Interactivity/Conditions.hpp>
+#include <Aero/Interactivity/Behavior.hpp>
+#include <Aero/Interactivity/BlendBehaviors.hpp>
+#include <Aero/Interactivity/Interaction.hpp>
+#include <Aero/Interactivity/InteractionTriggers.hpp>
+#include <Aero/Interactivity/TriggerAction.hpp>
+#include <Aero/Style.hpp>
+#include <Aero/Triggers.hpp>
+#include <Aero/Resources.hpp>
+#include <Aero/EventTrigger.hpp>
+#include <Aero/Events/EventArgs.hpp>
+#include <Aero/Events/CommandEventArgs.hpp>
+#include <Aero/Media/Animation.hpp>
+#include <Aero/Media/Animation/MediaActions.hpp>
+#include <Aero/Media/Animation/StoryboardActions.hpp>
+#include <Aero/Media/Animation/StoryboardCompletedTrigger.hpp>
+#include <Aero/Media/Animation/TimerTrigger.hpp>
+#include <Aero/Media/Brushes.hpp>
+#include <Aero/Media/Effects.hpp>
+#include <Aero/Media/Images.hpp>
+#include <Aero/Media/MediaElement.hpp>
+#include <Aero/Media/Transform2D.hpp>
+#include <Aero/Media/Transform3D.hpp>
+#include <Aero/Media/Fonts.hpp>
+#include <Aero/Layout.hpp>
+#include <Aero/FrameworkElement.hpp>
+#include <Aero/Collections.hpp>
+#include <Aero/Input.hpp>
+#include <Aero/ICommand.hpp>
+#include <Aero/RoutedCommand.hpp>
+#include <Aero/InputBinding.hpp>
+#include <Aero/EventSetter.hpp>
+#include <Aero/KeyboardNavigation.hpp>
+#include <Aero/CommandBinding.hpp>
+#include <Aero/ApplicationCommands.hpp>
+#include <Aero/InputGesture.hpp>
+#include <Aero/Data/Binding.hpp>
+#include <Aero/Data/MultiBinding.hpp>
+#include <Aero/Data/BooleanToVisibilityConverter.hpp>
+#include <Aero/Data/IMultiValueConverter.hpp>
+#include <Aero/Data/IValueConverter.hpp>
+#include <Aero/DataObject.hpp>
+#include <Aero/DragDrop.hpp>
+#include <Aero/Input/Cursor.hpp>
+#include <Aero/Input/Mouse.hpp>
+#include <Aero/Input/Keyboard.hpp>
+#include <Aero/Animatable.hpp>
+#include <cctype>
+#include <cstdlib>
 
 namespace Aero::Media {
 
@@ -534,3 +588,379 @@ void DashStyle::SetOffset(double value) noexcept {
 }
 
 } // namespace Aero::Media
+
+// Metadata registration for the types implemented in this file.
+namespace Aero::MetadataSupport {
+using namespace ::Aero::Meta;
+using namespace ::Aero::Threading;
+using namespace ::Aero::Input;
+using namespace ::Aero::Media;
+using namespace ::Aero::Data;
+using namespace ::Aero::Interactivity;
+    using namespace Interactivity;
+    using Media::Animation::BeginStoryboard;
+    using Media::Animation::BooleanAnimationUsingKeyFrames;
+    using Media::Animation::BooleanKeyFrame;
+    using Media::Animation::ColorAnimationUsingKeyFrames;
+    using Media::Animation::ColorKeyFrame;
+    using Media::Animation::DoubleAnimationUsingKeyFrames;
+    using Media::Animation::DoubleKeyFrame;
+    using Media::Animation::EventTrigger;
+    using Media::Animation::Int16AnimationUsingKeyFrames;
+    using Media::Animation::Int16KeyFrame;
+    using Media::Animation::Int32AnimationUsingKeyFrames;
+    using Media::Animation::Int32KeyFrame;
+    using Media::Animation::Int64AnimationUsingKeyFrames;
+    using Media::Animation::Int64KeyFrame;
+    using Media::Animation::MatrixAnimationUsingKeyFrames;
+    using Media::Animation::MatrixKeyFrame;
+    using Media::Animation::ObjectAnimationUsingKeyFrames;
+    using Media::Animation::ObjectKeyFrame;
+    using Media::Animation::PointAnimationUsingKeyFrames;
+    using Media::Animation::PointKeyFrame;
+    using Media::Animation::SizeAnimationUsingKeyFrames;
+    using Media::Animation::SizeKeyFrame;
+    using Media::Animation::Storyboard;
+    using Media::Animation::StoryboardCompletedTrigger;
+    using Media::Animation::StringAnimationUsingKeyFrames;
+    using Media::Animation::StringKeyFrame;
+    using Media::Animation::ThicknessAnimationUsingKeyFrames;
+    using Media::Animation::ThicknessKeyFrame;
+    using Media::Animation::Timeline;
+    using Media::Animation::TimelineGroup;
+    using Media::Effect;
+    using Media::FontFamily;
+    using Media::Geometry;
+    using Media::GeometryGroup;
+    using Media::PathFigure;
+    using Media::PathGeometry;
+    using Media::PathSegment;
+    using Media::StreamGeometry;
+namespace {
+
+void AddPathFigureSegment(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    if (!value) return;
+    Base::Ref<PathSegment> retained =
+        Base::Ref<PathSegment>::TryFromBorrowed(
+            static_cast<PathSegment&>(*value));
+    if (retained) {
+        static_cast<PathFigure&>(owner)
+            .AddSegment(std::move(retained));
+    }
+}
+
+void ClearPathFigureSegments(
+    Base::Object& owner,
+    void*) noexcept {
+    static_cast<PathFigure&>(owner).ClearSegments();
+}
+
+void AddPathGeometryFigure(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    if (!value) return;
+    Base::Ref<PathFigure> retained =
+        Base::Ref<PathFigure>::TryFromBorrowed(
+            static_cast<PathFigure&>(*value));
+    if (retained) {
+        static_cast<PathGeometry&>(owner)
+            .AddFigure(std::move(retained));
+    }
+}
+
+void ClearPathGeometryFigures(
+    Base::Object& owner,
+    void*) noexcept {
+    static_cast<PathGeometry&>(owner).ClearFigures();
+}
+
+void AddGeometryGroupChild(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    if (!value) return;
+    Base::Ref<Geometry> retained =
+        Base::Ref<Geometry>::TryFromBorrowed(
+            static_cast<Geometry&>(*value));
+    if (retained) {
+        static_cast<GeometryGroup&>(owner)
+            .Add(std::move(retained));
+    }
+}
+
+void ClearGeometryGroupChildren(
+    Base::Object& owner,
+    void*) noexcept {
+    static_cast<GeometryGroup&>(owner).Clear();
+}
+
+Base::Result<Value> ConvertGeometryText(
+    TypeId targetType,
+    Base::StringView text,
+    void*) noexcept {
+    const bool streamGeometry =
+        targetType == StreamGeometry::StaticTypeId();
+    if (targetType != Geometry::StaticTypeId() &&
+        !streamGeometry) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Geometry text conversion received an invalid target");
+    }
+    Base::Result<Base::Ref<StreamGeometry>> made =
+        Base::MakeRef<StreamGeometry>();
+    if (!made) return made.GetStatus();
+    Base::Ref<Geometry> geometry =
+        Base::Ref<Geometry>(std::move(made).Value());
+    static_cast<StreamGeometry*>(geometry.Get())->SetData(text);
+    return Value::FromObject(
+        targetType,
+        Base::Ref<Base::Object>(
+            std::move(geometry)));
+}
+
+} // namespace
+} // namespace Aero::MetadataSupport
+
+AERO_DESCRIBE(::Aero::Media::Geometry) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    using namespace Media;
+    Register<Geometry>(context)
+            .Property("Transform", &Geometry::GetTransform, &Geometry::SetTransform, PropertyFlags::Structural)
+            .Content(MakeMemberId(Geometry::StaticTypeId(), MemberKind::Property, "Transform"))
+            .TextConverter(&::Aero::MetadataSupport::ConvertGeometryText)
+            .Factory();
+}
+
+AERO_DESCRIBE(::Aero::Media::PathSegment) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    using namespace Media;
+    Register<PathSegment>(context, TypeFlags::Abstract);
+}
+
+AERO_DESCRIBE(::Aero::Media::LineSegment) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    using namespace Media;
+    Register<LineSegment>(context)
+            .Property(LineSegment::PointProperty, Point{}, AffectsRender)
+            .Factory();
+}
+
+AERO_DESCRIBE(::Aero::Media::PathFigure) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    using namespace Media;
+    Register<PathFigure>(context)
+            .Property(PathFigure::StartPointProperty, Point{}, AffectsRender)
+            .Property(PathFigure::IsClosedProperty, false, AffectsRender)
+            .Content<PathSegment>("Segments", ContentKind::Collection, &::Aero::MetadataSupport::AddPathFigureSegment, &::Aero::MetadataSupport::ClearPathFigureSegments)
+            .Factory();
+}
+
+AERO_DESCRIBE(::Aero::Media::PathGeometry) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    using namespace Media;
+    Register<PathGeometry>(context)
+            .Content<PathFigure>("Figures", ContentKind::Collection, &::Aero::MetadataSupport::AddPathGeometryFigure, &::Aero::MetadataSupport::ClearPathGeometryFigures)
+            .Factory();
+}
+
+AERO_DESCRIBE(::Aero::Media::BezierSegment) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    using namespace Media;
+    Register<BezierSegment>(context)
+            .Property(BezierSegment::Point1Property, Point{}, AffectsRender)
+            .Property(BezierSegment::Point2Property, Point{}, AffectsRender)
+            .Property(BezierSegment::Point3Property, Point{}, AffectsRender)
+            .Factory();
+}
+
+AERO_DESCRIBE(::Aero::Media::QuadraticBezierSegment) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    using namespace Media;
+    Register<QuadraticBezierSegment>(context)
+            .Property(QuadraticBezierSegment::Point1Property, Point{}, AffectsRender)
+            .Property(QuadraticBezierSegment::Point2Property, Point{}, AffectsRender)
+            .Factory();
+}
+
+AERO_DESCRIBE(::Aero::Media::ArcSegment) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    using namespace Media;
+    Register<ArcSegment>(context)
+            .Property(ArcSegment::PointProperty, Point{}, AffectsRender)
+            .Property(ArcSegment::SizeProperty, Size{}, AffectsRender)
+            .Property(ArcSegment::RotationAngleProperty, 0.0, AffectsRender)
+            .Property(ArcSegment::IsLargeArcProperty, false, AffectsRender)
+            .Property(ArcSegment::SweepDirectionProperty, SweepDirection::Counterclockwise, AffectsRender)
+            .Factory();
+}
+
+AERO_DESCRIBE(::Aero::Media::PolyLineSegment) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    using namespace Media;
+    Register<PolyLineSegment>(context)
+            .Property<Base::String, &PolyLineSegment::SetPointsText>("Points", PropertyFlags::None)
+            .Factory();
+}
+
+AERO_DESCRIBE(::Aero::Media::PolyBezierSegment) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    using namespace Media;
+    Register<PolyBezierSegment>(context)
+            .Property<Base::String, &PolyBezierSegment::SetPointsText>("Points", PropertyFlags::None)
+            .Factory();
+}
+
+AERO_DESCRIBE(::Aero::Media::PolyQuadraticBezierSegment) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    using namespace Media;
+    Register<PolyQuadraticBezierSegment>(context)
+            .Property<Base::String, &PolyQuadraticBezierSegment::SetPointsText>("Points", PropertyFlags::None)
+            .Factory();
+}
+
+AERO_DESCRIBE(::Aero::Media::LineGeometry) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    using namespace Media;
+    Register<LineGeometry>(context)
+            .Property(LineGeometry::StartPointProperty, Point{}, AffectsRender)
+            .Property(LineGeometry::EndPointProperty, Point{}, AffectsRender)
+            .Factory();
+}
+
+AERO_DESCRIBE(::Aero::Media::RectangleGeometry) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    using namespace Media;
+    Register<RectangleGeometry>(context)
+            .Property(RectangleGeometry::RectProperty, Rect{}, AffectsRender)
+            .Property(RectangleGeometry::RadiusXProperty, 0.0, AffectsRender)
+            .Property(RectangleGeometry::RadiusYProperty, 0.0, AffectsRender)
+            .Factory();
+}
+
+AERO_DESCRIBE(::Aero::Media::EllipseGeometry) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    using namespace Media;
+    Register<EllipseGeometry>(context)
+            .Property(EllipseGeometry::CenterProperty, Point{}, AffectsRender)
+            .Property(EllipseGeometry::RadiusXProperty, 0.0, AffectsRender)
+            .Property(EllipseGeometry::RadiusYProperty, 0.0, AffectsRender)
+            .Factory();
+}
+
+AERO_DESCRIBE(::Aero::Media::GeometryGroup) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    using namespace Media;
+    Register<GeometryGroup>(context)
+            .Content<Geometry>("Children", ContentKind::Collection, &::Aero::MetadataSupport::AddGeometryGroupChild, &::Aero::MetadataSupport::ClearGeometryGroupChildren)
+            .Factory();
+}
+
+AERO_DESCRIBE(::Aero::Media::CombinedGeometry) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    using namespace Media;
+    Register<CombinedGeometry>(context)
+            .Property("Geometry1", &CombinedGeometry::GetGeometry1, &CombinedGeometry::SetGeometry1, PropertyFlags::Structural)
+            .Property("Geometry2", &CombinedGeometry::GetGeometry2, &CombinedGeometry::SetGeometry2, PropertyFlags::Structural)
+            .Property(CombinedGeometry::GeometryCombineModeProperty, GeometryCombineMode::Union, AffectsRender)
+            .Factory();
+}

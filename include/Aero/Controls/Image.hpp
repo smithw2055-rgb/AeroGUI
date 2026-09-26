@@ -4,7 +4,6 @@
 #include <Aero/Media/Images.hpp>
 
 
-namespace Aero { class AeroGuiInternal; }
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
 using ::Aero::Media::ImageSource;
@@ -20,6 +19,10 @@ public:
     void SetSource(Ref<ImageSource> value) noexcept;
     void SetStretch(Stretch value) noexcept;
     void SetStretchDirection(StretchDirection value) noexcept;
+    void SetRuntimeData(
+        std::uint64_t renderImage,
+        std::uint32_t pixelWidth,
+        std::uint32_t pixelHeight) noexcept;
 
     AERO_DEPENDENCY_PROPERTY(Ref<ImageSource>, Source);
     AERO_DEPENDENCY_PROPERTY(Stretch, Stretch);
@@ -30,7 +33,6 @@ protected:
     void OnRender(::Aero::Media::DrawingContext& context) noexcept override;
 
 private:
-    friend class ::Aero::AeroGuiInternal;
     std::uint64_t renderImage_ = 0U;
     std::uint32_t pixelWidth_ = 0U;
     std::uint32_t pixelHeight_ = 0U;

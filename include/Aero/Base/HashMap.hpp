@@ -21,7 +21,8 @@ public:
     class Entry  {
     public:
         const K& Key() const noexcept { return key_; }
-        V& Value() noexcept { return value_; } const V& Value() const noexcept { return value_; }
+        V& Value() noexcept { return value_; }
+        const V& Value() const noexcept { return value_; }
 
     private:
         friend class HashMap;

@@ -6,8 +6,7 @@
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
-#include "gui/meta/TypeRegistryDetail.hpp"
+#include "gui/core/TypeRegistryDetail.hpp"
 
 namespace Aero {
 
@@ -52,7 +51,7 @@ bool IsRuntimeTypeDerivedFrom(
     if (types != nullptr &&
         types->IsDerivedFrom(
             runtimeType, DependencyObject::StaticTypeId())) {
-        return AeroGuiInternal::PropertyRegistry(static_cast<const DependencyObject*>(object))
+        return static_cast<const DependencyObject*>(object)->PropertyRegistry()
             .Types()
             .IsDerivedFrom(runtimeType, baseType);
     }
@@ -76,7 +75,7 @@ void* TryCastToInterface(
     if (types != nullptr &&
         types->IsDerivedFrom(
             object->RuntimeType(), DependencyObject::StaticTypeId())) {
-        return AeroGuiInternal::PropertyRegistry(static_cast<DependencyObject*>(object))
+        return static_cast<DependencyObject*>(object)->PropertyRegistry()
             .Types()
             .TryCastToInterface(*object, interfaceType);
     }

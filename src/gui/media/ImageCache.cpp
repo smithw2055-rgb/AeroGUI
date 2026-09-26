@@ -3,9 +3,6 @@
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleEngine.hpp"
 #include "gui/markup/XamlSchema.hpp"
 #include "render/DisplayList.hpp"
 #include "ImageCache.hpp"
@@ -123,11 +120,11 @@ Base::Result<void> ClearImageTarget(
     Controls::Image* imageControl,
     Media::ImageBrush* imageBrush) noexcept {
     if (imageControl != nullptr) {
-        return AeroGuiInternal::SetImageRuntimeData(
-            *imageControl,
+        imageControl->SetRuntimeData(
             Render::InvalidRenderImageId,
             0U,
             0U);
+        return {};
     }
     if (imageBrush != nullptr) {
         imageBrush->SetRuntimeImage(
@@ -236,7 +233,7 @@ Base::Result<bool> ImageCache::Synchronize(
         pending.PopBack();
         if (visual == nullptr) continue;
         for (Aero::Media::Visual* child :
-             AeroGuiInternal::RenderChildren(*visual)) {
+             (*visual).RenderChildren()) {
             pending.PushBack(child);
         }
         // A visual may reference one bitmap for its content/fill and another
@@ -249,7 +246,7 @@ Base::Result<bool> ImageCache::Synchronize(
         Base::Ref<Media::ImageSource>
             source;
         if (targetIndex == 0U &&
-            AeroGuiInternal::PropertyRegistry(visual).Types().IsDerivedFrom(
+            visual->PropertyRegistry().Types().IsDerivedFrom(
                 visual->RuntimeType(),
                 Controls::Image::StaticTypeId())) {
             imageControl =
@@ -258,18 +255,18 @@ Base::Result<bool> ImageCache::Synchronize(
             source = imageControl->GetSource();
         } else if (targetIndex == 0U) {
             Base::Ref<Media::Brush> fill;
-            if (AeroGuiInternal::PropertyRegistry(visual).Types().IsDerivedFrom(
+            if (visual->PropertyRegistry().Types().IsDerivedFrom(
                     visual->RuntimeType(),
                     Shapes::Shape::StaticTypeId())) {
                 fill = static_cast<Shapes::Shape*>(visual)->GetFill();
             } else if (visual->RuntimeType() ==
                        Controls::Border::StaticTypeId()) {
                 fill = static_cast<Controls::Border*>(visual)->GetBackground();
-            } else if (AeroGuiInternal::PropertyRegistry(visual).Types().IsDerivedFrom(
+            } else if (visual->PropertyRegistry().Types().IsDerivedFrom(
                            visual->RuntimeType(),
                            Controls::Panel::StaticTypeId())) {
                 fill = static_cast<Controls::Panel*>(visual)->GetBackground();
-            } else if (AeroGuiInternal::PropertyRegistry(visual).Types().IsDerivedFrom(
+            } else if (visual->PropertyRegistry().Types().IsDerivedFrom(
                            visual->RuntimeType(),
                            Controls::Control::StaticTypeId())) {
                 fill = static_cast<Controls::Control*>(visual)->GetBackground();
@@ -301,20 +298,15 @@ Base::Result<bool> ImageCache::Synchronize(
             source = imageBrush->GetSource();
         }
         if (!source) {
-            Base::Result<void> cleared =
-                imageControl != nullptr
-                ? AeroGuiInternal::SetImageRuntimeData(
-                    *imageControl,
+            if (imageControl != nullptr) {
+                imageControl->SetRuntimeData(
                     Render::InvalidRenderImageId,
-                    0U, 0U)
-                : Base::Result<void>{};
+                    0U, 0U);
+            }
             if (imageBrush != nullptr && imageControl == nullptr) {
                 imageBrush->SetRuntimeImage(
                     Render::InvalidRenderImageId,
                     0U, 0U);
-            }
-            if (!cleared) {
-                return cleared.GetStatus();
             }
             continue;
         }
@@ -604,10 +596,8 @@ Base::Result<bool> ImageCache::Synchronize(
                 nextHeadlessImage_++;
             changed = true;
         }
-        Base::Result<void> assigned;
         if (imageControl != nullptr) {
-            assigned = AeroGuiInternal::SetImageRuntimeData(
-                *imageControl,
+            imageControl->SetRuntimeData(
                 record->renderImage,
                 record->width,
                 record->height);
@@ -617,7 +607,6 @@ Base::Result<bool> ImageCache::Synchronize(
                 record->width,
                 record->height);
         }
-        if (!assigned) return assigned.GetStatus();
         }
     }
 

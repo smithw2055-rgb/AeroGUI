@@ -17,23 +17,19 @@
 #include <cmath>
 #include <cstdio>
 #include <new>
-#include <Aero/FocusManager.hpp>
 #include <Aero/KeyboardNavigation.hpp>
 #include <Aero/FrameworkElement.hpp>
-#include "gui/meta/ElementsFill.hpp"
-#include "gui/meta/RenderStateCallbacks.hpp"
+#include "gui/core/ElementsFill.hpp"
+#include "gui/core/RenderStateCallbacks.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/input/InputManager.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleEngine.hpp"
-#include "gui/meta/TypeRegistryDetail.hpp"
+#include "gui/core/TypeRegistryDetail.hpp"
 #include "gui/core/DependencyPropertyRegistry.hpp"
-#include "gui/internal/ErasedRoutedHandler.hpp"
+#include "gui/core/ErasedRoutedHandler.hpp"
 #include <Aero/ClassHandler.hpp>
 
 using namespace Aero;
@@ -72,15 +68,15 @@ Base::Result<void> UIElement::ArrangeChild(
     UIElement& child,
     Rect finalRect) noexcept {
     auto* layout = static_cast<Aero::LayoutEngine*>(
-        AeroGuiInternal::LayoutEngineOf(*this));
-    if (layout == nullptr || !AeroGuiInternal::Layout(child).layoutAttached ||
+        ElementTree::LayoutOf(*this));
+    if (layout == nullptr || !(child).Layout().layoutAttached ||
         child.LayoutParent() != this) {
         thread_local char message[512];
         const TypeInfo* parentType =
-            AeroGuiInternal::PropertyRegistry(*this).Types().FindType(
+            (*this).PropertyRegistry().Types().FindType(
                 RuntimeType());
         const TypeInfo* childType =
-            AeroGuiInternal::PropertyRegistry(child).Types().FindType(
+            (child).PropertyRegistry().Types().FindType(
                 child.RuntimeType());
         const Base::StringView parentName =
             parentType != nullptr
@@ -92,7 +88,7 @@ Base::Result<void> UIElement::ArrangeChild(
             : Base::StringView("<unknown>");
         const TypeInfo* actualParentType =
             child.LayoutParent() != nullptr
-            ? AeroGuiInternal::PropertyRegistry(*this).Types().FindType(
+            ? (*this).PropertyRegistry().Types().FindType(
                   child.LayoutParent()->
                       RuntimeType())
             : nullptr;
@@ -112,7 +108,7 @@ Base::Result<void> UIElement::ArrangeChild(
                 parentName.SizeBytes()),
             parentName.Data(),
             static_cast<void*>(this),
-            AeroGuiInternal::Layout(child).layoutAttached ? 1U : 0U,
+            (child).Layout().layoutAttached ? 1U : 0U,
             static_cast<int>(
                 actualParentName.SizeBytes()),
             actualParentName.Data(),
@@ -175,15 +171,15 @@ Base::Result<void> UIElement::MeasureChild(
     UIElement& child,
     Size availableSize) noexcept {
     auto* layout = static_cast<Aero::LayoutEngine*>(
-        AeroGuiInternal::LayoutEngineOf(*this));
-    if (layout == nullptr || !AeroGuiInternal::Layout(child).layoutAttached ||
+        ElementTree::LayoutOf(*this));
+    if (layout == nullptr || !(child).Layout().layoutAttached ||
         child.LayoutParent() != this) {
         thread_local char message[512];
         const TypeInfo* parentType =
-            AeroGuiInternal::PropertyRegistry(*this).Types().FindType(
+            (*this).PropertyRegistry().Types().FindType(
                 RuntimeType());
         const TypeInfo* childType =
-            AeroGuiInternal::PropertyRegistry(child).Types().FindType(
+            (child).PropertyRegistry().Types().FindType(
                 child.RuntimeType());
         const Base::StringView parentName =
             parentType != nullptr
@@ -195,7 +191,7 @@ Base::Result<void> UIElement::MeasureChild(
             : Base::StringView("<unknown>");
         const TypeInfo* actualParentType =
             child.LayoutParent() != nullptr
-            ? AeroGuiInternal::PropertyRegistry(*this).Types().FindType(
+            ? (*this).PropertyRegistry().Types().FindType(
                   child.LayoutParent()->
                       RuntimeType())
             : nullptr;
@@ -215,7 +211,7 @@ Base::Result<void> UIElement::MeasureChild(
                 parentName.SizeBytes()),
             parentName.Data(),
             static_cast<void*>(this),
-            AeroGuiInternal::Layout(child).layoutAttached ? 1U : 0U,
+            (child).Layout().layoutAttached ? 1U : 0U,
             static_cast<int>(
                 actualParentName.SizeBytes()),
             actualParentName.Data(),
@@ -457,7 +453,7 @@ void UIElement::OnPropertyInvalidated(
     } else if (HasFlag(flags, PropertyInvalidationFlags::Arrange)) {
         InvalidateArrange();
     }
-    UIElement* parent = AeroGuiInternal::Layout(*this).layoutAttached ? LayoutParent() : nullptr;
+    UIElement* parent = (*this).Layout().layoutAttached ? LayoutParent() : nullptr;
     if (parent != nullptr &&
         HasFlag(flags, PropertyInvalidationFlags::ParentMeasure)) {
         parent->InvalidateMeasure();
@@ -467,7 +463,7 @@ void UIElement::OnPropertyInvalidated(
     }
     if (HasFlag(flags, PropertyInvalidationFlags::Render)) {
         static_cast<void>(
-            AeroGuiInternal::InvalidateRenderState(*this));
+            (*this).InvalidateRenderState());
     }
     DependencyObject::OnPropertyInvalidated(flags);
 }
@@ -490,7 +486,7 @@ bool UIElement::GetIsTabStop() const noexcept {
 // from src/gui/controls/Layout.cpp
 Base::Result<bool> UIElement::Focus() noexcept {
     Aero::InputRouter* input =
-        AeroGuiInternal::InputRouterOf(*this);
+        ElementTree::InputOf(*this);
     if (input == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
@@ -595,9 +591,9 @@ bool UIElement::GetClipToBounds() const noexcept {
 
 void UIElement::InvalidateArrange() noexcept {
     auto* layout = static_cast<Aero::LayoutEngine*>(
-        AeroGuiInternal::LayoutEngineOf(*this));
+        ElementTree::LayoutOf(*this));
     if (layout == nullptr) {
-        AeroGuiInternal::Layout(*this).arrangeValid = false;
+        (*this).Layout().arrangeValid = false;
         return;
     }
     layout->InvalidateArrange(*this);
@@ -607,10 +603,10 @@ void UIElement::InvalidateArrange() noexcept {
 
 void UIElement::InvalidateMeasure() noexcept {
     auto* layout = static_cast<Aero::LayoutEngine*>(
-        AeroGuiInternal::LayoutEngineOf(*this));
+        ElementTree::LayoutOf(*this));
     if (layout == nullptr) {
-        AeroGuiInternal::Layout(*this).measureValid = false;
-        AeroGuiInternal::Layout(*this).arrangeValid = false;
+        (*this).Layout().measureValid = false;
+        (*this).Layout().arrangeValid = false;
         return;
     }
     layout->InvalidateMeasure(*this);
@@ -629,8 +625,7 @@ void UIElement::InvalidateVisual() noexcept {
     if (!access) {
         return;
     }
-    Base::Result<void> invalidated = AeroGuiInternal::
-        InvalidateRenderDrawing(*this);
+    Base::Result<void> invalidated = (*this).InvalidateRenderDrawing();
     AERO_ASSERT(invalidated);
     (void)invalidated;
 }
@@ -645,7 +640,7 @@ void UIElement::RaiseEvent(
     RoutedEventHandle event,
     RoutedEventArgs* args) noexcept {
     Aero::EventRouter* eventRouter =
-        AeroGuiInternal::EventRouterOf(*this);
+        ElementTree::EventsOf(*this);
     if (eventRouter == nullptr) {
         return;
     }
@@ -738,10 +733,10 @@ InputClassHandlerRecord gInputClassHandlers[96];
 std::uint32_t gInputClassHandlerCount = 0U;
 
 const TypeRegistry* ClassHandlerTypes(const UIElement& element) noexcept {
-    if (!AeroGuiInternal::HasPropertyRegistry(element)) {
+    if (!(element).HasPropertyRegistry()) {
         return nullptr;
     }
-    return &AeroGuiInternal::PropertyRegistry(element).Types();
+    return &(element).PropertyRegistry().Types();
 }
 
 } // namespace
@@ -933,7 +928,7 @@ void UIElement::SetAllowDrop(bool value) noexcept {
 
 Base::Result<bool> UIElement::CancelDrag() noexcept {
     Aero::InputRouter* input =
-        AeroGuiInternal::InputRouterOf(*this);
+        ElementTree::InputOf(*this);
     if (input == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
@@ -949,7 +944,7 @@ Base::Result<void> UIElement::BeginDrag(
     const Value& data,
     Input::DragDropEffects allowedEffects) noexcept {
     Aero::InputRouter* input =
-        AeroGuiInternal::InputRouterOf(*this);
+        ElementTree::InputOf(*this);
     if (input == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
@@ -963,12 +958,12 @@ Base::Result<void> UIElement::BeginDrag(
 
 bool UIElement::GetIsDragging() const noexcept {
     Aero::InputRouter* input =
-        AeroGuiInternal::InputRouterOf(*this);
+        ElementTree::InputOf(*this);
     return input != nullptr && input->IsDragSource(*this);
 }
 
 Base::Result<void> UIElement::CapturePointer(std::uint32_t pointerId) noexcept {
-    Aero::InputRouter* input = AeroGuiInternal::InputRouterOf(*this);
+    Aero::InputRouter* input = ElementTree::InputOf(*this);
     if (input == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
@@ -978,7 +973,7 @@ Base::Result<void> UIElement::CapturePointer(std::uint32_t pointerId) noexcept {
 }
 
 Base::Result<bool> UIElement::ReleasePointer(std::uint32_t pointerId) noexcept {
-    Aero::InputRouter* input = AeroGuiInternal::InputRouterOf(*this);
+    Aero::InputRouter* input = ElementTree::InputOf(*this);
     if (input == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
@@ -1060,7 +1055,7 @@ UIElement::~UIElement() {
 
 } // namespace Aero
 
-// ---- Shared RenderState Callbacks (declared in gui/meta/RenderStateCallbacks.hpp) ----
+// ---- Shared RenderState Callbacks (declared in gui/core/RenderStateCallbacks.hpp) ----
 namespace Aero {
 
 bool ValidateUnitDouble(
@@ -1075,8 +1070,7 @@ void OnRenderStateChanged(
     auto& visual =
         static_cast<UIElement&>(object);
     static_cast<void>(
-        AeroGuiInternal::
-            InvalidateRenderState(visual));
+        (visual).InvalidateRenderState());
 }
 
 void OnOpacityMaskChanged(
@@ -1086,8 +1080,7 @@ void OnOpacityMaskChanged(
         ::Aero::TryCast<::Aero::FrameworkElement>(&object);
     if (owner == nullptr) return;
     static_cast<void>(
-        AeroGuiInternal::
-            InvalidateRenderState(*owner));
+        (*owner).InvalidateRenderState());
 }
 
 void OnRenderTransformChanged(
@@ -1097,8 +1090,7 @@ void OnRenderTransformChanged(
         ::Aero::TryCast<::Aero::FrameworkElement>(&object);
     if (owner == nullptr) return;
     static_cast<void>(
-        AeroGuiInternal::
-            InvalidateRenderState(*owner));
+        (*owner).InvalidateRenderState());
 }
 
 void OnEffectChanged(
@@ -1108,8 +1100,7 @@ void OnEffectChanged(
         ::Aero::TryCast<::Aero::FrameworkElement>(&object);
     if (owner == nullptr) return;
     static_cast<void>(
-        AeroGuiInternal::
-            InvalidateRenderState(*owner));
+        (*owner).InvalidateRenderState());
 }
 
 } // namespace Aero

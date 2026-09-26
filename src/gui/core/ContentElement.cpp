@@ -1,17 +1,14 @@
 #include <Aero/ContentElement.hpp>
+#include "gui/media/AnimationModel.hpp"
 
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleEngine.hpp"
-#include "gui/internal/ErasedRoutedHandler.hpp"
-#include "gui/meta/TypeRegistryDetail.hpp"
+#include "gui/core/ErasedRoutedHandler.hpp"
 #include <Aero/Meta.hpp>
-#include "gui/meta/ElementsFill.hpp"
+#include "gui/core/ElementsFill.hpp"
 
 #include <Aero/Base/Assert.hpp>
 
@@ -161,7 +158,7 @@ void ContentElement::RaiseEvent(
     RoutedEventHandle event,
     RoutedEventArgs* args) noexcept {
     if (eventRouter_ == nullptr && contentHost_ != nullptr) {
-        eventRouter_ = AeroGuiInternal::EventRouterOf(*contentHost_);
+        eventRouter_ = ElementTree::EventsOf(*contentHost_);
     }
     if (eventRouter_ == nullptr) {
         return;
@@ -179,48 +176,19 @@ FrameworkContentElement::FrameworkContentElement(
 
 namespace Aero {
 
-void AeroGuiInternal::Attach(
-    ContentElement& element,
+void ContentElement::Attach(
     DependencyObject* logicalParent,
     UIElement* contentHost,
     EventRouter* eventRouter) noexcept {
-    element.logicalParent_ = logicalParent;
-    element.contentHost_ = contentHost;
-    element.eventRouter_ = eventRouter;
+    logicalParent_ = logicalParent;
+    contentHost_ = contentHost;
+    eventRouter_ = eventRouter;
 }
 
-void AeroGuiInternal::Detach(ContentElement& element) noexcept {
-    element.logicalParent_ = nullptr;
-    element.contentHost_ = nullptr;
-    element.eventRouter_ = nullptr;
-}
-
-DependencyObject* AeroGuiInternal::Parent(
-    const ContentElement& element) noexcept {
-    return element.logicalParent_;
-}
-
-UIElement* AeroGuiInternal::ContentHost(
-    const ContentElement& element) noexcept {
-    return element.contentHost_;
-}
-
-std::uint32_t AeroGuiInternal::LogicalChildrenCount(
-    const FrameworkContentElement& element) noexcept {
-    return element.GetLogicalChildrenCount();
-}
-
-DependencyObject* AeroGuiInternal::LogicalChild(
-    const FrameworkContentElement& element,
-    std::uint32_t index) noexcept {
-    return element.GetLogicalChild(index);
-}
-
-void AeroGuiInternal::InvokeContentHandlers(
-    Aero::ContentElement& element,
-    RoutedEventHandle event,
-    RoutedEventArgs& args) noexcept {
-    element.InvokeHandlers(event, args);
+void ContentElement::Detach() noexcept {
+    logicalParent_ = nullptr;
+    contentHost_ = nullptr;
+    eventRouter_ = nullptr;
 }
 
 } // namespace Aero

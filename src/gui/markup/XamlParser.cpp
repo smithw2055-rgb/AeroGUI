@@ -2,7 +2,6 @@
 
 // ===== XmlTokenizer =====
 
-#include "gui/media/AnimationEngine.hpp"
 #include "gui/markup/XamlSchema.hpp"
 
 // Canonical XML tokenizer implementation.

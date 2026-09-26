@@ -83,8 +83,8 @@ enum class PanningMode : std::uint8_t {
     VerticalFirst,
 };
 
-class AERO_GUI_API ScrollViewer : public ScrollContentPresenter {
-    AERO_DECLARE_TYPE(ScrollViewer, ScrollContentPresenter)
+class AERO_GUI_API ScrollViewer : public ContentControl {
+    AERO_DECLARE_TYPE(ScrollViewer, ContentControl)
 public:
     ScrollViewer() noexcept;
     ~ScrollViewer() override;
@@ -116,12 +116,14 @@ public:
     void SetVerticalScrollBarVisibility(ScrollBarVisibility value) noexcept;
     PanningMode GetPanningMode() const noexcept;
     void SetPanningMode(PanningMode value) noexcept;
-    void SetHorizontalOffset(double value) noexcept override;
-    void SetVerticalOffset(double value) noexcept override;
-    Result<bool> LineHorizontal(double direction) noexcept override;
-    Result<bool> LineVertical(double direction) noexcept override;
-    Result<bool> PageHorizontal(double direction) noexcept override;
-    Result<bool> PageVertical(double direction) noexcept override;
+    void SetHorizontalOffset(double value) noexcept;
+    void SetVerticalOffset(double value) noexcept;
+    Result<bool> LineHorizontal(double direction) noexcept;
+    Result<bool> LineVertical(double direction) noexcept;
+    Result<bool> PageHorizontal(double direction) noexcept;
+    Result<bool> PageVertical(double direction) noexcept;
+    IScrollInfo* GetContentScrollInfo() const noexcept;
+    void SetContentScrollInfo(IScrollInfo* value) noexcept;
 
     static ScrollBarVisibility
     GetHorizontalScrollBarVisibility(const DependencyObject& element) noexcept;
@@ -150,11 +152,9 @@ public:
 protected:
     void OnApplyTemplate() noexcept override;
     Size MeasureOverride(Size availableSize) noexcept override;
-    void OnScrollDataChanged(const ScrollData& oldData, const ScrollData& newData,
-        ScrollInputKind kind) noexcept override;
-    bool GetAllowsHorizontalScroll() const noexcept override;
-    bool GetAllowsVerticalScroll() const noexcept override;
-    bool GetUsesContentScrolling() const noexcept override;
+    Size ArrangeOverride(Size finalSize) noexcept override;
+    std::uint32_t GetVisualChildrenCount() const noexcept override;
+    ::Aero::Media::Visual* GetVisualChild(std::uint32_t index) const noexcept override;
     void OnTemplateDetached() noexcept override;
     void OnMouseWheel(MouseWheelEventArgs& args);
     // Replaces OnScrollViewerVisibilityChanged delegate (setter re-entry).
@@ -163,7 +163,12 @@ protected:
 private:
     friend class ScrollContentPresenter;
     ScrollContentPresenter* contentPresenter_ = nullptr;
+    Ref<ScrollContentPresenter> ownedPresenter_;
+    IScrollInfo* pendingScrollInfo_ = nullptr;
+    ScrollData lastData_{};
+    void EnsureFallbackPresenter() noexcept;
     void AdoptPresenterData(ScrollContentPresenter& presenter, const ScrollData& data, ScrollInputKind kind) noexcept;
+    void OnScrollDataChanged(const ScrollData& oldData, const ScrollData& newData, ScrollInputKind kind) noexcept;
     void UpdateComputedScrollBarVisibility(const ScrollData& data) noexcept;
     void AttachScrollBars() noexcept;
     void DetachScrollBars() noexcept;

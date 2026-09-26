@@ -1,22 +1,18 @@
 #include "gui/core/ElementTree.hpp"
-#include "gui/meta/Describe.hpp"
+#include "gui/core/Describe.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/input/InputManager.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleEngine.hpp"
 #include "gui/templates/TemplateInstance.hpp"
-#include "gui/meta/TypeRegistryDetail.hpp"
 #include <Aero/VisualStateManager.hpp>
 #include <Aero/Controls.hpp>
 #include <Aero/ClassHandler.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Value.hpp>
 #include <Aero/ICommand.hpp>
-#include "gui/meta/ValueConversion.hpp"
+#include "gui/core/ValueConversion.hpp"
 #include <Aero/LogicalTreeHelper.hpp>
 #include <Aero/VisualTreeHelper.hpp>
 
@@ -94,7 +90,7 @@ void ButtonBase::OnClick() {
         UIElement* target = GetCommandTarget();
         if (target == nullptr) target = this;
         const Value parameter = GetCommandParameter();
-        Aero::InputRouter* input = AeroGuiInternal::InputRouterOf(*this);
+        Aero::InputRouter* input = ElementTree::InputOf(*this);
         if (input != nullptr) {
             static_cast<void>(input->Execute(*command, parameter, *target));
         } else {
@@ -129,7 +125,7 @@ void ButtonBase::OnLostKeyboardFocus(KeyboardFocusChangedEventArgs& args) {
     ContentControl::OnLostKeyboardFocus(args);
     if (keyboardDown_) {
         keyboardDown_ = false;
-        static_cast<void>(AeroGuiInternal::SetPressed(*this, false));
+        static_cast<void>((*this).SetPressedState( false));
     }
     UpdateVisualState();
 }
@@ -179,7 +175,7 @@ void ButtonBase::RefreshCanExecute() noexcept {
         UIElement* target = GetCommandTarget();
         if (target == nullptr) target = this;
         const Value parameter = GetCommandParameter();
-        Aero::InputRouter* input = AeroGuiInternal::InputRouterOf(*this);
+        Aero::InputRouter* input = ElementTree::InputOf(*this);
         if (input != nullptr) {
             Base::Result<bool> allowed = input->CanExecute(*command, parameter, *target);
             if (allowed) enabled = allowed.Value();
@@ -243,7 +239,7 @@ void ButtonBase::OnKeyDown(KeyEventArgs& args) {
     if (args.GetKey() != KeyboardKeySpace && args.GetKey() != KeyboardKeyEnter) return;
     if (!keyboardDown_) {
         keyboardDown_ = true;
-        static_cast<void>(AeroGuiInternal::SetPressed(*this, true));
+        static_cast<void>((*this).SetPressedState( true));
         if (GetClickMode() == ClickMode::Press) {
             OnClick();
         }
@@ -256,7 +252,7 @@ void ButtonBase::OnKeyUp(KeyEventArgs& args) {
     if (args.GetKey() != KeyboardKeySpace && args.GetKey() != KeyboardKeyEnter) return;
     if (!keyboardDown_) return;
     keyboardDown_ = false;
-    static_cast<void>(AeroGuiInternal::SetPressed(*this, false));
+    static_cast<void>((*this).SetPressedState( false));
     args.SetHandled(true);
     if (GetIsEnabled() && GetClickMode() == ClickMode::Release) {
         OnClick();
@@ -452,7 +448,7 @@ RepeatButton::RepeatButton(TypeId runtimeType) noexcept
 }
 
 RepeatButton::~RepeatButton() {
-    AeroGuiInternal::SetActiveRepeatButton(*this, nullptr);
+    ElementTree::SetActiveRepeatButton(*this, nullptr);
 }
 
 std::uint32_t RepeatButton::GetDelay() const noexcept {
@@ -474,26 +470,26 @@ void RepeatButton::SetInterval(std::uint32_t value) noexcept {
 void RepeatButton::OnMouseLeftButtonDown(MouseButtonEventArgs& args) {
     ButtonBase::OnMouseLeftButtonDown(args);
     if (GetIsEnabled()) {
-        AeroGuiInternal::SetActiveRepeatButton(*this, this);
+        ElementTree::SetActiveRepeatButton(*this, this);
     }
 }
 
 void RepeatButton::OnMouseLeftButtonUp(MouseButtonEventArgs& args) {
     ButtonBase::OnMouseLeftButtonUp(args);
-    AeroGuiInternal::SetActiveRepeatButton(*this, nullptr);
+    ElementTree::SetActiveRepeatButton(*this, nullptr);
 }
 
 void RepeatButton::OnKeyDown(KeyEventArgs& args) {
     ButtonBase::OnKeyDown(args);
     if (GetIsEnabled() && (args.GetKey() == KeyboardKeySpace || args.GetKey() == KeyboardKeyEnter)) {
-        AeroGuiInternal::SetActiveRepeatButton(*this, this);
+        ElementTree::SetActiveRepeatButton(*this, this);
     }
 }
 
 void RepeatButton::OnKeyUp(KeyEventArgs& args) {
     ButtonBase::OnKeyUp(args);
     if (args.GetKey() == KeyboardKeySpace || args.GetKey() == KeyboardKeyEnter) {
-        AeroGuiInternal::SetActiveRepeatButton(*this, nullptr);
+        ElementTree::SetActiveRepeatButton(*this, nullptr);
     }
 }
 
@@ -549,3 +545,35 @@ AERO_DESCRIBE(RadioButton) {
 }
 
 } // namespace Aero::Controls
+
+namespace Aero {
+
+std::uint32_t Controls::Primitives::RepeatButton::AdvanceTime(
+    std::uint32_t elapsedMilliseconds,
+    std::uint64_t& repeatElapsed,
+    std::uint64_t& nextRepeat) noexcept {
+    if (!GetIsEnabled()) {
+        return 0U;
+    }
+    if (!GetIsMouseOver() && !GetIsKeyboardFocused()) {
+        return 0U;
+    }
+    repeatElapsed += elapsedMilliseconds;
+    if (nextRepeat == 0U) {
+        nextRepeat = GetDelay();
+    }
+    const std::uint64_t interval = GetInterval();
+    if (interval == 0U) return 0U;
+    std::uint32_t emitted = 0U;
+    while (repeatElapsed >= nextRepeat && emitted < 1024U) {
+        OnClick();
+        ++emitted;
+        nextRepeat += interval;
+    }
+    if (emitted == 1024U && repeatElapsed >= nextRepeat) {
+        nextRepeat = repeatElapsed + interval;
+    }
+    return emitted;
+}
+
+} // namespace Aero

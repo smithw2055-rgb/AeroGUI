@@ -1,7 +1,5 @@
-#include "gui/meta/TypeRegistryDetail.hpp"
-#include "gui/data/BindingEngine.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleEngine.hpp"
+#include "gui/core/TypeRegistryDetail.hpp"
+#include "gui/data/BindingPath.hpp"
 
 #include <Aero/Collections.hpp>
 #include <Aero/TryCast.hpp>

@@ -23,7 +23,7 @@ public:
 
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
     Meta::TypeId GetTargetType() const noexcept;
-    bool GetIsSealed() const noexcept;
+    virtual bool GetIsSealed() const noexcept;
     // Optional inheritance (ControlTemplate only). The base template must be
     // sealed before this template seals; Seal() then inherits its factory
     // when no VisualTree is authored and prepends its compiled plans.
@@ -31,13 +31,20 @@ public:
     bool SetBasedOn(FrameworkTemplate* basedOn) noexcept;
     bool SetBasedOn(Ref<Base::Object> basedOn) noexcept;
     const FrameworkTemplate* GetBasedOn() const noexcept;
-    ResourceDictionary& GetResources() noexcept;
-    const ResourceDictionary& GetResources() const noexcept;
-    void SetResources(Ref<ResourceDictionary> value) noexcept;
+    virtual ResourceDictionary& GetResources() noexcept;
+    virtual const ResourceDictionary& GetResources() const noexcept;
+    virtual void SetResources(Ref<ResourceDictionary> value) noexcept;
     // WPF FrameworkTemplate.LoadContent extension point. Default returns
     // null; ControlTemplate/DataTemplate override to materialize content
     // without exposing state_/Program to public headers.
     virtual Ref<DependencyObject> LoadContent() const noexcept { return {}; }
+
+protected:
+    // ItemsPanelTemplate stores its own state record in this slot. The derived
+    // destructor detaches it so ~FrameworkTemplate does not free the wrong type.
+    void InstallTemplateState(void* state) noexcept;
+    void* DetachTemplateState() noexcept;
+    void* TemplateState() const noexcept { return state_; }
 
 private:
     friend struct Controls::FrameworkTemplateState;

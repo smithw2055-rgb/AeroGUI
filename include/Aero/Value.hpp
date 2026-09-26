@@ -35,10 +35,6 @@ using MemberId = Base::MetaMemberId;
 inline constexpr TypeId InvalidTypeId = Base::InvalidMetaTypeId;
 inline constexpr MemberId InvalidMemberId = Base::InvalidMetaMemberId;
 
-} // namespace Aero::Base
-
-namespace Aero::Base {
-
 enum class ValueKind : std::uint8_t {
     Unset = 0U,
     None = Unset,

@@ -1,14 +1,11 @@
 #include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/VisualStateManager.hpp>
-#include "gui/meta/TypeRegistryDetail.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleEngine.hpp"
 #include "gui/templates/TemplateInstance.hpp"
 
 #include <Aero/Value.hpp>
@@ -530,8 +527,7 @@ Base::Result<void> VisualStateManagerState::StartStoryboardAnimations(
                 return {};
             }
             Base::Result<PropertyValue> base =
-                AeroGuiInternal::GetAnimationBaseValue(
-                    *resolved.Value().object,
+                (*resolved.Value().object).GetAnimationBaseValueInternal(
                     resolved.Value().property);
             if (!base || base.Value().IsUnset()) {
                 base = resolved.Value().object->GetValue(
@@ -789,7 +785,7 @@ PropertyValue BaseValueWithoutAnimation(
     // so generated Unchecked transitions would tween 1→1 and leave the arrow
     // visible. Animation-base includes template/style/local, excluding HoldEnd.
     Base::Result<PropertyValue> base =
-        AeroGuiInternal::GetAnimationBaseValue(target, property);
+        (target).GetAnimationBaseValueInternal( property);
     if (base && !base.Value().IsUnset()) {
         return base.Value();
     }
@@ -1408,7 +1404,7 @@ bool VisualStateManager::GoToState(
     Base::StringView stateName,
     bool useTransitions) noexcept {
     auto* manager = static_cast<VisualStateManager*>(
-        AeroGuiInternal::VisualStateRuntime(control));
+        ElementTree::VisualStatesOf(control));
     if (manager == nullptr) return false;
     auto* runtime = static_cast<VisualStateManagerState*>(
         manager->impl_);

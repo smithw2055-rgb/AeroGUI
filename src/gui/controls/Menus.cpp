@@ -1,16 +1,12 @@
 #include "gui/core/ElementTree.hpp"
-#include "gui/meta/Describe.hpp"
+#include "gui/core/Describe.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/input/InputManager.hpp" 
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/meta/TypeRegistryDetail.hpp"
 #include <Aero/Controls.hpp>
 #include <Aero/ClassHandler.hpp>
-#include <Aero/Controls/ContextMenuService.hpp>
 
 #include <utility>
 
@@ -107,7 +103,7 @@ MenuItem::OnApplyTemplate() noexcept {
         GetTemplateChild("GestureText");
     gestureText_ =
         gesture != nullptr &&
-        AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
+        (*this).PropertyRegistry().Types().IsDerivedFrom(
             gesture->RuntimeType(),
             TextBlock::StaticTypeId())
         ? static_cast<TextBlock*>(gesture)
@@ -116,7 +112,7 @@ MenuItem::OnApplyTemplate() noexcept {
         GetTemplateChild("CheckGlyph");
     checkGlyph_ =
         check != nullptr &&
-        AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
+        (*this).PropertyRegistry().Types().IsDerivedFrom(
             check->RuntimeType(),
             TextBlock::StaticTypeId())
         ? static_cast<TextBlock*>(check)
@@ -125,7 +121,7 @@ MenuItem::OnApplyTemplate() noexcept {
         GetTemplateChild("SubmenuPopup");
     submenuPopup_ =
         submenu != nullptr &&
-        AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
+        (*this).PropertyRegistry().Types().IsDerivedFrom(
             submenu->RuntimeType(),
             Popup::StaticTypeId())
         ? static_cast<Popup*>(submenu)
@@ -205,17 +201,17 @@ void MenuItem::SetRoleState(
     SetReadOnlyCurrentValue(RoleProperty, value);
 }
 
-Menu::Menu() noexcept
-    : Menu(StaticTypeId()) {}
-
-Menu::Menu(TypeId runtimeType) noexcept
+MenuBase::MenuBase(TypeId runtimeType) noexcept
     : ItemsControl(runtimeType) {}
+
+Menu::Menu() noexcept
+    : MenuBase(StaticTypeId()) {}
 
 Menu::~Menu() = default;
 
-MenuItem* Menu::FindItem(Base::Object* source) const noexcept {
+MenuItem* MenuBase::FindItem(Base::Object* source) const noexcept {
     if (source == nullptr ||
-        !AeroGuiInternal::PropertyRegistry(*this).Types().
+        !(*this).PropertyRegistry().Types().
             IsDerivedFrom(
                 source->RuntimeType(),
                 UIElement::StaticTypeId())) {
@@ -228,7 +224,7 @@ MenuItem* Menu::FindItem(Base::Object* source) const noexcept {
         UIElement* element =
             ::Aero::TryCast<::Aero::UIElement>(visual);
         if (element != nullptr &&
-            AeroGuiInternal::PropertyRegistry(*this).Types().
+            (*this).PropertyRegistry().Types().
                 IsDerivedFrom(
                     element->RuntimeType(),
                     MenuItem::StaticTypeId())) {
@@ -239,7 +235,7 @@ MenuItem* Menu::FindItem(Base::Object* source) const noexcept {
     return nullptr;
 }
 
-Base::Result<void> Menu::Invoke(MenuItem& item) noexcept {
+Base::Result<void> MenuBase::Invoke(MenuItem& item) noexcept {
     if (item.GetCount() != 0U) {
         item.SetIsSubmenuOpen(!item.GetIsSubmenuOpen());
         return {};
@@ -248,7 +244,7 @@ Base::Result<void> Menu::Invoke(MenuItem& item) noexcept {
         item.SetIsChecked(!item.GetIsChecked());
     }
     RoutedEventArgs event;
-    if (auto* events = AeroGuiInternal::EventRouterOf(*this)) {
+    if (auto* events = ElementTree::EventsOf(*this)) {
         Base::Result<void> raised =
             events->RaiseEvent(item, MenuItem::ClickEvent, &event);
         if (!raised) return raised.GetStatus();
@@ -256,7 +252,7 @@ Base::Result<void> Menu::Invoke(MenuItem& item) noexcept {
     ICommand* command = item.GetCommand();
     if (command != nullptr) {
         const Value parameter = item.GetCommandParameter();
-        Aero::InputRouter* input = AeroGuiInternal::InputRouterOf(*this);
+        Aero::InputRouter* input = ElementTree::InputOf(*this);
         if (input != nullptr) {
             Base::Result<bool> executed =
                 input->Execute(*command, parameter, item);
@@ -267,7 +263,7 @@ Base::Result<void> Menu::Invoke(MenuItem& item) noexcept {
             command->Execute(parameter, &item);
         }
     }
-    if (AeroGuiInternal::PropertyRegistry(*this).Types().
+    if ((*this).PropertyRegistry().Types().
         IsDerivedFrom(
             RuntimeType(),
             ContextMenu::StaticTypeId())) {
@@ -278,20 +274,20 @@ Base::Result<void> Menu::Invoke(MenuItem& item) noexcept {
     return {};
 }
 
-void Menu::OnMouseLeftButtonDown(MouseButtonEventArgs& args) {
+void MenuBase::OnMouseLeftButtonDown(MouseButtonEventArgs& args) {
     if (args.GetChangedButton() != MouseButton::Left) {
         return;
     }
     MenuItem* item = FindItem(args.GetOriginalSource());
     if (item == nullptr) return;
-    AeroGuiInternal::SetMenuItemHighlighted(*item, true);
+    (*item).SetHighlightedState( true);
     Base::Result<void> invoked = Invoke(*item);
     if (!invoked) return;
     static_cast<void>(item->Focus());
     args.SetHandled(true);
 }
 
-void Menu::OnKeyDown(KeyEventArgs& args) {
+void MenuBase::OnKeyDown(KeyEventArgs& args) {
     if (args.GetKey() != KeyboardKeyEnter &&
         args.GetKey() != KeyboardKeySpace &&
         args.GetKey() != KeyboardKeyRight &&
@@ -318,7 +314,7 @@ void Menu::OnKeyDown(KeyEventArgs& args) {
 }
 
 Base::Result<Base::Ref<FrameworkElement>>
-Menu::GetContainerForItemOverride() const noexcept {
+MenuBase::GetContainerForItemOverride() const noexcept {
     Base::Result<Base::Ref<MenuItem>> made =
         Base::MakeRef<MenuItem>();
     if (!made) return made.GetStatus();
@@ -327,7 +323,7 @@ Menu::GetContainerForItemOverride() const noexcept {
 }
 
 ContextMenu::ContextMenu() noexcept
-    : Menu(StaticTypeId()) {}
+    : MenuBase(StaticTypeId()) {}
 
 ContextMenu::~ContextMenu() = default;
 
@@ -356,7 +352,7 @@ ContextMenu::SetPlacementTarget(
 
 void
 ContextMenu::OnApplyTemplate() noexcept {
-    Menu::OnApplyTemplate();
+    ItemsControl::OnApplyTemplate();
     SetVisibility(
         GetIsOpen()
         ? Visibility::Visible
@@ -373,7 +369,7 @@ void ContextMenu::OnClosed(RoutedEventArgs& e) {
 
 void ContextMenu::OnPropertyChanged(
     const DependencyPropertyChangedEventArgs& args) noexcept {
-    Menu::OnPropertyChanged(args);
+    ItemsControl::OnPropertyChanged(args);
     if (args.GetProperty() == IsOpenProperty) {
         const bool opened = args.GetNewValue().AsBoolean();
         static_cast<void>(SetVisibility(
@@ -402,12 +398,17 @@ ContextMenuService::SetContextMenu(
         std::move(value));
 }
 
+AERO_DESCRIBE(MenuBase) {
+    using namespace Aero::Meta;
+    Register<MenuBase>(context, TypeFlags::Abstract);
+    AERO_ON(MenuBase, &MenuBase::OnMouseLeftButtonDown, UIElement::MouseLeftButtonDownEvent);
+    AERO_ON(MenuBase, &MenuBase::OnKeyDown, UIElement::KeyDownEvent);
+}
+
 AERO_DESCRIBE(Menu) {
     using namespace Aero::Meta;
     Register<Menu>(context)
         .Factory();
-    AERO_ON(Menu, &Menu::OnMouseLeftButtonDown, UIElement::MouseLeftButtonDownEvent);
-    AERO_ON(Menu, &Menu::OnKeyDown, UIElement::KeyDownEvent);
 }
 
 AERO_DESCRIBE(MenuItem) {

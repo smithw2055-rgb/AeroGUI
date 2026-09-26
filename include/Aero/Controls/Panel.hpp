@@ -5,7 +5,6 @@
 #include <Aero/Layout.hpp>
 #include <utility>
 
-namespace Aero { class AeroGuiInternal; }
 namespace Aero::Controls {
 
 using ::Aero::Meta::TypeId;
@@ -48,9 +47,7 @@ protected:
     std::uint32_t GetLayoutChildrenCount() const noexcept override;
     UIElement* GetLayoutChild(std::uint32_t index) const noexcept override;
     void OnRender(::Aero::Media::DrawingContext& context) noexcept override;
-private:
-    friend class UIElementCollection;
-    friend class ::Aero::AeroGuiInternal;
+public:
     std::uint32_t ChildCountCore() const noexcept { return ownedChildren_.Size(); }
     Ref<Base::Object> ChildAtCore(std::uint32_t index) const noexcept {
         return index < ownedChildren_.Size() ? ownedChildren_[index] : Ref<Base::Object>{};
@@ -58,6 +55,8 @@ private:
     void AddChildCore(const Ref<Base::Object>& childObject, UIElement& child) noexcept;
     Result<bool> RemoveChildCore(UIElement& child) noexcept;
     void ClearChildrenCore() noexcept;
+private:
+    friend class UIElementCollection;
     UIElementCollection children_;
     Base::Vector<Ref<Base::Object>> ownedChildren_;
 };

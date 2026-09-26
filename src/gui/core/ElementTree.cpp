@@ -1,23 +1,30 @@
-#include "gui/meta/TypeRegistryDetail.hpp"
+#include "gui/core/TypeRegistryDetail.hpp"
+#include "gui/styles/StyleEngine.hpp"
+#include "gui/data/BindingEngine.hpp"
 #include "gui/markup/XamlSchema.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
-#include "gui/media/AnimationEngine.hpp"
 #include <Aero/Layout.hpp>
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/FrameworkContentElement.hpp>
 #include <Aero/LogicalTreeHelper.hpp>
 #include <Aero/VisualTreeHelper.hpp>
 
-#include "gui/data/BindingEngine.hpp"
-#include "gui/styles/StyleEngine.hpp"
 #include "render/RenderTree.hpp"
+#include <Aero/TryCast.hpp>
+#include <Aero/Controls/Buttons.hpp>
 
 namespace Aero {
+
+BindingEngine* ElementTree::BindingsOf(const DependencyObject& object) noexcept {
+    const UIElement* element = TryCast<const UIElement>(&object);
+    if (element == nullptr) return nullptr;
+    ElementTree* tree = Of(*element);
+    return tree != nullptr ? tree->Bindings() : nullptr;
+}
 
 using namespace Aero::Meta;
 using namespace Aero::Threading;
@@ -79,7 +86,7 @@ std::uint32_t Media::VisualTreeHelper::GetChildrenCount(const ::Aero::Media::Vis
 
 DependencyObject* LogicalTreeHelper::GetParent(
     const DependencyObject& object) noexcept {
-    const TypeRegistry& types = AeroGuiInternal::PropertyRegistry(object).Types();
+    const TypeRegistry& types = (object).PropertyRegistry().Types();
     if (types.IsDerivedFrom(
             object.RuntimeType(), FrameworkContentElement::StaticTypeId())) {
         return static_cast<const FrameworkContentElement&>(object).GetParent();
@@ -96,11 +103,10 @@ DependencyObject* LogicalTreeHelper::GetParent(
 
 std::uint32_t LogicalTreeHelper::GetChildrenCount(
     const DependencyObject& object) noexcept {
-    const TypeRegistry& types = AeroGuiInternal::PropertyRegistry(object).Types();
+    const TypeRegistry& types = (object).PropertyRegistry().Types();
     if (types.IsDerivedFrom(
             object.RuntimeType(), FrameworkContentElement::StaticTypeId())) {
-        return AeroGuiInternal::LogicalChildrenCount(
-            static_cast<const FrameworkContentElement&>(object));
+        return (static_cast<const FrameworkContentElement&>(object)).LogicalChildCount();
     }
     if (types.IsDerivedFrom(
             object.RuntimeType(), FrameworkElement::StaticTypeId())) {
@@ -113,11 +119,10 @@ std::uint32_t LogicalTreeHelper::GetChildrenCount(
 DependencyObject* LogicalTreeHelper::GetChild(
     const DependencyObject& object,
     std::uint32_t index) noexcept {
-    const TypeRegistry& types = AeroGuiInternal::PropertyRegistry(object).Types();
+    const TypeRegistry& types = (object).PropertyRegistry().Types();
     if (types.IsDerivedFrom(
             object.RuntimeType(), FrameworkContentElement::StaticTypeId())) {
-        return AeroGuiInternal::LogicalChild(
-            static_cast<const FrameworkContentElement&>(object), index);
+        return (static_cast<const FrameworkContentElement&>(object)).LogicalChildAt( index);
     }
     if (types.IsDerivedFrom(
             object.RuntimeType(), FrameworkElement::StaticTypeId())) {
@@ -145,8 +150,8 @@ void ElementTree::InvalidateNodeHandle(::Aero::Media::Visual& node) noexcept {
     }
     if (bindings_ != nullptr || values_ != nullptr) {
         Base::Vector<DependencyObject*> detachedProps;
-        AeroGuiInternal::DetachPropertyDependencyObjects(
-            node, bindings_, values_, nullptr, detachedProps);
+        node.DetachPropertyDependencyObjects(
+            bindings_, values_, nullptr, detachedProps);
     }
     if (bindings_ != nullptr) {
         static_cast<void>(bindings_->DetachObject(node));
@@ -192,7 +197,7 @@ Base::Result<Aero::VisualLease> Aero::VisualLease::Acquire(
     if (lease.strong) return lease;
 
     Base::Result<Base::Ref<Base::Object>> lifetime =
-        AeroGuiInternal::AcquireLifetime(node);
+        (node).AcquireLifetime();
     if (!lifetime) return lifetime.GetStatus();
     lease.lifetime = Base::Ref<VisualLifetime>::FromBorrowed(
         *static_cast<VisualLifetime*>(lifetime.Value().Get()));
@@ -303,14 +308,14 @@ void ForEachElementTreeChild(
 void ClearDetachedPresentation(::Aero::Media::Visual& node) noexcept {
     UIElement* element = ::Aero::TryCast<UIElement>(&node);
     if (element != nullptr) {
-        AeroGuiInternal::Layout(*element).layoutAttached = false;
-        AeroGuiInternal::Layout(*element).measureQueued = false;
-        AeroGuiInternal::Layout(*element).arrangeQueued = false;
+        (*element).Layout().layoutAttached = false;
+        (*element).Layout().measureQueued = false;
+        (*element).Layout().arrangeQueued = false;
     }
-    AeroGuiInternal::RenderAttached(node) = false;
-    AeroGuiInternal::RenderQueued(node) = false;
-    AeroGuiInternal::Rendering(node) = false;
-    AeroGuiInternal::NodeId(node) = Base::InvalidRenderNodeId;
+    (node).RenderAttached() = false;
+    (node).RenderQueued() = false;
+    (node).Rendering() = false;
+    (node).NodeId() = Base::InvalidRenderNodeId;
 }
 
 } // namespace
@@ -403,7 +408,7 @@ Base::Result<void> ElementTree::TrackInheritedValues(
     ::Aero::Media::Visual& node) noexcept {
     FrameworkElement* element = ::Aero::TryCast<::Aero::FrameworkElement>(&(node));
     if (element == nullptr ||
-        AeroGuiInternal::PropertyRegistry(element).Find(
+        element->PropertyRegistry().Find(
             FrameworkElement::DataContextProperty) == nullptr) {
         return {};
     }
@@ -424,7 +429,7 @@ Base::Result<void> ElementTree::TrackInheritedValues(
 void ElementTree::UntrackInheritedValues(::Aero::Media::Visual& node) noexcept {
     FrameworkElement* element = ::Aero::TryCast<::Aero::FrameworkElement>(&(node));
     if (element == nullptr ||
-        AeroGuiInternal::PropertyRegistry(element).Find(
+        element->PropertyRegistry().Find(
             FrameworkElement::DataContextProperty) == nullptr) {
         return;
     }
@@ -738,14 +743,14 @@ Base::Result<void> ElementTree::AttachVisual(
     if (child.visualParent_ != nullptr && child.visualParent_ != &parent) {
         child.visualParent_->RemoveVisualChild(&child);
     }
-    AeroGuiInternal::EnsureVisualChildStorage(parent, child);
+    ElementTree::EnsureVisualChildStorage(parent, child);
     if (child.visualParent_ != &parent) {
         parent.AddVisualChild(&child);
     }
     if (parent.tree_ == this && child.tree_ != this) {
         SetTreeSubtree(child, this);
     }
-    AeroGuiInternal::AttachVisualControlTemplateRoot(parent, child);
+    ElementTree::AttachVisualControlTemplateRoot(parent, child);
     ++version_;
     return {};
 }
@@ -758,7 +763,7 @@ Base::Result<void> ElementTree::DetachVisual(
     }
     if (child.tree_ == nullptr && parent.tree_ == nullptr) {
         parent.RemoveVisualChild(&child);
-        AeroGuiInternal::CleanVisualChildStorage(parent, child);
+        ElementTree::CleanVisualChildStorage(parent, child);
         return {};
     }
     Base::Result<void> verified = VerifyMutation(parent, &child);
@@ -770,7 +775,7 @@ Base::Result<void> ElementTree::DetachVisual(
         return NotFound("Visual parent-child relationship was not found");
     }
     parent.RemoveVisualChild(&child);
-    AeroGuiInternal::CleanVisualChildStorage(parent, child);
+    ElementTree::CleanVisualChildStorage(parent, child);
     ++version_;
     return {};
 }
@@ -870,8 +875,10 @@ void ElementTree::LifecycleHook(void* context) noexcept {
 
 std::uint32_t ElementTree::AdvanceRepeatButtonTime(
     std::uint32_t elapsedMilliseconds) noexcept {
-    return AeroGuiInternal::AdvanceRepeatButtonTime(
-        activeRepeatButton_, elapsedMilliseconds, repeatElapsed_, nextRepeat_);
+    auto* button = static_cast<Controls::Primitives::RepeatButton*>(activeRepeatButton_);
+    return button != nullptr
+        ? button->AdvanceTime(elapsedMilliseconds, repeatElapsed_, nextRepeat_)
+        : 0U;
 }
 
 
@@ -891,7 +898,7 @@ Base::Result<void> ElementTree::AttachLayout(
 Base::Result<void> ElementTree::AttachRender(
     ::Aero::Media::Visual& parent, ::Aero::Media::Visual& child, bool& attached) noexcept {
     if (renderTree_ == nullptr ||
-        AeroGuiInternal::RenderRuntime(parent) != static_cast<void*>(renderTree_)) {
+        ElementTree::RenderTreeOf(parent) != static_cast<void*>(renderTree_)) {
         return {};
     }
     Base::Result<void> result = renderTree_->Attach(parent, child);
@@ -1075,7 +1082,7 @@ Base::Result<Aero::VisualAttachment> ElementTree::AttachVisualChild(
         auto attachDescendants = [&](auto&& self, ::Aero::Media::Visual& parent) noexcept
             -> Base::Result<void> {
             for (::Aero::Media::Visual* descendant :
-                 AeroGuiInternal::RenderChildren(parent)) {
+                 (parent).RenderChildren()) {
                 if (descendant == nullptr) continue;
                 Base::Result<void> attached = renderTree_->Attach(parent, *descendant);
                 if (!attached) return attached.GetStatus();
@@ -1254,7 +1261,7 @@ Base::Result<void> ElementTree::AttachVisualGraph(
         [this, &visualRoot](::Aero::Media::Visual& parent) noexcept {
             if (&parent == &visualRoot) return true;
             if (renderTree_ == nullptr) return true;
-            return AeroGuiInternal::RenderRuntime(parent) ==
+            return ElementTree::RenderTreeOf(parent) ==
                 static_cast<void*>(renderTree_);
         };
 
@@ -1302,13 +1309,13 @@ Base::Result<void> ElementTree::CompleteVisualEdges(
                 continue;
             }
             if (renderTree_ != nullptr &&
-                AeroGuiInternal::RenderRuntime(*edge.parent) !=
+                ElementTree::RenderTreeOf(*edge.parent) !=
                     static_cast<void*>(renderTree_) &&
                 edge.parent != root_) {
                 continue;
             }
             if (VisualTree(edge.child) == this &&
-                AeroGuiInternal::RenderAttached(*edge.child)) {
+                (*edge.child).RenderAttached()) {
                 continue;
             }
             Base::Result<Aero::ElementAttachment> edgeAttached =
@@ -1373,31 +1380,31 @@ Base::Result<void> ElementTree::DetachVisualGraph(
                 : nullptr;
             if (childElement != nullptr &&
                 childElement->GetIsLayoutAttached() &&
-                AeroGuiInternal::LayoutEngineOf(*childElement) == nullptr) {
-                AeroGuiInternal::Layout(*childElement).layoutAttached = false;
-                AeroGuiInternal::Layout(*childElement).measureQueued = false;
-                AeroGuiInternal::Layout(*childElement).arrangeQueued = false;
+                ElementTree::LayoutOf(*childElement) == nullptr) {
+                (*childElement).Layout().layoutAttached = false;
+                (*childElement).Layout().measureQueued = false;
+                (*childElement).Layout().arrangeQueued = false;
             }
             state.layoutAttached =
                 layout_ != nullptr && childElement != nullptr &&
                 parentElement != nullptr &&
                 childElement->GetIsLayoutAttached() &&
-                AeroGuiInternal::LayoutEngineOf(*childElement) == layout_ &&
+                ElementTree::LayoutOf(*childElement) == layout_ &&
                 childElement->LayoutParent() == parentElement;
 
-            if (AeroGuiInternal::RenderAttached(*state.child) &&
-                AeroGuiInternal::RenderRuntime(*state.child) == nullptr) {
-                AeroGuiInternal::RenderAttached(*state.child) = false;
-                AeroGuiInternal::RenderQueued(*state.child) = false;
-                AeroGuiInternal::Rendering(*state.child) = false;
-                AeroGuiInternal::NodeId(*state.child) = Base::InvalidRenderNodeId;
-                AeroGuiInternal::RenderValid(*state.child) = false;
+            if ((*state.child).RenderAttached() &&
+                ElementTree::RenderTreeOf(*state.child) == nullptr) {
+                (*state.child).RenderAttached() = false;
+                (*state.child).RenderQueued() = false;
+                (*state.child).Rendering() = false;
+                (*state.child).NodeId() = Base::InvalidRenderNodeId;
+                (*state.child).RenderValid() = false;
             }
             state.renderAttached =
                 renderTree_ != nullptr &&
-                AeroGuiInternal::RenderAttached(*state.child) &&
-                AeroGuiInternal::RenderRuntime(*state.child) == renderTree_ &&
-                AeroGuiInternal::RenderParent(*state.child) == state.visualParent;
+                (*state.child).RenderAttached() &&
+                ElementTree::RenderTreeOf(*state.child) == renderTree_ &&
+                (*state.child).GetVisualParent() == state.visualParent;
         };
 
     std::uint32_t remaining = 0U;
@@ -1490,14 +1497,12 @@ void EventRouter::InvokeNode(
 
     if (catalog.Types().IsDerivedFrom(
             node.RuntimeType(), UIElement::StaticTypeId())) {
-        AeroGuiInternal::InvokeHandlers(
-            static_cast<UIElement&>(node), args.GetRoutedEvent(), args);
+        (static_cast<UIElement&>(node)).InvokeHandlers( args.GetRoutedEvent(), args);
         return;
     }
     if (catalog.Types().IsDerivedFrom(
             node.RuntimeType(), ContentElement::StaticTypeId())) {
-        AeroGuiInternal::InvokeContentHandlers(
-            static_cast<ContentElement&>(node), args.GetRoutedEvent(), args);
+        (static_cast<ContentElement&>(node)).InvokeHandlers( args.GetRoutedEvent(), args);
     }
 }
 

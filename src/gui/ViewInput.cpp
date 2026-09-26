@@ -1,6 +1,5 @@
 #include "gui/ViewFrame.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
-#include "gui/internal/InputDevicesState.hpp"
+#include "gui/input/InputDevicesState.hpp"
 
 #include <algorithm>
 #include <cmath>

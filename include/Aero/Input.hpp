@@ -142,7 +142,6 @@ struct TextInputDispatchResult {
 #include <Aero/DataObject.hpp>
 #include <Aero/DragDrop.hpp>
 #include <Aero/Input/Cursor.hpp>
-#include <Aero/Input/Cursors.hpp>
 #include <Aero/Input/Keyboard.hpp>
 #include <Aero/Input/Mouse.hpp>
 

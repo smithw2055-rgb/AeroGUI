@@ -17,7 +17,7 @@
 namespace Aero {
 
 class UIElement;
-class AeroGuiInternal;
+class EventRouter;
 // Non-visual WPF content node. ContentElement participates in dependency
 // properties and routed events without becoming a ::Aero::Media::Visual or UIElement.
 class AERO_GUI_API ContentElement : public DependencyObject {
@@ -33,6 +33,9 @@ public:
 
     DependencyObject* GetParent() const noexcept { return logicalParent_; }
     UIElement* GetContentHost() const noexcept { return contentHost_; }
+    void Attach(DependencyObject* logicalParent, UIElement* contentHost, EventRouter* eventRouter) noexcept;
+    void Detach() noexcept;
+    void InvokeHandlers(RoutedEventHandle event, RoutedEventArgs& args) noexcept;
 
     template<class TArgs> void AddHandler(
         RoutedEventHandle event, const Base::Delegate<void(Base::Object*, TArgs&)>& handler,
@@ -56,9 +59,7 @@ private:
         bool handledEventsToo) noexcept;
     bool RemoveHandlerErased(RoutedEventHandle event, const void* handler, std::size_t size, std::size_t alignment,
         Meta::TypeId argsType) noexcept;
-    void InvokeHandlers(RoutedEventHandle event, RoutedEventArgs& args) noexcept;
     void CleanupHandlers() noexcept;
-    friend class AeroGuiInternal;
 
     DependencyObject* logicalParent_ = nullptr;
     UIElement* contentHost_ = nullptr;

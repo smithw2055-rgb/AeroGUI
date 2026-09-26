@@ -4,7 +4,7 @@
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/InputScope.hpp>
-#include <Aero/Media/FontFamily.hpp>
+#include <Aero/Media/Fonts.hpp>
 #include <Aero/Resources.hpp>
 #include <Aero/ElementEnums.hpp>
 #include <Aero/Layout.hpp>
@@ -19,7 +19,6 @@ using Meta::PropertyInvalidationFlags;
 using Meta::TypeId;
 
 class Style;
-class AeroGuiInternal;
 namespace Controls { class Viewbox; }
 class FrameworkElement;
 namespace Media {
@@ -208,6 +207,16 @@ private:
 
     FrameworkElement* GetRenderParent() const noexcept;
     FrameworkElementChildRange GetRenderChildren() const noexcept { return FrameworkElementChildRange(*this); }
+
+public:
+    void Render(::Aero::Media::DrawingContext& context) noexcept { OnRender(context); }
+    void SetActualSize(double width, double height) noexcept {
+        Meta::PropertyValue widthVal(width);
+        Meta::PropertyValue heightVal(height);
+        SetReadOnlyCurrentValue(ActualWidthProperty.Handle(), widthVal);
+        SetReadOnlyCurrentValue(ActualHeightProperty.Handle(), heightVal);
+    }
+
     void SetTemplatedParent(DependencyObject* value) noexcept {
         Result<void> access = VerifyAccess();
         if (!access) return;
@@ -227,6 +236,7 @@ private:
     void ClearStyleTriggerPrototypes() noexcept;
     Span<const Ref<Base::Object>> StyleTriggerPrototypes() const noexcept;
 
+private:
     const ResourceDictionary* LocalResources() const noexcept { return resources_; }
 
     Base::Object* FindNameObject(StringView name, Meta::TypeId expectedType) noexcept;
@@ -235,7 +245,6 @@ private:
     friend class LogicalTreeHelper;
     friend class Controls::Viewbox;
     friend class ResourceResolver;
-    friend class AeroGuiInternal;
     double dpiScale_ = 1.0;
     DependencyObject* templatedParent_ = nullptr;
     mutable ResourceDictionary* resources_ = nullptr;

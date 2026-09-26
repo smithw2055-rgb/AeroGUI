@@ -26,7 +26,6 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/CAPI.h
     include/Aero/Controls.hpp
     include/Aero/Controls/UserControl.hpp
-    include/Aero/Controls/Page.hpp
     include/Aero/Controls/Buttons.hpp
         include/Aero/Controls/Selectors.hpp
     include/Aero/Controls/ListView.hpp
@@ -69,7 +68,6 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/DataObject.hpp
     include/Aero/DragDrop.hpp
     include/Aero/Input/Cursor.hpp
-    include/Aero/Input/Cursors.hpp
     include/Aero/Input/Keyboard.hpp
     include/Aero/Input/Mouse.hpp
     include/Aero/DependencyObject.hpp
@@ -108,7 +106,6 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Data/NotifyPropertyChanged.hpp
     include/Aero/Data/SortDescription.hpp
     include/Aero/Data/CollectionView.hpp
-    include/Aero/Data/CollectionViewSource.hpp
     include/Aero/Resources.hpp
     include/Aero/Style.hpp
     include/Aero/EventSetter.hpp
@@ -149,7 +146,6 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Layout.hpp
     include/Aero/Media/Effects.hpp
     include/Aero/Media/Fonts.hpp
-    include/Aero/Media/FontFamily.hpp
     include/Aero/Media/Images.hpp
     include/Aero/Module.hpp
     include/Aero/Shapes.hpp
@@ -167,7 +163,6 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Media/MediaElement.hpp
     include/Aero/Media/Animation/MediaActions.hpp
     include/Aero/TextFormatting.hpp
-    include/Aero/Text.hpp
     include/Aero/TextProperties.hpp
     include/Aero/Controls/Decorator.hpp
     include/Aero/Controls/ContentPresenter.hpp
@@ -188,7 +183,6 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Controls/StatusBar.hpp
     include/Aero/Controls/ToolTip.hpp
     include/Aero/Controls/Image.hpp
-    include/Aero/Controls/ContextMenuService.hpp
     include/Aero/Controls/GridViews.hpp
     include/Aero/Media/Pen.hpp
     include/Aero/Media/Transform2D.hpp
@@ -198,19 +192,12 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/InputScope.hpp
     include/Aero/ICommand.hpp
     include/Aero/InputGesture.hpp
-    include/Aero/KeyGesture.hpp
     include/Aero/RoutedCommand.hpp
-    include/Aero/RoutedUICommand.hpp
     include/Aero/RelayCommand.hpp
     include/Aero/InputBinding.hpp
-    include/Aero/KeyBinding.hpp
-    include/Aero/MouseBinding.hpp
     include/Aero/CommandBinding.hpp
     include/Aero/ApplicationCommands.hpp
     include/Aero/KeyboardNavigation.hpp
-    include/Aero/FocusManager.hpp
-    include/Aero/Data/PropertyPath.hpp
-    include/Aero/Data/RelativeSource.hpp
     include/Aero/Data/IValueConverter.hpp
     include/Aero/Data/IMultiValueConverter.hpp
     include/Aero/Data/BooleanToVisibilityConverter.hpp

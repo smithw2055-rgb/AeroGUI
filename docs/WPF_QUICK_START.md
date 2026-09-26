@@ -300,7 +300,19 @@ animations live in `EasingFunctions.hpp`, `KeyFrames.hpp`, and
 `EventTrigger`, `TimerTrigger`, and `StoryboardCompletedTrigger` stay separate.
 `StoryboardActions.hpp` and `MediaActions.hpp` own their action types.
 
-## One type per header
+## Headers a WPF developer should include
+
+Desktop code starts at `<AeroApp/App.hpp>` and `Application::Run()`. `Gui` and `View` are the embedding surface, described below, not the first step.
+
+Controls that are always used together share a family header. Include `<Aero/Controls.hpp>` for the broad set, or the family that owns the type:
+
+- `<Aero/Controls/Buttons.hpp>` — `ToggleButton`, `RepeatButton`, `CheckBox`, `RadioButton`. `Button` stays in `Button.hpp`.
+- `<Aero/Controls/Selectors.hpp>` — `ListBox`, `ComboBox`, `TabControl`, and their items.
+- `<Aero/Controls/Menus.hpp>` — `MenuBase`, `Menu`, `MenuItem`, `ContextMenu`.
+- `<Aero/Controls/Ranges.hpp>` — `Slider`, `ProgressBar`, `ScrollBar`.
+- `<Aero/Controls/ScrollViewer.hpp>` — `ScrollViewer` and `ScrollContentPresenter`.
+
+## Family headers
 
 Kitchen-sink media/input/data headers are umbrellas or type owners:
 
@@ -314,16 +326,15 @@ Kitchen-sink media/input/data headers are umbrellas or type owners:
   `ToStreamData` is serialize/debug only.
 - `<Aero/Input.hpp>` is input values (`Key`, `PointerInput`, `InputScope`).
   Commands are `<Aero/ICommand.hpp>` and `<Aero/RoutedCommand.hpp>`.
-- `<Aero/Data/Binding.hpp>` owns `Binding`; `MultiBinding` and converters
-  have sibling headers under `Data/`.
-- `ComboBoxItem`, `MenuItem`, `ContextMenu`, `ListViewItem`, and GridView
-  types have their own `Controls/` headers.
+- `<Aero/Data/Binding.hpp>` owns `Binding`, `PropertyPath`, and `RelativeSource`.
+  `MultiBinding` and converters stay in sibling headers under `Data/`.
+- `ListView` and `ListViewItem` share `ListView.hpp`. GridView presenters share
+  `Controls/GridViews.hpp`.
 
 Custom markup extensions inherit `<Aero/Markup/MarkupExtension.hpp>` and
 override `ProvideValue()`. Register the type with `Factory()` (and
 `TypeFlags::MarkupExtension` when you want the XAML flag). TreeView hierarchy
-uses `<Aero/HierarchicalDataTemplate.hpp>` rather than aliasing to
-`DataTemplate`. `Line` / `Polygon` / `Polyline` live next to `Path` under
+uses `HierarchicalDataTemplate` in `<Aero/DataTemplate.hpp>`. `Line` / `Polygon` / `Polyline` live next to `Path` under
 `Shapes/`. `FreezableCollection<T>` replaces handwritten `Vector<Ref<...>>`
 on path figures, transform groups, and timeline groups.
 

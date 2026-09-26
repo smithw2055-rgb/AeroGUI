@@ -1,6 +1,5 @@
 #pragma once
 
-#include "gui/internal/AeroGuiInternal.hpp"
 
 // Internal routed-event storage, route snapshots and dispatch.
 
@@ -17,7 +16,7 @@
 #include <Aero/LogicalTreeHelper.hpp>
 #include <Aero/Visual.hpp>
 
-#include "gui/meta/TypeRegistryDetail.hpp"
+#include "gui/core/TypeRegistryDetail.hpp"
 
 #include <cstddef>
 #include <new>
@@ -201,7 +200,7 @@ public:
 private:
     static DependencyObject* GetParent(
         DependencyObject& object) noexcept {
-        const Meta::TypeRegistry& types = AeroGuiInternal::PropertyRegistry(object).Types();
+        const Meta::TypeRegistry& types = (object).PropertyRegistry().Types();
         if (types.IsDerivedFrom(
                 object.RuntimeType(), ContentElement::StaticTypeId())) {
             auto& content = static_cast<ContentElement&>(object);

@@ -1,16 +1,13 @@
 #include <Aero/Freezable.hpp>
 #include <Aero/Base/Vector.hpp>
 
-#include "gui/meta/TypeRegistryDetail.hpp"
 #include "gui/core/DependencyPropertyRegistry.hpp"
+#include "gui/core/PropertyStore.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleEngine.hpp"
 
 #include <new>
 #include <utility>
@@ -62,7 +59,7 @@ Freezable* AsFreezable(
         return nullptr;
     }
     Base::Object* object = value.AsObject().Get();
-    if (!AeroGuiInternal::PropertyRegistry(owner).Types().IsDerivedFrom(
+    if (!(owner).PropertyRegistry().Types().IsDerivedFrom(
             object->RuntimeType(), Freezable::StaticTypeId())) {
         return nullptr;
     }
@@ -108,19 +105,18 @@ Base::Result<void> CheckFreezeNode(
         return FreezeGraphStatus(
             "A Freezable object graph contains a cycle");
     }
-    if (AeroGuiInternal::HasUnfreezableValueState(value)) {
+    if ((value).HasUnfreezableValueState()) {
         return FreezeGraphStatus(
             "A Freezable with an expression or animation cannot be frozen");
     }
     context.visiting.PushBack(&value);
     Base::Result<void> children =
-        AeroGuiInternal::VisitFreezableChildren(
-            value, &context, &CheckFreezeChild);
+        (value).VisitFreezableChildren( &context, &CheckFreezeChild);
     if (!children) {
         context.visiting.PopBack();
         return children.GetStatus();
     }
-    if (!AeroGuiInternal::FreezableCheckCore(value)) {
+    if (!(value).CheckFreezeCore()) {
         context.visiting.PopBack();
         return FreezeGraphStatus(
             "A Freezable child rejected the freeze operation");
@@ -335,8 +331,7 @@ void Freezable::OnChanged() noexcept {
             : record.unmanagedObject;
         const Meta::DependencyPropertyHandle property = record.property;
         if (consumer != nullptr) {
-            AeroGuiInternal::InvalidateSubProperty(
-                *consumer, property);
+            (*consumer).InvalidateSubProperty( property);
         }
     }
     for (std::uint32_t index = 0U;
@@ -364,10 +359,10 @@ Base::Result<void> Freezable::VerifyMutationAllowed() const noexcept {
 
 namespace Aero {
 
-Base::Result<void> AeroGuiInternal::AttachFreezableConsumer(
-    Freezable& value,
+Base::Result<void> Freezable::AttachConsumer(
     DependencyObject& object,
     Meta::DependencyPropertyHandle property) noexcept {
+    Freezable& value = *this;
     if (value.IsFrozen() || !property.IsValid()) return {};
     if (!value.EnsureState()) {
         return Base::Status::Failure(
@@ -395,10 +390,10 @@ Base::Result<void> AeroGuiInternal::AttachFreezableConsumer(
     return {};
 }
 
-void AeroGuiInternal::DetachFreezableConsumer(
-    Freezable& value,
+void Freezable::DetachConsumer(
     DependencyObject& object,
     Meta::DependencyPropertyHandle property) noexcept {
+    Freezable& value = *this;
     Freezable::State* state = value.state_;
     if (state == nullptr) return;
     for (std::uint32_t index = 0U;
@@ -415,19 +410,19 @@ void AeroGuiInternal::DetachFreezableConsumer(
     }
 }
 
-std::uint64_t AeroGuiInternal::FreezableRevision(
-    const Freezable& value) noexcept {
+std::uint64_t Freezable::Revision() const noexcept {
+    const Freezable& value = *this;
     Freezable::State* state = value.state_;
     return state != nullptr ? state->revision : 0U;
 }
 
-bool AeroGuiInternal::FreezableCheckCore(
-    Freezable& value) noexcept {
+bool Freezable::CheckFreezeCore() noexcept {
+    Freezable& value = *this;
     return value.FreezeCore(true);
 }
 
-DependencyObject* AeroGuiInternal::FreezableParent(
-    const Freezable& value) noexcept {
+DependencyObject* Freezable::Parent() const noexcept {
+    const Freezable& value = *this;
     Freezable::State* state = value.state_;
     if (state == nullptr || state->consumers.Empty()) return nullptr;
     for (const auto& consumer : state->consumers) {
@@ -438,9 +433,9 @@ DependencyObject* AeroGuiInternal::FreezableParent(
     return nullptr;
 }
 
-bool AeroGuiInternal::HasUnfreezableValueState(
-    const DependencyObject& object) noexcept {
-    const PropertyStore* store = AeroGuiInternal::Store(object);
+bool DependencyObject::HasUnfreezableValueState() const noexcept {
+    const DependencyObject& object = *this;
+    const PropertyStore* store = (object).Store();
     if (store == nullptr) {
         return false;
     }
@@ -454,13 +449,13 @@ bool AeroGuiInternal::HasUnfreezableValueState(
     return false;
 }
 
-Base::Result<void> AeroGuiInternal::VisitFreezableChildren(
-    DependencyObject& object,
+Base::Result<void> DependencyObject::VisitFreezableChildren(
     void* context,
-    FreezableVisitor visitor) noexcept {
+    Base::Result<void> (*visitor)(void*, Freezable&) noexcept) noexcept {
+    DependencyObject& object = *this;
     if (visitor == nullptr) return {};
     for (const Meta::DependencyProperty& property :
-         AeroGuiInternal::PropertyRegistry(object).Properties()) {
+         (object).PropertyRegistry().Properties()) {
         if (property.MetadataFor(object.RuntimeType()) == nullptr) continue;
         const Meta::PropertyValue value = object.GetValue(property.Handle());
         Freezable* child = AsFreezable(object, value);
@@ -471,36 +466,32 @@ Base::Result<void> AeroGuiInternal::VisitFreezableChildren(
     return {};
 }
 
-Base::Result<void> AeroGuiInternal::PrepareConsumerChange(
-    DependencyObject& consumer,
+Base::Result<void> DependencyObject::PrepareConsumerChange(
     Meta::DependencyPropertyHandle property,
     const Meta::PropertyValue& oldValue,
     const Meta::PropertyValue& newValue) noexcept {
-    Freezable* oldChild = AsFreezable(consumer, oldValue);
-    Freezable* newChild = AsFreezable(consumer, newValue);
+    Freezable* oldChild = AsFreezable(*this, oldValue);
+    Freezable* newChild = AsFreezable(*this, newValue);
     if (oldChild == newChild || newChild == nullptr) return {};
-    return AttachFreezableConsumer(
-        *newChild, consumer, property);
+    return newChild->AttachConsumer(*this, property);
 }
 
-void AeroGuiInternal::CommitConsumerChange(
-    DependencyObject& consumer,
+void DependencyObject::CommitConsumerChange(
     Meta::DependencyPropertyHandle property,
     const Meta::PropertyValue& oldValue,
     const Meta::PropertyValue& newValue) noexcept {
-    Freezable* oldChild = AsFreezable(consumer, oldValue);
-    Freezable* newChild = AsFreezable(consumer, newValue);
+    Freezable* oldChild = AsFreezable(*this, oldValue);
+    Freezable* newChild = AsFreezable(*this, newValue);
     if (oldChild != nullptr && oldChild != newChild) {
-        DetachFreezableConsumer(
-            *oldChild, consumer, property);
+        oldChild->DetachConsumer(*this, property);
     }
 }
 
-void AeroGuiInternal::InvalidateSubProperty(
-    DependencyObject& object,
+void DependencyObject::InvalidateSubProperty(
     Meta::DependencyPropertyHandle propertyHandle) noexcept {
+    DependencyObject& object = *this;
     const Meta::DependencyProperty* property =
-        AeroGuiInternal::PropertyRegistry(object).Find(propertyHandle);
+        (object).PropertyRegistry().Find(propertyHandle);
     const Meta::PropertyMetadata* metadata = property != nullptr
         ? property->MetadataFor(object.RuntimeType())
         : nullptr;

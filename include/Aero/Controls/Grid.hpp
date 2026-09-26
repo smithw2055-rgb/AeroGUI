@@ -9,44 +9,45 @@
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
 
-class AERO_GUI_API ColumnDefinition : public Base::Object {
-    AERO_DECLARE_TYPE(ColumnDefinition, Base::Object)
+class AERO_GUI_API ColumnDefinition : public DependencyObject {
+    AERO_DECLARE_TYPE(ColumnDefinition, DependencyObject)
 public:
-    ColumnDefinition() noexcept = default;
-    TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
-    GridLength GetWidth() const noexcept { return width_; }
-    double GetMaxWidth() const noexcept { return maxWidth_; }
-    StringView GetSharedSizeGroup() const noexcept { return sharedSizeGroup_.View(); }
+    ColumnDefinition() noexcept : DependencyObject(StaticTypeId()) {}
+    GridLength GetWidth() const noexcept;
+    double GetMaxWidth() const noexcept;
+    StringView GetSharedSizeGroup() const noexcept;
     void SetWidth(GridLength value) noexcept;
     void SetMaxWidth(double value) noexcept;
     void SetSharedSizeGroup(StringView value) noexcept;
-private:
-    GridLength width_ = GridLength::Star();
-    double maxWidth_ = 1.0e12;
-    String sharedSizeGroup_;
+
+    AERO_DEPENDENCY_PROPERTY(GridLength, Width);
+    AERO_DEPENDENCY_PROPERTY(double, MaxWidth);
+    AERO_DEPENDENCY_PROPERTY(String, SharedSizeGroup);
 };
 
-class AERO_GUI_API RowDefinition : public Base::Object {
-    AERO_DECLARE_TYPE(RowDefinition, Base::Object)
+class AERO_GUI_API RowDefinition : public DependencyObject {
+    AERO_DECLARE_TYPE(RowDefinition, DependencyObject)
 public:
-    RowDefinition() noexcept = default;
-    TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
-    GridLength GetHeight() const noexcept { return height_; }
-    double GetMaxHeight() const noexcept { return maxHeight_; }
-    StringView GetSharedSizeGroup() const noexcept { return sharedSizeGroup_.View(); }
+    RowDefinition() noexcept : DependencyObject(StaticTypeId()) {}
+    GridLength GetHeight() const noexcept;
+    double GetMaxHeight() const noexcept;
+    StringView GetSharedSizeGroup() const noexcept;
     void SetHeight(GridLength value) noexcept;
     void SetMaxHeight(double value) noexcept;
     void SetSharedSizeGroup(StringView value) noexcept;
-private:
-    GridLength height_ = GridLength::Star();
-    double maxHeight_ = 1.0e12;
-    String sharedSizeGroup_;
+
+    AERO_DEPENDENCY_PROPERTY(GridLength, Height);
+    AERO_DEPENDENCY_PROPERTY(double, MaxHeight);
+    AERO_DEPENDENCY_PROPERTY(String, SharedSizeGroup);
 };
 
 class AERO_GUI_API Grid : public Panel {
     AERO_DECLARE_TYPE(Grid, Panel)
 public:
     Grid() noexcept;
+    static Base::Result<GridLength> ConvertLength(Base::StringView text) noexcept;
+    static Base::Result<void> ParseDefinitions(
+        Base::StringView text, Base::Vector<GridLength>& output) noexcept;
     void SetColumnDefinitions(Span<const GridLength> definitions) noexcept;
     void SetRowDefinitions(Span<const GridLength> definitions) noexcept;
     void SetChildCell(UIElement& child, std::uint32_t row, std::uint32_t column) noexcept;

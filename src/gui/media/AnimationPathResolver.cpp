@@ -1,4 +1,5 @@
 #include "gui/media/AnimationPathResolver.hpp"
+#include "gui/core/TypeRegistryDetail.hpp"
 
 #include <Aero/DependencyProperty.hpp>
 #include <Aero/DependencyObject.hpp>
@@ -10,7 +11,6 @@
 #include <Aero/Media/Geometries.hpp>
 #include <Aero/Value.hpp>
 #include "gui/core/DependencyPropertyRegistry.hpp"
-#include "gui/meta/TypeRegistryDetail.hpp"
 
 #include <cstdint>
 

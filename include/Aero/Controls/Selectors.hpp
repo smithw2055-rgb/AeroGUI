@@ -42,13 +42,6 @@ protected:
     void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
 };
 
-} // namespace Aero::Controls
-
-namespace Aero::Controls {
-using ::Aero::Meta::DependencyPropertyChangedEventArgs;
-using ::Aero::Meta::DependencyPropertyChangedEventHandler;
-using ::Aero::Meta::TypeId;
-
 class AERO_GUI_API ComboBoxItem : public ListBoxItem {
     AERO_DECLARE_TYPE(ComboBoxItem, ListBoxItem)
 public:
@@ -60,9 +53,6 @@ public:
 
     AERO_DEPENDENCY_PROPERTY(bool, IsSelected);
 };
-} // namespace Aero::Controls
-
-namespace Aero::Controls {
 
 class AERO_GUI_API ListBox : public Primitives::Selector {
     AERO_DECLARE_TYPE(ListBox, Primitives::Selector)
@@ -84,13 +74,6 @@ private:
     std::uint32_t FindContainerIndex(Base::Object* source) const noexcept;
     Result<bool> ApplyUserSelection(std::uint32_t index, std::uint32_t modifiers) noexcept;
 };
-
-} // namespace Aero::Controls
-
-namespace Aero::Controls {
-using ::Aero::Meta::DependencyPropertyChangedEventArgs;
-using ::Aero::Meta::DependencyPropertyChangedEventHandler;
-using ::Aero::Meta::TypeId;
 
 class AERO_GUI_API ComboBox : public Primitives::Selector {
     AERO_DECLARE_TYPE(ComboBox, Primitives::Selector)
@@ -162,9 +145,6 @@ private:
     std::uint32_t FindContainerIndex(Base::Object* source) const noexcept;
     void UpdateVisualState(bool useTransitions = true) noexcept;
 };
-} // namespace Aero::Controls
-
-namespace Aero::Controls {
 
 class AERO_GUI_API TabItem : public HeaderedContentControl {
     AERO_DECLARE_TYPE(TabItem, HeaderedContentControl)
@@ -176,10 +156,6 @@ public:
     void SetIsSelected(bool value) noexcept;
     AERO_DEPENDENCY_PROPERTY(bool, IsSelected);
 };
-
-} // namespace Aero::Controls
-
-namespace Aero::Controls {
 
 // Wraps tab headers according to the nearest templated TabControl's strip
 // placement, matching the WPF TabPanel layout contract.
@@ -196,10 +172,6 @@ protected:
 private:
     bool GetIsVertical() const noexcept;
 };
-
-} // namespace Aero::Controls
-
-namespace Aero::Controls {
 
 class AERO_GUI_API TabControl : public Primitives::Selector {
     AERO_DECLARE_TYPE(TabControl, Primitives::Selector)

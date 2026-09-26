@@ -1,14 +1,10 @@
-#include "gui/meta/TypeRegistryDetail.hpp"
-#include "gui/meta/Describe.hpp"
+#include "gui/data/BindingPath.hpp"
+#include "gui/core/Describe.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
-#include "gui/data/BindingEngine.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleEngine.hpp"
 #include "render/DisplayList.hpp"
 #include <Aero/Controls.hpp>
 #include <Aero/Controls/Selectors.hpp>
@@ -20,7 +16,7 @@
 #include <Aero/Documents.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Base/String.hpp>
-#include "gui/meta/ValueConversion.hpp"
+#include "gui/core/ValueConversion.hpp"
 #include "ControlsMetadata.hpp"
 
 #include "TextBlockLayout.hpp"
@@ -170,7 +166,7 @@ Base::Result<bool> AppendRichTextBinding(
     Base::StringView path,
     Base::StringView format,
     Base::String& output) noexcept {
-    if (!AeroGuiInternal::PropertyRegistry(object).Types().IsDerivedFrom(
+    if (!(object).PropertyRegistry().Types().IsDerivedFrom(
             object.RuntimeType(),
             FrameworkElement::StaticTypeId())) {
         return false;
@@ -222,7 +218,7 @@ bool SameRichTextState(
 } // namespace
 
 void ApplyRichText(DependencyObject& object) noexcept {
-    if (!AeroGuiInternal::PropertyRegistry(object).Types().IsDerivedFrom(
+    if (!(object).PropertyRegistry().Types().IsDerivedFrom(
             object.RuntimeType(),
             Controls::TextBlock::StaticTypeId())) return;
     const Base::StringView source = object.GetValue(RichText::TextProperty);
@@ -409,7 +405,7 @@ void AddTextBlockInline(
         return;
     }
     auto& text = static_cast<TextBlock&>(owner);
-    if (!AeroGuiInternal::PropertyRegistry(text).Types().IsDerivedFrom(
+    if (!(text).PropertyRegistry().Types().IsDerivedFrom(
             child->RuntimeType(),
             Aero::Documents::Inline::StaticTypeId())) {
         return;
@@ -431,7 +427,7 @@ void AddSpanInline(
         return;
     }
     auto& span = static_cast<Documents::Span&>(owner);
-    if (!AeroGuiInternal::PropertyRegistry(span).Types().IsDerivedFrom(
+    if (!(span).PropertyRegistry().Types().IsDerivedFrom(
             child->RuntimeType(),
             Documents::Inline::StaticTypeId())) {
         return;

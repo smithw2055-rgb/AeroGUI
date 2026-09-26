@@ -3,7 +3,7 @@
 #include "gui/triggers/TriggerValueCompare.hpp"
 #include "gui/styles/StyleEngine.hpp"
 #include "gui/controls/ItemsContainers.hpp"
-#include "gui/meta/ValueConversion.hpp"
+#include "gui/core/ValueConversion.hpp"
 #include <Aero/Meta.hpp>
 
 namespace Aero {

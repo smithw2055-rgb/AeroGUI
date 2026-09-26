@@ -1,5 +1,4 @@
-#include "gui/meta/TypeRegistryDetail.hpp"
-#include "gui/media/AnimationEngine.hpp"
+#include "gui/core/TypeRegistryDetail.hpp"
 
 #include <Aero/Base/Assert.hpp>
 

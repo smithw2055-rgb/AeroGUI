@@ -52,6 +52,72 @@ Base::Result<void> Window::Show() noexcept {
     return shown;
 }
 
+Base::Result<bool> Window::ShowDialog() noexcept {
+    if (dialogActive_ || GetIsOpen()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Window.ShowDialog requires a window that is not already open");
+    }
+    dialogActive_ = true;
+    Base::Result<void> shown = Show();
+    if (!shown) {
+        dialogActive_ = false;
+        return shown.GetStatus();
+    }
+    Application* application = Application::Current();
+    auto* applicationState = application != nullptr
+        ? static_cast<::Aero::App::ApplicationHost*>(
+              application->hostState_)
+        : nullptr;
+    if (applicationState == nullptr ||
+        applicationState->runDialog == nullptr) {
+        dialogActive_ = false;
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Window.ShowDialog requires a running Application host");
+    }
+    Base::Result<bool> result = applicationState->runDialog(
+        applicationState->context, *this);
+    dialogActive_ = false;
+    return result;
+}
+
+Nullable<bool> Window::GetDialogResult() const noexcept {
+    return GetValue(DialogResultProperty);
+}
+
+void Window::SetDialogResult(Nullable<bool> value) noexcept {
+    SetValue(DialogResultProperty, value);
+}
+
+Base::Ref<Window> Window::GetOwner() const noexcept {
+    return GetValue(OwnerProperty);
+}
+
+void Window::SetOwner(Window* owner) noexcept {
+    if (owner == nullptr || owner == this) {
+        SetValue(OwnerProperty, Base::Ref<Window>{});
+        return;
+    }
+    SetValue(OwnerProperty, Base::Ref<Window>::TryFromBorrowed(*owner));
+}
+
+void Window::SetOwner(Base::Ref<Window> owner) noexcept {
+    if (owner.Get() == this) owner.Reset();
+    SetValue(OwnerProperty, std::move(owner));
+}
+
+void Window::OnPropertyChanged(
+    const Meta::DependencyPropertyChangedEventArgs& args) noexcept {
+    Controls::ContentControl::OnPropertyChanged(args);
+    if (!dialogActive_ || closed_ ||
+        args.GetProperty() != DialogResultProperty.Handle()) {
+        return;
+    }
+    const Nullable<bool> result = GetDialogResult();
+    if (result.GetHasValue()) Close();
+}
+
 void Window::SetWindowState(WindowState value) noexcept {
     const WindowState previous = GetWindowState();
     SetValue(WindowStateProperty, value);

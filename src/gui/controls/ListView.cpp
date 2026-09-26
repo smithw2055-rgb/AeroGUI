@@ -1,19 +1,15 @@
 #include "gui/core/ElementTree.hpp"
-#include "gui/meta/Describe.hpp"
+#include "gui/core/Describe.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleEngine.hpp"
-#include "gui/meta/TypeRegistryDetail.hpp"
 #include <Aero/Controls.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/DataTemplate.hpp>
 #include <Aero/Style.hpp>
 #include <Aero/Data/Binding.hpp>
-#include "gui/meta/ValueConversion.hpp"
+#include "gui/core/ValueConversion.hpp"
 
 #include <cmath>
 #include <utility>
@@ -111,13 +107,13 @@ void GridView::AddColumn(
         std::move(column));
 }
 
-Base::Ref<GridView>
+Base::Ref<ViewBase>
 ListView::GetView() const noexcept {
     return GetValue(ViewProperty);
 }
 
 void ListView::SetView(
-    Base::Ref<GridView> value) noexcept {
+    Base::Ref<ViewBase> value) noexcept {
     SetValue(ViewProperty, std::move(value));
     SynchronizeColumnHeaders();
 }
@@ -129,7 +125,7 @@ ListView::OnApplyTemplate() noexcept {
         GetTemplateChild("ColumnHeaders");
     columnHeaders_ =
         headers != nullptr &&
-        AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
+        (*this).PropertyRegistry().Types().IsDerivedFrom(
             headers->RuntimeType(),
             TextBlock::StaticTypeId())
         ? static_cast<TextBlock*>(headers)
@@ -149,8 +145,8 @@ void
 ListView::SynchronizeColumnHeaders() noexcept {
     if (columnHeaders_ == nullptr) return;
     Base::String text;
-    Base::Ref<GridView> view = GetView();
-    if (view) {
+    GridView* view = ::Aero::TryCast<GridView>(GetView().Get());
+    if (view != nullptr) {
         for (const Base::Ref<GridViewColumn>&
              column : view->GetColumns()) {
             if (!column) continue;
@@ -293,7 +289,7 @@ AERO_DESCRIBE(GridViewRowPresenter) {
 AERO_DESCRIBE(ListView) {
     using namespace Aero::Meta;
     Register<ListView>(context)
-        .Property(ListView::ViewProperty, Base::Ref<GridView>{}, AffectsMeasure)
+        .Property(ListView::ViewProperty, Base::Ref<ViewBase>{}, AffectsMeasure)
         .Factory();
 }
 

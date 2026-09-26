@@ -36,8 +36,14 @@ public:
     void SetTopmost(bool value) noexcept { SetValue(TopmostProperty, value); }
 
     Result<void> Show() noexcept;
+    Result<bool> ShowDialog() noexcept;
     void Close() noexcept;
     bool GetIsOpen() const noexcept;
+    Nullable<bool> GetDialogResult() const noexcept;
+    void SetDialogResult(Nullable<bool> value) noexcept;
+    Ref<Window> GetOwner() const noexcept;
+    void SetOwner(Window* owner) noexcept;
+    void SetOwner(Ref<Window> owner) noexcept;
 
     AERO_DEPENDENCY_PROPERTY(String, Title);
     AERO_DEPENDENCY_PROPERTY(WindowState, WindowState);
@@ -46,6 +52,8 @@ public:
     AERO_DEPENDENCY_PROPERTY(SizeToContent, SizeToContent);
     AERO_DEPENDENCY_PROPERTY(bool, ShowInTaskbar);
     AERO_DEPENDENCY_PROPERTY(bool, Topmost);
+    AERO_DEPENDENCY_PROPERTY(Nullable<bool>, DialogResult);
+    AERO_DEPENDENCY_PROPERTY(Ref<Window>, Owner);
     inline static constexpr RoutedEvent<CancelEventArgs> ClosingEvent{"Closing"};
     inline static constexpr RoutedEvent<RoutedEventArgs> ClosedEvent{"Closed"};
     inline static constexpr RoutedEvent<RoutedEventArgs> ActivatedEvent{"Activated"};
@@ -76,6 +84,7 @@ protected:
     virtual void OnContentRendered(RoutedEventArgs& args) noexcept { static_cast<void>(RaiseEvent(ContentRenderedEvent, &args)); }
     virtual void OnSourceInitialized(RoutedEventArgs& args) noexcept { static_cast<void>(RaiseEvent(SourceInitializedEvent, &args)); }
     virtual void OnStateChanged(RoutedEventArgs& args) noexcept { static_cast<void>(RaiseEvent(StateChangedEvent, &args)); }
+    void OnPropertyChanged(const Meta::DependencyPropertyChangedEventArgs& args) noexcept override;
 
 private:
     friend class App::WindowInterop;
@@ -97,6 +106,7 @@ private:
     bool sourceInitialized_ = false;
     bool contentRendered_ = false;
     bool closed_ = false;
+    bool dialogActive_ = false;
 };
 
 } // namespace Aero

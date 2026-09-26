@@ -8,7 +8,7 @@
 
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
-#include "gui/meta/TypeRegistryDetail.hpp"
+#include "gui/core/TypeRegistryDetail.hpp"
 
 #include <Aero/Style.hpp>
 
@@ -1730,7 +1730,7 @@ struct LoadState {
 
 
 // ===== GuiSchema contract =====
-#include "gui/meta/ModuleSet.hpp"
+#include "gui/core/ModuleSet.hpp"
 
 
 namespace Aero::Meta { class Registry; class Registration; }

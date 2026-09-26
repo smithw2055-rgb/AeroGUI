@@ -1,18 +1,16 @@
 #include <Aero/Controls.hpp>
 #include <Aero/Controls/ItemsPresenter.hpp>
 #include <Aero/VisualTreeHelper.hpp>
-#include <Aero/Data/CollectionViewSource.hpp>
+#include <Aero/Data/CollectionView.hpp>
 #include <Aero/DataTemplate.hpp>
 #include <Aero/TryCast.hpp>
-#include "gui/meta/TypeRegistryDetail.hpp"
+#include "gui/core/TypeRegistryDetail.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/data/BindingEngine.hpp"
-#include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleEngine.hpp"
 #include "gui/controls/ItemsContainers.hpp" 
 #include "gui/templates/TemplateInstance.hpp"
@@ -328,11 +326,11 @@ ItemContainerGenerator::GeneratorState::CreateRecord(
     // and falls through to the FrameworkElement borrow below.
     const bool isOwnContainer =
         owner_->IsItemItsOwnContainerOverride(record.item.Get()) ||
-        AeroGuiInternal::PropertyRegistry(owner_).Types().IsDerivedFrom(
+        owner_->PropertyRegistry().Types().IsDerivedFrom(
             record.item->RuntimeType(),
             FrameworkElement::StaticTypeId());
     if (isOwnContainer) {
-        if (!AeroGuiInternal::PropertyRegistry(owner_).Types().IsDerivedFrom(
+        if (!owner_->PropertyRegistry().Types().IsDerivedFrom(
                 record.item->RuntimeType(),
                 FrameworkElement::StaticTypeId())) {
             return Base::Status::Failure(
@@ -353,13 +351,13 @@ ItemContainerGenerator::GeneratorState::CreateRecord(
             content =
                 FrameworkTemplateState::Instantiate(
                     *itemTemplate, record.item,
-                    AeroGuiInternal::BindingEngineOf(*owner_));
+                    ElementTree::BindingsOf(*owner_));
         if (!content) return content.GetStatus();
         record.content =
             std::move(content).Value();
     } else if (!owner_->GetDisplayMemberPath().Empty()) {
         Aero::BindingEngine* bindings =
-            AeroGuiInternal::BindingEngineOf(*owner_);
+            ElementTree::BindingsOf(*owner_);
         Meta::Registry* metadata =
             bindings != nullptr ? bindings->Metadata() : nullptr;
         if (metadata == nullptr) {
@@ -514,12 +512,12 @@ ItemContainerGenerator::GeneratorState::CreateRecord(
             Base::Ref<Base::Object>(
                 std::move(text).Value());
         record.generatedTextContent = true;
-    } else if (AeroGuiInternal::PropertyRegistry(owner_).Types()
+    } else if (owner_->PropertyRegistry().Types()
         .IsDerivedFrom(
             record.item->RuntimeType(),
             UIElement::StaticTypeId())) {
         record.content = record.item;
-    } else if (AeroGuiInternal::PropertyRegistry(owner_).Types().IsDerivedFrom(
+    } else if (owner_->PropertyRegistry().Types().IsDerivedFrom(
                    owner_->RuntimeType(),
                    ListView::StaticTypeId()) &&
                static_cast<ListView*>(owner_)->GetView()) {
@@ -545,7 +543,7 @@ ItemContainerGenerator::GeneratorState::CreateRecord(
         record.generatedTextContent = true;
     }
     if (!record.content ||
-        !AeroGuiInternal::PropertyRegistry(owner_).Types()
+        !owner_->PropertyRegistry().Types()
             .IsDerivedFrom(
                 record.content->RuntimeType(),
                 UIElement::StaticTypeId())) {
@@ -588,7 +586,7 @@ ItemContainerGenerator::GeneratorState::AttachOwnedSubtree(
             const Base::Ref<Base::Object>& owned)
             noexcept -> Base::Result<void> {
         if (!owned ||
-            !AeroGuiInternal::PropertyRegistry(owner_).Types().
+            !owner_->PropertyRegistry().Types().
                 IsDerivedFrom(
                     owned->RuntimeType(),
                     UIElement::StaticTypeId())) {
@@ -674,24 +672,24 @@ ItemContainerGenerator::GeneratorState::AttachOwnedSubtree(
         if (current == nullptr) continue;
         const Meta::TypeId type =
             current->RuntimeType();
-        if (AeroGuiInternal::PropertyRegistry(owner_).Types().
+        if (owner_->PropertyRegistry().Types().
                 IsDerivedFrom(
                     type, Panel::StaticTypeId())) {
             auto& panel =
                 *static_cast<Panel*>(current);
             for (std::uint32_t index = 0U;
-                 index < AeroGuiInternal::PanelChildCount(panel);
+                 index < (panel).ChildCountCore();
                  ++index) {
                 Base::Result<void> attached =
                     attachChild(
                         panel,
-                        AeroGuiInternal::PanelChildAt(panel, index));
+                        (panel).ChildAtCore( index));
                 if (!attached) {
                     (void)DetachOwnedSubtree(record);
                     return attached.GetStatus();
                 }
             }
-        } else if (AeroGuiInternal::PropertyRegistry(owner_).Types().
+        } else if (owner_->PropertyRegistry().Types().
                        IsDerivedFrom(
                            type,
                            Decorator::StaticTypeId())) {
@@ -700,12 +698,12 @@ ItemContainerGenerator::GeneratorState::AttachOwnedSubtree(
             Base::Result<void> attached =
                 attachChild(
                     decorator,
-                    AeroGuiInternal::DecoratorOwnedChild(decorator));
+                    (decorator).OwnedChild());
             if (!attached) {
                 (void)DetachOwnedSubtree(record);
                 return attached.GetStatus();
             }
-        } else if (AeroGuiInternal::PropertyRegistry(owner_).Types().
+        } else if (owner_->PropertyRegistry().Types().
                        IsDerivedFrom(
                            type,
                            ContentControl::StaticTypeId())) {
@@ -714,12 +712,12 @@ ItemContainerGenerator::GeneratorState::AttachOwnedSubtree(
             Base::Result<void> attached =
                 attachChild(
                     content,
-                    AeroGuiInternal::OwnedContent(content));
+                    (content).OwnedContent());
             if (!attached) {
                 (void)DetachOwnedSubtree(record);
                 return attached.GetStatus();
             }
-        } else if (AeroGuiInternal::PropertyRegistry(owner_).Types().
+        } else if (owner_->PropertyRegistry().Types().
                        IsDerivedFrom(
                            type,
                            ContentPresenter::StaticTypeId())) {
@@ -823,26 +821,26 @@ ItemContainerGenerator::GeneratorState::AttachRecord(
     ContentControl* contentControl = nullptr;
     ContentPresenter* contentPresenter = nullptr;
     HeaderedItemsControl* headeredItemsControl = nullptr;
-    if (AeroGuiInternal::PropertyRegistry(owner_).Types().IsDerivedFrom(
+    if (owner_->PropertyRegistry().Types().IsDerivedFrom(
             container.RuntimeType(),
             ContentControl::StaticTypeId())) {
         contentControl = static_cast<ContentControl*>(&container);
     }
-    if (AeroGuiInternal::PropertyRegistry(owner_).Types().IsDerivedFrom(
+    if (owner_->PropertyRegistry().Types().IsDerivedFrom(
             container.RuntimeType(),
             ContentPresenter::StaticTypeId())) {
         contentPresenter = static_cast<ContentPresenter*>(&container);
     }
-    if (AeroGuiInternal::PropertyRegistry(owner_).Types().IsDerivedFrom(
+    if (owner_->PropertyRegistry().Types().IsDerivedFrom(
             container.RuntimeType(),
             HeaderedItemsControl::StaticTypeId())) {
         headeredItemsControl = static_cast<HeaderedItemsControl*>(&container);
     }
     if (!record.itemIsOwnContainer && headeredItemsControl != nullptr &&
         record.content.Get() != nullptr &&
-        AeroGuiInternal::PropertyRegistry(owner_).Types().IsDerivedFrom(
+        owner_->PropertyRegistry().Types().IsDerivedFrom(
             record.content->RuntimeType(), UIElement::StaticTypeId())) {
-        if (AeroGuiInternal::PropertyRegistry(owner_).Types().IsDerivedFrom(
+        if (owner_->PropertyRegistry().Types().IsDerivedFrom(
                 record.content->RuntimeType(), TextBlock::StaticTypeId())) {
             static_cast<TextBlock*>(record.content.Get())
                 ->AddValueChangedHandler(
@@ -866,7 +864,7 @@ ItemContainerGenerator::GeneratorState::AttachRecord(
             // display them. Extracting TextBlock.Text only covers string headers.
             const Value header = Value::FromObject(
                 record.content->RuntimeType(), record.content);
-            if (AeroGuiInternal::PropertyRegistry(owner_).Types().IsDerivedFrom(
+            if (owner_->PropertyRegistry().Types().IsDerivedFrom(
                     container.RuntimeType(),
                     TreeViewItem::StaticTypeId())) {
                 static_cast<TreeViewItem&>(container).SetHeader(header);
@@ -880,14 +878,12 @@ ItemContainerGenerator::GeneratorState::AttachRecord(
             *static_cast<UIElement*>(
                 record.content.Get());
         if (record.generatedTextContent) {
-            AeroGuiInternal::SetGeneratedTextContent(
-                *contentControl, record.content, content);
+            (*contentControl).SetGeneratedTextContent( record.content, content);
         } else {
-            AeroGuiInternal::SetOwnedContent(
-                *contentControl, record.content, content);
+            (*contentControl).SetOwnedContent( record.content, content);
         }
         if (record.generatedTextContent &&
-            AeroGuiInternal::PropertyRegistry(owner_).Types().IsDerivedFrom(
+            owner_->PropertyRegistry().Types().IsDerivedFrom(
                 container.RuntimeType(), Control::StaticTypeId())) {
             auto* text = static_cast<TextBlock*>(record.content.Get());
             auto& hostControl = static_cast<Control&>(container);
@@ -971,9 +967,9 @@ ItemContainerGenerator::GeneratorState::AttachRecord(
     if (subtreeCallback_ != nullptr &&
         record.generatedHeader &&
         record.content &&
-        AeroGuiInternal::PropertyRegistry(owner_).Types().IsDerivedFrom(
+        owner_->PropertyRegistry().Types().IsDerivedFrom(
             record.content->RuntimeType(), UIElement::StaticTypeId()) &&
-        !AeroGuiInternal::PropertyRegistry(owner_).Types().IsDerivedFrom(
+        !owner_->PropertyRegistry().Types().IsDerivedFrom(
             record.content->RuntimeType(), TextBlock::StaticTypeId())) {
         auto& headerVisual =
             *static_cast<Aero::Media::Visual*>(record.content.Get());
@@ -996,7 +992,7 @@ Base::Result<void>
 ItemContainerGenerator::GeneratorState::ProjectGeneratedContent(
     Record& record) noexcept {
     if (record.itemIsOwnContainer || !record.content || !record.container ||
-        !AeroGuiInternal::PropertyRegistry(owner_).Types().IsDerivedFrom(
+        !owner_->PropertyRegistry().Types().IsDerivedFrom(
             record.content->RuntimeType(), UIElement::StaticTypeId())) {
         return {};
     }
@@ -1004,21 +1000,21 @@ ItemContainerGenerator::GeneratorState::ProjectGeneratedContent(
     // String headers already live on Header; do not also mount the
     // extracted TextBlock into PART_Header.
     if (record.generatedHeader &&
-        AeroGuiInternal::PropertyRegistry(owner_).Types().IsDerivedFrom(
+        owner_->PropertyRegistry().Types().IsDerivedFrom(
             record.content->RuntimeType(), TextBlock::StaticTypeId())) {
         return {};
     }
     if (record.generatedTextContent &&
-        AeroGuiInternal::PropertyRegistry(owner_).Types().IsDerivedFrom(
+        owner_->PropertyRegistry().Types().IsDerivedFrom(
             record.content->RuntimeType(), TextBlock::StaticTypeId()) &&
-        AeroGuiInternal::PropertyRegistry(owner_).Types().IsDerivedFrom(
+        owner_->PropertyRegistry().Types().IsDerivedFrom(
             record.container->RuntimeType(), Control::StaticTypeId())) {
         auto* text = static_cast<TextBlock*>(record.content.Get());
         auto& hostControl = static_cast<Control&>(*record.container);
         text->SetValue(
             TextBlock::FontSizeProperty, hostControl.GetFontSize());
     }
-    if (!AeroGuiInternal::PropertyRegistry(owner_).Types().IsDerivedFrom(
+    if (!owner_->PropertyRegistry().Types().IsDerivedFrom(
             record.container->RuntimeType(), Control::StaticTypeId())) {
         return {};
     }
@@ -1036,7 +1032,7 @@ ItemContainerGenerator::GeneratorState::ProjectGeneratedContent(
     }
     auto isHeaderPresenter = [&](DependencyObject* node) noexcept -> bool {
         return node != nullptr &&
-            AeroGuiInternal::PropertyRegistry(owner_).Types().IsDerivedFrom(
+            owner_->PropertyRegistry().Types().IsDerivedFrom(
                 node->RuntimeType(), ContentPresenter::StaticTypeId()) &&
             static_cast<ContentPresenter*>(node)->GetContentSource() ==
                 Base::StringView("Header");
@@ -1155,16 +1151,16 @@ Base::Result<void>
 ItemContainerGenerator::GeneratorState::UpdateGeneratedHeader(
     Record& record) noexcept {
     if (!record.generatedHeader || !record.content || !record.container ||
-        !AeroGuiInternal::PropertyRegistry(owner_).Types().IsDerivedFrom(
+        !owner_->PropertyRegistry().Types().IsDerivedFrom(
             record.content->RuntimeType(), TextBlock::StaticTypeId()) ||
-        !AeroGuiInternal::PropertyRegistry(owner_).Types().IsDerivedFrom(
+        !owner_->PropertyRegistry().Types().IsDerivedFrom(
             record.container->RuntimeType(),
             HeaderedItemsControl::StaticTypeId())) {
         return {};
     }
     const Base::StringView text =
         static_cast<TextBlock*>(record.content.Get())->GetText();
-    if (AeroGuiInternal::PropertyRegistry(owner_).Types().IsDerivedFrom(
+    if (owner_->PropertyRegistry().Types().IsDerivedFrom(
             record.container->RuntimeType(),
             TreeViewItem::StaticTypeId())) {
         static_cast<TreeViewItem*>(record.container.Get())
@@ -1197,17 +1193,17 @@ ItemContainerGenerator::GeneratorState::DetachRecord(
     ContentControl* contentControl = nullptr;
     ContentPresenter* contentPresenter = nullptr;
     HeaderedItemsControl* headeredItemsControl = nullptr;
-    if (AeroGuiInternal::PropertyRegistry(owner_).Types().IsDerivedFrom(
+    if (owner_->PropertyRegistry().Types().IsDerivedFrom(
             container.RuntimeType(),
             ContentControl::StaticTypeId())) {
         contentControl = static_cast<ContentControl*>(&container);
     }
-    if (AeroGuiInternal::PropertyRegistry(owner_).Types().IsDerivedFrom(
+    if (owner_->PropertyRegistry().Types().IsDerivedFrom(
             container.RuntimeType(),
             ContentPresenter::StaticTypeId())) {
         contentPresenter = static_cast<ContentPresenter*>(&container);
     }
-    if (AeroGuiInternal::PropertyRegistry(owner_).Types().IsDerivedFrom(
+    if (owner_->PropertyRegistry().Types().IsDerivedFrom(
             container.RuntimeType(),
             HeaderedItemsControl::StaticTypeId())) {
         headeredItemsControl = static_cast<HeaderedItemsControl*>(&container);
@@ -1235,7 +1231,7 @@ ItemContainerGenerator::GeneratorState::DetachRecord(
     // an explicit teardown because the container subtree walk cannot reach it.
     if (record.generatedHeader && record.content &&
         subtreeCallback_ != nullptr &&
-        AeroGuiInternal::PropertyRegistry(owner_).Types().IsDerivedFrom(
+        owner_->PropertyRegistry().Types().IsDerivedFrom(
             record.content->RuntimeType(), UIElement::StaticTypeId())) {
         capture(subtreeCallback_(
             *static_cast<Aero::Media::Visual*>(record.content.Get()),
@@ -1245,7 +1241,7 @@ ItemContainerGenerator::GeneratorState::DetachRecord(
     capture(DetachOwnedSubtree(record));
     owner_->ClearContainerForItemOverride(container);
     if (record.generatedHeader && headeredItemsControl != nullptr) {
-        if (record.content && AeroGuiInternal::PropertyRegistry(owner_).Types().IsDerivedFrom(
+        if (record.content && owner_->PropertyRegistry().Types().IsDerivedFrom(
                 record.content->RuntimeType(), TextBlock::StaticTypeId())) {
             static_cast<void>(
                 static_cast<TextBlock*>(record.content.Get())
@@ -1254,7 +1250,7 @@ ItemContainerGenerator::GeneratorState::DetachRecord(
                         generatedHeaderChangedHandler_));
         }
         const auto clearHeader = [&]() noexcept {
-            if (AeroGuiInternal::PropertyRegistry(owner_).Types().IsDerivedFrom(
+            if (owner_->PropertyRegistry().Types().IsDerivedFrom(
                     container.RuntimeType(), TreeViewItem::StaticTypeId())) {
                 static_cast<TreeViewItem&>(container).SetHeader(
                     Value::NullObject(Meta::TypeOf<Base::Object>()));
@@ -1273,10 +1269,9 @@ ItemContainerGenerator::GeneratorState::DetachRecord(
     }
     if (!record.itemIsOwnContainer &&
         templates_ != nullptr &&
-        AeroGuiInternal::PropertyRegistry(owner_).Types().IsDerivedFrom(
+        owner_->PropertyRegistry().Types().IsDerivedFrom(
             container.RuntimeType(), Control::StaticTypeId()) &&
-        AeroGuiInternal::IsTemplateApplied(
-            static_cast<Control&>(container))) {
+        (static_cast<Control&>(container)).IsTemplateApplied()) {
         Base::Result<bool> cleared =
             templates_->Clear(static_cast<Control&>(container));
         if (!cleared) {
@@ -1286,8 +1281,7 @@ ItemContainerGenerator::GeneratorState::DetachRecord(
     }
     UIElement* content = nullptr;
     if (!record.itemIsOwnContainer && contentControl != nullptr) {
-        content = AeroGuiInternal::ContentControlContent(
-            *contentControl);
+        content = (*contentControl).GetContentElement();
     } else if (!record.itemIsOwnContainer && contentPresenter != nullptr) {
         content = contentPresenter->GetContent();
     }
@@ -1874,7 +1868,7 @@ void ItemContainerGenerator::HostHandleItemsChanged(
 namespace Aero {
 
 Base::Result<Controls::ItemContainerGenerator*>
-AeroGuiInternal::CreateItemContainerGenerator(
+Controls::ItemContainerGenerator::Create(
     ElementTree& tree,
     Aero::LayoutEngine& layout,
     Meta::EffectiveValueEngine& values,

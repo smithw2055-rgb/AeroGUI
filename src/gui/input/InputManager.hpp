@@ -4,13 +4,11 @@
 
 #include <Aero/Base/Delegate.hpp>
 #include <Aero/Media/Transform3D.hpp>
-#include "gui/meta/TypeRegistryDetail.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
 #include <cstdint>
 #include <Aero/CommandBinding.hpp>
 
@@ -34,9 +32,7 @@ using PointerCaptureChangedHandler = Base::Delegate<void(std::uint32_t, UIElemen
 #include <Aero/ICommand.hpp>
 #include <Aero/RoutedCommand.hpp>
 #include <Aero/InputBinding.hpp>
-#include <Aero/KeyBinding.hpp>
 #include <Aero/KeyboardNavigation.hpp>
-#include <Aero/FocusManager.hpp>
 #include <Aero/Layout.hpp>
 
 namespace Aero {

@@ -58,7 +58,9 @@
 ::Aero::Meta::AddDescribe<ListBoxItem>(&::Aero::Meta::DescribeHook<ListBoxItem>::Run);
 ::Aero::Meta::AddDescribe<ComboBox>(&::Aero::Meta::DescribeHook<ComboBox>::Run);
 ::Aero::Meta::AddDescribe<ComboBoxItem>(&::Aero::Meta::DescribeHook<ComboBoxItem>::Run);
+::Aero::Meta::AddDescribe<MenuBase>(&::Aero::Meta::DescribeHook<MenuBase>::Run);
 ::Aero::Meta::AddDescribe<Menu>(&::Aero::Meta::DescribeHook<Menu>::Run);
+::Aero::Meta::AddDescribe<Page>(&::Aero::Meta::DescribeHook<Page>::Run);
 ::Aero::Meta::AddDescribe<MenuItem>(&::Aero::Meta::DescribeHook<MenuItem>::Run);
 ::Aero::Meta::AddDescribe<ContextMenu>(&::Aero::Meta::DescribeHook<ContextMenu>::Run);
 ::Aero::Meta::AddDescribe<ContextMenuService>(&::Aero::Meta::DescribeHook<ContextMenuService>::Run);

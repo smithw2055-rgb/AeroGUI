@@ -3,7 +3,7 @@
 // Inline family: TextElement through the concrete inlines.
 #include <Aero/FrameworkContentElement.hpp>
 #include <Aero/Media/Brushes.hpp>
-#include <Aero/Media/FontFamily.hpp>
+#include <Aero/Media/Fonts.hpp>
 #include <Aero/TextFormatting.hpp>
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/Ref.hpp>

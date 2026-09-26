@@ -1,5 +1,7 @@
 #include "gui/ViewFrame.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
+#include "gui/GuiDetail.hpp"
+#include "gui/text/TextPipeline.hpp"
+#include "render/RenderTree.hpp"
 #include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/Controls/ContentControl.hpp>
 #include <Aero/Controls/Panel.hpp>
@@ -396,18 +398,17 @@ Base::Result<void> ApplyViewUi(ViewFrame& state, Aero::Media::Visual& root) noex
                         // only after Apply has returned so PART_* lookups and
                         // ItemsHost realization cannot re-enter that
                         // transaction.
-                        AeroGuiInternal::
-                            InvokeTemplateApplied(control);
+                        (control).OnApplyTemplate();
                         }
                     }
                 } else {
-                    AeroGuiInternal::InvokeTemplateApplied(control);
+                    (control).OnApplyTemplate();
                 }
                 }
             }
 
             for (Aero::Media::Visual* child :
-                 AeroGuiInternal::RenderChildren(*node)) {
+                 (*node).RenderChildren()) {
                 stack.PushBack(child);
             }
             if (auto* panel = ::Aero::TryCast<Controls::Panel>(node)) {
@@ -421,9 +422,9 @@ Base::Result<void> ApplyViewUi(ViewFrame& state, Aero::Media::Visual& root) noex
                 }
             }
             if (auto* host = ::Aero::TryCast<Controls::ContentControl>(node)) {
-                if (AeroGuiInternal::TemplateRoot(*host) == nullptr) {
+                if ((*host).GetTemplateRoot() == nullptr) {
                     UIElement* content =
-                        AeroGuiInternal::ContentControlContent(*host);
+                        (*host).GetContentElement();
                     if (content != nullptr &&
                         content->GetVisualParent() != host) {
                         stack.PushBack(content);
@@ -461,7 +462,7 @@ void DetachViewUi(
             Aero::Media::Visual* node = reachable[index];
             if (node == nullptr) continue;
             for (Aero::Media::Visual* child :
-                 AeroGuiInternal::RenderChildren(*node)) {
+                 (*node).RenderChildren()) {
                 addReachable(child);
             }
             const std::uint32_t visualCount =
@@ -490,8 +491,8 @@ void DetachViewUi(
         for (std::uint32_t index = reachable.Size(); index > 0U; --index) {
             Aero::Media::Visual* node = reachable[index - 1U];
             if (node == nullptr) continue;
-            AeroGuiInternal::DetachPropertyDependencyObjects(
-                *node, state.Bindings(), state.values, state.Animations(), detachedPropertyObjects);
+            node->DetachPropertyDependencyObjects(
+                state.Bindings(), state.values, state.Animations(), detachedPropertyObjects);
             if (state.metadata != nullptr &&
                 state.metadata->Types().IsDerivedFrom(
                     node->RuntimeType(), Controls::ItemsControl::StaticTypeId())) {
@@ -798,8 +799,7 @@ Base::Result<void>
 
 Base::Result<void> ViewFrame::AttachItemGenerator(
         Controls::ItemsControl& itemsControl) noexcept {
-        if (AeroGuiInternal::
-                HasAttachedGenerator(itemsControl)) {
+        if (((itemsControl).GetItemContainerGenerator() != nullptr)) {
             Controls::ItemContainerGenerator* generator =
                 itemsControl.GetItemContainerGenerator();
             Controls::Panel* host = itemsControl.GetItemsHost();
@@ -827,7 +827,7 @@ Base::Result<void> ViewFrame::AttachItemGenerator(
         }
 
         Base::Result<Controls::ItemContainerGenerator*> created =
-            AeroGuiInternal::CreateItemContainerGenerator(
+            Controls::ItemContainerGenerator::Create(
                 *tree,
                 *Layout(),
                 *values,
@@ -880,7 +880,7 @@ Base::Result<void> ViewFrame::AttachPendingItemGenerators(
                 if (!attached) return attached.GetStatus();
             }
             for (Aero::Media::Visual* child :
-                 AeroGuiInternal::RenderChildren(*node)) {
+                 (*node).RenderChildren()) {
                 stack.PushBack(child);
             }
         }
@@ -944,7 +944,7 @@ Base::Result<void> ViewFrame::VisitAndAttach(
                     *static_cast<Controls::ItemsControl*>(node));
                 if (!attached) return attached.GetStatus();
             }
-            const auto children = AeroGuiInternal::RenderChildren(*node);
+            const auto children = (*node).RenderChildren();
             for (std::uint32_t index = 0U;
                  index < children.Size(); ++index) {
                 stack.PushBack(children[index]);
@@ -960,9 +960,9 @@ Base::Result<void> ViewFrame::VisitAndAttach(
                 }
             }
             if (auto* host = ::Aero::TryCast<Controls::ContentControl>(node)) {
-                if (AeroGuiInternal::TemplateRoot(*host) == nullptr) {
+                if ((*host).GetTemplateRoot() == nullptr) {
                     UIElement* content =
-                        AeroGuiInternal::ContentControlContent(*host);
+                        (*host).GetContentElement();
                     if (content != nullptr &&
                         content->GetVisualParent() != host) {
                         stack.PushBack(content);
@@ -993,7 +993,7 @@ void ViewFrame::ClearTextInputHosts(
                     SetInputMethodHost(nullptr));
         }
         for (Aero::Media::Visual* child :
-             AeroGuiInternal::RenderChildren(*node)) {
+             (*node).RenderChildren()) {
             ClearTextInputHosts(child);
         }
     }
@@ -1402,7 +1402,7 @@ void ViewFrame::ClearElementEvents(
         Aero::Media::Visual* node) noexcept {
         if (node == nullptr) return;
         for (Aero::Media::Visual* child :
-             AeroGuiInternal::RenderChildren(*node)) {
+             (*node).RenderChildren()) {
             ClearElementEvents(child);
         }
     }

@@ -484,7 +484,6 @@ foreach(required_source_entry IN ITEMS
         "src/gui/ViewRenderer.hpp"
         "src/gui/ViewFrame.hpp"
         "src/gui/core"
-        "src/gui/meta"
         "src/gui/data"
         "src/gui/styles"
         "src/gui/controls"
@@ -510,23 +509,17 @@ foreach(required_source_entry IN ITEMS
         "src/render/RenderTree.cpp"
         "src/gui/ViewRenderer.cpp"
         "src/gui/media/StoryboardHost.cpp"
-        "src/gui/media/StoryboardHost.Actions.cpp"
-        "src/gui/media/StoryboardHost.Completions.cpp"
-        "src/gui/media/StoryboardHost.Events.cpp"
+        "src/gui/media/StoryboardClock.cpp"
+        "src/gui/media/StoryboardActions.cpp"
         "src/gui/core/LayoutEngine.cpp"
         "src/gui/data/BindingEngine.hpp"
+        "src/gui/data/BindingEngine.cpp"
         "src/gui/styles/StyleEngine.hpp"
         "src/gui/interactivity/InteractivityEngine.cpp"
-        "src/gui/interactivity/InteractivityEngine.Behaviors.cpp"
-        "src/gui/interactivity/InteractivityEngine.Triggers.cpp"
-        "src/gui/interactivity/InteractivityEngine.Style.cpp"
         "src/gui/controls/VisualStateManager.cpp"
-        "src/gui/internal"
-        "src/gui/internal/AeroGuiInternal.hpp"
-        "src/gui/internal/AeroGuiInternal.Layout.hpp"
-        "src/gui/internal/AeroGuiInternal.Visual.hpp"
-        "src/gui/internal/AeroGuiInternal.Control.hpp"
-        "src/gui/internal/AeroGuiInternal.Property.hpp"
+        "src/gui/core/PropertyStore.hpp"
+        "src/gui/core/ErasedRoutedHandler.hpp"
+        "src/gui/input/InputDevicesState.hpp"
         "src/gui/ViewDocuments.cpp"
         "src/gui/documents/Documents.cpp"
         "src/gui/shapes/Path.cpp"
@@ -554,8 +547,7 @@ foreach(source_contract_file IN LISTS aero_source_contract_files)
         "${source_contract_file}" NAME)
     file(RELATIVE_PATH source_contract_relative
         "${AERO_SOURCE_DIR}" "${source_contract_file}")
-    if(source_contract_name MATCHES "(Internal|Private)"
-       AND NOT source_contract_relative MATCHES "^src/gui/internal/")
+    if(source_contract_name MATCHES "(Internal|Private)")
         message(FATAL_ERROR
             "Retired Internal/Private source filename remains: ${source_contract_relative}")
     endif()
@@ -1024,7 +1016,7 @@ aero_forbid_text(
     "struct Access;"
     "FrameworkElement must not expose an unused Access seam")
 aero_require_text(
-    "src/gui/markup/XamlObjectWriterNameScope.cpp"
+    "src/gui/markup/XamlObjectWriter.cpp"
     "ObjectWriter::ConnectEvent("
     "XAML event attributes must connect through the object-writer pipeline")
 aero_require_file("samples/HelloWpf/App.xaml")
@@ -1161,8 +1153,33 @@ aero_forbid_file("src/gui/markup/MarkupPrivate.hpp")
 aero_forbid_file("src/gui/media/MediaPrivate.hpp")
 aero_require_text(
     "cmake/AeroGuiTargets.cmake"
-    "src/gui/media/StoryboardHost.Events.cpp"
+    "src/gui/media/StoryboardActions.cpp"
     "EventTrigger runtime must compile with StoryboardHost")
+aero_forbid_file("src/gui/media/StoryboardHost.Properties.cpp")
+aero_forbid_file("src/gui/media/StoryboardHost.Timelines.cpp")
+aero_forbid_file("src/gui/media/StoryboardHost.Actions.cpp")
+aero_forbid_file("src/gui/media/StoryboardHost.Completions.cpp")
+aero_forbid_file("src/gui/media/StoryboardHost.Events.cpp")
+aero_forbid_file("src/gui/interactivity/InteractivityEngine.Behaviors.cpp")
+aero_forbid_file("src/gui/interactivity/InteractivityEngine.Triggers.cpp")
+aero_forbid_file("src/gui/interactivity/InteractivityEngine.Style.cpp")
+aero_forbid_file("src/gui/data/Binding.cpp")
+aero_forbid_file("src/gui/data/BindingEvaluation.cpp")
+aero_forbid_file("src/gui/data/BindingOperations.cpp")
+aero_forbid_file("src/gui/input/Cursors.cpp")
+aero_forbid_file("src/gui/markup/XamlObjectWriterCommon.cpp")
+aero_forbid_file("src/gui/markup/XamlObjectWriterBuilderLoad.cpp")
+aero_forbid_file("src/gui/markup/XamlObjectWriterBuilderNodes.cpp")
+aero_forbid_file("src/gui/markup/XamlObjectWriterBuilderValues.cpp")
+aero_forbid_file("src/gui/markup/XamlObjectWriterBuilderWrite.cpp")
+aero_forbid_file("src/gui/markup/XamlObjectWriterNameScope.cpp")
+aero_forbid_file("src/gui/markup/BindingExtension.inl")
+aero_forbid_file("src/gui/markup/DynamicResourceExtension.inl")
+aero_forbid_file("src/gui/markup/StaticResourceExtension.inl")
+aero_forbid_file("src/gui/markup/LocExtension.inl")
+aero_forbid_file("src/gui/markup/TemplateBindingExtension.inl")
+aero_forbid_file("src/gui/markup/TypeExtension.inl")
+aero_forbid_file("src/gui/markup/StaticExtension.inl")
 aero_forbid_text(
     "cmake/AeroGuiTargets.cmake"
     "src/gui/interactivity/InteractivityEngine.Events.cpp"
@@ -1212,6 +1229,22 @@ aero_require_text(
     "src/gui/data/BindingEngine.hpp"
     "class BindingEngine"
     "BindingEngine.hpp must own the BindingEngine declaration")
+aero_require_text(
+    "src/gui/data/BindingEngine.hpp"
+    "gui/data/BindingPath.hpp"
+    "Binding path plans stay in BindingPath.hpp")
+aero_require_text(
+    "src/gui/data/BindingPath.hpp"
+    "class BindingPathPlan"
+    "BindingPath.hpp must own the path-plan types")
+aero_forbid_text(
+    "src/gui/ViewFrame.hpp"
+    "gui/GuiDetail.hpp"
+    "ViewFrame must not include GuiRuntime")
+aero_forbid_text(
+    "src/gui/controls/Metadata.hpp"
+    "gui/core/ElementTree.hpp"
+    "Controls metadata registration must not pull the element tree")
 aero_require_text(
     "src/gui/styles/StyleEngine.hpp"
     "class StyleEngine"
@@ -1298,7 +1331,9 @@ foreach(s14_owner IN ITEMS
         "include/Aero/Controls/TreeView.hpp|class AERO_GUI_API TreeView"
         "include/Aero/Controls/Menus.hpp|class AERO_GUI_API MenuItem"
         "include/Aero/Controls/Menus.hpp|class AERO_GUI_API Menu"
-        "include/Aero/Controls/Menus.hpp|class AERO_GUI_API ContextMenu"
+        "include/Aero/Controls/Menus.hpp|class AERO_GUI_API MenuBase"
+        "include/Aero/Controls/Menus.hpp|class AERO_GUI_API Menu : public MenuBase"
+        "include/Aero/Controls/Menus.hpp|class AERO_GUI_API ContextMenu : public MenuBase"
         "include/Aero/Controls/StatusBar.hpp|class AERO_GUI_API StatusBarItem"
         "include/Aero/Controls/StatusBar.hpp|class AERO_GUI_API StatusBar"
         "include/Aero/Controls/TextBox.hpp|class AERO_GUI_API TextBox"
@@ -1323,6 +1358,7 @@ foreach(s14_owner IN ITEMS
         "include/Aero/Controls/Headers.hpp|class AERO_GUI_API Expander"
         "include/Aero/Controls/Decorator.hpp|class AERO_GUI_API BulletDecorator"
         "include/Aero/Controls/ScrollViewer.hpp|class AERO_GUI_API ScrollContentPresenter"
+        "include/Aero/Controls/ScrollViewer.hpp|class AERO_GUI_API ScrollViewer : public ContentControl"
         "include/Aero/Controls/TextBox.hpp|class AERO_GUI_API PasswordBox"
         "include/Aero/Controls/Selectors.hpp|class AERO_GUI_API TabItem"
         "include/Aero/Controls/Selectors.hpp|class AERO_GUI_API TabControl"
@@ -1338,7 +1374,7 @@ foreach(s14_owner IN ITEMS
         "include/Aero/Controls/GridSplitter.hpp|class AERO_GUI_API GridSplitter"
         "include/Aero/VisualStateManager.hpp|class AERO_GUI_API VisualStateManager"
         "include/Aero/FrameworkTemplate.hpp|class AERO_GUI_API FrameworkTemplate"
-        "include/Aero/DataTemplate.hpp|class AERO_GUI_API DataTemplate"
+        "include/Aero/DataTemplate.hpp|class AERO_GUI_API DataTemplate : public FrameworkTemplate"
         "include/Aero/DataTemplate.hpp|class AERO_GUI_API DataTemplateSelector"
         "include/Aero/DataTemplate.hpp|class AERO_GUI_API HierarchicalDataTemplate"
         "include/Aero/VisualStateManager.hpp|class AERO_GUI_API VisualState"
@@ -1369,7 +1405,28 @@ foreach(s14_owner IN ITEMS
         "include/Aero/Documents/TextRange.hpp|class AERO_GUI_API TextRange"
         "include/Aero/Documents/Inlines.hpp|class AERO_GUI_API InlineCollection"
         "include/Aero/Documents/Inlines.hpp|class AERO_GUI_API InlineCollectionView"
-        "include/Aero/Documents/NavigationService.hpp|class AERO_GUI_API NavigationService")
+        "include/Aero/Documents/NavigationService.hpp|class AERO_GUI_API NavigationService"
+        "include/Aero/Controls/UserControl.hpp|class AERO_GUI_API UserControl"
+        "include/Aero/Controls/UserControl.hpp|class AERO_GUI_API Page"
+        "include/Aero/Controls/ItemsPanelTemplate.hpp|class AERO_GUI_API ItemsPanelTemplate : public ::Aero::FrameworkTemplate"
+        "include/Aero/Controls/GridViews.hpp|class AERO_GUI_API ViewBase"
+        "include/Aero/Controls/GridViews.hpp|class AERO_GUI_API GridView : public ViewBase"
+        "include/Aero/Controls/Grid.hpp|AERO_DEPENDENCY_PROPERTY(GridLength, Width)"
+        "include/Aero/Controls/Grid.hpp|AERO_DEPENDENCY_PROPERTY(GridLength, Height)"
+        "include/Aero/InputGesture.hpp|class AERO_GUI_API InputGesture"
+        "include/Aero/InputGesture.hpp|class AERO_GUI_API KeyGesture"
+        "include/Aero/InputBinding.hpp|class AERO_GUI_API InputBinding"
+        "include/Aero/InputBinding.hpp|class AERO_GUI_API KeyBinding"
+        "include/Aero/InputBinding.hpp|class AERO_GUI_API MouseBinding"
+        "include/Aero/RoutedCommand.hpp|class AERO_GUI_API RoutedCommand"
+        "include/Aero/RoutedCommand.hpp|class AERO_GUI_API RoutedUICommand"
+        "include/Aero/Input/Cursor.hpp|struct AERO_GUI_API Cursors"
+        "include/Aero/Data/Binding.hpp|class AERO_GUI_API PropertyPath"
+        "include/Aero/Data/Binding.hpp|class AERO_GUI_API RelativeSource"
+        "include/Aero/Data/CollectionView.hpp|class AERO_GUI_API CollectionViewSource"
+        "include/Aero/KeyboardNavigation.hpp|class AERO_GUI_API FocusManager"
+        "include/Aero/Controls/Menus.hpp|class AERO_GUI_API ContextMenuService"
+        "include/Aero/Media/Fonts.hpp|class AERO_GUI_API FontFamily")
     string(REPLACE "|" ";" s14_owner_parts "${s14_owner}")
     list(GET s14_owner_parts 0 s14_owner_header)
     list(GET s14_owner_parts 1 s14_owner_declaration)
@@ -1387,6 +1444,7 @@ foreach(s14_retired_umbrella IN ITEMS
     aero_forbid_file("${s14_retired_umbrella}")
 endforeach()
 aero_forbid_file("include/Aero/Gui/Text.hpp")
+aero_forbid_file("include/Aero/Text.hpp")
 aero_forbid_text(
     "include/Aero/Value.hpp"
     "struct Members"
@@ -1492,52 +1550,37 @@ endforeach()
 # WPF kernel: no Core::Facet / Access bags. View/ElementTree is the service hub.
 # XAML metadata capabilities (XamlFacets) are a different system and may remain.
 # ---------------------------------------------------------------------------
+aero_forbid_file("src/gui/internal/AeroGuiInternal.hpp")
+aero_forbid_file("src/gui/internal/AeroGuiInternal.Layout.hpp")
+aero_forbid_file("src/gui/internal/AeroGuiInternal.Visual.hpp")
+aero_forbid_file("src/gui/internal/AeroGuiInternal.Control.hpp")
+aero_forbid_file("src/gui/internal/AeroGuiInternal.Property.hpp")
 aero_require_text(
-    "src/gui/internal/AeroGuiInternal.hpp"
-    "class AeroGuiInternal"
-    "Kernel-private operations must live in src/gui/internal/AeroGuiInternal.hpp")
-aero_require_text(
-    "src/gui/internal/AeroGuiInternal.hpp"
-    "#include \"gui/internal/AeroGuiInternal.Layout.hpp\""
-    "AeroGuiInternal tree/layout members must stay in the single friend class via section include")
-aero_require_text(
-    "src/gui/internal/AeroGuiInternal.hpp"
-    "#include \"gui/internal/AeroGuiInternal.Visual.hpp\""
-    "AeroGuiInternal visual/render members must stay in the single friend class via section include")
-aero_require_text(
-    "src/gui/internal/AeroGuiInternal.hpp"
-    "#include \"gui/internal/AeroGuiInternal.Control.hpp\""
-    "AeroGuiInternal control/template members must stay in the single friend class via section include")
-aero_require_text(
-    "src/gui/internal/AeroGuiInternal.hpp"
-    "#include \"gui/internal/AeroGuiInternal.Property.hpp\""
-    "AeroGuiInternal property-store members must stay in the single friend class via section include")
-aero_require_text(
-    "src/gui/internal/PropertyStore.hpp"
+    "src/gui/core/PropertyStore.hpp"
     "struct StoredValueRare"
     "Packed StoredValueEntry must keep expression/animation/current in StoredValueRare")
 aero_require_text(
-    "src/gui/internal/PropertyStore.hpp"
+    "src/gui/core/PropertyStore.hpp"
     "StoredValueRare* rare"
     "Packed StoredValueEntry must hold an uncommon-data pointer, not six PropertyValues")
 aero_require_text(
-    "src/gui/internal/PropertyStore.hpp"
+    "src/gui/core/PropertyStore.hpp"
     "std::uint32_t packedFlags = 0U;"
     "Hot DP entries must pack origin/has* bits instead of scattered bools")
 aero_require_text(
-    "src/gui/internal/PropertyStore.hpp"
+    "src/gui/core/PropertyStore.hpp"
     "PropertyValue effectiveValue;\n    StoredValueRare* rare = nullptr;\n    std::uint32_t packedFlags = 0U;"
     "Hot DP entries must hold single effective Value plus packed flags and a rare pointer (P2.2)")
 aero_require_text(
-    "src/gui/internal/PropertyStore.hpp"
+    "src/gui/core/PropertyStore.hpp"
     "OriginShift = 16U"
     "Packed origin bits must live on the hot StoredValueEntry flags word")
 aero_forbid_text(
-    "src/gui/internal/PropertyStore.hpp"
+    "src/gui/core/PropertyStore.hpp"
     "PropertyValue baseValue"
     "Packed StoredValueEntry must not store the unused baseValue snapshot")
 aero_forbid_text(
-    "src/gui/internal/PropertyStore.hpp"
+    "src/gui/core/PropertyStore.hpp"
     "PropertyValue localValue;\n    PropertyValue currentValue;\n    PropertyValue inheritedValue;"
     "Packed StoredValueEntry must not keep the six-copy PropertyValue layout")
 aero_forbid_text(
@@ -1606,7 +1649,7 @@ aero_require_text(
     "public Collections::IItemsSource"
     "CollectionView must implement IItemsSource")
 aero_require_text(
-    "include/Aero/Data/CollectionViewSource.hpp"
+    "include/Aero/Data/CollectionView.hpp"
     "GetDefaultView"
     "CollectionViewSource must cache GetDefaultView")
 aero_require_text(
@@ -1614,7 +1657,7 @@ aero_require_text(
     "AERO_DEPENDENCY_PROPERTY(bool, IsSynchronizedWithCurrentItem)"
     "Selector must expose IsSynchronizedWithCurrentItem")
 aero_require_text(
-    "src/gui/controls/Selection.cpp"
+    "src/gui/controls/Selector.cpp"
     "const std::uint32_t firstGeneratedIndex =\n        generator->GetFirstGeneratedIndex();"
     "SyncContainers must map generated slots through firstGeneratedIndex_")
 aero_require_text(
@@ -1835,19 +1878,19 @@ aero_require_text(
     "class AERO_GUI_API EasingFunctionBase : public ::Aero::Freezable"
     "EasingFunctionBase must inherit Freezable")
 aero_require_text(
-    "src/gui/meta/Animation.inl"
+    "src/gui/media/AnimationMetadata.cpp"
     "RegisterAlias<EasingFunctionBase>(context, \"SineEase\")"
     "SineEase must stay an XAML alias of EasingFunctionBase")
 aero_require_text(
-    "src/gui/meta/Animation.inl"
+    "src/gui/media/AnimationMetadata.cpp"
     "RegisterAlias<EasingFunctionBase>(context, \"ElasticEase\")"
     "ElasticEase must stay an XAML alias of EasingFunctionBase")
 aero_require_text(
-    "src/gui/meta/Animation.inl"
+    "src/gui/media/AnimationMetadata.cpp"
     "AERO_KEYFRAMES(Double, double)"
     "LinearDoubleKeyFrame must stay an XAML alias of DoubleKeyFrame")
 aero_require_text(
-    "src/gui/meta/Animation.inl"
+    "src/gui/media/AnimationMetadata.cpp"
     "AERO_KEYFRAME_ALIAS(Name, Linear)"
     "Keyframe aliases must include the Linear interpolation name")
 aero_require_text(
@@ -2003,17 +2046,9 @@ aero_require_text(
     "struct TemplateTriggerSetter {\n    Base::String targetName;\n    DependencyPropertyHandle property;"
     "Template trigger setters must key by DependencyPropertyHandle, not property name")
 aero_forbid_text(
-    "src/gui/internal/AeroGuiInternal.hpp"
-    "class AeroGuiInternalLayout"
-    "AeroGuiInternal must remain one friend type; do not add sectional friend classes")
-aero_forbid_text(
-    "src/gui/internal/AeroGuiInternal.hpp"
-    "AttachTemplateEngine"
-    "No-op AttachTemplateEngine must not return on AeroGuiInternal")
-aero_forbid_text(
-    "src/gui/internal/AeroGuiInternal.hpp"
-    "SetVisualStateManager"
-    "No-op SetVisualStateManager must not return on AeroGuiInternal")
+    "include/Aero/Visual.hpp"
+    "friend class AeroGuiInternal"
+    "Visual must not friend a side access class")
 aero_require_text(
     "include/Aero/VisualTreeHelper.hpp"
     "class AERO_GUI_API VisualTreeHelper"
@@ -2421,6 +2456,14 @@ set(aero_one_type_exemptions
     include/Aero/Controls/Panel.hpp
     include/Aero/Controls/ToolBar.hpp
     include/Aero/Controls/ToolTip.hpp
+    include/Aero/Controls/UserControl.hpp
+    include/Aero/InputGesture.hpp
+    include/Aero/InputBinding.hpp
+    include/Aero/RoutedCommand.hpp
+    include/Aero/Data/Binding.hpp
+    include/Aero/Data/CollectionView.hpp
+    include/Aero/KeyboardNavigation.hpp
+    include/Aero/Media/Fonts.hpp
     include/AeroApp/Application.hpp
     include/AeroApp/App.hpp
     include/AeroAudio/Audio.hpp
@@ -2646,6 +2689,19 @@ foreach(gui_kernel_file IN LISTS aero_gui_kernel_files)
         endif()
     endforeach()
 endforeach()
+
+aero_require_text(
+    "include/AeroApp/Window.hpp"
+    "Result<bool> ShowDialog()"
+    "Window must expose WPF ShowDialog")
+aero_require_text(
+    "include/AeroApp/Window.hpp"
+    "AERO_DEPENDENCY_PROPERTY(Nullable<bool>, DialogResult)"
+    "Window.DialogResult is a nullable bool dependency property")
+aero_require_text(
+    "include/AeroApp/Window.hpp"
+    "AERO_DEPENDENCY_PROPERTY(Ref<Window>, Owner)"
+    "Window.Owner is a Window dependency property")
 
 # Public include-closure caps = measured unique Aero* header lines after the
 # four installed-header cuts, plus 10%. Do not raise these without a new

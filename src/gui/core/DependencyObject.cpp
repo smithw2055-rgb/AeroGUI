@@ -20,14 +20,10 @@
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
-#include "gui/internal/PropertyStore.hpp"
+#include "gui/core/PropertyStore.hpp"
 #include <new>
 
 #include "gui/input/InputManager.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleEngine.hpp"
-#include "gui/meta/TypeRegistryDetail.hpp"
 
 using namespace Aero;
 using namespace Aero::Media;
@@ -460,8 +456,7 @@ Base::Result<void> DependencyObject::RecomputeEffectiveValueCore(
         Base::ErrorCode::OutOfRange, "Dependency property value revision limit reached");
     if (newEffective != oldEffective) {
         Base::Result<void> consumerPrepared =
-            AeroGuiInternal::PrepareConsumerChange(
-                *this,
+            (*this).PrepareConsumerChange(
                 propertyHandle,
                 oldEffective,
                 newEffective);
@@ -490,8 +485,7 @@ Base::Result<void> DependencyObject::RecomputeEffectiveValueCore(
         }
     }
     if (newEffective != oldEffective) {
-        AeroGuiInternal::CommitConsumerChange(
-            *this,
+        (*this).CommitConsumerChange(
             propertyHandle,
             oldEffective,
             newEffective);

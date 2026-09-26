@@ -171,23 +171,12 @@ struct FieldRegistration {
     void* context = nullptr;
 };
 
-} // namespace Aero::Meta
-
-namespace Aero::Meta {
 class MetadataAuthoringSession;
 class RegistrationValues;
 class RegistrationTypes;
-} // namespace Aero::Meta
-
-namespace Aero::Meta {
-
 class DependencyPropertyRegistry;
 class ValueTable;
 template<class T> class TypeBuilder;
-
-} // namespace Aero::Meta
-
-namespace Aero::Meta {
 
 class Registry;
 
@@ -216,11 +205,9 @@ public:
     bool ContainsType(TypeId type) const noexcept;
 };
 
-} // namespace Aero::Meta
 
-namespace Aero::Meta { class Registry; class Registration; }
-
-namespace Aero::Meta {
+class Registry;
+class Registration;
 
 class TypeRegistry;
 
@@ -260,7 +247,7 @@ private:
 } // namespace Aero::Meta
 
 // Authoring session + TypeBuilder helpers (non-Aero private path).
-#include "gui/meta/TypeBuilderCore.hpp"
+#include "gui/core/TypeBuilderCore.hpp"
 
 namespace Aero::Meta {
 
@@ -940,10 +927,6 @@ private:
     MetadataAuthoringSession builder_;
 };
 
-} // namespace Aero::Meta
-
-namespace Aero::Meta {
-
 // Public metadata authoring entry. The fluent description object is an
 // implementation type, while module code only names Register and
 // Registration.
@@ -963,10 +946,6 @@ template<class T> TypeBuilder<T> RegisterAlias(Registration& registration, Strin
     TypeFlags flags = TypeFlags::None) noexcept {
     return TypeBuilder<T>(registration, AeroNamespaceUri(), name, true, flags);
 }
-
-} // namespace Aero::Meta
-
-namespace Aero::Meta {
 
 template<class T, class = void> struct HasComponentDescription : std::false_type {};
 

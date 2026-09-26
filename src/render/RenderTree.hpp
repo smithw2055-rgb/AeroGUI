@@ -1,22 +1,18 @@
 #pragma once
 
-#include "gui/meta/TypeRegistryDetail.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/input/InputManager.hpp" 
-#include "gui/data/BindingEngine.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleEngine.hpp"
 
 #include "DisplayList.hpp"
 
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Layout.hpp>
 #include <Aero/Media/Transform3D.hpp>
+#include <Aero/Media/Brushes.hpp>
 #include <Aero/Base/Span.hpp>
 #include <Aero/Base/StringView.hpp>
 

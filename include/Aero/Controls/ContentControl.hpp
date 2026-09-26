@@ -4,7 +4,6 @@
 
 #include <cstddef>
 
-namespace Aero { class AeroGuiInternal; }
 namespace Aero::Controls {
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::DependencyPropertyChangedEventHandler;
@@ -53,6 +52,8 @@ public:
         InvalidateMeasure();
         return;
     }
+    UIElement* GetContentElement() const noexcept { return content_; }
+
 protected:
     virtual void OnContentChanged(const Value& oldContent, const Value& newContent);
     virtual void OnContentTemplateChanged(const Ref<Base::Object>& oldContentTemplate,
@@ -60,7 +61,6 @@ protected:
     virtual void OnContentTemplateSelectorChanged(const Ref<Base::Object>& oldSelector,
         const Ref<Base::Object>& newSelector);
     void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
-    UIElement* GetContentElement() const noexcept { return content_; }
     [[deprecated("Use GetContentElement() for WPF parity")]]
     UIElement* ContentElement() const noexcept { return content_; }
     explicit ContentControl(TypeId runtimeType) noexcept;
@@ -98,8 +98,9 @@ protected:
         if (!arranged) return finalSize;
         return finalSize;
     }
-private:
-    friend class ::Aero::AeroGuiInternal;
+public:
+    const Ref<Base::Object>& OwnedContent() const noexcept { return ownedContent_; }
+    const Ref<Base::Object>& ContentValue() const noexcept { return contentValue_; }
     void SetOwnedContent(const Ref<Base::Object>& contentObject, UIElement& content) noexcept {
         if (!contentObject || contentObject.Get() != &content) { return; }
         Result<void> access = VerifyAccess();
@@ -122,6 +123,8 @@ private:
     static void OnContentPropertyChanged(::Aero::DependencyObject& object,
         const Meta::DependencyPropertyChangedEventArgs& change) noexcept;
     Result<Ref<Base::Object>> CreateTemplatedContent() const noexcept;
+    void SetGeneratedTextContent(const Ref<Base::Object>& contentObject, UIElement& content) noexcept;
+private:
     UIElement* content_ = nullptr;
     Ref<Base::Object> ownedContent_;
     Ref<Base::Object> contentValue_;
@@ -129,7 +132,6 @@ private:
     bool literalTextContent_ = false;
     bool synchronizingContentProperty_ = false;
     void StoreContentProperty(Value value) noexcept;
-    void SetGeneratedTextContent(const Ref<Base::Object>& contentObject, UIElement& content) noexcept;
     void SyncGeneratedTextFormatting() noexcept;
     bool IsOnlyAttachedContent(const UIElement& content) const noexcept {
         const UIElementChildRange children = LayoutChildren();

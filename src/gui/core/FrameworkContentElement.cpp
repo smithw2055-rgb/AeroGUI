@@ -1,5 +1,7 @@
 // Auto-relocated base-class method definitions (WPF semantic kernel).
 #include <Aero/FrameworkContentElement.hpp>
+#include "gui/styles/StyleEngine.hpp"
+#include "gui/media/AnimationModel.hpp"
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Allocator.hpp>
@@ -19,13 +21,9 @@
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/input/InputManager.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleEngine.hpp"
-#include "gui/meta/TypeRegistryDetail.hpp"
 #include <Aero/Meta.hpp>
-#include "gui/meta/ElementsFill.hpp"
+#include "gui/core/ElementsFill.hpp"
 
 using namespace Aero;
 using namespace Aero::Media;

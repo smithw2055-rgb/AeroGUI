@@ -6,7 +6,6 @@
 #include <algorithm>
 
 
-namespace Aero { class AeroGuiInternal; }
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
 class AERO_GUI_API Decorator : public FrameworkElement {
@@ -62,8 +61,8 @@ protected:
         if (!arranged) return finalSize;
         return finalSize;
     }
-private:
-    friend class ::Aero::AeroGuiInternal;
+public:
+    const Ref<Base::Object>& OwnedChild() const noexcept { return ownedChild_; }
     void SetOwnedChild(const Ref<Base::Object>& childObject, UIElement& child) noexcept {
         if (!childObject || childObject.Get() != &child) { return; }
         Result<void> access = VerifyAccess();
@@ -77,6 +76,7 @@ private:
         if (child_->GetVisualParent() == nullptr) { AddVisualChild(child_); }
         return;
     }
+private:
     UIElement* child_ = nullptr;
     Ref<Base::Object> ownedChild_;
     bool IsOnlyAttachedChild(const UIElement& child) const noexcept {

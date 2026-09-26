@@ -1,5 +1,5 @@
 #include "gui/ViewFrame.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
+#include "render/RenderTree.hpp"
 #include <Aero/Documents.hpp>
 
 #include <cstdint>
@@ -64,6 +64,11 @@ Base::Result<void> OverlayHost::SynchronizeOverlays() noexcept {
                 open =
                     static_cast<Controls::Primitives::Popup*>(
                         node)->GetIsOpen();
+            } else if (
+                Metadata()->Types().IsDerivedFrom(
+                    type,
+                    Controls::ToolTip::StaticTypeId())) {
+                open = static_cast<Controls::ToolTip*>(node)->GetIsOpen();
             } else if (
                 Metadata()->Types().IsDerivedFrom(
                     type,
@@ -156,20 +161,10 @@ Base::Result<void> OverlayHost::SynchronizeOverlays() noexcept {
                     };
                     Base::Transform2D transform =
                         rootTransform(*inputElement);
-                    if (Metadata()->Types().
-                            IsDerivedFrom(
-                                type,
-                                Controls::
-                                    ContextMenu::
-                                        StaticTypeId())) {
-                        Base::Ref<
-                            Aero::UIElement>
-                            target =
-                                static_cast<
-                                    Controls::
-                                    ContextMenu*>(
-                                    node)->
-                                    GetPlacementTarget();
+                    if (Metadata()->Types().IsDerivedFrom(
+                            type, Controls::ContextMenu::StaticTypeId())) {
+                        Base::Ref<Aero::UIElement> target =
+                            static_cast<Controls::ContextMenu*>(node)->GetPlacementTarget();
                         if (target &&
                             target->
                                 GetIsArrangeValid()) {
@@ -248,7 +243,7 @@ Base::Result<void> OverlayHost::SynchronizeOverlays() noexcept {
                 }
             }
             const auto children =
-                    AeroGuiInternal::RenderChildren(*node);
+                    (*node).RenderChildren();
             for (std::uint32_t index =
                      children.Size();
                  index > 0U;

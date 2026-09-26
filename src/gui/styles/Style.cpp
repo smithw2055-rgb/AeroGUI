@@ -1,12 +1,10 @@
-#include "gui/meta/TypeRegistryDetail.hpp"
-#include "gui/meta/ValueConversion.hpp"
+#include "gui/core/TypeRegistryDetail.hpp"
+#include "gui/core/ValueConversion.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
-#include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleEngine.hpp"
 #include "gui/triggers/TriggerDiagnostics.hpp"
 #include "gui/triggers/TriggerEngine.hpp"
@@ -22,13 +20,63 @@
 #include <Aero/UIElement.hpp>
 
 #include <new>
+#include "gui/core/Describe.hpp"
+#include "gui/core/RenderStateCallbacks.hpp"
+#include <Aero/Interactivity/Conditions.hpp>
+#include <Aero/Interactivity/Behavior.hpp>
+#include <Aero/Interactivity/BlendBehaviors.hpp>
+#include <Aero/Interactivity/Interaction.hpp>
+#include <Aero/Interactivity/InteractionTriggers.hpp>
+#include <Aero/Interactivity/TriggerAction.hpp>
+#include <Aero/Resources.hpp>
+#include <Aero/EventTrigger.hpp>
+#include <Aero/Events/EventArgs.hpp>
+#include <Aero/Events/CommandEventArgs.hpp>
+#include <Aero/Media/Animation.hpp>
+#include <Aero/Media/Animation/MediaActions.hpp>
+#include <Aero/Media/Animation/StoryboardActions.hpp>
+#include <Aero/Media/Animation/StoryboardCompletedTrigger.hpp>
+#include <Aero/Media/Animation/TimerTrigger.hpp>
+#include <Aero/Media/Brushes.hpp>
+#include <Aero/Media/Effects.hpp>
+#include <Aero/Media/Images.hpp>
+#include <Aero/Media/MediaElement.hpp>
+#include <Aero/Media/Transform2D.hpp>
+#include <Aero/Media/Transform3D.hpp>
+#include <Aero/Media/Geometries.hpp>
+#include <Aero/Media/Pen.hpp>
+#include <Aero/Media/Fonts.hpp>
+#include <Aero/Layout.hpp>
+#include <Aero/Collections.hpp>
+#include <Aero/Input.hpp>
+#include <Aero/ICommand.hpp>
+#include <Aero/RoutedCommand.hpp>
+#include <Aero/InputBinding.hpp>
+#include <Aero/KeyboardNavigation.hpp>
+#include <Aero/CommandBinding.hpp>
+#include <Aero/ApplicationCommands.hpp>
+#include <Aero/InputGesture.hpp>
+#include <Aero/Data/MultiBinding.hpp>
+#include <Aero/Data/BooleanToVisibilityConverter.hpp>
+#include <Aero/Data/IMultiValueConverter.hpp>
+#include <Aero/Data/IValueConverter.hpp>
+#include <Aero/DataObject.hpp>
+#include <Aero/DragDrop.hpp>
+#include <Aero/Input/Cursor.hpp>
+#include <Aero/Input/Mouse.hpp>
+#include <Aero/Input/Keyboard.hpp>
+#include <Aero/Animatable.hpp>
+#include <cctype>
+#include <cmath>
+#include <cstdlib>
+#include <utility>
 
 namespace Aero {
 
 void Element::OnBlendingModeChanged(
     DependencyObject& object,
     const DependencyPropertyChangedEventArgs& args) noexcept {
-    if (!AeroGuiInternal::PropertyRegistry(object).Types().IsDerivedFrom(
+    if (!(object).PropertyRegistry().Types().IsDerivedFrom(
             object.RuntimeType(), UIElement::StaticTypeId())) {
         return;
     }
@@ -53,18 +101,18 @@ void TextProperties::OnCompatibilityPropertyChanged(
     DependencyObject& object,
     const DependencyPropertyChangedEventArgs& args) noexcept {
     const Meta::DependencyProperty* source =
-        AeroGuiInternal::PropertyRegistry(object).Find(args.GetProperty());
+        (object).PropertyRegistry().Find(args.GetProperty());
     if (source == nullptr) return;
 
     const Meta::PropertyInfo* targetInfo =
-        AeroGuiInternal::PropertyRegistry(object).Types().FindProperty(
+        (object).PropertyRegistry().Types().FindProperty(
             object.RuntimeType(), source->Name(), false);
     if (targetInfo == nullptr ||
         targetInfo->Id() == source->Handle().value) {
         return;
     }
     const Meta::DependencyProperty* target =
-        AeroGuiInternal::PropertyRegistry(object).Find(
+        (object).PropertyRegistry().Find(
             Meta::DependencyPropertyHandle{targetInfo->Id()});
     if (target == nullptr ||
         target->MetadataFor(object.RuntimeType()) == nullptr) {
@@ -76,7 +124,7 @@ void TextProperties::OnCompatibilityPropertyChanged(
         value.Type() != target->ValueType() &&
         value.Kind() == Meta::ValueKind::Object &&
         !value.IsNullObject() && value.AsObject() &&
-        AeroGuiInternal::PropertyRegistry(object).Types().IsDerivedFrom(
+        (object).PropertyRegistry().Types().IsDerivedFrom(
             value.AsObject()->RuntimeType(), target->ValueType())) {
         value = Meta::Value::FromObject(
             target->ValueType(), value.AsObject());
@@ -1003,7 +1051,7 @@ Base::Result<void> StyleEngine::ClearSetters(
 Base::Result<void> StyleEngine::AttachSetterBindings(
     DependencyObject& object,
     const Style& style) noexcept {
-    BindingEngine* bindings = AeroGuiInternal::BindingEngineOf(object);
+    BindingEngine* bindings = ElementTree::BindingsOf(object);
     for (const StyleSetter& setter : Style::Program::RuntimeSetters(style)) {
         if (!IsDeferredBindingSetterValue(setter.value)) {
             continue;
@@ -1118,7 +1166,7 @@ Base::Result<void> StyleEngine::AttachSetterBindings(
 }
 
 void StyleEngine::DetachSetterBindings(DependencyObject& object) noexcept {
-    BindingEngine* bindings = AeroGuiInternal::BindingEngineOf(object);
+    BindingEngine* bindings = ElementTree::BindingsOf(object);
     std::uint32_t keep = 0U;
     for (std::uint32_t index = 0U; index < setterBindings_.Size(); ++index) {
         SetterBinding record = setterBindings_[index];
@@ -1202,3 +1250,189 @@ const Base::Status& StyleEngine::LastActionStatus() const noexcept {
 
 
 } // namespace Aero
+
+// Metadata registration for the types implemented in this file.
+namespace Aero::MetadataSupport {
+using namespace ::Aero::Meta;
+using namespace ::Aero::Threading;
+using namespace ::Aero::Input;
+using namespace ::Aero::Media;
+using namespace ::Aero::Data;
+using namespace ::Aero::Interactivity;
+    using namespace Interactivity;
+    using Media::Animation::BeginStoryboard;
+    using Media::Animation::BooleanAnimationUsingKeyFrames;
+    using Media::Animation::BooleanKeyFrame;
+    using Media::Animation::ColorAnimationUsingKeyFrames;
+    using Media::Animation::ColorKeyFrame;
+    using Media::Animation::DoubleAnimationUsingKeyFrames;
+    using Media::Animation::DoubleKeyFrame;
+    using Media::Animation::EventTrigger;
+    using Media::Animation::Int16AnimationUsingKeyFrames;
+    using Media::Animation::Int16KeyFrame;
+    using Media::Animation::Int32AnimationUsingKeyFrames;
+    using Media::Animation::Int32KeyFrame;
+    using Media::Animation::Int64AnimationUsingKeyFrames;
+    using Media::Animation::Int64KeyFrame;
+    using Media::Animation::MatrixAnimationUsingKeyFrames;
+    using Media::Animation::MatrixKeyFrame;
+    using Media::Animation::ObjectAnimationUsingKeyFrames;
+    using Media::Animation::ObjectKeyFrame;
+    using Media::Animation::PointAnimationUsingKeyFrames;
+    using Media::Animation::PointKeyFrame;
+    using Media::Animation::SizeAnimationUsingKeyFrames;
+    using Media::Animation::SizeKeyFrame;
+    using Media::Animation::Storyboard;
+    using Media::Animation::StoryboardCompletedTrigger;
+    using Media::Animation::StringAnimationUsingKeyFrames;
+    using Media::Animation::StringKeyFrame;
+    using Media::Animation::ThicknessAnimationUsingKeyFrames;
+    using Media::Animation::ThicknessKeyFrame;
+    using Media::Animation::Timeline;
+    using Media::Animation::TimelineGroup;
+    using Media::Effect;
+    using Media::FontFamily;
+    using Media::Geometry;
+    using Media::GeometryGroup;
+    using Media::PathFigure;
+    using Media::PathGeometry;
+    using Media::PathSegment;
+    using Media::StreamGeometry;
+namespace {
+
+TypeReference GetStyleTargetType(
+    const Style& style) noexcept {
+    return {style.GetTargetType()};
+}
+
+void SetStyleTargetType(
+    Style& style,
+    TypeReference value) noexcept {
+    // TargetType is authored as a TypeReference by the XAML schema.  Keep the
+    // resolved runtime TypeId on the Style so implicit style keys remain
+    // distinct (for example Label, ComboBox, and ComboBoxItem).
+    (void)style.SetTargetType(value.type);
+}
+
+void SetStyleBasedOn(
+    Style& style,
+    Base::Ref<Style> value) noexcept {
+    (void)style.SetBasedOn(Base::Ref<Base::Object>(
+        std::move(value)));
+}
+
+void AddStyleSetter(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    if (!value || value->RuntimeType() != Setter::StaticTypeId()) {
+        return;
+    }
+    Base::Ref<Setter> retained =
+        Base::Ref<Setter>::TryFromBorrowed(
+            static_cast<Setter&>(*value));
+    if (!retained) {
+        return;
+    }
+    static_cast<Style&>(owner).AddAuthoredSetter(
+        std::move(retained));
+}
+
+void ClearStyleSetters(
+    Base::Object& owner,
+    void*) noexcept {
+    static_cast<Style&>(owner).ClearAuthoredSetters();
+    return;
+}
+
+void AddStyleTrigger(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    if (!value) {
+        return;
+    }
+    Base::Ref<TriggerBase> retained =
+        Base::Ref<TriggerBase>::TryFromBorrowed(
+            static_cast<TriggerBase&>(*value));
+    if (!retained) {
+        return;
+    }
+    static_cast<Style&>(owner).AddAuthoredTrigger(
+        std::move(retained));
+}
+
+void ClearStyleTriggers(
+    Base::Object& owner,
+    void*) noexcept {
+    static_cast<Style&>(owner).ClearAuthoredTriggers();
+    return;
+}
+
+} // namespace
+} // namespace Aero::MetadataSupport
+
+AERO_DESCRIBE(::Aero::Element) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    using namespace Data;
+    Register<Element>(context, TypeFlags::Abstract)
+            .Property(Element::PPAAInProperty, 0.0, AffectsRender)
+            .Property(Element::PPAAOutProperty, 0.0, AffectsRender)
+            .Property(Element::PPAAModeProperty, Base::String{}, AffectsRender)
+            .Property(Element::IsFocusEngagedProperty, false, AffectsRender)
+            .Property(Element::BlendingModeProperty, FrameworkPropertyMetadata(BlendMode::Normal, AffectsRender).Changed(&Element::OnBlendingModeChanged))
+            .Property(Element::Transform3DProperty, FrameworkPropertyMetadata(Base::Ref<Media::Transform3D>{}, AffectsRender).Changed(&Element::OnTransform3DChanged));
+}
+
+AERO_DESCRIBE(::Aero::TextProperties) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    using namespace Data;
+    Register<TextProperties>(context, TypeFlags::Abstract)
+            .Property(TextProperties::PasswordLengthProperty, std::uint32_t{0}, AffectsRender)
+            .Property(TextProperties::PlaceholderProperty, FrameworkPropertyMetadata(Base::String{}, AffectsRender).Changed(&TextProperties::OnCompatibilityPropertyChanged))
+            .Property(TextProperties::StrokeProperty, FrameworkPropertyMetadata(Value::NullObject(TypeOf<Base::Object>()), AffectsRender).Changed(&TextProperties::OnCompatibilityPropertyChanged))
+            .Property(TextProperties::StrokeThicknessProperty, FrameworkPropertyMetadata(0.0, AffectsRender).Changed(&TextProperties::OnCompatibilityPropertyChanged));
+}
+
+AERO_DESCRIBE(::Aero::RichText) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    using namespace Data;
+    Register<RichText>(context, TypeFlags::Abstract)
+            .Property(RichText::TextProperty, FrameworkPropertyMetadata(Base::String{}, AffectsMeasure).Changed(&RichText::OnTextChanged));
+}
+
+AERO_DESCRIBE(::Aero::Style) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    using namespace Data;
+    Register<Style>(context)
+            .Property<TypeReference, &::Aero::MetadataSupport::GetStyleTargetType, &::Aero::MetadataSupport::SetStyleTargetType>("TargetType", PropertyFlags::None)
+            .Property<Base::Ref<Style>, &::Aero::MetadataSupport::SetStyleBasedOn>("BasedOn", PropertyFlags::WriteOnly)
+            .Property<Base::Ref<ResourceDictionary>, &Style::SetResources>("Resources", PropertyFlags::Structural)
+            .Collection<TriggerBase>("Triggers", &::Aero::MetadataSupport::AddStyleTrigger, &::Aero::MetadataSupport::ClearStyleTriggers)
+            .Content<Setter>("Setters", ContentKind::Collection, &::Aero::MetadataSupport::AddStyleSetter, &::Aero::MetadataSupport::ClearStyleSetters)
+            .Factory();
+}

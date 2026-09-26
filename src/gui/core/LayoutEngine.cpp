@@ -1,13 +1,9 @@
-#include "gui/meta/TypeRegistryDetail.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/input/InputManager.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleEngine.hpp"
 #include <Aero/Layout.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Effects.hpp>
@@ -180,7 +176,7 @@ Base::Result<void> LayoutEngine::VerifyElement(
             Base::ErrorCode::WrongThread,
             "Layout element belongs to another Dispatcher");
     }
-    if (AeroGuiInternal::LayoutEngineOf(element) != nullptr && AeroGuiInternal::LayoutEngineOf(element) != this) {
+    if (ElementTree::LayoutOf(element) != nullptr && ElementTree::LayoutOf(element) != this) {
         return InvalidState("Layout element belongs to another LayoutEngine");
     }
     return {};
@@ -205,9 +201,9 @@ Base::Result<void> LayoutEngine::Attach(
         // first joined under the Window (or left layoutAttached with a stale
         // parent). Fail-closed blocked ColorSelector from hosting LayoutRoot.
         UIElement* oldParent = child.LayoutParent();
-        AeroGuiInternal::Layout(child).layoutAttached = false;
-        AeroGuiInternal::Layout(child).measureValid = false;
-        AeroGuiInternal::Layout(child).arrangeValid = false;
+        (child).Layout().layoutAttached = false;
+        (child).Layout().measureValid = false;
+        (child).Layout().arrangeValid = false;
         if (oldParent != nullptr && oldParent != &parent) {
             InvalidateMeasure(*oldParent);
         }
@@ -219,9 +215,9 @@ Base::Result<void> LayoutEngine::Attach(
     // Queue all parent invalidation work before publishing the child state.
     InvalidateMeasure(parent);
 
-    AeroGuiInternal::Layout(child).layoutAttached = true;
-    AeroGuiInternal::Layout(child).measureValid = false;
-    AeroGuiInternal::Layout(child).arrangeValid = false;
+    (child).Layout().layoutAttached = true;
+    (child).Layout().measureValid = false;
+    (child).Layout().arrangeValid = false;
     return {};
 }
 
@@ -230,7 +226,7 @@ Base::Result<void> LayoutEngine::Detach(
     UIElement& child) noexcept {
     Base::Result<void> verified = VerifyElement(parent);
     if (!verified) return verified.GetStatus();
-    if (!child.GetIsLayoutAttached() || AeroGuiInternal::LayoutEngineOf(child) != this) {
+    if (!child.GetIsLayoutAttached() || ElementTree::LayoutOf(child) != this) {
         // Already detached (idempotent). Template substitution can leave the
         // element-tree edge naming a logical parent that differs from the
         // layout parent, so a missing relationship is benign here.
@@ -244,9 +240,9 @@ Base::Result<void> LayoutEngine::Detach(
     InvalidateMeasure(*attachParent);
 
     RemoveQueued(child);
-    AeroGuiInternal::Layout(child).layoutAttached = false;
-    AeroGuiInternal::Layout(child).measureValid = false;
-    AeroGuiInternal::Layout(child).arrangeValid = false;
+    (child).Layout().layoutAttached = false;
+    (child).Layout().measureValid = false;
+    (child).Layout().arrangeValid = false;
     return {};
 }
 
@@ -274,8 +270,8 @@ Base::Result<void> LayoutEngine::SetRoot(
     measureQueue_.Clear();
     arrangeQueue_.Clear();
     if (root_ != nullptr && root_ != root) {
-        AeroGuiInternal::Layout(*root_).measureQueued = false;
-        AeroGuiInternal::Layout(*root_).arrangeQueued = false;
+        (*root_).Layout().measureQueued = false;
+        (*root_).Layout().arrangeQueued = false;
     }
     root_ = root;
     rootAvailableSize_ = availableSize;
@@ -287,7 +283,7 @@ Base::Result<void> LayoutEngine::SetRoot(
 
 UIElement* LayoutEngine::ResolveQueued(VisualHandle handle) const noexcept {
     if (!handle.IsValid() || root_ == nullptr) return nullptr;
-    ElementTree* tree = AeroGuiInternal::Tree(*root_);
+    ElementTree* tree = ElementTree::Of(*root_);
     if (tree == nullptr) return nullptr;
     ::Aero::Media::Visual* visual = tree->ResolveHandle(handle);
     return visual != nullptr ? ::Aero::TryCast<UIElement>(visual) : nullptr;
@@ -295,12 +291,12 @@ UIElement* LayoutEngine::ResolveQueued(VisualHandle handle) const noexcept {
 
 Base::Result<VisualHandle> LayoutEngine::EnqueueHandle(
     UIElement& element) noexcept {
-    const VisualHandle handle = AeroGuiInternal::Handle(element);
+    const VisualHandle handle = ElementTree::HandleOf(element);
     if (!handle.IsValid()) {
         std::fprintf(stderr, "DEBUG_ENQUEUE_FAIL: elem=%p type=%llu tree=%p vparent=%p lparent=%p layoutParent=%p\n",
             static_cast<void*>(&element),
             static_cast<unsigned long long>(element.RuntimeType()),
-            static_cast<void*>(AeroGuiInternal::Tree(element)),
+            static_cast<void*>(ElementTree::Of(element)),
             static_cast<void*>(element.GetVisualParent()),
             static_cast<void*>(element.GetLogicalParent()),
             static_cast<void*>(element.LayoutParent()));
@@ -312,31 +308,31 @@ Base::Result<VisualHandle> LayoutEngine::EnqueueHandle(
 Base::Result<void> LayoutEngine::QueueMeasure(
     UIElement& element) noexcept {
     if (element.GetIsMeasureQueued()) return {};
-    const VisualHandle handle = AeroGuiInternal::Handle(element);
+    const VisualHandle handle = ElementTree::HandleOf(element);
     if (!handle.IsValid()) {
-        AeroGuiInternal::Layout(element).measureValid = false;
+        (element).Layout().measureValid = false;
         return {};
     }
     measureQueue_.PushBack(handle);
-    AeroGuiInternal::Layout(element).measureQueued = true;
+    (element).Layout().measureQueued = true;
     return {};
 }
 
 Base::Result<void> LayoutEngine::QueueArrange(
     UIElement& element) noexcept {
     if (element.GetIsArrangeQueued()) return {};
-    const VisualHandle handle = AeroGuiInternal::Handle(element);
+    const VisualHandle handle = ElementTree::HandleOf(element);
     if (!handle.IsValid()) {
-        AeroGuiInternal::Layout(element).arrangeValid = false;
+        (element).Layout().arrangeValid = false;
         return {};
     }
     arrangeQueue_.PushBack(handle);
-    AeroGuiInternal::Layout(element).arrangeQueued = true;
+    (element).Layout().arrangeQueued = true;
     return {};
 }
 
 void LayoutEngine::RemoveQueued(UIElement& element) noexcept {
-    const VisualHandle handle = AeroGuiInternal::Handle(element);
+    const VisualHandle handle = ElementTree::HandleOf(element);
     auto remove = [&](Base::Vector<VisualHandle>& queue) noexcept {
         for (std::uint32_t index = 0U; index < queue.Size();) {
             if (queue[index] != handle) {
@@ -352,8 +348,8 @@ void LayoutEngine::RemoveQueued(UIElement& element) noexcept {
     };
     remove(measureQueue_);
     remove(arrangeQueue_);
-    AeroGuiInternal::Layout(element).measureQueued = false;
-    AeroGuiInternal::Layout(element).arrangeQueued = false;
+    (element).Layout().measureQueued = false;
+    (element).Layout().arrangeQueued = false;
 }
 
 void LayoutEngine::InvalidateMeasure(
@@ -372,7 +368,7 @@ void LayoutEngine::InvalidateMeasure(
     handles.Reserve(path.Size());
     for (UIElement* item : path) {
         if (item->GetIsMeasureQueued()) continue;
-        const VisualHandle handle = AeroGuiInternal::Handle(*item);
+        const VisualHandle handle = ElementTree::HandleOf(*item);
         if (handle.IsValid()) {
             handles.PushBack(handle);
         }
@@ -382,14 +378,14 @@ void LayoutEngine::InvalidateMeasure(
 
     std::uint32_t handleIndex = 0U;
     for (UIElement* item : path) {
-        AeroGuiInternal::Layout(*item).measureValid = false;
-        AeroGuiInternal::Layout(*item).arrangeValid = false;
+        (*item).Layout().measureValid = false;
+        (*item).Layout().arrangeValid = false;
         if (item->GetIsMeasureQueued()) continue;
-        const VisualHandle handle = AeroGuiInternal::Handle(*item);
+        const VisualHandle handle = ElementTree::HandleOf(*item);
         if (handle.IsValid()) {
             measureQueue_.PushBack(
                 handles[handleIndex++]);
-            AeroGuiInternal::Layout(*item).measureQueued = true;
+            (*item).Layout().measureQueued = true;
         }
     }
 }
@@ -410,7 +406,7 @@ void LayoutEngine::InvalidateArrange(
     handles.Reserve(path.Size());
     for (UIElement* item : path) {
         if (item->GetIsArrangeQueued()) continue;
-        const VisualHandle handle = AeroGuiInternal::Handle(*item);
+        const VisualHandle handle = ElementTree::HandleOf(*item);
         if (handle.IsValid()) {
             handles.PushBack(handle);
         }
@@ -420,13 +416,13 @@ void LayoutEngine::InvalidateArrange(
 
     std::uint32_t handleIndex = 0U;
     for (UIElement* item : path) {
-        AeroGuiInternal::Layout(*item).arrangeValid = false;
+        (*item).Layout().arrangeValid = false;
         if (item->GetIsArrangeQueued()) continue;
-        const VisualHandle handle = AeroGuiInternal::Handle(*item);
+        const VisualHandle handle = ElementTree::HandleOf(*item);
         if (handle.IsValid()) {
             arrangeQueue_.PushBack(
                 handles[handleIndex++]);
-            AeroGuiInternal::Layout(*item).arrangeQueued = true;
+            (*item).Layout().arrangeQueued = true;
         }
     }
 }
@@ -456,18 +452,18 @@ Base::Result<void> UIElement::MeasureCore(
     }
 
     if (element.GetVisibility() == Visibility::Collapsed) {
-        AeroGuiInternal::Layout(element).previousMeasureConstraint = constraint;
-        AeroGuiInternal::Layout(element).desiredSize = {};
-        AeroGuiInternal::Layout(element).untransformedDesiredSize = {};
-        AeroGuiInternal::Layout(element).measureValid = true;
-        AeroGuiInternal::Layout(element).arrangeValid = false;
-        AeroGuiInternal::Layout(element).measureQueued = false;
-        ++AeroGuiInternal::Layout(element).layoutRevision;
+        (element).Layout().previousMeasureConstraint = constraint;
+        (element).Layout().desiredSize = {};
+        (element).Layout().untransformedDesiredSize = {};
+        (element).Layout().measureValid = true;
+        (element).Layout().arrangeValid = false;
+        (element).Layout().measureQueued = false;
+        ++(element).Layout().layoutRevision;
         ++layout.measuredCount_;
         if (queueArrange) {
             layout.arrangeQueue_.PushBack(
                 pendingArrange);
-            AeroGuiInternal::Layout(element).arrangeQueued = true;
+            (element).Layout().arrangeQueued = true;
         }
         return {};
     }
@@ -514,9 +510,9 @@ Base::Result<void> UIElement::MeasureCore(
             framework->GetHeight(), minimum.height, maximum.height);
     }
 
-    AeroGuiInternal::Layout(element).measuring = true;
-    const Size result = AeroGuiInternal::MeasureOverride(element, available);
-    AeroGuiInternal::Layout(element).measuring = false;
+    (element).Layout().measuring = true;
+    const Size result = (element).MeasureOverride( available);
+    (element).Layout().measuring = false;
     Size desired = result;
     if (!IsValidLayoutSize(desired)) {
         return InvalidArgument("MeasureOverride returned an invalid size");
@@ -524,7 +520,7 @@ Base::Result<void> UIElement::MeasureCore(
     desired = ClampSize(desired, minimum, maximum);
     if (hasWidth) desired.width = available.width;
     if (hasHeight) desired.height = available.height;
-    AeroGuiInternal::Layout(element).untransformedDesiredSize = desired;
+    (element).Layout().untransformedDesiredSize = desired;
     if (layoutTransform) {
         const Rect transformed =
             Base::TransformBounds(
@@ -566,17 +562,17 @@ Base::Result<void> UIElement::MeasureCore(
         desired.width = RoundLayoutValue(desired.width, framework->GetDpiScale());
         desired.height = RoundLayoutValue(desired.height, framework->GetDpiScale());
     }
-    AeroGuiInternal::Layout(element).previousMeasureConstraint = constraint;
-    AeroGuiInternal::Layout(element).desiredSize = desired;
-    AeroGuiInternal::Layout(element).measureValid = true;
-    AeroGuiInternal::Layout(element).arrangeValid = false;
-    AeroGuiInternal::Layout(element).measureQueued = false;
-    ++AeroGuiInternal::Layout(element).layoutRevision;
+    (element).Layout().previousMeasureConstraint = constraint;
+    (element).Layout().desiredSize = desired;
+    (element).Layout().measureValid = true;
+    (element).Layout().arrangeValid = false;
+    (element).Layout().measureQueued = false;
+    ++(element).Layout().layoutRevision;
     ++layout.measuredCount_;
     if (queueArrange) {
         layout.arrangeQueue_.PushBack(
             pendingArrange);
-        AeroGuiInternal::Layout(element).arrangeQueued = true;
+        (element).Layout().arrangeQueued = true;
     }
     return {};
 }
@@ -599,17 +595,16 @@ Base::Result<void> UIElement::ArrangeCore(
         return InvalidState("Recursive layout operation is not allowed");
     }
     if (element.GetVisibility() == Visibility::Collapsed) {
-        AeroGuiInternal::Layout(element).layoutSlot = {slot.x, slot.y, 0.0, 0.0};
-        AeroGuiInternal::Layout(element).renderSize = {};
+        (element).Layout().layoutSlot = {slot.x, slot.y, 0.0, 0.0};
+        (element).Layout().renderSize = {};
         if (FrameworkElement* framework =
                 ::Aero::TryCast<::Aero::FrameworkElement>(&(element))) {
-            AeroGuiInternal::SetActualSize(
-                *framework, 0.0, 0.0);
+            (*framework).SetActualSize( 0.0, 0.0);
         }
-        AeroGuiInternal::Layout(element).layoutClip = {0.0, 0.0, 0.0, 0.0};
-        AeroGuiInternal::Layout(element).arrangeValid = true;
-        AeroGuiInternal::Layout(element).arrangeQueued = false;
-        ++AeroGuiInternal::Layout(element).layoutRevision;
+        (element).Layout().layoutClip = {0.0, 0.0, 0.0, 0.0};
+        (element).Layout().arrangeValid = true;
+        (element).Layout().arrangeQueued = false;
+        ++(element).Layout().layoutRevision;
         ++layout.arrangedCount_;
         return {};
     }
@@ -722,18 +717,17 @@ Base::Result<void> UIElement::ArrangeCore(
             vertical == VerticalAlignment::Stretch,
         vertical == VerticalAlignment::Bottom);
 
-    AeroGuiInternal::Layout(element).arranging = true;
-    const Size result = AeroGuiInternal::ArrangeOverride(element, finalSize);
-    AeroGuiInternal::Layout(element).arranging = false;
+    (element).Layout().arranging = true;
+    const Size result = (element).ArrangeOverride( finalSize);
+    (element).Layout().arranging = false;
     Size render = result;
     if (!IsValidLayoutSize(render)) {
         return InvalidArgument("ArrangeOverride returned an invalid size");
     }
-    AeroGuiInternal::Layout(element).layoutSlot = contentSlot;
-    AeroGuiInternal::Layout(element).renderSize = render;
+    (element).Layout().layoutSlot = contentSlot;
+    (element).Layout().renderSize = render;
     if (framework != nullptr) {
-        AeroGuiInternal::SetActualSize(
-            *framework, render.width, render.height);
+        (*framework).SetActualSize( render.width, render.height);
     }
     Size renderedFootprint = render;
     if (layoutTransform) {
@@ -757,12 +751,12 @@ Base::Result<void> UIElement::ArrangeCore(
     const Rect localBounds{0.0, 0.0, render.width, render.height};
     const Rect localFootprint{
         0.0, 0.0, renderedFootprint.width, renderedFootprint.height};
-    AeroGuiInternal::Layout(element).layoutClip = element.GetClipToBounds()
+    (element).Layout().layoutClip = element.GetClipToBounds()
         ? Intersect(localBounds, localFootprint)
         : localFootprint;
-    AeroGuiInternal::Layout(element).arrangeValid = true;
-    AeroGuiInternal::Layout(element).arrangeQueued = false;
-    ++AeroGuiInternal::Layout(element).layoutRevision;
+    (element).Layout().arrangeValid = true;
+    (element).Layout().arrangeQueued = false;
+    ++(element).Layout().layoutRevision;
     ++layout.arrangedCount_;
     return {};
 }
@@ -811,12 +805,12 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
     measureWorkQueue_.Swap(measureQueue_);
     for (const VisualHandle handle : measureWorkQueue_) {
         UIElement* element = ResolveQueued(handle);
-        if (element != nullptr) AeroGuiInternal::Layout(*element).measureQueued = false;
+        if (element != nullptr) (*element).Layout().measureQueued = false;
     }
     for (const VisualHandle handle : measureWorkQueue_) {
         UIElement* element = ResolveQueued(handle);
         if (element == nullptr || element == root_ ||
-            AeroGuiInternal::LayoutEngineOf(*element) != this || element->GetIsMeasureValid()) {
+            ElementTree::LayoutOf(*element) != this || element->GetIsMeasureValid()) {
             continue;
         }
         UIElement* parent = element->GetIsLayoutAttached()
@@ -838,12 +832,12 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
     arrangeWorkQueue_.Swap(arrangeQueue_);
     for (const VisualHandle handle : arrangeWorkQueue_) {
         UIElement* element = ResolveQueued(handle);
-        if (element != nullptr) AeroGuiInternal::Layout(*element).arrangeQueued = false;
+        if (element != nullptr) (*element).Layout().arrangeQueued = false;
     }
     for (const VisualHandle handle : arrangeWorkQueue_) {
         UIElement* element = ResolveQueued(handle);
         if (element == nullptr || element == root_ ||
-            AeroGuiInternal::LayoutEngineOf(*element) != this || element->GetIsArrangeValid()) {
+            ElementTree::LayoutOf(*element) != this || element->GetIsArrangeValid()) {
             continue;
         }
         Rect slot = element->GetLayoutSlot();
@@ -871,8 +865,8 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
            HasInvalidVisibleLayout(*root_) &&
            convergencePass < MaxConvergencePasses) {
         ++convergencePass;
-        AeroGuiInternal::Layout(*root_).measureValid = false;
-        AeroGuiInternal::Layout(*root_).arrangeValid = false;
+        (*root_).Layout().measureValid = false;
+        (*root_).Layout().arrangeValid = false;
         Base::Result<void> measured =
             MeasureElement(*root_, rootAvailableSize_);
         if (!measured) {
@@ -892,7 +886,7 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
         flushing_ = false;
         UIElement* invalid = FindInvalidVisibleLayout(*root_);
         const TypeInfo* type = invalid != nullptr
-            ? AeroGuiInternal::PropertyRegistry(invalid).Types().FindType(
+            ? invalid->PropertyRegistry().Types().FindType(
                   invalid->RuntimeType())
             : nullptr;
         const Base::StringView typeName = type != nullptr
@@ -902,7 +896,7 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
             ? invalid->LayoutParent()
             : nullptr;
         const TypeInfo* parentType = layoutParent != nullptr
-            ? AeroGuiInternal::PropertyRegistry(layoutParent).Types().FindType(
+            ? layoutParent->PropertyRegistry().Types().FindType(
                   layoutParent->RuntimeType())
             : nullptr;
         const Base::StringView parentName = parentType != nullptr
@@ -923,7 +917,7 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
             static_cast<void*>(layoutParent),
             invalid != nullptr ? (int)invalid->GetIsVisible() : -1,
             invalid != nullptr ? static_cast<unsigned>(invalid->GetVisibility()) : 99U,
-            invalid != nullptr ? (int)AeroGuiInternal::Layout(*invalid).layoutAttached : -1,
+            invalid != nullptr ? (int)(*invalid).Layout().layoutAttached : -1,
             invalid != nullptr ? static_cast<void*>(invalid->LayoutParent()) : nullptr,
             invalid != nullptr ? static_cast<void*>(invalid->GetVisualParent()) : nullptr);
         return InvalidState(message);
@@ -934,11 +928,11 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
     // application so the next frame starts from a clean layout state.
     for (const VisualHandle handle : measureQueue_) {
         UIElement* element = ResolveQueued(handle);
-        if (element != nullptr) AeroGuiInternal::Layout(*element).measureQueued = false;
+        if (element != nullptr) (*element).Layout().measureQueued = false;
     }
     for (const VisualHandle handle : arrangeQueue_) {
         UIElement* element = ResolveQueued(handle);
-        if (element != nullptr) AeroGuiInternal::Layout(*element).arrangeQueued = false;
+        if (element != nullptr) (*element).Layout().arrangeQueued = false;
     }
     measureQueue_.Clear();
     arrangeQueue_.Clear();
@@ -967,16 +961,6 @@ void LayoutEngine::LayoutHook(void* context) noexcept {
             ? Base::Status{}
             : result.GetStatus();
     }
-}
-
-Size AeroGuiInternal::MeasureOverride(
-    UIElement& element, Size availableSize) noexcept {
-    return element.MeasureOverride(availableSize);
-}
-
-Size AeroGuiInternal::ArrangeOverride(
-    UIElement& element, Size finalSize) noexcept {
-    return element.ArrangeOverride(finalSize);
 }
 
 } // namespace Aero

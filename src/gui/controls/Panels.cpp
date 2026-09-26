@@ -1,15 +1,10 @@
-#include "gui/meta/TypeRegistryDetail.hpp"
-#include "gui/meta/Describe.hpp"
-#include "gui/meta/ValueConversion.hpp"
+#include "gui/core/Describe.hpp"
+#include "gui/core/ValueConversion.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
-#include "gui/data/BindingEngine.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleEngine.hpp"
 #include "render/DisplayList.hpp"
 #include <Aero/Controls.hpp>
 #include <Aero/Controls/Grid.hpp>
@@ -572,6 +567,15 @@ Size Canvas::ArrangeOverride(Size finalSize) noexcept {
     }
     return finalSize;
 }
+GridLength ColumnDefinition::GetWidth() const noexcept {
+    return GetValue(WidthProperty);
+}
+double ColumnDefinition::GetMaxWidth() const noexcept {
+    return GetValue(MaxWidthProperty);
+}
+Base::StringView ColumnDefinition::GetSharedSizeGroup() const noexcept {
+    return GetValue(SharedSizeGroupProperty);
+}
 void ColumnDefinition::SetWidth(
     GridLength value) noexcept {
     if (!std::isfinite(value.value) ||
@@ -580,20 +584,27 @@ void ColumnDefinition::SetWidth(
             value.value <= 0.0)) {
         return;
     }
-    width_ = value;
+    SetValue(WidthProperty, value);
 }
 void ColumnDefinition::SetMaxWidth(
     double value) noexcept {
     if (!std::isfinite(value) || value < 0.0) {
         return;
     }
-    maxWidth_ = value;
+    SetValue(MaxWidthProperty, value);
 }
 void ColumnDefinition::SetSharedSizeGroup(
     Base::StringView value) noexcept {
-    Base::String candidate;
-    if (!candidate.Assign(value)) return;
-    sharedSizeGroup_ = std::move(candidate);
+    SetValue(SharedSizeGroupProperty, value);
+}
+GridLength RowDefinition::GetHeight() const noexcept {
+    return GetValue(HeightProperty);
+}
+double RowDefinition::GetMaxHeight() const noexcept {
+    return GetValue(MaxHeightProperty);
+}
+Base::StringView RowDefinition::GetSharedSizeGroup() const noexcept {
+    return GetValue(SharedSizeGroupProperty);
 }
 void RowDefinition::SetHeight(
     GridLength value) noexcept {
@@ -603,20 +614,18 @@ void RowDefinition::SetHeight(
             value.value <= 0.0)) {
         return;
     }
-    height_ = value;
+    SetValue(HeightProperty, value);
 }
 void RowDefinition::SetMaxHeight(
     double value) noexcept {
     if (!std::isfinite(value) || value < 0.0) {
         return;
     }
-    maxHeight_ = value;
+    SetValue(MaxHeightProperty, value);
 }
 void RowDefinition::SetSharedSizeGroup(
     Base::StringView value) noexcept {
-    Base::String candidate;
-    if (!candidate.Assign(value)) return;
-    sharedSizeGroup_ = std::move(candidate);
+    SetValue(SharedSizeGroupProperty, value);
 }
 Grid::Grid() noexcept
     : Panel(StaticTypeId()), columns_(), rows_(),
@@ -732,7 +741,7 @@ bool Grid::ValidateValueCore(
         }
         Base::Vector<GridLength> parsed;
         return static_cast<bool>(
-            AeroGuiInternal::ParseGridDefinitions(
+            Controls::Grid::ParseDefinitions(
                 value.AsString(), parsed));
     }
     return Panel::ValidateValueCore(property, value);
@@ -744,7 +753,7 @@ void Grid::OnPropertyChanged(
     if (prop == ColumnDefinitionsTextProperty.Handle()) {
         if (args.GetNewValue().Kind() == Meta::ValueKind::String) {
             Base::Vector<GridLength> parsed;
-            if (AeroGuiInternal::ParseGridDefinitions(
+            if (Controls::Grid::ParseDefinitions(
                     args.GetNewValue().AsString(), parsed)) {
                 SetColumnDefinitions(parsed.AsSpan());
             }
@@ -752,7 +761,7 @@ void Grid::OnPropertyChanged(
     } else if (prop == RowDefinitionsTextProperty.Handle()) {
         if (args.GetNewValue().Kind() == Meta::ValueKind::String) {
             Base::Vector<GridLength> parsed;
-            if (AeroGuiInternal::ParseGridDefinitions(
+            if (Controls::Grid::ParseDefinitions(
                     args.GetNewValue().AsString(), parsed)) {
                 SetRowDefinitions(parsed.AsSpan());
             }
@@ -1539,18 +1548,17 @@ void SetPanelContent(
     if (!child) {
         return;
     }
-    AeroGuiInternal::PanelAddChild(
-        static_cast<Panel&>(owner), child, *static_cast<Aero::UIElement*>(child.Get()));
+    (static_cast<Panel&>(owner)).AddChildCore( child, *static_cast<Aero::UIElement*>(child.Get()));
 }
 
 void ClearPanelContent(
     Base::Object& owner,
     void*) noexcept {
-    AeroGuiInternal::PanelClearChildren(static_cast<Panel&>(owner));
+    (static_cast<Panel&>(owner)).ClearChildrenCore();
 }
 
 Base::Result<GridLength> ConvertGridLength(Base::StringView text) noexcept {
-    return AeroGuiInternal::ConvertGridLength(text);
+    return Controls::Grid::ConvertLength(text);
 }
 
 bool EqualGridLength(const void* left, const void* right, void*) noexcept {
@@ -1660,15 +1668,15 @@ AERO_DESCRIBE(Grid) {
         .TextConverter<&ConvertGridLength>();
 
     Register<ColumnDefinition>(context)
-        .Property<GridLength, &ColumnDefinition::GetWidth, &ColumnDefinition::SetWidth>("Width", PropertyFlags::Structural)
-        .Property<double, &ColumnDefinition::GetMaxWidth, &ColumnDefinition::SetMaxWidth>("MaxWidth", PropertyFlags::Structural)
-        .Property<Base::String, &ColumnDefinition::GetSharedSizeGroup, &ColumnDefinition::SetSharedSizeGroup>("SharedSizeGroup", PropertyFlags::Structural)
+        .Property(ColumnDefinition::WidthProperty, GridLength::Star(), AffectsParentMeasure)
+        .Property(ColumnDefinition::MaxWidthProperty, 1.0e12, AffectsParentMeasure)
+        .Property(ColumnDefinition::SharedSizeGroupProperty, Base::String{}, AffectsParentMeasure)
         .Factory();
 
     Register<RowDefinition>(context)
-        .Property<GridLength, &RowDefinition::GetHeight, &RowDefinition::SetHeight>("Height", PropertyFlags::Structural)
-        .Property<double, &RowDefinition::GetMaxHeight, &RowDefinition::SetMaxHeight>("MaxHeight", PropertyFlags::Structural)
-        .Property<Base::String, &RowDefinition::GetSharedSizeGroup, &RowDefinition::SetSharedSizeGroup>("SharedSizeGroup", PropertyFlags::Structural)
+        .Property(RowDefinition::HeightProperty, GridLength::Star(), AffectsParentMeasure)
+        .Property(RowDefinition::MaxHeightProperty, 1.0e12, AffectsParentMeasure)
+        .Property(RowDefinition::SharedSizeGroupProperty, Base::String{}, AffectsParentMeasure)
         .Factory();
 
     Register<Grid>(context)
@@ -1682,6 +1690,78 @@ AERO_DESCRIBE(Grid) {
         .Property(Grid::RowSpanProperty, std::uint32_t{1}, AffectsParentMeasure, &Base::Validate::Positive<std::uint32_t>)
         .Property(Grid::ColumnSpanProperty, std::uint32_t{1}, AffectsParentMeasure, &Base::Validate::Positive<std::uint32_t>)
         .Factory();
+}
+
+} // namespace Aero
+
+namespace Aero {
+
+Base::Result<GridLength> Controls::Grid::ConvertLength(
+    Base::StringView text) noexcept {
+    const Base::StringView value =
+        ::Aero::Base::ValueConversion::Trim(text);
+    if (::Aero::Base::ValueConversion::EqualsAsciiInsensitive(
+            value, "auto")) {
+        return GridLength::Auto();
+    }
+    if (!value.Empty() &&
+        value[value.SizeBytes() - 1U] == '*') {
+        const Base::StringView weightText =
+            value.Substr(0U, value.SizeBytes() - 1U);
+        double weight = 1.0;
+        if (!weightText.Empty()) {
+            Base::Result<double> parsed =
+                ::Aero::Base::ValueConversion::ParseDouble(weightText);
+            if (!parsed) return parsed.GetStatus();
+            weight = parsed.Value();
+        }
+        if (!std::isfinite(weight) || weight <= 0.0) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "GridLength star weight must be positive and finite");
+        }
+        return GridLength::Star(weight);
+    }
+    Base::Result<double> pixels =
+        ::Aero::Base::ValueConversion::ParseDouble(value);
+    if (!pixels || pixels.Value() < 0.0) {
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "GridLength must be Auto, a nonnegative pixel value, or a star weight");
+    }
+    return GridLength::Pixel(pixels.Value());
+}
+
+Base::Result<void> Controls::Grid::ParseDefinitions(
+    Base::StringView text,
+    Base::Vector<GridLength>& output) noexcept {
+    output.Clear();
+    const Base::StringView value =
+        ::Aero::Base::ValueConversion::Trim(text);
+    if (value.Empty()) return {};
+    std::uint32_t start = 0U;
+    while (start <= value.SizeBytes()) {
+        std::uint32_t end = start;
+        while (end < value.SizeBytes() &&
+            value[end] != ',') {
+            ++end;
+        }
+        const Base::StringView token =
+            ::Aero::Base::ValueConversion::Trim(
+                value.Substr(start, end - start));
+        if (token.Empty()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "Grid definitions contain an empty track");
+        }
+        Base::Result<GridLength> parsed =
+            ConvertGridLength(token);
+        if (!parsed) return parsed.GetStatus();
+        output.PushBack(parsed.Value());
+        if (end == value.SizeBytes()) break;
+        start = end + 1U;
+    }
+    return {};
 }
 
 } // namespace Aero

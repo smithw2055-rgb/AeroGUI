@@ -3,18 +3,13 @@
 // Private Gui impl (GuiDetail.hpp / type GuiRuntime). Keep source-only;
 // former GuiData.hpp / GuiState names retired.
 
-#include "gui/meta/TypeRegistryDetail.hpp"
 #include "gui/markup/XamlSchema.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/input/InputManager.hpp" 
-#include "gui/data/BindingEngine.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleEngine.hpp"
 #include "gui/templates/TemplateInstance.hpp"
 #include <Aero/Gui.hpp>
 #include <Aero/Markup/XamlProvider.hpp>
@@ -24,7 +19,6 @@
 #include <Aero/Base/Hash.hpp>
 
 #include <cstdint>
-#include <utility>
 
 namespace Aero {
 
@@ -93,54 +87,34 @@ struct GuiRuntime final : public Base::Object {
         const Markup::LoadState* state,
         Base::StringView uri,
         const Markup::XamlReaderSettings& settings,
-        Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept {
-        Markup::Loader loader(
-            schema.Schema(), xamlProviders, diagnostics, allocator, state);
-        return loader.Load(uri, settings);
-    }
+        Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept;
 
     Base::Result<Markup::XamlDocument> LoadComponentInto(
         const Markup::LoadState* state,
         Base::Object& existingRoot,
         Base::StringView uri,
         const Markup::XamlReaderSettings& settings,
-        Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept {
-        Markup::Loader loader(
-            schema.Schema(), xamlProviders, diagnostics, allocator, state);
-        return loader.LoadComponent(existingRoot, uri, settings);
-    }
+        Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept;
 
     Base::Result<Markup::XamlDocument> Parse(
         const Markup::LoadState* state,
         Base::StringView source,
         const Base::ResourceUri& baseUri,
         const Markup::XamlReaderSettings& settings,
-        Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept {
-        Markup::Loader loader(
-            schema.Schema(), xamlProviders, diagnostics, allocator, state);
-        return loader.Parse(source, baseUri, settings);
-    }
+        Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept;
 
     Base::Result<Markup::XamlDocument> Parse(
         const Markup::LoadState* state,
         Base::Stream& source,
         const Base::ResourceUri& baseUri,
         const Markup::XamlReaderSettings& settings,
-        Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept {
-        Markup::Loader loader(
-            schema.Schema(), xamlProviders, diagnostics, allocator, state);
-        return loader.Parse(source, baseUri, settings);
-    }
+        Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept;
 
     Base::Result<Markup::XamlDocument> LoadCompiled(
         const Markup::LoadState* state,
         Base::Span<const std::uint8_t> bytes,
         const Base::ResourceUri& originUri,
-        const Markup::XamlReaderSettings& settings) noexcept {
-        Markup::Loader loader(
-            schema.Schema(), xamlProviders, nullptr, allocator, state);
-        return loader.LoadCompiled(bytes, originUri, settings);
-    }
+        const Markup::XamlReaderSettings& settings) noexcept;
 
     Base::Result<void> QuerySource(
         const Base::ResourceUri& uri,
@@ -177,18 +151,3 @@ struct GuiRuntime final : public Base::Object {
 };
 
 } // namespace Aero
-
-namespace Aero::Data {
-
-// Source-only bridge used by ChangePropertyAction. Dependency-property value
-// normalization already has one canonical implementation in the Gui property
-// engine; do not duplicate binding conversion rules in View.
-inline Base::Result<Meta::PropertyValue> CoerceBindingTargetValue(
-    Meta::Registry* metadata,
-    const Meta::DependencyProperty& property,
-    Meta::PropertyValue value) noexcept {
-    return ::Aero::NormalizeValueForProperty(
-        metadata, property, std::move(value));
-}
-
-} // namespace Aero::Data

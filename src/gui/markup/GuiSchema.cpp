@@ -1,8 +1,6 @@
 #include <Aero/Base/Assert.hpp>
 
-#include "gui/meta/TypeRegistryDetail.hpp"
 #include "gui/markup/XamlObjectWriterCommon.hpp"
-#include "gui/media/AnimationEngine.hpp"
 
 #include <new>
 #include <utility>

@@ -32,8 +32,8 @@ public:
     }
     Span<const Ref<Base::Object>> GetSetters() const noexcept { return {setters_.Data(), setters_.Size()}; }
     void AddSetter(Ref<Base::Object> value) noexcept { setters_.PushBack(std::move(value)); }
-    void ClearSetters() noexcept { setters_.Clear(); } const Ref<Media::Animation::Storyboard>&
-    GetStoryboard() const noexcept { return storyboard_; }
+    void ClearSetters() noexcept { setters_.Clear(); }
+    const Ref<Media::Animation::Storyboard>& GetStoryboard() const noexcept { return storyboard_; }
     void SetStoryboard(Ref<Media::Animation::Storyboard> value) noexcept {
         if (storyboard_ && value) { AERO_ASSERT(false); return; }
         storyboard_ = std::move(value);
@@ -44,10 +44,6 @@ private:
     Base::Vector<Ref<Base::Object>> setters_;
     Ref<Media::Animation::Storyboard> storyboard_;
 };
-
-} // namespace Aero
-
-namespace Aero {
 
 class AERO_GUI_API VisualTransition : public Base::Object {
     AERO_DECLARE_TYPE_NAMED(VisualTransition, Base::Object, "urn:aero", "VisualTransition")
@@ -76,7 +72,8 @@ public:
     }
     void SetGeneratedEasingFunction(Ref<Media::Animation::EasingFunctionBase> value) noexcept {
         generatedEasingFunction_ = std::move(value);
-    } const Ref<Media::Animation::Storyboard>& GetStoryboard() const noexcept { return storyboard_; }
+    }
+    const Ref<Media::Animation::Storyboard>& GetStoryboard() const noexcept { return storyboard_; }
     void SetStoryboard(Ref<Media::Animation::Storyboard> value) noexcept {
         if (storyboard_ && value) { AERO_ASSERT(false); return; }
         storyboard_ = std::move(value);
@@ -89,10 +86,6 @@ private:
     Ref<Media::Animation::EasingFunctionBase> generatedEasingFunction_;
     Ref<Media::Animation::Storyboard> storyboard_;
 };
-
-} // namespace Aero
-
-namespace Aero {
 
 class AERO_GUI_API VisualStateGroup : public Base::Object {
     AERO_DECLARE_TYPE_NAMED(VisualStateGroup, Base::Object, "urn:aero", "VisualStateGroup")
@@ -119,10 +112,6 @@ private:
     Base::Vector<Ref<VisualTransition>> transitions_;
 };
 
-} // namespace Aero
-
-namespace Aero {
-
 class AERO_GUI_API VisualStateGroupCollection : public Base::Object {
     AERO_DECLARE_TYPE(VisualStateGroupCollection, Base::Object)
 public:
@@ -134,10 +123,6 @@ public:
 private:
     Base::Vector<Ref<VisualStateGroup>> items_;
 };
-
-} // namespace Aero
-
-namespace Aero {
 
 // Public authoring uses the WPF static entry point. Runtime state and animation
 // bookkeeping remain private and are accessed only by the controls runtime.

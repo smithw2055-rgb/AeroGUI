@@ -1,5 +1,7 @@
 #include "gui/ViewFrame.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
+#include <Aero/Shapes.hpp>
+#include "gui/text/TextPipeline.hpp"
+#include "render/RenderTree.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -42,16 +44,14 @@ void ViewFrame::AttachTextLayout(
         if (metadata->Types().IsDerivedFrom(
                 type,
                 Controls::TextBlock::StaticTypeId())) {
-            AeroGuiInternal::AttachTextLayout(
-                *static_cast<Controls::TextBlock*>(&node),
+            (*static_cast<Controls::TextBlock*>(&node)).AttachTextLayout(
                 service,
                 invalidate);
         }
         if (metadata->Types().IsDerivedFrom(
                 type,
                 Controls::TextBox::StaticTypeId())) {
-            AeroGuiInternal::AttachTextLayout(
-                *static_cast<Controls::TextBox*>(&node),
+            (*static_cast<Controls::TextBox*>(&node)).AttachTextLayout(
                 service,
                 invalidate);
         }
@@ -59,9 +59,8 @@ void ViewFrame::AttachTextLayout(
                 type,
                 Controls::PasswordBox::
                     StaticTypeId())) {
-            AeroGuiInternal::AttachTextLayout(
-                *static_cast<Controls::PasswordBox*>(
-                    &node),
+            (*static_cast<Controls::PasswordBox*>(
+                    &node)).AttachTextLayout(
                 service,
                 invalidate);
         }
@@ -86,8 +85,7 @@ void ViewFrame::AttachPathResources(
         if (metadata->Types().IsDerivedFrom(
                 type,
                 Shapes::Path::StaticTypeId())) {
-            AeroGuiInternal::PathAttachMeshResources(
-                *static_cast<Shapes::Path*>(&node),
+            (*static_cast<Shapes::Path*>(&node)).AttachMeshResources(
                 service,
                 invalidate);
         }
@@ -113,7 +111,7 @@ void ViewFrame::VisitTextElements(
             service,
             invalidate && effectivelyVisible);
         for (Aero::Media::Visual* child :
-             AeroGuiInternal::RenderChildren(*rootVisual)) {
+             (*rootVisual).RenderChildren()) {
             VisitTextElements(
                 child,
                 service,
@@ -142,7 +140,7 @@ void ViewFrame::VisitPaths(
             service,
             invalidate && effectivelyVisible);
         for (Aero::Media::Visual* child :
-             AeroGuiInternal::RenderChildren(*rootVisual)) {
+             (*rootVisual).RenderChildren()) {
             VisitPaths(
                 child,
                 service,

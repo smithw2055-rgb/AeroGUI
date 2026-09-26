@@ -1,5 +1,5 @@
 #include "gui/ViewFrame.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
+#include "gui/GuiDetail.hpp"
 #include <Aero/VisualTreeHelper.hpp>
 
 #include <algorithm>
@@ -493,8 +493,8 @@ Base::Result<void> DetachFragment(ViewFrame& state,
                     childElement->GetIsLayoutAttached() &&
                     childElement->LayoutParent() == parentElement;
                 edgeState.renderAttached =
-                    AeroGuiInternal::RenderAttached(*edgeState.child) &&
-                    AeroGuiInternal::RenderParent(*edgeState.child) == edgeState.visualParent;
+                    (*edgeState.child).RenderAttached() &&
+                    (*edgeState.child).GetVisualParent() == edgeState.visualParent;
             };
 
         std::uint32_t remaining = 0U;
@@ -746,7 +746,7 @@ Base::Result<void> MountViewFragment(
             // instead of leaving the host stuck on the previous sample.
             static_cast<void>(unmounted.GetStatus());
         }
-    } else if (AeroGuiInternal::ContentControlContent(host) != nullptr) {
+    } else if ((host).GetContentElement() != nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
               "content fragment host already owns non-fragment content");
@@ -792,7 +792,7 @@ Base::Result<void> MountViewFragment(
         FreeObject(*state_->allocator, Base::MemoryTag::Ui, fragment);
         return tracked.GetStatus();
     }
-    AeroGuiInternal::SetOwnedContent(host,
+    (host).SetOwnedContent(
         fragment->document.root, *rootElement.Value());
 
     ElementTree& context = *state_->tree;
@@ -800,7 +800,7 @@ Base::Result<void> MountViewFragment(
     // SetOwnedContent / Content DP already joined the fragment root there.
     // A second AttachElement(host, root) then fails with "already attached".
     if (rootElement.Value()->GetIsLayoutAttached() ||
-        AeroGuiInternal::TemplateRoot(host) != nullptr) {
+        (host).GetTemplateRoot() != nullptr) {
         fragment->rootEdge.logicalParent = &host;
         fragment->rootEdge.visualParent =
             rootVisual.Value()->GetVisualParent() != nullptr
@@ -926,7 +926,7 @@ Base::Result<void> UnmountViewFragment(
             return UnmountFragmentAt(*state_, index);
         }
     }
-    return AeroGuiInternal::ContentControlContent(host) == nullptr
+    return (host).GetContentElement() == nullptr
         ? Base::Result<void>()
         : Base::Result<void>(Base::Status::Failure(
               Base::ErrorCode::InvalidState,
@@ -957,9 +957,9 @@ Base::Result<void> MountOwnedLayoutChildren(
         }
     }
     if (auto* host = ::Aero::TryCast<Controls::ContentControl>(&node)) {
-        if (AeroGuiInternal::TemplateRoot(*host) == nullptr) {
+        if ((*host).GetTemplateRoot() == nullptr) {
             UIElement* content =
-                AeroGuiInternal::ContentControlContent(*host);
+                (*host).GetContentElement();
             if (content != nullptr &&
                 (content->GetVisualParent() != host ||
                  !content->GetIsLayoutAttached()) &&
@@ -1135,7 +1135,7 @@ Base::Result<void> AdoptLoadedComponent(
             return {};
         }
         UIElement* content =
-            AeroGuiInternal::ContentControlContent(*host);
+            (*host).GetContentElement();
         if (content == nullptr) {
             for (Markup::VisualEdge& edge :
                  document.visualContent.mountEdges) {
@@ -1147,10 +1147,9 @@ Base::Result<void> AdoptLoadedComponent(
                 if (child == nullptr || child == host) {
                     continue;
                 }
-                (void)AeroGuiInternal::SetContentValue(
-                    *host,
+                (void)(*host).SetContentValue(
                     Base::Ref<Base::Object>::FromBorrowed(*child));
-                content = AeroGuiInternal::ContentControlContent(*host);
+                content = (*host).GetContentElement();
                 break;
             }
         }

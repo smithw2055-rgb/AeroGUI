@@ -19,6 +19,7 @@ class AERO_GUI_API TextBox : public Primitives::TextBoxBase,
 public:
     TextBox() noexcept;
     ~TextBox() override;
+    void AttachTextLayout(void* service, bool invalidate = false) noexcept;
 
     StringView GetText() const noexcept;
     void SetText(StringView value) noexcept;
@@ -183,6 +184,7 @@ public:
     PasswordBox() noexcept;
     ~PasswordBox() override;
 
+    void AttachTextLayout(void* service, bool invalidate = false) noexcept;
     StringView GetPassword() const noexcept { return password_.View(); }
     void SetPassword(StringView value) noexcept;
     StringView GetPasswordChar() const noexcept;

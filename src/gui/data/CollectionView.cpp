@@ -1,6 +1,4 @@
-#include "gui/internal/AeroGuiInternal.hpp"
 #include <Aero/Data/CollectionView.hpp>
-#include <Aero/Data/CollectionViewSource.hpp>
 #include <Aero/DependencyObject.hpp>
 #include <Aero/Layout.hpp>
 #include <Aero/TryCast.hpp>
@@ -55,10 +53,10 @@ int CompareSortPropertyValues(
         return left < right ? -1 : (left > right ? 1 : 0);
     }
     const Meta::DependencyProperty* leftProperty =
-        AeroGuiInternal::PropertyRegistry(leftDo).Find(
+        leftDo->PropertyRegistry().Find(
             leftDo->RuntimeType(), propertyName);
     const Meta::DependencyProperty* rightProperty =
-        AeroGuiInternal::PropertyRegistry(rightDo).Find(
+        rightDo->PropertyRegistry().Find(
             rightDo->RuntimeType(), propertyName);
     if (leftProperty == nullptr || rightProperty == nullptr) {
         return left < right ? -1 : (left > right ? 1 : 0);

@@ -8,6 +8,8 @@
 #include <Aero/FrameworkElement.hpp>
 
 namespace Aero::Controls {
+using ::Aero::Meta::TypeId;
+
 enum class GridViewColumnHeaderRole : std::uint8_t {
     Normal = 0U,
     Floating,
@@ -24,11 +26,6 @@ public:
 
     AERO_DEPENDENCY_PROPERTY(GridViewColumnHeaderRole, Role);
 };
-} // namespace Aero::Controls
-AERO_DECLARE_TYPE_ENUM(Aero::Controls::GridViewColumnHeaderRole)
-
-namespace Aero::Controls {
-using ::Aero::Meta::TypeId;
 
 class AERO_GUI_API GridViewColumn : public DependencyObject {
     AERO_DECLARE_TYPE(GridViewColumn, DependencyObject)
@@ -60,13 +57,19 @@ public:
     AERO_DEPENDENCY_PROPERTY(Ref<Aero::Data::Binding>, DisplayMemberBinding);
     AERO_DEPENDENCY_PROPERTY(Ref<Style>, HeaderContainerStyle);
 };
-} // namespace Aero::Controls
 
-namespace Aero::Controls {
-using ::Aero::Meta::TypeId;
+class AERO_GUI_API ViewBase : public Base::Object {
+    AERO_DECLARE_TYPE(ViewBase, Base::Object)
+public:
+    ViewBase() noexcept = default;
+    TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
 
-class AERO_GUI_API GridView : public Base::Object {
-    AERO_DECLARE_TYPE(GridView, Base::Object)
+protected:
+    explicit ViewBase(TypeId) noexcept {}
+};
+
+class AERO_GUI_API GridView : public ViewBase {
+    AERO_DECLARE_TYPE(GridView, ViewBase)
 public:
     GridView() noexcept = default;
     TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
@@ -106,9 +109,6 @@ private:
     Ref<Base::Object> columnHeaderTemplateSelector_;
     Ref<Base::Object> columnHeaderToolTip_;
 };
-} // namespace Aero::Controls
-
-namespace Aero::Controls {
 
 class AERO_GUI_API GridViewHeaderRowPresenter : public Aero::FrameworkElement {
     AERO_DECLARE_TYPE(GridViewHeaderRowPresenter, Aero::FrameworkElement)
@@ -126,9 +126,6 @@ public:
     AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, ColumnHeaderToolTip);
     AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, Columns);
 };
-} // namespace Aero::Controls
-
-namespace Aero::Controls {
 
 class AERO_GUI_API GridViewRowPresenter : public Aero::FrameworkElement {
     AERO_DECLARE_TYPE(GridViewRowPresenter, Aero::FrameworkElement)
@@ -139,3 +136,5 @@ public:
     AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, Content);
 };
 } // namespace Aero::Controls
+
+AERO_DECLARE_TYPE_ENUM(Aero::Controls::GridViewColumnHeaderRole)

@@ -1,5 +1,7 @@
 #include "gui/ViewFrame.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
+#include "gui/GuiDetail.hpp"
+#include "gui/text/TextPipeline.hpp"
+#include "render/RenderTree.hpp"
 #include <Aero/BuiltinThemes.generated.hpp>
 
 #include <algorithm>
@@ -635,8 +637,7 @@ Base::Result<void> View::SetContent(
     edge.child = documentRoot.Value();
     next.visualContent.mountEdges.PushBack(std::move(edge));
 
-    AeroGuiInternal::SetOwnedContent(
-        *static_cast<Controls::ContentControl*>(hostRoot.Value()),
+    (*static_cast<Controls::ContentControl*>(hostRoot.Value())).SetOwnedContent(
         next.root,
         *documentRoot.Value());
 

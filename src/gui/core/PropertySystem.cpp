@@ -3,17 +3,16 @@
 // ===== DependencyProperty =====
 
 #include <Aero/DependencyProperty.hpp>
-#include "gui/meta/TypeRegistryDetail.hpp"
+#include "gui/core/TypeRegistryDetail.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/data/BindingEngine.hpp"
+#include "gui/core/PropertyStore.hpp"
 #include <Aero/Collections.hpp>
 #include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleEngine.hpp"
 
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Base/Hash.hpp>
@@ -866,8 +865,7 @@ DependencyObject::~DependencyObject() {
     PropertyStore* store = static_cast<PropertyStore*>(valueStore_);
     if (store != nullptr) {
         for (auto& record : store->entries) {
-            AeroGuiInternal::CommitConsumerChange(
-                *this,
+            (*this).CommitConsumerChange(
                 DependencyPropertyHandle{record.Key()},
                 record.Value().effectiveValue,
                 PropertyValue::Unset());
@@ -1055,7 +1053,7 @@ Base::Result<void> EffectiveValueEngine::QueueObjectProperty(
     }
     property = registered->Handle();
     Base::Result<StoredValueEntry*> ensured =
-        AeroGuiInternal::EnsureEntry(object, property);
+        (object).EnsureStoredEntry( property);
     if (!ensured) return ensured.GetStatus();
     StoredValueEntry* stored = ensured.Value();
     if (stored->Queued()) return {};
@@ -1188,8 +1186,7 @@ Base::Result<void> EffectiveValueEngine::SetInheritanceParent(
     }
 
     Base::Vector<MemberId> keys;
-    AeroGuiInternal::ForEachStoredKey(
-        child,
+    (child).ForEachStoredKey(
         [](void* context, MemberId key) noexcept {
             static_cast<Base::Vector<MemberId>*>(context)->PushBack(key);
         },
@@ -1228,7 +1225,7 @@ Base::Result<void> EffectiveValueEngine::QueueDescendants(
                     metadata->flags,
                     PropertyMetadataFlags::Inherits);
             if (inherits ||
-                AeroGuiInternal::FindEntry(*child, property) != nullptr) {
+                (*child).FindStoredEntry( property) != nullptr) {
                 Base::Result<void> queued =
                     QueueObjectProperty(*child, property);
                 if (!queued) return queued.GetStatus();
@@ -1396,9 +1393,9 @@ Base::Result<void> EffectiveValueEngine::Apply(
             inherited = &inheritedValue;
         }
     }
-    Base::Result<void> stored = AeroGuiInternal::ApplyInheritedValue(object, property, inherited);
+    Base::Result<void> stored = (object).ApplyInheritedValueInternal( property, inherited);
     if (!stored) return stored.GetStatus();
-    return AeroGuiInternal::RecomputeEffectiveValue(object, property);
+    return (object).RecomputeEffectiveValueInternal( property);
 }
 
 Base::Result<std::uint32_t> EffectiveValueEngine::Flush() noexcept {
@@ -1437,7 +1434,7 @@ Base::Result<std::uint32_t> EffectiveValueEngine::Flush() noexcept {
             continue;
         }
         StoredValueEntry* stored =
-            AeroGuiInternal::FindEntry(*object, property);
+            (*object).FindStoredEntry( property);
         if (stored == nullptr || !stored->Queued()) {
             RecycleLink(link);
             continue;
@@ -1503,7 +1500,7 @@ Base::Result<void> EffectiveValueEngine::SetProviderContribution(
     }
     Base::Result<void> queued = QueueObjectProperty(object, property);
     if (!queued) return queued.GetStatus();
-    return AeroGuiInternal::ApplyProviderContribution(object, property, token, value);
+    return (object).ApplyProviderContributionInternal( property, token, value);
 }
 
 Base::Result<bool> EffectiveValueEngine::ClearProviderContribution(
@@ -1515,8 +1512,8 @@ Base::Result<bool> EffectiveValueEngine::ClearProviderContribution(
             Base::ErrorCode::InvalidArgument,
             "Property provider contribution is invalid");
     }
-    if (AeroGuiInternal::FindEntry(object, property) == nullptr) return false;
-    Base::Result<bool> cleared = AeroGuiInternal::ClearProviderContribution(object, property, token);
+    if ((object).FindStoredEntry( property) == nullptr) return false;
+    Base::Result<bool> cleared = (object).ClearProviderContributionInternal( property, token);
     if (!cleared || !cleared.Value()) return cleared;
     Base::Result<void> queued = QueueObjectProperty(object, property);
     if (!queued) return queued.GetStatus();
@@ -1530,8 +1527,7 @@ Base::Result<std::uint32_t> EffectiveValueEngine::ClearProviderOrigin(
         "A property provider origin must be nonzero");
     std::uint32_t removed = 0U;
     Base::Vector<MemberId> keys;
-    AeroGuiInternal::ForEachStoredKey(
-        object,
+    (object).ForEachStoredKey(
         [](void* context, MemberId key) noexcept {
             static_cast<Base::Vector<MemberId>*>(context)->PushBack(key);
         },
@@ -1539,7 +1535,7 @@ Base::Result<std::uint32_t> EffectiveValueEngine::ClearProviderOrigin(
     for (MemberId key : keys) {
         DependencyPropertyHandle property{key};
         Base::Result<bool> cleared =
-            AeroGuiInternal::ClearProviderOrigin(object, property, origin);
+            (object).ClearProviderOriginInternal( property, origin);
         if (!cleared) return cleared.GetStatus();
         if (!cleared.Value()) continue;
         ++removed;
@@ -1555,14 +1551,14 @@ Base::Result<void> EffectiveValueEngine::SetLocalExpression(
     Base::Result<void> ready = VerifyMutable(); if (!ready) return ready.GetStatus();
     Base::Result<void> queued = QueueObjectProperty(object, property);
     if (!queued) return queued.GetStatus();
-    return AeroGuiInternal::ApplyLocalExpression(object, property, expression);
+    return (object).ApplyLocalExpressionInternal( property, expression);
 }
 
 Base::Result<void> EffectiveValueEngine::ClearLocalExpression(
     DependencyObject& object, DependencyPropertyHandle property) noexcept {
     Base::Result<void> ready = VerifyMutable(); if (!ready) return ready.GetStatus();
-    if (AeroGuiInternal::FindEntry(object, property) == nullptr) return {};
-    Base::Result<bool> cleared = AeroGuiInternal::ClearLocalExpression(object, property);
+    if ((object).FindStoredEntry( property) == nullptr) return {};
+    Base::Result<bool> cleared = (object).ClearLocalExpressionInternal( property);
     if (!cleared) return cleared.GetStatus();
     if (!cleared.Value()) return {};
     return QueueObjectProperty(object, property);
@@ -1574,14 +1570,14 @@ Base::Result<void> EffectiveValueEngine::SetAnimationValue(
     Base::Result<void> ready = VerifyMutable(); if (!ready) return ready.GetStatus();
     Base::Result<void> queued = QueueObjectProperty(object, property);
     if (!queued) return queued.GetStatus();
-    return AeroGuiInternal::ApplyAnimationValue(object, property, value);
+    return (object).ApplyAnimationValueInternal( property, value);
 }
 
 Base::Result<void> EffectiveValueEngine::ClearAnimationValue(
     DependencyObject& object, DependencyPropertyHandle property) noexcept {
     Base::Result<void> ready = VerifyMutable(); if (!ready) return ready.GetStatus();
-    if (AeroGuiInternal::FindEntry(object, property) == nullptr) return {};
-    Base::Result<bool> cleared = AeroGuiInternal::ClearAnimationValue(object, property);
+    if ((object).FindStoredEntry( property) == nullptr) return {};
+    Base::Result<bool> cleared = (object).ClearAnimationValueInternal( property);
     if (!cleared) return cleared.GetStatus();
     if (!cleared.Value()) return {};
     return QueueObjectProperty(object, property);
@@ -1592,7 +1588,7 @@ Base::Result<void> EffectiveValueEngine::Invalidate(
     DependencyPropertyHandle property) noexcept {
     Base::Result<void> ready = VerifyMutable();
     if (!ready) return ready.GetStatus();
-    Base::Result<bool> invalidated = AeroGuiInternal::InvalidateBaseValue(object, property);
+    Base::Result<bool> invalidated = (object).InvalidateBaseValueInternal( property);
     if (!invalidated) return invalidated.GetStatus();
     Base::Result<void> queued = QueueObjectProperty(object, property);
     if (!queued) return queued.GetStatus();
@@ -1635,15 +1631,14 @@ Base::Result<void> EffectiveValueEngine::DetachObject(DependencyObject& object) 
         parents_.Erase(child);
     }
     Base::Vector<MemberId> keys;
-    AeroGuiInternal::ForEachStoredKey(
-        object,
+    (object).ForEachStoredKey(
         [](void* context, MemberId key) noexcept {
             static_cast<Base::Vector<MemberId>*>(context)->PushBack(key);
         },
         &keys);
     for (MemberId key : keys) {
         Base::Result<void> cleared =
-            AeroGuiInternal::DropEngineValueState(object, DependencyPropertyHandle{key});
+            (object).DropEngineValueStateInternal( DependencyPropertyHandle{key});
         if (!cleared) return cleared.GetStatus();
     }
     return {};
@@ -1659,18 +1654,61 @@ std::uint32_t EffectiveValueEngine::PendingPropertyCount() const noexcept {
 
 namespace Aero {
 
-void AeroGuiInternal::DetachPropertyDependencyObjects(
-    DependencyObject& object,
+void DependencyObject::ForEachStoredKey(
+    void (*visitor)(void*, MemberId) noexcept,
+    void* context) noexcept {
+    PropertyStore* store = Store();
+    if (store == nullptr || visitor == nullptr) return;
+    for (auto& record : store->entries) {
+        visitor(context, record.Key());
+    }
+}
+
+Base::Result<std::uint32_t> DependencyObject::ClearAllProviderOrigin(
+    std::uint32_t origin) noexcept {
+    std::uint32_t removed = 0U;
+    Base::Vector<MemberId> keys;
+    ForEachStoredKey(
+        [](void* context, MemberId key) noexcept {
+            static_cast<Base::Vector<MemberId>*>(context)->PushBack(key);
+        },
+        &keys);
+    for (MemberId key : keys) {
+        Base::Result<bool> cleared =
+            ClearProviderOriginInternal(DependencyPropertyHandle{key}, origin);
+        if (!cleared) return cleared.GetStatus();
+        if (cleared.Value()) ++removed;
+    }
+    return removed;
+}
+
+Base::Result<void> DependencyObject::DropAllEngineValueState() noexcept {
+    Base::Vector<MemberId> keys;
+    ForEachStoredKey(
+        [](void* context, MemberId key) noexcept {
+            static_cast<Base::Vector<MemberId>*>(context)->PushBack(key);
+        },
+        &keys);
+    for (MemberId key : keys) {
+        Base::Result<void> dropped =
+            DropEngineValueStateInternal(DependencyPropertyHandle{key});
+        if (!dropped) return dropped.GetStatus();
+    }
+    return {};
+}
+
+void DependencyObject::DetachPropertyDependencyObjects(
     BindingEngine* bindings,
     Meta::EffectiveValueEngine* values,
     AnimationEngine* animations,
     Base::Vector<DependencyObject*>& visited) noexcept {
+    DependencyObject& object = *this;
     for (DependencyObject* seen : visited) {
         if (seen == &object) return;
     }
     (void)visited.PushBack(&object);
 
-    PropertyStore* store = AeroGuiInternal::Store(object);
+    PropertyStore* store = (object).Store();
     if (store == nullptr) return;
 
     Base::Vector<DependencyObject*> propertyObjects;
@@ -1711,13 +1749,13 @@ void AeroGuiInternal::DetachPropertyDependencyObjects(
                 if (item) {
                     if (auto* itemDO = ::Aero::TryCast<DependencyObject>(item.Get())) {
                         if (::Aero::TryCast<Aero::Media::Visual>(itemDO) == nullptr) {
-                            DetachPropertyDependencyObjects(*itemDO, bindings, values, animations, visited);
+                            itemDO->DetachPropertyDependencyObjects(bindings, values, animations, visited);
                         }
                     }
                 }
             }
         }
-        DetachPropertyDependencyObjects(*child, bindings, values, animations, visited);
+        child->DetachPropertyDependencyObjects(bindings, values, animations, visited);
     }
 
     if (::Aero::TryCast<Aero::Media::Visual>(&object) == nullptr) {

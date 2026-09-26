@@ -5,7 +5,6 @@
 
 namespace Aero::Data { class CollectionView; }
 
-namespace Aero { class AeroGuiInternal; }
 namespace Aero::Controls {
 
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
@@ -85,8 +84,9 @@ protected:
     virtual void OnSelectionChanged(const SelectionChangedEvent& event);
     void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
 
+public:
+    void SyncContainers() noexcept;
 private:
-    friend class ::Aero::AeroGuiInternal;
     Base::Vector<std::uint32_t> selectedIndices_;
     std::uint32_t primaryIndex_ = UINT32_MAX;
     std::uint32_t pendingIndex_ = UINT32_MAX;
@@ -107,7 +107,6 @@ private:
     void OnViewCurrentChanged() noexcept;
     Result<bool> ApplySelection(Span<const std::uint32_t> indices, std::uint32_t primaryIndex) noexcept;
     void PublishProperties() noexcept;
-    void SyncContainers() noexcept;
     void HookCurrentView() noexcept;
     void UnhookCurrentView() noexcept;
 };

@@ -1,13 +1,13 @@
 #include "gui/controls/TextBoxCommon.hpp"
-#include "gui/meta/Describe.hpp"
+#include <Aero/Controls/TextBlock.hpp>
+#include "gui/core/Describe.hpp"
 #include "render/DisplayList.hpp"
 #include <Aero/Controls/TextBoxBase.hpp>
 #include <Aero/Controls/TextBox.hpp>
 #include <Aero/ClassHandler.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Base/String.hpp>
-#include "gui/meta/TypeRegistryDetail.hpp"
-#include "gui/meta/ValueConversion.hpp"
+#include "gui/core/ValueConversion.hpp"
 #include "ControlsMetadata.hpp"
 #include "gui/text/EditableText.hpp"
 #include "gui/core/ElementTree.hpp"
@@ -15,10 +15,7 @@
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/input/InputManager.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleEngine.hpp"
 #include "TextBlockLayout.hpp"
 
 #include <algorithm>
@@ -937,17 +934,17 @@ void TextBox::HandleEditorKeyDown(UIElement& owner, KeyEventArgs& args) {
     if (control && args.GetKey() == KeyboardKeyA) {
         result = SelectAll();
     } else if (control && args.GetKey() == KeyboardKeyC) {
-        Input::IClipboard* clipboard = AeroGuiInternal::ClipboardOf(owner);
+        Input::IClipboard* clipboard = ElementTree::ClipboardOf(owner);
         if (clipboard != nullptr) {
             result = CopySelection(*clipboard);
         }
     } else if (control && args.GetKey() == KeyboardKeyX) {
-        Input::IClipboard* clipboard = AeroGuiInternal::ClipboardOf(owner);
+        Input::IClipboard* clipboard = ElementTree::ClipboardOf(owner);
         if (clipboard != nullptr) {
             result = CutSelection(*clipboard);
         }
     } else if (control && args.GetKey() == KeyboardKeyV) {
-        Input::IClipboard* clipboard = AeroGuiInternal::ClipboardOf(owner);
+        Input::IClipboard* clipboard = ElementTree::ClipboardOf(owner);
         if (clipboard != nullptr) {
             result = Paste(*clipboard);
         }
@@ -1564,7 +1561,7 @@ Size TextBox::ArrangeOverride(
 void TextBox::OnApplyTemplate() noexcept {
     Control::OnApplyTemplate();
     DependencyObject* part = GetTemplateChild(Base::StringView("PART_ContentHost"));
-    if (part != nullptr && AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
+    if (part != nullptr && (*this).PropertyRegistry().Types().IsDerivedFrom(
             part->RuntimeType(), ScrollViewer::StaticTypeId())) {
         static_cast<void>(AttachScrollViewer(static_cast<ScrollViewer*>(part)));
     } else {
@@ -1975,3 +1972,25 @@ AERO_DESCRIBE(TextBox) {
 }
 
 } // namespace Aero::Controls
+
+namespace Aero {
+
+void Controls::TextBlock::AttachTextLayout(
+    void*,
+    bool invalidate) noexcept {
+    if (invalidate) InvalidateMeasure();
+}
+
+void Controls::TextBox::AttachTextLayout(
+    void*,
+    bool invalidate) noexcept {
+    if (invalidate) InvalidateMeasure();
+}
+
+void Controls::PasswordBox::AttachTextLayout(
+    void*,
+    bool invalidate) noexcept {
+    if (invalidate) InvalidateMeasure();
+}
+
+} // namespace Aero

@@ -11,8 +11,6 @@
 
 #include <cstdint>
 
-namespace Aero { class AeroGuiInternal; }
-
 namespace Aero::Shapes {
 
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
@@ -205,14 +203,14 @@ protected:
     // Replaces the OnPath* metadata delegates (all funnel to geometry reset).
     void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
 
-private:
-    friend class ::Aero::AeroGuiInternal;
+public:
     Result<void> EnsureGeometry() noexcept;
     Result<void> EnsureMesh() noexcept;
     void ResetGeometry() noexcept;
     void AttachMeshResources(void* services, bool force = false) noexcept;
     void ReleaseMesh() noexcept;
 
+private:
     Base::Vector<Point> geometryVertices_;
     Base::Vector<std::uint32_t> geometryIndices_;
     Base::Vector<Point> pathPoints_;

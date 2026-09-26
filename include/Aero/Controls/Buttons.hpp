@@ -38,10 +38,6 @@ protected:
     void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
 };
 
-} // namespace Aero::Controls::Primitives
-
-namespace Aero::Controls::Primitives {
-
 class AERO_GUI_API RepeatButton : public ButtonBase {
     AERO_DECLARE_TYPE(RepeatButton, ButtonBase)
 public:
@@ -52,6 +48,10 @@ public:
     std::uint32_t GetInterval() const noexcept;
     void SetDelay(std::uint32_t value) noexcept;
     void SetInterval(std::uint32_t value) noexcept;
+    std::uint32_t AdvanceTime(
+        std::uint32_t elapsedMilliseconds,
+        std::uint64_t& repeatElapsed,
+        std::uint64_t& nextRepeat) noexcept;
 
     AERO_DEPENDENCY_PROPERTY(std::uint32_t, Delay);
     AERO_DEPENDENCY_PROPERTY(std::uint32_t, Interval);
@@ -78,10 +78,6 @@ public:
 protected:
     explicit CheckBox(TypeId runtimeType) noexcept : Primitives::ToggleButton(runtimeType) {}
 };
-
-} // namespace Aero::Controls
-
-namespace Aero::Controls {
 
 class AERO_GUI_API RadioButton : public Primitives::ToggleButton {
     AERO_DECLARE_TYPE(RadioButton, Primitives::ToggleButton)

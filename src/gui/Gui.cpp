@@ -181,6 +181,59 @@ Base::Result<Base::Ref<Base::Object>> RetainLoadedDocument(
 } // namespace
 
 
+Base::Result<Markup::XamlDocument> GuiRuntime::Load(
+    const Markup::LoadState* state,
+    Base::StringView uri,
+    const Markup::XamlReaderSettings& settings,
+    Diagnostics::IDiagnosticSink* diagnostics) noexcept {
+    Markup::Loader loader(
+        schema.Schema(), xamlProviders, diagnostics, allocator, state);
+    return loader.Load(uri, settings);
+}
+
+Base::Result<Markup::XamlDocument> GuiRuntime::LoadComponentInto(
+    const Markup::LoadState* state,
+    Base::Object& existingRoot,
+    Base::StringView uri,
+    const Markup::XamlReaderSettings& settings,
+    Diagnostics::IDiagnosticSink* diagnostics) noexcept {
+    Markup::Loader loader(
+        schema.Schema(), xamlProviders, diagnostics, allocator, state);
+    return loader.LoadComponent(existingRoot, uri, settings);
+}
+
+Base::Result<Markup::XamlDocument> GuiRuntime::Parse(
+    const Markup::LoadState* state,
+    Base::StringView source,
+    const Base::ResourceUri& baseUri,
+    const Markup::XamlReaderSettings& settings,
+    Diagnostics::IDiagnosticSink* diagnostics) noexcept {
+    Markup::Loader loader(
+        schema.Schema(), xamlProviders, diagnostics, allocator, state);
+    return loader.Parse(source, baseUri, settings);
+}
+
+Base::Result<Markup::XamlDocument> GuiRuntime::Parse(
+    const Markup::LoadState* state,
+    Base::Stream& source,
+    const Base::ResourceUri& baseUri,
+    const Markup::XamlReaderSettings& settings,
+    Diagnostics::IDiagnosticSink* diagnostics) noexcept {
+    Markup::Loader loader(
+        schema.Schema(), xamlProviders, diagnostics, allocator, state);
+    return loader.Parse(source, baseUri, settings);
+}
+
+Base::Result<Markup::XamlDocument> GuiRuntime::LoadCompiled(
+    const Markup::LoadState* state,
+    Base::Span<const std::uint8_t> bytes,
+    const Base::ResourceUri& originUri,
+    const Markup::XamlReaderSettings& settings) noexcept {
+    Markup::Loader loader(
+        schema.Schema(), xamlProviders, nullptr, allocator, state);
+    return loader.LoadCompiled(bytes, originUri, settings);
+}
+
 void GuiRuntime::OnXamlChanged(const Base::ResourceUri& uri) noexcept {
     if (!dispatcher.CheckAccess()) return;
     if (uri.Empty()) {

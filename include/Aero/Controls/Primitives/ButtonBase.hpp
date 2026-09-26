@@ -5,7 +5,6 @@
 #include <Aero/ICommand.hpp>
 #include <Aero/Events/ControlEventArgs.hpp>
 
-namespace Aero { class AeroGuiInternal; }
 namespace Aero::Controls {
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::DependencyPropertyHandle;
@@ -41,7 +40,6 @@ public:
     AERO_DEPENDENCY_PROPERTY(Ref<UIElement>, CommandTarget);
 
 protected:
-    friend class ::Aero::AeroGuiInternal;
     explicit ButtonBase(TypeId runtimeType) noexcept;
     ~ButtonBase() override;
 

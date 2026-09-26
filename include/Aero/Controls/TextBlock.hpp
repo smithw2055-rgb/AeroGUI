@@ -31,6 +31,7 @@ public:
 
     TextBlock() noexcept;
     ~TextBlock() override;
+    void AttachTextLayout(void* service, bool invalidate = false) noexcept;
     StringView GetText() const noexcept;
     void InvalidateDocumentText() noexcept;
     Ref<Brush> GetForeground() const noexcept;

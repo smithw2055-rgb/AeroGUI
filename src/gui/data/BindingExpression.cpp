@@ -4,7 +4,6 @@
 
 #include "gui/data/BindingCommon.hpp"
 #include "gui/data/BindingEngine.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/templates/TemplateInstance.hpp"
 
 
@@ -128,7 +127,7 @@ Base::Status TemplateBindingExpression::UpdateTarget() noexcept {
             "TemplateBindingExpression target is not a UIElement");
     }
     Controls::TemplateEngine* templates =
-        AeroGuiInternal::TemplatesOf(*element);
+        ElementTree::TemplatesOf(*element);
     if (templates == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
@@ -143,7 +142,7 @@ BindingExpression BindingOperations::GetBindingExpression(
     DependencyObject* target,
     DependencyPropertyHandle property) noexcept {
     if (target == nullptr || !property.IsValid()) return {};
-    BindingEngine* engine = AeroGuiInternal::BindingEngineOf(*target);
+    BindingEngine* engine = ElementTree::BindingsOf(*target);
     if (engine == nullptr) return {};
     BindingHandle handle = engine->FindBinding(*target, property);
     if (!handle.IsValid()) return {};
@@ -154,7 +153,7 @@ MultiBindingExpression BindingOperations::GetMultiBindingExpression(
     DependencyObject* target,
     DependencyPropertyHandle property) noexcept {
     if (target == nullptr || !property.IsValid()) return {};
-    BindingEngine* engine = AeroGuiInternal::BindingEngineOf(*target);
+    BindingEngine* engine = ElementTree::BindingsOf(*target);
     if (engine == nullptr) return {};
     return engine->FindMultiBinding(*target, property);
 }
@@ -167,7 +166,7 @@ TemplateBindingExpression BindingOperations::GetTemplateBindingExpression(
     UIElement* element = TryCast<UIElement>(target);
     if (element == nullptr) return expression;
     Controls::TemplateEngine* templates =
-        AeroGuiInternal::TemplatesOf(*element);
+        ElementTree::TemplatesOf(*element);
     if (templates == nullptr ||
         !templates->HasTemplateBinding(*target, property)) {
         return expression;
@@ -187,7 +186,7 @@ using namespace Aero::Threading;
 using namespace Aero::Data;
 
 // Evaluation / attach-update-detach main path lives with BindingExpression's
-// TU. BindingEngine::Flush (dirty-list pump) remains in BindingOperations.cpp.
+// TU. BindingEngine::Flush (dirty-list pump) lives in BindingEngine.cpp.
 
 Base::Result<BindingHandle> BindingEngine::Attach(
     const BindingDescriptor& descriptor) noexcept {
@@ -335,7 +334,7 @@ Base::Result<BindingHandle> BindingEngine::Attach(
         }
         record.pathPlan = std::move(compiled).Value();
         const DependencyProperty* targetProperty =
-            AeroGuiInternal::PropertyRegistry(descriptor.target).Find(
+            descriptor.target->PropertyRegistry().Find(
                 descriptor.targetProperty);
         if (targetProperty == nullptr ||
             (descriptor.convert == nullptr &&
@@ -389,7 +388,7 @@ Base::Result<BindingHandle> BindingEngine::Attach(
         }
     } else if (record.sourceKind == BindingSourceKind::MetadataObject) {
         const DependencyProperty* targetProperty =
-            AeroGuiInternal::PropertyRegistry(descriptor.target).Find(
+            descriptor.target->PropertyRegistry().Find(
                 descriptor.targetProperty);
         if (targetProperty == nullptr ||
             (!targetProperty->AcceptsAnyValue() &&
@@ -611,7 +610,7 @@ Base::Result<PropertyValue> BindingEngine::ConvertForTarget(
     record.conversionFailureStage =
         BindingDiagnosticStage::Convert;
     const DependencyProperty* targetProperty =
-        AeroGuiInternal::PropertyRegistry(record.descriptor.target).Find(
+        record.descriptor.target->PropertyRegistry().Find(
             record.descriptor.targetProperty);
     if (targetProperty == nullptr) {
         return Base::Status::Failure(
@@ -707,7 +706,7 @@ Base::Result<PropertyValue> BindingEngine::ConvertForSource(
     TypeId sourceType = InvalidTypeId;
     if (record.sourceKind == BindingSourceKind::DependencyProperty) {
         const DependencyProperty* sourceProperty =
-            AeroGuiInternal::PropertyRegistry(record.descriptor.source).Find(
+            record.descriptor.source->PropertyRegistry().Find(
                 record.descriptor.sourceProperty);
         if (sourceProperty != nullptr) {
             sourceType = sourceProperty->ValueType();

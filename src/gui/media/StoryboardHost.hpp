@@ -3,7 +3,9 @@
 // Source-only storyboard session host next to AnimationEngine.
 // Not installed under include/Aero. Included from ViewFrame.hpp after ViewFrame.
 
+#include "gui/templates/DataTemplateTriggerInstance.hpp"
 #include <Aero/EventTrigger.hpp>
+#include "gui/media/AnimationModel.hpp"
 #include <Aero/Media/Animation/Storyboard.hpp>
 #include <Aero/Media/Animation/StoryboardCompletedTrigger.hpp>
 

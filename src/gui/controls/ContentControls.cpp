@@ -1,13 +1,10 @@
 #include "gui/core/ElementTree.hpp"
-#include "gui/meta/Describe.hpp"
+#include "gui/core/Describe.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
-#include "gui/media/AnimationEngine.hpp"
 #include "gui/media/BrushRendering.hpp"
-#include "gui/styles/StyleEngine.hpp"
 #include "render/DisplayList.hpp"
 #include <Aero/Controls.hpp>
 #include <Aero/Controls/ItemContainerGenerator.hpp>
@@ -19,8 +16,8 @@
 #include <Aero/Media/Transform3D.hpp>
 #include <Aero/Shapes.hpp>
 #include <Aero/Documents.hpp>
-#include "gui/meta/TypeRegistryDetail.hpp"
-#include "gui/meta/ValueConversion.hpp"
+#include "gui/core/TypeRegistryDetail.hpp"
+#include "gui/core/ValueConversion.hpp"
 #include "ControlsMetadata.hpp"
 #include "gui/templates/TemplateInstance.hpp"
 #include "gui/data/BindingEngine.hpp"
@@ -44,430 +41,6 @@ using namespace Aero::Threading;
 using namespace Aero::Render;
 
 
-Popup::Popup() noexcept
-    : Popup(StaticTypeId()) {}
-
-Popup::Popup(TypeId runtimeType) noexcept
-    : ContentControl(runtimeType) {
-    static_cast<void>(SetIsHitTestVisible(false));
-}
-
-Popup::~Popup() = default;
-
-bool Popup::GetIsOpen() const noexcept {
-    return GetValue(IsOpenProperty);
-}
-
-void Popup::SetIsOpen(
-    bool value) noexcept {
-    SetValue(IsOpenProperty, value);
-}
-
-PlacementMode Popup::GetPlacement() const noexcept {
-    return GetValue(PlacementProperty);
-}
-
-void Popup::SetPlacement(
-    PlacementMode value) noexcept {
-    SetValue(
-        PlacementProperty, value);
-}
-
-double Popup::GetHorizontalOffset() const noexcept {
-    return GetValue(HorizontalOffsetProperty);
-}
-
-void Popup::SetHorizontalOffset(
-    double value) noexcept {
-    SetValue(
-        HorizontalOffsetProperty, value);
-}
-
-double Popup::GetVerticalOffset() const noexcept {
-    return GetValue(VerticalOffsetProperty);
-}
-
-void Popup::SetVerticalOffset(
-    double value) noexcept {
-    SetValue(
-        VerticalOffsetProperty, value);
-}
-
-bool Popup::GetStaysOpen() const noexcept {
-    return GetValue(StaysOpenProperty);
-}
-
-void Popup::SetStaysOpen(
-    bool value) noexcept {
-    SetValue(
-        StaysOpenProperty, value);
-}
-
-bool Popup::GetMatchPlacementTargetWidth() const noexcept {
-    return GetValue(MatchPlacementTargetWidthProperty);
-}
-
-void
-Popup::SetMatchPlacementTargetWidth(
-    bool value) noexcept {
-    SetValue(
-        MatchPlacementTargetWidthProperty,
-        value);
-}
-
-Base::Ref<UIElement>
-Popup::GetPlacementTarget() const noexcept {
-    return GetValue(PlacementTargetProperty);
-}
-
-void Popup::SetPlacementTarget(
-    Base::Ref<UIElement> value) noexcept {
-    SetValue(
-        PlacementTargetProperty,
-        std::move(value));
-}
-
-PopupAnimation Popup::GetPopupAnimation() const noexcept {
-    return GetValue(PopupAnimationProperty);
-}
-
-void Popup::SetPopupAnimation(
-    PopupAnimation value) noexcept {
-    SetValue(
-        PopupAnimationProperty, value);
-}
-
-bool Popup::GetAllowsTransparency() const noexcept {
-    return GetValue(AllowsTransparencyProperty);
-}
-
-void Popup::SetAllowsTransparency(
-    bool value) noexcept {
-    SetValue(
-        AllowsTransparencyProperty, value);
-}
-
-void Popup::OnOpened(RoutedEventArgs& e) {
-    RaiseEvent(OpenedEvent, &e);
-}
-
-void Popup::OnClosed(RoutedEventArgs& e) {
-    RaiseEvent(ClosedEvent, &e);
-}
-
-void Popup::OnPropertyChanged(
-    const DependencyPropertyChangedEventArgs& args) noexcept {
-    ContentControl::OnPropertyChanged(args);
-    if (args.GetProperty() == IsOpenProperty) {
-        const bool open = args.GetNewValue().AsBoolean();
-        bool hitTest = open;
-        if (open) {
-            UIElement* popupChild =
-                GetTemplateRoot() != nullptr
-                    ? GetTemplateRoot()
-                    : GetContentElement();
-            // Tooltips set IsHitTestVisible=False on the content so the pointer
-            // can keep hitting the placement target. Forcing the Popup itself
-            // hittable would steal MouseEnter/Leave from the planet underneath.
-            if (popupChild != nullptr &&
-                !popupChild->GetIsHitTestVisible()) {
-                hitTest = false;
-            }
-        }
-        static_cast<void>(SetIsHitTestVisible(hitTest));
-        InvalidateMeasure();
-        RoutedEventArgs eventArgs;
-        if (open) {
-            OnOpened(eventArgs);
-        } else {
-            OnClosed(eventArgs);
-        }
-    }
-}
-
-Size Popup::MeasureOverride(
-    Size availableSize) noexcept {
-    (void)availableSize;
-    popupDesiredSize_ = {};
-    UIElement* popupChild =
-        GetTemplateRoot() != nullptr
-            ? GetTemplateRoot()
-            : GetContentElement();
-    if (!GetIsOpen() || popupChild == nullptr) {
-        return Size{};
-    }
-    constexpr double Unconstrained = 1.0e12;
-    Base::Result<void> measured =
-        MeasureChild(*popupChild, Size{Unconstrained, Unconstrained});
-    if (!measured) return Size{};
-    popupDesiredSize_ =
-        popupChild->GetDesiredSize();
-    // Popup content participates in rendering and input, but never consumes
-    // space in its placement target's layout.
-    return Size{};
-}
-
-Size Popup::ArrangeOverride(
-    Size finalSize) noexcept {
-    UIElement* popupChild =
-        GetTemplateRoot() != nullptr
-            ? GetTemplateRoot()
-            : GetContentElement();
-    if (popupChild == nullptr) return finalSize;
-    if (!GetIsOpen()) {
-        Base::Result<void> hidden =
-            ArrangeChild(*popupChild, {});
-        (void)hidden;
-        return finalSize;
-    }
-
-    Size contentSize = popupDesiredSize_;
-    Base::Ref<UIElement> explicitPlacementTarget =
-        GetPlacementTarget();
-    UIElement* placementTarget =
-        explicitPlacementTarget.Get();
-    if (placementTarget == nullptr) {
-        DependencyObject* templatedParent =
-            GetTemplatedParent();
-        if (templatedParent != nullptr &&
-            AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
-                templatedParent->RuntimeType(),
-                UIElement::StaticTypeId())) {
-            placementTarget =
-                static_cast<UIElement*>(
-                    templatedParent);
-        } else if (GetVisualParent() != nullptr) {
-            placementTarget =
-                ::Aero::TryCast<::Aero::UIElement>(GetVisualParent());
-        }
-    }
-    Size targetSize = finalSize;
-    Point targetOrigin{};
-    Point targetAbsolute{};
-    Point popupScreenOrigin{};
-    double rootHeight = 0.0;
-    double screenRootWidth = 0.0;
-    double screenRootHeight = 0.0;
-    double targetScaleX = 1.0;
-    double targetScaleY = 1.0;
-    double popupScaleX = 1.0;
-    double popupScaleY = 1.0;
-    if (placementTarget != nullptr) {
-        targetSize = placementTarget->GetRenderSize();
-        if (!(targetSize.width > 0.0 && targetSize.height > 0.0)) {
-            targetSize = placementTarget->GetDesiredSize();
-        }
-        if (!(targetSize.width > 0.0 && targetSize.height > 0.0)) {
-            targetSize = finalSize;
-        }
-        // The overlay renderer positions Popups in screen space: it accumulates
-        // every ancestor's local visual transform (for example a Viewbox
-        // scale) plus layout slot, and the arranged child slot is added on top
-        // of that origin. Placement must therefore use the same transform-aware
-        // origin, otherwise a scaled ancestor displaces the popup and makes the
-        // up/down flip decision against the window height wrong.
-        auto absoluteOrigin = [](
-            UIElement& element,
-            UIElement** outRoot,
-            double* outScaleX,
-            double* outScaleY) noexcept {
-            Point result{};
-            double scaleX = 1.0;
-            double scaleY = 1.0;
-            ::Aero::Media::Visual* current = &element;
-            UIElement* lastElement = nullptr;
-            while (current != nullptr) {
-                UIElement* currentElement =
-                    ::Aero::TryCast<::Aero::UIElement>(current);
-                if (currentElement != nullptr) {
-                    lastElement = currentElement;
-                    FrameworkElement* currentFramework =
-                        ::Aero::TryCast<::Aero::FrameworkElement>(currentElement);
-                    if (currentFramework != nullptr) {
-                        const Base::ProjectiveTransform2D transform =
-                            currentFramework->GetLocalVisualTransform();
-                        result = ::Aero::Base::TransformPoint(
-                            transform, result);
-                        Base::Transform2D affine;
-                        if (::Aero::Base::TryToTransform2D(transform, affine) &&
-                            affine.m11 > 0.0 &&
-                            affine.m22 > 0.0) {
-                            scaleX *= affine.m11;
-                            scaleY *= affine.m22;
-                        }
-                    }
-                    const Rect slot =
-                        currentElement->GetLayoutSlot();
-                    result.x += slot.x;
-                    result.y += slot.y;
-                }
-                current = current->GetVisualParent();
-            }
-            if (outRoot != nullptr) *outRoot = lastElement;
-            if (outScaleX != nullptr) *outScaleX = scaleX;
-            if (outScaleY != nullptr) *outScaleY = scaleY;
-            return result;
-        };
-        UIElement* rootElement = nullptr;
-        targetAbsolute = absoluteOrigin(
-            *placementTarget, &rootElement,
-            &targetScaleX, &targetScaleY);
-        const Point popupAbsolute = absoluteOrigin(
-            *this, nullptr, &popupScaleX, &popupScaleY);
-        popupScreenOrigin = popupAbsolute;
-        targetOrigin = {
-            targetAbsolute.x - popupAbsolute.x,
-            targetAbsolute.y - popupAbsolute.y};
-        if (rootElement != nullptr) {
-            rootHeight = rootElement->GetRenderSize().height;
-            if (rootHeight <= 0.0) {
-                rootHeight = rootElement->GetLayoutSlot().height;
-            }
-            screenRootWidth = rootElement->GetRenderSize().width;
-            if (screenRootWidth <= 0.0) {
-                screenRootWidth = rootElement->GetLayoutSlot().width;
-            }
-            screenRootHeight = rootHeight;
-        }
-        // A Viewbox letter-boxes its child inside the window. WPF still uses
-        // the window for popup flip, which opens a bottom ComboBox into the
-        // empty margin. Flip against the scaled content box instead so a
-        // control at the bottom of the Viewbox child opens upward.
-        ::Aero::Media::Visual* walk = placementTarget;
-        while (walk != nullptr) {
-            ::Aero::Media::Visual* parentVisual = walk->GetVisualParent();
-            if (parentVisual != nullptr &&
-                ::Aero::TryCast<Viewbox>(parentVisual) != nullptr) {
-                UIElement* viewboxChild =
-                    ::Aero::TryCast<UIElement>(walk);
-                if (viewboxChild != nullptr) {
-                    double childScaleX = 1.0;
-                    double childScaleY = 1.0;
-                    const Point childOrigin = absoluteOrigin(
-                        *viewboxChild, nullptr,
-                        &childScaleX, &childScaleY);
-                    const Size childSize = viewboxChild->GetRenderSize();
-                    const double clipTop = childOrigin.y;
-                    const double clipBottom =
-                        childOrigin.y + childSize.height * childScaleY;
-                    if (clipBottom > clipTop) {
-                        targetAbsolute.y -= clipTop;
-                        rootHeight = clipBottom - clipTop;
-                    }
-                }
-                break;
-            }
-            walk = parentVisual;
-        }
-    }
-    const Point targetOriginLocal{
-        popupScaleX != 0.0 ? targetOrigin.x / popupScaleX : targetOrigin.x,
-        popupScaleY != 0.0 ? targetOrigin.y / popupScaleY : targetOrigin.y};
-    if (GetMatchPlacementTargetWidth()) {
-        contentSize.width =
-            std::max(
-                contentSize.width,
-                targetSize.width);
-    }
-    const double targetWidth = targetSize.width;
-    const double targetHeight = targetSize.height;
-    double x = targetOriginLocal.x + GetHorizontalOffset();
-    double y = targetOriginLocal.y + GetVerticalOffset();
-    const PlacementMode placement = GetPlacement();
-    switch (placement) {
-    case PlacementMode::Bottom:
-        y += targetHeight;
-        break;
-    case PlacementMode::Top:
-        y -= contentSize.height;
-        break;
-    case PlacementMode::Left:
-        x -= contentSize.width;
-        break;
-    case PlacementMode::Right:
-        x += targetWidth;
-        break;
-    case PlacementMode::Center:
-        x += (targetWidth - contentSize.width) * 0.5;
-        y += (targetHeight - contentSize.height) * 0.5;
-        break;
-    case PlacementMode::Mouse:
-        // The popup service supplies a pointer origin when available; the
-        // placement target origin remains the deterministic fallback.
-        break;
-    }
-
-    if (rootHeight > 0.0 && placementTarget != nullptr) {
-        const double popupHeightAbs =
-            contentSize.height * targetScaleY;
-        const double targetTopAbs = targetAbsolute.y;
-        const double targetBottomAbs =
-            targetAbsolute.y + targetHeight * targetScaleY;
-        const double spaceBelow = rootHeight - targetBottomAbs;
-        const double spaceAbove = targetTopAbs;
-        if (placement == PlacementMode::Bottom) {
-            const double bottomAbsolute =
-                targetBottomAbs +
-                GetVerticalOffset() * targetScaleY +
-                popupHeightAbs;
-            if (bottomAbsolute > rootHeight &&
-                spaceAbove > spaceBelow) {
-                y = targetOriginLocal.y -
-                    contentSize.height -
-                    GetVerticalOffset();
-            }
-        } else if (placement == PlacementMode::Top) {
-            const double topAbsolute =
-                targetTopAbs -
-                GetVerticalOffset() * targetScaleY -
-                popupHeightAbs;
-            if (topAbsolute < 0.0 &&
-                spaceBelow > spaceAbove) {
-                y = targetOriginLocal.y +
-                    targetHeight +
-                    GetVerticalOffset();
-            }
-        }
-    }
-
-    if (screenRootWidth > 0.0 || screenRootHeight > 0.0) {
-        double screenX =
-            popupScreenOrigin.x + x * popupScaleX;
-        double screenY =
-            popupScreenOrigin.y + y * popupScaleY;
-        const double screenW = contentSize.width * popupScaleX;
-        const double screenH = contentSize.height * popupScaleY;
-        if (screenRootWidth > 0.0 &&
-            screenX + screenW > screenRootWidth) {
-            screenX = screenRootWidth - screenW;
-        }
-        if (screenX < 0.0) {
-            screenX = 0.0;
-        }
-        if (screenRootHeight > 0.0 &&
-            screenY + screenH > screenRootHeight) {
-            screenY = screenRootHeight - screenH;
-        }
-        if (screenY < 0.0) {
-            screenY = 0.0;
-        }
-        x = popupScaleX != 0.0
-            ? (screenX - popupScreenOrigin.x) / popupScaleX
-            : screenX;
-        y = popupScaleY != 0.0
-            ? (screenY - popupScreenOrigin.y) / popupScaleY
-            : screenY;
-    }
-
-    Base::Result<void> arranged =
-        ArrangeChild(
-            *popupChild,
-            {x, y,
-             contentSize.width,
-             contentSize.height});
-    (void)arranged;
-    return finalSize;
-}
 
 HeaderedContentControl::HeaderedContentControl(
     TypeId runtimeType) noexcept
@@ -550,7 +123,7 @@ void HeaderedContentControl::ProjectHeaderContent() noexcept {
         return;
     }
     Base::Object* obj = header.AsObject().Get();
-    if (!AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
+    if (!(*this).PropertyRegistry().Types().IsDerivedFrom(
             obj->RuntimeType(), UIElement::StaticTypeId())) {
         return;
     }
@@ -782,247 +355,6 @@ Size Expander::ArrangeOverride(
     return finalSize;
 }
 
-bool TabItem::GetIsSelected() const noexcept {
-    return GetValue(IsSelectedProperty);
-}
-
-void TabItem::SetIsSelected(
-    bool value) noexcept {
-    SetValue(
-        IsSelectedProperty, value);
-}
-
-TabControl::TabControl() noexcept
-    : Selector(StaticTypeId()) {}
-
-TabControl::~TabControl() = default;
-
-TabItem* TabControl::GetSelectedTab() const noexcept {
-    const std::uint32_t selected = GetSelectedIndex();
-    if (selected == UINT32_MAX) return nullptr;
-    const Ref<Base::Object> item = GetItem(selected);
-    if (item &&
-        AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
-            item->RuntimeType(), TabItem::StaticTypeId())) {
-        return static_cast<TabItem*>(item.Get());
-    }
-    ItemContainerGenerator* generator = AttachedGenerator();
-    if (generator == nullptr) return nullptr;
-    FrameworkElement* container = generator->ContainerFromIndex(selected);
-    if (container != nullptr &&
-        AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
-            container->RuntimeType(), TabItem::StaticTypeId())) {
-        return static_cast<TabItem*>(container);
-    }
-    return nullptr;
-}
-
-Base::Result<Ref<FrameworkElement>> TabControl::GetContainerForItemOverride() const noexcept {
-    Base::Result<Ref<TabItem>> made = Base::MakeRef<TabItem>();
-    if (!made) return made.GetStatus();
-    return Ref<FrameworkElement>(std::move(made).Value());
-}
-
-void TabControl::SynchronizeSelection() noexcept {
-    const std::uint32_t value = GetSelectedIndex();
-    const std::uint32_t count = GetCount();
-    ItemContainerGenerator* generator = AttachedGenerator();
-    for (std::uint32_t index = 0U; index < count; ++index) {
-        TabItem* tab = nullptr;
-        const Ref<Base::Object> item = GetItem(index);
-        if (item &&
-            AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
-                item->RuntimeType(), TabItem::StaticTypeId())) {
-            tab = static_cast<TabItem*>(item.Get());
-        } else if (generator != nullptr) {
-            FrameworkElement* container = generator->ContainerFromIndex(index);
-            if (container != nullptr &&
-                AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
-                    container->RuntimeType(), TabItem::StaticTypeId())) {
-                tab = static_cast<TabItem*>(container);
-            }
-        }
-        if (tab != nullptr) {
-            tab->SetIsSelected(index == value);
-        }
-    }
-    TabItem* selected = GetSelectedTab();
-    const Meta::Value selectedContent =
-        selected != nullptr
-        ? selected->GetContent()
-        : Meta::Value::NullObject(
-              Meta::TypeOf<Base::Object>());
-    SetReadOnlyCurrentValue(SelectedContentProperty, selectedContent);
-    InvalidateMeasure();
-}
-
-void TabControl::OnSelectionChanged(
-    const SelectionChangedEvent& event) {
-    Selector::OnSelectionChanged(event);
-    SynchronizeSelection();
-}
-
-void TabControl::OnPropertyChanged(
-    const DependencyPropertyChangedEventArgs& args) noexcept {
-    Selector::OnPropertyChanged(args);
-    if (args.GetProperty() == SelectedIndexProperty) {
-        SynchronizeSelection();
-    }
-}
-
-Size TabControl::MeasureOverride(
-    Size availableSize) noexcept {
-    if (GetTemplateRoot() != nullptr) {
-        return Control::MeasureOverride(availableSize);
-    }
-    constexpr double HeaderExtent = 28.0;
-    const bool verticalStrip =
-        GetTabStripPlacement() == Dock::Left ||
-        GetTabStripPlacement() == Dock::Right;
-    TabItem* selected = GetSelectedTab();
-    if (selected == nullptr) {
-        return verticalStrip
-            ? Size{HeaderExtent, 0.0}
-            : Size{0.0, HeaderExtent};
-    }
-    Base::Result<void> measured =
-        MeasureChild(
-            *selected,
-            verticalStrip
-                ? Size{std::max(0.0, availableSize.width - HeaderExtent),
-                    availableSize.height}
-                : Size{availableSize.width,
-                    std::max(0.0, availableSize.height - HeaderExtent)});
-    if (!measured) return Size{};
-    const Size desired = selected->GetDesiredSize();
-    return verticalStrip
-        ? Size{desired.width + HeaderExtent, desired.height}
-        : Size{desired.width, desired.height + HeaderExtent};
-}
-
-Size TabControl::ArrangeOverride(
-    Size finalSize) noexcept {
-    if (GetTemplateRoot() != nullptr) {
-        return Control::ArrangeOverride(finalSize);
-    }
-    constexpr double HeaderExtent = 28.0;
-    const Dock placement = GetTabStripPlacement();
-    const bool verticalStrip =
-        placement == Dock::Left || placement == Dock::Right;
-    TabItem* selected = GetSelectedTab();
-    const std::uint32_t count = GetCount();
-    for (std::uint32_t index = 0U; index < count; ++index) {
-        TabItem* tab = nullptr;
-        const Ref<Base::Object> item = GetItem(index);
-        if (item &&
-            AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
-                item->RuntimeType(), TabItem::StaticTypeId())) {
-            tab = static_cast<TabItem*>(item.Get());
-        }
-        if (tab == nullptr) continue;
-        Rect slot{};
-        if (tab == selected) {
-            if (verticalStrip) {
-                slot = {placement == Dock::Left ? HeaderExtent : 0.0,
-                    0.0, std::max(0.0, finalSize.width - HeaderExtent),
-                    finalSize.height};
-            } else {
-                slot = {0.0, placement == Dock::Top ? HeaderExtent : 0.0,
-                    finalSize.width,
-                    std::max(0.0, finalSize.height - HeaderExtent)};
-            }
-        }
-        Base::Result<void> arranged =
-            ArrangeChild(*tab, slot);
-        if (!arranged) return finalSize;
-    }
-    return finalSize;
-}
-
-bool TabPanel::GetIsVertical() const noexcept {
-    const DependencyObject* parent = GetTemplatedParent();
-    return parent != nullptr &&
-        AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
-            parent->RuntimeType(), TabControl::StaticTypeId()) &&
-        (static_cast<const TabControl*>(parent)->GetTabStripPlacement() ==
-             Dock::Left ||
-         static_cast<const TabControl*>(parent)->GetTabStripPlacement() ==
-             Dock::Right);
-}
-
-Size TabPanel::MeasureOverride(
-    Size availableSize) noexcept {
-    const bool vertical = GetIsVertical();
-    Size desired{};
-    double linePrimary = 0.0;
-    double lineCross = 0.0;
-    const double limit = vertical
-        ? availableSize.height
-        : availableSize.width;
-    for (UIElement* child : LayoutChildren()) {
-        if (child == nullptr) continue;
-        Base::Result<void> measured = MeasureChild(*child, availableSize);
-        if (!measured) return Size{};
-        const Size size = child->GetDesiredSize();
-        const double primary = vertical ? size.height : size.width;
-        const double cross = vertical ? size.width : size.height;
-        if (linePrimary > 0.0 && limit < 1.0e11 &&
-            linePrimary + primary > limit) {
-            if (vertical) {
-                desired.width += lineCross;
-                desired.height = std::max(desired.height, linePrimary);
-            } else {
-                desired.width = std::max(desired.width, linePrimary);
-                desired.height += lineCross;
-            }
-            linePrimary = 0.0;
-            lineCross = 0.0;
-        }
-        linePrimary += primary;
-        lineCross = std::max(lineCross, cross);
-    }
-    if (vertical) {
-        desired.width += lineCross;
-        desired.height = std::max(desired.height, linePrimary);
-    } else {
-        desired.width = std::max(desired.width, linePrimary);
-        desired.height += lineCross;
-    }
-    return desired;
-}
-
-Size TabPanel::ArrangeOverride(
-    Size finalSize) noexcept {
-    const bool vertical = GetIsVertical();
-    const double limit = vertical ? finalSize.height : finalSize.width;
-    double x = 0.0;
-    double y = 0.0;
-    double lineCross = 0.0;
-    for (UIElement* child : LayoutChildren()) {
-        if (child == nullptr) continue;
-        const Size size = child->GetDesiredSize();
-        const double primary = vertical ? size.height : size.width;
-        const double cross = vertical ? size.width : size.height;
-        if ((vertical ? y : x) > 0.0 &&
-            (vertical ? y : x) + primary > limit) {
-            if (vertical) {
-                x += lineCross;
-                y = 0.0;
-            } else {
-                y += lineCross;
-                x = 0.0;
-            }
-            lineCross = 0.0;
-        }
-        Base::Result<void> arranged = ArrangeChild(*child, {
-            x, y, size.width, size.height});
-        if (!arranged) return finalSize;
-        if (vertical) y += size.height;
-        else x += size.width;
-        lineCross = std::max(lineCross, cross);
-    }
-    return finalSize;
-}
 
 Stretch Viewbox::GetStretch() const noexcept {
     return GetValue(StretchProperty);
@@ -1114,7 +446,7 @@ void Viewbox::ApplyViewTransform(
         if (!element->TryGetViewboxTransform(leftover)) return;
         element->ClearViewboxTransform();
         static_cast<void>(
-            AeroGuiInternal::InvalidateRenderState(*element));
+            (*element).InvalidateRenderState());
     };
     // Stretch stays on this Viewbox (AeroGUI wrapper Decorator), never on the
     // child: Hexagon grids have ScaleTransform 1.2, Board has RotationY.
@@ -1142,7 +474,7 @@ void Viewbox::ApplyViewTransform(
         : Base::Ref<FrameworkElement>{};
     if (changed) {
         static_cast<void>(
-            AeroGuiInternal::InvalidateRenderState(*this));
+            (*this).InvalidateRenderState());
     }
 }
 Size Viewbox::ArrangeOverride(
@@ -1432,351 +764,6 @@ void Border::OnRender(
     }
     return;
 }
-ContentPresenter::ContentPresenter() noexcept
-    : FrameworkElement(StaticTypeId()) {}
-
-
-namespace {
-
-void AttachOwnedContentSubtree(
-    ElementTree& tree,
-    UIElement& parent) noexcept {
-    const auto attachChild = [&](UIElement& child) noexcept {
-        if (child.GetVisualParent() == &parent &&
-            VisualTree(child) == &tree &&
-            child.GetIsLayoutAttached()) {
-            AttachOwnedContentSubtree(tree, child);
-            return;
-        }
-        if (child.GetVisualParent() != nullptr &&
-            child.GetVisualParent() != &parent) {
-            static_cast<void>(tree.DetachVisual(
-                *child.GetVisualParent(),
-                static_cast<::Aero::Media::Visual&>(child)));
-        }
-        if (VisualTree(child) == nullptr &&
-            child.GetLogicalParent() == nullptr) {
-            static_cast<void>(tree.AttachElement(parent, child));
-        } else if (child.GetVisualParent() != &parent ||
-                   !child.GetIsLayoutAttached()) {
-            static_cast<void>(tree.AttachVisualChild(parent, child));
-        }
-        if (Aero::BindingEngine* bindings =
-                Aero::AeroGuiInternal::BindingEngineOf(child)) {
-            static_cast<void>(bindings->ActivateDeferredWhenReady(child));
-        }
-        AttachOwnedContentSubtree(tree, child);
-    };
-
-    if (AeroGuiInternal::PropertyRegistry(parent).Types().IsDerivedFrom(
-            parent.RuntimeType(), Controls::Panel::StaticTypeId())) {
-        auto& panel = static_cast<Controls::Panel&>(parent);
-        const std::uint32_t count = AeroGuiInternal::PanelChildCount(panel);
-        for (std::uint32_t index = 0U; index < count; ++index) {
-            const Base::Ref<Base::Object> owned =
-                AeroGuiInternal::PanelChildAt(panel, index);
-            if (!owned ||
-                !AeroGuiInternal::PropertyRegistry(parent).Types().IsDerivedFrom(
-                    owned->RuntimeType(), UIElement::StaticTypeId())) {
-                continue;
-            }
-            attachChild(*static_cast<UIElement*>(owned.Get()));
-        }
-        return;
-    }
-    if (AeroGuiInternal::PropertyRegistry(parent).Types().IsDerivedFrom(
-            parent.RuntimeType(), Controls::Decorator::StaticTypeId())) {
-        const Base::Ref<Base::Object>& owned =
-            AeroGuiInternal::DecoratorOwnedChild(
-                static_cast<Controls::Decorator&>(parent));
-        if (owned &&
-            AeroGuiInternal::PropertyRegistry(parent).Types().IsDerivedFrom(
-                owned->RuntimeType(), UIElement::StaticTypeId())) {
-            attachChild(*static_cast<UIElement*>(owned.Get()));
-        }
-        return;
-    }
-    if (AeroGuiInternal::PropertyRegistry(parent).Types().IsDerivedFrom(
-            parent.RuntimeType(), ContentPresenter::StaticTypeId())) {
-        auto& presenter = static_cast<ContentPresenter&>(parent);
-        const Base::Ref<Base::Object>& owned = presenter.GetOwnedContent();
-        if (owned &&
-            AeroGuiInternal::PropertyRegistry(parent).Types().IsDerivedFrom(
-                owned->RuntimeType(), UIElement::StaticTypeId())) {
-            attachChild(*static_cast<UIElement*>(owned.Get()));
-        }
-        return;
-    }
-    if (AeroGuiInternal::PropertyRegistry(parent).Types().IsDerivedFrom(
-            parent.RuntimeType(), Controls::ContentControl::StaticTypeId())) {
-        const Base::Ref<Base::Object>& owned =
-            AeroGuiInternal::OwnedContent(
-                static_cast<Controls::ContentControl&>(parent));
-        if (owned &&
-            AeroGuiInternal::PropertyRegistry(parent).Types().IsDerivedFrom(
-                owned->RuntimeType(), UIElement::StaticTypeId())) {
-            attachChild(*static_cast<UIElement*>(owned.Get()));
-        }
-    }
-}
-
-} // namespace
-
-void ContentPresenter::HostUiElement(
-    const Base::Ref<Base::Object>& owner,
-    UIElement& element) noexcept {
-    if (!owner || owner.Get() != &element) {
-        return;
-    }
-    ElementTree* tree = VisualTree(this);
-    const auto detachHosted = [&](UIElement& hosted) noexcept {
-        if (tree == nullptr) {
-            return;
-        }
-        ::Aero::VisualAttachment state;
-        state.visualParent =
-            hosted.GetVisualParent() != nullptr
-            ? hosted.GetVisualParent()
-            : static_cast<::Aero::Media::Visual*>(this);
-        state.child = &hosted;
-        state.visualAttached = hosted.GetVisualParent() != nullptr;
-        state.layoutAttached =
-            hosted.GetIsLayoutAttached() &&
-            hosted.LayoutParent() != nullptr;
-        state.renderAttached = false;
-        if (state.IsAttached()) {
-            static_cast<void>(tree->DetachVisual(state));
-        }
-    };
-
-    UIElement* existing = content_;
-    if (existing != nullptr && existing != &element) {
-        detachHosted(*existing);
-        SetContent(nullptr);
-        if (content_ == existing) {
-            content_ = nullptr;
-            ownedContent_.Reset();
-        }
-    }
-    if (tree != nullptr) {
-        const UIElementChildRange children = LayoutChildren();
-        for (std::uint32_t index = children.Size(); index > 0U; --index) {
-            UIElement* child = children[index - 1U];
-            if (child == nullptr || child == &element) {
-                continue;
-            }
-            detachHosted(*child);
-        }
-    }
-    if (element.GetVisualParent() != nullptr &&
-        element.GetVisualParent() != this) {
-        detachHosted(element);
-    }
-    if (tree != nullptr &&
-        (element.GetVisualParent() != this ||
-         !element.GetIsLayoutAttached())) {
-        // AttachVisual requires the child to already be a tree member.
-        // Authored Header visuals and DataTemplate roots often are not;
-        // AttachElement joins them first. LoadComponent can also leave the
-        // visual parent set while layout is still detached.
-        if (VisualTree(element) == nullptr &&
-            element.GetLogicalParent() == nullptr) {
-            static_cast<void>(tree->AttachElement(*this, element));
-        } else if (element.GetVisualParent() == nullptr ||
-                   element.GetVisualParent() == this) {
-            static_cast<void>(tree->AttachVisualChild(*this, element));
-        }
-    }
-    SetOwnedContent(owner, element);
-    if (content_ != &element) {
-        content_ = &element;
-        ownedContent_ = owner;
-        InvalidateMeasure();
-    }
-    if (tree != nullptr) {
-        AttachOwnedContentSubtree(*tree, element);
-    }
-}
-
-void ContentPresenter::OnContentPropertyChanged(
-    ::Aero::DependencyObject& object,
-    const Meta::DependencyPropertyChangedEventArgs&
-        change) noexcept {
-    auto& presenter =
-        static_cast<ContentPresenter&>(object);
-    presenter.contentValue_ = change.GetNewValue();
-    const Value& value = presenter.contentValue_;
-    if (value.Kind() == Meta::ValueKind::Object &&
-        !value.IsNullObject() &&
-        value.AsObject()) {
-        Base::Object* obj = value.AsObject().Get();
-        if (AeroGuiInternal::PropertyRegistry(presenter).Types().IsDerivedFrom(
-                obj->RuntimeType(), UIElement::StaticTypeId())) {
-            auto* element = static_cast<UIElement*>(obj);
-            presenter.HostUiElement(value.AsObject(), *element);
-            return;
-        }
-    }
-    static_cast<void>(
-        presenter.UpdatePresentedText());
-}
-
-void ContentPresenter::OnPropertyChanged(
-    const DependencyPropertyChangedEventArgs& args) noexcept {
-    if (args.GetProperty() == ContentProperty.Handle()) {
-        OnContentPropertyChanged(*this, args);
-    }
-    FrameworkElement::OnPropertyChanged(args);
-}
-Base::Result<void>
-ContentPresenter::UpdatePresentedText() noexcept {
-    if (content_ == nullptr ||
-        !AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
-            content_->RuntimeType(),
-            TextBlock::StaticTypeId())) {
-        return {};
-    }
-    Base::String text;
-    switch (contentValue_.Kind()) {
-    case Meta::ValueKind::String:
-        {
-            Base::Result<void> assigned =
-                text.Assign(
-                    contentValue_.AsString());
-            if (!assigned) {
-                return assigned.GetStatus();
-            }
-        }
-        break;
-    case Meta::ValueKind::Boolean:
-        {
-            Base::Result<void> assigned =
-                text.Assign(
-                    contentValue_.AsBoolean()
-                    ? Base::StringView("True")
-                    : Base::StringView("False"));
-            if (!assigned) {
-                return assigned.GetStatus();
-            }
-        }
-        break;
-    case Meta::ValueKind::SignedInteger:
-    case Meta::ValueKind::UnsignedInteger:
-    case Meta::ValueKind::Double:
-        {
-            char raw[64]{};
-            if (contentValue_.Kind() ==
-                Meta::ValueKind::SignedInteger) {
-                std::snprintf(
-                    raw, sizeof(raw), "%lld",
-                    static_cast<long long>(
-                        contentValue_.
-                            AsSignedInteger()));
-            } else if (contentValue_.Kind() ==
-                       Meta::ValueKind::
-                           UnsignedInteger) {
-                std::snprintf(
-                    raw, sizeof(raw), "%llu",
-                    static_cast<
-                        unsigned long long>(
-                            contentValue_.
-                                AsUnsignedInteger()));
-            } else {
-                std::snprintf(
-                    raw, sizeof(raw), "%.15g",
-                    contentValue_.AsDouble());
-            }
-            Base::Result<void> assigned =
-                text.Assign(raw);
-            if (!assigned) {
-                return assigned.GetStatus();
-            }
-        }
-        break;
-    case Meta::ValueKind::Object:
-        if (!contentValue_.IsNullObject()) {
-            return {};
-        }
-        break;
-    default:
-        return {};
-    }
-    auto* textBlock = static_cast<TextBlock*>(content_);
-    textBlock->SetValue(RichText::TextProperty, text.View());
-    textBlock->SetText(text.View());
-    return {};
-}
-void ContentPresenter::SetContentSource(
-    Base::StringView value) noexcept {
-    SetValue(
-        ContentSourceProperty, value);
-}
-bool ContentPresenter::IsOnlyAttachedContent(
-    const UIElement& content) const noexcept {
-    const UIElementChildRange children = LayoutChildren();
-    return children.Size() == 1U && children[0] == &content;
-}
-void ContentPresenter::SetContent(UIElement* content) noexcept {
-    Base::Result<void> access = VerifyAccess();
-    if (!access) return;
-    Base::Result<void> validated = ValidateContent(content);
-    if (!validated) return;
-    if (content == content_) return;
-    content_ = content;
-    if (content == nullptr) ownedContent_.Reset();
-    InvalidateMeasure();
-}
-void ContentPresenter::SetOwnedContent(
-    const Base::Ref<Base::Object>& contentObject,
-    UIElement& content) noexcept {
-    if (!contentObject || contentObject.Get() != &content) {
-        return;
-    }
-    Base::Result<void> access = VerifyAccess();
-    if (!access) return;
-    Base::Result<void> validated = ValidateContent(&content);
-    if (!validated) return;
-    content_ = &content;
-    ownedContent_ = contentObject;
-    (void)UpdatePresentedText();
-    InvalidateMeasure();
-    if (ElementTree* tree = VisualTree(this)) {
-        AttachOwnedContentSubtree(*tree, content);
-    }
-}
-Base::Result<void> ContentPresenter::ValidateContent(
-    UIElement* content) const noexcept {
-    if (content == nullptr) {
-        if (!LayoutChildren().Empty()) {
-            return Base::Status::Failure(Base::ErrorCode::InvalidState,
-                "ContentPresenter content must be detached before clearing it");
-        }
-    } else if (!LayoutChildren().Empty() && !IsOnlyAttachedContent(*content)) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidState,
-            "ContentPresenter content must be its only attached layout child");
-    }
-    return {};
-}
-Size ContentPresenter::MeasureOverride(
-    Size availableSize) noexcept {
-    if (content_ == nullptr) {
-        return Size{};
-    }
-    // WPF ContentPresenter measures its content regardless of whether the
-    // layout-child table still lists it as the only child. Returning an empty
-    // size here collapses UniformGrid rows whose cells bind Height to
-    // ActualWidth (Inventory slots).
-    Base::Result<void> measured = MeasureChild(*content_, availableSize);
-    if (!measured) return Size{};
-    return content_->GetDesiredSize();
-}
-Size ContentPresenter::ArrangeOverride(Size finalSize) noexcept {
-    if (content_ == nullptr) return finalSize;
-    Base::Result<void> arranged = ArrangeChild(*content_,
-        {0.0, 0.0, finalSize.width, finalSize.height});
-    if (!arranged) return finalSize;
-    return finalSize;
-}
 
 namespace {
 
@@ -1785,11 +772,6 @@ public:
     BasicControl() noexcept : Control(Control::StaticTypeId()) {}
 };
 
-class BasicContentControl : public ContentControl {
-public:
-    BasicContentControl() noexcept
-        : ContentControl(ContentControl::StaticTypeId()) {}
-};
 
 class BasicHeaderedContentControl : public HeaderedContentControl {
 public:
@@ -1804,8 +786,7 @@ void SetDecoratorContent(
     if (!child) {
         return;
     }
-    (void)AeroGuiInternal::DecoratorSetOwnedChild(
-        static_cast<Decorator&>(owner), child, *static_cast<Aero::UIElement*>(child.Get()));
+    (void)(static_cast<Decorator&>(owner)).SetOwnedChild( child, *static_cast<Aero::UIElement*>(child.Get()));
 }
 
 void ClearDecoratorContent(
@@ -1839,40 +820,9 @@ void ClearBulletDecoratorContent(
     decorator.SetChild({});
 }
 
-void SetContentControlContent(
-    Base::Object& owner,
-    const Base::Ref<Base::Object>& child,
-    void*) noexcept {
-    if (!child) {
-        return;
-    }
-    (void)AeroGuiInternal::SetContentValue(
-        static_cast<ContentControl&>(owner), child);
-}
 
-void ClearContentControlContent(
-    Base::Object& owner,
-    void*) noexcept {
-    (void)AeroGuiInternal::SetContentValue(
-        static_cast<ContentControl&>(owner), Meta::Value::NullObject(Meta::TypeOf<Base::Object>()));
-}
 
-void SetContentPresenterContent(
-    Base::Object& owner,
-    const Base::Ref<Base::Object>& child,
-    void*) noexcept {
-    if (!child) {
-        return;
-    }
-    static_cast<ContentPresenter&>(owner).SetOwnedContent(
-        child, *static_cast<Aero::UIElement*>(child.Get()));
-}
 
-void ClearContentPresenterContent(
-    Base::Object& owner,
-    void*) noexcept {
-    static_cast<ContentPresenter&>(owner).SetContent(nullptr);
-}
 
 bool ValidateCornerRadiusValue(
     const Aero::CornerRadius& radius) noexcept {
@@ -1909,15 +859,130 @@ AERO_DESCRIBE(Control) {
         .Factory<BasicControl>();
 }
 
-AERO_DESCRIBE(ContentControl) {
-    using namespace Aero::Meta;
-    Register<ContentControl>(context)
-        .Property(ContentControl::ContentProperty, FrameworkPropertyMetadata(Meta::Value::NullObject(Meta::TypeOf<Base::Object>()), AffectsMeasure).Structural())
-        .Property(ContentControl::ContentTemplateProperty, Base::Ref<Base::Object>{}, AffectsMeasure)
-        .Property(ContentControl::ContentTemplateSelectorProperty, Base::Ref<Base::Object>{}, AffectsMeasure)
-        .ContentAccessor(MakeMemberId(ContentControl::StaticTypeId(), MemberKind::Property, "Content"), ContentKind::Single, &SetContentControlContent, &ClearContentControlContent, ContentFlags::Visual)
-        .Factory<BasicContentControl>();
+class PageContentHost : public ContentControl {
+public:
+    PageContentHost() noexcept : ContentControl(ContentControl::StaticTypeId()) {}
+};
+
+void Page::EnsureHost() noexcept {
+    if (host_) return;
+    Base::Result<Ref<PageContentHost>> made = Base::MakeRef<PageContentHost>();
+    if (!made) return;
+    host_ = std::move(made).Value();
+    if (host_->GetVisualParent() == nullptr) { AddVisualChild(host_.Get()); }
 }
+
+UIElement* Page::GetContent() const noexcept {
+    if (!host_) return nullptr;
+    const Value value = host_->GetContent();
+    if (value.Kind() != ValueKind::Object || !value.AsObject()) return nullptr;
+    return TryCast<UIElement>(value.AsObject().Get());
+}
+
+Value Page::GetContentValue() const noexcept {
+    return host_ ? host_->GetContent() : Value::NullObject(Meta::TypeOf<Base::Object>());
+}
+
+void Page::SetContent(UIElement* content) noexcept {
+    Result<void> access = VerifyAccess();
+    if (!access) return;
+    EnsureHost();
+    if (!host_) return;
+    synchronizingContent_ = true;
+    Value propertyValue = content != nullptr
+        ? Value::FromObject(content->RuntimeType(), Ref<Base::Object>::FromBorrowed(*content))
+        : Value::NullObject(Meta::TypeOf<Base::Object>());
+    SetValue(ContentProperty, std::move(propertyValue));
+    host_->SetContent(content);
+    synchronizingContent_ = false;
+    InvalidateMeasure();
+}
+
+void Page::SetContent(Ref<UIElement> content) noexcept {
+    SetContent(content.Get());
+}
+
+void Page::SetContent(StringView text) noexcept {
+    Result<void> access = VerifyAccess();
+    if (!access) return;
+    EnsureHost();
+    if (!host_) return;
+    synchronizingContent_ = true;
+    Result<Value> encoded = Value::TryFromString(Meta::TypeOf<String>(), text);
+    if (encoded) SetValue(ContentProperty, std::move(encoded).Value());
+    host_->SetContent(text);
+    synchronizingContent_ = false;
+    InvalidateMeasure();
+}
+
+void Page::SetContent(Value value) noexcept {
+    Result<void> access = VerifyAccess();
+    if (!access) return;
+    EnsureHost();
+    if (!host_) return;
+    synchronizingContent_ = true;
+    SetValue(ContentProperty, value);
+    host_->SetContent(std::move(value));
+    synchronizingContent_ = false;
+    InvalidateMeasure();
+}
+
+Ref<Base::Object> Page::GetContentTemplate() const noexcept {
+    return GetValue(ContentTemplateProperty);
+}
+
+void Page::SetContentTemplate(Ref<Base::Object> value) noexcept {
+    SetValue(ContentTemplateProperty, std::move(value));
+}
+
+void Page::OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept {
+    FrameworkElement::OnPropertyChanged(args);
+    if (synchronizingContent_) return;
+    if (args.GetProperty() == ContentProperty) {
+        EnsureHost();
+        if (host_) host_->SetContent(args.GetNewValue());
+    } else if (args.GetProperty() == ContentTemplateProperty) {
+        EnsureHost();
+        if (host_) host_->SetContentTemplate(GetContentTemplate());
+    }
+}
+
+Size Page::MeasureOverride(Size availableSize) noexcept {
+    if (!host_) return Size{};
+    Result<void> measured = MeasureChild(*host_, availableSize);
+    if (!measured) return Size{};
+    return host_->GetDesiredSize();
+}
+
+Size Page::ArrangeOverride(Size finalSize) noexcept {
+    if (!host_) return finalSize;
+    Result<void> arranged = ArrangeChild(*host_, {0.0, 0.0, finalSize.width, finalSize.height});
+    if (!arranged) return finalSize;
+    return finalSize;
+}
+
+void SetPageContent(Base::Object& owner, const Base::Ref<Base::Object>& child, void*) noexcept {
+    if (!child) return;
+    UIElement* element = TryCast<UIElement>(child.Get());
+    if (element == nullptr) return;
+    Ref<UIElement> retained = Ref<UIElement>::TryFromBorrowed(*element);
+    if (!retained) return;
+    static_cast<Page&>(owner).SetContent(std::move(retained));
+}
+
+void ClearPageContent(Base::Object& owner, void*) noexcept {
+    static_cast<Page&>(owner).SetContent(static_cast<UIElement*>(nullptr));
+}
+
+AERO_DESCRIBE(Page) {
+    using namespace Aero::Meta;
+    Register<Page>(context)
+        .Property(Page::ContentProperty, Meta::Value::NullObject(Meta::TypeOf<Base::Object>()), AffectsMeasure)
+        .Property(Page::ContentTemplateProperty, Base::Ref<Base::Object>{}, AffectsMeasure)
+        .Content<UIElement>("Content", ContentKind::Single, &SetPageContent, &ClearPageContent, ContentFlags::Visual)
+        .Factory();
+}
+
 
 AERO_DESCRIBE(HeaderedContentControl) {
     using namespace Aero::Meta;
@@ -1962,18 +1027,6 @@ AERO_DESCRIBE(Border) {
         .Factory();
 }
 
-AERO_DESCRIBE(ContentPresenter) {
-    using namespace Aero::Meta;
-    Base::String defaultContentSource;
-    (void)defaultContentSource.Assign(Base::StringView("Content"));
-
-    Register<ContentPresenter>(context)
-        .Property(ContentPresenter::ContentProperty, FrameworkPropertyMetadata(Meta::Value::NullObject(Meta::TypeOf<Base::Object>()), AffectsMeasure).Structural())
-        .Property(ContentPresenter::ContentTemplateProperty, Base::Ref<Base::Object>{}, AffectsMeasure)
-        .Property(ContentPresenter::ContentSourceProperty, std::move(defaultContentSource))
-        .ContentAccessor(MakeMemberId(ContentPresenter::StaticTypeId(), MemberKind::Property, "Content"), ContentKind::Single, &SetContentPresenterContent, &ClearContentPresenterContent, ContentFlags::Visual)
-        .Factory();
-}
 
 
 AERO_DESCRIBE(Expander) {
@@ -1986,42 +1039,121 @@ AERO_DESCRIBE(Expander) {
         .Factory();
 }
 
-AERO_DESCRIBE(TabItem) {
-    using namespace Aero::Meta;
-    Register<TabItem>(context)
-        .Property(TabItem::IsSelectedProperty, false, AffectsRender)
-        .Factory();
+
+
+
+
+} // namespace Aero
+
+namespace Aero {
+
+void ElementTree::EnsureVisualChildStorage(
+    Media::Visual& parent,
+    Media::Visual& child) noexcept {
+    UIElement* childElement = ::Aero::TryCast<::Aero::UIElement>(&child);
+    if (childElement == nullptr) return;
+    const Meta::TypeRegistry& types = (parent).PropertyRegistry().Types();
+    if (types.IsDerivedFrom(
+            parent.RuntimeType(), Controls::Panel::StaticTypeId())) {
+        auto& panel = static_cast<Controls::Panel&>(parent);
+        const std::uint32_t count = (panel).ChildCountCore();
+        for (std::uint32_t index = 0U; index < count; ++index) {
+            if ((panel).ChildAtCore( index).Get() == childElement) {
+                return;
+            }
+        }
+        Base::Ref<Base::Object> borrowed =
+            Base::Ref<Base::Object>::FromBorrowed(*childElement);
+        (panel).AddChildCore( borrowed, *childElement);
+        return;
+    }
+    if (types.IsDerivedFrom(
+            parent.RuntimeType(), Controls::ContentPresenter::StaticTypeId())) {
+        auto& presenter = static_cast<Controls::ContentPresenter&>(parent);
+        if (presenter.GetContent() == nullptr) {
+            presenter.SetContent(childElement);
+        }
+        return;
+    }
+    if (types.IsDerivedFrom(
+            parent.RuntimeType(), Controls::ContentControl::StaticTypeId())) {
+        auto& control = static_cast<Controls::ContentControl&>(parent);
+        UIElement* existing =
+            (control).GetContentElement();
+        if (existing == childElement) {
+            return;
+        }
+        const Base::Ref<Controls::ControlTemplate> templ =
+            control.GetValue(Controls::Control::TemplateProperty);
+        if (existing == nullptr &&
+            (control).GetTemplateRoot() == nullptr &&
+            !templ) {
+            control.SetContent(childElement);
+        }
+        return;
+    }
+    if (types.IsDerivedFrom(
+            parent.RuntimeType(), Controls::Decorator::StaticTypeId())) {
+        auto& decorator = static_cast<Controls::Decorator&>(parent);
+        if (decorator.GetChild() == nullptr) {
+            decorator.SetChild(childElement);
+        }
+        return;
+    }
+    if (types.IsDerivedFrom(
+            parent.RuntimeType(), Controls::BulletDecorator::StaticTypeId())) {
+        auto& bullet = static_cast<Controls::BulletDecorator&>(parent);
+        if (bullet.GetChild() == childElement ||
+            bullet.GetBullet() == childElement) {
+            return;
+        }
+        Base::Ref<UIElement> borrowed =
+            Base::Ref<UIElement>::FromBorrowed(*childElement);
+        if (bullet.GetChild() == nullptr) {
+            bullet.SetChild(std::move(borrowed));
+            return;
+        }
+        if (bullet.GetBullet() == nullptr) {
+            bullet.SetBullet(std::move(borrowed));
+        }
+        return;
+    }
+    return;
 }
 
-AERO_DESCRIBE(TabControl) {
-    using namespace Aero::Meta;
-    Register<TabControl>(context)
-        .Property(TabControl::SelectedContentProperty, Meta::Value::NullObject(Meta::TypeOf<Base::Object>()))
-        .Property(TabControl::ContentTemplateProperty, Base::Ref<DataTemplate>{}, AffectsMeasure)
-        .Property(TabControl::TabStripPlacementProperty, Dock::Top, AffectsMeasure)
-        .Factory();
+void ElementTree::AttachVisualControlTemplateRoot(
+    Media::Visual& parent,
+    Media::Visual& child) noexcept {
+    if ((parent).PropertyRegistry().Types().IsDerivedFrom(
+            parent.RuntimeType(), Controls::Control::StaticTypeId()) &&
+        ::Aero::TryCast<::Aero::UIElement>(&child) != nullptr) {
+        auto& control = static_cast<Controls::Control&>(parent);
+        const bool isContentControl =
+            (parent).PropertyRegistry().Types().IsDerivedFrom(
+                parent.RuntimeType(),
+                Controls::ContentControl::StaticTypeId());
+        const bool contentVisual =
+            isContentControl &&
+            (static_cast<Controls::ContentControl&>(parent)).GetContentElement() ==
+                ::Aero::TryCast<::Aero::UIElement>(&child);
+        if ((control).GetTemplateRoot() == nullptr &&
+            !contentVisual &&
+            !isContentControl) {
+            (void)(control).SetTemplateChildCore( ::Aero::TryCast<::Aero::UIElement>(&child));
+        }
+    }
 }
 
-
-namespace Primitives {
-
-AERO_DESCRIBE(Popup) {
-    using namespace Aero::Meta;
-    Register<Popup>(context)
-        .Event(Popup::OpenedEvent)
-        .Event(Popup::ClosedEvent)
-        .Property(Popup::IsOpenProperty, false, AffectsMeasure | AffectsRender | BindsTwoWayByDefault)
-        .Property(Popup::PlacementProperty, PlacementMode::Bottom, AffectsArrange)
-        .Property(Popup::HorizontalOffsetProperty, 0.0, AffectsArrange, &Base::Validate::Finite<double>)
-        .Property(Popup::VerticalOffsetProperty, 0.0, AffectsArrange, &Base::Validate::Finite<double>)
-        .Property(Popup::StaysOpenProperty, true)
-        .Property(Popup::MatchPlacementTargetWidthProperty, false, AffectsArrange)
-        .Property(Popup::PlacementTargetProperty, Base::Ref<UIElement>{}, AffectsArrange)
-        .Property(Popup::PopupAnimationProperty, PopupAnimation::None, AffectsRender)
-        .Property(Popup::AllowsTransparencyProperty, false, AffectsRender)
-        .Factory();
+void ElementTree::CleanVisualChildStorage(
+    Media::Visual& parent,
+    Media::Visual& child) noexcept {
+    if (UIElement* childElement = ::Aero::TryCast<::Aero::UIElement>(&child)) {
+        if ((parent).PropertyRegistry().Types().IsDerivedFrom(
+                parent.RuntimeType(), Controls::Panel::StaticTypeId())) {
+            auto& panel = static_cast<Controls::Panel&>(parent);
+            (void)(panel).RemoveChildCore( *childElement);
+        }
+    }
 }
-
-} // namespace Primitives
 
 } // namespace Aero

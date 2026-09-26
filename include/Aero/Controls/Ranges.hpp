@@ -52,10 +52,6 @@ protected:
     PropertyValue CoerceValueCore(DependencyPropertyHandle property, const PropertyValue& baseValue) noexcept override;
 };
 
-} // namespace Aero::Controls::Primitives
-
-namespace Aero::Controls::Primitives {
-
 class AERO_GUI_API Track : public Control {
     AERO_DECLARE_TYPE(Track, Control)
 public:
@@ -125,10 +121,6 @@ private:
     Ref<Thumb> thumb_;
     Ref<RepeatButton> increaseRepeatButton_;
 };
-
-} // namespace Aero::Controls::Primitives
-
-namespace Aero::Controls::Primitives {
 
 class AERO_GUI_API ScrollBar : public RangeBase {
     AERO_DECLARE_TYPE(ScrollBar, RangeBase)
@@ -239,10 +231,6 @@ protected:
     void OnRender(Aero::Media::DrawingContext& context) noexcept override;
 };
 
-} // namespace Aero::Controls
-AERO_DECLARE_TYPE_ENUM(Aero::Controls::TickBarPlacement)
-
-namespace Aero::Controls {
 enum class TickPlacement : std::uint8_t {
     None = 0U,
     TopLeft,
@@ -333,11 +321,6 @@ private:
     double GetSnapValue(double value) const noexcept;
 };
 
-} // namespace Aero::Controls
-AERO_DECLARE_TYPE_ENUM(Aero::Controls::TickPlacement)
-
-namespace Aero::Controls {
-
 class AERO_GUI_API ProgressBar : public Primitives::RangeBase {
     AERO_DECLARE_TYPE(ProgressBar, Primitives::RangeBase)
 public:
@@ -355,3 +338,6 @@ public:
 };
 
 } // namespace Aero::Controls
+
+AERO_DECLARE_TYPE_ENUM(Aero::Controls::TickBarPlacement)
+AERO_DECLARE_TYPE_ENUM(Aero::Controls::TickPlacement)

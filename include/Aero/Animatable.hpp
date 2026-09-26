@@ -20,7 +20,6 @@ protected:
     virtual void OnSubPropertyChanged() noexcept;
 
 private:
-    friend class AeroGuiInternal;
 };
 
 } // namespace Aero

@@ -1,11 +1,10 @@
 #include "gui/controls/TextBoxCommon.hpp"
-#include "gui/meta/Describe.hpp"
+#include "gui/core/Describe.hpp"
 #include "render/DisplayList.hpp"
 #include <Aero/Controls/TextBoxBase.hpp>
 #include <Aero/Controls/TextBox.hpp>
 #include <Aero/ClassHandler.hpp>
 #include <Aero/Controls/ScrollViewer.hpp>
-#include "gui/meta/TypeRegistryDetail.hpp"
 #include "ControlsMetadata.hpp"
 #include "gui/text/EditableText.hpp"
 #include "gui/core/ElementTree.hpp"
@@ -13,10 +12,7 @@
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/input/InputManager.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleEngine.hpp"
 #include "TextBlockLayout.hpp"
 
 #include <algorithm>
@@ -191,7 +187,7 @@ Size PasswordBox::MeasureOverride(
 void PasswordBox::OnApplyTemplate() noexcept {
     Control::OnApplyTemplate();
     DependencyObject* part = GetTemplateChild(Base::StringView("PART_ContentHost"));
-    if (part != nullptr && AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
+    if (part != nullptr && (*this).PropertyRegistry().Types().IsDerivedFrom(
             part->RuntimeType(), ScrollViewer::StaticTypeId())) {
         static_cast<void>(editor_.AttachScrollViewer(static_cast<ScrollViewer*>(part)));
     } else {
@@ -211,7 +207,7 @@ Size PasswordBox::ArrangeOverride(
 void PasswordBox::OnRender(
     ::Aero::Media::DrawingContext& context) noexcept {
     DependencyObject* part = GetTemplateChild(Base::StringView("PART_ContentHost"));
-    if (part != nullptr && AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
+    if (part != nullptr && (*this).PropertyRegistry().Types().IsDerivedFrom(
             part->RuntimeType(), ScrollViewer::StaticTypeId())) {
         return;
     }

@@ -21,10 +21,10 @@ public:
     ListView() noexcept : ListBox(StaticTypeId()) {}
     ~ListView() override = default;
 
-    Ref<GridView> GetView() const noexcept;
-    void SetView(Ref<GridView> value) noexcept;
+    Ref<ViewBase> GetView() const noexcept;
+    void SetView(Ref<ViewBase> value) noexcept;
 
-    AERO_DEPENDENCY_PROPERTY(Ref<GridView>, View);
+    AERO_DEPENDENCY_PROPERTY(Ref<ViewBase>, View);
 
 protected:
     void OnApplyTemplate() noexcept override;

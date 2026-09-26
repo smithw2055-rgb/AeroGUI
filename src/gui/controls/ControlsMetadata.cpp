@@ -1,5 +1,6 @@
 #include "Metadata.hpp"
 #include "ControlsMetadata.hpp"
+#include "gui/core/TypeRegistryDetail.hpp"
 
 // Templates
 #include <Aero/FrameworkTemplate.hpp>
@@ -33,7 +34,6 @@
 #include <Aero/Controls/Viewbox.hpp>
 #include <Aero/Controls/ContentPresenter.hpp>
 #include <Aero/Controls/UserControl.hpp>
-#include <Aero/Controls/Page.hpp>
 #include <Aero/Controls/Headers.hpp>
 #include <Aero/Controls/Label.hpp>
 #include <Aero/Controls/Popup.hpp>
@@ -52,7 +52,6 @@
 
 // Menus
 #include <Aero/Controls/Menus.hpp>
-#include <Aero/Controls/ContextMenuService.hpp>
 #include <Aero/Controls/Separator.hpp>
 
 // Bars & ToolTips
@@ -72,9 +71,22 @@
 // ListView & GridView
 #include <Aero/Controls/GridViews.hpp>
 #include <Aero/Controls/ListView.hpp>
-#include "gui/meta/Describe.hpp"
+#include "gui/core/Describe.hpp"
 
 namespace Aero::Controls {
+
+Base::Result<void> RegisterControlsMetadata(
+    ::Aero::Meta::Registry& domain) noexcept {
+    constexpr std::uint32_t SchemaVersion = 30U;
+    constexpr Base::StringView name = "Aero.Controls";
+    return domain.RegisterModule({
+        Meta::MakeMetadataModuleId(name),
+        name,
+        SchemaVersion,
+        &PopulateControlsMetadata,
+        nullptr,
+        nullptr});
+}
 
 Base::Result<void> PopulateControlsMetadata(
     ::Aero::Meta::Registration& context) noexcept {

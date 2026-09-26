@@ -15,44 +15,37 @@
 #include <Aero/Interactivity/Behavior.hpp>
 #include <Aero/Interactivity/Conditions.hpp>
 #include <Aero/Interactivity/InteractionTriggers.hpp>
-#include "gui/GuiDetail.hpp"
+#include "gui/markup/XamlSchema.hpp"
 #include "gui/ViewRenderer.hpp"
 #include <Aero/FrameworkElement.hpp>
 #include "gui/media/ImageCache.hpp"
-#include "gui/text/TextPipeline.hpp"
 #include <AeroRender/RenderTarget.hpp>
 
-#include "gui/templates/TemplateInstance.hpp"
 #include <Aero/VisualStateManager.hpp>
 #include "gui/controls/TextBlockLayout.hpp"
-#include "gui/meta/TypeRegistryDetail.hpp"
-#include "gui/meta/ValueConversion.hpp"
+#include "gui/core/ValueConversion.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/input/InputManager.hpp"
 #include "gui/data/BindingEngine.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleEngine.hpp"
-#include "gui/media/BrushRendering.hpp"
-#include "gui/media/AnimationModel.hpp"
 // NOTE: <Aero/Controls.hpp> umbrella intentionally not included here.
-// ContentControl/ItemsControl/ItemContainerGenerator are already available
-// via gui/internal/AeroGuiInternal.hpp; source-only Controls types via
-// gui/controls/{TextBlockLayout,Metadata}.hpp below.
-#include "gui/controls/Metadata.hpp"
+// Source-only text layout is gui/controls/TextBlockLayout.hpp above.
 
-#include "gui/templates/DataTemplateTriggerInstance.hpp"
 #include <AeroRender/RenderDevice.hpp>
-#include "render/RenderTree.hpp"
 
 #include <cmath>
 #include <limits>
 #include <new>
 #include <utility>
+
+namespace Aero::Threading {
+class Dispatcher;
+}
 
 namespace Aero {
 
@@ -175,6 +168,8 @@ class StoryboardHost;
 class OverlayHost;
 class FocusHost;
 class ResourceHost;
+namespace Text { class TextPipeline; }
+namespace Render { class RenderTree; }
 
 struct ViewFrameResult {
     struct Layout {

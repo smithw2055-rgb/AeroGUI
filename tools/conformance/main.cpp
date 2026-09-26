@@ -14,7 +14,6 @@
 
 #include "render/FrameEncoder.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/ViewRenderer.hpp"
 #include "render/opengl33/OpenGL33RenderDevice.hpp"
 
@@ -125,7 +124,7 @@ void VerifyExpressionFreezeRejection() noexcept {
         std::move(made).Value();
 
     Aero::Meta::EffectiveValueEngine values(
-        stop->GetDispatcher(), AeroGuiInternal::PropertyRegistry(*stop));
+        stop->GetDispatcher(), (*stop).PropertyRegistry());
     Aero::Base::Result<void> initialized = values.Initialize();
     Check(initialized.HasValue(),
         "expression freeze value engine initialization failed");

@@ -29,6 +29,9 @@ struct ApplicationHost {
     void (*setMainWindow)(
         void* context,
         Window* window) noexcept = nullptr;
+    Base::Result<bool> (*runDialog)(
+        void* context,
+        Window& window) noexcept = nullptr;
 };
 
 // One host bridge is created per hosted Window. This intentionally points at

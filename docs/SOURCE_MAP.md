@@ -27,7 +27,7 @@ dir. IDE-only virtual folders are defined via `source_group()` in
 | `Controls/ItemsControl.hpp`, `ListBox*.hpp`, `TreeView*.hpp`, `ComboBox*.hpp` | `Items.cpp` + `ItemContainerGenerator.cpp` + `Selection.cpp` + `Trees.cpp` + `ListView.cpp` + `Virtualization.cpp` (shared: `ItemsContainers.hpp`, renamed from `ItemsDetail.hpp`) |
 | `Controls/*Panel*.hpp`, `Grid*.hpp`, `Canvas.hpp` | `Panels.cpp` |
 | `Controls/Menu*.hpp`, `ContextMenu*.hpp`, `ToolBar.hpp` | `Menus.cpp` + `Bars.cpp` |
-| `Controls/ContentControl.hpp`, `UserControl.hpp`, `Page.hpp`, `Headers.hpp` … | `ContentControls.cpp` |
+| `Controls/ContentControl.hpp`, `UserControl.hpp`, `Headers.hpp` … | `ContentControls.cpp` |
 | `Controls/Image.hpp` | `Images.cpp` |
 | `VisualStateManager.hpp` | `VisualStateManager.cpp` |
 | Metadata bootstrap | `ControlsMetadata.cpp` + `Metadata.hpp` + `metadata/Metadata.{Foundation,Widgets,Layout}.inl` (7 former `*.inl` merged in stable registration order) |

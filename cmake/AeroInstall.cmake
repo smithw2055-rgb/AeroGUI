@@ -76,11 +76,11 @@ unset(_aero_public_install_directory)
 
 # B4: Meta authoring detail (TypeBuilder session/helpers) — not under include/Aero,
 # so it stays off the AeroPublicHeaders whitelist while remaining usable via
-# <Aero/Meta.hpp> ("gui/meta/..." through aero-meta-authoring include root).
+# <Aero/Meta.hpp> ("gui/core/..." through aero-meta-authoring include root).
 install(FILES
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/gui/meta/TypeBuilderCore.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/gui/meta/MetadataRegistrations.hpp"
-    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/aero-meta-authoring/gui/meta")
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/gui/core/TypeBuilderCore.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/gui/core/MetadataRegistrations.hpp"
+    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/aero-meta-authoring/gui/core")
 
 install(FILES
     "${AERO_GENERATED_INCLUDE_DIR}/Aero/Version.hpp"

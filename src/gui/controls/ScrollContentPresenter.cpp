@@ -1,14 +1,11 @@
 #include "gui/controls/ScrollCommon.hpp"
-#include "gui/meta/ValueConversion.hpp"
+#include "gui/core/ValueConversion.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/input/InputManager.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleEngine.hpp"
 #include "render/DisplayList.hpp"
 #include <Aero/Controls.hpp>
 #include <Aero/Input/Mouse.hpp>
@@ -31,11 +28,10 @@ ScrollContentPresenter::ScrollContentPresenter() noexcept
 ScrollContentPresenter::ScrollContentPresenter(
     TypeId runtimeType) noexcept
     : ContentControl(runtimeType) {
-    // WPF: ScrollContentPresenter clips; ScrollViewer does not. Aero's
-    // ScrollViewer derives from ScrollContentPresenter, so only the actual
-    // presenter type must opt in. Clipping the viewer as well nested two
-    // stencil clips over the items host and, after Intro's offscreen fade,
-    // discarded the list on the window target.
+    // WPF: ScrollContentPresenter clips; ScrollViewer does not. Only the
+    // presenter type opts in. Clipping the viewer nested two stencil clips
+    // over the items host and, after Intro's offscreen fade, discarded the
+    // list on the window target.
     if (runtimeType == ScrollContentPresenter::StaticTypeId()) {
         static_cast<void>(SetClipToBounds(true));
     }
@@ -346,9 +342,8 @@ ScrollContentPresenter::PageVertical(
 Size
 ScrollContentPresenter::MeasureOverride(
     Size availableSize) noexcept {
-    // ScrollViewer derives from this type and measures its chrome template
-    // here. The presenter itself must still record extent from Content;
-    // otherwise Auto scrollbars stay Collapsed and the thumb never appears.
+    // A templated presenter measures Content and records extent. Without that,
+    // Auto scrollbars stay Collapsed and the thumb never appears.
     if (RuntimeType() != StaticTypeId() &&
         GetTemplateRoot() != nullptr) {
         return ContentControl::MeasureOverride(
@@ -440,7 +435,7 @@ void ScrollContentPresenter::OnScrollDataChanged(
         GetTemplatedParent();
     if (templatedParent == nullptr ||
         templatedParent == this ||
-        !AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
+        !(*this).PropertyRegistry().Types().IsDerivedFrom(
             templatedParent->RuntimeType(),
             ScrollViewer::StaticTypeId())) {
         return;

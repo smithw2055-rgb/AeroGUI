@@ -26,6 +26,11 @@ public:
     Popup() noexcept;
     ~Popup() override;
 
+    UIElement* GetChild() const noexcept { return GetContentElement(); }
+    void SetChild(UIElement* child) noexcept { SetContent(child); }
+    void SetChild(Ref<UIElement> child) noexcept { SetContent(std::move(child)); }
+    void SetChild(std::nullptr_t) noexcept { SetContent(static_cast<UIElement*>(nullptr)); }
+
     bool GetIsOpen() const noexcept;
     void SetIsOpen(bool value) noexcept;
     PlacementMode GetPlacement() const noexcept;

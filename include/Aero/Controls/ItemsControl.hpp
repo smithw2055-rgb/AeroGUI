@@ -11,7 +11,6 @@
 #include <utility>
 
 
-namespace Aero { class AeroGuiInternal; }
 namespace Aero::Controls {
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::DependencyPropertyChangedEventHandler;
@@ -48,7 +47,8 @@ public:
             if (!retained) return;
         }
         SetItemTemplate(std::move(retained));
-    } const DataTemplateSelector* GetItemTemplateSelector() const noexcept { return itemTemplateSelector_; }
+    }
+    const DataTemplateSelector* GetItemTemplateSelector() const noexcept { return itemTemplateSelector_; }
     void SetItemTemplateSelector(Ref<DataTemplateSelector> value) noexcept {
         SetValue(ItemTemplateSelectorProperty, std::move(value));
     }
@@ -80,7 +80,8 @@ public:
             if (!retained) return;
         }
         SetItemsPanel(std::move(retained));
-    } const Style* GetItemContainerStyle() const noexcept { return itemContainerStyle_; }
+    }
+    const Style* GetItemContainerStyle() const noexcept { return itemContainerStyle_; }
     void SetItemContainerStyle(Ref<Style> value) noexcept { SetValue(ItemContainerStyleProperty, std::move(value)); }
     void SetItemContainerStyle(const Style* value) noexcept {
         Ref<Style> retained;
@@ -133,9 +134,17 @@ protected:
     Size MeasureOverride(Size availableSize) noexcept override;
     bool EnsureDefaultItemsPresenter() noexcept;
 
+public:
+    void SetItemsSourceCore(Collections::IItemsSource* source) noexcept;
+    void AssignItemsSource(Ref<Base::Object> source) noexcept;
+    void SetItemTemplateCore(const DataTemplate* value) noexcept;
+    void SetItemTemplateSelectorCore(const DataTemplateSelector* value) noexcept;
+    void SetItemsPanelCore(const ItemsPanelTemplate* value) noexcept;
+    void SetItemContainerStyleCore(const Style* value) noexcept;
+    void PublishReset() noexcept;
+
 private:
     friend class ItemContainerGenerator;
-    friend class ::Aero::AeroGuiInternal;
 
     ItemCollection items_;
     Collections::IItemsSource* source_ = nullptr;
@@ -150,14 +159,8 @@ private:
     ItemsChangedHandler localHandler_;
     ItemsChangedHandler sourceHandler_;
 
-    void SetItemsSourceCore(Collections::IItemsSource* source) noexcept;
-    void SetItemTemplateCore(const DataTemplate* value) noexcept;
-    void SetItemTemplateSelectorCore(const DataTemplateSelector* value) noexcept;
-    void SetItemsPanelCore(const ItemsPanelTemplate* value) noexcept;
-    void SetItemContainerStyleCore(const Style* value) noexcept;
     void OnLocalChanged(const ItemsChangedEvent& event) noexcept;
     void OnSourceChanged(const ItemsChangedEvent& event) noexcept;
-    void PublishReset() noexcept;
     void PublishItemCount() noexcept;
 };
 

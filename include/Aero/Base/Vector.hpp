@@ -27,7 +27,8 @@ private:
 
 template<class T> class InlineBuffer<T, 0U> {
 protected:
-    T* InlineData() noexcept { return nullptr; } const T* InlineData() const noexcept { return nullptr; }
+    T* InlineData() noexcept { return nullptr; }
+    const T* InlineData() const noexcept { return nullptr; }
 };
 
 template<class T, std::uint32_t InlineCount> class BasicVector  : private InlineBuffer<T, InlineCount> {
@@ -80,7 +81,8 @@ public:
         return *this;
     }
 
-    T* Data() noexcept { return data_; } const T* Data() const noexcept { return data_; }
+    T* Data() noexcept { return data_; }
+    const T* Data() const noexcept { return data_; }
     SizeType Size() const noexcept { return size_; }
     SizeType Capacity() const noexcept { return capacity_; }
     bool Empty() const noexcept { return size_ == 0U; }
@@ -119,8 +121,10 @@ public:
         return data_[size_ - 1U];
     }
 
-    T* begin() noexcept { return data_; } const T* begin() const noexcept { return data_; }
-    T* end() noexcept { return size_ == 0U ? data_ : data_ + size_; } const T* end() const noexcept {
+    T* begin() noexcept { return data_; }
+    const T* begin() const noexcept { return data_; }
+    T* end() noexcept { return size_ == 0U ? data_ : data_ + size_; }
+    const T* end() const noexcept {
         return size_ == 0U ? data_ : data_ + size_;
     }
 

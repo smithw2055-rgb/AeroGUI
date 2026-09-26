@@ -6,7 +6,6 @@
 
 namespace Aero {
 
-class AeroGuiInternal;
 
 // WPF-shaped non-visual content node with resources, DataContext, Style and
 // logical-tree participation. TextElement and other document nodes derive here.
@@ -50,12 +49,14 @@ protected:
     virtual std::uint32_t GetLogicalChildrenCount() const noexcept { return 0U; }
     virtual DependencyObject* GetLogicalChild(std::uint32_t) const noexcept { return nullptr; }
 
-private:
-    friend class ResourceResolver;
-    friend class AeroGuiInternal;
+public:
+    std::uint32_t LogicalChildCount() const noexcept { return GetLogicalChildrenCount(); }
+    DependencyObject* LogicalChildAt(std::uint32_t index) const noexcept { return GetLogicalChild(index); }
     void AddAuthoredTrigger(Ref<Base::Object> trigger) noexcept;
     void ClearAuthoredTriggers() noexcept;
     Span<const Ref<Base::Object>> AuthoredTriggers() const noexcept;
+private:
+    friend class ResourceResolver;
     const ResourceDictionary* LocalResources() const noexcept { return resources_; }
     mutable ResourceDictionary* resources_ = nullptr;
     struct FrameworkContentRare;

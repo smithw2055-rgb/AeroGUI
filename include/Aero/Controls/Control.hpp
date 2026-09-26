@@ -6,7 +6,7 @@
 #include <Aero/Style.hpp>
 #include <utility>
 
-namespace Aero { class VisualStateManager; class AeroGuiInternal; }
+namespace Aero { class VisualStateManager; }
 namespace Aero::Controls {
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::DependencyPropertyChangedEventHandler;
@@ -61,14 +61,14 @@ public:
     // Returns true only when this call materialized a new template instance.
     // Repeated calls are intentionally idempotent.
     bool ApplyTemplate() noexcept;
+    UIElement* GetTemplateRoot() const noexcept { return templateChild_; }
+    virtual void OnApplyTemplate() noexcept { return; }
 
 protected:
     DependencyObject* GetTemplateChild(StringView name) const noexcept;
     DependencyObject* GetTemplateChild(TypeId type) const noexcept;
-    UIElement* GetTemplateRoot() const noexcept { return templateChild_; }
     explicit Control(TypeId runtimeType) noexcept : FrameworkElement(runtimeType) {}
     ~Control() override = default;
-    virtual void OnApplyTemplate() noexcept { return; }
     virtual void OnTemplateDetached() noexcept {}
     virtual void OnTemplateChanged(ControlTemplate* oldTemplate, ControlTemplate* newTemplate) noexcept {
         static_cast<void>(oldTemplate);
@@ -96,9 +96,8 @@ protected:
         return finalSize;
     }
     void OnRender(::Aero::Media::DrawingContext& context) noexcept override;
-private:
-    friend class ::Aero::VisualStateManager;
-    friend class ::Aero::AeroGuiInternal;
+public:
+    bool IsTemplateApplied() const noexcept { return templateHandleValue_ != 0U; }
     void SetTemplateChildCore(UIElement* child) noexcept {
         if (child != nullptr && child->LayoutParent() != this) { return; }
         if (templateChild_ != nullptr && child != nullptr && templateChild_ != child) { return; }
@@ -117,6 +116,8 @@ private:
             ++templateGeneration_;
         }
     }
+private:
+    friend class ::Aero::VisualStateManager;
     UIElement* templateChild_ = nullptr;
     std::uint64_t templateHandleValue_ = 0U;
     std::uint64_t templateGeneration_ = 0U;

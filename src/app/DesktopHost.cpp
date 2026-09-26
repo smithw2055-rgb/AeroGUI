@@ -17,6 +17,13 @@
 #if defined(_WIN32)
 #include "app/platform/win32/InputRouters.hpp"
 #include "app/platform/win32/Window.hpp"
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#ifdef ShowWindow
+#undef ShowWindow
+#endif
 #else
 #include "app/platform/x11/Window.hpp"
 #endif
@@ -786,7 +793,8 @@ Base::Result<void> LoadFromUri(
               &DesktopHostState::ShowWindowThunk,
               &DesktopHostState::WindowCountThunk,
               &DesktopHostState::WindowAtThunk,
-              &DesktopHostState::SetMainWindowThunk},
+              &DesktopHostState::SetMainWindowThunk,
+              &DesktopHostState::RunDialogThunk},
           allocator(source.allocator != nullptr
               ? source.allocator
               : &Base::GetDefaultAllocator()),
@@ -1053,6 +1061,104 @@ Base::Result<void> LoadFromUri(
         return {};
     }
 
+    Base::Result<bool> RunDialog(Window& dialog) noexcept {
+        WindowHost* host = FindWindow(dialog);
+        if (host == nullptr) {
+            return HostFailure(
+                Base::ErrorCode::InvalidState,
+                "Window.ShowDialog requires a hosted window");
+        }
+        struct SuspendedWindows {
+            Base::Vector<std::uintptr_t> handles;
+            std::uintptr_t focus = 0U;
+            explicit SuspendedWindows(Base::IAllocator* memory) noexcept
+                : handles(memory) {}
+            ~SuspendedWindows() noexcept {
+#if defined(_WIN32)
+                for (std::uintptr_t value : handles) {
+                    ::EnableWindow(reinterpret_cast<HWND>(value), TRUE);
+                }
+                const std::uintptr_t restore = focus != 0U
+                    ? focus
+                    : (handles.Empty() ? 0U : handles[0]);
+                if (restore != 0U) {
+                    ::SetForegroundWindow(reinterpret_cast<HWND>(restore));
+                }
+#endif
+            }
+        } suspended(allocator);
+        Base::Ref<Window> owner = dialog.GetOwner();
+        Window* ownerWindow = owner.Get();
+        std::uintptr_t ownerHandle = 0U;
+#if defined(_WIN32)
+        const std::uintptr_t dialogHandle = host->NativeHandle().window;
+        HWND dialogHwnd = reinterpret_cast<HWND>(dialogHandle);
+        if (ownerWindow != nullptr && ownerWindow != &dialog) {
+            WindowHost* ownerHost = FindWindow(*ownerWindow);
+            if (ownerHost != nullptr) {
+                ownerHandle = ownerHost->NativeHandle().window;
+            }
+        }
+        HWND ownerHwnd = reinterpret_cast<HWND>(ownerHandle);
+        if (dialogHwnd != nullptr && ownerHwnd != nullptr) {
+            suspended.focus = ownerHandle;
+            ::SetWindowLongPtrW(
+                dialogHwnd, GWLP_HWNDPARENT,
+                reinterpret_cast<LONG_PTR>(ownerHwnd));
+            RECT dialogRect{};
+            RECT ownerRect{};
+            if (::GetWindowRect(dialogHwnd, &dialogRect) != FALSE &&
+                ::GetWindowRect(ownerHwnd, &ownerRect) != FALSE) {
+                const int width = dialogRect.right - dialogRect.left;
+                const int height = dialogRect.bottom - dialogRect.top;
+                const int x = ownerRect.left +
+                    ((ownerRect.right - ownerRect.left) - width) / 2;
+                const int y = ownerRect.top +
+                    ((ownerRect.bottom - ownerRect.top) - height) / 2;
+                ::SetWindowPos(
+                    dialogHwnd, HWND_TOP, x, y, 0, 0,
+                    SWP_NOSIZE);
+            }
+        }
+        for (WindowHost* other : windows) {
+            if (other == nullptr || other == host || !other->IsOpen()) continue;
+            const std::uintptr_t handle = other->NativeHandle().window;
+            if (handle == 0U) continue;
+            ::EnableWindow(reinterpret_cast<HWND>(handle), FALSE);
+            suspended.handles.PushBack(handle);
+        }
+#else
+        static_cast<void>(ownerWindow);
+        static_cast<void>(ownerHandle);
+#endif
+        while (!exitRequested && host->IsOpen()) {
+            bool handledEvent = false;
+            for (std::uint32_t index = 0U;
+                 index < windows.Size() && !exitRequested;
+                 ++index) {
+                WindowHost* candidate = windows[index];
+                if (candidate == nullptr) continue;
+                Base::Result<bool> pumped = candidate->PumpEvents();
+                if (!pumped) return pumped.GetStatus();
+                handledEvent = handledEvent || pumped.Value();
+            }
+            if (exitRequested || !host->IsOpen()) break;
+            for (WindowHost* candidate : windows) {
+                if (candidate != nullptr && candidate->IsOpen()) {
+                    Base::Result<void> rendered = candidate->RenderFrame();
+                    if (!rendered) return rendered.GetStatus();
+                }
+            }
+            if (!handledEvent && host->IsOpen()) {
+                Base::Result<bool> waited = host->WaitForActivity(16U, false);
+                if (!waited) return waited.GetStatus();
+            }
+        }
+        const ::Aero::Nullable<bool> accepted = dialog.GetDialogResult();
+        return Base::Result<bool>(
+            accepted.GetHasValue() && accepted.GetValue());
+    }
+
     std::uint32_t WindowCount() const noexcept {
         return windows.Size();
     }
@@ -1205,6 +1311,10 @@ Base::Result<void> LoadFromUri(
     static Base::Result<void> ShowWindowThunk(
         void* context, Window& window) noexcept {
         return static_cast<DesktopHostState*>(context)->ShowWindow(window);
+    }
+    static Base::Result<bool> RunDialogThunk(
+        void* context, Window& window) noexcept {
+        return static_cast<DesktopHostState*>(context)->RunDialog(window);
     }
     static std::uint32_t WindowCountThunk(
         const void* context) noexcept {

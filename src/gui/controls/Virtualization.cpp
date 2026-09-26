@@ -1,7 +1,6 @@
 #include <Aero/Controls.hpp>
-#include "gui/meta/Describe.hpp"
-#include "gui/meta/TypeRegistryDetail.hpp"
-#include "gui/meta/ValueConversion.hpp"
+#include "gui/core/Describe.hpp"
+#include "gui/core/ValueConversion.hpp"
 
 #include <algorithm>
 #include <cmath>

@@ -3,6 +3,8 @@
 // Source-only interactivity evaluation engine. Not installed under include/Aero.
 // Included from ViewFrame.hpp after ViewFrame is defined.
 
+#include "gui/templates/DataTemplateTriggerInstance.hpp"
+
 namespace Aero {
 
 class InteractivityEngine {

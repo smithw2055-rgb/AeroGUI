@@ -1,65 +1,17 @@
 #pragma once
 
-// Shared include set formerly provided transitively when all markup-extension
-// .inl files were amalgamated into XamlObjectWriter.cpp after BindingExtension.inl.
+// Helpers shared by the object writer and XamlMarkupExtensions.cpp.
+// Control and engine headers stay in the translation units that use them.
 
-#include "gui/meta/TypeRegistryDetail.hpp"
-#include "gui/meta/ValueConversion.hpp"
-#include "gui/core/ElementTree.hpp"
-#include "gui/core/LayoutEngine.hpp"
-#include "gui/core/EffectiveValueEngine.hpp"
-#include "gui/core/RoutedEvents.hpp"
-#include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
-#include "gui/data/BindingEngine.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleEngine.hpp"
-#include "gui/templates/TemplateInstance.hpp"
-#include "gui/markup/MarkupCommon.hpp"
-#include "gui/markup/XamlObjectWriterCommon.hpp"
-
-#include <cstdio>
-#include <cmath>
-#include <fstream>
-#include <new>
-#include <string>
-#include <utility>
-#include <vector>
-
+#include "gui/markup/MarkupExtensionContract.hpp"
 #include <Aero/Base/String.hpp>
-#include <Aero/Base/StringView.hpp>
-#include <Aero/Controls/ControlTemplate.hpp>
-#include <Aero/Controls.hpp>
-#include <Aero/Markup/MarkupExtension.hpp>
-#include <Aero/DataTemplate.hpp>
-#include <Aero/TryCast.hpp>
-#include <Aero/Controls/Primitives/ButtonBase.hpp>
-#include <Aero/Controls/Buttons.hpp>
-#include <Aero/Controls/TextBlock.hpp>
-#include <Aero/Documents/Inlines.hpp>
-#include <Aero/FrameworkContentElement.hpp>
-#include <Aero/FrameworkElement.hpp>
-#include <Aero/Freezable.hpp>
-#include <Aero/UIElement.hpp>
-#include <Aero/Media/Animation.hpp>
-#include <Aero/EventTrigger.hpp>
-#include <Aero/Media/Animation/TimerTrigger.hpp>
-#include <Aero/Media/Brushes.hpp>
-#include <Aero/Media/Images.hpp>
-#include <Aero/Interactivity/Behavior.hpp>
-#include <Aero/Data/BindingBase.hpp>
-#include <Aero/Resources.hpp>
-#include <Aero/Style.hpp>
-#include <Aero/VisualStateManager.hpp>
-#include <Aero/Value.hpp>
 
-
+namespace Aero::Controls {
+class ControlTemplate;
+}
 
 namespace Aero::Markup {
 
-// Shared helpers defined in BindingExtension.cpp (formerly private to the
-// amalgamated Writer TU). Visible to ObjectWriter property-apply and other
-// extension TUs.
 Base::Result<long double> ReadConstantBindingNumber(
     const Meta::Value& value) noexcept;
 Base::Result<Meta::Value> ConvertConstantBindingValue(

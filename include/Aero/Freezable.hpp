@@ -5,7 +5,6 @@
 namespace Aero {
 
 class Freezable;
-class AeroGuiInternal;
 
 using FreezableChangedHandler = Base::Delegate<void(Freezable&)>;
 
@@ -36,8 +35,13 @@ protected:
     void OnPropertyInvalidated(Meta::PropertyInvalidationFlags flags) noexcept override;
     Result<void> VerifyMutationAllowed() const noexcept override;
 
+public:
+    std::uint64_t Revision() const noexcept;
+    bool CheckFreezeCore() noexcept;
+    DependencyObject* Parent() const noexcept;
+    Base::Result<void> AttachConsumer(DependencyObject& object, Meta::DependencyPropertyHandle property) noexcept;
+    void DetachConsumer(DependencyObject& object, Meta::DependencyPropertyHandle property) noexcept;
 private:
-    friend class AeroGuiInternal;
     bool EnsureState() noexcept;
     State* state_ = nullptr;
 };

@@ -1,10 +1,9 @@
 #include "render/DisplayList.hpp"
-#include "gui/meta/Describe.hpp"
+#include "gui/core/Describe.hpp"
 #include <Aero/Shapes.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Media/Pen.hpp>
-#include "gui/meta/TypeRegistryDetail.hpp"
-#include "gui/meta/ValueConversion.hpp"
+#include "gui/core/ValueConversion.hpp"
 #include "gui/controls/ControlsMetadata.hpp"
 
 #include "gui/core/ElementTree.hpp"
@@ -12,8 +11,6 @@
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
-#include "gui/media/AnimationEngine.hpp"
 #include "gui/media/BrushRendering.hpp"
 #include <algorithm>
 #include <cmath>
@@ -334,10 +331,9 @@ void Shape::OnPropertyChanged(
     // Former OnShapePenChanged delegate body, moved before base handling to
     // preserve the delegate-then-virtual firing order.
     if (args.GetProperty() == PenProperty.Handle()) {
-        if (AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
+        if ((*this).PropertyRegistry().Types().IsDerivedFrom(
                 RuntimeType(), Path::StaticTypeId())) {
-            AeroGuiInternal::PathInvalidateGeometry(
-                static_cast<Path&>(*this));
+            (static_cast<Path&>(*this)).ResetGeometry();
         } else {
             InvalidateVisual();
         }

@@ -2,7 +2,6 @@
 #include <Aero/Controls/Control.hpp>
 #include <Aero/Controls/ContentControl.hpp>
 #include <Aero/Controls/UserControl.hpp>
-#include <Aero/Controls/Page.hpp>
 #include <Aero/Controls/Panel.hpp>
 #include <Aero/Controls/Decorator.hpp>
 #include <Aero/Controls/Panels.hpp>
@@ -37,7 +36,6 @@
 #include <Aero/Controls/VirtualizingStackPanel.hpp>
 #include <Aero/Controls/VirtualizingWrapPanel.hpp>
 #include <Aero/Controls/Menus.hpp>
-#include <Aero/Controls/ContextMenuService.hpp>
 #include <Aero/Controls/ToolBar.hpp>
 #include <Aero/Controls/StatusBar.hpp>
 #include <Aero/Controls/ToolTip.hpp>

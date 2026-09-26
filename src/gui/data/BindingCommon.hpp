@@ -1,16 +1,15 @@
 #pragma once
 
-// Shared Binding evaluation helpers used by Binding.cpp / BindingEvaluation.cpp /
-// BindingOperations.cpp (formerly anonymous helpers in BindingEvaluation.inl).
+// Shared Binding evaluation helpers used by BindingEngine.cpp
+// (formerly anonymous helpers in BindingEvaluation.inl).
 
-#include "gui/data/BindingEngine.hpp"
-#include "gui/meta/TypeRegistryDetail.hpp"
+#include "gui/data/BindingPath.hpp"
+#include "gui/core/TypeRegistryDetail.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
 #include <Aero/Data/Binding.hpp>
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/DependencyObject.hpp>

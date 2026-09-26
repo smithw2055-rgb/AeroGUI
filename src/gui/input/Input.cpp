@@ -10,16 +10,64 @@
 #include "gui/media/Transform3DMath.hpp"
 
 #include <cmath>
-#include "gui/meta/TypeRegistryDetail.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/input/InputManager.hpp" 
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleEngine.hpp"
+#include "gui/core/Describe.hpp"
+#include "gui/core/TypeRegistryDetail.hpp"
+#include "gui/core/RenderStateCallbacks.hpp"
+#include "gui/core/ValueConversion.hpp"
+#include "gui/data/BindingEngine.hpp"
+#include <Aero/Interactivity/Conditions.hpp>
+#include <Aero/Interactivity/Behavior.hpp>
+#include <Aero/Interactivity/BlendBehaviors.hpp>
+#include <Aero/Interactivity/Interaction.hpp>
+#include <Aero/Interactivity/InteractionTriggers.hpp>
+#include <Aero/Interactivity/TriggerAction.hpp>
+#include <Aero/Style.hpp>
+#include <Aero/Triggers.hpp>
+#include <Aero/Resources.hpp>
+#include <Aero/EventTrigger.hpp>
+#include <Aero/Events/EventArgs.hpp>
+#include <Aero/Events/CommandEventArgs.hpp>
+#include <Aero/Media/Animation.hpp>
+#include <Aero/Media/Animation/MediaActions.hpp>
+#include <Aero/Media/Animation/StoryboardActions.hpp>
+#include <Aero/Media/Animation/StoryboardCompletedTrigger.hpp>
+#include <Aero/Media/Animation/TimerTrigger.hpp>
+#include <Aero/Media/Brushes.hpp>
+#include <Aero/Media/Effects.hpp>
+#include <Aero/Media/Images.hpp>
+#include <Aero/Media/MediaElement.hpp>
+#include <Aero/Media/Pen.hpp>
+#include <Aero/Media/Fonts.hpp>
+#include <Aero/Layout.hpp>
+#include <Aero/Collections.hpp>
+#include <Aero/ICommand.hpp>
+#include <Aero/RoutedCommand.hpp>
+#include <Aero/InputBinding.hpp>
+#include <Aero/EventSetter.hpp>
+#include <Aero/KeyboardNavigation.hpp>
+#include <Aero/CommandBinding.hpp>
+#include <Aero/ApplicationCommands.hpp>
+#include <Aero/InputGesture.hpp>
+#include <Aero/Data/Binding.hpp>
+#include <Aero/Data/MultiBinding.hpp>
+#include <Aero/Data/BooleanToVisibilityConverter.hpp>
+#include <Aero/Data/IMultiValueConverter.hpp>
+#include <Aero/Data/IValueConverter.hpp>
+#include <Aero/DataObject.hpp>
+#include <Aero/DragDrop.hpp>
+#include <Aero/Input/Cursor.hpp>
+#include <Aero/Input/Mouse.hpp>
+#include <Aero/Input/Keyboard.hpp>
+#include <Aero/Animatable.hpp>
+#include <cctype>
+#include <cstdlib>
+#include <utility>
 
 namespace Aero::Input {
 
@@ -36,7 +84,7 @@ bool HasAssignedObject(
     UIElement& element,
     Base::StringView name) noexcept {
     const Meta::DependencyProperty* property =
-        AeroGuiInternal::PropertyRegistry(element).Find(
+        (element).PropertyRegistry().Find(
             element.RuntimeType(), name);
     if (property == nullptr) return false;
     const Meta::PropertyValue value =
@@ -48,7 +96,7 @@ bool HasAssignedObject(
 
 bool HasSelfHitSurface(UIElement& element) noexcept {
     const Meta::DependencyPropertyRegistry& properties =
-        AeroGuiInternal::PropertyRegistry(element);
+        (element).PropertyRegistry();
     const Meta::TypeId type = element.RuntimeType();
     // Hit-testing lives in the GUI kernel and must not take a Controls
     // dependency. Identify painted content through DPs, matching WPF:
@@ -72,7 +120,7 @@ bool HasSelfHitSurface(UIElement& element) noexcept {
             properties.Find(type, Base::StringView("Interval")) != nullptr) {
             return true;
         }
-        if (AeroGuiInternal::RenderChildren(element).Size() > 0U) {
+        if ((element).RenderChildren().Size() > 0U) {
             return false;
         }
     }
@@ -173,7 +221,7 @@ Base::Point DragEventArgs::GetPosition(
     const UIElement& relativeTo) const noexcept {
     if (root_ == nullptr) return MouseEventArgs::GetPosition();
     Aero::InputRouter* input =
-        AeroGuiInternal::InputRouterOf(relativeTo);
+        ElementTree::InputOf(relativeTo);
     if (input == nullptr) return MouseEventArgs::GetPosition();
     Base::Result<Input::HitTestResult> mapped =
         input->RootToLocal(
@@ -405,7 +453,7 @@ Base::Result<HitTestResult> HitTestState::HitTestElement(
         }
     }
 
-    const auto children = AeroGuiInternal::RenderChildren(element);
+    const auto children = (element).RenderChildren();
     for (std::uint32_t index = children.Size(); index > 0U; --index) {
         ::Aero::Media::Visual* childNode = children[index - 1U];
         if (childNode == nullptr) continue;
@@ -592,7 +640,7 @@ Base::Result<void> PointerStateMachine::UpdateHover(
             if (!handle) return handle.GetStatus();
             if (!HasHover(handle.Value(), index) ||
                 !element->GetIsMouseOver()) {
-                AeroGuiInternal::SetMouseOver(*element, true);
+                (*element).SetMouseOverState( true);
                 if (events_ != nullptr) {
                     MouseEventArgs args;
                     args.SetPointerId(pointerId);
@@ -621,7 +669,7 @@ Base::Result<void> PointerStateMachine::UpdateHover(
                 tree->GetHandle(*current);
             if (!handle) return handle.GetStatus();
             if (!HasHover(handle.Value(), index)) {
-                AeroGuiInternal::SetMouseOver(*element, false);
+                (*element).SetMouseOverState( false);
                 if (events_ != nullptr) {
                     MouseEventArgs args;
                     args.SetPointerId(pointerId);
@@ -670,7 +718,7 @@ Base::Result<void> PointerStateMachine::UpdatePressed(
         ::Aero::Media::Visual* visual = tree->ResolveHandle(next);
         nextElement = visual != nullptr ? ::Aero::TryCast<::Aero::UIElement>(visual) : nullptr;
         if (nextElement != nullptr) {
-            AeroGuiInternal::SetPressed(*nextElement, true);
+            (*nextElement).SetPressedState( true);
             if (!stateChanged_.Empty()) {
                 stateChanged_.Invoke(*nextElement);
             }
@@ -681,7 +729,7 @@ Base::Result<void> PointerStateMachine::UpdatePressed(
         UIElement* previousElement =
             visual != nullptr ? ::Aero::TryCast<::Aero::UIElement>(visual) : nullptr;
         if (previousElement != nullptr) {
-            AeroGuiInternal::SetPressed(*previousElement, false);
+            (*previousElement).SetPressedState( false);
             if (!stateChanged_.Empty()) {
                 stateChanged_.Invoke(*previousElement);
             }
@@ -1248,9 +1296,9 @@ Base::Result<void> FocusState::RememberFocus(
             }
             if (recordIndex == UINT32_MAX) {
                 scopeFocus_.PushBack(
-                    {scope.Value(), AeroGuiInternal::Handle(node)});
+                    {scope.Value(), ElementTree::HandleOf(node)});
             } else {
-                scopeFocus_[recordIndex].focused = AeroGuiInternal::Handle(node);
+                scopeFocus_[recordIndex].focused = ElementTree::HandleOf(node);
             }
         }
         if (current == root) break;
@@ -1285,7 +1333,7 @@ Base::Result<void> FocusState::CollectCandidates(
     ::Aero::Media::Visual& parent,
     Base::Vector<FocusCandidate>& candidates,
     std::uint32_t& order) noexcept {
-    for (::Aero::Media::Visual* child : AeroGuiInternal::RenderChildren(parent)) {
+    for (::Aero::Media::Visual* child : (parent).RenderChildren()) {
         if (child == nullptr) continue;
         UIElement* element = ::Aero::TryCast<::Aero::UIElement>(child);
         const std::uint32_t candidateOrder = order++;
@@ -1322,7 +1370,7 @@ Base::Result<void> FocusState::CollectCandidates(
 static UIElement* FindFirstFocusableDescendant(
     ::Aero::Media::Visual& parent) noexcept {
     for (::Aero::Media::Visual* child :
-         AeroGuiInternal::RenderChildren(parent)) {
+         (parent).RenderChildren()) {
         if (child == nullptr) continue;
         UIElement* element = ::Aero::TryCast<::Aero::UIElement>(child);
         if (element != nullptr &&
@@ -1383,7 +1431,7 @@ Base::Result<bool> FocusState::SetFocus(UIElement* node) noexcept {
         ::Aero::Media::Visual* current = &element;
         while (current != nullptr) {
             if (UIElement* ancestor = ::Aero::TryCast<::Aero::UIElement>(current)) {
-                AeroGuiInternal::SetKeyboardFocusWithin(*ancestor, value);
+                (*ancestor).SetKeyboardFocusWithinState( value);
             }
             current = ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent()) != nullptr ? ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent()) : current->GetVisualParent();
         }
@@ -1391,7 +1439,7 @@ Base::Result<bool> FocusState::SetFocus(UIElement* node) noexcept {
     UIElement* previous = FocusedNode();
     if (previous == node) return false;
     if (previous != nullptr) {
-        AeroGuiInternal::SetKeyboardFocused(*previous, false);
+        (*previous).SetKeyboardFocusedState( false);
         setFocusWithin(*previous, false);
         KeyboardFocusChangedEventArgs args;
         args.SetOldFocus(previous);
@@ -1400,12 +1448,12 @@ Base::Result<bool> FocusState::SetFocus(UIElement* node) noexcept {
             *previous, UIElement::LostKeyboardFocusEvent, &args);
         if (!lost) {
             static_cast<void>(
-                AeroGuiInternal::SetKeyboardFocused(*previous, true));
+                (*previous).SetKeyboardFocusedState( true));
             static_cast<void>(setFocusWithin(*previous, true));
             return lost.GetStatus();
         }
     }
-    AeroGuiInternal::SetKeyboardFocused(*node, true);
+    (*node).SetKeyboardFocusedState( true);
     setFocusWithin(*node, true);
     KeyboardFocusChangedEventArgs args;
     args.SetOldFocus(previous);
@@ -1413,11 +1461,11 @@ Base::Result<bool> FocusState::SetFocus(UIElement* node) noexcept {
     Base::Result<void> gained = events_->RaiseEvent(
         *node, UIElement::GotKeyboardFocusEvent, &args);
     if (!gained) {
-        static_cast<void>(AeroGuiInternal::SetKeyboardFocused(*node, false));
+        static_cast<void>((*node).SetKeyboardFocusedState( false));
         static_cast<void>(setFocusWithin(*node, false));
         if (previous != nullptr) {
             static_cast<void>(
-                AeroGuiInternal::SetKeyboardFocused(*previous, true));
+                (*previous).SetKeyboardFocusedState( true));
             static_cast<void>(setFocusWithin(*previous, true));
         }
         return gained.GetStatus();
@@ -1433,12 +1481,12 @@ Base::Result<bool> FocusState::ClearFocus() noexcept {
     if (previous == nullptr) return false;
     Base::Result<void> access = previous->VerifyAccess();
     if (!access) return access.GetStatus();
-    AeroGuiInternal::SetKeyboardFocused(*previous, false);
+    (*previous).SetKeyboardFocusedState( false);
     auto setFocusWithin = [](UIElement& element, bool value) noexcept {
         ::Aero::Media::Visual* current = &element;
         while (current != nullptr) {
             if (UIElement* ancestor = ::Aero::TryCast<::Aero::UIElement>(current)) {
-                AeroGuiInternal::SetKeyboardFocusWithin(*ancestor, value);
+                (*ancestor).SetKeyboardFocusWithinState( value);
             }
             current = ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent()) != nullptr ? ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent()) : current->GetVisualParent();
         }
@@ -1450,7 +1498,7 @@ Base::Result<bool> FocusState::ClearFocus() noexcept {
         *previous, UIElement::LostKeyboardFocusEvent, &args);
     if (!lost) {
         static_cast<void>(
-            AeroGuiInternal::SetKeyboardFocused(*previous, true));
+            (*previous).SetKeyboardFocusedState( true));
         static_cast<void>(setFocusWithin(*previous, true));
         return lost.GetStatus();
     }
@@ -1638,3 +1686,166 @@ Base::Result<TextInputDispatchResult> TextInputState::Dispatch(
 }
 
 } // namespace Aero
+
+// Metadata registration for the types implemented in this file.
+AERO_DESCRIBE(::Aero::EventArgs) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<EventArgs>(context);
+}
+
+AERO_DESCRIBE(::Aero::RoutedEventArgs) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<RoutedEventArgs>(context);
+}
+
+AERO_DESCRIBE(::Aero::InputEventArgs) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<InputEventArgs>(context);
+}
+
+AERO_DESCRIBE(::Aero::MouseEventArgs) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<MouseEventArgs>(context);
+}
+
+AERO_DESCRIBE(::Aero::MouseButtonEventArgs) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<MouseButtonEventArgs>(context);
+}
+
+AERO_DESCRIBE(::Aero::MouseWheelEventArgs) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<MouseWheelEventArgs>(context);
+}
+
+AERO_DESCRIBE(::Aero::DragEventArgs) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<DragEventArgs>(context);
+}
+
+AERO_DESCRIBE(::Aero::GiveFeedbackEventArgs) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<GiveFeedbackEventArgs>(context);
+}
+
+AERO_DESCRIBE(::Aero::DragCompletedEventArgs) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<DragCompletedEventArgs>(context);
+}
+
+AERO_DESCRIBE(::Aero::KeyEventArgs) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<KeyEventArgs>(context);
+}
+
+AERO_DESCRIBE(::Aero::TextCompositionEventArgs) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<TextCompositionEventArgs>(context);
+}
+
+AERO_DESCRIBE(::Aero::KeyboardFocusChangedEventArgs) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<KeyboardFocusChangedEventArgs>(context);
+}
+
+AERO_DESCRIBE(::Aero::Input::KeyboardNavigation) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<KeyboardNavigation>(context, TypeFlags::Abstract)
+            .Property(KeyboardNavigation::DirectionalNavigationProperty, KeyboardNavigationMode::Continue)
+            .Property(KeyboardNavigation::TabNavigationProperty, KeyboardNavigationMode::Continue)
+            .Property(KeyboardNavigation::ControlTabNavigationProperty, KeyboardNavigationMode::Continue)
+            .Property(KeyboardNavigation::TabIndexProperty, std::uint32_t{0})
+            .Property(KeyboardNavigation::AcceptsReturnProperty, false)
+            .Property(KeyboardNavigation::IsTabStopProperty, false);
+}
+
+AERO_DESCRIBE(::Aero::Input::FocusManager) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<FocusManager>(context, TypeFlags::Abstract)
+            .Property(FocusManager::IsFocusScopeProperty, false)
+            .Property(FocusManager::FocusedElementProperty, Base::Ref<Base::Object>{});
+}

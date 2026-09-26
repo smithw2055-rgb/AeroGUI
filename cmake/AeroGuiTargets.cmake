@@ -53,40 +53,37 @@ set(_aero_gui_core_sources
     src/gui/core/UIElement.cpp
     src/gui/core/FrameworkElement.cpp
     src/gui/core/FrameworkContentElement.cpp
-    src/gui/core/DependencyObject.cpp)
-
-set(_aero_gui_meta_sources
-    src/gui/meta/Metadata.cpp
-    src/gui/meta/EnumMetadata.cpp
-    src/gui/meta/BuiltinMetadata.cpp
-    src/gui/meta/Value.cpp
-    src/gui/meta/Module.cpp
-    src/gui/meta/BuiltinModules.cpp)
+    src/gui/core/DependencyObject.cpp
+    src/gui/core/Metadata.cpp
+    src/gui/core/EnumMetadata.cpp
+    src/gui/core/BuiltinMetadata.cpp
+    src/gui/core/Value.cpp
+    src/gui/core/Module.cpp
+    src/gui/core/BuiltinModules.cpp)
 
 set(_aero_gui_data_sources
     src/gui/data/BindingPath.cpp
-    src/gui/data/Binding.cpp
-    src/gui/data/BindingEvaluation.cpp
-    src/gui/data/BindingOperations.cpp
+    src/gui/data/BindingEngine.cpp
     src/gui/data/BindingExpression.cpp
     src/gui/data/NotifyPropertyChanged.cpp
     src/gui/data/CollectionView.cpp)
 
 set(_aero_gui_styles_sources
     src/gui/styles/Resources.cpp
-    src/gui/styles/Style.cpp)
+    src/gui/styles/Style.cpp
+    src/gui/styles/StyleMetadata.cpp)
 
 set(_aero_gui_input_sources
     src/gui/input/Commands.cpp
     src/gui/input/Input.cpp
     src/gui/input/Cursor.cpp
-    src/gui/input/Cursors.cpp
     src/gui/input/Mouse.cpp
     src/gui/input/Keyboard.cpp
     src/gui/input/DataObject.cpp
     src/gui/input/DragDrop.cpp
     src/gui/input/Clipboard.cpp
-    src/gui/input/OverlayHost.cpp)
+    src/gui/input/OverlayHost.cpp
+    src/gui/input/InputMetadata.cpp)
 
 set(_aero_gui_triggers_sources
     src/gui/triggers/Triggers.cpp
@@ -95,9 +92,6 @@ set(_aero_gui_triggers_sources
 set(_aero_gui_interactivity_sources
     src/gui/interactivity/Interactivity.cpp
     src/gui/interactivity/InteractivityEngine.cpp
-    src/gui/interactivity/InteractivityEngine.Behaviors.cpp
-    src/gui/interactivity/InteractivityEngine.Triggers.cpp
-    src/gui/interactivity/InteractivityEngine.Style.cpp
     src/gui/interactivity/BlendBehaviors.cpp)
 
 set(_aero_gui_media_sources
@@ -118,17 +112,19 @@ set(_aero_gui_media_sources
     src/gui/media/Transforms.cpp
     src/gui/media/AnimationPathResolver.cpp
     src/gui/media/StoryboardHost.cpp
-    src/gui/media/StoryboardHost.Properties.cpp
-    src/gui/media/StoryboardHost.Timelines.cpp
-    src/gui/media/StoryboardHost.Actions.cpp
-    src/gui/media/StoryboardHost.Completions.cpp
-    src/gui/media/StoryboardHost.Events.cpp)
+    src/gui/media/StoryboardClock.cpp
+    src/gui/media/StoryboardActions.cpp
+    src/gui/media/MediaMetadata.cpp
+    src/gui/media/ResourceMetadata.cpp
+    src/gui/media/AnimationMetadata.cpp)
 
 set(_aero_gui_controls_sources
     src/gui/controls/RichText.cpp
     src/gui/controls/Bars.cpp
     src/gui/controls/Buttons.cpp
+    src/gui/controls/ContentControl.cpp
     src/gui/controls/ContentControls.cpp
+    src/gui/controls/ContentPresenter.cpp
     src/gui/controls/Controls.cpp
     src/gui/controls/Panels.cpp
     src/gui/controls/Images.cpp
@@ -141,6 +137,10 @@ set(_aero_gui_controls_sources
     src/gui/controls/ScrollViewer.cpp
     src/gui/controls/ScrollBar.cpp
     src/gui/controls/Selection.cpp
+    src/gui/controls/Selector.cpp
+    src/gui/controls/ComboBox.cpp
+    src/gui/controls/Popup.cpp
+    src/gui/controls/TabControl.cpp
     src/gui/controls/TextBox.cpp
     src/gui/controls/PasswordBox.cpp
     src/gui/controls/Trees.cpp
@@ -148,12 +148,6 @@ set(_aero_gui_controls_sources
     src/gui/controls/VisualStateManager.cpp)
 
 set(_aero_gui_markup_sources
-    src/gui/markup/XamlObjectWriterCommon.cpp
-    src/gui/markup/XamlObjectWriterBuilderLoad.cpp
-    src/gui/markup/XamlObjectWriterBuilderNodes.cpp
-    src/gui/markup/XamlObjectWriterBuilderValues.cpp
-    src/gui/markup/XamlObjectWriterBuilderWrite.cpp
-    src/gui/markup/XamlObjectWriterNameScope.cpp
     src/gui/markup/XamlObjectWriter.cpp
     src/gui/markup/XamlMarkupExtensions.cpp
     src/gui/markup/XamlParser.cpp
@@ -217,35 +211,19 @@ set(_aero_gui_composition_sources
     src/gui/ViewDocuments.cpp)
 
 set(_aero_gui_inlines
-    src/gui/meta/TypeRegistry.inl
-    src/gui/meta/MetadataAuthoring.inl
-    src/gui/meta/BehaviorTable.inl
-    src/gui/meta/MetaTable.inl
-    src/gui/meta/Registry.inl
-    src/gui/meta/Animation.inl
-    src/gui/meta/Elements.inl
-    src/gui/meta/Input.inl
-    src/gui/meta/InputDevices.inl
-    src/gui/meta/Media.inl
-    src/gui/meta/Resources.inl
-    src/gui/meta/Styling.inl
-    src/gui/meta/Support.inl
-    src/gui/media/FlattenSinks.inl
-    src/gui/markup/BindingExtension.inl
-    src/gui/markup/DynamicResourceExtension.inl
-    src/gui/markup/StaticResourceExtension.inl
-    src/gui/markup/LocExtension.inl
-    src/gui/markup/TemplateBindingExtension.inl
-    src/gui/markup/TypeExtension.inl
-    src/gui/markup/StaticExtension.inl)
+    src/gui/media/FlattenSinks.inl)
 
 set(_aero_gui_internal_headers
     src/gui/data/BindingCommon.hpp
+    src/gui/data/BindingPath.hpp
     src/gui/controls/ControlsMetadata.hpp
     src/gui/controls/ScrollCommon.hpp
     src/gui/controls/TextBoxCommon.hpp
     src/gui/markup/MarkupCommon.hpp
     src/gui/markup/XamlObjectWriterCommon.hpp
+    src/gui/markup/MarkupExtensionContract.hpp
+    src/gui/markup/XamlObjectWriterState.hpp
+    src/gui/templates/TemplateBlueprint.hpp
     src/gui/markup/MarkupExtensionHost.hpp
     src/gui/media/AnimationEngineCommon.hpp
     src/gui/ViewRenderer.hpp
@@ -253,7 +231,6 @@ set(_aero_gui_internal_headers
 
 set(_aero_gui_sources
     ${_aero_gui_core_sources}
-    ${_aero_gui_meta_sources}
     ${_aero_gui_data_sources}
     ${_aero_gui_styles_sources}
     ${_aero_gui_input_sources}
@@ -278,9 +255,9 @@ source_group("gui\\controls\\text" REGULAR_EXPRESSION
 source_group("gui\\controls\\scroll" REGULAR_EXPRESSION
     "src/gui/controls/(Scroll.*).*")
 source_group("gui\\controls\\items" REGULAR_EXPRESSION
-    "src/gui/controls/(Items.*|ItemContainerGenerator|ListView|Selection|Trees|Virtualization).*")
+    "src/gui/controls/(Items.*|ItemContainerGenerator|ListView|Selection|Selector|ComboBox|Trees|Virtualization).*")
 source_group("gui\\controls\\chrome" REGULAR_EXPRESSION
-    "src/gui/controls/(Bars|Buttons|Menus|ContentControls|Controls.*|Images|VisualStateManager).*")
+    "src/gui/controls/(Bars|Buttons|Menus|ContentControl.*|ContentPresenter|Popup|TabControl|Controls.*|Images|VisualStateManager).*")
 source_group("gui\\inlines" FILES ${_aero_gui_inlines})
 source_group("gui\\headers" FILES ${_aero_gui_internal_headers})
 
@@ -292,7 +269,7 @@ add_library(Aero::Gui ALIAS AeroGui)
 target_include_directories(AeroGui
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        # B4: Meta.hpp pulls TypeBuilder authoring detail from src/gui/meta.
+        # Meta.hpp pulls TypeBuilder authoring detail from src/gui/core.
         # BUILD uses src/; INSTALL uses the aero-meta-authoring prefix only.
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
         $<INSTALL_INTERFACE:include>
@@ -354,7 +331,6 @@ aero_apply_compiler_options(AeroMetaHeaderConsumer)
 
 unset(_aero_gui_sources)
 unset(_aero_gui_core_sources)
-unset(_aero_gui_meta_sources)
 unset(_aero_gui_data_sources)
 unset(_aero_gui_styles_sources)
 unset(_aero_gui_input_sources)

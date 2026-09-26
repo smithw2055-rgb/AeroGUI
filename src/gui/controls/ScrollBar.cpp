@@ -1,15 +1,12 @@
 #include "gui/controls/ScrollCommon.hpp"
-#include "gui/meta/Describe.hpp"
-#include "gui/meta/ValueConversion.hpp"
+#include "gui/core/Describe.hpp"
+#include "gui/core/ValueConversion.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/input/InputManager.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleEngine.hpp"
 #include "render/DisplayList.hpp"
 #include <Aero/Controls.hpp>
 #include <Aero/ClassHandler.hpp>
@@ -22,7 +19,6 @@
 #include <cmath>
 #include <limits>
 #include "gui/templates/TemplateInstance.hpp"
-#include "gui/meta/TypeRegistryDetail.hpp"
 #include <Aero/Events/ControlEventArgs.hpp>
 
 namespace Aero::Controls {
@@ -356,7 +352,7 @@ void ScrollBar::OnApplyTemplate() noexcept {
         GetTemplateChild("PART_Track");
     track_ =
         part != nullptr &&
-        AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
+        (*this).PropertyRegistry().Types().IsDerivedFrom(
             part->RuntimeType(),
             Track::StaticTypeId())
         ? static_cast<Track*>(part)
@@ -385,7 +381,7 @@ void ScrollBar::OnVisualParentChanged(Visual* oldParent) noexcept {
 
 void ScrollBar::EnsureCommands() noexcept {
     if (!commandHandles_.Empty()) return;
-    Aero::InputRouter* input = AeroGuiInternal::InputRouterOf(*this);
+    Aero::InputRouter* input = ElementTree::InputOf(*this);
     if (input == nullptr) return;
     auto addCmd = [this, input](Base::StringView name, const ExecutedRoutedEventHandler& handler) {
         auto cmd = Input::RoutedCommand::ResolveStatic(StaticTypeId(), name);
@@ -425,7 +421,7 @@ void ScrollBar::EnsureCommands() noexcept {
 }
 
 void ScrollBar::UnregisterCommands() noexcept {
-    Aero::InputRouter* input = AeroGuiInternal::InputRouterOf(*this);
+    Aero::InputRouter* input = ElementTree::InputOf(*this);
     if (input != nullptr) {
         for (Input::CommandBindingHandle handle : commandHandles_) {
             static_cast<void>(input->RemoveCommandBinding(handle));
@@ -876,7 +872,7 @@ void Slider::OnApplyTemplate() noexcept {
     Control::OnApplyTemplate();
     DependencyObject* part = GetTemplateChild("PART_Track");
     track_ = part != nullptr &&
-        AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
+        (*this).PropertyRegistry().Types().IsDerivedFrom(
             part->RuntimeType(), Track::StaticTypeId())
         ? static_cast<Track*>(part)
         : nullptr;
@@ -904,7 +900,7 @@ void Slider::OnVisualParentChanged(Visual* oldParent) noexcept {
 
 void Slider::EnsureCommands() noexcept {
     if (decreaseSmallCommand_.IsValid()) return;
-    Aero::InputRouter* input = AeroGuiInternal::InputRouterOf(*this);
+    Aero::InputRouter* input = ElementTree::InputOf(*this);
     if (input == nullptr) return;
     auto addCmd = [this, input](Base::StringView name, const ExecutedRoutedEventHandler& handler, Input::CommandBindingHandle& out) {
         auto cmd = Input::RoutedCommand::ResolveStatic(StaticTypeId(), name);
@@ -920,7 +916,7 @@ void Slider::EnsureCommands() noexcept {
 }
 
 void Slider::UnregisterCommands() noexcept {
-    Aero::InputRouter* input = AeroGuiInternal::InputRouterOf(*this);
+    Aero::InputRouter* input = ElementTree::InputOf(*this);
     if (input != nullptr) {
         if (decreaseSmallCommand_.IsValid()) input->RemoveCommandBinding(decreaseSmallCommand_);
         if (increaseSmallCommand_.IsValid()) input->RemoveCommandBinding(increaseSmallCommand_);
@@ -1421,7 +1417,7 @@ void Slider::OnRender(
         std::max(0.0,
             primary - thumbLength);
     const Color color = ::Aero::Media::SampleBrush(GetForeground());
-    if (AeroGuiInternal::RenderChildren(*this).Empty()) {
+    if ((*this).RenderChildren().Empty()) {
         Color trackColor = color;
         trackColor.alpha *= 0.35F;
         const double normalized =
@@ -1609,7 +1605,7 @@ void TickBar::OnRender(
     auto& builder = Aero::Render::DrawingBridge::Builder(context);
     DependencyObject* parent = GetTemplatedParent();
     if (parent == nullptr ||
-        !AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
+        !(*this).PropertyRegistry().Types().IsDerivedFrom(
             parent->RuntimeType(), Slider::StaticTypeId())) {
         return;
     }

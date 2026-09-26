@@ -1,14 +1,12 @@
-#include "gui/meta/TypeRegistryDetail.hpp"
+#include "gui/core/TypeRegistryDetail.hpp"
+#include "gui/templates/TemplateBlueprint.hpp"
 #include "gui/markup/XamlObjectWriterCommon.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/data/BindingEngine.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleEngine.hpp"
 #include "gui/controls/ItemsContainers.hpp"
 #include "gui/templates/TemplateInstance.hpp"
 #include <Aero/VisualStateManager.hpp>
@@ -20,6 +18,7 @@
 #include "gui/templates/DataTemplateTriggerInstance.hpp"
 #include "gui/media/AnimationModel.hpp"
 #include <Aero/Documents.hpp>
+#include <Aero/TextProperties.hpp>
 
 
 #include <Aero/Media/Geometries.hpp>
@@ -351,10 +350,10 @@ CompileBlueprint(
         if (!named) return named.GetStatus();
 
         if (auto* framework = ::Aero::TryCast<FrameworkElement>(object)) {
-            for (const auto& b : AeroGuiInternal::AuthoredBehaviors(*framework)) {
+            for (const auto& b : (*framework).AuthoredBehaviors()) {
                 node.authoredBehaviors.PushBack(b);
             }
-            for (const auto& t : AeroGuiInternal::AuthoredTriggers(*framework)) {
+            for (const auto& t : (*framework).AuthoredTriggers()) {
                 node.authoredTriggers.PushBack(t);
             }
         }
@@ -1932,10 +1931,10 @@ Base::Result<void> BuildCompiledTemplate(
         }
         if (auto* framework = ::Aero::TryCast<FrameworkElement>(objects[index].Get())) {
             for (const auto& b : node.authoredBehaviors) {
-                AeroGuiInternal::AddStyleBehaviorPrototype(*framework, b);
+                (*framework).AddStyleBehaviorPrototype( b);
             }
             for (const auto& t : node.authoredTriggers) {
-                AeroGuiInternal::AddStyleTriggerPrototype(*framework, t);
+                (*framework).AddStyleTriggerPrototype( t);
             }
         }
     }
@@ -2319,8 +2318,7 @@ Base::Result<void> BuildCompiledTemplate(
         // evaluated. Keep the owner alive through both evaluations.
         FrameworkElement* const triggerRoot = triggerContext->root;
         Base::Ref<Base::Object> triggerOwner(triggerContext);
-        AeroGuiInternal::AddAuthoredTrigger(
-            *triggerRoot, std::move(triggerOwner));
+        (*triggerRoot).AddAuthoredTrigger( std::move(triggerOwner));
     }
     return {};
 }
@@ -2395,10 +2393,10 @@ BuildCompiledDeferredTemplate(
         }
         if (auto* framework = ::Aero::TryCast<FrameworkElement>(objects[index].Get())) {
             for (const auto& b : node.authoredBehaviors) {
-                AeroGuiInternal::AddStyleBehaviorPrototype(*framework, b);
+                (*framework).AddStyleBehaviorPrototype( b);
             }
             for (const auto& t : node.authoredTriggers) {
-                AeroGuiInternal::AddStyleTriggerPrototype(*framework, t);
+                (*framework).AddStyleTriggerPrototype( t);
             }
         }
     }
@@ -2742,8 +2740,7 @@ BuildCompiledDeferredTemplate(
         if (!retained) return retained.GetStatus();
     }
     if (triggerContext) {
-        AeroGuiInternal::AddAuthoredTrigger(
-            static_cast<FrameworkElement&>(*root),
+        (static_cast<FrameworkElement&>(*root)).AddAuthoredTrigger(
             Base::Ref<Base::Object>(triggerContext));
     }
     return root;

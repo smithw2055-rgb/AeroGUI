@@ -1,13 +1,9 @@
 #include "Inspector.hpp"
-#include "gui/meta/TypeRegistryDetail.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleEngine.hpp"
 
 #include <Aero/Controls.hpp>
 #include <Aero/LogicalTreeHelper.hpp>
@@ -45,7 +41,7 @@ Base::Result<void> AppendTree(
     }
     InspectorTreeNode record;
     record.node = &node;
-    record.handle = AeroGuiInternal::Handle(node);
+    record.handle = ElementTree::HandleOf(node);
     record.parent = parent;
     record.runtimeType =
         node.RuntimeType();
@@ -139,7 +135,7 @@ using namespace Aero::Threading;
 
     for (const DependencyProperty&
         property :
-        AeroGuiInternal::PropertyRegistry(target).
+        (target).PropertyRegistry().
             Properties()) {
         if (property.MetadataFor(
                 target.RuntimeType()) ==
@@ -215,7 +211,7 @@ using namespace Aero::Threading;
             styles_->AppliedStyle(target);
     }
     if (templates_ != nullptr &&
-        AeroGuiInternal::PropertyRegistry(target).
+        (target).PropertyRegistry().
             Types().IsDerivedFrom(
                 target.RuntimeType(),
                 Control::StaticTypeId())) {

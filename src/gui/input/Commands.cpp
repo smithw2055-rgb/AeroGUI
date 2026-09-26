@@ -3,28 +3,69 @@
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/input/InputManager.hpp" 
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleEngine.hpp"
 #include <Aero/Input.hpp>
 #include <Aero/ICommand.hpp>
 #include <Aero/InputGesture.hpp>
-#include <Aero/KeyGesture.hpp>
 #include <Aero/RoutedCommand.hpp>
 #include <Aero/TryCast.hpp>
-#include <Aero/KeyBinding.hpp>
-#include <Aero/MouseBinding.hpp>
-#include <Aero/RoutedUICommand.hpp>
 #include <Aero/InputBinding.hpp>
 #include <Aero/CommandBinding.hpp>
 #include <Aero/KeyboardNavigation.hpp>
-#include <Aero/FocusManager.hpp>
 #include <Aero/ApplicationCommands.hpp>
 
 
 #include <cctype>
 #include <mutex>
+#include "gui/core/Describe.hpp"
+#include "gui/core/TypeRegistryDetail.hpp"
+#include "gui/core/RenderStateCallbacks.hpp"
+#include "gui/core/ValueConversion.hpp"
+#include "gui/data/BindingEngine.hpp"
+#include <Aero/Interactivity/Conditions.hpp>
+#include <Aero/Interactivity/Behavior.hpp>
+#include <Aero/Interactivity/BlendBehaviors.hpp>
+#include <Aero/Interactivity/Interaction.hpp>
+#include <Aero/Interactivity/InteractionTriggers.hpp>
+#include <Aero/Interactivity/TriggerAction.hpp>
+#include <Aero/Style.hpp>
+#include <Aero/Triggers.hpp>
+#include <Aero/Resources.hpp>
+#include <Aero/EventTrigger.hpp>
+#include <Aero/Events/EventArgs.hpp>
+#include <Aero/Events/CommandEventArgs.hpp>
+#include <Aero/Media/Animation.hpp>
+#include <Aero/Media/Animation/MediaActions.hpp>
+#include <Aero/Media/Animation/StoryboardActions.hpp>
+#include <Aero/Media/Animation/StoryboardCompletedTrigger.hpp>
+#include <Aero/Media/Animation/TimerTrigger.hpp>
+#include <Aero/Media/Brushes.hpp>
+#include <Aero/Media/Effects.hpp>
+#include <Aero/Media/Images.hpp>
+#include <Aero/Media/MediaElement.hpp>
+#include <Aero/Media/Transform2D.hpp>
+#include <Aero/Media/Transform3D.hpp>
+#include <Aero/Media/Geometries.hpp>
+#include <Aero/Media/Pen.hpp>
+#include <Aero/Media/Fonts.hpp>
+#include <Aero/Layout.hpp>
+#include <Aero/FrameworkElement.hpp>
+#include <Aero/Collections.hpp>
+#include <Aero/EventSetter.hpp>
+#include <Aero/Data/Binding.hpp>
+#include <Aero/Data/MultiBinding.hpp>
+#include <Aero/Data/BooleanToVisibilityConverter.hpp>
+#include <Aero/Data/IMultiValueConverter.hpp>
+#include <Aero/Data/IValueConverter.hpp>
+#include <Aero/DataObject.hpp>
+#include <Aero/DragDrop.hpp>
+#include <Aero/Input/Cursor.hpp>
+#include <Aero/Input/Mouse.hpp>
+#include <Aero/Input/Keyboard.hpp>
+#include <Aero/Animatable.hpp>
+#include <cmath>
+#include <cstdlib>
+#include <utility>
 
 namespace Aero::Input {
 
@@ -511,7 +552,7 @@ Base::Result<bool> RoutedCommand::CanExecute(
     const Meta::Value& parameter,
     UIElement* target) noexcept {
     Aero::InputRouter* input = target != nullptr
-        ? AeroGuiInternal::InputRouterOf(*target)
+        ? ElementTree::InputOf(*target)
         : nullptr;
     if (input == nullptr) {
         return Base::Status::Failure(
@@ -525,7 +566,7 @@ void RoutedCommand::Execute(
     const Meta::Value& parameter,
     UIElement* target) noexcept {
     Aero::InputRouter* input = target != nullptr
-        ? AeroGuiInternal::InputRouterOf(*target)
+        ? ElementTree::InputOf(*target)
         : nullptr;
     if (input == nullptr) {
         return;
@@ -715,12 +756,12 @@ Base::Result<bool> CommandState::CanExecute(
     Base::Result<void> routed = events_->VisitRoute(
         target, RoutingStrategy::Bubble,
         [&](DependencyObject& owner) noexcept {
-            if (!AeroGuiInternal::PropertyRegistry(owner).Types().IsDerivedFrom(
+            if (!(owner).PropertyRegistry().Types().IsDerivedFrom(
                     owner.RuntimeType(), UIElement::StaticTypeId())) {
                 return true;
             }
             auto& element = static_cast<UIElement&>(owner);
-            const VisualHandle ownerHandle = AeroGuiInternal::Handle(element);
+            const VisualHandle ownerHandle = ElementTree::HandleOf(element);
             for (const BindingRecord& record : bindings_) {
                 if (record.owner.index != ownerHandle.index ||
                     record.owner.generation != ownerHandle.generation ||
@@ -763,12 +804,12 @@ Base::Result<bool> CommandState::Execute(
     Base::Result<void> routed = events_->VisitRoute(
         target, RoutingStrategy::Bubble,
         [&](DependencyObject& owner) noexcept {
-            if (!AeroGuiInternal::PropertyRegistry(owner).Types().IsDerivedFrom(
+            if (!(owner).PropertyRegistry().Types().IsDerivedFrom(
                     owner.RuntimeType(), UIElement::StaticTypeId())) {
                 return true;
             }
             auto& element = static_cast<UIElement&>(owner);
-            const VisualHandle ownerHandle = AeroGuiInternal::Handle(element);
+            const VisualHandle ownerHandle = ElementTree::HandleOf(element);
             for (const BindingRecord& record : bindings_) {
                 if (record.owner.index != ownerHandle.index ||
                     record.owner.generation != ownerHandle.generation ||
@@ -803,12 +844,12 @@ Base::Result<bool> CommandState::ProcessInput(
     Base::Result<void> routed = events_->VisitRoute(
         target, RoutingStrategy::Bubble,
         [&](DependencyObject& current) noexcept {
-            if (!AeroGuiInternal::PropertyRegistry(current).Types().IsDerivedFrom(
+            if (!(current).PropertyRegistry().Types().IsDerivedFrom(
                     current.RuntimeType(), UIElement::StaticTypeId())) {
                 return true;
             }
             auto& element = static_cast<UIElement&>(current);
-            const VisualHandle owner = AeroGuiInternal::Handle(element);
+            const VisualHandle owner = ElementTree::HandleOf(element);
             for (const InputBindingRecord& record : inputBindings_) {
                 if (record.owner.index != owner.index ||
                     record.owner.generation != owner.generation ||
@@ -857,12 +898,12 @@ Base::Result<bool> CommandState::ProcessInput(
     Base::Result<void> routed = events_->VisitRoute(
         target, RoutingStrategy::Bubble,
         [&](DependencyObject& current) noexcept {
-            if (!AeroGuiInternal::PropertyRegistry(current).Types().IsDerivedFrom(
+            if (!(current).PropertyRegistry().Types().IsDerivedFrom(
                     current.RuntimeType(), UIElement::StaticTypeId())) {
                 return true;
             }
             auto& element = static_cast<UIElement&>(current);
-            const VisualHandle owner = AeroGuiInternal::Handle(element);
+            const VisualHandle owner = ElementTree::HandleOf(element);
             for (const InputBindingRecord& record : inputBindings_) {
                 if (record.owner.index != owner.index ||
                     record.owner.generation != owner.generation ||
@@ -905,3 +946,262 @@ void CommandState::InvalidateRequerySuggested() const noexcept {
 }
 
 } // namespace Aero
+
+// Metadata registration for the types implemented in this file.
+namespace Aero::MetadataSupport {
+using namespace ::Aero::Meta;
+using namespace ::Aero::Threading;
+using namespace ::Aero::Input;
+using namespace ::Aero::Media;
+using namespace ::Aero::Data;
+using namespace ::Aero::Interactivity;
+    using namespace Interactivity;
+    using Media::Animation::BeginStoryboard;
+    using Media::Animation::BooleanAnimationUsingKeyFrames;
+    using Media::Animation::BooleanKeyFrame;
+    using Media::Animation::ColorAnimationUsingKeyFrames;
+    using Media::Animation::ColorKeyFrame;
+    using Media::Animation::DoubleAnimationUsingKeyFrames;
+    using Media::Animation::DoubleKeyFrame;
+    using Media::Animation::EventTrigger;
+    using Media::Animation::Int16AnimationUsingKeyFrames;
+    using Media::Animation::Int16KeyFrame;
+    using Media::Animation::Int32AnimationUsingKeyFrames;
+    using Media::Animation::Int32KeyFrame;
+    using Media::Animation::Int64AnimationUsingKeyFrames;
+    using Media::Animation::Int64KeyFrame;
+    using Media::Animation::MatrixAnimationUsingKeyFrames;
+    using Media::Animation::MatrixKeyFrame;
+    using Media::Animation::ObjectAnimationUsingKeyFrames;
+    using Media::Animation::ObjectKeyFrame;
+    using Media::Animation::PointAnimationUsingKeyFrames;
+    using Media::Animation::PointKeyFrame;
+    using Media::Animation::SizeAnimationUsingKeyFrames;
+    using Media::Animation::SizeKeyFrame;
+    using Media::Animation::Storyboard;
+    using Media::Animation::StoryboardCompletedTrigger;
+    using Media::Animation::StringAnimationUsingKeyFrames;
+    using Media::Animation::StringKeyFrame;
+    using Media::Animation::ThicknessAnimationUsingKeyFrames;
+    using Media::Animation::ThicknessKeyFrame;
+    using Media::Animation::Timeline;
+    using Media::Animation::TimelineGroup;
+    using Media::Effect;
+    using Media::FontFamily;
+    using Media::Geometry;
+    using Media::GeometryGroup;
+    using Media::PathFigure;
+    using Media::PathGeometry;
+    using Media::PathSegment;
+    using Media::StreamGeometry;
+namespace {
+
+Base::Result<Value> ConvertRoutedCommandReference(
+    TypeId targetType,
+    Base::StringView text,
+    void*) noexcept {
+    const Base::StringView name =
+        ::Aero::Base::ValueConversion::Trim(text);
+    if ((targetType != ICommand::StaticTypeId() &&
+         targetType != RoutedCommand::StaticTypeId()) ||
+        name.Empty()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Command reference requires a non-empty routed command name");
+    }
+    Base::Result<Base::Ref<RoutedCommand>> command =
+        RoutedCommand::ResolveAuthored(name);
+    if (!command) return command.GetStatus();
+    return Value::FromObject(
+        targetType,
+        Base::Ref<Base::Object>(
+            std::move(command).Value()));
+}
+} // namespace
+} // namespace Aero::MetadataSupport
+
+AERO_DESCRIBE(::Aero::CanExecuteRoutedEventArgs) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<CanExecuteRoutedEventArgs>(context);
+}
+
+AERO_DESCRIBE(::Aero::ExecutedRoutedEventArgs) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<ExecutedRoutedEventArgs>(context);
+}
+
+AERO_DESCRIBE(::Aero::Input::ICommand) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<ICommand>(context, TypeFlags::Abstract)
+            .TextConverter(&::Aero::MetadataSupport::ConvertRoutedCommandReference);
+}
+
+AERO_DESCRIBE(::Aero::Input::InputGesture) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<InputGesture>(context, TypeFlags::Abstract);
+}
+
+AERO_DESCRIBE(::Aero::Input::KeyGesture) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<KeyGesture>(context);
+}
+
+AERO_DESCRIBE(::Aero::Input::RoutedCommand) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<RoutedCommand>(context)
+            .TextConverter(&::Aero::MetadataSupport::ConvertRoutedCommandReference);
+}
+
+AERO_DESCRIBE(::Aero::Input::RoutedUICommand) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<RoutedUICommand>(context);
+}
+
+AERO_DESCRIBE(::Aero::Input::InputBinding) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<InputBinding>(context, TypeFlags::Abstract);
+}
+
+AERO_DESCRIBE(::Aero::Input::CommandBinding) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<CommandBinding>(context)
+            .Property("Command", &CommandBinding::GetCommandName, &CommandBinding::SetCommandName)
+            .Property("Executed", &CommandBinding::GetExecutedName, &CommandBinding::SetExecutedName)
+            .Property("CanExecute", &CommandBinding::GetCanExecuteName, &CommandBinding::SetCanExecuteName)
+            .Factory();
+}
+
+AERO_DESCRIBE(::Aero::Input::ApplicationCommands) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    Register<ApplicationCommands>(context, TypeFlags::Abstract);
+}
+
+AERO_DESCRIBE(::Aero::Input::KeyBinding) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    using namespace Media::Animation;
+    using namespace Interactivity;
+    using Media::Animation::ColorAnimation;
+    using Media::Animation::ColorKeyFrame;
+    using Media::Animation::DoubleAnimation;
+    using Media::Animation::DoubleKeyFrame;
+    using Media::Animation::MatrixAnimation;
+    using Media::Animation::MatrixKeyFrame;
+    using Media::Animation::PointAnimation;
+    using Media::Animation::PointKeyFrame;
+    using Media::Animation::RectAnimation;
+    using Media::Animation::RepeatBehavior;
+    using Media::Animation::SizeAnimation;
+    using Media::Animation::SizeKeyFrame;
+    using Media::Animation::ThicknessAnimation;
+    using Media::Animation::ThicknessKeyFrame;
+    using ::Aero::Base::Color;
+    using ::Aero::Base::Point;
+    using ::Aero::Base::Rect;
+    using ::Aero::Base::Size;
+    using ::Aero::Base::Thickness;
+    Register<KeyBinding>(context)
+            .Property("Command", &KeyBinding::GetCommandName, &KeyBinding::SetCommandName)
+            .Property("Key", &KeyBinding::GetKeyName, &KeyBinding::SetKeyName)
+            .Property("Modifiers", &KeyBinding::GetModifiersName, &KeyBinding::SetModifiersName)
+            .Factory();
+}
+
+AERO_DESCRIBE(::Aero::Input::MouseBinding) {
+    using namespace ::Aero;
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Threading;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    using namespace ::Aero::Data;
+    using namespace ::Aero::Interactivity;
+    using namespace Media::Animation;
+    using namespace Interactivity;
+    using Media::Animation::ColorAnimation;
+    using Media::Animation::ColorKeyFrame;
+    using Media::Animation::DoubleAnimation;
+    using Media::Animation::DoubleKeyFrame;
+    using Media::Animation::MatrixAnimation;
+    using Media::Animation::MatrixKeyFrame;
+    using Media::Animation::PointAnimation;
+    using Media::Animation::PointKeyFrame;
+    using Media::Animation::RectAnimation;
+    using Media::Animation::RepeatBehavior;
+    using Media::Animation::SizeAnimation;
+    using Media::Animation::SizeKeyFrame;
+    using Media::Animation::ThicknessAnimation;
+    using Media::Animation::ThicknessKeyFrame;
+    using ::Aero::Base::Color;
+    using ::Aero::Base::Point;
+    using ::Aero::Base::Rect;
+    using ::Aero::Base::Size;
+    using ::Aero::Base::Thickness;
+    Register<MouseBinding>(context)
+            .Property("Command", &MouseBinding::GetCommandName, &MouseBinding::SetCommandName)
+            .Factory();
+}

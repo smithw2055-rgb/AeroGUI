@@ -45,6 +45,8 @@ Base::Result<void> PopulateAppMetadata(
         .Property(Aero::Window::SizeToContentProperty, Meta::FrameworkPropertyMetadata(Aero::SizeToContent::Manual).AffectsMeasure())
         .Property(Aero::Window::ShowInTaskbarProperty, Meta::FrameworkPropertyMetadata(true))
         .Property(Aero::Window::TopmostProperty, Meta::FrameworkPropertyMetadata(false))
+        .Property(Aero::Window::DialogResultProperty, Meta::FrameworkPropertyMetadata(::Aero::Nullable<bool>{}))
+        .Property(Aero::Window::OwnerProperty, Meta::FrameworkPropertyMetadata(Base::Ref<Aero::Window>{}))
         .Event(Aero::Window::ClosingEvent, Aero::RoutingStrategy::Direct)
         .Event(Aero::Window::ClosedEvent, Aero::RoutingStrategy::Direct)
         .Event(Aero::Window::ActivatedEvent, Aero::RoutingStrategy::Direct)

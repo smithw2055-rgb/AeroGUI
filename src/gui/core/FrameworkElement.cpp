@@ -1,5 +1,6 @@
 // Auto-relocated base-class method definitions (WPF semantic kernel).
 #include <Aero/FrameworkElement.hpp>
+#include "gui/styles/StyleEngine.hpp"
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Allocator.hpp>
@@ -16,17 +17,14 @@
 #include <Aero/Controls.hpp>
 #include <cmath>
 #include <cstdio>
-#include "gui/meta/ElementsFill.hpp"
-#include "gui/meta/ValueConversion.hpp"
+#include "gui/core/ElementsFill.hpp"
+#include "gui/core/ValueConversion.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/input/InputManager.hpp"
-#include "gui/styles/StyleEngine.hpp"
-#include "gui/meta/TypeRegistryDetail.hpp"
 #include "gui/templates/TemplateInstance.hpp"
 #include "gui/media/AnimationModel.hpp"
 
@@ -258,7 +256,7 @@ Base::Object* FrameworkElement::FindNameObject(
             if (expectedType == Meta::InvalidTypeId) {
                 return object;
             }
-            return AeroGuiInternal::PropertyRegistry(*this).Types().IsDerivedFrom(
+            return (*this).PropertyRegistry().Types().IsDerivedFrom(
                 object->RuntimeType(), expectedType)
                 ? object
                 : nullptr;
@@ -282,7 +280,7 @@ Base::Object* FrameworkElement::FindNameObject(
         }
         current = ::Aero::TryCast<FrameworkElement>(parent);
     }
-    return AeroGuiInternal::FindName(
+    return ElementTree::FindInTree(
         *this, name, expectedType);
 }
 
@@ -304,7 +302,7 @@ const ResourceDictionary* TemplateResourcesFor(
     const auto& control =
         *static_cast<const Controls::Control*>(templated);
     Controls::TemplateEngine* templates =
-        AeroGuiInternal::TemplatesOf(control);
+        ElementTree::TemplatesOf(control);
     if (templates == nullptr) {
         return nullptr;
     }
@@ -334,7 +332,7 @@ Result<ResourceValue> FrameworkElement::FindResource(
         this,
         key,
         TemplateResourcesFor(*this),
-        AeroGuiInternal::ResourceEnvironmentOf(*this));
+        ElementTree::EnvironmentOf(*this));
 }
 
 Result<ResourceValue> FrameworkElement::FindResource(
@@ -343,7 +341,7 @@ Result<ResourceValue> FrameworkElement::FindResource(
         this,
         key,
         TemplateResourcesFor(*this),
-        AeroGuiInternal::ResourceEnvironmentOf(*this));
+        ElementTree::EnvironmentOf(*this));
 }
 
 Result<ResourceValue> FrameworkElement::TryFindResource(
@@ -425,8 +423,7 @@ void AddFrameworkEventTrigger(
         return;
     }
     static_cast<void>(
-        AeroGuiInternal::AddAuthoredTrigger(
-            static_cast<FrameworkElement&>(owner),
+        (static_cast<FrameworkElement&>(owner)).AddAuthoredTrigger(
             Base::Ref<Base::Object>(std::move(retained))));
 }
 
@@ -434,8 +431,7 @@ void ClearFrameworkEventTriggers(
     Base::Object& owner,
     void*) noexcept {
     static_cast<void>(
-        AeroGuiInternal::ClearAuthoredTriggers(
-            static_cast<FrameworkElement&>(owner)));
+        (static_cast<FrameworkElement&>(owner)).ClearAuthoredTriggers());
 }
 
 void OnLayoutTransformChanged(

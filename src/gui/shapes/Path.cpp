@@ -11,9 +11,6 @@
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/internal/AeroGuiInternal.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleEngine.hpp"
 #include "gui/media/BrushRendering.hpp"
 #include <algorithm>
 #include <cerrno>
@@ -434,7 +431,7 @@ void Path::OnPropertyChanged(
         handle == StrokeDashArrayProperty.Handle() ||
         handle == StrokeDashOffsetProperty.Handle() ||
         handle == DashStyleProperty.Handle()) {
-        AeroGuiInternal::PathInvalidateGeometry(*this);
+        (*this).ResetGeometry();
     }
     Shape::OnPropertyChanged(args);
 }
@@ -642,7 +639,7 @@ Base::Result<void> Path::EnsureGeometry() noexcept {
 void Path::ReleaseMesh() noexcept {
     auto* services =
         static_cast<Aero::Render::MeshResources*>(
-            AeroGuiInternal::MeshResourcesRuntime(*this));
+            ElementTree::MeshResourcesOf(*this));
     if (mesh_ != InvalidRenderMeshId &&
         services != nullptr &&
         services->release != nullptr &&
@@ -671,7 +668,7 @@ void Path::AttachMeshResources(
             rawServices);
     auto* currentServices =
         static_cast<Aero::Render::MeshResources*>(
-            AeroGuiInternal::MeshResourcesRuntime(*this));
+            ElementTree::MeshResourcesOf(*this));
     if (!force &&
         currentServices == services &&
         (services == nullptr ||
@@ -690,6 +687,7 @@ void Path::AttachMeshResources(
     }
     meshServiceGeneration_ =
         services != nullptr ? services->generation : 0U;
+    if (force) InvalidateVisual();
 }
 
 Base::Result<void> Path::EnsureMesh() noexcept {
