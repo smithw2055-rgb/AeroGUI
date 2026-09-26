@@ -28,20 +28,13 @@ public:
     NameScope(const NameScope&) = delete;
     NameScope& operator=(const NameScope&) = delete;
 
-    Result<void> Register(
-        StringView name,
-        Base::Object& object) noexcept;
-    Base::Object* Find(
-        StringView name) const noexcept;
-    StringView NameOf(
-        const Base::Object& object) const noexcept;
+    Result<void> Register(StringView name, Base::Object& object) noexcept;
+    Base::Object* Find(StringView name) const noexcept;
+    StringView NameOf(const Base::Object& object) const noexcept;
     void Clear() noexcept;
 
-    std::uint32_t Size() const noexcept {
-        return entries_.Size();
-    }
-    static bool IsValidName(
-        StringView name) noexcept;
+    std::uint32_t Size() const noexcept { return entries_.Size(); }
+    static bool IsValidName(StringView name) noexcept;
 
 private:
     struct Entry {
@@ -62,21 +55,13 @@ class AERO_GUI_API ResourceKey {
 public:
     ResourceKey() noexcept = default;
 
-    static Result<ResourceKey> FromString(
-        StringView value) noexcept;
-    static ResourceKey FromType(
-        Meta::TypeId value) noexcept;
+    static Result<ResourceKey> FromString(StringView value) noexcept;
+    static ResourceKey FromType(Meta::TypeId value) noexcept;
 
-    ResourceKeyKind Kind() const noexcept {
-        return kind_;
-    }
+    ResourceKeyKind Kind() const noexcept { return kind_; }
     bool IsValid() const noexcept;
-    StringView StringValue() const noexcept {
-        return string_.View();
-    }
-    Meta::TypeId TypeValue() const noexcept {
-        return type_;
-    }
+    StringView StringValue() const noexcept { return string_.View(); }
+    Meta::TypeId TypeValue() const noexcept { return type_; }
 
 private:
     ResourceKeyKind kind_ = ResourceKeyKind::Invalid;
@@ -84,14 +69,8 @@ private:
     Meta::TypeId type_ = Meta::InvalidTypeId;
 };
 
-AERO_GUI_API bool operator==(
-    const ResourceKey& left,
-    const ResourceKey& right) noexcept;
-inline bool operator!=(
-    const ResourceKey& left,
-    const ResourceKey& right) noexcept {
-    return !(left == right);
-}
+AERO_GUI_API bool operator==(const ResourceKey& left, const ResourceKey& right) noexcept;
+inline bool operator!=(const ResourceKey& left, const ResourceKey& right) noexcept { return !(left == right); }
 
 using ResourceValue = Value;
 
@@ -114,108 +93,64 @@ enum class ResourceChangeKind : std::uint8_t {
 struct ResourceChangeSubscription {
     std::uint64_t value = 0U;
 
-    constexpr bool IsValid() const noexcept {
-        return value != 0U;
-    }
+    constexpr bool IsValid() const noexcept { return value != 0U; }
 };
 
 // StringView is empty for type-keyed and dictionary-wide notifications.
-using ResourceChangedCallback = void (*)(
-    void* context,
-    StringView key,
-    ResourceChangeKind kind,
+using ResourceChangedCallback = void (*)(void* context, StringView key, ResourceChangeKind kind,
     std::uint64_t generation) noexcept;
 
 // Move-stable resource table. Its heap-backed state lets dictionaries be moved
 // between load sessions and runtime owners without invalidating subscriptions.
-class AERO_GUI_API ResourceDictionary
-    : public Base::Object {
-    AERO_DECLARE_TYPE(
-        ResourceDictionary,
-        Base::Object)
+class AERO_GUI_API ResourceDictionary : public Base::Object {
+    AERO_DECLARE_TYPE(ResourceDictionary, Base::Object)
 public:
 
     ResourceDictionary() noexcept;
     ~ResourceDictionary() noexcept;
 
     ResourceDictionary(ResourceDictionary&& other) noexcept;
-    ResourceDictionary& operator=(
-        ResourceDictionary&& other) noexcept;
+    ResourceDictionary& operator=(ResourceDictionary&& other) noexcept;
 
     ResourceDictionary(const ResourceDictionary&) = delete;
     ResourceDictionary& operator=(const ResourceDictionary&) = delete;
 
-    Meta::TypeId RuntimeType() const noexcept override {
-        return StaticTypeId();
-    }
+    Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
 
-    Result<void> Add(
-        const ResourceKey& key,
-        const ResourceValue& value,
+    Result<void> Add(const ResourceKey& key, const ResourceValue& value,
         ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
-    Result<void> Add(
-        StringView key,
-        const ResourceValue& value,
+    Result<void> Add(StringView key, const ResourceValue& value, ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
+    Result<void> Add(Meta::TypeId key, const ResourceValue& value,
         ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
-    Result<void> Add(
-        Meta::TypeId key,
-        const ResourceValue& value,
-        ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
-    Result<void> Add(
-        StringView key,
-        Meta::TypeId type,
-        const Ref<Base::Object>& object,
+    Result<void> Add(StringView key, Meta::TypeId type, const Ref<Base::Object>& object,
         ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
 
-    bool Set(
-        const ResourceKey& key,
-        const ResourceValue& value,
-        ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
-    bool Set(
-        StringView key,
-        const ResourceValue& value,
-        ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
-    bool Set(
-        Meta::TypeId key,
-        const ResourceValue& value,
-        ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
-    bool Set(
-        StringView key,
-        Meta::TypeId type,
-        const Ref<Base::Object>& object,
+    bool Set(const ResourceKey& key, const ResourceValue& value, ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
+    bool Set(StringView key, const ResourceValue& value, ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
+    bool Set(Meta::TypeId key, const ResourceValue& value, ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
+    bool Set(StringView key, Meta::TypeId type, const Ref<Base::Object>& object,
         ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
 
-    Result<bool> Remove(
-        const ResourceKey& key) noexcept;
-    Result<bool> Remove(
-        StringView key) noexcept;
-    Result<bool> Remove(
-        Meta::TypeId key) noexcept;
+    Result<bool> Remove(const ResourceKey& key) noexcept;
+    Result<bool> Remove(StringView key) noexcept;
+    Result<bool> Remove(Meta::TypeId key) noexcept;
 
-    Result<ResourceValue> Lookup(
-        const ResourceKey& key) const noexcept;
-    Result<ResourceValue> Lookup(
-        StringView key) const noexcept;
-    Result<ResourceValue> Lookup(
-        Meta::TypeId key) const noexcept;
+    Result<ResourceValue> Lookup(const ResourceKey& key) const noexcept;
+    Result<ResourceValue> Lookup(StringView key) const noexcept;
+    Result<ResourceValue> Lookup(Meta::TypeId key) const noexcept;
     bool Contains(const ResourceKey& key) const noexcept;
     bool Contains(StringView key) const noexcept;
     bool Contains(Meta::TypeId key) const noexcept;
-    ::Aero::Diagnostics::SourceSpan SourceOf(
-        const ResourceKey& key) const noexcept;
-    ::Aero::Diagnostics::SourceSpan SourceOf(
-        StringView key) const noexcept;
+    ::Aero::Diagnostics::SourceSpan SourceOf(const ResourceKey& key) const noexcept;
+    ::Aero::Diagnostics::SourceSpan SourceOf(StringView key) const noexcept;
 
-    Result<void> AddMerged(
-        ResourceDictionary& dictionary) noexcept;
-    Result<bool> RemoveMerged(
-        ResourceDictionary& dictionary) noexcept;
+    Result<void> AddMerged(ResourceDictionary& dictionary) noexcept;
+    Result<bool> RemoveMerged(ResourceDictionary& dictionary) noexcept;
     void ClearMergedDictionaries() noexcept;
     std::uint32_t MergedDictionaryCount() const noexcept;
     // Returns a move-only shared view over the merged dictionary's stable
     // backing store. Mutations through the view affect the merged dictionary.
-    Result<ResourceDictionary> MergedDictionaryAt(
-        std::uint32_t index) const noexcept;
+    Result<ResourceDictionary> MergedDictionaryAt(std::uint32_t index) const noexcept;
     // Explicitly retains the stable backing store without making the public
     // dictionary type implicitly copyable.
     Result<ResourceDictionary> Share() const noexcept;
@@ -226,16 +161,12 @@ public:
     Result<void> Seal() noexcept;
     bool GetIsSealed() const noexcept;
 
-    Result<ResourceChangeSubscription> SubscribeChanged(
-        ResourceChangedCallback callback,
-        void* context) noexcept;
-    bool Unsubscribe(
-        ResourceChangeSubscription subscription) noexcept;
+    Result<ResourceChangeSubscription> SubscribeChanged(ResourceChangedCallback callback, void* context) noexcept;
+    bool Unsubscribe(ResourceChangeSubscription subscription) noexcept;
 
     void Clear() noexcept;
     std::uint32_t Size() const noexcept;
-    Result<ResourceEntrySnapshot> EntryAt(
-        std::uint32_t index) const noexcept;
+    Result<ResourceEntrySnapshot> EntryAt(std::uint32_t index) const noexcept;
     std::uint64_t Generation() const noexcept;
 
     // Nested dictionary storage (TU-local definition). Not a separate
@@ -243,29 +174,18 @@ public:
     struct DictionaryState;
 
 private:
-    Result<void> StoreResource(
-        const ResourceKey& key,
-        const ResourceValue& value,
+    Result<void> StoreResource(const ResourceKey& key, const ResourceValue& value,
         ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
-    Result<void> StoreResource(
-        StringView key,
-        const ResourceValue& value,
+    Result<void> StoreResource(StringView key, const ResourceValue& value,
         ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
-    Result<void> StoreResource(
-        Meta::TypeId key,
-        const ResourceValue& value,
+    Result<void> StoreResource(Meta::TypeId key, const ResourceValue& value,
         ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
-    Result<void> StoreResource(
-        StringView key,
-        Meta::TypeId type,
-        const Ref<Base::Object>& object,
+    Result<void> StoreResource(StringView key, Meta::TypeId type, const Ref<Base::Object>& object,
         ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
 
     friend struct DictionaryState;
 
-    explicit ResourceDictionary(
-        DictionaryState* state,
-        bool addReference) noexcept;
+    explicit ResourceDictionary(DictionaryState* state, bool addReference) noexcept;
 
     DictionaryState* state_ = nullptr;
 
@@ -274,29 +194,20 @@ private:
     static void ReleaseState(DictionaryState* state) noexcept;
 };
 
-struct ResourceEnvironment {
-    const ResourceDictionary* application = nullptr;
+struct ResourceEnvironment { const ResourceDictionary* application = nullptr;
     const ResourceDictionary* theme = nullptr;
     const ResourceDictionary* system = nullptr;
 };
 
 class AERO_GUI_API ResourceResolver {
 public:
-    static Result<ResourceValue> Lookup(
-        const FrameworkElement* element,
-        const ResourceKey& key,
-        const ResourceDictionary* templateResources,
+    static Result<ResourceValue> Lookup(const FrameworkElement* element,
+        const ResourceKey& key, const ResourceDictionary* templateResources,
         const ResourceEnvironment& environment) noexcept;
-    static Result<ResourceValue> Lookup(
-        const FrameworkElement* element,
-        StringView key,
-        const ResourceDictionary* templateResources,
-        const ResourceEnvironment& environment) noexcept;
-    static Result<ResourceValue> Lookup(
-        const FrameworkElement* element,
-        Meta::TypeId key,
-        const ResourceDictionary* templateResources,
-        const ResourceEnvironment& environment) noexcept;
+    static Result<ResourceValue> Lookup(const FrameworkElement* element,
+        StringView key, const ResourceDictionary* templateResources, const ResourceEnvironment& environment) noexcept;
+    static Result<ResourceValue> Lookup(const FrameworkElement* element,
+        Meta::TypeId key, const ResourceDictionary* templateResources, const ResourceEnvironment& environment) noexcept;
 };
 
 } // namespace Aero

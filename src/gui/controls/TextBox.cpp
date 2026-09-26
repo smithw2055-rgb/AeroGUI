@@ -4,7 +4,6 @@
 #include <Aero/Controls/TextBoxBase.hpp>
 #include <Aero/Controls/TextBox.hpp>
 #include <Aero/ClassHandler.hpp>
-#include <Aero/Controls/PasswordBox.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Base/String.hpp>
 #include "gui/meta/TypeRegistryDetail.hpp"

@@ -17,7 +17,7 @@
 
 
 #include <Aero/Controls/ControlTemplate.hpp>
-#include <Aero/HierarchicalDataTemplate.hpp>
+#include <Aero/DataTemplate.hpp>
 #include <Aero/VisualStateManager.hpp>
 
 

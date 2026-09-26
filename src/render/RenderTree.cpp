@@ -12,8 +12,7 @@
 #include "gui/media/BrushRendering.hpp"
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Controls/Image.hpp>
-#include <Aero/Controls/Menu.hpp>
-#include <Aero/Controls/ContextMenu.hpp>
+#include <Aero/Controls/Menus.hpp>
 #include <Aero/Controls/Popup.hpp>
 #include <Aero/Documents.hpp>
 #include <Aero/Media/Effects.hpp>

@@ -13,7 +13,7 @@
 #include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/Controls.hpp>
 #include <Aero/Markup/MarkupExtension.hpp>
-#include <Aero/HierarchicalDataTemplate.hpp>
+#include <Aero/DataTemplate.hpp>
 #include <Aero/TryCast.hpp>
 #include <Aero/Controls/Primitives/ButtonBase.hpp>
 #include <Aero/Controls/Buttons.hpp>

@@ -20,22 +20,16 @@ public:
     RelayCommand() noexcept = default;
     ~RelayCommand() override = default;
 
-    explicit RelayCommand(
-        SimpleExecuteCallback execute,
-        SimpleCanExecuteCallback canExecute = nullptr) noexcept
+    explicit RelayCommand(SimpleExecuteCallback execute, SimpleCanExecuteCallback canExecute = nullptr) noexcept
         : executeSimple_(std::move(execute)),
           canExecuteSimple_(std::move(canExecute)) {}
 
-    explicit RelayCommand(
-        ExecuteCallback execute,
-        CanExecuteCallback canExecute = nullptr) noexcept
+    explicit RelayCommand(ExecuteCallback execute, CanExecuteCallback canExecute = nullptr) noexcept
         : execute_(std::move(execute)),
           canExecute_(std::move(canExecute)) {}
 
-    template<class FExec,
-        class = std::enable_if_t<
-            !std::is_same_v<std::decay_t<FExec>, RelayCommand> &&
-            !std::is_base_of_v<ICommand, std::decay_t<FExec>>>>
+    template<class FExec, class = std::enable_if_t<
+            !std::is_same_v<std::decay_t<FExec>, RelayCommand> && !std::is_base_of_v<ICommand, std::decay_t<FExec>>>>
     explicit RelayCommand(FExec&& execute) noexcept {
         if constexpr (std::is_invocable_v<FExec, const Value&>) {
             execute_ = ExecuteCallback(std::forward<FExec>(execute));
@@ -44,8 +38,7 @@ public:
         }
     }
 
-    template<class FExec, class FCanExec,
-        class = std::enable_if_t<!std::is_same_v<std::decay_t<FExec>, RelayCommand>>>
+    template<class FExec, class FCanExec, class = std::enable_if_t<!std::is_same_v<std::decay_t<FExec>, RelayCommand>>>
     RelayCommand(FExec&& execute, FCanExec&& canExecute) noexcept {
         if constexpr (std::is_invocable_v<FExec, const Value&>) {
             execute_ = ExecuteCallback(std::forward<FExec>(execute));
@@ -59,31 +52,19 @@ public:
         }
     }
 
-    Result<bool> CanExecute(
-        const Value& parameter,
-        UIElement* = nullptr) noexcept override {
-        if (canExecute_) {
-            return canExecute_(parameter);
-        }
-        if (canExecuteSimple_) {
-            return canExecuteSimple_();
-        }
+    Result<bool> CanExecute(const Value& parameter, UIElement* = nullptr) noexcept override {
+        if (canExecute_) { return canExecute_(parameter); }
+        if (canExecuteSimple_) { return canExecuteSimple_(); }
         return true;
     }
 
-    void Execute(
-        const Value& parameter,
-        UIElement* = nullptr) noexcept override {
+    void Execute(const Value& parameter, UIElement* = nullptr) noexcept override {
         if (execute_) {
             execute_(parameter);
-        } else if (executeSimple_) {
-            executeSimple_();
-        }
+        } else if (executeSimple_) { executeSimple_(); }
     }
 
-    void NotifyCanExecuteChanged() noexcept {
-        RaiseCanExecuteChanged();
-    }
+    void NotifyCanExecuteChanged() noexcept { RaiseCanExecuteChanged(); }
 
 private:
     ExecuteCallback execute_;
@@ -92,68 +73,44 @@ private:
     SimpleCanExecuteCallback canExecuteSimple_;
 };
 
-template<class T>
-class RelayCommandT final : public ICommand {
+template<class T> class RelayCommandT final : public ICommand {
 public:
     using Self = RelayCommandT<T>;
     using BaseType = ICommand;
     using ExecuteCallback = Base::Delegate<void(T)>;
     using CanExecuteCallback = Base::Delegate<bool(T)>;
 
-    static constexpr Aero::Base::TypeId StaticTypeId() noexcept {
-        return ICommand::StaticTypeId();
-    }
-    Aero::Base::TypeId RuntimeType() const noexcept override {
-        return StaticTypeId();
-    }
+    static constexpr Aero::Base::TypeId StaticTypeId() noexcept { return ICommand::StaticTypeId(); }
+    Aero::Base::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
 
     RelayCommandT() noexcept = default;
     ~RelayCommandT() override = default;
 
-    explicit RelayCommandT(
-        ExecuteCallback execute,
-        CanExecuteCallback canExecute = nullptr) noexcept
+    explicit RelayCommandT(ExecuteCallback execute, CanExecuteCallback canExecute = nullptr) noexcept
         : execute_(std::move(execute)),
           canExecute_(std::move(canExecute)) {}
 
-    template<class FExec,
-        class = std::enable_if_t<!std::is_same_v<std::decay_t<FExec>, RelayCommandT>>>
-    explicit RelayCommandT(FExec&& execute) noexcept
-        : execute_(ExecuteCallback(std::forward<FExec>(execute))) {}
+    template<class FExec, class = std::enable_if_t<!std::is_same_v<std::decay_t<FExec>, RelayCommandT>>>
+    explicit RelayCommandT(FExec&& execute) noexcept : execute_(ExecuteCallback(std::forward<FExec>(execute))) {}
 
-    template<class FExec, class FCanExec>
-    RelayCommandT(FExec&& execute, FCanExec&& canExecute) noexcept
+    template<class FExec, class FCanExec> RelayCommandT(FExec&& execute, FCanExec&& canExecute) noexcept
         : execute_(ExecuteCallback(std::forward<FExec>(execute))),
           canExecute_(CanExecuteCallback(std::forward<FCanExec>(canExecute))) {}
 
-    Result<bool> CanExecute(
-        const Value& parameter,
-        UIElement* = nullptr) noexcept override {
-        if (!canExecute_) {
-            return true;
-        }
+    Result<bool> CanExecute(const Value& parameter, UIElement* = nullptr) noexcept override {
+        if (!canExecute_) { return true; }
         Result<T> decoded = Meta::ValueCodec<T>::Decode(parameter);
-        if (!decoded) {
-            return false;
-        }
+        if (!decoded) { return false; }
         return canExecute_(decoded.Value());
     }
 
-    void Execute(
-        const Value& parameter,
-        UIElement* = nullptr) noexcept override {
-        if (!execute_) {
-            return;
-        }
+    void Execute(const Value& parameter, UIElement* = nullptr) noexcept override {
+        if (!execute_) { return; }
         Result<T> decoded = Meta::ValueCodec<T>::Decode(parameter);
-        if (decoded) {
-            execute_(decoded.Value());
-        }
+        if (decoded) { execute_(decoded.Value()); }
     }
 
-    void NotifyCanExecuteChanged() noexcept {
-        RaiseCanExecuteChanged();
-    }
+    void NotifyCanExecuteChanged() noexcept { RaiseCanExecuteChanged(); }
 
 private:
     ExecuteCallback execute_;

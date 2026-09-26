@@ -17,8 +17,7 @@ protected:
     };
     DragSelectionState drag_;
 
-    explicit TextBoxBase(TypeId runtimeType) noexcept
-        : Control(runtimeType) {}
+    explicit TextBoxBase(TypeId runtimeType) noexcept : Control(runtimeType) {}
     ~TextBoxBase() override = default;
 
 public:

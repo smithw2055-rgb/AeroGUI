@@ -24,8 +24,7 @@ public:
     IRenderer(const IRenderer&) = delete;
     IRenderer& operator=(const IRenderer&) = delete;
 
-    virtual Result<void> Init(
-        Ref<RenderDevice> device) noexcept = 0;
+    virtual Result<void> Init(Ref<RenderDevice> device) noexcept = 0;
     virtual void Shutdown() noexcept = 0;
     virtual bool IsInitialized() const noexcept = 0;
 

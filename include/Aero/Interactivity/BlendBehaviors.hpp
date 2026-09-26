@@ -22,21 +22,16 @@ public:
 
     double GetX() const noexcept { return GetValue(XProperty); }
     double GetY() const noexcept { return GetValue(YProperty); }
-    bool GetConstrainToParentBounds() const noexcept {
-        return GetValue(ConstrainToParentBoundsProperty);
-    }
+    bool GetConstrainToParentBounds() const noexcept { return GetValue(ConstrainToParentBoundsProperty); }
     void SetX(double value) noexcept { SetValue(XProperty, value); }
     void SetY(double value) noexcept { SetValue(YProperty, value); }
-    void SetConstrainToParentBounds(bool value) noexcept {
-        SetValue(ConstrainToParentBoundsProperty, value);
-    }
+    void SetConstrainToParentBounds(bool value) noexcept { SetValue(ConstrainToParentBoundsProperty, value); }
 
     AERO_DEPENDENCY_PROPERTY(double, X);
     AERO_DEPENDENCY_PROPERTY(double, Y);
     AERO_DEPENDENCY_PROPERTY(bool, ConstrainToParentBounds);
 
-    static void OnPositionChanged(
-        DependencyObject& object,
+    static void OnPositionChanged(DependencyObject& object,
         const Meta::DependencyPropertyChangedEventArgs& args) noexcept;
 
 protected:
@@ -77,22 +72,15 @@ public:
 
     Ref<FrameworkElement> GetSource() const noexcept;
     void SetSource(Ref<FrameworkElement> value) noexcept {
-        SetValue(
-            SourceProperty,
-            Ref<Base::Object>(std::move(value)));
+        SetValue(SourceProperty, Ref<Base::Object>(std::move(value)));
     }
-    Ref<Media::Effect> GetEffect() const noexcept {
-        return GetValue(EffectProperty);
-    }
-    void SetEffect(Ref<Media::Effect> value) noexcept {
-        SetValue(EffectProperty, std::move(value));
-    }
+    Ref<Media::Effect> GetEffect() const noexcept { return GetValue(EffectProperty); }
+    void SetEffect(Ref<Media::Effect> value) noexcept { SetValue(EffectProperty, std::move(value)); }
 
     AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, Source);
     AERO_DEPENDENCY_PROPERTY(Ref<Media::Effect>, Effect);
 
-    static void OnBehaviorPropertyChanged(
-        DependencyObject& object,
+    static void OnBehaviorPropertyChanged(DependencyObject& object,
         const Meta::DependencyPropertyChangedEventArgs& args) noexcept;
 
 protected:

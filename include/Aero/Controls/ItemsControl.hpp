@@ -3,7 +3,6 @@
 #include <Aero/Controls/ItemCollection.hpp>
 #include <Aero/Controls/ItemsPanelTemplate.hpp>
 #include <Aero/DataTemplate.hpp>
-#include <Aero/DataTemplateSelector.hpp>
 #include <Aero/Style.hpp>
 #include <Aero/Data/Binding.hpp>
 #include <Aero/Controls/Control.hpp>
@@ -27,43 +26,20 @@ public:
     ItemsControl() noexcept;
     ~ItemsControl() override;
 
-    ItemCollection& GetItems() noexcept {
-        return items_;
-    }
-    const ItemCollection& GetItems() const noexcept {
-        return items_;
-    }
-    Ref<Base::Object> GetItemsSource() const noexcept {
-        return GetValue(ItemsSourceProperty);
-    }
-    bool GetHasItems() const noexcept {
-        return GetValue(HasItemsProperty);
-    }
+    ItemCollection& GetItems() noexcept { return items_; }
+    const ItemCollection& GetItems() const noexcept { return items_; }
+    Ref<Base::Object> GetItemsSource() const noexcept { return GetValue(ItemsSourceProperty); }
+    bool GetHasItems() const noexcept { return GetValue(HasItemsProperty); }
     std::uint32_t GetCount() const noexcept;
-    Ref<Base::Object> GetItem(
-        std::uint32_t index) const noexcept;
-    void SetItemsSource(Ref<Base::Object> source) noexcept {
-        SetValue(ItemsSourceProperty, std::move(source));
-    }
-    std::uint32_t GetAlternationCount() const noexcept {
-        return GetValue(AlternationCountProperty);
-    }
-    void SetAlternationCount(std::uint32_t value) noexcept {
-        SetValue(AlternationCountProperty, value);
-    }
-    StringView GetDisplayMemberPath() const noexcept {
-        return GetValue(DisplayMemberPathProperty);
-    }
-    void SetDisplayMemberPath(StringView value) noexcept {
-        SetValue(DisplayMemberPathProperty, value);
-    }
+    Ref<Base::Object> GetItem(std::uint32_t index) const noexcept;
+    void SetItemsSource(Ref<Base::Object> source) noexcept { SetValue(ItemsSourceProperty, std::move(source)); }
+    std::uint32_t GetAlternationCount() const noexcept { return GetValue(AlternationCountProperty); }
+    void SetAlternationCount(std::uint32_t value) noexcept { SetValue(AlternationCountProperty, value); }
+    StringView GetDisplayMemberPath() const noexcept { return GetValue(DisplayMemberPathProperty); }
+    void SetDisplayMemberPath(StringView value) noexcept { SetValue(DisplayMemberPathProperty, value); }
 
-    const DataTemplate* GetItemTemplate() const noexcept {
-        return itemTemplate_;
-    }
-    void SetItemTemplate(Ref<DataTemplate> value) noexcept {
-        SetValue(ItemTemplateProperty, std::move(value));
-    }
+    const DataTemplate* GetItemTemplate() const noexcept { return itemTemplate_; }
+    void SetItemTemplate(Ref<DataTemplate> value) noexcept { SetValue(ItemTemplateProperty, std::move(value)); }
     void SetItemTemplate(const DataTemplate* value) noexcept {
         Ref<DataTemplate> retained;
         if (value != nullptr) {
@@ -72,16 +48,11 @@ public:
             if (!retained) return;
         }
         SetItemTemplate(std::move(retained));
-    }
-    const DataTemplateSelector* GetItemTemplateSelector() const noexcept {
-        return itemTemplateSelector_;
-    }
+    } const DataTemplateSelector* GetItemTemplateSelector() const noexcept { return itemTemplateSelector_; }
     void SetItemTemplateSelector(Ref<DataTemplateSelector> value) noexcept {
         SetValue(ItemTemplateSelectorProperty, std::move(value));
     }
-    virtual Ref<DataTemplate> ResolveItemTemplate(
-        const Ref<Base::Object>& item,
-        std::uint32_t index) const noexcept;
+    virtual Ref<DataTemplate> ResolveItemTemplate(const Ref<Base::Object>& item, std::uint32_t index) const noexcept;
     // WPF-parity names (primary). Legacy CreateContainer/PrepareContainer/
     // ClearContainer/ResolveItemTemplate forward to these.
     virtual bool IsItemItsOwnContainerOverride(Base::Object* item) const noexcept {
@@ -89,9 +60,7 @@ public:
         return false;
     }
     virtual Result<Ref<FrameworkElement>> GetContainerForItemOverride() const noexcept;
-    virtual Result<void> PrepareContainerForItemOverride(
-        FrameworkElement& container,
-        const Ref<Base::Object>& item,
+    virtual Result<void> PrepareContainerForItemOverride(FrameworkElement& container, const Ref<Base::Object>& item,
         std::uint32_t index) noexcept;
     virtual void ClearContainerForItemOverride(FrameworkElement& container) noexcept;
     virtual void OnItemsChanged(const ItemsChangedEvent& event) noexcept {
@@ -99,15 +68,10 @@ public:
         InvalidateMeasure();
         InvalidateArrange();
     }
-    virtual Ref<DataTemplate> GetTemplateForItemOverride(
-        const Ref<Base::Object>& item,
+    virtual Ref<DataTemplate> GetTemplateForItemOverride(const Ref<Base::Object>& item,
         std::uint32_t index) const noexcept;
-    const ItemsPanelTemplate* GetItemsPanel() const noexcept {
-        return itemsPanel_;
-    }
-    void SetItemsPanel(Ref<ItemsPanelTemplate> value) noexcept {
-        SetValue(ItemsPanelProperty, std::move(value));
-    }
+    const ItemsPanelTemplate* GetItemsPanel() const noexcept { return itemsPanel_; }
+    void SetItemsPanel(Ref<ItemsPanelTemplate> value) noexcept { SetValue(ItemsPanelProperty, std::move(value)); }
     void SetItemsPanel(const ItemsPanelTemplate* value) noexcept {
         Ref<ItemsPanelTemplate> retained;
         if (value != nullptr) {
@@ -116,13 +80,8 @@ public:
             if (!retained) return;
         }
         SetItemsPanel(std::move(retained));
-    }
-    const Style* GetItemContainerStyle() const noexcept {
-        return itemContainerStyle_;
-    }
-    void SetItemContainerStyle(Ref<Style> value) noexcept {
-        SetValue(ItemContainerStyleProperty, std::move(value));
-    }
+    } const Style* GetItemContainerStyle() const noexcept { return itemContainerStyle_; }
+    void SetItemContainerStyle(Ref<Style> value) noexcept { SetValue(ItemContainerStyleProperty, std::move(value)); }
     void SetItemContainerStyle(const Style* value) noexcept {
         Ref<Style> retained;
         if (value != nullptr) {
@@ -133,23 +92,13 @@ public:
         SetItemContainerStyle(std::move(retained));
     }
 
-    void AddItemsChanged(
-        const ItemsChangedHandler& handler) noexcept {
-        changed_.Add(handler);
-    }
-    bool RemoveItemsChanged(
-        const ItemsChangedHandler& handler) noexcept {
-        return changed_.Remove(handler);
-    }
-    Panel* GetItemsHost() const noexcept {
-        return itemsHost_;
-    }
+    void AddItemsChanged(const ItemsChangedHandler& handler) noexcept { changed_.Add(handler); }
+    bool RemoveItemsChanged(const ItemsChangedHandler& handler) noexcept { return changed_.Remove(handler); }
+    Panel* GetItemsHost() const noexcept { return itemsHost_; }
     std::uint32_t GetRealizedItemCount() const noexcept;
     std::uint32_t GetCreatedContainerCount() const noexcept;
     std::uint32_t GetRecycledContainerUseCount() const noexcept;
-    ItemContainerGenerator* GetItemContainerGenerator() const noexcept {
-        return generator_;
-    }
+    ItemContainerGenerator* GetItemContainerGenerator() const noexcept { return generator_; }
 
     AERO_READONLY_PROPERTY(std::uint32_t, ItemCount);
     AERO_READONLY_PROPERTY(bool, HasItems);
@@ -163,35 +112,24 @@ public:
 
 protected:
     explicit ItemsControl(TypeId runtimeType) noexcept;
-    ItemContainerGenerator* AttachedGenerator() const noexcept {
-        return generator_;
-    }
+    ItemContainerGenerator* AttachedGenerator() const noexcept { return generator_; }
     [[deprecated("Use GetContainerForItemOverride()")]]
-    virtual Result<
-        Ref<FrameworkElement>>
-        CreateContainer(
-            const Ref<Base::Object>& item) noexcept;
+    virtual Result< Ref<FrameworkElement>> CreateContainer(const Ref<Base::Object>& item) noexcept;
     [[deprecated("Use PrepareContainerForItemOverride()")]]
-    virtual Result<void> PrepareContainer(
-        FrameworkElement& container,
-        const Ref<Base::Object>& item,
+    virtual Result<void> PrepareContainer(FrameworkElement& container, const Ref<Base::Object>& item,
         std::uint32_t index) noexcept;
     [[deprecated("Use ClearContainerForItemOverride()")]]
-    virtual void ClearContainer(
-        FrameworkElement& container) noexcept;
+    virtual void ClearContainer(FrameworkElement& container) noexcept;
     virtual void OnContainersChanged() noexcept {
         InvalidateMeasure();
         InvalidateArrange();
     }
     [[deprecated("Use OnItemsChanged()")]]
     virtual void OnItemsSourceCoreChanged() noexcept;
-    Collections::IItemsSource* GetItemsSourceCore() const noexcept {
-        return source_;
-    }
+    Collections::IItemsSource* GetItemsSourceCore() const noexcept { return source_; }
     void OnApplyTemplate() noexcept override;
     void OnTemplateDetached() noexcept override;
-    void OnPropertyChanged(
-        const DependencyPropertyChangedEventArgs& args) noexcept override;
+    void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
     Size MeasureOverride(Size availableSize) noexcept override;
     bool EnsureDefaultItemsPresenter() noexcept;
 
@@ -217,10 +155,8 @@ private:
     void SetItemTemplateSelectorCore(const DataTemplateSelector* value) noexcept;
     void SetItemsPanelCore(const ItemsPanelTemplate* value) noexcept;
     void SetItemContainerStyleCore(const Style* value) noexcept;
-    void OnLocalChanged(
-        const ItemsChangedEvent& event) noexcept;
-    void OnSourceChanged(
-        const ItemsChangedEvent& event) noexcept;
+    void OnLocalChanged(const ItemsChangedEvent& event) noexcept;
+    void OnSourceChanged(const ItemsChangedEvent& event) noexcept;
     void PublishReset() noexcept;
     void PublishItemCount() noexcept;
 };

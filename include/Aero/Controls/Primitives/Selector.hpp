@@ -3,9 +3,7 @@
 #include <Aero/Controls/ItemsControl.hpp>
 #include <Aero/Events/ControlEventArgs.hpp>
 
-namespace Aero::Data {
-class CollectionView;
-}
+namespace Aero::Data { class CollectionView; }
 
 namespace Aero { class AeroGuiInternal; }
 namespace Aero::Controls {
@@ -34,18 +32,13 @@ public:
     std::uint32_t GetSelectedIndex() const noexcept;
     Ref<Base::Object> GetSelectedItem() const noexcept;
     Ref<Base::Object> GetSelectedValue() const noexcept;
-    StringView GetSelectedValuePath() const noexcept {
-        return GetValue(SelectedValuePathProperty);
-    }
+    StringView GetSelectedValuePath() const noexcept { return GetValue(SelectedValuePathProperty); }
     Span<const std::uint32_t> GetSelectedIndices() const noexcept {
         return {selectedIndices_.Data(), selectedIndices_.Size()};
     }
-    std::uint32_t GetSelectedCount() const noexcept {
-        return selectedIndices_.Size();
-    }
+    std::uint32_t GetSelectedCount() const noexcept { return selectedIndices_.Size(); }
     bool GetIsSelected(std::uint32_t index) const noexcept;
-    std::uint32_t GetIndexOfItem(
-        const Base::Object* item) const noexcept;
+    std::uint32_t GetIndexOfItem(const Base::Object* item) const noexcept;
 
     void SetSelectionMode(SelectionMode value) noexcept;
     void SetSelectedIndex(std::uint32_t index) noexcept;
@@ -53,29 +46,17 @@ public:
     void SetSelectedValue(Ref<Base::Object> value) noexcept;
     bool GetIsSynchronizedWithCurrentItem() const noexcept;
     void SetIsSynchronizedWithCurrentItem(bool value) noexcept;
-    bool Select(
-        std::uint32_t index) noexcept;
-    bool Unselect(
-        std::uint32_t index) noexcept;
-    bool Toggle(
-        std::uint32_t index) noexcept;
-    bool SelectRange(
-        std::uint32_t first,
-        std::uint32_t last,
-        bool preserveExisting = false) noexcept;
+    bool Select(std::uint32_t index) noexcept;
+    bool Unselect(std::uint32_t index) noexcept;
+    bool Toggle(std::uint32_t index) noexcept;
+    bool SelectRange(std::uint32_t first, std::uint32_t last, bool preserveExisting = false) noexcept;
     void ClearSelection() noexcept;
 
-    void AddSelectionChanged(
-        const SelectionChangedHandler& handler) noexcept {
-        selectionChanged_.Add(handler);
-    }
-    bool RemoveSelectionChanged(
-        const SelectionChangedHandler& handler) noexcept {
+    void AddSelectionChanged(const SelectionChangedHandler& handler) noexcept { selectionChanged_.Add(handler); }
+    bool RemoveSelectionChanged(const SelectionChangedHandler& handler) noexcept {
         return selectionChanged_.Remove(handler);
     }
-    Base::Status LastSelectionError() const noexcept {
-        return lastSelectionError_;
-    }
+    Base::Status LastSelectionError() const noexcept { return lastSelectionError_; }
 
     AERO_DEPENDENCY_PROPERTY(SelectionMode, SelectionMode);
     AERO_DEPENDENCY_PROPERTY(std::uint32_t, SelectedIndex);
@@ -88,31 +69,21 @@ public:
     // strongly typed selection notification above for model-facing code while
     // also publishing the routed surface used by EventTrigger.
     inline static constexpr RoutedEvent<RoutedEventArgs> SelectionChangedRoutedEvent{"SelectionChanged"};
-    UIElement::Event<RoutedEventArgs>
-        SelectionChanged() noexcept {
-        return GetEvent(
-            SelectionChangedRoutedEvent);
-    }
+    UIElement::Event<RoutedEventArgs> SelectionChanged() noexcept { return GetEvent(SelectionChangedRoutedEvent); }
 
 protected:
     explicit Selector(TypeId runtimeType) noexcept;
-    Result<void> PrepareContainerForItemOverride(
-        FrameworkElement& container,
-        const Ref<Base::Object>& item,
+    Result<void> PrepareContainerForItemOverride(FrameworkElement& container, const Ref<Base::Object>& item,
         std::uint32_t index) noexcept override;
-    void ClearContainerForItemOverride(
-        FrameworkElement& container) noexcept override;
+    void ClearContainerForItemOverride(FrameworkElement& container) noexcept override;
     void OnContainersChanged() noexcept override;
     void OnItemsChanged(const ItemsChangedEvent& event) noexcept override;
     // Replaces the former CoerceSelectedObject metadata delegate.
-    PropertyValue CoerceValueCore(
-        DependencyPropertyHandle property,
-        const PropertyValue& baseValue) noexcept override;
+    PropertyValue CoerceValueCore(DependencyPropertyHandle property, const PropertyValue& baseValue) noexcept override;
     [[deprecated("Use OnItemsChanged()")]]
     void OnItemsSourceCoreChanged() noexcept override;
     virtual void OnSelectionChanged(const SelectionChangedEvent& event);
-    void OnPropertyChanged(
-        const DependencyPropertyChangedEventArgs& args) noexcept override;
+    void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
 
 private:
     friend class ::Aero::AeroGuiInternal;
@@ -134,9 +105,7 @@ private:
 
     void PushSelectionToCurrent() noexcept;
     void OnViewCurrentChanged() noexcept;
-    Result<bool> ApplySelection(
-        Span<const std::uint32_t> indices,
-        std::uint32_t primaryIndex) noexcept;
+    Result<bool> ApplySelection(Span<const std::uint32_t> indices, std::uint32_t primaryIndex) noexcept;
     void PublishProperties() noexcept;
     void SyncContainers() noexcept;
     void HookCurrentView() noexcept;

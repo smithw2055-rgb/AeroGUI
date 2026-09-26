@@ -26,26 +26,10 @@ enum class Theme : std::uint8_t {
 
 AERO_DECLARE_TYPE_ENUM(SdkConsumer::Theme)
 
-namespace Aero::Meta {
-
-template<>
-struct TypeTraits<SdkConsumer::ViewModel> {
-    static constexpr Meta::TypeId Id() noexcept {
-        return Meta::MakeTypeId(
-            "urn:aero-sdk-consumer", "ViewModel");
-    }
-    static constexpr StringView Namespace() noexcept {
-        return "urn:aero-sdk-consumer";
-    }
-    static constexpr StringView Name() noexcept {
-        return "ViewModel";
-    }
-    static constexpr Meta::TypeId BaseType() noexcept {
-        return Meta::InvalidTypeId;
-    }
-};
-
-} // namespace Aero::Meta
+AERO_DECLARE_TYPE_VALUE_NAMED(
+    SdkConsumer::ViewModel,
+    "urn:aero-sdk-consumer",
+    "ViewModel")
 
 namespace {
 

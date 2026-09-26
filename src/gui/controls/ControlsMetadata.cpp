@@ -5,8 +5,6 @@
 #include <Aero/FrameworkTemplate.hpp>
 #include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/DataTemplate.hpp>
-#include <Aero/DataTemplateSelector.hpp>
-#include <Aero/HierarchicalDataTemplate.hpp>
 #include <Aero/Controls/ItemsPanelTemplate.hpp>
 
 // Panels
@@ -22,14 +20,8 @@
 #include <Aero/Controls/Button.hpp>
 #include <Aero/Controls/Buttons.hpp>
 #include <Aero/Controls/Primitives/Thumb.hpp>
-#include <Aero/Controls/Primitives/Track.hpp>
-#include <Aero/Controls/Primitives/RangeBase.hpp>
-#include <Aero/Controls/Primitives/ScrollBar.hpp>
-#include <Aero/Controls/Slider.hpp>
-#include <Aero/Controls/Primitives/TickBar.hpp>
-#include <Aero/Controls/ProgressBar.hpp>
+#include <Aero/Controls/Ranges.hpp>
 #include <Aero/Controls/GridSplitter.hpp>
-#include <Aero/Controls/ScrollContentPresenter.hpp>
 #include <Aero/Controls/ScrollViewer.hpp>
 
 // Content & Decorators
@@ -38,14 +30,12 @@
 #include <Aero/Controls/HeaderedContentControl.hpp>
 #include <Aero/Controls/Decorator.hpp>
 #include <Aero/Controls/Border.hpp>
-#include <Aero/Controls/BulletDecorator.hpp>
 #include <Aero/Controls/Viewbox.hpp>
 #include <Aero/Controls/ContentPresenter.hpp>
 #include <Aero/Controls/UserControl.hpp>
 #include <Aero/Controls/Page.hpp>
-#include <Aero/Controls/GroupBox.hpp>
+#include <Aero/Controls/Headers.hpp>
 #include <Aero/Controls/Label.hpp>
-#include <Aero/Controls/Expander.hpp>
 #include <Aero/Controls/Popup.hpp>
 
 // Items
@@ -59,26 +49,21 @@
 
 // Trees
 #include <Aero/Controls/TreeView.hpp>
-#include <Aero/Controls/TreeViewItem.hpp>
 
 // Menus
-#include <Aero/Controls/Menu.hpp>
-#include <Aero/Controls/MenuItem.hpp>
-#include <Aero/Controls/ContextMenu.hpp>
+#include <Aero/Controls/Menus.hpp>
 #include <Aero/Controls/ContextMenuService.hpp>
 #include <Aero/Controls/Separator.hpp>
 
 // Bars & ToolTips
 #include <Aero/Controls/ToolBar.hpp>
 #include <Aero/Controls/StatusBar.hpp>
-#include <Aero/Controls/StatusBarItem.hpp>
 #include <Aero/Controls/ToolTip.hpp>
 
 // Text & Media
 #include <Aero/Controls/TextBlock.hpp>
 #include <Aero/Controls/TextBoxBase.hpp>
 #include <Aero/Controls/TextBox.hpp>
-#include <Aero/Controls/PasswordBox.hpp>
 #include <Aero/Controls/Image.hpp>
 
 // Shapes
@@ -87,7 +72,6 @@
 // ListView & GridView
 #include <Aero/Controls/GridViews.hpp>
 #include <Aero/Controls/ListView.hpp>
-#include <Aero/Controls/ListViewItem.hpp>
 #include "gui/meta/Describe.hpp"
 
 namespace Aero::Controls {

@@ -27,22 +27,17 @@ inline constexpr std::uint32_t FirstCanonicalProviderOrigin = 16U;
 
 class PropertyProviderOriginAllocator {
 public:
-    explicit constexpr PropertyProviderOriginAllocator(
-        std::uint32_t first = FirstCanonicalProviderOrigin) noexcept
+    explicit constexpr PropertyProviderOriginAllocator(std::uint32_t first = FirstCanonicalProviderOrigin) noexcept
         : next_(first) {}
 
     Result<std::uint32_t> Allocate() noexcept {
         if (next_ < FirstCanonicalProviderOrigin || next_ == UINT32_MAX) {
-            return Base::Status::Failure(
-                Base::ErrorCode::OutOfRange,
-                "Property provider origin limit reached");
+            return Base::Status::Failure(Base::ErrorCode::OutOfRange, "Property provider origin limit reached");
         }
         return next_++;
     }
 
-    std::uint32_t Next() const noexcept {
-        return next_;
-    }
+    std::uint32_t Next() const noexcept { return next_; }
 
 private:
     std::uint32_t next_ = FirstCanonicalProviderOrigin;
@@ -60,13 +55,8 @@ struct PropertyProviderContribution {
 // provider sessions attached to that engine.
 class PropertyProviderSet {
 public:
-    bool Set(
-        PropertyProviderToken token,
-        const PropertyValue& value) noexcept {
-        if (!token.IsValid() || value.IsUnset()) {
-            return false;
-        }
-        const std::uint32_t existing = Find(token);
+    bool Set(PropertyProviderToken token, const PropertyValue& value) noexcept {
+        if (!token.IsValid() || value.IsUnset()) { return false; } const std::uint32_t existing = Find(token);
         if (existing != UINT32_MAX) {
             contributions_[existing].value = value;
             return true;
@@ -76,13 +66,8 @@ public:
         return true;
     }
 
-    bool Set(
-        PropertyProviderToken token,
-        PropertyValue&& value) noexcept {
-        if (!token.IsValid() || value.IsUnset()) {
-            return false;
-        }
-        const std::uint32_t existing = Find(token);
+    bool Set(PropertyProviderToken token, PropertyValue&& value) noexcept {
+        if (!token.IsValid() || value.IsUnset()) { return false; } const std::uint32_t existing = Find(token);
         if (existing != UINT32_MAX) {
             contributions_[existing].value = std::move(value);
             return true;
@@ -95,8 +80,7 @@ public:
         return true;
     }
 
-    bool Remove(PropertyProviderToken token) noexcept {
-        const std::uint32_t index = Find(token);
+    bool Remove(PropertyProviderToken token) noexcept { const std::uint32_t index = Find(token);
         if (index == UINT32_MAX) return false;
         RemoveAt(index);
         return true;
@@ -109,28 +93,20 @@ public:
             if (contributions_[index].token.origin == origin) {
                 EraseAtUnchecked(index);
                 ++removed;
-            } else {
-                ++index;
-            }
+            } else { ++index; }
         }
         if (removed != 0U) RefreshWinner();
         return removed;
     }
 
-    std::uint32_t Remove(
-        PropertyValueRank rank,
-        std::uint32_t origin) noexcept {
+    std::uint32_t Remove(PropertyValueRank rank, std::uint32_t origin) noexcept {
         std::uint32_t removed = 0U;
         std::uint32_t index = 0U;
-        while (index < contributions_.Size()) {
-            const PropertyProviderToken token =
-                contributions_[index].token;
+        while (index < contributions_.Size()) { const PropertyProviderToken token = contributions_[index].token;
             if (token.rank == rank && token.origin == origin) {
                 EraseAtUnchecked(index);
                 ++removed;
-            } else {
-                ++index;
-            }
+            } else { ++index; }
         }
         if (removed != 0U) RefreshWinner();
         return removed;
@@ -143,9 +119,7 @@ public:
             if (contributions_[index].token.rank == rank) {
                 EraseAtUnchecked(index);
                 ++removed;
-            } else {
-                ++index;
-            }
+            } else { ++index; }
         }
         if (removed != 0U) RefreshWinner();
         return removed;
@@ -160,31 +134,19 @@ public:
         // C1: cached winner index. Set() maintains it incrementally (one
         // comparison); removals fix it up or rescan once. Hot recompute path
         // drops from O(k) to O(1).
-        return winner_ != UINT32_MAX && winner_ < contributions_.Size()
-            ? &contributions_[winner_]
-            : nullptr;
+        return winner_ != UINT32_MAX && winner_ < contributions_.Size() ? &contributions_[winner_] : nullptr;
     }
 
-    const PropertyProviderContribution* FindContribution(
-        PropertyProviderToken token) const noexcept {
+    const PropertyProviderContribution* FindContribution(PropertyProviderToken token) const noexcept {
         const std::uint32_t index = Find(token);
-        return index != UINT32_MAX
-            ? &contributions_[index]
-            : nullptr;
+        return index != UINT32_MAX ? &contributions_[index] : nullptr;
     }
 
-    Span<const PropertyProviderContribution>
-    Contributions() const noexcept {
-        return contributions_.AsSpan();
-    }
+    Span<const PropertyProviderContribution> Contributions() const noexcept { return contributions_.AsSpan(); }
 
-    std::uint32_t GetCount() const noexcept {
-        return contributions_.Size();
-    }
+    std::uint32_t GetCount() const noexcept { return contributions_.Size(); }
 
-    bool GetIsEmpty() const noexcept {
-        return contributions_.Empty();
-    }
+    bool GetIsEmpty() const noexcept { return contributions_.Empty(); }
 
 private:
     Base::Vector<PropertyProviderContribution> contributions_;
@@ -196,9 +158,7 @@ private:
         for (std::uint32_t index = 0U;
              index < contributions_.Size();
              ++index) {
-            if (contributions_[index].token == token) {
-                return index;
-            }
+            if (contributions_[index].token == token) { return index; }
         }
         return UINT32_MAX;
     }
@@ -207,9 +167,7 @@ private:
         // C1: order-independent swap-remove. Winner() selects by
         // IsStronger(rank/origin/ordinal), so element order is irrelevant.
         const std::uint32_t last = contributions_.Size() - 1U;
-        if (index != last) {
-            contributions_[index] = std::move(contributions_[last]);
-        }
+        if (index != last) { contributions_[index] = std::move(contributions_[last]); }
         contributions_.PopBack();
         if (contributions_.Empty()) {
             winner_ = UINT32_MAX;
@@ -218,26 +176,17 @@ private:
             // element swapped into the removed slot (winner moved).
             winner_ = (index != last) ? index : UINT32_MAX;
             if (winner_ == UINT32_MAX) RefreshWinner();
-        } else if (winner_ == index) {
-            RefreshWinner();
-        }
+        } else if (winner_ == index) { RefreshWinner(); }
     }
 
-    void EraseAtUnchecked(std::uint32_t index) noexcept {
-        const std::uint32_t last = contributions_.Size() - 1U;
-        if (index != last) {
-            contributions_[index] = std::move(contributions_[last]);
-        }
+    void EraseAtUnchecked(std::uint32_t index) noexcept { const std::uint32_t last = contributions_.Size() - 1U;
+        if (index != last) { contributions_[index] = std::move(contributions_[last]); }
         contributions_.PopBack();
     }
 
     void NoteInserted(std::uint32_t index) noexcept {
-        if (winner_ == UINT32_MAX ||
-            IsStronger(
-                contributions_[index].token,
-                contributions_[winner_].token)) {
-            winner_ = index;
-        }
+        if (winner_ == UINT32_MAX || IsStronger(contributions_[index].token,
+                contributions_[winner_].token)) { winner_ = index; }
     }
 
     void RefreshWinner() noexcept {
@@ -245,25 +194,16 @@ private:
         for (std::uint32_t index = 0U;
              index < contributions_.Size();
              ++index) {
-            if (winner_ == UINT32_MAX ||
-                IsStronger(
-                    contributions_[index].token,
-                    contributions_[winner_].token)) {
-                winner_ = index;
-            }
+            if (winner_ == UINT32_MAX || IsStronger(contributions_[index].token,
+                    contributions_[winner_].token)) { winner_ = index; }
         }
     }
 
-    static constexpr bool IsStronger(
-        PropertyProviderToken left,
-        PropertyProviderToken right) noexcept {
+    static constexpr bool IsStronger(PropertyProviderToken left, PropertyProviderToken right) noexcept {
         if (left.rank != right.rank) {
-            return static_cast<std::uint8_t>(left.rank) >
-                static_cast<std::uint8_t>(right.rank);
+            return static_cast<std::uint8_t>(left.rank) > static_cast<std::uint8_t>(right.rank);
         }
-        if (left.origin != right.origin) {
-            return left.origin > right.origin;
-        }
+        if (left.origin != right.origin) { return left.origin > right.origin; }
         return left.ordinal > right.ordinal;
     }
 };

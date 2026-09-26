@@ -14,25 +14,14 @@ public:
     std::uint32_t GetCount() const noexcept override { return items_.Size(); }
     Ref<Base::Object> GetItem(std::uint32_t index) const noexcept override;
     void Add(Ref<Base::Object> item) noexcept;
-    void Insert(
-        std::uint32_t index, Ref<Base::Object> item) noexcept;
-    Result<Ref<Base::Object>> RemoveAt(
-        std::uint32_t index) noexcept;
-    Result<void> Replace(
-        std::uint32_t index, Ref<Base::Object> item) noexcept;
-    Result<void> Move(
-        std::uint32_t oldIndex, std::uint32_t newIndex) noexcept;
+    void Insert(std::uint32_t index, Ref<Base::Object> item) noexcept;
+    Result<Ref<Base::Object>> RemoveAt(std::uint32_t index) noexcept;
+    Result<void> Replace(std::uint32_t index, Ref<Base::Object> item) noexcept;
+    Result<void> Move(std::uint32_t oldIndex, std::uint32_t newIndex) noexcept;
     void Reset() noexcept;
-    Result<void> Reset(
-        Span<const Ref<Base::Object>> items) noexcept;
-    void AddItemsChanged(
-        const ItemsChangedHandler& handler) noexcept override {
-        changed_.Add(handler);
-    }
-    bool RemoveItemsChanged(
-        const ItemsChangedHandler& handler) noexcept override {
-        return changed_.Remove(handler);
-    }
+    Result<void> Reset(Span<const Ref<Base::Object>> items) noexcept;
+    void AddItemsChanged(const ItemsChangedHandler& handler) noexcept override { changed_.Add(handler); }
+    bool RemoveItemsChanged(const ItemsChangedHandler& handler) noexcept override { return changed_.Remove(handler); }
 
 private:
     Base::Vector<Ref<Base::Object>> items_;
@@ -40,10 +29,8 @@ private:
     void Notify(const ItemsChangedEvent& event) noexcept;
 };
 
-AERO_GUI_API void AddBoxedItem(
-    Collections::ObservableCollection<Base::Object>& source, Value value) noexcept;
-AERO_GUI_API void AddBoxedStringItem(
-    Collections::ObservableCollection<Base::Object>& source,
+AERO_GUI_API void AddBoxedItem(Collections::ObservableCollection<Base::Object>& source, Value value) noexcept;
+AERO_GUI_API void AddBoxedStringItem(Collections::ObservableCollection<Base::Object>& source,
     StringView value) noexcept;
 
 } // namespace Aero::Controls

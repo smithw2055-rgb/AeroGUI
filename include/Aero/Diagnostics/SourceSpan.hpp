@@ -10,9 +10,7 @@ struct SourcePosition {
     std::uint32_t column = 0U;
     std::uint64_t byteOffset = 0U;
 
-    constexpr bool IsKnown() const noexcept {
-        return line != 0U || column != 0U;
-    }
+    constexpr bool IsKnown() const noexcept { return line != 0U || column != 0U; }
 };
 
 struct SourceSpan {

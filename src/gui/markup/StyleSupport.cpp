@@ -19,7 +19,7 @@
 #include <Aero/Base/String.hpp>
 
 #include <Aero/Controls.hpp>
-#include <Aero/HierarchicalDataTemplate.hpp>
+#include <Aero/DataTemplate.hpp>
 #include <Aero/TryCast.hpp>
 #include <Aero/Layout.hpp>
 #include <Aero/Media/Brushes.hpp>

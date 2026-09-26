@@ -49,9 +49,7 @@ enum class PropertyExpressionKind : std::uint8_t {
     DynamicResource
 };
 
-using PropertyExpressionEvaluateCallback = Result<Value> (*)(
-    void* context,
-    DependencyObject& object,
+using PropertyExpressionEvaluateCallback = Result<Value> (*)(void* context, DependencyObject& object,
     DependencyPropertyHandle property) noexcept;
 using PropertyExpressionCleanupCallback = void (*)(void* context) noexcept;
 
@@ -61,9 +59,7 @@ struct PropertyExpression {
     PropertyExpressionCleanupCallback cleanup = nullptr;
     PropertyExpressionKind kind = PropertyExpressionKind::Custom;
 
-    bool IsValid() const noexcept {
-        return evaluate != nullptr;
-    }
+    bool IsValid() const noexcept { return evaluate != nullptr; }
 };
 
 struct PropertyProviderToken {
@@ -71,30 +67,19 @@ struct PropertyProviderToken {
     std::uint32_t origin = 0U;
     std::uint32_t ordinal = 0U;
 
-    constexpr bool IsValid() const noexcept {
-        return rank != PropertyValueRank::Default && origin != 0U;
-    }
+    constexpr bool IsValid() const noexcept { return rank != PropertyValueRank::Default && origin != 0U; }
 };
 
-constexpr bool operator==(
-    PropertyProviderToken left,
-    PropertyProviderToken right) noexcept {
-    return left.rank == right.rank &&
-        left.origin == right.origin &&
-        left.ordinal == right.ordinal;
+constexpr bool operator==(PropertyProviderToken left, PropertyProviderToken right) noexcept {
+    return left.rank == right.rank && left.origin == right.origin && left.ordinal == right.ordinal;
 }
 
-constexpr bool operator!=(
-    PropertyProviderToken left,
-    PropertyProviderToken right) noexcept {
-    return !(left == right);
-}
+constexpr bool operator!=(PropertyProviderToken left, PropertyProviderToken right) noexcept { return !(left == right); }
 
 struct PropertyValueSourceInfo {
     PropertyValueRank rank = PropertyValueRank::Default;
     PropertyProviderToken token;
-    PropertyExpressionKind expressionKind =
-        PropertyExpressionKind::Custom;
+    PropertyExpressionKind expressionKind = PropertyExpressionKind::Custom;
     bool hasExpression = false;
     bool isInherited = false;
     bool isAnimated = false;

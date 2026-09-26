@@ -28,8 +28,7 @@ public:
     void SetTargetNullValue(Value value) noexcept { targetNullValue_ = std::move(value); }
     // WPF-style factory: Binding/MultiBinding/PriorityBinding override to
     // create their expression without exposing BindingEngine in headers.
-    virtual Ref<BindingExpression> CreateExpression(
-        DependencyObject* target,
+    virtual Ref<BindingExpression> CreateExpression(DependencyObject* target,
         Meta::DependencyPropertyHandle property) const noexcept {
         static_cast<void>(target);
         static_cast<void>(property);

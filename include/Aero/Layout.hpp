@@ -5,9 +5,7 @@
 #include <Aero/Controls/GridLength.hpp>
 #include <Aero/DependencyProperty.hpp>
 #include <Aero/Diagnostics/Layout.hpp>
-#include <Aero/HorizontalAlignment.hpp>
-#include <Aero/Media/BlendMode.hpp>
-#include <Aero/Visibility.hpp>
+#include <Aero/ElementEnums.hpp>
 
 namespace Aero {
 
@@ -19,35 +17,8 @@ using CornerRadius = Base::CornerRadius;
 
 } // namespace Aero
 
-namespace Aero::Meta {
-
-template<>
-struct TypeTraits<Base::Thickness> {
-    static constexpr TypeId Id() noexcept { return MakeTypeId("Thickness"); }
-    static constexpr StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr StringView Name() noexcept { return "Thickness"; }
-    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
-};
-
-template<>
-struct TypeTraits<Base::CornerRadius> {
-    static constexpr TypeId Id() noexcept {
-        return MakeTypeId("CornerRadius");
-    }
-    static constexpr StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr StringView Name() noexcept {
-        return "CornerRadius";
-    }
-    static constexpr TypeId BaseType() noexcept {
-        return InvalidTypeId;
-    }
-};
-
-} // namespace Aero::Meta
+AERO_DECLARE_TYPE_VALUE(Base::Thickness, "Thickness")
+AERO_DECLARE_TYPE_VALUE(Base::CornerRadius, "CornerRadius")
 
 namespace Aero {
 
@@ -59,9 +30,7 @@ struct Length {
     bool isAuto = true;
 
     static constexpr Length Auto() noexcept { return {}; }
-    static constexpr Length Pixels(double value) noexcept {
-        return {value, false};
-    }
+    static constexpr Length Pixels(double value) noexcept { return {value, false}; }
 };
 
 AERO_GUI_API bool IsFinite(Point value) noexcept;

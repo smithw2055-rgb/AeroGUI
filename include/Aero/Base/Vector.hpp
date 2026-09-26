@@ -13,49 +13,37 @@
 
 namespace Aero::Base {
 
-template<class T, std::uint32_t Count>
-class InlineBuffer {
+template<class T, std::uint32_t Count> class InlineBuffer {
 protected:
     using Slot = typename std::aligned_storage<sizeof(T), alignof(T)>::type;
 
-    T* InlineData() noexcept {
-        return reinterpret_cast<T*>(slots_);
-    }
+    T* InlineData() noexcept { return reinterpret_cast<T*>(slots_); }
 
-    const T* InlineData() const noexcept {
-        return reinterpret_cast<const T*>(slots_);
-    }
+    const T* InlineData() const noexcept { return reinterpret_cast<const T*>(slots_); }
 
 private:
     Slot slots_[Count];
 };
 
-template<class T>
-class InlineBuffer<T, 0U> {
+template<class T> class InlineBuffer<T, 0U> {
 protected:
-    T* InlineData() noexcept { return nullptr; }
-    const T* InlineData() const noexcept { return nullptr; }
+    T* InlineData() noexcept { return nullptr; } const T* InlineData() const noexcept { return nullptr; }
 };
 
-template<class T, std::uint32_t InlineCount>
-class BasicVector  : private InlineBuffer<T, InlineCount> {
+template<class T, std::uint32_t InlineCount> class BasicVector  : private InlineBuffer<T, InlineCount> {
 public:
     using ValueType = T;
     using SizeType = std::uint32_t;
 
     explicit BasicVector(IAllocator* allocator = nullptr) noexcept
-        : allocator_(allocator != nullptr ? allocator : &GetDefaultAllocator()) {
-        ResetEmptyStorage();
-    }
+        : allocator_(allocator != nullptr ? allocator : &GetDefaultAllocator()) { ResetEmptyStorage(); }
 
-    BasicVector(const BasicVector& other)
-        : allocator_(&other.Allocator()) {
+    BasicVector(const BasicVector& other) : allocator_(&other.Allocator()) {
         ResetEmptyStorage();
         Append(other.AsSpan());
     }
 
-    BasicVector(BasicVector&& other) noexcept
-        : allocator_(other.allocator_) {
+    BasicVector(BasicVector&& other) noexcept : allocator_(other.allocator_) {
         ResetEmptyStorage();
         MoveConstructFrom(other);
     }
@@ -66,9 +54,7 @@ public:
     }
 
     BasicVector& operator=(const BasicVector& other) {
-        if (this != &other) {
-            Assign(other.AsSpan());
-        }
+        if (this != &other) { Assign(other.AsSpan()); }
         return *this;
     }
 
@@ -83,8 +69,7 @@ public:
                 BasicVector temporary(allocator_);
                 temporary.Reserve(other.size_);
                 for (SizeType index = 0U; index < other.size_; ++index) {
-                    temporary.EmplaceBack(
-                        std::move_if_noexcept(other.data_[index]));
+                    temporary.EmplaceBack(std::move_if_noexcept(other.data_[index]));
                 }
                 other.Clear();
                 other.ReleaseHeap();
@@ -95,8 +80,7 @@ public:
         return *this;
     }
 
-    T* Data() noexcept { return data_; }
-    const T* Data() const noexcept { return data_; }
+    T* Data() noexcept { return data_; } const T* Data() const noexcept { return data_; }
     SizeType Size() const noexcept { return size_; }
     SizeType Capacity() const noexcept { return capacity_; }
     bool Empty() const noexcept { return size_ == 0U; }
@@ -135,10 +119,8 @@ public:
         return data_[size_ - 1U];
     }
 
-    T* begin() noexcept { return data_; }
-    const T* begin() const noexcept { return data_; }
-    T* end() noexcept { return size_ == 0U ? data_ : data_ + size_; }
-    const T* end() const noexcept {
+    T* begin() noexcept { return data_; } const T* begin() const noexcept { return data_; }
+    T* end() noexcept { return size_ == 0U ? data_ : data_ + size_; } const T* end() const noexcept {
         return size_ == 0U ? data_ : data_ + size_;
     }
 
@@ -148,9 +130,7 @@ public:
     }
 
     void Swap(BasicVector& other) noexcept {
-        if (this == &other) {
-            return;
-        }
+        if (this == &other) { return; }
         if constexpr (InlineCount == 0U) {
             std::swap(allocator_, other.allocator_);
             std::swap(data_, other.data_);
@@ -170,21 +150,13 @@ public:
     }
 
     void Reserve(SizeType requestedCapacity) noexcept {
-        if (requestedCapacity <= capacity_) {
-            return;
-        }
+        if (requestedCapacity <= capacity_) { return; }
 
         const std::size_t bytes = BytesForCount(requestedCapacity);
-        if (bytes == 0U) {
-            ReportOutOfMemory(requestedCapacity * sizeof(T), alignof(T),
-                MemoryTag::Container);
-        }
+        if (bytes == 0U) { ReportOutOfMemory(requestedCapacity * sizeof(T), alignof(T), MemoryTag::Container); }
 
-        void* allocation = allocator_->Allocate(
-            {bytes, alignof(T), MemoryTag::Container});
-        if (allocation == nullptr) {
-            ReportOutOfMemory(bytes, alignof(T), MemoryTag::Container);
-        }
+        void* allocation = allocator_->Allocate({bytes, alignof(T), MemoryTag::Container});
+        if (allocation == nullptr) { ReportOutOfMemory(bytes, alignof(T), MemoryTag::Container); }
 
         T* replacement = static_cast<T*>(allocation);
         RelocateConstruct(replacement, data_, size_);
@@ -201,9 +173,7 @@ public:
             return;
         }
 
-        if (requestedSize == size_) {
-            return;
-        }
+        if (requestedSize == size_) { return; }
 
         EnsureCapacity(requestedSize);
 
@@ -220,9 +190,7 @@ public:
             return;
         }
 
-        if (requestedSize == size_) {
-            return;
-        }
+        if (requestedSize == size_) { return; }
 
         EnsureCapacity(requestedSize);
 
@@ -232,8 +200,7 @@ public:
         }
     }
 
-    template<class... Args>
-    T* EmplaceBack(Args&&... args) noexcept {
+    template<class... Args> T* EmplaceBack(Args&&... args) noexcept {
         AERO_ASSERT(size_ != UINT32_MAX);
         EnsureCapacity(size_ + 1U);
 
@@ -242,13 +209,9 @@ public:
         return value;
     }
 
-    void PushBack(const T& value) noexcept {
-        (void)EmplaceBack(value);
-    }
+    void PushBack(const T& value) noexcept { (void)EmplaceBack(value); }
 
-    void PushBack(T&& value) noexcept {
-        (void)EmplaceBack(std::move(value));
-    }
+    void PushBack(T&& value) noexcept { (void)EmplaceBack(std::move(value)); }
 
     void Assign(Span<const T> values) noexcept {
         if (IsAliased(values.Data(), values.Size())) {
@@ -269,16 +232,12 @@ public:
     }
 
     void Append(Span<const T> values) noexcept {
-        if (values.Empty()) {
-            return;
-        }
+        if (values.Empty()) { return; }
 
         AERO_ASSERT(values.Size() <= UINT32_MAX - size_);
 
         const bool aliased = IsAliased(values.Data(), values.Size());
-        const SizeType sourceOffset = aliased
-            ? static_cast<SizeType>(values.Data() - data_)
-            : 0U;
+        const SizeType sourceOffset = aliased ? static_cast<SizeType>(values.Data() - data_) : 0U;
         const SizeType sourceCount = values.Size();
         EnsureCapacity(size_ + sourceCount);
 
@@ -298,14 +257,10 @@ private:
     bool IsInline() const noexcept {
         if constexpr (InlineCount == 0U) {
             return false;
-        } else {
-            return data_ == this->InlineData();
-        }
+        } else { return data_ == this->InlineData(); }
     }
 
-    bool UsesHeap() const noexcept {
-        return data_ != nullptr && !IsInline();
-    }
+    bool UsesHeap() const noexcept { return data_ != nullptr && !IsInline(); }
 
     void ResetEmptyStorage() noexcept {
         if constexpr (InlineCount == 0U) {
@@ -319,77 +274,50 @@ private:
     }
 
     void ReleaseHeap() noexcept {
-        if (!UsesHeap()) {
-            return;
-        }
-        allocator_->Deallocate(data_, BytesForCount(capacity_),
-            alignof(T), MemoryTag::Container);
+        if (!UsesHeap()) { return; }
+        allocator_->Deallocate(data_, BytesForCount(capacity_), alignof(T), MemoryTag::Container);
     }
 
     static std::size_t BytesForCount(SizeType count) noexcept {
-        if (count == 0U) {
-            return 0U;
-        }
-        if (static_cast<std::uint64_t>(count) >
-            static_cast<std::uint64_t>(SIZE_MAX / sizeof(T))) {
-            return 0U;
-        }
+        if (count == 0U) { return 0U; }
+        if (static_cast<std::uint64_t>(count) > static_cast<std::uint64_t>(SIZE_MAX / sizeof(T))) { return 0U; }
         return static_cast<std::size_t>(count) * sizeof(T);
     }
 
     void EnsureCapacity(SizeType required) noexcept {
-        if (required <= capacity_) {
-            return;
-        }
+        if (required <= capacity_) { return; }
 
         SizeType grown = capacity_ == 0U ? 4U : capacity_;
-        while (grown < required) {
-            const SizeType increment = grown / 2U + 1U;
+        while (grown < required) { const SizeType increment = grown / 2U + 1U;
             if (increment > UINT32_MAX - grown) {
                 grown = required;
                 break;
             }
             grown += increment;
         }
-        if (grown < required) {
-            grown = required;
-        }
+        if (grown < required) { grown = required; }
         Reserve(grown);
     }
 
-    bool IsAliased(
-        const T* source, SizeType count) const noexcept {
-        if (source == nullptr || count == 0U || data_ == nullptr || size_ == 0U) {
-            return false;
-        }
-        const std::uintptr_t beginAddress =
-            reinterpret_cast<std::uintptr_t>(data_);
-        const std::uintptr_t endAddress = beginAddress +
-            static_cast<std::uintptr_t>(size_) * sizeof(T);
-        const std::uintptr_t sourceAddress =
-            reinterpret_cast<std::uintptr_t>(source);
-        if (sourceAddress < beginAddress || sourceAddress > endAddress) {
-            return false;
-        }
+    bool IsAliased(const T* source, SizeType count) const noexcept {
+        if (source == nullptr || count == 0U || data_ == nullptr || size_ == 0U) { return false; }
+        const std::uintptr_t beginAddress = reinterpret_cast<std::uintptr_t>(data_);
+        const std::uintptr_t endAddress = beginAddress + static_cast<std::uintptr_t>(size_) * sizeof(T);
+        const std::uintptr_t sourceAddress = reinterpret_cast<std::uintptr_t>(source);
+        if (sourceAddress < beginAddress || sourceAddress > endAddress) { return false; }
         const std::uintptr_t remainingBytes = endAddress - sourceAddress;
-        return static_cast<std::uint64_t>(count) * sizeof(T) <=
-            remainingBytes;
+        return static_cast<std::uint64_t>(count) * sizeof(T) <= remainingBytes;
     }
 
     static void DestroyRange(T* values, SizeType count) noexcept {
         if constexpr (!std::is_trivially_destructible<T>::value) {
-            for (SizeType index = count; index > 0U; --index) {
-                values[index - 1U].~T();
-            }
+            for (SizeType index = count; index > 0U; --index) { values[index - 1U].~T(); }
         }
     }
 
     static void RelocateConstruct(T* destination, T* source, SizeType count) noexcept {
         if constexpr (std::is_trivially_copyable<T>::value) {
-            if (count > 0U) {
-                std::memcpy(destination, source,
-                    static_cast<std::size_t>(count) * sizeof(T));
-            }
+            if (count > 0U) { std::memcpy(destination, source, static_cast<std::size_t>(count) * sizeof(T)); }
         } else {
             for (SizeType index = 0U; index < count; ++index) {
                 new (destination + index) T(std::move_if_noexcept(source[index]));
@@ -423,10 +351,8 @@ private:
     }
 };
 
-template<class T>
-using Vector = BasicVector<T, 0U>;
+template<class T> using Vector = BasicVector<T, 0U>;
 
-template<class T, std::uint32_t InlineCount>
-using SmallVector = BasicVector<T, InlineCount>;
+template<class T, std::uint32_t InlineCount> using SmallVector = BasicVector<T, InlineCount>;
 
 } // namespace Aero::Base

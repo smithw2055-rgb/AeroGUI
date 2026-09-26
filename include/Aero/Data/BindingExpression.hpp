@@ -16,12 +16,9 @@ struct BindingHandle {
     std::uint64_t value = 0U;
 
     constexpr BindingHandle() noexcept = default;
-    explicit constexpr BindingHandle(std::uint64_t token) noexcept
-        : value(token) {}
+    explicit constexpr BindingHandle(std::uint64_t token) noexcept : value(token) {}
 
-    constexpr bool IsValid() const noexcept {
-        return value != 0U && engine_ != nullptr;
-    }
+    constexpr bool IsValid() const noexcept { return value != 0U && engine_ != nullptr; }
 
 private:
     friend class ::Aero::BindingEngine;
@@ -43,8 +40,7 @@ enum class BindingStatus : std::uint8_t {
 class AERO_GUI_API BindingExpression {
 public:
     BindingExpression() noexcept = default;
-    explicit BindingExpression(BindingHandle handle) noexcept
-        : handle_(handle) {}
+    explicit BindingExpression(BindingHandle handle) noexcept : handle_(handle) {}
 
     bool IsValid() const noexcept;
     BindingHandle Handle() const noexcept { return handle_; }

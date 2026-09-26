@@ -11,8 +11,7 @@
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleEngine.hpp"
 #include <Aero/Controls/ControlTemplate.hpp>
-#include <Aero/HierarchicalDataTemplate.hpp>
-#include <Aero/DataTemplateSelector.hpp>
+#include <Aero/DataTemplate.hpp>
 #include <Aero/Controls/ItemsPanelTemplate.hpp>
 #include <Aero/Triggers.hpp>
 #include "gui/triggers/TriggerValueCompare.hpp"

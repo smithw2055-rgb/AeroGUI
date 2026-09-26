@@ -19,15 +19,9 @@ public:
     inline static constexpr RoutedEvent<RoutedEventArgs> CheckedEvent{"Checked"};
     inline static constexpr RoutedEvent<RoutedEventArgs> UncheckedEvent{"Unchecked"};
     inline static constexpr RoutedEvent<RoutedEventArgs> IndeterminateEvent{"Indeterminate"};
-    UIElement::Event<RoutedEventArgs> Checked() noexcept {
-        return GetEvent(CheckedEvent);
-    }
-    UIElement::Event<RoutedEventArgs> Unchecked() noexcept {
-        return GetEvent(UncheckedEvent);
-    }
-    UIElement::Event<RoutedEventArgs> Indeterminate() noexcept {
-        return GetEvent(IndeterminateEvent);
-    }
+    UIElement::Event<RoutedEventArgs> Checked() noexcept { return GetEvent(CheckedEvent); }
+    UIElement::Event<RoutedEventArgs> Unchecked() noexcept { return GetEvent(UncheckedEvent); }
+    UIElement::Event<RoutedEventArgs> Indeterminate() noexcept { return GetEvent(IndeterminateEvent); }
 
     AERO_DEPENDENCY_PROPERTY(Nullable<bool>, IsChecked);
     AERO_DEPENDENCY_PROPERTY(bool, IsThreeState);
@@ -82,8 +76,7 @@ public:
     ~CheckBox() override = default;
 
 protected:
-    explicit CheckBox(TypeId runtimeType) noexcept
-        : Primitives::ToggleButton(runtimeType) {}
+    explicit CheckBox(TypeId runtimeType) noexcept : Primitives::ToggleButton(runtimeType) {}
 };
 
 } // namespace Aero::Controls

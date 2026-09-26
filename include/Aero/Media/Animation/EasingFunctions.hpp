@@ -17,12 +17,8 @@ enum class EasingMode : std::uint8_t {
 class AERO_GUI_API EasingFunctionBase : public ::Aero::Freezable {
     AERO_DECLARE_TYPE(EasingFunctionBase, ::Aero::Freezable)
 public:
-    EasingMode GetEasingMode() const noexcept {
-        return GetValue(EasingModeProperty);
-    }
-    void SetEasingMode(EasingMode value) noexcept {
-        SetValue(EasingModeProperty, value);
-    }
+    EasingMode GetEasingMode() const noexcept { return GetValue(EasingModeProperty); }
+    void SetEasingMode(EasingMode value) noexcept { SetValue(EasingModeProperty, value); }
     AERO_DEPENDENCY_PROPERTY(EasingMode, EasingMode);
 
     enum class Kind : std::uint8_t {
@@ -44,8 +40,7 @@ public:
 
     // XAML names (SineEase, CubicEase, ...) are metadata aliases. Each factory
     // constructs this class with that name's TypeId and the matching Kind.
-    EasingFunctionBase(Meta::TypeId runtimeType, Kind kind) noexcept
-        : Freezable(runtimeType), kind_(kind) {}
+    EasingFunctionBase(Meta::TypeId runtimeType, Kind kind) noexcept : Freezable(runtimeType), kind_(kind) {}
 
     double GetExponent() const noexcept { return GetValue(ExponentProperty); }
     double GetPower() const noexcept { return GetValue(PowerProperty); }

@@ -17,17 +17,11 @@ class AERO_GUI_API ICommand : public Base::Object {
 public:
     ~ICommand() override = default;
 
-    virtual Result<bool> CanExecute(
-        const Value& parameter,
-        UIElement* target = nullptr) noexcept = 0;
-    virtual void Execute(
-        const Value& parameter,
-        UIElement* target = nullptr) noexcept = 0;
+    virtual Result<bool> CanExecute(const Value& parameter, UIElement* target = nullptr) noexcept = 0;
+    virtual void Execute(const Value& parameter, UIElement* target = nullptr) noexcept = 0;
 
-    void AddCanExecuteChanged(
-        const CanExecuteChangedHandler& handler) noexcept;
-    bool RemoveCanExecuteChanged(
-        const CanExecuteChangedHandler& handler) noexcept;
+    void AddCanExecuteChanged(const CanExecuteChangedHandler& handler) noexcept;
+    bool RemoveCanExecuteChanged(const CanExecuteChangedHandler& handler) noexcept;
 
 protected:
     ICommand() noexcept = default;

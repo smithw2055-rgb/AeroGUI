@@ -12,51 +12,35 @@
 
 namespace Aero::Data {
 
-using CollectionViewFilter =
-    Base::Delegate<bool(const Base::Object*)>;
+using CollectionViewFilter = Base::Delegate<bool(const Base::Object*)>;
 using CurrentChangedHandler = Base::Delegate<void()>;
 
-class AERO_GUI_API CollectionView :
-    public Base::Object,
+class AERO_GUI_API CollectionView : public Base::Object,
     public Collections::IItemsSource {
     AERO_DECLARE_TYPE(CollectionView, Base::Object)
 public:
-    explicit CollectionView(
-        Collections::IItemsSource* source) noexcept;
+    explicit CollectionView(Collections::IItemsSource* source) noexcept;
     ~CollectionView() override;
 
-    Meta::TypeId RuntimeType() const noexcept override {
-        return StaticTypeId();
-    }
+    Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
 
-    Base::Object* AsObject() noexcept override {
-        return this;
-    }
+    Base::Object* AsObject() noexcept override { return this; }
 
-    Collections::IItemsSource* GetSource() const noexcept {
-        return inner_;
-    }
+    Collections::IItemsSource* GetSource() const noexcept { return inner_; }
 
     std::uint32_t GetCount() const noexcept override;
-    Ref<Base::Object> GetItem(
-        std::uint32_t index) const noexcept override;
-    void AddItemsChanged(
-        const Collections::ItemsChangedHandler& handler) noexcept override;
-    bool RemoveItemsChanged(
-        const Collections::ItemsChangedHandler& handler) noexcept override;
+    Ref<Base::Object> GetItem(std::uint32_t index) const noexcept override;
+    void AddItemsChanged(const Collections::ItemsChangedHandler& handler) noexcept override;
+    bool RemoveItemsChanged(const Collections::ItemsChangedHandler& handler) noexcept override;
 
     void SetFilter(CollectionViewFilter filter) noexcept;
     const CollectionViewFilter& GetFilter() const noexcept { return filter_; }
-    void SortBy(
-        StringView propertyName,
-        ListSortDirection direction = ListSortDirection::Ascending) noexcept;
+    void SortBy(StringView propertyName, ListSortDirection direction = ListSortDirection::Ascending) noexcept;
     void ClearSort() noexcept;
     void Refresh() noexcept;
 
     Ref<Base::Object> GetCurrentItem() const noexcept;
-    std::uint32_t GetCurrentPosition() const noexcept {
-        return currentPosition_;
-    }
+    std::uint32_t GetCurrentPosition() const noexcept { return currentPosition_; }
     bool MoveCurrentTo(const Base::Object* item) noexcept;
     bool MoveCurrentToPosition(std::uint32_t index) noexcept;
     bool MoveCurrentToFirst() noexcept;
@@ -64,16 +48,13 @@ public:
     bool MoveCurrentToNext() noexcept;
     bool MoveCurrentToPrevious() noexcept;
 
-    void AddCurrentChanged(
-        const CurrentChangedHandler& handler) noexcept;
-    bool RemoveCurrentChanged(
-        const CurrentChangedHandler& handler) noexcept;
+    void AddCurrentChanged(const CurrentChangedHandler& handler) noexcept;
+    bool RemoveCurrentChanged(const CurrentChangedHandler& handler) noexcept;
 
 private:
     void Rebuild() noexcept;
     bool Passes(const Base::Object* item) const noexcept;
-    void OnInnerChanged(
-        const Collections::ItemsChangedEvent& event) noexcept;
+    void OnInnerChanged(const Collections::ItemsChangedEvent& event) noexcept;
     void NotifyReset() noexcept;
     void RaiseCurrentChanged() noexcept;
 

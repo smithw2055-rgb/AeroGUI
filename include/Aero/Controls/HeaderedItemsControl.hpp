@@ -13,45 +13,30 @@ public:
     HeaderedItemsControl() noexcept : ItemsControl(StaticTypeId()) {}
     ~HeaderedItemsControl() override = default;
 
-    Value GetHeader() const noexcept {
-        return GetValue(HeaderProperty);
-    }
-    void SetHeader(Value value) noexcept {
-        SetValue(HeaderProperty, std::move(value));
-    }
+    Value GetHeader() const noexcept { return GetValue(HeaderProperty); }
+    void SetHeader(Value value) noexcept { SetValue(HeaderProperty, std::move(value)); }
     void SetHeader(StringView value) noexcept {
-        Result<Value> boxed = Value::TryFromString(
-            Meta::TypeOf<String>(), value);
+        Result<Value> boxed = Value::TryFromString(Meta::TypeOf<String>(), value);
         if (!boxed) { AERO_ASSERT(false); return; }
         SetHeader(std::move(boxed).Value());
     }
-    Ref<DataTemplate> GetHeaderTemplate() const noexcept {
-        return GetValue(HeaderTemplateProperty);
-    }
-    void SetHeaderTemplate(Ref<DataTemplate> value) noexcept {
-        SetValue(HeaderTemplateProperty, std::move(value));
-    }
+    Ref<DataTemplate> GetHeaderTemplate() const noexcept { return GetValue(HeaderTemplateProperty); }
+    void SetHeaderTemplate(Ref<DataTemplate> value) noexcept { SetValue(HeaderTemplateProperty, std::move(value)); }
 
     AERO_DEPENDENCY_PROPERTY(Value, Header);
     AERO_DEPENDENCY_PROPERTY(Ref<DataTemplate>, HeaderTemplate);
 
 protected:
-    explicit HeaderedItemsControl(Meta::TypeId runtimeType) noexcept
-        : ItemsControl(runtimeType) {}
-    virtual void OnHeaderChanged(
-        const Value& oldHeader,
-        const Value& newHeader) {
+    explicit HeaderedItemsControl(Meta::TypeId runtimeType) noexcept : ItemsControl(runtimeType) {}
+    virtual void OnHeaderChanged(const Value& oldHeader, const Value& newHeader) {
         (void)oldHeader;
         (void)newHeader;
     }
-    virtual void OnHeaderTemplateChanged(
-        const Ref<DataTemplate>& oldTemplate,
-        const Ref<DataTemplate>& newTemplate) {
+    virtual void OnHeaderTemplateChanged(const Ref<DataTemplate>& oldTemplate, const Ref<DataTemplate>& newTemplate) {
         (void)oldTemplate;
         (void)newTemplate;
     }
-    void OnPropertyChanged(
-        const DependencyPropertyChangedEventArgs& args) noexcept override {
+    void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override {
         ItemsControl::OnPropertyChanged(args);
         if (args.GetProperty() == HeaderProperty) {
             OnHeaderChanged(args.GetOldValue(), args.GetNewValue());
@@ -64,9 +49,7 @@ protected:
                 }
                 return {};
             };
-            OnHeaderTemplateChanged(
-                toTemplate(args.GetOldValue()),
-                toTemplate(args.GetNewValue()));
+            OnHeaderTemplateChanged(toTemplate(args.GetOldValue()), toTemplate(args.GetNewValue()));
         }
     }
 };

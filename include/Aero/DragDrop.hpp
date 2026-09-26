@@ -32,9 +32,7 @@ public:
     /// Initiates a drag-and-drop operation with the supplied payload. Returns
     /// the effects that were allowed. The actual drop effect is applied by the
     /// input engine while the drag is in progress.
-    static Input::DragDropEffects DoDragDrop(
-        ::Aero::DependencyObject* source,
-        const Base::Ref<Base::Object>& data,
+    static Input::DragDropEffects DoDragDrop(::Aero::DependencyObject* source, const Base::Ref<Base::Object>& data,
         Input::DragDropEffects allowedEffects) noexcept;
 
 protected:

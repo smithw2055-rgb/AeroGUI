@@ -37,8 +37,7 @@ using Meta::PropertyValue;
 class AERO_GUI_API Setter : public SetterBase {
     AERO_DECLARE_TYPE(Setter, SetterBase)
 public:
-    explicit Setter(TypeId runtimeType = StaticTypeId()) noexcept
-        : SetterBase(runtimeType) {}
+    explicit Setter(TypeId runtimeType = StaticTypeId()) noexcept : SetterBase(runtimeType) {}
 
     DependencyPropertyHandle GetProperty() const noexcept { return property_; }
     const PropertyValue& GetValue() const noexcept { return value_; }
@@ -64,11 +63,8 @@ public:
     StringView GetPropertyName() const noexcept { return propertyName_.View(); }
     StringView GetTargetName() const noexcept { return targetName_.View(); }
     const PropertyValue& GetAuthoredValue() const noexcept { return authoredValue_; }
-    bool GetIsAuthored() const noexcept {
-        return !propertyName_.Empty() && !authoredValue_.IsUnset();
-    }
-    Result<void> Resolve(DependencyPropertyHandle property,
-                               const PropertyValue& value) noexcept;
+    bool GetIsAuthored() const noexcept { return !propertyName_.Empty() && !authoredValue_.IsUnset(); }
+    Result<void> Resolve(DependencyPropertyHandle property, const PropertyValue& value) noexcept;
 
 private:
     DependencyPropertyHandle property_;
@@ -89,17 +85,13 @@ public:
     Span<const Ref<Base::Object>> GetEnterActions() const noexcept {
         return {enterActions_.Data(), enterActions_.Size()};
     }
-    Span<const Ref<Base::Object>> GetExitActions() const noexcept {
-        return {exitActions_.Data(), exitActions_.Size()};
-    }
+    Span<const Ref<Base::Object>> GetExitActions() const noexcept { return {exitActions_.Data(), exitActions_.Size()}; }
     void AddBehavior(Ref<Base::Object> behavior) noexcept {
         if (!behavior) { AERO_ASSERT(false); return; }
         behaviors_.PushBack(std::move(behavior));
     }
     void ClearBehaviors() noexcept { behaviors_.Clear(); }
-    Span<const Ref<Base::Object>> GetBehaviors() const noexcept {
-        return {behaviors_.Data(), behaviors_.Size()};
-    }
+    Span<const Ref<Base::Object>> GetBehaviors() const noexcept { return {behaviors_.Data(), behaviors_.Size()}; }
 
 protected:
     explicit TriggerBase(TypeId runtimeType) noexcept : runtimeType_(runtimeType) {}
@@ -139,8 +131,7 @@ class Style;
 class AERO_GUI_API Trigger : public TriggerBase {
     AERO_DECLARE_TYPE_NAMED(Trigger, TriggerBase, "urn:aero", "Trigger")
 public:
-    explicit Trigger(TypeId runtimeType = StaticTypeId()) noexcept
-        : TriggerBase(runtimeType) {}
+    explicit Trigger(TypeId runtimeType = StaticTypeId()) noexcept : TriggerBase(runtimeType) {}
     DependencyPropertyHandle GetProperty() const noexcept { return property_; }
     const PropertyValue& GetValue() const noexcept { return value_; }
     void SetProperty(DependencyPropertyHandle value) noexcept;
@@ -157,9 +148,7 @@ public:
     Span<const Ref<Setter>> GetAuthoredSetters() const noexcept {
         return {authoredSetters_.Data(), authoredSetters_.Size()};
     }
-    bool GetIsAuthored() const noexcept {
-        return !propertyName_.Empty() && !authoredValue_.IsUnset();
-    }
+    bool GetIsAuthored() const noexcept { return !propertyName_.Empty() && !authoredValue_.IsUnset(); }
 private:
     friend class Style;
 
@@ -176,9 +165,7 @@ private:
 class AERO_GUI_API DataTrigger : public TriggerBase {
     AERO_DECLARE_TYPE(DataTrigger, TriggerBase)
 public:
-    DataTrigger() noexcept : TriggerBase(StaticTypeId()) {
-        static_cast<void>(comparison_.Assign("Equal"));
-    }
+    DataTrigger() noexcept : TriggerBase(StaticTypeId()) { static_cast<void>(comparison_.Assign("Equal")); }
     Ref<Data::Binding> GetBinding() const noexcept { return binding_; }
     void SetBinding(Ref<Data::Binding> value) noexcept { binding_ = std::move(value); }
     StringView GetPropertyName() const noexcept { return propertyName_.View(); }
@@ -212,9 +199,7 @@ public:
     MultiTrigger() noexcept : TriggerBase(StaticTypeId()) {}
     void AddCondition(Ref<Condition> condition) noexcept;
     void ClearConditions() noexcept { conditions_.Clear(); }
-    Span<const Ref<Condition>> GetConditions() const noexcept {
-        return {conditions_.Data(), conditions_.Size()};
-    }
+    Span<const Ref<Condition>> GetConditions() const noexcept { return {conditions_.Data(), conditions_.Size()}; }
     void AddAuthoredSetter(Ref<Setter> setter) noexcept;
     void ClearAuthoredSetters() noexcept { authoredSetters_.Clear(); }
     Span<const Ref<Setter>> GetAuthoredSetters() const noexcept {
@@ -232,9 +217,7 @@ public:
     MultiDataTrigger() noexcept : TriggerBase(StaticTypeId()) {}
     void AddCondition(Ref<Condition> condition) noexcept;
     void ClearConditions() noexcept { conditions_.Clear(); }
-    Span<const Ref<Condition>> GetConditions() const noexcept {
-        return {conditions_.Data(), conditions_.Size()};
-    }
+    Span<const Ref<Condition>> GetConditions() const noexcept { return {conditions_.Data(), conditions_.Size()}; }
     void AddAuthoredSetter(Ref<Setter> setter) noexcept;
     void ClearAuthoredSetters() noexcept { authoredSetters_.Clear(); }
     Span<const Ref<Setter>> GetAuthoredSetters() const noexcept {

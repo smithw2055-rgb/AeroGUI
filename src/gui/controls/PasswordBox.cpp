@@ -3,7 +3,6 @@
 #include "render/DisplayList.hpp"
 #include <Aero/Controls/TextBoxBase.hpp>
 #include <Aero/Controls/TextBox.hpp>
-#include <Aero/Controls/PasswordBox.hpp>
 #include <Aero/ClassHandler.hpp>
 #include <Aero/Controls/ScrollViewer.hpp>
 #include "gui/meta/TypeRegistryDetail.hpp"

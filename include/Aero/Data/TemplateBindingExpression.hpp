@@ -3,9 +3,7 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/DependencyProperty.hpp>
 
-namespace Aero {
-class DependencyObject;
-}
+namespace Aero { class DependencyObject; }
 
 namespace Aero::Data {
 
@@ -15,14 +13,10 @@ class AERO_GUI_API TemplateBindingExpression {
 public:
     TemplateBindingExpression() noexcept = default;
 
-    bool IsValid() const noexcept {
-        return target_ != nullptr && targetProperty_.IsValid();
-    }
+    bool IsValid() const noexcept { return target_ != nullptr && targetProperty_.IsValid(); }
     Base::Status UpdateTarget() noexcept;
     DependencyObject* GetTarget() const noexcept { return target_; }
-    DependencyPropertyHandle GetTargetProperty() const noexcept {
-        return targetProperty_;
-    }
+    DependencyPropertyHandle GetTargetProperty() const noexcept { return targetProperty_; }
 
 private:
     friend class BindingOperations;

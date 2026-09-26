@@ -11,7 +11,7 @@
 #include "render/DisplayList.hpp"
 #include <Aero/Controls.hpp>
 #include <Aero/Controls/ItemContainerGenerator.hpp>
-#include <Aero/Controls/BulletDecorator.hpp>
+#include <Aero/Controls/Decorator.hpp>
 #include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/DataTemplate.hpp>
 #include <Aero/Base/String.hpp>

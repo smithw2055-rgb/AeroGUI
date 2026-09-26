@@ -6,7 +6,7 @@
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Collections.hpp>
 #include <Aero/DependencyProperty.hpp>
-#include <Aero/HorizontalAlignment.hpp>
+#include <Aero/ElementEnums.hpp>
 #include <Aero/Media/Images.hpp>
 #include <Aero/Media/Transform2D.hpp>
 
@@ -51,18 +51,10 @@ public:
 
     double GetOpacity() const noexcept;
     void SetOpacity(double value) noexcept;
-    Ref<Base::Object> GetShader() const noexcept {
-        return GetValue(ShaderProperty);
-    }
-    void SetShader(Ref<Base::Object> value) noexcept {
-        SetValue(ShaderProperty, std::move(value));
-    }
-    Ref<Transform> GetRelativeTransform() const noexcept {
-        return GetValue(RelativeTransformProperty);
-    }
-    void SetRelativeTransform(Ref<Transform> value) noexcept {
-        SetValue(RelativeTransformProperty, std::move(value));
-    }
+    Ref<Base::Object> GetShader() const noexcept { return GetValue(ShaderProperty); }
+    void SetShader(Ref<Base::Object> value) noexcept { SetValue(ShaderProperty, std::move(value)); }
+    Ref<Transform> GetRelativeTransform() const noexcept { return GetValue(RelativeTransformProperty); }
+    void SetRelativeTransform(Ref<Transform> value) noexcept { SetValue(RelativeTransformProperty, std::move(value)); }
 
     std::uint64_t GetRevision() const noexcept;
 
@@ -71,16 +63,14 @@ public:
     AERO_DEPENDENCY_PROPERTY(Ref<Transform>, RelativeTransform);
 
 protected:
-    explicit Brush(TypeId runtimeType) noexcept
-        : Animatable(runtimeType) {}
+    explicit Brush(TypeId runtimeType) noexcept : Animatable(runtimeType) {}
     ~Brush() override = default;
 };
 
 class AERO_GUI_API GradientStop : public Animatable {
     AERO_DECLARE_TYPE(GradientStop, Animatable)
 public:
-    GradientStop() noexcept
-        : Animatable(StaticTypeId()) {}
+    GradientStop() noexcept : Animatable(StaticTypeId()) {}
     ~GradientStop() override = default;
 
     double GetOffset() const noexcept;
@@ -93,39 +83,26 @@ public:
 
 };
 
-class AERO_GUI_API GradientStopCollection :
-    public Freezable,
+class AERO_GUI_API GradientStopCollection : public Freezable,
     public Collections::IItemsSource {
     AERO_DECLARE_TYPE(GradientStopCollection, Freezable)
 public:
-    GradientStopCollection() noexcept
-        : Freezable(StaticTypeId()),
+    GradientStopCollection() noexcept : Freezable(StaticTypeId()),
           stops_(&Base::GetDefaultAllocator()) {}
     ~GradientStopCollection() override;
-    Span<const Ref<GradientStop>>
-    GetItems() const noexcept {
-        return stops_.AsSpan();
+    Span<const Ref<GradientStop>> GetItems() const noexcept { return stops_.AsSpan(); }
+    std::uint32_t GetCount() const noexcept override { return stops_.Size(); }
+    Ref<Base::Object> GetItem(std::uint32_t index) const noexcept override {
+        return index < stops_.Size() ? Ref<Base::Object>(stops_[index]) : Ref<Base::Object>{};
     }
-    std::uint32_t GetCount() const noexcept override {
-        return stops_.Size();
-    }
-    Ref<Base::Object> GetItem(
-        std::uint32_t index) const noexcept override {
-        return index < stops_.Size()
-            ? Ref<Base::Object>(stops_[index])
-            : Ref<Base::Object>{};
-    }
-    void AddItemsChanged(
-        const Collections::ItemsChangedHandler& handler) noexcept override {
+    void AddItemsChanged(const Collections::ItemsChangedHandler& handler) noexcept override {
         if (IsFrozen()) return;
         changed_.Add(handler);
     }
-    bool RemoveItemsChanged(
-        const Collections::ItemsChangedHandler& handler) noexcept override {
+    bool RemoveItemsChanged(const Collections::ItemsChangedHandler& handler) noexcept override {
         return changed_.Remove(handler);
     }
-    void Add(
-        Ref<GradientStop> stop) noexcept;
+    void Add(Ref<GradientStop> stop) noexcept;
     void Clear() noexcept;
 protected:
     bool FreezeCore(bool isChecking) noexcept override;
@@ -146,8 +123,7 @@ public:
     BrushShader() noexcept : BrushShader(StaticTypeId()) {}
     ~BrushShader() override = default;
 protected:
-    explicit BrushShader(TypeId runtimeType) noexcept
-        : runtimeType_(runtimeType) {}
+    explicit BrushShader(TypeId runtimeType) noexcept : runtimeType_(runtimeType) {}
     void BumpRevision() noexcept { ++revision_; }
 private:
     TypeId runtimeType_;
@@ -170,17 +146,14 @@ private:
 class AERO_GUI_API ConicGradientShader : public BrushShader {
     AERO_DECLARE_TYPE(ConicGradientShader, BrushShader)
 public:
-    ConicGradientShader() noexcept
-        : BrushShader(StaticTypeId()),
+    ConicGradientShader() noexcept : BrushShader(StaticTypeId()),
           stops_(&Base::GetDefaultAllocator()) {}
     void AddGradientStop(Ref<GradientStop> value) noexcept {
         if (!value) { AERO_ASSERT(false); return; }
         stops_.PushBack(std::move(value));
     }
     void ClearGradientStops() noexcept { stops_.Clear(); }
-    Span<const Ref<GradientStop>> GetGradientStops() const noexcept {
-        return stops_.AsSpan();
-    }
+    Span<const Ref<GradientStop>> GetGradientStops() const noexcept { return stops_.AsSpan(); }
 private:
     Base::Vector<Ref<GradientStop>> stops_;
 };
@@ -201,10 +174,8 @@ private:
 class AERO_GUI_API SolidColorBrush : public Brush {
     AERO_DECLARE_TYPE(SolidColorBrush, Brush)
 public:
-    SolidColorBrush() noexcept
-        : Brush(StaticTypeId()) {}
-    explicit SolidColorBrush(Color color) noexcept
-        : Brush(StaticTypeId()), initialColor_(color) {}
+    SolidColorBrush() noexcept : Brush(StaticTypeId()) {}
+    explicit SolidColorBrush(Color color) noexcept : Brush(StaticTypeId()), initialColor_(color) {}
     ~SolidColorBrush() override = default;
 
     Color GetColor() const noexcept;
@@ -216,18 +187,13 @@ private:
     Color initialColor_{};
 };
 
-AERO_GUI_API Result<Ref<Brush>>
-MakeSolidColorBrush(Color color) noexcept;
+AERO_GUI_API Result<Ref<Brush>> MakeSolidColorBrush(Color color) noexcept;
 
 class AERO_GUI_API GradientBrush : public Brush {
     AERO_DECLARE_TYPE(GradientBrush, Brush)
 public:
-    Span<const Ref<GradientStop>>
-        GetGradientStops() const noexcept {
-        return stops_.AsSpan();
-    }
-    void AddGradientStop(
-        Ref<GradientStop> stop) noexcept;
+    Span<const Ref<GradientStop>> GetGradientStops() const noexcept { return stops_.AsSpan(); }
+    void AddGradientStop(Ref<GradientStop> stop) noexcept;
     void ClearGradientStops() noexcept;
     BrushMappingMode GetMappingMode() const noexcept;
     void SetMappingMode(BrushMappingMode value) noexcept;
@@ -238,8 +204,7 @@ public:
     AERO_DEPENDENCY_PROPERTY(GradientSpreadMethod, SpreadMethod);
 
 protected:
-    explicit GradientBrush(TypeId runtimeType) noexcept
-        : Brush(runtimeType),
+    explicit GradientBrush(TypeId runtimeType) noexcept : Brush(runtimeType),
           stops_(&Base::GetDefaultAllocator()) {}
     ~GradientBrush() override;
     bool FreezeCore(bool isChecking) noexcept override;
@@ -250,12 +215,10 @@ private:
     FreezableChangedHandler stopChangedHandler_;
 };
 
-class AERO_GUI_API LinearGradientBrush
-    : public GradientBrush {
+class AERO_GUI_API LinearGradientBrush : public GradientBrush {
     AERO_DECLARE_TYPE(LinearGradientBrush, GradientBrush)
 public:
-    LinearGradientBrush() noexcept
-        : GradientBrush(StaticTypeId()) {}
+    LinearGradientBrush() noexcept : GradientBrush(StaticTypeId()) {}
     ~LinearGradientBrush() override = default;
 
     Point GetStartPoint() const noexcept;
@@ -267,12 +230,10 @@ public:
     AERO_DEPENDENCY_PROPERTY(Point, EndPoint);
 };
 
-class AERO_GUI_API RadialGradientBrush
-    : public GradientBrush {
+class AERO_GUI_API RadialGradientBrush : public GradientBrush {
     AERO_DECLARE_TYPE(RadialGradientBrush, GradientBrush)
 public:
-    RadialGradientBrush() noexcept
-        : GradientBrush(StaticTypeId()) {}
+    RadialGradientBrush() noexcept : GradientBrush(StaticTypeId()) {}
     ~RadialGradientBrush() override = default;
 
     Point GetCenter() const noexcept;
@@ -321,15 +282,13 @@ public:
     AERO_DEPENDENCY_PROPERTY(VerticalAlignment, AlignmentY);
 
 protected:
-    explicit TileBrush(TypeId runtimeType) noexcept
-        : Brush(runtimeType) {}
+    explicit TileBrush(TypeId runtimeType) noexcept : Brush(runtimeType) {}
 };
 
 class AERO_GUI_API ImageBrush : public TileBrush {
     AERO_DECLARE_TYPE(ImageBrush, TileBrush)
 public:
-    ImageBrush() noexcept
-        : TileBrush(StaticTypeId()) {}
+    ImageBrush() noexcept : TileBrush(StaticTypeId()) {}
     ~ImageBrush() override = default;
 
     Ref<ImageSource> GetSource() const noexcept;
@@ -351,16 +310,11 @@ private:
 class AERO_GUI_API VisualBrush : public TileBrush {
     AERO_DECLARE_TYPE(VisualBrush, TileBrush)
 public:
-    VisualBrush() noexcept
-        : TileBrush(StaticTypeId()) {}
+    VisualBrush() noexcept : TileBrush(StaticTypeId()) {}
     ~VisualBrush() override = default;
 
-    Ref<Base::Object> GetVisual() const noexcept {
-        return GetValue(VisualProperty);
-    }
-    void SetVisual(Ref<Base::Object> value) noexcept {
-        SetValue(VisualProperty, std::move(value));
-    }
+    Ref<Base::Object> GetVisual() const noexcept { return GetValue(VisualProperty); }
+    void SetVisual(Ref<Base::Object> value) noexcept { SetValue(VisualProperty, std::move(value)); }
 
     AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, Visual);
 };

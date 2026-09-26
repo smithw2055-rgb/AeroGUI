@@ -7,8 +7,7 @@
 
 namespace Aero::Controls {
 
-class AERO_GUI_API VirtualizingStackPanel
-    : public VirtualizingPanel,
+class AERO_GUI_API VirtualizingStackPanel : public VirtualizingPanel,
       public IScrollInfo {
     AERO_DECLARE_TYPE(VirtualizingStackPanel, VirtualizingPanel)
 public:
@@ -27,37 +26,21 @@ public:
     double GetEstimatedItemExtent() const noexcept;
     void SetEstimatedItemExtent(double value) noexcept;
 
-    std::uint32_t GetVisibleFirstIndex() const noexcept {
-        return visibleFirstIndex_;
-    }
-    std::uint32_t GetVisibleCount() const noexcept {
-        return visibleCount_;
-    }
-    std::uint32_t GetRealizedFirstIndex() const noexcept {
-        return desiredFirstIndex_;
-    }
-    std::uint32_t GetRealizedCount() const noexcept {
-        return desiredCount_;
-    }
-    double GetItemExtent(
-        std::uint32_t index) const noexcept;
-    double GetItemOffset(
-        std::uint32_t index) const noexcept;
+    std::uint32_t GetVisibleFirstIndex() const noexcept { return visibleFirstIndex_; }
+    std::uint32_t GetVisibleCount() const noexcept { return visibleCount_; }
+    std::uint32_t GetRealizedFirstIndex() const noexcept { return desiredFirstIndex_; }
+    std::uint32_t GetRealizedCount() const noexcept { return desiredCount_; }
+    double GetItemExtent(std::uint32_t index) const noexcept;
+    double GetItemOffset(std::uint32_t index) const noexcept;
 
-    ScrollData GetData() const noexcept override {
-        return data_;
-    }
+    ScrollData GetData() const noexcept override { return data_; }
     void SetViewport(Size viewport) noexcept override;
     void SetHorizontalOffset(double value) noexcept override;
     void SetVerticalOffset(double value) noexcept override;
-    Result<bool> LineHorizontal(
-        double direction) noexcept override;
-    Result<bool> LineVertical(
-        double direction) noexcept override;
-    Result<bool> PageHorizontal(
-        double direction) noexcept override;
-    Result<bool> PageVertical(
-        double direction) noexcept override;
+    Result<bool> LineHorizontal(double direction) noexcept override;
+    Result<bool> LineVertical(double direction) noexcept override;
+    Result<bool> PageHorizontal(double direction) noexcept override;
+    Result<bool> PageVertical(double direction) noexcept override;
 
     AERO_DEPENDENCY_PROPERTY(Orientation, Orientation);
     AERO_DEPENDENCY_PROPERTY(std::uint32_t, OverscanCount);
@@ -67,31 +50,21 @@ public:
 
 protected:
     explicit VirtualizingStackPanel(TypeId runtimeType) noexcept;
-    void OnPropertyInvalidated(
-        PropertyInvalidationFlags flags) noexcept override;
-    Size MeasureOverride(
-        Size availableSize) noexcept override;
-    Size ArrangeOverride(
-        Size finalSize) noexcept override;
+    void OnPropertyInvalidated(PropertyInvalidationFlags flags) noexcept override;
+    Size MeasureOverride(Size availableSize) noexcept override;
+    Size ArrangeOverride(Size finalSize) noexcept override;
     virtual void CalculateRealizationRange() noexcept;
 
-    Result<void> AttachGenerator(
-        ItemContainerGenerator& generator,
-        std::uint32_t itemCount) noexcept override;
-    void DetachGenerator(
-        ItemContainerGenerator& generator) noexcept override;
-    void HandleItemsChanged(
-        const ItemsChangedEvent& event,
-        std::uint32_t itemCount) noexcept override;
+    Result<void> AttachGenerator(ItemContainerGenerator& generator, std::uint32_t itemCount) noexcept override;
+    void DetachGenerator(ItemContainerGenerator& generator) noexcept override;
+    void HandleItemsChanged(const ItemsChangedEvent& event, std::uint32_t itemCount) noexcept override;
 
-    void UpdateRealization(
-        bool notifyGenerator) noexcept;
+    void UpdateRealization(bool notifyGenerator) noexcept;
     double MainOffset() const noexcept;
     double MainViewport() const noexcept;
     double MainExtent() const noexcept;
     void SetMainExtent(double value) noexcept;
-    std::uint32_t ItemIndexAtOffset(
-        double offset) const noexcept;
+    std::uint32_t ItemIndexAtOffset(double offset) const noexcept;
 
     double estimatedItemExtent_ = 24.0;
     Orientation orientation_ = Orientation::Vertical;
@@ -101,21 +74,14 @@ private:
     double crossExtent_ = 0.0;
     std::uint32_t overscanCount_ = 2U;
 
-    void ResizeExtentCache(
-        std::uint32_t itemCount) noexcept;
-    void ApplyExtentDelta(
-        const ItemsChangedEvent& event,
-        std::uint32_t itemCount) noexcept;
+    void ResizeExtentCache(std::uint32_t itemCount) noexcept;
+    void ApplyExtentDelta(const ItemsChangedEvent& event, std::uint32_t itemCount) noexcept;
     void SetMainOffset(double value) noexcept;
     void ClampOffsets() noexcept;
-    double ExtentForIndex(
-        std::uint32_t index) const noexcept;
+    double ExtentForIndex(std::uint32_t index) const noexcept;
     void RebuildExtentTree() noexcept;
-    void AddExtentDeviation(
-        std::uint32_t index,
-        double delta) noexcept;
-    double PrefixDeviation(
-        std::uint32_t count) const noexcept;
+    void AddExtentDeviation(std::uint32_t index, double delta) noexcept;
+    double PrefixDeviation(std::uint32_t count) const noexcept;
     void SetMeasuredExtent(std::uint32_t index, double value) noexcept;
     void SetMainScrollOffset(double value) noexcept;
     void SetCrossScrollOffset(double value) noexcept;

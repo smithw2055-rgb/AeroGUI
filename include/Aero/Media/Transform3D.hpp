@@ -18,8 +18,7 @@ public:
     [[nodiscard]] virtual Base::Transform3 GetTransform3D() const noexcept = 0;
 
 protected:
-    explicit Transform3D(Meta::TypeId runtimeType) noexcept
-        : Freezable(runtimeType) {}
+    explicit Transform3D(Meta::TypeId runtimeType) noexcept : Freezable(runtimeType) {}
 };
 
 /// Tree-walk state shared by render collapse and hit-test unproject.
@@ -43,9 +42,7 @@ class AERO_GUI_API PerspectiveTransform3D : public Transform3D {
 public:
     PerspectiveTransform3D() noexcept : Transform3D(StaticTypeId()) {}
 
-    double GetDepth() const noexcept {
-        return GetValue(DepthProperty);
-    }
+    double GetDepth() const noexcept { return GetValue(DepthProperty); }
     double GetOffsetX() const noexcept { return GetValue(OffsetXProperty); }
     double GetOffsetY() const noexcept { return GetValue(OffsetYProperty); }
 
@@ -67,12 +64,8 @@ class AERO_GUI_API MatrixTransform3D : public Transform3D {
 public:
     MatrixTransform3D() noexcept : Transform3D(StaticTypeId()) {}
 
-    Base::Transform3 GetMatrix() const noexcept {
-        return GetValue(MatrixProperty);
-    }
-    void SetMatrix(Base::Transform3 value) noexcept {
-        SetValue(MatrixProperty, value);
-    }
+    Base::Transform3 GetMatrix() const noexcept { return GetValue(MatrixProperty); }
+    void SetMatrix(Base::Transform3 value) noexcept { SetValue(MatrixProperty, value); }
 
     [[nodiscard]] Base::Transform3 GetTransform3D() const noexcept override;
 
@@ -131,22 +124,4 @@ public:
 
 } // namespace Aero::Media
 
-namespace Aero::Meta {
-
-template<>
-struct TypeTraits<Base::Transform3> {
-    static constexpr TypeId Id() noexcept {
-        return MakeTypeId("Transform3");
-    }
-    static constexpr StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr StringView Name() noexcept {
-        return "Transform3";
-    }
-    static constexpr TypeId BaseType() noexcept {
-        return InvalidTypeId;
-    }
-};
-
-} // namespace Aero::Meta
+AERO_DECLARE_TYPE_VALUE(Base::Transform3, "Transform3")

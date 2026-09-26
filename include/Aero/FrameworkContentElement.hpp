@@ -20,48 +20,23 @@ public:
     const ResourceDictionary& GetResources() const noexcept;
     void SetResources(Ref<ResourceDictionary> value) noexcept;
 
-    Value GetDataContext() const noexcept {
-        return GetValue(DataContextProperty);
-    }
-    void SetDataContext(Value value) noexcept {
-        SetValue(DataContextProperty, std::move(value));
-    }
+    Value GetDataContext() const noexcept { return GetValue(DataContextProperty); }
+    void SetDataContext(Value value) noexcept { SetValue(DataContextProperty, std::move(value)); }
     void SetDataContext(Ref<Base::Object> value) noexcept {
-        SetDataContext(Value::FromObject(
-            Meta::TypeOf<Base::Object>(), std::move(value)));
+        SetDataContext(Value::FromObject(Meta::TypeOf<Base::Object>(), std::move(value)));
     }
-    void ClearDataContext() noexcept {
-        ClearValue(DataContextProperty);
-    }
+    void ClearDataContext() noexcept { ClearValue(DataContextProperty); }
 
-    Ref<Style> GetStyle() const noexcept {
-        return GetValue(StyleProperty);
-    }
-    void SetStyle(Ref<Style> value) noexcept {
-        SetValue(StyleProperty, std::move(value));
-    }
+    Ref<Style> GetStyle() const noexcept { return GetValue(StyleProperty); }
+    void SetStyle(Ref<Style> value) noexcept { SetValue(StyleProperty, std::move(value)); }
 
-    bool GetIsEnabled() const noexcept {
-        return GetValue(IsEnabledProperty);
-    }
-    void SetIsEnabled(bool value) noexcept {
-        SetValue(IsEnabledProperty, value);
-    }
-    bool GetIsMouseOver() const noexcept {
-        return GetValue(IsMouseOverProperty);
-    }
-    StringView GetCursor() const noexcept {
-        return GetValue(CursorProperty);
-    }
-    void SetCursor(StringView value) noexcept {
-        SetValue(CursorProperty, value);
-    }
-    bool GetOverridesDefaultStyle() const noexcept {
-        return GetValue(OverridesDefaultStyleProperty);
-    }
-    void SetOverridesDefaultStyle(bool value) noexcept {
-        SetValue(OverridesDefaultStyleProperty, value);
-    }
+    bool GetIsEnabled() const noexcept { return GetValue(IsEnabledProperty); }
+    void SetIsEnabled(bool value) noexcept { SetValue(IsEnabledProperty, value); }
+    bool GetIsMouseOver() const noexcept { return GetValue(IsMouseOverProperty); }
+    StringView GetCursor() const noexcept { return GetValue(CursorProperty); }
+    void SetCursor(StringView value) noexcept { SetValue(CursorProperty, value); }
+    bool GetOverridesDefaultStyle() const noexcept { return GetValue(OverridesDefaultStyleProperty); }
+    void SetOverridesDefaultStyle(bool value) noexcept { SetValue(OverridesDefaultStyleProperty, value); }
 
     AERO_DEPENDENCY_PROPERTY(Value, DataContext);
     AERO_DEPENDENCY_PROPERTY(Ref<Style>, Style);
@@ -78,14 +53,10 @@ protected:
 private:
     friend class ResourceResolver;
     friend class AeroGuiInternal;
-    void AddAuthoredTrigger(
-        Ref<Base::Object> trigger) noexcept;
+    void AddAuthoredTrigger(Ref<Base::Object> trigger) noexcept;
     void ClearAuthoredTriggers() noexcept;
-    Span<const Ref<Base::Object>>
-    AuthoredTriggers() const noexcept;
-    const ResourceDictionary* LocalResources() const noexcept {
-        return resources_;
-    }
+    Span<const Ref<Base::Object>> AuthoredTriggers() const noexcept;
+    const ResourceDictionary* LocalResources() const noexcept { return resources_; }
     mutable ResourceDictionary* resources_ = nullptr;
     struct FrameworkContentRare;
     FrameworkContentRare* EnsureFrameworkContentRare() noexcept;

@@ -26,19 +26,13 @@ public:
 protected:
     friend class ItemContainerGenerator;
 
-    explicit VirtualizingPanel(TypeId runtimeType) noexcept
-        : Panel(runtimeType) {}
+    explicit VirtualizingPanel(TypeId runtimeType) noexcept : Panel(runtimeType) {}
     ~VirtualizingPanel() override = default;
 
     // Shared by stack and wrap virtualization. Stack keeps its own extent tree.
-    virtual Result<void> AttachGenerator(
-        ItemContainerGenerator& generator,
-        std::uint32_t itemCount) noexcept;
-    virtual void DetachGenerator(
-        ItemContainerGenerator& generator) noexcept;
-    virtual void HandleItemsChanged(
-        const ItemsChangedEvent& event,
-        std::uint32_t itemCount) noexcept;
+    virtual Result<void> AttachGenerator(ItemContainerGenerator& generator, std::uint32_t itemCount) noexcept;
+    virtual void DetachGenerator(ItemContainerGenerator& generator) noexcept;
+    virtual void HandleItemsChanged(const ItemsChangedEvent& event, std::uint32_t itemCount) noexcept;
 
     ItemContainerGenerator* generator_ = nullptr;
     Base::Vector<double> itemExtents_;

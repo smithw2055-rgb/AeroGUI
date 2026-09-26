@@ -15,14 +15,11 @@ namespace Aero::Markup {
 class AERO_GUI_API MarkupExtension : public Base::Object {
     AERO_DECLARE_TYPE(MarkupExtension, Base::Object)
 public:
-    TypeId RuntimeType() const noexcept override {
-        return runtimeType_;
-    }
+    TypeId RuntimeType() const noexcept override { return runtimeType_; }
     virtual Result<Value> ProvideValue() noexcept = 0;
 
 protected:
-    explicit MarkupExtension(TypeId runtimeType) noexcept
-        : runtimeType_(runtimeType) {}
+    explicit MarkupExtension(TypeId runtimeType) noexcept : runtimeType_(runtimeType) {}
 
 private:
     TypeId runtimeType_ = StaticTypeId();

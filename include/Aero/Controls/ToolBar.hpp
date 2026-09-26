@@ -10,8 +10,7 @@
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
 
-class AERO_GUI_API ToolBar
-    : public ItemsControl {
+class AERO_GUI_API ToolBar : public ItemsControl {
     AERO_DECLARE_TYPE(ToolBar, ItemsControl)
 public:
     ToolBar() noexcept;
@@ -27,14 +26,12 @@ public:
     void SetHeaderTemplate(Ref<DataTemplate> value) noexcept;
     Orientation GetOrientation() const noexcept;
     void SetOrientation(Orientation value) noexcept;
-    std::uint32_t GetOverflowCapacity()
-        const noexcept;
+    std::uint32_t GetOverflowCapacity() const noexcept;
     void SetOverflowCapacity(std::uint32_t value) noexcept;
     bool GetIsOverflowOpen() const noexcept;
     void SetIsOverflowOpen(bool value) noexcept;
     bool GetHasOverflowItems() const noexcept;
-    std::uint32_t GetOverflowItemCount()
-        const noexcept;
+    std::uint32_t GetOverflowItemCount() const noexcept;
 
     AERO_DEPENDENCY_PROPERTY(Value, Header);
     AERO_DEPENDENCY_PROPERTY(Ref<DataTemplate>, HeaderTemplate);
@@ -45,12 +42,10 @@ public:
     AERO_DEPENDENCY_PROPERTY(std::uint32_t, OverflowItemCount);
 
 protected:
-    void
-        OnApplyTemplate() noexcept override;
+    void OnApplyTemplate() noexcept override;
     void OnTemplateDetached() noexcept override;
     void OnContainersChanged() noexcept override;
-    void OnPropertyChanged(
-        const DependencyPropertyChangedEventArgs& args) noexcept override;
+    void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
 
 private:
     TextBlock* headerText_ = nullptr;

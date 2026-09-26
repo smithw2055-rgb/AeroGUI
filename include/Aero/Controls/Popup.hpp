@@ -38,8 +38,7 @@ public:
     void SetStaysOpen(bool value) noexcept;
     bool GetMatchPlacementTargetWidth() const noexcept;
     void SetMatchPlacementTargetWidth(bool value) noexcept;
-    Ref<UIElement>
-        GetPlacementTarget() const noexcept;
+    Ref<UIElement> GetPlacementTarget() const noexcept;
     void SetPlacementTarget(Ref<UIElement> value) noexcept;
     PopupAnimation GetPopupAnimation() const noexcept;
     void SetPopupAnimation(PopupAnimation value) noexcept;
@@ -48,14 +47,8 @@ public:
 
     inline static constexpr RoutedEvent<RoutedEventArgs> OpenedEvent{"Opened"};
     inline static constexpr RoutedEvent<RoutedEventArgs> ClosedEvent{"Closed"};
-    UIElement::Event<RoutedEventArgs>
-        Opened() noexcept {
-        return GetEvent(OpenedEvent);
-    }
-    UIElement::Event<RoutedEventArgs>
-        Closed() noexcept {
-        return GetEvent(ClosedEvent);
-    }
+    UIElement::Event<RoutedEventArgs> Opened() noexcept { return GetEvent(OpenedEvent); }
+    UIElement::Event<RoutedEventArgs> Closed() noexcept { return GetEvent(ClosedEvent); }
 
     AERO_DEPENDENCY_PROPERTY(bool, IsOpen);
     AERO_DEPENDENCY_PROPERTY(PlacementMode, Placement);
@@ -70,13 +63,10 @@ public:
 protected:
     virtual void OnOpened(RoutedEventArgs& e);
     virtual void OnClosed(RoutedEventArgs& e);
-    void OnPropertyChanged(
-        const DependencyPropertyChangedEventArgs& args) noexcept override;
+    void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
     explicit Popup(TypeId runtimeType) noexcept;
-    Size MeasureOverride(
-        Size availableSize) noexcept override;
-    Size ArrangeOverride(
-        Size finalSize) noexcept override;
+    Size MeasureOverride(Size availableSize) noexcept override;
+    Size ArrangeOverride(Size finalSize) noexcept override;
 
 private:
     Size popupDesiredSize_;

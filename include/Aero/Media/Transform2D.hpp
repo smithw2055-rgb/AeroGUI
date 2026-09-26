@@ -26,22 +26,14 @@ public:
     std::uint64_t GetRevision() const noexcept;
 
 protected:
-    explicit Transform(Meta::TypeId runtimeType) noexcept
-        : Animatable(runtimeType) {}
+    explicit Transform(Meta::TypeId runtimeType) noexcept : Animatable(runtimeType) {}
 };
 
-AERO_GUI_API Base::Transform2D ComposeTransforms(
-    const Base::Transform2D& first,
+AERO_GUI_API Base::Transform2D ComposeTransforms(const Base::Transform2D& first,
     const Base::Transform2D& second) noexcept;
-AERO_GUI_API Base::Point TransformPoint(
-    const Base::Transform2D& transform,
-    Base::Point point) noexcept;
-AERO_GUI_API Base::Rect TransformBounds(
-    const Base::Transform2D& transform,
-    Base::Rect rect) noexcept;
-AERO_GUI_API bool InvertTransform(
-    const Base::Transform2D& transform,
-    Base::Transform2D& inverse) noexcept;
+AERO_GUI_API Base::Point TransformPoint(const Base::Transform2D& transform, Base::Point point) noexcept;
+AERO_GUI_API Base::Rect TransformBounds(const Base::Transform2D& transform, Base::Rect rect) noexcept;
+AERO_GUI_API bool InvertTransform(const Base::Transform2D& transform, Base::Transform2D& inverse) noexcept;
 
 class AERO_GUI_API TranslateTransform : public Transform {
     AERO_DECLARE_TYPE(TranslateTransform, Transform)
@@ -125,9 +117,7 @@ public:
     Base::Transform2D GetMatrixValue() const noexcept;
     void SetMatrixValue(Base::Transform2D value) noexcept;
     AERO_DEPENDENCY_PROPERTY(Base::Transform2D, Matrix);
-    Base::Transform2D GetMatrix() const noexcept override {
-        return GetMatrixValue();
-    }
+    Base::Transform2D GetMatrix() const noexcept override { return GetMatrixValue(); }
 };
 
 /// 2D composite: Center + Scale / Skew / Rotate / Translate.
@@ -175,13 +165,9 @@ class AERO_GUI_API TransformGroup : public Transform {
 public:
     TransformGroup() noexcept : Transform(StaticTypeId()) {}
     ~TransformGroup() override;
-    void AddChild(
-        Ref<Transform> value) noexcept;
+    void AddChild(Ref<Transform> value) noexcept;
     void ClearChildren() noexcept;
-    Span<const Ref<Transform>>
-    GetChildren() const noexcept {
-        return children_.AsSpan();
-    }
+    Span<const Ref<Transform>> GetChildren() const noexcept { return children_.AsSpan(); }
     Base::Transform2D GetMatrix() const noexcept override;
 
 private:
@@ -193,38 +179,5 @@ private:
 
 } // namespace Aero::Media
 
-namespace Aero::Meta {
-
-template<>
-struct TypeTraits<Base::Point> {
-    static constexpr TypeId Id() noexcept {
-        return MakeTypeId("Point");
-    }
-    static constexpr StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr StringView Name() noexcept {
-        return "Point";
-    }
-    static constexpr TypeId BaseType() noexcept {
-        return InvalidTypeId;
-    }
-};
-
-template<>
-struct TypeTraits<Base::Transform2D> {
-    static constexpr TypeId Id() noexcept {
-        return MakeTypeId("Matrix");
-    }
-    static constexpr StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr StringView Name() noexcept {
-        return "Matrix";
-    }
-    static constexpr TypeId BaseType() noexcept {
-        return InvalidTypeId;
-    }
-};
-
-} // namespace Aero::Meta
+AERO_DECLARE_TYPE_VALUE(Base::Point, "Point")
+AERO_DECLARE_TYPE_VALUE(Base::Transform2D, "Matrix")

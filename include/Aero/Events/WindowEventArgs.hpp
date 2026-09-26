@@ -17,8 +17,7 @@ private:
     bool cancel_ = false;
 };
 
-using CancelEventHandler = Base::Delegate<void(
-    Base::Object*, CancelEventArgs&)>;
+using CancelEventHandler = Base::Delegate<void(Base::Object*, CancelEventArgs&)>;
 
 } // namespace Aero
 

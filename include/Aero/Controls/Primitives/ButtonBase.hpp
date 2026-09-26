@@ -22,9 +22,7 @@ class AERO_GUI_API ButtonBase : public ContentControl {
     AERO_DECLARE_TYPE(ButtonBase, ContentControl)
 public:
     inline static constexpr RoutedEvent<RoutedEventArgs> ClickEvent{"Click"};
-    UIElement::Event<RoutedEventArgs> Click() noexcept {
-        return GetEvent(ClickEvent);
-    }
+    UIElement::Event<RoutedEventArgs> Click() noexcept { return GetEvent(ClickEvent); }
 
     ClickMode GetClickMode() const noexcept;
     ICommand* GetCommand() const noexcept;
@@ -60,9 +58,7 @@ protected:
     void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
     void OnApplyTemplate() noexcept override;
     // Replaces the former CoerceButtonEnabled metadata delegate on IsEnabled.
-    PropertyValue CoerceValueCore(
-        DependencyPropertyHandle property,
-        const PropertyValue& baseValue) noexcept override;
+    PropertyValue CoerceValueCore(DependencyPropertyHandle property, const PropertyValue& baseValue) noexcept override;
 
 private:
     void HookCommand(ICommand* command) noexcept;

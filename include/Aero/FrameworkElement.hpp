@@ -6,7 +6,7 @@
 #include <Aero/InputScope.hpp>
 #include <Aero/Media/FontFamily.hpp>
 #include <Aero/Resources.hpp>
-#include <Aero/HorizontalAlignment.hpp>
+#include <Aero/ElementEnums.hpp>
 #include <Aero/Layout.hpp>
 #include <Aero/UIElement.hpp>
 
@@ -79,12 +79,8 @@ public:
     void SetAnimatedMaxHeight(double value) noexcept { layoutScalars_.maxHeight = value; }
     void SetAnimatedMargin(Thickness value) noexcept { layoutScalars_.margin = value; }
     double GetHeight() const noexcept;
-    double GetActualWidth() const noexcept {
-        return GetValue(ActualWidthProperty);
-    }
-    double GetActualHeight() const noexcept {
-        return GetValue(ActualHeightProperty);
-    }
+    double GetActualWidth() const noexcept { return GetValue(ActualWidthProperty); }
+    double GetActualHeight() const noexcept { return GetValue(ActualHeightProperty); }
     Size GetMinSize() const noexcept;
     Size GetMaxSize() const noexcept;
     Thickness GetMargin() const noexcept;
@@ -92,18 +88,11 @@ public:
     Base::ProjectiveTransform2D GetLocalVisualTransform() const noexcept;
     bool TryGetViewboxTransform(Base::Transform2D& matrix) const noexcept;
     Result<Value> GetDataContextResult() const noexcept;
-    Ref<Media::FontFamily> GetFontFamily() const noexcept {
-        return GetValue(FontFamilyProperty);
-    }
-    FlowDirection GetFlowDirection() const noexcept {
-        return GetValue(FlowDirectionProperty);
-    }
+    Ref<Media::FontFamily> GetFontFamily() const noexcept { return GetValue(FontFamilyProperty); }
+    FlowDirection GetFlowDirection() const noexcept { return GetValue(FlowDirectionProperty); }
     Base::Object* FindName(StringView name) noexcept;
-    Result<void> RegisterName(
-        StringView name,
-        Base::Object& scopedElement) noexcept;
-    template<class T>
-    T* FindName(StringView name) noexcept {
+    Result<void> RegisterName(StringView name, Base::Object& scopedElement) noexcept;
+    template<class T> T* FindName(StringView name) noexcept {
         return static_cast<T*>(FindNameObject(name, T::StaticTypeId()));
     }
     Result<ResourceValue> FindResource(const ResourceKey& key) const noexcept;
@@ -113,15 +102,12 @@ public:
     ResourceDictionary& GetResources() noexcept;
     const ResourceDictionary& GetResources() const noexcept;
     void SetResources(Ref<ResourceDictionary> value) noexcept;
-    DependencyObject* GetTemplatedParent() const noexcept {
-        return templatedParent_;
-    }
+    DependencyObject* GetTemplatedParent() const noexcept { return templatedParent_; }
     HorizontalAlignment GetHorizontalAlignment() const noexcept;
     VerticalAlignment GetVerticalAlignment() const noexcept;
     Value GetDataContext() const noexcept {
         Result<Value> value = GetDataContextResult();
-        return value ? value.Value() :
-            Value::NullObject(Meta::TypeOf<Base::Object>());
+        return value ? value.Value() : Value::NullObject(Meta::TypeOf<Base::Object>());
     }
 
     AERO_DEPENDENCY_PROPERTY(Value, DataContext);
@@ -159,9 +145,7 @@ public:
     AERO_DEPENDENCY_PROPERTY(Ref<Media::Brush>, Foreground);
 
     inline static constexpr RoutedEvent<RoutedEventArgs> LoadedEvent{"Loaded"};
-    Event<RoutedEventArgs> Loaded() noexcept {
-        return GetEvent(LoadedEvent);
-    }
+    Event<RoutedEventArgs> Loaded() noexcept { return GetEvent(LoadedEvent); }
 
     void SetUseLayoutRounding(bool enabled, double dpiScale = 1.0) noexcept;
     void SetSnapsToDevicePixels(bool enabled) noexcept { SetValue(SnapsToDevicePixelsProperty, enabled); }
@@ -174,16 +158,11 @@ public:
     void SetMargin(Thickness value) noexcept;
     void SetDataContext(Value value) noexcept;
     void SetDataContext(Ref<Base::Object> value) noexcept {
-        SetDataContext(Value::FromObject(
-            Meta::TypeOf<Base::Object>(), std::move(value)));
+        SetDataContext(Value::FromObject(Meta::TypeOf<Base::Object>(), std::move(value)));
     }
-    void SetFontFamily(Ref<Media::FontFamily> value) noexcept {
-        SetValue(FontFamilyProperty, std::move(value));
-    }
+    void SetFontFamily(Ref<Media::FontFamily> value) noexcept { SetValue(FontFamilyProperty, std::move(value)); }
     void SetFontFamily(StringView value) noexcept;
-    void SetFlowDirection(FlowDirection value) noexcept {
-        SetValue(FlowDirectionProperty, value);
-    }
+    void SetFlowDirection(FlowDirection value) noexcept { SetValue(FlowDirectionProperty, value); }
     void ClearDataContext() noexcept;
     void SetHorizontalAlignment(HorizontalAlignment value) noexcept;
     void SetVerticalAlignment(VerticalAlignment value) noexcept;
@@ -193,8 +172,7 @@ public:
 protected:
     virtual std::uint32_t GetLogicalChildrenCount() const noexcept { return GetVisualChildrenCount(); }
     virtual DependencyObject* GetLogicalChild(std::uint32_t index) const noexcept { return GetVisualChild(index); }
-    void OnPropertyInvalidated(
-        PropertyInvalidationFlags flags) noexcept override;
+    void OnPropertyInvalidated(PropertyInvalidationFlags flags) noexcept override;
     void SyncLayoutScalars() noexcept;
     // NOTE: empty default kept intentionally. Viewbox spacer and other
     // non-visual FrameworkElements rely on zero desired size; UIElement's
@@ -214,8 +192,7 @@ protected:
         static_cast<void>(oldValue);
         static_cast<void>(newValue);
     }
-    void OnRender(
-        ::Aero::Media::DrawingContext& context) noexcept override;
+    void OnRender(::Aero::Media::DrawingContext& context) noexcept override;
 
 private:
     struct LayoutScalars {
@@ -230,45 +207,30 @@ private:
     LayoutScalars layoutScalars_{};
 
     FrameworkElement* GetRenderParent() const noexcept;
-    FrameworkElementChildRange GetRenderChildren() const noexcept {
-        return FrameworkElementChildRange(*this);
-    }
+    FrameworkElementChildRange GetRenderChildren() const noexcept { return FrameworkElementChildRange(*this); }
     void SetTemplatedParent(DependencyObject* value) noexcept {
         Result<void> access = VerifyAccess();
         if (!access) return;
         templatedParent_ = value;
         return;
     }
-    void AddAuthoredTrigger(
-        Ref<Base::Object> trigger) noexcept;
+    void AddAuthoredTrigger(Ref<Base::Object> trigger) noexcept;
     void ClearAuthoredTriggers() noexcept;
-    Span<const Ref<Base::Object>>
-    AuthoredTriggers() const noexcept;
-    void AddAuthoredBehavior(
-        Ref<Base::Object> behavior) noexcept;
+    Span<const Ref<Base::Object>> AuthoredTriggers() const noexcept;
+    void AddAuthoredBehavior(Ref<Base::Object> behavior) noexcept;
     void ClearAuthoredBehaviors() noexcept;
-    Span<const Ref<Base::Object>>
-    AuthoredBehaviors() const noexcept;
-    void AddStyleBehaviorPrototype(
-        Ref<Base::Object> behavior) noexcept;
+    Span<const Ref<Base::Object>> AuthoredBehaviors() const noexcept;
+    void AddStyleBehaviorPrototype(Ref<Base::Object> behavior) noexcept;
     void ClearStyleBehaviorPrototypes() noexcept;
-    Span<const Ref<Base::Object>>
-    StyleBehaviorPrototypes() const noexcept;
-    void AddStyleTriggerPrototype(
-        Ref<Base::Object> trigger) noexcept;
+    Span<const Ref<Base::Object>> StyleBehaviorPrototypes() const noexcept;
+    void AddStyleTriggerPrototype(Ref<Base::Object> trigger) noexcept;
     void ClearStyleTriggerPrototypes() noexcept;
-    Span<const Ref<Base::Object>>
-    StyleTriggerPrototypes() const noexcept;
+    Span<const Ref<Base::Object>> StyleTriggerPrototypes() const noexcept;
 
-    const ResourceDictionary* LocalResources() const noexcept {
-        return resources_;
-    }
+    const ResourceDictionary* LocalResources() const noexcept { return resources_; }
 
-    Base::Object* FindNameObject(
-        StringView name,
-        Meta::TypeId expectedType) noexcept;
-    Base::Object* FindRegisteredName(
-        StringView name) const noexcept;
+    Base::Object* FindNameObject(StringView name, Meta::TypeId expectedType) noexcept;
+    Base::Object* FindRegisteredName(StringView name) const noexcept;
 
     friend class LogicalTreeHelper;
     friend class Controls::Viewbox;
@@ -290,6 +252,5 @@ private:
 } // namespace Aero
 
 namespace Aero::Media {
-inline constexpr auto FrameworkElementForegroundProperty =
-    ::Aero::FrameworkElement::ForegroundProperty;
+inline constexpr auto FrameworkElementForegroundProperty = ::Aero::FrameworkElement::ForegroundProperty;
 }

@@ -15,22 +15,15 @@ class AERO_GUI_API TimelineGroup : public Timeline {
     AERO_DECLARE_TYPE(TimelineGroup, Timeline)
 public:
     void AddChild(Ref<Timeline> value) noexcept;
-    void AddTimeline(Ref<Timeline> value) noexcept {
-        AddChild(std::move(value));
-    }
+    void AddTimeline(Ref<Timeline> value) noexcept { AddChild(std::move(value)); }
     void Clear() noexcept;
     void ClearTimelines() noexcept { Clear(); }
-    Span<const Ref<Timeline>> GetTimelines() const noexcept {
-        return timelines_.AsSpan();
-    }
-    Span<const Ref<Timeline>> Children() const noexcept {
-        return GetTimelines();
-    }
+    Span<const Ref<Timeline>> GetTimelines() const noexcept { return timelines_.AsSpan(); }
+    Span<const Ref<Timeline>> Children() const noexcept { return GetTimelines(); }
     std::uint32_t Count() const noexcept { return timelines_.GetCount(); }
 
 protected:
-    explicit TimelineGroup(Meta::TypeId runtimeType) noexcept
-        : Timeline(runtimeType) {}
+    explicit TimelineGroup(Meta::TypeId runtimeType) noexcept : Timeline(runtimeType) {}
     ~TimelineGroup() override;
     bool FreezeCore(bool isChecking) noexcept override;
 
@@ -46,8 +39,7 @@ public:
     ParallelTimeline() noexcept : ParallelTimeline(StaticTypeId()) {}
 
 protected:
-    explicit ParallelTimeline(Meta::TypeId runtimeType) noexcept
-        : TimelineGroup(runtimeType) {}
+    explicit ParallelTimeline(Meta::TypeId runtimeType) noexcept : TimelineGroup(runtimeType) {}
 };
 
 class AERO_GUI_API Storyboard : public ParallelTimeline {
@@ -58,14 +50,11 @@ public:
     AERO_ATTACHED_PROPERTY(String, TargetName);
     AERO_ATTACHED_PROPERTY(String, TargetProperty);
 
-    void AddTimeline(Ref<Timeline> value) noexcept {
-        AddChild(std::move(value));
-    }
+    void AddTimeline(Ref<Timeline> value) noexcept { AddChild(std::move(value)); }
     void ClearTimelines() noexcept { Clear(); }
 
 protected:
-    explicit Storyboard(Meta::TypeId runtimeType) noexcept
-        : ParallelTimeline(runtimeType) {}
+    explicit Storyboard(Meta::TypeId runtimeType) noexcept : ParallelTimeline(runtimeType) {}
 };
 
 } // namespace Aero::Media::Animation

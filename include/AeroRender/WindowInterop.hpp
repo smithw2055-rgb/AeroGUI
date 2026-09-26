@@ -24,9 +24,7 @@ struct NativeWindowHandle {
     std::uintptr_t window = 0U;
     std::uintptr_t instance = 0U;
 
-    bool IsValid() const noexcept {
-        return system != WindowSystem::Unknown && window != 0U;
-    }
+    bool IsValid() const noexcept { return system != WindowSystem::Unknown && window != 0U; }
 };
 
 } // namespace Aero::Platform

@@ -36,8 +36,7 @@ public:
     std::uint64_t GetRevision() const noexcept { return revision_; }
 
 protected:
-    explicit ImageSource(TypeId runtimeType) noexcept
-        : runtimeType_(runtimeType) {}
+    explicit ImageSource(TypeId runtimeType) noexcept : runtimeType_(runtimeType) {}
     ~ImageSource() override = default;
     void BumpRevision() noexcept { ++revision_; }
 
@@ -49,8 +48,7 @@ private:
 class AERO_GUI_API BitmapImage : public ImageSource {
     AERO_DECLARE_TYPE(BitmapImage, ImageSource)
 public:
-    BitmapImage() noexcept
-        : ImageSource(StaticTypeId()) {}
+    BitmapImage() noexcept : ImageSource(StaticTypeId()) {}
     ~BitmapImage() override = default;
 
     Base::ResourceUri GetUriSource() const noexcept { return uri_; }
@@ -63,8 +61,7 @@ private:
 class AERO_GUI_API CroppedBitmap : public ImageSource {
     AERO_DECLARE_TYPE(CroppedBitmap, ImageSource)
 public:
-    CroppedBitmap() noexcept
-        : ImageSource(StaticTypeId()) {}
+    CroppedBitmap() noexcept : ImageSource(StaticTypeId()) {}
     ~CroppedBitmap() override = default;
 
     Ref<ImageSource> GetSource() const noexcept { return source_; }
@@ -85,6 +82,5 @@ AERO_DECLARE_TYPE_ENUM(Aero::Media::StretchDirection)
 
 namespace Aero::Controls {
 using Stretch = Aero::Media::Stretch;
-using StretchDirection =
-    Aero::Media::StretchDirection;
+using StretchDirection = Aero::Media::StretchDirection;
 } // namespace Aero::Controls

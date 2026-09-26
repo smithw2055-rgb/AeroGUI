@@ -19,9 +19,7 @@ class AERO_GUI_API ComparisonCondition : public Base::Object {
 public:
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
     Ref<Aero::Data::Binding> GetLeftOperand() const noexcept { return left_; }
-    void SetLeftOperand(Ref<Aero::Data::Binding> value) noexcept {
-        left_ = std::move(value);
-    }
+    void SetLeftOperand(Ref<Aero::Data::Binding> value) noexcept { left_ = std::move(value); }
     const Meta::PropertyValue& GetRightOperand() const noexcept { return right_; }
     void SetRightOperand(const Meta::PropertyValue& value) noexcept { right_ = value; }
     enum class Operator : std::uint8_t {
@@ -64,9 +62,7 @@ class AERO_GUI_API ConditionBehavior : public Base::Object {
 public:
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
     Ref<ConditionalExpression> GetExpression() const noexcept { return expression_; }
-    void SetExpression(Ref<ConditionalExpression> value) noexcept {
-        expression_ = std::move(value);
-    }
+    void SetExpression(Ref<ConditionalExpression> value) noexcept { expression_ = std::move(value); }
 
 private:
     Ref<ConditionalExpression> expression_;
@@ -74,7 +70,5 @@ private:
 
 } // namespace Aero::Interactivity
 
-AERO_DECLARE_TYPE_ENUM(
-    Aero::Interactivity::ComparisonCondition::Operator)
-AERO_DECLARE_TYPE_ENUM(
-    Aero::Interactivity::ConditionalExpression::ForwardChaining)
+AERO_DECLARE_TYPE_ENUM(Aero::Interactivity::ComparisonCondition::Operator)
+AERO_DECLARE_TYPE_ENUM(Aero::Interactivity::ConditionalExpression::ForwardChaining)

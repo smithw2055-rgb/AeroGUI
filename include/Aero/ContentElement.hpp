@@ -23,14 +23,10 @@ class AeroGuiInternal;
 class AERO_GUI_API ContentElement : public DependencyObject {
     AERO_DECLARE_TYPE(ContentElement, DependencyObject)
 public:
-    template<class TArgs>
-    using Event = ::Aero::Event<ContentElement, TArgs>;
+    template<class TArgs> using Event = ::Aero::Event<ContentElement, TArgs>;
 
-    template<class TOwner, class TArgs>
-    Event<TArgs> GetEvent(
-        const RoutedEventRef<TOwner, TArgs>& event) noexcept {
-        return Event<TArgs>(*this, event.Handle());
-    }
+    template<class TOwner, class TArgs> Event<TArgs> GetEvent(
+        const RoutedEventRef<TOwner, TArgs>& event) noexcept { return Event<TArgs>(*this, event.Handle()); }
 
     explicit ContentElement(Meta::TypeId runtimeType) noexcept;
     ~ContentElement() override;
@@ -38,57 +34,29 @@ public:
     DependencyObject* GetParent() const noexcept { return logicalParent_; }
     UIElement* GetContentHost() const noexcept { return contentHost_; }
 
-    template<class TArgs>
-    void AddHandler(
-        RoutedEventHandle event,
-        const Base::Delegate<void(Base::Object*, TArgs&)>& handler,
+    template<class TArgs> void AddHandler(
+        RoutedEventHandle event, const Base::Delegate<void(Base::Object*, TArgs&)>& handler,
         bool handledEventsToo = false) noexcept {
-        if (handler.Empty()) {
-            return;
-        }
-        AddHandlerErased(
-            event,
-            &handler,
-            sizeof(handler),
-            alignof(decltype(handler)),
-            TArgs::StaticTypeId(),
+        if (handler.Empty()) { return; }
+        AddHandlerErased(event, &handler, sizeof(handler), alignof(decltype(handler)), TArgs::StaticTypeId(),
             handledEventsToo);
     }
 
-    template<class TArgs>
-    bool RemoveHandler(
-        RoutedEventHandle event,
-        const Base::Delegate<void(Base::Object*, TArgs&)>& handler) noexcept {
-        return RemoveHandlerErased(
-            event,
-            &handler,
-            sizeof(handler),
-            alignof(decltype(handler)),
-            TArgs::StaticTypeId());
+    template<class TArgs> bool RemoveHandler(
+        RoutedEventHandle event, const Base::Delegate<void(Base::Object*, TArgs&)>& handler) noexcept {
+        return RemoveHandlerErased(event, &handler, sizeof(handler), alignof(decltype(handler)), TArgs::StaticTypeId());
     }
 
 protected:
-    void RaiseEvent(
-        RoutedEventHandle event,
-        RoutedEventArgs* args = nullptr) noexcept;
+    void RaiseEvent(RoutedEventHandle event, RoutedEventArgs* args = nullptr) noexcept;
 
 private:
-    void AddHandlerErased(
-        RoutedEventHandle event,
-        const void* handler,
-        std::size_t size,
-        std::size_t alignment,
+    void AddHandlerErased(RoutedEventHandle event, const void* handler, std::size_t size, std::size_t alignment,
         Meta::TypeId argsType,
         bool handledEventsToo) noexcept;
-    bool RemoveHandlerErased(
-        RoutedEventHandle event,
-        const void* handler,
-        std::size_t size,
-        std::size_t alignment,
+    bool RemoveHandlerErased(RoutedEventHandle event, const void* handler, std::size_t size, std::size_t alignment,
         Meta::TypeId argsType) noexcept;
-    void InvokeHandlers(
-        RoutedEventHandle event,
-        RoutedEventArgs& args) noexcept;
+    void InvokeHandlers(RoutedEventHandle event, RoutedEventArgs& args) noexcept;
     void CleanupHandlers() noexcept;
     friend class AeroGuiInternal;
 

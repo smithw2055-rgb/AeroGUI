@@ -35,35 +35,23 @@ public:
         std::uint64_t reserved = 0U;
     };
 
-    static_assert(
-        sizeof(BlockHeader) == 16U,
-        "PropertySlab header must preserve 16-byte payload alignment");
+    static_assert(sizeof(BlockHeader) == 16U, "PropertySlab header must preserve 16-byte payload alignment");
 
     PropertySlab() noexcept = default;
-    ~PropertySlab() noexcept {
-        Clear();
-    }
+    ~PropertySlab() noexcept { Clear(); }
 
     PropertySlab(const PropertySlab&) = delete;
     PropertySlab& operator=(const PropertySlab&) = delete;
     PropertySlab(PropertySlab&&) = delete;
     PropertySlab& operator=(PropertySlab&&) = delete;
 
-    void* AllocateRare(std::size_t size) noexcept {
-        return Allocate(size, rareFree_, rareCount_);
-    }
+    void* AllocateRare(std::size_t size) noexcept { return Allocate(size, rareFree_, rareCount_); }
 
-    static void ReleaseRare(void* payload) noexcept {
-        Release(payload, &PropertySlab::ReleaseRareToOwner);
-    }
+    static void ReleaseRare(void* payload) noexcept { Release(payload, &PropertySlab::ReleaseRareToOwner); }
 
-    void* AllocateStore(std::size_t size) noexcept {
-        return Allocate(size, storeFree_, storeCount_);
-    }
+    void* AllocateStore(std::size_t size) noexcept { return Allocate(size, storeFree_, storeCount_); }
 
-    static void ReleaseStore(void* payload) noexcept {
-        Release(payload, &PropertySlab::ReleaseStoreToOwner);
-    }
+    static void ReleaseStore(void* payload) noexcept { Release(payload, &PropertySlab::ReleaseStoreToOwner); }
 
     // Live (not yet released) slab-owned blocks. Diagnostic only; no
     // enforcement, since leaked host objects may outlive teardown.
@@ -88,9 +76,7 @@ public:
     // same class operator delete via the null-owner header.
     static void* AllocateHeap(std::size_t size) noexcept {
         void* chunk = std::malloc(sizeof(BlockHeader) + size);
-        if (chunk == nullptr) {
-            return nullptr;
-        }
+        if (chunk == nullptr) { return nullptr; }
         auto* header = static_cast<BlockHeader*>(chunk);
         header->owner = nullptr;
         header->reserved = 0U;
@@ -109,10 +95,7 @@ private:
     std::size_t storeCount_ = 0U;
     std::uint32_t outstanding_ = 0U;
 
-    void* Allocate(
-        std::size_t size,
-        FreeNode*& freeList,
-        std::size_t& pooled) noexcept {
+    void* Allocate(std::size_t size, FreeNode*& freeList, std::size_t& pooled) noexcept {
         std::lock_guard<std::mutex> lock(mutex_);
         if (freeList != nullptr) {
             // Free-list nodes ARE payload pointers (their headers stay
@@ -124,9 +107,7 @@ private:
             return node;
         }
         void* chunk = std::malloc(sizeof(BlockHeader) + size);
-        if (chunk == nullptr) {
-            return nullptr;
-        }
+        if (chunk == nullptr) { return nullptr; }
         auto* header = static_cast<BlockHeader*>(chunk);
         header->owner = this;
         header->reserved = 0U;
@@ -137,9 +118,7 @@ private:
     using ReleaseToOwner = void (PropertySlab::*)(void*) noexcept;
 
     static void Release(void* payload, ReleaseToOwner toOwner) noexcept {
-        if (payload == nullptr) {
-            return;
-        }
+        if (payload == nullptr) { return; }
         BlockHeader* header = PayloadToHeader(payload);
         PropertySlab* owner = header->owner;
         if (owner == nullptr) {
@@ -151,42 +130,32 @@ private:
 
     void ReleaseRareToOwner(void* payload) noexcept {
         std::lock_guard<std::mutex> lock(mutex_);
-        if (outstanding_ != 0U) {
-            --outstanding_;
-        }
+        if (outstanding_ != 0U) { --outstanding_; }
         if (rareCount_ < kMaxPooledPerClass) {
             auto* node = static_cast<FreeNode*>(payload);
             node->next = rareFree_;
             rareFree_ = node;
             ++rareCount_;
-        } else {
-            std::free(PayloadToHeader(payload));
-        }
+        } else { std::free(PayloadToHeader(payload)); }
     }
 
     void ReleaseStoreToOwner(void* payload) noexcept {
         std::lock_guard<std::mutex> lock(mutex_);
-        if (outstanding_ != 0U) {
-            --outstanding_;
-        }
+        if (outstanding_ != 0U) { --outstanding_; }
         if (storeCount_ < kMaxPooledPerClass) {
             auto* node = static_cast<FreeNode*>(payload);
             node->next = storeFree_;
             storeFree_ = node;
             ++storeCount_;
-        } else {
-            std::free(PayloadToHeader(payload));
-        }
+        } else { std::free(PayloadToHeader(payload)); }
     }
 
     static void* HeaderToPayload(void* chunk) noexcept {
-        return static_cast<void*>(
-            static_cast<unsigned char*>(chunk) + sizeof(BlockHeader));
+        return static_cast<void*>(static_cast<unsigned char*>(chunk) + sizeof(BlockHeader));
     }
 
     static BlockHeader* PayloadToHeader(void* payload) noexcept {
-        return reinterpret_cast<BlockHeader*>(
-            static_cast<unsigned char*>(payload) - sizeof(BlockHeader));
+        return reinterpret_cast<BlockHeader*>(static_cast<unsigned char*>(payload) - sizeof(BlockHeader));
     }
 
     static void DrainList(FreeNode*& freeList) noexcept {

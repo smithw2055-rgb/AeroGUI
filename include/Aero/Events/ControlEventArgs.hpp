@@ -51,12 +51,8 @@ struct ScrollData {
 struct ScrollChangedEventArgs : RoutedEventArgs {
     AERO_DECLARE_TYPE(ScrollChangedEventArgs, RoutedEventArgs)
 public:
-    ScrollChangedEventArgs() noexcept
-        : RoutedEventArgs(StaticTypeId()) {}
-    ScrollChangedEventArgs(
-        ScrollData oldData,
-        ScrollData newData,
-        ScrollInputKind inputKind) noexcept
+    ScrollChangedEventArgs() noexcept : RoutedEventArgs(StaticTypeId()) {}
+    ScrollChangedEventArgs(ScrollData oldData, ScrollData newData, ScrollInputKind inputKind) noexcept
         : RoutedEventArgs(StaticTypeId()),
           oldData_(oldData), newData_(newData), inputKind_(inputKind) {}
 
@@ -70,18 +66,13 @@ private:
     ScrollInputKind inputKind_ = ScrollInputKind::Line;
 };
 
-using ScrollChangedEventHandler = Base::Delegate<void(
-    Base::Object*, ScrollChangedEventArgs&)>;
+using ScrollChangedEventHandler = Base::Delegate<void(Base::Object*, ScrollChangedEventArgs&)>;
 
 struct RangeValueChangedEventArgs : RoutedEventArgs {
     AERO_DECLARE_TYPE(RangeValueChangedEventArgs, RoutedEventArgs)
 public:
-    RangeValueChangedEventArgs() noexcept
-        : RoutedEventArgs(StaticTypeId()) {}
-    RangeValueChangedEventArgs(
-        double oldValue,
-        double newValue) noexcept
-        : RoutedEventArgs(StaticTypeId()),
+    RangeValueChangedEventArgs() noexcept : RoutedEventArgs(StaticTypeId()) {}
+    RangeValueChangedEventArgs(double oldValue, double newValue) noexcept : RoutedEventArgs(StaticTypeId()),
           oldValue_(oldValue), newValue_(newValue) {}
 
     double GetOldValue() const noexcept { return oldValue_; }
@@ -92,8 +83,7 @@ private:
     double newValue_ = 0.0;
 };
 
-using RangeValueChangedEventHandler = Base::Delegate<void(
-    Base::Object*, RangeValueChangedEventArgs&)>;
+using RangeValueChangedEventHandler = Base::Delegate<void(Base::Object*, RangeValueChangedEventArgs&)>;
 
 namespace Primitives { class Selector; }
 
@@ -106,7 +96,6 @@ struct SelectionChangedEvent {
     Ref<Base::Object> newPrimaryItem;
 };
 
-using SelectionChangedHandler = Base::Delegate<void(
-    Primitives::Selector&, const SelectionChangedEvent&)>;
+using SelectionChangedHandler = Base::Delegate<void(Primitives::Selector&, const SelectionChangedEvent&)>;
 
 } // namespace Aero::Controls

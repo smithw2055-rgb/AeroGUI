@@ -30,10 +30,8 @@ struct RenderFrameStatistics {
     bool batchingEnabled = true;
 };
 
-AERO_GUI_API RenderDeviceStatistics GetRenderDeviceStatistics(
-    const Aero::RenderDevice& device) noexcept;
-AERO_GUI_API RenderFrameStatistics GetLastRenderFrameStatistics(
-    const Aero::RenderDevice& device) noexcept;
+AERO_GUI_API RenderDeviceStatistics GetRenderDeviceStatistics(const Aero::RenderDevice& device) noexcept;
+AERO_GUI_API RenderFrameStatistics GetLastRenderFrameStatistics(const Aero::RenderDevice& device) noexcept;
 
 } // namespace Diagnostics
 } // namespace Aero

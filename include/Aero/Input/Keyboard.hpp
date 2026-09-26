@@ -17,10 +17,8 @@ public:
     static const RoutedEventRef<Keyboard, KeyEventArgs> PreviewKeyDownEvent;
     static const RoutedEventRef<Keyboard, KeyEventArgs> KeyUpEvent;
     static const RoutedEventRef<Keyboard, KeyEventArgs> PreviewKeyUpEvent;
-    static const RoutedEventRef<Keyboard, KeyboardFocusChangedEventArgs>
-        GotKeyboardFocusEvent;
-    static const RoutedEventRef<Keyboard, KeyboardFocusChangedEventArgs>
-        LostKeyboardFocusEvent;
+    static const RoutedEventRef<Keyboard, KeyboardFocusChangedEventArgs> GotKeyboardFocusEvent;
+    static const RoutedEventRef<Keyboard, KeyboardFocusChangedEventArgs> LostKeyboardFocusEvent;
 
     // Element that currently has keyboard focus, or nullptr.
     static ::Aero::UIElement* FocusedElement() noexcept;

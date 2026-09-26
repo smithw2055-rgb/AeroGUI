@@ -13,14 +13,11 @@ using ::Aero::Interactivity::TriggerAction;
 class AERO_GUI_API ControllableStoryboardAction : public TriggerAction {
     AERO_DECLARE_TYPE(ControllableStoryboardAction, TriggerAction)
 public:
-    StringView GetBeginStoryboardName() const noexcept {
-        return beginStoryboardName_.View();
-    }
+    StringView GetBeginStoryboardName() const noexcept { return beginStoryboardName_.View(); }
     void SetBeginStoryboardName(StringView value) noexcept;
 
 protected:
-    explicit ControllableStoryboardAction(Meta::TypeId runtimeType) noexcept
-        : TriggerAction(runtimeType) {}
+    explicit ControllableStoryboardAction(Meta::TypeId runtimeType) noexcept : TriggerAction(runtimeType) {}
 
 private:
     String beginStoryboardName_;
@@ -86,9 +83,7 @@ public:
     };
     ControlStoryboardAction() noexcept : TriggerAction(StaticTypeId()) {}
     Ref<Storyboard> GetStoryboard() const noexcept { return storyboard_; }
-    void SetStoryboard(Ref<Storyboard> value) noexcept {
-        storyboard_ = std::move(value);
-    }
+    void SetStoryboard(Ref<Storyboard> value) noexcept { storyboard_ = std::move(value); }
     Option GetControlOption() const noexcept { return option_; }
     void SetControlOption(Option value) noexcept { option_ = value; }
 
@@ -99,5 +94,4 @@ private:
 
 } // namespace Aero::Media::Animation
 
-AERO_DECLARE_TYPE_ENUM(
-    Aero::Media::Animation::ControlStoryboardAction::Option)
+AERO_DECLARE_TYPE_ENUM(Aero::Media::Animation::ControlStoryboardAction::Option)

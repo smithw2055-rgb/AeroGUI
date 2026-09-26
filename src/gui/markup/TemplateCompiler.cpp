@@ -24,7 +24,7 @@
 
 #include <Aero/Media/Geometries.hpp>
 #include <Aero/Media/Brushes.hpp>
-#include <Aero/HierarchicalDataTemplate.hpp>
+#include <Aero/DataTemplate.hpp>
 #include <Aero/Controls/ControlTemplate.hpp>
 
 

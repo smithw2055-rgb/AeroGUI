@@ -35,38 +35,24 @@ struct FontProviderChange {
     StringView familyName;
 };
 
-using FontProviderChangedHandler =
-    Base::Delegate<void(const FontProviderChange&)>;
+using FontProviderChangedHandler = Base::Delegate<void(const FontProviderChange&)>;
 
 class AERO_GUI_API FontProvider : public Base::Object {
 public:
     virtual ~FontProvider() = default;
 
-    virtual Result<FontResource> MatchFont(
-        const Base::ResourceUri& baseUri,
-        StringView familyName,
+    virtual Result<FontResource> MatchFont(const Base::ResourceUri& baseUri, StringView familyName,
         Aero::FontWeight& weight,
         Aero::FontStretch& stretch,
         Aero::FontStyle& style) const noexcept = 0;
 
-    virtual bool FamilyExists(
-        const Base::ResourceUri& baseUri,
-        StringView familyName) const noexcept = 0;
+    virtual bool FamilyExists(const Base::ResourceUri& baseUri, StringView familyName) const noexcept = 0;
 
-    virtual void GetFontFamilies(
-        const Base::ResourceUri&,
-        Base::Vector<String>& families) const noexcept {
-        families.Clear();
-    }
+    virtual void GetFontFamilies(const Base::ResourceUri&,
+        Base::Vector<String>& families) const noexcept { families.Clear(); }
 
-    void AddChangedHandler(
-        const FontProviderChangedHandler& handler) noexcept {
-        changed_.Add(handler);
-    }
-    bool RemoveChangedHandler(
-        const FontProviderChangedHandler& handler) noexcept {
-        return changed_.Remove(handler);
-    }
+    void AddChangedHandler(const FontProviderChangedHandler& handler) noexcept { changed_.Add(handler); }
+    bool RemoveChangedHandler(const FontProviderChangedHandler& handler) noexcept { return changed_.Remove(handler); }
 
 protected:
     // Must be raised on the owning Gui's dispatcher thread. Empty fields

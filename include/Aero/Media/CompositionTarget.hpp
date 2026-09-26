@@ -20,16 +20,10 @@ public:
     // Explicit View overloads are preferred for multi-view hosts. The legacy
     // overloads remain dispatcher-thread scoped for WPF-shaped source
     // compatibility.
-    static void AddRendering(
-        ::Aero::View& view,
-        const ::Aero::RenderingEventHandler& handler) noexcept;
-    static bool RemoveRendering(
-        ::Aero::View& view,
-        const ::Aero::RenderingEventHandler& handler) noexcept;
-    static void AddRendering(
-        const ::Aero::RenderingEventHandler& handler) noexcept;
-    static bool RemoveRendering(
-        const ::Aero::RenderingEventHandler& handler) noexcept;
+    static void AddRendering(::Aero::View& view, const ::Aero::RenderingEventHandler& handler) noexcept;
+    static bool RemoveRendering(::Aero::View& view, const ::Aero::RenderingEventHandler& handler) noexcept;
+    static void AddRendering(const ::Aero::RenderingEventHandler& handler) noexcept;
+    static bool RemoveRendering(const ::Aero::RenderingEventHandler& handler) noexcept;
 
 private:
     friend class ::Aero::View;

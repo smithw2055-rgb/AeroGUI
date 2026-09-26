@@ -10,9 +10,7 @@ namespace Aero::Input {
 class AERO_GUI_API ApplicationCommands : public Base::Object {
     AERO_DECLARE_TYPE(ApplicationCommands, Base::Object)
 public:
-    Meta::TypeId RuntimeType() const noexcept override {
-        return StaticTypeId();
-    }
+    Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
 
     static Result<void> RegisterDefaults() noexcept;
     static Result<Ref<RoutedCommand>> Cut() noexcept;

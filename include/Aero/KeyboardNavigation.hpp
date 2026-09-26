@@ -19,15 +19,10 @@ enum class KeyboardNavigationMode : std::uint8_t {
     Local
 };
 
-class AERO_GUI_API KeyboardNavigation
-    : public Base::Object {
-    AERO_DECLARE_TYPE(
-        KeyboardNavigation,
-        Base::Object)
+class AERO_GUI_API KeyboardNavigation : public Base::Object {
+    AERO_DECLARE_TYPE(KeyboardNavigation, Base::Object)
 public:
-    Meta::TypeId RuntimeType() const noexcept override {
-        return StaticTypeId();
-    }
+    Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
 
     AERO_ATTACHED_PROPERTY(KeyboardNavigationMode, DirectionalNavigation);
 

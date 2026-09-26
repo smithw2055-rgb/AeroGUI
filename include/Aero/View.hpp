@@ -46,10 +46,7 @@ class AERO_GUI_API View final : public Base::Object {
     struct ConstructionToken {};
 
 public:
-    View(
-        ConstructionToken,
-        Gui& gui,
-        Base::IAllocator* allocator = nullptr) noexcept;
+    View(ConstructionToken, Gui& gui, Base::IAllocator* allocator = nullptr) noexcept;
     ~View() noexcept override;
 
     View(const View&) = delete;
@@ -83,41 +80,17 @@ public:
     void Deactivate() noexcept;
 
     bool MouseMove(int x, int y) noexcept;
-    bool MouseButtonDown(
-        int x,
-        int y,
-        Input::MouseButton button) noexcept;
-    bool MouseButtonUp(
-        int x,
-        int y,
-        Input::MouseButton button) noexcept;
-    bool MouseDoubleClick(
-        int x,
-        int y,
-        Input::MouseButton button) noexcept;
-    bool MouseWheel(
-        int x,
-        int y,
-        int delta) noexcept;
-    bool MouseHWheel(
-        int x,
-        int y,
-        int delta) noexcept;
+    bool MouseButtonDown(int x, int y, Input::MouseButton button) noexcept;
+    bool MouseButtonUp(int x, int y, Input::MouseButton button) noexcept;
+    bool MouseDoubleClick(int x, int y, Input::MouseButton button) noexcept;
+    bool MouseWheel(int x, int y, int delta) noexcept;
+    bool MouseHWheel(int x, int y, int delta) noexcept;
     bool KeyDown(Input::Key key) noexcept;
     bool KeyUp(Input::Key key) noexcept;
     bool Char(std::uint32_t codePoint) noexcept;
-    bool TouchDown(
-        int x,
-        int y,
-        std::uint64_t id) noexcept;
-    bool TouchMove(
-        int x,
-        int y,
-        std::uint64_t id) noexcept;
-    bool TouchUp(
-        int x,
-        int y,
-        std::uint64_t id) noexcept;
+    bool TouchDown(int x, int y, std::uint64_t id) noexcept;
+    bool TouchMove(int x, int y, std::uint64_t id) noexcept;
+    bool TouchUp(int x, int y, std::uint64_t id) noexcept;
     IRenderer& GetRenderer() noexcept;
     const IRenderer& GetRenderer() const noexcept;
     CommittedFrameInfo GetCommittedFrameInfo() const noexcept;
@@ -131,10 +104,7 @@ private:
     friend class Media::CompositionTarget;
     friend class Markup::XamlReader;
     friend class App::DesktopHost;
-    template<class T, class... Args>
-    friend Result<Ref<T>>
-    Base::MakeRefWithAllocator(
-        Base::IAllocator&,
+    template<class T, class... Args> friend Result<Ref<T>> Base::MakeRefWithAllocator(Base::IAllocator&,
         Args&&...) noexcept;
 
     ViewFrame* state_ = nullptr;

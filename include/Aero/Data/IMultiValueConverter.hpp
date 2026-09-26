@@ -13,10 +13,8 @@ class AERO_GUI_API IMultiValueConverter : public Base::Object {
 public:
     ~IMultiValueConverter() override = default;
 
-    virtual Result<Value> Convert(
-        Span<const Value> values,
-        Meta::TypeId targetType,
-        const Value& parameter) noexcept = 0;
+    virtual Result<Value> Convert(Span<const Value> values,
+        Meta::TypeId targetType, const Value& parameter) noexcept = 0;
 
 protected:
     IMultiValueConverter() noexcept = default;

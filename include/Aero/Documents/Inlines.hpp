@@ -25,50 +25,25 @@ class AERO_GUI_API TextElement : public FrameworkContentElement {
 public:
     ~TextElement() override = default;
 
-    Ref<Media::FontFamily> GetFontFamily() const noexcept {
-        return GetValue(FontFamilyProperty);
-    }
-    double GetFontSize() const noexcept {
-        return GetValue(FontSizeProperty);
-    }
-    FontWeight GetFontWeight() const noexcept {
-        return GetValue(FontWeightProperty);
-    }
-    FontStyle GetFontStyle() const noexcept {
-        return GetValue(FontStyleProperty);
-    }
-    Ref<Media::Brush> GetForeground() const noexcept {
-        return GetValue(ForegroundProperty);
-    }
-    Controls::TextDecorations GetTextDecorations() const noexcept {
-        return GetValue(TextDecorationsProperty);
-    }
+    Ref<Media::FontFamily> GetFontFamily() const noexcept { return GetValue(FontFamilyProperty); }
+    double GetFontSize() const noexcept { return GetValue(FontSizeProperty); }
+    FontWeight GetFontWeight() const noexcept { return GetValue(FontWeightProperty); }
+    FontStyle GetFontStyle() const noexcept { return GetValue(FontStyleProperty); }
+    Ref<Media::Brush> GetForeground() const noexcept { return GetValue(ForegroundProperty); }
+    Controls::TextDecorations GetTextDecorations() const noexcept { return GetValue(TextDecorationsProperty); }
 
-    void SetFontFamily(Ref<Media::FontFamily> value) noexcept {
-        SetValue(FontFamilyProperty, std::move(value));
-    }
+    void SetFontFamily(Ref<Media::FontFamily> value) noexcept { SetValue(FontFamilyProperty, std::move(value)); }
     void SetFontFamily(StringView value) noexcept {
-        Result<Ref<Media::FontFamily>> family =
-            Base::MakeRef<Media::FontFamily>();
+        Result<Ref<Media::FontFamily>> family = Base::MakeRef<Media::FontFamily>();
         if (!family) { AERO_ASSERT(false); return; }
         family.Value()->SetSource(value);
         SetFontFamily(std::move(family).Value());
     }
-    void SetFontSize(double value) noexcept {
-        SetValue(FontSizeProperty, value);
-    }
-    void SetFontWeight(FontWeight value) noexcept {
-        SetValue(FontWeightProperty, value);
-    }
-    void SetFontStyle(FontStyle value) noexcept {
-        SetValue(FontStyleProperty, value);
-    }
-    void SetForeground(Ref<Media::Brush> value) noexcept {
-        SetValue(ForegroundProperty, std::move(value));
-    }
-    void SetTextDecorations(Controls::TextDecorations value) noexcept {
-        SetValue(TextDecorationsProperty, value);
-    }
+    void SetFontSize(double value) noexcept { SetValue(FontSizeProperty, value); }
+    void SetFontWeight(FontWeight value) noexcept { SetValue(FontWeightProperty, value); }
+    void SetFontStyle(FontStyle value) noexcept { SetValue(FontStyleProperty, value); }
+    void SetForeground(Ref<Media::Brush> value) noexcept { SetValue(ForegroundProperty, std::move(value)); }
+    void SetTextDecorations(Controls::TextDecorations value) noexcept { SetValue(TextDecorationsProperty, value); }
 
     AERO_ATTACHED_PROPERTY(Ref<Media::FontFamily>, FontFamily);
     AERO_ATTACHED_PROPERTY(double, FontSize);
@@ -78,8 +53,7 @@ public:
     AERO_ATTACHED_PROPERTY(Controls::TextDecorations, TextDecorations);
 
 protected:
-    explicit TextElement(Meta::TypeId runtimeType) noexcept
-        : FrameworkContentElement(runtimeType) {}
+    explicit TextElement(Meta::TypeId runtimeType) noexcept : FrameworkContentElement(runtimeType) {}
 };
 
 class AERO_GUI_API Inline : public TextElement {
@@ -88,8 +62,7 @@ public:
     ~Inline() override = default;
 
 protected:
-    explicit Inline(Meta::TypeId runtimeType) noexcept
-        : TextElement(runtimeType) {}
+    explicit Inline(Meta::TypeId runtimeType) noexcept : TextElement(runtimeType) {}
 };
 
 class Inline;
@@ -107,8 +80,7 @@ private:
     friend class InlineCollection;
     friend class Span;
     friend class Aero::Controls::TextBlock;
-    explicit InlineCollectionView(const Base::Object& owner) noexcept
-        : owner_(&owner) {}
+    explicit InlineCollectionView(const Base::Object& owner) noexcept : owner_(&owner) {}
     const Base::Object* owner_ = nullptr;
 };
 
@@ -137,20 +109,15 @@ public:
     ~Span() override;
 
     InlineCollection GetInlines() noexcept { return InlineCollection(*this); }
-    InlineCollectionView GetInlines() const noexcept {
-        return InlineCollectionView(*this);
-    }
+    InlineCollectionView GetInlines() const noexcept { return InlineCollectionView(*this); }
     Value GetMetadataInlines() const noexcept;
     void SetInlineValue(Value value) noexcept;
     void AddOwnedInline(Ref<Inline> value) noexcept;
     void ClearOwnedInlines() noexcept;
 
 protected:
-    explicit Span(Meta::TypeId runtimeType) noexcept
-        : Inline(runtimeType), inlines_() {}
-    std::uint32_t GetLogicalChildrenCount() const noexcept override {
-        return inlines_.Size();
-    }
+    explicit Span(Meta::TypeId runtimeType) noexcept : Inline(runtimeType), inlines_() {}
+    std::uint32_t GetLogicalChildrenCount() const noexcept override { return inlines_.Size(); }
     DependencyObject* GetLogicalChild(std::uint32_t index) const noexcept override {
         return index < inlines_.Size() ? inlines_[index].Get() : nullptr;
     }
@@ -168,16 +135,10 @@ public:
     Run() noexcept : Inline(StaticTypeId()) {}
     ~Run() override = default;
 
-    StringView GetText() const noexcept {
-        return GetValue(TextProperty);
-    }
+    StringView GetText() const noexcept { return GetValue(TextProperty); }
     StringView GetContent() const noexcept { return GetText(); }
-    void SetText(StringView value) noexcept {
-        SetValue(TextProperty, value);
-    }
-    void SetContent(StringView value) noexcept {
-        SetText(value);
-    }
+    void SetText(StringView value) noexcept { SetValue(TextProperty, value); }
+    void SetContent(StringView value) noexcept { SetText(value); }
 
     AERO_DEPENDENCY_PROPERTY(String, Text);
 };
@@ -231,9 +192,7 @@ public:
     ~Hyperlink() override = default;
 
     inline static constexpr RoutedEvent<Aero::RoutedEventArgs> ClickEvent{"Click"};
-    ContentElement::Event<Aero::RoutedEventArgs> Click() noexcept {
-        return GetEvent(ClickEvent);
-    }
+    ContentElement::Event<Aero::RoutedEventArgs> Click() noexcept { return GetEvent(ClickEvent); }
     inline static constexpr RoutedEvent<RequestNavigateEventArgs> RequestNavigateEvent{"RequestNavigate"};
     ContentElement::Event<RequestNavigateEventArgs> RequestNavigate() noexcept {
         return GetEvent(RequestNavigateEvent);

@@ -11,8 +11,7 @@ class AERO_GUI_API Adorner : public FrameworkElement {
     AERO_DECLARE_TYPE(Adorner, FrameworkElement)
 public:
     Adorner() noexcept : FrameworkElement(StaticTypeId()) {}
-    explicit Adorner(UIElement* adorned) noexcept
-        : FrameworkElement(StaticTypeId()), adorned_(adorned) {}
+    explicit Adorner(UIElement* adorned) noexcept : FrameworkElement(StaticTypeId()), adorned_(adorned) {}
 
     UIElement* GetAdornedElement() const noexcept { return adorned_; }
     void SetAdornedElement(UIElement* value) noexcept { adorned_ = value; }
@@ -33,9 +32,7 @@ public:
     void Add(Ref<Adorner> adorner) noexcept;
     void Remove(Adorner& adorner) noexcept;
     void Clear() noexcept { adorners_.Clear(); }
-    Base::Span<const Ref<Adorner>> GetAdorners() const noexcept {
-        return {adorners_.Data(), adorners_.Size()};
-    }
+    Base::Span<const Ref<Adorner>> GetAdorners() const noexcept { return {adorners_.Data(), adorners_.Size()}; }
 
     static AdornerLayer* GetAdornerLayer(UIElement* element) noexcept;
 

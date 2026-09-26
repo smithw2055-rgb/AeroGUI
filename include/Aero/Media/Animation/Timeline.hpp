@@ -13,21 +13,17 @@ namespace Aero::Media::Animation {
 
 // Clock-time value used by BeginTime and KeyTime's TimeSpan variant.
 // ParseClockTimeMicroseconds accepts 1.5, 2s, 500ms, M:S, and H:M:S.
-AERO_GUI_API Result<std::uint64_t> ParseClockTimeMicroseconds(
-    StringView text) noexcept;
+AERO_GUI_API Result<std::uint64_t> ParseClockTimeMicroseconds(StringView text) noexcept;
 
 struct TimeSpan {
     static constexpr TimeSpan Zero() noexcept { return {}; }
-    static constexpr TimeSpan FromMicroseconds(
-        std::uint64_t microseconds) noexcept {
+    static constexpr TimeSpan FromMicroseconds(std::uint64_t microseconds) noexcept {
         TimeSpan value{};
         value.microseconds_ = microseconds;
         return value;
     }
 
-    constexpr std::uint64_t Microseconds() const noexcept {
-        return microseconds_;
-    }
+    constexpr std::uint64_t Microseconds() const noexcept { return microseconds_; }
     constexpr bool IsZero() const noexcept { return microseconds_ == 0U; }
 
     static Result<TimeSpan> TryParse(StringView text) noexcept;
@@ -35,9 +31,7 @@ struct TimeSpan {
     friend constexpr bool operator==(TimeSpan left, TimeSpan right) noexcept {
         return left.microseconds_ == right.microseconds_;
     }
-    friend constexpr bool operator!=(TimeSpan left, TimeSpan right) noexcept {
-        return !(left == right);
-    }
+    friend constexpr bool operator!=(TimeSpan left, TimeSpan right) noexcept { return !(left == right); }
 
 private:
     std::uint64_t microseconds_ = 0U;
@@ -64,15 +58,9 @@ struct Duration {
     }
 
     constexpr Kind GetKind() const noexcept { return kind_; }
-    constexpr bool IsAutomatic() const noexcept {
-        return kind_ == Kind::Automatic;
-    }
-    constexpr bool IsForever() const noexcept {
-        return kind_ == Kind::Forever;
-    }
-    constexpr bool HasTimeSpan() const noexcept {
-        return kind_ == Kind::TimeSpan;
-    }
+    constexpr bool IsAutomatic() const noexcept { return kind_ == Kind::Automatic; }
+    constexpr bool IsForever() const noexcept { return kind_ == Kind::Forever; }
+    constexpr bool HasTimeSpan() const noexcept { return kind_ == Kind::TimeSpan; }
     constexpr TimeSpan GetTimeSpan() const noexcept { return timeSpan_; }
 
     static Result<Duration> TryParse(StringView text) noexcept;
@@ -80,9 +68,7 @@ struct Duration {
     friend constexpr bool operator==(Duration left, Duration right) noexcept {
         return left.kind_ == right.kind_ && left.timeSpan_ == right.timeSpan_;
     }
-    friend constexpr bool operator!=(Duration left, Duration right) noexcept {
-        return !(left == right);
-    }
+    friend constexpr bool operator!=(Duration left, Duration right) noexcept { return !(left == right); }
 
 private:
     Kind kind_ = Kind::Automatic;
@@ -121,33 +107,21 @@ struct KeyTime {
     }
 
     constexpr Kind GetKind() const noexcept { return kind_; }
-    constexpr bool IsTimeSpan() const noexcept {
-        return kind_ == Kind::TimeSpan;
-    }
-    constexpr bool IsPercent() const noexcept {
-        return kind_ == Kind::Percent;
-    }
-    constexpr bool IsUniform() const noexcept {
-        return kind_ == Kind::Uniform;
-    }
+    constexpr bool IsTimeSpan() const noexcept { return kind_ == Kind::TimeSpan; }
+    constexpr bool IsPercent() const noexcept { return kind_ == Kind::Percent; }
+    constexpr bool IsUniform() const noexcept { return kind_ == Kind::Uniform; }
     constexpr bool IsPaced() const noexcept { return kind_ == Kind::Paced; }
     constexpr TimeSpan GetTimeSpan() const noexcept { return timeSpan_; }
     constexpr double GetPercent() const noexcept { return percent_; }
 
     static Result<KeyTime> TryParse(StringView text) noexcept;
-    std::uint64_t ResolveMicroseconds(
-        std::uint64_t durationMicroseconds,
-        std::uint32_t index,
+    std::uint64_t ResolveMicroseconds(std::uint64_t durationMicroseconds, std::uint32_t index,
         std::uint32_t count) const noexcept;
 
     friend constexpr bool operator==(KeyTime left, KeyTime right) noexcept {
-        return left.kind_ == right.kind_ &&
-            left.timeSpan_ == right.timeSpan_ &&
-            left.percent_ == right.percent_;
+        return left.kind_ == right.kind_ && left.timeSpan_ == right.timeSpan_ && left.percent_ == right.percent_;
     }
-    friend constexpr bool operator!=(KeyTime left, KeyTime right) noexcept {
-        return !(left == right);
-    }
+    friend constexpr bool operator!=(KeyTime left, KeyTime right) noexcept { return !(left == right); }
 
 private:
     Kind kind_ = Kind::TimeSpan;
@@ -184,29 +158,17 @@ struct RepeatBehavior {
 
     constexpr Kind GetKind() const noexcept { return kind_; }
     constexpr bool HasCount() const noexcept { return kind_ == Kind::Count; }
-    constexpr bool IsForever() const noexcept {
-        return kind_ == Kind::Forever;
-    }
-    constexpr bool HasDuration() const noexcept {
-        return kind_ == Kind::Duration;
-    }
+    constexpr bool IsForever() const noexcept { return kind_ == Kind::Forever; }
+    constexpr bool HasDuration() const noexcept { return kind_ == Kind::Duration; }
     constexpr double GetCount() const noexcept { return count_; }
     constexpr TimeSpan GetDuration() const noexcept { return duration_; }
 
     static Result<RepeatBehavior> TryParse(StringView text) noexcept;
 
-    friend constexpr bool operator==(
-        RepeatBehavior left,
-        RepeatBehavior right) noexcept {
-        return left.kind_ == right.kind_ &&
-            left.count_ == right.count_ &&
-            left.duration_ == right.duration_;
+    friend constexpr bool operator==(RepeatBehavior left, RepeatBehavior right) noexcept {
+        return left.kind_ == right.kind_ && left.count_ == right.count_ && left.duration_ == right.duration_;
     }
-    friend constexpr bool operator!=(
-        RepeatBehavior left,
-        RepeatBehavior right) noexcept {
-        return !(left == right);
-    }
+    friend constexpr bool operator!=(RepeatBehavior left, RepeatBehavior right) noexcept { return !(left == right); }
 
 private:
     Kind kind_ = Kind::Count;
@@ -224,24 +186,12 @@ enum class FillBehavior : std::uint8_t {
 class AERO_GUI_API Timeline : public ::Aero::Animatable {
     AERO_DECLARE_TYPE(Timeline, ::Aero::Animatable)
 public:
-    TimeSpan GetBeginTime() const noexcept {
-        return GetValue(BeginTimeProperty);
-    }
-    Duration GetDuration() const noexcept {
-        return GetValue(DurationProperty);
-    }
-    RepeatBehavior GetRepeatBehavior() const noexcept {
-        return GetValue(RepeatBehaviorProperty);
-    }
-    double GetSpeedRatio() const noexcept {
-        return GetValue(SpeedRatioProperty);
-    }
-    bool GetAutoReverse() const noexcept {
-        return GetValue(AutoReverseProperty);
-    }
-    FillBehavior GetFillBehavior() const noexcept {
-        return GetValue(FillBehaviorProperty);
-    }
+    TimeSpan GetBeginTime() const noexcept { return GetValue(BeginTimeProperty); }
+    Duration GetDuration() const noexcept { return GetValue(DurationProperty); }
+    RepeatBehavior GetRepeatBehavior() const noexcept { return GetValue(RepeatBehaviorProperty); }
+    double GetSpeedRatio() const noexcept { return GetValue(SpeedRatioProperty); }
+    bool GetAutoReverse() const noexcept { return GetValue(AutoReverseProperty); }
+    FillBehavior GetFillBehavior() const noexcept { return GetValue(FillBehaviorProperty); }
 
     void SetBeginTime(TimeSpan value) noexcept;
     void SetBeginTime(StringView value) noexcept;
@@ -261,68 +211,14 @@ public:
     AERO_DEPENDENCY_PROPERTY(FillBehavior, FillBehavior);
 
 protected:
-    explicit Timeline(Meta::TypeId runtimeType) noexcept
-        : Animatable(runtimeType) {}
+    explicit Timeline(Meta::TypeId runtimeType) noexcept : Animatable(runtimeType) {}
 };
 
 } // namespace Aero::Media::Animation
 
-namespace Aero::Meta {
-
-template<>
-struct TypeTraits<::Aero::Media::Animation::TimeSpan> {
-    static constexpr TypeId Id() noexcept { return MakeTypeId("TimeSpan"); }
-    static constexpr StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr StringView Name() noexcept { return "TimeSpan"; }
-    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
-};
-
-} // namespace Aero::Meta
-
-namespace Aero::Meta {
-
-template<>
-struct TypeTraits<::Aero::Media::Animation::Duration> {
-    static constexpr TypeId Id() noexcept { return MakeTypeId("Duration"); }
-    static constexpr StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr StringView Name() noexcept { return "Duration"; }
-    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
-};
-
-} // namespace Aero::Meta
-
-namespace Aero::Meta {
-
-template<>
-struct TypeTraits<::Aero::Media::Animation::KeyTime> {
-    static constexpr TypeId Id() noexcept { return MakeTypeId("KeyTime"); }
-    static constexpr StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr StringView Name() noexcept { return "KeyTime"; }
-    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
-};
-
-} // namespace Aero::Meta
-
-namespace Aero::Meta {
-
-template<>
-struct TypeTraits<::Aero::Media::Animation::RepeatBehavior> {
-    static constexpr TypeId Id() noexcept {
-        return MakeTypeId("RepeatBehavior");
-    }
-    static constexpr StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr StringView Name() noexcept { return "RepeatBehavior"; }
-    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
-};
-
-} // namespace Aero::Meta
+AERO_DECLARE_TYPE_VALUE(::Aero::Media::Animation::TimeSpan, "TimeSpan")
+AERO_DECLARE_TYPE_VALUE(::Aero::Media::Animation::Duration, "Duration")
+AERO_DECLARE_TYPE_VALUE(::Aero::Media::Animation::KeyTime, "KeyTime")
+AERO_DECLARE_TYPE_VALUE(::Aero::Media::Animation::RepeatBehavior, "RepeatBehavior")
 
 AERO_DECLARE_TYPE_ENUM(Aero::Media::Animation::FillBehavior)

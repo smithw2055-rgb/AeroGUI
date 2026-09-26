@@ -31,20 +31,15 @@ public:
 
     inline static constexpr RoutedEvent<RoutedEventArgs> SelectedEvent{"Selected"};
     inline static constexpr RoutedEvent<RoutedEventArgs> UnselectedEvent{"Unselected"};
-    UIElement::Event<RoutedEventArgs> Selected() noexcept {
-        return GetEvent(SelectedEvent);
-    }
-    UIElement::Event<RoutedEventArgs> Unselected() noexcept {
-        return GetEvent(UnselectedEvent);
-    }
+    UIElement::Event<RoutedEventArgs> Selected() noexcept { return GetEvent(SelectedEvent); }
+    UIElement::Event<RoutedEventArgs> Unselected() noexcept { return GetEvent(UnselectedEvent); }
 
     AERO_DEPENDENCY_PROPERTY(bool, IsSelected);
 protected:
     explicit ListBoxItem(TypeId runtimeType) noexcept;
     virtual void OnSelected(RoutedEventArgs& e);
     virtual void OnUnselected(RoutedEventArgs& e);
-    void OnPropertyChanged(
-        const DependencyPropertyChangedEventArgs& args) noexcept override;
+    void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
 };
 
 } // namespace Aero::Controls
@@ -54,12 +49,10 @@ using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::DependencyPropertyChangedEventHandler;
 using ::Aero::Meta::TypeId;
 
-class AERO_GUI_API ComboBoxItem
-    : public ListBoxItem {
+class AERO_GUI_API ComboBoxItem : public ListBoxItem {
     AERO_DECLARE_TYPE(ComboBoxItem, ListBoxItem)
 public:
-    ComboBoxItem() noexcept
-        : ListBoxItem(StaticTypeId()) {}
+    ComboBoxItem() noexcept : ListBoxItem(StaticTypeId()) {}
     ~ComboBoxItem() override = default;
 
     bool GetIsSelected() const noexcept;
@@ -77,14 +70,11 @@ public:
     ListBox() noexcept;
     ~ListBox() override;
 
-    Result<bool> BringIntoView(
-        std::uint32_t index) noexcept;
+    Result<bool> BringIntoView(std::uint32_t index) noexcept;
 
 protected:
     explicit ListBox(TypeId runtimeType) noexcept;
-    Result<Ref<FrameworkElement>>
-        GetContainerForItemOverride() const
-            noexcept override;
+    Result<Ref<FrameworkElement>> GetContainerForItemOverride() const noexcept override;
     void OnMouseLeftButtonDown(MouseButtonEventArgs& args);
     void OnKeyDown(KeyEventArgs& args);
 
@@ -118,27 +108,15 @@ public:
     void SetIsReadOnly(bool value) noexcept;
     StringView GetText() const noexcept;
     void SetText(StringView value) noexcept;
-    StringView GetPlaceholder() const noexcept {
-        return GetValue(PlaceholderProperty);
-    }
-    void SetPlaceholder(StringView value) noexcept {
-        SetValue(PlaceholderProperty, value);
-    }
+    StringView GetPlaceholder() const noexcept { return GetValue(PlaceholderProperty); }
+    void SetPlaceholder(StringView value) noexcept { SetValue(PlaceholderProperty, value); }
     StringView GetSelectionBoxText() const noexcept;
-    Value GetSelectionBoxItem() const noexcept {
-        return GetValue(SelectionBoxItemProperty);
-    }
+    Value GetSelectionBoxItem() const noexcept { return GetValue(SelectionBoxItemProperty); }
 
     inline static constexpr RoutedEvent<RoutedEventArgs> DropDownOpenedEvent{"DropDownOpened"};
     inline static constexpr RoutedEvent<RoutedEventArgs> DropDownClosedEvent{"DropDownClosed"};
-    UIElement::Event<RoutedEventArgs>
-        DropDownOpened() noexcept {
-        return GetEvent(DropDownOpenedEvent);
-    }
-    UIElement::Event<RoutedEventArgs>
-        DropDownClosed() noexcept {
-        return GetEvent(DropDownClosedEvent);
-    }
+    UIElement::Event<RoutedEventArgs> DropDownOpened() noexcept { return GetEvent(DropDownOpenedEvent); }
+    UIElement::Event<RoutedEventArgs> DropDownClosed() noexcept { return GetEvent(DropDownClosedEvent); }
 
     AERO_DEPENDENCY_PROPERTY(bool, IsDropDownOpen);
     AERO_DEPENDENCY_PROPERTY(double, MaxDropDownHeight);
@@ -150,21 +128,15 @@ public:
     AERO_READONLY_PROPERTY(Value, SelectionBoxItem);
 
 protected:
-    Result<Ref<FrameworkElement>>
-        GetContainerForItemOverride() const
-            noexcept override;
-    Result<void> PrepareContainerForItemOverride(
-        FrameworkElement& container,
-        const Ref<Base::Object>& item,
+    Result<Ref<FrameworkElement>> GetContainerForItemOverride() const noexcept override;
+    Result<void> PrepareContainerForItemOverride(FrameworkElement& container, const Ref<Base::Object>& item,
         std::uint32_t index) noexcept override;
-    void ClearContainerForItemOverride(
-        FrameworkElement& container) noexcept override;
+    void ClearContainerForItemOverride(FrameworkElement& container) noexcept override;
     void OnContainersChanged() noexcept override;
     void OnApplyTemplate() noexcept override;
     void OnTemplateDetached() noexcept override;
     void OnSelectionChanged(const SelectionChangedEvent& event) override;
-    void OnPropertyChanged(
-        const DependencyPropertyChangedEventArgs& args) noexcept override;
+    void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
     void OnMouseLeftButtonDown(MouseButtonEventArgs& args);
     void OnKeyDown(KeyEventArgs& args);
 
@@ -180,36 +152,24 @@ private:
     TextBlock* selectedProjection_ = nullptr;
     bool synchronizingEditableText_ = false;
 
-    void OnPopupIsOpenChanged(
-        DependencyObject& object,
-        const DependencyPropertyChangedEventArgs& args) noexcept;
-    void OnSelectedProjectionChanged(
-        DependencyObject& object,
-        const DependencyPropertyChangedEventArgs& args) noexcept;
-    void OnEditableTextChanged(
-        Base::Object* sender,
-        RoutedEventArgs& args) noexcept;
+    void OnPopupIsOpenChanged(DependencyObject& object, const DependencyPropertyChangedEventArgs& args) noexcept;
+    void OnSelectedProjectionChanged(DependencyObject& object, const DependencyPropertyChangedEventArgs& args) noexcept;
+    void OnEditableTextChanged(Base::Object* sender, RoutedEventArgs& args) noexcept;
     Result<void> UpdateSelectionBox() noexcept;
     void UpdateEditableVisualState() noexcept;
-    void ObserveSelectedProjection(
-        TextBlock* projection) noexcept;
+    void ObserveSelectedProjection(TextBlock* projection) noexcept;
     void SynchronizeContainers() noexcept;
-    std::uint32_t FindContainerIndex(
-        Base::Object* source) const noexcept;
+    std::uint32_t FindContainerIndex(Base::Object* source) const noexcept;
     void UpdateVisualState(bool useTransitions = true) noexcept;
 };
 } // namespace Aero::Controls
 
 namespace Aero::Controls {
 
-class AERO_GUI_API TabItem
-    : public HeaderedContentControl {
-    AERO_DECLARE_TYPE(
-        TabItem,
-        HeaderedContentControl)
+class AERO_GUI_API TabItem : public HeaderedContentControl {
+    AERO_DECLARE_TYPE(TabItem, HeaderedContentControl)
 public:
-    TabItem() noexcept
-        : HeaderedContentControl(StaticTypeId()) {}
+    TabItem() noexcept : HeaderedContentControl(StaticTypeId()) {}
     ~TabItem() override = default;
 
     bool GetIsSelected() const noexcept;
@@ -230,10 +190,8 @@ public:
     ~TabPanel() override = default;
 
 protected:
-    Size MeasureOverride(
-        Size availableSize) noexcept override;
-    Size ArrangeOverride(
-        Size finalSize) noexcept override;
+    Size MeasureOverride(Size availableSize) noexcept override;
+    Size ArrangeOverride(Size finalSize) noexcept override;
 
 private:
     bool GetIsVertical() const noexcept;
@@ -249,25 +207,13 @@ public:
     TabControl() noexcept;
     ~TabControl() override;
 
-    std::uint32_t GetTabCount() const noexcept {
-        return GetCount();
-    }
+    std::uint32_t GetTabCount() const noexcept { return GetCount(); }
     TabItem* GetSelectedTab() const noexcept;
-    Value GetSelectedContent() const noexcept {
-        return GetValue(SelectedContentProperty);
-    }
-    Ref<DataTemplate> GetContentTemplate() const noexcept {
-        return GetValue(ContentTemplateProperty);
-    }
-    void SetContentTemplate(Ref<DataTemplate> value) noexcept {
-        SetValue(ContentTemplateProperty, std::move(value));
-    }
-    Dock GetTabStripPlacement() const noexcept {
-        return GetValue(TabStripPlacementProperty);
-    }
-    void SetTabStripPlacement(Dock value) noexcept {
-        SetValue(TabStripPlacementProperty, value);
-    }
+    Value GetSelectedContent() const noexcept { return GetValue(SelectedContentProperty); }
+    Ref<DataTemplate> GetContentTemplate() const noexcept { return GetValue(ContentTemplateProperty); }
+    void SetContentTemplate(Ref<DataTemplate> value) noexcept { SetValue(ContentTemplateProperty, std::move(value)); }
+    Dock GetTabStripPlacement() const noexcept { return GetValue(TabStripPlacementProperty); }
+    void SetTabStripPlacement(Dock value) noexcept { SetValue(TabStripPlacementProperty, value); }
 
     AERO_READONLY_PROPERTY(Value, SelectedContent);
     AERO_DEPENDENCY_PROPERTY(Ref<DataTemplate>, ContentTemplate);
@@ -275,14 +221,10 @@ public:
 
 protected:
     Result<Ref<FrameworkElement>> GetContainerForItemOverride() const noexcept override;
-    void OnSelectionChanged(
-        const SelectionChangedEvent& event) override;
-    void OnPropertyChanged(
-        const DependencyPropertyChangedEventArgs& args) noexcept override;
-    Size MeasureOverride(
-        Size availableSize) noexcept override;
-    Size ArrangeOverride(
-        Size finalSize) noexcept override;
+    void OnSelectionChanged(const SelectionChangedEvent& event) override;
+    void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
+    Size MeasureOverride(Size availableSize) noexcept override;
+    Size ArrangeOverride(Size finalSize) noexcept override;
 
 private:
     void SynchronizeSelection() noexcept;

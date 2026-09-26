@@ -19,17 +19,11 @@ public:
 
 class AERO_GUI_API MemoryClipboard : public IClipboard {
 public:
-    explicit MemoryClipboard(
-        Base::IAllocator* allocator = nullptr) noexcept
-        : text_(allocator) {}
+    explicit MemoryClipboard(Base::IAllocator* allocator = nullptr) noexcept : text_(allocator) {}
 
-    Result<void> ReadText(
-        String& output) noexcept override;
-    Result<void> WriteText(
-        StringView text) noexcept override;
-    std::uint64_t Generation() const noexcept {
-        return generation_;
-    }
+    Result<void> ReadText(String& output) noexcept override;
+    Result<void> WriteText(StringView text) noexcept override;
+    std::uint64_t Generation() const noexcept { return generation_; }
 
 private:
     String text_;
@@ -45,10 +39,8 @@ class AERO_GUI_API ITextCompositionClient {
 public:
     virtual ~ITextCompositionClient() = default;
     virtual Result<void> BeginComposition() noexcept = 0;
-    virtual Result<void> UpdateComposition(
-        StringView text) noexcept = 0;
-    virtual Result<void> CommitComposition(
-        StringView text) noexcept = 0;
+    virtual Result<void> UpdateComposition(StringView text) noexcept = 0;
+    virtual Result<void> CommitComposition(StringView text) noexcept = 0;
     virtual Result<void> CancelComposition() noexcept = 0;
 };
 

@@ -33,17 +33,11 @@ public:
 
     bool IsAncestorOf(const Visual& descendant) const noexcept;
     Base::Transform2D TransformToVisual(const Visual& visual) const noexcept;
-    bool TryTransformToVisual(
-        const Visual& visual,
-        Base::ProjectiveTransform2D& output) const noexcept;
+    bool TryTransformToVisual(const Visual& visual, Base::ProjectiveTransform2D& output) const noexcept;
     Base::Point PointToScreen(Base::Point point) const noexcept;
-    bool TryPointToScreen(
-        Base::Point point,
-        Base::Point& screen) const noexcept;
+    bool TryPointToScreen(Base::Point point, Base::Point& screen) const noexcept;
     Base::Point PointFromScreen(Base::Point point) const noexcept;
-    bool TryPointFromScreen(
-        Base::Point point,
-        Base::Point& local) const noexcept;
+    bool TryPointFromScreen(Base::Point point, Base::Point& local) const noexcept;
 
 protected:
     virtual std::uint32_t GetVisualChildrenCount() const noexcept { return 0U; }
@@ -58,12 +52,8 @@ protected:
     void AddVisualChild(Visual* child) noexcept;
     void RemoveVisualChild(Visual* child) noexcept;
 
-    virtual void OnVisualParentChanged(Visual* oldParent) noexcept {
-        static_cast<void>(oldParent);
-    }
-    virtual void OnVisualChildrenChanged(
-        Visual* visualAdded,
-        Visual* visualRemoved) noexcept {
+    virtual void OnVisualParentChanged(Visual* oldParent) noexcept { static_cast<void>(oldParent); }
+    virtual void OnVisualChildrenChanged(Visual* visualAdded, Visual* visualRemoved) noexcept {
         static_cast<void>(visualAdded);
         static_cast<void>(visualRemoved);
     }
@@ -81,25 +71,18 @@ private:
     static constexpr std::uint8_t kFlagRendering = 1U << 3U;
     static constexpr std::uint8_t kFlagLoaded = 1U << 4U;
 
-    bool LoadedFlag() const noexcept {
-        return (visualFlags_ & kFlagLoaded) != 0U;
-    }
+    bool LoadedFlag() const noexcept { return (visualFlags_ & kFlagLoaded) != 0U; }
     void SetLoadedFlag(bool loaded) noexcept {
         if (loaded) {
-            visualFlags_ = static_cast<std::uint8_t>(
-                visualFlags_ | kFlagLoaded);
-        } else {
-            visualFlags_ = static_cast<std::uint8_t>(
-                visualFlags_ & static_cast<std::uint8_t>(~kFlagLoaded));
-        }
+            visualFlags_ = static_cast<std::uint8_t>(visualFlags_ | kFlagLoaded);
+        } else { visualFlags_ = static_cast<std::uint8_t>(visualFlags_ & static_cast<std::uint8_t>(~kFlagLoaded)); }
     }
 
     ::Aero::ElementTree* tree_ = nullptr;
     ::Aero::DependencyObject* logicalParent_ = nullptr;
     Visual* visualParent_ = nullptr;
     Ref<Base::Object> lifetime_;
-    Base::RenderNodeId renderNodeId_ =
-        Base::InvalidRenderNodeId;
+    Base::RenderNodeId renderNodeId_ = Base::InvalidRenderNodeId;
     std::uint64_t renderRevision_ = 0U;
     std::uint32_t handleIndex_ = UINT32_MAX;
     std::uint32_t handleGeneration_ = 0U;

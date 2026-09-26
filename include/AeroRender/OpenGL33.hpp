@@ -13,15 +13,10 @@ namespace Aero::Render::OpenGL33 {
 using Aero::Render::StatePreservationPolicy;
 
 using ProcAddress = void (*)();
-using ProcResolver = ProcAddress (*)(
-    void* context,
-    const char* name) noexcept;
-using MakeCurrent = Base::Status (*)(
-    void* context) noexcept;
-using IsCurrent = bool (*)(
-    void* context) noexcept;
-using ContextGeneration = std::uint64_t (*)(
-    void* context) noexcept;
+using ProcResolver = ProcAddress (*)(void* context, const char* name) noexcept;
+using MakeCurrent = Base::Status (*)(void* context) noexcept;
+using IsCurrent = bool (*)(void* context) noexcept;
+using ContextGeneration = std::uint64_t (*)(void* context) noexcept;
 
 struct DeviceOptions {
     ProcResolver resolve = nullptr;
@@ -29,8 +24,7 @@ struct DeviceOptions {
     IsCurrent isCurrent = nullptr;
     ContextGeneration contextGeneration = nullptr;
     void* callbackContext = nullptr;
-    StatePreservationPolicy statePolicy =
-        StatePreservationPolicy::HostResetsState;
+    StatePreservationPolicy statePolicy = StatePreservationPolicy::HostResetsState;
     bool checkErrors = false;
 };
 
@@ -43,9 +37,7 @@ struct EmbeddedTarget {
     bool defaultFramebuffer = false;
 };
 
-using TargetCallback = Base::Status (*)(
-    void* context,
-    EmbeddedTarget* target) noexcept;
+using TargetCallback = Base::Status (*)(void* context, EmbeddedTarget* target) noexcept;
 
 // Device/context activation belongs to the explicitly supplied RenderDevice.
 // The target contract only selects the framebuffer exposed by the host.
@@ -58,14 +50,10 @@ struct TargetOptions {
     bool clearBeforeRender = false;
 };
 
-AERO_RENDER_OPENGL33_API Result<Ref<Aero::RenderDevice>>
-CreateDevice(
-    const DeviceOptions& options,
+AERO_RENDER_OPENGL33_API Result<Ref<Aero::RenderDevice>> CreateDevice(const DeviceOptions& options,
     Base::IAllocator* allocator = nullptr) noexcept;
 
-AERO_RENDER_OPENGL33_API Result<Ref<Aero::RenderTarget>>
-CreateTarget(
-    Ref<Aero::RenderDevice> device,
-    const TargetOptions& options,
+AERO_RENDER_OPENGL33_API Result<Ref<Aero::RenderTarget>> CreateTarget(
+    Ref<Aero::RenderDevice> device, const TargetOptions& options,
     Base::IAllocator* allocator = nullptr) noexcept;
 } // namespace Aero::Render::OpenGL33

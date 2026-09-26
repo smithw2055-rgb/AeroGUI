@@ -86,10 +86,7 @@ protected:
     Size MeasureOverride(Size availableSize) noexcept override;
     Size ArrangeOverride(Size finalSize) noexcept override;
 private:
-    void ResolveDimensions(
-        std::uint32_t childCount,
-        std::uint32_t& rows,
-        std::uint32_t& columns) const noexcept;
+    void ResolveDimensions(std::uint32_t childCount, std::uint32_t& rows, std::uint32_t& columns) const noexcept;
 };
 
 } // namespace Aero::Controls

@@ -21,10 +21,8 @@ public:
     bool CanFreeze() const noexcept;
     Result<void> Freeze() noexcept;
 
-    void AddChangedHandler(
-        const FreezableChangedHandler& handler) noexcept;
-    bool RemoveChangedHandler(
-        const FreezableChangedHandler& handler) noexcept;
+    void AddChangedHandler(const FreezableChangedHandler& handler) noexcept;
+    bool RemoveChangedHandler(const FreezableChangedHandler& handler) noexcept;
 
 protected:
     explicit Freezable(Meta::TypeId runtimeType) noexcept;
@@ -35,8 +33,7 @@ protected:
     virtual bool FreezeCore(bool isChecking) noexcept;
     virtual void OnChanged() noexcept;
 
-    void OnPropertyInvalidated(
-        Meta::PropertyInvalidationFlags flags) noexcept override;
+    void OnPropertyInvalidated(Meta::PropertyInvalidationFlags flags) noexcept override;
     Result<void> VerifyMutationAllowed() const noexcept override;
 
 private:

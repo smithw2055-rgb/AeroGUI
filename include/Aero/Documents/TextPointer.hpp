@@ -26,32 +26,19 @@ public:
     LogicalDirection GetLogicalDirection() const noexcept { return direction_; }
     bool GetIsAtInsertionPosition() const noexcept { return GetIsValid(); }
 
-    Result<std::int32_t> CompareTo(
-        const TextPointer& other) const noexcept;
-    Result<TextPointer> GetPositionAtOffset(
-        std::int32_t delta,
-        LogicalDirection direction) const noexcept;
-    friend bool operator==(
-        const TextPointer& left,
-        const TextPointer& right) noexcept {
-        return left.container_ == right.container_ &&
-            left.offset_ == right.offset_ &&
+    Result<std::int32_t> CompareTo(const TextPointer& other) const noexcept;
+    Result<TextPointer> GetPositionAtOffset(std::int32_t delta, LogicalDirection direction) const noexcept;
+    friend bool operator==(const TextPointer& left, const TextPointer& right) noexcept {
+        return left.container_ == right.container_ && left.offset_ == right.offset_ &&
             left.direction_ == right.direction_;
     }
-    friend bool operator!=(
-        const TextPointer& left,
-        const TextPointer& right) noexcept {
-        return !(left == right);
-    }
+    friend bool operator!=(const TextPointer& left, const TextPointer& right) noexcept { return !(left == right); }
 
 private:
     friend class Aero::Controls::TextBlock;
     friend class TextRange;
     friend struct Aero::Controls::TextBlockDocumentHelper;
-    TextPointer(
-        Controls::TextBlock& container,
-        std::uint32_t offset,
-        LogicalDirection direction) noexcept
+    TextPointer(Controls::TextBlock& container, std::uint32_t offset, LogicalDirection direction) noexcept
         : container_(&container), offset_(offset), direction_(direction) {}
 
     Controls::TextBlock* container_ = nullptr;

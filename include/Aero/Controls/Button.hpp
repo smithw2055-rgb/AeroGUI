@@ -12,8 +12,7 @@ public:
     ~Button() override = default;
 
 protected:
-    explicit Button(TypeId runtimeType) noexcept
-        : Primitives::ButtonBase(runtimeType) {}
+    explicit Button(TypeId runtimeType) noexcept : Primitives::ButtonBase(runtimeType) {}
 };
 
 } // namespace Aero::Controls

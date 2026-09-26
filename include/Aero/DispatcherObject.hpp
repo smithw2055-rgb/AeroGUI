@@ -25,6 +25,4 @@ private:
 
 } // namespace Aero::Threading
 
-namespace Aero {
-using ::Aero::Threading::DispatcherObject;
-}
+namespace Aero { using ::Aero::Threading::DispatcherObject; }

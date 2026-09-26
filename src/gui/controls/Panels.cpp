@@ -12,8 +12,7 @@
 #include "gui/styles/StyleEngine.hpp"
 #include "render/DisplayList.hpp"
 #include <Aero/Controls.hpp>
-#include <Aero/Controls/ColumnDefinition.hpp>
-#include <Aero/Controls/RowDefinition.hpp>
+#include <Aero/Controls/Grid.hpp>
 #include <Aero/Controls/Selectors.hpp>
 #include <Aero/Controls/TreeView.hpp>
 #include <Aero/Shapes.hpp>

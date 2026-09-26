@@ -45,8 +45,7 @@ enum {
     AERO_STATUS_VALIDATION_FAILED = 15u
 };
 
-typedef struct AeroStringView {
-    const char* data;
+typedef struct AeroStringView { const char* data;
     uint32_t size;
 } AeroStringView;
 
@@ -61,9 +60,7 @@ typedef struct AeroBaseApi {
     AeroValidateUtf8Fn validate_utf8;
 } AeroBaseApi;
 
-AERO_C_API AeroStatusCode AeroGetBaseApi(
-    uint32_t requested_abi_version,
-    uint32_t caller_struct_size,
+AERO_C_API AeroStatusCode AeroGetBaseApi(uint32_t requested_abi_version, uint32_t caller_struct_size,
     AeroBaseApi* out_api);
 
 #ifdef __cplusplus

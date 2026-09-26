@@ -22,8 +22,7 @@ public:
     std::uint64_t GetRevision() const noexcept;
 
 protected:
-    explicit Effect(Meta::TypeId runtimeType) noexcept
-        : Animatable(runtimeType) {}
+    explicit Effect(Meta::TypeId runtimeType) noexcept : Animatable(runtimeType) {}
 };
 
 class AERO_GUI_API BlurEffect : public Effect {
@@ -105,14 +104,10 @@ public:
     StringView GetPixelShader() const noexcept;
     void SetPixelShader(StringView value) noexcept;
 
-    Base::Span<const std::uint8_t> GetBytecode() const noexcept {
-        return {bytecode_.Data(), bytecode_.Size()};
-    }
+    Base::Span<const std::uint8_t> GetBytecode() const noexcept { return {bytecode_.Data(), bytecode_.Size()}; }
     void SetBytecode(Base::Span<const std::uint8_t> value) noexcept;
 
-    Base::Span<const float> GetUniforms() const noexcept {
-        return {uniforms_.data(), uniformCount_};
-    }
+    Base::Span<const float> GetUniforms() const noexcept { return {uniforms_.data(), uniformCount_}; }
     void SetUniform(std::uint32_t index, float value) noexcept;
 
     std::uint32_t GetShaderId() const noexcept { return shaderId_; }
@@ -120,8 +115,7 @@ public:
 
     AERO_DEPENDENCY_PROPERTY(String, PixelShader);
 
-    static void OnPixelShaderChanged(
-        DependencyObject& object,
+    static void OnPixelShaderChanged(DependencyObject& object,
         const Meta::DependencyPropertyChangedEventArgs& args) noexcept;
 
 private:

@@ -25,19 +25,13 @@ public:
     AERO_DEPENDENCY_PROPERTY(StretchDirection, StretchDirection);
 
 protected:
-    Size MeasureOverride(
-        Size availableSize) noexcept override;
-    Size ArrangeOverride(
-        Size finalSize) noexcept override;
+    Size MeasureOverride(Size availableSize) noexcept override;
+    Size ArrangeOverride(Size finalSize) noexcept override;
 
 private:
     Ref<MatrixTransform> viewTransform_;
     Ref<FrameworkElement> projectedChild_;
-    void ApplyViewTransform(
-        double scaleX,
-        double scaleY,
-        double offsetX,
-        double offsetY) noexcept;
+    void ApplyViewTransform(double scaleX, double scaleY, double offsetX, double offsetY) noexcept;
 };
 
 } // namespace Aero::Controls

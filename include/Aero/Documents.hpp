@@ -9,14 +9,9 @@
 
 namespace Aero::Documents {
 
-Result<void> CopyText(
-    const Controls::TextBlock& container,
-    String& output) noexcept;
-Result<TextPointer> GetPositionFromPoint(
-    Controls::TextBlock& container,
-    Aero::Base::Point point,
+Result<void> CopyText(const Controls::TextBlock& container, String& output) noexcept;
+Result<TextPointer> GetPositionFromPoint(Controls::TextBlock& container, Aero::Base::Point point,
     bool snapToText = true) noexcept;
-Result<Aero::Base::Rect> GetCharacterRect(
-    const TextPointer& position) noexcept;
+Result<Aero::Base::Rect> GetCharacterRect(const TextPointer& position) noexcept;
 
 } // namespace Aero::Documents

@@ -44,12 +44,10 @@ public:
     AERO_DEPENDENCY_PROPERTY(Stretch, Stretch);
 
 protected:
-    explicit Shape(TypeId runtimeType) noexcept
-        : FrameworkElement(runtimeType) {}
+    explicit Shape(TypeId runtimeType) noexcept : FrameworkElement(runtimeType) {}
     ~Shape() override = default;
     // Replaces OnShapePenChanged (Fill/Stroke had a no-op and were dropped).
-    void OnPropertyChanged(
-        const DependencyPropertyChangedEventArgs& args) noexcept override;
+    void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
 };
 
 class AERO_GUI_API Rectangle : public Shape {
@@ -67,10 +65,8 @@ public:
     AERO_DEPENDENCY_PROPERTY(double, RadiusY);
 
 protected:
-    Size MeasureOverride(
-        Size availableSize) noexcept override;
-    void OnRender(
-        ::Aero::Media::DrawingContext& context) noexcept override;
+    Size MeasureOverride(Size availableSize) noexcept override;
+    void OnRender(::Aero::Media::DrawingContext& context) noexcept override;
 };
 
 class AERO_GUI_API Ellipse : public Shape {
@@ -80,10 +76,8 @@ public:
     ~Ellipse() override = default;
 
 protected:
-    Size MeasureOverride(
-        Size availableSize) noexcept override;
-    void OnRender(
-        ::Aero::Media::DrawingContext& context) noexcept override;
+    Size MeasureOverride(Size availableSize) noexcept override;
+    void OnRender(::Aero::Media::DrawingContext& context) noexcept override;
 };
 
 class AERO_GUI_API Line : public Shape {
@@ -126,9 +120,7 @@ public:
     void AddPoint(Point point) noexcept;
     void ClearPoints() noexcept;
     void SetPoints(StringView text) noexcept;
-    void SetPointsText(Base::String text) noexcept {
-        SetPoints(text.View());
-    }
+    void SetPointsText(Base::String text) noexcept { SetPoints(text.View()); }
 
     AERO_DEPENDENCY_PROPERTY(FillRule, FillRule);
 
@@ -151,9 +143,7 @@ public:
     void AddPoint(Point point) noexcept;
     void ClearPoints() noexcept;
     void SetPoints(StringView text) noexcept;
-    void SetPointsText(Base::String text) noexcept {
-        SetPoints(text.View());
-    }
+    void SetPointsText(Base::String text) noexcept { SetPoints(text.View()); }
 
 protected:
     Size MeasureOverride(Size availableSize) noexcept override;
@@ -213,8 +203,7 @@ protected:
     Size MeasureOverride(Size availableSize) noexcept override;
     void OnRender(::Aero::Media::DrawingContext& context) noexcept override;
     // Replaces the OnPath* metadata delegates (all funnel to geometry reset).
-    void OnPropertyChanged(
-        const DependencyPropertyChangedEventArgs& args) noexcept override;
+    void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
 
 private:
     friend class ::Aero::AeroGuiInternal;

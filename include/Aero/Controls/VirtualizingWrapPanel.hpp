@@ -8,8 +8,7 @@ namespace Aero::Controls {
 
 // Wrap virtualization shares the item generator on VirtualizingPanel.
 // The stack extent tree stays on the stack panel.
-class AERO_GUI_API VirtualizingWrapPanel
-    : public VirtualizingPanel,
+class AERO_GUI_API VirtualizingWrapPanel : public VirtualizingPanel,
       public IScrollInfo {
     AERO_DECLARE_TYPE(VirtualizingWrapPanel, VirtualizingPanel)
 public:
@@ -29,9 +28,7 @@ public:
     VirtualizationCacheLengthUnit GetCacheLengthUnit() const noexcept;
     void SetCacheLengthUnit(VirtualizationCacheLengthUnit value) noexcept;
 
-    ScrollData GetData() const noexcept override {
-        return data_;
-    }
+    ScrollData GetData() const noexcept override { return data_; }
     void SetViewport(Size viewport) noexcept override;
     void SetHorizontalOffset(double value) noexcept override;
     void SetVerticalOffset(double value) noexcept override;

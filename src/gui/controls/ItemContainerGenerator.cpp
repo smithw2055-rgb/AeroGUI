@@ -2,8 +2,7 @@
 #include <Aero/Controls/ItemsPresenter.hpp>
 #include <Aero/VisualTreeHelper.hpp>
 #include <Aero/Data/CollectionViewSource.hpp>
-#include <Aero/DataTemplateSelector.hpp>
-#include <Aero/HierarchicalDataTemplate.hpp>
+#include <Aero/DataTemplate.hpp>
 #include <Aero/TryCast.hpp>
 #include "gui/meta/TypeRegistryDetail.hpp"
 #include "gui/core/ElementTree.hpp"

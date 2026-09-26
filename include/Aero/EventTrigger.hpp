@@ -19,20 +19,13 @@ public:
     void SetSourceName(StringView value) noexcept;
     void AddAction(Ref<TriggerAction> value) noexcept;
     void ClearActions() noexcept;
-    Span<const Ref<TriggerAction>> GetActions() const noexcept {
-        return {actions_.Data(), actions_.Size()};
-    }
-    void AddConditionBehavior(Ref<Base::Object> value) noexcept {
-        behaviors_.PushBack(std::move(value));
-    }
+    Span<const Ref<TriggerAction>> GetActions() const noexcept { return {actions_.Data(), actions_.Size()}; }
+    void AddConditionBehavior(Ref<Base::Object> value) noexcept { behaviors_.PushBack(std::move(value)); }
     void ClearConditionBehaviors() noexcept { behaviors_.Clear(); }
-    Span<const Ref<Base::Object>> GetBehaviors() const noexcept {
-        return {behaviors_.Data(), behaviors_.Size()};
-    }
+    Span<const Ref<Base::Object>> GetBehaviors() const noexcept { return {behaviors_.Data(), behaviors_.Size()}; }
 
 protected:
-    explicit EventTrigger(Meta::TypeId runtimeType) noexcept
-        : ::Aero::TriggerBase(runtimeType) {}
+    explicit EventTrigger(Meta::TypeId runtimeType) noexcept : ::Aero::TriggerBase(runtimeType) {}
 
 private:
     String routedEvent_;

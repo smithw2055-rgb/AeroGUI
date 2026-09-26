@@ -20,20 +20,4 @@ struct VirtualizationCacheLength {
 
 AERO_DECLARE_TYPE_ENUM(Aero::Controls::VirtualizationCacheLengthUnit)
 
-namespace Aero::Meta {
-
-template<>
-struct TypeTraits<::Aero::Controls::VirtualizationCacheLength> {
-    static constexpr TypeId Id() noexcept {
-        return MakeTypeId("VirtualizationCacheLength");
-    }
-    static constexpr StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr StringView Name() noexcept {
-        return "VirtualizationCacheLength";
-    }
-    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
-};
-
-} // namespace Aero::Meta
+AERO_DECLARE_TYPE_VALUE(::Aero::Controls::VirtualizationCacheLength, "VirtualizationCacheLength")

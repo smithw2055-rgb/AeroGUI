@@ -4,7 +4,6 @@
 #include <Aero/Controls/ContentControl.hpp>
 #include <Aero/Controls/Panel.hpp>
 #include <Aero/Controls/TextBox.hpp>
-#include <Aero/Controls/PasswordBox.hpp>
 #include <Aero/Media/Transform2D.hpp>
 #include <Aero/VisualTreeHelper.hpp>
 

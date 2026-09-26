@@ -5,23 +5,15 @@
 
 namespace Aero {
 
-template<class T, class TArgs, void (T::*Method)(TArgs&)>
-void InputClassHandlerThunk(
-    UIElement& element,
-    RoutedEventArgs& args) noexcept {
-    (static_cast<T&>(element).*Method)(static_cast<TArgs&>(args));
-}
+template<class T, class TArgs, void (T::*Method)(TArgs&)> void InputClassHandlerThunk(UIElement& element,
+    RoutedEventArgs& args) noexcept { (static_cast<T&>(element).*Method)(static_cast<TArgs&>(args)); }
 
 // Install Method as the class handler for event. The most-derived
 // registered type wins, matching an override. Call the base method by
 // name from Method when base behavior should still run.
-template<class T, class TArgs, void (T::*Method)(TArgs&)>
-void RegisterInputClassHandler(
+template<class T, class TArgs, void (T::*Method)(TArgs&)> void RegisterInputClassHandler(
     const RoutedEventRef<UIElement, TArgs>& event) noexcept {
-    UIElement::RegisterClassHandler(
-        T::StaticTypeId(),
-        event.Handle(),
-        &InputClassHandlerThunk<T, TArgs, Method>);
+    UIElement::RegisterClassHandler(T::StaticTypeId(), event.Handle(), &InputClassHandlerThunk<T, TArgs, Method>);
 }
 
 } // namespace Aero

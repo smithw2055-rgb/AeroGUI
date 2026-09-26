@@ -14,12 +14,8 @@ public:
     ItemContainerGenerator(const ItemContainerGenerator&) = delete;
     ItemContainerGenerator& operator=(const ItemContainerGenerator&) = delete;
 
-    Result<void> Attach(
-        ItemsControl& owner,
-        Panel& itemsHost) noexcept;
-    Result<void> AttachVirtualized(
-        ItemsControl& owner,
-        VirtualizingPanel& itemsHost) noexcept;
+    Result<void> Attach(ItemsControl& owner, Panel& itemsHost) noexcept;
+    Result<void> AttachVirtualized(ItemsControl& owner, VirtualizingPanel& itemsHost) noexcept;
     Result<bool> Detach() noexcept;
     Result<void> Refresh() noexcept;
     void SetRealizationRange(std::uint32_t firstIndex, std::uint32_t count) noexcept;
@@ -28,12 +24,9 @@ public:
     std::uint32_t GetFirstGeneratedIndex() const noexcept;
     std::uint32_t GetCreatedContainerCount() const noexcept;
     std::uint32_t GetRecycledContainerUseCount() const noexcept;
-    FrameworkElement* ContainerFromIndex(
-        std::uint32_t index) const noexcept;
-    std::uint32_t IndexFromContainer(
-        const FrameworkElement& container) const noexcept;
-    Ref<Base::Object> ItemFromContainer(
-        const FrameworkElement& container) const noexcept;
+    FrameworkElement* ContainerFromIndex(std::uint32_t index) const noexcept;
+    std::uint32_t IndexFromContainer(const FrameworkElement& container) const noexcept;
+    Ref<Base::Object> ItemFromContainer(const FrameworkElement& container) const noexcept;
     Base::Status LastError() const noexcept;
 
     struct GeneratorState;
@@ -48,20 +41,12 @@ private:
     // ItemsControl / VirtualizingStackPanel; GeneratorState calls these
     // instead of touching their private members directly.
     static bool OwnerHasGenerator(const ItemsControl& owner) noexcept;
-    static void SetOwnerGenerator(
-        ItemsControl& owner,
-        ItemContainerGenerator* generator) noexcept;
+    static void SetOwnerGenerator(ItemsControl& owner, ItemContainerGenerator* generator) noexcept;
     static void NotifyOwnerContainersChanged(ItemsControl& owner) noexcept;
-    static Result<void> AttachHostGenerator(
-        VirtualizingPanel& host,
-        ItemContainerGenerator& generator,
+    static Result<void> AttachHostGenerator(VirtualizingPanel& host, ItemContainerGenerator& generator,
         std::uint32_t itemCount) noexcept;
-    static void DetachHostGenerator(
-        VirtualizingPanel& host,
-        ItemContainerGenerator& generator) noexcept;
-    static void HostHandleItemsChanged(
-        VirtualizingPanel& host,
-        const ItemsChangedEvent& event,
+    static void DetachHostGenerator(VirtualizingPanel& host, ItemContainerGenerator& generator) noexcept;
+    static void HostHandleItemsChanged(VirtualizingPanel& host, const ItemsChangedEvent& event,
         std::uint32_t itemCount) noexcept;
 };
 

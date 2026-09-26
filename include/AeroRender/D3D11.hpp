@@ -15,8 +15,7 @@ using Aero::Render::StatePreservationPolicy;
 struct DeviceOptions {
     std::uintptr_t device = 0U;
     std::uintptr_t immediateContext = 0U;
-    StatePreservationPolicy statePolicy =
-        StatePreservationPolicy::HostResetsState;
+    StatePreservationPolicy statePolicy = StatePreservationPolicy::HostResetsState;
     bool useWarp = false;
     bool allowWarpFallback = true;
     bool enableDebugLayer = false;
@@ -31,9 +30,7 @@ struct EmbeddedTarget {
     std::uint64_t stableId = 0U;
 };
 
-using TargetCallback = Base::Status (*)(
-    void* context,
-    EmbeddedTarget* target) noexcept;
+using TargetCallback = Base::Status (*)(void* context, EmbeddedTarget* target) noexcept;
 
 // Target options describe only how to acquire the host-owned target. Device and
 // immediate-context ownership belongs to the explicitly supplied RenderDevice.
@@ -49,14 +46,10 @@ struct TargetOptions {
     std::uint32_t height = 0U;
 };
 
-AERO_RENDER_D3D11_API Result<Ref<Aero::RenderDevice>>
-CreateDevice(
-    const DeviceOptions& options = {},
+AERO_RENDER_D3D11_API Result<Ref<Aero::RenderDevice>> CreateDevice(const DeviceOptions& options = {},
     Base::IAllocator* allocator = nullptr) noexcept;
 
-AERO_RENDER_D3D11_API Result<Ref<Aero::RenderTarget>>
-CreateTarget(
-    Ref<Aero::RenderDevice> device,
-    const TargetOptions& options,
+AERO_RENDER_D3D11_API Result<Ref<Aero::RenderTarget>> CreateTarget(
+    Ref<Aero::RenderDevice> device, const TargetOptions& options,
     Base::IAllocator* allocator = nullptr) noexcept;
 } // namespace Aero::Render::D3D11

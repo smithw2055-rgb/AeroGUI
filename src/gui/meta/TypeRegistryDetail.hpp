@@ -4,7 +4,7 @@
 #include <Aero/Base/HashMap.hpp>
 #include "gui/core/DependencyPropertyRegistry.hpp"
 #include <Aero/Base/Object.hpp>
-#include <Aero/Media/BlendMode.hpp>
+#include <Aero/ElementEnums.hpp>
 #include <Aero/Media/Transform3D.hpp>
 
 namespace Aero {

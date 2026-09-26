@@ -32,7 +32,6 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Controls/ListView.hpp
     include/Aero/Controls/ScrollViewer.hpp
     include/Aero/Controls/IScrollInfo.hpp
-    include/Aero/Controls/ScrollContentPresenter.hpp
     include/Aero/Collections.hpp
     include/Aero/Diagnostics.hpp
     include/Aero/Diagnostics/DependencyProperty.hpp
@@ -79,8 +78,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/DependencyProperty.hpp
     include/Aero/RoutedEvent.hpp
     include/Aero/Visual.hpp
-    include/Aero/Visibility.hpp
-    include/Aero/HorizontalAlignment.hpp
+    include/Aero/ElementEnums.hpp
     include/Aero/UIElement.hpp
     include/Aero/FrameworkElement.hpp
     include/Aero/FrameworkContentElement.hpp
@@ -89,8 +87,6 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Controls/Panel.hpp
     include/Aero/Controls/Button.hpp
     include/Aero/Controls/Grid.hpp
-    include/Aero/Controls/ColumnDefinition.hpp
-    include/Aero/Controls/RowDefinition.hpp
     include/Aero/Controls/GridLength.hpp
     include/Aero/Controls/Border.hpp
     include/Aero/Controls/ItemsControl.hpp
@@ -101,7 +97,6 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Controls/HeaderedItemsControl.hpp
     include/Aero/Controls/ItemContainerGenerator.hpp
     include/Aero/Controls/TreeView.hpp
-    include/Aero/Controls/TreeViewItem.hpp
     include/Aero/Controls/TextBlock.hpp
     include/Aero/Controls/TextBoxBase.hpp
     include/Aero/Controls/TextBox.hpp
@@ -119,21 +114,14 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/EventSetter.hpp
     include/Aero/FrameworkTemplate.hpp
     include/Aero/Controls/ControlTemplate.hpp
-    include/Aero/VisualState.hpp
-    include/Aero/VisualTransition.hpp
-    include/Aero/VisualStateGroup.hpp
-    include/Aero/VisualStateGroupCollection.hpp
     include/Aero/VisualStateManager.hpp
     include/Aero/DataTemplate.hpp
-    include/Aero/DataTemplateSelector.hpp
-    include/Aero/HierarchicalDataTemplate.hpp
     include/Aero/Media/Animation.hpp
     include/Aero/Media/Animation/Animations.hpp
     include/Aero/Media/Animation/EasingFunctions.hpp
     include/Aero/Media/Animation/KeyFrames.hpp
     include/Aero/Media/Animation/Storyboard.hpp
     include/Aero/Media/Animation/Timeline.hpp
-    include/Aero/Media/BlendMode.hpp
     include/Aero/Media/Brushes.hpp
     include/Aero/Markup/XamlDocument.hpp
     include/Aero/Markup/XamlReader.hpp
@@ -182,17 +170,11 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Text.hpp
     include/Aero/TextProperties.hpp
     include/Aero/Controls/Decorator.hpp
-    include/Aero/Controls/BulletDecorator.hpp
     include/Aero/Controls/ContentPresenter.hpp
     include/Aero/Controls/Primitives.hpp
     include/Aero/Controls/Primitives/Selector.hpp
     include/Aero/Controls/Primitives/Thumb.hpp
-    include/Aero/Controls/Primitives/Track.hpp
-    include/Aero/Controls/Primitives/RangeBase.hpp
-    include/Aero/Controls/Primitives/ScrollBar.hpp
-    include/Aero/Controls/Primitives/TickBar.hpp
-    include/Aero/Controls/Slider.hpp
-    include/Aero/Controls/ProgressBar.hpp
+    include/Aero/Controls/Ranges.hpp
     include/Aero/Controls/GridSplitter.hpp
     include/Aero/Controls/Popup.hpp
     include/Aero/Controls/HeaderedContentControl.hpp
@@ -200,18 +182,14 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Controls/VirtualizingStackPanel.hpp
     include/Aero/Controls/VirtualizationCacheLength.hpp
     include/Aero/Controls/VirtualizingWrapPanel.hpp
-    include/Aero/Controls/Menu.hpp
+    include/Aero/Controls/Menus.hpp
     include/Aero/Controls/ToolBar.hpp
     include/Aero/Controls/Separator.hpp
     include/Aero/Controls/StatusBar.hpp
-    include/Aero/Controls/StatusBarItem.hpp
     include/Aero/Controls/ToolTip.hpp
     include/Aero/Controls/Image.hpp
-    include/Aero/Controls/MenuItem.hpp
-    include/Aero/Controls/ContextMenu.hpp
     include/Aero/Controls/ContextMenuService.hpp
     include/Aero/Controls/GridViews.hpp
-    include/Aero/Controls/ListViewItem.hpp
     include/Aero/Media/Pen.hpp
     include/Aero/Media/Transform2D.hpp
     include/Aero/Media/Transform3D.hpp
@@ -238,14 +216,12 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Data/BooleanToVisibilityConverter.hpp
     include/Aero/Data/BindingBase.hpp
     include/Aero/Data/MultiBinding.hpp
-    include/Aero/Controls/PasswordBox.hpp
     include/Aero/ContentElement.hpp
     include/Aero/VisualTreeHelper.hpp
     include/Aero/LogicalTreeHelper.hpp
     include/Aero/Controls/Viewbox.hpp
-    include/Aero/Controls/GroupBox.hpp
+    include/Aero/Controls/Headers.hpp
     include/Aero/Controls/Label.hpp
-    include/Aero/Controls/Expander.hpp
     include/Aero/Controls/Primitives/ButtonBase.hpp
     include/Aero/Documents/Inlines.hpp
     include/Aero/Documents/Adorners.hpp

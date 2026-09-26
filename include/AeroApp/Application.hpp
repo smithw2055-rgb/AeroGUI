@@ -47,16 +47,10 @@ public:
     Meta::TypeId RuntimeType() const noexcept override { return runtimeType_; }
     static Application* Current() noexcept;
 
-    StringView GetStartupUri() const noexcept {
-        return startupUri_.View();
-    }
-    void SetStartupUri(StringView value) noexcept {
-        (void)startupUri_.Assign(value);
-    }
+    StringView GetStartupUri() const noexcept { return startupUri_.View(); }
+    void SetStartupUri(StringView value) noexcept { (void)startupUri_.Assign(value); }
     ResourceDictionary& GetResources() noexcept { return resources_; }
-    const ResourceDictionary& GetResources() const noexcept {
-        return resources_;
-    }
+    const ResourceDictionary& GetResources() const noexcept { return resources_; }
     void SetResources(Ref<ResourceDictionary> value) noexcept;
     Window* GetMainWindow() const noexcept { return mainWindow_; }
     void SetMainWindow(Ref<Window> value) noexcept;
@@ -83,9 +77,7 @@ private:
     friend class Window;
     friend class WindowCollection;
 
-    Result<void> Attach(
-        void* hostState,
-        Window* mainWindow) noexcept;
+    Result<void> Attach(void* hostState, Window* mainWindow) noexcept;
     void Detach() noexcept;
     void RaiseStartup() noexcept;
     void RaiseExit(int exitCode) noexcept;

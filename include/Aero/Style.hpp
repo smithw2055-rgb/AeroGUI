@@ -57,58 +57,38 @@ class AERO_GUI_API Style : public Base::Object {
     AERO_DECLARE_TYPE(Style, Base::Object)
 public:
     Style() noexcept;
-    explicit Style(
-        TypeId targetType,
-        const Style* basedOn = nullptr) noexcept;
-    Style(
-        TypeId targetType,
-        const Style* basedOn,
-        TypeId runtimeType) noexcept;
+    explicit Style(TypeId targetType, const Style* basedOn = nullptr) noexcept;
+    Style(TypeId targetType, const Style* basedOn, TypeId runtimeType) noexcept;
     ~Style() override;
 
     Style(const Style&) = delete;
     Style& operator=(const Style&) = delete;
 
-    TypeId RuntimeType() const noexcept override {
-        return runtimeType_;
-    }
-    void AddSetter(
-        DependencyPropertyHandle property,
-        const PropertyValue& value) noexcept;
-    void AddSetter(
-        const Setter& setter) noexcept;
-    void AddTrigger(
-        const Trigger& trigger) noexcept;
-    void AddTrigger(
-        const DataTrigger& trigger) noexcept;
-    void AddTrigger(
-        const MultiDataTrigger& trigger) noexcept;
+    TypeId RuntimeType() const noexcept override { return runtimeType_; }
+    void AddSetter(DependencyPropertyHandle property, const PropertyValue& value) noexcept;
+    void AddSetter(const Setter& setter) noexcept;
+    void AddTrigger(const Trigger& trigger) noexcept;
+    void AddTrigger(const DataTrigger& trigger) noexcept;
+    void AddTrigger(const MultiDataTrigger& trigger) noexcept;
 
     class TriggerBuilder {
     public:
         template<class TOwner, class TValue>
         void Set(const Meta::DependencyPropertyRef<TOwner, TValue>& property, const TValue& value) noexcept {
             if (!status_.IsOk()) { AERO_ASSERT(false); return; }
-            Result<PropertyValue> encoded =
-                Meta::ValueCodec<TValue>::Encode(value);
+            Result<PropertyValue> encoded = Meta::ValueCodec<TValue>::Encode(value);
             if (!encoded) { AERO_ASSERT(false); return; }
-            owner_->AddPropertyTrigger(
-                condition_, conditionValue_, property.Handle(),
-                std::move(encoded).Value());
+            owner_->AddPropertyTrigger(condition_, conditionValue_, property.Handle(), std::move(encoded).Value());
         }
 
     private:
         friend class Style;
 
-        TriggerBuilder(
-            Style& owner,
-            DependencyPropertyHandle condition,
-            PropertyValue&& value) noexcept
+        TriggerBuilder(Style& owner, DependencyPropertyHandle condition, PropertyValue&& value) noexcept
             : owner_(&owner),
               condition_(condition),
               conditionValue_(std::move(value)) {}
-        explicit TriggerBuilder(Base::Status status) noexcept
-            : status_(status) {}
+        explicit TriggerBuilder(Base::Status status) noexcept : status_(status) {}
 
         Style* owner_ = nullptr;
         DependencyPropertyHandle condition_;
@@ -118,26 +98,19 @@ public:
 
     template<class TOwner, class TValue>
     void Set(const Meta::DependencyPropertyRef<TOwner, TValue>& property, const TValue& value) noexcept {
-        Result<PropertyValue> encoded =
-            Meta::ValueCodec<TValue>::Encode(value);
+        Result<PropertyValue> encoded = Meta::ValueCodec<TValue>::Encode(value);
         if (!encoded) { AERO_ASSERT(false); return; }
         AddSetter(property.Handle(), encoded.Value());
     }
-    template<class TOwner, class TValue>
-    TriggerBuilder When(
-        const Meta::DependencyPropertyRef<TOwner, TValue>& property,
-        const TValue& value) noexcept {
-        Result<PropertyValue> encoded =
-            Meta::ValueCodec<TValue>::Encode(value);
+    template<class TOwner, class TValue> TriggerBuilder When(
+        const Meta::DependencyPropertyRef<TOwner, TValue>& property, const TValue& value) noexcept {
+        Result<PropertyValue> encoded = Meta::ValueCodec<TValue>::Encode(value);
         if (!encoded) return TriggerBuilder(encoded.GetStatus());
         return TriggerBuilder(*this, property.Handle(), std::move(encoded).Value());
     }
-    template<class TOwner, class TValue>
-    TriggerBuilder When(
-        const Meta::ReadOnlyPropertyRef<TOwner, TValue>& property,
-        const TValue& value) noexcept {
-        Result<PropertyValue> encoded =
-            Meta::ValueCodec<TValue>::Encode(value);
+    template<class TOwner, class TValue> TriggerBuilder When(
+        const Meta::ReadOnlyPropertyRef<TOwner, TValue>& property, const TValue& value) noexcept {
+        Result<PropertyValue> encoded = Meta::ValueCodec<TValue>::Encode(value);
         if (!encoded) return TriggerBuilder(encoded.GetStatus());
         return TriggerBuilder(*this, property.Handle(), std::move(encoded).Value());
     }
@@ -166,9 +139,7 @@ public:
     void SetResources(Ref<ResourceDictionary> value) noexcept;
 
 private:
-    void AddPropertyTrigger(
-        DependencyPropertyHandle condition,
-        const PropertyValue& conditionValue,
+    void AddPropertyTrigger(DependencyPropertyHandle condition, const PropertyValue& conditionValue,
         DependencyPropertyHandle property,
         PropertyValue value) noexcept;
     // Compiled by SealStyle / markup finalize; not a public authoring API.
@@ -180,20 +151,12 @@ private:
     struct Program;
     friend struct Program;
     friend class StyleEngine;
-    friend Result<void> SealStyle(
-        Style& style,
-        const Meta::DependencyPropertyRegistry& properties) noexcept;
-    friend Span<const struct StyleSetter> StyleRuntimeSetters(
-        const Style& style) noexcept;
-    friend Span<const struct TriggerPlan> StyleRuntimeTriggers(
-        const Style& style) noexcept;
-    friend Result<void> ApplyStyleSetters(
-        const Style& style,
-        DependencyObject& object,
+    friend Result<void> SealStyle(Style& style, const Meta::DependencyPropertyRegistry& properties) noexcept;
+    friend Span<const struct StyleSetter> StyleRuntimeSetters(const Style& style) noexcept;
+    friend Span<const struct TriggerPlan> StyleRuntimeTriggers(const Style& style) noexcept;
+    friend Result<void> ApplyStyleSetters(const Style& style, DependencyObject& object,
         class StyleProviderSession& values) noexcept;
-    friend Result<void> ClearStyleSetters(
-        const Style& style,
-        DependencyObject& object,
+    friend Result<void> ClearStyleSetters(const Style& style, DependencyObject& object,
         class StyleProviderSession& values) noexcept;
 
     TypeId runtimeType_ = StaticTypeId();

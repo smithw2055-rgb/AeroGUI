@@ -15,10 +15,8 @@ namespace Aero::App {
 // (clipboard/IME) are owned by Aero/InputInterop.hpp.
 class AERO_APP_API WindowInterop  {
 public:
-    static Platform::NativeWindowHandle NativeHandle(
-        const ::Aero::Window& window) noexcept;
-    static ::Aero::View* HostedView(
-        ::Aero::Window& window) noexcept;
+    static Platform::NativeWindowHandle NativeHandle(const ::Aero::Window& window) noexcept;
+    static ::Aero::View* HostedView(::Aero::Window& window) noexcept;
 };
 
 } // namespace Aero::App

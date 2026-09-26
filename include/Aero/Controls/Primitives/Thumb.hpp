@@ -17,17 +17,10 @@ public:
     Thumb() noexcept;
     ~Thumb() override;
 
-    bool GetIsDragging() const noexcept {
-        return GetValue(IsDraggingProperty);
-    }
-    Result<void> BeginDrag(
-        std::uint32_t pointerId,
-        Point position) noexcept;
-    Result<ThumbDragDelta> DragTo(
-        std::uint32_t pointerId,
-        Point position) noexcept;
-    Result<bool> EndDrag(
-        std::uint32_t pointerId) noexcept;
+    bool GetIsDragging() const noexcept { return GetValue(IsDraggingProperty); }
+    Result<void> BeginDrag(std::uint32_t pointerId, Point position) noexcept;
+    Result<ThumbDragDelta> DragTo(std::uint32_t pointerId, Point position) noexcept;
+    Result<bool> EndDrag(std::uint32_t pointerId) noexcept;
 
     void UpdateVisualState(bool useTransitions = true) noexcept;
 

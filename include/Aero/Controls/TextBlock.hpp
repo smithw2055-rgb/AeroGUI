@@ -44,9 +44,7 @@ public:
     TextTrimming GetTextTrimming() const noexcept;
     TextAlignment GetTextAlignment() const noexcept;
     double GetLineHeight() const noexcept;
-    std::uint32_t GetInlineCount() const noexcept {
-        return ownedInlines_.Size();
-    }
+    std::uint32_t GetInlineCount() const noexcept { return ownedInlines_.Size(); }
     Documents::InlineCollection GetInlines() noexcept;
     Documents::InlineCollectionView GetInlines() const noexcept;
     Documents::TextPointer GetContentStart() noexcept;
@@ -67,8 +65,7 @@ public:
     void SetLineHeight(double value) noexcept;
     void SetInlineValue(Value value) noexcept;
     void SetRichTextStyleRanges(Base::Span<const RichTextStyleRange> ranges) noexcept;
-    void AddOwnedInline(
-        const Ref<Base::Object>& inlineObject) noexcept;
+    void AddOwnedInline(const Ref<Base::Object>& inlineObject) noexcept;
     void ClearOwnedInlines() noexcept;
     AERO_DEPENDENCY_PROPERTY(String, Text);
     inline static constexpr auto ForegroundProperty = FrameworkElementForegroundProperty;

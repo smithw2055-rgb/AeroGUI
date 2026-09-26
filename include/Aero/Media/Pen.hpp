@@ -17,9 +17,7 @@ class AERO_GUI_API DashStyle : public Animatable {
 public:
     DashStyle() noexcept : Animatable(StaticTypeId()) {}
 
-    Span<const double> GetDashes() const noexcept {
-        return {dashes_.Data(), dashes_.Size()};
-    }
+    Span<const double> GetDashes() const noexcept { return {dashes_.Data(), dashes_.Size()}; }
     double GetOffset() const noexcept { return offset_; }
 
     void SetDashes(Span<const double> value) noexcept;
@@ -35,9 +33,7 @@ class AERO_GUI_API Pen : public Animatable {
 public:
     Pen() noexcept : Animatable(StaticTypeId()) {}
     ~Pen() override = default;
-    Meta::TypeId RuntimeType() const noexcept override {
-        return StaticTypeId();
-    }
+    Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
 
     Ref<Brush> GetBrush() const noexcept;
     void SetBrush(Ref<Brush> value) noexcept;

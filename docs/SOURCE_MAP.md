@@ -22,12 +22,12 @@ dir. IDE-only virtual folders are defined via `source_group()` in
 | Public header(s) | Implementation |
 | --- | --- |
 | `Controls/Button.hpp`, `CheckBox.hpp`, `RadioButton.hpp`, `Primitives/*Button*` | `Buttons.cpp` (+ `Bars.cpp` for menu/status/tool bars) |
-| `Controls/TextBox.hpp`, `TextBoxBase.hpp`, `PasswordBox.hpp` | `TextBox.cpp` + `TextBoxInteraction.cpp` (behavior + selection/caret, merged from `TextBoxBehavior.cpp` + `TextBoxSelection.cpp`) + `TextBoxCommon.hpp` |
+| `Controls/TextBox.hpp`, `TextBoxBase.hpp` | `TextBox.cpp` + `TextBoxInteraction.cpp` (behavior + selection/caret, merged from `TextBoxBehavior.cpp` + `TextBoxSelection.cpp`) + `TextBoxCommon.hpp` + `PasswordBox.cpp` |
 | `Controls/ScrollViewer*.hpp`, `Primitives/ScrollBar.hpp` | `ScrollViewer.cpp` + `ScrollBar.cpp` + `ScrollBehavior.cpp` + `ScrollContentPresenter.cpp` (shared: `ScrollCommon.hpp`) |
 | `Controls/ItemsControl.hpp`, `ListBox*.hpp`, `TreeView*.hpp`, `ComboBox*.hpp` | `Items.cpp` + `ItemContainerGenerator.cpp` + `Selection.cpp` + `Trees.cpp` + `ListView.cpp` + `Virtualization.cpp` (shared: `ItemsContainers.hpp`, renamed from `ItemsDetail.hpp`) |
 | `Controls/*Panel*.hpp`, `Grid*.hpp`, `Canvas.hpp` | `Panels.cpp` |
 | `Controls/Menu*.hpp`, `ContextMenu*.hpp`, `ToolBar.hpp` | `Menus.cpp` + `Bars.cpp` |
-| `Controls/ContentControl.hpp`, `UserControl.hpp`, `Page.hpp`, `GroupBox.hpp` … | `ContentControls.cpp` |
+| `Controls/ContentControl.hpp`, `UserControl.hpp`, `Page.hpp`, `Headers.hpp` … | `ContentControls.cpp` |
 | `Controls/Image.hpp` | `Images.cpp` |
 | `VisualStateManager.hpp` | `VisualStateManager.cpp` |
 | Metadata bootstrap | `ControlsMetadata.cpp` + `Metadata.hpp` + `metadata/Metadata.{Foundation,Widgets,Layout}.inl` (7 former `*.inl` merged in stable registration order) |

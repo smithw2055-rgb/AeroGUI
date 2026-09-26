@@ -11,8 +11,7 @@ using ::Aero::Media::ImageSource;
 class AERO_GUI_API Image : public FrameworkElement {
     AERO_DECLARE_TYPE(Image, FrameworkElement)
 public:
-    Image() noexcept
-        : FrameworkElement(StaticTypeId()) {}
+    Image() noexcept : FrameworkElement(StaticTypeId()) {}
     ~Image() override = default;
 
     Ref<ImageSource> GetSource() const noexcept;
@@ -27,10 +26,8 @@ public:
     AERO_DEPENDENCY_PROPERTY(StretchDirection, StretchDirection);
 
 protected:
-    Size MeasureOverride(
-        Size availableSize) noexcept override;
-    void OnRender(
-        ::Aero::Media::DrawingContext& context) noexcept override;
+    Size MeasureOverride(Size availableSize) noexcept override;
+    void OnRender(::Aero::Media::DrawingContext& context) noexcept override;
 
 private:
     friend class ::Aero::AeroGuiInternal;

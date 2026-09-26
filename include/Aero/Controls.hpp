@@ -16,8 +16,7 @@
 #include <Aero/Controls/Button.hpp>
 #include <Aero/Controls/ScrollViewer.hpp>
 #include <Aero/Controls/Primitives.hpp>
-#include <Aero/Controls/Slider.hpp>
-#include <Aero/Controls/ProgressBar.hpp>
+#include <Aero/Controls/Ranges.hpp>
 #include <Aero/Controls/GridSplitter.hpp>
 #include <Aero/Controls/ItemsControl.hpp>
 #include <Aero/Controls/ItemCollection.hpp>
@@ -28,9 +27,8 @@
 #include <Aero/Controls/ItemContainerGenerator.hpp>
 #include <Aero/Controls/Popup.hpp>
 #include <Aero/Controls/HeaderedContentControl.hpp>
-#include <Aero/Controls/GroupBox.hpp>
+#include <Aero/Controls/Headers.hpp>
 #include <Aero/Controls/Label.hpp>
-#include <Aero/Controls/Expander.hpp>
 #include <Aero/Controls/Selectors.hpp>
 #include <Aero/Controls/Primitives/Selector.hpp>
 #include <Aero/Controls/ListView.hpp>
@@ -38,15 +36,11 @@
 #include <Aero/Controls/VirtualizingPanel.hpp>
 #include <Aero/Controls/VirtualizingStackPanel.hpp>
 #include <Aero/Controls/VirtualizingWrapPanel.hpp>
-#include <Aero/Controls/MenuItem.hpp>
-#include <Aero/Controls/ContextMenu.hpp>
+#include <Aero/Controls/Menus.hpp>
 #include <Aero/Controls/ContextMenuService.hpp>
-#include <Aero/Controls/ListViewItem.hpp>
-#include <Aero/Controls/Menu.hpp>
 #include <Aero/Controls/ToolBar.hpp>
 #include <Aero/Controls/StatusBar.hpp>
 #include <Aero/Controls/ToolTip.hpp>
 #include <Aero/Controls/Image.hpp>
 #include <Aero/Controls/TextBoxBase.hpp>
 #include <Aero/Controls/TextBox.hpp>
-#include <Aero/Controls/PasswordBox.hpp>

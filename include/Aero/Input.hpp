@@ -19,28 +19,18 @@ enum class MouseButtonState : std::uint8_t { Released = 0U, Pressed };
 
 enum class DragDropEffects : std::uint8_t {
     None = 0U,
-    Copy = 1U << 0U,
-    Move = 1U << 1U,
-    Link = 1U << 2U,
-    All = Copy | Move | Link
+    Copy = 1U << 0U, Move = 1U << 1U, Link = 1U << 2U, All = Copy | Move | Link
 };
 
-constexpr DragDropEffects operator|(
-    DragDropEffects left, DragDropEffects right) noexcept {
-    return static_cast<DragDropEffects>(
-        static_cast<std::uint8_t>(left) |
-        static_cast<std::uint8_t>(right));
+constexpr DragDropEffects operator|(DragDropEffects left, DragDropEffects right) noexcept {
+    return static_cast<DragDropEffects>(static_cast<std::uint8_t>(left) | static_cast<std::uint8_t>(right));
 }
 
-constexpr DragDropEffects operator&(
-    DragDropEffects left, DragDropEffects right) noexcept {
-    return static_cast<DragDropEffects>(
-        static_cast<std::uint8_t>(left) &
-        static_cast<std::uint8_t>(right));
+constexpr DragDropEffects operator&(DragDropEffects left, DragDropEffects right) noexcept {
+    return static_cast<DragDropEffects>(static_cast<std::uint8_t>(left) & static_cast<std::uint8_t>(right));
 }
 
-constexpr bool HasDragDropEffect(
-    DragDropEffects value, DragDropEffects effect) noexcept {
+constexpr bool HasDragDropEffect(DragDropEffects value, DragDropEffects effect) noexcept {
     return (value & effect) != DragDropEffects::None;
 }
 
@@ -119,16 +109,11 @@ inline constexpr std::uint32_t KeyboardKeyZ = 0x5AU;
 
 enum class KeyboardModifiers : std::uint32_t {
     None = 0U,
-    Shift = 1U << 0U,
-    Control = 1U << 1U,
-    Alt = 1U << 2U
+    Shift = 1U << 0U, Control = 1U << 1U, Alt = 1U << 2U
 };
 
-constexpr bool HasKeyboardModifier(
-    std::uint32_t modifiers,
-    KeyboardModifiers value) noexcept {
-    return (modifiers &
-        static_cast<std::uint32_t>(value)) != 0U;
+constexpr bool HasKeyboardModifier(std::uint32_t modifiers, KeyboardModifiers value) noexcept {
+    return (modifiers & static_cast<std::uint32_t>(value)) != 0U;
 }
 
 struct KeyboardDispatchResult {

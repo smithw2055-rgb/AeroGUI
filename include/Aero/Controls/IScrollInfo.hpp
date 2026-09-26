@@ -14,14 +14,10 @@ public:
     virtual void SetViewport(Size viewport) noexcept = 0;
     virtual void SetHorizontalOffset(double value) noexcept = 0;
     virtual void SetVerticalOffset(double value) noexcept = 0;
-    virtual Result<bool> LineHorizontal(
-        double direction) noexcept = 0;
-    virtual Result<bool> LineVertical(
-        double direction) noexcept = 0;
-    virtual Result<bool> PageHorizontal(
-        double direction) noexcept = 0;
-    virtual Result<bool> PageVertical(
-        double direction) noexcept = 0;
+    virtual Result<bool> LineHorizontal(double direction) noexcept = 0;
+    virtual Result<bool> LineVertical(double direction) noexcept = 0;
+    virtual Result<bool> PageHorizontal(double direction) noexcept = 0;
+    virtual Result<bool> PageVertical(double direction) noexcept = 0;
     // WPF-parity directional verbs. Default forwards to the legacy
     // Line/Page(double) primitives so existing implementers keep working;
     // new code overrides these directly.

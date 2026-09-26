@@ -17,12 +17,9 @@
 #include <Aero/Controls/Image.hpp>
 #include <Aero/Controls/ItemContainerGenerator.hpp>
 #include <Aero/Controls/ItemsControl.hpp>
-#include <Aero/Controls/Menu.hpp>
-#include <Aero/Controls/MenuItem.hpp>
-#include <Aero/Controls/ContextMenu.hpp>
+#include <Aero/Controls/Menus.hpp>
 #include <Aero/Controls/ContextMenuService.hpp>
 #include <Aero/Controls/Panel.hpp>
-#include <Aero/Controls/PasswordBox.hpp>
 #include <Aero/Controls/TextBlock.hpp>
 #include <Aero/Controls/TextBox.hpp>
 #include <Aero/Controls/TreeView.hpp>

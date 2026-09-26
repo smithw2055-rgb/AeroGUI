@@ -18,7 +18,6 @@
 #include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/Controls/TextBoxBase.hpp>
 #include <Aero/Controls/TextBox.hpp>
-#include <Aero/Controls/PasswordBox.hpp>
 #include <Aero/Controls/Popup.hpp>
 #include <Aero/Data/CollectionView.hpp>
 #include <Aero/Data/CollectionViewSource.hpp>

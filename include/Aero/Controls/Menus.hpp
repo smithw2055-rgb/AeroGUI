@@ -1,16 +1,21 @@
 #pragma once
 
+// Menu, its item, and the context-menu host. ContextMenuService stays separate.
 #include <Aero/ICommand.hpp>
 #include <Aero/Controls/HeaderedItemsControl.hpp>
+#include <Aero/Controls/ItemsControl.hpp>
 #include <Aero/Controls/Popup.hpp>
 #include <Aero/Controls/TextBlock.hpp>
 
 namespace Aero { class AeroGuiInternal; }
+
 namespace Aero::Controls {
+
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::DependencyPropertyChangedEventHandler;
 using ::Aero::Meta::TypeId;
 using ::Aero::Input::ICommand;
+
 enum class MenuItemRole : std::uint8_t {
     TopLevelItem = 0U,
     TopLevelHeader,
@@ -18,15 +23,13 @@ enum class MenuItemRole : std::uint8_t {
     SubmenuHeader
 };
 
-class AERO_GUI_API MenuItem
-    : public HeaderedItemsControl {
+class AERO_GUI_API MenuItem : public HeaderedItemsControl {
     AERO_DECLARE_TYPE(MenuItem, HeaderedItemsControl)
 public:
     MenuItem() noexcept;
     ~MenuItem() override;
 
-    StringView GetInputGestureText()
-        const noexcept;
+    StringView GetInputGestureText() const noexcept;
     void SetInputGestureText(StringView value) noexcept;
     bool GetIsCheckable() const noexcept;
     void SetIsCheckable(bool value) noexcept;
@@ -40,12 +43,8 @@ public:
     void SetCommand(Ref<ICommand> command) noexcept;
     Value GetCommandParameter() const noexcept;
     void SetCommandParameter(Value value) noexcept;
-    Value GetIcon() const noexcept {
-        return GetValue(IconProperty);
-    }
-    void SetIcon(Value value) noexcept {
-        SetValue(IconProperty, std::move(value));
-    }
+    Value GetIcon() const noexcept { return GetValue(IconProperty); }
+    void SetIcon(Value value) noexcept { SetValue(IconProperty, std::move(value)); }
 
     AERO_DEPENDENCY_PROPERTY(String, InputGestureText);
     AERO_DEPENDENCY_PROPERTY(bool, IsCheckable);
@@ -59,21 +58,60 @@ public:
     inline static constexpr RoutedEvent<RoutedEventArgs> ClickEvent{"Click"};
 
 protected:
-    void
-        OnApplyTemplate() noexcept override;
+    void OnApplyTemplate() noexcept override;
     void OnTemplateDetached() noexcept override;
-    void OnPropertyChanged(
-        const DependencyPropertyChangedEventArgs& args) noexcept override;
+    void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
 
 private:
     friend class ::Aero::AeroGuiInternal;
     TextBlock* gestureText_ = nullptr;
     TextBlock* checkGlyph_ = nullptr;
     Primitives::Popup* submenuPopup_ = nullptr;
-    Result<void>
-        SynchronizeMenuTemplate() noexcept;
+    Result<void> SynchronizeMenuTemplate() noexcept;
     void SetHighlightedState(bool value) noexcept;
     void SetRoleState(MenuItemRole value) noexcept;
 };
+
+class AERO_GUI_API Menu : public ItemsControl {
+    AERO_DECLARE_TYPE(Menu, ItemsControl)
+public:
+    Menu() noexcept;
+    ~Menu() override;
+
+protected:
+    explicit Menu(TypeId runtimeType) noexcept;
+    Result<Ref<FrameworkElement>> GetContainerForItemOverride() const noexcept override;
+    void OnMouseLeftButtonDown(MouseButtonEventArgs& args);
+    void OnKeyDown(KeyEventArgs& args);
+
+private:
+    MenuItem* FindItem(Base::Object* source) const noexcept;
+    Result<void> Invoke(MenuItem& item) noexcept;
+};
+
+class AERO_GUI_API ContextMenu : public Menu {
+    AERO_DECLARE_TYPE(ContextMenu, Menu)
+public:
+    ContextMenu() noexcept;
+    ~ContextMenu() override;
+
+    bool GetIsOpen() const noexcept;
+    void SetIsOpen(bool value) noexcept;
+    Ref<UIElement> GetPlacementTarget() const noexcept;
+    void SetPlacementTarget(Ref<UIElement> value) noexcept;
+
+    AERO_DEPENDENCY_PROPERTY(bool, IsOpen);
+    AERO_DEPENDENCY_PROPERTY(Ref<UIElement>, PlacementTarget);
+    inline static constexpr RoutedEvent<RoutedEventArgs> OpenedEvent{"Opened"};
+    inline static constexpr RoutedEvent<RoutedEventArgs> ClosedEvent{"Closed"};
+
+protected:
+    virtual void OnOpened(RoutedEventArgs& e);
+    virtual void OnClosed(RoutedEventArgs& e);
+    void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
+    void OnApplyTemplate() noexcept override;
+};
+
 } // namespace Aero::Controls
+
 AERO_DECLARE_TYPE_ENUM(Aero::Controls::MenuItemRole)

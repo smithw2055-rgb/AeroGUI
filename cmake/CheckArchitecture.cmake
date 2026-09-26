@@ -127,9 +127,9 @@ foreach(required_public_entry IN ITEMS
         "include/Aero/VisualTreeHelper.hpp"
         "include/Aero/LogicalTreeHelper.hpp"
         "include/Aero/Controls/HeaderedContentControl.hpp"
-        "include/Aero/Controls/GroupBox.hpp"
+        "include/Aero/Controls/Headers.hpp"
         "include/Aero/Controls/Label.hpp"
-        "include/Aero/Controls/Expander.hpp"
+        "include/Aero/Controls/Headers.hpp"
         "include/Aero/Controls/Selectors.hpp"
         "include/Aero/Controls/Selectors.hpp"
         "include/Aero/Controls/Selectors.hpp"
@@ -143,12 +143,7 @@ foreach(required_public_entry IN ITEMS
         "include/Aero/Controls/TextBox.hpp"
         "include/Aero/Controls/Primitives.hpp"
         "include/Aero/Controls/Primitives/Thumb.hpp"
-        "include/Aero/Controls/Primitives/Track.hpp"
-        "include/Aero/Controls/Primitives/RangeBase.hpp"
-        "include/Aero/Controls/Primitives/ScrollBar.hpp"
-        "include/Aero/Controls/Primitives/TickBar.hpp"
-        "include/Aero/Controls/Slider.hpp"
-        "include/Aero/Controls/ProgressBar.hpp"
+        "include/Aero/Controls/Ranges.hpp"
         "include/Aero/Controls/GridSplitter.hpp"
         "include/Aero/Data/Binding.hpp"
         "include/Aero/Resources.hpp"
@@ -157,8 +152,7 @@ foreach(required_public_entry IN ITEMS
         "include/Aero/Controls/ControlTemplate.hpp"
         "include/Aero/VisualStateManager.hpp"
         "include/Aero/DataTemplate.hpp"
-        "include/Aero/DataTemplateSelector.hpp"
-        "include/Aero/HierarchicalDataTemplate.hpp"
+        "include/Aero/DataTemplate.hpp"
         "include/Aero/Media/Animation.hpp"
         "include/Aero/Media/Brushes.hpp"
         "include/Aero/Media/FontProvider.hpp"
@@ -170,10 +164,8 @@ foreach(required_public_entry IN ITEMS
         "include/Aero/Media/CompositionTarget.hpp"
         "include/Aero/View.hpp"
         "include/Aero/IRenderer.hpp"
-        "include/Aero/Visibility.hpp"
-        "include/Aero/HorizontalAlignment.hpp"
+        "include/Aero/ElementEnums.hpp"
         "include/Aero/Controls/GridLength.hpp"
-        "include/Aero/Media/BlendMode.hpp"
         "include/Aero/Diagnostics/Layout.hpp"
         "include/Aero/Diagnostics/EffectiveValueSource.hpp"
         "include/Aero/Diagnostics/SourceSpan.hpp"
@@ -950,7 +942,7 @@ file(READ
     aero_meta_header_text)
 string(FIND
     "${aero_meta_header_text}"
-    "template<class T>\nclass TypeBuilder {"
+    "template<class T> class TypeBuilder {"
     aero_meta_facade_offset)
 if(aero_meta_facade_offset EQUAL -1)
     message(FATAL_ERROR "Meta.hpp: TypeBuilder facade marker is missing")
@@ -1250,29 +1242,17 @@ aero_require_text(
     "Result<ResourceValue> TryFindResource(const ResourceKey& key) const noexcept"
     "FrameworkElement must expose WPF-shaped TryFindResource")
 aero_forbid_text(
-    "include/Aero/Controls/Primitives/RangeBase.hpp"
-    "class AERO_GUI_API Slider"
-    "RangeBase.hpp must not declare Slider; use Controls/Slider.hpp")
-aero_forbid_text(
-    "include/Aero/Controls/Primitives/RangeBase.hpp"
+    "include/Aero/Controls/Ranges.hpp"
     "class AERO_GUI_API Thumb"
-    "RangeBase.hpp must not declare Thumb; use Primitives/Thumb.hpp")
+    "Thumb stays in Primitives/Thumb.hpp so GridSplitter does not include the range family")
 aero_forbid_text(
-    "include/Aero/Controls/Primitives/RangeBase.hpp"
-    "class AERO_GUI_API ProgressBar"
-    "RangeBase.hpp must not declare ProgressBar; use Controls/ProgressBar.hpp")
-aero_forbid_text(
-    "include/Aero/Controls/Primitives/RangeBase.hpp"
+    "include/Aero/Controls/Ranges.hpp"
     "class AERO_GUI_API GridSplitter"
-    "RangeBase.hpp must not declare GridSplitter; use Controls/GridSplitter.hpp")
-aero_forbid_text(
-    "include/Aero/Controls/Primitives/RangeBase.hpp"
-    "class AERO_GUI_API ScrollBar"
-    "RangeBase.hpp must not declare ScrollBar; use Primitives/ScrollBar.hpp")
+    "GridSplitter stays in GridSplitter.hpp")
 aero_require_text(
     "include/Aero/Controls.hpp"
-    "#include <Aero/Controls/Slider.hpp>"
-    "Controls.hpp must include the split Slider header")
+    "#include <Aero/Controls/Ranges.hpp>"
+    "Controls.hpp must include the range family")
 aero_forbid_file("include/Aero/Gui/Primitives.hpp")
 aero_forbid_text(
     "include/Aero/Controls/ControlTemplate.hpp"
@@ -1305,19 +1285,28 @@ foreach(s14_owner IN ITEMS
         "include/Aero/Controls/Control.hpp|class AERO_GUI_API Control"
         "include/Aero/Controls/ContentControl.hpp|class AERO_GUI_API ContentControl"
         "include/Aero/Controls/Panel.hpp|class AERO_GUI_API Panel"
+        "include/Aero/Controls/Grid.hpp|class AERO_GUI_API ColumnDefinition"
+        "include/Aero/Controls/Grid.hpp|class AERO_GUI_API RowDefinition"
         "include/Aero/Controls/Grid.hpp|class AERO_GUI_API Grid"
         "include/Aero/Controls/Selectors.hpp|class AERO_GUI_API ListBox"
         "include/Aero/Controls/Selectors.hpp|class AERO_GUI_API ListBoxItem"
         "include/Aero/Controls/Primitives/Selector.hpp|class AERO_GUI_API Selector"
         "include/Aero/Controls/Selectors.hpp|class AERO_GUI_API ComboBox"
+        "include/Aero/Controls/ListView.hpp|class AERO_GUI_API ListViewItem"
         "include/Aero/Controls/ListView.hpp|class AERO_GUI_API ListView"
+        "include/Aero/Controls/TreeView.hpp|class AERO_GUI_API TreeViewItem"
         "include/Aero/Controls/TreeView.hpp|class AERO_GUI_API TreeView"
+        "include/Aero/Controls/Menus.hpp|class AERO_GUI_API MenuItem"
+        "include/Aero/Controls/Menus.hpp|class AERO_GUI_API Menu"
+        "include/Aero/Controls/Menus.hpp|class AERO_GUI_API ContextMenu"
+        "include/Aero/Controls/StatusBar.hpp|class AERO_GUI_API StatusBarItem"
+        "include/Aero/Controls/StatusBar.hpp|class AERO_GUI_API StatusBar"
         "include/Aero/Controls/TextBox.hpp|class AERO_GUI_API TextBox"
         "include/Aero/Controls/Primitives/Thumb.hpp|class AERO_GUI_API Thumb"
-        "include/Aero/Controls/Primitives/Track.hpp|class AERO_GUI_API Track"
-        "include/Aero/Controls/Primitives/RangeBase.hpp|class AERO_GUI_API RangeBase"
-        "include/Aero/Controls/Primitives/ScrollBar.hpp|class AERO_GUI_API ScrollBar"
-        "include/Aero/Controls/Primitives/TickBar.hpp|class AERO_GUI_API TickBar"
+        "include/Aero/Controls/Ranges.hpp|class AERO_GUI_API Track"
+        "include/Aero/Controls/Ranges.hpp|class AERO_GUI_API RangeBase"
+        "include/Aero/Controls/Ranges.hpp|class AERO_GUI_API ScrollBar"
+        "include/Aero/Controls/Ranges.hpp|class AERO_GUI_API TickBar"
         "include/Aero/Controls/Primitives/ButtonBase.hpp|class AERO_GUI_API ButtonBase"
         "include/Aero/Controls/Buttons.hpp|class AERO_GUI_API ToggleButton"
         "include/Aero/Controls/Buttons.hpp|class AERO_GUI_API RepeatButton"
@@ -1329,9 +1318,12 @@ foreach(s14_owner IN ITEMS
         "include/Aero/Controls/Border.hpp|class AERO_GUI_API Border"
         "include/Aero/Controls/Viewbox.hpp|class AERO_GUI_API Viewbox"
         "include/Aero/Controls/HeaderedContentControl.hpp|class AERO_GUI_API HeaderedContentControl"
-        "include/Aero/Controls/GroupBox.hpp|class AERO_GUI_API GroupBox"
+        "include/Aero/Controls/Headers.hpp|class AERO_GUI_API GroupBox"
         "include/Aero/Controls/Label.hpp|class AERO_GUI_API Label"
-        "include/Aero/Controls/Expander.hpp|class AERO_GUI_API Expander"
+        "include/Aero/Controls/Headers.hpp|class AERO_GUI_API Expander"
+        "include/Aero/Controls/Decorator.hpp|class AERO_GUI_API BulletDecorator"
+        "include/Aero/Controls/ScrollViewer.hpp|class AERO_GUI_API ScrollContentPresenter"
+        "include/Aero/Controls/TextBox.hpp|class AERO_GUI_API PasswordBox"
         "include/Aero/Controls/Selectors.hpp|class AERO_GUI_API TabItem"
         "include/Aero/Controls/Selectors.hpp|class AERO_GUI_API TabControl"
         "include/Aero/Controls/Selectors.hpp|class AERO_GUI_API TabPanel"
@@ -1341,14 +1333,19 @@ foreach(s14_owner IN ITEMS
         "include/Aero/Visual.hpp|class AERO_GUI_API Visual"
         "include/Aero/VisualTreeHelper.hpp|class AERO_GUI_API VisualTreeHelper"
         "include/Aero/LogicalTreeHelper.hpp|class AERO_GUI_API LogicalTreeHelper"
-        "include/Aero/Controls/Slider.hpp|class AERO_GUI_API Slider"
-        "include/Aero/Controls/ProgressBar.hpp|class AERO_GUI_API ProgressBar"
+        "include/Aero/Controls/Ranges.hpp|class AERO_GUI_API Slider"
+        "include/Aero/Controls/Ranges.hpp|class AERO_GUI_API ProgressBar"
         "include/Aero/Controls/GridSplitter.hpp|class AERO_GUI_API GridSplitter"
         "include/Aero/VisualStateManager.hpp|class AERO_GUI_API VisualStateManager"
         "include/Aero/FrameworkTemplate.hpp|class AERO_GUI_API FrameworkTemplate"
         "include/Aero/DataTemplate.hpp|class AERO_GUI_API DataTemplate"
-        "include/Aero/DataTemplateSelector.hpp|class AERO_GUI_API DataTemplateSelector"
-        "include/Aero/HierarchicalDataTemplate.hpp|class AERO_GUI_API HierarchicalDataTemplate"
+        "include/Aero/DataTemplate.hpp|class AERO_GUI_API DataTemplateSelector"
+        "include/Aero/DataTemplate.hpp|class AERO_GUI_API HierarchicalDataTemplate"
+        "include/Aero/VisualStateManager.hpp|class AERO_GUI_API VisualState"
+        "include/Aero/VisualStateManager.hpp|class AERO_GUI_API VisualTransition"
+        "include/Aero/VisualStateManager.hpp|class AERO_GUI_API VisualStateGroup"
+        "include/Aero/VisualStateManager.hpp|class AERO_GUI_API VisualStateGroupCollection"
+        "include/Aero/VisualStateManager.hpp|class AERO_GUI_API VisualStateManager"
         "include/Aero/Media/CompositionTarget.hpp|class AERO_GUI_API CompositionTarget"
         "include/Aero/DispatcherObject.hpp|class AERO_GUI_API DispatcherObject"
         "include/Aero/Controls/VirtualizingPanel.hpp|class AERO_GUI_API VirtualizingPanel"
@@ -1581,7 +1578,7 @@ aero_require_text(
     "FrameworkContentElement must keep a lazy FrameworkContentRare* instead of hot Vectors")
 
 aero_require_text(
-    "include/Aero/DataTemplateSelector.hpp"
+    "include/Aero/DataTemplate.hpp"
     "class AERO_GUI_API DataTemplateSelector : public Base::Object"
     "DataTemplateSelector must inherit Object")
 aero_forbid_text(
@@ -1589,11 +1586,11 @@ aero_forbid_text(
     "GetHierarchicalItemsSource"
     "Hierarchical ItemsSource/ItemTemplate belong on HierarchicalDataTemplate, not DataTemplate")
 aero_require_text(
-    "include/Aero/HierarchicalDataTemplate.hpp"
+    "include/Aero/DataTemplate.hpp"
     "GetItemsSource"
     "HierarchicalDataTemplate must own ItemsSource (WPF shape)")
 aero_require_text(
-    "include/Aero/HierarchicalDataTemplate.hpp"
+    "include/Aero/DataTemplate.hpp"
     "GetItemTemplate"
     "HierarchicalDataTemplate must own ItemTemplate (WPF shape)")
 aero_require_text(
@@ -1658,6 +1655,20 @@ aero_forbid_text(
     "UIElement.Projection / PlaneProjection are out of scope")
 file(GLOB_RECURSE aero_public_hpp
     "${AERO_SOURCE_DIR}/include/*.hpp")
+foreach(aero_public_hpp_file IN LISTS aero_public_hpp)
+    file(RELATIVE_PATH aero_traits_header
+        "${AERO_SOURCE_DIR}" "${aero_public_hpp_file}")
+    string(REPLACE "\\" "/" aero_traits_header "${aero_traits_header}")
+    if(aero_traits_header STREQUAL "include/Aero/Value.hpp" OR
+        aero_traits_header STREQUAL "include/Aero/Collections.hpp")
+        continue()
+    endif()
+    file(READ "${aero_public_hpp_file}" aero_traits_content)
+    if(aero_traits_content MATCHES "struct[ \t]+TypeTraits<")
+        message(FATAL_ERROR
+            "Value TypeTraits must use AERO_DECLARE_TYPE_VALUE, not a handwritten specialization: ${aero_traits_header}")
+    endif()
+endforeach()
 foreach(aero_public_hpp_file IN LISTS aero_public_hpp)
     file(READ "${aero_public_hpp_file}" aero_public_hpp_content)
     if(aero_public_hpp_content MATCHES "GetProjectedMatrix")
@@ -2085,11 +2096,11 @@ aero_require_text(
     "VirtualizingPanel must derive Panel")
 aero_require_text(
     "include/Aero/Controls/VirtualizingStackPanel.hpp"
-    "class AERO_GUI_API VirtualizingStackPanel\n    : public VirtualizingPanel,"
+    "class AERO_GUI_API VirtualizingStackPanel : public VirtualizingPanel,"
     "VirtualizingStackPanel must derive VirtualizingPanel")
 aero_require_text(
     "include/Aero/Controls/VirtualizingWrapPanel.hpp"
-    "class AERO_GUI_API VirtualizingWrapPanel\n    : public VirtualizingPanel,"
+    "class AERO_GUI_API VirtualizingWrapPanel : public VirtualizingPanel,"
     "VirtualizingWrapPanel must derive VirtualizingPanel, not VirtualizingStackPanel")
 aero_forbid_text(
     "include/Aero/Controls/VirtualizingWrapPanel.hpp"
@@ -2226,7 +2237,7 @@ aero_forbid_text(
 aero_forbid_text(
     "include/Aero/Controls/HeaderedContentControl.hpp"
     "class AERO_GUI_API GroupBox"
-    "GroupBox must live in GroupBox.hpp")
+    "GroupBox must not be declared on HeaderedContentControl")
 aero_forbid_text(
     "include/Aero/Controls/HeaderedContentControl.hpp"
     "class AERO_GUI_API Label"
@@ -2234,7 +2245,7 @@ aero_forbid_text(
 aero_forbid_text(
     "include/Aero/Controls/HeaderedContentControl.hpp"
     "class AERO_GUI_API Expander"
-    "Expander must live in Expander.hpp")
+    "Expander must not be declared on HeaderedContentControl")
 aero_forbid_text(
     "include/Aero/Controls/HeaderedContentControl.hpp"
     "class AERO_GUI_API TabItem"
@@ -2277,36 +2288,32 @@ aero_forbid_text(
     "UIElement must not pull the Layout.hpp umbrella")
 aero_require_text(
     "include/Aero/UIElement.hpp"
-    "#include <Aero/Visibility.hpp>"
-    "Visibility must live next to UIElement")
-aero_require_text(
-    "include/Aero/UIElement.hpp"
-    "#include <Aero/Media/BlendMode.hpp>"
-    "BlendMode must live in Media, not Layout.hpp")
+    "#include <Aero/ElementEnums.hpp>"
+    "Visibility and BlendMode must stay on the light element-enum header")
 aero_require_text(
     "include/Aero/FrameworkElement.hpp"
-    "#include <Aero/HorizontalAlignment.hpp>"
-    "HorizontalAlignment/VerticalAlignment/FlowDirection must live next to FrameworkElement")
+    "#include <Aero/ElementEnums.hpp>"
+    "Alignment enums must stay on the light element-enum header")
+aero_forbid_text(
+    "include/Aero/UIElement.hpp"
+    "enum class Visibility"
+    "UIElement must not own Visibility")
+aero_forbid_text(
+    "include/Aero/FrameworkElement.hpp"
+    "enum class HorizontalAlignment"
+    "FrameworkElement must not own alignment enums")
 aero_require_text(
     "include/Aero/Controls/Grid.hpp"
     "#include <Aero/Controls/GridLength.hpp>"
     "GridLength must be owned by the Grid header family")
 aero_require_text(
     "include/Aero/Layout.hpp"
-    "#include <Aero/Visibility.hpp>"
-    "Layout.hpp must remain a compatibility umbrella for Visibility")
-aero_require_text(
-    "include/Aero/Layout.hpp"
-    "#include <Aero/HorizontalAlignment.hpp>"
-    "Layout.hpp must remain a compatibility umbrella for alignment enums")
+    "#include <Aero/ElementEnums.hpp>"
+    "Layout.hpp must remain a compatibility umbrella for element enums")
 aero_require_text(
     "include/Aero/Layout.hpp"
     "#include <Aero/Controls/GridLength.hpp>"
     "Layout.hpp must remain a compatibility umbrella for GridLength")
-aero_require_text(
-    "include/Aero/Layout.hpp"
-    "#include <Aero/Media/BlendMode.hpp>"
-    "Layout.hpp must remain a compatibility umbrella for BlendMode")
 aero_require_text(
     "include/Aero/Layout.hpp"
     "#include <Aero/Diagnostics/Layout.hpp>"
@@ -2370,6 +2377,18 @@ set(aero_one_type_exemptions
     include/Aero/Controls/Buttons.hpp
     include/Aero/Controls/Selectors.hpp
     include/Aero/Controls/GridViews.hpp
+    include/Aero/Controls/Menus.hpp
+    include/Aero/Controls/ListView.hpp
+    include/Aero/Controls/TreeView.hpp
+    include/Aero/Controls/StatusBar.hpp
+    include/Aero/Controls/Headers.hpp
+    include/Aero/Controls/Grid.hpp
+    include/Aero/Controls/Decorator.hpp
+    include/Aero/Controls/ScrollViewer.hpp
+    include/Aero/Controls/TextBox.hpp
+    include/Aero/Controls/Ranges.hpp
+    include/Aero/VisualStateManager.hpp
+    include/Aero/DataTemplate.hpp
     include/Aero/Interactivity/TriggerAction.hpp
     include/Aero/Gui.hpp
     include/Aero/Layout.hpp

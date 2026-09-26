@@ -11,35 +11,22 @@ class AERO_GUI_API BindingOperations {
 public:
     BindingOperations() = delete;
 
-    static BindingExpression GetBindingExpression(
-        DependencyObject* target,
-        DependencyPropertyHandle property) noexcept;
-    template<class TOwner, class TValue>
-    static BindingExpression GetBindingExpression(
-        DependencyObject* target,
-        const DependencyPropertyRef<TOwner, TValue>& property) noexcept {
-        return GetBindingExpression(
-            target, property.Handle());
+    static BindingExpression GetBindingExpression(DependencyObject* target, DependencyPropertyHandle property) noexcept;
+    template<class TOwner, class TValue> static BindingExpression GetBindingExpression(
+        DependencyObject* target, const DependencyPropertyRef<TOwner, TValue>& property) noexcept {
+        return GetBindingExpression(target, property.Handle());
     }
-    static MultiBindingExpression GetMultiBindingExpression(
-        DependencyObject* target,
+    static MultiBindingExpression GetMultiBindingExpression(DependencyObject* target,
         DependencyPropertyHandle property) noexcept;
-    template<class TOwner, class TValue>
-    static MultiBindingExpression GetMultiBindingExpression(
-        DependencyObject* target,
-        const DependencyPropertyRef<TOwner, TValue>& property) noexcept {
-        return GetMultiBindingExpression(
-            target, property.Handle());
+    template<class TOwner, class TValue> static MultiBindingExpression GetMultiBindingExpression(
+        DependencyObject* target, const DependencyPropertyRef<TOwner, TValue>& property) noexcept {
+        return GetMultiBindingExpression(target, property.Handle());
     }
-    static TemplateBindingExpression GetTemplateBindingExpression(
-        DependencyObject* target,
+    static TemplateBindingExpression GetTemplateBindingExpression(DependencyObject* target,
         DependencyPropertyHandle property) noexcept;
-    template<class TOwner, class TValue>
-    static TemplateBindingExpression GetTemplateBindingExpression(
-        DependencyObject* target,
-        const DependencyPropertyRef<TOwner, TValue>& property) noexcept {
-        return GetTemplateBindingExpression(
-            target, property.Handle());
+    template<class TOwner, class TValue> static TemplateBindingExpression GetTemplateBindingExpression(
+        DependencyObject* target, const DependencyPropertyRef<TOwner, TValue>& property) noexcept {
+        return GetTemplateBindingExpression(target, property.Handle());
     }
 };
 

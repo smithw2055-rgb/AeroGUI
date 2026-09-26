@@ -11,15 +11,12 @@ class AERO_GUI_API CollectionViewSource : public Base::Object {
 public:
     CollectionViewSource() noexcept = default;
 
-    Meta::TypeId RuntimeType() const noexcept override {
-        return StaticTypeId();
-    }
+    Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
 
     // Cached default view for an IItemsSource. A CollectionView argument is
     // returned as-is. SelectedItem remains Selector's selection authority;
     // CollectionView.CurrentItem is view currency only.
-    static CollectionView* GetDefaultView(
-        Collections::IItemsSource* source) noexcept;
+    static CollectionView* GetDefaultView(Collections::IItemsSource* source) noexcept;
 };
 
 } // namespace Aero::Data

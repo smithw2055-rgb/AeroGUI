@@ -8,21 +8,18 @@
 namespace Aero::Base {
 struct HashSetMarker  {};
 
-template<class T, class Hash = DefaultHash<T>, class Equal = DefaultEqual<T>>
-class HashSet  {
+template<class T, class Hash = DefaultHash<T>, class Equal = DefaultEqual<T>> class HashSet  {
 private:
     using Map = HashMap<T, HashSetMarker, Hash, Equal>;
 
 public:
     using SizeType = std::uint32_t;
 
-    struct InsertResult  {
-        const T* value = nullptr;
+    struct InsertResult  { const T* value = nullptr;
         bool inserted = false;
     };
 
-    template<bool IsConst>
-    class IteratorBase  {
+    template<bool IsConst> class IteratorBase  {
     private:
         using MapIterator = typename std::conditional<IsConst,
             typename Map::ConstIterator, typename Map::Iterator>::type;
@@ -30,31 +27,22 @@ public:
     public:
         IteratorBase() noexcept = default;
 
-        const T& operator*() const noexcept {
-            return iterator_->Key();
-        }
+        const T& operator*() const noexcept { return iterator_->Key(); }
 
-        const T* operator->() const noexcept {
-            return &iterator_->Key();
-        }
+        const T* operator->() const noexcept { return &iterator_->Key(); }
 
         IteratorBase& operator++() noexcept {
             ++iterator_;
             return *this;
         }
 
-        bool operator==(const IteratorBase& other) const noexcept {
-            return iterator_ == other.iterator_;
-        }
+        bool operator==(const IteratorBase& other) const noexcept { return iterator_ == other.iterator_; }
 
-        bool operator!=(const IteratorBase& other) const noexcept {
-            return !(*this == other);
-        }
+        bool operator!=(const IteratorBase& other) const noexcept { return !(*this == other); }
 
     private:
         friend class HashSet;
-        explicit IteratorBase(MapIterator iterator) noexcept
-            : iterator_(iterator) {}
+        explicit IteratorBase(MapIterator iterator) noexcept : iterator_(iterator) {}
 
         MapIterator iterator_;
     };
@@ -62,10 +50,7 @@ public:
     using Iterator = IteratorBase<false>;
     using ConstIterator = IteratorBase<true>;
 
-    explicit HashSet(
-        IAllocator* allocator = nullptr,
-        HashCode seed = 0U,
-        Hash hash = Hash{},
+    explicit HashSet(IAllocator* allocator = nullptr, HashCode seed = 0U, Hash hash = Hash{},
         Equal equal = Equal{}) noexcept
         : map_(allocator, seed, std::move(hash), std::move(equal)) {}
 
@@ -83,36 +68,24 @@ public:
 
     Iterator begin() noexcept { return Iterator(map_.begin()); }
     Iterator end() noexcept { return Iterator(map_.end()); }
-    ConstIterator begin() const noexcept {
-        return ConstIterator(map_.begin());
-    }
-    ConstIterator end() const noexcept {
-        return ConstIterator(map_.end());
-    }
+    ConstIterator begin() const noexcept { return ConstIterator(map_.begin()); }
+    ConstIterator end() const noexcept { return ConstIterator(map_.end()); }
 
     void Clear() noexcept { map_.Clear(); }
 
-    void Reserve(SizeType expectedElements) noexcept {
-        map_.Reserve(expectedElements);
-    }
+    void Reserve(SizeType expectedElements) noexcept { map_.Reserve(expectedElements); }
 
-    bool Contains(const T& value) const noexcept {
-        return map_.Contains(value);
-    }
+    bool Contains(const T& value) const noexcept { return map_.Contains(value); }
 
-    bool Erase(const T& value) noexcept {
-        return map_.Erase(value);
-    }
+    bool Erase(const T& value) noexcept { return map_.Erase(value); }
 
     InsertResult Insert(const T& value) noexcept {
-        typename Map::InsertResult result = map_.Insert(
-            value, HashSetMarker{});
+        typename Map::InsertResult result = map_.Insert(value, HashSetMarker{});
         return InsertResult{&result.entry->Key(), result.inserted};
     }
 
     InsertResult Insert(T&& value) noexcept {
-        typename Map::InsertResult result = map_.Insert(
-            std::move(value), HashSetMarker{});
+        typename Map::InsertResult result = map_.Insert(std::move(value), HashSetMarker{});
         return InsertResult{&result.entry->Key(), result.inserted};
     }
 

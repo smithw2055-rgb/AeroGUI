@@ -144,13 +144,11 @@ namespace Aero {
 // WPF-shaped nullable value used by dependency properties such as
 // ToggleButton::IsChecked. It stays a small value type instead of introducing
 // a C#-style property proxy or another ownership layer.
-template<class T>
-class Nullable {
+template<class T> class Nullable {
 public:
     constexpr Nullable() noexcept = default;
     constexpr Nullable(std::nullptr_t) noexcept {}
-    constexpr Nullable(const T& value) noexcept
-        : value_(value), hasValue_(true) {}
+    constexpr Nullable(const T& value) noexcept : value_(value), hasValue_(true) {}
 
     constexpr bool GetHasValue() const noexcept { return hasValue_; }
     constexpr const T& GetValue() const noexcept { return value_; }
@@ -159,17 +157,10 @@ public:
         hasValue_ = false;
     }
 
-    friend constexpr bool operator==(
-        const Nullable& left,
-        const Nullable& right) noexcept {
-        return left.hasValue_ == right.hasValue_ &&
-            (!left.hasValue_ || left.value_ == right.value_);
+    friend constexpr bool operator==(const Nullable& left, const Nullable& right) noexcept {
+        return left.hasValue_ == right.hasValue_ && (!left.hasValue_ || left.value_ == right.value_);
     }
-    friend constexpr bool operator!=(
-        const Nullable& left,
-        const Nullable& right) noexcept {
-        return !(left == right);
-    }
+    friend constexpr bool operator!=(const Nullable& left, const Nullable& right) noexcept { return !(left == right); }
 
 private:
     T value_{};
@@ -180,8 +171,7 @@ private:
 namespace Aero::Meta {
 class Registry;
 class Registration;
-template<class T>
-struct DescribeHook;
+template<class T> struct DescribeHook;
 }
 namespace Aero::Meta {
 using Base::InvalidMemberId;
@@ -224,11 +214,8 @@ struct RuntimeTypeInfo {
     MetadataTypeKind kind = MetadataTypeKind::Struct;
 };
 
-AERO_GUI_API Base::Status BindRuntimeTypeInfo(
-    TypeId token,
-    const RuntimeTypeInfo& info) noexcept;
-AERO_GUI_API RuntimeTypeInfo ResolveRuntimeTypeInfo(
-    TypeId token) noexcept;
+AERO_GUI_API Base::Status BindRuntimeTypeInfo(TypeId token, const RuntimeTypeInfo& info) noexcept;
+AERO_GUI_API RuntimeTypeInfo ResolveRuntimeTypeInfo(TypeId token) noexcept;
 
 enum class MemberKind : std::uint8_t {
     Property = 1U,
@@ -240,36 +227,21 @@ enum class MemberKind : std::uint8_t {
 
 enum class TypeFlags : std::uint32_t {
     None = 0U,
-    Abstract = 1U << 0U,
-    Sealed = 1U << 1U,
-    ValueType = 1U << 2U,
-    Collection = 1U << 3U,
-    MarkupExtension = 1U << 4U,
-    FlagsEnum = 1U << 5U,
-    TriviallyCopyable = 1U << 6U,
-    SignedEnum = 1U << 7U
+    Abstract = 1U << 0U, Sealed = 1U << 1U, ValueType = 1U << 2U, Collection = 1U << 3U,
+    MarkupExtension = 1U << 4U, FlagsEnum = 1U << 5U, TriviallyCopyable = 1U << 6U, SignedEnum = 1U << 7U
 };
 
 enum class PropertyFlags : std::uint32_t {
     None = 0U,
-    Attached = 1U << 0U,
-    ReadOnly = 1U << 1U,
-    Inherits = 1U << 2U,
-    AffectsMeasure = 1U << 3U,
-    AffectsArrange = 1U << 4U,
-    AffectsRender = 1U << 5U,
-    AffectsParentMeasure = 1U << 6U,
-    AffectsParentArrange = 1U << 7U,
-    Structural = 1U << 8U,
-    Collection = 1U << 9U,
-    WriteOnly = 1U << 10U,
-    AnyValue = 1U << 11U
+    Attached = 1U << 0U, ReadOnly = 1U << 1U, Inherits = 1U << 2U, AffectsMeasure = 1U << 3U,
+    AffectsArrange = 1U << 4U, AffectsRender = 1U << 5U,
+    AffectsParentMeasure = 1U << 6U, AffectsParentArrange = 1U << 7U, Structural = 1U << 8U, Collection = 1U << 9U,
+    WriteOnly = 1U << 10U, AnyValue = 1U << 11U
 };
 
 enum class FieldFlags : std::uint32_t {
     None = 0U,
-    ReadOnly = 1U << 0U,
-    Transient = 1U << 1U
+    ReadOnly = 1U << 0U, Transient = 1U << 1U
 };
 
 enum class PropertyAccessKind : std::uint8_t {
@@ -280,8 +252,7 @@ enum class PropertyAccessKind : std::uint8_t {
 
 using PropertyProviderId = std::uint64_t;
 inline constexpr PropertyProviderId InvalidPropertyProviderId = 0U;
-inline constexpr PropertyProviderId DependencyPropertyProviderId =
-    UINT64_C(0x445050524F564944);
+inline constexpr PropertyProviderId DependencyPropertyProviderId = UINT64_C(0x445050524F564944);
 
 enum class MethodFlags : std::uint32_t {
     None = 0U,
@@ -290,62 +261,40 @@ enum class MethodFlags : std::uint32_t {
 
 enum class EventFlags : std::uint32_t {
     None = 0U,
-    Attached = 1U << 0U,
-    Routed = 1U << 1U
+    Attached = 1U << 0U, Routed = 1U << 1U
 };
 
-constexpr TypeFlags operator|(
-    TypeFlags left, TypeFlags right) noexcept {
-    return static_cast<TypeFlags>(
-        static_cast<std::uint32_t>(left) |
-        static_cast<std::uint32_t>(right));
+constexpr TypeFlags operator|(TypeFlags left, TypeFlags right) noexcept {
+    return static_cast<TypeFlags>(static_cast<std::uint32_t>(left) | static_cast<std::uint32_t>(right));
 }
 
-constexpr TypeFlags operator&(
-    TypeFlags left, TypeFlags right) noexcept {
-    return static_cast<TypeFlags>(
-        static_cast<std::uint32_t>(left) &
-        static_cast<std::uint32_t>(right));
+constexpr TypeFlags operator&(TypeFlags left, TypeFlags right) noexcept {
+    return static_cast<TypeFlags>(static_cast<std::uint32_t>(left) & static_cast<std::uint32_t>(right));
 }
 
-constexpr PropertyFlags operator|(
-    PropertyFlags left, PropertyFlags right) noexcept {
-    return static_cast<PropertyFlags>(
-        static_cast<std::uint32_t>(left) |
-        static_cast<std::uint32_t>(right));
+constexpr PropertyFlags operator|(PropertyFlags left, PropertyFlags right) noexcept {
+    return static_cast<PropertyFlags>(static_cast<std::uint32_t>(left) | static_cast<std::uint32_t>(right));
 }
 
-constexpr FieldFlags operator|(
-    FieldFlags left, FieldFlags right) noexcept {
-    return static_cast<FieldFlags>(
-        static_cast<std::uint32_t>(left) |
-        static_cast<std::uint32_t>(right));
+constexpr FieldFlags operator|(FieldFlags left, FieldFlags right) noexcept {
+    return static_cast<FieldFlags>(static_cast<std::uint32_t>(left) | static_cast<std::uint32_t>(right));
 }
 
-constexpr EventFlags operator|(
-    EventFlags left, EventFlags right) noexcept {
-    return static_cast<EventFlags>(
-        static_cast<std::uint32_t>(left) |
-        static_cast<std::uint32_t>(right));
+constexpr EventFlags operator|(EventFlags left, EventFlags right) noexcept {
+    return static_cast<EventFlags>(static_cast<std::uint32_t>(left) | static_cast<std::uint32_t>(right));
 }
 
 struct TypeFlagPredicate {
-    constexpr bool operator()(
-        TypeFlags value,
-        TypeFlags flag) const noexcept {
-        return (static_cast<std::uint32_t>(value) &
-            static_cast<std::uint32_t>(flag)) != 0U;
+    constexpr bool operator()(TypeFlags value, TypeFlags flag) const noexcept {
+        return (static_cast<std::uint32_t>(value) & static_cast<std::uint32_t>(flag)) != 0U;
     }
 };
 
 inline constexpr TypeFlagPredicate HasTypeFlag{};
 
 struct FieldFlagPredicate {
-    constexpr bool operator()(
-        FieldFlags value,
-        FieldFlags flag) const noexcept {
-        return (static_cast<std::uint32_t>(value) &
-            static_cast<std::uint32_t>(flag)) != 0U;
+    constexpr bool operator()(FieldFlags value, FieldFlags flag) const noexcept {
+        return (static_cast<std::uint32_t>(value) & static_cast<std::uint32_t>(flag)) != 0U;
     }
 };
 
@@ -358,45 +307,28 @@ constexpr TypeId MakeTypeId(StringView name) noexcept { return Base::MakeMetaTyp
 
 struct NoMetadataBase {};
 
-template<class T>
-struct TypeTraits {
+template<class T> struct TypeTraits {
     static constexpr TypeId Id() noexcept { return T::StaticTypeId(); }
-    static constexpr StringView Namespace() noexcept {
-        return T::StaticMetadataNamespace();
-    }
-    static constexpr StringView Name() noexcept {
-        return T::StaticMetadataName();
-    }
+    static constexpr StringView Namespace() noexcept { return T::StaticMetadataNamespace(); }
+    static constexpr StringView Name() noexcept { return T::StaticMetadataName(); }
     static constexpr TypeId BaseType() noexcept {
-        if constexpr (std::is_same_v<typename T::BaseType,
-            NoMetadataBase>) {
+        if constexpr (std::is_same_v<typename T::BaseType, NoMetadataBase>) {
             return InvalidTypeId;
-        } else {
-            return TypeTraits<typename T::BaseType>::Id();
-        }
+        } else { return TypeTraits<typename T::BaseType>::Id(); }
     }
 };
 
-template<>
-struct TypeTraits<Base::Object> {
-    static constexpr TypeId Id() noexcept {
-        return Base::Object::StaticTypeId();
-    }
-    static constexpr StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
+template<> struct TypeTraits<Base::Object> {
+    static constexpr TypeId Id() noexcept { return Base::Object::StaticTypeId(); }
+    static constexpr StringView Namespace() noexcept { return AeroNamespaceUri(); }
     static constexpr StringView Name() noexcept { return "Object"; }
     static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
 };
 
-template<class T>
-inline TypeId TypeOf() noexcept { return TypeTraits<T>::Id(); }
+template<class T> inline TypeId TypeOf() noexcept { return TypeTraits<T>::Id(); }
 
-// Enum/value declarations intentionally contain no XAML names, TypeIds or
-// enum value tables.  Those are supplied by Meta::Register from the central
-// metadata implementation.  The token is derived from the spelling supplied
-// to the macro and is therefore stable in static and shared builds without
-// RTTI.
+// Enum names are supplied by Meta::Register. The token is the C++ spelling,
+// so the declaration stays stable without RTTI.
 #define AERO_DECLARE_TYPE_ENUM(typeName) \
 namespace Aero::Meta { \
 template<> struct TypeTraits<typeName> { \
@@ -423,29 +355,35 @@ template<> struct TypeTraits<typeName> { \
 }; \
 }
 
-#define AERO_DECLARE_TYPE_VALUE(typeName) \
+// Value types whose id is MakeTypeId(metadataName). The metadata name is an
+// argument because it is not always the C++ spelling (Matrix, Boolean, Any).
+#define AERO_TYPE_VALUE_TRAITS(typeName, metadataName) \
+template<> struct TypeTraits<typeName> { \
+    static constexpr TypeId Id() noexcept { return MakeTypeId(metadataName); } \
+    static constexpr StringView Namespace() noexcept { return AeroNamespaceUri(); } \
+    static constexpr StringView Name() noexcept { return metadataName; } \
+    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; } \
+}
+
+#define AERO_DECLARE_TYPE_VALUE(typeName, metadataName) \
+namespace Aero::Meta { \
+AERO_TYPE_VALUE_TRAITS(typeName, metadataName); \
+}
+
+#define AERO_DECLARE_TYPE_VALUE_NAMED(typeName, metadataNamespace, metadataName) \
 namespace Aero::Meta { \
 template<> struct TypeTraits<typeName> { \
-    static constexpr TypeId Token() noexcept { \
-        return Base::MakeMetaTypeId(\
-            StringView("AERO.CPP.VALUE"), \
-            StringView(#typeName)); \
+    static constexpr TypeId Id() noexcept { \
+        return MakeTypeId( \
+            StringView(metadataNamespace), StringView(metadataName)); \
     } \
-    static TypeId Id() noexcept { \
-        return ResolveRuntimeTypeInfo(Token()).id; \
+    static constexpr StringView Namespace() noexcept { \
+        return StringView(metadataNamespace); \
     } \
-    static StringView Namespace() noexcept { \
-        return ResolveRuntimeTypeInfo(Token()).xamlNamespace; \
+    static constexpr StringView Name() noexcept { \
+        return StringView(metadataName); \
     } \
-    static StringView Name() noexcept { \
-        return ResolveRuntimeTypeInfo(Token()).name; \
-    } \
-    static TypeId BaseType() noexcept { \
-        return ResolveRuntimeTypeInfo(Token()).baseType; \
-    } \
-    static constexpr MetadataTypeKind Kind() noexcept { \
-        return MetadataTypeKind::Struct; \
-    } \
+    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; } \
 }; \
 }
 
@@ -509,338 +447,122 @@ namespace Aero::Meta {
 struct TypeReference {
     TypeId type = InvalidTypeId;
 
-    constexpr bool IsValid() const noexcept {
-        return type != InvalidTypeId;
-    }
+    constexpr bool IsValid() const noexcept { return type != InvalidTypeId; }
 };
 
-template<>
-struct TypeTraits<Value> {
-    static constexpr TypeId Id() noexcept {
-        return MakeTypeId("Any");
-    }
-    static constexpr StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr StringView Name() noexcept {
-        return "Any";
-    }
-    static constexpr TypeId BaseType() noexcept {
-        return InvalidTypeId;
-    }
-};
+AERO_TYPE_VALUE_TRAITS(Value, "Any");
+AERO_TYPE_VALUE_TRAITS(TypeReference, "TypeReference");
+AERO_TYPE_VALUE_TRAITS(Base::ResourceUri, "ResourceUri");
 
-template<>
-struct TypeTraits<TypeReference> {
-    static constexpr TypeId Id() noexcept {
-        return MakeTypeId("TypeReference");
-    }
-    static constexpr StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr StringView Name() noexcept {
-        return "TypeReference";
-    }
-    static constexpr TypeId BaseType() noexcept {
-        return InvalidTypeId;
-    }
-};
+AERO_GUI_API Result<Value> TryEncodeValue(TypeId type, const void* source) noexcept;
 
-template<>
-struct TypeTraits<Base::ResourceUri> {
-    static constexpr TypeId Id() noexcept {
-        return MakeTypeId("ResourceUri");
-    }
-    static constexpr StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr StringView Name() noexcept {
-        return "ResourceUri";
-    }
-    static constexpr TypeId BaseType() noexcept {
-        return InvalidTypeId;
-    }
-};
+AERO_TYPE_VALUE_TRAITS(bool, "Boolean");
+AERO_TYPE_VALUE_TRAITS(Base::Color, "Color");
+AERO_TYPE_VALUE_TRAITS(Base::Rect, "Rect");
+AERO_TYPE_VALUE_TRAITS(Base::Size, "Size");
+AERO_TYPE_VALUE_TRAITS(::Aero::Nullable<bool>, "NullableBoolean");
 
-AERO_GUI_API Result<Value> TryEncodeValue(
-    TypeId type,
-    const void* source) noexcept;
+AERO_TYPE_VALUE_TRAITS(std::int8_t, "Int8");
+AERO_TYPE_VALUE_TRAITS(std::int16_t, "Int16");
+AERO_TYPE_VALUE_TRAITS(std::int32_t, "Int32");
+AERO_TYPE_VALUE_TRAITS(std::int64_t, "Int64");
+AERO_TYPE_VALUE_TRAITS(std::uint8_t, "UInt8");
+AERO_TYPE_VALUE_TRAITS(std::uint16_t, "UInt16");
+AERO_TYPE_VALUE_TRAITS(std::uint32_t, "UInt32");
+AERO_TYPE_VALUE_TRAITS(std::uint64_t, "UInt64");
 
-template<>
-struct TypeTraits<bool> {
-    static constexpr TypeId Id() noexcept { return MakeTypeId("Boolean"); }
-    static constexpr StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr StringView Name() noexcept { return "Boolean"; }
-    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
-};
+AERO_TYPE_VALUE_TRAITS(double, "Double");
+AERO_TYPE_VALUE_TRAITS(String, "String");
 
-template<>
-struct TypeTraits<Base::Color> {
-    static constexpr TypeId Id() noexcept { return MakeTypeId("Color"); }
-    static constexpr StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr StringView Name() noexcept { return "Color"; }
-    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
-};
-
-template<>
-struct TypeTraits<Base::Rect> {
-    static constexpr TypeId Id() noexcept { return MakeTypeId("Rect"); }
-    static constexpr StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr StringView Name() noexcept { return "Rect"; }
-    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
-};
-
-template<>
-struct TypeTraits<Base::Size> {
-    static constexpr TypeId Id() noexcept { return MakeTypeId("Size"); }
-    static constexpr StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr StringView Name() noexcept { return "Size"; }
-    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
-};
-
-template<>
-struct TypeTraits<::Aero::Nullable<bool>> {
-    static constexpr TypeId Id() noexcept {
-        return MakeTypeId("NullableBoolean");
-    }
-    static constexpr StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr StringView Name() noexcept {
-        return "NullableBoolean";
-    }
-    static constexpr TypeId BaseType() noexcept {
-        return InvalidTypeId;
-    }
-};
-
-#define AERO_DEFINE_INTEGER_META_TYPE(cppType, metadataName) \
-    template<> \
-    struct TypeTraits<cppType> { \
-        static constexpr TypeId Id() noexcept { \
-            return MakeTypeId(metadataName); \
-        } \
-        static constexpr StringView Namespace() noexcept { \
-            return AeroNamespaceUri(); \
-        } \
-        static constexpr StringView Name() noexcept { \
-            return metadataName; \
-        } \
-        static constexpr TypeId BaseType() noexcept { \
-            return InvalidTypeId; \
-        } \
-    }
-
-AERO_DEFINE_INTEGER_META_TYPE(std::int8_t, "Int8");
-AERO_DEFINE_INTEGER_META_TYPE(std::int16_t, "Int16");
-AERO_DEFINE_INTEGER_META_TYPE(std::int32_t, "Int32");
-AERO_DEFINE_INTEGER_META_TYPE(std::int64_t, "Int64");
-AERO_DEFINE_INTEGER_META_TYPE(std::uint8_t, "UInt8");
-AERO_DEFINE_INTEGER_META_TYPE(std::uint16_t, "UInt16");
-AERO_DEFINE_INTEGER_META_TYPE(std::uint32_t, "UInt32");
-AERO_DEFINE_INTEGER_META_TYPE(std::uint64_t, "UInt64");
-
-#undef AERO_DEFINE_INTEGER_META_TYPE
-
-template<>
-struct TypeTraits<double> {
-    static constexpr TypeId Id() noexcept { return MakeTypeId("Double"); }
-    static constexpr StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr StringView Name() noexcept { return "Double"; }
-    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
-};
-
-template<>
-struct TypeTraits<String> {
-    static constexpr TypeId Id() noexcept { return MakeTypeId("String"); }
-    static constexpr StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr StringView Name() noexcept { return "String"; }
-    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
-};
-
-template<class T, class Enable = void>
-struct ValueCodec {
+template<class T, class Enable = void> struct ValueCodec {
     static TypeId Type() noexcept { return TypeOf<T>(); }
 
-    template<class TMetadata>
-    static Result<Value> Encode(
-        TMetadata& runtime,
-        const T& value) noexcept {
+    template<class TMetadata> static Result<Value> Encode(TMetadata& runtime, const T& value) noexcept {
         return runtime.TryCreateValue(Type(), &value);
     }
 
-    static Result<Value> Encode(const T& value) noexcept {
-        return TryEncodeValue(Type(), &value);
-    }
+    static Result<Value> Encode(const T& value) noexcept { return TryEncodeValue(Type(), &value); }
 
-    template<class TMetadata>
-    static Result<T> Decode(
-        TMetadata&,
-        const Value& value) noexcept {
-        return Decode(value);
-    }
+    template<class TMetadata> static Result<T> Decode(TMetadata&, const Value& value) noexcept { return Decode(value); }
 
     static Result<T> Decode(const Value& value) noexcept {
-        if (value.Type() != Type() ||
-            value.Kind() != ValueKind::Custom ||
-            value.AsCustom() == nullptr) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "Custom metadata value is incompatible");
+        if (value.Type() != Type() || value.Kind() != ValueKind::Custom || value.AsCustom() == nullptr) {
+            return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Custom metadata value is incompatible");
         }
         return *static_cast<const T*>(value.AsCustom());
     }
 };
 
-template<>
-struct ValueCodec<Value, void> {
-    static TypeId Type() noexcept {
-        return TypeOf<Value>();
-    }
-    template<class TMetadata>
-    static Result<Value> Encode(
-        TMetadata&,
-        const Value& value) noexcept {
+template<> struct ValueCodec<Value, void> {
+    static TypeId Type() noexcept { return TypeOf<Value>(); }
+    template<class TMetadata> static Result<Value> Encode(TMetadata&, const Value& value) noexcept {
         return Encode(value);
     }
-    static Result<Value> Encode(
-        const Value& value) noexcept {
-        return value;
-    }
-    template<class TMetadata>
-    static Result<Value> Decode(
-        TMetadata&,
-        const Value& value) noexcept {
+    static Result<Value> Encode(const Value& value) noexcept { return value; }
+    template<class TMetadata> static Result<Value> Decode(TMetadata&, const Value& value) noexcept {
         return Decode(value);
     }
-    static Result<Value> Decode(
-        const Value& value) noexcept {
-        return value;
-    }
+    static Result<Value> Decode(const Value& value) noexcept { return value; }
 };
 
-template<>
-struct ValueCodec<TypeReference, void> {
-    static TypeId Type() noexcept {
-        return TypeOf<TypeReference>();
-    }
-    template<class TMetadata>
-    static Result<Value> Encode(
-        TMetadata&,
-        TypeReference value) noexcept {
-        return Encode(value);
-    }
-    static Result<Value> Encode(
-        TypeReference value) noexcept {
+template<> struct ValueCodec<TypeReference, void> {
+    static TypeId Type() noexcept { return TypeOf<TypeReference>(); }
+    template<class TMetadata> static Result<Value> Encode(TMetadata&,
+        TypeReference value) noexcept { return Encode(value); }
+    static Result<Value> Encode(TypeReference value) noexcept {
         if (!value.IsValid()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "Metadata type reference is invalid");
+            return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Metadata type reference is invalid");
         }
-        return Value::FromUnsignedInteger(
-            Type(), value.type);
+        return Value::FromUnsignedInteger(Type(), value.type);
     }
-    template<class TMetadata>
-    static Result<TypeReference> Decode(
-        TMetadata&,
-        const Value& value) noexcept {
+    template<class TMetadata> static Result<TypeReference> Decode(TMetadata&, const Value& value) noexcept {
         return Decode(value);
     }
-    static Result<TypeReference> Decode(
-        const Value& value) noexcept {
-        if (value.Type() != Type() ||
-            value.Kind() != ValueKind::UnsignedInteger ||
-            value.AsUnsignedInteger() >
-                static_cast<std::uint64_t>(
-                    std::numeric_limits<TypeId>::max())) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "Metadata type reference is incompatible");
+    static Result<TypeReference> Decode(const Value& value) noexcept {
+        if (value.Type() != Type() || value.Kind() != ValueKind::UnsignedInteger ||
+            value.AsUnsignedInteger() > static_cast<std::uint64_t>(std::numeric_limits<TypeId>::max())) {
+            return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Metadata type reference is incompatible");
         }
         TypeReference result{
-            static_cast<TypeId>(
-                value.AsUnsignedInteger())};
+            static_cast<TypeId>(value.AsUnsignedInteger())};
         if (!result.IsValid()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "Metadata type reference is invalid");
+            return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Metadata type reference is invalid");
         }
         return result;
     }
 };
 
-template<>
-struct ValueCodec<bool, void> {
+template<> struct ValueCodec<bool, void> {
     static TypeId Type() noexcept { return TypeOf<bool>(); }
-    template<class TMetadata>
-    static Result<Value> Encode(TMetadata&, bool value) noexcept {
-        return Encode(value);
-    }
-    static Result<Value> Encode(bool value) noexcept {
-        return Value::FromBoolean(Type(), value);
-    }
-    template<class TMetadata>
-    static Result<bool> Decode(
-        TMetadata&, const Value& value) noexcept {
-        return Decode(value);
-    }
+    template<class TMetadata> static Result<Value> Encode(TMetadata&, bool value) noexcept { return Encode(value); }
+    static Result<Value> Encode(bool value) noexcept { return Value::FromBoolean(Type(), value); }
+    template<class TMetadata> static Result<bool> Decode(
+        TMetadata&, const Value& value) noexcept { return Decode(value); }
     static Result<bool> Decode(const Value& value) noexcept {
-        if (value.Type() != Type() ||
-            value.Kind() != ValueKind::Boolean) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "Boolean metadata value is incompatible");
+        if (value.Type() != Type() || value.Kind() != ValueKind::Boolean) {
+            return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Boolean metadata value is incompatible");
         }
         return value.AsBoolean();
     }
 };
 
-template<>
-struct ValueCodec<::Aero::Nullable<bool>, void> {
+template<> struct ValueCodec<::Aero::Nullable<bool>, void> {
     using NullableBoolean = ::Aero::Nullable<bool>;
 
-    static TypeId Type() noexcept {
-        return TypeOf<NullableBoolean>();
-    }
-    template<class TMetadata>
-    static Result<Value> Encode(
-        TMetadata&,
-        NullableBoolean value) noexcept {
-        return Encode(value);
-    }
-    static Result<Value> Encode(
-        NullableBoolean value) noexcept {
-        const std::int64_t encoded = !value.GetHasValue()
-            ? -1
+    static TypeId Type() noexcept { return TypeOf<NullableBoolean>(); }
+    template<class TMetadata> static Result<Value> Encode(TMetadata&,
+        NullableBoolean value) noexcept { return Encode(value); }
+    static Result<Value> Encode(NullableBoolean value) noexcept { const std::int64_t encoded = !value.GetHasValue() ? -1
             : (value.GetValue() ? 1 : 0);
         return Value::FromSignedInteger(Type(), encoded);
     }
-    template<class TMetadata>
-    static Result<NullableBoolean> Decode(
-        TMetadata&,
-        const Value& value) noexcept {
+    template<class TMetadata> static Result<NullableBoolean> Decode(TMetadata&, const Value& value) noexcept {
         return Decode(value);
     }
-    static Result<NullableBoolean> Decode(
-        const Value& value) noexcept {
-        if (value.Type() != Type() ||
-            value.Kind() != ValueKind::SignedInteger ||
-            value.AsSignedInteger() < -1 ||
+    static Result<NullableBoolean> Decode(const Value& value) noexcept {
+        if (value.Type() != Type() || value.Kind() != ValueKind::SignedInteger || value.AsSignedInteger() < -1 ||
             value.AsSignedInteger() > 1) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
+            return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
                 "Nullable Boolean metadata value is incompatible");
         }
         if (value.AsSignedInteger() < 0) return NullableBoolean{};
@@ -848,244 +570,134 @@ struct ValueCodec<::Aero::Nullable<bool>, void> {
     }
 };
 
-template<class T>
-struct ValueCodec<T, std::enable_if_t<
-    std::is_integral_v<T> && std::is_signed_v<T> &&
-    !std::is_same_v<T, bool>>> {
+template<class T> struct ValueCodec<T, std::enable_if_t<
+    std::is_integral_v<T> && std::is_signed_v<T> && !std::is_same_v<T, bool>>> {
     static TypeId Type() noexcept { return TypeOf<T>(); }
-    template<class TMetadata>
-    static Result<Value> Encode(TMetadata&, T value) noexcept {
-        return Encode(value);
-    }
+    template<class TMetadata> static Result<Value> Encode(TMetadata&, T value) noexcept { return Encode(value); }
     static Result<Value> Encode(T value) noexcept {
-        return Value::FromSignedInteger(
-            Type(), static_cast<std::int64_t>(value));
+        return Value::FromSignedInteger(Type(), static_cast<std::int64_t>(value));
     }
-    template<class TMetadata>
-    static Result<T> Decode(
-        TMetadata&, const Value& value) noexcept {
-        return Decode(value);
-    }
+    template<class TMetadata> static Result<T> Decode(TMetadata&, const Value& value) noexcept { return Decode(value); }
     static Result<T> Decode(const Value& value) noexcept {
-        if (value.Type() != Type() ||
-            value.Kind() != ValueKind::SignedInteger ||
-            value.AsSignedInteger() <
-                static_cast<std::int64_t>(
-                    std::numeric_limits<T>::min()) ||
-            value.AsSignedInteger() >
-                static_cast<std::int64_t>(
-                    std::numeric_limits<T>::max())) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "Signed metadata value is incompatible");
+        if (value.Type() != Type() || value.Kind() != ValueKind::SignedInteger ||
+            value.AsSignedInteger() < static_cast<std::int64_t>(std::numeric_limits<T>::min()) ||
+            value.AsSignedInteger() > static_cast<std::int64_t>(std::numeric_limits<T>::max())) {
+            return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Signed metadata value is incompatible");
         }
         return static_cast<T>(value.AsSignedInteger());
     }
 };
 
-template<class T>
-struct ValueCodec<T, std::enable_if_t<
-    std::is_integral_v<T> && std::is_unsigned_v<T> &&
-    !std::is_same_v<T, bool>>> {
+template<class T> struct ValueCodec<T, std::enable_if_t<
+    std::is_integral_v<T> && std::is_unsigned_v<T> && !std::is_same_v<T, bool>>> {
     static TypeId Type() noexcept { return TypeOf<T>(); }
-    template<class TMetadata>
-    static Result<Value> Encode(TMetadata&, T value) noexcept {
-        return Encode(value);
-    }
+    template<class TMetadata> static Result<Value> Encode(TMetadata&, T value) noexcept { return Encode(value); }
     static Result<Value> Encode(T value) noexcept {
-        return Value::FromUnsignedInteger(
-            Type(), static_cast<std::uint64_t>(value));
+        return Value::FromUnsignedInteger(Type(), static_cast<std::uint64_t>(value));
     }
-    template<class TMetadata>
-    static Result<T> Decode(
-        TMetadata&, const Value& value) noexcept {
-        return Decode(value);
-    }
+    template<class TMetadata> static Result<T> Decode(TMetadata&, const Value& value) noexcept { return Decode(value); }
     static Result<T> Decode(const Value& value) noexcept {
-        if (value.Type() != Type() ||
-            value.Kind() != ValueKind::UnsignedInteger ||
-            value.AsUnsignedInteger() >
-                static_cast<std::uint64_t>(
-                    std::numeric_limits<T>::max())) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "Unsigned metadata value is incompatible");
+        if (value.Type() != Type() || value.Kind() != ValueKind::UnsignedInteger ||
+            value.AsUnsignedInteger() > static_cast<std::uint64_t>(std::numeric_limits<T>::max())) {
+            return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Unsigned metadata value is incompatible");
         }
         return static_cast<T>(value.AsUnsignedInteger());
     }
 };
 
-template<>
-struct ValueCodec<double, void> {
+template<> struct ValueCodec<double, void> {
     static TypeId Type() noexcept { return TypeOf<double>(); }
-    template<class TMetadata>
-    static Result<Value> Encode(TMetadata&, double value) noexcept {
-        return Encode(value);
-    }
-    static Result<Value> Encode(double value) noexcept {
-        return Value::FromDouble(Type(), value);
-    }
-    template<class TMetadata>
-    static Result<double> Decode(
-        TMetadata&, const Value& value) noexcept {
-        return Decode(value);
-    }
+    template<class TMetadata> static Result<Value> Encode(TMetadata&, double value) noexcept { return Encode(value); }
+    static Result<Value> Encode(double value) noexcept { return Value::FromDouble(Type(), value); }
+    template<class TMetadata> static Result<double> Decode(
+        TMetadata&, const Value& value) noexcept { return Decode(value); }
     static Result<double> Decode(const Value& value) noexcept {
-        if (value.Type() != Type() ||
-            value.Kind() != ValueKind::Double) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "Double metadata value is incompatible");
+        if (value.Type() != Type() || value.Kind() != ValueKind::Double) {
+            return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Double metadata value is incompatible");
         }
         return value.AsDouble();
     }
 };
 
-template<>
-struct ValueCodec<float, void> {
+template<> struct ValueCodec<float, void> {
     static TypeId Type() noexcept { return TypeOf<double>(); }
-    template<class TMetadata>
-    static Result<Value> Encode(TMetadata&, float value) noexcept {
-        return Encode(value);
-    }
-    static Result<Value> Encode(float value) noexcept {
-        return Value::FromDouble(
-            Type(), static_cast<double>(value));
-    }
-    template<class TMetadata>
-    static Result<float> Decode(
-        TMetadata&, const Value& value) noexcept {
-        return Decode(value);
-    }
+    template<class TMetadata> static Result<Value> Encode(TMetadata&, float value) noexcept { return Encode(value); }
+    static Result<Value> Encode(float value) noexcept { return Value::FromDouble(Type(), static_cast<double>(value)); }
+    template<class TMetadata> static Result<float> Decode(
+        TMetadata&, const Value& value) noexcept { return Decode(value); }
     static Result<float> Decode(const Value& value) noexcept {
-        if (value.Type() != Type() ||
-            value.Kind() != ValueKind::Double) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "Float metadata value is incompatible");
+        if (value.Type() != Type() || value.Kind() != ValueKind::Double) {
+            return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Float metadata value is incompatible");
         }
         return static_cast<float>(value.AsDouble());
     }
 };
 
-template<>
-struct ValueCodec<String, void> {
-    static TypeId Type() noexcept {
-        return TypeOf<String>();
-    }
-    template<class TMetadata>
-    static Result<Value> Encode(
-        TMetadata&, const String& value) noexcept {
-        return Encode(value);
-    }
-    static Result<Value> Encode(
-        const String& value) noexcept {
-        return Value::TryFromString(Type(), value.View());
-    }
-    template<class TMetadata>
-    static Result<String> Decode(
-        TMetadata&, const Value& value) noexcept {
-        return Decode(value);
-    }
-    static Result<String> Decode(
-        const Value& value) noexcept {
-        if (value.Type() != Type() ||
-            value.Kind() != ValueKind::String) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "String metadata value is incompatible");
+template<> struct ValueCodec<String, void> {
+    static TypeId Type() noexcept { return TypeOf<String>(); }
+    template<class TMetadata> static Result<Value> Encode(
+        TMetadata&, const String& value) noexcept { return Encode(value); }
+    static Result<Value> Encode(const String& value) noexcept { return Value::TryFromString(Type(), value.View()); }
+    template<class TMetadata> static Result<String> Decode(
+        TMetadata&, const Value& value) noexcept { return Decode(value); }
+    static Result<String> Decode(const Value& value) noexcept {
+        if (value.Type() != Type() || value.Kind() != ValueKind::String) {
+            return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "String metadata value is incompatible");
         }
         String decoded;
-        Result<void> assigned =
-            decoded.Assign(value.AsString());
+        Result<void> assigned = decoded.Assign(value.AsString());
         if (!assigned) return assigned.GetStatus();
         return decoded;
     }
 };
 
-template<class T>
-struct ValueCodec<T, std::enable_if_t<std::is_enum_v<T>>> {
+template<class T> struct ValueCodec<T, std::enable_if_t<std::is_enum_v<T>>> {
     using Underlying = std::underlying_type_t<T>;
     static TypeId Type() noexcept { return TypeOf<T>(); }
-    template<class TMetadata>
-    static Result<Value> Encode(TMetadata&, T value) noexcept {
-        return Encode(value);
-    }
+    template<class TMetadata> static Result<Value> Encode(TMetadata&, T value) noexcept { return Encode(value); }
     static Result<Value> Encode(T value) noexcept {
         if constexpr (std::is_signed_v<Underlying>) {
-            return Value::FromSignedInteger(
-                Type(),
-                static_cast<std::int64_t>(
-                    static_cast<Underlying>(value)));
+            return Value::FromSignedInteger(Type(), static_cast<std::int64_t>(static_cast<Underlying>(value)));
         } else {
-            return Value::FromUnsignedInteger(
-                Type(),
-                static_cast<std::uint64_t>(
-                    static_cast<Underlying>(value)));
+            return Value::FromUnsignedInteger(Type(), static_cast<std::uint64_t>(static_cast<Underlying>(value)));
         }
     }
-    template<class TMetadata>
-    static Result<T> Decode(
-        TMetadata&, const Value& value) noexcept {
-        return Decode(value);
-    }
+    template<class TMetadata> static Result<T> Decode(TMetadata&, const Value& value) noexcept { return Decode(value); }
     static Result<T> Decode(const Value& value) noexcept {
         if (value.Type() != Type()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "Enum metadata value type is incompatible");
+            return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Enum metadata value type is incompatible");
         }
         if constexpr (std::is_signed_v<Underlying>) {
             if (value.Kind() != ValueKind::SignedInteger) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::InvalidArgument,
+                return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
                     "Signed enum metadata value is incompatible");
             }
-            return static_cast<T>(
-                static_cast<Underlying>(
-                    value.AsSignedInteger()));
+            return static_cast<T>(static_cast<Underlying>(value.AsSignedInteger()));
         } else {
             if (value.Kind() != ValueKind::UnsignedInteger) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::InvalidArgument,
+                return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
                     "Unsigned enum metadata value is incompatible");
             }
-            return static_cast<T>(
-                static_cast<Underlying>(
-                    value.AsUnsignedInteger()));
+            return static_cast<T>(static_cast<Underlying>(value.AsUnsignedInteger()));
         }
     }
 };
 
-template<class T>
-struct ValueCodec<Ref<T>, void> {
+template<class T> struct ValueCodec<Ref<T>, void> {
     static TypeId Type() noexcept { return TypeOf<T>(); }
-    template<class TMetadata>
-    static Result<Value> Encode(
-        TMetadata&, const Ref<T>& value) noexcept {
-        return Encode(value);
-    }
-    static Result<Value> Encode(
-        const Ref<T>& value) noexcept {
+    template<class TMetadata> static Result<Value> Encode(
+        TMetadata&, const Ref<T>& value) noexcept { return Encode(value); }
+    static Result<Value> Encode(const Ref<T>& value) noexcept {
         if (!value) return Value::NullObject(Type());
-        return Value::FromObject(
-            Type(), Ref<Base::Object>(value));
+        return Value::FromObject(Type(), Ref<Base::Object>(value));
     }
-    template<class TMetadata>
-    static Result<Ref<T>> Decode(
-        TMetadata&, const Value& value) noexcept {
-        return Decode(value);
-    }
-    static Result<Ref<T>> Decode(
-        const Value& value) noexcept {
+    template<class TMetadata> static Result<Ref<T>> Decode(
+        TMetadata&, const Value& value) noexcept { return Decode(value); }
+    static Result<Ref<T>> Decode(const Value& value) noexcept {
         if (value.Kind() != ValueKind::Object) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "Object metadata value is incompatible");
+            return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Object metadata value is incompatible");
         }
-        if (value.IsNullObject() || !value.AsObject()) {
-            return Ref<T>{};
-        }
+        if (value.IsNullObject() || !value.AsObject()) { return Ref<T>{}; }
         return Ref<T>::FromBorrowed(
             *static_cast<T*>(value.AsObject().Get()));
     }

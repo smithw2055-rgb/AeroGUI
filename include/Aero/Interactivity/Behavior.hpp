@@ -26,34 +26,22 @@ public:
         Ref<Aero::Data::Binding> binding;
     };
 
-    FrameworkElement* GetAssociatedObject() const noexcept {
-        return associatedObject_;
-    }
-    bool GetIsAttached() const noexcept {
-        return associatedObject_ != nullptr;
-    }
+    FrameworkElement* GetAssociatedObject() const noexcept { return associatedObject_; }
+    bool GetIsAttached() const noexcept { return associatedObject_ != nullptr; }
     Result<void> Attach(FrameworkElement& object) noexcept;
     void Detach() noexcept;
-    void AddAuthoredBinding(
-        Meta::DependencyPropertyHandle property,
-        Ref<Aero::Data::Binding> binding) noexcept;
-    Span<const AuthoredBinding> GetAuthoredBindings() const noexcept {
-        return authoredBindings_.AsSpan();
-    }
-    void CopyAuthoredBindingsTo(
-        Behavior& destination) const noexcept;
+    void AddAuthoredBinding(Meta::DependencyPropertyHandle property, Ref<Aero::Data::Binding> binding) noexcept;
+    Span<const AuthoredBinding> GetAuthoredBindings() const noexcept { return authoredBindings_.AsSpan(); }
+    void CopyAuthoredBindingsTo(Behavior& destination) const noexcept;
     // Instance clone for style/template authored prototypes. Metadata creates
     // the typed object; local DP values + authored bindings are copied here.
-    static Result<Ref<Behavior>> ClonePrototype(
-        const Behavior& prototype,
-        Meta::Registry& metadata) noexcept;
+    static Result<Ref<Behavior>> ClonePrototype(const Behavior& prototype, Meta::Registry& metadata) noexcept;
     void NotifyLayoutUpdated() noexcept {
         if (associatedObject_ != nullptr) OnLayoutUpdated();
     }
 
 protected:
-    explicit Behavior(Meta::TypeId runtimeType) noexcept
-        : DependencyObject(runtimeType) {}
+    explicit Behavior(Meta::TypeId runtimeType) noexcept : DependencyObject(runtimeType) {}
     ~Behavior() override;
     virtual void OnAttached() noexcept {}
     virtual void OnDetaching() noexcept {}
@@ -70,9 +58,7 @@ public:
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
     void Add(Ref<Base::Object> value) noexcept;
     void Clear() noexcept { items_.Clear(); }
-    Span<const Ref<Base::Object>> GetItems() const noexcept {
-        return items_.AsSpan();
-    }
+    Span<const Ref<Base::Object>> GetItems() const noexcept { return items_.AsSpan(); }
 private:
     Base::Vector<Ref<Base::Object>> items_;
 };
@@ -83,9 +69,7 @@ public:
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
     void Add(Ref<Base::Object> value) noexcept;
     void Clear() noexcept { items_.Clear(); }
-    Span<const Ref<Base::Object>> GetItems() const noexcept {
-        return items_.AsSpan();
-    }
+    Span<const Ref<Base::Object>> GetItems() const noexcept { return items_.AsSpan(); }
 private:
     Base::Vector<Ref<Base::Object>> items_;
 };
@@ -97,11 +81,9 @@ public:
     AERO_ATTACHED_PROPERTY(Ref<StyleBehaviorCollection>, Behaviors);
     AERO_ATTACHED_PROPERTY(Ref<StyleTriggerCollection>, Triggers);
 
-    static void OnBehaviorsChanged(
-        DependencyObject& object,
+    static void OnBehaviorsChanged(DependencyObject& object,
         const Meta::DependencyPropertyChangedEventArgs& args) noexcept;
-    static void OnTriggersChanged(
-        DependencyObject& object,
+    static void OnTriggersChanged(DependencyObject& object,
         const Meta::DependencyPropertyChangedEventArgs& args) noexcept;
 };
 

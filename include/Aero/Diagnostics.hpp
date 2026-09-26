@@ -44,58 +44,35 @@ enum class DiagnosticDomain : std::uint8_t {
 struct DiagnosticCode  {
     std::uint32_t value = 0U;
 
-    constexpr bool IsValid() const noexcept {
-        const DiagnosticDomain domain = Domain();
+    constexpr bool IsValid() const noexcept { const DiagnosticDomain domain = Domain();
         const std::uint16_t number = Number();
-        return domain > DiagnosticDomain::Invalid &&
-            domain < DiagnosticDomain::Count &&
-            number > 0U && number <= 9999U;
+        return domain > DiagnosticDomain::Invalid && domain < DiagnosticDomain::Count && number > 0U && number <= 9999U;
     }
 
-    constexpr DiagnosticDomain Domain() const noexcept {
-        return static_cast<DiagnosticDomain>((value >> 16U) & 0xFFU);
-    }
+    constexpr DiagnosticDomain Domain() const noexcept { return static_cast<DiagnosticDomain>((value >> 16U) & 0xFFU); }
 
-    constexpr std::uint16_t Number() const noexcept {
-        return static_cast<std::uint16_t>(value & 0xFFFFU);
-    }
+    constexpr std::uint16_t Number() const noexcept { return static_cast<std::uint16_t>(value & 0xFFFFU); }
 };
 
-constexpr DiagnosticCode MakeDiagnosticCode(
-    DiagnosticDomain domain,
-    std::uint16_t number) noexcept {
-    return domain > DiagnosticDomain::Invalid &&
-        domain < DiagnosticDomain::Count &&
-        number > 0U && number <= 9999U
+constexpr DiagnosticCode MakeDiagnosticCode(DiagnosticDomain domain, std::uint16_t number) noexcept {
+    return domain > DiagnosticDomain::Invalid && domain < DiagnosticDomain::Count && number > 0U && number <= 9999U
         ? DiagnosticCode{
             (static_cast<std::uint32_t>(domain) << 16U) |
             static_cast<std::uint32_t>(number)}
         : DiagnosticCode{};
 }
 
-constexpr bool operator==(
-    DiagnosticCode left,
-    DiagnosticCode right) noexcept {
-    return left.value == right.value;
-}
+constexpr bool operator==(DiagnosticCode left, DiagnosticCode right) noexcept { return left.value == right.value; }
 
-constexpr bool operator!=(
-    DiagnosticCode left,
-    DiagnosticCode right) noexcept {
-    return !(left == right);
-}
+constexpr bool operator!=(DiagnosticCode left, DiagnosticCode right) noexcept { return !(left == right); }
 
 using DiagnosticObjectId = std::uint64_t;
 inline constexpr DiagnosticObjectId InvalidDiagnosticObjectId = 0U;
 
-AERO_GUI_API bool IsValidSourcePosition(
-    SourcePosition position) noexcept;
+AERO_GUI_API bool IsValidSourcePosition(SourcePosition position) noexcept;
 AERO_GUI_API bool IsValidSourceSpan(SourceSpan span) noexcept;
-AERO_GUI_API StringView DiagnosticPrefix(
-    DiagnosticDomain domain) noexcept;
-AERO_GUI_API Result<void> FormatDiagnosticCode(
-    DiagnosticCode code,
-    String& output) noexcept;
+AERO_GUI_API StringView DiagnosticPrefix(DiagnosticDomain domain) noexcept;
+AERO_GUI_API Result<void> FormatDiagnosticCode(DiagnosticCode code, String& output) noexcept;
 
 class AERO_GUI_API DiagnosticNote  {
 public:
@@ -106,15 +83,12 @@ public:
     DiagnosticNote& operator=(const DiagnosticNote&) = delete;
 
     SourceSpan Source() const noexcept { return source_; }
-    StringView Message() const noexcept {
-        return message_.View();
-    }
+    StringView Message() const noexcept { return message_.View(); }
 
 private:
     friend class Diagnostic;
 
-    DiagnosticNote() noexcept
-        : message_(&Base::GetDefaultAllocator()) {}
+    DiagnosticNote() noexcept : message_(&Base::GetDefaultAllocator()) {}
 
     SourceSpan source_;
     String message_;
@@ -128,34 +102,22 @@ public:
     Diagnostic(const Diagnostic&) = delete;
     Diagnostic& operator=(const Diagnostic&) = delete;
 
-    static Result<Diagnostic> Create(
-        DiagnosticCode code,
-        DiagnosticSeverity severity,
-        StringView message,
+    static Result<Diagnostic> Create(DiagnosticCode code, DiagnosticSeverity severity, StringView message,
         SourceSpan source = {},
         DiagnosticObjectId object = InvalidDiagnosticObjectId,
         MemberId member = InvalidMemberId) noexcept;
 
-    void AddNote(
-        StringView message,
-        SourceSpan source = {}) noexcept;
+    void AddNote(StringView message, SourceSpan source = {}) noexcept;
 
     DiagnosticCode Code() const noexcept { return code_; }
-    DiagnosticSeverity Severity() const noexcept {
-        return severity_;
-    }
-    StringView Message() const noexcept {
-        return message_.View();
-    }
+    DiagnosticSeverity Severity() const noexcept { return severity_; }
+    StringView Message() const noexcept { return message_.View(); }
     SourceSpan Source() const noexcept { return source_; }
     DiagnosticObjectId Object() const noexcept { return object_; }
     MemberId Member() const noexcept { return member_; }
-    Span<const DiagnosticNote> Notes() const noexcept {
-        return {notes_.Data(), notes_.Size()};
-    }
+    Span<const DiagnosticNote> Notes() const noexcept { return {notes_.Data(), notes_.Size()}; }
     bool IsError() const noexcept {
-        return severity_ == DiagnosticSeverity::Error ||
-            severity_ == DiagnosticSeverity::Fatal;
+        return severity_ == DiagnosticSeverity::Error || severity_ == DiagnosticSeverity::Fatal;
     }
 
 private:
@@ -174,47 +136,30 @@ class AERO_GUI_API IDiagnosticSink {
 public:
     virtual ~IDiagnosticSink() = default;
 
-    virtual Result<void> Report(
-        Diagnostic&& diagnostic) noexcept = 0;
+    virtual Result<void> Report(Diagnostic&& diagnostic) noexcept = 0;
 };
 
 class AERO_GUI_API DiagnosticBag  : public IDiagnosticSink {
 public:
-    explicit DiagnosticBag(
-        std::uint32_t maxDiagnostics = 1024U) noexcept;
+    explicit DiagnosticBag(std::uint32_t maxDiagnostics = 1024U) noexcept;
 
     DiagnosticBag(const DiagnosticBag&) = delete;
     DiagnosticBag& operator=(const DiagnosticBag&) = delete;
 
-    Result<void> Report(
-        Diagnostic&& diagnostic) noexcept override;
+    Result<void> Report(Diagnostic&& diagnostic) noexcept override;
 
-    Result<void> Report(
-        DiagnosticCode code,
-        DiagnosticSeverity severity,
-        StringView message,
-        SourceSpan source = {},
+    Result<void> Report(DiagnosticCode code, DiagnosticSeverity severity, StringView message, SourceSpan source = {},
         DiagnosticObjectId object = InvalidDiagnosticObjectId,
         MemberId member = InvalidMemberId) noexcept;
 
     void Clear() noexcept;
 
-    Span<const Diagnostic> Items() const noexcept {
-        return {items_.Data(), items_.Size()};
-    }
+    Span<const Diagnostic> Items() const noexcept { return {items_.Data(), items_.Size()}; }
     std::uint32_t Size() const noexcept { return items_.Size(); }
-    std::uint32_t MaxDiagnostics() const noexcept {
-        return maxDiagnostics_;
-    }
-    std::uint32_t WarningCount() const noexcept {
-        return warningCount_;
-    }
-    std::uint32_t ErrorCount() const noexcept {
-        return errorCount_;
-    }
-    std::uint32_t DroppedCount() const noexcept {
-        return droppedCount_;
-    }
+    std::uint32_t MaxDiagnostics() const noexcept { return maxDiagnostics_; }
+    std::uint32_t WarningCount() const noexcept { return warningCount_; }
+    std::uint32_t ErrorCount() const noexcept { return errorCount_; }
+    std::uint32_t DroppedCount() const noexcept { return droppedCount_; }
     bool HasErrors() const noexcept { return errorCount_ != 0U; }
 
 private:
