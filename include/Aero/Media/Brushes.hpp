@@ -113,20 +113,20 @@ private:
     FreezableChangedHandler stopChangedHandler_;
 };
 
-// Shader parameters are plain fields plus a generation counter. XAML still
-// sets Color and Time by name, without a dependency-property store.
-class AERO_GUI_API BrushShader : public Base::Object {
-    AERO_DECLARE_TYPE(BrushShader, Base::Object)
+// Shader parameters are a revision counter plus optional dependency
+// properties declared by a derived shader. XAML bindings require the owner
+// to be a DependencyObject.
+class AERO_GUI_API BrushShader : public DependencyObject {
+    AERO_DECLARE_TYPE(BrushShader, DependencyObject)
 public:
-    Meta::TypeId RuntimeType() const noexcept override { return runtimeType_; }
     std::uint64_t GetRevision() const noexcept { return revision_; }
-    BrushShader() noexcept : BrushShader(StaticTypeId()) {}
+    BrushShader() noexcept : DependencyObject(StaticTypeId()) {}
     ~BrushShader() override = default;
 protected:
-    explicit BrushShader(TypeId runtimeType) noexcept : runtimeType_(runtimeType) {}
+    explicit BrushShader(TypeId runtimeType) noexcept
+        : DependencyObject(runtimeType) {}
     void BumpRevision() noexcept { ++revision_; }
 private:
-    TypeId runtimeType_;
     std::uint64_t revision_ = 0U;
 };
 

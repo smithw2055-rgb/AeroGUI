@@ -126,7 +126,7 @@ public:
         if constexpr (AnimationRecordsPresence<T>) hasTo_ = true;
         WritePostscript();
     }
-    T GetCurrentValue(T defaultOriginValue, T defaultDestinationValue, double progress) const noexcept {
+    virtual T GetCurrentValue(T defaultOriginValue, T defaultDestinationValue, double progress) const noexcept {
         if constexpr (std::is_same_v<T, double>) { const double from = ResolveFrom(defaultOriginValue);
             const double to = ResolveTo(defaultDestinationValue);
             return from + (to - from) * progress;

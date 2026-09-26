@@ -10,6 +10,7 @@ class AERO_GUI_API ItemsPanelTemplate : public ::Aero::FrameworkTemplate {
 public:
     ItemsPanelTemplate() noexcept;
     ~ItemsPanelTemplate() noexcept override;
+    Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
     ItemsPanelTemplate(const ItemsPanelTemplate&) = delete;
     ItemsPanelTemplate& operator=(const ItemsPanelTemplate&) = delete;
 

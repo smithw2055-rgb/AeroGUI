@@ -80,7 +80,7 @@
     <Setter Property="ScrollViewer.PanningMode" Value="VerticalFirst"/>
   </Style>
   <Style TargetType="UserControl" BasedOn="{StaticResource Style.Base}"/>
-  <Style TargetType="Page" BasedOn="{StaticResource Style.Base}"/>
+  <Style TargetType="Page"/>
   <Style TargetType="Separator">
     <Setter Property="Background" Value="{DynamicResource Brush.Background.Normal}"/>
   </Style>

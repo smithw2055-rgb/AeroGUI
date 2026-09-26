@@ -23,6 +23,8 @@ public:
     void SetResources(Ref<ResourceDictionary> value) noexcept override;
     bool GetIsSealed() const noexcept override;
 
+    TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
+
 private:
     friend class HierarchicalDataTemplate;
 };
