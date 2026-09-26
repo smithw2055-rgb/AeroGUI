@@ -3,7 +3,7 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Media/Geometry.hpp>
+#include <Aero/Media/Geometries.hpp>
 #include <Aero/Media/Pen.hpp>
 
 namespace Aero::Media {

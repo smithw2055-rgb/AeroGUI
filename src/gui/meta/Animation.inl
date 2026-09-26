@@ -67,234 +67,134 @@ Base::Result<void> PopulateUiAnimation(
         .Factory();
 
     Register<EasingFunctionBase>(context, TypeFlags::Abstract)
-        .Property(EasingFunctionBase::EasingModeProperty, EasingMode::EaseOut);
+        .Property(EasingFunctionBase::EasingModeProperty, EasingMode::EaseOut)
+        .Property(EasingFunctionBase::ExponentProperty, 2.0)
+        .Property(EasingFunctionBase::PowerProperty, 2.0)
+        .Property(EasingFunctionBase::AmplitudeProperty, 1.0)
+        .Property(EasingFunctionBase::BouncesProperty, 3.0)
+        .Property(EasingFunctionBase::BouncinessProperty, 3.0)
+        .Property(EasingFunctionBase::OscillationsProperty, 3.0)
+        .Property(EasingFunctionBase::SpringinessProperty, 3.0);
 
-    Register<SineEase>(context).Factory();
-    Register<QuadraticEase>(context).Factory();
-    Register<CubicEase>(context).Factory();
-    Register<QuarticEase>(context).Factory();
-    Register<QuinticEase>(context).Factory();
-    Register<CircleEase>(context).Factory();
-    Register<ExponentialEase>(context)
-        .Property(ExponentialEase::ExponentProperty, 2.0)
+#define AERO_EASE_FACTORY(name, kind) \
+    +[]() noexcept -> Base::Result<Base::Ref<Base::Object>> { \
+        auto created = Base::MakeRef<EasingFunctionBase>( \
+            ::Aero::Meta::MakeTypeId(::Aero::Meta::AeroNamespaceUri(), #name), \
+            EasingFunctionBase::Kind::kind); \
+        if (!created) return created.GetStatus(); \
+        return Base::Ref<Base::Object>(std::move(created).Value()); \
+    }
+    RegisterAlias<EasingFunctionBase>(context, "SineEase")
+        .Factory(AERO_EASE_FACTORY(SineEase, Sine));
+    RegisterAlias<EasingFunctionBase>(context, "QuadraticEase")
+        .Factory(AERO_EASE_FACTORY(QuadraticEase, Quadratic));
+    RegisterAlias<EasingFunctionBase>(context, "CubicEase")
+        .Factory(AERO_EASE_FACTORY(CubicEase, Cubic));
+    RegisterAlias<EasingFunctionBase>(context, "QuarticEase")
+        .Factory(AERO_EASE_FACTORY(QuarticEase, Quartic));
+    RegisterAlias<EasingFunctionBase>(context, "QuinticEase")
+        .Factory(AERO_EASE_FACTORY(QuinticEase, Quintic));
+    RegisterAlias<EasingFunctionBase>(context, "CircleEase")
+        .Factory(AERO_EASE_FACTORY(CircleEase, Circle));
+    RegisterAlias<EasingFunctionBase>(context, "ExponentialEase")
+        .Factory(AERO_EASE_FACTORY(ExponentialEase, Exponential));
+    RegisterAlias<EasingFunctionBase>(context, "PowerEase")
+        .Factory(AERO_EASE_FACTORY(PowerEase, Power));
+    RegisterAlias<EasingFunctionBase>(context, "BackEase")
+        .Factory(AERO_EASE_FACTORY(BackEase, Back));
+    RegisterAlias<EasingFunctionBase>(context, "BounceEase")
+        .Factory(AERO_EASE_FACTORY(BounceEase, Bounce));
+    RegisterAlias<EasingFunctionBase>(context, "ElasticEase")
+        .Factory(AERO_EASE_FACTORY(ElasticEase, Elastic));
+#undef AERO_EASE_FACTORY
+
+#define AERO_FROM_TO_BASE(Name, CppType) \
+    Register<Name##AnimationBase>(context, TypeFlags::Abstract) \
+        .Property<CppType, &Name##AnimationBase::GetFrom, &Name##AnimationBase::SetFrom>("From") \
+        .Property<CppType, &Name##AnimationBase::GetTo, &Name##AnimationBase::SetTo>("To");
+
+#define AERO_FROM_TO_ANIMATION(Name, CppType) \
+    AERO_FROM_TO_BASE(Name, CppType) \
+    Register<Name##Animation>(context) \
+        .Property<Base::Ref<EasingFunctionBase>, &Name##Animation::GetEasingFunction, &Name##Animation::SetEasingFunction>("EasingFunction", PropertyFlags::Structural) \
         .Factory();
 
-    Register<PowerEase>(context)
-        .Property(PowerEase::PowerProperty, 2.0)
-        .Factory();
-
-    Register<BackEase>(context)
-        .Property(BackEase::AmplitudeProperty, 1.0)
-        .Factory();
-
-    Register<BounceEase>(context)
-        .Property(BounceEase::BouncesProperty, 3.0)
-        .Property(BounceEase::BouncinessProperty, 3.0)
-        .Factory();
-
-    Register<ElasticEase>(context)
-        .Property(ElasticEase::OscillationsProperty, 3.0)
-        .Property(ElasticEase::SpringinessProperty, 3.0)
-        .Factory();
-
-    Register<DoubleAnimationBase>(context, TypeFlags::Abstract)
-        .Property<double, &DoubleAnimationBase::GetFrom, &DoubleAnimationBase::SetFrom>("From")
-        .Property<double, &DoubleAnimationBase::GetTo, &DoubleAnimationBase::SetTo>("To");
-
+    AERO_FROM_TO_BASE(Double, double)
     Register<DoubleAnimation>(context)
         .Property<double, &DoubleAnimation::GetAccelerationRatio, &DoubleAnimation::SetAccelerationRatio>("AccelerationRatio")
         .Property<double, &DoubleAnimation::GetDecelerationRatio, &DoubleAnimation::SetDecelerationRatio>("DecelerationRatio")
         .Property<Base::Ref<EasingFunctionBase>, &DoubleAnimation::GetEasingFunction, &DoubleAnimation::SetEasingFunction>("EasingFunction", PropertyFlags::Structural)
         .Factory();
+    AERO_FROM_TO_ANIMATION(Color, Color)
+    AERO_FROM_TO_ANIMATION(Point, Point)
+    AERO_FROM_TO_ANIMATION(Rect, Rect)
+    AERO_FROM_TO_ANIMATION(Thickness, Base::Thickness)
+    AERO_FROM_TO_ANIMATION(Int16, std::int16_t)
+    AERO_FROM_TO_ANIMATION(Int32, std::int32_t)
+    AERO_FROM_TO_ANIMATION(Int64, std::int64_t)
+    AERO_FROM_TO_ANIMATION(Size, Base::Size)
+    AERO_FROM_TO_ANIMATION(Matrix, Base::Transform2D)
+#undef AERO_FROM_TO_BASE
+#undef AERO_FROM_TO_ANIMATION
 
-    Register<ColorAnimationBase>(context, TypeFlags::Abstract)
-        .Property<Color, &ColorAnimationBase::GetFrom, &ColorAnimationBase::SetFrom>("From")
-        .Property<Color, &ColorAnimationBase::GetTo, &ColorAnimationBase::SetTo>("To");
-
-    Register<ColorAnimation>(context)
-        .Property<Base::Ref<EasingFunctionBase>, &ColorAnimation::GetEasingFunction, &ColorAnimation::SetEasingFunction>("EasingFunction", PropertyFlags::Structural)
+#define AERO_KEY_FACTORY(Type, name, interpolation) \
+    +[]() noexcept -> Base::Result<Base::Ref<Base::Object>> { \
+        auto created = Base::MakeRef<Type>( \
+            ::Aero::Meta::MakeTypeId(::Aero::Meta::AeroNamespaceUri(), #name), \
+            KeyFrameBase::Interpolation::interpolation); \
+        if (!created) return created.GetStatus(); \
+        return Base::Ref<Base::Object>(std::move(created).Value()); \
+    }
+#define AERO_KEYFRAME_ALIAS(Name, Kind) \
+    RegisterAlias<Name##KeyFrame>(context, #Kind #Name "KeyFrame").Factory(AERO_KEY_FACTORY(Name##KeyFrame, Kind##Name##KeyFrame, Kind));
+#define AERO_KEYFRAME_ALIASES(Name) \
+    AERO_KEYFRAME_ALIAS(Name, Linear) \
+    AERO_KEYFRAME_ALIAS(Name, Discrete) \
+    AERO_KEYFRAME_ALIAS(Name, Easing) \
+    AERO_KEYFRAME_ALIAS(Name, Spline)
+#define AERO_KEYFRAME_VALUE(Name, CppType) \
+    Register<Name##KeyFrame>(context, TypeFlags::Abstract) \
+        .Property<CppType, &Name##KeyFrame::GetValue, &Name##KeyFrame::SetValue>("Value");
+#define AERO_KEYFRAME_COLLECTION(Name) \
+    Register<Name##AnimationUsingKeyFrames>(context) \
+        .Content<Name##KeyFrame>("KeyFrames", ContentKind::Collection, &Add##Name##KeyFrame, &Clear##Name##KeyFrames) \
         .Factory();
-
-    Register<PointAnimationBase>(context, TypeFlags::Abstract)
-        .Property<Point, &PointAnimationBase::GetFrom, &PointAnimationBase::SetFrom>("From")
-        .Property<Point, &PointAnimationBase::GetTo, &PointAnimationBase::SetTo>("To");
-
-    Register<PointAnimation>(context)
-        .Property<Base::Ref<EasingFunctionBase>, &PointAnimation::GetEasingFunction, &PointAnimation::SetEasingFunction>("EasingFunction", PropertyFlags::Structural)
-        .Factory();
-
-    Register<RectAnimationBase>(context, TypeFlags::Abstract)
-        .Property<Rect, &RectAnimationBase::GetFrom, &RectAnimationBase::SetFrom>("From")
-        .Property<Rect, &RectAnimationBase::GetTo, &RectAnimationBase::SetTo>("To");
-
-    Register<RectAnimation>(context)
-        .Property<Base::Ref<EasingFunctionBase>, &RectAnimation::GetEasingFunction, &RectAnimation::SetEasingFunction>("EasingFunction", PropertyFlags::Structural)
-        .Factory();
-
-    Register<ThicknessAnimationBase>(context, TypeFlags::Abstract)
-        .Property<Base::Thickness, &ThicknessAnimationBase::GetFrom, &ThicknessAnimationBase::SetFrom>("From")
-        .Property<Base::Thickness, &ThicknessAnimationBase::GetTo, &ThicknessAnimationBase::SetTo>("To");
-
-    Register<ThicknessAnimation>(context)
-        .Property<Base::Ref<EasingFunctionBase>, &ThicknessAnimation::GetEasingFunction, &ThicknessAnimation::SetEasingFunction>("EasingFunction", PropertyFlags::Structural)
-        .Factory();
-
-    Register<Int16AnimationBase>(context, TypeFlags::Abstract)
-        .Property<std::int16_t, &Int16AnimationBase::GetFrom, &Int16AnimationBase::SetFrom>("From")
-        .Property<std::int16_t, &Int16AnimationBase::GetTo, &Int16AnimationBase::SetTo>("To");
-    Register<Int16Animation>(context)
-        .Property<Base::Ref<EasingFunctionBase>, &Int16Animation::GetEasingFunction, &Int16Animation::SetEasingFunction>("EasingFunction", PropertyFlags::Structural)
-        .Factory();
-
-    Register<Int32AnimationBase>(context, TypeFlags::Abstract)
-        .Property<std::int32_t, &Int32AnimationBase::GetFrom, &Int32AnimationBase::SetFrom>("From")
-        .Property<std::int32_t, &Int32AnimationBase::GetTo, &Int32AnimationBase::SetTo>("To");
-    Register<Int32Animation>(context)
-        .Property<Base::Ref<EasingFunctionBase>, &Int32Animation::GetEasingFunction, &Int32Animation::SetEasingFunction>("EasingFunction", PropertyFlags::Structural)
-        .Factory();
-
-    Register<Int64AnimationBase>(context, TypeFlags::Abstract)
-        .Property<std::int64_t, &Int64AnimationBase::GetFrom, &Int64AnimationBase::SetFrom>("From")
-        .Property<std::int64_t, &Int64AnimationBase::GetTo, &Int64AnimationBase::SetTo>("To");
-    Register<Int64Animation>(context)
-        .Property<Base::Ref<EasingFunctionBase>, &Int64Animation::GetEasingFunction, &Int64Animation::SetEasingFunction>("EasingFunction", PropertyFlags::Structural)
-        .Factory();
-
-    Register<SizeAnimationBase>(context, TypeFlags::Abstract)
-        .Property<Base::Size, &SizeAnimationBase::GetFrom, &SizeAnimationBase::SetFrom>("From")
-        .Property<Base::Size, &SizeAnimationBase::GetTo, &SizeAnimationBase::SetTo>("To");
-    Register<SizeAnimation>(context)
-        .Property<Base::Ref<EasingFunctionBase>, &SizeAnimation::GetEasingFunction, &SizeAnimation::SetEasingFunction>("EasingFunction", PropertyFlags::Structural)
-        .Factory();
-
-    Register<MatrixAnimationBase>(context, TypeFlags::Abstract)
-        .Property<Base::Transform2D, &MatrixAnimationBase::GetFrom, &MatrixAnimationBase::SetFrom>("From")
-        .Property<Base::Transform2D, &MatrixAnimationBase::GetTo, &MatrixAnimationBase::SetTo>("To");
-    Register<MatrixAnimation>(context)
-        .Property<Base::Ref<EasingFunctionBase>, &MatrixAnimation::GetEasingFunction, &MatrixAnimation::SetEasingFunction>("EasingFunction", PropertyFlags::Structural)
-        .Factory();
-
+#define AERO_KEYFRAMES(Name, CppType) \
+    AERO_KEYFRAME_VALUE(Name, CppType) \
+    AERO_KEYFRAME_ALIASES(Name) \
+    AERO_KEYFRAME_COLLECTION(Name)
+#define AERO_DISCRETE_KEYFRAMES(Name, CppType) \
+    AERO_KEYFRAME_VALUE(Name, CppType) \
+    AERO_KEYFRAME_ALIAS(Name, Discrete) \
+    AERO_KEYFRAME_COLLECTION(Name)
     Register<KeyFrameBase>(context, TypeFlags::Abstract)
         .Property(KeyFrameBase::KeyTimeProperty, KeyTime{})
         .Property(KeyFrameBase::EasingFunctionProperty, Base::Ref<EasingFunctionBase>{}, AffectsRender)
         .Property(KeyFrameBase::KeySplineProperty, FrameworkPropertyMetadata(Base::String{}) .Changed(&KeyFrameBase::OnKeySplineChanged));
 
-    Register<DoubleKeyFrame>(context, TypeFlags::Abstract)
-        .Property<double, &DoubleKeyFrame::GetValue, &DoubleKeyFrame::SetValue>("Value");
-    Register<LinearDoubleKeyFrame>(context).Factory();
-    Register<DiscreteDoubleKeyFrame>(context).Factory();
-    Register<EasingDoubleKeyFrame>(context).Factory();
-    Register<SplineDoubleKeyFrame>(context).Factory();
-
-    Register<DoubleAnimationUsingKeyFrames>(context)
-        .Content<DoubleKeyFrame>("KeyFrames", ContentKind::Collection, &AddDoubleKeyFrame, &ClearDoubleKeyFrames)
-        .Factory();
-
-    Register<PointKeyFrame>(context, TypeFlags::Abstract)
-        .Property("Value", &PointKeyFrame::GetValue, &PointKeyFrame::SetValue);
-    Register<LinearPointKeyFrame>(context).Factory();
-    Register<DiscretePointKeyFrame>(context).Factory();
-    Register<EasingPointKeyFrame>(context).Factory();
-    Register<SplinePointKeyFrame>(context).Factory();
-
-    Register<PointAnimationUsingKeyFrames>(context)
-        .Content<PointKeyFrame>("KeyFrames", ContentKind::Collection, &AddPointKeyFrame, &ClearPointKeyFrames)
-        .Factory();
-
-    Register<ThicknessKeyFrame>(context, TypeFlags::Abstract)
-        .Property<Thickness, &ThicknessKeyFrame::GetValue, &ThicknessKeyFrame::SetValue>("Value");
-    Register<LinearThicknessKeyFrame>(context).Factory();
-    Register<DiscreteThicknessKeyFrame>(context).Factory();
-    Register<EasingThicknessKeyFrame>(context).Factory();
-    Register<SplineThicknessKeyFrame>(context).Factory();
-
-    Register<ThicknessAnimationUsingKeyFrames>(context)
-        .Content<ThicknessKeyFrame>("KeyFrames", ContentKind::Collection, &AddThicknessKeyFrame, &ClearThicknessKeyFrames)
-        .Factory();
-
-    Register<ColorKeyFrame>(context, TypeFlags::Abstract)
-        .Property<Base::Color, &ColorKeyFrame::GetValue, &ColorKeyFrame::SetValue>("Value");
-    Register<LinearColorKeyFrame>(context).Factory();
-    Register<DiscreteColorKeyFrame>(context).Factory();
-    Register<EasingColorKeyFrame>(context).Factory();
-    Register<SplineColorKeyFrame>(context).Factory();
-
-    Register<ColorAnimationUsingKeyFrames>(context)
-        .Content<ColorKeyFrame>("KeyFrames", ContentKind::Collection, &AddColorKeyFrame, &ClearColorKeyFrames)
-        .Factory();
+    AERO_KEYFRAMES(Double, double)
+    AERO_KEYFRAMES(Point, Point)
+    AERO_KEYFRAMES(Thickness, Thickness)
+    AERO_KEYFRAMES(Color, Base::Color)
+    AERO_KEYFRAMES(Int16, std::int16_t)
+    AERO_KEYFRAMES(Int32, std::int32_t)
+    AERO_KEYFRAMES(Int64, std::int64_t)
+    AERO_KEYFRAMES(Size, Base::Size)
+    AERO_KEYFRAMES(Matrix, Base::Transform2D)
 
     Register<ObjectKeyFrame>(context, TypeFlags::Abstract)
         .Property<Value, &ObjectKeyFrame::GetValue, &ObjectKeyFrame::SetValue>("Value", PropertyFlags::AnyValue);
-    Register<DiscreteObjectKeyFrame>(context).Factory();
+    AERO_KEYFRAME_ALIAS(Object, Discrete)
+    AERO_KEYFRAME_COLLECTION(Object)
 
-    Register<ObjectAnimationUsingKeyFrames>(context)
-        .Content<ObjectKeyFrame>("KeyFrames", ContentKind::Collection, &AddObjectKeyFrame, &ClearObjectKeyFrames)
-        .Factory();
-
-    Register<BooleanKeyFrame>(context, TypeFlags::Abstract)
-        .Property<bool, &BooleanKeyFrame::GetValue, &BooleanKeyFrame::SetValue>("Value");
-    Register<DiscreteBooleanKeyFrame>(context).Factory();
-
-    Register<BooleanAnimationUsingKeyFrames>(context)
-        .Content<BooleanKeyFrame>("KeyFrames", ContentKind::Collection, &AddBooleanKeyFrame, &ClearBooleanKeyFrames)
-        .Factory();
-
-    Register<Int16KeyFrame>(context, TypeFlags::Abstract)
-        .Property<std::int16_t, &Int16KeyFrame::GetValue, &Int16KeyFrame::SetValue>("Value");
-    Register<LinearInt16KeyFrame>(context).Factory();
-    Register<DiscreteInt16KeyFrame>(context).Factory();
-    Register<EasingInt16KeyFrame>(context).Factory();
-    Register<SplineInt16KeyFrame>(context).Factory();
-    Register<Int16AnimationUsingKeyFrames>(context)
-        .Content<Int16KeyFrame>("KeyFrames", ContentKind::Collection, &AddInt16KeyFrame, &ClearInt16KeyFrames)
-        .Factory();
-
-    Register<Int32KeyFrame>(context, TypeFlags::Abstract)
-        .Property<std::int32_t, &Int32KeyFrame::GetValue, &Int32KeyFrame::SetValue>("Value");
-    Register<LinearInt32KeyFrame>(context).Factory();
-    Register<DiscreteInt32KeyFrame>(context).Factory();
-    Register<EasingInt32KeyFrame>(context).Factory();
-    Register<SplineInt32KeyFrame>(context).Factory();
-    Register<Int32AnimationUsingKeyFrames>(context)
-        .Content<Int32KeyFrame>("KeyFrames", ContentKind::Collection, &AddInt32KeyFrame, &ClearInt32KeyFrames)
-        .Factory();
-
-    Register<Int64KeyFrame>(context, TypeFlags::Abstract)
-        .Property<std::int64_t, &Int64KeyFrame::GetValue, &Int64KeyFrame::SetValue>("Value");
-    Register<LinearInt64KeyFrame>(context).Factory();
-    Register<DiscreteInt64KeyFrame>(context).Factory();
-    Register<EasingInt64KeyFrame>(context).Factory();
-    Register<SplineInt64KeyFrame>(context).Factory();
-    Register<Int64AnimationUsingKeyFrames>(context)
-        .Content<Int64KeyFrame>("KeyFrames", ContentKind::Collection, &AddInt64KeyFrame, &ClearInt64KeyFrames)
-        .Factory();
-
-    Register<SizeKeyFrame>(context, TypeFlags::Abstract)
-        .Property<Base::Size, &SizeKeyFrame::GetValue, &SizeKeyFrame::SetValue>("Value");
-    Register<LinearSizeKeyFrame>(context).Factory();
-    Register<DiscreteSizeKeyFrame>(context).Factory();
-    Register<EasingSizeKeyFrame>(context).Factory();
-    Register<SplineSizeKeyFrame>(context).Factory();
-    Register<SizeAnimationUsingKeyFrames>(context)
-        .Content<SizeKeyFrame>("KeyFrames", ContentKind::Collection, &AddSizeKeyFrame, &ClearSizeKeyFrames)
-        .Factory();
-
-    Register<MatrixKeyFrame>(context, TypeFlags::Abstract)
-        .Property<Base::Transform2D, &MatrixKeyFrame::GetValue, &MatrixKeyFrame::SetValue>("Value");
-    Register<LinearMatrixKeyFrame>(context).Factory();
-    Register<DiscreteMatrixKeyFrame>(context).Factory();
-    Register<EasingMatrixKeyFrame>(context).Factory();
-    Register<SplineMatrixKeyFrame>(context).Factory();
-    Register<MatrixAnimationUsingKeyFrames>(context)
-        .Content<MatrixKeyFrame>("KeyFrames", ContentKind::Collection, &AddMatrixKeyFrame, &ClearMatrixKeyFrames)
-        .Factory();
-
-    Register<StringKeyFrame>(context, TypeFlags::Abstract)
-        .Property<Base::String, &StringKeyFrame::GetValue, &StringKeyFrame::SetValue>("Value");
-    Register<DiscreteStringKeyFrame>(context).Factory();
-    Register<StringAnimationUsingKeyFrames>(context)
-        .Content<StringKeyFrame>("KeyFrames", ContentKind::Collection, &AddStringKeyFrame, &ClearStringKeyFrames)
-        .Factory();
+    AERO_DISCRETE_KEYFRAMES(Boolean, bool)
+    AERO_DISCRETE_KEYFRAMES(String, Base::String)
+#undef AERO_KEYFRAME_ALIAS
+#undef AERO_KEYFRAME_ALIASES
+#undef AERO_KEYFRAME_VALUE
+#undef AERO_KEYFRAME_COLLECTION
+#undef AERO_KEYFRAMES
+#undef AERO_DISCRETE_KEYFRAMES
 
     Register<TriggerAction>(context, TypeFlags::Abstract);
 
@@ -452,3 +352,4 @@ Base::Result<void> PopulateUiAnimation(
         .Collection<Base::Object>("Behaviors", &AddInteractionBehavior, &ClearInteractionBehaviors, PropertyFlags::Attached | PropertyFlags::Structural);
     return {};
 }
+#undef AERO_KEY_FACTORY

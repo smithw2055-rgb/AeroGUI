@@ -1,13 +1,10 @@
 #pragma once
 
-#include <Aero/Controls/ListBox.hpp>
+#include <Aero/Controls/Selectors.hpp>
 #include <Aero/Controls/ListViewItem.hpp>
-#include <Aero/Controls/GridView.hpp>
-#include <Aero/Controls/GridViewHeaderRowPresenter.hpp>
-#include <Aero/Controls/GridViewRowPresenter.hpp>
+#include <Aero/Controls/GridViews.hpp>
 #include <Aero/Controls/TextBlock.hpp>
 
-namespace Aero::Meta { class Registration; }
 
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
@@ -16,8 +13,6 @@ class AERO_GUI_API ListView
     : public ListBox {
     AERO_DECLARE_TYPE(ListView, ListBox)
 public:
-    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
-
     ListView() noexcept
         : ListBox(StaticTypeId()) {}
     ~ListView() override = default;

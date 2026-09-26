@@ -1,8 +1,8 @@
 #include "render/DisplayList.hpp"
+#include "gui/meta/Describe.hpp"
 #include <Aero/Shapes.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Media/Pen.hpp>
-#include <Aero/Media/DashStyle.hpp>
 #include "gui/meta/TypeRegistryDetail.hpp"
 #include "gui/meta/ValueConversion.hpp"
 #include "gui/controls/ControlsMetadata.hpp"
@@ -743,7 +743,7 @@ void Polyline::OnRender(::Aero::Media::DrawingContext& context) noexcept {
     }
 }
 
-void Shape::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(Shape) {
     using namespace Aero::Meta;
     Register<Shape>(context, TypeFlags::Abstract)
         .Property(Shape::FillProperty, FrameworkPropertyMetadata(Base::Ref<Brush>{}, AffectsRender))
@@ -753,7 +753,7 @@ void Shape::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
         .Property(Shape::StretchProperty, Stretch::Fill, AffectsMeasure | AffectsRender);
 }
 
-void Rectangle::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(Rectangle) {
     using namespace Aero::Meta;
     Register<Rectangle>(context)
         .Property(Rectangle::RadiusXProperty, 0.0, AffectsRender, &Base::Validate::NonNegative<double>)
@@ -761,13 +761,8 @@ void Rectangle::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
         .Factory();
 }
 
-void Ellipse::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
-    using namespace Aero::Meta;
-    Register<Ellipse>(context)
-        .Factory();
-}
 
-void Path::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(Path) {
     using namespace Aero::Meta;
     using namespace Aero::Controls;
     Register<Path>(context)
@@ -788,7 +783,7 @@ void Path::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
         .Factory();
 }
 
-void Line::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(Line) {
     using namespace Aero::Meta;
     Register<Line>(context)
         .Property(Line::X1Property, 0.0, AffectsMeasure | AffectsRender)
@@ -798,7 +793,7 @@ void Line::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
         .Factory();
 }
 
-void Polygon::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(Polygon) {
     using namespace Aero::Meta;
     Register<Polygon>(context)
         .Property(Polygon::FillRuleProperty, FillRule::EvenOdd, AffectsRender)
@@ -806,7 +801,7 @@ void Polygon::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
         .Factory();
 }
 
-void Polyline::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(Polyline) {
     using namespace Aero::Meta;
     Register<Polyline>(context)
         .Property<Base::String, &Polyline::SetPointsText>("Points", PropertyFlags::None)

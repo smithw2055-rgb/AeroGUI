@@ -13,8 +13,6 @@ class AERO_GUI_API ScrollContentPresenter
       public IScrollInfo {
     AERO_DECLARE_TYPE(ScrollContentPresenter, ContentControl)
 public:
-    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
-
     ScrollContentPresenter() noexcept;
     ~ScrollContentPresenter() override = default;
 

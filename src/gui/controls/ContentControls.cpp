@@ -1,4 +1,5 @@
 #include "gui/core/ElementTree.hpp"
+#include "gui/meta/Describe.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
@@ -14,7 +15,8 @@
 #include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/DataTemplate.hpp>
 #include <Aero/Base/String.hpp>
-#include <Aero/Media/Transforms.hpp>
+#include <Aero/Media/Transform2D.hpp>
+#include <Aero/Media/Transform3D.hpp>
 #include <Aero/Shapes.hpp>
 #include <Aero/Documents.hpp>
 #include "gui/meta/TypeRegistryDetail.hpp"
@@ -821,8 +823,7 @@ Base::Result<Ref<FrameworkElement>> TabControl::GetContainerForItemOverride() co
     return Ref<FrameworkElement>(std::move(made).Value());
 }
 
-Base::Result<void>
-TabControl::SynchronizeSelection() noexcept {
+void TabControl::SynchronizeSelection() noexcept {
     const std::uint32_t value = GetSelectedIndex();
     const std::uint32_t count = GetCount();
     ItemContainerGenerator* generator = AttachedGenerator();
@@ -853,20 +854,19 @@ TabControl::SynchronizeSelection() noexcept {
               Meta::TypeOf<Base::Object>());
     SetReadOnlyCurrentValue(SelectedContentProperty, selectedContent);
     InvalidateMeasure();
-    return {};
 }
 
 void TabControl::OnSelectionChanged(
     const SelectionChangedEvent& event) {
     Selector::OnSelectionChanged(event);
-    static_cast<void>(SynchronizeSelection());
+    SynchronizeSelection();
 }
 
 void TabControl::OnPropertyChanged(
     const DependencyPropertyChangedEventArgs& args) noexcept {
     Selector::OnPropertyChanged(args);
     if (args.GetProperty() == SelectedIndexProperty) {
-        static_cast<void>(SynchronizeSelection());
+        SynchronizeSelection();
     }
 }
 
@@ -1888,7 +1888,7 @@ bool ValidateCornerRadiusValue(
 
 } // namespace
 
-void Control::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(Control) {
     using namespace Aero::Meta;
     Register<Control>(context)
         .Event(Control::PreviewMouseDoubleClickEvent, RoutingStrategy::Tunnel)
@@ -1909,7 +1909,7 @@ void Control::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
         .Factory<BasicControl>();
 }
 
-void ContentControl::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(ContentControl) {
     using namespace Aero::Meta;
     Register<ContentControl>(context)
         .Property(ContentControl::ContentProperty, FrameworkPropertyMetadata(Meta::Value::NullObject(Meta::TypeOf<Base::Object>()), AffectsMeasure).Structural())
@@ -1919,7 +1919,7 @@ void ContentControl::RegisterMetadata(::Aero::Meta::Registration& context) noexc
         .Factory<BasicContentControl>();
 }
 
-void HeaderedContentControl::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(HeaderedContentControl) {
     using namespace Aero::Meta;
     Register<HeaderedContentControl>(context)
         .Property(HeaderedContentControl::HeaderProperty, Meta::Value::NullObject(Meta::TypeOf<Base::Object>()), AffectsMeasure)
@@ -1927,14 +1927,14 @@ void HeaderedContentControl::RegisterMetadata(::Aero::Meta::Registration& contex
         .Factory<BasicHeaderedContentControl>();
 }
 
-void Decorator::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(Decorator) {
     using namespace Aero::Meta;
     Register<Decorator>(context)
         .Content<Aero::UIElement>("Content", ContentKind::Single, &SetDecoratorContent, &ClearDecoratorContent, ContentFlags::Visual)
         .Factory();
 }
 
-void BulletDecorator::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(BulletDecorator) {
     using namespace Aero::Meta;
     Register<BulletDecorator>(context)
         .Property(BulletDecorator::BackgroundProperty, Base::Ref<Aero::Media::Brush>{}, AffectsRender)
@@ -1942,7 +1942,7 @@ void BulletDecorator::RegisterMetadata(::Aero::Meta::Registration& context) noex
         .Factory();
 }
 
-void Viewbox::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(Viewbox) {
     using namespace Aero::Meta;
     Register<Viewbox>(context)
         .Property(Viewbox::StretchProperty, Stretch::Uniform, AffectsMeasure)
@@ -1951,7 +1951,7 @@ void Viewbox::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
         .Factory();
 }
 
-void Border::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(Border) {
     using namespace Aero::Meta;
     Register<Border>(context)
         .Property(Border::BackgroundProperty, Base::Ref<Media::Brush>{}, AffectsRender)
@@ -1962,7 +1962,7 @@ void Border::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
         .Factory();
 }
 
-void ContentPresenter::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(ContentPresenter) {
     using namespace Aero::Meta;
     Base::String defaultContentSource;
     (void)defaultContentSource.Assign(Base::StringView("Content"));
@@ -1975,31 +1975,8 @@ void ContentPresenter::RegisterMetadata(::Aero::Meta::Registration& context) noe
         .Factory();
 }
 
-void UserControl::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
-    using namespace Aero::Meta;
-    Register<UserControl>(context)
-        .Factory();
-}
 
-void Page::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
-    using namespace Aero::Meta;
-    Register<Page>(context)
-        .Factory();
-}
-
-void GroupBox::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
-    using namespace Aero::Meta;
-    Register<GroupBox>(context)
-        .Factory();
-}
-
-void Label::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
-    using namespace Aero::Meta;
-    Register<Label>(context)
-        .Factory();
-}
-
-void Expander::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(Expander) {
     using namespace Aero::Meta;
     Register<Expander>(context)
         .Event(Expander::ExpandedEvent)
@@ -2009,14 +1986,14 @@ void Expander::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
         .Factory();
 }
 
-void TabItem::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(TabItem) {
     using namespace Aero::Meta;
     Register<TabItem>(context)
         .Property(TabItem::IsSelectedProperty, false, AffectsRender)
         .Factory();
 }
 
-void TabControl::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(TabControl) {
     using namespace Aero::Meta;
     Register<TabControl>(context)
         .Property(TabControl::SelectedContentProperty, Meta::Value::NullObject(Meta::TypeOf<Base::Object>()))
@@ -2025,15 +2002,10 @@ void TabControl::RegisterMetadata(::Aero::Meta::Registration& context) noexcept 
         .Factory();
 }
 
-void TabPanel::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
-    using namespace Aero::Meta;
-    Register<TabPanel>(context)
-        .Factory();
-}
 
 namespace Primitives {
 
-void Popup::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(Popup) {
     using namespace Aero::Meta;
     Register<Popup>(context)
         .Event(Popup::OpenedEvent)

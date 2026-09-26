@@ -177,7 +177,12 @@ private:
 };
 
 } // namespace Aero
-namespace Aero::Meta { class Registry; class Registration; }
+namespace Aero::Meta {
+class Registry;
+class Registration;
+template<class T>
+struct DescribeHook;
+}
 namespace Aero::Meta {
 using Base::InvalidMemberId;
 using Base::InvalidTypeId;
@@ -485,7 +490,11 @@ public: \
             Aero::StringView(metadataName)); \
     static constexpr Aero::Base::TypeId StaticTypeId() noexcept { \
         return StaticTypeIdValue_; \
-    }
+    } \
+private: \
+    friend struct ::Aero::Meta::DescribeHook<typeName>; \
+    static void DescribeMetadata(::Aero::Meta::Registration&) noexcept; \
+public:
 
 #define AERO_DECLARE_TYPE(typeName, metadataBaseType) \
     AERO_DECLARE_TYPE_NAMED(\

@@ -1,4 +1,5 @@
 #include "gui/core/ElementTree.hpp"
+#include "gui/meta/Describe.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
@@ -7,7 +8,7 @@
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleEngine.hpp"
 #include <Aero/Controls.hpp>
-#include <Aero/Controls/StackPanel.hpp>
+#include <Aero/Controls/Panels.hpp>
 #include "gui/meta/TypeRegistryDetail.hpp"
 
 #include <algorithm>
@@ -169,7 +170,7 @@ ToolBar::OnApplyTemplate() noexcept {
     if (overflowGlyph_ == nullptr) {
         return;
     }
-    static_cast<void>(SynchronizeToolBar());
+    SynchronizeToolBar();
 }
 
 void ToolBar::OnTemplateDetached() noexcept {
@@ -186,16 +187,15 @@ void ToolBar::OnPropertyChanged(
         prop == OrientationProperty ||
         prop == OverflowCapacityProperty ||
         prop == IsOverflowOpenProperty) {
-        static_cast<void>(SynchronizeToolBar());
+        SynchronizeToolBar();
     }
 }
 
 void ToolBar::OnContainersChanged() noexcept {
-    static_cast<void>(SynchronizeToolBar());
+    SynchronizeToolBar();
 }
 
-Base::Result<void>
-ToolBar::SynchronizeToolBar() noexcept {
+void ToolBar::SynchronizeToolBar() noexcept {
     if (headerText_ != nullptr) {
         const Meta::Value headerValue = GetHeader();
         headerText_->SetText(
@@ -247,7 +247,6 @@ ToolBar::SynchronizeToolBar() noexcept {
             ? Base::StringView("...")
             : Base::StringView(""));
     }
-    return {};
 }
 
 Base::Result<Base::Ref<FrameworkElement>>
@@ -321,7 +320,7 @@ void ToolTipService::SetShowDuration(
         ShowDurationProperty, value);
 }
 
-void ToolBar::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(ToolBar) {
     using namespace Aero::Meta;
     Register<ToolBar>(context)
         .Property(ToolBar::HeaderProperty, Value::NullObject(TypeOf<Base::Object>()), AffectsMeasure)
@@ -334,38 +333,22 @@ void ToolBar::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
         .Factory();
 }
 
-void ToolBarPanel::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
-    using namespace Aero::Meta;
-    Register<ToolBarPanel>(context)
-        .Factory();
-}
 
-void ToolBarOverflowPanel::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
-    using namespace Aero::Meta;
-    Register<ToolBarOverflowPanel>(context)
-        .Factory();
-}
-
-void ToolBarTray::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(ToolBarTray) {
     using namespace Aero::Meta;
     Register<ToolBarTray>(context, TypeFlags::Abstract)
         .Property(ToolBarTray::IsLockedProperty, false);
 }
 
-void StatusBar::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(StatusBar) {
     using namespace Aero::Meta;
     Register<StatusBar>(context)
         .Property(StatusBar::IsSizingGripVisibleProperty, true, AffectsMeasure)
         .Factory();
 }
 
-void StatusBarItem::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
-    using namespace Aero::Meta;
-    Register<StatusBarItem>(context)
-        .Factory();
-}
 
-void ToolTip::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(ToolTip) {
     using namespace Aero::Meta;
     Register<ToolTip>(context)
         .Property(ToolTip::InitialShowDelayProperty, std::uint32_t{400U})
@@ -373,7 +356,7 @@ void ToolTip::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
         .Factory();
 }
 
-void ToolTipService::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(ToolTipService) {
     using namespace Aero::Meta;
     Register<ToolTipService>(context, TypeFlags::Abstract)
         .Property(ToolTipService::ToolTipProperty, Base::Ref<ToolTip>{})

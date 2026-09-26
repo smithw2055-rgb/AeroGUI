@@ -1,7 +1,7 @@
 #include "gui/ViewFrame.hpp"
 #include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/triggers/TriggerValueCompare.hpp"
-#include <Aero/Media/Animation/EventTrigger.hpp>
+#include <Aero/EventTrigger.hpp>
 
 #include <algorithm>
 #include <cmath>

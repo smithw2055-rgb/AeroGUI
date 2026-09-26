@@ -14,8 +14,6 @@ using ::Aero::Meta::TypeId;
 class AERO_GUI_API Decorator : public FrameworkElement {
     AERO_DECLARE_TYPE(Decorator, FrameworkElement)
 public:
-    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
-
     // Decorator is constructible in the reference XAML surface and is used as
     // a lightweight single-child layout node in control templates.
     Decorator() noexcept : Decorator(StaticTypeId()) {}

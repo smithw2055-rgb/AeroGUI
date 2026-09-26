@@ -71,6 +71,13 @@ public:
     bool GetHasWidth() const noexcept;
     bool GetHasHeight() const noexcept;
     double GetWidth() const noexcept;
+    void SetAnimatedWidth(Length value) noexcept { layoutScalars_.width = value; }
+    void SetAnimatedHeight(Length value) noexcept { layoutScalars_.height = value; }
+    void SetAnimatedMinWidth(double value) noexcept { layoutScalars_.minWidth = value; }
+    void SetAnimatedMinHeight(double value) noexcept { layoutScalars_.minHeight = value; }
+    void SetAnimatedMaxWidth(double value) noexcept { layoutScalars_.maxWidth = value; }
+    void SetAnimatedMaxHeight(double value) noexcept { layoutScalars_.maxHeight = value; }
+    void SetAnimatedMargin(Thickness value) noexcept { layoutScalars_.margin = value; }
     double GetHeight() const noexcept;
     double GetActualWidth() const noexcept {
         return GetValue(ActualWidthProperty);
@@ -188,6 +195,7 @@ protected:
     virtual DependencyObject* GetLogicalChild(std::uint32_t index) const noexcept { return GetVisualChild(index); }
     void OnPropertyInvalidated(
         PropertyInvalidationFlags flags) noexcept override;
+    void SyncLayoutScalars() noexcept;
     // NOTE: empty default kept intentionally. Viewbox spacer and other
     // non-visual FrameworkElements rely on zero desired size; UIElement's
     // default (return available) would inflate them. Panel/Control override.
@@ -210,6 +218,17 @@ protected:
         ::Aero::Media::DrawingContext& context) noexcept override;
 
 private:
+    struct LayoutScalars {
+        Length width{};
+        Length height{};
+        double minWidth = 0.0;
+        double maxWidth = 1.0e12;
+        double minHeight = 0.0;
+        double maxHeight = 1.0e12;
+        Thickness margin{};
+    };
+    LayoutScalars layoutScalars_{};
+
     FrameworkElement* GetRenderParent() const noexcept;
     FrameworkElementChildRange GetRenderChildren() const noexcept {
         return FrameworkElementChildRange(*this);

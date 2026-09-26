@@ -10,7 +10,8 @@
 #include <Aero/Meta.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Effects.hpp>
-#include <Aero/Media/Transforms.hpp>
+#include <Aero/Media/Transform2D.hpp>
+#include <Aero/Media/Transform3D.hpp>
 #include <Aero/Shapes.hpp>
 #include <Aero/Interactivity/BlendBehaviors.hpp>
 #include <Aero/View.hpp>

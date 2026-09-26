@@ -1,7 +1,6 @@
 #include "render/DisplayList.hpp"
 #include <Aero/Shapes.hpp>
-#include <Aero/Media/StreamGeometry.hpp>
-#include <Aero/Media/PathGeometry.hpp>
+#include <Aero/Media/Geometries.hpp>
 #include <Aero/Media/Pen.hpp>
 #include "gui/media/GeometryFlatten.hpp"
 #include "gui/media/StrokeTessellate.hpp"

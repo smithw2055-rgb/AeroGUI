@@ -150,7 +150,7 @@ MetadataAuthoringSession CreateDescriptionSession(
     Registration& context,
     TypeFlags flags) noexcept;
 
-template<class T>
+template<class T, bool Alias = false>
 MetadataAuthoringSession CreateNamedDescriptionSession(
     Registration& context,
     Base::StringView metadataNamespace,
@@ -165,7 +165,7 @@ private:
     friend MetadataAuthoringSession CreateDescriptionSession(
         Registration& context,
         TypeFlags flags) noexcept;
-    template<class T>
+    template<class T, bool Alias>
     friend MetadataAuthoringSession CreateNamedDescriptionSession(
         Registration& context,
         Base::StringView metadataNamespace,
@@ -413,7 +413,7 @@ MetadataAuthoringSession CreateDescriptionSession(
     return session;
 }
 
-template<class T>
+template<class T, bool Alias>
 MetadataAuthoringSession CreateNamedDescriptionSession(
     Registration& context,
     Base::StringView metadataNamespace,
@@ -443,7 +443,11 @@ MetadataAuthoringSession CreateNamedDescriptionSession(
     } else if constexpr (
         std::is_base_of_v<Base::Object, T>) {
         kind = MetadataTypeKind::Object;
-        baseType = TypeTraits<T>::BaseType();
+        if constexpr (Alias) {
+            baseType = TypeTraits<T>::Id();
+        } else {
+            baseType = TypeTraits<T>::BaseType();
+        }
         registration = TypeRegistration::Object(
             metadataNamespace, metadataName, baseType, flags);
     } else if constexpr (std::is_abstract_v<T>) {
@@ -468,7 +472,7 @@ MetadataAuthoringSession CreateNamedDescriptionSession(
             metadataName,
             baseType,
             kind});
-    if constexpr (HasRuntimeTypeToken<T>::value) {
+    if constexpr (HasRuntimeTypeToken<T>::value && !Alias) {
         if (bindingStatus.IsOk()) {
             bindingStatus = BindRuntimeTypeInfo(
                 TypeTraits<T>::Token(),

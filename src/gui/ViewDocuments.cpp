@@ -792,14 +792,8 @@ Base::Result<void> MountViewFragment(
         FreeObject(*state_->allocator, Base::MemoryTag::Ui, fragment);
         return tracked.GetStatus();
     }
-    Base::Result<void> assigned = AeroGuiInternal::SetOwnedContent(host,
+    AeroGuiInternal::SetOwnedContent(host,
         fragment->document.root, *rootElement.Value());
-    if (!assigned) {
-        restoreActiveNames();
-        fragment->document.Clear();
-        FreeObject(*state_->allocator, Base::MemoryTag::Ui, fragment);
-        return assigned.GetStatus();
-    }
 
     ElementTree& context = *state_->tree;
     // Templated ContentControl hosts Content through a ContentPresenter.

@@ -2,7 +2,7 @@
 
 #include <Aero/TextFormatting.hpp>
 #include <Aero/FrameworkElement.hpp>
-#include <Aero/Media/Brush.hpp>
+#include <Aero/Media/Brushes.hpp>
 #include <Aero/Style.hpp>
 #include <utility>
 
@@ -17,8 +17,6 @@ class ItemContainerGenerator;
 class AERO_GUI_API Control : public FrameworkElement {
     AERO_DECLARE_TYPE(Control, FrameworkElement)
 public:
-    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
-
     inline static constexpr RoutedEvent<MouseButtonEventArgs> PreviewMouseDoubleClickEvent{"PreviewMouseDoubleClick"};
     Event<MouseButtonEventArgs> PreviewMouseDoubleClick() noexcept {
         return GetEvent(PreviewMouseDoubleClickEvent);

@@ -5,15 +5,12 @@
 
 
 namespace Aero { class AeroGuiInternal; }
-namespace Aero::Meta { class Registration; }
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
 using ::Aero::Media::ImageSource;
 class AERO_GUI_API Image : public FrameworkElement {
     AERO_DECLARE_TYPE(Image, FrameworkElement)
 public:
-    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
-
     Image() noexcept
         : FrameworkElement(StaticTypeId()) {}
     ~Image() override = default;

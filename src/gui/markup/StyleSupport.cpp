@@ -23,13 +23,11 @@
 #include <Aero/TryCast.hpp>
 #include <Aero/Layout.hpp>
 #include <Aero/Media/Brushes.hpp>
-#include <Aero/Media/Geometry.hpp>
-#include <Aero/Media/StreamGeometry.hpp>
-#include <Aero/Media/Transform.hpp>
+#include <Aero/Media/Geometries.hpp>
+#include <Aero/Media/Transform2D.hpp>
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Controls/TextBlock.hpp>
-#include <Aero/Documents/Span.hpp>
-#include <Aero/Documents/Inline.hpp>
+#include <Aero/Documents/Inlines.hpp>
 
 #include <new>
 #include <utility>

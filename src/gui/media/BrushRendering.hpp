@@ -102,36 +102,6 @@ inline Base::Color SampleGradient(
     return result;
 }
 
-inline double ShaderDouble(
-    const Media::BrushShader& shader,
-    Base::StringView name,
-    double fallback) noexcept {
-    const Meta::DependencyProperty* property =
-        AeroGuiInternal::PropertyRegistry(shader).Find(shader.RuntimeType(), name);
-    if (property == nullptr) return fallback;
-    Base::Result<Meta::Value> value =
-        shader.GetValue(property->Handle());
-    if (!value) return fallback;
-    Base::Result<double> decoded =
-        Meta::ValueCodec<double>::Decode(value.Value());
-    return decoded ? decoded.Value() : fallback;
-}
-
-inline Base::Color ShaderColor(
-    const Media::BrushShader& shader,
-    Base::StringView name,
-    Base::Color fallback) noexcept {
-    const Meta::DependencyProperty* property =
-        AeroGuiInternal::PropertyRegistry(shader).Find(shader.RuntimeType(), name);
-    if (property == nullptr) return fallback;
-    Base::Result<Meta::Value> value =
-        shader.GetValue(property->Handle());
-    if (!value) return fallback;
-    Base::Result<Base::Color> decoded =
-        Meta::ValueCodec<Base::Color>::Decode(value.Value());
-    return decoded ? decoded.Value() : fallback;
-}
-
 inline Base::Color SampleStops(
     Base::Span<const Base::Ref<Media::GradientStop>> stops,
     double position,
@@ -194,7 +164,9 @@ inline Base::Color ApplyShader(
                 .GetGradientStops(),
             angle, source);
     }
-    const double time = ShaderDouble(shader, "Time", 0.0);
+    const double time = shader.RuntimeType() == Media::WavesShader::StaticTypeId()
+        ? static_cast<const Media::WavesShader&>(shader).GetTime()
+        : 0.0;
     if (shader.RuntimeType() == Media::WavesShader::StaticTypeId()) {
         const float wave = static_cast<float>(
             0.65 + 0.35 * std::sin(
@@ -202,14 +174,14 @@ inline Base::Color ApplyShader(
         return {source.red * wave, source.green * wave,
             source.blue * wave, source.alpha};
     }
-    const double scaleX = ShaderDouble(shader, "ScaleX", 64.0);
-    const double scaleY = ShaderDouble(shader, "ScaleY", 64.0);
-    const double seed = ShaderDouble(shader, "Seed", 0.0);
+    const double scaleX = 64.0;
+    const double scaleY = 64.0;
+    const double seed = 0.0;
     const double phase =
         std::sin((uv.x * scaleX + uv.y * scaleY + seed) * 12.9898 +
                  time * 0.0001) * 43758.5453;
     const float noise = static_cast<float>(phase - std::floor(phase));
-    const Base::Color color = ShaderColor(shader, "Color", source);
+    const Base::Color color = source;
     const float amount = 0.35F + noise * 0.65F;
     return {color.red * amount, color.green * amount,
         color.blue * amount, source.alpha * color.alpha};

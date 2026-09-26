@@ -7,10 +7,11 @@
 #include <Aero/Events.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Fonts.hpp>
-#include <Aero/Media/Transforms.hpp>
+#include <Aero/Media/Transform2D.hpp>
+#include <Aero/Media/Transform3D.hpp>
 #include <Aero/Media/Effects.hpp>
-#include <Aero/Media/Geometry.hpp>
-#include <Aero/Media/Animation/EventTrigger.hpp>
+#include <Aero/Media/Geometries.hpp>
+#include <Aero/EventTrigger.hpp>
 #include <Aero/Markup/XamlReader.hpp>
 #include <Aero/Controls.hpp>
 #include <cmath>
@@ -152,16 +153,14 @@ HorizontalAlignment FrameworkElement::GetHorizontalAlignment() const noexcept {
 
 // from src/gui/controls/Layout.cpp
 Thickness FrameworkElement::GetMargin() const noexcept {
-    return GetValue(MarginProperty);
+    return layoutScalars_.margin;
 }
 
 // from src/gui/controls/Layout.cpp
 Size FrameworkElement::GetMaxSize() const noexcept {
     const Size minimum = GetMinSize();
-    const double authoredWidth =
-        GetValue(MaxWidthProperty);
-    const double authoredHeight =
-        GetValue(MaxHeightProperty);
+    const double authoredWidth = layoutScalars_.maxWidth;
+    const double authoredHeight = layoutScalars_.maxHeight;
     // Resolve contradictory template/style ordering at layout time. Min values
     // take precedence without rejecting an otherwise valid WPF template.
     return {
@@ -171,33 +170,27 @@ Size FrameworkElement::GetMaxSize() const noexcept {
 
 // from src/gui/controls/Layout.cpp
 Size FrameworkElement::GetMinSize() const noexcept {
-    return {
-        GetValue(MinWidthProperty),
-        GetValue(MinHeightProperty)};
+    return {layoutScalars_.minWidth, layoutScalars_.minHeight};
 }
 
 // from src/gui/controls/Layout.cpp
 double FrameworkElement::GetHeight() const noexcept {
-    const Length length =
-        GetValue(HeightProperty);
-    return length.isAuto ? 0.0 : length.value;
+    return layoutScalars_.height.isAuto ? 0.0 : layoutScalars_.height.value;
 }
 
 // from src/gui/controls/Layout.cpp
 double FrameworkElement::GetWidth() const noexcept {
-    const Length length =
-        GetValue(WidthProperty);
-    return length.isAuto ? 0.0 : length.value;
+    return layoutScalars_.width.isAuto ? 0.0 : layoutScalars_.width.value;
 }
 
 // from src/gui/controls/Layout.cpp
 bool FrameworkElement::GetHasHeight() const noexcept {
-    return !GetValue(HeightProperty).isAuto;
+    return !layoutScalars_.height.isAuto;
 }
 
 // from src/gui/controls/Layout.cpp
 bool FrameworkElement::GetHasWidth() const noexcept {
-    return !GetValue(WidthProperty).isAuto;
+    return !layoutScalars_.width.isAuto;
 }
 
 // from src/gui/controls/Layout.cpp

@@ -10,7 +10,6 @@ class InlineCollection;
 class InlineCollectionView;
 class TextPointer;
 }
-namespace Aero::Meta { class Registration; }
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
 using ::Aero::Media::Brush;
@@ -18,8 +17,6 @@ using ::Aero::Media::FrameworkElementForegroundProperty;
 class AERO_GUI_API TextBlock : public FrameworkElement {
     AERO_DECLARE_TYPE(TextBlock, FrameworkElement)
 public:
-    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
-
     // Source-retained formatting produced by RichText markup. Text layout
     // keeps byte offsets for hit testing, so the same ranges can tint shaped
     // glyphs without replacing the public Documents inline model.
@@ -35,6 +32,7 @@ public:
     TextBlock() noexcept;
     ~TextBlock() override;
     StringView GetText() const noexcept;
+    void InvalidateDocumentText() noexcept;
     Ref<Brush> GetForeground() const noexcept;
     Ref<Brush> GetBackground() const noexcept;
     double GetFontSize() const noexcept;
@@ -96,6 +94,7 @@ protected:
     Size MeasureOverride(Size availableSize) noexcept override;
     Size ArrangeOverride(Size finalSize) noexcept override;
     void OnRender(::Aero::Media::DrawingContext& context) noexcept override;
+    void OnPropertyInvalidated(PropertyInvalidationFlags flags) noexcept override;
     std::uint32_t GetVisualChildrenCount() const noexcept override;
     ::Aero::Media::Visual* GetVisualChild(std::uint32_t index) const noexcept override;
 private:
@@ -108,6 +107,8 @@ private:
     Base::Vector<std::uint64_t> glyphRuns_;
     Base::Vector<TextHitRegion> textHitRegions_;
     Base::Vector<Ref<Base::Object>> ownedInlines_;
+    mutable Base::String flatText_;
+    mutable bool flatTextValid_ = false;
     Base::Vector<RichTextStyleRange> richTextStyleRanges_;
     Ref<Base::Object> pendingInline_;
     Size glyphRunSize_;

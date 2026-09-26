@@ -7,11 +7,12 @@
 #include <Aero/Events.hpp>
 #include <Aero/Threading.hpp>
 #include <Aero/Media/Brushes.hpp>
-#include <Aero/Media/Transforms.hpp>
+#include <Aero/Media/Transform2D.hpp>
+#include <Aero/Media/Transform3D.hpp>
 #include <Aero/Media/Effects.hpp>
 #include <Aero/Markup/XamlReader.hpp>
 #include <Aero/Controls.hpp>
-#include <Aero/Documents/TextElement.hpp>
+#include <Aero/Documents/Inlines.hpp>
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/TryCast.hpp>
 #include "gui/core/ElementTree.hpp"

@@ -24,8 +24,6 @@ class ItemContainerGenerator;
 class AERO_GUI_API ItemsControl : public Control {
     AERO_DECLARE_TYPE(ItemsControl, Control)
 public:
-    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
-
     ItemsControl() noexcept;
     ~ItemsControl() override;
 

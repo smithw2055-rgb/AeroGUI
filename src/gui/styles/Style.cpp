@@ -17,7 +17,7 @@
 #include <Aero/Style.hpp>
 #include <Aero/TextProperties.hpp>
 #include <Aero/EventSetter.hpp>
-#include <Aero/Triggers/Triggers.hpp>
+#include <Aero/Triggers.hpp>
 #include <Aero/Value.hpp>
 #include <Aero/UIElement.hpp>
 

@@ -17,9 +17,8 @@
 #include <Aero/TryCast.hpp>
 #include <Aero/Resources.hpp>
 #include <Aero/Freezable.hpp>
-#include <Aero/Media/Geometry.hpp>
-#include <Aero/Media/SolidColorBrush.hpp>
-#include <Aero/Media/StreamGeometry.hpp>
+#include <Aero/Media/Geometries.hpp>
+#include <Aero/Media/Brushes.hpp>
 
 #include <cmath>
 #include <cstdio>

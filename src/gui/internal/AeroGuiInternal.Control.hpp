@@ -2,21 +2,19 @@
 // Control / template / items, panel, authored lists, text.
 
     // --- FrameworkElement interaction lists ---
-    static Base::Result<void> SetTemplatedParent(
+    static void SetTemplatedParent(
         FrameworkElement& element,
         DependencyObject* value) noexcept {
         element.SetTemplatedParent(value);
-        return {};
     }
     static void AddAuthoredTrigger(
         FrameworkElement& element,
         Base::Ref<Base::Object> trigger) noexcept {
         element.AddAuthoredTrigger(std::move(trigger));
     }
-    static Base::Result<void> ClearAuthoredTriggers(
+    static void ClearAuthoredTriggers(
         FrameworkElement& element) noexcept {
         element.ClearAuthoredTriggers();
-        return {};
     }
     static Base::Span<const Base::Ref<Base::Object>> AuthoredTriggers(
         const FrameworkElement& element) noexcept {
@@ -27,10 +25,9 @@
         Base::Ref<Base::Object> behavior) noexcept {
         element.AddAuthoredBehavior(std::move(behavior));
     }
-    static Base::Result<void> ClearAuthoredBehaviors(
+    static void ClearAuthoredBehaviors(
         FrameworkElement& element) noexcept {
         element.ClearAuthoredBehaviors();
-        return {};
     }
     static Base::Span<const Base::Ref<Base::Object>> AuthoredBehaviors(
         const FrameworkElement& element) noexcept {
@@ -41,10 +38,9 @@
         Base::Ref<Base::Object> trigger) noexcept {
         element.AddStyleTriggerPrototype(std::move(trigger));
     }
-    static Base::Result<void> ClearStyleTriggerPrototypes(
+    static void ClearStyleTriggerPrototypes(
         FrameworkElement& element) noexcept {
         element.ClearStyleTriggerPrototypes();
-        return {};
     }
     static Base::Span<const Base::Ref<Base::Object>> StyleTriggerPrototypes(
         const FrameworkElement& element) noexcept {
@@ -55,10 +51,9 @@
         Base::Ref<Base::Object> behavior) noexcept {
         element.AddStyleBehaviorPrototype(std::move(behavior));
     }
-    static Base::Result<void> ClearStyleBehaviorPrototypes(
+    static void ClearStyleBehaviorPrototypes(
         FrameworkElement& element) noexcept {
         element.ClearStyleBehaviorPrototypes();
-        return {};
     }
     static Base::Span<const Base::Ref<Base::Object>> StyleBehaviorPrototypes(
         const FrameworkElement& element) noexcept {
@@ -69,10 +64,9 @@
         Base::Ref<Base::Object> trigger) noexcept {
         element.AddAuthoredTrigger(std::move(trigger));
     }
-    static Base::Result<void> ClearAuthoredTriggers(
+    static void ClearAuthoredTriggers(
         FrameworkContentElement& element) noexcept {
         element.ClearAuthoredTriggers();
-        return {};
     }
     static Base::Span<const Base::Ref<Base::Object>> AuthoredTriggers(
         const FrameworkContentElement& element) noexcept {
@@ -106,12 +100,11 @@
         const Controls::Decorator& decorator) noexcept {
         return decorator.ownedChild_;
     }
-    static Base::Result<void> DecoratorSetOwnedChild(
+    static void DecoratorSetOwnedChild(
         Controls::Decorator& decorator,
         const Base::Ref<Base::Object>& owner,
         UIElement& child) noexcept {
         decorator.SetOwnedChild(owner, child);
-        return {};
     }
 
     // --- Control / template / items ---
@@ -131,10 +124,9 @@
     static UIElement* TemplateRoot(const Controls::Control& control) noexcept {
         return control.templateChild_;
     }
-    static Base::Result<void> SetTemplateRoot(
+    static void SetTemplateRoot(
         Controls::Control& control, UIElement* child) noexcept {
         control.SetTemplateChildCore(child);
-        return {};
     }
     static void NotifyTemplateApplied(
         Controls::Control& control, std::uint64_t handleValue) noexcept {
@@ -158,31 +150,27 @@
         const Controls::ContentControl& control) noexcept {
         return control.contentValue_;
     }
-    static Base::Result<void> SetOwnedContent(
+    static void SetOwnedContent(
         Controls::ContentControl& control,
         const Base::Ref<Base::Object>& owner,
         UIElement& content) noexcept {
         control.SetOwnedContent(owner, content);
-        return {};
     }
-    static Base::Result<void> SetGeneratedTextContent(
+    static void SetGeneratedTextContent(
         Controls::ContentControl& container,
         const Base::Ref<Base::Object>& contentObject,
         UIElement& content) noexcept {
         container.SetGeneratedTextContent(contentObject, content);
-        return {};
     }
-    static Base::Result<void> SetContentValue(
+    static void SetContentValue(
         Controls::ContentControl& control,
         Base::Ref<Base::Object> value) noexcept {
         control.SetContentValue(std::move(value));
-        return {};
     }
-    static Base::Result<void> SetContentValue(
+    static void SetContentValue(
         Controls::ContentControl& control,
         Meta::Value value) noexcept {
         control.SetContentValue(std::move(value));
-        return {};
     }
     static bool HasAttachedGenerator(
         const Controls::ItemsControl& control) noexcept {
@@ -249,7 +237,7 @@
         Base::Vector<GridLength>& output) noexcept;
 
     // --- ElementTree visual child storage hooks ---
-    static Base::Result<void> EnsureVisualChildStorage(
+    static void EnsureVisualChildStorage(
         Media::Visual& parent,
         Media::Visual& child) noexcept;
     static void AttachVisualControlTemplateRoot(

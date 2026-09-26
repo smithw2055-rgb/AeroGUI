@@ -1,4 +1,5 @@
 #include "render/DisplayList.hpp"
+#include "gui/meta/Describe.hpp"
 #include <Aero/Controls.hpp>
 #include "gui/meta/TypeRegistryDetail.hpp" 
 
@@ -175,7 +176,7 @@ void Image::OnRender(
         renderImage_, destination, uv));
 }
 
-void Image::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(Image) {
     using namespace Aero::Meta;
     Register<Image>(context)
         .Property(Image::SourceProperty, Base::Ref<Media::ImageSource>{}, AffectsMeasure | AffectsRender)

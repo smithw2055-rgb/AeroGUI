@@ -18,8 +18,6 @@ class AERO_GUI_API TreeViewItem
     : public HeaderedItemsControl {
     AERO_DECLARE_TYPE(TreeViewItem, HeaderedItemsControl)
 public:
-    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
-
     TreeViewItem() noexcept;
     ~TreeViewItem() override;
 
@@ -90,8 +88,7 @@ private:
     void OnExpandButtonClick(
         Base::Object* sender,
         RoutedEventArgs& args) noexcept;
-    Result<void>
-        SynchronizeTemplate() noexcept;
+    void SynchronizeTemplate() noexcept;
     void ProjectHeaderContent() noexcept;
     void ProjectRealizedHeaders() noexcept;
     void SetHierarchicalContent(Ref<Base::Object> source, Ref<DataTemplate> itemTemplate) noexcept;

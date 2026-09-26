@@ -14,7 +14,7 @@
 #include <Aero/Controls/ScrollViewer.hpp>
 #include <Aero/Controls/Viewbox.hpp>
 #include <Aero/Controls/HeaderedItemsControl.hpp>
-#include <Aero/Controls/Primitives/ToggleButton.hpp>
+#include <Aero/Controls/Buttons.hpp>
 #include <Aero/Controls/TreeViewItem.hpp>
 #include <Aero/Data/IMultiValueConverter.hpp>
 #include <Aero/Data/IValueConverter.hpp>
@@ -28,9 +28,8 @@
 #include <Aero/Markup/XamlDocument.hpp>
 #include <Aero/Markup/XamlReader.hpp>
 #include <Aero/Media/Animation/DoubleAnimationBase.hpp>
-#include <Aero/Media/Animation/Duration.hpp>
-#include <Aero/Media/BrushShader.hpp>
-#include <Aero/Media/SolidColorBrush.hpp>
+#include <Aero/Media/Animation/Timeline.hpp>
+#include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Images.hpp>
 #include <Aero/Meta.hpp>
 #include <Aero/Module.hpp>

@@ -1,4 +1,5 @@
 #include "gui/meta/TypeRegistryDetail.hpp"
+#include "gui/meta/Describe.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
@@ -10,13 +11,14 @@
 #include "gui/styles/StyleEngine.hpp"
 #include "render/DisplayList.hpp"
 #include <Aero/Controls.hpp>
-#include <Aero/Controls/ListBox.hpp>
+#include <Aero/Controls/Selectors.hpp>
 #include <Aero/Controls/TreeView.hpp>
 #include <Aero/Shapes.hpp>
-#include <Aero/Media/Transforms.hpp>
+#include <Aero/Media/Transform2D.hpp>
+#include <Aero/Media/Transform3D.hpp>
 #include "gui/media/BrushRendering.hpp"
 #include <Aero/Documents.hpp>
-#include <Aero/Media/SolidColorBrush.hpp>
+#include <Aero/Media/Brushes.hpp>
 #include <Aero/Base/String.hpp>
 #include "gui/meta/ValueConversion.hpp"
 #include "ControlsMetadata.hpp"
@@ -447,7 +449,7 @@ void ClearSpanInlines(
 
 } // namespace
 
-void TextBlock::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(TextBlock) {
     namespace Docs = Aero::Documents;
     using namespace Aero::Media;
     using namespace Aero::Meta;

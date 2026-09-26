@@ -11,23 +11,16 @@
 
 // Panels
 #include <Aero/Controls/Panel.hpp>
-#include <Aero/Controls/StackPanel.hpp>
-#include <Aero/Controls/DockPanel.hpp>
-#include <Aero/Controls/WrapPanel.hpp>
-#include <Aero/Controls/UniformGrid.hpp>
+#include <Aero/Controls/Panels.hpp>
 #include <Aero/Controls/VirtualizingPanel.hpp>
 #include <Aero/Controls/VirtualizingStackPanel.hpp>
 #include <Aero/Controls/VirtualizingWrapPanel.hpp>
-#include <Aero/Controls/Canvas.hpp>
 #include <Aero/Controls/Grid.hpp>
 
 // Primitives & Buttons
 #include <Aero/Controls/Primitives/ButtonBase.hpp>
 #include <Aero/Controls/Button.hpp>
-#include <Aero/Controls/Primitives/RepeatButton.hpp>
-#include <Aero/Controls/Primitives/ToggleButton.hpp>
-#include <Aero/Controls/CheckBox.hpp>
-#include <Aero/Controls/RadioButton.hpp>
+#include <Aero/Controls/Buttons.hpp>
 #include <Aero/Controls/Primitives/Thumb.hpp>
 #include <Aero/Controls/Primitives/Track.hpp>
 #include <Aero/Controls/Primitives/RangeBase.hpp>
@@ -62,13 +55,7 @@
 
 // Selection
 #include <Aero/Controls/Primitives/Selector.hpp>
-#include <Aero/Controls/ListBox.hpp>
-#include <Aero/Controls/ListBoxItem.hpp>
-#include <Aero/Controls/ComboBox.hpp>
-#include <Aero/Controls/ComboBoxItem.hpp>
-#include <Aero/Controls/TabItem.hpp>
-#include <Aero/Controls/TabControl.hpp>
-#include <Aero/Controls/TabPanel.hpp>
+#include <Aero/Controls/Selectors.hpp>
 
 // Trees
 #include <Aero/Controls/TreeView.hpp>
@@ -95,143 +82,117 @@
 #include <Aero/Controls/Image.hpp>
 
 // Shapes
-#include <Aero/Shapes/Shape.hpp>
-#include <Aero/Shapes/Rectangle.hpp>
-#include <Aero/Shapes/Ellipse.hpp>
-#include <Aero/Shapes/Path.hpp>
-#include <Aero/Shapes/Line.hpp>
-#include <Aero/Shapes/Polygon.hpp>
-#include <Aero/Shapes/Polyline.hpp>
+#include <Aero/Shapes.hpp>
 
 // ListView & GridView
-#include <Aero/Controls/GridViewColumnHeader.hpp>
-#include <Aero/Controls/GridViewColumn.hpp>
-#include <Aero/Controls/GridView.hpp>
-#include <Aero/Controls/GridViewHeaderRowPresenter.hpp>
-#include <Aero/Controls/GridViewRowPresenter.hpp>
+#include <Aero/Controls/GridViews.hpp>
 #include <Aero/Controls/ListView.hpp>
 #include <Aero/Controls/ListViewItem.hpp>
+#include "gui/meta/Describe.hpp"
 
 namespace Aero::Controls {
 
 Base::Result<void> PopulateControlsMetadata(
     ::Aero::Meta::Registration& context) noexcept {
-    // Templates
-    FrameworkTemplate::RegisterMetadata(context);
-    ControlTemplate::RegisterMetadata(context);
-    DataTemplate::RegisterMetadata(context);
-    DataTemplateSelector::RegisterMetadata(context);
-    HierarchicalDataTemplate::RegisterMetadata(context);
-    ItemsPanelTemplate::RegisterMetadata(context);
-
-    // Panels
-    Panel::RegisterMetadata(context);
-    StackPanel::RegisterMetadata(context);
-    DockPanel::RegisterMetadata(context);
-    WrapPanel::RegisterMetadata(context);
-    UniformGrid::RegisterMetadata(context);
-    VirtualizingPanel::RegisterMetadata(context);
-    VirtualizingStackPanel::RegisterMetadata(context);
-    VirtualizingWrapPanel::RegisterMetadata(context);
-    Canvas::RegisterMetadata(context);
-    Grid::RegisterMetadata(context);
-
-    // Content & Decorators (base types first: metadata Override() on a
-    // derived type requires its base chain to be registered already)
-    Control::RegisterMetadata(context);
-    ContentControl::RegisterMetadata(context);
-    HeaderedContentControl::RegisterMetadata(context);
-    Decorator::RegisterMetadata(context);
-    Border::RegisterMetadata(context);
-    BulletDecorator::RegisterMetadata(context);
-    Viewbox::RegisterMetadata(context);
-    ContentPresenter::RegisterMetadata(context);
-
-    // Primitives & Buttons
-    Primitives::ButtonBase::RegisterMetadata(context);
-    Button::RegisterMetadata(context);
-    Primitives::RepeatButton::RegisterMetadata(context);
-    Primitives::ToggleButton::RegisterMetadata(context);
-    CheckBox::RegisterMetadata(context);
-    RadioButton::RegisterMetadata(context);
-    Primitives::Thumb::RegisterMetadata(context);
-    Primitives::Track::RegisterMetadata(context);
-    Primitives::RangeBase::RegisterMetadata(context);
-    Primitives::ScrollBar::RegisterMetadata(context);
-    Slider::RegisterMetadata(context);
-    TickBar::RegisterMetadata(context);
-    ProgressBar::RegisterMetadata(context);
-    GridSplitter::RegisterMetadata(context);
-    ScrollContentPresenter::RegisterMetadata(context);
-    ScrollViewer::RegisterMetadata(context);
-    UserControl::RegisterMetadata(context);
-    Page::RegisterMetadata(context);
-    GroupBox::RegisterMetadata(context);
-    Label::RegisterMetadata(context);
-    Expander::RegisterMetadata(context);
-    Primitives::Popup::RegisterMetadata(context);
-
-    // Items
-    ItemsControl::RegisterMetadata(context);
-    HeaderedItemsControl::RegisterMetadata(context);
-    ItemsPresenter::RegisterMetadata(context);
-
-    // Selection
-    Primitives::Selector::RegisterMetadata(context);
-    ListBox::RegisterMetadata(context);
-    ListBoxItem::RegisterMetadata(context);
-    ComboBox::RegisterMetadata(context);
-    ComboBoxItem::RegisterMetadata(context);
-    TabItem::RegisterMetadata(context);
-    TabControl::RegisterMetadata(context);
-    TabPanel::RegisterMetadata(context);
-
-    // Trees
-    TreeView::RegisterMetadata(context);
-    TreeViewItem::RegisterMetadata(context);
-
-    // Menus
-    Menu::RegisterMetadata(context);
-    MenuItem::RegisterMetadata(context);
-    ContextMenu::RegisterMetadata(context);
-    ContextMenuService::RegisterMetadata(context);
-    Separator::RegisterMetadata(context);
-
-    // Bars & ToolTips
-    ToolBar::RegisterMetadata(context);
-    ToolBarPanel::RegisterMetadata(context);
-    ToolBarOverflowPanel::RegisterMetadata(context);
-    ToolBarTray::RegisterMetadata(context);
-    StatusBar::RegisterMetadata(context);
-    StatusBarItem::RegisterMetadata(context);
-    ToolTip::RegisterMetadata(context);
-    ToolTipService::RegisterMetadata(context);
-
-    // Text & Media
-    TextBlock::RegisterMetadata(context);
-    Primitives::TextBoxBase::RegisterMetadata(context);
-    TextBox::RegisterMetadata(context);
-    PasswordBox::RegisterMetadata(context);
-    Image::RegisterMetadata(context);
-
-    // Shapes
-    Shapes::Shape::RegisterMetadata(context);
-    Shapes::Rectangle::RegisterMetadata(context);
-    Shapes::Ellipse::RegisterMetadata(context);
-    Shapes::Path::RegisterMetadata(context);
-    Shapes::Line::RegisterMetadata(context);
-    Shapes::Polygon::RegisterMetadata(context);
-    Shapes::Polyline::RegisterMetadata(context);
-
-    // ListView & GridView
-    GridViewColumnHeader::RegisterMetadata(context);
-    GridViewColumn::RegisterMetadata(context);
-    GridView::RegisterMetadata(context);
-    GridViewHeaderRowPresenter::RegisterMetadata(context);
-    GridViewRowPresenter::RegisterMetadata(context);
-    ListView::RegisterMetadata(context);
-    ListViewItem::RegisterMetadata(context);
-
+    // Describes live next to each control. Installing them records the
+    // function; EnsureRegisteredPack then registers bases before derived types.
+    static bool describesInstalled = false;
+    if (!describesInstalled) {
+        describesInstalled = true;
+#include "gui/controls/ControlDescribes.inl"
+    }
+    ::Aero::Meta::EnsureRegisteredPack<
+        FrameworkTemplate,
+        ControlTemplate,
+        DataTemplate,
+        DataTemplateSelector,
+        HierarchicalDataTemplate,
+        ItemsPanelTemplate,
+        Panel,
+        StackPanel,
+        DockPanel,
+        WrapPanel,
+        UniformGrid,
+        VirtualizingPanel,
+        VirtualizingStackPanel,
+        VirtualizingWrapPanel,
+        Canvas,
+        Grid,
+        Control,
+        ContentControl,
+        HeaderedContentControl,
+        Decorator,
+        Border,
+        BulletDecorator,
+        Viewbox,
+        ContentPresenter,
+        Primitives::ButtonBase,
+        Button,
+        Primitives::RepeatButton,
+        Primitives::ToggleButton,
+        CheckBox,
+        RadioButton,
+        Primitives::Thumb,
+        Primitives::Track,
+        Primitives::RangeBase,
+        Primitives::ScrollBar,
+        Slider,
+        TickBar,
+        ProgressBar,
+        GridSplitter,
+        ScrollContentPresenter,
+        ScrollViewer,
+        UserControl,
+        Page,
+        GroupBox,
+        Label,
+        Expander,
+        Primitives::Popup,
+        ItemsControl,
+        HeaderedItemsControl,
+        ItemsPresenter,
+        Primitives::Selector,
+        ListBox,
+        ListBoxItem,
+        ComboBox,
+        ComboBoxItem,
+        TabItem,
+        TabControl,
+        TabPanel,
+        TreeView,
+        TreeViewItem,
+        Menu,
+        MenuItem,
+        ContextMenu,
+        ContextMenuService,
+        Separator,
+        ToolBar,
+        ToolBarPanel,
+        ToolBarOverflowPanel,
+        ToolBarTray,
+        StatusBar,
+        StatusBarItem,
+        ToolTip,
+        ToolTipService,
+        TextBlock,
+        Primitives::TextBoxBase,
+        TextBox,
+        PasswordBox,
+        Image,
+        Shapes::Shape,
+        Shapes::Rectangle,
+        Shapes::Ellipse,
+        Shapes::Path,
+        Shapes::Line,
+        Shapes::Polygon,
+        Shapes::Polyline,
+        GridViewColumnHeader,
+        GridViewColumn,
+        GridView,
+        GridViewHeaderRowPresenter,
+        GridViewRowPresenter,
+        ListView,
+        ListViewItem>(context);
     return {};
 }
 

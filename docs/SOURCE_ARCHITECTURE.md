@@ -64,29 +64,22 @@ that still declares a `Detail` or `Runtime` namespace.
 
 ## Trigger and behavior headers
 
-The old `include/Aero/Triggers/` bucket mixed three WPF concepts with three
-different namespaces. It is now split into a WPF-faithful three-way layout so a
-WPF developer can find a type by its .NET namespace:
+The style-trigger types live in one header, `<Aero/Triggers.hpp>`, in the `Aero`
+namespace. Blend interactivity stays under `include/Aero/Interactivity/`.
+Storyboard and media actions stay under `include/Aero/Media/Animation/`.
 
 ```text
-include/Aero/Triggers/          Aero::*            core WPF style triggers
-    TriggerBase.hpp  Trigger.hpp  DataTrigger.hpp
-    MultiTrigger.hpp  MultiDataTrigger.hpp  Conditions.hpp (Aero::Condition)
-    Triggers.hpp                      Style/template trigger umbrella
+include/Aero/Triggers.hpp        Aero::*            Trigger, DataTrigger, MultiTrigger,
+                                                    MultiDataTrigger, TriggerBase, Setter, Condition
 
 include/Aero/Interactivity/      Aero::Interactivity   System.Windows.Interactivity (Blend)
     Behavior.hpp  BlendBehaviors.hpp  TriggerAction.hpp
-    ChangePropertyAction.hpp  SetFocusAction.hpp
-    RemoveElementAction.hpp  LaunchUriOrFileAction.hpp
-    InteractionTriggers.hpp  (PropertyChangedTrigger, KeyTrigger,
-                              InvokeCommandAction, SelectAction,
-                              SelectAllAction, PlaySoundAction)
-    Conditions.hpp       (ComparisonCondition, ConditionalExpression,
-                          ConditionBehavior, the Blend condition primitives)
+    InteractionTriggers.hpp  Conditions.hpp
 
 include/Aero/Media/Animation/    Aero::Media::Animation   System.Windows.Media.Animation
-    EventTrigger.hpp  StoryboardActions.hpp (BeginStoryboard, etc.)
+    StoryboardActions.hpp (BeginStoryboard, etc.)
     StoryboardCompletedTrigger.hpp  TimerTrigger.hpp  MediaActions.hpp
+include/Aero/EventTrigger.hpp    Aero::Media::Animation   EventTrigger (beside Triggers.hpp)
 ```
 
 Rules:
@@ -106,9 +99,9 @@ reference it through `using Aero::Interactivity::TriggerAction;`. The Blend
 condition primitives (`ComparisonCondition`, `ConditionalExpression`,
 `ConditionBehavior`) were relocated from `Aero::Media::Animation` to
 `Aero::Interactivity` because they are authored through interactivity XAML and
-are not part of the timeline model. `Triggers.hpp` includes only Style/template
-triggers (`TriggerBase`, `Trigger`, `DataTrigger`, `MultiTrigger`,
-`MultiDataTrigger`, `Conditions`). Blend and Media.Animation types keep their
+are not part of the timeline model. `<Aero/Triggers.hpp>` owns the Style/template
+types (`TriggerBase`, `Setter`, `Condition`, `Trigger`, `DataTrigger`,
+`MultiTrigger`, `MultiDataTrigger`). Blend and Media.Animation types keep their
 own headers.
 
 ## View composition

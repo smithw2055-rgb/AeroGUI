@@ -22,8 +22,7 @@
 #include <Aero/Documents.hpp>
 
 
-#include <Aero/Media/StreamGeometry.hpp>
-#include <Aero/Media/Geometry.hpp>
+#include <Aero/Media/Geometries.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/HierarchicalDataTemplate.hpp>
 #include <Aero/Controls/ControlTemplate.hpp>
@@ -350,6 +349,15 @@ CompileBlueprint(
         Base::Result<void> named =
             node.name.Assign(name);
         if (!named) return named.GetStatus();
+
+        if (auto* framework = ::Aero::TryCast<FrameworkElement>(object)) {
+            for (const auto& b : AeroGuiInternal::AuthoredBehaviors(*framework)) {
+                node.authoredBehaviors.PushBack(b);
+            }
+            for (const auto& t : AeroGuiInternal::AuthoredTriggers(*framework)) {
+                node.authoredTriggers.PushBack(t);
+            }
+        }
 
         auto& dependencyObject =
             static_cast<DependencyObject&>(*object);
@@ -1922,6 +1930,14 @@ Base::Result<void> BuildCompiledTemplate(
                 gradient, node.gradientStops, &context);
             if (!stops) return stops.GetStatus();
         }
+        if (auto* framework = ::Aero::TryCast<FrameworkElement>(objects[index].Get())) {
+            for (const auto& b : node.authoredBehaviors) {
+                AeroGuiInternal::AddStyleBehaviorPrototype(*framework, b);
+            }
+            for (const auto& t : node.authoredTriggers) {
+                AeroGuiInternal::AddStyleTriggerPrototype(*framework, t);
+            }
+        }
     }
     for (std::uint32_t index = 0U;
          index < blueprint->nodes.Size();
@@ -2376,6 +2392,14 @@ BuildCompiledDeferredTemplate(
             Base::Result<void> stops = ApplyPrototypeGradientStops(
                 gradient, node.gradientStops, nullptr);
             if (!stops) return stops.GetStatus();
+        }
+        if (auto* framework = ::Aero::TryCast<FrameworkElement>(objects[index].Get())) {
+            for (const auto& b : node.authoredBehaviors) {
+                AeroGuiInternal::AddStyleBehaviorPrototype(*framework, b);
+            }
+            for (const auto& t : node.authoredTriggers) {
+                AeroGuiInternal::AddStyleTriggerPrototype(*framework, t);
+            }
         }
     }
     for (std::uint32_t index = 0U;

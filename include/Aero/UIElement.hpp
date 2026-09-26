@@ -100,6 +100,8 @@ public:
 
     inline static constexpr RoutedEvent<MouseButtonEventArgs> MouseLeftButtonDownEvent{"MouseLeftButtonDown"};
     Event<MouseButtonEventArgs> MouseLeftButtonDown() noexcept { return GetEvent(MouseLeftButtonDownEvent); }
+    inline static constexpr RoutedEvent<MouseButtonEventArgs> MouseRightButtonDownEvent{"MouseRightButtonDown"};
+    Event<MouseButtonEventArgs> MouseRightButtonDown() noexcept { return GetEvent(MouseRightButtonDownEvent); }
 
     inline static constexpr RoutedEvent<MouseButtonEventArgs> PreviewMouseUpEvent{"PreviewMouseUp"};
     Event<MouseButtonEventArgs> PreviewMouseUp() noexcept { return GetEvent(PreviewMouseUpEvent); }
@@ -124,6 +126,10 @@ public:
     inline static constexpr RoutedEvent<MouseButtonEventArgs> MouseLeftButtonUpEvent{"MouseLeftButtonUp"};
     Event<MouseButtonEventArgs> MouseLeftButtonUp() noexcept {
         return GetEvent(MouseLeftButtonUpEvent);
+    }
+    inline static constexpr RoutedEvent<MouseButtonEventArgs> MouseRightButtonUpEvent{"MouseRightButtonUp"};
+    Event<MouseButtonEventArgs> MouseRightButtonUp() noexcept {
+        return GetEvent(MouseRightButtonUpEvent);
     }
 
     inline static constexpr RoutedEvent<DragEventArgs> PreviewDragEnterEvent{"PreviewDragEnter"};
@@ -241,6 +247,8 @@ public:
     Ref<Media::Effect> GetEffect() const noexcept;
     Ref<Media::Brush> GetOpacityMask() const noexcept;
     double GetOpacity() const noexcept;
+    void SetAnimatedOpacity(double value) noexcept { layout_.opacity = value; }
+    void SetAnimatedVisibility(Visibility value) noexcept { layout_.visibility = value; }
     bool GetIsHitTestVisible() const noexcept;
     Visibility GetVisibility() const noexcept;
     bool GetIsVisible() const noexcept;
@@ -324,7 +332,6 @@ public:
         Size previousMeasureConstraint{};
         Rect layoutSlot{};
         Rect layoutClip{};
-        Rect visualRect{};
         std::uint64_t layoutRevision = 0U;
         bool layoutAttached : 1;
         bool measureValid : 1;
@@ -333,6 +340,10 @@ public:
         bool arrangeQueued : 1;
         bool measuring : 1;
         bool arranging : 1;
+        // Cached from the dependency properties so measure and hit-testing
+        // do not look them up again.
+        double opacity = 1.0;
+        Visibility visibility = Visibility::Visible;
     };
 
     struct Rare {
@@ -340,6 +351,14 @@ public:
         void* inputBindings = nullptr;
         void* commandBindings = nullptr;
     };
+
+    // Most-derived handler for one routed event. New input events register
+    // here instead of adding a virtual. Built-in controls do the same.
+    using ClassHandler = void (*)(UIElement& element, RoutedEventArgs& args) noexcept;
+    static void RegisterClassHandler(
+        TypeId ownerType,
+        RoutedEventHandle event,
+        ClassHandler handler) noexcept;
 
 protected:
     void RaiseEvent(RoutedEventHandle event, RoutedEventArgs* args = nullptr) noexcept;
@@ -354,28 +373,28 @@ protected:
     virtual std::uint32_t GetLayoutChildrenCount() const noexcept;
     virtual UIElement* GetLayoutChild(std::uint32_t index) const noexcept;
 
-    virtual void OnPreviewMouseDown(MouseButtonEventArgs& args);
-    virtual void OnMouseDown(MouseButtonEventArgs& args);
-    virtual void OnMouseLeftButtonDown(MouseButtonEventArgs& args);
-    virtual void OnMouseRightButtonDown(MouseButtonEventArgs& args);
-    virtual void OnPreviewMouseUp(MouseButtonEventArgs& args);
-    virtual void OnMouseUp(MouseButtonEventArgs& args);
-    virtual void OnMouseLeftButtonUp(MouseButtonEventArgs& args);
-    virtual void OnMouseRightButtonUp(MouseButtonEventArgs& args);
-    virtual void OnPreviewMouseMove(MouseEventArgs& args);
-    virtual void OnMouseMove(MouseEventArgs& args);
-    virtual void OnMouseEnter(MouseEventArgs& args);
-    virtual void OnMouseLeave(MouseEventArgs& args);
-    virtual void OnPreviewMouseWheel(MouseWheelEventArgs& args);
-    virtual void OnMouseWheel(MouseWheelEventArgs& args);
-    virtual void OnPreviewKeyDown(KeyEventArgs& args);
-    virtual void OnKeyDown(KeyEventArgs& args);
-    virtual void OnPreviewKeyUp(KeyEventArgs& args);
-    virtual void OnKeyUp(KeyEventArgs& args);
-    virtual void OnPreviewTextInput(TextCompositionEventArgs& args);
-    virtual void OnTextInput(TextCompositionEventArgs& args);
-    virtual void OnGotKeyboardFocus(KeyboardFocusChangedEventArgs& args);
-    virtual void OnLostKeyboardFocus(KeyboardFocusChangedEventArgs& args);
+    void OnPreviewMouseDown(MouseButtonEventArgs& args);
+    void OnMouseDown(MouseButtonEventArgs& args);
+    void OnMouseLeftButtonDown(MouseButtonEventArgs& args);
+    void OnMouseRightButtonDown(MouseButtonEventArgs& args);
+    void OnPreviewMouseUp(MouseButtonEventArgs& args);
+    void OnMouseUp(MouseButtonEventArgs& args);
+    void OnMouseLeftButtonUp(MouseButtonEventArgs& args);
+    void OnMouseRightButtonUp(MouseButtonEventArgs& args);
+    void OnPreviewMouseMove(MouseEventArgs& args);
+    void OnMouseMove(MouseEventArgs& args);
+    void OnMouseEnter(MouseEventArgs& args);
+    void OnMouseLeave(MouseEventArgs& args);
+    void OnPreviewMouseWheel(MouseWheelEventArgs& args);
+    void OnMouseWheel(MouseWheelEventArgs& args);
+    void OnPreviewKeyDown(KeyEventArgs& args);
+    void OnKeyDown(KeyEventArgs& args);
+    void OnPreviewKeyUp(KeyEventArgs& args);
+    void OnKeyUp(KeyEventArgs& args);
+    void OnPreviewTextInput(TextCompositionEventArgs& args);
+    void OnTextInput(TextCompositionEventArgs& args);
+    void OnGotKeyboardFocus(KeyboardFocusChangedEventArgs& args);
+    void OnLostKeyboardFocus(KeyboardFocusChangedEventArgs& args);
     Result<void> MeasureChild(
         UIElement& child, Size availableSize) noexcept;
     Result<void> ArrangeChild(
@@ -398,6 +417,10 @@ private:
         LayoutEngine& layout,
         Rect slot) noexcept;
 
+    void InvokeClassHandler(
+        RoutedEventHandle event,
+        RoutedEventArgs& args) noexcept;
+    void EnsureInputClassHandlers() noexcept;
     void AddHandlerErased(
         RoutedEventHandle event,
         const void* handler,

@@ -1177,6 +1177,13 @@ namespace {
 
 } // namespace
 
+bool Registration::ContainsType(TypeId type) const noexcept {
+    const ::Aero::RegistrationState& state =
+        *static_cast<const ::Aero::RegistrationState*>(state_);
+    return state.types != nullptr &&
+        state.types->FindType(type) != nullptr;
+}
+
 RegistrationTypes Registration::Types() noexcept {
     ::Aero::RegistrationState& state = State(state_);
     return RegistrationTypes(

@@ -2,7 +2,6 @@
 
 #include <Aero/Controls/Popup.hpp>
 
-namespace Aero::Meta { class Registration; }
 
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
@@ -11,8 +10,6 @@ class AERO_GUI_API ToolTip
     : public Primitives::Popup {
     AERO_DECLARE_TYPE(ToolTip, Primitives::Popup)
 public:
-    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
-
     ToolTip() noexcept
         : Primitives::Popup(StaticTypeId()) {}
     ~ToolTip() override = default;
@@ -33,8 +30,6 @@ class AERO_GUI_API ToolTipService
     AERO_DECLARE_TYPE(
         ToolTipService, Base::Object)
 public:
-    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
-
     TypeId RuntimeType() const noexcept override {
         return StaticTypeId();
     }

@@ -1,4 +1,4 @@
-#include <Aero/Media/StreamGeometry.hpp>
+#include <Aero/Media/Geometries.hpp>
 #include "gui/media/GeometryFlatten.hpp"
 
 #include <algorithm>

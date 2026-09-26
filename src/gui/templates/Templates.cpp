@@ -1,4 +1,5 @@
 #include "gui/meta/TypeRegistryDetail.hpp"
+#include "gui/meta/Describe.hpp"
 #include "gui/markup/XamlObjectWriterCommon.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
@@ -13,7 +14,7 @@
 #include <Aero/HierarchicalDataTemplate.hpp>
 #include <Aero/DataTemplateSelector.hpp>
 #include <Aero/Controls/ItemsPanelTemplate.hpp>
-#include <Aero/Triggers/TriggerBase.hpp>
+#include <Aero/Triggers.hpp>
 #include "gui/triggers/TriggerValueCompare.hpp"
 #include "gui/templates/TemplateInstance.hpp"
 
@@ -140,21 +141,11 @@ Base::Result<void> TemplateBuilder::SetRoot(
     if (!mounted) return mounted.GetStatus();
     Aero::ElementAttachment mount = std::move(mounted).Value();
 
-    Base::Result<void> selected =
-        AeroGuiInternal::SetTemplateRoot(*state.parent, ::Aero::TryCast<::Aero::UIElement>(&(root)));
-    if (!selected) {
-        (void)state.tree->DetachElement(mount);
-        return selected.GetStatus();
-    }
+    AeroGuiInternal::SetTemplateRoot(
+        *state.parent, ::Aero::TryCast<::Aero::UIElement>(&(root)));
     if (::Aero::TryCast<::Aero::FrameworkElement>(&(root)) != nullptr) {
-        Base::Result<void> templated =
-            AeroGuiInternal::SetTemplatedParent(
-                *::Aero::TryCast<::Aero::FrameworkElement>(&root), state.parent);
-        if (!templated) {
-            (void)AeroGuiInternal::SetTemplateRoot(*state.parent, nullptr);
-            (void)state.tree->DetachElement(mount);
-            return templated.GetStatus();
-        }
+        AeroGuiInternal::SetTemplatedParent(
+            *::Aero::TryCast<::Aero::FrameworkElement>(&root), state.parent);
     }
     Base::Result<void> added = AddOwnedPart(
         name, std::move(owner), root, &mount);
@@ -193,13 +184,8 @@ Base::Result<void> TemplateBuilder::AddPart(
     Aero::ElementAttachment mount = std::move(mounted).Value();
 
     if (::Aero::TryCast<::Aero::FrameworkElement>(&(part)) != nullptr) {
-        Base::Result<void> templated =
-            AeroGuiInternal::SetTemplatedParent(
-                *::Aero::TryCast<::Aero::FrameworkElement>(&part), state.parent);
-        if (!templated) {
-            (void)state.tree->DetachElement(mount);
-            return templated.GetStatus();
-        }
+        AeroGuiInternal::SetTemplatedParent(
+            *::Aero::TryCast<::Aero::FrameworkElement>(&part), state.parent);
     }
     Base::Result<void> added = AddOwnedPart(
         name, std::move(owner), part, &mount);
@@ -666,7 +652,6 @@ Base::Result<void> TemplateProgram::FreezeRuntimePlan(
     sealed = true;
     return {};
 }
-
 
 
 Base::Result<void> DeferredObjectProgram::Configure(
@@ -1902,7 +1887,6 @@ void DataTemplate::SetResources(Base::Ref<ResourceDictionary> value) noexcept {
 }
 
 
-
 } // namespace Aero
 
 namespace Aero::Controls {
@@ -2630,13 +2614,11 @@ Base::Result<void> TemplateEngine::ClearAt(
 
     for (Aero::Controls::TemplatePart& part : instance.parts) {
         if (part.frameworkElement != nullptr) {
-            Base::Result<void> cleared =
-                AeroGuiInternal::SetTemplatedParent(*part.frameworkElement, nullptr);
-            if (!cleared) return cleared.GetStatus();
+            AeroGuiInternal::SetTemplatedParent(
+                *part.frameworkElement, nullptr);
         }
     }
-    Base::Result<void> child = AeroGuiInternal::SetTemplateRoot(*instance.parent, nullptr);
-    if (!child) return child.GetStatus();
+    AeroGuiInternal::SetTemplateRoot(*instance.parent, nullptr);
 
     for (std::uint32_t projectionIndex = instance.projections.Size();
          projectionIndex > 0U; --projectionIndex) {
@@ -2854,7 +2836,7 @@ void ClearDataTemplateTriggers(
 
 } // namespace
 
-void ControlTemplate::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(ControlTemplate) {
     using namespace Aero::Meta;
     Register<ControlTemplate>(context)
         .Property<Meta::TypeReference, &GetControlTemplateTargetType, &SetControlTemplateTargetType>("TargetType", PropertyFlags::None)
@@ -2864,7 +2846,7 @@ void ControlTemplate::RegisterMetadata(::Aero::Meta::Registration& context) noex
         .Factory();
 }
 
-void ItemsPanelTemplate::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(ItemsPanelTemplate) {
     using namespace Aero::Meta;
     Register<ItemsPanelTemplate>(context)
         .Property<Base::Ref<Aero::ResourceDictionary>, &ItemsPanelTemplate::SetResources>("Resources", PropertyFlags::Structural)
@@ -2876,14 +2858,14 @@ void ItemsPanelTemplate::RegisterMetadata(::Aero::Meta::Registration& context) n
 
 namespace Aero {
 
-void FrameworkTemplate::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(FrameworkTemplate) {
     using namespace Aero::Meta;
     Register<FrameworkTemplate>(context, TypeFlags::Abstract)
         .Property<Base::Ref<Aero::ResourceDictionary>, &FrameworkTemplate::SetResources>("Resources", PropertyFlags::Structural)
         .Collection<Base::Object>("Triggers", &Controls::AddTemplateTrigger, &Controls::ClearTemplateTriggers);
 }
 
-void DataTemplate::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(DataTemplate) {
     using namespace Aero::Meta;
     Register<DataTemplate>(context)
         .Property<Meta::TypeReference, &Controls::GetDataTemplateType, &Controls::SetDataTemplateType>("DataType", PropertyFlags::None)
@@ -2893,13 +2875,8 @@ void DataTemplate::RegisterMetadata(::Aero::Meta::Registration& context) noexcep
         .Factory();
 }
 
-void DataTemplateSelector::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
-    using namespace Aero::Meta;
-    Register<DataTemplateSelector>(context)
-        .Factory();
-}
 
-void HierarchicalDataTemplate::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(HierarchicalDataTemplate) {
     using namespace Aero::Meta;
     Register<HierarchicalDataTemplate>(context)
         .Property<Base::Ref<Base::Object>, &HierarchicalDataTemplate::GetItemsSource, &HierarchicalDataTemplate::SetItemsSource>("ItemsSource", PropertyFlags::None)

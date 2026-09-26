@@ -6,7 +6,6 @@
 
 #include <algorithm>
 
-namespace Aero::Meta { class Registration; }
 
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
@@ -17,8 +16,6 @@ using ::Aero::Meta::TypeId;
 class AERO_GUI_API BulletDecorator : public FrameworkElement {
     AERO_DECLARE_TYPE(BulletDecorator, FrameworkElement)
 public:
-    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
-
     BulletDecorator() noexcept : FrameworkElement(StaticTypeId()) {}
 
     UIElement* GetBullet() const noexcept { return bullet_.Get(); }

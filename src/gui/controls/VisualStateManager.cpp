@@ -12,7 +12,8 @@
 #include "gui/templates/TemplateInstance.hpp"
 
 #include <Aero/Value.hpp>
-#include <Aero/Media/Transforms.hpp>
+#include <Aero/Media/Transform2D.hpp>
+#include <Aero/Media/Transform3D.hpp>
 #include "gui/media/AnimationModel.hpp"
 #include "gui/media/AnimationPathResolver.hpp"
 #include "gui/controls/VisualStateManagerExecution.hpp"

@@ -70,15 +70,15 @@ Aero/Input.hpp                   Value types only; command types in Aero/<Type>.
 Aero/Documents.hpp
 Aero/Shapes.hpp
 Aero/TextFormatting.hpp
-Aero/Media/Animation.hpp          Umbrella only; types live in Media/Animation/<Type>.hpp
-Aero/Media/Brushes.hpp            Umbrella only; types live in Media/<Type>.hpp
+Aero/Media/Animation.hpp          Umbrella for Timeline, Storyboard, easing, key frames, and animations.
+Aero/Media/Brushes.hpp            Brush plus stops, shaders, and concrete brushes.
+Aero/Media/Effects.hpp            Effect plus the concrete effects.
+Aero/Media/Images.hpp             ImageSource, BitmapImage, CroppedBitmap, Stretch.
 Aero/Media/Fonts.hpp
-Aero/Media/Geometry.hpp           Geometry class; siblings in Media/PathGeometry.hpp etc.
-                                 FlattenSink + Flatten/FlattenCore; BezierSegment,
-                                 ArcSegment, LineGeometry, GeometryGroup, CombinedGeometry
-                                 each own a header. ToStreamData is serialize/debug only.
-Aero/Media/Transforms.hpp         Umbrella only; types live in Media/<Type>.hpp
-Aero/Media/Effects.hpp            Umbrella only; types live in Media/<Type>.hpp
+Aero/Media/Geometries.hpp         Geometry, segments, figures, stream context, and concretes.
+                                 ToStreamData is serialize/debug only.
+Aero/Media/Transform2D.hpp      Transform plus the 2D concretes.
+Aero/Media/Transform3D.hpp      Transform3D plus the 3D concretes.
 ```
 
 Controls and templates use their WPF namespaces as their physical domains;
@@ -101,39 +101,45 @@ includes `DispatcherReentrancyGuard.hpp` instead of `Threading.hpp`;
 line counts for `Controls/Button.hpp`, `Controls/TextBlock.hpp`, and
 `Controls/Panel.hpp`.
 
-Media is a specialist surface made up of concrete headers such as
-`Media/Brush.hpp`, `Media/Fonts.hpp`, `Media/Geometry.hpp`,
-`Media/Images.hpp`, and `Media/Transform.hpp`. Family umbrellas
-`<Aero/Media/Brushes.hpp>`, `<Aero/Media/Transforms.hpp>`, and
-`<Aero/Media/Effects.hpp>` include the corresponding type headers.
+Media is a specialist surface made up of family headers such as
+`Media/Brushes.hpp`, `Media/Effects.hpp`, `Media/Fonts.hpp`,
+`Media/Geometries.hpp`, `Media/Images.hpp`, `Media/Transform2D.hpp`, and
+`Media/Transform3D.hpp`. Each family header owns its base and the concrete types.
 WPF-visible formatting values
 are owned by `<Aero/TextFormatting.hpp>`; the text provider, shaping and
 editing implementation remains private under `src/gui/text`.
 Generic `Media.hpp` and `Text/Text.hpp` aggregation headers are not part of
 the installed SDK.
 
-`<Aero/Media/Animation.hpp>` is an umbrella only. Each animation type is
-declared in `Media/Animation/<Type>.hpp` (one `AERO_GUI_API` class per file).
-The umbrella must not include interactivity triggers or storyboard actions.
-WPF hierarchy is preserved in C++: `AnimationTimeline` / `TimelineGroup` /
-`ParallelTimeline` / `Storyboard`, `*AnimationBase` : `AnimationTimeline`,
-`EasingFunctionBase` : `Freezable`, and `KeyFrameBase` : `Freezable` with
-template `KeyFrame<T>` underneath the WPF-named key-frame types.
+`<Aero/Media/Animation.hpp>` is an umbrella only. Family headers own the
+clock (`Timeline.hpp`), storyboard chain (`Storyboard.hpp`), easing
+(`EasingFunctions.hpp`), key frames (`KeyFrames.hpp`), and from/to animations
+(`Animations.hpp`). `EventTrigger` lives next to `Triggers.hpp`. Timer and
+storyboard-completed triggers stay under `Media/Animation/`. Actions stay in
+`StoryboardActions.hpp` and `MediaActions.hpp`. The animation umbrella must
+not include those trigger or action headers. From/to animations are
+`AnimationBase<T>` and `Animation<T>`; the XAML names (`DoubleAnimation`,
+`ColorAnimation`, and the rest) are those specializations. `EasingFunctionBase`
+derives `Freezable`, and `KeyFrameBase` derives `Freezable` with template
+`KeyFrame<T>` underneath the WPF-named key-frame types.
 
 ## Controls headers
 
 `Aero/Controls.hpp` is the broad umbrella. Type-named headers such as
-`Controls/Button.hpp`, `Controls/Grid.hpp`, `Controls/ListBox.hpp`, and
-`Controls/TextBox.hpp` physically own their declarations. Foundational family
+`Controls/Button.hpp`, `Controls/Grid.hpp`, `Controls/Selectors.hpp`, and
+`Controls/TextBox.hpp` physically own their declarations. Button leaves live
+in `Controls/Buttons.hpp`, and the GridView presenters live in
+`Controls/GridViews.hpp`. Foundational family
 types such as `Control`, `Panel`, `ContentControl`, `ButtonBase`, and
 `ItemsControl` follow the same rule. The SDK contains no parallel `Aero/Gui/*`
 paths and no include-only `Text.hpp` compatibility facade. Foundational
 family types are owned by `Controls/Primitives/*` with no flat forwarding
 headers under `Controls/`.
 
-Trigger ownership follows WPF semantics: `Aero/Triggers/*` owns Style/Template
-triggers, `Aero/Interactivity/*` owns Blend behaviors/actions, and
-`Media/Animation/*Trigger|*Action` owns event-driven storyboard/media actions.
+Trigger ownership follows WPF semantics: `<Aero/Triggers.hpp>` owns Style/Template
+triggers, `<Aero/EventTrigger.hpp>` owns `EventTrigger`, `Aero/Interactivity/*`
+owns Blend behaviors/actions, and `Media/Animation/` owns storyboard and media
+actions plus the timer and storyboard-completed triggers.
 `<Aero/Media/Animation.hpp>` stays trigger-free.
 
 Property declarations use `AERO_DEPENDENCY_PROPERTY` /

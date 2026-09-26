@@ -1,12 +1,11 @@
 #include <Aero/Media/Animation.hpp>
-#include <Aero/Media/Animation/EventTrigger.hpp>
+#include <Aero/EventTrigger.hpp>
 #include <Aero/Media/Animation/MediaActions.hpp>
 #include <Aero/Media/Animation/StoryboardActions.hpp>
 #include <Aero/Media/Animation/StoryboardCompletedTrigger.hpp>
 #include <Aero/TryCast.hpp>
 #include <Aero/Value.hpp>
-#include <Aero/Interactivity/ChangePropertyAction.hpp>
-#include <Aero/Interactivity/LaunchUriOrFileAction.hpp>
+#include <Aero/Interactivity/TriggerAction.hpp>
 #include "gui/meta/ValueConversion.hpp"
 
 #include <cmath>
@@ -303,350 +302,53 @@ void Timeline::SetFillBehavior(FillBehavior value) noexcept {
     SetValue(FillBehaviorProperty, value);
 }
 
-void PowerEase::SetPower(double value) noexcept {
+void EasingFunctionBase::SetPower(double value) noexcept {
     Base::Result<void> valid = ValidateNonNegative(
         value, "PowerEase Power must be nonnegative");
     if (!valid) return;
     SetValue(PowerProperty, value);
-    return;
 }
 
-void ExponentialEase::SetExponent(
-    double value) noexcept {
+void EasingFunctionBase::SetExponent(double value) noexcept {
     Base::Result<void> valid = ValidateNonNegative(
         value, "ExponentialEase Exponent must be nonnegative");
     if (!valid) return;
     SetValue(ExponentProperty, value);
-    return;
 }
 
-void BackEase::SetAmplitude(double value) noexcept {
+void EasingFunctionBase::SetAmplitude(double value) noexcept {
     Base::Result<void> valid = ValidateNonNegative(
         value, "BackEase Amplitude must be nonnegative");
     if (!valid) return;
     SetValue(AmplitudeProperty, value);
-    return;
 }
 
-void BounceEase::SetBounces(double value) noexcept {
+void EasingFunctionBase::SetBounces(double value) noexcept {
     Base::Result<void> valid = ValidateNonNegative(
         value, "BounceEase Bounces must be nonnegative");
     if (!valid) return;
     SetValue(BouncesProperty, value);
-    return;
 }
 
-void BounceEase::SetBounciness(double value) noexcept {
+void EasingFunctionBase::SetBounciness(double value) noexcept {
     Base::Result<void> valid = ValidateNonNegative(
         value, "BounceEase Bounciness must be nonnegative");
     if (!valid) return;
     SetValue(BouncinessProperty, value);
-    return;
 }
 
-void ElasticEase::SetOscillations(double value) noexcept {
+void EasingFunctionBase::SetOscillations(double value) noexcept {
     Base::Result<void> valid = ValidateNonNegative(
         value, "ElasticEase Oscillations must be nonnegative");
     if (!valid) return;
     SetValue(OscillationsProperty, value);
-    return;
 }
 
-void ElasticEase::SetSpringiness(double value) noexcept {
+void EasingFunctionBase::SetSpringiness(double value) noexcept {
     Base::Result<void> valid = ValidateNonNegative(
         value, "ElasticEase Springiness must be nonnegative");
     if (!valid) return;
     SetValue(SpringinessProperty, value);
-    return;
-}
-
-void DoubleAnimationBase::SetFrom(double value) noexcept {
-    if (!WritePreamble() || !std::isfinite(value)) {
-        return;
-    }
-    from_ = value;
-    hasFrom_ = true;
-    WritePostscript();
-}
-
-void DoubleAnimationBase::SetTo(double value) noexcept {
-    if (!WritePreamble() || !std::isfinite(value)) {
-        return;
-    }
-    to_ = value;
-    hasTo_ = true;
-    WritePostscript();
-}
-
-void DoubleAnimation::SetAccelerationRatio(
-    double value) noexcept {
-    if (!WritePreamble()) return;
-    if (!std::isfinite(value) || value < 0.0 || value > 1.0 ||
-        value + decelerationRatio_ > 1.0) {
-        return;
-    }
-    accelerationRatio_ = value;
-    WritePostscript();
-}
-
-void DoubleAnimation::SetDecelerationRatio(
-    double value) noexcept {
-    if (!WritePreamble()) return;
-    if (!std::isfinite(value) || value < 0.0 || value > 1.0 ||
-        accelerationRatio_ + value > 1.0) {
-        return;
-    }
-    decelerationRatio_ = value;
-    WritePostscript();
-}
-
-void DoubleAnimation::SetEasingFunction(
-    Base::Ref<EasingFunctionBase> value) noexcept {
-    if (!WritePreamble() || easing_.Get() == value.Get()) return;
-    easing_ = std::move(value);
-    WritePostscript();
-}
-
-
-void ColorAnimationBase::SetFrom(
-    Base::Color value) noexcept {
-    if (!WritePreamble()) return;
-    if (!Base::IsFiniteColor(value)) {
-        return;
-    }
-    from_ = value;
-    WritePostscript();
-}
-
-void ColorAnimationBase::SetTo(
-    Base::Color value) noexcept {
-    if (!WritePreamble()) return;
-    if (!Base::IsFiniteColor(value)) {
-        return;
-    }
-    to_ = value;
-    WritePostscript();
-}
-
-void ColorAnimation::SetEasingFunction(
-    Base::Ref<EasingFunctionBase> value) noexcept {
-    if (!WritePreamble() || easing_.Get() == value.Get()) return;
-    easing_ = std::move(value);
-    WritePostscript();
-}
-
-
-void PointAnimationBase::SetFrom(
-    Base::Point value) noexcept {
-    if (!WritePreamble()) return;
-    if (!std::isfinite(value.x) ||
-        !std::isfinite(value.y)) {
-        return;
-    }
-    from_ = value;
-    WritePostscript();
-}
-
-void PointAnimationBase::SetTo(
-    Base::Point value) noexcept {
-    if (!WritePreamble()) return;
-    if (!std::isfinite(value.x) ||
-        !std::isfinite(value.y)) {
-        return;
-    }
-    to_ = value;
-    WritePostscript();
-}
-
-void
-PointAnimation::SetEasingFunction(
-    Base::Ref<EasingFunctionBase>
-        value) noexcept {
-    if (!WritePreamble() || easing_.Get() == value.Get()) return;
-    easing_ = std::move(value);
-    WritePostscript();
-}
-
-
-void RectAnimationBase::SetFrom(
-    Base::Rect value) noexcept {
-    if (!WritePreamble()) return;
-    if (!Base::IsFiniteRect(value)) {
-        return;
-    }
-    from_ = value;
-    WritePostscript();
-}
-
-void RectAnimationBase::SetTo(
-    Base::Rect value) noexcept {
-    if (!WritePreamble()) return;
-    if (!Base::IsFiniteRect(value)) {
-        return;
-    }
-    to_ = value;
-    WritePostscript();
-}
-
-void RectAnimation::SetEasingFunction(
-    Base::Ref<EasingFunctionBase> value) noexcept {
-    if (!WritePreamble() || easing_.Get() == value.Get()) return;
-    easing_ = std::move(value);
-    WritePostscript();
-}
-
-
-namespace {
-
-bool IsFiniteThickness(
-    Base::Thickness value) noexcept {
-    return std::isfinite(value.left) &&
-        std::isfinite(value.top) &&
-        std::isfinite(value.right) &&
-        std::isfinite(value.bottom);
-}
-
-} // namespace
-
-void ThicknessAnimationBase::SetFrom(
-    Base::Thickness value) noexcept {
-    if (!WritePreamble()) return;
-    if (!IsFiniteThickness(value)) {
-        return;
-    }
-    from_ = value;
-    WritePostscript();
-}
-
-void ThicknessAnimationBase::SetTo(
-    Base::Thickness value) noexcept {
-    if (!WritePreamble()) return;
-    if (!IsFiniteThickness(value)) {
-        return;
-    }
-    to_ = value;
-    WritePostscript();
-}
-
-void
-ThicknessAnimation::SetEasingFunction(
-    Base::Ref<EasingFunctionBase> value) noexcept {
-    if (!WritePreamble() || easing_.Get() == value.Get()) return;
-    easing_ = std::move(value);
-    WritePostscript();
-}
-
-void Int16AnimationBase::SetFrom(std::int16_t value) noexcept {
-    if (!WritePreamble()) return;
-    from_ = value;
-    hasFrom_ = true;
-    WritePostscript();
-}
-
-void Int16AnimationBase::SetTo(std::int16_t value) noexcept {
-    if (!WritePreamble()) return;
-    to_ = value;
-    hasTo_ = true;
-    WritePostscript();
-}
-
-void Int16Animation::SetEasingFunction(
-    Base::Ref<EasingFunctionBase> value) noexcept {
-    if (!WritePreamble() || easing_.Get() == value.Get()) return;
-    easing_ = std::move(value);
-    WritePostscript();
-}
-
-void Int32AnimationBase::SetFrom(std::int32_t value) noexcept {
-    if (!WritePreamble()) return;
-    from_ = value;
-    hasFrom_ = true;
-    WritePostscript();
-}
-
-void Int32AnimationBase::SetTo(std::int32_t value) noexcept {
-    if (!WritePreamble()) return;
-    to_ = value;
-    hasTo_ = true;
-    WritePostscript();
-}
-
-void Int32Animation::SetEasingFunction(
-    Base::Ref<EasingFunctionBase> value) noexcept {
-    if (!WritePreamble() || easing_.Get() == value.Get()) return;
-    easing_ = std::move(value);
-    WritePostscript();
-}
-
-void Int64AnimationBase::SetFrom(std::int64_t value) noexcept {
-    if (!WritePreamble()) return;
-    from_ = value;
-    hasFrom_ = true;
-    WritePostscript();
-}
-
-void Int64AnimationBase::SetTo(std::int64_t value) noexcept {
-    if (!WritePreamble()) return;
-    to_ = value;
-    hasTo_ = true;
-    WritePostscript();
-}
-
-void Int64Animation::SetEasingFunction(
-    Base::Ref<EasingFunctionBase> value) noexcept {
-    if (!WritePreamble() || easing_.Get() == value.Get()) return;
-    easing_ = std::move(value);
-    WritePostscript();
-}
-
-void SizeAnimationBase::SetFrom(Base::Size value) noexcept {
-    if (!WritePreamble()) return;
-    if (!std::isfinite(value.width) || !std::isfinite(value.height)) {
-        return;
-    }
-    from_ = value;
-    hasFrom_ = true;
-    WritePostscript();
-}
-
-void SizeAnimationBase::SetTo(Base::Size value) noexcept {
-    if (!WritePreamble()) return;
-    if (!std::isfinite(value.width) || !std::isfinite(value.height)) {
-        return;
-    }
-    to_ = value;
-    hasTo_ = true;
-    WritePostscript();
-}
-
-void SizeAnimation::SetEasingFunction(
-    Base::Ref<EasingFunctionBase> value) noexcept {
-    if (!WritePreamble() || easing_.Get() == value.Get()) return;
-    easing_ = std::move(value);
-    WritePostscript();
-}
-
-void MatrixAnimationBase::SetFrom(Base::Transform2D value) noexcept {
-    if (!WritePreamble()) return;
-    if (!Base::IsFiniteTransform(value)) return;
-    from_ = value;
-    hasFrom_ = true;
-    WritePostscript();
-}
-
-void MatrixAnimationBase::SetTo(Base::Transform2D value) noexcept {
-    if (!WritePreamble()) return;
-    if (!Base::IsFiniteTransform(value)) return;
-    to_ = value;
-    hasTo_ = true;
-    WritePostscript();
-}
-
-void MatrixAnimation::SetEasingFunction(
-    Base::Ref<EasingFunctionBase> value) noexcept {
-    if (!WritePreamble() || easing_.Get() == value.Get()) return;
-    easing_ = std::move(value);
-    WritePostscript();
 }
 
 void KeyFrameBase::SetKeyTime(KeyTime value) noexcept {

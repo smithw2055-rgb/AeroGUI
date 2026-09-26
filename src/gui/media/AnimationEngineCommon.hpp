@@ -6,7 +6,8 @@
 #include "gui/media/AnimationModel.hpp"
 
 #include <Aero/Media/Brushes.hpp>
-#include <Aero/Media/Transforms.hpp>
+#include <Aero/Media/Transform2D.hpp>
+#include <Aero/Media/Transform3D.hpp>
 #include <Aero/Value.hpp>
 
 #include <algorithm>

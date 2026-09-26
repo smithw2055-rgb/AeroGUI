@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/Controls/Control.hpp>
+#include <Aero/Controls/Primitives/Thumb.hpp>
 #include <Aero/Style.hpp>
 
 namespace Aero::Controls {
@@ -21,12 +21,10 @@ enum class GridResizeBehavior : std::uint8_t {
 // WPF-compatible GridSplitter surface. The splitter carries the full
 // resize-policy state even when the hosting grid chooses to apply the delta
 // through a custom interaction adapter.
-class AERO_GUI_API GridSplitter : public Control {
-    AERO_DECLARE_TYPE(GridSplitter, Control)
+class AERO_GUI_API GridSplitter : public Primitives::Thumb {
+    AERO_DECLARE_TYPE(GridSplitter, Primitives::Thumb)
 public:
-    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
-
-    GridSplitter() noexcept : Control(StaticTypeId()) {}
+    GridSplitter() noexcept : Primitives::Thumb(StaticTypeId()) {}
     ~GridSplitter() override = default;
 
     double GetDragIncrement() const noexcept;

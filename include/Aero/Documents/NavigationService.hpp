@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/Documents/Hyperlink.hpp>
+#include <Aero/Documents/Inlines.hpp>
 #include <Aero/UIElement.hpp>
 
 #include <utility>

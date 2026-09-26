@@ -45,6 +45,7 @@ struct EasingFunction {
     EasingFunctionKind kind = EasingFunctionKind::Linear;
     EasingMode mode = EasingMode::EaseOut;
     double power = 2.0;
+    double exponent = 2.0;
     double amplitude = 1.0;
     double oscillations = 3.0;
     double springiness = 3.0;
@@ -428,21 +429,11 @@ inline Model::EasingFunction Easing(
         result.kind = static_cast<Model::EasingFunctionKind>(
             static_cast<std::uint8_t>(easing.GetKind()));
         result.mode = easing.GetEasingMode();
-        if (easing.RuntimeType() == PowerEase::StaticTypeId()) {
-            result.power = static_cast<const PowerEase&>(easing).GetPower();
-        } else if (easing.RuntimeType() == ExponentialEase::StaticTypeId()) {
-            result.power = static_cast<const ExponentialEase&>(easing).GetExponent();
-        } else if (easing.RuntimeType() == BackEase::StaticTypeId()) {
-            result.amplitude = static_cast<const BackEase&>(easing).GetAmplitude();
-        } else if (easing.RuntimeType() == BounceEase::StaticTypeId()) {
-            const auto& bounce = static_cast<const BounceEase&>(easing);
-            result.oscillations = bounce.GetBounces();
-            result.springiness = bounce.GetBounciness();
-        } else if (easing.RuntimeType() == ElasticEase::StaticTypeId()) {
-            const auto& elastic = static_cast<const ElasticEase&>(easing);
-            result.oscillations = elastic.GetOscillations();
-            result.springiness = elastic.GetSpringiness();
-        }
+        result.power = easing.GetPower();
+        result.exponent = easing.GetExponent();
+        result.amplitude = easing.GetAmplitude();
+        result.oscillations = easing.GetOscillations();
+        result.springiness = easing.GetSpringiness();
         return result;
     }
 

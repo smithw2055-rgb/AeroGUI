@@ -51,6 +51,8 @@ Base::Result<void> PopulateUiMedia(
         .ValueSemantics()
         .TextConverter<&ConvertSize>();
 
+    Register<Animatable>(context, TypeFlags::Abstract);
+
     // Brush.RelativeTransform is a Transform-valued dependency property, so
     // the abstract value type must exist before Brush metadata is authored.
     Register<Transform>(context, TypeFlags::Abstract);
@@ -80,7 +82,7 @@ Base::Result<void> PopulateUiMedia(
         .Factory();
 
     Register<MonochromeShader>(context)
-        .Property(MonochromeShader::ColorProperty, Color{}, AffectsRender)
+        .Property<Color, &MonochromeShader::GetColor, &MonochromeShader::SetColor>("Color")
         .Factory();
 
     Register<ConicGradientShader>(context)
@@ -88,7 +90,7 @@ Base::Result<void> PopulateUiMedia(
         .Factory();
 
     Register<WavesShader>(context)
-        .Property(WavesShader::TimeProperty, 0.0, AffectsRender)
+        .Property<double, &WavesShader::GetTime, &WavesShader::SetTime>("Time")
         .Factory();
 
     Register<GradientBrush>(context, TypeFlags::Abstract)
@@ -122,12 +124,12 @@ Base::Result<void> PopulateUiMedia(
         .Property(TileBrush::AlignmentYProperty, VerticalAlignment::Center);
 
     Register<BitmapImage>(context)
-        .Property(BitmapImage::UriSourceProperty, Base::ResourceUri{})
+        .Property<Base::ResourceUri, &BitmapImage::GetUriSource, &BitmapImage::SetUriSource>("UriSource")
         .Factory();
 
     Register<CroppedBitmap>(context)
-        .Property(CroppedBitmap::SourceProperty, Base::Ref<ImageSource>{})
-        .Property(CroppedBitmap::SourceRectProperty, Base::Rect{})
+        .Property<Base::Ref<ImageSource>, &CroppedBitmap::GetSource, &CroppedBitmap::SetSource>("Source")
+        .Property<Base::Rect, &CroppedBitmap::GetSourceRect, &CroppedBitmap::SetSourceRect>("SourceRect")
         .Factory();
 
     Register<ImageBrush>(context)

@@ -20,8 +20,6 @@ enum class TickPlacement : std::uint8_t {
 class AERO_GUI_API Slider : public Primitives::RangeBase {
     AERO_DECLARE_TYPE(Slider, Primitives::RangeBase)
 public:
-    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
-
     Slider() noexcept;
     ~Slider() override;
 
@@ -70,10 +68,10 @@ protected:
     void OnRender(
         ::Aero::Media::DrawingContext& context) noexcept override;
 
-    void OnMouseLeftButtonDown(MouseButtonEventArgs& args) override;
-    void OnMouseLeftButtonUp(MouseButtonEventArgs& args) override;
-    void OnMouseMove(MouseEventArgs& args) override;
-    void OnKeyDown(KeyEventArgs& args) override;
+    void OnMouseLeftButtonDown(MouseButtonEventArgs& args);
+    void OnMouseLeftButtonUp(MouseButtonEventArgs& args);
+    void OnMouseMove(MouseEventArgs& args);
+    void OnKeyDown(KeyEventArgs& args);
     bool ValidateValueCore(
         Meta::DependencyPropertyHandle property,
         const PropertyValue& value) const noexcept override;

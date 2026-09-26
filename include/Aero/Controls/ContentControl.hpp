@@ -12,8 +12,6 @@ using ::Aero::Meta::TypeId;
 class AERO_GUI_API ContentControl : public Control {
     AERO_DECLARE_TYPE(ContentControl, Control)
 public:
-    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
-
     AERO_DEPENDENCY_PROPERTY(Value, Content);
     AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, ContentTemplate);
     AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, ContentTemplateSelector);
@@ -65,10 +63,8 @@ public:
                       *content))
             : Value::NullObject(
                   Meta::TypeOf<Base::Object>());
-        Result<void> stored =
-            StoreContentProperty(
-                std::move(propertyValue));
-        if (!stored) return;
+        StoreContentProperty(
+            std::move(propertyValue));
         if (content_ == content) return;
         if (content_ != nullptr && content == nullptr) {
             if (content_->GetVisualParent() == this) {
@@ -162,14 +158,10 @@ private:
         if (!valid) {
             return;
         }
-        Result<void> stored =
-            StoreContentProperty(
-                Value::FromObject(
-                    contentObject->RuntimeType(),
-                    contentObject));
-        if (!stored) {
-            return;
-        }
+        StoreContentProperty(
+            Value::FromObject(
+                contentObject->RuntimeType(),
+                contentObject));
         content_ = &content;
         ownedContent_ = contentObject;
         contentValue_ = contentObject;
@@ -194,7 +186,7 @@ private:
     Value authoredContent_;
     bool literalTextContent_ = false;
     bool synchronizingContentProperty_ = false;
-    Result<void> StoreContentProperty(
+    void StoreContentProperty(
         Value value) noexcept;
     void SetGeneratedTextContent(const Ref<Base::Object>& contentObject, UIElement& content) noexcept;
     void SyncGeneratedTextFormatting() noexcept;

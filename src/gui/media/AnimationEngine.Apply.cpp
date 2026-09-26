@@ -2,11 +2,13 @@
 
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Layout.hpp>
-#include <Aero/Media/Transforms.hpp>
+#include <Aero/Media/Transform2D.hpp>
+#include <Aero/Media/Transform3D.hpp>
 
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Value.hpp>
 #include <Aero/FrameworkElement.hpp>
+#include <Aero/TryCast.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -54,7 +56,7 @@ double AnimationEngine::Ease(
             return std::pow(input, std::max(0.0, easing.power));
         case EasingFunctionKind::Exponential: {
             const double exponent =
-                std::max(0.0, easing.power);
+                std::max(0.0, easing.exponent);
             return input <= 0.0
                 ? 0.0
                 : (std::exp(exponent * input) - 1.0) /
@@ -97,6 +99,99 @@ double AnimationEngine::Ease(
             : 1.0 - easeIn((1.0 - value) * 2.0) * 0.5;
     }
     return value;
+}
+
+template<class TFrame>
+double SegmentProgress(
+    const TFrame& frame,
+    AnimationTime sampleTime,
+    AnimationTime previousTime) noexcept {
+    const AnimationTime segmentDuration =
+        frame.keyTimeMicroseconds >= previousTime
+        ? frame.keyTimeMicroseconds - previousTime
+        : 0U;
+    const double raw = segmentDuration == 0U
+        ? 1.0
+        : static_cast<double>(sampleTime - previousTime) /
+            static_cast<double>(segmentDuration);
+    switch (frame.interpolation) {
+    case DoubleKeyFrameInterpolation::Discrete:
+        return sampleTime >= frame.keyTimeMicroseconds ? 1.0 : 0.0;
+    case DoubleKeyFrameInterpolation::Easing:
+        return AnimationEngine::Ease(raw, frame.easing);
+    case DoubleKeyFrameInterpolation::Spline:
+        return EvaluateSpline(raw, frame);
+    case DoubleKeyFrameInterpolation::Linear:
+        return Clamp01(raw);
+    }
+    return Clamp01(raw);
+}
+
+inline Base::Color LerpColor(Base::Color from, Base::Color to, double amount) noexcept {
+    const float t = static_cast<float>(amount);
+    return {
+        from.red + (to.red - from.red) * t,
+        from.green + (to.green - from.green) * t,
+        from.blue + (to.blue - from.blue) * t,
+        from.alpha + (to.alpha - from.alpha) * t};
+}
+
+inline Base::Point LerpPoint(Base::Point from, Base::Point to, double amount) noexcept {
+    return {
+        from.x + (to.x - from.x) * amount,
+        from.y + (to.y - from.y) * amount};
+}
+
+inline Base::Rect LerpRect(Base::Rect from, Base::Rect to, double amount) noexcept {
+    return {
+        from.x + (to.x - from.x) * amount,
+        from.y + (to.y - from.y) * amount,
+        from.width + (to.width - from.width) * amount,
+        from.height + (to.height - from.height) * amount};
+}
+
+inline Base::Thickness LerpThickness(
+    Base::Thickness from, Base::Thickness to, double amount) noexcept {
+    return {
+        from.left + (to.left - from.left) * amount,
+        from.top + (to.top - from.top) * amount,
+        from.right + (to.right - from.right) * amount,
+        from.bottom + (to.bottom - from.bottom) * amount};
+}
+
+inline Base::Size LerpSize(Base::Size from, Base::Size to, double amount) noexcept {
+    return {
+        from.width + (to.width - from.width) * amount,
+        from.height + (to.height - from.height) * amount};
+}
+
+template<class T, class TFrame, class Lerp>
+T SampleKeyFrames(
+    const Base::Vector<TFrame>& frames,
+    T base,
+    AnimationTime sampleTime,
+    Lerp lerp) noexcept {
+    T previous = base;
+    AnimationTime previousTime = 0U;
+    T sampled = previous;
+    bool found = false;
+    for (std::uint32_t index = 0U; index < frames.Size(); ++index) {
+        const TFrame& frame = frames[index];
+        if (sampleTime > frame.keyTimeMicroseconds) {
+            previous = frame.value;
+            previousTime = frame.keyTimeMicroseconds;
+            sampled = frame.value;
+            continue;
+        }
+        sampled = lerp(
+            previous,
+            frame.value,
+            SegmentProgress(frame, sampleTime, previousTime));
+        found = true;
+        break;
+    }
+    if (!found && !frames.Empty()) sampled = frames.Back().value;
+    return sampled;
 }
 
 Base::Result<bool> AnimationEngine::ApplyTrack(
@@ -226,52 +321,23 @@ Base::Result<bool> AnimationEngine::ApplyTrack(
         if (!encoded) return encoded.GetStatus();
         value = std::move(encoded).Value();
     } else if (track.kind == Track::Kind::Color) {
-        const float eased =
-            static_cast<float>(Ease(progress, track.easing));
-        const Base::Color color{
-            track.fromColor.red +
-                (track.toColor.red - track.fromColor.red) * eased,
-            track.fromColor.green +
-                (track.toColor.green - track.fromColor.green) * eased,
-            track.fromColor.blue +
-                (track.toColor.blue - track.fromColor.blue) * eased,
-            track.fromColor.alpha +
-                (track.toColor.alpha - track.fromColor.alpha) * eased};
+        const Base::Color color = LerpColor(
+            track.fromColor, track.toColor, Ease(progress, track.easing));
         Base::Result<Meta::PropertyValue> encoded =
             Meta::ValueCodec<Base::Color>::Encode(color);
         if (!encoded) return encoded.GetStatus();
         value = std::move(encoded).Value();
     } else if (track.kind == Track::Kind::Point) {
-        const double eased =
-            Ease(progress, track.easing);
-        const Base::Point point{
-            track.fromPoint.x +
-                (track.toPoint.x -
-                 track.fromPoint.x) * eased,
-            track.fromPoint.y +
-                (track.toPoint.y -
-                 track.fromPoint.y) * eased};
+        const Base::Point point = LerpPoint(
+            track.fromPoint, track.toPoint, Ease(progress, track.easing));
         Base::Result<Meta::PropertyValue> encoded =
             Meta::ValueCodec<Base::Point>::Encode(
                 point);
         if (!encoded) return encoded.GetStatus();
         value = std::move(encoded).Value();
     } else if (track.kind == Track::Kind::Rect) {
-        const double eased =
-            Ease(progress, track.easing);
-        const Base::Rect rect{
-            track.fromRect.x +
-                (track.toRect.x -
-                 track.fromRect.x) * eased,
-            track.fromRect.y +
-                (track.toRect.y -
-                 track.fromRect.y) * eased,
-            track.fromRect.width +
-                (track.toRect.width -
-                 track.fromRect.width) * eased,
-            track.fromRect.height +
-                (track.toRect.height -
-                 track.fromRect.height) * eased};
+        const Base::Rect rect = LerpRect(
+            track.fromRect, track.toRect, Ease(progress, track.easing));
         Base::Result<Meta::PropertyValue> encoded =
             Meta::ValueCodec<Base::Rect>::Encode(
                 rect);
@@ -279,21 +345,8 @@ Base::Result<bool> AnimationEngine::ApplyTrack(
         value = std::move(encoded).Value();
     } else if (track.kind ==
         Track::Kind::Thickness) {
-        const double eased =
-            Ease(progress, track.easing);
-        const Base::Thickness thickness{
-            track.fromThickness.left +
-                (track.toThickness.left -
-                 track.fromThickness.left) * eased,
-            track.fromThickness.top +
-                (track.toThickness.top -
-                 track.fromThickness.top) * eased,
-            track.fromThickness.right +
-                (track.toThickness.right -
-                 track.fromThickness.right) * eased,
-            track.fromThickness.bottom +
-                (track.toThickness.bottom -
-                 track.fromThickness.bottom) * eased};
+        const Base::Thickness thickness = LerpThickness(
+            track.fromThickness, track.toThickness, Ease(progress, track.easing));
         Base::Result<Meta::PropertyValue> encoded =
             Meta::ValueCodec<Base::Thickness>::
                 Encode(thickness);
@@ -307,12 +360,8 @@ Base::Result<bool> AnimationEngine::ApplyTrack(
         if (!encoded) return encoded.GetStatus();
         value = std::move(encoded).Value();
     } else if (track.kind == Track::Kind::Size) {
-        const double eased = Ease(progress, track.easing);
-        const Base::Size size{
-            track.fromSize.width +
-                (track.toSize.width - track.fromSize.width) * eased,
-            track.fromSize.height +
-                (track.toSize.height - track.fromSize.height) * eased};
+        const Base::Size size = LerpSize(
+            track.fromSize, track.toSize, Ease(progress, track.easing));
         Base::Result<Meta::PropertyValue> encoded =
             Meta::ValueCodec<Base::Size>::Encode(size);
         if (!encoded) return encoded.GetStatus();
@@ -326,382 +375,61 @@ Base::Result<bool> AnimationEngine::ApplyTrack(
         if (!encoded) return encoded.GetStatus();
         value = std::move(encoded).Value();
     } else if (track.kind == Track::Kind::DoubleKeyFrames) {
-        double previousValue = track.baseValue;
-        AnimationTime previousTime = 0U;
-        double sampledValue = previousValue;
-        bool found = false;
-        for (std::uint32_t index = 0U;
-             index < track.doubleFrames.Size(); ++index) {
-            const DoubleKeyFrame& frame =
-                track.doubleFrames[index];
-            if (sampleTime > frame.keyTimeMicroseconds) {
-                previousValue = frame.value;
-                previousTime = frame.keyTimeMicroseconds;
-                sampledValue = frame.value;
-                continue;
-            }
-            const AnimationTime segmentDuration =
-                frame.keyTimeMicroseconds >= previousTime
-                ? frame.keyTimeMicroseconds - previousTime
-                : 0U;
-            double segmentProgress = segmentDuration == 0U
-                ? 1.0
-                : static_cast<double>(sampleTime - previousTime) /
-                    static_cast<double>(segmentDuration);
-            switch (frame.interpolation) {
-            case DoubleKeyFrameInterpolation::Discrete:
-                segmentProgress = sampleTime >=
-                    frame.keyTimeMicroseconds ? 1.0 : 0.0;
-                break;
-            case DoubleKeyFrameInterpolation::Easing:
-                segmentProgress = Ease(segmentProgress, frame.easing);
-                break;
-            case DoubleKeyFrameInterpolation::Spline:
-                segmentProgress =
-                    EvaluateSpline(segmentProgress, frame);
-                break;
-            case DoubleKeyFrameInterpolation::Linear:
-                segmentProgress = Clamp01(segmentProgress);
-                break;
-            }
-            sampledValue = previousValue +
-                (frame.value - previousValue) * segmentProgress;
-            found = true;
-            break;
-        }
-        if (!found && !track.doubleFrames.Empty()) {
-            sampledValue = track.doubleFrames.Back().value;
-        }
+        const double sampledValue = SampleKeyFrames<double>(
+            track.doubleFrames,
+            track.baseValue,
+            sampleTime,
+            [](double from, double to, double amount) noexcept {
+                return from + (to - from) * amount;
+            });
         value = Meta::ValueCodec<double>::Encode(sampledValue).Value();
     } else if (track.kind == Track::Kind::ColorKeyFrames) {
-        Base::Color previousValue = track.fromColor;
-        AnimationTime previousTime = 0U;
-        Base::Color sampledValue = previousValue;
-        bool found = false;
-        for (std::uint32_t index = 0U;
-             index < track.colorFrames.Size(); ++index) {
-            const ColorKeyFrame& frame =
-                track.colorFrames[index];
-            if (sampleTime > frame.keyTimeMicroseconds) {
-                previousValue = frame.value;
-                previousTime = frame.keyTimeMicroseconds;
-                sampledValue = frame.value;
-                continue;
-            }
-            const AnimationTime segmentDuration =
-                frame.keyTimeMicroseconds >= previousTime
-                ? frame.keyTimeMicroseconds - previousTime
-                : 0U;
-            double segmentProgress = segmentDuration == 0U
-                ? 1.0
-                : static_cast<double>(
-                      sampleTime - previousTime) /
-                    static_cast<double>(segmentDuration);
-            switch (frame.interpolation) {
-            case DoubleKeyFrameInterpolation::Discrete:
-                segmentProgress = sampleTime >=
-                    frame.keyTimeMicroseconds ? 1.0 : 0.0;
-                break;
-            case DoubleKeyFrameInterpolation::Easing:
-                segmentProgress =
-                    Ease(segmentProgress, frame.easing);
-                break;
-            case DoubleKeyFrameInterpolation::Spline:
-                segmentProgress =
-                    EvaluateSpline(segmentProgress, frame);
-                break;
-            case DoubleKeyFrameInterpolation::Linear:
-                segmentProgress =
-                    Clamp01(segmentProgress);
-                break;
-            }
-            const float amount =
-                static_cast<float>(segmentProgress);
-            sampledValue = {
-                previousValue.red +
-                    (frame.value.red -
-                     previousValue.red) * amount,
-                previousValue.green +
-                    (frame.value.green -
-                     previousValue.green) * amount,
-                previousValue.blue +
-                    (frame.value.blue -
-                     previousValue.blue) * amount,
-                previousValue.alpha +
-                    (frame.value.alpha -
-                     previousValue.alpha) * amount};
-            found = true;
-            break;
-        }
-        if (!found && !track.colorFrames.Empty()) {
-            sampledValue = track.colorFrames.Back().value;
-        }
+        const Base::Color sampled = SampleKeyFrames<Base::Color>(
+            track.colorFrames, track.fromColor, sampleTime,
+            LerpColor);
         Base::Result<Meta::PropertyValue> encoded =
-            Meta::ValueCodec<Base::Color>::Encode(
-                sampledValue);
+            Meta::ValueCodec<Base::Color>::Encode(sampled);
         if (!encoded) return encoded.GetStatus();
         value = std::move(encoded).Value();
     } else if (track.kind == Track::Kind::PointKeyFrames) {
-        Base::Point previousValue = track.fromPoint;
-        AnimationTime previousTime = 0U;
-        Base::Point sampledValue = previousValue;
-        bool found = false;
-        for (std::uint32_t index = 0U;
-             index < track.pointFrames.Size(); ++index) {
-            const PointKeyFrame& frame = track.pointFrames[index];
-            if (sampleTime > frame.keyTimeMicroseconds) {
-                previousValue = frame.value;
-                previousTime = frame.keyTimeMicroseconds;
-                sampledValue = frame.value;
-                continue;
-            }
-            const AnimationTime segmentDuration =
-                frame.keyTimeMicroseconds >= previousTime
-                ? frame.keyTimeMicroseconds - previousTime
-                : 0U;
-            double segmentProgress = segmentDuration == 0U
-                ? 1.0
-                : static_cast<double>(sampleTime - previousTime) /
-                    static_cast<double>(segmentDuration);
-            switch (frame.interpolation) {
-            case DoubleKeyFrameInterpolation::Discrete:
-                segmentProgress = sampleTime >=
-                    frame.keyTimeMicroseconds ? 1.0 : 0.0;
-                break;
-            case DoubleKeyFrameInterpolation::Easing:
-                segmentProgress = Ease(segmentProgress, frame.easing);
-                break;
-            case DoubleKeyFrameInterpolation::Spline:
-                segmentProgress = EvaluateSpline(segmentProgress, frame);
-                break;
-            case DoubleKeyFrameInterpolation::Linear:
-                segmentProgress = Clamp01(segmentProgress);
-                break;
-            }
-            sampledValue = {
-                previousValue.x +
-                    (frame.value.x - previousValue.x) * segmentProgress,
-                previousValue.y +
-                    (frame.value.y - previousValue.y) * segmentProgress};
-            found = true;
-            break;
-        }
-        if (!found && !track.pointFrames.Empty()) {
-            sampledValue = track.pointFrames.Back().value;
-        }
+        const Base::Point sampled = SampleKeyFrames<Base::Point>(
+            track.pointFrames, track.fromPoint, sampleTime,
+            LerpPoint);
         Base::Result<Meta::PropertyValue> encoded =
-            Meta::ValueCodec<Base::Point>::Encode(sampledValue);
+            Meta::ValueCodec<Base::Point>::Encode(sampled);
         if (!encoded) return encoded.GetStatus();
         value = std::move(encoded).Value();
     } else if (track.kind == Track::Kind::ThicknessKeyFrames) {
-        Base::Thickness previousValue = track.fromThickness;
-        AnimationTime previousTime = 0U;
-        Base::Thickness sampledValue = previousValue;
-        bool found = false;
-        for (std::uint32_t index = 0U;
-             index < track.thicknessFrames.Size(); ++index) {
-            const ThicknessKeyFrame& frame = track.thicknessFrames[index];
-            if (sampleTime > frame.keyTimeMicroseconds) {
-                previousValue = frame.value;
-                previousTime = frame.keyTimeMicroseconds;
-                sampledValue = frame.value;
-                continue;
-            }
-            const AnimationTime segmentDuration =
-                frame.keyTimeMicroseconds >= previousTime
-                ? frame.keyTimeMicroseconds - previousTime
-                : 0U;
-            double segmentProgress = segmentDuration == 0U
-                ? 1.0
-                : static_cast<double>(sampleTime - previousTime) /
-                    static_cast<double>(segmentDuration);
-            switch (frame.interpolation) {
-            case DoubleKeyFrameInterpolation::Discrete:
-                segmentProgress = sampleTime >=
-                    frame.keyTimeMicroseconds ? 1.0 : 0.0;
-                break;
-            case DoubleKeyFrameInterpolation::Easing:
-                segmentProgress = Ease(segmentProgress, frame.easing);
-                break;
-            case DoubleKeyFrameInterpolation::Spline:
-                segmentProgress = EvaluateSpline(segmentProgress, frame);
-                break;
-            case DoubleKeyFrameInterpolation::Linear:
-                segmentProgress = Clamp01(segmentProgress);
-                break;
-            }
-            sampledValue = {
-                previousValue.left +
-                    (frame.value.left - previousValue.left) * segmentProgress,
-                previousValue.top +
-                    (frame.value.top - previousValue.top) * segmentProgress,
-                previousValue.right +
-                    (frame.value.right - previousValue.right) * segmentProgress,
-                previousValue.bottom +
-                    (frame.value.bottom - previousValue.bottom) *
-                        segmentProgress};
-            found = true;
-            break;
-        }
-        if (!found && !track.thicknessFrames.Empty()) {
-            sampledValue = track.thicknessFrames.Back().value;
-        }
+        const Base::Thickness sampled = SampleKeyFrames<Base::Thickness>(
+            track.thicknessFrames, track.fromThickness, sampleTime,
+            LerpThickness);
         Base::Result<Meta::PropertyValue> encoded =
-            Meta::ValueCodec<Base::Thickness>::Encode(sampledValue);
+            Meta::ValueCodec<Base::Thickness>::Encode(sampled);
         if (!encoded) return encoded.GetStatus();
         value = std::move(encoded).Value();
     } else if (track.kind == Track::Kind::IntegerKeyFrames) {
-        std::int64_t previousValue = track.fromInteger;
-        AnimationTime previousTime = 0U;
-        std::int64_t sampledValue = previousValue;
-        bool found = false;
-        for (std::uint32_t index = 0U;
-             index < track.integerFrames.Size(); ++index) {
-            const IntegerKeyFrame& frame = track.integerFrames[index];
-            if (sampleTime > frame.keyTimeMicroseconds) {
-                previousValue = frame.value;
-                previousTime = frame.keyTimeMicroseconds;
-                sampledValue = frame.value;
-                continue;
-            }
-            const AnimationTime segmentDuration =
-                frame.keyTimeMicroseconds >= previousTime
-                ? frame.keyTimeMicroseconds - previousTime
-                : 0U;
-            double segmentProgress = segmentDuration == 0U
-                ? 1.0
-                : static_cast<double>(sampleTime - previousTime) /
-                    static_cast<double>(segmentDuration);
-            switch (frame.interpolation) {
-            case DoubleKeyFrameInterpolation::Discrete:
-                segmentProgress = sampleTime >=
-                    frame.keyTimeMicroseconds ? 1.0 : 0.0;
-                break;
-            case DoubleKeyFrameInterpolation::Easing:
-                segmentProgress = Ease(segmentProgress, frame.easing);
-                break;
-            case DoubleKeyFrameInterpolation::Spline:
-                segmentProgress = EvaluateSpline(segmentProgress, frame);
-                break;
-            case DoubleKeyFrameInterpolation::Linear:
-                segmentProgress = Clamp01(segmentProgress);
-                break;
-            }
-            sampledValue = LerpInteger(
-                previousValue, frame.value, segmentProgress);
-            found = true;
-            break;
-        }
-        if (!found && !track.integerFrames.Empty()) {
-            sampledValue = track.integerFrames.Back().value;
-        }
+        const std::int64_t sampled = SampleKeyFrames<std::int64_t>(
+            track.integerFrames, track.fromInteger, sampleTime, LerpInteger);
         Base::Result<Meta::PropertyValue> encoded =
-            EncodeIntegerWidth(sampledValue, track.integerWidth);
+            EncodeIntegerWidth(sampled, track.integerWidth);
         if (!encoded) return encoded.GetStatus();
         value = std::move(encoded).Value();
     } else if (track.kind == Track::Kind::SizeKeyFrames) {
-        Base::Size previousValue = track.fromSize;
-        AnimationTime previousTime = 0U;
-        Base::Size sampledValue = previousValue;
-        bool found = false;
-        for (std::uint32_t index = 0U;
-             index < track.sizeFrames.Size(); ++index) {
-            const SizeKeyFrame& frame = track.sizeFrames[index];
-            if (sampleTime > frame.keyTimeMicroseconds) {
-                previousValue = frame.value;
-                previousTime = frame.keyTimeMicroseconds;
-                sampledValue = frame.value;
-                continue;
-            }
-            const AnimationTime segmentDuration =
-                frame.keyTimeMicroseconds >= previousTime
-                ? frame.keyTimeMicroseconds - previousTime
-                : 0U;
-            double segmentProgress = segmentDuration == 0U
-                ? 1.0
-                : static_cast<double>(sampleTime - previousTime) /
-                    static_cast<double>(segmentDuration);
-            switch (frame.interpolation) {
-            case DoubleKeyFrameInterpolation::Discrete:
-                segmentProgress = sampleTime >=
-                    frame.keyTimeMicroseconds ? 1.0 : 0.0;
-                break;
-            case DoubleKeyFrameInterpolation::Easing:
-                segmentProgress = Ease(segmentProgress, frame.easing);
-                break;
-            case DoubleKeyFrameInterpolation::Spline:
-                segmentProgress = EvaluateSpline(segmentProgress, frame);
-                break;
-            case DoubleKeyFrameInterpolation::Linear:
-                segmentProgress = Clamp01(segmentProgress);
-                break;
-            }
-            sampledValue = {
-                previousValue.width +
-                    (frame.value.width - previousValue.width) * segmentProgress,
-                previousValue.height +
-                    (frame.value.height - previousValue.height) *
-                        segmentProgress};
-            found = true;
-            break;
-        }
-        if (!found && !track.sizeFrames.Empty()) {
-            sampledValue = track.sizeFrames.Back().value;
-        }
+        const Base::Size sampled = SampleKeyFrames<Base::Size>(
+            track.sizeFrames, track.fromSize, sampleTime,
+            LerpSize);
         Base::Result<Meta::PropertyValue> encoded =
-            Meta::ValueCodec<Base::Size>::Encode(sampledValue);
+            Meta::ValueCodec<Base::Size>::Encode(sampled);
         if (!encoded) return encoded.GetStatus();
         value = std::move(encoded).Value();
     } else if (track.kind == Track::Kind::MatrixKeyFrames) {
-        Base::Transform2D previousValue = track.fromMatrix;
-        AnimationTime previousTime = 0U;
-        Base::Transform2D sampledValue = previousValue;
-        bool found = false;
-        for (std::uint32_t index = 0U;
-             index < track.matrixFrames.Size(); ++index) {
-            const MatrixKeyFrame& frame = track.matrixFrames[index];
-            if (sampleTime > frame.keyTimeMicroseconds) {
-                previousValue = frame.value;
-                previousTime = frame.keyTimeMicroseconds;
-                sampledValue = frame.value;
-                continue;
-            }
-            const AnimationTime segmentDuration =
-                frame.keyTimeMicroseconds >= previousTime
-                ? frame.keyTimeMicroseconds - previousTime
-                : 0U;
-            double segmentProgress = segmentDuration == 0U
-                ? 1.0
-                : static_cast<double>(sampleTime - previousTime) /
-                    static_cast<double>(segmentDuration);
-            switch (frame.interpolation) {
-            case DoubleKeyFrameInterpolation::Discrete:
-                segmentProgress = sampleTime >=
-                    frame.keyTimeMicroseconds ? 1.0 : 0.0;
-                break;
-            case DoubleKeyFrameInterpolation::Easing:
-                segmentProgress = Ease(segmentProgress, frame.easing);
-                break;
-            case DoubleKeyFrameInterpolation::Spline:
-                segmentProgress = EvaluateSpline(segmentProgress, frame);
-                break;
-            case DoubleKeyFrameInterpolation::Linear:
-                segmentProgress = Clamp01(segmentProgress);
-                break;
-            }
-            sampledValue = LerpMatrix(
-                previousValue, frame.value, segmentProgress);
-            found = true;
-            break;
-        }
-        if (!found && !track.matrixFrames.Empty()) {
-            sampledValue = track.matrixFrames.Back().value;
-        }
+        const Base::Transform2D sampled = SampleKeyFrames<Base::Transform2D>(
+            track.matrixFrames, track.fromMatrix, sampleTime, LerpMatrix);
         Base::Result<Meta::PropertyValue> encoded =
-            Meta::ValueCodec<Base::Transform2D>::Encode(sampledValue);
+            Meta::ValueCodec<Base::Transform2D>::Encode(sampled);
         if (!encoded) return encoded.GetStatus();
         value = std::move(encoded).Value();
-    } else {
+        } else {
         value = track.discreteBaseValue;
         for (const DiscreteAnimationKeyFrame& frame :
              track.discreteFrames) {
@@ -741,6 +469,41 @@ Base::Result<bool> AnimationEngine::ApplyTrack(
                 Length::Pixels(numeric.Value()));
         if (!length) return length.GetStatus();
         value = std::move(length).Value();
+    }
+    if (UIElement* element = TryCast<UIElement>(track.target)) {
+        if (track.property == UIElement::OpacityProperty.Handle()) {
+            Base::Result<double> decoded = Meta::ValueCodec<double>::Decode(value);
+            if (decoded) element->SetAnimatedOpacity(decoded.Value());
+        } else if (track.property == UIElement::VisibilityProperty.Handle()) {
+            Base::Result<Visibility> decoded =
+                Meta::ValueCodec<Visibility>::Decode(value);
+            if (decoded) element->SetAnimatedVisibility(decoded.Value());
+        }
+    }
+    if (FrameworkElement* framework = TryCast<FrameworkElement>(track.target)) {
+        if (track.property == FrameworkElement::WidthProperty.Handle()) {
+            Base::Result<Length> decoded = Meta::ValueCodec<Length>::Decode(value);
+            if (decoded) framework->SetAnimatedWidth(decoded.Value());
+        } else if (track.property == FrameworkElement::HeightProperty.Handle()) {
+            Base::Result<Length> decoded = Meta::ValueCodec<Length>::Decode(value);
+            if (decoded) framework->SetAnimatedHeight(decoded.Value());
+        } else if (track.property == FrameworkElement::MinWidthProperty.Handle()) {
+            Base::Result<double> decoded = Meta::ValueCodec<double>::Decode(value);
+            if (decoded) framework->SetAnimatedMinWidth(decoded.Value());
+        } else if (track.property == FrameworkElement::MinHeightProperty.Handle()) {
+            Base::Result<double> decoded = Meta::ValueCodec<double>::Decode(value);
+            if (decoded) framework->SetAnimatedMinHeight(decoded.Value());
+        } else if (track.property == FrameworkElement::MaxWidthProperty.Handle()) {
+            Base::Result<double> decoded = Meta::ValueCodec<double>::Decode(value);
+            if (decoded) framework->SetAnimatedMaxWidth(decoded.Value());
+        } else if (track.property == FrameworkElement::MaxHeightProperty.Handle()) {
+            Base::Result<double> decoded = Meta::ValueCodec<double>::Decode(value);
+            if (decoded) framework->SetAnimatedMaxHeight(decoded.Value());
+        } else if (track.property == FrameworkElement::MarginProperty.Handle()) {
+            Base::Result<Thickness> decoded =
+                Meta::ValueCodec<Thickness>::Decode(value);
+            if (decoded) framework->SetAnimatedMargin(decoded.Value());
+        }
     }
     Base::Result<void> applied = values_->SetAnimationValue(
         *track.target, track.property, value);

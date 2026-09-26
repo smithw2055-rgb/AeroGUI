@@ -2,7 +2,7 @@
 #pragma once
 
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Media/Geometry.hpp>
+#include <Aero/Media/Geometries.hpp>
 
 #include <cmath>
 #include <cstdint>

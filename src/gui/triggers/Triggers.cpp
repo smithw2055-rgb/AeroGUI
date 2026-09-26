@@ -1,10 +1,5 @@
 #include <Aero/Style.hpp>
-#include <Aero/Triggers/TriggerBase.hpp>
-#include <Aero/Triggers/Trigger.hpp>
-#include <Aero/Triggers/DataTrigger.hpp>
-#include <Aero/Triggers/MultiTrigger.hpp>
-#include <Aero/Triggers/MultiDataTrigger.hpp>
-#include <Aero/Triggers/Conditions.hpp>
+#include <Aero/Triggers.hpp>
 #include <Aero/Value.hpp>
 
 #include "gui/data/BindingEngine.hpp"

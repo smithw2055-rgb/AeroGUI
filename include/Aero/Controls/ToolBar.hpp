@@ -6,7 +6,6 @@
 #include <Aero/Controls/TextBlock.hpp>
 #include <Aero/DataTemplate.hpp>
 
-namespace Aero::Meta { class Registration; }
 
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
@@ -15,8 +14,6 @@ class AERO_GUI_API ToolBar
     : public ItemsControl {
     AERO_DECLARE_TYPE(ToolBar, ItemsControl)
 public:
-    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
-
     ToolBar() noexcept;
     ~ToolBar() override;
 
@@ -58,16 +55,13 @@ protected:
 private:
     TextBlock* headerText_ = nullptr;
     TextBlock* overflowGlyph_ = nullptr;
-    Result<void>
-        SynchronizeToolBar() noexcept;
+    void SynchronizeToolBar() noexcept;
 };
 
 // Template item hosts for the primary and overflow regions of ToolBar.
 class AERO_GUI_API ToolBarPanel : public Panel {
     AERO_DECLARE_TYPE(ToolBarPanel, Panel)
 public:
-    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
-
     ToolBarPanel() noexcept : Panel(StaticTypeId()) {}
     ~ToolBarPanel() override = default;
 protected:
@@ -78,8 +72,6 @@ protected:
 class AERO_GUI_API ToolBarOverflowPanel : public Panel {
     AERO_DECLARE_TYPE(ToolBarOverflowPanel, Panel)
 public:
-    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
-
     ToolBarOverflowPanel() noexcept : Panel(StaticTypeId()) {}
     ~ToolBarOverflowPanel() override = default;
 protected:
@@ -93,8 +85,6 @@ protected:
 class AERO_GUI_API ToolBarTray : public Base::Object {
     AERO_DECLARE_TYPE(ToolBarTray, Base::Object)
 public:
-    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
-
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
     AERO_ATTACHED_PROPERTY(bool, IsLocked);
 };

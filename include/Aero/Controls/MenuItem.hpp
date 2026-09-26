@@ -22,8 +22,6 @@ class AERO_GUI_API MenuItem
     : public HeaderedItemsControl {
     AERO_DECLARE_TYPE(MenuItem, HeaderedItemsControl)
 public:
-    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
-
     MenuItem() noexcept;
     ~MenuItem() override;
 

@@ -1,4 +1,5 @@
 #include "gui/core/ElementTree.hpp"
+#include "gui/meta/Describe.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
@@ -11,15 +12,15 @@
 #include "gui/templates/TemplateInstance.hpp"
 #include <Aero/VisualStateManager.hpp>
 #include <Aero/Controls.hpp>
+#include <Aero/ClassHandler.hpp>
 #include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/TryCast.hpp>
 #include "gui/meta/TypeRegistryDetail.hpp"
-#include <Aero/Controls/Primitives/ToggleButton.hpp>
+#include <Aero/Controls/Buttons.hpp>
 #include <Aero/Controls/ItemContainerGenerator.hpp>
 
 #include <utility>
-#include <Aero/Media/ScaleTransform.hpp>
-#include <Aero/Media/RotateTransform.hpp>
+#include <Aero/Media/Transform2D.hpp>
 #include <Aero/Controls/Decorator.hpp>
 #include <Aero/Controls/ContentPresenter.hpp>
 #include <Aero/Controls/ItemsPresenter.hpp>
@@ -458,7 +459,7 @@ TreeViewItem::OnApplyTemplate() noexcept {
         AeroGuiInternal::SetItemsSourceBorrowed(
             *childItems_, childSource);
     }
-    static_cast<void>(SynchronizeTemplate());
+    SynchronizeTemplate();
     ProjectRealizedHeaders();
 }
 
@@ -481,8 +482,7 @@ void TreeViewItem::OnTemplateDetached() noexcept {
     HeaderedItemsControl::OnTemplateDetached();
 }
 
-Base::Result<void>
-TreeViewItem::SynchronizeTemplate() noexcept {
+void TreeViewItem::SynchronizeTemplate() noexcept {
     if (headerText_ != nullptr) {
         const Value header = GetHeader();
         headerText_->SetText(
@@ -562,7 +562,6 @@ TreeViewItem::SynchronizeTemplate() noexcept {
             }
         }
     }
-    return {};
 }
 
 
@@ -709,7 +708,7 @@ void TreeViewItem::OnPropertyChanged(
     HeaderedItemsControl::OnPropertyChanged(args);
     const DependencyPropertyHandle prop = args.GetProperty();
     if (prop == HeaderProperty || prop == IconProperty) {
-        static_cast<void>(SynchronizeTemplate());
+        SynchronizeTemplate();
         ProjectHeaderContent();
     } else if (prop == IsExpandedProperty) {
         if (expanderGestureActive_ &&
@@ -720,7 +719,7 @@ void TreeViewItem::OnPropertyChanged(
         if (args.GetNewValue().AsBoolean()) {
             ActivateHierarchicalContent();
         }
-        static_cast<void>(SynchronizeTemplate());
+        SynchronizeTemplate();
         RoutedEventArgs event;
         if (args.GetNewValue().AsBoolean()) {
             OnExpanded(event);
@@ -770,7 +769,7 @@ void TreeViewItem::OnExpandButtonClick(
     if (GetIsExpanded() != target) {
         SetIsExpanded(target);
     }
-    static_cast<void>(SynchronizeTemplate());
+    SynchronizeTemplate();
     // Keep the gesture armed until the next expander MouseDown so a TwoWay
     // IsChecked echo cannot collapse the node on the same click.
 }
@@ -784,7 +783,7 @@ void TreeViewItem::ApplyExpanderGesture() noexcept {
     if (GetIsExpanded() != expanderGestureTarget_) {
         SetIsExpanded(expanderGestureTarget_);
     }
-    static_cast<void>(SynchronizeTemplate());
+    SynchronizeTemplate();
 }
 
 TreeView::TreeView() noexcept
@@ -848,11 +847,11 @@ bool TreeView::SelectItem(
                 if (!node->GetIsExpanded()) {
                     node->SetIsExpanded(true);
                 }
-                static_cast<void>(node->SynchronizeTemplate());
+                node->SynchronizeTemplate();
             }
             visual = visual->GetVisualParent();
         }
-        static_cast<void>(item->SynchronizeTemplate());
+        item->SynchronizeTemplate();
     }
     return true;
 }
@@ -1095,15 +1094,16 @@ void ClearTreeViewItems(
 
 } // namespace
 
-void TreeView::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(TreeView) {
     using namespace Aero::Meta;
     Register<TreeView>(context)
         .Event(TreeView::SelectedItemChangedEvent)
-        .Property(TreeView::SelectedItemProperty, Base::Ref<Base::Object>{})
         .Factory();
+    AERO_ON(TreeView, &TreeView::OnMouseLeftButtonDown, UIElement::MouseLeftButtonDownEvent);
+    AERO_ON(TreeView, &TreeView::OnKeyDown, UIElement::KeyDownEvent);
 }
 
-void TreeViewItem::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(TreeViewItem) {
     using namespace Aero::Meta;
     Register<TreeViewItem>(context)
         .Event(TreeViewItem::ExpandedEvent)

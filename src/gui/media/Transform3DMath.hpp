@@ -3,9 +3,6 @@
 // Shared 2.5D helpers for render collapse and hit-test unproject.
 // GetLocalVisualTransform stays O(1) / local-only; 3D lives in this context.
 
-#include <Aero/Media/CompositeTransform3D.hpp>
-#include <Aero/Media/MatrixTransform3D.hpp>
-#include <Aero/Media/PerspectiveTransform3D.hpp>
 #include <Aero/Media/Transform3D.hpp>
 #include <Aero/TryCast.hpp>
 

@@ -5,7 +5,7 @@
 #include <Aero/Controls/Panel.hpp>
 #include <Aero/Controls/TextBox.hpp>
 #include <Aero/Controls/PasswordBox.hpp>
-#include <Aero/Media/Transform.hpp>
+#include <Aero/Media/Transform2D.hpp>
 #include <Aero/VisualTreeHelper.hpp>
 
 #include <algorithm>
@@ -807,7 +807,7 @@ Base::Result<void> ViewFrame::AttachItemGenerator(
             if (generator == nullptr || host == nullptr) return {};
             if (metadata->Types().IsDerivedFrom(
                     host->RuntimeType(),
-                    Controls::VirtualizingStackPanel::StaticTypeId())) {
+                    Controls::VirtualizingPanel::StaticTypeId())) {
                 return {};
             }
             if (itemsControl.GetCount() == generator->GetGeneratedCount()) {
@@ -842,10 +842,10 @@ Base::Result<void> ViewFrame::AttachItemGenerator(
         Base::Result<void> attached;
         if (metadata->Types().IsDerivedFrom(
                 host->RuntimeType(),
-                Controls::VirtualizingStackPanel::StaticTypeId())) {
+                Controls::VirtualizingPanel::StaticTypeId())) {
             attached = generator->AttachVirtualized(
                 itemsControl,
-                *static_cast<Controls::VirtualizingStackPanel*>(host));
+                *static_cast<Controls::VirtualizingPanel*>(host));
         } else {
             attached = generator->Attach(itemsControl, *host);
         }

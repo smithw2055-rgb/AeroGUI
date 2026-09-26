@@ -10,8 +10,6 @@ class AERO_GUI_API ContextMenu
     : public Menu {
     AERO_DECLARE_TYPE(ContextMenu, Menu)
 public:
-    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
-
     ContextMenu() noexcept;
     ~ContextMenu() override;
 

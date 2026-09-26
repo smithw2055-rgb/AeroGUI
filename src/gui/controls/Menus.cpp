@@ -1,4 +1,5 @@
 #include "gui/core/ElementTree.hpp"
+#include "gui/meta/Describe.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
@@ -8,6 +9,7 @@
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/meta/TypeRegistryDetail.hpp"
 #include <Aero/Controls.hpp>
+#include <Aero/ClassHandler.hpp>
 #include <Aero/Controls/ContextMenuService.hpp>
 
 #include <utility>
@@ -400,13 +402,15 @@ ContextMenuService::SetContextMenu(
         std::move(value));
 }
 
-void Menu::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(Menu) {
     using namespace Aero::Meta;
     Register<Menu>(context)
         .Factory();
+    AERO_ON(Menu, &Menu::OnMouseLeftButtonDown, UIElement::MouseLeftButtonDownEvent);
+    AERO_ON(Menu, &Menu::OnKeyDown, UIElement::KeyDownEvent);
 }
 
-void MenuItem::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(MenuItem) {
     using namespace Aero::Meta;
     Register<MenuItem>(context)
         .Event(MenuItem::ClickEvent)
@@ -422,7 +426,7 @@ void MenuItem::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
         .Factory();
 }
 
-void ContextMenu::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(ContextMenu) {
     using namespace Aero::Meta;
     Register<ContextMenu>(context)
         .Event(ContextMenu::OpenedEvent)
@@ -432,17 +436,12 @@ void ContextMenu::RegisterMetadata(::Aero::Meta::Registration& context) noexcept
         .Factory();
 }
 
-void ContextMenuService::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(ContextMenuService) {
     using namespace Aero::Meta;
     Register<ContextMenuService>(context, TypeFlags::Abstract)
         .Property(ContextMenuService::ContextMenuProperty, Base::Ref<ContextMenu>{});
 }
 
-void Separator::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
-    using namespace Aero::Meta;
-    Register<Separator>(context)
-        .Factory();
-}
 
 } // namespace Aero::Controls
 

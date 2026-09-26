@@ -33,8 +33,6 @@ private:
 class AERO_GUI_API Panel : public FrameworkElement {
     AERO_DECLARE_TYPE(Panel, FrameworkElement)
 public:
-    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
-
     Ref<Aero::Media::Brush> GetBackground() const noexcept {
         return GetValue(BackgroundProperty);
     }

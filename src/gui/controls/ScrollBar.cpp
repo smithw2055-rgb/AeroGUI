@@ -1,4 +1,5 @@
 #include "gui/controls/ScrollCommon.hpp"
+#include "gui/meta/Describe.hpp"
 #include "gui/meta/ValueConversion.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
@@ -11,6 +12,7 @@
 #include "gui/styles/StyleEngine.hpp"
 #include "render/DisplayList.hpp"
 #include <Aero/Controls.hpp>
+#include <Aero/ClassHandler.hpp>
 #include "gui/media/BrushRendering.hpp"
 #include <Aero/Input/Mouse.hpp>
 #include <Aero/TryCast.hpp>
@@ -1732,7 +1734,7 @@ double ProgressBar::GetNormalizedValue() const noexcept {
 
 namespace Primitives {
 
-void Track::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(Track) {
     using namespace Aero::Meta;
     Register<Track>(context)
         .Property(Track::OrientationProperty, Orientation::Vertical, AffectsMeasure)
@@ -1747,14 +1749,14 @@ void Track::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
         .Factory();
 }
 
-void Thumb::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(Thumb) {
     using namespace Aero::Meta;
     Register<Thumb>(context)
         .Property(Thumb::IsDraggingProperty, false, AffectsRender)
         .Factory();
 }
 
-void RangeBase::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(RangeBase) {
     using namespace Aero::Meta;
     Register<RangeValueChangedEventArgs>(context);
     Register<RangeBase>(context, TypeFlags::Abstract)
@@ -1764,7 +1766,7 @@ void RangeBase::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
         .Property(RangeBase::ValueProperty, FrameworkPropertyMetadata(0.0, AffectsArrange | BindsTwoWayByDefault).Validate(&::Aero::Base::Validate::Finite<double>));
 }
 
-void ScrollBar::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(ScrollBar) {
     using namespace Aero::Meta;
     Register<ScrollChangedEventArgs>(context);
     Register<ScrollBar>(context)
@@ -1774,6 +1776,10 @@ void ScrollBar::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
         .Property(ScrollBar::LargeChangeProperty, 0.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::NonNegative<double>)
         .TemplatePart("PART_Track", TypeOf<Track>())
         .Factory();
+    AERO_ON(ScrollBar, &ScrollBar::OnMouseLeftButtonDown, UIElement::MouseLeftButtonDownEvent);
+    AERO_ON(ScrollBar, &ScrollBar::OnMouseLeftButtonUp, UIElement::MouseLeftButtonUpEvent);
+    AERO_ON(ScrollBar, &ScrollBar::OnMouseMove, UIElement::MouseMoveEvent);
+    AERO_ON(ScrollBar, &ScrollBar::OnKeyDown, UIElement::KeyDownEvent);
 
     for (Base::StringView commandName : {
              Base::StringView("LineUpCommand"),
@@ -1815,7 +1821,7 @@ void ScrollBar::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
 
 } // namespace Primitives
 
-void Slider::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(Slider) {
     using namespace Aero::Meta;
     for (Base::StringView commandName : {
              Base::StringView("DecreaseSmall"),
@@ -1838,9 +1844,13 @@ void Slider::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
         .Property(Slider::IsMoveToPointEnabledProperty, false)
         .Override(UIElement::IsTabStopProperty, true, FrameworkPropertyMetadataOptions::None)
         .Factory();
+    AERO_ON(Slider, &Slider::OnMouseLeftButtonDown, UIElement::MouseLeftButtonDownEvent);
+    AERO_ON(Slider, &Slider::OnMouseLeftButtonUp, UIElement::MouseLeftButtonUpEvent);
+    AERO_ON(Slider, &Slider::OnMouseMove, UIElement::MouseMoveEvent);
+    AERO_ON(Slider, &Slider::OnKeyDown, UIElement::KeyDownEvent);
 }
 
-void TickBar::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(TickBar) {
     using namespace Aero::Meta;
     Register<TickBar>(context)
         .Property(TickBar::FillProperty, Base::Ref<Media::Brush>{}, AffectsRender)
@@ -1848,7 +1858,7 @@ void TickBar::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
         .Factory();
 }
 
-void ProgressBar::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(ProgressBar) {
     using namespace Aero::Meta;
     Register<ProgressBar>(context)
         .Property(ProgressBar::IsIndeterminateProperty, false, AffectsRender)
@@ -1856,7 +1866,7 @@ void ProgressBar::RegisterMetadata(::Aero::Meta::Registration& context) noexcept
         .Factory();
 }
 
-void GridSplitter::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(GridSplitter) {
     using namespace Aero::Meta;
     Register<GridSplitter>(context)
         .Property(GridSplitter::DragIncrementProperty, 1.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::Positive<double>)

@@ -1,4 +1,5 @@
 #include "gui/meta/TypeRegistryDetail.hpp"
+#include "gui/meta/Describe.hpp"
 #include "gui/meta/ValueConversion.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
@@ -13,10 +14,11 @@
 #include <Aero/Controls.hpp>
 #include <Aero/Controls/ColumnDefinition.hpp>
 #include <Aero/Controls/RowDefinition.hpp>
-#include <Aero/Controls/ListBox.hpp>
+#include <Aero/Controls/Selectors.hpp>
 #include <Aero/Controls/TreeView.hpp>
 #include <Aero/Shapes.hpp>
-#include <Aero/Media/Transforms.hpp>
+#include <Aero/Media/Transform2D.hpp>
+#include <Aero/Media/Transform3D.hpp>
 #include "gui/media/BrushRendering.hpp"
 #include <Aero/Documents.hpp>
 #include "RichText.hpp"
@@ -448,16 +450,36 @@ Size UniformGrid::MeasureOverride(
             cellDesired.height,
             child->GetDesiredSize().height);
     }
-    if (cellDesired.height <= 0.0 && cellAvailable.width > 0.0 &&
+    if (heightUnconstrained && !widthUnconstrained &&
+        cellAvailable.width > 0.0 &&
         cellAvailable.width < Unconstrained * 0.5) {
-        cellDesired.height = cellAvailable.width;
-    }
-    if (cellDesired.width <= 0.0 && cellAvailable.width > 0.0 &&
-        cellAvailable.width < Unconstrained * 0.5) {
-        cellDesired.width = cellAvailable.width;
-    } else if (cellDesired.width <= 0.0 && cellDesired.height > 0.0 &&
-               widthUnconstrained) {
-        cellDesired.width = cellDesired.height;
+        if (cellDesired.height < cellAvailable.width) {
+            cellDesired.height = cellAvailable.width;
+        }
+        if (cellDesired.width < cellAvailable.width) {
+            cellDesired.width = cellAvailable.width;
+        }
+    } else if (widthUnconstrained && !heightUnconstrained &&
+               cellAvailable.height > 0.0 &&
+               cellAvailable.height < Unconstrained * 0.5) {
+        if (cellDesired.width < cellAvailable.height) {
+            cellDesired.width = cellAvailable.height;
+        }
+        if (cellDesired.height < cellAvailable.height) {
+            cellDesired.height = cellAvailable.height;
+        }
+    } else {
+        if (cellDesired.height <= 0.0 && cellAvailable.width > 0.0 &&
+            cellAvailable.width < Unconstrained * 0.5) {
+            cellDesired.height = cellAvailable.width;
+        }
+        if (cellDesired.width <= 0.0 && cellAvailable.width > 0.0 &&
+            cellAvailable.width < Unconstrained * 0.5) {
+            cellDesired.width = cellAvailable.width;
+        } else if (cellDesired.width <= 0.0 && cellDesired.height > 0.0 &&
+                   widthUnconstrained) {
+            cellDesired.width = cellDesired.height;
+        }
     }
     return Size{
         cellDesired.width * columns,
@@ -1580,7 +1602,7 @@ void ClearGridRowDefinitions(
 
 } // namespace
 
-void Panel::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(Panel) {
     using namespace Aero::Meta;
     Register<Panel>(context, TypeFlags::Abstract)
         .Property(Panel::BackgroundProperty, Base::Ref<Media::Brush>{}, AffectsRender)
@@ -1589,14 +1611,14 @@ void Panel::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
         .Content<Aero::UIElement>("Children", ContentKind::Collection, &SetPanelContent, &ClearPanelContent, ContentFlags::Visual);
 }
 
-void StackPanel::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(StackPanel) {
     using namespace Aero::Meta;
     Register<StackPanel>(context)
         .Property(StackPanel::OrientationProperty, Orientation::Vertical, AffectsMeasure)
         .Factory();
 }
 
-void DockPanel::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(DockPanel) {
     using namespace Aero::Meta;
     Register<DockPanel>(context)
         .Property(DockPanel::LastChildFillProperty, true, AffectsArrange)
@@ -1604,7 +1626,7 @@ void DockPanel::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
         .Factory();
 }
 
-void WrapPanel::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(WrapPanel) {
     using namespace Aero::Meta;
     Register<WrapPanel>(context)
         .Property(WrapPanel::OrientationProperty, Orientation::Horizontal, AffectsMeasure)
@@ -1613,7 +1635,7 @@ void WrapPanel::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
         .Factory();
 }
 
-void UniformGrid::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(UniformGrid) {
     using namespace Aero::Meta;
     Register<UniformGrid>(context)
         .Property(UniformGrid::RowsProperty, std::uint32_t{0}, AffectsMeasure)
@@ -1622,7 +1644,7 @@ void UniformGrid::RegisterMetadata(::Aero::Meta::Registration& context) noexcept
         .Factory();
 }
 
-void Canvas::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(Canvas) {
     using namespace Aero::Meta;
     Register<Canvas>(context)
         .Property(Canvas::LeftProperty, std::numeric_limits<double>::infinity(), AffectsParentArrange)
@@ -1632,7 +1654,7 @@ void Canvas::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
         .Factory();
 }
 
-void Grid::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(Grid) {
     using namespace Aero::Meta;
     Register<GridLength>(context)
         .ValueSemantics({sizeof(GridLength), alignof(GridLength), nullptr, nullptr, &EqualGridLength, nullptr, true})

@@ -1,8 +1,6 @@
 #include <Aero/Media/DrawingContext.hpp>
-#include <Aero/Media/DashStyle.hpp>
-#include <Aero/Media/Geometry.hpp>
-#include <Aero/Media/LineGeometry.hpp>
 #include <Aero/Media/Pen.hpp>
+#include <Aero/Media/Geometries.hpp>
 
 #include "DisplayList.hpp"
 #include "gui/media/BrushRendering.hpp"

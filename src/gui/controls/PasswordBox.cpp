@@ -1,8 +1,10 @@
 #include "gui/controls/TextBoxCommon.hpp"
+#include "gui/meta/Describe.hpp"
 #include "render/DisplayList.hpp"
 #include <Aero/Controls/TextBoxBase.hpp>
 #include <Aero/Controls/TextBox.hpp>
 #include <Aero/Controls/PasswordBox.hpp>
+#include <Aero/ClassHandler.hpp>
 #include <Aero/Controls/ScrollViewer.hpp>
 #include "gui/meta/TypeRegistryDetail.hpp"
 #include "ControlsMetadata.hpp"
@@ -38,7 +40,7 @@ PasswordBox::PasswordBox() noexcept
     if (passwordPolicy_ != nullptr) {
         static_cast<void>(PasswordPolicy(passwordPolicy_)->SetMask(GetPasswordChar()));
     }
-    static_cast<void>(SynchronizeEditorFromPassword());
+    SynchronizeEditorFromPassword();
     editor_.SetForeground(GetForeground());
     editor_.SetSelectionBrush(GetSelectionBrush());
     editor_.SetSelectionOpacity(GetSelectionOpacity());
@@ -220,17 +222,14 @@ void PasswordBox::OnRender(
         GetIsKeyboardFocused()));
 }
 
-Base::Result<void>
-PasswordBox::SynchronizeEditorFromPassword()
-    noexcept {
+void PasswordBox::SynchronizeEditorFromPassword() noexcept {
     if (synchronizingEditor_) {
-        return {};
+        return;
     }
     synchronizingEditor_ = true;
     editor_.SetMaxLength(GetMaxLength());
     editor_.SetText(password_.View());
     synchronizingEditor_ = false;
-    return {};
 }
 
 Base::Result<void>
@@ -318,7 +317,7 @@ void PasswordBox::OnPropertyChanged(
     }
 }
 
-void PasswordBox::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(PasswordBox) {
     using namespace Aero::Meta;
     Base::String defaultPasswordChar;
     (void)defaultPasswordChar.Assign(Base::StringView(u8"\u2022"));
@@ -331,6 +330,12 @@ void PasswordBox::RegisterMetadata(::Aero::Meta::Registration& context) noexcept
         .Property(PasswordBox::PlaceholderProperty, Base::String{}, AffectsMeasure | AffectsRender)
         .TemplatePart("PART_ContentHost", TypeOf<ScrollViewer>())
         .Factory();
+    AERO_ON(PasswordBox, &PasswordBox::OnMouseDown, UIElement::MouseDownEvent);
+    AERO_ON(PasswordBox, &PasswordBox::OnMouseMove, UIElement::MouseMoveEvent);
+    AERO_ON(PasswordBox, &PasswordBox::OnMouseUp, UIElement::MouseUpEvent);
+    AERO_ON(PasswordBox, &PasswordBox::OnKeyDown, UIElement::KeyDownEvent);
+    AERO_ON(PasswordBox, &PasswordBox::OnTextInput, UIElement::TextInputEvent);
+    AERO_ON(PasswordBox, &PasswordBox::OnLostKeyboardFocus, UIElement::LostKeyboardFocusEvent);
 }
 
 } // namespace Aero::Controls

@@ -5,7 +5,7 @@
 #include <Aero/Base/ResourceUri.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/View.hpp>
-#include <Aero/Media/Geometry.hpp>
+#include <Aero/Media/Geometries.hpp>
 
 #include <cstdint>
 

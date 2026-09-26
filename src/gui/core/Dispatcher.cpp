@@ -300,11 +300,10 @@ Base::Result<DispatcherTaskHandle> Dispatcher::Enqueue(
         record.context = context;
         record.state = RecordState::Pending;
 
-        const Base::Result<void> insertResult = delayed
-            ? InsertDelayedLocked(record)
-            : InsertReadyLocked(record);
-        if (!insertResult) {
-            return insertResult.GetStatus();
+        if (delayed) {
+            InsertDelayedLocked(record);
+        } else {
+            InsertReadyLocked(record);
         }
 
         handle = record.handle;
@@ -541,16 +540,15 @@ std::uint32_t Dispatcher::ReentrancyDepth() const noexcept {
     return guardDepth_;
 }
 
-Base::Result<void> Dispatcher::InsertReadyLocked(
+void Dispatcher::InsertReadyLocked(
     const TaskRecord& record) noexcept {
     // P3.1: pure FIFO append. Priority is an admission filter applied by
     // ProcessPending, never an ordering key; the O(n) sorted insertion is
     // gone, so cross-thread Post is O(1).
     ready_.PushBack(record);
-    return {};
 }
 
-Base::Result<void> Dispatcher::InsertDelayedLocked(
+void Dispatcher::InsertDelayedLocked(
     const TaskRecord& record) noexcept {
     // P3.1: ordered by due time only (stable for equal dues: strict < keeps
     // insertion order). Priority no longer participates.
@@ -563,7 +561,6 @@ Base::Result<void> Dispatcher::InsertDelayedLocked(
         std::swap(delayed_[index], delayed_[index - 1U]);
         --index;
     }
-    return {};
 }
 
 Base::Result<void> Dispatcher::PromoteDueLocked(
@@ -580,11 +577,7 @@ Base::Result<void> Dispatcher::PromoteDueLocked(
             break;
         }
 
-        const Base::Result<void> insertResult =
-            InsertReadyLocked(source);
-        if (!insertResult) {
-            return insertResult.GetStatus();
-        }
+        InsertReadyLocked(source);
 
         source.state = RecordState::Finished;
         source.callback = nullptr;

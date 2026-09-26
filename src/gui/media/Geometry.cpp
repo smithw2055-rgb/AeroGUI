@@ -1,20 +1,4 @@
-#include <Aero/Media/Geometry.hpp>
-#include <Aero/Media/StreamGeometry.hpp>
-#include <Aero/Media/PathFigure.hpp>
-#include <Aero/Media/PathGeometry.hpp>
-#include <Aero/Media/PathSegment.hpp>
-#include <Aero/Media/LineSegment.hpp>
-#include <Aero/Media/BezierSegment.hpp>
-#include <Aero/Media/QuadraticBezierSegment.hpp>
-#include <Aero/Media/ArcSegment.hpp>
-#include <Aero/Media/PolyLineSegment.hpp>
-#include <Aero/Media/PolyBezierSegment.hpp>
-#include <Aero/Media/PolyQuadraticBezierSegment.hpp>
-#include <Aero/Media/LineGeometry.hpp>
-#include <Aero/Media/RectangleGeometry.hpp>
-#include <Aero/Media/EllipseGeometry.hpp>
-#include <Aero/Media/GeometryGroup.hpp>
-#include <Aero/Media/CombinedGeometry.hpp>
+#include <Aero/Media/Geometries.hpp>
 #include "gui/media/GeometryFlatten.hpp"
 
 #include <algorithm>
@@ -525,7 +509,7 @@ bool CombinedGeometry::FreezeCore(bool isChecking) noexcept {
 
 } // namespace Aero::Media
 
-#include <Aero/Media/DashStyle.hpp>
+#include <Aero/Media/Pen.hpp>
 
 namespace Aero::Media {
 

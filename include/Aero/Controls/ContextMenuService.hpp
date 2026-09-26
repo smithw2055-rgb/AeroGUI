@@ -2,7 +2,6 @@
 
 #include <Aero/Controls/ContextMenu.hpp>
 
-namespace Aero::Meta { class Registration; }
 
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
@@ -12,8 +11,6 @@ class AERO_GUI_API ContextMenuService
     AERO_DECLARE_TYPE(
         ContextMenuService, Base::Object)
 public:
-    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
-
     TypeId RuntimeType() const noexcept override {
         return StaticTypeId();
     }

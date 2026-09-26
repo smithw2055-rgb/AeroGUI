@@ -2,7 +2,8 @@
 
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Layout.hpp>
-#include <Aero/Media/Transforms.hpp>
+#include <Aero/Media/Transform2D.hpp>
+#include <Aero/Media/Transform3D.hpp>
 
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Value.hpp>

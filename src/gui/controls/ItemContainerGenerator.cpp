@@ -50,7 +50,7 @@ public:
     Base::Result<void> Attach(ItemsControl& owner, Panel& itemsHost) noexcept;
     Base::Result<void> AttachVirtualized(
         ItemsControl& owner,
-        VirtualizingStackPanel& itemsHost) noexcept;
+        VirtualizingPanel& itemsHost) noexcept;
     Base::Result<bool> Detach() noexcept;
     Base::Result<void> Refresh() noexcept;
     Base::Result<bool> SetRealizationRange(
@@ -110,7 +110,7 @@ private:
     void* subtreeContext_ = nullptr;
     ItemsControl* owner_ = nullptr;
     Panel* host_ = nullptr;
-    VirtualizingStackPanel* virtualizingHost_ = nullptr;
+    VirtualizingPanel* virtualizingHost_ = nullptr;
     Base::Vector<Record> records_;
     Base::Vector<Base::Ref<FrameworkElement>> recycledContainers_;
     ItemsChangedHandler changedHandler_;
@@ -230,7 +230,7 @@ Base::Result<void> ItemContainerGenerator::GeneratorState::Attach(
 Base::Result<void>
 ItemContainerGenerator::GeneratorState::AttachVirtualized(
     ItemsControl& owner,
-    VirtualizingStackPanel& itemsHost) noexcept {
+    VirtualizingPanel& itemsHost) noexcept {
     if (owner_ != nullptr ||
         ItemContainerGenerator::OwnerHasGenerator(owner) ||
         VisualTree(owner) != tree_ ||
@@ -880,16 +880,12 @@ ItemContainerGenerator::GeneratorState::AttachRecord(
         auto& content =
             *static_cast<UIElement*>(
                 record.content.Get());
-        Base::Result<void> selected =
-            record.generatedTextContent
-            ? AeroGuiInternal::
-                      SetGeneratedTextContent(
-                      *contentControl, record.content, content)
-            : AeroGuiInternal::SetOwnedContent(*contentControl,
-                  record.content, content);
-        if (!selected) {
-            (void)tree_->DetachElement(record.containerMount);
-            return selected.GetStatus();
+        if (record.generatedTextContent) {
+            AeroGuiInternal::SetGeneratedTextContent(
+                *contentControl, record.content, content);
+        } else {
+            AeroGuiInternal::SetOwnedContent(
+                *contentControl, record.content, content);
         }
         if (record.generatedTextContent &&
             AeroGuiInternal::PropertyRegistry(owner_).Types().IsDerivedFrom(
@@ -1642,20 +1638,17 @@ void ItemContainerGenerator::GeneratorState::OnItemsChanged(
     Base::Result<void> applied;
     if (virtualizingHost_ != nullptr &&
         owner_ != nullptr) {
-        applied =
-            ItemContainerGenerator::HostHandleItemsChanged(
-                *virtualizingHost_, event, owner_->GetCount());
-        if (applied) {
-            Base::Result<bool> realized =
-                SetRealizationRangeInternal(
-                    virtualizingHost_->
-                        desiredFirstIndex_,
-                    virtualizingHost_->
-                        desiredCount_,
-                    true);
-            if (!realized) {
-                applied = realized.GetStatus();
-            }
+        ItemContainerGenerator::HostHandleItemsChanged(
+            *virtualizingHost_, event, owner_->GetCount());
+        Base::Result<bool> realized =
+            SetRealizationRangeInternal(
+                virtualizingHost_->
+                    desiredFirstIndex_,
+                virtualizingHost_->
+                    desiredCount_,
+                true);
+        if (!realized) {
+            applied = realized.GetStatus();
         }
     } else {
         applied = ApplyChange(event);
@@ -1726,7 +1719,7 @@ Base::Result<void> ItemContainerGenerator::Attach(
 
 Base::Result<void> ItemContainerGenerator::AttachVirtualized(
     ItemsControl& owner,
-    VirtualizingStackPanel& itemsHost) noexcept {
+    VirtualizingPanel& itemsHost) noexcept {
     auto* runtime = state_;
     return runtime != nullptr
         ? runtime->AttachVirtualized(owner, itemsHost)
@@ -1858,23 +1851,23 @@ void ItemContainerGenerator::NotifyOwnerContainersChanged(
 }
 
 Base::Result<void> ItemContainerGenerator::AttachHostGenerator(
-    VirtualizingStackPanel& host,
+    VirtualizingPanel& host,
     ItemContainerGenerator& generator,
     std::uint32_t itemCount) noexcept {
     return host.AttachGenerator(generator, itemCount);
 }
 
 void ItemContainerGenerator::DetachHostGenerator(
-    VirtualizingStackPanel& host,
+    VirtualizingPanel& host,
     ItemContainerGenerator& generator) noexcept {
     host.DetachGenerator(generator);
 }
 
-Base::Result<void> ItemContainerGenerator::HostHandleItemsChanged(
-    VirtualizingStackPanel& host,
+void ItemContainerGenerator::HostHandleItemsChanged(
+    VirtualizingPanel& host,
     const ItemsChangedEvent& event,
     std::uint32_t itemCount) noexcept {
-    return host.HandleItemsChanged(event, itemCount);
+    host.HandleItemsChanged(event, itemCount);
 }
 
 } // namespace Aero::Controls

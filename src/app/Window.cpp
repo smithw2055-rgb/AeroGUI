@@ -67,16 +67,15 @@ bool Window::GetIsOpen() const noexcept {
     return state != nullptr && state->isOpen != nullptr && state->isOpen(state->context);
 }
 
-Base::Result<void> Window::Close() noexcept {
-    if (closed_) return {};
+void Window::Close() noexcept {
+    if (closed_) return;
     CancelEventArgs closing;
     OnClosing(closing);
-    if (closing.GetCancel()) return {};
+    if (closing.GetCancel()) return;
     auto* state = static_cast<::Aero::App::WindowHostBridge*>(
         hostState_);
     if (state != nullptr && state->close != nullptr) state->close(state->context);
     NotifyClosed();
-    return {};
 }
 
 void Window::Attach(void* hostState) noexcept {

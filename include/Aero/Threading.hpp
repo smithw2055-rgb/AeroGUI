@@ -214,9 +214,9 @@ private:
         void* context,
         DispatcherCleanupCallback cleanup) noexcept;
 
-    Result<void> InsertReadyLocked(
+    void InsertReadyLocked(
         const TaskRecord& record) noexcept;
-    Result<void> InsertDelayedLocked(
+    void InsertDelayedLocked(
         const TaskRecord& record) noexcept;
     Result<void> PromoteDueLocked(
         DispatcherTime nowMicroseconds) noexcept;

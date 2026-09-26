@@ -3,7 +3,6 @@
 #include <Aero/Controls/ItemsControl.hpp>
 #include <Aero/Controls/StatusBarItem.hpp>
 
-namespace Aero::Meta { class Registration; }
 
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
@@ -12,8 +11,6 @@ class AERO_GUI_API StatusBar
     : public ItemsControl {
     AERO_DECLARE_TYPE(StatusBar, ItemsControl)
 public:
-    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
-
     StatusBar() noexcept
         : ItemsControl(StaticTypeId()) {}
     ~StatusBar() override = default;

@@ -6,10 +6,6 @@
 #include <Aero/TextFormatting.hpp>
 #include <Aero/Events/EventArgs.hpp>
 
-namespace Aero::Meta {
-class Registration;
-}
-
 namespace Aero::Controls {
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::DependencyPropertyChangedEventHandler;
@@ -23,8 +19,6 @@ class AERO_GUI_API TextBox
       private Input::ITextCompositionClient {
     AERO_DECLARE_TYPE(TextBox, Primitives::TextBoxBase)
 public:
-    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
-
     TextBox() noexcept;
     ~TextBox() override;
 
@@ -137,12 +131,12 @@ protected:
     void OnRender(
         ::Aero::Media::DrawingContext& context) noexcept override;
 
-    void OnMouseDown(MouseButtonEventArgs& args) override;
-    void OnMouseMove(MouseEventArgs& args) override;
-    void OnMouseUp(MouseButtonEventArgs& args) override;
-    void OnKeyDown(KeyEventArgs& args) override;
-    void OnTextInput(TextCompositionEventArgs& args) override;
-    void OnLostKeyboardFocus(KeyboardFocusChangedEventArgs& args) override;
+    void OnMouseDown(MouseButtonEventArgs& args);
+    void OnMouseMove(MouseEventArgs& args);
+    void OnMouseUp(MouseButtonEventArgs& args);
+    void OnKeyDown(KeyEventArgs& args);
+    void OnTextInput(TextCompositionEventArgs& args);
+    void OnLostKeyboardFocus(KeyboardFocusChangedEventArgs& args);
     void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
     // Replaces the former CoerceTextBoxText metadata delegate. Invalid UTF-8
     // is rejected by returning Unset (surfaced as ValidationFailed).
@@ -209,7 +203,7 @@ private:
     Result<void> MoveCaretLineBoundary(
         bool end,
         bool extend) noexcept;
-    Result<void> EnsureCaretVisible() noexcept;
+    void EnsureCaretVisible() noexcept;
     Result<void> RebuildCaretStops() noexcept;
     Result<void> SanitizeInput(
         StringView input,
@@ -222,8 +216,7 @@ private:
     double GetLineHeight() const noexcept;
     const void*
     GetActiveModel() const noexcept;
-    Result<void>
-    UpdateCandidateWindow() noexcept;
+    void UpdateCandidateWindow() noexcept;
     Result<void>
     CancelCompositionForFocusLoss() noexcept;
     Result<void> RenderEditor(

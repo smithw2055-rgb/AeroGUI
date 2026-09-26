@@ -270,6 +270,11 @@ private:
     DependencyPropertyRegistry& DependencyProperties() noexcept;
 
     void* state_ = nullptr;
+
+public:
+    // True once this session has already registered the type. Builtin
+    // modules use it to register a base before its derived types.
+    bool ContainsType(TypeId type) const noexcept;
 };
 
 } // namespace Aero::Meta
@@ -485,6 +490,19 @@ public:
         : builder_(CreateNamedDescriptionSession<T>(
               context, metadataNamespace, metadataName, flags)) {}
 
+    // XAML name whose metadata base is T itself. The factory must construct T
+    // with this name's TypeId so RuntimeType matches the registered alias.
+    TypeBuilder(
+        Registration& context,
+        StringView metadataNamespace,
+        StringView metadataName,
+        bool alias,
+        TypeFlags flags = TypeFlags::None) noexcept
+        : builder_(CreateNamedDescriptionSession<T, true>(
+              context, metadataNamespace, metadataName, flags)) {
+        static_cast<void>(alias);
+    }
+
     TypeBuilder(const TypeBuilder&) = delete;
     TypeBuilder& operator=(const TypeBuilder&) = delete;
     TypeBuilder(TypeBuilder&&) noexcept = default;
@@ -494,6 +512,10 @@ public:
     TypeBuilder& Factory() noexcept {
         builder_.Factory(
             &CreateDefaultObject<TCreate>);
+        return *this;
+    }
+    TypeBuilder& Factory(ObjectFactory factory) noexcept {
+        builder_.Factory(factory);
         return *this;
     }
     template<class TInterface>
@@ -1442,6 +1464,16 @@ TypeBuilder<T> Register(
     TypeFlags flags = TypeFlags::None) noexcept {
     return TypeBuilder<T>(
         registration, metadataNamespace, name, flags);
+}
+
+// Registers an XAML name whose base type is T, without a second C++ class.
+template<class T>
+TypeBuilder<T> RegisterAlias(
+    Registration& registration,
+    StringView name,
+    TypeFlags flags = TypeFlags::None) noexcept {
+    return TypeBuilder<T>(
+        registration, AeroNamespaceUri(), name, true, flags);
 }
 
 } // namespace Aero::Meta

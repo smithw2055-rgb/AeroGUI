@@ -1,4 +1,5 @@
 #include "gui/core/ElementTree.hpp"
+#include "gui/meta/Describe.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
@@ -234,14 +235,14 @@ void ClearGridViewColumns(
 
 } // namespace
 
-void GridViewColumnHeader::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(GridViewColumnHeader) {
     using namespace Aero::Meta;
     Register<GridViewColumnHeader>(context)
         .Property(GridViewColumnHeader::RoleProperty, GridViewColumnHeaderRole::Normal)
         .Factory();
 }
 
-void GridViewColumn::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(GridViewColumn) {
     using namespace Aero::Meta;
     Register<GridViewColumn>(context)
         .Property(GridViewColumn::HeaderProperty, Value::NullObject(TypeOf<Base::Object>()))
@@ -254,7 +255,7 @@ void GridViewColumn::RegisterMetadata(::Aero::Meta::Registration& context) noexc
         .Factory();
 }
 
-void GridView::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(GridView) {
     using namespace Aero::Meta;
     Register<GridView>(context)
         .Property<bool, &GridView::GetAllowsColumnReorder, &GridView::SetAllowsColumnReorder>("AllowsColumnReorder")
@@ -268,7 +269,7 @@ void GridView::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
         .Factory();
 }
 
-void GridViewHeaderRowPresenter::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(GridViewHeaderRowPresenter) {
     using namespace Aero::Meta;
     Register<GridViewHeaderRowPresenter>(context)
         .Property(GridViewHeaderRowPresenter::AllowsColumnReorderProperty, false)
@@ -281,7 +282,7 @@ void GridViewHeaderRowPresenter::RegisterMetadata(::Aero::Meta::Registration& co
         .Factory();
 }
 
-void GridViewRowPresenter::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(GridViewRowPresenter) {
     using namespace Aero::Meta;
     Register<GridViewRowPresenter>(context)
         .Property(GridViewRowPresenter::ColumnsProperty, Base::Ref<Base::Object>{})
@@ -289,14 +290,14 @@ void GridViewRowPresenter::RegisterMetadata(::Aero::Meta::Registration& context)
         .Factory();
 }
 
-void ListView::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(ListView) {
     using namespace Aero::Meta;
     Register<ListView>(context)
         .Property(ListView::ViewProperty, Base::Ref<GridView>{}, AffectsMeasure)
         .Factory();
 }
 
-void ListViewItem::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(ListViewItem) {
     using namespace Aero::Meta;
     Register<ListViewItem>(context)
         .Override(Aero::UIElement::IsTabStopProperty, true, FrameworkPropertyMetadataOptions::None)

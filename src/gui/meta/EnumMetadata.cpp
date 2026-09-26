@@ -21,8 +21,7 @@
 #include <Aero/Interactivity/Conditions.hpp>
 #include <Aero/Media/Animation/StoryboardActions.hpp>
 #include <Aero/Data/SortDescription.hpp>
-#include <Aero/Media/ArcSegment.hpp>
-#include <Aero/Media/CombinedGeometry.hpp>
+#include <Aero/Media/Geometries.hpp>
 #include <AeroApp/Window.hpp>
 
 namespace Aero {

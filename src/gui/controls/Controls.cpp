@@ -11,10 +11,11 @@
 #include "render/DisplayList.hpp"
 #include <Aero/Controls.hpp>
 #include <Aero/Controls/ControlTemplate.hpp>
-#include <Aero/Controls/ListBox.hpp>
+#include <Aero/Controls/Selectors.hpp>
 #include <Aero/Controls/TreeView.hpp>
 #include <Aero/Shapes.hpp>
-#include <Aero/Media/Transforms.hpp>
+#include <Aero/Media/Transform2D.hpp>
+#include <Aero/Media/Transform3D.hpp>
 #include "gui/media/BrushRendering.hpp"
 #include <Aero/Collections.hpp>
 #include <Aero/Documents.hpp>
@@ -213,11 +214,11 @@ Base::Result<void> AeroGuiInternal::ParseGridDefinitions(
     return {};
 }
 
-Base::Result<void> AeroGuiInternal::EnsureVisualChildStorage(
+void AeroGuiInternal::EnsureVisualChildStorage(
     Media::Visual& parent,
     Media::Visual& child) noexcept {
     UIElement* childElement = ::Aero::TryCast<::Aero::UIElement>(&child);
-    if (childElement == nullptr) return {};
+    if (childElement == nullptr) return;
     const Meta::TypeRegistry& types = AeroGuiInternal::PropertyRegistry(parent).Types();
     if (types.IsDerivedFrom(
             parent.RuntimeType(), Controls::Panel::StaticTypeId())) {
@@ -225,13 +226,13 @@ Base::Result<void> AeroGuiInternal::EnsureVisualChildStorage(
         const std::uint32_t count = AeroGuiInternal::PanelChildCount(panel);
         for (std::uint32_t index = 0U; index < count; ++index) {
             if (AeroGuiInternal::PanelChildAt(panel, index).Get() == childElement) {
-                return {};
+                return;
             }
         }
         Base::Ref<Base::Object> borrowed =
             Base::Ref<Base::Object>::FromBorrowed(*childElement);
         AeroGuiInternal::PanelAddChild(panel, borrowed, *childElement);
-        return {};
+        return;
     }
     if (types.IsDerivedFrom(
             parent.RuntimeType(), Controls::ContentPresenter::StaticTypeId())) {
@@ -239,7 +240,7 @@ Base::Result<void> AeroGuiInternal::EnsureVisualChildStorage(
         if (presenter.GetContent() == nullptr) {
             presenter.SetContent(childElement);
         }
-        return {};
+        return;
     }
     if (types.IsDerivedFrom(
             parent.RuntimeType(), Controls::ContentControl::StaticTypeId())) {
@@ -247,7 +248,7 @@ Base::Result<void> AeroGuiInternal::EnsureVisualChildStorage(
         UIElement* existing =
             AeroGuiInternal::ContentControlContent(control);
         if (existing == childElement) {
-            return {};
+            return;
         }
         const Base::Ref<Controls::ControlTemplate> templ =
             control.GetValue(Controls::Control::TemplateProperty);
@@ -256,7 +257,7 @@ Base::Result<void> AeroGuiInternal::EnsureVisualChildStorage(
             !templ) {
             control.SetContent(childElement);
         }
-        return {};
+        return;
     }
     if (types.IsDerivedFrom(
             parent.RuntimeType(), Controls::Decorator::StaticTypeId())) {
@@ -264,27 +265,27 @@ Base::Result<void> AeroGuiInternal::EnsureVisualChildStorage(
         if (decorator.GetChild() == nullptr) {
             decorator.SetChild(childElement);
         }
-        return {};
+        return;
     }
     if (types.IsDerivedFrom(
             parent.RuntimeType(), Controls::BulletDecorator::StaticTypeId())) {
         auto& bullet = static_cast<Controls::BulletDecorator&>(parent);
         if (bullet.GetChild() == childElement ||
             bullet.GetBullet() == childElement) {
-            return {};
+            return;
         }
         Base::Ref<UIElement> borrowed =
             Base::Ref<UIElement>::FromBorrowed(*childElement);
         if (bullet.GetChild() == nullptr) {
             bullet.SetChild(std::move(borrowed));
-            return {};
+            return;
         }
         if (bullet.GetBullet() == nullptr) {
             bullet.SetBullet(std::move(borrowed));
         }
-        return {};
+        return;
     }
-    return {};
+    return;
 }
 
 void AeroGuiInternal::AttachVisualControlTemplateRoot(

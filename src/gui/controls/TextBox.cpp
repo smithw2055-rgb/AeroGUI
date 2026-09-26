@@ -1,9 +1,11 @@
 #include "gui/controls/TextBoxCommon.hpp"
+#include "gui/meta/Describe.hpp"
 #include "render/DisplayList.hpp"
 #include <Aero/Controls/TextBoxBase.hpp>
 #include <Aero/Controls/TextBox.hpp>
+#include <Aero/ClassHandler.hpp>
 #include <Aero/Controls/PasswordBox.hpp>
-#include <Aero/Media/SolidColorBrush.hpp>
+#include <Aero/Media/Brushes.hpp>
 #include <Aero/Base/String.hpp>
 #include "gui/meta/TypeRegistryDetail.hpp"
 #include "gui/meta/ValueConversion.hpp"
@@ -295,7 +297,7 @@ void TextBox::SetSelection(
     Base::Result<void> changed =
         Model(model_).SetSelection(anchor, caret);
     if (!changed) return;
-    (void)EnsureCaretVisible();
+    EnsureCaretVisible();
     InvalidateVisual();
 }
 
@@ -312,11 +314,7 @@ Base::Result<void> TextBox::SelectAll() noexcept {
     if (!selected) {
         return selected;
     }
-    Base::Result<void> visible =
-        EnsureCaretVisible();
-    if (!visible) {
-        return visible;
-    }
+    EnsureCaretVisible();
     InvalidateVisual();
     return {};
 }
@@ -442,7 +440,8 @@ TextBox::BeginComposition() noexcept {
     compositionActive_ = true;
     InvalidateMeasure();
     InvalidateVisual();
-    return UpdateCandidateWindow();
+    UpdateCandidateWindow();
+    return {};
 }
 
 Base::Result<void> TextBox::UpdateComposition(
@@ -499,7 +498,8 @@ Base::Result<void> TextBox::UpdateComposition(
     }
     InvalidateMeasure();
     InvalidateVisual();
-    return UpdateCandidateWindow();
+    UpdateCandidateWindow();
+    return {};
 }
 
 Base::Result<void> TextBox::CommitComposition(
@@ -548,7 +548,8 @@ Base::Result<void> TextBox::CommitComposition(
     if (!committed) {
         return committed;
     }
-    return UpdateCandidateWindow();
+    UpdateCandidateWindow();
+    return {};
 }
 
 Base::Result<void>
@@ -560,7 +561,8 @@ TextBox::CancelComposition() noexcept {
     compositionText_.Clear();
     InvalidateMeasure();
     InvalidateVisual();
-    return EnsureCaretVisible();
+    EnsureCaretVisible();
+    return {};
 }
 
 Base::Result<void>
@@ -627,11 +629,7 @@ Base::Result<void> TextBox::CommitModelText() noexcept {
         }
     }
     InvalidateMeasure();
-    Base::Result<void> visible =
-        EnsureCaretVisible();
-    if (!visible) {
-        return visible;
-    }
+    EnsureCaretVisible();
     InvalidateVisual();
     return {};
 }
@@ -1490,14 +1488,9 @@ Size TextBox::MeasureOverride(
         scroll_.viewportHeight);
     if (GetIsKeyboardFocused() ||
         compositionActive_) {
-        Base::Result<void> visible =
-            EnsureCaretVisible();
-        if (!visible) {
-            return Size{};
-        }
+        EnsureCaretVisible();
     }
-    static_cast<void>(
-        UpdateCandidateWindow());
+    UpdateCandidateWindow();
     const double minimumWidth =
         DefaultAdvance *
         GetFontSize() / 16.0 /
@@ -1563,14 +1556,9 @@ Size TextBox::ArrangeOverride(
     SetViewport(contentViewport);
     if (GetIsKeyboardFocused() ||
         compositionActive_) {
-        Base::Result<void> visible =
-            EnsureCaretVisible();
-        if (!visible) {
-            return finalSize;
-        }
+        EnsureCaretVisible();
     }
-    static_cast<void>(
-        UpdateCandidateWindow());
+    UpdateCandidateWindow();
     return finalSize;
 }
 
@@ -1885,8 +1873,7 @@ Base::Result<bool> TextBox::PageVertical(
     return old != scroll_.verticalOffset;
 }
 
-Base::Result<void>
-TextBox::EnsureCaretVisible() noexcept {
+void TextBox::EnsureCaretVisible() noexcept {
     const Rect caret = GetCaretRectangle();
     double horizontal =
         scroll_.horizontalOffset;
@@ -1912,14 +1899,12 @@ TextBox::EnsureCaretVisible() noexcept {
     }
     SetHorizontalOffset(horizontal);
     SetVerticalOffset(vertical);
-    return {};
 }
 
-Base::Result<void>
-TextBox::UpdateCandidateWindow() noexcept {
+void TextBox::UpdateCandidateWindow() noexcept {
     if (inputMethodHost_ == nullptr ||
         !compositionActive_) {
-        return {};
+        return;
     }
     Input::ImeCandidateWindow candidate;
     Rect caret = GetCaretRectangle();
@@ -1933,12 +1918,11 @@ TextBox::UpdateCandidateWindow() noexcept {
         ToRootRect(owner, caret);
     candidate.dpiScale = GetDpiScale();
     inputMethodHost_->SetCandidateWindow(candidate);
-    return {};
 }
 
 namespace Primitives {
 
-void TextBoxBase::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(TextBoxBase) {
     using namespace Aero::Media;
     using namespace Aero::Meta;
 
@@ -1957,7 +1941,7 @@ void TextBoxBase::RegisterMetadata(::Aero::Meta::Registration& context) noexcept
 
 } // namespace Primitives
 
-void TextBox::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(TextBox) {
     using namespace Aero::Media;
     using namespace Aero::Meta;
 
@@ -1983,6 +1967,12 @@ void TextBox::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
         .Property(TextBox::MaxLinesProperty, std::uint32_t{0}, AffectsMeasure | AffectsRender)
         .Property(TextBox::MinLinesProperty, std::uint32_t{1}, AffectsMeasure | AffectsRender, &Base::Validate::Positive<std::uint32_t>)
         .Factory();
+    AERO_ON(TextBox, &TextBox::OnMouseDown, UIElement::MouseDownEvent);
+    AERO_ON(TextBox, &TextBox::OnMouseMove, UIElement::MouseMoveEvent);
+    AERO_ON(TextBox, &TextBox::OnMouseUp, UIElement::MouseUpEvent);
+    AERO_ON(TextBox, &TextBox::OnKeyDown, UIElement::KeyDownEvent);
+    AERO_ON(TextBox, &TextBox::OnTextInput, UIElement::TextInputEvent);
+    AERO_ON(TextBox, &TextBox::OnLostKeyboardFocus, UIElement::LostKeyboardFocusEvent);
 }
 
 } // namespace Aero::Controls

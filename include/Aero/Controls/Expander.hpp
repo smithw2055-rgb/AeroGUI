@@ -21,8 +21,6 @@ class AERO_GUI_API Expander
         Expander,
         HeaderedContentControl)
 public:
-    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
-
     Expander() noexcept;
     ~Expander() override;
 

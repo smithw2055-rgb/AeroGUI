@@ -35,7 +35,8 @@
 #include <Aero/Controls.hpp>
 #include <Aero/Data/Binding.hpp>
 #include <Aero/Media/Brushes.hpp>
-#include <Aero/Media/Transforms.hpp>
+#include <Aero/Media/Transform2D.hpp>
+#include <Aero/Media/Transform3D.hpp>
 #include <Aero/Media/Animation.hpp>
 
 // Host integration: input values, providers, fragment loading

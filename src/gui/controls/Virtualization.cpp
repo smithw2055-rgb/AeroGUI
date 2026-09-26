@@ -1,4 +1,5 @@
 #include <Aero/Controls.hpp>
+#include "gui/meta/Describe.hpp"
 #include "gui/meta/TypeRegistryDetail.hpp"
 #include "gui/meta/ValueConversion.hpp"
 
@@ -60,7 +61,7 @@ void VirtualizingStackPanel::SetOrientation(
     crossExtent_ = 0.0;
     SetMainExtent(GetItemOffset(itemExtents_.Size()));
     ClampOffsets();
-    (void)UpdateRealization(true);
+    UpdateRealization(true);
 }
 
 std::uint32_t
@@ -73,7 +74,7 @@ void VirtualizingStackPanel::SetOverscanCount(
     if (value == GetOverscanCount()) return;
     SetValue(OverscanCountProperty, value);
     overscanCount_ = value;
-    (void)UpdateRealization(true);
+    UpdateRealization(true);
 }
 
 double
@@ -90,12 +91,12 @@ void VirtualizingStackPanel::SetEstimatedItemExtent(
         MainOffset() - GetItemOffset(anchor);
     SetValue(EstimatedItemExtentProperty, value);
     estimatedItemExtent_ = value;
-    (void)RebuildExtentTree();
+    RebuildExtentTree();
     SetMainExtent(GetItemOffset(itemExtents_.Size()));
     SetMainOffset(
         GetItemOffset(anchor) + intraItem);
     ClampOffsets();
-    (void)UpdateRealization(true);
+    UpdateRealization(true);
 }
 
 VirtualizationCacheLength
@@ -106,7 +107,7 @@ VirtualizingStackPanel::GetCacheLength() const noexcept {
 void VirtualizingStackPanel::SetCacheLength(
     VirtualizationCacheLength value) noexcept {
     SetValue(CacheLengthProperty, value);
-    (void)UpdateRealization(true);
+    UpdateRealization(true);
 }
 
 VirtualizationCacheLengthUnit
@@ -117,7 +118,7 @@ VirtualizingStackPanel::GetCacheLengthUnit() const noexcept {
 void VirtualizingStackPanel::SetCacheLengthUnit(
     VirtualizationCacheLengthUnit value) noexcept {
     SetValue(CacheLengthUnitProperty, value);
-    (void)UpdateRealization(true);
+    UpdateRealization(true);
 }
 
 double VirtualizingStackPanel::ExtentForIndex(
@@ -169,8 +170,7 @@ double VirtualizingStackPanel::PrefixDeviation(
     return result;
 }
 
-Base::Result<void>
-VirtualizingStackPanel::RebuildExtentTree() noexcept {
+void VirtualizingStackPanel::RebuildExtentTree() noexcept {
     extentTree_.Resize(
             itemExtents_.Size() + 1U, 0.0);
     for (double& value : extentTree_) {
@@ -185,7 +185,6 @@ VirtualizingStackPanel::RebuildExtentTree() noexcept {
                     estimatedItemExtent_);
         }
     }
-    return {};
 }
 
 void VirtualizingStackPanel::SetMeasuredExtent(
@@ -353,8 +352,7 @@ VirtualizingStackPanel::CalculateRealizationRange() noexcept {
         desiredEnd - desiredFirstIndex_;
 }
 
-Base::Result<void>
-VirtualizingStackPanel::UpdateRealization(
+void VirtualizingStackPanel::UpdateRealization(
     bool notifyGenerator) noexcept {
     CalculateRealizationRange();
     if (notifyGenerator &&
@@ -362,15 +360,12 @@ VirtualizingStackPanel::UpdateRealization(
         generator_->SetRealizationRange(
             desiredFirstIndex_, desiredCount_);
     }
-    return {};
 }
 
-Base::Result<void>
-VirtualizingStackPanel::ResizeExtentCache(
+void VirtualizingStackPanel::ResizeExtentCache(
     std::uint32_t itemCount) noexcept {
     itemExtents_.Resize(
         itemCount, 0.0);
-    return {};
 }
 
 void
@@ -384,8 +379,7 @@ VirtualizingStackPanel::OnPropertyInvalidated(
     if (!Same(
             oldEstimate,
             estimatedItemExtent_)) {
-        Base::Result<void> rebuilt = RebuildExtentTree();
-        if (!rebuilt) return;
+        RebuildExtentTree();
         SetMainExtent(
             GetItemOffset(itemExtents_.Size()));
         ClampOffsets();
@@ -394,8 +388,7 @@ VirtualizingStackPanel::OnPropertyInvalidated(
     Panel::OnPropertyInvalidated(flags);
 }
 
-Base::Result<void>
-VirtualizingStackPanel::ApplyExtentDelta(
+void VirtualizingStackPanel::ApplyExtentDelta(
     const ItemsChangedEvent& event,
     std::uint32_t itemCount) noexcept {
     if (event.action == ItemsChangeAction::Reset) {
@@ -423,7 +416,7 @@ VirtualizingStackPanel::ApplyExtentDelta(
             itemExtents_[event.newIndex + offset] =
                 0.0;
         }
-        return {};
+        return;
     }
     if (event.action == ItemsChangeAction::Remove &&
         event.oldCount > 0U &&
@@ -441,7 +434,7 @@ VirtualizingStackPanel::ApplyExtentDelta(
                     index + event.oldCount];
         }
         itemExtents_.Resize(itemCount);
-        return {};
+        return;
     }
     if (event.action == ItemsChangeAction::Replace &&
         event.oldCount == event.newCount &&
@@ -453,7 +446,7 @@ VirtualizingStackPanel::ApplyExtentDelta(
             itemExtents_[event.newIndex + offset] =
                 0.0;
         }
-        return {};
+        return;
     }
     if (event.action == ItemsChangeAction::Move &&
         event.oldCount == 1U &&
@@ -478,14 +471,13 @@ VirtualizingStackPanel::ApplyExtentDelta(
             }
         }
         itemExtents_[event.newIndex] = moving;
-        return {};
+        return;
     }
     itemExtents_.Clear();
     return ResizeExtentCache(itemCount);
 }
 
-Base::Result<void>
-VirtualizingStackPanel::HandleItemsChanged(
+void VirtualizingStackPanel::HandleItemsChanged(
     const ItemsChangedEvent& event,
     std::uint32_t itemCount) noexcept {
     const std::uint32_t oldCount =
@@ -529,12 +521,8 @@ VirtualizingStackPanel::HandleItemsChanged(
         }
     }
 
-    Base::Result<void> changed =
-        ApplyExtentDelta(event, itemCount);
-    if (!changed) return changed.GetStatus();
-    Base::Result<void> rebuilt =
-        RebuildExtentTree();
-    if (!rebuilt) return rebuilt.GetStatus();
+    ApplyExtentDelta(event, itemCount);
+    RebuildExtentTree();
     if (itemCount > 0U) {
         anchor = std::min(
             anchor, itemCount - 1U);
@@ -548,7 +536,6 @@ VirtualizingStackPanel::HandleItemsChanged(
     CalculateRealizationRange();
     InvalidateMeasure();
     InvalidateArrange();
-    return {};
 }
 
 Base::Result<void>
@@ -562,19 +549,8 @@ VirtualizingStackPanel::AttachGenerator(
     }
     generator_ = &generator;
     itemExtents_.Clear();
-    Base::Result<void> resized =
-        ResizeExtentCache(itemCount);
-    if (!resized) {
-        generator_ = nullptr;
-        return resized.GetStatus();
-    }
-    Base::Result<void> rebuilt =
-        RebuildExtentTree();
-    if (!rebuilt) {
-        itemExtents_.Clear();
-        generator_ = nullptr;
-        return rebuilt.GetStatus();
-    }
+    ResizeExtentCache(itemCount);
+    RebuildExtentTree();
     SetMainExtent(GetItemOffset(itemCount));
     ClampOffsets();
     CalculateRealizationRange();
@@ -609,7 +585,7 @@ void VirtualizingStackPanel::SetViewport(
     data_.viewportWidth = viewport.width;
     data_.viewportHeight = viewport.height;
     ClampOffsets();
-    (void)UpdateRealization(true);
+    UpdateRealization(true);
     InvalidateMeasure();
     InvalidateArrange();
 }
@@ -624,7 +600,7 @@ void VirtualizingStackPanel::SetMainScrollOffset(
             MainExtent() - MainViewport()));
     if (Same(next, MainOffset())) return;
     SetMainOffset(next);
-    (void)UpdateRealization(true);
+    UpdateRealization(true);
     InvalidateMeasure();
     InvalidateArrange();
 }
@@ -800,9 +776,7 @@ VirtualizingStackPanel::MeasureOverride(
             GetItemOffset(anchor) + intraItem);
     }
     ClampOffsets();
-    Base::Result<void> realized =
-        UpdateRealization(true);
-    if (!realized) return Size{};
+    UpdateRealization(true);
     return orientation == Orientation::Vertical
         ? Size{crossExtent_, MainExtent()}
         : Size{MainExtent(), crossExtent_};
@@ -875,20 +849,53 @@ double WrapSlotWidth(const VirtualizingWrapPanel& panel, Size available) noexcep
 double WrapSlotHeight(const VirtualizingWrapPanel& panel, Size available) noexcept {
     const double configured = panel.GetItemHeight();
     if (configured > 0.0) return configured;
-    if (panel.GetEstimatedItemExtent() > 0.0) {
-        return panel.GetEstimatedItemExtent();
-    }
-    if (std::isfinite(available.height) && available.height > 0.0 &&
-        available.height < 1.0e11) {
-        return available.height;
-    }
+    (void)available;
     return WrapItemFallback;
 }
 
 } // namespace
 
+Base::Result<void> VirtualizingPanel::AttachGenerator(
+    ItemContainerGenerator& generator,
+    std::uint32_t itemCount) noexcept {
+    if (generator_ != nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::AlreadyExists,
+            "VirtualizingPanel already has a generator");
+    }
+    generator_ = &generator;
+    itemExtents_.Clear();
+    for (std::uint32_t index = 0U; index < itemCount; ++index) {
+        itemExtents_.PushBack(1.0);
+    }
+    return {};
+}
+
+void VirtualizingPanel::DetachGenerator(
+    ItemContainerGenerator& generator) noexcept {
+    if (generator_ != &generator) return;
+    generator_ = nullptr;
+    itemExtents_.Clear();
+    visibleFirstIndex_ = 0U;
+    visibleCount_ = 0U;
+    desiredFirstIndex_ = 0U;
+    desiredCount_ = 0U;
+    data_ = {};
+}
+
+void VirtualizingPanel::HandleItemsChanged(
+    const ItemsChangedEvent&,
+    std::uint32_t itemCount) noexcept {
+    itemExtents_.Clear();
+    for (std::uint32_t index = 0U; index < itemCount; ++index) {
+        itemExtents_.PushBack(1.0);
+    }
+    InvalidateMeasure();
+    InvalidateArrange();
+}
+
 VirtualizingWrapPanel::VirtualizingWrapPanel() noexcept
-    : VirtualizingStackPanel(StaticTypeId()) {}
+    : VirtualizingPanel(StaticTypeId()) {}
 
 double VirtualizingWrapPanel::GetItemWidth() const noexcept {
     return GetValue(ItemWidthProperty);
@@ -906,6 +913,135 @@ void VirtualizingWrapPanel::SetItemWidth(double value) noexcept {
 void VirtualizingWrapPanel::SetItemHeight(double value) noexcept {
     if (!std::isfinite(value) || value < 0.0) return;
     SetValue(ItemHeightProperty, value);
+}
+
+Orientation VirtualizingWrapPanel::GetOrientation() const noexcept {
+    return GetValue(OrientationProperty);
+}
+
+void VirtualizingWrapPanel::SetOrientation(Orientation value) noexcept {
+    SetValue(OrientationProperty, value);
+}
+
+std::uint32_t VirtualizingWrapPanel::GetOverscanCount() const noexcept {
+    return GetValue(OverscanCountProperty);
+}
+
+void VirtualizingWrapPanel::SetOverscanCount(std::uint32_t value) noexcept {
+    SetValue(OverscanCountProperty, value);
+}
+
+VirtualizationCacheLength VirtualizingWrapPanel::GetCacheLength() const noexcept {
+    return GetValue(CacheLengthProperty);
+}
+
+void VirtualizingWrapPanel::SetCacheLength(VirtualizationCacheLength value) noexcept {
+    SetValue(CacheLengthProperty, value);
+}
+
+VirtualizationCacheLengthUnit VirtualizingWrapPanel::GetCacheLengthUnit() const noexcept {
+    return GetValue(CacheLengthUnitProperty);
+}
+
+void VirtualizingWrapPanel::SetCacheLengthUnit(VirtualizationCacheLengthUnit value) noexcept {
+    SetValue(CacheLengthUnitProperty, value);
+}
+
+double VirtualizingWrapPanel::MainExtent() const noexcept {
+    return GetOrientation() == Orientation::Vertical
+        ? data_.extentHeight
+        : data_.extentWidth;
+}
+
+void VirtualizingWrapPanel::SetMainExtent(double value) noexcept {
+    if (GetOrientation() == Orientation::Vertical) {
+        data_.extentHeight = value;
+    } else {
+        data_.extentWidth = value;
+    }
+}
+
+void VirtualizingWrapPanel::SetMainOffset(double value) noexcept {
+    const double limit = std::max(0.0, MainExtent() - (
+        GetOrientation() == Orientation::Vertical
+            ? data_.viewportHeight
+            : data_.viewportWidth));
+    const double next = std::clamp(value, 0.0, limit);
+    if (GetOrientation() == Orientation::Vertical) {
+        data_.verticalOffset = next;
+    } else {
+        data_.horizontalOffset = next;
+    }
+}
+
+void VirtualizingWrapPanel::SetViewport(Size viewport) noexcept {
+    data_.viewportWidth = viewport.width;
+    data_.viewportHeight = viewport.height;
+    CalculateRealizationRange();
+    InvalidateMeasure();
+    InvalidateArrange();
+}
+
+void VirtualizingWrapPanel::SetHorizontalOffset(double value) noexcept {
+    if (!std::isfinite(value) || value < 0.0) return;
+    if (GetOrientation() == Orientation::Horizontal) {
+        SetMainOffset(value);
+    } else {
+        data_.horizontalOffset = value;
+    }
+    InvalidateArrange();
+}
+
+void VirtualizingWrapPanel::SetVerticalOffset(double value) noexcept {
+    if (!std::isfinite(value) || value < 0.0) return;
+    if (GetOrientation() == Orientation::Vertical) {
+        SetMainOffset(value);
+    } else {
+        data_.verticalOffset = value;
+    }
+    InvalidateArrange();
+}
+
+Base::Result<bool> VirtualizingWrapPanel::LineHorizontal(double direction) noexcept {
+    if (!std::isfinite(direction)) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Horizontal line direction must be finite");
+    }
+    SetHorizontalOffset(std::max(0.0, data_.horizontalOffset + direction * 16.0));
+    return true;
+}
+
+Base::Result<bool> VirtualizingWrapPanel::LineVertical(double direction) noexcept {
+    if (!std::isfinite(direction)) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Vertical line direction must be finite");
+    }
+    SetVerticalOffset(std::max(0.0, data_.verticalOffset + direction * 16.0));
+    return true;
+}
+
+Base::Result<bool> VirtualizingWrapPanel::PageHorizontal(double direction) noexcept {
+    if (!std::isfinite(direction)) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Horizontal page direction must be finite");
+    }
+    SetHorizontalOffset(std::max(
+        0.0, data_.horizontalOffset + direction * data_.viewportWidth));
+    return true;
+}
+
+Base::Result<bool> VirtualizingWrapPanel::PageVertical(double direction) noexcept {
+    if (!std::isfinite(direction)) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Vertical page direction must be finite");
+    }
+    SetVerticalOffset(std::max(
+        0.0, data_.verticalOffset + direction * data_.viewportHeight));
+    return true;
 }
 
 void VirtualizingWrapPanel::CalculateRealizationRange() noexcept {
@@ -1059,14 +1195,14 @@ Size VirtualizingWrapPanel::ArrangeOverride(Size finalSize) noexcept {
     return finalSize;
 }
 
-void VirtualizingPanel::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(VirtualizingPanel) {
     using namespace Aero::Meta;
     Register<VirtualizingPanel>(context, TypeFlags::Abstract)
         .Property(VirtualizingPanel::ScrollUnitProperty, ScrollUnit::Item, AffectsParentMeasure)
         .Property(VirtualizingPanel::VirtualizationModeProperty, VirtualizationMode::Standard, AffectsParentMeasure);
 }
 
-void VirtualizingStackPanel::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(VirtualizingStackPanel) {
     using namespace Aero::Meta;
     Register<VirtualizationCacheLength>(context)
         .Field<&VirtualizationCacheLength::cacheBeforeViewport>("CacheBeforeViewport")
@@ -1082,11 +1218,15 @@ void VirtualizingStackPanel::RegisterMetadata(::Aero::Meta::Registration& contex
         .Factory();
 }
 
-void VirtualizingWrapPanel::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(VirtualizingWrapPanel) {
     using namespace Aero::Meta;
     Register<VirtualizingWrapPanel>(context)
         .Property(VirtualizingWrapPanel::ItemWidthProperty, 0.0, AffectsMeasure, &Base::Validate::NonNegative<double>)
         .Property(VirtualizingWrapPanel::ItemHeightProperty, 0.0, AffectsMeasure, &Base::Validate::NonNegative<double>)
+        .Property(VirtualizingWrapPanel::OrientationProperty, Orientation::Vertical, AffectsMeasure)
+        .Property(VirtualizingWrapPanel::OverscanCountProperty, std::uint32_t{2}, AffectsMeasure)
+        .Property(VirtualizingWrapPanel::CacheLengthProperty, VirtualizationCacheLength{}, AffectsMeasure)
+        .Property(VirtualizingWrapPanel::CacheLengthUnitProperty, VirtualizationCacheLengthUnit::Item, AffectsMeasure)
         .Factory();
 }
 

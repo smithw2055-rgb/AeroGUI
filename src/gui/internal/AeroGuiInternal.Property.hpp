@@ -58,6 +58,10 @@
         const DependencyObject& object) noexcept {
         return *object.registry_;
     }
+    static bool HasPropertyRegistry(
+        const DependencyObject& object) noexcept {
+        return object.registry_ != nullptr;
+    }
     static Meta::DependencyPropertyRegistry& PropertyRegistry(
         const DependencyObject* object) noexcept {
         return *object->registry_;

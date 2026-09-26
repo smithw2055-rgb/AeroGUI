@@ -1,4 +1,5 @@
 #include <Aero/Controls.hpp>
+#include "gui/meta/Describe.hpp"
 #include <Aero/Controls/ItemsPresenter.hpp>
 #include <Aero/Controls/AlternationConverter.hpp>
 #include <Aero/Controls/ItemsPanelTemplate.hpp>
@@ -102,12 +103,9 @@ Panel* ItemsPresenter::GetItemsHost() const noexcept {
 void ItemsPresenter::SetItemsHost(
     const Base::Ref<Base::Object>& owner,
     Panel& panel) noexcept {
-    Base::Result<void> assigned =
-        AeroGuiInternal::DecoratorSetOwnedChild(
-            *this, owner, panel);
-    if (assigned) {
-        InvalidateMeasure();
-    }
+    AeroGuiInternal::DecoratorSetOwnedChild(
+        *this, owner, panel);
+    InvalidateMeasure();
 }
 
 
@@ -357,13 +355,12 @@ Base::Result<void> ItemCollection::Reset(
     return {};
 }
 
-Base::Result<void> ContentControl::StoreContentProperty(
+void ContentControl::StoreContentProperty(
     Meta::Value value) noexcept {
-    if (synchronizingContentProperty_) return {};
+    if (synchronizingContentProperty_) return;
     synchronizingContentProperty_ = true;
     SetValue(ContentProperty, std::move(value));
     synchronizingContentProperty_ = false;
-    return {};
 }
 
 void ContentControl::OnContentPropertyChanged(
@@ -1179,7 +1176,7 @@ void ClearItemsControlItems(
 
 } // namespace
 
-void ItemsControl::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(ItemsControl) {
     using namespace Aero::Meta;
     Register<Collections::IItemsSource>(context, TypeFlags::Abstract);
 
@@ -1222,17 +1219,12 @@ void ItemsControl::RegisterMetadata(::Aero::Meta::Registration& context) noexcep
         .Factory();
 }
 
-void HeaderedItemsControl::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(HeaderedItemsControl) {
     using namespace Aero::Meta;
     Register<HeaderedItemsControl>(context, TypeFlags::Abstract)
         .Property(HeaderedItemsControl::HeaderProperty, Meta::Value::NullObject(Meta::TypeOf<Base::Object>()), AffectsMeasure)
         .Property(HeaderedItemsControl::HeaderTemplateProperty, Base::Ref<DataTemplate>{}, AffectsMeasure);
 }
 
-void ItemsPresenter::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
-    using namespace Aero::Meta;
-    Register<ItemsPresenter>(context)
-        .Factory();
-}
 
 } // namespace Aero::Controls

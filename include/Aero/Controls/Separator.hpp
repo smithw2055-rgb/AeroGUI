@@ -9,8 +9,6 @@ class AERO_GUI_API Separator
     : public Control {
     AERO_DECLARE_TYPE(Separator, Control)
 public:
-    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
-
     Separator() noexcept
         : Control(StaticTypeId()) {}
     ~Separator() override = default;

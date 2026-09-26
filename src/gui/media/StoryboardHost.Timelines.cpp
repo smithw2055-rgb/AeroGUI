@@ -4,12 +4,11 @@
 #include "gui/templates/TemplateInstance.hpp"
 #include "gui/core/EventRouter.hpp"
 #include <Aero/CommandBinding.hpp>
-#include <Aero/Media/Animation/EventTrigger.hpp>
+#include <Aero/EventTrigger.hpp>
 #include <Aero/Media/Animation/StoryboardActions.hpp>
-#include <Aero/Media/PathGeometry.hpp>
-#include <Aero/Media/LineSegment.hpp>
-#include <Aero/Media/Transforms.hpp>
-#include <Aero/Media/CompositeTransform3D.hpp>
+#include <Aero/Media/Geometries.hpp>
+#include <Aero/Media/Transform2D.hpp>
+#include <Aero/Media/Transform3D.hpp>
 #include <Aero/UIElement.hpp>
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/TryCast.hpp>

@@ -1,4 +1,5 @@
 #include "gui/core/ElementTree.hpp"
+#include "gui/meta/Describe.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
@@ -11,6 +12,7 @@
 #include "gui/meta/TypeRegistryDetail.hpp"
 #include <Aero/VisualStateManager.hpp>
 #include <Aero/Controls.hpp>
+#include <Aero/ClassHandler.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Value.hpp>
 #include <Aero/ICommand.hpp>
@@ -495,7 +497,7 @@ void RepeatButton::OnKeyUp(KeyEventArgs& args) {
     }
 }
 
-void ButtonBase::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(ButtonBase) {
     using namespace Aero::Meta;
     Register<ButtonBase>(context, TypeFlags::Abstract)
         .Event(ButtonBase::ClickEvent)
@@ -505,24 +507,29 @@ void ButtonBase::RegisterMetadata(::Aero::Meta::Registration& context) noexcept 
         .Property(ButtonBase::CommandTargetProperty, Base::Ref<UIElement>{})
         .Override(UIElement::IsEnabledProperty, FrameworkPropertyMetadata(true, Inherits | AffectsRender))
         .Override(UIElement::IsTabStopProperty, true, FrameworkPropertyMetadataOptions::None);
+    AERO_ON(ButtonBase, &ButtonBase::OnMouseLeftButtonDown, UIElement::MouseLeftButtonDownEvent);
+    AERO_ON(ButtonBase, &ButtonBase::OnMouseLeftButtonUp, UIElement::MouseLeftButtonUpEvent);
+    AERO_ON(ButtonBase, &ButtonBase::OnKeyDown, UIElement::KeyDownEvent);
+    AERO_ON(ButtonBase, &ButtonBase::OnKeyUp, UIElement::KeyUpEvent);
+    AERO_ON(ButtonBase, &ButtonBase::OnGotKeyboardFocus, UIElement::GotKeyboardFocusEvent);
+    AERO_ON(ButtonBase, &ButtonBase::OnLostKeyboardFocus, UIElement::LostKeyboardFocusEvent);
 }
 
-void Button::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
-    using namespace Aero::Meta;
-    Register<Button>(context)
-        .Factory();
-}
 
-void RepeatButton::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(RepeatButton) {
     using namespace Aero::Meta;
     Register<RepeatButton>(context)
         .Property(RepeatButton::DelayProperty, std::uint32_t{400})
         .Property(RepeatButton::IntervalProperty, std::uint32_t{100}, FrameworkPropertyMetadataOptions::None, &Base::Validate::Positive<std::uint32_t>)
         .Override(ButtonBase::ClickModeProperty, ClickMode::Press, FrameworkPropertyMetadataOptions::None)
         .Factory();
+    AERO_ON(RepeatButton, &RepeatButton::OnMouseLeftButtonDown, UIElement::MouseLeftButtonDownEvent);
+    AERO_ON(RepeatButton, &RepeatButton::OnMouseLeftButtonUp, UIElement::MouseLeftButtonUpEvent);
+    AERO_ON(RepeatButton, &RepeatButton::OnKeyDown, UIElement::KeyDownEvent);
+    AERO_ON(RepeatButton, &RepeatButton::OnKeyUp, UIElement::KeyUpEvent);
 }
 
-void ToggleButton::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(ToggleButton) {
     using namespace Aero::Meta;
     Register<ToggleButton>(context)
         .Event(ToggleButton::CheckedEvent)
@@ -533,13 +540,8 @@ void ToggleButton::RegisterMetadata(::Aero::Meta::Registration& context) noexcep
         .Factory();
 }
 
-void CheckBox::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
-    using namespace Aero::Meta;
-    Register<CheckBox>(context)
-        .Factory();
-}
 
-void RadioButton::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(RadioButton) {
     using namespace Aero::Meta;
     Register<RadioButton>(context)
         .Property(RadioButton::GroupNameProperty, Base::String{})

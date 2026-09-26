@@ -7,7 +7,7 @@
 #include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/Visual.hpp>
 #include <Aero/Media/Animation/Storyboard.hpp>
-#include <Aero/Media/Animation/EasingFunctionBase.hpp>
+#include <Aero/Media/Animation/EasingFunctions.hpp>
 #include "gui/controls/VisualStateManagerExecution.hpp"
 
 #include <cstdint>

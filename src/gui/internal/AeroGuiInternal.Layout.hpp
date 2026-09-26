@@ -125,23 +125,19 @@
     }
 
     // --- Input / routed events ---
-    static Base::Result<void> SetMouseOver(UIElement& element, bool value) noexcept {
+    static void SetMouseOver(UIElement& element, bool value) noexcept {
         element.SetMouseOverState(value);
-        return {};
     }
-    static Base::Result<void> SetPressed(UIElement& element, bool value) noexcept {
+    static void SetPressed(UIElement& element, bool value) noexcept {
         element.SetPressedState(value);
-        return {};
     }
-    static Base::Result<void> SetKeyboardFocused(
+    static void SetKeyboardFocused(
         UIElement& element, bool value) noexcept {
         element.SetKeyboardFocusedState(value);
-        return {};
     }
-    static Base::Result<void> SetKeyboardFocusWithin(
+    static void SetKeyboardFocusWithin(
         UIElement& element, bool value) noexcept {
         element.SetKeyboardFocusWithinState(value);
-        return {};
     }
     static void InvokeHandlers(
         UIElement& element,

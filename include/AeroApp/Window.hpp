@@ -36,7 +36,7 @@ public:
     void SetTopmost(bool value) noexcept { SetValue(TopmostProperty, value); }
 
     Result<void> Show() noexcept;
-    Result<void> Close() noexcept;
+    void Close() noexcept;
     bool GetIsOpen() const noexcept;
 
     AERO_DEPENDENCY_PROPERTY(String, Title);

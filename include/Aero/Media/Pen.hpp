@@ -1,8 +1,9 @@
 #pragma once
 
-#include <Aero/Freezable.hpp>
-#include <Aero/Media/Brush.hpp>
-#include <Aero/Media/DashStyle.hpp>
+#include <Aero/Animatable.hpp>
+#include <Aero/Base/Span.hpp>
+#include <Aero/Base/Vector.hpp>
+#include <Aero/Media/Brushes.hpp>
 
 #include <cstdint>
 
@@ -11,10 +12,28 @@ namespace Aero::Media {
 enum class PenLineJoin : std::uint8_t { Miter = 0U, Bevel, Round };
 enum class PenLineCap : std::uint8_t { Flat = 0U, Square, Round, Triangle };
 
-class AERO_GUI_API Pen : public Freezable {
-    AERO_DECLARE_TYPE(Pen, Freezable)
+class AERO_GUI_API DashStyle : public Animatable {
+    AERO_DECLARE_TYPE(DashStyle, Animatable)
 public:
-    Pen() noexcept : Freezable(StaticTypeId()) {}
+    DashStyle() noexcept : Animatable(StaticTypeId()) {}
+
+    Span<const double> GetDashes() const noexcept {
+        return {dashes_.Data(), dashes_.Size()};
+    }
+    double GetOffset() const noexcept { return offset_; }
+
+    void SetDashes(Span<const double> value) noexcept;
+    void SetOffset(double value) noexcept;
+
+private:
+    Base::Vector<double> dashes_;
+    double offset_ = 0.0;
+};
+
+class AERO_GUI_API Pen : public Animatable {
+    AERO_DECLARE_TYPE(Pen, Animatable)
+public:
+    Pen() noexcept : Animatable(StaticTypeId()) {}
     ~Pen() override = default;
     Meta::TypeId RuntimeType() const noexcept override {
         return StaticTypeId();

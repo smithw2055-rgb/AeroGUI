@@ -5,7 +5,7 @@
 
 namespace Aero::Controls {
 
-class VirtualizingStackPanel;
+class VirtualizingPanel;
 
 class AERO_GUI_API ItemContainerGenerator {
 public:
@@ -19,7 +19,7 @@ public:
         Panel& itemsHost) noexcept;
     Result<void> AttachVirtualized(
         ItemsControl& owner,
-        VirtualizingStackPanel& itemsHost) noexcept;
+        VirtualizingPanel& itemsHost) noexcept;
     Result<bool> Detach() noexcept;
     Result<void> Refresh() noexcept;
     void SetRealizationRange(std::uint32_t firstIndex, std::uint32_t count) noexcept;
@@ -53,14 +53,14 @@ private:
         ItemContainerGenerator* generator) noexcept;
     static void NotifyOwnerContainersChanged(ItemsControl& owner) noexcept;
     static Result<void> AttachHostGenerator(
-        VirtualizingStackPanel& host,
+        VirtualizingPanel& host,
         ItemContainerGenerator& generator,
         std::uint32_t itemCount) noexcept;
     static void DetachHostGenerator(
-        VirtualizingStackPanel& host,
+        VirtualizingPanel& host,
         ItemContainerGenerator& generator) noexcept;
-    static Result<void> HostHandleItemsChanged(
-        VirtualizingStackPanel& host,
+    static void HostHandleItemsChanged(
+        VirtualizingPanel& host,
         const ItemsChangedEvent& event,
         std::uint32_t itemCount) noexcept;
 };

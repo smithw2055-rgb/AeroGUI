@@ -738,8 +738,7 @@ Base::Result<void> ElementTree::AttachVisual(
     if (child.visualParent_ != nullptr && child.visualParent_ != &parent) {
         child.visualParent_->RemoveVisualChild(&child);
     }
-    Base::Result<void> stored = AeroGuiInternal::EnsureVisualChildStorage(parent, child);
-    if (!stored) return stored.GetStatus();
+    AeroGuiInternal::EnsureVisualChildStorage(parent, child);
     if (child.visualParent_ != &parent) {
         parent.AddVisualChild(&child);
     }

@@ -3,7 +3,6 @@
 #include <Aero/Controls/TextBox.hpp>
 
 
-namespace Aero::Meta { class Registration; }
 
 namespace Aero::Controls {
 
@@ -11,8 +10,6 @@ using ::Aero::Meta::TypeId;
 class AERO_GUI_API PasswordBox : public Primitives::TextBoxBase {
     AERO_DECLARE_TYPE(PasswordBox, Primitives::TextBoxBase)
 public:
-    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
-
     PasswordBox() noexcept;
     ~PasswordBox() override;
 
@@ -61,12 +58,12 @@ protected:
     void OnRender(
         ::Aero::Media::DrawingContext& context) noexcept override;
 
-    void OnMouseDown(MouseButtonEventArgs& args) override;
-    void OnMouseMove(MouseEventArgs& args) override;
-    void OnMouseUp(MouseButtonEventArgs& args) override;
-    void OnKeyDown(KeyEventArgs& args) override;
-    void OnTextInput(TextCompositionEventArgs& args) override;
-    void OnLostKeyboardFocus(KeyboardFocusChangedEventArgs& args) override;
+    void OnMouseDown(MouseButtonEventArgs& args);
+    void OnMouseMove(MouseEventArgs& args);
+    void OnMouseUp(MouseButtonEventArgs& args);
+    void OnKeyDown(KeyEventArgs& args);
+    void OnTextInput(TextCompositionEventArgs& args);
+    void OnLostKeyboardFocus(KeyboardFocusChangedEventArgs& args);
     bool ValidateValueCore(
         Meta::DependencyPropertyHandle property,
         const PropertyValue& value) const noexcept override;
@@ -80,8 +77,7 @@ private:
     TextBox editor_;
     bool synchronizingEditor_ = false;
 
-    Result<void>
-        SynchronizeEditorFromPassword() noexcept;
+    void SynchronizeEditorFromPassword() noexcept;
     Result<void>
         SynchronizePasswordFromEditor() noexcept;
 };

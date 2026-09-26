@@ -5,12 +5,9 @@
 #include <Aero/UIElement.hpp>
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Media/Brushes.hpp>
-#include <Aero/Media/GradientBrush.hpp>
-#include <Aero/Media/Transforms.hpp>
-#include <Aero/Media/TransformGroup.hpp>
-#include <Aero/Media/CompositeTransform3D.hpp>
-#include <Aero/Media/PathGeometry.hpp>
-#include <Aero/Media/LineSegment.hpp>
+#include <Aero/Media/Transform2D.hpp>
+#include <Aero/Media/Transform3D.hpp>
+#include <Aero/Media/Geometries.hpp>
 #include <Aero/Value.hpp>
 #include "gui/core/DependencyPropertyRegistry.hpp"
 #include "gui/meta/TypeRegistryDetail.hpp"

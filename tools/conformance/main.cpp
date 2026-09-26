@@ -6,9 +6,9 @@
 #include <Aero/Markup/XamlProvider.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Effects.hpp>
-#include <Aero/Media/Geometry.hpp>
-#include <Aero/Media/StreamGeometry.hpp>
-#include <Aero/Media/Transforms.hpp>
+#include <Aero/Media/Geometries.hpp>
+#include <Aero/Media/Transform2D.hpp>
+#include <Aero/Media/Transform3D.hpp>
 #include <Aero/View.hpp>
 #include <Aero/VisualStateManager.hpp>
 

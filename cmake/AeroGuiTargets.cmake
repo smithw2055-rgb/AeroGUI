@@ -39,6 +39,7 @@ endif()
 
 set(_aero_gui_core_sources
     src/gui/core/Freezable.cpp
+    src/gui/core/Animatable.cpp
     src/gui/core/Dispatcher.cpp
     src/gui/core/RoutedEvents.cpp
     src/gui/core/ObjectFactory.cpp

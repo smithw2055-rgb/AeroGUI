@@ -4,7 +4,7 @@
 #include "gui/internal/AeroGuiInternal.hpp"
 #include "gui/core/EventRouter.hpp"
 #include <Aero/CommandBinding.hpp>
-#include <Aero/Media/Animation/EventTrigger.hpp>
+#include <Aero/EventTrigger.hpp>
 #include <Aero/Media/Animation/StoryboardActions.hpp>
 
 #include <algorithm>

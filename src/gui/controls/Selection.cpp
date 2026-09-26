@@ -1,4 +1,5 @@
 #include "gui/meta/TypeRegistryDetail.hpp"
+#include "gui/meta/Describe.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
@@ -12,6 +13,7 @@
 #include "gui/templates/TemplateInstance.hpp"
 #include <Aero/VisualStateManager.hpp>
 #include <Aero/Controls.hpp>
+#include <Aero/ClassHandler.hpp>
 #include <Aero/TryCast.hpp>
 #include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/Controls/TextBoxBase.hpp>
@@ -543,13 +545,7 @@ Base::Result<bool> Selector::ApplySelection(
     selectedIndices_ = std::move(normalized);
     primaryIndex_ = primaryIndex;
     pendingIndex_ = UINT32_MAX;
-    Base::Result<void> published =
-        PublishProperties();
-    if (!published) {
-        lastSelectionError_ =
-            published.GetStatus();
-        return published.GetStatus();
-    }
+    PublishProperties();
     SyncContainers();
     SelectionChangedEvent event;
     event.removedIndices = {
@@ -576,7 +572,7 @@ Base::Result<bool> Selector::ApplySelection(
     return true;
 }
 
-Base::Result<void> Selector::PublishProperties() noexcept {
+void Selector::PublishProperties() noexcept {
     synchronizingProperties_ = true;
     const Base::Ref<Base::Object> selected =
         primaryIndex_ < GetCount()
@@ -593,7 +589,6 @@ Base::Result<void> Selector::PublishProperties() noexcept {
     }
     synchronizingProperties_ = false;
     PushSelectionToCurrent();
-    return {};
 }
 
 void Selector::SyncContainers() noexcept {
@@ -768,12 +763,7 @@ void Selector::OnItemsChanged(
             }
         }
         if (replacesSelection) {
-            Base::Result<void> published =
-                PublishProperties();
-            if (!published) {
-                lastSelectionError_ =
-                    published.GetStatus();
-            }
+            PublishProperties();
         }
         return;
     }
@@ -874,12 +864,7 @@ void Selector::OnPropertyChanged(
             pendingIndex_ = index;
             selectedIndices_.Clear();
             primaryIndex_ = UINT32_MAX;
-            Base::Result<void> published =
-                PublishProperties();
-            if (!published) {
-                lastSelectionError_ =
-                    published.GetStatus();
-            }
+            PublishProperties();
             SyncContainers();
         } else {
             const std::uint32_t values[] = {
@@ -1498,8 +1483,7 @@ void ComboBox::OnPropertyChanged(
                      GetMaxDropDownHeight()}));
         }
     } else if (prop == IsEditableProperty) {
-        static_cast<void>(
-            UpdateEditableVisualState());
+        UpdateEditableVisualState();
     } else if (prop == TextProperty) {
         if (editableTextBox_ == nullptr ||
             synchronizingEditableText_ ||
@@ -1694,27 +1678,26 @@ ComboBox::UpdateSelectionBox() noexcept {
     if (!text.Empty()) {
         SetCurrentValue(TextProperty, value);
     }
-    return UpdateEditableVisualState();
+    UpdateEditableVisualState();
+    return {};
 }
 
-Base::Result<void>
-ComboBox::UpdateEditableVisualState() noexcept {
+void ComboBox::UpdateEditableVisualState() noexcept {
     if (selectionBox_ != nullptr) {
         selectionBox_->SetVisibility(GetIsEditable()
             ? Visibility::Collapsed : Visibility::Visible);
     }
     if (editableTextBox_ == nullptr) {
-        return {};
+        return;
     }
     editableTextBox_->SetVisibility(GetIsEditable()
         ? Visibility::Visible : Visibility::Collapsed);
     if (editableTextBox_->GetText() == GetText()) {
-        return {};
+        return;
     }
     synchronizingEditableText_ = true;
     editableTextBox_->SetText(GetText());
     synchronizingEditableText_ = false;
-    return {};
 }
 
 std::uint32_t ComboBox::FindContainerIndex(
@@ -1819,7 +1802,7 @@ void ComboBox::OnKeyDown(KeyEventArgs& args) {
 
 namespace Primitives {
 
-void Selector::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(Selector) {
     using namespace Aero::Meta;
     Register<Selector>(context, TypeFlags::Abstract)
         .Event(Selector::SelectionChangedRoutedEvent)
@@ -1834,13 +1817,15 @@ void Selector::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
 
 } // namespace Primitives
 
-void ListBox::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(ListBox) {
     using namespace Aero::Meta;
     Register<ListBox>(context)
         .Factory();
+    AERO_ON(ListBox, &ListBox::OnMouseLeftButtonDown, UIElement::MouseLeftButtonDownEvent);
+    AERO_ON(ListBox, &ListBox::OnKeyDown, UIElement::KeyDownEvent);
 }
 
-void ListBoxItem::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(ListBoxItem) {
     using namespace Aero::Meta;
     Register<ListBoxItem>(context)
         .Property(ListBoxItem::IsSelectedProperty, false, AffectsRender | BindsTwoWayByDefault)
@@ -1848,7 +1833,7 @@ void ListBoxItem::RegisterMetadata(::Aero::Meta::Registration& context) noexcept
         .Factory();
 }
 
-void ComboBox::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(ComboBox) {
     using namespace Aero::Meta;
     Register<ComboBox>(context)
         .Event(ComboBox::DropDownOpenedEvent)
@@ -1863,11 +1848,12 @@ void ComboBox::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
         .Property(ComboBox::SelectionBoxItemProperty, Meta::Value::NullObject(Meta::TypeOf<Base::Object>()))
         .Override(Aero::UIElement::IsTabStopProperty, true, FrameworkPropertyMetadataOptions::None)
         .TemplatePart("PART_EditableTextBox", TypeOf<TextBox>())
-        .TemplatePart("PART_Popup", TypeOf<Popup>())
         .Factory();
+    AERO_ON(ComboBox, &ComboBox::OnMouseLeftButtonDown, UIElement::MouseLeftButtonDownEvent);
+    AERO_ON(ComboBox, &ComboBox::OnKeyDown, UIElement::KeyDownEvent);
 }
 
-void ComboBoxItem::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(ComboBoxItem) {
     using namespace Aero::Meta;
     Register<ComboBoxItem>(context)
         .Property(ComboBoxItem::IsSelectedProperty, false, AffectsRender | BindsTwoWayByDefault)

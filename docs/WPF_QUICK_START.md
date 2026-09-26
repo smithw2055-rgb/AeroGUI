@@ -289,25 +289,29 @@ protected:
 
 ## Animation types
 
-`<Aero/Media/Animation.hpp>` is an umbrella. Prefer the type header when you
-only need one class, for example `<Aero/Media/Animation/Storyboard.hpp>` or
-`<Aero/Media/Animation/DoubleAnimation.hpp>`. Do not include interactivity
-headers from the animation umbrella; `EventTrigger` and `BeginStoryboard` live
-in their own `Media/Animation/` headers. `Storyboard` derives from
-`ParallelTimeline` / `TimelineGroup`. `EasingFunctionBase` is a `Freezable`.
-Key frames share `KeyTime`, `EasingFunction`, and `KeySpline` on `KeyFrameBase`.
+`<Aero/Media/Animation.hpp>` is an umbrella for the clock, storyboard, easing,
+key-frame, and from/to families. `<Aero/Media/Animation/Timeline.hpp>` owns
+`TimeSpan`, `Duration`, `KeyTime`, `RepeatBehavior`, and `Timeline`.
+`<Aero/Media/Animation/Storyboard.hpp>` owns `TimelineGroup`,
+`ParallelTimeline`, and `Storyboard`. Easing, key frames, and from/to
+animations live in `EasingFunctions.hpp`, `KeyFrames.hpp`, and
+`Animations.hpp`; the XAML names (`DoubleAnimation`, `LinearDoubleKeyFrame`,
+`CubicEase`) are unchanged. The umbrella does not include triggers or actions.
+`EventTrigger`, `TimerTrigger`, and `StoryboardCompletedTrigger` stay separate.
+`StoryboardActions.hpp` and `MediaActions.hpp` own their action types.
 
 ## One type per header
 
 Kitchen-sink media/input/data headers are umbrellas or type owners:
 
-- `<Aero/Media/Brushes.hpp>`, `<Aero/Media/Transforms.hpp>`,
-  `<Aero/Media/Effects.hpp>` include `Media/<Type>.hpp`.
-- `<Aero/Media/Geometry.hpp>` owns `Geometry`; path types live in
-  `PathGeometry.hpp` / `StreamGeometry.hpp` / `PathFigure.hpp`. Segment and
-  primitive geometry types (`BezierSegment`, `ArcSegment`, `LineGeometry`,
-  `GeometryGroup`, …) each have their own `Media/<Type>.hpp`. Rendering
-  `Flatten`s; `ToStreamData` is serialize/debug only.
+- `<Aero/Media/Brushes.hpp>` owns `Brush`, gradient stops, brush shaders, and the concrete brushes.
+  `<Aero/Media/Effects.hpp>` owns `Effect` and the concrete effects.
+  `<Aero/Media/Images.hpp>` owns `ImageSource`, `BitmapImage`, and `CroppedBitmap`.
+  2D transforms are `<Aero/Media/Transform2D.hpp>`;
+  3D transforms are `<Aero/Media/Transform3D.hpp>`.
+- `<Aero/Media/Geometries.hpp>` owns `Geometry`, path segments, `PathFigure`,
+  `StreamGeometryContext`, and the concrete geometries. Rendering `Flatten`s;
+  `ToStreamData` is serialize/debug only.
 - `<Aero/Input.hpp>` is input values (`Key`, `PointerInput`, `InputScope`).
   Commands are `<Aero/ICommand.hpp>` and `<Aero/RoutedCommand.hpp>`.
 - `<Aero/Data/Binding.hpp>` owns `Binding`; `MultiBinding` and converters
@@ -325,7 +329,7 @@ on path figures, transform groups, and timeline groups.
 
 ## Transform3D (2.5D projective perspective)
 
-`<Aero/Media/Transform3D.hpp>` is the Freezable base (no Animatable). Concrete
+`<Aero/Media/Transform3D.hpp>` owns the Freezable base `Transform3D` and the concrete
 types: `CompositeTransform3D`, `PerspectiveTransform3D`, `MatrixTransform3D`.
 Set `UIElement.Transform3D`. Storyboard paths such as
 `(UIElement.Transform3D).(CompositeTransform3D.RotationY)` walk the existing
@@ -361,9 +365,9 @@ Hierarchical `ItemsSource` / `ItemTemplate` live on
 
 ## Duration, KeyTime, RepeatBehavior
 
-`Timeline` timing properties are dependency properties with strong value
-types in `<Aero/Media/Animation/Duration.hpp>`, `KeyTime.hpp`, and
-`RepeatBehavior.hpp`. Theme XAML still parses `Duration="0:0:2"`,
+`Timeline` timing properties are dependency properties. `TimeSpan`,
+`Duration`, `KeyTime`, and `RepeatBehavior` live in
+`<Aero/Media/Animation/Timeline.hpp>`. Theme XAML still parses `Duration="0:0:2"`,
 `RepeatBehavior="2x"`, `KeyTime="50%"` / `Uniform` / `Paced`. Clock text
 accepts `1.5`, `2s`, `500ms`, `M:S`, and `H:M:S`. `"2"` is a repeat count,
 not two seconds.

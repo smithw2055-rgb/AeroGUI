@@ -14,10 +14,11 @@
 #include "render/DisplayList.hpp"
 #include <Aero/Documents.hpp>
 #include <Aero/Controls.hpp>
-#include <Aero/Controls/ListBox.hpp>
+#include <Aero/Controls/Selectors.hpp>
 #include <Aero/Controls/TreeView.hpp>
 #include <Aero/Shapes.hpp>
-#include <Aero/Media/Transforms.hpp>
+#include <Aero/Media/Transform2D.hpp>
+#include <Aero/Media/Transform3D.hpp>
 #include <Aero/TryCast.hpp>
 
 #include <algorithm>
@@ -214,7 +215,7 @@ public:
                 text.pendingInline_ = text.ownedInlines_.Empty()
                     ? Base::Ref<Base::Object>{}
                     : text.ownedInlines_.Back();
-                text.InvalidateMeasure();
+                text.InvalidateDocumentText();
                 return true;
             }
             return false;
@@ -236,7 +237,7 @@ public:
                 : span.inlines_.Back();
             Controls::TextBlock* host = Host(owner);
             if (host != nullptr) {
-                host->InvalidateMeasure();
+                host->InvalidateDocumentText();
             }
             return true;
         }
@@ -299,16 +300,20 @@ public:
     static Base::Result<void> AppendText(
         const Controls::TextBlock& owner,
         Base::String& output) noexcept {
-        Base::Result<void> appended = output.Append(owner.GetText());
-        if (!appended) return appended.GetStatus();
-        for (const Base::Ref<Base::Object>& item : owner.ownedInlines_) {
-            if (!item) continue;
-            appended = AppendInline(
-                *static_cast<const Documents::Inline*>(item.Get()),
-                output);
-            if (!appended) return appended.GetStatus();
+        if (!owner.flatTextValid_) {
+            owner.flatText_.Clear();
+            Base::Result<void> built = owner.flatText_.Append(owner.GetText());
+            if (!built) return built.GetStatus();
+            for (const Base::Ref<Base::Object>& item : owner.ownedInlines_) {
+                if (!item) continue;
+                built = AppendInline(
+                    *static_cast<const Documents::Inline*>(item.Get()),
+                    owner.flatText_);
+                if (!built) return built.GetStatus();
+            }
+            owner.flatTextValid_ = true;
         }
-        return {};
+        return output.Append(owner.flatText_.View());
     }
 
     static Base::Result<std::uint32_t> GetLength(
@@ -564,7 +569,7 @@ void Span::ClearOwnedInlines() noexcept {
     Controls::TextBlock* host = GetContentHost() != nullptr
         ? static_cast<Controls::TextBlock*>(GetContentHost())
         : nullptr;
-    if (host != nullptr) host->InvalidateMeasure();
+    if (host != nullptr) host->InvalidateDocumentText();
 }
 
 Base::Result<void> CopyText(
@@ -784,6 +789,17 @@ TextBlock::TextBlock(TypeId runtimeType) noexcept
       ownedInlines_(),
       richTextStyleRanges_(),
       pendingInline_() {}
+
+void TextBlock::InvalidateDocumentText() noexcept {
+    flatTextValid_ = false;
+    InvalidateMeasure();
+}
+
+void TextBlock::OnPropertyInvalidated(
+    PropertyInvalidationFlags flags) noexcept {
+    flatTextValid_ = false;
+    FrameworkElement::OnPropertyInvalidated(flags);
+}
 
 TextBlock::~TextBlock() {
     ClearOwnedInlines();
@@ -1009,7 +1025,7 @@ void TextBlock::AddOwnedInline(
     }
     ownedInlines_.PushBack(inlineObject);
     pendingInline_ = inlineObject;
-    InvalidateMeasure();
+    InvalidateDocumentText();
 }
 void TextBlock::ClearOwnedInlines() noexcept {
     Base::Result<void> access = VerifyAccess();
@@ -1028,6 +1044,7 @@ void TextBlock::ClearOwnedInlines() noexcept {
     }
     ownedInlines_.Clear();
     pendingInline_.Reset();
+    flatTextValid_ = false;
     InvalidateMeasure();
 }
 

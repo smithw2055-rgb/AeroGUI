@@ -10,8 +10,6 @@ class AERO_GUI_API TreeView
     : public ItemsControl {
     AERO_DECLARE_TYPE(TreeView, ItemsControl)
 public:
-    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
-
     TreeView() noexcept;
     ~TreeView() override;
 
@@ -26,8 +24,8 @@ protected:
     Result<Ref<FrameworkElement>>
         GetContainerForItemOverride() const
             noexcept override;
-    void OnMouseLeftButtonDown(MouseButtonEventArgs& args) override;
-    void OnKeyDown(KeyEventArgs& args) override;
+    void OnMouseLeftButtonDown(MouseButtonEventArgs& args);
+    void OnKeyDown(KeyEventArgs& args);
 
 private:
     TreeViewItem* FindItem(Base::Object* source) const noexcept;

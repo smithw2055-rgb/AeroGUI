@@ -33,8 +33,6 @@ class AERO_GUI_API ScrollViewer
     : public ScrollContentPresenter {
     AERO_DECLARE_TYPE(ScrollViewer, ScrollContentPresenter)
 public:
-    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
-
     ScrollViewer() noexcept;
     ~ScrollViewer() override;
 
@@ -117,7 +115,7 @@ protected:
     bool GetAllowsVerticalScroll() const noexcept override;
     bool GetUsesContentScrolling() const noexcept override;
     void OnTemplateDetached() noexcept override;
-    void OnMouseWheel(MouseWheelEventArgs& args) override;
+    void OnMouseWheel(MouseWheelEventArgs& args);
     // Replaces OnScrollViewerVisibilityChanged delegate (setter re-entry).
     void OnPropertyChanged(
         const DependencyPropertyChangedEventArgs& args) noexcept override;

@@ -635,15 +635,10 @@ Base::Result<void> View::SetContent(
     edge.child = documentRoot.Value();
     next.visualContent.mountEdges.PushBack(std::move(edge));
 
-    Base::Result<void> assigned =
-        AeroGuiInternal::SetOwnedContent(
-            *static_cast<Controls::ContentControl*>(hostRoot.Value()),
-            next.root,
-            *documentRoot.Value());
-    if (!assigned) {
-        next.Clear();
-        return assigned.GetStatus();
-    }
+    AeroGuiInternal::SetOwnedContent(
+        *static_cast<Controls::ContentControl*>(hostRoot.Value()),
+        next.root,
+        *documentRoot.Value());
 
     next.root = std::move(root);
     state_->loadedDocument = std::move(next);

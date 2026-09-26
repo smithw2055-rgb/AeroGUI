@@ -3,8 +3,9 @@
 #include <Aero/Base/Utf8.hpp>
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Controls/Popup.hpp>
-#include <Aero/Media/Transforms.hpp>
-#include <Aero/Media/Geometry.hpp>
+#include <Aero/Media/Transform2D.hpp>
+#include <Aero/Media/Transform3D.hpp>
+#include <Aero/Media/Geometries.hpp>
 #include "gui/media/GeometryFlatten.hpp"
 #include "gui/media/Transform3DMath.hpp"
 
@@ -591,9 +592,7 @@ Base::Result<void> PointerStateMachine::UpdateHover(
             if (!handle) return handle.GetStatus();
             if (!HasHover(handle.Value(), index) ||
                 !element->GetIsMouseOver()) {
-                Base::Result<void> set =
-                    AeroGuiInternal::SetMouseOver(*element, true);
-                if (!set) return set.GetStatus();
+                AeroGuiInternal::SetMouseOver(*element, true);
                 if (events_ != nullptr) {
                     MouseEventArgs args;
                     args.SetPointerId(pointerId);
@@ -622,11 +621,7 @@ Base::Result<void> PointerStateMachine::UpdateHover(
                 tree->GetHandle(*current);
             if (!handle) return handle.GetStatus();
             if (!HasHover(handle.Value(), index)) {
-                Base::Result<void> cleared =
-                    AeroGuiInternal::SetMouseOver(*element, false);
-                if (!cleared) {
-                    return cleared.GetStatus();
-                }
+                AeroGuiInternal::SetMouseOver(*element, false);
                 if (events_ != nullptr) {
                     MouseEventArgs args;
                     args.SetPointerId(pointerId);
@@ -675,8 +670,7 @@ Base::Result<void> PointerStateMachine::UpdatePressed(
         ::Aero::Media::Visual* visual = tree->ResolveHandle(next);
         nextElement = visual != nullptr ? ::Aero::TryCast<::Aero::UIElement>(visual) : nullptr;
         if (nextElement != nullptr) {
-            Base::Result<void> set = AeroGuiInternal::SetPressed(*nextElement, true);
-            if (!set) return set.GetStatus();
+            AeroGuiInternal::SetPressed(*nextElement, true);
             if (!stateChanged_.Empty()) {
                 stateChanged_.Invoke(*nextElement);
             }
@@ -687,15 +681,7 @@ Base::Result<void> PointerStateMachine::UpdatePressed(
         UIElement* previousElement =
             visual != nullptr ? ::Aero::TryCast<::Aero::UIElement>(visual) : nullptr;
         if (previousElement != nullptr) {
-            Base::Result<void> cleared =
-                AeroGuiInternal::SetPressed(*previousElement, false);
-            if (!cleared) {
-                if (nextElement != nullptr) {
-                    static_cast<void>(
-                        AeroGuiInternal::SetPressed(*nextElement, false));
-                }
-                return cleared.GetStatus();
-            }
+            AeroGuiInternal::SetPressed(*previousElement, false);
             if (!stateChanged_.Empty()) {
                 stateChanged_.Invoke(*previousElement);
             }
@@ -1393,30 +1379,20 @@ Base::Result<bool> FocusState::SetFocus(UIElement* node) noexcept {
     }
     scopeFocus_.Reserve(
         scopeFocus_.Size() + ancestorCount);
-    auto setFocusWithin = [](UIElement& element, bool value)
-        -> Base::Result<void> {
+    auto setFocusWithin = [](UIElement& element, bool value) noexcept {
         ::Aero::Media::Visual* current = &element;
         while (current != nullptr) {
             if (UIElement* ancestor = ::Aero::TryCast<::Aero::UIElement>(current)) {
-                Base::Result<void> updated =
-                    AeroGuiInternal::SetKeyboardFocusWithin(*ancestor, value);
-                if (!updated) return updated.GetStatus();
+                AeroGuiInternal::SetKeyboardFocusWithin(*ancestor, value);
             }
             current = ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent()) != nullptr ? ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent()) : current->GetVisualParent();
         }
-        return {};
     };
     UIElement* previous = FocusedNode();
     if (previous == node) return false;
     if (previous != nullptr) {
-        Base::Result<void> state =
-            AeroGuiInternal::SetKeyboardFocused(*previous, false);
-        if (!state) return state.GetStatus();
-        state = setFocusWithin(*previous, false);
-        if (!state) {
-            static_cast<void>(AeroGuiInternal::SetKeyboardFocused(*previous, true));
-            return state.GetStatus();
-        }
+        AeroGuiInternal::SetKeyboardFocused(*previous, false);
+        setFocusWithin(*previous, false);
         KeyboardFocusChangedEventArgs args;
         args.SetOldFocus(previous);
         args.SetNewFocus(node);
@@ -1429,24 +1405,8 @@ Base::Result<bool> FocusState::SetFocus(UIElement* node) noexcept {
             return lost.GetStatus();
         }
     }
-    Base::Result<void> state = AeroGuiInternal::SetKeyboardFocused(*node, true);
-    if (!state) {
-        if (previous != nullptr) {
-            static_cast<void>(
-                AeroGuiInternal::SetKeyboardFocused(*previous, true));
-            static_cast<void>(setFocusWithin(*previous, true));
-        }
-        return state.GetStatus();
-    }
-    state = setFocusWithin(*node, true);
-    if (!state) {
-        static_cast<void>(AeroGuiInternal::SetKeyboardFocused(*node, false));
-        if (previous != nullptr) {
-            static_cast<void>(AeroGuiInternal::SetKeyboardFocused(*previous, true));
-            static_cast<void>(setFocusWithin(*previous, true));
-        }
-        return state.GetStatus();
-    }
+    AeroGuiInternal::SetKeyboardFocused(*node, true);
+    setFocusWithin(*node, true);
     KeyboardFocusChangedEventArgs args;
     args.SetOldFocus(previous);
     args.SetNewFocus(node);
@@ -1473,27 +1433,17 @@ Base::Result<bool> FocusState::ClearFocus() noexcept {
     if (previous == nullptr) return false;
     Base::Result<void> access = previous->VerifyAccess();
     if (!access) return access.GetStatus();
-    Base::Result<void> state =
-        AeroGuiInternal::SetKeyboardFocused(*previous, false);
-    if (!state) return state.GetStatus();
-    auto setFocusWithin = [](UIElement& element, bool value)
-        -> Base::Result<void> {
+    AeroGuiInternal::SetKeyboardFocused(*previous, false);
+    auto setFocusWithin = [](UIElement& element, bool value) noexcept {
         ::Aero::Media::Visual* current = &element;
         while (current != nullptr) {
             if (UIElement* ancestor = ::Aero::TryCast<::Aero::UIElement>(current)) {
-                Base::Result<void> updated =
-                    AeroGuiInternal::SetKeyboardFocusWithin(*ancestor, value);
-                if (!updated) return updated.GetStatus();
+                AeroGuiInternal::SetKeyboardFocusWithin(*ancestor, value);
             }
             current = ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent()) != nullptr ? ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent()) : current->GetVisualParent();
         }
-        return {};
     };
-    state = setFocusWithin(*previous, false);
-    if (!state) {
-        static_cast<void>(AeroGuiInternal::SetKeyboardFocused(*previous, true));
-        return state.GetStatus();
-    }
+    setFocusWithin(*previous, false);
     KeyboardFocusChangedEventArgs args;
     args.SetOldFocus(previous);
     Base::Result<void> lost = events_->RaiseEvent(

@@ -27,8 +27,6 @@ namespace Primitives {
 class AERO_GUI_API Selector : public ItemsControl {
     AERO_DECLARE_TYPE(Selector, ItemsControl)
 public:
-    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
-
     Selector() noexcept;
     ~Selector() override;
 
@@ -139,7 +137,7 @@ private:
     Result<bool> ApplySelection(
         Span<const std::uint32_t> indices,
         std::uint32_t primaryIndex) noexcept;
-    Result<void> PublishProperties() noexcept;
+    void PublishProperties() noexcept;
     void SyncContainers() noexcept;
     void HookCurrentView() noexcept;
     void UnhookCurrentView() noexcept;

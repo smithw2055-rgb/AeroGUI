@@ -1266,7 +1266,7 @@ static_assert(
 #include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/Controls.hpp>
 
-#include <Aero/Media/Animation/EventTrigger.hpp>
+#include <Aero/EventTrigger.hpp>
 
 
 
@@ -1301,6 +1301,8 @@ struct TemplatePrototypeNode {
     Base::Vector<::Aero::GridLength> gridRows;
     Base::String streamGeometryData;
     Base::Vector<TemplatePrototypeGradientStop> gradientStops;
+    Base::Vector<Base::Ref<Base::Object>> authoredBehaviors;
+    Base::Vector<Base::Ref<Base::Object>> authoredTriggers;
 };
 
 struct TemplatePrototypeBinding {

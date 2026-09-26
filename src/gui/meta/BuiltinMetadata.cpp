@@ -22,6 +22,7 @@
 #include <Aero/Meta.hpp>
 #include <Aero/Value.hpp>
 #include <Aero/Freezable.hpp>
+#include <Aero/Animatable.hpp>
 #include <Aero/DispatcherObject.hpp>
 #include <Aero/Input/Cursor.hpp>
 #include <Aero/Input/Mouse.hpp>
@@ -103,7 +104,7 @@ Base::Result<void> PopulateCoreMetadata(
 #include <Aero/KeyGesture.hpp>
 #include <Aero/InputGesture.hpp>
 #include <Aero/Media/Animation.hpp>
-#include <Aero/Media/Animation/EventTrigger.hpp>
+#include <Aero/EventTrigger.hpp>
 #include <Aero/Media/Animation/MediaActions.hpp>
 #include <Aero/Media/Animation/StoryboardActions.hpp>
 #include <Aero/Media/Animation/StoryboardCompletedTrigger.hpp>
@@ -121,26 +122,10 @@ Base::Result<void> PopulateCoreMetadata(
 #include <Aero/FrameworkContentElement.hpp>
 #include <Aero/Resources.hpp>
 #include <Aero/Controls/ControlTemplate.hpp>
-#include <Aero/Media/Transforms.hpp>
-#include <Aero/Media/Geometry.hpp>
-#include <Aero/Media/DashStyle.hpp>
+#include <Aero/Media/Transform2D.hpp>
+#include <Aero/Media/Transform3D.hpp>
+#include <Aero/Media/Geometries.hpp>
 #include <Aero/Media/Pen.hpp>
-#include <Aero/Media/StreamGeometry.hpp>
-#include <Aero/Media/PathSegment.hpp>
-#include <Aero/Media/LineSegment.hpp>
-#include <Aero/Media/PathFigure.hpp>
-#include <Aero/Media/PathGeometry.hpp>
-#include <Aero/Media/BezierSegment.hpp>
-#include <Aero/Media/QuadraticBezierSegment.hpp>
-#include <Aero/Media/ArcSegment.hpp>
-#include <Aero/Media/PolyLineSegment.hpp>
-#include <Aero/Media/PolyBezierSegment.hpp>
-#include <Aero/Media/PolyQuadraticBezierSegment.hpp>
-#include <Aero/Media/LineGeometry.hpp>
-#include <Aero/Media/RectangleGeometry.hpp>
-#include <Aero/Media/EllipseGeometry.hpp>
-#include <Aero/Media/GeometryGroup.hpp>
-#include <Aero/Media/CombinedGeometry.hpp>
 #include <Aero/Collections.hpp>
 
 #include <cctype>

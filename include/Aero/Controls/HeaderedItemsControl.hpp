@@ -10,8 +10,6 @@ namespace Aero::Controls {
 class AERO_GUI_API HeaderedItemsControl : public ItemsControl {
     AERO_DECLARE_TYPE(HeaderedItemsControl, ItemsControl)
 public:
-    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
-
     HeaderedItemsControl() noexcept : ItemsControl(StaticTypeId()) {}
     ~HeaderedItemsControl() override = default;
 

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Media/Geometry.hpp>
+#include <Aero/Media/Geometries.hpp>
 
 namespace Aero::Media {
 

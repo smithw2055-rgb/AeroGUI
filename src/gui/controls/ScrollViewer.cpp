@@ -1,4 +1,5 @@
 #include "gui/controls/ScrollCommon.hpp"
+#include "gui/meta/Describe.hpp"
 #include "gui/meta/ValueConversion.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
@@ -11,6 +12,7 @@
 #include "gui/styles/StyleEngine.hpp"
 #include "render/DisplayList.hpp"
 #include <Aero/Controls.hpp>
+#include <Aero/ClassHandler.hpp>
 #include <Aero/Input/Mouse.hpp>
 #include <Aero/TryCast.hpp>
 #include <Aero/Value.hpp>
@@ -443,8 +445,12 @@ void ScrollViewer::UpdateComputedScrollBarVisibility(
             data.viewportHeight)));
 }
 
+Thumb::Thumb(TypeId runtimeType) noexcept
+    : Control(runtimeType) {
+}
+
 Thumb::Thumb() noexcept
-    : Control(StaticTypeId()) {
+    : Thumb(StaticTypeId()) {
 }
 
 Thumb::~Thumb() = default;
@@ -531,14 +537,14 @@ Base::Result<bool> Thumb::EndDrag(
     return true;
 }
 
-void ScrollContentPresenter::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(ScrollContentPresenter) {
     using namespace Aero::Meta;
     Register<ScrollContentPresenter>(context)
         .Property(ScrollContentPresenter::CanContentScrollProperty, false, AffectsMeasure)
         .Factory();
 }
 
-void ScrollViewer::RegisterMetadata(::Aero::Meta::Registration& context) noexcept {
+AERO_DESCRIBE(ScrollViewer) {
     using namespace Aero::Meta;
     Register<ScrollViewer>(context)
         .Event(ScrollViewer::ScrollChangedEvent)
@@ -561,6 +567,7 @@ void ScrollViewer::RegisterMetadata(::Aero::Meta::Registration& context) noexcep
         .TemplatePart("PART_VerticalScrollBar", TypeOf<ScrollBar>())
         .TemplatePart("PART_HorizontalScrollBar", TypeOf<ScrollBar>())
         .Factory();
+    AERO_ON(ScrollViewer, &ScrollViewer::OnMouseWheel, UIElement::MouseWheelEvent);
 }
 
 } // namespace Aero::Controls

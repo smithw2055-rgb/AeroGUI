@@ -11,13 +11,13 @@
 #include <Aero/Layout.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Effects.hpp>
-#include <Aero/Media/Transforms.hpp>
+#include <Aero/Media/Transform2D.hpp>
+#include <Aero/Media/Transform3D.hpp>
 
 #include <Aero/Base/Assert.hpp>
 #include <Aero/FrameworkElement.hpp>
-#include <Aero/Controls/Canvas.hpp>
+#include <Aero/Controls/Panels.hpp>
 #include <Aero/Controls/Grid.hpp>
-#include <Aero/Controls/StackPanel.hpp>
 
 #include <algorithm>
 #include <cmath>

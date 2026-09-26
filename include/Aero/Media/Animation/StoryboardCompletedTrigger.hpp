@@ -2,7 +2,7 @@
 
 #include <Aero/Interactivity/TriggerAction.hpp>
 #include <Aero/Media/Animation/Storyboard.hpp>
-#include <Aero/Triggers/TriggerBase.hpp>
+#include <Aero/Triggers.hpp>
 
 namespace Aero::Media::Animation {
 

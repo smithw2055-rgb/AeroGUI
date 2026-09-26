@@ -12,8 +12,6 @@ class AERO_GUI_API VirtualizingStackPanel
       public IScrollInfo {
     AERO_DECLARE_TYPE(VirtualizingStackPanel, VirtualizingPanel)
 public:
-    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
-
     VirtualizingStackPanel() noexcept;
     ~VirtualizingStackPanel() override;
 
@@ -77,7 +75,16 @@ protected:
         Size finalSize) noexcept override;
     virtual void CalculateRealizationRange() noexcept;
 
-    Result<void> UpdateRealization(
+    Result<void> AttachGenerator(
+        ItemContainerGenerator& generator,
+        std::uint32_t itemCount) noexcept override;
+    void DetachGenerator(
+        ItemContainerGenerator& generator) noexcept override;
+    void HandleItemsChanged(
+        const ItemsChangedEvent& event,
+        std::uint32_t itemCount) noexcept override;
+
+    void UpdateRealization(
         bool notifyGenerator) noexcept;
     double MainOffset() const noexcept;
     double MainViewport() const noexcept;
@@ -86,41 +93,24 @@ protected:
     std::uint32_t ItemIndexAtOffset(
         double offset) const noexcept;
 
-    ItemContainerGenerator* generator_ = nullptr;
-    Base::Vector<double> itemExtents_;
-    ScrollData data_{};
-    std::uint32_t visibleFirstIndex_ = 0U;
-    std::uint32_t visibleCount_ = 0U;
-    std::uint32_t desiredFirstIndex_ = 0U;
-    std::uint32_t desiredCount_ = 0U;
     double estimatedItemExtent_ = 24.0;
     Orientation orientation_ = Orientation::Vertical;
 
 private:
-    friend class ItemContainerGenerator;
-
     Base::Vector<double> extentTree_;
     double crossExtent_ = 0.0;
     std::uint32_t overscanCount_ = 2U;
 
-    Result<void> AttachGenerator(
-        ItemContainerGenerator& generator,
+    void ResizeExtentCache(
         std::uint32_t itemCount) noexcept;
-    void DetachGenerator(
-        ItemContainerGenerator& generator) noexcept;
-    Result<void> HandleItemsChanged(
-        const ItemsChangedEvent& event,
-        std::uint32_t itemCount) noexcept;
-    Result<void> ResizeExtentCache(
-        std::uint32_t itemCount) noexcept;
-    Result<void> ApplyExtentDelta(
+    void ApplyExtentDelta(
         const ItemsChangedEvent& event,
         std::uint32_t itemCount) noexcept;
     void SetMainOffset(double value) noexcept;
     void ClampOffsets() noexcept;
     double ExtentForIndex(
         std::uint32_t index) const noexcept;
-    Result<void> RebuildExtentTree() noexcept;
+    void RebuildExtentTree() noexcept;
     void AddExtentDeviation(
         std::uint32_t index,
         double delta) noexcept;

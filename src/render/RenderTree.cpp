@@ -17,8 +17,9 @@
 #include <Aero/Controls/Popup.hpp>
 #include <Aero/Documents.hpp>
 #include <Aero/Media/Effects.hpp>
-#include <Aero/Media/Geometry.hpp>
-#include <Aero/Media/Transforms.hpp>
+#include <Aero/Media/Geometries.hpp>
+#include <Aero/Media/Transform2D.hpp>
+#include <Aero/Media/Transform3D.hpp>
 #include "gui/media/GeometryFlatten.hpp"
 #include "gui/media/Transform3DMath.hpp"
 
@@ -628,9 +629,20 @@ void FrameworkElement::ClearDataContext() noexcept {
     ClearValue(DataContextProperty);
 }
 
+void FrameworkElement::SyncLayoutScalars() noexcept {
+    layoutScalars_.width = GetValue(WidthProperty);
+    layoutScalars_.height = GetValue(HeightProperty);
+    layoutScalars_.minWidth = GetValue(MinWidthProperty);
+    layoutScalars_.maxWidth = GetValue(MaxWidthProperty);
+    layoutScalars_.minHeight = GetValue(MinHeightProperty);
+    layoutScalars_.maxHeight = GetValue(MaxHeightProperty);
+    layoutScalars_.margin = GetValue(MarginProperty);
+}
+
 void FrameworkElement::OnPropertyInvalidated(
     PropertyInvalidationFlags flags) noexcept {
     UIElement::OnPropertyInvalidated(flags);
+    SyncLayoutScalars();
     if (HasFlag(flags, PropertyInvalidationFlags::Render)) {
         InvalidateVisual();
     }

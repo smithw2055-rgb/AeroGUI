@@ -6,7 +6,6 @@
 #include <Aero/Events/ControlEventArgs.hpp>
 
 namespace Aero { class AeroGuiInternal; }
-namespace Aero::Meta { class Registration; }
 namespace Aero::Controls {
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::DependencyPropertyHandle;
@@ -22,8 +21,6 @@ namespace Primitives {
 class AERO_GUI_API ButtonBase : public ContentControl {
     AERO_DECLARE_TYPE(ButtonBase, ContentControl)
 public:
-    static void RegisterMetadata(::Aero::Meta::Registration& context) noexcept;
-
     inline static constexpr RoutedEvent<RoutedEventArgs> ClickEvent{"Click"};
     UIElement::Event<RoutedEventArgs> Click() noexcept {
         return GetEvent(ClickEvent);
@@ -53,12 +50,12 @@ protected:
     virtual void OnClick();
     virtual void UpdateVisualState(bool useTransitions = true) noexcept;
 
-    void OnMouseLeftButtonDown(MouseButtonEventArgs& args) override;
-    void OnMouseLeftButtonUp(MouseButtonEventArgs& args) override;
-    void OnKeyDown(KeyEventArgs& args) override;
-    void OnKeyUp(KeyEventArgs& args) override;
-    void OnGotKeyboardFocus(KeyboardFocusChangedEventArgs& args) override;
-    void OnLostKeyboardFocus(KeyboardFocusChangedEventArgs& args) override;
+    void OnMouseLeftButtonDown(MouseButtonEventArgs& args);
+    void OnMouseLeftButtonUp(MouseButtonEventArgs& args);
+    void OnKeyDown(KeyEventArgs& args);
+    void OnKeyUp(KeyEventArgs& args);
+    void OnGotKeyboardFocus(KeyboardFocusChangedEventArgs& args);
+    void OnLostKeyboardFocus(KeyboardFocusChangedEventArgs& args);
 
     void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
     void OnApplyTemplate() noexcept override;
