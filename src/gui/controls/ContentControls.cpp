@@ -978,9 +978,19 @@ void ClearPageContent(Base::Object& owner, void*) noexcept {
 AERO_DESCRIBE(Page) {
     using namespace Aero::Meta;
     Register<Page>(context)
-        .Property(Page::ContentProperty, Meta::Value::NullObject(Meta::TypeOf<Base::Object>()), AffectsMeasure)
+        .Property(
+            Page::ContentProperty,
+            FrameworkPropertyMetadata(
+                Meta::Value::NullObject(Meta::TypeOf<Base::Object>()),
+                AffectsMeasure)
+                .Structural())
         .Property(Page::ContentTemplateProperty, Base::Ref<Base::Object>{}, AffectsMeasure)
-        .Content<UIElement>("Content", ContentKind::Single, &SetPageContent, &ClearPageContent, ContentFlags::Visual)
+        .ContentAccessor(
+            MakeMemberId(Page::StaticTypeId(), MemberKind::Property, "Content"),
+            ContentKind::Single,
+            &SetPageContent,
+            &ClearPageContent,
+            ContentFlags::Visual)
         .Factory();
 }
 
