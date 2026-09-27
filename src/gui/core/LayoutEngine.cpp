@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero {
 
@@ -886,7 +887,7 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
         flushing_ = false;
         UIElement* invalid = FindInvalidVisibleLayout(*root_);
         const TypeInfo* type = invalid != nullptr
-            ? invalid->PropertyRegistry().Types().FindType(
+            ? DependencyObjectAccess::PropertyRegistry(invalid).Types().FindType(
                   invalid->RuntimeType())
             : nullptr;
         const Base::StringView typeName = type != nullptr
@@ -896,7 +897,7 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
             ? invalid->LayoutParent()
             : nullptr;
         const TypeInfo* parentType = layoutParent != nullptr
-            ? layoutParent->PropertyRegistry().Types().FindType(
+            ? DependencyObjectAccess::PropertyRegistry(layoutParent).Types().FindType(
                   layoutParent->RuntimeType())
             : nullptr;
         const Base::StringView parentName = parentType != nullptr

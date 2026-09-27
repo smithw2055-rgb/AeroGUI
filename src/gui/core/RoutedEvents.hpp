@@ -22,6 +22,7 @@
 #include <new>
 #include <type_traits>
 #include <utility>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero {
 
@@ -200,7 +201,7 @@ public:
 private:
     static DependencyObject* GetParent(
         DependencyObject& object) noexcept {
-        const Meta::TypeRegistry& types = (object).PropertyRegistry().Types();
+        const Meta::TypeRegistry& types = DependencyObjectAccess::PropertyRegistry((object)).Types();
         if (types.IsDerivedFrom(
                 object.RuntimeType(), ContentElement::StaticTypeId())) {
             auto& content = static_cast<ContentElement&>(object);

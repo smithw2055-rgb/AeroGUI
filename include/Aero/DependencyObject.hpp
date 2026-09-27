@@ -17,6 +17,7 @@ struct StoredValueEntry;
 struct PropertyStore;
 struct DependencyObjectRare;
 class DependencyMutationScope;
+class DependencyObjectAccess;
 class Freezable;
 class BindingEngine;
 class AnimationEngine;
@@ -112,8 +113,6 @@ protected:
     virtual Result<void> VerifyMutationAllowed() const noexcept;
 
 public:
-    Meta::DependencyPropertyRegistry& PropertyRegistry() const noexcept { return *registry_; }
-    bool HasPropertyRegistry() const noexcept { return registry_ != nullptr; }
     PropertyStore* Store() noexcept { return static_cast<PropertyStore*>(valueStore_); }
     const PropertyStore* Store() const noexcept { return static_cast<const PropertyStore*>(valueStore_); }
     void ForEachStoredKey(
@@ -166,6 +165,9 @@ private:
     friend class DependencyMutationScope;
     // Property engine invokes the protected Coerce/Validate virtuals.
     friend class Meta::DependencyPropertyRegistry;
+    friend class DependencyObjectAccess;
+    Meta::DependencyPropertyRegistry& PropertyRegistry() const noexcept { return *registry_; }
+    bool HasPropertyRegistry() const noexcept { return registry_ != nullptr; }
 
     enum class ChangeKind : std::uint8_t {
         SetLocal,

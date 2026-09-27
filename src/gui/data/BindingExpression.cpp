@@ -5,6 +5,7 @@
 #include "gui/data/BindingCommon.hpp"
 #include "gui/data/BindingEngine.hpp"
 #include "gui/templates/TemplateInstance.hpp"
+#include "gui/core/DependencyObjectAccess.hpp"
 
 
 namespace Aero::Data {
@@ -334,7 +335,7 @@ Base::Result<BindingHandle> BindingEngine::Attach(
         }
         record.pathPlan = std::move(compiled).Value();
         const DependencyProperty* targetProperty =
-            descriptor.target->PropertyRegistry().Find(
+            DependencyObjectAccess::PropertyRegistry(descriptor.target).Find(
                 descriptor.targetProperty);
         if (targetProperty == nullptr ||
             (descriptor.convert == nullptr &&
@@ -388,7 +389,7 @@ Base::Result<BindingHandle> BindingEngine::Attach(
         }
     } else if (record.sourceKind == BindingSourceKind::MetadataObject) {
         const DependencyProperty* targetProperty =
-            descriptor.target->PropertyRegistry().Find(
+            DependencyObjectAccess::PropertyRegistry(descriptor.target).Find(
                 descriptor.targetProperty);
         if (targetProperty == nullptr ||
             (!targetProperty->AcceptsAnyValue() &&
@@ -610,7 +611,7 @@ Base::Result<PropertyValue> BindingEngine::ConvertForTarget(
     record.conversionFailureStage =
         BindingDiagnosticStage::Convert;
     const DependencyProperty* targetProperty =
-        record.descriptor.target->PropertyRegistry().Find(
+        DependencyObjectAccess::PropertyRegistry(record.descriptor.target).Find(
             record.descriptor.targetProperty);
     if (targetProperty == nullptr) {
         return Base::Status::Failure(
@@ -706,7 +707,7 @@ Base::Result<PropertyValue> BindingEngine::ConvertForSource(
     TypeId sourceType = InvalidTypeId;
     if (record.sourceKind == BindingSourceKind::DependencyProperty) {
         const DependencyProperty* sourceProperty =
-            record.descriptor.source->PropertyRegistry().Find(
+            DependencyObjectAccess::PropertyRegistry(record.descriptor.source).Find(
                 record.descriptor.sourceProperty);
         if (sourceProperty != nullptr) {
             sourceType = sourceProperty->ValueType();

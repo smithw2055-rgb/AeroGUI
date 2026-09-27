@@ -89,6 +89,7 @@
 #include <Aero/VisualStateManager.hpp>
 
 #include <Aero/Value.hpp>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 
 
@@ -1374,7 +1375,7 @@ struct DeferredMultiBindingState {
 
         const Meta::DependencyProperty* targetInfo =
 
-            target->PropertyRegistry().Find(targetProperty);
+            DependencyObjectAccess::PropertyRegistry(target).Find(targetProperty);
 
         if (targetInfo == nullptr) {
 
@@ -1904,7 +1905,7 @@ Base::Result<ProvidedValue> CreateMultiBindingValueImpl(
 
     if (metadata == nullptr ||
 
-        target.Value()->PropertyRegistry().Find(
+        DependencyObjectAccess::PropertyRegistry(target.Value()).Find(
 
             Meta::DependencyPropertyHandle{
 
@@ -2764,7 +2765,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
 
     const Meta::DependencyProperty* targetProperty =
 
-        target->PropertyRegistry().Find(targetHandle);
+        DependencyObjectAccess::PropertyRegistry(target).Find(targetHandle);
 
     if (targetProperty == nullptr ||
 
@@ -3100,7 +3101,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
 
         if (!targetCanInheritDataContext &&
 
-            root->PropertyRegistry().Find(
+            DependencyObjectAccess::PropertyRegistry(root).Find(
 
                 extension->options_.dataContextProperty) != nullptr) {
 
@@ -3250,7 +3251,7 @@ struct DynamicResourceState {
 
         const Meta::DependencyProperty* descriptor =
 
-            (dependencyObject).PropertyRegistry().Find(dependencyProperty);
+            DependencyObjectAccess::PropertyRegistry((dependencyObject)).Find(dependencyProperty);
 
         if (descriptor != nullptr) property = descriptor->Handle();
 
@@ -3446,7 +3447,7 @@ Base::Result<Meta::PropertyValue> EvaluateDynamicResource(
 
     const Meta::DependencyProperty* descriptor =
 
-        (object).PropertyRegistry().Find(property);
+        DependencyObjectAccess::PropertyRegistry((object)).Find(property);
 
     if (descriptor != nullptr) property = descriptor->Handle();
 
@@ -4441,7 +4442,7 @@ Base::Result<ProvidedValue> DynamicResourceExtension::ProvideValue(
 
         const Meta::DependencyProperty* descriptor =
 
-            (*target).PropertyRegistry().Find(property);
+            DependencyObjectAccess::PropertyRegistry((*target)).Find(property);
 
         Base::Result<Meta::PropertyValue> converted =
 
@@ -4499,7 +4500,7 @@ Base::Result<ProvidedValue> DynamicResourceExtension::ProvideValue(
 
     const Meta::DependencyProperty* descriptor =
 
-        target->PropertyRegistry().Find(property);
+        DependencyObjectAccess::PropertyRegistry(target).Find(property);
 
     state->property = descriptor != nullptr
 
@@ -4811,7 +4812,7 @@ Base::Result<ProvidedValue> StaticResourceExtension::ProvideValue(
 
     const Meta::DependencyProperty* descriptor =
 
-        target->PropertyRegistry().Find(property);
+        DependencyObjectAccess::PropertyRegistry(target).Find(property);
 
     auto resolveFrom =
 
@@ -5667,7 +5668,7 @@ TemplateBindingExtension::ProvideValue(
 
     const Meta::DependencyProperty* source =
 
-        target.Value()->PropertyRegistry().Find(
+        DependencyObjectAccess::PropertyRegistry(target.Value()).Find(
 
             controlTemplate.GetTargetType(),
 
@@ -5675,7 +5676,7 @@ TemplateBindingExtension::ProvideValue(
 
     const Meta::DependencyProperty* destination =
 
-        target.Value()->PropertyRegistry().Find(
+        DependencyObjectAccess::PropertyRegistry(target.Value()).Find(
 
             Meta::DependencyPropertyHandle{
 

@@ -24,6 +24,7 @@
 #include <cstdio>
 #include <cstring>
 #include <utility>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero::Controls {
 
@@ -31,14 +32,14 @@ struct TextBlockDocumentHelper {
 public:
     static bool IsTextBlock(const Base::Object& owner) noexcept {
         return owner.RuntimeType() == Controls::TextBlock::StaticTypeId() ||
-            (static_cast<const ::Aero::DependencyObject&>(owner)).PropertyRegistry()
+            DependencyObjectAccess::PropertyRegistry((static_cast<const ::Aero::DependencyObject&>(owner)))
                 .Types().IsDerivedFrom(
                     owner.RuntimeType(), Controls::TextBlock::StaticTypeId());
     }
 
     static bool IsSpan(const Base::Object& owner) noexcept {
         return owner.RuntimeType() == Documents::Span::StaticTypeId() ||
-            (static_cast<const ::Aero::DependencyObject&>(owner)).PropertyRegistry()
+            DependencyObjectAccess::PropertyRegistry((static_cast<const ::Aero::DependencyObject&>(owner)))
                 .Types().IsDerivedFrom(
                     owner.RuntimeType(), Documents::Span::StaticTypeId());
     }
@@ -87,12 +88,12 @@ public:
             ::Aero::DependencyObject* current =
                 static_cast<Documents::Span&>(owner).GetParent();
             while (current != nullptr) {
-                if (current->PropertyRegistry().Types().IsDerivedFrom(
+                if (DependencyObjectAccess::PropertyRegistry(current).Types().IsDerivedFrom(
                         current->RuntimeType(),
                         Controls::TextBlock::StaticTypeId())) {
                     return static_cast<Controls::TextBlock*>(current);
                 }
-                if (!current->PropertyRegistry().Types().IsDerivedFrom(
+                if (!DependencyObjectAccess::PropertyRegistry(current).Types().IsDerivedFrom(
                         current->RuntimeType(),
                         ContentElement::StaticTypeId())) {
                     break;
@@ -109,7 +110,7 @@ public:
         std::uint32_t depth = 0U) noexcept {
         if (&root == &candidate) return true;
         if (depth >= 1024U) return true;
-        const Meta::TypeRegistry& types = (root).PropertyRegistry().Types();
+        const Meta::TypeRegistry& types = DependencyObjectAccess::PropertyRegistry((root)).Types();
         if (!types.IsDerivedFrom(
                 root.RuntimeType(), Documents::Span::StaticTypeId())) {
             return false;
@@ -129,7 +130,7 @@ public:
             &parent,
             host,
             nullptr);
-        const Meta::TypeRegistry& types = (inlineValue).PropertyRegistry().Types();
+        const Meta::TypeRegistry& types = DependencyObjectAccess::PropertyRegistry((inlineValue)).Types();
         if (!types.IsDerivedFrom(
                 inlineValue.RuntimeType(), Documents::Span::StaticTypeId())) {
             return;
@@ -141,7 +142,7 @@ public:
     }
 
     static void ClearHost(Documents::Inline& inlineValue) noexcept {
-        const Meta::TypeRegistry& types = (inlineValue).PropertyRegistry().Types();
+        const Meta::TypeRegistry& types = DependencyObjectAccess::PropertyRegistry((inlineValue)).Types();
         if (types.IsDerivedFrom(
                 inlineValue.RuntimeType(), Documents::Span::StaticTypeId())) {
             auto& span = static_cast<Documents::Span&>(inlineValue);
@@ -260,7 +261,7 @@ public:
                 Base::ErrorCode::OutOfRange,
                 "Document inline nesting exceeds the supported depth");
         }
-        const Meta::TypeRegistry& types = (value).PropertyRegistry().Types();
+        const Meta::TypeRegistry& types = DependencyObjectAccess::PropertyRegistry((value)).Types();
         if (types.IsDerivedFrom(
                 value.RuntimeType(), Documents::Run::StaticTypeId())) {
             return output.Append(
@@ -531,7 +532,7 @@ void Span::SetInlineValue(Meta::Value value) noexcept {
     if (value.Kind() == Meta::ValueKind::Object &&
         !value.IsNullObject() && value.AsObject()) {
         Base::Ref<Base::Object> object = value.AsObject();
-        if (!(*this).PropertyRegistry().Types().IsDerivedFrom(
+        if (!DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
                 object->RuntimeType(), Inline::StaticTypeId())) {
             return;
         }
@@ -988,7 +989,7 @@ void TextBlock::SetInlineValue(
         !value.IsNullObject() &&
         value.AsObject()) {
         Base::Ref<Base::Object> inlineObject = value.AsObject();
-        if (!(*this).PropertyRegistry().Types().IsDerivedFrom(
+        if (!DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
                 inlineObject->RuntimeType(),
                 Documents::Inline::StaticTypeId())) {
             return;
@@ -1010,7 +1011,7 @@ void TextBlock::AddOwnedInline(
     if (!inlineObject) { AERO_ASSERT(false); return; }
     Base::Result<void> access = VerifyAccess();
     if (!access) { AERO_ASSERT(false); return; }
-    const TypeRegistry& types = (*this).PropertyRegistry().Types();
+    const TypeRegistry& types = DependencyObjectAccess::PropertyRegistry((*this)).Types();
     const TypeId type = inlineObject->RuntimeType();
     const bool supported = types.IsDerivedFrom(
         type, Documents::Inline::StaticTypeId());
@@ -1050,7 +1051,7 @@ void CollectInlineUiChildren(
     Base::Vector<UIElement*>& children,
     std::uint32_t depth = 0U) noexcept {
     if (depth >= 1024U) return;
-    const Meta::TypeRegistry& types = (value).PropertyRegistry().Types();
+    const Meta::TypeRegistry& types = DependencyObjectAccess::PropertyRegistry((value)).Types();
     if (types.IsDerivedFrom(
             value.RuntimeType(),
             Documents::InlineUIContainer::StaticTypeId())) {

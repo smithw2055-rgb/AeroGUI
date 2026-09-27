@@ -8,6 +8,7 @@
 #include <Aero/Controls.hpp>
 #include <Aero/LogicalTreeHelper.hpp>
 #include <Aero/VisualTreeHelper.hpp>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 
 
@@ -135,7 +136,7 @@ using namespace Aero::Threading;
 
     for (const DependencyProperty&
         property :
-        (target).PropertyRegistry().
+        DependencyObjectAccess::PropertyRegistry((target)).
             Properties()) {
         if (property.MetadataFor(
                 target.RuntimeType()) ==
@@ -211,7 +212,7 @@ using namespace Aero::Threading;
             styles_->AppliedStyle(target);
     }
     if (templates_ != nullptr &&
-        (target).PropertyRegistry().
+        DependencyObjectAccess::PropertyRegistry((target)).
             Types().IsDerivedFrom(
                 target.RuntimeType(),
                 Control::StaticTypeId())) {

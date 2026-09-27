@@ -9,6 +9,7 @@
 #include <Aero/ClassHandler.hpp>
 
 #include <utility>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero::Controls {
 
@@ -103,7 +104,7 @@ MenuItem::OnApplyTemplate() noexcept {
         GetTemplateChild("GestureText");
     gestureText_ =
         gesture != nullptr &&
-        (*this).PropertyRegistry().Types().IsDerivedFrom(
+        DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             gesture->RuntimeType(),
             TextBlock::StaticTypeId())
         ? static_cast<TextBlock*>(gesture)
@@ -112,7 +113,7 @@ MenuItem::OnApplyTemplate() noexcept {
         GetTemplateChild("CheckGlyph");
     checkGlyph_ =
         check != nullptr &&
-        (*this).PropertyRegistry().Types().IsDerivedFrom(
+        DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             check->RuntimeType(),
             TextBlock::StaticTypeId())
         ? static_cast<TextBlock*>(check)
@@ -121,7 +122,7 @@ MenuItem::OnApplyTemplate() noexcept {
         GetTemplateChild("SubmenuPopup");
     submenuPopup_ =
         submenu != nullptr &&
-        (*this).PropertyRegistry().Types().IsDerivedFrom(
+        DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             submenu->RuntimeType(),
             Popup::StaticTypeId())
         ? static_cast<Popup*>(submenu)
@@ -211,7 +212,7 @@ Menu::~Menu() = default;
 
 MenuItem* MenuBase::FindItem(Base::Object* source) const noexcept {
     if (source == nullptr ||
-        !(*this).PropertyRegistry().Types().
+        !DependencyObjectAccess::PropertyRegistry((*this)).Types().
             IsDerivedFrom(
                 source->RuntimeType(),
                 UIElement::StaticTypeId())) {
@@ -224,7 +225,7 @@ MenuItem* MenuBase::FindItem(Base::Object* source) const noexcept {
         UIElement* element =
             ::Aero::TryCast<::Aero::UIElement>(visual);
         if (element != nullptr &&
-            (*this).PropertyRegistry().Types().
+            DependencyObjectAccess::PropertyRegistry((*this)).Types().
                 IsDerivedFrom(
                     element->RuntimeType(),
                     MenuItem::StaticTypeId())) {
@@ -263,7 +264,7 @@ Base::Result<void> MenuBase::Invoke(MenuItem& item) noexcept {
             command->Execute(parameter, &item);
         }
     }
-    if ((*this).PropertyRegistry().Types().
+    if (DependencyObjectAccess::PropertyRegistry((*this)).Types().
         IsDerivedFrom(
             RuntimeType(),
             ContextMenu::StaticTypeId())) {

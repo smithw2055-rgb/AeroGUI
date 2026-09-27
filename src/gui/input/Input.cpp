@@ -68,6 +68,7 @@
 #include <cctype>
 #include <cstdlib>
 #include <utility>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero::Input {
 
@@ -84,7 +85,7 @@ bool HasAssignedObject(
     UIElement& element,
     Base::StringView name) noexcept {
     const Meta::DependencyProperty* property =
-        (element).PropertyRegistry().Find(
+        DependencyObjectAccess::PropertyRegistry((element)).Find(
             element.RuntimeType(), name);
     if (property == nullptr) return false;
     const Meta::PropertyValue value =
@@ -96,7 +97,7 @@ bool HasAssignedObject(
 
 bool HasSelfHitSurface(UIElement& element) noexcept {
     const Meta::DependencyPropertyRegistry& properties =
-        (element).PropertyRegistry();
+        DependencyObjectAccess::PropertyRegistry((element));
     const Meta::TypeId type = element.RuntimeType();
     // Hit-testing lives in the GUI kernel and must not take a Controls
     // dependency. Identify painted content through DPs, matching WPF:

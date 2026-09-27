@@ -63,6 +63,7 @@
 #include <cctype>
 #include <cstdlib>
 #include <utility>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero::Media {
 namespace {
@@ -87,7 +88,7 @@ bool ContainsTransform(
     const Transform& value,
     const Transform* sought) noexcept {
     if (&value == sought) return true;
-    if (!(value).PropertyRegistry().Types().IsDerivedFrom(
+    if (!DependencyObjectAccess::PropertyRegistry((value)).Types().IsDerivedFrom(
             value.RuntimeType(), TransformGroup::StaticTypeId())) {
         return false;
     }

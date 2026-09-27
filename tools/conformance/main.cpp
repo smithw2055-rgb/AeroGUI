@@ -45,6 +45,7 @@ const ::Aero::Render::RenderFrame* CurrentFrameForConformance(
 #include <new>
 #include <type_traits>
 #include <utility>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 namespace {
 
@@ -124,7 +125,7 @@ void VerifyExpressionFreezeRejection() noexcept {
         std::move(made).Value();
 
     Aero::Meta::EffectiveValueEngine values(
-        stop->GetDispatcher(), (*stop).PropertyRegistry());
+        stop->GetDispatcher(), DependencyObjectAccess::PropertyRegistry((*stop)));
     Aero::Base::Result<void> initialized = values.Initialize();
     Check(initialized.HasValue(),
         "expression freeze value engine initialization failed");

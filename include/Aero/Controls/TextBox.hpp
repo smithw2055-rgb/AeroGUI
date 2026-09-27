@@ -7,6 +7,7 @@
 #include <Aero/Events/EventArgs.hpp>
 
 namespace Aero::Controls {
+class PasswordBox;
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::DependencyPropertyChangedEventHandler;
 using ::Aero::Meta::DependencyPropertyHandle;

@@ -27,6 +27,7 @@
 #include "gui/input/InputManager.hpp"
 #include "gui/templates/TemplateInstance.hpp"
 #include "gui/media/AnimationModel.hpp"
+#include "gui/core/DependencyObjectAccess.hpp"
 
 
 using namespace Aero;
@@ -256,7 +257,7 @@ Base::Object* FrameworkElement::FindNameObject(
             if (expectedType == Meta::InvalidTypeId) {
                 return object;
             }
-            return (*this).PropertyRegistry().Types().IsDerivedFrom(
+            return DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
                 object->RuntimeType(), expectedType)
                 ? object
                 : nullptr;

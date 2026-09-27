@@ -31,6 +31,7 @@
 #include <cstring>
 #include <limits>
 #include <utility>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero::Controls {
 
@@ -77,7 +78,7 @@ void AttachOwnedContentSubtree(
         AttachOwnedContentSubtree(tree, child);
     };
 
-    if ((parent).PropertyRegistry().Types().IsDerivedFrom(
+    if (DependencyObjectAccess::PropertyRegistry((parent)).Types().IsDerivedFrom(
             parent.RuntimeType(), Controls::Panel::StaticTypeId())) {
         auto& panel = static_cast<Controls::Panel&>(parent);
         const std::uint32_t count = (panel).ChildCountCore();
@@ -85,7 +86,7 @@ void AttachOwnedContentSubtree(
             const Base::Ref<Base::Object> owned =
                 (panel).ChildAtCore( index);
             if (!owned ||
-                !(parent).PropertyRegistry().Types().IsDerivedFrom(
+                !DependencyObjectAccess::PropertyRegistry((parent)).Types().IsDerivedFrom(
                     owned->RuntimeType(), UIElement::StaticTypeId())) {
                 continue;
             }
@@ -93,34 +94,34 @@ void AttachOwnedContentSubtree(
         }
         return;
     }
-    if ((parent).PropertyRegistry().Types().IsDerivedFrom(
+    if (DependencyObjectAccess::PropertyRegistry((parent)).Types().IsDerivedFrom(
             parent.RuntimeType(), Controls::Decorator::StaticTypeId())) {
         const Base::Ref<Base::Object>& owned =
             (static_cast<Controls::Decorator&>(parent)).OwnedChild();
         if (owned &&
-            (parent).PropertyRegistry().Types().IsDerivedFrom(
+            DependencyObjectAccess::PropertyRegistry((parent)).Types().IsDerivedFrom(
                 owned->RuntimeType(), UIElement::StaticTypeId())) {
             attachChild(*static_cast<UIElement*>(owned.Get()));
         }
         return;
     }
-    if ((parent).PropertyRegistry().Types().IsDerivedFrom(
+    if (DependencyObjectAccess::PropertyRegistry((parent)).Types().IsDerivedFrom(
             parent.RuntimeType(), ContentPresenter::StaticTypeId())) {
         auto& presenter = static_cast<ContentPresenter&>(parent);
         const Base::Ref<Base::Object>& owned = presenter.GetOwnedContent();
         if (owned &&
-            (parent).PropertyRegistry().Types().IsDerivedFrom(
+            DependencyObjectAccess::PropertyRegistry((parent)).Types().IsDerivedFrom(
                 owned->RuntimeType(), UIElement::StaticTypeId())) {
             attachChild(*static_cast<UIElement*>(owned.Get()));
         }
         return;
     }
-    if ((parent).PropertyRegistry().Types().IsDerivedFrom(
+    if (DependencyObjectAccess::PropertyRegistry((parent)).Types().IsDerivedFrom(
             parent.RuntimeType(), Controls::ContentControl::StaticTypeId())) {
         const Base::Ref<Base::Object>& owned =
             (static_cast<Controls::ContentControl&>(parent)).OwnedContent();
         if (owned &&
-            (parent).PropertyRegistry().Types().IsDerivedFrom(
+            DependencyObjectAccess::PropertyRegistry((parent)).Types().IsDerivedFrom(
                 owned->RuntimeType(), UIElement::StaticTypeId())) {
             attachChild(*static_cast<UIElement*>(owned.Get()));
         }
@@ -217,7 +218,7 @@ void ContentPresenter::OnContentPropertyChanged(
         !value.IsNullObject() &&
         value.AsObject()) {
         Base::Object* obj = value.AsObject().Get();
-        if ((presenter).PropertyRegistry().Types().IsDerivedFrom(
+        if (DependencyObjectAccess::PropertyRegistry((presenter)).Types().IsDerivedFrom(
                 obj->RuntimeType(), UIElement::StaticTypeId())) {
             auto* element = static_cast<UIElement*>(obj);
             presenter.HostUiElement(value.AsObject(), *element);
@@ -238,7 +239,7 @@ void ContentPresenter::OnPropertyChanged(
 Base::Result<void>
 ContentPresenter::UpdatePresentedText() noexcept {
     if (content_ == nullptr ||
-        !(*this).PropertyRegistry().Types().IsDerivedFrom(
+        !DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             content_->RuntimeType(),
             TextBlock::StaticTypeId())) {
         return {};

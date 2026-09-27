@@ -20,6 +20,7 @@
 #include <limits>
 #include <new>
 #include <utility>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero::Controls {
 using namespace Primitives;
@@ -187,7 +188,7 @@ Size PasswordBox::MeasureOverride(
 void PasswordBox::OnApplyTemplate() noexcept {
     Control::OnApplyTemplate();
     DependencyObject* part = GetTemplateChild(Base::StringView("PART_ContentHost"));
-    if (part != nullptr && (*this).PropertyRegistry().Types().IsDerivedFrom(
+    if (part != nullptr && DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             part->RuntimeType(), ScrollViewer::StaticTypeId())) {
         static_cast<void>(editor_.AttachScrollViewer(static_cast<ScrollViewer*>(part)));
     } else {
@@ -207,7 +208,7 @@ Size PasswordBox::ArrangeOverride(
 void PasswordBox::OnRender(
     ::Aero::Media::DrawingContext& context) noexcept {
     DependencyObject* part = GetTemplateChild(Base::StringView("PART_ContentHost"));
-    if (part != nullptr && (*this).PropertyRegistry().Types().IsDerivedFrom(
+    if (part != nullptr && DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             part->RuntimeType(), ScrollViewer::StaticTypeId())) {
         return;
     }

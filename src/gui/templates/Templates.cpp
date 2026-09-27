@@ -25,6 +25,7 @@
 #include <cstdio>
 #include <new>
 #include <utility>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 
 namespace Aero::Controls {
@@ -70,7 +71,7 @@ bool TemplateTriggerCondition::IsMet(
         property ==
             Primitives::ToggleButton::
                 IsCheckedProperty.Handle() &&
-        (source).PropertyRegistry().Types().IsDerivedFrom(
+        DependencyObjectAccess::PropertyRegistry((source)).Types().IsDerivedFrom(
             source.RuntimeType(),
             Primitives::ToggleButton::StaticTypeId())) {
         return !static_cast<Primitives::ToggleButton&>(
@@ -379,7 +380,7 @@ Base::Result<void> TemplateBuilder::PopulateItemsPresenter(
             std::move(created).Value());
     }
     if (!owner ||
-        !(presenter).PropertyRegistry().Types().IsDerivedFrom(
+        !DependencyObjectAccess::PropertyRegistry((presenter)).Types().IsDerivedFrom(
             owner->RuntimeType(), Panel::StaticTypeId())) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -409,13 +410,13 @@ TemplateBuilder::PopulateContentPresenter(
         state.parent != nullptr) {
         const Value* header = nullptr;
         Value stored;
-        if (state.parent->PropertyRegistry().Types().IsDerivedFrom(
+        if (DependencyObjectAccess::PropertyRegistry(state.parent).Types().IsDerivedFrom(
                 state.parent->RuntimeType(),
                 HeaderedItemsControl::StaticTypeId())) {
             stored = static_cast<HeaderedItemsControl*>(state.parent)
                 ->GetHeader();
             header = &stored;
-        } else if (state.parent->PropertyRegistry().Types().IsDerivedFrom(
+        } else if (DependencyObjectAccess::PropertyRegistry(state.parent).Types().IsDerivedFrom(
                        state.parent->RuntimeType(),
                        HeaderedContentControl::StaticTypeId())) {
             stored = static_cast<HeaderedContentControl*>(state.parent)
@@ -426,7 +427,7 @@ TemplateBuilder::PopulateContentPresenter(
             header->Kind() == ValueKind::Object &&
             !header->IsNullObject() &&
             header->AsObject() &&
-            state.parent->PropertyRegistry().Types().IsDerivedFrom(
+            DependencyObjectAccess::PropertyRegistry(state.parent).Types().IsDerivedFrom(
                 header->AsObject()->RuntimeType(),
                 UIElement::StaticTypeId())) {
             // Gallery SampleTemplate StackPanel already lives on Header.

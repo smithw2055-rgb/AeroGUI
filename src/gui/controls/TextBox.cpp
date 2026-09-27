@@ -24,6 +24,7 @@
 #include <new>
 #include <utility>
 #include "gui/media/BrushRendering.hpp"
+#include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero::Controls {
 using namespace Primitives;
@@ -1561,7 +1562,7 @@ Size TextBox::ArrangeOverride(
 void TextBox::OnApplyTemplate() noexcept {
     Control::OnApplyTemplate();
     DependencyObject* part = GetTemplateChild(Base::StringView("PART_ContentHost"));
-    if (part != nullptr && (*this).PropertyRegistry().Types().IsDerivedFrom(
+    if (part != nullptr && DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             part->RuntimeType(), ScrollViewer::StaticTypeId())) {
         static_cast<void>(AttachScrollViewer(static_cast<ScrollViewer*>(part)));
     } else {

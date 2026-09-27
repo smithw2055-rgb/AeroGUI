@@ -31,6 +31,7 @@
 #include "gui/core/DependencyPropertyRegistry.hpp"
 #include "gui/core/ErasedRoutedHandler.hpp"
 #include <Aero/ClassHandler.hpp>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 using namespace Aero;
 using namespace Aero::Media;
@@ -73,10 +74,10 @@ Base::Result<void> UIElement::ArrangeChild(
         child.LayoutParent() != this) {
         thread_local char message[512];
         const TypeInfo* parentType =
-            (*this).PropertyRegistry().Types().FindType(
+            DependencyObjectAccess::PropertyRegistry((*this)).Types().FindType(
                 RuntimeType());
         const TypeInfo* childType =
-            (child).PropertyRegistry().Types().FindType(
+            DependencyObjectAccess::PropertyRegistry((child)).Types().FindType(
                 child.RuntimeType());
         const Base::StringView parentName =
             parentType != nullptr
@@ -88,7 +89,7 @@ Base::Result<void> UIElement::ArrangeChild(
             : Base::StringView("<unknown>");
         const TypeInfo* actualParentType =
             child.LayoutParent() != nullptr
-            ? (*this).PropertyRegistry().Types().FindType(
+            ? DependencyObjectAccess::PropertyRegistry((*this)).Types().FindType(
                   child.LayoutParent()->
                       RuntimeType())
             : nullptr;
@@ -176,10 +177,10 @@ Base::Result<void> UIElement::MeasureChild(
         child.LayoutParent() != this) {
         thread_local char message[512];
         const TypeInfo* parentType =
-            (*this).PropertyRegistry().Types().FindType(
+            DependencyObjectAccess::PropertyRegistry((*this)).Types().FindType(
                 RuntimeType());
         const TypeInfo* childType =
-            (child).PropertyRegistry().Types().FindType(
+            DependencyObjectAccess::PropertyRegistry((child)).Types().FindType(
                 child.RuntimeType());
         const Base::StringView parentName =
             parentType != nullptr
@@ -191,7 +192,7 @@ Base::Result<void> UIElement::MeasureChild(
             : Base::StringView("<unknown>");
         const TypeInfo* actualParentType =
             child.LayoutParent() != nullptr
-            ? (*this).PropertyRegistry().Types().FindType(
+            ? DependencyObjectAccess::PropertyRegistry((*this)).Types().FindType(
                   child.LayoutParent()->
                       RuntimeType())
             : nullptr;
@@ -733,10 +734,10 @@ InputClassHandlerRecord gInputClassHandlers[96];
 std::uint32_t gInputClassHandlerCount = 0U;
 
 const TypeRegistry* ClassHandlerTypes(const UIElement& element) noexcept {
-    if (!(element).HasPropertyRegistry()) {
+    if (!DependencyObjectAccess::HasPropertyRegistry((element))) {
         return nullptr;
     }
-    return &(element).PropertyRegistry().Types();
+    return &DependencyObjectAccess::PropertyRegistry((element)).Types();
 }
 
 } // namespace

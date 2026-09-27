@@ -16,6 +16,7 @@
 #include "render/RenderTree.hpp"
 #include <Aero/TryCast.hpp>
 #include <Aero/Controls/Buttons.hpp>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero {
 
@@ -86,7 +87,7 @@ std::uint32_t Media::VisualTreeHelper::GetChildrenCount(const ::Aero::Media::Vis
 
 DependencyObject* LogicalTreeHelper::GetParent(
     const DependencyObject& object) noexcept {
-    const TypeRegistry& types = (object).PropertyRegistry().Types();
+    const TypeRegistry& types = DependencyObjectAccess::PropertyRegistry((object)).Types();
     if (types.IsDerivedFrom(
             object.RuntimeType(), FrameworkContentElement::StaticTypeId())) {
         return static_cast<const FrameworkContentElement&>(object).GetParent();
@@ -103,7 +104,7 @@ DependencyObject* LogicalTreeHelper::GetParent(
 
 std::uint32_t LogicalTreeHelper::GetChildrenCount(
     const DependencyObject& object) noexcept {
-    const TypeRegistry& types = (object).PropertyRegistry().Types();
+    const TypeRegistry& types = DependencyObjectAccess::PropertyRegistry((object)).Types();
     if (types.IsDerivedFrom(
             object.RuntimeType(), FrameworkContentElement::StaticTypeId())) {
         return (static_cast<const FrameworkContentElement&>(object)).LogicalChildCount();
@@ -119,7 +120,7 @@ std::uint32_t LogicalTreeHelper::GetChildrenCount(
 DependencyObject* LogicalTreeHelper::GetChild(
     const DependencyObject& object,
     std::uint32_t index) noexcept {
-    const TypeRegistry& types = (object).PropertyRegistry().Types();
+    const TypeRegistry& types = DependencyObjectAccess::PropertyRegistry((object)).Types();
     if (types.IsDerivedFrom(
             object.RuntimeType(), FrameworkContentElement::StaticTypeId())) {
         return (static_cast<const FrameworkContentElement&>(object)).LogicalChildAt( index);
@@ -408,7 +409,7 @@ Base::Result<void> ElementTree::TrackInheritedValues(
     ::Aero::Media::Visual& node) noexcept {
     FrameworkElement* element = ::Aero::TryCast<::Aero::FrameworkElement>(&(node));
     if (element == nullptr ||
-        element->PropertyRegistry().Find(
+        DependencyObjectAccess::PropertyRegistry(element).Find(
             FrameworkElement::DataContextProperty) == nullptr) {
         return {};
     }
@@ -429,7 +430,7 @@ Base::Result<void> ElementTree::TrackInheritedValues(
 void ElementTree::UntrackInheritedValues(::Aero::Media::Visual& node) noexcept {
     FrameworkElement* element = ::Aero::TryCast<::Aero::FrameworkElement>(&(node));
     if (element == nullptr ||
-        element->PropertyRegistry().Find(
+        DependencyObjectAccess::PropertyRegistry(element).Find(
             FrameworkElement::DataContextProperty) == nullptr) {
         return;
     }

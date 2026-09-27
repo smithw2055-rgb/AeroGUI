@@ -21,6 +21,7 @@
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
+#include "gui/core/DependencyObjectAccess.hpp"
 namespace Aero {
 
 using namespace Aero::Meta;
@@ -436,7 +437,7 @@ Base::Result<bool> AnimationEngine::ApplyTrack(
     }
 
     const Meta::DependencyProperty* targetProperty =
-        track.target->PropertyRegistry().Find(
+        DependencyObjectAccess::PropertyRegistry(track.target).Find(
             track.property);
     if (targetProperty != nullptr &&
         targetProperty->ValueType() ==

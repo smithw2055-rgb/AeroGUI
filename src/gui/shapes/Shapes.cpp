@@ -16,6 +16,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <utility>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero::Shapes {
 
@@ -331,7 +332,7 @@ void Shape::OnPropertyChanged(
     // Former OnShapePenChanged delegate body, moved before base handling to
     // preserve the delegate-then-virtual firing order.
     if (args.GetProperty() == PenProperty.Handle()) {
-        if ((*this).PropertyRegistry().Types().IsDerivedFrom(
+        if (DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
                 RuntimeType(), Path::StaticTypeId())) {
             (static_cast<Path&>(*this)).ResetGeometry();
         } else {

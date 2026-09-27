@@ -31,6 +31,7 @@
 #include <cstring>
 #include <limits>
 #include <utility>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero::Controls {
 
@@ -211,7 +212,7 @@ Rect PlacePopupContent(FrameworkElement& host, Size contentSize, Size finalSize,
         DependencyObject* templatedParent =
             host.GetTemplatedParent();
         if (templatedParent != nullptr &&
-            (host).PropertyRegistry().Types().IsDerivedFrom(
+            DependencyObjectAccess::PropertyRegistry((host)).Types().IsDerivedFrom(
                 templatedParent->RuntimeType(),
                 UIElement::StaticTypeId())) {
             placementTarget =

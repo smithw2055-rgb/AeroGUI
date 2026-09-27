@@ -23,6 +23,7 @@
 #include "gui/core/ValueConversion.hpp"
 #include <algorithm>
 #include <utility>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero::Controls {
 
@@ -111,7 +112,7 @@ Base::Result<void> ComboBox::PrepareContainerForItemOverride(
         Selector::PrepareContainerForItemOverride(
             container, item, index);
     if (!prepared) return prepared.GetStatus();
-    if ((*this).PropertyRegistry().Types().IsDerivedFrom(
+    if (DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             container.RuntimeType(),
             ComboBoxItem::StaticTypeId())) {
         auto& comboItem =
@@ -126,7 +127,7 @@ Base::Result<void> ComboBox::PrepareContainerForItemOverride(
 
 void ComboBox::ClearContainerForItemOverride(
     FrameworkElement& container) noexcept {
-    if ((*this).PropertyRegistry().Types().IsDerivedFrom(
+    if (DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             container.RuntimeType(),
             ComboBoxItem::StaticTypeId())) {
         static_cast<ComboBoxItem&>(container).SetIsSelected(false);
@@ -147,7 +148,7 @@ void ComboBox::SynchronizeContainers() noexcept {
         FrameworkElement* container =
             generator->ContainerFromIndex(index);
         if (container == nullptr ||
-            !(*this).PropertyRegistry().Types().
+            !DependencyObjectAccess::PropertyRegistry((*this)).Types().
                 IsDerivedFrom(
                     container->RuntimeType(),
                     ComboBoxItem::StaticTypeId())) {
@@ -176,7 +177,7 @@ void ComboBox::OnApplyTemplate()
         GetTemplateChild("SelectionBox");
     selectionBox_ =
         selection != nullptr &&
-        (*this).PropertyRegistry().Types().
+        DependencyObjectAccess::PropertyRegistry((*this)).Types().
             IsDerivedFrom(
                 selection->RuntimeType(),
                 TextBlock::StaticTypeId())
@@ -186,7 +187,7 @@ void ComboBox::OnApplyTemplate()
         GetTemplateChild("ContentSite");
     selectionPresenter_ =
         contentSite != nullptr &&
-        (*this).PropertyRegistry().Types().
+        DependencyObjectAccess::PropertyRegistry((*this)).Types().
             IsDerivedFrom(
                 contentSite->RuntimeType(),
                 ContentPresenter::StaticTypeId())
@@ -196,7 +197,7 @@ void ComboBox::OnApplyTemplate()
     if (selectionBox_ == nullptr &&
         selectionPresenter_ != nullptr &&
         selectionPresenter_->GetContent() != nullptr &&
-        (*this).PropertyRegistry().Types().
+        DependencyObjectAccess::PropertyRegistry((*this)).Types().
             IsDerivedFrom(
         selectionPresenter_->GetContent()->
                     RuntimeType(),
@@ -212,7 +213,7 @@ void ComboBox::OnApplyTemplate()
         GetTemplateChild("PART_EditableTextBox");
     editableTextBox_ =
         editable != nullptr &&
-        (*this).PropertyRegistry().Types().
+        DependencyObjectAccess::PropertyRegistry((*this)).Types().
             IsDerivedFrom(
                 editable->RuntimeType(),
                 TextBox::StaticTypeId())
@@ -222,7 +223,7 @@ void ComboBox::OnApplyTemplate()
         GetTemplateChild("DropDownBorder");
     dropDownBorder_ =
         border != nullptr &&
-        (*this).PropertyRegistry().Types().
+        DependencyObjectAccess::PropertyRegistry((*this)).Types().
             IsDerivedFrom(
                 border->RuntimeType(),
                 FrameworkElement::StaticTypeId())
@@ -232,7 +233,7 @@ void ComboBox::OnApplyTemplate()
         GetTemplateChild("PART_Popup");
     popup_ =
         popup != nullptr &&
-        (*this).PropertyRegistry().Types().
+        DependencyObjectAccess::PropertyRegistry((*this)).Types().
             IsDerivedFrom(
                 popup->RuntimeType(),
                 Popup::StaticTypeId())
@@ -419,7 +420,7 @@ ComboBox::UpdateSelectionBox() noexcept {
             text = value.AsString();
         }
     } else if (selected &&
-        (*this).PropertyRegistry().Types().
+        DependencyObjectAccess::PropertyRegistry((*this)).Types().
             IsDerivedFrom(
                 selected->RuntimeType(),
                 TextBlock::StaticTypeId())) {
@@ -427,7 +428,7 @@ ComboBox::UpdateSelectionBox() noexcept {
             selected.Get())->GetText();
     } else if (
         selected &&
-        (*this).PropertyRegistry().Types().
+        DependencyObjectAccess::PropertyRegistry((*this)).Types().
             IsDerivedFrom(
                 selected->RuntimeType(),
                 ContentControl::StaticTypeId())) {
@@ -435,7 +436,7 @@ ComboBox::UpdateSelectionBox() noexcept {
             (*static_cast<ContentControl*>(
                 selected.Get())).GetContentElement();
         if (content != nullptr &&
-            (*this).PropertyRegistry().Types().
+            DependencyObjectAccess::PropertyRegistry((*this)).Types().
                 IsDerivedFrom(
                     content->RuntimeType(),
                     TextBlock::StaticTypeId())) {
@@ -454,12 +455,12 @@ ComboBox::UpdateSelectionBox() noexcept {
             ? generator->ContainerFromIndex(index)
             : nullptr;
         if (container != nullptr &&
-            (*this).PropertyRegistry().Types().IsDerivedFrom(
+            DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
                 container->RuntimeType(),
                 ContentControl::StaticTypeId())) {
             UIElement* content = (*static_cast<ContentControl*>(container)).GetContentElement();
             if (content != nullptr &&
-                (*this).PropertyRegistry().Types().IsDerivedFrom(
+                DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
                     content->RuntimeType(), TextBlock::StaticTypeId())) {
                 selectedProjection = static_cast<TextBlock*>(content);
                 text = selectedProjection->GetText();
@@ -539,7 +540,7 @@ void ComboBox::UpdateEditableVisualState() noexcept {
 std::uint32_t ComboBox::FindContainerIndex(
     Base::Object* source) const noexcept {
     if (source == nullptr ||
-        !(*this).PropertyRegistry().Types().
+        !DependencyObjectAccess::PropertyRegistry((*this)).Types().
             IsDerivedFrom(
                 source->RuntimeType(),
                 UIElement::StaticTypeId())) {
@@ -552,7 +553,7 @@ std::uint32_t ComboBox::FindContainerIndex(
         UIElement* element =
             ::Aero::TryCast<::Aero::UIElement>(visual);
         if (element != nullptr &&
-            (*this).PropertyRegistry().Types().
+            DependencyObjectAccess::PropertyRegistry((*this)).Types().
                 IsDerivedFrom(
                     element->RuntimeType(),
                     ComboBoxItem::StaticTypeId())) {

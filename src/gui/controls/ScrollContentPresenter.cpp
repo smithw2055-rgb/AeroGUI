@@ -17,6 +17,7 @@
 #include <limits>
 
 #include "gui/templates/TemplateInstance.hpp"
+#include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero::Controls {
 using namespace Primitives;
@@ -435,7 +436,7 @@ void ScrollContentPresenter::OnScrollDataChanged(
         GetTemplatedParent();
     if (templatedParent == nullptr ||
         templatedParent == this ||
-        !(*this).PropertyRegistry().Types().IsDerivedFrom(
+        !DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             templatedParent->RuntimeType(),
             ScrollViewer::StaticTypeId())) {
         return;

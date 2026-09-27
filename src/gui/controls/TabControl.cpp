@@ -31,6 +31,7 @@
 #include <cstring>
 #include <limits>
 #include <utility>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero::Controls {
 
@@ -61,7 +62,7 @@ TabItem* TabControl::GetSelectedTab() const noexcept {
     if (selected == UINT32_MAX) return nullptr;
     const Ref<Base::Object> item = GetItem(selected);
     if (item &&
-        (*this).PropertyRegistry().Types().IsDerivedFrom(
+        DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             item->RuntimeType(), TabItem::StaticTypeId())) {
         return static_cast<TabItem*>(item.Get());
     }
@@ -69,7 +70,7 @@ TabItem* TabControl::GetSelectedTab() const noexcept {
     if (generator == nullptr) return nullptr;
     FrameworkElement* container = generator->ContainerFromIndex(selected);
     if (container != nullptr &&
-        (*this).PropertyRegistry().Types().IsDerivedFrom(
+        DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             container->RuntimeType(), TabItem::StaticTypeId())) {
         return static_cast<TabItem*>(container);
     }
@@ -90,13 +91,13 @@ void TabControl::SynchronizeSelection() noexcept {
         TabItem* tab = nullptr;
         const Ref<Base::Object> item = GetItem(index);
         if (item &&
-            (*this).PropertyRegistry().Types().IsDerivedFrom(
+            DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
                 item->RuntimeType(), TabItem::StaticTypeId())) {
             tab = static_cast<TabItem*>(item.Get());
         } else if (generator != nullptr) {
             FrameworkElement* container = generator->ContainerFromIndex(index);
             if (container != nullptr &&
-                (*this).PropertyRegistry().Types().IsDerivedFrom(
+                DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
                     container->RuntimeType(), TabItem::StaticTypeId())) {
                 tab = static_cast<TabItem*>(container);
             }
@@ -174,7 +175,7 @@ Size TabControl::ArrangeOverride(
         TabItem* tab = nullptr;
         const Ref<Base::Object> item = GetItem(index);
         if (item &&
-            (*this).PropertyRegistry().Types().IsDerivedFrom(
+            DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
                 item->RuntimeType(), TabItem::StaticTypeId())) {
             tab = static_cast<TabItem*>(item.Get());
         }
@@ -201,7 +202,7 @@ Size TabControl::ArrangeOverride(
 bool TabPanel::GetIsVertical() const noexcept {
     const DependencyObject* parent = GetTemplatedParent();
     return parent != nullptr &&
-        (*this).PropertyRegistry().Types().IsDerivedFrom(
+        DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             parent->RuntimeType(), TabControl::StaticTypeId()) &&
         (static_cast<const TabControl*>(parent)->GetTabStripPlacement() ==
              Dock::Left ||

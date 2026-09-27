@@ -61,6 +61,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <utility>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero::Interactivity {
 
@@ -126,7 +127,7 @@ Base::Result<Base::Ref<Behavior>> Behavior::ClonePrototype(
         Base::Ref<Behavior>::FromBorrowed(
             *static_cast<Behavior*>(created.Value().Get()));
     for (const Meta::DependencyProperty& property :
-         (prototype).PropertyRegistry().Properties()) {
+         DependencyObjectAccess::PropertyRegistry((prototype)).Properties()) {
         if (property.MetadataFor(prototype.RuntimeType()) == nullptr ||
             property.MetadataFor(clone->RuntimeType()) == nullptr) {
             continue;
@@ -155,7 +156,7 @@ void StyleTriggerCollection::Add(
 void StyleInteraction::OnBehaviorsChanged(
     DependencyObject& object,
     const Meta::DependencyPropertyChangedEventArgs& args) noexcept {
-    if (!(object).PropertyRegistry().Types().IsDerivedFrom(
+    if (!DependencyObjectAccess::PropertyRegistry((object)).Types().IsDerivedFrom(
             object.RuntimeType(), FrameworkElement::StaticTypeId())) {
         return;
     }
@@ -178,7 +179,7 @@ void StyleInteraction::OnBehaviorsChanged(
 void StyleInteraction::OnTriggersChanged(
     DependencyObject& object,
     const Meta::DependencyPropertyChangedEventArgs& args) noexcept {
-    if (!(object).PropertyRegistry().Types().IsDerivedFrom(
+    if (!DependencyObjectAccess::PropertyRegistry((object)).Types().IsDerivedFrom(
             object.RuntimeType(), FrameworkElement::StaticTypeId())) {
         return;
     }
@@ -384,7 +385,7 @@ void AddInteractionTrigger(
     auto& dependencyObject =
         static_cast<DependencyObject&>(owner);
     const Meta::TypeRegistry& types =
-        (dependencyObject).PropertyRegistry().Types();
+        DependencyObjectAccess::PropertyRegistry((dependencyObject)).Types();
     if (types.IsDerivedFrom(
             owner.RuntimeType(), FrameworkElement::StaticTypeId())) {
         static_cast<void>(
@@ -403,7 +404,7 @@ void ClearInteractionTriggers(
     auto& dependencyObject =
         static_cast<DependencyObject&>(owner);
     const Meta::TypeRegistry& types =
-        (dependencyObject).PropertyRegistry().Types();
+        DependencyObjectAccess::PropertyRegistry((dependencyObject)).Types();
     if (types.IsDerivedFrom(
             owner.RuntimeType(), FrameworkElement::StaticTypeId())) {
         static_cast<void>(

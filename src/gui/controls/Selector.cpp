@@ -23,6 +23,7 @@
 #include "gui/core/ValueConversion.hpp"
 #include <algorithm>
 #include <utility>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero::Controls {
 
@@ -489,7 +490,7 @@ void Selector::SyncContainers() noexcept {
         FrameworkElement* container =
             generator->ContainerFromIndex(index);
         if (container == nullptr ||
-            !(*this).PropertyRegistry().Types().IsDerivedFrom(
+            !DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
                 container->RuntimeType(),
                 ListBoxItem::StaticTypeId())) {
             continue;
@@ -801,7 +802,7 @@ Base::Result<void> Selector::PrepareContainerForItemOverride(
         ItemsControl::PrepareContainerForItemOverride(
             container, item, index);
     if (!prepared) return prepared.GetStatus();
-    if ((*this).PropertyRegistry().Types().IsDerivedFrom(
+    if (DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             container.RuntimeType(),
             ListBoxItem::StaticTypeId())) {
         auto& listBoxItem =
@@ -815,7 +816,7 @@ Base::Result<void> Selector::PrepareContainerForItemOverride(
 
 void Selector::ClearContainerForItemOverride(
     FrameworkElement& container) noexcept {
-    if ((*this).PropertyRegistry().Types().IsDerivedFrom(
+    if (DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             container.RuntimeType(),
             ListBoxItem::StaticTypeId())) {
         static_cast<ListBoxItem&>(container).SetIsSelected(false);

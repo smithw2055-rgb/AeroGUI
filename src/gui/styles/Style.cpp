@@ -70,13 +70,14 @@
 #include <cmath>
 #include <cstdlib>
 #include <utility>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero {
 
 void Element::OnBlendingModeChanged(
     DependencyObject& object,
     const DependencyPropertyChangedEventArgs& args) noexcept {
-    if (!(object).PropertyRegistry().Types().IsDerivedFrom(
+    if (!DependencyObjectAccess::PropertyRegistry((object)).Types().IsDerivedFrom(
             object.RuntimeType(), UIElement::StaticTypeId())) {
         return;
     }
@@ -101,18 +102,18 @@ void TextProperties::OnCompatibilityPropertyChanged(
     DependencyObject& object,
     const DependencyPropertyChangedEventArgs& args) noexcept {
     const Meta::DependencyProperty* source =
-        (object).PropertyRegistry().Find(args.GetProperty());
+        DependencyObjectAccess::PropertyRegistry((object)).Find(args.GetProperty());
     if (source == nullptr) return;
 
     const Meta::PropertyInfo* targetInfo =
-        (object).PropertyRegistry().Types().FindProperty(
+        DependencyObjectAccess::PropertyRegistry((object)).Types().FindProperty(
             object.RuntimeType(), source->Name(), false);
     if (targetInfo == nullptr ||
         targetInfo->Id() == source->Handle().value) {
         return;
     }
     const Meta::DependencyProperty* target =
-        (object).PropertyRegistry().Find(
+        DependencyObjectAccess::PropertyRegistry((object)).Find(
             Meta::DependencyPropertyHandle{targetInfo->Id()});
     if (target == nullptr ||
         target->MetadataFor(object.RuntimeType()) == nullptr) {
@@ -124,7 +125,7 @@ void TextProperties::OnCompatibilityPropertyChanged(
         value.Type() != target->ValueType() &&
         value.Kind() == Meta::ValueKind::Object &&
         !value.IsNullObject() && value.AsObject() &&
-        (object).PropertyRegistry().Types().IsDerivedFrom(
+        DependencyObjectAccess::PropertyRegistry((object)).Types().IsDerivedFrom(
             value.AsObject()->RuntimeType(), target->ValueType())) {
         value = Meta::Value::FromObject(
             target->ValueType(), value.AsObject());

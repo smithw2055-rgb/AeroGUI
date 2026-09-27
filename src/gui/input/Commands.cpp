@@ -66,6 +66,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <utility>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero::Input {
 
@@ -756,7 +757,7 @@ Base::Result<bool> CommandState::CanExecute(
     Base::Result<void> routed = events_->VisitRoute(
         target, RoutingStrategy::Bubble,
         [&](DependencyObject& owner) noexcept {
-            if (!(owner).PropertyRegistry().Types().IsDerivedFrom(
+            if (!DependencyObjectAccess::PropertyRegistry((owner)).Types().IsDerivedFrom(
                     owner.RuntimeType(), UIElement::StaticTypeId())) {
                 return true;
             }
@@ -804,7 +805,7 @@ Base::Result<bool> CommandState::Execute(
     Base::Result<void> routed = events_->VisitRoute(
         target, RoutingStrategy::Bubble,
         [&](DependencyObject& owner) noexcept {
-            if (!(owner).PropertyRegistry().Types().IsDerivedFrom(
+            if (!DependencyObjectAccess::PropertyRegistry((owner)).Types().IsDerivedFrom(
                     owner.RuntimeType(), UIElement::StaticTypeId())) {
                 return true;
             }
@@ -844,7 +845,7 @@ Base::Result<bool> CommandState::ProcessInput(
     Base::Result<void> routed = events_->VisitRoute(
         target, RoutingStrategy::Bubble,
         [&](DependencyObject& current) noexcept {
-            if (!(current).PropertyRegistry().Types().IsDerivedFrom(
+            if (!DependencyObjectAccess::PropertyRegistry((current)).Types().IsDerivedFrom(
                     current.RuntimeType(), UIElement::StaticTypeId())) {
                 return true;
             }
@@ -898,7 +899,7 @@ Base::Result<bool> CommandState::ProcessInput(
     Base::Result<void> routed = events_->VisitRoute(
         target, RoutingStrategy::Bubble,
         [&](DependencyObject& current) noexcept {
-            if (!(current).PropertyRegistry().Types().IsDerivedFrom(
+            if (!DependencyObjectAccess::PropertyRegistry((current)).Types().IsDerivedFrom(
                     current.RuntimeType(), UIElement::StaticTypeId())) {
                 return true;
             }

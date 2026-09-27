@@ -23,6 +23,7 @@
 #include "gui/core/ValueConversion.hpp"
 #include <algorithm>
 #include <utility>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero::Controls {
 
@@ -95,7 +96,7 @@ void ListBoxItem::OnPropertyChanged(
         while (visual != nullptr) {
             UIElement* element = ::Aero::TryCast<UIElement>(visual);
             if (element != nullptr &&
-                (*this).PropertyRegistry().Types().IsDerivedFrom(
+                DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
                     element->RuntimeType(), ListBox::StaticTypeId())) {
                 auto& listBox = *static_cast<ListBox*>(element);
                 ItemContainerGenerator* generator =
@@ -118,7 +119,7 @@ void ListBoxItem::OnPropertyChanged(
             while (visual != nullptr) {
                 UIElement* element = ::Aero::TryCast<UIElement>(visual);
                 if (element != nullptr &&
-                    (*this).PropertyRegistry().Types().IsDerivedFrom(
+                    DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
                         element->RuntimeType(), ListBox::StaticTypeId())) {
                     auto& listBox = *static_cast<ListBox*>(element);
                     if (listBox.GetSelectionMode() == SelectionMode::Single) {
@@ -156,7 +157,7 @@ ListBox::~ListBox() = default;
 
 std::uint32_t ListBox::FindContainerIndex(Base::Object* source) const noexcept {
     if (source == nullptr ||
-        !(*this).PropertyRegistry().Types()
+        !DependencyObjectAccess::PropertyRegistry((*this)).Types()
             .IsDerivedFrom(
                 source->RuntimeType(),
                 UIElement::StaticTypeId())) {
@@ -169,7 +170,7 @@ std::uint32_t ListBox::FindContainerIndex(Base::Object* source) const noexcept {
         UIElement* element =
             ::Aero::TryCast<::Aero::UIElement>(visual);
         if (element != nullptr &&
-            (*this).PropertyRegistry().Types()
+            DependencyObjectAccess::PropertyRegistry((*this)).Types()
                 .IsDerivedFrom(
                     element->RuntimeType(),
                     ListBoxItem::StaticTypeId())) {
@@ -337,7 +338,7 @@ Base::Result<bool> ListBox::BringIntoView(
         UIElement* parentElement =
             ::Aero::TryCast<::Aero::UIElement>(parent);
         if (parentElement != nullptr &&
-            (*this).PropertyRegistry().Types().IsDerivedFrom(
+            DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
                 parentElement->RuntimeType(),
                 ScrollViewer::StaticTypeId())) {
             viewer =

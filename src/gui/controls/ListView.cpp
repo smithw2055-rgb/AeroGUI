@@ -13,6 +13,7 @@
 
 #include <cmath>
 #include <utility>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero::Controls {
 
@@ -125,7 +126,7 @@ ListView::OnApplyTemplate() noexcept {
         GetTemplateChild("ColumnHeaders");
     columnHeaders_ =
         headers != nullptr &&
-        (*this).PropertyRegistry().Types().IsDerivedFrom(
+        DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             headers->RuntimeType(),
             TextBlock::StaticTypeId())
         ? static_cast<TextBlock*>(headers)

@@ -23,6 +23,7 @@
 #include <Aero/Controls/ItemsPresenter.hpp>
 #include <Aero/Visual.hpp>
 #include <Aero/VisualTreeHelper.hpp>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero::Controls {
 
@@ -70,7 +71,7 @@ void AttachOwnedUiSubtree(
         AttachOwnedUiSubtree(tree, child);
     };
 
-    if ((parent).PropertyRegistry().Types().IsDerivedFrom(
+    if (DependencyObjectAccess::PropertyRegistry((parent)).Types().IsDerivedFrom(
             parent.RuntimeType(), Panel::StaticTypeId())) {
         auto& panel = static_cast<Panel&>(parent);
         const std::uint32_t count = (panel).ChildCountCore();
@@ -78,7 +79,7 @@ void AttachOwnedUiSubtree(
             const Base::Ref<Base::Object> owned =
                 (panel).ChildAtCore( index);
             if (!owned ||
-                !(parent).PropertyRegistry().Types().IsDerivedFrom(
+                !DependencyObjectAccess::PropertyRegistry((parent)).Types().IsDerivedFrom(
                     owned->RuntimeType(), UIElement::StaticTypeId())) {
                 continue;
             }
@@ -86,34 +87,34 @@ void AttachOwnedUiSubtree(
         }
         return;
     }
-    if ((parent).PropertyRegistry().Types().IsDerivedFrom(
+    if (DependencyObjectAccess::PropertyRegistry((parent)).Types().IsDerivedFrom(
             parent.RuntimeType(), Decorator::StaticTypeId())) {
         const Base::Ref<Base::Object>& owned =
             (static_cast<Decorator&>(parent)).OwnedChild();
         if (owned &&
-            (parent).PropertyRegistry().Types().IsDerivedFrom(
+            DependencyObjectAccess::PropertyRegistry((parent)).Types().IsDerivedFrom(
                 owned->RuntimeType(), UIElement::StaticTypeId())) {
             attachChild(*static_cast<UIElement*>(owned.Get()));
         }
         return;
     }
-    if ((parent).PropertyRegistry().Types().IsDerivedFrom(
+    if (DependencyObjectAccess::PropertyRegistry((parent)).Types().IsDerivedFrom(
             parent.RuntimeType(), ContentPresenter::StaticTypeId())) {
         auto& presenter = static_cast<ContentPresenter&>(parent);
         const Base::Ref<Base::Object>& owned = presenter.GetOwnedContent();
         if (owned &&
-            (parent).PropertyRegistry().Types().IsDerivedFrom(
+            DependencyObjectAccess::PropertyRegistry((parent)).Types().IsDerivedFrom(
                 owned->RuntimeType(), UIElement::StaticTypeId())) {
             attachChild(*static_cast<UIElement*>(owned.Get()));
         }
         return;
     }
-    if ((parent).PropertyRegistry().Types().IsDerivedFrom(
+    if (DependencyObjectAccess::PropertyRegistry((parent)).Types().IsDerivedFrom(
             parent.RuntimeType(), ContentControl::StaticTypeId())) {
         const Base::Ref<Base::Object>& owned =
             (static_cast<ContentControl&>(parent)).OwnedContent();
         if (owned &&
-            (parent).PropertyRegistry().Types().IsDerivedFrom(
+            DependencyObjectAccess::PropertyRegistry((parent)).Types().IsDerivedFrom(
                 owned->RuntimeType(), UIElement::StaticTypeId())) {
             attachChild(*static_cast<UIElement*>(owned.Get()));
         }
@@ -142,7 +143,7 @@ Base::Ref<Base::Object> DataItemFromContainer(
     while (visual != nullptr) {
         UIElement* element = ::Aero::TryCast<::Aero::UIElement>(visual);
         if (element != nullptr &&
-            (item).PropertyRegistry().Types().IsDerivedFrom(
+            DependencyObjectAccess::PropertyRegistry((item)).Types().IsDerivedFrom(
                 element->RuntimeType(),
                 ItemsControl::StaticTypeId())) {
             auto& items = static_cast<ItemsControl&>(*element);
@@ -174,7 +175,7 @@ void UnselectOtherTreeViewItems(
         UIElement* element =
             ::Aero::TryCast<::Aero::UIElement>(child);
         if (element != nullptr &&
-            element->PropertyRegistry().Types().IsDerivedFrom(
+            DependencyObjectAccess::PropertyRegistry(element).Types().IsDerivedFrom(
                 element->RuntimeType(),
                 TreeViewItem::StaticTypeId())) {
             auto* node = static_cast<TreeViewItem*>(element);
@@ -383,7 +384,7 @@ TreeViewItem::OnApplyTemplate() noexcept {
         GetTemplateChild("HeaderText");
     headerText_ =
         header != nullptr &&
-        (*this).PropertyRegistry().Types().IsDerivedFrom(
+        DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             header->RuntimeType(),
             TextBlock::StaticTypeId())
         ? static_cast<TextBlock*>(header)
@@ -392,7 +393,7 @@ TreeViewItem::OnApplyTemplate() noexcept {
         GetTemplateChild("IconText");
     iconText_ =
         icon != nullptr &&
-        (*this).PropertyRegistry().Types().IsDerivedFrom(
+        DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             icon->RuntimeType(),
             TextBlock::StaticTypeId())
         ? static_cast<TextBlock*>(icon)
@@ -401,7 +402,7 @@ TreeViewItem::OnApplyTemplate() noexcept {
         GetTemplateChild("ExpanderGlyph");
     expanderGlyph_ =
         glyph != nullptr &&
-        (*this).PropertyRegistry().Types().IsDerivedFrom(
+        DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             glyph->RuntimeType(),
             TextBlock::StaticTypeId())
         ? static_cast<TextBlock*>(glyph)
@@ -410,7 +411,7 @@ TreeViewItem::OnApplyTemplate() noexcept {
         GetTemplateChild("ChildItems");
     childItems_ =
         children != nullptr &&
-        (*this).PropertyRegistry().Types().IsDerivedFrom(
+        DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             children->RuntimeType(),
             ItemsControl::StaticTypeId())
         ? static_cast<ItemsControl*>(children)
@@ -625,7 +626,7 @@ ContentPresenter* FindHeaderPresenter(
             !content.IsNullObject() &&
             content.AsObject()) {
             Base::Object* hosted = content.AsObject().Get();
-            if ((item).PropertyRegistry().Types().IsDerivedFrom(
+            if (DependencyObjectAccess::PropertyRegistry((item)).Types().IsDerivedFrom(
                     hosted->RuntimeType(),
                     ::Aero::Media::Visual::StaticTypeId())) {
                 walk(walk, *static_cast<::Aero::Media::Visual*>(hosted));
@@ -645,7 +646,7 @@ void TreeViewItem::ProjectHeaderContent() noexcept {
         return;
     }
     Base::Object* obj = header.AsObject().Get();
-    if (!(*this).PropertyRegistry().Types().IsDerivedFrom(
+    if (!DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             obj->RuntimeType(), UIElement::StaticTypeId())) {
         return;
     }
@@ -674,7 +675,7 @@ void TreeViewItem::ProjectRealizedHeaders() noexcept {
     for (std::uint32_t index = 0U; index < count; ++index) {
         FrameworkElement* container = generator->ContainerFromIndex(index);
         if (container == nullptr ||
-            !(*this).PropertyRegistry().Types().IsDerivedFrom(
+            !DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
                 container->RuntimeType(), TreeViewItem::StaticTypeId())) {
             continue;
         }
@@ -854,7 +855,7 @@ bool TreeView::SelectItem(
 
 TreeViewItem* TreeView::FindItem(Base::Object* source) const noexcept {
     if (source == nullptr ||
-        !(*this).PropertyRegistry().Types().
+        !DependencyObjectAccess::PropertyRegistry((*this)).Types().
             IsDerivedFrom(
                 source->RuntimeType(),
                 UIElement::StaticTypeId())) {
@@ -867,7 +868,7 @@ TreeViewItem* TreeView::FindItem(Base::Object* source) const noexcept {
         UIElement* element =
             ::Aero::TryCast<::Aero::UIElement>(visual);
         if (element != nullptr &&
-            (*this).PropertyRegistry().Types().
+            DependencyObjectAccess::PropertyRegistry((*this)).Types().
                 IsDerivedFrom(
                     element->RuntimeType(),
                     TreeViewItem::StaticTypeId())) {
@@ -892,7 +893,7 @@ Base::Result<void> TreeView::CollectVisibleItems(
             continue;
         }
         if (element != nullptr &&
-            element->PropertyRegistry().Types().
+            DependencyObjectAccess::PropertyRegistry(element).Types().
                 IsDerivedFrom(
                     element->RuntimeType(),
                     TreeViewItem::StaticTypeId())) {
@@ -916,7 +917,7 @@ void TreeView::OnMouseLeftButtonDown(MouseButtonEventArgs& args) {
     if (item == nullptr) return;
     UIElement* sourceElement =
         args.GetOriginalSource() != nullptr &&
-                (*this).PropertyRegistry().Types().IsDerivedFrom(
+                DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
                     args.GetOriginalSource()->RuntimeType(),
                     UIElement::StaticTypeId())
             ? static_cast<UIElement*>(args.GetOriginalSource())
@@ -999,7 +1000,7 @@ void TreeView::OnKeyDown(KeyEventArgs& args) {
     if (current == nullptr) {
         Base::Ref<Base::Object> selected = GetSelectedItem();
         if (selected &&
-            (*this).PropertyRegistry().Types().
+            DependencyObjectAccess::PropertyRegistry((*this)).Types().
                 IsDerivedFrom(
                     selected->RuntimeType(),
                     TreeViewItem::StaticTypeId())) {

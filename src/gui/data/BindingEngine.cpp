@@ -73,6 +73,7 @@
 #include <Aero/Animatable.hpp>
 #include <cctype>
 #include <cstdlib>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero {
 
@@ -320,7 +321,7 @@ UpdateSourceTrigger BindingEngine::ResolveUpdateSourceTrigger(
         return requested;
     }
     const DependencyProperty* info =
-        (target).PropertyRegistry().Find(property);
+        DependencyObjectAccess::PropertyRegistry((target)).Find(property);
     if (info == nullptr) {
         return UpdateSourceTrigger::PropertyChanged;
     }
@@ -342,7 +343,7 @@ BindingMode BindingEngine::ResolveBindingMode(
         return requested;
     }
     const DependencyProperty* info =
-        (target).PropertyRegistry().Find(property);
+        DependencyObjectAccess::PropertyRegistry((target)).Find(property);
     if (info == nullptr) {
         return BindingMode::OneWay;
     }
@@ -835,7 +836,7 @@ Base::Result<PropertyValue> ReadDataContextValue(
             ::Aero::TryCast<::Aero::FrameworkElement>(&node)) {
         return element->GetDataContextResult();
     }
-    if ((node).PropertyRegistry().Find(handle) == nullptr) {
+    if (DependencyObjectAccess::PropertyRegistry((node)).Find(handle) == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
             "DataContext property is not registered on this object");
@@ -1829,7 +1830,7 @@ Base::Result<void> BindingEngine::ResolveMetadataSource(
 
     if (record.bindsToSource) {
         const DependencyProperty* targetProperty =
-            record.descriptor.target->PropertyRegistry().Find(
+            DependencyObjectAccess::PropertyRegistry(record.descriptor.target).Find(
                 record.descriptor.targetProperty);
         if (targetProperty == nullptr ||
             (!targetProperty->AcceptsAnyValue() &&
@@ -1872,7 +1873,7 @@ Base::Result<void> BindingEngine::ResolveMetadataSource(
                 compiled.GetStatus());
         }
     const DependencyProperty* targetProperty =
-        record.descriptor.target->PropertyRegistry().Find(
+        DependencyObjectAccess::PropertyRegistry(record.descriptor.target).Find(
             record.descriptor.targetProperty);
     if (targetProperty == nullptr ||
         (record.descriptor.convert == nullptr &&
@@ -1972,7 +1973,7 @@ Base::Result<void> BindingEngine::SubscribeMetadataSource(
                 record.pathPlan.Segments()[0];
             if (!first.dynamic && first.member != InvalidMemberId) {
                 DependencyPropertyHandle handle{first.member};
-                if (sourceObject->PropertyRegistry().Find(handle) !=
+                if (DependencyObjectAccess::PropertyRegistry(sourceObject).Find(handle) !=
                     nullptr) {
                     sourceObject->AddValueChangedHandler(
                         handle, propertyChangedHandler_);

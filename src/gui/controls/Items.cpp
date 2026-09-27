@@ -25,6 +25,7 @@
 #include <cstdio>
 #include <new>
 #include <utility>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 
 namespace Aero::Controls {
@@ -89,7 +90,7 @@ Base::Result<Value> AlternationConverter::ConvertBack(
 Panel* ItemsPresenter::GetItemsHost() const noexcept {
     UIElement* child = GetChild();
     return child != nullptr &&
-        (*this).PropertyRegistry().Types().IsDerivedFrom(
+        DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             child->RuntimeType(), Panel::StaticTypeId())
         ? static_cast<Panel*>(child)
         : nullptr;
@@ -338,7 +339,7 @@ void ItemsControl::OnApplyTemplate() noexcept {
             ::Aero::Media::Visual* current = pending.Back();
             pending.PopBack();
             if (current == nullptr) continue;
-            if ((*this).PropertyRegistry().Types().IsDerivedFrom(
+            if (DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
                     current->RuntimeType(), Panel::StaticTypeId())) {
                 auto& panel = *static_cast<Panel*>(current);
                 if (panel.GetValue(Panel::IsItemsHostProperty)) {
@@ -346,7 +347,7 @@ void ItemsControl::OnApplyTemplate() noexcept {
                     break;
                 }
             }
-            if ((*this).PropertyRegistry().Types().IsDerivedFrom(
+            if (DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
                     current->RuntimeType(), ContentControl::StaticTypeId())) {
                 UIElement* content = (*static_cast<ContentControl*>(current)).GetContentElement();
                 if (content != nullptr) {
@@ -368,7 +369,7 @@ void ItemsControl::OnApplyTemplate() noexcept {
         static_cast<void>(EnsureDefaultItemsPresenter());
         return;
     }
-    if ((*this).PropertyRegistry().Types().IsDerivedFrom(
+    if (DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             part->RuntimeType(),
             ItemsPresenter::StaticTypeId())) {
         itemsHost_ =
@@ -377,7 +378,7 @@ void ItemsControl::OnApplyTemplate() noexcept {
         if (itemsHost_ == nullptr) {
             static_cast<void>(EnsureDefaultItemsPresenter());
         }
-    } else if ((*this).PropertyRegistry().Types().IsDerivedFrom(
+    } else if (DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
                    part->RuntimeType(),
                    Panel::StaticTypeId())) {
         itemsHost_ = static_cast<Panel*>(part);
@@ -419,7 +420,7 @@ bool ItemsControl::EnsureDefaultItemsPresenter() noexcept {
             Base::Result<Base::Ref<Base::Object>> created =
                 ::Aero::Controls::FrameworkTemplateState::Instantiate(*itemsPanel);
             if (created && created.Value() &&
-                (*this).PropertyRegistry().Types().IsDerivedFrom(
+                DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
                     created.Value()->RuntimeType(), Panel::StaticTypeId())) {
                 panelOwner = std::move(created).Value();
                 panel = static_cast<Panel*>(panelOwner.Get());
@@ -442,7 +443,7 @@ bool ItemsControl::EnsureDefaultItemsPresenter() noexcept {
         part = GetTemplateChild("ItemsPresenter");
     }
     if (part != nullptr &&
-        (*this).PropertyRegistry().Types().IsDerivedFrom(
+        DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             part->RuntimeType(), ItemsPresenter::StaticTypeId())) {
         templatedPresenter = static_cast<ItemsPresenter*>(part);
     }
@@ -580,7 +581,7 @@ Base::Ref<DataTemplate> ItemsControl::GetTemplateForItemOverride(
     if (!item) {
         return {};
     }
-    const Meta::TypeRegistry& types = (*this).PropertyRegistry().Types();
+    const Meta::TypeRegistry& types = DependencyObjectAccess::PropertyRegistry((*this)).Types();
     Meta::TypeId type = item->RuntimeType();
     while (type != Meta::InvalidTypeId) {
         Base::Result<ResourceValue> found =
@@ -714,7 +715,7 @@ Base::Result<void> ItemsControl::PrepareContainerForItemOverride(
                 item->RuntimeType(), item));
     }
     if (!item ||
-        !(*this).PropertyRegistry().Types().IsDerivedFrom(
+        !DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             container.RuntimeType(), ItemsControl::StaticTypeId())) {
         return {};
     }
@@ -736,7 +737,7 @@ Base::Result<void> ItemsControl::PrepareContainerForItemOverride(
     auto& childItems = static_cast<ItemsControl&>(container);
     Base::Ref<DataTemplate> childItemTemplate;
     if (hierarchicalTemplate &&
-        (*this).PropertyRegistry().Types().IsDerivedFrom(
+        DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             hierarchicalTemplate->RuntimeType(),
             DataTemplate::StaticTypeId())) {
         childItemTemplate = Base::Ref<DataTemplate>::FromBorrowed(
@@ -746,10 +747,10 @@ Base::Result<void> ItemsControl::PrepareContainerForItemOverride(
         childItems.SetItemTemplate(std::move(childItemTemplate));
         return {};
     }
-    if (!(*this).PropertyRegistry().Types().IsDerivedFrom(
+    if (!DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             hierarchicalSource->RuntimeType(),
             Data::Binding::StaticTypeId())) {
-        if ((*this).PropertyRegistry().Types().IsDerivedFrom(
+        if (DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
                 container.RuntimeType(),
                 TreeViewItem::StaticTypeId())) {
             static_cast<TreeViewItem&>(container).SetHierarchicalContent(
@@ -770,7 +771,7 @@ Base::Result<void> ItemsControl::PrepareContainerForItemOverride(
     }
     const auto& binding =
         static_cast<const Data::Binding&>(*hierarchicalSource);
-    if ((*this).PropertyRegistry().Types().IsDerivedFrom(
+    if (DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             container.RuntimeType(),
             TreeViewItem::StaticTypeId())) {
         static_cast<TreeViewItem&>(container).SetHierarchicalBinding(
@@ -817,10 +818,10 @@ void ItemsControl::ClearContainerForItemOverride(
     const Base::Ref<DataTemplate> resolved =
         GetTemplateForItemOverride(item, 0U);
     if (TryCast<HierarchicalDataTemplate>(resolved.Get()) != nullptr &&
-        (*this).PropertyRegistry().Types().IsDerivedFrom(
+        DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             container.RuntimeType(), ItemsControl::StaticTypeId())) {
         auto& childItems = static_cast<ItemsControl&>(container);
-        if ((*this).PropertyRegistry().Types().IsDerivedFrom(
+        if (DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
                 container.RuntimeType(),
                 TreeViewItem::StaticTypeId())) {
             static_cast<TreeViewItem&>(container)

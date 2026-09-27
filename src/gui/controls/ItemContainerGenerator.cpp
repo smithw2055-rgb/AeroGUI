@@ -21,6 +21,7 @@
 #include <cstdio>
 #include <new>
 #include <utility>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 
 namespace Aero::Controls {
@@ -326,11 +327,11 @@ ItemContainerGenerator::GeneratorState::CreateRecord(
     // and falls through to the FrameworkElement borrow below.
     const bool isOwnContainer =
         owner_->IsItemItsOwnContainerOverride(record.item.Get()) ||
-        owner_->PropertyRegistry().Types().IsDerivedFrom(
+        DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
             record.item->RuntimeType(),
             FrameworkElement::StaticTypeId());
     if (isOwnContainer) {
-        if (!owner_->PropertyRegistry().Types().IsDerivedFrom(
+        if (!DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
                 record.item->RuntimeType(),
                 FrameworkElement::StaticTypeId())) {
             return Base::Status::Failure(
@@ -512,12 +513,12 @@ ItemContainerGenerator::GeneratorState::CreateRecord(
             Base::Ref<Base::Object>(
                 std::move(text).Value());
         record.generatedTextContent = true;
-    } else if (owner_->PropertyRegistry().Types()
+    } else if (DependencyObjectAccess::PropertyRegistry(owner_).Types()
         .IsDerivedFrom(
             record.item->RuntimeType(),
             UIElement::StaticTypeId())) {
         record.content = record.item;
-    } else if (owner_->PropertyRegistry().Types().IsDerivedFrom(
+    } else if (DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
                    owner_->RuntimeType(),
                    ListView::StaticTypeId()) &&
                static_cast<ListView*>(owner_)->GetView()) {
@@ -543,7 +544,7 @@ ItemContainerGenerator::GeneratorState::CreateRecord(
         record.generatedTextContent = true;
     }
     if (!record.content ||
-        !owner_->PropertyRegistry().Types()
+        !DependencyObjectAccess::PropertyRegistry(owner_).Types()
             .IsDerivedFrom(
                 record.content->RuntimeType(),
                 UIElement::StaticTypeId())) {
@@ -586,7 +587,7 @@ ItemContainerGenerator::GeneratorState::AttachOwnedSubtree(
             const Base::Ref<Base::Object>& owned)
             noexcept -> Base::Result<void> {
         if (!owned ||
-            !owner_->PropertyRegistry().Types().
+            !DependencyObjectAccess::PropertyRegistry(owner_).Types().
                 IsDerivedFrom(
                     owned->RuntimeType(),
                     UIElement::StaticTypeId())) {
@@ -672,7 +673,7 @@ ItemContainerGenerator::GeneratorState::AttachOwnedSubtree(
         if (current == nullptr) continue;
         const Meta::TypeId type =
             current->RuntimeType();
-        if (owner_->PropertyRegistry().Types().
+        if (DependencyObjectAccess::PropertyRegistry(owner_).Types().
                 IsDerivedFrom(
                     type, Panel::StaticTypeId())) {
             auto& panel =
@@ -689,7 +690,7 @@ ItemContainerGenerator::GeneratorState::AttachOwnedSubtree(
                     return attached.GetStatus();
                 }
             }
-        } else if (owner_->PropertyRegistry().Types().
+        } else if (DependencyObjectAccess::PropertyRegistry(owner_).Types().
                        IsDerivedFrom(
                            type,
                            Decorator::StaticTypeId())) {
@@ -703,7 +704,7 @@ ItemContainerGenerator::GeneratorState::AttachOwnedSubtree(
                 (void)DetachOwnedSubtree(record);
                 return attached.GetStatus();
             }
-        } else if (owner_->PropertyRegistry().Types().
+        } else if (DependencyObjectAccess::PropertyRegistry(owner_).Types().
                        IsDerivedFrom(
                            type,
                            ContentControl::StaticTypeId())) {
@@ -717,7 +718,7 @@ ItemContainerGenerator::GeneratorState::AttachOwnedSubtree(
                 (void)DetachOwnedSubtree(record);
                 return attached.GetStatus();
             }
-        } else if (owner_->PropertyRegistry().Types().
+        } else if (DependencyObjectAccess::PropertyRegistry(owner_).Types().
                        IsDerivedFrom(
                            type,
                            ContentPresenter::StaticTypeId())) {
@@ -821,26 +822,26 @@ ItemContainerGenerator::GeneratorState::AttachRecord(
     ContentControl* contentControl = nullptr;
     ContentPresenter* contentPresenter = nullptr;
     HeaderedItemsControl* headeredItemsControl = nullptr;
-    if (owner_->PropertyRegistry().Types().IsDerivedFrom(
+    if (DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
             container.RuntimeType(),
             ContentControl::StaticTypeId())) {
         contentControl = static_cast<ContentControl*>(&container);
     }
-    if (owner_->PropertyRegistry().Types().IsDerivedFrom(
+    if (DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
             container.RuntimeType(),
             ContentPresenter::StaticTypeId())) {
         contentPresenter = static_cast<ContentPresenter*>(&container);
     }
-    if (owner_->PropertyRegistry().Types().IsDerivedFrom(
+    if (DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
             container.RuntimeType(),
             HeaderedItemsControl::StaticTypeId())) {
         headeredItemsControl = static_cast<HeaderedItemsControl*>(&container);
     }
     if (!record.itemIsOwnContainer && headeredItemsControl != nullptr &&
         record.content.Get() != nullptr &&
-        owner_->PropertyRegistry().Types().IsDerivedFrom(
+        DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
             record.content->RuntimeType(), UIElement::StaticTypeId())) {
-        if (owner_->PropertyRegistry().Types().IsDerivedFrom(
+        if (DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
                 record.content->RuntimeType(), TextBlock::StaticTypeId())) {
             static_cast<TextBlock*>(record.content.Get())
                 ->AddValueChangedHandler(
@@ -864,7 +865,7 @@ ItemContainerGenerator::GeneratorState::AttachRecord(
             // display them. Extracting TextBlock.Text only covers string headers.
             const Value header = Value::FromObject(
                 record.content->RuntimeType(), record.content);
-            if (owner_->PropertyRegistry().Types().IsDerivedFrom(
+            if (DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
                     container.RuntimeType(),
                     TreeViewItem::StaticTypeId())) {
                 static_cast<TreeViewItem&>(container).SetHeader(header);
@@ -883,7 +884,7 @@ ItemContainerGenerator::GeneratorState::AttachRecord(
             (*contentControl).SetOwnedContent( record.content, content);
         }
         if (record.generatedTextContent &&
-            owner_->PropertyRegistry().Types().IsDerivedFrom(
+            DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
                 container.RuntimeType(), Control::StaticTypeId())) {
             auto* text = static_cast<TextBlock*>(record.content.Get());
             auto& hostControl = static_cast<Control&>(container);
@@ -967,9 +968,9 @@ ItemContainerGenerator::GeneratorState::AttachRecord(
     if (subtreeCallback_ != nullptr &&
         record.generatedHeader &&
         record.content &&
-        owner_->PropertyRegistry().Types().IsDerivedFrom(
+        DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
             record.content->RuntimeType(), UIElement::StaticTypeId()) &&
-        !owner_->PropertyRegistry().Types().IsDerivedFrom(
+        !DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
             record.content->RuntimeType(), TextBlock::StaticTypeId())) {
         auto& headerVisual =
             *static_cast<Aero::Media::Visual*>(record.content.Get());
@@ -992,7 +993,7 @@ Base::Result<void>
 ItemContainerGenerator::GeneratorState::ProjectGeneratedContent(
     Record& record) noexcept {
     if (record.itemIsOwnContainer || !record.content || !record.container ||
-        !owner_->PropertyRegistry().Types().IsDerivedFrom(
+        !DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
             record.content->RuntimeType(), UIElement::StaticTypeId())) {
         return {};
     }
@@ -1000,21 +1001,21 @@ ItemContainerGenerator::GeneratorState::ProjectGeneratedContent(
     // String headers already live on Header; do not also mount the
     // extracted TextBlock into PART_Header.
     if (record.generatedHeader &&
-        owner_->PropertyRegistry().Types().IsDerivedFrom(
+        DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
             record.content->RuntimeType(), TextBlock::StaticTypeId())) {
         return {};
     }
     if (record.generatedTextContent &&
-        owner_->PropertyRegistry().Types().IsDerivedFrom(
+        DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
             record.content->RuntimeType(), TextBlock::StaticTypeId()) &&
-        owner_->PropertyRegistry().Types().IsDerivedFrom(
+        DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
             record.container->RuntimeType(), Control::StaticTypeId())) {
         auto* text = static_cast<TextBlock*>(record.content.Get());
         auto& hostControl = static_cast<Control&>(*record.container);
         text->SetValue(
             TextBlock::FontSizeProperty, hostControl.GetFontSize());
     }
-    if (!owner_->PropertyRegistry().Types().IsDerivedFrom(
+    if (!DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
             record.container->RuntimeType(), Control::StaticTypeId())) {
         return {};
     }
@@ -1032,7 +1033,7 @@ ItemContainerGenerator::GeneratorState::ProjectGeneratedContent(
     }
     auto isHeaderPresenter = [&](DependencyObject* node) noexcept -> bool {
         return node != nullptr &&
-            owner_->PropertyRegistry().Types().IsDerivedFrom(
+            DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
                 node->RuntimeType(), ContentPresenter::StaticTypeId()) &&
             static_cast<ContentPresenter*>(node)->GetContentSource() ==
                 Base::StringView("Header");
@@ -1151,16 +1152,16 @@ Base::Result<void>
 ItemContainerGenerator::GeneratorState::UpdateGeneratedHeader(
     Record& record) noexcept {
     if (!record.generatedHeader || !record.content || !record.container ||
-        !owner_->PropertyRegistry().Types().IsDerivedFrom(
+        !DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
             record.content->RuntimeType(), TextBlock::StaticTypeId()) ||
-        !owner_->PropertyRegistry().Types().IsDerivedFrom(
+        !DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
             record.container->RuntimeType(),
             HeaderedItemsControl::StaticTypeId())) {
         return {};
     }
     const Base::StringView text =
         static_cast<TextBlock*>(record.content.Get())->GetText();
-    if (owner_->PropertyRegistry().Types().IsDerivedFrom(
+    if (DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
             record.container->RuntimeType(),
             TreeViewItem::StaticTypeId())) {
         static_cast<TreeViewItem*>(record.container.Get())
@@ -1193,17 +1194,17 @@ ItemContainerGenerator::GeneratorState::DetachRecord(
     ContentControl* contentControl = nullptr;
     ContentPresenter* contentPresenter = nullptr;
     HeaderedItemsControl* headeredItemsControl = nullptr;
-    if (owner_->PropertyRegistry().Types().IsDerivedFrom(
+    if (DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
             container.RuntimeType(),
             ContentControl::StaticTypeId())) {
         contentControl = static_cast<ContentControl*>(&container);
     }
-    if (owner_->PropertyRegistry().Types().IsDerivedFrom(
+    if (DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
             container.RuntimeType(),
             ContentPresenter::StaticTypeId())) {
         contentPresenter = static_cast<ContentPresenter*>(&container);
     }
-    if (owner_->PropertyRegistry().Types().IsDerivedFrom(
+    if (DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
             container.RuntimeType(),
             HeaderedItemsControl::StaticTypeId())) {
         headeredItemsControl = static_cast<HeaderedItemsControl*>(&container);
@@ -1231,7 +1232,7 @@ ItemContainerGenerator::GeneratorState::DetachRecord(
     // an explicit teardown because the container subtree walk cannot reach it.
     if (record.generatedHeader && record.content &&
         subtreeCallback_ != nullptr &&
-        owner_->PropertyRegistry().Types().IsDerivedFrom(
+        DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
             record.content->RuntimeType(), UIElement::StaticTypeId())) {
         capture(subtreeCallback_(
             *static_cast<Aero::Media::Visual*>(record.content.Get()),
@@ -1241,7 +1242,7 @@ ItemContainerGenerator::GeneratorState::DetachRecord(
     capture(DetachOwnedSubtree(record));
     owner_->ClearContainerForItemOverride(container);
     if (record.generatedHeader && headeredItemsControl != nullptr) {
-        if (record.content && owner_->PropertyRegistry().Types().IsDerivedFrom(
+        if (record.content && DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
                 record.content->RuntimeType(), TextBlock::StaticTypeId())) {
             static_cast<void>(
                 static_cast<TextBlock*>(record.content.Get())
@@ -1250,7 +1251,7 @@ ItemContainerGenerator::GeneratorState::DetachRecord(
                         generatedHeaderChangedHandler_));
         }
         const auto clearHeader = [&]() noexcept {
-            if (owner_->PropertyRegistry().Types().IsDerivedFrom(
+            if (DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
                     container.RuntimeType(), TreeViewItem::StaticTypeId())) {
                 static_cast<TreeViewItem&>(container).SetHeader(
                     Value::NullObject(Meta::TypeOf<Base::Object>()));
@@ -1269,7 +1270,7 @@ ItemContainerGenerator::GeneratorState::DetachRecord(
     }
     if (!record.itemIsOwnContainer &&
         templates_ != nullptr &&
-        owner_->PropertyRegistry().Types().IsDerivedFrom(
+        DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
             container.RuntimeType(), Control::StaticTypeId()) &&
         (static_cast<Control&>(container)).IsTemplateApplied()) {
         Base::Result<bool> cleared =

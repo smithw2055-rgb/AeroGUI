@@ -31,6 +31,7 @@
 #include <cstring>
 #include <limits>
 #include <utility>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero::Controls {
 
@@ -123,7 +124,7 @@ void HeaderedContentControl::ProjectHeaderContent() noexcept {
         return;
     }
     Base::Object* obj = header.AsObject().Get();
-    if (!(*this).PropertyRegistry().Types().IsDerivedFrom(
+    if (!DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             obj->RuntimeType(), UIElement::StaticTypeId())) {
         return;
     }
@@ -1052,7 +1053,7 @@ void ElementTree::EnsureVisualChildStorage(
     Media::Visual& child) noexcept {
     UIElement* childElement = ::Aero::TryCast<::Aero::UIElement>(&child);
     if (childElement == nullptr) return;
-    const Meta::TypeRegistry& types = (parent).PropertyRegistry().Types();
+    const Meta::TypeRegistry& types = DependencyObjectAccess::PropertyRegistry((parent)).Types();
     if (types.IsDerivedFrom(
             parent.RuntimeType(), Controls::Panel::StaticTypeId())) {
         auto& panel = static_cast<Controls::Panel&>(parent);
@@ -1124,12 +1125,12 @@ void ElementTree::EnsureVisualChildStorage(
 void ElementTree::AttachVisualControlTemplateRoot(
     Media::Visual& parent,
     Media::Visual& child) noexcept {
-    if ((parent).PropertyRegistry().Types().IsDerivedFrom(
+    if (DependencyObjectAccess::PropertyRegistry((parent)).Types().IsDerivedFrom(
             parent.RuntimeType(), Controls::Control::StaticTypeId()) &&
         ::Aero::TryCast<::Aero::UIElement>(&child) != nullptr) {
         auto& control = static_cast<Controls::Control&>(parent);
         const bool isContentControl =
-            (parent).PropertyRegistry().Types().IsDerivedFrom(
+            DependencyObjectAccess::PropertyRegistry((parent)).Types().IsDerivedFrom(
                 parent.RuntimeType(),
                 Controls::ContentControl::StaticTypeId());
         const bool contentVisual =
@@ -1148,7 +1149,7 @@ void ElementTree::CleanVisualChildStorage(
     Media::Visual& parent,
     Media::Visual& child) noexcept {
     if (UIElement* childElement = ::Aero::TryCast<::Aero::UIElement>(&child)) {
-        if ((parent).PropertyRegistry().Types().IsDerivedFrom(
+        if (DependencyObjectAccess::PropertyRegistry((parent)).Types().IsDerivedFrom(
                 parent.RuntimeType(), Controls::Panel::StaticTypeId())) {
             auto& panel = static_cast<Controls::Panel&>(parent);
             (void)(panel).RemoveChildCore( *childElement);

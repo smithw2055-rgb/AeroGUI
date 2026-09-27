@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero::Media {
 
@@ -209,7 +210,7 @@ inline Base::Color SampleBrush(
             static_cast<float>(brush->GetOpacity())};
     }
     Base::Ref<Base::Object> shaderObject = brush->GetShader();
-    if (shaderObject && brush.Get()->PropertyRegistry().Types().IsDerivedFrom(
+    if (shaderObject && DependencyObjectAccess::PropertyRegistry(brush.Get()).Types().IsDerivedFrom(
             shaderObject->RuntimeType(), Media::BrushShader::StaticTypeId())) {
         sampled = ApplyShader(
             static_cast<const Media::BrushShader&>(*shaderObject),

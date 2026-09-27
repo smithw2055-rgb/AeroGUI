@@ -20,6 +20,7 @@
 #include <Aero/UIElement.hpp>
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/TryCast.hpp>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero {
 
@@ -970,7 +971,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 ++keyIndex;
                 runtime.value = frame->GetValue();
                 const Meta::DependencyProperty* targetProperty =
-                    (propertyTarget).PropertyRegistry().Find(
+                    DependencyObjectAccess::PropertyRegistry((propertyTarget)).Find(
                         propertyHandle);
                 if (targetProperty != nullptr &&
                     runtime.value.IsNullObject() &&

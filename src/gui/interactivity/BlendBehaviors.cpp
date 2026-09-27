@@ -65,6 +65,7 @@
 #include <cctype>
 #include <cstdlib>
 #include <utility>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero::Interactivity {
 namespace {
@@ -104,7 +105,7 @@ Base::Transform2D ToRootTransform(const ::Aero::Media::Visual& visual) noexcept 
 Base::Result<Base::Ref<Media::Brush>> ReadBackground(
     FrameworkElement& source) noexcept {
     const Meta::PropertyInfo* property =
-        (source).PropertyRegistry().Types().FindProperty(
+        DependencyObjectAccess::PropertyRegistry((source)).Types().FindProperty(
             source.RuntimeType(), "Background", false);
     if (property == nullptr) {
         return Base::Status::Failure(
@@ -115,7 +116,7 @@ Base::Result<Base::Ref<Media::Brush>> ReadBackground(
         Meta::DependencyPropertyHandle{property->Id()});
     if (value.Kind() != Meta::ValueKind::Object ||
         value.IsNullObject() || !value.AsObject() ||
-        !(source).PropertyRegistry().Types().IsDerivedFrom(
+        !DependencyObjectAccess::PropertyRegistry((source)).Types().IsDerivedFrom(
             value.AsObject()->RuntimeType(),
             Media::Brush::StaticTypeId())) {
         return Base::Status::Failure(
@@ -130,7 +131,7 @@ Base::Result<void> SetShapeFill(
     FrameworkElement& target,
     Base::Ref<Media::Brush> brush) noexcept {
     const Meta::TypeRegistry& types =
-        (target).PropertyRegistry().Types();
+        DependencyObjectAccess::PropertyRegistry((target)).Types();
     if (types.IsDerivedFrom(
             target.RuntimeType(), Shapes::Shape::StaticTypeId())) {
         static_cast<Shapes::Shape&>(target).SetFill(std::move(brush));
@@ -149,7 +150,7 @@ Base::Result<void> SetShapeFill(
 Base::Ref<Media::Brush> GetShapeFill(
     FrameworkElement& target) noexcept {
     const Meta::TypeRegistry& types =
-        (target).PropertyRegistry().Types();
+        DependencyObjectAccess::PropertyRegistry((target)).Types();
     if (types.IsDerivedFrom(
             target.RuntimeType(), Shapes::Shape::StaticTypeId())) {
         return static_cast<Shapes::Shape&>(target).GetFill();
@@ -448,7 +449,7 @@ void MouseDragElementBehavior::OnMouseUp(
 
 Base::Ref<FrameworkElement> BackgroundEffectBehavior::GetSource() const noexcept {
     Base::Ref<Base::Object> source = GetValue(SourceProperty);
-    if (!source || !(*this).PropertyRegistry().Types().IsDerivedFrom(
+    if (!source || !DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             source->RuntimeType(), FrameworkElement::StaticTypeId())) {
         return {};
     }

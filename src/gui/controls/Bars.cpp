@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <utility>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero::Controls {
 
@@ -146,7 +147,7 @@ ToolBar::OnApplyTemplate() noexcept {
         GetTemplateChild("HeaderText");
     headerText_ =
         header != nullptr &&
-        (*this).PropertyRegistry().Types().IsDerivedFrom(
+        DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             header->RuntimeType(),
             TextBlock::StaticTypeId())
         ? static_cast<TextBlock*>(header)
@@ -158,7 +159,7 @@ ToolBar::OnApplyTemplate() noexcept {
         GetTemplateChild("OverflowGlyph");
     overflowGlyph_ =
         overflow != nullptr &&
-        (*this).PropertyRegistry().Types().IsDerivedFrom(
+        DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             overflow->RuntimeType(),
             TextBlock::StaticTypeId())
         ? static_cast<TextBlock*>(overflow)
@@ -201,7 +202,7 @@ void ToolBar::SynchronizeToolBar() noexcept {
     }
     Panel* host = GetItemsHost();
     if (host != nullptr &&
-        (*this).PropertyRegistry().Types().IsDerivedFrom(
+        DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             host->RuntimeType(),
             StackPanel::StaticTypeId())) {
         static_cast<StackPanel*>(host)->

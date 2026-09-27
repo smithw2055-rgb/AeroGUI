@@ -25,6 +25,7 @@
 #include <cstdio>
 #include <new>
 #include <utility>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 
 
@@ -79,7 +80,7 @@ void ContentControl::OnPropertyChanged(
 
 void ContentControl::SyncGeneratedTextFormatting() noexcept {
     if (!literalTextContent_ || content_ == nullptr ||
-        !(*this).PropertyRegistry().Types().IsDerivedFrom(
+        !DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             content_->RuntimeType(), TextBlock::StaticTypeId())) {
         return;
     }
@@ -93,7 +94,7 @@ void ContentControl::SyncGeneratedTextFormatting() noexcept {
 void ContentControl::SetGeneratedTextContent(
     const Base::Ref<Base::Object>& contentObject,
     UIElement& content) noexcept {
-    if (!(*this).PropertyRegistry().Types().IsDerivedFrom(
+    if (!DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             content.RuntimeType(),
             TextBlock::StaticTypeId())) {
         return;
@@ -129,7 +130,7 @@ void ContentControl::SetContentValue(
     Base::Result<void> access = VerifyAccess();
     if (!access) return;
     if (value &&
-        (*this).PropertyRegistry().Types().IsDerivedFrom(
+        DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             value->RuntimeType(),
             UIElement::StaticTypeId())) {
         authoredContent_ = Meta::Value::FromObject(
@@ -152,7 +153,7 @@ void ContentControl::SetContentValue(
             }
         }
         if (ElementTree* tree = VisualTree(this)) {
-            if ((*this).PropertyRegistry().Types().IsDerivedFrom(
+            if (DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
                     content.RuntimeType(), Panel::StaticTypeId())) {
                 auto& panel = static_cast<Panel&>(content);
                 const std::uint32_t count = panel.GetChildren().GetCount();
@@ -240,7 +241,7 @@ void ContentControl::SetContentValue(
     }
 
     if (literalTextContent_ && content_ != nullptr &&
-        (*this).PropertyRegistry().Types().IsDerivedFrom(
+        DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             content_->RuntimeType(), TextBlock::StaticTypeId())) {
         auto* textBlock = static_cast<TextBlock*>(content_);
         textBlock->SetValue(RichText::TextProperty, value.AsString());
@@ -314,7 +315,7 @@ ContentControl::CreateTemplatedContent() const noexcept {
             ElementTree::BindingsOf(*this));
     if (!created) return created.GetStatus();
     if (!created.Value() ||
-        !(*this).PropertyRegistry().Types().IsDerivedFrom(
+        !DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             created.Value()->RuntimeType(),
             UIElement::StaticTypeId())) {
         return Base::Status::Failure(

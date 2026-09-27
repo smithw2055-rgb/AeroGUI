@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero::Data {
 namespace {
@@ -53,10 +54,10 @@ int CompareSortPropertyValues(
         return left < right ? -1 : (left > right ? 1 : 0);
     }
     const Meta::DependencyProperty* leftProperty =
-        leftDo->PropertyRegistry().Find(
+        DependencyObjectAccess::PropertyRegistry(leftDo).Find(
             leftDo->RuntimeType(), propertyName);
     const Meta::DependencyProperty* rightProperty =
-        rightDo->PropertyRegistry().Find(
+        DependencyObjectAccess::PropertyRegistry(rightDo).Find(
             rightDo->RuntimeType(), propertyName);
     if (leftProperty == nullptr || rightProperty == nullptr) {
         return left < right ? -1 : (left > right ? 1 : 0);

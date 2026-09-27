@@ -541,7 +541,7 @@ Schema::ResolvePropertyTarget(
             Base::ErrorCode::InvalidArgument,
             "XAML target does not support dependency properties");
     }
-    if (&target->PropertyRegistry() !=
+    if (&DependencyObjectAccess::PropertyRegistry(target) !=
         &static_cast<const ::Aero::Meta::Registry&>(
             *domain_).DependencyProperties()) {
         return Base::Status::Failure(
@@ -720,6 +720,7 @@ MemberWritePolicy Schema::ResolveMemberWritePolicy(
 
 
 #include <Aero/Value.hpp>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 
 namespace Aero::Markup {

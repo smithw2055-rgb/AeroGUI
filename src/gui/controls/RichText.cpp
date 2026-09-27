@@ -30,6 +30,7 @@
 
 
 #include "RichText.hpp"
+#include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero {
 namespace {
@@ -166,7 +167,7 @@ Base::Result<bool> AppendRichTextBinding(
     Base::StringView path,
     Base::StringView format,
     Base::String& output) noexcept {
-    if (!(object).PropertyRegistry().Types().IsDerivedFrom(
+    if (!DependencyObjectAccess::PropertyRegistry((object)).Types().IsDerivedFrom(
             object.RuntimeType(),
             FrameworkElement::StaticTypeId())) {
         return false;
@@ -218,7 +219,7 @@ bool SameRichTextState(
 } // namespace
 
 void ApplyRichText(DependencyObject& object) noexcept {
-    if (!(object).PropertyRegistry().Types().IsDerivedFrom(
+    if (!DependencyObjectAccess::PropertyRegistry((object)).Types().IsDerivedFrom(
             object.RuntimeType(),
             Controls::TextBlock::StaticTypeId())) return;
     const Base::StringView source = object.GetValue(RichText::TextProperty);
@@ -405,7 +406,7 @@ void AddTextBlockInline(
         return;
     }
     auto& text = static_cast<TextBlock&>(owner);
-    if (!(text).PropertyRegistry().Types().IsDerivedFrom(
+    if (!DependencyObjectAccess::PropertyRegistry((text)).Types().IsDerivedFrom(
             child->RuntimeType(),
             Aero::Documents::Inline::StaticTypeId())) {
         return;
@@ -427,7 +428,7 @@ void AddSpanInline(
         return;
     }
     auto& span = static_cast<Documents::Span&>(owner);
-    if (!(span).PropertyRegistry().Types().IsDerivedFrom(
+    if (!DependencyObjectAccess::PropertyRegistry((span)).Types().IsDerivedFrom(
             child->RuntimeType(),
             Documents::Inline::StaticTypeId())) {
         return;

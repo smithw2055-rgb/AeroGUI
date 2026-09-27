@@ -11,6 +11,7 @@
 
 #include <new>
 #include <utility>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero {
 
@@ -59,7 +60,7 @@ Freezable* AsFreezable(
         return nullptr;
     }
     Base::Object* object = value.AsObject().Get();
-    if (!(owner).PropertyRegistry().Types().IsDerivedFrom(
+    if (!DependencyObjectAccess::PropertyRegistry((owner)).Types().IsDerivedFrom(
             object->RuntimeType(), Freezable::StaticTypeId())) {
         return nullptr;
     }
@@ -455,7 +456,7 @@ Base::Result<void> DependencyObject::VisitFreezableChildren(
     DependencyObject& object = *this;
     if (visitor == nullptr) return {};
     for (const Meta::DependencyProperty& property :
-         (object).PropertyRegistry().Properties()) {
+         DependencyObjectAccess::PropertyRegistry((object)).Properties()) {
         if (property.MetadataFor(object.RuntimeType()) == nullptr) continue;
         const Meta::PropertyValue value = object.GetValue(property.Handle());
         Freezable* child = AsFreezable(object, value);
@@ -491,7 +492,7 @@ void DependencyObject::InvalidateSubProperty(
     Meta::DependencyPropertyHandle propertyHandle) noexcept {
     DependencyObject& object = *this;
     const Meta::DependencyProperty* property =
-        (object).PropertyRegistry().Find(propertyHandle);
+        DependencyObjectAccess::PropertyRegistry((object)).Find(propertyHandle);
     const Meta::PropertyMetadata* metadata = property != nullptr
         ? property->MetadataFor(object.RuntimeType())
         : nullptr;

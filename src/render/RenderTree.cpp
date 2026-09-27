@@ -26,6 +26,7 @@
 #include <cstdlib>
 #include <new>
 #include <utility>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero::Render {
 
@@ -1795,7 +1796,7 @@ bool RenderTree::IsEmittedChild(
     const ::Aero::Media::Visual& child) noexcept {
     const Meta::TypeId childType = child.RuntimeType();
     const Meta::TypeRegistry& childTypes =
-        (child).PropertyRegistry().Types();
+        DependencyObjectAccess::PropertyRegistry((child)).Types();
     // Popup-style visuals remain logical/template children so bindings,
     // layout and routed events keep their WPF shape. They must never be
     // emitted inline, though: an open popup is committed exactly once via
