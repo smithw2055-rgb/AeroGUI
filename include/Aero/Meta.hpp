@@ -369,10 +369,6 @@ public:
         builder_.Factory(&CreateDefaultObject<TCreate>);
         return *this;
     }
-    TypeBuilder& Factory(ObjectFactory factory) noexcept {
-        builder_.Factory(factory);
-        return *this;
-    }
     template<class TInterface> TypeBuilder& Implements() noexcept {
         builder_.Implements(TypeOf<TInterface>(), &CastObjectToInterface<T, TInterface>);
         return *this;
@@ -924,8 +920,28 @@ private:
         return *this;
     }
 
+    TypeBuilder& AssignFactory(ObjectFactory factory) noexcept {
+        builder_.Factory(factory);
+        return *this;
+    }
+
+    template<class U>
+    friend TypeBuilder<U> SetObjectFactory(
+        TypeBuilder<U> type,
+        ObjectFactory factory) noexcept;
+
     MetadataAuthoringSession builder_;
 };
+
+// Kernel-only hook for alias factories that must construct T with a
+// non-default TypeId. SDK TypeBuilder does not expose Factory(ObjectFactory).
+template<class T>
+TypeBuilder<T> SetObjectFactory(
+    TypeBuilder<T> type,
+    ObjectFactory factory) noexcept {
+    type.AssignFactory(factory);
+    return type;
+}
 
 // Public metadata authoring entry. The fluent description object is an
 // implementation type, while module code only names Register and
