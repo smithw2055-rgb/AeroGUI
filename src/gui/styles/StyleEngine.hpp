@@ -18,6 +18,16 @@
 
 namespace Aero {
 
+namespace Markup {
+Base::Result<void> AttachDeferredStyleDynamicResource(
+    Meta::EffectiveValueEngine& engine,
+    DependencyObject& target,
+    Meta::DependencyPropertyHandle property,
+    Base::StringView key) noexcept;
+void NotifyDynamicResourceScopeChanged(
+    DependencyObject& object) noexcept;
+} // namespace Markup
+
 using namespace Aero::Meta;
 using namespace Aero::Threading;
 
@@ -126,6 +136,7 @@ public:
 private:
     ::Aero::StyleProviderSession providerSession_;
     ::Aero::StyleProviderSession* values_ = nullptr;
+    EffectiveValueEngine* effectiveValuesEngine_ = nullptr;
     DependencyPropertyRegistry* properties_ = nullptr;
     Base::Vector<StyleApplication> applications_;
     Base::HashMap<const DependencyObject*, std::uint32_t> objectIndexMap_;

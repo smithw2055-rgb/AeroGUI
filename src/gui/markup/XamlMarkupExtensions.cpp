@@ -3562,9 +3562,34 @@ void ResourceChanged(
 
 
 
+Base::Vector<DynamicResourceState*>& LiveDynamicResources() noexcept {
+    static Base::Vector<DynamicResourceState*> states;
+    return states;
+}
+
+void TrackDynamicResource(DynamicResourceState* state) noexcept {
+    if (state == nullptr) return;
+    for (DynamicResourceState* existing : LiveDynamicResources()) {
+        if (existing == state) return;
+    }
+    LiveDynamicResources().PushBack(state);
+}
+
+void UntrackDynamicResource(DynamicResourceState* state) noexcept {
+    Base::Vector<DynamicResourceState*>& states = LiveDynamicResources();
+    for (std::uint32_t index = 0U; index < states.Size(); ++index) {
+        if (states[index] != state) continue;
+        states[index] = states[states.Size() - 1U];
+        states.PopBack();
+        return;
+    }
+}
+
 void CleanupDynamicResource(void* context) noexcept {
 
     DynamicResourceState* state = static_cast<DynamicResourceState*>(context);
+
+    UntrackDynamicResource(state);
 
     if (state == nullptr) {
 
@@ -4036,6 +4061,8 @@ Base::Result<Meta::PropertyExpression> DynamicResource::CreateExpression(
 
 
 
+    TrackDynamicResource(state);
+
     return Meta::PropertyExpression{
 
         state,
@@ -4094,7 +4121,31 @@ Base::Result<void> DynamicResource::Attach(
 
 }
 
+Base::Result<void> AttachDeferredStyleDynamicResource(
+    Meta::EffectiveValueEngine& engine,
+    DependencyObject& target,
+    Meta::DependencyPropertyHandle property,
+    Base::StringView key) noexcept {
+    return DynamicResource::Attach(
+        engine,
+        Base::Span<const ResourceDictionary* const>{},
+        nullptr,
+        target,
+        property,
+        key);
+}
 
+void NotifyDynamicResourceScopeChanged(
+    DependencyObject& object) noexcept {
+    for (DynamicResourceState* state : LiveDynamicResources()) {
+        if (state == nullptr || state->engine == nullptr ||
+            state->target != &object) {
+            continue;
+        }
+        static_cast<void>(
+            state->engine->Invalidate(*state->target, state->property));
+    }
+}
 
 DynamicResourceExtension::DynamicResourceExtension(
 
@@ -4187,6 +4238,24 @@ Base::Result<ProvidedValue> DynamicResourceExtension::ProvideValue(
     if (services.targetObject->RuntimeType() ==
 
         Aero::Setter::StaticTypeId()) {
+
+        // Keep the key live. A resolved brush would stay tied to the dictionary
+        // that defined the style, so Gallery's selectable Light palette could
+        // not override shell brushes such as Brush.Window.Background.
+        Base::Result<Base::Ref<Data::Binding>> marker =
+            Base::MakeRef<Data::Binding>();
+        if (!marker) return marker.GetStatus();
+        Base::String markerPath;
+        Base::Result<void> encodedKey =
+            markerPath.Assign("\x01DynamicResource:");
+        if (encodedKey) encodedKey = markerPath.Append(key);
+        if (!encodedKey) return encodedKey.GetStatus();
+        marker.Value()->SetPath(markerPath.View());
+        Base::Result<Meta::Value> markerValue = Meta::Value::FromObject(
+            Data::Binding::StaticTypeId(),
+            Base::Ref<Base::Object>(std::move(marker).Value()));
+        if (!markerValue) return markerValue.GetStatus();
+        return ProvidedValue::FromValue(std::move(markerValue).Value());
 
         // Template/style setters are authored before their eventual target
 

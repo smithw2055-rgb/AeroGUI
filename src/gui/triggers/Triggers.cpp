@@ -77,9 +77,20 @@ bool IsDeferredBindingSetterValue(
     if (value.Type() == Data::Binding::StaticTypeId()) {
         return true;
     }
-    return value.AsObject() &&
+    if (value.AsObject() &&
         value.AsObject()->RuntimeType() ==
-            Data::Binding::StaticTypeId();
+            Data::Binding::StaticTypeId()) {
+        return true;
+    }
+    if (value.Kind() == ValueKind::String) {
+        const Base::StringView text = value.AsString();
+        constexpr Base::StringView prefix("\x01DynamicResource:");
+        if (text.SizeBytes() >= prefix.SizeBytes() &&
+            text.Substr(0U, prefix.SizeBytes()) == prefix) {
+            return true;
+        }
+    }
+    return false;
 }
 
 void TriggerBase::AddEnterAction(

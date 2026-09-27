@@ -28,7 +28,7 @@ isProject: false
 对照当前树，原方案里 Visual 变瘦、坐标 API、`TryCast`、TabControl→Selector、Primitives 路径、一类型一头文件（Panel/Headered 族）**已经落地**。剩余结构性问题收成三件：
 
 1. **仍有几处继承偏离会误导 WPF 开发者**：`Path : FrameworkElement` 而非 `Shape`；`VirtualizingPanel : Object` 而非 `Panel`；`AERO_DECLARE_TYPE(DependencyObject, Base::Object)` 跳过了 C++ 基类 `DispatcherObject`。
-2. **头文件所有权没收完**：`Primitives::Selector` 仍声明在 [`ListBox.hpp`](include/Aero/Controls/ListBox.hpp)；`Shape`/`Rectangle`/`Ellipse`/`Path` 挤在 [`Shapes.hpp`](include/Aero/Shapes.hpp)；`Documents.hpp` 仍是聚合头。
+2. **头文件所有权没收完**：`Primitives::Selector` 仍声明在 [`ListBox.hpp`](include/Aero/Controls/Selectors.hpp)；`Shape`/`Rectangle`/`Ellipse`/`Path` 挤在 [`Shapes.hpp`](include/Aero/Shapes.hpp)；`Documents.hpp` 仍是聚合头。
 3. **对象存储仍肥**：DP 条目三份 `Value`、`FrameworkElement` 内嵌 `ResourceDictionary`、Visual 上一串散落 bool——这是后续动画/虚拟化的真正瓶颈。
 
 ```mermaid
@@ -124,7 +124,7 @@ flowchart TB
 
 - **`Path`**：现为 `Path : FrameworkElement` 并自己重复 Fill/Stroke/Stretch（[`Shapes.hpp`](include/Aero/Shapes.hpp)）。改为 `Path : Shape`，只保留 `Data`；否则样式/模板里对 `Shape` 的 Setter 打不到 Path。
 - **`VirtualizingPanel`**：现为 `Object` 上的附加属性所有者，`VirtualizingStackPanel : Panel, IScrollInfo`（[`VirtualizingStackPanel.hpp`](include/Aero/Controls/VirtualizingStackPanel.hpp)）。改为 WPF 形 `VirtualizingPanel : Panel`，VSP 再继承它。附加属性可继续挂在基类上；C++ 不必为了“省虚函数”把面板踢出视觉树。
-- **`Selector` 头归属**：类已在 `Controls::Primitives`，声明却在 [`ListBox.hpp`](include/Aero/Controls/ListBox.hpp)。迁到 `Controls/Primitives/Selector.hpp`；`ListBoxItem` 独立头。`TabControl.hpp` 不应为了 Selector 去包含整个 ListBox。
+- **`Selector` 头归属**：类已在 `Controls::Primitives`，声明却在 [`ListBox.hpp`](include/Aero/Controls/Selectors.hpp)。迁到 `Controls/Primitives/Selector.hpp`；`ListBoxItem` 独立头。`TabControl.hpp` 不应为了 Selector 去包含整个 ListBox。
 - **元数据基类 vs C++ 基类**：`AERO_DECLARE_TYPE(DependencyObject, Base::Object)`，但 C++ 继承 `DispatcherObject`。`TryCast<DispatcherObject>`、XAML 类型链、自定义控件 `AERO_DECLARE_TYPE` 都会和真实继承不一致。改为 `AERO_DECLARE_TYPE(DependencyObject, DispatcherObject)`，并核对 DispatcherObject 是否已注册进 TypeId 链。
 - **`View`**：保持具体 `Object`；不要加 `IView`。
 
@@ -144,7 +144,7 @@ flowchart TB
 
 **还要拆（公开头，实现 cpp 仍可按族合并）：**
 
-- [`ListBox.hpp`](include/Aero/Controls/ListBox.hpp) → `Primitives/Selector.hpp` + `ListBoxItem.hpp` + `ListBox.hpp`。
+- [`ListBox.hpp`](include/Aero/Controls/Selectors.hpp) → `Primitives/Selector.hpp` + `ListBoxItem.hpp` + `ListBox.hpp`。
 - [`Shapes.hpp`](include/Aero/Shapes.hpp) → `Shape` / `Rectangle` / `Ellipse` / `Path` 各一文件；伞头 `Shapes.hpp` 只做 include。
 - [`Documents.hpp`](include/Aero/Documents.hpp) → 至少 `Documents/Inline.hpp` 一族；伞头可留。
 - [`VirtualizingStackPanel.hpp`](include/Aero/Controls/VirtualizingStackPanel.hpp) → `VirtualizingPanel.hpp` 独立（与层次修正一起做）。
@@ -197,5 +197,5 @@ Button.hpp → ButtonBase.hpp → ContentControl.hpp → Control.hpp
 ## 关键文件
 
 - 公开脊柱：[`include/Aero/Visual.hpp`](include/Aero/Visual.hpp)、[`DependencyObject.hpp`](include/Aero/DependencyObject.hpp)、[`TryCast.hpp`](include/Aero/TryCast.hpp)
-- 待修层次：[`Shapes.hpp`](include/Aero/Shapes.hpp)、[`Controls/ListBox.hpp`](include/Aero/Controls/ListBox.hpp)、[`Controls/VirtualizingStackPanel.hpp`](include/Aero/Controls/VirtualizingStackPanel.hpp)
+- 待修层次：[`Shapes.hpp`](include/Aero/Shapes.hpp)、[`Controls/ListBox.hpp`](include/Aero/Controls/Selectors.hpp)、[`Controls/VirtualizingStackPanel.hpp`](include/Aero/Controls/VirtualizingStackPanel.hpp)
 - 内核：[`src/gui/internal/PropertyStore.hpp`](src/gui/internal/PropertyStore.hpp)、[`docs/SOURCE_ARCHITECTURE.md`](docs/SOURCE_ARCHITECTURE.md)、[`docs/spec/PUBLIC_HEADER_MODEL.md`](docs/spec/PUBLIC_HEADER_MODEL.md)

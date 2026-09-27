@@ -1093,6 +1093,9 @@ AERO_DESCRIBE(TreeView) {
     using namespace Aero::Meta;
     Register<TreeView>(context)
         .Event(TreeView::SelectedItemChangedEvent)
+        .Property(
+            TreeView::SelectedItemProperty,
+            FrameworkPropertyMetadata(Base::Ref<Base::Object>{}))
         .Factory();
     AERO_ON(TreeView, &TreeView::OnMouseLeftButtonDown, UIElement::MouseLeftButtonDownEvent);
     AERO_ON(TreeView, &TreeView::OnKeyDown, UIElement::KeyDownEvent);

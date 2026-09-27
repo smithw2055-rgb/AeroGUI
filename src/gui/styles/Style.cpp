@@ -1052,16 +1052,38 @@ Base::Result<void> StyleEngine::AttachSetterBindings(
     DependencyObject& object,
     const Style& style) noexcept {
     BindingEngine* bindings = ElementTree::BindingsOf(object);
+    constexpr Base::StringView dynamicPrefix("\x01DynamicResource:");
     for (const StyleSetter& setter : Style::Program::RuntimeSetters(style)) {
         if (!IsDeferredBindingSetterValue(setter.value)) {
             continue;
+        }
+        Base::Ref<Base::Object> stored = setter.value.AsObject();
+        if (stored && stored->RuntimeType() == Data::Binding::StaticTypeId()) {
+            auto& marker = static_cast<Data::Binding&>(*stored);
+            const Base::StringView bindingPath = marker.GetPathText();
+            if (bindingPath.SizeBytes() >= dynamicPrefix.SizeBytes() &&
+                bindingPath.Substr(0U, dynamicPrefix.SizeBytes()) ==
+                    dynamicPrefix) {
+                if (effectiveValuesEngine_ != nullptr) {
+                    const Base::StringView key = bindingPath.Substr(
+                        dynamicPrefix.SizeBytes(),
+                        bindingPath.SizeBytes() - dynamicPrefix.SizeBytes());
+                    Base::Result<void> attached =
+                        Markup::AttachDeferredStyleDynamicResource(
+                            *effectiveValuesEngine_,
+                            object,
+                            setter.property,
+                            key);
+                    if (!attached) return attached.GetStatus();
+                }
+                continue;
+            }
         }
         if (bindings == nullptr || bindings->Metadata() == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::NotInitialized,
                 "Style Binding setters require a mounted View binding engine");
         }
-        Base::Ref<Base::Object> stored = setter.value.AsObject();
         if (!stored || stored->RuntimeType() != Data::Binding::StaticTypeId()) {
             continue;
         }
@@ -1222,6 +1244,7 @@ StyleEngine::StyleEngine(
     DependencyPropertyRegistry& properties) noexcept
     : providerSession_(values),
       values_(&providerSession_),
+      effectiveValuesEngine_(&values),
       properties_(&properties),
       applications_(),
       objectIndexMap_(),

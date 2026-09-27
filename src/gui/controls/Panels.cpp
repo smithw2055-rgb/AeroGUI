@@ -968,12 +968,38 @@ Size Grid::MeasureOverride(
         }
     }
 
-    // Pass 2: Spanning elements sorted by max(columnSpan, rowSpan)
+    // Pass 2: Spanning elements sorted by max(columnSpan, rowSpan).
+    // Cells that do not cross a star track run first so Auto tracks (for
+    // example a GroupBox header) are final before a later cell that spans
+    // those Auto tracks plus a star track distributes only its remainder
+    // onto the star. Doing both in one span-sorted pass assigns the whole
+    // child to the star, then adds the Auto header again.
     std::sort(spanningChildren.begin(), spanningChildren.end(),
         [](const SpanningChild& a, const SpanningChild& b) {
             return std::max(a.columnSpan, a.rowSpan) < std::max(b.columnSpan, b.rowSpan);
         });
 
+    for (int starPhase = 0; starPhase < 2; ++starPhase) {
+    if (starPhase == 1) {
+        nonStarWidth = 0.0;
+        for (std::uint32_t index = 0U; index < columns; ++index) {
+            const GridLength definition = ColumnAt(index);
+            if (definition.unit == GridUnitType::Pixel) {
+                nonStarWidth += definition.value;
+            } else if (definition.unit == GridUnitType::Auto) {
+                nonStarWidth += desiredColumns[index];
+            }
+        }
+        nonStarHeight = 0.0;
+        for (std::uint32_t index = 0U; index < rows; ++index) {
+            const GridLength definition = RowAt(index);
+            if (definition.unit == GridUnitType::Pixel) {
+                nonStarHeight += definition.value;
+            } else if (definition.unit == GridUnitType::Auto) {
+                nonStarHeight += desiredRows[index];
+            }
+        }
+    }
     for (const SpanningChild& item : spanningChildren) {
         UIElement* child = item.child;
         const std::uint32_t column = item.column;
@@ -1000,6 +1026,10 @@ Size Grid::MeasureOverride(
             else if (definition.unit == GridUnitType::Auto) autoHeight = true;
             else if (definition.unit == GridUnitType::Star) spanRowStarWeight += definition.value;
         }
+
+        const bool crossesStar =
+            spanColumnStarWeight > 0.0 || spanRowStarWeight > 0.0;
+        if (crossesStar != (starPhase == 1)) continue;
 
         double childWidth = fixedWidth;
         if (spanColumnStarWeight > 0.0) {
@@ -1092,6 +1122,7 @@ Size Grid::MeasureOverride(
                 }
             }
         }
+    }
     }
 
     // Compute total desired size of the Grid for MeasureOverride

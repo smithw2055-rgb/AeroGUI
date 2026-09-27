@@ -9,6 +9,7 @@
 #include "gui/controls/TextBlockLayout.hpp"
 #include "render/DisplayList.hpp"
 #include <Aero/Documents.hpp>
+#include <cstdio>
 #include <Aero/Controls.hpp>
 #include <Aero/Controls/Selectors.hpp>
 #include <Aero/Controls/TreeView.hpp>
@@ -1286,6 +1287,22 @@ Size TextBlock::MeasureOverride(Size availableSize) noexcept {
     return desired;
 }
 Size TextBlock::ArrangeOverride(Size finalSize) noexcept {
+    Base::String flat;
+    if (Documents::CopyText(*this, flat) && flat.View() == Base::StringView("Enable")) {
+        const Rect slot = GetLayoutSlot();
+        const Color fg = ::Aero::Media::SampleBrush(
+            GetForeground(), 0.5, Color{0.0F, 0.0F, 0.0F, 1.0F});
+        const auto* parent = ::Aero::TryCast<UIElement>(GetVisualParent());
+        const Size parentSize = parent != nullptr
+            ? parent->GetRenderSize() : Size{};
+        std::fprintf(stderr,
+            "Enable text final=%.1fx%.1f slot=%.1f,%.1f %.1fx%.1f glyphs=%u fg=%.2f,%.2f,%.2f,%.2f parent=%.1fx%.1f\n",
+            finalSize.width, finalSize.height,
+            slot.x, slot.y, slot.width, slot.height,
+            static_cast<unsigned>(glyphRuns_.Size()),
+            fg.red, fg.green, fg.blue, fg.alpha,
+            parentSize.width, parentSize.height);
+    }
     const Thickness padding =
         GetValue(PaddingProperty);
     const bool needsAlignment = GetTextAlignment() != TextAlignment::Left ||

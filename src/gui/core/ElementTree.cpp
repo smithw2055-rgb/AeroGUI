@@ -672,6 +672,7 @@ Base::Result<void> ElementTree::AttachLogical(
 
     mutating_ = true;
     child.logicalParent_ = &parent;
+    Markup::NotifyDynamicResourceScopeChanged(child);
     SetTreeSubtree(child, this);
     ++version_;
     if (parent.LoadedFlag()) ApplyLoadedSubtree(child, true);
