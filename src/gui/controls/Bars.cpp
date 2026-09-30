@@ -17,9 +17,8 @@ Size ToolBarPanel::MeasureOverride(Size availableSize) noexcept {
     Size desired{};
     for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
-        Base::Result<void> measured = MeasureChild(
+        MeasureChild(
             *child, {1.0e12, availableSize.height});
-        if (!measured) continue;
         const Size childSize = child->GetDesiredSize();
         desired.width += childSize.width;
         desired.height = std::max(desired.height, childSize.height);
@@ -32,8 +31,8 @@ Size ToolBarPanel::ArrangeOverride(Size finalSize) noexcept {
     for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
         const Size desired = child->GetDesiredSize();
-        static_cast<void>(ArrangeChild(
-            *child, {offset, 0.0, desired.width, finalSize.height}));
+        ArrangeChild(
+            *child, {offset, 0.0, desired.width, finalSize.height});
         offset += desired.width;
     }
     return finalSize;
@@ -43,9 +42,8 @@ Size ToolBarOverflowPanel::MeasureOverride(Size availableSize) noexcept {
     Size desired{};
     for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
-        Base::Result<void> measured = MeasureChild(
+        MeasureChild(
             *child, {availableSize.width, 1.0e12});
-        if (!measured) continue;
         const Size childSize = child->GetDesiredSize();
         desired.width = std::max(desired.width, childSize.width);
         desired.height += childSize.height;
@@ -58,8 +56,8 @@ Size ToolBarOverflowPanel::ArrangeOverride(Size finalSize) noexcept {
     for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
         const Size desired = child->GetDesiredSize();
-        static_cast<void>(ArrangeChild(
-            *child, {0.0, offset, finalSize.width, desired.height}));
+        ArrangeChild(
+            *child, {0.0, offset, finalSize.width, desired.height});
         offset += desired.height;
     }
     return finalSize;
@@ -310,8 +308,7 @@ Size ToolTip::MeasureOverride(Size availableSize) noexcept {
     UIElement* child = GetTemplateRoot() != nullptr ? GetTemplateRoot() : GetContentElement();
     if (!GetIsOpen() || child == nullptr) return Size{};
     constexpr double Unconstrained = 1.0e12;
-    Base::Result<void> measured = MeasureChild(*child, Size{Unconstrained, Unconstrained});
-    if (!measured) return Size{};
+    MeasureChild(*child, Size{Unconstrained, Unconstrained});
     return Size{};
 }
 

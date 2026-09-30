@@ -428,25 +428,27 @@ void LayoutEngine::InvalidateArrange(
     }
 }
 
-Base::Result<void> UIElement::MeasureCore(
+void UIElement::MeasureCore(
     LayoutEngine& layout,
     Size constraint) noexcept {
     UIElement& element = *this;
     if (!IsValidLayoutSize(constraint)) {
-        return InvalidArgument("Measure constraint must be finite and nonnegative");
+        AERO_ASSERT(false && "Measure constraint must be finite and nonnegative");
+        return;
     }
     if (element.GetIsMeasuring() || element.GetIsArranging()) {
-        return InvalidState("Recursive layout operation is not allowed");
+        AERO_ASSERT(false && "Recursive layout operation is not allowed");
+        return;
     }
     if (element.GetIsMeasureValid() && SameSize(element.GetPreviousMeasureConstraint(), constraint)) {
-        return {};
+        return;
     }
 
     VisualHandle pendingArrange{};
     const bool queueArrange = !element.GetIsArrangeQueued();
     if (queueArrange) {
         Base::Result<VisualHandle> handle = layout.EnqueueHandle(element);
-        if (!handle) return handle.GetStatus();
+        if (!handle) { AERO_ASSERT(false); return; }
         pendingArrange = handle.Value();
         layout.arrangeQueue_.Reserve(
             layout.arrangeQueue_.Size() + 1U);
@@ -466,7 +468,7 @@ Base::Result<void> UIElement::MeasureCore(
                 pendingArrange);
             (element).Layout().arrangeQueued = true;
         }
-        return {};
+        return;
     }
 
     const FrameworkElement* framework = ::Aero::TryCast<::Aero::FrameworkElement>(&(element));
@@ -493,8 +495,8 @@ Base::Result<void> UIElement::MeasureCore(
     if (layoutTransform) {
         layoutMatrix = layoutTransform->GetMatrix();
         if (!Base::IsFiniteTransform(layoutMatrix)) {
-            return InvalidArgument(
-                "LayoutTransform produced an invalid matrix");
+            AERO_ASSERT(false && "LayoutTransform produced an invalid matrix");
+            return;
         }
         available =
             NaturalConstraintForTransform(
@@ -516,7 +518,8 @@ Base::Result<void> UIElement::MeasureCore(
     (element).Layout().measuring = false;
     Size desired = result;
     if (!IsValidLayoutSize(desired)) {
-        return InvalidArgument("MeasureOverride returned an invalid size");
+        AERO_ASSERT(false && "MeasureOverride returned an invalid size");
+        return;
     }
     desired = ClampSize(desired, minimum, maximum);
     if (hasWidth) desired.width = available.width;
@@ -555,7 +558,8 @@ Base::Result<void> UIElement::MeasureCore(
             margin.bottom,
             desired.width,
             desired.height);
-        return InvalidArgument("Layout constraints produced an invalid desired size");
+        AERO_ASSERT(false && "Layout constraints produced an invalid desired size");
+        return;
     }
     desired.width = std::max(0.0, desired.width);
     desired.height = std::max(0.0, desired.height);
@@ -575,25 +579,23 @@ Base::Result<void> UIElement::MeasureCore(
             pendingArrange);
         (element).Layout().arrangeQueued = true;
     }
-    return {};
+    return;
 }
 
-Base::Result<void> UIElement::ArrangeCore(
+void UIElement::ArrangeCore(
     LayoutEngine& layout,
     Rect slot) noexcept {
     UIElement& element = *this;
     if (!IsValidLayoutRect(slot)) {
-        return InvalidArgument("Arrange slot must be finite and nonnegative");
+        AERO_ASSERT(false && "Arrange slot must be finite and nonnegative");
+        return;
     }
     if (!element.GetIsMeasureValid()) {
-        Base::Result<void> measured = MeasureCore(
-            layout, {slot.width, slot.height});
-        if (!measured) {
-            return measured;
-        }
+        MeasureCore(layout, {slot.width, slot.height});
     }
     if (element.GetIsMeasuring() || element.GetIsArranging()) {
-        return InvalidState("Recursive layout operation is not allowed");
+        AERO_ASSERT(false && "Recursive layout operation is not allowed");
+        return;
     }
     if (element.GetVisibility() == Visibility::Collapsed) {
         (element).Layout().layoutSlot = {slot.x, slot.y, 0.0, 0.0};
@@ -607,7 +609,7 @@ Base::Result<void> UIElement::ArrangeCore(
         (element).Layout().arrangeQueued = false;
         ++(element).Layout().layoutRevision;
         ++layout.arrangedCount_;
-        return {};
+        return;
     }
     FrameworkElement* framework =
         ::Aero::TryCast<::Aero::FrameworkElement>(&(element));
@@ -643,8 +645,8 @@ Base::Result<void> UIElement::ArrangeCore(
     if (layoutTransform) {
         layoutMatrix = layoutTransform->GetMatrix();
         if (!Base::IsFiniteTransform(layoutMatrix)) {
-            return InvalidArgument(
-                "LayoutTransform produced an invalid matrix");
+            AERO_ASSERT(false && "LayoutTransform produced an invalid matrix");
+            return;
         }
         naturalAvailable =
             NaturalConstraintForTransform(
@@ -723,7 +725,8 @@ Base::Result<void> UIElement::ArrangeCore(
     (element).Layout().arranging = false;
     Size render = result;
     if (!IsValidLayoutSize(render)) {
-        return InvalidArgument("ArrangeOverride returned an invalid size");
+        AERO_ASSERT(false && "ArrangeOverride returned an invalid size");
+        return;
     }
     (element).Layout().layoutSlot = contentSlot;
     (element).Layout().renderSize = render;
@@ -759,20 +762,20 @@ Base::Result<void> UIElement::ArrangeCore(
     (element).Layout().arrangeQueued = false;
     ++(element).Layout().layoutRevision;
     ++layout.arrangedCount_;
-    return {};
+    return;
 }
 
 
-Base::Result<void> LayoutEngine::MeasureElement(
+void LayoutEngine::MeasureElement(
     UIElement& element,
     Size constraint) noexcept {
-    return element.MeasureCore(*this, constraint);
+    element.MeasureCore(*this, constraint);
 }
 
-Base::Result<void> LayoutEngine::ArrangeElement(
+void LayoutEngine::ArrangeElement(
     UIElement& element,
     Rect slot) noexcept {
-    return element.ArrangeCore(*this, slot);
+    element.ArrangeCore(*this, slot);
 }
 
 
@@ -787,19 +790,10 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
 
     if (root_ != nullptr &&
         (!root_->GetIsMeasureValid() || !root_->GetIsArrangeValid())) {
-        Base::Result<void> measured =
-            MeasureElement(*root_, rootAvailableSize_);
-        if (!measured) {
-            flushing_ = false;
-            return measured.GetStatus();
-        }
-        Base::Result<void> arranged = ArrangeElement(
+        MeasureElement(*root_, rootAvailableSize_);
+        ArrangeElement(
             *root_, {0.0, 0.0,
                      rootAvailableSize_.width, rootAvailableSize_.height});
-        if (!arranged) {
-            flushing_ = false;
-            return arranged.GetStatus();
-        }
     }
 
     measureWorkQueue_.Clear();
@@ -818,14 +812,7 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
             ? element->LayoutParent() : nullptr;
         const Size constraint = parent != nullptr
             ? parent->GetRenderSize() : rootAvailableSize_;
-        Base::Result<void> measured =
-            MeasureElement(*element, constraint);
-        if (!measured) {
-            (void)QueueMeasure(*element);
-            flushing_ = false;
-            measureWorkQueue_.Clear();
-            return measured.GetStatus();
-        }
+        MeasureElement(*element, constraint);
     }
     measureWorkQueue_.Clear();
 
@@ -846,13 +833,7 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
             slot.width = element->GetDesiredSize().width;
             slot.height = element->GetDesiredSize().height;
         }
-        Base::Result<void> arranged = ArrangeElement(*element, slot);
-        if (!arranged) {
-            (void)QueueArrange(*element);
-            flushing_ = false;
-            arrangeWorkQueue_.Clear();
-            return arranged.GetStatus();
-        }
+        ArrangeElement(*element, slot);
     }
     arrangeWorkQueue_.Clear();
 
@@ -868,20 +849,11 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
         ++convergencePass;
         (*root_).Layout().measureValid = false;
         (*root_).Layout().arrangeValid = false;
-        Base::Result<void> measured =
-            MeasureElement(*root_, rootAvailableSize_);
-        if (!measured) {
-            flushing_ = false;
-            return measured.GetStatus();
-        }
-        Base::Result<void> arranged = ArrangeElement(
+        MeasureElement(*root_, rootAvailableSize_);
+        ArrangeElement(
             *root_, {0.0, 0.0,
                      rootAvailableSize_.width,
                      rootAvailableSize_.height});
-        if (!arranged) {
-            flushing_ = false;
-            return arranged.GetStatus();
-        }
     }
     if (root_ != nullptr && HasInvalidVisibleLayout(*root_)) {
         flushing_ = false;

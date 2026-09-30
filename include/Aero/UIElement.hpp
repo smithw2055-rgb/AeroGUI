@@ -79,8 +79,8 @@ public:
     // WPF-friendly non-virtual entry points. They forward to the internal
     // MeasureCore/ArrangeCore so LayoutEngine stays in .cpp and public
     // headers no longer leak LayoutEngine&.
-    Result<void> Measure(Size availableSize) noexcept;
-    Result<void> Arrange(Rect finalRect) noexcept;
+    void Measure(Size availableSize) noexcept;
+    void Arrange(Rect finalRect) noexcept;
     Result<void> BeginDrag(std::uint32_t pointerId, const Value& data,
         Input::DragDropEffects allowedEffects = Input::DragDropEffects::Move) noexcept;
     Result<bool> CancelDrag() noexcept;
@@ -288,8 +288,8 @@ protected:
     void OnTextInput(TextCompositionEventArgs& args);
     void OnGotKeyboardFocus(KeyboardFocusChangedEventArgs& args);
     void OnLostKeyboardFocus(KeyboardFocusChangedEventArgs& args);
-    Result<void> MeasureChild(UIElement& child, Size availableSize) noexcept;
-    Result<void> ArrangeChild(UIElement& child, Rect finalRect) noexcept;
+    void MeasureChild(UIElement& child, Size availableSize) noexcept;
+    void ArrangeChild(UIElement& child, Rect finalRect) noexcept;
     UIElementChildRange LayoutChildren() const noexcept { return UIElementChildRange(*this); }
 
     void RaiseEvent(RoutedEventHandle event, RoutedEventArgs* args = nullptr) noexcept;
@@ -344,8 +344,8 @@ class EventRouter;
     void SetPressedState(bool value) noexcept;
     void SetKeyboardFocusedState(bool value) noexcept;
     void SetKeyboardFocusWithinState(bool value) noexcept;
-    Result<void> MeasureCore(LayoutEngine& layout, Size constraint) noexcept;
-    Result<void> ArrangeCore(LayoutEngine& layout, Rect slot) noexcept;
+    void MeasureCore(LayoutEngine& layout, Size constraint) noexcept;
+    void ArrangeCore(LayoutEngine& layout, Rect slot) noexcept;
     void InvokeClassHandler(RoutedEventHandle event, RoutedEventArgs& args) noexcept;
     void EnsureInputClassHandlers() noexcept;
     void AddHandlerErased(RoutedEventHandle event, const void* handler, std::size_t size, std::size_t alignment,

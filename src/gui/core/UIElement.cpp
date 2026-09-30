@@ -53,73 +53,21 @@ struct UIElementHandlerState {
     std::uint64_t nextSequence = 1U;
 };
 
-Base::Status InvalidState(const char* message) noexcept {
-    return Base::Status::Failure(Base::ErrorCode::InvalidState, message);
-}
-
-[[maybe_unused]] Base::Status NotFound(const char* message) noexcept {
-    return Base::Status::Failure(Base::ErrorCode::NotFound, message);
-}
-
 } // namespace
 
 // from src/gui/controls/Layout.cpp
 
-Base::Result<void> UIElement::ArrangeChild(
+void UIElement::ArrangeChild(
     UIElement& child,
     Rect finalRect) noexcept {
     auto* layout = static_cast<Aero::LayoutEngine*>(
         ElementTree::LayoutOf(*this));
     if (layout == nullptr || !(child).Layout().layoutAttached ||
         child.LayoutParent() != this) {
-        thread_local char message[512];
-        const TypeInfo* parentType =
-            DependencyObjectAccess::PropertyRegistry((*this)).Types().FindType(
-                RuntimeType());
-        const TypeInfo* childType =
-            DependencyObjectAccess::PropertyRegistry((child)).Types().FindType(
-                child.RuntimeType());
-        const Base::StringView parentName =
-            parentType != nullptr
-            ? parentType->Name()
-            : Base::StringView("<unknown>");
-        const Base::StringView childName =
-            childType != nullptr
-            ? childType->Name()
-            : Base::StringView("<unknown>");
-        const TypeInfo* actualParentType =
-            child.LayoutParent() != nullptr
-            ? DependencyObjectAccess::PropertyRegistry((*this)).Types().FindType(
-                  child.LayoutParent()->
-                      RuntimeType())
-            : nullptr;
-        const Base::StringView actualParentName =
-            actualParentType != nullptr
-            ? actualParentType->Name()
-            : Base::StringView("<none>");
-        std::snprintf(
-            message,
-            sizeof(message),
-            "Layout child '%.*s' is not attached to parent '%.*s' "
-            "(expectedParent=%p, layoutAttached=%u, actualParent='%.*s' %p, visualParent=%p)",
-            static_cast<int>(
-                childName.SizeBytes()),
-            childName.Data(),
-            static_cast<int>(
-                parentName.SizeBytes()),
-            parentName.Data(),
-            static_cast<void*>(this),
-            (child).Layout().layoutAttached ? 1U : 0U,
-            static_cast<int>(
-                actualParentName.SizeBytes()),
-            actualParentName.Data(),
-            static_cast<void*>(
-                child.LayoutParent()),
-            static_cast<void*>(
-                child.GetVisualParent()));
-        return InvalidState(message);
+        AERO_ASSERT(false && "ArrangeChild: child is not attached to this parent");
+        return;
     }
-    return layout->ArrangeElement(child, finalRect);
+    layout->ArrangeElement(child, finalRect);
 }
 
 // Layout hot state lives on UIElement.
@@ -168,61 +116,17 @@ std::uint64_t UIElement::GetLayoutRevision() const noexcept {
 
 // from src/gui/controls/Layout.cpp
 
-Base::Result<void> UIElement::MeasureChild(
+void UIElement::MeasureChild(
     UIElement& child,
     Size availableSize) noexcept {
     auto* layout = static_cast<Aero::LayoutEngine*>(
         ElementTree::LayoutOf(*this));
     if (layout == nullptr || !(child).Layout().layoutAttached ||
         child.LayoutParent() != this) {
-        thread_local char message[512];
-        const TypeInfo* parentType =
-            DependencyObjectAccess::PropertyRegistry((*this)).Types().FindType(
-                RuntimeType());
-        const TypeInfo* childType =
-            DependencyObjectAccess::PropertyRegistry((child)).Types().FindType(
-                child.RuntimeType());
-        const Base::StringView parentName =
-            parentType != nullptr
-            ? parentType->Name()
-            : Base::StringView("<unknown>");
-        const Base::StringView childName =
-            childType != nullptr
-            ? childType->Name()
-            : Base::StringView("<unknown>");
-        const TypeInfo* actualParentType =
-            child.LayoutParent() != nullptr
-            ? DependencyObjectAccess::PropertyRegistry((*this)).Types().FindType(
-                  child.LayoutParent()->
-                      RuntimeType())
-            : nullptr;
-        const Base::StringView actualParentName =
-            actualParentType != nullptr
-            ? actualParentType->Name()
-            : Base::StringView("<none>");
-        std::snprintf(
-            message,
-            sizeof(message),
-            "Layout child '%.*s' is not attached to parent '%.*s' "
-            "(expectedParent=%p, layoutAttached=%u, actualParent='%.*s' %p, visualParent=%p)",
-            static_cast<int>(
-                childName.SizeBytes()),
-            childName.Data(),
-            static_cast<int>(
-                parentName.SizeBytes()),
-            parentName.Data(),
-            static_cast<void*>(this),
-            (child).Layout().layoutAttached ? 1U : 0U,
-            static_cast<int>(
-                actualParentName.SizeBytes()),
-            actualParentName.Data(),
-            static_cast<void*>(
-                child.LayoutParent()),
-            static_cast<void*>(
-                child.GetVisualParent()));
-        return InvalidState(message);
+        AERO_ASSERT(false && "MeasureChild: child is not attached to this parent");
+        return;
     }
-    return layout->MeasureElement(child, availableSize);
+    layout->MeasureElement(child, availableSize);
 }
 
 // from src/gui/controls/Layout.cpp
@@ -463,8 +367,7 @@ void UIElement::OnPropertyInvalidated(
         parent->InvalidateArrange();
     }
     if (HasFlag(flags, PropertyInvalidationFlags::Render)) {
-        static_cast<void>(
-            (*this).InvalidateRenderState());
+        (*this).InvalidateRenderState();
     }
     DependencyObject::OnPropertyInvalidated(flags);
 }
@@ -613,12 +516,24 @@ void UIElement::InvalidateMeasure() noexcept {
     layout->InvalidateMeasure(*this);
 }
 
-Base::Result<void> UIElement::Measure(Size availableSize) noexcept {
-    return MeasureChild(*this, availableSize);
+void UIElement::Measure(Size availableSize) noexcept {
+    auto* layout = static_cast<Aero::LayoutEngine*>(
+        ElementTree::LayoutOf(*this));
+    if (layout == nullptr) {
+        AERO_ASSERT(false && "Measure requires a mounted layout engine");
+        return;
+    }
+    layout->MeasureElement(*this, availableSize);
 }
 
-Base::Result<void> UIElement::Arrange(Rect finalRect) noexcept {
-    return ArrangeChild(*this, finalRect);
+void UIElement::Arrange(Rect finalRect) noexcept {
+    auto* layout = static_cast<Aero::LayoutEngine*>(
+        ElementTree::LayoutOf(*this));
+    if (layout == nullptr) {
+        AERO_ASSERT(false && "Arrange requires a mounted layout engine");
+        return;
+    }
+    layout->ArrangeElement(*this, finalRect);
 }
 
 void UIElement::InvalidateVisual() noexcept {
@@ -626,9 +541,7 @@ void UIElement::InvalidateVisual() noexcept {
     if (!access) {
         return;
     }
-    Base::Result<void> invalidated = (*this).InvalidateRenderDrawing();
-    AERO_ASSERT(invalidated);
-    (void)invalidated;
+    (*this).InvalidateRenderDrawing();
 }
 
 void UIElement::OnRender(Media::DrawingContext& context) noexcept {
@@ -1070,8 +983,7 @@ void OnRenderStateChanged(
     const DependencyPropertyChangedEventArgs&) noexcept {
     auto& visual =
         static_cast<UIElement&>(object);
-    static_cast<void>(
-        (visual).InvalidateRenderState());
+    (visual).InvalidateRenderState();
 }
 
 void OnOpacityMaskChanged(
@@ -1080,8 +992,7 @@ void OnOpacityMaskChanged(
     FrameworkElement* owner =
         ::Aero::TryCast<::Aero::FrameworkElement>(&object);
     if (owner == nullptr) return;
-    static_cast<void>(
-        (*owner).InvalidateRenderState());
+    (*owner).InvalidateRenderState();
 }
 
 void OnRenderTransformChanged(
@@ -1090,8 +1001,7 @@ void OnRenderTransformChanged(
     FrameworkElement* owner =
         ::Aero::TryCast<::Aero::FrameworkElement>(&object);
     if (owner == nullptr) return;
-    static_cast<void>(
-        (*owner).InvalidateRenderState());
+    (*owner).InvalidateRenderState();
 }
 
 void OnEffectChanged(
@@ -1100,8 +1010,7 @@ void OnEffectChanged(
     FrameworkElement* owner =
         ::Aero::TryCast<::Aero::FrameworkElement>(&object);
     if (owner == nullptr) return;
-    static_cast<void>(
-        (*owner).InvalidateRenderState());
+    (*owner).InvalidateRenderState();
 }
 
 } // namespace Aero

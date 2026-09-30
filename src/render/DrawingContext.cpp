@@ -1,4 +1,5 @@
 #include <Aero/Media/DrawingContext.hpp>
+#include <Aero/Base/Assert.hpp>
 #include <Aero/Media/Pen.hpp>
 #include <Aero/Media/Geometries.hpp>
 
@@ -14,6 +15,12 @@
 #include "gui/core/EventRouter.hpp"
 namespace Aero::Media {
 namespace {
+
+
+void AssertOk(Base::Result<void> result) noexcept {
+    AERO_ASSERT(result);
+    (void)result;
+}
 
 Result<void> EmitTriangles(
     ::Aero::Render::DisplayListBuilder& builder,
@@ -137,131 +144,126 @@ Result<void> StrokePenGeometry(
 
 } // namespace
 
-Base::Result<void> DrawingContext::PushClip(
+void DrawingContext::PushClip(
     Base::Rect clip) noexcept {
-    return ::Aero::Render::DrawingBridge::Builder(*this)
-        .PushClip(clip);
+    AssertOk(::Aero::Render::DrawingBridge::Builder(*this)
+        .PushClip(clip));
 }
 
-Base::Result<void> DrawingContext::PopClip() noexcept {
-    return ::Aero::Render::DrawingBridge::Builder(*this)
-        .PopClip();
+void DrawingContext::PopClip() noexcept {
+    AssertOk(::Aero::Render::DrawingBridge::Builder(*this)
+        .PopClip());
 }
 
-Base::Result<void> DrawingContext::PushOpacity(
+void DrawingContext::PushOpacity(
     double opacity) noexcept {
-    return ::Aero::Render::DrawingBridge::Builder(*this)
-        .PushOpacity(opacity);
+    AssertOk(::Aero::Render::DrawingBridge::Builder(*this)
+        .PushOpacity(opacity));
 }
 
-Base::Result<void> DrawingContext::PopOpacity() noexcept {
-    return ::Aero::Render::DrawingBridge::Builder(*this)
-        .PopOpacity();
+void DrawingContext::PopOpacity() noexcept {
+    AssertOk(::Aero::Render::DrawingBridge::Builder(*this)
+        .PopOpacity());
 }
 
-Base::Result<void> DrawingContext::PushTransform(
+void DrawingContext::PushTransform(
     Base::Transform2D transform) noexcept {
-    return ::Aero::Render::DrawingBridge::Builder(*this)
-        .PushTransform(transform);
+    AssertOk(::Aero::Render::DrawingBridge::Builder(*this)
+        .PushTransform(transform));
 }
 
-Base::Result<void> DrawingContext::PopTransform() noexcept {
-    return ::Aero::Render::DrawingBridge::Builder(*this)
-        .PopTransform();
+void DrawingContext::PopTransform() noexcept {
+    AssertOk(::Aero::Render::DrawingBridge::Builder(*this)
+        .PopTransform());
 }
 
-Base::Result<void> DrawingContext::DrawRectangle(
+void DrawingContext::DrawRectangle(
     Base::Rect bounds,
     Base::Color color) noexcept {
-    return ::Aero::Render::DrawingBridge::Builder(*this)
-        .FillRect(bounds, color);
+    AssertOk(::Aero::Render::DrawingBridge::Builder(*this)
+        .FillRect(bounds, color));
 }
 
-Base::Result<void> DrawingContext::DrawRectangle(
+void DrawingContext::DrawRectangle(
     Base::Rect bounds,
     const Base::Ref<Media::Brush>& brush) noexcept {
-    return Media::PaintBrushRect(
+    AssertOk(Media::PaintBrushRect(
         ::Aero::Render::DrawingBridge::Builder(*this),
         brush,
-        bounds);
+        bounds));
 }
 
-Base::Result<void> DrawingContext::DrawRectangle(
+void DrawingContext::DrawRectangle(
     const Base::Ref<Media::Brush>& fill,
     const Base::Ref<Media::Brush>& stroke,
     Base::Rect bounds,
     double strokeThickness) noexcept {
-    Base::Result<void> result = DrawRectangle(bounds, fill);
-    if (!result || !stroke || strokeThickness <= 0.0) {
-        return result;
+    DrawRectangle(bounds, fill);
+    if (!stroke || strokeThickness <= 0.0) {
+        return;
     }
-    return DrawRectangleOutline(
-        bounds, stroke, strokeThickness);
+    DrawRectangleOutline(bounds, stroke, strokeThickness);
 }
 
-Base::Result<void> DrawingContext::DrawRoundedRectangle(
+void DrawingContext::DrawRoundedRectangle(
     Base::Rect bounds,
     Base::Color color,
     double radius) noexcept {
-    return ::Aero::Render::DrawingBridge::Builder(*this)
-        .FillRoundedRect(bounds, color, radius);
+    AssertOk(::Aero::Render::DrawingBridge::Builder(*this)
+        .FillRoundedRect(bounds, color, radius));
 }
 
-Base::Result<void> DrawingContext::DrawRoundedRectangle(
+void DrawingContext::DrawRoundedRectangle(
     Base::Rect bounds,
     const Base::Ref<Media::Brush>& brush,
     double radius) noexcept {
-    return Media::PaintBrushRect(
+    AssertOk(Media::PaintBrushRect(
         ::Aero::Render::DrawingBridge::Builder(*this),
         brush,
         bounds,
-        radius);
+        radius));
 }
 
-Base::Result<void> DrawingContext::DrawRectangleOutline(
+void DrawingContext::DrawRectangleOutline(
     Base::Rect bounds,
     Base::Color color,
     double thickness) noexcept {
-    return ::Aero::Render::DrawingBridge::Builder(*this)
-        .StrokeRect(bounds, color, thickness);
+    AssertOk(::Aero::Render::DrawingBridge::Builder(*this)
+        .StrokeRect(bounds, color, thickness));
 }
 
-Base::Result<void> DrawingContext::DrawRectangleOutline(
+void DrawingContext::DrawRectangleOutline(
     Base::Rect bounds,
     const Base::Ref<Media::Brush>& brush,
     double thickness) noexcept {
     const Base::Color color =
         Media::SampleBrush(brush);
-    return color.alpha > 0.0F
-        ? ::Aero::Render::DrawingBridge::Builder(*this)
-              .StrokeRect(bounds, color, thickness)
-        : Base::Result<void>();
+    if (color.alpha > 0.0F) {
+        AssertOk(::Aero::Render::DrawingBridge::Builder(*this)
+              .StrokeRect(bounds, color, thickness));
+    }
 }
 
-Result<void> DrawingContext::DrawLine(
+void DrawingContext::DrawLine(
     const Ref<Pen>& pen,
     Base::Point start,
     Base::Point end) noexcept {
-    if (!pen) return {};
+    if (!pen) return;
     LineGeometry line;
     line.SetStartPoint(start);
     line.SetEndPoint(end);
-    return StrokePenGeometry(
+    AssertOk(StrokePenGeometry(
         ::Aero::Render::DrawingBridge::Builder(*this),
         *pen,
-        line);
+        line));
 }
 
-Result<void> DrawingContext::DrawGeometry(
+void DrawingContext::DrawGeometry(
     const Ref<Brush>& brush,
     const Ref<Pen>& pen,
     const Geometry& geometry) noexcept {
     auto& builder = ::Aero::Render::DrawingBridge::Builder(*this);
     if (brush && pen) {
-        // P4.4: unified Fill/Stroke single entry. One geometry.Flatten
-        // feeds both the fill contour set and the stroke contour set, so a
-        // filled-and-stroked geometry no longer pays subdivision twice. Each
-        // side observes the exact event stream of its former dedicated pass.
         Base::Vector<Point> fillPoints;
         Base::Vector<FillContour> fillContours;
         Base::Vector<Point> strokePoints;
@@ -275,41 +277,42 @@ Result<void> DrawingContext::DrawGeometry(
         Base::Vector<std::uint32_t> indices;
         Result<void> filled = TessellateFillContours(
             fillPoints, fillContours, vertices, indices);
-        if (!filled) return filled.GetStatus();
+        if (!filled) { AERO_ASSERT(false); return; }
         Result<void> drawn = PaintBrushGeometry(
             builder,
             brush,
             vertices.AsSpan(),
             indices.AsSpan(),
             geometry.GetBounds());
-        if (!drawn) return drawn.GetStatus();
+        if (!drawn) { AERO_ASSERT(false); return; }
         Base::Ref<Brush> strokeBrush;
         Color strokeColor{};
         bool strokeSpatial = false;
         if (!ResolveStrokePaint(
                 *pen, strokeBrush, strokeColor, strokeSpatial)) {
-            return {};
+            return;
         }
-        return StrokeContours(
+        AssertOk(StrokeContours(
             builder, *pen, strokeBrush, strokeColor, strokeSpatial,
-            geometry.GetBounds(), strokePoints, starts, counts, closed);
+            geometry.GetBounds(), strokePoints, starts, counts, closed));
+        return;
     }
     if (brush) {
         Base::Vector<Point> vertices;
         Base::Vector<std::uint32_t> indices;
         Result<void> filled = TessellateGeometryFill(
             geometry, vertices, indices);
-        if (!filled) return filled.GetStatus();
+        if (!filled) { AERO_ASSERT(false); return; }
         Result<void> drawn = PaintBrushGeometry(
             builder,
             brush,
             vertices.AsSpan(),
             indices.AsSpan(),
             geometry.GetBounds());
-        if (!drawn) return drawn.GetStatus();
+        if (!drawn) { AERO_ASSERT(false); return; }
     }
-    if (!pen) return {};
-    return StrokePenGeometry(builder, *pen, geometry);
+    if (!pen) return;
+    AssertOk(StrokePenGeometry(builder, *pen, geometry));
 }
 
 } // namespace Aero::Media

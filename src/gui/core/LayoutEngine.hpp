@@ -56,8 +56,8 @@ private:
     void RemoveQueued(UIElement& element) noexcept;
     UIElement* ResolveQueued(VisualHandle handle) const noexcept;
     Base::Result<VisualHandle> EnqueueHandle(UIElement& element) noexcept;
-    Base::Result<void> MeasureElement(UIElement& element, Size constraint) noexcept;
-    Base::Result<void> ArrangeElement(UIElement& element, Rect slot) noexcept;
+    void MeasureElement(UIElement& element, Size constraint) noexcept;
+    void ArrangeElement(UIElement& element, Rect slot) noexcept;
 };
 
 } // namespace Aero

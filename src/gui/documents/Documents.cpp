@@ -1279,8 +1279,7 @@ Size TextBlock::MeasureOverride(Size availableSize) noexcept {
     for (std::uint32_t index = 0U; index < uiCount; ++index) {
         auto* child = static_cast<UIElement*>(GetVisualChild(index));
         if (child == nullptr) continue;
-        Base::Result<void> measured = MeasureChild(*child, availableSize);
-        if (!measured) return Size{};
+        MeasureChild(*child, availableSize);
         const Size childSize = child->GetDesiredSize();
         desired.width = std::max(desired.width, childSize.width);
         desired.height = std::max(desired.height, childSize.height);
@@ -1334,7 +1333,7 @@ Size TextBlock::ArrangeOverride(Size finalSize) noexcept {
                 break;
             }
         }
-        static_cast<void>(ArrangeChild(*child, slot));
+        ArrangeChild(*child, slot);
     }
     return finalSize;
 }

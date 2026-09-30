@@ -145,15 +145,13 @@ Size TabControl::MeasureOverride(
             ? Size{HeaderExtent, 0.0}
             : Size{0.0, HeaderExtent};
     }
-    Base::Result<void> measured =
-        MeasureChild(
+    MeasureChild(
             *selected,
             verticalStrip
                 ? Size{std::max(0.0, availableSize.width - HeaderExtent),
                     availableSize.height}
                 : Size{availableSize.width,
                     std::max(0.0, availableSize.height - HeaderExtent)});
-    if (!measured) return Size{};
     const Size desired = selected->GetDesiredSize();
     return verticalStrip
         ? Size{desired.width + HeaderExtent, desired.height}
@@ -192,9 +190,7 @@ Size TabControl::ArrangeOverride(
                     std::max(0.0, finalSize.height - HeaderExtent)};
             }
         }
-        Base::Result<void> arranged =
-            ArrangeChild(*tab, slot);
-        if (!arranged) return finalSize;
+        ArrangeChild(*tab, slot);
     }
     return finalSize;
 }
@@ -221,8 +217,7 @@ Size TabPanel::MeasureOverride(
         : availableSize.width;
     for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
-        Base::Result<void> measured = MeasureChild(*child, availableSize);
-        if (!measured) return Size{};
+        MeasureChild(*child, availableSize);
         const Size size = child->GetDesiredSize();
         const double primary = vertical ? size.height : size.width;
         const double cross = vertical ? size.width : size.height;
@@ -274,9 +269,8 @@ Size TabPanel::ArrangeOverride(
             }
             lineCross = 0.0;
         }
-        Base::Result<void> arranged = ArrangeChild(*child, {
+        ArrangeChild(*child, {
             x, y, size.width, size.height});
-        if (!arranged) return finalSize;
         if (vertical) y += size.height;
         else x += size.width;
         lineCross = std::max(lineCross, cross);

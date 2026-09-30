@@ -309,9 +309,7 @@ Size Expander::MeasureOverride(
         childAvailable.height =
             std::max(0.0, childAvailable.height - HeaderExtent);
     }
-    Base::Result<void> measured =
-        MeasureChild(*GetContentElement(), childAvailable);
-    if (!measured) return Size{};
+    MeasureChild(*GetContentElement(), childAvailable);
     const Size desired = GetContentElement()->GetDesiredSize();
     return GetDirection() == ExpandDirection::Left ||
             GetDirection() == ExpandDirection::Right
@@ -350,9 +348,7 @@ Size Expander::ArrangeOverride(
             0.0, slot.width - HeaderExtent);
         break;
     }
-    Base::Result<void> arranged =
-        ArrangeChild(*GetContentElement(), slot);
-    if (!arranged) return finalSize;
+    ArrangeChild(*GetContentElement(), slot);
     return finalSize;
 }
 
@@ -385,10 +381,9 @@ Size Viewbox::MeasureOverride(
     // The layout kernel keeps all constraints finite. A large finite measure
     // gives Viewbox content its natural size while preserving that invariant.
     constexpr double NaturalConstraint = 1.0e12;
-    Base::Result<void> measured = MeasureChild(
+    MeasureChild(
         *child,
         {NaturalConstraint, NaturalConstraint});
-    if (!measured) return Size{};
 
     const Size natural = child->GetDesiredSize();
     if (natural.width <= 0.0 || natural.height <= 0.0) {
@@ -446,8 +441,7 @@ void Viewbox::ApplyViewTransform(
         Base::Transform2D leftover{};
         if (!element->TryGetViewboxTransform(leftover)) return;
         element->ClearViewboxTransform();
-        static_cast<void>(
-            (*element).InvalidateRenderState());
+        (*element).InvalidateRenderState();
     };
     // Stretch stays on this Viewbox (AeroGUI wrapper Decorator), never on the
     // child: Hexagon grids have ScaleTransform 1.2, Board has RotationY.
@@ -474,8 +468,7 @@ void Viewbox::ApplyViewTransform(
         ? Base::Ref<FrameworkElement>::FromBorrowed(*framework)
         : Base::Ref<FrameworkElement>{};
     if (changed) {
-        static_cast<void>(
-            (*this).InvalidateRenderState());
+        (*this).InvalidateRenderState();
     }
 }
 Size Viewbox::ArrangeOverride(
@@ -488,9 +481,8 @@ Size Viewbox::ArrangeOverride(
 
     const Size natural = child->GetDesiredSize();
     if (natural.width <= 0.0 || natural.height <= 0.0) {
-        Base::Result<void> arranged = ArrangeChild(
+        ArrangeChild(
             *child, {0.0, 0.0, 0.0, 0.0});
-        if (!arranged) return finalSize;
         ApplyViewTransform(1.0, 1.0, 0.0, 0.0);
         return finalSize;
     }
@@ -545,10 +537,9 @@ Size Viewbox::ArrangeOverride(
         scaleY,
         offsetX,
         offsetY);
-    Base::Result<void> arranged = ArrangeChild(
+    ArrangeChild(
         *child,
         {0.0, 0.0, natural.width, natural.height});
-    if (!arranged) return finalSize;
     // Non-FrameworkElement children compensate RenderTransformOrigin from
     // the arranged RenderSize; re-apply so that origin stays correct.
     ApplyViewTransform(
@@ -614,9 +605,8 @@ Size Border::MeasureOverride(Size availableSize) noexcept {
         border.bottom + padding.bottom};
     UIElement* child = GetChild();
     if (child == nullptr) return Inflate({}, chrome);
-    Base::Result<void> measured = MeasureChild(
+    MeasureChild(
         *child, Deflate(availableSize, chrome));
-    if (!measured) return Size{};
     return Inflate(child->GetDesiredSize(), chrome);
 }
 Size Border::ArrangeOverride(Size finalSize) noexcept {
@@ -630,10 +620,9 @@ Size Border::ArrangeOverride(Size finalSize) noexcept {
         border.right + padding.right,
         border.bottom + padding.bottom};
     const Size childSize = Deflate(finalSize, chrome);
-    Base::Result<void> arranged = ArrangeChild(*child,
+    ArrangeChild(*child,
         {chrome.left, chrome.top,
          childSize.width, childSize.height});
-    if (!arranged) return finalSize;
     return finalSize;
 }
 void Border::OnRender(
@@ -950,15 +939,13 @@ void Page::OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noe
 
 Size Page::MeasureOverride(Size availableSize) noexcept {
     if (!host_) return Size{};
-    Result<void> measured = MeasureChild(*host_, availableSize);
-    if (!measured) return Size{};
+    MeasureChild(*host_, availableSize);
     return host_->GetDesiredSize();
 }
 
 Size Page::ArrangeOverride(Size finalSize) noexcept {
     if (!host_) return finalSize;
-    Result<void> arranged = ArrangeChild(*host_, {0.0, 0.0, finalSize.width, finalSize.height});
-    if (!arranged) return finalSize;
+    ArrangeChild(*host_, {0.0, 0.0, finalSize.width, finalSize.height});
     return finalSize;
 }
 

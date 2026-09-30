@@ -375,9 +375,7 @@ ScrollContentPresenter::MeasureOverride(
             childAvailable.height = LayoutInfinity;
         }
     }
-    Base::Result<void> measured =
-        MeasureChild(*child, childAvailable);
-    if (!measured) return Size{};
+    MeasureChild(*child, childAvailable);
 
     if (logical != nullptr) {
         Base::Result<bool> synced =
@@ -422,9 +420,7 @@ ScrollContentPresenter::ArrangeOverride(
             -value.verticalOffset,
             std::max(value.extentWidth, finalSize.width),
             std::max(value.extentHeight, finalSize.height)};
-    Base::Result<void> arranged =
-        ArrangeChild(*child, slot);
-    if (!arranged) return finalSize;
+    ArrangeChild(*child, slot);
     return finalSize;
 }
 

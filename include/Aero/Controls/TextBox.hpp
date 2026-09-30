@@ -24,9 +24,9 @@ public:
     ~TextBox() override;
 
     void AttachTextLayout(void* service, bool invalidate = false) noexcept;
-    Result<void> SelectAll() noexcept;
-    Result<void> Undo() noexcept;
-    Result<void> Redo() noexcept;
+    void SelectAll() noexcept;
+    void Undo() noexcept;
+    void Redo() noexcept;
     Result<void> AttachScrollViewer(ScrollViewer* viewer) noexcept;
     Result<void> BeginComposition() noexcept override;
     Result<void> UpdateComposition(StringView text) noexcept override;
@@ -197,7 +197,7 @@ public:
     TextSelection GetSelection() const noexcept;
     std::uint32_t GetCaret() const noexcept;
     void SetSelection(std::uint32_t anchor, std::uint32_t caret) noexcept;
-    Result<void> SelectAll() noexcept;
+    void SelectAll() noexcept;
     void SetInputMethodHost(Input::ITextInputMethodHost* host) noexcept;
     Input::ITextInputMethodHost* GetInputMethodHost() const noexcept;
     bool GetIsComposing() const noexcept;

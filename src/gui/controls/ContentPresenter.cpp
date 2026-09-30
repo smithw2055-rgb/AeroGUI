@@ -374,15 +374,13 @@ Size ContentPresenter::MeasureOverride(
     // layout-child table still lists it as the only child. Returning an empty
     // size here collapses UniformGrid rows whose cells bind Height to
     // ActualWidth (Inventory slots).
-    Base::Result<void> measured = MeasureChild(*content_, availableSize);
-    if (!measured) return Size{};
+    MeasureChild(*content_, availableSize);
     return content_->GetDesiredSize();
 }
 Size ContentPresenter::ArrangeOverride(Size finalSize) noexcept {
     if (content_ == nullptr) return finalSize;
-    Base::Result<void> arranged = ArrangeChild(*content_,
+    ArrangeChild(*content_,
         {0.0, 0.0, finalSize.width, finalSize.height});
-    if (!arranged) return finalSize;
     return finalSize;
 }
 

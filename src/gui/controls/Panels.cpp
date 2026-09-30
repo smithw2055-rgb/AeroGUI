@@ -89,8 +89,7 @@ Size StackPanel::MeasureOverride(Size availableSize) noexcept {
         Size childAvailable = availableSize;
         if (orientation == Orientation::Vertical) childAvailable.height = 1.0e12;
         else childAvailable.width = 1.0e12;
-        Base::Result<void> measured = MeasureChild(*child, childAvailable);
-        if (!measured) continue;
+        MeasureChild(*child, childAvailable);
         const Size childDesired = child->GetDesiredSize();
         if (orientation == Orientation::Vertical) {
             desired.width = std::max(desired.width, childDesired.width);
@@ -114,8 +113,7 @@ Size StackPanel::ArrangeOverride(Size finalSize) noexcept {
             : (isRtl
                 ? Rect{finalSize.width - offset - desired.width, 0.0, desired.width, finalSize.height}
                 : Rect{offset, 0.0, desired.width, finalSize.height});
-        Base::Result<void> arranged = ArrangeChild(*child, slot);
-        if (!arranged) return finalSize;
+        ArrangeChild(*child, slot);
         offset += orientation == Orientation::Vertical
             ? desired.height : desired.width;
     }
@@ -154,9 +152,7 @@ Size DockPanel::MeasureOverride(
         const Size remaining{
             std::max(0.0, availableSize.width - consumedWidth),
             std::max(0.0, availableSize.height - consumedHeight)};
-        Base::Result<void> measured =
-            MeasureChild(*child, remaining);
-        if (!measured) continue;
+        MeasureChild(*child, remaining);
         const Size childDesired = child->GetDesiredSize();
         const Dock dock = GetChildDock(*child);
         if (dock == Dock::Left || dock == Dock::Right) {
@@ -232,9 +228,7 @@ Size DockPanel::ArrangeOverride(
                 break;
             }
         }
-        Base::Result<void> arranged =
-            ArrangeChild(*child, slot);
-        if (!arranged) return finalSize;
+        ArrangeChild(*child, slot);
     }
     return finalSize;
 }
@@ -285,9 +279,7 @@ Size WrapPanel::MeasureOverride(
                 ? GetItemWidth() : availableSize.width,
             GetItemHeight() > 0.0
                 ? GetItemHeight() : availableSize.height};
-        Base::Result<void> measured =
-            MeasureChild(*child, childAvailable);
-        if (!measured) continue;
+        MeasureChild(*child, childAvailable);
         const Size desired = child->GetDesiredSize();
         const double childPrimary = horizontal
             ? (GetItemWidth() > 0.0
@@ -351,9 +343,7 @@ Size WrapPanel::ArrangeOverride(
                 ? Rect{finalSize.width - primary - childPrimary, cross, childPrimary, childCross}
                 : Rect{primary, cross, childPrimary, childCross})
             : Rect{cross, primary, childCross, childPrimary};
-        Base::Result<void> arranged =
-            ArrangeChild(*child, slot);
-        if (!arranged) return finalSize;
+        ArrangeChild(*child, slot);
         primary += childPrimary;
         lineCross = std::max(lineCross, childCross);
     }
@@ -434,9 +424,7 @@ Size UniformGrid::MeasureOverride(
     Size cellDesired;
     for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
-        Base::Result<void> measured =
-            MeasureChild(*child, cellAvailable);
-        if (!measured) continue;
+        MeasureChild(*child, cellAvailable);
         cellDesired.width = std::max(
             cellDesired.width,
             child->GetDesiredSize().width);
@@ -502,10 +490,9 @@ Size UniformGrid::ArrangeOverride(
         const double x = isRtl
             ? finalSize.width - (column + 1U) * width
             : column * width;
-        Base::Result<void> arranged = ArrangeChild(
+        ArrangeChild(
             *child,
             {x, row * height, width, height});
-        if (!arranged) return finalSize;
         ++index;
     }
     return finalSize;
@@ -537,8 +524,7 @@ Point Canvas::GetChildPosition(const UIElement& child) const noexcept {
 Size Canvas::MeasureOverride(Size) noexcept {
     for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
-        Base::Result<void> measured = MeasureChild(*child, {1.0e12, 1.0e12});
-        if (!measured) continue;
+        MeasureChild(*child, {1.0e12, 1.0e12});
     }
     return Size{};
 }
@@ -561,9 +547,8 @@ Size Canvas::ArrangeOverride(Size finalSize) noexcept {
         } else if (std::isfinite(bottom)) {
             position.y = finalSize.height - bottom - desired.height;
         }
-        Base::Result<void> arranged = ArrangeChild(*child,
+        ArrangeChild(*child,
             {position.x, position.y, desired.width, desired.height});
-        if (!arranged) return finalSize;
     }
     return finalSize;
 }
@@ -895,8 +880,7 @@ Size Grid::MeasureOverride(
             childHeight = rowDef.value;
         }
 
-        Base::Result<void> measured = MeasureChild(*child, {childWidth, childHeight});
-        if (!measured) continue;
+        MeasureChild(*child, {childWidth, childHeight});
         const Size childDesired = child->GetDesiredSize();
         if (colDef.unit != GridUnitType::Pixel) {
             desiredColumns[column] = std::max(desiredColumns[column], childDesired.width);
@@ -957,8 +941,7 @@ Size Grid::MeasureOverride(
                 : Unconstrained;
         }
 
-        Base::Result<void> measured = MeasureChild(*child, {childWidth, childHeight});
-        if (!measured) continue;
+        MeasureChild(*child, {childWidth, childHeight});
         const Size childDesired = child->GetDesiredSize();
         if (colDef.unit != GridUnitType::Pixel) {
             desiredColumns[column] = std::max(desiredColumns[column], childDesired.width);
@@ -1049,8 +1032,7 @@ Size Grid::MeasureOverride(
             childHeight = Unconstrained;
         }
 
-        Base::Result<void> measured = MeasureChild(*child, {childWidth, childHeight});
-        if (!measured) continue;
+        MeasureChild(*child, {childWidth, childHeight});
         const Size childDesired = child->GetDesiredSize();
 
         // Distribute extra width among spanned columns
@@ -1233,9 +1215,8 @@ Size Grid::ArrangeOverride(Size finalSize) noexcept {
         if (isRtl) {
             x = finalSize.width - x - width;
         }
-        Base::Result<void> arranged = ArrangeChild(*child,
+        ArrangeChild(*child,
             {x, y, width, height});
-        if (!arranged) return finalSize;
     }
     return finalSize;
 }

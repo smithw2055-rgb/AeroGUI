@@ -651,9 +651,7 @@ void FrameworkElement::InvalidateVisual() noexcept {
     if (!access) {
         return;
     }
-    Base::Result<void> invalidated = (*this).InvalidateRenderDrawing();
-    AERO_ASSERT(invalidated);
-    (void)invalidated;
+    (*this).InvalidateRenderDrawing();
 }
 
 void FrameworkElement::OnRender(
@@ -1336,7 +1334,7 @@ Base::Result<void> RenderTree::Invalidate(
 
 namespace Aero {
 
-Base::Result<void>
+void
 Media::Visual::InvalidateRenderDrawing() noexcept {
     using Render::RenderInvalidation;
     using Render::RenderTree;
@@ -1345,14 +1343,17 @@ Media::Visual::InvalidateRenderDrawing() noexcept {
             static_cast<std::uint8_t>(
                 RenderInvalidation::Drawing);
         RenderValid() = false;
-        return {};
+        return;
     }
-    return ElementTree::RenderTreeOf(*this)->Invalidate(
-        *this,
-        RenderInvalidation::Drawing);
+    Base::Result<void> invalidated =
+        ElementTree::RenderTreeOf(*this)->Invalidate(
+            *this,
+            RenderInvalidation::Drawing);
+    AERO_ASSERT(invalidated);
+    (void)invalidated;
 }
 
-Base::Result<void>
+void
 Media::Visual::InvalidateRenderState() noexcept {
     using Render::RenderInvalidation;
     using Render::RenderTree;
@@ -1361,11 +1362,14 @@ Media::Visual::InvalidateRenderState() noexcept {
             static_cast<std::uint8_t>(
                 RenderInvalidation::State);
         RenderValid() = false;
-        return {};
+        return;
     }
-    return ElementTree::RenderTreeOf(*this)->Invalidate(
-        *this,
-        RenderInvalidation::State);
+    Base::Result<void> invalidated =
+        ElementTree::RenderTreeOf(*this)->Invalidate(
+            *this,
+            RenderInvalidation::State);
+    AERO_ASSERT(invalidated);
+    (void)invalidated;
 }
 
 void Controls::Image::SetRuntimeData(

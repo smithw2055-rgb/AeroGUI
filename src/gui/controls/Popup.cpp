@@ -195,9 +195,7 @@ Size Popup::MeasureOverride(
         return Size{};
     }
     constexpr double Unconstrained = 1.0e12;
-    Base::Result<void> measured =
-        MeasureChild(*popupChild, Size{Unconstrained, Unconstrained});
-    if (!measured) return Size{};
+    MeasureChild(*popupChild, Size{Unconstrained, Unconstrained});
     popupDesiredSize_ =
         popupChild->GetDesiredSize();
     // Popup content participates in rendering and input, but never consumes
@@ -452,16 +450,13 @@ Size Popup::ArrangeOverride(
             : GetContentElement();
     if (popupChild == nullptr) return finalSize;
     if (!GetIsOpen()) {
-        Base::Result<void> hidden =
-            ArrangeChild(*popupChild, {});
-        (void)hidden;
+        ArrangeChild(*popupChild, {});
         return finalSize;
     }
 
     const Rect slot = PlacePopupContent(*this, popupDesiredSize_, finalSize, GetPlacementTarget().Get(),
         GetPlacement(), GetHorizontalOffset(), GetVerticalOffset(), GetMatchPlacementTargetWidth());
-    Base::Result<void> arranged = ArrangeChild(*popupChild, slot);
-    (void)arranged;
+    ArrangeChild(*popupChild, slot);
     return finalSize;
 }
 
@@ -469,12 +464,12 @@ Size ToolTip::ArrangeOverride(Size finalSize) noexcept {
     UIElement* child = GetTemplateRoot() != nullptr ? GetTemplateRoot() : GetContentElement();
     if (child == nullptr) return finalSize;
     if (!GetIsOpen()) {
-        static_cast<void>(ArrangeChild(*child, {}));
+        ArrangeChild(*child, {});
         return finalSize;
     }
     const Rect slot = PlacePopupContent(*this, child->GetDesiredSize(), finalSize, GetPlacementTarget().Get(),
         GetPlacement(), GetHorizontalOffset(), GetVerticalOffset(), false);
-    static_cast<void>(ArrangeChild(*child, slot));
+    ArrangeChild(*child, slot);
     return finalSize;
 }
 

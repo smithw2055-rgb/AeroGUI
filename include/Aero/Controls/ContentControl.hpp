@@ -114,16 +114,15 @@ protected:
         if (GetTemplateRoot() != nullptr) { return Control::MeasureOverride(availableSize); }
         EnsureHostedContent();
         if (content_ == nullptr) { return Size{}; }
-        (void)MeasureChild(*content_, availableSize);
+        MeasureChild(*content_, availableSize);
         return content_->GetDesiredSize();
     }
     Size ArrangeOverride(Size finalSize) noexcept override {
         if (GetTemplateRoot() != nullptr) { return Control::ArrangeOverride(finalSize); }
         EnsureHostedContent();
         if (content_ == nullptr) return finalSize;
-        Result<void> arranged = ArrangeChild(
+        ArrangeChild(
             *content_, {0.0, 0.0, finalSize.width, finalSize.height});
-        if (!arranged) return finalSize;
         return finalSize;
     }
 

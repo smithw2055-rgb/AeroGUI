@@ -105,16 +105,14 @@ protected:
     }
     Size MeasureOverride(Size availableSize) noexcept override {
         if (templateChild_ == nullptr) return Size{};
-        Result<void> measured = MeasureChild(*templateChild_, availableSize);
-        if (!measured) return Size{};
+        MeasureChild(*templateChild_, availableSize);
         return templateChild_->GetDesiredSize();
     }
     Size ArrangeOverride(Size finalSize) noexcept override {
         if (templateChild_ == nullptr) return finalSize;
-        Result<void> arranged = ArrangeChild(
+        ArrangeChild(
             *templateChild_,
             {0.0, 0.0, finalSize.width, finalSize.height});
-        if (!arranged) return finalSize;
         return finalSize;
     }
     void OnRender(::Aero::Media::DrawingContext& context) noexcept override;

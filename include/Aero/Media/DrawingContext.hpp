@@ -23,23 +23,23 @@ public:
     // separate public companion type.
     struct Bridge;
 
-    Result<void> PushClip(Base::Rect clip) noexcept;
-    Result<void> PopClip() noexcept;
-    Result<void> PushOpacity(double opacity) noexcept;
-    Result<void> PopOpacity() noexcept;
-    Result<void> PushTransform(Base::Transform2D transform) noexcept;
-    Result<void> PopTransform() noexcept;
+    void PushClip(Base::Rect clip) noexcept;
+    void PopClip() noexcept;
+    void PushOpacity(double opacity) noexcept;
+    void PopOpacity() noexcept;
+    void PushTransform(Base::Transform2D transform) noexcept;
+    void PopTransform() noexcept;
 
-    Result<void> DrawRectangle(Base::Rect bounds, Base::Color color) noexcept;
-    Result<void> DrawRectangle(Base::Rect bounds, const Ref<Brush>& brush) noexcept;
-    Result<void> DrawRectangle(const Ref<Brush>& fill, const Ref<Brush>& stroke, Base::Rect bounds,
+    void DrawRectangle(Base::Rect bounds, Base::Color color) noexcept;
+    void DrawRectangle(Base::Rect bounds, const Ref<Brush>& brush) noexcept;
+    void DrawRectangle(const Ref<Brush>& fill, const Ref<Brush>& stroke, Base::Rect bounds,
         double strokeThickness = 1.0) noexcept;
-    Result<void> DrawRoundedRectangle(Base::Rect bounds, Base::Color color, double radius) noexcept;
-    Result<void> DrawRoundedRectangle(Base::Rect bounds, const Ref<Brush>& brush, double radius) noexcept;
-    Result<void> DrawRectangleOutline(Base::Rect bounds, Base::Color color, double thickness) noexcept;
-    Result<void> DrawRectangleOutline(Base::Rect bounds, const Ref<Brush>& brush, double thickness) noexcept;
-    Result<void> DrawLine(const Ref<Pen>& pen, Base::Point start, Base::Point end) noexcept;
-    Result<void> DrawGeometry(const Ref<Brush>& brush, const Ref<Pen>& pen, const Geometry& geometry) noexcept;
+    void DrawRoundedRectangle(Base::Rect bounds, Base::Color color, double radius) noexcept;
+    void DrawRoundedRectangle(Base::Rect bounds, const Ref<Brush>& brush, double radius) noexcept;
+    void DrawRectangleOutline(Base::Rect bounds, Base::Color color, double thickness) noexcept;
+    void DrawRectangleOutline(Base::Rect bounds, const Ref<Brush>& brush, double thickness) noexcept;
+    void DrawLine(const Ref<Pen>& pen, Base::Point start, Base::Point end) noexcept;
+    void DrawGeometry(const Ref<Brush>& brush, const Ref<Pen>& pen, const Geometry& geometry) noexcept;
 
 private:
     friend struct Bridge;

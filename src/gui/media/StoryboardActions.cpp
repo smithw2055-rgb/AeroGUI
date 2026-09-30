@@ -355,14 +355,14 @@ StoryboardHost::ExecuteAnimationAction(
         if (Metadata()->Types().IsDerivedFrom(
                 owner.RuntimeType(),
                 Controls::TextBox::StaticTypeId())) {
-            return static_cast<Controls::TextBox&>(owner)
-                .SelectAll();
+            static_cast<Controls::TextBox&>(owner).SelectAll();
+            return {};
         }
         if (Metadata()->Types().IsDerivedFrom(
                 owner.RuntimeType(),
                 Controls::PasswordBox::StaticTypeId())) {
-            return static_cast<Controls::PasswordBox&>(owner)
-                .SelectAll();
+            static_cast<Controls::PasswordBox&>(owner).SelectAll();
+            return {};
         }
         return Base::Status::Failure(
             Base::ErrorCode::Unsupported,

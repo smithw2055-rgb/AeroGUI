@@ -294,8 +294,7 @@ Size ScrollViewer::MeasureOverride(
     if (GetTemplateRoot() == nullptr) {
         EnsureFallbackPresenter();
         if (contentPresenter_ != nullptr) {
-            Base::Result<void> measured = MeasureChild(*contentPresenter_, availableSize);
-            if (!measured) return Size{};
+            MeasureChild(*contentPresenter_, availableSize);
             AdoptPresenterData(*contentPresenter_, contentPresenter_->GetData(), ScrollInputKind::Line);
             return contentPresenter_->GetDesiredSize();
         }
@@ -312,9 +311,8 @@ Size ScrollViewer::MeasureOverride(
 
 Size ScrollViewer::ArrangeOverride(Size finalSize) noexcept {
     if (GetTemplateRoot() == nullptr && contentPresenter_ != nullptr) {
-        Base::Result<void> arranged = ArrangeChild(
+        ArrangeChild(
             *contentPresenter_, {0.0, 0.0, finalSize.width, finalSize.height});
-        if (!arranged) return finalSize;
         return finalSize;
     }
     return ContentControl::ArrangeOverride(finalSize);

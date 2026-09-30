@@ -736,11 +736,7 @@ VirtualizingStackPanel::MeasureOverride(
         } else {
             childAvailable.width = LayoutInfinity;
         }
-        Base::Result<void> measured =
-            MeasureChild(*child, childAvailable);
-        if (!measured) {
-            return Size{};
-        }
+        MeasureChild(*child, childAvailable);
         const Size desired = child->GetDesiredSize();
         const double extent =
             orientation == Orientation::Vertical
@@ -821,11 +817,7 @@ VirtualizingStackPanel::ArrangeOverride(
                 std::max(
                     finalSize.height,
                     crossExtent_)};
-        Base::Result<void> arranged =
-            ArrangeChild(*child, slot);
-        if (!arranged) {
-            return finalSize;
-        }
+        ArrangeChild(*child, slot);
         ++localIndex;
     }
     return finalSize;
@@ -1127,8 +1119,7 @@ Size VirtualizingWrapPanel::MeasureOverride(Size availableSize) noexcept {
         GetItemHeight() > 0.0 ? GetItemHeight() : availableSize.height};
     for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
-        Base::Result<void> measured = MeasureChild(*child, childAvailable);
-        if (!measured) return Size{};
+        MeasureChild(*child, childAvailable);
         const Size desired = child->GetDesiredSize();
         const double childPrimary = horizontal
             ? (GetItemWidth() > 0.0 ? GetItemWidth() : desired.width)
@@ -1186,8 +1177,7 @@ Size VirtualizingWrapPanel::ArrangeOverride(Size finalSize) noexcept {
         const Rect slot = horizontal
             ? Rect{primary, cross + originCross, childPrimary, childCross}
             : Rect{cross + originCross, primary, childCross, childPrimary};
-        Base::Result<void> arranged = ArrangeChild(*child, slot);
-        if (!arranged) return finalSize;
+        ArrangeChild(*child, slot);
         primary += childPrimary;
         lineCross = std::max(lineCross, childCross);
     }

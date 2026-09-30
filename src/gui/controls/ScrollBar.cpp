@@ -245,9 +245,7 @@ Size Track::MeasureOverride(
     Size desired{};
     for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
-        Base::Result<void> measured =
-            MeasureChild(*child, availableSize);
-        if (!measured) return Size{};
+        MeasureChild(*child, availableSize);
         if (GetOrientation() == Orientation::Vertical) {
             desired.width = std::max(
                 desired.width,
@@ -296,13 +294,14 @@ Size Track::ArrangeOverride(
                              double extent) noexcept
         -> Base::Result<void> {
         if (child == nullptr) return {};
-        return ArrangeChild(
+        ArrangeChild(
             *child,
             vertical
                 ? Rect{0.0, offset,
                        finalSize.width, extent}
                 : Rect{offset, 0.0,
                        extent, finalSize.height});
+        return {};
     };
     // Arrange independently: a RepeatButton that is not yet a layout
     // child must not skip the Thumb (QuestLog's 3px gold indicator).

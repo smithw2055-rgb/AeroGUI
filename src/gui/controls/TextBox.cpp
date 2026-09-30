@@ -298,52 +298,49 @@ void TextBox::SetSelection(
     InvalidateVisual();
 }
 
-Base::Result<void> TextBox::SelectAll() noexcept {
+void TextBox::SelectAll() noexcept {
     if (compositionActive_) {
         Base::Result<void> cancelled =
             CancelCompositionForFocusLoss();
-        if (!cancelled) {
-            return cancelled;
-        }
+        AERO_ASSERT(cancelled);
+        (void)cancelled;
     }
     Base::Result<void> selected =
         Model(model_).SelectAll();
-    if (!selected) {
-        return selected;
-    }
+    AERO_ASSERT(selected);
+    (void)selected;
     EnsureCaretVisible();
     InvalidateVisual();
-    return {};
 }
 
-Base::Result<void> TextBox::Undo() noexcept {
+void TextBox::Undo() noexcept {
     if (compositionActive_) {
         Base::Result<void> cancelled =
             CancelCompositionForFocusLoss();
-        if (!cancelled) {
-            return cancelled;
-        }
+        AERO_ASSERT(cancelled);
+        (void)cancelled;
     }
     Base::Result<void> undone = Model(model_).Undo();
-    if (!undone) {
-        return undone;
-    }
-    return CommitModelText();
+    AERO_ASSERT(undone);
+    (void)undone;
+    Base::Result<void> committed = CommitModelText();
+    AERO_ASSERT(committed);
+    (void)committed;
 }
 
-Base::Result<void> TextBox::Redo() noexcept {
+void TextBox::Redo() noexcept {
     if (compositionActive_) {
         Base::Result<void> cancelled =
             CancelCompositionForFocusLoss();
-        if (!cancelled) {
-            return cancelled;
-        }
+        AERO_ASSERT(cancelled);
+        (void)cancelled;
     }
     Base::Result<void> redone = Model(model_).Redo();
-    if (!redone) {
-        return redone;
-    }
-    return CommitModelText();
+    AERO_ASSERT(redone);
+    (void)redone;
+    Base::Result<void> committed = CommitModelText();
+    AERO_ASSERT(committed);
+    (void)committed;
 }
 
 Base::Result<void> TextBox::AttachScrollViewer(
@@ -933,7 +930,8 @@ void TextBox::HandleEditorKeyDown(UIElement& owner, KeyEventArgs& args) {
     Base::Result<void> result;
     bool handled = true;
     if (control && args.GetKey() == KeyboardKeyA) {
-        result = SelectAll();
+        SelectAll();
+        result = {};
     } else if (control && args.GetKey() == KeyboardKeyC) {
         Input::IClipboard* clipboard = ElementTree::ClipboardOf(owner);
         if (clipboard != nullptr) {
@@ -950,9 +948,15 @@ void TextBox::HandleEditorKeyDown(UIElement& owner, KeyEventArgs& args) {
             result = Paste(*clipboard);
         }
     } else if (control && args.GetKey() == KeyboardKeyZ) {
-        result = shift ? Redo() : Undo();
+        if (shift) {
+            Redo();
+        } else {
+            Undo();
+        }
+        result = {};
     } else if (control && args.GetKey() == KeyboardKeyY) {
-        result = Redo();
+        Redo();
+        result = {};
     } else if (args.GetKey() == KeyboardKeyLeft) {
         result = MoveCaretHorizontal(-1.0, shift);
     } else if (args.GetKey() == KeyboardKeyRight) {

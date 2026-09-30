@@ -69,16 +69,14 @@ protected:
             if (!LayoutChildren().Empty()) { return Size{}; }
             return Size{};
         }
-        Result<void> measured = MeasureChild(*child, availableSize);
-        if (!measured) return Size{};
+        MeasureChild(*child, availableSize);
         return child->GetDesiredSize();
     }
     Size ArrangeOverride(Size finalSize) noexcept override {
         UIElement* child = GetChild();
         if (child == nullptr) return finalSize;
-        Result<void> arranged = ArrangeChild(
+        ArrangeChild(
             *child, {0.0, 0.0, finalSize.width, finalSize.height});
-        if (!arranged) return finalSize;
         return finalSize;
     }
 
@@ -159,13 +157,16 @@ protected:
     Size MeasureOverride(Size availableSize) noexcept override {
         Size bulletSize{};
         if (bullet_) {
-            if (MeasureChild(*bullet_, availableSize)) { bulletSize = bullet_->GetDesiredSize(); }
+            MeasureChild(*bullet_, availableSize);
+            bulletSize = bullet_->GetDesiredSize();
         }
         Size childSize{};
-        if (child_) { const Size childAvailable{
+        if (child_) {
+            const Size childAvailable{
                 std::max(0.0, availableSize.width - bulletSize.width),
                 availableSize.height};
-            if (MeasureChild(*child_, childAvailable)) { childSize = child_->GetDesiredSize(); }
+            MeasureChild(*child_, childAvailable);
+            childSize = child_->GetDesiredSize();
         }
         return {
             bulletSize.width + childSize.width,
@@ -177,12 +178,12 @@ protected:
         if (bullet_) { const Size desired = bullet_->GetDesiredSize();
             bulletWidth = std::min(finalSize.width, desired.width);
             const double y = std::max(0.0, (finalSize.height - desired.height) * 0.5);
-            (void)ArrangeChild(*bullet_, {
+            ArrangeChild(*bullet_, {
                 0.0, y, bulletWidth,
                 std::min(finalSize.height, desired.height)});
         }
         if (child_) {
-            (void)ArrangeChild(*child_, {
+            ArrangeChild(*child_, {
                 bulletWidth, 0.0,
                 std::max(0.0, finalSize.width - bulletWidth), finalSize.height});
         }
@@ -192,7 +193,7 @@ protected:
     void OnRender(Media::DrawingContext& context) noexcept override {
         const Ref<Media::Brush> background = GetBackground();
         if (background) {
-            (void)context.DrawRectangle({0.0, 0.0, GetRenderSize().width, GetRenderSize().height}, background);
+            context.DrawRectangle({0.0, 0.0, GetRenderSize().width, GetRenderSize().height}, background);
         }
     }
 

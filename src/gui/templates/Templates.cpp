@@ -1924,13 +1924,8 @@ Base::Result<void> FrameworkTemplateState::Materialize(
                     ContentPresenter::StaticTypeId())) {
                 continue;
             }
-            Base::Result<void> populated =
-                context.PopulateContentPresenter(
+            context.PopulateContentPresenter(
                     *static_cast<ContentPresenter*>(part.object));
-            if (!populated) {
-                context.Rollback();
-                return populated.GetStatus();
-            }
         }
     }
 
@@ -1949,14 +1944,9 @@ Base::Result<void> FrameworkTemplateState::Materialize(
                     ItemsPresenter::StaticTypeId())) {
                 continue;
             }
-            Base::Result<void> populated =
-                context.PopulateItemsPresenter(
+            context.PopulateItemsPresenter(
                     *static_cast<ItemsPresenter*>(part.object),
                     itemsControl.GetItemsPanel());
-            if (!populated) {
-                context.Rollback();
-                return populated.GetStatus();
-            }
         }
     }
     return {};

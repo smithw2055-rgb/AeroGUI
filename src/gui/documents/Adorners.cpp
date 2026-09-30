@@ -81,8 +81,7 @@ Size AdornerLayer::MeasureOverride(Size availableSize) noexcept {
     Size desired{};
     for (const Base::Ref<Adorner>& adorner : adorners_) {
         if (!adorner) continue;
-        Base::Result<void> measured = MeasureChild(*adorner, availableSize);
-        if (!measured) return Size{};
+        MeasureChild(*adorner, availableSize);
         const Size child = adorner->GetDesiredSize();
         desired.width = std::max(desired.width, child.width);
         desired.height = std::max(desired.height, child.height);
@@ -98,10 +97,9 @@ Size AdornerLayer::ArrangeOverride(Size finalSize) noexcept {
             origin = Point{adorned->GetLayoutSlot().x, adorned->GetLayoutSlot().y};
         }
         const Size size = adorner->GetDesiredSize();
-        Base::Result<void> arranged = ArrangeChild(
+        ArrangeChild(
             *adorner,
             Rect{origin.x, origin.y, size.width, size.height});
-        if (!arranged) return finalSize;
     }
     return finalSize;
 }
@@ -140,8 +138,7 @@ std::uint32_t AdornerDecorator::GetVisualChildrenCount() const noexcept {
 Size AdornerDecorator::MeasureOverride(Size availableSize) noexcept {
     Size desired = Controls::Decorator::MeasureOverride(availableSize);
     if (layer_) {
-        Base::Result<void> measured = MeasureChild(*layer_, availableSize);
-        if (!measured) return Size{};
+        MeasureChild(*layer_, availableSize);
         const Size layerSize = layer_->GetDesiredSize();
         desired.width = std::max(desired.width, layerSize.width);
         desired.height = std::max(desired.height, layerSize.height);
@@ -152,9 +149,8 @@ Size AdornerDecorator::MeasureOverride(Size availableSize) noexcept {
 Size AdornerDecorator::ArrangeOverride(Size finalSize) noexcept {
     static_cast<void>(Controls::Decorator::ArrangeOverride(finalSize));
     if (layer_) {
-        Base::Result<void> arranged = ArrangeChild(
+        ArrangeChild(
             *layer_, {0.0, 0.0, finalSize.width, finalSize.height});
-        if (!arranged) return finalSize;
     }
     return finalSize;
 }

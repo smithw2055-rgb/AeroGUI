@@ -144,8 +144,8 @@ void PasswordBox::SetSelection(
     (void)editor_.SetSelection(anchor, caret);
 }
 
-Base::Result<void> PasswordBox::SelectAll() noexcept {
-    return editor_.SelectAll();
+void PasswordBox::SelectAll() noexcept {
+    editor_.SelectAll();
 }
 
 void PasswordBox::SetInputMethodHost(

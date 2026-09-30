@@ -83,8 +83,8 @@ public:
     Base::Point PointFromScreen(Base::Point point) const noexcept;
     bool TryPointFromScreen(Base::Point point, Base::Point& local) const noexcept;
     Result<Ref<Base::Object>> AcquireLifetime() noexcept;
-    Base::Result<void> InvalidateRenderDrawing() noexcept;
-    Base::Result<void> InvalidateRenderState() noexcept;
+    void InvalidateRenderDrawing() noexcept;
+    void InvalidateRenderState() noexcept;
     FlagRef RenderAttached() noexcept { return {&visualFlags_, kFlagRenderAttached}; }
     FlagRef RenderValid() noexcept { return {&visualFlags_, kFlagRenderValid}; }
     FlagRef RenderQueued() noexcept { return {&visualFlags_, kFlagRenderQueued}; }
