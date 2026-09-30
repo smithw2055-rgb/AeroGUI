@@ -1,4 +1,5 @@
 #include "gui/ViewFrame.hpp"
+#include "gui/styles/ResourceResolver.hpp"
 #include "gui/GuiDetail.hpp"
 #include "gui/text/TextPipeline.hpp"
 #include "render/RenderTree.hpp"
@@ -831,7 +832,7 @@ Base::Result<void> ViewFrame::AttachItemGenerator(
         }
 
         Base::Result<Controls::ItemContainerGenerator*> created =
-            Controls::ItemContainerGenerator::Create(
+            Controls::ItemContainerGeneratorFactory::Create(
                 *tree,
                 *Layout(),
                 *values,

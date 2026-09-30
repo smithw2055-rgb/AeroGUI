@@ -1,4 +1,5 @@
 #include <Aero/Controls.hpp>
+#include "gui/controls/ItemContainerGeneratorFactory.hpp"
 #include <Aero/Controls/ItemsPresenter.hpp>
 #include <Aero/VisualTreeHelper.hpp>
 #include <Aero/Data/CollectionView.hpp>
@@ -1866,19 +1867,19 @@ void ItemContainerGenerator::HostHandleItemsChanged(
 
 } // namespace Aero::Controls
 
-namespace Aero {
+namespace Aero::Controls {
 
-Base::Result<Controls::ItemContainerGenerator*>
-Controls::ItemContainerGenerator::Create(
+Base::Result<ItemContainerGenerator*>
+ItemContainerGeneratorFactory::Create(
     ElementTree& tree,
     Aero::LayoutEngine& layout,
     Meta::EffectiveValueEngine& values,
     Aero::StyleEngine* styles,
     ::Aero::Render::RenderTree* renderer,
-    Controls::TemplateEngine* templates,
-    Controls::ItemSubtreeCallback subtreeCallback,
+    TemplateEngine* templates,
+    ItemSubtreeCallback subtreeCallback,
     void* subtreeContext) noexcept {
-    return Controls::ItemContainerGenerator::GeneratorState::Create(
+    return ItemContainerGenerator::GeneratorState::Create(
         tree,
         layout,
         values,
@@ -1889,4 +1890,4 @@ Controls::ItemContainerGenerator::Create(
         subtreeContext);
 }
 
-} // namespace Aero
+} // namespace Aero::Controls

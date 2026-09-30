@@ -32,6 +32,7 @@
 #include "gui/data/BindingEngine.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleEngine.hpp"
+#include "gui/controls/ItemContainerGeneratorFactory.hpp"
 // NOTE: <Aero/Controls.hpp> umbrella intentionally not included here.
 // Source-only text layout is gui/controls/TextBlockLayout.hpp above.
 

@@ -9,6 +9,7 @@
 #include <Aero/Base/Vector.hpp>
 #include <Aero/DependencyProperty.hpp>
 #include <Aero/Diagnostics.hpp>
+#include "gui/core/PropertyProviderSet.hpp"
 #include <Aero/Threading.hpp>
 
 #include <cstdint>

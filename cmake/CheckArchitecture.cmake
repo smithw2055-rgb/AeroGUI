@@ -1040,6 +1040,23 @@ aero_require_text(
     "include/Aero/FrameworkElement.hpp"
     "friend class FrameworkElementSeams;"
     "FrameworkElement must friend the src-only Seams bridge")
+aero_require_file("src/gui/styles/StyleSeams.hpp")
+aero_forbid_text(
+    "include/Aero/Style.hpp"
+    "SealStyle("
+    "Style free friends must not name SealStyle in the install header")
+aero_forbid_text(
+    "include/Aero/Style.hpp"
+    "StyleRuntimeSetters"
+    "Style free friends must not name StyleRuntimeSetters in the install header")
+aero_forbid_text(
+    "include/Aero/Style.hpp"
+    "StyleProviderSession"
+    "StyleProviderSession must not appear in installed Style.hpp")
+aero_require_text(
+    "include/Aero/Style.hpp"
+    "friend class StyleSeams;"
+    "Style must friend the src-only StyleSeams bridge")
 aero_require_text(
     "include/Aero/UIElement.hpp"
     "friend class PointerStateMachine;"
@@ -1796,7 +1813,6 @@ set(aero_result_void_permanent
 set(aero_result_void_transitional
     "include/Aero/Resources.hpp|Add"
     "include/Aero/Resources.hpp|AddMerged"
-    "include/Aero/Style.hpp|ClearStyleSetters"
     "include/Aero/View.hpp|SetContent"
     "include/Aero/View.hpp|SetViewport")
 foreach(aero_public_hpp_file IN LISTS aero_public_hpp)
@@ -2459,6 +2475,28 @@ aero_require_text(
     "struct LayoutHot"
     "Layout hot state must live on UIElement, not a facet bag")
 aero_forbid_text(
+    "include/Aero/Controls/ItemContainerGenerator.hpp"
+    "static Base::Result<ItemContainerGenerator*> Create("
+    "ItemContainerGenerator::Create with engine refs must not be public")
+aero_forbid_text(
+    "include/Aero/Controls/ItemContainerGenerator.hpp"
+    "class ElementTree;"
+    "ElementTree fwd must not leak through public ItemContainerGenerator.hpp")
+aero_require_file("src/gui/controls/ItemContainerGeneratorFactory.hpp")
+aero_require_text(
+    "include/Aero/Controls/ItemContainerGenerator.hpp"
+    "friend class ItemContainerGeneratorFactory;"
+    "ItemContainerGenerator must friend the src-only factory")
+aero_forbid_text(
+    "include/Aero/Resources.hpp"
+    "class AERO_GUI_API ResourceResolver"
+    "Aero::ResourceResolver must live in src, not Resources.hpp")
+aero_require_file("src/gui/styles/ResourceResolver.hpp")
+aero_require_text(
+    "include/Aero/Markup/ServiceProvider.hpp"
+    "class AERO_GUI_API ResourceResolver"
+    "Markup::ResourceResolver must remain the public markup service")
+aero_forbid_text(
     "include/Aero/UIElement.hpp"
     "ElementFacet"
     "Installed UIElement.hpp must not advertise element facet APIs")
@@ -2819,10 +2857,27 @@ aero_require_text(
     "include/Aero/Diagnostics.hpp"
     "enum class EffectiveValueSource"
     "Diagnostics.hpp must own EffectiveValueSource after the Diagnostics/ merge")
-aero_require_text(
+aero_forbid_text(
     "include/Aero/Diagnostics.hpp"
     "class PropertyProviderSet"
-    "Diagnostics.hpp must own PropertyProviderSet after the Diagnostics/ merge")
+    "PropertyProviderSet must live in src/gui/core/PropertyProviderSet.hpp")
+aero_require_file("src/gui/core/PropertyProviderSet.hpp")
+aero_require_text(
+    "src/gui/core/PropertyProviderSet.hpp"
+    "class PropertyProviderSet"
+    "PropertyProviderSet storage must live next to PropertyStore")
+aero_require_text(
+    "include/Aero/Diagnostics.hpp"
+    "struct PropertyValueSourceInfo"
+    "Diagnostics.hpp must keep PropertyValueSourceInfo public")
+aero_require_text(
+    "include/Aero/Diagnostics.hpp"
+    "struct PropertyProviderToken"
+    "Diagnostics.hpp must keep PropertyProviderToken public")
+aero_require_text(
+    "include/Aero/Diagnostics.hpp"
+    "struct PropertyExpression"
+    "Diagnostics.hpp must keep PropertyExpression public")
 aero_require_text(
     "include/Aero/Diagnostics.hpp"
     "struct LayoutDiagnostics"

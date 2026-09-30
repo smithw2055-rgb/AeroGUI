@@ -82,7 +82,7 @@ provider 与 tokenizer 都不执行网络访问。
 
 ## 资源系统
 
-`NameScope`、`ResourceKey`、`ResourceDictionary` 和 `ResourceResolver`
+`NameScope`、`ResourceKey`、`ResourceDictionary` 和 src-only `Aero::ResourceResolver`（`Markup::ResourceResolver` 仍为公开）
 属于 UI/Base 资源模型。字典值统一为 `Base::Value`，键支持字符串和 `TypeId`。
 
 字典内部查找顺序为：

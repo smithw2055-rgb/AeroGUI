@@ -3,36 +3,13 @@
 #include <Aero/Controls/ItemsControl.hpp>
 
 
-namespace Aero {
-class ElementTree;
-class LayoutEngine;
-class StyleEngine;
-namespace Meta { class EffectiveValueEngine; }
-namespace Render { class RenderTree; }
-}
 namespace Aero::Controls {
 
 class VirtualizingPanel;
-class TemplateEngine;
-enum class ItemSubtreeChange : std::uint8_t { Mounted = 0U, Unmounting };
-using ItemSubtreeCallback = Base::Result<void> (*)(
-    ::Aero::Media::Visual& root,
-    ItemSubtreeChange change,
-    void* context) noexcept;
 
 class AERO_GUI_API ItemContainerGenerator {
 public:
-
     ~ItemContainerGenerator() noexcept;
-    static Base::Result<ItemContainerGenerator*> Create(
-        ::Aero::ElementTree& tree,
-        ::Aero::LayoutEngine& layout,
-        ::Aero::Meta::EffectiveValueEngine& values,
-        ::Aero::StyleEngine* styles,
-        ::Aero::Render::RenderTree* renderer,
-        TemplateEngine* templates,
-        ItemSubtreeCallback callback,
-        void* context) noexcept;
     ItemContainerGenerator(const ItemContainerGenerator&) = delete;
     ItemContainerGenerator& operator=(const ItemContainerGenerator&) = delete;
 
@@ -51,10 +28,10 @@ public:
     Ref<Base::Object> ItemFromContainer(const FrameworkElement& container) const noexcept;
     Base::Status LastError() const noexcept;
 
-    struct GeneratorState;
-
 private:
+    struct GeneratorState;
     friend struct GeneratorState;
+    friend class ItemContainerGeneratorFactory;
 
     ItemContainerGenerator() noexcept = default;
     GeneratorState* state_ = nullptr;

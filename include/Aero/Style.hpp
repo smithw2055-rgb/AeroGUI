@@ -101,7 +101,7 @@ private:
     Span<const Ref<TriggerBase>> GetAuthoredTriggers() const noexcept {
         return {authoredTriggerObjects_.Data(), authoredTriggerObjects_.Size()};
     }
-    // Compiled by SealStyle / markup finalize; not a public authoring API.
+    // Compiled by StyleSeams::Seal / markup finalize; not a public authoring API.
     Result<void> Seal(const Meta::DependencyPropertyRegistry& properties) noexcept;
     // WPF-parity no-arg hook. Called at the end of Seal(); override to
     // validate without touching DependencyPropertyRegistry internals.
@@ -114,13 +114,7 @@ private:
     friend class TriggerCollection;
     friend class Markup::XamlStyleSchemaFacet;
     friend class StoryboardHost;
-    friend Result<void> SealStyle(Style& style, const Meta::DependencyPropertyRegistry& properties) noexcept;
-    friend Span<const struct StyleSetter> StyleRuntimeSetters(const Style& style) noexcept;
-    friend Span<const struct TriggerPlan> StyleRuntimeTriggers(const Style& style) noexcept;
-    friend Result<void> ApplyStyleSetters(const Style& style, DependencyObject& object,
-        class StyleProviderSession& values) noexcept;
-    friend Result<void> ClearStyleSetters(const Style& style, DependencyObject& object,
-        class StyleProviderSession& values) noexcept;
+    friend class StyleSeams;
 
     TypeId runtimeType_ = StaticTypeId();
     TypeId targetType_ = InvalidTypeId;

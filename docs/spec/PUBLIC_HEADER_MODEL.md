@@ -93,13 +93,16 @@ Command and navigation objects (`ICommand`, `RoutedCommand`, `KeyBinding`,
 spine does not compile the command object model.
 
 Installed spine headers keep include-closure deliberate: diagnostics types
-(`SourceSpan`, `EffectiveValueSource`, `PropertyProviderSet`, layout/render
-stats) live in the single `<Aero/Diagnostics.hpp>` umbrella — there is no
-`include/Aero/Diagnostics/` directory. `DependencyProperty.hpp` and
-`Resources.hpp` include that umbrella; `HashMap` stays in internal headers;
-`DependencyObject.hpp` must not include `Threading.hpp`.
-`CheckArchitecture.cmake` budgets public include-closure line counts for
-`Controls/Button.hpp`, `Controls/TextBlock.hpp`, and `Controls/Panel.hpp`.
+(`SourceSpan`, `EffectiveValueSource`, `PropertyExpression`,
+`PropertyProviderToken`, `PropertyValueSourceInfo`, layout/render stats) live
+in the single `<Aero/Diagnostics.hpp>` umbrella — there is no
+`include/Aero/Diagnostics/` directory. Token-scoped `PropertyProviderSet`
+storage and origin allocation stay under `src/gui/core` next to PropertyStore.
+`DependencyProperty.hpp` and `Resources.hpp` include that umbrella; `HashMap`
+stays in internal headers; `DependencyObject.hpp` must not include
+`Threading.hpp`. `CheckArchitecture.cmake` budgets public include-closure
+line counts for `Controls/Button.hpp`, `Controls/TextBlock.hpp`, and
+`Controls/Panel.hpp`.
 
 Media is a specialist surface made up of family headers such as
 `Media/Brushes.hpp`, `Media/Effects.hpp`, `Media/Fonts.hpp`,
@@ -155,7 +158,9 @@ private and live under `src/`:
 
 - object-tree and mount transactions;
 - layout, input, binding, style and template runtime coordination;
-- effective-value provider sessions;
+- effective-value provider sessions and PropertyProviderSet storage;
+- style seal/runtime seams (`StyleSeams`) and Aero::ResourceResolver lookup;
+- ItemContainerGenerator engine factory;
 - XAML facets and frozen runtime plans;
 - display lists, render commands, GPU resource identifiers and backend state;
 - native Win32/X11 window, clipboard and IME implementations;

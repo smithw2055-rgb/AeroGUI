@@ -7,6 +7,7 @@
 #include <Aero/Base/Vector.hpp>
 #include "gui/core/DispatcherReentrancyGuard.hpp"
 #include <Aero/Diagnostics.hpp>
+#include "gui/core/PropertyProviderSet.hpp"
 #include <Aero/DependencyProperty.hpp>
 #include "gui/core/PropertySlab.hpp"
 

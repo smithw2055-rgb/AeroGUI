@@ -276,33 +276,6 @@ public:
     void SetTransform3D(Ref<Media::Transform3D> value) noexcept;
     void SetRenderTransformOrigin(Point value) noexcept;
 
-    struct LayoutHot {
-        Size desiredSize{};
-        Size untransformedDesiredSize{};
-        Size renderSize{};
-        Size previousMeasureConstraint{};
-        Rect layoutSlot{};
-        Rect layoutClip{};
-        std::uint64_t layoutRevision = 0U;
-        bool layoutAttached : 1;
-        bool measureValid : 1;
-        bool arrangeValid : 1;
-        bool measureQueued : 1;
-        bool arrangeQueued : 1;
-        bool measuring : 1;
-        bool arranging : 1;
-        // Cached from the dependency properties so measure and hit-testing
-        // do not look them up again.
-        double opacity = 1.0;
-        Visibility visibility = Visibility::Visible;
-    };
-
-    struct Rare {
-        void* routedHandlers = nullptr;
-        void* inputBindings = nullptr;
-        void* commandBindings = nullptr;
-    };
-
     // Most-derived handler for one routed event. New input events register
     // here instead of adding a virtual. Built-in controls do the same.
     using ClassHandler = void (*)(UIElement& element, RoutedEventArgs& args) noexcept;
@@ -357,6 +330,33 @@ class EventRouter;
     friend class UIElementChildRange;
     friend class UIElementChildRange::Iterator;
     friend class Aero::Input::RoutedCommand;
+
+    struct LayoutHot {
+        Size desiredSize{};
+        Size untransformedDesiredSize{};
+        Size renderSize{};
+        Size previousMeasureConstraint{};
+        Rect layoutSlot{};
+        Rect layoutClip{};
+        std::uint64_t layoutRevision = 0U;
+        bool layoutAttached : 1;
+        bool measureValid : 1;
+        bool arrangeValid : 1;
+        bool measureQueued : 1;
+        bool arrangeQueued : 1;
+        bool measuring : 1;
+        bool arranging : 1;
+        // Cached from the dependency properties so measure and hit-testing
+        // do not look them up again.
+        double opacity = 1.0;
+        Visibility visibility = Visibility::Visible;
+    };
+
+    struct Rare {
+        void* routedHandlers = nullptr;
+        void* inputBindings = nullptr;
+        void* commandBindings = nullptr;
+    };
 
     LayoutHot& Layout() noexcept { return layout_; }
     const LayoutHot& Layout() const noexcept { return layout_; }

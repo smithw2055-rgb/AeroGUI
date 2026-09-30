@@ -1,4 +1,5 @@
 #include <Aero/Resources.hpp>
+#include "gui/styles/ResourceResolver.hpp"
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Vector.hpp>

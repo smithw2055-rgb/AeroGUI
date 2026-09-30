@@ -3,6 +3,7 @@
 #include "gui/core/FrameworkElementSeams.hpp"
 #include <Aero/Data/BindingOperations.hpp>
 #include "gui/styles/StyleEngine.hpp"
+#include "gui/styles/ResourceResolver.hpp"
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Allocator.hpp>

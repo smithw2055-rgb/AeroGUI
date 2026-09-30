@@ -201,16 +201,4 @@ struct ResourceEnvironment { const ResourceDictionary* application = nullptr;
     const ResourceDictionary* theme = nullptr;
     const ResourceDictionary* system = nullptr;
 };
-
-class AERO_GUI_API ResourceResolver {
-public:
-    static Result<ResourceValue> Lookup(const FrameworkElement* element,
-        const ResourceKey& key, const ResourceDictionary* templateResources,
-        const ResourceEnvironment& environment) noexcept;
-    static Result<ResourceValue> Lookup(const FrameworkElement* element,
-        StringView key, const ResourceDictionary* templateResources, const ResourceEnvironment& environment) noexcept;
-    static Result<ResourceValue> Lookup(const FrameworkElement* element,
-        Meta::TypeId key, const ResourceDictionary* templateResources, const ResourceEnvironment& environment) noexcept;
-};
-
 } // namespace Aero
