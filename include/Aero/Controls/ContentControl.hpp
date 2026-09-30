@@ -54,6 +54,32 @@ public:
     }
     UIElement* GetContentElement() const noexcept { return content_; }
 
+    const Ref<Base::Object>& OwnedContent() const noexcept { return ownedContent_; }
+    const Ref<Base::Object>& ContentValue() const noexcept { return contentValue_; }
+    void SetOwnedContent(const Ref<Base::Object>& contentObject, UIElement& content) noexcept {
+        if (!contentObject || contentObject.Get() != &content) { return; }
+        Result<void> access = VerifyAccess();
+        if (!access) { return; }
+        Result<void> valid = ValidateContent(&content);
+        if (!valid) { return; }
+        StoreContentProperty(Value::FromObject(contentObject->RuntimeType(), contentObject));
+        content_ = &content;
+        ownedContent_ = contentObject;
+        contentValue_ = contentObject;
+        literalTextContent_ = false;
+        return;
+    }
+    // Stores arbitrary business content without exposing it as a visual.
+    // A matching ContentTemplate can materialize it through
+    // CreateTemplatedContent(); the UIElement overloads remain the
+    // source-compatible direct-content path.
+    void SetContentValue(Ref<Base::Object> value) noexcept;
+    void SetContentValue(Value value) noexcept;
+    static void OnContentPropertyChanged(::Aero::DependencyObject& object,
+        const Meta::DependencyPropertyChangedEventArgs& change) noexcept;
+    Result<Ref<Base::Object>> CreateTemplatedContent() const noexcept;
+    void SetGeneratedTextContent(const Ref<Base::Object>& contentObject, UIElement& content) noexcept;
+
 protected:
     virtual void OnContentChanged(const Value& oldContent, const Value& newContent);
     virtual void OnContentTemplateChanged(const Ref<Base::Object>& oldContentTemplate,
@@ -98,32 +124,7 @@ protected:
         if (!arranged) return finalSize;
         return finalSize;
     }
-public:
-    const Ref<Base::Object>& OwnedContent() const noexcept { return ownedContent_; }
-    const Ref<Base::Object>& ContentValue() const noexcept { return contentValue_; }
-    void SetOwnedContent(const Ref<Base::Object>& contentObject, UIElement& content) noexcept {
-        if (!contentObject || contentObject.Get() != &content) { return; }
-        Result<void> access = VerifyAccess();
-        if (!access) { return; }
-        Result<void> valid = ValidateContent(&content);
-        if (!valid) { return; }
-        StoreContentProperty(Value::FromObject(contentObject->RuntimeType(), contentObject));
-        content_ = &content;
-        ownedContent_ = contentObject;
-        contentValue_ = contentObject;
-        literalTextContent_ = false;
-        return;
-    }
-    // Stores arbitrary business content without exposing it as a visual.
-    // A matching ContentTemplate can materialize it through
-    // CreateTemplatedContent(); the UIElement overloads remain the
-    // source-compatible direct-content path.
-    void SetContentValue(Ref<Base::Object> value) noexcept;
-    void SetContentValue(Value value) noexcept;
-    static void OnContentPropertyChanged(::Aero::DependencyObject& object,
-        const Meta::DependencyPropertyChangedEventArgs& change) noexcept;
-    Result<Ref<Base::Object>> CreateTemplatedContent() const noexcept;
-    void SetGeneratedTextContent(const Ref<Base::Object>& contentObject, UIElement& content) noexcept;
+
 private:
     UIElement* content_ = nullptr;
     Ref<Base::Object> ownedContent_;

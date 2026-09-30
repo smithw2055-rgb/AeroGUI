@@ -44,15 +44,16 @@ public:
     Ref<Transform> GetTransform() const noexcept { return transform_; }
     void SetTransform(Ref<Transform> value) noexcept;
     AERO_DEPENDENCY_PROPERTY(Ref<Transform>, Transform);
-private:
-    void OnTransformChanged(Freezable&) noexcept;
-    Ref<Transform> transform_;
-    FreezableChangedHandler transformChangedHandler_;
 
 protected:
     explicit Geometry(Meta::TypeId runtimeType) noexcept : Animatable(runtimeType) {}
     virtual void FlattenCore(FlattenSink& sink) const noexcept;
     bool FreezeCore(bool isChecking) noexcept override;
+
+private:
+    void OnTransformChanged(Freezable&) noexcept;
+    Ref<Transform> transform_;
+    FreezableChangedHandler transformChangedHandler_;
 };
 
 class AERO_GUI_API PathSegment : public Animatable {

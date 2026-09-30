@@ -34,6 +34,21 @@ public:
         if (child == nullptr) ownedChild_.Reset();
         return;
     }
+    const Ref<Base::Object>& OwnedChild() const noexcept { return ownedChild_; }
+    void SetOwnedChild(const Ref<Base::Object>& childObject, UIElement& child) noexcept {
+        if (!childObject || childObject.Get() != &child) { return; }
+        Result<void> access = VerifyAccess();
+        if (!access) return;
+        Result<void> valid = ValidateChild(&child);
+        if (!valid) return;
+        if (child_ == &child) return;
+        if (child_ != nullptr && child_->GetVisualParent() == this) { RemoveVisualChild(child_); }
+        child_ = &child;
+        ownedChild_ = childObject;
+        if (child_->GetVisualParent() == nullptr) { AddVisualChild(child_); }
+        return;
+    }
+
 protected:
     explicit Decorator(TypeId runtimeType) noexcept : FrameworkElement(runtimeType) {}
     std::uint32_t GetVisualChildrenCount() const noexcept override {
@@ -61,21 +76,7 @@ protected:
         if (!arranged) return finalSize;
         return finalSize;
     }
-public:
-    const Ref<Base::Object>& OwnedChild() const noexcept { return ownedChild_; }
-    void SetOwnedChild(const Ref<Base::Object>& childObject, UIElement& child) noexcept {
-        if (!childObject || childObject.Get() != &child) { return; }
-        Result<void> access = VerifyAccess();
-        if (!access) return;
-        Result<void> valid = ValidateChild(&child);
-        if (!valid) return;
-        if (child_ == &child) return;
-        if (child_ != nullptr && child_->GetVisualParent() == this) { RemoveVisualChild(child_); }
-        child_ = &child;
-        ownedChild_ = childObject;
-        if (child_->GetVisualParent() == nullptr) { AddVisualChild(child_); }
-        return;
-    }
+
 private:
     UIElement* child_ = nullptr;
     Ref<Base::Object> ownedChild_;

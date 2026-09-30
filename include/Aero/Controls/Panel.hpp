@@ -39,6 +39,14 @@ public:
     AERO_ATTACHED_PROPERTY(std::int32_t, ZIndex);
     UIElementCollection& GetChildren() noexcept { return children_; }
     const UIElementCollection& GetChildren() const noexcept { return children_; }
+    std::uint32_t ChildCountCore() const noexcept { return ownedChildren_.Size(); }
+    Ref<Base::Object> ChildAtCore(std::uint32_t index) const noexcept {
+        return index < ownedChildren_.Size() ? ownedChildren_[index] : Ref<Base::Object>{};
+    }
+    void AddChildCore(const Ref<Base::Object>& childObject, UIElement& child) noexcept;
+    Result<bool> RemoveChildCore(UIElement& child) noexcept;
+    void ClearChildrenCore() noexcept;
+
 protected:
     explicit Panel(TypeId runtimeType) noexcept : FrameworkElement(runtimeType), children_(*this), ownedChildren_() {}
     ~Panel() override = default;
@@ -47,14 +55,7 @@ protected:
     std::uint32_t GetLayoutChildrenCount() const noexcept override;
     UIElement* GetLayoutChild(std::uint32_t index) const noexcept override;
     void OnRender(::Aero::Media::DrawingContext& context) noexcept override;
-public:
-    std::uint32_t ChildCountCore() const noexcept { return ownedChildren_.Size(); }
-    Ref<Base::Object> ChildAtCore(std::uint32_t index) const noexcept {
-        return index < ownedChildren_.Size() ? ownedChildren_[index] : Ref<Base::Object>{};
-    }
-    void AddChildCore(const Ref<Base::Object>& childObject, UIElement& child) noexcept;
-    Result<bool> RemoveChildCore(UIElement& child) noexcept;
-    void ClearChildrenCore() noexcept;
+
 private:
     friend class UIElementCollection;
     UIElementCollection children_;

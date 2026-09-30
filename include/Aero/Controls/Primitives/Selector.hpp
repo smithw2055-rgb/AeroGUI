@@ -70,6 +70,8 @@ public:
     inline static constexpr RoutedEvent<RoutedEventArgs> SelectionChangedRoutedEvent{"SelectionChanged"};
     UIElement::Event<RoutedEventArgs> SelectionChanged() noexcept { return GetEvent(SelectionChangedRoutedEvent); }
 
+    void SyncContainers() noexcept;
+
 protected:
     explicit Selector(TypeId runtimeType) noexcept;
     Result<void> PrepareContainerForItemOverride(FrameworkElement& container, const Ref<Base::Object>& item,
@@ -84,8 +86,6 @@ protected:
     virtual void OnSelectionChanged(const SelectionChangedEvent& event);
     void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
 
-public:
-    void SyncContainers() noexcept;
 private:
     Base::Vector<std::uint32_t> selectedIndices_;
     std::uint32_t primaryIndex_ = UINT32_MAX;

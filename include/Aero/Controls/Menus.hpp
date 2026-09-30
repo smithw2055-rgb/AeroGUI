@@ -55,13 +55,13 @@ public:
     AERO_DEPENDENCY_PROPERTY(Value, Icon);
     inline static constexpr RoutedEvent<RoutedEventArgs> ClickEvent{"Click"};
 
+    void SetHighlightedState(bool value) noexcept;
+
 protected:
     void OnApplyTemplate() noexcept override;
     void OnTemplateDetached() noexcept override;
     void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
 
-public:
-    void SetHighlightedState(bool value) noexcept;
 private:
     TextBlock* gestureText_ = nullptr;
     TextBlock* checkGlyph_ = nullptr;

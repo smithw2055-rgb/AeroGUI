@@ -111,6 +111,14 @@ public:
     AERO_DEPENDENCY_PROPERTY(Ref<ItemsPanelTemplate>, ItemsPanel);
     AERO_DEPENDENCY_PROPERTY(Ref<Style>, ItemContainerStyle);
 
+    void SetItemsSourceCore(Collections::IItemsSource* source) noexcept;
+    void AssignItemsSource(Ref<Base::Object> source) noexcept;
+    void SetItemTemplateCore(const DataTemplate* value) noexcept;
+    void SetItemTemplateSelectorCore(const DataTemplateSelector* value) noexcept;
+    void SetItemsPanelCore(const ItemsPanelTemplate* value) noexcept;
+    void SetItemContainerStyleCore(const Style* value) noexcept;
+    void PublishReset() noexcept;
+
 protected:
     explicit ItemsControl(TypeId runtimeType) noexcept;
     ItemContainerGenerator* AttachedGenerator() const noexcept { return generator_; }
@@ -133,15 +141,6 @@ protected:
     void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
     Size MeasureOverride(Size availableSize) noexcept override;
     bool EnsureDefaultItemsPresenter() noexcept;
-
-public:
-    void SetItemsSourceCore(Collections::IItemsSource* source) noexcept;
-    void AssignItemsSource(Ref<Base::Object> source) noexcept;
-    void SetItemTemplateCore(const DataTemplate* value) noexcept;
-    void SetItemTemplateSelectorCore(const DataTemplateSelector* value) noexcept;
-    void SetItemsPanelCore(const ItemsPanelTemplate* value) noexcept;
-    void SetItemContainerStyleCore(const Style* value) noexcept;
-    void PublishReset() noexcept;
 
 private:
     friend class ItemContainerGenerator;

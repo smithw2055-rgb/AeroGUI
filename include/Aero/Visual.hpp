@@ -22,7 +22,6 @@ class VisualTreeHelper;
 class AERO_GUI_API Visual : public ::Aero::DependencyObject {
     AERO_DECLARE_TYPE(Visual, ::Aero::DependencyObject)
 public:
-
     explicit Visual(::Aero::Meta::TypeId runtimeType) noexcept;
     ~Visual() override;
 
@@ -38,26 +37,6 @@ public:
     Base::Point PointFromScreen(Base::Point point) const noexcept;
     bool TryPointFromScreen(Base::Point point, Base::Point& local) const noexcept;
 
-protected:
-    virtual std::uint32_t GetVisualChildrenCount() const noexcept { return 0U; }
-    virtual Visual* GetVisualChild(std::uint32_t) const noexcept { return nullptr; }
-    // WPF-friendly hit-test extension point. Default walks visual children;
-    // custom Visuals override to participate without going through UIElement.
-    virtual bool HitTestCore(Base::Point point) const noexcept {
-        static_cast<void>(point);
-        return false;
-    }
-
-    void AddVisualChild(Visual* child) noexcept;
-    void RemoveVisualChild(Visual* child) noexcept;
-
-    virtual void OnVisualParentChanged(Visual* oldParent) noexcept { static_cast<void>(oldParent); }
-    virtual void OnVisualChildrenChanged(Visual* visualAdded, Visual* visualRemoved) noexcept {
-        static_cast<void>(visualAdded);
-        static_cast<void>(visualRemoved);
-    }
-
-public:
     Result<Ref<Base::Object>> AcquireLifetime() noexcept;
     Base::RenderNodeId& NodeId() noexcept { return renderNodeId_; }
     std::uint8_t& RenderDirtyFlags() noexcept { return renderDirtyFlags_; }
@@ -116,6 +95,25 @@ public:
         std::uint32_t count_ = 0U;
     };
     RenderChildRange RenderChildren() const noexcept { return RenderChildRange(*this); }
+
+protected:
+    virtual std::uint32_t GetVisualChildrenCount() const noexcept { return 0U; }
+    virtual Visual* GetVisualChild(std::uint32_t) const noexcept { return nullptr; }
+    // WPF-friendly hit-test extension point. Default walks visual children;
+    // custom Visuals override to participate without going through UIElement.
+    virtual bool HitTestCore(Base::Point point) const noexcept {
+        static_cast<void>(point);
+        return false;
+    }
+
+    void AddVisualChild(Visual* child) noexcept;
+    void RemoveVisualChild(Visual* child) noexcept;
+
+    virtual void OnVisualParentChanged(Visual* oldParent) noexcept { static_cast<void>(oldParent); }
+    virtual void OnVisualChildrenChanged(Visual* visualAdded, Visual* visualRemoved) noexcept {
+        static_cast<void>(visualAdded);
+        static_cast<void>(visualRemoved);
+    }
 
 private:
     friend class ::Aero::LogicalTreeHelper;

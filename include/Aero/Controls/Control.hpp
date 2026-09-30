@@ -64,6 +64,26 @@ public:
     UIElement* GetTemplateRoot() const noexcept { return templateChild_; }
     virtual void OnApplyTemplate() noexcept { return; }
 
+    bool IsTemplateApplied() const noexcept { return templateHandleValue_ != 0U; }
+    void SetTemplateChildCore(UIElement* child) noexcept {
+        if (child != nullptr && child->LayoutParent() != this) { return; }
+        if (templateChild_ != nullptr && child != nullptr && templateChild_ != child) { return; }
+        templateChild_ = child;
+        return;
+    }
+
+    void NotifyTemplateApplied(std::uint64_t handleValue) noexcept {
+        templateHandleValue_ = handleValue;
+        ++templateGeneration_;
+    }
+    void NotifyTemplateDetached() noexcept {
+        if (templateHandleValue_ != 0U) {
+            OnTemplateDetached();
+            templateHandleValue_ = 0U;
+            ++templateGeneration_;
+        }
+    }
+
 protected:
     DependencyObject* GetTemplateChild(StringView name) const noexcept;
     DependencyObject* GetTemplateChild(TypeId type) const noexcept;
@@ -96,26 +116,7 @@ protected:
         return finalSize;
     }
     void OnRender(::Aero::Media::DrawingContext& context) noexcept override;
-public:
-    bool IsTemplateApplied() const noexcept { return templateHandleValue_ != 0U; }
-    void SetTemplateChildCore(UIElement* child) noexcept {
-        if (child != nullptr && child->LayoutParent() != this) { return; }
-        if (templateChild_ != nullptr && child != nullptr && templateChild_ != child) { return; }
-        templateChild_ = child;
-        return;
-    }
 
-    void NotifyTemplateApplied(std::uint64_t handleValue) noexcept {
-        templateHandleValue_ = handleValue;
-        ++templateGeneration_;
-    }
-    void NotifyTemplateDetached() noexcept {
-        if (templateHandleValue_ != 0U) {
-            OnTemplateDetached();
-            templateHandleValue_ = 0U;
-            ++templateGeneration_;
-        }
-    }
 private:
     friend class ::Aero::VisualStateManager;
     UIElement* templateChild_ = nullptr;

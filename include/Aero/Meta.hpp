@@ -184,6 +184,11 @@ class Registry;
 // against this object; mutable tables and registration storage stay private to
 // Registry.
 class AERO_GUI_API Registration {
+public:
+    // True once this session has already registered the type. Builtin
+    // modules use it to register a base before its derived types.
+    bool ContainsType(TypeId type) const noexcept;
+
 private:
     friend class Registry;
     template<class T> friend class TypeBuilder;
@@ -198,11 +203,6 @@ private:
     DependencyPropertyRegistry& DependencyProperties() noexcept;
 
     void* state_ = nullptr;
-
-public:
-    // True once this session has already registered the type. Builtin
-    // modules use it to register a base before its derived types.
-    bool ContainsType(TypeId type) const noexcept;
 };
 
 
