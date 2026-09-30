@@ -426,67 +426,15 @@ void ClearInteractionTriggers(
 } // namespace
 } // namespace Aero::MetadataSupport
 
-AERO_DESCRIBE(::Aero::Interactivity::TriggerAction) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Media::Animation;
-    using namespace Interactivity;
-    using Media::Animation::ColorAnimation;
-    using Media::Animation::ColorKeyFrame;
-    using Media::Animation::DoubleAnimation;
-    using Media::Animation::DoubleKeyFrame;
-    using Media::Animation::MatrixAnimation;
-    using Media::Animation::MatrixKeyFrame;
-    using Media::Animation::PointAnimation;
-    using Media::Animation::PointKeyFrame;
-    using Media::Animation::RectAnimation;
-    using Media::Animation::RepeatBehavior;
-    using Media::Animation::SizeAnimation;
-    using Media::Animation::SizeKeyFrame;
-    using Media::Animation::ThicknessAnimation;
-    using Media::Animation::ThicknessKeyFrame;
-    using ::Aero::Base::Color;
-    using ::Aero::Base::Point;
-    using ::Aero::Base::Rect;
-    using ::Aero::Base::Size;
-    using ::Aero::Base::Thickness;
+namespace Aero::Interactivity {
+
+AERO_DESCRIBE(TriggerAction) {
+    using namespace Aero::Meta;
     Register<TriggerAction>(context, TypeFlags::Abstract);
 }
 
-AERO_DESCRIBE(::Aero::Interactivity::ChangePropertyAction) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Media::Animation;
-    using namespace Interactivity;
-    using Media::Animation::ColorAnimation;
-    using Media::Animation::ColorKeyFrame;
-    using Media::Animation::DoubleAnimation;
-    using Media::Animation::DoubleKeyFrame;
-    using Media::Animation::MatrixAnimation;
-    using Media::Animation::MatrixKeyFrame;
-    using Media::Animation::PointAnimation;
-    using Media::Animation::PointKeyFrame;
-    using Media::Animation::RectAnimation;
-    using Media::Animation::RepeatBehavior;
-    using Media::Animation::SizeAnimation;
-    using Media::Animation::SizeKeyFrame;
-    using Media::Animation::ThicknessAnimation;
-    using Media::Animation::ThicknessKeyFrame;
-    using ::Aero::Base::Color;
-    using ::Aero::Base::Point;
-    using ::Aero::Base::Rect;
-    using ::Aero::Base::Size;
-    using ::Aero::Base::Thickness;
+AERO_DESCRIBE(ChangePropertyAction) {
+    using namespace Aero::Meta;
     Register<ChangePropertyAction>(context)
             .Property("TargetName", &ChangePropertyAction::GetTargetName, &ChangePropertyAction::SetTargetName)
             .Property<Base::Ref<Data::Binding>, &ChangePropertyAction::GetTargetObject, &ChangePropertyAction::SetTargetObject>("TargetObject", PropertyFlags::Structural)
@@ -495,35 +443,8 @@ AERO_DESCRIBE(::Aero::Interactivity::ChangePropertyAction) {
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Interactivity::SetFocusAction) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Media::Animation;
-    using namespace Interactivity;
-    using Media::Animation::ColorAnimation;
-    using Media::Animation::ColorKeyFrame;
-    using Media::Animation::DoubleAnimation;
-    using Media::Animation::DoubleKeyFrame;
-    using Media::Animation::MatrixAnimation;
-    using Media::Animation::MatrixKeyFrame;
-    using Media::Animation::PointAnimation;
-    using Media::Animation::PointKeyFrame;
-    using Media::Animation::RectAnimation;
-    using Media::Animation::RepeatBehavior;
-    using Media::Animation::SizeAnimation;
-    using Media::Animation::SizeKeyFrame;
-    using Media::Animation::ThicknessAnimation;
-    using Media::Animation::ThicknessKeyFrame;
-    using ::Aero::Base::Color;
-    using ::Aero::Base::Point;
-    using ::Aero::Base::Rect;
-    using ::Aero::Base::Size;
-    using ::Aero::Base::Thickness;
+AERO_DESCRIBE(SetFocusAction) {
+    using namespace Aero::Meta;
     Register<SetFocusAction>(context)
             .Property("TargetName", &SetFocusAction::GetTargetName, &SetFocusAction::SetTargetName)
             .Property<Base::Ref<Data::Binding>, &SetFocusAction::GetTargetObject, &SetFocusAction::SetTargetObject>("TargetObject", PropertyFlags::Structural)
@@ -531,138 +452,30 @@ AERO_DESCRIBE(::Aero::Interactivity::SetFocusAction) {
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Interactivity::LaunchUriOrFileAction) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Media::Animation;
-    using namespace Interactivity;
-    using Media::Animation::ColorAnimation;
-    using Media::Animation::ColorKeyFrame;
-    using Media::Animation::DoubleAnimation;
-    using Media::Animation::DoubleKeyFrame;
-    using Media::Animation::MatrixAnimation;
-    using Media::Animation::MatrixKeyFrame;
-    using Media::Animation::PointAnimation;
-    using Media::Animation::PointKeyFrame;
-    using Media::Animation::RectAnimation;
-    using Media::Animation::RepeatBehavior;
-    using Media::Animation::SizeAnimation;
-    using Media::Animation::SizeKeyFrame;
-    using Media::Animation::ThicknessAnimation;
-    using Media::Animation::ThicknessKeyFrame;
-    using ::Aero::Base::Color;
-    using ::Aero::Base::Point;
-    using ::Aero::Base::Rect;
-    using ::Aero::Base::Size;
-    using ::Aero::Base::Thickness;
+AERO_DESCRIBE(LaunchUriOrFileAction) {
+    using namespace Aero::Meta;
     Register<LaunchUriOrFileAction>(context)
             .Property("Path", &LaunchUriOrFileAction::GetPath, &LaunchUriOrFileAction::SetPath)
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Interactivity::RemoveElementAction) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Media::Animation;
-    using namespace Interactivity;
-    using Media::Animation::ColorAnimation;
-    using Media::Animation::ColorKeyFrame;
-    using Media::Animation::DoubleAnimation;
-    using Media::Animation::DoubleKeyFrame;
-    using Media::Animation::MatrixAnimation;
-    using Media::Animation::MatrixKeyFrame;
-    using Media::Animation::PointAnimation;
-    using Media::Animation::PointKeyFrame;
-    using Media::Animation::RectAnimation;
-    using Media::Animation::RepeatBehavior;
-    using Media::Animation::SizeAnimation;
-    using Media::Animation::SizeKeyFrame;
-    using Media::Animation::ThicknessAnimation;
-    using Media::Animation::ThicknessKeyFrame;
-    using ::Aero::Base::Color;
-    using ::Aero::Base::Point;
-    using ::Aero::Base::Rect;
-    using ::Aero::Base::Size;
-    using ::Aero::Base::Thickness;
+AERO_DESCRIBE(RemoveElementAction) {
+    using namespace Aero::Meta;
     Register<RemoveElementAction>(context)
             .Property<Base::Ref<Data::Binding>, &RemoveElementAction::GetTargetObject, &RemoveElementAction::SetTargetObject>("TargetObject", PropertyFlags::Structural)
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Interactivity::PropertyChangedTrigger) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Media::Animation;
-    using namespace Interactivity;
-    using Media::Animation::ColorAnimation;
-    using Media::Animation::ColorKeyFrame;
-    using Media::Animation::DoubleAnimation;
-    using Media::Animation::DoubleKeyFrame;
-    using Media::Animation::MatrixAnimation;
-    using Media::Animation::MatrixKeyFrame;
-    using Media::Animation::PointAnimation;
-    using Media::Animation::PointKeyFrame;
-    using Media::Animation::RectAnimation;
-    using Media::Animation::RepeatBehavior;
-    using Media::Animation::SizeAnimation;
-    using Media::Animation::SizeKeyFrame;
-    using Media::Animation::ThicknessAnimation;
-    using Media::Animation::ThicknessKeyFrame;
-    using ::Aero::Base::Color;
-    using ::Aero::Base::Point;
-    using ::Aero::Base::Rect;
-    using ::Aero::Base::Size;
-    using ::Aero::Base::Thickness;
+AERO_DESCRIBE(PropertyChangedTrigger) {
+    using namespace Aero::Meta;
     Register<PropertyChangedTrigger>(context)
             .Property<Base::Ref<Data::Binding>, &PropertyChangedTrigger::GetBinding, &PropertyChangedTrigger::SetBinding>("Binding")
             .Content<TriggerAction>("Actions", ContentKind::Collection, &::Aero::MetadataSupport::AddPropertyChangedTriggerAction, &::Aero::MetadataSupport::ClearPropertyChangedTriggerActions)
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Interactivity::KeyTrigger) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Media::Animation;
-    using namespace Interactivity;
-    using Media::Animation::ColorAnimation;
-    using Media::Animation::ColorKeyFrame;
-    using Media::Animation::DoubleAnimation;
-    using Media::Animation::DoubleKeyFrame;
-    using Media::Animation::MatrixAnimation;
-    using Media::Animation::MatrixKeyFrame;
-    using Media::Animation::PointAnimation;
-    using Media::Animation::PointKeyFrame;
-    using Media::Animation::RectAnimation;
-    using Media::Animation::RepeatBehavior;
-    using Media::Animation::SizeAnimation;
-    using Media::Animation::SizeKeyFrame;
-    using Media::Animation::ThicknessAnimation;
-    using Media::Animation::ThicknessKeyFrame;
-    using ::Aero::Base::Color;
-    using ::Aero::Base::Point;
-    using ::Aero::Base::Rect;
-    using ::Aero::Base::Size;
-    using ::Aero::Base::Thickness;
+AERO_DESCRIBE(KeyTrigger) {
+    using namespace Aero::Meta;
     Register<KeyTrigger>(context)
             .Property("Key", &KeyTrigger::GetKey, &KeyTrigger::SetKey)
             .Property("ActiveOnFocus", &KeyTrigger::GetActiveOnFocus, &KeyTrigger::SetActiveOnFocus)
@@ -670,136 +483,28 @@ AERO_DESCRIBE(::Aero::Interactivity::KeyTrigger) {
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Interactivity::InvokeCommandAction) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Media::Animation;
-    using namespace Interactivity;
-    using Media::Animation::ColorAnimation;
-    using Media::Animation::ColorKeyFrame;
-    using Media::Animation::DoubleAnimation;
-    using Media::Animation::DoubleKeyFrame;
-    using Media::Animation::MatrixAnimation;
-    using Media::Animation::MatrixKeyFrame;
-    using Media::Animation::PointAnimation;
-    using Media::Animation::PointKeyFrame;
-    using Media::Animation::RectAnimation;
-    using Media::Animation::RepeatBehavior;
-    using Media::Animation::SizeAnimation;
-    using Media::Animation::SizeKeyFrame;
-    using Media::Animation::ThicknessAnimation;
-    using Media::Animation::ThicknessKeyFrame;
-    using ::Aero::Base::Color;
-    using ::Aero::Base::Point;
-    using ::Aero::Base::Rect;
-    using ::Aero::Base::Size;
-    using ::Aero::Base::Thickness;
+AERO_DESCRIBE(InvokeCommandAction) {
+    using namespace Aero::Meta;
     Register<InvokeCommandAction>(context)
             .Property("Command", &InvokeCommandAction::GetCommand, &InvokeCommandAction::SetCommand)
             .Property<Meta::PropertyValue, &InvokeCommandAction::GetCommandParameter, &InvokeCommandAction::SetCommandParameter>("CommandParameter", PropertyFlags::AnyValue)
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Interactivity::SelectAction) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Media::Animation;
-    using namespace Interactivity;
-    using Media::Animation::ColorAnimation;
-    using Media::Animation::ColorKeyFrame;
-    using Media::Animation::DoubleAnimation;
-    using Media::Animation::DoubleKeyFrame;
-    using Media::Animation::MatrixAnimation;
-    using Media::Animation::MatrixKeyFrame;
-    using Media::Animation::PointAnimation;
-    using Media::Animation::PointKeyFrame;
-    using Media::Animation::RectAnimation;
-    using Media::Animation::RepeatBehavior;
-    using Media::Animation::SizeAnimation;
-    using Media::Animation::SizeKeyFrame;
-    using Media::Animation::ThicknessAnimation;
-    using Media::Animation::ThicknessKeyFrame;
-    using ::Aero::Base::Color;
-    using ::Aero::Base::Point;
-    using ::Aero::Base::Rect;
-    using ::Aero::Base::Size;
-    using ::Aero::Base::Thickness;
+AERO_DESCRIBE(SelectAction) {
+    using namespace Aero::Meta;
     Register<SelectAction>(context)
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Interactivity::SelectAllAction) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Media::Animation;
-    using namespace Interactivity;
-    using Media::Animation::ColorAnimation;
-    using Media::Animation::ColorKeyFrame;
-    using Media::Animation::DoubleAnimation;
-    using Media::Animation::DoubleKeyFrame;
-    using Media::Animation::MatrixAnimation;
-    using Media::Animation::MatrixKeyFrame;
-    using Media::Animation::PointAnimation;
-    using Media::Animation::PointKeyFrame;
-    using Media::Animation::RectAnimation;
-    using Media::Animation::RepeatBehavior;
-    using Media::Animation::SizeAnimation;
-    using Media::Animation::SizeKeyFrame;
-    using Media::Animation::ThicknessAnimation;
-    using Media::Animation::ThicknessKeyFrame;
-    using ::Aero::Base::Color;
-    using ::Aero::Base::Point;
-    using ::Aero::Base::Rect;
-    using ::Aero::Base::Size;
-    using ::Aero::Base::Thickness;
+AERO_DESCRIBE(SelectAllAction) {
+    using namespace Aero::Meta;
     Register<SelectAllAction>(context)
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Interactivity::PlaySoundAction) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Media::Animation;
-    using namespace Interactivity;
-    using Media::Animation::ColorAnimation;
-    using Media::Animation::ColorKeyFrame;
-    using Media::Animation::DoubleAnimation;
-    using Media::Animation::DoubleKeyFrame;
-    using Media::Animation::MatrixAnimation;
-    using Media::Animation::MatrixKeyFrame;
-    using Media::Animation::PointAnimation;
-    using Media::Animation::PointKeyFrame;
-    using Media::Animation::RectAnimation;
-    using Media::Animation::RepeatBehavior;
-    using Media::Animation::SizeAnimation;
-    using Media::Animation::SizeKeyFrame;
-    using Media::Animation::ThicknessAnimation;
-    using Media::Animation::ThicknessKeyFrame;
-    using ::Aero::Base::Color;
-    using ::Aero::Base::Point;
-    using ::Aero::Base::Rect;
-    using ::Aero::Base::Size;
-    using ::Aero::Base::Thickness;
+AERO_DESCRIBE(PlaySoundAction) {
+    using namespace Aero::Meta;
     Register<PlaySoundAction>(context)
             .Property("Source", &PlaySoundAction::GetSource, &PlaySoundAction::SetSource)
             .Property("Volume", &PlaySoundAction::GetVolume, &PlaySoundAction::SetVolume)
@@ -807,35 +512,8 @@ AERO_DESCRIBE(::Aero::Interactivity::PlaySoundAction) {
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Interactivity::ComparisonCondition) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Media::Animation;
-    using namespace Interactivity;
-    using Media::Animation::ColorAnimation;
-    using Media::Animation::ColorKeyFrame;
-    using Media::Animation::DoubleAnimation;
-    using Media::Animation::DoubleKeyFrame;
-    using Media::Animation::MatrixAnimation;
-    using Media::Animation::MatrixKeyFrame;
-    using Media::Animation::PointAnimation;
-    using Media::Animation::PointKeyFrame;
-    using Media::Animation::RectAnimation;
-    using Media::Animation::RepeatBehavior;
-    using Media::Animation::SizeAnimation;
-    using Media::Animation::SizeKeyFrame;
-    using Media::Animation::ThicknessAnimation;
-    using Media::Animation::ThicknessKeyFrame;
-    using ::Aero::Base::Color;
-    using ::Aero::Base::Point;
-    using ::Aero::Base::Rect;
-    using ::Aero::Base::Size;
-    using ::Aero::Base::Thickness;
+AERO_DESCRIBE(ComparisonCondition) {
+    using namespace Aero::Meta;
     Register<ComparisonCondition>(context)
             .Property<Base::Ref<Data::Binding>, &ComparisonCondition::GetLeftOperand, &ComparisonCondition::SetLeftOperand>("LeftOperand")
             .Property<Meta::PropertyValue, &ComparisonCondition::GetRightOperand, &ComparisonCondition::SetRightOperand>("RightOperand", PropertyFlags::AnyValue)
@@ -843,239 +521,53 @@ AERO_DESCRIBE(::Aero::Interactivity::ComparisonCondition) {
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Interactivity::ConditionalExpression) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Media::Animation;
-    using namespace Interactivity;
-    using Media::Animation::ColorAnimation;
-    using Media::Animation::ColorKeyFrame;
-    using Media::Animation::DoubleAnimation;
-    using Media::Animation::DoubleKeyFrame;
-    using Media::Animation::MatrixAnimation;
-    using Media::Animation::MatrixKeyFrame;
-    using Media::Animation::PointAnimation;
-    using Media::Animation::PointKeyFrame;
-    using Media::Animation::RectAnimation;
-    using Media::Animation::RepeatBehavior;
-    using Media::Animation::SizeAnimation;
-    using Media::Animation::SizeKeyFrame;
-    using Media::Animation::ThicknessAnimation;
-    using Media::Animation::ThicknessKeyFrame;
-    using ::Aero::Base::Color;
-    using ::Aero::Base::Point;
-    using ::Aero::Base::Rect;
-    using ::Aero::Base::Size;
-    using ::Aero::Base::Thickness;
+AERO_DESCRIBE(ConditionalExpression) {
+    using namespace Aero::Meta;
     Register<ConditionalExpression>(context)
             .Property("ForwardChaining", &ConditionalExpression::GetChaining, &ConditionalExpression::SetChaining)
             .Content<ComparisonCondition>("Conditions", ContentKind::Collection, &::Aero::MetadataSupport::AddConditionalComparison, &::Aero::MetadataSupport::ClearConditionalComparisons)
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Interactivity::ConditionBehavior) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Media::Animation;
-    using namespace Interactivity;
-    using Media::Animation::ColorAnimation;
-    using Media::Animation::ColorKeyFrame;
-    using Media::Animation::DoubleAnimation;
-    using Media::Animation::DoubleKeyFrame;
-    using Media::Animation::MatrixAnimation;
-    using Media::Animation::MatrixKeyFrame;
-    using Media::Animation::PointAnimation;
-    using Media::Animation::PointKeyFrame;
-    using Media::Animation::RectAnimation;
-    using Media::Animation::RepeatBehavior;
-    using Media::Animation::SizeAnimation;
-    using Media::Animation::SizeKeyFrame;
-    using Media::Animation::ThicknessAnimation;
-    using Media::Animation::ThicknessKeyFrame;
-    using ::Aero::Base::Color;
-    using ::Aero::Base::Point;
-    using ::Aero::Base::Rect;
-    using ::Aero::Base::Size;
-    using ::Aero::Base::Thickness;
+AERO_DESCRIBE(ConditionBehavior) {
+    using namespace Aero::Meta;
     Register<ConditionBehavior>(context)
             .Content<ConditionalExpression>("Expression", ContentKind::Single, &::Aero::MetadataSupport::SetConditionBehaviorExpression, &::Aero::MetadataSupport::ClearConditionBehaviorExpression)
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Interactivity::Behavior) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Media::Animation;
-    using namespace Interactivity;
-    using Media::Animation::ColorAnimation;
-    using Media::Animation::ColorKeyFrame;
-    using Media::Animation::DoubleAnimation;
-    using Media::Animation::DoubleKeyFrame;
-    using Media::Animation::MatrixAnimation;
-    using Media::Animation::MatrixKeyFrame;
-    using Media::Animation::PointAnimation;
-    using Media::Animation::PointKeyFrame;
-    using Media::Animation::RectAnimation;
-    using Media::Animation::RepeatBehavior;
-    using Media::Animation::SizeAnimation;
-    using Media::Animation::SizeKeyFrame;
-    using Media::Animation::ThicknessAnimation;
-    using Media::Animation::ThicknessKeyFrame;
-    using ::Aero::Base::Color;
-    using ::Aero::Base::Point;
-    using ::Aero::Base::Rect;
-    using ::Aero::Base::Size;
-    using ::Aero::Base::Thickness;
+AERO_DESCRIBE(Behavior) {
+    using namespace Aero::Meta;
     Register<Behavior>(context, TypeFlags::Abstract);
 }
 
-AERO_DESCRIBE(::Aero::Interactivity::StyleBehaviorCollection) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Media::Animation;
-    using namespace Interactivity;
-    using Media::Animation::ColorAnimation;
-    using Media::Animation::ColorKeyFrame;
-    using Media::Animation::DoubleAnimation;
-    using Media::Animation::DoubleKeyFrame;
-    using Media::Animation::MatrixAnimation;
-    using Media::Animation::MatrixKeyFrame;
-    using Media::Animation::PointAnimation;
-    using Media::Animation::PointKeyFrame;
-    using Media::Animation::RectAnimation;
-    using Media::Animation::RepeatBehavior;
-    using Media::Animation::SizeAnimation;
-    using Media::Animation::SizeKeyFrame;
-    using Media::Animation::ThicknessAnimation;
-    using Media::Animation::ThicknessKeyFrame;
-    using ::Aero::Base::Color;
-    using ::Aero::Base::Point;
-    using ::Aero::Base::Rect;
-    using ::Aero::Base::Size;
-    using ::Aero::Base::Thickness;
+AERO_DESCRIBE(StyleBehaviorCollection) {
+    using namespace Aero::Meta;
     Register<StyleBehaviorCollection>(context)
             .Content<Base::Object>("Items", ContentKind::Collection, &::Aero::MetadataSupport::AddStyleBehaviorItem, &::Aero::MetadataSupport::ClearStyleBehaviorItems)
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Interactivity::StyleTriggerCollection) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Media::Animation;
-    using namespace Interactivity;
-    using Media::Animation::ColorAnimation;
-    using Media::Animation::ColorKeyFrame;
-    using Media::Animation::DoubleAnimation;
-    using Media::Animation::DoubleKeyFrame;
-    using Media::Animation::MatrixAnimation;
-    using Media::Animation::MatrixKeyFrame;
-    using Media::Animation::PointAnimation;
-    using Media::Animation::PointKeyFrame;
-    using Media::Animation::RectAnimation;
-    using Media::Animation::RepeatBehavior;
-    using Media::Animation::SizeAnimation;
-    using Media::Animation::SizeKeyFrame;
-    using Media::Animation::ThicknessAnimation;
-    using Media::Animation::ThicknessKeyFrame;
-    using ::Aero::Base::Color;
-    using ::Aero::Base::Point;
-    using ::Aero::Base::Rect;
-    using ::Aero::Base::Size;
-    using ::Aero::Base::Thickness;
+AERO_DESCRIBE(StyleTriggerCollection) {
+    using namespace Aero::Meta;
     Register<StyleTriggerCollection>(context)
             .Content<Base::Object>("Items", ContentKind::Collection, &::Aero::MetadataSupport::AddStyleTriggerItem, &::Aero::MetadataSupport::ClearStyleTriggerItems)
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Interactivity::StyleInteraction) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Media::Animation;
-    using namespace Interactivity;
-    using Media::Animation::ColorAnimation;
-    using Media::Animation::ColorKeyFrame;
-    using Media::Animation::DoubleAnimation;
-    using Media::Animation::DoubleKeyFrame;
-    using Media::Animation::MatrixAnimation;
-    using Media::Animation::MatrixKeyFrame;
-    using Media::Animation::PointAnimation;
-    using Media::Animation::PointKeyFrame;
-    using Media::Animation::RectAnimation;
-    using Media::Animation::RepeatBehavior;
-    using Media::Animation::SizeAnimation;
-    using Media::Animation::SizeKeyFrame;
-    using Media::Animation::ThicknessAnimation;
-    using Media::Animation::ThicknessKeyFrame;
-    using ::Aero::Base::Color;
-    using ::Aero::Base::Point;
-    using ::Aero::Base::Rect;
-    using ::Aero::Base::Size;
-    using ::Aero::Base::Thickness;
+AERO_DESCRIBE(StyleInteraction) {
+    using namespace Aero::Meta;
     Register<StyleInteraction>(context, TypeFlags::Abstract)
             .Property(StyleInteraction::BehaviorsProperty, FrameworkPropertyMetadata(Base::Ref<StyleBehaviorCollection>{}) .Changed(&StyleInteraction::OnBehaviorsChanged))
             .Property(StyleInteraction::TriggersProperty, FrameworkPropertyMetadata(Base::Ref<StyleTriggerCollection>{}) .Changed(&StyleInteraction::OnTriggersChanged));
 }
 
-AERO_DESCRIBE(::Aero::Interactivity::Interaction) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Media::Animation;
-    using namespace Interactivity;
-    using Media::Animation::ColorAnimation;
-    using Media::Animation::ColorKeyFrame;
-    using Media::Animation::DoubleAnimation;
-    using Media::Animation::DoubleKeyFrame;
-    using Media::Animation::MatrixAnimation;
-    using Media::Animation::MatrixKeyFrame;
-    using Media::Animation::PointAnimation;
-    using Media::Animation::PointKeyFrame;
-    using Media::Animation::RectAnimation;
-    using Media::Animation::RepeatBehavior;
-    using Media::Animation::SizeAnimation;
-    using Media::Animation::SizeKeyFrame;
-    using Media::Animation::ThicknessAnimation;
-    using Media::Animation::ThicknessKeyFrame;
-    using ::Aero::Base::Color;
-    using ::Aero::Base::Point;
-    using ::Aero::Base::Rect;
-    using ::Aero::Base::Size;
-    using ::Aero::Base::Thickness;
+AERO_DESCRIBE(Interaction) {
+    using namespace Aero::Meta;
     Register<Interaction>(context, TypeFlags::Abstract)
             .Collection<Base::Object>("Triggers", &::Aero::MetadataSupport::AddInteractionTrigger, &::Aero::MetadataSupport::ClearInteractionTriggers, PropertyFlags::Attached | PropertyFlags::Structural)
             .Collection<Base::Object>("Behaviors", &::Aero::MetadataSupport::AddInteractionBehavior, &::Aero::MetadataSupport::ClearInteractionBehaviors, PropertyFlags::Attached | PropertyFlags::Structural);
 }
+
+} // namespace Aero::Interactivity
+

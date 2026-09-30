@@ -1020,104 +1020,56 @@ Base::Result<Value> ConvertRoutedCommandReference(
 } // namespace
 } // namespace Aero::MetadataSupport
 
-AERO_DESCRIBE(::Aero::CanExecuteRoutedEventArgs) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+namespace Aero {
+
+AERO_DESCRIBE(CanExecuteRoutedEventArgs) {
+    using namespace Aero::Meta;
     Register<CanExecuteRoutedEventArgs>(context);
 }
 
-AERO_DESCRIBE(::Aero::ExecutedRoutedEventArgs) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(ExecutedRoutedEventArgs) {
+    using namespace Aero::Meta;
     Register<ExecutedRoutedEventArgs>(context);
 }
 
-AERO_DESCRIBE(::Aero::Input::ICommand) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+} // namespace Aero
+
+namespace Aero::Input {
+
+AERO_DESCRIBE(ICommand) {
+    using namespace Aero::Meta;
     Register<ICommand>(context, TypeFlags::Abstract)
             .TextConverter(&::Aero::MetadataSupport::ConvertRoutedCommandReference);
 }
 
-AERO_DESCRIBE(::Aero::Input::InputGesture) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(InputGesture) {
+    using namespace Aero::Meta;
     Register<InputGesture>(context, TypeFlags::Abstract);
 }
 
-AERO_DESCRIBE(::Aero::Input::KeyGesture) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(KeyGesture) {
+    using namespace Aero::Meta;
     Register<KeyGesture>(context);
 }
 
-AERO_DESCRIBE(::Aero::Input::RoutedCommand) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(RoutedCommand) {
+    using namespace Aero::Meta;
     Register<RoutedCommand>(context)
             .TextConverter(&::Aero::MetadataSupport::ConvertRoutedCommandReference);
 }
 
-AERO_DESCRIBE(::Aero::Input::RoutedUICommand) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(RoutedUICommand) {
+    using namespace Aero::Meta;
     Register<RoutedUICommand>(context);
 }
 
-AERO_DESCRIBE(::Aero::Input::InputBinding) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(InputBinding) {
+    using namespace Aero::Meta;
     Register<InputBinding>(context, TypeFlags::Abstract);
 }
 
-AERO_DESCRIBE(::Aero::Input::CommandBinding) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(CommandBinding) {
+    using namespace Aero::Meta;
     Register<CommandBinding>(context)
             .Property("Command", &CommandBinding::GetCommandName, &CommandBinding::SetCommandName)
             .Property("Executed", &CommandBinding::GetExecutedName, &CommandBinding::SetExecutedName)
@@ -1125,46 +1077,13 @@ AERO_DESCRIBE(::Aero::Input::CommandBinding) {
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Input::ApplicationCommands) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(ApplicationCommands) {
+    using namespace Aero::Meta;
     Register<ApplicationCommands>(context, TypeFlags::Abstract);
 }
 
-AERO_DESCRIBE(::Aero::Input::KeyBinding) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Media::Animation;
-    using namespace Interactivity;
-    using Media::Animation::ColorAnimation;
-    using Media::Animation::ColorKeyFrame;
-    using Media::Animation::DoubleAnimation;
-    using Media::Animation::DoubleKeyFrame;
-    using Media::Animation::MatrixAnimation;
-    using Media::Animation::MatrixKeyFrame;
-    using Media::Animation::PointAnimation;
-    using Media::Animation::PointKeyFrame;
-    using Media::Animation::RectAnimation;
-    using Media::Animation::RepeatBehavior;
-    using Media::Animation::SizeAnimation;
-    using Media::Animation::SizeKeyFrame;
-    using Media::Animation::ThicknessAnimation;
-    using Media::Animation::ThicknessKeyFrame;
-    using ::Aero::Base::Color;
-    using ::Aero::Base::Point;
-    using ::Aero::Base::Rect;
-    using ::Aero::Base::Size;
-    using ::Aero::Base::Thickness;
+AERO_DESCRIBE(KeyBinding) {
+    using namespace Aero::Meta;
     Register<KeyBinding>(context)
             .Property("Command", &KeyBinding::GetCommandName, &KeyBinding::SetCommandName)
             .Property("Key", &KeyBinding::GetKeyName, &KeyBinding::SetKeyName)
@@ -1172,36 +1091,12 @@ AERO_DESCRIBE(::Aero::Input::KeyBinding) {
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Input::MouseBinding) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Media::Animation;
-    using namespace Interactivity;
-    using Media::Animation::ColorAnimation;
-    using Media::Animation::ColorKeyFrame;
-    using Media::Animation::DoubleAnimation;
-    using Media::Animation::DoubleKeyFrame;
-    using Media::Animation::MatrixAnimation;
-    using Media::Animation::MatrixKeyFrame;
-    using Media::Animation::PointAnimation;
-    using Media::Animation::PointKeyFrame;
-    using Media::Animation::RectAnimation;
-    using Media::Animation::RepeatBehavior;
-    using Media::Animation::SizeAnimation;
-    using Media::Animation::SizeKeyFrame;
-    using Media::Animation::ThicknessAnimation;
-    using Media::Animation::ThicknessKeyFrame;
-    using ::Aero::Base::Color;
-    using ::Aero::Base::Point;
-    using ::Aero::Base::Rect;
-    using ::Aero::Base::Size;
-    using ::Aero::Base::Thickness;
+AERO_DESCRIBE(MouseBinding) {
+    using namespace Aero::Meta;
     Register<MouseBinding>(context)
             .Property("Command", &MouseBinding::GetCommandName, &MouseBinding::SetCommandName)
             .Factory();
 }
+
+} // namespace Aero::Input
+

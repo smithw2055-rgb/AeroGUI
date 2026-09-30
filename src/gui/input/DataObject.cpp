@@ -196,11 +196,12 @@ void DataObject::SetFileDropList(const Base::Vector<Base::String>& files) noexce
 } // namespace Aero
 
 // Metadata registration for the types implemented in this file.
-AERO_DESCRIBE(::Aero::DataObject) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Input;
+namespace Aero {
+
+AERO_DESCRIBE(DataObject) {
     using namespace Aero::Meta;
-    using namespace Aero::Input;
     Register<DataObject>(context);
 }
+
+} // namespace Aero
+

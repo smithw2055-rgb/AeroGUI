@@ -447,10 +447,9 @@ void ClearSpanInlines(
 } // namespace
 
 AERO_DESCRIBE(TextBlock) {
-    namespace Docs = Aero::Documents;
-    using namespace Aero::Media;
     using namespace Aero::Meta;
-
+    using namespace Aero::Media;
+    namespace Docs = Aero::Documents;
     const auto makeBrush = [](Base::Color color) noexcept {
         Base::Result<Base::Ref<Brush>> made = MakeSolidColorBrush(color);
         return made ? std::move(made).Value() : Base::Ref<Brush>{};

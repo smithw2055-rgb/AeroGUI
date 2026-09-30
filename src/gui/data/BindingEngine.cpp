@@ -2047,76 +2047,36 @@ void BindingEngine::RemoveAt(std::uint32_t index) noexcept {
 } // namespace Aero
 
 // Metadata registration for the types implemented in this file.
-AERO_DESCRIBE(::Aero::Data::IValueConverter) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Data;
+namespace Aero::Data {
+
+AERO_DESCRIBE(IValueConverter) {
+    using namespace Aero::Meta;
     Register<IValueConverter>(context, TypeFlags::Abstract);
 }
 
-AERO_DESCRIBE(::Aero::Data::IMultiValueConverter) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Data;
+AERO_DESCRIBE(IMultiValueConverter) {
+    using namespace Aero::Meta;
     Register<IMultiValueConverter>(context, TypeFlags::Abstract);
 }
 
-AERO_DESCRIBE(::Aero::Data::BooleanToVisibilityConverter) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Data;
+AERO_DESCRIBE(BooleanToVisibilityConverter) {
+    using namespace Aero::Meta;
     Register<BooleanToVisibilityConverter>(context)
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Data::BindingBase) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Data;
+AERO_DESCRIBE(BindingBase) {
+    using namespace Aero::Meta;
     Register<BindingBase>(context, TypeFlags::Abstract);
 }
 
-AERO_DESCRIBE(::Aero::Data::RelativeSource) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Data;
+AERO_DESCRIBE(RelativeSource) {
+    using namespace Aero::Meta;
     Register<RelativeSource>(context).Factory();
 }
 
-AERO_DESCRIBE(::Aero::Data::Binding) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Data;
+AERO_DESCRIBE(Binding) {
+    using namespace Aero::Meta;
     Register<Binding>(context, TypeFlags::MarkupExtension | TypeFlags::Sealed)
             .Property("Path", &Binding::GetPathText, static_cast<void (Binding::*)(Base::StringView) noexcept>(&Binding::SetPath))
             .Property("ElementName", &Binding::GetElementName, &Binding::SetElementName)
@@ -2125,15 +2085,8 @@ AERO_DESCRIBE(::Aero::Data::Binding) {
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Data::MultiBinding) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Data;
+AERO_DESCRIBE(MultiBinding) {
+    using namespace Aero::Meta;
     Register<MultiBinding>(context, TypeFlags::MarkupExtension | TypeFlags::Sealed)
             .Property("Converter", &MultiBinding::GetConverter, &MultiBinding::SetConverter)
             .Property<Value, &MultiBinding::GetConverterParameter, &MultiBinding::SetConverterParameter>("ConverterParameter", PropertyFlags::AnyValue)
@@ -2157,16 +2110,12 @@ AERO_DESCRIBE(::Aero::Data::MultiBinding) {
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Data::MultiBindingProxy) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Data;
+AERO_DESCRIBE(MultiBindingProxy) {
+    using namespace Aero::Meta;
     Register<MultiBindingProxy>(context)
             .Property(MultiBindingProxy::ValueProperty, Value::NullObject(TypeOf<Base::Object>()))
             .Factory();
 }
+
+} // namespace Aero::Data
+

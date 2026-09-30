@@ -158,12 +158,10 @@ void ClearOverrideCursor() noexcept { g_overrideCursor = Base::Ref<Cursor>{}; }
 } // namespace Aero::Input::DeviceState
 
 // Metadata registration for the types implemented in this file.
-AERO_DESCRIBE(::Aero::Input::Mouse) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Input;
+namespace Aero::Input {
+
+AERO_DESCRIBE(Mouse) {
     using namespace Aero::Meta;
-    using namespace Aero::Input;
     Register<Mouse>(context, TypeFlags::Abstract)
             .Event(Mouse::MouseDownEvent)
             .Event(Mouse::PreviewMouseDownEvent)
@@ -179,3 +177,6 @@ AERO_DESCRIBE(::Aero::Input::Mouse) {
             .Event(Mouse::LostMouseCaptureEvent)
             .Event(Mouse::QueryCursorEvent);
 }
+
+} // namespace Aero::Input
+

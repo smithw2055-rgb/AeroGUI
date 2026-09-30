@@ -1688,146 +1688,74 @@ Base::Result<TextInputDispatchResult> TextInputState::Dispatch(
 } // namespace Aero
 
 // Metadata registration for the types implemented in this file.
-AERO_DESCRIBE(::Aero::EventArgs) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+namespace Aero {
+
+AERO_DESCRIBE(EventArgs) {
+    using namespace Aero::Meta;
     Register<EventArgs>(context);
 }
 
-AERO_DESCRIBE(::Aero::RoutedEventArgs) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(RoutedEventArgs) {
+    using namespace Aero::Meta;
     Register<RoutedEventArgs>(context);
 }
 
-AERO_DESCRIBE(::Aero::InputEventArgs) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(InputEventArgs) {
+    using namespace Aero::Meta;
     Register<InputEventArgs>(context);
 }
 
-AERO_DESCRIBE(::Aero::MouseEventArgs) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(MouseEventArgs) {
+    using namespace Aero::Meta;
     Register<MouseEventArgs>(context);
 }
 
-AERO_DESCRIBE(::Aero::MouseButtonEventArgs) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(MouseButtonEventArgs) {
+    using namespace Aero::Meta;
     Register<MouseButtonEventArgs>(context);
 }
 
-AERO_DESCRIBE(::Aero::MouseWheelEventArgs) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(MouseWheelEventArgs) {
+    using namespace Aero::Meta;
     Register<MouseWheelEventArgs>(context);
 }
 
-AERO_DESCRIBE(::Aero::DragEventArgs) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(DragEventArgs) {
+    using namespace Aero::Meta;
     Register<DragEventArgs>(context);
 }
 
-AERO_DESCRIBE(::Aero::GiveFeedbackEventArgs) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(GiveFeedbackEventArgs) {
+    using namespace Aero::Meta;
     Register<GiveFeedbackEventArgs>(context);
 }
 
-AERO_DESCRIBE(::Aero::DragCompletedEventArgs) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(DragCompletedEventArgs) {
+    using namespace Aero::Meta;
     Register<DragCompletedEventArgs>(context);
 }
 
-AERO_DESCRIBE(::Aero::KeyEventArgs) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(KeyEventArgs) {
+    using namespace Aero::Meta;
     Register<KeyEventArgs>(context);
 }
 
-AERO_DESCRIBE(::Aero::TextCompositionEventArgs) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(TextCompositionEventArgs) {
+    using namespace Aero::Meta;
     Register<TextCompositionEventArgs>(context);
 }
 
-AERO_DESCRIBE(::Aero::KeyboardFocusChangedEventArgs) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(KeyboardFocusChangedEventArgs) {
+    using namespace Aero::Meta;
     Register<KeyboardFocusChangedEventArgs>(context);
 }
 
-AERO_DESCRIBE(::Aero::Input::KeyboardNavigation) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+} // namespace Aero
+
+namespace Aero::Input {
+
+AERO_DESCRIBE(KeyboardNavigation) {
+    using namespace Aero::Meta;
     Register<KeyboardNavigation>(context, TypeFlags::Abstract)
             .Property(KeyboardNavigation::DirectionalNavigationProperty, KeyboardNavigationMode::Continue)
             .Property(KeyboardNavigation::TabNavigationProperty, KeyboardNavigationMode::Continue)
@@ -1837,15 +1765,12 @@ AERO_DESCRIBE(::Aero::Input::KeyboardNavigation) {
             .Property(KeyboardNavigation::IsTabStopProperty, false);
 }
 
-AERO_DESCRIBE(::Aero::Input::FocusManager) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(FocusManager) {
+    using namespace Aero::Meta;
     Register<FocusManager>(context, TypeFlags::Abstract)
             .Property(FocusManager::IsFocusScopeProperty, false)
             .Property(FocusManager::FocusedElementProperty, Base::Ref<Base::Object>{});
 }
+
+} // namespace Aero::Input
+

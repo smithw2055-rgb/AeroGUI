@@ -633,104 +633,28 @@ void ClearStoryboardTimelines(
 } // namespace
 } // namespace Aero::MetadataSupport
 
-AERO_DESCRIBE(::Aero::Media::Animation::TimelineGroup) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Media::Animation;
-    using namespace Interactivity;
-    using Media::Animation::ColorAnimation;
-    using Media::Animation::ColorKeyFrame;
-    using Media::Animation::DoubleAnimation;
-    using Media::Animation::DoubleKeyFrame;
-    using Media::Animation::MatrixAnimation;
-    using Media::Animation::MatrixKeyFrame;
-    using Media::Animation::PointAnimation;
-    using Media::Animation::PointKeyFrame;
-    using Media::Animation::RectAnimation;
-    using Media::Animation::RepeatBehavior;
-    using Media::Animation::SizeAnimation;
-    using Media::Animation::SizeKeyFrame;
-    using Media::Animation::ThicknessAnimation;
-    using Media::Animation::ThicknessKeyFrame;
-    using ::Aero::Base::Color;
-    using ::Aero::Base::Point;
-    using ::Aero::Base::Rect;
-    using ::Aero::Base::Size;
-    using ::Aero::Base::Thickness;
+namespace Aero::Media::Animation {
+
+AERO_DESCRIBE(TimelineGroup) {
+    using namespace Aero::Meta;
     Register<TimelineGroup>(context, TypeFlags::Abstract);
 }
 
-AERO_DESCRIBE(::Aero::Media::Animation::ParallelTimeline) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Media::Animation;
-    using namespace Interactivity;
-    using Media::Animation::ColorAnimation;
-    using Media::Animation::ColorKeyFrame;
-    using Media::Animation::DoubleAnimation;
-    using Media::Animation::DoubleKeyFrame;
-    using Media::Animation::MatrixAnimation;
-    using Media::Animation::MatrixKeyFrame;
-    using Media::Animation::PointAnimation;
-    using Media::Animation::PointKeyFrame;
-    using Media::Animation::RectAnimation;
-    using Media::Animation::RepeatBehavior;
-    using Media::Animation::SizeAnimation;
-    using Media::Animation::SizeKeyFrame;
-    using Media::Animation::ThicknessAnimation;
-    using Media::Animation::ThicknessKeyFrame;
-    using ::Aero::Base::Color;
-    using ::Aero::Base::Point;
-    using ::Aero::Base::Rect;
-    using ::Aero::Base::Size;
-    using ::Aero::Base::Thickness;
+AERO_DESCRIBE(ParallelTimeline) {
+    using namespace Aero::Meta;
     Register<ParallelTimeline>(context)
             .Content<Timeline>("Children", ContentKind::Collection, &::Aero::MetadataSupport::AddStoryboardTimeline, &::Aero::MetadataSupport::ClearStoryboardTimelines)
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Media::Animation::Storyboard) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Media::Animation;
-    using namespace Interactivity;
-    using Media::Animation::ColorAnimation;
-    using Media::Animation::ColorKeyFrame;
-    using Media::Animation::DoubleAnimation;
-    using Media::Animation::DoubleKeyFrame;
-    using Media::Animation::MatrixAnimation;
-    using Media::Animation::MatrixKeyFrame;
-    using Media::Animation::PointAnimation;
-    using Media::Animation::PointKeyFrame;
-    using Media::Animation::RectAnimation;
-    using Media::Animation::RepeatBehavior;
-    using Media::Animation::SizeAnimation;
-    using Media::Animation::SizeKeyFrame;
-    using Media::Animation::ThicknessAnimation;
-    using Media::Animation::ThicknessKeyFrame;
-    using ::Aero::Base::Color;
-    using ::Aero::Base::Point;
-    using ::Aero::Base::Rect;
-    using ::Aero::Base::Size;
-    using ::Aero::Base::Thickness;
+AERO_DESCRIBE(Storyboard) {
+    using namespace Aero::Meta;
     Register<Storyboard>(context)
             .Property(Storyboard::TargetNameProperty, Base::String{})
             .Property(Storyboard::TargetPropertyProperty, Base::String{})
             .Content<Timeline>("Children", ContentKind::Collection, &::Aero::MetadataSupport::AddStoryboardTimeline, &::Aero::MetadataSupport::ClearStoryboardTimelines)
             .Factory();
 }
+
+} // namespace Aero::Media::Animation
+

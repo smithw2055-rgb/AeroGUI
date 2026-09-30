@@ -82,14 +82,10 @@ void MediaElement::Close() noexcept {
 } // namespace Aero::Media
 
 // Metadata registration for the types implemented in this file.
-AERO_DESCRIBE(::Aero::Media::MediaElement) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+namespace Aero::Media {
+
+AERO_DESCRIBE(MediaElement) {
+    using namespace Aero::Meta;
     Register<MediaElement>(context)
             .Event(MediaElement::BufferingEndedEvent, RoutingStrategy::Direct)
             .Event(MediaElement::BufferingStartedEvent, RoutingStrategy::Direct)
@@ -107,3 +103,6 @@ AERO_DESCRIBE(::Aero::Media::MediaElement) {
             .Property(MediaElement::ScrubbingEnabledProperty, false)
             .Factory();
 }
+
+} // namespace Aero::Media
+

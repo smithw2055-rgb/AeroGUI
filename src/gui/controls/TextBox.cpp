@@ -1924,9 +1924,8 @@ void TextBox::UpdateCandidateWindow() noexcept {
 namespace Primitives {
 
 AERO_DESCRIBE(TextBoxBase) {
-    using namespace Aero::Media;
     using namespace Aero::Meta;
-
+    using namespace Aero::Media;
     const auto makeBrush = [](Base::Color color) noexcept {
         Base::Result<Base::Ref<Brush>> made = MakeSolidColorBrush(color);
         return made ? std::move(made).Value() : Base::Ref<Brush>{};
@@ -1943,9 +1942,8 @@ AERO_DESCRIBE(TextBoxBase) {
 } // namespace Primitives
 
 AERO_DESCRIBE(TextBox) {
-    using namespace Aero::Media;
     using namespace Aero::Meta;
-
+    using namespace Aero::Media;
     const auto makeBrush = [](Base::Color color) noexcept {
         Base::Result<Base::Ref<Brush>> made = MakeSolidColorBrush(color);
         return made ? std::move(made).Value() : Base::Ref<Brush>{};

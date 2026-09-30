@@ -594,35 +594,10 @@ void ClearBackgroundEffectBehaviorEffect(
 } // namespace
 } // namespace Aero::MetadataSupport
 
-AERO_DESCRIBE(::Aero::Interactivity::MouseDragElementBehavior) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Media::Animation;
-    using namespace Interactivity;
-    using Media::Animation::ColorAnimation;
-    using Media::Animation::ColorKeyFrame;
-    using Media::Animation::DoubleAnimation;
-    using Media::Animation::DoubleKeyFrame;
-    using Media::Animation::MatrixAnimation;
-    using Media::Animation::MatrixKeyFrame;
-    using Media::Animation::PointAnimation;
-    using Media::Animation::PointKeyFrame;
-    using Media::Animation::RectAnimation;
-    using Media::Animation::RepeatBehavior;
-    using Media::Animation::SizeAnimation;
-    using Media::Animation::SizeKeyFrame;
-    using Media::Animation::ThicknessAnimation;
-    using Media::Animation::ThicknessKeyFrame;
-    using ::Aero::Base::Color;
-    using ::Aero::Base::Point;
-    using ::Aero::Base::Rect;
-    using ::Aero::Base::Size;
-    using ::Aero::Base::Thickness;
+namespace Aero::Interactivity {
+
+AERO_DESCRIBE(MouseDragElementBehavior) {
+    using namespace Aero::Meta;
     Register<MouseDragElementBehavior>(context)
             .Property(MouseDragElementBehavior::XProperty, FrameworkPropertyMetadata(0.0) .Changed(&MouseDragElementBehavior::OnPositionChanged))
             .Property(MouseDragElementBehavior::YProperty, FrameworkPropertyMetadata(0.0) .Changed(&MouseDragElementBehavior::OnPositionChanged))
@@ -630,38 +605,14 @@ AERO_DESCRIBE(::Aero::Interactivity::MouseDragElementBehavior) {
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Interactivity::BackgroundEffectBehavior) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Media::Animation;
-    using namespace Interactivity;
-    using Media::Animation::ColorAnimation;
-    using Media::Animation::ColorKeyFrame;
-    using Media::Animation::DoubleAnimation;
-    using Media::Animation::DoubleKeyFrame;
-    using Media::Animation::MatrixAnimation;
-    using Media::Animation::MatrixKeyFrame;
-    using Media::Animation::PointAnimation;
-    using Media::Animation::PointKeyFrame;
-    using Media::Animation::RectAnimation;
-    using Media::Animation::RepeatBehavior;
-    using Media::Animation::SizeAnimation;
-    using Media::Animation::SizeKeyFrame;
-    using Media::Animation::ThicknessAnimation;
-    using Media::Animation::ThicknessKeyFrame;
-    using ::Aero::Base::Color;
-    using ::Aero::Base::Point;
-    using ::Aero::Base::Rect;
-    using ::Aero::Base::Size;
-    using ::Aero::Base::Thickness;
+AERO_DESCRIBE(BackgroundEffectBehavior) {
+    using namespace Aero::Meta;
     Register<BackgroundEffectBehavior>(context)
             .Property(BackgroundEffectBehavior::SourceProperty, FrameworkPropertyMetadata(Base::Ref<Base::Object>{}) .Changed(&BackgroundEffectBehavior::OnBehaviorPropertyChanged))
             .Property(BackgroundEffectBehavior::EffectProperty, FrameworkPropertyMetadata(Base::Ref<Media::Effect>{}) .Changed(&BackgroundEffectBehavior::OnBehaviorPropertyChanged))
             .Content<Media::Effect>("Content", ContentKind::Single, &::Aero::MetadataSupport::SetBackgroundEffectBehaviorEffect, &::Aero::MetadataSupport::ClearBackgroundEffectBehaviorEffect)
             .Factory();
 }
+
+} // namespace Aero::Interactivity
+

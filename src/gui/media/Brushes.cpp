@@ -1641,14 +1641,10 @@ Base::Result<Value> ConvertBrushText(
 } // namespace
 } // namespace Aero::MetadataSupport
 
-AERO_DESCRIBE(::Aero::Media::Brush) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+namespace Aero::Media {
+
+AERO_DESCRIBE(Brush) {
+    using namespace Aero::Meta;
     Register<Brush>(context, TypeFlags::Abstract)
             .Property(Brush::OpacityProperty, 1.0, AffectsRender, &ValidateUnitDouble)
             .Property(Brush::ShaderProperty, Base::Ref<Base::Object>{}, AffectsRender)
@@ -1656,135 +1652,75 @@ AERO_DESCRIBE(::Aero::Media::Brush) {
             .TextConverter(&::Aero::MetadataSupport::ConvertBrushText);
 }
 
-AERO_DESCRIBE(::Aero::Media::SolidColorBrush) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(SolidColorBrush) {
+    using namespace Aero::Meta;
     Register<SolidColorBrush>(context)
             .Property(SolidColorBrush::ColorProperty, FrameworkPropertyMetadata(Color{}).Structural())
             .Content(MakeMemberId(SolidColorBrush::StaticTypeId(), MemberKind::Property, "Color"))
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Media::GradientStop) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(GradientStop) {
+    using namespace Aero::Meta;
     Register<GradientStop>(context)
             .Property(GradientStop::OffsetProperty, 0.0, FrameworkPropertyMetadataOptions::None, &ValidateUnitDouble)
             .Property(GradientStop::ColorProperty, Color{})
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Media::GradientStopCollection) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(GradientStopCollection) {
+    using namespace Aero::Meta;
     Register<GradientStopCollection>(context)
             .Implements<Collections::IItemsSource>()
             .Content<GradientStop>("Items", ContentKind::Collection, &::Aero::MetadataSupport::AddGradientStopCollectionItem, &::Aero::MetadataSupport::ClearGradientStopCollectionItems)
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Media::BrushShader) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(BrushShader) {
+    using namespace Aero::Meta;
     Register<BrushShader>(context, TypeFlags::Abstract)
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Media::MonochromeShader) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(MonochromeShader) {
+    using namespace Aero::Meta;
     Register<MonochromeShader>(context)
             .Property<Color, &MonochromeShader::GetColor, &MonochromeShader::SetColor>("Color")
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Media::ConicGradientShader) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(ConicGradientShader) {
+    using namespace Aero::Meta;
     Register<ConicGradientShader>(context)
             .Content<GradientStop>("GradientStops", ContentKind::Collection, [](Base::Object& owner, const Base::Ref<Base::Object>& value, void*) noexcept { static_cast<ConicGradientShader&>(owner).AddGradientStop(Base::Ref<GradientStop>::FromBorrowed(static_cast<GradientStop&>(*value))); }, [](Base::Object& owner, void*) noexcept { static_cast<ConicGradientShader&>(owner).ClearGradientStops(); })
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Media::WavesShader) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(WavesShader) {
+    using namespace Aero::Meta;
     Register<WavesShader>(context)
             .Property<double, &WavesShader::GetTime, &WavesShader::SetTime>("Time")
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Media::GradientBrush) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(GradientBrush) {
+    using namespace Aero::Meta;
     Register<GradientBrush>(context, TypeFlags::Abstract)
             .Property(GradientBrush::MappingModeProperty, BrushMappingMode::RelativeToBoundingBox)
             .Property(GradientBrush::SpreadMethodProperty, GradientSpreadMethod::Pad, AffectsRender)
             .Content<GradientStop>("GradientStops", ContentKind::Collection, &::Aero::MetadataSupport::AddGradientStop, &::Aero::MetadataSupport::ClearGradientStops);
 }
 
-AERO_DESCRIBE(::Aero::Media::LinearGradientBrush) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(LinearGradientBrush) {
+    using namespace Aero::Meta;
     Register<LinearGradientBrush>(context)
             .Property(LinearGradientBrush::StartPointProperty, Point{0.0, 0.0})
             .Property(LinearGradientBrush::EndPointProperty, Point{1.0, 1.0})
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Media::RadialGradientBrush) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(RadialGradientBrush) {
+    using namespace Aero::Meta;
     Register<RadialGradientBrush>(context)
             .Property(RadialGradientBrush::CenterProperty, Point{0.5, 0.5})
             .Property(RadialGradientBrush::GradientOriginProperty, Point{0.5, 0.5})
@@ -1793,14 +1729,8 @@ AERO_DESCRIBE(::Aero::Media::RadialGradientBrush) {
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Media::TileBrush) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(TileBrush) {
+    using namespace Aero::Meta;
     Register<TileBrush>(context, TypeFlags::Abstract)
             .Property(TileBrush::StretchProperty, Stretch::Fill)
             .Property(TileBrush::ViewboxProperty, Rect{0.0, 0.0, 1.0, 1.0})
@@ -1812,28 +1742,19 @@ AERO_DESCRIBE(::Aero::Media::TileBrush) {
             .Property(TileBrush::AlignmentYProperty, VerticalAlignment::Center);
 }
 
-AERO_DESCRIBE(::Aero::Media::ImageBrush) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(ImageBrush) {
+    using namespace Aero::Meta;
     Register<ImageBrush>(context)
             .Property(ImageBrush::ImageSourceProperty, Base::Ref<ImageSource>{})
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Media::VisualBrush) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(VisualBrush) {
+    using namespace Aero::Meta;
     Register<VisualBrush>(context)
             .Property(VisualBrush::VisualProperty, Base::Ref<Base::Object>{})
             .Factory();
 }
+
+} // namespace Aero::Media
+

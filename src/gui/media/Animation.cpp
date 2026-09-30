@@ -728,35 +728,10 @@ void ClearStoryboardCompletedTriggerActions(
 } // namespace
 } // namespace Aero::MetadataSupport
 
-AERO_DESCRIBE(::Aero::Media::Animation::Timeline) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Media::Animation;
-    using namespace Interactivity;
-    using Media::Animation::ColorAnimation;
-    using Media::Animation::ColorKeyFrame;
-    using Media::Animation::DoubleAnimation;
-    using Media::Animation::DoubleKeyFrame;
-    using Media::Animation::MatrixAnimation;
-    using Media::Animation::MatrixKeyFrame;
-    using Media::Animation::PointAnimation;
-    using Media::Animation::PointKeyFrame;
-    using Media::Animation::RectAnimation;
-    using Media::Animation::RepeatBehavior;
-    using Media::Animation::SizeAnimation;
-    using Media::Animation::SizeKeyFrame;
-    using Media::Animation::ThicknessAnimation;
-    using Media::Animation::ThicknessKeyFrame;
-    using ::Aero::Base::Color;
-    using ::Aero::Base::Point;
-    using ::Aero::Base::Rect;
-    using ::Aero::Base::Size;
-    using ::Aero::Base::Thickness;
+namespace Aero::Media::Animation {
+
+AERO_DESCRIBE(Timeline) {
+    using namespace Aero::Meta;
     Register<Timeline>(context, TypeFlags::Abstract)
             .Property(Timeline::BeginTimeProperty, TimeSpan::Zero())
             .Property(Timeline::DurationProperty, Duration::Automatic())
@@ -766,67 +741,13 @@ AERO_DESCRIBE(::Aero::Media::Animation::Timeline) {
             .Property(Timeline::FillBehaviorProperty, FillBehavior::HoldEnd);
 }
 
-AERO_DESCRIBE(::Aero::Media::Animation::AnimationTimeline) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Media::Animation;
-    using namespace Interactivity;
-    using Media::Animation::ColorAnimation;
-    using Media::Animation::ColorKeyFrame;
-    using Media::Animation::DoubleAnimation;
-    using Media::Animation::DoubleKeyFrame;
-    using Media::Animation::MatrixAnimation;
-    using Media::Animation::MatrixKeyFrame;
-    using Media::Animation::PointAnimation;
-    using Media::Animation::PointKeyFrame;
-    using Media::Animation::RectAnimation;
-    using Media::Animation::RepeatBehavior;
-    using Media::Animation::SizeAnimation;
-    using Media::Animation::SizeKeyFrame;
-    using Media::Animation::ThicknessAnimation;
-    using Media::Animation::ThicknessKeyFrame;
-    using ::Aero::Base::Color;
-    using ::Aero::Base::Point;
-    using ::Aero::Base::Rect;
-    using ::Aero::Base::Size;
-    using ::Aero::Base::Thickness;
+AERO_DESCRIBE(AnimationTimeline) {
+    using namespace Aero::Meta;
     Register<AnimationTimeline>(context, TypeFlags::Abstract);
 }
 
-AERO_DESCRIBE(::Aero::Media::Animation::EasingFunctionBase) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Media::Animation;
-    using namespace Interactivity;
-    using Media::Animation::ColorAnimation;
-    using Media::Animation::ColorKeyFrame;
-    using Media::Animation::DoubleAnimation;
-    using Media::Animation::DoubleKeyFrame;
-    using Media::Animation::MatrixAnimation;
-    using Media::Animation::MatrixKeyFrame;
-    using Media::Animation::PointAnimation;
-    using Media::Animation::PointKeyFrame;
-    using Media::Animation::RectAnimation;
-    using Media::Animation::RepeatBehavior;
-    using Media::Animation::SizeAnimation;
-    using Media::Animation::SizeKeyFrame;
-    using Media::Animation::ThicknessAnimation;
-    using Media::Animation::ThicknessKeyFrame;
-    using ::Aero::Base::Color;
-    using ::Aero::Base::Point;
-    using ::Aero::Base::Rect;
-    using ::Aero::Base::Size;
-    using ::Aero::Base::Thickness;
+AERO_DESCRIBE(EasingFunctionBase) {
+    using namespace Aero::Meta;
     Register<EasingFunctionBase>(context, TypeFlags::Abstract)
             .Property(EasingFunctionBase::EasingModeProperty, EasingMode::EaseOut)
             .Property(EasingFunctionBase::ExponentProperty, 2.0)
@@ -838,177 +759,48 @@ AERO_DESCRIBE(::Aero::Media::Animation::EasingFunctionBase) {
             .Property(EasingFunctionBase::SpringinessProperty, 3.0);
 }
 
-AERO_DESCRIBE(::Aero::Media::Animation::KeyFrameBase) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Media::Animation;
-    using namespace Interactivity;
-    using Media::Animation::ColorAnimation;
-    using Media::Animation::ColorKeyFrame;
-    using Media::Animation::DoubleAnimation;
-    using Media::Animation::DoubleKeyFrame;
-    using Media::Animation::MatrixAnimation;
-    using Media::Animation::MatrixKeyFrame;
-    using Media::Animation::PointAnimation;
-    using Media::Animation::PointKeyFrame;
-    using Media::Animation::RectAnimation;
-    using Media::Animation::RepeatBehavior;
-    using Media::Animation::SizeAnimation;
-    using Media::Animation::SizeKeyFrame;
-    using Media::Animation::ThicknessAnimation;
-    using Media::Animation::ThicknessKeyFrame;
-    using ::Aero::Base::Color;
-    using ::Aero::Base::Point;
-    using ::Aero::Base::Rect;
-    using ::Aero::Base::Size;
-    using ::Aero::Base::Thickness;
+AERO_DESCRIBE(KeyFrameBase) {
+    using namespace Aero::Meta;
     Register<KeyFrameBase>(context, TypeFlags::Abstract)
             .Property(KeyFrameBase::KeyTimeProperty, KeyTime{})
             .Property(KeyFrameBase::EasingFunctionProperty, Base::Ref<EasingFunctionBase>{}, AffectsRender)
             .Property(KeyFrameBase::KeySplineProperty, FrameworkPropertyMetadata(Base::String{}) .Changed(&KeyFrameBase::OnKeySplineChanged));
 }
 
-AERO_DESCRIBE(::Aero::Media::Animation::ObjectKeyFrame) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Media::Animation;
-    using namespace Interactivity;
-    using Media::Animation::ColorAnimation;
-    using Media::Animation::ColorKeyFrame;
-    using Media::Animation::DoubleAnimation;
-    using Media::Animation::DoubleKeyFrame;
-    using Media::Animation::MatrixAnimation;
-    using Media::Animation::MatrixKeyFrame;
-    using Media::Animation::PointAnimation;
-    using Media::Animation::PointKeyFrame;
-    using Media::Animation::RectAnimation;
-    using Media::Animation::RepeatBehavior;
-    using Media::Animation::SizeAnimation;
-    using Media::Animation::SizeKeyFrame;
-    using Media::Animation::ThicknessAnimation;
-    using Media::Animation::ThicknessKeyFrame;
-    using ::Aero::Base::Color;
-    using ::Aero::Base::Point;
-    using ::Aero::Base::Rect;
-    using ::Aero::Base::Size;
-    using ::Aero::Base::Thickness;
+AERO_DESCRIBE(ObjectKeyFrame) {
+    using namespace Aero::Meta;
     Register<ObjectKeyFrame>(context, TypeFlags::Abstract)
             .Property<Value, &ObjectKeyFrame::GetValue, &ObjectKeyFrame::SetValue>("Value", PropertyFlags::AnyValue);
 }
 
-AERO_DESCRIBE(::Aero::Media::Animation::EventTrigger) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Media::Animation;
-    using namespace Interactivity;
-    using Media::Animation::ColorAnimation;
-    using Media::Animation::ColorKeyFrame;
-    using Media::Animation::DoubleAnimation;
-    using Media::Animation::DoubleKeyFrame;
-    using Media::Animation::MatrixAnimation;
-    using Media::Animation::MatrixKeyFrame;
-    using Media::Animation::PointAnimation;
-    using Media::Animation::PointKeyFrame;
-    using Media::Animation::RectAnimation;
-    using Media::Animation::RepeatBehavior;
-    using Media::Animation::SizeAnimation;
-    using Media::Animation::SizeKeyFrame;
-    using Media::Animation::ThicknessAnimation;
-    using Media::Animation::ThicknessKeyFrame;
-    using ::Aero::Base::Color;
-    using ::Aero::Base::Point;
-    using ::Aero::Base::Rect;
-    using ::Aero::Base::Size;
-    using ::Aero::Base::Thickness;
-    Register<EventTrigger>(context)
-            .Property("RoutedEvent", &EventTrigger::GetRoutedEvent, &EventTrigger::SetRoutedEvent)
-            .Property("EventName", &EventTrigger::GetEventName, &EventTrigger::SetEventName)
-            .Property("SourceName", &EventTrigger::GetSourceName, &EventTrigger::SetSourceName)
-            .Content<TriggerAction>("Actions", ContentKind::Collection, &::Aero::MetadataSupport::AddEventTriggerAction, &::Aero::MetadataSupport::ClearEventTriggerActions)
-            .Factory();
-}
-
-AERO_DESCRIBE(::Aero::Media::Animation::TimerTrigger) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Media::Animation;
-    using namespace Interactivity;
-    using Media::Animation::ColorAnimation;
-    using Media::Animation::ColorKeyFrame;
-    using Media::Animation::DoubleAnimation;
-    using Media::Animation::DoubleKeyFrame;
-    using Media::Animation::MatrixAnimation;
-    using Media::Animation::MatrixKeyFrame;
-    using Media::Animation::PointAnimation;
-    using Media::Animation::PointKeyFrame;
-    using Media::Animation::RectAnimation;
-    using Media::Animation::RepeatBehavior;
-    using Media::Animation::SizeAnimation;
-    using Media::Animation::SizeKeyFrame;
-    using Media::Animation::ThicknessAnimation;
-    using Media::Animation::ThicknessKeyFrame;
-    using ::Aero::Base::Color;
-    using ::Aero::Base::Point;
-    using ::Aero::Base::Rect;
-    using ::Aero::Base::Size;
-    using ::Aero::Base::Thickness;
+AERO_DESCRIBE(TimerTrigger) {
+    using namespace Aero::Meta;
     Register<TimerTrigger>(context)
             .Property("TotalTicks", &TimerTrigger::GetTotalTicks, &TimerTrigger::SetTotalTicks)
             .Property<Meta::PropertyValue, &TimerTrigger::GetMillisecondsPerTick, &TimerTrigger::SetMillisecondsPerTick>("MillisecondsPerTick", PropertyFlags::AnyValue)
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Media::Animation::StoryboardCompletedTrigger) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Media::Animation;
-    using namespace Interactivity;
-    using Media::Animation::ColorAnimation;
-    using Media::Animation::ColorKeyFrame;
-    using Media::Animation::DoubleAnimation;
-    using Media::Animation::DoubleKeyFrame;
-    using Media::Animation::MatrixAnimation;
-    using Media::Animation::MatrixKeyFrame;
-    using Media::Animation::PointAnimation;
-    using Media::Animation::PointKeyFrame;
-    using Media::Animation::RectAnimation;
-    using Media::Animation::RepeatBehavior;
-    using Media::Animation::SizeAnimation;
-    using Media::Animation::SizeKeyFrame;
-    using Media::Animation::ThicknessAnimation;
-    using Media::Animation::ThicknessKeyFrame;
-    using ::Aero::Base::Color;
-    using ::Aero::Base::Point;
-    using ::Aero::Base::Rect;
-    using ::Aero::Base::Size;
-    using ::Aero::Base::Thickness;
+AERO_DESCRIBE(StoryboardCompletedTrigger) {
+    using namespace Aero::Meta;
     Register<StoryboardCompletedTrigger>(context)
             .Property("Storyboard", &StoryboardCompletedTrigger::GetStoryboard, &StoryboardCompletedTrigger::SetStoryboard)
-            .Content<TriggerAction>("Actions", ContentKind::Collection, &::Aero::MetadataSupport::AddStoryboardCompletedTriggerAction, &::Aero::MetadataSupport::ClearStoryboardCompletedTriggerActions)
+            .Content<::Aero::Interactivity::TriggerAction>("Actions", ContentKind::Collection, &::Aero::MetadataSupport::AddStoryboardCompletedTriggerAction, &::Aero::MetadataSupport::ClearStoryboardCompletedTriggerActions)
             .Factory();
 }
+
+} // namespace Aero::Media::Animation
+
+namespace Aero {
+
+AERO_DESCRIBE(EventTrigger) {
+    using namespace Aero::Meta;
+    Register<EventTrigger>(context)
+            .Property("RoutedEvent", &EventTrigger::GetRoutedEvent, &EventTrigger::SetRoutedEvent)
+            .Property("EventName", &EventTrigger::GetEventName, &EventTrigger::SetEventName)
+            .Property("SourceName", &EventTrigger::GetSourceName, &EventTrigger::SetSourceName)
+            .Content<::Aero::Interactivity::TriggerAction>("Actions", ContentKind::Collection, &::Aero::MetadataSupport::AddEventTriggerAction, &::Aero::MetadataSupport::ClearEventTriggerActions)
+            .Factory();
+}
+} // namespace Aero
+

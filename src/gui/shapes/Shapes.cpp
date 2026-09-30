@@ -761,7 +761,6 @@ AERO_DESCRIBE(Rectangle) {
 
 AERO_DESCRIBE(Path) {
     using namespace Aero::Meta;
-    using namespace Aero::Controls;
     Register<Path>(context)
         .Property(Path::DataProperty, FrameworkPropertyMetadata(Base::Ref<Geometry>{}, AffectsMeasure | AffectsRender))
         .Property(Path::FillRuleProperty, FillRule::EvenOdd, AffectsRender)
@@ -771,8 +770,8 @@ AERO_DESCRIBE(Path) {
         .Property(Path::StrokeLineJoinProperty, PenLineJoin::Miter, AffectsRender)
         .Property(Path::StrokeStartLineCapProperty, PenLineCap::Flat, AffectsRender)
         .Property(Path::StrokeEndLineCapProperty, PenLineCap::Flat, AffectsRender)
-        .Property(Path::TrimStartProperty, 0.0, AffectsRender, &ValidateNormalizedDouble)
-        .Property(Path::TrimEndProperty, 1.0, AffectsRender, &ValidateNormalizedDouble)
+        .Property(Path::TrimStartProperty, 0.0, AffectsRender, &Aero::Controls::ValidateNormalizedDouble)
+        .Property(Path::TrimEndProperty, 1.0, AffectsRender, &Aero::Controls::ValidateNormalizedDouble)
         .Property(Path::StrokeDashArrayProperty, Base::String{}, AffectsRender)
         .Property(Path::StrokeDashOffsetProperty, 0.0, AffectsRender)
         .Property(Path::DashStyleProperty, Base::Ref<DashStyle>{}, AffectsRender)

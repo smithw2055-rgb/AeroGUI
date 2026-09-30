@@ -1235,18 +1235,16 @@ void ClearMergedDictionaries(
 } // namespace
 } // namespace Aero::MetadataSupport
 
-AERO_DESCRIBE(::Aero::ResourceDictionary) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Media;
+namespace Aero {
+
+AERO_DESCRIBE(ResourceDictionary) {
+    using namespace Aero::Meta;
     Register<ResourceDictionary>(context)
             .Property<Base::ResourceUri, &ResourceDictionary::GetSource, &ResourceDictionary::SetSource>("Source", PropertyFlags::None)
             .Collection<ResourceDictionary>("MergedDictionaries", &::Aero::MetadataSupport::AddMergedDictionary, &::Aero::MetadataSupport::ClearMergedDictionaries)
             .Content<Base::Object>("Entries", ContentKind::Collection)
             .Factory();
 }
+
+} // namespace Aero
+

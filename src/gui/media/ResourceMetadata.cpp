@@ -121,21 +121,19 @@ Base::Result<Value> ConvertFontFamilyText(
 } // namespace
 } // namespace Aero::MetadataSupport
 
-AERO_DESCRIBE(::Aero::Media::FontFamily) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Media;
+namespace Aero::Media {
+
+AERO_DESCRIBE(FontFamily) {
+    using namespace Aero::Meta;
     Register<FontFamily>(context)
             .Property("Source", &FontFamily::GetSource, &FontFamily::SetSource, PropertyFlags::Structural)
             .Content(MakeMemberId(FontFamily::StaticTypeId(), MemberKind::Property, "Source"))
             .TextConverter(&::Aero::MetadataSupport::ConvertFontFamilyText)
             .Factory();
 }
+
+} // namespace Aero::Media
+
 
 namespace Aero {
 using namespace ::Aero::MetadataSupport;

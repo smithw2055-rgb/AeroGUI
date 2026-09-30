@@ -197,38 +197,22 @@ void ShaderEffect::SetUniform(std::uint32_t index, float value) noexcept {
 } // namespace Aero::Media
 
 // Metadata registration for the types implemented in this file.
-AERO_DESCRIBE(::Aero::Media::Effect) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+namespace Aero::Media {
+
+AERO_DESCRIBE(Effect) {
+    using namespace Aero::Meta;
     Register<Effect>(context, TypeFlags::Abstract);
 }
 
-AERO_DESCRIBE(::Aero::Media::BlurEffect) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(BlurEffect) {
+    using namespace Aero::Meta;
     Register<BlurEffect>(context)
             .Property(BlurEffect::RadiusProperty, 5.0, AffectsRender, &Base::Validate::NonNegative<double>)
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Media::DropShadowEffect) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(DropShadowEffect) {
+    using namespace Aero::Meta;
     Register<DropShadowEffect>(context)
             .Property(DropShadowEffect::BlurRadiusProperty, 5.0, AffectsRender, &Base::Validate::NonNegative<double>)
             .Property(DropShadowEffect::DirectionProperty, 315.0, AffectsRender)
@@ -238,55 +222,34 @@ AERO_DESCRIBE(::Aero::Media::DropShadowEffect) {
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Media::PixelateEffect) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(PixelateEffect) {
+    using namespace Aero::Meta;
     Register<PixelateEffect>(context)
             .Property(PixelateEffect::SizeProperty, 1.0, AffectsRender, &Base::Validate::Positive<double>)
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Media::TintEffect) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(TintEffect) {
+    using namespace Aero::Meta;
     Register<TintEffect>(context)
             .Property(TintEffect::ColorProperty, Base::Color{0.0F, 0.0F, 1.0F, 1.0F}, AffectsRender)
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Media::DirectionalBlurEffect) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(DirectionalBlurEffect) {
+    using namespace Aero::Meta;
     Register<DirectionalBlurEffect>(context)
             .Property(DirectionalBlurEffect::RadiusProperty, 0.0, AffectsRender, &Base::Validate::NonNegative<double>)
             .Property(DirectionalBlurEffect::AngleProperty, 0.0, AffectsRender)
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Media::ShaderEffect) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(ShaderEffect) {
+    using namespace Aero::Meta;
     Register<ShaderEffect>(context)
             .Property(ShaderEffect::PixelShaderProperty, FrameworkPropertyMetadata(Base::String{}, AffectsRender).Changed(&ShaderEffect::OnPixelShaderChanged))
             .Factory();
 }
+
+} // namespace Aero::Media
+

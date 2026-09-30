@@ -85,16 +85,11 @@ void Animatable::OnChanged() noexcept {
 
 void Animatable::OnSubPropertyChanged() noexcept {}
 
-} // namespace Aero
-
 // Metadata registration for the types implemented in this file.
-AERO_DESCRIBE(::Aero::Animatable) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(Animatable) {
+    using namespace Aero::Meta;
     Register<Animatable>(context, TypeFlags::Abstract);
 }
+
+} // namespace Aero
+

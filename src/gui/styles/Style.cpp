@@ -1421,15 +1421,10 @@ void ClearStyleTriggers(
 } // namespace
 } // namespace Aero::MetadataSupport
 
-AERO_DESCRIBE(::Aero::Element) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Data;
+namespace Aero {
+
+AERO_DESCRIBE(Element) {
+    using namespace Aero::Meta;
     Register<Element>(context, TypeFlags::Abstract)
             .Property(Element::PPAAInProperty, 0.0, AffectsRender)
             .Property(Element::PPAAOutProperty, 0.0, AffectsRender)
@@ -1439,15 +1434,8 @@ AERO_DESCRIBE(::Aero::Element) {
             .Property(Element::Transform3DProperty, FrameworkPropertyMetadata(Base::Ref<Media::Transform3D>{}, AffectsRender).Changed(&Element::OnTransform3DChanged));
 }
 
-AERO_DESCRIBE(::Aero::TextProperties) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Data;
+AERO_DESCRIBE(TextProperties) {
+    using namespace Aero::Meta;
     Register<TextProperties>(context, TypeFlags::Abstract)
             .Property(TextProperties::PasswordLengthProperty, std::uint32_t{0}, AffectsRender)
             .Property(TextProperties::PlaceholderProperty, FrameworkPropertyMetadata(Base::String{}, AffectsRender).Changed(&TextProperties::OnCompatibilityPropertyChanged))
@@ -1455,28 +1443,14 @@ AERO_DESCRIBE(::Aero::TextProperties) {
             .Property(TextProperties::StrokeThicknessProperty, FrameworkPropertyMetadata(0.0, AffectsRender).Changed(&TextProperties::OnCompatibilityPropertyChanged));
 }
 
-AERO_DESCRIBE(::Aero::RichText) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Data;
+AERO_DESCRIBE(RichText) {
+    using namespace Aero::Meta;
     Register<RichText>(context, TypeFlags::Abstract)
             .Property(RichText::TextProperty, FrameworkPropertyMetadata(Base::String{}, AffectsMeasure).Changed(&RichText::OnTextChanged));
 }
 
-AERO_DESCRIBE(::Aero::Style) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Data;
+AERO_DESCRIBE(Style) {
+    using namespace Aero::Meta;
     Register<Style>(context)
             .Property<TypeReference, &::Aero::MetadataSupport::GetStyleTargetType, &::Aero::MetadataSupport::SetStyleTargetType>("TargetType", PropertyFlags::None)
             .Property<Base::Ref<Style>, &::Aero::MetadataSupport::SetStyleBasedOn>("BasedOn", PropertyFlags::WriteOnly)
@@ -1485,3 +1459,6 @@ AERO_DESCRIBE(::Aero::Style) {
             .Content<Setter>("Setters", ContentKind::Collection, &::Aero::MetadataSupport::AddStyleSetter, &::Aero::MetadataSupport::ClearStyleSetters)
             .Factory();
 }
+
+} // namespace Aero
+

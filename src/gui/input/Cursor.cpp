@@ -217,13 +217,12 @@ Base::Ref<Cursor> Cursors::Wait() {
 } // namespace Aero::Input
 
 // Metadata registration for the types implemented in this file.
-AERO_DESCRIBE(::Aero::Input::Cursor) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+namespace Aero::Input {
+
+AERO_DESCRIBE(Cursor) {
+    using namespace Aero::Meta;
     Register<Cursor>(context);
 }
+
+} // namespace Aero::Input
+

@@ -156,41 +156,28 @@ Base::Result<Value> ConvertImageSourceText(
 } // namespace
 } // namespace Aero::MetadataSupport
 
-AERO_DESCRIBE(::Aero::Media::ImageSource) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+namespace Aero::Media {
+
+AERO_DESCRIBE(ImageSource) {
+    using namespace Aero::Meta;
     Register<ImageSource>(context, TypeFlags::Abstract)
             .TextConverter(&::Aero::MetadataSupport::ConvertImageSourceText);
 }
 
-AERO_DESCRIBE(::Aero::Media::BitmapImage) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(BitmapImage) {
+    using namespace Aero::Meta;
     Register<BitmapImage>(context)
             .Property<Base::ResourceUri, &BitmapImage::GetUriSource, &BitmapImage::SetUriSource>("UriSource")
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Media::CroppedBitmap) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(CroppedBitmap) {
+    using namespace Aero::Meta;
     Register<CroppedBitmap>(context)
             .Property<Base::Ref<ImageSource>, &CroppedBitmap::GetSource, &CroppedBitmap::SetSource>("Source")
             .Property<Base::Rect, &CroppedBitmap::GetSourceRect, &CroppedBitmap::SetSourceRect>("SourceRect")
             .Factory();
 }
+
+} // namespace Aero::Media
+

@@ -434,18 +434,16 @@ Base::Result<Value> ConvertGeometryText(
 } // namespace
 } // namespace Aero::MetadataSupport
 
-AERO_DESCRIBE(::Aero::Media::StreamGeometry) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Media;
+namespace Aero::Media {
+
+AERO_DESCRIBE(StreamGeometry) {
+    using namespace Aero::Meta;
     Register<StreamGeometry>(context)
             .Property("Data", &StreamGeometry::GetData, &StreamGeometry::SetData, PropertyFlags::Structural)
             .Content(MakeMemberId(StreamGeometry::StaticTypeId(), MemberKind::Property, "Data"))
             .TextConverter(&::Aero::MetadataSupport::ConvertGeometryText)
             .Factory();
 }
+
+} // namespace Aero::Media
+

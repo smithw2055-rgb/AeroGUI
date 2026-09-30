@@ -163,28 +163,16 @@ bool Pen::FreezeCore(bool isChecking) noexcept {
 } // namespace Aero::Media
 
 // Metadata registration for the types implemented in this file.
-AERO_DESCRIBE(::Aero::Media::DashStyle) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Media;
+namespace Aero::Media {
+
+AERO_DESCRIBE(DashStyle) {
+    using namespace Aero::Meta;
     Register<DashStyle>(context)
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Media::Pen) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Media;
+AERO_DESCRIBE(Pen) {
+    using namespace Aero::Meta;
     Register<Pen>(context)
             .Property<Base::Ref<Brush>, &Pen::GetBrush, &Pen::SetBrush>("Brush", PropertyFlags::None)
             .Property(Pen::ThicknessProperty, 1.0, FrameworkPropertyMetadataOptions::None, &Base::Validate::NonNegative<double>)
@@ -195,3 +183,6 @@ AERO_DESCRIBE(::Aero::Media::Pen) {
             .Property(Pen::MiterLimitProperty, 10.0, FrameworkPropertyMetadataOptions::None, &Base::Validate::NonNegative<double>)
             .Factory();
 }
+
+} // namespace Aero::Media
+

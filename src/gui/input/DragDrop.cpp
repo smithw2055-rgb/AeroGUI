@@ -103,12 +103,10 @@ Input::DragDropEffects DragDrop::DoDragDrop(
 } // namespace Aero
 
 // Metadata registration for the types implemented in this file.
-AERO_DESCRIBE(::Aero::DragDrop) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Input;
+namespace Aero {
+
+AERO_DESCRIBE(DragDrop) {
     using namespace Aero::Meta;
-    using namespace Aero::Input;
     Register<DragDrop>(context, TypeFlags::Abstract)
             .Event(DragDrop::PreviewDragEnterEvent)
             .Event(DragDrop::DragEnterEvent)
@@ -119,3 +117,6 @@ AERO_DESCRIBE(::Aero::DragDrop) {
             .Event(DragDrop::PreviewDropEvent)
             .Event(DragDrop::DropEvent);
 }
+
+} // namespace Aero
+

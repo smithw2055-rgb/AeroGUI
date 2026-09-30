@@ -85,12 +85,10 @@ KeyboardModifiers Keyboard::Modifiers() noexcept {
 } // namespace Aero::Input
 
 // Metadata registration for the types implemented in this file.
-AERO_DESCRIBE(::Aero::Input::Keyboard) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Input;
+namespace Aero::Input {
+
+AERO_DESCRIBE(Keyboard) {
     using namespace Aero::Meta;
-    using namespace Aero::Input;
     Register<Keyboard>(context, TypeFlags::Abstract)
             .Event(Keyboard::KeyDownEvent)
             .Event(Keyboard::PreviewKeyDownEvent)
@@ -99,3 +97,6 @@ AERO_DESCRIBE(::Aero::Input::Keyboard) {
             .Event(Keyboard::GotKeyboardFocusEvent)
             .Event(Keyboard::LostKeyboardFocusEvent);
 }
+
+} // namespace Aero::Input
+

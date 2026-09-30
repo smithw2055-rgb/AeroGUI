@@ -441,27 +441,15 @@ void ClearMultiTriggerSetters(
 } // namespace
 } // namespace Aero::MetadataSupport
 
-AERO_DESCRIBE(::Aero::SetterBase) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Data;
+namespace Aero {
+
+AERO_DESCRIBE(SetterBase) {
+    using namespace Aero::Meta;
     Register<SetterBase>(context, TypeFlags::Abstract);
 }
 
-AERO_DESCRIBE(::Aero::Setter) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Data;
+AERO_DESCRIBE(Setter) {
+    using namespace Aero::Meta;
     Register<Setter>(context)
             .Property("TargetName", &Setter::GetTargetName, &Setter::SetTargetName)
             .Property("Property", &Setter::GetPropertyName, &Setter::SetPropertyName)
@@ -469,43 +457,22 @@ AERO_DESCRIBE(::Aero::Setter) {
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::EventSetter) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Data;
+AERO_DESCRIBE(EventSetter) {
+    using namespace Aero::Meta;
     Register<EventSetter>(context)
             .Property("Handler", &EventSetter::GetHandlerName, &EventSetter::SetHandlerName)
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::TriggerBase) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Data;
+AERO_DESCRIBE(TriggerBase) {
+    using namespace Aero::Meta;
     Register<TriggerBase>(context, TypeFlags::Abstract)
             .Collection<Aero::Interactivity::TriggerAction>("EnterActions", &::Aero::MetadataSupport::AddTriggerEnterAction, &::Aero::MetadataSupport::ClearTriggerEnterActions)
             .Collection<Aero::Interactivity::TriggerAction>("ExitActions", &::Aero::MetadataSupport::AddTriggerExitAction, &::Aero::MetadataSupport::ClearTriggerExitActions);
 }
 
-AERO_DESCRIBE(::Aero::Trigger) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Data;
+AERO_DESCRIBE(Trigger) {
+    using namespace Aero::Meta;
     Register<Trigger>(context)
             .Property("Property", &Trigger::GetPropertyName, &Trigger::SetPropertyName)
             .Property("SourceName", &Trigger::GetSourceName, &Trigger::SetSourceName)
@@ -514,66 +481,41 @@ AERO_DESCRIBE(::Aero::Trigger) {
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::DataTrigger) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Data;
+AERO_DESCRIBE(DataTrigger) {
+    using namespace Aero::Meta;
     Register<DataTrigger>(context)
-            .Property<Base::Ref<Binding>, &DataTrigger::SetBinding>("Binding", PropertyFlags::Structural)
+            .Property<Base::Ref<Data::Binding>, &DataTrigger::SetBinding>("Binding", PropertyFlags::Structural)
             .Property<Value, &DataTrigger::GetAuthoredValue, &DataTrigger::SetAuthoredValue>("Value", PropertyFlags::AnyValue)
             .Property("Comparison", &DataTrigger::GetComparison, &DataTrigger::SetComparison)
             .Content<Base::Object>("Setters", ContentKind::Collection, &::Aero::MetadataSupport::AddDataTriggerContent, &::Aero::MetadataSupport::ClearDataTriggerContent)
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Condition) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Data;
+AERO_DESCRIBE(Condition) {
+    using namespace Aero::Meta;
     Register<Condition>(context)
-            .Property<Base::Ref<Binding>, &Condition::SetBinding>("Binding", PropertyFlags::Structural)
+            .Property<Base::Ref<Data::Binding>, &Condition::SetBinding>("Binding", PropertyFlags::Structural)
             .Property("Property", &Condition::GetPropertyName, &Condition::SetPropertyName)
             .Property("SourceName", &Condition::GetSourceName, &Condition::SetSourceName)
             .Property<Value, &Condition::GetAuthoredValue, &Condition::SetAuthoredValue>("Value", PropertyFlags::AnyValue)
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::MultiDataTrigger) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Data;
+AERO_DESCRIBE(MultiDataTrigger) {
+    using namespace Aero::Meta;
     Register<MultiDataTrigger>(context)
             .Collection<Condition>("Conditions", &::Aero::MetadataSupport::AddMultiDataCondition, &::Aero::MetadataSupport::ClearMultiDataConditions)
             .Content<Setter>("Setters", ContentKind::Collection, &::Aero::MetadataSupport::AddMultiDataSetter, &::Aero::MetadataSupport::ClearMultiDataSetters)
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::MultiTrigger) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
-    using namespace Data;
+AERO_DESCRIBE(MultiTrigger) {
+    using namespace Aero::Meta;
     Register<MultiTrigger>(context)
             .Collection<Condition>("Conditions", &::Aero::MetadataSupport::AddMultiTriggerCondition, &::Aero::MetadataSupport::ClearMultiTriggerConditions)
             .Content<Setter>("Setters", ContentKind::Collection, &::Aero::MetadataSupport::AddMultiTriggerSetter, &::Aero::MetadataSupport::ClearMultiTriggerSetters)
             .Factory();
 }
+
+} // namespace Aero
+

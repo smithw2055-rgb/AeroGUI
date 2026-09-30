@@ -528,39 +528,23 @@ void ClearTransformGroupChildren(
 } // namespace
 } // namespace Aero::MetadataSupport
 
-AERO_DESCRIBE(::Aero::Media::Transform) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+namespace Aero::Media {
+
+AERO_DESCRIBE(Transform) {
+    using namespace Aero::Meta;
     Register<Transform>(context, TypeFlags::Abstract);
 }
 
-AERO_DESCRIBE(::Aero::Media::TranslateTransform) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(TranslateTransform) {
+    using namespace Aero::Meta;
     Register<TranslateTransform>(context)
             .Property(TranslateTransform::XProperty, 0.0, AffectsRender)
             .Property(TranslateTransform::YProperty, 0.0, AffectsRender)
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Media::ScaleTransform) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(ScaleTransform) {
+    using namespace Aero::Meta;
     Register<ScaleTransform>(context)
             .Property(ScaleTransform::ScaleXProperty, 1.0, AffectsRender)
             .Property(ScaleTransform::ScaleYProperty, 1.0, AffectsRender)
@@ -569,14 +553,8 @@ AERO_DESCRIBE(::Aero::Media::ScaleTransform) {
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Media::RotateTransform) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(RotateTransform) {
+    using namespace Aero::Meta;
     Register<RotateTransform>(context)
             .Property(RotateTransform::AngleProperty, 0.0, AffectsRender)
             .Property(RotateTransform::CenterXProperty, 0.0, AffectsRender)
@@ -584,14 +562,8 @@ AERO_DESCRIBE(::Aero::Media::RotateTransform) {
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Media::SkewTransform) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(SkewTransform) {
+    using namespace Aero::Meta;
     Register<SkewTransform>(context)
             .Property(SkewTransform::AngleXProperty, 0.0, AffectsRender)
             .Property(SkewTransform::AngleYProperty, 0.0, AffectsRender)
@@ -600,27 +572,15 @@ AERO_DESCRIBE(::Aero::Media::SkewTransform) {
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Media::MatrixTransform) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(MatrixTransform) {
+    using namespace Aero::Meta;
     Register<MatrixTransform>(context)
             .Property(MatrixTransform::MatrixProperty, Base::Transform2D{}, AffectsRender)
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Media::CompositeTransform) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(CompositeTransform) {
+    using namespace Aero::Meta;
     Register<CompositeTransform>(context)
             .Property(CompositeTransform::CenterXProperty, 0.0, AffectsRender)
             .Property(CompositeTransform::CenterYProperty, 0.0, AffectsRender)
@@ -634,38 +594,20 @@ AERO_DESCRIBE(::Aero::Media::CompositeTransform) {
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Media::TransformGroup) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(TransformGroup) {
+    using namespace Aero::Meta;
     Register<TransformGroup>(context)
             .Content<Transform>("Children", ContentKind::Collection, &::Aero::MetadataSupport::AddTransformGroupChild, &::Aero::MetadataSupport::ClearTransformGroupChildren)
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Media::Transform3D) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(Transform3D) {
+    using namespace Aero::Meta;
     Register<Transform3D>(context, TypeFlags::Abstract);
 }
 
-AERO_DESCRIBE(::Aero::Media::CompositeTransform3D) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(CompositeTransform3D) {
+    using namespace Aero::Meta;
     Register<CompositeTransform3D>(context)
             .Property(CompositeTransform3D::CenterXProperty, 0.0, AffectsRender)
             .Property(CompositeTransform3D::CenterYProperty, 0.0, AffectsRender)
@@ -682,14 +624,8 @@ AERO_DESCRIBE(::Aero::Media::CompositeTransform3D) {
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Media::PerspectiveTransform3D) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(PerspectiveTransform3D) {
+    using namespace Aero::Meta;
     Register<PerspectiveTransform3D>(context)
             .Property(PerspectiveTransform3D::DepthProperty, Base::DefaultPerspectiveDepth, AffectsRender)
             .Property(PerspectiveTransform3D::OffsetXProperty, 0.0, AffectsRender)
@@ -697,15 +633,12 @@ AERO_DESCRIBE(::Aero::Media::PerspectiveTransform3D) {
             .Factory();
 }
 
-AERO_DESCRIBE(::Aero::Media::MatrixTransform3D) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+AERO_DESCRIBE(MatrixTransform3D) {
+    using namespace Aero::Meta;
     Register<MatrixTransform3D>(context)
             .Property(MatrixTransform3D::MatrixProperty, Base::IdentityTransform3(), AffectsRender)
             .Factory();
 }
+
+} // namespace Aero::Media
+

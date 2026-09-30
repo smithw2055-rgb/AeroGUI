@@ -495,18 +495,17 @@ bool EqualCornerRadius(
 } // namespace
 } // namespace Aero::MetadataSupport
 
-AERO_DESCRIBE(::Aero::Length) {
-    using namespace ::Aero;
-    using namespace ::Aero::Meta;
-    using namespace ::Aero::Threading;
-    using namespace ::Aero::Input;
-    using namespace ::Aero::Media;
-    using namespace ::Aero::Data;
-    using namespace ::Aero::Interactivity;
+namespace Aero {
+
+AERO_DESCRIBE(Length) {
+    using namespace Aero::Meta;
     Register<Length>(context)
             .ValueSemantics({sizeof(Length), alignof(Length), nullptr, nullptr, &::Aero::MetadataSupport::EqualLength, nullptr, true})
             .TextConverter<&::Aero::MetadataSupport::ConvertLength>();
 }
+
+} // namespace Aero
+
 
 namespace Aero {
 using namespace ::Aero::MetadataSupport;
