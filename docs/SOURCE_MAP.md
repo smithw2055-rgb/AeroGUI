@@ -12,10 +12,10 @@ dir. IDE-only virtual folders are defined via `source_group()` in
 
 | Public surface | Implementation |
 | --- | --- |
-| `Aero::Gui` | `Gui.cpp` + `GuiDetail.hpp` (provider handlers live in `Gui.cpp`) |
-| `Aero::View` | `View.cpp` (construct/mount) + `ViewFrame.cpp` (clocks) + `ViewInput.cpp` (pointer/keyboard/text **+ focus queue**, merged from `ViewFocus.cpp`) + `ViewRender.cpp` (render sync) + `ViewDocuments.cpp` (§1 mount, §2 resources, §3 fragments) |
+| `Aero::Gui` | `Gui.cpp` + `GuiRuntime.hpp` (provider handlers live in `Gui.cpp`) |
+| `Aero::View` | `View.cpp` (construct/mount) + `ViewFrame.cpp` (clocks) + `ViewInput.cpp` (pointer/keyboard/text **+ focus queue**, merged from `ViewFocus.cpp`) + `ViewFrameRender.cpp` (render sync) + `ViewDocuments.cpp` (§1 mount, §2 resources, §3 fragments) |
 | `Aero::IRenderer` | `ViewRenderer.hpp` / `ViewRenderer.cpp` (only concrete renderer) |
-| Hub state | `ViewFrame.hpp` (no `<Aero/Controls.hpp>` umbrella; Controls types via `internal/AeroGuiInternal.hpp`) |
+| Hub state | `ViewFrame.hpp` (no `<Aero/Controls.hpp>` umbrella; Controls types via src-only engine headers) |
 
 ## Controls (`src/gui/controls/`, flat)
 
@@ -30,7 +30,7 @@ dir. IDE-only virtual folders are defined via `source_group()` in
 | `Controls/ContentControl.hpp`, `UserControl.hpp`, `Headers.hpp` … | `ContentControls.cpp` |
 | `Controls/Image.hpp` | `Images.cpp` |
 | `VisualStateManager.hpp` | `VisualStateManager.cpp` |
-| Metadata bootstrap | `ControlsMetadata.cpp` + `Metadata.hpp` + `metadata/Metadata.{Foundation,Widgets,Layout}.inl` (7 former `*.inl` merged in stable registration order) |
+| Metadata bootstrap | `ControlsMetadata.cpp` + `ControlsMetadata.hpp` + `ControlPropertyValidators.hpp` + `metadata/Metadata.{Foundation,Widgets,Layout}.inl` (7 former `*.inl` merged in stable registration order) |
 
 ## Media / animation (`src/gui/media/`, flat)
 
@@ -52,7 +52,7 @@ dir. IDE-only virtual folders are defined via `source_group()` in
 | `Triggers/*`, `Interactivity/*` | `triggers/Trigger*.cpp` + `interactivity/InteractivityEngine*.cpp` + `BlendBehaviors.cpp` |
 | Text stack | `text/TextPipeline.cpp`, `TextLayout.cpp`, `GlyphAtlas.cpp`, `FontManager.cpp`, `EditableText.cpp` + `freetype/` + `harfbuzz/` adapters |
 | Input | `input/Input.cpp` (routing), `Commands.cpp`, `OverlayHost.cpp`, `Clipboard.cpp`, `DragDrop.cpp`, `Cursor(s).cpp`, `Mouse.cpp`, `Keyboard.cpp`, `DataObject.cpp`; focus queue in `ViewInput.cpp`, declaration in `input/InputManager.hpp` (merged from `FocusHost.hpp`) |
-| Core kernel | `core/ElementTree.cpp`, `PropertySystem.cpp`, `DependencyObject.cpp`, `LayoutEngine.cpp`, `Visual.cpp`, `UIElement.cpp`, `FrameworkElement.cpp`, `Dispatcher.cpp`, `RoutedEvents.cpp` (+ `core/{ElementTree,LayoutEngine,EffectiveValueEngine,RoutedEvents,EventRouter}.hpp`, `internal/AeroGuiInternal*.hpp`, `internal/PropertyStore.hpp`); single-TU helpers live in their `.cpp` (e.g. `Invariants.cpp`, merged from `Invariants.hpp`) |
+| Core kernel | `core/ElementTree.cpp`, `EffectiveValueEngine.cpp`, `DependencyObject.cpp`, `LayoutEngine.cpp`, `Visual.cpp`, `UIElement.cpp`, `FrameworkElement.cpp`, `Dispatcher.cpp`, `RoutedEvents.cpp` (+ `core/{ElementTree,LayoutEngine,EffectiveValueEngine,RoutedEvents,EventRouter}.hpp`, `core/PropertyStore.hpp`); single-TU helpers live in their `.cpp` (e.g. `Invariants.cpp`, merged from `Invariants.hpp`) |
 | Styles / templates | `styles/Resources.cpp`, `Style.cpp` (+ `StyleEngine.hpp`, `ResourceHost.hpp`); `templates/Templates.cpp` |
 | Documents / shapes / diagnostics | `documents/Documents.cpp`, `Adorners.cpp`; `shapes/Shapes.cpp`, `Path.cpp`; `diagnostics/Diagnostics.cpp`, `Inspector.cpp` |
 
@@ -70,7 +70,7 @@ was used for observable API comparison only; no implementation was copied.
 
 | Area | Change |
 | --- | --- |
-| DP public surface | `DependencyObject.hpp` keeps Noesis-parity API (Get/Set/Clear/Coerce/expressions/notifications); `ChangeHandlerRecord`/`DependencyObjectRare`/`DependencyMutationScope` (ex-`MutationScope`) live in `internal/PropertyStore.hpp`. `ChangeKind` stays public (used by `Resources.hpp`). Friend: `DependencyMutationScope`. |
+| DP public surface | `DependencyObject.hpp` keeps Noesis-parity API (Get/Set/Clear/Coerce/expressions/notifications); `ChangeHandlerRecord`/`DependencyObjectRare`/`DependencyMutationScope` (ex-`MutationScope`) live in `core/PropertyStore.hpp`. `ChangeKind` stays public (used by `Resources.hpp`). Friend: `DependencyMutationScope`. |
 | Meta colocate pilot | `meta/Elements.inl`: one `PopulateUiElements` → 5 per-class `Fill*Metadata` + dispatcher, same order/linkage. Full colocate (Fill next to impl) waits on untangling `Support.inl` helpers shared in the `BuiltinMetadata.cpp` anonymous namespace. |
 | Meta gap (verified) | `TemplatePart`/`DependsOn` have no Aero equivalent (Noesis: `TypeMetaData` subclasses). Consumption exists (`Control::GetTemplateChild(name)`, `PART_*` convention). Recording needs a new facet kind, but `FacetDraft::facets[11]` is single-index-per-kind while PARTs are one-to-many → requires facet-model redesign (range encoding or side-table) + template-tooling consumption. Tracked as feature design, not done here. |
 | View content API | Canonical: `SetContent(doc, size)` + `SetContent(root, size)`. `SetContent(root)` is `[[deprecated]]` (no in-tree callers; `Gui::CreateView(content)` migrated to explicit empty size, behavior-identical). `SetContent(root, doc, size)` kept (used by `DesktopHost`); new fragment mounts prefer `XamlReader::MountFragment`. See `XamlReader.hpp` entry-point guide. |

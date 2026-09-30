@@ -1,6 +1,5 @@
 #include "gui/triggers/TriggerEngine.hpp"
-#include "gui/triggers/TriggerDiagnostics.hpp"
-#include "gui/triggers/TriggerValueCompare.hpp"
+#include "gui/triggers/TriggerPlan.hpp"
 #include "gui/styles/StyleEngine.hpp"
 #include "gui/controls/ItemsContainers.hpp"
 #include "gui/core/ValueConversion.hpp"

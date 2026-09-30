@@ -1,5 +1,5 @@
 #include "gui/ViewFrame.hpp"
-#include "gui/GuiDetail.hpp"
+#include "gui/GuiRuntime.hpp"
 #include <Aero/VisualTreeHelper.hpp>
 
 #include <algorithm>

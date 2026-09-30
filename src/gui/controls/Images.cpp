@@ -1,7 +1,7 @@
 #include "render/DisplayList.hpp"
 #include "gui/core/Describe.hpp"
 #include <Aero/Controls.hpp>
-#include "gui/core/TypeRegistryDetail.hpp" 
+#include "gui/core/TypeRegistryCore.hpp" 
 
 #include <algorithm>
 #include <cmath>

@@ -1,5 +1,5 @@
-#include "gui/media/AnimationPathResolver.hpp"
-#include "gui/core/TypeRegistryDetail.hpp"
+#include "gui/media/AnimationEngine.hpp"
+#include "gui/core/TypeRegistryCore.hpp"
 
 #include <Aero/DependencyProperty.hpp>
 #include <Aero/DependencyObject.hpp>

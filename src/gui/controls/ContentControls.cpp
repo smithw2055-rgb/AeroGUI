@@ -16,9 +16,9 @@
 #include <Aero/Media/Transform3D.hpp>
 #include <Aero/Shapes.hpp>
 #include <Aero/Documents.hpp>
-#include "gui/core/TypeRegistryDetail.hpp"
+#include "gui/core/TypeRegistryCore.hpp"
 #include "gui/core/ValueConversion.hpp"
-#include "ControlsMetadata.hpp"
+#include "ControlPropertyValidators.hpp"
 #include "gui/templates/TemplateInstance.hpp"
 #include "gui/data/BindingEngine.hpp"
 #include <Aero/TryCast.hpp>
@@ -1040,5 +1040,22 @@ AERO_DESCRIBE(Expander) {
 
 
 
+
+
+void Control::OnRender(
+    ::Aero::Media::DrawingContext& context) noexcept {
+    // A templated Control delegates its chrome to the template. Painting the
+    // base Background as well produces an extra full-control rectangle behind
+    // custom ComboBox, TreeView, Button and similar templates.
+    if (GetTemplateRoot() != nullptr) return;
+    auto& builder = Aero::Render::DrawingBridge::Builder(context);
+    static_cast<void>(PaintBrushRect(
+        builder,
+        GetBackground(),
+        Rect{
+            0.0, 0.0,
+            GetRenderSize().width,
+            GetRenderSize().height}));
+}
 
 } // namespace Aero

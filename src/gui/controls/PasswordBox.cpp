@@ -5,7 +5,7 @@
 #include <Aero/Controls/TextBox.hpp>
 #include <Aero/ClassHandler.hpp>
 #include <Aero/Controls/ScrollViewer.hpp>
-#include "ControlsMetadata.hpp"
+#include "ControlPropertyValidators.hpp"
 #include "gui/text/EditableText.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"

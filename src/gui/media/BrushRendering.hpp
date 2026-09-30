@@ -3,7 +3,7 @@
 // Brush paint helpers + gradient/shader sampling (absorbed from BrushRendering/AnimationModel.hpp).
 
 #include "render/DisplayList.hpp"
-#include "gui/core/TypeRegistryDetail.hpp"
+#include "gui/core/TypeRegistryCore.hpp"
 
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Effects.hpp>

@@ -2,6 +2,7 @@
 
 // Src-only resource walk used by FrameworkElement::FindResource /
 // TryFindResource and ViewFrame. Markup::ResourceResolver stays public.
+// Named FrameworkResourceResolver to avoid clashing with Markup::ResourceResolver.
 
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/StringView.hpp>
@@ -11,7 +12,7 @@ namespace Aero {
 
 class FrameworkElement;
 
-class ResourceResolver {
+class FrameworkResourceResolver {
 public:
     static Result<ResourceValue> Lookup(const FrameworkElement* element,
         const ResourceKey& key, const ResourceDictionary* templateResources,

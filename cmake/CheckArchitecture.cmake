@@ -485,7 +485,7 @@ foreach(required_source_entry IN ITEMS
         "src/gui/View.cpp"
         "src/gui/ViewFrame.cpp"
         "src/gui/ViewInput.cpp"
-        "src/gui/ViewRender.cpp"
+        "src/gui/ViewFrameRender.cpp"
         "src/gui/ViewRenderer.hpp"
         "src/gui/ViewFrame.hpp"
         "src/gui/core"
@@ -624,11 +624,11 @@ file(GLOB aero_gui_root_files
     "${AERO_SOURCE_DIR}/src/gui/*.hpp")
 set(aero_allowed_gui_root_files
     "src/gui/Gui.cpp"
-    "src/gui/GuiDetail.hpp"
+    "src/gui/GuiRuntime.hpp"
     "src/gui/View.cpp"
     "src/gui/ViewFrame.cpp"
     "src/gui/ViewInput.cpp"
-    "src/gui/ViewRender.cpp"
+    "src/gui/ViewFrameRender.cpp"
     "src/gui/ViewFrame.hpp"
     "src/gui/ViewRenderer.hpp"
     "src/gui/ViewRenderer.cpp"
@@ -680,13 +680,13 @@ aero_forbid_text(
     "include/Aero/Media/TextureProvider.hpp" "CacheIdentity"
     "Provider cache identity must remain registry-private")
 aero_forbid_text(
-    "src/gui/GuiDetail.hpp" "XamlProvider*"
+    "src/gui/GuiRuntime.hpp" "XamlProvider*"
     "Gui provider ownership must not use raw XAML pointers")
 aero_forbid_text(
-    "src/gui/GuiDetail.hpp" "TextureProvider*"
+    "src/gui/GuiRuntime.hpp" "TextureProvider*"
     "Gui provider ownership must not use raw texture pointers")
 aero_forbid_text(
-    "src/gui/GuiDetail.hpp" "FontProvider*"
+    "src/gui/GuiRuntime.hpp" "FontProvider*"
     "Gui provider ownership must not use raw font pointers")
 file(GLOB_RECURSE aero_provider_api_consumers
     RELATIVE "${AERO_SOURCE_DIR}"
@@ -1313,10 +1313,10 @@ aero_require_text(
     "BindingPath.hpp must own the path-plan types")
 aero_forbid_text(
     "src/gui/ViewFrame.hpp"
-    "gui/GuiDetail.hpp"
+    "gui/GuiRuntime.hpp"
     "ViewFrame must not include GuiRuntime")
 aero_forbid_text(
-    "src/gui/controls/Metadata.hpp"
+    "src/gui/controls/ControlsMetadata.hpp"
     "gui/core/ElementTree.hpp"
     "Controls metadata registration must not pull the element tree")
 aero_require_text(
@@ -1624,6 +1624,20 @@ endforeach()
 # WPF kernel: no Core::Facet / Access bags. View/ElementTree is the service hub.
 # XAML metadata capabilities (XamlFacets) are a different system and may remain.
 # ---------------------------------------------------------------------------
+aero_forbid_file("src/gui/core/PropertySystem.cpp")
+aero_forbid_file("src/gui/core/TypeRegistryDetail.hpp")
+aero_forbid_file("src/gui/GuiDetail.hpp")
+aero_forbid_file("src/gui/ViewRender.cpp")
+aero_forbid_file("src/gui/styles/ResourceResolver.hpp")
+aero_forbid_file("src/gui/markup/XamlObjectWriterCommon.hpp")
+aero_forbid_file("src/gui/markup/MarkupCommon.hpp")
+aero_forbid_file("src/gui/markup/MarkupExtensionHost.hpp")
+aero_forbid_file("src/gui/triggers/TriggerDiagnostics.hpp")
+aero_forbid_file("src/gui/triggers/TriggerTypes.hpp")
+aero_forbid_file("src/gui/triggers/TriggerValueCompare.hpp")
+aero_forbid_file("src/gui/media/AnimationPathResolver.hpp")
+aero_forbid_file("src/gui/controls/Controls.cpp")
+aero_forbid_file("src/gui/controls/Metadata.hpp")
 aero_forbid_file("src/gui/internal/AeroGuiInternal.hpp")
 aero_forbid_file("src/gui/internal/AeroGuiInternal.Layout.hpp")
 aero_forbid_file("src/gui/internal/AeroGuiInternal.Visual.hpp")
@@ -2502,8 +2516,8 @@ aero_require_text(
 aero_forbid_text(
     "include/Aero/Resources.hpp"
     "class AERO_GUI_API ResourceResolver"
-    "Aero::ResourceResolver must live in src, not Resources.hpp")
-aero_require_file("src/gui/styles/ResourceResolver.hpp")
+    "Aero::FrameworkResourceResolver must live in src, not Resources.hpp")
+aero_require_file("src/gui/styles/FrameworkResourceResolver.hpp")
 aero_require_text(
     "include/Aero/Markup/ServiceProvider.hpp"
     "class AERO_GUI_API ResourceResolver"

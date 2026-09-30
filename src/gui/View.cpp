@@ -1,5 +1,5 @@
 #include "gui/ViewFrame.hpp"
-#include "gui/GuiDetail.hpp"
+#include "gui/GuiRuntime.hpp"
 #include "gui/text/TextPipeline.hpp"
 #include "render/RenderTree.hpp"
 #include <Aero/BuiltinThemes.generated.hpp>

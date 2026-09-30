@@ -10,8 +10,7 @@ framework of managers, services, or access objects.
 ## Current kernel
 
 Installed headers keep the WPF surface. Kernel-private operations live in
-`src/gui/internal/` and are reached through one friend,
-`friend class ::Aero::AeroGuiInternal`.
+src-only engine headers and are reached through direct engine friendship.
 
 `View` / `ElementTree` is the service hub: named pointers to layout, bindings,
 styles, events, input, animations, visual states, templates, render tree,

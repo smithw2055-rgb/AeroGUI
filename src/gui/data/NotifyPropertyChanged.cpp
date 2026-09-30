@@ -5,7 +5,7 @@
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/core/TypeRegistryDetail.hpp"
+#include "gui/core/TypeRegistryCore.hpp"
 
 namespace Aero::Data {
 

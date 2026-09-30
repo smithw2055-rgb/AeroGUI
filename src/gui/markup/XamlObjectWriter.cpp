@@ -4,7 +4,7 @@
 
 
 
-#include "gui/core/TypeRegistryDetail.hpp"
+#include "gui/core/TypeRegistryCore.hpp"
 
 #include "gui/core/ValueConversion.hpp"
 
@@ -20,11 +20,10 @@
 
 #include "gui/templates/TemplateInstance.hpp"
 
-#include "gui/markup/MarkupCommon.hpp"
+#include "gui/markup/MarkupExtensionContract.hpp"
 
-#include "gui/markup/XamlObjectWriterCommon.hpp"
+#include "gui/markup/XamlObjectWriterState.hpp"
 
-#include "gui/markup/MarkupExtensionHost.hpp"
 
 #include <Aero/Controls.hpp>
 
@@ -962,7 +961,7 @@ Base::Result<void> ObjectWriter::StageContent(
 
 
 
-// ===== XamlObjectWriterCommon.cpp =====
+// ===== XamlObjectWriterState (writer helpers) =====
 
 
 

@@ -55,7 +55,7 @@ protected:
     virtual DependencyObject* GetLogicalChild(std::uint32_t) const noexcept { return nullptr; }
 
 private:
-    friend class ResourceResolver;
+    friend class FrameworkResourceResolver;
     friend class InteractivityEngine;
     friend class StoryboardHost;
     friend class FrameworkContentElementSeams;

@@ -1,6 +1,6 @@
 #pragma once
 
-// Private Gui impl (GuiDetail.hpp / type GuiRuntime). Keep source-only;
+// Private Gui impl (GuiRuntime.hpp / type GuiRuntime). Keep source-only;
 // former GuiData.hpp / GuiState names retired.
 
 #include "gui/markup/XamlSchema.hpp"

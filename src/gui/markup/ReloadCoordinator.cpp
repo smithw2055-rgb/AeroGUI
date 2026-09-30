@@ -9,7 +9,7 @@
 #include <new>
 #include <utility>
 
-#include "gui/GuiDetail.hpp"
+#include "gui/GuiRuntime.hpp"
 
 namespace Aero::Markup {
 

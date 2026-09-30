@@ -1,4 +1,4 @@
-#include "gui/core/TypeRegistryDetail.hpp"
+#include "gui/core/TypeRegistryCore.hpp"
 
 #include <Aero/Base/Assert.hpp>
 

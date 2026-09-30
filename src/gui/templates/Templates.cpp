@@ -1,7 +1,7 @@
-#include "gui/core/TypeRegistryDetail.hpp"
+#include "gui/core/TypeRegistryCore.hpp"
 #include "gui/styles/StyleEngine.hpp"
 #include "gui/core/Describe.hpp"
-#include "gui/markup/XamlObjectWriterCommon.hpp"
+#include "gui/markup/XamlObjectWriterState.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
@@ -12,7 +12,7 @@
 #include <Aero/DataTemplate.hpp>
 #include <Aero/Controls/ItemsPanelTemplate.hpp>
 #include <Aero/Triggers.hpp>
-#include "gui/triggers/TriggerValueCompare.hpp"
+#include "gui/triggers/TriggerPlan.hpp"
 #include "gui/templates/TemplateInstance.hpp"
 
 #include "render/RenderTree.hpp"

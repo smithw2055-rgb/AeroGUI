@@ -1,7 +1,7 @@
 #include <Aero/Interactivity/BlendBehaviors.hpp>
 #include <Aero/Controls.hpp> 
 #include <Aero/Shapes.hpp>
-#include "gui/core/TypeRegistryDetail.hpp"
+#include "gui/core/TypeRegistryCore.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"

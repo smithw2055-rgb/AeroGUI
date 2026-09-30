@@ -61,7 +61,7 @@ namespace (`Aero`, `Aero::Controls`, `Aero::Markup`, `Aero::Media`,
 anonymous namespace. There are no `private`/`detail` directories,
 `*Private*` filenames, domain `Detail` namespaces, or `View::Operations`
 bridge. Kernel-private operations that are not installed live in
-`src/gui/internal/` and are reached through one friend, `AeroGuiInternal`.
+src-only engine headers and are reached through direct engine friendship.
 
 Heavy source-only objects own their state directly. Delayed states use inline
 storage owned by the object, not a second heap allocation or virtual Pimpl
@@ -73,7 +73,7 @@ lifetime.
 `modules`. Its root is reserved for the `Gui`, `View`, `ViewFrame`, and
 `ViewRenderer` composition files. `View.cpp` is the composition root
 (construct, mount, viewport, `Update`). Clock slices live beside it
-(`ViewFrame.cpp`, `ViewInput.cpp` including the focus queue, `ViewRender.cpp`).
+(`ViewFrame.cpp`, `ViewInput.cpp` including the focus queue, `ViewFrameRender.cpp`).
 Storyboard sessions live next to `AnimationEngine`, trigger evaluation in
 `interactivity/`, and XamlReader fragment mounts in `markup/`. View remains
 the host; layout, input, and media stay separate collaborators.

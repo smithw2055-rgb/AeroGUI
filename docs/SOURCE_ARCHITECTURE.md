@@ -20,9 +20,9 @@ src/gui/text/        shaping, glyph atlas, editing and font adapters
 src/gui/media/       brushes, images, transforms, effects and animation (incl. the EventTrigger/StoryboardActions/TimerTrigger engine)
 src/gui/interactivity/  Aero::Interactivity: Blend behaviors, trigger actions and the interactivity engine
 src/gui/triggers/    Aero: core WPF style triggers (Trigger/DataTrigger/MultiTrigger/MultiDataTrigger and Condition)
-src/gui/meta/        Aero::Meta / Aero::Module type, value, metadata and modules
+src/gui/core/        Aero::Meta / Aero::Module type, value, metadata and modules
 src/gui/diagnostics/ opt-in inspection and rendering diagnostics
-src/gui/internal/    kernel-private friend API (AeroGuiInternal, PropertyStore); not installed
+src/gui/core/        PropertyStore and other kernel-private headers; not installed
 src/render/     immutable-frame encoding, GPU resources and native backends
 src/app/        Application, Window, DesktopHost and desktop presentation
 src/audio/      optional audio product
@@ -32,10 +32,10 @@ The `src/gui` tree intentionally mirrors the installed WPF-semantic namespaces
 (`Aero`, `Aero::Controls`, `Aero::Data`, `Aero::Markup`, `Aero::Media`,
 `Aero::Meta`) so that a WPF developer can locate the
 implementation of a public type by its namespace. Private composition hubs use responsibility names without a `State` suffix
-(for example `TypeRegistryDetail.hpp`, `GuiDetail.hpp`, `ViewFrame.hpp`,
+(for example `TypeRegistryCore.hpp`, `GuiRuntime.hpp`, `ViewFrame.hpp`,
 `InputManager.hpp`). Avoid reintroducing `*State.hpp` god-headers or the retired
 `*Runtime.hpp` / `*Access.hpp` / `detail/` folder patterns. Kernel-private operations that must
-touch WPF type internals live in `src/gui/internal/` and are not installed.
+touch WPF type internals live in src-only headers under `src/gui/core/` (and related domains) and are not installed.
 
 App-owned XAML behavior is supplied to the Gui schema through copied module
 descriptors (`Markup::ResourceScopeRegistration`). This keeps callbacks close
@@ -45,8 +45,8 @@ binary dependency.
 The retired `src/integration`, `src/runtime`, `src/providers`, root
 `src/platform`, and domain `private`/`detail` directories must not return.
 Installed and ordinary source files use responsibility names; `*Private*`
-filenames are forbidden. The one exception is `src/gui/internal/` (not
-installed), which holds the single kernel friend `AeroGuiInternal` plus the
+filenames are forbidden. Kernel-private store types live under `src/gui/core/` (not
+installed), including
 opaque property store. Helpers needed by one translation unit stay in an
 anonymous namespace.
 
@@ -143,10 +143,10 @@ product architecture. Panel layout remains virtual `MeasureOverride` /
 Kernel-private reads and writes go through one friend:
 
 ```cpp
-friend class ::Aero::AeroGuiInternal;
+// (retired) friend class ::Aero::AeroGuiInternal; engines friend concrete types directly
 ```
 
-All of those operations live in `src/gui/internal/` (not installed).
+All of those operations live in src-only engine/access headers (not installed).
 Implementation `.cpp` files include that header.
 
 `View` / `ElementTree` is the service hub. The tree holds named pointers
@@ -165,7 +165,7 @@ facet array.
 
 The dependency-property store is one hashmap on `DependencyObject`, addressed
 by stable `MemberId`. The per-entry layout is an opaque `StoredValueEntry`
-defined only in `src/gui/internal/PropertyStore.hpp`; the installed header
+defined only in `src/gui/core/PropertyStore.hpp`; the installed header
 keeps a `void*` handle. Style, Template and Inherited remain providers writing
 into that store. VisualState setters use their own provider rank/origin
 (between Local and Animation) and are cleared by origin on state exit.
@@ -173,14 +173,14 @@ Storyboards stay on the animation engine. Packed StoredValue bit layouts are
 intentionally not part of this kernel; that can be a later optimization.
 
 XAML metadata type-capability tables (`XamlFacets` / TypeRecord masks under
-`src/gui/meta/` and `src/gui/markup/`) are a different system. They are not
+`src/gui/core/` metadata and `src/gui/markup/`) are a different system. They are not
 `Core::Facet` and must not be confused with the deleted element/engine bags.
 
 Per-domain engine headers live under `src/gui/core/`
 (`ElementTree.hpp`, `LayoutEngine.hpp`, `EffectiveValueEngine.hpp`,
 `RoutedEvents.hpp`, `EventRouter.hpp`). Freezable program data is nested in
-`Freezable::Impl` inside `Freezable.cpp`. `GuiDetail.hpp` / `ViewFrame.hpp`
-remain the umbrellas that include the engines plus `AeroGuiInternal.hpp`.
+`Freezable::Impl` inside `Freezable.cpp`. `GuiRuntime.hpp` / `ViewFrame.hpp`
+remain the umbrellas that include the engines (`GuiRuntime.hpp` / `ViewFrame.hpp`).
 
 WPF-bridge virtuals for developers who subclass Aero types:
 - `DependencyObject::OnPropertyChanged(const DependencyPropertyChangedEventArgs&)`

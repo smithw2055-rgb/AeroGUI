@@ -159,7 +159,7 @@ private and live under `src/`:
 - object-tree and mount transactions;
 - layout, input, binding, style and template runtime coordination;
 - effective-value provider sessions and PropertyProviderSet storage;
-- style seal/runtime seams (`StyleSeams`) and Aero::ResourceResolver lookup;
+- style seal/runtime seams and Aero::FrameworkResourceResolver lookup;
 - ItemContainerGenerator engine factory;
 - XAML facets and frozen runtime plans;
 - display lists, render commands, GPU resource identifiers and backend state;

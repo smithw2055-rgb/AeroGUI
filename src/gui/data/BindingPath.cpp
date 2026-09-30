@@ -1,4 +1,4 @@
-#include "gui/core/TypeRegistryDetail.hpp"
+#include "gui/core/TypeRegistryCore.hpp"
 #include "gui/data/BindingPath.hpp"
 
 #include <Aero/Collections.hpp>

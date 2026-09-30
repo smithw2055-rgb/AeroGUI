@@ -1,7 +1,7 @@
 #include "DisplayList.hpp"
 #include "gui/styles/StyleEngine.hpp"
 #include "RenderTree.hpp"
-#include "gui/core/TypeRegistryDetail.hpp"
+#include "gui/core/TypeRegistryCore.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"

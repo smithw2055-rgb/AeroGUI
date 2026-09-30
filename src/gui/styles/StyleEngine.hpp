@@ -2,7 +2,6 @@
 
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/triggers/TriggerPlan.hpp"
-#include "gui/triggers/TriggerTypes.hpp"
 #include <Aero/Base/HashMap.hpp>
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Controls/ControlTemplate.hpp>

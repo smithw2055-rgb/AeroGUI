@@ -1,6 +1,6 @@
-#include "gui/core/TypeRegistryDetail.hpp"
+#include "gui/core/TypeRegistryCore.hpp"
 #include "gui/templates/TemplateBlueprint.hpp"
-#include "gui/markup/XamlObjectWriterCommon.hpp"
+#include "gui/markup/XamlObjectWriterState.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"

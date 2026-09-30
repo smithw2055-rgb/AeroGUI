@@ -10,7 +10,7 @@
 #include <algorithm>
 #include <cmath>
 #include "gui/core/Describe.hpp"
-#include "gui/core/TypeRegistryDetail.hpp"
+#include "gui/core/TypeRegistryCore.hpp"
 #include "gui/core/RenderStateCallbacks.hpp"
 #include "gui/core/ValueConversion.hpp"
 #include "gui/data/BindingEngine.hpp"

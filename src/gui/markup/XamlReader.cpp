@@ -1,7 +1,7 @@
 #include <Aero/Markup/XamlReader.hpp>
 #include <Aero/Gui.hpp>
 
-#include "gui/GuiDetail.hpp"
+#include "gui/GuiRuntime.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"

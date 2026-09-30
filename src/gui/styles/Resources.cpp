@@ -1,5 +1,5 @@
 #include <Aero/Resources.hpp>
-#include "gui/styles/ResourceResolver.hpp"
+#include "gui/styles/FrameworkResourceResolver.hpp"
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Vector.hpp>
@@ -9,7 +9,7 @@
 #include <new>
 #include <utility>
 #include "gui/core/Describe.hpp"
-#include "gui/core/TypeRegistryDetail.hpp"
+#include "gui/core/TypeRegistryCore.hpp"
 #include "gui/core/RenderStateCallbacks.hpp"
 #include "gui/core/ValueConversion.hpp"
 #include "gui/data/BindingEngine.hpp"
@@ -1090,7 +1090,7 @@ ResourceDictionary::Generation() const noexcept {
         : 0U;
 }
 
-Base::Result<ResourceValue> ResourceResolver::Lookup(
+Base::Result<ResourceValue> FrameworkResourceResolver::Lookup(
     const FrameworkElement* element,
     const ResourceKey& key,
     const ResourceDictionary* templateResources,
@@ -1132,7 +1132,7 @@ Base::Result<ResourceValue> ResourceResolver::Lookup(
         "Resource was not found in the active environment");
 }
 
-Base::Result<ResourceValue> ResourceResolver::Lookup(
+Base::Result<ResourceValue> FrameworkResourceResolver::Lookup(
     const FrameworkElement* element,
     Base::StringView key,
     const ResourceDictionary* templateResources,
@@ -1149,7 +1149,7 @@ Base::Result<ResourceValue> ResourceResolver::Lookup(
               resourceKey.GetStatus());
 }
 
-Base::Result<ResourceValue> ResourceResolver::Lookup(
+Base::Result<ResourceValue> FrameworkResourceResolver::Lookup(
     const FrameworkElement* element,
     Meta::TypeId key,
     const ResourceDictionary* templateResources,

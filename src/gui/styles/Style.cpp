@@ -1,4 +1,4 @@
-#include "gui/core/TypeRegistryDetail.hpp"
+#include "gui/core/TypeRegistryCore.hpp"
 #include "gui/core/ValueConversion.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
@@ -6,7 +6,7 @@
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
 #include "gui/styles/StyleEngine.hpp"
-#include "gui/triggers/TriggerDiagnostics.hpp"
+#include "gui/triggers/TriggerPlan.hpp"
 #include "gui/triggers/TriggerEngine.hpp"
 #include "gui/data/BindingEngine.hpp"
 #include <Aero/Controls/ControlTemplate.hpp>

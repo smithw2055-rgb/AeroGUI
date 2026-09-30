@@ -1,6 +1,6 @@
 #include "BuiltinModules.hpp"
 
-#include "gui/controls/Metadata.hpp"
+#include "gui/controls/ControlsMetadata.hpp"
 #include "gui/markup/XamlSchema.hpp"
 
 namespace Aero {

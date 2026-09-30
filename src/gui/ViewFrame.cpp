@@ -1,6 +1,6 @@
 #include "gui/ViewFrame.hpp"
-#include "gui/styles/ResourceResolver.hpp"
-#include "gui/GuiDetail.hpp"
+#include "gui/styles/FrameworkResourceResolver.hpp"
+#include "gui/GuiRuntime.hpp"
 #include "gui/text/TextPipeline.hpp"
 #include "render/RenderTree.hpp"
 #include <Aero/Controls/ControlTemplate.hpp>
@@ -228,7 +228,7 @@ Base::Result<const T*> ResolveUiValue(
         return static_cast<const T*>(object);
     }
 
-    Base::Result<Meta::Value> implicit = Aero::ResourceResolver::Lookup(
+    Base::Result<Meta::Value> implicit = Aero::FrameworkResourceResolver::Lookup(
         &element, element.RuntimeType(), nullptr, resources);
     if (!implicit) {
         return implicit.GetStatus().code == Base::ErrorCode::NotFound

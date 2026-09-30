@@ -1,7 +1,7 @@
 // Storyboard clocks: property resolution, timelines, and completion.
 #include "gui/ViewFrame.hpp"
 #include "gui/media/StoryboardHost.hpp"
-#include "gui/media/AnimationPathResolver.hpp"
+#include "gui/media/AnimationEngine.hpp"
 #include "gui/core/EventRouter.hpp"
 #include <Aero/CommandBinding.hpp>
 #include <Aero/Triggers.hpp>

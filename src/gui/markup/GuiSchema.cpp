@@ -1,6 +1,6 @@
 #include <Aero/Base/Assert.hpp>
 
-#include "gui/markup/XamlObjectWriterCommon.hpp"
+#include "gui/markup/XamlObjectWriterState.hpp"
 
 #include <new>
 #include <utility>

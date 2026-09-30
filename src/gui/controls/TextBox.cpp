@@ -8,7 +8,7 @@
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Base/String.hpp>
 #include "gui/core/ValueConversion.hpp"
-#include "ControlsMetadata.hpp"
+#include "ControlPropertyValidators.hpp"
 #include "gui/text/EditableText.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"

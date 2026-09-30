@@ -3,7 +3,6 @@
 // Markup-extension contracts used by the object writer.
 
 #include "gui/markup/XamlSchema.hpp"
-#include "gui/markup/MarkupCommon.hpp"
 
 #include <Aero/Media/Animation.hpp>
 #include "gui/templates/TemplateInstance.hpp"
@@ -31,7 +30,30 @@
 #include <cstdint>
 
 
+
+namespace Aero::Controls {
+class ControlTemplate;
+}
+
 namespace Aero::Markup {
+
+
+inline Base::StringView TrimAscii(Base::StringView value) noexcept {
+    std::uint32_t first = 0U;
+    std::uint32_t last = value.SizeBytes();
+    while (first < last &&
+           (value[first] == ' ' || value[first] == '\t' ||
+            value[first] == '\r' || value[first] == '\n')) {
+        ++first;
+    }
+    while (last > first &&
+           (value[last - 1U] == ' ' || value[last - 1U] == '\t' ||
+            value[last - 1U] == '\r' || value[last - 1U] == '\n')) {
+        --last;
+    }
+    return value.Substr(first, last - first);
+}
+
 
 class DeferredContentPlan;
 class Schema;
@@ -369,6 +391,21 @@ private:
         const ExtensionServices& services,
         void* context) noexcept;
 };
+
+
+Base::Result<long double> ReadConstantBindingNumber(
+    const Meta::Value& value) noexcept;
+Base::Result<Meta::Value> ConvertConstantBindingValue(
+    const Meta::Value& value,
+    Meta::TypeId targetType) noexcept;
+Base::Result<ProvidedValue> CreateMultiBindingValue(
+    Data::MultiBinding& binding,
+    const ExtensionServices& services) noexcept;
+Base::Result<void> CaptureControlTemplateChildName(
+    Controls::ControlTemplate& controlTemplate,
+    const Aero::NameScope* nameScope,
+    Base::Object& target,
+    Base::String& storage) noexcept;
 
 } // namespace Aero::Markup
 

@@ -49,7 +49,7 @@ thread_local ActiveMutation t_mutationStack[MaxMutationDepth]{};
 thread_local std::uint32_t t_mutationDepth = 0U;
 
 } // namespace
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 PropertyInvalidationFlags DependencyObject::AccumulateInvalidations(
     FrameworkPropertyMetadataOptions metadataFlags) noexcept {
@@ -76,7 +76,7 @@ PropertyInvalidationFlags DependencyObject::AccumulateInvalidations(
     return change;
 }
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 void DependencyObject::NotifyValueChanged(
     const DependencyPropertyChangedEventArgs& args) noexcept {
@@ -112,7 +112,7 @@ void DependencyObject::NotifyValueChanged(
     }
 }
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 void DependencyObject::RemoveChangeHandler(std::uint32_t index) noexcept {
     if (rare_ == nullptr) return;
@@ -125,16 +125,16 @@ void DependencyObject::RemoveChangeHandler(std::uint32_t index) noexcept {
     rare_->changeHandlers.PopBack();
 }
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 Base::Result<void> DependencyObject::VerifyMutationAllowed() const noexcept {
     return {};
 }
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 void DependencyObject::OnPropertyInvalidated(
     PropertyInvalidationFlags) noexcept {
@@ -144,7 +144,7 @@ void DependencyObject::OnPropertyChanged(
     const DependencyPropertyChangedEventArgs&) noexcept {
 }
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 
 Base::Result<void> DependencyObject::ApplyChange(
@@ -276,7 +276,7 @@ Base::Result<void> DependencyObject::ApplyChange(
     return recomputed.GetStatus();
 }
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 Base::Result<void> DependencyObject::DropEngineValueStateInternal(
     DependencyPropertyHandle propertyHandle) noexcept {
@@ -297,7 +297,7 @@ Base::Result<void> DependencyObject::DropEngineValueStateInternal(
     return RecomputeEffectiveValueInternal(propertyHandle);
 }
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 Base::Result<void> DependencyObject::RecomputeEffectiveValueInternal(
     DependencyPropertyHandle propertyHandle) noexcept {
@@ -322,7 +322,7 @@ Base::Result<void> DependencyObject::RecomputeEffectiveValueInternal(
         oldEffective, oldSourceInfo);
 }
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 Base::Result<PropertyValue>
 DependencyObject::GetAnimationBaseValueInternal(
@@ -377,7 +377,7 @@ DependencyObject::GetAnimationBaseValueInternal(
         *this, *property, *metadata, baseValue);
 }
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 Base::Result<void> DependencyObject::RecomputeEffectiveValueCore(
     DependencyPropertyHandle propertyHandle,
@@ -517,7 +517,7 @@ Base::Result<void> DependencyObject::RecomputeEffectiveValueCore(
     return {};
 }
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 Base::Result<void> DependencyObject::ApplyInheritedValueInternal(
     DependencyPropertyHandle property, const PropertyValue* value) noexcept {
@@ -550,7 +550,7 @@ Base::Result<void> DependencyObject::ApplyInheritedValueInternal(
     return {};
 }
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 Base::Result<bool> DependencyObject::ClearAnimationValueInternal(
     DependencyPropertyHandle property) noexcept {
@@ -564,7 +564,7 @@ Base::Result<bool> DependencyObject::ClearAnimationValueInternal(
     return true;
 }
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 Base::Result<void> DependencyObject::ApplyAnimationValueInternal(
     DependencyPropertyHandle property, const PropertyValue& value) noexcept {
@@ -584,7 +584,7 @@ Base::Result<void> DependencyObject::ApplyAnimationValueInternal(
     return {};
 }
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 Base::Result<bool> DependencyObject::InvalidateBaseValueInternal(
     DependencyPropertyHandle property) noexcept {
@@ -598,7 +598,7 @@ Base::Result<bool> DependencyObject::InvalidateBaseValueInternal(
     return true;
 }
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 Base::Result<bool> DependencyObject::ClearLocalExpressionInternal(
     DependencyPropertyHandle property) noexcept {
@@ -613,7 +613,7 @@ Base::Result<bool> DependencyObject::ClearLocalExpressionInternal(
     return true;
 }
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 Base::Result<void> DependencyObject::ApplyLocalExpressionInternal(
     DependencyPropertyHandle property, const PropertyExpression& expression) noexcept {
@@ -640,7 +640,7 @@ Base::Result<void> DependencyObject::ApplyLocalExpressionInternal(
     return {};
 }
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 Base::Result<bool> DependencyObject::ClearProviderOriginInternal(
     DependencyPropertyHandle property, std::uint32_t origin) noexcept {
@@ -659,7 +659,7 @@ Base::Result<bool> DependencyObject::ClearProviderOriginInternal(
     return removed;
 }
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 Base::Result<bool> DependencyObject::ClearProviderContributionInternal(
     DependencyPropertyHandle property, PropertyProviderToken token) noexcept {
@@ -677,7 +677,7 @@ Base::Result<bool> DependencyObject::ClearProviderContributionInternal(
     return removed;
 }
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 Base::Result<void> DependencyObject::ApplyProviderContributionInternal(
     DependencyPropertyHandle property, PropertyProviderToken token,
@@ -705,7 +705,7 @@ Base::Result<void> DependencyObject::ApplyProviderContributionInternal(
     return {};
 }
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 void DependencyObject::ReleaseExpression(StoredValueEntry& entry) noexcept {
     if (!entry.HasExpression()) return;
@@ -718,7 +718,7 @@ void DependencyObject::ReleaseExpression(StoredValueEntry& entry) noexcept {
     if (expression.cleanup != nullptr) expression.cleanup(expression.context);
 }
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 EffectiveValueSource DependencyObject::ToLegacySource(
     const PropertyValueSourceInfo& source) noexcept {
@@ -732,11 +732,11 @@ EffectiveValueSource DependencyObject::ToLegacySource(
     return EffectiveValueSource::Current;
 }
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 void DependencyObject::LeaveMutation() noexcept {
     AERO_ASSERT(t_mutationDepth > 0U && t_mutationStack[t_mutationDepth - 1U].object == this);
@@ -745,7 +745,7 @@ void DependencyObject::LeaveMutation() noexcept {
     }
 }
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 Base::Result<DependencyMutationScope>
 DependencyObject::BeginMutation(
@@ -780,7 +780,7 @@ DependencyObject::BeginMutation(
     return DependencyMutationScope(this, std::move(guard).Value());
 }
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 PropertyInvalidationFlags DependencyObject::TakeInvalidations() noexcept {
     Base::Result<void> ready = VerifyReady();
@@ -792,7 +792,7 @@ PropertyInvalidationFlags DependencyObject::TakeInvalidations() noexcept {
     return result;
 }
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 bool DependencyObject::RemoveValueChangedHandler(
     DependencyPropertyHandle property,
@@ -833,7 +833,7 @@ bool DependencyObject::RemoveValueChangedHandler(
     return false;
 }
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 void DependencyObject::AddValueChangedHandler(
     DependencyPropertyHandle property,
@@ -855,28 +855,28 @@ void DependencyObject::AddValueChangedHandler(
     (void)rare_->changeHandlers.PushBack(std::move(record));
 }
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 void DependencyObject::CoerceValue(
     DependencyPropertyHandle property) noexcept {
     (void)ApplyChange(property, nullptr, ChangeKind::ReCoerce, nullptr);
 }
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 void DependencyObject::ClearValue(
     const DependencyPropertyKey& key) noexcept {
     (void)ApplyChange(key.Property(), &key, ChangeKind::Clear, nullptr);
 }
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 void DependencyObject::ClearValue(
     DependencyPropertyHandle property) noexcept {
     (void)ApplyChange(property, nullptr, ChangeKind::Clear, nullptr);
 }
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 void DependencyObject::SetReadOnlyCurrentValue(
     DependencyPropertyHandle propertyHandle,
@@ -899,7 +899,7 @@ void DependencyObject::SetReadOnlyCurrentValue(
         propertyHandle, &key, ChangeKind::SetLocal, &value);
 }
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 void DependencyObject::SetTemplateValue(
     DependencyPropertyHandle property,
@@ -927,7 +927,7 @@ void DependencyObject::SetTemplateValue(
         property, *registered, *metadata, oldEffective, oldSourceInfo);
 }
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 void DependencyObject::SetCurrentValue(
     const DependencyPropertyKey& key,
@@ -935,7 +935,7 @@ void DependencyObject::SetCurrentValue(
     (void)ApplyChange(key.Property(), &key, ChangeKind::SetCurrent, &value);
 }
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 void DependencyObject::SetCurrentValue(
     DependencyPropertyHandle property,
@@ -943,7 +943,7 @@ void DependencyObject::SetCurrentValue(
     (void)ApplyChange(property, nullptr, ChangeKind::SetCurrent, &value);
 }
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 void DependencyObject::SetValue(
     const DependencyPropertyKey& key,
@@ -951,7 +951,7 @@ void DependencyObject::SetValue(
     (void)ApplyChange(key.Property(), &key, ChangeKind::SetLocal, &value);
 }
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 void DependencyObject::SetValue(
     DependencyPropertyHandle property,
@@ -959,7 +959,7 @@ void DependencyObject::SetValue(
     (void)ApplyChange(property, nullptr, ChangeKind::SetLocal, &value);
 }
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 
 PropertyValueSourceInfo DependencyObject::GetValueSourceInfo(
@@ -975,7 +975,7 @@ PropertyValueSourceInfo DependencyObject::GetValueSourceInfo(
     return storedEntry != nullptr ? storedEntry->SourceInfo() : PropertyValueSourceInfo{};
 }
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 EffectiveValueSource DependencyObject::GetValueSource(
     DependencyPropertyHandle propertyHandle) const noexcept {
@@ -983,7 +983,7 @@ EffectiveValueSource DependencyObject::GetValueSource(
     return ToLegacySource(source);
 }
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 PropertyValue DependencyObject::ReadLocalValue(
     DependencyPropertyHandle propertyHandle) const noexcept {
@@ -1003,7 +1003,7 @@ PropertyValue DependencyObject::ReadLocalValue(
     return storedEntry->LocalValueOrUnset();
 }
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 PropertyValue DependencyObject::GetValue(
     DependencyPropertyHandle propertyHandle) const noexcept {
@@ -1041,10 +1041,10 @@ PropertyValue DependencyObject::GetValue(
     return metadata->defaultValue;
 }
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 
-// from src/gui/core/PropertySystem.cpp
+// from src/gui/core/EffectiveValueEngine.cpp
 
 
 MemberId DependencyObject::CanonicalPropertyKey(

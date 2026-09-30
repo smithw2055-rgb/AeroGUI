@@ -17,9 +17,7 @@
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
-#include "gui/triggers/TriggerTypes.hpp"
 #include "gui/triggers/TriggerPlan.hpp"
-#include "gui/triggers/TriggerDiagnostics.hpp"
 
 namespace Aero {
 

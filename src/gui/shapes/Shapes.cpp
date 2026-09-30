@@ -4,7 +4,7 @@
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Media/Pen.hpp>
 #include "gui/core/ValueConversion.hpp"
-#include "gui/controls/ControlsMetadata.hpp"
+#include "gui/controls/ControlPropertyValidators.hpp"
 
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"

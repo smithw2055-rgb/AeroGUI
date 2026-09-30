@@ -47,7 +47,7 @@ set(_aero_gui_core_sources
     src/gui/core/ElementTree.cpp
     src/gui/core/Invariants.cpp
     src/gui/core/LayoutEngine.cpp
-    src/gui/core/PropertySystem.cpp
+    src/gui/core/EffectiveValueEngine.cpp
     src/gui/core/TryCast.cpp
     src/gui/core/Visual.cpp
     src/gui/core/UIElement.cpp
@@ -125,7 +125,6 @@ set(_aero_gui_controls_sources
     src/gui/controls/ContentControl.cpp
     src/gui/controls/ContentControls.cpp
     src/gui/controls/ContentPresenter.cpp
-    src/gui/controls/Controls.cpp
     src/gui/controls/Panels.cpp
     src/gui/controls/Images.cpp
     src/gui/controls/Items.cpp
@@ -206,7 +205,7 @@ set(_aero_gui_composition_sources
     src/gui/View.cpp
     src/gui/ViewFrame.cpp
     src/gui/ViewInput.cpp
-    src/gui/ViewRender.cpp
+    src/gui/ViewFrameRender.cpp
     src/gui/ViewRenderer.cpp
     src/gui/ViewDocuments.cpp)
 
@@ -217,14 +216,12 @@ set(_aero_gui_internal_headers
     src/gui/data/BindingCommon.hpp
     src/gui/data/BindingPath.hpp
     src/gui/controls/ControlsMetadata.hpp
+    src/gui/controls/ControlPropertyValidators.hpp
     src/gui/controls/ScrollCommon.hpp
     src/gui/controls/TextBoxCommon.hpp
-    src/gui/markup/MarkupCommon.hpp
-    src/gui/markup/XamlObjectWriterCommon.hpp
     src/gui/markup/MarkupExtensionContract.hpp
     src/gui/markup/XamlObjectWriterState.hpp
     src/gui/templates/TemplateBlueprint.hpp
-    src/gui/markup/MarkupExtensionHost.hpp
     src/gui/media/AnimationEngineCommon.hpp
     src/gui/ViewRenderer.hpp
     src/gui/ViewFrame.hpp)

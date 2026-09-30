@@ -237,7 +237,7 @@ protected:
 private:
     friend class LogicalTreeHelper;
     friend class Controls::Viewbox;
-    friend class ResourceResolver;
+    friend class FrameworkResourceResolver;
     friend class LayoutEngine;
     friend class UIElement;
     friend class AnimationEngine;

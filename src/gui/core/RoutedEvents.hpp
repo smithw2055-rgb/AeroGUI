@@ -16,7 +16,7 @@
 #include <Aero/LogicalTreeHelper.hpp>
 #include <Aero/Visual.hpp>
 
-#include "gui/core/TypeRegistryDetail.hpp"
+#include "gui/core/TypeRegistryCore.hpp"
 
 #include <cstddef>
 #include <new>

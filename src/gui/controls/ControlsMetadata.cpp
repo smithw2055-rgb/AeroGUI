@@ -1,6 +1,6 @@
-#include "Metadata.hpp"
 #include "ControlsMetadata.hpp"
-#include "gui/core/TypeRegistryDetail.hpp"
+#include "ControlPropertyValidators.hpp"
+#include "gui/core/TypeRegistryCore.hpp"
 
 // Templates
 #include <Aero/FrameworkTemplate.hpp>

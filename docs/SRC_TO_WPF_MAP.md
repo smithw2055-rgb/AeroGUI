@@ -49,7 +49,7 @@ its types below.
 - `markup/XamlParser.cpp` — XML tokenizer + `XamlNodeReader`
 - `markup/TemplateProgram.cpp` — `ControlTemplate`/`DataTemplate` runtime programs
 - `meta/Metadata.cpp` — `Registry`, type/value metadata
-- `core/PropertySystem.cpp` — `DependencyProperty` effective-value engine
+- `core/EffectiveValueEngine.cpp` — `DependencyProperty` effective-value engine
 - `styles/Style.cpp` — `StyleEngine` (style application/seal; delegates trigger evaluation to `TriggerEngine`)
 - `triggers/TriggerEngine.cpp` — `TriggerEngine` (style/control/template trigger evaluation, deferred trigger phase, `SetBindingTriggerState`)
 - `triggers/Triggers.cpp` — `TriggerBase`, `Trigger`, `DataTrigger`, `Condition`, `MultiTrigger`, `MultiDataTrigger`
@@ -59,7 +59,7 @@ its types below.
 ## Private implementation headers
 
 Domain state headers use `*State.hpp`. Kernel-private operations live in
-`src/gui/internal/AeroGuiInternal.hpp` (not installed) plus
+src-only engine/access headers (not installed) plus
 `src/gui/core/{ElementTree,LayoutEngine,EffectiveValueEngine,RoutedEvents,EventRouter}.hpp`. View/`ElementTree` is the named service hub
 (`tree->Layout()`, `tree->Bindings()`, …). There is no `Core::Facet` matrix
 and no per-type `Access` facade.
@@ -91,7 +91,7 @@ Aero types expose WPF-shaped virtuals you can override when subclassing:
 
 Runtime engines are reached through `VisualTree()` / `ElementTree`
 named accessors (`Layout()`, `Events()`, `Bindings()`, …) and internal
-`AeroGuiInternal` accessors. There is no `Core::GetFacet` matrix.
+direct engine accessors. There is no `Core::GetFacet` matrix.
 
 ## Platform code (two trees, by design)
 

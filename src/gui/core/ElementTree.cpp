@@ -1,4 +1,4 @@
-#include "gui/core/TypeRegistryDetail.hpp"
+#include "gui/core/TypeRegistryCore.hpp"
 #include "gui/styles/StyleEngine.hpp"
 #include "gui/data/BindingEngine.hpp"
 #include "gui/markup/XamlSchema.hpp"

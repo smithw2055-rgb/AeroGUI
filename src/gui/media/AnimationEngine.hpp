@@ -6,10 +6,23 @@
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
 #include "gui/media/AnimationModel.hpp"
+#include <Aero/Base/StringView.hpp>
+#include <Aero/Base/Result.hpp>
 
 namespace Aero {
 
 using namespace Aero::Media::Animation::Model;
+
+
+struct ResolvedAnimationProperty {
+    ::Aero::DependencyObject* target = nullptr;
+    Meta::DependencyPropertyHandle property;
+};
+
+Base::Result<ResolvedAnimationProperty> ResolveAnimationPropertyPath(
+    ::Aero::DependencyObject& rootTarget,
+    Base::StringView authoredPath,
+    Meta::DependencyPropertyRegistry& properties) noexcept;
 
 class AnimationEngine {
 public:

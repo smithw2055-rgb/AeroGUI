@@ -3,7 +3,7 @@
 #include "gui/core/FrameworkElementSeams.hpp"
 #include <Aero/Data/BindingOperations.hpp>
 #include "gui/styles/StyleEngine.hpp"
-#include "gui/styles/ResourceResolver.hpp"
+#include "gui/styles/FrameworkResourceResolver.hpp"
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Allocator.hpp>
@@ -349,7 +349,7 @@ const ResourceDictionary& FrameworkElement::GetResources() const noexcept {
 
 Result<ResourceValue> FrameworkElement::FindResource(
     const ResourceKey& key) const noexcept {
-    return ResourceResolver::Lookup(
+    return FrameworkResourceResolver::Lookup(
         this,
         key,
         TemplateResourcesFor(*this),
@@ -358,7 +358,7 @@ Result<ResourceValue> FrameworkElement::FindResource(
 
 Result<ResourceValue> FrameworkElement::FindResource(
     StringView key) const noexcept {
-    return ResourceResolver::Lookup(
+    return FrameworkResourceResolver::Lookup(
         this,
         key,
         TemplateResourcesFor(*this),

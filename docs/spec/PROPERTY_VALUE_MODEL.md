@@ -124,7 +124,7 @@ The per-object store is authoritative for provider contributions, local values
 and expressions, inherited and animated values, the unanimated base value, the
 coerced effective value and `PropertyValueSourceInfo`. The installed
 `DependencyObject` header keeps an opaque `void*` handle; the entry layout is
-defined only in `src/gui/internal/PropertyStore.hpp` and is looked up by stable
+defined only in `src/gui/core/PropertyStore.hpp` and is looked up by stable
 `MemberId`. Packed StoredValue bit layouts are not part of this contract.
 
 `EffectiveValueEngine` now retains only scheduling records and the semantic

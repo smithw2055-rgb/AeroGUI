@@ -9,7 +9,7 @@
 #include <new>
 #include <utility>
 #include "gui/controls/ItemsContainers.hpp"
-#include "gui/triggers/TriggerValueCompare.hpp"
+#include "gui/triggers/TriggerPlan.hpp"
 #include <cstdio>
 #include <Aero/Interactivity/InteractionTriggers.hpp>
 

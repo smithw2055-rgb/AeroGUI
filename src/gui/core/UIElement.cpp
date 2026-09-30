@@ -27,7 +27,7 @@
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
 #include "gui/input/InputManager.hpp"
-#include "gui/core/TypeRegistryDetail.hpp"
+#include "gui/core/TypeRegistryCore.hpp"
 #include "gui/core/DependencyPropertyRegistry.hpp"
 #include "gui/core/ErasedRoutedHandler.hpp"
 #include <Aero/ClassHandler.hpp>

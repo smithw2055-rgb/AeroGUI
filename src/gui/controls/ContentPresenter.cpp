@@ -16,9 +16,9 @@
 #include <Aero/Media/Transform3D.hpp>
 #include <Aero/Shapes.hpp>
 #include <Aero/Documents.hpp>
-#include "gui/core/TypeRegistryDetail.hpp"
+#include "gui/core/TypeRegistryCore.hpp"
 #include "gui/core/ValueConversion.hpp"
-#include "ControlsMetadata.hpp"
+#include "ControlPropertyValidators.hpp"
 #include "gui/templates/TemplateInstance.hpp"
 #include "gui/data/BindingEngine.hpp"
 #include <Aero/TryCast.hpp>

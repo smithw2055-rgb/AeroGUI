@@ -8,7 +8,7 @@
 #include <Aero/Media/TextureProvider.hpp>
 #include <Aero/Media/FontProvider.hpp>
 #include <Aero/ViewOptions.hpp>
-#include "gui/GuiDetail.hpp"
+#include "gui/GuiRuntime.hpp"
 #include "gui/ViewFrame.hpp"
 #include <Aero/BuiltinThemes.generated.hpp>
 #include <Aero/Base/String.hpp>

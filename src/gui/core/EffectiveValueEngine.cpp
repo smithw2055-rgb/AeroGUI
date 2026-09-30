@@ -3,7 +3,7 @@
 // ===== DependencyProperty =====
 
 #include <Aero/DependencyProperty.hpp>
-#include "gui/core/TypeRegistryDetail.hpp"
+#include "gui/core/TypeRegistryCore.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
