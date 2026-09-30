@@ -16,6 +16,7 @@ namespace Meta { class Registration; }
 
 using ModuleRegisterCallback = Result<void> (*)(Meta::Registration& registration) noexcept;
 using ModuleRegisterContextCallback = Result<void> (*)(Meta::Registration& registration, void* userContext) noexcept;
+
 struct ModuleDependency  {
     StringView name;
     std::uint32_t minimumSchemaVersion = 1U;

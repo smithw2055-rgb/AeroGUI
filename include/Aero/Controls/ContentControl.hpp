@@ -8,6 +8,7 @@ namespace Aero::Controls {
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::DependencyPropertyChangedEventHandler;
 using ::Aero::Meta::TypeId;
+
 class AERO_GUI_API ContentControl : public Control {
     AERO_DECLARE_TYPE(ContentControl, Control)
 

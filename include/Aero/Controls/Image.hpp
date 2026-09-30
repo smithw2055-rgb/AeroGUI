@@ -7,6 +7,7 @@
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
 using ::Aero::Media::ImageSource;
+
 class AERO_GUI_API Image : public FrameworkElement {
     AERO_DECLARE_TYPE(Image, FrameworkElement)
 

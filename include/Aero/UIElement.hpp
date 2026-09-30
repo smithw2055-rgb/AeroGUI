@@ -307,6 +307,7 @@ private:
     friend class Aero::Input::RoutedCommand;
 
 class EventRouter;
+
     struct LayoutHot {
         Size desiredSize{};
         Size untransformedDesiredSize{};
@@ -327,6 +328,7 @@ class EventRouter;
         double opacity = 1.0;
         Visibility visibility = Visibility::Visible;
     };
+
     struct Rare {
         void* routedHandlers = nullptr;
         void* inputBindings = nullptr;

@@ -13,6 +13,7 @@ using ::Aero::Meta::DependencyPropertyChangedEventHandler;
 using ::Aero::Meta::DependencyPropertyHandle;
 using ::Aero::Meta::PropertyValue;
 using ::Aero::Meta::TypeId;
+
 class AERO_GUI_API TextBox : public Primitives::TextBoxBase,
       private IScrollInfo,
       private Input::ITextCompositionClient {

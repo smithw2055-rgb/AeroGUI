@@ -288,6 +288,7 @@ private:
     TypeId registeredOwnerType_ = InvalidTypeId;
     DependencyPropertyFlags flags_ = DependencyPropertyFlags::None;
     std::uint64_t readOnlySecret_ = 0U;
+
     struct MetadataCacheEntry {
         TypeId forType = InvalidTypeId;
         const PropertyMetadata* metadata = nullptr;

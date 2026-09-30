@@ -28,6 +28,7 @@ namespace Markup {
 class XamlReader;
 class XamlDocument;
 }
+
 // P4.3: read-only committed-frame identity for content-stability gates
 // (hosts and conformance tests). version 0 means no frame has been
 // committed yet. contentHash is a content hash over nodes/commands (no
@@ -39,6 +40,7 @@ struct CommittedFrameInfo {
     std::uint32_t commandCount = 0U;
     std::uint64_t contentHash = 0U;
 };
+
 // Host-driven retained-mode view. View::Update() advances UI state; the
 // per-View Renderer synchronizes and renders the retained frame. XAML,
 // resource-layer and fragment operations live on Markup::XamlReader.

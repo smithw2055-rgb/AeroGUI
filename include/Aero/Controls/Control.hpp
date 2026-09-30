@@ -14,6 +14,7 @@ using ::Aero::Meta::DependencyPropertyHandle;
 using ::Aero::Meta::TypeId;
 class ControlTemplate;
 class ItemContainerGenerator;
+
 class AERO_GUI_API Control : public FrameworkElement {
     AERO_DECLARE_TYPE(Control, FrameworkElement)
 

@@ -126,6 +126,7 @@ inline bool operator==(const Value& left, const Value& right) noexcept { return 
 inline bool operator!=(const Value& left, const Value& right) noexcept { return !(left == right); }
 
 using TextValueConverterCallback = Result<Value> (*)(TypeId targetType, StringView text, void* context) noexcept;
+
 struct TextValueConverterRegistration {
     TypeId type = InvalidTypeId;
     TextValueConverterCallback convert = nullptr;

@@ -38,6 +38,7 @@ public:
             return bits != nullptr && (*bits & mask) != 0U;
         }
     };
+
     class RenderChildRange {
     public:
         class Iterator {

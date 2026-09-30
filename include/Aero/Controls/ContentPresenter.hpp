@@ -6,6 +6,7 @@
 namespace Aero::Controls {
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::TypeId;
+
 class AERO_GUI_API ContentPresenter : public FrameworkElement {
     AERO_DECLARE_TYPE(ContentPresenter, FrameworkElement)
 

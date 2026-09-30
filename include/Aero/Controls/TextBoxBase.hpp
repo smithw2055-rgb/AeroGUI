@@ -6,6 +6,7 @@
 
 namespace Aero::Controls::Primitives {
 using ::Aero::Meta::TypeId;
+
 class AERO_GUI_API TextBoxBase : public Control {
     AERO_DECLARE_TYPE(TextBoxBase, Control)
 

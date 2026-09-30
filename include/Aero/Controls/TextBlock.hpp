@@ -14,6 +14,7 @@ namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
 using ::Aero::Media::Brush;
 using ::Aero::Media::FrameworkElementForegroundProperty;
+
 class AERO_GUI_API TextBlock : public FrameworkElement {
     AERO_DECLARE_TYPE(TextBlock, FrameworkElement)
 

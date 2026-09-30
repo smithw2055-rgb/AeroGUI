@@ -8,6 +8,7 @@
 
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
+
 class AERO_GUI_API Decorator : public FrameworkElement {
     AERO_DECLARE_TYPE(Decorator, FrameworkElement)
 

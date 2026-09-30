@@ -19,6 +19,7 @@ namespace Aero {
 class UIElement;
 class EventRouter;
 class ElementTree;
+
 // Non-visual WPF content node. ContentElement participates in dependency
 // properties and routed events without becoming a ::Aero::Media::Visual or UIElement.
 class AERO_GUI_API ContentElement : public DependencyObject {

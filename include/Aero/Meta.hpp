@@ -67,6 +67,7 @@ enum class MetadataCollectionChangeAction : std::uint8_t {
     Move,
     Reset
 };
+
 struct MetadataCollectionChangedEvent {
     MetadataCollectionChangeAction action = MetadataCollectionChangeAction::Reset;
     std::uint32_t oldIndex = UINT32_MAX;
