@@ -10,9 +10,11 @@ class Dispatcher;
 
 class AERO_GUI_API DispatcherObject : public Base::Object {
     AERO_DECLARE_TYPE(DispatcherObject, Base::Object)
+
 public:
     bool CheckAccess() const noexcept;
     Result<void> VerifyAccess() const noexcept;
+
     Dispatcher& GetDispatcher() const noexcept;
 
 protected:

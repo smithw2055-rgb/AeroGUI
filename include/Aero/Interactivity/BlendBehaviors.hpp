@@ -16,6 +16,7 @@ namespace Aero::Interactivity {
 // the pointer leaves the element.
 class AERO_GUI_API MouseDragElementBehavior : public Behavior {
     AERO_DECLARE_TYPE(MouseDragElementBehavior, Behavior)
+
 public:
     MouseDragElementBehavior() noexcept;
     ~MouseDragElementBehavior() override = default;
@@ -66,6 +67,7 @@ private:
 // region instead of independently fitting the image into each shape.
 class AERO_GUI_API BackgroundEffectBehavior : public Behavior {
     AERO_DECLARE_TYPE(BackgroundEffectBehavior, Behavior)
+
 public:
     BackgroundEffectBehavior() noexcept : Behavior(StaticTypeId()) {}
     ~BackgroundEffectBehavior() override = default;

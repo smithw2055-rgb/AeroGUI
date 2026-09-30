@@ -8,6 +8,7 @@ namespace Aero::Controls {
 
 class AERO_GUI_API ItemsPresenter : public Decorator {
     AERO_DECLARE_TYPE(ItemsPresenter, Decorator)
+
 public:
     ItemsPresenter() noexcept : Decorator(StaticTypeId()) {}
     ~ItemsPresenter() override = default;

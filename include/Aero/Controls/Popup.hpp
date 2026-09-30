@@ -22,6 +22,7 @@ enum class PopupAnimation : std::uint8_t {
 
 class AERO_GUI_API Popup : public ContentControl {
     AERO_DECLARE_TYPE(Popup, ContentControl)
+
 public:
     Popup() noexcept;
     ~Popup() override;
@@ -30,7 +31,6 @@ public:
     void SetChild(UIElement* child) noexcept { SetContent(child); }
     void SetChild(Ref<UIElement> child) noexcept { SetContent(std::move(child)); }
     void SetChild(std::nullptr_t) noexcept { SetContent(static_cast<UIElement*>(nullptr)); }
-
     bool GetIsOpen() const noexcept;
     void SetIsOpen(bool value) noexcept;
     PlacementMode GetPlacement() const noexcept;
@@ -66,10 +66,11 @@ public:
     AERO_DEPENDENCY_PROPERTY(bool, AllowsTransparency);
 
 protected:
+    explicit Popup(TypeId runtimeType) noexcept;
+
     virtual void OnOpened(RoutedEventArgs& e);
     virtual void OnClosed(RoutedEventArgs& e);
     void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
-    explicit Popup(TypeId runtimeType) noexcept;
     Size MeasureOverride(Size availableSize) noexcept override;
     Size ArrangeOverride(Size finalSize) noexcept override;
 

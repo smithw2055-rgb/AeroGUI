@@ -19,6 +19,7 @@ namespace Aero::Media::Animation {
 
 class AERO_GUI_API KeyFrameBase : public ::Aero::Freezable {
     AERO_DECLARE_TYPE(KeyFrameBase, ::Aero::Freezable)
+
 public:
     enum class Interpolation : std::uint8_t {
         Linear = 0U,
@@ -97,6 +98,7 @@ private:
 
 class AERO_GUI_API DoubleKeyFrame : public KeyFrame<double> {
     AERO_DECLARE_TYPE(DoubleKeyFrame, KeyFrameBase)
+
 public:
     explicit DoubleKeyFrame(Meta::TypeId runtimeType, Interpolation interpolation) noexcept
         : KeyFrame<double>(runtimeType, interpolation) {}
@@ -104,6 +106,7 @@ public:
 
 class AERO_GUI_API PointKeyFrame : public KeyFrame<Base::Point> {
     AERO_DECLARE_TYPE(PointKeyFrame, KeyFrameBase)
+
 public:
     explicit PointKeyFrame(Meta::TypeId runtimeType, Interpolation interpolation) noexcept
         : KeyFrame<Base::Point>(runtimeType, interpolation) {}
@@ -111,6 +114,7 @@ public:
 
 class AERO_GUI_API ColorKeyFrame : public KeyFrame<Base::Color> {
     AERO_DECLARE_TYPE(ColorKeyFrame, KeyFrameBase)
+
 public:
     explicit ColorKeyFrame(Meta::TypeId runtimeType, Interpolation interpolation) noexcept
         : KeyFrame<Base::Color>(runtimeType, interpolation) {}
@@ -118,6 +122,7 @@ public:
 
 class AERO_GUI_API ThicknessKeyFrame : public KeyFrame<Base::Thickness> {
     AERO_DECLARE_TYPE(ThicknessKeyFrame, KeyFrameBase)
+
 public:
     explicit ThicknessKeyFrame(Meta::TypeId runtimeType, Interpolation interpolation) noexcept
         : KeyFrame<Base::Thickness>(runtimeType, interpolation) {}
@@ -125,6 +130,7 @@ public:
 
 class AERO_GUI_API ObjectKeyFrame : public KeyFrame<Meta::PropertyValue> {
     AERO_DECLARE_TYPE(ObjectKeyFrame, KeyFrameBase)
+
 public:
     explicit ObjectKeyFrame(Meta::TypeId runtimeType, Interpolation interpolation) noexcept
         : KeyFrame<Meta::PropertyValue>(runtimeType, interpolation) {}
@@ -132,6 +138,7 @@ public:
 
 class AERO_GUI_API BooleanKeyFrame : public KeyFrame<bool> {
     AERO_DECLARE_TYPE(BooleanKeyFrame, KeyFrameBase)
+
 public:
     explicit BooleanKeyFrame(Meta::TypeId runtimeType, Interpolation interpolation) noexcept
         : KeyFrame<bool>(runtimeType, interpolation) {}
@@ -139,6 +146,7 @@ public:
 
 class AERO_GUI_API Int16KeyFrame : public KeyFrame<std::int16_t> {
     AERO_DECLARE_TYPE(Int16KeyFrame, KeyFrameBase)
+
 public:
     explicit Int16KeyFrame(Meta::TypeId runtimeType, Interpolation interpolation) noexcept
         : KeyFrame<std::int16_t>(runtimeType, interpolation) {}
@@ -146,6 +154,7 @@ public:
 
 class AERO_GUI_API Int32KeyFrame : public KeyFrame<std::int32_t> {
     AERO_DECLARE_TYPE(Int32KeyFrame, KeyFrameBase)
+
 public:
     explicit Int32KeyFrame(Meta::TypeId runtimeType, Interpolation interpolation) noexcept
         : KeyFrame<std::int32_t>(runtimeType, interpolation) {}
@@ -153,6 +162,7 @@ public:
 
 class AERO_GUI_API Int64KeyFrame : public KeyFrame<std::int64_t> {
     AERO_DECLARE_TYPE(Int64KeyFrame, KeyFrameBase)
+
 public:
     explicit Int64KeyFrame(Meta::TypeId runtimeType, Interpolation interpolation) noexcept
         : KeyFrame<std::int64_t>(runtimeType, interpolation) {}
@@ -160,6 +170,7 @@ public:
 
 class AERO_GUI_API SizeKeyFrame : public KeyFrame<Base::Size> {
     AERO_DECLARE_TYPE(SizeKeyFrame, KeyFrameBase)
+
 public:
     explicit SizeKeyFrame(Meta::TypeId runtimeType, Interpolation interpolation) noexcept
         : KeyFrame<Base::Size>(runtimeType, interpolation) {}
@@ -167,6 +178,7 @@ public:
 
 class AERO_GUI_API MatrixKeyFrame : public KeyFrame<Base::Transform2D> {
     AERO_DECLARE_TYPE(MatrixKeyFrame, KeyFrameBase)
+
 public:
     explicit MatrixKeyFrame(Meta::TypeId runtimeType, Interpolation interpolation) noexcept
         : KeyFrame<Base::Transform2D>(runtimeType, interpolation) {}
@@ -174,6 +186,7 @@ public:
 
 class AERO_GUI_API StringKeyFrame : public KeyFrame<Base::String> {
     AERO_DECLARE_TYPE(StringKeyFrame, KeyFrameBase)
+
 public:
     explicit StringKeyFrame(Meta::TypeId runtimeType, Interpolation interpolation) noexcept
         : KeyFrame<Base::String>(runtimeType, interpolation) {}

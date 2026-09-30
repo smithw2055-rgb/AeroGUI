@@ -11,6 +11,7 @@ namespace Aero::Input {
 
 class AERO_GUI_API RelayCommand : public ICommand {
     AERO_DECLARE_TYPE(RelayCommand, ICommand)
+
 public:
     using ExecuteCallback = Base::Delegate<void(const Value&)>;
     using CanExecuteCallback = Base::Delegate<bool(const Value&)>;

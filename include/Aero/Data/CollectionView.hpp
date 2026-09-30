@@ -18,6 +18,7 @@ using CurrentChangedHandler = Base::Delegate<void()>;
 class AERO_GUI_API CollectionView : public Base::Object,
     public Collections::IItemsSource {
     AERO_DECLARE_TYPE(CollectionView, Base::Object)
+
 public:
     explicit CollectionView(Collections::IItemsSource* source) noexcept;
     ~CollectionView() override;
@@ -73,6 +74,7 @@ private:
 
 class AERO_GUI_API CollectionViewSource : public Base::Object {
     AERO_DECLARE_TYPE(CollectionViewSource, Base::Object)
+
 public:
     CollectionViewSource() noexcept = default;
 

@@ -13,6 +13,7 @@ using ::Aero::Media::MatrixTransform;
 // layout at its natural size and is then fitted into the Viewbox slot.
 class AERO_GUI_API Viewbox : public Decorator {
     AERO_DECLARE_TYPE(Viewbox, Decorator)
+
 public:
     Viewbox() noexcept : Decorator(StaticTypeId()) {}
 

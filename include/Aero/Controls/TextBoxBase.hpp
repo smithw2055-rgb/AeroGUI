@@ -8,6 +8,7 @@ namespace Aero::Controls::Primitives {
 using ::Aero::Meta::TypeId;
 class AERO_GUI_API TextBoxBase : public Control {
     AERO_DECLARE_TYPE(TextBoxBase, Control)
+
 public:
     // WPF BaseTextBox owns the selection/caret appearance.  Keep these
     // values as brushes so authored XAML can use SolidColorBrush, gradients,
@@ -29,9 +30,10 @@ protected:
         std::uint32_t dragAnchor = 0U;
         bool isDragging = false;
     };
-    DragSelectionState drag_;
 
     explicit TextBoxBase(TypeId runtimeType) noexcept : Control(runtimeType) {}
     ~TextBoxBase() override = default;
+
+    DragSelectionState drag_;
 };
 } // namespace Aero::Controls::Primitives

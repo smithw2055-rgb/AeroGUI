@@ -8,16 +8,19 @@ using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::TypeId;
 class AERO_GUI_API ContentPresenter : public FrameworkElement {
     AERO_DECLARE_TYPE(ContentPresenter, FrameworkElement)
+
 public:
     ContentPresenter() noexcept;
-    UIElement* GetContent() const noexcept { return content_; }
-    const Ref<Base::Object>& GetOwnedContent() const noexcept { return ownedContent_; }
-    const Value& GetContentValue() const noexcept { return contentValue_; }
-    StringView GetContentSource() const noexcept { return GetValue(ContentSourceProperty); }
-    void SetContentSource(StringView value) noexcept;
-    void SetContentValue(Value value) noexcept { SetValue(ContentProperty, std::move(value)); }
-    void SetContent(UIElement* content) noexcept;
 
+    // Host a UIElement as Content, replacing any auto-created TextBlock from
+    // ContentSource. Used by TemplateBinding ContentSource=Header and by
+    // item generators that project DataTemplate visuals into PART_Header.
+    void HostUiElement(const Ref<Base::Object>& owner, UIElement& element) noexcept;
+    static void OnContentPropertyChanged(::Aero::DependencyObject& object,
+        const Meta::DependencyPropertyChangedEventArgs& change) noexcept;
+
+    UIElement* GetContent() const noexcept { return content_; }
+    void SetContent(UIElement* content) noexcept;
     // Clear the presenter-owned reference. Callers that still have a visual
     // or layout edge must detach it through the element tree first; leftover
     // layout children must not block replacing a TextBlock host with a
@@ -31,19 +34,17 @@ public:
         InvalidateMeasure();
         return;
     }
-
+    const Ref<Base::Object>& GetOwnedContent() const noexcept { return ownedContent_; }
     void SetOwnedContent(const Ref<Base::Object>& contentObject, UIElement& content) noexcept;
-
-    // Host a UIElement as Content, replacing any auto-created TextBlock from
-    // ContentSource. Used by TemplateBinding ContentSource=Header and by
-    // item generators that project DataTemplate visuals into PART_Header.
-    void HostUiElement(const Ref<Base::Object>& owner, UIElement& element) noexcept;
+    const Value& GetContentValue() const noexcept { return contentValue_; }
+    void SetContentValue(Value value) noexcept { SetValue(ContentProperty, std::move(value)); }
+    StringView GetContentSource() const noexcept { return GetValue(ContentSourceProperty); }
+    void SetContentSource(StringView value) noexcept;
 
     AERO_DEPENDENCY_PROPERTY(String, ContentSource);
     AERO_DEPENDENCY_PROPERTY(Value, Content);
     AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, ContentTemplate);
-    static void OnContentPropertyChanged(::Aero::DependencyObject& object,
-        const Meta::DependencyPropertyChangedEventArgs& change) noexcept;
+
 protected:
     // Replaces the Content Changed-delegate registration.
     void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
@@ -56,12 +57,15 @@ protected:
     }
     Size MeasureOverride(Size availableSize) noexcept override;
     Size ArrangeOverride(Size finalSize) noexcept override;
+
 private:
+    Result<void> ValidateContent(UIElement* content) const noexcept;
+    Result<void> UpdatePresentedText() noexcept;
+
+    bool IsOnlyAttachedContent(const UIElement& content) const noexcept;
+
     UIElement* content_ = nullptr;
     Ref<Base::Object> ownedContent_;
     Value contentValue_ = Value::NullObject(Meta::TypeOf<Base::Object>());
-    bool IsOnlyAttachedContent(const UIElement& content) const noexcept;
-    Result<void> ValidateContent(UIElement* content) const noexcept;
-    Result<void> UpdatePresentedText() noexcept;
 };
 } // namespace Aero::Controls

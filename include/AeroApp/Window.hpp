@@ -15,9 +15,14 @@ enum class SizeToContent : std::uint8_t { Manual = 0U, Width, Height, WidthAndHe
 
 class AERO_APP_API Window : public Controls::ContentControl {
     AERO_DECLARE_TYPE(Window, Controls::ContentControl)
+
 public:
     Window() noexcept : Window(StaticTypeId()) {}
     ~Window() noexcept override;
+
+    Result<void> Show() noexcept;
+    Result<bool> ShowDialog() noexcept;
+    void Close() noexcept;
 
     StringView GetTitle() const noexcept { return GetValue(TitleProperty); }
     void SetTitle(StringView value) noexcept { SetValue(TitleProperty, value); }
@@ -33,16 +38,27 @@ public:
     void SetShowInTaskbar(bool value) noexcept { SetValue(ShowInTaskbarProperty, value); }
     bool GetTopmost() const noexcept { return GetValue(TopmostProperty); }
     void SetTopmost(bool value) noexcept { SetValue(TopmostProperty, value); }
-
-    Result<void> Show() noexcept;
-    Result<bool> ShowDialog() noexcept;
-    void Close() noexcept;
     bool GetIsOpen() const noexcept;
     Nullable<bool> GetDialogResult() const noexcept;
     void SetDialogResult(Nullable<bool> value) noexcept;
     Ref<Window> GetOwner() const noexcept;
     void SetOwner(Window* owner) noexcept;
     void SetOwner(Ref<Window> owner) noexcept;
+
+    inline static constexpr RoutedEvent<CancelEventArgs> ClosingEvent{"Closing"};
+    inline static constexpr RoutedEvent<RoutedEventArgs> ClosedEvent{"Closed"};
+    inline static constexpr RoutedEvent<RoutedEventArgs> ActivatedEvent{"Activated"};
+    inline static constexpr RoutedEvent<RoutedEventArgs> DeactivatedEvent{"Deactivated"};
+    inline static constexpr RoutedEvent<RoutedEventArgs> ContentRenderedEvent{"ContentRendered"};
+    inline static constexpr RoutedEvent<RoutedEventArgs> SourceInitializedEvent{"SourceInitialized"};
+    inline static constexpr RoutedEvent<RoutedEventArgs> StateChangedEvent{"StateChanged"};
+    UIElement::Event<CancelEventArgs> Closing() noexcept { return GetEvent(ClosingEvent); }
+    UIElement::Event<RoutedEventArgs> Closed() noexcept { return GetEvent(ClosedEvent); }
+    UIElement::Event<RoutedEventArgs> Activated() noexcept { return GetEvent(ActivatedEvent); }
+    UIElement::Event<RoutedEventArgs> Deactivated() noexcept { return GetEvent(DeactivatedEvent); }
+    UIElement::Event<RoutedEventArgs> ContentRendered() noexcept { return GetEvent(ContentRenderedEvent); }
+    UIElement::Event<RoutedEventArgs> SourceInitialized() noexcept { return GetEvent(SourceInitializedEvent); }
+    UIElement::Event<RoutedEventArgs> StateChanged() noexcept { return GetEvent(StateChangedEvent); }
 
     AERO_DEPENDENCY_PROPERTY(String, Title);
     AERO_DEPENDENCY_PROPERTY(WindowState, WindowState);
@@ -53,24 +69,10 @@ public:
     AERO_DEPENDENCY_PROPERTY(bool, Topmost);
     AERO_DEPENDENCY_PROPERTY(Nullable<bool>, DialogResult);
     AERO_DEPENDENCY_PROPERTY(Ref<Window>, Owner);
-    inline static constexpr RoutedEvent<CancelEventArgs> ClosingEvent{"Closing"};
-    inline static constexpr RoutedEvent<RoutedEventArgs> ClosedEvent{"Closed"};
-    inline static constexpr RoutedEvent<RoutedEventArgs> ActivatedEvent{"Activated"};
-    inline static constexpr RoutedEvent<RoutedEventArgs> DeactivatedEvent{"Deactivated"};
-    inline static constexpr RoutedEvent<RoutedEventArgs> ContentRenderedEvent{"ContentRendered"};
-    inline static constexpr RoutedEvent<RoutedEventArgs> SourceInitializedEvent{"SourceInitialized"};
-    inline static constexpr RoutedEvent<RoutedEventArgs> StateChangedEvent{"StateChanged"};
-
-    UIElement::Event<CancelEventArgs> Closing() noexcept { return GetEvent(ClosingEvent); }
-    UIElement::Event<RoutedEventArgs> Closed() noexcept { return GetEvent(ClosedEvent); }
-    UIElement::Event<RoutedEventArgs> Activated() noexcept { return GetEvent(ActivatedEvent); }
-    UIElement::Event<RoutedEventArgs> Deactivated() noexcept { return GetEvent(DeactivatedEvent); }
-    UIElement::Event<RoutedEventArgs> ContentRendered() noexcept { return GetEvent(ContentRenderedEvent); }
-    UIElement::Event<RoutedEventArgs> SourceInitialized() noexcept { return GetEvent(SourceInitializedEvent); }
-    UIElement::Event<RoutedEventArgs> StateChanged() noexcept { return GetEvent(StateChangedEvent); }
 
 protected:
     explicit Window(Meta::TypeId runtimeType) noexcept;
+
     // Marks this code-behind Window for conventional XAML initialization.
     // With no URI the desktop host resolves <registered-type-name>.xaml next
     // to App.xaml; generated code may pass an explicit component URI.

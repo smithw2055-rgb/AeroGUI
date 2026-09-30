@@ -29,6 +29,7 @@ struct AERO_GUI_API DataFormats {
 /// Reference: System.Windows.DataObject
 class AERO_GUI_API DataObject : public Base::Object {
     AERO_DECLARE_TYPE(DataObject, Base::Object)
+
 public:
     DataObject() noexcept = default;
 

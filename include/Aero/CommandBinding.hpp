@@ -16,6 +16,7 @@ struct CommandBindingHandle {
 
 class AERO_GUI_API CommandBinding : public Base::Object {
     AERO_DECLARE_TYPE(CommandBinding, Base::Object)
+
 public:
     CommandBinding() noexcept = default;
     CommandBinding(Ref<RoutedCommand> command,

@@ -9,6 +9,7 @@ namespace Aero::Documents {
 
 class AERO_GUI_API Adorner : public FrameworkElement {
     AERO_DECLARE_TYPE(Adorner, FrameworkElement)
+
 public:
     Adorner() noexcept : FrameworkElement(StaticTypeId()) {}
     explicit Adorner(UIElement* adorned) noexcept : FrameworkElement(StaticTypeId()), adorned_(adorned) {}
@@ -26,6 +27,7 @@ private:
 
 class AERO_GUI_API AdornerLayer : public FrameworkElement {
     AERO_DECLARE_TYPE(AdornerLayer, FrameworkElement)
+
 public:
     AdornerLayer() noexcept : FrameworkElement(StaticTypeId()) {}
 
@@ -48,6 +50,7 @@ private:
 
 class AERO_GUI_API AdornerDecorator : public Controls::Decorator {
     AERO_DECLARE_TYPE(AdornerDecorator, Controls::Decorator)
+
 public:
     AdornerDecorator() noexcept;
 

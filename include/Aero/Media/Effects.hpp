@@ -16,8 +16,8 @@ namespace Aero::Media {
 
 class AERO_GUI_API Effect : public ::Aero::Animatable {
     AERO_DECLARE_TYPE(Effect, ::Aero::Animatable)
-public:
 
+public:
     // Freezable content revision (render cache invalidation).
     std::uint64_t GetRevision() const noexcept;
 
@@ -27,6 +27,7 @@ protected:
 
 class AERO_GUI_API BlurEffect : public Effect {
     AERO_DECLARE_TYPE(BlurEffect, Effect)
+
 public:
     BlurEffect() noexcept : Effect(StaticTypeId()) {}
 
@@ -38,19 +39,19 @@ public:
 
 class AERO_GUI_API DropShadowEffect : public Effect {
     AERO_DECLARE_TYPE(DropShadowEffect, Effect)
+
 public:
     DropShadowEffect() noexcept : Effect(StaticTypeId()) {}
 
     double GetBlurRadius() const noexcept;
-    double GetDirection() const noexcept;
-    double GetShadowDepth() const noexcept;
-    double GetOpacity() const noexcept;
-    Base::Color GetColor() const noexcept;
-
     void SetBlurRadius(double value) noexcept;
+    double GetDirection() const noexcept;
     void SetDirection(double value) noexcept;
+    double GetShadowDepth() const noexcept;
     void SetShadowDepth(double value) noexcept;
+    double GetOpacity() const noexcept;
     void SetOpacity(double value) noexcept;
+    Base::Color GetColor() const noexcept;
     void SetColor(Base::Color value) noexcept;
 
     AERO_DEPENDENCY_PROPERTY(double, BlurRadius);
@@ -62,6 +63,7 @@ public:
 
 class AERO_GUI_API PixelateEffect : public Effect {
     AERO_DECLARE_TYPE(PixelateEffect, Effect)
+
 public:
     PixelateEffect() noexcept : Effect(StaticTypeId()) {}
 
@@ -73,6 +75,7 @@ public:
 
 class AERO_GUI_API TintEffect : public Effect {
     AERO_DECLARE_TYPE(TintEffect, Effect)
+
 public:
     TintEffect() noexcept : Effect(StaticTypeId()) {}
 
@@ -84,6 +87,7 @@ public:
 
 class AERO_GUI_API DirectionalBlurEffect : public Effect {
     AERO_DECLARE_TYPE(DirectionalBlurEffect, Effect)
+
 public:
     DirectionalBlurEffect() noexcept : Effect(StaticTypeId()) {}
 
@@ -98,6 +102,7 @@ public:
 
 class AERO_GUI_API ShaderEffect : public Effect {
     AERO_DECLARE_TYPE(ShaderEffect, Effect)
+
 public:
     ShaderEffect() noexcept : Effect(StaticTypeId()) {}
 

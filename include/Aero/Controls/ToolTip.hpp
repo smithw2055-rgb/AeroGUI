@@ -10,6 +10,7 @@ using ::Aero::Meta::TypeId;
 
 class AERO_GUI_API ToolTip : public ContentControl {
     AERO_DECLARE_TYPE(ToolTip, ContentControl)
+
 public:
     ToolTip() noexcept : ContentControl(StaticTypeId()) {}
     ~ToolTip() override = default;
@@ -45,6 +46,7 @@ protected:
 
 class AERO_GUI_API ToolTipService : public Base::Object {
     AERO_DECLARE_TYPE(ToolTipService, Base::Object)
+
 public:
     TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
     static Ref<ToolTip> GetToolTip(const DependencyObject& target) noexcept;

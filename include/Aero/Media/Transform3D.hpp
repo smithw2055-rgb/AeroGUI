@@ -11,6 +11,7 @@ namespace Aero::Media {
 /// Direct Freezable subclass — no Animatable layer.
 class AERO_GUI_API Transform3D : public ::Aero::Freezable {
     AERO_DECLARE_TYPE(Transform3D, ::Aero::Freezable)
+
 public:
     ~Transform3D() override = default;
 
@@ -41,6 +42,7 @@ struct Transform3DContext {
 /// visual tree via Transform3DContext — not via DP Inherits().
 class AERO_GUI_API PerspectiveTransform3D : public Transform3D {
     AERO_DECLARE_TYPE(PerspectiveTransform3D, Transform3D)
+
 public:
     PerspectiveTransform3D() noexcept : Transform3D(StaticTypeId()) {}
 
@@ -63,6 +65,7 @@ public:
 /// (unlike some reference implementations that leave it unregistered).
 class AERO_GUI_API MatrixTransform3D : public Transform3D {
     AERO_DECLARE_TYPE(MatrixTransform3D, Transform3D)
+
 public:
     MatrixTransform3D() noexcept : Transform3D(StaticTypeId()) {}
 
@@ -79,6 +82,7 @@ public:
 /// render/hit via Transform3DContext (not here).
 class AERO_GUI_API CompositeTransform3D : public Transform3D {
     AERO_DECLARE_TYPE(CompositeTransform3D, Transform3D)
+
 public:
     CompositeTransform3D() noexcept : Transform3D(StaticTypeId()) {}
 

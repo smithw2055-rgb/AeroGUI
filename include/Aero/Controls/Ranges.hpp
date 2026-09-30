@@ -23,6 +23,7 @@ using ::Aero::Meta::TypeId;
 
 class AERO_GUI_API RangeBase : public Control {
     AERO_DECLARE_TYPE(RangeBase, Control)
+
 public:
     using Control::GetValue;
     using Control::SetValue;
@@ -54,6 +55,7 @@ protected:
 
 class AERO_GUI_API Track : public Control {
     AERO_DECLARE_TYPE(Track, Control)
+
 public:
     Track() noexcept : Control(StaticTypeId()) {}
     ~Track() override = default;
@@ -124,6 +126,7 @@ private:
 
 class AERO_GUI_API ScrollBar : public RangeBase {
     AERO_DECLARE_TYPE(ScrollBar, RangeBase)
+
 public:
     ScrollBar() noexcept;
     ~ScrollBar() override;
@@ -215,6 +218,7 @@ enum class TickBarPlacement : std::uint8_t {
 
 class AERO_GUI_API TickBar : public Control {
     AERO_DECLARE_TYPE(TickBar, Control)
+
 public:
     TickBar() noexcept : Control(StaticTypeId()) {}
     ~TickBar() override = default;
@@ -240,6 +244,7 @@ enum class TickPlacement : std::uint8_t {
 
 class AERO_GUI_API Slider : public Primitives::RangeBase {
     AERO_DECLARE_TYPE(Slider, Primitives::RangeBase)
+
 public:
     Slider() noexcept;
     ~Slider() override;
@@ -323,6 +328,7 @@ private:
 
 class AERO_GUI_API ProgressBar : public Primitives::RangeBase {
     AERO_DECLARE_TYPE(ProgressBar, Primitives::RangeBase)
+
 public:
     ProgressBar() noexcept : Primitives::RangeBase(StaticTypeId()) {}
     ~ProgressBar() override = default;

@@ -18,6 +18,7 @@ using ::Aero::Meta::TypeId;
 
 class AERO_GUI_API TreeViewItem : public HeaderedItemsControl {
     AERO_DECLARE_TYPE(TreeViewItem, HeaderedItemsControl)
+
 public:
     TreeViewItem() noexcept;
     ~TreeViewItem() override;
@@ -90,6 +91,7 @@ private:
 
 class AERO_GUI_API TreeView : public ItemsControl {
     AERO_DECLARE_TYPE(TreeView, ItemsControl)
+
 public:
     TreeView() noexcept;
     ~TreeView() override;

@@ -9,6 +9,7 @@ class Hyperlink;
 
 struct RequestNavigateEventArgs : Aero::RoutedEventArgs {
     AERO_DECLARE_TYPE(RequestNavigateEventArgs, Aero::RoutedEventArgs)
+
 public:
     RequestNavigateEventArgs() noexcept : Aero::RoutedEventArgs(StaticTypeId()) {}
     RequestNavigateEventArgs(StringView uri, Hyperlink* hyperlink) noexcept : Aero::RoutedEventArgs(StaticTypeId()),

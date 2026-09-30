@@ -14,6 +14,7 @@ namespace Aero::Markup {
 // factory and calls ProvideValue with no constructor arguments parsed yet.
 class AERO_GUI_API MarkupExtension : public Base::Object {
     AERO_DECLARE_TYPE(MarkupExtension, Base::Object)
+
 public:
     TypeId RuntimeType() const noexcept override { return runtimeType_; }
     virtual Result<Value> ProvideValue() noexcept = 0;

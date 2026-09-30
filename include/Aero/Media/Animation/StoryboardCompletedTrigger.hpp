@@ -10,6 +10,7 @@ using ::Aero::Interactivity::TriggerAction;
 
 class AERO_GUI_API StoryboardCompletedTrigger : public ::Aero::TriggerBase {
     AERO_DECLARE_TYPE(StoryboardCompletedTrigger, ::Aero::TriggerBase)
+
 public:
     StoryboardCompletedTrigger() noexcept : StoryboardCompletedTrigger(StaticTypeId()) {}
     Ref<Storyboard> GetStoryboard() const noexcept { return storyboard_; }

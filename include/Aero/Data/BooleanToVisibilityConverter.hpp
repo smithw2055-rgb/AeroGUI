@@ -6,6 +6,7 @@ namespace Aero::Data {
 
 class AERO_GUI_API BooleanToVisibilityConverter final : public IValueConverter {
     AERO_DECLARE_TYPE(BooleanToVisibilityConverter, IValueConverter)
+
 public:
     BooleanToVisibilityConverter() noexcept = default;
 

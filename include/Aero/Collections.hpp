@@ -22,6 +22,7 @@ namespace Aero::Collections {
 // a particular control or visual host.
 class AERO_GUI_API IItemsSource {
     AERO_DECLARE_TYPE(IItemsSource, Aero::Meta::NoMetadataBase)
+
 public:
     virtual ~IItemsSource() = default;
     virtual std::uint32_t GetCount() const noexcept = 0;
@@ -38,6 +39,7 @@ public:
 class ObservableCollectionBase : public Base::Object,
     public IItemsSource {
     AERO_DECLARE_TYPE(ObservableCollectionBase, Base::Object)
+
 public:
     ObservableCollectionBase() noexcept = default;
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
@@ -57,6 +59,7 @@ public:
 template<class T> class ObservableCollection : public ObservableCollectionBase {
     static_assert(std::is_base_of<Base::Object, T>::value,
         "ObservableCollection<T> requires an Object-derived item type");
+
 public:
     ObservableCollection() noexcept = default;
 
@@ -147,6 +150,7 @@ private:
 class AERO_GUI_API ObservableObjectCollection : public ObservableCollection<Base::Object> {
     AERO_DECLARE_TYPE_NAMED(ObservableObjectCollection, ObservableCollectionBase, Aero::Meta::AeroNamespaceUri(),
         "ObservableCollection")
+
 public:
     ObservableObjectCollection() noexcept = default;
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }

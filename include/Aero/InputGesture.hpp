@@ -7,6 +7,7 @@ namespace Aero::Input {
 
 class AERO_GUI_API InputGesture : public Base::Object {
     AERO_DECLARE_TYPE(InputGesture, Base::Object)
+
 public:
     ~InputGesture() override = default;
     virtual bool Matches(const KeyboardInput& input) const noexcept = 0;
@@ -18,6 +19,7 @@ protected:
 
 class AERO_GUI_API KeyGesture : public InputGesture {
     AERO_DECLARE_TYPE(KeyGesture, InputGesture)
+
 public:
     KeyGesture() noexcept = default;
     KeyGesture(std::uint32_t key, std::uint32_t modifiers = 0U) noexcept : key_(key), modifiers_(modifiers) {}

@@ -12,6 +12,7 @@ namespace Input { class RoutedCommand; }
 
 struct CanExecuteRoutedEventArgs : RoutedEventArgs {
     AERO_DECLARE_TYPE(CanExecuteRoutedEventArgs, RoutedEventArgs)
+
 public:
     CanExecuteRoutedEventArgs() noexcept : RoutedEventArgs(StaticTypeId()) {}
 
@@ -36,6 +37,7 @@ private:
 
 struct ExecutedRoutedEventArgs : RoutedEventArgs {
     AERO_DECLARE_TYPE(ExecutedRoutedEventArgs, RoutedEventArgs)
+
 public:
     ExecutedRoutedEventArgs() noexcept : RoutedEventArgs(StaticTypeId()) {}
 

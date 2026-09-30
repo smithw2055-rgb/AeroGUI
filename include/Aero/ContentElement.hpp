@@ -23,19 +23,20 @@ class ElementTree;
 // properties and routed events without becoming a ::Aero::Media::Visual or UIElement.
 class AERO_GUI_API ContentElement : public DependencyObject {
     AERO_DECLARE_TYPE(ContentElement, DependencyObject)
+
 public:
     template<class TArgs> using Event = ::Aero::Event<ContentElement, TArgs>;
-
-    template<class TOwner, class TArgs> Event<TArgs> GetEvent(
-        const RoutedEventRef<TOwner, TArgs>& event) noexcept { return Event<TArgs>(*this, event.Handle()); }
 
     explicit ContentElement(Meta::TypeId runtimeType) noexcept;
     ~ContentElement() override;
 
-    DependencyObject* GetParent() const noexcept { return logicalParent_; }
-    UIElement* GetContentHost() const noexcept { return contentHost_; }
+    template<class TOwner, class TArgs> Event<TArgs> GetEvent(
+        const RoutedEventRef<TOwner, TArgs>& event) noexcept { return Event<TArgs>(*this, event.Handle()); }
     void Attach(DependencyObject* logicalParent, UIElement* contentHost, EventRouter* eventRouter) noexcept;
     void Detach() noexcept;
+
+    DependencyObject* GetParent() const noexcept { return logicalParent_; }
+    UIElement* GetContentHost() const noexcept { return contentHost_; }
 
     template<class TArgs> void AddHandler(
         RoutedEventHandle event, const Base::Delegate<void(Base::Object*, TArgs&)>& handler,
@@ -44,7 +45,6 @@ public:
         AddHandlerErased(event, &handler, sizeof(handler), alignof(decltype(handler)), TArgs::StaticTypeId(),
             handledEventsToo);
     }
-
     template<class TArgs> bool RemoveHandler(
         RoutedEventHandle event, const Base::Delegate<void(Base::Object*, TArgs&)>& handler) noexcept {
         return RemoveHandlerErased(event, &handler, sizeof(handler), alignof(decltype(handler)), TArgs::StaticTypeId());

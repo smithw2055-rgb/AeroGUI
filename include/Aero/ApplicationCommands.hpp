@@ -9,6 +9,7 @@ namespace Aero::Input {
 // `{x:Static ApplicationCommands.Copy}`, resolve to these interned instances.
 class AERO_GUI_API ApplicationCommands : public Base::Object {
     AERO_DECLARE_TYPE(ApplicationCommands, Base::Object)
+
 public:
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
 

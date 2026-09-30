@@ -24,6 +24,7 @@ using Meta::TypeId;
 
 class AERO_GUI_API SetterBase : public Base::Object {
     AERO_DECLARE_TYPE(SetterBase, Base::Object)
+
 public:
     Meta::TypeId RuntimeType() const noexcept override { return runtimeType_; }
 
@@ -40,6 +41,7 @@ using Meta::PropertyValue;
 
 class AERO_GUI_API Setter : public SetterBase {
     AERO_DECLARE_TYPE(Setter, SetterBase)
+
 public:
     explicit Setter(TypeId runtimeType = StaticTypeId()) noexcept : SetterBase(runtimeType) {}
 
@@ -85,6 +87,7 @@ private:
 
 class AERO_GUI_API TriggerBase : public Base::Object {
     AERO_DECLARE_TYPE(TriggerBase, Base::Object)
+
 public:
     TypeId RuntimeType() const noexcept override { return runtimeType_; }
     void AddEnterAction(Ref<Base::Object> action) noexcept;
@@ -115,6 +118,7 @@ private:
 
 class AERO_GUI_API Condition : public Base::Object {
     AERO_DECLARE_TYPE(Condition, Base::Object)
+
 public:
     TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
     Ref<Data::Binding> GetBinding() const noexcept { return binding_; }
@@ -144,6 +148,7 @@ class Style;
 
 class AERO_GUI_API Trigger : public TriggerBase {
     AERO_DECLARE_TYPE_NAMED(Trigger, TriggerBase, "urn:aero", "Trigger")
+
 public:
     explicit Trigger(TypeId runtimeType = StaticTypeId()) noexcept : TriggerBase(runtimeType) {}
     DependencyPropertyHandle GetProperty() const noexcept { return property_; }
@@ -162,6 +167,7 @@ public:
         return {authoredSetters_.Data(), authoredSetters_.Size()};
     }
     bool GetIsAuthored() const noexcept { return !propertyName_.Empty() && !authoredValue_.IsUnset(); }
+
 private:
     friend class Style;
     friend class Markup::XamlStyleSchemaFacet;
@@ -181,6 +187,7 @@ private:
 
 class AERO_GUI_API DataTrigger : public TriggerBase {
     AERO_DECLARE_TYPE(DataTrigger, TriggerBase)
+
 public:
     DataTrigger() noexcept : TriggerBase(StaticTypeId()) { static_cast<void>(comparison_.Assign("Equal")); }
     Ref<Data::Binding> GetBinding() const noexcept { return binding_; }
@@ -217,6 +224,7 @@ private:
 
 class AERO_GUI_API MultiTrigger : public TriggerBase {
     AERO_DECLARE_TYPE(MultiTrigger, TriggerBase)
+
 public:
     MultiTrigger() noexcept : TriggerBase(StaticTypeId()) {}
     void AddCondition(Ref<Condition> condition) noexcept;
@@ -235,6 +243,7 @@ private:
 
 class AERO_GUI_API MultiDataTrigger : public TriggerBase {
     AERO_DECLARE_TYPE(MultiDataTrigger, TriggerBase)
+
 public:
     MultiDataTrigger() noexcept : TriggerBase(StaticTypeId()) {}
     void AddCondition(Ref<Condition> condition) noexcept;
@@ -254,6 +263,7 @@ private:
 
 class AERO_GUI_API EventTrigger : public TriggerBase {
     AERO_DECLARE_TYPE(EventTrigger, TriggerBase)
+
 public:
     EventTrigger() noexcept : EventTrigger(StaticTypeId()) {}
     StringView GetRoutedEvent() const noexcept { return routedEvent_.View(); }

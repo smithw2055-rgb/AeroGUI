@@ -8,6 +8,7 @@ namespace Aero::Controls {
 
 class AERO_GUI_API AlternationConverter : public Data::IValueConverter {
     AERO_DECLARE_TYPE(AlternationConverter, Data::IValueConverter)
+
 public:
     AlternationConverter() noexcept : values_(&Base::GetDefaultAllocator()) {}
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }

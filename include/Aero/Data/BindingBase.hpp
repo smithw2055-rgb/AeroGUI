@@ -16,16 +16,11 @@ class BindingExpression;
 
 class AERO_GUI_API BindingBase : public Base::Object {
     AERO_DECLARE_TYPE(BindingBase, Base::Object)
+
 public:
     ~BindingBase() override = default;
 
     Meta::TypeId RuntimeType() const noexcept override { return runtimeType_; }
-    StringView GetStringFormat() const noexcept { return stringFormat_.View(); }
-    void SetStringFormat(StringView value) noexcept { (void)stringFormat_.Assign(value); }
-    const Value& GetFallbackValue() const noexcept { return fallbackValue_; }
-    void SetFallbackValue(Value value) noexcept { fallbackValue_ = std::move(value); }
-    const Value& GetTargetNullValue() const noexcept { return targetNullValue_; }
-    void SetTargetNullValue(Value value) noexcept { targetNullValue_ = std::move(value); }
     // WPF-style factory: Binding/MultiBinding/PriorityBinding override to
     // create their expression without exposing BindingEngine in headers.
     virtual Ref<BindingExpression> CreateExpression(DependencyObject* target,
@@ -34,6 +29,13 @@ public:
         static_cast<void>(property);
         return {};
     }
+
+    StringView GetStringFormat() const noexcept { return stringFormat_.View(); }
+    void SetStringFormat(StringView value) noexcept { (void)stringFormat_.Assign(value); }
+    const Value& GetFallbackValue() const noexcept { return fallbackValue_; }
+    void SetFallbackValue(Value value) noexcept { fallbackValue_ = std::move(value); }
+    const Value& GetTargetNullValue() const noexcept { return targetNullValue_; }
+    void SetTargetNullValue(Value value) noexcept { targetNullValue_ = std::move(value); }
 
 protected:
     explicit BindingBase(Meta::TypeId runtimeType) noexcept : runtimeType_(runtimeType) {}

@@ -23,6 +23,7 @@ enum class GridResizeBehavior : std::uint8_t {
 // through a custom interaction adapter.
 class AERO_GUI_API GridSplitter : public Primitives::Thumb {
     AERO_DECLARE_TYPE(GridSplitter, Primitives::Thumb)
+
 public:
     GridSplitter() noexcept : Primitives::Thumb(StaticTypeId()) {}
     ~GridSplitter() override = default;

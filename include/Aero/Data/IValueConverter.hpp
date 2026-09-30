@@ -9,6 +9,7 @@ namespace Aero::Data {
 
 class AERO_GUI_API IValueConverter : public Base::Object {
     AERO_DECLARE_TYPE(IValueConverter, Base::Object)
+
 public:
     ~IValueConverter() override = default;
 

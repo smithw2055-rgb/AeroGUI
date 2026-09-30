@@ -13,6 +13,7 @@ namespace Primitives {
 
 class AERO_GUI_API Thumb : public Control {
     AERO_DECLARE_TYPE(Thumb, Control)
+
 public:
     Thumb() noexcept;
     ~Thumb() override;

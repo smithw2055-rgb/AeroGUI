@@ -23,14 +23,29 @@ namespace Primitives {
 
 class AERO_GUI_API Selector : public ItemsControl {
     AERO_DECLARE_TYPE(Selector, ItemsControl)
+
 public:
     Selector() noexcept;
     ~Selector() override;
 
+    bool Select(std::uint32_t index) noexcept;
+    bool Unselect(std::uint32_t index) noexcept;
+    bool Toggle(std::uint32_t index) noexcept;
+    bool SelectRange(std::uint32_t first, std::uint32_t last, bool preserveExisting = false) noexcept;
+    void AddSelectionChanged(const SelectionChangedHandler& handler) noexcept { selectionChanged_.Add(handler); }
+    bool RemoveSelectionChanged(const SelectionChangedHandler& handler) noexcept {
+        return selectionChanged_.Remove(handler);
+    }
+    void SyncContainers() noexcept;
+
     SelectionMode GetSelectionMode() const noexcept;
+    void SetSelectionMode(SelectionMode value) noexcept;
     std::uint32_t GetSelectedIndex() const noexcept;
+    void SetSelectedIndex(std::uint32_t index) noexcept;
     Ref<Base::Object> GetSelectedItem() const noexcept;
+    void SetSelectedItem(Ref<Base::Object> item) noexcept;
     Ref<Base::Object> GetSelectedValue() const noexcept;
+    void SetSelectedValue(Ref<Base::Object> value) noexcept;
     StringView GetSelectedValuePath() const noexcept { return GetValue(SelectedValuePathProperty); }
     Span<const std::uint32_t> GetSelectedIndices() const noexcept {
         return {selectedIndices_.Data(), selectedIndices_.Size()};
@@ -38,24 +53,15 @@ public:
     std::uint32_t GetSelectedCount() const noexcept { return selectedIndices_.Size(); }
     bool GetIsSelected(std::uint32_t index) const noexcept;
     std::uint32_t GetIndexOfItem(const Base::Object* item) const noexcept;
-
-    void SetSelectionMode(SelectionMode value) noexcept;
-    void SetSelectedIndex(std::uint32_t index) noexcept;
-    void SetSelectedItem(Ref<Base::Object> item) noexcept;
-    void SetSelectedValue(Ref<Base::Object> value) noexcept;
     bool GetIsSynchronizedWithCurrentItem() const noexcept;
     void SetIsSynchronizedWithCurrentItem(bool value) noexcept;
-    bool Select(std::uint32_t index) noexcept;
-    bool Unselect(std::uint32_t index) noexcept;
-    bool Toggle(std::uint32_t index) noexcept;
-    bool SelectRange(std::uint32_t first, std::uint32_t last, bool preserveExisting = false) noexcept;
     void ClearSelection() noexcept;
 
-    void AddSelectionChanged(const SelectionChangedHandler& handler) noexcept { selectionChanged_.Add(handler); }
-    bool RemoveSelectionChanged(const SelectionChangedHandler& handler) noexcept {
-        return selectionChanged_.Remove(handler);
-    }
-    Base::Status LastSelectionError() const noexcept { return lastSelectionError_; }
+    // WPF Selector.SelectionChanged is a bubbling routed event. Keep the
+    // strongly typed selection notification above for model-facing code while
+    // also publishing the routed surface used by EventTrigger.
+    inline static constexpr RoutedEvent<RoutedEventArgs> SelectionChangedRoutedEvent{"SelectionChanged"};
+    UIElement::Event<RoutedEventArgs> SelectionChanged() noexcept { return GetEvent(SelectionChangedRoutedEvent); }
 
     AERO_DEPENDENCY_PROPERTY(SelectionMode, SelectionMode);
     AERO_DEPENDENCY_PROPERTY(std::uint32_t, SelectedIndex);
@@ -64,19 +70,14 @@ public:
     AERO_DEPENDENCY_PROPERTY(String, SelectedValuePath);
     AERO_ATTACHED_PROPERTY(bool, IsSelected);
     AERO_DEPENDENCY_PROPERTY(bool, IsSynchronizedWithCurrentItem);
-    // WPF Selector.SelectionChanged is a bubbling routed event. Keep the
-    // strongly typed selection notification above for model-facing code while
-    // also publishing the routed surface used by EventTrigger.
-    inline static constexpr RoutedEvent<RoutedEventArgs> SelectionChangedRoutedEvent{"SelectionChanged"};
-    UIElement::Event<RoutedEventArgs> SelectionChanged() noexcept { return GetEvent(SelectionChangedRoutedEvent); }
 
-    void SyncContainers() noexcept;
+    Base::Status LastSelectionError() const noexcept { return lastSelectionError_; }
 
 protected:
     explicit Selector(TypeId runtimeType) noexcept;
+
     Result<void> PrepareContainerForItemOverride(FrameworkElement& container, const Ref<Base::Object>& item,
         std::uint32_t index) noexcept override;
-    void ClearContainerForItemOverride(FrameworkElement& container) noexcept override;
     void OnContainersChanged() noexcept override;
     void OnItemsChanged(const ItemsChangedEvent& event) noexcept override;
     // Replaces the former CoerceSelectedObject metadata delegate.
@@ -86,7 +87,16 @@ protected:
     virtual void OnSelectionChanged(const SelectionChangedEvent& event);
     void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
 
+    void ClearContainerForItemOverride(FrameworkElement& container) noexcept override;
+
 private:
+    void PushSelectionToCurrent() noexcept;
+    void OnViewCurrentChanged() noexcept;
+    Result<bool> ApplySelection(Span<const std::uint32_t> indices, std::uint32_t primaryIndex) noexcept;
+    void PublishProperties() noexcept;
+    void HookCurrentView() noexcept;
+    void UnhookCurrentView() noexcept;
+
     Base::Vector<std::uint32_t> selectedIndices_;
     std::uint32_t primaryIndex_ = UINT32_MAX;
     std::uint32_t pendingIndex_ = UINT32_MAX;
@@ -102,13 +112,6 @@ private:
     bool synchronizingCurrent_ = false;
     Data::CollectionView* subscribedView_ = nullptr;
     Base::Delegate<void()> currentChangedHandler_;
-
-    void PushSelectionToCurrent() noexcept;
-    void OnViewCurrentChanged() noexcept;
-    Result<bool> ApplySelection(Span<const std::uint32_t> indices, std::uint32_t primaryIndex) noexcept;
-    void PublishProperties() noexcept;
-    void HookCurrentView() noexcept;
-    void UnhookCurrentView() noexcept;
 };
 
 } // namespace Primitives

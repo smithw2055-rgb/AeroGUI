@@ -20,6 +20,7 @@ namespace Aero::Interactivity {
 // to routed input without exposing runtime-specific service objects.
 class AERO_GUI_API Behavior : public ::Aero::DependencyObject {
     AERO_DECLARE_TYPE(Behavior, ::Aero::DependencyObject)
+
 public:
     struct AuthoredBinding {
         Meta::DependencyPropertyHandle property;
@@ -54,28 +55,33 @@ private:
 
 class AERO_GUI_API StyleBehaviorCollection : public Base::Object {
     AERO_DECLARE_TYPE(StyleBehaviorCollection, Base::Object)
+
 public:
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
     void Add(Ref<Base::Object> value) noexcept;
     void Clear() noexcept { items_.Clear(); }
     Span<const Ref<Base::Object>> GetItems() const noexcept { return items_.AsSpan(); }
+
 private:
     Base::Vector<Ref<Base::Object>> items_;
 };
 
 class AERO_GUI_API StyleTriggerCollection : public Base::Object {
     AERO_DECLARE_TYPE(StyleTriggerCollection, Base::Object)
+
 public:
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
     void Add(Ref<Base::Object> value) noexcept;
     void Clear() noexcept { items_.Clear(); }
     Span<const Ref<Base::Object>> GetItems() const noexcept { return items_.AsSpan(); }
+
 private:
     Base::Vector<Ref<Base::Object>> items_;
 };
 
 class AERO_GUI_API StyleInteraction : public Base::Object {
     AERO_DECLARE_TYPE(StyleInteraction, Base::Object)
+
 public:
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
     AERO_ATTACHED_PROPERTY(Ref<StyleBehaviorCollection>, Behaviors);

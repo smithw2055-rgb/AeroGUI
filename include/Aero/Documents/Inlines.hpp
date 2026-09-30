@@ -22,6 +22,7 @@ namespace Aero::Documents {
 
 class AERO_GUI_API TextElement : public FrameworkContentElement {
     AERO_DECLARE_TYPE(TextElement, FrameworkContentElement)
+
 public:
     ~TextElement() override = default;
 
@@ -58,6 +59,7 @@ protected:
 
 class AERO_GUI_API Inline : public TextElement {
     AERO_DECLARE_TYPE(Inline, TextElement)
+
 public:
     ~Inline() override = default;
 
@@ -104,6 +106,7 @@ private:
 
 class AERO_GUI_API Span : public Inline {
     AERO_DECLARE_TYPE(Span, Inline)
+
 public:
     Span() noexcept : Span(StaticTypeId()) {}
     ~Span() override;
@@ -131,6 +134,7 @@ private:
 
 class AERO_GUI_API Run : public Inline {
     AERO_DECLARE_TYPE(Run, Inline)
+
 public:
     Run() noexcept : Inline(StaticTypeId()) {}
     ~Run() override = default;
@@ -145,6 +149,7 @@ public:
 
 class AERO_GUI_API LineBreak : public Inline {
     AERO_DECLARE_TYPE(LineBreak, Inline)
+
 public:
     LineBreak() noexcept : Inline(StaticTypeId()) {}
     ~LineBreak() override = default;
@@ -152,6 +157,7 @@ public:
 
 class AERO_GUI_API InlineUIContainer : public Inline {
     AERO_DECLARE_TYPE(InlineUIContainer, Inline)
+
 public:
     InlineUIContainer() noexcept : Inline(StaticTypeId()) {}
 
@@ -166,6 +172,7 @@ private:
 
 class AERO_GUI_API Bold : public Span {
     AERO_DECLARE_TYPE(Bold, Span)
+
 public:
     Bold() noexcept : Span(StaticTypeId()) {}
     ~Bold() override = default;
@@ -173,6 +180,7 @@ public:
 
 class AERO_GUI_API Italic : public Span {
     AERO_DECLARE_TYPE(Italic, Span)
+
 public:
     Italic() noexcept : Span(StaticTypeId()) {}
     ~Italic() override = default;
@@ -180,6 +188,7 @@ public:
 
 class AERO_GUI_API Underline : public Span {
     AERO_DECLARE_TYPE(Underline, Span)
+
 public:
     Underline() noexcept : Span(StaticTypeId()) {}
     ~Underline() override = default;
@@ -187,6 +196,7 @@ public:
 
 class AERO_GUI_API Hyperlink : public Span {
     AERO_DECLARE_TYPE(Hyperlink, Span)
+
 public:
     Hyperlink() noexcept : Span(StaticTypeId()) {}
     ~Hyperlink() override = default;

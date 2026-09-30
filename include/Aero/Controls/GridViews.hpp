@@ -18,6 +18,7 @@ enum class GridViewColumnHeaderRole : std::uint8_t {
 
 class AERO_GUI_API GridViewColumnHeader : public ContentControl {
     AERO_DECLARE_TYPE(GridViewColumnHeader, ContentControl)
+
 public:
     GridViewColumnHeader() noexcept : ContentControl(StaticTypeId()) {}
 
@@ -29,6 +30,7 @@ public:
 
 class AERO_GUI_API GridViewColumn : public DependencyObject {
     AERO_DECLARE_TYPE(GridViewColumn, DependencyObject)
+
 public:
     GridViewColumn() noexcept : DependencyObject(StaticTypeId()) {}
     Value GetHeader() const noexcept;
@@ -60,6 +62,7 @@ public:
 
 class AERO_GUI_API ViewBase : public Base::Object {
     AERO_DECLARE_TYPE(ViewBase, Base::Object)
+
 public:
     ViewBase() noexcept = default;
     TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
@@ -70,6 +73,7 @@ protected:
 
 class AERO_GUI_API GridView : public ViewBase {
     AERO_DECLARE_TYPE(GridView, ViewBase)
+
 public:
     GridView() noexcept = default;
     TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
@@ -112,6 +116,7 @@ private:
 
 class AERO_GUI_API GridViewHeaderRowPresenter : public Aero::FrameworkElement {
     AERO_DECLARE_TYPE(GridViewHeaderRowPresenter, Aero::FrameworkElement)
+
 public:
     GridViewHeaderRowPresenter() noexcept : FrameworkElement(StaticTypeId()) {}
 
@@ -129,6 +134,7 @@ public:
 
 class AERO_GUI_API GridViewRowPresenter : public Aero::FrameworkElement {
     AERO_DECLARE_TYPE(GridViewRowPresenter, Aero::FrameworkElement)
+
 public:
     GridViewRowPresenter() noexcept : FrameworkElement(StaticTypeId()) {}
 

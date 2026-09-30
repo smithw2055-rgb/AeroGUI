@@ -7,6 +7,7 @@ namespace Aero {
 
 struct StartupEventArgs : EventArgs {
     AERO_DECLARE_TYPE(StartupEventArgs, EventArgs)
+
 public:
     StartupEventArgs() noexcept : EventArgs(StaticTypeId()) {}
     explicit StartupEventArgs(StringView startupUri) noexcept : EventArgs(StaticTypeId()), startupUri_(startupUri) {}
@@ -19,6 +20,7 @@ private:
 
 struct ExitEventArgs : EventArgs {
     AERO_DECLARE_TYPE(ExitEventArgs, EventArgs)
+
 public:
     ExitEventArgs() noexcept : EventArgs(StaticTypeId()) {}
     explicit ExitEventArgs(int applicationExitCode) noexcept : EventArgs(StaticTypeId()),

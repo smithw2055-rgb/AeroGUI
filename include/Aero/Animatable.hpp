@@ -9,6 +9,7 @@ namespace Aero {
 // Transform3D stays on Freezable; it does not join this layer.
 class AERO_GUI_API Animatable : public Freezable {
     AERO_DECLARE_TYPE(Animatable, Freezable)
+
 public:
     bool HasAnimatedProperties() const noexcept;
 

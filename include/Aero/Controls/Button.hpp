@@ -7,6 +7,7 @@ namespace Aero::Controls {
 
 class AERO_GUI_API Button : public Primitives::ButtonBase {
     AERO_DECLARE_TYPE(Button, Primitives::ButtonBase)
+
 public:
     Button() noexcept : Button(StaticTypeId()) {}
     ~Button() override = default;

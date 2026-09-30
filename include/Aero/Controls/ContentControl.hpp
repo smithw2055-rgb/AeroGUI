@@ -10,18 +10,13 @@ using ::Aero::Meta::DependencyPropertyChangedEventHandler;
 using ::Aero::Meta::TypeId;
 class AERO_GUI_API ContentControl : public Control {
     AERO_DECLARE_TYPE(ContentControl, Control)
+
 public:
-    AERO_DEPENDENCY_PROPERTY(Value, Content);
-    AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, ContentTemplate);
-    AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, ContentTemplateSelector);
+    static void OnContentPropertyChanged(::Aero::DependencyObject& object,
+        const Meta::DependencyPropertyChangedEventArgs& change) noexcept;
+    Result<Ref<Base::Object>> CreateTemplatedContent() const noexcept;
 
     Value GetContent() const noexcept { return GetValue(ContentProperty); }
-    Ref<Base::Object> GetContentTemplate() const noexcept { return GetValue(ContentTemplateProperty); }
-    void SetContentTemplate(Ref<Base::Object> value) noexcept { SetValue(ContentTemplateProperty, std::move(value)); }
-    Ref<Base::Object> GetContentTemplateSelector() const noexcept { return GetValue(ContentTemplateSelectorProperty); }
-    void SetContentTemplateSelector(Ref<Base::Object> value) noexcept {
-        SetValue(ContentTemplateSelectorProperty, std::move(value));
-    }
     void SetContent(Ref<Base::Object> content) noexcept { SetContentValue(std::move(content)); }
     void SetContent(Value content) noexcept { SetContentValue(std::move(content)); }
     void SetContent(StringView text) noexcept;
@@ -52,10 +47,12 @@ public:
         InvalidateMeasure();
         return;
     }
-    UIElement* GetContentElement() const noexcept { return content_; }
-
-    const Ref<Base::Object>& OwnedContent() const noexcept { return ownedContent_; }
-    const Ref<Base::Object>& ContentValue() const noexcept { return contentValue_; }
+    Ref<Base::Object> GetContentTemplate() const noexcept { return GetValue(ContentTemplateProperty); }
+    void SetContentTemplate(Ref<Base::Object> value) noexcept { SetValue(ContentTemplateProperty, std::move(value)); }
+    Ref<Base::Object> GetContentTemplateSelector() const noexcept { return GetValue(ContentTemplateSelectorProperty); }
+    void SetContentTemplateSelector(Ref<Base::Object> value) noexcept {
+        SetValue(ContentTemplateSelectorProperty, std::move(value));
+    }
     void SetOwnedContent(const Ref<Base::Object>& contentObject, UIElement& content) noexcept {
         if (!contentObject || contentObject.Get() != &content) { return; }
         Result<void> access = VerifyAccess();
@@ -75,22 +72,26 @@ public:
     // source-compatible direct-content path.
     void SetContentValue(Ref<Base::Object> value) noexcept;
     void SetContentValue(Value value) noexcept;
-    static void OnContentPropertyChanged(::Aero::DependencyObject& object,
-        const Meta::DependencyPropertyChangedEventArgs& change) noexcept;
-    Result<Ref<Base::Object>> CreateTemplatedContent() const noexcept;
     void SetGeneratedTextContent(const Ref<Base::Object>& contentObject, UIElement& content) noexcept;
 
+    AERO_DEPENDENCY_PROPERTY(Value, Content);
+    AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, ContentTemplate);
+    AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, ContentTemplateSelector);
+
+    UIElement* GetContentElement() const noexcept { return content_; }
+    const Ref<Base::Object>& OwnedContent() const noexcept { return ownedContent_; }
+    const Ref<Base::Object>& ContentValue() const noexcept { return contentValue_; }
+
 protected:
+    explicit ContentControl(TypeId runtimeType) noexcept;
+    ~ContentControl() override;
+
     virtual void OnContentChanged(const Value& oldContent, const Value& newContent);
     virtual void OnContentTemplateChanged(const Ref<Base::Object>& oldContentTemplate,
         const Ref<Base::Object>& newContentTemplate);
     virtual void OnContentTemplateSelectorChanged(const Ref<Base::Object>& oldSelector,
         const Ref<Base::Object>& newSelector);
     void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
-    [[deprecated("Use GetContentElement() for WPF parity")]]
-    UIElement* ContentElement() const noexcept { return content_; }
-    explicit ContentControl(TypeId runtimeType) noexcept;
-    ~ContentControl() override;
     std::uint32_t GetVisualChildrenCount() const noexcept override {
         if (GetTemplateRoot() != nullptr) { return Control::GetVisualChildrenCount(); }
         return content_ != nullptr && content_->GetVisualParent() == this ? 1U : 0U;
@@ -125,19 +126,12 @@ protected:
         return finalSize;
     }
 
+    [[deprecated("Use GetContentElement() for WPF parity")]]
+    UIElement* ContentElement() const noexcept { return content_; }
+
 private:
-    UIElement* content_ = nullptr;
-    Ref<Base::Object> ownedContent_;
-    Ref<Base::Object> contentValue_;
-    Value authoredContent_;
-    bool literalTextContent_ = false;
-    bool synchronizingContentProperty_ = false;
     void StoreContentProperty(Value value) noexcept;
     void SyncGeneratedTextFormatting() noexcept;
-    bool IsOnlyAttachedContent(const UIElement& content) const noexcept {
-        const UIElementChildRange children = LayoutChildren();
-        return children.Size() == 1U && children[0] == &content;
-    }
     Result<void> ValidateContent(UIElement* content) const noexcept {
         if (content == nullptr) { return {}; }
         if (!LayoutChildren().Empty() && !IsOnlyAttachedContent(*content)) {
@@ -146,6 +140,18 @@ private:
         }
         return {};
     }
+
+    bool IsOnlyAttachedContent(const UIElement& content) const noexcept {
+        const UIElementChildRange children = LayoutChildren();
+        return children.Size() == 1U && children[0] == &content;
+    }
+
+    UIElement* content_ = nullptr;
+    Ref<Base::Object> ownedContent_;
+    Ref<Base::Object> contentValue_;
+    Value authoredContent_;
+    bool literalTextContent_ = false;
+    bool synchronizingContentProperty_ = false;
 };
 
 // Navigable content surface. WPF Page derives FrameworkElement and owns Content
@@ -153,6 +159,7 @@ private:
 // ContentTemplate are hosted by an inner content control.
 class AERO_GUI_API Page : public FrameworkElement {
     AERO_DECLARE_TYPE(Page, FrameworkElement)
+
 public:
     Page() noexcept : FrameworkElement(StaticTypeId()) {}
     ~Page() override {

@@ -19,6 +19,7 @@ enum class VirtualizationMode : std::uint8_t { Standard = 0U, Recycling };
 // authored contract while item-unit realization is added.
 class AERO_GUI_API VirtualizingPanel : public Panel {
     AERO_DECLARE_TYPE(VirtualizingPanel, Panel)
+
 public:
     AERO_ATTACHED_PROPERTY(ScrollUnit, ScrollUnit);
     AERO_ATTACHED_PROPERTY(VirtualizationMode, VirtualizationMode);

@@ -33,6 +33,7 @@ struct FlattenSink {
 
 class AERO_GUI_API Geometry : public Animatable {
     AERO_DECLARE_TYPE(Geometry, Animatable)
+
 public:
     Geometry() noexcept : Animatable(StaticTypeId()) {}
     ~Geometry() override;
@@ -58,11 +59,13 @@ private:
 
 class AERO_GUI_API PathSegment : public Animatable {
     AERO_DECLARE_TYPE(PathSegment, Animatable)
+
 public:
     virtual void Flatten(FlattenSink& sink, Point& currentPoint) const noexcept {
         (void)sink;
         (void)currentPoint;
     }
+
 protected:
     explicit PathSegment(Meta::TypeId runtimeType) noexcept : Animatable(runtimeType) {}
     ~PathSegment() override = default;
@@ -70,6 +73,7 @@ protected:
 
 class AERO_GUI_API LineSegment : public PathSegment {
     AERO_DECLARE_TYPE(LineSegment, PathSegment)
+
 public:
     LineSegment() noexcept : PathSegment(StaticTypeId()) {}
     Point GetPoint() const noexcept { return GetValue(PointProperty); }
@@ -80,6 +84,7 @@ public:
 
 class AERO_GUI_API BezierSegment : public PathSegment {
     AERO_DECLARE_TYPE(BezierSegment, PathSegment)
+
 public:
     BezierSegment() noexcept : PathSegment(StaticTypeId()) {}
     Point GetPoint1() const noexcept { return GetValue(Point1Property); }
@@ -96,6 +101,7 @@ public:
 
 class AERO_GUI_API QuadraticBezierSegment : public PathSegment {
     AERO_DECLARE_TYPE(QuadraticBezierSegment, PathSegment)
+
 public:
     QuadraticBezierSegment() noexcept : PathSegment(StaticTypeId()) {}
     Point GetPoint1() const noexcept { return GetValue(Point1Property); }
@@ -109,6 +115,7 @@ public:
 
 class AERO_GUI_API PolyLineSegment : public PathSegment {
     AERO_DECLARE_TYPE(PolyLineSegment, PathSegment)
+
 public:
     PolyLineSegment() noexcept : PathSegment(StaticTypeId()) {}
     Span<const Point> GetPoints() const noexcept { return points_.AsSpan(); }
@@ -118,12 +125,14 @@ public:
     void SetPoints(StringView text) noexcept;
     void SetPointsText(Base::String text) noexcept { SetPoints(text.View()); }
     void Flatten(FlattenSink& sink, Point& currentPoint) const noexcept override;
+
 private:
     Base::Vector<Point> points_;
 };
 
 class AERO_GUI_API PolyBezierSegment : public PathSegment {
     AERO_DECLARE_TYPE(PolyBezierSegment, PathSegment)
+
 public:
     PolyBezierSegment() noexcept : PathSegment(StaticTypeId()) {}
     Span<const Point> GetPoints() const noexcept { return points_.AsSpan(); }
@@ -133,12 +142,14 @@ public:
     void SetPoints(StringView text) noexcept;
     void SetPointsText(Base::String text) noexcept { SetPoints(text.View()); }
     void Flatten(FlattenSink& sink, Point& currentPoint) const noexcept override;
+
 private:
     Base::Vector<Point> points_;
 };
 
 class AERO_GUI_API PolyQuadraticBezierSegment : public PathSegment {
     AERO_DECLARE_TYPE(PolyQuadraticBezierSegment, PathSegment)
+
 public:
     PolyQuadraticBezierSegment() noexcept : PathSegment(StaticTypeId()) {}
     Span<const Point> GetPoints() const noexcept { return points_.AsSpan(); }
@@ -148,6 +159,7 @@ public:
     void SetPoints(StringView text) noexcept;
     void SetPointsText(Base::String text) noexcept { SetPoints(text.View()); }
     void Flatten(FlattenSink& sink, Point& currentPoint) const noexcept override;
+
 private:
     Base::Vector<Point> points_;
 };
@@ -159,6 +171,7 @@ enum class SweepDirection : std::uint8_t {
 
 class AERO_GUI_API ArcSegment : public PathSegment {
     AERO_DECLARE_TYPE(ArcSegment, PathSegment)
+
 public:
     ArcSegment() noexcept : PathSegment(StaticTypeId()) {}
     Point GetPoint() const noexcept { return GetValue(PointProperty); }
@@ -181,6 +194,7 @@ public:
 
 class AERO_GUI_API PathFigure : public Animatable {
     AERO_DECLARE_TYPE(PathFigure, Animatable)
+
 public:
     PathFigure() noexcept : Animatable(StaticTypeId()) {}
     Point GetStartPoint() const noexcept { return GetValue(StartPointProperty); }
@@ -196,6 +210,7 @@ public:
     Span<const Ref<PathSegment>> GetSegments() const noexcept { return segments_.AsSpan(); }
     AERO_DEPENDENCY_PROPERTY(Point, StartPoint);
     AERO_DEPENDENCY_PROPERTY(bool, IsClosed);
+
 private:
     FreezableCollection<PathSegment> segments_;
 };
@@ -233,6 +248,7 @@ private:
 
 class AERO_GUI_API RectangleGeometry : public Geometry {
     AERO_DECLARE_TYPE(RectangleGeometry, Geometry)
+
 public:
     RectangleGeometry() noexcept : Geometry(StaticTypeId()) {}
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
@@ -246,12 +262,14 @@ public:
     AERO_DEPENDENCY_PROPERTY(Rect, Rect);
     AERO_DEPENDENCY_PROPERTY(double, RadiusX);
     AERO_DEPENDENCY_PROPERTY(double, RadiusY);
+
 protected:
     void FlattenCore(FlattenSink& sink) const noexcept override;
 };
 
 class AERO_GUI_API EllipseGeometry : public Geometry {
     AERO_DECLARE_TYPE(EllipseGeometry, Geometry)
+
 public:
     EllipseGeometry() noexcept : Geometry(StaticTypeId()) {}
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
@@ -265,12 +283,14 @@ public:
     AERO_DEPENDENCY_PROPERTY(Point, Center);
     AERO_DEPENDENCY_PROPERTY(double, RadiusX);
     AERO_DEPENDENCY_PROPERTY(double, RadiusY);
+
 protected:
     void FlattenCore(FlattenSink& sink) const noexcept override;
 };
 
 class AERO_GUI_API LineGeometry : public Geometry {
     AERO_DECLARE_TYPE(LineGeometry, Geometry)
+
 public:
     LineGeometry() noexcept : Geometry(StaticTypeId()) {}
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
@@ -281,12 +301,14 @@ public:
     Rect GetBounds() const noexcept override;
     AERO_DEPENDENCY_PROPERTY(Point, StartPoint);
     AERO_DEPENDENCY_PROPERTY(Point, EndPoint);
+
 protected:
     void FlattenCore(FlattenSink& sink) const noexcept override;
 };
 
 class AERO_GUI_API GeometryGroup : public Geometry {
     AERO_DECLARE_TYPE(GeometryGroup, Geometry)
+
 public:
     GeometryGroup() noexcept : Geometry(StaticTypeId()) {}
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
@@ -297,8 +319,10 @@ public:
         WritePostscript();
     }
     Span<const Ref<Geometry>> GetChildren() const noexcept { return children_.AsSpan(); }
+
 protected:
     void FlattenCore(FlattenSink& sink) const noexcept override;
+
 private:
     FreezableCollection<Geometry> children_;
 };
@@ -312,6 +336,7 @@ enum class GeometryCombineMode : std::uint8_t {
 
 class AERO_GUI_API CombinedGeometry : public Geometry {
     AERO_DECLARE_TYPE(CombinedGeometry, Geometry)
+
 public:
     CombinedGeometry() noexcept : Geometry(StaticTypeId()) {}
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
@@ -322,9 +347,11 @@ public:
     void SetGeometry2(Ref<Geometry> value) noexcept;
     void SetGeometryCombineMode(GeometryCombineMode value) noexcept { SetValue(GeometryCombineModeProperty, value); }
     AERO_DEPENDENCY_PROPERTY(GeometryCombineMode, GeometryCombineMode);
+
 protected:
     void FlattenCore(FlattenSink& sink) const noexcept override;
     bool FreezeCore(bool isChecking) noexcept override;
+
 private:
     void OnChildChanged(Freezable&) noexcept;
     void AttachChild(Ref<Geometry>& slot, Ref<Geometry> value) noexcept;
@@ -335,6 +362,7 @@ private:
 
 class AERO_GUI_API PathGeometry : public Geometry {
     AERO_DECLARE_TYPE(PathGeometry, Geometry)
+
 public:
     PathGeometry() noexcept : Geometry(StaticTypeId()) {}
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
@@ -346,14 +374,17 @@ public:
     }
     Span<const Ref<PathFigure>> GetFigures() const noexcept { return figures_.AsSpan(); }
     Result<String> ToStreamData() const noexcept;
+
 protected:
     void FlattenCore(FlattenSink& sink) const noexcept override;
+
 private:
     FreezableCollection<PathFigure> figures_;
 };
 
 class AERO_GUI_API StreamGeometry : public Geometry {
     AERO_DECLARE_TYPE(StreamGeometry, Geometry)
+
 public:
     StreamGeometry() noexcept : Geometry(StaticTypeId()) {}
     ~StreamGeometry() override = default;

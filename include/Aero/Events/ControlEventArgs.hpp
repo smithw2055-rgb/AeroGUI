@@ -50,6 +50,7 @@ struct ScrollData {
 
 struct ScrollChangedEventArgs : RoutedEventArgs {
     AERO_DECLARE_TYPE(ScrollChangedEventArgs, RoutedEventArgs)
+
 public:
     ScrollChangedEventArgs() noexcept : RoutedEventArgs(StaticTypeId()) {}
     ScrollChangedEventArgs(ScrollData oldData, ScrollData newData, ScrollInputKind inputKind) noexcept
@@ -70,6 +71,7 @@ using ScrollChangedEventHandler = Base::Delegate<void(Base::Object*, ScrollChang
 
 struct RangeValueChangedEventArgs : RoutedEventArgs {
     AERO_DECLARE_TYPE(RangeValueChangedEventArgs, RoutedEventArgs)
+
 public:
     RangeValueChangedEventArgs() noexcept : RoutedEventArgs(StaticTypeId()) {}
     RangeValueChangedEventArgs(double oldValue, double newValue) noexcept : RoutedEventArgs(StaticTypeId()),

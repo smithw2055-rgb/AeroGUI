@@ -8,6 +8,7 @@ namespace Aero::Data {
 
 class AERO_GUI_API MultiBinding final : public BindingBase {
     AERO_DECLARE_TYPE(MultiBinding, BindingBase)
+
 public:
     MultiBinding() noexcept : BindingBase(StaticTypeId()),
           bindings_(&Base::GetDefaultAllocator()) {}

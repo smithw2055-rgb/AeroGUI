@@ -11,6 +11,7 @@ namespace Aero::Controls {
 class AERO_GUI_API VirtualizingWrapPanel : public VirtualizingPanel,
       public IScrollInfo {
     AERO_DECLARE_TYPE(VirtualizingWrapPanel, VirtualizingPanel)
+
 public:
     VirtualizingWrapPanel() noexcept;
 

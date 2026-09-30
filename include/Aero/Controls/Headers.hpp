@@ -12,6 +12,7 @@ using ::Aero::Meta::DependencyPropertyChangedEventHandler;
 
 class AERO_GUI_API GroupBox : public HeaderedContentControl {
     AERO_DECLARE_TYPE(GroupBox, HeaderedContentControl)
+
 public:
     GroupBox() noexcept : HeaderedContentControl(StaticTypeId()) {}
     ~GroupBox() override = default;
@@ -26,6 +27,7 @@ enum class ExpandDirection : std::uint8_t {
 
 class AERO_GUI_API Expander : public HeaderedContentControl {
     AERO_DECLARE_TYPE(Expander, HeaderedContentControl)
+
 public:
     Expander() noexcept;
     ~Expander() override;

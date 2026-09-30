@@ -79,6 +79,7 @@ enum class CursorType : std::int32_t {
 // wiring is not performed by this type.
 class AERO_GUI_API Cursor : public Base::Object {
     AERO_DECLARE_TYPE(Cursor, Base::Object)
+
 public:
     explicit Cursor(CursorType type) noexcept;
     explicit Cursor(const String& filename) noexcept;

@@ -33,18 +33,26 @@ public:
 
 private:
     friend class Application;
+
     explicit WindowCollection(const Application& owner) noexcept : owner_(&owner) {}
+
     const Application* owner_ = nullptr;
 };
 
 class AERO_APP_API Application : public Base::Object {
     AERO_DECLARE_TYPE(Application, Base::Object)
+
 public:
     Application() noexcept : Application(StaticTypeId()) {}
     ~Application() noexcept override;
 
     Meta::TypeId RuntimeType() const noexcept override { return runtimeType_; }
     static Application* Current() noexcept;
+    // Runs this application through the optional default desktop host. Set an
+    // explicit main Window with SetMainWindow(); otherwise StartupUri is used.
+    Result<int> Run() noexcept;
+    Result<int> Run(const RunOptions& options) noexcept;
+    void Shutdown(int exitCode = 0) noexcept;
 
     StringView GetStartupUri() const noexcept { return startupUri_.View(); }
     void SetStartupUri(StringView value) noexcept { (void)startupUri_.Assign(value); }
@@ -57,15 +65,9 @@ public:
     ShutdownMode GetShutdownMode() const noexcept { return shutdownMode_; }
     void SetShutdownMode(ShutdownMode value) noexcept { shutdownMode_ = value; }
 
-    // Runs this application through the optional default desktop host. Set an
-    // explicit main Window with SetMainWindow(); otherwise StartupUri is used.
-    Result<int> Run() noexcept;
-    Result<int> Run(const RunOptions& options) noexcept;
-
-    void Shutdown(int exitCode = 0) noexcept;
-
 protected:
     explicit Application(Meta::TypeId runtimeType) noexcept;
+
     virtual void OnStartup(StartupEventArgs& args) noexcept;
     virtual void OnExit(ExitEventArgs& args) noexcept;
     virtual void OnActivated(EventArgs& args) noexcept;

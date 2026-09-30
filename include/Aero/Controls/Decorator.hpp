@@ -10,6 +10,7 @@ namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
 class AERO_GUI_API Decorator : public FrameworkElement {
     AERO_DECLARE_TYPE(Decorator, FrameworkElement)
+
 public:
     // Decorator is constructible in the reference XAML surface and is used as
     // a lightweight single-child layout node in control templates.
@@ -17,6 +18,7 @@ public:
     ~Decorator() override {
         if (child_ != nullptr && child_->GetVisualParent() == this) { RemoveVisualChild(child_); }
     }
+
     UIElement* GetChild() const noexcept {
         if (child_ != nullptr) return child_;
         const UIElementChildRange children = LayoutChildren();
@@ -34,7 +36,6 @@ public:
         if (child == nullptr) ownedChild_.Reset();
         return;
     }
-    const Ref<Base::Object>& OwnedChild() const noexcept { return ownedChild_; }
     void SetOwnedChild(const Ref<Base::Object>& childObject, UIElement& child) noexcept {
         if (!childObject || childObject.Get() != &child) { return; }
         Result<void> access = VerifyAccess();
@@ -49,8 +50,11 @@ public:
         return;
     }
 
+    const Ref<Base::Object>& OwnedChild() const noexcept { return ownedChild_; }
+
 protected:
     explicit Decorator(TypeId runtimeType) noexcept : FrameworkElement(runtimeType) {}
+
     std::uint32_t GetVisualChildrenCount() const noexcept override {
         return child_ != nullptr && child_->GetVisualParent() == this ? 1U : 0U;
     }
@@ -78,12 +82,6 @@ protected:
     }
 
 private:
-    UIElement* child_ = nullptr;
-    Ref<Base::Object> ownedChild_;
-    bool IsOnlyAttachedChild(const UIElement& child) const noexcept {
-        const UIElementChildRange children = LayoutChildren();
-        return children.Size() == 1U && children[0] == &child;
-    }
     Result<void> ValidateChild(UIElement* child) const noexcept {
         if (child == nullptr) {
             if (!LayoutChildren().Empty()) {
@@ -96,6 +94,14 @@ private:
         }
         return {};
     }
+
+    bool IsOnlyAttachedChild(const UIElement& child) const noexcept {
+        const UIElementChildRange children = LayoutChildren();
+        return children.Size() == 1U && children[0] == &child;
+    }
+
+    UIElement* child_ = nullptr;
+    Ref<Base::Object> ownedChild_;
 };
 
 // WPF-compatible two-part decorator used by radio-button and check-box
@@ -103,6 +109,7 @@ private:
 // the regular content receives the remaining slot.
 class AERO_GUI_API BulletDecorator : public FrameworkElement {
     AERO_DECLARE_TYPE(BulletDecorator, FrameworkElement)
+
 public:
     BulletDecorator() noexcept : FrameworkElement(StaticTypeId()) {}
 

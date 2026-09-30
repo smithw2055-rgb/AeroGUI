@@ -14,6 +14,7 @@ namespace Aero {
 
 struct EventArgs {
     AERO_DECLARE_TYPE(EventArgs, Meta::NoMetadataBase)
+
 public:
     explicit constexpr EventArgs(Meta::TypeId type = StaticTypeId()) noexcept : eventArgsType_(type) {}
 
@@ -25,6 +26,7 @@ private:
 
 struct RoutedEventArgs : EventArgs {
     AERO_DECLARE_TYPE(RoutedEventArgs, EventArgs)
+
 public:
     explicit constexpr RoutedEventArgs(Meta::TypeId type = StaticTypeId()) noexcept : EventArgs(type) {}
 
@@ -46,6 +48,7 @@ private:
 
 struct InputEventArgs : RoutedEventArgs {
     AERO_DECLARE_TYPE(InputEventArgs, RoutedEventArgs)
+
 public:
     explicit constexpr InputEventArgs(Meta::TypeId type = StaticTypeId()) noexcept : RoutedEventArgs(type) {}
 
@@ -58,6 +61,7 @@ private:
 
 struct MouseEventArgs : InputEventArgs {
     AERO_DECLARE_TYPE(MouseEventArgs, InputEventArgs)
+
 public:
     explicit constexpr MouseEventArgs(Meta::TypeId type = StaticTypeId()) noexcept : InputEventArgs(type) {}
 
@@ -73,6 +77,7 @@ private:
 
 struct MouseButtonEventArgs : MouseEventArgs {
     AERO_DECLARE_TYPE(MouseButtonEventArgs, MouseEventArgs)
+
 public:
     constexpr MouseButtonEventArgs() noexcept : MouseEventArgs(StaticTypeId()) {}
 
@@ -91,6 +96,7 @@ private:
 
 struct MouseWheelEventArgs : MouseEventArgs {
     AERO_DECLARE_TYPE(MouseWheelEventArgs, MouseEventArgs)
+
 public:
     constexpr MouseWheelEventArgs() noexcept : MouseEventArgs(StaticTypeId()) {}
 
@@ -106,6 +112,7 @@ private:
 
 struct DragEventArgs : MouseEventArgs {
     AERO_DECLARE_TYPE(DragEventArgs, MouseEventArgs)
+
 public:
     DragEventArgs() noexcept : MouseEventArgs(StaticTypeId()) {}
 
@@ -133,12 +140,14 @@ private:
 
 struct GiveFeedbackEventArgs : RoutedEventArgs {
     AERO_DECLARE_TYPE(GiveFeedbackEventArgs, RoutedEventArgs)
+
 public:
     GiveFeedbackEventArgs() noexcept : RoutedEventArgs(StaticTypeId()) {}
     Input::DragDropEffects GetEffects() const noexcept { return effects_; }
     void SetEffects(Input::DragDropEffects value) noexcept { effects_ = value; }
     bool GetUseDefaultCursors() const noexcept { return useDefaultCursors_; }
     void SetUseDefaultCursors(bool value) noexcept { useDefaultCursors_ = value; }
+
 private:
     Input::DragDropEffects effects_ = static_cast<Input::DragDropEffects>(0U);
     bool useDefaultCursors_ = true;
@@ -146,6 +155,7 @@ private:
 
 struct DragCompletedEventArgs : RoutedEventArgs {
     AERO_DECLARE_TYPE(DragCompletedEventArgs, RoutedEventArgs)
+
 public:
     DragCompletedEventArgs() noexcept : RoutedEventArgs(StaticTypeId()) {}
     const Value& GetData() const noexcept { return data_; }
@@ -154,6 +164,7 @@ public:
     void SetEffects(Input::DragDropEffects value) noexcept { effects_ = value; }
     bool GetCanceled() const noexcept { return canceled_; }
     void SetCanceled(bool value) noexcept { canceled_ = value; }
+
 private:
     Value data_;
     Input::DragDropEffects effects_ = static_cast<Input::DragDropEffects>(0U);
@@ -162,6 +173,7 @@ private:
 
 struct KeyEventArgs : InputEventArgs {
     AERO_DECLARE_TYPE(KeyEventArgs, InputEventArgs)
+
 public:
     constexpr KeyEventArgs() noexcept : InputEventArgs(StaticTypeId()) {}
 
@@ -180,6 +192,7 @@ private:
 
 struct TextCompositionEventArgs : InputEventArgs {
     AERO_DECLARE_TYPE(TextCompositionEventArgs, InputEventArgs)
+
 public:
     constexpr TextCompositionEventArgs() noexcept : InputEventArgs(StaticTypeId()) {}
 
@@ -192,6 +205,7 @@ private:
 
 struct KeyboardFocusChangedEventArgs : RoutedEventArgs {
     AERO_DECLARE_TYPE(KeyboardFocusChangedEventArgs, RoutedEventArgs)
+
 public:
     constexpr KeyboardFocusChangedEventArgs() noexcept : RoutedEventArgs(StaticTypeId()) {}
 

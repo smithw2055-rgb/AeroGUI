@@ -14,6 +14,7 @@ using ::Aero::Meta::TypeId;
 class AERO_GUI_API ScrollContentPresenter : public ContentControl,
       public IScrollInfo {
     AERO_DECLARE_TYPE(ScrollContentPresenter, ContentControl)
+
 public:
     ScrollContentPresenter() noexcept;
     ~ScrollContentPresenter() override = default;
@@ -85,15 +86,20 @@ enum class PanningMode : std::uint8_t {
 
 class AERO_GUI_API ScrollViewer : public ContentControl {
     AERO_DECLARE_TYPE(ScrollViewer, ContentControl)
+
 public:
     ScrollViewer() noexcept;
     ~ScrollViewer() override;
 
-    inline static constexpr RoutedEvent<ScrollChangedEventArgs> ScrollChangedEvent{"ScrollChanged"};
-    UIElement::Event<ScrollChangedEventArgs> ScrollChanged() noexcept { return GetEvent(ScrollChangedEvent); }
+    Result<bool> LineHorizontal(double direction) noexcept;
+    Result<bool> LineVertical(double direction) noexcept;
+    Result<bool> PageHorizontal(double direction) noexcept;
+    Result<bool> PageVertical(double direction) noexcept;
 
     double GetHorizontalOffset() const noexcept;
+    void SetHorizontalOffset(double value) noexcept;
     double GetVerticalOffset() const noexcept;
+    void SetVerticalOffset(double value) noexcept;
     double GetExtentWidth() const noexcept;
     double GetExtentHeight() const noexcept;
     double GetViewportWidth() const noexcept;
@@ -102,35 +108,30 @@ public:
     double GetScrollableHeight() const noexcept;
     ScrollBarVisibility
     GetHorizontalScrollBarVisibility() const noexcept;
+    static ScrollBarVisibility
+    GetHorizontalScrollBarVisibility(const DependencyObject& element) noexcept;
+    void SetHorizontalScrollBarVisibility(ScrollBarVisibility value) noexcept;
+    static void SetHorizontalScrollBarVisibility(DependencyObject& element, ScrollBarVisibility value) noexcept;
     ScrollBarVisibility
     GetVerticalScrollBarVisibility() const noexcept;
+    static ScrollBarVisibility
+    GetVerticalScrollBarVisibility(const DependencyObject& element) noexcept;
+    void SetVerticalScrollBarVisibility(ScrollBarVisibility value) noexcept;
+    static void SetVerticalScrollBarVisibility(DependencyObject& element, ScrollBarVisibility value) noexcept;
     Visibility
     GetComputedHorizontalScrollBarVisibility() const noexcept;
     Visibility
     GetComputedVerticalScrollBarVisibility() const noexcept;
-
     void SetCanHorizontallyScroll(bool value) noexcept;
     void SetCanVerticallyScroll(bool value) noexcept;
     void SetCanContentScroll(bool value) noexcept;
-    void SetHorizontalScrollBarVisibility(ScrollBarVisibility value) noexcept;
-    void SetVerticalScrollBarVisibility(ScrollBarVisibility value) noexcept;
     PanningMode GetPanningMode() const noexcept;
     void SetPanningMode(PanningMode value) noexcept;
-    void SetHorizontalOffset(double value) noexcept;
-    void SetVerticalOffset(double value) noexcept;
-    Result<bool> LineHorizontal(double direction) noexcept;
-    Result<bool> LineVertical(double direction) noexcept;
-    Result<bool> PageHorizontal(double direction) noexcept;
-    Result<bool> PageVertical(double direction) noexcept;
     IScrollInfo* GetContentScrollInfo() const noexcept;
     void SetContentScrollInfo(IScrollInfo* value) noexcept;
 
-    static ScrollBarVisibility
-    GetHorizontalScrollBarVisibility(const DependencyObject& element) noexcept;
-    static ScrollBarVisibility
-    GetVerticalScrollBarVisibility(const DependencyObject& element) noexcept;
-    static void SetHorizontalScrollBarVisibility(DependencyObject& element, ScrollBarVisibility value) noexcept;
-    static void SetVerticalScrollBarVisibility(DependencyObject& element, ScrollBarVisibility value) noexcept;
+    inline static constexpr RoutedEvent<ScrollChangedEventArgs> ScrollChangedEvent{"ScrollChanged"};
+    UIElement::Event<ScrollChangedEventArgs> ScrollChanged() noexcept { return GetEvent(ScrollChangedEvent); }
 
     AERO_READONLY_PROPERTY(double, HorizontalOffset);
     AERO_READONLY_PROPERTY(double, VerticalOffset);
@@ -162,10 +163,7 @@ protected:
 
 private:
     friend class ScrollContentPresenter;
-    ScrollContentPresenter* contentPresenter_ = nullptr;
-    Ref<ScrollContentPresenter> ownedPresenter_;
-    IScrollInfo* pendingScrollInfo_ = nullptr;
-    ScrollData lastData_{};
+
     void EnsureFallbackPresenter() noexcept;
     void AdoptPresenterData(ScrollContentPresenter& presenter, const ScrollData& data, ScrollInputKind kind) noexcept;
     void OnScrollDataChanged(const ScrollData& oldData, const ScrollData& newData, ScrollInputKind kind) noexcept;
@@ -174,6 +172,10 @@ private:
     void DetachScrollBars() noexcept;
     void OnScrollBarValueChanged(DependencyObject& sender, const DependencyPropertyChangedEventArgs& args) noexcept;
 
+    ScrollContentPresenter* contentPresenter_ = nullptr;
+    Ref<ScrollContentPresenter> ownedPresenter_;
+    IScrollInfo* pendingScrollInfo_ = nullptr;
+    ScrollData lastData_{};
     Primitives::ScrollBar* verticalScrollBar_ = nullptr;
     Primitives::ScrollBar* horizontalScrollBar_ = nullptr;
     bool synchronizingScrollBars_ = false;

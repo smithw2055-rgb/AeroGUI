@@ -21,6 +21,7 @@ enum class KeyboardNavigationMode : std::uint8_t {
 
 class AERO_GUI_API KeyboardNavigation : public Base::Object {
     AERO_DECLARE_TYPE(KeyboardNavigation, Base::Object)
+
 public:
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
 
@@ -35,6 +36,7 @@ public:
 
 class AERO_GUI_API FocusManager : public Base::Object {
     AERO_DECLARE_TYPE(FocusManager, Base::Object)
+
 public:
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
 

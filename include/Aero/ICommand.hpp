@@ -14,6 +14,7 @@ using CanExecuteChangedHandler = Base::Delegate<void()>;
 
 class AERO_GUI_API ICommand : public Base::Object {
     AERO_DECLARE_TYPE(ICommand, Base::Object)
+
 public:
     ~ICommand() override = default;
 

@@ -16,6 +16,7 @@ using ::Aero::Media::Brush;
 using ::Aero::Media::FrameworkElementForegroundProperty;
 class AERO_GUI_API TextBlock : public FrameworkElement {
     AERO_DECLARE_TYPE(TextBlock, FrameworkElement)
+
 public:
     // Source-retained formatting produced by RichText markup. Text layout
     // keeps byte offsets for hit testing, so the same ranges can tint shaped
@@ -31,43 +32,46 @@ public:
 
     TextBlock() noexcept;
     ~TextBlock() override;
+
     void AttachTextLayout(void* service, bool invalidate = false) noexcept;
-    StringView GetText() const noexcept;
     void InvalidateDocumentText() noexcept;
+    void AddOwnedInline(const Ref<Base::Object>& inlineObject) noexcept;
+
+    StringView GetText() const noexcept;
+    void SetText(StringView value) noexcept;
     Ref<Brush> GetForeground() const noexcept;
+    void SetForeground(Ref<Brush> value) noexcept;
     Ref<Brush> GetBackground() const noexcept;
+    void SetBackground(Ref<Brush> value) noexcept;
     double GetFontSize() const noexcept;
+    void SetFontSize(double value) noexcept;
     Ref<Media::FontFamily> GetFontFamily() const noexcept;
+    void SetFontFamily(Ref<Media::FontFamily> value) noexcept;
+    void SetFontFamily(StringView value) noexcept;
     FontWeight GetFontWeight() const noexcept;
+    void SetFontWeight(FontWeight value) noexcept;
     FontStyle GetFontStyle() const noexcept;
+    void SetFontStyle(FontStyle value) noexcept;
     TextDecorations GetTextDecorations() const noexcept;
+    void SetTextDecorations(TextDecorations value) noexcept;
     TextWrapping GetTextWrapping() const noexcept;
+    void SetTextWrapping(TextWrapping value) noexcept;
     TextTrimming GetTextTrimming() const noexcept;
+    void SetTextTrimming(TextTrimming value) noexcept;
     TextAlignment GetTextAlignment() const noexcept;
+    void SetTextAlignment(TextAlignment value) noexcept;
     double GetLineHeight() const noexcept;
+    void SetLineHeight(double value) noexcept;
     std::uint32_t GetInlineCount() const noexcept { return ownedInlines_.Size(); }
     Documents::InlineCollection GetInlines() noexcept;
     Documents::InlineCollectionView GetInlines() const noexcept;
     Documents::TextPointer GetContentStart() noexcept;
     Documents::TextPointer GetContentEnd() noexcept;
     Value GetMetadataInlines() const noexcept;
-    void SetText(StringView value) noexcept;
-    void SetForeground(Ref<Brush> value) noexcept;
-    void SetBackground(Ref<Brush> value) noexcept;
-    void SetFontSize(double value) noexcept;
-    void SetFontFamily(Ref<Media::FontFamily> value) noexcept;
-    void SetFontFamily(StringView value) noexcept;
-    void SetFontWeight(FontWeight value) noexcept;
-    void SetFontStyle(FontStyle value) noexcept;
-    void SetTextDecorations(TextDecorations value) noexcept;
-    void SetTextWrapping(TextWrapping value) noexcept;
-    void SetTextTrimming(TextTrimming value) noexcept;
-    void SetTextAlignment(TextAlignment value) noexcept;
-    void SetLineHeight(double value) noexcept;
     void SetInlineValue(Value value) noexcept;
     void SetRichTextStyleRanges(Base::Span<const RichTextStyleRange> ranges) noexcept;
-    void AddOwnedInline(const Ref<Base::Object>& inlineObject) noexcept;
     void ClearOwnedInlines() noexcept;
+
     AERO_DEPENDENCY_PROPERTY(String, Text);
     inline static constexpr auto ForegroundProperty = FrameworkElementForegroundProperty;
     AERO_DEPENDENCY_PROPERTY(Ref<Aero::Media::Brush>, Background);
@@ -87,19 +91,23 @@ public:
     AERO_DEPENDENCY_PROPERTY(TextAlignment, TextAlignment);
     AERO_DEPENDENCY_PROPERTY(double, LineHeight);
     AERO_DEPENDENCY_PROPERTY(Thickness, Padding);
+
 protected:
     explicit TextBlock(TypeId runtimeType) noexcept;
+
     Size MeasureOverride(Size availableSize) noexcept override;
     Size ArrangeOverride(Size finalSize) noexcept override;
     void OnRender(::Aero::Media::DrawingContext& context) noexcept override;
     void OnPropertyInvalidated(PropertyInvalidationFlags flags) noexcept override;
     std::uint32_t GetVisualChildrenCount() const noexcept override;
     ::Aero::Media::Visual* GetVisualChild(std::uint32_t index) const noexcept override;
+
 private:
     friend struct TextBlockDocumentHelper;
 
     StringView EffectiveFontFamily() const noexcept;
     void ReleaseServiceGlyphRun() noexcept;
+
     void SetGlyphRun(std::uint64_t glyphRun, Size size) noexcept;
 
     Base::Vector<std::uint64_t> glyphRuns_;

@@ -25,9 +25,9 @@ namespace Meta { class EffectiveValueEngine; }
 
 class AERO_GUI_API DependencyObject : public DispatcherObject {
     AERO_DECLARE_TYPE(DependencyObject, DispatcherObject)
+
 public:
     TypeId RuntimeType() const noexcept override { return runtimeType_; }
-
     PropertyValue GetValue(DependencyPropertyHandle property) const noexcept;
     template<class TOwner, class TValue> PropertyAccess<TValue> GetValue(
         const DependencyPropertyRef<TOwner, TValue>& property) const noexcept;
@@ -38,29 +38,27 @@ public:
     PropertyValue ReadLocalValue(DependencyPropertyHandle property) const noexcept;
     EffectiveValueSource GetValueSource(DependencyPropertyHandle property) const noexcept;
     PropertyValueSourceInfo GetValueSourceInfo(DependencyPropertyHandle property) const noexcept;
-
     void SetValue(DependencyPropertyHandle property, const PropertyValue& value) noexcept;
     template<class TOwner, class TValue>
     void SetValue(const DependencyPropertyRef<TOwner, TValue>& property, PropertyAccess<TValue> value) noexcept;
     template<class TOwner>
     void SetValue(const DependencyPropertyRef<TOwner, String>& property, StringView value) noexcept;
     void SetValue(const DependencyPropertyKey& key, const PropertyValue& value) noexcept;
-
     void SetCurrentValue(DependencyPropertyHandle property, const PropertyValue& value) noexcept;
     template<class TOwner, class TValue>
     void SetCurrentValue(const DependencyPropertyRef<TOwner, TValue>& property, PropertyAccess<TValue> value) noexcept;
     void SetCurrentValue(const DependencyPropertyKey& key, const PropertyValue& value) noexcept;
-
     void SetTemplateValue(DependencyPropertyHandle property, const PropertyValue& value) noexcept;
-
     void ClearValue(DependencyPropertyHandle property) noexcept;
     template<class TOwner, class TValue> void ClearValue(
         const DependencyPropertyRef<TOwner, TValue>& property) noexcept { ClearValue(property.Handle()); }
     void ClearValue(const DependencyPropertyKey& key) noexcept;
-
     void CoerceValue(DependencyPropertyHandle property) noexcept;
     template<class TOwner, class TValue> void CoerceValue(
         const DependencyPropertyRef<TOwner, TValue>& property) noexcept { CoerceValue(property.Handle()); }
+    PropertyInvalidationFlags PendingInvalidations() const noexcept { return invalidations_; }
+    PropertyInvalidationFlags TakeInvalidations() noexcept;
+    std::uint32_t StoredValueCount() const noexcept;
 
     // Listeners execute after the effective value has committed and after the
     // property's metadata callback. They are intended to queue later work,
@@ -85,13 +83,10 @@ public:
         return RemoveValueChangedHandler(property.Handle(), handler);
     }
 
-    PropertyInvalidationFlags PendingInvalidations() const noexcept { return invalidations_; }
-    PropertyInvalidationFlags TakeInvalidations() noexcept;
-    std::uint32_t StoredValueCount() const noexcept;
-
 protected:
     explicit DependencyObject(TypeId runtimeType) noexcept;
     ~DependencyObject() override;
+
     // Framework-owned state properties use this path so public SetValue calls
     // remain read-only while derived runtime types can publish state changes.
     void SetReadOnlyCurrentValue(DependencyPropertyHandle property, const PropertyValue& value) noexcept;
@@ -124,6 +119,13 @@ private:
     friend class ElementTree;
     friend class Controls::VisualStateManagerState;
 
+    enum class ChangeKind : std::uint8_t {
+        SetLocal,
+        SetCurrent,
+        Clear,
+        ReCoerce
+    };
+
     PropertyStore* Store() noexcept { return static_cast<PropertyStore*>(valueStore_); }
     const PropertyStore* Store() const noexcept { return static_cast<const PropertyStore*>(valueStore_); }
     void ForEachStoredKey(
@@ -149,38 +151,45 @@ private:
         Meta::EffectiveValueEngine* values,
         AnimationEngine* animations,
         Base::Vector<DependencyObject*>& visited) noexcept;
-
     StoredValueEntry* FindStoredEntry(DependencyPropertyHandle property) noexcept;
     const StoredValueEntry* FindStoredEntry(DependencyPropertyHandle property) const noexcept;
     Result<StoredValueEntry*> EnsureStoredEntry(DependencyPropertyHandle property) noexcept;
     MemberId CanonicalPropertyKey(DependencyPropertyHandle property) const noexcept;
     Result<void> ApplyProviderContributionInternal(DependencyPropertyHandle property,
         PropertyProviderToken token, const PropertyValue& value) noexcept;
-    Result<bool> ClearProviderContributionInternal(DependencyPropertyHandle property,
-        PropertyProviderToken token) noexcept;
-    Result<bool> ClearProviderOriginInternal(DependencyPropertyHandle property, std::uint32_t origin) noexcept;
     Result<void> ApplyLocalExpressionInternal(DependencyPropertyHandle property,
         const PropertyExpression& expression) noexcept;
-    Result<bool> ClearLocalExpressionInternal(DependencyPropertyHandle property) noexcept;
     Result<bool> InvalidateBaseValueInternal(DependencyPropertyHandle property) noexcept;
     Result<void> ApplyAnimationValueInternal(DependencyPropertyHandle property, const PropertyValue& value) noexcept;
-    Result<bool> ClearAnimationValueInternal(DependencyPropertyHandle property) noexcept;
-    Result<PropertyValue> GetAnimationBaseValueInternal(DependencyPropertyHandle property) noexcept;
     Result<void> ApplyInheritedValueInternal(DependencyPropertyHandle property, const PropertyValue* value) noexcept;
     Result<void> RecomputeEffectiveValueInternal(DependencyPropertyHandle property) noexcept;
     Result<void> DropEngineValueStateInternal(DependencyPropertyHandle property) noexcept;
     void ReleaseExpression(StoredValueEntry& entry) noexcept;
     void RemoveStoredEntry(MemberId key) noexcept;
-
     Meta::DependencyPropertyRegistry& PropertyRegistry() const noexcept { return *registry_; }
+    Result<void> VerifyReady() const noexcept;
+    Result<DependencyMutationScope> BeginMutation(DependencyPropertyHandle property) noexcept;
+    void LeaveMutation() noexcept;
+    Result<StoredValueEntry*> EnsureStoredEntryDirect(DependencyPropertyHandle canonicalHandle,
+        const PropertyMetadata& metadata) noexcept;
+    Result<void> RecomputeEffectiveValueCore(DependencyPropertyHandle property,
+        const Meta::DependencyProperty& registered, const PropertyMetadata& metadata,
+        const PropertyValue& oldEffective, const PropertyValueSourceInfo& oldSourceInfo) noexcept;
+    static EffectiveValueSource ToLegacySource(const PropertyValueSourceInfo& source) noexcept;
+    Result<void> ApplyChange(DependencyPropertyHandle property, const DependencyPropertyKey* key,
+        ChangeKind kind, const PropertyValue* value) noexcept;
+    void NotifyValueChanged(const DependencyPropertyChangedEventArgs& args) noexcept;
+    PropertyInvalidationFlags AccumulateInvalidations(FrameworkPropertyMetadataOptions metadataFlags) noexcept;
+
+    Result<bool> ClearProviderContributionInternal(DependencyPropertyHandle property,
+        PropertyProviderToken token) noexcept;
+    Result<bool> ClearProviderOriginInternal(DependencyPropertyHandle property, std::uint32_t origin) noexcept;
+    Result<bool> ClearLocalExpressionInternal(DependencyPropertyHandle property) noexcept;
+    Result<bool> ClearAnimationValueInternal(DependencyPropertyHandle property) noexcept;
+    Result<PropertyValue> GetAnimationBaseValueInternal(DependencyPropertyHandle property) noexcept;
     bool HasPropertyRegistry() const noexcept { return registry_ != nullptr; }
 
-    enum class ChangeKind : std::uint8_t {
-        SetLocal,
-        SetCurrent,
-        Clear,
-        ReCoerce
-    };
+    void RemoveChangeHandler(std::uint32_t index) noexcept;
 
     Meta::DependencyPropertyRegistry* registry_ = nullptr;
     TypeId runtimeType_ = InvalidTypeId;
@@ -190,23 +199,6 @@ private:
     DependencyObjectRare* rare_ = nullptr;
     PropertyInvalidationFlags invalidations_ = PropertyInvalidationFlags::None;
     std::uint64_t nextValueRevision_ = 1U;
-
-    Result<void> VerifyReady() const noexcept;
-    Result<DependencyMutationScope> BeginMutation(DependencyPropertyHandle property) noexcept;
-    void LeaveMutation() noexcept;
-
-    Result<StoredValueEntry*> EnsureStoredEntryDirect(DependencyPropertyHandle canonicalHandle,
-        const PropertyMetadata& metadata) noexcept;
-    Result<void> RecomputeEffectiveValueCore(DependencyPropertyHandle property,
-        const Meta::DependencyProperty& registered, const PropertyMetadata& metadata,
-        const PropertyValue& oldEffective, const PropertyValueSourceInfo& oldSourceInfo) noexcept;
-    static EffectiveValueSource ToLegacySource(const PropertyValueSourceInfo& source) noexcept;
-
-    Result<void> ApplyChange(DependencyPropertyHandle property, const DependencyPropertyKey* key,
-        ChangeKind kind, const PropertyValue* value) noexcept;
-    void RemoveChangeHandler(std::uint32_t index) noexcept;
-    void NotifyValueChanged(const DependencyPropertyChangedEventArgs& args) noexcept;
-    PropertyInvalidationFlags AccumulateInvalidations(FrameworkPropertyMetadataOptions metadataFlags) noexcept;
 };
 
 template<class TOwner, class TValue> PropertyAccess<TValue> DependencyObject::GetValue(

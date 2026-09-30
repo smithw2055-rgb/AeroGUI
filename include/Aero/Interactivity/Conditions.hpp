@@ -16,6 +16,7 @@ namespace Aero::Interactivity {
 // and are not tied to the animation timeline model.
 class AERO_GUI_API ComparisonCondition : public Base::Object {
     AERO_DECLARE_TYPE(ComparisonCondition, Base::Object)
+
 public:
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
     Ref<Aero::Data::Binding> GetLeftOperand() const noexcept { return left_; }
@@ -37,6 +38,7 @@ private:
 
 class AERO_GUI_API ConditionalExpression : public Base::Object {
     AERO_DECLARE_TYPE(ConditionalExpression, Base::Object)
+
 public:
     enum class ForwardChaining : std::uint8_t { And = 0U, Or };
     ConditionalExpression() noexcept : conditions_(&Base::GetDefaultAllocator()) {}
@@ -59,6 +61,7 @@ private:
 
 class AERO_GUI_API ConditionBehavior : public Base::Object {
     AERO_DECLARE_TYPE(ConditionBehavior, Base::Object)
+
 public:
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
     Ref<ConditionalExpression> GetExpression() const noexcept { return expression_; }

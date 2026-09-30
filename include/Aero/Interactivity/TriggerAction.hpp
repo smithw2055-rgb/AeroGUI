@@ -13,6 +13,7 @@ namespace Aero::Interactivity {
 // bindings and ChangePropertyAction targeting.
 class AERO_GUI_API TriggerAction : public ::Aero::DependencyObject {
     AERO_DECLARE_TYPE(TriggerAction, ::Aero::DependencyObject)
+
 protected:
     explicit TriggerAction(Meta::TypeId runtimeType) noexcept : DependencyObject(runtimeType) {}
     ~TriggerAction() override = default;
@@ -22,6 +23,7 @@ protected:
 
 class AERO_GUI_API ChangePropertyAction : public TriggerAction {
     AERO_DECLARE_TYPE(ChangePropertyAction, TriggerAction)
+
 public:
     ChangePropertyAction() noexcept : TriggerAction(StaticTypeId()) {}
     StringView GetTargetName() const noexcept { return targetName_.View(); }
@@ -45,6 +47,7 @@ private:
 
 class AERO_GUI_API SetFocusAction : public TriggerAction {
     AERO_DECLARE_TYPE(SetFocusAction, TriggerAction)
+
 public:
     SetFocusAction() noexcept : TriggerAction(StaticTypeId()) {}
     StringView GetTargetName() const noexcept { return targetName_.View(); }
@@ -62,6 +65,7 @@ private:
 
 class AERO_GUI_API LaunchUriOrFileAction : public TriggerAction {
     AERO_DECLARE_TYPE(LaunchUriOrFileAction, TriggerAction)
+
 public:
     LaunchUriOrFileAction() noexcept : TriggerAction(StaticTypeId()) {}
     StringView GetPath() const noexcept { return path_.View(); }
@@ -76,6 +80,7 @@ private:
 
 class AERO_GUI_API RemoveElementAction : public TriggerAction {
     AERO_DECLARE_TYPE(RemoveElementAction, TriggerAction)
+
 public:
     RemoveElementAction() noexcept : TriggerAction(StaticTypeId()) {}
     Ref<Aero::Data::Binding> GetTargetObject() const noexcept { return targetObject_; }

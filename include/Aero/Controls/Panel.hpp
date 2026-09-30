@@ -31,25 +31,29 @@ private:
 
 class AERO_GUI_API Panel : public FrameworkElement {
     AERO_DECLARE_TYPE(Panel, FrameworkElement)
+
 public:
-    Ref<Aero::Media::Brush> GetBackground() const noexcept { return GetValue(BackgroundProperty); }
-    void SetBackground(Ref<Aero::Media::Brush> value) noexcept { SetValue(BackgroundProperty, std::move(value)); }
-    AERO_DEPENDENCY_PROPERTY(Ref<Aero::Media::Brush>, Background);
-    AERO_DEPENDENCY_PROPERTY(bool, IsItemsHost);
-    AERO_ATTACHED_PROPERTY(std::int32_t, ZIndex);
-    UIElementCollection& GetChildren() noexcept { return children_; }
-    const UIElementCollection& GetChildren() const noexcept { return children_; }
     std::uint32_t ChildCountCore() const noexcept { return ownedChildren_.Size(); }
     Ref<Base::Object> ChildAtCore(std::uint32_t index) const noexcept {
         return index < ownedChildren_.Size() ? ownedChildren_[index] : Ref<Base::Object>{};
     }
     void AddChildCore(const Ref<Base::Object>& childObject, UIElement& child) noexcept;
     Result<bool> RemoveChildCore(UIElement& child) noexcept;
+
+    Ref<Aero::Media::Brush> GetBackground() const noexcept { return GetValue(BackgroundProperty); }
+    void SetBackground(Ref<Aero::Media::Brush> value) noexcept { SetValue(BackgroundProperty, std::move(value)); }
+    UIElementCollection& GetChildren() noexcept { return children_; }
+    const UIElementCollection& GetChildren() const noexcept { return children_; }
     void ClearChildrenCore() noexcept;
+
+    AERO_DEPENDENCY_PROPERTY(Ref<Aero::Media::Brush>, Background);
+    AERO_DEPENDENCY_PROPERTY(bool, IsItemsHost);
+    AERO_ATTACHED_PROPERTY(std::int32_t, ZIndex);
 
 protected:
     explicit Panel(TypeId runtimeType) noexcept : FrameworkElement(runtimeType), children_(*this), ownedChildren_() {}
     ~Panel() override = default;
+
     std::uint32_t GetVisualChildrenCount() const noexcept override;
     ::Aero::Media::Visual* GetVisualChild(std::uint32_t index) const noexcept override;
     std::uint32_t GetLayoutChildrenCount() const noexcept override;
@@ -58,6 +62,7 @@ protected:
 
 private:
     friend class UIElementCollection;
+
     UIElementCollection children_;
     Base::Vector<Ref<Base::Object>> ownedChildren_;
 };

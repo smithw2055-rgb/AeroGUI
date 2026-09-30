@@ -11,6 +11,7 @@ class KeyBinding;
 
 class AERO_GUI_API RoutedCommand : public ICommand {
     AERO_DECLARE_TYPE(RoutedCommand, ICommand)
+
 public:
     RoutedCommand() noexcept;
     explicit RoutedCommand(StringView name) noexcept;
@@ -46,6 +47,7 @@ private:
 
 class AERO_GUI_API RoutedUICommand : public RoutedCommand {
     AERO_DECLARE_TYPE(RoutedUICommand, RoutedCommand)
+
 public:
     RoutedUICommand() noexcept = default;
     explicit RoutedUICommand(StringView name) noexcept : RoutedCommand(name) {}

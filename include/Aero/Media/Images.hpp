@@ -31,6 +31,7 @@ using ::Aero::Meta::TypeId;
 // dependency-property store; XAML still sets UriSource and SourceRect by name.
 class AERO_GUI_API ImageSource : public Base::Object {
     AERO_DECLARE_TYPE(ImageSource, Base::Object)
+
 public:
     TypeId RuntimeType() const noexcept override { return runtimeType_; }
     std::uint64_t GetRevision() const noexcept { return revision_; }
@@ -47,6 +48,7 @@ private:
 
 class AERO_GUI_API BitmapImage : public ImageSource {
     AERO_DECLARE_TYPE(BitmapImage, ImageSource)
+
 public:
     BitmapImage() noexcept : ImageSource(StaticTypeId()) {}
     ~BitmapImage() override = default;
@@ -60,6 +62,7 @@ private:
 
 class AERO_GUI_API CroppedBitmap : public ImageSource {
     AERO_DECLARE_TYPE(CroppedBitmap, ImageSource)
+
 public:
     CroppedBitmap() noexcept : ImageSource(StaticTypeId()) {}
     ~CroppedBitmap() override = default;

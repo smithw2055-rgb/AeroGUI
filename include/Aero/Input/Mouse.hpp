@@ -21,6 +21,7 @@ namespace Aero::Input {
 // {Mouse.MouseDown} XAML attached-event syntax.
 class AERO_GUI_API Mouse : public Base::Object {
     AERO_DECLARE_TYPE(Mouse, Base::Object)
+
 public:
     static const RoutedEventRef<Mouse, MouseButtonEventArgs> MouseDownEvent;
     static const RoutedEventRef<Mouse, MouseButtonEventArgs> PreviewMouseDownEvent;

@@ -185,22 +185,22 @@ enum class FillBehavior : std::uint8_t {
 
 class AERO_GUI_API Timeline : public ::Aero::Animatable {
     AERO_DECLARE_TYPE(Timeline, ::Aero::Animatable)
+
 public:
     TimeSpan GetBeginTime() const noexcept { return GetValue(BeginTimeProperty); }
-    Duration GetDuration() const noexcept { return GetValue(DurationProperty); }
-    RepeatBehavior GetRepeatBehavior() const noexcept { return GetValue(RepeatBehaviorProperty); }
-    double GetSpeedRatio() const noexcept { return GetValue(SpeedRatioProperty); }
-    bool GetAutoReverse() const noexcept { return GetValue(AutoReverseProperty); }
-    FillBehavior GetFillBehavior() const noexcept { return GetValue(FillBehaviorProperty); }
-
     void SetBeginTime(TimeSpan value) noexcept;
     void SetBeginTime(StringView value) noexcept;
+    Duration GetDuration() const noexcept { return GetValue(DurationProperty); }
     void SetDuration(Duration value) noexcept;
     void SetDuration(StringView value) noexcept;
+    RepeatBehavior GetRepeatBehavior() const noexcept { return GetValue(RepeatBehaviorProperty); }
     void SetRepeatBehavior(RepeatBehavior value) noexcept;
     void SetRepeatBehavior(StringView value) noexcept;
+    double GetSpeedRatio() const noexcept { return GetValue(SpeedRatioProperty); }
     void SetSpeedRatio(double value) noexcept;
+    bool GetAutoReverse() const noexcept { return GetValue(AutoReverseProperty); }
     void SetAutoReverse(bool value) noexcept;
+    FillBehavior GetFillBehavior() const noexcept { return GetValue(FillBehaviorProperty); }
     void SetFillBehavior(FillBehavior value) noexcept;
 
     AERO_DEPENDENCY_PROPERTY(TimeSpan, BeginTime);

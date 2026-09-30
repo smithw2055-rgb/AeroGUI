@@ -23,6 +23,7 @@ enum class MenuItemRole : std::uint8_t {
 
 class AERO_GUI_API MenuItem : public HeaderedItemsControl {
     AERO_DECLARE_TYPE(MenuItem, HeaderedItemsControl)
+
 public:
     MenuItem() noexcept;
     ~MenuItem() override;
@@ -72,6 +73,7 @@ private:
 
 class AERO_GUI_API MenuBase : public ItemsControl {
     AERO_DECLARE_TYPE(MenuBase, ItemsControl)
+
 public:
     ~MenuBase() override = default;
 
@@ -88,6 +90,7 @@ private:
 
 class AERO_GUI_API Menu : public MenuBase {
     AERO_DECLARE_TYPE(Menu, MenuBase)
+
 public:
     Menu() noexcept;
     ~Menu() override;
@@ -95,6 +98,7 @@ public:
 
 class AERO_GUI_API ContextMenu : public MenuBase {
     AERO_DECLARE_TYPE(ContextMenu, MenuBase)
+
 public:
     ContextMenu() noexcept;
     ~ContextMenu() override;
@@ -118,6 +122,7 @@ protected:
 
 class AERO_GUI_API ContextMenuService : public Base::Object {
     AERO_DECLARE_TYPE(ContextMenuService, Base::Object)
+
 public:
     TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
     static Ref<ContextMenu> GetContextMenu(const DependencyObject& target) noexcept;

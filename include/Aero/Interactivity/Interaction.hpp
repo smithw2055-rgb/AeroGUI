@@ -10,6 +10,7 @@ namespace Aero::Interactivity {
 // the original Gallery model.
 class AERO_GUI_API Interaction : public Base::Object {
     AERO_DECLARE_TYPE(Interaction, Base::Object)
+
 private:
     Interaction() noexcept = default;
 };

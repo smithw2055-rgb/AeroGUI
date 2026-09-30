@@ -10,6 +10,7 @@ namespace Aero {
 
 class AERO_GUI_API EventSetter : public SetterBase {
     AERO_DECLARE_TYPE(EventSetter, SetterBase)
+
 public:
     EventSetter() noexcept : SetterBase(StaticTypeId()) {}
 

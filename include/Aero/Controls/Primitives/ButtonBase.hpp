@@ -19,20 +19,20 @@ enum class ClickMode : std::uint8_t {
 namespace Primitives {
 class AERO_GUI_API ButtonBase : public ContentControl {
     AERO_DECLARE_TYPE(ButtonBase, ContentControl)
-public:
-    inline static constexpr RoutedEvent<RoutedEventArgs> ClickEvent{"Click"};
-    UIElement::Event<RoutedEventArgs> Click() noexcept { return GetEvent(ClickEvent); }
 
+public:
     ClickMode GetClickMode() const noexcept;
+    void SetClickMode(ClickMode value) noexcept;
     ICommand* GetCommand() const noexcept;
+    void SetCommand(Ref<ICommand> command) noexcept;
     Value GetCommandParameter() const noexcept;
+    void SetCommandParameter(Value parameter) noexcept;
     UIElement* GetCommandTarget() const noexcept;
+    void SetCommandTarget(Ref<UIElement> target) noexcept;
     bool GetIsCommandEnabled() const noexcept;
 
-    void SetClickMode(ClickMode value) noexcept;
-    void SetCommand(Ref<ICommand> command) noexcept;
-    void SetCommandParameter(Value parameter) noexcept;
-    void SetCommandTarget(Ref<UIElement> target) noexcept;
+    inline static constexpr RoutedEvent<RoutedEventArgs> ClickEvent{"Click"};
+    UIElement::Event<RoutedEventArgs> Click() noexcept { return GetEvent(ClickEvent); }
 
     AERO_DEPENDENCY_PROPERTY(ClickMode, ClickMode);
     AERO_DEPENDENCY_PROPERTY(Ref<ICommand>, Command);
@@ -45,14 +45,12 @@ protected:
 
     virtual void OnClick();
     virtual void UpdateVisualState(bool useTransitions = true) noexcept;
-
     void OnMouseLeftButtonDown(MouseButtonEventArgs& args);
     void OnMouseLeftButtonUp(MouseButtonEventArgs& args);
     void OnKeyDown(KeyEventArgs& args);
     void OnKeyUp(KeyEventArgs& args);
     void OnGotKeyboardFocus(KeyboardFocusChangedEventArgs& args);
     void OnLostKeyboardFocus(KeyboardFocusChangedEventArgs& args);
-
     void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
     void OnApplyTemplate() noexcept override;
     // Replaces the former CoerceButtonEnabled metadata delegate on IsEnabled.

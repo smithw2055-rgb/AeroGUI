@@ -20,6 +20,7 @@ using ::Aero::Meta::TypeId;
 
 class AERO_GUI_API ListBoxItem : public ContentControl {
     AERO_DECLARE_TYPE(ListBoxItem, ContentControl)
+
 public:
     ListBoxItem() noexcept;
     ~ListBoxItem() override;
@@ -35,6 +36,7 @@ public:
     UIElement::Event<RoutedEventArgs> Unselected() noexcept { return GetEvent(UnselectedEvent); }
 
     AERO_DEPENDENCY_PROPERTY(bool, IsSelected);
+
 protected:
     explicit ListBoxItem(TypeId runtimeType) noexcept;
     virtual void OnSelected(RoutedEventArgs& e);
@@ -44,6 +46,7 @@ protected:
 
 class AERO_GUI_API ComboBoxItem : public ListBoxItem {
     AERO_DECLARE_TYPE(ComboBoxItem, ListBoxItem)
+
 public:
     ComboBoxItem() noexcept : ListBoxItem(StaticTypeId()) {}
     ~ComboBoxItem() override = default;
@@ -56,6 +59,7 @@ public:
 
 class AERO_GUI_API ListBox : public Primitives::Selector {
     AERO_DECLARE_TYPE(ListBox, Primitives::Selector)
+
 public:
     ListBox() noexcept;
     ~ListBox() override;
@@ -77,6 +81,7 @@ private:
 
 class AERO_GUI_API ComboBox : public Primitives::Selector {
     AERO_DECLARE_TYPE(ComboBox, Primitives::Selector)
+
 public:
     ComboBox() noexcept;
     ~ComboBox() override;
@@ -148,6 +153,7 @@ private:
 
 class AERO_GUI_API TabItem : public HeaderedContentControl {
     AERO_DECLARE_TYPE(TabItem, HeaderedContentControl)
+
 public:
     TabItem() noexcept : HeaderedContentControl(StaticTypeId()) {}
     ~TabItem() override = default;
@@ -161,6 +167,7 @@ public:
 // placement, matching the WPF TabPanel layout contract.
 class AERO_GUI_API TabPanel : public Panel {
     AERO_DECLARE_TYPE(TabPanel, Panel)
+
 public:
     TabPanel() noexcept : Panel(StaticTypeId()) {}
     ~TabPanel() override = default;
@@ -175,6 +182,7 @@ private:
 
 class AERO_GUI_API TabControl : public Primitives::Selector {
     AERO_DECLARE_TYPE(TabControl, Primitives::Selector)
+
 public:
     TabControl() noexcept;
     ~TabControl() override;

@@ -29,20 +29,21 @@ enum class RelativeSourceMode : std::uint8_t {
 
 class AERO_GUI_API RelativeSource : public Base::Object {
     AERO_DECLARE_TYPE(RelativeSource, Base::Object)
+
 public:
     RelativeSource() noexcept = default;
     explicit RelativeSource(RelativeSourceMode mode) noexcept : mode_(mode) {}
 
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
+    static Ref<RelativeSource> ForSelf() noexcept;
+    static Ref<RelativeSource> ForTemplatedParent() noexcept;
+
     RelativeSourceMode GetMode() const noexcept { return mode_; }
     void SetMode(RelativeSourceMode value) noexcept { mode_ = value; }
     StringView GetAncestorType() const noexcept { return ancestorType_.View(); }
     void SetAncestorType(StringView value) noexcept { (void)ancestorType_.Assign(value); }
     std::uint32_t GetAncestorLevel() const noexcept { return ancestorLevel_; }
     void SetAncestorLevel(std::uint32_t value) noexcept { ancestorLevel_ = value == 0U ? 1U : value; }
-
-    static Ref<RelativeSource> ForSelf() noexcept;
-    static Ref<RelativeSource> ForTemplatedParent() noexcept;
 
 private:
     RelativeSourceMode mode_ = RelativeSourceMode::Self;
@@ -60,14 +61,15 @@ enum class BindingMode : std::uint8_t {
 
 class AERO_GUI_API Binding : public BindingBase {
     AERO_DECLARE_TYPE(Binding, BindingBase)
+
 public:
     Binding() noexcept : BindingBase(StaticTypeId()) {}
     explicit Binding(StringView path) noexcept : BindingBase(StaticTypeId()), path_(path) {}
 
     const PropertyPath& GetPath() const noexcept { return path_; }
-    StringView GetPathText() const noexcept { return path_.GetPath(); }
     void SetPath(PropertyPath value) noexcept { path_ = std::move(value); return; }
     void SetPath(StringView value) noexcept { path_.SetPath(value); }
+    StringView GetPathText() const noexcept { return path_.GetPath(); }
     StringView GetElementName() const noexcept { return elementName_.View(); }
     void SetElementName(StringView value) noexcept { (void)elementName_.Assign(value); }
     BindingMode GetMode() const noexcept { return mode_; }

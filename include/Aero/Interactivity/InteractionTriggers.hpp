@@ -13,6 +13,7 @@ namespace Aero::Interactivity {
 // associated element, matching Blend's PropertyChangedTrigger lifetime.
 class AERO_GUI_API PropertyChangedTrigger : public ::Aero::TriggerBase {
     AERO_DECLARE_TYPE(PropertyChangedTrigger, ::Aero::TriggerBase)
+
 public:
     PropertyChangedTrigger() noexcept : TriggerBase(StaticTypeId()) {}
 
@@ -35,6 +36,7 @@ private:
 // portable without adding a second public keyboard enum beside KeyboardInput.
 class AERO_GUI_API KeyTrigger : public ::Aero::TriggerBase {
     AERO_DECLARE_TYPE(KeyTrigger, ::Aero::TriggerBase)
+
 public:
     KeyTrigger() noexcept : TriggerBase(StaticTypeId()) {}
 
@@ -60,6 +62,7 @@ private:
 // element's DataContext and NameScope independently.
 class AERO_GUI_API InvokeCommandAction : public TriggerAction {
     AERO_DECLARE_TYPE(InvokeCommandAction, TriggerAction)
+
 public:
     InvokeCommandAction() noexcept : TriggerAction(StaticTypeId()) {}
 
@@ -85,6 +88,7 @@ private:
 // selector contract instead of synthesizing a mouse click.
 class AERO_GUI_API SelectAction : public TriggerAction {
     AERO_DECLARE_TYPE(SelectAction, TriggerAction)
+
 public:
     SelectAction() noexcept : TriggerAction(StaticTypeId()) {}
 };
@@ -92,6 +96,7 @@ public:
 // Selects all text in the associated TextBox or PasswordBox.
 class AERO_GUI_API SelectAllAction : public TriggerAction {
     AERO_DECLARE_TYPE(SelectAllAction, TriggerAction)
+
 public:
     SelectAllAction() noexcept : TriggerAction(StaticTypeId()) {}
 };
@@ -100,6 +105,7 @@ public:
 // because authored XAML commonly targets it from ChangePropertyAction.
 class AERO_GUI_API PlaySoundAction : public TriggerAction {
     AERO_DECLARE_TYPE(PlaySoundAction, TriggerAction)
+
 public:
     PlaySoundAction() noexcept : TriggerAction(StaticTypeId()) {}
 

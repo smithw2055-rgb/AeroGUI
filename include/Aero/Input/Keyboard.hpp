@@ -12,6 +12,7 @@ namespace Aero::Input {
 // keyboard attached routed events and static accessors for focus/modifier state.
 class AERO_GUI_API Keyboard : public Base::Object {
     AERO_DECLARE_TYPE(Keyboard, Base::Object)
+
 public:
     static const RoutedEventRef<Keyboard, KeyEventArgs> KeyDownEvent;
     static const RoutedEventRef<Keyboard, KeyEventArgs> PreviewKeyDownEvent;

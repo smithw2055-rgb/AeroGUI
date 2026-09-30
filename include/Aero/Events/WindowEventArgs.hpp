@@ -7,6 +7,7 @@ namespace Aero {
 
 struct CancelEventArgs : RoutedEventArgs {
     AERO_DECLARE_TYPE(CancelEventArgs, RoutedEventArgs)
+
 public:
     CancelEventArgs() noexcept : RoutedEventArgs(StaticTypeId()) {}
 

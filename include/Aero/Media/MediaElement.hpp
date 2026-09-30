@@ -18,6 +18,7 @@ enum class MediaState : std::uint8_t {
 
 class AERO_GUI_API MediaElement : public FrameworkElement {
     AERO_DECLARE_TYPE(MediaElement, FrameworkElement)
+
 public:
     MediaElement() noexcept : FrameworkElement(StaticTypeId()) {}
     ~MediaElement() override;

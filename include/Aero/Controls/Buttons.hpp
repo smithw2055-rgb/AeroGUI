@@ -7,6 +7,7 @@ namespace Aero::Controls::Primitives {
 
 class AERO_GUI_API ToggleButton : public ButtonBase {
     AERO_DECLARE_TYPE(ToggleButton, ButtonBase)
+
 public:
     ToggleButton() noexcept : ToggleButton(StaticTypeId()) {}
     ~ToggleButton() override;
@@ -40,6 +41,7 @@ protected:
 
 class AERO_GUI_API RepeatButton : public ButtonBase {
     AERO_DECLARE_TYPE(RepeatButton, ButtonBase)
+
 public:
     RepeatButton() noexcept : RepeatButton(StaticTypeId()) {}
     ~RepeatButton() override;
@@ -71,6 +73,7 @@ namespace Aero::Controls {
 
 class AERO_GUI_API CheckBox : public Primitives::ToggleButton {
     AERO_DECLARE_TYPE(CheckBox, Primitives::ToggleButton)
+
 public:
     CheckBox() noexcept : CheckBox(StaticTypeId()) {}
     ~CheckBox() override = default;
@@ -81,6 +84,7 @@ protected:
 
 class AERO_GUI_API RadioButton : public Primitives::ToggleButton {
     AERO_DECLARE_TYPE(RadioButton, Primitives::ToggleButton)
+
 public:
     RadioButton() noexcept : RadioButton(StaticTypeId()) {}
     ~RadioButton() override;

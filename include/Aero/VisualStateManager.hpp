@@ -22,6 +22,7 @@ namespace Aero {
 
 class AERO_GUI_API VisualState : public Base::Object {
     AERO_DECLARE_TYPE_NAMED(VisualState, Base::Object, "urn:aero", "VisualState")
+
 public:
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
 
@@ -47,6 +48,7 @@ private:
 
 class AERO_GUI_API VisualTransition : public Base::Object {
     AERO_DECLARE_TYPE_NAMED(VisualTransition, Base::Object, "urn:aero", "VisualTransition")
+
 public:
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
 
@@ -89,6 +91,7 @@ private:
 
 class AERO_GUI_API VisualStateGroup : public Base::Object {
     AERO_DECLARE_TYPE_NAMED(VisualStateGroup, Base::Object, "urn:aero", "VisualStateGroup")
+
 public:
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
 
@@ -114,6 +117,7 @@ private:
 
 class AERO_GUI_API VisualStateGroupCollection : public Base::Object {
     AERO_DECLARE_TYPE(VisualStateGroupCollection, Base::Object)
+
 public:
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
     Span<const Ref<VisualStateGroup>> GetItems() const noexcept { return {items_.Data(), items_.Size()}; }
@@ -128,6 +132,7 @@ private:
 // bookkeeping remain private and are accessed only by the controls runtime.
 class AERO_GUI_API VisualStateManager : public Base::Object {
     AERO_DECLARE_TYPE_NAMED(VisualStateManager, Base::Object, "urn:aero", "VisualStateManager")
+
 public:
 
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }

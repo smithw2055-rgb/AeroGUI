@@ -10,6 +10,7 @@ namespace Aero::Controls {
 class AERO_GUI_API VirtualizingStackPanel : public VirtualizingPanel,
       public IScrollInfo {
     AERO_DECLARE_TYPE(VirtualizingStackPanel, VirtualizingPanel)
+
 public:
     VirtualizingStackPanel() noexcept;
     ~VirtualizingStackPanel() override;

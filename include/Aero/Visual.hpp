@@ -21,29 +21,8 @@ class VisualTreeHelper;
 
 class AERO_GUI_API Visual : public ::Aero::DependencyObject {
     AERO_DECLARE_TYPE(Visual, ::Aero::DependencyObject)
+
 public:
-    explicit Visual(::Aero::Meta::TypeId runtimeType) noexcept;
-    ~Visual() override;
-
-    Visual* GetVisualParent() const noexcept { return visualParent_; }
-    ::Aero::DependencyObject* GetLogicalParent() const noexcept { return logicalParent_; }
-    bool GetIsLoaded() const noexcept { return LoadedFlag(); }
-
-    bool IsAncestorOf(const Visual& descendant) const noexcept;
-    Base::Transform2D TransformToVisual(const Visual& visual) const noexcept;
-    bool TryTransformToVisual(const Visual& visual, Base::ProjectiveTransform2D& output) const noexcept;
-    Base::Point PointToScreen(Base::Point point) const noexcept;
-    bool TryPointToScreen(Base::Point point, Base::Point& screen) const noexcept;
-    Base::Point PointFromScreen(Base::Point point) const noexcept;
-    bool TryPointFromScreen(Base::Point point, Base::Point& local) const noexcept;
-
-    Result<Ref<Base::Object>> AcquireLifetime() noexcept;
-    Base::RenderNodeId& NodeId() noexcept { return renderNodeId_; }
-    std::uint8_t& RenderDirtyFlags() noexcept { return renderDirtyFlags_; }
-    std::uint64_t& RenderRevision() noexcept { return renderRevision_; }
-    Base::Result<void> InvalidateRenderDrawing() noexcept;
-    Base::Result<void> InvalidateRenderState() noexcept;
-
     struct FlagRef {
         std::uint8_t* bits = nullptr;
         std::uint8_t mask = 0U;
@@ -59,11 +38,6 @@ public:
             return bits != nullptr && (*bits & mask) != 0U;
         }
     };
-    FlagRef RenderAttached() noexcept { return {&visualFlags_, kFlagRenderAttached}; }
-    FlagRef RenderValid() noexcept { return {&visualFlags_, kFlagRenderValid}; }
-    FlagRef RenderQueued() noexcept { return {&visualFlags_, kFlagRenderQueued}; }
-    FlagRef Rendering() noexcept { return {&visualFlags_, kFlagRendering}; }
-
     class RenderChildRange {
     public:
         class Iterator {
@@ -77,6 +51,7 @@ public:
             bool operator!=(const Iterator& other) const noexcept {
                 return owner_ != other.owner_ || index_ != other.index_;
             }
+
         private:
             const Visual* owner_ = nullptr;
             std::uint32_t index_ = 0U;
@@ -90,11 +65,38 @@ public:
         Visual* operator[](std::uint32_t index) const noexcept {
             return owner_ != nullptr ? owner_->GetVisualChild(index) : nullptr;
         }
+
     private:
         const Visual* owner_ = nullptr;
         std::uint32_t count_ = 0U;
     };
+
+    explicit Visual(::Aero::Meta::TypeId runtimeType) noexcept;
+    ~Visual() override;
+
+    bool IsAncestorOf(const Visual& descendant) const noexcept;
+    Base::Transform2D TransformToVisual(const Visual& visual) const noexcept;
+    bool TryTransformToVisual(const Visual& visual, Base::ProjectiveTransform2D& output) const noexcept;
+    Base::Point PointToScreen(Base::Point point) const noexcept;
+    bool TryPointToScreen(Base::Point point, Base::Point& screen) const noexcept;
+    Base::Point PointFromScreen(Base::Point point) const noexcept;
+    bool TryPointFromScreen(Base::Point point, Base::Point& local) const noexcept;
+    Result<Ref<Base::Object>> AcquireLifetime() noexcept;
+    Base::Result<void> InvalidateRenderDrawing() noexcept;
+    Base::Result<void> InvalidateRenderState() noexcept;
+    FlagRef RenderAttached() noexcept { return {&visualFlags_, kFlagRenderAttached}; }
+    FlagRef RenderValid() noexcept { return {&visualFlags_, kFlagRenderValid}; }
+    FlagRef RenderQueued() noexcept { return {&visualFlags_, kFlagRenderQueued}; }
+    FlagRef Rendering() noexcept { return {&visualFlags_, kFlagRendering}; }
     RenderChildRange RenderChildren() const noexcept { return RenderChildRange(*this); }
+
+    bool GetIsLoaded() const noexcept { return LoadedFlag(); }
+
+    Visual* GetVisualParent() const noexcept { return visualParent_; }
+    ::Aero::DependencyObject* GetLogicalParent() const noexcept { return logicalParent_; }
+    Base::RenderNodeId& NodeId() noexcept { return renderNodeId_; }
+    std::uint8_t& RenderDirtyFlags() noexcept { return renderDirtyFlags_; }
+    std::uint64_t& RenderRevision() noexcept { return renderRevision_; }
 
 protected:
     virtual std::uint32_t GetVisualChildrenCount() const noexcept { return 0U; }
@@ -105,10 +107,8 @@ protected:
         static_cast<void>(point);
         return false;
     }
-
     void AddVisualChild(Visual* child) noexcept;
     void RemoveVisualChild(Visual* child) noexcept;
-
     virtual void OnVisualParentChanged(Visual* oldParent) noexcept { static_cast<void>(oldParent); }
     virtual void OnVisualChildrenChanged(Visual* visualAdded, Visual* visualRemoved) noexcept {
         static_cast<void>(visualAdded);
@@ -125,8 +125,8 @@ private:
     static constexpr std::uint8_t kFlagRenderQueued = 1U << 2U;
     static constexpr std::uint8_t kFlagRendering = 1U << 3U;
     static constexpr std::uint8_t kFlagLoaded = 1U << 4U;
-
     bool LoadedFlag() const noexcept { return (visualFlags_ & kFlagLoaded) != 0U; }
+
     void SetLoadedFlag(bool loaded) noexcept {
         if (loaded) {
             visualFlags_ = static_cast<std::uint8_t>(visualFlags_ | kFlagLoaded);

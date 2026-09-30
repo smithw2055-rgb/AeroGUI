@@ -7,6 +7,7 @@ namespace Aero::Media::Animation {
 
 class AERO_GUI_API TimerTrigger : public EventTrigger {
     AERO_DECLARE_TYPE(TimerTrigger, EventTrigger)
+
 public:
     TimerTrigger() noexcept : EventTrigger(StaticTypeId()) {}
     std::uint32_t GetTotalTicks() const noexcept { return totalTicks_; }

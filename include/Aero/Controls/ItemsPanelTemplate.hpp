@@ -7,6 +7,7 @@ namespace Aero::Controls {
 
 class AERO_GUI_API ItemsPanelTemplate : public ::Aero::FrameworkTemplate {
     AERO_DECLARE_TYPE(ItemsPanelTemplate, FrameworkTemplate)
+
 public:
     ItemsPanelTemplate() noexcept;
     ~ItemsPanelTemplate() noexcept override;

@@ -104,19 +104,21 @@ using ResourceChangedCallback = void (*)(void* context, StringView key, Resource
 // between load sessions and runtime owners without invalidating subscriptions.
 class AERO_GUI_API ResourceDictionary : public Base::Object {
     AERO_DECLARE_TYPE(ResourceDictionary, Base::Object)
+
 public:
+    // Incomplete nested storage (definition TU-local). Public only as a
+    // forward name so engine helpers can mention the type; the pointer
+    // state_ stays private.
+    struct DictionaryState;
 
     ResourceDictionary() noexcept;
     ~ResourceDictionary() noexcept;
-
     ResourceDictionary(ResourceDictionary&& other) noexcept;
     ResourceDictionary& operator=(ResourceDictionary&& other) noexcept;
-
     ResourceDictionary(const ResourceDictionary&) = delete;
     ResourceDictionary& operator=(const ResourceDictionary&) = delete;
 
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
-
     Result<void> Add(const ResourceKey& key, const ResourceValue& value,
         ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
     Result<void> Add(StringView key, const ResourceValue& value, ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
@@ -124,18 +126,10 @@ public:
         ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
     Result<void> Add(StringView key, Meta::TypeId type, const Ref<Base::Object>& object,
         ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
-
-    bool Set(const ResourceKey& key, const ResourceValue& value, ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
-    bool Set(StringView key, const ResourceValue& value, ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
-    bool Set(Meta::TypeId key, const ResourceValue& value, ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
-    bool Set(StringView key, Meta::TypeId type, const Ref<Base::Object>& object,
-        ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
-
     // Soft-fail like Set: false on missing/invalid/sealed.
     bool Remove(const ResourceKey& key) noexcept;
     bool Remove(StringView key) noexcept;
     bool Remove(Meta::TypeId key) noexcept;
-
     // Try-style lookup: empty/Unset value when missing (not Result like FindResource).
     ResourceValue Lookup(const ResourceKey& key) const noexcept;
     ResourceValue Lookup(StringView key) const noexcept;
@@ -145,10 +139,8 @@ public:
     bool Contains(Meta::TypeId key) const noexcept;
     ::Aero::Diagnostics::SourceSpan SourceOf(const ResourceKey& key) const noexcept;
     ::Aero::Diagnostics::SourceSpan SourceOf(StringView key) const noexcept;
-
     Result<void> AddMerged(ResourceDictionary& dictionary) noexcept;
     Result<bool> RemoveMerged(ResourceDictionary& dictionary) noexcept;
-    void ClearMergedDictionaries() noexcept;
     std::uint32_t MergedDictionaryCount() const noexcept;
     // Returns a move-only shared view over the merged dictionary's stable
     // backing store. Mutations through the view affect the merged dictionary.
@@ -156,27 +148,29 @@ public:
     // Explicitly retains the stable backing store without making the public
     // dictionary type implicitly copyable.
     Result<ResourceDictionary> Share() const noexcept;
-
-    void SetSource(const Base::ResourceUri& source) noexcept;
-    const Base::ResourceUri& GetSource() const noexcept;
-
     Result<void> Seal() noexcept;
-    bool GetIsSealed() const noexcept;
-
     Result<ResourceChangeSubscription> SubscribeChanged(ResourceChangedCallback callback, void* context) noexcept;
     bool Unsubscribe(ResourceChangeSubscription subscription) noexcept;
-
-    void Clear() noexcept;
     std::uint32_t Size() const noexcept;
     Result<ResourceEntrySnapshot> EntryAt(std::uint32_t index) const noexcept;
     std::uint64_t Generation() const noexcept;
 
-    // Incomplete nested storage (definition TU-local). Public only as a
-    // forward name so engine helpers can mention the type; the pointer
-    // state_ stays private.
-    struct DictionaryState;
+    bool Set(const ResourceKey& key, const ResourceValue& value, ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
+    bool Set(StringView key, const ResourceValue& value, ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
+    bool Set(Meta::TypeId key, const ResourceValue& value, ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
+    bool Set(StringView key, Meta::TypeId type, const Ref<Base::Object>& object,
+        ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
+    void Clear() noexcept;
+    void ClearMergedDictionaries() noexcept;
+    const Base::ResourceUri& GetSource() const noexcept;
+    void SetSource(const Base::ResourceUri& source) noexcept;
+    bool GetIsSealed() const noexcept;
 
 private:
+    friend struct DictionaryState;
+
+    explicit ResourceDictionary(DictionaryState* state, bool addReference) noexcept;
+
     Result<void> StoreResource(const ResourceKey& key, const ResourceValue& value,
         ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
     Result<void> StoreResource(StringView key, const ResourceValue& value,
@@ -185,16 +179,11 @@ private:
         ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
     Result<void> StoreResource(StringView key, Meta::TypeId type, const Ref<Base::Object>& object,
         ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
-
-    friend struct DictionaryState;
-
-    explicit ResourceDictionary(DictionaryState* state, bool addReference) noexcept;
-
-    DictionaryState* state_ = nullptr;
-
     Result<DictionaryState*> EnsureState() noexcept;
     static void AddStateRef(DictionaryState* state) noexcept;
     static void ReleaseState(DictionaryState* state) noexcept;
+
+    DictionaryState* state_ = nullptr;
 };
 
 struct ResourceEnvironment { const ResourceDictionary* application = nullptr;

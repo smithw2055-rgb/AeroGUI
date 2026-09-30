@@ -16,6 +16,7 @@ namespace Aero {
 // exists for font services.
 class AERO_GUI_API TextProperties : public Base::Object {
     AERO_DECLARE_TYPE_NAMED(TextProperties, Base::Object, "urn:aero", "Text")
+
 public:
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
     inline static constexpr Meta::AttachedPropertyRef<TextProperties, std::uint32_t> PasswordLengthProperty{"PasswordLength"};

@@ -13,6 +13,7 @@ namespace Aero::Media {
 template<class T> class FreezableCollection : public Freezable,
     public Collections::IItemsSource {
     static_assert(std::is_base_of<Freezable, T>::value, "FreezableCollection<T> requires a Freezable item type");
+
 public:
     FreezableCollection() noexcept : Freezable(Freezable::StaticTypeId()) {}
     explicit FreezableCollection(Meta::TypeId runtimeType) noexcept : Freezable(runtimeType) {}

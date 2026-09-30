@@ -6,6 +6,7 @@ namespace Aero::Input {
 
 class AERO_GUI_API InputBinding : public Base::Object {
     AERO_DECLARE_TYPE(InputBinding, Base::Object)
+
 public:
     Meta::TypeId RuntimeType() const noexcept override { return runtimeType_; }
     Ref<RoutedCommand> GetCommand() const noexcept { return command_; }
@@ -23,6 +24,7 @@ private:
 
 class AERO_GUI_API KeyBinding : public InputBinding {
     AERO_DECLARE_TYPE(KeyBinding, InputBinding)
+
 public:
     KeyBinding() noexcept : InputBinding(StaticTypeId()) {}
     StringView GetCommandName() const noexcept { return commandName_.View(); }
@@ -42,6 +44,7 @@ private:
 
 class AERO_GUI_API MouseBinding : public InputBinding {
     AERO_DECLARE_TYPE(MouseBinding, InputBinding)
+
 public:
     MouseBinding() noexcept : InputBinding(StaticTypeId()) {}
 

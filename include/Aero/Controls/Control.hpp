@@ -16,11 +16,29 @@ class ControlTemplate;
 class ItemContainerGenerator;
 class AERO_GUI_API Control : public FrameworkElement {
     AERO_DECLARE_TYPE(Control, FrameworkElement)
+
 public:
-    inline static constexpr RoutedEvent<MouseButtonEventArgs> PreviewMouseDoubleClickEvent{"PreviewMouseDoubleClick"};
-    Event<MouseButtonEventArgs> PreviewMouseDoubleClick() noexcept { return GetEvent(PreviewMouseDoubleClickEvent); }
-    inline static constexpr RoutedEvent<MouseButtonEventArgs> MouseDoubleClickEvent{"MouseDoubleClick"};
-    Event<MouseButtonEventArgs> MouseDoubleClick() noexcept { return GetEvent(MouseDoubleClickEvent); }
+    // Returns true only when this call materialized a new template instance.
+    // Repeated calls are intentionally idempotent.
+    bool ApplyTemplate() noexcept;
+    virtual void OnApplyTemplate() noexcept { return; }
+    void SetTemplateChildCore(UIElement* child) noexcept {
+        if (child != nullptr && child->LayoutParent() != this) { return; }
+        if (templateChild_ != nullptr && child != nullptr && templateChild_ != child) { return; }
+        templateChild_ = child;
+        return;
+    }
+    void NotifyTemplateApplied(std::uint64_t handleValue) noexcept {
+        templateHandleValue_ = handleValue;
+        ++templateGeneration_;
+    }
+    void NotifyTemplateDetached() noexcept {
+        if (templateHandleValue_ != 0U) {
+            OnTemplateDetached();
+            templateHandleValue_ = 0U;
+            ++templateGeneration_;
+        }
+    }
 
     Ref<Aero::Media::Brush> GetBackground() const noexcept { return GetValue(BackgroundProperty); }
     void SetBackground(Ref<Aero::Media::Brush> value) noexcept { SetValue(BackgroundProperty, std::move(value)); }
@@ -45,6 +63,14 @@ public:
     void SetFocusVisualStyle(Ref<Aero::Style> value) noexcept { SetValue(FocusVisualStyleProperty, std::move(value)); }
     bool GetOverridesDefaultStyle() const noexcept { return GetValue(OverridesDefaultStyleProperty); }
     void SetOverridesDefaultStyle(bool value) noexcept { SetValue(OverridesDefaultStyleProperty, value); }
+    UIElement* GetTemplateRoot() const noexcept { return templateChild_; }
+    bool IsTemplateApplied() const noexcept { return templateHandleValue_ != 0U; }
+
+    inline static constexpr RoutedEvent<MouseButtonEventArgs> PreviewMouseDoubleClickEvent{"PreviewMouseDoubleClick"};
+    Event<MouseButtonEventArgs> PreviewMouseDoubleClick() noexcept { return GetEvent(PreviewMouseDoubleClickEvent); }
+    inline static constexpr RoutedEvent<MouseButtonEventArgs> MouseDoubleClickEvent{"MouseDoubleClick"};
+    Event<MouseButtonEventArgs> MouseDoubleClick() noexcept { return GetEvent(MouseDoubleClickEvent); }
+
     AERO_DEPENDENCY_PROPERTY(Ref<Aero::Media::Brush>, Background);
     AERO_DEPENDENCY_PROPERTY(Ref<Aero::Media::Brush>, BorderBrush);
     AERO_DEPENDENCY_PROPERTY(Aero::Base::Thickness, BorderThickness);
@@ -58,37 +84,12 @@ public:
     AERO_DEPENDENCY_PROPERTY(bool, OverridesDefaultStyle);
     AERO_DEPENDENCY_PROPERTY(Ref<ControlTemplate>, Template);
 
-    // Returns true only when this call materialized a new template instance.
-    // Repeated calls are intentionally idempotent.
-    bool ApplyTemplate() noexcept;
-    UIElement* GetTemplateRoot() const noexcept { return templateChild_; }
-    virtual void OnApplyTemplate() noexcept { return; }
-
-    bool IsTemplateApplied() const noexcept { return templateHandleValue_ != 0U; }
-    void SetTemplateChildCore(UIElement* child) noexcept {
-        if (child != nullptr && child->LayoutParent() != this) { return; }
-        if (templateChild_ != nullptr && child != nullptr && templateChild_ != child) { return; }
-        templateChild_ = child;
-        return;
-    }
-
-    void NotifyTemplateApplied(std::uint64_t handleValue) noexcept {
-        templateHandleValue_ = handleValue;
-        ++templateGeneration_;
-    }
-    void NotifyTemplateDetached() noexcept {
-        if (templateHandleValue_ != 0U) {
-            OnTemplateDetached();
-            templateHandleValue_ = 0U;
-            ++templateGeneration_;
-        }
-    }
-
 protected:
-    DependencyObject* GetTemplateChild(StringView name) const noexcept;
-    DependencyObject* GetTemplateChild(TypeId type) const noexcept;
     explicit Control(TypeId runtimeType) noexcept : FrameworkElement(runtimeType) {}
     ~Control() override = default;
+
+    DependencyObject* GetTemplateChild(StringView name) const noexcept;
+    DependencyObject* GetTemplateChild(TypeId type) const noexcept;
     virtual void OnTemplateDetached() noexcept {}
     virtual void OnTemplateChanged(ControlTemplate* oldTemplate, ControlTemplate* newTemplate) noexcept {
         static_cast<void>(oldTemplate);
@@ -119,6 +120,7 @@ protected:
 
 private:
     friend class ::Aero::VisualStateManager;
+
     UIElement* templateChild_ = nullptr;
     std::uint64_t templateHandleValue_ = 0U;
     std::uint64_t templateGeneration_ = 0U;

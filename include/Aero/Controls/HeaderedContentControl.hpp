@@ -8,6 +8,7 @@ using ::Aero::Meta::TypeId;
 
 class AERO_GUI_API HeaderedContentControl : public ContentControl {
     AERO_DECLARE_TYPE(HeaderedContentControl, ContentControl)
+
 public:
     Value GetHeader() const noexcept;
     void SetHeader(const Value& value) noexcept;
@@ -24,6 +25,7 @@ public:
 protected:
     explicit HeaderedContentControl(TypeId runtimeType) noexcept;
     ~HeaderedContentControl() override;
+
     virtual void OnHeaderChanged(const Value& oldHeader, const Value& newHeader);
     virtual void OnHeaderTemplateChanged(const Ref<DataTemplate>& oldTemplate, const Ref<DataTemplate>& newTemplate);
     void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;

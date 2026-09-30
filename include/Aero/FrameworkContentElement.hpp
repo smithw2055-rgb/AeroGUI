@@ -15,24 +15,25 @@ class FrameworkContentElementSeams;
 // logical-tree participation. TextElement and other document nodes derive here.
 class AERO_GUI_API FrameworkContentElement : public ContentElement {
     AERO_DECLARE_TYPE(FrameworkContentElement, ContentElement)
+
 public:
     explicit FrameworkContentElement(Meta::TypeId runtimeType) noexcept;
     ~FrameworkContentElement() override;
 
+    std::uint32_t LogicalChildCount() const noexcept { return GetLogicalChildrenCount(); }
+    DependencyObject* LogicalChildAt(std::uint32_t index) const noexcept { return GetLogicalChild(index); }
+
     ResourceDictionary& GetResources() noexcept;
     const ResourceDictionary& GetResources() const noexcept;
     void SetResources(Ref<ResourceDictionary> value) noexcept;
-
     Value GetDataContext() const noexcept { return GetValue(DataContextProperty); }
     void SetDataContext(Value value) noexcept { SetValue(DataContextProperty, std::move(value)); }
     void SetDataContext(Ref<Base::Object> value) noexcept {
         SetDataContext(Value::FromObject(Meta::TypeOf<Base::Object>(), std::move(value)));
     }
     void ClearDataContext() noexcept { ClearValue(DataContextProperty); }
-
     Ref<Style> GetStyle() const noexcept { return GetValue(StyleProperty); }
     void SetStyle(Ref<Style> value) noexcept { SetValue(StyleProperty, std::move(value)); }
-
     bool GetIsEnabled() const noexcept { return GetValue(IsEnabledProperty); }
     void SetIsEnabled(bool value) noexcept { SetValue(IsEnabledProperty, value); }
     bool GetIsMouseOver() const noexcept { return GetValue(IsMouseOverProperty); }
@@ -49,9 +50,6 @@ public:
     AERO_DEPENDENCY_PROPERTY(String, Cursor);
     AERO_DEPENDENCY_PROPERTY(bool, OverridesDefaultStyle);
 
-    std::uint32_t LogicalChildCount() const noexcept { return GetLogicalChildrenCount(); }
-    DependencyObject* LogicalChildAt(std::uint32_t index) const noexcept { return GetLogicalChild(index); }
-
 protected:
     virtual std::uint32_t GetLogicalChildrenCount() const noexcept { return 0U; }
     virtual DependencyObject* GetLogicalChild(std::uint32_t) const noexcept { return nullptr; }
@@ -61,13 +59,16 @@ private:
     friend class InteractivityEngine;
     friend class StoryboardHost;
     friend class FrameworkContentElementSeams;
+
+    struct FrameworkContentRare;
+
     void AddAuthoredTrigger(Ref<Base::Object> trigger) noexcept;
     void ClearAuthoredTriggers() noexcept;
     Span<const Ref<Base::Object>> AuthoredTriggers() const noexcept;
     const ResourceDictionary* LocalResources() const noexcept { return resources_; }
-    mutable ResourceDictionary* resources_ = nullptr;
-    struct FrameworkContentRare;
     FrameworkContentRare* EnsureFrameworkContentRare() noexcept;
+
+    mutable ResourceDictionary* resources_ = nullptr;
     FrameworkContentRare* frameworkRare_ = nullptr;
 };
 

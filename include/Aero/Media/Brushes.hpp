@@ -47,6 +47,7 @@ enum class GradientSpreadMethod : std::uint8_t {
 
 class AERO_GUI_API Brush : public Animatable {
     AERO_DECLARE_TYPE(Brush, Animatable)
+
 public:
 
     double GetOpacity() const noexcept;
@@ -69,6 +70,7 @@ protected:
 
 class AERO_GUI_API GradientStop : public Animatable {
     AERO_DECLARE_TYPE(GradientStop, Animatable)
+
 public:
     GradientStop() noexcept : Animatable(StaticTypeId()) {}
     ~GradientStop() override = default;
@@ -86,6 +88,7 @@ public:
 class AERO_GUI_API GradientStopCollection : public Freezable,
     public Collections::IItemsSource {
     AERO_DECLARE_TYPE(GradientStopCollection, Freezable)
+
 public:
     GradientStopCollection() noexcept : Freezable(StaticTypeId()),
           stops_(&Base::GetDefaultAllocator()) {}
@@ -104,8 +107,10 @@ public:
     }
     void Add(Ref<GradientStop> stop) noexcept;
     void Clear() noexcept;
+
 protected:
     bool FreezeCore(bool isChecking) noexcept override;
+
 private:
     void OnStopChanged(Freezable&) noexcept;
     Base::Vector<Ref<GradientStop>> stops_;
@@ -118,20 +123,24 @@ private:
 // to be a DependencyObject.
 class AERO_GUI_API BrushShader : public DependencyObject {
     AERO_DECLARE_TYPE(BrushShader, DependencyObject)
+
 public:
     std::uint64_t GetRevision() const noexcept { return revision_; }
     BrushShader() noexcept : DependencyObject(StaticTypeId()) {}
     ~BrushShader() override = default;
+
 protected:
     explicit BrushShader(TypeId runtimeType) noexcept
         : DependencyObject(runtimeType) {}
     void BumpRevision() noexcept { ++revision_; }
+
 private:
     std::uint64_t revision_ = 0U;
 };
 
 class AERO_GUI_API MonochromeShader : public BrushShader {
     AERO_DECLARE_TYPE(MonochromeShader, BrushShader)
+
 public:
     MonochromeShader() noexcept : BrushShader(StaticTypeId()) {}
     Color GetColor() const noexcept { return color_; }
@@ -139,12 +148,14 @@ public:
         color_ = value;
         BumpRevision();
     }
+
 private:
     Color color_{};
 };
 
 class AERO_GUI_API ConicGradientShader : public BrushShader {
     AERO_DECLARE_TYPE(ConicGradientShader, BrushShader)
+
 public:
     ConicGradientShader() noexcept : BrushShader(StaticTypeId()),
           stops_(&Base::GetDefaultAllocator()) {}
@@ -154,12 +165,14 @@ public:
     }
     void ClearGradientStops() noexcept { stops_.Clear(); }
     Span<const Ref<GradientStop>> GetGradientStops() const noexcept { return stops_.AsSpan(); }
+
 private:
     Base::Vector<Ref<GradientStop>> stops_;
 };
 
 class AERO_GUI_API WavesShader : public BrushShader {
     AERO_DECLARE_TYPE(WavesShader, BrushShader)
+
 public:
     WavesShader() noexcept : BrushShader(StaticTypeId()) {}
     double GetTime() const noexcept { return time_; }
@@ -167,12 +180,14 @@ public:
         time_ = value;
         BumpRevision();
     }
+
 private:
     double time_ = 0.0;
 };
 
 class AERO_GUI_API SolidColorBrush : public Brush {
     AERO_DECLARE_TYPE(SolidColorBrush, Brush)
+
 public:
     SolidColorBrush() noexcept : Brush(StaticTypeId()) {}
     explicit SolidColorBrush(Color color) noexcept : Brush(StaticTypeId()), initialColor_(color) {}
@@ -191,6 +206,7 @@ AERO_GUI_API Result<Ref<Brush>> MakeSolidColorBrush(Color color) noexcept;
 
 class AERO_GUI_API GradientBrush : public Brush {
     AERO_DECLARE_TYPE(GradientBrush, Brush)
+
 public:
     Span<const Ref<GradientStop>> GetGradientStops() const noexcept { return stops_.AsSpan(); }
     void AddGradientStop(Ref<GradientStop> stop) noexcept;
@@ -217,6 +233,7 @@ private:
 
 class AERO_GUI_API LinearGradientBrush : public GradientBrush {
     AERO_DECLARE_TYPE(LinearGradientBrush, GradientBrush)
+
 public:
     LinearGradientBrush() noexcept : GradientBrush(StaticTypeId()) {}
     ~LinearGradientBrush() override = default;
@@ -232,6 +249,7 @@ public:
 
 class AERO_GUI_API RadialGradientBrush : public GradientBrush {
     AERO_DECLARE_TYPE(RadialGradientBrush, GradientBrush)
+
 public:
     RadialGradientBrush() noexcept : GradientBrush(StaticTypeId()) {}
     ~RadialGradientBrush() override = default;
@@ -253,6 +271,7 @@ public:
 
 class AERO_GUI_API TileBrush : public Brush {
     AERO_DECLARE_TYPE(TileBrush, Brush)
+
 public:
     Stretch GetStretch() const noexcept;
     Rect GetViewbox() const noexcept;
@@ -287,6 +306,7 @@ protected:
 
 class AERO_GUI_API ImageBrush : public TileBrush {
     AERO_DECLARE_TYPE(ImageBrush, TileBrush)
+
 public:
     ImageBrush() noexcept : TileBrush(StaticTypeId()) {}
     ~ImageBrush() override = default;
@@ -309,6 +329,7 @@ private:
 
 class AERO_GUI_API VisualBrush : public TileBrush {
     AERO_DECLARE_TYPE(VisualBrush, TileBrush)
+
 public:
     VisualBrush() noexcept : TileBrush(StaticTypeId()) {}
     ~VisualBrush() override = default;

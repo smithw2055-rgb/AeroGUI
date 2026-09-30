@@ -19,6 +19,7 @@ class DependencyObject;
 /// Reference: System.Windows.DragDrop
 class AERO_GUI_API DragDrop : public Base::Object {
     AERO_DECLARE_TYPE(DragDrop, Base::Object)
+
 public:
     static const RoutedEventRef<DragDrop, DragEventArgs> PreviewDragEnterEvent;
     static const RoutedEventRef<DragDrop, DragEventArgs> DragEnterEvent;

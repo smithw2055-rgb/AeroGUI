@@ -14,6 +14,7 @@ enum class PenLineCap : std::uint8_t { Flat = 0U, Square, Round, Triangle };
 
 class AERO_GUI_API DashStyle : public Animatable {
     AERO_DECLARE_TYPE(DashStyle, Animatable)
+
 public:
     DashStyle() noexcept : Animatable(StaticTypeId()) {}
 
@@ -30,9 +31,11 @@ private:
 
 class AERO_GUI_API Pen : public Animatable {
     AERO_DECLARE_TYPE(Pen, Animatable)
+
 public:
     Pen() noexcept : Animatable(StaticTypeId()) {}
     ~Pen() override = default;
+
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
 
     Ref<Brush> GetBrush() const noexcept;
@@ -64,6 +67,7 @@ protected:
 private:
     void OnBrushChanged(Freezable&) noexcept;
     void OnDashStyleChanged(Freezable&) noexcept;
+
     Ref<Brush> brush_;
     Ref<DashStyle> dashStyle_;
     FreezableChangedHandler brushChangedHandler_;

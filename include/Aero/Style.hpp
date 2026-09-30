@@ -26,30 +26,36 @@ class Style;
 
 class AERO_GUI_API SetterBaseCollection {
 public:
+    void Add(Ref<SetterBase> setter) noexcept;
+    void Add(Ref<Setter> setter) noexcept;
+
     std::uint32_t GetCount() const noexcept;
     SetterBase* GetItem(std::uint32_t index) const noexcept;
     bool GetIsEmpty() const noexcept { return GetCount() == 0U; }
-    void Add(Ref<SetterBase> setter) noexcept;
-    void Add(Ref<Setter> setter) noexcept;
     void Clear() noexcept;
 
 private:
     friend class Style;
+
     explicit SetterBaseCollection(Style& owner) noexcept : owner_(&owner) {}
+
     Style* owner_ = nullptr;
 };
 
 class AERO_GUI_API TriggerCollection {
 public:
+    void Add(Ref<TriggerBase> trigger) noexcept;
+
     std::uint32_t GetCount() const noexcept;
     TriggerBase* GetItem(std::uint32_t index) const noexcept;
     bool GetIsEmpty() const noexcept { return GetCount() == 0U; }
-    void Add(Ref<TriggerBase> trigger) noexcept;
     void Clear() noexcept;
 
 private:
     friend class Style;
+
     explicit TriggerCollection(Style& owner) noexcept : owner_(&owner) {}
+
     Style* owner_ = nullptr;
 };
 
@@ -57,12 +63,12 @@ private:
 // compiled privately when the style is sealed.
 class AERO_GUI_API Style : public Base::Object {
     AERO_DECLARE_TYPE(Style, Base::Object)
+
 public:
     Style() noexcept;
     explicit Style(TypeId targetType, const Style* basedOn = nullptr) noexcept;
     Style(TypeId targetType, const Style* basedOn, TypeId runtimeType) noexcept;
     ~Style() override;
-
     Style(const Style&) = delete;
     Style& operator=(const Style&) = delete;
 
@@ -73,12 +79,12 @@ public:
     void AddTrigger(const DataTrigger& trigger) noexcept;
     void AddTrigger(const MultiDataTrigger& trigger) noexcept;
 
+    TypeId GetTargetType() const noexcept;
     // Builder configuration is intentionally available only before Seal().
     bool SetTargetType(TypeId targetType) noexcept;
+    const Style* GetBasedOn() const noexcept { return basedOn_; }
     bool SetBasedOn(const Style* basedOn) noexcept;
     bool SetBasedOn(Ref<Base::Object> basedOn) noexcept;
-    TypeId GetTargetType() const noexcept;
-    const Style* GetBasedOn() const noexcept { return basedOn_; }
     SetterBaseCollection GetSetters() noexcept { return SetterBaseCollection(*this); }
     TriggerCollection GetTriggers() noexcept { return TriggerCollection(*this); }
     bool GetIsSealed() const noexcept { return sealed_; }
@@ -87,6 +93,16 @@ public:
     void SetResources(Ref<ResourceDictionary> value) noexcept;
 
 private:
+    friend struct Program;
+    friend class StyleEngine;
+    friend class SetterBaseCollection;
+    friend class TriggerCollection;
+    friend class Markup::XamlStyleSchemaFacet;
+    friend class StoryboardHost;
+    friend class StyleSeams;
+
+    struct Program;
+
     void AddPropertyTrigger(DependencyPropertyHandle condition, const PropertyValue& conditionValue,
         DependencyPropertyHandle property,
         PropertyValue value) noexcept;
@@ -106,15 +122,6 @@ private:
     // WPF-parity no-arg hook. Called at the end of Seal(); override to
     // validate without touching DependencyPropertyRegistry internals.
     virtual void OnSeal() noexcept {}
-
-    struct Program;
-    friend struct Program;
-    friend class StyleEngine;
-    friend class SetterBaseCollection;
-    friend class TriggerCollection;
-    friend class Markup::XamlStyleSchemaFacet;
-    friend class StoryboardHost;
-    friend class StyleSeams;
 
     TypeId runtimeType_ = StaticTypeId();
     TypeId targetType_ = InvalidTypeId;

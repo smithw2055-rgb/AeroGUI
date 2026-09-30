@@ -12,6 +12,7 @@ using ::Aero::Meta::TypeId;
 
 class AERO_GUI_API ToolBar : public ItemsControl {
     AERO_DECLARE_TYPE(ToolBar, ItemsControl)
+
 public:
     ToolBar() noexcept;
     ~ToolBar() override;
@@ -56,9 +57,11 @@ private:
 // Template item hosts for the primary and overflow regions of ToolBar.
 class AERO_GUI_API ToolBarPanel : public Panel {
     AERO_DECLARE_TYPE(ToolBarPanel, Panel)
+
 public:
     ToolBarPanel() noexcept : Panel(StaticTypeId()) {}
     ~ToolBarPanel() override = default;
+
 protected:
     Size MeasureOverride(Size availableSize) noexcept override;
     Size ArrangeOverride(Size finalSize) noexcept override;
@@ -66,9 +69,11 @@ protected:
 
 class AERO_GUI_API ToolBarOverflowPanel : public Panel {
     AERO_DECLARE_TYPE(ToolBarOverflowPanel, Panel)
+
 public:
     ToolBarOverflowPanel() noexcept : Panel(StaticTypeId()) {}
     ~ToolBarOverflowPanel() override = default;
+
 protected:
     Size MeasureOverride(Size availableSize) noexcept override;
     Size ArrangeOverride(Size finalSize) noexcept override;
@@ -79,6 +84,7 @@ protected:
 // must round-trip through the same dependency-property system as WPF.
 class AERO_GUI_API ToolBarTray : public Base::Object {
     AERO_DECLARE_TYPE(ToolBarTray, Base::Object)
+
 public:
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
     AERO_ATTACHED_PROPERTY(bool, IsLocked);
