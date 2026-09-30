@@ -139,6 +139,212 @@ Base::Status TemplateBindingExpression::UpdateTarget() noexcept {
     return refreshed ? Base::Status{} : refreshed.GetStatus();
 }
 
+namespace {
+
+Base::Status BindingOpsInvalidArgument(const char* message) noexcept {
+    return Base::Status::Failure(Base::ErrorCode::InvalidArgument, message);
+}
+
+Base::Status BindingOpsNotInitialized(const char* message) noexcept {
+    return Base::Status::Failure(Base::ErrorCode::NotInitialized, message);
+}
+
+Base::Status BindingOpsNotFound(const char* message) noexcept {
+    return Base::Status::Failure(Base::ErrorCode::NotFound, message);
+}
+
+Base::Status BindingOpsUnsupported(const char* message) noexcept {
+    return Base::Status::Failure(Base::ErrorCode::Unsupported, message);
+}
+
+// Resolve Binding.Source / ElementName / RelativeSource the same way style
+// setters and markup do before MetadataBindingDescriptor::Attach.
+Base::Result<Base::Object*> ResolveCodeBindingSource(
+    const Binding& binding,
+    DependencyObject& target,
+    BindingEngine& engine) noexcept {
+    if (binding.GetSource()) {
+        return binding.GetSource().Get();
+    }
+    if (!binding.GetElementName().Empty()) {
+        FrameworkElement* framework = ::Aero::TryCast<FrameworkElement>(&target);
+        if (framework == nullptr) {
+            return BindingOpsNotFound(
+                "Binding ElementName requires a FrameworkElement target");
+        }
+        Base::Object* source = framework->FindName(binding.GetElementName());
+        if (source == nullptr) {
+            return BindingOpsNotFound(
+                "Binding ElementName was not found");
+        }
+        return source;
+    }
+    if (!binding.GetRelativeSource()) {
+        return static_cast<Base::Object*>(nullptr);
+    }
+    const RelativeSourceMode mode = binding.GetRelativeSource()->GetMode();
+    if (mode == RelativeSourceMode::Self) {
+        return static_cast<Base::Object*>(&target);
+    }
+    if (mode == RelativeSourceMode::TemplatedParent) {
+        FrameworkElement* framework = ::Aero::TryCast<FrameworkElement>(&target);
+        if (framework == nullptr || framework->GetTemplatedParent() == nullptr) {
+            return BindingOpsNotFound(
+                "Binding TemplatedParent is unavailable");
+        }
+        return static_cast<Base::Object*>(framework->GetTemplatedParent());
+    }
+    if (mode == RelativeSourceMode::FindAncestor) {
+        Base::StringView ancestorName =
+            binding.GetRelativeSource()->GetAncestorType();
+        for (std::uint32_t nameIndex = 0U;
+             nameIndex < ancestorName.SizeBytes(); ++nameIndex) {
+            if (ancestorName[nameIndex] == ':') {
+                ancestorName = ancestorName.Substr(
+                    nameIndex + 1U,
+                    ancestorName.SizeBytes() - nameIndex - 1U);
+                break;
+            }
+        }
+        const std::uint32_t requestedLevel =
+            binding.GetRelativeSource()->GetAncestorLevel();
+        std::uint32_t matchedLevel = 0U;
+        Media::Visual* current = ::Aero::TryCast<Media::Visual>(&target);
+        if (current != nullptr) {
+            Media::Visual* parent =
+                ::Aero::TryCast<Media::Visual>(current->GetLogicalParent());
+            if (parent == nullptr) {
+                parent = current->GetVisualParent();
+            }
+            current = parent;
+        }
+        while (current != nullptr) {
+            const Meta::TypeInfo* type =
+                engine.Metadata() != nullptr
+                    ? engine.Metadata()->Types().FindType(current->RuntimeType())
+                    : nullptr;
+            const bool matchesType = ancestorName.Empty() ||
+                (type != nullptr && type->Name() == ancestorName);
+            if (matchesType && ++matchedLevel == requestedLevel) {
+                return static_cast<Base::Object*>(current);
+            }
+            Media::Visual* next =
+                ::Aero::TryCast<Media::Visual>(current->GetLogicalParent());
+            if (next == nullptr) {
+                next = current->GetVisualParent();
+            }
+            current = next;
+        }
+        return BindingOpsNotFound(
+            "Binding FindAncestor source was not found");
+    }
+    return BindingOpsUnsupported(
+        "Binding RelativeSource mode is not supported by SetBinding");
+}
+
+} // namespace
+
+Result<BindingExpression> BindingOperations::SetBinding(
+    DependencyObject* target,
+    DependencyPropertyHandle property,
+    const Binding& binding) noexcept {
+    if (target == nullptr || !property.IsValid()) {
+        return BindingOpsInvalidArgument(
+            "SetBinding requires a target and dependency property");
+    }
+    BindingEngine* engine = ElementTree::BindingsOf(*target);
+    if (engine == nullptr || engine->Metadata() == nullptr) {
+        return BindingOpsNotInitialized(
+            "SetBinding requires a mounted View BindingEngine");
+    }
+
+    // Replace any existing binding on this property (WPF/Noesis habit).
+    ClearBinding(target, property);
+
+    Base::Result<Base::Object*> sourceResult =
+        ResolveCodeBindingSource(binding, *target, *engine);
+    if (!sourceResult) return sourceResult.GetStatus();
+    Base::Object* source = sourceResult.Value();
+    const bool isExplicitSource = binding.GetSource() ||
+        !binding.GetElementName().Empty() ||
+        binding.GetRelativeSource();
+    if (isExplicitSource && source == nullptr) {
+        return BindingOpsNotFound("Binding source was not found");
+    }
+
+    MetadataBindingDescriptor descriptor;
+    descriptor.metadata = engine->Metadata();
+    descriptor.source = source;
+    descriptor.target = target;
+    descriptor.targetProperty = property;
+    if (!isExplicitSource) {
+        descriptor.dataContextProperty =
+            FrameworkElement::DataContextProperty.Handle();
+        descriptor.dataContextOwner = target;
+    }
+    descriptor.path = binding.GetPathText();
+    descriptor.stringFormat = binding.GetStringFormat();
+    descriptor.bindsToSource = binding.GetPath().GetIsEmpty();
+    descriptor.mode = BindingEngine::ResolveBindingMode(
+        *target, property, binding.GetMode());
+    descriptor.updateSourceTrigger =
+        BindingEngine::ResolveUpdateSourceTrigger(
+            *target, property, binding.GetUpdateSourceTrigger());
+    descriptor.converterResource = binding.GetConverter();
+    descriptor.converterParameter = binding.GetConverterParameter();
+    descriptor.fallbackValue = binding.GetFallbackValue();
+    descriptor.targetNullValue = binding.GetTargetNullValue();
+
+    Base::Result<BindingHandle> attached = engine->Attach(descriptor);
+    if (!attached) return attached.GetStatus();
+    return BindingExpression(attached.Value());
+}
+
+void BindingOperations::ClearBinding(
+    DependencyObject* target,
+    DependencyPropertyHandle property) noexcept {
+    if (target == nullptr || !property.IsValid()) return;
+    BindingEngine* engine = ElementTree::BindingsOf(*target);
+    if (engine == nullptr) return;
+
+    MultiBindingExpression multi =
+        engine->FindMultiBinding(*target, property);
+    if (multi.IsValid()) {
+        for (std::uint32_t index = 0U; index < multi.handles_.Size(); ++index) {
+            static_cast<void>(engine->Detach(multi.handles_[index]));
+        }
+        return;
+    }
+
+    BindingHandle handle = engine->FindBinding(*target, property);
+    if (handle.IsValid()) {
+        static_cast<void>(engine->Detach(handle));
+    }
+}
+
+void BindingOperations::ClearAllBindings(DependencyObject* target) noexcept {
+    if (target == nullptr) return;
+    BindingEngine* engine = ElementTree::BindingsOf(*target);
+    if (engine == nullptr) return;
+
+    Base::Vector<BindingInspection> inspections;
+    Base::Result<std::uint32_t> inspected =
+        engine->InspectBindings(*target, inspections);
+    if (!inspected) return;
+    for (std::uint32_t index = 0U; index < inspections.Size(); ++index) {
+        const BindingInspection& item = inspections[index];
+        if (item.target != target || !item.handle.IsValid()) continue;
+        static_cast<void>(engine->Detach(item.handle));
+    }
+}
+
+bool BindingOperations::IsDataBound(
+    DependencyObject* target,
+    DependencyPropertyHandle property) noexcept {
+    if (GetBindingExpression(target, property).IsValid()) return true;
+    return GetMultiBindingExpression(target, property).IsValid();
+}
+
 BindingExpression BindingOperations::GetBindingExpression(
     DependencyObject* target,
     DependencyPropertyHandle property) noexcept {

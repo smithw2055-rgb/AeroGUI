@@ -1,5 +1,6 @@
 // Auto-relocated base-class method definitions (WPF semantic kernel).
 #include <Aero/FrameworkElement.hpp>
+#include <Aero/Data/BindingOperations.hpp>
 #include "gui/styles/StyleEngine.hpp"
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Base/Result.hpp>
@@ -36,6 +37,23 @@ using namespace Aero::Meta;
 using namespace Aero::Threading;
 
 namespace Aero {
+
+Result<Data::BindingExpression> FrameworkElement::SetBinding(
+    DependencyPropertyHandle property,
+    const Data::Binding& binding) noexcept {
+    return Data::BindingOperations::SetBinding(this, property, binding);
+}
+
+Result<Data::BindingExpression> FrameworkElement::SetBinding(
+    DependencyPropertyHandle property,
+    StringView path) noexcept {
+    Data::Binding binding(path);
+    return Data::BindingOperations::SetBinding(this, property, binding);
+}
+
+void FrameworkElement::ClearBinding(DependencyPropertyHandle property) noexcept {
+    Data::BindingOperations::ClearBinding(this, property);
+}
 
 FrameworkElement* FrameworkElement::GetRenderParent() const noexcept {
     ::Aero::Media::Visual* parent = GetVisualParent();

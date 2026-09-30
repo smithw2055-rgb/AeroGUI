@@ -9,11 +9,16 @@
 #include <Aero/ElementEnums.hpp>
 #include <Aero/Layout.hpp>
 #include <Aero/UIElement.hpp>
+#include <Aero/Data/BindingExpression.hpp>
 
 #include <cstdint>
 
 
 namespace Aero {
+
+namespace Data {
+class Binding;
+}
 
 using Meta::PropertyInvalidationFlags;
 using Meta::TypeId;
@@ -167,6 +172,33 @@ public:
     void SetVerticalAlignment(VerticalAlignment value) noexcept;
     void SetLayoutTransform(Ref<Media::Transform> value) noexcept;
     void InvalidateVisual() noexcept;
+
+    // WPF/Noesis-shaped code-side binding attach. Real work lives in
+    // BindingOperations → BindingEngine::Attach (same path as {Binding}).
+    Result<Data::BindingExpression> SetBinding(
+        DependencyPropertyHandle property,
+        const Data::Binding& binding) noexcept;
+    template<class TOwner, class TValue>
+    Result<Data::BindingExpression> SetBinding(
+        const DependencyPropertyRef<TOwner, TValue>& property,
+        const Data::Binding& binding) noexcept {
+        return SetBinding(property.Handle(), binding);
+    }
+    Result<Data::BindingExpression> SetBinding(
+        DependencyPropertyHandle property,
+        StringView path) noexcept;
+    template<class TOwner, class TValue>
+    Result<Data::BindingExpression> SetBinding(
+        const DependencyPropertyRef<TOwner, TValue>& property,
+        StringView path) noexcept {
+        return SetBinding(property.Handle(), path);
+    }
+    void ClearBinding(DependencyPropertyHandle property) noexcept;
+    template<class TOwner, class TValue>
+    void ClearBinding(
+        const DependencyPropertyRef<TOwner, TValue>& property) noexcept {
+        ClearBinding(property.Handle());
+    }
 
 protected:
     virtual std::uint32_t GetLogicalChildrenCount() const noexcept { return GetVisualChildrenCount(); }
