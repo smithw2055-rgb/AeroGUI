@@ -12,6 +12,7 @@
 #include <Aero/Data/BindingExpression.hpp>
 
 #include <cstdint>
+#include <utility>
 
 
 namespace Aero {
@@ -24,7 +25,21 @@ using Meta::PropertyInvalidationFlags;
 using Meta::TypeId;
 
 class Style;
-namespace Controls { class Viewbox; }
+class LayoutEngine;
+class AnimationEngine;
+class BindingEngine;
+class InteractivityEngine;
+class StoryboardHost;
+class ElementTree;
+namespace Controls {
+class Viewbox;
+class TemplateBuilder;
+class TemplateEngine;
+class ItemsControl;
+}
+namespace Interactivity { class StyleInteraction; }
+namespace Diagnostics { class Inspector; }
+namespace Detail { class FrameworkElementSeams; }
 class FrameworkElement;
 namespace Media {
 class DrawingContext;
@@ -75,13 +90,6 @@ public:
     bool GetHasWidth() const noexcept;
     bool GetHasHeight() const noexcept;
     double GetWidth() const noexcept;
-    void SetAnimatedWidth(Length value) noexcept { layoutScalars_.width = value; }
-    void SetAnimatedHeight(Length value) noexcept { layoutScalars_.height = value; }
-    void SetAnimatedMinWidth(double value) noexcept { layoutScalars_.minWidth = value; }
-    void SetAnimatedMinHeight(double value) noexcept { layoutScalars_.minHeight = value; }
-    void SetAnimatedMaxWidth(double value) noexcept { layoutScalars_.maxWidth = value; }
-    void SetAnimatedMaxHeight(double value) noexcept { layoutScalars_.maxHeight = value; }
-    void SetAnimatedMargin(Thickness value) noexcept { layoutScalars_.margin = value; }
     double GetHeight() const noexcept;
     double GetActualWidth() const noexcept { return GetValue(ActualWidthProperty); }
     double GetActualHeight() const noexcept { return GetValue(ActualHeightProperty); }
@@ -91,7 +99,6 @@ public:
     Ref<Media::Transform> GetLayoutTransform() const noexcept;
     Base::ProjectiveTransform2D GetLocalVisualTransform() const noexcept;
     bool TryGetViewboxTransform(Base::Transform2D& matrix) const noexcept;
-    Result<Value> GetDataContextResult() const noexcept;
     Ref<Media::FontFamily> GetFontFamily() const noexcept { return GetValue(FontFamilyProperty); }
     FlowDirection GetFlowDirection() const noexcept { return GetValue(FlowDirectionProperty); }
     Base::Object* FindName(StringView name) noexcept;
@@ -242,13 +249,38 @@ private:
 
 public:
     void Render(::Aero::Media::DrawingContext& context) noexcept { OnRender(context); }
+
+private:
+    friend class LogicalTreeHelper;
+    friend class Controls::Viewbox;
+    friend class ResourceResolver;
+    friend class LayoutEngine;
+    friend class UIElement;
+    friend class AnimationEngine;
+    friend class BindingEngine;
+    friend class InteractivityEngine;
+    friend class StoryboardHost;
+    friend class Interactivity::StyleInteraction;
+    friend class Controls::TemplateBuilder;
+    friend class Controls::TemplateEngine;
+    friend class Controls::ItemsControl;
+    friend class Diagnostics::Inspector;
+    friend class Detail::FrameworkElementSeams;
+
+    void SetAnimatedWidth(Length value) noexcept { layoutScalars_.width = value; }
+    void SetAnimatedHeight(Length value) noexcept { layoutScalars_.height = value; }
+    void SetAnimatedMinWidth(double value) noexcept { layoutScalars_.minWidth = value; }
+    void SetAnimatedMinHeight(double value) noexcept { layoutScalars_.minHeight = value; }
+    void SetAnimatedMaxWidth(double value) noexcept { layoutScalars_.maxWidth = value; }
+    void SetAnimatedMaxHeight(double value) noexcept { layoutScalars_.maxHeight = value; }
+    void SetAnimatedMargin(Thickness value) noexcept { layoutScalars_.margin = value; }
+    Result<Value> GetDataContextResult() const noexcept;
     void SetActualSize(double width, double height) noexcept {
         Meta::PropertyValue widthVal(width);
         Meta::PropertyValue heightVal(height);
         SetReadOnlyCurrentValue(ActualWidthProperty.Handle(), widthVal);
         SetReadOnlyCurrentValue(ActualHeightProperty.Handle(), heightVal);
     }
-
     void SetTemplatedParent(DependencyObject* value) noexcept {
         Result<void> access = VerifyAccess();
         if (!access) return;
@@ -268,15 +300,10 @@ public:
     void ClearStyleTriggerPrototypes() noexcept;
     Span<const Ref<Base::Object>> StyleTriggerPrototypes() const noexcept;
 
-private:
     const ResourceDictionary* LocalResources() const noexcept { return resources_; }
 
     Base::Object* FindNameObject(StringView name, Meta::TypeId expectedType) noexcept;
     Base::Object* FindRegisteredName(StringView name) const noexcept;
-
-    friend class LogicalTreeHelper;
-    friend class Controls::Viewbox;
-    friend class ResourceResolver;
     double dpiScale_ = 1.0;
     DependencyObject* templatedParent_ = nullptr;
     mutable ResourceDictionary* resources_ = nullptr;
@@ -289,6 +316,39 @@ private:
     void ClearViewboxTransform() noexcept;
     FrameworkRare* frameworkRare_ = nullptr;
 };
+
+
+namespace Detail {
+
+// Src/metadata free-function bridge. Engine classes are friends and call
+// FrameworkElement private seams directly; do not grow this helper.
+class FrameworkElementSeams {
+public:
+    static void SetAnimatedWidth(FrameworkElement& e, Length value) noexcept { e.SetAnimatedWidth(value); }
+    static void SetAnimatedHeight(FrameworkElement& e, Length value) noexcept { e.SetAnimatedHeight(value); }
+    static void SetAnimatedMinWidth(FrameworkElement& e, double value) noexcept { e.SetAnimatedMinWidth(value); }
+    static void SetAnimatedMinHeight(FrameworkElement& e, double value) noexcept { e.SetAnimatedMinHeight(value); }
+    static void SetAnimatedMaxWidth(FrameworkElement& e, double value) noexcept { e.SetAnimatedMaxWidth(value); }
+    static void SetAnimatedMaxHeight(FrameworkElement& e, double value) noexcept { e.SetAnimatedMaxHeight(value); }
+    static void SetAnimatedMargin(FrameworkElement& e, Thickness value) noexcept { e.SetAnimatedMargin(value); }
+    static Result<Value> GetDataContextResult(const FrameworkElement& e) noexcept { return e.GetDataContextResult(); }
+    static void SetActualSize(FrameworkElement& e, double width, double height) noexcept { e.SetActualSize(width, height); }
+    static void SetTemplatedParent(FrameworkElement& e, DependencyObject* value) noexcept { e.SetTemplatedParent(value); }
+    static void AddAuthoredTrigger(FrameworkElement& e, Ref<Base::Object> trigger) noexcept { e.AddAuthoredTrigger(std::move(trigger)); }
+    static void ClearAuthoredTriggers(FrameworkElement& e) noexcept { e.ClearAuthoredTriggers(); }
+    static Span<const Ref<Base::Object>> AuthoredTriggers(const FrameworkElement& e) noexcept { return e.AuthoredTriggers(); }
+    static void AddAuthoredBehavior(FrameworkElement& e, Ref<Base::Object> behavior) noexcept { e.AddAuthoredBehavior(std::move(behavior)); }
+    static void ClearAuthoredBehaviors(FrameworkElement& e) noexcept { e.ClearAuthoredBehaviors(); }
+    static Span<const Ref<Base::Object>> AuthoredBehaviors(const FrameworkElement& e) noexcept { return e.AuthoredBehaviors(); }
+    static void AddStyleBehaviorPrototype(FrameworkElement& e, Ref<Base::Object> behavior) noexcept { e.AddStyleBehaviorPrototype(std::move(behavior)); }
+    static void ClearStyleBehaviorPrototypes(FrameworkElement& e) noexcept { e.ClearStyleBehaviorPrototypes(); }
+    static Span<const Ref<Base::Object>> StyleBehaviorPrototypes(const FrameworkElement& e) noexcept { return e.StyleBehaviorPrototypes(); }
+    static void AddStyleTriggerPrototype(FrameworkElement& e, Ref<Base::Object> trigger) noexcept { e.AddStyleTriggerPrototype(std::move(trigger)); }
+    static void ClearStyleTriggerPrototypes(FrameworkElement& e) noexcept { e.ClearStyleTriggerPrototypes(); }
+    static Span<const Ref<Base::Object>> StyleTriggerPrototypes(const FrameworkElement& e) noexcept { return e.StyleTriggerPrototypes(); }
+};
+
+} // namespace Detail
 
 } // namespace Aero
 

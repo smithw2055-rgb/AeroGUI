@@ -350,10 +350,10 @@ CompileBlueprint(
         if (!named) return named.GetStatus();
 
         if (auto* framework = ::Aero::TryCast<FrameworkElement>(object)) {
-            for (const auto& b : (*framework).AuthoredBehaviors()) {
+            for (const auto& b : Detail::FrameworkElementSeams::AuthoredBehaviors(*framework)) {
                 node.authoredBehaviors.PushBack(b);
             }
-            for (const auto& t : (*framework).AuthoredTriggers()) {
+            for (const auto& t : Detail::FrameworkElementSeams::AuthoredTriggers(*framework)) {
                 node.authoredTriggers.PushBack(t);
             }
         }
@@ -1931,10 +1931,10 @@ Base::Result<void> BuildCompiledTemplate(
         }
         if (auto* framework = ::Aero::TryCast<FrameworkElement>(objects[index].Get())) {
             for (const auto& b : node.authoredBehaviors) {
-                (*framework).AddStyleBehaviorPrototype( b);
+                Detail::FrameworkElementSeams::AddStyleBehaviorPrototype(*framework, b);
             }
             for (const auto& t : node.authoredTriggers) {
-                (*framework).AddStyleTriggerPrototype( t);
+                Detail::FrameworkElementSeams::AddStyleTriggerPrototype(*framework, t);
             }
         }
     }
@@ -2318,7 +2318,7 @@ Base::Result<void> BuildCompiledTemplate(
         // evaluated. Keep the owner alive through both evaluations.
         FrameworkElement* const triggerRoot = triggerContext->root;
         Base::Ref<Base::Object> triggerOwner(triggerContext);
-        (*triggerRoot).AddAuthoredTrigger( std::move(triggerOwner));
+        Detail::FrameworkElementSeams::AddAuthoredTrigger(*triggerRoot, std::move(triggerOwner));
     }
     return {};
 }
@@ -2393,10 +2393,10 @@ BuildCompiledDeferredTemplate(
         }
         if (auto* framework = ::Aero::TryCast<FrameworkElement>(objects[index].Get())) {
             for (const auto& b : node.authoredBehaviors) {
-                (*framework).AddStyleBehaviorPrototype( b);
+                Detail::FrameworkElementSeams::AddStyleBehaviorPrototype(*framework, b);
             }
             for (const auto& t : node.authoredTriggers) {
-                (*framework).AddStyleTriggerPrototype( t);
+                Detail::FrameworkElementSeams::AddStyleTriggerPrototype(*framework, t);
             }
         }
     }
@@ -2740,7 +2740,7 @@ BuildCompiledDeferredTemplate(
         if (!retained) return retained.GetStatus();
     }
     if (triggerContext) {
-        (static_cast<FrameworkElement&>(*root)).AddAuthoredTrigger(
+        Detail::FrameworkElementSeams::AddAuthoredTrigger(static_cast<FrameworkElement&>(*root), 
             Base::Ref<Base::Object>(triggerContext));
     }
     return root;

@@ -225,6 +225,10 @@ public:
     Base::Result<void> DetachNode(::Aero::Media::Visual& node) noexcept;
     void InvalidateNodeHandle(::Aero::Media::Visual& node) noexcept;
     void InvalidateHandleSubtree(::Aero::Media::Visual& node) noexcept;
+    void DetachPropertyDependencyGraph(
+        DependencyObject& node,
+        AnimationEngine* animations,
+        Base::Vector<DependencyObject*>& visited) noexcept;
 
     void AttachPresentation(
         Aero::LayoutEngine* layout,

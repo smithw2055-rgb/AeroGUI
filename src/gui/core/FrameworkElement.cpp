@@ -442,7 +442,8 @@ void AddFrameworkEventTrigger(
         return;
     }
     static_cast<void>(
-        (static_cast<FrameworkElement&>(owner)).AddAuthoredTrigger(
+        Detail::FrameworkElementSeams::AddAuthoredTrigger(
+            static_cast<FrameworkElement&>(owner),
             Base::Ref<Base::Object>(std::move(retained))));
 }
 
@@ -450,7 +451,8 @@ void ClearFrameworkEventTriggers(
     Base::Object& owner,
     void*) noexcept {
     static_cast<void>(
-        (static_cast<FrameworkElement&>(owner)).ClearAuthoredTriggers());
+        Detail::FrameworkElementSeams::ClearAuthoredTriggers(
+            static_cast<FrameworkElement&>(owner)));
 }
 
 void OnLayoutTransformChanged(

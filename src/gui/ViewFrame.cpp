@@ -491,8 +491,12 @@ void DetachViewUi(
         for (std::uint32_t index = reachable.Size(); index > 0U; --index) {
             Aero::Media::Visual* node = reachable[index - 1U];
             if (node == nullptr) continue;
-            node->DetachPropertyDependencyObjects(
-                state.Bindings(), state.values, state.Animations(), detachedPropertyObjects);
+            if (state.tree != nullptr) {
+                state.tree->DetachPropertyDependencyGraph(
+                    *node, state.Animations(), detachedPropertyObjects);
+            } else {
+                // No tree hub: skip property-graph detach (engines already torn down).
+            }
             if (state.metadata != nullptr &&
                 state.metadata->Types().IsDerivedFrom(
                     node->RuntimeType(), Controls::ItemsControl::StaticTypeId())) {

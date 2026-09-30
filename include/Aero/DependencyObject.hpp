@@ -19,8 +19,11 @@ struct DependencyObjectRare;
 class DependencyMutationScope;
 class DependencyObjectAccess;
 class Freezable;
+class Animatable;
 class BindingEngine;
 class AnimationEngine;
+class ElementTree;
+namespace Controls { class VisualStateManagerState; }
 namespace Meta { class EffectiveValueEngine; }
 
 class AERO_GUI_API DependencyObject : public DispatcherObject {
@@ -112,7 +115,18 @@ protected:
     }
     virtual Result<void> VerifyMutationAllowed() const noexcept;
 
-public:
+private:
+    friend class DependencyMutationScope;
+    // Property engine invokes the protected Coerce/Validate virtuals.
+    friend class Meta::DependencyPropertyRegistry;
+    friend class DependencyObjectAccess;
+    friend class Freezable;
+    friend class Animatable;
+    friend class Meta::EffectiveValueEngine;
+    friend class AnimationEngine;
+    friend class ElementTree;
+    friend class Controls::VisualStateManagerState;
+
     PropertyStore* Store() noexcept { return static_cast<PropertyStore*>(valueStore_); }
     const PropertyStore* Store() const noexcept { return static_cast<const PropertyStore*>(valueStore_); }
     void ForEachStoredKey(
@@ -161,11 +175,6 @@ public:
     void ReleaseExpression(StoredValueEntry& entry) noexcept;
     void RemoveStoredEntry(MemberId key) noexcept;
 
-private:
-    friend class DependencyMutationScope;
-    // Property engine invokes the protected Coerce/Validate virtuals.
-    friend class Meta::DependencyPropertyRegistry;
-    friend class DependencyObjectAccess;
     Meta::DependencyPropertyRegistry& PropertyRegistry() const noexcept { return *registry_; }
     bool HasPropertyRegistry() const noexcept { return registry_ != nullptr; }
 

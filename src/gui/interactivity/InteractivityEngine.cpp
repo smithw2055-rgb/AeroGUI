@@ -83,9 +83,9 @@ Base::Result<Meta::PropertyValue> ResolveInteractionActionPath(
             "Interaction.Triggers source is not a FrameworkElement");
     }
     Base::Span<const Base::Ref<Base::Object>> triggers =
-        (*element).StyleTriggerPrototypes();
+        Detail::FrameworkElementSeams::StyleTriggerPrototypes(*element);
     if (triggers.Empty()) {
-        triggers = (*element).AuthoredTriggers();
+        triggers = Detail::FrameworkElementSeams::AuthoredTriggers(*element);
     }
     if (triggerIndex >= triggers.Size() ||
         !triggers[triggerIndex]) {

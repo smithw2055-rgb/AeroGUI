@@ -15,6 +15,7 @@ class AERO_GUI_API Freezable : public DependencyObject {
     AERO_DECLARE_TYPE(Freezable, DependencyObject)
 public:
     struct State;  // Freezable.cpp-local program data (nested; definition private to TU)
+    struct FreezeCheckContext;  // freeze-walk context (defined in Freezable.cpp)
 
     bool IsFrozen() const noexcept;
     bool CanFreeze() const noexcept;
@@ -42,6 +43,8 @@ public:
     Base::Result<void> AttachConsumer(DependencyObject& object, Meta::DependencyPropertyHandle property) noexcept;
     void DetachConsumer(DependencyObject& object, Meta::DependencyPropertyHandle property) noexcept;
 private:
+    static Base::Result<void> CheckFreezeNode(FreezeCheckContext& context, Freezable& value) noexcept;
+    static Base::Result<void> CheckFreezeChild(void* context, Freezable& child) noexcept;
     bool EnsureState() noexcept;
     State* state_ = nullptr;
 };

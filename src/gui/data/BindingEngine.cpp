@@ -834,7 +834,7 @@ Base::Result<PropertyValue> ReadDataContextValue(
     Meta::DependencyPropertyHandle handle) noexcept {
     if (::Aero::FrameworkElement* element =
             ::Aero::TryCast<::Aero::FrameworkElement>(&node)) {
-        return element->GetDataContextResult();
+        return Detail::FrameworkElementSeams::GetDataContextResult(*element);
     }
     if (DependencyObjectAccess::PropertyRegistry((node)).Find(handle) == nullptr) {
         return Base::Status::Failure(

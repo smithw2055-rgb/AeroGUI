@@ -133,6 +133,13 @@ DependencyObject* LogicalTreeHelper::GetChild(
     return nullptr;
 }
 
+void ElementTree::DetachPropertyDependencyGraph(
+    DependencyObject& node,
+    AnimationEngine* animations,
+    Base::Vector<DependencyObject*>& visited) noexcept {
+    node.DetachPropertyDependencyObjects(bindings_, values_, animations, visited);
+}
+
 void ElementTree::InvalidateNodeHandle(::Aero::Media::Visual& node) noexcept {
     const VisualHandle handle{node.handleIndex_, node.handleGeneration_};
     if (handle.IsValid() && handle.index < handles_.Size()) {

@@ -77,7 +77,11 @@ bool Contains(
     return false;
 }
 
-struct FreezeCheckContext {
+thread_local Freezable::FreezeCheckContext* activeFreezeCheck = nullptr;
+
+} // namespace
+
+struct Freezable::FreezeCheckContext {
     explicit FreezeCheckContext(Base::IAllocator& allocator) noexcept
         : visiting(&allocator), complete(&allocator) {}
 
@@ -85,20 +89,14 @@ struct FreezeCheckContext {
     Base::Vector<Freezable*> complete;
 };
 
-thread_local FreezeCheckContext* activeFreezeCheck = nullptr;
-
-Base::Result<void> CheckFreezeNode(
-    FreezeCheckContext& context,
-    Freezable& value) noexcept;
-
-Base::Result<void> CheckFreezeChild(
+Base::Result<void> Freezable::CheckFreezeChild(
     void* context,
     Freezable& child) noexcept {
-    return CheckFreezeNode(
+    return Freezable::CheckFreezeNode(
         *static_cast<FreezeCheckContext*>(context), child);
 }
 
-Base::Result<void> CheckFreezeNode(
+Base::Result<void> Freezable::CheckFreezeNode(
     FreezeCheckContext& context,
     Freezable& value) noexcept {
     if (value.IsFrozen() || Contains(context.complete, &value)) return {};
@@ -106,18 +104,18 @@ Base::Result<void> CheckFreezeNode(
         return FreezeGraphStatus(
             "A Freezable object graph contains a cycle");
     }
-    if ((value).HasUnfreezableValueState()) {
+    if (value.HasUnfreezableValueState()) {
         return FreezeGraphStatus(
             "A Freezable with an expression or animation cannot be frozen");
     }
     context.visiting.PushBack(&value);
     Base::Result<void> children =
-        (value).VisitFreezableChildren( &context, &CheckFreezeChild);
+        value.VisitFreezableChildren(&context, &Freezable::CheckFreezeChild);
     if (!children) {
         context.visiting.PopBack();
         return children.GetStatus();
     }
-    if (!(value).CheckFreezeCore()) {
+    if (!value.CheckFreezeCore()) {
         context.visiting.PopBack();
         return FreezeGraphStatus(
             "A Freezable child rejected the freeze operation");
@@ -126,6 +124,8 @@ Base::Result<void> CheckFreezeNode(
     context.complete.PushBack(&value);
     return {};
 }
+
+namespace {
 
 void RemoveHandlerAt(
     Base::Vector<Freezable::State::HandlerRecord>& handlers,
@@ -185,13 +185,13 @@ bool Freezable::CanFreeze() const noexcept {
     if (!VerifyAccess()) return false;
     if (state_ != nullptr && state_->freezing) return false;
     if (activeFreezeCheck != nullptr) {
-        return CheckFreezeNode(
+        return Freezable::CheckFreezeNode(
             *activeFreezeCheck,
             *const_cast<Freezable*>(this)).HasValue();
     }
-    FreezeCheckContext context(Base::GetDefaultAllocator());
+    Freezable::FreezeCheckContext context(Base::GetDefaultAllocator());
     activeFreezeCheck = &context;
-    Base::Result<void> checked = CheckFreezeNode(
+    Base::Result<void> checked = Freezable::CheckFreezeNode(
         context, *const_cast<Freezable*>(this));
     activeFreezeCheck = nullptr;
     return checked.HasValue();
@@ -208,12 +208,12 @@ Base::Result<void> Freezable::Freeze() noexcept {
     }
 
     if (activeFreezeCheck != nullptr) {
-        return CheckFreezeNode(*activeFreezeCheck, *this);
+        return Freezable::CheckFreezeNode(*activeFreezeCheck, *this);
     }
 
-    FreezeCheckContext context(Base::GetDefaultAllocator());
+    Freezable::FreezeCheckContext context(Base::GetDefaultAllocator());
     activeFreezeCheck = &context;
-    Base::Result<void> checked = CheckFreezeNode(context, *this);
+    Base::Result<void> checked = Freezable::CheckFreezeNode(context, *this);
     activeFreezeCheck = nullptr;
     if (!checked) return checked.GetStatus();
 

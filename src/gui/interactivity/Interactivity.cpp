@@ -303,7 +303,8 @@ void AddInteractionBehavior(
         static_cast<EventTrigger&>(owner)
             .AddConditionBehavior(value);
     } else {
-        static_cast<void>((static_cast<FrameworkElement&>(owner)).AddAuthoredBehavior( value));
+        static_cast<void>(Detail::FrameworkElementSeams::AddAuthoredBehavior(
+            static_cast<FrameworkElement&>(owner), value));
     }
 }
 
@@ -319,7 +320,8 @@ void ClearInteractionBehaviors(Base::Object& owner, void*) noexcept {
         static_cast<EventTrigger&>(owner)
             .ClearConditionBehaviors();
     } else {
-        static_cast<void>((static_cast<FrameworkElement&>(owner)).ClearAuthoredBehaviors());
+        static_cast<void>(Detail::FrameworkElementSeams::ClearAuthoredBehaviors(
+            static_cast<FrameworkElement&>(owner)));
     }
 }
 
@@ -389,7 +391,8 @@ void AddInteractionTrigger(
     if (types.IsDerivedFrom(
             owner.RuntimeType(), FrameworkElement::StaticTypeId())) {
         static_cast<void>(
-            (static_cast<FrameworkElement&>(owner)).AddAuthoredTrigger( value));
+            Detail::FrameworkElementSeams::AddAuthoredTrigger(
+                static_cast<FrameworkElement&>(owner), value));
     } else if (types.IsDerivedFrom(
                    owner.RuntimeType(),
                    FrameworkContentElement::StaticTypeId())) {
@@ -408,7 +411,8 @@ void ClearInteractionTriggers(
     if (types.IsDerivedFrom(
             owner.RuntimeType(), FrameworkElement::StaticTypeId())) {
         static_cast<void>(
-            (static_cast<FrameworkElement&>(owner)).ClearAuthoredTriggers());
+            Detail::FrameworkElementSeams::ClearAuthoredTriggers(
+                static_cast<FrameworkElement&>(owner)));
     } else if (types.IsDerivedFrom(
                    owner.RuntimeType(),
                    FrameworkContentElement::StaticTypeId())) {

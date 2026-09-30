@@ -135,7 +135,43 @@ private:
     Base::Result<void> ClearStateAnimations(ActiveGroup& active) noexcept;
     void PruneStale() noexcept;
     void RemoveActiveAt(std::uint32_t index) noexcept;
+    static PropertyValue BaseValueWithoutAnimation(
+        DependencyObject& target,
+        DependencyPropertyHandle property,
+        DependencyPropertyRegistry& properties) noexcept;
 };
+
+} // namespace Aero::Controls
+
+namespace Aero::Controls {
+
+PropertyValue VisualStateManagerState::BaseValueWithoutAnimation(
+    DependencyObject& target,
+    DependencyPropertyHandle property,
+    DependencyPropertyRegistry& properties) noexcept {
+    // Template-expanded values (Menu3D CircledArrow Fill.Opacity="0") are not
+    // Local. ReadLocalValue is Unset and Brush.Opacity metadata defaults to 1,
+    // so generated Unchecked transitions would tween 1→1 and leave the arrow
+    // visible. Animation-base includes template/style/local, excluding HoldEnd.
+    Base::Result<PropertyValue> base =
+        (target).GetAnimationBaseValueInternal( property);
+    if (base && !base.Value().IsUnset()) {
+        return base.Value();
+    }
+    const PropertyValue local = target.ReadLocalValue(property);
+    if (!local.IsUnset()) {
+        return local;
+    }
+    const DependencyProperty* descriptor = properties.Find(property);
+    if (descriptor == nullptr) {
+        return PropertyValue::Unset();
+    }
+    const PropertyMetadata* metadata =
+        descriptor->MetadataFor(target.RuntimeType());
+    return metadata != nullptr
+        ? metadata->defaultValue
+        : PropertyValue::Unset();
+}
 
 } // namespace Aero::Controls
 
@@ -776,33 +812,7 @@ Base::Result<void> VisualStateManagerState::CaptureTransitionValues(
     return {};
 }
 
-PropertyValue BaseValueWithoutAnimation(
-    DependencyObject& target,
-    DependencyPropertyHandle property,
-    DependencyPropertyRegistry& properties) noexcept {
-    // Template-expanded values (Menu3D CircledArrow Fill.Opacity="0") are not
-    // Local. ReadLocalValue is Unset and Brush.Opacity metadata defaults to 1,
-    // so generated Unchecked transitions would tween 1→1 and leave the arrow
-    // visible. Animation-base includes template/style/local, excluding HoldEnd.
-    Base::Result<PropertyValue> base =
-        (target).GetAnimationBaseValueInternal( property);
-    if (base && !base.Value().IsUnset()) {
-        return base.Value();
-    }
-    const PropertyValue local = target.ReadLocalValue(property);
-    if (!local.IsUnset()) {
-        return local;
-    }
-    const DependencyProperty* descriptor = properties.Find(property);
-    if (descriptor == nullptr) {
-        return PropertyValue::Unset();
-    }
-    const PropertyMetadata* metadata =
-        descriptor->MetadataFor(target.RuntimeType());
-    return metadata != nullptr
-        ? metadata->defaultValue
-        : PropertyValue::Unset();
-}
+
 
 // Walks a storyboard (recursively) and, for every animatable leaf timeline,
 // resolves its real target and captures the current value (from) plus the
@@ -855,7 +865,7 @@ Base::Result<void> VisualStateManagerState::CaptureStoryboardTimeline(
     if (!from) return from.GetStatus();
 
     if (revertToBase) {
-        const PropertyValue to = BaseValueWithoutAnimation(
+        const PropertyValue to = VisualStateManagerState::BaseValueWithoutAnimation(
             *target, property, properties);
         if (to.IsUnset()) {
             return {};
