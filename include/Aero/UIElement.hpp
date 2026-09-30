@@ -16,6 +16,12 @@
 
 namespace Aero {
 class LayoutEngine;
+class ElementTree;
+class AnimationEngine;
+class PointerStateMachine;
+class FocusState;
+class EventRouter;
+namespace Controls { namespace Primitives { class ButtonBase; } }
 
 using Point = Base::Point;
 using Size = Base::Size;
@@ -197,8 +203,6 @@ public:
     Ref<Media::Effect> GetEffect() const noexcept;
     Ref<Media::Brush> GetOpacityMask() const noexcept;
     double GetOpacity() const noexcept;
-    void SetAnimatedOpacity(double value) noexcept { layout_.opacity = value; }
-    void SetAnimatedVisibility(Visibility value) noexcept { layout_.visibility = value; }
     bool GetIsHitTestVisible() const noexcept;
     Visibility GetVisibility() const noexcept;
     bool GetIsVisible() const noexcept;
@@ -340,15 +344,29 @@ protected:
     Result<void> MeasureChild(UIElement& child, Size availableSize) noexcept;
     Result<void> ArrangeChild(UIElement& child, Rect finalRect) noexcept;
     UIElementChildRange LayoutChildren() const noexcept { return UIElementChildRange(*this); }
-public:
-    LayoutHot& Layout() noexcept { return layout_; }
-    const LayoutHot& Layout() const noexcept { return layout_; }
 
 private:
     friend class LayoutEngine;
+    friend class ElementTree;
+    friend class EventRouter;
+    friend class AnimationEngine;
+    friend class PointerStateMachine;
+    friend class FocusState;
+class EventRouter;
+    friend class Controls::Primitives::ButtonBase;
     friend class UIElementChildRange;
     friend class UIElementChildRange::Iterator;
     friend class Aero::Input::RoutedCommand;
+
+    LayoutHot& Layout() noexcept { return layout_; }
+    const LayoutHot& Layout() const noexcept { return layout_; }
+    void SetAnimatedOpacity(double value) noexcept { layout_.opacity = value; }
+    void SetAnimatedVisibility(Visibility value) noexcept { layout_.visibility = value; }
+    void InvokeHandlers(RoutedEventHandle event, RoutedEventArgs& args) noexcept;
+    void SetMouseOverState(bool value) noexcept;
+    void SetPressedState(bool value) noexcept;
+    void SetKeyboardFocusedState(bool value) noexcept;
+    void SetKeyboardFocusWithinState(bool value) noexcept;
 
     Result<void> MeasureCore(LayoutEngine& layout, Size constraint) noexcept;
     Result<void> ArrangeCore(LayoutEngine& layout, Rect slot) noexcept;
@@ -360,14 +378,6 @@ private:
         bool handledEventsToo) noexcept;
     bool RemoveHandlerErased(RoutedEventHandle event, const void* handler, std::size_t size, std::size_t alignment,
         Meta::TypeId argsType) noexcept;
-public:
-    void InvokeHandlers(RoutedEventHandle event, RoutedEventArgs& args) noexcept;
-    void SetMouseOverState(bool value) noexcept;
-    void SetPressedState(bool value) noexcept;
-    void SetKeyboardFocusedState(bool value) noexcept;
-    void SetKeyboardFocusWithinState(bool value) noexcept;
-
-private:
     void CleanupHandlers() noexcept;
     Result<void> EnsureRoutedHandlers() noexcept;
 

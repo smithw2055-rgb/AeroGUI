@@ -1020,6 +1020,46 @@ aero_forbid_text(
     "include/Aero/FrameworkElement.hpp"
     "struct Access;"
     "FrameworkElement must not expose an unused Access seam")
+
+# Engine free-function bridges stay src-only; installed FE/FCE must not embed
+# Seams class bodies (Detail namespace is already banned on installed headers).
+aero_require_file("src/gui/core/FrameworkElementSeams.hpp")
+aero_forbid_text(
+    "include/Aero/FrameworkElement.hpp"
+    "class FrameworkElementSeams {"
+    "FrameworkElementSeams class body must live in src/gui/core/FrameworkElementSeams.hpp")
+aero_forbid_text(
+    "include/Aero/FrameworkContentElement.hpp"
+    "class FrameworkContentElementSeams {"
+    "FrameworkContentElementSeams class body must live in src/gui/core/FrameworkElementSeams.hpp")
+aero_require_text(
+    "src/gui/core/FrameworkElementSeams.hpp"
+    "class FrameworkElementSeams {"
+    "Src-only FrameworkElementSeams bridge is required for metadata/markup free functions")
+aero_require_text(
+    "include/Aero/FrameworkElement.hpp"
+    "friend class FrameworkElementSeams;"
+    "FrameworkElement must friend the src-only Seams bridge")
+aero_require_text(
+    "include/Aero/UIElement.hpp"
+    "friend class PointerStateMachine;"
+    "UIElement must friend PointerStateMachine for mouse-over/pressed seams")
+aero_require_text(
+    "include/Aero/UIElement.hpp"
+    "friend class FocusState;"
+    "UIElement must friend FocusState for keyboard-focus seams")
+aero_require_text(
+    "include/Aero/UIElement.hpp"
+    "friend class ElementTree;"
+    "UIElement must friend ElementTree for Layout/InvokeHandlers seams")
+aero_require_text(
+    "include/Aero/Freezable.hpp"
+    "friend class DependencyObject;"
+    "Freezable consumer attach/detach must stay private to DependencyObject")
+aero_require_text(
+    "include/Aero/Freezable.hpp"
+    "friend class BindingEngine;"
+    "Freezable::Parent must stay private to BindingEngine")
 aero_require_text(
     "src/gui/markup/XamlObjectWriter.cpp"
     "ObjectWriter::ConnectEvent("

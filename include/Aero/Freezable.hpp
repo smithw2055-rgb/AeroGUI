@@ -5,6 +5,7 @@
 namespace Aero {
 
 class Freezable;
+class BindingEngine;
 
 using FreezableChangedHandler = Base::Delegate<void(Freezable&)>;
 
@@ -35,14 +36,16 @@ protected:
 
     void OnPropertyInvalidated(Meta::PropertyInvalidationFlags flags) noexcept override;
     Result<void> VerifyMutationAllowed() const noexcept override;
-
-public:
     std::uint64_t Revision() const noexcept;
+
+private:
+    friend class DependencyObject;
+    friend class BindingEngine;
+
     bool CheckFreezeCore() noexcept;
     DependencyObject* Parent() const noexcept;
     Base::Result<void> AttachConsumer(DependencyObject& object, Meta::DependencyPropertyHandle property) noexcept;
     void DetachConsumer(DependencyObject& object, Meta::DependencyPropertyHandle property) noexcept;
-private:
     static Base::Result<void> CheckFreezeNode(FreezeCheckContext& context, Freezable& value) noexcept;
     static Base::Result<void> CheckFreezeChild(void* context, Freezable& child) noexcept;
     bool EnsureState() noexcept;

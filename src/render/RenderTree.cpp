@@ -1986,7 +1986,7 @@ Base::Result<void> RenderTree::DescribeVisual(
         if (Media::Transform3D* localTransform3D =
                 element->GetTransform3D().Get()) {
             const std::uint64_t extra =
-                (*localTransform3D).Revision();
+                (*localTransform3D).GetRevision();
             if (UINT64_MAX - snapshot.elementRevision < extra) {
                 snapshot.elementRevision = UINT64_MAX;
             } else {

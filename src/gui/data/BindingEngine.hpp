@@ -425,6 +425,14 @@ private:
     void ReleaseMetadataSource(BindingRecord& record) noexcept;
     void CleanupRecord(BindingRecord& record) noexcept;
     void RemoveAt(std::uint32_t index) noexcept;
+
+    static DependencyObject* BindingParent(DependencyObject& node) noexcept;
+    static bool BindingOwnerSeesDataContextChange(
+        DependencyObject* owner,
+        DependencyObject& changed) noexcept;
+    static Base::Result<PropertyValue> ReadDataContextValue(
+        DependencyObject& node,
+        Meta::DependencyPropertyHandle handle) noexcept;
 };
 
 } // namespace Aero

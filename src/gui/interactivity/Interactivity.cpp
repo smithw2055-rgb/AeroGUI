@@ -1,5 +1,6 @@
 #include <Aero/Interactivity/Behavior.hpp>
 #include <Aero/FrameworkElement.hpp>
+#include "gui/core/FrameworkElementSeams.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
@@ -302,7 +303,7 @@ void AddInteractionBehavior(
         static_cast<EventTrigger&>(owner)
             .AddConditionBehavior(value);
     } else {
-        static_cast<void>(Detail::FrameworkElementSeams::AddAuthoredBehavior(
+        static_cast<void>(FrameworkElementSeams::AddAuthoredBehavior(
             static_cast<FrameworkElement&>(owner), value));
     }
 }
@@ -319,7 +320,7 @@ void ClearInteractionBehaviors(Base::Object& owner, void*) noexcept {
         static_cast<EventTrigger&>(owner)
             .ClearConditionBehaviors();
     } else {
-        static_cast<void>(Detail::FrameworkElementSeams::ClearAuthoredBehaviors(
+        static_cast<void>(FrameworkElementSeams::ClearAuthoredBehaviors(
             static_cast<FrameworkElement&>(owner)));
     }
 }
@@ -390,13 +391,13 @@ void AddInteractionTrigger(
     if (types.IsDerivedFrom(
             owner.RuntimeType(), FrameworkElement::StaticTypeId())) {
         static_cast<void>(
-            Detail::FrameworkElementSeams::AddAuthoredTrigger(
+            FrameworkElementSeams::AddAuthoredTrigger(
                 static_cast<FrameworkElement&>(owner), value));
     } else if (types.IsDerivedFrom(
                    owner.RuntimeType(),
                    FrameworkContentElement::StaticTypeId())) {
         static_cast<void>(
-            Detail::FrameworkContentElementSeams::AddAuthoredTrigger(
+            FrameworkContentElementSeams::AddAuthoredTrigger(
                 static_cast<FrameworkContentElement&>(owner), value));
     }
 }
@@ -411,13 +412,13 @@ void ClearInteractionTriggers(
     if (types.IsDerivedFrom(
             owner.RuntimeType(), FrameworkElement::StaticTypeId())) {
         static_cast<void>(
-            Detail::FrameworkElementSeams::ClearAuthoredTriggers(
+            FrameworkElementSeams::ClearAuthoredTriggers(
                 static_cast<FrameworkElement&>(owner)));
     } else if (types.IsDerivedFrom(
                    owner.RuntimeType(),
                    FrameworkContentElement::StaticTypeId())) {
         static_cast<void>(
-            Detail::FrameworkContentElementSeams::ClearAuthoredTriggers(
+            FrameworkContentElementSeams::ClearAuthoredTriggers(
                 static_cast<FrameworkContentElement&>(owner)));
     }
 }

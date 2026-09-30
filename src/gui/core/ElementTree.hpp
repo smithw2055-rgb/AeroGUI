@@ -434,6 +434,7 @@ private:
         Base::Vector<LifecycleRecord>& staged) noexcept;
     void ApplyLoadedSubtree(::Aero::Media::Visual& node, bool loaded) noexcept;
     void SetTreeSubtree(::Aero::Media::Visual& node, ElementTree* tree) noexcept;
+    static void ClearDetachedPresentation(::Aero::Media::Visual& node) noexcept;
     // P3.2 explicit Lifecycle phase entry (formerly the frame-hook body).
     // ViewFrame calls it directly; no hook registration remains.
     static void LifecycleHook(void* context) noexcept;

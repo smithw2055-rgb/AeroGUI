@@ -14,6 +14,8 @@ class AERO_GUI_API Transform3D : public ::Aero::Freezable {
 public:
     ~Transform3D() override = default;
 
+    std::uint64_t GetRevision() const noexcept { return Revision(); }
+
     /// Local 3D affine (identity for camera-like PerspectiveTransform3D).
     [[nodiscard]] virtual Base::Transform3 GetTransform3D() const noexcept = 0;
 

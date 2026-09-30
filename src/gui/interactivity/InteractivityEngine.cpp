@@ -1,5 +1,6 @@
 // InteractivityEngine: behaviors, interaction triggers, and style triggers.
 #include "gui/ViewFrame.hpp"
+#include "gui/core/FrameworkElementSeams.hpp"
 #include "gui/templates/DataTemplateTriggerInstance.hpp"
 #include "gui/core/ValueConversion.hpp"
 #include <algorithm>
@@ -83,9 +84,9 @@ Base::Result<Meta::PropertyValue> ResolveInteractionActionPath(
             "Interaction.Triggers source is not a FrameworkElement");
     }
     Base::Span<const Base::Ref<Base::Object>> triggers =
-        Detail::FrameworkElementSeams::StyleTriggerPrototypes(*element);
+        FrameworkElementSeams::StyleTriggerPrototypes(*element);
     if (triggers.Empty()) {
-        triggers = Detail::FrameworkElementSeams::AuthoredTriggers(*element);
+        triggers = FrameworkElementSeams::AuthoredTriggers(*element);
     }
     if (triggerIndex >= triggers.Size() ||
         !triggers[triggerIndex]) {

@@ -39,7 +39,7 @@ class ItemsControl;
 }
 namespace Interactivity { class StyleInteraction; }
 namespace Diagnostics { class Inspector; }
-namespace Detail { class FrameworkElementSeams; }
+class FrameworkElementSeams;
 class FrameworkElement;
 namespace Media {
 class DrawingContext;
@@ -180,6 +180,7 @@ public:
     void SetVerticalAlignment(VerticalAlignment value) noexcept;
     void SetLayoutTransform(Ref<Media::Transform> value) noexcept;
     void InvalidateVisual() noexcept;
+    void Render(::Aero::Media::DrawingContext& context) noexcept { OnRender(context); }
 
     // WPF/Noesis-shaped code-side binding attach. Real work lives in
     // BindingOperations → BindingEngine::Attach (same path as {Binding}).
@@ -248,10 +249,6 @@ private:
     FrameworkElement* GetRenderParent() const noexcept;
     FrameworkElementChildRange GetRenderChildren() const noexcept { return FrameworkElementChildRange(*this); }
 
-public:
-    void Render(::Aero::Media::DrawingContext& context) noexcept { OnRender(context); }
-
-private:
     friend class LogicalTreeHelper;
     friend class Controls::Viewbox;
     friend class ResourceResolver;
@@ -266,7 +263,7 @@ private:
     friend class Controls::TemplateEngine;
     friend class Controls::ItemsControl;
     friend class Diagnostics::Inspector;
-    friend class Detail::FrameworkElementSeams;
+    friend class FrameworkElementSeams;
 
     void SetAnimatedWidth(Length value) noexcept { layoutScalars_.width = value; }
     void SetAnimatedHeight(Length value) noexcept { layoutScalars_.height = value; }
@@ -318,38 +315,6 @@ private:
     FrameworkRare* frameworkRare_ = nullptr;
 };
 
-
-namespace Detail {
-
-// Src/metadata free-function bridge. Engine classes are friends and call
-// FrameworkElement private seams directly; do not grow this helper.
-class FrameworkElementSeams {
-public:
-    static void SetAnimatedWidth(FrameworkElement& e, Length value) noexcept { e.SetAnimatedWidth(value); }
-    static void SetAnimatedHeight(FrameworkElement& e, Length value) noexcept { e.SetAnimatedHeight(value); }
-    static void SetAnimatedMinWidth(FrameworkElement& e, double value) noexcept { e.SetAnimatedMinWidth(value); }
-    static void SetAnimatedMinHeight(FrameworkElement& e, double value) noexcept { e.SetAnimatedMinHeight(value); }
-    static void SetAnimatedMaxWidth(FrameworkElement& e, double value) noexcept { e.SetAnimatedMaxWidth(value); }
-    static void SetAnimatedMaxHeight(FrameworkElement& e, double value) noexcept { e.SetAnimatedMaxHeight(value); }
-    static void SetAnimatedMargin(FrameworkElement& e, Thickness value) noexcept { e.SetAnimatedMargin(value); }
-    static Result<Value> GetDataContextResult(const FrameworkElement& e) noexcept { return e.GetDataContextResult(); }
-    static void SetActualSize(FrameworkElement& e, double width, double height) noexcept { e.SetActualSize(width, height); }
-    static void SetTemplatedParent(FrameworkElement& e, DependencyObject* value) noexcept { e.SetTemplatedParent(value); }
-    static void AddAuthoredTrigger(FrameworkElement& e, Ref<Base::Object> trigger) noexcept { e.AddAuthoredTrigger(std::move(trigger)); }
-    static void ClearAuthoredTriggers(FrameworkElement& e) noexcept { e.ClearAuthoredTriggers(); }
-    static Span<const Ref<Base::Object>> AuthoredTriggers(const FrameworkElement& e) noexcept { return e.AuthoredTriggers(); }
-    static void AddAuthoredBehavior(FrameworkElement& e, Ref<Base::Object> behavior) noexcept { e.AddAuthoredBehavior(std::move(behavior)); }
-    static void ClearAuthoredBehaviors(FrameworkElement& e) noexcept { e.ClearAuthoredBehaviors(); }
-    static Span<const Ref<Base::Object>> AuthoredBehaviors(const FrameworkElement& e) noexcept { return e.AuthoredBehaviors(); }
-    static void AddStyleBehaviorPrototype(FrameworkElement& e, Ref<Base::Object> behavior) noexcept { e.AddStyleBehaviorPrototype(std::move(behavior)); }
-    static void ClearStyleBehaviorPrototypes(FrameworkElement& e) noexcept { e.ClearStyleBehaviorPrototypes(); }
-    static Span<const Ref<Base::Object>> StyleBehaviorPrototypes(const FrameworkElement& e) noexcept { return e.StyleBehaviorPrototypes(); }
-    static void AddStyleTriggerPrototype(FrameworkElement& e, Ref<Base::Object> trigger) noexcept { e.AddStyleTriggerPrototype(std::move(trigger)); }
-    static void ClearStyleTriggerPrototypes(FrameworkElement& e) noexcept { e.ClearStyleTriggerPrototypes(); }
-    static Span<const Ref<Base::Object>> StyleTriggerPrototypes(const FrameworkElement& e) noexcept { return e.StyleTriggerPrototypes(); }
-};
-
-} // namespace Detail
 
 } // namespace Aero
 

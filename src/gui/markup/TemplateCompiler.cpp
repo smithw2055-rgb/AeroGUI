@@ -11,6 +11,7 @@
 #include "gui/templates/TemplateInstance.hpp"
 #include <Aero/VisualStateManager.hpp>
 #include <cstdio>
+#include "gui/core/FrameworkElementSeams.hpp"
 
 // ===== TemplateCompiler =====
 
@@ -350,10 +351,10 @@ CompileBlueprint(
         if (!named) return named.GetStatus();
 
         if (auto* framework = ::Aero::TryCast<FrameworkElement>(object)) {
-            for (const auto& b : Detail::FrameworkElementSeams::AuthoredBehaviors(*framework)) {
+            for (const auto& b : FrameworkElementSeams::AuthoredBehaviors(*framework)) {
                 node.authoredBehaviors.PushBack(b);
             }
-            for (const auto& t : Detail::FrameworkElementSeams::AuthoredTriggers(*framework)) {
+            for (const auto& t : FrameworkElementSeams::AuthoredTriggers(*framework)) {
                 node.authoredTriggers.PushBack(t);
             }
         }
@@ -1931,10 +1932,10 @@ Base::Result<void> BuildCompiledTemplate(
         }
         if (auto* framework = ::Aero::TryCast<FrameworkElement>(objects[index].Get())) {
             for (const auto& b : node.authoredBehaviors) {
-                Detail::FrameworkElementSeams::AddStyleBehaviorPrototype(*framework, b);
+                FrameworkElementSeams::AddStyleBehaviorPrototype(*framework, b);
             }
             for (const auto& t : node.authoredTriggers) {
-                Detail::FrameworkElementSeams::AddStyleTriggerPrototype(*framework, t);
+                FrameworkElementSeams::AddStyleTriggerPrototype(*framework, t);
             }
         }
     }
@@ -2318,7 +2319,7 @@ Base::Result<void> BuildCompiledTemplate(
         // evaluated. Keep the owner alive through both evaluations.
         FrameworkElement* const triggerRoot = triggerContext->root;
         Base::Ref<Base::Object> triggerOwner(triggerContext);
-        Detail::FrameworkElementSeams::AddAuthoredTrigger(*triggerRoot, std::move(triggerOwner));
+        FrameworkElementSeams::AddAuthoredTrigger(*triggerRoot, std::move(triggerOwner));
     }
     return {};
 }
@@ -2393,10 +2394,10 @@ BuildCompiledDeferredTemplate(
         }
         if (auto* framework = ::Aero::TryCast<FrameworkElement>(objects[index].Get())) {
             for (const auto& b : node.authoredBehaviors) {
-                Detail::FrameworkElementSeams::AddStyleBehaviorPrototype(*framework, b);
+                FrameworkElementSeams::AddStyleBehaviorPrototype(*framework, b);
             }
             for (const auto& t : node.authoredTriggers) {
-                Detail::FrameworkElementSeams::AddStyleTriggerPrototype(*framework, t);
+                FrameworkElementSeams::AddStyleTriggerPrototype(*framework, t);
             }
         }
     }
@@ -2740,7 +2741,7 @@ BuildCompiledDeferredTemplate(
         if (!retained) return retained.GetStatus();
     }
     if (triggerContext) {
-        Detail::FrameworkElementSeams::AddAuthoredTrigger(static_cast<FrameworkElement&>(*root), 
+        FrameworkElementSeams::AddAuthoredTrigger(static_cast<FrameworkElement&>(*root), 
             Base::Ref<Base::Object>(triggerContext));
     }
     return root;

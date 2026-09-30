@@ -313,18 +313,7 @@ void ForEachElementTreeChild(
     }
 }
 
-void ClearDetachedPresentation(::Aero::Media::Visual& node) noexcept {
-    UIElement* element = ::Aero::TryCast<UIElement>(&node);
-    if (element != nullptr) {
-        (*element).Layout().layoutAttached = false;
-        (*element).Layout().measureQueued = false;
-        (*element).Layout().arrangeQueued = false;
-    }
-    (node).RenderAttached() = false;
-    (node).RenderQueued() = false;
-    (node).Rendering() = false;
-    (node).NodeId() = Base::InvalidRenderNodeId;
-}
+/* ClearDetachedPresentation moved to ElementTree:: */
 
 } // namespace
 
@@ -549,6 +538,19 @@ void ElementTree::ApplyLoadedSubtree(::Aero::Media::Visual& node, bool loaded) n
     ForEachElementTreeChild(node, [this, loaded](::Aero::Media::Visual& child) noexcept {
         ApplyLoadedSubtree(child, loaded);
     });
+}
+
+void ElementTree::ClearDetachedPresentation(::Aero::Media::Visual& node) noexcept {
+    UIElement* element = ::Aero::TryCast<UIElement>(&node);
+    if (element != nullptr) {
+        (*element).Layout().layoutAttached = false;
+        (*element).Layout().measureQueued = false;
+        (*element).Layout().arrangeQueued = false;
+    }
+    (node).RenderAttached() = false;
+    (node).RenderQueued() = false;
+    (node).Rendering() = false;
+    (node).NodeId() = Base::InvalidRenderNodeId;
 }
 
 void ElementTree::SetTreeSubtree(

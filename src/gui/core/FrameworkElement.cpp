@@ -1,5 +1,6 @@
 // Auto-relocated base-class method definitions (WPF semantic kernel).
 #include <Aero/FrameworkElement.hpp>
+#include "gui/core/FrameworkElementSeams.hpp"
 #include <Aero/Data/BindingOperations.hpp>
 #include "gui/styles/StyleEngine.hpp"
 #include <Aero/Base/Assert.hpp>
@@ -430,7 +431,7 @@ void AddFrameworkEventTrigger(
         return;
     }
     static_cast<void>(
-        Detail::FrameworkElementSeams::AddAuthoredTrigger(
+        FrameworkElementSeams::AddAuthoredTrigger(
             static_cast<FrameworkElement&>(owner),
             Base::Ref<Base::Object>(std::move(retained))));
 }
@@ -439,7 +440,7 @@ void ClearFrameworkEventTriggers(
     Base::Object& owner,
     void*) noexcept {
     static_cast<void>(
-        Detail::FrameworkElementSeams::ClearAuthoredTriggers(
+        FrameworkElementSeams::ClearAuthoredTriggers(
             static_cast<FrameworkElement&>(owner)));
 }
 

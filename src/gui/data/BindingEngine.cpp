@@ -80,6 +80,54 @@ using namespace Aero::Meta;
 using namespace Aero::Threading;
 using namespace Aero::Data;
 
+
+::Aero::DependencyObject* BindingEngine::BindingParent(
+    ::Aero::DependencyObject& node) noexcept {
+    ::Aero::DependencyObject* parent =
+        ::Aero::LogicalTreeHelper::GetParent(node);
+    if (parent == nullptr) {
+        if (::Aero::Media::Visual* visual =
+                ::Aero::TryCast<::Aero::Media::Visual>(&node)) {
+            parent = ::Aero::Media::VisualTreeHelper::GetParent(*visual);
+        }
+    }
+    if (parent == nullptr) {
+        if (::Aero::Freezable* freezable =
+                ::Aero::TryCast<::Aero::Freezable>(&node)) {
+            parent = (*freezable).Parent();
+        }
+    }
+    return parent;
+}
+
+bool BindingEngine::BindingOwnerSeesDataContextChange(
+    ::Aero::DependencyObject* owner,
+    ::Aero::DependencyObject& changed) noexcept {
+    ::Aero::DependencyObject* node = owner;
+    for (std::uint32_t depth = 0U; depth < 64U && node != nullptr; ++depth) {
+        if (node == &changed) {
+            return true;
+        }
+        node = BindingParent(*node);
+    }
+    return false;
+}
+
+Base::Result<PropertyValue> BindingEngine::ReadDataContextValue(
+    ::Aero::DependencyObject& node,
+    Meta::DependencyPropertyHandle handle) noexcept {
+    if (::Aero::FrameworkElement* element =
+            ::Aero::TryCast<::Aero::FrameworkElement>(&node)) {
+        return element->GetDataContextResult();
+    }
+    if (DependencyObjectAccess::PropertyRegistry((node)).Find(handle) == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotFound,
+            "DataContext property is not registered on this object");
+    }
+    return node.GetValue(handle);
+}
+
 BindingEngine::BindingEngine(
     Dispatcher& dispatcher,
     Meta::Registry* metadata) noexcept
@@ -794,53 +842,6 @@ bool TargetAcceptsPathResult(
                targetProperty->ValueType(), resultType) ||
         HasDefaultTargetConversion(
             resultType, targetProperty->ValueType());
-}
-
-::Aero::DependencyObject* BindingParent(
-    ::Aero::DependencyObject& node) noexcept {
-    ::Aero::DependencyObject* parent =
-        ::Aero::LogicalTreeHelper::GetParent(node);
-    if (parent == nullptr) {
-        if (::Aero::Media::Visual* visual =
-                ::Aero::TryCast<::Aero::Media::Visual>(&node)) {
-            parent = ::Aero::Media::VisualTreeHelper::GetParent(*visual);
-        }
-    }
-    if (parent == nullptr) {
-        if (::Aero::Freezable* freezable =
-                ::Aero::TryCast<::Aero::Freezable>(&node)) {
-            parent = (*freezable).Parent();
-        }
-    }
-    return parent;
-}
-
-bool BindingOwnerSeesDataContextChange(
-    ::Aero::DependencyObject* owner,
-    ::Aero::DependencyObject& changed) noexcept {
-    ::Aero::DependencyObject* node = owner;
-    for (std::uint32_t depth = 0U; depth < 64U && node != nullptr; ++depth) {
-        if (node == &changed) {
-            return true;
-        }
-        node = BindingParent(*node);
-    }
-    return false;
-}
-
-Base::Result<PropertyValue> ReadDataContextValue(
-    ::Aero::DependencyObject& node,
-    Meta::DependencyPropertyHandle handle) noexcept {
-    if (::Aero::FrameworkElement* element =
-            ::Aero::TryCast<::Aero::FrameworkElement>(&node)) {
-        return Detail::FrameworkElementSeams::GetDataContextResult(*element);
-    }
-    if (DependencyObjectAccess::PropertyRegistry((node)).Find(handle) == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            "DataContext property is not registered on this object");
-    }
-    return node.GetValue(handle);
 }
 
 Base::Result<PropertyValue> ConvertNullableBooleanValue(

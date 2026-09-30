@@ -8,7 +8,7 @@ namespace Aero {
 
 class InteractivityEngine;
 class StoryboardHost;
-namespace Detail { class FrameworkContentElementSeams; }
+class FrameworkContentElementSeams;
 
 
 // WPF-shaped non-visual content node with resources, DataContext, Style and
@@ -49,18 +49,18 @@ public:
     AERO_DEPENDENCY_PROPERTY(String, Cursor);
     AERO_DEPENDENCY_PROPERTY(bool, OverridesDefaultStyle);
 
+    std::uint32_t LogicalChildCount() const noexcept { return GetLogicalChildrenCount(); }
+    DependencyObject* LogicalChildAt(std::uint32_t index) const noexcept { return GetLogicalChild(index); }
+
 protected:
     virtual std::uint32_t GetLogicalChildrenCount() const noexcept { return 0U; }
     virtual DependencyObject* GetLogicalChild(std::uint32_t) const noexcept { return nullptr; }
 
-public:
-    std::uint32_t LogicalChildCount() const noexcept { return GetLogicalChildrenCount(); }
-    DependencyObject* LogicalChildAt(std::uint32_t index) const noexcept { return GetLogicalChild(index); }
 private:
     friend class ResourceResolver;
     friend class InteractivityEngine;
     friend class StoryboardHost;
-    friend class Detail::FrameworkContentElementSeams;
+    friend class FrameworkContentElementSeams;
     void AddAuthoredTrigger(Ref<Base::Object> trigger) noexcept;
     void ClearAuthoredTriggers() noexcept;
     Span<const Ref<Base::Object>> AuthoredTriggers() const noexcept;
@@ -71,22 +71,5 @@ private:
     FrameworkContentRare* frameworkRare_ = nullptr;
 };
 
-
-namespace Detail {
-
-class FrameworkContentElementSeams {
-public:
-    static void AddAuthoredTrigger(FrameworkContentElement& e, Ref<Base::Object> trigger) noexcept {
-        e.AddAuthoredTrigger(std::move(trigger));
-    }
-    static void ClearAuthoredTriggers(FrameworkContentElement& e) noexcept {
-        e.ClearAuthoredTriggers();
-    }
-    static Span<const Ref<Base::Object>> AuthoredTriggers(const FrameworkContentElement& e) noexcept {
-        return e.AuthoredTriggers();
-    }
-};
-
-} // namespace Detail
 
 } // namespace Aero
