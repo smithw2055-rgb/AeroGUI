@@ -1,5 +1,4 @@
 #include "ControlsMetadata.hpp"
-#include "ControlPropertyValidators.hpp"
 #include "gui/core/TypeRegistryCore.hpp"
 
 // Templates
