@@ -24,6 +24,8 @@
 #include "gui/media/Transform3DMath.hpp" 
 #include "gui/input/InputManager.hpp"
 #include <Aero/Meta.hpp>
+#include "gui/core/Describe.hpp"
+#include "gui/core/TypeRegistryCore.hpp"
 
 using namespace Aero;
 using namespace Aero::Media;
@@ -224,5 +226,11 @@ bool Visual::TryPointFromScreen(
     return Base::TryUnprojectPointToLocalPlane(
         ToRootTransformProjective(*this), point, local);
 }
+
+AERO_DESCRIBE(Visual) {
+    using namespace Aero::Meta;
+    Register<Visual>(context, TypeFlags::Abstract);
+}
+
 } // namespace Media {
 } // namespace Aero {

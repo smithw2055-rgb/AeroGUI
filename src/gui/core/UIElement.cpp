@@ -20,6 +20,7 @@
 #include <Aero/KeyboardNavigation.hpp>
 #include <Aero/FrameworkElement.hpp>
 #include "gui/core/RenderStateCallbacks.hpp"
+#include "gui/core/Describe.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
@@ -1010,6 +1011,174 @@ void OnEffectChanged(
         ::Aero::TryCast<::Aero::FrameworkElement>(&object);
     if (owner == nullptr) return;
     (*owner).InvalidateRenderState();
+}
+
+
+// ---- UIElement metadata (who-defines-registers) ----
+namespace {
+
+
+void AddUiElementInputBinding(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    Input::InputBinding* binding = ::Aero::TryCast<Input::InputBinding>(value.Get());
+    if (binding == nullptr) return;
+    Base::Ref<Input::InputBinding> retained =
+        Base::Ref<Input::InputBinding>::TryFromBorrowed(*binding);
+    if (retained) {
+        (void)static_cast<UIElement&>(owner).AddInputBinding(
+            std::move(retained));
+    }
+}
+
+void ClearUiElementInputBindings(
+    Base::Object& owner,
+    void*) noexcept {
+    static_cast<UIElement&>(owner).ClearInputBindings();
+}
+
+void AddUiElementCommandBinding(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    Input::CommandBinding* binding = ::Aero::TryCast<Input::CommandBinding>(value.Get());
+    if (binding == nullptr) return;
+    Base::Ref<Input::CommandBinding> retained =
+        Base::Ref<Input::CommandBinding>::TryFromBorrowed(*binding);
+    if (retained) {
+        (void)static_cast<UIElement&>(owner).AddCommandBinding(
+            std::move(retained));
+    }
+}
+
+void ClearUiElementCommandBindings(
+    Base::Object& owner,
+    void*) noexcept {
+    static_cast<UIElement&>(owner).ClearCommandBindings();
+}
+
+
+} // namespace
+
+AERO_DESCRIBE(UIElement) {
+    using namespace Aero::Meta;
+    using namespace ::Aero::Input;
+    Register<UIElement>(context, TypeFlags::Abstract)
+        .Event(UIElement::PreviewMouseMoveEvent, RoutingStrategy::Tunnel)
+        .Event(UIElement::MouseMoveEvent)
+        .Event(UIElement::MouseEnterEvent, RoutingStrategy::Direct)
+        .Event(UIElement::MouseLeaveEvent, RoutingStrategy::Direct)
+        .Event(UIElement::PreviewMouseDownEvent, RoutingStrategy::Tunnel)
+        .Event(UIElement::MouseDownEvent)
+        .Event(UIElement::PreviewMouseLeftButtonDownEvent, RoutingStrategy::Tunnel)
+        .Event(UIElement::MouseLeftButtonDownEvent)
+        .Event(UIElement::PreviewMouseUpEvent, RoutingStrategy::Tunnel)
+        .Event(UIElement::MouseUpEvent)
+        .Event(UIElement::PreviewMouseWheelEvent, RoutingStrategy::Tunnel)
+        .Event(UIElement::MouseWheelEvent)
+        .Event(UIElement::PreviewMouseLeftButtonUpEvent, RoutingStrategy::Tunnel)
+        .Event(UIElement::MouseLeftButtonUpEvent)
+        .Event(UIElement::PreviewDragEnterEvent, RoutingStrategy::Tunnel)
+        .Event(UIElement::DragEnterEvent)
+        .Event(UIElement::PreviewDragLeaveEvent, RoutingStrategy::Tunnel)
+        .Event(UIElement::DragLeaveEvent)
+        .Event(UIElement::PreviewDragOverEvent, RoutingStrategy::Tunnel)
+        .Event(UIElement::DragOverEvent)
+        .Event(UIElement::PreviewDropEvent, RoutingStrategy::Tunnel)
+        .Event(UIElement::DropEvent)
+        .Event(UIElement::GiveFeedbackEvent)
+        .Event(UIElement::DragCompletedEvent)
+        .Event(UIElement::GotKeyboardFocusEvent)
+        .Event(UIElement::LostKeyboardFocusEvent)
+        .Event(UIElement::PreviewKeyDownEvent, RoutingStrategy::Tunnel)
+        .Event(UIElement::KeyDownEvent)
+        .Event(UIElement::PreviewKeyUpEvent, RoutingStrategy::Tunnel)
+        .Event(UIElement::KeyUpEvent)
+        .Event(UIElement::PreviewTextInputEvent, RoutingStrategy::Tunnel)
+        .Event(UIElement::TextInputEvent)
+        .Property(
+            UIElement::ClipToBoundsProperty,
+            FrameworkPropertyMetadata(false, AffectsArrange)
+                .Changed(&OnRenderStateChanged))
+        .Property(
+            UIElement::ClipProperty,
+            FrameworkPropertyMetadata(Base::Ref<Geometry>{}, AffectsRender)
+                .Changed(&OnRenderStateChanged))
+        .Property(
+            UIElement::BlendModeProperty,
+            FrameworkPropertyMetadata(BlendMode::Normal)
+                .Changed(&OnRenderStateChanged))
+        .Property(
+            UIElement::EffectProperty,
+            FrameworkPropertyMetadata(Base::Ref<Effect>{}, AffectsRender)
+                .Changed(&OnEffectChanged))
+        .Property(
+            UIElement::OpacityMaskProperty,
+            FrameworkPropertyMetadata(Base::Ref<Brush>{}, AffectsRender)
+                .Changed(&OnOpacityMaskChanged))
+        .Property(
+            UIElement::IsHitTestVisibleProperty,
+            true)
+        .Property(
+            UIElement::VisibilityProperty,
+            FrameworkPropertyMetadata(Visibility::Visible, AffectsMeasure)
+                .Changed(&OnRenderStateChanged))
+        .Property(
+            UIElement::IsEnabledProperty,
+            true, Inherits | AffectsRender)
+        .Property(
+            UIElement::AllowDropProperty,
+            false)
+        .Property(
+            UIElement::IsMouseOverProperty,
+            false, AffectsRender)
+        .Property(
+            UIElement::IsPressedProperty,
+            false, AffectsRender)
+        .Property(
+            UIElement::IsKeyboardFocusedProperty,
+            false, AffectsRender)
+        .Property(
+            UIElement::IsKeyboardFocusWithinProperty,
+            false, AffectsRender)
+        .Property(
+            UIElement::FocusableProperty,
+            false)
+        .AddOwner(
+            KeyboardNavigation::IsTabStopProperty,
+            false)
+        .AddOwner(
+            KeyboardNavigation::TabIndexProperty,
+            std::uint32_t{0})
+        .AddOwner(
+            FocusManager::IsFocusScopeProperty,
+            false)
+        .Property(
+            UIElement::OpacityProperty,
+            FrameworkPropertyMetadata(1.0)
+                .Changed(&OnRenderStateChanged)
+                .Validate(&ValidateUnitDouble))
+        .Property(
+            UIElement::RenderTransformProperty,
+            FrameworkPropertyMetadata(Base::Ref<Transform>{}, AffectsRender)
+                .Changed(&OnRenderTransformChanged))
+        .Property(
+            UIElement::Transform3DProperty,
+            FrameworkPropertyMetadata(Base::Ref<Media::Transform3D>{}, AffectsRender)
+                .Changed(&OnRenderTransformChanged))
+        .Property(
+            UIElement::RenderTransformOriginProperty,
+            FrameworkPropertyMetadata(Point{})
+                .Changed(&OnRenderStateChanged))
+        .Collection<InputBinding>(
+            "InputBindings",
+            &AddUiElementInputBinding,
+            &ClearUiElementInputBindings)
+        .Collection<CommandBinding>(
+            "CommandBindings",
+            &AddUiElementCommandBinding,
+            &ClearUiElementCommandBindings);
 }
 
 } // namespace Aero

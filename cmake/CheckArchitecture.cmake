@@ -1336,6 +1336,42 @@ aero_require_text(
     "src/app/Metadata.cpp"
     "PopulateAppEnums"
     "App enums must register in app/Metadata, not Gui BuiltinModules")
+aero_forbid_text(
+    "src/gui/BuiltinModules.cpp"
+    "FillVisualMetadata"
+    "BuiltinModules must not contain FillVisualMetadata bodies; Visual AERO_DESCRIBE owns registration")
+aero_forbid_text(
+    "src/gui/BuiltinModules.cpp"
+    "FillUIElementMetadata"
+    "BuiltinModules must not contain FillUIElementMetadata bodies; UIElement AERO_DESCRIBE owns registration")
+aero_forbid_text(
+    "src/gui/BuiltinModules.cpp"
+    "FillFrameworkElementMetadata"
+    "BuiltinModules must not contain FillFrameworkElementMetadata bodies; FrameworkElement AERO_DESCRIBE owns registration")
+aero_require_text(
+    "src/gui/BuiltinModules.cpp"
+    "DescribeHook<::Aero::Media::Visual>::Run(context)"
+    "PopulateUiElements must orchestrate Visual DescribeHook")
+aero_require_text(
+    "src/gui/BuiltinModules.cpp"
+    "PopulateMediaValueTypes(context)"
+    "BuiltinModules must orchestrate PopulateMediaValueTypes for POD value types")
+aero_require_text(
+    "src/gui/media/Geometry.cpp"
+    "PopulateMediaValueTypes"
+    "Geometry family must own PopulateMediaValueTypes for POD value types")
+aero_require_text(
+    "src/gui/core/UIElement.cpp"
+    "AERO_DESCRIBE(UIElement)"
+    "UIElement must register metadata via AERO_DESCRIBE in its defining TU")
+aero_require_text(
+    "src/gui/core/FrameworkElement.cpp"
+    "AERO_DESCRIBE(FrameworkElement)"
+    "FrameworkElement must register metadata via AERO_DESCRIBE in its defining TU")
+aero_forbid_text(
+    "src/gui/BuiltinModules.cpp"
+    "Register<Thickness>"
+    "BuiltinModules must not Register Thickness; Geometry PopulateMediaValueTypes owns POD value types")
 aero_forbid_file("src/gui/core/UiMetadata.hpp")
 aero_forbid_file("src/gui/core/ElementsFill.hpp")
 aero_forbid_file("src/gui/styles/StyleMetadata.cpp")

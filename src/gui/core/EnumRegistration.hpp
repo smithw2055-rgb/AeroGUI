@@ -42,5 +42,7 @@ Base::Result<void> PopulateTextEnums(
     Meta::Registration& context) noexcept;
 Base::Result<void> PopulateControlsEnums(
     Meta::Registration& context) noexcept;
+Base::Result<void> PopulateMediaValueTypes(
+    Meta::Registration& context) noexcept;
 
 } // namespace Aero

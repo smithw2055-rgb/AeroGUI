@@ -23,6 +23,10 @@
 #include "gui/core/EventRouter.hpp"
 #include "gui/input/InputManager.hpp"
 #include <Aero/Meta.hpp>
+#include <Aero/Style.hpp>
+#include <Aero/Resources.hpp>
+#include "gui/core/Describe.hpp"
+#include "gui/core/TypeRegistryCore.hpp"
 
 using namespace Aero;
 using namespace Aero::Media;
@@ -93,4 +97,18 @@ void FrameworkContentElement::AddAuthoredTrigger(
     if (rare == nullptr) { AERO_ASSERT(false); return; }
     rare->authoredTriggers.PushBack(std::move(trigger));
 }
-} // namespace Aero {
+
+AERO_DESCRIBE(FrameworkContentElement) {
+    using namespace Aero::Meta;
+    Register<FrameworkContentElement>(context, TypeFlags::Abstract)
+        .Property<Base::Ref<ResourceDictionary>, &FrameworkContentElement::SetResources>("Resources", PropertyFlags::Structural)
+        .Property(FrameworkContentElement::DataContextProperty, Value::NullObject(TypeOf<Base::Object>()), Inherits)
+        .Property(FrameworkContentElement::StyleProperty, Base::Ref<Style>{})
+        .Property(FrameworkContentElement::TagProperty, Value::NullObject(TypeOf<Base::Object>()))
+        .Property(FrameworkContentElement::IsEnabledProperty, true, Inherits)
+        .Property(FrameworkContentElement::IsMouseOverProperty, false)
+        .Property(FrameworkContentElement::CursorProperty, Base::String{}, Inherits)
+        .Property(FrameworkContentElement::OverridesDefaultStyleProperty, false);
+}
+
+} // namespace Aero

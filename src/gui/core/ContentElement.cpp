@@ -8,6 +8,8 @@
 #include "gui/core/EventRouter.hpp"
 #include "gui/core/ErasedRoutedHandler.hpp"
 #include <Aero/Meta.hpp>
+#include "gui/core/Describe.hpp"
+#include "gui/core/TypeRegistryCore.hpp"
 
 #include <Aero/Base/Assert.hpp>
 
@@ -188,6 +190,12 @@ void ContentElement::Detach() noexcept {
     logicalParent_ = nullptr;
     contentHost_ = nullptr;
     eventRouter_ = nullptr;
+}
+
+
+AERO_DESCRIBE(ContentElement) {
+    using namespace Aero::Meta;
+    Register<ContentElement>(context, TypeFlags::Abstract);
 }
 
 } // namespace Aero
