@@ -377,17 +377,17 @@ bool SetterValueIsPending(const Aero::Setter* setter) noexcept {
         setter->GetAuthoredValue().IsUnset();
 }
 
-bool StyleHasPendingResourceValues(const Aero::Style& style) noexcept {
-    for (const Base::Ref<Aero::SetterBase>& entry :
-         style.GetAuthoredSetters()) {
+bool StyleHasPendingResourceValues(Aero::Style& style) noexcept {
+    const Aero::SetterBaseCollection setters = style.GetSetters();
+    for (std::uint32_t index = 0U; index < setters.GetCount(); ++index) {
         if (SetterValueIsPending(
-                ::Aero::TryCast<Aero::Setter>(entry.Get()))) {
+                ::Aero::TryCast<Aero::Setter>(setters.GetItem(index)))) {
             return true;
         }
     }
-    for (const Base::Ref<Aero::TriggerBase>& entry :
-         style.GetAuthoredTriggers()) {
-        Aero::TriggerBase* authored = entry.Get();
+    const Aero::TriggerCollection triggers = style.GetTriggers();
+    for (std::uint32_t index = 0U; index < triggers.GetCount(); ++index) {
+        Aero::TriggerBase* authored = triggers.GetItem(index);
         if (authored == nullptr) {
             continue;
         }

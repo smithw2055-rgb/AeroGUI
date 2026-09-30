@@ -1867,11 +1867,19 @@ bool TestComboBoxAndVisualStateAnimation() {
     CHECK(animation.GetRepeatBehavior().HasCount());
 
     Style style(DoubleAnimation::StaticTypeId());
-    style.Set(
-        Timeline::DurationProperty,
-        Duration::FromTimeSpan(TimeSpan::FromMicroseconds(2'000'000ULL)));
-    style.Set(Timeline::BeginTimeProperty, TimeSpan::Zero());
-    style.Set(Timeline::AutoReverseProperty, true);
+    {
+        Setter duration;
+        duration.Set(
+            Timeline::DurationProperty,
+            Duration::FromTimeSpan(TimeSpan::FromMicroseconds(2'000'000ULL)));
+        style.AddSetter(duration);
+        Setter begin;
+        begin.Set(Timeline::BeginTimeProperty, TimeSpan::Zero());
+        style.AddSetter(begin);
+        Setter reverse;
+        reverse.Set(Timeline::AutoReverseProperty, true);
+        style.AddSetter(reverse);
+    }
     CHECK(Timeline::DurationProperty.Name() == StringView("Duration"));
     CHECK(Timeline::RepeatBehaviorProperty.Name() == StringView("RepeatBehavior"));
     return true;
@@ -4690,9 +4698,14 @@ bool TestTimelineDurationAndKeyTime() {
     animation.SetDuration(Duration::Forever());
     CHECK(animation.GetDuration().IsForever());
     Style style(DoubleAnimation::StaticTypeId());
-    style.Set(Timeline::DurationProperty, Duration::Forever());
-    style.Set(
-        Timeline::RepeatBehaviorProperty, RepeatBehavior::Forever());
+    {
+        Setter duration;
+        duration.Set(Timeline::DurationProperty, Duration::Forever());
+        style.AddSetter(duration);
+        Setter repeat;
+        repeat.Set(Timeline::RepeatBehaviorProperty, RepeatBehavior::Forever());
+        style.AddSetter(repeat);
+    }
     return true;
 }
 

@@ -1358,14 +1358,14 @@ void AddStyleSetter(
     if (!retained) {
         return;
     }
-    static_cast<Style&>(owner).AddAuthoredSetter(
+    static_cast<Style&>(owner).GetSetters().Add(
         std::move(retained));
 }
 
 void ClearStyleSetters(
     Base::Object& owner,
     void*) noexcept {
-    static_cast<Style&>(owner).ClearAuthoredSetters();
+    static_cast<Style&>(owner).GetSetters().Clear();
     return;
 }
 
@@ -1382,14 +1382,14 @@ void AddStyleTrigger(
     if (!retained) {
         return;
     }
-    static_cast<Style&>(owner).AddAuthoredTrigger(
+    static_cast<Style&>(owner).GetTriggers().Add(
         std::move(retained));
 }
 
 void ClearStyleTriggers(
     Base::Object& owner,
     void*) noexcept {
-    static_cast<Style&>(owner).ClearAuthoredTriggers();
+    static_cast<Style&>(owner).GetTriggers().Clear();
     return;
 }
 

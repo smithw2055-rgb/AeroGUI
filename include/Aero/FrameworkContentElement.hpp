@@ -6,6 +6,10 @@
 
 namespace Aero {
 
+class InteractivityEngine;
+class StoryboardHost;
+namespace Detail { class FrameworkContentElementSeams; }
+
 
 // WPF-shaped non-visual content node with resources, DataContext, Style and
 // logical-tree participation. TextElement and other document nodes derive here.
@@ -52,16 +56,37 @@ protected:
 public:
     std::uint32_t LogicalChildCount() const noexcept { return GetLogicalChildrenCount(); }
     DependencyObject* LogicalChildAt(std::uint32_t index) const noexcept { return GetLogicalChild(index); }
+private:
+    friend class ResourceResolver;
+    friend class InteractivityEngine;
+    friend class StoryboardHost;
+    friend class Detail::FrameworkContentElementSeams;
     void AddAuthoredTrigger(Ref<Base::Object> trigger) noexcept;
     void ClearAuthoredTriggers() noexcept;
     Span<const Ref<Base::Object>> AuthoredTriggers() const noexcept;
-private:
-    friend class ResourceResolver;
     const ResourceDictionary* LocalResources() const noexcept { return resources_; }
     mutable ResourceDictionary* resources_ = nullptr;
     struct FrameworkContentRare;
     FrameworkContentRare* EnsureFrameworkContentRare() noexcept;
     FrameworkContentRare* frameworkRare_ = nullptr;
 };
+
+
+namespace Detail {
+
+class FrameworkContentElementSeams {
+public:
+    static void AddAuthoredTrigger(FrameworkContentElement& e, Ref<Base::Object> trigger) noexcept {
+        e.AddAuthoredTrigger(std::move(trigger));
+    }
+    static void ClearAuthoredTriggers(FrameworkContentElement& e) noexcept {
+        e.ClearAuthoredTriggers();
+    }
+    static Span<const Ref<Base::Object>> AuthoredTriggers(const FrameworkContentElement& e) noexcept {
+        return e.AuthoredTriggers();
+    }
+};
+
+} // namespace Detail
 
 } // namespace Aero

@@ -397,7 +397,8 @@ void AddInteractionTrigger(
                    owner.RuntimeType(),
                    FrameworkContentElement::StaticTypeId())) {
         static_cast<void>(
-            (static_cast<FrameworkContentElement&>(owner)).AddAuthoredTrigger( value));
+            Detail::FrameworkContentElementSeams::AddAuthoredTrigger(
+                static_cast<FrameworkContentElement&>(owner), value));
     }
 }
 
@@ -417,7 +418,8 @@ void ClearInteractionTriggers(
                    owner.RuntimeType(),
                    FrameworkContentElement::StaticTypeId())) {
         static_cast<void>(
-            (static_cast<FrameworkContentElement&>(owner)).ClearAuthoredTriggers());
+            Detail::FrameworkContentElementSeams::ClearAuthoredTriggers(
+                static_cast<FrameworkContentElement&>(owner)));
     }
 }
 

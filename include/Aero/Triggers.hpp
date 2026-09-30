@@ -15,6 +15,9 @@
 #include <Aero/Data/Binding.hpp>
 
 namespace Aero {
+namespace Markup { class XamlStyleSchemaFacet; }
+namespace Controls { class TemplateBuilder; class TemplateEngine; }
+
 
 using Meta::TypeId;
 
@@ -59,14 +62,19 @@ public:
     }
     void SetPropertyName(StringView value) noexcept;
     void SetTargetName(StringView value) noexcept;
-    void SetAuthoredValue(const PropertyValue& value) noexcept;
     StringView GetPropertyName() const noexcept { return propertyName_.View(); }
     StringView GetTargetName() const noexcept { return targetName_.View(); }
     const PropertyValue& GetAuthoredValue() const noexcept { return authoredValue_; }
     bool GetIsAuthored() const noexcept { return !propertyName_.Empty() && !authoredValue_.IsUnset(); }
-    Result<void> Resolve(DependencyPropertyHandle property, const PropertyValue& value) noexcept;
 
 private:
+    friend class Style;
+    friend class Markup::XamlStyleSchemaFacet;
+    friend class Controls::TemplateBuilder;
+    friend class Controls::TemplateEngine;
+    void SetAuthoredValue(const PropertyValue& value) noexcept;
+    Result<void> Resolve(DependencyPropertyHandle property, const PropertyValue& value) noexcept;
+
     DependencyPropertyHandle property_;
     PropertyValue value_;
     String propertyName_;
@@ -115,11 +123,16 @@ public:
     StringView GetSourceName() const noexcept { return sourceName_.View(); }
     void SetSourceName(StringView value) noexcept;
     const PropertyValue& GetAuthoredValue() const noexcept { return authoredValue_; }
+
+private:
+    friend class Style;
+    friend class Markup::XamlStyleSchemaFacet;
+    friend class Controls::TemplateBuilder;
+    friend class Controls::TemplateEngine;
     void SetAuthoredValue(const PropertyValue& value) noexcept {
         if (!value.IsUnset()) authoredValue_ = value;
     }
 
-private:
     Ref<Data::Binding> binding_;
     String propertyName_;
     String sourceName_;
@@ -140,7 +153,6 @@ public:
     void SetPropertyName(StringView value) noexcept;
     StringView GetSourceName() const noexcept { return sourceName_.View(); }
     void SetSourceName(StringView value) noexcept;
-    void SetAuthoredValue(const PropertyValue& value) noexcept;
     void AddAuthoredSetter(Ref<Setter> setter) noexcept;
     void ClearAuthoredSetters() noexcept;
     StringView GetPropertyName() const noexcept { return propertyName_.View(); }
@@ -151,6 +163,10 @@ public:
     bool GetIsAuthored() const noexcept { return !propertyName_.Empty() && !authoredValue_.IsUnset(); }
 private:
     friend class Style;
+    friend class Markup::XamlStyleSchemaFacet;
+    friend class Controls::TemplateBuilder;
+    friend class Controls::TemplateEngine;
+    void SetAuthoredValue(const PropertyValue& value) noexcept;
 
     DependencyPropertyHandle property_;
     PropertyValue value_;
@@ -173,9 +189,6 @@ public:
     StringView GetSourceName() const noexcept { return sourceName_.View(); }
     void SetSourceName(StringView value) noexcept;
     const PropertyValue& GetAuthoredValue() const noexcept { return authoredValue_; }
-    void SetAuthoredValue(const PropertyValue& value) noexcept {
-        if (!value.IsUnset()) authoredValue_ = value;
-    }
     StringView GetComparison() const noexcept { return comparison_.View(); }
     void SetComparison(StringView value) noexcept { (void)comparison_.Assign(value); }
     void AddAuthoredSetter(Ref<Setter> setter) noexcept;
@@ -185,6 +198,14 @@ public:
     }
 
 private:
+    friend class Style;
+    friend class Markup::XamlStyleSchemaFacet;
+    friend class Controls::TemplateBuilder;
+    friend class Controls::TemplateEngine;
+    void SetAuthoredValue(const PropertyValue& value) noexcept {
+        if (!value.IsUnset()) authoredValue_ = value;
+    }
+
     Ref<Data::Binding> binding_;
     String propertyName_;
     String sourceName_;
