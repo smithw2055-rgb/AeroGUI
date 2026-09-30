@@ -70,7 +70,9 @@
 
 #include <Aero/Media/Animation.hpp>
 
-#include <Aero/EventTrigger.hpp>
+#include <Aero/Triggers.hpp>
+#include <Aero/Interactivity/TriggerAction.hpp>
+#include <Aero/Interactivity/InteractionTriggers.hpp>
 
 #include <Aero/Media/Animation/TimerTrigger.hpp>
 

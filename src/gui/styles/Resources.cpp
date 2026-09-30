@@ -20,7 +20,6 @@
 #include <Aero/Interactivity/TriggerAction.hpp>
 #include <Aero/Style.hpp>
 #include <Aero/Triggers.hpp>
-#include <Aero/EventTrigger.hpp>
 #include <Aero/Events/EventArgs.hpp>
 #include <Aero/Events/CommandEventArgs.hpp>
 #include <Aero/Media/Animation.hpp>

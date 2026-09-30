@@ -3,7 +3,6 @@
 #include "gui/media/StoryboardHost.hpp"
 #include "gui/core/EventRouter.hpp"
 #include <Aero/CommandBinding.hpp>
-#include <Aero/EventTrigger.hpp>
 #include <Aero/Media/Animation/StoryboardActions.hpp>
 #include <Aero/Media/Geometries.hpp>
 #include <Aero/Media/Transform2D.hpp>

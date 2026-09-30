@@ -1,5 +1,4 @@
 #include <Aero/Media/Animation.hpp>
-#include <Aero/EventTrigger.hpp>
 #include <Aero/Media/Animation/MediaActions.hpp>
 #include <Aero/Media/Animation/StoryboardActions.hpp>
 #include <Aero/Media/Animation/StoryboardCompletedTrigger.hpp>
@@ -578,6 +577,10 @@ void SeekStoryboard::SetOffset(
     return;
 }
 
+} // namespace Aero::Media::Animation
+
+namespace Aero {
+
 void EventTrigger::SetRoutedEvent(
     Base::StringView value) noexcept {
     const Base::StringView trimmed =
@@ -594,7 +597,7 @@ void EventTrigger::SetSourceName(
 }
 
 void EventTrigger::AddAction(
-    Base::Ref<TriggerAction> value) noexcept {
+    Base::Ref<Interactivity::TriggerAction> value) noexcept {
     if (!value) { AERO_ASSERT(false); return; }
     actions_.PushBack(std::move(value));
 }
@@ -603,6 +606,10 @@ void EventTrigger::ClearActions() noexcept {
     actions_.Clear();
     return;
 }
+
+} // namespace Aero
+
+namespace Aero::Media::Animation {
 
 void StoryboardCompletedTrigger::SetStoryboard(
     Base::Ref<Storyboard> value) noexcept {

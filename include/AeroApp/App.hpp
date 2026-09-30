@@ -1,7 +1,7 @@
 #pragma once
 
 // Optional default desktop application framework. WPF-style applications
-// construct an Aero::Application and call Application::Run().
+// construct an Aero::App::Application and call Application::Run().
 #include <Aero/Gui.hpp>
 #include <AeroApp/Application.hpp>
 #include <AeroApp/Window.hpp>

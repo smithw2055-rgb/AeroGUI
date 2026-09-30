@@ -104,12 +104,6 @@ enum class DependencyPropertyFlags : std::uint32_t {
     Attached = 1U << 0U, ReadOnly = 1U << 1U, AnyValue = 1U << 2U, Structural = 1U << 3U
 };
 
-enum class PropertyMetadataFlags : std::uint32_t {
-    None = 0U,
-    Inherits = 1U << 0U, AffectsMeasure = 1U << 1U, AffectsArrange = 1U << 2U, AffectsRender = 1U << 3U,
-    BindsTwoWayByDefault = 1U << 4U, AffectsParentMeasure = 1U << 5U, AffectsParentArrange = 1U << 6U
-};
-
 enum class FrameworkPropertyMetadataOptions : std::uint32_t {
     None = 0U,
     Inherits = 1U << 0U, AffectsMeasure = 1U << 1U, AffectsArrange = 1U << 2U, AffectsRender = 1U << 3U,
@@ -138,10 +132,6 @@ constexpr DependencyPropertyFlags operator|(DependencyPropertyFlags left, Depend
     return static_cast<DependencyPropertyFlags>(static_cast<std::uint32_t>(left) | static_cast<std::uint32_t>(right));
 }
 
-constexpr PropertyMetadataFlags operator|(PropertyMetadataFlags left, PropertyMetadataFlags right) noexcept {
-    return static_cast<PropertyMetadataFlags>(static_cast<std::uint32_t>(left) | static_cast<std::uint32_t>(right));
-}
-
 constexpr FrameworkPropertyMetadataOptions operator|(FrameworkPropertyMetadataOptions left,
     FrameworkPropertyMetadataOptions right) noexcept {
     return static_cast<FrameworkPropertyMetadataOptions>(static_cast<std::uint32_t>(left) |
@@ -158,15 +148,7 @@ constexpr bool HasFlag(FrameworkPropertyMetadataOptions value, FrameworkProperty
     return (static_cast<std::uint32_t>(value) & static_cast<std::uint32_t>(flag)) != 0U;
 }
 
-constexpr PropertyMetadataFlags ToPropertyMetadataFlags(FrameworkPropertyMetadataOptions options) noexcept {
-    return static_cast<PropertyMetadataFlags>(static_cast<std::uint32_t>(options));
-}
-
 constexpr bool HasFlag(DependencyPropertyFlags value, DependencyPropertyFlags flag) noexcept {
-    return (static_cast<std::uint32_t>(value) & static_cast<std::uint32_t>(flag)) != 0U;
-}
-
-constexpr bool HasFlag(PropertyMetadataFlags value, PropertyMetadataFlags flag) noexcept {
     return (static_cast<std::uint32_t>(value) & static_cast<std::uint32_t>(flag)) != 0U;
 }
 
@@ -225,7 +207,7 @@ using DependencyPropertyChangedEventHandler = Base::Delegate<void(DependencyObje
 
 struct PropertyMetadata {
     PropertyValue defaultValue;
-    PropertyMetadataFlags flags = PropertyMetadataFlags::None;
+    FrameworkPropertyMetadataOptions flags = FrameworkPropertyMetadataOptions::None;
     UpdateSourceTrigger defaultUpdateSourceTrigger = UpdateSourceTrigger::Default;
     ValidateValueCallback validate = nullptr;
     PropertyChangedCallback changed = nullptr;
@@ -339,7 +321,6 @@ using Meta::PropertyExpression;
 using Meta::PropertyFlags;
 using Meta::PropertyInvalidationFlags;
 using Meta::PropertyMetadata;
-using Meta::PropertyMetadataFlags;
 using Meta::PropertyProviderToken;
 using Meta::PropertyValue;
 using Meta::PropertyValueSourceInfo;

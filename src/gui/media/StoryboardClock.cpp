@@ -4,7 +4,7 @@
 #include "gui/media/AnimationPathResolver.hpp"
 #include "gui/core/EventRouter.hpp"
 #include <Aero/CommandBinding.hpp>
-#include <Aero/EventTrigger.hpp>
+#include <Aero/Triggers.hpp>
 #include <Aero/Media/Animation/StoryboardActions.hpp>
 #include <algorithm>
 #include <cmath>

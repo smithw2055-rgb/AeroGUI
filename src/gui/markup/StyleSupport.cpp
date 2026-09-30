@@ -7,7 +7,7 @@
 #include "gui/core/EventRouter.hpp"
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/styles/StyleEngine.hpp"
-#include <Aero/EventTrigger.hpp>
+#include <Aero/Triggers.hpp>
 #include "gui/templates/TemplateInstance.hpp"
 #include <cstdio>
 

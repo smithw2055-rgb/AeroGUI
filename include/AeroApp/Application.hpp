@@ -13,12 +13,11 @@
 
 #include <cstdint>
 
-namespace Aero {
-class Application;
-namespace App {
+namespace Aero::App {
+
 struct RunOptions;
 class DesktopHost;
-}
+class Application;
 
 enum class ShutdownMode : std::uint8_t {
     OnLastWindowClose = 0U,
@@ -61,7 +60,7 @@ public:
     // Runs this application through the optional default desktop host. Set an
     // explicit main Window with SetMainWindow(); otherwise StartupUri is used.
     Result<int> Run() noexcept;
-    Result<int> Run(const App::RunOptions& options) noexcept;
+    Result<int> Run(const RunOptions& options) noexcept;
 
     void Shutdown(int exitCode = 0) noexcept;
 
@@ -73,7 +72,7 @@ protected:
     virtual void OnDeactivated(EventArgs& args) noexcept;
 
 private:
-    friend class App::DesktopHost;
+    friend class DesktopHost;
     friend class Window;
     friend class WindowCollection;
 
@@ -96,6 +95,12 @@ private:
     void* hostState_ = nullptr;
 };
 
+} // namespace Aero::App
+
+namespace Aero {
+using App::Application;
+using App::WindowCollection;
+using App::ShutdownMode;
 } // namespace Aero
 
 AERO_DECLARE_TYPE_ENUM(Aero::ShutdownMode)

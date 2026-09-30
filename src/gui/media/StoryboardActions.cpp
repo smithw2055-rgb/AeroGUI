@@ -12,7 +12,6 @@
 #include <new>
 #include <utility>
 #include "gui/triggers/TriggerValueCompare.hpp"
-#include <Aero/EventTrigger.hpp>
 #include "gui/core/Describe.hpp"
 #include "gui/core/TypeRegistryDetail.hpp"
 #include "gui/core/RenderStateCallbacks.hpp"

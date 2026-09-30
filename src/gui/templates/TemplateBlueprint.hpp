@@ -12,7 +12,7 @@
 #include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/Controls.hpp>
 
-#include <Aero/EventTrigger.hpp>
+#include <Aero/Triggers.hpp>
 
 
 

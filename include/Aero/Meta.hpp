@@ -256,30 +256,30 @@ public:
     explicit FrameworkPropertyMetadata(TValue defaultValue,
         FrameworkPropertyMetadataOptions options = FrameworkPropertyMetadataOptions::None) noexcept
         : defaultValue_(std::move(defaultValue)),
-          flags_(ToPropertyMetadataFlags(options)) {}
+          flags_(options) {}
 
     FrameworkPropertyMetadata& Inherits() noexcept {
-        flags_ = flags_ | PropertyMetadataFlags::Inherits;
+        flags_ = flags_ | FrameworkPropertyMetadataOptions::Inherits;
         return *this;
     }
     FrameworkPropertyMetadata& AffectsMeasure() noexcept {
-        flags_ = flags_ | PropertyMetadataFlags::AffectsMeasure;
+        flags_ = flags_ | FrameworkPropertyMetadataOptions::AffectsMeasure;
         return *this;
     }
     FrameworkPropertyMetadata& AffectsArrange() noexcept {
-        flags_ = flags_ | PropertyMetadataFlags::AffectsArrange;
+        flags_ = flags_ | FrameworkPropertyMetadataOptions::AffectsArrange;
         return *this;
     }
     FrameworkPropertyMetadata& AffectsRender() noexcept {
-        flags_ = flags_ | PropertyMetadataFlags::AffectsRender;
+        flags_ = flags_ | FrameworkPropertyMetadataOptions::AffectsRender;
         return *this;
     }
     FrameworkPropertyMetadata& AffectsParentMeasure() noexcept {
-        flags_ = flags_ | PropertyMetadataFlags::AffectsParentMeasure;
+        flags_ = flags_ | FrameworkPropertyMetadataOptions::AffectsParentMeasure;
         return *this;
     }
     FrameworkPropertyMetadata& AffectsParentArrange() noexcept {
-        flags_ = flags_ | PropertyMetadataFlags::AffectsParentArrange;
+        flags_ = flags_ | FrameworkPropertyMetadataOptions::AffectsParentArrange;
         return *this;
     }
     FrameworkPropertyMetadata& Structural() noexcept {
@@ -287,11 +287,11 @@ public:
         return *this;
     }
     FrameworkPropertyMetadata& BindsTwoWayByDefault() noexcept {
-        flags_ = flags_ | PropertyMetadataFlags::BindsTwoWayByDefault;
+        flags_ = flags_ | FrameworkPropertyMetadataOptions::BindsTwoWayByDefault;
         return *this;
     }
     FrameworkPropertyMetadata& Apply(FrameworkPropertyMetadataOptions options) noexcept {
-        flags_ = flags_ | ToPropertyMetadataFlags(options);
+        flags_ = flags_ | options;
         return *this;
     }
     FrameworkPropertyMetadata& UpdateSource(UpdateSourceTrigger trigger) noexcept {
@@ -324,7 +324,7 @@ public:
     }
 
     const TValue& DefaultValue() const noexcept { return defaultValue_; }
-    PropertyMetadataFlags Flags() const noexcept { return flags_; }
+    FrameworkPropertyMetadataOptions Flags() const noexcept { return flags_; }
     UpdateSourceTrigger DefaultUpdateSourceTrigger() const noexcept { return updateSourceTrigger_; }
     ValidateValueCallback Validator() const noexcept { return validate_; }
     PropertyChangedCallback ChangeCallback() const noexcept { return changed_; }
@@ -332,7 +332,7 @@ public:
 
 private:
     TValue defaultValue_;
-    PropertyMetadataFlags flags_ = PropertyMetadataFlags::None;
+    FrameworkPropertyMetadataOptions flags_ = FrameworkPropertyMetadataOptions::None;
     UpdateSourceTrigger updateSourceTrigger_ = UpdateSourceTrigger::Default;
     ValidateValueCallback validate_ = nullptr;
     PropertyChangedCallback changed_ = nullptr;
@@ -374,115 +374,25 @@ public:
         return *this;
     }
 
-    template<class TOwner, class TValue> TypeBuilder& Property(const DependencyPropertyRef<TOwner, TValue>& property,
-        const FrameworkPropertyMetadata<TValue>& options) noexcept {
-        return RegisterProperty(property.Handle(), property.Name(), DependencyPropertyFlags::None, options);
+    // DP / attached / read-only: metadata-object (advanced) or default+options[+validate/changed].
+    template<class TPropertyRef>
+    TypeBuilder& Property(const TPropertyRef& property,
+        const FrameworkPropertyMetadata<typename TPropertyRef::ValueType>& options) noexcept {
+        return RegisterProperty(property.Handle(), property.Name(), PropertyRefFlags<TPropertyRef>(), options);
     }
 
-    template<class TOwner, class TValue> TypeBuilder& Property(const AttachedPropertyRef<TOwner, TValue>& property,
-        const FrameworkPropertyMetadata<TValue>& options) noexcept {
-        return RegisterProperty(property.Handle(), property.Name(), DependencyPropertyFlags::Attached, options);
-    }
-
-    template<class TOwner, class TValue> TypeBuilder& Property(const ReadOnlyPropertyRef<TOwner, TValue>& property,
-        const FrameworkPropertyMetadata<TValue>& options) noexcept {
-        return RegisterProperty(property.Handle(), property.Name(), DependencyPropertyFlags::ReadOnly, options);
-    }
-
-    template<class TOwner, class TValue> TypeBuilder& Property(const DependencyPropertyRef<TOwner, TValue>& property,
-        TValue defaultValue,
-        FrameworkPropertyMetadataOptions options = FrameworkPropertyMetadataOptions::None) noexcept {
-        return Property(property, FrameworkPropertyMetadata<TValue>(std::move(defaultValue), options));
-    }
-
-    template<class TOwner, class TValue> TypeBuilder& Property(const AttachedPropertyRef<TOwner, TValue>& property,
-        TValue defaultValue,
-        FrameworkPropertyMetadataOptions options = FrameworkPropertyMetadataOptions::None) noexcept {
-        return Property(property, FrameworkPropertyMetadata<TValue>(std::move(defaultValue), options));
-    }
-
-    template<class TOwner, class TValue> TypeBuilder& Property(const ReadOnlyPropertyRef<TOwner, TValue>& property,
-        TValue defaultValue,
-        FrameworkPropertyMetadataOptions options = FrameworkPropertyMetadataOptions::None) noexcept {
-        return Property(property, FrameworkPropertyMetadata<TValue>(std::move(defaultValue), options));
-    }
-
-    template<class TOwner, class TValue> TypeBuilder& Property(const DependencyPropertyRef<TOwner, TValue>& property,
-        TValue defaultValue,
-        FrameworkPropertyMetadataOptions options,
-        bool (*validate)(const TValue&) noexcept) noexcept {
-        return Property(property, FrameworkPropertyMetadata<TValue>(std::move(defaultValue), options)
-                .Validate(validate));
-    }
-
-    template<class TOwner, class TValue> TypeBuilder& Property(const AttachedPropertyRef<TOwner, TValue>& property,
-        TValue defaultValue,
-        FrameworkPropertyMetadataOptions options,
-        bool (*validate)(const TValue&) noexcept) noexcept {
-        return Property(property, FrameworkPropertyMetadata<TValue>(std::move(defaultValue), options)
-                .Validate(validate));
-    }
-
-    template<class TOwner, class TValue> TypeBuilder& Property(const ReadOnlyPropertyRef<TOwner, TValue>& property,
-        TValue defaultValue,
-        FrameworkPropertyMetadataOptions options,
-        bool (*validate)(const TValue&) noexcept) noexcept {
-        return Property(property, FrameworkPropertyMetadata<TValue>(std::move(defaultValue), options)
-                .Validate(validate));
-    }
-
-    template<class TOwner, class TValue> TypeBuilder& Property(const DependencyPropertyRef<TOwner, TValue>& property,
-        TValue defaultValue,
-        FrameworkPropertyMetadataOptions options,
-        void (*changed)(DependencyObject&, const TValue&, const TValue&) noexcept) noexcept {
-        return Property(property, FrameworkPropertyMetadata<TValue>(std::move(defaultValue), options)
-                .Changed(changed));
-    }
-
-    template<class TOwner, class TValue> TypeBuilder& Property(const AttachedPropertyRef<TOwner, TValue>& property,
-        TValue defaultValue,
-        FrameworkPropertyMetadataOptions options,
-        void (*changed)(DependencyObject&, const TValue&, const TValue&) noexcept) noexcept {
-        return Property(property, FrameworkPropertyMetadata<TValue>(std::move(defaultValue), options)
-                .Changed(changed));
-    }
-
-    template<class TOwner, class TValue> TypeBuilder& Property(const ReadOnlyPropertyRef<TOwner, TValue>& property,
-        TValue defaultValue,
-        FrameworkPropertyMetadataOptions options,
-        void (*changed)(DependencyObject&, const TValue&, const TValue&) noexcept) noexcept {
-        return Property(property, FrameworkPropertyMetadata<TValue>(std::move(defaultValue), options)
-                .Changed(changed));
-    }
-
-    template<class TOwner, class TValue> TypeBuilder& Property(const DependencyPropertyRef<TOwner, TValue>& property,
-        TValue defaultValue,
-        FrameworkPropertyMetadataOptions options,
-        bool (*validate)(const TValue&) noexcept,
-        void (*changed)(DependencyObject&, const TValue&, const TValue&) noexcept) noexcept {
-        return Property(property, FrameworkPropertyMetadata<TValue>(std::move(defaultValue), options)
-                .Validate(validate)
-                .Changed(changed));
-    }
-
-    template<class TOwner, class TValue> TypeBuilder& Property(const AttachedPropertyRef<TOwner, TValue>& property,
-        TValue defaultValue,
-        FrameworkPropertyMetadataOptions options,
-        bool (*validate)(const TValue&) noexcept,
-        void (*changed)(DependencyObject&, const TValue&, const TValue&) noexcept) noexcept {
-        return Property(property, FrameworkPropertyMetadata<TValue>(std::move(defaultValue), options)
-                .Validate(validate)
-                .Changed(changed));
-    }
-
-    template<class TOwner, class TValue> TypeBuilder& Property(const ReadOnlyPropertyRef<TOwner, TValue>& property,
-        TValue defaultValue,
-        FrameworkPropertyMetadataOptions options,
-        bool (*validate)(const TValue&) noexcept,
-        void (*changed)(DependencyObject&, const TValue&, const TValue&) noexcept) noexcept {
-        return Property(property, FrameworkPropertyMetadata<TValue>(std::move(defaultValue), options)
-                .Validate(validate)
-                .Changed(changed));
+    template<class TPropertyRef>
+    TypeBuilder& Property(const TPropertyRef& property,
+        typename TPropertyRef::ValueType defaultValue,
+        FrameworkPropertyMetadataOptions options = FrameworkPropertyMetadataOptions::None,
+        bool (*validate)(const typename TPropertyRef::ValueType&) noexcept = nullptr,
+        void (*changed)(DependencyObject&, const typename TPropertyRef::ValueType&,
+            const typename TPropertyRef::ValueType&) noexcept = nullptr) noexcept {
+        using TValue = typename TPropertyRef::ValueType;
+        FrameworkPropertyMetadata<TValue> metadata(std::move(defaultValue), options);
+        if (validate != nullptr) { metadata.Validate(validate); }
+        if (changed != nullptr) { metadata.Changed(changed); }
+        return Property(property, metadata);
     }
 
     template< class TValue, auto Getter, auto Setter>
@@ -621,34 +531,13 @@ public:
 
     template<class TOwner, class TValue> TypeBuilder& Override(const DependencyPropertyRef<TOwner, TValue>& property,
         TValue defaultValue,
-        FrameworkPropertyMetadataOptions options = FrameworkPropertyMetadataOptions::None) noexcept {
-        return Override(property, FrameworkPropertyMetadata<TValue>(std::move(defaultValue), options));
-    }
-
-    template<class TOwner, class TValue> TypeBuilder& Override(const DependencyPropertyRef<TOwner, TValue>& property,
-        TValue defaultValue,
-        FrameworkPropertyMetadataOptions options,
-        bool (*validate)(const TValue&) noexcept) noexcept {
-        return Override(property, FrameworkPropertyMetadata<TValue>(std::move(defaultValue), options)
-                .Validate(validate));
-    }
-
-    template<class TOwner, class TValue> TypeBuilder& Override(const DependencyPropertyRef<TOwner, TValue>& property,
-        TValue defaultValue,
-        FrameworkPropertyMetadataOptions options,
-        void (*changed)(DependencyObject&, const TValue&, const TValue&) noexcept) noexcept {
-        return Override(property, FrameworkPropertyMetadata<TValue>(std::move(defaultValue), options)
-                .Changed(changed));
-    }
-
-    template<class TOwner, class TValue> TypeBuilder& Override(const DependencyPropertyRef<TOwner, TValue>& property,
-        TValue defaultValue,
-        FrameworkPropertyMetadataOptions options,
-        bool (*validate)(const TValue&) noexcept,
-        void (*changed)(DependencyObject&, const TValue&, const TValue&) noexcept) noexcept {
-        return Override(property, FrameworkPropertyMetadata<TValue>(std::move(defaultValue), options)
-                .Validate(validate)
-                .Changed(changed));
+        FrameworkPropertyMetadataOptions options = FrameworkPropertyMetadataOptions::None,
+        bool (*validate)(const TValue&) noexcept = nullptr,
+        void (*changed)(DependencyObject&, const TValue&, const TValue&) noexcept = nullptr) noexcept {
+        FrameworkPropertyMetadata<TValue> metadata(std::move(defaultValue), options);
+        if (validate != nullptr) { metadata.Validate(validate); }
+        if (changed != nullptr) { metadata.Changed(changed); }
+        return Override(property, metadata);
     }
 
     TypeBuilder& Content(StringView name, TypeId valueType, ContentKind kind, ContentWriteCallback write = nullptr,
@@ -733,106 +622,37 @@ public:
 
     template<class TOwner, class TValue> TypeBuilder& AddOwner(const DependencyPropertyRef<TOwner, TValue>& property,
         TValue defaultValue,
-        FrameworkPropertyMetadataOptions options = FrameworkPropertyMetadataOptions::None) noexcept {
-        return AddOwner(property, FrameworkPropertyMetadata<TValue>(std::move(defaultValue), options));
+        FrameworkPropertyMetadataOptions options = FrameworkPropertyMetadataOptions::None,
+        bool (*validate)(const TValue&) noexcept = nullptr,
+        void (*changed)(DependencyObject&, const TValue&, const TValue&) noexcept = nullptr) noexcept {
+        FrameworkPropertyMetadata<TValue> metadata(std::move(defaultValue), options);
+        if (validate != nullptr) { metadata.Validate(validate); }
+        if (changed != nullptr) { metadata.Changed(changed); }
+        return AddOwner(property, metadata);
     }
 
     template<class TOwner, class TValue> TypeBuilder& AddOwner(const AttachedPropertyRef<TOwner, TValue>& property,
         TValue defaultValue,
-        FrameworkPropertyMetadataOptions options = FrameworkPropertyMetadataOptions::None) noexcept {
-        return AddOwner(property, FrameworkPropertyMetadata<TValue>(std::move(defaultValue), options));
+        FrameworkPropertyMetadataOptions options = FrameworkPropertyMetadataOptions::None,
+        bool (*validate)(const TValue&) noexcept = nullptr,
+        void (*changed)(DependencyObject&, const TValue&, const TValue&) noexcept = nullptr) noexcept {
+        FrameworkPropertyMetadata<TValue> metadata(std::move(defaultValue), options);
+        if (validate != nullptr) { metadata.Validate(validate); }
+        if (changed != nullptr) { metadata.Changed(changed); }
+        return AddOwner(property, metadata);
     }
 
     template<class TAliasOwner, class TOwner, class TValue> TypeBuilder& AddOwner(
         const AttachedPropertyRef<TAliasOwner, TValue>& aliasProperty,
         const DependencyPropertyRef<TOwner, TValue>& sourceProperty,
         TValue defaultValue,
-        FrameworkPropertyMetadataOptions options = FrameworkPropertyMetadataOptions::None) noexcept {
-        return AddOwner(aliasProperty, sourceProperty,
-            FrameworkPropertyMetadata<TValue>(std::move(defaultValue), options));
-    }
-
-    template<class TOwner, class TValue> TypeBuilder& AddOwner(const DependencyPropertyRef<TOwner, TValue>& property,
-        TValue defaultValue,
-        FrameworkPropertyMetadataOptions options,
-        bool (*validate)(const TValue&) noexcept) noexcept {
-        return AddOwner(property, FrameworkPropertyMetadata<TValue>(std::move(defaultValue), options)
-                .Validate(validate));
-    }
-
-    template<class TOwner, class TValue> TypeBuilder& AddOwner(const AttachedPropertyRef<TOwner, TValue>& property,
-        TValue defaultValue,
-        FrameworkPropertyMetadataOptions options,
-        bool (*validate)(const TValue&) noexcept) noexcept {
-        return AddOwner(property, FrameworkPropertyMetadata<TValue>(std::move(defaultValue), options)
-                .Validate(validate));
-    }
-
-    template<class TAliasOwner, class TOwner, class TValue> TypeBuilder& AddOwner(
-        const AttachedPropertyRef<TAliasOwner, TValue>& aliasProperty,
-        const DependencyPropertyRef<TOwner, TValue>& sourceProperty,
-        TValue defaultValue,
-        FrameworkPropertyMetadataOptions options,
-        bool (*validate)(const TValue&) noexcept) noexcept {
-        return AddOwner(aliasProperty, sourceProperty,
-            FrameworkPropertyMetadata<TValue>(std::move(defaultValue), options) .Validate(validate));
-    }
-
-    template<class TOwner, class TValue> TypeBuilder& AddOwner(const DependencyPropertyRef<TOwner, TValue>& property,
-        TValue defaultValue,
-        FrameworkPropertyMetadataOptions options,
-        void (*changed)(DependencyObject&, const TValue&, const TValue&) noexcept) noexcept {
-        return AddOwner(property, FrameworkPropertyMetadata<TValue>(std::move(defaultValue), options)
-                .Changed(changed));
-    }
-
-    template<class TOwner, class TValue> TypeBuilder& AddOwner(const AttachedPropertyRef<TOwner, TValue>& property,
-        TValue defaultValue,
-        FrameworkPropertyMetadataOptions options,
-        void (*changed)(DependencyObject&, const TValue&, const TValue&) noexcept) noexcept {
-        return AddOwner(property, FrameworkPropertyMetadata<TValue>(std::move(defaultValue), options)
-                .Changed(changed));
-    }
-
-    template<class TAliasOwner, class TOwner, class TValue> TypeBuilder& AddOwner(
-        const AttachedPropertyRef<TAliasOwner, TValue>& aliasProperty,
-        const DependencyPropertyRef<TOwner, TValue>& sourceProperty,
-        TValue defaultValue,
-        FrameworkPropertyMetadataOptions options,
-        void (*changed)(DependencyObject&, const TValue&, const TValue&) noexcept) noexcept {
-        return AddOwner(aliasProperty, sourceProperty,
-            FrameworkPropertyMetadata<TValue>(std::move(defaultValue), options) .Changed(changed));
-    }
-
-    template<class TOwner, class TValue> TypeBuilder& AddOwner(const DependencyPropertyRef<TOwner, TValue>& property,
-        TValue defaultValue,
-        FrameworkPropertyMetadataOptions options,
-        bool (*validate)(const TValue&) noexcept,
-        void (*changed)(DependencyObject&, const TValue&, const TValue&) noexcept) noexcept {
-        return AddOwner(property, FrameworkPropertyMetadata<TValue>(std::move(defaultValue), options)
-                .Validate(validate)
-                .Changed(changed));
-    }
-
-    template<class TOwner, class TValue> TypeBuilder& AddOwner(const AttachedPropertyRef<TOwner, TValue>& property,
-        TValue defaultValue,
-        FrameworkPropertyMetadataOptions options,
-        bool (*validate)(const TValue&) noexcept,
-        void (*changed)(DependencyObject&, const TValue&, const TValue&) noexcept) noexcept {
-        return AddOwner(property, FrameworkPropertyMetadata<TValue>(std::move(defaultValue), options)
-                .Validate(validate)
-                .Changed(changed));
-    }
-
-    template<class TAliasOwner, class TOwner, class TValue> TypeBuilder& AddOwner(
-        const AttachedPropertyRef<TAliasOwner, TValue>& aliasProperty,
-        const DependencyPropertyRef<TOwner, TValue>& sourceProperty,
-        TValue defaultValue,
-        FrameworkPropertyMetadataOptions options,
-        bool (*validate)(const TValue&) noexcept,
-        void (*changed)(DependencyObject&, const TValue&, const TValue&) noexcept) noexcept {
-        return AddOwner(aliasProperty, sourceProperty,
-            FrameworkPropertyMetadata<TValue>(std::move(defaultValue), options) .Validate(validate) .Changed(changed));
+        FrameworkPropertyMetadataOptions options = FrameworkPropertyMetadataOptions::None,
+        bool (*validate)(const TValue&) noexcept = nullptr,
+        void (*changed)(DependencyObject&, const TValue&, const TValue&) noexcept = nullptr) noexcept {
+        FrameworkPropertyMetadata<TValue> metadata(std::move(defaultValue), options);
+        if (validate != nullptr) { metadata.Validate(validate); }
+        if (changed != nullptr) { metadata.Changed(changed); }
+        return AddOwner(aliasProperty, sourceProperty, metadata);
     }
 
     TypeBuilder& ValueSemantics() noexcept {
@@ -899,6 +719,19 @@ public:
     bool Ok() const noexcept { return builder_.Ok(); }
 
 private:
+    template<class TPropertyRef>
+    static constexpr DependencyPropertyFlags PropertyRefFlags() noexcept {
+        if constexpr (std::is_same_v<TPropertyRef,
+                AttachedPropertyRef<typename TPropertyRef::Owner, typename TPropertyRef::ValueType>>) {
+            return DependencyPropertyFlags::Attached;
+        } else if constexpr (std::is_same_v<TPropertyRef,
+                ReadOnlyPropertyRef<typename TPropertyRef::Owner, typename TPropertyRef::ValueType>>) {
+            return DependencyPropertyFlags::ReadOnly;
+        } else {
+            return DependencyPropertyFlags::None;
+        }
+    }
+
     template<class TValue> TypeBuilder& RegisterProperty(DependencyPropertyHandle handle, StringView name,
         DependencyPropertyFlags propertyFlags, const FrameworkPropertyMetadata<TValue>& options) noexcept {
         if (!builder_.Ok()) return *this;

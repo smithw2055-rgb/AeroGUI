@@ -204,7 +204,7 @@ private:
         Base::StringView name,
         TypeId valueType,
         Value defaultValue,
-        PropertyMetadataFlags metadataFlags,
+        FrameworkPropertyMetadataOptions metadataFlags,
         DependencyPropertyFlags propertyFlags,
         ValidateValueCallback validate,
         PropertyChangedCallback changed,

@@ -1442,10 +1442,6 @@ Base::StringView DesktopHost::WindowComponentUri(
     return window.ComponentUri();
 }
 
-} // namespace Aero::App
-
-namespace Aero {
-
 void Application::AdoptResources(
     ResourceDictionary&& resources) noexcept {
     resources_ = std::move(resources);
@@ -1459,4 +1455,4 @@ Base::StringView Window::ComponentUri() const noexcept {
     return componentUri_.View();
 }
 
-} // namespace Aero
+} // namespace Aero::App

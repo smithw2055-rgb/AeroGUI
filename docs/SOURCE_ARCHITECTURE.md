@@ -79,7 +79,7 @@ include/Aero/Interactivity/      Aero::Interactivity   System.Windows.Interactiv
 include/Aero/Media/Animation/    Aero::Media::Animation   System.Windows.Media.Animation
     StoryboardActions.hpp (BeginStoryboard, etc.)
     StoryboardCompletedTrigger.hpp  TimerTrigger.hpp  MediaActions.hpp
-include/Aero/EventTrigger.hpp    Aero::Media::Animation   EventTrigger (beside Triggers.hpp)
+include/Aero/Triggers.hpp        Aero                     EventTrigger (with Trigger family; Media::Animation alias)
 ```
 
 Rules:

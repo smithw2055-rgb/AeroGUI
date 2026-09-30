@@ -114,7 +114,7 @@ the installed SDK.
 `<Aero/Media/Animation.hpp>` is an umbrella only. Family headers own the
 clock (`Timeline.hpp`), storyboard chain (`Storyboard.hpp`), easing
 (`EasingFunctions.hpp`), key frames (`KeyFrames.hpp`), and from/to animations
-(`Animations.hpp`). `EventTrigger` lives next to `Triggers.hpp`. Timer and
+(`Animations.hpp`). `EventTrigger` lives in `Triggers.hpp`. Timer and
 storyboard-completed triggers stay under `Media/Animation/`. Actions stay in
 `StoryboardActions.hpp` and `MediaActions.hpp`. The animation umbrella must
 not include those trigger or action headers. From/to animations are
@@ -137,7 +137,7 @@ family types are owned by `Controls/Primitives/*` with no flat forwarding
 headers under `Controls/`.
 
 Trigger ownership follows WPF semantics: `<Aero/Triggers.hpp>` owns Style/Template
-triggers, `<Aero/EventTrigger.hpp>` owns `EventTrigger`, `Aero/Interactivity/*`
+triggers, `<Aero/Triggers.hpp>` owns `EventTrigger` (with Style/Template triggers), `Aero/Interactivity/*`
 owns Blend behaviors/actions, and `Media/Animation/` owns storyboard and media
 actions plus the timer and storyboard-completed triggers.
 `<Aero/Media/Animation.hpp>` stays trigger-free.

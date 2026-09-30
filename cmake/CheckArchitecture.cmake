@@ -2569,6 +2569,11 @@ aero_forbid_file("include/Aero/Controls/GridViewColumnHeader.hpp")
 aero_forbid_file("include/Aero/Controls/GridViewHeaderRowPresenter.hpp")
 aero_forbid_file("include/Aero/Controls/GridViewRowPresenter.hpp")
 aero_forbid_file("include/Aero/Media/Animation/EventTrigger.hpp")
+aero_forbid_file("include/Aero/EventTrigger.hpp")
+aero_require_text(
+    "include/Aero/Triggers.hpp"
+    "class AERO_GUI_API EventTrigger"
+    "EventTrigger must live in Triggers.hpp with the Trigger family")
 aero_forbid_file("include/Aero/Controls/RangeBase.hpp")
 aero_forbid_file("include/Aero/Media/Transforms.hpp")
 foreach(aero_retired_media IN ITEMS
@@ -2719,6 +2724,14 @@ foreach(gui_kernel_file IN LISTS aero_gui_kernel_files)
     endforeach()
 endforeach()
 
+aero_require_text(
+    "include/AeroApp/Window.hpp"
+    "namespace Aero::App"
+    "Window host types must live under Aero::App")
+aero_require_text(
+    "include/AeroApp/Application.hpp"
+    "namespace Aero::App"
+    "Application must live under Aero::App with Window")
 aero_require_text(
     "include/AeroApp/Window.hpp"
     "Result<bool> ShowDialog()"

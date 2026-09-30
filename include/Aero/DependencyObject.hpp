@@ -206,7 +206,7 @@ private:
         ChangeKind kind, const PropertyValue* value) noexcept;
     void RemoveChangeHandler(std::uint32_t index) noexcept;
     void NotifyValueChanged(const DependencyPropertyChangedEventArgs& args) noexcept;
-    PropertyInvalidationFlags AccumulateInvalidations(PropertyMetadataFlags metadataFlags) noexcept;
+    PropertyInvalidationFlags AccumulateInvalidations(FrameworkPropertyMetadataOptions metadataFlags) noexcept;
 };
 
 template<class TOwner, class TValue> PropertyAccess<TValue> DependencyObject::GetValue(

@@ -5,7 +5,7 @@
 #include "ApplicationHost.hpp"
 #include "DesktopHost.hpp"
 
-namespace Aero {
+namespace Aero::App {
 
 void Window::InitializeComponent() noexcept {
     componentRequested_ = true;
@@ -189,18 +189,15 @@ void Window::NotifyClosed() noexcept {
     OnClosed(args);
 }
 
-} // namespace Aero
 
-namespace Aero::App {
-
-Platform::NativeWindowHandle WindowInterop::NativeHandle(const ::Aero::Window& window) noexcept {
+Platform::NativeWindowHandle WindowInterop::NativeHandle(const Window& window) noexcept {
     const auto* state =
         static_cast<const ::Aero::App::WindowHostBridge*>(
             window.hostState_);
     return state != nullptr && state->nativeHandle != nullptr ? state->nativeHandle(state->context) : Platform::NativeWindowHandle{};
 }
 
-::Aero::View* WindowInterop::HostedView(::Aero::Window& window) noexcept {
+::Aero::View* WindowInterop::HostedView(Window& window) noexcept {
     auto* state = static_cast<::Aero::App::WindowHostBridge*>(
         window.hostState_);
     return state != nullptr && state->hostedView != nullptr ? state->hostedView(state->context) : nullptr;

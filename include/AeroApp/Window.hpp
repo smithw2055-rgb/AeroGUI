@@ -3,11 +3,10 @@
 #include <Aero/Controls/ContentControl.hpp>
 #include <Aero/Events/WindowEventArgs.hpp>
 
-namespace Aero {
-namespace App {
+namespace Aero::App {
+
 class WindowInterop;
 class DesktopHost;
-}
 
 enum class WindowState : std::uint8_t { Normal = 0U, Minimized, Maximized };
 enum class WindowStyle : std::uint8_t { None = 0U, SingleBorderWindow, ThreeDBorderWindow, ToolWindow };
@@ -87,8 +86,8 @@ protected:
     void OnPropertyChanged(const Meta::DependencyPropertyChangedEventArgs& args) noexcept override;
 
 private:
-    friend class App::WindowInterop;
-    friend class App::DesktopHost;
+    friend class WindowInterop;
+    friend class DesktopHost;
 
     void Attach(void* hostState) noexcept;
     void Detach() noexcept;
@@ -109,6 +108,14 @@ private:
     bool dialogActive_ = false;
 };
 
+} // namespace Aero::App
+
+namespace Aero {
+using App::Window;
+using App::WindowState;
+using App::WindowStyle;
+using App::ResizeMode;
+using App::SizeToContent;
 } // namespace Aero
 
 AERO_DECLARE_TYPE_ENUM(Aero::WindowState)

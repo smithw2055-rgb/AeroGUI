@@ -13,7 +13,7 @@
 #include <Aero/Media/Transform3D.hpp>
 #include <Aero/Media/Effects.hpp>
 #include <Aero/Media/Geometries.hpp>
-#include <Aero/EventTrigger.hpp>
+#include <Aero/Triggers.hpp>
 #include <Aero/Markup/XamlReader.hpp>
 #include <Aero/Controls.hpp>
 #include <cmath>

@@ -52,24 +52,24 @@ thread_local std::uint32_t t_mutationDepth = 0U;
 // from src/gui/core/PropertySystem.cpp
 
 PropertyInvalidationFlags DependencyObject::AccumulateInvalidations(
-    PropertyMetadataFlags metadataFlags) noexcept {
+    FrameworkPropertyMetadataOptions metadataFlags) noexcept {
     PropertyInvalidationFlags change = PropertyInvalidationFlags::None;
-    if (HasFlag(metadataFlags, PropertyMetadataFlags::AffectsMeasure)) {
+    if (HasFlag(metadataFlags, FrameworkPropertyMetadataOptions::AffectsMeasure)) {
         change |= PropertyInvalidationFlags::Measure;
     }
-    if (HasFlag(metadataFlags, PropertyMetadataFlags::AffectsArrange)) {
+    if (HasFlag(metadataFlags, FrameworkPropertyMetadataOptions::AffectsArrange)) {
         change |= PropertyInvalidationFlags::Arrange;
     }
-    if (HasFlag(metadataFlags, PropertyMetadataFlags::AffectsRender)) {
+    if (HasFlag(metadataFlags, FrameworkPropertyMetadataOptions::AffectsRender)) {
         change |= PropertyInvalidationFlags::Render;
     }
-    if (HasFlag(metadataFlags, PropertyMetadataFlags::Inherits)) {
+    if (HasFlag(metadataFlags, FrameworkPropertyMetadataOptions::Inherits)) {
         change |= PropertyInvalidationFlags::Inheritance;
     }
-    if (HasFlag(metadataFlags, PropertyMetadataFlags::AffectsParentMeasure)) {
+    if (HasFlag(metadataFlags, FrameworkPropertyMetadataOptions::AffectsParentMeasure)) {
         change |= PropertyInvalidationFlags::ParentMeasure;
     }
-    if (HasFlag(metadataFlags, PropertyMetadataFlags::AffectsParentArrange)) {
+    if (HasFlag(metadataFlags, FrameworkPropertyMetadataOptions::AffectsParentArrange)) {
         change |= PropertyInvalidationFlags::ParentArrange;
     }
     invalidations_ |= change;

@@ -141,8 +141,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Media/Images.hpp
     include/Aero/Module.hpp
     include/Aero/Shapes.hpp
-    include/Aero/EventTrigger.hpp
-    include/Aero/Interactivity/InteractionTriggers.hpp
+        include/Aero/Interactivity/InteractionTriggers.hpp
     include/Aero/Interactivity/Interaction.hpp
     include/Aero/Interactivity/Conditions.hpp
     include/Aero/Media/Animation/StoryboardCompletedTrigger.hpp

@@ -391,7 +391,7 @@ Base::Result<PropertyValue> DependencyPropertyRegistry::EvaluateValue(
 
 PropertyFlags DependencyPropertyRegistry::ToTypeRegistryFlags(
     DependencyPropertyFlags propertyFlags,
-    PropertyMetadataFlags metadataFlags) noexcept {
+    FrameworkPropertyMetadataOptions metadataFlags) noexcept {
     PropertyFlags result = PropertyFlags::None;
     if (HasFlag(propertyFlags, DependencyPropertyFlags::Attached)) {
         result = result | PropertyFlags::Attached;
@@ -405,22 +405,22 @@ PropertyFlags DependencyPropertyRegistry::ToTypeRegistryFlags(
     if (HasFlag(propertyFlags, DependencyPropertyFlags::Structural)) {
         result = result | PropertyFlags::Structural;
     }
-    if (HasFlag(metadataFlags, PropertyMetadataFlags::Inherits)) {
+    if (HasFlag(metadataFlags, FrameworkPropertyMetadataOptions::Inherits)) {
         result = result | PropertyFlags::Inherits;
     }
-    if (HasFlag(metadataFlags, PropertyMetadataFlags::AffectsMeasure)) {
+    if (HasFlag(metadataFlags, FrameworkPropertyMetadataOptions::AffectsMeasure)) {
         result = result | PropertyFlags::AffectsMeasure;
     }
-    if (HasFlag(metadataFlags, PropertyMetadataFlags::AffectsArrange)) {
+    if (HasFlag(metadataFlags, FrameworkPropertyMetadataOptions::AffectsArrange)) {
         result = result | PropertyFlags::AffectsArrange;
     }
-    if (HasFlag(metadataFlags, PropertyMetadataFlags::AffectsRender)) {
+    if (HasFlag(metadataFlags, FrameworkPropertyMetadataOptions::AffectsRender)) {
         result = result | PropertyFlags::AffectsRender;
     }
-    if (HasFlag(metadataFlags, PropertyMetadataFlags::AffectsParentMeasure)) {
+    if (HasFlag(metadataFlags, FrameworkPropertyMetadataOptions::AffectsParentMeasure)) {
         result = result | PropertyFlags::AffectsParentMeasure;
     }
-    if (HasFlag(metadataFlags, PropertyMetadataFlags::AffectsParentArrange)) {
+    if (HasFlag(metadataFlags, FrameworkPropertyMetadataOptions::AffectsParentArrange)) {
         result = result | PropertyFlags::AffectsParentArrange;
     }
     return result;
@@ -987,7 +987,7 @@ void EffectiveValueEngine::Shutdown() noexcept {
             if (metadata != nullptr &&
                 HasFlag(
                     metadata->flags,
-                    PropertyMetadataFlags::Inherits)) {
+                    FrameworkPropertyMetadataOptions::Inherits)) {
                 static_cast<void>(
                     object->RemoveValueChangedHandler(
                         property.Handle(),
@@ -1223,7 +1223,7 @@ Base::Result<void> EffectiveValueEngine::QueueDescendants(
             const bool inherits = metadata != nullptr &&
                 HasFlag(
                     metadata->flags,
-                    PropertyMetadataFlags::Inherits);
+                    FrameworkPropertyMetadataOptions::Inherits);
             if (inherits ||
                 (*child).FindStoredEntry( property) != nullptr) {
                 Base::Result<void> queued =
@@ -1282,7 +1282,7 @@ EffectiveValueEngine::EnsureInheritanceSubscription(
         if (metadata == nullptr ||
             !HasFlag(
                 metadata->flags,
-                PropertyMetadataFlags::Inherits)) {
+                FrameworkPropertyMetadataOptions::Inherits)) {
             continue;
         }
 
@@ -1316,7 +1316,7 @@ void EffectiveValueEngine::RemoveInheritanceSubscription(
             if (metadata != nullptr &&
                 HasFlag(
                     metadata->flags,
-                    PropertyMetadataFlags::Inherits)) {
+                    FrameworkPropertyMetadataOptions::Inherits)) {
                 static_cast<void>(
                     object.RemoveValueChangedHandler(
                         property.Handle(),
@@ -1344,7 +1344,7 @@ void EffectiveValueEngine::OnInheritancePropertyChanged(
     if (metadata == nullptr ||
         !HasFlag(
             metadata->flags,
-            PropertyMetadataFlags::Inherits)) {
+            FrameworkPropertyMetadataOptions::Inherits)) {
         return;
     }
     static_cast<void>(QueueDescendants(object, args.GetProperty()));
@@ -1362,7 +1362,7 @@ Base::Result<void> EffectiveValueEngine::Apply(
         "Dependency property metadata is unavailable for the object");
     PropertyValue inheritedValue;
     const PropertyValue* inherited = nullptr;
-    if (HasFlag(metadata->flags, PropertyMetadataFlags::Inherits)) {
+    if (HasFlag(metadata->flags, FrameworkPropertyMetadataOptions::Inherits)) {
         DependencyObject* inheritFrom = InheritanceParent(object);
         if (inheritFrom == nullptr) {
             if (::Aero::Media::Visual* visual =

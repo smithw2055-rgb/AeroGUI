@@ -17,6 +17,7 @@
 namespace Aero {
 namespace Markup { class XamlStyleSchemaFacet; }
 namespace Controls { class TemplateBuilder; class TemplateEngine; }
+namespace Interactivity { class TriggerAction; }
 
 
 using Meta::TypeId;
@@ -250,4 +251,40 @@ private:
     Base::Vector<Ref<Setter>> authoredSetters_;
 };
 
+
+class AERO_GUI_API EventTrigger : public TriggerBase {
+    AERO_DECLARE_TYPE(EventTrigger, TriggerBase)
+public:
+    EventTrigger() noexcept : EventTrigger(StaticTypeId()) {}
+    StringView GetRoutedEvent() const noexcept { return routedEvent_.View(); }
+    StringView GetEventName() const noexcept { return routedEvent_.View(); }
+    StringView GetSourceName() const noexcept { return sourceName_.View(); }
+    void SetRoutedEvent(StringView value) noexcept;
+    void SetEventName(StringView value) noexcept { SetRoutedEvent(value); }
+    void SetSourceName(StringView value) noexcept;
+    void AddAction(Ref<Interactivity::TriggerAction> value) noexcept;
+    void ClearActions() noexcept;
+    Span<const Ref<Interactivity::TriggerAction>> GetActions() const noexcept {
+        return {actions_.Data(), actions_.Size()};
+    }
+    void AddConditionBehavior(Ref<Base::Object> value) noexcept { behaviors_.PushBack(std::move(value)); }
+    void ClearConditionBehaviors() noexcept { behaviors_.Clear(); }
+    Span<const Ref<Base::Object>> GetBehaviors() const noexcept {
+        return {behaviors_.Data(), behaviors_.Size()};
+    }
+
+protected:
+    explicit EventTrigger(Meta::TypeId runtimeType) noexcept : TriggerBase(runtimeType) {}
+
+private:
+    String routedEvent_;
+    String sourceName_;
+    Base::Vector<Ref<Interactivity::TriggerAction>> actions_;
+    Base::Vector<Ref<Base::Object>> behaviors_;
+};
+
 } // namespace Aero
+
+namespace Aero::Media::Animation {
+using EventTrigger = ::Aero::EventTrigger;
+} // namespace Aero::Media::Animation

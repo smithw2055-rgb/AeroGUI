@@ -11,7 +11,6 @@
 
 #include <Aero/Interactivity/TriggerAction.hpp>
 #include <Aero/Triggers.hpp>
-#include <Aero/EventTrigger.hpp>
 #include <Aero/Media/Animation/StoryboardActions.hpp>
 #include <Aero/Media/Animation/StoryboardCompletedTrigger.hpp>
 #include <Aero/Media/Animation/TimerTrigger.hpp>

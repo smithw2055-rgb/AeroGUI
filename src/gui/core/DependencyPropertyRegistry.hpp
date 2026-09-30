@@ -97,7 +97,7 @@ private:
     std::uint32_t FindIndex(MemberId member) const noexcept;
     static PropertyFlags ToTypeRegistryFlags(
         DependencyPropertyFlags propertyFlags,
-        PropertyMetadataFlags metadataFlags) noexcept;
+        FrameworkPropertyMetadataOptions metadataFlags) noexcept;
 };
 
 } // namespace Aero::Meta
