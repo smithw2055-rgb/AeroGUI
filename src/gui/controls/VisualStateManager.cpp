@@ -16,6 +16,11 @@
 #include <algorithm>
 #include <new>
 #include <utility>
+#include <Aero/Triggers.hpp>
+#include <Aero/Media/Animation.hpp>
+#include <Aero/Meta.hpp>
+#include "gui/core/EnumRegistration.hpp"
+#include "gui/core/TypeRegistryCore.hpp"
 
 
 namespace Aero::Controls {
@@ -1477,3 +1482,247 @@ Base::StringView Controls::VisualStateManagerExecution::CurrentState(
 
 } // namespace Aero
 
+// VisualState* metadata registration (who-defines-registers).
+namespace Aero {
+namespace {
+
+using namespace ::Aero::Meta;
+using namespace ::Aero::Media;
+
+void AddGroupState(
+    Base::Object& object,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    if (!value || value->RuntimeType() !=
+            VisualState::StaticTypeId()) {
+        return;
+    }
+    static_cast<VisualStateGroup&>(object).AddState(
+        Base::Ref<VisualState>::FromBorrowed(
+            *static_cast<VisualState*>(value.Get())));
+}
+
+void ClearGroupStates(
+    Base::Object& object,
+    void*) noexcept {
+    static_cast<VisualStateGroup&>(object).ClearStates();
+}
+
+void AddGroupTransition(
+    Base::Object& object,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    if (!value || value->RuntimeType() !=
+            VisualTransition::StaticTypeId()) {
+        return;
+    }
+    static_cast<VisualStateGroup&>(object).AddTransition(
+        Base::Ref<VisualTransition>::FromBorrowed(
+            *static_cast<VisualTransition*>(value.Get())));
+}
+
+void ClearGroupTransitions(
+    Base::Object& object,
+    void*) noexcept {
+    static_cast<VisualStateGroup&>(
+        object).ClearTransitions();
+}
+
+[[maybe_unused]] void AddElementVisualStateGroup(
+    Base::Object& object,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    if (!value || value->RuntimeType() != VisualStateGroup::StaticTypeId()) {
+        return;
+    }
+    auto& target = static_cast<::Aero::DependencyObject&>(object);
+    Base::Ref<VisualStateGroupCollection> valueStore = target.GetValue(VisualStateManager::VisualStateGroupsProperty);
+    if (!valueStore) {
+        Base::Result<Base::Ref<VisualStateGroupCollection>> created =
+            Base::MakeRef<VisualStateGroupCollection>();
+        if (!created) return;
+        valueStore = std::move(created).Value();
+        target.SetValue(
+            VisualStateManager::VisualStateGroupsProperty,
+            valueStore);
+    }
+    (void)valueStore->Add(
+        Base::Ref<VisualStateGroup>::FromBorrowed(
+            *static_cast<VisualStateGroup*>(value.Get())));
+}
+
+[[maybe_unused]] void ClearElementVisualStateGroups(
+    Base::Object& object,
+    void*) noexcept {
+    static_cast<::Aero::DependencyObject&>(object).SetValue(
+        VisualStateManager::VisualStateGroupsProperty,
+        Base::Ref<VisualStateGroupCollection>{});
+}
+
+void AddStateContent(
+    Base::Object& object,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    if (!value) {
+        return;
+    }
+    auto& state =
+        static_cast<VisualState&>(object);
+    if (value->RuntimeType() == Setter::StaticTypeId()) {
+        state.AddSetter(value);
+        return;
+    }
+    if (value->RuntimeType() ==
+        Media::Animation::Storyboard::StaticTypeId()) {
+        state.SetStoryboard(
+            Base::Ref<Media::Animation::Storyboard>::FromBorrowed(
+                *static_cast<Media::Animation::Storyboard*>(value.Get())));
+        return;
+    }
+    return;
+}
+
+void ClearStateContent(
+    Base::Object& object,
+    void*) noexcept {
+    auto& state =
+        static_cast<VisualState&>(object);
+    state.ClearSetters();
+    state.SetStoryboard({});
+}
+
+void SetTransitionStoryboard(
+    Base::Object& object,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    if (!value || value->RuntimeType() !=
+            Media::Animation::Storyboard::StaticTypeId()) {
+        return;
+    }
+    static_cast<VisualTransition&>(
+        object).SetStoryboard(
+            Base::Ref<Media::Animation::Storyboard>::FromBorrowed(
+                *static_cast<Media::Animation::Storyboard*>(
+                    value.Get())));
+}
+
+void ClearTransitionStoryboard(
+    Base::Object& object,
+    void*) noexcept {
+    static_cast<VisualTransition&>(object).SetStoryboard({});
+}
+
+[[maybe_unused]] void AddVisualStateGroupToCollection(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    if (!value || value->RuntimeType() != VisualStateGroup::StaticTypeId()) return;
+    auto& collection = static_cast<VisualStateGroupCollection&>(owner);
+    collection.Add(
+        Base::Ref<VisualStateGroup>::FromBorrowed(
+            *static_cast<VisualStateGroup*>(value.Get())));
+}
+
+[[maybe_unused]] void ClearVisualStateGroupCollection(
+    Base::Object& owner,
+    void*) noexcept {
+    static_cast<VisualStateGroupCollection&>(owner).Clear();
+}
+
+
+} // namespace
+
+Base::Result<void> PopulateVisualStateMetadata(
+    ::Aero::Meta::Registration& context) noexcept {
+    using namespace ::Aero::Meta;
+    using namespace ::Aero::Media;
+    Base::Result<void> status;
+    status = Meta::Register<VisualStateGroupCollection>(
+        context, TypeFlags::Sealed).Result();
+    if (!status) return status.GetStatus();
+
+    auto visualStateManager =
+        Meta::Register<VisualStateManager>(
+            context, TypeFlags::Abstract);
+    visualStateManager
+        .Property(
+            VisualStateManager::VisualStateGroupsProperty,
+            FrameworkPropertyMetadata(
+                Base::Ref<VisualStateGroupCollection>{})
+                .Structural());
+    status = visualStateManager.Result();
+    if (!status) return status.GetStatus();
+
+    auto stateGroup =
+        Meta::Register<VisualStateGroup>(context);
+    stateGroup
+        .Property(
+            "Name",
+            &VisualStateGroup::GetName,
+            &VisualStateGroup::SetName)
+        .Content<VisualState>(
+            "States",
+            ContentKind::Collection,
+            &AddGroupState,
+            &ClearGroupStates)
+        .Collection<VisualTransition>(
+            "Transitions",
+            &AddGroupTransition,
+            &ClearGroupTransitions)
+        .Factory();
+    status = stateGroup.Result();
+    if (!status) return status.GetStatus();
+
+    auto state = Meta::Register<VisualState>(context);
+    state
+        .Property(
+            "Name",
+            &VisualState::GetName,
+            &VisualState::SetName)
+        .Property<
+            Base::Ref<Media::Animation::Storyboard>,
+            &VisualState::GetStoryboard,
+            &VisualState::SetStoryboard>(
+            "Storyboard",
+            PropertyFlags::Structural)
+        .Content<Base::Object>(
+            "Content",
+            ContentKind::Collection,
+            &AddStateContent,
+            &ClearStateContent)
+        .Factory();
+    status = state.Result();
+    if (!status) return status.GetStatus();
+
+    auto transition =
+        Meta::Register<VisualTransition>(context);
+    transition
+        .Property(
+            "From",
+            &VisualTransition::GetFrom,
+            &VisualTransition::SetFrom)
+        .Property(
+            "To",
+            &VisualTransition::GetTo,
+            &VisualTransition::SetTo)
+        .Property(
+            "GeneratedDuration",
+            &VisualTransition::GetGeneratedDuration,
+            &VisualTransition::SetGeneratedDuration)
+        .Property<
+            Base::Ref<Media::Animation::EasingFunctionBase>,
+            &VisualTransition::GetGeneratedEasingFunction,
+            &VisualTransition::SetGeneratedEasingFunction>(
+            "GeneratedEasingFunction",
+            PropertyFlags::Structural)
+        .Content<Media::Animation::Storyboard>(
+            "Storyboard",
+            ContentKind::Single,
+            &SetTransitionStoryboard,
+            &ClearTransitionStoryboard)
+        .Factory();
+    status = transition.Result();
+    return status;
+}
+
+} // namespace Aero

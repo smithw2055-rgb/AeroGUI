@@ -29,14 +29,14 @@ dir. IDE-only virtual folders are defined via `source_group()` in
 | `Controls/Menu*.hpp`, `ContextMenu*.hpp`, `ToolBar.hpp` | `Menus.cpp` + `Bars.cpp` |
 | `Controls/ContentControl.hpp`, `UserControl.hpp`, `Headers.hpp` … | `ContentControls.cpp` |
 | `Controls/Image.hpp` | `Images.cpp` |
-| `VisualStateManager.hpp` | `VisualStateManager.cpp` |
-| Metadata bootstrap | `gui/BuiltinModules.cpp` (+ `gui/BuiltinModules.hpp`) orchestrates; enum bodies in family `*EnumsDescribe.cpp` / `app/Metadata.cpp`; element spine `AERO_DESCRIBE` in defining TUs (Visual/ContentElement/FCE/UIElement/FrameworkElement); POD value types + converters in `media/Geometry.cpp` via `PopulateMediaValueTypes` (谁定义谁注册); `ControlPropertyValidators.hpp` remains under controls |
+| `VisualStateManager.hpp` | `VisualStateManager.cpp` (also `PopulateVisualStateMetadata`) |
+| Metadata bootstrap | `gui/BuiltinModules.cpp` (+ `gui/BuiltinModules.hpp`) orchestrates; enum bodies in family `*EnumsDescribe.cpp` / `app/Metadata.cpp`; element spine `AERO_DESCRIBE` in defining TUs (Visual/ContentElement/FCE/UIElement/FrameworkElement); POD value types + converters in `media/Geometry.cpp` via `PopulateMediaValueTypes`; animation eases/keyframes via `media/Animation.cpp` `PopulateAnimationTypes`; markup tokens in `markup/XamlSchemaMetadata.cpp`; VSM Register in `controls/VisualStateManager.cpp` (谁定义谁注册); `ControlPropertyValidators.hpp` remains under controls |
 
 ## Media / animation (`src/gui/media/`, flat)
 
 | Public surface | Implementation |
 | --- | --- |
-| `Media/Animation/*` timelines | `AnimationEngine.cpp` + `AnimationEngine.Apply.cpp` + `Animation.cpp` (+ `AnimationModel.hpp`, `AnimationEngine.hpp`) |
+| `Media/Animation/*` timelines | `AnimationEngine.cpp` + `AnimationEngine.Apply.cpp` + `Animation.cpp` (also eases/keyframes / `PopulateAnimationTypes`) (+ `AnimationModel.hpp`, `AnimationEngine.hpp`) |
 | `Media/Animation/Storyboard*`, `EventTrigger` | `StoryboardHost.cpp` + `.Timelines/.Properties/.Actions/.Events/.Completions.cpp` (keyframe helper in `StoryboardHost.hpp`, merged from `StoryboardHostCommon.hpp`) |
 | `Media/Brush*.hpp`, `Media/Effect*.hpp` | `Brushes.cpp` + `Effects.cpp` + `Pen.cpp` |
 | `Media/Geometry*.hpp`, `PathGeometry`, `StreamGeometry` | `Geometry.cpp` (also POD value-type Register+converters / `PopulateMediaValueTypes`) + `GeometryFlatten.cpp` + `StrokeTessellate.cpp` + `StreamGeometry.cpp` |
@@ -47,7 +47,7 @@ dir. IDE-only virtual folders are defined via `source_group()` in
 | Public surface | Implementation |
 | --- | --- |
 | `Data/Binding*.hpp` | `data/Binding.cpp`, `BindingPath.cpp`, `BindingEvaluation.cpp`, `BindingExpression.cpp`, `BindingOperations.cpp` (shared: `BindingCommon.hpp`, `BindingEngine.hpp`), `CollectionView.cpp` |
-| `Markup/Xaml*.hpp` | `markup/XamlParser.cpp`, `XamlObjectWriter*.cpp`, `XamlObjectLoader.cpp`, `XamlCompiled{Schema,Document}.cpp`, `XamlSchema*.cpp`, `XamlDocumentCache.cpp`, `GuiSchema.cpp`, `TemplateCompiler.cpp` |
+| `Markup/Xaml*.hpp` | `markup/XamlParser.cpp`, `XamlObjectWriter*.cpp`, `XamlObjectLoader.cpp`, `XamlCompiled{Schema,Document}.cpp`, `XamlSchema*.cpp` (tokens + `PopulateMarkupMetadata` in `XamlSchemaMetadata.cpp`), `XamlDocumentCache.cpp`, `GuiSchema.cpp`, `TemplateCompiler.cpp` |
 | `Meta.hpp` / `Module.hpp` | `core/Metadata.cpp`, `Module.cpp`, `gui/BuiltinModules.cpp`, `Value.cpp` + tables + `TypeBuilderCore.hpp` |
 | `Triggers/*`, `Interactivity/*` | `triggers/Trigger*.cpp` + `interactivity/InteractivityEngine*.cpp` + `BlendBehaviors.cpp` |
 | Text stack | `text/TextPipeline.cpp`, `TextLayout.cpp`, `GlyphAtlas.cpp`, `FontManager.cpp`, `EditableText.cpp` + `freetype/` + `harfbuzz/` adapters |
@@ -72,7 +72,7 @@ was used for observable API comparison only; no implementation was copied.
 | Area | Change |
 | --- | --- |
 | DP public surface | `DependencyObject.hpp` keeps Noesis-parity API (Get/Set/Clear/Coerce/expressions/notifications); `ChangeHandlerRecord`/`DependencyObjectRare`/`DependencyMutationScope` (ex-`MutationScope`) live in `core/PropertyStore.hpp`. `ChangeKind` stays public (used by `Resources.hpp`). Friend: `DependencyMutationScope`. |
-| Meta registration | UI/markup `Populate*` / `DescribeHook` orchestration lists stay in `gui/BuiltinModules.cpp` (no concrete Fill* bodies). Enum `AERO_REGISTER_ENUM` bodies live in family `*EnumsDescribe.cpp` (and App enums in `app/Metadata.cpp`); element spine Register bodies live as `AERO_DESCRIBE` on defining TUs; POD value Register+converters live in `media/Geometry.cpp` (`PopulateMediaValueTypes`). |
+| Meta registration | UI/markup `Populate*` / `DescribeHook` orchestration lists stay in `gui/BuiltinModules.cpp` (no concrete Fill* bodies). Enum `AERO_REGISTER_ENUM` bodies live in family `*EnumsDescribe.cpp` (and App enums in `app/Metadata.cpp`); element spine Register bodies live as `AERO_DESCRIBE` on defining TUs; POD value Register+converters live in `media/Geometry.cpp` (`PopulateMediaValueTypes`); animation eases/keyframes in `media/Animation.cpp` (`PopulateAnimationTypes`); markup tokens in `XamlSchemaMetadata.cpp`; VSM Register in `VisualStateManager.cpp`. |
 | Meta gap (verified) | `TemplatePart`/`DependsOn` have no Aero equivalent (Noesis: `TypeMetaData` subclasses). Consumption exists (`Control::GetTemplateChild(name)`, `PART_*` convention). Recording needs a new facet kind, but `FacetDraft::facets[11]` is single-index-per-kind while PARTs are one-to-many → requires facet-model redesign (range encoding or side-table) + template-tooling consumption. Tracked as feature design, not done here. |
 | View content API | Canonical: `SetContent(doc, size)` + `SetContent(root, size)`. `SetContent(root)` is `[[deprecated]]` (no in-tree callers; `Gui::CreateView(content)` migrated to explicit empty size, behavior-identical). `SetContent(root, doc, size)` kept (used by `DesktopHost`); new fragment mounts prefer `XamlReader::MountFragment`. See `XamlReader.hpp` entry-point guide. |
 | PCH tiers | `AeroPCH.hpp` gains a host-integration tier (`Input.hpp`, `TextureProvider.hpp`, `FontProvider.hpp`, `XamlReader.hpp`), mirroring the NoesisPCH Providers banner. Type-header-direct users unaffected. |

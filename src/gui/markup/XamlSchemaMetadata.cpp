@@ -12,7 +12,14 @@
 
 #include <cstdint>
 
-// XamlFacets runtime (PopulateMarkupMetadata lives in gui/BuiltinModules.cpp).
+#include <Aero/Markup/MarkupExtension.hpp>
+#include "gui/markup/MarkupExtensionContract.hpp"
+#include "gui/markup/XamlSchema.hpp"
+#include "gui/core/EnumRegistration.hpp"
+#include <Aero/VisualStateManager.hpp>
+#include <Aero/FrameworkElement.hpp>
+
+// XamlFacets runtime + markup extension token registration (PopulateMarkupMetadata).
 
 namespace Aero::Markup {
 namespace {
@@ -622,4 +629,155 @@ XamlFacets::FindPropertyTargetExact(
 
 } // namespace Aero::Markup
 
+// Markup extension token types + PopulateMarkupMetadata (who-defines-registers).
+namespace Aero::Markup {
+namespace {
 
+using namespace Aero::Meta;
+using namespace Aero::Threading;
+
+class DynamicResourceExtensionToken
+    : public Base::Object {
+    AERO_DECLARE_TYPE_NAMED(
+        DynamicResourceExtensionToken,
+        Base::Object,
+        "urn:aero",
+        "DynamicResource")
+public:
+    Meta::TypeId RuntimeType() const noexcept override {
+        return StaticTypeId();
+    }
+};
+
+class StaticExtensionToken
+    : public Base::Object {
+    AERO_DECLARE_TYPE_NAMED(
+        StaticExtensionToken,
+        Base::Object,
+        "http://schemas.microsoft.com/winfx/2006/xaml",
+        "Static")
+public:
+    Meta::TypeId RuntimeType() const noexcept override {
+        return StaticTypeId();
+    }
+};
+
+class TypeExtensionToken
+    : public Base::Object {
+    AERO_DECLARE_TYPE_NAMED(
+        TypeExtensionToken,
+        Base::Object,
+        "http://schemas.microsoft.com/winfx/2006/xaml",
+        "Type")
+public:
+    Meta::TypeId RuntimeType() const noexcept override {
+        return StaticTypeId();
+    }
+};
+
+class TemplateBindingExtensionToken
+    : public Base::Object {
+    AERO_DECLARE_TYPE_NAMED(
+        TemplateBindingExtensionToken,
+        Base::Object,
+        "urn:aero",
+        "TemplateBinding")
+public:
+    Meta::TypeId RuntimeType() const noexcept override {
+        return StaticTypeId();
+    }
+};
+
+class StaticResourceExtensionToken
+    : public Base::Object {
+    AERO_DECLARE_TYPE_NAMED(
+        StaticResourceExtensionToken,
+        Base::Object,
+        Meta::AeroNamespaceUri(),
+        "StaticResourceExtension")
+public:
+    Meta::TypeId RuntimeType() const noexcept override {
+        return StaticTypeId();
+    }
+};
+
+// AeroGUI's application samples expose Loc both as a markup extension and as
+// an attached Source property.  The token deliberately lives in the normal
+// schema so the legacy AeroGUIExtensions namespace resolves to the same type
+// as other compatibility extensions.
+class LocExtensionToken
+    : public Base::Object {
+    AERO_DECLARE_TYPE_NAMED(
+        LocExtensionToken,
+        Base::Object,
+        "urn:aero",
+        "Loc")
+public:
+    Meta::TypeId RuntimeType() const noexcept override {
+        return StaticTypeId();
+    }
+
+    inline static constexpr Meta::AttachedPropertyRef<
+        LocExtensionToken, Base::ResourceUri>
+        SourceProperty{"Source"};
+};
+
+} // namespace
+
+Base::Result<void> PopulateMarkupMetadata(
+    Meta::Registration& context) noexcept {
+    Base::Result<void> status =
+        Meta::Register<MarkupExtension>(
+            context,
+            TypeFlags::MarkupExtension |
+                TypeFlags::Abstract).Result();
+    if (!status) return status.GetStatus();
+    status =
+        Meta::Register<DynamicResourceExtensionToken>(
+            context,
+            TypeFlags::MarkupExtension |
+                TypeFlags::Sealed).Result();
+    if (!status) return status.GetStatus();
+    status = Meta::Register<StaticExtensionToken>(
+        context,
+        TypeFlags::MarkupExtension |
+            TypeFlags::Sealed).Result();
+    if (!status) return status.GetStatus();
+    status = Meta::Register<TypeExtensionToken>(
+        context,
+        TypeFlags::MarkupExtension |
+            TypeFlags::Sealed).Result();
+    if (!status) return status.GetStatus();
+    status = Meta::Register<TemplateBindingExtensionToken>(
+        context,
+        TypeFlags::MarkupExtension |
+                TypeFlags::Sealed).Result();
+    if (!status) return status.GetStatus();
+    status = Meta::Register<StaticResourceExtensionToken>(
+        context,
+        TypeFlags::MarkupExtension |
+            TypeFlags::Sealed).Result();
+    if (!status) return status.GetStatus();
+    auto loc = Meta::Register<LocExtensionToken>(
+        context,
+        TypeFlags::MarkupExtension | TypeFlags::Abstract);
+    loc.Property(
+        LocExtensionToken::SourceProperty,
+        FrameworkPropertyMetadata(Base::ResourceUri{}, Inherits).Changed(
+            &LocExtension::OnSourceChanged));
+    status = loc.Result();
+    if (!status) return status.GetStatus();
+    status = Meta::Register<StaticResourceObject>(context)
+        .Property(
+            StaticResourceObject::ResourceKeyProperty,
+            Base::String{})
+        .Factory()
+        .Result();
+    if (!status) return status.GetStatus();
+
+    status = ::Aero::PopulateVisualStateMetadata(context);
+    if (!status) return status.GetStatus();
+    return {};
+}
+
+} // namespace Aero::Markup

@@ -2025,21 +2025,53 @@ aero_require_text(
     "class AERO_GUI_API EasingFunctionBase : public ::Aero::Freezable"
     "EasingFunctionBase must inherit Freezable")
 aero_require_text(
-    "src/gui/BuiltinModules.cpp"
+    "src/gui/media/Animation.cpp"
     "RegisterAlias<EasingFunctionBase>(context, \"SineEase\")"
     "SineEase must stay an XAML alias of EasingFunctionBase")
 aero_require_text(
-    "src/gui/BuiltinModules.cpp"
+    "src/gui/media/Animation.cpp"
     "RegisterAlias<EasingFunctionBase>(context, \"ElasticEase\")"
     "ElasticEase must stay an XAML alias of EasingFunctionBase")
 aero_require_text(
-    "src/gui/BuiltinModules.cpp"
+    "src/gui/media/Animation.cpp"
     "AERO_KEYFRAMES(Double, double)"
     "LinearDoubleKeyFrame must stay an XAML alias of DoubleKeyFrame")
 aero_require_text(
-    "src/gui/BuiltinModules.cpp"
+    "src/gui/media/Animation.cpp"
     "AERO_KEYFRAME_ALIAS(Name, Linear)"
     "Keyframe aliases must include the Linear interpolation name")
+aero_require_text(
+    "src/gui/BuiltinModules.cpp"
+    "PopulateAnimationTypes(context)"
+    "BuiltinModules must orchestrate PopulateAnimationTypes for eases/keyframes")
+aero_require_text(
+    "src/gui/media/Animation.cpp"
+    "PopulateAnimationTypes"
+    "Animation family must own PopulateAnimationTypes for eases/keyframes")
+aero_forbid_text(
+    "src/gui/BuiltinModules.cpp"
+    "AERO_KEYFRAMES("
+    "BuiltinModules must not contain AERO_KEYFRAMES bodies; Animation.cpp owns them")
+aero_forbid_text(
+    "src/gui/BuiltinModules.cpp"
+    "RegisterAlias<EasingFunctionBase>"
+    "BuiltinModules must not RegisterAlias eases; Animation.cpp owns them")
+aero_require_text(
+    "src/gui/markup/XamlSchemaMetadata.cpp"
+    "PopulateMarkupMetadata"
+    "XamlSchemaMetadata must own PopulateMarkupMetadata token registration")
+aero_require_text(
+    "src/gui/controls/VisualStateManager.cpp"
+    "PopulateVisualStateMetadata"
+    "VisualStateManager family must own PopulateVisualStateMetadata")
+aero_forbid_text(
+    "src/gui/BuiltinModules.cpp"
+    "DynamicResourceExtensionToken"
+    "BuiltinModules must not define markup extension tokens; XamlSchemaMetadata owns them")
+aero_forbid_text(
+    "src/gui/BuiltinModules.cpp"
+    "Register<VisualStateGroup>"
+    "BuiltinModules must not Register VisualState*; VisualStateManager owns them")
 aero_require_text(
     "include/Aero/Media/Animation/KeyFrames.hpp"
     "class AERO_GUI_API KeyFrameBase : public ::Aero::Freezable"
