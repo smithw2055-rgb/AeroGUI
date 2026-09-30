@@ -1322,6 +1322,20 @@ aero_forbid_file("src/gui/core/BuiltinModules.hpp")
 aero_forbid_file("src/gui/core/BuiltinModules.cpp")
 aero_forbid_file("src/gui/core/BuiltinMetadata.cpp")
 aero_forbid_file("src/gui/core/EnumMetadata.cpp")
+aero_require_file("src/gui/core/ElementEnumsDescribe.cpp")
+aero_require_file("src/gui/core/EnumRegistration.hpp")
+aero_forbid_text(
+    "src/gui/BuiltinModules.cpp"
+    "AERO_REGISTER_ENUM("
+    "BuiltinModules must not contain concrete AERO_REGISTER_ENUM bodies; families register their own enums")
+aero_require_text(
+    "src/gui/BuiltinModules.cpp"
+    "PopulateElementEnums(context)"
+    "BuiltinModules must orchestrate family Populate*Enums calls")
+aero_require_text(
+    "src/app/Metadata.cpp"
+    "PopulateAppEnums"
+    "App enums must register in app/Metadata, not Gui BuiltinModules")
 aero_forbid_file("src/gui/core/UiMetadata.hpp")
 aero_forbid_file("src/gui/core/ElementsFill.hpp")
 aero_forbid_file("src/gui/styles/StyleMetadata.cpp")

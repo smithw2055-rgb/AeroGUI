@@ -56,14 +56,16 @@ set(_aero_gui_core_sources
     src/gui/core/DependencyObject.cpp
     src/gui/core/Metadata.cpp
     src/gui/core/Value.cpp
-    src/gui/core/Module.cpp)
+    src/gui/core/Module.cpp
+    src/gui/core/ElementEnumsDescribe.cpp)
 
 set(_aero_gui_data_sources
     src/gui/data/BindingPath.cpp
     src/gui/data/BindingEngine.cpp
     src/gui/data/BindingExpression.cpp
     src/gui/data/NotifyPropertyChanged.cpp
-    src/gui/data/CollectionView.cpp)
+    src/gui/data/CollectionView.cpp
+    src/gui/data/DataEnumsDescribe.cpp)
 
 set(_aero_gui_styles_sources
     src/gui/styles/Resources.cpp
@@ -78,7 +80,8 @@ set(_aero_gui_input_sources
     src/gui/input/DataObject.cpp
     src/gui/input/DragDrop.cpp
     src/gui/input/Clipboard.cpp
-    src/gui/input/OverlayHost.cpp)
+    src/gui/input/OverlayHost.cpp
+    src/gui/input/InputEnumsDescribe.cpp)
 
 set(_aero_gui_triggers_sources
     src/gui/triggers/Triggers.cpp
@@ -87,7 +90,8 @@ set(_aero_gui_triggers_sources
 set(_aero_gui_interactivity_sources
     src/gui/interactivity/Interactivity.cpp
     src/gui/interactivity/InteractivityEngine.cpp
-    src/gui/interactivity/BlendBehaviors.cpp)
+    src/gui/interactivity/BlendBehaviors.cpp
+    src/gui/interactivity/InteractivityEnumsDescribe.cpp)
 
 set(_aero_gui_media_sources
     src/gui/media/AnimationEngine.cpp
@@ -108,7 +112,9 @@ set(_aero_gui_media_sources
     src/gui/media/AnimationPathResolver.cpp
     src/gui/media/StoryboardHost.cpp
     src/gui/media/StoryboardClock.cpp
-    src/gui/media/StoryboardActions.cpp)
+    src/gui/media/StoryboardActions.cpp
+    src/gui/media/AnimationEnumsDescribe.cpp
+    src/gui/media/MediaEnumsDescribe.cpp)
 
 set(_aero_gui_controls_sources
     src/gui/controls/RichText.cpp
@@ -135,7 +141,8 @@ set(_aero_gui_controls_sources
     src/gui/controls/PasswordBox.cpp
     src/gui/controls/Trees.cpp
     src/gui/controls/Virtualization.cpp
-    src/gui/controls/VisualStateManager.cpp)
+    src/gui/controls/VisualStateManager.cpp
+    src/gui/controls/ControlsEnumsDescribe.cpp)
 
 set(_aero_gui_markup_sources
     src/gui/markup/XamlObjectWriter.cpp
@@ -165,7 +172,8 @@ set(_aero_gui_text_sources
     src/gui/text/TextPipeline.cpp
     src/gui/text/TextTypes.cpp
     src/gui/text/freetype/FreeTypeAdapter.cpp
-    src/gui/text/harfbuzz/HarfBuzzAdapter.cpp)
+    src/gui/text/harfbuzz/HarfBuzzAdapter.cpp
+    src/gui/text/TextEnumsDescribe.cpp)
 
 set(_aero_gui_diagnostics_sources
     src/gui/diagnostics/Diagnostics.cpp
@@ -181,7 +189,8 @@ set(_aero_gui_documents_sources
 
 set(_aero_gui_shapes_sources
     src/gui/shapes/Path.cpp
-    src/gui/shapes/Shapes.cpp)
+    src/gui/shapes/Shapes.cpp
+    src/gui/shapes/ShapesEnumsDescribe.cpp)
 
 set(_aero_gui_render_contract_sources
     src/render/DrawingContext.cpp
@@ -207,6 +216,7 @@ set(_aero_gui_inlines
 set(_aero_gui_internal_headers
     src/gui/data/BindingCommon.hpp
     src/gui/data/BindingPath.hpp
+    src/gui/core/EnumRegistration.hpp
     src/gui/controls/ControlPropertyValidators.hpp
     src/gui/controls/ScrollCommon.hpp
     src/gui/controls/TextBoxCommon.hpp

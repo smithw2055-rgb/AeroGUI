@@ -30,7 +30,7 @@ dir. IDE-only virtual folders are defined via `source_group()` in
 | `Controls/ContentControl.hpp`, `UserControl.hpp`, `Headers.hpp` … | `ContentControls.cpp` |
 | `Controls/Image.hpp` | `Images.cpp` |
 | `VisualStateManager.hpp` | `VisualStateManager.cpp` |
-| Metadata bootstrap | `gui/BuiltinModules.cpp` (+ `gui/BuiltinModules.hpp`); `ControlPropertyValidators.hpp` remains under controls |
+| Metadata bootstrap | `gui/BuiltinModules.cpp` (+ `gui/BuiltinModules.hpp`) orchestrates; enum bodies live in family `*EnumsDescribe.cpp` / `app/Metadata.cpp` (谁定义谁注册); `ControlPropertyValidators.hpp` remains under controls |
 
 ## Media / animation (`src/gui/media/`, flat)
 
@@ -61,7 +61,8 @@ dir. IDE-only virtual folders are defined via `source_group()` in
 `ViewFocus.cpp` → `ViewInput.cpp` §focus · `ItemsDetail.hpp` → `ItemsContainers.hpp` ·
 `TypeBuilderDetail.hpp` → `TypeBuilderCore.hpp` · `StoryboardHostCommon.hpp` → `StoryboardHost.hpp` ·
 `FocusHost.hpp` → `input/InputManager.hpp` · `TextBoxBehavior.cpp` + `TextBoxSelection.cpp` → `TextBoxInteraction.cpp` ·
-`Invariants.hpp` → `Invariants.cpp` · `metadata/{Support,Values,Templates,Primitives,Items,Panels,TextMedia}.inl` → `metadata/Metadata.{Foundation,Widgets,Layout}.inl`
+`Invariants.hpp` → `Invariants.cpp` · `metadata/{Support,Values,Templates,Primitives,Items,Panels,TextMedia}.inl` → `metadata/Metadata.{Foundation,Widgets,Layout}.inl` ·
+`EnumMetadata.cpp` / `*Metadata.cpp` sprawl → family `*EnumsDescribe.cpp` + App `Metadata.cpp` (do not restore)
 
 ## Noesis-parity round (2nd pass)
 
@@ -71,7 +72,7 @@ was used for observable API comparison only; no implementation was copied.
 | Area | Change |
 | --- | --- |
 | DP public surface | `DependencyObject.hpp` keeps Noesis-parity API (Get/Set/Clear/Coerce/expressions/notifications); `ChangeHandlerRecord`/`DependencyObjectRare`/`DependencyMutationScope` (ex-`MutationScope`) live in `core/PropertyStore.hpp`. `ChangeKind` stays public (used by `Resources.hpp`). Friend: `DependencyMutationScope`. |
-| Meta registration | All built-in UI/markup `Populate*` / `Fill*` / `Register*` installers live in `gui/BuiltinModules.cpp` (one TU). |
+| Meta registration | UI/markup `Populate*` / `Fill*` / `DescribeHook` lists stay in `gui/BuiltinModules.cpp`. Enum `AERO_REGISTER_ENUM` bodies live in family `*EnumsDescribe.cpp` (and App enums in `app/Metadata.cpp`); BuiltinModules only calls `Populate*Enums`. |
 | Meta gap (verified) | `TemplatePart`/`DependsOn` have no Aero equivalent (Noesis: `TypeMetaData` subclasses). Consumption exists (`Control::GetTemplateChild(name)`, `PART_*` convention). Recording needs a new facet kind, but `FacetDraft::facets[11]` is single-index-per-kind while PARTs are one-to-many → requires facet-model redesign (range encoding or side-table) + template-tooling consumption. Tracked as feature design, not done here. |
 | View content API | Canonical: `SetContent(doc, size)` + `SetContent(root, size)`. `SetContent(root)` is `[[deprecated]]` (no in-tree callers; `Gui::CreateView(content)` migrated to explicit empty size, behavior-identical). `SetContent(root, doc, size)` kept (used by `DesktopHost`); new fragment mounts prefer `XamlReader::MountFragment`. See `XamlReader.hpp` entry-point guide. |
 | PCH tiers | `AeroPCH.hpp` gains a host-integration tier (`Input.hpp`, `TextureProvider.hpp`, `FontProvider.hpp`, `XamlReader.hpp`), mirroring the NoesisPCH Providers banner. Type-header-direct users unaffected. |

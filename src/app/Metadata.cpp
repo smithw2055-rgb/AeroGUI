@@ -1,5 +1,7 @@
 #include "Metadata.hpp"
 
+#include "gui/core/EnumRegistration.hpp"
+
 #include <AeroApp/Application.hpp>
 #include <Aero/Meta.hpp>
 #include <Aero/Resources.hpp>
@@ -7,9 +9,64 @@
 
 namespace Aero::App {
 
+namespace {
+
+Base::Result<void> PopulateAppEnums(
+    ::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::App;
+
+    Base::Result<void> status;
+
+    AERO_REGISTER_ENUM(
+        ShutdownMode,
+        "ShutdownMode",
+        description
+            .Value("OnLastWindowClose", ShutdownMode::OnLastWindowClose)
+            .Value("OnMainWindowClose", ShutdownMode::OnMainWindowClose)
+            .Value("OnExplicitShutdown", ShutdownMode::OnExplicitShutdown););
+    AERO_REGISTER_ENUM(
+        WindowState,
+        "WindowState",
+        description
+            .Value("Normal", WindowState::Normal)
+            .Value("Minimized", WindowState::Minimized)
+            .Value("Maximized", WindowState::Maximized););
+    AERO_REGISTER_ENUM(
+        WindowStyle,
+        "WindowStyle",
+        description
+            .Value("None", WindowStyle::None)
+            .Value("SingleBorderWindow", WindowStyle::SingleBorderWindow)
+            .Value("ThreeDBorderWindow", WindowStyle::ThreeDBorderWindow)
+            .Value("ToolWindow", WindowStyle::ToolWindow););
+    AERO_REGISTER_ENUM(
+        ResizeMode,
+        "ResizeMode",
+        description
+            .Value("NoResize", ResizeMode::NoResize)
+            .Value("CanMinimize", ResizeMode::CanMinimize)
+            .Value("CanResize", ResizeMode::CanResize)
+            .Value("CanResizeWithGrip", ResizeMode::CanResizeWithGrip););
+    AERO_REGISTER_ENUM(
+        SizeToContent,
+        "SizeToContent",
+        description
+            .Value("Manual", SizeToContent::Manual)
+            .Value("Width", SizeToContent::Width)
+            .Value("Height", SizeToContent::Height)
+            .Value("WidthAndHeight", SizeToContent::WidthAndHeight););
+
+#undef AERO_REGISTER_ENUM
+    return {};
+}
+
+} // namespace
+
 Base::Result<void> PopulateAppMetadata(
     ::Aero::Meta::Registration& context) noexcept {
     Base::Result<void> status;
+    status = PopulateAppEnums(context);
+    if (!status) return status.GetStatus();
     status = Meta::Register<Aero::StartupEventArgs>(context).Result();
     if (!status) return status.GetStatus();
     status = Meta::Register<Aero::ExitEventArgs>(context).Result();
