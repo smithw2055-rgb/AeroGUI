@@ -62,12 +62,8 @@ struct TextSelection {
     std::uint32_t anchor = 0U;
     std::uint32_t caret = 0U;
 
-    std::uint32_t GetStart() const noexcept {
-        return anchor < caret ? anchor : caret;
-    }
-    std::uint32_t GetEnd() const noexcept {
-        return anchor < caret ? caret : anchor;
-    }
+    std::uint32_t GetStart() const noexcept { return anchor < caret ? anchor : caret; }
+    std::uint32_t GetEnd() const noexcept { return anchor < caret ? caret : anchor; }
     std::uint32_t GetLength() const noexcept { return GetEnd() - GetStart(); }
     bool GetIsEmpty() const noexcept { return anchor == caret; }
 };

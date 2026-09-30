@@ -9,13 +9,10 @@ class Hyperlink;
 
 struct RequestNavigateEventArgs : Aero::RoutedEventArgs {
     AERO_DECLARE_TYPE(RequestNavigateEventArgs, Aero::RoutedEventArgs)
+
 public:
-    RequestNavigateEventArgs() noexcept
-        : Aero::RoutedEventArgs(StaticTypeId()) {}
-    RequestNavigateEventArgs(
-        StringView uri,
-        Hyperlink* hyperlink) noexcept
-        : Aero::RoutedEventArgs(StaticTypeId()),
+    RequestNavigateEventArgs() noexcept : Aero::RoutedEventArgs(StaticTypeId()) {}
+    RequestNavigateEventArgs(StringView uri, Hyperlink* hyperlink) noexcept : Aero::RoutedEventArgs(StaticTypeId()),
           uri_(uri), hyperlink_(hyperlink) {}
 
     StringView GetUri() const noexcept { return uri_; }
@@ -26,7 +23,6 @@ private:
     Hyperlink* hyperlink_ = nullptr;
 };
 
-using RequestNavigateEventHandler = Base::Delegate<void(
-    Base::Object*, RequestNavigateEventArgs&)>;
+using RequestNavigateEventHandler = Base::Delegate<void(Base::Object*, RequestNavigateEventArgs&)>;
 
 } // namespace Aero::Documents

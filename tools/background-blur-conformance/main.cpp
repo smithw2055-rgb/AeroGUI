@@ -10,7 +10,8 @@
 #include <Aero/Meta.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Effects.hpp>
-#include <Aero/Media/Transforms.hpp>
+#include <Aero/Media/Transform2D.hpp>
+#include <Aero/Media/Transform3D.hpp>
 #include <Aero/Shapes.hpp>
 #include <Aero/Interactivity/BlendBehaviors.hpp>
 #include <Aero/View.hpp>
@@ -180,12 +181,12 @@ Aero::Base::Point RootCenter(
     const Aero::Media::Visual* current = &element;
     while (current != nullptr) {
         const Aero::FrameworkElement* framework =
-            current->AsFrameworkElement();
+            ::Aero::TryCast<::Aero::FrameworkElement>(current);
         if (framework != nullptr) {
-            point = Aero::Media::TransformPoint(
+            point = Aero::Base::TransformPoint(
                 framework->GetLocalVisualTransform(), point);
         }
-        const Aero::UIElement* currentElement = current->AsUIElement();
+        const Aero::UIElement* currentElement = ::Aero::TryCast<::Aero::UIElement>(current);
         if (currentElement != nullptr) {
             const Aero::Rect slot = currentElement->GetLayoutSlot();
             point.x += slot.x;
@@ -398,7 +399,7 @@ bool VerifyDrag(
         std::fprintf(stderr, "DRAG FAIL: Panel is missing\n");
         return false;
     }
-    const Base::Transform2D before = panel->GetLocalVisualTransform();
+    const Base::ProjectiveTransform2D before = panel->GetLocalVisualTransform();
     const Base::Point start = RootCenter(*panel, root);
     const int startX = static_cast<int>(start.x);
     const int startY = static_cast<int>(start.y);
@@ -410,19 +411,19 @@ bool VerifyDrag(
     if (dispatched) dispatched = view.MouseButtonUp(
         endX, endY, Input::MouseButton::Left);
     AdvanceView(view, timeInSeconds, 16U);
-    const Base::Transform2D after = panel->GetLocalVisualTransform();
+    const Base::ProjectiveTransform2D after = panel->GetLocalVisualTransform();
     if (!dispatched ||
-        (Near(before.dx, after.dx, 0.5) && Near(before.dy, after.dy, 0.5))) {
+        (Near(before.m31, after.m31, 0.5) && Near(before.m32, after.m32, 0.5))) {
         std::fprintf(stderr,
             "DRAG FAIL: panel transform did not move before=(%.2f %.2f) after=(%.2f %.2f)\n",
-            before.dx, before.dy, after.dx, after.dy);
+            before.m31, before.m32, after.m31, after.m32);
         return false;
     }
     const UIElement* parent = panel->GetVisualParent() != nullptr
-        ? panel->GetVisualParent()->AsUIElement()
+        ? ::Aero::TryCast<::Aero::UIElement>(panel->GetVisualParent())
         : nullptr;
     if (parent != nullptr) {
-        const Rect panelBounds = Media::TransformBounds(
+        const Rect panelBounds = Base::TransformBounds(
             panel->GetLocalVisualTransform(),
             {panel->GetLayoutSlot().x, panel->GetLayoutSlot().y,
              panel->GetRenderSize().width, panel->GetRenderSize().height});

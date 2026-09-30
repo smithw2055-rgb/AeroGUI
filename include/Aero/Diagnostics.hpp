@@ -11,7 +11,154 @@
 
 #include <cstdint>
 
+namespace Aero {
+class DependencyObject;
+class RenderDevice;
+}
+
 namespace Aero::Diagnostics {
+
+struct SourcePosition {
+    // Line and column are one-based. A zero pair represents an unknown position.
+    std::uint32_t line = 0U;
+    std::uint32_t column = 0U;
+    std::uint64_t byteOffset = 0U;
+
+    constexpr bool IsKnown() const noexcept { return line != 0U || column != 0U; }
+};
+
+struct SourceSpan {
+    // End is exclusive when the source provider can identify it precisely.
+    SourcePosition begin;
+    SourcePosition end;
+};
+
+} // namespace Aero::Diagnostics
+
+namespace Aero::Meta {
+
+struct DependencyPropertyHandle;
+
+// Effective-value source enums, PropertyExpression, tokens, and PropertyValueSourceInfo.
+enum class EffectiveValueSource : std::uint8_t {
+    Default = 0U,
+    Local,
+    Current
+};
+
+enum class PropertyValueRank : std::uint8_t {
+    Default = 0U,
+    Inherited = 10U,
+    ThemeStyleSetter = 20U,
+    ThemeStyle = ThemeStyleSetter,
+    ThemeStyleTrigger = 30U,
+    StyleSetter = 40U,
+    Style = StyleSetter,
+    TemplateTrigger = 50U,
+    StyleTrigger = 60U,
+    Trigger = StyleTrigger,
+    ImplicitStyle = 70U,
+    TemplatedParentSetter = 80U,
+    Template = TemplatedParentSetter,
+    TemplatedParentTrigger = 90U,
+    Local = 100U,
+    LocalExpression = Local,
+    VisualState = 105U,
+    Animation = 110U,
+    Coercion = 120U
+};
+
+using EffectiveValueProvider = PropertyValueRank;
+
+enum class PropertyExpressionKind : std::uint8_t {
+    Custom = 0U,
+    Binding,
+    DynamicResource
+};
+
+using PropertyExpressionEvaluateCallback = Result<Value> (*)(void* context, DependencyObject& object,
+    DependencyPropertyHandle property) noexcept;
+using PropertyExpressionCleanupCallback = void (*)(void* context) noexcept;
+
+struct PropertyExpression {
+    void* context = nullptr;
+    PropertyExpressionEvaluateCallback evaluate = nullptr;
+    PropertyExpressionCleanupCallback cleanup = nullptr;
+    PropertyExpressionKind kind = PropertyExpressionKind::Custom;
+
+    bool IsValid() const noexcept { return evaluate != nullptr; }
+};
+
+struct PropertyProviderToken {
+    PropertyValueRank rank = PropertyValueRank::Default;
+    std::uint32_t origin = 0U;
+    std::uint32_t ordinal = 0U;
+
+    constexpr bool IsValid() const noexcept { return rank != PropertyValueRank::Default && origin != 0U; }
+};
+
+constexpr bool operator==(PropertyProviderToken left, PropertyProviderToken right) noexcept {
+    return left.rank == right.rank && left.origin == right.origin && left.ordinal == right.ordinal;
+}
+
+constexpr bool operator!=(PropertyProviderToken left, PropertyProviderToken right) noexcept { return !(left == right); }
+
+struct PropertyValueSourceInfo {
+    PropertyValueRank rank = PropertyValueRank::Default;
+    PropertyProviderToken token;
+    PropertyExpressionKind expressionKind = PropertyExpressionKind::Custom;
+    bool hasExpression = false;
+    bool isInherited = false;
+    bool isAnimated = false;
+    bool isCoerced = false;
+    bool isCurrentValue = false;
+    std::uint64_t revision = 0U;
+};
+
+using DependencyObject = ::Aero::DependencyObject;
+
+using PropertyValueKind = ValueKind;
+using PropertyValue = Value;
+
+} // namespace Aero::Meta
+
+namespace Aero {
+
+struct LayoutDiagnostics {
+    std::uint64_t passVersion = 0U;
+    std::uint32_t measuredCount = 0U;
+    std::uint32_t arrangedCount = 0U;
+    std::uint32_t pendingMeasureCount = 0U;
+    std::uint32_t pendingArrangeCount = 0U;
+};
+
+} // namespace Aero
+
+namespace Aero::Diagnostics {
+
+struct RenderDeviceStatistics {
+    std::uint64_t acceptedFrameCount = 0U;
+    std::uint64_t completedFrameCount = 0U;
+    std::uint64_t failedFrameCount = 0U;
+    std::uint64_t lastAcceptedVersion = 0U;
+    std::uint64_t lastCompletedVersion = 0U;
+    std::uint64_t generation = 1U;
+};
+
+struct RenderFrameStatistics {
+    std::uint32_t sourceCommandCount = 0U;
+    std::uint32_t drawPacketCount = 0U;
+    std::uint32_t batchCount = 0U;
+    std::uint32_t drawCallCount = 0U;
+    std::uint32_t mergedPacketCount = 0U;
+    std::uint32_t barrierCount = 0U;
+    std::uint32_t instanceCount = 0U;
+    std::uint32_t stateBindingCount = 0U;
+    bool batchingEnabled = true;
+};
+
+AERO_GUI_API RenderDeviceStatistics GetRenderDeviceStatistics(const Aero::RenderDevice& device) noexcept;
+AERO_GUI_API RenderFrameStatistics GetLastRenderFrameStatistics(const Aero::RenderDevice& device) noexcept;
 
 using ::Aero::Meta::MemberId;
 using ::Aero::Meta::InvalidMemberId;
@@ -43,75 +190,35 @@ enum class DiagnosticDomain : std::uint8_t {
 struct DiagnosticCode  {
     std::uint32_t value = 0U;
 
-    constexpr bool IsValid() const noexcept {
-        const DiagnosticDomain domain = Domain();
+    constexpr bool IsValid() const noexcept { const DiagnosticDomain domain = Domain();
         const std::uint16_t number = Number();
-        return domain > DiagnosticDomain::Invalid &&
-            domain < DiagnosticDomain::Count &&
-            number > 0U && number <= 9999U;
+        return domain > DiagnosticDomain::Invalid && domain < DiagnosticDomain::Count && number > 0U && number <= 9999U;
     }
 
-    constexpr DiagnosticDomain Domain() const noexcept {
-        return static_cast<DiagnosticDomain>((value >> 16U) & 0xFFU);
-    }
+    constexpr DiagnosticDomain Domain() const noexcept { return static_cast<DiagnosticDomain>((value >> 16U) & 0xFFU); }
 
-    constexpr std::uint16_t Number() const noexcept {
-        return static_cast<std::uint16_t>(value & 0xFFFFU);
-    }
+    constexpr std::uint16_t Number() const noexcept { return static_cast<std::uint16_t>(value & 0xFFFFU); }
 };
 
-constexpr DiagnosticCode MakeDiagnosticCode(
-    DiagnosticDomain domain,
-    std::uint16_t number) noexcept {
-    return domain > DiagnosticDomain::Invalid &&
-        domain < DiagnosticDomain::Count &&
-        number > 0U && number <= 9999U
+constexpr DiagnosticCode MakeDiagnosticCode(DiagnosticDomain domain, std::uint16_t number) noexcept {
+    return domain > DiagnosticDomain::Invalid && domain < DiagnosticDomain::Count && number > 0U && number <= 9999U
         ? DiagnosticCode{
             (static_cast<std::uint32_t>(domain) << 16U) |
             static_cast<std::uint32_t>(number)}
         : DiagnosticCode{};
 }
 
-constexpr bool operator==(
-    DiagnosticCode left,
-    DiagnosticCode right) noexcept {
-    return left.value == right.value;
-}
+constexpr bool operator==(DiagnosticCode left, DiagnosticCode right) noexcept { return left.value == right.value; }
 
-constexpr bool operator!=(
-    DiagnosticCode left,
-    DiagnosticCode right) noexcept {
-    return !(left == right);
-}
-
-struct SourcePosition  {
-    // Line and column are one-based. A zero pair represents an unknown position.
-    std::uint32_t line = 0U;
-    std::uint32_t column = 0U;
-    std::uint64_t byteOffset = 0U;
-
-    constexpr bool IsKnown() const noexcept {
-        return line != 0U || column != 0U;
-    }
-};
-
-struct SourceSpan  {
-    // End is exclusive when the source provider can identify it precisely.
-    SourcePosition begin;
-    SourcePosition end;
-};
+constexpr bool operator!=(DiagnosticCode left, DiagnosticCode right) noexcept { return !(left == right); }
 
 using DiagnosticObjectId = std::uint64_t;
 inline constexpr DiagnosticObjectId InvalidDiagnosticObjectId = 0U;
 
-AERO_GUI_API bool IsValidSourcePosition(
-    SourcePosition position) noexcept;
+AERO_GUI_API bool IsValidSourcePosition(SourcePosition position) noexcept;
 AERO_GUI_API bool IsValidSourceSpan(SourceSpan span) noexcept;
-AERO_GUI_API StringView DiagnosticPrefix(
-    DiagnosticDomain domain) noexcept;
-AERO_GUI_API Result<void> FormatDiagnosticCode(
-    DiagnosticCode code,
-    String& output) noexcept;
+AERO_GUI_API StringView DiagnosticPrefix(DiagnosticDomain domain) noexcept;
+AERO_GUI_API Result<void> FormatDiagnosticCode(DiagnosticCode code, String& output) noexcept;
 
 class AERO_GUI_API DiagnosticNote  {
 public:
@@ -122,15 +229,12 @@ public:
     DiagnosticNote& operator=(const DiagnosticNote&) = delete;
 
     SourceSpan Source() const noexcept { return source_; }
-    StringView Message() const noexcept {
-        return message_.View();
-    }
+    StringView Message() const noexcept { return message_.View(); }
 
 private:
     friend class Diagnostic;
 
-    DiagnosticNote() noexcept
-        : message_(&Base::GetDefaultAllocator()) {}
+    DiagnosticNote() noexcept : message_(&Base::GetDefaultAllocator()) {}
 
     SourceSpan source_;
     String message_;
@@ -144,34 +248,22 @@ public:
     Diagnostic(const Diagnostic&) = delete;
     Diagnostic& operator=(const Diagnostic&) = delete;
 
-    static Result<Diagnostic> Create(
-        DiagnosticCode code,
-        DiagnosticSeverity severity,
-        StringView message,
+    static Result<Diagnostic> Create(DiagnosticCode code, DiagnosticSeverity severity, StringView message,
         SourceSpan source = {},
         DiagnosticObjectId object = InvalidDiagnosticObjectId,
         MemberId member = InvalidMemberId) noexcept;
 
-    Result<void> AddNote(
-        StringView message,
-        SourceSpan source = {}) noexcept;
+    void AddNote(StringView message, SourceSpan source = {}) noexcept;
 
     DiagnosticCode Code() const noexcept { return code_; }
-    DiagnosticSeverity Severity() const noexcept {
-        return severity_;
-    }
-    StringView Message() const noexcept {
-        return message_.View();
-    }
+    DiagnosticSeverity Severity() const noexcept { return severity_; }
+    StringView Message() const noexcept { return message_.View(); }
     SourceSpan Source() const noexcept { return source_; }
     DiagnosticObjectId Object() const noexcept { return object_; }
     MemberId Member() const noexcept { return member_; }
-    Span<const DiagnosticNote> Notes() const noexcept {
-        return {notes_.Data(), notes_.Size()};
-    }
+    Span<const DiagnosticNote> Notes() const noexcept { return {notes_.Data(), notes_.Size()}; }
     bool IsError() const noexcept {
-        return severity_ == DiagnosticSeverity::Error ||
-            severity_ == DiagnosticSeverity::Fatal;
+        return severity_ == DiagnosticSeverity::Error || severity_ == DiagnosticSeverity::Fatal;
     }
 
 private:
@@ -190,47 +282,30 @@ class AERO_GUI_API IDiagnosticSink {
 public:
     virtual ~IDiagnosticSink() = default;
 
-    virtual Result<void> Report(
-        Diagnostic&& diagnostic) noexcept = 0;
+    virtual Result<void> Report(Diagnostic&& diagnostic) noexcept = 0;
 };
 
 class AERO_GUI_API DiagnosticBag  : public IDiagnosticSink {
 public:
-    explicit DiagnosticBag(
-        std::uint32_t maxDiagnostics = 1024U) noexcept;
+    explicit DiagnosticBag(std::uint32_t maxDiagnostics = 1024U) noexcept;
 
     DiagnosticBag(const DiagnosticBag&) = delete;
     DiagnosticBag& operator=(const DiagnosticBag&) = delete;
 
-    Result<void> Report(
-        Diagnostic&& diagnostic) noexcept override;
+    Result<void> Report(Diagnostic&& diagnostic) noexcept override;
 
-    Result<void> Report(
-        DiagnosticCode code,
-        DiagnosticSeverity severity,
-        StringView message,
-        SourceSpan source = {},
+    Result<void> Report(DiagnosticCode code, DiagnosticSeverity severity, StringView message, SourceSpan source = {},
         DiagnosticObjectId object = InvalidDiagnosticObjectId,
         MemberId member = InvalidMemberId) noexcept;
 
     void Clear() noexcept;
 
-    Span<const Diagnostic> Items() const noexcept {
-        return {items_.Data(), items_.Size()};
-    }
+    Span<const Diagnostic> Items() const noexcept { return {items_.Data(), items_.Size()}; }
     std::uint32_t Size() const noexcept { return items_.Size(); }
-    std::uint32_t MaxDiagnostics() const noexcept {
-        return maxDiagnostics_;
-    }
-    std::uint32_t WarningCount() const noexcept {
-        return warningCount_;
-    }
-    std::uint32_t ErrorCount() const noexcept {
-        return errorCount_;
-    }
-    std::uint32_t DroppedCount() const noexcept {
-        return droppedCount_;
-    }
+    std::uint32_t MaxDiagnostics() const noexcept { return maxDiagnostics_; }
+    std::uint32_t WarningCount() const noexcept { return warningCount_; }
+    std::uint32_t ErrorCount() const noexcept { return errorCount_; }
+    std::uint32_t DroppedCount() const noexcept { return droppedCount_; }
     bool HasErrors() const noexcept { return errorCount_ != 0U; }
 
 private:
@@ -240,5 +315,14 @@ private:
     std::uint32_t errorCount_ = 0U;
     std::uint32_t droppedCount_ = 0U;
 };
+
+
+using PropertyValueRank = Meta::PropertyValueRank;
+using PropertyValueSourceInfo = Meta::PropertyValueSourceInfo;
+using PropertyProviderToken = Meta::PropertyProviderToken;
+using PropertyExpressionKind = Meta::PropertyExpressionKind;
+
+AERO_GUI_API Result<PropertyValueSourceInfo> GetValueSource(const DependencyObject& object,
+    Meta::DependencyPropertyHandle property) noexcept;
 
 } // namespace Aero::Diagnostics

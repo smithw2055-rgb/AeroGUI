@@ -16,8 +16,8 @@ namespace Aero {
 
 class View;
 
-// The only concrete IRenderer. Its delayed render-data member is owned by the
-// View and is created when a host supplies a RenderDevice.
+// The only concrete IRenderer (source-private). Its delayed render-data member
+// is owned by the View and is created when a host supplies a RenderDevice.
 class ViewRenderer final : public IRenderer {
 public:
     ViewRenderer(View& view, Base::IAllocator& allocator) noexcept;

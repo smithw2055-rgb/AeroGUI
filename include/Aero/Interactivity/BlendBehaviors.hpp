@@ -2,9 +2,11 @@
 
 #include <Aero/Interactivity/Behavior.hpp>
 #include <Aero/Events/EventArgs.hpp>
+#include <Aero/FrameworkElement.hpp>
 #include <Aero/Media/Effects.hpp>
 #include <Aero/Media/Brushes.hpp>
-#include <Aero/Media/Transforms.hpp>
+#include <Aero/Media/Transform2D.hpp>
+#include <Aero/Media/Transform3D.hpp>
 
 namespace Aero::Interactivity {
 
@@ -14,31 +16,27 @@ namespace Aero::Interactivity {
 // the pointer leaves the element.
 class AERO_GUI_API MouseDragElementBehavior : public Behavior {
     AERO_DECLARE_TYPE(MouseDragElementBehavior, Behavior)
+
 public:
     MouseDragElementBehavior() noexcept;
     ~MouseDragElementBehavior() override = default;
 
-    double GetX() const noexcept { return GetValueOr(XProperty, 0.0); }
-    double GetY() const noexcept { return GetValueOr(YProperty, 0.0); }
-    bool GetConstrainToParentBounds() const noexcept {
-        return GetValueOr(ConstrainToParentBoundsProperty, false);
-    }
+    double GetX() const noexcept { return GetValue(XProperty); }
+    double GetY() const noexcept { return GetValue(YProperty); }
+    bool GetConstrainToParentBounds() const noexcept { return GetValue(ConstrainToParentBoundsProperty); }
     void SetX(double value) noexcept { SetValue(XProperty, value); }
     void SetY(double value) noexcept { SetValue(YProperty, value); }
-    void SetConstrainToParentBounds(bool value) noexcept {
-        SetValue(ConstrainToParentBoundsProperty, value);
-    }
+    void SetConstrainToParentBounds(bool value) noexcept { SetValue(ConstrainToParentBoundsProperty, value); }
 
-    inline static constexpr DependencyProperty<double> XProperty{"X"};
-    inline static constexpr DependencyProperty<double> YProperty{"Y"};
-    inline static constexpr DependencyProperty<bool> ConstrainToParentBoundsProperty{"ConstrainToParentBounds"};
+    AERO_DEPENDENCY_PROPERTY(double, X);
+    AERO_DEPENDENCY_PROPERTY(double, Y);
+    AERO_DEPENDENCY_PROPERTY(bool, ConstrainToParentBounds);
 
-    static void OnPositionChanged(
-        DependencyObject& object,
+    static void OnPositionChanged(DependencyObject& object,
         const Meta::DependencyPropertyChangedEventArgs& args) noexcept;
 
 protected:
-    Result<void> OnAttached() noexcept override;
+    void OnAttached() noexcept override;
     void OnDetaching() noexcept override;
 
 private:
@@ -69,32 +67,26 @@ private:
 // region instead of independently fitting the image into each shape.
 class AERO_GUI_API BackgroundEffectBehavior : public Behavior {
     AERO_DECLARE_TYPE(BackgroundEffectBehavior, Behavior)
+
 public:
     BackgroundEffectBehavior() noexcept : Behavior(StaticTypeId()) {}
     ~BackgroundEffectBehavior() override = default;
 
     Ref<FrameworkElement> GetSource() const noexcept;
     void SetSource(Ref<FrameworkElement> value) noexcept {
-        SetValue(
-            SourceProperty,
-            Ref<Base::Object>(std::move(value)));
+        SetValue(SourceProperty, Ref<Base::Object>(std::move(value)));
     }
-    Ref<Media::Effect> GetEffect() const noexcept {
-        return GetValueOr(EffectProperty, Ref<Media::Effect>{});
-    }
-    void SetEffect(Ref<Media::Effect> value) noexcept {
-        SetValue(EffectProperty, std::move(value));
-    }
+    Ref<Media::Effect> GetEffect() const noexcept { return GetValue(EffectProperty); }
+    void SetEffect(Ref<Media::Effect> value) noexcept { SetValue(EffectProperty, std::move(value)); }
 
-    inline static constexpr DependencyProperty<Ref<Base::Object>> SourceProperty{"Source"};
-    inline static constexpr DependencyProperty<Ref<Media::Effect>> EffectProperty{"Effect"};
+    AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, Source);
+    AERO_DEPENDENCY_PROPERTY(Ref<Media::Effect>, Effect);
 
-    static void OnBehaviorPropertyChanged(
-        DependencyObject& object,
+    static void OnBehaviorPropertyChanged(DependencyObject& object,
         const Meta::DependencyPropertyChangedEventArgs& args) noexcept;
 
 protected:
-    Result<void> OnAttached() noexcept override;
+    void OnAttached() noexcept override;
     void OnDetaching() noexcept override;
     void OnLayoutUpdated() noexcept override;
 

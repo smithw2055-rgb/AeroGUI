@@ -2,20 +2,15 @@
 
 namespace Aero::Controls { class TemplateEngine; }
 
-#include "gui/meta/MetadataState.hpp"
-#include "gui/core/State.hpp" 
-#include "gui/input/InputState.hpp" 
-#include "gui/data/BindingState.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleState.hpp"
-#include "gui/meta/MetadataState.hpp" 
-#include "gui/input/InputState.hpp" 
-#include "gui/data/BindingState.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleState.hpp"
-#include "gui/controls/State.hpp"
-#include "gui/controls/State.hpp"
-#include "gui/templates/TemplateState.hpp"
+#include "gui/core/ElementTree.hpp"
+#include "gui/core/LayoutEngine.hpp"
+#include "gui/core/EffectiveValueEngine.hpp"
+#include "gui/core/RoutedEvents.hpp"
+#include "gui/core/EventRouter.hpp"
+#include "gui/input/InputManager.hpp" 
+#include "gui/data/BindingEngine.hpp"
+#include "gui/styles/StyleEngine.hpp"
+#include "gui/templates/TemplateInstance.hpp"
 
 #include "render/RenderTree.hpp"
 

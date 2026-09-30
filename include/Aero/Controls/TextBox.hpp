@@ -4,159 +4,119 @@
 #include <Aero/Controls/TextBoxBase.hpp>
 #include <Aero/Controls/ScrollViewer.hpp>
 #include <Aero/TextFormatting.hpp>
-
-namespace Aero::Core { class TextLayoutFacet; }
+#include <Aero/Events/EventArgs.hpp>
 
 namespace Aero::Controls {
+class PasswordBox;
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::DependencyPropertyChangedEventHandler;
+using ::Aero::Meta::DependencyPropertyHandle;
+using ::Aero::Meta::PropertyValue;
 using ::Aero::Meta::TypeId;
-class PasswordBox;
-class TextEditBehavior;
-class AERO_GUI_API TextBox
-    : public Primitives::TextBoxBase,
+
+class AERO_GUI_API TextBox : public Primitives::TextBoxBase,
       private IScrollInfo,
       private Input::ITextCompositionClient {
     AERO_DECLARE_TYPE(TextBox, Primitives::TextBoxBase)
-public:
 
+public:
     TextBox() noexcept;
     ~TextBox() override;
 
+    void AttachTextLayout(void* service, bool invalidate = false) noexcept;
+    void SelectAll() noexcept;
+    void Undo() noexcept;
+    void Redo() noexcept;
+    Result<void> AttachScrollViewer(ScrollViewer* viewer) noexcept;
+    Result<void> BeginComposition() noexcept override;
+    Result<void> UpdateComposition(StringView text) noexcept override;
+    Result<void> CommitComposition(StringView text) noexcept override;
+    Result<void> CancelComposition() noexcept override;
+    std::uint32_t HitTestText(Point position) const noexcept;
+    Result<bool> LineHorizontal(double direction) noexcept override;
+    Result<bool> LineVertical(double direction) noexcept override;
+    Result<bool> PageHorizontal(double direction) noexcept override;
+    Result<bool> PageVertical(double direction) noexcept override;
+
     StringView GetText() const noexcept;
-    void SetText(
-        StringView value) noexcept;
+    void SetText(StringView value) noexcept;
     bool GetIsReadOnly() const noexcept;
-    void SetIsReadOnly(
-        bool value) noexcept;
+    void SetIsReadOnly(bool value) noexcept;
     std::uint32_t GetMaxLength() const noexcept;
-    void SetMaxLength(
-        std::uint32_t value) noexcept;
+    void SetMaxLength(std::uint32_t value) noexcept;
     bool GetAcceptsReturn() const noexcept;
-    void SetAcceptsReturn(
-        bool value) noexcept;
+    void SetAcceptsReturn(bool value) noexcept;
     TextWrapping GetTextWrapping() const noexcept;
-    void SetTextWrapping(
-        TextWrapping value) noexcept;
+    void SetTextWrapping(TextWrapping value) noexcept;
     StringView GetPlaceholder() const noexcept;
-    void SetPlaceholder(
-        StringView value) noexcept;
+    void SetPlaceholder(StringView value) noexcept;
     Ref<Media::Brush> GetPlaceholderForeground() const noexcept;
-    void SetPlaceholderForeground(
-        Ref<Media::Brush> value) noexcept;
+    void SetPlaceholderForeground(Ref<Media::Brush> value) noexcept;
     double GetFontSize() const noexcept;
-    void SetFontSize(
-        double value) noexcept;
+    void SetFontSize(double value) noexcept;
     Ref<Media::FontFamily> GetFontFamily() const noexcept;
     void SetFontFamily(Ref<Media::FontFamily> value) noexcept;
-    Result<void> SetFontFamily(StringView value) noexcept;
+    void SetFontFamily(StringView value) noexcept;
     FontWeight GetFontWeight() const noexcept;
-    void SetFontWeight(
-        FontWeight value) noexcept;
+    void SetFontWeight(FontWeight value) noexcept;
     FontStyle GetFontStyle() const noexcept;
-    void SetFontStyle(
-        FontStyle value) noexcept;
+    void SetFontStyle(FontStyle value) noexcept;
     TextAlignment GetTextAlignment() const noexcept;
-    void SetTextAlignment(
-        TextAlignment value) noexcept;
+    void SetTextAlignment(TextAlignment value) noexcept;
     std::uint32_t GetMaxLines() const noexcept;
-    void SetMaxLines(
-        std::uint32_t value) noexcept;
+    void SetMaxLines(std::uint32_t value) noexcept;
     std::uint32_t GetMinLines() const noexcept;
-    void SetMinLines(
-        std::uint32_t value) noexcept;
-    inline static constexpr RoutedEvent<RoutedEventArgs> TextChangedEvent{"TextChanged"};
-    UIElement::Event<RoutedEventArgs>
-        TextChanged() noexcept {
-        return GetEvent(TextChangedEvent);
-    }
-
+    void SetMinLines(std::uint32_t value) noexcept;
     TextSelection GetSelection() const noexcept;
+    void SetSelection(std::uint32_t anchor, std::uint32_t caret) noexcept;
     std::uint32_t GetCaret() const noexcept;
-    void SetSelection(
-        std::uint32_t anchor,
-        std::uint32_t caret) noexcept;
-    Result<void> SelectAll() noexcept;
-    Result<void> Undo() noexcept;
-    Result<void> Redo() noexcept;
-
-    Result<void> AttachScrollViewer(
-        ScrollViewer* viewer) noexcept;
-    void SetInputMethodHost(
-        Input::ITextInputMethodHost* host) noexcept;
-    Input::ITextInputMethodHost*
-    GetInputMethodHost() const noexcept {
-        return inputMethodHost_;
-    }
-    bool GetIsComposing() const noexcept {
-        return compositionActive_;
-    }
-    StringView GetCompositionText() const noexcept {
-        return compositionText_.View();
-    }
-
-    Result<void>
-    BeginComposition() noexcept override;
-    Result<void> UpdateComposition(
-        StringView text) noexcept override;
-    Result<void> CommitComposition(
-        StringView text) noexcept override;
-    Result<void>
-    CancelComposition() noexcept override;
-
+    Input::ITextInputMethodHost* GetInputMethodHost() const noexcept { return inputMethodHost_; }
+    void SetInputMethodHost(Input::ITextInputMethodHost* host) noexcept;
+    bool GetIsComposing() const noexcept { return compositionActive_; }
+    StringView GetCompositionText() const noexcept { return compositionText_.View(); }
     Rect GetCaretRectangle() const noexcept;
-    std::uint32_t HitTestText(
-        Point position) const noexcept;
+    ScrollData GetData() const noexcept override { return scroll_; }
+    void SetViewport(Size viewport) noexcept override;
+    void SetHorizontalOffset(double value) noexcept override;
+    void SetVerticalOffset(double value) noexcept override;
 
-    ScrollData GetData() const noexcept override {
-        return scroll_;
-    }
-    void SetViewport(
-        Size viewport) noexcept override;
-    void SetHorizontalOffset(
-        double value) noexcept override;
-    void SetVerticalOffset(
-        double value) noexcept override;
-    Result<bool> LineHorizontal(
-        double direction) noexcept override;
-    Result<bool> LineVertical(
-        double direction) noexcept override;
-    Result<bool> PageHorizontal(
-        double direction) noexcept override;
-    Result<bool> PageVertical(
-        double direction) noexcept override;
+    inline static constexpr RoutedEvent<RoutedEventArgs> TextChangedEvent{"TextChanged"};
+    UIElement::Event<RoutedEventArgs> TextChanged() noexcept { return GetEvent(TextChangedEvent); }
 
-    inline static constexpr DependencyProperty<String> TextProperty{"Text"};
-    inline static constexpr DependencyProperty<bool> IsReadOnlyProperty{"IsReadOnly"};
-    inline static constexpr DependencyProperty<std::uint32_t> MaxLengthProperty{"MaxLength"};
-    inline static constexpr DependencyProperty<String> PlaceholderProperty{"Placeholder"};
-    inline static constexpr DependencyProperty<bool> AcceptsReturnProperty{"AcceptsReturn"};
-    inline static constexpr DependencyProperty<TextWrapping> TextWrappingProperty{"TextWrapping"};
-    inline static constexpr DependencyProperty<Ref<Aero::Media::Brush>> PlaceholderForegroundProperty{"PlaceholderForeground"};
-    inline static constexpr DependencyProperty<double> FontSizeProperty{"FontSize"};
+    AERO_DEPENDENCY_PROPERTY(String, Text);
+    AERO_DEPENDENCY_PROPERTY(bool, IsReadOnly);
+    AERO_DEPENDENCY_PROPERTY(std::uint32_t, MaxLength);
+    AERO_DEPENDENCY_PROPERTY(String, Placeholder);
+    AERO_DEPENDENCY_PROPERTY(bool, AcceptsReturn);
+    AERO_DEPENDENCY_PROPERTY(TextWrapping, TextWrapping);
+    AERO_DEPENDENCY_PROPERTY(Ref<Aero::Media::Brush>, PlaceholderForeground);
+    AERO_DEPENDENCY_PROPERTY(double, FontSize);
     inline static constexpr auto FontFamilyProperty = FrameworkElement::FontFamilyProperty;
-    inline static constexpr DependencyProperty<FontWeight> FontWeightProperty{"FontWeight"};
-    inline static constexpr DependencyProperty<FontStyle> FontStyleProperty{"FontStyle"};
-    inline static constexpr DependencyProperty<TextAlignment> TextAlignmentProperty{"TextAlignment"};
-    inline static constexpr DependencyProperty<std::uint32_t> MaxLinesProperty{"MaxLines"};
-    inline static constexpr DependencyProperty<std::uint32_t> MinLinesProperty{"MinLines"};
+    AERO_DEPENDENCY_PROPERTY(FontWeight, FontWeight);
+    AERO_DEPENDENCY_PROPERTY(FontStyle, FontStyle);
+    AERO_DEPENDENCY_PROPERTY(TextAlignment, TextAlignment);
+    AERO_DEPENDENCY_PROPERTY(std::uint32_t, MaxLines);
+    AERO_DEPENDENCY_PROPERTY(std::uint32_t, MinLines);
     inline static constexpr auto ForegroundProperty = Control::ForegroundProperty;
 
 protected:
     void OnApplyTemplate() noexcept override;
-    Size MeasureOverride(
-        Size availableSize) noexcept override;
-    Size ArrangeOverride(
-        Size finalSize) noexcept override;
-    void OnRender(
-        ::Aero::Media::DrawingContext& context) noexcept override;
+    Size MeasureOverride(Size availableSize) noexcept override;
+    Size ArrangeOverride(Size finalSize) noexcept override;
+    void OnRender(::Aero::Media::DrawingContext& context) noexcept override;
+    void OnMouseDown(MouseButtonEventArgs& args);
+    void OnMouseMove(MouseEventArgs& args);
+    void OnMouseUp(MouseButtonEventArgs& args);
+    void OnKeyDown(KeyEventArgs& args);
+    void OnTextInput(TextCompositionEventArgs& args);
+    void OnLostKeyboardFocus(KeyboardFocusChangedEventArgs& args);
+    void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
+    // Replaces the former CoerceTextBoxText metadata delegate. Invalid UTF-8
+    // is rejected by returning Unset (surfaced as ValidationFailed).
+    PropertyValue CoerceValueCore(DependencyPropertyHandle property, const PropertyValue& baseValue) noexcept override;
 
 private:
-    friend class TextEditBehavior;
     friend class PasswordBox;
-#if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::Core::TextLayoutFacet;
-#endif
 
     struct CaretStop {
         double x = 0.0;
@@ -164,6 +124,36 @@ private:
         double height = 0.0;
         std::uint32_t line = 0U;
     };
+
+    void HandleEditorMouseDown(UIElement& owner, DragSelectionState& drag, MouseButtonEventArgs& args);
+    void HandleEditorMouseMove(UIElement& owner, DragSelectionState& drag, MouseEventArgs& args);
+    void HandleEditorMouseUp(UIElement& owner, DragSelectionState& drag, MouseButtonEventArgs& args);
+    void HandleEditorKeyDown(UIElement& owner, KeyEventArgs& args);
+    void HandleEditorTextInput(TextCompositionEventArgs& args);
+    void HandleEditorLostFocus(UIElement& owner, DragSelectionState& drag, KeyboardFocusChangedEventArgs& args);
+    Result<void> SynchronizeModel() noexcept;
+    Result<void> CommitModelText() noexcept;
+    Result<void> ReplaceSelection(StringView text) noexcept;
+    Result<void> DeleteBackward() noexcept;
+    Result<void> DeleteForward() noexcept;
+    Result<void> CopySelection(Input::IClipboard& clipboard) const noexcept;
+    Result<void> CutSelection(Input::IClipboard& clipboard) noexcept;
+    Result<void> Paste(Input::IClipboard& clipboard) noexcept;
+    Result<void> SelectedText(String& output) const noexcept;
+    Result<void> MoveCaretHorizontal(double direction, bool extend) noexcept;
+    Result<void> MoveCaretLineBoundary(bool end, bool extend) noexcept;
+    void EnsureCaretVisible() noexcept;
+    Result<void> RebuildCaretStops() noexcept;
+    Result<void> SanitizeInput(StringView input, String& output) const noexcept;
+    Result<void> ConstrainManualInput(String& input, const void* target, TextSelection selection) const noexcept;
+    void ReleaseGlyphRuns() noexcept;
+    void UpdateCandidateWindow() noexcept;
+    Result<void> CancelCompositionForFocusLoss() noexcept;
+    Result<void> RenderEditor(::Aero::Media::DrawingContext& context, Size viewport, bool drawCaret) noexcept;
+    void OnTextPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept;
+
+    double GetLineHeight() const noexcept;
+    const void* GetActiveModel() const noexcept;
 
     void* model_ = nullptr;
     void* compositionModel_ = nullptr;
@@ -177,8 +167,7 @@ private:
     std::uint32_t wrapColumns_ = UINT32_MAX;
     ScrollData scroll_;
     ScrollViewer* scrollViewer_ = nullptr;
-    Input::ITextInputMethodHost*
-        inputMethodHost_ = nullptr;
+    Input::ITextInputMethodHost* inputMethodHost_ = nullptr;
     TextSelection compositionSelection_;
     bool serviceOwnsGlyphRuns_ = false;
     bool updatingTextProperty_ = false;
@@ -186,53 +175,67 @@ private:
     bool showingPlaceholder_ = false;
     UIElement* coordinateOwner_ = nullptr;
     PasswordBox* passwordOwner_ = nullptr;
-    DependencyPropertyChangedEventHandler
-        textChangedHandler_;
-
-    Result<void> SynchronizeModel() noexcept;
-    Result<void> CommitModelText() noexcept;
-    Result<void> ReplaceSelection(
-        StringView text) noexcept;
-    Result<void> DeleteBackward() noexcept;
-    Result<void> DeleteForward() noexcept;
-    Result<void> CopySelection(
-        Input::IClipboard& clipboard) const noexcept;
-    Result<void> CutSelection(
-        Input::IClipboard& clipboard) noexcept;
-    Result<void> Paste(
-        Input::IClipboard& clipboard) noexcept;
-    Result<void> SelectedText(
-        String& output) const noexcept;
-    Result<void> MoveCaretHorizontal(
-        double direction,
-        bool extend) noexcept;
-    Result<void> MoveCaretLineBoundary(
-        bool end,
-        bool extend) noexcept;
-    Result<void> EnsureCaretVisible() noexcept;
-    Result<void> RebuildCaretStops() noexcept;
-    Result<void> SanitizeInput(
-        StringView input,
-        String& output) const noexcept;
-    Result<void> ConstrainManualInput(
-        String& input,
-        const void* target,
-        TextSelection selection) const noexcept;
-    void ReleaseGlyphRuns() noexcept;
-    double GetLineHeight() const noexcept;
-    const void*
-    GetActiveModel() const noexcept;
-    Result<void>
-    UpdateCandidateWindow() noexcept;
-    Result<void>
-    CancelCompositionForFocusLoss() noexcept;
-    Result<void> RenderEditor(
-        ::Aero::Media::DrawingContext& context,
-        Size viewport,
-        bool drawCaret) noexcept;
-    void OnTextPropertyChanged(
-        DependencyObject& object,
-        const DependencyPropertyChangedEventArgs&
-            args) noexcept;
 };
+
+class AERO_GUI_API PasswordBox : public Primitives::TextBoxBase {
+    AERO_DECLARE_TYPE(PasswordBox, Primitives::TextBoxBase)
+
+public:
+    PasswordBox() noexcept;
+    ~PasswordBox() override;
+
+    void AttachTextLayout(void* service, bool invalidate = false) noexcept;
+    StringView GetPassword() const noexcept { return password_.View(); }
+    void SetPassword(StringView value) noexcept;
+    StringView GetPasswordChar() const noexcept;
+    void SetPasswordChar(StringView value) noexcept;
+    std::uint32_t GetMaxLength() const noexcept;
+    void SetMaxLength(std::uint32_t value) noexcept;
+    void SetSelectionBrush(Ref<Media::Brush> value) noexcept override;
+    void SetSelectionOpacity(double value) noexcept override;
+    void SetCaretBrush(Ref<Media::Brush> value) noexcept override;
+    TextSelection GetSelection() const noexcept;
+    std::uint32_t GetCaret() const noexcept;
+    void SetSelection(std::uint32_t anchor, std::uint32_t caret) noexcept;
+    void SelectAll() noexcept;
+    void SetInputMethodHost(Input::ITextInputMethodHost* host) noexcept;
+    Input::ITextInputMethodHost* GetInputMethodHost() const noexcept;
+    bool GetIsComposing() const noexcept;
+
+    inline static constexpr RoutedEvent<RoutedEventArgs> PasswordChangedEvent{"PasswordChanged"};
+    UIElement::Event<RoutedEventArgs> PasswordChanged() noexcept { return GetEvent(PasswordChangedEvent); }
+    AERO_DEPENDENCY_PROPERTY(String, PasswordChar);
+    AERO_DEPENDENCY_PROPERTY(std::uint32_t, MaxLength);
+    AERO_DEPENDENCY_PROPERTY(String, Placeholder);
+    StringView GetPlaceholder() const noexcept { return GetValue(PlaceholderProperty); }
+    void SetPlaceholder(StringView value) noexcept { SetValue(PlaceholderProperty, value); }
+    inline static constexpr auto ForegroundProperty = Control::ForegroundProperty;
+
+protected:
+    void OnApplyTemplate() noexcept override;
+    Size MeasureOverride(Size availableSize) noexcept override;
+    Size ArrangeOverride(Size finalSize) noexcept override;
+    void OnRender(::Aero::Media::DrawingContext& context) noexcept override;
+
+    void OnMouseDown(MouseButtonEventArgs& args);
+    void OnMouseMove(MouseEventArgs& args);
+    void OnMouseUp(MouseButtonEventArgs& args);
+    void OnKeyDown(KeyEventArgs& args);
+    void OnTextInput(TextCompositionEventArgs& args);
+    void OnLostKeyboardFocus(KeyboardFocusChangedEventArgs& args);
+    bool ValidateValueCore(Meta::DependencyPropertyHandle property, const PropertyValue& value) const noexcept override;
+    void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
+
+private:
+    friend class TextBox;
+
+    String password_;
+    void* passwordPolicy_ = nullptr;
+    TextBox editor_;
+    bool synchronizingEditor_ = false;
+
+    void SynchronizeEditorFromPassword() noexcept;
+    Result<void> SynchronizePasswordFromEditor() noexcept;
+};
+
 } // namespace Aero::Controls

@@ -7,10 +7,10 @@
 
 namespace {
 
-class ConsumerApplication : public Aero::Application {
+class ConsumerApplication : public Aero::App::Application {
     AERO_DECLARE_TYPE_NAMED(
         ConsumerApplication,
-        Aero::Application,
+        Aero::App::Application,
         "urn:aero-sdk-consumer",
         "ConsumerApplication")
 
@@ -28,10 +28,10 @@ protected:
     }
 };
 
-class ConsumerWindow : public Aero::Window {
+class ConsumerWindow : public Aero::App::Window {
     AERO_DECLARE_TYPE_NAMED(
         ConsumerWindow,
-        Aero::Window,
+        Aero::App::Window,
         "urn:aero-sdk-consumer",
         "ConsumerWindow")
 
@@ -50,7 +50,7 @@ public:
 
 protected:
     void OnClosing(Aero::CancelEventArgs& args) noexcept override {
-        Aero::Window::OnClosing(args);
+        Aero::App::Window::OnClosing(args);
     }
 
 private:
@@ -64,15 +64,15 @@ inline constexpr Aero::ModuleRegistration ConsumerComponents =
         "Aero.SdkConsumer.Components");
 
 [[maybe_unused]] void ConsumeApplicationSdk(
-    Aero::Application& application,
-    Aero::Window& window) noexcept {
-    Aero::Ref<Aero::Window> retained =
-        Aero::Ref<Aero::Window>::TryFromBorrowed(window);
+    Aero::App::Application& application,
+    Aero::App::Window& window) noexcept {
+    Aero::Ref<Aero::App::Window> retained =
+        Aero::Ref<Aero::App::Window>::TryFromBorrowed(window);
     if (retained) {
         application.SetMainWindow(std::move(retained));
     }
     application.SetShutdownMode(
-        Aero::ShutdownMode::OnExplicitShutdown);
+        Aero::App::ShutdownMode::OnExplicitShutdown);
     static_cast<void>(application.GetMainWindow());
     static_cast<void>(application.GetWindows().GetCount());
     static_cast<void>(application.GetShutdownMode());
@@ -90,47 +90,44 @@ inline constexpr Aero::ModuleRegistration ConsumerComponents =
     static_cast<void>(application.RuntimeType());
     static_cast<void>(window.RuntimeType());
     static_cast<void>(
-        static_cast<Aero::Result<int> (Aero::Application::*)() noexcept>(
-            &Aero::Application::Run));
-    static_cast<void>(
-        static_cast<int (*)(const Aero::App::RunOptions&) noexcept>(
-            &Aero::App::Run));
+        static_cast<Aero::Result<int> (Aero::App::Application::*)() noexcept>(
+            &Aero::App::Application::Run));
 }
 
 static_assert(
     std::is_base_of<
-        Aero::Application,
+        Aero::App::Application,
         ConsumerApplication>::value,
     "WPF Application must remain derivable");
 
 static_assert(
     std::is_base_of<
-        Aero::Window,
+        Aero::App::Window,
         ConsumerWindow>::value,
     "WPF Window must remain derivable");
 
 static_assert(
     std::is_same<
-        decltype(std::declval<Aero::Application&>().GetResources()),
+        decltype(std::declval<Aero::App::Application&>().GetResources()),
         Aero::ResourceDictionary&>::value,
     "Application resources must always be available by reference");
 
 static_assert(
     std::is_same<
-        decltype(std::declval<Aero::Application&>().Run()),
+        decltype(std::declval<Aero::App::Application&>().Run()),
         Aero::Result<int>>::value,
     "Application must expose a Result-returning Run boundary");
 
 static_assert(
     std::is_same<
-        decltype(std::declval<Aero::Window&>().Show()),
+        decltype(std::declval<Aero::App::Window&>().Show()),
         Aero::Result<void>>::value,
     "Window must expose one Result-returning Show boundary");
 
 static_assert(
     std::is_same<
         decltype(Aero::App::WindowInterop::NativeHandle(
-            std::declval<const Aero::Window&>())),
+            std::declval<const Aero::App::Window&>())),
         Aero::Platform::NativeWindowHandle>::value,
     "WindowInterop must own the canonical native-window handle");
 

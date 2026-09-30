@@ -1,4 +1,7 @@
-#include <AeroRender/Render.hpp>
+#include <AeroRender/RenderDevice.hpp>
+#include <AeroRender/RenderTarget.hpp>
+#include <AeroRender/Texture.hpp>
+#include <Aero/IRenderer.hpp>
 
 #include <type_traits>
 

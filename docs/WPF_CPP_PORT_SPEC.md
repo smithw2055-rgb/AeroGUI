@@ -17,7 +17,7 @@ RenderFrame 与 GPU backend 是实现机制，不形成第二套开发模型。
 
 1. Runtime、工具和产品统一使用 C++17；
 2. 公共 ABI 不暴露 STL owning type、异常、编译器 RTTI 或 C++20 类型；
-3. `Aero::Application`、`Window`、`DependencyObject`、`UIElement`、
+3. `Aero::App::Application`、`Aero::App::Window`、`DependencyObject`、`UIElement`、
    `FrameworkElement`、Controls、Data、Media、Input、Documents 与 Threading
    使用熟悉的 WPF 名称和语义；
 4. 默认桌面宿主是可选产品，核心 Gui 可独立嵌入游戏引擎和现有应用；

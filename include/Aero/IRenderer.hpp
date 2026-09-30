@@ -13,6 +13,10 @@ class RenderDevice;
 // UpdateRenderTree(); true means a new immutable frame was published. Hosts may
 // skip GPU work when it returns false unless native exposure/resize requires a
 // re-present. Offscreen and onscreen passes remain explicit for host scheduling.
+//
+// Ownership: IRenderer is the public View-owned contract; RenderDevice/
+// RenderTarget (AeroRender) are the backend contracts it drives; the sole
+// concrete implementation is the source-private ViewRenderer (src/gui).
 class AERO_GUI_API IRenderer {
 public:
     virtual ~IRenderer() = default;
@@ -20,8 +24,7 @@ public:
     IRenderer(const IRenderer&) = delete;
     IRenderer& operator=(const IRenderer&) = delete;
 
-    virtual Result<void> Init(
-        Ref<RenderDevice> device) noexcept = 0;
+    virtual Result<void> Init(Ref<RenderDevice> device) noexcept = 0;
     virtual void Shutdown() noexcept = 0;
     virtual bool IsInitialized() const noexcept = 0;
 

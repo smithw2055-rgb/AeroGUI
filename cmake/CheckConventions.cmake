@@ -67,7 +67,8 @@ foreach(relative IN LISTS AERO_PUBLIC_HEADERS)
     set(line_number 0)
     foreach(line IN LISTS public_header_lines)
         math(EXPR line_number "${line_number} + 1")
-        if(line MATCHES "inline[ \t]+static[ \t]+constexpr.*(Property|RoutedEvent|Event)" AND
+        if(NOT line MATCHES "^[ \t]*#define" AND
+           line MATCHES "inline[ \t]+static[ \t]+constexpr.*(Property|RoutedEvent|Event)" AND
            NOT line MATCHES ";[ \t]*$")
             list(APPEND multiline_static_members "${relative}:${line_number}")
         endif()

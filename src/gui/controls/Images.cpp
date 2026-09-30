@@ -1,5 +1,7 @@
 #include "render/DisplayList.hpp"
-#include <Aero/Controls.hpp> 
+#include "gui/core/Describe.hpp"
+#include <Aero/Controls.hpp>
+#include "gui/core/TypeRegistryCore.hpp" 
 
 #include <algorithm>
 #include <cmath>
@@ -31,22 +33,16 @@ double LimitScale(
 } // namespace
 
 Base::Ref<ImageSource> Image::GetSource() const noexcept {
-    return GetValueOr(
-        SourceProperty,
-        Base::Ref<ImageSource>{});
+    return GetValue(SourceProperty);
 }
 
 Stretch Image::GetStretch() const noexcept {
-    return GetValueOr(
-        StretchProperty,
-        Stretch::Uniform);
+    return GetValue(StretchProperty);
 }
 
 StretchDirection
 Image::GetStretchDirection() const noexcept {
-    return GetValueOr(
-        StretchDirectionProperty,
-        StretchDirection::Both);
+    return GetValue(StretchDirectionProperty);
 }
 
 void Image::SetSource(
@@ -111,7 +107,7 @@ Size Image::MeasureOverride(
 
 void Image::OnRender(
     ::Aero::Media::DrawingContext& context) noexcept {
-    auto& builder = Aero::Render::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::DrawingBridge::Builder(context);
     if (renderImage_ ==
             InvalidRenderImageId ||
         pixelWidth_ == 0U ||
@@ -178,6 +174,15 @@ void Image::OnRender(
         (size.height - destination.height) * 0.5;
     static_cast<void>(builder.DrawImage(
         renderImage_, destination, uv));
+}
+
+AERO_DESCRIBE(Image) {
+    using namespace Aero::Meta;
+    Register<Image>(context)
+        .Property(Image::SourceProperty, Base::Ref<Media::ImageSource>{}, AffectsMeasure | AffectsRender)
+        .Property(Image::StretchProperty, Media::Stretch::Uniform, AffectsMeasure | AffectsRender)
+        .Property(Image::StretchDirectionProperty, Media::StretchDirection::Both, AffectsMeasure | AffectsRender)
+        .Factory();
 }
 
 } // namespace Aero::Controls

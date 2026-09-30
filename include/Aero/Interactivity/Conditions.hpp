@@ -16,12 +16,11 @@ namespace Aero::Interactivity {
 // and are not tied to the animation timeline model.
 class AERO_GUI_API ComparisonCondition : public Base::Object {
     AERO_DECLARE_TYPE(ComparisonCondition, Base::Object)
+
 public:
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
     Ref<Aero::Data::Binding> GetLeftOperand() const noexcept { return left_; }
-    void SetLeftOperand(Ref<Aero::Data::Binding> value) noexcept {
-        left_ = std::move(value);
-    }
+    void SetLeftOperand(Ref<Aero::Data::Binding> value) noexcept { left_ = std::move(value); }
     const Meta::PropertyValue& GetRightOperand() const noexcept { return right_; }
     void SetRightOperand(const Meta::PropertyValue& value) noexcept { right_ = value; }
     enum class Operator : std::uint8_t {
@@ -39,14 +38,14 @@ private:
 
 class AERO_GUI_API ConditionalExpression : public Base::Object {
     AERO_DECLARE_TYPE(ConditionalExpression, Base::Object)
+
 public:
     enum class ForwardChaining : std::uint8_t { And = 0U, Or };
     ConditionalExpression() noexcept : conditions_(&Base::GetDefaultAllocator()) {}
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
-    Result<void> AddCondition(Ref<ComparisonCondition> value) noexcept {
-        return value ? conditions_.PushBack(std::move(value))
-                     : Result<void>(Base::Status::Failure(
-                           Base::ErrorCode::InvalidArgument, "Condition is null"));
+    void AddCondition(Ref<ComparisonCondition> value) noexcept {
+        if (!value) { AERO_ASSERT(false); return; }
+        conditions_.PushBack(std::move(value));
     }
     void ClearConditions() noexcept { conditions_.Clear(); }
     Span<const Ref<ComparisonCondition>> GetConditions() const noexcept {
@@ -62,12 +61,11 @@ private:
 
 class AERO_GUI_API ConditionBehavior : public Base::Object {
     AERO_DECLARE_TYPE(ConditionBehavior, Base::Object)
+
 public:
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
     Ref<ConditionalExpression> GetExpression() const noexcept { return expression_; }
-    void SetExpression(Ref<ConditionalExpression> value) noexcept {
-        expression_ = std::move(value);
-    }
+    void SetExpression(Ref<ConditionalExpression> value) noexcept { expression_ = std::move(value); }
 
 private:
     Ref<ConditionalExpression> expression_;
@@ -75,7 +73,5 @@ private:
 
 } // namespace Aero::Interactivity
 
-AERO_DECLARE_TYPE_ENUM(
-    Aero::Interactivity::ComparisonCondition::Operator)
-AERO_DECLARE_TYPE_ENUM(
-    Aero::Interactivity::ConditionalExpression::ForwardChaining)
+AERO_DECLARE_TYPE_ENUM(Aero::Interactivity::ComparisonCondition::Operator)
+AERO_DECLARE_TYPE_ENUM(Aero::Interactivity::ConditionalExpression::ForwardChaining)

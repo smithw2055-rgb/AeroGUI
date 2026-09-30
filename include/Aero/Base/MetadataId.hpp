@@ -13,15 +13,11 @@ using MetaMemberId = std::uint64_t;
 inline constexpr MetaTypeId InvalidMetaTypeId = 0U;
 inline constexpr MetaMemberId InvalidMetaMemberId = 0U;
 
-inline constexpr StringView DefaultMetadataNamespaceUri() noexcept {
-    return StringView("urn:aero");
-}
+inline constexpr StringView DefaultMetadataNamespaceUri() noexcept { return StringView("urn:aero"); }
 
-inline constexpr HashCode StableMetadataIdOffsetBasis =
-    UINT64_C(14695981039346656037);
+inline constexpr HashCode StableMetadataIdOffsetBasis = UINT64_C(14695981039346656037);
 inline constexpr HashCode StableMetadataIdPrime = UINT64_C(1099511628211);
-inline constexpr HashCode StableMetadataIdNonZeroFallback =
-    UINT64_C(0x9E3779B97F4A7C15);
+inline constexpr HashCode StableMetadataIdNonZeroFallback = UINT64_C(0x9E3779B97F4A7C15);
 
 class StableMetadataIdBuilder  {
 public:
@@ -32,8 +28,7 @@ public:
 
     constexpr void AddText(const char* data, std::uint32_t size) noexcept {
         for (std::uint32_t index = 0U; index < size; ++index) {
-            AddByte(static_cast<std::uint8_t>(
-                static_cast<unsigned char>(data[index])));
+            AddByte(static_cast<std::uint8_t>(static_cast<unsigned char>(data[index])));
         }
     }
 
@@ -54,8 +49,7 @@ public:
         AddText(value.Data(), value.SizeBytes());
     }
 
-    constexpr std::uint64_t Finish() const noexcept {
-        const std::uint64_t result = MixHash64(value_);
+    constexpr std::uint64_t Finish() const noexcept { const std::uint64_t result = MixHash64(value_);
         return result != 0U ? result : StableMetadataIdNonZeroFallback;
     }
 
@@ -63,9 +57,7 @@ private:
     HashCode value_ = StableMetadataIdOffsetBasis;
 };
 
-constexpr MetaTypeId MakeMetaTypeId(
-    StringView xamlNamespace,
-    StringView name) noexcept {
+constexpr MetaTypeId MakeMetaTypeId(StringView xamlNamespace, StringView name) noexcept {
     constexpr char domain[] = "AERO.TYPE.V1";
     StableMetadataIdBuilder builder;
     builder.AddText(domain, static_cast<std::uint32_t>(sizeof(domain) - 1U));

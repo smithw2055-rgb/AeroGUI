@@ -80,7 +80,6 @@ metadata entry points explicitly:
 ```cpp
 #include <Aero/Gui.hpp>
 #include <Aero/Meta.hpp>
-#include <Aero/Module.hpp>
 
 Aero::Result<void> RegisterMyModule(
     Aero::Meta::Registration& context) noexcept;
@@ -88,6 +87,9 @@ Aero::Result<void> RegisterMyModule(
 constexpr Aero::ModuleRegistration MyModule =
     Aero::DefineModule("My.Module", &RegisterMyModule);
 ```
+
+`Aero/Module.hpp` is the lightweight composition header included by
+`Aero/Meta.hpp`; authors include `Meta.hpp` only.
 
 `Meta::Registration` is callback-scoped. Catalogs, registration stores, frozen
 execution data, XAML facets and dependency-property provider state remain
@@ -102,14 +104,14 @@ Application entry point:
 #include <AeroApp/App.hpp>
 
 int main() {
-    Aero::Application app;
+    Aero::App::Application app;
     static_cast<void>(app.SetStartupUri("MainWindow.xaml"));
     auto run = app.Run();
 return run ? run.Value() : 1;
 }
 ```
 
-`Aero::Application` and `Aero::Window` are ordinary WPF-facing XAML objects.
+`Aero::App::Application` and `Aero::App::Window` are ordinary WPF-facing XAML objects.
 `Application::Run()` uses the private default desktop host. Optional backend,
 allocator and diagnostics selection is passed through `Aero::App::RunOptions`;
 the SDK does not expose a launcher object. The host maintains one native window,

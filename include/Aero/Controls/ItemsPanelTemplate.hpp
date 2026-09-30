@@ -1,29 +1,24 @@
 #pragma once
 
-#include <Aero/Resources.hpp>
+#include <Aero/FrameworkTemplate.hpp>
+
 
 namespace Aero::Controls {
 
-struct ItemsPanelTemplateRuntime;
+class AERO_GUI_API ItemsPanelTemplate : public ::Aero::FrameworkTemplate {
+    AERO_DECLARE_TYPE(ItemsPanelTemplate, FrameworkTemplate)
 
-class AERO_GUI_API ItemsPanelTemplate : public Base::Object {
-    AERO_DECLARE_TYPE(ItemsPanelTemplate, Base::Object)
 public:
-
     ItemsPanelTemplate() noexcept;
     ~ItemsPanelTemplate() noexcept override;
+    Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
     ItemsPanelTemplate(const ItemsPanelTemplate&) = delete;
     ItemsPanelTemplate& operator=(const ItemsPanelTemplate&) = delete;
 
-    Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
-    ResourceDictionary& GetResources() noexcept;
-    const ResourceDictionary& GetResources() const noexcept;
-    void SetResources(Ref<ResourceDictionary> value) noexcept;
-    bool GetIsSealed() const noexcept;
-
-private:
-    friend struct ItemsPanelTemplateRuntime;
-    void* state_ = nullptr;
+    ResourceDictionary& GetResources() noexcept override;
+    const ResourceDictionary& GetResources() const noexcept override;
+    void SetResources(Ref<ResourceDictionary> value) noexcept override;
+    bool GetIsSealed() const noexcept override;
 };
 
 } // namespace Aero::Controls

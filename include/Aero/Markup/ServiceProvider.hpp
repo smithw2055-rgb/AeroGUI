@@ -8,22 +8,17 @@
 namespace Aero::Markup {
 
 inline constexpr StringView LanguageNamespaceUri() noexcept {
-    return StringView(
-        "http://schemas.microsoft.com/winfx/2006/xaml");
+    return StringView("http://schemas.microsoft.com/winfx/2006/xaml");
 }
 
 class AERO_GUI_API NamespaceScope {
 public:
-    using LookupCallback = Result<StringView> (*)(
-        void* context,
-        StringView prefix) noexcept;
+    using LookupCallback = Result<StringView> (*)(void* context, StringView prefix) noexcept;
 
     NamespaceScope() noexcept = default;
-    NamespaceScope(LookupCallback lookup, void* context) noexcept
-        : lookup_(lookup), context_(context) {}
+    NamespaceScope(LookupCallback lookup, void* context) noexcept : lookup_(lookup), context_(context) {}
 
-    Result<StringView> Lookup(
-        StringView prefix) const noexcept;
+    Result<StringView> Lookup(StringView prefix) const noexcept;
     bool IsAvailable() const noexcept { return lookup_ != nullptr; }
 
 private:
@@ -33,16 +28,12 @@ private:
 
 class AERO_GUI_API ResourceResolver {
 public:
-    using LookupCallback = Result<Aero::Value> (*)(
-        void* context,
-        StringView key) noexcept;
+    using LookupCallback = Result<Aero::Value> (*)(void* context, StringView key) noexcept;
 
     ResourceResolver() noexcept = default;
-    ResourceResolver(LookupCallback lookup, void* context) noexcept
-        : lookup_(lookup), context_(context) {}
+    ResourceResolver(LookupCallback lookup, void* context) noexcept : lookup_(lookup), context_(context) {}
 
-    Result<Aero::Value> Lookup(
-        StringView key) const noexcept;
+    Result<Aero::Value> Lookup(StringView key) const noexcept;
     bool IsAvailable() const noexcept { return lookup_ != nullptr; }
 
 private:

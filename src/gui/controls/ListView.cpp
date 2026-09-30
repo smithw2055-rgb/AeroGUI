@@ -1,18 +1,25 @@
-#include "gui/core/State.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleState.hpp"
+#include "gui/core/ElementTree.hpp"
+#include "gui/core/Describe.hpp"
+#include "gui/core/LayoutEngine.hpp"
+#include "gui/core/EffectiveValueEngine.hpp"
+#include "gui/core/RoutedEvents.hpp"
+#include "gui/core/EventRouter.hpp"
 #include <Aero/Controls.hpp>
+#include <Aero/Base/String.hpp>
+#include <Aero/DataTemplate.hpp>
+#include <Aero/Style.hpp>
+#include <Aero/Data/Binding.hpp>
+#include "gui/core/ValueConversion.hpp"
 
 #include <cmath>
 #include <utility>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero::Controls {
 
 Value GridViewColumn::GetHeader()
     const noexcept {
-    return GetValueOr(
-        HeaderProperty,
-        Value::NullObject(Meta::TypeOf<Base::Object>()));
+    return GetValue(HeaderProperty);
 }
 
 void GridViewColumn::SetHeader(
@@ -20,19 +27,17 @@ void GridViewColumn::SetHeader(
     SetValue(HeaderProperty, std::move(value));
 }
 
-Base::Result<void> GridViewColumn::SetHeader(
+void GridViewColumn::SetHeader(
     Base::StringView value) noexcept {
     Base::Result<Value> boxed = Value::TryFromString(
         Meta::TypeOf<Base::String>(), value);
-    if (!boxed) return boxed.GetStatus();
+    if (!boxed) { AERO_ASSERT(false); return; }
     SetHeader(std::move(boxed).Value());
-    return {};
 }
 
 double GridViewColumn::GetWidth()
     const noexcept {
-    return GetValueOr(
-        WidthProperty, 100.0);
+    return GetValue(WidthProperty);
 }
 
 void GridViewColumn::SetWidth(
@@ -46,9 +51,7 @@ void GridViewColumn::SetWidth(
 
 Base::Ref<DataTemplate>
 GridViewColumn::GetCellTemplate() const noexcept {
-    return GetValueOr(
-        CellTemplateProperty,
-        Base::Ref<DataTemplate>{});
+    return GetValue(CellTemplateProperty);
 }
 
 void
@@ -61,9 +64,7 @@ GridViewColumn::SetCellTemplate(
 
 Base::Ref<DataTemplate>
 GridViewColumn::GetHeaderTemplate() const noexcept {
-    return GetValueOr(
-        HeaderTemplateProperty,
-        Base::Ref<DataTemplate>{});
+    return GetValue(HeaderTemplateProperty);
 }
 
 void
@@ -77,9 +78,7 @@ GridViewColumn::SetHeaderTemplate(
 Base::StringView
 GridViewColumn::GetDisplayMemberPath()
     const noexcept {
-    return GetValueOr(
-        DisplayMemberPathProperty,
-        Base::StringView{});
+    return GetValue(DisplayMemberPathProperty);
 }
 
 void
@@ -91,9 +90,7 @@ GridViewColumn::SetDisplayMemberPath(
 
 Base::Ref<Data::Binding>
 GridViewColumn::GetDisplayMemberBinding() const noexcept {
-    return GetValueOr(
-        DisplayMemberBindingProperty,
-        Base::Ref<Data::Binding>{});
+    return GetValue(DisplayMemberBindingProperty);
 }
 
 void
@@ -103,29 +100,23 @@ GridViewColumn::SetDisplayMemberBinding(
         DisplayMemberBindingProperty, std::move(value));
 }
 
-Base::Result<void> GridView::AddColumn(
+void GridView::AddColumn(
     Base::Ref<GridViewColumn> column)
     noexcept {
-    if (!column) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "GridView column is null");
-    }
-    return columns_.PushBack(
+    if (!column) { AERO_ASSERT(false); return; }
+    columns_.PushBack(
         std::move(column));
 }
 
-Base::Ref<GridView>
+Base::Ref<ViewBase>
 ListView::GetView() const noexcept {
-    return GetValueOr(
-        ViewProperty,
-        Base::Ref<GridView>{});
+    return GetValue(ViewProperty);
 }
 
 void ListView::SetView(
-    Base::Ref<GridView> value) noexcept {
+    Base::Ref<ViewBase> value) noexcept {
     SetValue(ViewProperty, std::move(value));
-    (void)SynchronizeColumnHeaders();
+    SynchronizeColumnHeaders();
 }
 
 void
@@ -135,7 +126,7 @@ ListView::OnApplyTemplate() noexcept {
         GetTemplateChild("ColumnHeaders");
     columnHeaders_ =
         headers != nullptr &&
-        PropertyRegistry().Types().IsDerivedFrom(
+        DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             headers->RuntimeType(),
             TextBlock::StaticTypeId())
         ? static_cast<TextBlock*>(headers)
@@ -143,7 +134,7 @@ ListView::OnApplyTemplate() noexcept {
     if (columnHeaders_ == nullptr) {
         return;
     }
-    static_cast<void>(SynchronizeColumnHeaders());
+    SynchronizeColumnHeaders();
 }
 
 void ListView::OnTemplateDetached() noexcept {
@@ -151,12 +142,12 @@ void ListView::OnTemplateDetached() noexcept {
     ListBox::OnTemplateDetached();
 }
 
-Base::Result<void>
+void
 ListView::SynchronizeColumnHeaders() noexcept {
-    if (columnHeaders_ == nullptr) return {};
+    if (columnHeaders_ == nullptr) return;
     Base::String text;
-    Base::Ref<GridView> view = GetView();
-    if (view) {
+    GridView* view = ::Aero::TryCast<GridView>(GetView().Get());
+    if (view != nullptr) {
         for (const Base::Ref<GridViewColumn>&
              column : view->GetColumns()) {
             if (!column) continue;
@@ -166,7 +157,7 @@ ListView::SynchronizeColumnHeaders() noexcept {
                 ? header.AsString()
                 : Base::StringView{});
             if (!appended) {
-                return appended.GetStatus();
+                return;
             }
             const std::uint32_t headerCharacters =
                 header.Kind() == ValueKind::String
@@ -195,24 +186,125 @@ ListView::SynchronizeColumnHeaders() noexcept {
                 appended = text.Append(
                     Base::StringView(" "));
                 if (!appended) {
-                    return appended.GetStatus();
+                    return;
                 }
             }
         }
     }
     columnHeaders_->SetText(text.View());
-    return {};
 }
 
 Base::Result<Base::Ref<FrameworkElement>>
-ListView::CreateContainer(
-    const Base::Ref<Base::Object>&) noexcept {
+ListView::GetContainerForItemOverride() const noexcept {
     Base::Result<Base::Ref<ListViewItem>>
         made =
             Base::MakeRef<ListViewItem>();
     if (!made) return made.GetStatus();
     return Base::Ref<FrameworkElement>(
         std::move(made).Value());
+}
+
+namespace {
+
+void AddGridViewColumn(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& item,
+    void*) noexcept {
+    if (!item ||
+        item->RuntimeType() !=
+            GridViewColumn::StaticTypeId()) {
+        return;
+    }
+    (void)static_cast<GridView&>(
+        owner).AddColumn(
+            Base::Ref<GridViewColumn>::
+                FromBorrowed(
+                    static_cast<GridViewColumn&>(
+                        *item)));
+}
+
+void ClearGridViewColumns(
+    Base::Object& owner,
+    void*) noexcept {
+    static_cast<GridView&>(
+        owner).ClearColumns();
+}
+
+} // namespace
+
+AERO_DESCRIBE(GridViewColumnHeader) {
+    using namespace Aero::Meta;
+    Register<GridViewColumnHeader>(context)
+        .Property(GridViewColumnHeader::RoleProperty, GridViewColumnHeaderRole::Normal)
+        .Factory();
+}
+
+AERO_DESCRIBE(GridViewColumn) {
+    using namespace Aero::Meta;
+    Register<GridViewColumn>(context)
+        .Property(GridViewColumn::HeaderProperty, Value::NullObject(TypeOf<Base::Object>()))
+        .Property(GridViewColumn::WidthProperty, 100.0, FrameworkPropertyMetadataOptions::None, &Base::Validate::NonNegative<double>)
+        .Property(GridViewColumn::CellTemplateProperty, Base::Ref<DataTemplate>{})
+        .Property(GridViewColumn::HeaderTemplateProperty, Base::Ref<DataTemplate>{})
+        .Property(GridViewColumn::DisplayMemberPathProperty, Base::String{})
+        .Property(GridViewColumn::DisplayMemberBindingProperty, Base::Ref<Data::Binding>{})
+        .Property(GridViewColumn::HeaderContainerStyleProperty, Base::Ref<Style>{})
+        .Factory();
+}
+
+AERO_DESCRIBE(ViewBase) {
+    using namespace Aero::Meta;
+    Register<ViewBase>(context)
+        .Factory();
+}
+
+AERO_DESCRIBE(GridView) {
+    using namespace Aero::Meta;
+    Register<GridView>(context)
+        .Property<bool, &GridView::GetAllowsColumnReorder, &GridView::SetAllowsColumnReorder>("AllowsColumnReorder")
+        .Property<Base::Ref<Style>, &GridView::GetColumnHeaderContainerStyle, &GridView::SetColumnHeaderContainerStyle>("ColumnHeaderContainerStyle", PropertyFlags::Structural)
+        .Property<Base::Ref<Base::Object>, &GridView::GetColumnHeaderContextMenu, &GridView::SetColumnHeaderContextMenu>("ColumnHeaderContextMenu", PropertyFlags::Structural)
+        .Property<Base::Ref<Base::Object>, &GridView::GetColumnHeaderTemplate, &GridView::SetColumnHeaderTemplate>("ColumnHeaderTemplate", PropertyFlags::Structural)
+        .Property<Base::Ref<Base::Object>, &GridView::GetColumnHeaderTemplateSelector, &GridView::SetColumnHeaderTemplateSelector>("ColumnHeaderTemplateSelector", PropertyFlags::Structural)
+        .Property<Base::Ref<Base::Object>, &GridView::GetColumnHeaderToolTip, &GridView::SetColumnHeaderToolTip>("ColumnHeaderToolTip", PropertyFlags::Structural)
+        .Property<Base::Ref<Base::Object>, &GridView::GetColumnsObject, &GridView::SetColumnsObject>("Columns", PropertyFlags::Structural)
+        .Content<Base::Object>("ColumnItems", ContentKind::Collection, &AddGridViewColumn, &ClearGridViewColumns)
+        .Factory();
+}
+
+AERO_DESCRIBE(GridViewHeaderRowPresenter) {
+    using namespace Aero::Meta;
+    Register<GridViewHeaderRowPresenter>(context)
+        .Property(GridViewHeaderRowPresenter::AllowsColumnReorderProperty, false)
+        .Property(GridViewHeaderRowPresenter::ColumnHeaderContainerStyleProperty, Base::Ref<Base::Object>{})
+        .Property(GridViewHeaderRowPresenter::ColumnHeaderContextMenuProperty, Base::Ref<Base::Object>{})
+        .Property(GridViewHeaderRowPresenter::ColumnHeaderTemplateProperty, Base::Ref<Base::Object>{})
+        .Property(GridViewHeaderRowPresenter::ColumnHeaderTemplateSelectorProperty, Base::Ref<Base::Object>{})
+        .Property(GridViewHeaderRowPresenter::ColumnHeaderToolTipProperty, Base::Ref<Base::Object>{})
+        .Property(GridViewHeaderRowPresenter::ColumnsProperty, Base::Ref<Base::Object>{})
+        .Factory();
+}
+
+AERO_DESCRIBE(GridViewRowPresenter) {
+    using namespace Aero::Meta;
+    Register<GridViewRowPresenter>(context)
+        .Property(GridViewRowPresenter::ColumnsProperty, Base::Ref<Base::Object>{})
+        .Property(GridViewRowPresenter::ContentProperty, Base::Ref<Base::Object>{})
+        .Factory();
+}
+
+AERO_DESCRIBE(ListView) {
+    using namespace Aero::Meta;
+    Register<ListView>(context)
+        .Property(ListView::ViewProperty, Base::Ref<ViewBase>{}, AffectsMeasure)
+        .Factory();
+}
+
+AERO_DESCRIBE(ListViewItem) {
+    using namespace Aero::Meta;
+    Register<ListViewItem>(context)
+        .Override(Aero::UIElement::IsTabStopProperty, true, FrameworkPropertyMetadataOptions::None)
+        .Factory();
 }
 
 } // namespace Aero::Controls

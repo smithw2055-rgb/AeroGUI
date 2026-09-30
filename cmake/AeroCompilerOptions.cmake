@@ -8,7 +8,8 @@ function(aero_apply_compiler_options target)
             /permissive-
             /Zc:__cplusplus
             /Zc:preprocessor
-            /utf-8)
+            /utf-8
+            /Zi)
 
         if(NOT AERO_ENABLE_EXCEPTIONS)
             target_compile_options(${target} PRIVATE /EHs-c-)

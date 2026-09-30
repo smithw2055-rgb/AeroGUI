@@ -5,13 +5,11 @@
 #include <Aero/Base/ResourceUri.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/View.hpp>
-#include <Aero/Media/Geometry.hpp>
+#include <Aero/Media/Geometries.hpp>
 
 #include <cstdint>
 
-namespace Aero::Diagnostics {
-class IDiagnosticSink;
-}
+namespace Aero::Diagnostics { class IDiagnosticSink; }
 
 namespace Aero::Markup {
 
@@ -30,31 +28,22 @@ struct ReloadResult  {
 // occur on the View owner thread.
 class AERO_GUI_API ReloadCoordinator  {
 public:
-    explicit ReloadCoordinator(
-        View& view,
-        Base::IAllocator* allocator = nullptr) noexcept;
+    explicit ReloadCoordinator(View& view, Base::IAllocator* allocator = nullptr) noexcept;
     ~ReloadCoordinator() noexcept;
 
     ReloadCoordinator(ReloadCoordinator&& other) noexcept;
-    ReloadCoordinator& operator=(
-        ReloadCoordinator&& other) noexcept;
+    ReloadCoordinator& operator=(ReloadCoordinator&& other) noexcept;
 
     ReloadCoordinator(const ReloadCoordinator&) = delete;
-    ReloadCoordinator& operator=(
-        const ReloadCoordinator&) = delete;
+    ReloadCoordinator& operator=(const ReloadCoordinator&) = delete;
 
-    Result<void> Start(
-        StringView rootUri,
-        Aero::Base::Size availableSize,
+    Result<void> Start(StringView rootUri, Aero::Base::Size availableSize,
         Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept;
     void Stop() noexcept;
 
-    Result<ReloadResult> Poll(
-        Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept;
-    Result<ReloadResult> Reload(
-        Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept;
-    Result<ReloadResult> NotifySourceChanged(
-        const Base::ResourceUri& changedUri,
+    Result<ReloadResult> Poll(Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept;
+    Result<ReloadResult> Reload(Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept;
+    Result<ReloadResult> NotifySourceChanged(const Base::ResourceUri& changedUri,
         Diagnostics::IDiagnosticSink* diagnostics = nullptr) noexcept;
 
     bool IsActive() const noexcept;

@@ -2,7 +2,8 @@
 
 #include <Aero/Data/Binding.hpp>
 #include <Aero/Input.hpp>
-#include <Aero/Triggers/TriggerBase.hpp>
+#include <Aero/ICommand.hpp>
+#include <Aero/Triggers.hpp>
 #include <Aero/Interactivity/TriggerAction.hpp>
 
 namespace Aero::Interactivity {
@@ -12,26 +13,18 @@ namespace Aero::Interactivity {
 // associated element, matching Blend's PropertyChangedTrigger lifetime.
 class AERO_GUI_API PropertyChangedTrigger : public ::Aero::TriggerBase {
     AERO_DECLARE_TYPE(PropertyChangedTrigger, ::Aero::TriggerBase)
+
 public:
     PropertyChangedTrigger() noexcept : TriggerBase(StaticTypeId()) {}
 
-    Ref<Aero::Data::Binding> GetBinding() const noexcept {
-        return binding_;
-    }
-    void SetBinding(Ref<Aero::Data::Binding> value) noexcept {
-        binding_ = std::move(value);
-    }
-    Result<void> AddAction(Ref<TriggerAction> value) noexcept {
-        return value
-            ? actions_.PushBack(std::move(value))
-            : Result<void>(Base::Status::Failure(
-                  Base::ErrorCode::InvalidArgument,
-                  "PropertyChangedTrigger action cannot be null"));
+    Ref<Aero::Data::Binding> GetBinding() const noexcept { return binding_; }
+    void SetBinding(Ref<Aero::Data::Binding> value) noexcept { binding_ = std::move(value); }
+    void AddAction(Ref<TriggerAction> value) noexcept {
+        if (!value) { AERO_ASSERT(false); return; }
+        actions_.PushBack(std::move(value));
     }
     void ClearActions() noexcept { actions_.Clear(); }
-    Span<const Ref<TriggerAction>> GetActions() const noexcept {
-        return actions_.AsSpan();
-    }
+    Span<const Ref<TriggerAction>> GetActions() const noexcept { return actions_.AsSpan(); }
 
 private:
     Ref<Aero::Data::Binding> binding_;
@@ -43,26 +36,20 @@ private:
 // portable without adding a second public keyboard enum beside KeyboardInput.
 class AERO_GUI_API KeyTrigger : public ::Aero::TriggerBase {
     AERO_DECLARE_TYPE(KeyTrigger, ::Aero::TriggerBase)
+
 public:
     KeyTrigger() noexcept : TriggerBase(StaticTypeId()) {}
 
     StringView GetKey() const noexcept { return key_.View(); }
-    void SetKey(StringView value) noexcept {
-        static_cast<void>(key_.Assign(value));
-    }
+    void SetKey(StringView value) noexcept { static_cast<void>(key_.Assign(value)); }
     bool GetActiveOnFocus() const noexcept { return activeOnFocus_; }
     void SetActiveOnFocus(bool value) noexcept { activeOnFocus_ = value; }
-    Result<void> AddAction(Ref<TriggerAction> value) noexcept {
-        return value
-            ? actions_.PushBack(std::move(value))
-            : Result<void>(Base::Status::Failure(
-                  Base::ErrorCode::InvalidArgument,
-                  "KeyTrigger action cannot be null"));
+    void AddAction(Ref<TriggerAction> value) noexcept {
+        if (!value) { AERO_ASSERT(false); return; }
+        actions_.PushBack(std::move(value));
     }
     void ClearActions() noexcept { actions_.Clear(); }
-    Span<const Ref<TriggerAction>> GetActions() const noexcept {
-        return actions_.AsSpan();
-    }
+    Span<const Ref<TriggerAction>> GetActions() const noexcept { return actions_.AsSpan(); }
 
 private:
     String key_;
@@ -75,32 +62,18 @@ private:
 // element's DataContext and NameScope independently.
 class AERO_GUI_API InvokeCommandAction : public TriggerAction {
     AERO_DECLARE_TYPE(InvokeCommandAction, TriggerAction)
+
 public:
     InvokeCommandAction() noexcept : TriggerAction(StaticTypeId()) {}
 
-    Ref<Aero::Input::ICommand> GetCommand() const noexcept {
-        return command_;
-    }
-    void SetCommand(Ref<Aero::Input::ICommand> value) noexcept {
-        command_ = std::move(value);
-    }
-    const Meta::PropertyValue& GetCommandParameter() const noexcept {
-        return commandParameter_;
-    }
-    void SetCommandParameter(const Meta::PropertyValue& value) noexcept {
-        commandParameter_ = value;
-    }
-    Ref<Aero::Data::Binding> GetCommandBinding() const noexcept {
-        return commandBinding_;
-    }
-    void SetCommandBinding(Ref<Aero::Data::Binding> value) noexcept {
-        commandBinding_ = std::move(value);
-    }
-    Ref<Aero::Data::Binding> GetCommandParameterBinding() const noexcept {
-        return commandParameterBinding_;
-    }
-    void SetCommandParameterBinding(
-        Ref<Aero::Data::Binding> value) noexcept {
+    Ref<Aero::Input::ICommand> GetCommand() const noexcept { return command_; }
+    void SetCommand(Ref<Aero::Input::ICommand> value) noexcept { command_ = std::move(value); }
+    const Meta::PropertyValue& GetCommandParameter() const noexcept { return commandParameter_; }
+    void SetCommandParameter(const Meta::PropertyValue& value) noexcept { commandParameter_ = value; }
+    Ref<Aero::Data::Binding> GetCommandBinding() const noexcept { return commandBinding_; }
+    void SetCommandBinding(Ref<Aero::Data::Binding> value) noexcept { commandBinding_ = std::move(value); }
+    Ref<Aero::Data::Binding> GetCommandParameterBinding() const noexcept { return commandParameterBinding_; }
+    void SetCommandParameterBinding(Ref<Aero::Data::Binding> value) noexcept {
         commandParameterBinding_ = std::move(value);
     }
 
@@ -115,6 +88,7 @@ private:
 // selector contract instead of synthesizing a mouse click.
 class AERO_GUI_API SelectAction : public TriggerAction {
     AERO_DECLARE_TYPE(SelectAction, TriggerAction)
+
 public:
     SelectAction() noexcept : TriggerAction(StaticTypeId()) {}
 };
@@ -122,6 +96,7 @@ public:
 // Selects all text in the associated TextBox or PasswordBox.
 class AERO_GUI_API SelectAllAction : public TriggerAction {
     AERO_DECLARE_TYPE(SelectAllAction, TriggerAction)
+
 public:
     SelectAllAction() noexcept : TriggerAction(StaticTypeId()) {}
 };
@@ -130,25 +105,18 @@ public:
 // because authored XAML commonly targets it from ChangePropertyAction.
 class AERO_GUI_API PlaySoundAction : public TriggerAction {
     AERO_DECLARE_TYPE(PlaySoundAction, TriggerAction)
+
 public:
     PlaySoundAction() noexcept : TriggerAction(StaticTypeId()) {}
 
-    StringView GetSource() const noexcept {
-        return source_.View();
-    }
-    void SetSource(StringView value) noexcept {
-        static_cast<void>(source_.Assign(value));
-    }
+    StringView GetSource() const noexcept { return source_.View(); }
+    void SetSource(StringView value) noexcept { static_cast<void>(source_.Assign(value)); }
     double GetVolume() const noexcept { return volume_; }
     void SetVolume(double value) noexcept { volume_ = value; }
-    bool GetIsEnabled() const noexcept {
-        return GetValueOr(IsEnabledProperty, true);
-    }
-    void SetIsEnabled(bool value) noexcept {
-        SetValue(IsEnabledProperty, value);
-    }
+    bool GetIsEnabled() const noexcept { return GetValue(IsEnabledProperty); }
+    void SetIsEnabled(bool value) noexcept { SetValue(IsEnabledProperty, value); }
 
-    inline static constexpr DependencyProperty<bool> IsEnabledProperty{"IsEnabled"};
+    AERO_DEPENDENCY_PROPERTY(bool, IsEnabled);
 
 private:
     String source_;

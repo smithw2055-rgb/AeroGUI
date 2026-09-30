@@ -44,9 +44,7 @@ public:
     RenderTargetState State() const noexcept { return state_; }
     Ref<RenderDevice> GetDevice() const noexcept { return device_; }
 
-    virtual Result<void> Resize(
-        std::uint32_t width,
-        std::uint32_t height) noexcept;
+    virtual Result<void> Resize(std::uint32_t width, std::uint32_t height) noexcept;
     void NotifyLost() noexcept;
     Result<void> Restore() noexcept;
 
@@ -55,9 +53,7 @@ protected:
 
     virtual RenderTargetKind BackendKind() const noexcept { return kind_; }
     virtual RenderTargetState BackendState() const noexcept { return state_; }
-    virtual Result<void> ResizeBackend(
-        std::uint32_t width,
-        std::uint32_t height) noexcept {
+    virtual Result<void> ResizeBackend(std::uint32_t width, std::uint32_t height) noexcept {
         static_cast<void>(width);
         static_cast<void>(height);
         return {};

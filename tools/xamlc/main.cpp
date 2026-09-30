@@ -1,9 +1,9 @@
 #include <Aero/Gui.hpp>
-#include "gui/markup/XamlState.hpp"
+#include "gui/GuiDetail.hpp"
 #include <AeroApp/App.hpp>
 #include <Aero/Base/ResourceUri.hpp>
 #include <Aero/Module.hpp>
-#include "gui/meta/ModuleSet.hpp"
+#include "gui/core/ModuleSet.hpp"
 
 #include <Aero/Version.hpp>
 

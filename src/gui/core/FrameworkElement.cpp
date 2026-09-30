@@ -1,21 +1,41 @@
 // Auto-relocated base-class method definitions (WPF semantic kernel).
 #include <Aero/FrameworkElement.hpp>
+#include <Aero/InputScope.hpp>
+#include "gui/core/FrameworkElementSeams.hpp"
+#include <Aero/Data/BindingOperations.hpp>
+#include "gui/styles/StyleEngine.hpp"
+#include "gui/styles/FrameworkResourceResolver.hpp"
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/DependencyProperty.hpp>
 #include <Aero/Events.hpp>
 #include <Aero/Media/Brushes.hpp>
-#include <Aero/Media/Transforms.hpp>
+#include <Aero/Media/Fonts.hpp>
+#include <Aero/Media/Transform2D.hpp>
+#include <Aero/Media/Transform3D.hpp>
 #include <Aero/Media/Effects.hpp>
+#include <Aero/Media/Geometries.hpp>
+#include <Aero/Triggers.hpp>
+#include <Aero/Style.hpp>
+#include <Aero/Resources.hpp>
 #include <Aero/Markup/XamlReader.hpp>
 #include <Aero/Controls.hpp>
+#include <cmath>
 #include <cstdio>
-#include "gui/core/State.hpp" 
-#include "gui/input/InputState.hpp"
-#include "gui/styles/StyleState.hpp"
-#include "gui/meta/MetadataState.hpp"
-#include "gui/core/facets/DependencyPropertyFacet.hpp"
+#include "gui/core/ValueConversion.hpp"
+#include "gui/core/Describe.hpp"
+#include "gui/core/ElementTree.hpp"
+#include "gui/core/LayoutEngine.hpp"
+#include "gui/core/EffectiveValueEngine.hpp"
+#include "gui/core/RoutedEvents.hpp"
+#include "gui/core/EventRouter.hpp"
+#include "gui/input/InputManager.hpp"
+#include "gui/templates/TemplateInstance.hpp"
+#include "gui/media/AnimationModel.hpp"
+#include <Aero/Media/Animation.hpp>
+#include "gui/core/DependencyObjectAccess.hpp"
+
 
 using namespace Aero;
 using namespace Aero::Media;
@@ -23,6 +43,30 @@ using namespace Aero::Meta;
 using namespace Aero::Threading;
 
 namespace Aero {
+
+Result<Data::BindingExpression> FrameworkElement::SetBinding(
+    DependencyPropertyHandle property,
+    const Data::Binding& binding) noexcept {
+    return Data::BindingOperations::SetBinding(this, property, binding);
+}
+
+Result<Data::BindingExpression> FrameworkElement::SetBinding(
+    DependencyPropertyHandle property,
+    StringView path) noexcept {
+    Data::Binding binding(path);
+    return Data::BindingOperations::SetBinding(this, property, binding);
+}
+
+void FrameworkElement::ClearBinding(DependencyPropertyHandle property) noexcept {
+    Data::BindingOperations::ClearBinding(this, property);
+}
+
+FrameworkElement* FrameworkElement::GetRenderParent() const noexcept {
+    ::Aero::Media::Visual* parent = GetVisualParent();
+    return parent != nullptr
+        ? ::Aero::TryCast<FrameworkElement>(parent)
+        : nullptr;
+}
 
 // from src/gui/controls/Layout.cpp
 
@@ -112,32 +156,34 @@ void FrameworkElement::SetWidth(double value) noexcept {
     SetValue(WidthProperty, Length::Pixels(value));
 }
 
+void FrameworkElement::SetFontFamily(StringView value) noexcept {
+    Result<Ref<Media::FontFamily>> family =
+        Base::MakeRef<Media::FontFamily>();
+    if (!family) { AERO_ASSERT(false); return; }
+    family.Value()->SetSource(value);
+    SetFontFamily(std::move(family).Value());
+}
+
 // from src/gui/controls/Layout.cpp
 VerticalAlignment FrameworkElement::GetVerticalAlignment() const noexcept {
-    return GetValueOr(
-        VerticalAlignmentProperty,
-        VerticalAlignment::Stretch);
+    return GetValue(VerticalAlignmentProperty);
 }
 
 // from src/gui/controls/Layout.cpp
 HorizontalAlignment FrameworkElement::GetHorizontalAlignment() const noexcept {
-    return GetValueOr(
-        HorizontalAlignmentProperty,
-        HorizontalAlignment::Stretch);
+    return GetValue(HorizontalAlignmentProperty);
 }
 
 // from src/gui/controls/Layout.cpp
 Thickness FrameworkElement::GetMargin() const noexcept {
-    return GetValueOr(MarginProperty, Thickness{});
+    return layoutScalars_.margin;
 }
 
 // from src/gui/controls/Layout.cpp
 Size FrameworkElement::GetMaxSize() const noexcept {
     const Size minimum = GetMinSize();
-    const double authoredWidth =
-        GetValueOr(MaxWidthProperty, 1.0e12);
-    const double authoredHeight =
-        GetValueOr(MaxHeightProperty, 1.0e12);
+    const double authoredWidth = layoutScalars_.maxWidth;
+    const double authoredHeight = layoutScalars_.maxHeight;
     // Resolve contradictory template/style ordering at layout time. Min values
     // take precedence without rejecting an otherwise valid WPF template.
     return {
@@ -147,40 +193,32 @@ Size FrameworkElement::GetMaxSize() const noexcept {
 
 // from src/gui/controls/Layout.cpp
 Size FrameworkElement::GetMinSize() const noexcept {
-    return {
-        GetValueOr(MinWidthProperty, 0.0),
-        GetValueOr(MinHeightProperty, 0.0)};
+    return {layoutScalars_.minWidth, layoutScalars_.minHeight};
 }
 
 // from src/gui/controls/Layout.cpp
 double FrameworkElement::GetHeight() const noexcept {
-    const Length length =
-        GetValueOr(HeightProperty, Length::Auto());
-    return length.isAuto ? 0.0 : length.value;
+    return layoutScalars_.height.isAuto ? 0.0 : layoutScalars_.height.value;
 }
 
 // from src/gui/controls/Layout.cpp
 double FrameworkElement::GetWidth() const noexcept {
-    const Length length =
-        GetValueOr(WidthProperty, Length::Auto());
-    return length.isAuto ? 0.0 : length.value;
+    return layoutScalars_.width.isAuto ? 0.0 : layoutScalars_.width.value;
 }
 
 // from src/gui/controls/Layout.cpp
 bool FrameworkElement::GetHasHeight() const noexcept {
-    return !GetValueOr(
-        HeightProperty, Length::Auto()).isAuto;
+    return !layoutScalars_.height.isAuto;
 }
 
 // from src/gui/controls/Layout.cpp
 bool FrameworkElement::GetHasWidth() const noexcept {
-    return !GetValueOr(
-        WidthProperty, Length::Auto()).isAuto;
+    return !layoutScalars_.width.isAuto;
 }
 
 // from src/gui/controls/Layout.cpp
 bool FrameworkElement::GetSnapsToDevicePixels() const noexcept {
-    return GetValueOr(SnapsToDevicePixelsProperty, false);
+    return GetValue(SnapsToDevicePixelsProperty);
 }
 
 // from src/gui/controls/Layout.cpp
@@ -203,7 +241,7 @@ bool FrameworkElement::GetSnapsToDevicePixels() const noexcept {
 
 
 bool FrameworkElement::GetUseLayoutRounding() const noexcept {
-    return GetValueOr(UseLayoutRoundingProperty, false);
+    return GetValue(UseLayoutRoundingProperty);
 }
 
 // from src/gui/controls/Layout.cpp
@@ -226,7 +264,7 @@ void FrameworkElement::SetUseLayoutRounding(
     const bool scaleChanged = dpiScale_ != dpiScale;
     dpiScale_ = dpiScale;
     SetValue(UseLayoutRoundingProperty, enabled);
-    if (scaleChanged && enabled) (void)InvalidateMeasure();
+    if (scaleChanged && enabled) InvalidateMeasure();
 }
 
 // from src/gui/core/ElementTree.cpp
@@ -234,7 +272,40 @@ void FrameworkElement::SetUseLayoutRounding(
 Base::Object* FrameworkElement::FindNameObject(
     Base::StringView name,
     Meta::TypeId expectedType) noexcept {
-    return Aero::Core::DependencyPropertyFacet::FindName(
+    const FrameworkElement* current = this;
+    for (std::uint32_t depth = 0U;
+         current != nullptr && depth < 256U;
+         ++depth) {
+        Base::Object* object = current->FindRegisteredName(name);
+        if (object != nullptr) {
+            if (expectedType == Meta::InvalidTypeId) {
+                return object;
+            }
+            return DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
+                object->RuntimeType(), expectedType)
+                ? object
+                : nullptr;
+        }
+        // UserControl (LoadComponent ColorSelector) is a namescope. Walking
+        // to Window made FindName("LayoutRoot") return the Window grid, then
+        // SetContent tried to parent that grid under ColorSelector (cycle).
+        if (::Aero::TryCast<Controls::UserControl>(
+                const_cast<FrameworkElement*>(current)) != nullptr) {
+            break;
+        }
+        ::Aero::Media::Visual* visual =
+            ::Aero::TryCast<::Aero::Media::Visual>(
+                const_cast<FrameworkElement*>(current));
+        ::Aero::Base::Object* parent = nullptr;
+        if (visual != nullptr) {
+            parent = visual->GetLogicalParent();
+            if (parent == nullptr) {
+                parent = visual->GetVisualParent();
+            }
+        }
+        current = ::Aero::TryCast<FrameworkElement>(parent);
+    }
+    return ElementTree::FindInTree(
         *this, name, expectedType);
 }
 
@@ -244,4 +315,279 @@ Base::Object* FrameworkElement::FindName(
     Base::StringView name) noexcept {
     return FindNameObject(name, Meta::InvalidTypeId);
 }
-} // namespace Aero {
+
+namespace {
+
+const ResourceDictionary* TemplateResourcesFor(
+    const FrameworkElement& element) noexcept {
+    const DependencyObject* templated = element.GetTemplatedParent();
+    if (templated == nullptr) {
+        return nullptr;
+    }
+    const auto& control =
+        *static_cast<const Controls::Control*>(templated);
+    Controls::TemplateEngine* templates =
+        ElementTree::TemplatesOf(control);
+    if (templates == nullptr) {
+        return nullptr;
+    }
+    const Controls::TemplateHandle handle =
+        templates->AppliedHandle(control);
+    if (!handle.IsValid()) {
+        return nullptr;
+    }
+    const Controls::ControlTemplate* plan =
+        templates->AppliedTemplate(handle);
+    return plan != nullptr ? &plan->GetResources() : nullptr;
+}
+
+} // namespace
+
+ResourceDictionary& FrameworkElement::GetResources() noexcept {
+    return EnsureOwnedResources(resources_);
+}
+
+const ResourceDictionary& FrameworkElement::GetResources() const noexcept {
+    return EnsureOwnedResources(resources_);
+}
+
+Result<ResourceValue> FrameworkElement::FindResource(
+    const ResourceKey& key) const noexcept {
+    return FrameworkResourceResolver::Lookup(
+        this,
+        key,
+        TemplateResourcesFor(*this),
+        ElementTree::EnvironmentOf(*this));
+}
+
+Result<ResourceValue> FrameworkElement::FindResource(
+    StringView key) const noexcept {
+    return FrameworkResourceResolver::Lookup(
+        this,
+        key,
+        TemplateResourcesFor(*this),
+        ElementTree::EnvironmentOf(*this));
+}
+
+ResourceValue FrameworkElement::TryFindResource(
+    const ResourceKey& key) const noexcept {
+    Result<ResourceValue> found = FindResource(key);
+    return found ? found.Value() : ResourceValue{};
+}
+
+ResourceValue FrameworkElement::TryFindResource(
+    StringView key) const noexcept {
+    Result<ResourceValue> found = FindResource(key);
+    return found ? found.Value() : ResourceValue{};
+}
+FrameworkElement* FrameworkElementChildRange::Iterator::operator*() const noexcept {
+    ::Aero::Media::Visual* child = owner_ != nullptr ? ::Aero::Media::VisualTreeHelper::GetChild(*owner_, index_) : nullptr;
+    return child != nullptr ? ::Aero::TryCast<::Aero::FrameworkElement>(child) : nullptr;
+}
+
+void FrameworkElementChildRange::Iterator::Advance() noexcept {
+    if (owner_ == nullptr) return;
+    const std::uint32_t count = ::Aero::Media::VisualTreeHelper::GetChildrenCount(*owner_);
+    while (index_ < count) {
+        ::Aero::Media::Visual* child = ::Aero::Media::VisualTreeHelper::GetChild(*owner_, index_);
+        if (child != nullptr && ::Aero::TryCast<::Aero::FrameworkElement>(child) != nullptr) return;
+        ++index_;
+    }
+}
+
+std::uint32_t FrameworkElementChildRange::Size() const noexcept {
+    std::uint32_t count = 0U;
+    for (FrameworkElement* child : *this) {
+        (void)child;
+        ++count;
+    }
+    return count;
+}
+
+} // namespace Aero
+
+// ---- Length metadata (Describe lives with the layout value type consumers) ----
+namespace Aero::MetadataSupport {
+using namespace ::Aero::Media;
+namespace {
+
+Base::Result<Length> ConvertLength(
+    Base::StringView text) noexcept {
+    const Base::StringView value = ::Aero::Base::ValueConversion::Trim(text);
+    Length length = Length::Auto();
+    if (!::Aero::Base::ValueConversion::EqualsAsciiInsensitive(value, "auto")) {
+        Base::Result<double> parsed =
+            ::Aero::Base::ValueConversion::ParseDouble(value);
+        if (!parsed || parsed.Value() < 0.0) {
+            return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
+                "Length must be Auto or a nonnegative number");
+        }
+        length = Length::Pixels(parsed.Value());
+    }
+    return length;
+}
+
+bool EqualLength(const void* left, const void* right, void*) noexcept {
+    const Length& a = *static_cast<const Length*>(left);
+    const Length& b = *static_cast<const Length*>(right);
+    return a.isAuto == b.isAuto && (a.isAuto || a.value == b.value);
+}
+
+} // namespace
+} // namespace Aero::MetadataSupport
+
+namespace Aero {
+
+AERO_DESCRIBE(Length) {
+    using namespace Aero::Meta;
+    Register<Length>(context)
+            .ValueSemantics({sizeof(Length), alignof(Length), nullptr, nullptr, &::Aero::MetadataSupport::EqualLength, nullptr, true})
+            .TextConverter<&::Aero::MetadataSupport::ConvertLength>();
+}
+
+
+// ---- FrameworkElement metadata helpers ----
+namespace {
+
+constexpr double DefaultMaximum = 1.0e12;
+
+class PlaceholderFrameworkElement : public FrameworkElement {
+public:
+    PlaceholderFrameworkElement() noexcept
+        : FrameworkElement(FrameworkElement::StaticTypeId()) {}
+};
+
+bool ValidateLength(const Length& length) noexcept {
+    return length.isAuto || (std::isfinite(length.value) && length.value >= 0.0);
+}
+bool ValidateMarginValue(const Thickness& t) noexcept {
+    // WPF permits negative margins for overlap and shared-border layouts.
+    return IsFinite(t);
+}
+
+void AddFrameworkEventTrigger(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    if (!value) return;
+    Base::Ref<Media::Animation::EventTrigger> retained =
+        Base::Ref<Media::Animation::EventTrigger>::TryFromBorrowed(
+            static_cast<Media::Animation::EventTrigger&>(*value));
+    if (!retained) {
+        return;
+    }
+    static_cast<void>(
+        FrameworkElementSeams::AddAuthoredTrigger(
+            static_cast<FrameworkElement&>(owner),
+            Base::Ref<Base::Object>(std::move(retained))));
+}
+
+void ClearFrameworkEventTriggers(
+    Base::Object& owner,
+    void*) noexcept {
+    static_cast<void>(
+        FrameworkElementSeams::ClearAuthoredTriggers(
+            static_cast<FrameworkElement&>(owner)));
+}
+
+void OnLayoutTransformChanged(
+    DependencyObject&,
+    const DependencyPropertyChangedEventArgs&) noexcept {
+}
+
+} // namespace
+
+AERO_DESCRIBE(FrameworkElement) {
+    using namespace Aero::Meta;
+    using namespace ::Aero::Input;
+    using namespace ::Aero::Media;
+    // WPF TextElement/Control.Foreground defaults to Brushes.Black.
+    Base::Ref<Brush> defaultForeground{};
+    if (Base::Result<Base::Ref<Brush>> made =
+            MakeSolidColorBrush(Color{0.0F, 0.0F, 0.0F, 1.0F})) {
+        defaultForeground = std::move(made).Value();
+    }
+    Register<FrameworkElement>(context)
+        .Event(FrameworkElement::LoadedEvent, RoutingStrategy::Direct)
+        .Property<
+            Base::Ref<ResourceDictionary>,
+            &FrameworkElement::SetResources>(
+                "Resources",
+                PropertyFlags::Structural)
+        .Property(
+            FrameworkElement::DataContextProperty,
+            Value::NullObject(
+                TypeOf<Base::Object>()), Inherits)
+        .Property(
+            FrameworkElement::FontFamilyProperty,
+            Base::Ref<Media::FontFamily>{}, Inherits | AffectsMeasure)
+        .Property(
+            FrameworkElement::FlowDirectionProperty,
+            FlowDirection::LeftToRight, Inherits | AffectsMeasure)
+        .Property(
+            FrameworkElement::CursorProperty,
+            Base::String{}, Inherits)
+        .Property(
+            FrameworkElement::ForceCursorProperty,
+            false)
+        .Property(
+            FrameworkElement::InputScopeProperty,
+            InputScope::Default)
+        .Property(
+            FrameworkElement::ForegroundProperty,
+            defaultForeground, Inherits | AffectsRender)
+        .Property(
+            FrameworkElement::StyleProperty,
+            Base::Ref<Style>{})
+        .Property(
+            FrameworkElement::TagProperty,
+            Meta::Value::NullObject(
+                Meta::TypeOf<Base::Object>()))
+        .Property(
+            FrameworkElement::ToolTipProperty,
+            Meta::Value::NullObject(
+                Meta::TypeOf<Base::Object>()))
+        .Property(
+            FrameworkElement::WidthProperty, Length::Auto(), AffectsMeasure, &ValidateLength)
+        .Property(
+            FrameworkElement::HeightProperty, Length::Auto(), AffectsMeasure, &ValidateLength)
+        .Property(
+            FrameworkElement::ActualWidthProperty,
+            0.0)
+        .Property(
+            FrameworkElement::ActualHeightProperty,
+            0.0)
+        .Property(
+            FrameworkElement::MinWidthProperty, 0.0, AffectsMeasure, &::Aero::Base::Validate::NonNegative<double>)
+        .Property(
+            FrameworkElement::MaxWidthProperty, DefaultMaximum, AffectsMeasure, &::Aero::Base::Validate::NonNegative<double>)
+        .Property(
+            FrameworkElement::MinHeightProperty, 0.0, AffectsMeasure, &::Aero::Base::Validate::NonNegative<double>)
+        .Property(
+            FrameworkElement::MaxHeightProperty, DefaultMaximum, AffectsMeasure, &::Aero::Base::Validate::NonNegative<double>)
+        .Property(
+            FrameworkElement::MarginProperty, Thickness{}, AffectsMeasure, &ValidateMarginValue)
+        .Property(
+            FrameworkElement::HorizontalAlignmentProperty,
+            HorizontalAlignment::Stretch, AffectsArrange)
+        .Property(
+            FrameworkElement::VerticalAlignmentProperty,
+            VerticalAlignment::Stretch, AffectsArrange)
+        .Property(
+            FrameworkElement::UseLayoutRoundingProperty,
+            false, AffectsMeasure)
+        .Property(
+            FrameworkElement::SnapsToDevicePixelsProperty,
+            false, Inherits | AffectsArrange | AffectsRender)
+        .Property(
+            FrameworkElement::LayoutTransformProperty,
+            FrameworkPropertyMetadata(Base::Ref<Transform>{}, AffectsMeasure)
+                .Changed(&OnLayoutTransformChanged))
+        .Collection<Media::Animation::EventTrigger>(
+            "Triggers",
+            &AddFrameworkEventTrigger,
+            &ClearFrameworkEventTriggers)
+        .Factory<PlaceholderFrameworkElement>();
+}
+
+} // namespace Aero

@@ -416,7 +416,7 @@
       <Setter.Value>
         <ControlTemplate TargetType="ItemsControl">
           <ControlTemplate.VisualTree>
-            <StackPanel x:Name="ItemsHost"/>
+            <ItemsPresenter x:Name="ItemsPresenter"/>
           </ControlTemplate.VisualTree>
         </ControlTemplate>
       </Setter.Value>
@@ -921,6 +921,48 @@
                     Padding="6">
               <ContentPresenter x:Name="ContentPresenter"/>
             </Border>
+          </ControlTemplate.VisualTree>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <Style TargetType="TabControl">
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="TabControl">
+          <ControlTemplate.VisualTree>
+            <Grid RowDefinitionsText="Auto,*">
+              <TabPanel x:Name="ItemsHost"/>
+              <Border x:Name="ContentChrome"
+                      Grid.Row="1"
+                      Background="{StaticResource ControlBackground}"
+                      BorderBrush="{StaticResource ControlBorder}"
+                      BorderThickness="1"
+                      Padding="8">
+                <ContentPresenter x:Name="PART_SelectedContentHost"/>
+              </Border>
+            </Grid>
+          </ControlTemplate.VisualTree>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <Style TargetType="ScrollViewer">
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ScrollViewer">
+          <ControlTemplate.VisualTree>
+            <Grid RowDefinitionsText="*,Auto" ColumnDefinitionsText="*,Auto">
+              <ScrollContentPresenter x:Name="PART_ScrollContentPresenter"/>
+              <ScrollBar x:Name="PART_VerticalScrollBar"
+                         Grid.Column="1"
+                         Orientation="Vertical"/>
+              <ScrollBar x:Name="PART_HorizontalScrollBar"
+                         Grid.Row="1"
+                         Orientation="Horizontal"/>
+            </Grid>
           </ControlTemplate.VisualTree>
         </ControlTemplate>
       </Setter.Value>

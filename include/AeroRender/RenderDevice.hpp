@@ -286,8 +286,7 @@ union SamplerState {
 };
 
 // Uniform shader values with hash for caching
-struct UniformData {
-    const void* values = nullptr;
+struct UniformData { const void* values = nullptr;
     uint32_t numDwords = 0U;
     uint32_t hash = 0U;
 };
@@ -362,18 +361,15 @@ enum class RenderBackendHealth : std::uint8_t {
 namespace Diagnostics {
 struct RenderDeviceStatistics;
 struct RenderFrameStatistics;
-AERO_GUI_API RenderDeviceStatistics GetRenderDeviceStatistics(
-    const Aero::RenderDevice& device) noexcept;
-AERO_GUI_API RenderFrameStatistics GetLastRenderFrameStatistics(
-    const Aero::RenderDevice& device) noexcept;
+AERO_GUI_API RenderDeviceStatistics GetRenderDeviceStatistics(const Aero::RenderDevice& device) noexcept;
+AERO_GUI_API RenderFrameStatistics GetLastRenderFrameStatistics(const Aero::RenderDevice& device) noexcept;
 }
 
 namespace Render {
 using BlendMode = Aero::RenderBlendMode;
 using RenderDeviceBase = Aero::RenderDevice;
 
-AERO_GUI_API Result<Ref<Aero::RenderDevice>> CreateHeadlessRenderDevice(
-    Base::IAllocator* allocator = nullptr) noexcept;
+AERO_GUI_API Result<Ref<Aero::RenderDevice>> CreateHeadlessRenderDevice(Base::IAllocator* allocator = nullptr) noexcept;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -392,37 +388,31 @@ public:
 
     void NotifyDeviceLost() noexcept;
     Result<void> Restore() noexcept;
-    Result<void> WaitIdle(
-        std::uint32_t timeoutMilliseconds = 5000U) noexcept;
+    Result<void> WaitIdle(std::uint32_t timeoutMilliseconds = 5000U) noexcept;
 
     /// Retrieves device render capabilities
     virtual const DeviceCaps& GetCaps() const noexcept = 0;
 
     /// Creates render target surface with given dimensions, samples and optional stencil buffer
-    virtual Ref<RenderTarget> CreateRenderTarget(
-        const char* label, uint32_t width, uint32_t height,
+    virtual Ref<RenderTarget> CreateRenderTarget(const char* label, uint32_t width, uint32_t height,
         uint32_t sampleCount, bool needsStencil) noexcept = 0;
 
     /// Creates render target sharing transient (stencil, colorAA) buffers with the given surface
-    virtual Ref<RenderTarget> CloneRenderTarget(
-        const char* label, RenderTarget* surface) noexcept = 0;
+    virtual Ref<RenderTarget> CloneRenderTarget(const char* label, RenderTarget* surface) noexcept = 0;
 
     /// Creates texture with given dimensions and format
-    virtual Ref<Texture> CreateTexture(
-        const char* label, uint32_t width, uint32_t height,
+    virtual Ref<Texture> CreateTexture(const char* label, uint32_t width, uint32_t height,
         uint32_t numLevels, TextureFormat::Enum format, const void** data) noexcept = 0;
 
     /// Begins a block for uploading texture data
     virtual void BeginUpdatingTextures() noexcept;
 
     /// Updates a region of a texture mip level by copying the given data to the specified position
-    virtual void UpdateTexture(
-        Texture* texture, uint32_t level, uint32_t x, uint32_t y,
+    virtual void UpdateTexture(Texture* texture, uint32_t level, uint32_t x, uint32_t y,
         uint32_t width, uint32_t height, const void* data) noexcept = 0;
 
     /// Marks the end of a texture update block
-    virtual void EndUpdatingTextures(
-        Texture** textures, uint32_t count) noexcept;
+    virtual void EndUpdatingTextures(Texture** textures, uint32_t count) noexcept;
 
     /// Begins rendering offscreen commands
     virtual void BeginOffscreenRender() noexcept = 0;
@@ -446,8 +436,7 @@ public:
     virtual void EndTile(RenderTarget* surface) noexcept = 0;
 
     /// Resolves multisample render target
-    virtual void ResolveRenderTarget(
-        RenderTarget* surface, const Tile* tiles, uint32_t numTiles) noexcept = 0;
+    virtual void ResolveRenderTarget(RenderTarget* surface, const Tile* tiles, uint32_t numTiles) noexcept = 0;
 
     /// Gets a pointer to stream vertices
     virtual void* MapVertices(uint32_t bytes) noexcept = 0;
@@ -495,15 +484,12 @@ protected:
     virtual RenderBackendKind BackendKind() const noexcept { return backend_; }
     virtual void NotifyBackendDeviceLost() noexcept {}
     virtual Result<void> RestoreBackendDevice() noexcept { return {}; }
-    virtual Result<void> WaitBackendIdle(
-        std::uint32_t timeoutMilliseconds) noexcept {
+    virtual Result<void> WaitBackendIdle(std::uint32_t timeoutMilliseconds) noexcept {
         static_cast<void>(timeoutMilliseconds);
         return {};
     }
     virtual RenderBackendHealth BackendHealth() const noexcept {
-        return state_ == RenderDeviceState::Ready
-            ? RenderBackendHealth::Ready
-            : RenderBackendHealth::Failed;
+        return state_ == RenderDeviceState::Ready ? RenderBackendHealth::Ready : RenderBackendHealth::Failed;
     }
 
     RenderDeviceState state_ = RenderDeviceState::Ready;

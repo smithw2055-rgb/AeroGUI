@@ -1,13 +1,37 @@
-#include "gui/core/State.hpp" 
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleState.hpp"
-#include "gui/core/facets/RenderFacet.hpp"
+#include "gui/core/ElementTree.hpp"
+#include "gui/core/Describe.hpp"
+#include "gui/core/LayoutEngine.hpp"
+#include "gui/core/EffectiveValueEngine.hpp"
+#include "gui/core/RoutedEvents.hpp"
+#include "gui/core/EventRouter.hpp"
+#include "gui/media/BrushRendering.hpp"
+#include "render/DisplayList.hpp"
 #include <Aero/Controls.hpp>
-#include "gui/controls/State.hpp"
-#include "gui/templates/TemplateState.hpp"
+#include <Aero/Controls/ItemContainerGenerator.hpp>
+#include <Aero/Controls/Decorator.hpp>
+#include <Aero/Controls/ControlTemplate.hpp>
+#include <Aero/DataTemplate.hpp>
+#include <Aero/Base/String.hpp>
+#include <Aero/Media/Transform2D.hpp>
+#include <Aero/Media/Transform3D.hpp>
+#include <Aero/Shapes.hpp>
+#include <Aero/Documents.hpp>
+#include "gui/core/TypeRegistryCore.hpp"
+#include "gui/core/ValueConversion.hpp"
+#include "ControlPropertyValidators.hpp"
+#include "gui/templates/TemplateInstance.hpp"
+#include "gui/data/BindingEngine.hpp"
+#include <Aero/TryCast.hpp>
+#include <Aero/VisualTreeHelper.hpp>
 
 #include <algorithm>
+#include <cctype>
+#include <cmath>
+#include <cstdio>
+#include <cstring>
 #include <limits>
+#include <utility>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero::Controls {
 
@@ -15,349 +39,50 @@ using namespace Primitives;
 
 using namespace Aero::Meta;
 using namespace Aero::Threading;
+using namespace Aero::Render;
 
 
-Popup::Popup() noexcept
-    : Popup(StaticTypeId()) {}
 
-Popup::Popup(TypeId runtimeType) noexcept
-    : ContentControl(runtimeType),
-      openChangedHandler_(
-          this,
-          &Popup::OnOpenPropertyChanged) {
-    static_cast<void>(SetIsHitTestVisible(false));
-    static_cast<void>(AddValueChangedHandlerChecked(
-        IsOpenProperty,
-        openChangedHandler_));
+HeaderedContentControl::HeaderedContentControl(
+    TypeId runtimeType) noexcept
+    : ContentControl(runtimeType) {}
+
+HeaderedContentControl::~HeaderedContentControl() = default;
+
+void HeaderedContentControl::OnHeaderChanged(
+    const Value&,
+    const Value&) {
+    ProjectHeaderContent();
 }
 
-Popup::~Popup() {
-    static_cast<void>(RemoveValueChangedHandler(
-        IsOpenProperty,
-        openChangedHandler_));
-}
+void HeaderedContentControl::OnHeaderTemplateChanged(
+    const Ref<DataTemplate>&,
+    const Ref<DataTemplate>&) {}
 
-bool Popup::GetIsOpen() const noexcept {
-    return GetValueOr(
-        IsOpenProperty, false);
-}
-
-void Popup::SetIsOpen(
-    bool value) noexcept {
-    SetValue(IsOpenProperty, value);
-}
-
-PlacementMode Popup::GetPlacement() const noexcept {
-    return GetValueOr(
-        PlacementProperty,
-        PlacementMode::Bottom);
-}
-
-void Popup::SetPlacement(
-    PlacementMode value) noexcept {
-    SetValue(
-        PlacementProperty, value);
-}
-
-double Popup::GetHorizontalOffset() const noexcept {
-    return GetValueOr(
-        HorizontalOffsetProperty, 0.0);
-}
-
-void Popup::SetHorizontalOffset(
-    double value) noexcept {
-    SetValue(
-        HorizontalOffsetProperty, value);
-}
-
-double Popup::GetVerticalOffset() const noexcept {
-    return GetValueOr(
-        VerticalOffsetProperty, 0.0);
-}
-
-void Popup::SetVerticalOffset(
-    double value) noexcept {
-    SetValue(
-        VerticalOffsetProperty, value);
-}
-
-bool Popup::GetStaysOpen() const noexcept {
-    return GetValueOr(
-        StaysOpenProperty, true);
-}
-
-void Popup::SetStaysOpen(
-    bool value) noexcept {
-    SetValue(
-        StaysOpenProperty, value);
-}
-
-bool Popup::GetMatchPlacementTargetWidth() const noexcept {
-    return GetValueOr(
-        MatchPlacementTargetWidthProperty, false);
-}
-
-void
-Popup::SetMatchPlacementTargetWidth(
-    bool value) noexcept {
-    SetValue(
-        MatchPlacementTargetWidthProperty,
-        value);
-}
-
-Base::Ref<UIElement>
-Popup::GetPlacementTarget() const noexcept {
-    return GetValueOr(
-        PlacementTargetProperty,
-        Base::Ref<UIElement>{});
-}
-
-void Popup::SetPlacementTarget(
-    Base::Ref<UIElement> value) noexcept {
-    SetValue(
-        PlacementTargetProperty,
-        std::move(value));
-}
-
-PopupAnimation Popup::GetPopupAnimation() const noexcept {
-    return GetValueOr(
-        PopupAnimationProperty,
-        PopupAnimation::None);
-}
-
-void Popup::SetPopupAnimation(
-    PopupAnimation value) noexcept {
-    SetValue(
-        PopupAnimationProperty, value);
-}
-
-bool Popup::GetAllowsTransparency() const noexcept {
-    return GetValueOr(
-        AllowsTransparencyProperty, false);
-}
-
-void Popup::SetAllowsTransparency(
-    bool value) noexcept {
-    SetValue(
-        AllowsTransparencyProperty, value);
-}
-
-void Popup::OnOpenPropertyChanged(
-    DependencyObject&,
-    const DependencyPropertyChangedEventArgs&
-        args) noexcept {
-    static_cast<void>(
-        SetIsHitTestVisible(
-            args.GetNewValue().AsBoolean()));
-    static_cast<void>(InvalidateMeasure());
-    RoutedEventArgs eventArgs;
-    RaiseEvent(
-        args.GetNewValue().AsBoolean()
-            ? OpenedEvent
-            : ClosedEvent,
-        &eventArgs);
-}
-
-Size Popup::MeasureOverride(
-    Size availableSize) noexcept {
-    popupDesiredSize_ = {};
-    UIElement* popupChild =
-        GetTemplateRoot() != nullptr
-            ? GetTemplateRoot()
-            : ContentElement();
-    if (!GetIsOpen() || popupChild == nullptr) {
-        return Size{};
-    }
-    constexpr double Unconstrained = 1.0e12;
-    Base::Result<void> measured =
-        MeasureChild(*popupChild, Size{Unconstrained, Unconstrained});
-    if (!measured) return Size{};
-    popupDesiredSize_ =
-        popupChild->GetDesiredSize();
-    // Popup content participates in rendering and input, but never consumes
-    // space in its placement target's layout.
-    return Size{};
-}
-
-Size Popup::ArrangeOverride(
-    Size finalSize) noexcept {
-    UIElement* popupChild =
-        GetTemplateRoot() != nullptr
-            ? GetTemplateRoot()
-            : ContentElement();
-    if (popupChild == nullptr) return finalSize;
-    if (!GetIsOpen()) {
-        Base::Result<void> hidden =
-            ArrangeChild(*popupChild, {});
-        (void)hidden;
-        return finalSize;
-    }
-
-    Size contentSize = popupDesiredSize_;
-    Base::Ref<UIElement> explicitPlacementTarget =
-        GetPlacementTarget();
-    UIElement* placementTarget =
-        explicitPlacementTarget.Get();
-    if (placementTarget == nullptr) {
-        DependencyObject* templatedParent =
-            GetTemplatedParent();
-        if (templatedParent != nullptr &&
-            PropertyRegistry().Types().IsDerivedFrom(
-                templatedParent->RuntimeType(),
-                UIElement::StaticTypeId())) {
-            placementTarget =
-                static_cast<UIElement*>(
-                    templatedParent);
-        } else if (GetVisualParent() != nullptr) {
-            placementTarget =
-                GetVisualParent()->AsUIElement();
-        }
-    }
-    Size targetSize = finalSize;
-    Point targetOrigin{};
-    Point targetAbsolute{};
-    double rootHeight = 0.0;
-    double targetScaleX = 1.0;
-    double targetScaleY = 1.0;
-    double popupScaleX = 1.0;
-    double popupScaleY = 1.0;
-    if (placementTarget != nullptr &&
-        placementTarget->GetIsArrangeValid()) {
-        targetSize = placementTarget->GetRenderSize();
-        // The overlay renderer positions Popups in screen space: it accumulates
-        // every ancestor's local visual transform (for example a Viewbox
-        // scale) plus layout slot, and the arranged child slot is added on top
-        // of that origin. Placement must therefore use the same transform-aware
-        // origin, otherwise a scaled ancestor displaces the popup and makes the
-        // up/down flip decision against the window height wrong.
-        auto absoluteOrigin = [](
-            UIElement& element,
-            UIElement** outRoot,
-            double* outScaleX,
-            double* outScaleY) noexcept {
-            Point result{};
-            double scaleX = 1.0;
-            double scaleY = 1.0;
-            ::Aero::Media::Visual* current = &element;
-            UIElement* lastElement = nullptr;
-            while (current != nullptr) {
-                UIElement* currentElement =
-                    current->AsUIElement();
-                if (currentElement != nullptr) {
-                    lastElement = currentElement;
-                    FrameworkElement* currentFramework =
-                        currentElement->AsFrameworkElement();
-                    if (currentFramework != nullptr) {
-                        const Base::Transform2D transform =
-                            currentFramework->GetLocalVisualTransform();
-                        result = ::Aero::Media::TransformPoint(
-                            transform, result);
-                        if (::Aero::Base::IsFiniteTransform(transform) &&
-                            transform.m11 > 0.0 &&
-                            transform.m22 > 0.0) {
-                            scaleX *= transform.m11;
-                            scaleY *= transform.m22;
-                        }
-                    }
-                    const Rect slot =
-                        currentElement->GetLayoutSlot();
-                    result.x += slot.x;
-                    result.y += slot.y;
+void HeaderedContentControl::OnPropertyChanged(
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    ContentControl::OnPropertyChanged(args);
+    const DependencyPropertyHandle prop = args.GetProperty();
+    if (prop == HeaderProperty) {
+        OnHeaderChanged(args.GetOldValue(), args.GetNewValue());
+    } else if (prop == HeaderTemplateProperty) {
+        const auto toTemplate = [](const Value& v) -> Ref<DataTemplate> {
+            if (v.Kind() == ValueKind::Object && v.AsObject()) {
+                if (auto* dt = TryCast<DataTemplate>(v.AsObject().Get())) {
+                    return Ref<DataTemplate>::FromBorrowed(*dt);
                 }
-                current = current->GetVisualParent();
             }
-            if (outRoot != nullptr) *outRoot = lastElement;
-            if (outScaleX != nullptr) *outScaleX = scaleX;
-            if (outScaleY != nullptr) *outScaleY = scaleY;
-            return result;
+            return {};
         };
-        UIElement* rootElement = nullptr;
-        targetAbsolute = absoluteOrigin(
-            *placementTarget, &rootElement,
-            &targetScaleX, &targetScaleY);
-        const Point popupAbsolute = absoluteOrigin(
-            *this, nullptr, &popupScaleX, &popupScaleY);
-        targetOrigin = {
-            targetAbsolute.x - popupAbsolute.x,
-            targetAbsolute.y - popupAbsolute.y};
-        if (rootElement != nullptr) {
-            rootHeight = rootElement->GetRenderSize().height;
-            if (rootHeight <= 0.0) {
-                rootHeight = rootElement->GetLayoutSlot().height;
-            }
-        }
+        OnHeaderTemplateChanged(
+            toTemplate(args.GetOldValue()),
+            toTemplate(args.GetNewValue()));
     }
-    const Point targetOriginLocal{
-        popupScaleX != 0.0 ? targetOrigin.x / popupScaleX : targetOrigin.x,
-        popupScaleY != 0.0 ? targetOrigin.y / popupScaleY : targetOrigin.y};
-    if (GetMatchPlacementTargetWidth()) {
-        contentSize.width =
-            std::max(
-                contentSize.width,
-                targetSize.width);
-    }
-    const double targetWidth = targetSize.width;
-    const double targetHeight = targetSize.height;
-    double x = targetOriginLocal.x + GetHorizontalOffset();
-    double y = targetOriginLocal.y + GetVerticalOffset();
-    const PlacementMode placement = GetPlacement();
-    switch (placement) {
-    case PlacementMode::Bottom:
-        y += targetHeight;
-        break;
-    case PlacementMode::Top:
-        y -= contentSize.height;
-        break;
-    case PlacementMode::Left:
-        x -= contentSize.width;
-        break;
-    case PlacementMode::Right:
-        x += targetWidth;
-        break;
-    case PlacementMode::Center:
-        x += (targetWidth - contentSize.width) * 0.5;
-        y += (targetHeight - contentSize.height) * 0.5;
-        break;
-    case PlacementMode::Mouse:
-        // The popup service supplies a pointer origin when available; the
-        // placement target origin remains the deterministic fallback.
-        break;
-    }
-
-    if (rootHeight > 0.0 && placementTarget != nullptr) {
-        const double bottomAbsolute =
-            targetAbsolute.y + (y - targetOriginLocal.y + contentSize.height) * targetScaleY;
-        const double topAbsolute =
-            targetAbsolute.y + (y - targetOriginLocal.y) * targetScaleY;
-        if (placement == PlacementMode::Bottom &&
-            bottomAbsolute > rootHeight) {
-            y = targetOriginLocal.y -
-                contentSize.height -
-                GetVerticalOffset();
-        } else if (placement == PlacementMode::Top &&
-                   topAbsolute < 0.0) {
-            y = targetOriginLocal.y +
-                targetHeight +
-                GetVerticalOffset();
-        }
-    }
-
-    Base::Result<void> arranged =
-        ArrangeChild(
-            *popupChild,
-            {x, y,
-             contentSize.width,
-             contentSize.height});
-    (void)arranged;
-    return finalSize;
 }
 
 Meta::Value
 HeaderedContentControl::GetHeader() const noexcept {
-    return GetValueOr(
-        HeaderProperty,
-        Meta::Value::NullObject(
-            Meta::TypeOf<Base::Object>()));
+    return GetValue(HeaderProperty);
 }
 
 void HeaderedContentControl::SetHeader(
@@ -365,20 +90,17 @@ void HeaderedContentControl::SetHeader(
     SetValue(HeaderProperty, value);
 }
 
-Base::Result<void> HeaderedContentControl::SetHeader(
+void HeaderedContentControl::SetHeader(
     Base::StringView value) noexcept {
     Base::Result<Value> boxed = Value::TryFromString(
         Meta::TypeOf<Base::String>(), value);
-    if (!boxed) return boxed.GetStatus();
+    if (!boxed) { AERO_ASSERT(false); return; }
     SetHeader(std::move(boxed).Value());
-    return {};
 }
 
 Base::Ref<DataTemplate>
 HeaderedContentControl::GetHeaderTemplate() const noexcept {
-    return GetValueOr(
-        HeaderTemplateProperty,
-        Base::Ref<DataTemplate>{});
+    return GetValue(HeaderTemplateProperty);
 }
 
 void
@@ -389,25 +111,48 @@ HeaderedContentControl::SetHeaderTemplate(
         std::move(value));
 }
 
-Expander::Expander() noexcept
-    : HeaderedContentControl(StaticTypeId()),
-      expandedChangedHandler_(
-          this,
-          &Expander::OnExpandedPropertyChanged) {
-    static_cast<void>(AddValueChangedHandlerChecked(
-        IsExpandedProperty,
-        expandedChangedHandler_));
+void HeaderedContentControl::OnApplyTemplate() noexcept {
+    Control::OnApplyTemplate();
+    ProjectHeaderContent();
 }
 
+void HeaderedContentControl::ProjectHeaderContent() noexcept {
+    const Value header = GetHeader();
+    if (header.Kind() != ValueKind::Object ||
+        header.IsNullObject() ||
+        !header.AsObject()) {
+        return;
+    }
+    Base::Object* obj = header.AsObject().Get();
+    if (!DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
+            obj->RuntimeType(), UIElement::StaticTypeId())) {
+        return;
+    }
+    auto* element = static_cast<UIElement*>(obj);
+    DependencyObject* part = GetTemplateChild(Base::StringView("HeaderHost"));
+    if (part == nullptr) {
+        part = GetTemplateChild(Base::StringView("PART_Header"));
+    }
+    auto* presenter =
+        part != nullptr ? ::Aero::TryCast<ContentPresenter>(part) : nullptr;
+    if (presenter == nullptr) {
+        return;
+    }
+    presenter->HostUiElement(header.AsObject(), *element);
+}
+
+Expander::Expander() noexcept
+    : HeaderedContentControl(StaticTypeId()),
+      headerCheckedHandler_(
+          this,
+          &Expander::OnHeaderCheckedChanged) {}
+
 Expander::~Expander() {
-    static_cast<void>(RemoveValueChangedHandler(
-        IsExpandedProperty,
-        expandedChangedHandler_));
+    UnbindHeaderToggle();
 }
 
 bool Expander::GetIsExpanded() const noexcept {
-    return GetValueOr(
-        IsExpandedProperty, false);
+    return GetValue(IsExpandedProperty);
 }
 
 void Expander::SetIsExpanded(
@@ -417,23 +162,123 @@ void Expander::SetIsExpanded(
     SetValue(IsExpandedProperty, value);
 }
 
-void Expander::OnExpandedPropertyChanged(
-    DependencyObject&,
-    const DependencyPropertyChangedEventArgs&
-        change) noexcept {
-    static_cast<void>(InvalidateMeasure());
+void Expander::OnExpanded() {
     RoutedEventArgs eventArgs;
-    RaiseEvent(
-        change.GetNewValue().AsBoolean()
-            ? ExpandedEvent
-            : CollapsedEvent,
-        &eventArgs);
+    RaiseEvent(ExpandedEvent, &eventArgs);
+}
+
+void Expander::OnCollapsed() {
+    RoutedEventArgs eventArgs;
+    RaiseEvent(CollapsedEvent, &eventArgs);
+}
+
+void Expander::OnPropertyChanged(
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    HeaderedContentControl::OnPropertyChanged(args);
+    if (args.GetProperty() == IsExpandedProperty) {
+        const bool expanded = args.GetNewValue().AsBoolean();
+        if (!synchronizingHeader_ && headerToggle_ != nullptr) {
+            const Nullable<bool> isChecked = headerToggle_->GetIsChecked();
+            const bool checked =
+                isChecked.GetHasValue() ? isChecked.GetValue() : false;
+            if (checked != expanded) {
+                synchronizingHeader_ = true;
+                headerToggle_->SetIsChecked(Nullable<bool>{expanded});
+                synchronizingHeader_ = false;
+            }
+        }
+        InvalidateMeasure();
+        if (expanded) {
+            OnExpanded();
+        } else {
+            OnCollapsed();
+        }
+    }
+}
+
+void Expander::OnHeaderCheckedChanged(
+    DependencyObject&,
+    const DependencyPropertyChangedEventArgs&) noexcept {
+    if (synchronizingHeader_ || headerToggle_ == nullptr) {
+        return;
+    }
+    const Nullable<bool> isChecked = headerToggle_->GetIsChecked();
+    const bool checked =
+        isChecked.GetHasValue() ? isChecked.GetValue() : false;
+    if (checked == GetIsExpanded()) {
+        return;
+    }
+    synchronizingHeader_ = true;
+    SetIsExpanded(checked);
+    synchronizingHeader_ = false;
+}
+
+void Expander::UnbindHeaderToggle() noexcept {
+    if (headerToggle_ == nullptr) {
+        return;
+    }
+    static_cast<void>(headerToggle_->RemoveValueChangedHandler(
+        ToggleButton::IsCheckedProperty,
+        headerCheckedHandler_));
+    headerToggle_ = nullptr;
+}
+
+void Expander::BindHeaderToggle() noexcept {
+    UnbindHeaderToggle();
+    UIElement* root = GetTemplateRoot();
+    if (root == nullptr) {
+        return;
+    }
+    const auto findHeader = [this](auto& self, Aero::Media::Visual& visual)
+        -> ToggleButton* {
+        if (auto* toggle = TryCast<ToggleButton>(&visual)) {
+            if (toggle->GetTemplatedParent() == this) {
+                return toggle;
+            }
+        }
+        const std::uint32_t count =
+            Aero::Media::VisualTreeHelper::GetChildrenCount(visual);
+        for (std::uint32_t index = 0U; index < count; ++index) {
+            Aero::Media::Visual* child =
+                Aero::Media::VisualTreeHelper::GetChild(visual, index);
+            if (child == nullptr) {
+                continue;
+            }
+            if (ToggleButton* found = self(self, *child)) {
+                return found;
+            }
+        }
+        return nullptr;
+    };
+    headerToggle_ = findHeader(findHeader, *root);
+    if (headerToggle_ == nullptr) {
+        return;
+    }
+    static_cast<void>(headerToggle_->AddValueChangedHandler(
+        ToggleButton::IsCheckedProperty,
+        headerCheckedHandler_));
+    const Nullable<bool> isChecked = headerToggle_->GetIsChecked();
+    const bool checked =
+        isChecked.GetHasValue() ? isChecked.GetValue() : false;
+    if (checked != GetIsExpanded()) {
+        synchronizingHeader_ = true;
+        headerToggle_->SetIsChecked(Nullable<bool>{GetIsExpanded()});
+        synchronizingHeader_ = false;
+    }
+}
+
+void Expander::OnApplyTemplate() noexcept {
+    HeaderedContentControl::OnApplyTemplate();
+    BindHeaderToggle();
+}
+
+void Expander::OnTemplateDetached() noexcept {
+    UnbindHeaderToggle();
+    HeaderedContentControl::OnTemplateDetached();
 }
 
 ExpandDirection Expander::GetDirection() const noexcept {
-    return GetValueOr(
-        ExpandDirectionProperty,
-        ExpandDirection::Down);
+    return GetValue(ExpandDirectionProperty);
 }
 
 void Expander::SetDirection(
@@ -449,7 +294,7 @@ Size Expander::MeasureOverride(
             availableSize);
     }
     constexpr double HeaderExtent = 24.0;
-    if (!GetIsExpanded() || ContentElement() == nullptr) {
+    if (!GetIsExpanded() || GetContentElement() == nullptr) {
         return GetDirection() == ExpandDirection::Left ||
                 GetDirection() == ExpandDirection::Right
             ? Size{HeaderExtent, 0.0}
@@ -464,10 +309,8 @@ Size Expander::MeasureOverride(
         childAvailable.height =
             std::max(0.0, childAvailable.height - HeaderExtent);
     }
-    Base::Result<void> measured =
-        MeasureChild(*ContentElement(), childAvailable);
-    if (!measured) return Size{};
-    const Size desired = ContentElement()->GetDesiredSize();
+    MeasureChild(*GetContentElement(), childAvailable);
+    const Size desired = GetContentElement()->GetDesiredSize();
     return GetDirection() == ExpandDirection::Left ||
             GetDirection() == ExpandDirection::Right
         ? Size{desired.width + HeaderExtent, desired.height}
@@ -480,7 +323,7 @@ Size Expander::ArrangeOverride(
         return ContentControl::ArrangeOverride(
             finalSize);
     }
-    if (!GetIsExpanded() || ContentElement() == nullptr) {
+    if (!GetIsExpanded() || GetContentElement() == nullptr) {
         return finalSize;
     }
     constexpr double HeaderExtent = 24.0;
@@ -505,323 +348,17 @@ Size Expander::ArrangeOverride(
             0.0, slot.width - HeaderExtent);
         break;
     }
-    Base::Result<void> arranged =
-        ArrangeChild(*ContentElement(), slot);
-    if (!arranged) return finalSize;
+    ArrangeChild(*GetContentElement(), slot);
     return finalSize;
 }
 
-bool TabItem::GetIsSelected() const noexcept {
-    return GetValueOr(
-        IsSelectedProperty, false);
-}
-
-void TabItem::SetIsSelected(
-    bool value) noexcept {
-    SetValue(
-        IsSelectedProperty, value);
-}
-
-TabControl::TabControl() noexcept
-    : Control(StaticTypeId()),
-      selectionChangedHandler_(
-          this,
-          &TabControl::OnSelectionPropertyChanged) {
-    static_cast<void>(AddValueChangedHandlerChecked(
-        SelectedIndexProperty,
-        selectionChangedHandler_));
-}
-
-TabControl::~TabControl() {
-    static_cast<void>(RemoveValueChangedHandler(
-        SelectedIndexProperty,
-        selectionChangedHandler_));
-}
-
-std::uint32_t TabControl::GetSelectedIndex() const noexcept {
-    return GetValueOr(
-        SelectedIndexProperty,
-        UINT32_MAX);
-}
-
-TabItem* TabControl::GetSelectedTab() const noexcept {
-    const std::uint32_t selected =
-        GetSelectedIndex();
-    return selected < tabs_.Size()
-        ? tabs_[selected].Get()
-        : nullptr;
-}
-
-Base::Result<void> TabControl::AddOwnedTab(
-    Base::Ref<TabItem> tab) noexcept {
-    Base::Result<void> access = VerifyAccess();
-    if (!access) return access.GetStatus();
-    if (!tab) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "TabControl tab is null");
-    }
-    for (const Base::Ref<TabItem>& current : tabs_) {
-        if (current.Get() == tab.Get()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::AlreadyExists,
-                "TabControl already owns this tab");
-        }
-    }
-    Base::Result<void> added =
-        tabs_.PushBack(std::move(tab));
-    if (!added) return added.GetStatus();
-    if (tabs_.Size() == 1U &&
-        GetSelectedIndex() == UINT32_MAX) {
-        SetSelectedIndex(0U);
-    } else {
-        Base::Result<void> synchronized =
-            SynchronizeSelection();
-        if (!synchronized) {
-            return synchronized.GetStatus();
-        }
-    }
-    return InvalidateMeasure();
-}
-
-void TabControl::ClearOwnedTabs() noexcept {
-    Base::Result<void> access = VerifyAccess();
-    if (!access) return;
-    if (!LayoutChildren().Empty()) {
-        return;
-    }
-    tabs_.Clear();
-    SetValue(SelectedIndexProperty, UINT32_MAX);
-    (void)InvalidateMeasure();
-}
-
-void TabControl::SetSelectedIndex(
-    std::uint32_t value) noexcept {
-    if (value != UINT32_MAX &&
-        value >= tabs_.Size()) {
-        return;
-    }
-    const std::uint32_t old =
-        GetSelectedIndex();
-    if (old == value) return;
-    SetValue(SelectedIndexProperty, value);
-}
-
-Base::Result<void>
-TabControl::SynchronizeSelection() noexcept {
-    const std::uint32_t value =
-        GetSelectedIndex();
-    for (std::uint32_t index = 0U;
-         index < tabs_.Size();
-         ++index) {
-        tabs_[index]->SetIsSelected(index == value);
-    }
-    const Meta::Value selectedContent =
-        value < tabs_.Size()
-        ? tabs_[value]->GetContent()
-        : Meta::Value::NullObject(
-              Meta::TypeOf<Base::Object>());
-    SetReadOnlyCurrentValue(SelectedContentProperty, selectedContent);
-    Base::Result<void> measure =
-        InvalidateMeasure();
-    if (!measure) return measure.GetStatus();
-    return {};
-}
-
-void TabControl::OnSelectionPropertyChanged(
-    DependencyObject&,
-    const DependencyPropertyChangedEventArgs&)
-        noexcept {
-    const Base::Result<void> synchronized =
-        SynchronizeSelection();
-    if (!synchronized) return;
-    RoutedEventArgs args;
-    RaiseEvent(SelectionChangedEvent, &args);
-}
-
-Size TabControl::MeasureOverride(
-    Size availableSize) noexcept {
-    constexpr double HeaderExtent = 28.0;
-    const bool verticalStrip =
-        GetTabStripPlacement() == Dock::Left ||
-        GetTabStripPlacement() == Dock::Right;
-    TabItem* selected = GetSelectedTab();
-    if (selected == nullptr) {
-        return verticalStrip
-            ? Size{HeaderExtent, 0.0}
-            : Size{0.0, HeaderExtent};
-    }
-    Base::Result<void> measured =
-        MeasureChild(
-            *selected,
-            verticalStrip
-                ? Size{std::max(0.0, availableSize.width - HeaderExtent),
-                    availableSize.height}
-                : Size{availableSize.width,
-                    std::max(0.0, availableSize.height - HeaderExtent)});
-    if (!measured) return Size{};
-    const Size desired = selected->GetDesiredSize();
-    return verticalStrip
-        ? Size{desired.width + HeaderExtent, desired.height}
-        : Size{desired.width, desired.height + HeaderExtent};
-}
-
-Size TabControl::ArrangeOverride(
-    Size finalSize) noexcept {
-    constexpr double HeaderExtent = 28.0;
-    const Dock placement = GetTabStripPlacement();
-    const bool verticalStrip =
-        placement == Dock::Left || placement == Dock::Right;
-    TabItem* selected = GetSelectedTab();
-    for (const Base::Ref<TabItem>& tab : tabs_) {
-        if (!tab) continue;
-        Rect slot{};
-        if (tab.Get() == selected) {
-            if (verticalStrip) {
-                slot = {placement == Dock::Left ? HeaderExtent : 0.0,
-                    0.0, std::max(0.0, finalSize.width - HeaderExtent),
-                    finalSize.height};
-            } else {
-                slot = {0.0, placement == Dock::Top ? HeaderExtent : 0.0,
-                    finalSize.width,
-                    std::max(0.0, finalSize.height - HeaderExtent)};
-            }
-        }
-        Base::Result<void> arranged =
-            ArrangeChild(*tab, slot);
-        if (!arranged) return finalSize;
-    }
-    return finalSize;
-}
-
-bool TabPanel::GetIsVertical() const noexcept {
-    const DependencyObject* parent = GetTemplatedParent();
-    return parent != nullptr &&
-        PropertyRegistry().Types().IsDerivedFrom(
-            parent->RuntimeType(), TabControl::StaticTypeId()) &&
-        (static_cast<const TabControl*>(parent)->GetTabStripPlacement() ==
-             Dock::Left ||
-         static_cast<const TabControl*>(parent)->GetTabStripPlacement() ==
-             Dock::Right);
-}
-
-Size TabPanel::MeasureOverride(
-    Size availableSize) noexcept {
-    const bool vertical = GetIsVertical();
-    Size desired{};
-    double linePrimary = 0.0;
-    double lineCross = 0.0;
-    const double limit = vertical
-        ? availableSize.height
-        : availableSize.width;
-    for (UIElement* child : LayoutChildren()) {
-        if (child == nullptr) continue;
-        Base::Result<void> measured = MeasureChild(*child, availableSize);
-        if (!measured) return Size{};
-        const Size size = child->GetDesiredSize();
-        const double primary = vertical ? size.height : size.width;
-        const double cross = vertical ? size.width : size.height;
-        if (linePrimary > 0.0 && limit < 1.0e11 &&
-            linePrimary + primary > limit) {
-            if (vertical) {
-                desired.width += lineCross;
-                desired.height = std::max(desired.height, linePrimary);
-            } else {
-                desired.width = std::max(desired.width, linePrimary);
-                desired.height += lineCross;
-            }
-            linePrimary = 0.0;
-            lineCross = 0.0;
-        }
-        linePrimary += primary;
-        lineCross = std::max(lineCross, cross);
-    }
-    if (vertical) {
-        desired.width += lineCross;
-        desired.height = std::max(desired.height, linePrimary);
-    } else {
-        desired.width = std::max(desired.width, linePrimary);
-        desired.height += lineCross;
-    }
-    return desired;
-}
-
-Size TabPanel::ArrangeOverride(
-    Size finalSize) noexcept {
-    const bool vertical = GetIsVertical();
-    const double limit = vertical ? finalSize.height : finalSize.width;
-    double x = 0.0;
-    double y = 0.0;
-    double lineCross = 0.0;
-    for (UIElement* child : LayoutChildren()) {
-        if (child == nullptr) continue;
-        const Size size = child->GetDesiredSize();
-        const double primary = vertical ? size.height : size.width;
-        const double cross = vertical ? size.width : size.height;
-        if ((vertical ? y : x) > 0.0 &&
-            (vertical ? y : x) + primary > limit) {
-            if (vertical) {
-                x += lineCross;
-                y = 0.0;
-            } else {
-                y += lineCross;
-                x = 0.0;
-            }
-            lineCross = 0.0;
-        }
-        Base::Result<void> arranged = ArrangeChild(*child, {
-            x, y, size.width, size.height});
-        if (!arranged) return finalSize;
-        if (vertical) y += size.height;
-        else x += size.width;
-        lineCross = std::max(lineCross, cross);
-    }
-    return finalSize;
-}
-
-} // namespace Aero::Controls
-#include "gui/meta/MetadataState.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/data/BindingState.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleState.hpp"
-#include "render/DisplayList.hpp"
-#include <Aero/Controls.hpp>
-#include <Aero/Controls/ListBox.hpp>
-#include <Aero/Controls/TreeView.hpp>
-#include <Aero/Shapes.hpp>
-#include <Aero/Media/Transforms.hpp>
-#include "gui/media/BrushRendering.hpp"
-#include "gui/media/MediaState.hpp"
-#include <Aero/Documents.hpp>
-#include "RichText.hpp"
-
-#include "TextBlockLayout.hpp"
-
-#include <algorithm>
-#include <cctype>
-#include <cmath>
-#include <cstdio>
-#include <cstring>
-#include <utility>
-
-
-namespace Aero::Controls {
-using namespace Aero::Meta;
-using namespace Aero::Threading;
-using namespace Aero::Render;
 
 Stretch Viewbox::GetStretch() const noexcept {
-    return GetValueOr(StretchProperty, Stretch::Uniform);
+    return GetValue(StretchProperty);
 }
 StretchDirection
 Viewbox::GetStretchDirection() const noexcept {
-    return GetValueOr(
-        StretchDirectionProperty,
-        StretchDirection::Both);
+    return GetValue(StretchDirectionProperty);
 }
 void Viewbox::SetStretch(
     Stretch value) noexcept {
@@ -844,10 +381,9 @@ Size Viewbox::MeasureOverride(
     // The layout kernel keeps all constraints finite. A large finite measure
     // gives Viewbox content its natural size while preserving that invariant.
     constexpr double NaturalConstraint = 1.0e12;
-    Base::Result<void> measured = MeasureChild(
+    MeasureChild(
         *child,
         {NaturalConstraint, NaturalConstraint});
-    if (!measured) return Size{};
 
     const Size natural = child->GetDesiredSize();
     if (natural.width <= 0.0 || natural.height <= 0.0) {
@@ -891,123 +427,63 @@ Size Viewbox::MeasureOverride(
         natural.width * scaleX,
         natural.height * scaleY};
 }
-Base::Result<void> Viewbox::ApplyViewTransform(
+void Viewbox::ApplyViewTransform(
     double scaleX,
     double scaleY,
     double offsetX,
     double offsetY) noexcept {
     UIElement* child = GetChild();
     FrameworkElement* framework = child != nullptr
-        ? child->AsFrameworkElement()
+        ? ::Aero::TryCast<::Aero::FrameworkElement>(child)
         : nullptr;
-    if (projectedChild_ && projectedChild_.Get() != framework) {
-        projectedChild_->hasViewboxTransform_ = false;
-        projectedChild_->viewboxTransform_ = {};
-        static_cast<void>(
-            Aero::Core::RenderFacet::InvalidateRenderState(*projectedChild_));
-        projectedChild_.Reset();
+    auto clearStretch = [](FrameworkElement* element) noexcept {
+        if (element == nullptr) return;
+        Base::Transform2D leftover{};
+        if (!element->TryGetViewboxTransform(leftover)) return;
+        element->ClearViewboxTransform();
+        (*element).InvalidateRenderState();
+    };
+    // Stretch stays on this Viewbox (AeroGUI wrapper Decorator), never on the
+    // child: Hexagon grids have ScaleTransform 1.2, Board has RotationY.
+    // Putting stretch on those nodes composed it after their own transforms
+    // around the unscaled origin, which shifted score digits and collapsed
+    // a 90° flip. DropShadow offscreen bakes this matrix in FrameEncoder.
+    if (projectedChild_ && projectedChild_.Get() != this) {
+        clearStretch(projectedChild_.Get());
     }
     if (child == nullptr) {
+        clearStretch(this);
         viewTransform_.Reset();
-        return {};
+        projectedChild_.Reset();
+        return;
     }
-    if (framework != nullptr) {
-        Base::Transform2D matrix;
-        matrix.m11 = scaleX;
-        matrix.m22 = scaleY;
-        matrix.dx = offsetX;
-        matrix.dy = offsetY;
-        const Base::Transform2D& previous = framework->viewboxTransform_;
-        const bool changed = !framework->hasViewboxTransform_ ||
-            previous.m11 != matrix.m11 || previous.m12 != matrix.m12 ||
-            previous.m21 != matrix.m21 || previous.m22 != matrix.m22 ||
-            previous.dx != matrix.dx || previous.dy != matrix.dy;
-        framework->viewboxTransform_ = matrix;
-        framework->hasViewboxTransform_ = true;
-        if (!projectedChild_) {
-            projectedChild_ =
-                Base::Ref<FrameworkElement>::FromBorrowed(*framework);
-        }
-        if (changed) {
-            static_cast<void>(
-                Aero::Core::RenderFacet::InvalidateRenderState(*framework));
-        }
-        return {};
-    }
-    if (!viewTransform_) {
-        Base::Result<Base::Ref<MatrixTransform>> made =
-            Base::MakeRef<MatrixTransform>();
-        if (!made) return made.GetStatus();
-        viewTransform_ = std::move(made).Value();
-    }
-
-    Base::Ref<Media::Transform> current =
-        child->GetRenderTransform();
-    if (!current) {
-        child->SetRenderTransform(viewTransform_);
-    } else if (current.Get() != viewTransform_.Get()) {
-        // A Viewbox contributes an outer scale without replacing the child's
-        // authored RenderTransform. Keeping an existing TransformGroup as the
-        // root is important: storyboards address its children by index (for
-        // example Dialog.RenderTransform.Children[0].ScaleX).
-        if (!current->PropertyRegistry().Types().IsDerivedFrom(
-                current->RuntimeType(),
-                Media::TransformGroup::StaticTypeId())) {
-            return Base::Status::Failure(
-                Base::ErrorCode::Unsupported,
-                "Viewbox can only combine its scale with a TransformGroup");
-        }
-        auto& group = static_cast<Media::TransformGroup&>(*current);
-        bool alreadyAppended = false;
-        for (const Base::Ref<Media::Transform>& transform :
-             group.GetChildren()) {
-            if (transform.Get() == viewTransform_.Get()) {
-                alreadyAppended = true;
-                break;
-            }
-        }
-        if (!alreadyAppended) {
-            Base::Result<void> appended = group.AddChild(
-                Base::Ref<Media::Transform>(viewTransform_));
-            if (!appended) return appended.GetStatus();
-        }
-    }
-
     Base::Transform2D matrix;
     matrix.m11 = scaleX;
     matrix.m22 = scaleY;
-    // The Viewbox scale is an outer layout transform. When it is composed
-    // into the child's authored RenderTransform, compensate the transform
-    // origin so the outer scale remains anchored at the child's top-left.
-    // Otherwise a non-zero RenderTransformOrigin also pivots the Viewbox
-    // scale and visibly displaces centered content.
-    const Point origin = child->GetRenderTransformOrigin();
-    const Size renderSize = child->GetRenderSize();
-    matrix.dx = offsetX +
-        origin.x * renderSize.width * (scaleX - 1.0);
-    matrix.dy = offsetY +
-        origin.y * renderSize.height * (scaleY - 1.0);
-    viewTransform_->SetMatrixValue(matrix);
-    return {};
+    matrix.dx = offsetX;
+    matrix.dy = offsetY;
+    clearStretch(framework);
+    const bool changed = SetViewboxTransform(matrix);
+    projectedChild_ = framework != nullptr
+        ? Base::Ref<FrameworkElement>::FromBorrowed(*framework)
+        : Base::Ref<FrameworkElement>{};
+    if (changed) {
+        (*this).InvalidateRenderState();
+    }
 }
 Size Viewbox::ArrangeOverride(
     Size finalSize) noexcept {
     UIElement* child = GetChild();
     if (child == nullptr) {
-        Base::Result<void> reset =
-            ApplyViewTransform(1.0, 1.0, 0.0, 0.0);
-        if (!reset) return finalSize;
+        ApplyViewTransform(1.0, 1.0, 0.0, 0.0);
         return finalSize;
     }
 
     const Size natural = child->GetDesiredSize();
     if (natural.width <= 0.0 || natural.height <= 0.0) {
-        Base::Result<void> arranged = ArrangeChild(
+        ArrangeChild(
             *child, {0.0, 0.0, 0.0, 0.0});
-        if (!arranged) return finalSize;
-        Base::Result<void> reset =
-            ApplyViewTransform(1.0, 1.0, 0.0, 0.0);
-        if (!reset) return finalSize;
+        ApplyViewTransform(1.0, 1.0, 0.0, 0.0);
         return finalSize;
     }
 
@@ -1053,54 +529,42 @@ Size Viewbox::ArrangeOverride(
         (finalSize.width - renderedWidth) * 0.5;
     const double offsetY =
         (finalSize.height - renderedHeight) * 0.5;
-    // A Viewbox scales the complete child footprint, including its margin.
-    // RenderTransform is applied after layout translation in the renderer, so
-    // an uncompensated FrameworkElement margin would remain in unscaled
-    // pixels. That visibly shifts centered reference content (for example the
-    // Gallery welcome mark) and diverges from WPF/Noesis layout semantics.
-    const FrameworkElement* childFramework =
-        child->AsFrameworkElement();
-    const Thickness childMargin = childFramework != nullptr
-        ? childFramework->GetMargin()
-        : Thickness{};
-    const double arrangeX = offsetX +
-        childMargin.left * (scaleX - 1.0);
-    const double arrangeY = offsetY +
-        childMargin.top * (scaleY - 1.0);
-    Base::Result<void> arranged = ArrangeChild(
-        *child,
-        {arrangeX, arrangeY,
-         natural.width, natural.height});
-    if (!arranged) return finalSize;
-
-    Base::Result<void> transformed = ApplyViewTransform(
+    // Child layout stays in unscaled local pixels (Transform3D CenterX/Y,
+    // ScaleTransform origin). Stretch lives on this Viewbox. Centering
+    // offset is part of that matrix, not the child slot.
+    ApplyViewTransform(
         scaleX,
         scaleY,
-        0.0,
-        0.0);
-    if (!transformed) return finalSize;
+        offsetX,
+        offsetY);
+    ArrangeChild(
+        *child,
+        {0.0, 0.0, natural.width, natural.height});
+    // Non-FrameworkElement children compensate RenderTransformOrigin from
+    // the arranged RenderSize; re-apply so that origin stays correct.
+    ApplyViewTransform(
+        scaleX,
+        scaleY,
+        offsetX,
+        offsetY);
     return finalSize;
 }
 Border::Border() noexcept : Decorator(StaticTypeId()) {}
 
 Base::Ref<Brush> Border::GetBackground() const noexcept {
-    return GetValueOr(
-        BackgroundProperty, Base::Ref<Brush>{});
+    return GetValue(BackgroundProperty);
 }
 Base::Ref<Brush> Border::GetBorderBrush() const noexcept {
-    return GetValueOr(
-        BorderBrushProperty, Base::Ref<Brush>{});
+    return GetValue(BorderBrushProperty);
 }
 Thickness Border::GetBorderThickness() const noexcept {
-    return GetValueOr(
-        BorderThicknessProperty, Thickness{});
+    return GetValue(BorderThicknessProperty);
 }
 CornerRadius Border::GetCornerRadius() const noexcept {
-    return GetValueOr(
-        CornerRadiusProperty, CornerRadius{});
+    return GetValue(CornerRadiusProperty);
 }
 Thickness Border::GetPadding() const noexcept {
-    return GetValueOr(PaddingProperty, Thickness{});
+    return GetValue(PaddingProperty);
 }
 void Border::SetBackground(
     Base::Ref<Brush> value) noexcept {
@@ -1141,9 +605,8 @@ Size Border::MeasureOverride(Size availableSize) noexcept {
         border.bottom + padding.bottom};
     UIElement* child = GetChild();
     if (child == nullptr) return Inflate({}, chrome);
-    Base::Result<void> measured = MeasureChild(
+    MeasureChild(
         *child, Deflate(availableSize, chrome));
-    if (!measured) return Size{};
     return Inflate(child->GetDesiredSize(), chrome);
 }
 Size Border::ArrangeOverride(Size finalSize) noexcept {
@@ -1157,15 +620,14 @@ Size Border::ArrangeOverride(Size finalSize) noexcept {
         border.right + padding.right,
         border.bottom + padding.bottom};
     const Size childSize = Deflate(finalSize, chrome);
-    Base::Result<void> arranged = ArrangeChild(*child,
+    ArrangeChild(*child,
         {chrome.left, chrome.top,
          childSize.width, childSize.height});
-    if (!arranged) return finalSize;
     return finalSize;
 }
 void Border::OnRender(
     ::Aero::Media::DrawingContext& context) noexcept {
-    auto& builder = Aero::Render::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::DrawingBridge::Builder(context);
     const Rect bounds{0.0, 0.0, GetRenderSize().width, GetRenderSize().height};
     if (bounds.width <= 0.0 ||
         bounds.height <= 0.0) {
@@ -1292,169 +754,326 @@ void Border::OnRender(
     }
     return;
 }
-ContentPresenter::ContentPresenter() noexcept
-    : FrameworkElement(StaticTypeId()) {}
 
-void ContentPresenter::OnContentPropertyChanged(
-    ::Aero::DependencyObject& object,
-    const Meta::DependencyPropertyChangedEventArgs&
-        change) noexcept {
-    auto& presenter =
-        static_cast<ContentPresenter&>(object);
-    presenter.contentValue_ = change.GetNewValue();
-    static_cast<void>(
-        presenter.UpdatePresentedText());
-}
-Base::Result<void>
-ContentPresenter::UpdatePresentedText() noexcept {
-    if (content_ == nullptr ||
-        !PropertyRegistry().Types().IsDerivedFrom(
-            content_->RuntimeType(),
-            TextBlock::StaticTypeId())) {
-        return {};
-    }
-    Base::String text;
-    switch (contentValue_.Kind()) {
-    case Meta::ValueKind::String:
-        {
-            Base::Result<void> assigned =
-                text.Assign(
-                    contentValue_.AsString());
-            if (!assigned) {
-                return assigned.GetStatus();
-            }
-        }
-        break;
-    case Meta::ValueKind::Boolean:
-        {
-            Base::Result<void> assigned =
-                text.Assign(
-                    contentValue_.AsBoolean()
-                    ? Base::StringView("True")
-                    : Base::StringView("False"));
-            if (!assigned) {
-                return assigned.GetStatus();
-            }
-        }
-        break;
-    case Meta::ValueKind::SignedInteger:
-    case Meta::ValueKind::UnsignedInteger:
-    case Meta::ValueKind::Double:
-        {
-            char raw[64]{};
-            if (contentValue_.Kind() ==
-                Meta::ValueKind::SignedInteger) {
-                std::snprintf(
-                    raw, sizeof(raw), "%lld",
-                    static_cast<long long>(
-                        contentValue_.
-                            AsSignedInteger()));
-            } else if (contentValue_.Kind() ==
-                       Meta::ValueKind::
-                           UnsignedInteger) {
-                std::snprintf(
-                    raw, sizeof(raw), "%llu",
-                    static_cast<
-                        unsigned long long>(
-                            contentValue_.
-                                AsUnsignedInteger()));
-            } else {
-                std::snprintf(
-                    raw, sizeof(raw), "%.15g",
-                    contentValue_.AsDouble());
-            }
-            Base::Result<void> assigned =
-                text.Assign(raw);
-            if (!assigned) {
-                return assigned.GetStatus();
-            }
-        }
-        break;
-    case Meta::ValueKind::Object:
-        if (!contentValue_.IsNullObject()) {
-            return {};
-        }
-        break;
-    default:
-        return {};
-    }
-    auto* textBlock = static_cast<TextBlock*>(content_);
-    textBlock->SetValue(RichText::TextProperty, text.View());
-    textBlock->SetText(text.View());
-    return {};
-}
-void ContentPresenter::SetContentSource(
-    Base::StringView value) noexcept {
-    SetValue(
-        ContentSourceProperty, value);
-}
-bool ContentPresenter::IsOnlyAttachedContent(
-    const UIElement& content) const noexcept {
-    const UIElementChildRange children = LayoutChildren();
-    return children.Size() == 1U && children[0] == &content;
-}
-void ContentPresenter::SetContent(UIElement* content) noexcept {
-    Base::Result<void> access = VerifyAccess();
-    if (!access) return;
-    Base::Result<void> validated = ValidateContent(content);
-    if (!validated) return;
-    if (content == content_) return;
-    content_ = content;
-    if (content == nullptr) ownedContent_.Reset();
-    (void)InvalidateMeasure();
-}
-void ContentPresenter::SetOwnedContent(
-    const Base::Ref<Base::Object>& contentObject,
-    UIElement& content) noexcept {
-    if (!contentObject || contentObject.Get() != &content) {
+namespace {
+
+class BasicControl : public Control {
+public:
+    BasicControl() noexcept : Control(Control::StaticTypeId()) {}
+};
+
+
+class BasicHeaderedContentControl : public HeaderedContentControl {
+public:
+    BasicHeaderedContentControl() noexcept
+        : HeaderedContentControl(HeaderedContentControl::StaticTypeId()) {}
+};
+
+void SetDecoratorContent(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& child,
+    void*) noexcept {
+    if (!child) {
         return;
     }
-    Base::Result<void> access = VerifyAccess();
+    (void)(static_cast<Decorator&>(owner)).SetOwnedChild( child, *static_cast<Aero::UIElement*>(child.Get()));
+}
+
+void ClearDecoratorContent(
+    Base::Object& owner,
+    void*) noexcept {
+    static_cast<Decorator&>(owner).SetChild(nullptr);
+}
+
+void AddBulletDecoratorContent(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& child,
+    void*) noexcept {
+    if (!child) return;
+    auto& decorator = static_cast<BulletDecorator&>(owner);
+    Base::Ref<UIElement> retained =
+        Base::Ref<UIElement>::TryFromBorrowed(
+            *static_cast<UIElement*>(child.Get()));
+    if (!retained) return;
+    if (decorator.GetBullet() == nullptr) {
+        decorator.SetBullet(std::move(retained));
+    } else {
+        decorator.SetChild(std::move(retained));
+    }
+}
+
+void ClearBulletDecoratorContent(
+    Base::Object& owner,
+    void*) noexcept {
+    auto& decorator = static_cast<BulletDecorator&>(owner);
+    decorator.SetBullet({});
+    decorator.SetChild({});
+}
+
+
+
+
+
+bool ValidateCornerRadiusValue(
+    const Aero::CornerRadius& radius) noexcept {
+    return std::isfinite(radius.topLeft) &&
+        std::isfinite(radius.topRight) &&
+        std::isfinite(radius.bottomRight) &&
+        std::isfinite(radius.bottomLeft) &&
+        radius.topLeft >= 0.0 &&
+        radius.topRight >= 0.0 &&
+        radius.bottomRight >= 0.0 &&
+        radius.bottomLeft >= 0.0;
+}
+
+} // namespace
+
+AERO_DESCRIBE(Control) {
+    using namespace Aero::Meta;
+    Register<Control>(context)
+        .Event(Control::PreviewMouseDoubleClickEvent, RoutingStrategy::Tunnel)
+        .Event(Control::MouseDoubleClickEvent)
+        .Override(UIElement::FocusableProperty, true, FrameworkPropertyMetadataOptions::None)
+        .Override(UIElement::IsTabStopProperty, true, FrameworkPropertyMetadataOptions::None)
+        .Property(Control::BackgroundProperty, Base::Ref<Media::Brush>{}, AffectsRender)
+        .Property(Control::BorderBrushProperty, Base::Ref<Media::Brush>{}, AffectsRender)
+        .Property(Control::BorderThicknessProperty, Aero::Thickness{}, AffectsMeasure | AffectsRender, &ValidateThicknessValue)
+        .Property(Control::PaddingProperty, Aero::Thickness{}, AffectsMeasure, &ValidateThicknessValue)
+        .Property(Control::FontWeightProperty, FontWeight::Normal, AffectsMeasure)
+        .Property(Control::HorizontalContentAlignmentProperty, Aero::HorizontalAlignment::Left, AffectsArrange)
+        .Property(Control::VerticalContentAlignmentProperty, Aero::VerticalAlignment::Top, AffectsArrange)
+        .Property(Control::FontSizeProperty, 15.0, Inherits | AffectsMeasure, &ValidatePositiveFiniteDouble)
+        .Property(Control::FocusVisualStyleProperty, Base::Ref<Aero::Style>{})
+        .Property(Control::OverridesDefaultStyleProperty, false)
+        .Property(Control::TemplateProperty, Base::Ref<ControlTemplate>{}, AffectsMeasure)
+        .Factory<BasicControl>();
+}
+
+class PageContentHost : public ContentControl {
+public:
+    PageContentHost() noexcept : ContentControl(ContentControl::StaticTypeId()) {}
+};
+
+void Page::EnsureHost() noexcept {
+    if (host_) return;
+    Base::Result<Ref<PageContentHost>> made = Base::MakeRef<PageContentHost>();
+    if (!made) return;
+    host_ = std::move(made).Value();
+    if (host_->GetVisualParent() == nullptr) { AddVisualChild(host_.Get()); }
+}
+
+UIElement* Page::GetContent() const noexcept {
+    if (!host_) return nullptr;
+    const Value value = host_->GetContent();
+    if (value.Kind() != ValueKind::Object || !value.AsObject()) return nullptr;
+    return TryCast<UIElement>(value.AsObject().Get());
+}
+
+Value Page::GetContentValue() const noexcept {
+    return host_ ? host_->GetContent() : Value::NullObject(Meta::TypeOf<Base::Object>());
+}
+
+void Page::SetContent(UIElement* content) noexcept {
+    Result<void> access = VerifyAccess();
     if (!access) return;
-    Base::Result<void> validated = ValidateContent(&content);
-    if (!validated) return;
-    content_ = &content;
-    ownedContent_ = contentObject;
-    (void)UpdatePresentedText();
-    (void)InvalidateMeasure();
+    EnsureHost();
+    if (!host_) return;
+    synchronizingContent_ = true;
+    Value propertyValue = content != nullptr
+        ? Value::FromObject(content->RuntimeType(), Ref<Base::Object>::FromBorrowed(*content))
+        : Value::NullObject(Meta::TypeOf<Base::Object>());
+    SetValue(ContentProperty, std::move(propertyValue));
+    host_->SetContent(content);
+    synchronizingContent_ = false;
+    InvalidateMeasure();
 }
-Base::Result<void> ContentPresenter::ValidateContent(
-    UIElement* content) const noexcept {
-    if (content == nullptr) {
-        if (!LayoutChildren().Empty()) {
-            return Base::Status::Failure(Base::ErrorCode::InvalidState,
-                "ContentPresenter content must be detached before clearing it");
-        }
-    } else if (!LayoutChildren().Empty() && !IsOnlyAttachedContent(*content)) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidState,
-            "ContentPresenter content must be its only attached layout child");
-    }
-    return {};
+
+void Page::SetContent(Ref<UIElement> content) noexcept {
+    SetContent(content.Get());
 }
-Size ContentPresenter::MeasureOverride(
-    Size availableSize) noexcept {
-    if (content_ == nullptr) {
-        if (!LayoutChildren().Empty()) {
-            return Size{};
-        }
-        return Size{};
-    }
-    if (!IsOnlyAttachedContent(*content_)) {
-        return Size{};
-    }
-    Base::Result<void> measured = MeasureChild(*content_, availableSize);
-    if (!measured) return Size{};
-    return content_->GetDesiredSize();
+
+void Page::SetContent(StringView text) noexcept {
+    Result<void> access = VerifyAccess();
+    if (!access) return;
+    EnsureHost();
+    if (!host_) return;
+    synchronizingContent_ = true;
+    Result<Value> encoded = Value::TryFromString(Meta::TypeOf<String>(), text);
+    if (encoded) SetValue(ContentProperty, std::move(encoded).Value());
+    host_->SetContent(text);
+    synchronizingContent_ = false;
+    InvalidateMeasure();
 }
-Size ContentPresenter::ArrangeOverride(Size finalSize) noexcept {
-    if (content_ == nullptr) return finalSize;
-    if (!IsOnlyAttachedContent(*content_)) {
-        return finalSize;
+
+void Page::SetContent(Value value) noexcept {
+    Result<void> access = VerifyAccess();
+    if (!access) return;
+    EnsureHost();
+    if (!host_) return;
+    synchronizingContent_ = true;
+    SetValue(ContentProperty, value);
+    host_->SetContent(std::move(value));
+    synchronizingContent_ = false;
+    InvalidateMeasure();
+}
+
+Ref<Base::Object> Page::GetContentTemplate() const noexcept {
+    return GetValue(ContentTemplateProperty);
+}
+
+void Page::SetContentTemplate(Ref<Base::Object> value) noexcept {
+    SetValue(ContentTemplateProperty, std::move(value));
+}
+
+void Page::OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept {
+    FrameworkElement::OnPropertyChanged(args);
+    if (synchronizingContent_) return;
+    if (args.GetProperty() == ContentProperty) {
+        EnsureHost();
+        if (host_) host_->SetContent(args.GetNewValue());
+    } else if (args.GetProperty() == ContentTemplateProperty) {
+        EnsureHost();
+        if (host_) host_->SetContentTemplate(GetContentTemplate());
     }
-    Base::Result<void> arranged = ArrangeChild(*content_,
-        {0.0, 0.0, finalSize.width, finalSize.height});
-    if (!arranged) return finalSize;
+}
+
+Size Page::MeasureOverride(Size availableSize) noexcept {
+    if (!host_) return Size{};
+    MeasureChild(*host_, availableSize);
+    return host_->GetDesiredSize();
+}
+
+Size Page::ArrangeOverride(Size finalSize) noexcept {
+    if (!host_) return finalSize;
+    ArrangeChild(*host_, {0.0, 0.0, finalSize.width, finalSize.height});
     return finalSize;
+}
+
+void SetPageContent(Base::Object& owner, const Base::Ref<Base::Object>& child, void*) noexcept {
+    if (!child) return;
+    UIElement* element = TryCast<UIElement>(child.Get());
+    if (element == nullptr) return;
+    Ref<UIElement> retained = Ref<UIElement>::TryFromBorrowed(*element);
+    if (!retained) return;
+    static_cast<Page&>(owner).SetContent(std::move(retained));
+}
+
+void ClearPageContent(Base::Object& owner, void*) noexcept {
+    static_cast<Page&>(owner).SetContent(static_cast<UIElement*>(nullptr));
+}
+
+AERO_DESCRIBE(Page) {
+    using namespace Aero::Meta;
+    Register<Page>(context)
+        .Property(
+            Page::ContentProperty,
+            FrameworkPropertyMetadata(
+                Meta::Value::NullObject(Meta::TypeOf<Base::Object>()),
+                AffectsMeasure)
+                .Structural())
+        .Property(Page::ContentTemplateProperty, Base::Ref<Base::Object>{}, AffectsMeasure)
+        .ContentAccessor(
+            MakeMemberId(Page::StaticTypeId(), MemberKind::Property, "Content"),
+            ContentKind::Single,
+            &SetPageContent,
+            &ClearPageContent,
+            ContentFlags::Visual)
+        .Factory();
+}
+
+
+AERO_DESCRIBE(HeaderedContentControl) {
+    using namespace Aero::Meta;
+    Register<HeaderedContentControl>(context)
+        .Property(HeaderedContentControl::HeaderProperty, Meta::Value::NullObject(Meta::TypeOf<Base::Object>()), AffectsMeasure)
+        .Property(HeaderedContentControl::HeaderTemplateProperty, Base::Ref<DataTemplate>{}, AffectsMeasure)
+        .Factory<BasicHeaderedContentControl>();
+}
+
+AERO_DESCRIBE(Decorator) {
+    using namespace Aero::Meta;
+    Register<Decorator>(context)
+        .Content<Aero::UIElement>("Content", ContentKind::Single, &SetDecoratorContent, &ClearDecoratorContent, ContentFlags::Visual)
+        .Factory();
+}
+
+AERO_DESCRIBE(BulletDecorator) {
+    using namespace Aero::Meta;
+    Register<BulletDecorator>(context)
+        .Property(BulletDecorator::BackgroundProperty, Base::Ref<Aero::Media::Brush>{}, AffectsRender)
+        .Content<Aero::UIElement>("Bullet", ContentKind::Collection, &AddBulletDecoratorContent, &ClearBulletDecoratorContent, ContentFlags::Visual)
+        .Factory();
+}
+
+AERO_DESCRIBE(Viewbox) {
+    using namespace Aero::Meta;
+    Register<Viewbox>(context)
+        .Property(Viewbox::StretchProperty, Stretch::Uniform, AffectsMeasure)
+        .Property(Viewbox::StretchDirectionProperty, StretchDirection::Both, AffectsMeasure)
+        .Content<Aero::UIElement>("Content", ContentKind::Single, &SetDecoratorContent, &ClearDecoratorContent, ContentFlags::Visual)
+        .Factory();
+}
+
+AERO_DESCRIBE(Border) {
+    using namespace Aero::Meta;
+    Register<Border>(context)
+        .Property(Border::BackgroundProperty, Base::Ref<Media::Brush>{}, AffectsRender)
+        .Property(Border::BorderBrushProperty, Base::Ref<Media::Brush>{}, AffectsRender)
+        .Property(Border::BorderThicknessProperty, Aero::Thickness{}, AffectsMeasure | AffectsRender, &ValidateThicknessValue)
+        .Property(Border::CornerRadiusProperty, Aero::CornerRadius{}, AffectsRender, &ValidateCornerRadiusValue)
+        .Property(Border::PaddingProperty, Aero::Thickness{}, AffectsMeasure, &ValidateThicknessValue)
+        .Factory();
+}
+
+
+
+AERO_DESCRIBE(Expander) {
+    using namespace Aero::Meta;
+    Register<Expander>(context)
+        .Event(Expander::ExpandedEvent)
+        .Event(Expander::CollapsedEvent)
+        .Property(Expander::IsExpandedProperty, false, AffectsMeasure)
+        .Property(Expander::ExpandDirectionProperty, ExpandDirection::Down, AffectsMeasure)
+        .Factory();
+}
+
+
+
+
+
+
+AERO_DESCRIBE(UserControl) {
+    using namespace Aero::Meta;
+    Register<UserControl>(context)
+        .Factory();
+}
+
+AERO_DESCRIBE(GroupBox) {
+    using namespace Aero::Meta;
+    Register<GroupBox>(context)
+        .Factory();
+}
+
+AERO_DESCRIBE(Label) {
+    using namespace Aero::Meta;
+    Register<Label>(context)
+        .Factory();
+}
+
+void Control::OnRender(
+    ::Aero::Media::DrawingContext& context) noexcept {
+    // A templated Control delegates its chrome to the template. Painting the
+    // base Background as well produces an extra full-control rectangle behind
+    // custom ComboBox, TreeView, Button and similar templates.
+    if (GetTemplateRoot() != nullptr) return;
+    auto& builder = Aero::Render::DrawingBridge::Builder(context);
+    static_cast<void>(PaintBrushRect(
+        builder,
+        GetBackground(),
+        Rect{
+            0.0, 0.0,
+            GetRenderSize().width,
+            GetRenderSize().height}));
 }
 
 } // namespace Aero

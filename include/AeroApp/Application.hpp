@@ -13,12 +13,11 @@
 
 #include <cstdint>
 
-namespace Aero {
-class Application;
-namespace App {
+namespace Aero::App {
+
 struct RunOptions;
 class DesktopHost;
-}
+class Application;
 
 enum class ShutdownMode : std::uint8_t {
     OnLastWindowClose = 0U,
@@ -34,29 +33,31 @@ public:
 
 private:
     friend class Application;
+
     explicit WindowCollection(const Application& owner) noexcept : owner_(&owner) {}
+
     const Application* owner_ = nullptr;
 };
 
 class AERO_APP_API Application : public Base::Object {
     AERO_DECLARE_TYPE(Application, Base::Object)
+
 public:
     Application() noexcept : Application(StaticTypeId()) {}
     ~Application() noexcept override;
 
     Meta::TypeId RuntimeType() const noexcept override { return runtimeType_; }
     static Application* Current() noexcept;
+    // Runs this application through the optional default desktop host. Set an
+    // explicit main Window with SetMainWindow(); otherwise StartupUri is used.
+    Result<int> Run() noexcept;
+    Result<int> Run(const RunOptions& options) noexcept;
+    void Shutdown(int exitCode = 0) noexcept;
 
-    StringView GetStartupUri() const noexcept {
-        return startupUri_.View();
-    }
-    void SetStartupUri(StringView value) noexcept {
-        (void)startupUri_.Assign(value);
-    }
+    StringView GetStartupUri() const noexcept { return startupUri_.View(); }
+    void SetStartupUri(StringView value) noexcept { (void)startupUri_.Assign(value); }
     ResourceDictionary& GetResources() noexcept { return resources_; }
-    const ResourceDictionary& GetResources() const noexcept {
-        return resources_;
-    }
+    const ResourceDictionary& GetResources() const noexcept { return resources_; }
     void SetResources(Ref<ResourceDictionary> value) noexcept;
     Window* GetMainWindow() const noexcept { return mainWindow_; }
     void SetMainWindow(Ref<Window> value) noexcept;
@@ -64,28 +65,20 @@ public:
     ShutdownMode GetShutdownMode() const noexcept { return shutdownMode_; }
     void SetShutdownMode(ShutdownMode value) noexcept { shutdownMode_ = value; }
 
-    // Runs this application through the optional default desktop host. Set an
-    // explicit main Window with SetMainWindow(); otherwise StartupUri is used.
-    Result<int> Run() noexcept;
-    Result<int> Run(const App::RunOptions& options) noexcept;
-
-    void Shutdown(int exitCode = 0) noexcept;
-
 protected:
     explicit Application(Meta::TypeId runtimeType) noexcept;
+
     virtual void OnStartup(StartupEventArgs& args) noexcept;
     virtual void OnExit(ExitEventArgs& args) noexcept;
     virtual void OnActivated(EventArgs& args) noexcept;
     virtual void OnDeactivated(EventArgs& args) noexcept;
 
 private:
-    friend class App::DesktopHost;
+    friend class DesktopHost;
     friend class Window;
     friend class WindowCollection;
 
-    Result<void> Attach(
-        void* hostState,
-        Window* mainWindow) noexcept;
+    Result<void> Attach(void* hostState, Window* mainWindow) noexcept;
     void Detach() noexcept;
     void RaiseStartup() noexcept;
     void RaiseExit(int exitCode) noexcept;
@@ -104,6 +97,6 @@ private:
     void* hostState_ = nullptr;
 };
 
-} // namespace Aero
+} // namespace Aero::App
 
-AERO_DECLARE_TYPE_ENUM(Aero::ShutdownMode)
+AERO_DECLARE_TYPE_ENUM(Aero::App::ShutdownMode)

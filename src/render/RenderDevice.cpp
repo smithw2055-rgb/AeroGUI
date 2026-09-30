@@ -1,6 +1,6 @@
 #include <AeroRender/RenderDevice.hpp>
 #include <AeroRender/RenderTarget.hpp>
-#include <Aero/Diagnostics/Rendering.hpp>
+#include <Aero/Diagnostics.hpp>
 
 namespace Aero {
 
