@@ -423,4 +423,23 @@ AERO_DESCRIBE(ToolTipService) {
         .Property(ToolTipService::ShowDurationProperty, std::uint32_t{5000U});
 }
 
+
+AERO_DESCRIBE(ToolBarPanel) {
+    using namespace Aero::Meta;
+    Register<ToolBarPanel>(context)
+        .Factory();
+}
+
+AERO_DESCRIBE(ToolBarOverflowPanel) {
+    using namespace Aero::Meta;
+    Register<ToolBarOverflowPanel>(context)
+        .Factory();
+}
+
+AERO_DESCRIBE(StatusBarItem) {
+    using namespace Aero::Meta;
+    Register<StatusBarItem>(context)
+        .Factory();
+}
+
 } // namespace Aero::Controls

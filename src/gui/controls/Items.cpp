@@ -942,4 +942,11 @@ void ItemsControl::AssignItemsSource(
     SetItemsSourceCore(directSource);
 }
 
+
+AERO_DESCRIBE(ItemsPresenter) {
+    using namespace Aero::Meta;
+    Register<ItemsPresenter>(context)
+        .Factory();
+}
+
 } // namespace Aero::Controls

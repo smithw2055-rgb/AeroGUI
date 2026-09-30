@@ -252,6 +252,12 @@ AERO_DESCRIBE(GridViewColumn) {
         .Factory();
 }
 
+AERO_DESCRIBE(ViewBase) {
+    using namespace Aero::Meta;
+    Register<ViewBase>(context)
+        .Factory();
+}
+
 AERO_DESCRIBE(GridView) {
     using namespace Aero::Meta;
     Register<GridView>(context)

@@ -294,4 +294,11 @@ AERO_DESCRIBE(TabControl) {
         .Factory();
 }
 
+
+AERO_DESCRIBE(TabPanel) {
+    using namespace Aero::Meta;
+    Register<TabPanel>(context)
+        .Factory();
+}
+
 } // namespace Aero::Controls

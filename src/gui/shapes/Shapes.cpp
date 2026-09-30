@@ -759,6 +759,12 @@ AERO_DESCRIBE(Rectangle) {
 }
 
 
+AERO_DESCRIBE(Ellipse) {
+    using namespace Aero::Meta;
+    Register<Ellipse>(context)
+        .Factory();
+}
+
 AERO_DESCRIBE(Path) {
     using namespace Aero::Meta;
     Register<Path>(context)

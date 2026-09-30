@@ -975,7 +975,6 @@ Base::Result<Base::Ref<Base::Object>> FrameworkTemplateState::Instantiate(
     if (state == nullptr || state->program.factory == nullptr || !item) return Base::Status::Failure(Base::ErrorCode::InvalidState, "DataTemplate is not ready");
     return state->program.Instantiate(item, bindings);
 }
-
 } // namespace Aero
 
 namespace Aero::Controls {
@@ -2873,6 +2872,13 @@ AERO_DESCRIBE(HierarchicalDataTemplate) {
         .Property<Base::Ref<Base::Object>, &HierarchicalDataTemplate::GetItemsSource, &HierarchicalDataTemplate::SetItemsSource>("ItemsSource", PropertyFlags::None)
         .Property<Base::Ref<Base::Object>, &HierarchicalDataTemplate::GetItemTemplate, &HierarchicalDataTemplate::SetItemTemplate>("ItemTemplate", PropertyFlags::None)
         .Content<Base::Object>("VisualTree", ContentKind::Single, &Controls::SetDeferredTemplateVisualTree<DataTemplate>, &Controls::ClearDeferredTemplateVisualTree<DataTemplate>, ContentFlags::Visual)
+        .Factory();
+}
+
+
+AERO_DESCRIBE(DataTemplateSelector) {
+    using namespace Aero::Meta;
+    Register<DataTemplateSelector>(context)
         .Factory();
 }
 

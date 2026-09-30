@@ -1042,6 +1042,24 @@ AERO_DESCRIBE(Expander) {
 
 
 
+AERO_DESCRIBE(UserControl) {
+    using namespace Aero::Meta;
+    Register<UserControl>(context)
+        .Factory();
+}
+
+AERO_DESCRIBE(GroupBox) {
+    using namespace Aero::Meta;
+    Register<GroupBox>(context)
+        .Factory();
+}
+
+AERO_DESCRIBE(Label) {
+    using namespace Aero::Meta;
+    Register<Label>(context)
+        .Factory();
+}
+
 void Control::OnRender(
     ::Aero::Media::DrawingContext& context) noexcept {
     // A templated Control delegates its chrome to the template. Painting the

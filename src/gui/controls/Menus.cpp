@@ -6,6 +6,7 @@
 #include "gui/core/EventRouter.hpp"
 #include "gui/input/InputManager.hpp" 
 #include <Aero/Controls.hpp>
+#include <Aero/Controls/Separator.hpp>
 #include <Aero/ClassHandler.hpp>
 
 #include <utility>
@@ -444,6 +445,13 @@ AERO_DESCRIBE(ContextMenuService) {
         .Property(ContextMenuService::ContextMenuProperty, Base::Ref<ContextMenu>{});
 }
 
+
+
+AERO_DESCRIBE(Separator) {
+    using namespace Aero::Meta;
+    Register<Separator>(context)
+        .Factory();
+}
 
 } // namespace Aero::Controls
 
