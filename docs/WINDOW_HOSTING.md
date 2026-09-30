@@ -71,4 +71,4 @@ OpenGL context recreation through `RenderContext`; embedded hosts coordinate
 their own callback resources.
 
 Optional statistics are available from
-`<Aero/Diagnostics/Rendering.hpp>`.
+`<Aero/Diagnostics.hpp>`.

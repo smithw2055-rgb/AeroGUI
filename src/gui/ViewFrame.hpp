@@ -10,7 +10,6 @@
 #include <Aero/Gui.hpp>
 #include <AeroAudio/Audio.hpp>
 #include <Aero/Diagnostics.hpp>
-#include <Aero/Diagnostics/Rendering.hpp>
 #include <Aero/Media/Geometries.hpp>
 #include <Aero/Interactivity/Behavior.hpp>
 #include <Aero/Interactivity/Conditions.hpp>

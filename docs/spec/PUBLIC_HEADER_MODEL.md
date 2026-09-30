@@ -92,14 +92,14 @@ Command and navigation objects (`ICommand`, `RoutedCommand`, `KeyBinding`,
 `Aero/`. `Input.hpp` does not include those command headers, so the UIElement
 spine does not compile the command object model.
 
-Installed spine headers keep include-closure thin: `DependencyProperty.hpp`
-uses `Diagnostics/EffectiveValueSource.hpp` (not `PropertyValueSource.hpp`)
-and keeps `HashMap` in internal headers; `DependencyObject.hpp`
-includes `DispatcherReentrancyGuard.hpp` instead of `Threading.hpp`;
-`Resources.hpp` includes `Diagnostics/SourceSpan.hpp` instead of
-`Diagnostics.hpp`. `CheckArchitecture.cmake` budgets public include-closure
-line counts for `Controls/Button.hpp`, `Controls/TextBlock.hpp`, and
-`Controls/Panel.hpp`.
+Installed spine headers keep include-closure deliberate: diagnostics types
+(`SourceSpan`, `EffectiveValueSource`, `PropertyProviderSet`, layout/render
+stats) live in the single `<Aero/Diagnostics.hpp>` umbrella — there is no
+`include/Aero/Diagnostics/` directory. `DependencyProperty.hpp` and
+`Resources.hpp` include that umbrella; `HashMap` stays in internal headers;
+`DependencyObject.hpp` must not include `Threading.hpp`.
+`CheckArchitecture.cmake` budgets public include-closure line counts for
+`Controls/Button.hpp`, `Controls/TextBlock.hpp`, and `Controls/Panel.hpp`.
 
 Media is a specialist surface made up of family headers such as
 `Media/Brushes.hpp`, `Media/Effects.hpp`, `Media/Fonts.hpp`,

@@ -102,7 +102,7 @@ remains source-private. The former native-target wrapper, borrowed-target path
 and `DeviceRenderer` compatibility spelling are removed rather than retained as
 aliases.
 
-Rendering statistics are opt-in through `<Aero/Diagnostics/Rendering.hpp>`;
+Rendering statistics are opt-in through `<Aero/Diagnostics.hpp>`;
 they are not part of the normal RenderDevice authoring surface.
 
 AeroGUI creates no hidden rendering thread or submission queue; the host owns

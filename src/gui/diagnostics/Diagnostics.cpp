@@ -1,4 +1,5 @@
 #include <Aero/Diagnostics.hpp>
+#include <Aero/DependencyObject.hpp>
 
 #include <utility>
 
@@ -230,6 +231,11 @@ void DiagnosticBag::Clear() noexcept {
     warningCount_ = 0U;
     errorCount_ = 0U;
     droppedCount_ = 0U;
+}
+
+Result<PropertyValueSourceInfo> GetValueSource(const DependencyObject& object,
+    Meta::DependencyPropertyHandle property) noexcept {
+    return object.GetValueSourceInfo(property);
 }
 
 } // namespace Aero::Diagnostics

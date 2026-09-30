@@ -16,7 +16,7 @@ its WPF namespace rather than by an implementation-mechanism folder.
 | `Aero::Text` (private) | — | `text/` |
 | `Aero::Input` | `Input.hpp`, `InputInterop.hpp` | `input/` |
 | `Aero` (style triggers) | `Triggers/*.hpp` | `triggers/` |
-| `Aero::Diagnostics` | `Diagnostics.hpp`, `Diagnostics/*` | `diagnostics/` |
+| `Aero::Diagnostics` | `Diagnostics.hpp` | `diagnostics/` |
 | `Aero::Events` | `Events/*.hpp` | `core/` (RoutedEvent/EventRouter) |
 
 ## Consolidated implementation files → public types

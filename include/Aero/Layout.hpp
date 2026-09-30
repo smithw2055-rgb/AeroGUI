@@ -4,7 +4,7 @@
 #include <Aero/Base/Geometry.hpp>
 #include <Aero/Controls/GridLength.hpp>
 #include <Aero/DependencyProperty.hpp>
-#include <Aero/Diagnostics/Layout.hpp>
+#include <Aero/Diagnostics.hpp>
 #include <Aero/ElementEnums.hpp>
 
 namespace Aero {

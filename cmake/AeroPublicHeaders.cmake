@@ -33,11 +33,6 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Controls/IScrollInfo.hpp
     include/Aero/Collections.hpp
     include/Aero/Diagnostics.hpp
-    include/Aero/Diagnostics/EffectiveValueSource.hpp
-    include/Aero/Diagnostics/Layout.hpp
-    include/Aero/Diagnostics/PropertyValueSource.hpp
-    include/Aero/Diagnostics/Rendering.hpp
-    include/Aero/Diagnostics/SourceSpan.hpp
     include/Aero/Threading.hpp
     include/Aero/Meta.hpp
     include/Aero/Value.hpp

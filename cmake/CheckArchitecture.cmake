@@ -166,9 +166,7 @@ foreach(required_public_entry IN ITEMS
         "include/Aero/IRenderer.hpp"
         "include/Aero/ElementEnums.hpp"
         "include/Aero/Controls/GridLength.hpp"
-        "include/Aero/Diagnostics/Layout.hpp"
-        "include/Aero/Diagnostics/EffectiveValueSource.hpp"
-        "include/Aero/Diagnostics/SourceSpan.hpp"
+        "include/Aero/Diagnostics.hpp"
         "include/AeroRender/BackendCommon.hpp"
         "include/AeroRender/RenderDevice.hpp"
         "include/AeroRender/Texture.hpp"
@@ -180,7 +178,6 @@ foreach(required_public_entry IN ITEMS
         "include/Aero/Documents.hpp"
         "include/Aero/Documents/Inlines.hpp"
         "include/Aero/Documents/Adorners.hpp"
-        "include/Aero/Diagnostics/Rendering.hpp"
         "include/Aero/Meta.hpp"
         "include/AeroApp/App.hpp")
     aero_require_file("${required_public_entry}")
@@ -258,7 +255,13 @@ foreach(retired_public_entry IN ITEMS
         "include/Aero/Markup.hpp"
         "include/Aero/PropertySlab.hpp"
         "include/Aero/DispatcherReentrancyGuard.hpp"
-        "include/Aero/Diagnostics/DependencyProperty.hpp")
+        "include/Aero/Diagnostics/DependencyProperty.hpp"
+        "include/Aero/Diagnostics/EffectiveValueSource.hpp"
+        "include/Aero/Diagnostics/Layout.hpp"
+        "include/Aero/Diagnostics/PropertyValueSource.hpp"
+        "include/Aero/Diagnostics/Rendering.hpp"
+        "include/Aero/Diagnostics/SourceSpan.hpp"
+        "include/Aero/Diagnostics")
     aero_forbid_file("${retired_public_entry}")
 endforeach()
 
@@ -1983,10 +1986,14 @@ aero_forbid_text(
     "include/Aero/Media/Animation.hpp"
     "StoryboardCompletedTrigger"
     "Animation.hpp umbrella must not pull StoryboardCompletedTrigger")
+aero_require_text(
+    "include/Aero/DependencyProperty.hpp"
+    "#include <Aero/Diagnostics.hpp>"
+    "DependencyProperty.hpp must take EffectiveValueSource from the Diagnostics umbrella")
 aero_forbid_text(
     "include/Aero/DependencyProperty.hpp"
-    "#include <Aero/Diagnostics/PropertyValueSource.hpp>"
-    "DependencyProperty.hpp must not pull PropertyProviderSet; use EffectiveValueSource.hpp")
+    "#include <Aero/Diagnostics/"
+    "DependencyProperty.hpp must not include deleted Diagnostics/ sub-headers")
 aero_forbid_text(
     "include/Aero/DependencyProperty.hpp"
     "HashMap.hpp"
@@ -2019,14 +2026,14 @@ aero_require_text(
     "src/gui/core/DispatcherReentrancyGuard.hpp"
     "class AERO_GUI_API DispatcherReentrancyGuard"
     "DispatcherReentrancyGuard must live under src/gui/core")
-aero_forbid_text(
-    "include/Aero/Resources.hpp"
-    "#include <Aero/Diagnostics.hpp>"
-    "Resources.hpp must include SourceSpan.hpp, not the Diagnostics umbrella")
 aero_require_text(
     "include/Aero/Resources.hpp"
-    "#include <Aero/Diagnostics/SourceSpan.hpp>"
-    "Resources.hpp default-argument SourceSpan must come from the tiny header")
+    "#include <Aero/Diagnostics.hpp>"
+    "Resources.hpp SourceSpan must come from the Diagnostics umbrella")
+aero_forbid_text(
+    "include/Aero/Resources.hpp"
+    "#include <Aero/Diagnostics/"
+    "Resources.hpp must not include deleted Diagnostics/ sub-headers")
 aero_forbid_text(
     "include/Aero/Visual.hpp"
     "bool renderAttached_"
@@ -2369,8 +2376,12 @@ aero_require_text(
     "Layout.hpp must remain a compatibility umbrella for GridLength")
 aero_require_text(
     "include/Aero/Layout.hpp"
-    "#include <Aero/Diagnostics/Layout.hpp>"
+    "#include <Aero/Diagnostics.hpp>"
     "Layout.hpp must remain a compatibility umbrella for LayoutDiagnostics")
+aero_forbid_text(
+    "include/Aero/Layout.hpp"
+    "#include <Aero/Diagnostics/"
+    "Layout.hpp must not include deleted Diagnostics/ sub-headers")
 aero_forbid_text(
     "include/Aero/Layout.hpp"
     "enum class Visibility"
@@ -2720,6 +2731,32 @@ aero_require_text(
     "include/AeroApp/Window.hpp"
     "AERO_DEPENDENCY_PROPERTY(Ref<Window>, Owner)"
     "Window.Owner is a Window dependency property")
+
+
+aero_require_text(
+    "include/Aero/Diagnostics.hpp"
+    "struct SourceSpan"
+    "Diagnostics.hpp must own SourceSpan after the Diagnostics/ merge")
+aero_require_text(
+    "include/Aero/Diagnostics.hpp"
+    "enum class EffectiveValueSource"
+    "Diagnostics.hpp must own EffectiveValueSource after the Diagnostics/ merge")
+aero_require_text(
+    "include/Aero/Diagnostics.hpp"
+    "class PropertyProviderSet"
+    "Diagnostics.hpp must own PropertyProviderSet after the Diagnostics/ merge")
+aero_require_text(
+    "include/Aero/Diagnostics.hpp"
+    "struct LayoutDiagnostics"
+    "Diagnostics.hpp must own LayoutDiagnostics after the Diagnostics/ merge")
+aero_require_text(
+    "include/Aero/Diagnostics.hpp"
+    "struct RenderDeviceStatistics"
+    "Diagnostics.hpp must own RenderDeviceStatistics after the Diagnostics/ merge")
+aero_forbid_text(
+    "include/Aero/Diagnostics.hpp"
+    "#include <Aero/Diagnostics/"
+    "Diagnostics.hpp must not thin-include deleted Diagnostics/ sub-headers")
 
 # Public include-closure caps = measured unique Aero* header lines after the
 # four installed-header cuts, plus 10%. Do not raise these without a new

@@ -10,7 +10,7 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Value.hpp>
-#include <Aero/Diagnostics/EffectiveValueSource.hpp>
+#include <Aero/Diagnostics.hpp>
 
 #include <cstdint>
 #include <utility>

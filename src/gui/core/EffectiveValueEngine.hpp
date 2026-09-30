@@ -8,7 +8,7 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/DependencyProperty.hpp>
-#include <Aero/Diagnostics/PropertyValueSource.hpp>
+#include <Aero/Diagnostics.hpp>
 #include <Aero/Threading.hpp>
 
 #include <cstdint>
