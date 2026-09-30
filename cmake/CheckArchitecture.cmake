@@ -1040,7 +1040,11 @@ aero_require_text(
     "include/Aero/FrameworkElement.hpp"
     "friend class FrameworkElementSeams;"
     "FrameworkElement must friend the src-only Seams bridge")
-aero_require_file("src/gui/styles/StyleSeams.hpp")
+aero_forbid_file("src/gui/styles/StyleSeams.hpp")
+aero_forbid_text(
+    "include/Aero/Style.hpp"
+    "StyleSeams"
+    "StyleSeams façade deleted; StyleEngine/Program are the accessors")
 aero_forbid_text(
     "include/Aero/Style.hpp"
     "SealStyle("
@@ -1055,8 +1059,16 @@ aero_forbid_text(
     "StyleProviderSession must not appear in installed Style.hpp")
 aero_require_text(
     "include/Aero/Style.hpp"
-    "friend class StyleSeams;"
-    "Style must friend the src-only StyleSeams bridge")
+    "friend class StyleEngine;"
+    "Style must friend StyleEngine for Program accessors")
+aero_require_text(
+    "include/Aero/Style.hpp"
+    "friend struct Program;"
+    "Style must friend Program for seal/runtime helpers")
+aero_require_text(
+    "src/gui/styles/StyleEngine.hpp"
+    "SealProgram("
+    "StyleEngine must expose SealProgram after StyleSeams removal")
 aero_require_text(
     "include/Aero/UIElement.hpp"
     "friend class PointerStateMachine;"

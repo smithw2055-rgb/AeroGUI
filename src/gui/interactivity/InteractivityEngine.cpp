@@ -1,6 +1,5 @@
 // InteractivityEngine: behaviors, interaction triggers, and style triggers.
 #include "gui/ViewFrame.hpp"
-#include "gui/core/FrameworkElementSeams.hpp"
 #include "gui/templates/DataTemplateTriggerInstance.hpp"
 #include "gui/core/ValueConversion.hpp"
 #include <algorithm>
@@ -74,20 +73,9 @@ bool ParseInteractionActionPath(
 }
 
 Base::Result<Meta::PropertyValue> ResolveInteractionActionPath(
-    Base::Object& source,
+    Base::Span<const Base::Ref<Base::Object>> triggers,
     std::uint32_t triggerIndex,
     std::uint32_t actionIndex) noexcept {
-    auto* element = TryCast<FrameworkElement>(&source);
-    if (element == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            "Interaction.Triggers source is not a FrameworkElement");
-    }
-    Base::Span<const Base::Ref<Base::Object>> triggers =
-        FrameworkElementSeams::StyleTriggerPrototypes(*element);
-    if (triggers.Empty()) {
-        triggers = FrameworkElementSeams::AuthoredTriggers(*element);
-    }
     if (triggerIndex >= triggers.Size() ||
         !triggers[triggerIndex]) {
         return Base::Status::Failure(
@@ -1005,8 +993,20 @@ Base::Result<Meta::PropertyValue> InteractivityEngine::EvaluateAuthoredBinding(
             std::uint32_t actionIndex = 0U;
             if (ParseInteractionActionPath(
                     path, triggerIndex, actionIndex)) {
-                value = ResolveInteractionActionPath(
-                    *source, triggerIndex, actionIndex);
+                auto* element = TryCast<FrameworkElement>(source);
+                if (element == nullptr) {
+                    value = Base::Status::Failure(
+                        Base::ErrorCode::NotFound,
+                        "Interaction.Triggers source is not a FrameworkElement");
+                } else {
+                    Base::Span<const Base::Ref<Base::Object>> triggers =
+                        element->StyleTriggerPrototypes();
+                    if (triggers.Empty()) {
+                        triggers = element->AuthoredTriggers();
+                    }
+                    value = ResolveInteractionActionPath(
+                        triggers, triggerIndex, actionIndex);
+                }
             } else {
                 Meta::BindingPathCompileError pathError;
                 Base::Result<Meta::BindingPathPlan> plan =

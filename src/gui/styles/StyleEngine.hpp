@@ -74,7 +74,8 @@ inline Base::Result<void> AssignResourceDictionary(
     return {};
 }
 
-// Style program accessors (formerly StyleState statics).
+// Style program accessors. Routed through StyleEngine (Style friend) so the
+// former StyleSeams façade is unnecessary; free functions stay call-compatible.
 Base::Result<void> SealStyle(
     Style& style,
     const Meta::DependencyPropertyRegistry& properties) noexcept;
@@ -97,6 +98,23 @@ class TriggerEngine;
 class StyleEngine {
 public:
     using TriggerActionHandler = ::Aero::TriggerActionHandler;
+
+    // Friend-mediated Style::Program entry points (replaces StyleSeams).
+    static Base::Result<void> SealProgram(
+        Style& style,
+        const Meta::DependencyPropertyRegistry& properties) noexcept;
+    static Base::Span<const StyleSetter> ProgramSetters(
+        const Style& style) noexcept;
+    static Base::Span<const TriggerPlan> ProgramTriggers(
+        const Style& style) noexcept;
+    static Base::Result<void> ProgramApplySetters(
+        const Style& style,
+        DependencyObject& object,
+        StyleProviderSession& values) noexcept;
+    static Base::Result<void> ProgramClearSetters(
+        const Style& style,
+        DependencyObject& object,
+        StyleProviderSession& values) noexcept;
 
     explicit StyleEngine(
         EffectiveValueEngine& values,

@@ -6,7 +6,6 @@
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
 #include "gui/styles/StyleEngine.hpp"
-#include "gui/styles/StyleSeams.hpp"
 #include "gui/triggers/TriggerDiagnostics.hpp"
 #include "gui/triggers/TriggerEngine.hpp"
 #include "gui/data/BindingEngine.hpp"
@@ -1206,34 +1205,30 @@ void StyleEngine::DetachSetterBindings(DependencyObject& object) noexcept {
 }
 
 
-Base::Result<void> StyleSeams::Seal(
+Base::Result<void> StyleEngine::SealProgram(
     Style& style,
     const Meta::DependencyPropertyRegistry& properties) noexcept {
-    return style.Seal(properties);
+    return Style::Program::Seal(style, properties);
 }
 
-Base::Span<const StyleSetter> StyleSeams::RuntimeSetters(
+Base::Span<const StyleSetter> StyleEngine::ProgramSetters(
     const Style& style) noexcept {
-    return style.program_ != nullptr
-        ? style.program_->Setters()
-        : Base::Span<const StyleSetter>{};
+    return Style::Program::RuntimeSetters(style);
 }
 
-Base::Span<const TriggerPlan> StyleSeams::RuntimeTriggers(
+Base::Span<const TriggerPlan> StyleEngine::ProgramTriggers(
     const Style& style) noexcept {
-    return style.program_ != nullptr
-        ? style.program_->Triggers()
-        : Base::Span<const TriggerPlan>{};
+    return Style::Program::RuntimeTriggers(style);
 }
 
-Base::Result<void> StyleSeams::ApplySetters(
+Base::Result<void> StyleEngine::ProgramApplySetters(
     const Style& style,
     DependencyObject& object,
     StyleProviderSession& values) noexcept {
     return Style::Program::ApplySetters(style, object, values);
 }
 
-Base::Result<void> StyleSeams::ClearSetters(
+Base::Result<void> StyleEngine::ProgramClearSetters(
     const Style& style,
     DependencyObject& object,
     StyleProviderSession& values) noexcept {
@@ -1243,31 +1238,31 @@ Base::Result<void> StyleSeams::ClearSetters(
 Base::Result<void> SealStyle(
     Style& style,
     const Meta::DependencyPropertyRegistry& properties) noexcept {
-    return StyleSeams::Seal(style, properties);
+    return StyleEngine::SealProgram(style, properties);
 }
 
 Base::Span<const StyleSetter> StyleRuntimeSetters(
     const Style& style) noexcept {
-    return StyleSeams::RuntimeSetters(style);
+    return StyleEngine::ProgramSetters(style);
 }
 
 Base::Span<const TriggerPlan> StyleRuntimeTriggers(
     const Style& style) noexcept {
-    return StyleSeams::RuntimeTriggers(style);
+    return StyleEngine::ProgramTriggers(style);
 }
 
 Base::Result<void> ApplyStyleSetters(
     const Style& style,
     DependencyObject& object,
     StyleProviderSession& values) noexcept {
-    return StyleSeams::ApplySetters(style, object, values);
+    return StyleEngine::ProgramApplySetters(style, object, values);
 }
 
 Base::Result<void> ClearStyleSetters(
     const Style& style,
     DependencyObject& object,
     StyleProviderSession& values) noexcept {
-    return StyleSeams::ClearSetters(style, object, values);
+    return StyleEngine::ProgramClearSetters(style, object, values);
 }
 
 StyleEngine::StyleEngine(

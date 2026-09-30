@@ -99,7 +99,6 @@ private:
     friend class TriggerCollection;
     friend class Markup::XamlStyleSchemaFacet;
     friend class StoryboardHost;
-    friend class StyleSeams;
 
     struct Program;
 
@@ -117,7 +116,7 @@ private:
     Span<const Ref<TriggerBase>> GetAuthoredTriggers() const noexcept {
         return {authoredTriggerObjects_.Data(), authoredTriggerObjects_.Size()};
     }
-    // Compiled by StyleSeams::Seal / markup finalize; not a public authoring API.
+    // Compiled by Style::Program::Seal / markup finalize; not a public authoring API.
     Result<void> Seal(const Meta::DependencyPropertyRegistry& properties) noexcept;
     // WPF-parity no-arg hook. Called at the end of Seal(); override to
     // validate without touching DependencyPropertyRegistry internals.
