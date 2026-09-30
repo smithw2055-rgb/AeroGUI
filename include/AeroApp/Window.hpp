@@ -110,15 +110,7 @@ private:
 
 } // namespace Aero::App
 
-namespace Aero {
-using App::Window;
-using App::WindowState;
-using App::WindowStyle;
-using App::ResizeMode;
-using App::SizeToContent;
-} // namespace Aero
-
-AERO_DECLARE_TYPE_ENUM(Aero::WindowState)
-AERO_DECLARE_TYPE_ENUM(Aero::WindowStyle)
-AERO_DECLARE_TYPE_ENUM(Aero::ResizeMode)
-AERO_DECLARE_TYPE_ENUM(Aero::SizeToContent)
+AERO_DECLARE_TYPE_ENUM(Aero::App::WindowState)
+AERO_DECLARE_TYPE_ENUM(Aero::App::WindowStyle)
+AERO_DECLARE_TYPE_ENUM(Aero::App::ResizeMode)
+AERO_DECLARE_TYPE_ENUM(Aero::App::SizeToContent)

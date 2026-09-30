@@ -126,7 +126,7 @@ std::uint32_t WindowExtent(
 bool IsWindowType(Meta::TypeId type) noexcept {
     for (Meta::TypeId current = type;
          current != Meta::InvalidTypeId;) {
-        if (current == Aero::Window::StaticTypeId()) return true;
+        if (current == Window::StaticTypeId()) return true;
         current = Meta::ResolveRuntimeTypeInfo(current).baseType;
     }
     return false;
@@ -222,8 +222,8 @@ Base::Result<void> LoadFromUri(
             if (!IsWindowType(root->RuntimeType())) {
                 // WPF/Noesis host a non-Window StartupUri root (for example a
                 // UserControl) inside an automatically created default Window.
-                Base::Ref<Aero::Window> hosted;
-                auto made = Base::MakeRef<Aero::Window>();
+                Base::Ref<Window> hosted;
+                auto made = Base::MakeRef<Window>();
                 if (!made) {
                     return HostFailure(
                         Base::ErrorCode::OutOfMemory,
@@ -232,7 +232,7 @@ Base::Result<void> LoadFromUri(
                 hosted = std::move(made).Value();
                 hosted->SetContent(root);
                 windowOwner = Base::Ref<Base::Object>(hosted);
-                window = static_cast<Aero::Window*>(windowOwner.Get());
+                window = static_cast<Window*>(windowOwner.Get());
                 loadedDocument = std::move(loaded).Value();
                 return FinishInitialization(true);
             }

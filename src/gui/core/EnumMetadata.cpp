@@ -47,6 +47,7 @@ Base::Result<void> PopulateEnumMetadata(
     using namespace Data;
     using namespace Controls;
     using namespace Controls::Primitives;
+    using namespace App;
     // Prefer public Animation enums over Model aliases (AnimationEngine.hpp).
     using Media::Animation::FillBehavior;
     using Media::Animation::EasingMode;

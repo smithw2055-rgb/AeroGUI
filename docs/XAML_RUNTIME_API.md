@@ -36,7 +36,7 @@ A standalone desktop program links `Aero::App` and runs its WPF-facing
 ```cpp
 #include <AeroApp/App.hpp>
 
-Aero::Application application;
+Aero::App::Application application;
 static_cast<void>(application.SetStartupUri("MainWindow.xaml"));
 
 const Aero::ModuleRegistration modules[] = {module};

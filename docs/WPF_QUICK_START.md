@@ -11,8 +11,8 @@ RenderDevice/RenderTarget.
 ```cpp
 #include <AeroApp/App.hpp>
 
-class App : public Aero::Application {
-    AERO_DECLARE_TYPE_NAMED(App, Aero::Application, "urn:demo", "App")
+class App : public Aero::App::Application {
+    AERO_DECLARE_TYPE_NAMED(App, Aero::App::Application, "urn:demo", "App")
 
 public:
     App() noexcept {
@@ -21,7 +21,7 @@ public:
 
 protected:
     void OnStartup(Aero::StartupEventArgs& args) noexcept override {
-        Aero::Application::OnStartup(args);
+        Aero::App::Application::OnStartup(args);
     }
 };
 

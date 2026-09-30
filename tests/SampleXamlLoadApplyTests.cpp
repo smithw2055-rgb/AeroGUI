@@ -73,7 +73,7 @@ using Aero::TryCast;
 using Aero::View;
 using Aero::ViewOptions;
 using Aero::ViewViewport;
-using Aero::Window;
+using Aero::App::Window;
 
 #define SAMPLE_CHECK(expression)                                              \
     do {                                                                      \
@@ -1095,7 +1095,7 @@ struct LiveGui {
     Ref<View> view;
     Aero::Markup::XamlDocument applicationDocument;
     Aero::Markup::XamlDocument sampleDocument;
-    Aero::Application* application = nullptr;
+    Aero::App::Application* application = nullptr;
     double viewTime = 0.0;
 };
 
@@ -1220,7 +1220,7 @@ bool MountAndLayout(
             where.Data());
         return false;
     }
-    if (TryCast<Aero::Application>(root) != nullptr ||
+    if (TryCast<Aero::App::Application>(root) != nullptr ||
         TryCast<Aero::ResourceDictionary>(root) != nullptr) {
         return true;
     }
@@ -1756,10 +1756,10 @@ bool LoadDocumentAtPath(
         return false;
     }
     SAMPLE_CHECK(document.Value().IsValid());
-    if (Aero::Application* app =
-            document.Value().Root<Aero::Application>()) {
+    if (Aero::App::Application* app =
+            document.Value().Root<Aero::App::Application>()) {
         live.applicationDocument = std::move(document).Value();
-        live.application = live.applicationDocument.Root<Aero::Application>();
+        live.application = live.applicationDocument.Root<Aero::App::Application>();
         if (applyResourceTemplates) {
             Aero::ResourceDictionary* dictionary =
                 live.application != nullptr

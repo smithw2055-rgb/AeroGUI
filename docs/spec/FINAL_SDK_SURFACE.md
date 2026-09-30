@@ -28,8 +28,8 @@ Renderer internals and native window/surface adapters are not exported products.
 Application code uses the familiar WPF spine:
 
 ```cpp
-Aero::Application
-Aero::Window
+Aero::App::Application
+Aero::App::Window
 Aero::DependencyObject
 Aero::UIElement
 Aero::FrameworkElement

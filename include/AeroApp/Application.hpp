@@ -97,10 +97,4 @@ private:
 
 } // namespace Aero::App
 
-namespace Aero {
-using App::Application;
-using App::WindowCollection;
-using App::ShutdownMode;
-} // namespace Aero
-
-AERO_DECLARE_TYPE_ENUM(Aero::ShutdownMode)
+AERO_DECLARE_TYPE_ENUM(Aero::App::ShutdownMode)

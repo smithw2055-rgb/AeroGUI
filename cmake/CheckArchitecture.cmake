@@ -2732,6 +2732,22 @@ aero_require_text(
     "include/AeroApp/Application.hpp"
     "namespace Aero::App"
     "Application must live under Aero::App with Window")
+aero_forbid_text(
+    "include/AeroApp/Window.hpp"
+    "using App::Window"
+    "Root Aero:: aliases for App::Window must not return")
+aero_forbid_text(
+    "include/AeroApp/Window.hpp"
+    "using App::WindowState"
+    "Root Aero:: aliases for App window enums must not return")
+aero_forbid_text(
+    "include/AeroApp/Application.hpp"
+    "using App::Application"
+    "Root Aero:: aliases for App::Application must not return")
+aero_forbid_text(
+    "include/AeroApp/Application.hpp"
+    "using App::ShutdownMode"
+    "Root Aero:: aliases for App::ShutdownMode must not return")
 aero_require_text(
     "include/AeroApp/Window.hpp"
     "Result<bool> ShowDialog()"
@@ -2744,6 +2760,15 @@ aero_require_text(
     "include/AeroApp/Window.hpp"
     "AERO_DEPENDENCY_PROPERTY(Ref<Window>, Owner)"
     "Window.Owner is a Window dependency property")
+
+aero_require_text(
+    "include/AeroApp/Window.hpp"
+    "AERO_DECLARE_TYPE_ENUM(Aero::App::WindowState)"
+    "Window enums must declare TypeId under Aero::App")
+aero_require_text(
+    "include/AeroApp/Application.hpp"
+    "AERO_DECLARE_TYPE_ENUM(Aero::App::ShutdownMode)"
+    "ShutdownMode must declare TypeId under Aero::App")
 
 
 aero_require_text(

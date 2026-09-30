@@ -17,43 +17,43 @@ Base::Result<void> PopulateAppMetadata(
     status = Meta::Register<Aero::CancelEventArgs>(context).Result();
     if (!status) return status.GetStatus();
 
-    auto application = Meta::Register<Aero::Application>(context);
+    auto application = Meta::Register<Application>(context);
     application
         .Property(
             "StartupUri",
-            &Aero::Application::GetStartupUri,
-            &Aero::Application::SetStartupUri)
+            &Application::GetStartupUri,
+            &Application::SetStartupUri)
         .Property<
             Base::Ref<Aero::ResourceDictionary>,
-            &Aero::Application::SetResources>(
+            &Application::SetResources>(
                 "Resources",
                 Meta::PropertyFlags::Structural)
         .Property(
             "ShutdownMode",
-            &Aero::Application::GetShutdownMode,
-            &Aero::Application::SetShutdownMode)
+            &Application::GetShutdownMode,
+            &Application::SetShutdownMode)
         .Factory();
     status = application.Result();
     if (!status) return status.GetStatus();
 
-    auto window = Meta::Register<Aero::Window>(context);
+    auto window = Meta::Register<Window>(context);
     window
-        .Property(Aero::Window::TitleProperty, Meta::FrameworkPropertyMetadata(Base::String{}).AffectsMeasure())
-        .Property(Aero::Window::WindowStateProperty, Meta::FrameworkPropertyMetadata(Aero::WindowState::Normal).AffectsRender())
-        .Property(Aero::Window::WindowStyleProperty, Meta::FrameworkPropertyMetadata(Aero::WindowStyle::SingleBorderWindow).AffectsMeasure())
-        .Property(Aero::Window::ResizeModeProperty, Meta::FrameworkPropertyMetadata(Aero::ResizeMode::CanResize))
-        .Property(Aero::Window::SizeToContentProperty, Meta::FrameworkPropertyMetadata(Aero::SizeToContent::Manual).AffectsMeasure())
-        .Property(Aero::Window::ShowInTaskbarProperty, Meta::FrameworkPropertyMetadata(true))
-        .Property(Aero::Window::TopmostProperty, Meta::FrameworkPropertyMetadata(false))
-        .Property(Aero::Window::DialogResultProperty, Meta::FrameworkPropertyMetadata(::Aero::Nullable<bool>{}))
-        .Property(Aero::Window::OwnerProperty, Meta::FrameworkPropertyMetadata(Base::Ref<Aero::Window>{}))
-        .Event(Aero::Window::ClosingEvent, Aero::RoutingStrategy::Direct)
-        .Event(Aero::Window::ClosedEvent, Aero::RoutingStrategy::Direct)
-        .Event(Aero::Window::ActivatedEvent, Aero::RoutingStrategy::Direct)
-        .Event(Aero::Window::DeactivatedEvent, Aero::RoutingStrategy::Direct)
-        .Event(Aero::Window::ContentRenderedEvent, Aero::RoutingStrategy::Direct)
-        .Event(Aero::Window::SourceInitializedEvent, Aero::RoutingStrategy::Direct)
-        .Event(Aero::Window::StateChangedEvent, Aero::RoutingStrategy::Direct)
+        .Property(Window::TitleProperty, Meta::FrameworkPropertyMetadata(Base::String{}).AffectsMeasure())
+        .Property(Window::WindowStateProperty, Meta::FrameworkPropertyMetadata(WindowState::Normal).AffectsRender())
+        .Property(Window::WindowStyleProperty, Meta::FrameworkPropertyMetadata(WindowStyle::SingleBorderWindow).AffectsMeasure())
+        .Property(Window::ResizeModeProperty, Meta::FrameworkPropertyMetadata(ResizeMode::CanResize))
+        .Property(Window::SizeToContentProperty, Meta::FrameworkPropertyMetadata(SizeToContent::Manual).AffectsMeasure())
+        .Property(Window::ShowInTaskbarProperty, Meta::FrameworkPropertyMetadata(true))
+        .Property(Window::TopmostProperty, Meta::FrameworkPropertyMetadata(false))
+        .Property(Window::DialogResultProperty, Meta::FrameworkPropertyMetadata(::Aero::Nullable<bool>{}))
+        .Property(Window::OwnerProperty, Meta::FrameworkPropertyMetadata(Base::Ref<Window>{}))
+        .Event(Window::ClosingEvent, Aero::RoutingStrategy::Direct)
+        .Event(Window::ClosedEvent, Aero::RoutingStrategy::Direct)
+        .Event(Window::ActivatedEvent, Aero::RoutingStrategy::Direct)
+        .Event(Window::DeactivatedEvent, Aero::RoutingStrategy::Direct)
+        .Event(Window::ContentRenderedEvent, Aero::RoutingStrategy::Direct)
+        .Event(Window::SourceInitializedEvent, Aero::RoutingStrategy::Direct)
+        .Event(Window::StateChangedEvent, Aero::RoutingStrategy::Direct)
         .Factory();
     return window.Result();
 }

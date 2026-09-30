@@ -16,7 +16,7 @@ include type headers directly:
   an embedded engine links exactly the backend it owns, which brings in the
   render and Gui contracts transitively.
 - `AeroApp/App.hpp` + `Aero::App` add the optional default desktop lifetime;
-  ordinary C++ applications call `Aero::Application::Run()` with optional
+  ordinary C++ applications call `Aero::App::Application::Run()` with optional
   `Aero::App::RunOptions`.
 - Host interop entry headers are rooted at `Aero/InputInterop.hpp` and
   `AeroApp/WindowInterop.hpp`; XAML, media, font-provider, and rendering contracts

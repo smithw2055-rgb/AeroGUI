@@ -6,7 +6,7 @@ thread or pending frame queue.
 
 ## Default desktop application
 
-Every visible `Aero::Window` is managed by `DesktopHost` with one native window,
+Every visible `Aero::App::Window` is managed by `DesktopHost` with one native window,
 one `View`, and one source-only `Aero::App::RenderContext`:
 
 ```text
