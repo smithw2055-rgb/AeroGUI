@@ -2,12 +2,9 @@
 
 #include <Aero/DispatcherObject.hpp>
 #include <Aero/DependencyProperty.hpp>
-#include <Aero/DispatcherReentrancyGuard.hpp>
 #include <Aero/TryCast.hpp>
 
 namespace Aero {
-
-using ::Aero::Threading::DispatcherReentrancyGuard;
 
 namespace Meta { class DependencyPropertyRegistry; }
 struct StoredValueEntry;

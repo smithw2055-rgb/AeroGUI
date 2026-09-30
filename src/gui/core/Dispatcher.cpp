@@ -1,5 +1,8 @@
 #include <Aero/Threading.hpp>
 
+#include "gui/core/DispatcherReentrancyGuard.hpp"
+#include "gui/core/PropertySlab.hpp"
+
 #include <Aero/Base/Assert.hpp>
 
 #include <atomic>
@@ -121,6 +124,7 @@ void DispatcherReentrancyGuard::Release() noexcept {
 Dispatcher::Dispatcher(const DispatcherOptions& options) noexcept
     : ready_(),
       delayed_(),
+      propertySlab_(new PropertySlab()),
       ownerThread_(CurrentDispatcherThreadToken()),
       now_(options.now != nullptr
           ? options.now
@@ -197,6 +201,13 @@ Dispatcher::~Dispatcher() noexcept {
 
         invocation.callback(invocation.context);
     }
+
+    delete propertySlab_;
+    propertySlab_ = nullptr;
+}
+
+PropertySlab& Dispatcher::GetPropertySlab() noexcept {
+    return *propertySlab_;
 }
 
 bool Dispatcher::CheckAccess() const noexcept {

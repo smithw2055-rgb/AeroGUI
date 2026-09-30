@@ -5,10 +5,10 @@
 #include <Aero/Base/MetadataId.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/DispatcherReentrancyGuard.hpp>
+#include "gui/core/DispatcherReentrancyGuard.hpp"
 #include <Aero/Diagnostics/PropertyValueSource.hpp>
 #include <Aero/DependencyProperty.hpp>
-#include <Aero/PropertySlab.hpp>
+#include "gui/core/PropertySlab.hpp"
 
 #include <cstddef>
 #include <cstdint>

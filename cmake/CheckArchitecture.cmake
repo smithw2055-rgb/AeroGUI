@@ -169,7 +169,6 @@ foreach(required_public_entry IN ITEMS
         "include/Aero/Diagnostics/Layout.hpp"
         "include/Aero/Diagnostics/EffectiveValueSource.hpp"
         "include/Aero/Diagnostics/SourceSpan.hpp"
-        "include/Aero/DispatcherReentrancyGuard.hpp"
         "include/AeroRender/BackendCommon.hpp"
         "include/AeroRender/RenderDevice.hpp"
         "include/AeroRender/Texture.hpp"
@@ -256,7 +255,10 @@ foreach(retired_public_entry IN ITEMS
         "include/Aero/Platform"
         "include/Aero/Text/FontProvider.hpp"
         "include/Aero/Text"
-        "include/Aero/Markup.hpp")
+        "include/Aero/Markup.hpp"
+        "include/Aero/PropertySlab.hpp"
+        "include/Aero/DispatcherReentrancyGuard.hpp"
+        "include/Aero/Diagnostics/DependencyProperty.hpp")
     aero_forbid_file("${retired_public_entry}")
 endforeach()
 
@@ -1407,7 +1409,7 @@ foreach(s14_owner IN ITEMS
         "include/Aero/Documents/Inlines.hpp|class AERO_GUI_API InlineCollectionView"
         "include/Aero/Documents/NavigationService.hpp|class AERO_GUI_API NavigationService"
         "include/Aero/Controls/UserControl.hpp|class AERO_GUI_API UserControl"
-        "include/Aero/Controls/UserControl.hpp|class AERO_GUI_API Page"
+        "include/Aero/Controls/ContentControl.hpp|class AERO_GUI_API Page"
         "include/Aero/Controls/ItemsPanelTemplate.hpp|class AERO_GUI_API ItemsPanelTemplate : public ::Aero::FrameworkTemplate"
         "include/Aero/Controls/GridViews.hpp|class AERO_GUI_API ViewBase"
         "include/Aero/Controls/GridViews.hpp|class AERO_GUI_API GridView : public ViewBase"
@@ -1996,11 +1998,27 @@ aero_require_text(
 aero_forbid_text(
     "include/Aero/DependencyObject.hpp"
     "#include <Aero/Threading.hpp>"
-    "DependencyObject.hpp must include DispatcherReentrancyGuard.hpp, not Threading.hpp")
-aero_require_text(
+    "DependencyObject.hpp must not include Threading.hpp (engine includes live under src/gui/core)")
+aero_forbid_text(
     "include/Aero/DependencyObject.hpp"
+    "DispatcherReentrancyGuard"
+    "DispatcherReentrancyGuard is engine-private under src/gui/core")
+aero_forbid_text(
+    "include/Aero/Threading.hpp"
+    "#include <Aero/PropertySlab.hpp>"
+    "PropertySlab must not be a public Threading include; it lives under src/gui/core")
+aero_forbid_text(
+    "include/Aero/Threading.hpp"
     "#include <Aero/DispatcherReentrancyGuard.hpp>"
-    "DependencyObject.hpp must include the one-type DispatcherReentrancyGuard header")
+    "DispatcherReentrancyGuard must not be a public Threading include; it lives under src/gui/core")
+aero_require_text(
+    "src/gui/core/PropertySlab.hpp"
+    "class PropertySlab"
+    "PropertySlab must live under src/gui/core")
+aero_require_text(
+    "src/gui/core/DispatcherReentrancyGuard.hpp"
+    "class AERO_GUI_API DispatcherReentrancyGuard"
+    "DispatcherReentrancyGuard must live under src/gui/core")
 aero_forbid_text(
     "include/Aero/Resources.hpp"
     "#include <Aero/Diagnostics.hpp>"

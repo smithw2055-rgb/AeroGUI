@@ -8,6 +8,8 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Diagnostics/SourceSpan.hpp>
+#include <Aero/Diagnostics/PropertyValueSource.hpp>
+#include <Aero/DependencyObject.hpp>
 #include <Aero/Value.hpp>
 
 #include <cstdint>
@@ -169,5 +171,16 @@ private:
     std::uint32_t errorCount_ = 0U;
     std::uint32_t droppedCount_ = 0U;
 };
+
+
+using PropertyValueRank = Meta::PropertyValueRank;
+using PropertyValueSourceInfo = Meta::PropertyValueSourceInfo;
+using PropertyProviderToken = Meta::PropertyProviderToken;
+using PropertyExpressionKind = Meta::PropertyExpressionKind;
+
+inline Result<PropertyValueSourceInfo> GetValueSource(const DependencyObject& object,
+    DependencyPropertyHandle property) noexcept {
+    return object.GetValueSourceInfo(property);
+}
 
 } // namespace Aero::Diagnostics

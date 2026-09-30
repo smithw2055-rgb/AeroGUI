@@ -5,13 +5,18 @@
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/DispatcherReentrancyGuard.hpp>
-#include <Aero/PropertySlab.hpp>
 
 #include <cstdint>
 #include <mutex>
 
+namespace Aero {
+class PropertySlab;
+class DependencyObject;
+}
+
 namespace Aero::Threading {
+
+class DispatcherReentrancyGuard;
 
 using DispatcherTime = std::uint64_t;
 using DispatcherThreadToken = std::uint64_t;
@@ -130,19 +135,18 @@ public:
     DispatcherFrameTimings
     FrameTimings() const noexcept;
 
-    Result<DispatcherReentrancyGuard> EnterReentrancyGuard() noexcept;
-
     std::uint32_t PendingTaskCount() const noexcept;
     bool IsPumping() const noexcept;
     std::uint32_t ReentrancyDepth() const noexcept;
 
-    // P2.4: Dispatcher-owned slab for dependency-property storage blocks
-    // (PropertyStore / StoredValueRare). Lifetime is strictly bound to the
-    // Dispatcher; pooled blocks never outlive it.
-    PropertySlab& GetPropertySlab() noexcept { return propertySlab_; }
-
 private:
+    friend class ::Aero::DependencyObject;
     friend class DispatcherReentrancyGuard;
+
+    // Engine-only: reentrancy guard + DP storage slab stay off the SDK surface.
+    Result<DispatcherReentrancyGuard> EnterReentrancyGuard() noexcept;
+    PropertySlab& GetPropertySlab() noexcept;
+
 
     enum class RecordState : std::uint8_t {
         Pending,
@@ -165,7 +169,7 @@ private:
     Base::Vector<TaskRecord> ready_;
     Base::Vector<TaskRecord> delayed_;
     mutable std::mutex mutex_;
-    PropertySlab propertySlab_;
+    PropertySlab* propertySlab_ = nullptr;
 
     std::uint32_t readyHead_ = 0U;
     std::uint32_t delayedHead_ = 0U;
