@@ -471,8 +471,7 @@ using namespace ::Aero::Input;
 Base::Result<void> PopulateUiMedia(
     ::Aero::Meta::Registration& context) noexcept {
     Base::Result<void> status;
-    ::Aero::Meta::DescribeHook<::Aero::Length>::Run(context);
-
+    DescribeHook<::Aero::Length>::Run(context);
     Register<Thickness>(context)
         .Field<&Thickness::left>("Left")
         .Field<&Thickness::top>("Top")
@@ -480,7 +479,6 @@ Base::Result<void> PopulateUiMedia(
         .Field<&Thickness::bottom>("Bottom")
         .ValueSemantics({sizeof(Thickness), alignof(Thickness), nullptr, nullptr, &::Aero::MetadataSupport::EqualThickness, nullptr, true})
         .TextConverter<&::Aero::MetadataSupport::ConvertThickness>();
-
     Register<CornerRadius>(context)
         .Field<&CornerRadius::topLeft>("TopLeft")
         .Field<&CornerRadius::topRight>("TopRight")
@@ -488,7 +486,6 @@ Base::Result<void> PopulateUiMedia(
         .Field<&CornerRadius::bottomLeft>("BottomLeft")
         .ValueSemantics({ sizeof(CornerRadius), alignof(CornerRadius), nullptr, nullptr, &::Aero::MetadataSupport::EqualCornerRadius, nullptr, true})
         .TextConverter<&::Aero::MetadataSupport::ConvertCornerRadius>();
-
     Register<Color>(context)
         .Field<&Color::red>("Red")
         .Field<&Color::green>("Green")
@@ -496,13 +493,11 @@ Base::Result<void> PopulateUiMedia(
         .Field<&Color::alpha>("Alpha")
         .ValueSemantics({sizeof(Color), alignof(Color), nullptr, nullptr, &::Aero::MetadataSupport::EqualColor, nullptr, true})
         .TextConverter<&::Aero::MetadataSupport::ConvertColor>();
-
     Register<Point>(context)
         .Field<&Point::x>("X")
         .Field<&Point::y>("Y")
         .ValueSemantics()
         .TextConverter<&::Aero::MetadataSupport::ConvertPoint>();
-
     Register<Rect>(context)
         .Field<&Rect::x>("X")
         .Field<&Rect::y>("Y")
@@ -510,51 +505,32 @@ Base::Result<void> PopulateUiMedia(
         .Field<&Rect::height>("Height")
         .ValueSemantics()
         .TextConverter<&::Aero::MetadataSupport::ConvertRect>();
-
     Register<Base::Size>(context)
         .Field<&Base::Size::width>("Width")
         .Field<&Base::Size::height>("Height")
         .ValueSemantics()
         .TextConverter<&::Aero::MetadataSupport::ConvertSize>();
-
-    ::Aero::Meta::DescribeHook<::Aero::Animatable>::Run(context);
+    DescribeHook<::Aero::Animatable>::Run(context);
 
     // Brush.RelativeTransform is a Transform-valued dependency property, so
     // the abstract value type must exist before Brush metadata is authored.
-    ::Aero::Meta::DescribeHook<::Aero::Media::Transform>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::Brush>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::SolidColorBrush>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::GradientStop>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::GradientStopCollection>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::BrushShader>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::MonochromeShader>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::ConicGradientShader>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::WavesShader>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::GradientBrush>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::LinearGradientBrush>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::RadialGradientBrush>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::ImageSource>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::TileBrush>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::BitmapImage>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::CroppedBitmap>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::ImageBrush>::Run(context);
-
+    DescribeHook<::Aero::Media::Transform>::Run(context);
+    DescribeHook<::Aero::Media::Brush>::Run(context);
+    DescribeHook<::Aero::Media::SolidColorBrush>::Run(context);
+    DescribeHook<::Aero::Media::GradientStop>::Run(context);
+    DescribeHook<::Aero::Media::GradientStopCollection>::Run(context);
+    DescribeHook<::Aero::Media::BrushShader>::Run(context);
+    DescribeHook<::Aero::Media::MonochromeShader>::Run(context);
+    DescribeHook<::Aero::Media::ConicGradientShader>::Run(context);
+    DescribeHook<::Aero::Media::WavesShader>::Run(context);
+    DescribeHook<::Aero::Media::GradientBrush>::Run(context);
+    DescribeHook<::Aero::Media::LinearGradientBrush>::Run(context);
+    DescribeHook<::Aero::Media::RadialGradientBrush>::Run(context);
+    DescribeHook<::Aero::Media::ImageSource>::Run(context);
+    DescribeHook<::Aero::Media::TileBrush>::Run(context);
+    DescribeHook<::Aero::Media::BitmapImage>::Run(context);
+    DescribeHook<::Aero::Media::CroppedBitmap>::Run(context);
+    DescribeHook<::Aero::Media::ImageBrush>::Run(context);
     Register<Base::Transform2D>(context)
         .Field<&Base::Transform2D::m11>("M11")
         .Field<&Base::Transform2D::m12>("M12")
@@ -564,7 +540,6 @@ Base::Result<void> PopulateUiMedia(
         .Field<&Base::Transform2D::dy>("OffsetY")
         .ValueSemantics()
         .TextConverter<&::Aero::MetadataSupport::ConvertMatrix>();
-
     Register<Base::Transform3>(context)
         .Field<&Base::Transform3::m11>("M11")
         .Field<&Base::Transform3::m12>("M12")
@@ -580,55 +555,34 @@ Base::Result<void> PopulateUiMedia(
         .Field<&Base::Transform3::dz>("OffsetZ")
         .ValueSemantics()
         .TextConverter<&::Aero::MetadataSupport::ConvertTransform3>();
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::TranslateTransform>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::ScaleTransform>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::RotateTransform>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::SkewTransform>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::MatrixTransform>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::CompositeTransform>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::TransformGroup>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::Transform3D>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::CompositeTransform3D>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::PerspectiveTransform3D>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::MatrixTransform3D>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::Effect>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::BlurEffect>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::DropShadowEffect>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::PixelateEffect>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::TintEffect>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::DirectionalBlurEffect>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::ShaderEffect>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::MediaElement>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::VisualBrush>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Input::ICommand>::Run(context);
-    ::Aero::Meta::DescribeHook<::Aero::Input::InputGesture>::Run(context);
-    ::Aero::Meta::DescribeHook<::Aero::Input::KeyGesture>::Run(context);
-    ::Aero::Meta::DescribeHook<::Aero::Input::RoutedCommand>::Run(context);
-    ::Aero::Meta::DescribeHook<::Aero::Input::RoutedUICommand>::Run(context);
-    ::Aero::Meta::DescribeHook<::Aero::Input::InputBinding>::Run(context);
-    ::Aero::Meta::DescribeHook<::Aero::Input::CommandBinding>::Run(context);
-    ::Aero::Meta::DescribeHook<::Aero::Input::ApplicationCommands>::Run(context);
+    DescribeHook<::Aero::Media::TranslateTransform>::Run(context);
+    DescribeHook<::Aero::Media::ScaleTransform>::Run(context);
+    DescribeHook<::Aero::Media::RotateTransform>::Run(context);
+    DescribeHook<::Aero::Media::SkewTransform>::Run(context);
+    DescribeHook<::Aero::Media::MatrixTransform>::Run(context);
+    DescribeHook<::Aero::Media::CompositeTransform>::Run(context);
+    DescribeHook<::Aero::Media::TransformGroup>::Run(context);
+    DescribeHook<::Aero::Media::Transform3D>::Run(context);
+    DescribeHook<::Aero::Media::CompositeTransform3D>::Run(context);
+    DescribeHook<::Aero::Media::PerspectiveTransform3D>::Run(context);
+    DescribeHook<::Aero::Media::MatrixTransform3D>::Run(context);
+    DescribeHook<::Aero::Media::Effect>::Run(context);
+    DescribeHook<::Aero::Media::BlurEffect>::Run(context);
+    DescribeHook<::Aero::Media::DropShadowEffect>::Run(context);
+    DescribeHook<::Aero::Media::PixelateEffect>::Run(context);
+    DescribeHook<::Aero::Media::TintEffect>::Run(context);
+    DescribeHook<::Aero::Media::DirectionalBlurEffect>::Run(context);
+    DescribeHook<::Aero::Media::ShaderEffect>::Run(context);
+    DescribeHook<::Aero::Media::MediaElement>::Run(context);
+    DescribeHook<::Aero::Media::VisualBrush>::Run(context);
+    DescribeHook<::Aero::Input::ICommand>::Run(context);
+    DescribeHook<::Aero::Input::InputGesture>::Run(context);
+    DescribeHook<::Aero::Input::KeyGesture>::Run(context);
+    DescribeHook<::Aero::Input::RoutedCommand>::Run(context);
+    DescribeHook<::Aero::Input::RoutedUICommand>::Run(context);
+    DescribeHook<::Aero::Input::InputBinding>::Run(context);
+    DescribeHook<::Aero::Input::CommandBinding>::Run(context);
+    DescribeHook<::Aero::Input::ApplicationCommands>::Run(context);
     status = ApplicationCommands::RegisterDefaults();
     if (!status) return status.GetStatus();
     return {};

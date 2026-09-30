@@ -343,7 +343,6 @@ using namespace ::Aero::Meta;
 Base::Result<void> PopulateUiAnimation(
     ::Aero::Meta::Registration& context) noexcept {
     using namespace Media::Animation;
-    using namespace Interactivity;
     // Prefer public Animation types over Model::* (AnimationEngine.hpp).
     using Media::Animation::ColorAnimation;
     using Media::Animation::ColorKeyFrame;
@@ -365,33 +364,24 @@ Base::Result<void> PopulateUiAnimation(
     using ::Aero::Base::Rect;
     using ::Aero::Base::Size;
     using ::Aero::Base::Thickness;
-
     Register<Duration>(context)
         .ValueSemantics()
         .TextConverter<&Duration::TryParse>();
-
     Register<TimeSpan>(context)
         .ValueSemantics()
         .TextConverter<&TimeSpan::TryParse>();
-
     Register<RepeatBehavior>(context)
         .ValueSemantics()
         .TextConverter<&RepeatBehavior::TryParse>();
-
     Register<KeyTime>(context)
         .ValueSemantics()
         .TextConverter<&KeyTime::TryParse>();
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::Animation::Timeline>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::Animation::AnimationTimeline>::Run(context);
-    ::Aero::Meta::DescribeHook<::Aero::Media::Animation::TimelineGroup>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::Animation::ParallelTimeline>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::Animation::Storyboard>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::Animation::EasingFunctionBase>::Run(context);
+    DescribeHook<::Aero::Media::Animation::Timeline>::Run(context);
+    DescribeHook<::Aero::Media::Animation::AnimationTimeline>::Run(context);
+    DescribeHook<::Aero::Media::Animation::TimelineGroup>::Run(context);
+    DescribeHook<::Aero::Media::Animation::ParallelTimeline>::Run(context);
+    DescribeHook<::Aero::Media::Animation::Storyboard>::Run(context);
+    DescribeHook<::Aero::Media::Animation::EasingFunctionBase>::Run(context);
 
 #define AERO_EASE_FACTORY(name, kind) \
     +[]() noexcept -> Base::Result<Base::Ref<Base::Object>> { \
@@ -435,7 +425,6 @@ Base::Result<void> PopulateUiAnimation(
     Register<Name##Animation>(context) \
         .Property<Base::Ref<EasingFunctionBase>, &Name##Animation::GetEasingFunction, &Name##Animation::SetEasingFunction>("EasingFunction", PropertyFlags::Structural) \
         .Factory();
-
     AERO_FROM_TO_BASE(Double, double)
     Register<DoubleAnimation>(context)
         .Property<double, &DoubleAnimation::GetAccelerationRatio, &DoubleAnimation::SetAccelerationRatio>("AccelerationRatio")
@@ -485,8 +474,7 @@ Base::Result<void> PopulateUiAnimation(
     AERO_KEYFRAME_VALUE(Name, CppType) \
     AERO_KEYFRAME_ALIAS(Name, Discrete) \
     AERO_KEYFRAME_COLLECTION(Name)
-    ::Aero::Meta::DescribeHook<::Aero::Media::Animation::KeyFrameBase>::Run(context);
-
+    DescribeHook<::Aero::Media::Animation::KeyFrameBase>::Run(context);
     AERO_KEYFRAMES(Double, double)
     AERO_KEYFRAMES(Point, Point)
     AERO_KEYFRAMES(Thickness, Thickness)
@@ -496,11 +484,9 @@ Base::Result<void> PopulateUiAnimation(
     AERO_KEYFRAMES(Int64, std::int64_t)
     AERO_KEYFRAMES(Size, Base::Size)
     AERO_KEYFRAMES(Matrix, Base::Transform2D)
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::Animation::ObjectKeyFrame>::Run(context);
+    DescribeHook<::Aero::Media::Animation::ObjectKeyFrame>::Run(context);
     AERO_KEYFRAME_ALIAS(Object, Discrete)
     AERO_KEYFRAME_COLLECTION(Object)
-
     AERO_DISCRETE_KEYFRAMES(Boolean, bool)
     AERO_DISCRETE_KEYFRAMES(String, Base::String)
 #undef AERO_KEYFRAME_ALIAS
@@ -510,74 +496,43 @@ Base::Result<void> PopulateUiAnimation(
 #undef AERO_KEYFRAMES
 #undef AERO_DISCRETE_KEYFRAMES
 
-    ::Aero::Meta::DescribeHook<::Aero::Interactivity::TriggerAction>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Input::KeyBinding>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Input::MouseBinding>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Interactivity::ChangePropertyAction>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Interactivity::SetFocusAction>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Interactivity::LaunchUriOrFileAction>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Interactivity::RemoveElementAction>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::Animation::ControllableStoryboardAction>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::Animation::BeginStoryboard>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::Animation::ControlStoryboardAction>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::Animation::PauseStoryboard>::Run(context);
-    ::Aero::Meta::DescribeHook<::Aero::Media::Animation::ResumeStoryboard>::Run(context);
-    ::Aero::Meta::DescribeHook<::Aero::Media::Animation::StopStoryboard>::Run(context);
-    ::Aero::Meta::DescribeHook<::Aero::Media::Animation::RemoveStoryboard>::Run(context);
-    ::Aero::Meta::DescribeHook<::Aero::Media::Animation::SeekStoryboard>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::Animation::EventTrigger>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::Animation::TimerTrigger>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Interactivity::PropertyChangedTrigger>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Interactivity::KeyTrigger>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Interactivity::InvokeCommandAction>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Interactivity::SelectAction>::Run(context);
-    ::Aero::Meta::DescribeHook<::Aero::Interactivity::SelectAllAction>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Interactivity::PlaySoundAction>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::Animation::PlayMediaAction>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::Animation::PauseMediaAction>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::Animation::StopMediaAction>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Interactivity::ComparisonCondition>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Interactivity::ConditionalExpression>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Interactivity::ConditionBehavior>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::Animation::StoryboardCompletedTrigger>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Interactivity::Behavior>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Interactivity::MouseDragElementBehavior>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Interactivity::BackgroundEffectBehavior>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Interactivity::StyleBehaviorCollection>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Interactivity::StyleTriggerCollection>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Interactivity::StyleInteraction>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Interactivity::Interaction>::Run(context);
+    DescribeHook<::Aero::Interactivity::TriggerAction>::Run(context);
+    DescribeHook<::Aero::Input::KeyBinding>::Run(context);
+    DescribeHook<::Aero::Input::MouseBinding>::Run(context);
+    DescribeHook<::Aero::Interactivity::ChangePropertyAction>::Run(context);
+    DescribeHook<::Aero::Interactivity::SetFocusAction>::Run(context);
+    DescribeHook<::Aero::Interactivity::LaunchUriOrFileAction>::Run(context);
+    DescribeHook<::Aero::Interactivity::RemoveElementAction>::Run(context);
+    DescribeHook<::Aero::Media::Animation::ControllableStoryboardAction>::Run(context);
+    DescribeHook<::Aero::Media::Animation::BeginStoryboard>::Run(context);
+    DescribeHook<::Aero::Media::Animation::ControlStoryboardAction>::Run(context);
+    DescribeHook<::Aero::Media::Animation::PauseStoryboard>::Run(context);
+    DescribeHook<::Aero::Media::Animation::ResumeStoryboard>::Run(context);
+    DescribeHook<::Aero::Media::Animation::StopStoryboard>::Run(context);
+    DescribeHook<::Aero::Media::Animation::RemoveStoryboard>::Run(context);
+    DescribeHook<::Aero::Media::Animation::SeekStoryboard>::Run(context);
+    DescribeHook<::Aero::Media::Animation::EventTrigger>::Run(context);
+    DescribeHook<::Aero::Media::Animation::TimerTrigger>::Run(context);
+    DescribeHook<::Aero::Interactivity::PropertyChangedTrigger>::Run(context);
+    DescribeHook<::Aero::Interactivity::KeyTrigger>::Run(context);
+    DescribeHook<::Aero::Interactivity::InvokeCommandAction>::Run(context);
+    DescribeHook<::Aero::Interactivity::SelectAction>::Run(context);
+    DescribeHook<::Aero::Interactivity::SelectAllAction>::Run(context);
+    DescribeHook<::Aero::Interactivity::PlaySoundAction>::Run(context);
+    DescribeHook<::Aero::Media::Animation::PlayMediaAction>::Run(context);
+    DescribeHook<::Aero::Media::Animation::PauseMediaAction>::Run(context);
+    DescribeHook<::Aero::Media::Animation::StopMediaAction>::Run(context);
+    DescribeHook<::Aero::Interactivity::ComparisonCondition>::Run(context);
+    DescribeHook<::Aero::Interactivity::ConditionalExpression>::Run(context);
+    DescribeHook<::Aero::Interactivity::ConditionBehavior>::Run(context);
+    DescribeHook<::Aero::Media::Animation::StoryboardCompletedTrigger>::Run(context);
+    DescribeHook<::Aero::Interactivity::Behavior>::Run(context);
+    DescribeHook<::Aero::Interactivity::MouseDragElementBehavior>::Run(context);
+    DescribeHook<::Aero::Interactivity::BackgroundEffectBehavior>::Run(context);
+    DescribeHook<::Aero::Interactivity::StyleBehaviorCollection>::Run(context);
+    DescribeHook<::Aero::Interactivity::StyleTriggerCollection>::Run(context);
+    DescribeHook<::Aero::Interactivity::StyleInteraction>::Run(context);
+    DescribeHook<::Aero::Interactivity::Interaction>::Run(context);
     return {};
 }
 

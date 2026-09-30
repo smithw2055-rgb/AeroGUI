@@ -90,6 +90,7 @@ Base::Result<void> RegisterControlsMetadata(
 
 Base::Result<void> PopulateControlsMetadata(
     ::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
     // Describes live next to each control. Installing them records the
     // function; EnsureRegisteredPack then registers bases before derived types.
     static bool describesInstalled = false;
@@ -97,7 +98,7 @@ Base::Result<void> PopulateControlsMetadata(
         describesInstalled = true;
 #include "gui/controls/ControlDescribes.inl"
     }
-    ::Aero::Meta::EnsureRegisteredPack<
+    EnsureRegisteredPack<
         FrameworkTemplate,
         ControlTemplate,
         DataTemplate,

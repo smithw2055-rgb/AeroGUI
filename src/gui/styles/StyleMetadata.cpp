@@ -63,47 +63,28 @@ namespace Aero {
 
 Base::Result<void> PopulateUiStyling(
     ::Aero::Meta::Registration& context) noexcept {
-    using namespace Data;
-    ::Aero::Meta::DescribeHook<::Aero::Element>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::TextProperties>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::RichText>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::SetterBase>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Setter>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::EventSetter>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Data::IValueConverter>::Run(context);
-    ::Aero::Meta::DescribeHook<::Aero::Data::IMultiValueConverter>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Data::BooleanToVisibilityConverter>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Data::BindingBase>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Data::RelativeSource>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Data::Binding>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Data::MultiBinding>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Data::MultiBindingProxy>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::TriggerBase>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Trigger>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::DataTrigger>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Condition>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::MultiDataTrigger>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::MultiTrigger>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Style>::Run(context);
+    using namespace Aero::Meta;
+    DescribeHook<::Aero::Element>::Run(context);
+    DescribeHook<::Aero::TextProperties>::Run(context);
+    DescribeHook<::Aero::RichText>::Run(context);
+    DescribeHook<::Aero::SetterBase>::Run(context);
+    DescribeHook<::Aero::Setter>::Run(context);
+    DescribeHook<::Aero::EventSetter>::Run(context);
+    DescribeHook<::Aero::Data::IValueConverter>::Run(context);
+    DescribeHook<::Aero::Data::IMultiValueConverter>::Run(context);
+    DescribeHook<::Aero::Data::BooleanToVisibilityConverter>::Run(context);
+    DescribeHook<::Aero::Data::BindingBase>::Run(context);
+    DescribeHook<::Aero::Data::RelativeSource>::Run(context);
+    DescribeHook<::Aero::Data::Binding>::Run(context);
+    DescribeHook<::Aero::Data::MultiBinding>::Run(context);
+    DescribeHook<::Aero::Data::MultiBindingProxy>::Run(context);
+    DescribeHook<::Aero::TriggerBase>::Run(context);
+    DescribeHook<::Aero::Trigger>::Run(context);
+    DescribeHook<::Aero::DataTrigger>::Run(context);
+    DescribeHook<::Aero::Condition>::Run(context);
+    DescribeHook<::Aero::MultiDataTrigger>::Run(context);
+    DescribeHook<::Aero::MultiTrigger>::Run(context);
+    DescribeHook<::Aero::Style>::Run(context);
     return {};
 }
 

@@ -62,26 +62,24 @@ namespace Aero {
 
 Base::Result<void> PopulateUiInput(
     ::Aero::Meta::Registration& context) noexcept {
-    ::Aero::Meta::DescribeHook<::Aero::EventArgs>::Run(context);
-    ::Aero::Meta::DescribeHook<::Aero::RoutedEventArgs>::Run(context);
-    ::Aero::Meta::DescribeHook<::Aero::InputEventArgs>::Run(context);
-    ::Aero::Meta::DescribeHook<::Aero::MouseEventArgs>::Run(context);
-    ::Aero::Meta::DescribeHook<::Aero::MouseButtonEventArgs>::Run(context);
-    ::Aero::Meta::DescribeHook<::Aero::MouseWheelEventArgs>::Run(context);
-    ::Aero::Meta::DescribeHook<::Aero::DragEventArgs>::Run(context);
-    ::Aero::Meta::DescribeHook<::Aero::GiveFeedbackEventArgs>::Run(context);
-    ::Aero::Meta::DescribeHook<::Aero::DragCompletedEventArgs>::Run(context);
-    ::Aero::Meta::DescribeHook<::Aero::KeyEventArgs>::Run(context);
-    ::Aero::Meta::DescribeHook<::Aero::TextCompositionEventArgs>::Run(context);
-    ::Aero::Meta::DescribeHook<::Aero::KeyboardFocusChangedEventArgs>::Run(context);
-    ::Aero::Meta::DescribeHook<::Aero::Input::KeyboardNavigation>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Input::FocusManager>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::CanExecuteRoutedEventArgs>::Run(context);
-    ::Aero::Meta::DescribeHook<::Aero::ExecutedRoutedEventArgs>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Input::Cursor>::Run(context);
+    using namespace Aero::Meta;
+    DescribeHook<::Aero::EventArgs>::Run(context);
+    DescribeHook<::Aero::RoutedEventArgs>::Run(context);
+    DescribeHook<::Aero::InputEventArgs>::Run(context);
+    DescribeHook<::Aero::MouseEventArgs>::Run(context);
+    DescribeHook<::Aero::MouseButtonEventArgs>::Run(context);
+    DescribeHook<::Aero::MouseWheelEventArgs>::Run(context);
+    DescribeHook<::Aero::DragEventArgs>::Run(context);
+    DescribeHook<::Aero::GiveFeedbackEventArgs>::Run(context);
+    DescribeHook<::Aero::DragCompletedEventArgs>::Run(context);
+    DescribeHook<::Aero::KeyEventArgs>::Run(context);
+    DescribeHook<::Aero::TextCompositionEventArgs>::Run(context);
+    DescribeHook<::Aero::KeyboardFocusChangedEventArgs>::Run(context);
+    DescribeHook<::Aero::Input::KeyboardNavigation>::Run(context);
+    DescribeHook<::Aero::Input::FocusManager>::Run(context);
+    DescribeHook<::Aero::CanExecuteRoutedEventArgs>::Run(context);
+    DescribeHook<::Aero::ExecutedRoutedEventArgs>::Run(context);
+    DescribeHook<::Aero::Input::Cursor>::Run(context);
     return {};
 }
 
@@ -92,16 +90,10 @@ namespace Aero {
 Base::Result<void> PopulateInputDevices(
     ::Aero::Meta::Registration& context) noexcept {
     using namespace Aero::Meta;
-    using namespace Aero::Input;
-
-    ::Aero::Meta::DescribeHook<::Aero::Input::Mouse>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Input::Keyboard>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::DataObject>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::DragDrop>::Run(context);
-
+    DescribeHook<::Aero::Input::Mouse>::Run(context);
+    DescribeHook<::Aero::Input::Keyboard>::Run(context);
+    DescribeHook<::Aero::DataObject>::Run(context);
+    DescribeHook<::Aero::DragDrop>::Run(context);
     return {};
 }
 

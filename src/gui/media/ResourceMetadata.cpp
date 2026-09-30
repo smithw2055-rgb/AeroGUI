@@ -93,52 +93,31 @@ AERO_DESCRIBE(FontFamily) {
 
 
 namespace Aero {
-using namespace ::Aero::MetadataSupport;
 
 Base::Result<void> PopulateUiResources(
     ::Aero::Meta::Registration& context) noexcept {
-    using namespace Media;
-    ::Aero::Meta::DescribeHook<::Aero::ResourceDictionary>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::Geometry>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::DashStyle>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::Pen>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::StreamGeometry>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::PathSegment>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::LineSegment>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::PathFigure>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::PathGeometry>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::BezierSegment>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::QuadraticBezierSegment>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::ArcSegment>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::PolyLineSegment>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::PolyBezierSegment>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::PolyQuadraticBezierSegment>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::LineGeometry>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::RectangleGeometry>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::EllipseGeometry>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::GeometryGroup>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::CombinedGeometry>::Run(context);
-
-    ::Aero::Meta::DescribeHook<::Aero::Media::FontFamily>::Run(context);
+    using namespace Aero::Meta;
+    DescribeHook<::Aero::ResourceDictionary>::Run(context);
+    DescribeHook<::Aero::Media::Geometry>::Run(context);
+    DescribeHook<::Aero::Media::DashStyle>::Run(context);
+    DescribeHook<::Aero::Media::Pen>::Run(context);
+    DescribeHook<::Aero::Media::StreamGeometry>::Run(context);
+    DescribeHook<::Aero::Media::PathSegment>::Run(context);
+    DescribeHook<::Aero::Media::LineSegment>::Run(context);
+    DescribeHook<::Aero::Media::PathFigure>::Run(context);
+    DescribeHook<::Aero::Media::PathGeometry>::Run(context);
+    DescribeHook<::Aero::Media::BezierSegment>::Run(context);
+    DescribeHook<::Aero::Media::QuadraticBezierSegment>::Run(context);
+    DescribeHook<::Aero::Media::ArcSegment>::Run(context);
+    DescribeHook<::Aero::Media::PolyLineSegment>::Run(context);
+    DescribeHook<::Aero::Media::PolyBezierSegment>::Run(context);
+    DescribeHook<::Aero::Media::PolyQuadraticBezierSegment>::Run(context);
+    DescribeHook<::Aero::Media::LineGeometry>::Run(context);
+    DescribeHook<::Aero::Media::RectangleGeometry>::Run(context);
+    DescribeHook<::Aero::Media::EllipseGeometry>::Run(context);
+    DescribeHook<::Aero::Media::GeometryGroup>::Run(context);
+    DescribeHook<::Aero::Media::CombinedGeometry>::Run(context);
+    DescribeHook<::Aero::Media::FontFamily>::Run(context);
     return {};
 }
 
