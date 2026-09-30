@@ -59,51 +59,7 @@
 #include <utility>
 
 namespace Aero::MetadataSupport {
-using namespace ::Aero::Meta;
-using namespace ::Aero::Threading;
-using namespace ::Aero::Input;
 using namespace ::Aero::Media;
-using namespace ::Aero::Data;
-using namespace ::Aero::Interactivity;
-    using namespace Interactivity;
-    using Media::Animation::BeginStoryboard;
-    using Media::Animation::BooleanAnimationUsingKeyFrames;
-    using Media::Animation::BooleanKeyFrame;
-    using Media::Animation::ColorAnimationUsingKeyFrames;
-    using Media::Animation::ColorKeyFrame;
-    using Media::Animation::DoubleAnimationUsingKeyFrames;
-    using Media::Animation::DoubleKeyFrame;
-    using Media::Animation::EventTrigger;
-    using Media::Animation::Int16AnimationUsingKeyFrames;
-    using Media::Animation::Int16KeyFrame;
-    using Media::Animation::Int32AnimationUsingKeyFrames;
-    using Media::Animation::Int32KeyFrame;
-    using Media::Animation::Int64AnimationUsingKeyFrames;
-    using Media::Animation::Int64KeyFrame;
-    using Media::Animation::MatrixAnimationUsingKeyFrames;
-    using Media::Animation::MatrixKeyFrame;
-    using Media::Animation::ObjectAnimationUsingKeyFrames;
-    using Media::Animation::ObjectKeyFrame;
-    using Media::Animation::PointAnimationUsingKeyFrames;
-    using Media::Animation::PointKeyFrame;
-    using Media::Animation::SizeAnimationUsingKeyFrames;
-    using Media::Animation::SizeKeyFrame;
-    using Media::Animation::Storyboard;
-    using Media::Animation::StoryboardCompletedTrigger;
-    using Media::Animation::StringAnimationUsingKeyFrames;
-    using Media::Animation::StringKeyFrame;
-    using Media::Animation::ThicknessAnimationUsingKeyFrames;
-    using Media::Animation::ThicknessKeyFrame;
-    using Media::Animation::Timeline;
-    using Media::Animation::TimelineGroup;
-    using Media::Effect;
-    using Media::FontFamily;
-    using Media::Geometry;
-    using Media::GeometryGroup;
-    using Media::PathFigure;
-    using Media::PathGeometry;
-    using Media::PathSegment;
-    using Media::StreamGeometry;
 namespace {
 
 Base::Result<Length> ConvertLength(
@@ -509,6 +465,8 @@ AERO_DESCRIBE(Length) {
 
 namespace Aero {
 using namespace ::Aero::MetadataSupport;
+using namespace ::Aero::Meta;
+using namespace ::Aero::Input;
 
 Base::Result<void> PopulateUiMedia(
     ::Aero::Meta::Registration& context) noexcept {

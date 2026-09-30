@@ -30,8 +30,6 @@
 
 namespace Aero::Render {
 
-using namespace Aero::Meta;
-using namespace Aero::Threading;
 namespace {
 
 Base::Status InvalidArgument(const char* message) noexcept {
@@ -442,7 +440,6 @@ Base::Result<DisplayList> DisplayListBuilder::Finish() noexcept {
 namespace Aero {
 
 using namespace Aero::Meta;
-using namespace Aero::Threading;
 using namespace Media;
 using Render::DisplayListBuilder;
 
@@ -953,7 +950,6 @@ Base::Result<void> ValidateRenderFrame(const RenderFrame& frame) noexcept {
 namespace Aero::Render {
 
 using namespace ::Aero;
-using namespace ::Aero::Meta;
 using namespace ::Aero::Threading;
 
 RenderTree::RenderTree(Dispatcher& dispatcher) noexcept
@@ -1485,7 +1481,6 @@ namespace Aero::Render {
 
 using namespace ::Aero;
 using namespace ::Aero::Meta;
-using namespace ::Aero::Threading;
 
 bool RenderTree::IsOverlay(
     const ::Aero::Media::Visual& element) const noexcept {

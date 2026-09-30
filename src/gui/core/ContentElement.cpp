@@ -195,11 +195,6 @@ void ContentElement::Detach() noexcept {
 
 // ---- Builtin metadata Fill (colocated from meta/Elements.inl) ----
 namespace Aero::Meta {
-using namespace ::Aero::Threading;
-using namespace ::Aero::Input;
-using namespace ::Aero::Media;
-using namespace ::Aero::Data;
-using namespace ::Aero::Media::Animation::Model;
 Base::Result<void> FillContentElementMetadata(
     ::Aero::Meta::Registration& context) noexcept {
     Register<ContentElement>(context, TypeFlags::Abstract);
