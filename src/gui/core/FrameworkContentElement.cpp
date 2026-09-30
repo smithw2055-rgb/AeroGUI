@@ -23,7 +23,6 @@
 #include "gui/core/EventRouter.hpp"
 #include "gui/input/InputManager.hpp"
 #include <Aero/Meta.hpp>
-#include "gui/core/ElementsFill.hpp"
 
 using namespace Aero;
 using namespace Aero::Media;
@@ -95,21 +94,3 @@ void FrameworkContentElement::AddAuthoredTrigger(
     rare->authoredTriggers.PushBack(std::move(trigger));
 }
 } // namespace Aero {
-
-
-// ---- Builtin metadata Fill (colocated from meta/Elements.inl) ----
-namespace Aero::Meta {
-Base::Result<void> FillFrameworkContentElementMetadata(
-    ::Aero::Meta::Registration& context) noexcept {
-    Register<FrameworkContentElement>(context, TypeFlags::Abstract)
-        .Property<Base::Ref<ResourceDictionary>, &FrameworkContentElement::SetResources>("Resources", PropertyFlags::Structural)
-        .Property(FrameworkContentElement::DataContextProperty, Value::NullObject(TypeOf<Base::Object>()), Inherits)
-        .Property(FrameworkContentElement::StyleProperty, Base::Ref<Style>{})
-        .Property(FrameworkContentElement::TagProperty, Value::NullObject(TypeOf<Base::Object>()))
-        .Property(FrameworkContentElement::IsEnabledProperty, true, Inherits)
-        .Property(FrameworkContentElement::IsMouseOverProperty, false)
-        .Property(FrameworkContentElement::CursorProperty, Base::String{}, Inherits)
-        .Property(FrameworkContentElement::OverridesDefaultStyleProperty, false);
-    return {};
-}
-} // namespace Aero::Meta

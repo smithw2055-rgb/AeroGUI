@@ -1315,10 +1315,20 @@ aero_forbid_text(
     "src/gui/ViewFrame.hpp"
     "gui/GuiRuntime.hpp"
     "ViewFrame must not include GuiRuntime")
-aero_forbid_text(
-    "src/gui/controls/ControlsMetadata.hpp"
-    "gui/core/ElementTree.hpp"
-    "Controls metadata registration must not pull the element tree")
+aero_forbid_file("src/gui/controls/ControlsMetadata.hpp")
+aero_forbid_file("src/gui/controls/ControlsMetadata.cpp")
+aero_forbid_file("src/gui/controls/ControlDescribes.inl")
+aero_forbid_file("src/gui/core/BuiltinModules.hpp")
+aero_forbid_file("src/gui/core/BuiltinModules.cpp")
+aero_forbid_file("src/gui/core/BuiltinMetadata.cpp")
+aero_forbid_file("src/gui/core/EnumMetadata.cpp")
+aero_forbid_file("src/gui/core/UiMetadata.hpp")
+aero_forbid_file("src/gui/core/ElementsFill.hpp")
+aero_forbid_file("src/gui/styles/StyleMetadata.cpp")
+aero_forbid_file("src/gui/input/InputMetadata.cpp")
+aero_forbid_file("src/gui/media/MediaMetadata.cpp")
+aero_forbid_file("src/gui/media/ResourceMetadata.cpp")
+aero_forbid_file("src/gui/media/AnimationMetadata.cpp")
 aero_require_text(
     "src/gui/styles/StyleEngine.hpp"
     "class StyleEngine"
@@ -1965,19 +1975,19 @@ aero_require_text(
     "class AERO_GUI_API EasingFunctionBase : public ::Aero::Freezable"
     "EasingFunctionBase must inherit Freezable")
 aero_require_text(
-    "src/gui/media/AnimationMetadata.cpp"
+    "src/gui/BuiltinModules.cpp"
     "RegisterAlias<EasingFunctionBase>(context, \"SineEase\")"
     "SineEase must stay an XAML alias of EasingFunctionBase")
 aero_require_text(
-    "src/gui/media/AnimationMetadata.cpp"
+    "src/gui/BuiltinModules.cpp"
     "RegisterAlias<EasingFunctionBase>(context, \"ElasticEase\")"
     "ElasticEase must stay an XAML alias of EasingFunctionBase")
 aero_require_text(
-    "src/gui/media/AnimationMetadata.cpp"
+    "src/gui/BuiltinModules.cpp"
     "AERO_KEYFRAMES(Double, double)"
     "LinearDoubleKeyFrame must stay an XAML alias of DoubleKeyFrame")
 aero_require_text(
-    "src/gui/media/AnimationMetadata.cpp"
+    "src/gui/BuiltinModules.cpp"
     "AERO_KEYFRAME_ALIAS(Name, Linear)"
     "Keyframe aliases must include the Linear interpolation name")
 aero_require_text(

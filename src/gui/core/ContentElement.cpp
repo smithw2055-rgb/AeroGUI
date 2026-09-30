@@ -8,7 +8,6 @@
 #include "gui/core/EventRouter.hpp"
 #include "gui/core/ErasedRoutedHandler.hpp"
 #include <Aero/Meta.hpp>
-#include "gui/core/ElementsFill.hpp"
 
 #include <Aero/Base/Assert.hpp>
 
@@ -192,12 +191,3 @@ void ContentElement::Detach() noexcept {
 }
 
 } // namespace Aero
-
-// ---- Builtin metadata Fill (colocated from meta/Elements.inl) ----
-namespace Aero::Meta {
-Base::Result<void> FillContentElementMetadata(
-    ::Aero::Meta::Registration& context) noexcept {
-    Register<ContentElement>(context, TypeFlags::Abstract);
-    return {};
-}
-} // namespace Aero::Meta

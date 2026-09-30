@@ -30,7 +30,7 @@ dir. IDE-only virtual folders are defined via `source_group()` in
 | `Controls/ContentControl.hpp`, `UserControl.hpp`, `Headers.hpp` … | `ContentControls.cpp` |
 | `Controls/Image.hpp` | `Images.cpp` |
 | `VisualStateManager.hpp` | `VisualStateManager.cpp` |
-| Metadata bootstrap | `ControlsMetadata.cpp` + `ControlsMetadata.hpp` + `ControlPropertyValidators.hpp` + `metadata/Metadata.{Foundation,Widgets,Layout}.inl` (7 former `*.inl` merged in stable registration order) |
+| Metadata bootstrap | `gui/BuiltinModules.cpp` (+ `gui/BuiltinModules.hpp`); `ControlPropertyValidators.hpp` remains under controls |
 
 ## Media / animation (`src/gui/media/`, flat)
 
@@ -48,7 +48,7 @@ dir. IDE-only virtual folders are defined via `source_group()` in
 | --- | --- |
 | `Data/Binding*.hpp` | `data/Binding.cpp`, `BindingPath.cpp`, `BindingEvaluation.cpp`, `BindingExpression.cpp`, `BindingOperations.cpp` (shared: `BindingCommon.hpp`, `BindingEngine.hpp`), `CollectionView.cpp` |
 | `Markup/Xaml*.hpp` | `markup/XamlParser.cpp`, `XamlObjectWriter*.cpp`, `XamlObjectLoader.cpp`, `XamlCompiled{Schema,Document}.cpp`, `XamlSchema*.cpp`, `XamlDocumentCache.cpp`, `GuiSchema.cpp`, `TemplateCompiler.cpp` |
-| `Meta.hpp` / `Module.hpp` | `meta/Metadata.cpp`, `Module.cpp`, `BuiltinMetadata.cpp`, `BuiltinModules.cpp`, `EnumMetadata.cpp`, `Value.cpp` + `*.inl` tables + `TypeBuilderCore.hpp` (renamed from `TypeBuilderDetail.hpp`) |
+| `Meta.hpp` / `Module.hpp` | `core/Metadata.cpp`, `Module.cpp`, `gui/BuiltinModules.cpp`, `Value.cpp` + tables + `TypeBuilderCore.hpp` |
 | `Triggers/*`, `Interactivity/*` | `triggers/Trigger*.cpp` + `interactivity/InteractivityEngine*.cpp` + `BlendBehaviors.cpp` |
 | Text stack | `text/TextPipeline.cpp`, `TextLayout.cpp`, `GlyphAtlas.cpp`, `FontManager.cpp`, `EditableText.cpp` + `freetype/` + `harfbuzz/` adapters |
 | Input | `input/Input.cpp` (routing), `Commands.cpp`, `OverlayHost.cpp`, `Clipboard.cpp`, `DragDrop.cpp`, `Cursor(s).cpp`, `Mouse.cpp`, `Keyboard.cpp`, `DataObject.cpp`; focus queue in `ViewInput.cpp`, declaration in `input/InputManager.hpp` (merged from `FocusHost.hpp`) |
@@ -71,7 +71,7 @@ was used for observable API comparison only; no implementation was copied.
 | Area | Change |
 | --- | --- |
 | DP public surface | `DependencyObject.hpp` keeps Noesis-parity API (Get/Set/Clear/Coerce/expressions/notifications); `ChangeHandlerRecord`/`DependencyObjectRare`/`DependencyMutationScope` (ex-`MutationScope`) live in `core/PropertyStore.hpp`. `ChangeKind` stays public (used by `Resources.hpp`). Friend: `DependencyMutationScope`. |
-| Meta colocate pilot | `meta/Elements.inl`: one `PopulateUiElements` → 5 per-class `Fill*Metadata` + dispatcher, same order/linkage. Full colocate (Fill next to impl) waits on untangling `Support.inl` helpers shared in the `BuiltinMetadata.cpp` anonymous namespace. |
+| Meta registration | All built-in UI/markup `Populate*` / `Fill*` / `Register*` installers live in `gui/BuiltinModules.cpp` (one TU). |
 | Meta gap (verified) | `TemplatePart`/`DependsOn` have no Aero equivalent (Noesis: `TypeMetaData` subclasses). Consumption exists (`Control::GetTemplateChild(name)`, `PART_*` convention). Recording needs a new facet kind, but `FacetDraft::facets[11]` is single-index-per-kind while PARTs are one-to-many → requires facet-model redesign (range encoding or side-table) + template-tooling consumption. Tracked as feature design, not done here. |
 | View content API | Canonical: `SetContent(doc, size)` + `SetContent(root, size)`. `SetContent(root)` is `[[deprecated]]` (no in-tree callers; `Gui::CreateView(content)` migrated to explicit empty size, behavior-identical). `SetContent(root, doc, size)` kept (used by `DesktopHost`); new fragment mounts prefer `XamlReader::MountFragment`. See `XamlReader.hpp` entry-point guide. |
 | PCH tiers | `AeroPCH.hpp` gains a host-integration tier (`Input.hpp`, `TextureProvider.hpp`, `FontProvider.hpp`, `XamlReader.hpp`), mirroring the NoesisPCH Providers banner. Type-header-direct users unaffected. |

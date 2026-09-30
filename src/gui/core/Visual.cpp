@@ -24,7 +24,6 @@
 #include "gui/media/Transform3DMath.hpp" 
 #include "gui/input/InputManager.hpp"
 #include <Aero/Meta.hpp>
-#include "gui/core/ElementsFill.hpp"
 
 using namespace Aero;
 using namespace Aero::Media;
@@ -227,12 +226,3 @@ bool Visual::TryPointFromScreen(
 }
 } // namespace Media {
 } // namespace Aero {
-
-// ---- Builtin metadata Fill (colocated from meta/Elements.inl) ----
-namespace Aero::Meta {
-Base::Result<void> FillVisualMetadata(
-    ::Aero::Meta::Registration& context) noexcept {
-    Register<Visual>(context, TypeFlags::Abstract);
-    return {};
-}
-} // namespace Aero::Meta

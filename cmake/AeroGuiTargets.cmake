@@ -55,11 +55,8 @@ set(_aero_gui_core_sources
     src/gui/core/FrameworkContentElement.cpp
     src/gui/core/DependencyObject.cpp
     src/gui/core/Metadata.cpp
-    src/gui/core/EnumMetadata.cpp
-    src/gui/core/BuiltinMetadata.cpp
     src/gui/core/Value.cpp
-    src/gui/core/Module.cpp
-    src/gui/core/BuiltinModules.cpp)
+    src/gui/core/Module.cpp)
 
 set(_aero_gui_data_sources
     src/gui/data/BindingPath.cpp
@@ -70,8 +67,7 @@ set(_aero_gui_data_sources
 
 set(_aero_gui_styles_sources
     src/gui/styles/Resources.cpp
-    src/gui/styles/Style.cpp
-    src/gui/styles/StyleMetadata.cpp)
+    src/gui/styles/Style.cpp)
 
 set(_aero_gui_input_sources
     src/gui/input/Commands.cpp
@@ -82,8 +78,7 @@ set(_aero_gui_input_sources
     src/gui/input/DataObject.cpp
     src/gui/input/DragDrop.cpp
     src/gui/input/Clipboard.cpp
-    src/gui/input/OverlayHost.cpp
-    src/gui/input/InputMetadata.cpp)
+    src/gui/input/OverlayHost.cpp)
 
 set(_aero_gui_triggers_sources
     src/gui/triggers/Triggers.cpp
@@ -113,10 +108,7 @@ set(_aero_gui_media_sources
     src/gui/media/AnimationPathResolver.cpp
     src/gui/media/StoryboardHost.cpp
     src/gui/media/StoryboardClock.cpp
-    src/gui/media/StoryboardActions.cpp
-    src/gui/media/MediaMetadata.cpp
-    src/gui/media/ResourceMetadata.cpp
-    src/gui/media/AnimationMetadata.cpp)
+    src/gui/media/StoryboardActions.cpp)
 
 set(_aero_gui_controls_sources
     src/gui/controls/RichText.cpp
@@ -131,7 +123,6 @@ set(_aero_gui_controls_sources
     src/gui/controls/ItemContainerGenerator.cpp
     src/gui/controls/ListView.cpp
     src/gui/controls/Menus.cpp
-    src/gui/controls/ControlsMetadata.cpp
     src/gui/controls/ScrollContentPresenter.cpp
     src/gui/controls/ScrollViewer.cpp
     src/gui/controls/ScrollBar.cpp
@@ -201,6 +192,7 @@ set(_aero_gui_render_contract_sources
     src/render/TextRenderer.cpp)
 
 set(_aero_gui_composition_sources
+    src/gui/BuiltinModules.cpp
     src/gui/Gui.cpp
     src/gui/View.cpp
     src/gui/ViewFrame.cpp
@@ -215,7 +207,6 @@ set(_aero_gui_inlines
 set(_aero_gui_internal_headers
     src/gui/data/BindingCommon.hpp
     src/gui/data/BindingPath.hpp
-    src/gui/controls/ControlsMetadata.hpp
     src/gui/controls/ControlPropertyValidators.hpp
     src/gui/controls/ScrollCommon.hpp
     src/gui/controls/TextBoxCommon.hpp
