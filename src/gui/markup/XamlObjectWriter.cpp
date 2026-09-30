@@ -8116,7 +8116,7 @@ Base::Result<Aero::ResourceValue> ObjectWriter::LookupResource(
 
             }
 
-            Base::Result<Aero::ResourceValue> value =
+            Aero::ResourceValue value =
 
                 (resourceScopes_[frame.resourceScopeIndex].external != nullptr
 
@@ -8126,15 +8126,9 @@ Base::Result<Aero::ResourceValue> ObjectWriter::LookupResource(
 
                     ->Lookup(resourceKey);
 
-            if (value) {
+            if (value.Kind() != Meta::ValueKind::Unset) {
 
                 return value;
-
-            }
-
-            if (value.GetStatus().code != Base::ErrorCode::NotFound) {
-
-                return value.GetStatus();
 
             }
 
@@ -8180,17 +8174,11 @@ Base::Result<Aero::ResourceValue> ObjectWriter::LookupResource(
 
             if (templateResources != nullptr) {
 
-                Base::Result<Aero::ResourceValue> value =
+                Aero::ResourceValue value =
 
                     templateResources->Lookup(resourceKey);
 
-                if (value) return value;
-
-                if (value.GetStatus().code != Base::ErrorCode::NotFound) {
-
-                    return value.GetStatus();
-
-                }
+                if (value.Kind() != Meta::ValueKind::Unset) return value;
 
             }
 
@@ -8218,51 +8206,33 @@ Base::Result<Aero::ResourceValue> ObjectWriter::LookupResource(
 
                     : &scope.resources;
 
-            Base::Result<Aero::ResourceValue> value =
+            Aero::ResourceValue value =
 
                 dictionary->Lookup(resourceKey);
 
-            if (value) return value;
-
-            if (value.GetStatus().code != Base::ErrorCode::NotFound) {
-
-                return value.GetStatus();
-
-            }
+            if (value.Kind() != Meta::ValueKind::Unset) return value;
 
         }
 
         {
 
-            Base::Result<Aero::ResourceValue> committed =
+            Aero::ResourceValue committed =
 
                 committedResources_.Lookup(resourceKey);
 
-            if (committed) return committed;
-
-            if (committed.GetStatus().code != Base::ErrorCode::NotFound) {
-
-                return committed.GetStatus();
-
-            }
+            if (committed.Kind() != Meta::ValueKind::Unset) return committed;
 
         }
 
         if (loadContext_ != nullptr && loadContext_->resources != nullptr) {
 
-            Base::Result<Aero::ResourceValue> value =
+            Aero::ResourceValue value =
 
                 loadContext_->resources->Lookup(resourceKey);
 
-            if (value) {
+            if (value.Kind() != Meta::ValueKind::Unset) {
 
                 return value;
-
-            }
-
-            if (value.GetStatus().code != Base::ErrorCode::NotFound) {
-
-                return value.GetStatus();
 
             }
 
@@ -8274,19 +8244,13 @@ Base::Result<Aero::ResourceValue> ObjectWriter::LookupResource(
 
             loadContext_->fallbackResources != loadContext_->resources) {
 
-            Base::Result<Aero::ResourceValue> value =
+            Aero::ResourceValue value =
 
                 loadContext_->fallbackResources->Lookup(resourceKey);
 
-            if (value) {
+            if (value.Kind() != Meta::ValueKind::Unset) {
 
                 return value;
-
-            }
-
-            if (value.GetStatus().code != Base::ErrorCode::NotFound) {
-
-                return value.GetStatus();
 
             }
 

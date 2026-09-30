@@ -584,14 +584,13 @@ Base::Ref<DataTemplate> ItemsControl::GetTemplateForItemOverride(
     const Meta::TypeRegistry& types = DependencyObjectAccess::PropertyRegistry((*this)).Types();
     Meta::TypeId type = item->RuntimeType();
     while (type != Meta::InvalidTypeId) {
-        Base::Result<ResourceValue> found =
+        ResourceValue found =
             TryFindResource(ResourceKey::FromType(type));
-        if (found &&
-            found.Value().Kind() == Meta::ValueKind::Object &&
-            !found.Value().IsNullObject() &&
-            found.Value().AsObject()) {
+        if (found.Kind() == Meta::ValueKind::Object &&
+            !found.IsNullObject() &&
+            found.AsObject()) {
             if (DataTemplate* dataTemplate = TryCast<DataTemplate>(
-                    found.Value().AsObject().Get())) {
+                    found.AsObject().Get())) {
                 return Base::Ref<DataTemplate>::FromBorrowed(*dataTemplate);
             }
         }

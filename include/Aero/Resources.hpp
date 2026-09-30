@@ -131,13 +131,15 @@ public:
     bool Set(StringView key, Meta::TypeId type, const Ref<Base::Object>& object,
         ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
 
-    Result<bool> Remove(const ResourceKey& key) noexcept;
-    Result<bool> Remove(StringView key) noexcept;
-    Result<bool> Remove(Meta::TypeId key) noexcept;
+    // Soft-fail like Set: false on missing/invalid/sealed.
+    bool Remove(const ResourceKey& key) noexcept;
+    bool Remove(StringView key) noexcept;
+    bool Remove(Meta::TypeId key) noexcept;
 
-    Result<ResourceValue> Lookup(const ResourceKey& key) const noexcept;
-    Result<ResourceValue> Lookup(StringView key) const noexcept;
-    Result<ResourceValue> Lookup(Meta::TypeId key) const noexcept;
+    // Try-style lookup: empty/Unset value when missing (not Result like FindResource).
+    ResourceValue Lookup(const ResourceKey& key) const noexcept;
+    ResourceValue Lookup(StringView key) const noexcept;
+    ResourceValue Lookup(Meta::TypeId key) const noexcept;
     bool Contains(const ResourceKey& key) const noexcept;
     bool Contains(StringView key) const noexcept;
     bool Contains(Meta::TypeId key) const noexcept;
@@ -169,8 +171,9 @@ public:
     Result<ResourceEntrySnapshot> EntryAt(std::uint32_t index) const noexcept;
     std::uint64_t Generation() const noexcept;
 
-    // Nested dictionary storage (TU-local definition). Not a separate
-    // public companion type.
+    // Incomplete nested storage (definition TU-local). Public only as a
+    // forward name so engine helpers can mention the type; the pointer
+    // state_ stays private.
     struct DictionaryState;
 
 private:

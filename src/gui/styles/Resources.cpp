@@ -697,20 +697,10 @@ bool ResourceDictionary::Set(
     return static_cast<bool>(StoreResource(key, type, object, source));
 }
 
-Base::Result<bool> ResourceDictionary::Remove(
+bool ResourceDictionary::Remove(
     const ResourceKey& key) noexcept {
-    if (!key.IsValid()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            MessageInvalidResource);
-    }
-    if (state_ == nullptr) {
+    if (!key.IsValid() || state_ == nullptr || state_->sealed) {
         return false;
-    }
-    if (state_->sealed) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ReadOnly,
-            MessageReadOnly);
     }
     for (std::uint32_t index = 0U;
          index < state_->entries.Size();
@@ -732,80 +722,66 @@ Base::Result<bool> ResourceDictionary::Remove(
     return false;
 }
 
-Base::Result<bool> ResourceDictionary::Remove(
+bool ResourceDictionary::Remove(
     Base::StringView key) noexcept {
     Base::Result<ResourceKey> resourceKey =
         ResourceKey::FromString(key);
     if (!resourceKey) {
-        return resourceKey.GetStatus();
+        return false;
     }
     return Remove(resourceKey.Value());
 }
 
-Base::Result<bool> ResourceDictionary::Remove(
+bool ResourceDictionary::Remove(
     Meta::TypeId key) noexcept {
     return Remove(ResourceKey::FromType(key));
 }
 
-Base::Result<ResourceValue> ResourceDictionary::Lookup(
+ResourceValue ResourceDictionary::Lookup(
     const ResourceKey& key) const noexcept {
-    if (!key.IsValid()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            MessageInvalidResource);
-    }
-    if (state_ == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            MessageResourceNotFound);
+    if (!key.IsValid() || state_ == nullptr) {
+        return ResourceValue{};
     }
     Base::Vector<const Access*> visited;
-    return LookupImpl(*state_, key, visited);
+    Base::Result<ResourceValue> result =
+        LookupImpl(*state_, key, visited);
+    return result ? result.Value() : ResourceValue{};
 }
 
-Base::Result<ResourceValue> ResourceDictionary::Lookup(
+ResourceValue ResourceDictionary::Lookup(
     Base::StringView key) const noexcept {
     Base::Result<ResourceKey> resourceKey =
         ResourceKey::FromString(key);
     if (!resourceKey) {
-        return resourceKey.GetStatus();
+        return ResourceValue{};
     }
-    Base::Result<ResourceValue> result =
-        Lookup(resourceKey.Value());
-    if (!result &&
-        result.GetStatus().code == Base::ErrorCode::NotFound) {
-        thread_local char message[384];
-        std::snprintf(
-            message,
-            sizeof(message),
-            "ResourceDictionary key '%.*s' was not found",
-            static_cast<int>(key.SizeBytes()),
-            key.Data());
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            message);
-    }
-    return result;
+    return Lookup(resourceKey.Value());
 }
 
-Base::Result<ResourceValue> ResourceDictionary::Lookup(
+ResourceValue ResourceDictionary::Lookup(
     Meta::TypeId key) const noexcept {
     return Lookup(ResourceKey::FromType(key));
 }
 
 bool ResourceDictionary::Contains(
     const ResourceKey& key) const noexcept {
-    return static_cast<bool>(Lookup(key));
+    if (!key.IsValid() || state_ == nullptr) {
+        return false;
+    }
+    Base::Vector<const Access*> visited;
+    return static_cast<bool>(LookupImpl(*state_, key, visited));
 }
 
 bool ResourceDictionary::Contains(
     Base::StringView key) const noexcept {
-    return static_cast<bool>(Lookup(key));
+    Base::Result<ResourceKey> resourceKey =
+        ResourceKey::FromString(key);
+    return resourceKey ? Contains(resourceKey.Value()) : false;
 }
 
 bool ResourceDictionary::Contains(
     Meta::TypeId key) const noexcept {
-    return static_cast<bool>(Lookup(key));
+    return Contains(ResourceKey::FromType(key));
 }
 
 ::Aero::Diagnostics::SourceSpan ResourceDictionary::SourceOf(
@@ -1123,13 +1099,9 @@ Base::Result<ResourceValue> ResourceResolver::Lookup(
     while (current != nullptr) {
         const ResourceDictionary* owned = current->LocalResources();
         if (owned != nullptr) {
-            Base::Result<ResourceValue> local = owned->Lookup(key);
-            if (local) {
-                return local.Value();
-            }
-            if (local.GetStatus().code !=
-                Base::ErrorCode::NotFound) {
-                return local.GetStatus();
+            ResourceValue local = owned->Lookup(key);
+            if (local.Kind() != Meta::ValueKind::Unset) {
+                return local;
             }
         }
         const FrameworkElement* next = ::Aero::TryCast<FrameworkElement>(current->GetLogicalParent());
@@ -1150,14 +1122,9 @@ Base::Result<ResourceValue> ResourceResolver::Lookup(
         if (layer == nullptr) {
             continue;
         }
-        Base::Result<ResourceValue> value =
-            layer->Lookup(key);
-        if (value) {
-            return value.Value();
-        }
-        if (value.GetStatus().code !=
-            Base::ErrorCode::NotFound) {
-            return value.GetStatus();
+        ResourceValue value = layer->Lookup(key);
+        if (value.Kind() != Meta::ValueKind::Unset) {
+            return value;
         }
     }
     return Base::Status::Failure(

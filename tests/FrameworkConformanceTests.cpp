@@ -4352,14 +4352,13 @@ bool TestDataTemplateItemHoverStoryboard() {
 
     const DataTemplate* itemTemplate = players->GetItemTemplate();
     CHECK(itemTemplate != nullptr);
-    Result<Aero::ResourceValue> overOn =
+    Aero::ResourceValue overOn =
         itemTemplate->GetResources().Lookup(StringView("OverOn"));
-    if (!overOn) {
+    if (overOn.Kind() == Meta::ValueKind::Unset) {
         std::fprintf(stderr,
-            "DataTemplate.Resources missing OverOn: %s\n",
-            overOn.GetStatus().message);
+            "DataTemplate.Resources missing OverOn\n");
     }
-    CHECK(overOn);
+    CHECK(overOn.Kind() != Meta::ValueKind::Unset);
 
     Result<Ref<ObservableCollection<BindingSlotItem>>> items =
         MakeRef<ObservableCollection<BindingSlotItem>>();

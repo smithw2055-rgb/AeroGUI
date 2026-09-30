@@ -1678,9 +1678,9 @@ bool ApplyDictionaryTemplates(
         if (!dictionary.Contains(CStringView(host.key))) {
             continue;
         }
-        Result<Aero::ResourceValue> resource =
+        Aero::ResourceValue resource =
             dictionary.Lookup(CStringView(host.key));
-        if (!resource) {
+        if (resource.Kind() == Meta::ValueKind::Unset) {
             continue;
         }
         live.diagnostics.Clear();

@@ -3501,23 +3501,15 @@ Base::Result<Meta::PropertyValue> EvaluateDynamicResource(
 
         }
 
-        Base::Result<Aero::ResourceValue> resource =
+        Aero::ResourceValue resource =
 
             source.resources.Lookup(state->key.View());
 
-        if (resource) {
+        if (resource.Kind() != Meta::ValueKind::Unset) {
 
             return ConvertLookedUpDynamicResource(
 
-                resource.Value(), descriptor);
-
-        }
-
-        if (resource.GetStatus().code !=
-
-            Base::ErrorCode::NotFound) {
-
-            return resource.GetStatus();
+                resource, descriptor);
 
         }
 

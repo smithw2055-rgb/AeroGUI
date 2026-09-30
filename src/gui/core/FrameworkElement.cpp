@@ -363,28 +363,16 @@ Result<ResourceValue> FrameworkElement::FindResource(
         ElementTree::EnvironmentOf(*this));
 }
 
-Result<ResourceValue> FrameworkElement::TryFindResource(
+ResourceValue FrameworkElement::TryFindResource(
     const ResourceKey& key) const noexcept {
     Result<ResourceValue> found = FindResource(key);
-    if (found) {
-        return found;
-    }
-    if (found.GetStatus().code == Base::ErrorCode::NotFound) {
-        return ResourceValue{};
-    }
-    return found.GetStatus();
+    return found ? found.Value() : ResourceValue{};
 }
 
-Result<ResourceValue> FrameworkElement::TryFindResource(
+ResourceValue FrameworkElement::TryFindResource(
     StringView key) const noexcept {
     Result<ResourceValue> found = FindResource(key);
-    if (found) {
-        return found;
-    }
-    if (found.GetStatus().code == Base::ErrorCode::NotFound) {
-        return ResourceValue{};
-    }
-    return found.GetStatus();
+    return found ? found.Value() : ResourceValue{};
 }
 FrameworkElement* FrameworkElementChildRange::Iterator::operator*() const noexcept {
     ::Aero::Media::Visual* child = owner_ != nullptr ? ::Aero::Media::VisualTreeHelper::GetChild(*owner_, index_) : nullptr;

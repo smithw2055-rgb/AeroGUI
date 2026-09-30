@@ -108,8 +108,9 @@ public:
     }
     Result<ResourceValue> FindResource(const ResourceKey& key) const noexcept;
     Result<ResourceValue> FindResource(StringView key) const noexcept;
-    Result<ResourceValue> TryFindResource(const ResourceKey& key) const noexcept;
-    Result<ResourceValue> TryFindResource(StringView key) const noexcept;
+    // WPF TryFindResource: missing key yields empty/null, not a Result failure.
+    ResourceValue TryFindResource(const ResourceKey& key) const noexcept;
+    ResourceValue TryFindResource(StringView key) const noexcept;
     ResourceDictionary& GetResources() noexcept;
     const ResourceDictionary& GetResources() const noexcept;
     void SetResources(Ref<ResourceDictionary> value) noexcept;
