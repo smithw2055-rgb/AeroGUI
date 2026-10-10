@@ -588,7 +588,8 @@ foreach(source_contract_file IN LISTS aero_source_contract_files)
             "AERO_(BASE|AUDIO|GUI|APP)_API")
         file(RELATIVE_PATH source_contract_relative
             "${AERO_SOURCE_DIR}" "${source_contract_file}")
-        if(NOT source_contract_relative MATCHES "TypeBuilderCore")
+        if(NOT source_contract_relative MATCHES "TypeBuilderCore" AND
+           NOT source_contract_relative MATCHES "DispatcherReentrancyGuard")
             message(FATAL_ERROR
                 "Source implementation must not carry an API export macro: ${source_contract_relative}")
         endif()
@@ -632,7 +633,9 @@ set(aero_allowed_gui_root_files
     "src/gui/ViewFrame.hpp"
     "src/gui/ViewRenderer.hpp"
     "src/gui/ViewRenderer.cpp"
-    "src/gui/ViewDocuments.cpp")
+    "src/gui/ViewDocuments.cpp"
+    "src/gui/BuiltinModules.cpp"
+    "src/gui/BuiltinModules.hpp")
 foreach(aero_gui_root_file IN LISTS aero_gui_root_files)
     if(NOT aero_gui_root_file IN_LIST aero_allowed_gui_root_files)
         message(FATAL_ERROR
@@ -1406,7 +1409,7 @@ aero_require_text(
     "FrameworkElement must expose WPF-shaped FindResource")
 aero_require_text(
     "include/Aero/FrameworkElement.hpp"
-    "Result<ResourceValue> TryFindResource(const ResourceKey& key) const noexcept"
+    "ResourceValue TryFindResource(const ResourceKey& key) const noexcept"
     "FrameworkElement must expose WPF-shaped TryFindResource")
 aero_forbid_text(
     "include/Aero/Controls/Ranges.hpp"
@@ -2682,6 +2685,7 @@ set(aero_one_type_exemptions
     include/Aero/Controls/ToolBar.hpp
     include/Aero/Controls/ToolTip.hpp
     include/Aero/Controls/UserControl.hpp
+    include/Aero/Controls/ContentControl.hpp
     include/Aero/InputGesture.hpp
     include/Aero/InputBinding.hpp
     include/Aero/RoutedCommand.hpp

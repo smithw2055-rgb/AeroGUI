@@ -141,6 +141,7 @@ void UiFrameEncoder::Shutdown() noexcept {
     glyphRuns_.Clear();
     meshes_.Clear();
     offscreenTargets_.Clear();
+    queuedBatches_.Clear();
     initialized_ = false;
 }
 
@@ -388,6 +389,8 @@ RenderTarget* UiFrameEncoder::GetOrCreateOffscreenTarget(
 }
 
 void UiFrameEncoder::ResetFrame() noexcept {
+    queuedBatches_.Clear();
+    currentBatchVertexStart_ = 0U;
     currentVertexOffset_ = 0U;
     currentVertexCount_ = 0U;
     currentIndexCount_ = 0U;
@@ -397,42 +400,90 @@ void UiFrameEncoder::ResetFrame() noexcept {
     stats_ = FrameStatistics{};
 }
 
+bool UiFrameEncoder::EnsureMappedBuffers() noexcept {
+    if (mappedVertices_ != nullptr && mappedIndices_ != nullptr) {
+        return true;
+    }
+    if (device_ == nullptr) return false;
+    mappedVertices_ = static_cast<uint8_t*>(device_->MapVertices(DYNAMIC_VB_SIZE));
+    mappedIndices_ = static_cast<uint16_t*>(device_->MapIndices(DYNAMIC_IB_SIZE));
+    return mappedVertices_ != nullptr && mappedIndices_ != nullptr;
+}
+
 void UiFrameEncoder::FlushBatch() noexcept {
-    if (currentBatch_.numIndices > 0U && device_ != nullptr) {
-        // Unmap the dynamic buffers before issuing the draw. D3D11 does not
-        // permit drawing while a vertex/index buffer is mapped.
-        if (mappedVertices_ != nullptr) {
-            device_->UnmapVertices();
-            mappedVertices_ = nullptr;
+    if (currentBatch_.numIndices > 0U) {
+        QueuedBatch qb{};
+        qb.batch = currentBatch_;
+        if (currentBatch_.pixelUniforms[0].values != nullptr && currentBatch_.pixelUniforms[0].numDwords > 0U) {
+            const uint32_t count = std::min(currentBatch_.pixelUniforms[0].numDwords, 8U);
+            std::memcpy(qb.pixelUniforms0, currentBatch_.pixelUniforms[0].values, count * sizeof(float));
+            qb.batch.pixelUniforms[0].values = qb.pixelUniforms0;
         }
-        if (mappedIndices_ != nullptr) {
-            device_->UnmapIndices();
-            mappedIndices_ = nullptr;
+        if (currentBatch_.pixelUniforms[1].values != nullptr && currentBatch_.pixelUniforms[1].numDwords > 0U) {
+            const uint32_t count = std::min(currentBatch_.pixelUniforms[1].numDwords, 4U);
+            std::memcpy(qb.pixelUniforms1, currentBatch_.pixelUniforms[1].values, count * sizeof(float));
+            qb.batch.pixelUniforms[1].values = qb.pixelUniforms1;
         }
+        if (currentBatch_.vertexUniforms[0].values != nullptr && currentBatch_.vertexUniforms[0].numDwords > 0U) {
+            const uint32_t count = std::min(currentBatch_.vertexUniforms[0].numDwords, 4U);
+            std::memcpy(qb.vertexUniforms0, currentBatch_.vertexUniforms[0].values, count * sizeof(float));
+            qb.batch.vertexUniforms[0].values = qb.vertexUniforms0;
+        }
+        if (currentBatch_.vertexUniforms[1].values != nullptr && currentBatch_.vertexUniforms[1].numDwords > 0U) {
+            const uint32_t count = std::min(currentBatch_.vertexUniforms[1].numDwords, 4U);
+            std::memcpy(qb.vertexUniforms1, currentBatch_.vertexUniforms[1].values, count * sizeof(float));
+            qb.batch.vertexUniforms[1].values = qb.vertexUniforms1;
+        }
+        static_cast<void>(queuedBatches_.PushBack(std::move(qb)));
 
-        device_->DrawBatch(currentBatch_);
-        ++stats_.drawCallCount;
-        ++stats_.batchCount;
-
-        // Remap with WRITE_DISCARD to get a fresh buffer; recording restarts
-        // from offset zero for the next batch.
-        mappedVertices_ = static_cast<uint8_t*>(device_->MapVertices(DYNAMIC_VB_SIZE));
-        mappedIndices_ = static_cast<uint16_t*>(device_->MapIndices(DYNAMIC_IB_SIZE));
-        currentVertexOffset_ = 0U;
-        currentVertexCount_ = 0U;
-        currentIndexCount_ = 0U;
-        currentBatch_.startIndex = 0U;
-        currentBatch_.vertexOffset = 0U;
         currentBatch_.numIndices = 0U;
         currentBatch_.numVertices = 0U;
+        currentBatch_.startIndex = currentIndexCount_;
+        currentBatch_.vertexOffset = currentVertexOffset_;
+        currentBatchVertexStart_ = currentVertexCount_;
     }
+}
+
+void UiFrameEncoder::CommitBatches() noexcept {
+    if (currentBatch_.numIndices > 0U) {
+        FlushBatch();
+    }
+    if (queuedBatches_.Empty() || device_ == nullptr) {
+        return;
+    }
+
+    if (mappedVertices_ != nullptr) {
+        device_->UnmapVertices();
+        mappedVertices_ = nullptr;
+    }
+    if (mappedIndices_ != nullptr) {
+        device_->UnmapIndices();
+        mappedIndices_ = nullptr;
+    }
+    for (const auto& qb : queuedBatches_) {
+        device_->DrawBatch(qb.batch);
+        ++stats_.drawCallCount;
+        ++stats_.batchCount;
+    }
+    queuedBatches_.Clear();
+
+    currentVertexOffset_ = 0U;
+    currentVertexCount_ = 0U;
+    currentIndexCount_ = 0U;
+    currentBatchVertexStart_ = 0U;
+    currentBatch_.startIndex = 0U;
+    currentBatch_.vertexOffset = 0U;
+    currentBatch_.numIndices = 0U;
+    currentBatch_.numVertices = 0U;
 }
 
 void UiFrameEncoder::EmitQuad(
     const Point points[4],
     const Point uvs[4],
     Color color) noexcept {
-    if (mappedVertices_ == nullptr || mappedIndices_ == nullptr) return;
+    if (mappedVertices_ == nullptr || mappedIndices_ == nullptr) {
+        if (!EnsureMappedBuffers()) return;
+    }
     for (int i = 0; i < 4; ++i) {
         if (!std::isfinite(points[i].x) || !std::isfinite(points[i].y)) {
             return;
@@ -441,20 +492,8 @@ void UiFrameEncoder::EmitQuad(
 
     if (currentVertexCount_ + 4U > (DYNAMIC_VB_SIZE / sizeof(Vertex2D)) ||
         currentIndexCount_ + 6U > (DYNAMIC_IB_SIZE / sizeof(uint16_t))) {
-        // FlushBatch remaps the buffers (WRITE_DISCARD) and resets the offsets,
-        // so recording can continue from a fresh buffer.
-        FlushBatch();
-        if (mappedVertices_ == nullptr || mappedIndices_ == nullptr) {
-            if (device_ != nullptr) {
-                mappedVertices_ = static_cast<uint8_t*>(device_->MapVertices(DYNAMIC_VB_SIZE));
-                mappedIndices_ = static_cast<uint16_t*>(device_->MapIndices(DYNAMIC_IB_SIZE));
-            }
-        }
-        currentVertexOffset_ = 0U;
-        currentVertexCount_ = 0U;
-        currentIndexCount_ = 0U;
-        currentBatch_.startIndex = 0U;
-        currentBatch_.vertexOffset = 0U;
+        CommitBatches();
+        if (!EnsureMappedBuffers()) return;
     }
 
     auto* v = reinterpret_cast<Vertex2D*>(mappedVertices_ + currentVertexOffset_);
@@ -469,7 +508,7 @@ void UiFrameEncoder::EmitQuad(
         v[i].coverage = 1.0f;
     }
 
-    const uint16_t baseVertex = static_cast<uint16_t>(currentVertexCount_);
+    const uint16_t baseVertex = static_cast<uint16_t>(currentVertexCount_ - currentBatchVertexStart_);
     mappedIndices_[currentIndexCount_ + 0] = baseVertex + 0;
     mappedIndices_[currentIndexCount_ + 1] = baseVertex + 1;
     mappedIndices_[currentIndexCount_ + 2] = baseVertex + 2;
@@ -491,7 +530,9 @@ void UiFrameEncoder::EmitQuadWithColors(
     const Point uvs[4],
     const Color colors[4],
     double opacity) noexcept {
-    if (mappedVertices_ == nullptr || mappedIndices_ == nullptr) return;
+    if (mappedVertices_ == nullptr || mappedIndices_ == nullptr) {
+        if (!EnsureMappedBuffers()) return;
+    }
     for (int i = 0; i < 4; ++i) {
         if (!std::isfinite(points[i].x) || !std::isfinite(points[i].y)) {
             return;
@@ -500,18 +541,8 @@ void UiFrameEncoder::EmitQuadWithColors(
 
     if (currentVertexCount_ + 4U > (DYNAMIC_VB_SIZE / sizeof(Vertex2D)) ||
         currentIndexCount_ + 6U > (DYNAMIC_IB_SIZE / sizeof(uint16_t))) {
-        FlushBatch();
-        if (mappedVertices_ == nullptr || mappedIndices_ == nullptr) {
-            if (device_ != nullptr) {
-                mappedVertices_ = static_cast<uint8_t*>(device_->MapVertices(DYNAMIC_VB_SIZE));
-                mappedIndices_ = static_cast<uint16_t*>(device_->MapIndices(DYNAMIC_IB_SIZE));
-            }
-        }
-        currentVertexOffset_ = 0U;
-        currentVertexCount_ = 0U;
-        currentIndexCount_ = 0U;
-        currentBatch_.startIndex = 0U;
-        currentBatch_.vertexOffset = 0U;
+        CommitBatches();
+        if (!EnsureMappedBuffers()) return;
     }
 
     auto* v = reinterpret_cast<Vertex2D*>(mappedVertices_ + currentVertexOffset_);
@@ -525,7 +556,7 @@ void UiFrameEncoder::EmitQuadWithColors(
         v[i].coverage = 1.0f;
     }
 
-    const uint16_t baseVertex = static_cast<uint16_t>(currentVertexCount_);
+    const uint16_t baseVertex = static_cast<uint16_t>(currentVertexCount_ - currentBatchVertexStart_);
     mappedIndices_[currentIndexCount_ + 0] = baseVertex + 0;
     mappedIndices_[currentIndexCount_ + 1] = baseVertex + 1;
     mappedIndices_[currentIndexCount_ + 2] = baseVertex + 2;
@@ -547,26 +578,18 @@ void UiFrameEncoder::EmitTriangleFan(
     std::uint32_t perimeterCount,
     Point centroid,
     Color color) noexcept {
-    if (mappedVertices_ == nullptr || mappedIndices_ == nullptr) return;
     if (perimeterCount < 3U) return;
+    if (mappedVertices_ == nullptr || mappedIndices_ == nullptr) {
+        if (!EnsureMappedBuffers()) return;
+    }
 
     const std::uint32_t vertexCount = perimeterCount + 1U;
     const std::uint32_t indexCount = perimeterCount * 3U;
 
     if (currentVertexCount_ + vertexCount > (DYNAMIC_VB_SIZE / sizeof(Vertex2D)) ||
         currentIndexCount_ + indexCount > (DYNAMIC_IB_SIZE / sizeof(uint16_t))) {
-        FlushBatch();
-        if (mappedVertices_ == nullptr || mappedIndices_ == nullptr) {
-            if (device_ != nullptr) {
-                mappedVertices_ = static_cast<uint8_t*>(device_->MapVertices(DYNAMIC_VB_SIZE));
-                mappedIndices_ = static_cast<uint16_t*>(device_->MapIndices(DYNAMIC_IB_SIZE));
-            }
-        }
-        currentVertexOffset_ = 0U;
-        currentVertexCount_ = 0U;
-        currentIndexCount_ = 0U;
-        currentBatch_.startIndex = 0U;
-        currentBatch_.vertexOffset = 0U;
+        CommitBatches();
+        if (!EnsureMappedBuffers()) return;
     }
 
     auto* v = reinterpret_cast<Vertex2D*>(mappedVertices_ + currentVertexOffset_);
@@ -588,7 +611,7 @@ void UiFrameEncoder::EmitTriangleFan(
         v[i + 1].coverage = 1.0f;
     }
 
-    const uint16_t baseVertex = static_cast<uint16_t>(currentVertexCount_);
+    const uint16_t baseVertex = static_cast<uint16_t>(currentVertexCount_ - currentBatchVertexStart_);
     std::uint32_t index = 0U;
     for (std::uint32_t i = 0; i < perimeterCount; ++i) {
         const uint16_t next = (i + 1U < perimeterCount)
@@ -675,6 +698,8 @@ void UiFrameEncoder::SetBatchRamp(
 
 void UiFrameEncoder::EmitMaskBrush(
     const RenderMaskSnapshot& mask,
+    double padX,
+    double padY,
     double width,
     double height,
     const RenderFrame& frame) noexcept {
@@ -682,14 +707,14 @@ void UiFrameEncoder::EmitMaskBrush(
     switch (mask.kind) {
     case RenderMaskKind::Solid:
         cmd.kind = RenderCommandKind::FillRect;
-        cmd.rect = Rect{0.0, 0.0, width, height};
+        cmd.rect = Rect{padX, padY, width, height};
         cmd.color = mask.color;
         ProcessCommand(cmd, ProjectiveTransform2D{}, 1.0);
         break;
     case RenderMaskKind::Image:
         if (mask.image != InvalidRenderImageId) {
             cmd.kind = RenderCommandKind::DrawImage;
-            cmd.rect = Rect{0.0, 0.0, width, height};
+            cmd.rect = Rect{padX, padY, width, height};
             cmd.image = mask.image;
             cmd.sourceUv = mask.sourceUv;
             cmd.color = Color{1.0F, 1.0F, 1.0F, 1.0F};
@@ -713,10 +738,10 @@ void UiFrameEncoder::EmitMaskBrush(
         };
 
         const Point corners[4] = {
-            Point{0.0, 0.0},
-            Point{width, 0.0},
-            Point{width, height},
-            Point{0.0, height}};
+            Point{padX, padY},
+            Point{padX + width, padY},
+            Point{padX + width, padY + height},
+            Point{padX, padY + height}};
         Color colors[4]{};
         for (int i = 0; i < 4; ++i) {
             double t = 0.0;
@@ -726,9 +751,9 @@ void UiFrameEncoder::EmitMaskBrush(
                 const double lengthSq = dx * dx + dy * dy;
                 if (lengthSq > 0.0) {
                     const double px =
-                        corners[i].x / std::max(1.0, width);
+                        (corners[i].x - padX) / std::max(1.0, width);
                     const double py =
-                        corners[i].y / std::max(1.0, height);
+                        (corners[i].y - padY) / std::max(1.0, height);
                     t = ((px - mask.startPoint.x) * dx +
                          (py - mask.startPoint.y) * dy) / lengthSq;
                 }
@@ -738,9 +763,9 @@ void UiFrameEncoder::EmitMaskBrush(
                 const double ry = mask.radiusY > 0.0
                     ? mask.radiusY : 1.0;
                 const double px =
-                    corners[i].x / std::max(1.0, width) - mask.center.x;
+                    (corners[i].x - padX) / std::max(1.0, width) - mask.center.x;
                 const double py =
-                    corners[i].y / std::max(1.0, height) - mask.center.y;
+                    (corners[i].y - padY) / std::max(1.0, height) - mask.center.y;
                 t = std::sqrt(px * px / (rx * rx) + py * py / (ry * ry));
             }
             const float alpha = sampleAlpha(t);
@@ -1365,19 +1390,8 @@ void UiFrameEncoder::ProcessCommand(
             kMaxBatchVertices < 65535U ? kMaxBatchVertices : 65535U;
 
         auto remapDynamicBuffers = [&]() noexcept -> bool {
-            if (mappedVertices_ == nullptr || mappedIndices_ == nullptr) {
-                if (device_ == nullptr) return false;
-                mappedVertices_ = static_cast<uint8_t*>(
-                    device_->MapVertices(DYNAMIC_VB_SIZE));
-                mappedIndices_ = static_cast<uint16_t*>(
-                    device_->MapIndices(DYNAMIC_IB_SIZE));
-            }
-            currentVertexOffset_ = 0U;
-            currentVertexCount_ = 0U;
-            currentIndexCount_ = 0U;
-            currentBatch_.startIndex = 0U;
-            currentBatch_.vertexOffset = 0U;
-            return mappedVertices_ != nullptr && mappedIndices_ != nullptr;
+            CommitBatches();
+            return EnsureMappedBuffers();
         };
 
         auto writeMeshSlab = [&](
@@ -1444,7 +1458,6 @@ void UiFrameEncoder::ProcessCommand(
         if (currentVertexCount_ + std::min(mesh->vertices.Size(), kMaxMeshVertices) >
                 kMaxBatchVertices ||
             currentIndexCount_ + 3U > kMaxBatchIndices) {
-            FlushBatch();
             if (!remapDynamicBuffers()) break;
         }
 
@@ -1459,13 +1472,12 @@ void UiFrameEncoder::ProcessCommand(
             const std::uint32_t count = end - start;
 
             if (currentVertexCount_ + count > kMaxBatchVertices) {
-                FlushBatch();
                 if (!remapDynamicBuffers()) break;
             }
             if (mappedVertices_ == nullptr || mappedIndices_ == nullptr) break;
 
             writeMeshSlab(start, end);
-            uint16_t baseVertex = static_cast<uint16_t>(currentVertexCount_);
+            uint16_t baseVertex = static_cast<uint16_t>(currentVertexCount_ - currentBatchVertexStart_);
             std::uint32_t emittedIndices = 0U;
             bool slabFailed = false;
             for (std::uint32_t index = 0U;
@@ -1558,8 +1570,7 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
     tile.height = frame.PixelHeight();
     device_->BeginTile(&target, tile);
 
-    mappedVertices_ = static_cast<uint8_t*>(device_->MapVertices(DYNAMIC_VB_SIZE));
-    mappedIndices_ = static_cast<uint16_t*>(device_->MapIndices(DYNAMIC_IB_SIZE));
+    EnsureMappedBuffers();
 
     ProjectiveTransform2D rootTransform;
     const double dpi = (frame.DpiScale() > 0.0) ? frame.DpiScale() : 1.0;
@@ -1651,17 +1662,12 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
             static_cast<void>(clipStack_.PushBack(entry));
             ++clipDepth_;
             nodePushedClip = true;
-        } else if (node.clipsToBounds &&
-                   node.renderSize.width > 0.0 &&
-                   node.renderSize.height > 0.0) {
-            // ClipToBounds is (0,0,RenderSize) in local space. nodeTransform
-            // already includes layoutSlot, so a parent-space layoutClip
-            // would be applied twice and can cull the entire subtree.
-            const Rect localClip{
-                0.0,
-                0.0,
-                node.renderSize.width,
-                node.renderSize.height};
+        } else if ((node.clipsToBounds || node.hasLayoutClip) &&
+                   (node.clip.width > 0.0 || node.renderSize.width > 0.0) &&
+                   (node.clip.height > 0.0 || node.renderSize.height > 0.0)) {
+            const Rect localClip = (node.clip.width > 0.0 && node.clip.height > 0.0)
+                ? node.clip
+                : Rect{0.0, 0.0, node.renderSize.width, node.renderSize.height};
             EmitClipQuad(
                 localClip, nodeTransform, StencilMode::Equal_Incr, clipDepth_);
             static_cast<void>(
@@ -1854,7 +1860,7 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
             1U, static_cast<std::uint32_t>(
                 std::ceil(node.renderSize.height * dpi)) + padPixels * 2U);
 
-        FlushBatch();
+        CommitBatches();
         RenderTarget* offscreen =
             GetOrCreateOffscreenTarget(node.id, offWidth, offHeight, false);
         if (offscreen == nullptr) {
@@ -1874,6 +1880,7 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
         device_->BeginOffscreenRender();
         Tile offTile{0U, 0U, offWidth, offHeight};
         device_->BeginTile(offscreen, offTile);
+        EnsureMappedBuffers();
 
         // Record the subtree in node-local space scaled by dpi. The root
         // node's slot offset, render transform and opacity are applied at
@@ -1932,7 +1939,7 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
             static_cast<void>(offStack.PopBack());
         }
 
-        FlushBatch();
+        CommitBatches();
         device_->EndTile(offscreen);
         device_->EndOffscreenRender();
         device_->SetRenderTarget(&target);
@@ -1948,12 +1955,15 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
                 device_->BeginOffscreenRender();
                 Tile maskTile{0U, 0U, offWidth, offHeight};
                 device_->BeginTile(maskTarget, maskTile);
+                EnsureMappedBuffers();
                 EmitMaskBrush(
                     node.mask,
+                    static_cast<double>(padPixels),
+                    static_cast<double>(padPixels),
                     node.renderSize.width * dpi,
                     node.renderSize.height * dpi,
                     frame);
-                FlushBatch();
+                CommitBatches();
                 device_->EndTile(maskTarget);
                 device_->EndOffscreenRender();
                 device_->SetRenderTarget(&target);
@@ -1966,6 +1976,7 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
         fullTile.width = frame.PixelWidth();
         fullTile.height = frame.PixelHeight();
         device_->BeginTile(&target, fullTile);
+        EnsureMappedBuffers();
 
         switch (node.blendMode) {
         case ::Aero::BlendMode::Multiply:
@@ -1996,7 +2007,7 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
         static_cast<void>(nodeStack.PopBack());
     }
 
-    FlushBatch();
+    CommitBatches();
 
     if (mappedIndices_ != nullptr) {
         device_->UnmapIndices();

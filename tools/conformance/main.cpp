@@ -35,6 +35,7 @@ const ::Aero::Render::RenderFrame* CurrentFrameForConformance(
 #ifdef DeviceCapabilities
 #undef DeviceCapabilities
 #endif
+#include <crtdbg.h>
 #endif
 
 #include <algorithm>
@@ -125,7 +126,7 @@ void VerifyExpressionFreezeRejection() noexcept {
         std::move(made).Value();
 
     Aero::Meta::EffectiveValueEngine values(
-        stop->GetDispatcher(), DependencyObjectAccess::PropertyRegistry((*stop)));
+        stop->GetDispatcher(), Aero::DependencyObjectAccess::PropertyRegistry((*stop)));
     Aero::Base::Result<void> initialized = values.Initialize();
     Check(initialized.HasValue(),
         "expression freeze value engine initialization failed");
@@ -388,6 +389,7 @@ bool RenderD3D11Readback(
     Aero::Render::D3D11RenderDeviceOptions options;
     options.useWarp = true;
     options.allowWarpFallback = true;
+    options.enableDebugLayer = true;
     Aero::Render::D3D11RenderDevice backend(options);
     Aero::Base::Result<void> initialized = backend.Initialize();
     if (!initialized) {
@@ -930,6 +932,11 @@ void VerifyClosedPathRelativeMove() noexcept {
 } // namespace
 
 int main() {
+#if defined(_WIN32)
+    _set_error_mode(_OUT_TO_STDERR);
+    _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE);
+    _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
+#endif
     static_assert(std::is_base_of<Aero::DependencyObject,
         Aero::Freezable>::value, "Freezable must derive from DependencyObject");
     static_assert(std::is_base_of<Aero::Freezable,

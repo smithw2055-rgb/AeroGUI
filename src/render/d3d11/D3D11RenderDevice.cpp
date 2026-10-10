@@ -154,16 +154,28 @@ Base::Result<void> D3D11RenderDevice::Initialize() noexcept {
 }
 
 Base::Result<void> D3D11RenderDevice::InitPipelines() noexcept {
+    const uint32_t vbRingSize = 2 * 1024 * 1024;
+    vbState_.size = vbRingSize;
+    vbState_.currentPos = 0U;
+    vbState_.drawPos = 0U;
+    vbState_.isMapped = false;
+
     D3D11_BUFFER_DESC vbDesc{};
-    vbDesc.ByteWidth = DYNAMIC_VB_SIZE;
+    vbDesc.ByteWidth = vbRingSize;
     vbDesc.Usage = D3D11_USAGE_DYNAMIC;
     vbDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
     vbDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
     HRESULT hr = device_->CreateBuffer(&vbDesc, nullptr, &dynamicVB_);
     if (FAILED(hr)) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "Failed to create dynamic VB");
 
+    const uint32_t ibRingSize = 1024 * 1024;
+    ibState_.size = ibRingSize;
+    ibState_.currentPos = 0U;
+    ibState_.drawPos = 0U;
+    ibState_.isMapped = false;
+
     D3D11_BUFFER_DESC ibDesc{};
-    ibDesc.ByteWidth = DYNAMIC_IB_SIZE;
+    ibDesc.ByteWidth = ibRingSize;
     ibDesc.Usage = D3D11_USAGE_DYNAMIC;
     ibDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
     ibDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
@@ -434,6 +446,8 @@ Base::Result<void> D3D11RenderDevice::InitPipelines() noexcept {
 void D3D11RenderDevice::ReleasePipelines() noexcept {
     ReleaseCom(dynamicVB_);
     ReleaseCom(dynamicIB_);
+    vbState_ = DynamicBufferState{};
+    ibState_ = DynamicBufferState{};
     for (int i = 0; i < 2; ++i) {
         ReleaseCom(vertexCB_[i]);
         ReleaseCom(pixelCB_[i]);
@@ -496,7 +510,7 @@ Ref<RenderTarget> D3D11RenderDevice::CreateRenderTarget(
     texDesc.Height = height;
     texDesc.MipLevels = 1;
     texDesc.ArraySize = 1;
-    texDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+    texDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
     texDesc.SampleDesc.Count = sampleCount;
     texDesc.SampleDesc.Quality = 0;
     texDesc.Usage = D3D11_USAGE_DEFAULT;
@@ -537,7 +551,7 @@ Ref<RenderTarget> D3D11RenderDevice::CreateRenderTarget(
     Ref<D3D11Texture> d3dTex = Base::MakeRef<D3D11Texture>(
         tex, srv, width, height, false, true).Value();
 
-    Ref<RenderDevice> self = Ref<RenderDevice>::FromBorrowed(*this);
+    Ref<RenderDevice> self = Ref<RenderDevice>::TryFromBorrowed(*this);
     return Base::MakeRef<D3D11RenderTarget>(
         std::move(self), std::move(d3dTex), rtv, dsv, width, height).Value();
 }
@@ -717,29 +731,53 @@ void D3D11RenderDevice::ResolveRenderTarget(
 
 void* D3D11RenderDevice::MapVertices(uint32_t bytes) noexcept {
     if (context_ == nullptr || dynamicVB_ == nullptr) return nullptr;
-    static_cast<void>(bytes);
+    const uint32_t alignedBytes = (bytes + 63U) & ~63U;
+    D3D11_MAP mapType = D3D11_MAP_WRITE_NO_OVERWRITE;
+    if (vbState_.currentPos + alignedBytes > vbState_.size) {
+        mapType = D3D11_MAP_WRITE_DISCARD;
+        vbState_.currentPos = 0U;
+    } else if (vbState_.currentPos == 0U) {
+        mapType = D3D11_MAP_WRITE_DISCARD;
+    }
     D3D11_MAPPED_SUBRESOURCE mapped{};
-    HRESULT hr = context_->Map(dynamicVB_, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
-    return SUCCEEDED(hr) ? mapped.pData : nullptr;
+    HRESULT hr = context_->Map(dynamicVB_, 0, mapType, 0, &mapped);
+    if (FAILED(hr) || mapped.pData == nullptr) return nullptr;
+    vbState_.drawPos = vbState_.currentPos;
+    vbState_.currentPos += alignedBytes;
+    vbState_.isMapped = true;
+    return static_cast<uint8_t*>(mapped.pData) + vbState_.drawPos;
 }
 
 void D3D11RenderDevice::UnmapVertices() noexcept {
-    if (context_ != nullptr && dynamicVB_ != nullptr) {
+    if (context_ != nullptr && dynamicVB_ != nullptr && vbState_.isMapped) {
         context_->Unmap(dynamicVB_, 0);
+        vbState_.isMapped = false;
     }
 }
 
 void* D3D11RenderDevice::MapIndices(uint32_t bytes) noexcept {
     if (context_ == nullptr || dynamicIB_ == nullptr) return nullptr;
-    static_cast<void>(bytes);
+    const uint32_t alignedBytes = (bytes + 63U) & ~63U;
+    D3D11_MAP mapType = D3D11_MAP_WRITE_NO_OVERWRITE;
+    if (ibState_.currentPos + alignedBytes > ibState_.size) {
+        mapType = D3D11_MAP_WRITE_DISCARD;
+        ibState_.currentPos = 0U;
+    } else if (ibState_.currentPos == 0U) {
+        mapType = D3D11_MAP_WRITE_DISCARD;
+    }
     D3D11_MAPPED_SUBRESOURCE mapped{};
-    HRESULT hr = context_->Map(dynamicIB_, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
-    return SUCCEEDED(hr) ? mapped.pData : nullptr;
+    HRESULT hr = context_->Map(dynamicIB_, 0, mapType, 0, &mapped);
+    if (FAILED(hr) || mapped.pData == nullptr) return nullptr;
+    ibState_.drawPos = ibState_.currentPos;
+    ibState_.currentPos += alignedBytes;
+    ibState_.isMapped = true;
+    return static_cast<uint8_t*>(mapped.pData) + ibState_.drawPos;
 }
 
 void D3D11RenderDevice::UnmapIndices() noexcept {
-    if (context_ != nullptr && dynamicIB_ != nullptr) {
+    if (context_ != nullptr && dynamicIB_ != nullptr && ibState_.isMapped) {
         context_->Unmap(dynamicIB_, 0);
+        ibState_.isMapped = false;
     }
 }
 
@@ -871,9 +909,9 @@ void D3D11RenderDevice::DrawBatch(const Batch& batch) noexcept {
 
     // UiFrameEncoder::Vertex2D is 24 bytes: float2 pos, uint32 color, float2 uv, float coverage
     const UINT stride = 24;
-    const UINT offset = 0;
+    const UINT offset = vbState_.drawPos + batch.vertexOffset;
     context_->IASetVertexBuffers(0, 1, &dynamicVB_, &stride, &offset);
-    context_->IASetIndexBuffer(dynamicIB_, DXGI_FORMAT_R16_UINT, 0);
+    context_->IASetIndexBuffer(dynamicIB_, DXGI_FORMAT_R16_UINT, ibState_.drawPos);
 
     const BlendStateKey blendKey{
         batch.renderState.f.blendMode,

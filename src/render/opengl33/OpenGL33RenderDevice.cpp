@@ -123,6 +123,8 @@ struct GLCallbacks {
     void (*glDeleteProgram)(GLuint program);
     void (*glUseProgram)(GLuint program);
         GLint (*glGetUniformLocation)(GLuint program, const GLchar* name);
+    void (*glUniform1i)(GLint location, GLint v0);
+    void (*glUniform1f)(GLint location, GLfloat v0);
     void (*glUniform2f)(GLint location, GLfloat v0, GLfloat v1);
     void (*glUniform4f)(GLint location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3);
     void (*glGenTextures)(GLsizei n, GLuint* textures);
@@ -212,6 +214,8 @@ bool ResolveCallbacks(
         load(gl.glDeleteProgram, "glDeleteProgram") &&
         load(gl.glUseProgram, "glUseProgram") &&
         load(gl.glGetUniformLocation, "glGetUniformLocation") &&
+        load(gl.glUniform1i, "glUniform1i") &&
+        load(gl.glUniform1f, "glUniform1f") &&
         load(gl.glUniform2f, "glUniform2f") &&
         load(gl.glUniform4f, "glUniform4f") &&
         load(gl.glGenTextures, "glGenTextures") &&
@@ -301,12 +305,14 @@ constexpr const char* VertexShaderSource =
     "layout(location = 2) in vec2 aUV;\n"
     "layout(location = 3) in float aCoverage;\n"
     "uniform vec2 uViewportSize;\n"
+    "uniform float uFlipY;\n"
     "out vec4 vColor;\n"
     "out vec2 vUV;\n"
     "out float vCoverage;\n"
     "void main() {\n"
+    "    float yndc = 1.0 - aPosition.y / uViewportSize.y * 2.0;\n"
     "    vec2 ndc = vec2(aPosition.x / uViewportSize.x * 2.0 - 1.0,\n"
-    "                    1.0 - aPosition.y / uViewportSize.y * 2.0);\n"
+    "                    mix(yndc, -yndc, uFlipY));\n"
     "    gl_Position = vec4(ndc, 0.0, 1.0);\n"
     "    vColor = aColor;\n"
     "    vUV = aUV;\n"
@@ -620,6 +626,14 @@ Base::Result<void> OpenGL33RenderDevice::Initialize() noexcept {
     blurProgram_ = LinkProgram(gl, vertexShader, blurFS);
     shadowProgram_ = LinkProgram(gl, vertexShader, shadowFS);
     maskProgram_ = LinkProgram(gl, vertexShader, maskFS);
+    if (maskProgram_ != 0 && gl.glUniform1i != nullptr) {
+        gl.glUseProgram(maskProgram_);
+        const GLint texLoc = gl.glGetUniformLocation(maskProgram_, "uTexture");
+        if (texLoc != -1) gl.glUniform1i(texLoc, 0);
+        const GLint maskLoc = gl.glGetUniformLocation(maskProgram_, "uMask");
+        if (maskLoc != -1) gl.glUniform1i(maskLoc, 1);
+        gl.glUseProgram(0);
+    }
     customEffectProgram_ = LinkProgram(gl, vertexShader, customFS);
     linearProgram_ = LinkProgram(gl, vertexShader, linearFS);
     radialProgram_ = LinkProgram(gl, vertexShader, radialFS);
@@ -805,7 +819,7 @@ Ref<RenderTarget> OpenGL33RenderDevice::CreateRenderTarget(
     Ref<OpenGL33Texture> glTex = Base::MakeRef<OpenGL33Texture>(
         texture, width, height, false, true, GL_RGBA).Value();
 
-    Ref<RenderDevice> self = Ref<RenderDevice>::FromBorrowed(*this);
+    Ref<RenderDevice> self = Ref<RenderDevice>::TryFromBorrowed(*this);
     return Base::MakeRef<OpenGL33RenderTarget>(
         std::move(self), std::move(glTex), fbo, rbo, width, height, false).Value();
 }
@@ -868,6 +882,7 @@ void OpenGL33RenderDevice::EndUpdatingTextures(Texture** textures, uint32_t coun
 }
 
 void OpenGL33RenderDevice::BeginOffscreenRender() noexcept {
+    renderingOffscreen_ = true;
     if (vao_ == 0 || currentTarget_ == nullptr) return;
     if (currentTarget_->IsDefaultFBO()) return;
     stateCache_.Reset();
@@ -876,8 +891,11 @@ void OpenGL33RenderDevice::BeginOffscreenRender() noexcept {
     g_gl.glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
     g_gl.glClear(GL_COLOR_BUFFER_BIT);
 }
-void OpenGL33RenderDevice::EndOffscreenRender() noexcept {}
+void OpenGL33RenderDevice::EndOffscreenRender() noexcept {
+    renderingOffscreen_ = false;
+}
 void OpenGL33RenderDevice::BeginOnscreenRender() noexcept {
+    renderingOffscreen_ = false;
     // Clear the window color buffer once per frame. SetRenderTarget must not
     // clear the default FBO: offscreen compositing rebinds it after drawing
     // background/sidebar content and a second clear would wipe those pixels.
@@ -889,7 +907,9 @@ void OpenGL33RenderDevice::BeginOnscreenRender() noexcept {
     g_gl.glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
     g_gl.glClear(GL_COLOR_BUFFER_BIT);
 }
-void OpenGL33RenderDevice::EndOnscreenRender() noexcept {}
+void OpenGL33RenderDevice::EndOnscreenRender() noexcept {
+    renderingOffscreen_ = false;
+}
 
 void OpenGL33RenderDevice::SetRenderTarget(RenderTarget* surface) noexcept {
     if (vao_ == 0) return;
@@ -1053,6 +1073,10 @@ void OpenGL33RenderDevice::DrawBatch(const Batch& batch) noexcept {
         g_gl.glUniform2f(viewportLocation,
             static_cast<GLfloat>(viewportWidth_),
             static_cast<GLfloat>(viewportHeight_));
+    }
+    const GLint flipLocation = g_gl.glGetUniformLocation(program, "uFlipY");
+    if (flipLocation != -1) {
+        g_gl.glUniform1f(flipLocation, renderingOffscreen_ ? 1.0F : 0.0F);
     }
 
     if (needsTextureSize && batch.pixelUniforms[0].values != nullptr &&

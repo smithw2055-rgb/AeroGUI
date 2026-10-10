@@ -119,6 +119,7 @@ struct RenderNodeSnapshot {
     // by layoutSlot. Viewbox scale (and other render transforms) may paint
     // outside the layout slot when ClipToBounds is false.
     bool clipsToBounds = false;
+    bool hasLayoutClip = false;
     Size renderSize;
     ProjectiveTransform2D renderTransform;
     // Viewbox stretch stored on this node. Offscreen effect capture bakes it

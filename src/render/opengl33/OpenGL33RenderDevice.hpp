@@ -159,6 +159,15 @@ private:
     uint32_t viewportWidth_ = 0U;
     uint32_t viewportHeight_ = 0U;
 
+    // True while the current target is an offscreen (FBO) texture rather
+    // than the window framebuffer. GL framebuffer row 0 is the bottom row,
+    // so content rendered with the standard top-left transform would be
+    // stored upside down relative to the top-left UV convention used when
+    // compositing the layer (D3D render-target row 0 is the top row, which
+    // is why only the GL backend needs this). While set, the vertex shader
+    // negates NDC Y so texture V=0 holds the top row of offscreen content.
+    bool renderingOffscreen_ = false;
+
     DeviceCaps caps_{};
     OpenGL33RenderTarget* currentTarget_ = nullptr;
     StateCache stateCache_{};

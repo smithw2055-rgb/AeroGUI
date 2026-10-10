@@ -127,8 +127,18 @@ private:
         std::uint32_t indexCount = 0U;
     };
 
+    struct QueuedBatch {
+        Batch batch{};
+        float pixelUniforms0[8]{};
+        float pixelUniforms1[4]{};
+        float vertexUniforms0[4]{};
+        float vertexUniforms1[4]{};
+    };
+
     void ResetFrame() noexcept;
     void FlushBatch() noexcept;
+    void CommitBatches() noexcept;
+    bool EnsureMappedBuffers() noexcept;
     Texture* FindImage(RenderImageId id) const noexcept;
     Texture* FindAtlas(std::uint32_t page) const noexcept;
     const Base::Vector<RenderGlyphQuad>* FindGlyphRun(
@@ -202,6 +212,8 @@ private:
 
     void EmitMaskBrush(
         const RenderMaskSnapshot& mask,
+        double padX,
+        double padY,
         double width,
         double height,
         const RenderFrame& frame) noexcept;
@@ -237,6 +249,8 @@ private:
     uint32_t currentIndexCount_ = 0U;
 
     Batch currentBatch_{};
+    Base::Vector<QueuedBatch> queuedBatches_{allocator_};
+    uint32_t currentBatchVertexStart_ = 0U;
     FrameStatistics stats_{};
     bool initialized_ = false;
     bool inRender_ = false;

@@ -161,8 +161,17 @@ private:
     ID3D11DeviceContext* context_ = nullptr;
     bool ownsDevice_ = false;
 
+    struct DynamicBufferState {
+        uint32_t size = 0U;
+        uint32_t currentPos = 0U;
+        uint32_t drawPos = 0U;
+        bool isMapped = false;
+    };
+
     ID3D11Buffer* dynamicVB_ = nullptr;
     ID3D11Buffer* dynamicIB_ = nullptr;
+    DynamicBufferState vbState_{};
+    DynamicBufferState ibState_{};
     ID3D11Buffer* vertexCB_[2] = {};
     ID3D11Buffer* pixelCB_[2] = {};
 

@@ -1,3 +1,4 @@
+#include <cstdio>
 #include "DisplayList.hpp"
 #include "gui/styles/StyleEngine.hpp"
 #include "RenderTree.hpp"
@@ -693,6 +694,7 @@ std::uint64_t RenderFrame::StableHash() const noexcept {
         hash = HashRect(hash, node.layoutSlot);
         hash = HashRect(hash, node.clip);
         hash = HashScalar(hash, node.clipsToBounds);
+        hash = HashScalar(hash, node.hasLayoutClip);
         hash = HashSize(hash, node.renderSize);
         hash = HashTransform(hash, node.renderTransform);
         hash = HashScalar(
@@ -1944,6 +1946,9 @@ Base::Result<void> RenderTree::DescribeVisual(
     snapshot.clipsToBounds =
         element != nullptr &&
         element->GetClipToBounds();
+    snapshot.hasLayoutClip =
+        element != nullptr &&
+        element->GetHasLayoutClip();
     snapshot.renderSize = element != nullptr
         ? element->GetRenderSize()
         : Size{};

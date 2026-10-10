@@ -14,6 +14,10 @@
 #include <windows.h>
 #include <d3d11.h>
 #include <dxgi.h>
+#include <gdiplus.h>
+#include <vector>
+#include <cstdlib>
+#pragma comment(lib, "gdiplus.lib")
 #endif
 
 #include <cstdint>
@@ -294,6 +298,45 @@ protected:
         }
         if (Target() != nullptr) {
             static_cast<D3D11RenderTarget*>(Target())->SetRTV(nullptr);
+        }
+
+        char cap[512] = {0};
+        DWORD capLen = GetEnvironmentVariableA("AERO_CAPTURE_PATH", cap, sizeof(cap));
+        if (capLen > 0 && capLen < sizeof(cap)) {
+            if (device_ != nullptr && immediateContext_ != nullptr) {
+                D3D11_TEXTURE2D_DESC desc;
+                activeBackBuffer_->GetDesc(&desc);
+                desc.Usage = D3D11_USAGE_STAGING;
+                desc.BindFlags = 0;
+                desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+                desc.MiscFlags = 0;
+                ID3D11Texture2D* staging = nullptr;
+                if (SUCCEEDED(device_->CreateTexture2D(&desc, nullptr, &staging)) && staging != nullptr) {
+                    immediateContext_->CopyResource(staging, activeBackBuffer_);
+                    D3D11_MAPPED_SUBRESOURCE mapped;
+                    if (SUCCEEDED(immediateContext_->Map(staging, 0, D3D11_MAP_READ, 0, &mapped))) {
+                        static bool gdiplusInited = false;
+                        if (!gdiplusInited) {
+                            Gdiplus::GdiplusStartupInput gsi;
+                            ULONG_PTR token = 0;
+                            Gdiplus::GdiplusStartup(&token, &gsi, NULL);
+                            gdiplusInited = true;
+                        }
+                        Gdiplus::Bitmap bmp(desc.Width, desc.Height, mapped.RowPitch, PixelFormat32bppARGB, static_cast<BYTE*>(mapped.pData));
+                        CLSID pngClsid;
+                        CLSIDFromString(L"{557cf406-1a04-11d3-9a73-0000f81ef32e}", &pngClsid);
+                        int len = MultiByteToWideChar(CP_UTF8, 0, cap, -1, NULL, 0);
+                        if (len > 0) {
+                            std::vector<wchar_t> wpath(static_cast<size_t>(len));
+                            MultiByteToWideChar(CP_UTF8, 0, cap, -1, wpath.data(), len);
+                            bmp.Save(wpath.data(), &pngClsid, NULL);
+                        }
+                        immediateContext_->Unmap(staging, 0);
+                    }
+                    staging->Release();
+                }
+                SetEnvironmentVariableA("AERO_CAPTURE_PATH", nullptr);
+            }
         }
 
         const HRESULT result = swapChain_->Present(1U, 0U);

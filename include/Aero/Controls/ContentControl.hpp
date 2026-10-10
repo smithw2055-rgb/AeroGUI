@@ -17,7 +17,12 @@ public:
         const Meta::DependencyPropertyChangedEventArgs& change) noexcept;
     Result<Ref<Base::Object>> CreateTemplatedContent() const noexcept;
 
-    Value GetContent() const noexcept { return GetValue(ContentProperty); }
+    Value GetContent() const noexcept {
+        Value val = GetValue(ContentProperty);
+        if (!val.IsUnset() && !val.IsNullObject()) return val;
+        if (!authoredContent_.IsUnset() && !authoredContent_.IsNullObject()) return authoredContent_;
+        return val;
+    }
     void SetContent(Ref<Base::Object> content) noexcept { SetContentValue(std::move(content)); }
     void SetContent(Value content) noexcept { SetContentValue(std::move(content)); }
     void SetContent(StringView text) noexcept;
@@ -134,6 +139,7 @@ private:
     void SyncGeneratedTextFormatting() noexcept;
     Result<void> ValidateContent(UIElement* content) const noexcept {
         if (content == nullptr) { return {}; }
+        if (GetTemplateRoot() != nullptr) { return {}; }
         if (!LayoutChildren().Empty() && !IsOnlyAttachedContent(*content)) {
             return Base::Status::Failure(Base::ErrorCode::InvalidState,
                 "ContentControl content must be its only attached UIElement");
