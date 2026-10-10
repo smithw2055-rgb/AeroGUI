@@ -199,7 +199,8 @@ private:
     void SetBatchRamp(
         Shader::Enum shader,
         Texture* ramp,
-        const float uniforms[8]) noexcept;
+        const float uniforms[8],
+        std::uint8_t wrapMode = 0U) noexcept;
 
     void CompositeOffscreen(
         const RenderNodeSnapshot& node,

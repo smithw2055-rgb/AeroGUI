@@ -172,6 +172,7 @@ struct GLCallbacks {
     void (*glStencilOpSeparate)(GLenum face, GLenum sfail, GLenum dpfail, GLenum dppass);
     void (*glStencilMaskSeparate)(GLenum face, GLuint mask);
     void (*glDrawElements)(GLenum mode, GLsizei count, GLenum type, const void* indices);
+    void (*glDrawElementsBaseVertex)(GLenum mode, GLsizei count, GLenum type, const void* indices, GLint basevertex);
 };
 
 // Resolves the OpenGL 3.3 core entry points through the host-provided loader.
@@ -253,7 +254,8 @@ bool ResolveCallbacks(
         load(gl.glStencilOp, "glStencilOp") &&
         load(gl.glStencilMask, "glStencilMask") &&
         load(gl.glColorMask, "glColorMask") &&
-        load(gl.glDrawElements, "glDrawElements");
+        load(gl.glDrawElements, "glDrawElements") &&
+        (load(gl.glDrawElementsBaseVertex, "glDrawElementsBaseVertex") || true);
 }
 
 // OpenGL function table shared by the device and its resources. Populated on
@@ -955,18 +957,28 @@ void OpenGL33RenderDevice::ResolveRenderTarget(
 }
 
 void* OpenGL33RenderDevice::MapVertices(uint32_t bytes) noexcept {
-    static_cast<void>(bytes);
+    activeVBBytes_ = bytes > 0U ? bytes : DYNAMIC_VB_SIZE;
     return mappedVBMemory_;
 }
 
-void OpenGL33RenderDevice::UnmapVertices() noexcept {}
+void OpenGL33RenderDevice::UnmapVertices() noexcept {
+    if (vao_ == 0 || activeVBBytes_ == 0U) return;
+    g_gl.glBindBuffer(GL_ARRAY_BUFFER, dynamicVB_);
+    g_gl.glBufferSubData(GL_ARRAY_BUFFER, 0,
+        static_cast<GLsizeiptr>(activeVBBytes_), mappedVBMemory_);
+}
 
 void* OpenGL33RenderDevice::MapIndices(uint32_t bytes) noexcept {
-    static_cast<void>(bytes);
+    activeIBBytes_ = bytes > 0U ? bytes : DYNAMIC_IB_SIZE;
     return mappedIBMemory_;
 }
 
-void OpenGL33RenderDevice::UnmapIndices() noexcept {}
+void OpenGL33RenderDevice::UnmapIndices() noexcept {
+    if (vao_ == 0 || activeIBBytes_ == 0U) return;
+    g_gl.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, dynamicIB_);
+    g_gl.glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0,
+        static_cast<GLsizeiptr>(activeIBBytes_), mappedIBMemory_);
+}
 
 void OpenGL33RenderDevice::DrawBatch(const Batch& batch) noexcept {
     if (vao_ == 0 || batch.numIndices == 0U) return;
@@ -1132,14 +1144,16 @@ void OpenGL33RenderDevice::DrawBatch(const Batch& batch) noexcept {
         }
     }
 
-    g_gl.glBindBuffer(GL_ARRAY_BUFFER, dynamicVB_);
-    g_gl.glBufferSubData(GL_ARRAY_BUFFER, 0,
-        static_cast<GLsizeiptr>(batch.numVertices) * VertexStride,
-        mappedVBMemory_ + batch.vertexOffset);
-    g_gl.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, dynamicIB_);
-    g_gl.glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0,
-        static_cast<GLsizeiptr>(batch.numIndices) * sizeof(uint16_t),
-        mappedIBMemory_ + static_cast<GLsizeiptr>(batch.startIndex) * sizeof(uint16_t));
+    if (g_gl.glDrawElementsBaseVertex == nullptr) {
+        g_gl.glBindBuffer(GL_ARRAY_BUFFER, dynamicVB_);
+        g_gl.glBufferSubData(GL_ARRAY_BUFFER, 0,
+            static_cast<GLsizeiptr>(batch.numVertices) * VertexStride,
+            mappedVBMemory_ + batch.vertexOffset);
+        g_gl.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, dynamicIB_);
+        g_gl.glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0,
+            static_cast<GLsizeiptr>(batch.numIndices) * sizeof(uint16_t),
+            mappedIBMemory_ + static_cast<GLsizeiptr>(batch.startIndex) * sizeof(uint16_t));
+    }
 
     // Blend + color-mask via shared StateCache (dedupe parallel D3D path).
     const BlendStateKey blendKey{
@@ -1240,8 +1254,15 @@ void OpenGL33RenderDevice::DrawBatch(const Batch& batch) noexcept {
     }
 
     g_gl.glBindVertexArray(vao_);
-    g_gl.glDrawElements(GL_TRIANGLES,
-        static_cast<GLsizei>(batch.numIndices), GL_UNSIGNED_SHORT, nullptr);
+    if (g_gl.glDrawElementsBaseVertex != nullptr) {
+        g_gl.glDrawElementsBaseVertex(GL_TRIANGLES,
+            static_cast<GLsizei>(batch.numIndices), GL_UNSIGNED_SHORT,
+            reinterpret_cast<const void*>(static_cast<std::uintptr_t>(batch.startIndex) * sizeof(uint16_t)),
+            static_cast<GLint>(batch.vertexOffset / VertexStride));
+    } else {
+        g_gl.glDrawElements(GL_TRIANGLES,
+            static_cast<GLsizei>(batch.numIndices), GL_UNSIGNED_SHORT, nullptr);
+    }
 
     if (maskTexture != 0) {
         g_gl.glActiveTexture(GL_TEXTURE1);

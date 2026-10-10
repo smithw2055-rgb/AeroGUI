@@ -127,15 +127,21 @@
 
 ## 三、 演进与落地路线
 
-1. **第一阶段：修复核心缓冲流式性能缺陷（本次实施）**
+1. **第一阶段：修复核心缓冲流式性能缺陷（已完成）**
    - 改写 `UiFrameEncoder` 与 `D3D11RenderDevice` 的映射策略：
      - 在 Frame/Tile 开始时仅调用一次 `MapVertices`/`MapIndices`；
      - `D3D11RenderDevice` 引入环形缓冲与 `D3D11_MAP_WRITE_NO_OVERWRITE` 机制；
      - 彻底消除 FlushBatch 时的频繁 Unmap/Map(DISCARD) 循环，保证连续批次在同一映射区间内顺次追加，仅在环形缓冲溢出或帧结束时进行同步。
-2. **第二阶段：扩展着色器管线与笔刷模式**
-   - 补充平铺/镜像寻址模式（`Clamp`, `Repeat`, `Mirror`）的着色器支持；
-   - 引入多格式顶点布局机制，避免单一 24 字节顶点带来的冗余带宽；
-   - 探索 LCD 双源混合（Dual Source Blending）与边缘抗锯齿（PPAA）着色器，提升文本和矢量边缘质量。
+2. **第二阶段：扩展着色器管线与笔刷模式（已完成）**
+   - **OpenGL 3.3 动态流式缓冲与零同步批次绘制优化**：
+     - 动态解析并加载 `glDrawElementsBaseVertex`，在 `DrawBatch` 中执行基于 GPU 顶点偏移的批量绘制（0 显存拷贝/0 冗余上传）；
+     - 改写 `UnmapVertices` / `UnmapIndices`，按实际写入字节数（`activeVBBytes_` / `activeIBBytes_`）单次批量提交 `glBufferSubData`，彻底消除批次间的反复驱动同步；
+     - 保留无扩展环境下的安全退化路径。
+   - **平铺/镜像寻址模式（`Clamp`, `Repeat`, `Mirror`）管线贯通**：
+     - `DisplayListBuilder` 与 `RenderCommand` 新增 `wrapMode` 并在 `HashCommand` 中纳入状态哈希；
+     - `FrameEncoder::SetBatchRamp` 与批次状态状态机支持 `wrapMode` 自动追踪与批次分割；
+     - 解除 `Brushes.cpp` 中 `GradientSpreadMethod` 仅支持 `Pad` 的限制，将 `Repeat` / `Reflect` 原生映射至 GPU `WrapMode` 硬件采样器；
+     - 在 `aero-conformance` 中新增 `VerifyGradientSpreadModes` 双后端原生离屏光栅化像素比对用例，验证 D3D11 与 OpenGL 3.3 像素级一致性。
 3. **第三阶段：落地战略后端（D3D12 / Vulkan）**
    - 参照 `reference/Src/Packages/Render/D3D12RenderDevice` 与 `VKRenderDevice` 的架构接口，规划并实现基于 CommandList / CommandBuffer 注入的 D3D12 与 Vulkan 现代化后端，满足 3D 游戏引擎宿主的嵌入需求。
 4. **第四阶段：补齐多媒体与桌面高级能力**

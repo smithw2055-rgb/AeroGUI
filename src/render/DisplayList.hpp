@@ -34,6 +34,15 @@ bool IsFinite(Transform2D value) noexcept;
 bool IsFinite(ProjectiveTransform2D value) noexcept;
 bool IsValidOpacity(double value) noexcept;
 
+enum class RenderWrapMode : std::uint8_t {
+    ClampToEdge = 0U,
+    ClampToZero = 1U,
+    Repeat = 2U,
+    MirrorU = 3U,
+    MirrorV = 4U,
+    Mirror = 5U
+};
+
 enum class RenderCommandKind : std::uint8_t {
     PushClip = 0U,
     PopClip,
@@ -68,6 +77,7 @@ struct RenderCommand {
     // 2 = Path_Radial. gradientBrush is a GradientBrush* used while the
     // display list is recorded; RenderTree resolves it to gradientRamp.
     std::uint8_t paintKind = 0U;
+    std::uint8_t wrapMode = 0U;
     std::uint32_t gradientRamp = UINT32_MAX;
     std::uintptr_t gradientBrush = 0U;
     float paintUniforms[8]{};
@@ -112,7 +122,8 @@ public:
         const Point uvs[4],
         std::uint8_t paintKind,
         const float uniforms[8],
-        std::uintptr_t gradientBrush) noexcept;
+        std::uintptr_t gradientBrush,
+        std::uint8_t wrapMode = 0U) noexcept;
     Base::Result<void> StrokeRect(
         Rect rect, Color color, double thickness,
         double cornerRadius = 0.0) noexcept;
@@ -120,7 +131,8 @@ public:
         RenderImageId image,
         Rect destination,
         Rect sourceUv,
-        Color tint = {1.0F, 1.0F, 1.0F, 1.0F}) noexcept;
+        Color tint = {1.0F, 1.0F, 1.0F, 1.0F},
+        std::uint8_t wrapMode = 0U) noexcept;
     Base::Result<void> DrawMesh(
         RenderMeshId mesh,
         Color tint = {1.0F, 1.0F, 1.0F, 1.0F}) noexcept;
@@ -135,7 +147,8 @@ public:
         Point radii,
         double len2,
         bool hasInverse,
-        Transform2D inverse) noexcept;
+        Transform2D inverse,
+        std::uint8_t wrapMode = 0U) noexcept;
     Base::Result<void> DrawGlyphRun(
         RenderGlyphRunId glyphRun,
         Color tint = {1.0F, 1.0F, 1.0F, 1.0F}) noexcept;

@@ -139,6 +139,8 @@ private:
 
     uint8_t mappedVBMemory_[DYNAMIC_VB_SIZE]{};
     uint8_t mappedIBMemory_[DYNAMIC_IB_SIZE]{};
+    uint32_t activeVBBytes_ = 0U;
+    uint32_t activeIBBytes_ = 0U;
 
     // Program handles: [Shader::Path_Solid, Shader::Path_AA_Solid] -> solid,
     // [Shader::Path_Pattern] -> pattern, [Shader::SDF_Solid] -> sdf.

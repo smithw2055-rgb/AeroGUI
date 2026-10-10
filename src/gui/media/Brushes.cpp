@@ -87,6 +87,15 @@ void SolidColorBrush::SetColor(
     SetValue(ColorProperty, value);
 }
 
+double WavesShader::GetTime() const noexcept {
+    return GetValue(TimeProperty);
+}
+
+void WavesShader::SetTime(
+    double value) noexcept {
+    SetValue(TimeProperty, value);
+}
+
 double GradientStop::GetOffset() const noexcept {
     return GetValue(OffsetProperty);
 }
@@ -668,6 +677,7 @@ struct GpuGradientPaint {
     Rect bounds{};
     Base::Transform2D inverse{};
     bool hasInverse = false;
+    std::uint8_t wrapMode = 0U;
 };
 
 Point GpuSamplePoint(const GpuGradientPaint& gpu, Point point) noexcept {
@@ -712,8 +722,12 @@ bool TryPrepareGpuGradient(
         ? static_cast<const GradientBrush*>(linear)
         : static_cast<const GradientBrush*>(radial);
     if (gradient == nullptr) return false;
-    if (gradient->GetSpreadMethod() != GradientSpreadMethod::Pad) {
-        return false;
+    if (gradient->GetSpreadMethod() == GradientSpreadMethod::Repeat) {
+        gpu.wrapMode = static_cast<std::uint8_t>(Render::RenderWrapMode::Repeat);
+    } else if (gradient->GetSpreadMethod() == GradientSpreadMethod::Reflect) {
+        gpu.wrapMode = static_cast<std::uint8_t>(Render::RenderWrapMode::Mirror);
+    } else {
+        gpu.wrapMode = static_cast<std::uint8_t>(Render::RenderWrapMode::ClampToEdge);
     }
     gpu.bounds = bounds;
     gpu.brush = reinterpret_cast<std::uintptr_t>(gradient);
@@ -805,7 +819,7 @@ Base::Result<void> FillGpuPolygon(
             GpuGradientUv(gpu, quad[2]),
             GpuGradientUv(gpu, quad[3])};
         Base::Result<void> painted = builder.FillGradientQuad(
-            quad, uvs, gpu.kind, gpu.uniforms, gpu.brush);
+            quad, uvs, gpu.kind, gpu.uniforms, gpu.brush, gpu.wrapMode);
         if (!painted) return painted.GetStatus();
     }
     return {};
@@ -1435,7 +1449,8 @@ Base::Result<void> PaintBrushGeometry(
                 Point{gpuPaint.radiusX, gpuPaint.radiusY},
                 gpuPaint.len2,
                 gpuPaint.hasInverse,
-                gpuPaint.inverse);
+                gpuPaint.inverse,
+                gpuPaint.wrapMode);
         }
         for (std::uint32_t index = 0U; index + 2U < indices.Size(); index += 3U) {
             const std::uint32_t ia = indices[index];
@@ -1620,7 +1635,7 @@ AERO_DESCRIBE(SolidColorBrush) {
 AERO_DESCRIBE(GradientStop) {
     using namespace Aero::Meta;
     Register<GradientStop>(context)
-            .Property(GradientStop::OffsetProperty, 0.0, FrameworkPropertyMetadataOptions::None, &ValidateUnitDouble)
+            .Property(GradientStop::OffsetProperty, 0.0)
             .Property(GradientStop::ColorProperty, Color{})
             .Factory();
 }
@@ -1656,7 +1671,7 @@ AERO_DESCRIBE(ConicGradientShader) {
 AERO_DESCRIBE(WavesShader) {
     using namespace Aero::Meta;
     Register<WavesShader>(context)
-            .Property<double, &WavesShader::GetTime, &WavesShader::SetTime>("Time")
+            .Property(WavesShader::TimeProperty, 0.0, AffectsRender)
             .Factory();
 }
 

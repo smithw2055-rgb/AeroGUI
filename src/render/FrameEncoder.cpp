@@ -672,13 +672,15 @@ void UiFrameEncoder::SetBatchImage(
 void UiFrameEncoder::SetBatchRamp(
     Shader::Enum shader,
     Texture* ramp,
-    const float uniforms[8]) noexcept {
+    const float uniforms[8],
+    std::uint8_t wrapMode) noexcept {
     const bool uniformsDiffer =
         std::memcmp(paintUniforms_, uniforms, sizeof(paintUniforms_)) != 0;
     const bool batchActive = currentBatch_.numIndices > 0U;
     if (batchActive &&
         (currentBatch_.shader != shader ||
          currentBatch_.ramps != ramp ||
+         currentBatch_.rampsSampler.f.wrapMode != wrapMode ||
          uniformsDiffer ||
          currentBatch_.renderState.f.colorEnable != 1U ||
          currentBatch_.renderState.f.blendMode !=
@@ -688,7 +690,7 @@ void UiFrameEncoder::SetBatchRamp(
     std::memcpy(paintUniforms_, uniforms, sizeof(paintUniforms_));
     currentBatch_.shader = shader;
     currentBatch_.ramps = ramp;
-    currentBatch_.rampsSampler.f.wrapMode = WrapMode::ClampToEdge;
+    currentBatch_.rampsSampler.f.wrapMode = wrapMode;
     currentBatch_.rampsSampler.f.minmagFilter = MinMagFilter::Linear;
     currentBatch_.pixelUniforms[0].values = paintUniforms_;
     currentBatch_.pixelUniforms[0].numDwords = 8U;
@@ -1156,7 +1158,7 @@ void UiFrameEncoder::ProcessCommand(
             } else {
                 uniforms[3] *= static_cast<float>(currentOpacity);
             }
-            SetBatchRamp(shader, ramp, uniforms);
+            SetBatchRamp(shader, ramp, uniforms, cmd.wrapMode);
             SetContentStencil();
             const Color white{1.0F, 1.0F, 1.0F, 1.0F};
             EmitQuad(points, cmd.uvs, white);
@@ -1257,16 +1259,18 @@ void UiFrameEncoder::ProcessCommand(
     case RenderCommandKind::DrawImage: {
         Texture* tex = FindImage(cmd.image);
         if (tex != nullptr) {
+            const std::uint8_t targetWrapMode = cmd.wrapMode;
             if (currentBatch_.numIndices > 0U &&
                 (currentBatch_.shader != Shader::Path_Pattern ||
                  currentBatch_.image != tex ||
+                 currentBatch_.imageSampler.f.wrapMode != targetWrapMode ||
                  currentBatch_.renderState.f.colorEnable != 1U ||
                  currentBatch_.renderState.f.blendMode != static_cast<uint8_t>(currentBlendMode_))) {
                 FlushBatch();
             }
             currentBatch_.shader = Shader::Path_Pattern;
             currentBatch_.image = tex;
-            currentBatch_.imageSampler.f.wrapMode = WrapMode::ClampToEdge;
+            currentBatch_.imageSampler.f.wrapMode = targetWrapMode;
             currentBatch_.imageSampler.f.minmagFilter = MinMagFilter::Linear;
             AssignBlendMode(currentBatch_.renderState, static_cast<unsigned>(currentBlendMode_));
             AssignColorEnable(currentBatch_.renderState, 1U);
@@ -1364,7 +1368,8 @@ void UiFrameEncoder::ProcessCommand(
             SetBatchRamp(
                 cmd.paintKind == 1U ? Shader::Path_Linear : Shader::Path_Radial,
                 ramp,
-                uniforms);
+                uniforms,
+                cmd.wrapMode);
         } else {
             EnsureBatchBlend(Shader::Path_Solid);
         }

@@ -109,6 +109,7 @@ std::uint64_t HashCommand(
     for (float uniform : command.paintUniforms) {
         hash = HashScalar(hash, uniform);
     }
+    hash = HashScalar(hash, command.wrapMode);
     return HashScalar(hash, command.cornerRadius);
 }
 
@@ -302,13 +303,15 @@ Base::Result<void> DisplayListBuilder::FillGradientQuad(
     const Point uvs[4],
     std::uint8_t paintKind,
     const float uniforms[8],
-    std::uintptr_t gradientBrush) noexcept {
+    std::uintptr_t gradientBrush,
+    std::uint8_t wrapMode) noexcept {
     if (paintKind == 0U || gradientBrush == 0U || uniforms == nullptr) {
         return InvalidArgument("GPU gradient fill requires paint and brush");
     }
     RenderCommand command;
     command.kind = RenderCommandKind::FillGradientQuad;
     command.paintKind = paintKind;
+    command.wrapMode = wrapMode;
     command.gradientBrush = gradientBrush;
     command.color = Color{1.0F, 1.0F, 1.0F, 1.0F};
     for (int i = 0; i < 4; ++i) {
@@ -347,7 +350,8 @@ Base::Result<void> DisplayListBuilder::DrawImage(
     RenderImageId image,
     Rect destination,
     Rect sourceUv,
-    Color tint) noexcept {
+    Color tint,
+    std::uint8_t wrapMode) noexcept {
     if (image == InvalidRenderImageId || !IsValidLayoutRect(destination) ||
         !IsValidImageUv(sourceUv) || !IsFinite(tint)) {
         return InvalidArgument(
@@ -359,6 +363,7 @@ Base::Result<void> DisplayListBuilder::DrawImage(
     command.sourceUv = sourceUv;
     command.color = tint;
     command.image = image;
+    command.wrapMode = wrapMode;
     return Append(command);
 }
 
@@ -386,7 +391,8 @@ Base::Result<void> DisplayListBuilder::DrawMesh(
     Point radii,
     double len2,
     bool hasInverse,
-    Transform2D inverse) noexcept {
+    Transform2D inverse,
+    std::uint8_t wrapMode) noexcept {
     if (mesh == InvalidRenderMeshId || paintKind == 0U ||
         gradientBrush == 0U || uniforms == nullptr) {
         return InvalidArgument("GPU DrawMesh requires paint and brush");
@@ -396,6 +402,7 @@ Base::Result<void> DisplayListBuilder::DrawMesh(
     command.mesh = mesh;
     command.color = Color{1.0F, 1.0F, 1.0F, 1.0F};
     command.paintKind = paintKind;
+    command.wrapMode = wrapMode;
     command.gradientBrush = gradientBrush;
     command.rect = bounds;
     command.points[0] = startOrOrigin;

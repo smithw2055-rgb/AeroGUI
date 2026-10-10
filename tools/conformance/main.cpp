@@ -831,6 +831,90 @@ void VerifyMaskAndEffectRendering(Aero::View& view) noexcept {
 #endif
 }
 
+void VerifyGradientSpreadModes(Aero::View& view) noexcept {
+    constexpr char xaml[] = R"XAML(
+<Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Border x:Name="RepeatBorder" Width="64" Height="96" HorizontalAlignment="Left"/>
+  <Border x:Name="ReflectBorder" Width="64" Height="96" HorizontalAlignment="Right"/>
+</Grid>
+)XAML";
+    Aero::Markup::XamlReader reader(view.GetGui());
+    auto document = reader.Parse(Aero::Base::StringView(xaml));
+    Check(document.HasValue(), "gradient spread modes XAML parse failed");
+    if (!document) return;
+    const Aero::Base::Ref<Aero::Base::Object>& rootObject =
+        document.Value().Root();
+    if (!rootObject || rootObject->RuntimeType() != Aero::Controls::Grid::StaticTypeId()) return;
+    auto* root = static_cast<Aero::Controls::Grid*>(rootObject.Get());
+
+    auto* repeatBorder = static_cast<Aero::Controls::Border*>(root->FindName("RepeatBorder"));
+    auto* reflectBorder = static_cast<Aero::Controls::Border*>(root->FindName("ReflectBorder"));
+    Check(repeatBorder != nullptr && reflectBorder != nullptr, "failed to find borders for spread modes");
+    if (repeatBorder == nullptr || reflectBorder == nullptr) return;
+
+    // LinearGradient with Repeat
+    auto repeatBrushMade = Aero::Base::MakeRef<Aero::Media::LinearGradientBrush>();
+    auto rStop1Made = Aero::Base::MakeRef<Aero::Media::GradientStop>();
+    auto rStop2Made = Aero::Base::MakeRef<Aero::Media::GradientStop>();
+    if (!repeatBrushMade || !rStop1Made || !rStop2Made) return;
+    auto repeatBrush = std::move(repeatBrushMade).Value();
+    auto rStop1 = std::move(rStop1Made).Value();
+    auto rStop2 = std::move(rStop2Made).Value();
+    rStop1->SetOffset(0.0);
+    rStop1->SetColor({1.0F, 0.0F, 0.0F, 1.0F});
+    rStop2->SetOffset(1.0);
+    rStop2->SetColor({0.0F, 0.0F, 1.0F, 1.0F});
+    repeatBrush->AddGradientStop(rStop1);
+    repeatBrush->AddGradientStop(rStop2);
+    repeatBrush->SetStartPoint({0.0, 0.0});
+    repeatBrush->SetEndPoint({0.25, 0.25});
+    repeatBrush->SetSpreadMethod(Aero::Media::GradientSpreadMethod::Repeat);
+    repeatBorder->SetBackground(Aero::Base::Ref<Aero::Media::Brush>(repeatBrush));
+
+    // RadialGradient with Reflect
+    auto reflectBrushMade = Aero::Base::MakeRef<Aero::Media::RadialGradientBrush>();
+    auto fStop1Made = Aero::Base::MakeRef<Aero::Media::GradientStop>();
+    auto fStop2Made = Aero::Base::MakeRef<Aero::Media::GradientStop>();
+    if (!reflectBrushMade || !fStop1Made || !fStop2Made) return;
+    auto reflectBrush = std::move(reflectBrushMade).Value();
+    auto fStop1 = std::move(fStop1Made).Value();
+    auto fStop2 = std::move(fStop2Made).Value();
+    fStop1->SetOffset(0.0);
+    fStop1->SetColor({0.0F, 1.0F, 0.0F, 1.0F});
+    fStop2->SetOffset(1.0);
+    fStop2->SetColor({1.0F, 1.0F, 0.0F, 1.0F});
+    reflectBrush->AddGradientStop(fStop1);
+    reflectBrush->AddGradientStop(fStop2);
+    reflectBrush->SetCenter({0.5, 0.5});
+    reflectBrush->SetGradientOrigin({0.5, 0.5});
+    reflectBrush->SetRadiusX(0.25);
+    reflectBrush->SetRadiusY(0.25);
+    reflectBrush->SetSpreadMethod(Aero::Media::GradientSpreadMethod::Reflect);
+    reflectBorder->SetBackground(Aero::Base::Ref<Aero::Media::Brush>(reflectBrush));
+
+    const Aero::Size logicalSize{128.0, 96.0};
+    constexpr std::uint32_t pixelWidth = 256U;
+    constexpr std::uint32_t pixelHeight = 192U;
+    Aero::Base::Result<void> mounted =
+        view.SetContent(std::move(document).Value(), logicalSize);
+    Check(mounted.HasValue(), "gradient spread modes View mount failed");
+    if (!mounted) return;
+    view.SetSize(logicalSize);
+    view.SetScale(2.0);
+    const bool updated = view.Update(0.0);
+    Check(updated, "spread modes View update did not commit a frame");
+    const ::Aero::Render::RenderFrame* frame =
+        Aero::CurrentFrameForConformance(view);
+    Check(frame != nullptr && !frame->GradientRamps().Empty(),
+        "gradient ramps were not captured for spread modes");
+    if (frame == nullptr) return;
+
+#if defined(_WIN32)
+    VerifyNativePixelReadback(*frame, pixelWidth, pixelHeight);
+#endif
+}
+
 void VerifyAuthoringPropertySynchronization() noexcept {
     auto itemsRef = Aero::Base::MakeRef<Aero::Controls::ItemsControl>();
     if (!itemsRef) return;
@@ -972,6 +1056,7 @@ int main() {
         Check(view.HasValue(), "View creation failed");
         if (view) {
             VerifyMaskAndEffectRendering(*view.Value());
+            VerifyGradientSpreadModes(*view.Value());
             VerifyFreezeGraph();
             VerifyExpressionFreezeRejection();
             VerifySharedConsumers();
