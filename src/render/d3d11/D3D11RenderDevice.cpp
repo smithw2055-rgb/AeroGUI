@@ -20,6 +20,15 @@
 #include "AeroD3D11RenderFrameRadialVertexShader.hpp"
 #include "AeroD3D11RenderFrameRadialPixelShader.hpp"
 
+#include "AeroD3D11ShaderVSPos.hpp"
+#include "AeroD3D11ShaderVSPosColor.hpp"
+#include "AeroD3D11ShaderVSPosTex0.hpp"
+#include "AeroD3D11ShaderVSPosColorCoverage.hpp"
+#include "AeroD3D11ShaderVSPosTex0Coverage.hpp"
+#include "AeroD3D11ShaderVSPosColorTex1_SDF.hpp"
+#include "AeroD3D11ShaderVSPosTex0Tex1.hpp"
+#include "AeroD3D11ShaderVSPosColorTex0Tex1.hpp"
+
 namespace Aero::Render {
 
 namespace {
@@ -32,7 +41,60 @@ void ReleaseCom(T*& value) noexcept {
     }
 }
 
+std::pair<const char*, uint32_t> SemanticForAttr(uint32_t attr) noexcept {
+    switch (attr) {
+    case Shader::Vertex::Format::Attr::Pos: return {"POSITION", 0};
+    case Shader::Vertex::Format::Attr::Color: return {"COLOR", 0};
+    case Shader::Vertex::Format::Attr::Tex0: return {"TEXCOORD", 0};
+    case Shader::Vertex::Format::Attr::Tex1: return {"TEXCOORD", 1};
+    case Shader::Vertex::Format::Attr::Coverage: return {"COVERAGE", 0};
+    case Shader::Vertex::Format::Attr::Rect: return {"RECT", 0};
+    case Shader::Vertex::Format::Attr::Tile: return {"TILE", 0};
+    case Shader::Vertex::Format::Attr::ImagePos: return {"IMAGE_POSITION", 0};
+    default: return {"TEXCOORD", 0};
+    }
+}
+
+DXGI_FORMAT DxgiFormatForType(uint8_t type) noexcept {
+    switch (type) {
+    case Shader::Vertex::Format::Attr::Type::Float: return DXGI_FORMAT_R32_FLOAT;
+    case Shader::Vertex::Format::Attr::Type::Float2: return DXGI_FORMAT_R32G32_FLOAT;
+    case Shader::Vertex::Format::Attr::Type::Float4: return DXGI_FORMAT_R32G32B32A32_FLOAT;
+    case Shader::Vertex::Format::Attr::Type::UByte4Norm: return DXGI_FORMAT_R8G8B8A8_UNORM;
+    case Shader::Vertex::Format::Attr::Type::UShort4Norm: return DXGI_FORMAT_R16G16B16A16_UNORM;
+    default: return DXGI_FORMAT_R32G32_FLOAT;
+    }
+}
+
 } // namespace
+
+ID3D11InputLayout* D3D11RenderDevice::CreateLayout(
+    uint32_t attributes, const void* code, uint32_t size) noexcept {
+    if (device_ == nullptr || code == nullptr || size == 0U) return nullptr;
+
+    D3D11_INPUT_ELEMENT_DESC descs[Shader::Vertex::Format::Attr::Count];
+    uint32_t n = 0;
+
+    for (uint32_t i = 0; i < Shader::Vertex::Format::Attr::Count; ++i) {
+        if (attributes & (1U << i)) {
+            descs[n].InputSlot = 0;
+            descs[n].AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT;
+            descs[n].InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
+            descs[n].InstanceDataStepRate = 0;
+            const auto sem = SemanticForAttr(i);
+            descs[n].SemanticName = sem.first;
+            descs[n].SemanticIndex = sem.second;
+            descs[n].Format = DxgiFormatForType(TypeForAttr[i]);
+            ++n;
+        }
+    }
+
+    ID3D11InputLayout* layout = nullptr;
+    if (FAILED(device_->CreateInputLayout(descs, n, code, size, &layout))) {
+        return nullptr;
+    }
+    return layout;
+}
 
 D3D11Texture::D3D11Texture(
     ID3D11Texture2D* texture,
@@ -274,6 +336,38 @@ Base::Result<void> D3D11RenderDevice::InitPipelines() noexcept {
         &vertex2DInputLayout_);
     if (FAILED(hr)) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "Failed to create vertex input layout");
 
+    struct VSInitEntry {
+        uint32_t vertexEnum;
+        const void* code;
+        uint32_t size;
+    };
+
+    const VSInitEntry vsList[] = {
+        {Shader::Vertex::Pos, AeroD3D11ShaderVSPos, sizeof(AeroD3D11ShaderVSPos)},
+        {Shader::Vertex::PosColor, AeroD3D11ShaderVSPosColor, sizeof(AeroD3D11ShaderVSPosColor)},
+        {Shader::Vertex::PosTex0, AeroD3D11ShaderVSPosTex0, sizeof(AeroD3D11ShaderVSPosTex0)},
+        {Shader::Vertex::PosColorCoverage, AeroD3D11ShaderVSPosColorCoverage, sizeof(AeroD3D11ShaderVSPosColorCoverage)},
+        {Shader::Vertex::PosTex0Coverage, AeroD3D11ShaderVSPosTex0Coverage, sizeof(AeroD3D11ShaderVSPosTex0Coverage)},
+        {Shader::Vertex::PosColorTex1_SDF, AeroD3D11ShaderVSPosColorTex1_SDF, sizeof(AeroD3D11ShaderVSPosColorTex1_SDF)},
+        {Shader::Vertex::PosColorTex1, AeroD3D11ShaderVSPosColorTex1_SDF, sizeof(AeroD3D11ShaderVSPosColorTex1_SDF)},
+        {Shader::Vertex::PosTex0Tex1, AeroD3D11ShaderVSPosTex0Tex1, sizeof(AeroD3D11ShaderVSPosTex0Tex1)},
+        {Shader::Vertex::PosTex0Tex1_SDF, AeroD3D11ShaderVSPosTex0Tex1, sizeof(AeroD3D11ShaderVSPosTex0Tex1)},
+        {Shader::Vertex::PosColorTex0Tex1, AeroD3D11ShaderVSPosColorTex0Tex1, sizeof(AeroD3D11ShaderVSPosColorTex0Tex1)}
+    };
+
+    for (const auto& entry : vsList) {
+        ID3D11VertexShader* vs = nullptr;
+        if (SUCCEEDED(device_->CreateVertexShader(entry.code, entry.size, nullptr, &vs)) && vs != nullptr) {
+            const uint32_t format = FormatForVertex[entry.vertexEnum];
+            if (layouts_[format] == nullptr) {
+                layouts_[format] = CreateLayout(AttributesForFormat[format], entry.code, entry.size);
+            }
+            vertexShaders_[entry.vertexEnum].shader = vs;
+            vertexShaders_[entry.vertexEnum].layout = layouts_[format];
+            vertexShaders_[entry.vertexEnum].stride = SizeForFormat[format];
+        }
+    }
+
     // Create sampler states indexed by SamplerState.v
     // (wrapMode:3 bits | minmagFilter:1 << 3 | mipFilter:2 << 4)
     for (uint8_t v = 0; v < StateCache::kSamplerTableSize; ++v) {
@@ -474,6 +568,12 @@ void D3D11RenderDevice::ReleasePipelines() noexcept {
     ReleaseCom(linearPixelShader_);
     ReleaseCom(radialPixelShader_);
     ReleaseCom(customEffectPixelShader_);
+    for (uint32_t i = 0; i < Shader::Vertex::Count; ++i) {
+        ReleaseCom(vertexShaders_[i].shader);
+    }
+    for (uint32_t i = 0; i < Shader::Vertex::Format::Count; ++i) {
+        ReleaseCom(layouts_[i]);
+    }
 }
 
 void D3D11RenderDevice::Shutdown() noexcept {
@@ -889,8 +989,23 @@ void D3D11RenderDevice::DrawBatch(const Batch& batch) noexcept {
         break;
     }
 
-    if (solidVertexShader_ == nullptr || pixelShader == nullptr ||
-        vertex2DInputLayout_ == nullptr) {
+    const uint8_t vertexEnum = (batch.shader.v < Shader::Count)
+        ? VertexForShader[batch.shader.v] : 0U;
+    const uint8_t format = (vertexEnum < Shader::Vertex::Count)
+        ? FormatForVertex[vertexEnum] : 0U;
+    static_cast<void>(format);
+    const VertexShaderEntry& vsEntry = (vertexEnum < Shader::Vertex::Count)
+        ? vertexShaders_[vertexEnum] : VertexShaderEntry{};
+
+    ID3D11VertexShader* vertexShader = vsEntry.shader != nullptr
+        ? vsEntry.shader : solidVertexShader_;
+    ID3D11InputLayout* inputLayout = vsEntry.layout != nullptr
+        ? vsEntry.layout : vertex2DInputLayout_;
+    const UINT stride = vsEntry.stride != 0U
+        ? vsEntry.stride : 24U;
+
+    if (vertexShader == nullptr || pixelShader == nullptr ||
+        inputLayout == nullptr) {
         return;
     }
 
@@ -899,16 +1014,17 @@ void D3D11RenderDevice::DrawBatch(const Batch& batch) noexcept {
     const bool pipelineHandleChanged = stateCache_.UpdatePipelineHandle(
         reinterpret_cast<std::uintptr_t>(pixelShader));
     if (pipelineEnumChanged || pipelineHandleChanged) {
-        context_->IASetInputLayout(vertex2DInputLayout_);
-        context_->VSSetShader(solidVertexShader_, nullptr, 0);
+        context_->IASetInputLayout(inputLayout);
+        context_->VSSetShader(vertexShader, nullptr, 0);
         context_->PSSetShader(pixelShader, nullptr, 0);
         context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         ID3D11Buffer* vsConstants[] = { vertexCB_[0] };
         context_->VSSetConstantBuffers(0, 1, vsConstants);
+    } else {
+        context_->IASetInputLayout(inputLayout);
+        context_->VSSetShader(vertexShader, nullptr, 0);
     }
 
-    // UiFrameEncoder::Vertex2D is 24 bytes: float2 pos, uint32 color, float2 uv, float coverage
-    const UINT stride = 24;
     const UINT offset = vbState_.drawPos + batch.vertexOffset;
     context_->IASetVertexBuffers(0, 1, &dynamicVB_, &stride, &offset);
     context_->IASetIndexBuffer(dynamicIB_, DXGI_FORMAT_R16_UINT, ibState_.drawPos);

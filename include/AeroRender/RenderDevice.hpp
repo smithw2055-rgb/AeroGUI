@@ -174,8 +174,8 @@ struct Shader {
 };
 
 static constexpr const uint8_t VertexForShader[Shader::Count] = {
-    0, 0, 0, 1, 2, 2, 2, 3, 4, 4, 4, 4, 5, 6, 6, 6, 7, 8, 8, 8, 8, 9, 10, 10, 10, 11, 12, 12, 12,
-    12, 9, 10, 10, 10, 11, 12, 12, 12, 12, 13, 14, 14, 14, 15, 16, 16, 16, 16, 17, 18, 19, 13, 20
+    0, 13, 0, 1, 2, 2, 2, 3, 4, 4, 4, 4, 5, 6, 6, 6, 7, 8, 8, 8, 8, 9, 10, 10, 10, 11, 12, 12, 12,
+    12, 9, 10, 10, 10, 11, 12, 12, 12, 12, 13, 14, 14, 14, 15, 16, 16, 16, 16, 17, 18, 13, 13, 13
 };
 
 static constexpr const uint8_t FormatForVertex[Shader::Vertex::Count] = {
@@ -197,6 +197,99 @@ static constexpr const uint8_t TypeForAttr[Shader::Vertex::Format::Attr::Count] 
 static constexpr const uint8_t SizeForType[Shader::Vertex::Format::Attr::Type::Count] = {
     4, 8, 16, 4, 8
 };
+
+#pragma pack(push, 1)
+
+// Format 0: Pos (8 bytes)
+struct VertexPos {
+    float x = 0.0f;
+    float y = 0.0f;
+};
+
+// Format 1: PosColor (12 bytes)
+struct VertexPosColor {
+    float x = 0.0f;
+    float y = 0.0f;
+    uint32_t color = 0xFFFFFFFF;
+};
+
+// Format 2: PosTex0 (16 bytes)
+struct VertexPosTex0 {
+    float x = 0.0f;
+    float y = 0.0f;
+    float u = 0.0f;
+    float v = 0.0f;
+};
+
+// Format 5: PosColorCoverage (16 bytes)
+struct VertexPosColorCoverage {
+    float x = 0.0f;
+    float y = 0.0f;
+    uint32_t color = 0xFFFFFFFF;
+    float coverage = 1.0f;
+};
+
+// Format 6: PosTex0Coverage (20 bytes)
+struct VertexPosTex0Coverage {
+    float x = 0.0f;
+    float y = 0.0f;
+    float u = 0.0f;
+    float v = 0.0f;
+    float coverage = 1.0f;
+};
+
+// Format 9: PosColorTex1 (20 bytes) - used for SDF text (PosColorTex1_SDF)
+struct VertexPosColorTex1 {
+    float x = 0.0f;
+    float y = 0.0f;
+    uint32_t color = 0xFFFFFFFF;
+    float u = 0.0f;
+    float v = 0.0f;
+};
+
+// Format 10: PosTex0Tex1 (24 bytes)
+struct VertexPosTex0Tex1 {
+    float x = 0.0f;
+    float y = 0.0f;
+    float u0 = 0.0f;
+    float v0 = 0.0f;
+    float u1 = 0.0f;
+    float v1 = 0.0f;
+};
+
+// Format 13: PosColorTex0Tex1 (28 bytes)
+struct VertexPosColorTex0Tex1 {
+    float x = 0.0f;
+    float y = 0.0f;
+    uint32_t color = 0xFFFFFFFF;
+    float u0 = 0.0f;
+    float v0 = 0.0f;
+    float u1 = 0.0f;
+    float v1 = 0.0f;
+};
+
+// Compatibility 24-byte full layout
+struct Vertex2D {
+    float x = 0.0f;
+    float y = 0.0f;
+    uint32_t color = 0xFFFFFFFF;
+    float u = 0.0f;
+    float v = 0.0f;
+    float coverage = 1.0f;
+};
+
+#pragma pack(pop)
+
+static_assert(sizeof(VertexPos) == 8, "VertexPos size mismatch");
+static_assert(sizeof(VertexPosColor) == 12, "VertexPosColor size mismatch");
+static_assert(sizeof(VertexPosTex0) == 16, "VertexPosTex0 size mismatch");
+static_assert(sizeof(VertexPosColorCoverage) == 16, "VertexPosColorCoverage size mismatch");
+static_assert(sizeof(VertexPosTex0Coverage) == 20, "VertexPosTex0Coverage size mismatch");
+static_assert(sizeof(VertexPosColorTex1) == 20, "VertexPosColorTex1 size mismatch");
+static_assert(sizeof(VertexPosTex0Tex1) == 24, "VertexPosTex0Tex1 size mismatch");
+static_assert(sizeof(VertexPosColorTex0Tex1) == 28, "VertexPosColorTex0Tex1 size mismatch");
+static_assert(sizeof(Vertex2D) == 24, "Vertex2D size mismatch");
+
 
 // Alpha blending mode
 struct RenderBlendMode {

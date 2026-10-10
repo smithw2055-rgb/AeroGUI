@@ -130,6 +130,8 @@ protected:
     }
 
 private:
+    void SetVertexFormat(uint8_t format, uintptr_t offset) noexcept;
+
     OpenGL33::DeviceOptions options_;
     Base::IAllocator* allocator_ = nullptr;
 

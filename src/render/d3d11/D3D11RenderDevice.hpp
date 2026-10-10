@@ -193,6 +193,17 @@ private:
     ID3D11PixelShader* customEffectPixelShader_ = nullptr;
     ID3D11InputLayout* vertex2DInputLayout_ = nullptr;
 
+    struct VertexShaderEntry {
+        ID3D11VertexShader* shader = nullptr;
+        ID3D11InputLayout* layout = nullptr;
+        uint32_t stride = 0U;
+    };
+
+    VertexShaderEntry vertexShaders_[Shader::Vertex::Count] = {};
+    ID3D11InputLayout* layouts_[Shader::Vertex::Format::Count] = {};
+
+    ID3D11InputLayout* CreateLayout(uint32_t attributes, const void* code, uint32_t size) noexcept;
+
     DeviceCaps caps_{};
     D3D11RenderTarget* currentTarget_ = nullptr;
     ID3D11RasterizerState* currentRasterizer_ = nullptr;

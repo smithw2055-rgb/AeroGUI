@@ -109,6 +109,9 @@ struct GLCallbacks {
         GLboolean normalized, GLsizei stride, const void* pointer);
     void (*glEnableVertexAttribArray)(GLuint index);
     void (*glDisableVertexAttribArray)(GLuint index);
+    void (*glVertexAttrib1f)(GLuint index, GLfloat x);
+    void (*glVertexAttrib2f)(GLuint index, GLfloat x, GLfloat y);
+    void (*glVertexAttrib4f)(GLuint index, GLfloat x, GLfloat y, GLfloat z, GLfloat w);
     GLuint (*glCreateShader)(GLenum type);
     void (*glShaderSource)(GLuint shader, GLsizei count, const GLchar* const* string, const GLint* length);
     void (*glCompileShader)(GLuint shader);
@@ -201,6 +204,9 @@ bool ResolveCallbacks(
         load(gl.glVertexAttribPointer, "glVertexAttribPointer") &&
         load(gl.glEnableVertexAttribArray, "glEnableVertexAttribArray") &&
         load(gl.glDisableVertexAttribArray, "glDisableVertexAttribArray") &&
+        load(gl.glVertexAttrib1f, "glVertexAttrib1f") &&
+        load(gl.glVertexAttrib2f, "glVertexAttrib2f") &&
+        load(gl.glVertexAttrib4f, "glVertexAttrib4f") &&
         load(gl.glCreateShader, "glCreateShader") &&
         load(gl.glShaderSource, "glShaderSource") &&
         load(gl.glCompileShader, "glCompileShader") &&
@@ -678,6 +684,9 @@ Base::Result<void> OpenGL33RenderDevice::Initialize() noexcept {
     gl.glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, VertexStride, reinterpret_cast<const void*>(UVOffset));
     gl.glEnableVertexAttribArray(3);
     gl.glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, VertexStride, reinterpret_cast<const void*>(CoverageOffset));
+    if (gl.glVertexAttrib4f != nullptr) gl.glVertexAttrib4f(1, 1.0f, 1.0f, 1.0f, 1.0f);
+    if (gl.glVertexAttrib2f != nullptr) gl.glVertexAttrib2f(2, 0.0f, 0.0f);
+    if (gl.glVertexAttrib1f != nullptr) gl.glVertexAttrib1f(3, 1.0f);
     gl.glBindVertexArray(0);
 
     // Create the 64 sampler states indexed by SamplerState.v
@@ -734,6 +743,51 @@ Base::Result<void> OpenGL33RenderDevice::Initialize() noexcept {
 
     state_ = RenderDeviceState::Ready;
     return {};
+}
+
+void OpenGL33RenderDevice::SetVertexFormat(uint8_t format, uintptr_t offset) noexcept {
+    const GLCallbacks& gl = g_gl;
+    const GLsizei stride = SizeForFormat[format] != 0U
+        ? static_cast<GLsizei>(SizeForFormat[format]) : 24;
+
+    switch (format) {
+    case Shader::Vertex::Format::PosColor:
+        gl.glEnableVertexAttribArray(0);
+        gl.glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<const void*>(offset + 0));
+        gl.glEnableVertexAttribArray(1);
+        gl.glVertexAttribPointer(1, 4, GL_UNSIGNED_BYTE, GL_TRUE, stride, reinterpret_cast<const void*>(offset + 8));
+        gl.glDisableVertexAttribArray(2);
+        gl.glDisableVertexAttribArray(3);
+        break;
+    case Shader::Vertex::Format::PosTex0:
+        gl.glEnableVertexAttribArray(0);
+        gl.glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<const void*>(offset + 0));
+        gl.glDisableVertexAttribArray(1);
+        gl.glEnableVertexAttribArray(2);
+        gl.glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<const void*>(offset + 8));
+        gl.glDisableVertexAttribArray(3);
+        break;
+    case Shader::Vertex::Format::PosColorTex1:
+        gl.glEnableVertexAttribArray(0);
+        gl.glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<const void*>(offset + 0));
+        gl.glEnableVertexAttribArray(1);
+        gl.glVertexAttribPointer(1, 4, GL_UNSIGNED_BYTE, GL_TRUE, stride, reinterpret_cast<const void*>(offset + 8));
+        gl.glEnableVertexAttribArray(2);
+        gl.glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<const void*>(offset + 12));
+        gl.glDisableVertexAttribArray(3);
+        break;
+    default:
+        // Full Vertex2D layout
+        gl.glEnableVertexAttribArray(0);
+        gl.glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 24, reinterpret_cast<const void*>(offset + 0));
+        gl.glEnableVertexAttribArray(1);
+        gl.glVertexAttribPointer(1, 4, GL_UNSIGNED_BYTE, GL_TRUE, 24, reinterpret_cast<const void*>(offset + 8));
+        gl.glEnableVertexAttribArray(2);
+        gl.glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 24, reinterpret_cast<const void*>(offset + 12));
+        gl.glEnableVertexAttribArray(3);
+        gl.glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, 24, reinterpret_cast<const void*>(offset + 20));
+        break;
+    }
 }
 
 void OpenGL33RenderDevice::Shutdown() noexcept {
@@ -1144,10 +1198,17 @@ void OpenGL33RenderDevice::DrawBatch(const Batch& batch) noexcept {
         }
     }
 
+    const uint8_t vertexEnum = (batch.shader.v < Shader::Count)
+        ? VertexForShader[batch.shader.v] : 0U;
+    const uint8_t format = (vertexEnum < Shader::Vertex::Count)
+        ? FormatForVertex[vertexEnum] : 0U;
+    const uint32_t stride = SizeForFormat[format] != 0U
+        ? SizeForFormat[format] : 24U;
+
     if (g_gl.glDrawElementsBaseVertex == nullptr) {
         g_gl.glBindBuffer(GL_ARRAY_BUFFER, dynamicVB_);
         g_gl.glBufferSubData(GL_ARRAY_BUFFER, 0,
-            static_cast<GLsizeiptr>(batch.numVertices) * VertexStride,
+            static_cast<GLsizeiptr>(batch.numVertices) * stride,
             mappedVBMemory_ + batch.vertexOffset);
         g_gl.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, dynamicIB_);
         g_gl.glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0,
@@ -1254,11 +1315,16 @@ void OpenGL33RenderDevice::DrawBatch(const Batch& batch) noexcept {
     }
 
     g_gl.glBindVertexArray(vao_);
+    g_gl.glBindBuffer(GL_ARRAY_BUFFER, dynamicVB_);
+    const uintptr_t vbOffset = (g_gl.glDrawElementsBaseVertex != nullptr)
+        ? batch.vertexOffset : 0U;
+    SetVertexFormat(format, vbOffset);
+
     if (g_gl.glDrawElementsBaseVertex != nullptr) {
         g_gl.glDrawElementsBaseVertex(GL_TRIANGLES,
             static_cast<GLsizei>(batch.numIndices), GL_UNSIGNED_SHORT,
             reinterpret_cast<const void*>(static_cast<std::uintptr_t>(batch.startIndex) * sizeof(uint16_t)),
-            static_cast<GLint>(batch.vertexOffset / VertexStride));
+            0);
     } else {
         g_gl.glDrawElements(GL_TRIANGLES,
             static_cast<GLsizei>(batch.numIndices), GL_UNSIGNED_SHORT, nullptr);

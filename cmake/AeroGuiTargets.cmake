@@ -576,6 +576,40 @@ if(AERO_ENABLE_D3D11_BACKEND)
 
     set(_aero_d3d11_shader_root
         "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/shaders")
+
+    function(aero_compile_d3d11_vs stem)
+        set(output
+            "${_aero_d3d11_shader_directory}/AeroD3D11ShaderVS${stem}.hpp")
+        set(symbol "AeroD3D11ShaderVS${stem}")
+        set(defines)
+        foreach(d IN LISTS ARGN)
+            list(APPEND defines /D "${d}")
+        endforeach()
+        add_custom_command(
+            OUTPUT "${output}"
+            COMMAND "${CMAKE_COMMAND}" -E make_directory
+                "${_aero_d3d11_shader_directory}"
+            COMMAND "${AERO_D3D11_FXC_EXECUTABLE}" /nologo /Ges /WX
+                /T vs_4_0 /E vs_main
+                ${defines}
+                /Vn ${symbol}
+                /Fh "${output}"
+                "${_aero_d3d11_shader_root}/ShaderVS.hlsl"
+            DEPENDS "${_aero_d3d11_shader_root}/ShaderVS.hlsl"
+            VERBATIM)
+        set_property(GLOBAL APPEND PROPERTY
+            AERO_D3D11_SHADER_OUTPUTS "${output}")
+    endfunction()
+
+    aero_compile_d3d11_vs(Pos)
+    aero_compile_d3d11_vs(PosColor HAS_COLOR)
+    aero_compile_d3d11_vs(PosTex0 HAS_UV0)
+    aero_compile_d3d11_vs(PosColorCoverage HAS_COLOR HAS_COVERAGE)
+    aero_compile_d3d11_vs(PosTex0Coverage HAS_UV0 HAS_COVERAGE)
+    aero_compile_d3d11_vs(PosColorTex1_SDF HAS_COLOR HAS_UV1)
+    aero_compile_d3d11_vs(PosTex0Tex1 HAS_UV0 HAS_UV1)
+    aero_compile_d3d11_vs(PosColorTex0Tex1 HAS_COLOR HAS_UV0 HAS_UV1)
+
     aero_compile_d3d11_shader_pair(
         RenderFrameSolid "${_aero_d3d11_shader_root}/RenderFrameSolid.hlsl" FALSE)
     aero_compile_d3d11_shader_pair(

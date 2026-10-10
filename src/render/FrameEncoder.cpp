@@ -8,14 +8,7 @@ namespace Aero::Render {
 
 namespace {
 
-struct Vertex2D {
-    float x = 0.0f;
-    float y = 0.0f;
-    uint32_t color = 0xFFFFFFFF;
-    float u = 0.0f;
-    float v = 0.0f;
-    float coverage = 1.0f;
-};
+
 
 #if defined(__GNUC__)
 #pragma GCC diagnostic push
@@ -508,16 +501,52 @@ void UiFrameEncoder::EmitQuad(
         if (!EnsureMappedBuffers()) return;
     }
 
-    auto* v = reinterpret_cast<Vertex2D*>(mappedVertices_ + currentVertexOffset_);
-    const uint32_t color32 = ColorToRGBA32(color, 1.0);
+    const uint8_t vertexEnum = (currentBatch_.shader.v < Shader::Count)
+        ? VertexForShader[currentBatch_.shader.v] : 0U;
+    const uint8_t format = (vertexEnum < Shader::Vertex::Count)
+        ? FormatForVertex[vertexEnum] : 0U;
 
-    for (int i = 0; i < 4; ++i) {
-        v[i].x = static_cast<float>(points[i].x);
-        v[i].y = static_cast<float>(points[i].y);
-        v[i].color = color32;
-        v[i].u = static_cast<float>(uvs[i].x);
-        v[i].v = static_cast<float>(uvs[i].y);
-        v[i].coverage = 1.0f;
+    if (format == Shader::Vertex::Format::PosColor) {
+        auto* v = reinterpret_cast<VertexPosColor*>(mappedVertices_ + currentVertexOffset_);
+        const uint32_t color32 = ColorToRGBA32(color, 1.0);
+        for (int i = 0; i < 4; ++i) {
+            v[i].x = static_cast<float>(points[i].x);
+            v[i].y = static_cast<float>(points[i].y);
+            v[i].color = color32;
+        }
+        currentVertexOffset_ += 4U * sizeof(VertexPosColor);
+    } else if (format == Shader::Vertex::Format::PosTex0) {
+        auto* v = reinterpret_cast<VertexPosTex0*>(mappedVertices_ + currentVertexOffset_);
+        for (int i = 0; i < 4; ++i) {
+            v[i].x = static_cast<float>(points[i].x);
+            v[i].y = static_cast<float>(points[i].y);
+            v[i].u = static_cast<float>(uvs[i].x);
+            v[i].v = static_cast<float>(uvs[i].y);
+        }
+        currentVertexOffset_ += 4U * sizeof(VertexPosTex0);
+    } else if (format == Shader::Vertex::Format::PosColorTex1) {
+        auto* v = reinterpret_cast<VertexPosColorTex1*>(mappedVertices_ + currentVertexOffset_);
+        const uint32_t color32 = ColorToRGBA32(color, 1.0);
+        for (int i = 0; i < 4; ++i) {
+            v[i].x = static_cast<float>(points[i].x);
+            v[i].y = static_cast<float>(points[i].y);
+            v[i].color = color32;
+            v[i].u = static_cast<float>(uvs[i].x);
+            v[i].v = static_cast<float>(uvs[i].y);
+        }
+        currentVertexOffset_ += 4U * sizeof(VertexPosColorTex1);
+    } else {
+        auto* v = reinterpret_cast<Vertex2D*>(mappedVertices_ + currentVertexOffset_);
+        const uint32_t color32 = ColorToRGBA32(color, 1.0);
+        for (int i = 0; i < 4; ++i) {
+            v[i].x = static_cast<float>(points[i].x);
+            v[i].y = static_cast<float>(points[i].y);
+            v[i].color = color32;
+            v[i].u = static_cast<float>(uvs[i].x);
+            v[i].v = static_cast<float>(uvs[i].y);
+            v[i].coverage = 1.0f;
+        }
+        currentVertexOffset_ += 4U * sizeof(Vertex2D);
     }
 
     const uint16_t baseVertex = static_cast<uint16_t>(currentVertexCount_ - currentBatchVertexStart_);
@@ -527,8 +556,6 @@ void UiFrameEncoder::EmitQuad(
     mappedIndices_[currentIndexCount_ + 3] = baseVertex + 0;
     mappedIndices_[currentIndexCount_ + 4] = baseVertex + 2;
     mappedIndices_[currentIndexCount_ + 5] = baseVertex + 3;
-
-    currentVertexOffset_ += 4U * sizeof(Vertex2D);
     currentVertexCount_ += 4U;
     currentIndexCount_ += 6U;
     currentBatch_.numVertices += 4U;
@@ -557,15 +584,30 @@ void UiFrameEncoder::EmitQuadWithColors(
         if (!EnsureMappedBuffers()) return;
     }
 
-    auto* v = reinterpret_cast<Vertex2D*>(mappedVertices_ + currentVertexOffset_);
+    const uint8_t vertexEnum = (currentBatch_.shader.v < Shader::Count)
+        ? VertexForShader[currentBatch_.shader.v] : 0U;
+    const uint8_t format = (vertexEnum < Shader::Vertex::Count)
+        ? FormatForVertex[vertexEnum] : 0U;
 
-    for (int i = 0; i < 4; ++i) {
-        v[i].x = static_cast<float>(points[i].x);
-        v[i].y = static_cast<float>(points[i].y);
-        v[i].color = ColorToRGBA32(colors[i], opacity);
-        v[i].u = static_cast<float>(uvs[i].x);
-        v[i].v = static_cast<float>(uvs[i].y);
-        v[i].coverage = 1.0f;
+    if (format == Shader::Vertex::Format::PosColor) {
+        auto* v = reinterpret_cast<VertexPosColor*>(mappedVertices_ + currentVertexOffset_);
+        for (int i = 0; i < 4; ++i) {
+            v[i].x = static_cast<float>(points[i].x);
+            v[i].y = static_cast<float>(points[i].y);
+            v[i].color = ColorToRGBA32(colors[i], opacity);
+        }
+        currentVertexOffset_ += 4U * sizeof(VertexPosColor);
+    } else {
+        auto* v = reinterpret_cast<Vertex2D*>(mappedVertices_ + currentVertexOffset_);
+        for (int i = 0; i < 4; ++i) {
+            v[i].x = static_cast<float>(points[i].x);
+            v[i].y = static_cast<float>(points[i].y);
+            v[i].color = ColorToRGBA32(colors[i], opacity);
+            v[i].u = static_cast<float>(uvs[i].x);
+            v[i].v = static_cast<float>(uvs[i].y);
+            v[i].coverage = 1.0f;
+        }
+        currentVertexOffset_ += 4U * sizeof(Vertex2D);
     }
 
     const uint16_t baseVertex = static_cast<uint16_t>(currentVertexCount_ - currentBatchVertexStart_);
@@ -576,7 +618,6 @@ void UiFrameEncoder::EmitQuadWithColors(
     mappedIndices_[currentIndexCount_ + 4] = baseVertex + 2;
     mappedIndices_[currentIndexCount_ + 5] = baseVertex + 3;
 
-    currentVertexOffset_ += 4U * sizeof(Vertex2D);
     currentVertexCount_ += 4U;
     currentIndexCount_ += 6U;
     currentBatch_.numVertices += 4U;
@@ -604,23 +645,43 @@ void UiFrameEncoder::EmitTriangleFan(
         if (!EnsureMappedBuffers()) return;
     }
 
-    auto* v = reinterpret_cast<Vertex2D*>(mappedVertices_ + currentVertexOffset_);
+    const uint8_t vertexEnum = (currentBatch_.shader.v < Shader::Count)
+        ? VertexForShader[currentBatch_.shader.v] : 0U;
+    const uint8_t format = (vertexEnum < Shader::Vertex::Count)
+        ? FormatForVertex[vertexEnum] : 0U;
+
     const uint32_t color32 = ColorToRGBA32(color, 1.0);
 
-    v[0].x = static_cast<float>(centroid.x);
-    v[0].y = static_cast<float>(centroid.y);
-    v[0].color = color32;
-    v[0].u = 0.0f;
-    v[0].v = 0.0f;
-    v[0].coverage = 1.0f;
+    if (format == Shader::Vertex::Format::PosColor) {
+        auto* v = reinterpret_cast<VertexPosColor*>(mappedVertices_ + currentVertexOffset_);
+        v[0].x = static_cast<float>(centroid.x);
+        v[0].y = static_cast<float>(centroid.y);
+        v[0].color = color32;
 
-    for (std::uint32_t i = 0; i < perimeterCount; ++i) {
-        v[i + 1].x = static_cast<float>(perimeter[i].x);
-        v[i + 1].y = static_cast<float>(perimeter[i].y);
-        v[i + 1].color = color32;
-        v[i + 1].u = 0.0f;
-        v[i + 1].v = 0.0f;
-        v[i + 1].coverage = 1.0f;
+        for (std::uint32_t i = 0; i < perimeterCount; ++i) {
+            v[i + 1].x = static_cast<float>(perimeter[i].x);
+            v[i + 1].y = static_cast<float>(perimeter[i].y);
+            v[i + 1].color = color32;
+        }
+        currentVertexOffset_ += vertexCount * static_cast<std::uint32_t>(sizeof(VertexPosColor));
+    } else {
+        auto* v = reinterpret_cast<Vertex2D*>(mappedVertices_ + currentVertexOffset_);
+        v[0].x = static_cast<float>(centroid.x);
+        v[0].y = static_cast<float>(centroid.y);
+        v[0].color = color32;
+        v[0].u = 0.0f;
+        v[0].v = 0.0f;
+        v[0].coverage = 1.0f;
+
+        for (std::uint32_t i = 0; i < perimeterCount; ++i) {
+            v[i + 1].x = static_cast<float>(perimeter[i].x);
+            v[i + 1].y = static_cast<float>(perimeter[i].y);
+            v[i + 1].color = color32;
+            v[i + 1].u = 0.0f;
+            v[i + 1].v = 0.0f;
+            v[i + 1].coverage = 1.0f;
+        }
+        currentVertexOffset_ += vertexCount * static_cast<std::uint32_t>(sizeof(Vertex2D));
     }
 
     const uint16_t baseVertex = static_cast<uint16_t>(currentVertexCount_ - currentBatchVertexStart_);
@@ -635,7 +696,6 @@ void UiFrameEncoder::EmitTriangleFan(
         index += 3U;
     }
 
-    currentVertexOffset_ += vertexCount * static_cast<std::uint32_t>(sizeof(Vertex2D));
     currentVertexCount_ += vertexCount;
     currentIndexCount_ += indexCount;
     currentBatch_.numVertices += vertexCount;
@@ -1395,15 +1455,19 @@ void UiFrameEncoder::ProcessCommand(
 
         if (mappedVertices_ == nullptr || mappedIndices_ == nullptr) break;
 
-        // Slabs must fit the mapped dynamic buffers, not just the 16-bit
-        // index range. Scoreboard's emblem Paths tessellate far past 512KB
-        // (DYNAMIC_VB_SIZE / sizeof(Vertex2D) ≈ 21k verts); splitting only
-        // at 65535 still memcpy'd past MapVertices and SIGSEGV'd.
-        constexpr std::uint32_t kMaxBatchVertices =
-            static_cast<std::uint32_t>(DYNAMIC_VB_SIZE / sizeof(Vertex2D));
+        const uint8_t vertexEnum = (currentBatch_.shader.v < Shader::Count)
+            ? VertexForShader[currentBatch_.shader.v] : 0U;
+        const uint8_t format = (vertexEnum < Shader::Vertex::Count)
+            ? FormatForVertex[vertexEnum] : 0U;
+        const std::uint32_t vertexStride = (SizeForFormat[format] != 0U)
+            ? static_cast<std::uint32_t>(SizeForFormat[format])
+            : static_cast<std::uint32_t>(sizeof(Vertex2D));
+
+        const std::uint32_t kMaxBatchVertices =
+            static_cast<std::uint32_t>(DYNAMIC_VB_SIZE / vertexStride);
         constexpr std::uint32_t kMaxBatchIndices =
             static_cast<std::uint32_t>(DYNAMIC_IB_SIZE / sizeof(uint16_t));
-        constexpr std::uint32_t kMaxMeshVertices =
+        const std::uint32_t kMaxMeshVertices =
             kMaxBatchVertices < 65535U ? kMaxBatchVertices : 65535U;
 
         auto remapDynamicBuffers = [&]() noexcept -> bool {
@@ -1414,61 +1478,125 @@ void UiFrameEncoder::ProcessCommand(
         auto writeMeshSlab = [&](
             std::uint32_t start,
             std::uint32_t end) noexcept {
-            auto* v = reinterpret_cast<Vertex2D*>(
-                mappedVertices_ + currentVertexOffset_);
             const bool hasInverse = cmd.uvs[0].x > 0.5;
             Base::Transform2D inverse{};
             if (hasInverse) {
                 static_cast<void>(
                     Base::TryToTransform2D(cmd.transform, inverse));
             }
-            for (std::uint32_t index = start; index < end; ++index) {
-                const Point local = mesh->vertices[index];
-                const Point pos = TransformPoint(
-                    currentTransform, local.x, local.y);
-                Point sample = local;
-                if (hasInverse && cmd.rect.width > 1.0e-12 &&
-                    cmd.rect.height > 1.0e-12) {
-                    const Point uv{
-                        (local.x - cmd.rect.x) / cmd.rect.width,
-                        (local.y - cmd.rect.y) / cmd.rect.height};
-                    const Point mapped{
-                        uv.x * inverse.m11 + uv.y * inverse.m21 + inverse.dx,
-                        uv.x * inverse.m12 + uv.y * inverse.m22 + inverse.dy};
-                    sample = {
-                        cmd.rect.x + mapped.x * cmd.rect.width,
-                        cmd.rect.y + mapped.y * cmd.rect.height};
+
+            if (format == Shader::Vertex::Format::PosColor) {
+                auto* v = reinterpret_cast<VertexPosColor*>(
+                    mappedVertices_ + currentVertexOffset_);
+                for (std::uint32_t index = start; index < end; ++index) {
+                    const Point local = mesh->vertices[index];
+                    const Point pos = TransformPoint(
+                        currentTransform, local.x, local.y);
+                    const std::uint32_t localIndex = index - start;
+                    v[localIndex].x = static_cast<float>(pos.x);
+                    v[localIndex].y = static_cast<float>(pos.y);
+                    v[localIndex].color = color32;
                 }
-                float u = 0.0F;
-                float vCoord = 0.0F;
-                if (cmd.paintKind == 1U) {
-                    const double len2 =
-                        cmd.scalar > 1.0e-12 ? cmd.scalar : 1.0;
-                    const double t =
-                        ((sample.x - cmd.points[0].x) * cmd.points[1].x +
-                         (sample.y - cmd.points[0].y) * cmd.points[1].y) /
-                        len2;
-                    u = static_cast<float>(t);
-                    vCoord = 0.5F;
-                } else if (cmd.paintKind == 2U) {
-                    const double rx =
-                        std::fabs(cmd.points[2].x) > 1.0e-6
-                            ? cmd.points[2].x : 1.0;
-                    const double ry =
-                        std::fabs(cmd.points[2].y) > 1.0e-6
-                            ? cmd.points[2].y : 1.0;
-                    u = static_cast<float>(
-                        (sample.x - cmd.points[0].x) / rx);
-                    vCoord = static_cast<float>(
-                        (sample.y - cmd.points[0].y) / ry);
+            } else if (format == Shader::Vertex::Format::PosTex0) {
+                auto* v = reinterpret_cast<VertexPosTex0*>(
+                    mappedVertices_ + currentVertexOffset_);
+                for (std::uint32_t index = start; index < end; ++index) {
+                    const Point local = mesh->vertices[index];
+                    const Point pos = TransformPoint(
+                        currentTransform, local.x, local.y);
+                    Point sample = local;
+                    if (hasInverse && cmd.rect.width > 1.0e-12 &&
+                        cmd.rect.height > 1.0e-12) {
+                        const Point uv{
+                            (local.x - cmd.rect.x) / cmd.rect.width,
+                            (local.y - cmd.rect.y) / cmd.rect.height};
+                        const Point mapped{
+                            uv.x * inverse.m11 + uv.y * inverse.m21 + inverse.dx,
+                            uv.x * inverse.m12 + uv.y * inverse.m22 + inverse.dy};
+                        sample = {
+                            cmd.rect.x + mapped.x * cmd.rect.width,
+                            cmd.rect.y + mapped.y * cmd.rect.height};
+                    }
+                    float u = 0.0F;
+                    float vCoord = 0.0F;
+                    if (cmd.paintKind == 1U) {
+                        const double len2 =
+                            cmd.scalar > 1.0e-12 ? cmd.scalar : 1.0;
+                        const double t =
+                            ((sample.x - cmd.points[0].x) * cmd.points[1].x +
+                             (sample.y - cmd.points[0].y) * cmd.points[1].y) /
+                            len2;
+                        u = static_cast<float>(t);
+                        vCoord = 0.5F;
+                    } else if (cmd.paintKind == 2U) {
+                        const double rx =
+                            std::fabs(cmd.points[2].x) > 1.0e-6
+                                ? cmd.points[2].x : 1.0;
+                        const double ry =
+                            std::fabs(cmd.points[2].y) > 1.0e-6
+                                ? cmd.points[2].y : 1.0;
+                        u = static_cast<float>(
+                            (sample.x - cmd.points[0].x) / rx);
+                        vCoord = static_cast<float>(
+                            (sample.y - cmd.points[0].y) / ry);
+                    }
+                    const std::uint32_t localIndex = index - start;
+                    v[localIndex].x = static_cast<float>(pos.x);
+                    v[localIndex].y = static_cast<float>(pos.y);
+                    v[localIndex].u = u;
+                    v[localIndex].v = vCoord;
                 }
-                const std::uint32_t localIndex = index - start;
-                v[localIndex].x = static_cast<float>(pos.x);
-                v[localIndex].y = static_cast<float>(pos.y);
-                v[localIndex].color = color32;
-                v[localIndex].u = u;
-                v[localIndex].v = vCoord;
-                v[localIndex].coverage = 1.0F;
+            } else {
+                auto* v = reinterpret_cast<Vertex2D*>(
+                    mappedVertices_ + currentVertexOffset_);
+                for (std::uint32_t index = start; index < end; ++index) {
+                    const Point local = mesh->vertices[index];
+                    const Point pos = TransformPoint(
+                        currentTransform, local.x, local.y);
+                    Point sample = local;
+                    if (hasInverse && cmd.rect.width > 1.0e-12 &&
+                        cmd.rect.height > 1.0e-12) {
+                        const Point uv{
+                            (local.x - cmd.rect.x) / cmd.rect.width,
+                            (local.y - cmd.rect.y) / cmd.rect.height};
+                        const Point mapped{
+                            uv.x * inverse.m11 + uv.y * inverse.m21 + inverse.dx,
+                            uv.x * inverse.m12 + uv.y * inverse.m22 + inverse.dy};
+                        sample = {
+                            cmd.rect.x + mapped.x * cmd.rect.width,
+                            cmd.rect.y + mapped.y * cmd.rect.height};
+                    }
+                    float u = 0.0F;
+                    float vCoord = 0.0F;
+                    if (cmd.paintKind == 1U) {
+                        const double len2 =
+                            cmd.scalar > 1.0e-12 ? cmd.scalar : 1.0;
+                        const double t =
+                            ((sample.x - cmd.points[0].x) * cmd.points[1].x +
+                             (sample.y - cmd.points[0].y) * cmd.points[1].y) /
+                            len2;
+                        u = static_cast<float>(t);
+                        vCoord = 0.5F;
+                    } else if (cmd.paintKind == 2U) {
+                        const double rx =
+                            std::fabs(cmd.points[2].x) > 1.0e-6
+                                ? cmd.points[2].x : 1.0;
+                        const double ry =
+                            std::fabs(cmd.points[2].y) > 1.0e-6
+                                ? cmd.points[2].y : 1.0;
+                        u = static_cast<float>(
+                            (sample.x - cmd.points[0].x) / rx);
+                        vCoord = static_cast<float>(
+                            (sample.y - cmd.points[0].y) / ry);
+                    }
+                    const std::uint32_t localIndex = index - start;
+                    v[localIndex].x = static_cast<float>(pos.x);
+                    v[localIndex].y = static_cast<float>(pos.y);
+                    v[localIndex].color = color32;
+                    v[localIndex].u = u;
+                    v[localIndex].v = vCoord;
+                    v[localIndex].coverage = 1.0F;
+                }
             }
         };
 
@@ -1500,44 +1628,42 @@ void UiFrameEncoder::ProcessCommand(
             for (std::uint32_t index = 0U;
                  index + 2U < mesh->indices.Size();
                  index += 3U) {
-                const std::uint32_t i0 = mesh->indices[index + 0U];
-                const std::uint32_t i1 = mesh->indices[index + 1U];
-                const std::uint32_t i2 = mesh->indices[index + 2U];
-                if (i0 < start || i0 >= end ||
-                    i1 < start || i1 >= end ||
-                    i2 < start || i2 >= end) {
-                    continue;
-                }
-                if (currentIndexCount_ + emittedIndices + 3U > kMaxBatchIndices) {
-                    currentVertexOffset_ +=
-                        count * static_cast<std::uint32_t>(sizeof(Vertex2D));
-                    currentVertexCount_ += count;
-                    currentIndexCount_ += emittedIndices;
-                    currentBatch_.numVertices += count;
-                    currentBatch_.numIndices += emittedIndices;
-                    stats_.vertexCount += count;
-                    stats_.indexCount += emittedIndices;
-                    FlushBatch();
-                    if (!remapDynamicBuffers()) {
-                        slabFailed = true;
-                        break;
-                    }
-                    writeMeshSlab(start, end);
-                    baseVertex = 0U;
-                    emittedIndices = 0U;
-                }
-                mappedIndices_[currentIndexCount_ + emittedIndices + 0U] =
-                    static_cast<uint16_t>(baseVertex + i0 - start);
-                mappedIndices_[currentIndexCount_ + emittedIndices + 1U] =
-                    static_cast<uint16_t>(baseVertex + i1 - start);
-                mappedIndices_[currentIndexCount_ + emittedIndices + 2U] =
-                    static_cast<uint16_t>(baseVertex + i2 - start);
-                emittedIndices += 3U;
+                 const std::uint32_t i0 = mesh->indices[index + 0U];
+                 const std::uint32_t i1 = mesh->indices[index + 1U];
+                 const std::uint32_t i2 = mesh->indices[index + 2U];
+                 if (i0 < start || i0 >= end ||
+                     i1 < start || i1 >= end ||
+                     i2 < start || i2 >= end) {
+                     continue;
+                 }
+                 if (currentIndexCount_ + emittedIndices + 3U > kMaxBatchIndices) {
+                     currentVertexOffset_ += count * vertexStride;
+                     currentVertexCount_ += count;
+                     currentIndexCount_ += emittedIndices;
+                     currentBatch_.numVertices += count;
+                     currentBatch_.numIndices += emittedIndices;
+                     stats_.vertexCount += count;
+                     stats_.indexCount += emittedIndices;
+                     FlushBatch();
+                     if (!remapDynamicBuffers()) {
+                         slabFailed = true;
+                         break;
+                     }
+                     writeMeshSlab(start, end);
+                     baseVertex = 0U;
+                     emittedIndices = 0U;
+                 }
+                 mappedIndices_[currentIndexCount_ + emittedIndices + 0U] =
+                     static_cast<uint16_t>(baseVertex + i0 - start);
+                 mappedIndices_[currentIndexCount_ + emittedIndices + 1U] =
+                     static_cast<uint16_t>(baseVertex + i1 - start);
+                 mappedIndices_[currentIndexCount_ + emittedIndices + 2U] =
+                     static_cast<uint16_t>(baseVertex + i2 - start);
+                 emittedIndices += 3U;
             }
             if (slabFailed) break;
 
-            currentVertexOffset_ +=
-                count * static_cast<std::uint32_t>(sizeof(Vertex2D));
+            currentVertexOffset_ += count * vertexStride;
             currentVertexCount_ += count;
             currentIndexCount_ += emittedIndices;
             currentBatch_.numVertices += count;
