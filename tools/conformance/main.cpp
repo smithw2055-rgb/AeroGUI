@@ -416,6 +416,9 @@ bool RenderD3D11Readback(
     }
 
     Aero::Base::Result<void> rec = renderer.RecordOnscreen(frame, *target);
+    const auto stats = renderer.LastStatistics();
+    std::fprintf(stderr, "D3D11 stats: draws=%u batches=%u verts=%u indices=%u\n",
+        stats.drawCallCount, stats.batchCount, stats.vertexCount, stats.indexCount);
     renderer.Shutdown();
     if (!rec) {
         Check(false, "D3D11 record failed");
@@ -602,7 +605,8 @@ bool RenderOpenGL33Readback(
 void VerifyNativePixelReadback(
     const ::Aero::Render::RenderFrame& frame,
     std::uint32_t width,
-    std::uint32_t height) noexcept {
+    std::uint32_t height,
+    const char* testName = "") noexcept {
     Aero::Base::Vector<std::uint8_t> d3dPixels;
     Aero::Base::Vector<std::uint8_t> glPixels;
     if (!RenderD3D11Readback(frame, width, height, d3dPixels) ||
@@ -626,6 +630,7 @@ void VerifyNativePixelReadback(
     std::uint32_t glMinY = height;
     std::uint32_t glMaxX = 0U;
     std::uint32_t glMaxY = 0U;
+
     for (std::uint32_t index = 0U;
          index < d3dPixels.Size(); ++index) {
         const int difference = std::abs(
@@ -657,14 +662,18 @@ void VerifyNativePixelReadback(
         static_cast<double>(totalDifference) /
         static_cast<double>(d3dPixels.Size());
     const std::uint32_t pixelCount = width * height;
+    std::fprintf(stderr,
+        "[%s] readback summary: d3d-alpha=%u gl-alpha=%u (min=%u) mean-diff=%.3f outliers=%u\n",
+        testName, nonTransparentD3D, nonTransparentGl, pixelCount / 8U, meanDifference, outlierCount);
     if (nonTransparentD3D <= pixelCount / 8U ||
         nonTransparentGl <= pixelCount / 8U ||
         meanDifference > 4.0 ||
         outlierCount > d3dPixels.Size() / 100U) {
         std::fprintf(stderr,
-            "pixel diagnostics: d3d-alpha=%u gl-alpha=%u pixels=%u "
+            "[%s] pixel diagnostics: d3d-alpha=%u gl-alpha=%u pixels=%u "
             "mean-diff=%.3f outliers=%u channels=%u "
             "d3d-box=%u,%u-%u,%u gl-box=%u,%u-%u,%u\n",
+            testName,
             nonTransparentD3D,
             nonTransparentGl,
             pixelCount,
@@ -682,7 +691,7 @@ void VerifyNativePixelReadback(
     }
     Check(nonTransparentD3D > pixelCount / 8U &&
             nonTransparentGl > pixelCount / 8U,
-        "native backends produced an empty effect frame");
+        testName);
     Check(meanDifference <= 4.0 &&
             outlierCount <= d3dPixels.Size() / 100U,
         "D3D11 and OpenGL effect pixels exceed tolerance");
@@ -826,20 +835,27 @@ void VerifyMaskAndEffectRendering(Aero::View& view) noexcept {
 #if defined(_WIN32)
     if (frame != nullptr) {
         VerifyNativePixelReadback(
-            *frame, pixelWidth, pixelHeight);
+            *frame, pixelWidth, pixelHeight, "MaskAndEffect");
     }
 #endif
 }
 
-void VerifyGradientSpreadModes(Aero::View& view) noexcept {
+void VerifyGradientSpreadModes(Aero::Gui& gui) noexcept {
+    Aero::ViewOptions viewOptions;
+    viewOptions.loadBuiltInTheme = true;
+    viewOptions.builtInTheme = Aero::BuiltInTheme::Light;
+    Aero::Base::Result<Aero::Base::Ref<Aero::View>> viewMade =
+        gui.CreateView(viewOptions);
+    Check(viewMade.HasValue(), "spread modes View creation failed");
+    if (!viewMade) return;
+    Aero::View& view = *viewMade.Value();
+
     constexpr char xaml[] = R"XAML(
-<Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-  <Border x:Name="RepeatBorder" Width="64" Height="96" HorizontalAlignment="Left"/>
-  <Border x:Name="ReflectBorder" Width="64" Height="96" HorizontalAlignment="Right"/>
+<Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+  <Border/>
 </Grid>
 )XAML";
-    Aero::Markup::XamlReader reader(view.GetGui());
+    Aero::Markup::XamlReader reader(gui);
     auto document = reader.Parse(Aero::Base::StringView(xaml));
     Check(document.HasValue(), "gradient spread modes XAML parse failed");
     if (!document) return;
@@ -847,11 +863,9 @@ void VerifyGradientSpreadModes(Aero::View& view) noexcept {
         document.Value().Root();
     if (!rootObject || rootObject->RuntimeType() != Aero::Controls::Grid::StaticTypeId()) return;
     auto* root = static_cast<Aero::Controls::Grid*>(rootObject.Get());
-
-    auto* repeatBorder = static_cast<Aero::Controls::Border*>(root->FindName("RepeatBorder"));
-    auto* reflectBorder = static_cast<Aero::Controls::Border*>(root->FindName("ReflectBorder"));
-    Check(repeatBorder != nullptr && reflectBorder != nullptr, "failed to find borders for spread modes");
-    if (repeatBorder == nullptr || reflectBorder == nullptr) return;
+    Aero::UIElement* childElement = root->GetChildren().GetItem(0U);
+    if (childElement == nullptr || childElement->RuntimeType() != Aero::Controls::Border::StaticTypeId()) return;
+    auto* child = static_cast<Aero::Controls::Border*>(childElement);
 
     // LinearGradient with Repeat
     auto repeatBrushMade = Aero::Base::MakeRef<Aero::Media::LinearGradientBrush>();
@@ -870,7 +884,7 @@ void VerifyGradientSpreadModes(Aero::View& view) noexcept {
     repeatBrush->SetStartPoint({0.0, 0.0});
     repeatBrush->SetEndPoint({0.25, 0.25});
     repeatBrush->SetSpreadMethod(Aero::Media::GradientSpreadMethod::Repeat);
-    repeatBorder->SetBackground(Aero::Base::Ref<Aero::Media::Brush>(repeatBrush));
+    root->SetBackground(Aero::Base::Ref<Aero::Media::Brush>(repeatBrush));
 
     // RadialGradient with Reflect
     auto reflectBrushMade = Aero::Base::MakeRef<Aero::Media::RadialGradientBrush>();
@@ -891,7 +905,8 @@ void VerifyGradientSpreadModes(Aero::View& view) noexcept {
     reflectBrush->SetRadiusX(0.25);
     reflectBrush->SetRadiusY(0.25);
     reflectBrush->SetSpreadMethod(Aero::Media::GradientSpreadMethod::Reflect);
-    reflectBorder->SetBackground(Aero::Base::Ref<Aero::Media::Brush>(reflectBrush));
+    child->SetMargin(Aero::Thickness{16.0, 16.0, 16.0, 16.0});
+    child->SetBackground(Aero::Base::Ref<Aero::Media::Brush>(reflectBrush));
 
     const Aero::Size logicalSize{128.0, 96.0};
     constexpr std::uint32_t pixelWidth = 256U;
@@ -906,12 +921,13 @@ void VerifyGradientSpreadModes(Aero::View& view) noexcept {
     Check(updated, "spread modes View update did not commit a frame");
     const ::Aero::Render::RenderFrame* frame =
         Aero::CurrentFrameForConformance(view);
+
     Check(frame != nullptr && !frame->GradientRamps().Empty(),
         "gradient ramps were not captured for spread modes");
     if (frame == nullptr) return;
 
 #if defined(_WIN32)
-    VerifyNativePixelReadback(*frame, pixelWidth, pixelHeight);
+    VerifyNativePixelReadback(*frame, pixelWidth, pixelHeight, "SpreadModes");
 #endif
 }
 
@@ -1056,7 +1072,6 @@ int main() {
         Check(view.HasValue(), "View creation failed");
         if (view) {
             VerifyMaskAndEffectRendering(*view.Value());
-            VerifyGradientSpreadModes(*view.Value());
             VerifyFreezeGraph();
             VerifyExpressionFreezeRejection();
             VerifySharedConsumers();
@@ -1064,6 +1079,7 @@ int main() {
             VerifyViewport(*view.Value());
             VerifyAuthoringPropertySynchronization();
         }
+        VerifyGradientSpreadModes(gui);
     }
     if (failures != 0) return 1;
     std::puts("aero-conformance: passed");

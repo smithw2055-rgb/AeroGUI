@@ -460,7 +460,19 @@ void UiFrameEncoder::CommitBatches() noexcept {
         device_->UnmapIndices();
         mappedIndices_ = nullptr;
     }
-    for (const auto& qb : queuedBatches_) {
+    for (auto& qb : queuedBatches_) {
+        if (qb.batch.pixelUniforms[0].values != nullptr) {
+            qb.batch.pixelUniforms[0].values = qb.pixelUniforms0;
+        }
+        if (qb.batch.pixelUniforms[1].values != nullptr) {
+            qb.batch.pixelUniforms[1].values = qb.pixelUniforms1;
+        }
+        if (qb.batch.vertexUniforms[0].values != nullptr) {
+            qb.batch.vertexUniforms[0].values = qb.vertexUniforms0;
+        }
+        if (qb.batch.vertexUniforms[1].values != nullptr) {
+            qb.batch.vertexUniforms[1].values = qb.vertexUniforms1;
+        }
         device_->DrawBatch(qb.batch);
         ++stats_.drawCallCount;
         ++stats_.batchCount;
