@@ -310,6 +310,8 @@ void PasswordBox::OnPropertyChanged(
         editor_.SetPlaceholder(GetPlaceholder());
     } else if (args.GetProperty() == UIElement::IsEnabledProperty && !args.GetNewValue().AsBoolean()) {
         static_cast<void>(editor_.CancelCompositionForFocusLoss());
+    } else if (args.GetProperty() == UIElement::IsKeyboardFocusedProperty) {
+        editor_.InvalidateEditor();
     }
 }
 

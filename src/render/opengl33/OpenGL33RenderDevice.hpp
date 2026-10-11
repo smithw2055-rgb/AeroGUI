@@ -146,6 +146,7 @@ private:
 
     // Program handles: [Shader::Path_Solid, Shader::Path_AA_Solid] -> solid,
     // [Shader::Path_Pattern] -> pattern, [Shader::SDF_Solid] -> sdf.
+    unsigned int programs_[Shader::Count] = {};
     unsigned int solidProgram_ = 0;
     unsigned int patternProgram_ = 0;
     unsigned int sdfProgram_ = 0;

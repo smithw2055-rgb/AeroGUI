@@ -18,6 +18,8 @@ using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::DependencyPropertyChangedEventHandler;
 using ::Aero::Meta::TypeId;
 
+class TabControl;
+
 class AERO_GUI_API ListBoxItem : public ContentControl {
     AERO_DECLARE_TYPE(ListBoxItem, ContentControl)
 
@@ -161,6 +163,13 @@ public:
     bool GetIsSelected() const noexcept;
     void SetIsSelected(bool value) noexcept;
     AERO_DEPENDENCY_PROPERTY(bool, IsSelected);
+
+protected:
+    void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
+    void OnMouseLeftButtonDown(MouseButtonEventArgs& args);
+
+private:
+    TabControl* FindParentTabControl() const noexcept;
 };
 
 // Wraps tab headers according to the nearest templated TabControl's strip
@@ -190,24 +199,33 @@ public:
     std::uint32_t GetTabCount() const noexcept { return GetCount(); }
     TabItem* GetSelectedTab() const noexcept;
     Value GetSelectedContent() const noexcept { return GetValue(SelectedContentProperty); }
+    Ref<Base::Object> GetSelectedContentTemplate() const noexcept { return GetValue(SelectedContentTemplateProperty); }
     Ref<DataTemplate> GetContentTemplate() const noexcept { return GetValue(ContentTemplateProperty); }
     void SetContentTemplate(Ref<DataTemplate> value) noexcept { SetValue(ContentTemplateProperty, std::move(value)); }
     Dock GetTabStripPlacement() const noexcept { return GetValue(TabStripPlacementProperty); }
     void SetTabStripPlacement(Dock value) noexcept { SetValue(TabStripPlacementProperty, value); }
 
     AERO_READONLY_PROPERTY(Value, SelectedContent);
+    AERO_READONLY_PROPERTY(Ref<Base::Object>, SelectedContentTemplate);
     AERO_DEPENDENCY_PROPERTY(Ref<DataTemplate>, ContentTemplate);
     AERO_DEPENDENCY_PROPERTY(Dock, TabStripPlacement);
 
 protected:
     Result<Ref<FrameworkElement>> GetContainerForItemOverride() const noexcept override;
+    Result<void> PrepareContainerForItemOverride(FrameworkElement& container,
+        const Ref<Base::Object>& item, std::uint32_t index) noexcept override;
+    void OnApplyTemplate() noexcept override;
     void OnSelectionChanged(const SelectionChangedEvent& event) override;
     void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
+    void OnItemsChanged(const ItemsChangedEvent& event) noexcept override;
+    void OnContainersChanged() noexcept override;
     Size MeasureOverride(Size availableSize) noexcept override;
     Size ArrangeOverride(Size finalSize) noexcept override;
 
 private:
+    friend class TabItem;
     void SynchronizeSelection() noexcept;
+    void EnsureDefaultSelection() noexcept;
 };
 
 } // namespace Aero::Controls

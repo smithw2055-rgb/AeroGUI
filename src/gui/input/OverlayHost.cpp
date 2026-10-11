@@ -1,6 +1,7 @@
 #include "gui/ViewFrame.hpp"
 #include "render/RenderTree.hpp"
 #include <Aero/Documents.hpp>
+#include <Aero/Controls/Menus.hpp>
 
 #include <cstdint>
 #include <utility>
@@ -49,6 +50,9 @@ Base::Result<void> OverlayHost::SynchronizeOverlays() noexcept {
         Base::Vector<Aero::Media::Visual*> stack(
             Allocator());
         stack.PushBack(rootVisual);
+        if (activeContextMenu && activeContextMenu->GetIsOpen()) {
+            stack.PushBack(activeContextMenu.Get());
+        }
         while (!stack.Empty()) {
             Aero::Media::Visual* node =
                 stack.Back();
@@ -163,21 +167,27 @@ Base::Result<void> OverlayHost::SynchronizeOverlays() noexcept {
                         rootTransform(*inputElement);
                     if (Metadata()->Types().IsDerivedFrom(
                             type, Controls::ContextMenu::StaticTypeId())) {
-                        Base::Ref<Aero::UIElement> target =
-                            static_cast<Controls::ContextMenu*>(node)->GetPlacementTarget();
-                        if (target &&
-                            target->
-                                GetIsArrangeValid()) {
-                            transform =
-                                rootTransform(*target);
-                            transform =
-                                Aero::Media::ComposeTransforms(
-                                    makeTranslate(
-                                        0.0,
-                                        target->
-                                            GetRenderSize().
-                                                height),
-                                    transform);
+                        if (contextMenuHasPosition) {
+                            transform = makeTranslate(
+                                contextMenuPosition.x,
+                                contextMenuPosition.y);
+                        } else {
+                            Base::Ref<Aero::UIElement> target =
+                                static_cast<Controls::ContextMenu*>(node)->GetPlacementTarget();
+                            if (target &&
+                                target->
+                                    GetIsArrangeValid()) {
+                                transform =
+                                    rootTransform(*target);
+                                transform =
+                                    Aero::Media::ComposeTransforms(
+                                        makeTranslate(
+                                            0.0,
+                                            target->
+                                                GetRenderSize().
+                                                    height),
+                                        transform);
+                            }
                         }
                     }
                     renderOverlays.PushBack(
@@ -309,6 +319,13 @@ void OverlayHost::CloseAllOverlays() noexcept {
                     menu->SetPlacementTarget({}));
             }
         }
+        if (activeContextMenu) {
+            activeContextMenu->SetIsOpen(false);
+            static_cast<void>(activeContextMenu->SetPlacementTarget({}));
+            activeContextMenu.Reset();
+            contextMenuTarget.Reset();
+            contextMenuHasPosition = false;
+        }
     }
 
 bool OverlayHost::IsVisualDescendantOrSelf(
@@ -355,10 +372,18 @@ Base::Result<void> OverlayHost::DismissOverlaysForPointer(
             return {};
         }
         static_cast<void>(SynchronizeOverlays());
-        if (inputOverlays.Empty()) {
+        if (inputOverlays.Empty() && !activeContextMenu) {
             return {};
         }
         bool closedFocusedOverlay = false;
+        if (activeContextMenu && (target == nullptr || !IsVisualDescendantOrSelf(*activeContextMenu, *target))) {
+            activeContextMenu->SetIsOpen(false);
+            static_cast<void>(activeContextMenu->SetPlacementTarget({}));
+            activeContextMenu.Reset();
+            contextMenuTarget.Reset();
+            contextMenuHasPosition = false;
+            closedFocusedOverlay = true;
+        }
         for (std::uint32_t index =
                  inputOverlays.Size();
              index > 0U;
@@ -399,8 +424,34 @@ Base::Result<void> OverlayHost::DismissOverlaysForPointer(
                         return {};
                     }
                 }
-                if (!popup->GetStaysOpen()) {
+                DependencyObject* templated = popup->GetTemplatedParent();
+                bool isMenuPopup = (templated != nullptr &&
+                    Metadata()->Types().IsDerivedFrom(
+                        templated->RuntimeType(),
+                        Controls::MenuItem::StaticTypeId()));
+                UIElement* placement = popup->GetPlacementTarget().Get();
+                if (!isMenuPopup && placement != nullptr &&
+                    Metadata()->Types().IsDerivedFrom(
+                        placement->RuntimeType(),
+                        Controls::MenuItem::StaticTypeId())) {
+                    isMenuPopup = true;
+                }
+                if (!popup->GetStaysOpen() || isMenuPopup) {
                     popup->SetIsOpen(false);
+                    if (templated != nullptr &&
+                        Metadata()->Types().IsDerivedFrom(
+                            templated->RuntimeType(),
+                            Controls::MenuItem::StaticTypeId())) {
+                        Controls::MenuItem::DismissMenuTree(
+                            *static_cast<Controls::MenuItem*>(templated));
+                    }
+                    if (placement != nullptr &&
+                        Metadata()->Types().IsDerivedFrom(
+                            placement->RuntimeType(),
+                            Controls::MenuItem::StaticTypeId())) {
+                        Controls::MenuItem::DismissMenuTree(
+                            *static_cast<Controls::MenuItem*>(placement));
+                    }
                 }
             } else if (
                 Metadata()->Types().IsDerivedFrom(
@@ -415,6 +466,11 @@ Base::Result<void> OverlayHost::DismissOverlaysForPointer(
                         Controls::ContextMenu*>(
                         overlay)->
                         SetPlacementTarget({}));
+                if (activeContextMenu.Get() == overlay) {
+                    activeContextMenu.Reset();
+                    contextMenuTarget.Reset();
+                    contextMenuHasPosition = false;
+                }
             }
         }
         Base::Result<void> synced = SynchronizeOverlays();
@@ -428,6 +484,17 @@ Base::Result<bool> OverlayHost::DismissTopOverlayForEscape()
         noexcept {
         Base::Result<void> synced = SynchronizeOverlays();
         if (!synced) return Base::Result<bool>(synced.GetStatus());
+        if (activeContextMenu) {
+            activeContextMenu->SetIsOpen(false);
+            static_cast<void>(activeContextMenu->SetPlacementTarget({}));
+            activeContextMenu.Reset();
+            contextMenuTarget.Reset();
+            contextMenuHasPosition = false;
+            synced = SynchronizeOverlays();
+            if (!synced) return Base::Result<bool>(synced.GetStatus());
+            Base::Result<void> restored = RestoreOverlayFocus();
+            return restored ? Base::Result<bool>(true) : Base::Result<bool>(restored.GetStatus());
+        }
         for (std::uint32_t index =
                  inputOverlays.Size();
              index > 0U;
@@ -446,6 +513,20 @@ Base::Result<bool> OverlayHost::DismissTopOverlayForEscape()
                         overlay);
                 // Keep PlacementTarget so the ComboBox can reopen in place.
                 popup->SetIsOpen(false);
+                DependencyObject* templated = popup->GetTemplatedParent();
+                if (templated != nullptr &&
+                    Metadata()->Types().IsDerivedFrom(
+                        templated->RuntimeType(),
+                        Controls::MenuItem::StaticTypeId())) {
+                    static_cast<Controls::MenuItem*>(templated)->SetIsSubmenuOpen(false);
+                }
+                UIElement* placement = popup->GetPlacementTarget().Get();
+                if (placement != nullptr &&
+                    Metadata()->Types().IsDerivedFrom(
+                        placement->RuntimeType(),
+                        Controls::MenuItem::StaticTypeId())) {
+                    static_cast<Controls::MenuItem*>(placement)->SetIsSubmenuOpen(false);
+                }
                 synced = SynchronizeOverlays();
                 if (!synced) {
                     return Base::Result<bool>(synced.GetStatus());
@@ -529,18 +610,34 @@ Base::Result<void> OverlayHost::OpenContextMenuForPointer(
                     if (target) {
                         menu->SetPlacementTarget(std::move(target));
                     }
-                    menu->SetIsOpen(true);
-                    if (this->Input() != nullptr) {
-                        Base::Result<bool> focused =
-                            this->Input()->SetFocus(
-                                menu.Get());
-                        if (!focused) {
-                            static_cast<void>(
-                                menu->
-                                    SetIsOpen(
-                                        false));
-                            return focused.GetStatus();
+
+                    Aero::Media::Visual* rootVisual = view != nullptr ? view->RootVisual() : nullptr;
+                    if (rootVisual != nullptr && menu->GetVisualParent() == nullptr) {
+                        ElementTree* tree = ElementTree::Of(*rootVisual);
+                        if (tree != nullptr) {
+                            if (contextMenuAttachment.IsAttached()) {
+                                (void)tree->DetachElement(contextMenuAttachment);
+                            }
+                            auto attachRes = tree->AttachElement(*rootVisual, *rootVisual, *menu);
+                            if (attachRes) {
+                                contextMenuAttachment = attachRes.Value();
+                            }
                         }
+                    }
+
+                    activeContextMenu = menu;
+                    contextMenuTarget = Base::Ref<Aero::UIElement>::TryFromBorrowed(*element);
+                    contextMenuPosition = pointer.position;
+                    contextMenuHasPosition = true;
+                    menu->SetIsOpen(true);
+
+                    menu->Measure(Size{10000.0, 10000.0});
+                    menu->Arrange(Rect{0.0, 0.0, menu->GetDesiredSize().width, menu->GetDesiredSize().height});
+
+                    static_cast<void>(SynchronizeOverlays());
+
+                    if (this->Input() != nullptr) {
+                        static_cast<void>(this->Input()->SetFocus(menu.Get()));
                     }
                     return {};
                 }

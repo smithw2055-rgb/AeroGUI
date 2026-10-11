@@ -1,5 +1,6 @@
 #include <Aero/Resources.hpp>
 #include "gui/styles/FrameworkResourceResolver.hpp"
+#include "gui/styles/StyleEngine.hpp"
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Vector.hpp>
@@ -305,6 +306,9 @@ void Notify(
                 impl.generation);
         }
     }
+    if (kind == ResourceChangeKind::MergedDictionaryChanged) {
+        Aero::Markup::NotifyAllDynamicResourcesChanged();
+    }
 }
 
 Base::Result<ResourceValue> LookupImpl(
@@ -528,6 +532,28 @@ Base::Result<void> ResourceDictionary::Add(
     const ResourceKey& key,
     const ResourceValue& value,
     ::Aero::Diagnostics::SourceSpan source) noexcept {
+    {
+        if (key.Kind() == ResourceKeyKind::String) {
+            Base::StringView kv = key.StringValue();
+            auto contains = [&](const char* s) noexcept {
+                if (kv.SizeBytes() == 0) return false;
+                std::uint32_t n = 0U;
+                while (s[n] != '\0') ++n;
+                if (n == 0U || n > kv.SizeBytes()) return false;
+                for (std::uint32_t i = 0U; i + n <= kv.SizeBytes(); ++i) {
+                    std::uint32_t j = 0U;
+                    while (j < n && kv.Data()[i + j] == s[j]) ++j;
+                    if (j == n) return true;
+                }
+                return false;
+            };
+            if (contains("Container") || contains("ItemStyle") || contains("HeaderStyle") ||
+                contains("StockTemplate") || contains("RowBackground")) {
+                std::fprintf(stderr, "[ResAdd] key='%.*s' valType=%u\n",
+                    (int)kv.SizeBytes(), kv.Data(), (unsigned)value.Type());
+            }
+        }
+    }
     if (!key.IsValid() ||
         value.Type() == Meta::InvalidTypeId ||
         value.IsUnset()) {

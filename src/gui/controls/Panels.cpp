@@ -861,9 +861,11 @@ Size Grid::MeasureOverride(
         nonSpanningChildren.PushBack({child, column, row, hasStarCol, hasStarRow});
     }
 
-    // Pass 1A: Non-spanning elements in non-star tracks (Pixel / Auto)
+    // Pass 1A: Non-spanning elements with non-star columns to establish Auto column widths.
+    // If an element's row is Star, measure with childHeight = Unconstrained so its width
+    // contribution to the Auto column is captured before Star columns subtract nonStarWidth.
     for (const NonSpanningChild& item : nonSpanningChildren) {
-        if (item.hasStarCol || item.hasStarRow) continue;
+        if (item.hasStarCol) continue;
         UIElement* child = item.child;
         const std::uint32_t column = item.column;
         const std::uint32_t row = item.row;
@@ -885,6 +887,26 @@ Size Grid::MeasureOverride(
         if (colDef.unit != GridUnitType::Pixel) {
             desiredColumns[column] = std::max(desiredColumns[column], childDesired.width);
         }
+        if (rowDef.unit != GridUnitType::Pixel && !item.hasStarRow) {
+            desiredRows[row] = std::max(desiredRows[row], childDesired.height);
+        }
+    }
+
+    // Pass 1B: Non-spanning elements with non-star rows (and Star columns) to establish Auto row heights.
+    for (const NonSpanningChild& item : nonSpanningChildren) {
+        if (item.hasStarRow || !item.hasStarCol) continue;
+        UIElement* child = item.child;
+        const std::uint32_t row = item.row;
+
+        double childWidth = Unconstrained;
+        double childHeight = Unconstrained;
+        const GridLength rowDef = RowAt(row);
+        if (rowDef.unit == GridUnitType::Pixel) {
+            childHeight = rowDef.value;
+        }
+
+        MeasureChild(*child, {childWidth, childHeight});
+        const Size childDesired = child->GetDesiredSize();
         if (rowDef.unit != GridUnitType::Pixel) {
             desiredRows[row] = std::max(desiredRows[row], childDesired.height);
         }
@@ -910,7 +932,7 @@ Size Grid::MeasureOverride(
         }
     }
 
-    // Pass 1B: Non-spanning elements with star tracks
+    // Pass 1C: Non-spanning elements with star tracks
     for (const NonSpanningChild& item : nonSpanningChildren) {
         if (!item.hasStarCol && !item.hasStarRow) continue;
         UIElement* child = item.child;
@@ -1338,6 +1360,53 @@ UIElement* UIElementCollection::GetItem(std::uint32_t index) const noexcept {
     Base::Ref<Base::Object> child = owner_->ChildAtCore(index);
     return child ? static_cast<UIElement*>(child.Get()) : nullptr;
 }
+
+// Live items-source view over a Panel's children (see Panel::GetChildrenObject).
+// Heap-allocated so bindings and ItemsControls can hold a Ref; owned by the
+// Panel through Panel::childrenView_ and detached in ~Panel.
+class PanelChildrenView : public Collections::ObservableCollectionBase {
+public:
+    explicit PanelChildrenView(Panel& owner) noexcept : owner_(&owner) {}
+    void DetachOwner() noexcept { owner_ = nullptr; }
+    std::uint32_t GetCount() const noexcept override {
+        return owner_ != nullptr ? owner_->ChildCountCore() : 0U;
+    }
+    Ref<Base::Object> GetItem(std::uint32_t index) const noexcept override {
+        if (owner_ == nullptr) return {};
+        return owner_->ChildAtCore(index);
+    }
+    void AddItemsChanged(const Collections::ItemsChangedHandler& handler) noexcept override {
+        changed_.Add(handler);
+    }
+    bool RemoveItemsChanged(const Collections::ItemsChangedHandler& handler) noexcept override {
+        return changed_.Remove(handler);
+    }
+    void NotifyReset() noexcept {
+        if (changed_.Empty()) return;
+        changed_.Invoke(Collections::ItemsChangedEvent{
+            Collections::ItemsChangeAction::Reset,
+            UINT32_MAX,
+            UINT32_MAX,
+            0U,
+            0U});
+    }
+
+private:
+    Panel* owner_ = nullptr;
+    Collections::ItemsChangedHandler changed_;
+};
+
+Panel::~Panel() {
+    if (childrenView_) {
+        static_cast<PanelChildrenView*>(childrenView_.Get())->DetachOwner();
+        childrenView_.Reset();
+    }
+}
+
+void Panel::NotifyChildrenViewReset() noexcept {
+    if (!childrenView_) return;
+    static_cast<PanelChildrenView*>(childrenView_.Get())->NotifyReset();
+}
 void UIElementCollection::Add(Base::Ref<UIElement> child) noexcept {
     if (owner_ == nullptr || !child) {
         return;
@@ -1460,6 +1529,20 @@ void Panel::AddChildCore(const Base::Ref<Base::Object>& childObject, UIElement& 
         }
     }
     ownedChildren_.PushBack(childObject);
+    {
+        const Meta::TypeInfo* ct = DependencyObjectAccess::PropertyRegistry((*this)).Types().FindType(child.RuntimeType());
+        bool isCC = ct && ct->Name() == Base::StringView("ContentControl");
+        bool isRect = ct && ct->Name() == Base::StringView("Rectangle");
+        if (isCC || isRect) {
+            const Meta::TypeInfo* ot = DependencyObjectAccess::PropertyRegistry((*this)).Types().FindType(RuntimeType());
+            std::fprintf(stderr, "[AddChild] owner=%s/%p child=%s/%p count=%u\n",
+                ot ? (const char*)(ot->Name().Data()) : "?",
+                (const void*)this,
+                ct ? (const char*)(ct->Name().Data()) : "?",
+                (const void*)&child,
+                (unsigned)ownedChildren_.Size());
+        }
+    }
     if (child.GetVisualParent() != this) {
         if (ElementTree* tree = VisualTree(this)) {
             // XAML Panel content uses AddChildCore, not UIElementCollection::Add.
@@ -1492,6 +1575,7 @@ void Panel::AddChildCore(const Base::Ref<Base::Object>& childObject, UIElement& 
             AddVisualChild(&child);
         }
     }
+    NotifyChildrenViewReset();
     InvalidateMeasure();
 }
 Base::Result<bool> Panel::RemoveChildCore(UIElement& child) noexcept {
@@ -1522,12 +1606,17 @@ Base::Result<bool> Panel::RemoveChildCore(UIElement& child) noexcept {
         } else if (child.GetVisualParent() == this) {
             RemoveVisualChild(&child);
         }
+        NotifyChildrenViewReset();
         InvalidateMeasure();
         return true;
     }
     return false;
 }
 void Panel::ClearChildrenCore() noexcept {
+    const Meta::TypeInfo* ot = DependencyObjectAccess::PropertyRegistry((*this)).Types().FindType(RuntimeType());
+    std::fprintf(stderr, "[ClearChildrenCore] owner=%s/%p count=%u\n",
+        ot ? (const char*)ot->Name().Data() : "?",
+        (const void*)this, (unsigned)ownedChildren_.Size());
     Base::Result<void> access = VerifyAccess();
     if (!access) return;
     ElementTree* tree = VisualTree(this);
@@ -1548,7 +1637,27 @@ void Panel::ClearChildrenCore() noexcept {
         }
     }
     ownedChildren_.Clear();
+    NotifyChildrenViewReset();
     InvalidateMeasure();
+}
+
+Ref<Base::Object> Panel::GetChildrenObject() const noexcept {
+    {
+        static int s_g = 0;
+        if (s_g < 4) {
+            ++s_g;
+            std::fprintf(stderr, "[ChildrenGetter] called owner=%p owned=%u visual=%u\n",
+                (const void*)this, (unsigned)ChildCountCore(),
+                (unsigned)GetVisualChildrenCount());
+        }
+    }
+    if (!childrenView_) {
+        Base::Result<Ref<PanelChildrenView>> made =
+            Base::MakeRef<PanelChildrenView>(const_cast<Panel&>(*this));
+        if (!made || !made.Value()) return {};
+        childrenView_ = Ref<Base::Object>(std::move(made).Value());
+    }
+    return childrenView_;
 }
 
 namespace {
@@ -1559,6 +1668,20 @@ void SetPanelContent(
     void*) noexcept {
     if (!child) {
         return;
+    }
+    {
+        static int s_s = 0;
+        ++s_s;
+        if (s_s < 400) {
+            const Meta::TypeInfo* ct = DependencyObjectAccess::PropertyRegistry((*static_cast<UIElement*>(child.Get()))).Types().FindType(child->RuntimeType());
+            const Meta::TypeInfo* ot = DependencyObjectAccess::PropertyRegistry((static_cast<Panel&>(owner))).Types().FindType(owner.RuntimeType());
+            std::fprintf(stderr, "[SetPanelContent#%d] owner=%s/%p child=%s/%p\n",
+                s_s,
+                ot ? (const char*)ot->Name().Data() : "?",
+                (const void*)&owner,
+                ct ? (const char*)ct->Name().Data() : "?",
+                (const void*)child.Get());
+        }
     }
     (static_cast<Panel&>(owner)).AddChildCore( child, *static_cast<Aero::UIElement*>(child.Get()));
 }
@@ -1627,7 +1750,8 @@ AERO_DESCRIBE(Panel) {
         .Property(Panel::BackgroundProperty, Base::Ref<Media::Brush>{}, AffectsRender)
         .Property(Panel::ZIndexProperty, std::int32_t{0}, AffectsParentArrange)
         .Property(Panel::IsItemsHostProperty, false)
-        .Content<Aero::UIElement>("Children", ContentKind::Collection, &SetPanelContent, &ClearPanelContent, ContentFlags::Visual);
+        .Property<Base::Ref<Base::Object>, &Panel::GetChildrenObject, &Panel::SetChildrenObject>("Children", PropertyFlags::Collection | PropertyFlags::Structural)
+        .ContentAccessor(MakeMemberId(Panel::StaticTypeId(), MemberKind::Property, "Children"), ContentKind::Collection, &SetPanelContent, &ClearPanelContent, ContentFlags::Visual);
 }
 
 AERO_DESCRIBE(StackPanel) {

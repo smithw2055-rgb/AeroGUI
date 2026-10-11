@@ -301,6 +301,17 @@ Base::Result<void> MountRoot(ViewFrame& state,
             ClearLoadedDocument(state);
             return bound.GetStatus();
         }
+        Base::Result<void> prepared =
+            state.loadedDocument.effects.Prepare(state.loadedDocument.names);
+        if (!prepared) {
+            static_cast<void>(state.DetachVisualGraph({
+                state.loadedDocument.visualContent.mountEdges.Data(),
+                state.loadedDocument.visualContent.mountEdges.Size()}));
+            state.mounted = false;
+            state.root.Reset();
+            ClearLoadedDocument(state);
+            return prepared.GetStatus();
+        }
         Base::Result<void> effects = state.loadedDocument.effects.Commit();
         if (!effects) {
             static_cast<void>(state.DetachVisualGraph({
@@ -893,6 +904,12 @@ Base::Result<void> MountViewFragment(
     if (!boundEffects) {
         detachFailedFragment();
         return boundEffects.GetStatus();
+    }
+    Base::Result<void> preparedEffects =
+        fragment->document.effects.Prepare(fragment->document.names);
+    if (!preparedEffects) {
+        detachFailedFragment();
+        return preparedEffects.GetStatus();
     }
     Base::Result<void> effects = fragment->document.effects.Commit();
     if (!effects) {

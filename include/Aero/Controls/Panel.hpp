@@ -42,6 +42,10 @@ public:
 
     Ref<Aero::Media::Brush> GetBackground() const noexcept { return GetValue(BackgroundProperty); }
     void SetBackground(Ref<Aero::Media::Brush> value) noexcept { SetValue(BackgroundProperty, std::move(value)); }
+    // Bindable view over Children (see UIElementCollection). The setter is a
+    // no-op: XAML populates children through the "Children" content accessor.
+    Ref<Base::Object> GetChildrenObject() const noexcept;
+    void SetChildrenObject(Ref<Base::Object>) noexcept {}
     UIElementCollection& GetChildren() noexcept { return children_; }
     const UIElementCollection& GetChildren() const noexcept { return children_; }
     void ClearChildrenCore() noexcept;
@@ -52,7 +56,7 @@ public:
 
 protected:
     explicit Panel(TypeId runtimeType) noexcept : FrameworkElement(runtimeType), children_(*this), ownedChildren_() {}
-    ~Panel() override = default;
+    ~Panel() override;
 
     std::uint32_t GetVisualChildrenCount() const noexcept override;
     ::Aero::Media::Visual* GetVisualChild(std::uint32_t index) const noexcept override;
@@ -65,6 +69,11 @@ private:
 
     UIElementCollection children_;
     Base::Vector<Ref<Base::Object>> ownedChildren_;
+    // Lazily created live items-source view over Children (see
+    // GetChildrenObject). Heap-owned so bindings can hold a Ref; the raw
+    // back-pointer is detached in ~Panel.
+    mutable Base::Ref<Base::Object> childrenView_;
+    void NotifyChildrenViewReset() noexcept;
 };
 
 } // namespace Aero::Controls

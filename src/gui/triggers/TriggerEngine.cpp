@@ -3,7 +3,13 @@
 #include "gui/styles/StyleEngine.hpp"
 #include "gui/controls/ItemsContainers.hpp"
 #include "gui/core/ValueConversion.hpp"
+#include "gui/core/DependencyObjectAccess.hpp"
+#include "gui/markup/MarkupExtensionContract.hpp"
+#include <Aero/FrameworkElement.hpp>
+#include <Aero/TryCast.hpp>
 #include <Aero/Meta.hpp>
+#include <cstdlib>
+#include <cstring>
 
 namespace Aero {
 
@@ -20,6 +26,20 @@ bool TryExtractNumeric(const Meta::PropertyValue& value, long double& output) no
     case Meta::ValueKind::Double:
         output = static_cast<long double>(value.AsDouble());
         return true;
+    case Meta::ValueKind::String: {
+        Base::StringView str = value.AsString();
+        if (str.Empty()) return false;
+        char buf[64];
+        if (str.SizeBytes() >= sizeof(buf)) return false;
+        std::memcpy(buf, str.Data(), str.SizeBytes());
+        buf[str.SizeBytes()] = '\0';
+        char* endPtr = nullptr;
+        output = std::strtold(buf, &endPtr);
+        if (endPtr != buf && *endPtr == '\0') {
+            return true;
+        }
+        return false;
+    }
     default:
         return false;
     }
@@ -43,8 +63,13 @@ Base::Result<bool> ComparePropertyValues(
             metadata,
             op);
     }
+    const Meta::TypeId nullableBoolType = Meta::TypeOf<::Aero::Nullable<bool>>();
     if (expected.IsNullObject() || expected.IsUnset()) {
-        const bool eq = actual.IsNullObject() || actual.IsUnset();
+        bool eq = actual.IsNullObject() || actual.IsUnset();
+        if (!eq && actual.Type() == nullableBoolType) {
+            auto decoded = Meta::ValueCodec<::Aero::Nullable<bool>>::Decode(actual);
+            eq = decoded && !decoded.Value().GetHasValue();
+        }
         if (op == PropertyComparisonOperator::Equal) return eq;
         if (op == PropertyComparisonOperator::NotEqual) return !eq;
         return false;
@@ -53,34 +78,70 @@ Base::Result<bool> ComparePropertyValues(
     Meta::PropertyValue leftValue = actual;
     Meta::PropertyValue rightValue = std::move(expected);
 
-    if (rightValue.Kind() == Meta::ValueKind::String &&
-        leftValue.Kind() != Meta::ValueKind::String) {
-        if (metadata == nullptr) {
-            if (op == PropertyComparisonOperator::Equal ||
-                op == PropertyComparisonOperator::NotEqual) {
-                const bool eq = (leftValue == rightValue);
-                return op == PropertyComparisonOperator::Equal ? eq : !eq;
+    if (leftValue.Type() == nullableBoolType || rightValue.Type() == nullableBoolType) {
+        auto decodeNullable = [](const Meta::PropertyValue& v) -> ::Aero::Nullable<bool> {
+            if (v.Type() == Meta::TypeOf<::Aero::Nullable<bool>>()) {
+                auto r = Meta::ValueCodec<::Aero::Nullable<bool>>::Decode(v);
+                if (r) return r.Value();
             }
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidState,
-                "Trigger metadata is unavailable for text conversion");
-        }
-        Base::Result<Meta::PropertyValue> converted =
-            metadata->TryConvertText(leftValue.Type(), rightValue.AsString());
-        if (!converted) return false;
-        rightValue = std::move(converted).Value();
+            if (v.Kind() == Meta::ValueKind::Boolean) {
+                return ::Aero::Nullable<bool>{v.AsBoolean()};
+            }
+            if (v.Kind() == Meta::ValueKind::String) {
+                if (Base::ValueConversion::EqualsAsciiInsensitive(v.AsString(), "True")) {
+                    return ::Aero::Nullable<bool>{true};
+                }
+                if (Base::ValueConversion::EqualsAsciiInsensitive(v.AsString(), "False")) {
+                    return ::Aero::Nullable<bool>{false};
+                }
+                if (Base::ValueConversion::EqualsAsciiInsensitive(v.AsString(), "{x:Null}") ||
+                    Base::ValueConversion::EqualsAsciiInsensitive(v.AsString(), "Null")) {
+                    return ::Aero::Nullable<bool>{};
+                }
+            }
+            return ::Aero::Nullable<bool>{};
+        };
+        const auto leftNull = decodeNullable(leftValue);
+        const auto rightNull = decodeNullable(rightValue);
+        const bool eq = (leftNull == rightNull);
+        if (op == PropertyComparisonOperator::Equal) return eq;
+        if (op == PropertyComparisonOperator::NotEqual) return !eq;
+        return false;
     }
 
-    if (op == PropertyComparisonOperator::Equal ||
-        op == PropertyComparisonOperator::NotEqual) {
-        const bool eq = (leftValue == rightValue);
-        return op == PropertyComparisonOperator::Equal ? eq : !eq;
+    if (rightValue.Kind() == Meta::ValueKind::String &&
+        leftValue.Kind() != Meta::ValueKind::String) {
+        if (metadata != nullptr) {
+            Base::Result<Meta::PropertyValue> converted =
+                metadata->TryConvertText(leftValue.Type(), rightValue.AsString());
+            if (converted) {
+                rightValue = std::move(converted).Value();
+            }
+        }
+    } else if (leftValue.Kind() == Meta::ValueKind::String &&
+               rightValue.Kind() != Meta::ValueKind::String) {
+        if (metadata != nullptr) {
+            Base::Result<Meta::PropertyValue> converted =
+                metadata->TryConvertText(rightValue.Type(), leftValue.AsString());
+            if (converted) {
+                leftValue = std::move(converted).Value();
+            }
+        }
+    }
+
+    if (leftValue == rightValue) {
+        if (op == PropertyComparisonOperator::Equal) return true;
+        if (op == PropertyComparisonOperator::NotEqual) return false;
     }
 
     if (leftValue.Kind() == Meta::ValueKind::String &&
         rightValue.Kind() == Meta::ValueKind::String) {
         const int order = leftValue.AsString().Compare(rightValue.AsString());
         switch (op) {
+        case PropertyComparisonOperator::Equal:
+            return order == 0;
+        case PropertyComparisonOperator::NotEqual:
+            return order != 0;
         case PropertyComparisonOperator::LessThan:
             return order < 0;
         case PropertyComparisonOperator::LessThanOrEqual:
@@ -99,6 +160,10 @@ Base::Result<bool> ComparePropertyValues(
     if (TryExtractNumeric(leftValue, leftNumber) &&
         TryExtractNumeric(rightValue, rightNumber)) {
         switch (op) {
+        case PropertyComparisonOperator::Equal:
+            return leftNumber == rightNumber;
+        case PropertyComparisonOperator::NotEqual:
+            return leftNumber != rightNumber;
         case PropertyComparisonOperator::LessThan:
             return leftNumber < rightNumber;
         case PropertyComparisonOperator::LessThanOrEqual:
@@ -111,6 +176,9 @@ Base::Result<bool> ComparePropertyValues(
             return false;
         }
     }
+
+    if (op == PropertyComparisonOperator::Equal) return false;
+    if (op == PropertyComparisonOperator::NotEqual) return true;
 
     return false;
 }
@@ -246,13 +314,33 @@ Base::Result<void> TriggerEngine::EvaluateTriggers(
         if (active) {
             for (const StyleTriggerSetter& setter :
                  trigger.setters) {
-                if (IsDeferredBindingSetterValue(setter.value)) {
+                Base::StringView dynamicKey;
+                PropertyValue setterValue = setter.value;
+                if (IsDynamicResourceSetterValue(setter.value, dynamicKey)) {
+                    FrameworkElement* element = ::Aero::TryCast<FrameworkElement>(&object);
+                    ResourceValue lookedUp{};
+                    if (element != nullptr) {
+                        Base::Result<ResourceValue> res = element->FindResource(dynamicKey);
+                        if (res) lookedUp = res.Value();
+                    }
+                    if (!lookedUp.IsUnset()) {
+                        const DependencyProperty* prop =
+                            DependencyObjectAccess::PropertyRegistry(object).Find(setter.property);
+                        if (prop != nullptr) {
+                            Base::Result<PropertyValue> converted =
+                                Markup::ConvertDynamicResourceValue(lookedUp, *prop);
+                            if (converted) {
+                                setterValue = std::move(converted).Value();
+                            }
+                        }
+                    }
+                } else if (IsDeferredBindingSetterValue(setter.value)) {
                     continue;
                 }
                 Base::Result<void> applied =
                     values_.SetTriggerValue(
                         object, setter.property,
-                        setter.value);
+                        setterValue);
                 if (!applied) {
                     return applied.GetStatus();
                 }
@@ -319,8 +407,10 @@ Base::Result<void> TriggerEngine::ClearTriggerSetters(
         for (std::uint32_t setterIndex = 0U;
              setterIndex < trigger.setters.Size();
              ++setterIndex) {
+            Base::StringView dynamicKey;
             if (IsDeferredBindingSetterValue(
-                    trigger.setters[setterIndex].value)) {
+                    trigger.setters[setterIndex].value) &&
+                !IsDynamicResourceSetterValue(trigger.setters[setterIndex].value, dynamicKey)) {
                 continue;
             }
             const DependencyPropertyHandle property =

@@ -447,6 +447,14 @@ Base::Result<HitTestResult> HitTestState::HitTestElement(
     if (!contains && element.GetClipToBounds()) {
         return HitTestResult{};
     }
+    if (element.GetHasLayoutClip()) {
+        const Rect layoutClip = element.GetLayoutClip();
+        if (position.x < layoutClip.x || position.y < layoutClip.y ||
+            position.x > layoutClip.x + layoutClip.width ||
+            position.y > layoutClip.y + layoutClip.height) {
+            return HitTestResult{};
+        }
+    }
     if (Base::Ref<Media::Geometry> clip = element.GetClip()) {
         if (!Media::GeometryContainsLocalPoint(*clip, position)) {
             return HitTestResult{};
@@ -868,9 +876,15 @@ Base::Result<PointerDispatchResult> PointerStateMachine::Dispatch(
     }
     PointerDispatchResult result;
     result.hit = hit.Value();
-    UIElement* hoverTarget = visualHit.Value().HasTarget() &&
-        visualHit.Value().target->GetIsEnabled()
+    UIElement* hoverTarget = visualHit.Value().HasTarget()
         ? visualHit.Value().target : nullptr;
+    while (hoverTarget != nullptr && !hoverTarget->GetIsEnabled()) {
+        Visual* parentVisual = hoverTarget->GetVisualParent();
+        if (parentVisual == nullptr) {
+            parentVisual = TryCast<Visual>(hoverTarget->GetLogicalParent());
+        }
+        hoverTarget = TryCast<UIElement>(parentVisual);
+    }
     Base::Result<void> hover =
         UpdateHover(input.pointerId, hoverTarget);
     if (!hover) return hover.GetStatus();

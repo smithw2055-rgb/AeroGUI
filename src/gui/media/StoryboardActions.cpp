@@ -62,12 +62,40 @@
 #include <Aero/Input/Mouse.hpp>
 #include <Aero/Input/Keyboard.hpp>
 #include <Aero/Animatable.hpp>
+#include <Aero/Controls/Buttons.hpp>
 #include <cctype>
 #include <cstdlib>
+#include <string_view>
 
 namespace Aero {
 
 using namespace Media::Animation;
+
+static bool TargetsScaleTransform(
+    StoryboardHost& host,
+    const Media::Animation::Timeline& timeline) noexcept {
+    if (host.Metadata()->Types().IsDerivedFrom(
+            timeline.RuntimeType(), Media::Animation::TimelineGroup::StaticTypeId())) {
+        const auto& group = static_cast<const Media::Animation::TimelineGroup&>(timeline);
+        for (const auto& child : group.GetTimelines()) {
+            if (child && TargetsScaleTransform(host, *child)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    Base::Result<Base::StringView> targetProp = host.AnimationAttachedString(
+        const_cast<Media::Animation::Timeline&>(timeline),
+        Media::Animation::Storyboard::TargetPropertyProperty);
+    if (targetProp) {
+        std::string_view prop(targetProp.Value().Data(), targetProp.Value().SizeBytes());
+        if (prop.find("ScaleX") != std::string_view::npos ||
+            prop.find("ScaleY") != std::string_view::npos) {
+            return true;
+        }
+    }
+    return false;
+}
 
 Base::Result<void>
 StoryboardHost::ExecuteAnimationAction(
@@ -499,6 +527,14 @@ StoryboardHost::ExecuteAnimationAction(
                 Base::ErrorCode::NotFound,
                 "BeginStoryboard Storyboard was not resolved");
         }
+        const bool isRepeatButton = Metadata()->Types().IsDerivedFrom(
+            owner.RuntimeType(), Controls::Primitives::RepeatButton::StaticTypeId()) ||
+            (owner.GetTemplatedParent() != nullptr &&
+             Metadata()->Types().IsDerivedFrom(
+                 owner.GetTemplatedParent()->RuntimeType(), Controls::Primitives::RepeatButton::StaticTypeId()));
+        if (isRepeatButton && TargetsScaleTransform(*this, *begin.GetStoryboard())) {
+            return {};
+        }
         if (!begin.GetName().Empty()) {
             for (std::uint32_t index = 0U;
                  index < storyboardSessions.Size();
@@ -764,7 +800,7 @@ Base::Result<bool> StoryboardHost::AnimationEventState::EvaluateComparison(
                 current = runtime->Interactivity()->EvaluateAuthoredBinding(
                     *binding,
                     *static_cast<FrameworkElement*>(owner),
-                    nullptr,
+                    dataTemplateContext,
                     names,
                     nullptr);
             } else {
@@ -773,10 +809,17 @@ Base::Result<bool> StoryboardHost::AnimationEventState::EvaluateComparison(
                         Base::ErrorCode::Unsupported,
                         "ConditionBehavior currently requires Binding ElementName");
                 }
-                Base::Object* source = names != nullptr
-                    ? names->Find(binding->GetElementName())
-                    : runtime->view->loadedDocument.names.Find(
+                Base::Object* source = nullptr;
+                if (dataTemplateContext != nullptr) {
+                    source = dataTemplateContext->FindName(binding->GetElementName());
+                }
+                if (source == nullptr && names != nullptr) {
+                    source = names->Find(binding->GetElementName());
+                }
+                if (source == nullptr && runtime->view != nullptr) {
+                    source = runtime->view->loadedDocument.names.Find(
                           binding->GetElementName());
+                }
                 if (source == nullptr) {
                     return Base::Status::Failure(
                         Base::ErrorCode::NotFound,
@@ -851,7 +894,7 @@ void StoryboardHost::AnimationEventState::Invoke(
                 if (!action) continue;
                 Base::Result<void> executed =
                     runtime->ExecuteAnimationAction(
-                        *action, *owner, nullptr, names);
+                        *action, *owner, dataTemplateContext, names);
                 if (!executed) {
                     // One action failing (SetFocus before the item is
                     // enabled, unresolved TargetName) must not skip later
@@ -867,16 +910,24 @@ Base::Result<bool> StoryboardHost::StartEventTrigger(
         EventTrigger& trigger,
         Base::Object& defaultSource,
         FrameworkElement& actionOwner,
-        const NameScope* names) noexcept {
+        const NameScope* names,
+        Aero::Controls::DataTemplateTriggerInstance* dataTemplateContext) noexcept {
         const Base::StringView routedEvent =
             trigger.GetRoutedEvent();
-        Base::Object* eventSource =
-            trigger.GetSourceName().Empty()
-            ? &defaultSource
-            : names != nullptr
-                ? names->Find(trigger.GetSourceName())
-                : view->loadedDocument.names.Find(
-                      trigger.GetSourceName());
+        Base::Object* eventSource = nullptr;
+        if (trigger.GetSourceName().Empty()) {
+            eventSource = &defaultSource;
+        } else {
+            if (dataTemplateContext != nullptr) {
+                eventSource = dataTemplateContext->FindName(trigger.GetSourceName());
+            }
+            if (eventSource == nullptr && names != nullptr) {
+                eventSource = names->Find(trigger.GetSourceName());
+            }
+            if (eventSource == nullptr && view != nullptr) {
+                eventSource = view->loadedDocument.names.Find(trigger.GetSourceName());
+            }
+        }
         if (eventSource == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::NotFound,
@@ -943,7 +994,7 @@ Base::Result<bool> StoryboardHost::StartEventTrigger(
                 if (!action) continue;
                 Base::Result<void> executed =
                     ExecuteAnimationAction(
-                        *action, actionOwner, nullptr, names);
+                        *action, actionOwner, dataTemplateContext, names);
                 if (!executed) return executed.GetStatus();
             }
             return true;
@@ -962,6 +1013,7 @@ Base::Result<bool> StoryboardHost::StartEventTrigger(
         eventContext->trigger = &trigger;
         eventContext->owner = &actionOwner;
         eventContext->names = names;
+        eventContext->dataTemplateContext = dataTemplateContext;
         auto callback = [eventContext](
             Base::Object* sender,
             RoutedEventArgs& args) noexcept {
@@ -993,7 +1045,7 @@ Base::Result<bool> StoryboardHost::StartEventTrigger(
             // bindings (Menu3D parallax TranslateTransform.X) see measured
             // ActualWidth before BackgroundAnim captures its From value.
             pendingLoadedTriggers.PushBack(
-                {&trigger, &actionOwner, names});
+                {&trigger, &actionOwner, names, dataTemplateContext});
         }
         return true;
     }
@@ -1094,7 +1146,7 @@ Base::Result<void> StoryboardHost::FlushPendingLoadedTriggers() noexcept {
                  pending.trigger->GetActions()) {
                 if (!action) continue;
                 Base::Result<void> executed = ExecuteAnimationAction(
-                    *action, *pending.owner, nullptr, pending.names);
+                    *action, *pending.owner, pending.dataTemplateContext, pending.names);
                 if (!executed) return executed.GetStatus();
             }
         }

@@ -4,6 +4,7 @@
 
 
 
+#include <cstdio>
 #include "gui/core/TypeRegistryCore.hpp"
 
 #include "gui/core/ValueConversion.hpp"
@@ -639,6 +640,8 @@ Base::Result<void> ObjectWriter::StageContent(
 
     const bool structuralProperty =
 
+        !contentResult &&
+
         property != nullptr &&
 
         (static_cast<std::uint32_t>(
@@ -648,6 +651,16 @@ Base::Result<void> ObjectWriter::StageContent(
          static_cast<std::uint32_t>(
 
              Meta::PropertyFlags::Structural)) !=
+
+            0U &&
+
+        (static_cast<std::uint32_t>(
+
+             property->Flags()) &
+
+         static_cast<std::uint32_t>(
+
+             Meta::PropertyFlags::Collection)) ==
 
             0U &&
 
@@ -1831,7 +1844,40 @@ Base::Result<Base::Ref<Base::Object>> ObjectWriter::CreateObject(
 
     }
 
-    return schema_->CreateObject(type);
+    Base::Result<Base::Ref<Base::Object>> created = schema_->CreateObject(type);
+
+    {
+        const Meta::TypeInfo* ti = schema_->Types().FindType(type);
+
+        if (ti != nullptr) {
+            Base::StringView nm = ti->Name();
+
+            auto eq = [&](const char* s) noexcept {
+                std::uint32_t n = 0U;
+
+                while (s[n] != '\0') ++n;
+
+                if (n != nm.SizeBytes()) return false;
+
+                for (std::uint32_t i = 0U; i < n; ++i) if (nm.Data()[i] != s[i]) return false;
+
+                return true;
+            };
+
+            if (eq("ContentControl") ) {
+                static int s_o = 0;
+
+                if (s_o <= 400) {
+                    ++s_o;
+
+                    std::fprintf(stderr, "[MkObj#%d] %.*s ok=%d\n", s_o,
+                        (int)nm.SizeBytes(), nm.Data(), (int)(created ? 1 : 0));
+                }
+            }
+        }
+    }
+
+    return created;
 
 }
 
@@ -1990,6 +2036,13 @@ Base::Result<void> ObjectWriter::QueueNamespaceDeclaration(
 Base::Result<void> ObjectWriter::StartObject(
 
     const Node& node) noexcept {
+
+    if (node.Name().LocalName() == Base::StringView("Rectangle") ||
+        node.Name().LocalName() == Base::StringView("Grid")) {
+        std::fprintf(stderr, "[OW::StartObject] %.*s framesCount=%u\n",
+            (int)node.Name().LocalName().SizeBytes(), node.Name().LocalName().Data(),
+            (unsigned)frames_.Size());
+    }
 
     if (frames_.Empty() && root_) {
 
@@ -5891,6 +5944,13 @@ Base::Result<void> ObjectWriter::WriteObjectToContent(
 
         created_[parentObjectIndex];
 
+    std::fprintf(stderr, "[OW::WriteObjectToContent] parent=%s/%p hasContent=%d child=%s/%p\n",
+        schema_->Types().FindType(contentOwner.type) ? (const char*)schema_->Types().FindType(contentOwner.type)->Name().Data() : "?",
+        contentOwner.object.Get(),
+        contentOwner.hasContentMember,
+        schema_->Types().FindType(created_[childObjectIndex].type) ? (const char*)schema_->Types().FindType(created_[childObjectIndex].type)->Name().Data() : "?",
+        created_[childObjectIndex].object.Get());
+
     if (!contentOwner.hasContentMember) {
 
         return Failure(
@@ -6873,6 +6933,8 @@ Base::Result<void> ObjectWriter::WriteValue(
 
     const bool hasVisualStructuralProperty =
 
+        !hasWritableContent &&
+
         memberProperty != nullptr &&
 
         (static_cast<std::uint32_t>(
@@ -6882,6 +6944,16 @@ Base::Result<void> ObjectWriter::WriteValue(
          static_cast<std::uint32_t>(
 
              Meta::PropertyFlags::Structural)) !=
+
+            0U &&
+
+        (static_cast<std::uint32_t>(
+
+             memberProperty->Flags()) &
+
+         static_cast<std::uint32_t>(
+
+             Meta::PropertyFlags::Collection)) ==
 
             0U &&
 
@@ -6948,6 +7020,13 @@ Base::Result<void> ObjectWriter::WriteValue(
          parentIsVisual ||
 
          (parentIsFreezable && !parentIsTimeline));
+
+    std::fprintf(stderr, "[WriteValue] target=%s/%p memberId=%llu stagesVis=%d stagesDef=%d isUIE=%d hasVisCont=%d hasVisStruct=%d\n",
+        schema_->Types().FindType(created_[targetObjectIndex].type) ? (const char*)schema_->Types().FindType(created_[targetObjectIndex].type)->Name().Data() : "?",
+        created_[targetObjectIndex].object.Get(),
+        (unsigned long long)member.id,
+        stagesVisualContent, stagesDeferredObjectContent,
+        isUIElementValue(value), hasVisualContent, hasVisualStructuralProperty);
 
     Base::Result<void> setResult =
 
@@ -9013,6 +9092,7 @@ Base::Status ObjectWriter::Failure(
 
     ::Aero::Diagnostics::SourceSpan source) noexcept {
 
+    std::fprintf(stderr, "[ObjectWriter::Failure] %.*s (status: %s)\n", (int)message.SizeBytes(), message.Data(), status.message ? status.message : "");
     if (diagnostics_ != nullptr) {
 
         Base::Result<::Aero::Diagnostics::Diagnostic> item = ::Aero::Diagnostics::Diagnostic::Create(

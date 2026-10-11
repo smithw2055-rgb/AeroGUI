@@ -45,3 +45,10 @@ struct RunOptions  {
 AERO_APP_API ModuleRegistration AppMetadataModule() noexcept;
 
 } // namespace Aero::App
+
+namespace Aero {
+using Application = App::Application;
+using Window = App::Window;
+}
+
+

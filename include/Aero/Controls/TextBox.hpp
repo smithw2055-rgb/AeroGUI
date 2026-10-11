@@ -14,6 +14,8 @@ using ::Aero::Meta::DependencyPropertyHandle;
 using ::Aero::Meta::PropertyValue;
 using ::Aero::Meta::TypeId;
 
+namespace Primitives { class TextBoxView; }
+
 class AERO_GUI_API TextBox : public Primitives::TextBoxBase,
       private IScrollInfo,
       private Input::ITextCompositionClient {
@@ -117,6 +119,7 @@ protected:
 
 private:
     friend class PasswordBox;
+    friend class Primitives::TextBoxView;
 
     struct CaretStop {
         double x = 0.0;
@@ -149,8 +152,9 @@ private:
     void ReleaseGlyphRuns() noexcept;
     void UpdateCandidateWindow() noexcept;
     Result<void> CancelCompositionForFocusLoss() noexcept;
-    Result<void> RenderEditor(::Aero::Media::DrawingContext& context, Size viewport, bool drawCaret) noexcept;
+    Result<void> RenderEditor(::Aero::Media::DrawingContext& context, Size viewport, bool drawCaret, bool isContentHost = false) noexcept;
     void OnTextPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept;
+    void InvalidateEditor() noexcept;
 
     double GetLineHeight() const noexcept;
     const void* GetActiveModel() const noexcept;
@@ -175,7 +179,29 @@ private:
     bool showingPlaceholder_ = false;
     UIElement* coordinateOwner_ = nullptr;
     PasswordBox* passwordOwner_ = nullptr;
+    Ref<UIElement> view_;
 };
+
+namespace Primitives {
+
+class AERO_GUI_API TextBoxView : public FrameworkElement {
+    AERO_DECLARE_TYPE(TextBoxView, FrameworkElement)
+
+public:
+    TextBoxView() noexcept;
+    explicit TextBoxView(TextBox* owner) noexcept;
+    ~TextBoxView() override = default;
+
+protected:
+    Size MeasureOverride(Size availableSize) noexcept override;
+    Size ArrangeOverride(Size finalSize) noexcept override;
+    void OnRender(::Aero::Media::DrawingContext& context) noexcept override;
+
+private:
+    TextBox* owner_ = nullptr;
+};
+
+} // namespace Primitives
 
 class AERO_GUI_API PasswordBox : public Primitives::TextBoxBase {
     AERO_DECLARE_TYPE(PasswordBox, Primitives::TextBoxBase)

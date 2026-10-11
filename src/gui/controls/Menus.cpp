@@ -97,10 +97,7 @@ MenuItem::SetCommandParameter(
 void
 MenuItem::OnApplyTemplate() noexcept {
     HeaderedItemsControl::OnApplyTemplate();
-    static_cast<void>(SetRoleState(
-        GetCount() != 0U
-            ? MenuItemRole::TopLevelHeader
-            : MenuItemRole::TopLevelItem));
+    UpdateRole();
     DependencyObject* gesture =
         GetTemplateChild("GestureText");
     gestureText_ =
@@ -180,6 +177,101 @@ MenuItem::SynchronizeMenuTemplate() noexcept {
     return {};
 }
 
+static ItemsControl* GetParentItemsControl(MenuItem& item) noexcept {
+    Media::Visual* curr = item.GetVisualParent();
+    if (curr == nullptr) {
+        curr = ::Aero::TryCast<Media::Visual>(item.GetLogicalParent());
+    }
+    while (curr != nullptr) {
+        if (ItemsControl* ctrl = ::Aero::TryCast<ItemsControl>(curr)) {
+            return ctrl;
+        }
+        curr = curr->GetVisualParent() != nullptr
+            ? curr->GetVisualParent()
+            : ::Aero::TryCast<Media::Visual>(curr->GetLogicalParent());
+    }
+    return nullptr;
+}
+
+static bool HasAnySubmenuOpen(ItemsControl& host) noexcept {
+    const std::uint32_t count = host.GetCount();
+    for (std::uint32_t i = 0; i < count; ++i) {
+        Base::Ref<Base::Object> obj = host.GetItem(i);
+        if (MenuItem* item = ::Aero::TryCast<MenuItem>(obj.Get())) {
+            if (item->GetIsSubmenuOpen()) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+static void CloseAllSubmenus(ItemsControl& host) noexcept {
+    const std::uint32_t count = host.GetCount();
+    for (std::uint32_t i = 0; i < count; ++i) {
+        Base::Ref<Base::Object> obj = host.GetItem(i);
+        if (MenuItem* item = ::Aero::TryCast<MenuItem>(obj.Get())) {
+            item->SetIsSubmenuOpen(false);
+            item->SetHighlightedState(false);
+            CloseAllSubmenus(*item);
+        }
+    }
+}
+
+static void CloseSiblingSubmenus(MenuItem& item) noexcept {
+    ItemsControl* parent = GetParentItemsControl(item);
+    if (parent == nullptr) return;
+    const std::uint32_t count = parent->GetCount();
+    for (std::uint32_t i = 0; i < count; ++i) {
+        Base::Ref<Base::Object> obj = parent->GetItem(i);
+        if (MenuItem* sibling = ::Aero::TryCast<MenuItem>(obj.Get())) {
+            if (sibling != &item) {
+                sibling->SetIsSubmenuOpen(false);
+                sibling->SetHighlightedState(false);
+                CloseAllSubmenus(*sibling);
+            }
+        }
+    }
+}
+
+void MenuItem::DismissMenuTree(MenuItem& item) noexcept {
+    item.SetIsSubmenuOpen(false);
+    item.SetHighlightedState(false);
+    CloseAllSubmenus(item);
+
+    ItemsControl* curr = GetParentItemsControl(item);
+    ItemsControl* root = nullptr;
+    while (curr != nullptr) {
+        root = curr;
+        if (auto* mi = ::Aero::TryCast<MenuItem>(curr)) {
+            mi->SetIsSubmenuOpen(false);
+            mi->SetHighlightedState(false);
+            curr = GetParentItemsControl(*mi);
+        } else {
+            break;
+        }
+    }
+    if (root != nullptr) {
+        CloseAllSubmenus(*root);
+    }
+}
+
+void MenuItem::UpdateRole() noexcept {
+    const bool hasItems = GetCount() != 0U;
+    ItemsControl* parent = GetParentItemsControl(*this);
+    const bool isTopLevel = parent != nullptr && ::Aero::TryCast<Menu>(parent) != nullptr;
+    if (isTopLevel) {
+        SetRoleState(hasItems ? MenuItemRole::TopLevelHeader : MenuItemRole::TopLevelItem);
+    } else {
+        SetRoleState(hasItems ? MenuItemRole::SubmenuHeader : MenuItemRole::SubmenuItem);
+    }
+}
+
+Size MenuItem::MeasureOverride(Size availableSize) noexcept {
+    UpdateRole();
+    return HeaderedItemsControl::MeasureOverride(availableSize);
+}
+
 void MenuItem::OnPropertyChanged(
     const DependencyPropertyChangedEventArgs& args) noexcept {
     HeaderedItemsControl::OnPropertyChanged(args);
@@ -190,6 +282,40 @@ void MenuItem::OnPropertyChanged(
         prop == IsSubmenuOpenProperty) {
         static_cast<void>(
             SynchronizeMenuTemplate());
+        if (prop == IsSubmenuOpenProperty && !args.GetNewValue().AsBoolean()) {
+            CloseAllSubmenus(*this);
+            if (!GetIsMouseOver()) {
+                SetHighlightedState(false);
+            }
+        }
+    }
+}
+
+void MenuItem::OnMouseEnter(MouseEventArgs&) {
+    SetHighlightedState(true);
+    ItemsControl* parent = GetParentItemsControl(*this);
+    UpdateRole();
+    const MenuItemRole role = GetRole();
+    if (role == MenuItemRole::SubmenuHeader) {
+        CloseSiblingSubmenus(*this);
+        SetIsSubmenuOpen(true);
+    } else if (role == MenuItemRole::SubmenuItem) {
+        CloseSiblingSubmenus(*this);
+    } else if (role == MenuItemRole::TopLevelHeader) {
+        if (parent != nullptr && HasAnySubmenuOpen(*parent)) {
+            CloseSiblingSubmenus(*this);
+            SetIsSubmenuOpen(true);
+        }
+    } else if (role == MenuItemRole::TopLevelItem) {
+        if (parent != nullptr && HasAnySubmenuOpen(*parent)) {
+            CloseSiblingSubmenus(*this);
+        }
+    }
+}
+
+void MenuItem::OnMouseLeave(MouseEventArgs&) {
+    if (!GetIsSubmenuOpen()) {
+        SetHighlightedState(false);
     }
 }
 
@@ -239,7 +365,11 @@ MenuItem* MenuBase::FindItem(Base::Object* source) const noexcept {
 
 Base::Result<void> MenuBase::Invoke(MenuItem& item) noexcept {
     if (item.GetCount() != 0U) {
-        item.SetIsSubmenuOpen(!item.GetIsSubmenuOpen());
+        const bool willOpen = !item.GetIsSubmenuOpen();
+        if (willOpen) {
+            CloseSiblingSubmenus(item);
+        }
+        item.SetIsSubmenuOpen(willOpen);
         return {};
     }
     if (item.GetIsCheckable()) {
@@ -272,6 +402,8 @@ Base::Result<void> MenuBase::Invoke(MenuItem& item) noexcept {
         static_cast<void>(
             static_cast<ContextMenu&>(
                 *this).SetIsOpen(false));
+    } else {
+        CloseAllSubmenus(*this);
     }
     return {};
 }
@@ -427,6 +559,8 @@ AERO_DESCRIBE(MenuItem) {
         .Property(MenuItem::CommandParameterProperty, Value::NullObject(TypeOf<Base::Object>()))
         .Property(MenuItem::IconProperty, Value::NullObject(TypeOf<Base::Object>()), AffectsMeasure)
         .Factory();
+    AERO_ON(MenuItem, &MenuItem::OnMouseEnter, UIElement::MouseEnterEvent);
+    AERO_ON(MenuItem, &MenuItem::OnMouseLeave, UIElement::MouseLeaveEvent);
 }
 
 AERO_DESCRIBE(ContextMenu) {

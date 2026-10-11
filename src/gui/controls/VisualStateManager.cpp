@@ -19,11 +19,25 @@
 #include <Aero/Triggers.hpp>
 #include <Aero/Media/Animation.hpp>
 #include <Aero/Meta.hpp>
+#include <Aero/Layout.hpp>
 #include "gui/core/EnumRegistration.hpp"
 #include "gui/core/TypeRegistryCore.hpp"
 
-
 namespace Aero::Controls {
+
+namespace {
+
+static Base::Result<double> DecodeDoubleOrLength(
+    const Meta::PropertyValue& value) noexcept {
+    if (value.Type() == Meta::TypeOf<Length>()) {
+        Base::Result<Length> length = Meta::ValueCodec<Length>::Decode(value);
+        if (!length) return length.GetStatus();
+        return length.Value().isAuto ? 0.0 : length.Value().value;
+    }
+    return Meta::ValueCodec<double>::Decode(value);
+}
+
+} // namespace
 
 // File-local VSM execution state (merged companion; not exported).
 class VisualStateManagerState {
@@ -415,8 +429,6 @@ void VisualStateManagerState::PruneStale() noexcept {
         TemplateHandle handle;
         handle.value = active_[index - 1U].templateValue;
         if (templates_->AppliedTemplate(handle) == nullptr) {
-            static_cast<void>(
-                ClearStateAnimations(active_[index - 1U]));
             RemoveActiveAt(index - 1U);
         }
     }
@@ -478,8 +490,12 @@ Base::Result<void> VisualStateManagerState::StartStoryboardAnimations(
             Media::Animation::Storyboard::StaticTypeId()) {
             auto& storyboard =
                 static_cast<Media::Animation::Storyboard&>(timeline);
+            Aero::Media::Animation::Model::TimelineTiming effectiveParent = parent;
+            if (storyboard.GetRepeatBehavior().IsForever()) {
+                effectiveParent.beginTimeMicroseconds = 0U;
+            }
             const Aero::Media::Animation::Model::TimelineTiming timing =
-                ComposeTiming(storyboard, parent);
+                ComposeTiming(storyboard, effectiveParent);
             for (const Base::Ref<Media::Animation::Timeline>& child :
                  storyboard.GetTimelines()) {
                 if (!child) continue;
@@ -498,6 +514,11 @@ Base::Result<void> VisualStateManagerState::StartStoryboardAnimations(
             return resolved.GetStatus();
         }
 
+        Aero::Media::Animation::Model::TimelineTiming effectiveParent = parent;
+        if (timeline.GetRepeatBehavior().IsForever()) {
+            effectiveParent.beginTimeMicroseconds = 0U;
+        }
+
         Base::Result<Aero::Media::Animation::Model::AnimationHandle> started =
             Base::Status::Failure(
                 Base::ErrorCode::Unsupported,
@@ -508,7 +529,7 @@ Base::Result<void> VisualStateManagerState::StartStoryboardAnimations(
                 static_cast<Media::Animation::DoubleAnimation&>(timeline);
             Aero::Media::Animation::Model::DoubleAnimation runtime =
                 Aero::Media::Animation::Double(authored);
-            runtime.timing = ComposeTiming(authored, parent);
+            runtime.timing = ComposeTiming(authored, effectiveParent);
             started = animations_->Begin(
                 *resolved.Value().object,
                 resolved.Value().property,
@@ -519,7 +540,7 @@ Base::Result<void> VisualStateManagerState::StartStoryboardAnimations(
                 static_cast<Media::Animation::ColorAnimation&>(timeline);
             Aero::Media::Animation::Model::ColorAnimation runtime =
                 Aero::Media::Animation::Color(authored);
-            runtime.timing = ComposeTiming(authored, parent);
+            runtime.timing = ComposeTiming(authored, effectiveParent);
             started = animations_->Begin(
                 *resolved.Value().object,
                 resolved.Value().property,
@@ -535,7 +556,7 @@ Base::Result<void> VisualStateManagerState::StartStoryboardAnimations(
             const auto schedule =
                 Aero::Media::Animation::MakeSchedule(
                     authored.GetKeyFrames(),
-                    ComposeTiming(authored, parent).durationMicroseconds);
+                    ComposeTiming(authored, effectiveParent).durationMicroseconds);
             std::uint32_t keyIndex = 0U;
             for (const Base::Ref<Media::Animation::DoubleKeyFrame>&
                      frame : authored.GetKeyFrames()) {
@@ -575,13 +596,13 @@ Base::Result<void> VisualStateManagerState::StartStoryboardAnimations(
             }
             if (!base) return base.GetStatus();
             Base::Result<double> decoded =
-                ValueCodec<double>::Decode(
+                DecodeDoubleOrLength(
                     base.Value());
             if (!decoded) return decoded.GetStatus();
             Aero::Media::Animation::Model::DoubleKeyFrameAnimation runtime;
             runtime.baseValue = decoded.Value();
             runtime.timing =
-                ComposeTiming(authored, parent);
+                ComposeTiming(authored, effectiveParent);
             if (runtime.timing.durationMicroseconds == 0U) {
                 runtime.timing.durationMicroseconds =
                     frames.Back().keyTimeMicroseconds;
@@ -603,7 +624,7 @@ Base::Result<void> VisualStateManagerState::StartStoryboardAnimations(
             const auto schedule =
                 Aero::Media::Animation::MakeSchedule(
                     authored.GetKeyFrames(),
-                    ComposeTiming(authored, parent).durationMicroseconds);
+                    ComposeTiming(authored, effectiveParent).durationMicroseconds);
             std::uint32_t keyIndex = 0U;
             for (const Base::Ref<Media::Animation::ColorKeyFrame>&
                      frame : authored.GetKeyFrames()) {
@@ -646,7 +667,7 @@ Base::Result<void> VisualStateManagerState::StartStoryboardAnimations(
                 runtime;
             runtime.baseValue = decoded.Value();
             runtime.timing =
-                ComposeTiming(authored, parent);
+                ComposeTiming(authored, effectiveParent);
             if (runtime.timing.durationMicroseconds == 0U) {
                 runtime.timing.durationMicroseconds =
                     frames.Back().keyTimeMicroseconds;
@@ -675,7 +696,7 @@ Base::Result<void> VisualStateManagerState::StartStoryboardAnimations(
                 const auto schedule =
                     Aero::Media::Animation::MakeSchedule(
                         authored.GetKeyFrames(),
-                        ComposeTiming(authored, parent).durationMicroseconds);
+                        ComposeTiming(authored, effectiveParent).durationMicroseconds);
                 std::uint32_t keyIndex = 0U;
                 for (const Base::Ref<
                          Media::Animation::ObjectKeyFrame>&
@@ -701,7 +722,7 @@ Base::Result<void> VisualStateManagerState::StartStoryboardAnimations(
                 const auto schedule =
                     Aero::Media::Animation::MakeSchedule(
                         authored.GetKeyFrames(),
-                        ComposeTiming(authored, parent).durationMicroseconds);
+                        ComposeTiming(authored, effectiveParent).durationMicroseconds);
                 std::uint32_t keyIndex = 0U;
                 for (const Base::Ref<
                          Media::Animation::BooleanKeyFrame>&
@@ -756,7 +777,7 @@ Base::Result<void> VisualStateManagerState::StartStoryboardAnimations(
             Aero::Media::Animation::Model::DiscreteAnimation runtime;
             runtime.baseValue = base.Value();
             runtime.timing =
-                ComposeTiming(timeline, parent);
+                ComposeTiming(timeline, effectiveParent);
             if (runtime.timing.durationMicroseconds == 0U) {
                 runtime.timing.durationMicroseconds =
                     frames.Back().keyTimeMicroseconds;
@@ -847,6 +868,10 @@ Base::Result<void> VisualStateManagerState::CaptureStoryboardTimeline(
                     *child, values, revertToBase);
             if (!captured) return captured.GetStatus();
         }
+        return {};
+    }
+
+    if (timeline.GetRepeatBehavior().IsForever()) {
         return {};
     }
 
@@ -1036,27 +1061,30 @@ Base::Result<void> VisualStateManagerState::StartTransitionAnimations(
             Base::Status::Failure(
                 Base::ErrorCode::Unsupported,
                 "Generated VisualTransition value type is unsupported");
-        Base::Result<double> fromDouble =
-            ValueCodec<double>::Decode(value.from);
-        Base::Result<double> toDouble =
-            ValueCodec<double>::Decode(value.to);
-        if (fromDouble && toDouble) {
-            if (fromDouble.Value() == toDouble.Value()) {
-                continue;
+        if (value.from.Kind() == ValueKind::Double ||
+            value.from.Type() == Meta::TypeOf<Length>()) {
+            Base::Result<double> fromDouble =
+                DecodeDoubleOrLength(value.from);
+            Base::Result<double> toDouble =
+                DecodeDoubleOrLength(value.to);
+            if (fromDouble && toDouble) {
+                if (fromDouble.Value() == toDouble.Value()) {
+                    continue;
+                }
+                DoubleAnimation animation;
+                animation.from = fromDouble.Value();
+                animation.to = toDouble.Value();
+                animation.timing.durationMicroseconds =
+                    transition.generatedDurationMicroseconds;
+                animation.timing.fillBehavior =
+                    FillBehavior::HoldEnd;
+                animation.easing = easing;
+                started = animations_->Begin(
+                    *value.target,
+                    value.property,
+                    animation);
             }
-            DoubleAnimation animation;
-            animation.from = fromDouble.Value();
-            animation.to = toDouble.Value();
-            animation.timing.durationMicroseconds =
-                transition.generatedDurationMicroseconds;
-            animation.timing.fillBehavior =
-                FillBehavior::HoldEnd;
-            animation.easing = easing;
-            started = animations_->Begin(
-                *value.target,
-                value.property,
-                animation);
-        } else {
+        } else if (value.from.Type() == Meta::TypeOf<Base::Color>()) {
             Base::Result<Base::Color> fromColor =
                 ValueCodec<Base::Color>::Decode(
                     value.from);
@@ -1078,6 +1106,8 @@ Base::Result<void> VisualStateManagerState::StartTransitionAnimations(
                 *value.target,
                 value.property,
                 animation);
+        } else {
+            continue;
         }
         if (!started) {
             static_cast<void>(
@@ -1304,21 +1334,7 @@ Base::Result<bool> VisualStateManagerState::GoToState(
                         *transition->storyboard).durationMicroseconds);
         }
     }
-    const bool useGeneratedTransition =
-        transition != nullptr &&
-        transition->generatedDurationMicroseconds != 0U &&
-        !transition->storyboard;
-    if (animated && !useGeneratedTransition) {
-        animated = StartStateAnimations(
-            control, handle, *next,
-            active_[activeIndex],
-            stateTiming);
-    } else if (animated && useGeneratedTransition &&
-               active_[activeIndex].animations.Empty()) {
-        // The generated transition produced no interpolation (for example
-        // the target storyboard exposed nothing capturable). Fall back to
-        // the state's own storyboard so the visual still changes instead of
-        // silently doing nothing.
+    if (animated) {
         animated = StartStateAnimations(
             control, handle, *next,
             active_[activeIndex],

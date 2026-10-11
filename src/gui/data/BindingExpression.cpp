@@ -825,6 +825,13 @@ Base::Result<PropertyValue> BindingEngine::ConvertForTarget(
             "Binding target property was not found");
     }
     PropertyValue converted = value;
+    if (converted.Kind() == ValueKind::Object &&
+        targetProperty->ValueType() != TypeOf<Base::Object>()) {
+        Base::Result<PropertyValue> unboxed = UnboxItemsValue(converted);
+        if (unboxed) {
+            converted = std::move(unboxed).Value();
+        }
+    }
     if (converted.IsNullObject() &&
         !record.descriptor.targetNullValue.IsUnset()) {
         converted = record.descriptor.targetNullValue;

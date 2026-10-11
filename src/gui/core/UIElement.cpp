@@ -83,6 +83,9 @@ Rect UIElement::GetLayoutSlot() const noexcept {
 Rect UIElement::GetLayoutClip() const noexcept {
     return layout_.layoutClip;
 }
+bool UIElement::GetHasLayoutClip() const noexcept {
+    return layout_.hasLayoutClip;
+}
 bool UIElement::GetIsMeasureValid() const noexcept {
     return layout_.measureValid;
 }
@@ -454,7 +457,7 @@ bool UIElement::GetIsVisible() const noexcept {
             element->GetVisibility() != Visibility::Visible) {
             return false;
         }
-        current = ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent()) != nullptr ? ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent()) : current->GetVisualParent();
+        current = current->GetVisualParent();
     }
     return true;
 }

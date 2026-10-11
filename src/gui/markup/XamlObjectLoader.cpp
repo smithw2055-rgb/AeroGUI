@@ -1545,6 +1545,7 @@ Base::Status Loader::LoaderState::Operation::Failure(
     ::Aero::Diagnostics::DiagnosticCode code,
     Base::StringView message) noexcept {
     if (diagnostics_ != nullptr) {
+        std::fprintf(stderr, "[XamlObjectLoader::Failure] %.*s (detail: %s)\n", (int)message.SizeBytes(), message.Data(), status.message ? status.message : "");
         Base::Result<::Aero::Diagnostics::Diagnostic> diagnostic =
             ::Aero::Diagnostics::Diagnostic::Create(
                 code,

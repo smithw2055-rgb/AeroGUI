@@ -119,6 +119,7 @@ class AERO_GUI_API GridViewHeaderRowPresenter : public Aero::FrameworkElement {
 
 public:
     GridViewHeaderRowPresenter() noexcept : FrameworkElement(StaticTypeId()) {}
+    ~GridViewHeaderRowPresenter() override;
 
     bool GetAllowsColumnReorder() const noexcept { return GetValue(AllowsColumnReorderProperty); }
     void SetAllowsColumnReorder(bool value) noexcept { SetValue(AllowsColumnReorderProperty, value); }
@@ -130,6 +131,21 @@ public:
     AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, ColumnHeaderTemplateSelector);
     AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, ColumnHeaderToolTip);
     AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, Columns);
+
+protected:
+    std::uint32_t GetVisualChildrenCount() const noexcept override;
+    ::Aero::Media::Visual* GetVisualChild(std::uint32_t index) const noexcept override;
+    std::uint32_t GetLayoutChildrenCount() const noexcept override;
+    UIElement* GetLayoutChild(std::uint32_t index) const noexcept override;
+    Size MeasureOverride(Size availableSize) noexcept override;
+    Size ArrangeOverride(Size finalSize) noexcept override;
+    void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
+
+private:
+    void RebuildIfNeeded() noexcept;
+    void ClearCells() noexcept;
+    Base::Vector<Ref<Base::Object>> ownedCells_;
+    bool cellsDirty_ = true;
 };
 
 class AERO_GUI_API GridViewRowPresenter : public Aero::FrameworkElement {
@@ -137,9 +153,28 @@ class AERO_GUI_API GridViewRowPresenter : public Aero::FrameworkElement {
 
 public:
     GridViewRowPresenter() noexcept : FrameworkElement(StaticTypeId()) {}
+    ~GridViewRowPresenter() override;
 
     AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, Columns);
     AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, Content);
+
+protected:
+    std::uint32_t GetVisualChildrenCount() const noexcept override;
+    ::Aero::Media::Visual* GetVisualChild(std::uint32_t index) const noexcept override;
+    std::uint32_t GetLayoutChildrenCount() const noexcept override;
+    UIElement* GetLayoutChild(std::uint32_t index) const noexcept override;
+    Size MeasureOverride(Size availableSize) noexcept override;
+    Size ArrangeOverride(Size finalSize) noexcept override;
+    void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
+    void OnDataContextChanged(const Value& oldValue, const Value& newValue) noexcept override;
+
+private:
+    void RebuildIfNeeded() noexcept;
+    void ClearCells() noexcept;
+    Base::Vector<Ref<Base::Object>> ownedCells_;
+    Base::Ref<Base::Object> lastItem_;
+    const GridView* lastView_ = nullptr;
+    std::uint32_t lastColumnCount_ = 0U;
 };
 } // namespace Aero::Controls
 

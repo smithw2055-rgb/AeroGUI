@@ -1128,8 +1128,15 @@
         <DoubleAnimation Storyboard.TargetName="Arrow" Storyboard.TargetProperty="RenderTransform.Angle" To="90" Duration="0"/>
         <StaticResource ResourceKey="Anim.Expand.Vertical.Loaded"/>
       </Storyboard>
+      <Storyboard x:Key="Anim.Expand.Horizontal.Right.Loaded">
+        <DoubleAnimation Storyboard.TargetName="Arrow" Storyboard.TargetProperty="RenderTransform.Angle" To="180" Duration="0"/>
+        <StaticResource ResourceKey="Anim.Expand.Horizontal.Loaded"/>
+      </Storyboard>
+      <Storyboard x:Key="Anim.Expand.Horizontal.Left.Loaded">
+        <DoubleAnimation Storyboard.TargetName="Arrow" Storyboard.TargetProperty="RenderTransform.Angle" To="0" Duration="0"/>
+        <StaticResource ResourceKey="Anim.Expand.Horizontal.Loaded"/>
+      </Storyboard>
       <Storyboard x:Key="Anim.Expand.Horizontal.Loaded">
-        <DoubleAnimation Storyboard.TargetName="Arrow" Storyboard.TargetProperty="RenderTransform.Angle" To="90" Duration="0"/>
         <ObjectAnimationUsingKeyFrames Storyboard.TargetName="ContentBorder" Storyboard.TargetProperty="Visibility">
           <DiscreteObjectKeyFrame KeyTime="0" Value="{x:Static Visibility.Visible}"/>
         </ObjectAnimationUsingKeyFrames>
@@ -1363,6 +1370,8 @@
         <Setter Property="Grid.Row" Value="2" TargetName="ExpanderButton"/>
         <Setter Property="Grid.Column" Value="1" TargetName="ExpanderButton"/>
         <Setter Property="RenderTransformOrigin" Value="0.5,1" TargetName="ContentBg"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource Corner.Border0.Bottom}" TargetName="HeaderBg"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource Corner.Border0.Top}" TargetName="ContentBg"/>
       </Trigger>
       <Trigger Property="ExpandDirection" Value="Right">
         <Setter Property="Grid.Row" Value="1" TargetName="ExpanderButton"/>
@@ -1450,7 +1459,7 @@
         <ContentPresenter ContentSource="Header" VerticalAlignment="Center"/>
       </Border>
       <Popup IsOpen="{TemplateBinding IsSubmenuOpen}" Focusable="False" Placement="Bottom" PopupAnimation="Fade" AllowsTransparency="True">
-        <Border Background="{DynamicResource Brush.Background.Popup}" BorderBrush="{DynamicResource Brush.Border.Popup}" BorderThickness="1" CornerRadius="{DynamicResource Corner.Border1}" Padding="0,6">
+        <Border Background="{DynamicResource Brush.Background.Popup}" BorderBrush="{DynamicResource Brush.Border.Popup}" BorderThickness="1" CornerRadius="{DynamicResource Corner.Border1}" Padding="0,6" MinWidth="150">
           <ItemsPresenter />
         </Border>
       </Popup>
@@ -1491,7 +1500,7 @@
         </Grid>
       </Border>
       <Popup IsOpen="{TemplateBinding IsSubmenuOpen}" Focusable="False" HorizontalOffset="-2" VerticalOffset="-7" Placement="Right" PopupAnimation="Fade" AllowsTransparency="True">
-        <Border Background="{DynamicResource Brush.Background.Popup}" BorderBrush="{DynamicResource Brush.Border.Popup}" BorderThickness="1" CornerRadius="{DynamicResource Corner.Border1}" Padding="0,6">
+        <Border Background="{DynamicResource Brush.Background.Popup}" BorderBrush="{DynamicResource Brush.Border.Popup}" BorderThickness="1" CornerRadius="{DynamicResource Corner.Border1}" Padding="0,6" MinWidth="150">
           <ItemsPresenter />
         </Border>
       </Popup>
@@ -1579,7 +1588,7 @@
 
   <!-- ContextMenu -->
   <ControlTemplate x:Key="Template.ContextMenu" TargetType="ContextMenu">
-    <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}" CornerRadius="{DynamicResource Corner.Border1}">
+    <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}" CornerRadius="{DynamicResource Corner.Border1}" MinWidth="{TemplateBinding MinWidth}">
       <ItemsPresenter />
     </Border>
     <ControlTemplate.Triggers>
@@ -1597,6 +1606,7 @@
     <Setter Property="BorderBrush" Value="{DynamicResource Brush.Border.Popup}"/>
     <Setter Property="BorderThickness" Value="1"/>
     <Setter Property="Padding" Value="0,6"/>
+    <Setter Property="MinWidth" Value="150"/>
     <Setter Property="Cursor" Value="Arrow"/>
     <Setter Property="ForceCursor" Value="True"/>
     <Setter Property="ItemsPanel" Value="{StaticResource Template.MenuItem.ItemsPanel}"/>
@@ -2946,6 +2956,13 @@
     <Setter Property="OverridesDefaultStyle" Value="True"/>
     <Setter Property="Background" Value="{DynamicResource Brush.ToolBar.Normal}"/>
     <Setter Property="MinHeight" Value="28"/>
+    <Setter Property="ItemsPanel">
+      <Setter.Value>
+        <ItemsPanelTemplate>
+          <DockPanel LastChildFill="False"/>
+        </ItemsPanelTemplate>
+      </Setter.Value>
+    </Setter>
     <Setter Property="Template" Value="{StaticResource Template.StatusBar}"/>
   </Style>
 

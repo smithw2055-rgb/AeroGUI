@@ -19,10 +19,25 @@
 #include <Aero/Media/Transform3D.hpp>
 #include <Aero/UIElement.hpp>
 #include <Aero/FrameworkElement.hpp>
+#include <Aero/Layout.hpp>
 #include <Aero/TryCast.hpp>
 #include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero {
+
+namespace {
+
+static Base::Result<double> DecodeDoubleOrLength(
+    const Meta::PropertyValue& value) noexcept {
+    if (value.Type() == Meta::TypeOf<Length>()) {
+        Base::Result<Length> length = Meta::ValueCodec<Length>::Decode(value);
+        if (!length) return length.GetStatus();
+        return length.Value().isAuto ? 0.0 : length.Value().value;
+    }
+    return Meta::ValueCodec<double>::Decode(value);
+}
+
+} // namespace
 
 Base::Result<StoryboardHost::ResolvedAnimationProperty>
 StoryboardHost::ResolveAnimationProperty(
@@ -206,7 +221,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 propertyTarget.GetValue(propertyHandle);
             if (!current) return current.GetStatus();
             Base::Result<double> origin =
-                Meta::ValueCodec<double>::Decode(current.Value());
+                DecodeDoubleOrLength(current.Value());
             if (!origin) return origin.GetStatus();
 
             Model::CustomDoubleAnimation runtime;
@@ -425,7 +440,7 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 propertyTarget.GetValue(propertyHandle);
             if (!base) return base.GetStatus();
             Base::Result<double> baseDouble =
-                Meta::ValueCodec<double>::Decode(base.Value());
+                DecodeDoubleOrLength(base.Value());
             Model::DoubleKeyFrameAnimation runtime;
             if (baseDouble) {
                 runtime.baseValue = baseDouble.Value();

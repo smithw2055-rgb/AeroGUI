@@ -230,6 +230,8 @@ private:
     std::uint64_t meshServiceGeneration_ = 0U;
     std::uint64_t mesh_ = 0U;
     std::uint64_t strokeMesh_ = 0U;
+    double lastRenderWidth_ = 0.0;
+    double lastRenderHeight_ = 0.0;
     bool geometryDirty_ = true;
 };
 

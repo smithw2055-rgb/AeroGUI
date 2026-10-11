@@ -406,6 +406,9 @@ Base::Result<void> CaptureControlTemplateChildName(
     const Aero::NameScope* nameScope,
     Base::Object& target,
     Base::String& storage) noexcept;
+Base::Result<Meta::PropertyValue> ConvertDynamicResourceValue(
+    const Meta::PropertyValue& value,
+    const Meta::DependencyProperty& property) noexcept;
 
 } // namespace Aero::Markup
 

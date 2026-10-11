@@ -92,6 +92,36 @@ bool IsDeferredBindingSetterValue(
     return false;
 }
 
+bool IsDynamicResourceSetterValue(
+    const PropertyValue& value,
+    Base::StringView& key) noexcept {
+    constexpr Base::StringView dynamicPrefix("\x01DynamicResource:");
+    if (value.Kind() == ValueKind::String) {
+        Base::StringView str = value.AsString();
+        if (str.SizeBytes() >= dynamicPrefix.SizeBytes() &&
+            str.Substr(0U, dynamicPrefix.SizeBytes()) == dynamicPrefix) {
+            key = str.Substr(
+                dynamicPrefix.SizeBytes(),
+                str.SizeBytes() - dynamicPrefix.SizeBytes());
+            return true;
+        }
+        return false;
+    }
+    if (!IsDeferredBindingSetterValue(value)) return false;
+    Base::Ref<Base::Object> stored = value.AsObject();
+    if (!stored || stored->RuntimeType() != Data::Binding::StaticTypeId()) return false;
+    auto& marker = static_cast<Data::Binding&>(*stored);
+    const Base::StringView bindingPath = marker.GetPathText();
+    if (bindingPath.SizeBytes() >= dynamicPrefix.SizeBytes() &&
+        bindingPath.Substr(0U, dynamicPrefix.SizeBytes()) == dynamicPrefix) {
+        key = bindingPath.Substr(
+            dynamicPrefix.SizeBytes(),
+            bindingPath.SizeBytes() - dynamicPrefix.SizeBytes());
+        return true;
+    }
+    return false;
+}
+
 void TriggerBase::AddEnterAction(
     Base::Ref<Base::Object> action) noexcept {
     if (!action) { AERO_ASSERT(false); return; }

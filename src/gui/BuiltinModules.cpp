@@ -649,6 +649,7 @@ Base::Result<void> PopulateControlsMetadata(
     DescribeHook<ToolTipService>::Run(context);
     DescribeHook<TextBlock>::Run(context);
     DescribeHook<Primitives::TextBoxBase>::Run(context);
+    DescribeHook<Primitives::TextBoxView>::Run(context);
     DescribeHook<TextBox>::Run(context);
     DescribeHook<PasswordBox>::Run(context);
     DescribeHook<Image>::Run(context);

@@ -975,6 +975,9 @@ Base::Result<Base::String> FormatBindingString(
     const PropertyValue& value,
     Base::StringView format,
     const Registry* metadata) noexcept {
+    Base::Result<PropertyValue> unboxed = UnboxItemsValue(value);
+    const PropertyValue& targetVal = unboxed ? unboxed.Value() : value;
+
     // Markup extensions write \{ and \} so the XAML parser does not treat
     // the placeholder as nested markup. WPF stores StringFormat without those
     // slashes ("Orbit: {0:F2} AU"). Unescape before looking up {0:...}.
@@ -1003,122 +1006,178 @@ Base::Result<Base::String> FormatBindingString(
     }
 
     char raw[128]{};
-    if (value.Type() == TypeOf<::Aero::Nullable<bool>>()) {
+    if (targetVal.Type() == TypeOf<::Aero::Nullable<bool>>()) {
         Base::Result<::Aero::Nullable<bool>> decoded =
-            ValueCodec<::Aero::Nullable<bool>>::Decode(value);
+            ValueCodec<::Aero::Nullable<bool>>::Decode(targetVal);
         if (!decoded) return decoded.GetStatus();
         if (decoded.Value().GetHasValue()) {
             std::snprintf(
                 raw, sizeof(raw), "%s",
                 decoded.Value().GetValue() ? "True" : "False");
         }
+    } else if (targetVal.Type() == TypeOf<Base::Color>()) {
+        Base::Result<Base::Color> color =
+            Meta::ValueCodec<Base::Color>::Decode(targetVal);
+        if (!color) return color.GetStatus();
+        const auto toByte = [](float v) -> unsigned int {
+            float clamped = std::clamp(v, 0.0f, 1.0f);
+            return static_cast<unsigned int>(std::lround(clamped * 255.0f));
+        };
+        const unsigned int a = toByte(color.Value().alpha);
+        const unsigned int r = toByte(color.Value().red);
+        const unsigned int g = toByte(color.Value().green);
+        const unsigned int b = toByte(color.Value().blue);
+        std::snprintf(raw, sizeof(raw), "#%02X%02X%02X%02X", a, r, g, b);
     }
     bool numeric = false;
     double numericValue = 0.0;
-    switch (value.Type() == TypeOf<::Aero::Nullable<bool>>()
+    switch ((targetVal.Type() == TypeOf<::Aero::Nullable<bool>>() ||
+             targetVal.Type() == TypeOf<Base::Color>())
         ? ValueKind::Unset
-        : value.Kind()) {
+        : targetVal.Kind()) {
     case ValueKind::Unset:
         break;
     case ValueKind::String: {
-        Base::String result;
-        Base::Result<void> assigned =
-            result.Assign(value.AsString());
-        return assigned
-            ? Base::Result<Base::String>(
-                  std::move(result))
-            : Base::Result<Base::String>(
-                  assigned.GetStatus());
-    }
-    case ValueKind::Boolean:
-        std::snprintf(
-            raw, sizeof(raw),
-            "%s",
-            value.AsBoolean() ? "True" : "False");
-        break;
-    case ValueKind::SignedInteger: {
-        const std::uint64_t rawValue =
-            static_cast<std::uint64_t>(value.AsSignedInteger());
-        const EnumValueInfo* enumVal = metadata != nullptr &&
-            value.Type() != TypeOf<std::int32_t>() &&
-            value.Type() != TypeOf<std::int64_t>() &&
-            value.Type() != TypeOf<std::int16_t>() &&
-            value.Type() != TypeOf<std::int8_t>()
-            ? metadata->Types().FindEnumValue(value.Type(), rawValue)
-            : nullptr;
-        if (enumVal != nullptr) {
-            std::snprintf(
-                raw, sizeof(raw),
-                "%.*s",
-                static_cast<int>(enumVal->Name().SizeBytes()),
-                enumVal->Name().Data());
-        } else {
-            numeric = true;
-            numericValue = static_cast<double>(
-                value.AsSignedInteger());
-            std::snprintf(
-                raw, sizeof(raw),
-                "%lld",
-                static_cast<long long>(
-                    value.AsSignedInteger()));
-        }
-        break;
-    }
-    case ValueKind::UnsignedInteger: {
-        const std::uint64_t rawValue = value.AsUnsignedInteger();
-        const EnumValueInfo* enumVal = metadata != nullptr &&
-            value.Type() != TypeOf<std::uint32_t>() &&
-            value.Type() != TypeOf<std::uint64_t>() &&
-            value.Type() != TypeOf<std::uint16_t>() &&
-            value.Type() != TypeOf<std::uint8_t>()
-            ? metadata->Types().FindEnumValue(value.Type(), rawValue)
-            : nullptr;
-        if (enumVal != nullptr) {
-            std::snprintf(
-                raw, sizeof(raw),
-                "%.*s",
-                static_cast<int>(enumVal->Name().SizeBytes()),
-                enumVal->Name().Data());
-        } else {
-            numeric = true;
-            numericValue = static_cast<double>(
-                value.AsUnsignedInteger());
-            std::snprintf(
-                raw, sizeof(raw),
-                "%llu",
-                static_cast<unsigned long long>(
-                    value.AsUnsignedInteger()));
-        }
-        break;
-    }
-    case ValueKind::Double:
-        numeric = true;
-        numericValue = value.AsDouble();
-        std::snprintf(
-            raw, sizeof(raw),
-            "%.15g",
-            numericValue);
-        break;
-    case ValueKind::Object:
-        if (!value.IsNullObject() &&
-            value.AsObject() &&
-            value.AsObject()->RuntimeType() ==
-                Media::StreamGeometry::StaticTypeId()) {
+        if (activeFormat.Empty() || activeFormat == "{0}") {
             Base::String result;
             Base::Result<void> assigned =
-                result.Assign(
-                    static_cast<Media::StreamGeometry&>(
-                        *value.AsObject()).GetData());
+                result.Assign(targetVal.AsString());
             return assigned
                 ? Base::Result<Base::String>(
                       std::move(result))
                 : Base::Result<Base::String>(
                       assigned.GetStatus());
         }
-        if (value.IsNullObject()) raw[0] = '\0';
-        else {
-            return InvalidArgument(
-                "Binding object has no default text conversion");
+        Base::StringView prefix;
+        Base::StringView suffix;
+        for (std::uint32_t index = 0U;
+             index + 1U < activeFormat.SizeBytes();
+             ++index) {
+            if (activeFormat[index] == '{' &&
+                activeFormat[index + 1U] == '0') {
+                std::uint32_t close = index + 2U;
+                while (close < activeFormat.SizeBytes() &&
+                       activeFormat[close] != '}') {
+                    ++close;
+                }
+                if (close < activeFormat.SizeBytes()) {
+                    prefix = activeFormat.Substr(0U, index);
+                    suffix = activeFormat.Substr(
+                        close + 1U,
+                        activeFormat.SizeBytes() - close - 1U);
+                }
+                break;
+            }
+        }
+        Base::String result;
+        Base::Result<void> appended = result.Append(prefix);
+        if (appended) appended = result.Append(targetVal.AsString());
+        if (appended) appended = result.Append(suffix);
+        return appended
+            ? Base::Result<Base::String>(std::move(result))
+            : Base::Result<Base::String>(appended.GetStatus());
+    }
+    case ValueKind::Boolean:
+        std::snprintf(
+            raw, sizeof(raw),
+            "%s",
+            targetVal.AsBoolean() ? "True" : "False");
+        break;
+    case ValueKind::SignedInteger: {
+        const std::uint64_t rawValue =
+            static_cast<std::uint64_t>(targetVal.AsSignedInteger());
+        const EnumValueInfo* enumVal = metadata != nullptr &&
+            targetVal.Type() != TypeOf<std::int32_t>() &&
+            targetVal.Type() != TypeOf<std::int64_t>() &&
+            targetVal.Type() != TypeOf<std::int16_t>() &&
+            targetVal.Type() != TypeOf<std::int8_t>()
+            ? metadata->Types().FindEnumValue(targetVal.Type(), rawValue)
+            : nullptr;
+        if (enumVal != nullptr) {
+            std::snprintf(
+                raw, sizeof(raw),
+                "%.*s",
+                static_cast<int>(enumVal->Name().SizeBytes()),
+                enumVal->Name().Data());
+        } else {
+            numeric = true;
+            numericValue = static_cast<double>(
+                targetVal.AsSignedInteger());
+            std::snprintf(
+                raw, sizeof(raw),
+                "%lld",
+                static_cast<long long>(
+                    targetVal.AsSignedInteger()));
+        }
+        break;
+    }
+    case ValueKind::UnsignedInteger: {
+        const std::uint64_t rawValue = targetVal.AsUnsignedInteger();
+        const EnumValueInfo* enumVal = metadata != nullptr &&
+            targetVal.Type() != TypeOf<std::uint32_t>() &&
+            targetVal.Type() != TypeOf<std::uint64_t>() &&
+            targetVal.Type() != TypeOf<std::uint16_t>() &&
+            targetVal.Type() != TypeOf<std::uint8_t>()
+            ? metadata->Types().FindEnumValue(targetVal.Type(), rawValue)
+            : nullptr;
+        if (enumVal != nullptr) {
+            std::snprintf(
+                raw, sizeof(raw),
+                "%.*s",
+                static_cast<int>(enumVal->Name().SizeBytes()),
+                enumVal->Name().Data());
+        } else {
+            numeric = true;
+            numericValue = static_cast<double>(
+                targetVal.AsUnsignedInteger());
+            std::snprintf(
+                raw, sizeof(raw),
+                "%llu",
+                static_cast<unsigned long long>(
+                    targetVal.AsUnsignedInteger()));
+        }
+        break;
+    }
+    case ValueKind::Double:
+        numeric = true;
+        numericValue = targetVal.AsDouble();
+        std::snprintf(
+            raw, sizeof(raw),
+            "%.15g",
+            numericValue);
+        break;
+    case ValueKind::Object:
+        if (!targetVal.IsNullObject() &&
+            targetVal.AsObject() &&
+            targetVal.AsObject()->RuntimeType() ==
+                Media::StreamGeometry::StaticTypeId()) {
+            Base::String result;
+            Base::Result<void> assigned =
+                result.Assign(
+                    static_cast<Media::StreamGeometry&>(
+                        *targetVal.AsObject()).GetData());
+            return assigned
+                ? Base::Result<Base::String>(
+                      std::move(result))
+                : Base::Result<Base::String>(
+                      assigned.GetStatus());
+        }
+        if (targetVal.IsNullObject()) {
+            raw[0] = '\0';
+        } else if (targetVal.AsObject()) {
+            const TypeInfo* type = metadata != nullptr
+                ? metadata->Types().FindType(targetVal.AsObject()->RuntimeType())
+                : nullptr;
+            if (type != nullptr) {
+                std::snprintf(
+                    raw, sizeof(raw), "%.*s",
+                    static_cast<int>(type->Name().SizeBytes()),
+                    type->Name().Data());
+            } else {
+                std::snprintf(raw, sizeof(raw), "%s", "Object");
+            }
+        } else {
+            raw[0] = '\0';
         }
         break;
     default:

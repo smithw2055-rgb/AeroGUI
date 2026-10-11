@@ -610,6 +610,86 @@ if(AERO_ENABLE_D3D11_BACKEND)
     aero_compile_d3d11_vs(PosTex0Tex1 HAS_UV0 HAS_UV1)
     aero_compile_d3d11_vs(PosColorTex0Tex1 HAS_COLOR HAS_UV0 HAS_UV1)
 
+    function(aero_compile_d3d11_ps stem)
+        set(output
+            "${_aero_d3d11_shader_directory}/AeroD3D11ShaderPS${stem}.hpp")
+        set(symbol "AeroD3D11ShaderPS${stem}")
+        set(defines)
+        foreach(d IN LISTS ARGN)
+            list(APPEND defines /D "${d}")
+        endforeach()
+        add_custom_command(
+            OUTPUT "${output}"
+            COMMAND "${CMAKE_COMMAND}" -E make_directory
+                "${_aero_d3d11_shader_directory}"
+            COMMAND "${AERO_D3D11_FXC_EXECUTABLE}" /nologo /Ges /WX
+                /T ps_4_0 /E ps_main
+                ${defines}
+                /Vn ${symbol}
+                /Fh "${output}"
+                "${_aero_d3d11_shader_root}/ShaderPS.hlsl"
+            DEPENDS "${_aero_d3d11_shader_root}/ShaderPS.hlsl"
+            VERBATIM)
+        set_property(GLOBAL APPEND PROPERTY
+            AERO_D3D11_SHADER_OUTPUTS "${output}")
+    endfunction()
+
+    aero_compile_d3d11_ps(RGBA EFFECT_RGBA)
+    aero_compile_d3d11_ps(Clear EFFECT_CLEAR)
+
+    aero_compile_d3d11_ps(Path_Solid EFFECT_PATH PAINT_SOLID)
+    aero_compile_d3d11_ps(Path_Linear EFFECT_PATH PAINT_LINEAR)
+    aero_compile_d3d11_ps(Path_Radial EFFECT_PATH PAINT_RADIAL)
+    aero_compile_d3d11_ps(Path_Pattern EFFECT_PATH PAINT_PATTERN)
+    aero_compile_d3d11_ps(Path_Pattern_Clamp EFFECT_PATH PAINT_PATTERN CLAMP_PATTERN)
+    aero_compile_d3d11_ps(Path_Pattern_Repeat EFFECT_PATH PAINT_PATTERN REPEAT_PATTERN)
+    aero_compile_d3d11_ps(Path_Pattern_MirrorU EFFECT_PATH PAINT_PATTERN MIRRORU_PATTERN)
+    aero_compile_d3d11_ps(Path_Pattern_MirrorV EFFECT_PATH PAINT_PATTERN MIRRORV_PATTERN)
+    aero_compile_d3d11_ps(Path_Pattern_Mirror EFFECT_PATH PAINT_PATTERN MIRROR_PATTERN)
+
+    aero_compile_d3d11_ps(Path_AA_Solid EFFECT_PATH_AA PAINT_SOLID)
+    aero_compile_d3d11_ps(Path_AA_Linear EFFECT_PATH_AA PAINT_LINEAR)
+    aero_compile_d3d11_ps(Path_AA_Radial EFFECT_PATH_AA PAINT_RADIAL)
+    aero_compile_d3d11_ps(Path_AA_Pattern EFFECT_PATH_AA PAINT_PATTERN)
+    aero_compile_d3d11_ps(Path_AA_Pattern_Clamp EFFECT_PATH_AA PAINT_PATTERN CLAMP_PATTERN)
+    aero_compile_d3d11_ps(Path_AA_Pattern_Repeat EFFECT_PATH_AA PAINT_PATTERN REPEAT_PATTERN)
+    aero_compile_d3d11_ps(Path_AA_Pattern_MirrorU EFFECT_PATH_AA PAINT_PATTERN MIRRORU_PATTERN)
+    aero_compile_d3d11_ps(Path_AA_Pattern_MirrorV EFFECT_PATH_AA PAINT_PATTERN MIRRORV_PATTERN)
+    aero_compile_d3d11_ps(Path_AA_Pattern_Mirror EFFECT_PATH_AA PAINT_PATTERN MIRROR_PATTERN)
+
+    aero_compile_d3d11_ps(SDF_Solid EFFECT_SDF PAINT_SOLID)
+    aero_compile_d3d11_ps(SDF_Linear EFFECT_SDF PAINT_LINEAR)
+    aero_compile_d3d11_ps(SDF_Radial EFFECT_SDF PAINT_RADIAL)
+    aero_compile_d3d11_ps(SDF_Pattern EFFECT_SDF PAINT_PATTERN)
+    aero_compile_d3d11_ps(SDF_Pattern_Clamp EFFECT_SDF PAINT_PATTERN CLAMP_PATTERN)
+    aero_compile_d3d11_ps(SDF_Pattern_Repeat EFFECT_SDF PAINT_PATTERN REPEAT_PATTERN)
+    aero_compile_d3d11_ps(SDF_Pattern_MirrorU EFFECT_SDF PAINT_PATTERN MIRRORU_PATTERN)
+    aero_compile_d3d11_ps(SDF_Pattern_MirrorV EFFECT_SDF PAINT_PATTERN MIRRORV_PATTERN)
+    aero_compile_d3d11_ps(SDF_Pattern_Mirror EFFECT_SDF PAINT_PATTERN MIRROR_PATTERN)
+
+    aero_compile_d3d11_ps(SDF_LCD_Solid EFFECT_SDF_LCD PAINT_SOLID)
+    aero_compile_d3d11_ps(SDF_LCD_Linear EFFECT_SDF_LCD PAINT_LINEAR)
+    aero_compile_d3d11_ps(SDF_LCD_Radial EFFECT_SDF_LCD PAINT_RADIAL)
+    aero_compile_d3d11_ps(SDF_LCD_Pattern EFFECT_SDF_LCD PAINT_PATTERN)
+    aero_compile_d3d11_ps(SDF_LCD_Pattern_Clamp EFFECT_SDF_LCD PAINT_PATTERN CLAMP_PATTERN)
+    aero_compile_d3d11_ps(SDF_LCD_Pattern_Repeat EFFECT_SDF_LCD PAINT_PATTERN REPEAT_PATTERN)
+    aero_compile_d3d11_ps(SDF_LCD_Pattern_MirrorU EFFECT_SDF_LCD PAINT_PATTERN MIRRORU_PATTERN)
+    aero_compile_d3d11_ps(SDF_LCD_Pattern_MirrorV EFFECT_SDF_LCD PAINT_PATTERN MIRRORV_PATTERN)
+    aero_compile_d3d11_ps(SDF_LCD_Pattern_Mirror EFFECT_SDF_LCD PAINT_PATTERN MIRROR_PATTERN)
+
+    aero_compile_d3d11_ps(Opacity_Solid EFFECT_OPACITY PAINT_SOLID)
+    aero_compile_d3d11_ps(Opacity_Linear EFFECT_OPACITY PAINT_LINEAR)
+    aero_compile_d3d11_ps(Opacity_Radial EFFECT_OPACITY PAINT_RADIAL)
+    aero_compile_d3d11_ps(Opacity_Pattern EFFECT_OPACITY PAINT_PATTERN)
+    aero_compile_d3d11_ps(Opacity_Pattern_Clamp EFFECT_OPACITY PAINT_PATTERN CLAMP_PATTERN)
+    aero_compile_d3d11_ps(Opacity_Pattern_Repeat EFFECT_OPACITY PAINT_PATTERN REPEAT_PATTERN)
+    aero_compile_d3d11_ps(Opacity_Pattern_MirrorU EFFECT_OPACITY PAINT_PATTERN MIRRORU_PATTERN)
+    aero_compile_d3d11_ps(Opacity_Pattern_MirrorV EFFECT_OPACITY PAINT_PATTERN MIRRORV_PATTERN)
+    aero_compile_d3d11_ps(Opacity_Pattern_Mirror EFFECT_OPACITY PAINT_PATTERN MIRROR_PATTERN)
+
+    aero_compile_d3d11_ps(Upsample EFFECT_UPSAMPLE)
+    aero_compile_d3d11_ps(Downsample EFFECT_DOWNSAMPLE)
+
     aero_compile_d3d11_shader_pair(
         RenderFrameSolid "${_aero_d3d11_shader_root}/RenderFrameSolid.hlsl" FALSE)
     aero_compile_d3d11_shader_pair(

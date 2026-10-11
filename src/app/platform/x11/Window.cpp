@@ -54,7 +54,6 @@ struct X11WindowState {
 
     void Push(const WindowEvent& event) noexcept {
         events.PushBack(event);
-        static_cast<void>(pushed);
     }
 
     bool Dequeue(WindowEvent& event) noexcept {

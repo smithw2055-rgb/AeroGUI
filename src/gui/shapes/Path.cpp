@@ -524,6 +524,55 @@ PathStrokeParams ResolvePathStroke(const Path& path) noexcept {
     return params;
 }
 
+struct PathTransformInfo {
+    double scaleX = 1.0;
+    double scaleY = 1.0;
+    double offsetX = 0.0;
+    double offsetY = 0.0;
+};
+
+static PathTransformInfo CalculatePathTransform(
+    Stretch stretch,
+    Rect geometryBounds,
+    Size target) noexcept {
+    if (stretch == Stretch::None || (geometryBounds.width <= 0.0 && geometryBounds.height <= 0.0)) {
+        return {1.0, 1.0, 0.0, 0.0};
+    }
+    const double geomW = std::max(geometryBounds.width, 1.0e-6);
+    const double geomH = std::max(geometryBounds.height, 1.0e-6);
+    double scaleX = 1.0;
+    double scaleY = 1.0;
+    switch (stretch) {
+    case Stretch::None:
+        break;
+    case Stretch::Fill:
+        scaleX = geometryBounds.width > 0.0 ? target.width / geomW : 1.0;
+        scaleY = geometryBounds.height > 0.0 ? target.height / geomH : 1.0;
+        break;
+    case Stretch::Uniform: {
+        const double scale = (geometryBounds.width > 0.0 && geometryBounds.height > 0.0)
+            ? std::min(target.width / geomW, target.height / geomH)
+            : (geometryBounds.width > 0.0 ? target.width / geomW : (geometryBounds.height > 0.0 ? target.height / geomH : 1.0));
+        scaleX = scale;
+        scaleY = scale;
+        break;
+    }
+    case Stretch::UniformToFill: {
+        const double scale = (geometryBounds.width > 0.0 && geometryBounds.height > 0.0)
+            ? std::max(target.width / geomW, target.height / geomH)
+            : (geometryBounds.width > 0.0 ? target.width / geomW : (geometryBounds.height > 0.0 ? target.height / geomH : 1.0));
+        scaleX = scale;
+        scaleY = scale;
+        break;
+    }
+    }
+    const double width = geometryBounds.width * scaleX;
+    const double height = geometryBounds.height * scaleY;
+    const double offsetX = (target.width - width) * 0.5 - geometryBounds.x * scaleX;
+    const double offsetY = (target.height - height) * 0.5 - geometryBounds.y * scaleY;
+    return {scaleX, scaleY, offsetX, offsetY};
+}
+
 } // namespace
 
 void Path::ResetGeometry() noexcept {
@@ -613,8 +662,21 @@ Base::Result<void> Path::EnsureGeometry() noexcept {
             Base::Result<void> resolved =
                 ResolvePathDashes(*this, dashes, dashOffset);
             if (!resolved) return resolved.GetStatus();
+
+            const PathTransformInfo info = CalculatePathTransform(
+                GetStretch(), geometryBounds_, GetRenderSize());
+
+            Base::Vector<Point> strokePoints;
+            strokePoints.Reserve(pathPoints_.Size());
+            for (const Point& pt : pathPoints_) {
+                strokePoints.PushBack(Point{
+                    pt.x * info.scaleX + info.offsetX,
+                    pt.y * info.scaleY + info.offsetY
+                });
+            }
+
             Base::Result<void> stroked = TessellateStroke(
-                pathPoints_,
+                strokePoints,
                 pathContourStarts_,
                 pathContourCounts_,
                 pathContourClosed_,
@@ -817,10 +879,16 @@ void Path::OnRender(
         // visible without coupling Geometry to the visual tree.
         ResetGeometry();
     }
+    const Size target = GetRenderSize();
+    if (GetStretch() != Stretch::None &&
+        (target.width != lastRenderWidth_ || target.height != lastRenderHeight_)) {
+        ResetGeometry();
+        lastRenderWidth_ = target.width;
+        lastRenderHeight_ = target.height;
+    }
     Base::Result<void> mesh =
         EnsureMesh();
     if (!mesh) return;
-    const Size target = GetRenderSize();
     if ((mesh_ == InvalidRenderMeshId &&
          strokeMesh_ == InvalidRenderMeshId &&
          geometryIndices_.Empty()) ||
@@ -828,90 +896,76 @@ void Path::OnRender(
          geometryBounds_.height <= 0.0)) {
         return;
     }
-    const double geomW = std::max(geometryBounds_.width, 1.0e-6);
-    const double geomH = std::max(geometryBounds_.height, 1.0e-6);
-    double scaleX = 1.0;
-    double scaleY = 1.0;
-    switch (GetStretch()) {
-    case Stretch::None:
-        break;
-    case Stretch::Fill:
-        scaleX = geometryBounds_.width > 0.0 ? target.width / geomW : 1.0;
-        scaleY = geometryBounds_.height > 0.0 ? target.height / geomH : 1.0;
-        break;
-    case Stretch::Uniform: {
-        const double scale = (geometryBounds_.width > 0.0 && geometryBounds_.height > 0.0)
-            ? std::min(target.width / geomW, target.height / geomH)
-            : (geometryBounds_.width > 0.0 ? target.width / geomW : (geometryBounds_.height > 0.0 ? target.height / geomH : 1.0));
-        scaleX = scale;
-        scaleY = scale;
-        break;
-    }
-    case Stretch::UniformToFill: {
-        const double scale = (geometryBounds_.width > 0.0 && geometryBounds_.height > 0.0)
-            ? std::max(target.width / geomW, target.height / geomH)
-            : (geometryBounds_.width > 0.0 ? target.width / geomW : (geometryBounds_.height > 0.0 ? target.height / geomH : 1.0));
-        scaleX = scale;
-        scaleY = scale;
-        break;
-    }
-    }
-    const double width =
-        geometryBounds_.width * scaleX;
-    const double height =
-        geometryBounds_.height * scaleY;
-    // Stretch=None keeps authored coordinates. Subtracting origin here
-    // stacked every Canvas Path at (0,0), so CenterPanel covered the
-    // gold/coffee frames on the left and top.
-    const double offsetX = GetStretch() == Stretch::None
-        ? 0.0
-        : (target.width - width) * 0.5 -
-            geometryBounds_.x * scaleX;
-    const double offsetY = GetStretch() == Stretch::None
-        ? 0.0
-        : (target.height - height) * 0.5 -
-            geometryBounds_.y * scaleY;
-    Base::Result<void> transform =
-        builder.PushTransform(Transform2D{
-            scaleX, 0.0, 0.0, scaleY,
-            offsetX, offsetY});
-    if (!transform) return;
+    const PathTransformInfo info = CalculatePathTransform(
+        GetStretch(), geometryBounds_, target);
+
     if (mesh_ != InvalidRenderMeshId || !geometryIndices_.Empty()) {
         Base::Ref<Brush> fill = GetFill();
         if (fill) {
-            const bool spatial = IsSpatialGradientBrush(fill.Get());
-            if (spatial && !geometryIndices_.Empty()) {
+            Base::Result<void> transform =
+                builder.PushTransform(Transform2D{
+                    info.scaleX, 0.0, 0.0, info.scaleY,
+                    info.offsetX, info.offsetY});
+            if (transform) {
+                const bool spatial = IsSpatialGradientBrush(fill.Get());
+                if (spatial && !geometryIndices_.Empty()) {
+                    Base::Result<void> drawn = PaintBrushGeometry(
+                        builder,
+                        fill,
+                        geometryVertices_.AsSpan(),
+                        geometryIndices_.AsSpan(),
+                        geometryBounds_,
+                        false,
+                        mesh_);
+                    if (!drawn) {
+                        static_cast<void>(builder.PopTransform());
+                        return;
+                    }
+                } else if (!spatial && mesh_ != InvalidRenderMeshId) {
+                    Color fillColor = ::Aero::Media::SampleBrush(fill);
+                    if (fillColor.alpha > 0.0F) {
+                        Base::Result<void> drawn =
+                            builder.DrawMesh(mesh_, fillColor);
+                        if (!drawn) {
+                            static_cast<void>(builder.PopTransform());
+                            return;
+                        }
+                    }
+                }
+                static_cast<void>(builder.PopTransform());
+            }
+        }
+    }
+    if (strokeMesh_ != InvalidRenderMeshId || !strokeIndices_.Empty()) {
+        Base::Ref<Brush> stroke = ResolvePathStroke(*this).brush;
+        if (stroke) {
+            const bool spatial = IsSpatialGradientBrush(stroke.Get());
+            if (spatial && !strokeIndices_.Empty()) {
+                const Rect transformedBounds{
+                    geometryBounds_.x * info.scaleX + info.offsetX,
+                    geometryBounds_.y * info.scaleY + info.offsetY,
+                    geometryBounds_.width * info.scaleX,
+                    geometryBounds_.height * info.scaleY
+                };
                 Base::Result<void> drawn = PaintBrushGeometry(
                     builder,
-                    fill,
-                    geometryVertices_.AsSpan(),
-                    geometryIndices_.AsSpan(),
-                    geometryBounds_,
+                    stroke,
+                    strokeVertices_.AsSpan(),
+                    strokeIndices_.AsSpan(),
+                    transformedBounds,
                     false,
-                    mesh_);
+                    strokeMesh_);
                 if (!drawn) return;
-            } else if (!spatial && mesh_ != InvalidRenderMeshId) {
-                Color fillColor = ::Aero::Media::SampleBrush(fill);
-                if (fillColor.alpha > 0.0F) {
+            } else if (!spatial && strokeMesh_ != InvalidRenderMeshId) {
+                Color strokeColor = ::Aero::Media::SampleBrush(stroke);
+                if (strokeColor.alpha > 0.0F) {
                     Base::Result<void> drawn =
-                        builder.DrawMesh(mesh_, fillColor);
+                        builder.DrawMesh(strokeMesh_, strokeColor);
                     if (!drawn) return;
                 }
             }
         }
     }
-    if (strokeMesh_ != InvalidRenderMeshId) {
-        Base::Ref<Brush> stroke = ResolvePathStroke(*this).brush;
-        if (stroke) {
-            Color strokeColor = ::Aero::Media::SampleBrush(stroke);
-            if (strokeColor.alpha > 0.0F) {
-                Base::Result<void> drawn =
-                    builder.DrawMesh(strokeMesh_, strokeColor);
-                if (!drawn) return;
-            }
-        }
-    }
-    static_cast<void>(builder.PopTransform());
 }
 
 } // namespace Aero::Shapes

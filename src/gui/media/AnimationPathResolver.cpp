@@ -1,3 +1,4 @@
+#include <cstdio>
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/core/TypeRegistryCore.hpp"
 
@@ -601,6 +602,7 @@ Base::Result<ResolvedAnimationProperty> ResolveAnimationPropertyPath(
     const Meta::DependencyProperty* property =
         FindDependencyProperty(properties, *target, path);
     if (property == nullptr) {
+        std::fprintf(stderr, "[AnimationPathResolver] property not found: path='%.*s' targetType=%llu\n", (int)path.SizeBytes(), path.Data(), (unsigned long long)target->RuntimeType());
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
             "Animation target property was not found");

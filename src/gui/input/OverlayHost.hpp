@@ -25,6 +25,11 @@ public:
     Base::Ref<Controls::ToolTip> pendingToolTip;
     Base::Ref<Controls::ToolTip> activeToolTip;
     Base::Ref<Aero::UIElement> toolTipTarget;
+    Base::Ref<Controls::ContextMenu> activeContextMenu;
+    Base::Ref<Aero::UIElement> contextMenuTarget;
+    Base::Point contextMenuPosition{};
+    bool contextMenuHasPosition = false;
+    ElementAttachment contextMenuAttachment{};
     Base::Ref<Aero::UIElement> overlayFocusReturn;
     std::uint32_t toolTipElapsed = 0U;
     std::uint32_t toolTipVisibleElapsed = 0U;

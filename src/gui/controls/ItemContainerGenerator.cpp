@@ -537,9 +537,100 @@ ItemContainerGenerator::GeneratorState::CreateRecord(
         // supplied. Mirror WPF's ToString() fallback by realizing the item
         // inside a default text element so the container is still generated
         // instead of dropping the item entirely.
+        // Gallery ItemsControl sample puts a raw string and sys:Double
+        // directly in Items: when the XAML loader does not box them as
+        // BoxedItemValue, try common scalar-holder properties (Value/Text/
+        // Content/Header) before falling back to an empty placeholder.
+        Base::String display;
+        bool haveDisplay = false;
+        if (DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
+                record.item->RuntimeType(),
+                DependencyObject::StaticTypeId())) {
+            Aero::BindingEngine* bindings =
+                ElementTree::BindingsOf(*owner_);
+            Meta::Registry* metadata =
+                bindings != nullptr ? bindings->Metadata() : nullptr;
+            if (metadata != nullptr) {
+                constexpr Base::StringView kCandidates[] = {
+                    Base::StringView("Value"), Base::StringView("Text"),
+                    Base::StringView("Content"), Base::StringView("Header")};
+                for (const Base::StringView name : kCandidates) {
+                    const Meta::PropertyInfo* property =
+                        metadata->Types().FindProperty(
+                            record.item->RuntimeType(),
+                            name,
+                            true);
+                    if (property == nullptr) continue;
+                    Base::Result<Meta::Value> value =
+                        metadata->GetProperty(
+                            *record.item, property->Id());
+                    if (!value) continue;
+                    const Meta::Value& v = value.Value();
+                    Base::Result<void> formatted;
+                    switch (v.Kind()) {
+                    case Meta::ValueKind::String:
+                        formatted = display.Assign(v.AsString());
+                        break;
+                    case Meta::ValueKind::Boolean:
+                        formatted = display.Assign(
+                            v.AsBoolean() ? Base::StringView("True")
+                                          : Base::StringView("False"));
+                        break;
+                    case Meta::ValueKind::SignedInteger: {
+                        char buffer[48]{};
+                        const int length = std::snprintf(
+                            buffer, sizeof(buffer), "%lld",
+                            static_cast<long long>(v.AsSignedInteger()));
+                        formatted = length > 0
+                            ? display.Assign(Base::StringView(
+                                  buffer, static_cast<std::uint32_t>(length)))
+                            : Base::Result<void>(Base::Status::Failure(
+                                  Base::ErrorCode::ValidationFailed,
+                                  "Item fallback integer formatting failed"));
+                        break;
+                    }
+                    case Meta::ValueKind::UnsignedInteger: {
+                        char buffer[48]{};
+                        const int length = std::snprintf(
+                            buffer, sizeof(buffer), "%llu",
+                            static_cast<unsigned long long>(
+                                v.AsUnsignedInteger()));
+                        formatted = length > 0
+                            ? display.Assign(Base::StringView(
+                                  buffer, static_cast<std::uint32_t>(length)))
+                            : Base::Result<void>(Base::Status::Failure(
+                                  Base::ErrorCode::ValidationFailed,
+                                  "Item fallback unsigned formatting failed"));
+                        break;
+                    }
+                    case Meta::ValueKind::Double: {
+                        char buffer[64]{};
+                        const int length = std::snprintf(
+                            buffer, sizeof(buffer), "%.15g", v.AsDouble());
+                        formatted = length > 0
+                            ? display.Assign(Base::StringView(
+                                  buffer, static_cast<std::uint32_t>(length)))
+                            : Base::Result<void>(Base::Status::Failure(
+                                  Base::ErrorCode::ValidationFailed,
+                                  "Item fallback numeric formatting failed"));
+                        break;
+                    }
+                    default:
+                        continue;
+                    }
+                    if (formatted) {
+                        haveDisplay = true;
+                        break;
+                    }
+                }
+            }
+        }
         Base::Result<Base::Ref<TextBlock>> text =
             Base::MakeRef<TextBlock>();
         if (!text) return text.GetStatus();
+        if (haveDisplay) {
+            text.Value()->SetText(display.View());
+        }
         record.content = Base::Ref<Base::Object>(
             std::move(text).Value());
         record.generatedTextContent = true;

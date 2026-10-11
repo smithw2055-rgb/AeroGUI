@@ -116,3 +116,8 @@ AERO_DECLARE_TYPE_ENUM(Aero::App::WindowState)
 AERO_DECLARE_TYPE_ENUM(Aero::App::WindowStyle)
 AERO_DECLARE_TYPE_ENUM(Aero::App::ResizeMode)
 AERO_DECLARE_TYPE_ENUM(Aero::App::SizeToContent)
+
+namespace Aero {
+using Window = App::Window;
+}
+

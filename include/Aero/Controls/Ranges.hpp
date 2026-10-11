@@ -273,6 +273,7 @@ public:
     Result<bool> IncreaseLarge() noexcept;
     void SetValueFromPosition(double position, double trackLength) noexcept;
     void SetValueFromTrackPoint(Point local) noexcept;
+    Primitives::Track* GetTrack() const noexcept { return track_; }
 
     AERO_DEPENDENCY_PROPERTY(Orientation, Orientation);
     AERO_DEPENDENCY_PROPERTY(double, SmallChange);

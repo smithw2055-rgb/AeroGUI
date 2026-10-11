@@ -100,3 +100,8 @@ private:
 } // namespace Aero::App
 
 AERO_DECLARE_TYPE_ENUM(Aero::App::ShutdownMode)
+
+namespace Aero {
+using Application = App::Application;
+}
+

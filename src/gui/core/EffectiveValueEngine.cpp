@@ -21,6 +21,7 @@
 #include <Aero/TryCast.hpp>
 #include <Aero/Visual.hpp>
 #include <Aero/VisualTreeHelper.hpp>
+#include <Aero/UIElement.hpp>
 
 #include <cstdio>
 #include <cstdint>
@@ -104,6 +105,19 @@ Base::Result<Meta::PropertyValue> NormalizeValueForProperty(
     if (value.Kind() == Meta::ValueKind::Object &&
         value.Type() != targetType) {
         if (value.IsNullObject()) {
+            if (metadata != nullptr) {
+                const Meta::TypeInfo* targetInfo =
+                    metadata->Types().FindType(targetType);
+                if (targetInfo != nullptr &&
+                    (static_cast<std::uint32_t>(targetInfo->Flags()) &
+                     static_cast<std::uint32_t>(Meta::TypeFlags::ValueType)) != 0U) {
+                    const Meta::PropertyMetadata* propMeta =
+                        property.MetadataFor(property.RegisteredOwnerType());
+                    if (propMeta != nullptr && !propMeta->defaultValue.IsUnset()) {
+                        return propMeta->defaultValue;
+                    }
+                }
+            }
             value = Meta::PropertyValue::NullObject(targetType);
         } else if (value.AsObject()) {
             const Meta::TypeId objectType =
@@ -1391,6 +1405,23 @@ Base::Result<void> EffectiveValueEngine::Apply(
             PropertyValue value = inheritFrom->GetValue(property);
             inheritedValue = std::move(value);
             inherited = &inheritedValue;
+        }
+        if (property == UIElement::IsEnabledProperty.Handle()) {
+            if (const ::Aero::Media::Visual* visual =
+                    ::Aero::TryCast<::Aero::Media::Visual>(&object)) {
+                for (::Aero::Media::Visual* vParent = ::Aero::Media::VisualTreeHelper::GetParent(*visual);
+                     vParent != nullptr;
+                     vParent = ::Aero::Media::VisualTreeHelper::GetParent(*vParent)) {
+                    if (const UIElement* parentElement = ::Aero::TryCast<UIElement>(vParent)) {
+                        PropertyValue parentEnabled = parentElement->GetValue(UIElement::IsEnabledProperty);
+                        if (parentEnabled.Kind() == Meta::ValueKind::Boolean && !parentEnabled.AsBoolean()) {
+                            inheritedValue = Meta::PropertyValue::FromBoolean(Meta::TypeOf<bool>(), false);
+                            inherited = &inheritedValue;
+                            break;
+                        }
+                    }
+                }
+            }
         }
     }
     Base::Result<void> stored = (object).ApplyInheritedValueInternal( property, inherited);

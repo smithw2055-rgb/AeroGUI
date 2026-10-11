@@ -137,13 +137,36 @@ void ButtonBase::OnPropertyChanged(const DependencyPropertyChangedEventArgs& arg
         RefreshCanExecute();
     } else if (args.GetProperty() == IsMouseOverProperty) {
         const bool mouseOver = GetIsMouseOver();
-        if (mouseOver && !wasMouseOver_ && GetIsEnabled() && GetClickMode() == ClickMode::Hover) {
-            OnClick();
+        if (GetClickMode() == ClickMode::Hover) {
+            if (mouseOver && !wasMouseOver_ && GetIsEnabled()) {
+                OnClick();
+            }
+            if (auto* repeat = TryCast<RepeatButton>(this)) {
+                if (mouseOver && GetIsEnabled()) {
+                    ElementTree::SetActiveRepeatButton(*this, repeat);
+                } else {
+                    ElementTree::SetActiveRepeatButton(*this, nullptr);
+                }
+            }
+        } else if (pointerDown_) {
+            static_cast<void>(SetPressedState(mouseOver));
         }
         wasMouseOver_ = mouseOver;
         UpdateVisualState();
-    } else if (args.GetProperty() == IsEnabledProperty ||
-               args.GetProperty() == IsPressedProperty ||
+    } else if (args.GetProperty() == IsEnabledProperty) {
+        if (!GetIsEnabled()) {
+            if (pointerDown_) {
+                pointerDown_ = false;
+                static_cast<void>(ReleasePointer(pointerId_));
+            }
+            keyboardDown_ = false;
+            static_cast<void>(SetPressedState(false));
+            if (auto* repeat = TryCast<RepeatButton>(this)) {
+                ElementTree::SetActiveRepeatButton(*this, nullptr);
+            }
+        }
+        UpdateVisualState();
+    } else if (args.GetProperty() == IsPressedProperty ||
                args.GetProperty() == IsKeyboardFocusedProperty) {
         UpdateVisualState();
     }
@@ -211,11 +234,16 @@ PropertyValue ButtonBase::CoerceValueCore(
 
 void ButtonBase::OnMouseLeftButtonDown(MouseButtonEventArgs& args) {
     if (!GetIsEnabled()) return;
+    if (GetClickMode() == ClickMode::Hover) {
+        ContentControl::OnMouseLeftButtonDown(args);
+        return;
+    }
     pointerId_ = args.GetPointerId();
     pointerDown_ = true;
     static_cast<void>(CapturePointer(args.GetPointerId()));
     static_cast<void>(Focus());
     args.SetHandled(true);
+    static_cast<void>(SetPressedState(true));
     if (GetClickMode() == ClickMode::Press) {
         OnClick();
     }
@@ -223,11 +251,16 @@ void ButtonBase::OnMouseLeftButtonDown(MouseButtonEventArgs& args) {
 }
 
 void ButtonBase::OnMouseLeftButtonUp(MouseButtonEventArgs& args) {
+    if (GetClickMode() == ClickMode::Hover) {
+        ContentControl::OnMouseLeftButtonUp(args);
+        return;
+    }
     if (!pointerDown_) return;
     if (pointerId_ != args.GetPointerId()) return;
     pointerDown_ = false;
     static_cast<void>(ReleasePointer(args.GetPointerId()));
     args.SetHandled(true);
+    static_cast<void>(SetPressedState(false));
     if (GetClickMode() == ClickMode::Release && GetIsEnabled() && GetIsMouseOver()) {
         OnClick();
     }
@@ -444,7 +477,6 @@ void RadioButton::UncheckRadioPeers() noexcept {
 
 RepeatButton::RepeatButton(TypeId runtimeType) noexcept
     : ButtonBase(runtimeType) {
-    SetClickMode(ClickMode::Press);
 }
 
 RepeatButton::~RepeatButton() {
@@ -469,14 +501,16 @@ void RepeatButton::SetInterval(std::uint32_t value) noexcept {
 
 void RepeatButton::OnMouseLeftButtonDown(MouseButtonEventArgs& args) {
     ButtonBase::OnMouseLeftButtonDown(args);
-    if (GetIsEnabled()) {
+    if (GetIsEnabled() && GetClickMode() != ClickMode::Hover) {
         ElementTree::SetActiveRepeatButton(*this, this);
     }
 }
 
 void RepeatButton::OnMouseLeftButtonUp(MouseButtonEventArgs& args) {
     ButtonBase::OnMouseLeftButtonUp(args);
-    ElementTree::SetActiveRepeatButton(*this, nullptr);
+    if (GetClickMode() != ClickMode::Hover) {
+        ElementTree::SetActiveRepeatButton(*this, nullptr);
+    }
 }
 
 void RepeatButton::OnKeyDown(KeyEventArgs& args) {
@@ -489,7 +523,9 @@ void RepeatButton::OnKeyDown(KeyEventArgs& args) {
 void RepeatButton::OnKeyUp(KeyEventArgs& args) {
     ButtonBase::OnKeyUp(args);
     if (args.GetKey() == KeyboardKeySpace || args.GetKey() == KeyboardKeyEnter) {
-        ElementTree::SetActiveRepeatButton(*this, nullptr);
+        if (GetClickMode() != ClickMode::Hover || !GetIsMouseOver()) {
+            ElementTree::SetActiveRepeatButton(*this, nullptr);
+        }
     }
 }
 

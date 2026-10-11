@@ -1362,7 +1362,12 @@ void Slider::SetValueFromTrackPoint(
     const double length =
         horizontal ? size.width : size.height;
     if (!(length > 0.0)) return;
-    const double thumbLength = track_->GetThumbLength(length);
+    const double desiredThumbLength = track_->GetThumbElement()
+        ? std::max(0.0, horizontal
+            ? track_->GetThumbElement()->GetDesiredSize().width
+            : track_->GetThumbElement()->GetDesiredSize().height)
+        : 8.0;
+    const double thumbLength = track_->GetThumbLength(length, desiredThumbLength);
     const double position =
         (horizontal ? local.x : local.y) - thumbLength * 0.5;
     Base::Result<double> value =
@@ -1378,7 +1383,11 @@ double Slider::GetNormalizedValueForLayout() const noexcept {
             (GetValue() - GetMinimum()) / range,
             0.0, 1.0)
         : 0.0;
-    if (GetIsDirectionReversed()) {
+    const bool isRtl = GetFlowDirection() == FlowDirection::RightToLeft;
+    const bool invert = GetOrientation() == Orientation::Horizontal
+        ? (isRtl ? !GetIsDirectionReversed() : GetIsDirectionReversed())
+        : !GetIsDirectionReversed();
+    if (invert) {
         normalized = 1.0 - normalized;
     }
     return normalized;
@@ -1475,6 +1484,12 @@ void Slider::OnRender(
     if (placement == TickPlacement::None) {
         return;
     }
+    // When templated, TickBar parts render ticks (WPF/Noesis parity).
+    // Slider::OnRender fallback would double-draw in accent Foreground
+    // over TickBar's thin Background ticks.
+    if (!(*this).RenderChildren().Empty()) {
+        return;
+    }
     auto drawTick = [&](double value)
         noexcept -> Base::Result<void> {
         if (value < GetMinimum() ||
@@ -1486,7 +1501,11 @@ void Slider::OnRender(
         double normalized = range > 0.0
             ? (value - GetMinimum()) / range
             : 0.0;
-        if (GetIsDirectionReversed()) {
+        const bool isRtl = GetFlowDirection() == FlowDirection::RightToLeft;
+        const bool invert = horizontal
+            ? (isRtl ? !GetIsDirectionReversed() : GetIsDirectionReversed())
+            : !GetIsDirectionReversed();
+        if (invert) {
             normalized = 1.0 - normalized;
         }
         const double pixel =
@@ -1621,10 +1640,25 @@ void TickBar::OnRender(
 
     const Color color = ::Aero::Media::SampleBrush(
         GetFill(), 0.5, ::Aero::Media::SampleBrush(GetForeground()));
-    constexpr double thumbLength = 14.0;
+    double thumbLength = 4.0;
+    if (const Primitives::Track* track = slider.GetTrack()) {
+        if (const auto thumb = track->GetThumbElement()) {
+            const Size thumbDesired = thumb->GetDesiredSize();
+            const double desired = horizontal ? thumbDesired.width : thumbDesired.height;
+            if (desired > 0.0) {
+                thumbLength = track->GetThumbLength(primary, desired);
+            }
+        }
+    }
     const double start = std::min(
         primary * 0.5, thumbLength * 0.5);
     const double travel = std::max(0.0, primary - thumbLength);
+
+    const bool isRtl = slider.GetFlowDirection() == FlowDirection::RightToLeft;
+    const bool invert = horizontal
+        ? (isRtl ? !slider.GetIsDirectionReversed() : slider.GetIsDirectionReversed())
+        : !slider.GetIsDirectionReversed();
+
     auto drawTick = [&](double value)
         noexcept -> Base::Result<void> {
         if (value < slider.GetMinimum() ||
@@ -1634,14 +1668,15 @@ void TickBar::OnRender(
         double normalized = range > 0.0
             ? (value - slider.GetMinimum()) / range
             : 0.0;
-        if (slider.GetIsDirectionReversed()) {
+        if (invert) {
             normalized = 1.0 - normalized;
         }
         const double position = start +
             std::clamp(normalized, 0.0, 1.0) * travel;
+        const double tickPos = std::round(position);
         if (horizontal) {
             return builder.FillRect({
-                position,
+                tickPos,
                 GetPlacement() == TickBarPlacement::Top
                     ? 0.0
                     : std::max(0.0, size.height - 4.0),
@@ -1652,7 +1687,7 @@ void TickBar::OnRender(
             GetPlacement() == TickBarPlacement::Left
                 ? 0.0
                 : std::max(0.0, size.width - 4.0),
-            position,
+            tickPos,
             std::min(4.0, size.width),
             1.0}, color);
     };
@@ -1688,6 +1723,7 @@ void TickBar::OnRender(
     }
 
     const double frequency = slider.GetTickFrequency();
+    if (frequency <= 0.0) return;
     for (double value = slider.GetMinimum(), count = 0.0;
          value <= slider.GetMaximum() + frequency * 0.000001 &&
          count < 1024.0;
@@ -1839,6 +1875,7 @@ AERO_DESCRIBE(Slider) {
         .Property(Slider::IsDirectionReversedProperty, false, AffectsArrange | AffectsRender)
         .Property(Slider::IsMoveToPointEnabledProperty, false)
         .Override(UIElement::IsTabStopProperty, true, FrameworkPropertyMetadataOptions::None)
+        .Override(Primitives::RangeBase::MaximumProperty, 10.0, FrameworkPropertyMetadataOptions::AffectsArrange, &::Aero::Base::Validate::Finite<double>)
         .Factory();
     AERO_ON(Slider, &Slider::OnMouseLeftButtonDown, UIElement::MouseLeftButtonDownEvent);
     AERO_ON(Slider, &Slider::OnMouseLeftButtonUp, UIElement::MouseLeftButtonUpEvent);

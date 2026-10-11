@@ -57,11 +57,16 @@ public:
     inline static constexpr RoutedEvent<RoutedEventArgs> ClickEvent{"Click"};
 
     void SetHighlightedState(bool value) noexcept;
+    void UpdateRole() noexcept;
+    static void DismissMenuTree(MenuItem& item) noexcept;
 
 protected:
+    Size MeasureOverride(Size availableSize) noexcept override;
     void OnApplyTemplate() noexcept override;
     void OnTemplateDetached() noexcept override;
     void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
+    void OnMouseEnter(MouseEventArgs& args);
+    void OnMouseLeave(MouseEventArgs& args);
 
 private:
     TextBlock* gestureText_ = nullptr;

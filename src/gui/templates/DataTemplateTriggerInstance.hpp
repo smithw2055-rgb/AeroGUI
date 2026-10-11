@@ -8,6 +8,10 @@
 
 #include <cstdint>
 
+namespace Aero {
+class EventTrigger;
+}
+
 namespace Aero::Controls {
 
 struct DataTemplateTriggerSetter {
@@ -78,6 +82,7 @@ public:
     std::uint32_t providerOrigin = 0U;
     Base::Vector<NamedObject> names;
     Base::Vector<DataTemplatePropertyTrigger> triggers;
+    Base::Vector<Base::Ref<EventTrigger>> eventTriggers;
 };
 
 } // namespace Aero::Controls

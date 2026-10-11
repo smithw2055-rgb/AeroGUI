@@ -191,6 +191,7 @@ private:
     ID3D11PixelShader* linearPixelShader_ = nullptr;
     ID3D11PixelShader* radialPixelShader_ = nullptr;
     ID3D11PixelShader* customEffectPixelShader_ = nullptr;
+    ID3D11PixelShader* pixelShaders_[Shader::Count] = {};
     ID3D11InputLayout* vertex2DInputLayout_ = nullptr;
 
     struct VertexShaderEntry {

@@ -133,6 +133,10 @@ protected:
     explicit BrushShader(TypeId runtimeType) noexcept
         : DependencyObject(runtimeType) {}
     void BumpRevision() noexcept { ++revision_; }
+    void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override {
+        DependencyObject::OnPropertyChanged(args);
+        BumpRevision();
+    }
 
 private:
     std::uint64_t revision_ = 0U;
@@ -175,14 +179,10 @@ class AERO_GUI_API WavesShader : public BrushShader {
 
 public:
     WavesShader() noexcept : BrushShader(StaticTypeId()) {}
-    double GetTime() const noexcept { return time_; }
-    void SetTime(double value) noexcept {
-        time_ = value;
-        BumpRevision();
-    }
+    double GetTime() const noexcept;
+    void SetTime(double value) noexcept;
 
-private:
-    double time_ = 0.0;
+    AERO_DEPENDENCY_PROPERTY(double, Time);
 };
 
 class AERO_GUI_API SolidColorBrush : public Brush {

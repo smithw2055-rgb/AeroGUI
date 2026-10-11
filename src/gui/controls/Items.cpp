@@ -306,6 +306,8 @@ ItemsControl::~ItemsControl() {
             source_->RemoveItemsChanged(
                 sourceHandler_));
     }
+    itemsHost_ = nullptr;
+    defaultItemsPresenter_.Reset();
 }
 
 void ItemsControl::OnApplyTemplate() noexcept {
@@ -427,11 +429,24 @@ bool ItemsControl::EnsureDefaultItemsPresenter() noexcept {
             }
         }
         if (panel == nullptr) {
-            Base::Result<Base::Ref<StackPanel>> stack =
-                Base::MakeRef<StackPanel>();
-            if (!stack || !stack.Value()) return {};
-            panelOwner = Base::Ref<Base::Object>(stack.Value());
-            panel = stack.Value().Get();
+            // WPF parity: StatusBar defaults to DockPanel (see
+            // ItemsControl.ItemsPanel docs), everything else to StackPanel.
+            // Without this, StatusBar items stack vertically when no
+            // ItemsPanel is set (gallery StatusBar sample).
+            if (RuntimeType() == StatusBar::StaticTypeId()) {
+                Base::Result<Base::Ref<DockPanel>> dock =
+                    Base::MakeRef<DockPanel>();
+                if (!dock || !dock.Value()) return {};
+                dock.Value()->SetLastChildFill(false);
+                panelOwner = Base::Ref<Base::Object>(dock.Value());
+                panel = dock.Value().Get();
+            } else {
+                Base::Result<Base::Ref<StackPanel>> stack =
+                    Base::MakeRef<StackPanel>();
+                if (!stack || !stack.Value()) return {};
+                panelOwner = Base::Ref<Base::Object>(stack.Value());
+                panel = stack.Value().Get();
+            }
         }
         panel->SetValue(Panel::IsItemsHostProperty, true);
         return {std::move(panelOwner), panel};
@@ -938,6 +953,16 @@ void ItemsControl::AssignItemsSource(
         TryCastToInterface<Collections::IItemsSource>(source.Get());
     if (directSource == nullptr) {
         directSource = Collections::CollectionAsItemsSource(source.Get());
+    }
+    {
+        static int s_n = 0;
+        if (s_n < 5) {
+            ++s_n;
+            std::fprintf(stderr, "[ItemsSource] src=%p iface=%p count=%u\n",
+                source ? (const void*)source.Get() : nullptr,
+                (const void*)directSource,
+                directSource ? directSource->GetCount() : 0U);
+        }
     }
     SetItemsSourceCore(directSource);
 }

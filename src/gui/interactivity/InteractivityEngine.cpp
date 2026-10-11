@@ -501,8 +501,8 @@ Base::Result<void> InteractivityEngine::EvaluateDataTemplateTrigger(
             if (!providerTokens) return providerTokens.GetStatus();
         }
         bool active = !trigger.conditions.Empty();
-        for (DataTemplateTriggerCondition& condition :
-             trigger.conditions) {
+        for (std::uint32_t condIdx = 0; condIdx < trigger.conditions.Size(); ++condIdx) {
+            DataTemplateTriggerCondition& condition = trigger.conditions[condIdx];
             Base::Result<bool> matches =
                 EvaluateDataTemplateCondition(context, condition);
             if (!matches) return matches.GetStatus();
@@ -519,12 +519,74 @@ Base::Result<void> InteractivityEngine::EvaluateDataTemplateTrigger(
                 Base::Ref<DependencyObject> target =
                     setter.target.Lock();
                 if (!target) continue;
+
+                Meta::PropertyValue valueToApply = setter.value;
+                constexpr Base::StringView dynamicPrefix("\x01DynamicResource:");
+                Base::StringView resourceKey;
+                if (setter.value.Kind() == Meta::ValueKind::String) {
+                    Base::StringView str = setter.value.AsString();
+                    if (str.SizeBytes() >= dynamicPrefix.SizeBytes() &&
+                        str.Substr(0U, dynamicPrefix.SizeBytes()) == dynamicPrefix) {
+                        resourceKey = str.Substr(
+                            dynamicPrefix.SizeBytes(),
+                            str.SizeBytes() - dynamicPrefix.SizeBytes());
+                    }
+                } else if (setter.value.Kind() == Meta::ValueKind::Object &&
+                           setter.value.AsObject() &&
+                           setter.value.AsObject()->RuntimeType() ==
+                               Data::Binding::StaticTypeId()) {
+                    auto& marker = static_cast<Data::Binding&>(*setter.value.AsObject());
+                    Base::StringView path = marker.GetPathText();
+                    if (path.SizeBytes() >= dynamicPrefix.SizeBytes() &&
+                        path.Substr(0U, dynamicPrefix.SizeBytes()) == dynamicPrefix) {
+                        resourceKey = path.Substr(
+                            dynamicPrefix.SizeBytes(),
+                            path.SizeBytes() - dynamicPrefix.SizeBytes());
+                    }
+                }
+                if (!resourceKey.Empty()) {
+                    ResourceValue resource;
+                    if (auto* fe = TryCast<FrameworkElement>(target.Get())) {
+                        resource = fe->TryFindResource(resourceKey);
+                    }
+                    if (resource.IsUnset() && context.root != nullptr) {
+                        resource = context.root->TryFindResource(resourceKey);
+                    }
+                    const Meta::DependencyProperty* dp =
+                        DependencyObjectAccess::PropertyRegistry(*target).Find(setter.property);
+                    if (!resource.IsUnset()) {
+                        if (dp != nullptr &&
+                            resource.Kind() == Meta::ValueKind::String &&
+                            resource.Type() != dp->ValueType()) {
+                            Base::Result<Meta::PropertyValue> converted =
+                                Meta::PropertyValue::TryFromString(
+                                    dp->ValueType(), resource.AsString());
+                            if (converted) {
+                                valueToApply = converted.Value();
+                            } else {
+                                valueToApply = resource;
+                            }
+                        } else {
+                            valueToApply = resource;
+                        }
+                    } else if (dp != nullptr) {
+                        const Meta::PropertyMetadata* meta =
+                            dp->MetadataFor(target->RuntimeType());
+                        if (meta == nullptr) {
+                            meta = dp->MetadataFor(dp->RegisteredOwnerType());
+                        }
+                        if (meta != nullptr && !meta->defaultValue.IsUnset()) {
+                            valueToApply = meta->defaultValue;
+                        }
+                    }
+                }
+
                 Base::Result<void> applied =
                     Values()->SetProviderContribution(
                         *target,
                         setter.property,
                         setter.token,
-                        setter.value);
+                        valueToApply);
                 if (!applied) {
                     return applied.GetStatus();
                 }
@@ -857,6 +919,17 @@ Base::Result<std::uint32_t>
                     context, triggerIndex);
             if (!evaluated && view != nullptr) {
                 view->ReportUpdateFailure(evaluated.GetStatus());
+            }
+        }
+        for (const Base::Ref<EventTrigger>& trigger :
+             context.eventTriggers) {
+            if (!trigger || context.root == nullptr || Storyboards() == nullptr) continue;
+            Base::Result<bool> started = Storyboards()->StartEventTrigger(
+                *trigger, *context.root, *context.root, nullptr, &context);
+            if (started && started.Value()) {
+                ++count;
+            } else if (!started && view != nullptr) {
+                view->ReportUpdateFailure(started.GetStatus());
             }
         }
         return count;

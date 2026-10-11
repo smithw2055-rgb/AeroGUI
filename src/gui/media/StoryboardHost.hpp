@@ -54,6 +54,7 @@ public:
         MediaAnimation::EventTrigger* trigger = nullptr;
         Aero::FrameworkElement* owner = nullptr;
         const Aero::NameScope* names = nullptr;
+        Aero::Controls::DataTemplateTriggerInstance* dataTemplateContext = nullptr;
 
         Base::Result<bool> EvaluateComparison(
             const Aero::Interactivity::ComparisonCondition& condition) noexcept;
@@ -75,6 +76,7 @@ public:
         MediaAnimation::EventTrigger* trigger = nullptr;
         Aero::FrameworkElement* owner = nullptr;
         const Aero::NameScope* names = nullptr;
+        Aero::Controls::DataTemplateTriggerInstance* dataTemplateContext = nullptr;
     };
     Base::Vector<PendingLoadedTrigger> pendingLoadedTriggers;
     Base::Result<void> FlushPendingLoadedTriggers() noexcept;
@@ -83,7 +85,8 @@ public:
         MediaAnimation::EventTrigger& trigger,
         Base::Object& defaultSource,
         Aero::FrameworkElement& actionOwner,
-        const Aero::NameScope* names) noexcept;
+        const Aero::NameScope* names,
+        Aero::Controls::DataTemplateTriggerInstance* dataTemplateContext = nullptr) noexcept;
     void ClearEventTriggersFor(Aero::Media::Visual& fragmentRoot) noexcept;
     void ClearEventTriggers() noexcept;
 

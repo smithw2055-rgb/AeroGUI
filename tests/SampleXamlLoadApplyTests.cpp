@@ -10,12 +10,12 @@
 #include <Aero/Controls/Border.hpp>
 #include <Aero/Controls/Image.hpp>
 #include <Aero/Controls/Label.hpp>
-#include <Aero/Controls/ProgressBar.hpp>
+#include <Aero/Controls/Ranges.hpp>
 #include <Aero/Controls/ScrollViewer.hpp>
 #include <Aero/Controls/Viewbox.hpp>
 #include <Aero/Controls/HeaderedItemsControl.hpp>
 #include <Aero/Controls/Buttons.hpp>
-#include <Aero/Controls/TreeViewItem.hpp>
+#include <Aero/Controls/TreeView.hpp>
 #include <Aero/Data/IMultiValueConverter.hpp>
 #include <Aero/Data/IValueConverter.hpp>
 #include <Aero/Diagnostics.hpp>
@@ -27,8 +27,7 @@
 #include <Aero/LogicalTreeHelper.hpp>
 #include <Aero/Markup/XamlDocument.hpp>
 #include <Aero/Markup/XamlReader.hpp>
-#include <Aero/Media/Animation/DoubleAnimationBase.hpp>
-#include <Aero/Media/Animation/Timeline.hpp>
+#include <Aero/Media/Animation.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Images.hpp>
 #include <Aero/Meta.hpp>
@@ -249,8 +248,8 @@ public:
 class SampleAnimation : public Aero::Media::Animation::DoubleAnimationBase {
 protected:
     explicit SampleAnimation(Aero::Meta::TypeId type) noexcept
-        : DoubleAnimationBase(type) {}
-    double GetCurrentValueCore(
+        : Aero::Media::Animation::DoubleAnimationBase(type) {}
+    double GetCurrentValue(
         double defaultOriginValue,
         double defaultDestinationValue,
         double progress) const noexcept override {
@@ -1680,7 +1679,7 @@ bool ApplyDictionaryTemplates(
         }
         Aero::ResourceValue resource =
             dictionary.Lookup(CStringView(host.key));
-        if (resource.Kind() == Meta::ValueKind::Unset) {
+        if (resource.IsUnset()) {
             continue;
         }
         live.diagnostics.Clear();
@@ -1707,11 +1706,13 @@ bool ApplyDictionaryTemplates(
         if (control == nullptr) {
             continue;
         }
-        if (resource.Value().Kind() == Aero::Meta::ValueKind::Object &&
-            resource.Value().AsObject()) {
-            control->SetValue(
-                Control::TemplateProperty,
-                resource.Value());
+        if (resource.Kind() == Aero::Base::ValueKind::Object &&
+            resource.AsObject()) {
+            if (auto* tmpl = TryCast<Aero::Controls::ControlTemplate>(resource.AsObject().Get())) {
+                control->SetValue(
+                    Control::TemplateProperty,
+                    Ref<Aero::Controls::ControlTemplate>::FromBorrowed(*tmpl));
+            }
         }
         static_cast<void>(control->ApplyTemplate());
         if (FailIfSampleError(

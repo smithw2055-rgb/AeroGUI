@@ -116,7 +116,7 @@ private:
     Base::Vector<Ref<Base::Object>> ownedInlines_;
     mutable Base::String flatText_;
     mutable bool flatTextValid_ = false;
-    Base::Vector<RichTextStyleRange> richTextStyleRanges_;
+    mutable Base::Vector<RichTextStyleRange> richTextStyleRanges_;
     Ref<Base::Object> pendingInline_;
     Size glyphRunSize_;
     bool serviceOwnsGlyphRun_ = false;

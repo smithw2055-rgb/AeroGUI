@@ -488,6 +488,17 @@ void DetachViewUi(
             }
         }
 
+        if (state.VisualStates() != nullptr && state.metadata != nullptr) {
+            for (Aero::Media::Visual* node : reachable) {
+                if (node != nullptr && state.metadata->Types().IsDerivedFrom(
+                        node->RuntimeType(), Controls::Control::StaticTypeId())) {
+                    auto& control = *static_cast<Controls::Control*>(node);
+                    (void)::Aero::Controls::FrameworkTemplateState::Clear(
+                        *state.VisualStates(), control);
+                }
+            }
+        }
+
         Base::Vector<DependencyObject*> detachedPropertyObjects(state.allocator);
         for (std::uint32_t index = reachable.Size(); index > 0U; --index) {
             Aero::Media::Visual* node = reachable[index - 1U];

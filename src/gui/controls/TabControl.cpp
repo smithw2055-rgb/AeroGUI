@@ -52,6 +52,57 @@ void TabItem::SetIsSelected(
         IsSelectedProperty, value);
 }
 
+TabControl* TabItem::FindParentTabControl() const noexcept {
+    const DependencyObject* current = GetLogicalParent();
+    if (current == nullptr) current = GetVisualParent();
+    while (current != nullptr) {
+        if (const auto* tc = TryCast<TabControl>(current)) {
+            return const_cast<TabControl*>(tc);
+        }
+        if (const auto* fe = TryCast<FrameworkElement>(current)) {
+            current = fe->GetLogicalParent() ? fe->GetLogicalParent() : fe->GetTemplatedParent();
+        } else if (const auto* vis = TryCast<Media::Visual>(current)) {
+            current = vis->GetVisualParent();
+        } else {
+            break;
+        }
+    }
+    return nullptr;
+}
+
+void TabItem::OnPropertyChanged(
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    HeaderedContentControl::OnPropertyChanged(args);
+    if (args.GetProperty() == ContentProperty.Handle()) {
+        if (GetIsSelected()) {
+            if (auto* tc = FindParentTabControl()) {
+                tc->SynchronizeSelection();
+            }
+        }
+    } else if (args.GetProperty() == IsSelectedProperty.Handle()) {
+        if (args.GetNewValue().Kind() == ValueKind::Boolean && args.GetNewValue().AsBoolean()) {
+            if (auto* tc = FindParentTabControl()) {
+                const std::uint32_t count = tc->GetCount();
+                ItemContainerGenerator* gen = tc->GetItemContainerGenerator();
+                for (std::uint32_t i = 0U; i < count; ++i) {
+                    if (tc->GetItem(i).Get() == this ||
+                        (gen != nullptr && gen->ContainerFromIndex(i) == this)) {
+                        if (tc->GetSelectedIndex() != i) {
+                            tc->SetSelectedIndex(i);
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+    }
+}
+
+void TabItem::OnMouseLeftButtonDown(MouseButtonEventArgs& args) {
+    SetIsSelected(true);
+    args.SetHandled(true);
+}
+
 TabControl::TabControl() noexcept
     : Selector(StaticTypeId()) {}
 
@@ -83,6 +134,37 @@ Base::Result<Ref<FrameworkElement>> TabControl::GetContainerForItemOverride() co
     return Ref<FrameworkElement>(std::move(made).Value());
 }
 
+Base::Result<void> TabControl::PrepareContainerForItemOverride(
+    FrameworkElement& container,
+    const Base::Ref<Base::Object>& item,
+    std::uint32_t index) noexcept {
+    Base::Result<void> prepared =
+        Selector::PrepareContainerForItemOverride(container, item, index);
+    if (!prepared) return prepared.GetStatus();
+
+    if (DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
+            container.RuntimeType(), TabItem::StaticTypeId())) {
+        auto& tabItem = static_cast<TabItem&>(container);
+        if (item && item.Get() != &container) {
+            tabItem.SetHeader(Value::FromObject(item->RuntimeType(), item));
+            if (const DataTemplate* tpl = GetItemTemplate()) {
+                tabItem.SetHeaderTemplate(Ref<DataTemplate>::FromBorrowed(
+                    const_cast<DataTemplate&>(*tpl)));
+            }
+            tabItem.SetContent(item.Get());
+            tabItem.SetValue(ContentControl::ContentProperty,
+                Value::FromObject(item->RuntimeType(), item));
+        }
+        tabItem.SetIsSelected(index == GetSelectedIndex());
+    }
+    return {};
+}
+
+void TabControl::OnApplyTemplate() noexcept {
+    Selector::OnApplyTemplate();
+    EnsureDefaultSelection();
+}
+
 void TabControl::SynchronizeSelection() noexcept {
     const std::uint32_t value = GetSelectedIndex();
     const std::uint32_t count = GetCount();
@@ -107,12 +189,31 @@ void TabControl::SynchronizeSelection() noexcept {
         }
     }
     TabItem* selected = GetSelectedTab();
-    const Meta::Value selectedContent =
+    Meta::Value selectedContent =
         selected != nullptr
         ? selected->GetContent()
         : Meta::Value::NullObject(
               Meta::TypeOf<Base::Object>());
+    if ((selectedContent.Kind() == Meta::ValueKind::Unset ||
+         selectedContent.IsNullObject()) &&
+        value < count) {
+        const Ref<Base::Object> item = GetItem(value);
+        if (item && item.Get() != selected) {
+            selectedContent = Value::FromObject(item->RuntimeType(), item);
+        }
+    }
     SetReadOnlyCurrentValue(SelectedContentProperty, selectedContent);
+    std::fprintf(stderr, "[TabControl %p] Sync: selIdx=%u selectedTab=%p selectedContentKind=%d isNull=%d\n",
+        (void*)this, value, (void*)selected, static_cast<int>(selectedContent.Kind()),
+        selectedContent.IsNullObject());
+
+    Ref<Base::Object> selectedContentTemplate;
+    if (selected != nullptr && selected->GetContentTemplate()) {
+        selectedContentTemplate = selected->GetContentTemplate();
+    } else if (Ref<DataTemplate> ct = GetContentTemplate()) {
+        selectedContentTemplate = std::move(ct);
+    }
+    SetReadOnlyCurrentValue(SelectedContentTemplateProperty, selectedContentTemplate);
     InvalidateMeasure();
 }
 
@@ -122,10 +223,35 @@ void TabControl::OnSelectionChanged(
     SynchronizeSelection();
 }
 
+void TabControl::EnsureDefaultSelection() noexcept {
+    // WPF/Noesis parity: a TabControl with items but no selection
+    // automatically selects the first tab. Without this, SelectedContent
+    // stays null and the content host renders an empty grey box
+    // (gallery TabControl sample).
+    if (GetSelectedIndex() == UINT32_MAX && GetCount() > 0U) {
+        SetSelectedIndex(0U);
+    } else {
+        SynchronizeSelection();
+    }
+}
+
+void TabControl::OnItemsChanged(
+    const ItemsChangedEvent& event) noexcept {
+    Selector::OnItemsChanged(event);
+    static_cast<void>(event);
+    EnsureDefaultSelection();
+}
+
+void TabControl::OnContainersChanged() noexcept {
+    Selector::OnContainersChanged();
+    EnsureDefaultSelection();
+}
+
 void TabControl::OnPropertyChanged(
     const DependencyPropertyChangedEventArgs& args) noexcept {
     Selector::OnPropertyChanged(args);
-    if (args.GetProperty() == SelectedIndexProperty) {
+    if (args.GetProperty() == SelectedIndexProperty ||
+        args.GetProperty() == ContentTemplateProperty) {
         SynchronizeSelection();
     }
 }
@@ -281,14 +407,16 @@ Size TabPanel::ArrangeOverride(
 AERO_DESCRIBE(TabItem) {
     using namespace Aero::Meta;
     Register<TabItem>(context)
-        .Property(TabItem::IsSelectedProperty, false, AffectsRender)
+        .Property(TabItem::IsSelectedProperty, false, AffectsRender | BindsTwoWayByDefault)
         .Factory();
+    AERO_ON(TabItem, &TabItem::OnMouseLeftButtonDown, UIElement::MouseLeftButtonDownEvent);
 }
 
 AERO_DESCRIBE(TabControl) {
     using namespace Aero::Meta;
     Register<TabControl>(context)
         .Property(TabControl::SelectedContentProperty, Meta::Value::NullObject(Meta::TypeOf<Base::Object>()))
+        .Property(TabControl::SelectedContentTemplateProperty, Base::Ref<Base::Object>{})
         .Property(TabControl::ContentTemplateProperty, Base::Ref<DataTemplate>{}, AffectsMeasure)
         .Property(TabControl::TabStripPlacementProperty, Dock::Top, AffectsMeasure)
         .Factory();

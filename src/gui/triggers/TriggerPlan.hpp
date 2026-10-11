@@ -43,6 +43,9 @@ Base::Result<void> InvalidStyle(const char* message) noexcept;
 // at load time rather than as a trigger-driven value.
 bool IsDeferredBindingSetterValue(
     const PropertyValue& value) noexcept;
+bool IsDynamicResourceSetterValue(
+    const PropertyValue& value,
+    Base::StringView& key) noexcept;
 
 struct StyleTriggerSetter {
     DependencyPropertyHandle property;

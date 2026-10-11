@@ -252,9 +252,19 @@ public:
         return {};
     }
 
+    struct InlineStyleContext {
+        Base::Color foreground{};
+        bool hasForeground = false;
+        bool bold = false;
+        bool italic = false;
+    };
+
     static Base::Result<void> AppendInline(
+        const Controls::TextBlock& owner,
         const Documents::Inline& value,
         Base::String& output,
+        Base::Vector<Controls::TextBlock::RichTextStyleRange>& ranges,
+        InlineStyleContext context,
         std::uint32_t depth = 0U) noexcept {
         if (depth >= 1024U) {
             return Base::Status::Failure(
@@ -262,10 +272,58 @@ public:
                 "Document inline nesting exceeds the supported depth");
         }
         const Meta::TypeRegistry& types = DependencyObjectAccess::PropertyRegistry((value)).Types();
+
+        if (types.IsDerivedFrom(value.RuntimeType(), Documents::Bold::StaticTypeId()) ||
+            value.GetFontWeight() == FontWeight::Bold ||
+            value.GetFontWeight() == FontWeight::SemiBold) {
+            context.bold = true;
+        }
+        if (types.IsDerivedFrom(value.RuntimeType(), Documents::Italic::StaticTypeId()) ||
+            value.GetFontStyle() != FontStyle::Normal) {
+            context.italic = true;
+        }
+        const bool isHyperlink = types.IsDerivedFrom(value.RuntimeType(), Documents::Hyperlink::StaticTypeId());
+        if (value.GetForeground()) {
+            const Base::Color sampled = ::Aero::Media::SampleBrush(value.GetForeground());
+            if (sampled.alpha > 0.001F) {
+                context.foreground = sampled;
+                context.hasForeground = true;
+            }
+        }
+        if (!context.hasForeground && isHyperlink) {
+            Media::Brush* raw = nullptr;
+            ResourceValue res = owner.TryFindResource(Base::StringView("Brush.Hyperlink.Normal"));
+            if (!res.IsUnset() && res.Kind() == Meta::ValueKind::Object && res.AsObject()) {
+                raw = ::Aero::TryCast<Media::Brush>(res.AsObject().Get());
+            }
+            if (raw != nullptr) {
+                Base::Ref<Media::Brush> brush = Base::Ref<Media::Brush>::FromBorrowed(*raw);
+                context.foreground = ::Aero::Media::SampleBrush(brush);
+            }
+            if (context.foreground.alpha <= 0.001F) {
+                context.foreground = Base::Color{0.0F, 0.73725F, 0.97647F, 1.0F};
+            }
+            context.hasForeground = true;
+        }
+
         if (types.IsDerivedFrom(
                 value.RuntimeType(), Documents::Run::StaticTypeId())) {
-            return output.Append(
-                static_cast<const Documents::Run&>(value).GetText());
+            const Base::StringView text =
+                static_cast<const Documents::Run&>(value).GetText();
+            const std::uint32_t startOffset = output.SizeBytes();
+            Base::Result<void> appended = output.Append(text);
+            if (!appended) return appended.GetStatus();
+            if (context.hasForeground || context.bold || context.italic) {
+                Controls::TextBlock::RichTextStyleRange range;
+                range.start = startOffset;
+                range.length = text.SizeBytes();
+                range.foreground = context.foreground;
+                range.hasForeground = context.hasForeground;
+                range.bold = context.bold;
+                range.italic = context.italic;
+                static_cast<void>(ranges.PushBack(range));
+            }
+            return {};
         }
         if (types.IsDerivedFrom(
                 value.RuntimeType(), Documents::LineBreak::StaticTypeId())) {
@@ -277,7 +335,7 @@ public:
             for (const Base::Ref<Documents::Inline>& child : span.inlines_) {
                 if (!child) continue;
                 Base::Result<void> appended =
-                    AppendInline(*child, output, depth + 1U);
+                    AppendInline(owner, *child, output, ranges, context, depth + 1U);
                 if (!appended) return appended.GetStatus();
             }
             return {};
@@ -299,13 +357,20 @@ public:
         Base::String& output) noexcept {
         if (!owner.flatTextValid_) {
             owner.flatText_.Clear();
+            if (owner.GetValue(RichText::TextProperty).Empty()) {
+                owner.richTextStyleRanges_.Clear();
+            }
             Base::Result<void> built = owner.flatText_.Append(owner.GetText());
             if (!built) return built.GetStatus();
+            InlineStyleContext defaultContext{};
             for (const Base::Ref<Base::Object>& item : owner.ownedInlines_) {
                 if (!item) continue;
                 built = AppendInline(
+                    owner,
                     *static_cast<const Documents::Inline*>(item.Get()),
-                    owner.flatText_);
+                    owner.flatText_,
+                    owner.richTextStyleRanges_,
+                    defaultContext);
                 if (!built) return built.GetStatus();
             }
             owner.flatTextValid_ = true;
@@ -812,7 +877,7 @@ Base::Ref<Brush> TextBlock::GetForeground() const noexcept {
                 object.GetValueSourceInfo(
                     FrameworkElementForegroundProperty.Handle());
             if (source.isInherited ||
-                source.rank < Meta::PropertyValueRank::TemplatedParentSetter) {
+                source.rank <= Meta::PropertyValueRank::Inherited) {
                 return {};
             }
             return object.GetValue(FrameworkElementForegroundProperty);
@@ -1287,22 +1352,6 @@ Size TextBlock::MeasureOverride(Size availableSize) noexcept {
     return desired;
 }
 Size TextBlock::ArrangeOverride(Size finalSize) noexcept {
-    Base::String flat;
-    if (Documents::CopyText(*this, flat) && flat.View() == Base::StringView("Enable")) {
-        const Rect slot = GetLayoutSlot();
-        const Color fg = ::Aero::Media::SampleBrush(
-            GetForeground(), 0.5, Color{0.0F, 0.0F, 0.0F, 1.0F});
-        const auto* parent = ::Aero::TryCast<UIElement>(GetVisualParent());
-        const Size parentSize = parent != nullptr
-            ? parent->GetRenderSize() : Size{};
-        std::fprintf(stderr,
-            "Enable text final=%.1fx%.1f slot=%.1f,%.1f %.1fx%.1f glyphs=%u fg=%.2f,%.2f,%.2f,%.2f parent=%.1fx%.1f\n",
-            finalSize.width, finalSize.height,
-            slot.x, slot.y, slot.width, slot.height,
-            static_cast<unsigned>(glyphRuns_.Size()),
-            fg.red, fg.green, fg.blue, fg.alpha,
-            parentSize.width, parentSize.height);
-    }
     const Thickness padding =
         GetValue(PaddingProperty);
     const bool needsAlignment = GetTextAlignment() != TextAlignment::Left ||

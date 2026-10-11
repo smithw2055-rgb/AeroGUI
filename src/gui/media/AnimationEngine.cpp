@@ -74,7 +74,7 @@ AnimationEngine::AddTrack(
                 continue;
             }
             existing.state = AnimationState::Stopped;
-            static_cast<void>(ClearTrackValue(existing));
+            existing.valueApplied = false;
         }
     }
     if (!initialized_) {
@@ -793,8 +793,12 @@ Base::Result<void> AnimationEngine::ClearTrackValue(
     // the clock must restore the pre-storyboard value (Menu3D CircledArrow
     // Fill.Opacity 0) even when that rest value is not a Local DP.
     if (track.kind == Track::Kind::DoubleKeyFrames) {
+        const Meta::DependencyProperty* prop =
+            DependencyObjectAccess::PropertyRegistry(track.target).Find(track.property);
         Base::Result<PropertyValue> rest =
-            Meta::ValueCodec<double>::Encode(track.baseValue);
+            (prop != nullptr && prop->ValueType() == Meta::TypeOf<Length>())
+                ? Meta::ValueCodec<Length>::Encode(Length::Pixels(track.baseValue))
+                : Meta::ValueCodec<double>::Encode(track.baseValue);
         if (!rest) return rest.GetStatus();
         Base::Result<void> restored = values_->SetAnimationValue(
             *track.target, track.property, rest.Value());
@@ -824,6 +828,7 @@ Base::Result<void> AnimationEngine::Stop(
     Base::Result<void> cleared = ClearTrackValue(*track);
     if (!cleared) return cleared.GetStatus();
     track->state = AnimationState::Stopped;
+    track->target = nullptr;
     if (values_->IsFlushing()) {
         return {};
     }
@@ -851,6 +856,7 @@ Base::Result<std::uint32_t> AnimationEngine::RemoveTarget(
         Base::Result<void> cleared = ClearTrackValue(track);
         if (!cleared) return cleared.GetStatus();
         track.state = AnimationState::Stopped;
+        track.target = nullptr;
         ++removed;
     }
     CompactStopped();

@@ -368,6 +368,68 @@ void Viewbox::SetStretchDirection(
     StretchDirection value) noexcept {
     SetValue(StretchDirectionProperty, value);
 }
+namespace {
+
+struct ViewboxScale {
+    double scaleX = 1.0;
+    double scaleY = 1.0;
+};
+
+ViewboxScale ComputeViewboxScaleFactor(
+    Size availableSize,
+    Size natural,
+    Stretch stretch,
+    StretchDirection direction) noexcept {
+    const bool isConstrainedWidth = availableSize.width < 1.0e10;
+    const bool isConstrainedHeight = availableSize.height < 1.0e10;
+
+    double scaleX = 1.0;
+    double scaleY = 1.0;
+
+    if ((stretch == Stretch::Uniform || stretch == Stretch::UniformToFill || stretch == Stretch::Fill)
+        && (isConstrainedWidth || isConstrainedHeight)) {
+        scaleX = (natural.width > 0.0) ? (availableSize.width / natural.width) : 0.0;
+        scaleY = (natural.height > 0.0) ? (availableSize.height / natural.height) : 0.0;
+
+        if (!isConstrainedWidth) {
+            scaleX = scaleY;
+        } else if (!isConstrainedHeight) {
+            scaleY = scaleX;
+        } else {
+            switch (stretch) {
+            case Stretch::Uniform: {
+                const double scale = std::min(scaleX, scaleY);
+                scaleX = scale;
+                scaleY = scale;
+                break;
+            }
+            case Stretch::UniformToFill: {
+                const double scale = std::max(scaleX, scaleY);
+                scaleX = scale;
+                scaleY = scale;
+                break;
+            }
+            case Stretch::Fill:
+                break;
+            default:
+                break;
+            }
+        }
+    }
+
+    if (direction == StretchDirection::UpOnly) {
+        scaleX = std::max(1.0, scaleX);
+        scaleY = std::max(1.0, scaleY);
+    } else if (direction == StretchDirection::DownOnly) {
+        scaleX = std::min(1.0, scaleX);
+        scaleY = std::min(1.0, scaleY);
+    }
+
+    return {scaleX, scaleY};
+}
+
+} // namespace
+
 Size Viewbox::MeasureOverride(
     Size availableSize) noexcept {
     UIElement* child = GetChild();
@@ -390,42 +452,11 @@ Size Viewbox::MeasureOverride(
         return Size{};
     }
 
-    double scaleX = availableSize.width / natural.width;
-    double scaleY = availableSize.height / natural.height;
-    switch (GetStretch()) {
-    case Stretch::None:
-        scaleX = 1.0;
-        scaleY = 1.0;
-        break;
-    case Stretch::Uniform: {
-        const double scale = std::min(scaleX, scaleY);
-        scaleX = scale;
-        scaleY = scale;
-        break;
-    }
-    case Stretch::UniformToFill: {
-        const double scale = std::max(scaleX, scaleY);
-        scaleX = scale;
-        scaleY = scale;
-        break;
-    }
-    case Stretch::Fill:
-        break;
-    }
-
-    const StretchDirection direction =
-        GetStretchDirection();
-    if (direction == StretchDirection::UpOnly) {
-        scaleX = std::max(1.0, scaleX);
-        scaleY = std::max(1.0, scaleY);
-    } else if (
-        direction == StretchDirection::DownOnly) {
-        scaleX = std::min(1.0, scaleX);
-        scaleY = std::min(1.0, scaleY);
-    }
+    const ViewboxScale factors = ComputeViewboxScaleFactor(
+        availableSize, natural, GetStretch(), GetStretchDirection());
     return Size{
-        natural.width * scaleX,
-        natural.height * scaleY};
+        natural.width * factors.scaleX,
+        natural.height * factors.scaleY};
 }
 void Viewbox::ApplyViewTransform(
     double scaleX,
@@ -433,26 +464,8 @@ void Viewbox::ApplyViewTransform(
     double offsetX,
     double offsetY) noexcept {
     UIElement* child = GetChild();
-    FrameworkElement* framework = child != nullptr
-        ? ::Aero::TryCast<::Aero::FrameworkElement>(child)
-        : nullptr;
-    auto clearStretch = [](FrameworkElement* element) noexcept {
-        if (element == nullptr) return;
-        Base::Transform2D leftover{};
-        if (!element->TryGetViewboxTransform(leftover)) return;
-        element->ClearViewboxTransform();
-        (*element).InvalidateRenderState();
-    };
-    // Stretch stays on this Viewbox (AeroGUI wrapper Decorator), never on the
-    // child: Hexagon grids have ScaleTransform 1.2, Board has RotationY.
-    // Putting stretch on those nodes composed it after their own transforms
-    // around the unscaled origin, which shifted score digits and collapsed
-    // a 90° flip. DropShadow offscreen bakes this matrix in FrameEncoder.
-    if (projectedChild_ && projectedChild_.Get() != this) {
-        clearStretch(projectedChild_.Get());
-    }
     if (child == nullptr) {
-        clearStretch(this);
+        ClearViewboxTransform();
         viewTransform_.Reset();
         projectedChild_.Reset();
         return;
@@ -462,11 +475,7 @@ void Viewbox::ApplyViewTransform(
     matrix.m22 = scaleY;
     matrix.dx = offsetX;
     matrix.dy = offsetY;
-    clearStretch(framework);
     const bool changed = SetViewboxTransform(matrix);
-    projectedChild_ = framework != nullptr
-        ? Base::Ref<FrameworkElement>::FromBorrowed(*framework)
-        : Base::Ref<FrameworkElement>{};
     if (changed) {
         (*this).InvalidateRenderState();
     }
@@ -487,48 +496,21 @@ Size Viewbox::ArrangeOverride(
         return finalSize;
     }
 
-    double scaleX = finalSize.width / natural.width;
-    double scaleY = finalSize.height / natural.height;
-    switch (GetStretch()) {
-    case Stretch::None:
-        scaleX = 1.0;
-        scaleY = 1.0;
-        break;
-    case Stretch::Uniform: {
-        const double scale = std::min(scaleX, scaleY);
-        scaleX = scale;
-        scaleY = scale;
-        break;
-    }
-    case Stretch::UniformToFill: {
-        const double scale = std::max(scaleX, scaleY);
-        scaleX = scale;
-        scaleY = scale;
-        break;
-    }
-    case Stretch::Fill:
-        break;
-    }
-
-    const StretchDirection direction =
-        GetStretchDirection();
-    if (direction == StretchDirection::UpOnly) {
-        scaleX = std::max(1.0, scaleX);
-        scaleY = std::max(1.0, scaleY);
-    } else if (
-        direction == StretchDirection::DownOnly) {
-        scaleX = std::min(1.0, scaleX);
-        scaleY = std::min(1.0, scaleY);
-    }
+    const ViewboxScale factors = ComputeViewboxScaleFactor(
+        finalSize, natural, GetStretch(), GetStretchDirection());
+    const double scaleX = factors.scaleX;
+    const double scaleY = factors.scaleY;
 
     const double renderedWidth =
         natural.width * scaleX;
     const double renderedHeight =
         natural.height * scaleY;
+    const double arrangeWidth = finalSize.width < 1.0e10 ? finalSize.width : renderedWidth;
+    const double arrangeHeight = finalSize.height < 1.0e10 ? finalSize.height : renderedHeight;
     const double offsetX =
-        (finalSize.width - renderedWidth) * 0.5;
+        (arrangeWidth - renderedWidth) * 0.5;
     const double offsetY =
-        (finalSize.height - renderedHeight) * 0.5;
+        (arrangeHeight - renderedHeight) * 0.5;
     // Child layout stays in unscaled local pixels (Transform3D CenterX/Y,
     // ScaleTransform origin). Stretch lives on this Viewbox. Centering
     // offset is part of that matrix, not the child slot.

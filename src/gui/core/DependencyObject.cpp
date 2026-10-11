@@ -407,9 +407,13 @@ Base::Result<void> DependencyObject::RecomputeEffectiveValueCore(
     const PropertyProviderContribution* provider = stored.Providers().Winner();
     if (provider != nullptr) { hasProvider = true; providerToken = provider->token; providerValue = provider->value; }
 
+    const FrameworkElement* fe = ::Aero::TryCast<FrameworkElement>(this);
+    const bool isTemplateChild = fe != nullptr && fe->GetTemplatedParent() != nullptr;
+
     PropertyValue baseValue;
     PropertyValueSourceInfo source;
-    if (hasProvider && providerToken.rank > PropertyValueRank::Local) {
+    if (hasProvider && (providerToken.rank > PropertyValueRank::Local ||
+                        (isTemplateChild && providerToken.rank >= PropertyValueRank::TemplatedParentTrigger))) {
         baseValue = providerValue;
         source.rank = providerToken.rank;
         source.token = providerToken;

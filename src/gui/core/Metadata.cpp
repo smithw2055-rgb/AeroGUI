@@ -3584,14 +3584,24 @@ Base::Result<Value> Registry::GetProperty(
         }
     }
     if (!value) return value.GetStatus();
+    const bool objectAssignment =
+        value.Value().Kind() == ValueKind::Object &&
+        Types().IsAssignableFrom(
+            property->ValueType(), value.Value().Type());
     if (value.Value().IsUnset() ||
         (!HasPropertyFlag(
              property->Flags(),
              PropertyFlags::AnyValue) &&
-         value.Value().Type() != property->ValueType())) {
+         value.Value().Type() != property->ValueType() &&
+         !objectAssignment)) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "Metadata getter returned an incompatible value");
+    }
+    if (objectAssignment && value.Value().Type() != property->ValueType()) {
+        return Value::FromObject(
+            property->ValueType(),
+            value.Value().AsObject());
     }
     return value;
 }

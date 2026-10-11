@@ -78,6 +78,18 @@ public:
         const RenderFrame& frame,
         RenderTarget& target) noexcept;
 
+    void Downsample(
+        Texture* source,
+        const Rect& bounds,
+        const Size& sourceDimensions,
+        double opacity = 1.0) noexcept;
+
+    void Upsample(
+        Texture* base,
+        Texture* blur,
+        const Rect& bounds,
+        double blendWeight = 1.0) noexcept;
+
     FrameStatistics LastStatistics() const noexcept { return stats_; }
 
 private:

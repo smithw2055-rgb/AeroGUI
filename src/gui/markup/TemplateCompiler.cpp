@@ -147,6 +147,17 @@ Base::Result<Value> ConvertTemplateTextValue(
             property.ValueType(),
             Base::Ref<Base::Object>(std::move(boxed).Value()));
     }
+    if (property.ValueType() == Meta::TypeOf<::Aero::Nullable<bool>>()) {
+        if (text == Base::StringView("True") || text == Base::StringView("true")) {
+            return ValueCodec<::Aero::Nullable<bool>>::Encode(::Aero::Nullable<bool>{true});
+        }
+        if (text == Base::StringView("False") || text == Base::StringView("false")) {
+            return ValueCodec<::Aero::Nullable<bool>>::Encode(::Aero::Nullable<bool>{false});
+        }
+        if (text == Base::StringView("{x:Null}") || text == Base::StringView("Null") || text == Base::StringView("null")) {
+            return ValueCodec<::Aero::Nullable<bool>>::Encode(::Aero::Nullable<bool>{});
+        }
+    }
     return runtime.TryConvertText(property.ValueType(), text);
 }
 
@@ -923,6 +934,13 @@ Base::Result<Value> ConvertTriggerValue(
                 Nullable<bool>{});
         if (!nullable) return nullable.GetStatus();
         value = std::move(nullable).Value();
+    } else if (property.ValueType() == TypeOf<Nullable<bool>>() &&
+               value.Kind() == ValueKind::Boolean) {
+        Base::Result<Value> nullable =
+            ValueCodec<Nullable<bool>>::Encode(
+                Nullable<bool>{value.AsBoolean()});
+        if (!nullable) return nullable.GetStatus();
+        value = std::move(nullable).Value();
     } else if (value.IsNullObject() &&
         value.Type() != property.ValueType()) {
         value = Value::NullObject(
@@ -1430,8 +1448,9 @@ CompileControlTemplateDefinition(
             Base::Result<void> added{};
             blueprint.Value().controlTemplateDataTriggers.PushBack(
                     std::move(retained));
-        } else if (authored->RuntimeType() ==
-                   EventTrigger::StaticTypeId()) {
+        } else if (runtime.Types().IsDerivedFrom(
+                       authored->RuntimeType(),
+                       EventTrigger::StaticTypeId())) {
             Base::Ref<EventTrigger> retained =
                 Base::Ref<EventTrigger>::TryFromBorrowed(
                     static_cast<EventTrigger&>(*authored));
@@ -1467,6 +1486,10 @@ CompileControlTemplateDefinition(
             properties.Find(
                 ContentPresenter::
                     ContentProperty.Handle());
+        const DependencyProperty* contentTemplateProperty =
+            properties.Find(
+                ContentPresenter::
+                    ContentTemplateProperty.Handle());
         if (contentSourceProperty == nullptr ||
             contentProperty == nullptr) {
             return InvalidTemplateCompiler(
@@ -1474,6 +1497,7 @@ CompileControlTemplateDefinition(
         }
         Base::StringView contentSource;
         bool hasContentProperty = false;
+        bool hasContentTemplateProperty = false;
         for (const TemplatePrototypeProperty& property :
              node.properties) {
             if (property.property ==
@@ -1486,6 +1510,10 @@ CompileControlTemplateDefinition(
             if (property.property ==
                     contentProperty->Handle()) {
                 hasContentProperty = true;
+            }
+            if (contentTemplateProperty != nullptr &&
+                property.property == contentTemplateProperty->Handle()) {
+                hasContentTemplateProperty = true;
             }
         }
         // Explicit Content= (including Content="{TemplateBinding Content}")
@@ -1543,6 +1571,25 @@ CompileControlTemplateDefinition(
             contentProperty->Handle();
         definition.contentSourceBindings.
             PushBack(std::move(binding));
+
+        if (!hasContentTemplateProperty && contentTemplateProperty != nullptr) {
+            char templatePropName[64];
+            std::snprintf(templatePropName, sizeof(templatePropName), "%.*sTemplate",
+                static_cast<int>(contentSource.SizeBytes()), contentSource.Data());
+            const DependencyProperty* sourceTemplate = properties.Find(
+                controlTemplate.GetTargetType(), Base::StringView(templatePropName));
+            if (sourceTemplate == nullptr && contentSource == Base::StringView("SelectedContent")) {
+                sourceTemplate = properties.Find(controlTemplate.GetTargetType(), Base::StringView("ContentTemplate"));
+            }
+            if (sourceTemplate != nullptr) {
+                TemplateBindingPlan tplBinding;
+                if (tplBinding.targetName.Assign(node.name.View())) {
+                    tplBinding.sourceProperty = sourceTemplate->Handle();
+                    tplBinding.targetProperty = contentTemplateProperty->Handle();
+                    definition.contentSourceBindings.PushBack(std::move(tplBinding));
+                }
+            }
+        }
     }
     definition.propertyTriggers =
         std::move(triggers).Value();
@@ -2084,7 +2131,8 @@ Base::Result<void> BuildCompiledTemplate(
         if (!queued) return queued.GetStatus();
     }
 
-    if (!blueprint->controlTemplateDataTriggers.Empty()) {
+    if (!blueprint->controlTemplateDataTriggers.Empty() ||
+        !blueprint->controlTemplateEventTriggers.Empty()) {
         if (!blueprint->runtime->Types().IsDerivedFrom(
                 visuals[0U]->RuntimeType(),
                 FrameworkElement::StaticTypeId())) {
@@ -2312,6 +2360,11 @@ Base::Result<void> BuildCompiledTemplate(
                     std::move(runtimeTrigger));
             }
             if (!configured) return configured.GetStatus();
+        }
+        for (const Base::Ref<EventTrigger>& eventTrigger :
+             blueprint->controlTemplateEventTriggers) {
+            if (!eventTrigger) continue;
+            triggerContext->eventTriggers.PushBack(eventTrigger);
         }
         // Do not move triggerContext in the same call expression that reads
         // triggerContext->root. C++17 does not order function arguments, so

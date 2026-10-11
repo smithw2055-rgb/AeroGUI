@@ -18,6 +18,7 @@
 #include "gui/data/BindingEngine.hpp"
 #include "gui/controls/ItemsContainers.hpp" 
 #include "gui/templates/TemplateInstance.hpp"
+#include "gui/controls/ContentHosting.hpp"
 
 #include <Aero/FrameworkElement.hpp>
 
@@ -55,8 +56,6 @@ void ContentControl::OnContentTemplateSelectorChanged(
 
 void ContentControl::OnPropertyChanged(
     const DependencyPropertyChangedEventArgs& args) noexcept {
-    // Former OnContentPropertyChanged Changed-delegate body: runs before base
-    // handling to preserve delegate-then-virtual firing order.
     if (args.GetProperty() == ContentProperty.Handle()) {
         OnContentPropertyChanged(*this, args);
     }
@@ -129,12 +128,14 @@ void ContentControl::SetContentValue(
     Base::Ref<Base::Object> value) noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) return;
-    if (value &&
+    const bool isUIE = value &&
         DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             value->RuntimeType(),
-            UIElement::StaticTypeId())) {
+            UIElement::StaticTypeId());
+    if (isUIE) {
         authoredContent_ = Meta::Value::FromObject(
             value->RuntimeType(), value);
+        (void)StoreContentProperty(authoredContent_);
         auto& content = *static_cast<UIElement*>(value.Get());
         SetOwnedContent(value, content);
         // UserControl / untemplated ContentControl host content as a direct
@@ -152,32 +153,9 @@ void ContentControl::SetContentValue(
                 }
             }
         }
-        if (ElementTree* tree = VisualTree(this)) {
-            if (DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
-                    content.RuntimeType(), Panel::StaticTypeId())) {
-                auto& panel = static_cast<Panel&>(content);
-                const std::uint32_t count = panel.GetChildren().GetCount();
-                for (std::uint32_t index = 0U; index < count; ++index) {
-                    UIElement* nested = panel.GetChildren().GetItem(index);
-                    if (nested == nullptr) {
-                        continue;
-                    }
-                    if (nested->GetVisualParent() != nullptr &&
-                        nested->GetVisualParent() != &panel) {
-                        continue;
-                    }
-                    if (nested->GetVisualParent() == &panel &&
-                        nested->GetIsLayoutAttached()) {
-                        continue;
-                    }
-                    if (VisualTree(nested) == nullptr &&
-                        nested->GetLogicalParent() == nullptr) {
-                        (void)tree->AttachElement(panel, *nested);
-                    } else {
-                        (void)tree->AttachVisualChild(panel, *nested);
-                    }
-                }
-                panel.InvalidateMeasure();
+        if (GetTemplateRoot() == nullptr) {
+            if (ElementTree* tree = VisualTree(this)) {
+                AttachOwnedContentSubtree(*tree, content);
             }
         }
         InvalidateMeasure();
@@ -195,6 +173,7 @@ void ContentControl::SetContentValue(
             contentValue_)
         : Meta::Value::NullObject(
             Meta::TypeOf<Base::Object>());
+    (void)StoreContentProperty(authoredContent_);
     InvalidateMeasure();
 }
 
@@ -216,9 +195,10 @@ void ContentControl::EnsureHostedContent() noexcept {
     if (VisualTree(content_) == nullptr &&
         content_->GetLogicalParent() == nullptr) {
         (void)tree->AttachElement(*this, *content_);
-        return;
+    } else if (content_->GetVisualParent() != this || !content_->GetIsLayoutAttached()) {
+        (void)tree->AttachVisualChild(*this, *content_);
     }
-    (void)tree->AttachVisualChild(*this, *content_);
+    AttachOwnedContentSubtree(*tree, *content_);
 }
 
 void ContentControl::SetContentValue(

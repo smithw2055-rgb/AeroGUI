@@ -176,6 +176,8 @@ void ScrollContentPresenter::SetViewport(
     ScrollData value = data_;
     value.viewportWidth = viewport.width;
     value.viewportHeight = viewport.height;
+    value.horizontalOffset = desiredHorizontalOffset_;
+    value.verticalOffset = desiredVerticalOffset_;
     (void)UpdateData(value, pendingInputKind_, true);
 }
 
@@ -184,6 +186,7 @@ void ScrollContentPresenter::SetHorizontalOffset(
     if (!ValidNonnegative(value)) {
         return;
     }
+    desiredHorizontalOffset_ = value;
     IScrollInfo* logical = ActiveContentScrollInfo();
     if (logical != nullptr) {
         logical->SetHorizontalOffset(value);
@@ -200,6 +203,7 @@ void ScrollContentPresenter::SetVerticalOffset(
     if (!ValidNonnegative(value)) {
         return;
     }
+    desiredVerticalOffset_ = value;
     IScrollInfo* logical = ActiveContentScrollInfo();
     if (logical != nullptr) {
         logical->SetVerticalOffset(value);
@@ -350,16 +354,13 @@ ScrollContentPresenter::MeasureOverride(
         return ContentControl::MeasureOverride(
             availableSize);
     }
+    EnsureHostedContent();
     UIElement* child = GetContentElement();
     if (child == nullptr) {
-        ScrollData empty = data_;
-        empty.extentWidth = 0.0;
-        empty.extentHeight = 0.0;
-        empty.viewportWidth = availableSize.width;
-        empty.viewportHeight = availableSize.height;
-        Base::Result<bool> updated = UpdateData(
-            empty, pendingInputKind_, false);
-        if (!updated) return Size{};
+        data_.extentWidth = 0.0;
+        data_.extentHeight = 0.0;
+        data_.viewportWidth = availableSize.width;
+        data_.viewportHeight = availableSize.height;
         return Size{};
     }
 
@@ -387,6 +388,8 @@ ScrollContentPresenter::MeasureOverride(
         value.extentHeight = child->GetDesiredSize().height;
         value.viewportWidth = availableSize.width;
         value.viewportHeight = availableSize.height;
+        value.horizontalOffset = desiredHorizontalOffset_;
+        value.verticalOffset = desiredVerticalOffset_;
         Base::Result<bool> updated = UpdateData(
             value, pendingInputKind_, false);
         if (!updated) return Size{};
@@ -405,6 +408,7 @@ ScrollContentPresenter::ArrangeOverride(
         return ContentControl::ArrangeOverride(
             finalSize);
     }
+    EnsureHostedContent();
     UIElement* child = GetContentElement();
     if (child == nullptr) {
         SetViewport(finalSize);
@@ -413,13 +417,19 @@ ScrollContentPresenter::ArrangeOverride(
     IScrollInfo* logical = ActiveContentScrollInfo();
     SetViewport(finalSize);
     const ScrollData value = GetData();
+    const double arrangeWidth = GetAllowsHorizontalScroll()
+        ? std::max(value.extentWidth, finalSize.width)
+        : finalSize.width;
+    const double arrangeHeight = GetAllowsVerticalScroll()
+        ? std::max(value.extentHeight, finalSize.height)
+        : finalSize.height;
     const Rect slot = logical != nullptr
         ? Rect{0.0, 0.0, finalSize.width, finalSize.height}
         : Rect{
             -value.horizontalOffset,
             -value.verticalOffset,
-            std::max(value.extentWidth, finalSize.width),
-            std::max(value.extentHeight, finalSize.height)};
+            arrangeWidth,
+            arrangeHeight};
     ArrangeChild(*child, slot);
     return finalSize;
 }

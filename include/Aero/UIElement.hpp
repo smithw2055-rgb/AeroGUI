@@ -98,6 +98,7 @@ public:
     Size GetRenderSize() const noexcept;
     Rect GetLayoutSlot() const noexcept;
     Rect GetLayoutClip() const noexcept;
+    bool GetHasLayoutClip() const noexcept;
     bool GetIsMeasureValid() const noexcept;
     bool GetIsArrangeValid() const noexcept;
     bool GetIsMeasureQueued() const noexcept;
@@ -323,6 +324,7 @@ class EventRouter;
         bool arrangeQueued : 1;
         bool measuring : 1;
         bool arranging : 1;
+        bool hasLayoutClip : 1;
         // Cached from the dependency properties so measure and hit-testing
         // do not look them up again.
         double opacity = 1.0;

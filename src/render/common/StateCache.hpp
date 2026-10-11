@@ -74,7 +74,7 @@ struct SamplerBindKey {
 /// mutated outside DrawBatch (BeginOnscreen/Offscreen, SetRenderTarget).
 class StateCache {
 public:
-    static constexpr uint8_t kSamplerSlots = 2U;
+    static constexpr uint8_t kSamplerSlots = 8U;
     static constexpr uint8_t kSamplerTableSize = 64U;
 
     void Reset() noexcept {

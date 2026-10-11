@@ -62,6 +62,8 @@ protected:
 private:
     Result<void> ValidateContent(UIElement* content) const noexcept;
     Result<void> UpdatePresentedText() noexcept;
+    void ApplyContent() noexcept;
+    void ClearHostedContent() noexcept;
 
     bool IsOnlyAttachedContent(const UIElement& content) const noexcept;
 

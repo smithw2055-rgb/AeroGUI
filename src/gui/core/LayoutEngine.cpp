@@ -60,14 +60,37 @@ Size NaturalConstraintForTransform(
     if (!Base::Invert(Base::ToProjective(matrix), inverse)) {
         return transformed;
     }
+    constexpr double kUnconstrainedProxy = 1.0e7;
+    constexpr double kUnconstrainedThreshold = 5.0e6;
+    constexpr double kUnconstrainedMax = 1.0e12;
+
+    const bool widthUnconstrained = !std::isfinite(transformed.width) || transformed.width >= 1.0e10;
+    const bool heightUnconstrained = !std::isfinite(transformed.height) || transformed.height >= 1.0e10;
+
+    if (widthUnconstrained && heightUnconstrained) {
+        return {kUnconstrainedMax, kUnconstrainedMax};
+    }
+
+    const Size safeSize{
+        widthUnconstrained ? kUnconstrainedProxy : transformed.width,
+        heightUnconstrained ? kUnconstrainedProxy : transformed.height};
+
     const Rect bounds = Base::TransformBounds(
         inverse,
         {0.0, 0.0,
-         transformed.width,
-         transformed.height});
-    return {
-        std::max(0.0, bounds.width),
-        std::max(0.0, bounds.height)};
+         safeSize.width,
+         safeSize.height});
+
+    double outW = std::max(0.0, bounds.width);
+    double outH = std::max(0.0, bounds.height);
+
+    if (outW >= kUnconstrainedThreshold) {
+        outW = kUnconstrainedMax;
+    }
+    if (outH >= kUnconstrainedThreshold) {
+        outH = kUnconstrainedMax;
+    }
+    return {outW, outH};
 }
 
 } // namespace
@@ -96,6 +119,10 @@ bool IsValidLayoutSize(Size value) noexcept {
 
 UIElement* FindInvalidVisibleLayout(::Aero::Media::Visual& visual) noexcept {
     UIElement* element = ::Aero::TryCast<::Aero::UIElement>(&(visual));
+    if (element != nullptr &&
+        element->GetVisibility() == Visibility::Collapsed) {
+        return nullptr;
+    }
     if (element != nullptr &&
         element->GetIsVisible() &&
         (!element->GetIsMeasureValid() ||
@@ -294,13 +321,6 @@ Base::Result<VisualHandle> LayoutEngine::EnqueueHandle(
     UIElement& element) noexcept {
     const VisualHandle handle = ElementTree::HandleOf(element);
     if (!handle.IsValid()) {
-        std::fprintf(stderr, "DEBUG_ENQUEUE_FAIL: elem=%p type=%llu tree=%p vparent=%p lparent=%p layoutParent=%p\n",
-            static_cast<void*>(&element),
-            static_cast<unsigned long long>(element.RuntimeType()),
-            static_cast<void*>(ElementTree::Of(element)),
-            static_cast<void*>(element.GetVisualParent()),
-            static_cast<void*>(element.GetLogicalParent()),
-            static_cast<void*>(element.LayoutParent()));
         return InvalidState("Layout element has no ElementTree handle");
     }
     return handle;
@@ -734,30 +754,65 @@ void UIElement::ArrangeCore(
         (*framework).SetActualSize( render.width, render.height);
     }
     Size renderedFootprint = render;
+    Rect renderedBounds{0.0, 0.0, render.width, render.height};
     if (layoutTransform) {
-        const Rect transformed =
+        renderedBounds =
             Base::TransformBounds(
                 Base::ToProjective(layoutMatrix),
                 {0.0, 0.0,
                  render.width,
                  render.height});
         renderedFootprint = {
-            transformed.width,
-            transformed.height};
+            renderedBounds.width,
+            renderedBounds.height};
     }
-    // ClipToBounds is a local-space clip of RenderSize (WPF
-    // UIElement.GetLayoutClip). layoutSlot is in parent coordinates and is
-    // already applied as a translation when the node is drawn; storing the
-    // parent slot here would double-offset the stencil clip and hide
-    // ScrollViewer/VirtualizingStackPanel content once the tree is drawn
-    // inline (offscreen compositing resets the clip stack, so the same
-    // subtree can still appear while a parent is fading in).
     const Rect localBounds{0.0, 0.0, render.width, render.height};
     const Rect localFootprint{
         0.0, 0.0, renderedFootprint.width, renderedFootprint.height};
-    (element).Layout().layoutClip = element.GetClipToBounds()
-        ? Intersect(localBounds, localFootprint)
-        : localFootprint;
+
+    // Calculate layout slot in element-local coordinates.
+    // contentSlot is the element origin in parent space, so (slot.origin + effectiveMargin)
+    // relative to contentSlot yields the available area's local origin.
+    Rect localSlot{
+        (slot.x + effectiveMargin.left) - contentSlot.x,
+        (slot.y + effectiveMargin.top) - contentSlot.y,
+        std::max(0.0, contentAvailable.width),
+        std::max(0.0, contentAvailable.height)};
+    if (layoutTransform) {
+        Rect offsetSlot = localSlot;
+        offsetSlot.x += renderedBounds.x;
+        offsetSlot.y += renderedBounds.y;
+        Base::ProjectiveTransform2D inverseMatrix;
+        if (Base::Invert(Base::ToProjective(layoutMatrix), inverseMatrix)) {
+            localSlot = Base::TransformBounds(inverseMatrix, offsetSlot);
+        }
+    }
+
+    constexpr double kLayoutTolerance = 0.05;
+    const bool overflowsSlot =
+        !isLayoutRoot &&
+        (render.width > 0.0 && render.height > 0.0) &&
+        (localBounds.x < localSlot.x - kLayoutTolerance ||
+         localBounds.y < localSlot.y - kLayoutTolerance ||
+         localBounds.x + localBounds.width > localSlot.x + localSlot.width + kLayoutTolerance ||
+         localBounds.y + localBounds.height > localSlot.y + localSlot.height + kLayoutTolerance);
+
+    const bool clipsToBounds = element.GetClipToBounds();
+    const bool hasLayoutClip = overflowsSlot;
+    Rect clipRect = localBounds;
+    if (hasLayoutClip) {
+        clipRect = Intersect(clipRect, localSlot);
+    }
+    if (clipsToBounds) {
+        clipRect = Intersect(clipRect, localFootprint);
+    }
+    clipRect.width = std::max(0.0, clipRect.width);
+    clipRect.height = std::max(0.0, clipRect.height);
+
+    (element).Layout().hasLayoutClip = hasLayoutClip;
+    (element).Layout().layoutClip = (hasLayoutClip || clipsToBounds)
+        ? clipRect
+        : localBounds;
     (element).Layout().arrangeValid = true;
     (element).Layout().arrangeQueued = false;
     ++(element).Layout().layoutRevision;

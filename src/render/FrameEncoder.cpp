@@ -950,7 +950,7 @@ void UiFrameEncoder::CompositeOffscreen(
 
     // Source pass: the offscreen content composited into the parent context,
     // with group opacity, blur or opacity mask applied as required.
-    Shader::Enum shader = Shader::Path_Pattern;
+    Shader::Enum shader = Shader::Opacity_Pattern;
     if (hasMask) {
         shader = Shader::Mask;
     } else if ((node.effect.kind == RenderEffectKind::Blur ||
@@ -2166,6 +2166,86 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
     currentFrame_ = nullptr;
 
     return {};
+}
+
+void UiFrameEncoder::Downsample(
+    Texture* source,
+    const Rect& bounds,
+    const Size& sourceDimensions,
+    double opacity) noexcept {
+    if (source == nullptr) return;
+    const bool batchActive = currentBatch_.numIndices > 0U;
+    if (batchActive &&
+        (currentBatch_.shader != Shader::Downsample ||
+         currentBatch_.image != source)) {
+        FlushBatch();
+    }
+    currentBatch_.shader = Shader::Downsample;
+    currentBatch_.image = source;
+    currentBatch_.imageSampler.f.wrapMode = WrapMode::ClampToEdge;
+    currentBatch_.imageSampler.f.minmagFilter = MinMagFilter::Linear;
+    AssignBlendMode(currentBatch_.renderState, static_cast<unsigned>(currentBlendMode_));
+    AssignColorEnable(currentBatch_.renderState, 1U);
+
+    paintUniforms_[0] = static_cast<float>(sourceDimensions.width);
+    paintUniforms_[1] = static_cast<float>(sourceDimensions.height);
+    currentBatch_.pixelUniforms[0] = {paintUniforms_, 2U, 0U};
+
+    const Point points[4] = {
+        {bounds.x, bounds.y},
+        {bounds.x + bounds.width, bounds.y},
+        {bounds.x + bounds.width, bounds.y + bounds.height},
+        {bounds.x, bounds.y + bounds.height}
+    };
+    const Point uvs[4] = {
+        {0.0, 0.0},
+        {1.0, 0.0},
+        {1.0, 1.0},
+        {0.0, 1.0}
+    };
+    Color color{1.0f, 1.0f, 1.0f, static_cast<float>(std::clamp(opacity, 0.0, 1.0))};
+    SetContentStencil();
+    EmitQuad(points, uvs, color);
+}
+
+void UiFrameEncoder::Upsample(
+    Texture* base,
+    Texture* blur,
+    const Rect& bounds,
+    double blendWeight) noexcept {
+    if (base == nullptr || blur == nullptr) return;
+    const bool batchActive = currentBatch_.numIndices > 0U;
+    if (batchActive &&
+        (currentBatch_.shader != Shader::Upsample ||
+         currentBatch_.image != base ||
+         currentBatch_.pattern != blur)) {
+        FlushBatch();
+    }
+    currentBatch_.shader = Shader::Upsample;
+    currentBatch_.image = base;
+    currentBatch_.pattern = blur;
+    currentBatch_.imageSampler.f.wrapMode = WrapMode::ClampToEdge;
+    currentBatch_.imageSampler.f.minmagFilter = MinMagFilter::Linear;
+    currentBatch_.patternSampler.f.wrapMode = WrapMode::ClampToEdge;
+    currentBatch_.patternSampler.f.minmagFilter = MinMagFilter::Linear;
+    AssignBlendMode(currentBatch_.renderState, static_cast<unsigned>(currentBlendMode_));
+    AssignColorEnable(currentBatch_.renderState, 1U);
+
+    const Point points[4] = {
+        {bounds.x, bounds.y},
+        {bounds.x + bounds.width, bounds.y},
+        {bounds.x + bounds.width, bounds.y + bounds.height},
+        {bounds.x, bounds.y + bounds.height}
+    };
+    const Point uvs[4] = {
+        {0.0, 0.0},
+        {1.0, 0.0},
+        {1.0, 1.0},
+        {0.0, 1.0}
+    };
+    Color color{1.0f, 1.0f, 1.0f, static_cast<float>(std::clamp(blendWeight, 0.0, 1.0))};
+    SetContentStencil();
+    EmitQuad(points, uvs, color);
 }
 
 } // namespace Aero::Render

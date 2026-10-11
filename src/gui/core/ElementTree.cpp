@@ -750,6 +750,9 @@ Base::Result<void> ElementTree::AttachVisual(
             "Visual tree attachment would create a cycle");
     }
     if (child.visualParent_ == &parent) {
+        if (parent.tree_ == this && child.tree_ != this) {
+            SetTreeSubtree(child, this);
+        }
         ++version_;
         return {};
     }

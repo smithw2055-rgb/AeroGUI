@@ -21,10 +21,8 @@
 #include <Aero/Data/BindingExpression.hpp>
 #include <Aero/Data/BindingOperations.hpp>
 #include <Aero/Data/CollectionView.hpp>
-#include <Aero/Data/CollectionViewSource.hpp>
 #include <Aero/Data/NotifyPropertyChanged.hpp>
 #include <Aero/DataTemplate.hpp>
-#include <Aero/DataTemplateSelector.hpp>
 #include <Aero/DependencyObject.hpp>
 #include <Aero/Diagnostics.hpp>
 #include <Aero/FrameworkElement.hpp>
@@ -35,71 +33,52 @@
 #include <Aero/Value.hpp>
 #include <Aero/Markup/XamlProvider.hpp>
 #include <Aero/Markup/XamlReader.hpp>
-#include <Aero/Media/Animation/DoubleAnimation.hpp>
-#include <Aero/Media/Animation/Timeline.hpp>
+#include <Aero/Media/Animation.hpp>
 #include <Aero/Media/Geometries.hpp>
-#include <Aero/Media/CompositeTransform3D.hpp>
 #include <Aero/Media/FontProvider.hpp>
-#include <Aero/Media/PerspectiveTransform3D.hpp>
 #include <Aero/Media/TextureProvider.hpp>
+#include <Aero/Media/Transform2D.hpp>
 #include <Aero/Media/Transform3D.hpp>
-#include <Aero/Media/TranslateTransform.hpp>
 #include <Aero/Meta.hpp>
 #include <Aero/Module.hpp>
 #include <Aero/Shapes.hpp>
 #include <Aero/Style.hpp>
+#include <Aero/Triggers.hpp>
 #include <Aero/CommandBinding.hpp>
 #include <Aero/ApplicationCommands.hpp>
-#include <Aero/Controls/BulletDecorator.hpp>
+#include <Aero/Controls/Decorator.hpp>
 #include <Aero/Controls/Border.hpp>
-#include <Aero/Controls/ColumnDefinition.hpp>
 #include <Aero/Controls/Control.hpp>
 #include <Aero/Controls/Image.hpp>
 #include <Aero/Controls/ListView.hpp>
-#include <Aero/Controls/Page.hpp>
-#include <Aero/Controls/PasswordBox.hpp>
 #include <Aero/Controls/Popup.hpp>
-#include <Aero/Controls/Expander.hpp>
-#include <Aero/Controls/Slider.hpp>
+#include <Aero/Controls/Headers.hpp>
+#include <Aero/Controls/Ranges.hpp>
 #include <Aero/Controls/Viewbox.hpp>
-#include <Aero/Controls/TreeViewItem.hpp>
+#include <Aero/Controls/TreeView.hpp>
 #include <Aero/Controls/UserControl.hpp>
 #include <Aero/Controls/Buttons.hpp>
 #include <Aero/Controls/Primitives/Thumb.hpp>
-#include <Aero/Controls/Primitives/Track.hpp>
 #include <Aero/Data/BooleanToVisibilityConverter.hpp>
 #include <Aero/Data/IMultiValueConverter.hpp>
 #include <Aero/Data/MultiBinding.hpp>
 #include <Aero/Events/EventArgs.hpp>
 #include <Aero/ICommand.hpp>
-#include <Aero/Media/Animation/DoubleAnimationBase.hpp>
-#include <Aero/Media/Animation/DiscretePointKeyFrame.hpp>
-#include <Aero/Media/Animation/EasingPointKeyFrame.hpp>
-#include <Aero/Media/Animation/EasingThicknessKeyFrame.hpp>
-#include <Aero/Media/Animation/Storyboard.hpp>
-#include <Aero/Media/Animation/PointAnimationUsingKeyFrames.hpp>
-#include <Aero/Media/Animation/ThicknessAnimationUsingKeyFrames.hpp>
 #include <Aero/Media/DrawingContext.hpp>
 #include <Aero/Media/Pen.hpp>
 #include <Aero/Media/Images.hpp>
-#include <Aero/Media/MatrixTransform.hpp>
 #include <Aero/Media/Effects.hpp>
 #include <Aero/Media/Brushes.hpp>
-#include <Aero/Media/ScaleTransform.hpp>
-#include <Aero/Media/SkewTransform.hpp>
-#include <Aero/Media/TransformGroup.hpp>
 #include <Aero/Resources.hpp>
 #include <Aero/Interactivity/Interaction.hpp>
 #include <Aero/KeyboardNavigation.hpp>
-#include <Aero/KeyBinding.hpp>
-#include <Aero/Media/RotateTransform.hpp>
+#include <Aero/InputBinding.hpp>
 #include <Aero/TextProperties.hpp>
 #include <Aero/Threading.hpp>
 #include <Aero/Documents/Inlines.hpp>
 #include <Aero/TryCast.hpp>
 #include <Aero/UIElement.hpp>
 #include <Aero/View.hpp>
-#include <Aero/Visibility.hpp>
 #include <Aero/ViewOptions.hpp>
 #include <Aero/Visual.hpp>
 #include <Aero/VisualStateManager.hpp>
@@ -220,6 +199,7 @@ using Aero::Shapes::PenLineJoin;
 using Aero::Shapes::Rectangle;
 using Aero::Shapes::Shape;
 using Aero::Style;
+using Aero::Setter;
 using Aero::TryCast;
 using Aero::TryCastToInterface;
 using Aero::UIElement;
@@ -704,8 +684,8 @@ public:
         SetValue(RadiusProperty, value);
     }
     inline static constexpr DependencyProperty<double> RadiusProperty{"Radius"};
-protected:
-    double GetCurrentValueCore(
+public:
+    double GetCurrentValue(
         double defaultOriginValue,
         double defaultDestinationValue,
         double progress) const noexcept override {
@@ -4354,11 +4334,11 @@ bool TestDataTemplateItemHoverStoryboard() {
     CHECK(itemTemplate != nullptr);
     Aero::ResourceValue overOn =
         itemTemplate->GetResources().Lookup(StringView("OverOn"));
-    if (overOn.Kind() == Meta::ValueKind::Unset) {
+    if (overOn.IsUnset()) {
         std::fprintf(stderr,
             "DataTemplate.Resources missing OverOn\n");
     }
-    CHECK(overOn.Kind() != Meta::ValueKind::Unset);
+    CHECK(!overOn.IsUnset());
 
     Result<Ref<ObservableCollection<BindingSlotItem>>> items =
         MakeRef<ObservableCollection<BindingSlotItem>>();
@@ -5439,8 +5419,8 @@ bool TestGalleryXamlSurface() {
         "CommandBinding must be an Object so XAML can construct it");
     static_assert(std::is_base_of<Aero::Controls::HeaderedItemsControl, Aero::Controls::TreeViewItem>::value,
         "TreeViewItem must derive HeaderedItemsControl");
-    static_assert(std::is_base_of<Aero::Controls::UserControl, Aero::Controls::Page>::value,
-        "Page must derive UserControl");
+    static_assert(std::is_base_of<Aero::FrameworkElement, Aero::Controls::Page>::value,
+        "Page must derive FrameworkElement");
     static_assert(std::is_base_of<Aero::Media::ImageSource, Aero::Media::BitmapImage>::value,
         "BitmapImage must derive ImageSource");
 

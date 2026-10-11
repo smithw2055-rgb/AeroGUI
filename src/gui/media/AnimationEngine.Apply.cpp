@@ -273,23 +273,6 @@ Base::Result<bool> AnimationEngine::ApplyTrack(
         sampleTime = 0U;
     }
 
-    // Key-frame animations without a zero-time key frame interpolate from
-    // the property's current base value. That base can change while the
-    // animation is active (for example an ElementName binding to ActualWidth
-    // after an image finishes layout), even though the animation contribution
-    // still wins the effective-value precedence.
-    if (track.kind == Track::Kind::DoubleKeyFrames &&
-        !track.doubleFrames.Empty() &&
-        track.doubleFrames.Front().keyTimeMicroseconds != 0U) {
-        Base::Result<Meta::PropertyValue> base =
-            (*track.target).GetAnimationBaseValueInternal( track.property);
-        if (!base) return base.GetStatus();
-        Base::Result<double> decoded =
-            Meta::ValueCodec<double>::Decode(base.Value());
-        if (!decoded) return decoded.GetStatus();
-        track.baseValue = decoded.Value();
-    }
-
     Meta::PropertyValue value;
     if (track.kind == Track::Kind::Double) {
         const double eased = Ease(

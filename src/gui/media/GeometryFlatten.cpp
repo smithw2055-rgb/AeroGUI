@@ -443,6 +443,14 @@ public:
             if (cursor_ == end_) break;
             if (IsCommand(*cursor_)) {
                 command = *cursor_++;
+                if (command == 'F' || command == 'f') {
+                    SkipSeparators();
+                    if (cursor_ != end_ && (*cursor_ == '0' || *cursor_ == '1')) {
+                        ++cursor_;
+                    }
+                    command = '\0';
+                    continue;
+                }
                 if (command == 'z' || command == 'Z') {
                     if (!hasCurrent || !figureOpen) {
                         return InvalidPathData(
@@ -662,6 +670,7 @@ private:
         case 'T': case 't':
         case 'A': case 'a':
         case 'Z': case 'z':
+        case 'F': case 'f':
             return true;
         default:
             return false;

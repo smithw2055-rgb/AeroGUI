@@ -295,7 +295,7 @@ void TextBox::SetSelection(
         Model(model_).SetSelection(anchor, caret);
     if (!changed) return;
     EnsureCaretVisible();
-    InvalidateVisual();
+    InvalidateEditor();
 }
 
 void TextBox::SelectAll() noexcept {
@@ -310,7 +310,7 @@ void TextBox::SelectAll() noexcept {
     AERO_ASSERT(selected);
     (void)selected;
     EnsureCaretVisible();
-    InvalidateVisual();
+    InvalidateEditor();
 }
 
 void TextBox::Undo() noexcept {
@@ -352,17 +352,30 @@ Base::Result<void> TextBox::AttachScrollViewer(
     if (viewer == scrollViewer_) {
         return {};
     }
-    if (scrollViewer_ != nullptr &&
-        scrollViewer_->GetContentScrollInfo() == this) {
-        scrollViewer_->SetContentScrollInfo(nullptr);
+    if (scrollViewer_ != nullptr) {
+        if (scrollViewer_->GetContentScrollInfo() == this) {
+            scrollViewer_->SetContentScrollInfo(nullptr);
+        }
+        scrollViewer_->SetContent(nullptr);
     }
     scrollViewer_ = viewer;
     if (viewer == nullptr) {
         return {};
     }
+    if (!view_) {
+        view_ = Base::MakeRef<Primitives::TextBoxView>(this).Value();
+    }
     viewer->SetContentScrollInfo(this);
     viewer->SetCanContentScroll(true);
+    viewer->SetContent(view_.Get());
     return {};
+}
+
+void TextBox::InvalidateEditor() noexcept {
+    InvalidateVisual();
+    if (view_) {
+        view_->InvalidateVisual();
+    }
 }
 
 void TextBox::SetInputMethodHost(
@@ -624,7 +637,10 @@ Base::Result<void> TextBox::CommitModelText() noexcept {
     }
     InvalidateMeasure();
     EnsureCaretVisible();
-    InvalidateVisual();
+    InvalidateEditor();
+    if (view_) {
+        view_->InvalidateMeasure();
+    }
     return {};
 }
 
@@ -1042,6 +1058,8 @@ void TextBox::OnPropertyChanged(
         static_cast<void>(CancelCompositionForFocusLoss());
     } else if (args.GetProperty() == UIElement::IsEnabledProperty && !args.GetNewValue().AsBoolean()) {
         static_cast<void>(CancelCompositionForFocusLoss());
+    } else if (args.GetProperty() == UIElement::IsKeyboardFocusedProperty) {
+        InvalidateEditor();
     }
 }
 
@@ -1156,13 +1174,20 @@ std::uint32_t TextBox::HitTestText(
     if (caretStops_.Empty()) {
         return 0U;
     }
+    double padLeft = GetPadding().left;
+    double padTop = GetPadding().top;
+    if (scrollViewer_ != nullptr) {
+        const Rect svSlot = scrollViewer_->GetLayoutSlot();
+        padLeft = svSlot.x + scrollViewer_->GetPadding().left;
+        padTop = svSlot.y + scrollViewer_->GetPadding().top;
+    }
     const double x =
         position.x -
-            GetPadding().left +
+            padLeft +
             scroll_.horizontalOffset;
     const double y =
         position.y -
-            GetPadding().top +
+            padTop +
             scroll_.verticalOffset;
     std::uint32_t best = 0U;
     double bestDistance =
@@ -1576,66 +1601,71 @@ void TextBox::OnApplyTemplate() noexcept {
 
 void TextBox::OnRender(
     ::Aero::Media::DrawingContext& context) noexcept {
-    if (GetTemplateRoot() != nullptr) return;
-    auto& builder = Aero::Render::DrawingBridge::Builder(context);
-    const Rect bounds{
-        0.0, 0.0,
-        GetRenderSize().width,
-        GetRenderSize().height};
-    const Thickness border =
-        GetBorderThickness();
-    const double borderThickness = std::max(
-        std::max(border.left, border.right),
-        std::max(border.top, border.bottom));
-    Color borderBrush =
-        ::Aero::Media::SampleBrush(GetBorderBrush());
-    if (GetIsKeyboardFocused() && GetIsEnabled()) {
-        borderBrush = Color{
-            11.0F / 255.0F,
-            128.0F / 255.0F,
-            193.0F / 255.0F,
-            1.0F};
-    } else if (GetIsMouseOver() && GetIsEnabled()) {
-        borderBrush = Color{
-            93.0F / 255.0F,
-            100.0F / 255.0F,
-            105.0F / 255.0F,
-            1.0F};
-    }
-    Base::Result<void> chrome =
-        builder.FillRoundedRect(
-            bounds,
-            ::Aero::Media::SampleBrush(GetBackground()),
-            1.75);
-    if (!chrome) {
-        return;
-    }
-    if (borderThickness > 0.0 &&
-        borderBrush.alpha > 0.0F) {
-        chrome = builder.StrokeRect(
-            bounds,
-            borderBrush,
-            GetIsKeyboardFocused()
-                ? std::max(1.0, borderThickness)
-                : borderThickness);
+    if (GetTemplateRoot() == nullptr) {
+        auto& builder = Aero::Render::DrawingBridge::Builder(context);
+        const Rect bounds{
+            0.0, 0.0,
+            GetRenderSize().width,
+            GetRenderSize().height};
+        const Thickness border =
+            GetBorderThickness();
+        const double borderThickness = std::max(
+            std::max(border.left, border.right),
+            std::max(border.top, border.bottom));
+        Color borderBrush =
+            ::Aero::Media::SampleBrush(GetBorderBrush());
+        if (GetIsKeyboardFocused() && GetIsEnabled()) {
+            borderBrush = Color{
+                11.0F / 255.0F,
+                128.0F / 255.0F,
+                193.0F / 255.0F,
+                1.0F};
+        } else if (GetIsMouseOver() && GetIsEnabled()) {
+            borderBrush = Color{
+                93.0F / 255.0F,
+                100.0F / 255.0F,
+                105.0F / 255.0F,
+                1.0F};
+        }
+        Base::Result<void> chrome =
+            builder.FillRoundedRect(
+                bounds,
+                ::Aero::Media::SampleBrush(GetBackground()),
+                1.75);
         if (!chrome) {
             return;
         }
+        if (borderThickness > 0.0 &&
+            borderBrush.alpha > 0.0F) {
+            chrome = builder.StrokeRect(
+                bounds,
+                borderBrush,
+                GetIsKeyboardFocused()
+                    ? std::max(1.0, borderThickness)
+                    : borderThickness);
+            if (!chrome) {
+                return;
+            }
+        }
     }
-    static_cast<void>(RenderEditor(
-        context,
-        GetRenderSize(),
-        GetIsKeyboardFocused()));
+    if (GetTemplateRoot() == nullptr || scrollViewer_ == nullptr) {
+        static_cast<void>(RenderEditor(
+            context,
+            GetRenderSize(),
+            GetIsKeyboardFocused(),
+            false));
+    }
 }
 
 Base::Result<void>
 TextBox::RenderEditor(
     ::Aero::Media::DrawingContext& context,
     Size viewport,
-    bool drawCaret) noexcept {
+    bool drawCaret,
+    bool isContentHost) noexcept {
     auto& builder = Aero::Render::DrawingBridge::Builder(context);
-    Thickness padding = GetPadding();
-    if (scrollViewer_ != nullptr) {
+    Thickness padding = isContentHost ? Thickness{} : GetPadding();
+    if (!isContentHost && scrollViewer_ != nullptr) {
         const Rect svSlot = scrollViewer_->GetLayoutSlot();
         padding.left += svSlot.x;
         padding.top += svSlot.y;
@@ -1810,7 +1840,7 @@ void TextBox::SetViewport(
         old.verticalOffset !=
             scroll_.verticalOffset;
     if (changed) {
-        InvalidateVisual();
+        InvalidateEditor();
     }
 }
 
@@ -1827,7 +1857,7 @@ void TextBox::SetHorizontalOffset(
         return;
     }
     scroll_.horizontalOffset = next;
-    InvalidateVisual();
+    InvalidateEditor();
 }
 
 void TextBox::SetVerticalOffset(
@@ -1843,7 +1873,7 @@ void TextBox::SetVerticalOffset(
         return;
     }
     scroll_.verticalOffset = next;
-    InvalidateVisual();
+    InvalidateEditor();
 }
 
 Base::Result<bool> TextBox::LineHorizontal(
@@ -1923,6 +1953,36 @@ void TextBox::UpdateCandidateWindow() noexcept {
 
 namespace Primitives {
 
+TextBoxView::TextBoxView() noexcept
+    : FrameworkElement(StaticTypeId()) {}
+
+TextBoxView::TextBoxView(TextBox* owner) noexcept
+    : FrameworkElement(StaticTypeId()), owner_(owner) {}
+
+Size TextBoxView::MeasureOverride(Size) noexcept {
+    if (owner_ == nullptr) return Size{};
+    return Size{
+        owner_->textSize_.width,
+        std::max(owner_->textSize_.height, owner_->GetLineHeight())};
+}
+
+Size TextBoxView::ArrangeOverride(Size finalSize) noexcept {
+    return finalSize;
+}
+
+void TextBoxView::OnRender(::Aero::Media::DrawingContext& context) noexcept {
+    if (owner_ == nullptr) return;
+    bool focused = owner_->GetIsKeyboardFocused();
+    if (owner_->passwordOwner_ != nullptr) {
+        focused = owner_->passwordOwner_->GetIsKeyboardFocused();
+    }
+    static_cast<void>(owner_->RenderEditor(context, GetRenderSize(), focused, true));
+}
+
+AERO_DESCRIBE(TextBoxView) {
+    Register<TextBoxView>(context);
+}
+
 AERO_DESCRIBE(TextBoxBase) {
     using namespace Aero::Meta;
     using namespace Aero::Media;
@@ -1934,6 +1994,8 @@ AERO_DESCRIBE(TextBoxBase) {
     const Base::Ref<Brush> selection = makeBrush({46.0F / 255.0F, 174.0F / 255.0F, 235.0F / 255.0F, 1.0F});
 
     Register<TextBoxBase>(context, TypeFlags::Abstract)
+        .Override(UIElement::FocusableProperty, true, FrameworkPropertyMetadataOptions::None)
+        .Override(UIElement::IsTabStopProperty, true, FrameworkPropertyMetadataOptions::None)
         .Property(TextBoxBase::SelectionBrushProperty, selection, AffectsRender)
         .Property(TextBoxBase::SelectionOpacityProperty, 0.25, AffectsRender, &ValidateNormalizedDouble)
         .Property(TextBoxBase::CaretBrushProperty, black, AffectsRender);

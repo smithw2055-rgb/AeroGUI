@@ -215,6 +215,50 @@ Result<void> EmitStrokeCap(
         vertices, indices, left, right, outward);
 }
 
+struct JointGeometry {
+    bool hasJoin = false;
+    double side = 0.0;
+    Point outer0{};
+    Point outer1{};
+    Point innerPoint{};
+};
+
+static JointGeometry ComputeJointGeometry(
+    const StrokeSegment& incoming,
+    const StrokeSegment& outgoing) noexcept {
+    JointGeometry result;
+    const Point joint = incoming.b;
+    const double cross =
+        incoming.ux * outgoing.uy - incoming.uy * outgoing.ux;
+    const double dot =
+        incoming.ux * outgoing.ux + incoming.uy * outgoing.uy;
+    if (std::abs(cross) <= 1.0e-12 && dot > 0.0) {
+        return result;
+    }
+    const double side = cross > 0.0 ? -1.0 : 1.0;
+    const double half = std::hypot(incoming.nx, incoming.ny);
+    result.hasJoin = true;
+    result.side = side;
+    result.outer0 = Point{
+        joint.x + side * incoming.nx,
+        joint.y + side * incoming.ny};
+    result.outer1 = Point{
+        joint.x + side * outgoing.nx,
+        joint.y + side * outgoing.ny};
+    double s = 0.0;
+    if (std::abs(cross) > 1.0e-12) {
+        s = -half * (1.0 - dot) / std::abs(cross);
+        const double len0 = std::hypot(incoming.b.x - incoming.a.x, incoming.b.y - incoming.a.y);
+        const double len1 = std::hypot(outgoing.b.x - outgoing.a.x, outgoing.b.y - outgoing.a.y);
+        const double maxS = std::min(len0, len1) * 0.99;
+        if (-s > maxS) s = -maxS;
+    }
+    result.innerPoint = Point{
+        joint.x - side * incoming.nx + s * incoming.ux,
+        joint.y - side * incoming.ny + s * incoming.uy};
+    return result;
+}
+
 Result<void> EmitStrokeRun(
     const Base::Vector<StrokeSegment>& segments,
     std::uint32_t begin,
@@ -227,37 +271,105 @@ Result<void> EmitStrokeRun(
     Base::Vector<Point>& vertices,
     Base::Vector<std::uint32_t>& indices) noexcept {
     if (end <= begin) return {};
+
+    const bool isClosed = closedLoop &&
+        end - begin >= 2U &&
+        segments[begin].startVertex &&
+        segments[end - 1U].endVertex;
+
+    Point nextSegStartLeft{};
+    Point nextSegStartRight{};
+
     for (std::uint32_t index = begin; index < end; ++index) {
         const StrokeSegment& segment = segments[index];
-        Result<void> added = AppendStrokeQuad(
-            vertices,
-            indices,
-            {segment.a.x + segment.nx, segment.a.y + segment.ny},
-            {segment.b.x + segment.nx, segment.b.y + segment.ny},
-            {segment.b.x - segment.nx, segment.b.y - segment.ny},
-            {segment.a.x - segment.nx, segment.a.y - segment.ny});
-        if (!added) return added.GetStatus();
+        Point startLeft{};
+        Point startRight{};
+
+        if (index == begin) {
+            if (isClosed) {
+                const JointGeometry prevJoint =
+                    ComputeJointGeometry(segments[end - 1U], segments[begin]);
+                if (prevJoint.hasJoin) {
+                    if (prevJoint.side < 0.0) {
+                        startLeft = prevJoint.innerPoint;
+                        startRight = prevJoint.outer1;
+                    } else {
+                        startLeft = prevJoint.outer1;
+                        startRight = prevJoint.innerPoint;
+                    }
+                } else {
+                    startLeft = {segment.a.x + segment.nx, segment.a.y + segment.ny};
+                    startRight = {segment.a.x - segment.nx, segment.a.y - segment.ny};
+                }
+            } else {
+                startLeft = {segment.a.x + segment.nx, segment.a.y + segment.ny};
+                startRight = {segment.a.x - segment.nx, segment.a.y - segment.ny};
+            }
+        } else {
+            startLeft = nextSegStartLeft;
+            startRight = nextSegStartRight;
+        }
+
+        bool hasNext = false;
+        JointGeometry nextJoint;
         if (index + 1U < end &&
             segment.endVertex &&
             segments[index + 1U].startVertex) {
+            hasNext = true;
+            nextJoint = ComputeJointGeometry(segment, segments[index + 1U]);
+        } else if (isClosed && index + 1U == end) {
+            hasNext = true;
+            nextJoint = ComputeJointGeometry(segment, segments[begin]);
+        }
+
+        Point endLeft{};
+        Point endRight{};
+
+        if (hasNext && nextJoint.hasJoin) {
+            if (nextJoint.side < 0.0) {
+                endLeft = nextJoint.innerPoint;
+                endRight = nextJoint.outer0;
+                nextSegStartLeft = nextJoint.innerPoint;
+                nextSegStartRight = nextJoint.outer1;
+            } else {
+                endLeft = nextJoint.outer0;
+                endRight = nextJoint.innerPoint;
+                nextSegStartLeft = nextJoint.outer1;
+                nextSegStartRight = nextJoint.innerPoint;
+            }
+        } else if (hasNext) {
+            endLeft = {segment.b.x + segment.nx, segment.b.y + segment.ny};
+            endRight = {segment.b.x - segment.nx, segment.b.y - segment.ny};
+            nextSegStartLeft = endLeft;
+            nextSegStartRight = endRight;
+        } else {
+            endLeft = {segment.b.x + segment.nx, segment.b.y + segment.ny};
+            endRight = {segment.b.x - segment.nx, segment.b.y - segment.ny};
+        }
+
+        Result<void> added = AppendStrokeQuad(
+            vertices, indices, startLeft, endLeft, endRight, startRight);
+        if (!added) return added.GetStatus();
+
+        if (hasNext && nextJoint.hasJoin) {
+            const Point joint = segment.b;
+            added = AppendStrokeTriangle(
+                vertices, indices, joint, nextJoint.outer0, nextJoint.innerPoint);
+            if (!added) return added.GetStatus();
+            added = AppendStrokeTriangle(
+                vertices, indices, joint, nextJoint.innerPoint, nextJoint.outer1);
+            if (!added) return added.GetStatus();
+
+            const StrokeSegment& nextSeg =
+                (index + 1U < end) ? segments[index + 1U] : segments[begin];
             added = EmitStrokeJoin(
-                segment, segments[index + 1U], join, miterLimit, vertices, indices);
+                segment, nextSeg, join, miterLimit, vertices, indices);
             if (!added) return added.GetStatus();
         }
     }
-    if (closedLoop &&
-        end - begin >= 2U &&
-        segments[begin].startVertex &&
-        segments[end - 1U].endVertex) {
-        return EmitStrokeJoin(
-            segments[end - 1U],
-            segments[begin],
-            join,
-            miterLimit,
-            vertices,
-            indices);
-    }
-    if (closedLoop) return {};
+
+    if (isClosed) return {};
+
     Result<void> capped = EmitStrokeCap(
         segments[begin].a,
         segments[begin].nx,
@@ -269,6 +381,7 @@ Result<void> EmitStrokeRun(
         vertices,
         indices);
     if (!capped) return capped.GetStatus();
+
     return EmitStrokeCap(
         segments[end - 1U].b,
         segments[end - 1U].nx,

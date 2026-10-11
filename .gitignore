@@ -12,3 +12,5 @@ CMakeUserPresets.json
 /tools/control-gallery-conformance/ 
 /AeroGUI-*.patch
 /AeroGUI-final-cleanup-backup-*/
+/scratch/
+/test*/

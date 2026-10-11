@@ -1,6 +1,7 @@
 #pragma once
 
 // Binding runtime. Property-path plans live in BindingPath.hpp.
+#include <cstdio>
 #include "gui/data/BindingPath.hpp"
 #include <Aero/Base/HashMap.hpp>
 #include "gui/core/ElementTree.hpp"
@@ -289,7 +290,11 @@ public:
         return lastError_;
     }
     void RecordError(Base::Status status) noexcept {
-        if (!status.IsOk()) lastError_ = status;
+        if (!status.IsOk()) {
+            lastError_ = status;
+            std::fprintf(stderr, "[BindingError] %s\n",
+                status.message ? status.message : "?");
+        }
     }
 
 private:

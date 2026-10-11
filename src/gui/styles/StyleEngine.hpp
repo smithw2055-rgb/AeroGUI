@@ -25,6 +25,7 @@ Base::Result<void> AttachDeferredStyleDynamicResource(
     Base::StringView key) noexcept;
 void NotifyDynamicResourceScopeChanged(
     DependencyObject& object) noexcept;
+void NotifyAllDynamicResourcesChanged() noexcept;
 } // namespace Markup
 
 using namespace Aero::Meta;

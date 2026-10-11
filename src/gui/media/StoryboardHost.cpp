@@ -264,8 +264,9 @@ Base::Result<std::uint32_t> StoryboardHost::StartContentElementAnimations(
         std::uint32_t count = 0U;
         for (const Base::Ref<Base::Object>& authored :
              (content).AuthoredTriggers()) {
-            if (!authored || authored->RuntimeType() !=
-                    EventTrigger::StaticTypeId()) {
+            if (!authored || !Metadata()->Types().IsDerivedFrom(
+                    authored->RuntimeType(),
+                    EventTrigger::StaticTypeId())) {
                 continue;
             }
             Base::Result<bool> started = StartEventTrigger(
@@ -427,8 +428,9 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                     if (started && started.Value()) ++count;
                     continue;
                 }
-                if (authored->RuntimeType() !=
-                    EventTrigger::StaticTypeId()) {
+                if (!Metadata()->Types().IsDerivedFrom(
+                        authored->RuntimeType(),
+                        EventTrigger::StaticTypeId())) {
                     continue;
                 }
                 Base::Result<bool> started = StartEventTrigger(
@@ -479,8 +481,9 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                     if (started && started.Value()) ++count;
                     continue;
                 }
-                if (authored->RuntimeType() ==
-                    EventTrigger::StaticTypeId()) {
+                if (Metadata()->Types().IsDerivedFrom(
+                        authored->RuntimeType(),
+                        EventTrigger::StaticTypeId())) {
                     Base::Result<bool> started = StartEventTrigger(
                         static_cast<EventTrigger&>(*authored),
                         *element,
