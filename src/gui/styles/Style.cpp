@@ -259,6 +259,9 @@ struct Style::Program {
     Base::Span<const TriggerPlan> Triggers() const noexcept {
         return {triggers.Data(), triggers.Size()};
     }
+    std::uint64_t TriggerPropertyMask() const noexcept {
+        return triggerPropertyMask;
+    }
     Base::Result<void> Freeze(
         TypeId valueTargetType,
         Base::Vector<StyleSetter>&& valueSetters,
@@ -276,6 +279,7 @@ struct Style::Program {
     Base::Vector<TriggerPlan> authoredTriggers;
     Base::Vector<StyleSetter> setters;
     Base::Vector<TriggerPlan> triggers;
+    std::uint64_t triggerPropertyMask = 0ULL;
     bool frozen = false;
 };
 
@@ -296,6 +300,12 @@ Base::Result<void> Style::Program::Freeze(
     targetType = valueTargetType;
     setters = std::move(valueSetters);
     triggers = std::move(valueTriggers);
+    triggerPropertyMask = 0ULL;
+    for (const TriggerPlan& trigger : triggers) {
+        if (!trigger.IsBindingTrigger()) {
+            triggerPropertyMask |= PropertyTriggerMask(trigger.property);
+        }
+    }
     frozen = true;
     return {};
 }
@@ -304,6 +314,7 @@ void Style::Program::Reset() noexcept {
     targetType = InvalidTypeId;
     setters.Clear();
     triggers.Clear();
+    triggerPropertyMask = 0ULL;
     frozen = false;
 }
 
@@ -933,6 +944,7 @@ Base::Result<void> StyleEngine::Apply(
         StyleApplication application;
         application.object = &object;
         application.style = &style;
+        application.triggerPropertyMask = StyleRuntimeTriggerMask(style);
         application.triggerStates.Resize(
                 Style::Program::RuntimeTriggers(style).Size(), 0U);
         application.bindingTriggerStates.Resize(
@@ -945,6 +957,7 @@ Base::Result<void> StyleEngine::Apply(
         static_cast<void>(objectIndexMap_.Insert(&object, newIndex));
     } else if (requiresSubscription) {
         applications_[existing].style = &style;
+        applications_[existing].triggerPropertyMask = StyleRuntimeTriggerMask(style);
         applications_[existing].triggerStates.Resize(
                 Style::Program::RuntimeTriggers(style).Size(), 0U);
         applications_[existing].bindingTriggerStates.Resize(
@@ -1220,6 +1233,13 @@ Base::Span<const TriggerPlan> StyleEngine::ProgramTriggers(
     return Style::Program::RuntimeTriggers(style);
 }
 
+std::uint64_t StyleEngine::ProgramTriggerMask(
+    const Style& style) noexcept {
+    return style.program_ != nullptr
+        ? style.program_->TriggerPropertyMask()
+        : 0ULL;
+}
+
 Base::Result<void> StyleEngine::ProgramApplySetters(
     const Style& style,
     DependencyObject& object,
@@ -1248,6 +1268,11 @@ Base::Span<const StyleSetter> StyleRuntimeSetters(
 Base::Span<const TriggerPlan> StyleRuntimeTriggers(
     const Style& style) noexcept {
     return StyleEngine::ProgramTriggers(style);
+}
+
+std::uint64_t StyleRuntimeTriggerMask(
+    const Style& style) noexcept {
+    return StyleEngine::ProgramTriggerMask(style);
 }
 
 Base::Result<void> ApplyStyleSetters(

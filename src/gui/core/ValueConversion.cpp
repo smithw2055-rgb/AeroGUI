@@ -57,10 +57,10 @@ Base::Result<double> ParseDouble(
 Base::Result<bool> ConvertBoolean(
     Base::StringView text) noexcept {
     const Base::StringView value = Trim(text);
-    if (EqualsAsciiInsensitive(value, "true")) {
+    if (value.SizeBytes() == 4U && EqualsAsciiInsensitive(value, "true")) {
         return true;
     }
-    if (EqualsAsciiInsensitive(value, "false")) {
+    if (value.SizeBytes() == 5U && EqualsAsciiInsensitive(value, "false")) {
         return false;
     }
     return Base::Status::Failure(
@@ -71,7 +71,7 @@ Base::Result<bool> ConvertBoolean(
 Base::Result<::Aero::Nullable<bool>> ConvertNullableBoolean(
     Base::StringView text) noexcept {
     const Base::StringView value = Trim(text);
-    if (value.Empty() || EqualsAsciiInsensitive(value, "null")) {
+    if (value.Empty() || (value.SizeBytes() == 4U && EqualsAsciiInsensitive(value, "null"))) {
         return ::Aero::Nullable<bool>{};
     }
     Base::Result<bool> converted = ConvertBoolean(value);

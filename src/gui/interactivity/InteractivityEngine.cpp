@@ -2016,41 +2016,29 @@ Base::Result<bool> InteractivityEngine::StartInteractionDataTrigger(
 
 std::uint32_t InteractivityEngine::KeyCodeFromName(
         Base::StringView key) noexcept {
-        if (Base::ValueConversion::EqualsAsciiInsensitive(
-                key, "Enter") ||
-            Base::ValueConversion::EqualsAsciiInsensitive(
-                key, "Return")) {
-            return Input::KeyboardKeyEnter;
-        }
-        if (Base::ValueConversion::EqualsAsciiInsensitive(
-                key, "Space")) {
-            return Input::KeyboardKeySpace;
-        }
-        if (Base::ValueConversion::EqualsAsciiInsensitive(
-                key, "Escape") ||
-            Base::ValueConversion::EqualsAsciiInsensitive(
-                key, "Esc")) {
-            return Input::KeyboardKeyEscape;
-        }
-        if (Base::ValueConversion::EqualsAsciiInsensitive(
-                key, "Tab")) {
-            return Input::KeyboardKeyTab;
-        }
-        if (Base::ValueConversion::EqualsAsciiInsensitive(
-                key, "Left")) {
-            return Input::KeyboardKeyLeft;
-        }
-        if (Base::ValueConversion::EqualsAsciiInsensitive(
-                key, "Right")) {
-            return Input::KeyboardKeyRight;
-        }
-        if (Base::ValueConversion::EqualsAsciiInsensitive(
-                key, "Up")) {
-            return Input::KeyboardKeyUp;
-        }
-        if (Base::ValueConversion::EqualsAsciiInsensitive(
-                key, "Down")) {
-            return Input::KeyboardKeyDown;
+        switch (key.SizeBytes()) {
+        case 2:
+            if (Base::ValueConversion::EqualsAsciiInsensitive(key, "Up")) return Input::KeyboardKeyUp;
+            break;
+        case 3:
+            if (Base::ValueConversion::EqualsAsciiInsensitive(key, "Esc")) return Input::KeyboardKeyEscape;
+            if (Base::ValueConversion::EqualsAsciiInsensitive(key, "Tab")) return Input::KeyboardKeyTab;
+            break;
+        case 4:
+            if (Base::ValueConversion::EqualsAsciiInsensitive(key, "Left")) return Input::KeyboardKeyLeft;
+            if (Base::ValueConversion::EqualsAsciiInsensitive(key, "Down")) return Input::KeyboardKeyDown;
+            break;
+        case 5:
+            if (Base::ValueConversion::EqualsAsciiInsensitive(key, "Enter")) return Input::KeyboardKeyEnter;
+            if (Base::ValueConversion::EqualsAsciiInsensitive(key, "Space")) return Input::KeyboardKeySpace;
+            if (Base::ValueConversion::EqualsAsciiInsensitive(key, "Right")) return Input::KeyboardKeyRight;
+            break;
+        case 6:
+            if (Base::ValueConversion::EqualsAsciiInsensitive(key, "Return")) return Input::KeyboardKeyEnter;
+            if (Base::ValueConversion::EqualsAsciiInsensitive(key, "Escape")) return Input::KeyboardKeyEscape;
+            break;
+        default:
+            break;
         }
         return 0U;
     }

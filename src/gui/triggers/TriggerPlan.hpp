@@ -29,9 +29,19 @@ using TriggerActionHandler = Base::Result<void>(*)(
     Base::Span<const Base::Ref<Base::Object>> actions,
     void* context) noexcept;
 
+inline constexpr std::uint64_t PropertyTriggerMask(
+    DependencyPropertyHandle handle) noexcept {
+    if (!handle.IsValid()) return 0ULL;
+    const std::uint64_t h = handle.value;
+    const std::uint64_t b1 = h & 63ULL;
+    const std::uint64_t b2 = ((h >> 6) ^ (h >> 32)) & 63ULL;
+    return (1ULL << b1) | (1ULL << b2);
+}
+
 struct StyleApplication {
     DependencyObject* object = nullptr;
     const Style* style = nullptr;
+    std::uint64_t triggerPropertyMask = 0ULL;
     Base::Vector<std::uint8_t> triggerStates;
     Base::Vector<std::uint8_t> bindingTriggerStates;
     Base::Vector<std::uint8_t> bindingTriggerKnown;

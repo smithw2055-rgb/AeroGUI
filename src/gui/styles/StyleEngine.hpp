@@ -83,6 +83,8 @@ Base::Span<const StyleSetter> StyleRuntimeSetters(
     const Style& style) noexcept;
 Base::Span<const TriggerPlan> StyleRuntimeTriggers(
     const Style& style) noexcept;
+std::uint64_t StyleRuntimeTriggerMask(
+    const Style& style) noexcept;
 Base::Result<void> ApplyStyleSetters(
     const Style& style,
     DependencyObject& object,
@@ -106,6 +108,8 @@ public:
     static Base::Span<const StyleSetter> ProgramSetters(
         const Style& style) noexcept;
     static Base::Span<const TriggerPlan> ProgramTriggers(
+        const Style& style) noexcept;
+    static std::uint64_t ProgramTriggerMask(
         const Style& style) noexcept;
     static Base::Result<void> ProgramApplySetters(
         const Style& style,

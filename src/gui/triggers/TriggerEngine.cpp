@@ -88,15 +88,20 @@ Base::Result<bool> ComparePropertyValues(
                 return ::Aero::Nullable<bool>{v.AsBoolean()};
             }
             if (v.Kind() == Meta::ValueKind::String) {
-                if (Base::ValueConversion::EqualsAsciiInsensitive(v.AsString(), "True")) {
-                    return ::Aero::Nullable<bool>{true};
-                }
-                if (Base::ValueConversion::EqualsAsciiInsensitive(v.AsString(), "False")) {
-                    return ::Aero::Nullable<bool>{false};
-                }
-                if (Base::ValueConversion::EqualsAsciiInsensitive(v.AsString(), "{x:Null}") ||
-                    Base::ValueConversion::EqualsAsciiInsensitive(v.AsString(), "Null")) {
-                    return ::Aero::Nullable<bool>{};
+                const Base::StringView s = v.AsString();
+                switch (s.SizeBytes()) {
+                case 4:
+                    if (Base::ValueConversion::EqualsAsciiInsensitive(s, "True")) return ::Aero::Nullable<bool>{true};
+                    if (Base::ValueConversion::EqualsAsciiInsensitive(s, "Null")) return ::Aero::Nullable<bool>{};
+                    break;
+                case 5:
+                    if (Base::ValueConversion::EqualsAsciiInsensitive(s, "False")) return ::Aero::Nullable<bool>{false};
+                    break;
+                case 8:
+                    if (Base::ValueConversion::EqualsAsciiInsensitive(s, "{x:Null}")) return ::Aero::Nullable<bool>{};
+                    break;
+                default:
+                    break;
                 }
             }
             return ::Aero::Nullable<bool>{};
@@ -190,19 +195,49 @@ Base::Result<bool> ComparePropertyValues(
     Base::StringView comparison) noexcept {
     PropertyComparisonOperator op = PropertyComparisonOperator::Equal;
     if (!comparison.Empty()) {
-        if (Base::ValueConversion::EqualsAsciiInsensitive(comparison, "Equal")) {
-            op = PropertyComparisonOperator::Equal;
-        } else if (Base::ValueConversion::EqualsAsciiInsensitive(comparison, "NotEqual")) {
-            op = PropertyComparisonOperator::NotEqual;
-        } else if (Base::ValueConversion::EqualsAsciiInsensitive(comparison, "LessThan")) {
-            op = PropertyComparisonOperator::LessThan;
-        } else if (Base::ValueConversion::EqualsAsciiInsensitive(comparison, "LessThanOrEqual")) {
-            op = PropertyComparisonOperator::LessThanOrEqual;
-        } else if (Base::ValueConversion::EqualsAsciiInsensitive(comparison, "GreaterThan")) {
-            op = PropertyComparisonOperator::GreaterThan;
-        } else if (Base::ValueConversion::EqualsAsciiInsensitive(comparison, "GreaterThanOrEqual")) {
-            op = PropertyComparisonOperator::GreaterThanOrEqual;
-        } else {
+        switch (comparison.SizeBytes()) {
+        case 5:
+            if (Base::ValueConversion::EqualsAsciiInsensitive(comparison, "Equal")) {
+                op = PropertyComparisonOperator::Equal;
+            } else {
+                return false;
+            }
+            break;
+        case 8: {
+            const char c = comparison[0];
+            if ((c == 'N' || c == 'n') &&
+                Base::ValueConversion::EqualsAsciiInsensitive(comparison, "NotEqual")) {
+                op = PropertyComparisonOperator::NotEqual;
+            } else if ((c == 'L' || c == 'l') &&
+                       Base::ValueConversion::EqualsAsciiInsensitive(comparison, "LessThan")) {
+                op = PropertyComparisonOperator::LessThan;
+            } else {
+                return false;
+            }
+            break;
+        }
+        case 11:
+            if (Base::ValueConversion::EqualsAsciiInsensitive(comparison, "GreaterThan")) {
+                op = PropertyComparisonOperator::GreaterThan;
+            } else {
+                return false;
+            }
+            break;
+        case 15:
+            if (Base::ValueConversion::EqualsAsciiInsensitive(comparison, "LessThanOrEqual")) {
+                op = PropertyComparisonOperator::LessThanOrEqual;
+            } else {
+                return false;
+            }
+            break;
+        case 18:
+            if (Base::ValueConversion::EqualsAsciiInsensitive(comparison, "GreaterThanOrEqual")) {
+                op = PropertyComparisonOperator::GreaterThanOrEqual;
+            } else {
+                return false;
+            }
+            break;
+        default:
             return false;
         }
     }
@@ -235,22 +270,32 @@ TriggerEngine::~TriggerEngine() noexcept {
 
 Base::Result<void> TriggerEngine::SubscribeTriggers(
     DependencyObject& object, const Style& style) noexcept {
+    if (StyleRuntimeTriggerMask(style) == 0ULL) {
+        return {};
+    }
+    const Base::Span<const TriggerPlan> triggers =
+        StyleRuntimeTriggers(style);
+    std::uint64_t subscribedMask = 0ULL;
     for (std::uint32_t index = 0U;
-         index < StyleRuntimeTriggers(style).Size();
+         index < triggers.Size();
          ++index) {
         const TriggerPlan& trigger =
-            StyleRuntimeTriggers(style)[index];
+            triggers[index];
         if (trigger.IsBindingTrigger()) continue;
         const DependencyPropertyHandle property = trigger.property;
-        bool first = true;
-        for (std::uint32_t previous = 0U;
-             previous < index;
-             ++previous) {
-            first = first &&
-                (StyleRuntimeTriggers(style)[previous].IsBindingTrigger() ||
-                 StyleRuntimeTriggers(style)[previous].property != property);
+        const std::uint64_t propMask = PropertyTriggerMask(property);
+        if ((subscribedMask & propMask) == propMask) {
+            bool first = true;
+            for (std::uint32_t previous = 0U;
+                 previous < index;
+                 ++previous) {
+                first = first &&
+                    (triggers[previous].IsBindingTrigger() ||
+                     triggers[previous].property != property);
+            }
+            if (!first) continue;
         }
-        if (!first) continue;
+        subscribedMask |= propMask;
         object.AddValueChangedHandler(
             property, propertyChangedHandler_);
     }
@@ -259,25 +304,34 @@ Base::Result<void> TriggerEngine::SubscribeTriggers(
 
 void TriggerEngine::UnsubscribeTriggers(
     DependencyObject& object, const Style& style) noexcept {
+    if (StyleRuntimeTriggerMask(style) == 0ULL) {
+        return;
+    }
+    const Base::Span<const TriggerPlan> triggers =
+        StyleRuntimeTriggers(style);
+    std::uint64_t unsubscribedMask = 0ULL;
     for (std::uint32_t index = 0U;
-         index < StyleRuntimeTriggers(style).Size();
+         index < triggers.Size();
          ++index) {
         const TriggerPlan& trigger =
-            StyleRuntimeTriggers(style)[index];
+            triggers[index];
         if (trigger.IsBindingTrigger()) continue;
         const DependencyPropertyHandle property = trigger.property;
-        bool first = true;
-        for (std::uint32_t previous = 0U;
-             previous < index;
-             ++previous) {
-            first = first &&
-                (StyleRuntimeTriggers(style)[previous].IsBindingTrigger() ||
-                 StyleRuntimeTriggers(style)[previous].property != property);
+        const std::uint64_t propMask = PropertyTriggerMask(property);
+        if ((unsubscribedMask & propMask) == propMask) {
+            bool first = true;
+            for (std::uint32_t previous = 0U;
+                 previous < index;
+                 ++previous) {
+                first = first &&
+                    (triggers[previous].IsBindingTrigger() ||
+                     triggers[previous].property != property);
+            }
+            if (!first) continue;
         }
-        if (first) {
-            (void)object.RemoveValueChangedHandler(
-                property, propertyChangedHandler_);
-        }
+        unsubscribedMask |= propMask;
+        (void)object.RemoveValueChangedHandler(
+            property, propertyChangedHandler_);
     }
 }
 
@@ -399,6 +453,7 @@ Base::Result<void> TriggerEngine::ClearTriggerSetters(
     DependencyObject& object, const Style& style) noexcept {
     const Base::Span<const TriggerPlan> triggers =
         StyleRuntimeTriggers(style);
+    std::uint64_t clearedMask = 0ULL;
     for (std::uint32_t triggerIndex = 0U;
          triggerIndex < triggers.Size();
          ++triggerIndex) {
@@ -415,24 +470,28 @@ Base::Result<void> TriggerEngine::ClearTriggerSetters(
             }
             const DependencyPropertyHandle property =
                 trigger.setters[setterIndex].property;
-            bool first = true;
-            for (std::uint32_t earlierTrigger = 0U;
-                 earlierTrigger <= triggerIndex;
-                 ++earlierTrigger) {
-                const TriggerPlan& earlier =
-                    triggers[earlierTrigger];
-                const std::uint32_t limit =
-                    earlierTrigger == triggerIndex
-                        ? setterIndex : earlier.setters.Size();
-                for (std::uint32_t earlierSetter = 0U;
-                     earlierSetter < limit;
-                     ++earlierSetter) {
-                    first = first &&
-                        earlier.setters[earlierSetter].property !=
-                            property;
+            const std::uint64_t propMask = PropertyTriggerMask(property);
+            if ((clearedMask & propMask) == propMask) {
+                bool first = true;
+                for (std::uint32_t earlierTrigger = 0U;
+                     earlierTrigger <= triggerIndex;
+                     ++earlierTrigger) {
+                    const TriggerPlan& earlier =
+                        triggers[earlierTrigger];
+                    const std::uint32_t limit =
+                        earlierTrigger == triggerIndex
+                            ? setterIndex : earlier.setters.Size();
+                    for (std::uint32_t earlierSetter = 0U;
+                         earlierSetter < limit;
+                         ++earlierSetter) {
+                        first = first &&
+                            earlier.setters[earlierSetter].property !=
+                                property;
+                    }
                 }
+                if (!first) continue;
             }
-            if (!first) continue;
+            clearedMask |= propMask;
             Base::Result<void> cleared =
                 values_.ClearTriggerValue(object, property);
             if (!cleared) return cleared.GetStatus();
@@ -446,7 +505,12 @@ void TriggerEngine::OnPropertyChanged(
     const DependencyPropertyChangedEventArgs& args) noexcept {
     const std::uint32_t index = FindApplication(object);
     if (index == UINT32_MAX) return;
-    const Style& style = *applications_[index].style;
+    const StyleApplication& application = applications_[index];
+    const std::uint64_t propMask = PropertyTriggerMask(args.GetProperty());
+    if ((application.triggerPropertyMask & propMask) != propMask) {
+        return;
+    }
+    const Style& style = *application.style;
     for (const TriggerPlan& trigger : StyleRuntimeTriggers(style)) {
         if (!trigger.IsBindingTrigger() &&
             trigger.property == args.GetProperty()) {

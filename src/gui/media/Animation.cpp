@@ -182,15 +182,24 @@ Base::Result<TimeSpan> TimeSpan::TryParse(Base::StringView text) noexcept {
 Base::Result<Duration> Duration::TryParse(Base::StringView text) noexcept {
     const Base::StringView trimmed =
         ::Aero::Base::ValueConversion::Trim(text);
-    if (::Aero::Base::ValueConversion::EqualsAsciiInsensitive(
-            trimmed, "Automatic") ||
-        ::Aero::Base::ValueConversion::EqualsAsciiInsensitive(
-            trimmed, "Auto")) {
-        return Duration::Automatic();
-    }
-    if (::Aero::Base::ValueConversion::EqualsAsciiInsensitive(
-            trimmed, "Forever")) {
-        return Duration::Forever();
+    switch (trimmed.SizeBytes()) {
+    case 4:
+        if (::Aero::Base::ValueConversion::EqualsAsciiInsensitive(trimmed, "Auto")) {
+            return Duration::Automatic();
+        }
+        break;
+    case 7:
+        if (::Aero::Base::ValueConversion::EqualsAsciiInsensitive(trimmed, "Forever")) {
+            return Duration::Forever();
+        }
+        break;
+    case 9:
+        if (::Aero::Base::ValueConversion::EqualsAsciiInsensitive(trimmed, "Automatic")) {
+            return Duration::Automatic();
+        }
+        break;
+    default:
+        break;
     }
     Base::Result<TimeSpan> parsed = TimeSpan::TryParse(trimmed);
     if (!parsed) return parsed.GetStatus();
@@ -201,8 +210,8 @@ Base::Result<RepeatBehavior> RepeatBehavior::TryParse(
     Base::StringView text) noexcept {
     const Base::StringView trimmed =
         ::Aero::Base::ValueConversion::Trim(text);
-    if (::Aero::Base::ValueConversion::EqualsAsciiInsensitive(
-            trimmed, "Forever")) {
+    if (trimmed.SizeBytes() == 7U &&
+        ::Aero::Base::ValueConversion::EqualsAsciiInsensitive(trimmed, "Forever")) {
         return RepeatBehavior::Forever();
     }
     if (!trimmed.Empty()) {

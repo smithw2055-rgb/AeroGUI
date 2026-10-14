@@ -3800,7 +3800,8 @@ Base::Result<Value> Registry::ConvertEnumText(
         const EnumValueInfo* match = nullptr;
         for (const EnumValueInfo& candidate :
              type.EnumValues()) {
-            if (::Aero::Base::ValueConversion::EqualsAsciiInsensitive(
+            if (candidate.Name().SizeBytes() == token.SizeBytes() &&
+                ::Aero::Base::ValueConversion::EqualsAsciiInsensitive(
                     token, candidate.Name())) {
                 match = &candidate;
                 break;
