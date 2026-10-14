@@ -9,7 +9,7 @@
 #include <Aero/Data/IMultiValueConverter.hpp>
 #include <Aero/Data/IValueConverter.hpp>
 #include <Aero/Diagnostics.hpp>
-#include <Aero/Events/EventArgs.hpp>
+#include <Aero/Events.hpp>
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Gui.hpp>
 #include <Aero/Input.hpp>

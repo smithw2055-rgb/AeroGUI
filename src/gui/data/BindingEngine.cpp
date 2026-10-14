@@ -37,8 +37,7 @@
 #include <Aero/Interactivity/TriggerAction.hpp>
 #include <Aero/Style.hpp>
 #include <Aero/Triggers.hpp>
-#include <Aero/Events/EventArgs.hpp>
-#include <Aero/Events/CommandEventArgs.hpp>
+#include <Aero/Events.hpp>
 #include <Aero/Media/Animation.hpp>
 #include <Aero/Media/Animation/MediaActions.hpp>
 #include <Aero/Media/Animation/StoryboardActions.hpp>

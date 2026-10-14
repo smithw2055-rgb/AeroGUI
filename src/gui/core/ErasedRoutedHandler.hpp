@@ -8,7 +8,7 @@
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Base/Delegate.hpp>
 #include <Aero/Base/Object.hpp>
-#include <Aero/Events/EventArgs.hpp>
+#include <Aero/Events.hpp>
 
 #include <cstddef>
 

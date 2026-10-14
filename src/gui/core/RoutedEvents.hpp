@@ -9,7 +9,7 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Events/EventArgs.hpp>
+#include <Aero/Events.hpp>
 #include <Aero/FrameworkContentElement.hpp>
 #include <Aero/RoutedEvent.hpp>
 #include <Aero/UIElement.hpp>

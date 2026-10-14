@@ -5,8 +5,7 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/CommandBinding.hpp>
 #include <Aero/Controls/Control.hpp>
-#include <Aero/Events/CommandEventArgs.hpp>
-#include <Aero/Events/ControlEventArgs.hpp>
+#include <Aero/Events.hpp>
 #include <Aero/Input.hpp>
 
 namespace Aero::Controls::Primitives { class ScrollBar; }

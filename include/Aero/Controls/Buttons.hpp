@@ -3,7 +3,7 @@
 #include <Aero/Controls/Control.hpp>
 #include <Aero/Input.hpp>
 #include <Aero/ICommand.hpp>
-#include <Aero/Events/ControlEventArgs.hpp>
+#include <Aero/Events.hpp>
 
 namespace Aero::Controls {
 

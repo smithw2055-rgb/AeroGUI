@@ -8,7 +8,7 @@
 #include <Aero/Visual.hpp>
 #include <Aero/Media/Animation/Storyboard.hpp>
 #include <Aero/Media/Animation/EasingFunctions.hpp>
-#include "gui/controls/VisualStateManagerExecution.hpp"
+#include "gui/triggers/VisualStateManagerExecution.hpp"
 
 #include <cstdint>
 

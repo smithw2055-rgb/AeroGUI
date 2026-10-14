@@ -4,7 +4,7 @@
 #include <Aero/Input.hpp>
 #include <Aero/ICommand.hpp>
 #include <Aero/InputGesture.hpp>
-#include <Aero/Events/CommandEventArgs.hpp>
+#include <Aero/Events.hpp>
 
 namespace Aero::Input {
 class KeyBinding;

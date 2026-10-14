@@ -7,8 +7,7 @@
 #include <Aero/Base/Delegate.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Events/Event.hpp>
-#include <Aero/Events/EventArgs.hpp>
+#include <Aero/Events.hpp>
 #include <Aero/RoutedEvent.hpp>
 #include <Aero/Input.hpp>
 

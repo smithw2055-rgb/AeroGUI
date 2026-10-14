@@ -37,7 +37,7 @@
 #include <Aero/Data/BooleanToVisibilityConverter.hpp>
 #include <Aero/Data/IMultiValueConverter.hpp>
 #include <Aero/Data/MultiBinding.hpp>
-#include <Aero/Events/EventArgs.hpp>
+#include <Aero/Events.hpp>
 #include <Aero/ICommand.hpp>
 #include <Aero/Media/DrawingContext.hpp>
 #include <Aero/Media/Pen.hpp>

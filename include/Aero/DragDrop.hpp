@@ -4,7 +4,7 @@
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/Ref.hpp>
-#include <Aero/Events/EventArgs.hpp>
+#include <Aero/Events.hpp>
 #include <Aero/Input.hpp>
 #include <Aero/RoutedEvent.hpp>
 

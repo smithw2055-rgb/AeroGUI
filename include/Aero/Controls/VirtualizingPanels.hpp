@@ -5,7 +5,7 @@
 #include <Aero/Controls/Panels.hpp>
 #include <Aero/Controls/Scroll.hpp>
 #include <Aero/Controls/Items.hpp>
-#include <Aero/Events/ControlEventArgs.hpp>
+#include <Aero/Events.hpp>
 #include <cstdint>
 
 namespace Aero::Controls {

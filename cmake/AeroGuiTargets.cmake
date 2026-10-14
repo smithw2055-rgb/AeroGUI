@@ -87,7 +87,8 @@ set(_aero_gui_input_sources
 
 set(_aero_gui_triggers_sources
     src/gui/triggers/Triggers.cpp
-    src/gui/triggers/TriggerEngine.cpp)
+    src/gui/triggers/TriggerEngine.cpp
+    src/gui/triggers/VisualStateManager.cpp)
 
 set(_aero_gui_interactivity_sources
     src/gui/interactivity/Interactivity.cpp
@@ -124,6 +125,7 @@ set(_aero_gui_controls_sources
     src/gui/controls/Control.cpp
     src/gui/controls/Decorators.cpp
     src/gui/controls/Panels.cpp
+    src/gui/controls/Grid.cpp
     src/gui/controls/Items.cpp
     src/gui/controls/ListView.cpp
     src/gui/controls/Menus.cpp
@@ -131,9 +133,9 @@ set(_aero_gui_controls_sources
     src/gui/controls/Selectors.cpp
     src/gui/controls/Popup.cpp
     src/gui/controls/TextBox.cpp
+    src/gui/controls/TextBlock.cpp
     src/gui/controls/TreeView.cpp
     src/gui/controls/VirtualizingPanels.cpp
-    src/gui/controls/VisualStateManager.cpp
     src/gui/controls/ControlsEnumsDescribe.cpp)
 
 set(_aero_gui_markup_sources

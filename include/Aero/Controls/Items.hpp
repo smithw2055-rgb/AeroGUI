@@ -12,7 +12,7 @@
 #include <Aero/Controls/Control.hpp>
 #include <Aero/Controls/Decorators.hpp>
 #include <Aero/Controls/Panels.hpp>
-#include <Aero/Events/ControlEventArgs.hpp>
+#include <Aero/Events.hpp>
 
 #include <utility>
 

@@ -42,8 +42,7 @@
 #include <Aero/Data/IMultiValueConverter.hpp>
 #include <Aero/Data/IValueConverter.hpp>
 #include <Aero/Data/SortDescription.hpp>
-#include <Aero/Events/EventArgs.hpp>
-#include <Aero/Events/CommandEventArgs.hpp>
+#include <Aero/Events.hpp>
 #include <Aero/KeyboardNavigation.hpp>
 #include <Aero/DataObject.hpp>
 #include <Aero/DragDrop.hpp>

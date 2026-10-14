@@ -524,8 +524,7 @@ bool CombinedGeometry::FreezeCore(bool isChecking) noexcept {
 #include <Aero/Style.hpp>
 #include <Aero/Triggers.hpp>
 #include <Aero/Resources.hpp>
-#include <Aero/Events/EventArgs.hpp>
-#include <Aero/Events/CommandEventArgs.hpp>
+#include <Aero/Events.hpp>
 #include <Aero/Media/Animation.hpp>
 #include <Aero/Media/Animation/MediaActions.hpp>
 #include <Aero/Media/Animation/StoryboardActions.hpp>

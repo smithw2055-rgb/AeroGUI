@@ -7,9 +7,7 @@
 #include <Aero/Controls/Buttons.hpp>
 #include <Aero/Controls/Control.hpp>
 #include <Aero/Controls/Panels.hpp>
-#include <Aero/Events/CommandEventArgs.hpp>
-#include <Aero/Events/ControlEventArgs.hpp>
-#include <Aero/Events/EventArgs.hpp>
+#include <Aero/Events.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/DrawingContext.hpp>
 

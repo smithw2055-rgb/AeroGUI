@@ -20,7 +20,7 @@
 #include <Aero/VisualStateManager.hpp>
 #include "gui/controls/ContentHosting.hpp"
 #include "gui/media/BrushRendering.hpp"
-#include <Aero/Events/ControlEventArgs.hpp>
+#include <Aero/Events.hpp>
 
 namespace Aero::Controls {
 

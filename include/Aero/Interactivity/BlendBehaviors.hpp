@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Aero/Interactivity/Behavior.hpp>
-#include <Aero/Events/EventArgs.hpp>
+#include <Aero/Events.hpp>
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Media/Effects.hpp>
 #include <Aero/Media/Brushes.hpp>

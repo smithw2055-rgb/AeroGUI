@@ -2,7 +2,7 @@
 
 #include <Aero/Triggers.hpp>
 #include <Aero/RoutedEvent.hpp>
-#include <Aero/Events/EventArgs.hpp>
+#include <Aero/Events.hpp>
 #include <Aero/Base/Delegate.hpp>
 #include <Aero/Base/String.hpp>
 

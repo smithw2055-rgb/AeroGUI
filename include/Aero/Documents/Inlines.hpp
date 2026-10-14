@@ -9,7 +9,7 @@
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/UIElement.hpp>
-#include <Aero/Events/NavigationEventArgs.hpp>
+#include <Aero/Events.hpp>
 #include <Aero/Input.hpp>
 #include <Aero/ICommand.hpp>
 

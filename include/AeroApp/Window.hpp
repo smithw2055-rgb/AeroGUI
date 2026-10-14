@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Aero/Controls/Control.hpp>
-#include <Aero/Events/WindowEventArgs.hpp>
+#include <Aero/Events.hpp>
 
 namespace Aero::App {
 

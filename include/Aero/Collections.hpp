@@ -7,7 +7,7 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/DependencyProperty.hpp>
-#include <Aero/Events/ControlEventArgs.hpp>
+#include <Aero/Events.hpp>
 #include <Aero/TryCast.hpp>
 #include <Aero/Value.hpp>
 

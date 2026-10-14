@@ -4,7 +4,7 @@
 #include <Aero/Base/String.hpp>
 #include <Aero/Value.hpp>
 #include <Aero/RoutedCommand.hpp>
-#include <Aero/Events/CommandEventArgs.hpp>
+#include <Aero/Events.hpp>
 #include <cstdint>
 
 namespace Aero::Input {

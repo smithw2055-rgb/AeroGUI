@@ -1,6 +1,6 @@
 #include <Aero/Controls.hpp>
 #include <Aero/Diagnostics.hpp>
-#include <Aero/Events/ControlEventArgs.hpp>
+#include <Aero/Events.hpp>
 #include <Aero/Gui.hpp>
 #include <Aero/Input.hpp>
 #include <Aero/Markup/XamlProvider.hpp>

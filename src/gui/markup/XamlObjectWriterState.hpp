@@ -889,7 +889,7 @@ static_assert(
 // ===== WriterSupport (shared Writer TU helpers) =====
 
 #include <Aero/Markup/ServiceProvider.hpp>
-#include <Aero/Events/EventArgs.hpp>
+#include <Aero/Events.hpp>
 #include <Aero/VisualStateManager.hpp>
 #include <utility>
 

@@ -4,7 +4,7 @@
 #include <Aero/Controls/Control.hpp>
 #include <Aero/Controls/Scroll.hpp>
 #include <Aero/TextFormatting.hpp>
-#include <Aero/Events/EventArgs.hpp>
+#include <Aero/Events.hpp>
 #include <Aero/Media/Brushes.hpp>
 
 namespace Aero::Controls {

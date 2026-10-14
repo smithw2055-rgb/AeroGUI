@@ -8,8 +8,7 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/DependencyObject.hpp>
-#include <Aero/Events/Event.hpp>
-#include <Aero/Events/EventArgs.hpp>
+#include <Aero/Events.hpp>
 #include <Aero/RoutedEvent.hpp>
 
 #include <cstddef>

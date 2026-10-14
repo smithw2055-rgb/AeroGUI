@@ -509,7 +509,7 @@ foreach(required_source_entry IN ITEMS
         "src/gui/data/BindingEngine.cpp"
         "src/gui/styles/StyleEngine.hpp"
         "src/gui/interactivity/InteractivityEngine.cpp"
-        "src/gui/controls/VisualStateManager.cpp"
+        "src/gui/triggers/VisualStateManager.cpp"
         "src/gui/core/PropertyStore.hpp"
         "src/gui/core/ErasedRoutedHandler.hpp"
         "src/gui/input/InputDevicesState.hpp"
@@ -2052,9 +2052,10 @@ aero_require_text(
     "PopulateMarkupMetadata"
     "XamlSchemaMetadata must own PopulateMarkupMetadata token registration")
 aero_require_text(
-    "src/gui/controls/VisualStateManager.cpp"
+    "src/gui/triggers/VisualStateManager.cpp"
     "PopulateVisualStateMetadata"
     "VisualStateManager family must own PopulateVisualStateMetadata")
+aero_forbid_file("src/gui/controls/VisualStateManager.cpp")
 aero_forbid_text(
     "src/gui/BuiltinModules.cpp"
     "DynamicResourceExtensionToken"
@@ -2856,7 +2857,15 @@ foreach(aero_retired_family IN ITEMS
         "include/Aero/Interactivity/ChangePropertyAction.hpp"
         "include/Aero/Interactivity/SetFocusAction.hpp"
         "include/Aero/Interactivity/LaunchUriOrFileAction.hpp"
-        "include/Aero/Interactivity/RemoveElementAction.hpp")
+        "include/Aero/Interactivity/RemoveElementAction.hpp"
+        "include/Aero/Events/ApplicationEventArgs.hpp"
+        "include/Aero/Events/CommandEventArgs.hpp"
+        "include/Aero/Events/ControlEventArgs.hpp"
+        "include/Aero/Events/Event.hpp"
+        "include/Aero/Events/EventArgs.hpp"
+        "include/Aero/Events/NavigationEventArgs.hpp"
+        "include/Aero/Events/PropertyEventArgs.hpp"
+        "include/Aero/Events/WindowEventArgs.hpp")
     aero_forbid_file("${aero_retired_family}")
 endforeach()
 
