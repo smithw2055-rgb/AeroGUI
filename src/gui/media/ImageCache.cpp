@@ -1,12 +1,11 @@
-#include "gui/core/State.hpp" 
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleState.hpp"
-#include "gui/markup/MarkupState.hpp"
-#include "gui/markup/MarkupWriterState.hpp"
+#include "gui/core/ElementTree.hpp"
+#include "gui/core/LayoutEngine.hpp"
+#include "gui/core/EffectiveValueEngine.hpp"
+#include "gui/core/RoutedEvents.hpp"
+#include "gui/core/EventRouter.hpp"
+#include "gui/markup/XamlSchema.hpp"
 #include "render/DisplayList.hpp"
 #include "ImageCache.hpp"
-
-#include "gui/media/MediaState.hpp"
 
 #include <Aero/Controls.hpp>
 #include <Aero/Shapes.hpp>
@@ -22,8 +21,8 @@
 #define STBI_ONLY_PNG
 #define STBI_ONLY_JPEG
 #include "stb_image.h"
+#include "gui/core/DependencyObjectAccess.hpp"
 
-#include "gui/core/facets/RenderFacet.hpp"
 
 namespace Aero::Media {
 using ImageResources = ::Aero::Render::ImageResources;
@@ -90,11 +89,52 @@ int StbiStreamEof(void* user) {
     return context == nullptr || context->failed || context->eof ? 1 : 0;
 }
 
+// Pattern shaders sample with premultiplied vertex color and SrcOver
+// (ONE / INV_SRC_ALPHA). stb_image returns straight alpha, and PNG
+// transparent pixels commonly keep white RGB, which otherwise composites
+// as an opaque white silhouette.
+void PremultiplyStraightRgba(
+    Base::Vector<std::uint8_t>& pixels) noexcept {
+    const std::uint32_t byteCount = pixels.Size();
+    for (std::uint32_t index = 0U; index + 3U < byteCount; index += 4U) {
+        const std::uint32_t alpha = pixels[index + 3U];
+        pixels[index + 0U] = static_cast<std::uint8_t>(
+            (static_cast<std::uint32_t>(pixels[index + 0U]) * alpha + 127U) /
+            255U);
+        pixels[index + 1U] = static_cast<std::uint8_t>(
+            (static_cast<std::uint32_t>(pixels[index + 1U]) * alpha + 127U) /
+            255U);
+        pixels[index + 2U] = static_cast<std::uint8_t>(
+            (static_cast<std::uint32_t>(pixels[index + 2U]) * alpha + 127U) /
+            255U);
+    }
+}
+
 Base::Status InvalidImage(
     const char* message) noexcept {
     return Base::Status::Failure(
         Base::ErrorCode::ValidationFailed,
         message);
+}
+
+Base::Result<void> ClearImageTarget(
+    Controls::Image* imageControl,
+    Media::ImageBrush* imageBrush) noexcept {
+    if (imageControl != nullptr) {
+        imageControl->SetRuntimeData(
+            Render::InvalidRenderImageId,
+            0U,
+            0U);
+        return {};
+    }
+    if (imageBrush != nullptr) {
+        imageBrush->SetRuntimeImage(
+            Render::InvalidRenderImageId,
+            0U,
+            0U);
+        return {};
+    }
+    return {};
 }
 
 Base::Result<Base::ResourceUri> ResolveImageUri(
@@ -171,6 +211,8 @@ Base::Result<bool> ImageCache::Synchronize(
     Media::TextureProvider* textureProvider,
     ImageResources* backend,
     bool backendGenerationChanged) noexcept {
+    std::fprintf(stderr, "[ImageCache] Synchronize called root=%p docUri='%.*s'\n",
+        root, static_cast<int>(documentUri.Canonical().SizeBytes()), documentUri.Canonical().Data());
     ++epoch_;
     if (epoch_ == 0U) ++epoch_;
     bool changed = false;
@@ -186,20 +228,22 @@ Base::Result<bool> ImageCache::Synchronize(
     Base::Vector<Aero::Media::Visual*> pending(
         allocator_);
     if (root != nullptr) {
-        Base::Result<void> queued =
-            pending.PushBack(root);
-        if (!queued) return queued.GetStatus();
+        pending.PushBack(root);
     }
     while (!pending.Empty()) {
         Aero::Media::Visual* visual =
             pending[pending.Size() - 1U];
         pending.PopBack();
         if (visual == nullptr) continue;
+        const auto tInfo = Aero::Meta::ResolveRuntimeTypeInfo(visual->RuntimeType());
+        std::fprintf(stderr, "[ImageCache] visit %.*s visual=%p children=%u\n",
+            static_cast<int>(tInfo.name.SizeBytes()),
+            tInfo.name.Data(),
+            visual,
+            static_cast<unsigned int>((*visual).RenderChildren().Size()));
         for (Aero::Media::Visual* child :
-             visual->GetVisualChildren()) {
-            Base::Result<void> queued =
-                pending.PushBack(child);
-            if (!queued) return queued.GetStatus();
+             (*visual).RenderChildren()) {
+            pending.PushBack(child);
         }
         // A visual may reference one bitmap for its content/fill and another
         // for OpacityMask. Process both through the same device image table.
@@ -211,36 +255,53 @@ Base::Result<bool> ImageCache::Synchronize(
         Base::Ref<Media::ImageSource>
             source;
         if (targetIndex == 0U &&
-            visual->RuntimeType() ==
-                Controls::Image::StaticTypeId()) {
+            DependencyObjectAccess::PropertyRegistry(visual).Types().IsDerivedFrom(
+                visual->RuntimeType(),
+                Controls::Image::StaticTypeId())) {
             imageControl =
                 static_cast<Controls::Image*>(
                     visual);
             source = imageControl->GetSource();
         } else if (targetIndex == 0U) {
             Base::Ref<Media::Brush> fill;
-            if (visual->PropertyRegistry().Types().IsDerivedFrom(
+            if (DependencyObjectAccess::PropertyRegistry(visual).Types().IsDerivedFrom(
                     visual->RuntimeType(),
                     Shapes::Shape::StaticTypeId())) {
                 fill = static_cast<Shapes::Shape*>(visual)->GetFill();
             } else if (visual->RuntimeType() ==
                        Controls::Border::StaticTypeId()) {
-                fill = static_cast<Controls::Border*>(visual)->GetBackground();
-            } else if (visual->PropertyRegistry().Types().IsDerivedFrom(
+                auto* b = static_cast<Controls::Border*>(visual);
+                fill = b->GetBackground();
+                const char* typeName = !fill ? "null" :
+                    (fill->RuntimeType() == Media::SolidColorBrush::StaticTypeId() ? "SolidColorBrush" :
+                    (fill->RuntimeType() == Media::LinearGradientBrush::StaticTypeId() ? "LinearGradientBrush" :
+                    (fill->RuntimeType() == Media::RadialGradientBrush::StaticTypeId() ? "RadialGradientBrush" :
+                    (fill->RuntimeType() == Media::ImageBrush::StaticTypeId() ? "ImageBrush" : "Unknown"))));
+                std::fprintf(stderr, "[ImageCache] BORDER visual=%p fill=%p type=%llu ('%s')\n",
+                    b,
+                    fill.Get(), fill ? static_cast<unsigned long long>(fill->RuntimeType()) : 0ULL,
+                    typeName);
+            } else if (DependencyObjectAccess::PropertyRegistry(visual).Types().IsDerivedFrom(
                            visual->RuntimeType(),
                            Controls::Panel::StaticTypeId())) {
                 fill = static_cast<Controls::Panel*>(visual)->GetBackground();
-            } else if (visual->PropertyRegistry().Types().IsDerivedFrom(
+            } else if (DependencyObjectAccess::PropertyRegistry(visual).Types().IsDerivedFrom(
                            visual->RuntimeType(),
                            Controls::Control::StaticTypeId())) {
                 fill = static_cast<Controls::Control*>(visual)->GetBackground();
             } else {
                 continue;
             }
-            if (!fill ||
-                fill->RuntimeType() !=
-                    Media::ImageBrush::
-                        StaticTypeId()) {
+            if (!fill) {
+                continue;
+            }
+            std::fprintf(stderr, "[ImageCache] found visual runtimeType=%llu fill runtimeType=%llu (ImageBrush=%llu)\n",
+                static_cast<unsigned long long>(visual->RuntimeType()),
+                static_cast<unsigned long long>(fill->RuntimeType()),
+                static_cast<unsigned long long>(Media::ImageBrush::StaticTypeId()));
+            if (fill->RuntimeType() !=
+                Media::ImageBrush::
+                    StaticTypeId()) {
                 continue;
             }
             imageBrush =
@@ -248,8 +309,9 @@ Base::Result<bool> ImageCache::Synchronize(
                     Media::ImageBrush*>(
                         fill.Get());
             source = imageBrush->GetSource();
+            std::fprintf(stderr, "[ImageCache] imageBrush source=%p\n", source.Get());
         } else {
-            UIElement* element = visual->AsUIElement();
+            UIElement* element = ::Aero::TryCast<::Aero::UIElement>(visual);
             Base::Ref<Media::Brush> mask =
                 element != nullptr
                 ? element->GetOpacityMask()
@@ -262,17 +324,15 @@ Base::Result<bool> ImageCache::Synchronize(
             source = imageBrush->GetSource();
         }
         if (!source) {
-            Base::Result<void> cleared =
-                imageControl != nullptr
-                ? Core::RenderFacet::SetImageRuntimeData(
-                    *imageControl,
-                    Render::InvalidRenderImageId,
-                    0U, 0U)
-                : imageBrush->SetRuntimeImage(
+            if (imageControl != nullptr) {
+                imageControl->SetRuntimeData(
                     Render::InvalidRenderImageId,
                     0U, 0U);
-            if (!cleared) {
-                return cleared.GetStatus();
+            }
+            if (imageBrush != nullptr && imageControl == nullptr) {
+                imageBrush->SetRuntimeImage(
+                    Render::InvalidRenderImageId,
+                    0U, 0U);
             }
             continue;
         }
@@ -285,9 +345,10 @@ Base::Result<bool> ImageCache::Synchronize(
             // CroppedBitmap sources resolve through the wrapped bitmap and
             // produce a cropped sub-region of the decoded atlas.
         } else {
-            return Base::Status::Failure(
-                Base::ErrorCode::Unsupported,
-                "Image and ImageBrush currently require BitmapImage or CroppedBitmap sources");
+            Base::Result<void> cleared =
+                ClearImageTarget(imageControl, imageBrush);
+            if (!cleared) return cleared.GetStatus();
+            continue;
         }
         Media::BitmapImage* bitmap =
             nullptr;
@@ -305,9 +366,10 @@ Base::Result<bool> ImageCache::Synchronize(
                 inner->RuntimeType() !=
                     Media::BitmapImage::
                         StaticTypeId()) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::Unsupported,
-                    "CroppedBitmap source requires a BitmapImage source");
+                Base::Result<void> cleared =
+                    ClearImageTarget(imageControl, imageBrush);
+                if (!cleared) return cleared.GetStatus();
+                continue;
             }
             bitmap = static_cast<
                 Media::BitmapImage*>(
@@ -323,7 +385,20 @@ Base::Result<bool> ImageCache::Synchronize(
             ResolveImageUri(
                 documentUri,
                 bitmap->GetUriSource());
-        if (!resolved) return resolved.GetStatus();
+        std::fprintf(stderr, "[ImageCache] uriSource='%.*s' docUri='%.*s' resolved ok=%d '%.*s'\n",
+            static_cast<int>(bitmap->GetUriSource().Canonical().SizeBytes()),
+            bitmap->GetUriSource().Canonical().Data(),
+            static_cast<int>(documentUri.Canonical().SizeBytes()),
+            documentUri.Canonical().Data(),
+            resolved ? 1 : 0,
+            resolved ? static_cast<int>(resolved.Value().Canonical().SizeBytes()) : 0,
+            resolved ? resolved.Value().Canonical().Data() : "");
+        if (!resolved) {
+            Base::Result<void> cleared =
+                ClearImageTarget(imageControl, imageBrush);
+            if (!cleared) return cleared.GetStatus();
+            continue;
+        }
 
         Record* record = nullptr;
         for (Record& candidate : records_) {
@@ -347,10 +422,8 @@ Base::Result<bool> ImageCache::Synchronize(
                 resolved.Value();
             created.sourceRect =
                 sourceRect;
-            Base::Result<void> stored =
-                records_.PushBack(
+            records_.PushBack(
                     std::move(created));
-            if (!stored) return stored.GetStatus();
             record =
                 &records_[records_.Size() - 1U];
         }
@@ -381,28 +454,33 @@ Base::Result<bool> ImageCache::Synchronize(
                 Base::Result<Media::TextureResourceInfo>
                     loadedTexture = textureProvider->Open(
                         resolved.Value());
-                if (!loadedTexture) return loadedTexture.GetStatus();
-                imageStream = std::move(
-                    loadedTexture).Value().source.stream;
-            } else {
+                if (loadedTexture) {
+                    imageStream = std::move(
+                        loadedTexture).Value().source.stream;
+                }
+            }
+            if (!imageStream) {
                 Base::Result<Markup::XamlProviderResolution>
                     provider = sources.ResolveDetailed(
                         resolved.Value());
-                if (!provider ||
-                    provider.Value().provider == nullptr) {
-                    return Base::Status::Failure(
-                        Base::ErrorCode::NotFound,
-                        "Image XAML provider was not found");
+                if (provider &&
+                    provider.Value().provider != nullptr) {
+                    Base::Result<Markup::StreamResourceInfo>
+                        loaded = provider.Value().provider->Open(
+                            resolved.Value());
+                    if (loaded) {
+                        imageStream = std::move(loaded).Value().stream;
+                    }
                 }
-                Base::Result<Markup::StreamResourceInfo>
-                    loaded = provider.Value().provider->Open(
-                        resolved.Value());
-                if (!loaded) return loaded.GetStatus();
-                imageStream = std::move(loaded).Value().stream;
             }
             if (!imageStream) {
-                return InvalidImage(
-                    "Image source stream is empty");
+                std::fprintf(stderr, "[ImageCache] imageStream is NULL for '%.*s'\n",
+                    static_cast<int>(resolved.Value().Canonical().SizeBytes()),
+                    resolved.Value().Canonical().Data());
+                Base::Result<void> cleared =
+                    ClearImageTarget(imageControl, imageBrush);
+                if (!cleared) return cleared.GetStatus();
+                continue;
             }
             int width = 0;
             int height = 0;
@@ -418,6 +496,8 @@ Base::Result<bool> ImageCache::Synchronize(
                     &callbacks,
                     &streamContext,
                     &width, &height, &channels, 4);
+            std::fprintf(stderr, "[ImageCache] decoded=%p width=%d height=%d channels=%d failed=%d eof=%d\n",
+                decoded, width, height, channels, streamContext.failed ? 1 : 0, streamContext.eof ? 1 : 0);
             if (streamContext.failed || decoded == nullptr ||
                 width <= 0 || height <= 0 ||
                 width >
@@ -432,8 +512,10 @@ Base::Result<bool> ImageCache::Synchronize(
                 if (decoded != nullptr) {
                     stbi_image_free(decoded);
                 }
-                return InvalidImage(
-                    "Image decode failed or dimensions exceed runtime limits");
+                Base::Result<void> cleared =
+                    ClearImageTarget(imageControl, imageBrush);
+                if (!cleared) return cleared.GetStatus();
+                continue;
             }
             const std::uint32_t byteCount =
                 static_cast<std::uint32_t>(
@@ -441,25 +523,23 @@ Base::Result<bool> ImageCache::Synchronize(
                         width) *
                     static_cast<std::uint64_t>(
                         height) * 4U);
-            Base::Result<void> resized =
-                record->pixels.Resize(
+            std::fprintf(stderr, "[ImageCache] decoded ok, resizing to byteCount=%u\n", byteCount);
+            record->pixels.Resize(
                     byteCount);
-            if (!resized) {
-                stbi_image_free(decoded);
-                return resized.GetStatus();
-            }
             for (std::uint32_t index = 0U;
                  index < byteCount; ++index) {
                 record->pixels[index] =
                     decoded[index];
             }
             stbi_image_free(decoded);
+            PremultiplyStraightRgba(record->pixels);
             record->width =
                 static_cast<std::uint32_t>(width);
             record->height =
                 static_cast<std::uint32_t>(height);
             record->resolvedUri =
                 resolved.Value();
+            std::fprintf(stderr, "[ImageCache] premultiplied, backend=%p\n", backend);
 
             if (sourceRect.width > 0.0 &&
                 sourceRect.height > 0.0) {
@@ -483,16 +563,16 @@ Base::Result<bool> ImageCache::Synchronize(
                         record->width - cropX ||
                     cropHeight >
                         record->height - cropY) {
-                    return InvalidImage(
-                        "CroppedBitmap source rect is outside the decoded image");
+                    Base::Result<void> cleared =
+                        ClearImageTarget(imageControl, imageBrush);
+                    if (!cleared) return cleared.GetStatus();
+                    continue;
                 }
                 const std::uint32_t cropBytes =
                     cropWidth * cropHeight * 4U;
                 Base::Vector<std::uint8_t> cropped(
                     allocator_);
-                Base::Result<void> reserved =
-                    cropped.Resize(cropBytes);
-                if (!reserved) return reserved.GetStatus();
+                cropped.Resize(cropBytes);
                 for (std::uint32_t row = 0U;
                      row < cropHeight; ++row) {
                     const std::uint32_t sourceOffset =
@@ -516,6 +596,9 @@ Base::Result<bool> ImageCache::Synchronize(
         }
 
         if (backend != nullptr) {
+            std::fprintf(stderr, "[ImageCache] backend create=%p generation=%llu recordBackendGen=%llu\n",
+                backend->create, static_cast<unsigned long long>(backend->generation),
+                static_cast<unsigned long long>(record->backendGeneration));
             if (backend->create == nullptr) {
                 return Base::Status::Failure(
                     Base::ErrorCode::InvalidState,
@@ -532,8 +615,13 @@ Base::Result<bool> ImageCache::Synchronize(
                         record->width,
                         record->height,
                         record->pixels.AsSpan());
+                std::fprintf(stderr, "[ImageCache] uploaded ok=%d imgId=%llu\n",
+                    uploaded ? 1 : 0, uploaded ? static_cast<unsigned long long>(uploaded.Value()) : 0ULL);
                 if (!uploaded) {
-                    return uploaded.GetStatus();
+                    Base::Result<void> cleared =
+                        ClearImageTarget(imageControl, imageBrush);
+                    if (!cleared) return cleared.GetStatus();
+                    continue;
                 }
                 record->renderImage =
                     uploaded.Value();
@@ -554,18 +642,22 @@ Base::Result<bool> ImageCache::Synchronize(
                 nextHeadlessImage_++;
             changed = true;
         }
-        Base::Result<void> assigned =
-            imageControl != nullptr
-            ? Core::RenderFacet::SetImageRuntimeData(
-                *imageControl,
-                record->renderImage,
-                record->width,
-                record->height)
-            : imageBrush->SetRuntimeImage(
+        if (imageControl != nullptr) {
+            imageControl->SetRuntimeData(
                 record->renderImage,
                 record->width,
                 record->height);
-        if (!assigned) return assigned.GetStatus();
+        } else {
+            std::fprintf(stderr, "[ImageCache] SetRuntimeImage on imageBrush=%p imageId=%llu width=%u height=%u\n",
+                imageBrush,
+                static_cast<unsigned long long>(record->renderImage),
+                record->width,
+                record->height);
+            imageBrush->SetRuntimeImage(
+                record->renderImage,
+                record->width,
+                record->height);
+        }
         }
     }
 

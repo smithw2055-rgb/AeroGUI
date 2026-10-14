@@ -20,39 +20,19 @@ public:
     ResourceUri& operator=(ResourceUri&&) noexcept = default;
 
     static Result<ResourceUri> Parse(StringView text) noexcept;
-    static Result<ResourceUri> Resolve(
-        const ResourceUri& baseUri,
-        StringView reference) noexcept;
+    static Result<ResourceUri> Resolve(const ResourceUri& baseUri, StringView reference) noexcept;
 
-    StringView Canonical() const noexcept {
-        return canonical_.View();
-    }
-    StringView Scheme() const noexcept {
-        return scheme_.View();
-    }
-    StringView Assembly() const noexcept {
-        return assembly_.View();
-    }
-    StringView Path() const noexcept {
-        return path_.View();
-    }
+    StringView Canonical() const noexcept { return canonical_.View(); }
+    StringView Scheme() const noexcept { return scheme_.View(); }
+    StringView Assembly() const noexcept { return assembly_.View(); }
+    StringView Path() const noexcept { return path_.View(); }
 
-    bool Empty() const noexcept {
-        return canonical_.Empty();
-    }
-    bool IsAbsolute() const noexcept {
-        return absolute_;
-    }
-    bool IsNetwork() const noexcept {
-        return network_;
-    }
+    bool Empty() const noexcept { return canonical_.Empty(); }
+    bool IsAbsolute() const noexcept { return absolute_; }
+    bool IsNetwork() const noexcept { return network_; }
 
 private:
-    static Result<void> Build(
-        ResourceUri& uri,
-        StringView scheme,
-        StringView path,
-        StringView prefix) noexcept;
+    static Result<void> Build(ResourceUri& uri, StringView scheme, StringView path, StringView prefix) noexcept;
 
     String canonical_;
     String scheme_;
@@ -62,16 +42,9 @@ private:
     bool network_ = false;
 };
 
-inline bool operator==(
-    const ResourceUri& left,
-    const ResourceUri& right) noexcept {
-    return left.Canonical() == right.Canonical();
-}
+inline bool operator==(const ResourceUri& left,
+    const ResourceUri& right) noexcept { return left.Canonical() == right.Canonical(); }
 
-inline bool operator!=(
-    const ResourceUri& left,
-    const ResourceUri& right) noexcept {
-    return !(left == right);
-}
+inline bool operator!=(const ResourceUri& left, const ResourceUri& right) noexcept { return !(left == right); }
 
 } // namespace Aero::Base

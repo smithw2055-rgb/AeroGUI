@@ -1,5 +1,8 @@
 #pragma once
 
+// Platform value types shared by render backends and the App escape hatch
+// (AeroApp/WindowInterop.hpp). Input services (clipboard/IME) live separately
+// in Aero/InputInterop.hpp.
 #include <Aero/Base/Config.hpp>
 
 #include <cstdint>
@@ -21,9 +24,7 @@ struct NativeWindowHandle {
     std::uintptr_t window = 0U;
     std::uintptr_t instance = 0U;
 
-    bool IsValid() const noexcept {
-        return system != WindowSystem::Unknown && window != 0U;
-    }
+    bool IsValid() const noexcept { return system != WindowSystem::Unknown && window != 0U; }
 };
 
 } // namespace Aero::Platform

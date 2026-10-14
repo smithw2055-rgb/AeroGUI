@@ -9,7 +9,14 @@
 #include <cstdint>
 #include <mutex>
 
+namespace Aero {
+class PropertySlab;
+class DependencyObject;
+}
+
 namespace Aero::Threading {
+
+class DispatcherReentrancyGuard;
 
 using DispatcherTime = std::uint64_t;
 using DispatcherThreadToken = std::uint64_t;
@@ -30,6 +37,8 @@ enum class DispatcherPriority : std::uint8_t {
     Count
 };
 
+// Retained for Inspector / diagnostics labeling. ViewFrame drives phases
+// directly after P3.2; Dispatcher no longer hosts a frame-hook table.
 enum class DispatcherFramePhase : std::uint8_t {
     BeginFrame = 0U,
     Input,
@@ -43,55 +52,25 @@ enum class DispatcherFramePhase : std::uint8_t {
     Count
 };
 
-inline constexpr std::uint32_t
-    DispatcherFramePhaseCount =
-        static_cast<std::uint32_t>(
-            DispatcherFramePhase::Count);
+inline constexpr std::uint32_t DispatcherFramePhaseCount = static_cast<std::uint32_t>(DispatcherFramePhase::Count);
 
 struct DispatcherFrameTimings  {
     std::uint64_t frameSequence = 0U;
     DispatcherTime totalMicroseconds = 0U;
-    DispatcherTime phaseMicroseconds[
-        DispatcherFramePhaseCount]{};
+    DispatcherTime phaseMicroseconds[ DispatcherFramePhaseCount]{};
 };
 
 struct DispatcherTaskHandle  {
     std::uint64_t value = 0U;
 
-    constexpr bool IsValid() const noexcept {
-        return value != 0U;
-    }
+    constexpr bool IsValid() const noexcept { return value != 0U; }
 };
 
-struct DispatcherFrameHookHandle  {
-    std::uint64_t value = 0U;
-
-    constexpr bool IsValid() const noexcept {
-        return value != 0U;
-    }
-};
-
-constexpr bool operator==(
-    DispatcherTaskHandle left, DispatcherTaskHandle right) noexcept {
+constexpr bool operator==(DispatcherTaskHandle left, DispatcherTaskHandle right) noexcept {
     return left.value == right.value;
 }
 
-constexpr bool operator!=(
-    DispatcherTaskHandle left, DispatcherTaskHandle right) noexcept {
-    return !(left == right);
-}
-
-constexpr bool operator==(
-    DispatcherFrameHookHandle left,
-    DispatcherFrameHookHandle right) noexcept {
-    return left.value == right.value;
-}
-
-constexpr bool operator!=(
-    DispatcherFrameHookHandle left,
-    DispatcherFrameHookHandle right) noexcept {
-    return !(left == right);
-}
+constexpr bool operator!=(DispatcherTaskHandle left, DispatcherTaskHandle right) noexcept { return !(left == right); }
 
 using DispatcherCallback = void (*)(void* context) noexcept;
 using DispatcherCleanupCallback = void (*)(void* context) noexcept;
@@ -107,43 +86,12 @@ struct DispatcherOptions  {
 
 class Dispatcher;
 
-class AERO_GUI_API DispatcherReentrancyGuard  {
-public:
-    DispatcherReentrancyGuard() noexcept = default;
-    DispatcherReentrancyGuard(
-        DispatcherReentrancyGuard&& other) noexcept;
-    DispatcherReentrancyGuard& operator=(
-        DispatcherReentrancyGuard&& other) noexcept;
-    ~DispatcherReentrancyGuard();
-
-    DispatcherReentrancyGuard(
-        const DispatcherReentrancyGuard&) = delete;
-    DispatcherReentrancyGuard& operator=(
-        const DispatcherReentrancyGuard&) = delete;
-
-    bool Active() const noexcept {
-        return dispatcher_ != nullptr;
-    }
-
-    void Release() noexcept;
-
-private:
-    friend class Dispatcher;
-
-    explicit DispatcherReentrancyGuard(
-        Dispatcher* dispatcher) noexcept
-        : dispatcher_(dispatcher) {}
-
-    Dispatcher* dispatcher_ = nullptr;
-};
-
 AERO_GUI_API DispatcherThreadToken
 CurrentDispatcherThreadToken() noexcept;
 
 class AERO_GUI_API Dispatcher  {
 public:
-    explicit Dispatcher(
-        const DispatcherOptions& options = DispatcherOptions{}) noexcept;
+    explicit Dispatcher(const DispatcherOptions& options = DispatcherOptions{}) noexcept;
     ~Dispatcher() noexcept;
 
     Dispatcher(const Dispatcher&) = delete;
@@ -153,70 +101,52 @@ public:
 
     bool CheckAccess() const noexcept;
     Result<void> VerifyAccess() const noexcept;
-    DispatcherThreadToken OwnerThreadToken() const noexcept {
-        return ownerThread_;
-    }
+    DispatcherThreadToken OwnerThreadToken() const noexcept { return ownerThread_; }
 
     DispatcherTime NowMicroseconds() const noexcept;
-    Result<DispatcherTaskHandle> Post(
-        DispatcherPriority priority,
+    Result<DispatcherTaskHandle> Post(DispatcherPriority priority, DispatcherCallback callback, void* context = nullptr,
+        DispatcherCleanupCallback cleanup = nullptr) noexcept;
+
+    Result<DispatcherTaskHandle> PostDelayed(DispatcherTime delayMicroseconds, DispatcherPriority priority,
         DispatcherCallback callback,
         void* context = nullptr,
         DispatcherCleanupCallback cleanup = nullptr) noexcept;
 
-    Result<DispatcherTaskHandle> PostDelayed(
-        DispatcherTime delayMicroseconds,
-        DispatcherPriority priority,
-        DispatcherCallback callback,
-        void* context = nullptr,
-        DispatcherCleanupCallback cleanup = nullptr) noexcept;
-
-    Result<DispatcherTaskHandle> PostAt(
-        DispatcherTime dueTimeMicroseconds,
-        DispatcherPriority priority,
+    Result<DispatcherTaskHandle> PostAt(DispatcherTime dueTimeMicroseconds, DispatcherPriority priority,
         DispatcherCallback callback,
         void* context = nullptr,
         DispatcherCleanupCallback cleanup = nullptr) noexcept;
 
     // Cancel may be called from any thread. If cancellation wins the race with
     // execution, cleanup is invoked exactly once on the cancelling thread.
-    bool Cancel(
-        DispatcherTaskHandle handle) noexcept;
+    bool Cancel(DispatcherTaskHandle handle) noexcept;
 
+    // Pumps queued callbacks in FIFO order. throughPriority is an admission
+    // filter (P3.1): callbacks posted at a priority above throughPriority
+    // stay queued for a later pump. Ordering within the admitted set is
+    // always FIFO; the former 10-level sorted insertion is gone.
     // Processes ready callbacks from Send through throughPriority. The host
     // controls when this is called; Dispatcher never creates a worker thread.
-    Result<std::uint32_t> ProcessPending(
-        DispatcherPriority throughPriority = DispatcherPriority::Idle,
-        std::uint32_t maxCallbacks =
-            UnlimitedDispatcherCallbacks) noexcept;
+    Result<std::uint32_t> ProcessPending(DispatcherPriority throughPriority = DispatcherPriority::Idle,
+        std::uint32_t maxCallbacks = UnlimitedDispatcherCallbacks) noexcept;
 
-    Result<DispatcherFrameHookHandle>
-    RegisterFrameHook(
-        DispatcherFramePhase phase,
-        DispatcherCallback callback,
-        void* context = nullptr,
-        DispatcherCleanupCallback cleanup = nullptr) noexcept;
-
-    Result<bool> RemoveFrameHook(
-        DispatcherFrameHookHandle handle) noexcept;
-
-    // Hooks run in registration order. Hooks added while a phase is running
-    // are deferred until the next invocation of that phase.
-    Result<std::uint32_t> RunFramePhase(
-        DispatcherFramePhase phase) noexcept;
+    // P3.2 removed RegisterFrameHook / RunFramePhase. Timings stay zero unless
+    // a future host fills them; Inspector still reads the snapshot.
     DispatcherFrameTimings
     FrameTimings() const noexcept;
 
-    Result<DispatcherReentrancyGuard>
-    EnterReentrancyGuard() noexcept;
-
     std::uint32_t PendingTaskCount() const noexcept;
-    std::uint32_t RegisteredFrameHookCount() const noexcept;
     bool IsPumping() const noexcept;
     std::uint32_t ReentrancyDepth() const noexcept;
 
 private:
+    friend class ::Aero::DependencyObject;
     friend class DispatcherReentrancyGuard;
+
+    // Engine-only: reentrancy guard + DP storage slab stay off the SDK surface.
+    Result<DispatcherReentrancyGuard> EnterReentrancyGuard() noexcept;
+    PropertySlab& GetPropertySlab() noexcept;
+
 
     enum class RecordState : std::uint8_t {
         Pending,
@@ -226,19 +156,10 @@ private:
 
     struct TaskRecord  {
         DispatcherTaskHandle handle;
-        std::uint64_t sequence = 0U;
         DispatcherTime dueTimeMicroseconds = 0U;
+        // Admission filter for ProcessPending(throughPriority). Never used
+        // for ordering (P3.1: the ready queue is pure FIFO).
         DispatcherPriority priority = DispatcherPriority::Normal;
-        DispatcherCallback callback = nullptr;
-        DispatcherCleanupCallback cleanup = nullptr;
-        void* context = nullptr;
-        RecordState state = RecordState::Pending;
-    };
-
-    struct FrameHookRecord  {
-        DispatcherFrameHookHandle handle;
-        std::uint64_t sequence = 0U;
-        DispatcherFramePhase phase = DispatcherFramePhase::BeginFrame;
         DispatcherCallback callback = nullptr;
         DispatcherCleanupCallback cleanup = nullptr;
         void* context = nullptr;
@@ -247,8 +168,8 @@ private:
 
     Base::Vector<TaskRecord> ready_;
     Base::Vector<TaskRecord> delayed_;
-    Base::Vector<FrameHookRecord> hooks_;
     mutable std::mutex mutex_;
+    PropertySlab* propertySlab_ = nullptr;
 
     std::uint32_t readyHead_ = 0U;
     std::uint32_t delayedHead_ = 0U;
@@ -258,63 +179,30 @@ private:
     DispatcherWakeCallback wake_ = nullptr;
     void* wakeContext_ = nullptr;
     std::uint64_t nextTaskHandle_ = 1U;
-    std::uint64_t nextTaskSequence_ = 1U;
-    std::uint64_t nextHookHandle_ = 1U;
-    std::uint64_t nextHookSequence_ = 1U;
-    DispatcherFrameHookHandle activeHook_;
     std::uint32_t guardDepth_ = 0U;
     DispatcherFrameTimings frameTimings_;
     bool pumping_ = false;
-    bool phaseActive_ = false;
     bool shuttingDown_ = false;
 
-    Result<DispatcherTaskHandle> Enqueue(
-        DispatcherTime dueTimeMicroseconds,
-        bool delayed,
-        DispatcherPriority priority,
+    Result<DispatcherTaskHandle> Enqueue(DispatcherTime dueTimeMicroseconds, bool delayed, DispatcherPriority priority,
         DispatcherCallback callback,
         void* context,
         DispatcherCleanupCallback cleanup) noexcept;
 
-    Result<void> InsertReadyLocked(
-        const TaskRecord& record) noexcept;
-    Result<void> InsertDelayedLocked(
-        const TaskRecord& record) noexcept;
-    Result<void> PromoteDueLocked(
-        DispatcherTime nowMicroseconds) noexcept;
+    void InsertReadyLocked(const TaskRecord& record) noexcept;
+    void InsertDelayedLocked(const TaskRecord& record) noexcept;
+    Result<void> PromoteDueLocked(DispatcherTime nowMicroseconds) noexcept;
 
     void CompactReadyLocked(bool force) noexcept;
     void CompactDelayedLocked(bool force) noexcept;
-    void CompactHooksLocked() noexcept;
     void DiscardCompletedReadyPrefixLocked() noexcept;
     void DiscardCompletedDelayedPrefixLocked() noexcept;
     void LeaveReentrancyGuard() noexcept;
     void NotifyWake() const noexcept;
 
-    static bool IsValidPriority(
-        DispatcherPriority priority) noexcept;
-    static bool IsValidFramePhase(
-        DispatcherFramePhase phase) noexcept;
-    static bool ReadyLess(
-        const TaskRecord& left,
-        const TaskRecord& right) noexcept;
-    static bool DelayedLess(
-        const TaskRecord& left,
-        const TaskRecord& right) noexcept;
-};
-
-class AERO_GUI_API DispatcherObject : public Base::Object {
-public:
-    bool CheckAccess() const noexcept;
-    Result<void> VerifyAccess() const noexcept;
-    Dispatcher& GetDispatcher() const noexcept;
-
-protected:
-    explicit DispatcherObject(Dispatcher& dispatcher) noexcept;
-    ~DispatcherObject() override = default;
-
-private:
-    Dispatcher* dispatcher_ = nullptr;
+    static bool IsValidPriority(DispatcherPriority priority) noexcept;
 };
 
 } // namespace Aero::Threading
+
+#include <Aero/DispatcherObject.hpp>

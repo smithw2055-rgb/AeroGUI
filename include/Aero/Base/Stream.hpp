@@ -21,15 +21,12 @@ public:
     ~Stream() override;
 
     virtual bool CanRead() const noexcept = 0;
-    virtual Result<std::uint32_t> Read(
-        Span<std::uint8_t> destination) noexcept = 0;
+    virtual Result<std::uint32_t> Read(Span<std::uint8_t> destination) noexcept = 0;
 
     virtual bool CanSeek() const noexcept;
     virtual Result<std::uint64_t> Position() const noexcept;
     virtual Result<std::uint64_t> Length() const noexcept;
-    virtual Result<std::uint64_t> Seek(
-        std::int64_t offset,
-        SeekOrigin origin) noexcept;
+    virtual Result<std::uint64_t> Seek(std::int64_t offset, SeekOrigin origin) noexcept;
 
 protected:
     Stream() noexcept;

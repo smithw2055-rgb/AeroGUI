@@ -112,9 +112,7 @@ Base::Result<void> TokenizeParagraph(
         segment.start = segmentStart;
         segment.length = offset - segmentStart;
         segment.kind = kind;
-        Base::Result<void> appended =
-            segments.PushBack(segment);
-        if (!appended) return appended.GetStatus();
+        segments.PushBack(segment);
     }
     return {};
 }
@@ -202,7 +200,8 @@ Base::Result<void> TextLayout::AddLine(
             Base::ErrorCode::InvalidArgument,
             "Text line range or metrics are invalid");
     }
-    return lines_.PushBack(line);
+    lines_.PushBack(line);
+    return {};
 }
 
 Base::Result<void> TextLayout::SetSize(
@@ -373,9 +372,7 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
             run.pixelSize = request.pixelSize;
             run.direction = shaped.direction;
             run.script = shaped.script;
-            Base::Result<void> reserved =
-                run.glyphs.Reserve(shaped.glyphs.Size());
-            if (!reserved) return reserved.GetStatus();
+            run.glyphs.Reserve(shaped.glyphs.Size());
             for (const ShapedGlyph& source : shaped.glyphs) {
                 if (source.advanceX < 0.0F) {
                     return Base::Status::Failure(
@@ -400,9 +397,7 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
                 glyph.y =
                     lineY + baseline - source.offsetY;
                 glyph.advanceX = source.advanceX;
-                Base::Result<void> appended =
-                    run.glyphs.PushBack(glyph);
-                if (!appended) return appended.GetStatus();
+                run.glyphs.PushBack(glyph);
                 width += source.advanceX;
             }
             Base::Result<GlyphRun*> appended =
@@ -546,14 +541,10 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
         if (foundPartialRun && keepGlyphCount > 0U) {
             GlyphRun& partial =
                 pending.runs_[line.firstRun + keepRunCount];
-            Base::Result<void> resized =
-                partial.glyphs.Resize(keepGlyphCount);
-            if (!resized) return resized.GetStatus();
+            partial.glyphs.Resize(keepGlyphCount);
             ++targetRunCount;
         }
-        Base::Result<void> runsResized =
-            pending.runs_.Resize(line.firstRun + targetRunCount);
-        if (!runsResized) return runsResized.GetStatus();
+        pending.runs_.Resize(line.firstRun + targetRunCount);
         line.runCount = targetRunCount;
         line.width = keptWidth;
 
@@ -644,10 +635,8 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
                 if (lineEndsWhitespace && !boundaries.Empty()) {
                     const WordBoundary& boundary =
                         boundaries.Back();
-                    Base::Result<void> resized =
-                        pending.runs_.Resize(
+                    pending.runs_.Resize(
                             firstRun + boundary.runCount);
-                    if (!resized) return resized.GetStatus();
                     lineWidth = boundary.width;
                     lineEnd = boundary.textEnd;
                 }
@@ -674,9 +663,7 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
                     pending.runs_.Size() - firstRun;
                 boundary.textEnd = piece.start;
                 boundary.width = lineWidth;
-                Base::Result<void> added =
-                    boundaries.PushBack(boundary);
-                if (!added) return added.GetStatus();
+                boundaries.PushBack(boundary);
             }
 
             for (GlyphRun& run : runs) {
@@ -695,9 +682,7 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
                     pending.runs_.Size() - firstRun;
                 boundary.textEnd = lineEnd;
                 boundary.width = lineWidth;
-                Base::Result<void> added =
-                    boundaries.PushBack(boundary);
-                if (!added) return added.GetStatus();
+                boundaries.PushBack(boundary);
             }
             return {};
         };

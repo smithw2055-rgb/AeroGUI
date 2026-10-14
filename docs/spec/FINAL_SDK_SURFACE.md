@@ -9,7 +9,7 @@ presentation adapters are not SDK products.
 | Product | Header | Purpose |
 | --- | --- | --- |
 | `Aero::Gui` | `<Aero/Gui.hpp>` | backend-neutral WPF/XAML object model, controls, View and runtime |
-| `Aero::Render` | `<AeroRender/Render.hpp>` | backend-neutral renderer, device and target contracts; no separate DLL |
+| `Aero::Render` | `<AeroRender/RenderDevice.hpp>` + `<Aero/IRenderer.hpp>` | backend-neutral renderer, device and target contracts; no separate DLL |
 | `Aero::RenderD3D11` | `<AeroRender/D3D11.hpp>` | opt-in D3D11 device/target factories |
 | `Aero::RenderOpenGL33` | `<AeroRender/OpenGL33.hpp>` | opt-in OpenGL 3.3 device/target factories |
 | `Aero::Meta` | `<Aero/Meta.hpp>` | custom type/member authoring facade over Gui |
@@ -28,8 +28,8 @@ Renderer internals and native window/surface adapters are not exported products.
 Application code uses the familiar WPF spine:
 
 ```cpp
-Aero::Application
-Aero::Window
+Aero::App::Application
+Aero::App::Window
 Aero::DependencyObject
 Aero::UIElement
 Aero::FrameworkElement
@@ -102,7 +102,7 @@ remains source-private. The former native-target wrapper, borrowed-target path
 and `DeviceRenderer` compatibility spelling are removed rather than retained as
 aliases.
 
-Rendering statistics are opt-in through `<Aero/Diagnostics/Rendering.hpp>`;
+Rendering statistics are opt-in through `<Aero/Diagnostics.hpp>`;
 they are not part of the normal RenderDevice authoring surface.
 
 AeroGUI creates no hidden rendering thread or submission queue; the host owns

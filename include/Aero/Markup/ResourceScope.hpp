@@ -15,15 +15,10 @@ class ResourceKey;
 
 namespace Markup {
 
-using AddResourceCallback = Result<void> (*)(
-    Base::Object& scopeOwner,
-    const ResourceKey& key,
-    const Meta::Value& value,
+using AddResourceCallback = Result<void> (*)(Base::Object& scopeOwner, const ResourceKey& key, const Meta::Value& value,
     void* context) noexcept;
 
-using ResolveResourceScopeCallback = ResourceDictionary* (*)(
-    Base::Object& scopeOwner,
-    void* context) noexcept;
+using ResolveResourceScopeCallback = ResourceDictionary* (*)(Base::Object& scopeOwner, void* context) noexcept;
 
 // A module-level XAML capability. Product modules use this descriptor to
 // teach the platform-neutral Gui schema about resource-owning root objects

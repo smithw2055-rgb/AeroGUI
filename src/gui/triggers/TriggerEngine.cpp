@@ -1,8 +1,259 @@
 #include "gui/triggers/TriggerEngine.hpp"
-#include "gui/triggers/TriggerDiagnostics.hpp"
-#include "gui/triggers/TriggerValueCompare.hpp"
+#include "gui/triggers/TriggerPlan.hpp"
+#include "gui/styles/StyleEngine.hpp"
+#include "gui/controls/ItemsContainers.hpp"
+#include "gui/core/ValueConversion.hpp"
+#include "gui/core/DependencyObjectAccess.hpp"
+#include "gui/markup/MarkupExtensionContract.hpp"
+#include <Aero/FrameworkElement.hpp>
+#include <Aero/TryCast.hpp>
+#include <Aero/Meta.hpp>
+#include <cstdlib>
+#include <cstring>
 
 namespace Aero {
+
+namespace {
+
+bool TryExtractNumeric(const Meta::PropertyValue& value, long double& output) noexcept {
+    switch (value.Kind()) {
+    case Meta::ValueKind::SignedInteger:
+        output = static_cast<long double>(value.AsSignedInteger());
+        return true;
+    case Meta::ValueKind::UnsignedInteger:
+        output = static_cast<long double>(value.AsUnsignedInteger());
+        return true;
+    case Meta::ValueKind::Double:
+        output = static_cast<long double>(value.AsDouble());
+        return true;
+    case Meta::ValueKind::String: {
+        Base::StringView str = value.AsString();
+        if (str.Empty()) return false;
+        char buf[64];
+        if (str.SizeBytes() >= sizeof(buf)) return false;
+        std::memcpy(buf, str.Data(), str.SizeBytes());
+        buf[str.SizeBytes()] = '\0';
+        char* endPtr = nullptr;
+        output = std::strtold(buf, &endPtr);
+        if (endPtr != buf && *endPtr == '\0') {
+            return true;
+        }
+        return false;
+    }
+    default:
+        return false;
+    }
+}
+
+} // namespace
+
+Base::Result<bool> ComparePropertyValues(
+    const Meta::PropertyValue& actual,
+    Meta::PropertyValue expected,
+    const Meta::Registry* metadata,
+    PropertyComparisonOperator op) noexcept {
+    if (actual.Kind() == Meta::ValueKind::Object &&
+        !actual.IsNullObject() && actual.AsObject() &&
+        actual.AsObject()->RuntimeType() ==
+            ::Aero::Controls::BoxedItemValue::StaticTypeId()) {
+        return ComparePropertyValues(
+            static_cast<const ::Aero::Controls::BoxedItemValue&>(
+                *actual.AsObject()).Value(),
+            std::move(expected),
+            metadata,
+            op);
+    }
+    const Meta::TypeId nullableBoolType = Meta::TypeOf<::Aero::Nullable<bool>>();
+    if (expected.IsNullObject() || expected.IsUnset()) {
+        bool eq = actual.IsNullObject() || actual.IsUnset();
+        if (!eq && actual.Type() == nullableBoolType) {
+            auto decoded = Meta::ValueCodec<::Aero::Nullable<bool>>::Decode(actual);
+            eq = decoded && !decoded.Value().GetHasValue();
+        }
+        if (op == PropertyComparisonOperator::Equal) return eq;
+        if (op == PropertyComparisonOperator::NotEqual) return !eq;
+        return false;
+    }
+
+    Meta::PropertyValue leftValue = actual;
+    Meta::PropertyValue rightValue = std::move(expected);
+
+    if (leftValue.Type() == nullableBoolType || rightValue.Type() == nullableBoolType) {
+        auto decodeNullable = [](const Meta::PropertyValue& v) -> ::Aero::Nullable<bool> {
+            if (v.Type() == Meta::TypeOf<::Aero::Nullable<bool>>()) {
+                auto r = Meta::ValueCodec<::Aero::Nullable<bool>>::Decode(v);
+                if (r) return r.Value();
+            }
+            if (v.Kind() == Meta::ValueKind::Boolean) {
+                return ::Aero::Nullable<bool>{v.AsBoolean()};
+            }
+            if (v.Kind() == Meta::ValueKind::String) {
+                const Base::StringView s = v.AsString();
+                switch (s.SizeBytes()) {
+                case 4:
+                    if (Base::ValueConversion::EqualsAsciiInsensitive(s, "True")) return ::Aero::Nullable<bool>{true};
+                    if (Base::ValueConversion::EqualsAsciiInsensitive(s, "Null")) return ::Aero::Nullable<bool>{};
+                    break;
+                case 5:
+                    if (Base::ValueConversion::EqualsAsciiInsensitive(s, "False")) return ::Aero::Nullable<bool>{false};
+                    break;
+                case 8:
+                    if (Base::ValueConversion::EqualsAsciiInsensitive(s, "{x:Null}")) return ::Aero::Nullable<bool>{};
+                    break;
+                default:
+                    break;
+                }
+            }
+            return ::Aero::Nullable<bool>{};
+        };
+        const auto leftNull = decodeNullable(leftValue);
+        const auto rightNull = decodeNullable(rightValue);
+        const bool eq = (leftNull == rightNull);
+        if (op == PropertyComparisonOperator::Equal) return eq;
+        if (op == PropertyComparisonOperator::NotEqual) return !eq;
+        return false;
+    }
+
+    if (rightValue.Kind() == Meta::ValueKind::String &&
+        leftValue.Kind() != Meta::ValueKind::String) {
+        if (metadata != nullptr) {
+            Base::Result<Meta::PropertyValue> converted =
+                metadata->TryConvertText(leftValue.Type(), rightValue.AsString());
+            if (converted) {
+                rightValue = std::move(converted).Value();
+            }
+        }
+    } else if (leftValue.Kind() == Meta::ValueKind::String &&
+               rightValue.Kind() != Meta::ValueKind::String) {
+        if (metadata != nullptr) {
+            Base::Result<Meta::PropertyValue> converted =
+                metadata->TryConvertText(rightValue.Type(), leftValue.AsString());
+            if (converted) {
+                leftValue = std::move(converted).Value();
+            }
+        }
+    }
+
+    if (leftValue == rightValue) {
+        if (op == PropertyComparisonOperator::Equal) return true;
+        if (op == PropertyComparisonOperator::NotEqual) return false;
+    }
+
+    if (leftValue.Kind() == Meta::ValueKind::String &&
+        rightValue.Kind() == Meta::ValueKind::String) {
+        const int order = leftValue.AsString().Compare(rightValue.AsString());
+        switch (op) {
+        case PropertyComparisonOperator::Equal:
+            return order == 0;
+        case PropertyComparisonOperator::NotEqual:
+            return order != 0;
+        case PropertyComparisonOperator::LessThan:
+            return order < 0;
+        case PropertyComparisonOperator::LessThanOrEqual:
+            return order <= 0;
+        case PropertyComparisonOperator::GreaterThan:
+            return order > 0;
+        case PropertyComparisonOperator::GreaterThanOrEqual:
+            return order >= 0;
+        default:
+            return false;
+        }
+    }
+
+    long double leftNumber = 0.0L;
+    long double rightNumber = 0.0L;
+    if (TryExtractNumeric(leftValue, leftNumber) &&
+        TryExtractNumeric(rightValue, rightNumber)) {
+        switch (op) {
+        case PropertyComparisonOperator::Equal:
+            return leftNumber == rightNumber;
+        case PropertyComparisonOperator::NotEqual:
+            return leftNumber != rightNumber;
+        case PropertyComparisonOperator::LessThan:
+            return leftNumber < rightNumber;
+        case PropertyComparisonOperator::LessThanOrEqual:
+            return leftNumber <= rightNumber;
+        case PropertyComparisonOperator::GreaterThan:
+            return leftNumber > rightNumber;
+        case PropertyComparisonOperator::GreaterThanOrEqual:
+            return leftNumber >= rightNumber;
+        default:
+            return false;
+        }
+    }
+
+    if (op == PropertyComparisonOperator::Equal) return false;
+    if (op == PropertyComparisonOperator::NotEqual) return true;
+
+    return false;
+}
+
+Base::Result<bool> ComparePropertyValues(
+    const Meta::PropertyValue& actual,
+    Meta::PropertyValue expected,
+    const Meta::Registry* metadata,
+    Base::StringView comparison) noexcept {
+    PropertyComparisonOperator op = PropertyComparisonOperator::Equal;
+    if (!comparison.Empty()) {
+        switch (comparison.SizeBytes()) {
+        case 5:
+            if (Base::ValueConversion::EqualsAsciiInsensitive(comparison, "Equal")) {
+                op = PropertyComparisonOperator::Equal;
+            } else {
+                return false;
+            }
+            break;
+        case 8: {
+            const char c = comparison[0];
+            if ((c == 'N' || c == 'n') &&
+                Base::ValueConversion::EqualsAsciiInsensitive(comparison, "NotEqual")) {
+                op = PropertyComparisonOperator::NotEqual;
+            } else if ((c == 'L' || c == 'l') &&
+                       Base::ValueConversion::EqualsAsciiInsensitive(comparison, "LessThan")) {
+                op = PropertyComparisonOperator::LessThan;
+            } else {
+                return false;
+            }
+            break;
+        }
+        case 11:
+            if (Base::ValueConversion::EqualsAsciiInsensitive(comparison, "GreaterThan")) {
+                op = PropertyComparisonOperator::GreaterThan;
+            } else {
+                return false;
+            }
+            break;
+        case 15:
+            if (Base::ValueConversion::EqualsAsciiInsensitive(comparison, "LessThanOrEqual")) {
+                op = PropertyComparisonOperator::LessThanOrEqual;
+            } else {
+                return false;
+            }
+            break;
+        case 18:
+            if (Base::ValueConversion::EqualsAsciiInsensitive(comparison, "GreaterThanOrEqual")) {
+                op = PropertyComparisonOperator::GreaterThanOrEqual;
+            } else {
+                return false;
+            }
+            break;
+        default:
+            return false;
+        }
+    }
+    return ComparePropertyValues(actual, std::move(expected), metadata, op);
+}
+
+Base::Result<bool> TriggerPlan::IsConditionMet(
+    const DependencyObject& object) const noexcept {
+    Base::Result<PropertyValue> current = object.GetValue(property);
+    if (!current) return current.GetStatus();
+    Base::Result<bool> matched = ComparePropertyValues(current.Value(), value, nullptr);
+    if (!matched) {
+        return current.Value() == value;
+    }
+    return matched.Value();
+}
 
 TriggerEngine::TriggerEngine(
     StyleProviderSession& values,
@@ -14,62 +265,73 @@ TriggerEngine::TriggerEngine(
       propertyChangedHandler_(this, &TriggerEngine::OnPropertyChanged) {}
 
 TriggerEngine::~TriggerEngine() noexcept {
-    if (dispatcher_ != nullptr &&
-        triggerPhaseHook_.IsValid() &&
-        dispatcher_->CheckAccess()) {
-        static_cast<void>(
-            dispatcher_->RemoveFrameHook(
-                triggerPhaseHook_));
-    }
+    // P3.2: no frame-hook registration; nothing to unregister.
 }
 
 Base::Result<void> TriggerEngine::SubscribeTriggers(
     DependencyObject& object, const Style& style) noexcept {
+    if (StyleRuntimeTriggerMask(style) == 0ULL) {
+        return {};
+    }
+    const Base::Span<const TriggerPlan> triggers =
+        StyleRuntimeTriggers(style);
+    std::uint64_t subscribedMask = 0ULL;
     for (std::uint32_t index = 0U;
-         index < StylePrivate::RuntimeTriggers(style).Size();
+         index < triggers.Size();
          ++index) {
         const TriggerPlan& trigger =
-            StylePrivate::RuntimeTriggers(style)[index];
+            triggers[index];
         if (trigger.IsBindingTrigger()) continue;
         const DependencyPropertyHandle property = trigger.property;
-        bool first = true;
-        for (std::uint32_t previous = 0U;
-             previous < index;
-             ++previous) {
-            first = first &&
-                (StylePrivate::RuntimeTriggers(style)[previous].IsBindingTrigger() ||
-                 StylePrivate::RuntimeTriggers(style)[previous].property != property);
+        const std::uint64_t propMask = PropertyTriggerMask(property);
+        if ((subscribedMask & propMask) == propMask) {
+            bool first = true;
+            for (std::uint32_t previous = 0U;
+                 previous < index;
+                 ++previous) {
+                first = first &&
+                    (triggers[previous].IsBindingTrigger() ||
+                     triggers[previous].property != property);
+            }
+            if (!first) continue;
         }
-        if (!first) continue;
-        Base::Result<void> subscribed =
-            object.AddValueChangedHandlerChecked(
-                property, propertyChangedHandler_);
-        if (!subscribed) return subscribed.GetStatus();
+        subscribedMask |= propMask;
+        object.AddValueChangedHandler(
+            property, propertyChangedHandler_);
     }
     return {};
 }
 
 void TriggerEngine::UnsubscribeTriggers(
     DependencyObject& object, const Style& style) noexcept {
+    if (StyleRuntimeTriggerMask(style) == 0ULL) {
+        return;
+    }
+    const Base::Span<const TriggerPlan> triggers =
+        StyleRuntimeTriggers(style);
+    std::uint64_t unsubscribedMask = 0ULL;
     for (std::uint32_t index = 0U;
-         index < StylePrivate::RuntimeTriggers(style).Size();
+         index < triggers.Size();
          ++index) {
         const TriggerPlan& trigger =
-            StylePrivate::RuntimeTriggers(style)[index];
+            triggers[index];
         if (trigger.IsBindingTrigger()) continue;
         const DependencyPropertyHandle property = trigger.property;
-        bool first = true;
-        for (std::uint32_t previous = 0U;
-             previous < index;
-             ++previous) {
-            first = first &&
-                (StylePrivate::RuntimeTriggers(style)[previous].IsBindingTrigger() ||
-                 StylePrivate::RuntimeTriggers(style)[previous].property != property);
+        const std::uint64_t propMask = PropertyTriggerMask(property);
+        if ((unsubscribedMask & propMask) == propMask) {
+            bool first = true;
+            for (std::uint32_t previous = 0U;
+                 previous < index;
+                 ++previous) {
+                first = first &&
+                    (triggers[previous].IsBindingTrigger() ||
+                     triggers[previous].property != property);
+            }
+            if (!first) continue;
         }
-        if (first) {
-            (void)object.RemoveValueChangedHandler(
-                property, propertyChangedHandler_);
-        }
+        unsubscribedMask |= propMask;
+        (void)object.RemoveValueChangedHandler(
+            property, propertyChangedHandler_);
     }
 }
 
@@ -88,7 +350,7 @@ Base::Result<void> TriggerEngine::EvaluateTriggers(
         ClearTriggerSetters(object, style);
     if (!cleared) return cleared.GetStatus();
     const Base::Span<const TriggerPlan> triggers =
-        StylePrivate::RuntimeTriggers(style);
+        StyleRuntimeTriggers(style);
     for (std::uint32_t index = 0U;
          index < triggers.Size(); ++index) {
         const TriggerPlan& trigger =
@@ -99,20 +361,40 @@ Base::Result<void> TriggerEngine::EvaluateTriggers(
                 application.bindingTriggerStates[index] != 0U;
         } else {
             Base::Result<bool> met =
-                IsTriggerConditionMet(object, trigger);
+                trigger.IsConditionMet(object);
             if (!met) return met.GetStatus();
             active = met.Value();
         }
         if (active) {
             for (const StyleTriggerSetter& setter :
                  trigger.setters) {
-                if (IsDeferredBindingSetterValue(setter.value)) {
+                Base::StringView dynamicKey;
+                PropertyValue setterValue = setter.value;
+                if (IsDynamicResourceSetterValue(setter.value, dynamicKey)) {
+                    FrameworkElement* element = ::Aero::TryCast<FrameworkElement>(&object);
+                    ResourceValue lookedUp{};
+                    if (element != nullptr) {
+                        Base::Result<ResourceValue> res = element->FindResource(dynamicKey);
+                        if (res) lookedUp = res.Value();
+                    }
+                    if (!lookedUp.IsUnset()) {
+                        const DependencyProperty* prop =
+                            DependencyObjectAccess::PropertyRegistry(object).Find(setter.property);
+                        if (prop != nullptr) {
+                            Base::Result<PropertyValue> converted =
+                                Markup::ConvertDynamicResourceValue(lookedUp, *prop);
+                            if (converted) {
+                                setterValue = std::move(converted).Value();
+                            }
+                        }
+                    }
+                } else if (IsDeferredBindingSetterValue(setter.value)) {
                     continue;
                 }
                 Base::Result<void> applied =
                     values_.SetTriggerValue(
                         object, setter.property,
-                        setter.value);
+                        setterValue);
                 if (!applied) {
                     return applied.GetStatus();
                 }
@@ -132,7 +414,7 @@ Base::Result<void> TriggerEngine::EvaluateTriggers(
                 application.bindingTriggerStates[index] != 0U;
         } else {
             Base::Result<bool> met =
-                IsTriggerConditionMet(object, trigger);
+                trigger.IsConditionMet(object);
             if (!met) return met.GetStatus();
             active = met.Value();
         }
@@ -170,7 +452,8 @@ Base::Result<void> TriggerEngine::ExecuteTriggerActions(
 Base::Result<void> TriggerEngine::ClearTriggerSetters(
     DependencyObject& object, const Style& style) noexcept {
     const Base::Span<const TriggerPlan> triggers =
-        StylePrivate::RuntimeTriggers(style);
+        StyleRuntimeTriggers(style);
+    std::uint64_t clearedMask = 0ULL;
     for (std::uint32_t triggerIndex = 0U;
          triggerIndex < triggers.Size();
          ++triggerIndex) {
@@ -179,30 +462,36 @@ Base::Result<void> TriggerEngine::ClearTriggerSetters(
         for (std::uint32_t setterIndex = 0U;
              setterIndex < trigger.setters.Size();
              ++setterIndex) {
+            Base::StringView dynamicKey;
             if (IsDeferredBindingSetterValue(
-                    trigger.setters[setterIndex].value)) {
+                    trigger.setters[setterIndex].value) &&
+                !IsDynamicResourceSetterValue(trigger.setters[setterIndex].value, dynamicKey)) {
                 continue;
             }
             const DependencyPropertyHandle property =
                 trigger.setters[setterIndex].property;
-            bool first = true;
-            for (std::uint32_t earlierTrigger = 0U;
-                 earlierTrigger <= triggerIndex;
-                 ++earlierTrigger) {
-                const TriggerPlan& earlier =
-                    triggers[earlierTrigger];
-                const std::uint32_t limit =
-                    earlierTrigger == triggerIndex
-                        ? setterIndex : earlier.setters.Size();
-                for (std::uint32_t earlierSetter = 0U;
-                     earlierSetter < limit;
-                     ++earlierSetter) {
-                    first = first &&
-                        earlier.setters[earlierSetter].property !=
-                            property;
+            const std::uint64_t propMask = PropertyTriggerMask(property);
+            if ((clearedMask & propMask) == propMask) {
+                bool first = true;
+                for (std::uint32_t earlierTrigger = 0U;
+                     earlierTrigger <= triggerIndex;
+                     ++earlierTrigger) {
+                    const TriggerPlan& earlier =
+                        triggers[earlierTrigger];
+                    const std::uint32_t limit =
+                        earlierTrigger == triggerIndex
+                            ? setterIndex : earlier.setters.Size();
+                    for (std::uint32_t earlierSetter = 0U;
+                         earlierSetter < limit;
+                         ++earlierSetter) {
+                        first = first &&
+                            earlier.setters[earlierSetter].property !=
+                                property;
+                    }
                 }
+                if (!first) continue;
             }
-            if (!first) continue;
+            clearedMask |= propMask;
             Base::Result<void> cleared =
                 values_.ClearTriggerValue(object, property);
             if (!cleared) return cleared.GetStatus();
@@ -216,8 +505,13 @@ void TriggerEngine::OnPropertyChanged(
     const DependencyPropertyChangedEventArgs& args) noexcept {
     const std::uint32_t index = FindApplication(object);
     if (index == UINT32_MAX) return;
-    const Style& style = *applications_[index].style;
-    for (const TriggerPlan& trigger : StylePrivate::RuntimeTriggers(style)) {
+    const StyleApplication& application = applications_[index];
+    const std::uint64_t propMask = PropertyTriggerMask(args.GetProperty());
+    if ((application.triggerPropertyMask & propMask) != propMask) {
+        return;
+    }
+    const Style& style = *application.style;
+    for (const TriggerPlan& trigger : StyleRuntimeTriggers(style)) {
         if (!trigger.IsBindingTrigger() &&
             trigger.property == args.GetProperty()) {
             if (values_.IsFlushing()) {
@@ -240,10 +534,10 @@ void TriggerEngine::OnPropertyChanged(
     }
 }
 
-Base::Result<void> TriggerEngine::EnsureTriggerPhaseHook(
+Base::Result<void> TriggerEngine::EnableDataBindPhase(
     DependencyObject& object) noexcept {
     Dispatcher& dispatcher = object.GetDispatcher();
-    if (triggerPhaseHook_.IsValid()) {
+    if (dataBindPhaseEnabled_) {
         return dispatcher_ == &dispatcher
             ? Base::Result<void>()
             : Base::Result<void>(
@@ -251,15 +545,9 @@ Base::Result<void> TriggerEngine::EnsureTriggerPhaseHook(
                     Base::ErrorCode::InvalidArgument,
                     "StyleEngine objects must share one Dispatcher"));
     }
-    Base::Result<DispatcherFrameHookHandle> hook =
-        dispatcher.RegisterFrameHook(
-            DispatcherFramePhase::DataBind,
-            &TriggerEngine::TriggerPhaseHook,
-            this,
-            nullptr);
-    if (!hook) return hook.GetStatus();
+    // P3.2: no hook registration; ViewFrame drives TriggerPhaseHook().
     dispatcher_ = &dispatcher;
-    triggerPhaseHook_ = hook.Value();
+    dataBindPhaseEnabled_ = true;
     return {};
 }
 
@@ -269,8 +557,9 @@ Base::Result<void> TriggerEngine::QueueTriggerEvaluation(
          pendingTriggerEvaluations_) {
         if (pending == &object) return {};
     }
-    return pendingTriggerEvaluations_.PushBack(
+    pendingTriggerEvaluations_.PushBack(
         &object);
+    return {};
 }
 
 void TriggerEngine::RemovePendingTriggerEvaluation(
@@ -335,8 +624,8 @@ Base::Result<void> TriggerEngine::SetBindingTriggerState(
     const std::uint32_t applicationIndex = FindApplication(object);
     if (applicationIndex == UINT32_MAX ||
         applications_[applicationIndex].style != &style ||
-        triggerIndex >= StylePrivate::RuntimeTriggers(style).Size() ||
-        !StylePrivate::RuntimeTriggers(style)[triggerIndex].IsBindingTrigger()) {
+        triggerIndex >= StyleRuntimeTriggers(style).Size() ||
+        !StyleRuntimeTriggers(style)[triggerIndex].IsBindingTrigger()) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
             "Style DataTrigger application was not found");

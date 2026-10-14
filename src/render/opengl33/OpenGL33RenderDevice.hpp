@@ -10,6 +10,7 @@
 #include <AeroRender/OpenGL33.hpp>
 
 #include "OpenGL33.hpp"
+#include "render/common/StateCache.hpp"
 
 namespace Aero::Render {
 
@@ -129,6 +130,8 @@ protected:
     }
 
 private:
+    void SetVertexFormat(uint8_t format, uintptr_t offset) noexcept;
+
     OpenGL33::DeviceOptions options_;
     Base::IAllocator* allocator_ = nullptr;
 
@@ -138,15 +141,21 @@ private:
 
     uint8_t mappedVBMemory_[DYNAMIC_VB_SIZE]{};
     uint8_t mappedIBMemory_[DYNAMIC_IB_SIZE]{};
+    uint32_t activeVBBytes_ = 0U;
+    uint32_t activeIBBytes_ = 0U;
 
     // Program handles: [Shader::Path_Solid, Shader::Path_AA_Solid] -> solid,
     // [Shader::Path_Pattern] -> pattern, [Shader::SDF_Solid] -> sdf.
+    unsigned int programs_[Shader::Count] = {};
     unsigned int solidProgram_ = 0;
     unsigned int patternProgram_ = 0;
     unsigned int sdfProgram_ = 0;
     unsigned int blurProgram_ = 0;
     unsigned int shadowProgram_ = 0;
     unsigned int maskProgram_ = 0;
+    unsigned int customEffectProgram_ = 0;
+    unsigned int linearProgram_ = 0;
+    unsigned int radialProgram_ = 0;
     unsigned int currentProgram_ = 0;
 
     // Sampler objects indexed by SamplerState.v (same encoding as D3D11).
@@ -155,8 +164,18 @@ private:
     uint32_t viewportWidth_ = 0U;
     uint32_t viewportHeight_ = 0U;
 
+    // True while the current target is an offscreen (FBO) texture rather
+    // than the window framebuffer. GL framebuffer row 0 is the bottom row,
+    // so content rendered with the standard top-left transform would be
+    // stored upside down relative to the top-left UV convention used when
+    // compositing the layer (D3D render-target row 0 is the top row, which
+    // is why only the GL backend needs this). While set, the vertex shader
+    // negates NDC Y so texture V=0 holds the top row of offscreen content.
+    bool renderingOffscreen_ = false;
+
     DeviceCaps caps_{};
     OpenGL33RenderTarget* currentTarget_ = nullptr;
+    StateCache stateCache_{};
 };
 
 } // namespace Aero::Render

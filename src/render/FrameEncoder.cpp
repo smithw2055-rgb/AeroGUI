@@ -2,19 +2,30 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <limits>
 
 namespace Aero::Render {
 
 namespace {
 
-struct Vertex2D {
-    float x = 0.0f;
-    float y = 0.0f;
-    uint32_t color = 0xFFFFFFFF;
-    float u = 0.0f;
-    float v = 0.0f;
-    float coverage = 1.0f;
-};
+
+
+#if defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+#endif
+inline void AssignColorEnable(RenderState& state, unsigned value) noexcept {
+    state.f.colorEnable = static_cast<uint8_t>(value & 1U);
+}
+inline void AssignBlendMode(RenderState& state, unsigned value) noexcept {
+    state.f.blendMode = static_cast<uint8_t>(value & 7U);
+}
+inline void AssignStencilMode(RenderState& state, unsigned value) noexcept {
+    state.f.stencilMode = static_cast<uint8_t>(value & 7U);
+}
+#if defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
 
 inline uint32_t ColorToRGBA32(Color color, double opacity) noexcept {
     const float alpha = static_cast<float>(std::clamp(static_cast<double>(color.alpha) * opacity, 0.0, 1.0));
@@ -26,40 +37,51 @@ inline uint32_t ColorToRGBA32(Color color, double opacity) noexcept {
            (static_cast<uint32_t>(b) << 16) | (static_cast<uint32_t>(a) << 24);
 }
 
-inline Point TransformPoint(const Transform2D& t, double x, double y) noexcept {
-    return Point{
-        x * t.m11 + y * t.m21 + t.dx,
-        x * t.m12 + y * t.m22 + t.dy
-    };
+inline Point TransformPoint(const ProjectiveTransform2D& t, double x, double y) noexcept {
+    Point output{};
+    if (!Base::TryTransformPoint(t, Point{x, y}, output)) {
+        output.x = std::numeric_limits<double>::quiet_NaN();
+        output.y = output.x;
+    }
+    return output;
 }
 
-Transform2D CombineTransform(const Transform2D& a, const Transform2D& b) noexcept {
-    Transform2D result;
-    result.m11 = a.m11 * b.m11 + a.m12 * b.m21;
-    result.m12 = a.m11 * b.m12 + a.m12 * b.m22;
-    result.m21 = a.m21 * b.m11 + a.m22 * b.m21;
-    result.m22 = a.m21 * b.m12 + a.m22 * b.m22;
-    result.dx = a.dx * b.m11 + a.dy * b.m21 + b.dx;
-    result.dy = a.dx * b.m12 + a.dy * b.m22 + b.dy;
-    return result;
+ProjectiveTransform2D CombineTransform(
+    const ProjectiveTransform2D& a,
+    const ProjectiveTransform2D& b) noexcept {
+    return Base::Compose(a, b);
 }
 
-Transform2D MakeTranslate(double x, double y) noexcept {
-    Transform2D result;
-    result.dx = x;
-    result.dy = y;
-    return result;
+ProjectiveTransform2D MakeTranslate(double x, double y) noexcept {
+    return Base::ToProjective(
+        Base::Transform2D{1.0, 0.0, 0.0, 1.0, x, y});
 }
 
-constexpr double kRoundedCornerSegments = 10.0;
-constexpr std::uint32_t kRoundedRectContourPoints = 40U;
+constexpr std::uint32_t kMaxRoundedRectContourPoints = 256U;
+
+std::uint32_t CalculateRoundedCornerSegments(
+    const ProjectiveTransform2D& currentTransform,
+    double x, double y, double radius) noexcept {
+    if (radius <= 0.0) return 1U;
+    const Point p0 = TransformPoint(currentTransform, x, y);
+    const Point p1 = TransformPoint(currentTransform, x + radius, y);
+    const Point p2 = TransformPoint(currentTransform, x, y + radius);
+    const double screenRadius = std::max(
+        std::hypot(p1.x - p0.x, p1.y - p0.y),
+        std::hypot(p2.x - p0.x, p2.y - p0.y));
+    const double arcLength = screenRadius * 3.14159265358979323846 * 0.5;
+    return std::clamp(
+        static_cast<std::uint32_t>(std::ceil(arcLength / 4.0)),
+        10U, 64U);
+}
 
 // Builds a closed convex contour approximating a rounded rectangle. The
-// corners are sampled as `kRoundedCornerSegments` arcs each; a radius of zero
+// corners are sampled as `cornerSegments` arcs each; a radius of zero
 // yields four repeated corner points, so the same path also covers plain
 // rectangles (degenerate fan/ring quads collapse harmlessly).
 void BuildRoundedRectContour(
     double x, double y, double width, double height, double radius,
+    std::uint32_t cornerSegments,
     Point* out) noexcept {
     const double pi = 3.14159265358979323846;
     const double centers[4][2] = {
@@ -71,10 +93,11 @@ void BuildRoundedRectContour(
     const double start[4] = {pi, pi * 1.5, 0.0, pi * 0.5};
 
     std::uint32_t index = 0U;
+    const double segCount = static_cast<double>(cornerSegments);
     for (int corner = 0; corner < 4; ++corner) {
-        for (std::uint32_t i = 0U; i < kRoundedCornerSegments; ++i) {
+        for (std::uint32_t i = 0U; i < cornerSegments; ++i) {
             const double angle = start[corner] +
-                pi * 0.5 * (static_cast<double>(i) / kRoundedCornerSegments);
+                pi * 0.5 * (static_cast<double>(i) / segCount);
             out[index].x = centers[corner][0] + radius * std::cos(angle);
             out[index].y = centers[corner][1] + radius * std::sin(angle);
             ++index;
@@ -99,12 +122,19 @@ Base::Result<void> UiFrameEncoder::Initialize() noexcept {
 }
 
 void UiFrameEncoder::Shutdown() noexcept {
+    lastImageId_ = InvalidRenderImageId;
+    lastImage_ = nullptr;
+    lastGlyphRunId_ = InvalidRenderGlyphRunId;
+    lastGlyphRun_ = nullptr;
+    lastMeshId_ = InvalidRenderMeshId;
+    lastMesh_ = nullptr;
     images_.Clear();
     atlases_.Clear();
     gradients_.Clear();
     glyphRuns_.Clear();
     meshes_.Clear();
     offscreenTargets_.Clear();
+    queuedBatches_.Clear();
     initialized_ = false;
 }
 
@@ -117,10 +147,15 @@ Base::Result<void> UiFrameEncoder::RegisterImage(
             return {};
         }
     }
-    return images_.PushBack(ImageEntry{imageId, std::move(texture)});
+    images_.PushBack(ImageEntry{imageId, std::move(texture)});
+    return {};
 }
 
 void UiFrameEncoder::UnregisterImage(RenderImageId imageId) noexcept {
+    if (lastImageId_ == imageId) {
+        lastImageId_ = InvalidRenderImageId;
+        lastImage_ = nullptr;
+    }
     for (std::uint32_t i = 0; i < images_.Size(); ++i) {
         if (images_[i].id == imageId) {
             if (i != images_.Size() - 1) {
@@ -141,7 +176,8 @@ Base::Result<void> UiFrameEncoder::RegisterGlyphAtlas(
             return {};
         }
     }
-    return atlases_.PushBack(AtlasEntry{page, std::move(texture)});
+    atlases_.PushBack(AtlasEntry{page, std::move(texture)});
+    return {};
 }
 
 Base::Result<void> UiFrameEncoder::RegisterGlyphRun(
@@ -150,17 +186,22 @@ Base::Result<void> UiFrameEncoder::RegisterGlyphRun(
     for (auto& entry : glyphRuns_) {
         if (entry.glyphRun == glyphRun) {
             entry.quads.Clear();
-            return entry.quads.Append(quads);
+            entry.quads.Append(quads);
+            return {};
         }
     }
     GlyphRunEntry entry;
     entry.glyphRun = glyphRun;
-    Base::Result<void> copied = entry.quads.Append(quads);
-    if (!copied) return copied.GetStatus();
-    return glyphRuns_.PushBack(std::move(entry));
+    entry.quads.Append(quads);
+    glyphRuns_.PushBack(std::move(entry));
+    return {};
 }
 
 void UiFrameEncoder::UnregisterGlyphRun(RenderGlyphRunId glyphRun) noexcept {
+    if (lastGlyphRunId_ == glyphRun) {
+        lastGlyphRunId_ = InvalidRenderGlyphRunId;
+        lastGlyphRun_ = nullptr;
+    }
     for (std::uint32_t i = 0U; i < glyphRuns_.Size(); ++i) {
         if (glyphRuns_[i].glyphRun == glyphRun) {
             if (i != glyphRuns_.Size() - 1U) {
@@ -180,21 +221,24 @@ Base::Result<void> UiFrameEncoder::RegisterMesh(
         if (entry.mesh == mesh) {
             entry.vertices.Clear();
             entry.indices.Clear();
-            Base::Result<void> v = entry.vertices.Append(vertices);
-            if (!v) return v.GetStatus();
-            return entry.indices.Append(indices);
+            entry.vertices.Append(vertices);
+            entry.indices.Append(indices);
+            return {};
         }
     }
     MeshEntry entry;
     entry.mesh = mesh;
-    Base::Result<void> v = entry.vertices.Append(vertices);
-    if (!v) return v.GetStatus();
-    Base::Result<void> i = entry.indices.Append(indices);
-    if (!i) return i.GetStatus();
-    return meshes_.PushBack(std::move(entry));
+    entry.vertices.Append(vertices);
+    entry.indices.Append(indices);
+    meshes_.PushBack(std::move(entry));
+    return {};
 }
 
 void UiFrameEncoder::UnregisterMesh(RenderMeshId mesh) noexcept {
+    if (lastMeshId_ == mesh) {
+        lastMeshId_ = InvalidRenderMeshId;
+        lastMesh_ = nullptr;
+    }
     for (std::uint32_t i = 0U; i < meshes_.Size(); ++i) {
         if (meshes_[i].mesh == mesh) {
             if (i != meshes_.Size() - 1U) {
@@ -207,8 +251,14 @@ void UiFrameEncoder::UnregisterMesh(RenderMeshId mesh) noexcept {
 }
 
 Texture* UiFrameEncoder::FindImage(RenderImageId id) const noexcept {
+    if (id == InvalidRenderImageId) return nullptr;
+    if (id == lastImageId_) return lastImage_;
     for (const auto& entry : images_) {
-        if (entry.id == id) return entry.texture.Get();
+        if (entry.id == id) {
+            lastImageId_ = id;
+            lastImage_ = entry.texture.Get();
+            return lastImage_;
+        }
     }
     return nullptr;
 }
@@ -222,16 +272,28 @@ Texture* UiFrameEncoder::FindAtlas(std::uint32_t page) const noexcept {
 
 const Base::Vector<RenderGlyphQuad>* UiFrameEncoder::FindGlyphRun(
     RenderGlyphRunId glyphRun) const noexcept {
+    if (glyphRun == InvalidRenderGlyphRunId) return nullptr;
+    if (glyphRun == lastGlyphRunId_) return lastGlyphRun_;
     for (const auto& entry : glyphRuns_) {
-        if (entry.glyphRun == glyphRun) return &entry.quads;
+        if (entry.glyphRun == glyphRun) {
+            lastGlyphRunId_ = glyphRun;
+            lastGlyphRun_ = &entry.quads;
+            return lastGlyphRun_;
+        }
     }
     return nullptr;
 }
 
 const UiFrameEncoder::MeshEntry* UiFrameEncoder::FindMesh(
     RenderMeshId mesh) const noexcept {
+    if (mesh == InvalidRenderMeshId) return nullptr;
+    if (mesh == lastMeshId_) return lastMesh_;
     for (const auto& entry : meshes_) {
-        if (entry.mesh == mesh) return &entry;
+        if (entry.mesh == mesh) {
+            lastMeshId_ = mesh;
+            lastMesh_ = &entry;
+            return lastMesh_;
+        }
     }
     return nullptr;
 }
@@ -258,31 +320,70 @@ Texture* UiFrameEncoder::GetOrCreateGradientRamp(
     return result;
 }
 
+void UiFrameEncoder::BeginOffscreenTargetFrame() noexcept {
+    // Mark the pool free for this encode pass so same-sized ClipToBounds /
+    // opacity layers can reuse FBOs across different nodeIds instead of
+    // growing one target per node forever.
+    for (auto& entry : offscreenTargets_) {
+        entry.inUse = false;
+    }
+}
+
 RenderTarget* UiFrameEncoder::GetOrCreateOffscreenTarget(
     RenderNodeId nodeId, std::uint32_t width, std::uint32_t height,
     bool isMask) noexcept {
     const bool needsStencil = !isMask;
+
+    auto adopt = [&](OffscreenTargetEntry& entry) noexcept -> RenderTarget* {
+        entry.nodeId = nodeId;
+        entry.isMask = isMask;
+        entry.inUse = true;
+        if (!entry.target || entry.width != width || entry.height != height) {
+            entry.target = device_->CreateRenderTarget(
+                "Offscreen", width, height, 1, needsStencil);
+            entry.width = width;
+            entry.height = height;
+        }
+        return entry.target.Get();
+    };
+
+    // 1) Sticky match: same node + mask role (keeps resize churn local).
     for (auto& entry : offscreenTargets_) {
         if (entry.nodeId == nodeId && entry.isMask == isMask) {
-            if (entry.width != width || entry.height != height) {
-                entry.target = device_->CreateRenderTarget(
-                    "Offscreen", width, height, 1, needsStencil);
-                entry.width = width;
-                entry.height = height;
-            }
+            return adopt(entry);
+        }
+    }
+
+    // 2) Reuse any free pool entry with matching size + mask/stencil format.
+    for (auto& entry : offscreenTargets_) {
+        if (!entry.inUse && entry.isMask == isMask &&
+            entry.width == width && entry.height == height && entry.target) {
+            entry.nodeId = nodeId;
+            entry.inUse = true;
             return entry.target.Get();
         }
     }
+
+    // 3) Reuse any free entry (resize) before allocating a new GPU target.
+    for (auto& entry : offscreenTargets_) {
+        if (!entry.inUse && entry.isMask == isMask) {
+            return adopt(entry);
+        }
+    }
+
     Ref<RenderTarget> target = device_->CreateRenderTarget(
         "Offscreen", width, height, 1, needsStencil);
     if (!target) return nullptr;
     RenderTarget* result = target.Get();
     static_cast<void>(offscreenTargets_.PushBack(
-        OffscreenTargetEntry{nodeId, isMask, std::move(target), width, height}));
+        OffscreenTargetEntry{
+            nodeId, isMask, true, std::move(target), width, height}));
     return result;
 }
 
 void UiFrameEncoder::ResetFrame() noexcept {
+    queuedBatches_.Clear();
+    currentBatchVertexStart_ = 0U;
     currentVertexOffset_ = 0U;
     currentVertexCount_ = 0U;
     currentIndexCount_ = 0U;
@@ -292,82 +393,222 @@ void UiFrameEncoder::ResetFrame() noexcept {
     stats_ = FrameStatistics{};
 }
 
+bool UiFrameEncoder::EnsureMappedBuffers() noexcept {
+    if (mappedVertices_ != nullptr && mappedIndices_ != nullptr) {
+        return true;
+    }
+    if (device_ == nullptr) return false;
+    mappedVertices_ = static_cast<uint8_t*>(device_->MapVertices(DYNAMIC_VB_SIZE));
+    mappedIndices_ = static_cast<uint16_t*>(device_->MapIndices(DYNAMIC_IB_SIZE));
+    return mappedVertices_ != nullptr && mappedIndices_ != nullptr;
+}
+
 void UiFrameEncoder::FlushBatch() noexcept {
-    if (currentBatch_.numIndices > 0U && device_ != nullptr) {
-        // Unmap the dynamic buffers before issuing the draw. D3D11 does not
-        // permit drawing while a vertex/index buffer is mapped.
-        if (mappedVertices_ != nullptr) {
-            device_->UnmapVertices();
-            mappedVertices_ = nullptr;
+    if (currentBatch_.numIndices > 0U) {
+        QueuedBatch qb{};
+        qb.batch = currentBatch_;
+        if (currentBatch_.pixelUniforms[0].values != nullptr && currentBatch_.pixelUniforms[0].numDwords > 0U) {
+            const uint32_t count = std::min(currentBatch_.pixelUniforms[0].numDwords, 8U);
+            std::memcpy(qb.pixelUniforms0, currentBatch_.pixelUniforms[0].values, count * sizeof(float));
+            qb.batch.pixelUniforms[0].values = qb.pixelUniforms0;
         }
-        if (mappedIndices_ != nullptr) {
-            device_->UnmapIndices();
-            mappedIndices_ = nullptr;
+        if (currentBatch_.pixelUniforms[1].values != nullptr && currentBatch_.pixelUniforms[1].numDwords > 0U) {
+            const uint32_t count = std::min(currentBatch_.pixelUniforms[1].numDwords, 4U);
+            std::memcpy(qb.pixelUniforms1, currentBatch_.pixelUniforms[1].values, count * sizeof(float));
+            qb.batch.pixelUniforms[1].values = qb.pixelUniforms1;
         }
+        if (currentBatch_.vertexUniforms[0].values != nullptr && currentBatch_.vertexUniforms[0].numDwords > 0U) {
+            const uint32_t count = std::min(currentBatch_.vertexUniforms[0].numDwords, 4U);
+            std::memcpy(qb.vertexUniforms0, currentBatch_.vertexUniforms[0].values, count * sizeof(float));
+            qb.batch.vertexUniforms[0].values = qb.vertexUniforms0;
+        }
+        if (currentBatch_.vertexUniforms[1].values != nullptr && currentBatch_.vertexUniforms[1].numDwords > 0U) {
+            const uint32_t count = std::min(currentBatch_.vertexUniforms[1].numDwords, 4U);
+            std::memcpy(qb.vertexUniforms1, currentBatch_.vertexUniforms[1].values, count * sizeof(float));
+            qb.batch.vertexUniforms[1].values = qb.vertexUniforms1;
+        }
+        static_cast<void>(queuedBatches_.PushBack(std::move(qb)));
 
-        device_->DrawBatch(currentBatch_);
-        ++stats_.drawCallCount;
-        ++stats_.batchCount;
-
-        // Remap with WRITE_DISCARD to get a fresh buffer; recording restarts
-        // from offset zero for the next batch.
-        mappedVertices_ = static_cast<uint8_t*>(device_->MapVertices(DYNAMIC_VB_SIZE));
-        mappedIndices_ = static_cast<uint16_t*>(device_->MapIndices(DYNAMIC_IB_SIZE));
-        currentVertexOffset_ = 0U;
-        currentVertexCount_ = 0U;
-        currentIndexCount_ = 0U;
-        currentBatch_.startIndex = 0U;
-        currentBatch_.vertexOffset = 0U;
+        currentBatch_ = Batch{};
         currentBatch_.numIndices = 0U;
         currentBatch_.numVertices = 0U;
+        currentBatch_.startIndex = currentIndexCount_;
+        currentBatch_.vertexOffset = currentVertexOffset_;
+        currentBatchVertexStart_ = currentVertexCount_;
     }
+}
+
+void UiFrameEncoder::CommitBatches() noexcept {
+    if (currentBatch_.numIndices > 0U) {
+        FlushBatch();
+    }
+    if (queuedBatches_.Empty() || device_ == nullptr) {
+        return;
+    }
+
+    if (mappedVertices_ != nullptr) {
+        device_->UnmapVertices();
+        mappedVertices_ = nullptr;
+    }
+    if (mappedIndices_ != nullptr) {
+        device_->UnmapIndices();
+        mappedIndices_ = nullptr;
+    }
+    for (auto& qb : queuedBatches_) {
+        if (qb.batch.pixelUniforms[0].values != nullptr) {
+            qb.batch.pixelUniforms[0].values = qb.pixelUniforms0;
+        }
+        if (qb.batch.pixelUniforms[1].values != nullptr) {
+            qb.batch.pixelUniforms[1].values = qb.pixelUniforms1;
+        }
+        if (qb.batch.vertexUniforms[0].values != nullptr) {
+            qb.batch.vertexUniforms[0].values = qb.vertexUniforms0;
+        }
+        if (qb.batch.vertexUniforms[1].values != nullptr) {
+            qb.batch.vertexUniforms[1].values = qb.vertexUniforms1;
+        }
+        device_->DrawBatch(qb.batch);
+        ++stats_.drawCallCount;
+        ++stats_.batchCount;
+    }
+    queuedBatches_.Clear();
+
+    currentBatch_ = Batch{};
+    currentVertexOffset_ = 0U;
+    currentVertexCount_ = 0U;
+    currentIndexCount_ = 0U;
+    currentBatchVertexStart_ = 0U;
+    currentBatch_.startIndex = 0U;
+    currentBatch_.vertexOffset = 0U;
+    currentBatch_.numIndices = 0U;
+    currentBatch_.numVertices = 0U;
 }
 
 void UiFrameEncoder::EmitQuad(
     const Point points[4],
     const Point uvs[4],
     Color color) noexcept {
-    if (mappedVertices_ == nullptr || mappedIndices_ == nullptr) return;
+    if (mappedVertices_ == nullptr || mappedIndices_ == nullptr) {
+        if (!EnsureMappedBuffers()) return;
+    }
+    for (int i = 0; i < 4; ++i) {
+        if (!std::isfinite(points[i].x) || !std::isfinite(points[i].y)) {
+            return;
+        }
+    }
 
     if (currentVertexCount_ + 4U > (DYNAMIC_VB_SIZE / sizeof(Vertex2D)) ||
         currentIndexCount_ + 6U > (DYNAMIC_IB_SIZE / sizeof(uint16_t))) {
-        // FlushBatch remaps the buffers (WRITE_DISCARD) and resets the offsets,
-        // so recording can continue from a fresh buffer.
-        FlushBatch();
-        if (mappedVertices_ == nullptr || mappedIndices_ == nullptr) {
-            if (device_ != nullptr) {
-                mappedVertices_ = static_cast<uint8_t*>(device_->MapVertices(DYNAMIC_VB_SIZE));
-                mappedIndices_ = static_cast<uint16_t*>(device_->MapIndices(DYNAMIC_IB_SIZE));
-            }
+        CommitBatches();
+        if (!EnsureMappedBuffers()) return;
+    }
+
+    const uint8_t vertexEnum = (currentBatch_.shader.v < Shader::Count)
+        ? VertexForShader[currentBatch_.shader.v] : 0U;
+    const uint8_t format = (vertexEnum < Shader::Vertex::Count)
+        ? FormatForVertex[vertexEnum] : 0U;
+
+    if (format == Shader::Vertex::Format::PosColor) {
+        auto* v = reinterpret_cast<VertexPosColor*>(mappedVertices_ + currentVertexOffset_);
+        const uint32_t color32 = ColorToRGBA32(color, 1.0);
+        for (int i = 0; i < 4; ++i) {
+            v[i].x = static_cast<float>(points[i].x);
+            v[i].y = static_cast<float>(points[i].y);
+            v[i].color = color32;
         }
-        currentVertexOffset_ = 0U;
-        currentVertexCount_ = 0U;
-        currentIndexCount_ = 0U;
-        currentBatch_.startIndex = 0U;
-        currentBatch_.vertexOffset = 0U;
+        currentVertexOffset_ += 4U * sizeof(VertexPosColor);
+    } else if (format == Shader::Vertex::Format::PosTex0) {
+        auto* v = reinterpret_cast<VertexPosTex0*>(mappedVertices_ + currentVertexOffset_);
+        for (int i = 0; i < 4; ++i) {
+            v[i].x = static_cast<float>(points[i].x);
+            v[i].y = static_cast<float>(points[i].y);
+            v[i].u = static_cast<float>(uvs[i].x);
+            v[i].v = static_cast<float>(uvs[i].y);
+        }
+        currentVertexOffset_ += 4U * sizeof(VertexPosTex0);
+    } else if (format == Shader::Vertex::Format::PosColorTex1) {
+        auto* v = reinterpret_cast<VertexPosColorTex1*>(mappedVertices_ + currentVertexOffset_);
+        const uint32_t color32 = ColorToRGBA32(color, 1.0);
+        for (int i = 0; i < 4; ++i) {
+            v[i].x = static_cast<float>(points[i].x);
+            v[i].y = static_cast<float>(points[i].y);
+            v[i].color = color32;
+            v[i].u = static_cast<float>(uvs[i].x);
+            v[i].v = static_cast<float>(uvs[i].y);
+        }
+        currentVertexOffset_ += 4U * sizeof(VertexPosColorTex1);
+    } else if (format == Shader::Vertex::Format::PosTex0Tex1) {
+        auto* v = reinterpret_cast<VertexPosTex0Tex1*>(mappedVertices_ + currentVertexOffset_);
+        for (int i = 0; i < 4; ++i) {
+            v[i].x = static_cast<float>(points[i].x);
+            v[i].y = static_cast<float>(points[i].y);
+            v[i].u0 = static_cast<float>(uvs[i].x);
+            v[i].v0 = static_cast<float>(uvs[i].y);
+            v[i].u1 = static_cast<float>(uvs[i].x);
+            v[i].v1 = static_cast<float>(uvs[i].y);
+        }
+        currentVertexOffset_ += 4U * sizeof(VertexPosTex0Tex1);
+    } else if (format == Shader::Vertex::Format::PosColorTex0Tex1) {
+        auto* v = reinterpret_cast<VertexPosColorTex0Tex1*>(mappedVertices_ + currentVertexOffset_);
+        const uint32_t color32 = ColorToRGBA32(color, 1.0);
+        for (int i = 0; i < 4; ++i) {
+            v[i].x = static_cast<float>(points[i].x);
+            v[i].y = static_cast<float>(points[i].y);
+            v[i].color = color32;
+            v[i].u0 = static_cast<float>(uvs[i].x);
+            v[i].v0 = static_cast<float>(uvs[i].y);
+            v[i].u1 = static_cast<float>(uvs[i].x);
+            v[i].v1 = static_cast<float>(uvs[i].y);
+        }
+        currentVertexOffset_ += 4U * sizeof(VertexPosColorTex0Tex1);
+    } else if (format == Shader::Vertex::Format::Pos) {
+        auto* v = reinterpret_cast<VertexPos*>(mappedVertices_ + currentVertexOffset_);
+        for (int i = 0; i < 4; ++i) {
+            v[i].x = static_cast<float>(points[i].x);
+            v[i].y = static_cast<float>(points[i].y);
+        }
+        currentVertexOffset_ += 4U * sizeof(VertexPos);
+    } else if (format == Shader::Vertex::Format::PosColorCoverage) {
+        auto* v = reinterpret_cast<VertexPosColorCoverage*>(mappedVertices_ + currentVertexOffset_);
+        const uint32_t color32 = ColorToRGBA32(color, 1.0);
+        for (int i = 0; i < 4; ++i) {
+            v[i].x = static_cast<float>(points[i].x);
+            v[i].y = static_cast<float>(points[i].y);
+            v[i].color = color32;
+            v[i].coverage = 1.0f;
+        }
+        currentVertexOffset_ += 4U * sizeof(VertexPosColorCoverage);
+    } else if (format == Shader::Vertex::Format::PosTex0Coverage) {
+        auto* v = reinterpret_cast<VertexPosTex0Coverage*>(mappedVertices_ + currentVertexOffset_);
+        for (int i = 0; i < 4; ++i) {
+            v[i].x = static_cast<float>(points[i].x);
+            v[i].y = static_cast<float>(points[i].y);
+            v[i].u = static_cast<float>(uvs[i].x);
+            v[i].v = static_cast<float>(uvs[i].y);
+            v[i].coverage = 1.0f;
+        }
+        currentVertexOffset_ += 4U * sizeof(VertexPosTex0Coverage);
+    } else {
+        auto* v = reinterpret_cast<Vertex2D*>(mappedVertices_ + currentVertexOffset_);
+        const uint32_t color32 = ColorToRGBA32(color, 1.0);
+        for (int i = 0; i < 4; ++i) {
+            v[i].x = static_cast<float>(points[i].x);
+            v[i].y = static_cast<float>(points[i].y);
+            v[i].color = color32;
+            v[i].u = static_cast<float>(uvs[i].x);
+            v[i].v = static_cast<float>(uvs[i].y);
+            v[i].coverage = 1.0f;
+        }
+        currentVertexOffset_ += 4U * sizeof(Vertex2D);
     }
 
-    auto* v = reinterpret_cast<Vertex2D*>(mappedVertices_ + currentVertexOffset_);
-    const uint32_t color32 = ColorToRGBA32(color, 1.0);
-
-    for (int i = 0; i < 4; ++i) {
-        v[i].x = static_cast<float>(points[i].x);
-        v[i].y = static_cast<float>(points[i].y);
-        v[i].color = color32;
-        v[i].u = static_cast<float>(uvs[i].x);
-        v[i].v = static_cast<float>(uvs[i].y);
-        v[i].coverage = 1.0f;
-    }
-
-    const uint16_t baseVertex = static_cast<uint16_t>(currentVertexCount_);
+    const uint16_t baseVertex = static_cast<uint16_t>(currentVertexCount_ - currentBatchVertexStart_);
     mappedIndices_[currentIndexCount_ + 0] = baseVertex + 0;
     mappedIndices_[currentIndexCount_ + 1] = baseVertex + 1;
     mappedIndices_[currentIndexCount_ + 2] = baseVertex + 2;
     mappedIndices_[currentIndexCount_ + 3] = baseVertex + 0;
     mappedIndices_[currentIndexCount_ + 4] = baseVertex + 2;
     mappedIndices_[currentIndexCount_ + 5] = baseVertex + 3;
-
-    currentVertexOffset_ += 4U * sizeof(Vertex2D);
     currentVertexCount_ += 4U;
     currentIndexCount_ += 6U;
     currentBatch_.numVertices += 4U;
@@ -381,36 +622,79 @@ void UiFrameEncoder::EmitQuadWithColors(
     const Point uvs[4],
     const Color colors[4],
     double opacity) noexcept {
-    if (mappedVertices_ == nullptr || mappedIndices_ == nullptr) return;
+    if (mappedVertices_ == nullptr || mappedIndices_ == nullptr) {
+        if (!EnsureMappedBuffers()) return;
+    }
+    for (int i = 0; i < 4; ++i) {
+        if (!std::isfinite(points[i].x) || !std::isfinite(points[i].y)) {
+            return;
+        }
+    }
 
     if (currentVertexCount_ + 4U > (DYNAMIC_VB_SIZE / sizeof(Vertex2D)) ||
         currentIndexCount_ + 6U > (DYNAMIC_IB_SIZE / sizeof(uint16_t))) {
-        FlushBatch();
-        if (mappedVertices_ == nullptr || mappedIndices_ == nullptr) {
-            if (device_ != nullptr) {
-                mappedVertices_ = static_cast<uint8_t*>(device_->MapVertices(DYNAMIC_VB_SIZE));
-                mappedIndices_ = static_cast<uint16_t*>(device_->MapIndices(DYNAMIC_IB_SIZE));
-            }
+        CommitBatches();
+        if (!EnsureMappedBuffers()) return;
+    }
+
+    const uint8_t vertexEnum = (currentBatch_.shader.v < Shader::Count)
+        ? VertexForShader[currentBatch_.shader.v] : 0U;
+    const uint8_t format = (vertexEnum < Shader::Vertex::Count)
+        ? FormatForVertex[vertexEnum] : 0U;
+
+    if (format == Shader::Vertex::Format::PosColor) {
+        auto* v = reinterpret_cast<VertexPosColor*>(mappedVertices_ + currentVertexOffset_);
+        for (int i = 0; i < 4; ++i) {
+            v[i].x = static_cast<float>(points[i].x);
+            v[i].y = static_cast<float>(points[i].y);
+            v[i].color = ColorToRGBA32(colors[i], opacity);
         }
-        currentVertexOffset_ = 0U;
-        currentVertexCount_ = 0U;
-        currentIndexCount_ = 0U;
-        currentBatch_.startIndex = 0U;
-        currentBatch_.vertexOffset = 0U;
+        currentVertexOffset_ += 4U * sizeof(VertexPosColor);
+    } else if (format == Shader::Vertex::Format::PosColorCoverage) {
+        auto* v = reinterpret_cast<VertexPosColorCoverage*>(mappedVertices_ + currentVertexOffset_);
+        for (int i = 0; i < 4; ++i) {
+            v[i].x = static_cast<float>(points[i].x);
+            v[i].y = static_cast<float>(points[i].y);
+            v[i].color = ColorToRGBA32(colors[i], opacity);
+            v[i].coverage = 1.0f;
+        }
+        currentVertexOffset_ += 4U * sizeof(VertexPosColorCoverage);
+    } else if (format == Shader::Vertex::Format::PosColorTex1) {
+        auto* v = reinterpret_cast<VertexPosColorTex1*>(mappedVertices_ + currentVertexOffset_);
+        for (int i = 0; i < 4; ++i) {
+            v[i].x = static_cast<float>(points[i].x);
+            v[i].y = static_cast<float>(points[i].y);
+            v[i].color = ColorToRGBA32(colors[i], opacity);
+            v[i].u = static_cast<float>(uvs[i].x);
+            v[i].v = static_cast<float>(uvs[i].y);
+        }
+        currentVertexOffset_ += 4U * sizeof(VertexPosColorTex1);
+    } else if (format == Shader::Vertex::Format::PosColorTex0Tex1) {
+        auto* v = reinterpret_cast<VertexPosColorTex0Tex1*>(mappedVertices_ + currentVertexOffset_);
+        for (int i = 0; i < 4; ++i) {
+            v[i].x = static_cast<float>(points[i].x);
+            v[i].y = static_cast<float>(points[i].y);
+            v[i].color = ColorToRGBA32(colors[i], opacity);
+            v[i].u0 = static_cast<float>(uvs[i].x);
+            v[i].v0 = static_cast<float>(uvs[i].y);
+            v[i].u1 = static_cast<float>(uvs[i].x);
+            v[i].v1 = static_cast<float>(uvs[i].y);
+        }
+        currentVertexOffset_ += 4U * sizeof(VertexPosColorTex0Tex1);
+    } else {
+        auto* v = reinterpret_cast<Vertex2D*>(mappedVertices_ + currentVertexOffset_);
+        for (int i = 0; i < 4; ++i) {
+            v[i].x = static_cast<float>(points[i].x);
+            v[i].y = static_cast<float>(points[i].y);
+            v[i].color = ColorToRGBA32(colors[i], opacity);
+            v[i].u = static_cast<float>(uvs[i].x);
+            v[i].v = static_cast<float>(uvs[i].y);
+            v[i].coverage = 1.0f;
+        }
+        currentVertexOffset_ += 4U * sizeof(Vertex2D);
     }
 
-    auto* v = reinterpret_cast<Vertex2D*>(mappedVertices_ + currentVertexOffset_);
-
-    for (int i = 0; i < 4; ++i) {
-        v[i].x = static_cast<float>(points[i].x);
-        v[i].y = static_cast<float>(points[i].y);
-        v[i].color = ColorToRGBA32(colors[i], opacity);
-        v[i].u = static_cast<float>(uvs[i].x);
-        v[i].v = static_cast<float>(uvs[i].y);
-        v[i].coverage = 1.0f;
-    }
-
-    const uint16_t baseVertex = static_cast<uint16_t>(currentVertexCount_);
+    const uint16_t baseVertex = static_cast<uint16_t>(currentVertexCount_ - currentBatchVertexStart_);
     mappedIndices_[currentIndexCount_ + 0] = baseVertex + 0;
     mappedIndices_[currentIndexCount_ + 1] = baseVertex + 1;
     mappedIndices_[currentIndexCount_ + 2] = baseVertex + 2;
@@ -418,7 +702,6 @@ void UiFrameEncoder::EmitQuadWithColors(
     mappedIndices_[currentIndexCount_ + 4] = baseVertex + 2;
     mappedIndices_[currentIndexCount_ + 5] = baseVertex + 3;
 
-    currentVertexOffset_ += 4U * sizeof(Vertex2D);
     currentVertexCount_ += 4U;
     currentIndexCount_ += 6U;
     currentBatch_.numVertices += 4U;
@@ -432,48 +715,70 @@ void UiFrameEncoder::EmitTriangleFan(
     std::uint32_t perimeterCount,
     Point centroid,
     Color color) noexcept {
-    if (mappedVertices_ == nullptr || mappedIndices_ == nullptr) return;
     if (perimeterCount < 3U) return;
+    if (mappedVertices_ == nullptr || mappedIndices_ == nullptr) {
+        if (!EnsureMappedBuffers()) return;
+    }
 
     const std::uint32_t vertexCount = perimeterCount + 1U;
     const std::uint32_t indexCount = perimeterCount * 3U;
 
     if (currentVertexCount_ + vertexCount > (DYNAMIC_VB_SIZE / sizeof(Vertex2D)) ||
         currentIndexCount_ + indexCount > (DYNAMIC_IB_SIZE / sizeof(uint16_t))) {
-        FlushBatch();
-        if (mappedVertices_ == nullptr || mappedIndices_ == nullptr) {
-            if (device_ != nullptr) {
-                mappedVertices_ = static_cast<uint8_t*>(device_->MapVertices(DYNAMIC_VB_SIZE));
-                mappedIndices_ = static_cast<uint16_t*>(device_->MapIndices(DYNAMIC_IB_SIZE));
-            }
-        }
-        currentVertexOffset_ = 0U;
-        currentVertexCount_ = 0U;
-        currentIndexCount_ = 0U;
-        currentBatch_.startIndex = 0U;
-        currentBatch_.vertexOffset = 0U;
+        CommitBatches();
+        if (!EnsureMappedBuffers()) return;
     }
 
-    auto* v = reinterpret_cast<Vertex2D*>(mappedVertices_ + currentVertexOffset_);
+    const uint8_t vertexEnum = (currentBatch_.shader.v < Shader::Count)
+        ? VertexForShader[currentBatch_.shader.v] : 0U;
+    const uint8_t format = (vertexEnum < Shader::Vertex::Count)
+        ? FormatForVertex[vertexEnum] : 0U;
+
     const uint32_t color32 = ColorToRGBA32(color, 1.0);
 
-    v[0].x = static_cast<float>(centroid.x);
-    v[0].y = static_cast<float>(centroid.y);
-    v[0].color = color32;
-    v[0].u = 0.0f;
-    v[0].v = 0.0f;
-    v[0].coverage = 1.0f;
+    if (format == Shader::Vertex::Format::PosColor) {
+        auto* v = reinterpret_cast<VertexPosColor*>(mappedVertices_ + currentVertexOffset_);
+        v[0].x = static_cast<float>(centroid.x);
+        v[0].y = static_cast<float>(centroid.y);
+        v[0].color = color32;
 
-    for (std::uint32_t i = 0; i < perimeterCount; ++i) {
-        v[i + 1].x = static_cast<float>(perimeter[i].x);
-        v[i + 1].y = static_cast<float>(perimeter[i].y);
-        v[i + 1].color = color32;
-        v[i + 1].u = 0.0f;
-        v[i + 1].v = 0.0f;
-        v[i + 1].coverage = 1.0f;
+        for (std::uint32_t i = 0; i < perimeterCount; ++i) {
+            v[i + 1].x = static_cast<float>(perimeter[i].x);
+            v[i + 1].y = static_cast<float>(perimeter[i].y);
+            v[i + 1].color = color32;
+        }
+        currentVertexOffset_ += vertexCount * static_cast<std::uint32_t>(sizeof(VertexPosColor));
+    } else if (format == Shader::Vertex::Format::Pos) {
+        auto* v = reinterpret_cast<VertexPos*>(mappedVertices_ + currentVertexOffset_);
+        v[0].x = static_cast<float>(centroid.x);
+        v[0].y = static_cast<float>(centroid.y);
+
+        for (std::uint32_t i = 0; i < perimeterCount; ++i) {
+            v[i + 1].x = static_cast<float>(perimeter[i].x);
+            v[i + 1].y = static_cast<float>(perimeter[i].y);
+        }
+        currentVertexOffset_ += vertexCount * static_cast<std::uint32_t>(sizeof(VertexPos));
+    } else {
+        auto* v = reinterpret_cast<Vertex2D*>(mappedVertices_ + currentVertexOffset_);
+        v[0].x = static_cast<float>(centroid.x);
+        v[0].y = static_cast<float>(centroid.y);
+        v[0].color = color32;
+        v[0].u = 0.0f;
+        v[0].v = 0.0f;
+        v[0].coverage = 1.0f;
+
+        for (std::uint32_t i = 0; i < perimeterCount; ++i) {
+            v[i + 1].x = static_cast<float>(perimeter[i].x);
+            v[i + 1].y = static_cast<float>(perimeter[i].y);
+            v[i + 1].color = color32;
+            v[i + 1].u = 0.0f;
+            v[i + 1].v = 0.0f;
+            v[i + 1].coverage = 1.0f;
+        }
+        currentVertexOffset_ += vertexCount * static_cast<std::uint32_t>(sizeof(Vertex2D));
     }
 
-    const uint16_t baseVertex = static_cast<uint16_t>(currentVertexCount_);
+    const uint16_t baseVertex = static_cast<uint16_t>(currentVertexCount_ - currentBatchVertexStart_);
     std::uint32_t index = 0U;
     for (std::uint32_t i = 0; i < perimeterCount; ++i) {
         const uint16_t next = (i + 1U < perimeterCount)
@@ -485,7 +790,6 @@ void UiFrameEncoder::EmitTriangleFan(
         index += 3U;
     }
 
-    currentVertexOffset_ += vertexCount * static_cast<std::uint32_t>(sizeof(Vertex2D));
     currentVertexCount_ += vertexCount;
     currentIndexCount_ += indexCount;
     currentBatch_.numVertices += vertexCount;
@@ -502,8 +806,8 @@ void UiFrameEncoder::EnsureBatchBlend(Shader::Enum shader) noexcept {
         FlushBatch();
     }
     currentBatch_.shader = shader;
-    currentBatch_.renderState.f.blendMode = currentBlendMode_;
-    currentBatch_.renderState.f.colorEnable = 1;
+    AssignBlendMode(currentBatch_.renderState, static_cast<unsigned>(currentBlendMode_));
+    AssignColorEnable(currentBatch_.renderState, 1U);
 }
 
 void UiFrameEncoder::SetBatchImage(
@@ -527,12 +831,43 @@ void UiFrameEncoder::SetBatchImage(
     currentBatch_.imageSampler.f.minmagFilter = MinMagFilter::Linear;
     currentBatch_.shadowSampler.f.wrapMode = WrapMode::ClampToEdge;
     currentBatch_.shadowSampler.f.minmagFilter = MinMagFilter::Linear;
-    currentBatch_.renderState.f.blendMode = currentBlendMode_;
-    currentBatch_.renderState.f.colorEnable = 1;
+    AssignBlendMode(currentBatch_.renderState, static_cast<unsigned>(currentBlendMode_));
+    AssignColorEnable(currentBatch_.renderState, 1U);
+}
+
+void UiFrameEncoder::SetBatchRamp(
+    Shader::Enum shader,
+    Texture* ramp,
+    const float uniforms[8],
+    std::uint8_t wrapMode) noexcept {
+    const bool uniformsDiffer =
+        std::memcmp(paintUniforms_, uniforms, sizeof(paintUniforms_)) != 0;
+    const bool batchActive = currentBatch_.numIndices > 0U;
+    if (batchActive &&
+        (currentBatch_.shader != shader ||
+         currentBatch_.ramps != ramp ||
+         currentBatch_.rampsSampler.f.wrapMode != wrapMode ||
+         uniformsDiffer ||
+         currentBatch_.renderState.f.colorEnable != 1U ||
+         currentBatch_.renderState.f.blendMode !=
+             static_cast<uint8_t>(currentBlendMode_))) {
+        FlushBatch();
+    }
+    std::memcpy(paintUniforms_, uniforms, sizeof(paintUniforms_));
+    currentBatch_.shader = shader;
+    currentBatch_.ramps = ramp;
+    currentBatch_.rampsSampler.f.wrapMode = wrapMode;
+    currentBatch_.rampsSampler.f.minmagFilter = MinMagFilter::Linear;
+    currentBatch_.pixelUniforms[0].values = paintUniforms_;
+    currentBatch_.pixelUniforms[0].numDwords = 8U;
+    AssignBlendMode(currentBatch_.renderState, static_cast<unsigned>(currentBlendMode_));
+    AssignColorEnable(currentBatch_.renderState, 1U);
 }
 
 void UiFrameEncoder::EmitMaskBrush(
     const RenderMaskSnapshot& mask,
+    double padX,
+    double padY,
     double width,
     double height,
     const RenderFrame& frame) noexcept {
@@ -540,18 +875,18 @@ void UiFrameEncoder::EmitMaskBrush(
     switch (mask.kind) {
     case RenderMaskKind::Solid:
         cmd.kind = RenderCommandKind::FillRect;
-        cmd.rect = Rect{0.0, 0.0, width, height};
+        cmd.rect = Rect{padX, padY, width, height};
         cmd.color = mask.color;
-        ProcessCommand(cmd, Transform2D{}, 1.0);
+        ProcessCommand(cmd, ProjectiveTransform2D{}, 1.0);
         break;
     case RenderMaskKind::Image:
         if (mask.image != InvalidRenderImageId) {
             cmd.kind = RenderCommandKind::DrawImage;
-            cmd.rect = Rect{0.0, 0.0, width, height};
+            cmd.rect = Rect{padX, padY, width, height};
             cmd.image = mask.image;
             cmd.sourceUv = mask.sourceUv;
             cmd.color = Color{1.0F, 1.0F, 1.0F, 1.0F};
-            ProcessCommand(cmd, Transform2D{}, 1.0);
+            ProcessCommand(cmd, ProjectiveTransform2D{}, 1.0);
         }
         break;
     case RenderMaskKind::LinearGradient:
@@ -571,10 +906,10 @@ void UiFrameEncoder::EmitMaskBrush(
         };
 
         const Point corners[4] = {
-            Point{0.0, 0.0},
-            Point{width, 0.0},
-            Point{width, height},
-            Point{0.0, height}};
+            Point{padX, padY},
+            Point{padX + width, padY},
+            Point{padX + width, padY + height},
+            Point{padX, padY + height}};
         Color colors[4]{};
         for (int i = 0; i < 4; ++i) {
             double t = 0.0;
@@ -584,9 +919,9 @@ void UiFrameEncoder::EmitMaskBrush(
                 const double lengthSq = dx * dx + dy * dy;
                 if (lengthSq > 0.0) {
                     const double px =
-                        corners[i].x / std::max(1.0, width);
+                        (corners[i].x - padX) / std::max(1.0, width);
                     const double py =
-                        corners[i].y / std::max(1.0, height);
+                        (corners[i].y - padY) / std::max(1.0, height);
                     t = ((px - mask.startPoint.x) * dx +
                          (py - mask.startPoint.y) * dy) / lengthSq;
                 }
@@ -596,9 +931,9 @@ void UiFrameEncoder::EmitMaskBrush(
                 const double ry = mask.radiusY > 0.0
                     ? mask.radiusY : 1.0;
                 const double px =
-                    corners[i].x / std::max(1.0, width) - mask.center.x;
+                    (corners[i].x - padX) / std::max(1.0, width) - mask.center.x;
                 const double py =
-                    corners[i].y / std::max(1.0, height) - mask.center.y;
+                    (corners[i].y - padY) / std::max(1.0, height) - mask.center.y;
                 t = std::sqrt(px * px / (rx * rx) + py * py / (ry * ry));
             }
             const float alpha = sampleAlpha(t);
@@ -609,7 +944,7 @@ void UiFrameEncoder::EmitMaskBrush(
             cmd.points[i] = corners[i];
             cmd.colors[i] = colors[i];
         }
-        ProcessCommand(cmd, Transform2D{}, 1.0);
+        ProcessCommand(cmd, ProjectiveTransform2D{}, 1.0);
         break;
     }
     case RenderMaskKind::None:
@@ -622,17 +957,25 @@ void UiFrameEncoder::CompositeOffscreen(
     const RenderNodeSnapshot& node,
     RenderTarget* offscreen,
     RenderTarget* maskTarget,
-    const Transform2D& nodeTransform,
+    const ProjectiveTransform2D& nodeTransform,
     double nodeOpacity,
     double dpi,
     const RenderFrame& frame) noexcept {
+    std::fprintf(stderr, "[DEBUG FrameEncoder] CompositeOffscreen ENTRY: node=%llu effectKind=%d offscreen=%p w=%f h=%f\n",
+        static_cast<unsigned long long>(node.id), static_cast<int>(node.effect.kind), static_cast<void*>(offscreen), node.renderSize.width, node.renderSize.height);
     if (offscreen == nullptr) return;
     Texture* texture = offscreen->GetTexture();
-    if (texture == nullptr) return;
+    if (texture == nullptr) {
+        std::fprintf(stderr, "[DEBUG FrameEncoder] CompositeOffscreen texture is NULL!\n");
+        return;
+    }
 
     const double w = node.renderSize.width;
     const double h = node.renderSize.height;
-    if (w <= 0.0 || h <= 0.0) return;
+    if (w <= 0.0 || h <= 0.0) {
+        std::fprintf(stderr, "[DEBUG FrameEncoder] CompositeOffscreen w/h <= 0! w=%f, h=%f\n", w, h);
+        return;
+    }
 
     const Point uvs[4] = {
         {0.0, 0.0}, {1.0, 0.0}, {1.0, 1.0}, {0.0, 1.0}};
@@ -648,20 +991,46 @@ void UiFrameEncoder::CompositeOffscreen(
     offscreenSizeUniform_[1] =
         static_cast<float>(static_cast<double>(texture->GetHeight()) / blurScale);
 
+    // Offscreen targets pad by twice the blur radius so the 3x3 kernel, which
+    // samples at ±radius, does not clamp against the texture edge. Composite
+    // quads are expanded by the same local padding so the halo is visible.
+    double padX = 0.0;
+    double padY = 0.0;
+    if (node.effect.kind == RenderEffectKind::DropShadow) {
+        const double radians =
+            node.effect.direction * 0.017453292519943295;
+        const double dx = std::cos(radians) * node.effect.depth;
+        const double dy = -std::sin(radians) * node.effect.depth;
+        const double blur = std::ceil(std::max(0.0, node.effect.radius) * 2.0);
+        padX = blur + std::ceil(std::abs(dx));
+        padY = blur + std::ceil(std::abs(dy));
+    } else if (node.effect.kind == RenderEffectKind::Blur ||
+               node.effect.kind == RenderEffectKind::DirectionalBlur) {
+        const double blur = std::ceil(std::max(0.0, node.effect.radius) * 2.0);
+        padX = blur;
+        padY = blur;
+    }
+    const double quadW = w + padX * 2.0;
+    const double quadH = h + padY * 2.0;
+
     // Drop shadow pass: blurred, tinted copy of the offscreen alpha, offset
     // along the effect direction, composited behind the source.
+    // WPF Direction is degrees from +X, counter-clockwise in a Y-up space.
+    // Default 315° therefore casts down-right in screen (Y-down) coordinates:
+    //   offsetX =  cos(θ) * depth
+    //   offsetY = -sin(θ) * depth
     if (node.effect.kind == RenderEffectKind::DropShadow) {
         const double radians =
             node.effect.direction * 0.017453292519943295;
         const double offsetX =
-            std::sin(radians) * node.effect.depth;
+            std::cos(radians) * node.effect.depth;
         const double offsetY =
-            -std::cos(radians) * node.effect.depth;
+            -std::sin(radians) * node.effect.depth;
         const Point shadowPoints[4] = {
-            TransformPoint(nodeTransform, offsetX, offsetY),
-            TransformPoint(nodeTransform, w + offsetX, offsetY),
-            TransformPoint(nodeTransform, w + offsetX, h + offsetY),
-            TransformPoint(nodeTransform, offsetX, h + offsetY)};
+            TransformPoint(nodeTransform, -padX + offsetX, -padY + offsetY),
+            TransformPoint(nodeTransform, -padX + quadW + offsetX, -padY + offsetY),
+            TransformPoint(nodeTransform, -padX + quadW + offsetX, -padY + quadH + offsetY),
+            TransformPoint(nodeTransform, -padX + offsetX, -padY + quadH + offsetY)};
 
         Color shadowColor = node.effect.color;
         shadowColor.alpha *= static_cast<float>(
@@ -672,40 +1041,139 @@ void UiFrameEncoder::CompositeOffscreen(
             {offscreenSizeUniform_, 2U, 0U};
         SetContentStencil();
         EmitQuad(shadowPoints, uvs, shadowColor);
+    } else if (node.effect.kind == RenderEffectKind::DirectionalBlur &&
+               node.effect.radius > 0.0) {
+        const double radians =
+            node.effect.direction * 0.017453292519943295;
+        const double offsetX = std::cos(radians) * node.effect.radius;
+        const double offsetY = std::sin(radians) * node.effect.radius;
+        const Point blurPoints[4] = {
+            TransformPoint(nodeTransform, -padX - offsetX, -padY - offsetY),
+            TransformPoint(nodeTransform, -padX + quadW - offsetX, -padY - offsetY),
+            TransformPoint(nodeTransform, -padX + quadW - offsetX, -padY + quadH - offsetY),
+            TransformPoint(nodeTransform, -padX - offsetX, -padY + quadH - offsetY)};
+        SetBatchImage(Shader::Blur, texture);
+        currentBatch_.pixelUniforms[0] =
+            {offscreenSizeUniform_, 2U, 0U};
+        SetContentStencil();
+        Color blurTint{1.0F, 1.0F, 1.0F, static_cast<float>(
+            std::clamp(nodeOpacity * 0.5, 0.0, 1.0))};
+        EmitQuad(blurPoints, uvs, blurTint);
     }
 
     // Source pass: the offscreen content composited into the parent context,
     // with group opacity, blur or opacity mask applied as required.
-    Shader::Enum shader = Shader::Path_Pattern;
+    Shader::Enum shader = Shader::Opacity_Pattern;
     if (hasMask) {
         shader = Shader::Mask;
-    } else if (node.effect.kind == RenderEffectKind::Blur &&
+    } else if ((node.effect.kind == RenderEffectKind::Blur ||
+                node.effect.kind == RenderEffectKind::DirectionalBlur) &&
                node.effect.radius > 0.0) {
         shader = Shader::Blur;
+    } else if (node.effect.kind == RenderEffectKind::Custom) {
+        shader = Shader::Custom_Effect;
     }
     SetBatchImage(
         shader, texture,
         hasMask ? maskTarget->GetTexture() : nullptr);
-    if (shader == Shader::Blur) {
+    if (shader == Shader::Blur || shader == Shader::Custom_Effect) {
         currentBatch_.pixelUniforms[0] =
             {offscreenSizeUniform_, 2U, 0U};
+        if (shader == Shader::Custom_Effect && node.effect.uniformCount > 0U) {
+            customEffectUniforms_[0] = node.effect.uniforms[0];
+            customEffectUniforms_[1] = node.effect.uniforms[1];
+            customEffectUniforms_[2] = node.effect.uniforms[2];
+            customEffectUniforms_[3] = node.effect.uniforms[3];
+            currentBatch_.pixelUniforms[1] =
+                {customEffectUniforms_, std::min(node.effect.uniformCount, 4U), 0U};
+        }
+        if (!node.effect.bytecode.Empty()) {
+            currentBatch_.pixelShader = const_cast<void*>(
+                static_cast<const void*>(node.effect.bytecode.Data()));
+            currentBatch_.vertexUniforms[1].numDwords =
+                node.effect.bytecode.Size();
+        }
     }
 
     const Point points[4] = {
-        TransformPoint(nodeTransform, 0.0, 0.0),
-        TransformPoint(nodeTransform, w, 0.0),
-        TransformPoint(nodeTransform, w, h),
-        TransformPoint(nodeTransform, 0.0, h)};
+        TransformPoint(nodeTransform, -padX, -padY),
+        TransformPoint(nodeTransform, -padX + quadW, -padY),
+        TransformPoint(nodeTransform, -padX + quadW, -padY + quadH),
+        TransformPoint(nodeTransform, -padX, -padY + quadH)};
 
     Color tint = Color{1.0F, 1.0F, 1.0F, 1.0F};
     tint.alpha = static_cast<float>(
         std::clamp(nodeOpacity, 0.0, 1.0));
+    if (node.effect.kind == RenderEffectKind::Tint) {
+        tint.red *= node.effect.color.red;
+        tint.green *= node.effect.color.green;
+        tint.blue *= node.effect.color.blue;
+        tint.alpha *= node.effect.color.alpha;
+    }
     if (node.mask.kind == RenderMaskKind::Solid && !hasMask) {
         tint.alpha *= node.mask.color.alpha;
     }
 
     SetContentStencil();
-    EmitQuad(points, uvs, tint);
+    if (node.effect.kind == RenderEffectKind::Pixelate &&
+        node.effect.size > 1.0) {
+        const double cell = std::max(1.0, node.effect.size);
+        const std::uint32_t columns = std::max(
+            1U, static_cast<std::uint32_t>(std::ceil(w / cell)));
+        const std::uint32_t rows = std::max(
+            1U, static_cast<std::uint32_t>(std::ceil(h / cell)));
+        const std::uint32_t columnCap = std::min(columns, 64U);
+        const std::uint32_t rowCap = std::min(rows, 64U);
+        for (std::uint32_t row = 0U; row < rowCap; ++row) {
+            for (std::uint32_t column = 0U; column < columnCap; ++column) {
+                const double x0 = static_cast<double>(column) * w /
+                    static_cast<double>(columnCap);
+                const double y0 = static_cast<double>(row) * h /
+                    static_cast<double>(rowCap);
+                const double x1 = static_cast<double>(column + 1U) * w /
+                    static_cast<double>(columnCap);
+                const double y1 = static_cast<double>(row + 1U) * h /
+                    static_cast<double>(rowCap);
+                const double u = (static_cast<double>(column) + 0.5) /
+                    static_cast<double>(columnCap);
+                const double v = (static_cast<double>(row) + 0.5) /
+                    static_cast<double>(rowCap);
+                const Point cellPoints[4] = {
+                    TransformPoint(nodeTransform, x0, y0),
+                    TransformPoint(nodeTransform, x1, y0),
+                    TransformPoint(nodeTransform, x1, y1),
+                    TransformPoint(nodeTransform, x0, y1)};
+                const Point cellUvs[4] = {
+                    {u, v}, {u, v}, {u, v}, {u, v}};
+                EmitQuad(cellPoints, cellUvs, tint);
+            }
+        }
+    } else if (!Base::IsAffine(nodeTransform)) {
+        constexpr std::uint32_t kGridCols = 16U;
+        constexpr std::uint32_t kGridRows = 16U;
+        for (std::uint32_t row = 0U; row < kGridRows; ++row) {
+            for (std::uint32_t col = 0U; col < kGridCols; ++col) {
+                const double lx0 = -padX + quadW * static_cast<double>(col) / kGridCols;
+                const double ly0 = -padY + quadH * static_cast<double>(row) / kGridRows;
+                const double lx1 = -padX + quadW * static_cast<double>(col + 1U) / kGridCols;
+                const double ly1 = -padY + quadH * static_cast<double>(row + 1U) / kGridRows;
+                const double u0 = static_cast<double>(col) / kGridCols;
+                const double v0 = static_cast<double>(row) / kGridRows;
+                const double u1 = static_cast<double>(col + 1U) / kGridCols;
+                const double v1 = static_cast<double>(row + 1U) / kGridRows;
+                const Point cellPoints[4] = {
+                    TransformPoint(nodeTransform, lx0, ly0),
+                    TransformPoint(nodeTransform, lx1, ly0),
+                    TransformPoint(nodeTransform, lx1, ly1),
+                    TransformPoint(nodeTransform, lx0, ly1)};
+                const Point cellUvs[4] = {
+                    {u0, v0}, {u1, v0}, {u1, v1}, {u0, v1}};
+                EmitQuad(cellPoints, cellUvs, tint);
+            }
+        }
+    } else {
+        EmitQuad(points, uvs, tint);
+    }
 
     static_cast<void>(frame);
 }
@@ -719,13 +1187,13 @@ void UiFrameEncoder::SetContentStencil() noexcept {
          currentBatch_.stencilRef != ref)) {
         FlushBatch();
     }
-    currentBatch_.renderState.f.stencilMode = mode;
+    AssignStencilMode(currentBatch_.renderState, mode);
     currentBatch_.stencilRef = ref;
 }
 
 void UiFrameEncoder::EmitClipQuad(
     const Rect& rect,
-    const Transform2D& transform,
+    const ProjectiveTransform2D& transform,
     std::uint8_t stencilMode,
     std::uint8_t stencilRef) noexcept {
     if (currentBatch_.numIndices > 0U &&
@@ -736,9 +1204,9 @@ void UiFrameEncoder::EmitClipQuad(
         FlushBatch();
     }
     currentBatch_.shader = Shader::Path_Solid;
-    currentBatch_.renderState.f.blendMode = BlendMode::SrcOver;
-    currentBatch_.renderState.f.colorEnable = 0;
-    currentBatch_.renderState.f.stencilMode = stencilMode;
+    AssignBlendMode(currentBatch_.renderState, static_cast<unsigned>(BlendMode::SrcOver));
+    AssignColorEnable(currentBatch_.renderState, 0U);
+    AssignStencilMode(currentBatch_.renderState, stencilMode);
     currentBatch_.stencilRef = stencilRef;
 
     const Point p0 = TransformPoint(transform, rect.x, rect.y);
@@ -752,9 +1220,65 @@ void UiFrameEncoder::EmitClipQuad(
     EmitQuad(points, uvs, {0.0F, 0.0F, 0.0F, 0.0F});
 }
 
+void UiFrameEncoder::EmitClipTriangles(
+    Base::Span<const Point> vertices,
+    Base::Span<const std::uint32_t> indices,
+    std::uint32_t vertexOffset,
+    std::uint32_t vertexCount,
+    std::uint32_t indexOffset,
+    std::uint32_t indexCount,
+    const ProjectiveTransform2D& transform,
+    std::uint8_t stencilMode,
+    std::uint8_t stencilRef) noexcept {
+    if (vertexCount == 0U || indexCount < 3U ||
+        vertexOffset >= vertices.Size() ||
+        indexOffset >= indices.Size() ||
+        vertexCount > vertices.Size() - vertexOffset ||
+        indexCount > indices.Size() - indexOffset) {
+        return;
+    }
+    if (currentBatch_.numIndices > 0U &&
+        (currentBatch_.shader != Shader::Path_Solid ||
+         currentBatch_.renderState.f.colorEnable != 0U ||
+         currentBatch_.renderState.f.stencilMode != stencilMode ||
+         currentBatch_.stencilRef != stencilRef)) {
+        FlushBatch();
+    }
+    currentBatch_.shader = Shader::Path_Solid;
+    AssignBlendMode(currentBatch_.renderState, static_cast<unsigned>(BlendMode::SrcOver));
+    AssignColorEnable(currentBatch_.renderState, 0U);
+    AssignStencilMode(currentBatch_.renderState, stencilMode);
+    currentBatch_.stencilRef = stencilRef;
+
+    const Color transparent{0.0F, 0.0F, 0.0F, 0.0F};
+    for (std::uint32_t triangle = 0U; triangle + 2U < indexCount; triangle += 3U) {
+        const std::uint32_t i0 = indices[indexOffset + triangle];
+        const std::uint32_t i1 = indices[indexOffset + triangle + 1U];
+        const std::uint32_t i2 = indices[indexOffset + triangle + 2U];
+        if (i0 >= vertexCount || i1 >= vertexCount || i2 >= vertexCount) {
+            continue;
+        }
+        const Point a = TransformPoint(
+            transform,
+            vertices[vertexOffset + i0].x,
+            vertices[vertexOffset + i0].y);
+        const Point b = TransformPoint(
+            transform,
+            vertices[vertexOffset + i1].x,
+            vertices[vertexOffset + i1].y);
+        const Point c = TransformPoint(
+            transform,
+            vertices[vertexOffset + i2].x,
+            vertices[vertexOffset + i2].y);
+        const Point points[4] = {a, b, c, c};
+        const Point uvs[4] = {{0.0, 0.0}, {1.0, 0.0}, {1.0, 1.0}, {0.0, 1.0}};
+        EmitQuad(points, uvs, transparent);
+    }
+}
+
 void UiFrameEncoder::ProcessCommand(
     const RenderCommand& cmd,
-    const Transform2D& currentTransform,
+    const ProjectiveTransform2D& currentTransform,
     double currentOpacity) noexcept {
     switch (cmd.kind) {
     case RenderCommandKind::PushClip: {
@@ -794,15 +1318,40 @@ void UiFrameEncoder::ProcessCommand(
         break;
     }
     case RenderCommandKind::FillGradientQuad: {
-        EnsureBatchBlend(Shader::Path_Solid);
-        SetContentStencil();
-
         const Point p0 = TransformPoint(currentTransform, cmd.points[0].x, cmd.points[0].y);
         const Point p1 = TransformPoint(currentTransform, cmd.points[1].x, cmd.points[1].y);
         const Point p2 = TransformPoint(currentTransform, cmd.points[2].x, cmd.points[2].y);
         const Point p3 = TransformPoint(currentTransform, cmd.points[3].x, cmd.points[3].y);
 
         const Point points[4] = {p0, p1, p2, p3};
+        if (cmd.paintKind == 1U || cmd.paintKind == 2U) {
+            const Shader::Enum shader = cmd.paintKind == 1U
+                ? Shader::Path_Linear
+                : Shader::Path_Radial;
+            Texture* ramp = nullptr;
+            if (currentFrame_ != nullptr) {
+                const Base::Span<const RenderGradientRampSnapshot> ramps =
+                    currentFrame_->GradientRamps();
+                if (cmd.gradientRamp < ramps.Size()) {
+                    ramp = GetOrCreateGradientRamp(ramps[cmd.gradientRamp]);
+                }
+            }
+            float uniforms[8];
+            std::memcpy(uniforms, cmd.paintUniforms, sizeof(uniforms));
+            if (cmd.paintKind == 1U) {
+                uniforms[0] *= static_cast<float>(currentOpacity);
+            } else {
+                uniforms[3] *= static_cast<float>(currentOpacity);
+            }
+            SetBatchRamp(shader, ramp, uniforms, cmd.wrapMode);
+            SetContentStencil();
+            const Color white{1.0F, 1.0F, 1.0F, 1.0F};
+            EmitQuad(points, cmd.uvs, white);
+            break;
+        }
+        EnsureBatchBlend(Shader::Path_Solid);
+        SetContentStencil();
+
         const Point uvs[4] = {{0.0, 0.0}, {1.0, 0.0}, {1.0, 1.0}, {0.0, 1.0}};
 
         EmitQuadWithColors(points, uvs, cmd.colors, currentOpacity);
@@ -831,19 +1380,23 @@ void UiFrameEncoder::ProcessCommand(
             break;
         }
 
-        Point contour[kRoundedRectContourPoints];
+        const std::uint32_t cornerSegments = CalculateRoundedCornerSegments(
+            currentTransform, cmd.rect.x, cmd.rect.y, radius);
+        const std::uint32_t contourCount = cornerSegments * 4U;
+
+        Point contour[kMaxRoundedRectContourPoints];
         BuildRoundedRectContour(
             cmd.rect.x, cmd.rect.y, cmd.rect.width, cmd.rect.height,
-            radius, contour);
+            radius, cornerSegments, contour);
 
         const Point centroid{
             cmd.rect.x + cmd.rect.width * 0.5,
             cmd.rect.y + cmd.rect.height * 0.5};
         const Point center = TransformPoint(currentTransform, centroid.x, centroid.y);
-        for (std::uint32_t i = 0U; i < kRoundedRectContourPoints; ++i) {
+        for (std::uint32_t i = 0U; i < contourCount; ++i) {
             contour[i] = TransformPoint(currentTransform, contour[i].x, contour[i].y);
         }
-        EmitTriangleFan(contour, kRoundedRectContourPoints, center, c);
+        EmitTriangleFan(contour, contourCount, center, c);
         break;
     }
     case RenderCommandKind::StrokeRect: {
@@ -853,8 +1406,7 @@ void UiFrameEncoder::ProcessCommand(
         const double thickness = cmd.scalar > 0.0 ? cmd.scalar : 1.0;
         const double half = thickness * 0.5;
         const Rect& r = cmd.rect;
-        const double maxRadius =
-            std::fmin(r.width, r.height) * 0.5 - half;
+        const double maxRadius = std::fmin(r.width, r.height) * 0.5;
         const double radius = std::clamp(
             std::max(0.0, cmd.cornerRadius), 0.0, maxRadius);
 
@@ -862,17 +1414,24 @@ void UiFrameEncoder::ProcessCommand(
         c.alpha = static_cast<float>(c.alpha * currentOpacity);
         const Point uvs[4] = {{0.0, 0.0}, {1.0, 0.0}, {1.0, 1.0}, {0.0, 1.0}};
 
-        Point outer[kRoundedRectContourPoints];
-        Point inner[kRoundedRectContourPoints];
+        const double outerRadius = radius > 0.0 ? radius + half : 0.0;
+        const double innerRadius = std::max(0.0, radius - half);
+        const std::uint32_t cornerSegments = radius > 0.0
+            ? CalculateRoundedCornerSegments(currentTransform, r.x, r.y, outerRadius)
+            : 1U;
+        const std::uint32_t contourCount = cornerSegments * 4U;
+
+        Point outer[kMaxRoundedRectContourPoints];
+        Point inner[kMaxRoundedRectContourPoints];
         BuildRoundedRectContour(
             r.x - half, r.y - half, r.width + 2.0 * half,
-            r.height + 2.0 * half, radius + half, outer);
+            r.height + 2.0 * half, outerRadius, cornerSegments, outer);
         BuildRoundedRectContour(
             r.x + half, r.y + half, r.width - 2.0 * half,
-            r.height - 2.0 * half, std::max(0.0, radius - half), inner);
+            r.height - 2.0 * half, innerRadius, cornerSegments, inner);
 
-        for (std::uint32_t i = 0U; i < kRoundedRectContourPoints; ++i) {
-            const std::uint32_t next = (i + 1U) % kRoundedRectContourPoints;
+        for (std::uint32_t i = 0U; i < contourCount; ++i) {
+            const std::uint32_t next = (i + 1U) % contourCount;
             const Point p0 = TransformPoint(currentTransform, outer[i].x, outer[i].y);
             const Point p1 = TransformPoint(currentTransform, outer[next].x, outer[next].y);
             const Point p2 = TransformPoint(currentTransform, inner[next].x, inner[next].y);
@@ -885,19 +1444,26 @@ void UiFrameEncoder::ProcessCommand(
     case RenderCommandKind::DrawImage: {
         Texture* tex = FindImage(cmd.image);
         if (tex != nullptr) {
+            const std::uint8_t targetWrapMode = cmd.wrapMode;
             if (currentBatch_.numIndices > 0U &&
                 (currentBatch_.shader != Shader::Path_Pattern ||
+                 currentBatch_.pattern != tex ||
                  currentBatch_.image != tex ||
+                 currentBatch_.patternSampler.f.wrapMode != targetWrapMode ||
+                 currentBatch_.imageSampler.f.wrapMode != targetWrapMode ||
                  currentBatch_.renderState.f.colorEnable != 1U ||
                  currentBatch_.renderState.f.blendMode != static_cast<uint8_t>(currentBlendMode_))) {
                 FlushBatch();
             }
             currentBatch_.shader = Shader::Path_Pattern;
+            currentBatch_.pattern = tex;
+            currentBatch_.patternSampler.f.wrapMode = targetWrapMode;
+            currentBatch_.patternSampler.f.minmagFilter = MinMagFilter::Linear;
             currentBatch_.image = tex;
-            currentBatch_.imageSampler.f.wrapMode = WrapMode::ClampToEdge;
+            currentBatch_.imageSampler.f.wrapMode = targetWrapMode;
             currentBatch_.imageSampler.f.minmagFilter = MinMagFilter::Linear;
-            currentBatch_.renderState.f.blendMode = currentBlendMode_;
-            currentBatch_.renderState.f.colorEnable = 1;
+            AssignBlendMode(currentBatch_.renderState, static_cast<unsigned>(currentBlendMode_));
+            AssignColorEnable(currentBatch_.renderState, 1U);
             SetContentStencil();
 
             const Point p0 = TransformPoint(currentTransform, cmd.rect.x, cmd.rect.y);
@@ -945,8 +1511,8 @@ void UiFrameEncoder::ProcessCommand(
             currentBatch_.glyphs = atlas;
             currentBatch_.glyphsSampler.f.wrapMode = WrapMode::ClampToEdge;
             currentBatch_.glyphsSampler.f.minmagFilter = MinMagFilter::Linear;
-            currentBatch_.renderState.f.blendMode = currentBlendMode_;
-            currentBatch_.renderState.f.colorEnable = 1;
+            AssignBlendMode(currentBatch_.renderState, static_cast<unsigned>(currentBlendMode_));
+            AssignColorEnable(currentBatch_.renderState, 1U);
             SetContentStencil();
 
             const Point p0 = TransformPoint(currentTransform, quad.x0, quad.y0);
@@ -972,32 +1538,192 @@ void UiFrameEncoder::ProcessCommand(
             break;
         }
 
-        EnsureBatchBlend(Shader::Path_Solid);
+        const bool gpuPaint = cmd.paintKind == 1U || cmd.paintKind == 2U;
+        if (gpuPaint) {
+            Texture* ramp = nullptr;
+            if (currentFrame_ != nullptr) {
+                const Base::Span<const RenderGradientRampSnapshot> ramps =
+                    currentFrame_->GradientRamps();
+                if (cmd.gradientRamp < ramps.Size()) {
+                    ramp = GetOrCreateGradientRamp(ramps[cmd.gradientRamp]);
+                }
+            }
+            float uniforms[8];
+            std::memcpy(uniforms, cmd.paintUniforms, sizeof(uniforms));
+            if (cmd.paintKind == 1U) {
+                uniforms[0] *= static_cast<float>(currentOpacity);
+            } else {
+                uniforms[3] *= static_cast<float>(currentOpacity);
+            }
+            SetBatchRamp(
+                cmd.paintKind == 1U ? Shader::Path_Linear : Shader::Path_Radial,
+                ramp,
+                uniforms,
+                cmd.wrapMode);
+        } else {
+            EnsureBatchBlend(Shader::Path_Solid);
+        }
         SetContentStencil();
 
         Color c = cmd.color;
-        c.alpha = static_cast<float>(c.alpha * currentOpacity);
+        if (!gpuPaint) {
+            c.alpha = static_cast<float>(c.alpha * currentOpacity);
+        }
         const uint32_t color32 = ColorToRGBA32(c, 1.0);
 
         if (mappedVertices_ == nullptr || mappedIndices_ == nullptr) break;
-        if (currentVertexCount_ + mesh->vertices.Size() > (DYNAMIC_VB_SIZE / sizeof(Vertex2D)) ||
-            currentIndexCount_ + mesh->indices.Size() > (DYNAMIC_IB_SIZE / sizeof(uint16_t))) {
-            FlushBatch();
-            if (mappedVertices_ == nullptr || mappedIndices_ == nullptr) {
-                mappedVertices_ = static_cast<uint8_t*>(device_->MapVertices(DYNAMIC_VB_SIZE));
-                mappedIndices_ = static_cast<uint16_t*>(device_->MapIndices(DYNAMIC_IB_SIZE));
-            }
-            currentVertexOffset_ = 0U;
-            currentVertexCount_ = 0U;
-            currentIndexCount_ = 0U;
-            currentBatch_.startIndex = 0U;
-            currentBatch_.vertexOffset = 0U;
-        }
-        if (mappedVertices_ == nullptr || mappedIndices_ == nullptr) break;
 
-        // 16-bit indices cap a single contiguous vertex run at 65536; oversized
-        // meshes are emitted in slabs that fit, rebasing indices per slab.
-        constexpr std::uint32_t kMaxMeshVertices = 65535U;
+        const uint8_t vertexEnum = (currentBatch_.shader.v < Shader::Count)
+            ? VertexForShader[currentBatch_.shader.v] : 0U;
+        const uint8_t format = (vertexEnum < Shader::Vertex::Count)
+            ? FormatForVertex[vertexEnum] : 0U;
+        const std::uint32_t vertexStride = (SizeForFormat[format] != 0U)
+            ? static_cast<std::uint32_t>(SizeForFormat[format])
+            : static_cast<std::uint32_t>(sizeof(Vertex2D));
+
+        const std::uint32_t kMaxBatchVertices =
+            static_cast<std::uint32_t>(DYNAMIC_VB_SIZE / vertexStride);
+        constexpr std::uint32_t kMaxBatchIndices =
+            static_cast<std::uint32_t>(DYNAMIC_IB_SIZE / sizeof(uint16_t));
+        const std::uint32_t kMaxMeshVertices =
+            kMaxBatchVertices < 65535U ? kMaxBatchVertices : 65535U;
+
+        auto remapDynamicBuffers = [&]() noexcept -> bool {
+            CommitBatches();
+            return EnsureMappedBuffers();
+        };
+
+        auto writeMeshSlab = [&](
+            std::uint32_t start,
+            std::uint32_t end) noexcept {
+            const bool hasInverse = cmd.uvs[0].x > 0.5;
+            Base::Transform2D inverse{};
+            if (hasInverse) {
+                static_cast<void>(
+                    Base::TryToTransform2D(cmd.transform, inverse));
+            }
+
+            if (format == Shader::Vertex::Format::PosColor) {
+                auto* v = reinterpret_cast<VertexPosColor*>(
+                    mappedVertices_ + currentVertexOffset_);
+                for (std::uint32_t index = start; index < end; ++index) {
+                    const Point local = mesh->vertices[index];
+                    const Point pos = TransformPoint(
+                        currentTransform, local.x, local.y);
+                    const std::uint32_t localIndex = index - start;
+                    v[localIndex].x = static_cast<float>(pos.x);
+                    v[localIndex].y = static_cast<float>(pos.y);
+                    v[localIndex].color = color32;
+                }
+            } else if (format == Shader::Vertex::Format::PosTex0) {
+                auto* v = reinterpret_cast<VertexPosTex0*>(
+                    mappedVertices_ + currentVertexOffset_);
+                for (std::uint32_t index = start; index < end; ++index) {
+                    const Point local = mesh->vertices[index];
+                    const Point pos = TransformPoint(
+                        currentTransform, local.x, local.y);
+                    Point sample = local;
+                    if (hasInverse && cmd.rect.width > 1.0e-12 &&
+                        cmd.rect.height > 1.0e-12) {
+                        const Point uv{
+                            (local.x - cmd.rect.x) / cmd.rect.width,
+                            (local.y - cmd.rect.y) / cmd.rect.height};
+                        const Point mapped{
+                            uv.x * inverse.m11 + uv.y * inverse.m21 + inverse.dx,
+                            uv.x * inverse.m12 + uv.y * inverse.m22 + inverse.dy};
+                        sample = {
+                            cmd.rect.x + mapped.x * cmd.rect.width,
+                            cmd.rect.y + mapped.y * cmd.rect.height};
+                    }
+                    float u = 0.0F;
+                    float vCoord = 0.0F;
+                    if (cmd.paintKind == 1U) {
+                        const double len2 =
+                            cmd.scalar > 1.0e-12 ? cmd.scalar : 1.0;
+                        const double t =
+                            ((sample.x - cmd.points[0].x) * cmd.points[1].x +
+                             (sample.y - cmd.points[0].y) * cmd.points[1].y) /
+                            len2;
+                        u = static_cast<float>(t);
+                        vCoord = 0.5F;
+                    } else if (cmd.paintKind == 2U) {
+                        const double rx =
+                            std::fabs(cmd.points[2].x) > 1.0e-6
+                                ? cmd.points[2].x : 1.0;
+                        const double ry =
+                            std::fabs(cmd.points[2].y) > 1.0e-6
+                                ? cmd.points[2].y : 1.0;
+                        u = static_cast<float>(
+                            (sample.x - cmd.points[0].x) / rx);
+                        vCoord = static_cast<float>(
+                            (sample.y - cmd.points[0].y) / ry);
+                    }
+                    const std::uint32_t localIndex = index - start;
+                    v[localIndex].x = static_cast<float>(pos.x);
+                    v[localIndex].y = static_cast<float>(pos.y);
+                    v[localIndex].u = u;
+                    v[localIndex].v = vCoord;
+                }
+            } else {
+                auto* v = reinterpret_cast<Vertex2D*>(
+                    mappedVertices_ + currentVertexOffset_);
+                for (std::uint32_t index = start; index < end; ++index) {
+                    const Point local = mesh->vertices[index];
+                    const Point pos = TransformPoint(
+                        currentTransform, local.x, local.y);
+                    Point sample = local;
+                    if (hasInverse && cmd.rect.width > 1.0e-12 &&
+                        cmd.rect.height > 1.0e-12) {
+                        const Point uv{
+                            (local.x - cmd.rect.x) / cmd.rect.width,
+                            (local.y - cmd.rect.y) / cmd.rect.height};
+                        const Point mapped{
+                            uv.x * inverse.m11 + uv.y * inverse.m21 + inverse.dx,
+                            uv.x * inverse.m12 + uv.y * inverse.m22 + inverse.dy};
+                        sample = {
+                            cmd.rect.x + mapped.x * cmd.rect.width,
+                            cmd.rect.y + mapped.y * cmd.rect.height};
+                    }
+                    float u = 0.0F;
+                    float vCoord = 0.0F;
+                    if (cmd.paintKind == 1U) {
+                        const double len2 =
+                            cmd.scalar > 1.0e-12 ? cmd.scalar : 1.0;
+                        const double t =
+                            ((sample.x - cmd.points[0].x) * cmd.points[1].x +
+                             (sample.y - cmd.points[0].y) * cmd.points[1].y) /
+                            len2;
+                        u = static_cast<float>(t);
+                        vCoord = 0.5F;
+                    } else if (cmd.paintKind == 2U) {
+                        const double rx =
+                            std::fabs(cmd.points[2].x) > 1.0e-6
+                                ? cmd.points[2].x : 1.0;
+                        const double ry =
+                            std::fabs(cmd.points[2].y) > 1.0e-6
+                                ? cmd.points[2].y : 1.0;
+                        u = static_cast<float>(
+                            (sample.x - cmd.points[0].x) / rx);
+                        vCoord = static_cast<float>(
+                            (sample.y - cmd.points[0].y) / ry);
+                    }
+                    const std::uint32_t localIndex = index - start;
+                    v[localIndex].x = static_cast<float>(pos.x);
+                    v[localIndex].y = static_cast<float>(pos.y);
+                    v[localIndex].color = color32;
+                    v[localIndex].u = u;
+                    v[localIndex].v = vCoord;
+                    v[localIndex].coverage = 1.0F;
+                }
+            }
+        };
+
+        if (currentVertexCount_ + std::min(mesh->vertices.Size(), kMaxMeshVertices) >
+                kMaxBatchVertices ||
+            currentIndexCount_ + 3U > kMaxBatchIndices) {
+            if (!remapDynamicBuffers()) break;
+        }
+
         const std::uint32_t vertexCount = mesh->vertices.Size();
         const std::uint32_t splitCount =
             (vertexCount + kMaxMeshVertices - 1U) / kMaxMeshVertices;
@@ -1008,57 +1734,54 @@ void UiFrameEncoder::ProcessCommand(
                 start + kMaxMeshVertices, vertexCount);
             const std::uint32_t count = end - start;
 
-            if (currentVertexCount_ + count > (DYNAMIC_VB_SIZE / sizeof(Vertex2D)) ||
-                currentVertexCount_ + count > kMaxMeshVertices ||
-                currentIndexCount_ + mesh->indices.Size() > (DYNAMIC_IB_SIZE / sizeof(uint16_t))) {
-                FlushBatch();
-                if (mappedVertices_ == nullptr || mappedIndices_ == nullptr) {
-                    if (device_ != nullptr) {
-                        mappedVertices_ = static_cast<uint8_t*>(device_->MapVertices(DYNAMIC_VB_SIZE));
-                        mappedIndices_ = static_cast<uint16_t*>(device_->MapIndices(DYNAMIC_IB_SIZE));
-                    }
-                }
-                currentVertexOffset_ = 0U;
-                currentVertexCount_ = 0U;
-                currentIndexCount_ = 0U;
-                currentBatch_.startIndex = 0U;
-                currentBatch_.vertexOffset = 0U;
+            if (currentVertexCount_ + count > kMaxBatchVertices) {
+                if (!remapDynamicBuffers()) break;
             }
             if (mappedVertices_ == nullptr || mappedIndices_ == nullptr) break;
 
-            auto* v = reinterpret_cast<Vertex2D*>(mappedVertices_ + currentVertexOffset_);
-            const uint16_t baseVertex = static_cast<uint16_t>(currentVertexCount_);
-            for (std::uint32_t index = start; index < end; ++index) {
-                const Point pos = TransformPoint(currentTransform, mesh->vertices[index].x, mesh->vertices[index].y);
-                const std::uint32_t local = index - start;
-                v[local].x = static_cast<float>(pos.x);
-                v[local].y = static_cast<float>(pos.y);
-                v[local].color = color32;
-                v[local].u = 0.0F;
-                v[local].v = 0.0F;
-                v[local].coverage = 1.0F;
-            }
-
+            writeMeshSlab(start, end);
+            uint16_t baseVertex = static_cast<uint16_t>(currentVertexCount_ - currentBatchVertexStart_);
             std::uint32_t emittedIndices = 0U;
-            for (std::uint32_t index = 0U; index + 2U < mesh->indices.Size(); index += 3U) {
-                const std::uint32_t i0 = mesh->indices[index + 0U];
-                const std::uint32_t i1 = mesh->indices[index + 1U];
-                const std::uint32_t i2 = mesh->indices[index + 2U];
-                if (i0 < start || i0 >= end ||
-                    i1 < start || i1 >= end ||
-                    i2 < start || i2 >= end) {
-                    continue;
-                }
-                mappedIndices_[currentIndexCount_ + emittedIndices + 0U] =
-                    static_cast<uint16_t>(baseVertex + i0 - start);
-                mappedIndices_[currentIndexCount_ + emittedIndices + 1U] =
-                    static_cast<uint16_t>(baseVertex + i1 - start);
-                mappedIndices_[currentIndexCount_ + emittedIndices + 2U] =
-                    static_cast<uint16_t>(baseVertex + i2 - start);
-                emittedIndices += 3U;
+            bool slabFailed = false;
+            for (std::uint32_t index = 0U;
+                 index + 2U < mesh->indices.Size();
+                 index += 3U) {
+                 const std::uint32_t i0 = mesh->indices[index + 0U];
+                 const std::uint32_t i1 = mesh->indices[index + 1U];
+                 const std::uint32_t i2 = mesh->indices[index + 2U];
+                 if (i0 < start || i0 >= end ||
+                     i1 < start || i1 >= end ||
+                     i2 < start || i2 >= end) {
+                     continue;
+                 }
+                 if (currentIndexCount_ + emittedIndices + 3U > kMaxBatchIndices) {
+                     currentVertexOffset_ += count * vertexStride;
+                     currentVertexCount_ += count;
+                     currentIndexCount_ += emittedIndices;
+                     currentBatch_.numVertices += count;
+                     currentBatch_.numIndices += emittedIndices;
+                     stats_.vertexCount += count;
+                     stats_.indexCount += emittedIndices;
+                     FlushBatch();
+                     if (!remapDynamicBuffers()) {
+                         slabFailed = true;
+                         break;
+                     }
+                     writeMeshSlab(start, end);
+                     baseVertex = 0U;
+                     emittedIndices = 0U;
+                 }
+                 mappedIndices_[currentIndexCount_ + emittedIndices + 0U] =
+                     static_cast<uint16_t>(baseVertex + i0 - start);
+                 mappedIndices_[currentIndexCount_ + emittedIndices + 1U] =
+                     static_cast<uint16_t>(baseVertex + i1 - start);
+                 mappedIndices_[currentIndexCount_ + emittedIndices + 2U] =
+                     static_cast<uint16_t>(baseVertex + i2 - start);
+                 emittedIndices += 3U;
             }
+            if (slabFailed) break;
 
-            currentVertexOffset_ += count * static_cast<std::uint32_t>(sizeof(Vertex2D));
+            currentVertexOffset_ += count * vertexStride;
             currentVertexCount_ += count;
             currentIndexCount_ += emittedIndices;
             currentBatch_.numVertices += count;
@@ -1087,13 +1810,21 @@ Base::Result<void> UiFrameEncoder::RecordOffscreen(
 Base::Result<void> UiFrameEncoder::RecordOnscreen(
     const RenderFrame& frame,
     RenderTarget& target) noexcept {
+    std::fprintf(stderr, "[DEBUG FrameEncoder] RecordOnscreen ENTER: nodeCount=%u commands=%u initialized=%d device=%p\n",
+        frame.Nodes().Size(), frame.Commands().Size(), (int)initialized_, (void*)device_);
     if (!initialized_ || device_ == nullptr) return {};
 
     ResetFrame();
+    BeginOffscreenTargetFrame();
+    currentFrame_ = &frame;
     stats_.sourceCommandCount = frame.Commands().Size();
 
-    device_->BeginOnscreenRender();
+    for (const auto& ramp : frame.GradientRamps()) {
+        GetOrCreateGradientRamp(ramp);
+    }
+
     device_->SetRenderTarget(&target);
+    device_->BeginOnscreenRender();
 
     Tile tile;
     tile.x = 0;
@@ -1102,45 +1833,63 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
     tile.height = frame.PixelHeight();
     device_->BeginTile(&target, tile);
 
-    mappedVertices_ = static_cast<uint8_t*>(device_->MapVertices(DYNAMIC_VB_SIZE));
-    mappedIndices_ = static_cast<uint16_t*>(device_->MapIndices(DYNAMIC_IB_SIZE));
+    EnsureMappedBuffers();
 
-    Transform2D rootTransform;
+    ProjectiveTransform2D rootTransform;
     const double dpi = (frame.DpiScale() > 0.0) ? frame.DpiScale() : 1.0;
     rootTransform.m11 = dpi;
     rootTransform.m22 = dpi;
 
     struct NodeState {
         RenderNodeId nodeId = InvalidRenderNodeId;
-        Transform2D transform;
+        ProjectiveTransform2D transform;
         double opacity = 1.0;
         bool pushedClip = false;
     };
     struct PushState {
-        Transform2D transform;
+        ProjectiveTransform2D transform;
         double opacity = 1.0;
     };
 
     const auto commands = frame.Commands();
     const auto nodes = frame.Nodes();
+    const auto clipVertices = frame.GeometryClipVertices();
+    const auto clipIndices = frame.GeometryClipIndices();
     const std::uint32_t nodeCount = nodes.Size();
 
     Base::Vector<NodeState> nodeStack(allocator_);
+    auto emitClipEntry = [&](const ClipEntry& entry, std::uint8_t mode, std::uint8_t ref) noexcept {
+        if (entry.geometry) {
+            EmitClipTriangles(
+                clipVertices,
+                clipIndices,
+                entry.vertexOffset,
+                entry.vertexCount,
+                entry.indexOffset,
+                entry.indexCount,
+                entry.transform,
+                mode,
+                ref);
+            return;
+        }
+        EmitClipQuad(entry.rect, entry.transform, mode, ref);
+    };
     auto popNodeClip = [&](Base::Vector<NodeState>& stack) noexcept {
         if (!stack.Empty() && stack.Back().pushedClip) {
             if (clipDepth_ > 0U && !clipStack_.Empty()) {
                 const ClipEntry entry = clipStack_.Back();
                 static_cast<void>(clipStack_.PopBack());
                 --clipDepth_;
-                EmitClipQuad(
-                    entry.rect, entry.transform, StencilMode::Equal_Decr,
+                emitClipEntry(
+                    entry,
+                    StencilMode::Equal_Decr,
                     static_cast<std::uint8_t>(clipDepth_ + 1U));
             }
         }
     };
 
     auto emitNodeCommands = [&](const RenderNodeSnapshot& node,
-                                const Transform2D& nodeTransform,
+                                const ProjectiveTransform2D& nodeTransform,
                                 double nodeOpacity) noexcept {
         switch (node.blendMode) {
         case ::Aero::BlendMode::Multiply:
@@ -1163,14 +1912,34 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
         }
 
         bool nodePushedClip = false;
-        if (node.clipsToBounds && node.clip.width > 0.0 && node.clip.height > 0.0) {
-            EmitClipQuad(node.clip, nodeTransform, StencilMode::Equal_Incr, clipDepth_);
-            static_cast<void>(clipStack_.PushBack(ClipEntry{node.clip, nodeTransform}));
+        if (node.geometryClipIndexCount >= 3U &&
+            node.geometryClipVertexCount >= 3U) {
+            ClipEntry entry;
+            entry.geometry = true;
+            entry.transform = nodeTransform;
+            entry.vertexOffset = node.geometryClipVertexOffset;
+            entry.vertexCount = node.geometryClipVertexCount;
+            entry.indexOffset = node.geometryClipIndexOffset;
+            entry.indexCount = node.geometryClipIndexCount;
+            emitClipEntry(entry, StencilMode::Equal_Incr, clipDepth_);
+            static_cast<void>(clipStack_.PushBack(entry));
+            ++clipDepth_;
+            nodePushedClip = true;
+        } else if ((node.clipsToBounds || node.hasLayoutClip) &&
+                   (node.clip.width > 0.0 || node.renderSize.width > 0.0) &&
+                   (node.clip.height > 0.0 || node.renderSize.height > 0.0)) {
+            const Rect localClip = (node.clip.width > 0.0 && node.clip.height > 0.0)
+                ? node.clip
+                : Rect{0.0, 0.0, node.renderSize.width, node.renderSize.height};
+            EmitClipQuad(
+                localClip, nodeTransform, StencilMode::Equal_Incr, clipDepth_);
+            static_cast<void>(
+                clipStack_.PushBack(ClipEntry{localClip, nodeTransform}));
             ++clipDepth_;
             nodePushedClip = true;
         }
 
-        Transform2D currentTransform = nodeTransform;
+        ProjectiveTransform2D currentTransform = nodeTransform;
         double currentOpacity = nodeOpacity;
         Base::Vector<PushState> pushStack(allocator_);
 
@@ -1213,69 +1982,138 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
         return nodePushedClip;
     };
 
-    // Parent index lookup used to compute contiguous subtree ranges.
-    static constexpr std::uint32_t kNotFound = 0xFFFFFFFFU;
-    Base::Vector<std::uint32_t> parentIndexes(allocator_);
+    // P4.1: O(n) subtree ranges. Nodes are emitted in DFS preorder with
+    // parent preceding child (RenderTree::Commit via BuildSubtree; enforced
+    // by ValidateRenderFrame), so every subtree is a contiguous index range.
+    // The old parentIndexes reverse scan (O(n^2)) plus the isInSubtree chain
+    // walk inside every subtreeEndOf call (O(n . depth) each, O(n^3) total
+    // across the record loop) is replaced by:
+    //  1. one preorder pass deriving depths with an explicit ancestor stack
+    //     (each node pushed/popped once, amortized O(n)) — mirrors the
+    //     nodeStack open/close logic in the record loop below;
+    //  2. one reverse pass computing every subtree end with a monotonic
+    //     scan (path compression, amortized O(n));
+    //  3. prefix sums over commandCount for O(1) subtree command queries.
+    Base::Vector<std::uint32_t> depths(allocator_);
+    Base::Vector<RenderNodeId> ancestorStack(allocator_);
     for (std::uint32_t i = 0U; i < nodeCount; ++i) {
-        std::uint32_t parentIndex = kNotFound;
         const RenderNodeId parentId = nodes[i].parentId;
-        for (std::uint32_t j = i; j > 0U; --j) {
-            if (nodes[j - 1U].id == parentId) {
-                parentIndex = j - 1U;
-                break;
-            }
+        while (!ancestorStack.Empty() && ancestorStack.Back() != parentId) {
+            static_cast<void>(ancestorStack.PopBack());
         }
-        static_cast<void>(parentIndexes.PushBack(parentIndex));
+        // Orphan parent ids (invalid frames) bottom out at depth 0, matching
+        // the old kNotFound behavior where isInSubtree() returned false.
+        static_cast<void>(depths.PushBack(ancestorStack.Size()));
+        static_cast<void>(ancestorStack.PushBack(nodes[i].id));
     }
 
-    auto isInSubtree = [&](std::uint32_t index,
-                           std::uint32_t rootIndex) noexcept {
-        std::uint32_t cursor = index;
-        while (cursor != kNotFound) {
-            if (cursor == rootIndex) return true;
-            if (cursor < rootIndex) return false;
-            cursor = parentIndexes[cursor];
+    Base::Vector<std::uint32_t> subtreeEnds(allocator_);
+    for (std::uint32_t i = 0U; i < nodeCount; ++i) {
+        static_cast<void>(subtreeEnds.PushBack(i + 1U));
+    }
+    for (std::uint32_t i = nodeCount; i > 0U;) {
+        --i;
+        std::uint32_t end = i + 1U;
+        while (end < nodeCount && depths[end] > depths[i]) {
+            end = subtreeEnds[end];
         }
-        return false;
-    };
+        subtreeEnds[i] = end;
+    }
+
+    Base::Vector<std::uint32_t> commandPrefix(allocator_);
+    static_cast<void>(commandPrefix.PushBack(0U));
+    for (std::uint32_t i = 0U; i < nodeCount; ++i) {
+        static_cast<void>(commandPrefix.PushBack(
+            commandPrefix[i] + nodes[i].commandCount));
+    }
 
     auto subtreeEndOf = [&](std::uint32_t rootIndex) noexcept {
-        std::uint32_t end = rootIndex + 1U;
-        while (end < nodeCount && isInSubtree(end, rootIndex)) {
-            ++end;
-        }
-        return end;
+        return subtreeEnds[rootIndex];
     };
 
     auto subtreeCommandCount = [&](std::uint32_t rootIndex) noexcept {
-        std::uint32_t count = nodes[rootIndex].commandCount;
-        const std::uint32_t end = subtreeEndOf(rootIndex);
-        for (std::uint32_t i = rootIndex + 1U; i < end; ++i) {
-            count += nodes[i].commandCount;
-        }
-        return count;
+        return commandPrefix[subtreeEnds[rootIndex]] -
+            commandPrefix[rootIndex];
     };
+
+    for (std::uint32_t i = 0U; i < nodeCount; ++i) {
+        if (nodes[i].effect.kind != RenderEffectKind::None) {
+            std::fprintf(stderr, "[DEBUG FrameEncoder Nodes] node[%u] id=%llu parent=%llu effect=%d r=%f op=%f w=%f h=%f cmdCount=%u\n",
+                i, static_cast<unsigned long long>(nodes[i].id), static_cast<unsigned long long>(nodes[i].parentId),
+                static_cast<int>(nodes[i].effect.kind), nodes[i].effect.radius, nodes[i].effect.opacity,
+                nodes[i].renderSize.width, nodes[i].renderSize.height, nodes[i].commandCount);
+        }
+    }
 
     for (std::uint32_t nodeIndex = 0U; nodeIndex < nodeCount; ) {
         const RenderNodeSnapshot& node = nodes[nodeIndex];
+        std::fprintf(stderr, "[DEBUG Visit] nodeIndex=%u id=%llu parent=%llu subtreeEnd=%u op=%f\n",
+            nodeIndex, static_cast<unsigned long long>(node.id), static_cast<unsigned long long>(node.parentId),
+            subtreeEndOf(nodeIndex), node.opacity);
         while (!nodeStack.Empty() && nodeStack.Back().nodeId != node.parentId) {
             popNodeClip(nodeStack);
             static_cast<void>(nodeStack.PopBack());
         }
-        const Transform2D baseTransform =
+        const ProjectiveTransform2D baseTransform =
             nodeStack.Empty() ? rootTransform : nodeStack.Back().transform;
         const double baseOpacity =
             nodeStack.Empty() ? 1.0 : nodeStack.Back().opacity;
 
-        Transform2D local = CombineTransform(node.renderTransform, MakeTranslate(node.layoutSlot.x, node.layoutSlot.y));
-        const Transform2D nodeTransform = CombineTransform(local, baseTransform);
+        ProjectiveTransform2D local = CombineTransform(node.renderTransform, MakeTranslate(node.layoutSlot.x, node.layoutSlot.y));
+        const ProjectiveTransform2D nodeTransform = CombineTransform(local, baseTransform);
         const double nodeOpacity = baseOpacity * node.opacity;
 
         const bool hasEffect = node.effect.kind != RenderEffectKind::None;
         const bool hasMask = node.mask.kind != RenderMaskKind::None;
+        const std::uint32_t subtreeCommands = subtreeCommandCount(nodeIndex);
+
+        if (hasEffect) {
+            std::fprintf(stderr, "[DEBUG FrameEncoder] node %llu hasEffect: kind=%d, r=%f, op=%f, w=%f, h=%f, subCmds=%u, nodeOp=%f\n",
+                static_cast<unsigned long long>(node.id), static_cast<int>(node.effect.kind), node.effect.radius, node.effect.opacity,
+                node.renderSize.width, node.renderSize.height, subtreeCommands, node.opacity);
+        }
+        // ClipToBounds under a parent scale (outer Viewbox, Intro
+        // ScaleTransform) cannot rely on window stencil: during Opacity<1
+        // the subtree is baked into a texture whose size is the clip, so
+        // items stay visible, then Opacity==1 switches to inline Equal_Keep
+        // and the list vanishes. Rasterizing the clipped subtree into a
+        // local-space layer matches the fade path and is resolution-correct
+        // for axis-aligned clips.
+        const bool needsClipLayer =
+            node.clipsToBounds && subtreeCommands > 0U;
+        const std::uint32_t subtreeEnd = subtreeEndOf(nodeIndex);
+        // CompositeTransform3D (RotationY card-flip) stores a non-affine
+        // homography on this node. When descendants contain DropShadow / effects,
+        // they would otherwise bake separate axis-aligned layers, so rasterize
+        // the subtree in local pixels and warp that card. For clean vector trees
+        // without effects, descendants inherit nodeTransform directly and are
+        // rasterized with exact per-vertex projective division.
+        bool subtreeHasEffect = false;
+        for (std::uint32_t i = nodeIndex + 1U; i < subtreeEnd; ++i) {
+            if (nodes[i].effect.kind != RenderEffectKind::None ||
+                nodes[i].mask.kind != RenderMaskKind::None) {
+                subtreeHasEffect = true;
+                break;
+            }
+        }
+        const bool needs3DLayer =
+            subtreeCommands > 0U &&
+            !Base::IsAffine(node.renderTransform) &&
+            subtreeHasEffect;
         const bool needsOffscreen =
             hasEffect || hasMask ||
-            (node.opacity < 1.0 && subtreeCommandCount(nodeIndex) > 1U);
+            (node.opacity < 1.0 && subtreeCommands > 1U) ||
+            needsClipLayer ||
+            needs3DLayer;
+
+        // Opacity 0 still participates in hit-testing, but must not take the
+        // offscreen compositing path. A hidden ScrollBar (17px, opacity 0)
+        // was reallocating the default FBO and, before the SetRenderTarget
+        // clear was removed, wiping the window/sidebar/welcome already drawn.
+        if (node.opacity <= 0.0) {
+            nodeIndex = subtreeEnd;
+            continue;
+        }
 
         if (!needsOffscreen) {
             const bool pushedClip =
@@ -1288,15 +2126,34 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
 
         // Offscreen compositing: record the subtree into an offscreen target,
         // then composite it back with the node's effect, mask and opacity.
-        const std::uint32_t subtreeEnd = subtreeEndOf(nodeIndex);
+        double effectPadLocalX = 0.0;
+        double effectPadLocalY = 0.0;
+        if (node.effect.kind == RenderEffectKind::DropShadow) {
+            const double radians =
+                node.effect.direction * 0.017453292519943295;
+            const double dx = std::cos(radians) * node.effect.depth;
+            const double dy = -std::sin(radians) * node.effect.depth;
+            const double blur = std::ceil(std::max(0.0, node.effect.radius) * 2.0);
+            effectPadLocalX = blur + std::ceil(std::abs(dx));
+            effectPadLocalY = blur + std::ceil(std::abs(dy));
+        } else if (node.effect.kind == RenderEffectKind::Blur ||
+                   node.effect.kind == RenderEffectKind::DirectionalBlur) {
+            const double blur = std::ceil(std::max(0.0, node.effect.radius) * 2.0);
+            effectPadLocalX = blur;
+            effectPadLocalY = blur;
+        }
+        const std::uint32_t padPixelsX = static_cast<std::uint32_t>(
+            std::ceil(effectPadLocalX * dpi));
+        const std::uint32_t padPixelsY = static_cast<std::uint32_t>(
+            std::ceil(effectPadLocalY * dpi));
         const std::uint32_t offWidth = std::max(
             1U, static_cast<std::uint32_t>(
-                std::ceil(node.renderSize.width * dpi)));
+                std::ceil(node.renderSize.width * dpi)) + padPixelsX * 2U);
         const std::uint32_t offHeight = std::max(
             1U, static_cast<std::uint32_t>(
-                std::ceil(node.renderSize.height * dpi)));
+                std::ceil(node.renderSize.height * dpi)) + padPixelsY * 2U);
 
-        FlushBatch();
+        CommitBatches();
         RenderTarget* offscreen =
             GetOrCreateOffscreenTarget(node.id, offWidth, offHeight, false);
         if (offscreen == nullptr) {
@@ -1316,13 +2173,35 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
         device_->BeginOffscreenRender();
         Tile offTile{0U, 0U, offWidth, offHeight};
         device_->BeginTile(offscreen, offTile);
+        EnsureMappedBuffers();
 
         // Record the subtree in node-local space scaled by dpi. The root
         // node's slot offset, render transform and opacity are applied at
-        // composite time rather than baked into the offscreen content.
-        Transform2D offRoot;
-        offRoot.m11 = dpi;
-        offRoot.m22 = dpi;
+        // composite time rather than baked into the offscreen content —
+        // except Viewbox stretch, which must be baked so unscaled children
+        // (CheckNought Paths) fit a RenderSize-sized DropShadow target.
+        ProjectiveTransform2D dpiPad;
+        dpiPad.m11 = dpi;
+        dpiPad.m22 = dpi;
+        dpiPad.m31 = static_cast<double>(padPixelsX);
+        dpiPad.m32 = static_cast<double>(padPixelsY);
+        ProjectiveTransform2D offRoot = dpiPad;
+        ProjectiveTransform2D compositeTransform = nodeTransform;
+        if (node.hasViewboxTransform) {
+            const ProjectiveTransform2D viewbox =
+                Base::ToProjective(node.viewboxTransform);
+            offRoot = CombineTransform(viewbox, dpiPad);
+            ProjectiveTransform2D inverseViewbox;
+            if (Base::Invert(viewbox, inverseViewbox)) {
+                const ProjectiveTransform2D visualWithout = CombineTransform(
+                    inverseViewbox, node.renderTransform);
+                const ProjectiveTransform2D localWithout = CombineTransform(
+                    visualWithout,
+                    MakeTranslate(node.layoutSlot.x, node.layoutSlot.y));
+                compositeTransform =
+                    CombineTransform(localWithout, baseTransform);
+            }
+        }
         Base::Vector<NodeState> offStack(allocator_);
         for (std::uint32_t i = nodeIndex; i < subtreeEnd; ++i) {
             const RenderNodeSnapshot& sub = nodes[i];
@@ -1330,17 +2209,17 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
                 popNodeClip(offStack);
                 static_cast<void>(offStack.PopBack());
             }
-            const Transform2D subBase =
+            const ProjectiveTransform2D subBase =
                 offStack.Empty() ? offRoot : offStack.Back().transform;
             const double subBaseOpacity =
                 offStack.Empty() ? 1.0 : offStack.Back().opacity;
-            Transform2D subLocal;
+            ProjectiveTransform2D subLocal;
             if (i == nodeIndex) {
-                subLocal = Transform2D{};
+                subLocal = ProjectiveTransform2D{};
             } else {
                 subLocal = CombineTransform(sub.renderTransform, MakeTranslate(sub.layoutSlot.x, sub.layoutSlot.y));
             }
-            const Transform2D subTransform = CombineTransform(subLocal, subBase);
+            const ProjectiveTransform2D subTransform = CombineTransform(subLocal, subBase);
             const double subOpacity =
                 (i == nodeIndex) ? 1.0 : subBaseOpacity * sub.opacity;
             const bool pushedClip =
@@ -1353,7 +2232,7 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
             static_cast<void>(offStack.PopBack());
         }
 
-        FlushBatch();
+        CommitBatches();
         device_->EndTile(offscreen);
         device_->EndOffscreenRender();
         device_->SetRenderTarget(&target);
@@ -1369,12 +2248,15 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
                 device_->BeginOffscreenRender();
                 Tile maskTile{0U, 0U, offWidth, offHeight};
                 device_->BeginTile(maskTarget, maskTile);
+                EnsureMappedBuffers();
                 EmitMaskBrush(
                     node.mask,
+                    static_cast<double>(padPixelsX),
+                    static_cast<double>(padPixelsY),
                     node.renderSize.width * dpi,
                     node.renderSize.height * dpi,
                     frame);
-                FlushBatch();
+                CommitBatches();
                 device_->EndTile(maskTarget);
                 device_->EndOffscreenRender();
                 device_->SetRenderTarget(&target);
@@ -1387,6 +2269,7 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
         fullTile.width = frame.PixelWidth();
         fullTile.height = frame.PixelHeight();
         device_->BeginTile(&target, fullTile);
+        EnsureMappedBuffers();
 
         switch (node.blendMode) {
         case ::Aero::BlendMode::Multiply:
@@ -1405,7 +2288,8 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
         }
 
         CompositeOffscreen(
-            node, offscreen, maskTarget, nodeTransform, nodeOpacity, dpi, frame);
+            node, offscreen, maskTarget, compositeTransform, nodeOpacity, dpi,
+            frame);
         FlushBatch();
 
         nodeIndex = subtreeEnd;
@@ -1416,7 +2300,7 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
         static_cast<void>(nodeStack.PopBack());
     }
 
-    FlushBatch();
+    CommitBatches();
 
     if (mappedIndices_ != nullptr) {
         device_->UnmapIndices();
@@ -1429,8 +2313,89 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
 
     device_->EndTile(&target);
     device_->EndOnscreenRender();
+    currentFrame_ = nullptr;
 
     return {};
+}
+
+void UiFrameEncoder::Downsample(
+    Texture* source,
+    const Rect& bounds,
+    const Size& sourceDimensions,
+    double opacity) noexcept {
+    if (source == nullptr) return;
+    const bool batchActive = currentBatch_.numIndices > 0U;
+    if (batchActive &&
+        (currentBatch_.shader != Shader::Downsample ||
+         currentBatch_.image != source)) {
+        FlushBatch();
+    }
+    currentBatch_.shader = Shader::Downsample;
+    currentBatch_.image = source;
+    currentBatch_.imageSampler.f.wrapMode = WrapMode::ClampToEdge;
+    currentBatch_.imageSampler.f.minmagFilter = MinMagFilter::Linear;
+    AssignBlendMode(currentBatch_.renderState, static_cast<unsigned>(currentBlendMode_));
+    AssignColorEnable(currentBatch_.renderState, 1U);
+
+    paintUniforms_[0] = static_cast<float>(sourceDimensions.width);
+    paintUniforms_[1] = static_cast<float>(sourceDimensions.height);
+    currentBatch_.pixelUniforms[0] = {paintUniforms_, 2U, 0U};
+
+    const Point points[4] = {
+        {bounds.x, bounds.y},
+        {bounds.x + bounds.width, bounds.y},
+        {bounds.x + bounds.width, bounds.y + bounds.height},
+        {bounds.x, bounds.y + bounds.height}
+    };
+    const Point uvs[4] = {
+        {0.0, 0.0},
+        {1.0, 0.0},
+        {1.0, 1.0},
+        {0.0, 1.0}
+    };
+    Color color{1.0f, 1.0f, 1.0f, static_cast<float>(std::clamp(opacity, 0.0, 1.0))};
+    SetContentStencil();
+    EmitQuad(points, uvs, color);
+}
+
+void UiFrameEncoder::Upsample(
+    Texture* base,
+    Texture* blur,
+    const Rect& bounds,
+    double blendWeight) noexcept {
+    if (base == nullptr || blur == nullptr) return;
+    const bool batchActive = currentBatch_.numIndices > 0U;
+    if (batchActive &&
+        (currentBatch_.shader != Shader::Upsample ||
+         currentBatch_.image != base ||
+         currentBatch_.pattern != blur)) {
+        FlushBatch();
+    }
+    currentBatch_.shader = Shader::Upsample;
+    currentBatch_.image = base;
+    currentBatch_.pattern = blur;
+    currentBatch_.imageSampler.f.wrapMode = WrapMode::ClampToEdge;
+    currentBatch_.imageSampler.f.minmagFilter = MinMagFilter::Linear;
+    currentBatch_.patternSampler.f.wrapMode = WrapMode::ClampToEdge;
+    currentBatch_.patternSampler.f.minmagFilter = MinMagFilter::Linear;
+    AssignBlendMode(currentBatch_.renderState, static_cast<unsigned>(currentBlendMode_));
+    AssignColorEnable(currentBatch_.renderState, 1U);
+
+    const Point points[4] = {
+        {bounds.x, bounds.y},
+        {bounds.x + bounds.width, bounds.y},
+        {bounds.x + bounds.width, bounds.y + bounds.height},
+        {bounds.x, bounds.y + bounds.height}
+    };
+    const Point uvs[4] = {
+        {0.0, 0.0},
+        {1.0, 0.0},
+        {1.0, 1.0},
+        {0.0, 1.0}
+    };
+    Color color{1.0f, 1.0f, 1.0f, static_cast<float>(std::clamp(blendWeight, 0.0, 1.0))};
+    SetContentStencil();
+    EmitQuad(points, uvs, color);
 }
 
 } // namespace Aero::Render

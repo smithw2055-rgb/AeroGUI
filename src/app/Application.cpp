@@ -1,14 +1,14 @@
 #include <AeroApp/Application.hpp>
 #include <AeroApp/App.hpp>
 
-#include "ApplicationState.hpp"
+#include "ApplicationHost.hpp"
 #include "DesktopHost.hpp"
 
 #include <atomic>
 #include <new>
 #include <utility>
 
-namespace Aero {
+namespace Aero::App {
 namespace {
 std::atomic<Application*> currentApplication{nullptr};
 }
@@ -34,7 +34,7 @@ Application* Application::Current() noexcept {
 std::uint32_t WindowCollection::GetCount() const noexcept {
     if (owner_ == nullptr) return 0U;
     const auto* state =
-        static_cast<const ::Aero::App::ApplicationHostState*>(
+        static_cast<const ApplicationHost*>(
             owner_->hostState_);
     if (state != nullptr && state->windowCount != nullptr) {
         return state->windowCount(state->context);
@@ -45,7 +45,7 @@ std::uint32_t WindowCollection::GetCount() const noexcept {
 Window* WindowCollection::GetItem(std::uint32_t index) const noexcept {
     if (owner_ == nullptr) return nullptr;
     const auto* state =
-        static_cast<const ::Aero::App::ApplicationHostState*>(
+        static_cast<const ApplicationHost*>(
             owner_->hostState_);
     if (state != nullptr && state->windowAt != nullptr) {
         return state->windowAt(state->context, index);
@@ -69,7 +69,7 @@ void Application::SetMainWindow(
     Base::Ref<Window> value) noexcept {
     mainWindow_ = value.Get();
     mainWindowOwner_ = Base::Ref<Base::Object>(std::move(value));
-    auto* state = static_cast<::Aero::App::ApplicationHostState*>(
+    auto* state = static_cast<ApplicationHost*>(
         hostState_);
     if (state != nullptr && state->setMainWindow != nullptr) {
         state->setMainWindow(state->context, mainWindow_);
@@ -79,7 +79,7 @@ void Application::SetMainWindow(
 void Application::AttachMainWindow(Window* value) noexcept {
     mainWindowOwner_.Reset();
     mainWindow_ = value;
-    auto* state = static_cast<::Aero::App::ApplicationHostState*>(
+    auto* state = static_cast<ApplicationHost*>(
         hostState_);
     if (state != nullptr && state->setMainWindow != nullptr) {
         state->setMainWindow(state->context, value);
@@ -93,7 +93,7 @@ Base::Ref<Window> Application::MainWindowOwner() noexcept {
 }
 
 void Application::Shutdown(int exitCode) noexcept {
-    auto* state = static_cast<::Aero::App::ApplicationHostState*>(
+    auto* state = static_cast<ApplicationHost*>(
         hostState_);
     if (state != nullptr && state->requestExit != nullptr) state->requestExit(state->context, exitCode);
 }
@@ -156,16 +156,16 @@ void Application::RaiseDeactivated() noexcept {
 }
 
 Base::Result<int> Application::Run() noexcept {
-    return Run(App::RunOptions{});
+    return Run(RunOptions{});
 }
 
 Base::Result<int> Application::Run(
-    const App::RunOptions& options) noexcept {
-    ::Aero::App::DesktopHost host(
+    const RunOptions& options) noexcept {
+    DesktopHost host(
         *this,
         MainWindowOwner(),
         options);
     return host.Run();
 }
 
-} // namespace Aero
+} // namespace Aero::App

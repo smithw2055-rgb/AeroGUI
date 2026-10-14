@@ -10,11 +10,26 @@
 #include <Aero/Base/Span.hpp>
 #include <Aero/FrameworkElement.hpp>
 
+#include <atomic>
 #include <cstdint>
 
 namespace Aero::Text { class FontManager; }
 
 namespace Aero::Render {
+
+class RenderIdAllocator {
+public:
+    static RenderImageId AllocateImageId() noexcept {
+        return static_cast<RenderImageId>(nextImageId_.fetch_add(1U, std::memory_order_relaxed));
+    }
+    static RenderMeshId AllocateMeshId() noexcept {
+        return static_cast<RenderMeshId>(nextMeshId_.fetch_add(1U, std::memory_order_relaxed));
+    }
+
+private:
+    static inline std::atomic<std::uint64_t> nextImageId_{1000U};
+    static inline std::atomic<std::uint64_t> nextMeshId_{1000U};
+};
 
 struct ImageResources {
     std::uint64_t generation = 0U;

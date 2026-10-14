@@ -2,6 +2,7 @@
 /out/
 /.vs/
 /.vscode/
+/.cursor/
 CMakeUserPresets.json
 *.user
 *.suo
@@ -11,3 +12,5 @@ CMakeUserPresets.json
 /tools/control-gallery-conformance/ 
 /AeroGUI-*.patch
 /AeroGUI-final-cleanup-backup-*/
+/scratch/
+/test*/

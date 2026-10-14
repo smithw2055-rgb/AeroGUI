@@ -8,6 +8,7 @@
 #include <AeroRender/RenderTarget.hpp>
 #include <AeroRender/Texture.hpp>
 #include <AeroRender/D3D11.hpp>
+#include "render/common/StateCache.hpp"
 
 #if defined(_WIN32)
 #ifndef WIN32_LEAN_AND_MEAN
@@ -160,8 +161,17 @@ private:
     ID3D11DeviceContext* context_ = nullptr;
     bool ownsDevice_ = false;
 
+    struct DynamicBufferState {
+        uint32_t size = 0U;
+        uint32_t currentPos = 0U;
+        uint32_t drawPos = 0U;
+        bool isMapped = false;
+    };
+
     ID3D11Buffer* dynamicVB_ = nullptr;
     ID3D11Buffer* dynamicIB_ = nullptr;
+    DynamicBufferState vbState_{};
+    DynamicBufferState ibState_{};
     ID3D11Buffer* vertexCB_[2] = {};
     ID3D11Buffer* pixelCB_[2] = {};
 
@@ -178,11 +188,27 @@ private:
     ID3D11PixelShader* blurPixelShader_ = nullptr;
     ID3D11PixelShader* shadowPixelShader_ = nullptr;
     ID3D11PixelShader* maskPixelShader_ = nullptr;
+    ID3D11PixelShader* linearPixelShader_ = nullptr;
+    ID3D11PixelShader* radialPixelShader_ = nullptr;
+    ID3D11PixelShader* customEffectPixelShader_ = nullptr;
+    ID3D11PixelShader* pixelShaders_[Shader::Count] = {};
     ID3D11InputLayout* vertex2DInputLayout_ = nullptr;
+
+    struct VertexShaderEntry {
+        ID3D11VertexShader* shader = nullptr;
+        ID3D11InputLayout* layout = nullptr;
+        uint32_t stride = 0U;
+    };
+
+    VertexShaderEntry vertexShaders_[Shader::Vertex::Count] = {};
+    ID3D11InputLayout* layouts_[Shader::Vertex::Format::Count] = {};
+
+    ID3D11InputLayout* CreateLayout(uint32_t attributes, const void* code, uint32_t size) noexcept;
 
     DeviceCaps caps_{};
     D3D11RenderTarget* currentTarget_ = nullptr;
     ID3D11RasterizerState* currentRasterizer_ = nullptr;
+    StateCache stateCache_{};
 };
 
 } // namespace Aero::Render

@@ -14,10 +14,13 @@
 #include <windows.h>
 #include <d3d11.h>
 #include <dxgi.h>
+#include <gdiplus.h>
+#include <vector>
+#include <cstdlib>
+#include <chrono>
+#pragma comment(lib, "gdiplus.lib")
 #endif
 
-#include <cstdio>
-#include <vector>
 #include <cstdint>
 #include <new>
 #include <utility>
@@ -298,71 +301,53 @@ protected:
             static_cast<D3D11RenderTarget*>(Target())->SetRTV(nullptr);
         }
 
-        static int frameCount = 0;
-        ++frameCount;
-        if (frameCount <= 5) {
-            D3D11_TEXTURE2D_DESC desc;
-            activeBackBuffer_->GetDesc(&desc);
-            desc.BindFlags = 0;
-            desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-            desc.Usage = D3D11_USAGE_STAGING;
-            desc.MiscFlags = 0;
-            ID3D11Device* dev = nullptr;
-            immediateContext_->GetDevice(&dev);
-            ID3D11Texture2D* staging = nullptr;
-            HRESULT hr = dev ? dev->CreateTexture2D(&desc, nullptr, &staging) : E_FAIL;
-            if (SUCCEEDED(hr) && staging) {
-                immediateContext_->CopyResource(staging, activeBackBuffer_);
-                D3D11_MAPPED_SUBRESOURCE mapped;
-                hr = immediateContext_->Map(staging, 0, D3D11_MAP_READ, 0, &mapped);
-                if (SUCCEEDED(hr)) {
-                    FILE* f = fopen("c:\\Projects\\AeroGUI-R\\build\\rendered_login.bmp", "wb");
-                    if (f) {
-                        uint32_t width = desc.Width;
-                        uint32_t height = desc.Height;
-                        uint32_t rowSize = ((width * 3 + 3) / 4) * 4;
-                        uint32_t imageSize = rowSize * height;
-                        uint8_t fileHeader[14] = {
-                            'B', 'M',
-                            (uint8_t)(54 + imageSize), (uint8_t)((54 + imageSize) >> 8), (uint8_t)((54 + imageSize) >> 16), (uint8_t)((54 + imageSize) >> 24),
-                            0, 0, 0, 0,
-                            54, 0, 0, 0
-                        };
-                        uint8_t infoHeader[40] = {
-                            40, 0, 0, 0,
-                            (uint8_t)width, (uint8_t)(width >> 8), (uint8_t)(width >> 16), (uint8_t)(width >> 24),
-                            (uint8_t)height, (uint8_t)(height >> 8), (uint8_t)(height >> 16), (uint8_t)(height >> 24),
-                            1, 0, 24, 0,
-                            0, 0, 0, 0,
-                            (uint8_t)imageSize, (uint8_t)(imageSize >> 8), (uint8_t)(imageSize >> 16), (uint8_t)(imageSize >> 24),
-                            0, 0, 0, 0,
-                            0, 0, 0, 0,
-                            0, 0, 0, 0,
-                            0, 0, 0, 0
-                        };
-                        fwrite(fileHeader, 1, 14, f);
-                        fwrite(infoHeader, 1, 40, f);
-                        std::vector<uint8_t> rowBuf(rowSize, 0);
-                        const uint8_t* srcPixels = (const uint8_t*)mapped.pData;
-                        for (int y = (int)height - 1; y >= 0; --y) {
-                            const uint32_t* srcRow = (const uint32_t*)(srcPixels + y * mapped.RowPitch);
-                            for (uint32_t x = 0; x < width; ++x) {
-                                uint32_t pixel = srcRow[x];
-                                rowBuf[x * 3 + 0] = (uint8_t)(pixel);
-                                rowBuf[x * 3 + 1] = (uint8_t)(pixel >> 8);
-                                rowBuf[x * 3 + 2] = (uint8_t)(pixel >> 16);
-                            }
-                            fwrite(rowBuf.data(), 1, rowSize, f);
-                        }
-                        fclose(f);
-                    }
-                    immediateContext_->Unmap(staging, 0);
-                }
-                staging->Release();
-            }
-            if (dev) dev->Release();
+        static auto s_startTime = std::chrono::steady_clock::now();
+        const auto now = std::chrono::steady_clock::now();
+        const auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - s_startTime).count();
+        int targetDelayMs = 0;
+        char delayStr[32] = {0};
+        if (GetEnvironmentVariableA("AERO_CAPTURE_DELAY_MS", delayStr, sizeof(delayStr)) > 0) {
+            targetDelayMs = std::atoi(delayStr);
+            if (targetDelayMs < 0) targetDelayMs = 0;
         }
-
+        char cap[512] = {0};
+        DWORD capLen = GetEnvironmentVariableA("AERO_CAPTURE_PATH", cap, sizeof(cap));
+        if (capLen > 0 && capLen < sizeof(cap) && elapsedMs >= targetDelayMs) {
+            if (device_ != nullptr && immediateContext_ != nullptr) {
+                D3D11_TEXTURE2D_DESC desc;
+                activeBackBuffer_->GetDesc(&desc);
+                desc.Usage = D3D11_USAGE_STAGING;
+                desc.BindFlags = 0;
+                desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+                desc.MiscFlags = 0;
+                ID3D11Texture2D* staging = nullptr;
+                if (SUCCEEDED(device_->CreateTexture2D(&desc, nullptr, &staging)) && staging != nullptr) {
+                    immediateContext_->CopyResource(staging, activeBackBuffer_);
+                    D3D11_MAPPED_SUBRESOURCE mapped;
+                    if (SUCCEEDED(immediateContext_->Map(staging, 0, D3D11_MAP_READ, 0, &mapped))) {
+                        static bool gdiplusInited = false;
+                        if (!gdiplusInited) {
+                            Gdiplus::GdiplusStartupInput gsi;
+                            ULONG_PTR token = 0;
+                            Gdiplus::GdiplusStartup(&token, &gsi, NULL);
+                            gdiplusInited = true;
+                        }
+                        Gdiplus::Bitmap bmp(desc.Width, desc.Height, mapped.RowPitch, PixelFormat32bppARGB, static_cast<BYTE*>(mapped.pData));
+                        CLSID pngClsid;
+                        CLSIDFromString(L"{557cf406-1a04-11d3-9a73-0000f81ef32e}", &pngClsid);
+                        int len = MultiByteToWideChar(CP_UTF8, 0, cap, -1, NULL, 0);
+                        if (len > 0) {
+                            std::vector<wchar_t> wpath(static_cast<size_t>(len));
+                            MultiByteToWideChar(CP_UTF8, 0, cap, -1, wpath.data(), len);
+                            bmp.Save(wpath.data(), &pngClsid, NULL);
+                        }
+                        immediateContext_->Unmap(staging, 0);
+                    }
+                    staging->Release();
+                }
+                SetEnvironmentVariableA("AERO_CAPTURE_PATH", nullptr);
+            }
+        }
         const HRESULT result = swapChain_->Present(1U, 0U);
         ReleaseCom(activeBackBuffer_);
         if (FAILED(result)) {

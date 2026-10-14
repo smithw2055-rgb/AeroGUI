@@ -1,36 +1,42 @@
-#include "gui/meta/ValueConversion.hpp"
-#include "gui/core/State.hpp" 
-#include "gui/input/InputState.hpp"
-#include "gui/core/State.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleState.hpp"
-#include "render/DisplayList.hpp"
 #include <Aero/Controls.hpp>
-#include "gui/media/MediaState.hpp"
-#include "gui/core/facets/VisualFacet.hpp"
-#include "gui/core/facets/InteractionStateFacet.hpp"
 #include <Aero/Value.hpp>
-
 #include <algorithm>
 #include <cmath>
+#include "gui/core/ValueConversion.hpp"
+#include "gui/core/ElementTree.hpp"
+#include "gui/core/LayoutEngine.hpp"
+#include "gui/core/EffectiveValueEngine.hpp"
+#include "gui/core/RoutedEvents.hpp"
+#include "gui/core/EventRouter.hpp"
+#include "gui/input/InputManager.hpp"
+#include "render/DisplayList.hpp"
+#include <Aero/Input/Mouse.hpp>
+#include <Aero/TryCast.hpp>
 #include <limits>
-#include "ControlBehavior.hpp"
+#include "gui/templates/TemplateInstance.hpp"
+#include "gui/core/DependencyObjectAccess.hpp"
+#include "gui/core/Describe.hpp"
+#include <Aero/ClassHandler.hpp>
+#include <Aero/VisualStateManager.hpp>
+#include "gui/controls/ContentHosting.hpp"
+#include "gui/media/BrushRendering.hpp"
+#include <Aero/Events.hpp>
 
 namespace Aero::Controls {
-using Aero::Controls::ScrollBehavior;
-using Aero::Controls::SliderBehavior;
 
-using namespace Primitives;
-using namespace ::Aero::Render;
-namespace {
+// ---------------------------------------------------------------------------
+// Internal Scroll Support Helpers (formerly ScrollCommon.hpp)
+// ---------------------------------------------------------------------------
 
-constexpr double LayoutInfinity = 1.0e12;
+namespace ScrollSupport {
 
-bool Same(double left, double right) noexcept {
+inline constexpr double LayoutInfinity = 1.0e12;
+
+inline bool Same(double left, double right) noexcept {
     return std::fabs(left - right) <= 0.000001;
 }
 
-bool SameData(
+inline bool SameData(
     const ScrollData& left,
     const ScrollData& right) noexcept {
     return Same(left.horizontalOffset, right.horizontalOffset) &&
@@ -41,11 +47,11 @@ bool SameData(
         Same(left.viewportHeight, right.viewportHeight);
 }
 
-bool ValidNonnegative(double value) noexcept {
+inline bool ValidNonnegative(double value) noexcept {
     return std::isfinite(value) && value >= 0.0;
 }
 
-bool ValidData(const ScrollData& value) noexcept {
+inline bool ValidData(const ScrollData& value) noexcept {
     return ValidNonnegative(value.horizontalOffset) &&
         ValidNonnegative(value.verticalOffset) &&
         ValidNonnegative(value.extentWidth) &&
@@ -54,7 +60,7 @@ bool ValidData(const ScrollData& value) noexcept {
         ValidNonnegative(value.viewportHeight);
 }
 
-Visibility ComputeScrollBarVisibility(
+inline Visibility ComputeScrollBarVisibility(
     ScrollBarVisibility mode,
     double extent,
     double viewport) noexcept {
@@ -72,42 +78,41 @@ Visibility ComputeScrollBarVisibility(
     }
 }
 
-double ClampOffset(
-    double value,
-    double extent,
-    double viewport,
-    bool enabled) noexcept {
-    if (!enabled) return 0.0;
-    return std::clamp(
-        value, 0.0, std::max(0.0, extent - viewport));
+inline double ClampOffset(double offset, double extent, double viewport) noexcept {
+    if (!std::isfinite(offset) || offset <= 0.0) {
+        return 0.0;
+    }
+    const double maxOffset = extent > viewport ? extent - viewport : 0.0;
+    return offset > maxOffset ? maxOffset : offset;
 }
 
 template <typename TProperty>
-double ReadDouble(
+inline double ReadDouble(
     const DependencyObject& object,
     const TProperty& property,
     double fallback = 0.0) noexcept {
-    return object.GetValueOr(property, fallback);
+    (void)fallback;
+    return object.GetValue(property);
 }
 
 template <typename TProperty>
-bool ReadBool(
+inline bool ReadBool(
     const DependencyObject& object,
     const TProperty& property,
-    bool fallback) noexcept {
-    return object.GetValueOr(property, fallback);
+    bool fallback = false) noexcept {
+    (void)fallback;
+    return object.GetValue(property);
 }
 
 template <typename TProperty>
-Orientation ReadOrientation(
+inline Orientation ReadOrientation(
     const DependencyObject& object,
     const TProperty& property) noexcept {
-    return object.GetValueOr(
-        property, Orientation::Vertical);
+    return object.GetValue(property);
 }
 
 template <typename TProperty>
-void StoreDouble(
+inline void StoreDouble(
     DependencyObject& object,
     const TProperty& property,
     double value) noexcept {
@@ -115,14 +120,36 @@ void StoreDouble(
 }
 
 template <typename TProperty>
-void StoreOrientation(
+inline void StoreOrientation(
     DependencyObject& object,
     const TProperty& property,
     Orientation value) noexcept {
     object.SetValue(property, value);
 }
 
-} // namespace
+} // namespace ScrollSupport
+
+// Bring helpers into Aero::Controls for unqualified use (matches former
+// anonymous-namespace amalgamation).
+using ScrollSupport::LayoutInfinity;
+using ScrollSupport::Same;
+using ScrollSupport::SameData;
+using ScrollSupport::ValidNonnegative;
+using ScrollSupport::ValidData;
+using ScrollSupport::ComputeScrollBarVisibility;
+using ScrollSupport::ClampOffset;
+using ScrollSupport::ReadDouble;
+using ScrollSupport::ReadBool;
+using ScrollSupport::ReadOrientation;
+using ScrollSupport::StoreDouble;
+using ScrollSupport::StoreOrientation;
+
+// ---------------------------------------------------------------------------
+// ScrollContentPresenter Implementation
+// ---------------------------------------------------------------------------
+
+using namespace Primitives;
+using namespace ::Aero::Render;
 
 ScrollContentPresenter::ScrollContentPresenter() noexcept
     : ScrollContentPresenter(StaticTypeId()) {}
@@ -130,7 +157,13 @@ ScrollContentPresenter::ScrollContentPresenter() noexcept
 ScrollContentPresenter::ScrollContentPresenter(
     TypeId runtimeType) noexcept
     : ContentControl(runtimeType) {
-    static_cast<void>(SetClipToBounds(true));
+    // WPF: ScrollContentPresenter clips; ScrollViewer does not. Only the
+    // presenter type opts in. Clipping the viewer nested two stencil clips
+    // over the items host and, after Intro's offscreen fade, discarded the
+    // list on the window target.
+    if (runtimeType == ScrollContentPresenter::StaticTypeId()) {
+        static_cast<void>(SetClipToBounds(true));
+    }
 }
 
 IScrollInfo*
@@ -149,7 +182,7 @@ void ScrollContentPresenter::SetContentScrollInfo(
     IScrollInfo* value) noexcept {
     if (contentScrollInfo_ == value) return;
     contentScrollInfo_ = value;
-    (void)InvalidateMeasure();
+    InvalidateMeasure();
     (void)SyncLogicalData(ScrollInputKind::Line);
 }
 
@@ -169,14 +202,14 @@ void ScrollContentPresenter::SetCanHorizontallyScroll(
     bool value) noexcept {
     if (canHorizontallyScroll_ == value) return;
     canHorizontallyScroll_ = value;
-    (void)InvalidateMeasure();
+    InvalidateMeasure();
 }
 
 void ScrollContentPresenter::SetCanVerticallyScroll(
     bool value) noexcept {
     if (canVerticallyScroll_ == value) return;
     canVerticallyScroll_ = value;
-    (void)InvalidateMeasure();
+    InvalidateMeasure();
 }
 
 void ScrollContentPresenter::SetCanContentScroll(
@@ -193,8 +226,7 @@ bool ScrollContentPresenter::GetAllowsVerticalScroll() const noexcept {
 }
 
 bool ScrollContentPresenter::GetUsesContentScrolling() const noexcept {
-    return GetValueOr(
-        CanContentScrollProperty, false);
+    return GetValue(CanContentScrollProperty);
 }
 
 void ScrollContentPresenter::SetLineScrollAmount(
@@ -214,27 +246,24 @@ Base::Result<bool> ScrollContentPresenter::UpdateData(
             Base::ErrorCode::InvalidArgument,
             "Scroll data must be finite and nonnegative");
     }
-    value.horizontalOffset = ClampOffset(
-        value.horizontalOffset,
-        value.extentWidth,
-        value.viewportWidth,
-        GetAllowsHorizontalScroll());
-    value.verticalOffset = ClampOffset(
-        value.verticalOffset,
-        value.extentHeight,
-        value.viewportHeight,
-        GetAllowsVerticalScroll());
+    value.horizontalOffset = GetAllowsHorizontalScroll()
+        ? ClampOffset(
+            value.horizontalOffset,
+            value.extentWidth,
+            value.viewportWidth)
+        : 0.0;
+    value.verticalOffset = GetAllowsVerticalScroll()
+        ? ClampOffset(
+            value.verticalOffset,
+            value.extentHeight,
+            value.viewportHeight)
+        : 0.0;
     if (SameData(data_, value)) return false;
     const ScrollData oldData = data_;
     data_ = value;
     pendingInputKind_ = kind;
     if (invalidateArrange) {
-        Base::Result<void> invalidated =
-            InvalidateArrange();
-        if (!invalidated) {
-            data_ = oldData;
-            return invalidated.GetStatus();
-        }
+        InvalidateArrange();
     }
     OnScrollDataChanged(oldData, data_, kind);
     return true;
@@ -275,6 +304,8 @@ void ScrollContentPresenter::SetViewport(
     ScrollData value = data_;
     value.viewportWidth = viewport.width;
     value.viewportHeight = viewport.height;
+    value.horizontalOffset = desiredHorizontalOffset_;
+    value.verticalOffset = desiredVerticalOffset_;
     (void)UpdateData(value, pendingInputKind_, true);
 }
 
@@ -283,6 +314,7 @@ void ScrollContentPresenter::SetHorizontalOffset(
     if (!ValidNonnegative(value)) {
         return;
     }
+    desiredHorizontalOffset_ = value;
     IScrollInfo* logical = ActiveContentScrollInfo();
     if (logical != nullptr) {
         logical->SetHorizontalOffset(value);
@@ -299,6 +331,7 @@ void ScrollContentPresenter::SetVerticalOffset(
     if (!ValidNonnegative(value)) {
         return;
     }
+    desiredVerticalOffset_ = value;
     IScrollInfo* logical = ActiveContentScrollInfo();
     if (logical != nullptr) {
         logical->SetVerticalOffset(value);
@@ -442,20 +475,20 @@ ScrollContentPresenter::PageVertical(
 Size
 ScrollContentPresenter::MeasureOverride(
     Size availableSize) noexcept {
-    if (GetTemplateRoot() != nullptr) {
+    // A templated presenter measures Content and records extent. Without that,
+    // Auto scrollbars stay Collapsed and the thumb never appears.
+    if (RuntimeType() != StaticTypeId() &&
+        GetTemplateRoot() != nullptr) {
         return ContentControl::MeasureOverride(
             availableSize);
     }
-    UIElement* child = ContentElement();
+    EnsureHostedContent();
+    UIElement* child = GetContentElement();
     if (child == nullptr) {
-        ScrollData empty = data_;
-        empty.extentWidth = 0.0;
-        empty.extentHeight = 0.0;
-        empty.viewportWidth = availableSize.width;
-        empty.viewportHeight = availableSize.height;
-        Base::Result<bool> updated = UpdateData(
-            empty, pendingInputKind_, false);
-        if (!updated) return Size{};
+        data_.extentWidth = 0.0;
+        data_.extentHeight = 0.0;
+        data_.viewportWidth = availableSize.width;
+        data_.viewportHeight = availableSize.height;
         return Size{};
     }
 
@@ -471,9 +504,7 @@ ScrollContentPresenter::MeasureOverride(
             childAvailable.height = LayoutInfinity;
         }
     }
-    Base::Result<void> measured =
-        MeasureChild(*child, childAvailable);
-    if (!measured) return Size{};
+    MeasureChild(*child, childAvailable);
 
     if (logical != nullptr) {
         Base::Result<bool> synced =
@@ -485,6 +516,8 @@ ScrollContentPresenter::MeasureOverride(
         value.extentHeight = child->GetDesiredSize().height;
         value.viewportWidth = availableSize.width;
         value.viewportHeight = availableSize.height;
+        value.horizontalOffset = desiredHorizontalOffset_;
+        value.verticalOffset = desiredVerticalOffset_;
         Base::Result<bool> updated = UpdateData(
             value, pendingInputKind_, false);
         if (!updated) return Size{};
@@ -498,11 +531,13 @@ ScrollContentPresenter::MeasureOverride(
 Size
 ScrollContentPresenter::ArrangeOverride(
     Size finalSize) noexcept {
-    if (GetTemplateRoot() != nullptr) {
+    if (RuntimeType() != StaticTypeId() &&
+        GetTemplateRoot() != nullptr) {
         return ContentControl::ArrangeOverride(
             finalSize);
     }
-    UIElement* child = ContentElement();
+    EnsureHostedContent();
+    UIElement* child = GetContentElement();
     if (child == nullptr) {
         SetViewport(finalSize);
         return finalSize;
@@ -510,16 +545,20 @@ ScrollContentPresenter::ArrangeOverride(
     IScrollInfo* logical = ActiveContentScrollInfo();
     SetViewport(finalSize);
     const ScrollData value = GetData();
+    const double arrangeWidth = GetAllowsHorizontalScroll()
+        ? std::max(value.extentWidth, finalSize.width)
+        : finalSize.width;
+    const double arrangeHeight = GetAllowsVerticalScroll()
+        ? std::max(value.extentHeight, finalSize.height)
+        : finalSize.height;
     const Rect slot = logical != nullptr
         ? Rect{0.0, 0.0, finalSize.width, finalSize.height}
         : Rect{
             -value.horizontalOffset,
             -value.verticalOffset,
-            std::max(value.extentWidth, finalSize.width),
-            std::max(value.extentHeight, finalSize.height)};
-    Base::Result<void> arranged =
-        ArrangeChild(*child, slot);
-    if (!arranged) return finalSize;
+            arrangeWidth,
+            arrangeHeight};
+    ArrangeChild(*child, slot);
     return finalSize;
 }
 
@@ -531,7 +570,7 @@ void ScrollContentPresenter::OnScrollDataChanged(
         GetTemplatedParent();
     if (templatedParent == nullptr ||
         templatedParent == this ||
-        !PropertyRegistry().Types().IsDerivedFrom(
+        !DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             templatedParent->RuntimeType(),
             ScrollViewer::StaticTypeId())) {
         return;
@@ -540,20 +579,49 @@ void ScrollContentPresenter::OnScrollDataChanged(
         AdoptPresenterData(*this, newData, kind);
 }
 
+// ---------------------------------------------------------------------------
+// ScrollViewer & Thumb Implementation
+// ---------------------------------------------------------------------------
+
+using namespace Primitives;
+using namespace ::Aero::Render;
+
 ScrollViewer::ScrollViewer() noexcept
-    : ScrollContentPresenter(StaticTypeId()),
+    : ContentControl(StaticTypeId()),
+      lineUpHandler_(this, &ScrollViewer::OnLineUpCommand),
+      lineDownHandler_(this, &ScrollViewer::OnLineDownCommand),
+      lineLeftHandler_(this, &ScrollViewer::OnLineLeftCommand),
+      lineRightHandler_(this, &ScrollViewer::OnLineRightCommand),
+      pageUpHandler_(this, &ScrollViewer::OnPageUpCommand),
+      pageDownHandler_(this, &ScrollViewer::OnPageDownCommand),
+      pageLeftHandler_(this, &ScrollViewer::OnPageLeftCommand),
+      pageRightHandler_(this, &ScrollViewer::OnPageRightCommand),
+      scrollToTopHandler_(this, &ScrollViewer::OnScrollToTopCommand),
+      scrollToBottomHandler_(this, &ScrollViewer::OnScrollToBottomCommand),
+      scrollToLeftEndHandler_(this, &ScrollViewer::OnScrollToLeftEndCommand),
+      scrollToRightEndHandler_(this, &ScrollViewer::OnScrollToRightEndCommand),
+      commandHandles_(&Base::GetDefaultAllocator()),
       scrollBarValueChangedHandler_(
           this,
           &ScrollViewer::OnScrollBarValueChanged) {
-    UpdateComputedScrollBarVisibility(GetData());
+    UpdateComputedScrollBarVisibility(lastData_);
 }
 
 ScrollViewer::~ScrollViewer() {
+    UnregisterCommands();
     DetachScrollBars();
-    auto* behaviors = static_cast<ControlBehavior*>(
-        ::Aero::Core::InteractionStateFacet::ControlBehaviorRuntime(*this));
-    if (behaviors != nullptr) {
-        static_cast<void>(behaviors->Detach(*this));
+}
+
+void ScrollViewer::OnMouseWheel(
+    MouseWheelEventArgs& args) {
+    if (contentPresenter_ == nullptr) return;
+    const double line = contentPresenter_->GetLineScrollAmount();
+    const double horizontal = -args.GetDeltaX() * line;
+    const double vertical = -args.GetDeltaY() * line;
+    Base::Result<bool> changed = contentPresenter_->ApplyScrollDelta(
+        horizontal, vertical, ScrollInputKind::Wheel);
+    if (changed && changed.Value()) {
+        args.SetHandled(true);
     }
 }
 
@@ -600,7 +668,7 @@ ScrollViewer::GetVerticalScrollBarVisibility() const noexcept {
 }
 
 PanningMode ScrollViewer::GetPanningMode() const noexcept {
-    return GetValueOr(PanningModeProperty, PanningMode::None);
+    return GetValue(PanningModeProperty);
 }
 
 void ScrollViewer::SetPanningMode(
@@ -611,27 +679,29 @@ void ScrollViewer::SetPanningMode(
 Visibility
 ScrollViewer::GetComputedHorizontalScrollBarVisibility()
     const noexcept {
-    return GetValueOr(
-        ComputedHorizontalScrollBarVisibilityProperty,
-        Visibility::Collapsed);
+    return GetValue(ComputedHorizontalScrollBarVisibilityProperty);
 }
 
 Visibility
 ScrollViewer::GetComputedVerticalScrollBarVisibility()
     const noexcept {
-    return GetValueOr(
-        ComputedVerticalScrollBarVisibilityProperty,
-        Visibility::Collapsed);
+    return GetValue(ComputedVerticalScrollBarVisibilityProperty);
 }
 
 void ScrollViewer::SetCanHorizontallyScroll(
     bool value) noexcept {
     SetValue(CanHorizontallyScrollProperty, value);
+    if (contentPresenter_ != nullptr) {
+        contentPresenter_->SetCanHorizontallyScroll(value);
+    }
 }
 
 void ScrollViewer::SetCanVerticallyScroll(
     bool value) noexcept {
     SetValue(CanVerticallyScrollProperty, value);
+    if (contentPresenter_ != nullptr) {
+        contentPresenter_->SetCanVerticallyScroll(value);
+    }
 }
 
 void ScrollViewer::SetCanContentScroll(
@@ -642,21 +712,29 @@ void ScrollViewer::SetCanContentScroll(
 void ScrollViewer::SetHorizontalScrollBarVisibility(
     ScrollBarVisibility value) noexcept {
     SetHorizontalScrollBarVisibility(*this, value);
-    UpdateComputedScrollBarVisibility(GetData());
+    if (contentPresenter_ != nullptr) {
+        contentPresenter_->SetCanHorizontallyScroll(
+            value != ScrollBarVisibility::Disabled &&
+            GetValue(CanHorizontallyScrollProperty));
+    }
+    UpdateComputedScrollBarVisibility(lastData_);
 }
 
 void ScrollViewer::SetVerticalScrollBarVisibility(
     ScrollBarVisibility value) noexcept {
     SetVerticalScrollBarVisibility(*this, value);
-    UpdateComputedScrollBarVisibility(GetData());
+    if (contentPresenter_ != nullptr) {
+        contentPresenter_->SetCanVerticallyScroll(
+            value != ScrollBarVisibility::Disabled &&
+            GetValue(CanVerticallyScrollProperty));
+    }
+    UpdateComputedScrollBarVisibility(lastData_);
 }
 
 void ScrollViewer::SetHorizontalOffset(
     double value) noexcept {
     if (contentPresenter_ != nullptr) {
         contentPresenter_->SetHorizontalOffset(value);
-    } else {
-        ScrollContentPresenter::SetHorizontalOffset(value);
     }
 }
 
@@ -664,8 +742,6 @@ void ScrollViewer::SetVerticalOffset(
     double value) noexcept {
     if (contentPresenter_ != nullptr) {
         contentPresenter_->SetVerticalOffset(value);
-    } else {
-        ScrollContentPresenter::SetVerticalOffset(value);
     }
 }
 
@@ -673,32 +749,41 @@ Base::Result<bool> ScrollViewer::LineHorizontal(
     double direction) noexcept {
     return contentPresenter_ != nullptr
         ? contentPresenter_->LineHorizontal(direction)
-        : ScrollContentPresenter::
-            LineHorizontal(direction);
+        : Base::Result<bool>(false);
 }
 
 Base::Result<bool> ScrollViewer::LineVertical(
     double direction) noexcept {
     return contentPresenter_ != nullptr
         ? contentPresenter_->LineVertical(direction)
-        : ScrollContentPresenter::
-            LineVertical(direction);
+        : Base::Result<bool>(false);
 }
 
 Base::Result<bool> ScrollViewer::PageHorizontal(
     double direction) noexcept {
     return contentPresenter_ != nullptr
         ? contentPresenter_->PageHorizontal(direction)
-        : ScrollContentPresenter::
-            PageHorizontal(direction);
+        : Base::Result<bool>(false);
 }
 
 Base::Result<bool> ScrollViewer::PageVertical(
     double direction) noexcept {
     return contentPresenter_ != nullptr
         ? contentPresenter_->PageVertical(direction)
-        : ScrollContentPresenter::
-            PageVertical(direction);
+        : Base::Result<bool>(false);
+}
+
+IScrollInfo* ScrollViewer::GetContentScrollInfo() const noexcept {
+    return contentPresenter_ != nullptr
+        ? contentPresenter_->GetContentScrollInfo()
+        : pendingScrollInfo_;
+}
+
+void ScrollViewer::SetContentScrollInfo(IScrollInfo* value) noexcept {
+    pendingScrollInfo_ = value;
+    if (contentPresenter_ != nullptr) {
+        contentPresenter_->SetContentScrollInfo(value);
+    }
 }
 
 void ScrollViewer::AdoptPresenterData(
@@ -706,8 +791,44 @@ void ScrollViewer::AdoptPresenterData(
     const ScrollData& data,
     ScrollInputKind kind) noexcept {
     contentPresenter_ = &presenter;
-    static_cast<void>(
-        UpdateData(data, kind, false));
+    const ScrollData oldData = lastData_;
+    lastData_ = data;
+    OnScrollDataChanged(oldData, data, kind);
+}
+
+void ScrollViewer::EnsureFallbackPresenter() noexcept {
+    if (GetTemplateRoot() != nullptr || contentPresenter_ != nullptr) return;
+    if (!ownedPresenter_) {
+        Base::Result<Ref<ScrollContentPresenter>> made = Base::MakeRef<ScrollContentPresenter>();
+        if (!made) return;
+        ownedPresenter_ = std::move(made).Value();
+    }
+    contentPresenter_ = ownedPresenter_.Get();
+    UIElement* content = GetContentElement();
+    if (content != nullptr && content != contentPresenter_) {
+        if (content->GetVisualParent() == this) RemoveVisualChild(content);
+        contentPresenter_->SetContent(content);
+    }
+    if (contentPresenter_->GetVisualParent() == nullptr) {
+        if (ElementTree* tree = VisualTree(this)) {
+            if (VisualTree(contentPresenter_) == nullptr &&
+                contentPresenter_->GetLogicalParent() == nullptr) {
+                static_cast<void>(tree->AttachElement(*this, *contentPresenter_));
+            } else {
+                static_cast<void>(tree->AttachVisualChild(*this, *contentPresenter_));
+            }
+        } else {
+            AddVisualChild(contentPresenter_);
+        }
+    }
+    contentPresenter_->SetContentScrollInfo(pendingScrollInfo_);
+    const bool canH = (GetHorizontalScrollBarVisibility() != ScrollBarVisibility::Disabled) &&
+        GetValue(CanHorizontallyScrollProperty);
+    const bool canV = (GetVerticalScrollBarVisibility() != ScrollBarVisibility::Disabled) &&
+        GetValue(CanVerticallyScrollProperty);
+    contentPresenter_->SetCanHorizontallyScroll(canH);
+    contentPresenter_->SetCanVerticallyScroll(canV);
+    contentPresenter_->SetCanContentScroll(GetValue(CanContentScrollProperty));
 }
 
 void ScrollViewer::OnApplyTemplate()
@@ -720,22 +841,79 @@ void ScrollViewer::OnApplyTemplate()
         part != this
         ? static_cast<ScrollContentPresenter*>(part)
         : nullptr;
+    if (contentPresenter_ == nullptr) {
+        EnsureFallbackPresenter();
+    } else if (ownedPresenter_ && ownedPresenter_->GetVisualParent() == this) {
+        RemoveVisualChild(ownedPresenter_.Get());
+    }
+    if (contentPresenter_ != nullptr) {
+        UIElement* content = GetContentElement();
+        if (content != nullptr && content != contentPresenter_) {
+            if (content->GetVisualParent() == this) {
+                RemoveVisualChild(content);
+            }
+            if (contentPresenter_->GetContentElement() != content) {
+                contentPresenter_->SetContent(content);
+            }
+            if (ElementTree* tree = VisualTree(this)) {
+                AttachOwnedContentSubtree(*tree, *content);
+            }
+        }
+        contentPresenter_->SetContentScrollInfo(pendingScrollInfo_);
+        const bool canH = (GetHorizontalScrollBarVisibility() != ScrollBarVisibility::Disabled) &&
+            GetValue(CanHorizontallyScrollProperty);
+        const bool canV = (GetVerticalScrollBarVisibility() != ScrollBarVisibility::Disabled) &&
+            GetValue(CanVerticallyScrollProperty);
+        contentPresenter_->SetCanHorizontallyScroll(canH);
+        contentPresenter_->SetCanVerticallyScroll(canV);
+        contentPresenter_->SetCanContentScroll(GetValue(CanContentScrollProperty));
+    }
     AttachScrollBars();
+    EnsureCommands();
     return;
+}
+
+void ScrollViewer::OnContentChanged(const Value& oldContent, const Value& newContent) {
+    ContentControl::OnContentChanged(oldContent, newContent);
+    if (contentPresenter_ != nullptr) {
+        UIElement* content = GetContentElement();
+        if (content != nullptr && content != contentPresenter_) {
+            if (content->GetVisualParent() == this) {
+                RemoveVisualChild(content);
+            }
+            if (contentPresenter_->GetContentElement() != content) {
+                contentPresenter_->SetContent(content);
+            }
+            if (ElementTree* tree = VisualTree(this)) {
+                AttachOwnedContentSubtree(*tree, *content);
+            }
+        } else if (content == nullptr) {
+            contentPresenter_->SetContent(nullptr);
+        }
+    }
+}
+
+void ScrollViewer::OnVisualParentChanged(::Aero::Media::Visual* oldParent) noexcept {
+    ContentControl::OnVisualParentChanged(oldParent);
+    if (GetVisualParent() != nullptr) {
+        EnsureCommands();
+    } else {
+        UnregisterCommands();
+    }
 }
 
 void ScrollViewer::AttachScrollBars() noexcept {
     DetachScrollBars();
     DependencyObject* vert = GetTemplateChild(Base::StringView("PART_VerticalScrollBar"));
-    if (vert != nullptr && PropertyRegistry().Types().IsDerivedFrom(vert->RuntimeType(), ScrollBar::StaticTypeId())) {
+    if (vert != nullptr && DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(vert->RuntimeType(), ScrollBar::StaticTypeId())) {
         verticalScrollBar_ = static_cast<Primitives::ScrollBar*>(vert);
-        static_cast<void>(verticalScrollBar_->AddValueChangedHandlerChecked(
+        static_cast<void>(verticalScrollBar_->AddValueChangedHandler(
             ScrollBar::ValueProperty, scrollBarValueChangedHandler_));
     }
     DependencyObject* horz = GetTemplateChild(Base::StringView("PART_HorizontalScrollBar"));
-    if (horz != nullptr && PropertyRegistry().Types().IsDerivedFrom(horz->RuntimeType(), ScrollBar::StaticTypeId())) {
+    if (horz != nullptr && DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(horz->RuntimeType(), ScrollBar::StaticTypeId())) {
         horizontalScrollBar_ = static_cast<Primitives::ScrollBar*>(horz);
-        static_cast<void>(horizontalScrollBar_->AddValueChangedHandlerChecked(
+        static_cast<void>(horizontalScrollBar_->AddValueChangedHandler(
             ScrollBar::ValueProperty, scrollBarValueChangedHandler_));
     }
 }
@@ -768,39 +946,98 @@ void ScrollViewer::OnScrollBarValueChanged(
 
 Size ScrollViewer::MeasureOverride(
     Size availableSize) noexcept {
-    const Size measured =
-        ScrollContentPresenter::MeasureOverride(
-            availableSize);
-    if (contentPresenter_ == nullptr) {
-        return measured;
+    if (GetTemplateRoot() == nullptr) {
+        EnsureFallbackPresenter();
+        if (contentPresenter_ != nullptr) {
+            if (ElementTree* tree = VisualTree(this)) {
+                if (VisualTree(contentPresenter_) == nullptr &&
+                    contentPresenter_->GetLogicalParent() == nullptr) {
+                    static_cast<void>(tree->AttachElement(*this, *contentPresenter_));
+                } else if (contentPresenter_->GetVisualParent() != this ||
+                           !contentPresenter_->GetIsLayoutAttached()) {
+                    static_cast<void>(tree->AttachVisualChild(*this, *contentPresenter_));
+                }
+            }
+            if (contentPresenter_->GetIsLayoutAttached() &&
+                contentPresenter_->LayoutParent() == this) {
+                MeasureChild(*contentPresenter_, availableSize);
+                AdoptPresenterData(*contentPresenter_, contentPresenter_->GetData(), ScrollInputKind::Line);
+                return contentPresenter_->GetDesiredSize();
+            }
+            return Size{};
+        }
     }
-    AdoptPresenterData(
-        *contentPresenter_,
-        contentPresenter_->GetData(),
-        ScrollInputKind::Line);
+    const Size measured = ContentControl::MeasureOverride(availableSize);
+    if (contentPresenter_ != nullptr) {
+        AdoptPresenterData(
+            *contentPresenter_,
+            contentPresenter_->GetData(),
+            ScrollInputKind::Line);
+    }
     return measured;
 }
 
+Size ScrollViewer::ArrangeOverride(Size finalSize) noexcept {
+    if (GetTemplateRoot() == nullptr && contentPresenter_ != nullptr) {
+        if (contentPresenter_->GetIsLayoutAttached() &&
+            contentPresenter_->LayoutParent() == this) {
+            ArrangeChild(
+                *contentPresenter_, {0.0, 0.0, finalSize.width, finalSize.height});
+            return finalSize;
+        }
+    }
+    return ContentControl::ArrangeOverride(finalSize);
+}
+
+std::uint32_t ScrollViewer::GetVisualChildrenCount() const noexcept {
+    if (GetTemplateRoot() == nullptr && ownedPresenter_ && ownedPresenter_->GetVisualParent() == this) {
+        return 1U;
+    }
+    return ContentControl::GetVisualChildrenCount();
+}
+
+::Aero::Media::Visual* ScrollViewer::GetVisualChild(std::uint32_t index) const noexcept {
+    if (GetTemplateRoot() == nullptr && ownedPresenter_ && ownedPresenter_->GetVisualParent() == this) {
+        return index == 0U ? ownedPresenter_.Get() : nullptr;
+    }
+    return ContentControl::GetVisualChild(index);
+}
+
 void ScrollViewer::OnTemplateDetached() noexcept {
+    UnregisterCommands();
     DetachScrollBars();
     contentPresenter_ = nullptr;
-    ScrollContentPresenter::OnTemplateDetached();
+    Control::OnTemplateDetached();
+}
+
+void ScrollViewer::OnPropertyChanged(
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    // Former OnScrollViewerVisibilityChanged delegate body: re-enter through
+    // the instance setters with the committed values. SetValue is then a
+    // no-op, while the setters refresh the read-only computed visibility.
+    const DependencyPropertyHandle prop = args.GetProperty();
+    if (prop == HorizontalScrollBarVisibilityProperty.Handle() ||
+        prop == VerticalScrollBarVisibilityProperty.Handle()) {
+        static_cast<void>(
+            SetHorizontalScrollBarVisibility(
+                GetHorizontalScrollBarVisibility()));
+        static_cast<void>(
+            SetVerticalScrollBarVisibility(
+                GetVerticalScrollBarVisibility()));
+    }
+    ContentControl::OnPropertyChanged(args);
 }
 
 ScrollBarVisibility
 ScrollViewer::GetHorizontalScrollBarVisibility(
     const DependencyObject& element) noexcept {
-    return element.GetValueOr(
-        HorizontalScrollBarVisibilityProperty,
-        ScrollBarVisibility::Disabled);
+    return element.GetValue(HorizontalScrollBarVisibilityProperty);
 }
 
 ScrollBarVisibility
 ScrollViewer::GetVerticalScrollBarVisibility(
     const DependencyObject& element) noexcept {
-    return element.GetValueOr(
-        VerticalScrollBarVisibilityProperty,
-        ScrollBarVisibility::Visible);
+    return element.GetValue(VerticalScrollBarVisibilityProperty);
 }
 
 void
@@ -815,25 +1052,6 @@ ScrollViewer::SetVerticalScrollBarVisibility(
     DependencyObject& element,
     ScrollBarVisibility value) noexcept {
     element.SetValue(VerticalScrollBarVisibilityProperty, value);
-}
-
-bool ScrollViewer::GetAllowsHorizontalScroll() const noexcept {
-    return GetHorizontalScrollBarVisibility() !=
-            ScrollBarVisibility::Disabled &&
-        ReadBool(
-            *this, CanHorizontallyScrollProperty, true);
-}
-
-bool ScrollViewer::GetAllowsVerticalScroll() const noexcept {
-    return GetVerticalScrollBarVisibility() !=
-            ScrollBarVisibility::Disabled &&
-        ReadBool(
-            *this, CanVerticallyScrollProperty, true);
-}
-
-bool ScrollViewer::GetUsesContentScrolling() const noexcept {
-    return ReadBool(
-        *this, CanContentScrollProperty, false);
 }
 
 void ScrollViewer::OnScrollDataChanged(
@@ -872,7 +1090,7 @@ void ScrollViewer::OnScrollDataChanged(
         DependencyObject* part =
             GetTemplateChild(name);
         if (part == nullptr ||
-            !PropertyRegistry().Types().IsDerivedFrom(
+            !DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
                 part->RuntimeType(),
                 ScrollBar::StaticTypeId())) {
             return;
@@ -911,7 +1129,7 @@ void ScrollViewer::OnScrollDataChanged(
         false);
     synchronizingScrollBars_ = false;
 
-    auto* events = ::Aero::Core::GetFacet<::Aero::EventRouter>(*this);
+    auto* events = ElementTree::EventsOf(*this);
     if (events != nullptr) {
         ScrollChangedEventArgs args(oldData, newData, kind);
         static_cast<void>(
@@ -936,6 +1154,150 @@ void ScrollViewer::UpdateComputedScrollBarVisibility(
             data.viewportHeight)));
 }
 
+void ScrollViewer::EnsureCommands() noexcept {
+    if (!commandHandles_.Empty()) return;
+    Aero::InputRouter* input = ElementTree::InputOf(*this);
+    if (input == nullptr) return;
+    auto addCmd = [this, input](Base::StringView name, const ExecutedRoutedEventHandler& handler) {
+        auto cmd = Input::RoutedCommand::ResolveStatic(ScrollBar::StaticTypeId(), name);
+        if (cmd) {
+            auto added = input->AddCommandBinding(*this, Input::CommandBinding(std::move(cmd).Value(), handler));
+            if (added) commandHandles_.PushBack(added.Value());
+        }
+    };
+    addCmd("LineUpCommand", lineUpHandler_);
+    addCmd("LineUp", lineUpHandler_);
+    addCmd("LineDownCommand", lineDownHandler_);
+    addCmd("LineDown", lineDownHandler_);
+    addCmd("LineLeftCommand", lineLeftHandler_);
+    addCmd("LineLeft", lineLeftHandler_);
+    addCmd("LineRightCommand", lineRightHandler_);
+    addCmd("LineRight", lineRightHandler_);
+    addCmd("PageUpCommand", pageUpHandler_);
+    addCmd("PageUp", pageUpHandler_);
+    addCmd("PageDownCommand", pageDownHandler_);
+    addCmd("PageDown", pageDownHandler_);
+    addCmd("PageLeftCommand", pageLeftHandler_);
+    addCmd("PageLeft", pageLeftHandler_);
+    addCmd("PageRightCommand", pageRightHandler_);
+    addCmd("PageRight", pageRightHandler_);
+    addCmd("ScrollToTopCommand", scrollToTopHandler_);
+    addCmd("ScrollToTop", scrollToTopHandler_);
+    addCmd("ScrollToBottomCommand", scrollToBottomHandler_);
+    addCmd("ScrollToBottom", scrollToBottomHandler_);
+    addCmd("ScrollToLeftEndCommand", scrollToLeftEndHandler_);
+    addCmd("ScrollToLeftEnd", scrollToLeftEndHandler_);
+    addCmd("ScrollToRightEndCommand", scrollToRightEndHandler_);
+    addCmd("ScrollToRightEnd", scrollToRightEndHandler_);
+}
+
+void ScrollViewer::UnregisterCommands() noexcept {
+    Aero::InputRouter* input = ElementTree::InputOf(*this);
+    if (input != nullptr) {
+        for (Input::CommandBindingHandle handle : commandHandles_) {
+            static_cast<void>(input->RemoveCommandBinding(handle));
+        }
+    }
+    commandHandles_.Clear();
+}
+
+void ScrollViewer::OnLineUpCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
+    static_cast<void>(LineVertical(-1.0));
+    args.SetHandled(true);
+}
+
+void ScrollViewer::OnLineDownCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
+    static_cast<void>(LineVertical(1.0));
+    args.SetHandled(true);
+}
+
+void ScrollViewer::OnLineLeftCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
+    static_cast<void>(LineHorizontal(-1.0));
+    args.SetHandled(true);
+}
+
+void ScrollViewer::OnLineRightCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
+    static_cast<void>(LineHorizontal(1.0));
+    args.SetHandled(true);
+}
+
+void ScrollViewer::OnPageUpCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
+    static_cast<void>(PageVertical(-1.0));
+    args.SetHandled(true);
+}
+
+void ScrollViewer::OnPageDownCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
+    static_cast<void>(PageVertical(1.0));
+    args.SetHandled(true);
+}
+
+void ScrollViewer::OnPageLeftCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
+    static_cast<void>(PageHorizontal(-1.0));
+    args.SetHandled(true);
+}
+
+void ScrollViewer::OnPageRightCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
+    static_cast<void>(PageHorizontal(1.0));
+    args.SetHandled(true);
+}
+
+void ScrollViewer::OnScrollToTopCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
+    SetVerticalOffset(0.0);
+    args.SetHandled(true);
+}
+
+void ScrollViewer::OnScrollToBottomCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
+    SetVerticalOffset(GetScrollableHeight());
+    args.SetHandled(true);
+}
+
+void ScrollViewer::OnScrollToLeftEndCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
+    SetHorizontalOffset(0.0);
+    args.SetHandled(true);
+}
+
+void ScrollViewer::OnScrollToRightEndCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
+    SetHorizontalOffset(GetScrollableWidth());
+    args.SetHandled(true);
+}
+
+Thumb::Thumb(TypeId runtimeType) noexcept
+    : Control(runtimeType) {
+}
+
+Thumb::Thumb() noexcept
+    : Thumb(StaticTypeId()) {
+}
+
+Thumb::~Thumb() = default;
+
+void Thumb::OnApplyTemplate() noexcept {
+    Control::OnApplyTemplate();
+    UpdateVisualState(false);
+}
+
+void Thumb::OnPropertyChanged(
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    Control::OnPropertyChanged(args);
+    if (args.GetProperty() == UIElement::IsEnabledProperty ||
+        args.GetProperty() == UIElement::IsMouseOverProperty ||
+        args.GetProperty() == Thumb::IsDraggingProperty) {
+        UpdateVisualState(true);
+    }
+}
+
+void Thumb::UpdateVisualState(bool useTransitions) noexcept {
+    Base::StringView common = "Normal";
+    if (!GetIsEnabled()) {
+        common = "Disabled";
+    } else if (GetIsDragging()) {
+        common = "Pressed";
+    } else if (GetIsMouseOver()) {
+        common = "MouseOver";
+    }
+    static_cast<void>(VisualStateManager::GoToState(*this, common, useTransitions));
+}
+
 Base::Result<void> Thumb::BeginDrag(
     std::uint32_t pointerId,
     Point position) noexcept {
@@ -952,6 +1314,7 @@ Base::Result<void> Thumb::BeginDrag(
     pointerId_ = pointerId;
     lastPosition_ = position;
     dragging_ = true;
+    UpdateVisualState(true);
     return {};
 }
 
@@ -986,8 +1349,50 @@ Base::Result<bool> Thumb::EndDrag(
     SetReadOnlyCurrentValue(IsDraggingProperty, false);
     pointerId_ = 0U;
     dragging_ = false;
+    UpdateVisualState(true);
     return true;
 }
+
+AERO_DESCRIBE(ScrollContentPresenter) {
+    using namespace Aero::Meta;
+    Register<ScrollContentPresenter>(context)
+        .Property(ScrollContentPresenter::CanContentScrollProperty, false, AffectsMeasure)
+        .Factory();
+}
+
+AERO_DESCRIBE(ScrollViewer) {
+    using namespace Aero::Meta;
+    Register<ScrollViewer>(context)
+        .Event(ScrollViewer::ScrollChangedEvent)
+        .Property(ScrollViewer::HorizontalOffsetProperty, 0.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::NonNegative<double>)
+        .Property(ScrollViewer::VerticalOffsetProperty, 0.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::NonNegative<double>)
+        .Property(ScrollViewer::ExtentWidthProperty, 0.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::NonNegative<double>)
+        .Property(ScrollViewer::ExtentHeightProperty, 0.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::NonNegative<double>)
+        .Property(ScrollViewer::ViewportWidthProperty, 0.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::NonNegative<double>)
+        .Property(ScrollViewer::ViewportHeightProperty, 0.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::NonNegative<double>)
+        .Property(ScrollViewer::ScrollableWidthProperty, 0.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::NonNegative<double>)
+        .Property(ScrollViewer::ScrollableHeightProperty, 0.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::NonNegative<double>)
+        .Property(ScrollViewer::ComputedHorizontalScrollBarVisibilityProperty, Visibility::Collapsed, AffectsMeasure | AffectsRender)
+        .Property(ScrollViewer::ComputedVerticalScrollBarVisibilityProperty, Visibility::Collapsed, AffectsMeasure | AffectsRender)
+        .Property(ScrollViewer::HorizontalScrollBarVisibilityProperty, ScrollBarVisibility::Disabled, AffectsMeasure | AffectsRender)
+        .Property(ScrollViewer::VerticalScrollBarVisibilityProperty, ScrollBarVisibility::Visible, AffectsMeasure | AffectsRender)
+        .Property(ScrollViewer::CanHorizontallyScrollProperty, true, AffectsMeasure)
+        .Property(ScrollViewer::CanVerticallyScrollProperty, true, AffectsMeasure)
+        .Property(ScrollViewer::CanContentScrollProperty, false, AffectsMeasure)
+        .Property(ScrollViewer::PanningModeProperty, PanningMode::None)
+        .TemplatePart("PART_VerticalScrollBar", TypeOf<ScrollBar>())
+        .TemplatePart("PART_HorizontalScrollBar", TypeOf<ScrollBar>())
+        .Factory();
+    AERO_ON(ScrollViewer, &ScrollViewer::OnMouseWheel, UIElement::MouseWheelEvent);
+}
+
+// ---------------------------------------------------------------------------
+// ScrollBar, Track, Slider, ProgressBar, GridSplitter Implementation
+// ---------------------------------------------------------------------------
+
+using namespace Primitives;
+using namespace ::Aero::Render;
+
 
 Orientation Track::GetOrientation() const noexcept {
     return ReadOrientation(*this, OrientationProperty);
@@ -1010,31 +1415,27 @@ double Track::GetViewportSize() const noexcept {
 }
 
 double GridSplitter::GetDragIncrement() const noexcept {
-    return GetValueOr(DragIncrementProperty, 1.0);
+    return GetValue(DragIncrementProperty);
 }
 
 double GridSplitter::GetKeyboardIncrement() const noexcept {
-    return GetValueOr(KeyboardIncrementProperty, 10.0);
+    return GetValue(KeyboardIncrementProperty);
 }
 
 GridResizeDirection GridSplitter::GetResizeDirection() const noexcept {
-    return GetValueOr(ResizeDirectionProperty, GridResizeDirection::Auto);
+    return GetValue(ResizeDirectionProperty);
 }
 
 GridResizeBehavior GridSplitter::GetResizeBehavior() const noexcept {
-    return GetValueOr(
-        ResizeBehaviorProperty,
-        GridResizeBehavior::BasedOnAlignment);
+    return GetValue(ResizeBehaviorProperty);
 }
 
 bool GridSplitter::GetShowsPreview() const noexcept {
-    return GetValueOr(ShowsPreviewProperty, false);
+    return GetValue(ShowsPreviewProperty);
 }
 
 Base::Ref<Aero::Style> GridSplitter::GetPreviewStyle() const noexcept {
-    return GetValueOr(
-        PreviewStyleProperty,
-        Base::Ref<Aero::Style>{});
+    return GetValue(PreviewStyleProperty);
 }
 
 void GridSplitter::SetDragIncrement(double value) noexcept {
@@ -1065,8 +1466,7 @@ void GridSplitter::SetPreviewStyle(
 }
 
 bool Track::GetIsDirectionReversed() const noexcept {
-    return GetValueOr(
-        IsDirectionReversedProperty, false);
+    return GetValue(IsDirectionReversedProperty);
 }
 
 void Track::SetOrientation(
@@ -1115,19 +1515,19 @@ void Track::SetIsDirectionReversed(
 void Track::SetDecreaseRepeatButton(
     Base::Ref<RepeatButton> value) noexcept {
     decreaseRepeatButton_ = std::move(value);
-    (void)InvalidateMeasure();
+    InvalidateMeasure();
 }
 
 void Track::SetThumb(
     Base::Ref<Thumb> value) noexcept {
     thumb_ = std::move(value);
-    (void)InvalidateMeasure();
+    InvalidateMeasure();
 }
 
 void Track::SetIncreaseRepeatButton(
     Base::Ref<RepeatButton> value) noexcept {
     increaseRepeatButton_ = std::move(value);
-    (void)InvalidateMeasure();
+    InvalidateMeasure();
 }
 
 double Track::GetThumbLength(
@@ -1212,9 +1612,7 @@ Size Track::MeasureOverride(
     Size desired{};
     for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
-        Base::Result<void> measured =
-            MeasureChild(*child, availableSize);
-        if (!measured) return Size{};
+        MeasureChild(*child, availableSize);
         if (GetOrientation() == Orientation::Vertical) {
             desired.width = std::max(
                 desired.width,
@@ -1263,26 +1661,24 @@ Size Track::ArrangeOverride(
                              double extent) noexcept
         -> Base::Result<void> {
         if (child == nullptr) return {};
-        return ArrangeChild(
+        ArrangeChild(
             *child,
             vertical
                 ? Rect{0.0, offset,
                        finalSize.width, extent}
                 : Rect{offset, 0.0,
                        extent, finalSize.height});
+        return {};
     };
-    Base::Result<void> arranged =
-        arrange(first, 0.0, before);
-    if (arranged) {
-        arranged = arrange(
-            thumb_.Get(), thumbOffset, thumbLength);
-    }
-    if (arranged) {
-        arranged = arrange(
-            last,
-            thumbOffset + thumbLength,
-            after);
-    }
+    // Arrange independently: a RepeatButton that is not yet a layout
+    // child must not skip the Thumb (QuestLog's 3px gold indicator).
+    static_cast<void>(arrange(first, 0.0, before));
+    static_cast<void>(arrange(
+        thumb_.Get(), thumbOffset, thumbLength));
+    static_cast<void>(arrange(
+        last,
+        thumbOffset + thumbLength,
+        after));
     return finalSize;
 }
 
@@ -1292,58 +1688,44 @@ Orientation ScrollBar::GetOrientation() const noexcept {
 
 ScrollBar::ScrollBar() noexcept
     : RangeBase(StaticTypeId()),
-      trackPropertyChangedHandler_(
-          this,
-          &ScrollBar::OnTrackPropertyChanged) {
-    static_cast<void>(AddValueChangedHandlerChecked(
-        OrientationProperty,
-        trackPropertyChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
-        MinimumProperty,
-        trackPropertyChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
-        MaximumProperty,
-        trackPropertyChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
-        ValueProperty,
-        trackPropertyChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
-        ViewportSizeProperty,
-        trackPropertyChangedHandler_));
+      lineUpHandler_(&ScrollBar::OnLineUpCommand),
+      lineDownHandler_(&ScrollBar::OnLineDownCommand),
+      lineLeftHandler_(&ScrollBar::OnLineLeftCommand),
+      lineRightHandler_(&ScrollBar::OnLineRightCommand),
+      pageUpHandler_(&ScrollBar::OnPageUpCommand),
+      pageDownHandler_(&ScrollBar::OnPageDownCommand),
+      pageLeftHandler_(&ScrollBar::OnPageLeftCommand),
+      pageRightHandler_(&ScrollBar::OnPageRightCommand),
+      scrollToTopHandler_(&ScrollBar::OnScrollToTopCommand),
+      scrollToBottomHandler_(&ScrollBar::OnScrollToBottomCommand),
+      scrollToLeftEndHandler_(&ScrollBar::OnScrollToLeftEndCommand),
+      scrollToRightEndHandler_(&ScrollBar::OnScrollToRightEndCommand),
+      scrollToHorizontalOffsetHandler_(&ScrollBar::OnScrollToHorizontalOffsetCommand),
+      scrollToVerticalOffsetHandler_(&ScrollBar::OnScrollToVerticalOffsetCommand),
+      commandHandles_(&Base::GetDefaultAllocator()) {
 }
 
 ScrollBar::~ScrollBar() {
-    static_cast<void>(RemoveValueChangedHandler(
-        OrientationProperty,
-        trackPropertyChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        MinimumProperty,
-        trackPropertyChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        MaximumProperty,
-        trackPropertyChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        ValueProperty,
-        trackPropertyChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        ViewportSizeProperty,
-        trackPropertyChangedHandler_));
+    if (dragging_) {
+        static_cast<void>(ReleasePointer(pointerId_));
+        dragging_ = false;
+    }
+    UnregisterCommands();
 }
 
-void ScrollBar::OnApplyTemplate()
-    noexcept {
+void ScrollBar::OnApplyTemplate() noexcept {
     Control::OnApplyTemplate();
     DependencyObject* part =
         GetTemplateChild("PART_Track");
     track_ =
         part != nullptr &&
-        PropertyRegistry().Types().IsDerivedFrom(
+        DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             part->RuntimeType(),
             Track::StaticTypeId())
         ? static_cast<Track*>(part)
         : nullptr;
     SynchronizeTrack();
-    return;
+    EnsureCommands();
 }
 
 void ScrollBar::OnTemplateDetached() noexcept {
@@ -1351,11 +1733,271 @@ void ScrollBar::OnTemplateDetached() noexcept {
     Control::OnTemplateDetached();
 }
 
-void ScrollBar::OnTrackPropertyChanged(
-    DependencyObject&,
-    const DependencyPropertyChangedEventArgs&)
-        noexcept {
-    SynchronizeTrack();
+void ScrollBar::OnVisualParentChanged(Visual* oldParent) noexcept {
+    Control::OnVisualParentChanged(oldParent);
+    if (GetVisualParent() != nullptr) {
+        EnsureCommands();
+    } else {
+        if (dragging_) {
+            static_cast<void>(ReleasePointer(pointerId_));
+            dragging_ = false;
+        }
+        UnregisterCommands();
+    }
+}
+
+void ScrollBar::EnsureCommands() noexcept {
+    if (!commandHandles_.Empty()) return;
+    Aero::InputRouter* input = ElementTree::InputOf(*this);
+    if (input == nullptr) return;
+    auto addCmd = [this, input](Base::StringView name, const ExecutedRoutedEventHandler& handler) {
+        auto cmd = Input::RoutedCommand::ResolveStatic(StaticTypeId(), name);
+        if (cmd) {
+            auto added = input->AddCommandBinding(*this, Input::CommandBinding(std::move(cmd).Value(), handler));
+            if (added) commandHandles_.PushBack(added.Value());
+        }
+    };
+    addCmd("LineUpCommand", lineUpHandler_);
+    addCmd("LineUp", lineUpHandler_);
+    addCmd("LineDownCommand", lineDownHandler_);
+    addCmd("LineDown", lineDownHandler_);
+    addCmd("LineLeftCommand", lineLeftHandler_);
+    addCmd("LineLeft", lineLeftHandler_);
+    addCmd("LineRightCommand", lineRightHandler_);
+    addCmd("LineRight", lineRightHandler_);
+    addCmd("PageUpCommand", pageUpHandler_);
+    addCmd("PageUp", pageUpHandler_);
+    addCmd("PageDownCommand", pageDownHandler_);
+    addCmd("PageDown", pageDownHandler_);
+    addCmd("PageLeftCommand", pageLeftHandler_);
+    addCmd("PageLeft", pageLeftHandler_);
+    addCmd("PageRightCommand", pageRightHandler_);
+    addCmd("PageRight", pageRightHandler_);
+    addCmd("ScrollToTopCommand", scrollToTopHandler_);
+    addCmd("ScrollToTop", scrollToTopHandler_);
+    addCmd("ScrollToBottomCommand", scrollToBottomHandler_);
+    addCmd("ScrollToBottom", scrollToBottomHandler_);
+    addCmd("ScrollToLeftEndCommand", scrollToLeftEndHandler_);
+    addCmd("ScrollToLeftEnd", scrollToLeftEndHandler_);
+    addCmd("ScrollToRightEndCommand", scrollToRightEndHandler_);
+    addCmd("ScrollToRightEnd", scrollToRightEndHandler_);
+    addCmd("ScrollToHorizontalOffsetCommand", scrollToHorizontalOffsetHandler_);
+    addCmd("ScrollToHorizontalOffset", scrollToHorizontalOffsetHandler_);
+    addCmd("ScrollToVerticalOffsetCommand", scrollToVerticalOffsetHandler_);
+    addCmd("ScrollToVerticalOffset", scrollToVerticalOffsetHandler_);
+}
+
+void ScrollBar::UnregisterCommands() noexcept {
+    Aero::InputRouter* input = ElementTree::InputOf(*this);
+    if (input != nullptr) {
+        for (Input::CommandBindingHandle handle : commandHandles_) {
+            static_cast<void>(input->RemoveCommandBinding(handle));
+        }
+    }
+    commandHandles_.Clear();
+}
+
+
+void ScrollBar::OnMouseLeftButtonDown(MouseButtonEventArgs& args) {
+    if (args.GetHandled() || !GetIsEnabled() || args.GetChangedButton() != MouseButton::Left) {
+        return;
+    }
+    const Point local = args.GetPosition();
+    const bool horizontal = GetOrientation() == Orientation::Horizontal;
+    const double position = horizontal ? local.x : local.y;
+    const double length = horizontal ? GetRenderSize().width : GetRenderSize().height;
+    const double range = GetMaximum() - GetMinimum();
+    const double normalized = range > 0.0 ? (GetValue() - GetMinimum()) / range : 0.0;
+    const double thumbPosition = std::clamp(normalized, 0.0, 1.0) * std::max(0.0, length - 16.0);
+    const bool isThumb = std::fabs(position - thumbPosition) <= 16.0;
+
+    if (isThumb) {
+        dragging_ = true;
+        pointerId_ = args.GetPointerId();
+        dragOrigin_ = local;
+        dragStartValue_ = GetValue();
+        static_cast<void>(CapturePointer(args.GetPointerId()));
+        args.SetHandled(true);
+    } else if (position < thumbPosition) {
+        static_cast<void>(PageDecrement());
+        args.SetHandled(true);
+    } else {
+        static_cast<void>(PageIncrement());
+        args.SetHandled(true);
+    }
+}
+
+void ScrollBar::OnMouseMove(MouseEventArgs& args) {
+    if (!dragging_ || pointerId_ != args.GetPointerId()) {
+        return;
+    }
+    const Point current = args.GetPosition();
+    const Point origin = dragOrigin_;
+    const double range = GetMaximum() - GetMinimum();
+    if (range <= 0.0) return;
+
+    if (GetOrientation() == Orientation::Vertical) {
+        const double trackHeight = GetRenderSize().height;
+        const double available = std::max(1.0, trackHeight - 16.0);
+        const double deltaY = current.y - origin.y;
+        const double deltaVal = deltaY * range / available;
+        SetValue(std::clamp(dragStartValue_ + deltaVal, GetMinimum(), GetMaximum()));
+        args.SetHandled(true);
+    } else {
+        const double trackWidth = GetRenderSize().width;
+        const double available = std::max(1.0, trackWidth - 16.0);
+        const double deltaX = current.x - origin.x;
+        const double deltaVal = deltaX * range / available;
+        SetValue(std::clamp(dragStartValue_ + deltaVal, GetMinimum(), GetMaximum()));
+        args.SetHandled(true);
+    }
+}
+
+void ScrollBar::OnMouseLeftButtonUp(MouseButtonEventArgs& args) {
+    if (args.GetChangedButton() != MouseButton::Left || !dragging_) {
+        return;
+    }
+    dragging_ = false;
+    static_cast<void>(ReleasePointer(pointerId_));
+    args.SetHandled(true);
+}
+
+void ScrollBar::OnKeyDown(KeyEventArgs& args) {
+    if (!GetIsEnabled()) return;
+    if (args.GetKey() == KeyboardKeyHome) {
+        SetValue(GetMinimum());
+        args.SetHandled(true);
+    } else if (args.GetKey() == KeyboardKeyEnd) {
+        SetValue(GetMaximum());
+        args.SetHandled(true);
+    } else if (args.GetKey() == KeyboardKeyUp || args.GetKey() == KeyboardKeyLeft) {
+        static_cast<void>(LineDecrement());
+        args.SetHandled(true);
+    } else if (args.GetKey() == KeyboardKeyDown || args.GetKey() == KeyboardKeyRight) {
+        static_cast<void>(LineIncrement());
+        args.SetHandled(true);
+    } else if (args.GetKey() == KeyboardKeyPageUp) {
+        static_cast<void>(PageDecrement());
+        args.SetHandled(true);
+    } else if (args.GetKey() == KeyboardKeyPageDown) {
+        static_cast<void>(PageIncrement());
+        args.SetHandled(true);
+    }
+}
+
+void ScrollBar::OnLineUpCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    auto* bar = static_cast<ScrollBar*>(sender);
+    if (bar != nullptr) {
+        static_cast<void>(bar->LineDecrement());
+        args.SetHandled(true);
+    }
+}
+void ScrollBar::OnLineDownCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    auto* bar = static_cast<ScrollBar*>(sender);
+    if (bar != nullptr) {
+        static_cast<void>(bar->LineIncrement());
+        args.SetHandled(true);
+    }
+}
+void ScrollBar::OnLineLeftCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    auto* bar = static_cast<ScrollBar*>(sender);
+    if (bar != nullptr) {
+        static_cast<void>(bar->LineDecrement());
+        args.SetHandled(true);
+    }
+}
+void ScrollBar::OnLineRightCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    auto* bar = static_cast<ScrollBar*>(sender);
+    if (bar != nullptr) {
+        static_cast<void>(bar->LineIncrement());
+        args.SetHandled(true);
+    }
+}
+void ScrollBar::OnPageUpCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    auto* bar = static_cast<ScrollBar*>(sender);
+    if (bar != nullptr) {
+        static_cast<void>(bar->PageDecrement());
+        args.SetHandled(true);
+    }
+}
+void ScrollBar::OnPageDownCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    auto* bar = static_cast<ScrollBar*>(sender);
+    if (bar != nullptr) {
+        static_cast<void>(bar->PageIncrement());
+        args.SetHandled(true);
+    }
+}
+void ScrollBar::OnPageLeftCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    auto* bar = static_cast<ScrollBar*>(sender);
+    if (bar != nullptr) {
+        static_cast<void>(bar->PageDecrement());
+        args.SetHandled(true);
+    }
+}
+void ScrollBar::OnPageRightCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    auto* bar = static_cast<ScrollBar*>(sender);
+    if (bar != nullptr) {
+        static_cast<void>(bar->PageIncrement());
+        args.SetHandled(true);
+    }
+}
+void ScrollBar::OnScrollToTopCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    auto* bar = static_cast<ScrollBar*>(sender);
+    if (bar != nullptr) {
+        bar->SetValue(bar->GetMinimum());
+        args.SetHandled(true);
+    }
+}
+void ScrollBar::OnScrollToBottomCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    auto* bar = static_cast<ScrollBar*>(sender);
+    if (bar != nullptr) {
+        bar->SetValue(bar->GetMaximum());
+        args.SetHandled(true);
+    }
+}
+void ScrollBar::OnScrollToLeftEndCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    auto* bar = static_cast<ScrollBar*>(sender);
+    if (bar != nullptr) {
+        bar->SetValue(bar->GetMinimum());
+        args.SetHandled(true);
+    }
+}
+void ScrollBar::OnScrollToRightEndCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    auto* bar = static_cast<ScrollBar*>(sender);
+    if (bar != nullptr) {
+        bar->SetValue(bar->GetMaximum());
+        args.SetHandled(true);
+    }
+}
+void ScrollBar::OnScrollToHorizontalOffsetCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    auto* bar = static_cast<ScrollBar*>(sender);
+    if (bar != nullptr) {
+        const double value = args.GetParameter().Kind() == Meta::ValueKind::Double
+            ? args.GetParameter().AsDouble() : 0.0;
+        bar->SetValue(std::clamp(value, bar->GetMinimum(), bar->GetMaximum()));
+        args.SetHandled(true);
+    }
+}
+void ScrollBar::OnScrollToVerticalOffsetCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    auto* bar = static_cast<ScrollBar*>(sender);
+    if (bar != nullptr) {
+        const double value = args.GetParameter().Kind() == Meta::ValueKind::Double
+            ? args.GetParameter().AsDouble() : 0.0;
+        bar->SetValue(std::clamp(value, bar->GetMinimum(), bar->GetMaximum()));
+        args.SetHandled(true);
+    }
+}
+
+void ScrollBar::OnPropertyChanged(
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    RangeBase::OnPropertyChanged(args);
+    if (args.GetProperty() == OrientationProperty ||
+        args.GetProperty() == MinimumProperty ||
+        args.GetProperty() == MaximumProperty ||
+        args.GetProperty() == ValueProperty ||
+        args.GetProperty() == ViewportSizeProperty) {
+        SynchronizeTrack();
+    }
 }
 
 void ScrollBar::SynchronizeTrack() noexcept {
@@ -1371,26 +2013,10 @@ void ScrollBar::SynchronizeTrack() noexcept {
 }
 
 RangeBase::RangeBase(TypeId runtimeType) noexcept
-    : Control(runtimeType),
-      rangeChangedHandler_(
-          this,
-          &RangeBase::OnRangePropertyChanged) {
-    static_cast<void>(AddValueChangedHandlerChecked(
-        MinimumProperty, rangeChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
-        MaximumProperty, rangeChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
-        ValueProperty, rangeChangedHandler_));
+    : Control(runtimeType) {
 }
 
-RangeBase::~RangeBase() {
-    static_cast<void>(RemoveValueChangedHandler(
-        MinimumProperty, rangeChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        MaximumProperty, rangeChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        ValueProperty, rangeChangedHandler_));
-}
+RangeBase::~RangeBase() = default;
 
 double RangeBase::GetMinimum() const noexcept {
     return ReadDouble(*this, MinimumProperty);
@@ -1442,18 +2068,34 @@ void RangeBase::SetValue(
     StoreDouble(*this, ValueProperty, clamped);
 }
 
-void RangeBase::OnRangePropertyChanged(
-    DependencyObject&,
+void RangeBase::OnMinimumChanged(
+    double,
+    double) noexcept {
+    SetValue(GetValue());
+}
+
+void RangeBase::OnMaximumChanged(
+    double,
+    double) noexcept {
+    SetValue(GetValue());
+}
+
+void RangeBase::OnPropertyChanged(
     const DependencyPropertyChangedEventArgs&
         args) noexcept {
+    Control::OnPropertyChanged(args);
     if (args.GetProperty() == ValueProperty) {
         OnValueChanged(
             args.GetOldValue().AsDouble(),
             args.GetNewValue().AsDouble());
-    } else if (
-        args.GetProperty() == MinimumProperty ||
-        args.GetProperty() == MaximumProperty) {
-        SetValue(GetValue());
+    } else if (args.GetProperty() == MinimumProperty) {
+        OnMinimumChanged(
+            args.GetOldValue().AsDouble(),
+            args.GetNewValue().AsDouble());
+    } else if (args.GetProperty() == MaximumProperty) {
+        OnMaximumChanged(
+            args.GetOldValue().AsDouble(),
+            args.GetNewValue().AsDouble());
     }
 }
 
@@ -1462,6 +2104,31 @@ void RangeBase::OnValueChanged(
     double newValue) noexcept {
     RangeValueChangedEventArgs args(oldValue, newValue);
     RaiseEvent(ValueChangedEvent, &args);
+}
+
+PropertyValue RangeBase::CoerceValueCore(
+    DependencyPropertyHandle property,
+    const PropertyValue& baseValue) noexcept {
+    if (baseValue.Kind() != Meta::ValueKind::Double) {
+        return baseValue;
+    }
+    const double raw = baseValue.AsDouble();
+    double adjusted = raw;
+    if (property == MinimumProperty.Handle()) {
+        adjusted = std::min(raw, GetMaximum());
+    } else if (property == MaximumProperty.Handle()) {
+        adjusted = std::max(raw, GetMinimum());
+    } else if (property == ValueProperty.Handle()) {
+        adjusted = std::clamp(raw, GetMinimum(), GetMaximum());
+    } else {
+        return baseValue;
+    }
+    if (adjusted == raw) {
+        return baseValue;
+    }
+    Base::Result<PropertyValue> encoded =
+        Meta::ValueCodec<double>::Encode(adjusted);
+    return encoded ? std::move(encoded).Value() : baseValue;
 }
 
 double ScrollBar::GetViewportSize() const noexcept {
@@ -1554,42 +2221,30 @@ Base::Result<bool> ScrollBar::DragThumb(
 
 Slider::Slider() noexcept
     : Primitives::RangeBase(StaticTypeId()),
-      trackPropertyChangedHandler_(
-          this, &Slider::OnTrackPropertyChanged) {
-    static_cast<void>(AddValueChangedHandlerChecked(
-        OrientationProperty, trackPropertyChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
-        MinimumProperty, trackPropertyChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
-        MaximumProperty, trackPropertyChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
-        ValueProperty, trackPropertyChangedHandler_));
-    static_cast<void>(AddValueChangedHandlerChecked(
-        IsDirectionReversedProperty, trackPropertyChangedHandler_));
+      decreaseSmallHandler_(this, &Slider::OnDecreaseSmallCommand),
+      increaseSmallHandler_(this, &Slider::OnIncreaseSmallCommand),
+      decreaseLargeHandler_(this, &Slider::OnDecreaseLargeCommand),
+      increaseLargeHandler_(this, &Slider::OnIncreaseLargeCommand) {
 }
 
 Slider::~Slider() {
-    static_cast<void>(RemoveValueChangedHandler(
-        OrientationProperty, trackPropertyChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        MinimumProperty, trackPropertyChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        MaximumProperty, trackPropertyChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        ValueProperty, trackPropertyChangedHandler_));
-    static_cast<void>(RemoveValueChangedHandler(
-        IsDirectionReversedProperty, trackPropertyChangedHandler_));
+    if (dragging_) {
+        static_cast<void>(ReleasePointer(pointerId_));
+        dragging_ = false;
+    }
+    UnregisterCommands();
 }
 
 void Slider::OnApplyTemplate() noexcept {
     Control::OnApplyTemplate();
     DependencyObject* part = GetTemplateChild("PART_Track");
     track_ = part != nullptr &&
-        PropertyRegistry().Types().IsDerivedFrom(
+        DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             part->RuntimeType(), Track::StaticTypeId())
         ? static_cast<Track*>(part)
         : nullptr;
     SynchronizeTrack();
+    EnsureCommands();
 }
 
 void Slider::OnTemplateDetached() noexcept {
@@ -1597,10 +2252,239 @@ void Slider::OnTemplateDetached() noexcept {
     Control::OnTemplateDetached();
 }
 
-void Slider::OnTrackPropertyChanged(
-    DependencyObject&,
-    const DependencyPropertyChangedEventArgs&) noexcept {
-    SynchronizeTrack();
+void Slider::OnVisualParentChanged(Visual* oldParent) noexcept {
+    Control::OnVisualParentChanged(oldParent);
+    if (GetVisualParent() != nullptr) {
+        EnsureCommands();
+    } else {
+        if (dragging_) {
+            static_cast<void>(ReleasePointer(pointerId_));
+            dragging_ = false;
+        }
+        UnregisterCommands();
+    }
+}
+
+void Slider::EnsureCommands() noexcept {
+    if (decreaseSmallCommand_.IsValid()) return;
+    Aero::InputRouter* input = ElementTree::InputOf(*this);
+    if (input == nullptr) return;
+    auto addCmd = [this, input](Base::StringView name, const ExecutedRoutedEventHandler& handler, Input::CommandBindingHandle& out) {
+        auto cmd = Input::RoutedCommand::ResolveStatic(StaticTypeId(), name);
+        if (cmd) {
+            auto added = input->AddCommandBinding(*this, Input::CommandBinding(std::move(cmd).Value(), handler));
+            if (added) out = added.Value();
+        }
+    };
+    addCmd("DecreaseSmall", decreaseSmallHandler_, decreaseSmallCommand_);
+    addCmd("IncreaseSmall", increaseSmallHandler_, increaseSmallCommand_);
+    addCmd("DecreaseLarge", decreaseLargeHandler_, decreaseLargeCommand_);
+    addCmd("IncreaseLarge", increaseLargeHandler_, increaseLargeCommand_);
+}
+
+void Slider::UnregisterCommands() noexcept {
+    Aero::InputRouter* input = ElementTree::InputOf(*this);
+    if (input != nullptr) {
+        if (decreaseSmallCommand_.IsValid()) input->RemoveCommandBinding(decreaseSmallCommand_);
+        if (increaseSmallCommand_.IsValid()) input->RemoveCommandBinding(increaseSmallCommand_);
+        if (decreaseLargeCommand_.IsValid()) input->RemoveCommandBinding(decreaseLargeCommand_);
+        if (increaseLargeCommand_.IsValid()) input->RemoveCommandBinding(increaseLargeCommand_);
+    }
+    decreaseSmallCommand_ = {};
+    increaseSmallCommand_ = {};
+    decreaseLargeCommand_ = {};
+    increaseLargeCommand_ = {};
+}
+
+
+void Slider::SetFromPoint() noexcept {
+    if (track_ != nullptr) {
+        SetValueFromTrackPoint(Input::Mouse::GetPosition(track_));
+        return;
+    }
+    const Point local = Input::Mouse::GetPosition(this);
+    const bool horizontal = GetOrientation() == Orientation::Horizontal;
+    SetValueFromPosition(
+        horizontal ? local.x : local.y,
+        horizontal ? GetRenderSize().width : GetRenderSize().height);
+}
+
+void Slider::OnMouseLeftButtonDown(MouseButtonEventArgs& args) {
+    if (!GetIsEnabled() || args.GetChangedButton() != MouseButton::Left) {
+        return;
+    }
+    pointerId_ = args.GetPointerId();
+    static_cast<void>(Focus());
+    Track* track = track_;
+    Thumb* thumb = track != nullptr ? track->GetThumbElement().Get() : nullptr;
+    auto* source = ::Aero::TryCast<UIElement>(args.GetOriginalSource());
+    const bool onThumb = thumb != nullptr && source != nullptr && (source == thumb || thumb->IsAncestorOf(*source));
+    const bool onTrack = track != nullptr && source != nullptr && (source == track || track->IsAncestorOf(*source));
+    const bool onSlider = source == nullptr || source == this || IsAncestorOf(*source);
+    const bool hasRepeatButtons = track != nullptr && (track->GetDecreaseRepeatButton() || track->GetIncreaseRepeatButton());
+
+    const bool moveToPoint = GetIsMoveToPointEnabled() || ((onTrack || onSlider) && !hasRepeatButtons);
+    dragging_ = onThumb || moveToPoint;
+    if (!dragging_ && track != nullptr && onTrack) {
+        const Point local = Input::Mouse::GetPosition(track);
+        const bool horizontal = GetOrientation() == Orientation::Horizontal;
+        const Size size = track->GetRenderSize();
+        const double length = horizontal ? size.width : size.height;
+        const double position = horizontal ? local.x : local.y;
+        const double thumbOffset = track->GetThumbOffset(length);
+        const double thumbLength = track->GetThumbLength(length);
+        dragging_ = std::fabs(position - (thumbOffset + thumbLength * 0.5)) <= std::max(10.0, thumbLength);
+    }
+    if (dragging_) {
+        static_cast<void>(CapturePointer(args.GetPointerId()));
+    }
+    if (moveToPoint || (dragging_ && onThumb)) {
+        SetFromPoint();
+    } else if (!dragging_) {
+        const Point local = track != nullptr
+            ? Input::Mouse::GetPosition(track)
+            : Input::Mouse::GetPosition(this);
+        const bool horizontal = GetOrientation() == Orientation::Horizontal;
+        const double position = horizontal ? local.x : local.y;
+        const double length = horizontal
+            ? (track != nullptr ? track->GetRenderSize().width : GetRenderSize().width)
+            : (track != nullptr ? track->GetRenderSize().height : GetRenderSize().height);
+        const bool after = position >= length * 0.5;
+        const bool increase = GetIsDirectionReversed() ? !after : after;
+        static_cast<void>(increase ? IncreaseLarge() : DecreaseLarge());
+    }
+    args.SetHandled(true);
+}
+
+void Slider::OnMouseMove(MouseEventArgs& args) {
+    if (!dragging_ || pointerId_ != args.GetPointerId()) {
+        return;
+    }
+    SetFromPoint();
+    args.SetHandled(true);
+}
+
+void Slider::OnMouseLeftButtonUp(MouseButtonEventArgs& args) {
+    if (args.GetChangedButton() != MouseButton::Left || !dragging_ || pointerId_ != args.GetPointerId()) {
+        return;
+    }
+    SetFromPoint();
+    dragging_ = false;
+    static_cast<void>(ReleasePointer(args.GetPointerId()));
+    args.SetHandled(true);
+}
+
+void Slider::OnKeyDown(KeyEventArgs& args) {
+    if (!GetIsEnabled()) return;
+    bool changed = false;
+    bool handled = true;
+    const bool reversed = GetIsDirectionReversed();
+    if (args.GetKey() == KeyboardKeyHome) {
+        const double oldValue = GetValue();
+        SetValue(reversed ? GetMaximum() : GetMinimum());
+        changed = !Same(oldValue, GetValue());
+    } else if (args.GetKey() == KeyboardKeyEnd) {
+        const double oldValue = GetValue();
+        SetValue(reversed ? GetMinimum() : GetMaximum());
+        changed = !Same(oldValue, GetValue());
+    } else if (args.GetKey() == KeyboardKeyLeft || args.GetKey() == KeyboardKeyDown) {
+        Result<bool> result = reversed ? IncreaseSmall() : DecreaseSmall();
+        changed = result && result.Value();
+    } else if (args.GetKey() == KeyboardKeyRight || args.GetKey() == KeyboardKeyUp) {
+        Result<bool> result = reversed ? DecreaseSmall() : IncreaseSmall();
+        changed = result && result.Value();
+    } else {
+        handled = false;
+    }
+    if (handled && changed) {
+        args.SetHandled(true);
+    }
+}
+
+void Slider::OnDecreaseSmallCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
+    static_cast<void>(DecreaseSmall());
+    args.SetHandled(true);
+}
+void Slider::OnIncreaseSmallCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
+    static_cast<void>(IncreaseSmall());
+    args.SetHandled(true);
+}
+void Slider::OnDecreaseLargeCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
+    static_cast<void>(DecreaseLarge());
+    args.SetHandled(true);
+}
+void Slider::OnIncreaseLargeCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
+    static_cast<void>(IncreaseLarge());
+    args.SetHandled(true);
+}
+
+Size Slider::MeasureOverride(Size availableSize) noexcept {
+    Size desired = Control::MeasureOverride(availableSize);
+    // BlendTutorial ColorSelector / Position sliders omit Height. An empty
+    // default template Grid measures 0x0, which collapses Grid Height="*"
+    // rows inside a StackPanel. Keep a theme-like minimum.
+    constexpr double kMinThickness = 18.0;
+    constexpr double kMinLength = 32.0;
+    if (GetOrientation() == Orientation::Horizontal) {
+        desired.height = std::max(desired.height, kMinThickness);
+        desired.width = std::max(desired.width, kMinLength);
+    } else {
+        desired.width = std::max(desired.width, kMinThickness);
+        desired.height = std::max(desired.height, kMinLength);
+    }
+    return desired;
+}
+
+bool Slider::ValidateValueCore(
+    DependencyPropertyHandle property,
+    const PropertyValue& value) const noexcept {
+    if (property == TicksProperty.Handle()) {
+        if (value.Kind() != Meta::ValueKind::String) {
+            return false;
+        }
+        const Base::StringView text = value.AsString();
+        std::uint32_t start = 0U;
+        while (start < text.SizeBytes()) {
+            while (start < text.SizeBytes() &&
+                (text[start] == ' ' ||
+                 text[start] == '\t' ||
+                 text[start] == ',' ||
+                 text[start] == ';')) {
+                ++start;
+            }
+            if (start >= text.SizeBytes()) break;
+            std::uint32_t end = start;
+            while (end < text.SizeBytes() &&
+                text[end] != ' ' &&
+                text[end] != '\t' &&
+                text[end] != ',' &&
+                text[end] != ';') {
+                ++end;
+            }
+            Base::Result<double> parsed =
+                ::Aero::Base::ValueConversion::ParseDouble(
+                    text.Substr(start, end - start));
+            if (!parsed ||
+                !std::isfinite(parsed.Value())) {
+                return false;
+            }
+            start = end;
+        }
+        return true;
+    }
+    return RangeBase::ValidateValueCore(property, value);
+}
+
+void Slider::OnPropertyChanged(
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    RangeBase::OnPropertyChanged(args);
+    if (args.GetProperty() == OrientationProperty ||
+        args.GetProperty() == MinimumProperty ||
+        args.GetProperty() == MaximumProperty ||
+        args.GetProperty() == ValueProperty ||
+        args.GetProperty() == IsDirectionReversedProperty) {
+        SynchronizeTrack();
+    }
 }
 
 void Slider::SynchronizeTrack() noexcept {
@@ -1624,9 +2508,7 @@ double Slider::GetLargeChange() const noexcept {
 }
 
 TickPlacement Slider::GetTickPlacement() const noexcept {
-    return GetValueOr(
-        TickPlacementProperty,
-        TickPlacement::None);
+    return GetValue(TickPlacementProperty);
 }
 
 double Slider::GetTickFrequency() const noexcept {
@@ -1634,8 +2516,7 @@ double Slider::GetTickFrequency() const noexcept {
 }
 
 Base::StringView Slider::GetTicks() const noexcept {
-    return GetValueOr(
-        TicksProperty, Base::StringView());
+    return GetValue(TicksProperty);
 }
 
 bool Slider::GetIsSnapToTickEnabled() const noexcept {
@@ -1830,6 +2711,38 @@ void Slider::SetValueFromPosition(
         normalized * (GetMaximum() - GetMinimum())));
 }
 
+void Slider::SetValueFromTrackPoint(
+    Point local) noexcept {
+    if (track_ == nullptr) {
+        const bool horizontal =
+            GetOrientation() == Orientation::Horizontal;
+        SetValueFromPosition(
+            horizontal ? local.x : local.y,
+            horizontal
+                ? GetRenderSize().width
+                : GetRenderSize().height);
+        return;
+    }
+    const bool horizontal =
+        GetOrientation() == Orientation::Horizontal;
+    const Size size = track_->GetRenderSize();
+    const double length =
+        horizontal ? size.width : size.height;
+    if (!(length > 0.0)) return;
+    const double desiredThumbLength = track_->GetThumbElement()
+        ? std::max(0.0, horizontal
+            ? track_->GetThumbElement()->GetDesiredSize().width
+            : track_->GetThumbElement()->GetDesiredSize().height)
+        : 8.0;
+    const double thumbLength = track_->GetThumbLength(length, desiredThumbLength);
+    const double position =
+        (horizontal ? local.x : local.y) - thumbLength * 0.5;
+    Base::Result<double> value =
+        track_->ValueFromThumbOffset(position, length, thumbLength);
+    if (!value) return;
+    SetValue(GetSnapValue(value.Value()));
+}
+
 double Slider::GetNormalizedValueForLayout() const noexcept {
     const double range = GetMaximum() - GetMinimum();
     double normalized = range > 0.0
@@ -1837,7 +2750,11 @@ double Slider::GetNormalizedValueForLayout() const noexcept {
             (GetValue() - GetMinimum()) / range,
             0.0, 1.0)
         : 0.0;
-    if (GetIsDirectionReversed()) {
+    const bool isRtl = GetFlowDirection() == FlowDirection::RightToLeft;
+    const bool invert = GetOrientation() == Orientation::Horizontal
+        ? (isRtl ? !GetIsDirectionReversed() : GetIsDirectionReversed())
+        : !GetIsDirectionReversed();
+    if (invert) {
         normalized = 1.0 - normalized;
     }
     return normalized;
@@ -1850,7 +2767,7 @@ Size Slider::ArrangeOverride(
 
 void Slider::OnRender(
     ::Aero::Media::DrawingContext& context) noexcept {
-    auto& builder = Aero::Render::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::DrawingBridge::Builder(context);
     const TickPlacement placement =
         GetTickPlacement();
     const Size size = GetRenderSize();
@@ -1876,7 +2793,7 @@ void Slider::OnRender(
         std::max(0.0,
             primary - thumbLength);
     const Color color = ::Aero::Media::SampleBrush(GetForeground());
-    if (GetVisualChildren().Empty()) {
+    if ((*this).RenderChildren().Empty()) {
         Color trackColor = color;
         trackColor.alpha *= 0.35F;
         const double normalized =
@@ -1934,6 +2851,12 @@ void Slider::OnRender(
     if (placement == TickPlacement::None) {
         return;
     }
+    // When templated, TickBar parts render ticks (WPF/Noesis parity).
+    // Slider::OnRender fallback would double-draw in accent Foreground
+    // over TickBar's thin Background ticks.
+    if (!(*this).RenderChildren().Empty()) {
+        return;
+    }
     auto drawTick = [&](double value)
         noexcept -> Base::Result<void> {
         if (value < GetMinimum() ||
@@ -1945,7 +2868,11 @@ void Slider::OnRender(
         double normalized = range > 0.0
             ? (value - GetMinimum()) / range
             : 0.0;
-        if (GetIsDirectionReversed()) {
+        const bool isRtl = GetFlowDirection() == FlowDirection::RightToLeft;
+        const bool invert = horizontal
+            ? (isRtl ? !GetIsDirectionReversed() : GetIsDirectionReversed())
+            : !GetIsDirectionReversed();
+        if (invert) {
             normalized = 1.0 - normalized;
         }
         const double pixel =
@@ -2042,15 +2969,11 @@ void Slider::OnRender(
 }
 
 Base::Ref<Media::Brush> TickBar::GetFill() const noexcept {
-    return GetValueOr(
-        FillProperty,
-        Base::Ref<Media::Brush>{});
+    return GetValue(FillProperty);
 }
 
 TickBarPlacement TickBar::GetPlacement() const noexcept {
-    return GetValueOr(
-        PlacementProperty,
-        TickBarPlacement::Top);
+    return GetValue(PlacementProperty);
 }
 
 void TickBar::SetFill(
@@ -2065,10 +2988,10 @@ void TickBar::SetPlacement(
 
 void TickBar::OnRender(
     ::Aero::Media::DrawingContext& context) noexcept {
-    auto& builder = Aero::Render::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::DrawingBridge::Builder(context);
     DependencyObject* parent = GetTemplatedParent();
     if (parent == nullptr ||
-        !PropertyRegistry().Types().IsDerivedFrom(
+        !DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             parent->RuntimeType(), Slider::StaticTypeId())) {
         return;
     }
@@ -2084,10 +3007,25 @@ void TickBar::OnRender(
 
     const Color color = ::Aero::Media::SampleBrush(
         GetFill(), 0.5, ::Aero::Media::SampleBrush(GetForeground()));
-    constexpr double thumbLength = 14.0;
+    double thumbLength = 4.0;
+    if (const Primitives::Track* track = slider.GetTrack()) {
+        if (const auto thumb = track->GetThumbElement()) {
+            const Size thumbDesired = thumb->GetDesiredSize();
+            const double desired = horizontal ? thumbDesired.width : thumbDesired.height;
+            if (desired > 0.0) {
+                thumbLength = track->GetThumbLength(primary, desired);
+            }
+        }
+    }
     const double start = std::min(
         primary * 0.5, thumbLength * 0.5);
     const double travel = std::max(0.0, primary - thumbLength);
+
+    const bool isRtl = slider.GetFlowDirection() == FlowDirection::RightToLeft;
+    const bool invert = horizontal
+        ? (isRtl ? !slider.GetIsDirectionReversed() : slider.GetIsDirectionReversed())
+        : !slider.GetIsDirectionReversed();
+
     auto drawTick = [&](double value)
         noexcept -> Base::Result<void> {
         if (value < slider.GetMinimum() ||
@@ -2097,14 +3035,15 @@ void TickBar::OnRender(
         double normalized = range > 0.0
             ? (value - slider.GetMinimum()) / range
             : 0.0;
-        if (slider.GetIsDirectionReversed()) {
+        if (invert) {
             normalized = 1.0 - normalized;
         }
         const double position = start +
             std::clamp(normalized, 0.0, 1.0) * travel;
+        const double tickPos = std::round(position);
         if (horizontal) {
             return builder.FillRect({
-                position,
+                tickPos,
                 GetPlacement() == TickBarPlacement::Top
                     ? 0.0
                     : std::max(0.0, size.height - 4.0),
@@ -2115,7 +3054,7 @@ void TickBar::OnRender(
             GetPlacement() == TickBarPlacement::Left
                 ? 0.0
                 : std::max(0.0, size.width - 4.0),
-            position,
+            tickPos,
             std::min(4.0, size.width),
             1.0}, color);
     };
@@ -2151,6 +3090,7 @@ void TickBar::OnRender(
     }
 
     const double frequency = slider.GetTickFrequency();
+    if (frequency <= 0.0) return;
     for (double value = slider.GetMinimum(), count = 0.0;
          value <= slider.GetMaximum() + frequency * 0.000001 &&
          count < 1024.0;
@@ -2191,1171 +3131,151 @@ double ProgressBar::GetNormalizedValue() const noexcept {
         : 0.0;
 }
 
-} // namespace Aero::Controls
+namespace Primitives {
 
-namespace Aero::Controls {
+AERO_DESCRIBE(Track) {
+    using namespace Aero::Meta;
+    Register<Track>(context)
+        .Property(Track::OrientationProperty, Orientation::Vertical, AffectsMeasure)
+        .Property(Track::MinimumProperty, 0.0, AffectsArrange, &::Aero::Base::Validate::Finite<double>)
+        .Property(Track::MaximumProperty, 1.0, AffectsArrange, &::Aero::Base::Validate::Finite<double>)
+        .Property(Track::ValueProperty, 0.0, AffectsArrange | BindsTwoWayByDefault, &::Aero::Base::Validate::Finite<double>)
+        .Property(Track::ViewportSizeProperty, 0.0, AffectsArrange, &::Aero::Base::Validate::NonNegative<double>)
+        .Property(Track::IsDirectionReversedProperty, false, AffectsArrange)
+        .Property<Base::Ref<RepeatButton>, &Track::SetDecreaseRepeatButton>("DecreaseRepeatButton", PropertyFlags::Structural)
+        .Property<Base::Ref<Thumb>, &Track::SetThumb>("Thumb", PropertyFlags::Structural)
+        .Property<Base::Ref<RepeatButton>, &Track::SetIncreaseRepeatButton>("IncreaseRepeatButton", PropertyFlags::Structural)
+        .Factory();
+}
 
-using namespace Aero::Meta;
-using namespace Aero::Threading;
-using namespace Aero::Controls;
-using namespace ::Aero::Controls;
-using namespace ::Aero;
+AERO_DESCRIBE(Thumb) {
+    using namespace Aero::Meta;
+    Register<Thumb>(context)
+        .Property(Thumb::IsDraggingProperty, false, AffectsRender)
+        .Factory();
+}
 
-ScrollBehavior::ScrollBehavior(
-    ElementTree& tree,
-    EventRouter& events) noexcept
-    : tree_(&tree),
-      events_(&events),
-      wheelHandler_(
-          this,
-          &ScrollBehavior::OnMouseWheel) {}
+AERO_DESCRIBE(RangeBase) {
+    using namespace Aero::Meta;
+    Register<RangeValueChangedEventArgs>(context);
+    Register<RangeBase>(context, TypeFlags::Abstract)
+        .Event(RangeBase::ValueChangedEvent)
+        .Property(RangeBase::MinimumProperty, FrameworkPropertyMetadata(0.0, AffectsArrange).Validate(&::Aero::Base::Validate::Finite<double>))
+        .Property(RangeBase::MaximumProperty, FrameworkPropertyMetadata(100.0, AffectsArrange).Validate(&::Aero::Base::Validate::Finite<double>))
+        .Property(RangeBase::ValueProperty, FrameworkPropertyMetadata(0.0, AffectsArrange | BindsTwoWayByDefault).Validate(&::Aero::Base::Validate::Finite<double>));
+}
 
-ScrollBehavior::~ScrollBehavior() noexcept {
-    while (!viewers_.Empty()) {
-        ScrollViewer* viewer =
-            viewers_.Back().viewer;
-        if (viewer != nullptr) {
-            static_cast<void>(Detach(*viewer));
-        } else {
-            viewers_.PopBack();
-        }
+AERO_DESCRIBE(ScrollBar) {
+    using namespace Aero::Meta;
+    Register<ScrollChangedEventArgs>(context);
+    Register<ScrollBar>(context)
+        .Property(ScrollBar::OrientationProperty, Orientation::Vertical, AffectsMeasure)
+        .Property(ScrollBar::ViewportSizeProperty, 0.0, AffectsArrange, &::Aero::Base::Validate::NonNegative<double>)
+        .Property(ScrollBar::SmallChangeProperty, 16.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::Positive<double>)
+        .Property(ScrollBar::LargeChangeProperty, 0.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::NonNegative<double>)
+        .TemplatePart("PART_Track", TypeOf<Track>())
+        .Factory();
+    AERO_ON(ScrollBar, &ScrollBar::OnMouseLeftButtonDown, UIElement::MouseLeftButtonDownEvent);
+    AERO_ON(ScrollBar, &ScrollBar::OnMouseLeftButtonUp, UIElement::MouseLeftButtonUpEvent);
+    AERO_ON(ScrollBar, &ScrollBar::OnMouseMove, UIElement::MouseMoveEvent);
+    AERO_ON(ScrollBar, &ScrollBar::OnKeyDown, UIElement::KeyDownEvent);
+
+    for (Base::StringView commandName : {
+             Base::StringView("LineUpCommand"),
+             Base::StringView("LineUp"),
+             Base::StringView("LineDownCommand"),
+             Base::StringView("LineDown"),
+             Base::StringView("LineLeftCommand"),
+             Base::StringView("LineLeft"),
+             Base::StringView("LineRightCommand"),
+             Base::StringView("LineRight"),
+             Base::StringView("PageUpCommand"),
+             Base::StringView("PageUp"),
+             Base::StringView("PageDownCommand"),
+             Base::StringView("PageDown"),
+             Base::StringView("PageLeftCommand"),
+             Base::StringView("PageLeft"),
+             Base::StringView("PageRightCommand"),
+             Base::StringView("PageRight"),
+             Base::StringView("ScrollToTopCommand"),
+             Base::StringView("ScrollToTop"),
+             Base::StringView("ScrollToBottomCommand"),
+             Base::StringView("ScrollToBottom"),
+             Base::StringView("ScrollToLeftEndCommand"),
+             Base::StringView("ScrollToLeftEnd"),
+             Base::StringView("ScrollToRightEndCommand"),
+             Base::StringView("ScrollToRightEnd"),
+             Base::StringView("ScrollToHorizontalOffsetCommand"),
+             Base::StringView("ScrollToHorizontalOffset"),
+             Base::StringView("ScrollToVerticalOffsetCommand"),
+             Base::StringView("ScrollToVerticalOffset"),
+             Base::StringView("DeferScrollToHorizontalOffsetCommand"),
+             Base::StringView("DeferScrollToHorizontalOffset"),
+             Base::StringView("DeferScrollToVerticalOffsetCommand"),
+             Base::StringView("DeferScrollToVerticalOffset")}) {
+        (void)Input::RoutedCommand::RegisterStatic(
+            ScrollBar::StaticTypeId(), commandName);
     }
 }
 
-std::uint32_t ScrollBehavior::FindViewer(
-    const ScrollViewer& viewer) const noexcept {
-    const VisualHandle handle = Aero::Core::VisualFacet::Handle(viewer);
-    for (std::uint32_t index = 0U;
-        index < viewers_.Size(); ++index) {
-        if (viewers_[index].viewer == &viewer ||
-            (viewers_[index].handle.index == handle.index &&
-                viewers_[index].handle.generation ==
-                    handle.generation)) {
-            return index;
-        }
+} // namespace Primitives
+
+AERO_DESCRIBE(Slider) {
+    using namespace Aero::Meta;
+    for (Base::StringView commandName : {
+             Base::StringView("DecreaseSmall"),
+             Base::StringView("IncreaseSmall"),
+             Base::StringView("DecreaseLarge"),
+             Base::StringView("IncreaseLarge")}) {
+        (void)Input::RoutedCommand::RegisterStatic(
+            Slider::StaticTypeId(), commandName);
     }
-    return UINT32_MAX;
+
+    Register<Slider>(context)
+        .Property(Slider::OrientationProperty, Orientation::Horizontal, AffectsMeasure)
+        .Property(Slider::SmallChangeProperty, 1.0, FrameworkPropertyMetadataOptions::None, &Base::Validate::Positive<double>)
+        .Property(Slider::LargeChangeProperty, 10.0, FrameworkPropertyMetadataOptions::None, &Base::Validate::Positive<double>)
+        .Property(Slider::TickPlacementProperty, TickPlacement::None, AffectsRender)
+        .Property(Slider::TickFrequencyProperty, 1.0, AffectsRender, &Base::Validate::Positive<double>)
+        .Property(Slider::TicksProperty, Base::String{}, AffectsRender)
+        .Property(Slider::IsSnapToTickEnabledProperty, false)
+        .Property(Slider::IsDirectionReversedProperty, false, AffectsArrange | AffectsRender)
+        .Property(Slider::IsMoveToPointEnabledProperty, false)
+        .Override(UIElement::IsTabStopProperty, true, FrameworkPropertyMetadataOptions::None)
+        .Override(Primitives::RangeBase::MaximumProperty, 10.0, FrameworkPropertyMetadataOptions::AffectsArrange, &::Aero::Base::Validate::Finite<double>)
+        .Factory();
+    AERO_ON(Slider, &Slider::OnMouseLeftButtonDown, UIElement::MouseLeftButtonDownEvent);
+    AERO_ON(Slider, &Slider::OnMouseLeftButtonUp, UIElement::MouseLeftButtonUpEvent);
+    AERO_ON(Slider, &Slider::OnMouseMove, UIElement::MouseMoveEvent);
+    AERO_ON(Slider, &Slider::OnKeyDown, UIElement::KeyDownEvent);
 }
 
-Base::Result<void> ScrollBehavior::Attach(
-    ScrollViewer& viewer) noexcept {
-    if (FindViewer(viewer) != UINT32_MAX) {
-        return Base::Status::Failure(
-            Base::ErrorCode::AlreadyExists,
-            "ScrollViewer is already attached");
-    }
-    if (viewer.GetTree() != tree_ ||
-        !Aero::Core::VisualFacet::Handle(viewer).IsValid()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "ScrollViewer must be loaded in the interaction tree");
-    }
-    Base::Result<void> handler =
-        viewer.AddHandlerChecked(
-            UIElement::MouseWheelEvent,
-            wheelHandler_);
-    if (!handler) return handler.GetStatus();
-    Base::Result<void> added =
-        viewers_.PushBack(
-            {&viewer, Aero::Core::VisualFacet::Handle(viewer)});
-    if (!added) {
-        static_cast<void>(viewer.RemoveHandler(
-            UIElement::MouseWheelEvent,
-            wheelHandler_));
-        return added.GetStatus();
-    }
-    return {};
+AERO_DESCRIBE(TickBar) {
+    using namespace Aero::Meta;
+    Register<TickBar>(context)
+        .Property(TickBar::FillProperty, Base::Ref<Media::Brush>{}, AffectsRender)
+        .Property(TickBar::PlacementProperty, TickBarPlacement::Top, AffectsRender)
+        .Factory();
 }
 
-Base::Result<bool> ScrollBehavior::Detach(
-    ScrollViewer& viewer) noexcept {
-    const std::uint32_t index = FindViewer(viewer);
-    if (index == UINT32_MAX) return false;
-    static_cast<void>(viewer.RemoveHandler(
-        UIElement::MouseWheelEvent,
-        wheelHandler_));
-    if (index + 1U != viewers_.Size()) {
-        viewers_[index] = viewers_.Back();
-    }
-    viewers_.PopBack();
-    return true;
+AERO_DESCRIBE(ProgressBar) {
+    using namespace Aero::Meta;
+    Register<ProgressBar>(context)
+        .Property(ProgressBar::IsIndeterminateProperty, false, AffectsRender)
+        .Property(ProgressBar::OrientationProperty, Orientation::Horizontal, AffectsMeasure)
+        .Factory();
 }
 
-void ScrollBehavior::OnMouseWheel(
-    Base::Object* sender,
-    MouseWheelEventArgs& args) noexcept {
-    auto* viewer = static_cast<ScrollViewer*>(sender);
-    if (viewer == nullptr ||
-        FindViewer(*viewer) == UINT32_MAX) {
-        return;
-    }
-    const double horizontal =
-        -args.GetDeltaX() * viewer->GetLineScrollAmount();
-    const double vertical =
-        -args.GetDeltaY() * viewer->GetLineScrollAmount();
-    Base::Result<bool> changed =
-        viewer->ApplyScrollDelta(
-            horizontal,
-            vertical,
-            ScrollInputKind::Wheel);
-    if (changed && changed.Value()) {
-        args.SetHandled(true);
-    }
-}
-
-SliderBehavior::SliderBehavior(
-    ElementTree& tree,
-    EventRouter& events,
-    InputRouter& input) noexcept
-    : tree_(&tree),
-      events_(&events),
-      input_(&input),
-      mouseDownHandler_(
-          this,
-          &SliderBehavior::OnMouseDown),
-      mouseMoveHandler_(
-          this,
-          &SliderBehavior::OnMouseMove),
-      mouseUpHandler_(
-          this,
-          &SliderBehavior::OnMouseUp),
-      keyDownHandler_(
-          this,
-          &SliderBehavior::OnKeyDown),
-      captureChangedHandler_(
-          this,
-          &SliderBehavior::OnCaptureChanged),
-      decreaseSmallHandler_(
-          this,
-          &SliderBehavior::OnDecreaseSmallCommand),
-      increaseSmallHandler_(
-          this,
-          &SliderBehavior::OnIncreaseSmallCommand),
-      decreaseLargeHandler_(
-          this,
-          &SliderBehavior::OnDecreaseLargeCommand),
-      increaseLargeHandler_(
-          this,
-          &SliderBehavior::OnIncreaseLargeCommand) {}
-
-SliderBehavior::~SliderBehavior()
-    noexcept {
-    while (!sliders_.Empty()) {
-        Slider* slider =
-            Resolve(sliders_.Size() - 1U);
-        if (slider == nullptr) {
-            sliders_.PopBack();
-            continue;
-        }
-        static_cast<void>(Detach(*slider));
-    }
-    static_cast<void>(
-        input_->RemovePointerCaptureChanged(
-            captureChangedHandler_));
-}
-
-std::uint32_t SliderBehavior::Find(
-    const Slider& slider) const noexcept {
-    for (std::uint32_t index = 0U;
-         index < sliders_.Size(); ++index) {
-        const VisualHandle current =
-            Aero::Core::VisualFacet::Handle(slider);
-        if (sliders_[index].handle.index ==
-                current.index &&
-            sliders_[index].handle.generation ==
-                current.generation) {
-            return index;
-        }
-    }
-    return UINT32_MAX;
-}
-
-Slider* SliderBehavior::Resolve(
-    std::uint32_t index) noexcept {
-    if (index >= sliders_.Size()) return nullptr;
-    ::Aero::Media::Visual* node =
-        tree_->ResolveHandle(
-            sliders_[index].handle);
-    if (node == nullptr ||
-        !node->PropertyRegistry().Types().
-            IsDerivedFrom(
-                node->RuntimeType(),
-                Slider::StaticTypeId())) {
-        return nullptr;
-    }
-    return static_cast<Slider*>(node);
-}
-
-void SliderBehavior::RemoveAt(
-    std::uint32_t index) noexcept {
-    if (index >= sliders_.Size()) return;
-    if (index + 1U != sliders_.Size()) {
-        sliders_[index] =
-            sliders_.Back();
-    }
-    sliders_.PopBack();
-}
-
-Base::Result<void> SliderBehavior::Attach(
-    Slider& slider) noexcept {
-    if (Find(slider) != UINT32_MAX) {
-        return Base::Status::Failure(
-            Base::ErrorCode::AlreadyExists,
-            "Slider is already attached");
-    }
-    if (slider.GetTree() != tree_ ||
-        !Aero::Core::VisualFacet::Handle(slider).IsValid()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "Slider must be loaded in the interaction tree");
-    }
-    if (sliders_.Empty()) {
-        input_->AddPointerCaptureChanged(captureChangedHandler_);
-    }
-    Base::Result<void> status =
-        slider.AddHandlerChecked(
-            UIElement::MouseDownEvent,
-            mouseDownHandler_);
-    if (status) {
-        status = slider.AddHandlerChecked(
-            UIElement::MouseMoveEvent,
-            mouseMoveHandler_);
-    }
-    if (status) {
-        status = slider.AddHandlerChecked(
-            UIElement::MouseUpEvent,
-            mouseUpHandler_);
-    }
-    if (status) {
-        status = slider.AddHandlerChecked(
-            UIElement::KeyDownEvent,
-            keyDownHandler_);
-    }
-    if (!status) {
-        static_cast<void>(slider.RemoveHandler(
-            UIElement::MouseDownEvent,
-            mouseDownHandler_));
-        static_cast<void>(slider.RemoveHandler(
-            UIElement::MouseMoveEvent,
-            mouseMoveHandler_));
-        static_cast<void>(slider.RemoveHandler(
-            UIElement::MouseUpEvent,
-            mouseUpHandler_));
-        static_cast<void>(slider.RemoveHandler(
-            UIElement::KeyDownEvent,
-            keyDownHandler_));
-        if (sliders_.Empty()) {
-            static_cast<void>(
-                input_->RemovePointerCaptureChanged(
-                    captureChangedHandler_));
-        }
-        return status.GetStatus();
-    }
-    SliderRecord record;
-    record.handle =
-        Aero::Core::VisualFacet::Handle(slider);
-    const auto addCommand =
-        [this, &slider](
-            Base::StringView name,
-            const ExecutedRoutedEventHandler& handler,
-            Input::CommandBindingHandle& output) noexcept
-            -> Base::Result<void> {
-        Base::Result<Base::Ref<Input::RoutedCommand>> command =
-            Input::RoutedCommand::ResolveStatic(
-                Slider::StaticTypeId(), name);
-        if (!command) return command.GetStatus();
-        Base::Result<Input::CommandBindingHandle> added =
-            input_->AddCommandBinding(
-                slider,
-                Input::CommandBinding(
-                    std::move(command).Value(), handler));
-        if (!added) return added.GetStatus();
-        output = added.Value();
-        return {};
-    };
-    status = addCommand(
-        "DecreaseSmall", decreaseSmallHandler_,
-        record.decreaseSmallCommand);
-    if (status) {
-        status = addCommand(
-            "IncreaseSmall", increaseSmallHandler_,
-            record.increaseSmallCommand);
-    }
-    if (status) {
-        status = addCommand(
-            "DecreaseLarge", decreaseLargeHandler_,
-            record.decreaseLargeCommand);
-    }
-    if (status) {
-        status = addCommand(
-            "IncreaseLarge", increaseLargeHandler_,
-            record.increaseLargeCommand);
-    }
-    if (!status) {
-        if (record.decreaseSmallCommand.IsValid()) {
-            static_cast<void>(input_->RemoveCommandBinding(
-                record.decreaseSmallCommand));
-        }
-        if (record.increaseSmallCommand.IsValid()) {
-            static_cast<void>(input_->RemoveCommandBinding(
-                record.increaseSmallCommand));
-        }
-        if (record.decreaseLargeCommand.IsValid()) {
-            static_cast<void>(input_->RemoveCommandBinding(
-                record.decreaseLargeCommand));
-        }
-        static_cast<void>(slider.RemoveHandler(
-            UIElement::MouseDownEvent,
-            mouseDownHandler_));
-        static_cast<void>(slider.RemoveHandler(
-            UIElement::MouseMoveEvent,
-            mouseMoveHandler_));
-        static_cast<void>(slider.RemoveHandler(
-            UIElement::MouseUpEvent,
-            mouseUpHandler_));
-        static_cast<void>(slider.RemoveHandler(
-            UIElement::KeyDownEvent,
-            keyDownHandler_));
-        if (sliders_.Empty()) {
-            static_cast<void>(
-                input_->RemovePointerCaptureChanged(
-                    captureChangedHandler_));
-        }
-        return status.GetStatus();
-    }
-    Base::Result<void> appended =
-        sliders_.PushBack(record);
-    if (!appended) {
-        static_cast<void>(input_->RemoveCommandBinding(
-            record.decreaseSmallCommand));
-        static_cast<void>(input_->RemoveCommandBinding(
-            record.increaseSmallCommand));
-        static_cast<void>(input_->RemoveCommandBinding(
-            record.decreaseLargeCommand));
-        static_cast<void>(input_->RemoveCommandBinding(
-            record.increaseLargeCommand));
-        static_cast<void>(slider.RemoveHandler(
-            UIElement::MouseDownEvent,
-            mouseDownHandler_));
-        static_cast<void>(slider.RemoveHandler(
-            UIElement::MouseMoveEvent,
-            mouseMoveHandler_));
-        static_cast<void>(slider.RemoveHandler(
-            UIElement::MouseUpEvent,
-            mouseUpHandler_));
-        static_cast<void>(slider.RemoveHandler(
-            UIElement::KeyDownEvent,
-            keyDownHandler_));
-        if (sliders_.Empty()) {
-            static_cast<void>(
-                input_->RemovePointerCaptureChanged(
-                    captureChangedHandler_));
-        }
-        return appended.GetStatus();
-    }
-    return {};
-}
-
-Base::Result<bool> SliderBehavior::Detach(
-    Slider& slider) noexcept {
-    const std::uint32_t index = Find(slider);
-    if (index == UINT32_MAX) return false;
-    if (sliders_[index].dragging) {
-        static_cast<void>(
-            input_->ReleasePointer(
-                sliders_[index].pointerId));
-    }
-    static_cast<void>(slider.RemoveHandler(
-        UIElement::MouseDownEvent,
-        mouseDownHandler_));
-    static_cast<void>(slider.RemoveHandler(
-        UIElement::MouseMoveEvent,
-        mouseMoveHandler_));
-    static_cast<void>(slider.RemoveHandler(
-        UIElement::MouseUpEvent,
-        mouseUpHandler_));
-    static_cast<void>(slider.RemoveHandler(
-        UIElement::KeyDownEvent,
-        keyDownHandler_));
-    static_cast<void>(input_->RemoveCommandBinding(
-        sliders_[index].decreaseSmallCommand));
-    static_cast<void>(input_->RemoveCommandBinding(
-        sliders_[index].increaseSmallCommand));
-    static_cast<void>(input_->RemoveCommandBinding(
-        sliders_[index].decreaseLargeCommand));
-    static_cast<void>(input_->RemoveCommandBinding(
-        sliders_[index].increaseLargeCommand));
-    RemoveAt(index);
-    if (sliders_.Empty()) {
-        static_cast<void>(
-            input_->RemovePointerCaptureChanged(
-                captureChangedHandler_));
-    }
-    return true;
-}
-
-void SliderBehavior::OnDecreaseSmallCommand(
-    Base::Object* sender,
-    ExecutedRoutedEventArgs& args) noexcept {
-    auto* slider = static_cast<Slider*>(sender);
-    if (slider != nullptr) {
-        static_cast<void>(slider->DecreaseSmall());
-        args.SetHandled(true);
-    }
-}
-
-void SliderBehavior::OnIncreaseSmallCommand(
-    Base::Object* sender,
-    ExecutedRoutedEventArgs& args) noexcept {
-    auto* slider = static_cast<Slider*>(sender);
-    if (slider != nullptr) {
-        static_cast<void>(slider->IncreaseSmall());
-        args.SetHandled(true);
-    }
-}
-
-void SliderBehavior::OnDecreaseLargeCommand(
-    Base::Object* sender,
-    ExecutedRoutedEventArgs& args) noexcept {
-    auto* slider = static_cast<Slider*>(sender);
-    if (slider != nullptr) {
-        static_cast<void>(slider->DecreaseLarge());
-        args.SetHandled(true);
-    }
-}
-
-void SliderBehavior::OnIncreaseLargeCommand(
-    Base::Object* sender,
-    ExecutedRoutedEventArgs& args) noexcept {
-    auto* slider = static_cast<Slider*>(sender);
-    if (slider != nullptr) {
-        static_cast<void>(slider->IncreaseLarge());
-        args.SetHandled(true);
-    }
-}
-
-Base::Result<void>
-SliderBehavior::SetFromPoint(
-    Slider& slider,
-    Point point) noexcept {
-    const bool horizontal =
-        slider.GetOrientation() ==
-        Orientation::Horizontal;
-    const double position =
-        horizontal ? point.x : point.y;
-    const double length =
-        horizontal
-        ? slider.GetRenderSize().width
-        : slider.GetRenderSize().height;
-    slider.SetValueFromPosition(position, length);
-    return {};
-}
-
-void SliderBehavior::OnMouseDown(
-    Base::Object* sender,
-    MouseButtonEventArgs& args) noexcept {
-    auto& slider =
-        *static_cast<Slider*>(sender);
-    const std::uint32_t index =
-        Find(slider);
-    if (index == UINT32_MAX ||
-        !slider.GetIsEnabled() ||
-        args.GetChangedButton() !=
-            MouseButton::Left) {
-        return;
-    }
-    SliderRecord& record =
-        sliders_[index];
-    record.pointerId = args.GetPointerId();
-    static_cast<void>(
-        input_->SetFocus(&slider));
-    Point local = args.GetPosition();
-    const bool horizontal =
-        slider.GetOrientation() ==
-        Orientation::Horizontal;
-    const double position =
-        horizontal ? local.x : local.y;
-    const double length =
-        horizontal
-        ? slider.GetRenderSize().width
-        : slider.GetRenderSize().height;
-    const double range =
-        slider.GetMaximum() - slider.GetMinimum();
-    double normalized = range > 0.0
-        ? (slider.GetValue() - slider.GetMinimum()) /
-            range
-        : 0.0;
-    if (slider.GetIsDirectionReversed()) {
-        normalized = 1.0 - normalized;
-    }
-    const double thumbPosition =
-        7.0 +
-        std::clamp(normalized, 0.0, 1.0) *
-            std::max(0.0, length - 14.0);
-    record.dragging =
-        slider.GetIsMoveToPointEnabled() ||
-        std::fabs(position - thumbPosition) <=
-            10.0;
-    if (record.dragging) {
-        static_cast<void>(
-            input_->CapturePointer(
-                args.GetPointerId(), slider));
-    }
-    if (slider.GetIsMoveToPointEnabled()) {
-        static_cast<void>(
-            SetFromPoint(slider, args.GetPosition()));
-    } else if (!record.dragging) {
-        const bool after =
-            position >= length * 0.5;
-        const bool increase =
-            slider.GetIsDirectionReversed()
-            ? !after : after;
-        static_cast<void>(
-            increase
-            ? slider.IncreaseLarge()
-            : slider.DecreaseLarge());
-    }
-    args.SetHandled(true);
-}
-
-void SliderBehavior::OnMouseMove(
-    Base::Object* sender,
-    MouseEventArgs& args) noexcept {
-    auto& slider =
-        *static_cast<Slider*>(sender);
-    const std::uint32_t index =
-        Find(slider);
-    if (index == UINT32_MAX ||
-        !sliders_[index].dragging ||
-        sliders_[index].pointerId !=
-            args.GetPointerId()) {
-        return;
-    }
-    static_cast<void>(
-        SetFromPoint(slider, args.GetPosition()));
-    args.SetHandled(true);
-}
-
-void SliderBehavior::OnMouseUp(
-    Base::Object* sender,
-    MouseButtonEventArgs& args) noexcept {
-    auto& slider =
-        *static_cast<Slider*>(sender);
-    const std::uint32_t index =
-        Find(slider);
-    if (index == UINT32_MAX ||
-        args.GetChangedButton() !=
-            MouseButton::Left ||
-        !sliders_[index].dragging ||
-        sliders_[index].pointerId !=
-            args.GetPointerId()) {
-        return;
-    }
-    static_cast<void>(
-        SetFromPoint(slider, args.GetPosition()));
-    sliders_[index].dragging = false;
-    static_cast<void>(
-        input_->ReleasePointer(
-            args.GetPointerId()));
-    args.SetHandled(true);
-}
-
-void SliderBehavior::OnKeyDown(
-    Base::Object* sender,
-    KeyEventArgs& args) noexcept {
-    auto& slider =
-        *static_cast<Slider*>(sender);
-    if (Find(slider) == UINT32_MAX ||
-        !slider.GetIsEnabled()) {
-        return;
-    }
-    bool changed = false;
-    bool handled = true;
-    const bool reversed =
-        slider.GetIsDirectionReversed();
-    if (args.GetKey() == KeyboardKeyHome) {
-        const double oldValue = slider.GetValue();
-        slider.SetValue(
-            reversed
-            ? slider.GetMaximum()
-            : slider.GetMinimum());
-        changed = !Same(oldValue, slider.GetValue());
-    } else if (args.GetKey() == KeyboardKeyEnd) {
-        const double oldValue = slider.GetValue();
-        slider.SetValue(
-            reversed
-            ? slider.GetMinimum()
-            : slider.GetMaximum());
-        changed = !Same(oldValue, slider.GetValue());
-    } else if (
-        args.GetKey() == KeyboardKeyLeft ||
-        args.GetKey() == KeyboardKeyDown) {
-        Base::Result<bool> result = reversed
-            ? slider.IncreaseSmall()
-            : slider.DecreaseSmall();
-        changed = result && result.Value();
-    } else if (
-        args.GetKey() == KeyboardKeyRight ||
-        args.GetKey() == KeyboardKeyUp) {
-        Base::Result<bool> result = reversed
-            ? slider.DecreaseSmall()
-            : slider.IncreaseSmall();
-        changed = result && result.Value();
-    } else {
-        handled = false;
-    }
-    if (handled && changed) {
-        args.SetHandled(true);
-    }
-}
-
-void SliderBehavior::OnCaptureChanged(
-    std::uint32_t pointerId,
-    UIElement* target,
-    bool captured) noexcept {
-    if (captured) return;
-    for (SliderRecord& record :
-         sliders_) {
-        if (!record.dragging ||
-            record.pointerId != pointerId) {
-            continue;
-        }
-        Slider* slider =
-            static_cast<Slider*>(
-                tree_->ResolveHandle(record.handle));
-        if (target == nullptr ||
-            target == slider) {
-            record.dragging = false;
-        }
-    }
+AERO_DESCRIBE(GridSplitter) {
+    using namespace Aero::Meta;
+    Register<GridSplitter>(context)
+        .Property(GridSplitter::DragIncrementProperty, 1.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::Positive<double>)
+        .Property(GridSplitter::KeyboardIncrementProperty, 10.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::Positive<double>)
+        .Property(GridSplitter::ResizeDirectionProperty, GridResizeDirection::Auto)
+        .Property(GridSplitter::ResizeBehaviorProperty, GridResizeBehavior::BasedOnAlignment)
+        .Property(GridSplitter::ShowsPreviewProperty, false)
+        .Property(GridSplitter::PreviewStyleProperty, Base::Ref<Aero::Style>{})
+        .Factory();
 }
 
 } // namespace Aero::Controls
-
-namespace Aero::Controls {
-
-ScrollBarBehavior::ScrollBarBehavior(
-    ElementTree& tree,
-    EventRouter& events,
-    InputRouter& input) noexcept
-    : tree_(&tree),
-      events_(&events),
-      input_(&input),
-      scrollBars_(&Base::GetDefaultAllocator()),
-      mouseDownHandler_(this, &ScrollBarBehavior::OnMouseDown),
-      mouseMoveHandler_(this, &ScrollBarBehavior::OnMouseMove),
-      mouseUpHandler_(this, &ScrollBarBehavior::OnMouseUp),
-      keyDownHandler_(this, &ScrollBarBehavior::OnKeyDown),
-      captureChangedHandler_(this, &ScrollBarBehavior::OnCaptureChanged),
-      lineUpHandler_(&ScrollBarBehavior::OnLineUpCommand),
-      lineDownHandler_(&ScrollBarBehavior::OnLineDownCommand),
-      lineLeftHandler_(&ScrollBarBehavior::OnLineLeftCommand),
-      lineRightHandler_(&ScrollBarBehavior::OnLineRightCommand),
-      pageUpHandler_(&ScrollBarBehavior::OnPageUpCommand),
-      pageDownHandler_(&ScrollBarBehavior::OnPageDownCommand),
-      pageLeftHandler_(&ScrollBarBehavior::OnPageLeftCommand),
-      pageRightHandler_(&ScrollBarBehavior::OnPageRightCommand),
-      scrollToTopHandler_(&ScrollBarBehavior::OnScrollToTopCommand),
-      scrollToBottomHandler_(&ScrollBarBehavior::OnScrollToBottomCommand),
-      scrollToLeftEndHandler_(&ScrollBarBehavior::OnScrollToLeftEndCommand),
-      scrollToRightEndHandler_(&ScrollBarBehavior::OnScrollToRightEndCommand),
-      scrollToHorizontalOffsetHandler_(&ScrollBarBehavior::OnScrollToHorizontalOffsetCommand),
-      scrollToVerticalOffsetHandler_(&ScrollBarBehavior::OnScrollToVerticalOffsetCommand) {}
-
-ScrollBarBehavior::~ScrollBarBehavior() {
-    while (!scrollBars_.Empty()) {
-        ScrollBar* scrollBar = Resolve(scrollBars_.Size() - 1U);
-        if (scrollBar != nullptr) {
-            static_cast<void>(Detach(*scrollBar));
-        } else {
-            RemoveAt(scrollBars_.Size() - 1U);
-        }
-    }
-}
-
-std::uint32_t ScrollBarBehavior::Find(
-    const ScrollBar& scrollBar) const noexcept {
-    const VisualHandle target =
-        Aero::Core::VisualFacet::Handle(scrollBar);
-    for (std::uint32_t index = 0U;
-         index < scrollBars_.Size(); ++index) {
-        if (scrollBars_[index].handle.index == target.index &&
-            scrollBars_[index].handle.generation == target.generation) {
-            return index;
-        }
-    }
-    return UINT32_MAX;
-}
-
-ScrollBar* ScrollBarBehavior::Resolve(
-    std::uint32_t index) noexcept {
-    if (index >= scrollBars_.Size()) return nullptr;
-    return static_cast<ScrollBar*>(
-        tree_->ResolveHandle(scrollBars_[index].handle));
-}
-
-void ScrollBarBehavior::RemoveAt(
-    std::uint32_t index) noexcept {
-    if (index >= scrollBars_.Size()) return;
-    if (index + 1U != scrollBars_.Size()) {
-        scrollBars_[index] =
-            std::move(scrollBars_.Back());
-    }
-    scrollBars_.PopBack();
-}
-
-Base::Result<void> ScrollBarBehavior::Attach(
-    ScrollBar& scrollBar) noexcept {
-    if (Find(scrollBar) != UINT32_MAX) {
-        return Base::Status::Failure(
-            Base::ErrorCode::AlreadyExists,
-            "ScrollBar is already attached");
-    }
-    if (scrollBar.GetTree() != tree_ ||
-        !Aero::Core::VisualFacet::Handle(scrollBar).IsValid()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "ScrollBar must be loaded in the interaction tree");
-    }
-    if (scrollBars_.Empty()) {
-        input_->AddPointerCaptureChanged(captureChangedHandler_);
-    }
-    Base::Result<void> status =
-        scrollBar.AddHandlerChecked(
-            UIElement::MouseDownEvent,
-            mouseDownHandler_);
-    if (status) {
-        status = scrollBar.AddHandlerChecked(
-            UIElement::MouseMoveEvent,
-            mouseMoveHandler_);
-    }
-    if (status) {
-        status = scrollBar.AddHandlerChecked(
-            UIElement::MouseUpEvent,
-            mouseUpHandler_);
-    }
-    if (status) {
-        status = scrollBar.AddHandlerChecked(
-            UIElement::KeyDownEvent,
-            keyDownHandler_);
-    }
-    if (!status) {
-        static_cast<void>(scrollBar.RemoveHandler(
-            UIElement::MouseDownEvent,
-            mouseDownHandler_));
-        static_cast<void>(scrollBar.RemoveHandler(
-            UIElement::MouseMoveEvent,
-            mouseMoveHandler_));
-        static_cast<void>(scrollBar.RemoveHandler(
-            UIElement::MouseUpEvent,
-            mouseUpHandler_));
-        static_cast<void>(scrollBar.RemoveHandler(
-            UIElement::KeyDownEvent,
-            keyDownHandler_));
-        if (scrollBars_.Empty()) {
-            static_cast<void>(
-                input_->RemovePointerCaptureChanged(
-                    captureChangedHandler_));
-        }
-        return status.GetStatus();
-    }
-    ScrollBarRecord record;
-    record.handle =
-        Aero::Core::VisualFacet::Handle(scrollBar);
-
-    const auto addCommand =
-        [this, &scrollBar, &record](
-            Base::StringView name,
-            const ExecutedRoutedEventHandler& handler) noexcept
-            -> Base::Result<void> {
-        Base::Result<Base::Ref<Input::RoutedCommand>> command =
-            Input::RoutedCommand::ResolveStatic(
-                ScrollBar::StaticTypeId(), name);
-        if (!command) return command.GetStatus();
-        Base::Result<Input::CommandBindingHandle> added =
-            input_->AddCommandBinding(
-                scrollBar,
-                Input::CommandBinding(
-                    std::move(command).Value(), handler));
-        if (!added) return added.GetStatus();
-        return record.commands.PushBack(added.Value());
-    };
-
-    static_cast<void>(addCommand("LineUpCommand", lineUpHandler_));
-    static_cast<void>(addCommand("LineUp", lineUpHandler_));
-    static_cast<void>(addCommand("LineDownCommand", lineDownHandler_));
-    static_cast<void>(addCommand("LineDown", lineDownHandler_));
-    static_cast<void>(addCommand("LineLeftCommand", lineLeftHandler_));
-    static_cast<void>(addCommand("LineLeft", lineLeftHandler_));
-    static_cast<void>(addCommand("LineRightCommand", lineRightHandler_));
-    static_cast<void>(addCommand("LineRight", lineRightHandler_));
-    static_cast<void>(addCommand("PageUpCommand", pageUpHandler_));
-    static_cast<void>(addCommand("PageUp", pageUpHandler_));
-    static_cast<void>(addCommand("PageDownCommand", pageDownHandler_));
-    static_cast<void>(addCommand("PageDown", pageDownHandler_));
-    static_cast<void>(addCommand("PageLeftCommand", pageLeftHandler_));
-    static_cast<void>(addCommand("PageLeft", pageLeftHandler_));
-    static_cast<void>(addCommand("PageRightCommand", pageRightHandler_));
-    static_cast<void>(addCommand("PageRight", pageRightHandler_));
-    static_cast<void>(addCommand("ScrollToTopCommand", scrollToTopHandler_));
-    static_cast<void>(addCommand("ScrollToTop", scrollToTopHandler_));
-    static_cast<void>(addCommand("ScrollToBottomCommand", scrollToBottomHandler_));
-    static_cast<void>(addCommand("ScrollToBottom", scrollToBottomHandler_));
-    static_cast<void>(addCommand("ScrollToLeftEndCommand", scrollToLeftEndHandler_));
-    static_cast<void>(addCommand("ScrollToLeftEnd", scrollToLeftEndHandler_));
-    static_cast<void>(addCommand("ScrollToRightEndCommand", scrollToRightEndHandler_));
-    static_cast<void>(addCommand("ScrollToRightEnd", scrollToRightEndHandler_));
-    static_cast<void>(addCommand("ScrollToHorizontalOffsetCommand", scrollToHorizontalOffsetHandler_));
-    static_cast<void>(addCommand("ScrollToHorizontalOffset", scrollToHorizontalOffsetHandler_));
-    static_cast<void>(addCommand("ScrollToVerticalOffsetCommand", scrollToVerticalOffsetHandler_));
-    static_cast<void>(addCommand("ScrollToVerticalOffset", scrollToVerticalOffsetHandler_));
-
-    return scrollBars_.PushBack(std::move(record));
-}
-
-Base::Result<bool> ScrollBarBehavior::Detach(
-    ScrollBar& scrollBar) noexcept {
-    const std::uint32_t index = Find(scrollBar);
-    if (index == UINT32_MAX) return false;
-    if (scrollBars_[index].dragging) {
-        static_cast<void>(
-            input_->ReleasePointer(
-                scrollBars_[index].pointerId));
-    }
-    static_cast<void>(scrollBar.RemoveHandler(
-        UIElement::MouseDownEvent,
-        mouseDownHandler_));
-    static_cast<void>(scrollBar.RemoveHandler(
-        UIElement::MouseMoveEvent,
-        mouseMoveHandler_));
-    static_cast<void>(scrollBar.RemoveHandler(
-        UIElement::MouseUpEvent,
-        mouseUpHandler_));
-    static_cast<void>(scrollBar.RemoveHandler(
-        UIElement::KeyDownEvent,
-        keyDownHandler_));
-    for (Input::CommandBindingHandle handle : scrollBars_[index].commands) {
-        static_cast<void>(input_->RemoveCommandBinding(handle));
-    }
-    RemoveAt(index);
-    if (scrollBars_.Empty()) {
-        static_cast<void>(
-            input_->RemovePointerCaptureChanged(
-                captureChangedHandler_));
-    }
-    return true;
-}
-
-void ScrollBarBehavior::OnLineUpCommand(
-    Base::Object* sender,
-    ExecutedRoutedEventArgs& args) noexcept {
-    auto* bar = static_cast<ScrollBar*>(sender);
-    if (bar != nullptr) {
-        static_cast<void>(bar->LineDecrement());
-        args.SetHandled(true);
-    }
-}
-
-void ScrollBarBehavior::OnLineDownCommand(
-    Base::Object* sender,
-    ExecutedRoutedEventArgs& args) noexcept {
-    auto* bar = static_cast<ScrollBar*>(sender);
-    if (bar != nullptr) {
-        static_cast<void>(bar->LineIncrement());
-        args.SetHandled(true);
-    }
-}
-
-void ScrollBarBehavior::OnLineLeftCommand(
-    Base::Object* sender,
-    ExecutedRoutedEventArgs& args) noexcept {
-    auto* bar = static_cast<ScrollBar*>(sender);
-    if (bar != nullptr) {
-        static_cast<void>(bar->LineDecrement());
-        args.SetHandled(true);
-    }
-}
-
-void ScrollBarBehavior::OnLineRightCommand(
-    Base::Object* sender,
-    ExecutedRoutedEventArgs& args) noexcept {
-    auto* bar = static_cast<ScrollBar*>(sender);
-    if (bar != nullptr) {
-        static_cast<void>(bar->LineIncrement());
-        args.SetHandled(true);
-    }
-}
-
-void ScrollBarBehavior::OnPageUpCommand(
-    Base::Object* sender,
-    ExecutedRoutedEventArgs& args) noexcept {
-    auto* bar = static_cast<ScrollBar*>(sender);
-    if (bar != nullptr) {
-        static_cast<void>(bar->PageDecrement());
-        args.SetHandled(true);
-    }
-}
-
-void ScrollBarBehavior::OnPageDownCommand(
-    Base::Object* sender,
-    ExecutedRoutedEventArgs& args) noexcept {
-    auto* bar = static_cast<ScrollBar*>(sender);
-    if (bar != nullptr) {
-        static_cast<void>(bar->PageIncrement());
-        args.SetHandled(true);
-    }
-}
-
-void ScrollBarBehavior::OnPageLeftCommand(
-    Base::Object* sender,
-    ExecutedRoutedEventArgs& args) noexcept {
-    auto* bar = static_cast<ScrollBar*>(sender);
-    if (bar != nullptr) {
-        static_cast<void>(bar->PageDecrement());
-        args.SetHandled(true);
-    }
-}
-
-void ScrollBarBehavior::OnPageRightCommand(
-    Base::Object* sender,
-    ExecutedRoutedEventArgs& args) noexcept {
-    auto* bar = static_cast<ScrollBar*>(sender);
-    if (bar != nullptr) {
-        static_cast<void>(bar->PageIncrement());
-        args.SetHandled(true);
-    }
-}
-
-void ScrollBarBehavior::OnScrollToTopCommand(
-    Base::Object* sender,
-    ExecutedRoutedEventArgs& args) noexcept {
-    auto* bar = static_cast<ScrollBar*>(sender);
-    if (bar != nullptr) {
-        bar->SetValue(bar->GetMinimum());
-        args.SetHandled(true);
-    }
-}
-
-void ScrollBarBehavior::OnScrollToBottomCommand(
-    Base::Object* sender,
-    ExecutedRoutedEventArgs& args) noexcept {
-    auto* bar = static_cast<ScrollBar*>(sender);
-    if (bar != nullptr) {
-        bar->SetValue(bar->GetMaximum());
-        args.SetHandled(true);
-    }
-}
-
-void ScrollBarBehavior::OnScrollToLeftEndCommand(
-    Base::Object* sender,
-    ExecutedRoutedEventArgs& args) noexcept {
-    auto* bar = static_cast<ScrollBar*>(sender);
-    if (bar != nullptr) {
-        bar->SetValue(bar->GetMinimum());
-        args.SetHandled(true);
-    }
-}
-
-void ScrollBarBehavior::OnScrollToRightEndCommand(
-    Base::Object* sender,
-    ExecutedRoutedEventArgs& args) noexcept {
-    auto* bar = static_cast<ScrollBar*>(sender);
-    if (bar != nullptr) {
-        bar->SetValue(bar->GetMaximum());
-        args.SetHandled(true);
-    }
-}
-
-void ScrollBarBehavior::OnScrollToHorizontalOffsetCommand(
-    Base::Object* sender,
-    ExecutedRoutedEventArgs& args) noexcept {
-    auto* bar = static_cast<ScrollBar*>(sender);
-    if (bar != nullptr) {
-        const double value =
-            args.GetParameter().Kind() == Meta::ValueKind::Double
-            ? args.GetParameter().AsDouble()
-            : 0.0;
-        bar->SetValue(
-            std::clamp(
-                value,
-                bar->GetMinimum(),
-                bar->GetMaximum()));
-        args.SetHandled(true);
-    }
-}
-
-void ScrollBarBehavior::OnScrollToVerticalOffsetCommand(
-    Base::Object* sender,
-    ExecutedRoutedEventArgs& args) noexcept {
-    auto* bar = static_cast<ScrollBar*>(sender);
-    if (bar != nullptr) {
-        const double value =
-            args.GetParameter().Kind() == Meta::ValueKind::Double
-            ? args.GetParameter().AsDouble()
-            : 0.0;
-        bar->SetValue(
-            std::clamp(
-                value,
-                bar->GetMinimum(),
-                bar->GetMaximum()));
-        args.SetHandled(true);
-    }
-}
-
-void ScrollBarBehavior::OnMouseDown(
-    Base::Object* sender,
-    MouseButtonEventArgs& args) noexcept {
-    auto& bar = *static_cast<ScrollBar*>(sender);
-    const std::uint32_t index = Find(bar);
-    if (index == UINT32_MAX ||
-        !bar.GetIsEnabled() ||
-        args.GetChangedButton() != MouseButton::Left) {
-        return;
-    }
-    const Point local = args.GetPosition();
-    const bool horizontal =
-        bar.GetOrientation() == Orientation::Horizontal;
-    const double position = horizontal ? local.x : local.y;
-    const double length =
-        horizontal
-        ? bar.GetRenderSize().width
-        : bar.GetRenderSize().height;
-    const double range = bar.GetMaximum() - bar.GetMinimum();
-    const double normalized =
-        range > 0.0
-        ? (bar.GetValue() - bar.GetMinimum()) / range
-        : 0.0;
-    const double thumbPosition =
-        std::clamp(normalized, 0.0, 1.0) *
-        std::max(0.0, length - 16.0);
-    const bool isThumb =
-        std::fabs(position - thumbPosition) <= 16.0;
-
-    if (isThumb) {
-        scrollBars_[index].dragging = true;
-        scrollBars_[index].pointerId = args.GetPointerId();
-        scrollBars_[index].dragOrigin = local;
-        scrollBars_[index].dragStartValue = bar.GetValue();
-        static_cast<void>(
-            input_->CapturePointer(
-                args.GetPointerId(), bar));
-        args.SetHandled(true);
-    } else if (position < thumbPosition) {
-        static_cast<void>(bar.PageDecrement());
-        args.SetHandled(true);
-    } else {
-        static_cast<void>(bar.PageIncrement());
-        args.SetHandled(true);
-    }
-}
-
-void ScrollBarBehavior::OnMouseMove(
-    Base::Object* sender,
-    MouseEventArgs& args) noexcept {
-    auto& bar = *static_cast<ScrollBar*>(sender);
-    const std::uint32_t index = Find(bar);
-    if (index == UINT32_MAX ||
-        !scrollBars_[index].dragging ||
-        scrollBars_[index].pointerId != args.GetPointerId()) {
-        return;
-    }
-    const Point current = args.GetPosition();
-    const Point origin = scrollBars_[index].dragOrigin;
-    const double range = bar.GetMaximum() - bar.GetMinimum();
-    if (range <= 0.0) return;
-
-    if (bar.GetOrientation() == Orientation::Vertical) {
-        const double trackHeight = bar.GetRenderSize().height;
-        const double available = std::max(1.0, trackHeight - 16.0);
-        const double deltaY = current.y - origin.y;
-        const double deltaVal = deltaY * range / available;
-        bar.SetValue(
-            std::clamp(
-                scrollBars_[index].dragStartValue + deltaVal,
-                bar.GetMinimum(),
-                bar.GetMaximum()));
-        args.SetHandled(true);
-    } else {
-        const double trackWidth = bar.GetRenderSize().width;
-        const double available = std::max(1.0, trackWidth - 16.0);
-        const double deltaX = current.x - origin.x;
-        const double deltaVal = deltaX * range / available;
-        bar.SetValue(
-            std::clamp(
-                scrollBars_[index].dragStartValue + deltaVal,
-                bar.GetMinimum(),
-                bar.GetMaximum()));
-        args.SetHandled(true);
-    }
-}
-
-void ScrollBarBehavior::OnMouseUp(
-    Base::Object* sender,
-    MouseButtonEventArgs& args) noexcept {
-    auto& bar = *static_cast<ScrollBar*>(sender);
-    const std::uint32_t index = Find(bar);
-    if (index == UINT32_MAX ||
-        !scrollBars_[index].dragging ||
-        args.GetChangedButton() != MouseButton::Left) {
-        return;
-    }
-    scrollBars_[index].dragging = false;
-    static_cast<void>(
-        input_->ReleasePointer(
-            scrollBars_[index].pointerId));
-    args.SetHandled(true);
-}
-
-void ScrollBarBehavior::OnKeyDown(
-    Base::Object* sender,
-    KeyEventArgs& args) noexcept {
-    auto& bar = *static_cast<ScrollBar*>(sender);
-    if (Find(bar) == UINT32_MAX || !bar.GetIsEnabled()) {
-        return;
-    }
-    if (args.GetKey() == KeyboardKeyHome) {
-        bar.SetValue(bar.GetMinimum());
-        args.SetHandled(true);
-    } else if (args.GetKey() == KeyboardKeyEnd) {
-        bar.SetValue(bar.GetMaximum());
-        args.SetHandled(true);
-    } else if (
-        args.GetKey() == KeyboardKeyUp ||
-        args.GetKey() == KeyboardKeyLeft) {
-        static_cast<void>(bar.LineDecrement());
-        args.SetHandled(true);
-    } else if (
-        args.GetKey() == KeyboardKeyDown ||
-        args.GetKey() == KeyboardKeyRight) {
-        static_cast<void>(bar.LineIncrement());
-        args.SetHandled(true);
-    } else if (args.GetKey() == KeyboardKeyPageUp) {
-        static_cast<void>(bar.PageDecrement());
-        args.SetHandled(true);
-    } else if (args.GetKey() == KeyboardKeyPageDown) {
-        static_cast<void>(bar.PageIncrement());
-        args.SetHandled(true);
-    }
-}
-
-void ScrollBarBehavior::OnCaptureChanged(
-    std::uint32_t pointerId,
-    UIElement* target,
-    bool captured) noexcept {
-    if (captured) return;
-    for (ScrollBarRecord& record : scrollBars_) {
-        if (!record.dragging ||
-            record.pointerId != pointerId) {
-            continue;
-        }
-        ScrollBar* bar =
-            static_cast<ScrollBar*>(
-                tree_->ResolveHandle(record.handle));
-        if (target == nullptr ||
-            target == bar) {
-            record.dragging = false;
-        }
-    }
-}
-
-} // namespace Aero::Controls::Primitives

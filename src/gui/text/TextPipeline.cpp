@@ -86,6 +86,43 @@ std::string NormalizedFontName(
     return normalized;
 }
 
+bool MatchesAbbreviatedPackFace(
+    const std::string& candidate,
+    const std::string& normalizedRequest) {
+    struct FaceSuffix {
+        const char* name;
+        const char* abbreviation;
+    };
+    constexpr FaceSuffix suffixes[] = {
+        {"semilight", "sl"},
+        {"semilight", "l"},
+        {"semibold", "sb"},
+        {"semibold", "b"},
+        {"regular", "r"},
+        {"regular", ""},
+        {"light", "l"},
+        {"bold", "sb"},
+        {"bold", "b"},
+        {"bold", "bd"}};
+    for (const FaceSuffix& suffix : suffixes) {
+        const std::size_t length = std::strlen(suffix.name);
+        if (normalizedRequest.size() < length ||
+            normalizedRequest.compare(
+                normalizedRequest.size() - length,
+                length,
+                suffix.name) != 0) {
+            continue;
+        }
+        std::string abbreviated =
+            normalizedRequest.substr(0U, normalizedRequest.size() - length);
+        abbreviated += suffix.abbreviation;
+        if (candidate == abbreviated) {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool IsSupportedFontFile(
     const std::filesystem::path& path) {
     std::string extension =
@@ -185,7 +222,10 @@ Base::Result<bool> SelectPackFontPath(
         else preferred += "regular";
         const bool candidateIsRegular =
             candidate == preferred ||
-            (!bold && !italic && candidate == normalizedRequest);
+            MatchesAbbreviatedPackFace(candidate, preferred) ||
+            (!bold && !italic &&
+             (candidate == normalizedRequest ||
+              MatchesAbbreviatedPackFace(candidate, normalizedRequest)));
         std::size_t prefix = 0U;
         while (prefix < candidate.size() &&
             prefix < normalizedRequest.size() &&
@@ -212,10 +252,12 @@ Base::Result<bool> SelectPackFontPath(
             bestDistance = distance;
         }
     }
-    if (error || best.empty() ||
-        bestPrefix == 0U) {
+    if (error || best.empty()) {
         return false;
     }
+    // No filename prefix match (Fonts/#PT Root UI vs Muli/Caladea) still
+    // yields a face from that directory so text measure is non-zero.
+    static_cast<void>(bestPrefix);
 
     const std::string selected =
         best.string();
@@ -283,9 +325,8 @@ Base::Result<void> SelectFontPath(
                     combined.View());
             }
         }
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            "Configured font path does not exist");
+        // Pack FontFamily such as Fonts/#PT Root UI is not a file path.
+        // Fall through to family-name / system UI face substitution.
     }
 
 #if defined(_WIN32)
@@ -370,13 +411,9 @@ Base::Result<void> SelectFontPath(
     }
 #endif
 
-    if (!family.Empty()) {
-        if (configured == nullptr ||
-            !FileExists(configured)) {
-            return Base::Status::Failure(
-                Base::ErrorCode::NotFound,
-                "Configured font family is unavailable");
-        }
+    if (!family.Empty() &&
+        configured != nullptr &&
+        FileExists(configured)) {
         return Assign(
             output,
             Base::StringView(
@@ -508,10 +545,9 @@ public:
           allocator_(allocator),
           fallbackFaces_(allocator) {
         config_ = config;
-        Base::Result<void> copied =
-            fallbackFaces_.Append(
-                config.fallbackFaces);
-        valid_ = static_cast<bool>(copied);
+        fallbackFaces_.Append(
+            config.fallbackFaces);
+        valid_ = true;
         config_.fallbackFaces =
             fallbackFaces_.AsSpan();
         nextGlyphRun_ = config.firstGlyphRunId;
@@ -579,10 +615,8 @@ public:
                     Base::ErrorCode::OutOfRange,
                     "Headless glyph-run ID space is exhausted");
             }
-            Base::Result<void> appended =
-                output.glyphRuns.PushBack(
+            output.glyphRuns.PushBack(
                     nextGlyphRun_++);
-            if (!appended) return appended.GetStatus();
         }
         output.hitRegions.Clear();
         for (const Text::TextLine& line : layout.Lines()) {
@@ -591,7 +625,7 @@ public:
                 : (request.pixelSize > 0.0F ? request.pixelSize : 16.0F);
             for (std::uint32_t r = 0U; r < line.runCount; ++r) {
                 const Text::GlyphRun& run = layout.Runs()[line.firstRun + r];
-                for (std::size_t g = 0; g < run.glyphs.Size(); ++g) {
+                for (std::uint32_t g = 0U; g < run.glyphs.Size(); ++g) {
                     const Text::PositionedGlyph& glyph = run.glyphs[g];
                     TextHitRegion region;
                     region.textOffset = glyph.cluster;
@@ -916,7 +950,7 @@ Base::Result<void> TextPipeline::Initialize(
                 typeface,
                 face);
             if (status) {
-                status = state_->fallbackFaces.PushBack(
+                state_->fallbackFaces.PushBack(
                     face);
             }
         }

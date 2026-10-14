@@ -3,31 +3,50 @@
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Result.hpp>
-#include <Aero/Base/Vector.hpp>
-#include <Aero/Threading.hpp>
-#include <Aero/Input.hpp>
-#include <Aero/Media/DrawingContext.hpp>
+#include <Aero/InputScope.hpp>
 #include <Aero/Media/Fonts.hpp>
-#include <Aero/Media/Transforms.hpp>
 #include <Aero/Resources.hpp>
-#include <Aero/TextFormatting.hpp>
+#include <Aero/ElementEnums.hpp>
+#include <Aero/Layout.hpp>
 #include <Aero/UIElement.hpp>
+#include <Aero/Data/BindingExpression.hpp>
 
 #include <cstdint>
+#include <utility>
 
 
 namespace Aero {
+
+namespace Data {
+class Binding;
+}
 
 using Meta::PropertyInvalidationFlags;
 using Meta::TypeId;
 
 class Style;
-namespace Controls { class Viewbox; }
-namespace Core {
-class RenderFacet;
-class InteractionStateFacet;
+class LayoutEngine;
+class AnimationEngine;
+class BindingEngine;
+class InteractivityEngine;
+class StoryboardHost;
+class ElementTree;
+namespace Controls {
+class Viewbox;
+class TemplateBuilder;
+class TemplateEngine;
+class ItemsControl;
 }
+namespace Interactivity { class StyleInteraction; }
+namespace Diagnostics { class Inspector; }
+class FrameworkElementSeams;
 class FrameworkElement;
+namespace Media {
+class DrawingContext;
+class Brush;
+class Transform;
+class FontFamily;
+}
 
 class FrameworkElementChildRange {
 public:
@@ -57,216 +76,246 @@ private:
 
 class AERO_GUI_API FrameworkElement : public UIElement {
     AERO_DECLARE_TYPE(FrameworkElement, UIElement)
+
 public:
+    using DependencyObject::SetValue;
+
     explicit FrameworkElement(TypeId runtimeType) noexcept;
     ~FrameworkElement() override;
 
-    FrameworkElement* AsFrameworkElement() noexcept override { return this; }
-    const FrameworkElement* AsFrameworkElement() const noexcept override {
-        return this;
+    Base::ProjectiveTransform2D GetLocalVisualTransform() const noexcept;
+    bool TryGetViewboxTransform(Base::Transform2D& matrix) const noexcept;
+    Base::Object* FindName(StringView name) noexcept;
+    Result<void> RegisterName(StringView name, Base::Object& scopedElement) noexcept;
+    template<class T> T* FindName(StringView name) noexcept {
+        return static_cast<T*>(FindNameObject(name, T::StaticTypeId()));
     }
-    DependencyObject* GetParent() const noexcept { return GetLogicalParent(); }
+    Result<ResourceValue> FindResource(const ResourceKey& key) const noexcept;
+    Result<ResourceValue> FindResource(StringView key) const noexcept;
+    // WPF TryFindResource: missing key yields empty/null, not a Result failure.
+    ResourceValue TryFindResource(const ResourceKey& key) const noexcept;
+    ResourceValue TryFindResource(StringView key) const noexcept;
+    void InvalidateVisual() noexcept;
+    void Render(::Aero::Media::DrawingContext& context) noexcept { OnRender(context); }
+    // WPF/Noesis-shaped code-side binding attach. Real work lives in
+    // BindingOperations → BindingEngine::Attach (same path as {Binding}).
+    Result<Data::BindingExpression> SetBinding(
+        DependencyPropertyHandle property,
+        const Data::Binding& binding) noexcept;
+    template<class TOwner, class TValue>
+    Result<Data::BindingExpression> SetBinding(
+        const DependencyPropertyRef<TOwner, TValue>& property,
+        const Data::Binding& binding) noexcept {
+        return SetBinding(property.Handle(), binding);
+    }
+    Result<Data::BindingExpression> SetBinding(
+        DependencyPropertyHandle property,
+        StringView path) noexcept;
+    template<class TOwner, class TValue>
+    Result<Data::BindingExpression> SetBinding(
+        const DependencyPropertyRef<TOwner, TValue>& property,
+        StringView path) noexcept {
+        return SetBinding(property.Handle(), path);
+    }
+    void ClearBinding(DependencyPropertyHandle property) noexcept;
+    template<class TOwner, class TValue>
+    void ClearBinding(
+        const DependencyPropertyRef<TOwner, TValue>& property) noexcept {
+        ClearBinding(property.Handle());
+    }
 
+    DependencyObject* GetParent() const noexcept { return GetLogicalParent(); }
     bool GetUseLayoutRounding() const noexcept;
+    void SetUseLayoutRounding(bool enabled, double dpiScale = 1.0) noexcept;
     bool GetSnapsToDevicePixels() const noexcept;
-    double GetDpiScale() const noexcept { return dpiScale_; }
+    void SetSnapsToDevicePixels(bool enabled) noexcept { SetValue(SnapsToDevicePixelsProperty, enabled); }
     bool GetHasWidth() const noexcept;
     bool GetHasHeight() const noexcept;
     double GetWidth() const noexcept;
+    void SetWidth(double value) noexcept;
+    void ClearWidth() noexcept;
     double GetHeight() const noexcept;
-    double GetActualWidth() const noexcept {
-        return GetValueOr(
-            ActualWidthProperty, 0.0);
-    }
-    double GetActualHeight() const noexcept {
-        return GetValueOr(
-            ActualHeightProperty, 0.0);
-    }
+    void SetHeight(double value) noexcept;
+    void ClearHeight() noexcept;
+    double GetActualWidth() const noexcept { return GetValue(ActualWidthProperty); }
+    double GetActualHeight() const noexcept { return GetValue(ActualHeightProperty); }
     Size GetMinSize() const noexcept;
+    void SetMinSize(Size value) noexcept;
     Size GetMaxSize() const noexcept;
+    void SetMaxSize(Size value) noexcept;
     Thickness GetMargin() const noexcept;
+    void SetMargin(Thickness value) noexcept;
     Ref<Media::Transform> GetLayoutTransform() const noexcept;
-    Base::Transform2D GetLocalVisualTransform() const noexcept;
-    Result<Value> GetDataContextResult() const noexcept;
-    Ref<Media::FontFamily> GetFontFamily() const noexcept {
-        return GetValueOr(
-            FontFamilyProperty, Ref<Media::FontFamily>{});
-    }
-    FlowDirection GetFlowDirection() const noexcept {
-        return GetValueOr(FlowDirectionProperty, FlowDirection::LeftToRight);
-    }
-    Base::Object* FindName(StringView name) noexcept;
-    template<class T>
-    T* FindName(StringView name) noexcept {
-        return static_cast<T*>(FindNameObject(name, T::StaticTypeId()));
-    }
-    ResourceDictionary& GetResources() noexcept {
-        return resources_;
-    }
-    const ResourceDictionary& GetResources() const noexcept {
-        return resources_;
-    }
-    void SetResources(
-        Ref<ResourceDictionary> value) noexcept;
-    DependencyObject* GetTemplatedParent() const noexcept {
-        return templatedParent_;
-    }
+    void SetLayoutTransform(Ref<Media::Transform> value) noexcept;
+    Ref<Media::FontFamily> GetFontFamily() const noexcept { return GetValue(FontFamilyProperty); }
+    void SetFontFamily(Ref<Media::FontFamily> value) noexcept { SetValue(FontFamilyProperty, std::move(value)); }
+    void SetFontFamily(StringView value) noexcept;
+    FlowDirection GetFlowDirection() const noexcept { return GetValue(FlowDirectionProperty); }
+    void SetFlowDirection(FlowDirection value) noexcept { SetValue(FlowDirectionProperty, value); }
+    ResourceDictionary& GetResources() noexcept;
+    const ResourceDictionary& GetResources() const noexcept;
+    void SetResources(Ref<ResourceDictionary> value) noexcept;
     HorizontalAlignment GetHorizontalAlignment() const noexcept;
+    void SetHorizontalAlignment(HorizontalAlignment value) noexcept;
     VerticalAlignment GetVerticalAlignment() const noexcept;
+    void SetVerticalAlignment(VerticalAlignment value) noexcept;
     Value GetDataContext() const noexcept {
         Result<Value> value = GetDataContextResult();
-        return value ? value.Value() :
-            Value::NullObject(Meta::TypeOf<Base::Object>());
+        return value ? value.Value() : Value::NullObject(Meta::TypeOf<Base::Object>());
     }
+    void SetDataContext(Value value) noexcept;
+    void SetDataContext(Ref<Base::Object> value) noexcept {
+        SetDataContext(Value::FromObject(Meta::TypeOf<Base::Object>(), std::move(value)));
+    }
+    void ClearDataContext() noexcept;
 
-    inline static constexpr DependencyProperty<Value> DataContextProperty{"DataContext"};
+    inline static constexpr RoutedEvent<RoutedEventArgs> LoadedEvent{"Loaded"};
+    Event<RoutedEventArgs> Loaded() noexcept { return GetEvent(LoadedEvent); }
+
+    AERO_DEPENDENCY_PROPERTY(Value, DataContext);
     // A common inherited owner lets Window, controls and text elements share
     // the same WPF-style FontFamily value through the visual tree.
-    inline static constexpr DependencyProperty<Ref<Media::FontFamily>> FontFamilyProperty{"FontFamily"};
-    inline static constexpr DependencyProperty<FlowDirection> FlowDirectionProperty{"FlowDirection"};
+    AERO_DEPENDENCY_PROPERTY(Ref<Media::FontFamily>, FontFamily);
+    AERO_DEPENDENCY_PROPERTY(FlowDirection, FlowDirection);
     // Cursor names use the WPF built-in names (for example, "Hand"). The
     // platform input bridge consumes this inherited value when choosing the
     // native pointer cursor.
-    inline static constexpr DependencyProperty<String> CursorProperty{"Cursor"};
+    AERO_DEPENDENCY_PROPERTY(String, Cursor);
     // When true, this element's Cursor takes precedence over the cursor
     // chosen by the input hit target, matching FrameworkElement.ForceCursor.
-    inline static constexpr DependencyProperty<bool> ForceCursorProperty{"ForceCursor"};
-    inline static constexpr DependencyProperty<Ref<Style>> StyleProperty{"Style"};
+    AERO_DEPENDENCY_PROPERTY(bool, ForceCursor);
+    AERO_DEPENDENCY_PROPERTY(Ref<Style>, Style);
     // WPF-compatible application payload. It deliberately has no layout or
     // rendering effect and accepts the markup value without coercion.
-    inline static constexpr DependencyProperty<Value> TagProperty{"Tag"};
-    inline static constexpr DependencyProperty<Value> ToolTipProperty{"ToolTip"};
-    inline static constexpr DependencyProperty<Input::InputScope> InputScopeProperty{"InputScope"};
-    inline static constexpr DependencyProperty<Length> WidthProperty{"Width"};
-    inline static constexpr DependencyProperty<Length> HeightProperty{"Height"};
-    inline static constexpr ReadOnlyDependencyProperty<double> ActualWidthProperty{"ActualWidth"};
-    inline static constexpr ReadOnlyDependencyProperty<double> ActualHeightProperty{"ActualHeight"};
-    inline static constexpr DependencyProperty<double> MinWidthProperty{"MinWidth"};
-    inline static constexpr DependencyProperty<double> MaxWidthProperty{"MaxWidth"};
-    inline static constexpr DependencyProperty<double> MinHeightProperty{"MinHeight"};
-    inline static constexpr DependencyProperty<double> MaxHeightProperty{"MaxHeight"};
-    inline static constexpr DependencyProperty<Thickness> MarginProperty{"Margin"};
-    inline static constexpr DependencyProperty<HorizontalAlignment> HorizontalAlignmentProperty{"HorizontalAlignment"};
-    inline static constexpr DependencyProperty<VerticalAlignment> VerticalAlignmentProperty{"VerticalAlignment"};
-    inline static constexpr DependencyProperty<bool> UseLayoutRoundingProperty{"UseLayoutRounding"};
-    inline static constexpr DependencyProperty<bool> SnapsToDevicePixelsProperty{"SnapsToDevicePixels"};
-    inline static constexpr DependencyProperty<Ref<Media::Transform>> LayoutTransformProperty{"LayoutTransform"};
+    AERO_DEPENDENCY_PROPERTY(Value, Tag);
+    AERO_DEPENDENCY_PROPERTY(Value, ToolTip);
+    AERO_DEPENDENCY_PROPERTY(Input::InputScope, InputScope);
+    AERO_DEPENDENCY_PROPERTY(Length, Width);
+    AERO_DEPENDENCY_PROPERTY(Length, Height);
+    AERO_READONLY_PROPERTY(double, ActualWidth);
+    AERO_READONLY_PROPERTY(double, ActualHeight);
+    AERO_DEPENDENCY_PROPERTY(double, MinWidth);
+    AERO_DEPENDENCY_PROPERTY(double, MaxWidth);
+    AERO_DEPENDENCY_PROPERTY(double, MinHeight);
+    AERO_DEPENDENCY_PROPERTY(double, MaxHeight);
+    AERO_DEPENDENCY_PROPERTY(Thickness, Margin);
+    AERO_DEPENDENCY_PROPERTY(HorizontalAlignment, HorizontalAlignment);
+    AERO_DEPENDENCY_PROPERTY(VerticalAlignment, VerticalAlignment);
+    AERO_DEPENDENCY_PROPERTY(bool, UseLayoutRounding);
+    AERO_DEPENDENCY_PROPERTY(bool, SnapsToDevicePixels);
+    AERO_DEPENDENCY_PROPERTY(Ref<Media::Transform>, LayoutTransform);
+    AERO_DEPENDENCY_PROPERTY(Ref<Media::Brush>, Foreground);
 
-    void SetUseLayoutRounding(
-        bool enabled, double dpiScale = 1.0) noexcept;
-    void SetSnapsToDevicePixels(bool enabled) noexcept { SetValue(SnapsToDevicePixelsProperty, enabled); }
-    void SetWidth(double value) noexcept;
-    void ClearWidth() noexcept;
-    void SetHeight(double value) noexcept;
-    void ClearHeight() noexcept;
-    void SetMinSize(Size value) noexcept;
-    void SetMaxSize(Size value) noexcept;
-    void SetMargin(Thickness value) noexcept;
-    void SetDataContext(Value value) noexcept;
-    void SetDataContext(Ref<Base::Object> value) noexcept {
-        SetDataContext(Value::FromObject(
-            Meta::TypeOf<Base::Object>(), std::move(value)));
-    }
-    void SetFontFamily(
-        Ref<Media::FontFamily> value) noexcept {
-        SetValue(FontFamilyProperty, std::move(value));
-    }
-    Result<void> SetFontFamily(
-        StringView value) noexcept {
-        Result<Ref<Media::FontFamily>> family =
-            Base::MakeRef<Media::FontFamily>();
-        if (!family) return family.GetStatus();
-        family.Value()->SetSource(value);
-        SetFontFamily(std::move(family).Value());
-        return {};
-    }
-    void SetFlowDirection(FlowDirection value) noexcept {
-        SetValue(FlowDirectionProperty, value);
-    }
-    void ClearDataContext() noexcept;
-    void SetHorizontalAlignment(
-        HorizontalAlignment value) noexcept;
-    void SetVerticalAlignment(
-        VerticalAlignment value) noexcept;
-    void SetLayoutTransform(
-        Ref<Media::Transform> value) noexcept;
-    Result<void> InvalidateVisual() noexcept;
+    double GetDpiScale() const noexcept { return dpiScale_; }
+    DependencyObject* GetTemplatedParent() const noexcept { return templatedParent_; }
 
 protected:
-    virtual std::uint32_t GetLogicalChildrenCount() const noexcept { return ::Aero::Media::VisualTreeHelper::GetChildrenCount(*this); }
-    virtual DependencyObject* GetLogicalChild(std::uint32_t index) const noexcept { return LogicalTreeHelper::GetChild(static_cast<const ::Aero::Media::Visual&>(*this), index); }
-    void OnPropertyInvalidated(
-        PropertyInvalidationFlags flags) noexcept override;
-    virtual void OnRender(
-        ::Aero::Media::DrawingContext& context) noexcept;
+    virtual std::uint32_t GetLogicalChildrenCount() const noexcept { return GetVisualChildrenCount(); }
+    virtual DependencyObject* GetLogicalChild(std::uint32_t index) const noexcept { return GetVisualChild(index); }
+    void OnPropertyInvalidated(PropertyInvalidationFlags flags) noexcept override;
+    void SyncLayoutScalars() noexcept;
+    // NOTE: empty default kept intentionally. Viewbox spacer and other
+    // non-visual FrameworkElements rely on zero desired size; UIElement's
+    // default (return available) would inflate them. Panel/Control override.
+    Size MeasureOverride(Size availableSize) noexcept override {
+        static_cast<void>(availableSize);
+        return Size{};
+    }
+    // WPF lifecycle extension points. Style/DataContext changes previously
+    // required reading StyleEngine/BindingEngine internals; override these.
+    virtual void OnInitialized() noexcept {}
+    virtual void OnStyleChanged(const Style* oldStyle, const Style* newStyle) noexcept {
+        static_cast<void>(oldStyle);
+        static_cast<void>(newStyle);
+    }
+    virtual void OnDataContextChanged(const Value& oldValue, const Value& newValue) noexcept {
+        static_cast<void>(oldValue);
+        static_cast<void>(newValue);
+    }
+    void OnRender(::Aero::Media::DrawingContext& context) noexcept override;
 
 private:
-    FrameworkElement* GetRenderParent() const noexcept {
-        ::Aero::Media::Visual* parent = GetVisualParent();
-        return parent != nullptr ? parent->AsFrameworkElement() : nullptr;
+    friend class LogicalTreeHelper;
+    friend class Controls::Viewbox;
+    friend class FrameworkResourceResolver;
+    friend class LayoutEngine;
+    friend class UIElement;
+    friend class AnimationEngine;
+    friend class BindingEngine;
+    friend class InteractivityEngine;
+    friend class StoryboardHost;
+    friend class Interactivity::StyleInteraction;
+    friend class Controls::TemplateBuilder;
+    friend class Controls::TemplateEngine;
+    friend class Controls::ItemsControl;
+    friend class Diagnostics::Inspector;
+    friend class FrameworkElementSeams;
+
+    struct LayoutScalars {
+        Length width{};
+        Length height{};
+        double minWidth = 0.0;
+        double maxWidth = 1.0e12;
+        double minHeight = 0.0;
+        double maxHeight = 1.0e12;
+        Thickness margin{};
+    };
+    // Authored triggers/behaviors, style prototypes, and viewbox projection
+    // live off the hot instance. Empty elements pay one pointer.
+    struct FrameworkRare;
+
+    FrameworkElement* GetRenderParent() const noexcept;
+    FrameworkElementChildRange GetRenderChildren() const noexcept { return FrameworkElementChildRange(*this); }
+    void SetAnimatedWidth(Length value) noexcept { layoutScalars_.width = value; }
+    void SetAnimatedHeight(Length value) noexcept { layoutScalars_.height = value; }
+    void SetAnimatedMinWidth(double value) noexcept { layoutScalars_.minWidth = value; }
+    void SetAnimatedMinHeight(double value) noexcept { layoutScalars_.minHeight = value; }
+    void SetAnimatedMaxWidth(double value) noexcept { layoutScalars_.maxWidth = value; }
+    void SetAnimatedMaxHeight(double value) noexcept { layoutScalars_.maxHeight = value; }
+    void SetAnimatedMargin(Thickness value) noexcept { layoutScalars_.margin = value; }
+    Result<Value> GetDataContextResult() const noexcept;
+    void SetActualSize(double width, double height) noexcept {
+        Meta::PropertyValue widthVal(width);
+        Meta::PropertyValue heightVal(height);
+        SetReadOnlyCurrentValue(ActualWidthProperty.Handle(), widthVal);
+        SetReadOnlyCurrentValue(ActualHeightProperty.Handle(), heightVal);
     }
-    FrameworkElementChildRange GetRenderChildren() const noexcept {
-        return FrameworkElementChildRange(*this);
-    }
-    void SetTemplatedParent(
-        DependencyObject* value) noexcept {
+    void SetTemplatedParent(DependencyObject* value) noexcept {
         Result<void> access = VerifyAccess();
         if (!access) return;
         templatedParent_ = value;
         return;
     }
-    Result<void> AddAuthoredTrigger(
-        Ref<Base::Object> trigger) noexcept;
+    void AddAuthoredTrigger(Ref<Base::Object> trigger) noexcept;
     void ClearAuthoredTriggers() noexcept;
-    Span<const Ref<Base::Object>>
-    AuthoredTriggers() const noexcept {
-        return {
-            authoredTriggers_.Data(),
-            authoredTriggers_.Size()};
-    }
-    Result<void> AddAuthoredBehavior(
-        Ref<Base::Object> behavior) noexcept;
+    Span<const Ref<Base::Object>> AuthoredTriggers() const noexcept;
+    void AddAuthoredBehavior(Ref<Base::Object> behavior) noexcept;
     void ClearAuthoredBehaviors() noexcept;
-    Span<const Ref<Base::Object>>
-    AuthoredBehaviors() const noexcept {
-        return authoredBehaviors_.AsSpan();
-    }
-    Result<void> AddStyleBehaviorPrototype(
-        Ref<Base::Object> behavior) noexcept;
+    Span<const Ref<Base::Object>> AuthoredBehaviors() const noexcept;
+    void AddStyleBehaviorPrototype(Ref<Base::Object> behavior) noexcept;
     void ClearStyleBehaviorPrototypes() noexcept;
-    Span<const Ref<Base::Object>>
-    StyleBehaviorPrototypes() const noexcept {
-        return styleBehaviorPrototypes_.AsSpan();
-    }
-    Result<void> AddStyleTriggerPrototype(
-        Ref<Base::Object> trigger) noexcept;
+    Span<const Ref<Base::Object>> StyleBehaviorPrototypes() const noexcept;
+    void AddStyleTriggerPrototype(Ref<Base::Object> trigger) noexcept;
     void ClearStyleTriggerPrototypes() noexcept;
-    Span<const Ref<Base::Object>>
-    StyleTriggerPrototypes() const noexcept {
-        return styleTriggerPrototypes_.AsSpan();
-    }
+    Span<const Ref<Base::Object>> StyleTriggerPrototypes() const noexcept;
+    Base::Object* FindNameObject(StringView name, Meta::TypeId expectedType) noexcept;
+    Base::Object* FindRegisteredName(StringView name) const noexcept;
+    FrameworkRare* EnsureFrameworkRare() noexcept;
+    void DropRareIfUnused() noexcept;
+    bool SetViewboxTransform(const Base::Transform2D& matrix) noexcept;
+    void ClearViewboxTransform() noexcept;
 
-    Base::Object* FindNameObject(
-        StringView name,
-        Meta::TypeId expectedType) noexcept;
-
-    friend class LogicalTreeHelper;
-    friend class Controls::Viewbox;
-#if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::Core::VisualFacet;
-    friend class ::Aero::Core::LayoutFacet;
-    friend class ::Aero::Core::RenderFacet;
-    friend class ::Aero::Core::InteractionStateFacet;
-#endif
+    LayoutScalars layoutScalars_{};
+    const ResourceDictionary* LocalResources() const noexcept { return resources_; }
     double dpiScale_ = 1.0;
-    Base::Transform2D viewboxTransform_{};
-    bool hasViewboxTransform_ = false;
     DependencyObject* templatedParent_ = nullptr;
-    ResourceDictionary resources_;
-    Base::Vector<Ref<Base::Object>> authoredTriggers_;
-    Base::Vector<Ref<Base::Object>> authoredBehaviors_;
-    Base::Vector<Ref<Base::Object>> styleBehaviorPrototypes_;
-    Base::Vector<Ref<Base::Object>> styleTriggerPrototypes_;
+    mutable ResourceDictionary* resources_ = nullptr;
+    FrameworkRare* frameworkRare_ = nullptr;
 };
 
+
 } // namespace Aero
+
+namespace Aero::Media {
+inline constexpr auto FrameworkElementForegroundProperty = ::Aero::FrameworkElement::ForegroundProperty;
+}

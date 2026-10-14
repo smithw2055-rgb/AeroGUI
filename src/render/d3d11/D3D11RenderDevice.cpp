@@ -15,6 +15,69 @@
 #include "AeroD3D11RenderFrameShadowPixelShader.hpp"
 #include "AeroD3D11RenderFrameMaskVertexShader.hpp"
 #include "AeroD3D11RenderFrameMaskPixelShader.hpp"
+#include "AeroD3D11RenderFrameLinearVertexShader.hpp"
+#include "AeroD3D11RenderFrameLinearPixelShader.hpp"
+#include "AeroD3D11RenderFrameRadialVertexShader.hpp"
+#include "AeroD3D11RenderFrameRadialPixelShader.hpp"
+
+#include "AeroD3D11ShaderVSPos.hpp"
+#include "AeroD3D11ShaderVSPosColor.hpp"
+#include "AeroD3D11ShaderVSPosTex0.hpp"
+#include "AeroD3D11ShaderVSPosColorCoverage.hpp"
+#include "AeroD3D11ShaderVSPosTex0Coverage.hpp"
+#include "AeroD3D11ShaderVSPosColorTex1_SDF.hpp"
+#include "AeroD3D11ShaderVSPosTex0Tex1.hpp"
+#include "AeroD3D11ShaderVSPosColorTex0Tex1.hpp"
+
+#include "AeroD3D11ShaderPSRGBA.hpp"
+#include "AeroD3D11ShaderPSClear.hpp"
+#include "AeroD3D11ShaderPSPath_Solid.hpp"
+#include "AeroD3D11ShaderPSPath_Linear.hpp"
+#include "AeroD3D11ShaderPSPath_Radial.hpp"
+#include "AeroD3D11ShaderPSPath_Pattern.hpp"
+#include "AeroD3D11ShaderPSPath_Pattern_Clamp.hpp"
+#include "AeroD3D11ShaderPSPath_Pattern_Repeat.hpp"
+#include "AeroD3D11ShaderPSPath_Pattern_MirrorU.hpp"
+#include "AeroD3D11ShaderPSPath_Pattern_MirrorV.hpp"
+#include "AeroD3D11ShaderPSPath_Pattern_Mirror.hpp"
+#include "AeroD3D11ShaderPSPath_AA_Solid.hpp"
+#include "AeroD3D11ShaderPSPath_AA_Linear.hpp"
+#include "AeroD3D11ShaderPSPath_AA_Radial.hpp"
+#include "AeroD3D11ShaderPSPath_AA_Pattern.hpp"
+#include "AeroD3D11ShaderPSPath_AA_Pattern_Clamp.hpp"
+#include "AeroD3D11ShaderPSPath_AA_Pattern_Repeat.hpp"
+#include "AeroD3D11ShaderPSPath_AA_Pattern_MirrorU.hpp"
+#include "AeroD3D11ShaderPSPath_AA_Pattern_MirrorV.hpp"
+#include "AeroD3D11ShaderPSPath_AA_Pattern_Mirror.hpp"
+#include "AeroD3D11ShaderPSSDF_Solid.hpp"
+#include "AeroD3D11ShaderPSSDF_Linear.hpp"
+#include "AeroD3D11ShaderPSSDF_Radial.hpp"
+#include "AeroD3D11ShaderPSSDF_Pattern.hpp"
+#include "AeroD3D11ShaderPSSDF_Pattern_Clamp.hpp"
+#include "AeroD3D11ShaderPSSDF_Pattern_Repeat.hpp"
+#include "AeroD3D11ShaderPSSDF_Pattern_MirrorU.hpp"
+#include "AeroD3D11ShaderPSSDF_Pattern_MirrorV.hpp"
+#include "AeroD3D11ShaderPSSDF_Pattern_Mirror.hpp"
+#include "AeroD3D11ShaderPSSDF_LCD_Solid.hpp"
+#include "AeroD3D11ShaderPSSDF_LCD_Linear.hpp"
+#include "AeroD3D11ShaderPSSDF_LCD_Radial.hpp"
+#include "AeroD3D11ShaderPSSDF_LCD_Pattern.hpp"
+#include "AeroD3D11ShaderPSSDF_LCD_Pattern_Clamp.hpp"
+#include "AeroD3D11ShaderPSSDF_LCD_Pattern_Repeat.hpp"
+#include "AeroD3D11ShaderPSSDF_LCD_Pattern_MirrorU.hpp"
+#include "AeroD3D11ShaderPSSDF_LCD_Pattern_MirrorV.hpp"
+#include "AeroD3D11ShaderPSSDF_LCD_Pattern_Mirror.hpp"
+#include "AeroD3D11ShaderPSOpacity_Solid.hpp"
+#include "AeroD3D11ShaderPSOpacity_Linear.hpp"
+#include "AeroD3D11ShaderPSOpacity_Radial.hpp"
+#include "AeroD3D11ShaderPSOpacity_Pattern.hpp"
+#include "AeroD3D11ShaderPSOpacity_Pattern_Clamp.hpp"
+#include "AeroD3D11ShaderPSOpacity_Pattern_Repeat.hpp"
+#include "AeroD3D11ShaderPSOpacity_Pattern_MirrorU.hpp"
+#include "AeroD3D11ShaderPSOpacity_Pattern_MirrorV.hpp"
+#include "AeroD3D11ShaderPSOpacity_Pattern_Mirror.hpp"
+#include "AeroD3D11ShaderPSUpsample.hpp"
+#include "AeroD3D11ShaderPSDownsample.hpp"
 
 namespace Aero::Render {
 
@@ -28,7 +91,60 @@ void ReleaseCom(T*& value) noexcept {
     }
 }
 
+std::pair<const char*, uint32_t> SemanticForAttr(uint32_t attr) noexcept {
+    switch (attr) {
+    case Shader::Vertex::Format::Attr::Pos: return {"POSITION", 0};
+    case Shader::Vertex::Format::Attr::Color: return {"COLOR", 0};
+    case Shader::Vertex::Format::Attr::Tex0: return {"TEXCOORD", 0};
+    case Shader::Vertex::Format::Attr::Tex1: return {"TEXCOORD", 1};
+    case Shader::Vertex::Format::Attr::Coverage: return {"COVERAGE", 0};
+    case Shader::Vertex::Format::Attr::Rect: return {"RECT", 0};
+    case Shader::Vertex::Format::Attr::Tile: return {"TILE", 0};
+    case Shader::Vertex::Format::Attr::ImagePos: return {"IMAGE_POSITION", 0};
+    default: return {"TEXCOORD", 0};
+    }
+}
+
+DXGI_FORMAT DxgiFormatForType(uint8_t type) noexcept {
+    switch (type) {
+    case Shader::Vertex::Format::Attr::Type::Float: return DXGI_FORMAT_R32_FLOAT;
+    case Shader::Vertex::Format::Attr::Type::Float2: return DXGI_FORMAT_R32G32_FLOAT;
+    case Shader::Vertex::Format::Attr::Type::Float4: return DXGI_FORMAT_R32G32B32A32_FLOAT;
+    case Shader::Vertex::Format::Attr::Type::UByte4Norm: return DXGI_FORMAT_R8G8B8A8_UNORM;
+    case Shader::Vertex::Format::Attr::Type::UShort4Norm: return DXGI_FORMAT_R16G16B16A16_UNORM;
+    default: return DXGI_FORMAT_R32G32_FLOAT;
+    }
+}
+
 } // namespace
+
+ID3D11InputLayout* D3D11RenderDevice::CreateLayout(
+    uint32_t attributes, const void* code, uint32_t size) noexcept {
+    if (device_ == nullptr || code == nullptr || size == 0U) return nullptr;
+
+    D3D11_INPUT_ELEMENT_DESC descs[Shader::Vertex::Format::Attr::Count];
+    uint32_t n = 0;
+
+    for (uint32_t i = 0; i < Shader::Vertex::Format::Attr::Count; ++i) {
+        if (attributes & (1U << i)) {
+            descs[n].InputSlot = 0;
+            descs[n].AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT;
+            descs[n].InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
+            descs[n].InstanceDataStepRate = 0;
+            const auto sem = SemanticForAttr(i);
+            descs[n].SemanticName = sem.first;
+            descs[n].SemanticIndex = sem.second;
+            descs[n].Format = DxgiFormatForType(TypeForAttr[i]);
+            ++n;
+        }
+    }
+
+    ID3D11InputLayout* layout = nullptr;
+    if (FAILED(device_->CreateInputLayout(descs, n, code, size, &layout))) {
+        return nullptr;
+    }
+    return layout;
+}
 
 D3D11Texture::D3D11Texture(
     ID3D11Texture2D* texture,
@@ -150,16 +266,28 @@ Base::Result<void> D3D11RenderDevice::Initialize() noexcept {
 }
 
 Base::Result<void> D3D11RenderDevice::InitPipelines() noexcept {
+    const uint32_t vbRingSize = 2 * 1024 * 1024;
+    vbState_.size = vbRingSize;
+    vbState_.currentPos = 0U;
+    vbState_.drawPos = 0U;
+    vbState_.isMapped = false;
+
     D3D11_BUFFER_DESC vbDesc{};
-    vbDesc.ByteWidth = DYNAMIC_VB_SIZE;
+    vbDesc.ByteWidth = vbRingSize;
     vbDesc.Usage = D3D11_USAGE_DYNAMIC;
     vbDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
     vbDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
     HRESULT hr = device_->CreateBuffer(&vbDesc, nullptr, &dynamicVB_);
     if (FAILED(hr)) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "Failed to create dynamic VB");
 
+    const uint32_t ibRingSize = 1024 * 1024;
+    ibState_.size = ibRingSize;
+    ibState_.currentPos = 0U;
+    ibState_.drawPos = 0U;
+    ibState_.isMapped = false;
+
     D3D11_BUFFER_DESC ibDesc{};
-    ibDesc.ByteWidth = DYNAMIC_IB_SIZE;
+    ibDesc.ByteWidth = ibRingSize;
     ibDesc.Usage = D3D11_USAGE_DYNAMIC;
     ibDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
     ibDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
@@ -232,6 +360,86 @@ Base::Result<void> D3D11RenderDevice::InitPipelines() noexcept {
         nullptr, &maskPixelShader_);
     if (FAILED(hr)) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "Failed to create mask pixel shader");
 
+    hr = device_->CreatePixelShader(
+        AeroD3D11RenderFrameLinearPixelShader,
+        sizeof(AeroD3D11RenderFrameLinearPixelShader),
+        nullptr, &linearPixelShader_);
+    if (FAILED(hr)) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "Failed to create linear pixel shader");
+
+    hr = device_->CreatePixelShader(
+        AeroD3D11RenderFrameRadialPixelShader,
+        sizeof(AeroD3D11RenderFrameRadialPixelShader),
+        nullptr, &radialPixelShader_);
+    if (FAILED(hr)) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "Failed to create radial pixel shader");
+
+    auto createPS = [&](const void* code, size_t size) -> ID3D11PixelShader* {
+        ID3D11PixelShader* ps = nullptr;
+        if (code != nullptr && size > 0U) {
+            device_->CreatePixelShader(code, size, nullptr, &ps);
+        }
+        return ps;
+    };
+
+    pixelShaders_[Shader::RGBA] = createPS(AeroD3D11ShaderPSRGBA, sizeof(AeroD3D11ShaderPSRGBA));
+    pixelShaders_[Shader::Mask] = maskPixelShader_;
+    pixelShaders_[Shader::Clear] = createPS(AeroD3D11ShaderPSClear, sizeof(AeroD3D11ShaderPSClear));
+
+    pixelShaders_[Shader::Path_Solid] = solidPixelShader_;
+    pixelShaders_[Shader::Path_Linear] = linearPixelShader_;
+    pixelShaders_[Shader::Path_Radial] = radialPixelShader_;
+    pixelShaders_[Shader::Path_Pattern] = patternPixelShader_;
+    pixelShaders_[Shader::Path_Pattern_Clamp] = createPS(AeroD3D11ShaderPSPath_Pattern_Clamp, sizeof(AeroD3D11ShaderPSPath_Pattern_Clamp));
+    pixelShaders_[Shader::Path_Pattern_Repeat] = createPS(AeroD3D11ShaderPSPath_Pattern_Repeat, sizeof(AeroD3D11ShaderPSPath_Pattern_Repeat));
+    pixelShaders_[Shader::Path_Pattern_MirrorU] = createPS(AeroD3D11ShaderPSPath_Pattern_MirrorU, sizeof(AeroD3D11ShaderPSPath_Pattern_MirrorU));
+    pixelShaders_[Shader::Path_Pattern_MirrorV] = createPS(AeroD3D11ShaderPSPath_Pattern_MirrorV, sizeof(AeroD3D11ShaderPSPath_Pattern_MirrorV));
+    pixelShaders_[Shader::Path_Pattern_Mirror] = createPS(AeroD3D11ShaderPSPath_Pattern_Mirror, sizeof(AeroD3D11ShaderPSPath_Pattern_Mirror));
+
+    pixelShaders_[Shader::Path_AA_Solid] = createPS(AeroD3D11ShaderPSPath_AA_Solid, sizeof(AeroD3D11ShaderPSPath_AA_Solid));
+    pixelShaders_[Shader::Path_AA_Linear] = createPS(AeroD3D11ShaderPSPath_AA_Linear, sizeof(AeroD3D11ShaderPSPath_AA_Linear));
+    pixelShaders_[Shader::Path_AA_Radial] = createPS(AeroD3D11ShaderPSPath_AA_Radial, sizeof(AeroD3D11ShaderPSPath_AA_Radial));
+    pixelShaders_[Shader::Path_AA_Pattern] = createPS(AeroD3D11ShaderPSPath_AA_Pattern, sizeof(AeroD3D11ShaderPSPath_AA_Pattern));
+    pixelShaders_[Shader::Path_AA_Pattern_Clamp] = createPS(AeroD3D11ShaderPSPath_AA_Pattern_Clamp, sizeof(AeroD3D11ShaderPSPath_AA_Pattern_Clamp));
+    pixelShaders_[Shader::Path_AA_Pattern_Repeat] = createPS(AeroD3D11ShaderPSPath_AA_Pattern_Repeat, sizeof(AeroD3D11ShaderPSPath_AA_Pattern_Repeat));
+    pixelShaders_[Shader::Path_AA_Pattern_MirrorU] = createPS(AeroD3D11ShaderPSPath_AA_Pattern_MirrorU, sizeof(AeroD3D11ShaderPSPath_AA_Pattern_MirrorU));
+    pixelShaders_[Shader::Path_AA_Pattern_MirrorV] = createPS(AeroD3D11ShaderPSPath_AA_Pattern_MirrorV, sizeof(AeroD3D11ShaderPSPath_AA_Pattern_MirrorV));
+    pixelShaders_[Shader::Path_AA_Pattern_Mirror] = createPS(AeroD3D11ShaderPSPath_AA_Pattern_Mirror, sizeof(AeroD3D11ShaderPSPath_AA_Pattern_Mirror));
+
+    pixelShaders_[Shader::SDF_Solid] = sdfPixelShader_;
+    pixelShaders_[Shader::SDF_Linear] = createPS(AeroD3D11ShaderPSSDF_Linear, sizeof(AeroD3D11ShaderPSSDF_Linear));
+    pixelShaders_[Shader::SDF_Radial] = createPS(AeroD3D11ShaderPSSDF_Radial, sizeof(AeroD3D11ShaderPSSDF_Radial));
+    pixelShaders_[Shader::SDF_Pattern] = createPS(AeroD3D11ShaderPSSDF_Pattern, sizeof(AeroD3D11ShaderPSSDF_Pattern));
+    pixelShaders_[Shader::SDF_Pattern_Clamp] = createPS(AeroD3D11ShaderPSSDF_Pattern_Clamp, sizeof(AeroD3D11ShaderPSSDF_Pattern_Clamp));
+    pixelShaders_[Shader::SDF_Pattern_Repeat] = createPS(AeroD3D11ShaderPSSDF_Pattern_Repeat, sizeof(AeroD3D11ShaderPSSDF_Pattern_Repeat));
+    pixelShaders_[Shader::SDF_Pattern_MirrorU] = createPS(AeroD3D11ShaderPSSDF_Pattern_MirrorU, sizeof(AeroD3D11ShaderPSSDF_Pattern_MirrorU));
+    pixelShaders_[Shader::SDF_Pattern_MirrorV] = createPS(AeroD3D11ShaderPSSDF_Pattern_MirrorV, sizeof(AeroD3D11ShaderPSSDF_Pattern_MirrorV));
+    pixelShaders_[Shader::SDF_Pattern_Mirror] = createPS(AeroD3D11ShaderPSSDF_Pattern_Mirror, sizeof(AeroD3D11ShaderPSSDF_Pattern_Mirror));
+
+    pixelShaders_[Shader::SDF_LCD_Solid] = createPS(AeroD3D11ShaderPSSDF_LCD_Solid, sizeof(AeroD3D11ShaderPSSDF_LCD_Solid));
+    pixelShaders_[Shader::SDF_LCD_Linear] = createPS(AeroD3D11ShaderPSSDF_LCD_Linear, sizeof(AeroD3D11ShaderPSSDF_LCD_Linear));
+    pixelShaders_[Shader::SDF_LCD_Radial] = createPS(AeroD3D11ShaderPSSDF_LCD_Radial, sizeof(AeroD3D11ShaderPSSDF_LCD_Radial));
+    pixelShaders_[Shader::SDF_LCD_Pattern] = createPS(AeroD3D11ShaderPSSDF_LCD_Pattern, sizeof(AeroD3D11ShaderPSSDF_LCD_Pattern));
+    pixelShaders_[Shader::SDF_LCD_Pattern_Clamp] = createPS(AeroD3D11ShaderPSSDF_LCD_Pattern_Clamp, sizeof(AeroD3D11ShaderPSSDF_LCD_Pattern_Clamp));
+    pixelShaders_[Shader::SDF_LCD_Pattern_Repeat] = createPS(AeroD3D11ShaderPSSDF_LCD_Pattern_Repeat, sizeof(AeroD3D11ShaderPSSDF_LCD_Pattern_Repeat));
+    pixelShaders_[Shader::SDF_LCD_Pattern_MirrorU] = createPS(AeroD3D11ShaderPSSDF_LCD_Pattern_MirrorU, sizeof(AeroD3D11ShaderPSSDF_LCD_Pattern_MirrorU));
+    pixelShaders_[Shader::SDF_LCD_Pattern_MirrorV] = createPS(AeroD3D11ShaderPSSDF_LCD_Pattern_MirrorV, sizeof(AeroD3D11ShaderPSSDF_LCD_Pattern_MirrorV));
+    pixelShaders_[Shader::SDF_LCD_Pattern_Mirror] = createPS(AeroD3D11ShaderPSSDF_LCD_Pattern_Mirror, sizeof(AeroD3D11ShaderPSSDF_LCD_Pattern_Mirror));
+
+    pixelShaders_[Shader::Opacity_Solid] = createPS(AeroD3D11ShaderPSOpacity_Solid, sizeof(AeroD3D11ShaderPSOpacity_Solid));
+    pixelShaders_[Shader::Opacity_Linear] = createPS(AeroD3D11ShaderPSOpacity_Linear, sizeof(AeroD3D11ShaderPSOpacity_Linear));
+    pixelShaders_[Shader::Opacity_Radial] = createPS(AeroD3D11ShaderPSOpacity_Radial, sizeof(AeroD3D11ShaderPSOpacity_Radial));
+    pixelShaders_[Shader::Opacity_Pattern] = createPS(AeroD3D11ShaderPSOpacity_Pattern, sizeof(AeroD3D11ShaderPSOpacity_Pattern));
+    pixelShaders_[Shader::Opacity_Pattern_Clamp] = createPS(AeroD3D11ShaderPSOpacity_Pattern_Clamp, sizeof(AeroD3D11ShaderPSOpacity_Pattern_Clamp));
+    pixelShaders_[Shader::Opacity_Pattern_Repeat] = createPS(AeroD3D11ShaderPSOpacity_Pattern_Repeat, sizeof(AeroD3D11ShaderPSOpacity_Pattern_Repeat));
+    pixelShaders_[Shader::Opacity_Pattern_MirrorU] = createPS(AeroD3D11ShaderPSOpacity_Pattern_MirrorU, sizeof(AeroD3D11ShaderPSOpacity_Pattern_MirrorU));
+    pixelShaders_[Shader::Opacity_Pattern_MirrorV] = createPS(AeroD3D11ShaderPSOpacity_Pattern_MirrorV, sizeof(AeroD3D11ShaderPSOpacity_Pattern_MirrorV));
+    pixelShaders_[Shader::Opacity_Pattern_Mirror] = createPS(AeroD3D11ShaderPSOpacity_Pattern_Mirror, sizeof(AeroD3D11ShaderPSOpacity_Pattern_Mirror));
+
+    pixelShaders_[Shader::Upsample] = createPS(AeroD3D11ShaderPSUpsample, sizeof(AeroD3D11ShaderPSUpsample));
+    pixelShaders_[Shader::Downsample] = createPS(AeroD3D11ShaderPSDownsample, sizeof(AeroD3D11ShaderPSDownsample));
+
+    pixelShaders_[Shader::Shadow] = shadowPixelShader_;
+    pixelShaders_[Shader::Blur] = blurPixelShader_;
+
     const D3D11_INPUT_ELEMENT_DESC vertexLayout[] = {
         {"POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
         {"COLOR", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, 8, D3D11_INPUT_PER_VERTEX_DATA, 0},
@@ -246,12 +454,45 @@ Base::Result<void> D3D11RenderDevice::InitPipelines() noexcept {
         &vertex2DInputLayout_);
     if (FAILED(hr)) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "Failed to create vertex input layout");
 
+    struct VSInitEntry {
+        uint32_t vertexEnum;
+        const void* code;
+        uint32_t size;
+    };
+
+    const VSInitEntry vsList[] = {
+        {Shader::Vertex::Pos, AeroD3D11ShaderVSPos, sizeof(AeroD3D11ShaderVSPos)},
+        {Shader::Vertex::PosColor, AeroD3D11ShaderVSPosColor, sizeof(AeroD3D11ShaderVSPosColor)},
+        {Shader::Vertex::PosTex0, AeroD3D11ShaderVSPosTex0, sizeof(AeroD3D11ShaderVSPosTex0)},
+        {Shader::Vertex::PosColorCoverage, AeroD3D11ShaderVSPosColorCoverage, sizeof(AeroD3D11ShaderVSPosColorCoverage)},
+        {Shader::Vertex::PosTex0Coverage, AeroD3D11ShaderVSPosTex0Coverage, sizeof(AeroD3D11ShaderVSPosTex0Coverage)},
+        {Shader::Vertex::PosColorTex1_SDF, AeroD3D11ShaderVSPosColorTex1_SDF, sizeof(AeroD3D11ShaderVSPosColorTex1_SDF)},
+        {Shader::Vertex::PosColorTex1, AeroD3D11ShaderVSPosColorTex1_SDF, sizeof(AeroD3D11ShaderVSPosColorTex1_SDF)},
+        {Shader::Vertex::PosTex0Tex1, AeroD3D11ShaderVSPosTex0Tex1, sizeof(AeroD3D11ShaderVSPosTex0Tex1)},
+        {Shader::Vertex::PosTex0Tex1_SDF, AeroD3D11ShaderVSPosTex0Tex1, sizeof(AeroD3D11ShaderVSPosTex0Tex1)},
+        {Shader::Vertex::PosTex0Tex1_Downsample, AeroD3D11ShaderVSPosTex0Tex1, sizeof(AeroD3D11ShaderVSPosTex0Tex1)},
+        {Shader::Vertex::PosColorTex0Tex1, AeroD3D11ShaderVSPosColorTex0Tex1, sizeof(AeroD3D11ShaderVSPosColorTex0Tex1)}
+    };
+
+    for (const auto& entry : vsList) {
+        ID3D11VertexShader* vs = nullptr;
+        if (SUCCEEDED(device_->CreateVertexShader(entry.code, entry.size, nullptr, &vs)) && vs != nullptr) {
+            const uint32_t format = FormatForVertex[entry.vertexEnum];
+            if (layouts_[format] == nullptr) {
+                layouts_[format] = CreateLayout(AttributesForFormat[format], entry.code, entry.size);
+            }
+            vertexShaders_[entry.vertexEnum].shader = vs;
+            vertexShaders_[entry.vertexEnum].layout = layouts_[format];
+            vertexShaders_[entry.vertexEnum].stride = SizeForFormat[format];
+        }
+    }
+
     // Create sampler states indexed by SamplerState.v
     // (wrapMode:3 bits | minmagFilter:1 << 3 | mipFilter:2 << 4)
-    for (uint8_t v = 0; v < 64; ++v) {
-        const uint8_t wrapMode = v & 0x7;
-        const uint8_t minmag = (v >> 3) & 0x1;
-        const uint8_t mip = (v >> 4) & 0x3;
+    for (uint8_t v = 0; v < StateCache::kSamplerTableSize; ++v) {
+        const uint8_t wrapMode = StateCache::UnpackWrap(v);
+        const uint8_t minmag = StateCache::UnpackMinMag(v);
+        const uint8_t mip = StateCache::UnpackMip(v);
 
         D3D11_SAMPLER_DESC samplerDesc{};
         samplerDesc.Filter = (minmag == MinMagFilter::Linear)
@@ -350,13 +591,11 @@ Base::Result<void> D3D11RenderDevice::InitPipelines() noexcept {
                 blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
                 break;
             case BlendMode::SrcOver_Dual:
-                // Dual-source blending requires a second shader output that the
-                // current pixel shaders do not provide; keep SrcOver semantics.
                 blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_ONE;
-                blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+                blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC1_COLOR;
                 blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
                 blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
-                blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+                blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC1_ALPHA;
                 blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
                 break;
             }
@@ -418,6 +657,8 @@ Base::Result<void> D3D11RenderDevice::InitPipelines() noexcept {
 void D3D11RenderDevice::ReleasePipelines() noexcept {
     ReleaseCom(dynamicVB_);
     ReleaseCom(dynamicIB_);
+    vbState_ = DynamicBufferState{};
+    ibState_ = DynamicBufferState{};
     for (int i = 0; i < 2; ++i) {
         ReleaseCom(vertexCB_[i]);
         ReleaseCom(pixelCB_[i]);
@@ -430,17 +671,61 @@ void D3D11RenderDevice::ReleasePipelines() noexcept {
     }
     ReleaseCom(rasterizerSolid_);
     ReleaseCom(rasterizerScissor_);
-    for (int i = 0; i < 64; ++i) {
+    for (uint8_t i = 0; i < StateCache::kSamplerTableSize; ++i) {
         ReleaseCom(samplers_[i]);
     }
-    ReleaseCom(vertex2DInputLayout_);
     ReleaseCom(solidVertexShader_);
-    ReleaseCom(solidPixelShader_);
-    ReleaseCom(patternPixelShader_);
-    ReleaseCom(sdfPixelShader_);
-    ReleaseCom(blurPixelShader_);
-    ReleaseCom(shadowPixelShader_);
-    ReleaseCom(maskPixelShader_);
+
+    std::vector<ID3D11PixelShader*> uniquePS;
+    auto addUniquePS = [&](ID3D11PixelShader* ps) {
+        if (ps != nullptr && std::find(uniquePS.begin(), uniquePS.end(), ps) == uniquePS.end()) {
+            uniquePS.push_back(ps);
+        }
+    };
+    addUniquePS(solidPixelShader_);
+    addUniquePS(patternPixelShader_);
+    addUniquePS(sdfPixelShader_);
+    addUniquePS(blurPixelShader_);
+    addUniquePS(shadowPixelShader_);
+    addUniquePS(maskPixelShader_);
+    addUniquePS(linearPixelShader_);
+    addUniquePS(radialPixelShader_);
+    addUniquePS(customEffectPixelShader_);
+    for (uint32_t i = 0; i < Shader::Count; ++i) {
+        addUniquePS(pixelShaders_[i]);
+        pixelShaders_[i] = nullptr;
+    }
+    solidPixelShader_ = nullptr;
+    patternPixelShader_ = nullptr;
+    sdfPixelShader_ = nullptr;
+    blurPixelShader_ = nullptr;
+    shadowPixelShader_ = nullptr;
+    maskPixelShader_ = nullptr;
+    linearPixelShader_ = nullptr;
+    radialPixelShader_ = nullptr;
+    customEffectPixelShader_ = nullptr;
+    for (auto* ps : uniquePS) {
+        ps->Release();
+    }
+
+    std::vector<ID3D11InputLayout*> uniqueLayouts;
+    if (vertex2DInputLayout_ != nullptr) {
+        uniqueLayouts.push_back(vertex2DInputLayout_);
+        vertex2DInputLayout_ = nullptr;
+    }
+    for (uint32_t i = 0; i < Shader::Vertex::Count; ++i) {
+        ReleaseCom(vertexShaders_[i].shader);
+        vertexShaders_[i].layout = nullptr;
+    }
+    for (uint32_t i = 0; i < Shader::Vertex::Format::Count; ++i) {
+        if (layouts_[i] != nullptr && std::find(uniqueLayouts.begin(), uniqueLayouts.end(), layouts_[i]) == uniqueLayouts.end()) {
+            uniqueLayouts.push_back(layouts_[i]);
+        }
+        layouts_[i] = nullptr;
+    }
+    for (auto* layout : uniqueLayouts) {
+        layout->Release();
+    }
 }
 
 void D3D11RenderDevice::Shutdown() noexcept {
@@ -477,7 +762,7 @@ Ref<RenderTarget> D3D11RenderDevice::CreateRenderTarget(
     texDesc.Height = height;
     texDesc.MipLevels = 1;
     texDesc.ArraySize = 1;
-    texDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+    texDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
     texDesc.SampleDesc.Count = sampleCount;
     texDesc.SampleDesc.Quality = 0;
     texDesc.Usage = D3D11_USAGE_DEFAULT;
@@ -518,7 +803,7 @@ Ref<RenderTarget> D3D11RenderDevice::CreateRenderTarget(
     Ref<D3D11Texture> d3dTex = Base::MakeRef<D3D11Texture>(
         tex, srv, width, height, false, true).Value();
 
-    Ref<RenderDevice> self = Ref<RenderDevice>::FromBorrowed(*this);
+    Ref<RenderDevice> self = Ref<RenderDevice>::TryFromBorrowed(*this);
     return Base::MakeRef<D3D11RenderTarget>(
         std::move(self), std::move(d3dTex), rtv, dsv, width, height).Value();
 }
@@ -607,6 +892,7 @@ void D3D11RenderDevice::EndUpdatingTextures(Texture** textures, uint32_t count) 
 
 void D3D11RenderDevice::BeginOffscreenRender() noexcept {
     if (context_ == nullptr || currentTarget_ == nullptr) return;
+    stateCache_.Reset();
     const float clearColor[4] = {0.0f, 0.0f, 0.0f, 0.0f};
     context_->ClearRenderTargetView(currentTarget_->GetRTV(), clearColor);
     ID3D11DepthStencilView* dsv = currentTarget_->GetDSV();
@@ -617,6 +903,7 @@ void D3D11RenderDevice::BeginOffscreenRender() noexcept {
 void D3D11RenderDevice::EndOffscreenRender() noexcept {}
 void D3D11RenderDevice::BeginOnscreenRender() noexcept {
     if (context_ == nullptr || currentTarget_ == nullptr) return;
+    stateCache_.Reset();
     ID3D11DepthStencilView* dsv = currentTarget_->GetDSV();
     if (dsv != nullptr) {
         context_->ClearDepthStencilView(dsv, D3D11_CLEAR_STENCIL, 1.0f, 0);
@@ -626,6 +913,7 @@ void D3D11RenderDevice::EndOnscreenRender() noexcept {}
 
 void D3D11RenderDevice::SetRenderTarget(RenderTarget* surface) noexcept {
     if (context_ == nullptr) return;
+    stateCache_.Reset();
     currentTarget_ = static_cast<D3D11RenderTarget*>(surface);
     if (currentTarget_ != nullptr) {
         ID3D11RenderTargetView* rtv = currentTarget_->GetRTV();
@@ -695,29 +983,53 @@ void D3D11RenderDevice::ResolveRenderTarget(
 
 void* D3D11RenderDevice::MapVertices(uint32_t bytes) noexcept {
     if (context_ == nullptr || dynamicVB_ == nullptr) return nullptr;
-    static_cast<void>(bytes);
+    const uint32_t alignedBytes = (bytes + 63U) & ~63U;
+    D3D11_MAP mapType = D3D11_MAP_WRITE_NO_OVERWRITE;
+    if (vbState_.currentPos + alignedBytes > vbState_.size) {
+        mapType = D3D11_MAP_WRITE_DISCARD;
+        vbState_.currentPos = 0U;
+    } else if (vbState_.currentPos == 0U) {
+        mapType = D3D11_MAP_WRITE_DISCARD;
+    }
     D3D11_MAPPED_SUBRESOURCE mapped{};
-    HRESULT hr = context_->Map(dynamicVB_, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
-    return SUCCEEDED(hr) ? mapped.pData : nullptr;
+    HRESULT hr = context_->Map(dynamicVB_, 0, mapType, 0, &mapped);
+    if (FAILED(hr) || mapped.pData == nullptr) return nullptr;
+    vbState_.drawPos = vbState_.currentPos;
+    vbState_.currentPos += alignedBytes;
+    vbState_.isMapped = true;
+    return static_cast<uint8_t*>(mapped.pData) + vbState_.drawPos;
 }
 
 void D3D11RenderDevice::UnmapVertices() noexcept {
-    if (context_ != nullptr && dynamicVB_ != nullptr) {
+    if (context_ != nullptr && dynamicVB_ != nullptr && vbState_.isMapped) {
         context_->Unmap(dynamicVB_, 0);
+        vbState_.isMapped = false;
     }
 }
 
 void* D3D11RenderDevice::MapIndices(uint32_t bytes) noexcept {
     if (context_ == nullptr || dynamicIB_ == nullptr) return nullptr;
-    static_cast<void>(bytes);
+    const uint32_t alignedBytes = (bytes + 63U) & ~63U;
+    D3D11_MAP mapType = D3D11_MAP_WRITE_NO_OVERWRITE;
+    if (ibState_.currentPos + alignedBytes > ibState_.size) {
+        mapType = D3D11_MAP_WRITE_DISCARD;
+        ibState_.currentPos = 0U;
+    } else if (ibState_.currentPos == 0U) {
+        mapType = D3D11_MAP_WRITE_DISCARD;
+    }
     D3D11_MAPPED_SUBRESOURCE mapped{};
-    HRESULT hr = context_->Map(dynamicIB_, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
-    return SUCCEEDED(hr) ? mapped.pData : nullptr;
+    HRESULT hr = context_->Map(dynamicIB_, 0, mapType, 0, &mapped);
+    if (FAILED(hr) || mapped.pData == nullptr) return nullptr;
+    ibState_.drawPos = ibState_.currentPos;
+    ibState_.currentPos += alignedBytes;
+    ibState_.isMapped = true;
+    return static_cast<uint8_t*>(mapped.pData) + ibState_.drawPos;
 }
 
 void D3D11RenderDevice::UnmapIndices() noexcept {
-    if (context_ != nullptr && dynamicIB_ != nullptr) {
+    if (context_ != nullptr && dynamicIB_ != nullptr && ibState_.isMapped) {
         context_->Unmap(dynamicIB_, 0);
+        ibState_.isMapped = false;
     }
 }
 
@@ -725,95 +1037,93 @@ void D3D11RenderDevice::DrawBatch(const Batch& batch) noexcept {
     if (context_ == nullptr || batch.numIndices == 0U) return;
 
     ID3D11PixelShader* pixelShader = nullptr;
-    ID3D11SamplerState* sampler = nullptr;
-    ID3D11ShaderResourceView* srv = nullptr;
-    ID3D11SamplerState* maskSampler = nullptr;
-    ID3D11ShaderResourceView* maskSrv = nullptr;
-    bool setTextureSize = false;
-    switch (batch.shader.v) {
-    case Shader::Path_Solid:
-    case Shader::Path_AA_Solid:
+    if (batch.shader.v == Shader::Custom_Effect) {
+        pixelShader = customEffectPixelShader_ != nullptr
+            ? customEffectPixelShader_ : pixelShaders_[Shader::Path_Pattern];
+        if (batch.pixelShader != nullptr) {
+            ID3D11PixelShader* loaded = nullptr;
+            if (SUCCEEDED(device_->CreatePixelShader(
+                    batch.pixelShader,
+                    batch.vertexUniforms[1].numDwords,
+                    nullptr,
+                    &loaded)) &&
+                loaded != nullptr) {
+                ReleaseCom(customEffectPixelShader_);
+                customEffectPixelShader_ = loaded;
+                pixelShader = customEffectPixelShader_;
+            }
+        }
+    } else if (batch.shader.v < Shader::Count && pixelShaders_[batch.shader.v] != nullptr) {
+        pixelShader = pixelShaders_[batch.shader.v];
+        if (batch.shader.v == Shader::Shadow) {
+            static int shadowCount = 0;
+            if (shadowCount++ < 5) {
+                std::fprintf(stderr, "[DEBUG D3D11] DrawBatch Shader::Shadow indices=%u image=%p ps=%p\n",
+                    batch.numIndices, batch.image, pixelShader);
+            }
+        }
+    } else {
         pixelShader = solidPixelShader_;
-        break;
-    case Shader::Path_Pattern:
-        pixelShader = patternPixelShader_;
-        sampler = samplers_[batch.imageSampler.v & 0x3F];
-        if (batch.image != nullptr) {
-            srv = static_cast<D3D11Texture*>(batch.image)->GetNativeSRV();
-        }
-        break;
-    case Shader::SDF_Solid:
-        pixelShader = sdfPixelShader_;
-        sampler = samplers_[batch.glyphsSampler.v & 0x3F];
-        if (batch.glyphs != nullptr) {
-            srv = static_cast<D3D11Texture*>(batch.glyphs)->GetNativeSRV();
-        }
-        break;
-    case Shader::Blur:
-        pixelShader = blurPixelShader_;
-        sampler = samplers_[batch.imageSampler.v & 0x3F];
-        if (batch.image != nullptr) {
-            srv = static_cast<D3D11Texture*>(batch.image)->GetNativeSRV();
-        }
-        setTextureSize = true;
-        break;
-    case Shader::Shadow:
-        pixelShader = shadowPixelShader_;
-        sampler = samplers_[batch.imageSampler.v & 0x3F];
-        if (batch.image != nullptr) {
-            srv = static_cast<D3D11Texture*>(batch.image)->GetNativeSRV();
-        }
-        setTextureSize = true;
-        break;
-    case Shader::Mask:
-        pixelShader = maskPixelShader_;
-        sampler = samplers_[batch.imageSampler.v & 0x3F];
-        if (batch.image != nullptr) {
-            srv = static_cast<D3D11Texture*>(batch.image)->GetNativeSRV();
-        }
-        maskSampler = samplers_[batch.shadowSampler.v & 0x3F];
-        if (batch.shadow != nullptr) {
-            maskSrv = static_cast<D3D11Texture*>(batch.shadow)->GetNativeSRV();
-        }
-        break;
-    default:
-        pixelShader = solidPixelShader_;
-        break;
     }
 
-    if (solidVertexShader_ == nullptr || pixelShader == nullptr ||
-        vertex2DInputLayout_ == nullptr) {
+    const uint8_t vertexEnum = (batch.shader.v < Shader::Count)
+        ? VertexForShader[batch.shader.v] : 0U;
+    const uint8_t format = (vertexEnum < Shader::Vertex::Count)
+        ? FormatForVertex[vertexEnum] : 0U;
+    static_cast<void>(format);
+    const VertexShaderEntry& vsEntry = (vertexEnum < Shader::Vertex::Count)
+        ? vertexShaders_[vertexEnum] : VertexShaderEntry{};
+
+    ID3D11VertexShader* vertexShader = vsEntry.shader != nullptr
+        ? vsEntry.shader : solidVertexShader_;
+    ID3D11InputLayout* inputLayout = vsEntry.layout != nullptr
+        ? vsEntry.layout : vertex2DInputLayout_;
+    const UINT stride = vsEntry.stride != 0U
+        ? vsEntry.stride : 24U;
+
+    if (vertexShader == nullptr || pixelShader == nullptr ||
+        inputLayout == nullptr) {
         return;
     }
 
-    context_->IASetInputLayout(vertex2DInputLayout_);
-    context_->VSSetShader(solidVertexShader_, nullptr, 0);
-    context_->PSSetShader(pixelShader, nullptr, 0);
+    const ShaderPipelineKey pipelineKey{batch.shader.v};
+    const bool pipelineEnumChanged = stateCache_.UpdatePipeline(pipelineKey);
+    const bool pipelineHandleChanged = stateCache_.UpdatePipelineHandle(
+        reinterpret_cast<std::uintptr_t>(pixelShader));
+    if (pipelineEnumChanged || pipelineHandleChanged) {
+        context_->IASetInputLayout(inputLayout);
+        context_->VSSetShader(vertexShader, nullptr, 0);
+        context_->PSSetShader(pixelShader, nullptr, 0);
+        context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        ID3D11Buffer* vsConstants[] = { vertexCB_[0] };
+        context_->VSSetConstantBuffers(0, 1, vsConstants);
+    } else {
+        context_->IASetInputLayout(inputLayout);
+        context_->VSSetShader(vertexShader, nullptr, 0);
+    }
 
-    // UiFrameEncoder::Vertex2D is 24 bytes: float2 pos, uint32 color, float2 uv, float coverage
-    const UINT stride = 24;
-    const UINT offset = 0;
+    const UINT offset = vbState_.drawPos + batch.vertexOffset;
     context_->IASetVertexBuffers(0, 1, &dynamicVB_, &stride, &offset);
-    context_->IASetIndexBuffer(dynamicIB_, DXGI_FORMAT_R16_UINT, 0);
-    context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    context_->IASetIndexBuffer(dynamicIB_, DXGI_FORMAT_R16_UINT, ibState_.drawPos);
 
-    ID3D11Buffer* vsConstants[] = { vertexCB_[0] };
-    context_->VSSetConstantBuffers(0, 1, vsConstants);
-
-    // Set blend state
-    const uint8_t colorEnable = batch.renderState.f.colorEnable;
-    const uint8_t blendMode = batch.renderState.f.blendMode;
-    if (blendMode < BlendMode::Count) {
-        ID3D11BlendState* bs = blendStates_[colorEnable * BlendMode::Count + blendMode];
+    const BlendStateKey blendKey{
+        batch.renderState.f.blendMode,
+        batch.renderState.f.colorEnable};
+    if (blendKey.blendMode < BlendMode::Count &&
+        stateCache_.UpdateBlend(blendKey)) {
+        ID3D11BlendState* bs =
+            blendStates_[BlendStateKey::TableIndex(blendKey)];
         if (bs != nullptr) {
             context_->OMSetBlendState(bs, nullptr, 0xFFFFFFFF);
         }
     }
 
-    // Set depth-stencil state
-    const uint8_t stencilMode = batch.renderState.f.stencilMode;
-    if (stencilMode < StencilMode::Count) {
-        ID3D11DepthStencilState* ds = stencilStates_[stencilMode];
+    const DepthStencilStateKey dsKey{
+        batch.renderState.f.stencilMode,
+        batch.stencilRef};
+    if (dsKey.stencilMode < StencilMode::Count &&
+        stateCache_.UpdateDepthStencil(dsKey)) {
+        ID3D11DepthStencilState* ds = stencilStates_[dsKey.stencilMode];
         if (ds != nullptr) {
             context_->OMSetDepthStencilState(ds, batch.stencilRef);
         }
@@ -826,20 +1136,66 @@ void D3D11RenderDevice::DrawBatch(const Batch& batch) noexcept {
         context_->RSSetState(rasterizerSolid_);
     }
 
-    // Bind texture and sampler if present
-    if (srv != nullptr) {
-        context_->PSSetShaderResources(0, 1, &srv);
-        if (sampler != nullptr) {
-            context_->PSSetSamplers(0, 1, &sampler);
-        }
-    }
-    if (maskSrv != nullptr) {
-        context_->PSSetShaderResources(1, 1, &maskSrv);
-        if (maskSampler != nullptr) {
-            context_->PSSetSamplers(1, 1, &maskSampler);
-        }
+    // 5-slot texture binding
+    ID3D11ShaderResourceView* srvs[5] = {nullptr, nullptr, nullptr, nullptr, nullptr};
+    ID3D11SamplerState* samplers[5] = {nullptr, nullptr, nullptr, nullptr, nullptr};
+
+    // Slot 0: Pattern (with fallback to image, ramps or glyphs for legacy single-slot draws)
+    Texture* patTex = batch.pattern ? batch.pattern : batch.image;
+    if (patTex != nullptr) {
+        srvs[0] = static_cast<D3D11Texture*>(patTex)->GetNativeSRV();
+        const uint8_t sIdx = StateCache::ClampSamplerIndex(
+            batch.pattern ? batch.patternSampler.v : batch.imageSampler.v);
+        samplers[0] = samplers_[sIdx];
+    } else if (batch.ramps != nullptr) {
+        srvs[0] = static_cast<D3D11Texture*>(batch.ramps)->GetNativeSRV();
+        const uint8_t sIdx = StateCache::ClampSamplerIndex(batch.rampsSampler.v);
+        samplers[0] = samplers_[sIdx];
+    } else if (batch.glyphs != nullptr) {
+        srvs[0] = static_cast<D3D11Texture*>(batch.glyphs)->GetNativeSRV();
+        const uint8_t sIdx = StateCache::ClampSamplerIndex(batch.glyphsSampler.v);
+        samplers[0] = samplers_[sIdx];
     }
 
+    // Slot 1: Ramps (for legacy Mask, fallback to shadow if ramps is null)
+    Texture* rampsTex = batch.ramps ? batch.ramps : (batch.shader.v == Shader::Mask ? batch.shadow : nullptr);
+    if (rampsTex != nullptr) {
+        srvs[1] = static_cast<D3D11Texture*>(rampsTex)->GetNativeSRV();
+        const uint8_t sIdx = StateCache::ClampSamplerIndex(
+            batch.ramps ? batch.rampsSampler.v : batch.shadowSampler.v);
+        samplers[1] = samplers_[sIdx];
+    }
+
+    // Slot 2: Image
+    if (batch.image != nullptr) {
+        srvs[2] = static_cast<D3D11Texture*>(batch.image)->GetNativeSRV();
+        const uint8_t sIdx = StateCache::ClampSamplerIndex(batch.imageSampler.v);
+        samplers[2] = samplers_[sIdx];
+    }
+
+    // Slot 3: Glyphs
+    if (batch.glyphs != nullptr) {
+        srvs[3] = static_cast<D3D11Texture*>(batch.glyphs)->GetNativeSRV();
+        const uint8_t sIdx = StateCache::ClampSamplerIndex(batch.glyphsSampler.v);
+        samplers[3] = samplers_[sIdx];
+    }
+
+    // Slot 4: Shadow (with fallback to image when shader == Shadow)
+    Texture* shadowTex = batch.shadow ? batch.shadow : (batch.shader.v == Shader::Shadow ? batch.image : nullptr);
+    if (shadowTex != nullptr) {
+        srvs[4] = static_cast<D3D11Texture*>(shadowTex)->GetNativeSRV();
+        const uint8_t sIdx = StateCache::ClampSamplerIndex(
+            batch.shadow ? batch.shadowSampler.v : batch.imageSampler.v);
+        samplers[4] = samplers_[sIdx];
+    }
+
+    context_->PSSetShaderResources(0, 5, srvs);
+    context_->PSSetSamplers(0, 5, samplers);
+
+    const bool setTextureSize = (batch.shader.v == Shader::Blur ||
+                                batch.shader.v == Shader::Shadow ||
+                                batch.shader.v == Shader::Downsample ||
+                                batch.shader.v == Shader::Custom_Effect);
     if (setTextureSize && batch.pixelUniforms[0].values != nullptr &&
         batch.pixelUniforms[0].numDwords >= 2U) {
         D3D11_MAPPED_SUBRESOURCE mapped{};
@@ -853,7 +1209,23 @@ void D3D11RenderDevice::DrawBatch(const Batch& batch) noexcept {
             context_->Unmap(pixelCB_[0], 0);
         }
         ID3D11Buffer* psConstants[] = { pixelCB_[0] };
+        context_->PSSetConstantBuffers(0, 1, psConstants);
         context_->PSSetConstantBuffers(1, 1, psConstants);
+    } else if (batch.pixelUniforms[0].values != nullptr &&
+               batch.pixelUniforms[0].numDwords >= 1U) {
+        D3D11_MAPPED_SUBRESOURCE mapped{};
+        if (SUCCEEDED(context_->Map(
+                pixelCB_[0], 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) {
+            float* data = static_cast<float*>(mapped.pData);
+            const uint32_t count = std::min(batch.pixelUniforms[0].numDwords, 8U);
+            std::memcpy(
+                data,
+                batch.pixelUniforms[0].values,
+                static_cast<size_t>(count) * sizeof(float));
+            context_->Unmap(pixelCB_[0], 0);
+        }
+        ID3D11Buffer* psConstants[] = { pixelCB_[0] };
+        context_->PSSetConstantBuffers(0, 1, psConstants);
     }
 
     context_->DrawIndexed(batch.numIndices, batch.startIndex, 0);

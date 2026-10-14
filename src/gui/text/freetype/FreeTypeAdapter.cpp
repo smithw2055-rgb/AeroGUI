@@ -77,12 +77,7 @@ struct OutlineBuilder  {
 bool AppendOutline(
     OutlineBuilder& builder,
     const OutlineCommand& command) noexcept {
-    Base::Result<void> appended =
-        builder.outline->commands.PushBack(command);
-    if (!appended) {
-        builder.status = appended.GetStatus();
-        return false;
-    }
+    builder.outline->commands.PushBack(command);
     return true;
 }
 
@@ -335,10 +330,8 @@ Base::Result<void> FreeTypeAdapter::LoadFace(
         FreeTypeAdapterState::Describe(cached, output);
         return {};
     }
-    Base::Result<FreeTypeAdapterState::FaceRecord*> appended =
-        state_->faces.EmplaceBack(allocator_);
-    if (!appended) return appended.GetStatus();
-    FreeTypeAdapterState::FaceRecord& record = *appended.Value();
+    FreeTypeAdapterState::FaceRecord& record =
+        *state_->faces.EmplaceBack(allocator_);
     record.faceIndex = source.faceIndex;
     record.sourceKind = source.kind;
     record.weight = typeface.Weight();
@@ -348,7 +341,7 @@ Base::Result<void> FreeTypeAdapter::LoadFace(
         record.family.Assign(typeface.Family());
     if (assigned) assigned = record.sourceName.Assign(source.identifier);
     if (assigned && source.kind == FontSourceKind::Memory) {
-        assigned = record.sourceBytes.Append(source.bytes);
+        record.sourceBytes.Append(source.bytes);
     }
     if (!assigned) {
         state_->faces.PopBack();
@@ -523,9 +516,7 @@ Base::Result<void> FreeTypeAdapter::Shape(
         glyph.cluster = cluster;
         glyph.advanceX = From26Dot6(
             face->freeTypeFace->glyph->advance.x);
-        Base::Result<void> appended =
-            output.glyphs.PushBack(glyph);
-        if (!appended) return appended.GetStatus();
+        output.glyphs.PushBack(glyph);
     }
     return {};
 }
@@ -606,10 +597,8 @@ Base::Result<void> FreeTypeAdapter::Rasterize(
             Base::ErrorCode::OutOfRange,
             "Glyph bitmap exceeds Aero container limits");
     }
-    Base::Result<void> resized =
-        output.pixels.Resize(
+    output.pixels.Resize(
             static_cast<std::uint32_t>(byteCount));
-    if (!resized) return resized.GetStatus();
     const int pitch = bitmap.pitch < 0
         ? -bitmap.pitch : bitmap.pitch;
     for (std::uint32_t row = 0U; row < bitmap.rows; ++row) {

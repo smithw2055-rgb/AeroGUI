@@ -1,19 +1,18 @@
-#include "gui/meta/MetadataState.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/State.hpp"
-#include "gui/data/BindingState.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleState.hpp"
+#include "gui/core/Describe.hpp"
+#include "gui/core/ValueConversion.hpp"
+#include "gui/core/ElementTree.hpp"
+#include "gui/core/LayoutEngine.hpp"
+#include "gui/core/EffectiveValueEngine.hpp"
+#include "gui/core/RoutedEvents.hpp"
+#include "gui/core/EventRouter.hpp"
 #include "render/DisplayList.hpp"
 #include <Aero/Controls.hpp>
-#include <Aero/Controls/ListBox.hpp>
+#include <Aero/Controls/Selectors.hpp>
 #include <Aero/Controls/TreeView.hpp>
 #include <Aero/Shapes.hpp>
-#include <Aero/Media/Transforms.hpp>
+#include <Aero/Media/Transform2D.hpp>
+#include <Aero/Media/Transform3D.hpp>
 #include "gui/media/BrushRendering.hpp"
-#include "gui/media/MediaState.hpp"
 #include <Aero/Documents.hpp>
 #include "RichText.hpp"
 
@@ -24,6 +23,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <limits>
 #include <utility>
 
 
@@ -32,32 +32,9 @@ using namespace Aero::Meta;
 using namespace Aero::Threading;
 using namespace Aero::Render;
 
-namespace {
-
-struct EffectiveGridSpan {
-    std::uint32_t index = 0U;
-    std::uint32_t span = 1U;
-};
-EffectiveGridSpan CoerceGridSpan(
-    std::uint32_t index,
-    std::uint32_t span,
-    std::uint32_t trackCount) noexcept {
-    trackCount = std::max(
-        trackCount, std::uint32_t{1U});
-    EffectiveGridSpan result;
-    result.index = std::min(
-        index, trackCount - 1U);
-    result.span = std::min(
-        std::max(span, 1U),
-        trackCount - result.index);
-    return result;
-}
-
-} // namespace
-
 void Panel::OnRender(
     ::Aero::Media::DrawingContext& context) noexcept {
-    auto& builder = Aero::Render::DrawingPrivate::Builder(context);
+    auto& builder = Aero::Render::DrawingBridge::Builder(context);
     static_cast<void>(PaintBrushRect(
         builder,
         GetBackground(),
@@ -75,8 +52,7 @@ StackPanel::StackPanel(Orientation orientation) noexcept
     }
 }
 Orientation StackPanel::GetOrientation() const noexcept {
-    return GetValueOr(
-        OrientationProperty, Orientation::Vertical);
+    return GetValue(OrientationProperty);
 }
 void StackPanel::SetOrientation(Orientation value) noexcept {
     SetValue(OrientationProperty, value);
@@ -89,8 +65,7 @@ Size StackPanel::MeasureOverride(Size availableSize) noexcept {
         Size childAvailable = availableSize;
         if (orientation == Orientation::Vertical) childAvailable.height = 1.0e12;
         else childAvailable.width = 1.0e12;
-        Base::Result<void> measured = MeasureChild(*child, childAvailable);
-        if (!measured) return Size{};
+        MeasureChild(*child, childAvailable);
         const Size childDesired = child->GetDesiredSize();
         if (orientation == Orientation::Vertical) {
             desired.width = std::max(desired.width, childDesired.width);
@@ -114,15 +89,14 @@ Size StackPanel::ArrangeOverride(Size finalSize) noexcept {
             : (isRtl
                 ? Rect{finalSize.width - offset - desired.width, 0.0, desired.width, finalSize.height}
                 : Rect{offset, 0.0, desired.width, finalSize.height});
-        Base::Result<void> arranged = ArrangeChild(*child, slot);
-        if (!arranged) return finalSize;
+        ArrangeChild(*child, slot);
         offset += orientation == Orientation::Vertical
             ? desired.height : desired.width;
     }
     return finalSize;
 }
 bool DockPanel::GetLastChildFill() const noexcept {
-    return GetValueOr(LastChildFillProperty, true);
+    return GetValue(LastChildFillProperty);
 }
 void DockPanel::SetLastChildFill(
     bool value) noexcept {
@@ -142,7 +116,7 @@ void DockPanel::SetChildDock(
 }
 Dock DockPanel::GetChildDock(
     const UIElement& child) const noexcept {
-    return child.GetValueOr(DockProperty, Dock::Left);
+    return child.GetValue(DockProperty);
 }
 Size DockPanel::MeasureOverride(
     Size availableSize) noexcept {
@@ -154,9 +128,7 @@ Size DockPanel::MeasureOverride(
         const Size remaining{
             std::max(0.0, availableSize.width - consumedWidth),
             std::max(0.0, availableSize.height - consumedHeight)};
-        Base::Result<void> measured =
-            MeasureChild(*child, remaining);
-        if (!measured) return Size{};
+        MeasureChild(*child, remaining);
         const Size childDesired = child->GetDesiredSize();
         const Dock dock = GetChildDock(*child);
         if (dock == Dock::Left || dock == Dock::Right) {
@@ -232,26 +204,22 @@ Size DockPanel::ArrangeOverride(
                 break;
             }
         }
-        Base::Result<void> arranged =
-            ArrangeChild(*child, slot);
-        if (!arranged) return finalSize;
+        ArrangeChild(*child, slot);
     }
     return finalSize;
 }
 Orientation WrapPanel::GetOrientation() const noexcept {
-    return GetValueOr(
-        OrientationProperty,
-        Orientation::Horizontal);
+    return GetValue(OrientationProperty);
 }
 void WrapPanel::SetOrientation(
     Orientation value) noexcept {
     SetValue(OrientationProperty, value);
 }
 double WrapPanel::GetItemWidth() const noexcept {
-    return GetValueOr(ItemWidthProperty, 0.0);
+    return GetValue(ItemWidthProperty);
 }
 double WrapPanel::GetItemHeight() const noexcept {
-    return GetValueOr(ItemHeightProperty, 0.0);
+    return GetValue(ItemHeightProperty);
 }
 void WrapPanel::SetItemWidth(
     double value) noexcept {
@@ -287,9 +255,7 @@ Size WrapPanel::MeasureOverride(
                 ? GetItemWidth() : availableSize.width,
             GetItemHeight() > 0.0
                 ? GetItemHeight() : availableSize.height};
-        Base::Result<void> measured =
-            MeasureChild(*child, childAvailable);
-        if (!measured) return Size{};
+        MeasureChild(*child, childAvailable);
         const Size desired = child->GetDesiredSize();
         const double childPrimary = horizontal
             ? (GetItemWidth() > 0.0
@@ -353,22 +319,20 @@ Size WrapPanel::ArrangeOverride(
                 ? Rect{finalSize.width - primary - childPrimary, cross, childPrimary, childCross}
                 : Rect{primary, cross, childPrimary, childCross})
             : Rect{cross, primary, childCross, childPrimary};
-        Base::Result<void> arranged =
-            ArrangeChild(*child, slot);
-        if (!arranged) return finalSize;
+        ArrangeChild(*child, slot);
         primary += childPrimary;
         lineCross = std::max(lineCross, childCross);
     }
     return finalSize;
 }
 std::uint32_t UniformGrid::GetRows() const noexcept {
-    return GetValueOr(RowsProperty, 0U);
+    return GetValue(RowsProperty);
 }
 std::uint32_t UniformGrid::GetColumns() const noexcept {
-    return GetValueOr(ColumnsProperty, 0U);
+    return GetValue(ColumnsProperty);
 }
 std::uint32_t UniformGrid::GetFirstColumn() const noexcept {
-    return GetValueOr(FirstColumnProperty, 0U);
+    return GetValue(FirstColumnProperty);
 }
 void UniformGrid::SetRows(
     std::uint32_t value) noexcept {
@@ -413,21 +377,67 @@ Size UniformGrid::MeasureOverride(
     std::uint32_t rows = 0U;
     std::uint32_t columns = 0U;
     ResolveDimensions(count + GetFirstColumn(), rows, columns);
-    const Size cellAvailable{
+    constexpr double Unconstrained = 1.0e12;
+    const bool widthUnconstrained =
+        availableSize.width >= Unconstrained * 0.5;
+    const bool heightUnconstrained =
+        availableSize.height >= Unconstrained * 0.5;
+    Size cellAvailable{
         availableSize.width / static_cast<double>(columns),
         availableSize.height / static_cast<double>(rows)};
+    // ScrollViewer gives children infinite height. Slot templates bind
+    // Height to ActualWidth, so the first measure reports 0 height and a
+    // VerticalAlignment=Top grid collapses to nothing. Use the finite
+    // axis as the unconstrained cell size so square cells appear on the
+    // first pass.
+    if (heightUnconstrained && !widthUnconstrained &&
+        cellAvailable.width > 0.0) {
+        cellAvailable.height = cellAvailable.width;
+    } else if (widthUnconstrained && !heightUnconstrained &&
+               cellAvailable.height > 0.0) {
+        cellAvailable.width = cellAvailable.height;
+    }
     Size cellDesired;
     for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
-        Base::Result<void> measured =
-            MeasureChild(*child, cellAvailable);
-        if (!measured) return Size{};
+        MeasureChild(*child, cellAvailable);
         cellDesired.width = std::max(
             cellDesired.width,
             child->GetDesiredSize().width);
         cellDesired.height = std::max(
             cellDesired.height,
             child->GetDesiredSize().height);
+    }
+    if (heightUnconstrained && !widthUnconstrained &&
+        cellAvailable.width > 0.0 &&
+        cellAvailable.width < Unconstrained * 0.5) {
+        if (cellDesired.height < cellAvailable.width) {
+            cellDesired.height = cellAvailable.width;
+        }
+        if (cellDesired.width < cellAvailable.width) {
+            cellDesired.width = cellAvailable.width;
+        }
+    } else if (widthUnconstrained && !heightUnconstrained &&
+               cellAvailable.height > 0.0 &&
+               cellAvailable.height < Unconstrained * 0.5) {
+        if (cellDesired.width < cellAvailable.height) {
+            cellDesired.width = cellAvailable.height;
+        }
+        if (cellDesired.height < cellAvailable.height) {
+            cellDesired.height = cellAvailable.height;
+        }
+    } else {
+        if (cellDesired.height <= 0.0 && cellAvailable.width > 0.0 &&
+            cellAvailable.width < Unconstrained * 0.5) {
+            cellDesired.height = cellAvailable.width;
+        }
+        if (cellDesired.width <= 0.0 && cellAvailable.width > 0.0 &&
+            cellAvailable.width < Unconstrained * 0.5) {
+            cellDesired.width = cellAvailable.width;
+        } else if (cellDesired.width <= 0.0 && cellDesired.height > 0.0 &&
+                   widthUnconstrained) {
+            cellDesired.width = cellDesired.height;
+        }
     }
     return Size{
         cellDesired.width * columns,
@@ -456,10 +466,9 @@ Size UniformGrid::ArrangeOverride(
         const double x = isRtl
             ? finalSize.width - (column + 1U) * width
             : column * width;
-        Base::Result<void> arranged = ArrangeChild(
+        ArrangeChild(
             *child,
             {x, row * height, width, height});
-        if (!arranged) return finalSize;
         ++index;
     }
     return finalSize;
@@ -482,603 +491,42 @@ void Canvas::SetChildPosition(
     child.SetValue(TopProperty, position.y);
 }
 Point Canvas::GetChildPosition(const UIElement& child) const noexcept {
+    const double left = child.GetValue(LeftProperty);
+    const double top = child.GetValue(TopProperty);
     return {
-        child.GetValueOr(LeftProperty, 0.0),
-        child.GetValueOr(TopProperty, 0.0)};
+        std::isfinite(left) ? left : 0.0,
+        std::isfinite(top) ? top : 0.0};
 }
 Size Canvas::MeasureOverride(Size) noexcept {
-    Size desired;
     for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
-        Base::Result<void> measured = MeasureChild(*child, {1.0e12, 1.0e12});
-        if (!measured) return Size{};
-        const Point position = GetChildPosition(*child);
-        desired.width = std::max(
-            desired.width, position.x + child->GetDesiredSize().width);
-        desired.height = std::max(
-            desired.height, position.y + child->GetDesiredSize().height);
+        MeasureChild(*child, {1.0e12, 1.0e12});
     }
-    return desired;
+    return Size{};
 }
 Size Canvas::ArrangeOverride(Size finalSize) noexcept {
     for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
         const Size desired = child->GetDesiredSize();
-        Point position = GetChildPosition(*child);
-        Base::Result<EffectiveValueSource> leftSource =
-            child->GetValueSource(LeftProperty.Handle());
-        if (!leftSource) return finalSize;
-        if (leftSource.Value() !=
-            EffectiveValueSource::Local) {
-            Base::Result<EffectiveValueSource> rightSource =
-                child->GetValueSource(RightProperty.Handle());
-            if (!rightSource) return finalSize;
-            if (rightSource.Value() ==
-                EffectiveValueSource::Local) {
-                position.x = finalSize.width -
-                    child->GetValueOr(RightProperty, 0.0) -
-                    desired.width;
-            }
+        const double left = child->GetValue(LeftProperty);
+        const double top = child->GetValue(TopProperty);
+        const double right = child->GetValue(RightProperty);
+        const double bottom = child->GetValue(BottomProperty);
+        Point position{0.0, 0.0};
+        if (std::isfinite(left)) {
+            position.x = left;
+        } else if (std::isfinite(right)) {
+            position.x = finalSize.width - right - desired.width;
         }
-        Base::Result<EffectiveValueSource> topSource =
-            child->GetValueSource(TopProperty.Handle());
-        if (!topSource) return finalSize;
-        if (topSource.Value() !=
-            EffectiveValueSource::Local) {
-            Base::Result<EffectiveValueSource> bottomSource =
-                child->GetValueSource(BottomProperty.Handle());
-            if (!bottomSource) return finalSize;
-            if (bottomSource.Value() ==
-                EffectiveValueSource::Local) {
-                position.y = finalSize.height -
-                    child->GetValueOr(BottomProperty, 0.0) -
-                    desired.height;
-            }
+        if (std::isfinite(top)) {
+            position.y = top;
+        } else if (std::isfinite(bottom)) {
+            position.y = finalSize.height - bottom - desired.height;
         }
-        Base::Result<void> arranged = ArrangeChild(*child,
+        ArrangeChild(*child,
             {position.x, position.y, desired.width, desired.height});
-        if (!arranged) return finalSize;
     }
     return finalSize;
-}
-void ColumnDefinition::SetWidth(
-    GridLength value) noexcept {
-    if (!std::isfinite(value.value) ||
-        value.value < 0.0 ||
-        (value.unit == GridUnitType::Star &&
-            value.value <= 0.0)) {
-        return;
-    }
-    width_ = value;
-}
-void ColumnDefinition::SetMaxWidth(
-    double value) noexcept {
-    if (!std::isfinite(value) || value < 0.0) {
-        return;
-    }
-    maxWidth_ = value;
-}
-void ColumnDefinition::SetSharedSizeGroup(
-    Base::StringView value) noexcept {
-    Base::String candidate;
-    if (!candidate.Assign(value)) return;
-    sharedSizeGroup_ = std::move(candidate);
-}
-void RowDefinition::SetHeight(
-    GridLength value) noexcept {
-    if (!std::isfinite(value.value) ||
-        value.value < 0.0 ||
-        (value.unit == GridUnitType::Star &&
-            value.value <= 0.0)) {
-        return;
-    }
-    height_ = value;
-}
-void RowDefinition::SetMaxHeight(
-    double value) noexcept {
-    if (!std::isfinite(value) || value < 0.0) {
-        return;
-    }
-    maxHeight_ = value;
-}
-void RowDefinition::SetSharedSizeGroup(
-    Base::StringView value) noexcept {
-    Base::String candidate;
-    if (!candidate.Assign(value)) return;
-    sharedSizeGroup_ = std::move(candidate);
-}
-Grid::Grid() noexcept
-    : Panel(StaticTypeId()), columns_(), rows_(),
-      desiredColumns_(), desiredRows_() {}
-
-void Grid::SetColumnDefinitions(
-    Base::Span<const GridLength> definitions) noexcept {
-    Base::Result<void> access = VerifyAccess();
-    if (!access) return;
-    Base::Result<void> valid = ValidateDefinitions(definitions);
-    if (!valid) return;
-    Base::Vector<GridLength> next;
-    Base::Result<void> copied = next.Assign(definitions);
-    if (!copied) return;
-    columns_ = std::move(next);
-    columnDefinitionObjects_.Clear();
-    (void)InvalidateMeasure();
-}
-void Grid::SetRowDefinitions(
-    Base::Span<const GridLength> definitions) noexcept {
-    Base::Result<void> access = VerifyAccess();
-    if (!access) return;
-    Base::Result<void> valid = ValidateDefinitions(definitions);
-    if (!valid) return;
-    Base::Vector<GridLength> next;
-    Base::Result<void> copied = next.Assign(definitions);
-    if (!copied) return;
-    rows_ = std::move(next);
-    rowDefinitionObjects_.Clear();
-    (void)InvalidateMeasure();
-}
-void Grid::SetChildCell(
-    UIElement& child, std::uint32_t row, std::uint32_t column) noexcept {
-    SetChildCell(child, row, column, 1U, 1U);
-}
-void Grid::SetChildCell(
-    UIElement& child,
-    std::uint32_t row,
-    std::uint32_t column,
-    std::uint32_t rowSpan,
-    std::uint32_t columnSpan) noexcept {
-    Base::Result<void> access = VerifyAccess();
-    if (!access) return;
-    if (rowSpan == 0U || columnSpan == 0U) {
-        return;
-    }
-    bool attached = false;
-    for (UIElement* current : LayoutChildren()) attached = attached || current == &child;
-    if (!attached) {
-        return;
-    }
-    child.SetValue(RowProperty, row);
-    child.SetValue(ColumnProperty, column);
-    child.SetValue(RowSpanProperty, rowSpan);
-    child.SetValue(ColumnSpanProperty, columnSpan);
-}
-Base::Result<void> Grid::AddColumnDefinition(
-    Base::Ref<ColumnDefinition> definition) noexcept {
-    Base::Result<void> access = VerifyAccess();
-    if (!access) return access.GetStatus();
-    if (!definition) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Grid ColumnDefinition is null");
-    }
-    Base::Result<void> objectAdded =
-        columnDefinitionObjects_.PushBack(definition);
-    if (!objectAdded) return objectAdded.GetStatus();
-    Base::Result<void> lengthAdded =
-        columns_.PushBack(definition->GetWidth());
-    if (!lengthAdded) {
-        columnDefinitionObjects_.PopBack();
-        return lengthAdded.GetStatus();
-    }
-    return InvalidateMeasure();
-}
-Base::Result<void> Grid::AddRowDefinition(
-    Base::Ref<RowDefinition> definition) noexcept {
-    Base::Result<void> access = VerifyAccess();
-    if (!access) return access.GetStatus();
-    if (!definition) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Grid RowDefinition is null");
-    }
-    Base::Result<void> objectAdded =
-        rowDefinitionObjects_.PushBack(definition);
-    if (!objectAdded) return objectAdded.GetStatus();
-    Base::Result<void> lengthAdded =
-        rows_.PushBack(definition->GetHeight());
-    if (!lengthAdded) {
-        rowDefinitionObjects_.PopBack();
-        return lengthAdded.GetStatus();
-    }
-    return InvalidateMeasure();
-}
-void
-Grid::ClearColumnDefinitionObjects() noexcept {
-    Base::Result<void> access = VerifyAccess();
-    if (!access) return;
-    columnDefinitionObjects_.Clear();
-    columns_.Clear();
-    (void)InvalidateMeasure();
-}
-void
-Grid::ClearRowDefinitionObjects() noexcept {
-    Base::Result<void> access = VerifyAccess();
-    if (!access) return;
-    rowDefinitionObjects_.Clear();
-    rows_.Clear();
-    (void)InvalidateMeasure();
-}
-Base::Result<void> Grid::AddInputBinding(
-    Base::Ref<Input::KeyBinding> binding) noexcept {
-    if (!binding) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
-            "Grid InputBinding cannot be null");
-    }
-    Base::Result<void> finalized = binding->Finalize();
-    if (!finalized) return finalized.GetStatus();
-    return inputBindings_.PushBack(std::move(binding));
-}
-Base::StringView Grid::GetColumnDefinitionsText() const noexcept {
-    return GetValueOr(
-        ColumnDefinitionsTextProperty,
-        Base::StringView{});
-}
-Base::StringView Grid::GetRowDefinitionsText() const noexcept {
-    return GetValueOr(
-        RowDefinitionsTextProperty,
-        Base::StringView{});
-}
-void Grid::SetColumnDefinitionsText(
-    Base::StringView value) noexcept {
-    SetValue(
-        ColumnDefinitionsTextProperty, value);
-}
-void Grid::SetRowDefinitionsText(
-    Base::StringView value) noexcept {
-    SetValue(
-        RowDefinitionsTextProperty, value);
-}
-Size Grid::MeasureOverride(
-    Size availableSize) noexcept {
-    if (!columnDefinitionObjects_.Empty()) {
-        columns_.Clear();
-        for (const auto& colDef : columnDefinitionObjects_) {
-            if (colDef) (void)columns_.PushBack(colDef->GetWidth());
-        }
-    }
-    if (!rowDefinitionObjects_.Empty()) {
-        rows_.Clear();
-        for (const auto& rowDef : rowDefinitionObjects_) {
-            if (rowDef) (void)rows_.PushBack(rowDef->GetHeight());
-        }
-    }
-
-    const std::uint32_t columns = GetColumnCount();
-    const std::uint32_t rows = GetRowCount();
-    Base::Vector<double> desiredColumns;
-    Base::Vector<double> desiredRows;
-    Base::Result<void> resized = desiredColumns.Resize(columns, 0.0);
-    if (!resized) return Size{};
-    resized = desiredRows.Resize(rows, 0.0);
-    if (!resized) return Size{};
-
-    for (std::uint32_t index = 0U; index < columns; ++index) {
-        const GridLength definition = ColumnAt(index);
-        if (definition.unit == GridUnitType::Pixel)
-            desiredColumns[index] = definition.value;
-    }
-    for (std::uint32_t index = 0U; index < rows; ++index) {
-        const GridLength definition = RowAt(index);
-        if (definition.unit == GridUnitType::Pixel)
-            desiredRows[index] = definition.value;
-    }
-
-    constexpr double Unconstrained = 1.0e12;
-    constexpr double FiniteConstraintLimit =
-        Unconstrained * 0.5;
-    double pixelWidth = 0.0;
-    double pixelHeight = 0.0;
-    double columnStarWeight = 0.0;
-    double rowStarWeight = 0.0;
-    for (std::uint32_t index = 0U;
-         index < columns; ++index) {
-        const GridLength definition = ColumnAt(index);
-        if (definition.unit == GridUnitType::Pixel) {
-            pixelWidth += definition.value;
-        } else if (
-            definition.unit == GridUnitType::Star) {
-            columnStarWeight += definition.value;
-        }
-    }
-    for (std::uint32_t index = 0U;
-         index < rows; ++index) {
-        const GridLength definition = RowAt(index);
-        if (definition.unit == GridUnitType::Pixel) {
-            pixelHeight += definition.value;
-        } else if (
-            definition.unit == GridUnitType::Star) {
-            rowStarWeight += definition.value;
-        }
-    }
-
-    for (UIElement* child : LayoutChildren()) {
-        if (child == nullptr) continue;
-        const EffectiveGridSpan rowPlacement =
-            CoerceGridSpan(
-                GetChildRow(*child),
-                GetChildRowSpan(*child),
-                rows);
-        const EffectiveGridSpan columnPlacement =
-            CoerceGridSpan(
-                GetChildColumn(*child),
-                GetChildColumnSpan(*child),
-                columns);
-        const std::uint32_t row =
-            rowPlacement.index;
-        const std::uint32_t column =
-            columnPlacement.index;
-        const std::uint32_t rowSpan =
-            rowPlacement.span;
-        const std::uint32_t columnSpan =
-            columnPlacement.span;
-        double fixedWidth = 0.0;
-        double fixedHeight = 0.0;
-        double spanColumnStarWeight = 0.0;
-        double spanRowStarWeight = 0.0;
-        bool autoWidth = false;
-        bool autoHeight = false;
-        for (std::uint32_t offset = 0U;
-             offset < columnSpan; ++offset) {
-            const GridLength definition =
-                ColumnAt(column + offset);
-            fixedWidth += definition.unit ==
-                    GridUnitType::Pixel
-                ? definition.value : 0.0;
-            autoWidth = autoWidth ||
-                definition.unit == GridUnitType::Auto;
-            spanColumnStarWeight +=
-                definition.unit == GridUnitType::Star
-                ? definition.value : 0.0;
-        }
-        for (std::uint32_t offset = 0U;
-             offset < rowSpan; ++offset) {
-            const GridLength definition =
-                RowAt(row + offset);
-            fixedHeight += definition.unit ==
-                    GridUnitType::Pixel
-                ? definition.value : 0.0;
-            autoHeight = autoHeight ||
-                definition.unit == GridUnitType::Auto;
-            spanRowStarWeight +=
-                definition.unit == GridUnitType::Star
-                ? definition.value : 0.0;
-        }
-        double childWidth = fixedWidth;
-        if (spanColumnStarWeight > 0.0) {
-            childWidth =
-                availableSize.width < FiniteConstraintLimit &&
-                    columnStarWeight > 0.0
-                ? fixedWidth +
-                    std::max(
-                        0.0,
-                        availableSize.width -
-                            pixelWidth) *
-                    spanColumnStarWeight /
-                    columnStarWeight
-                : Unconstrained;
-        } else if (autoWidth) {
-            childWidth = Unconstrained;
-        }
-        double childHeight = fixedHeight;
-        if (spanRowStarWeight > 0.0) {
-            childHeight =
-                availableSize.height <
-                        FiniteConstraintLimit &&
-                    rowStarWeight > 0.0
-                ? fixedHeight +
-                    std::max(
-                        0.0,
-                        availableSize.height -
-                            pixelHeight) *
-                    spanRowStarWeight /
-                    rowStarWeight
-                : Unconstrained;
-        } else if (autoHeight) {
-            childHeight = Unconstrained;
-        }
-        const Size childAvailable{
-            childWidth, childHeight};
-        Base::Result<void> measured = MeasureChild(*child, childAvailable);
-        if (!measured) return Size{};
-        const Size childDesired = child->GetDesiredSize();
-        const double widthShare =
-            std::max(0.0, childDesired.width - fixedWidth) /
-            static_cast<double>(columnSpan);
-        const double heightShare =
-            std::max(0.0, childDesired.height - fixedHeight) /
-            static_cast<double>(rowSpan);
-        for (std::uint32_t offset = 0U;
-             offset < columnSpan; ++offset) {
-            if (ColumnAt(column + offset).unit !=
-                GridUnitType::Pixel) {
-                desiredColumns[column + offset] = std::max(
-                    desiredColumns[column + offset],
-                    widthShare);
-            }
-        }
-        for (std::uint32_t offset = 0U;
-             offset < rowSpan; ++offset) {
-            if (RowAt(row + offset).unit !=
-                GridUnitType::Pixel) {
-                desiredRows[row + offset] = std::max(
-                    desiredRows[row + offset],
-                    heightShare);
-            }
-        }
-    }
-
-    double width = 0.0;
-    double height = 0.0;
-    for (double value : desiredColumns) width += value;
-    for (double value : desiredRows) height += value;
-    desiredColumns_ = std::move(desiredColumns);
-    desiredRows_ = std::move(desiredRows);
-    return Size{width, height};
-}
-Size Grid::ArrangeOverride(Size finalSize) noexcept {
-    if (!columnDefinitionObjects_.Empty()) {
-        columns_.Clear();
-        for (const auto& colDef : columnDefinitionObjects_) {
-            if (colDef) (void)columns_.PushBack(colDef->GetWidth());
-        }
-    }
-    if (!rowDefinitionObjects_.Empty()) {
-        rows_.Clear();
-        for (const auto& rowDef : rowDefinitionObjects_) {
-            if (rowDef) (void)rows_.PushBack(rowDef->GetHeight());
-        }
-    }
-
-    Base::Vector<double> columns;
-    Base::Vector<double> rows;
-    Base::Result<void> resolved = ResolveTracks(
-        {columns_.Data(), columns_.Size()},
-        {desiredColumns_.Data(), desiredColumns_.Size()},
-        finalSize.width, columns);
-    if (!resolved) return finalSize;
-    resolved = ResolveTracks(
-        {rows_.Data(), rows_.Size()},
-        {desiredRows_.Data(), desiredRows_.Size()},
-        finalSize.height, rows);
-    if (!resolved) return finalSize;
-
-    const bool isRtl = GetFlowDirection() == FlowDirection::RightToLeft;
-    for (UIElement* child : LayoutChildren()) {
-        if (child == nullptr) continue;
-        const EffectiveGridSpan rowPlacement =
-            CoerceGridSpan(
-                GetChildRow(*child),
-                GetChildRowSpan(*child),
-                rows.Size());
-        const EffectiveGridSpan columnPlacement =
-            CoerceGridSpan(
-                GetChildColumn(*child),
-                GetChildColumnSpan(*child),
-                columns.Size());
-        const std::uint32_t row =
-            rowPlacement.index;
-        const std::uint32_t column =
-            columnPlacement.index;
-        const std::uint32_t rowSpan =
-            rowPlacement.span;
-        const std::uint32_t columnSpan =
-            columnPlacement.span;
-        double x = 0.0;
-        double y = 0.0;
-        for (std::uint32_t index = 0U; index < column; ++index) x += columns[index];
-        for (std::uint32_t index = 0U; index < row; ++index) y += rows[index];
-        double width = 0.0;
-        double height = 0.0;
-        for (std::uint32_t offset = 0U;
-             offset < columnSpan; ++offset) {
-            width += columns[column + offset];
-        }
-        for (std::uint32_t offset = 0U;
-             offset < rowSpan; ++offset) {
-            height += rows[row + offset];
-        }
-        if (isRtl) {
-            x = finalSize.width - x - width;
-        }
-        Base::Result<void> arranged = ArrangeChild(*child,
-            {x, y, width, height});
-        if (!arranged) return finalSize;
-    }
-    return finalSize;
-}
-std::uint32_t Grid::GetColumnCount() const noexcept {
-    if (!columnDefinitionObjects_.Empty()) {
-        return columnDefinitionObjects_.Size();
-    }
-    return columns_.Empty() ? 1U : columns_.Size();
-}
-std::uint32_t Grid::GetRowCount() const noexcept {
-    if (!rowDefinitionObjects_.Empty()) {
-        return rowDefinitionObjects_.Size();
-    }
-    return rows_.Empty() ? 1U : rows_.Size();
-}
-GridLength Grid::ColumnAt(std::uint32_t index) const noexcept {
-    if (index < columnDefinitionObjects_.Size() && columnDefinitionObjects_[index]) {
-        return columnDefinitionObjects_[index]->GetWidth();
-    }
-    return columns_.Empty() ? GridLength::Star() : (index < columns_.Size() ? columns_[index] : GridLength::Star());
-}
-GridLength Grid::RowAt(std::uint32_t index) const noexcept {
-    if (index < rowDefinitionObjects_.Size() && rowDefinitionObjects_[index]) {
-        return rowDefinitionObjects_[index]->GetHeight();
-    }
-    return rows_.Empty() ? GridLength::Star() : (index < rows_.Size() ? rows_[index] : GridLength::Star());
-}
-Base::Result<void> Grid::ValidateDefinitions(
-    Base::Span<const GridLength> definitions) const noexcept {
-    for (const GridLength& definition : definitions) {
-        if (!std::isfinite(definition.value) || definition.value < 0.0 ||
-            (definition.unit == GridUnitType::Star && definition.value <= 0.0)) {
-            return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
-                "Grid track definition is invalid");
-        }
-    }
-    return {};
-}
-std::uint32_t Grid::GetChildRow(const UIElement& child) const noexcept {
-    return child.GetValueOr(RowProperty, 0U);
-}
-std::uint32_t Grid::GetChildColumn(const UIElement& child) const noexcept {
-    return child.GetValueOr(ColumnProperty, 0U);
-}
-std::uint32_t Grid::GetChildRowSpan(
-    const UIElement& child) const noexcept {
-    return std::max(
-        1U,
-        child.GetValueOr(RowSpanProperty, 1U));
-}
-std::uint32_t Grid::GetChildColumnSpan(
-    const UIElement& child) const noexcept {
-    return std::max(
-        1U,
-        child.GetValueOr(ColumnSpanProperty, 1U));
-}
-Base::Result<void> Grid::ResolveTracks(
-    Base::Span<const GridLength> definitions,
-    Base::Span<const double> desired,
-    double available,
-    Base::Vector<double>& resolved) const noexcept {
-    const std::uint32_t count = definitions.Empty() ? 1U : definitions.Size();
-    if (!std::isfinite(available) || available < 0.0 ||
-        (!desired.Empty() && desired.Size() != count)) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
-            "Grid track resolution input is invalid");
-    }
-    Base::Result<void> resized = resolved.Resize(count, 0.0);
-    if (!resized) return resized.GetStatus();
-    double occupied = 0.0;
-    double totalStarWeight = 0.0;
-    for (std::uint32_t index = 0U; index < count; ++index) {
-        const GridLength definition = definitions.Empty()
-            ? GridLength::Star() : definitions[index];
-        if (definition.unit == GridUnitType::Pixel) {
-            resolved[index] = definition.value;
-            occupied += definition.value;
-        } else if (definition.unit == GridUnitType::Auto) {
-            resolved[index] = desired.Empty() ? 0.0 : desired[index];
-            occupied += resolved[index];
-        } else {
-            totalStarWeight += definition.value;
-        }
-    }
-    const double remaining = std::max(0.0, available - occupied);
-    if (totalStarWeight > 0.0) {
-        for (std::uint32_t index = 0U; index < count; ++index) {
-            const GridLength definition = definitions.Empty()
-                ? GridLength::Star() : definitions[index];
-            if (definition.unit == GridUnitType::Star) {
-                resolved[index] = remaining *
-                    (definition.value / totalStarWeight);
-            }
-        }
-    }
-    return {};
 }
 std::uint32_t UIElementCollection::GetCount() const noexcept {
     return owner_ != nullptr ? owner_->ChildCountCore() : 0U;
@@ -1088,19 +536,93 @@ UIElement* UIElementCollection::GetItem(std::uint32_t index) const noexcept {
     Base::Ref<Base::Object> child = owner_->ChildAtCore(index);
     return child ? static_cast<UIElement*>(child.Get()) : nullptr;
 }
-Base::Result<void> UIElementCollection::Add(Base::Ref<UIElement> child) noexcept {
+
+// Live items-source view over a Panel's children (see Panel::GetChildrenObject).
+// Heap-allocated so bindings and ItemsControls can hold a Ref; owned by the
+// Panel through Panel::childrenView_ and detached in ~Panel.
+class PanelChildrenView : public Collections::ObservableCollectionBase {
+public:
+    explicit PanelChildrenView(Panel& owner) noexcept : owner_(&owner) {}
+    void DetachOwner() noexcept { owner_ = nullptr; }
+    std::uint32_t GetCount() const noexcept override {
+        return owner_ != nullptr ? owner_->ChildCountCore() : 0U;
+    }
+    Ref<Base::Object> GetItem(std::uint32_t index) const noexcept override {
+        if (owner_ == nullptr) return {};
+        return owner_->ChildAtCore(index);
+    }
+    void AddItemsChanged(const Collections::ItemsChangedHandler& handler) noexcept override {
+        changed_.Add(handler);
+    }
+    bool RemoveItemsChanged(const Collections::ItemsChangedHandler& handler) noexcept override {
+        return changed_.Remove(handler);
+    }
+    void NotifyReset() noexcept {
+        if (changed_.Empty()) return;
+        changed_.Invoke(Collections::ItemsChangedEvent{
+            Collections::ItemsChangeAction::Reset,
+            UINT32_MAX,
+            UINT32_MAX,
+            0U,
+            0U});
+    }
+
+private:
+    Panel* owner_ = nullptr;
+    Collections::ItemsChangedHandler changed_;
+};
+
+Panel::~Panel() {
+    if (childrenView_) {
+        static_cast<PanelChildrenView*>(childrenView_.Get())->DetachOwner();
+        childrenView_.Reset();
+    }
+}
+
+void Panel::NotifyChildrenViewReset() noexcept {
+    if (!childrenView_) return;
+    static_cast<PanelChildrenView*>(childrenView_.Get())->NotifyReset();
+}
+void UIElementCollection::Add(Base::Ref<UIElement> child) noexcept {
     if (owner_ == nullptr || !child) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "UIElementCollection requires an owner and child");
+        return;
     }
     Base::Ref<Base::Object> object(child);
-    return owner_->AddChildCore(object, *child);
-}
-Base::Result<void> UIElementCollection::Remove(UIElement& child) noexcept {
-    if (owner_ == nullptr) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidState, "UIElementCollection has no owner");
+    UIElement& element = *child;
+    owner_->AddChildCore(object, element);
+    // AttachVisual already calls PanelAddChild. Nested AttachElement here
+    // double-mounts layout/render and drops ControlTemplates.
+    ElementTree* tree = VisualTree(owner_);
+    if (tree != nullptr) {
+        if (VisualTree(element) == nullptr &&
+            element.GetLogicalParent() == nullptr) {
+            Base::Result<ElementAttachment> attached =
+                tree->AttachElement(*owner_, element);
+            if (!attached) {
+                (void)owner_->RemoveChildCore(element);
+                return;
+            }
+        } else if (
+            element.GetVisualParent() != owner_ ||
+            !element.GetIsLayoutAttached()) {
+            if (element.GetVisualParent() != nullptr &&
+                element.GetVisualParent() != owner_) {
+                return;
+            }
+            Base::Result<VisualAttachment> attached =
+                tree->AttachVisualChild(*owner_, element);
+            if (!attached) {
+                (void)owner_->RemoveChildCore(element);
+                return;
+            }
+        }
     }
-    Base::Result<bool> removed = owner_->RemoveChildCore(child);
-    return removed ? Base::Result<void>() : Base::Result<void>(removed.GetStatus());
+}
+void UIElementCollection::Remove(UIElement& child) noexcept {
+    if (owner_ == nullptr) {
+        return;
+    }
+    (void)owner_->RemoveChildCore(child);
 }
 void UIElementCollection::Clear() noexcept {
     if (owner_ == nullptr) {
@@ -1108,46 +630,284 @@ void UIElementCollection::Clear() noexcept {
     }
     owner_->ClearChildrenCore();
 }
-Base::Result<void> Panel::AddChildCore(const Base::Ref<Base::Object>& childObject, UIElement& child) noexcept {
-    if (!childObject || childObject.Get() != &child) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Panel child ownership does not match its UIElement");
-    }
-    Base::Result<void> access = VerifyAccess();
-    if (!access) return access.GetStatus();
-    for (const Base::Ref<Base::Object>& owned : ownedChildren_) {
-        if (owned.Get() == &child) {
-            return Base::Status::Failure(Base::ErrorCode::AlreadyExists, "Panel already contains the child");
+std::uint32_t Panel::GetVisualChildrenCount() const noexcept {
+    std::uint32_t count = 0U;
+    for (std::uint32_t index = 0U; index < ownedChildren_.Size(); ++index) {
+        UIElement* child = ownedChildren_[index]
+            ? static_cast<UIElement*>(ownedChildren_[index].Get())
+            : nullptr;
+        if (child != nullptr && child->GetVisualParent() == this) {
+            ++count;
         }
     }
-    Base::Result<void> appended = ownedChildren_.PushBack(childObject);
-    if (!appended) return appended.GetStatus();
-    return InvalidateMeasure();
+    return count;
+}
+
+namespace {
+struct PanelZOrder {
+    std::int32_t z = 0;
+    std::uint32_t document = 0U;
+    UIElement* child = nullptr;
+};
+} // namespace
+
+::Aero::Media::Visual* Panel::GetVisualChild(std::uint32_t index) const noexcept {
+    Base::Vector<PanelZOrder> ordered;
+    std::uint32_t document = 0U;
+    for (std::uint32_t childIndex = 0U; childIndex < ownedChildren_.Size(); ++childIndex) {
+        UIElement* child = ownedChildren_[childIndex]
+            ? static_cast<UIElement*>(ownedChildren_[childIndex].Get())
+            : nullptr;
+        if (child == nullptr || child->GetVisualParent() != this) continue;
+        PanelZOrder record;
+        record.z = child->GetValue(ZIndexProperty);
+        record.document = document++;
+        record.child = child;
+        ordered.PushBack(record);
+    }
+    std::sort(
+        ordered.Data(),
+        ordered.Data() + ordered.Size(),
+        [](const PanelZOrder& left, const PanelZOrder& right) noexcept {
+            if (left.z != right.z) return left.z < right.z;
+            return left.document < right.document;
+        });
+    return index < ordered.Size() ? ordered[index].child : nullptr;
+}
+
+std::uint32_t Panel::GetLayoutChildrenCount() const noexcept {
+    return GetVisualChildrenCount();
+}
+
+UIElement* Panel::GetLayoutChild(std::uint32_t index) const noexcept {
+    std::uint32_t current = 0U;
+    for (std::uint32_t childIndex = 0U; childIndex < ownedChildren_.Size();
+         ++childIndex) {
+        UIElement* child = ownedChildren_[childIndex]
+            ? static_cast<UIElement*>(ownedChildren_[childIndex].Get())
+            : nullptr;
+        if (child == nullptr || child->GetVisualParent() != this) continue;
+        if (current == index) return child;
+        ++current;
+    }
+    return nullptr;
+}
+
+void Panel::AddChildCore(const Base::Ref<Base::Object>& childObject, UIElement& child) noexcept {
+    if (!childObject || childObject.Get() != &child) {
+        return;
+    }
+    Base::Result<void> access = VerifyAccess();
+    if (!access) return;
+    for (const Base::Ref<Base::Object>& owned : ownedChildren_) {
+        if (owned.Get() == &child) {
+            return;
+        }
+    }
+    ownedChildren_.PushBack(childObject);
+    {
+        const Meta::TypeInfo* ct = DependencyObjectAccess::PropertyRegistry((*this)).Types().FindType(child.RuntimeType());
+        bool isCC = ct && ct->Name() == Base::StringView("ContentControl");
+        bool isRect = ct && ct->Name() == Base::StringView("Rectangle");
+        if (isCC || isRect) {
+            const Meta::TypeInfo* ot = DependencyObjectAccess::PropertyRegistry((*this)).Types().FindType(RuntimeType());
+            std::fprintf(stderr, "[AddChild] owner=%s/%p child=%s/%p count=%u\n",
+                ot ? (const char*)(ot->Name().Data()) : "?",
+                (const void*)this,
+                ct ? (const char*)(ct->Name().Data()) : "?",
+                (const void*)&child,
+                (unsigned)ownedChildren_.Size());
+        }
+    }
+    if (child.GetVisualParent() != this) {
+        if (ElementTree* tree = VisualTree(this)) {
+            // XAML Panel content uses AddChildCore, not UIElementCollection::Add.
+            // A live-tree Grid (LoadComponent ColorSelector) must still parent
+            // children visually or star rows measure 0 and ColorRect stays 0x0.
+            if (VisualTree(child) == nullptr &&
+                child.GetLogicalParent() == nullptr) {
+                Base::Result<ElementAttachment> attached =
+                    tree->AttachElement(*this, child);
+                if (!attached) {
+                    ownedChildren_.PopBack();
+                    return;
+                }
+            } else if (
+                child.GetVisualParent() != this ||
+                !child.GetIsLayoutAttached()) {
+                if (child.GetVisualParent() != nullptr &&
+                    child.GetVisualParent() != this) {
+                    InvalidateMeasure();
+                    return;
+                }
+                Base::Result<VisualAttachment> attached =
+                    tree->AttachVisualChild(*this, child);
+                if (!attached) {
+                    ownedChildren_.PopBack();
+                    return;
+                }
+            }
+        } else {
+            AddVisualChild(&child);
+        }
+    }
+    NotifyChildrenViewReset();
+    InvalidateMeasure();
 }
 Base::Result<bool> Panel::RemoveChildCore(UIElement& child) noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) return access.GetStatus();
-    if (!LayoutChildren().Empty()) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidState, "Mounted Panel children must be removed by the presentation runtime");
-    }
     for (std::uint32_t index = 0U; index < ownedChildren_.Size(); ++index) {
         if (ownedChildren_[index].Get() != &child) continue;
+        // Remove from storage BEFORE detach: DetachVisual/DetachLogical can
+        // re-enter (Unloaded/template cleanup) and mutate ownedChildren_.
+        // Detaching first then shifting+PopBack double-pops when re-entered.
+        Base::Ref<Base::Object> retained = ownedChildren_[index];
         for (std::uint32_t next = index + 1U; next < ownedChildren_.Size(); ++next) {
             ownedChildren_[next - 1U] = std::move(ownedChildren_[next]);
         }
-        ownedChildren_.PopBack();
-        Base::Result<void> invalidated = InvalidateMeasure();
-        return invalidated ? Base::Result<bool>(true) : Base::Result<bool>(invalidated.GetStatus());
+        if (!ownedChildren_.Empty()) {
+            ownedChildren_.PopBack();
+        }
+        ElementTree* tree = VisualTree(this);
+        if (tree != nullptr && VisualTree(child) == tree) {
+            if (child.GetVisualParent() == this) {
+                Base::Result<void> detached = tree->DetachVisual(*this, child);
+                if (!detached) return detached.GetStatus();
+            }
+            if (child.GetLogicalParent() == this) {
+                Base::Result<void> detached = tree->DetachLogical(*this, child);
+                if (!detached) return detached.GetStatus();
+            }
+        } else if (child.GetVisualParent() == this) {
+            RemoveVisualChild(&child);
+        }
+        NotifyChildrenViewReset();
+        InvalidateMeasure();
+        return true;
     }
     return false;
 }
 void Panel::ClearChildrenCore() noexcept {
+    const Meta::TypeInfo* ot = DependencyObjectAccess::PropertyRegistry((*this)).Types().FindType(RuntimeType());
+    std::fprintf(stderr, "[ClearChildrenCore] owner=%s/%p count=%u\n",
+        ot ? (const char*)ot->Name().Data() : "?",
+        (const void*)this, (unsigned)ownedChildren_.Size());
     Base::Result<void> access = VerifyAccess();
     if (!access) return;
-    if (!LayoutChildren().Empty()) {
-        return;
+    ElementTree* tree = VisualTree(this);
+    for (std::uint32_t index = 0U; index < ownedChildren_.Size(); ++index) {
+        UIElement* child = ownedChildren_[index]
+            ? static_cast<UIElement*>(ownedChildren_[index].Get())
+            : nullptr;
+        if (child == nullptr) continue;
+        if (tree != nullptr && VisualTree(child) == tree) {
+            if (child->GetVisualParent() == this) {
+                (void)tree->DetachVisual(*this, *child);
+            }
+            if (child->GetLogicalParent() == this) {
+                (void)tree->DetachLogical(*this, *child);
+            }
+        } else if (child->GetVisualParent() == this) {
+            RemoveVisualChild(child);
+        }
     }
     ownedChildren_.Clear();
-    (void)InvalidateMeasure();
+    NotifyChildrenViewReset();
+    InvalidateMeasure();
 }
 
-} // namespace Aero
+Ref<Base::Object> Panel::GetChildrenObject() const noexcept {
+    {
+        static int s_g = 0;
+        if (s_g < 4) {
+            ++s_g;
+            std::fprintf(stderr, "[ChildrenGetter] called owner=%p owned=%u visual=%u\n",
+                (const void*)this, (unsigned)ChildCountCore(),
+                (unsigned)GetVisualChildrenCount());
+        }
+    }
+    if (!childrenView_) {
+        Base::Result<Ref<PanelChildrenView>> made =
+            Base::MakeRef<PanelChildrenView>(const_cast<Panel&>(*this));
+        if (!made || !made.Value()) return {};
+        childrenView_ = Ref<Base::Object>(std::move(made).Value());
+    }
+    return childrenView_;
+}
+
+namespace {
+
+void SetPanelContent(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& child,
+    void*) noexcept {
+    if (!child) {
+        return;
+    }
+
+    (static_cast<Panel&>(owner)).AddChildCore( child, *static_cast<Aero::UIElement*>(child.Get()));
+}
+
+void ClearPanelContent(
+    Base::Object& owner,
+    void*) noexcept {
+    (static_cast<Panel&>(owner)).ClearChildrenCore();
+}
+
+} // namespace
+
+AERO_DESCRIBE(Panel) {
+    using namespace Aero::Meta;
+    Register<Panel>(context, TypeFlags::Abstract)
+        .Property(Panel::BackgroundProperty, Base::Ref<Media::Brush>{}, AffectsRender)
+        .Property(Panel::ZIndexProperty, std::int32_t{0}, AffectsParentArrange)
+        .Property(Panel::IsItemsHostProperty, false)
+        .Property<Base::Ref<Base::Object>, &Panel::GetChildrenObject, &Panel::SetChildrenObject>("Children", PropertyFlags::Collection | PropertyFlags::Structural)
+        .ContentAccessor(MakeMemberId(Panel::StaticTypeId(), MemberKind::Property, "Children"), ContentKind::Collection, &SetPanelContent, &ClearPanelContent, ContentFlags::Visual);
+}
+
+AERO_DESCRIBE(StackPanel) {
+    using namespace Aero::Meta;
+    Register<StackPanel>(context)
+        .Property(StackPanel::OrientationProperty, Orientation::Vertical, AffectsMeasure)
+        .Factory();
+}
+
+AERO_DESCRIBE(DockPanel) {
+    using namespace Aero::Meta;
+    Register<DockPanel>(context)
+        .Property(DockPanel::LastChildFillProperty, true, AffectsArrange)
+        .Property(DockPanel::DockProperty, Dock::Left, AffectsParentMeasure)
+        .Factory();
+}
+
+AERO_DESCRIBE(WrapPanel) {
+    using namespace Aero::Meta;
+    Register<WrapPanel>(context)
+        .Property(WrapPanel::OrientationProperty, Orientation::Horizontal, AffectsMeasure)
+        .Property(WrapPanel::ItemWidthProperty, 0.0, AffectsMeasure, &Base::Validate::NonNegative<double>)
+        .Property(WrapPanel::ItemHeightProperty, 0.0, AffectsMeasure, &Base::Validate::NonNegative<double>)
+        .Factory();
+}
+
+AERO_DESCRIBE(UniformGrid) {
+    using namespace Aero::Meta;
+    Register<UniformGrid>(context)
+        .Property(UniformGrid::RowsProperty, std::uint32_t{0}, AffectsMeasure)
+        .Property(UniformGrid::ColumnsProperty, std::uint32_t{0}, AffectsMeasure)
+        .Property(UniformGrid::FirstColumnProperty, std::uint32_t{0}, AffectsMeasure | AffectsArrange)
+        .Factory();
+}
+
+AERO_DESCRIBE(Canvas) {
+    using namespace Aero::Meta;
+    Register<Canvas>(context)
+        .Property(Canvas::LeftProperty, std::numeric_limits<double>::infinity(), AffectsParentArrange)
+        .Property(Canvas::TopProperty, std::numeric_limits<double>::infinity(), AffectsParentArrange)
+        .Property(Canvas::RightProperty, std::numeric_limits<double>::infinity(), AffectsParentArrange)
+        .Property(Canvas::BottomProperty, std::numeric_limits<double>::infinity(), AffectsParentArrange)
+        .Factory();
+}
+
+} // namespace Aero::Controls

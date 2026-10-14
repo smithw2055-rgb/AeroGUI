@@ -18,9 +18,7 @@ public:
     String& operator=(const String& other);
     String& operator=(String&& other) noexcept;
 
-    StringView View() const noexcept {
-        return {data_, size_};
-    }
+    StringView View() const noexcept { return {data_, size_}; }
 
     const char* CStr() const noexcept { return data_; }
     std::uint32_t SizeBytes() const noexcept { return size_; }
@@ -43,9 +41,7 @@ private:
     std::uint32_t capacity_ = InlineCapacity;
     alignas(void*) char inlineStorage_[InlineCapacity + 1U]{};
 
-    bool IsInline() const noexcept {
-        return data_ == inlineStorage_;
-    }
+    bool IsInline() const noexcept { return data_ == inlineStorage_; }
 
     void ReleaseHeap() noexcept;
     void ResetInline() noexcept;
@@ -54,13 +50,9 @@ private:
     Result<void> EnsureCapacity(std::uint32_t required) noexcept;
 };
 
-inline bool operator==(const String& left, StringView right) noexcept {
-    return left.View() == right;
-}
+inline bool operator==(const String& left, StringView right) noexcept { return left.View() == right; }
 
-inline bool operator!=(const String& left, StringView right) noexcept {
-    return !(left == right);
-}
+inline bool operator!=(const String& left, StringView right) noexcept { return !(left == right); }
 
 } // namespace Aero::Base
 

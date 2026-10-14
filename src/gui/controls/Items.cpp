@@ -1,22 +1,39 @@
 #include <Aero/Controls.hpp>
-#include "gui/meta/MetadataState.hpp"
-#include "gui/core/State.hpp" 
-#include "gui/data/BindingState.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleState.hpp"
-#include "gui/controls/State.hpp" 
-#include "gui/templates/TemplateState.hpp"
-
-#include "gui/core/facets/VisualFacet.hpp"
+#include <Aero/Controls/Items.hpp>
+#include <Aero/Style.hpp>
+#include <Aero/VisualTreeHelper.hpp>
+#include <Aero/Data/CollectionView.hpp>
+#include <Aero/DataTemplate.hpp>
+#include <Aero/Collections.hpp>
+#include <Aero/TryCast.hpp>
 #include <Aero/FrameworkElement.hpp>
+
+#include "gui/core/TypeRegistryCore.hpp"
+#include "gui/core/Describe.hpp"
+#include "gui/core/ElementTree.hpp"
+#include "gui/core/LayoutEngine.hpp"
+#include "gui/core/EffectiveValueEngine.hpp"
+#include "gui/core/RoutedEvents.hpp"
+#include "gui/core/EventRouter.hpp"
+#include "gui/data/BindingEngine.hpp"
+#include "gui/styles/StyleEngine.hpp"
+#include "gui/controls/ItemsContainers.hpp"
+#include "gui/controls/ItemContainerGeneratorFactory.hpp"
+#include "gui/templates/TemplateInstance.hpp"
+#include "gui/core/DependencyObjectAccess.hpp"
 
 #include <algorithm>
 #include <cstdio>
 #include <new>
 #include <utility>
-#include "ControlBehavior.hpp"
 
 namespace Aero::Controls {
+using Aero::Controls::TemplateEngine;
+
+// ============================================================================
+// ItemsControl & ItemCollection & Templates
+// ============================================================================
+
 using Aero::Controls::TemplateEngine;
 
 Base::Result<Value> AlternationConverter::Convert(
@@ -78,7 +95,7 @@ Base::Result<Value> AlternationConverter::ConvertBack(
 Panel* ItemsPresenter::GetItemsHost() const noexcept {
     UIElement* child = GetChild();
     return child != nullptr &&
-        PropertyRegistry().Types().IsDerivedFrom(
+        DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             child->RuntimeType(), Panel::StaticTypeId())
         ? static_cast<Panel*>(child)
         : nullptr;
@@ -87,72 +104,33 @@ Panel* ItemsPresenter::GetItemsHost() const noexcept {
 void ItemsPresenter::SetItemsHost(
     const Base::Ref<Base::Object>& owner,
     Panel& panel) noexcept {
-    Base::Result<void> assigned =
-        ::Aero::Core::VisualFacet::DecoratorSetOwnedChild(
-            *this, owner, panel);
-    if (assigned) {
-        static_cast<void>(InvalidateMeasure());
-    }
+    (*this).SetOwnedChild( owner, panel);
+    InvalidateMeasure();
 }
 
 
 using namespace ::Aero::Controls;
 using namespace ::Aero;
 
-Base::Result<void> AddBoxedItem(
-    Collections::ObservableCollection& source,
+void AddBoxedItem(
+    Collections::ObservableCollection<Base::Object>& source,
     Meta::Value value) noexcept {
     Base::Result<Base::Ref<::Aero::Controls::BoxedItemValue>> boxed =
         Base::MakeRef<::Aero::Controls::BoxedItemValue>(std::move(value));
-    if (!boxed) return boxed.GetStatus();
-    return source.Add(
+    if (!boxed) { AERO_ASSERT(false); return; }
+    source.Add(
         Base::Ref<Base::Object>(std::move(boxed).Value()));
 }
 
-Base::Result<void> AddBoxedStringItem(
-    Collections::ObservableCollection& source,
+void AddBoxedStringItem(
+    Collections::ObservableCollection<Base::Object>& source,
     Base::StringView value) noexcept {
     Base::Result<Meta::Value> boxed =
         Meta::Value::TryFromString(
             Meta::TypeOf<Base::String>(), value);
-    if (!boxed) return boxed.GetStatus();
-    return AddBoxedItem(
+    if (!boxed) { AERO_ASSERT(false); return; }
+    AddBoxedItem(
         source, std::move(boxed).Value());
-}
-
-ContentControl::ContentControl(
-    TypeId runtimeType) noexcept
-    : Control(runtimeType),
-      foregroundChangedHandler_(
-          this,
-          &ContentControl::OnForegroundChanged) {
-    static_cast<void>(AddValueChangedHandlerChecked(
-        Control::ForegroundProperty,
-        foregroundChangedHandler_));
-}
-
-ContentControl::~ContentControl() {
-    static_cast<void>(RemoveValueChangedHandler(
-        Control::ForegroundProperty,
-        foregroundChangedHandler_));
-}
-
-void ContentControl::OnForegroundChanged(
-    DependencyObject&,
-    const DependencyPropertyChangedEventArgs&)
-        noexcept {
-}
-
-void ContentControl::SetGeneratedTextContent(
-    const Base::Ref<Base::Object>& contentObject,
-    UIElement& content) noexcept {
-    if (!PropertyRegistry().Types().IsDerivedFrom(
-            content.RuntimeType(),
-            TextBlock::StaticTypeId())) {
-        return;
-    }
-    SetOwnedContent(contentObject, content);
-    literalTextContent_ = true;
 }
 
 Base::Ref<Base::Object> ItemCollection::GetItem(
@@ -167,25 +145,17 @@ void ItemCollection::Notify(
     if (!changed_.Empty()) changed_.Invoke(event);
 }
 
-Base::Result<void> ItemCollection::Add(
+void ItemCollection::Add(
     Base::Ref<Base::Object> item) noexcept {
-    return Insert(items_.Size(), std::move(item));
+    Insert(items_.Size(), std::move(item));
 }
 
-Base::Result<void> ItemCollection::Insert(
+void ItemCollection::Insert(
     std::uint32_t index,
     Base::Ref<Base::Object> item) noexcept {
-    if (!item || index > items_.Size()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "ItemCollection insert is invalid");
-    }
-    Base::Result<void> reserved =
-        items_.Reserve(items_.Size() + 1U);
-    if (!reserved) return reserved.GetStatus();
-    Base::Result<void> added =
-        items_.PushBack(std::move(item));
-    if (!added) return added.GetStatus();
+    if (!item || index > items_.Size()) { AERO_ASSERT(false); return; }
+    items_.Reserve(items_.Size() + 1U);
+    items_.PushBack(std::move(item));
     Base::Ref<Base::Object> moving =
         std::move(items_.Back());
     for (std::uint32_t current =
@@ -201,7 +171,6 @@ Base::Result<void> ItemCollection::Insert(
         index,
         0U,
         1U});
-    return {};
 }
 
 Base::Result<Base::Ref<Base::Object>>
@@ -297,18 +266,14 @@ Base::Result<void> ItemCollection::Reset(
     Base::Span<const Base::Ref<Base::Object>>
         items) noexcept {
     Base::Vector<Base::Ref<Base::Object>> replacement;
-    Base::Result<void> reserved =
-        replacement.Reserve(items.Size());
-    if (!reserved) return reserved.GetStatus();
+    replacement.Reserve(items.Size());
     for (const Base::Ref<Base::Object>& item : items) {
         if (!item) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
                 "ItemCollection reset item must not be null");
         }
-        Base::Result<void> added =
-            replacement.PushBack(item);
-        if (!added) return added.GetStatus();
+        replacement.PushBack(item);
     }
     const std::uint32_t oldCount = items_.Size();
     items_ = std::move(replacement);
@@ -321,613 +286,6 @@ Base::Result<void> ItemCollection::Reset(
     return {};
 }
 
-Base::Result<void> DeferredObjectProgram::Configure(
-    DeferredObjectFactory valueFactory,
-    void* valueContext) noexcept {
-    return Configure(valueFactory, valueContext, {});
-}
-
-Base::Result<void> DeferredObjectProgram::Configure(
-    DeferredObjectFactory valueFactory,
-    void* valueContext,
-    Base::Ref<Base::Object> valueOwner) noexcept {
-    if (sealed) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidState,
-            "Deferred object program is sealed");
-    }
-    if (valueFactory == nullptr) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
-            "Deferred object factory is null");
-    }
-    factory = valueFactory;
-    context = valueContext;
-    factoryOwner = std::move(valueOwner);
-    return {};
-}
-
-Base::Result<void> DeferredObjectProgram::SetBaseUri(
-    const Base::ResourceUri& value) noexcept {
-    if (sealed) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidState,
-            "Deferred object program is sealed");
-    }
-    baseUri = value;
-    return {};
-}
-
-Base::Result<void> DeferredObjectProgram::Seal() noexcept {
-    if (factory == nullptr) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidState,
-            "Deferred object program has no factory");
-    }
-    sealed = true;
-    return {};
-}
-
-Base::Result<Base::Ref<Base::Object>> DeferredObjectProgram::Instantiate(
-    const Base::Ref<Base::Object>& payload,
-    Aero::BindingEngine* bindings) const noexcept {
-    if (factory == nullptr) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidState,
-            "Deferred object program is not ready");
-    }
-    Base::Result<Base::Ref<Base::Object>> result =
-        factory(payload, context, bindings);
-    if (!result || result.Value()) return result;
-    return Base::Status::Failure(Base::ErrorCode::InvalidState,
-        "Deferred object factory returned null");
-}
-
-} // namespace Aero::Controls
-
-namespace Aero {
-
-using namespace Controls;
-
-DataTemplate::DataTemplate() noexcept
-    : state_(new (std::nothrow) Controls::DataTemplateState()) {
-    if (state_ == nullptr) {
-        Base::ReportOutOfMemory(sizeof(Controls::DataTemplateState), alignof(Controls::DataTemplateState), Base::MemoryTag::Ui);
-    }
-}
-
-DataTemplate::~DataTemplate() noexcept {
-    delete static_cast<Controls::DataTemplateState*>(state_);
-    state_ = nullptr;
-}
-
-TypeId DataTemplate::GetDataType() const noexcept {
-    const Controls::DataTemplateState* state = static_cast<const Controls::DataTemplateState*>(state_);
-    return state != nullptr ? state->dataType : InvalidTypeId;
-}
-
-void DataTemplate::SetDataType(TypeId value) noexcept {
-    Controls::DataTemplateState* state = static_cast<Controls::DataTemplateState*>(state_);
-    if (state == nullptr) return;
-    if (state->program.sealed || value == InvalidTypeId) {
-        return;
-    }
-    state->dataType = value;
-}
-
-Base::Ref<Base::Object> DataTemplate::GetHierarchicalItemsSource() const noexcept {
-    const Controls::DataTemplateState* state = static_cast<const Controls::DataTemplateState*>(state_);
-    return state != nullptr ? state->hierarchicalItemsSource : Base::Ref<Base::Object>{};
-}
-
-void DataTemplate::SetHierarchicalItemsSource(Base::Ref<Base::Object> value) noexcept {
-    Controls::DataTemplateState* state = static_cast<Controls::DataTemplateState*>(state_);
-    if (state != nullptr) state->hierarchicalItemsSource = std::move(value);
-}
-
-Base::Ref<Base::Object> DataTemplate::GetHierarchicalItemTemplate() const noexcept {
-    const Controls::DataTemplateState* state = static_cast<const Controls::DataTemplateState*>(state_);
-    return state != nullptr ? state->hierarchicalItemTemplate : Base::Ref<Base::Object>{};
-}
-
-void DataTemplate::SetHierarchicalItemTemplate(Base::Ref<Base::Object> value) noexcept {
-    Controls::DataTemplateState* state = static_cast<Controls::DataTemplateState*>(state_);
-    if (state != nullptr) state->hierarchicalItemTemplate = std::move(value);
-}
-
-ResourceKey DataTemplate::GetImplicitKey() const noexcept {
-    return ResourceKey::FromType(GetDataType());
-}
-
-ResourceDictionary& DataTemplate::GetResources() noexcept {
-    Controls::DataTemplateState* state = static_cast<Controls::DataTemplateState*>(state_);
-    if (state != nullptr) return state->resources;
-    static ResourceDictionary fallback;
-    return fallback;
-}
-
-const ResourceDictionary& DataTemplate::GetResources() const noexcept {
-    const Controls::DataTemplateState* state = static_cast<const Controls::DataTemplateState*>(state_);
-    if (state != nullptr) return state->resources;
-    static ResourceDictionary fallback;
-    return fallback;
-}
-
-bool DataTemplate::GetIsSealed() const noexcept {
-    const Controls::DataTemplateState* state = static_cast<const Controls::DataTemplateState*>(state_);
-    return state != nullptr && state->program.sealed;
-}
-
-ItemsPanelTemplate::ItemsPanelTemplate() noexcept
-    : state_(new (std::nothrow) Controls::ItemsPanelTemplateState()) {
-    if (state_ == nullptr) {
-        Base::ReportOutOfMemory(sizeof(Controls::ItemsPanelTemplateState), alignof(Controls::ItemsPanelTemplateState), Base::MemoryTag::Ui);
-    }
-}
-
-ItemsPanelTemplate::~ItemsPanelTemplate() noexcept {
-    delete static_cast<Controls::ItemsPanelTemplateState*>(state_);
-    state_ = nullptr;
-}
-
-ResourceDictionary& ItemsPanelTemplate::GetResources() noexcept {
-    Controls::ItemsPanelTemplateState* state = static_cast<Controls::ItemsPanelTemplateState*>(state_);
-    if (state != nullptr) return state->resources;
-    static ResourceDictionary fallback;
-    return fallback;
-}
-
-const ResourceDictionary& ItemsPanelTemplate::GetResources() const noexcept {
-    const Controls::ItemsPanelTemplateState* state = static_cast<const Controls::ItemsPanelTemplateState*>(state_);
-    if (state != nullptr) return state->resources;
-    static ResourceDictionary fallback;
-    return fallback;
-}
-
-bool ItemsPanelTemplate::GetIsSealed() const noexcept {
-    const Controls::ItemsPanelTemplateState* state = static_cast<const Controls::ItemsPanelTemplateState*>(state_);
-    return state != nullptr && state->program.sealed;
-}
-
-} // namespace Aero
-
-namespace Aero {
-
-using namespace ::Aero;
-using namespace ::Aero::Controls;
-using namespace ::Aero::Controls;
-
-::Aero::Controls::DataTemplateState* DataTemplateRuntime::State(DataTemplate& value) noexcept {
-    return static_cast<DataTemplateState*>(value.state_);
-}
-
-const ::Aero::Controls::DataTemplateState* DataTemplateRuntime::State(const DataTemplate& value) noexcept {
-    return static_cast<const DataTemplateState*>(value.state_);
-}
-
-::Aero::Controls::ItemsPanelTemplateState* ItemsPanelTemplateRuntime::State(ItemsPanelTemplate& value) noexcept {
-    return static_cast<ItemsPanelTemplateState*>(value.state_);
-}
-
-const ::Aero::Controls::ItemsPanelTemplateState* ItemsPanelTemplateRuntime::State(const ItemsPanelTemplate& value) noexcept {
-    return static_cast<const ItemsPanelTemplateState*>(value.state_);
-}
-
-Base::Result<void> DataTemplateRuntime::Configure(DataTemplate& value, DeferredObjectFactory factory, void* context, Base::Ref<Base::Object> owner) noexcept {
-    DataTemplateState* state = State(value);
-    if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "DataTemplate state allocation failed");
-    return state->program.Configure(factory, context, std::move(owner));
-}
-
-Base::Result<void> ItemsPanelTemplateRuntime::Configure(ItemsPanelTemplate& value, DeferredObjectFactory factory, void* context, Base::Ref<Base::Object> owner) noexcept {
-    ItemsPanelTemplateState* state = State(value);
-    if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "ItemsPanelTemplate state allocation failed");
-    return state->program.Configure(factory, context, std::move(owner));
-}
-
-Base::Result<void> DataTemplateRuntime::SetBaseUri(DataTemplate& value, const Base::ResourceUri& uri) noexcept {
-    DataTemplateState* state = State(value);
-    if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "DataTemplate state allocation failed");
-    return state->program.SetBaseUri(uri);
-}
-
-Base::Result<void> ItemsPanelTemplateRuntime::SetBaseUri(ItemsPanelTemplate& value, const Base::ResourceUri& uri) noexcept {
-    ItemsPanelTemplateState* state = State(value);
-    if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "ItemsPanelTemplate state allocation failed");
-    return state->program.SetBaseUri(uri);
-}
-
-const Base::ResourceUri& DataTemplateRuntime::BaseUri(const DataTemplate& value) noexcept {
-    static Base::ResourceUri empty;
-    const DataTemplateState* state = State(value);
-    return state != nullptr ? state->program.baseUri : empty;
-}
-
-const Base::ResourceUri& ItemsPanelTemplateRuntime::BaseUri(const ItemsPanelTemplate& value) noexcept {
-    static Base::ResourceUri empty;
-    const ItemsPanelTemplateState* state = State(value);
-    return state != nullptr ? state->program.baseUri : empty;
-}
-
-Base::Result<void> DataTemplateRuntime::SetAuthoredVisualTree(DataTemplate& value, const Base::Ref<Base::Object>& tree) noexcept {
-    DataTemplateState* state = State(value);
-    if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "DataTemplate state allocation failed");
-    if (state->program.sealed || !tree) return Base::Status::Failure(Base::ErrorCode::InvalidState, "DataTemplate VisualTree assignment is invalid");
-    state->authoredVisualTree = tree;
-    return {};
-}
-
-Base::Result<void> ItemsPanelTemplateRuntime::SetAuthoredVisualTree(ItemsPanelTemplate& value, const Base::Ref<Base::Object>& tree) noexcept {
-    ItemsPanelTemplateState* state = State(value);
-    if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "ItemsPanelTemplate state allocation failed");
-    if (state->program.sealed || !tree) return Base::Status::Failure(Base::ErrorCode::InvalidState, "ItemsPanelTemplate VisualTree assignment is invalid");
-    state->authoredVisualTree = tree;
-    return {};
-}
-
-void DataTemplateRuntime::ClearAuthoredVisualTree(DataTemplate& value) noexcept { DataTemplateState* state = State(value); if (state != nullptr) state->authoredVisualTree.Reset(); }
-void ItemsPanelTemplateRuntime::ClearAuthoredVisualTree(ItemsPanelTemplate& value) noexcept { ItemsPanelTemplateState* state = State(value); if (state != nullptr) state->authoredVisualTree.Reset(); }
-
-Base::Result<void> DataTemplateRuntime::AddAuthoredTrigger(DataTemplate& value, Base::Ref<Aero::TriggerBase> trigger) noexcept {
-    DataTemplateState* state = State(value);
-    if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "DataTemplate state allocation failed");
-    if (!trigger || state->program.factory != nullptr) return Base::Status::Failure(Base::ErrorCode::InvalidState, "DataTemplate Trigger cannot be added after sealing");
-    return state->authoredTriggers.PushBack(std::move(trigger));
-}
-
-void DataTemplateRuntime::ClearAuthoredTriggers(DataTemplate& value) noexcept { DataTemplateState* state = State(value); if (state != nullptr) state->authoredTriggers.Clear(); }
-
-Base::Span<const Base::Ref<Aero::TriggerBase>> DataTemplateRuntime::AuthoredTriggers(const DataTemplate& value) noexcept {
-    const DataTemplateState* state = State(value);
-    return state != nullptr ? Base::Span<const Base::Ref<Aero::TriggerBase>>(state->authoredTriggers.Data(), state->authoredTriggers.Size()) : Base::Span<const Base::Ref<Aero::TriggerBase>>{};
-}
-
-Base::Result<void> DataTemplateRuntime::RegisterAuthoredName(DataTemplate& value, Base::StringView name, Base::Object& object) noexcept {
-    DataTemplateState* state = State(value);
-    if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "DataTemplate state allocation failed");
-    return state->authoredNames.Register(name, object);
-}
-
-void DataTemplateRuntime::ClearAuthoredNames(DataTemplate& value) noexcept { DataTemplateState* state = State(value); if (state != nullptr) state->authoredNames.Clear(); }
-
-const Aero::NameScope& DataTemplateRuntime::AuthoredNames(const DataTemplate& value) noexcept {
-    static Aero::NameScope empty;
-    const DataTemplateState* state = State(value);
-    return state != nullptr ? state->authoredNames : empty;
-}
-
-const Base::Ref<Base::Object>& DataTemplateRuntime::AuthoredVisualTree(const DataTemplate& value) noexcept {
-    static Base::Ref<Base::Object> empty;
-    const DataTemplateState* state = State(value);
-    return state != nullptr ? state->authoredVisualTree : empty;
-}
-
-const Base::Ref<Base::Object>& ItemsPanelTemplateRuntime::AuthoredVisualTree(const ItemsPanelTemplate& value) noexcept {
-    static Base::Ref<Base::Object> empty;
-    const ItemsPanelTemplateState* state = State(value);
-    return state != nullptr ? state->authoredVisualTree : empty;
-}
-
-Base::Result<void> DataTemplateRuntime::Seal(DataTemplate& value) noexcept {
-    DataTemplateState* state = State(value);
-    if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "DataTemplate state allocation failed");
-    Base::Result<void> program = state->program.Seal();
-    if (!program) return program.GetStatus();
-    return state->resources.Seal();
-}
-
-Base::Result<void> ItemsPanelTemplateRuntime::Seal(ItemsPanelTemplate& value) noexcept {
-    ItemsPanelTemplateState* state = State(value);
-    if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "ItemsPanelTemplate state allocation failed");
-    Base::Result<void> program = state->program.Seal();
-    if (!program) return program.GetStatus();
-    return state->resources.Seal();
-}
-
-Base::Result<Base::Ref<Base::Object>> DataTemplateRuntime::Instantiate(
-    const DataTemplate& value, const Base::Ref<Base::Object>& item,
-    Aero::BindingEngine* bindings) noexcept {
-    const DataTemplateState* state = State(value);
-    if (state == nullptr || state->program.factory == nullptr || !item) return Base::Status::Failure(Base::ErrorCode::InvalidState, "DataTemplate is not ready");
-    return state->program.Instantiate(item, bindings);
-}
-
-Base::Result<Base::Ref<Base::Object>> ItemsPanelTemplateRuntime::Instantiate(const ItemsPanelTemplate& value) noexcept {
-    const ItemsPanelTemplateState* state = State(value);
-    if (state == nullptr || state->program.factory == nullptr) return Base::Status::Failure(Base::ErrorCode::InvalidState, "ItemsPanelTemplate is not ready");
-    return state->program.Instantiate();
-}
-
-} // namespace Aero
-
-namespace Aero::Controls {
-
-using namespace ::Aero::Controls;
-using namespace ::Aero::Controls;
-
-DataTemplateState* TemplatePrivate::State(DataTemplate& value) noexcept {
-    return DataTemplateRuntime::State(value);
-}
-
-const DataTemplateState* TemplatePrivate::State(
-    const DataTemplate& value) noexcept {
-    return DataTemplateRuntime::State(value);
-}
-
-ItemsPanelTemplateState* TemplatePrivate::State(
-    ItemsPanelTemplate& value) noexcept {
-    return ItemsPanelTemplateRuntime::State(value);
-}
-
-const ItemsPanelTemplateState* TemplatePrivate::State(
-    const ItemsPanelTemplate& value) noexcept {
-    return ItemsPanelTemplateRuntime::State(value);
-}
-
-Base::Result<void> TemplatePrivate::Configure(
-    DataTemplate& value,
-    DeferredObjectFactory factory,
-    void* context,
-    Base::Ref<Base::Object> owner) noexcept {
-    return DataTemplateRuntime::Configure(
-        value, factory, context, std::move(owner));
-}
-
-Base::Result<void> TemplatePrivate::Configure(
-    ItemsPanelTemplate& value,
-    DeferredObjectFactory factory,
-    void* context,
-    Base::Ref<Base::Object> owner) noexcept {
-    return ItemsPanelTemplateRuntime::Configure(
-        value, factory, context, std::move(owner));
-}
-
-Base::Result<void> TemplatePrivate::SetBaseUri(
-    DataTemplate& value,
-    const Base::ResourceUri& uri) noexcept {
-    return DataTemplateRuntime::SetBaseUri(value, uri);
-}
-
-Base::Result<void> TemplatePrivate::SetBaseUri(
-    ItemsPanelTemplate& value,
-    const Base::ResourceUri& uri) noexcept {
-    return ItemsPanelTemplateRuntime::SetBaseUri(value, uri);
-}
-
-const Base::ResourceUri& TemplatePrivate::BaseUri(
-    const DataTemplate& value) noexcept {
-    return DataTemplateRuntime::BaseUri(value);
-}
-
-const Base::ResourceUri& TemplatePrivate::BaseUri(
-    const ItemsPanelTemplate& value) noexcept {
-    return ItemsPanelTemplateRuntime::BaseUri(value);
-}
-
-Base::Result<void> TemplatePrivate::SetAuthoredVisualTree(
-    DataTemplate& value,
-    const Base::Ref<Base::Object>& tree) noexcept {
-    return DataTemplateRuntime::SetAuthoredVisualTree(value, tree);
-}
-
-Base::Result<void> TemplatePrivate::SetAuthoredVisualTree(
-    ItemsPanelTemplate& value,
-    const Base::Ref<Base::Object>& tree) noexcept {
-    return ItemsPanelTemplateRuntime::SetAuthoredVisualTree(value, tree);
-}
-
-void TemplatePrivate::ClearAuthoredVisualTree(
-    DataTemplate& value) noexcept {
-    DataTemplateRuntime::ClearAuthoredVisualTree(value);
-}
-
-void TemplatePrivate::ClearAuthoredVisualTree(
-    ItemsPanelTemplate& value) noexcept {
-    ItemsPanelTemplateRuntime::ClearAuthoredVisualTree(value);
-}
-
-Base::Result<void> TemplatePrivate::AddAuthoredTrigger(
-    DataTemplate& value,
-    Base::Ref<Aero::TriggerBase> trigger) noexcept {
-    return DataTemplateRuntime::AddAuthoredTrigger(
-        value, std::move(trigger));
-}
-
-void TemplatePrivate::ClearAuthoredTriggers(
-    DataTemplate& value) noexcept {
-    DataTemplateRuntime::ClearAuthoredTriggers(value);
-}
-
-Base::Span<const Base::Ref<Aero::TriggerBase>>
-TemplatePrivate::AuthoredTriggers(
-    const DataTemplate& value) noexcept {
-    return DataTemplateRuntime::AuthoredTriggers(value);
-}
-
-Base::Result<void> TemplatePrivate::RegisterAuthoredName(
-    DataTemplate& value,
-    Base::StringView name,
-    Base::Object& object) noexcept {
-    return DataTemplateRuntime::RegisterAuthoredName(
-        value, name, object);
-}
-
-void TemplatePrivate::ClearAuthoredNames(
-    DataTemplate& value) noexcept {
-    DataTemplateRuntime::ClearAuthoredNames(value);
-}
-
-const Aero::NameScope& TemplatePrivate::AuthoredNames(
-    const DataTemplate& value) noexcept {
-    return DataTemplateRuntime::AuthoredNames(value);
-}
-
-const Base::Ref<Base::Object>& TemplatePrivate::AuthoredVisualTree(
-    const DataTemplate& value) noexcept {
-    return DataTemplateRuntime::AuthoredVisualTree(value);
-}
-
-const Base::Ref<Base::Object>& TemplatePrivate::AuthoredVisualTree(
-    const ItemsPanelTemplate& value) noexcept {
-    return ItemsPanelTemplateRuntime::AuthoredVisualTree(value);
-}
-
-Base::Result<void> TemplatePrivate::Seal(
-    DataTemplate& value) noexcept {
-    return DataTemplateRuntime::Seal(value);
-}
-
-Base::Result<void> TemplatePrivate::Seal(
-    ItemsPanelTemplate& value) noexcept {
-    return ItemsPanelTemplateRuntime::Seal(value);
-}
-
-Base::Result<Base::Ref<Base::Object>> TemplatePrivate::Instantiate(
-    const DataTemplate& value,
-    const Base::Ref<Base::Object>& item,
-    Aero::BindingEngine* bindings) noexcept {
-    return DataTemplateRuntime::Instantiate(value, item, bindings);
-}
-
-Base::Result<Base::Ref<Base::Object>> TemplatePrivate::Instantiate(
-    const ItemsPanelTemplate& value) noexcept {
-    return ItemsPanelTemplateRuntime::Instantiate(value);
-}
-
-} // namespace Aero::Controls
-
-namespace Aero::Controls {
-
-Base::Result<void> ContentControl::StoreContentProperty(
-    Meta::Value value) noexcept {
-    if (synchronizingContentProperty_) return {};
-    synchronizingContentProperty_ = true;
-    SetValue(ContentProperty, std::move(value));
-    synchronizingContentProperty_ = false;
-    return {};
-}
-
-void ContentControl::OnContentPropertyChanged(
-    ::Aero::DependencyObject& object,
-    const Meta::DependencyPropertyChangedEventArgs&
-        change) noexcept {
-    auto& control = static_cast<ContentControl&>(object);
-    if (control.synchronizingContentProperty_) return;
-    control.synchronizingContentProperty_ = true;
-    static_cast<void>(
-        ::Aero::Core::InteractionStateFacet::SetContentValue(control, change.GetNewValue()));
-    control.synchronizingContentProperty_ = false;
-}
-
-void ContentControl::SetContentValue(
-    Base::Ref<Base::Object> value) noexcept {
-    Base::Result<void> access = VerifyAccess();
-    if (!access) return;
-    if (value &&
-        PropertyRegistry().Types().IsDerivedFrom(
-            value->RuntimeType(),
-            UIElement::StaticTypeId())) {
-        authoredContent_ = Meta::Value::FromObject(
-            value->RuntimeType(), value);
-        SetOwnedContent(
-            value,
-            *static_cast<UIElement*>(value.Get()));
-        return;
-    }
-    literalTextContent_ = false;
-    if (content_ != nullptr) {
-        SetContent(nullptr);
-    }
-    contentValue_ = std::move(value);
-    ownedContent_.Reset();
-    authoredContent_ = contentValue_
-        ? Meta::Value::FromObject(
-            contentValue_->RuntimeType(),
-            contentValue_)
-        : Meta::Value::NullObject(
-            Meta::TypeOf<Base::Object>());
-    (void)InvalidateMeasure();
-}
-
-void ContentControl::SetContentValue(
-    Meta::Value value) noexcept {
-    if (value.IsUnset()) {
-        return;
-    }
-    if (value.Kind() == Meta::ValueKind::Object) {
-        authoredContent_ = value;
-        SetContentValue(value.AsObject());
-        return;
-    }
-    if (value.Kind() != Meta::ValueKind::String) {
-        (void)StoreContentProperty(value);
-        authoredContent_ = std::move(value);
-        contentValue_.Reset();
-        ownedContent_.Reset();
-        (void)InvalidateMeasure();
-        return;
-    }
-
-    if (literalTextContent_ && content_ != nullptr &&
-        PropertyRegistry().Types().IsDerivedFrom(
-            content_->RuntimeType(), TextBlock::StaticTypeId())) {
-        auto* textBlock = static_cast<TextBlock*>(content_);
-        textBlock->SetValue(RichText::TextProperty, value.AsString());
-        textBlock->SetText(value.AsString());
-        (void)StoreContentProperty(value);
-        authoredContent_ = std::move(value);
-        contentValue_.Reset();
-        (void)InvalidateMeasure();
-        (void)InvalidateVisual();
-        return;
-    }
-
-    Base::Result<Base::Ref<TextBlock>> created =
-        Base::MakeRef<TextBlock>();
-    if (!created) return;
-    created.Value()->SetValue(RichText::TextProperty, value.AsString());
-    created.Value()->SetText(value.AsString());
-    Base::Ref<Base::Object> retained(created.Value());
-    SetOwnedContent(retained, *created.Value());
-    (void)StoreContentProperty(value);
-    authoredContent_ = std::move(value);
-    contentValue_.Reset();
-    literalTextContent_ = true;
-    return;
-}
-
-Base::Result<Base::Ref<Base::Object>>
-ContentControl::CreateTemplatedContent() const noexcept {
-    if (content_ != nullptr) {
-        return ownedContent_;
-    }
-    if (!contentValue_) {
-        return Base::Ref<Base::Object>{};
-    }
-    Base::Ref<Base::Object> contentTemplate =
-        GetContentTemplate();
-    if (!contentTemplate) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            "ContentControl business content requires a ContentTemplate");
-    }
-    if (contentTemplate->RuntimeType() !=
-        DataTemplate::StaticTypeId()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "ContentControl ContentTemplate is not a DataTemplate");
-    }
-    Base::Result<Base::Ref<Base::Object>> created =
-        DataTemplateRuntime::Instantiate(
-            *static_cast<DataTemplate*>(contentTemplate.Get()),
-            contentValue_,
-            Aero::Core::GetFacet<::Aero::BindingEngine>(*this));
-    if (!created) return created.GetStatus();
-    if (!created.Value() ||
-        !PropertyRegistry().Types().IsDerivedFrom(
-            created.Value()->RuntimeType(),
-            UIElement::StaticTypeId())) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "ContentTemplate must create a UIElement");
-    }
-    return created;
-}
 
 ItemsControl::ItemsControl() noexcept
     : ItemsControl(StaticTypeId()) {}
@@ -953,6 +311,8 @@ ItemsControl::~ItemsControl() {
             source_->RemoveItemsChanged(
                 sourceHandler_));
     }
+    itemsHost_ = nullptr;
+    defaultItemsPresenter_.Reset();
 }
 
 void ItemsControl::OnApplyTemplate() noexcept {
@@ -986,24 +346,23 @@ void ItemsControl::OnApplyTemplate() noexcept {
             ::Aero::Media::Visual* current = pending.Back();
             pending.PopBack();
             if (current == nullptr) continue;
-            if (PropertyRegistry().Types().IsDerivedFrom(
+            if (DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
                     current->RuntimeType(), Panel::StaticTypeId())) {
                 auto& panel = *static_cast<Panel*>(current);
-                if (panel.GetValueOr(Panel::IsItemsHostProperty, false)) {
+                if (panel.GetValue(Panel::IsItemsHostProperty)) {
                     part = current;
                     break;
                 }
             }
-            if (PropertyRegistry().Types().IsDerivedFrom(
+            if (DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
                     current->RuntimeType(), ContentControl::StaticTypeId())) {
-                UIElement* content = ::Aero::Core::InteractionStateFacet::ContentElement(
-                    *static_cast<ContentControl*>(current));
+                UIElement* content = (*static_cast<ContentControl*>(current)).GetContentElement();
                 if (content != nullptr) {
                     static_cast<void>(pending.PushBack(content));
                 }
             }
             for (::Aero::Media::Visual* child :
-                     current->GetVisualChildren()) {
+                     (*current).RenderChildren()) {
                 if (child != nullptr) {
                     static_cast<void>(pending.PushBack(child));
                 }
@@ -1011,15 +370,22 @@ void ItemsControl::OnApplyTemplate() noexcept {
         }
     }
     if (part == nullptr) {
+        // AeroTheme.Styles (copied from Noesis App Theme) does not set
+        // ItemsControl.Template. Synthesize ItemsPresenter + ItemsPanel so
+        // UniformGrid / StackPanel ItemsPanel templates still apply.
+        static_cast<void>(EnsureDefaultItemsPresenter());
         return;
     }
-    if (PropertyRegistry().Types().IsDerivedFrom(
+    if (DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             part->RuntimeType(),
             ItemsPresenter::StaticTypeId())) {
         itemsHost_ =
             static_cast<ItemsPresenter*>(part)->
                 GetItemsHost();
-    } else if (PropertyRegistry().Types().IsDerivedFrom(
+        if (itemsHost_ == nullptr) {
+            static_cast<void>(EnsureDefaultItemsPresenter());
+        }
+    } else if (DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
                    part->RuntimeType(),
                    Panel::StaticTypeId())) {
         itemsHost_ = static_cast<Panel*>(part);
@@ -1035,6 +401,112 @@ void ItemsControl::OnTemplateDetached() noexcept {
         static_cast<void>(generator_->Detach());
     }
     itemsHost_ = nullptr;
+    defaultItemsPresenter_.Reset();
+}
+
+Size ItemsControl::MeasureOverride(Size availableSize) noexcept {
+    // Noesis synthesizes the default ItemsPresenter during Measure when the
+    // control has no template. OnApplyTemplate can run before the element is
+    // in a tree; retry here so ItemsPanel (UniformGrid) still materializes.
+    if (itemsHost_ == nullptr) {
+        static_cast<void>(EnsureDefaultItemsPresenter());
+    }
+    return Control::MeasureOverride(availableSize);
+}
+
+bool ItemsControl::EnsureDefaultItemsPresenter() noexcept {
+    if (itemsHost_ != nullptr) return true;
+    ::Aero::ElementTree* tree = VisualTree(this);
+    if (tree == nullptr) return false;
+
+    const auto makeHostPanel = [&]() noexcept -> std::pair<Base::Ref<Base::Object>, Panel*> {
+        Base::Ref<Base::Object> panelOwner;
+        Panel* panel = nullptr;
+        const ItemsPanelTemplate* itemsPanel = GetItemsPanel();
+        if (itemsPanel != nullptr) {
+            Base::Result<Base::Ref<Base::Object>> created =
+                ::Aero::Controls::FrameworkTemplateState::Instantiate(*itemsPanel);
+            if (created && created.Value() &&
+                DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
+                    created.Value()->RuntimeType(), Panel::StaticTypeId())) {
+                panelOwner = std::move(created).Value();
+                panel = static_cast<Panel*>(panelOwner.Get());
+            }
+        }
+        if (panel == nullptr) {
+            // WPF parity: StatusBar defaults to DockPanel (see
+            // ItemsControl.ItemsPanel docs), everything else to StackPanel.
+            // Without this, StatusBar items stack vertically when no
+            // ItemsPanel is set (gallery StatusBar sample).
+            if (RuntimeType() == StatusBar::StaticTypeId()) {
+                Base::Result<Base::Ref<DockPanel>> dock =
+                    Base::MakeRef<DockPanel>();
+                if (!dock || !dock.Value()) return {};
+                dock.Value()->SetLastChildFill(false);
+                panelOwner = Base::Ref<Base::Object>(dock.Value());
+                panel = dock.Value().Get();
+            } else {
+                Base::Result<Base::Ref<StackPanel>> stack =
+                    Base::MakeRef<StackPanel>();
+                if (!stack || !stack.Value()) return {};
+                panelOwner = Base::Ref<Base::Object>(stack.Value());
+                panel = stack.Value().Get();
+            }
+        }
+        panel->SetValue(Panel::IsItemsHostProperty, true);
+        return {std::move(panelOwner), panel};
+    };
+
+    ItemsPresenter* templatedPresenter = nullptr;
+    DependencyObject* part = GetTemplateChild("ItemsHost");
+    if (part == nullptr) {
+        part = GetTemplateChild("ItemsPresenter");
+    }
+    if (part != nullptr &&
+        DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
+            part->RuntimeType(), ItemsPresenter::StaticTypeId())) {
+        templatedPresenter = static_cast<ItemsPresenter*>(part);
+    }
+    if (templatedPresenter != nullptr) {
+        if (templatedPresenter->GetItemsHost() == nullptr) {
+            auto made = makeHostPanel();
+            if (made.second == nullptr) return false;
+            Base::Result<Aero::ElementAttachment> panelMounted =
+                tree->AttachElement(*templatedPresenter, *made.second);
+            if (!panelMounted) return false;
+            templatedPresenter->SetItemsHost(made.first, *made.second);
+        }
+        itemsHost_ = templatedPresenter->GetItemsHost();
+        return itemsHost_ != nullptr;
+    }
+
+    if (GetTemplateRoot() != nullptr) return false;
+
+    Base::Result<Base::Ref<ItemsPresenter>> presenter =
+        Base::MakeRef<ItemsPresenter>();
+    if (!presenter || !presenter.Value()) return false;
+    static_cast<void>(
+        (*presenter.Value()).SetTemplatedParent( this));
+
+    auto made = makeHostPanel();
+    Base::Ref<Base::Object> panelOwner = std::move(made.first);
+    Panel* panel = made.second;
+    if (panel == nullptr) return false;
+
+    Base::Result<Aero::ElementAttachment> presenterMounted =
+        tree->AttachElement(*this, *presenter.Value());
+    if (!presenterMounted) return false;
+    static_cast<void>(
+        (*this).SetTemplateChildCore( presenter.Value().Get()));
+
+    Base::Result<Aero::ElementAttachment> panelMounted =
+        tree->AttachElement(*presenter.Value(), *panel);
+    if (!panelMounted) return false;
+    presenter.Value()->SetItemsHost(panelOwner, *panel);
+    itemsHost_ = presenter.Value()->GetItemsHost();
+    defaultItemsPresenter_ =
+        Base::Ref<Base::Object>(std::move(presenter).Value());
+    return itemsHost_ != nullptr;
 }
 
 std::uint32_t ItemsControl::GetCount() const noexcept {
@@ -1071,6 +543,12 @@ Base::Ref<Base::Object> ItemsControl::GetItem(
 
 void ItemsControl::SetItemsSourceCore(
     Collections::IItemsSource* source) noexcept {
+    if (source != nullptr) {
+        if (Data::CollectionView* view =
+                Data::CollectionViewSource::GetDefaultView(source)) {
+            source = view;
+        }
+    }
     if (source_ == source) return;
     if (source != nullptr) {
         source->AddItemsChanged(sourceHandler_);
@@ -1081,10 +559,12 @@ void ItemsControl::SetItemsSourceCore(
                 sourceHandler_));
     }
     source_ = source;
-    fprintf(stderr, "[SRC] SetItemsSourceCore source=%p count=%u\n",
-        (void*)source, source ? source->GetCount() : 0U);
     PublishItemCount();
     PublishReset();
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+    OnItemsSourceCoreChanged();
+#pragma GCC diagnostic pop
 }
 
 void ItemsControl::SetItemTemplateCore(
@@ -1092,6 +572,59 @@ void ItemsControl::SetItemTemplateCore(
     if (itemTemplate_ == value) return;
     itemTemplate_ = value;
     PublishReset();
+}
+
+void ItemsControl::SetItemTemplateSelectorCore(
+    const DataTemplateSelector* value) noexcept {
+    if (itemTemplateSelector_ == value) return;
+    itemTemplateSelector_ = value;
+    PublishReset();
+}
+
+Base::Ref<DataTemplate> ItemsControl::GetTemplateForItemOverride(
+    const Base::Ref<Base::Object>& item,
+    std::uint32_t) const noexcept {
+    if (itemTemplateSelector_ != nullptr) {
+        DataTemplateSelector* selector =
+            const_cast<DataTemplateSelector*>(itemTemplateSelector_);
+        Base::Ref<DataTemplate> selected = selector->SelectTemplate(
+            item.Get(),
+            const_cast<ItemsControl*>(this));
+        if (selected) {
+            return selected;
+        }
+    }
+    if (itemTemplate_ != nullptr) {
+        return Base::Ref<DataTemplate>::FromBorrowed(
+            *const_cast<DataTemplate*>(itemTemplate_));
+    }
+    if (!item) {
+        return {};
+    }
+    const Meta::TypeRegistry& types = DependencyObjectAccess::PropertyRegistry((*this)).Types();
+    Meta::TypeId type = item->RuntimeType();
+    while (type != Meta::InvalidTypeId) {
+        ResourceValue found =
+            TryFindResource(ResourceKey::FromType(type));
+        if (found.Kind() == Meta::ValueKind::Object &&
+            !found.IsNullObject() &&
+            found.AsObject()) {
+            if (DataTemplate* dataTemplate = TryCast<DataTemplate>(
+                    found.AsObject().Get())) {
+                return Base::Ref<DataTemplate>::FromBorrowed(*dataTemplate);
+            }
+        }
+        const Meta::TypeInfo* info = types.FindType(type);
+        if (info == nullptr) {
+            break;
+        }
+        const Meta::TypeId parent = info->BaseType();
+        if (parent == type || parent == Meta::InvalidTypeId) {
+            break;
+        }
+        type = parent;
+    }
+    return {};
 }
 
 void ItemsControl::SetItemsPanelCore(
@@ -1140,47 +673,90 @@ void ItemsControl::PublishItemCount() noexcept {
         HasItemsProperty, count != 0U));
 }
 
+void ItemsControl::OnPropertyChanged(
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    const DependencyPropertyHandle prop = args.GetProperty();
+    if (prop == ItemsSourceProperty.Handle()) {
+        Base::Object* obj = args.GetNewValue().Kind() == Meta::ValueKind::Object
+            ? args.GetNewValue().AsObject().Get()
+            : nullptr;
+        Collections::IItemsSource* source =
+            TryCastToInterface<Collections::IItemsSource>(obj);
+        if (source == nullptr && obj != nullptr) {
+            source = Collections::CollectionAsItemsSource(obj);
+        }
+        SetItemsSourceCore(source);
+    } else if (prop == DisplayMemberPathProperty.Handle()) {
+        PublishReset();
+    } else if (prop == ItemTemplateProperty.Handle()) {
+        Base::Object* obj = args.GetNewValue().Kind() == Meta::ValueKind::Object
+            ? args.GetNewValue().AsObject().Get()
+            : nullptr;
+        SetItemTemplateCore(TryCast<DataTemplate>(obj));
+    } else if (prop == ItemTemplateSelectorProperty.Handle()) {
+        Base::Object* obj = args.GetNewValue().Kind() == Meta::ValueKind::Object
+            ? args.GetNewValue().AsObject().Get()
+            : nullptr;
+        SetItemTemplateSelectorCore(TryCast<DataTemplateSelector>(obj));
+    } else if (prop == ItemsPanelProperty.Handle()) {
+        Base::Object* obj = args.GetNewValue().Kind() == Meta::ValueKind::Object
+            ? args.GetNewValue().AsObject().Get()
+            : nullptr;
+        SetItemsPanelCore(TryCast<ItemsPanelTemplate>(obj));
+    } else if (prop == ItemContainerStyleProperty.Handle()) {
+        Base::Object* obj = args.GetNewValue().Kind() == Meta::ValueKind::Object
+            ? args.GetNewValue().AsObject().Get()
+            : nullptr;
+        SetItemContainerStyleCore(TryCast<Style>(obj));
+    }
+    Control::OnPropertyChanged(args);
+}
+
 Base::Result<Base::Ref<FrameworkElement>>
-ItemsControl::CreateContainer(
-    const Base::Ref<Base::Object>&) noexcept {
-    class GeneratedContentControl : public ContentControl {
-    public:
-        GeneratedContentControl() noexcept
-            : ContentControl(ContentControl::StaticTypeId()) {}
-        ~GeneratedContentControl() override = default;
-    };
-    Base::Result<Base::Ref<GeneratedContentControl>> made =
-        Base::MakeRef<GeneratedContentControl>();
+ItemsControl::GetContainerForItemOverride() const noexcept {
+    // WPF/Noesis GetContainerForItemOverride returns ContentPresenter so
+    // ItemContainerStyle TargetType="ContentPresenter" can apply. A generated
+    // ContentControl rejects that style and aborts item UI activation.
+    Base::Result<Base::Ref<ContentPresenter>> made =
+        Base::MakeRef<ContentPresenter>();
     if (!made) return made.GetStatus();
     return Base::Ref<FrameworkElement>(
         std::move(made).Value());
 }
 
-Base::Result<void> ItemsControl::PrepareContainer(
+Base::Result<void> ItemsControl::PrepareContainerForItemOverride(
     FrameworkElement& container,
     const Base::Ref<Base::Object>& item,
-    std::uint32_t) noexcept {
+    std::uint32_t index) noexcept {
     if (item && item.Get() != &container) {
         container.SetDataContext(
             Value::FromObject(
                 item->RuntimeType(), item));
     }
-    if (!item || itemTemplate_ == nullptr ||
-        !PropertyRegistry().Types().IsDerivedFrom(
+    if (!item ||
+        !DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             container.RuntimeType(), ItemsControl::StaticTypeId())) {
         return {};
     }
 
+    const Base::Ref<DataTemplate> resolved =
+        GetTemplateForItemOverride(item, index);
+    const HierarchicalDataTemplate* hierarchical =
+        TryCast<HierarchicalDataTemplate>(resolved.Get());
+    if (hierarchical == nullptr) {
+        return {};
+    }
+
     const Base::Ref<Base::Object> hierarchicalSource =
-        itemTemplate_->GetHierarchicalItemsSource();
+        hierarchical->GetItemsSource();
     const Base::Ref<Base::Object> hierarchicalTemplate =
-        itemTemplate_->GetHierarchicalItemTemplate();
+        hierarchical->GetItemTemplate();
     if (!hierarchicalSource && !hierarchicalTemplate) return {};
 
     auto& childItems = static_cast<ItemsControl&>(container);
     Base::Ref<DataTemplate> childItemTemplate;
     if (hierarchicalTemplate &&
-        PropertyRegistry().Types().IsDerivedFrom(
+        DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             hierarchicalTemplate->RuntimeType(),
             DataTemplate::StaticTypeId())) {
         childItemTemplate = Base::Ref<DataTemplate>::FromBorrowed(
@@ -1190,10 +766,10 @@ Base::Result<void> ItemsControl::PrepareContainer(
         childItems.SetItemTemplate(std::move(childItemTemplate));
         return {};
     }
-    if (!PropertyRegistry().Types().IsDerivedFrom(
+    if (!DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             hierarchicalSource->RuntimeType(),
             Data::Binding::StaticTypeId())) {
-        if (PropertyRegistry().Types().IsDerivedFrom(
+        if (DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
                 container.RuntimeType(),
                 TreeViewItem::StaticTypeId())) {
             static_cast<TreeViewItem&>(container).SetHierarchicalContent(
@@ -1206,8 +782,7 @@ Base::Result<void> ItemsControl::PrepareContainer(
         return {};
     }
 
-    auto* bindings = ::Aero::Core::GetFacet<::Aero::BindingEngine>(
-        childItems);
+    auto* bindings = ElementTree::BindingsOf(childItems);
     if (bindings == nullptr || bindings->Metadata() == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
@@ -1215,7 +790,7 @@ Base::Result<void> ItemsControl::PrepareContainer(
     }
     const auto& binding =
         static_cast<const Data::Binding&>(*hierarchicalSource);
-    if (PropertyRegistry().Types().IsDerivedFrom(
+    if (DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             container.RuntimeType(),
             TreeViewItem::StaticTypeId())) {
         static_cast<TreeViewItem&>(container).SetHierarchicalBinding(
@@ -1233,13 +808,15 @@ Base::Result<void> ItemsControl::PrepareContainer(
     descriptor.targetProperty = ItemsSourceProperty.Handle();
     descriptor.path = binding.GetPathText();
     descriptor.stringFormat = binding.GetStringFormat();
-    descriptor.mode = binding.GetMode() == Data::BindingMode::Default
-        ? Data::BindingMode::OneWay
-        : binding.GetMode();
-    descriptor.updateSourceTrigger = binding.GetUpdateSourceTrigger() ==
-            Meta::UpdateSourceTrigger::Default
-        ? Meta::UpdateSourceTrigger::PropertyChanged
-        : binding.GetUpdateSourceTrigger();
+    descriptor.mode = bindings->ResolveBindingMode(
+        childItems,
+        ItemsSourceProperty.Handle(),
+        binding.GetMode());
+    descriptor.updateSourceTrigger =
+        bindings->ResolveUpdateSourceTrigger(
+            childItems,
+            ItemsSourceProperty.Handle(),
+            binding.GetUpdateSourceTrigger());
     descriptor.converterResource = binding.GetConverter();
     descriptor.converterParameter = binding.GetConverterParameter();
     descriptor.fallbackValue = binding.GetFallbackValue();
@@ -1249,15 +826,21 @@ Base::Result<void> ItemsControl::PrepareContainer(
     return bindings->ActivateDeferredWhenReady(childItems);
 }
 
-void ItemsControl::ClearContainer(
+void ItemsControl::ClearContainerForItemOverride(
     FrameworkElement& container) noexcept {
-    if (itemTemplate_ != nullptr &&
-        (itemTemplate_->GetHierarchicalItemsSource() ||
-         itemTemplate_->GetHierarchicalItemTemplate()) &&
-        PropertyRegistry().Types().IsDerivedFrom(
+    Base::Ref<Base::Object> item;
+    const Value dataContext = container.GetDataContext();
+    if (dataContext.Kind() == Meta::ValueKind::Object &&
+        !dataContext.IsNullObject()) {
+        item = dataContext.AsObject();
+    }
+    const Base::Ref<DataTemplate> resolved =
+        GetTemplateForItemOverride(item, 0U);
+    if (TryCast<HierarchicalDataTemplate>(resolved.Get()) != nullptr &&
+        DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             container.RuntimeType(), ItemsControl::StaticTypeId())) {
         auto& childItems = static_cast<ItemsControl&>(container);
-        if (PropertyRegistry().Types().IsDerivedFrom(
+        if (DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
                 container.RuntimeType(),
                 TreeViewItem::StaticTypeId())) {
             static_cast<TreeViewItem&>(container)
@@ -1270,18 +853,146 @@ void ItemsControl::ClearContainer(
         FrameworkElement::DataContextProperty);
 }
 
-} // namespace Aero::Controls
+// Legacy WPF-compat shims: forward to the new Override entry points so
+// existing overrides keep working during migration.
+Base::Ref<DataTemplate> ItemsControl::ResolveItemTemplate(
+    const Base::Ref<Base::Object>& item,
+    std::uint32_t index) const noexcept {
+    return GetTemplateForItemOverride(item, index);
+}
 
-namespace Aero::Controls {
+Base::Result<Base::Ref<FrameworkElement>> ItemsControl::CreateContainer(
+    const Base::Ref<Base::Object>&) noexcept {
+    return GetContainerForItemOverride();
+}
+
+Base::Result<void> ItemsControl::PrepareContainer(
+    FrameworkElement& container,
+    const Base::Ref<Base::Object>& item,
+    std::uint32_t index) noexcept {
+    return PrepareContainerForItemOverride(container, item, index);
+}
+
+void ItemsControl::ClearContainer(FrameworkElement& container) noexcept {
+    ClearContainerForItemOverride(container);
+}
+
+void ItemsControl::OnItemsSourceCoreChanged() noexcept {
+    OnItemsChanged({});
+}
+
+namespace {
+
+void AddItemsControlItem(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& item,
+    void*) noexcept {
+    if (!item) {
+        return;
+    }
+    static_cast<ItemsControl&>(owner).GetItems().Add(item);
+}
+
+void ClearItemsControlItems(
+    Base::Object& owner,
+    void*) noexcept {
+    static_cast<ItemsControl&>(owner).GetItems().Reset();
+}
+
+} // namespace
+
+AERO_DESCRIBE(ItemsControl) {
+    using namespace Aero::Meta;
+    Register<Collections::IItemsSource>(context, TypeFlags::Abstract);
+
+    Register<Collections::ObservableCollectionBase>(context, TypeFlags::Abstract)
+        .Implements<Collections::IItemsSource>();
+
+    Register<Collections::ObservableObjectCollection>(context)
+        .Factory()
+        .Implements<Collections::IItemsSource>();
+
+    Register<Data::CollectionView>(context)
+        .Implements<Collections::IItemsSource>();
+
+    Register<Data::CollectionViewSource>(context)
+        .Factory();
+
+    Register<AlternationConverter>(context)
+        .Content<Base::Object>("Values", ContentKind::Collection,
+            [](Base::Object& owner, const Base::Ref<Base::Object>& value, void*) noexcept {
+                static_cast<AlternationConverter&>(owner).AddValue(value);
+            },
+            [](Base::Object& owner, void*) noexcept {
+                static_cast<AlternationConverter&>(owner).ClearValues();
+            })
+        .Factory();
+
+    Register<::Aero::Controls::BoxedItemValue>(context);
+
+    Register<ItemsControl>(context)
+        .Property(ItemsControl::ItemCountProperty, std::uint32_t{0})
+        .Property(ItemsControl::HasItemsProperty, false)
+        .Property(ItemsControl::ItemsSourceProperty, Base::Ref<Base::Object>{}, AffectsMeasure)
+        .Property(ItemsControl::AlternationCountProperty, std::uint32_t{0}, AffectsMeasure)
+        .Property(ItemsControl::DisplayMemberPathProperty, Base::String{}, AffectsMeasure)
+        .Property(ItemsControl::ItemTemplateProperty, Base::Ref<DataTemplate>{}, AffectsMeasure)
+        .Property(ItemsControl::ItemTemplateSelectorProperty, Base::Ref<DataTemplateSelector>{}, AffectsMeasure)
+        .Property(ItemsControl::ItemsPanelProperty, Base::Ref<ItemsPanelTemplate>{}, AffectsMeasure)
+        .Property(ItemsControl::ItemContainerStyleProperty, Base::Ref<Style>{}, AffectsMeasure)
+        .Content<Base::Object>("Items", ContentKind::Collection, &AddItemsControlItem, &ClearItemsControlItems)
+        .Factory();
+}
+
+AERO_DESCRIBE(HeaderedItemsControl) {
+    using namespace Aero::Meta;
+    Register<HeaderedItemsControl>(context, TypeFlags::Abstract)
+        .Property(HeaderedItemsControl::HeaderProperty, Meta::Value::NullObject(Meta::TypeOf<Base::Object>()), AffectsMeasure)
+        .Property(HeaderedItemsControl::HeaderTemplateProperty, Base::Ref<DataTemplate>{}, AffectsMeasure);
+}
+
+
+void ItemsControl::AssignItemsSource(
+    Base::Ref<Base::Object> source) noexcept {
+    Collections::IItemsSource* directSource =
+        TryCastToInterface<Collections::IItemsSource>(source.Get());
+    if (directSource == nullptr) {
+        directSource = Collections::CollectionAsItemsSource(source.Get());
+    }
+    {
+        static int s_n = 0;
+        if (s_n < 5) {
+            ++s_n;
+            std::fprintf(stderr, "[ItemsSource] src=%p iface=%p count=%u\n",
+                source ? (const void*)source.Get() : nullptr,
+                (const void*)directSource,
+                directSource ? directSource->GetCount() : 0U);
+        }
+    }
+    SetItemsSourceCore(directSource);
+}
+
+
+AERO_DESCRIBE(ItemsPresenter) {
+    using namespace Aero::Meta;
+    Register<ItemsPresenter>(context)
+        .Factory();
+}
+
+
+// ============================================================================
+// ItemContainerGenerator & Factory
+// ============================================================================
+
 
 using namespace ::Aero;
 using namespace ::Aero::Controls;
 using namespace ::Aero::Controls;
 using namespace ::Aero;
 
-struct ItemContainerGeneratorRuntime {
+struct ItemContainerGenerator::GeneratorState {
 public:
-    ItemContainerGeneratorRuntime(
+    GeneratorState(
         ItemContainerGenerator& facade,
         ElementTree& tree,
         LayoutEngine& layout,
@@ -1291,12 +1002,12 @@ public:
         TemplateEngine* templates,
         ItemSubtreeCallback subtreeCallback,
         void* subtreeContext) noexcept;
-    ~ItemContainerGeneratorRuntime() noexcept;
+    ~GeneratorState() noexcept;
 
     Base::Result<void> Attach(ItemsControl& owner, Panel& itemsHost) noexcept;
     Base::Result<void> AttachVirtualized(
         ItemsControl& owner,
-        VirtualizingStackPanel& itemsHost) noexcept;
+        VirtualizingPanel& itemsHost) noexcept;
     Base::Result<bool> Detach() noexcept;
     Base::Result<void> Refresh() noexcept;
     Base::Result<bool> SetRealizationRange(
@@ -1319,6 +1030,16 @@ public:
         return recycledContainerUseCount_;
     }
     Base::Status LastError() const noexcept { return lastError_; }
+
+    static Base::Result<ItemContainerGenerator*> Create(
+        ElementTree& tree,
+        Aero::LayoutEngine& layout,
+        Meta::EffectiveValueEngine& values,
+        Aero::StyleEngine* styles,
+        ::Aero::Render::RenderTree* renderer,
+        TemplateEngine* templates,
+        ItemSubtreeCallback subtreeCallback,
+        void* subtreeContext) noexcept;
 
 private:
     struct Record {
@@ -1346,7 +1067,7 @@ private:
     void* subtreeContext_ = nullptr;
     ItemsControl* owner_ = nullptr;
     Panel* host_ = nullptr;
-    VirtualizingStackPanel* virtualizingHost_ = nullptr;
+    VirtualizingPanel* virtualizingHost_ = nullptr;
     Base::Vector<Record> records_;
     Base::Vector<Base::Ref<FrameworkElement>> recycledContainers_;
     ItemsChangedHandler changedHandler_;
@@ -1375,6 +1096,8 @@ private:
         Record& record) noexcept;
     Base::Result<void> UpdateGeneratedHeader(
         Record& record) noexcept;
+    Base::Result<void> ProjectGeneratedContent(
+        Record& record) noexcept;
     void OnGeneratedHeaderChanged(
         DependencyObject& object,
         const DependencyPropertyChangedEventArgs& args) noexcept;
@@ -1395,7 +1118,7 @@ private:
     Base::Result<void> ReleaseRecycledContainers() noexcept;
 };
 
-ItemContainerGeneratorRuntime::ItemContainerGeneratorRuntime(
+ItemContainerGenerator::GeneratorState::GeneratorState(
     ItemContainerGenerator& facade,
     ElementTree& tree,
     LayoutEngine& layout,
@@ -1416,22 +1139,22 @@ ItemContainerGeneratorRuntime::ItemContainerGeneratorRuntime(
       subtreeContext_(subtreeContext),
       changedHandler_(
           this,
-          &ItemContainerGeneratorRuntime::OnItemsChanged),
+          &ItemContainerGenerator::GeneratorState::OnItemsChanged),
       generatedHeaderChangedHandler_(
           this,
-          &ItemContainerGeneratorRuntime::OnGeneratedHeaderChanged) {}
+          &ItemContainerGenerator::GeneratorState::OnGeneratedHeaderChanged) {}
 
-ItemContainerGeneratorRuntime::~ItemContainerGeneratorRuntime() noexcept {
+ItemContainerGenerator::GeneratorState::~GeneratorState() noexcept {
     static_cast<void>(Detach());
 }
 
-Base::Result<void> ItemContainerGeneratorRuntime::Attach(
+Base::Result<void> ItemContainerGenerator::GeneratorState::Attach(
     ItemsControl& owner,
     Panel& itemsHost) noexcept {
     if (owner_ != nullptr ||
-        owner.generator_ != nullptr ||
-        owner.GetTree() != tree_ ||
-        itemsHost.GetTree() != tree_) {
+        ItemContainerGenerator::OwnerHasGenerator(owner) ||
+        VisualTree(owner) != tree_ ||
+        VisualTree(itemsHost) != tree_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "ItemContainerGenerator attach state is invalid");
@@ -1441,7 +1164,7 @@ Base::Result<void> ItemContainerGeneratorRuntime::Attach(
     host_ = &itemsHost;
     virtualizingHost_ = nullptr;
     firstGeneratedIndex_ = 0U;
-    owner.generator_ = facade_;
+    ItemContainerGenerator::SetOwnerGenerator(owner, facade_);
     Base::Result<void> refreshed = Refresh();
     if (!refreshed) {
         static_cast<void>(
@@ -1455,20 +1178,20 @@ Base::Result<void> ItemContainerGeneratorRuntime::Attach(
         records_.Clear();
         owner_ = nullptr;
         host_ = nullptr;
-        owner.generator_ = nullptr;
+        ItemContainerGenerator::SetOwnerGenerator(owner, nullptr);
         return refreshed.GetStatus();
     }
     return {};
 }
 
 Base::Result<void>
-ItemContainerGeneratorRuntime::AttachVirtualized(
+ItemContainerGenerator::GeneratorState::AttachVirtualized(
     ItemsControl& owner,
-    VirtualizingStackPanel& itemsHost) noexcept {
+    VirtualizingPanel& itemsHost) noexcept {
     if (owner_ != nullptr ||
-        owner.generator_ != nullptr ||
-        owner.GetTree() != tree_ ||
-        itemsHost.GetTree() != tree_) {
+        ItemContainerGenerator::OwnerHasGenerator(owner) ||
+        VisualTree(owner) != tree_ ||
+        VisualTree(itemsHost) != tree_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Virtualized item generator attach state is invalid");
@@ -1478,13 +1201,13 @@ ItemContainerGeneratorRuntime::AttachVirtualized(
     host_ = &itemsHost;
     virtualizingHost_ = &itemsHost;
     firstGeneratedIndex_ = 0U;
-    owner.generator_ = facade_;
+    ItemContainerGenerator::SetOwnerGenerator(owner, facade_);
     Base::Result<void> attached =
-        itemsHost.AttachGenerator(*facade_, owner.GetCount());
+        ItemContainerGenerator::AttachHostGenerator(itemsHost, *facade_, owner.GetCount());
     if (!attached) {
         static_cast<void>(
             owner.RemoveItemsChanged(changedHandler_));
-        owner.generator_ = nullptr;
+        ItemContainerGenerator::SetOwnerGenerator(owner, nullptr);
         owner_ = nullptr;
         host_ = nullptr;
         virtualizingHost_ = nullptr;
@@ -1496,20 +1219,20 @@ ItemContainerGeneratorRuntime::AttachVirtualized(
             itemsHost.desiredCount_,
             true);
     if (!realized) {
-        itemsHost.DetachGenerator(*facade_);
+        ItemContainerGenerator::DetachHostGenerator(itemsHost, *facade_);
         static_cast<void>(
             owner.RemoveItemsChanged(changedHandler_));
-        owner.generator_ = nullptr;
+        ItemContainerGenerator::SetOwnerGenerator(owner, nullptr);
         owner_ = nullptr;
         host_ = nullptr;
         virtualizingHost_ = nullptr;
         return realized.GetStatus();
     }
-    owner.OnContainersChanged();
+    ItemContainerGenerator::NotifyOwnerContainersChanged(owner);
     return {};
 }
 
-Base::Result<bool> ItemContainerGeneratorRuntime::Detach() noexcept {
+Base::Result<bool> ItemContainerGenerator::GeneratorState::Detach() noexcept {
     if (owner_ == nullptr) return false;
     static_cast<void>(
         owner_->RemoveItemsChanged(
@@ -1530,9 +1253,9 @@ Base::Result<bool> ItemContainerGeneratorRuntime::Detach() noexcept {
         firstError = released.GetStatus();
     }
     if (virtualizingHost_ != nullptr) {
-        virtualizingHost_->DetachGenerator(*facade_);
+        ItemContainerGenerator::DetachHostGenerator(*virtualizingHost_, *facade_);
     }
-    owner_->generator_ = nullptr;
+    ItemContainerGenerator::SetOwnerGenerator(*owner_, nullptr);
     owner_ = nullptr;
     host_ = nullptr;
     virtualizingHost_ = nullptr;
@@ -1542,8 +1265,8 @@ Base::Result<bool> ItemContainerGeneratorRuntime::Detach() noexcept {
         : Base::Result<bool>(firstError);
 }
 
-Base::Result<ItemContainerGeneratorRuntime::Record>
-ItemContainerGeneratorRuntime::CreateRecord(
+Base::Result<ItemContainerGenerator::GeneratorState::Record>
+ItemContainerGenerator::GeneratorState::CreateRecord(
     std::uint32_t index) noexcept {
     if (owner_ == nullptr ||
         index >= owner_->GetCount()) {
@@ -1558,9 +1281,22 @@ ItemContainerGeneratorRuntime::CreateRecord(
             Base::ErrorCode::InvalidState,
             "ItemsSource returned null");
     }
-    if (owner_->PropertyRegistry().Types().IsDerivedFrom(
+    // WPF contract: derived controls decide via IsItemItsOwnContainerOverride
+    // (e.g. ListBoxItem added directly to a ListBox). Default returns false
+    // and falls through to the FrameworkElement borrow below.
+    const bool isOwnContainer =
+        owner_->IsItemItsOwnContainerOverride(record.item.Get()) ||
+        DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
             record.item->RuntimeType(),
-            FrameworkElement::StaticTypeId())) {
+            FrameworkElement::StaticTypeId());
+    if (isOwnContainer) {
+        if (!DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
+                record.item->RuntimeType(),
+                FrameworkElement::StaticTypeId())) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "IsItemItsOwnContainerOverride returned true for a non-visual item");
+        }
         record.container =
             Base::Ref<FrameworkElement>::FromBorrowed(
                 *static_cast<FrameworkElement*>(
@@ -1568,20 +1304,20 @@ ItemContainerGeneratorRuntime::CreateRecord(
         record.itemIsOwnContainer = true;
         return record;
     }
-    const DataTemplate* itemTemplate =
-        owner_->GetItemTemplate();
-    if (itemTemplate != nullptr) {
+    Base::Ref<DataTemplate> itemTemplate =
+        owner_->GetTemplateForItemOverride(record.item, index);
+    if (itemTemplate) {
         Base::Result<Base::Ref<Base::Object>>
             content =
-                DataTemplateRuntime::Instantiate(
+                FrameworkTemplateState::Instantiate(
                     *itemTemplate, record.item,
-                    Aero::Core::GetFacet<::Aero::BindingEngine>(*owner_));
+                    ElementTree::BindingsOf(*owner_));
         if (!content) return content.GetStatus();
         record.content =
             std::move(content).Value();
     } else if (!owner_->GetDisplayMemberPath().Empty()) {
         Aero::BindingEngine* bindings =
-            Aero::Core::GetFacet<::Aero::BindingEngine>(*owner_);
+            ElementTree::BindingsOf(*owner_);
         Meta::Registry* metadata =
             bindings != nullptr ? bindings->Metadata() : nullptr;
         if (metadata == nullptr) {
@@ -1736,12 +1472,12 @@ ItemContainerGeneratorRuntime::CreateRecord(
             Base::Ref<Base::Object>(
                 std::move(text).Value());
         record.generatedTextContent = true;
-    } else if (owner_->PropertyRegistry().Types()
+    } else if (DependencyObjectAccess::PropertyRegistry(owner_).Types()
         .IsDerivedFrom(
             record.item->RuntimeType(),
             UIElement::StaticTypeId())) {
         record.content = record.item;
-    } else if (owner_->PropertyRegistry().Types().IsDerivedFrom(
+    } else if (DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
                    owner_->RuntimeType(),
                    ListView::StaticTypeId()) &&
                static_cast<ListView*>(owner_)->GetView()) {
@@ -1755,12 +1491,110 @@ ItemContainerGeneratorRuntime::CreateRecord(
             std::move(placeholder).Value());
         record.generatedTextContent = true;
     } else {
-        return Base::Status::Failure(
-            Base::ErrorCode::Unsupported,
-            "Data items require an ItemTemplate");
+        // No ItemTemplate, DisplayMemberPath, or recognized value wrapper was
+        // supplied. Mirror WPF's ToString() fallback by realizing the item
+        // inside a default text element so the container is still generated
+        // instead of dropping the item entirely.
+        // Gallery ItemsControl sample puts a raw string and sys:Double
+        // directly in Items: when the XAML loader does not box them as
+        // BoxedItemValue, try common scalar-holder properties (Value/Text/
+        // Content/Header) before falling back to an empty placeholder.
+        Base::String display;
+        bool haveDisplay = false;
+        if (DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
+                record.item->RuntimeType(),
+                DependencyObject::StaticTypeId())) {
+            Aero::BindingEngine* bindings =
+                ElementTree::BindingsOf(*owner_);
+            Meta::Registry* metadata =
+                bindings != nullptr ? bindings->Metadata() : nullptr;
+            if (metadata != nullptr) {
+                constexpr Base::StringView kCandidates[] = {
+                    Base::StringView("Value"), Base::StringView("Text"),
+                    Base::StringView("Content"), Base::StringView("Header")};
+                for (const Base::StringView name : kCandidates) {
+                    const Meta::PropertyInfo* property =
+                        metadata->Types().FindProperty(
+                            record.item->RuntimeType(),
+                            name,
+                            true);
+                    if (property == nullptr) continue;
+                    Base::Result<Meta::Value> value =
+                        metadata->GetProperty(
+                            *record.item, property->Id());
+                    if (!value) continue;
+                    const Meta::Value& v = value.Value();
+                    Base::Result<void> formatted;
+                    switch (v.Kind()) {
+                    case Meta::ValueKind::String:
+                        formatted = display.Assign(v.AsString());
+                        break;
+                    case Meta::ValueKind::Boolean:
+                        formatted = display.Assign(
+                            v.AsBoolean() ? Base::StringView("True")
+                                          : Base::StringView("False"));
+                        break;
+                    case Meta::ValueKind::SignedInteger: {
+                        char buffer[48]{};
+                        const int length = std::snprintf(
+                            buffer, sizeof(buffer), "%lld",
+                            static_cast<long long>(v.AsSignedInteger()));
+                        formatted = length > 0
+                            ? display.Assign(Base::StringView(
+                                  buffer, static_cast<std::uint32_t>(length)))
+                            : Base::Result<void>(Base::Status::Failure(
+                                  Base::ErrorCode::ValidationFailed,
+                                  "Item fallback integer formatting failed"));
+                        break;
+                    }
+                    case Meta::ValueKind::UnsignedInteger: {
+                        char buffer[48]{};
+                        const int length = std::snprintf(
+                            buffer, sizeof(buffer), "%llu",
+                            static_cast<unsigned long long>(
+                                v.AsUnsignedInteger()));
+                        formatted = length > 0
+                            ? display.Assign(Base::StringView(
+                                  buffer, static_cast<std::uint32_t>(length)))
+                            : Base::Result<void>(Base::Status::Failure(
+                                  Base::ErrorCode::ValidationFailed,
+                                  "Item fallback unsigned formatting failed"));
+                        break;
+                    }
+                    case Meta::ValueKind::Double: {
+                        char buffer[64]{};
+                        const int length = std::snprintf(
+                            buffer, sizeof(buffer), "%.15g", v.AsDouble());
+                        formatted = length > 0
+                            ? display.Assign(Base::StringView(
+                                  buffer, static_cast<std::uint32_t>(length)))
+                            : Base::Result<void>(Base::Status::Failure(
+                                  Base::ErrorCode::ValidationFailed,
+                                  "Item fallback numeric formatting failed"));
+                        break;
+                    }
+                    default:
+                        continue;
+                    }
+                    if (formatted) {
+                        haveDisplay = true;
+                        break;
+                    }
+                }
+            }
+        }
+        Base::Result<Base::Ref<TextBlock>> text =
+            Base::MakeRef<TextBlock>();
+        if (!text) return text.GetStatus();
+        if (haveDisplay) {
+            text.Value()->SetText(display.View());
+        }
+        record.content = Base::Ref<Base::Object>(
+            std::move(text).Value());
+        record.generatedTextContent = true;
     }
     if (!record.content ||
-        !owner_->PropertyRegistry().Types()
+        !DependencyObjectAccess::PropertyRegistry(owner_).Types()
             .IsDerivedFrom(
                 record.content->RuntimeType(),
                 UIElement::StaticTypeId())) {
@@ -1775,7 +1609,7 @@ ItemContainerGeneratorRuntime::CreateRecord(
         ++recycledContainerUseCount_;
     } else {
         Base::Result<Base::Ref<FrameworkElement>> made =
-            owner_->CreateContainer(record.item);
+            owner_->GetContainerForItemOverride();
         if (!made || !made.Value()) {
             if (!made) return made.GetStatus();
             return Base::Status::Failure(
@@ -1791,13 +1625,11 @@ ItemContainerGeneratorRuntime::CreateRecord(
 }
 
 Base::Result<void>
-ItemContainerGeneratorRuntime::AttachOwnedSubtree(
+ItemContainerGenerator::GeneratorState::AttachOwnedSubtree(
     Record& record,
     Aero::Media::Visual& root) noexcept {
     Base::Vector<Aero::Media::Visual*> pending;
-    Base::Result<void> pushed =
-        pending.PushBack(&root);
-    if (!pushed) return pushed.GetStatus();
+    pending.PushBack(&root);
 
     const auto attachChild =
         [this, &record, &pending](
@@ -1805,7 +1637,7 @@ ItemContainerGeneratorRuntime::AttachOwnedSubtree(
             const Base::Ref<Base::Object>& owned)
             noexcept -> Base::Result<void> {
         if (!owned ||
-            !owner_->PropertyRegistry().Types().
+            !DependencyObjectAccess::PropertyRegistry(owner_).Types().
                 IsDerivedFrom(
                     owned->RuntimeType(),
                     UIElement::StaticTypeId())) {
@@ -1814,38 +1646,73 @@ ItemContainerGeneratorRuntime::AttachOwnedSubtree(
         auto& child =
             *static_cast<Aero::Media::Visual*>(
                 owned.Get());
+        auto* childElement = static_cast<UIElement*>(owned.Get());
         if (child.GetVisualParent() == &parent &&
-            child.GetTree() == tree_) {
-            return pending.PushBack(&child);
+            VisualTree(child) == tree_ &&
+            childElement->GetIsLayoutAttached()) {
+            pending.PushBack(&child);
+            return {};
         }
-        if (child.GetVisualParent() != nullptr ||
-            child.GetLogicalParent() != nullptr ||
-            child.GetTree() != nullptr) {
+        if (child.GetVisualParent() == &parent) {
+            if (VisualTree(child) == nullptr &&
+                child.GetLogicalParent() == nullptr) {
+                Base::Result<ElementAttachment> mounted =
+                    tree_->AttachElement(parent, child);
+                if (!mounted) return mounted.GetStatus();
+                record.subtreeMounts.PushBack(std::move(mounted).Value());
+            } else if (!childElement->GetIsLayoutAttached()) {
+                Base::Result<Aero::VisualAttachment> visual =
+                    tree_->AttachVisualChild(parent, child);
+                if (!visual) return visual.GetStatus();
+                ElementAttachment edge;
+                edge.logicalParent = &parent;
+                edge.visualParent = &parent;
+                edge.child = &child;
+                edge.logicalAttached = false;
+                edge.visualAttached = visual.Value().visualAttached;
+                edge.layoutAttached = visual.Value().layoutAttached;
+                edge.renderAttached = visual.Value().renderAttached;
+                record.subtreeMounts.PushBack(std::move(edge));
+            }
+            pending.PushBack(&child);
+            return {};
+        }
+        if (child.GetVisualParent() != nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
                 "Owned item-template child is already mounted elsewhere");
+        }
+        if (child.GetLogicalParent() != nullptr &&
+            child.GetLogicalParent() != &parent) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "Owned item-template child is already mounted elsewhere");
+        }
+        if (child.GetLogicalParent() != nullptr ||
+            VisualTree(child) != nullptr) {
+            Base::Result<Aero::VisualAttachment> visual =
+                tree_->AttachVisualChild(parent, child);
+            if (!visual) return visual.GetStatus();
+            ElementAttachment edge;
+            edge.logicalParent = &parent;
+            edge.visualParent = &parent;
+            edge.child = &child;
+            edge.logicalAttached = false;
+            edge.visualAttached = visual.Value().visualAttached;
+            edge.layoutAttached = visual.Value().layoutAttached;
+            edge.renderAttached = visual.Value().renderAttached;
+            record.subtreeMounts.PushBack(std::move(edge));
+            pending.PushBack(&child);
+            return {};
         }
         Base::Result<ElementAttachment> mounted =
             tree_->AttachElement(parent, child);
         if (!mounted) return mounted.GetStatus();
         ElementAttachment edge =
             std::move(mounted).Value();
-        Base::Result<void> tracked =
-            record.subtreeMounts.PushBack(
+        record.subtreeMounts.PushBack(
                 std::move(edge));
-        if (!tracked) {
-            (void)tree_->DetachElement(edge);
-            return tracked.GetStatus();
-        }
-        Base::Result<void> queued =
-            pending.PushBack(&child);
-        if (!queued) {
-            ElementAttachment rollback =
-                std::move(record.subtreeMounts.Back());
-            record.subtreeMounts.PopBack();
-            (void)tree_->DetachElement(rollback);
-            return queued.GetStatus();
-        }
+        pending.PushBack(&child);
         return {};
     };
 
@@ -1856,24 +1723,24 @@ ItemContainerGeneratorRuntime::AttachOwnedSubtree(
         if (current == nullptr) continue;
         const Meta::TypeId type =
             current->RuntimeType();
-        if (owner_->PropertyRegistry().Types().
+        if (DependencyObjectAccess::PropertyRegistry(owner_).Types().
                 IsDerivedFrom(
                     type, Panel::StaticTypeId())) {
             auto& panel =
                 *static_cast<Panel*>(current);
             for (std::uint32_t index = 0U;
-                 index < ::Aero::Core::VisualFacet::PanelChildCount(panel);
+                 index < (panel).ChildCountCore();
                  ++index) {
                 Base::Result<void> attached =
                     attachChild(
                         panel,
-                        ::Aero::Core::VisualFacet::PanelChildAt(panel, index));
+                        (panel).ChildAtCore( index));
                 if (!attached) {
                     (void)DetachOwnedSubtree(record);
                     return attached.GetStatus();
                 }
             }
-        } else if (owner_->PropertyRegistry().Types().
+        } else if (DependencyObjectAccess::PropertyRegistry(owner_).Types().
                        IsDerivedFrom(
                            type,
                            Decorator::StaticTypeId())) {
@@ -1882,12 +1749,12 @@ ItemContainerGeneratorRuntime::AttachOwnedSubtree(
             Base::Result<void> attached =
                 attachChild(
                     decorator,
-                    ::Aero::Core::VisualFacet::DecoratorOwnedChild(decorator));
+                    (decorator).OwnedChild());
             if (!attached) {
                 (void)DetachOwnedSubtree(record);
                 return attached.GetStatus();
             }
-        } else if (owner_->PropertyRegistry().Types().
+        } else if (DependencyObjectAccess::PropertyRegistry(owner_).Types().
                        IsDerivedFrom(
                            type,
                            ContentControl::StaticTypeId())) {
@@ -1896,12 +1763,12 @@ ItemContainerGeneratorRuntime::AttachOwnedSubtree(
             Base::Result<void> attached =
                 attachChild(
                     content,
-                    ::Aero::Core::InteractionStateFacet::OwnedContent(content));
+                    (content).OwnedContent());
             if (!attached) {
                 (void)DetachOwnedSubtree(record);
                 return attached.GetStatus();
             }
-        } else if (owner_->PropertyRegistry().Types().
+        } else if (DependencyObjectAccess::PropertyRegistry(owner_).Types().
                        IsDerivedFrom(
                            type,
                            ContentPresenter::StaticTypeId())) {
@@ -1921,7 +1788,7 @@ ItemContainerGeneratorRuntime::AttachOwnedSubtree(
 }
 
 Base::Result<void>
-ItemContainerGeneratorRuntime::DetachOwnedSubtree(
+ItemContainerGenerator::GeneratorState::DetachOwnedSubtree(
     Record& record) noexcept {
     Base::Status firstError;
     for (std::uint32_t index =
@@ -1941,7 +1808,7 @@ ItemContainerGeneratorRuntime::DetachOwnedSubtree(
 }
 
 Base::Result<void>
-ItemContainerGeneratorRuntime::AttachRecord(
+ItemContainerGenerator::GeneratorState::AttachRecord(
     Record& record,
     std::uint32_t index) noexcept {
     FrameworkElement& container = *record.container;
@@ -1956,9 +1823,38 @@ ItemContainerGeneratorRuntime::AttachRecord(
     // control template; applying the explicit container style afterwards
     // leaves the already-instantiated implicit template in place.
     const Style* style = owner_->GetItemContainerStyle();
+    const ItemsControl* styleSource = owner_;
+    if (style == nullptr) {
+        const DependencyObject* current = owner_->GetLogicalParent();
+        if (current == nullptr) {
+            current = owner_->GetVisualParent();
+        }
+        while (current != nullptr) {
+            if (const auto* itemsCtrl = TryCast<ItemsControl>(current)) {
+                if (itemsCtrl->GetItemContainerStyle() != nullptr) {
+                    style = itemsCtrl->GetItemContainerStyle();
+                    styleSource = itemsCtrl;
+                    break;
+                }
+            }
+            const DependencyObject* next = nullptr;
+            if (const auto* fe = TryCast<FrameworkElement>(current)) {
+                next = fe->GetLogicalParent();
+                if (next == nullptr) {
+                    next = fe->GetTemplatedParent();
+                }
+            }
+            if (next == nullptr) {
+                if (const auto* v = TryCast<::Aero::Media::Visual>(current)) {
+                    next = v->GetVisualParent();
+                }
+            }
+            current = next;
+        }
+    }
     if (style != nullptr && styles_ != nullptr) {
         Base::Result<Base::Ref<Style>> retained =
-            owner_->GetValue(ItemsControl::ItemContainerStyleProperty);
+            styleSource->GetValue(ItemsControl::ItemContainerStyleProperty);
         if (!retained || !retained.Value()) {
             (void)tree_->DetachElement(record.containerMount);
             return retained
@@ -1974,43 +1870,87 @@ ItemContainerGeneratorRuntime::AttachRecord(
     }
 
     ContentControl* contentControl = nullptr;
+    ContentPresenter* contentPresenter = nullptr;
     HeaderedItemsControl* headeredItemsControl = nullptr;
-    if (owner_->PropertyRegistry().Types().IsDerivedFrom(
+    if (DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
             container.RuntimeType(),
             ContentControl::StaticTypeId())) {
         contentControl = static_cast<ContentControl*>(&container);
     }
-    if (owner_->PropertyRegistry().Types().IsDerivedFrom(
+    if (DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
+            container.RuntimeType(),
+            ContentPresenter::StaticTypeId())) {
+        contentPresenter = static_cast<ContentPresenter*>(&container);
+    }
+    if (DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
             container.RuntimeType(),
             HeaderedItemsControl::StaticTypeId())) {
         headeredItemsControl = static_cast<HeaderedItemsControl*>(&container);
     }
     if (!record.itemIsOwnContainer && headeredItemsControl != nullptr &&
         record.content.Get() != nullptr &&
-        owner_->PropertyRegistry().Types().IsDerivedFrom(
-            record.content->RuntimeType(), TextBlock::StaticTypeId())) {
-        Base::Result<void> subscribed =
+        DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
+            record.content->RuntimeType(), UIElement::StaticTypeId())) {
+        if (DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
+                record.content->RuntimeType(), TextBlock::StaticTypeId())) {
             static_cast<TextBlock*>(record.content.Get())
-                ->AddValueChangedHandlerChecked(
+                ->AddValueChangedHandler(
                     TextBlock::TextProperty,
                     generatedHeaderChangedHandler_);
-        if (!subscribed) {
-            (void)tree_->DetachElement(record.containerMount);
-            return subscribed.GetStatus();
-        }
-        record.generatedHeader = true;
-        Base::Result<void> assigned = UpdateGeneratedHeader(record);
-        if (!assigned) {
-            static_cast<void>(
-                static_cast<TextBlock*>(record.content.Get())
-                    ->RemoveValueChangedHandler(
-                        TextBlock::TextProperty,
-                        generatedHeaderChangedHandler_));
-            record.generatedHeader = false;
-            (void)tree_->DetachElement(record.containerMount);
-            return assigned.GetStatus();
+            record.generatedHeader = true;
+            Base::Result<void> assigned = UpdateGeneratedHeader(record);
+            if (!assigned) {
+                static_cast<void>(
+                    static_cast<TextBlock*>(record.content.Get())
+                        ->RemoveValueChangedHandler(
+                            TextBlock::TextProperty,
+                            generatedHeaderChangedHandler_));
+                record.generatedHeader = false;
+                (void)tree_->DetachElement(record.containerMount);
+                return assigned.GetStatus();
+            }
+        } else {
+            // Complex ItemTemplates (gallery SampleTemplate is a StackPanel)
+            // must be published as Header so ContentSource=Header presenters
+            // display them. Extracting TextBlock.Text only covers string headers.
+            const Value header = Value::FromObject(
+                record.content->RuntimeType(), record.content);
+            if (DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
+                    container.RuntimeType(),
+                    TreeViewItem::StaticTypeId())) {
+                static_cast<TreeViewItem&>(container).SetHeader(header);
+            } else {
+                headeredItemsControl->SetHeader(header);
+            }
+            record.generatedHeader = true;
         }
     } else if (!record.itemIsOwnContainer && contentControl != nullptr) {
+        auto& content =
+            *static_cast<UIElement*>(
+                record.content.Get());
+        if (record.generatedTextContent) {
+            (*contentControl).SetGeneratedTextContent( record.content, content);
+        } else {
+            (*contentControl).SetOwnedContent( record.content, content);
+        }
+        if (record.generatedTextContent &&
+            DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
+                container.RuntimeType(), Control::StaticTypeId())) {
+            auto* text = static_cast<TextBlock*>(record.content.Get());
+            auto& hostControl = static_cast<Control&>(container);
+            text->SetValue(
+                TextBlock::FontSizeProperty, hostControl.GetFontSize());
+        }
+        Base::Result<ElementAttachment> contentMounted =
+            tree_->AttachElement(container, content);
+        if (!contentMounted) {
+            (void)tree_->DetachElement(record.containerMount);
+            return contentMounted.GetStatus();
+        }
+        record.contentMount =
+            std::move(contentMounted).Value();
+    } else if (!record.itemIsOwnContainer && contentPresenter != nullptr &&
+               record.content.Get() != nullptr) {
         auto& content =
             *static_cast<UIElement*>(
                 record.content.Get());
@@ -2022,20 +1962,13 @@ ItemContainerGeneratorRuntime::AttachRecord(
         }
         record.contentMount =
             std::move(contentMounted).Value();
-
-        Base::Result<void> selected =
-            record.generatedTextContent
-            ? ::Aero::Core::InteractionStateFacet::
-                      SetGeneratedTextContent(
-                      *contentControl, record.content, content)
-            : ::Aero::Core::InteractionStateFacet::SetOwnedContent(*contentControl,
-                  record.content, content);
-        if (!selected) {
-            (void)tree_->DetachElement(
-                record.contentMount);
-            (void)tree_->DetachElement(
-                record.containerMount);
-            return selected.GetStatus();
+        contentPresenter->SetOwnedContent(record.content, content);
+        if (contentPresenter->GetContent() != &content) {
+            (void)tree_->DetachElement(record.contentMount);
+            (void)tree_->DetachElement(record.containerMount);
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "ContentPresenter rejected generated item content");
         }
     }
     // UI activation starts at the generated container. This is
@@ -2050,8 +1983,20 @@ ItemContainerGeneratorRuntime::AttachRecord(
         (void)DetachRecord(record);
         return subtreeAttached.GetStatus();
     }
-    Base::Result<void> prepared = owner_->PrepareContainer(container, record.item, index);
+    Base::Result<void> prepared = owner_->PrepareContainerForItemOverride(container, record.item, index);
     if (!prepared) { (void)DetachRecord(record); return prepared.GetStatus(); }
+    Base::Result<void> projected = ProjectGeneratedContent(record);
+    if (!projected) {
+        (void)DetachRecord(record);
+        return projected.GetStatus();
+    }
+    if (record.generatedHeader) {
+        Base::Result<void> synchronized = UpdateGeneratedHeader(record);
+        if (!synchronized) {
+            (void)DetachRecord(record);
+            return synchronized.GetStatus();
+        }
+    }
     if (subtreeCallback_ != nullptr) {
         Base::Result<void> presented =
             subtreeCallback_(
@@ -2064,40 +2009,221 @@ ItemContainerGeneratorRuntime::AttachRecord(
         }
         record.subtreeMounted = true;
     }
-    if (record.generatedHeader) {
-        Base::Result<void> synchronized = UpdateGeneratedHeader(record);
-        if (!synchronized) {
-            (void)DetachRecord(record);
-            return synchronized.GetStatus();
+    // Template apply during activation may recreate PART_Header; re-host.
+    projected = ProjectGeneratedContent(record);
+    if (!projected) {
+        (void)DetachRecord(record);
+        return projected.GetStatus();
+    }
+    if (subtreeCallback_ != nullptr &&
+        record.generatedHeader &&
+        record.content &&
+        DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
+            record.content->RuntimeType(), UIElement::StaticTypeId()) &&
+        !DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
+            record.content->RuntimeType(), TextBlock::StaticTypeId())) {
+        auto& headerVisual =
+            *static_cast<Aero::Media::Visual*>(record.content.Get());
+        if (VisualTree(headerVisual) != nullptr) {
+            Base::Result<void> headerPresented =
+                subtreeCallback_(
+                    headerVisual,
+                    ItemSubtreeChange::Mounted,
+                    subtreeContext_);
+            if (!headerPresented) {
+                (void)DetachRecord(record);
+                return headerPresented.GetStatus();
+            }
         }
     }
     return {};
 }
 
 Base::Result<void>
-ItemContainerGeneratorRuntime::UpdateGeneratedHeader(
+ItemContainerGenerator::GeneratorState::ProjectGeneratedContent(
+    Record& record) noexcept {
+    if (record.itemIsOwnContainer || !record.content || !record.container ||
+        !DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
+            record.content->RuntimeType(), UIElement::StaticTypeId())) {
+        return {};
+    }
+    auto& content = *static_cast<UIElement*>(record.content.Get());
+    // String headers already live on Header; do not also mount the
+    // extracted TextBlock into PART_Header.
+    if (record.generatedHeader &&
+        DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
+            record.content->RuntimeType(), TextBlock::StaticTypeId())) {
+        return {};
+    }
+    if (record.generatedTextContent &&
+        DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
+            record.content->RuntimeType(), TextBlock::StaticTypeId()) &&
+        DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
+            record.container->RuntimeType(), Control::StaticTypeId())) {
+        auto* text = static_cast<TextBlock*>(record.content.Get());
+        auto& hostControl = static_cast<Control&>(*record.container);
+        text->SetValue(
+            TextBlock::FontSizeProperty, hostControl.GetFontSize());
+    }
+    if (!DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
+            record.container->RuntimeType(), Control::StaticTypeId())) {
+        return {};
+    }
+    auto& container = static_cast<Control&>(*record.container);
+    // Prefer the instance PART_Header. FindPart(ContentPresenter) and
+    // templates_->FindName can hit a shared expander content host and steal
+    // sibling SampleTemplate visuals onto one presenter.
+    DependencyObject* part = nullptr;
+    if (templates_ != nullptr) {
+        const TemplateHandle handle = templates_->AppliedHandle(container);
+        if (handle.IsValid()) {
+            part = templates_->FindName(
+                handle, Base::StringView("PART_Header"));
+        }
+    }
+    auto isHeaderPresenter = [&](DependencyObject* node) noexcept -> bool {
+        return node != nullptr &&
+            DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
+                node->RuntimeType(), ContentPresenter::StaticTypeId()) &&
+            static_cast<ContentPresenter*>(node)->GetContentSource() ==
+                Base::StringView("Header");
+    };
+    if (!isHeaderPresenter(part)) {
+        ContentPresenter* walked = nullptr;
+        const auto consider = [&](ContentPresenter* presenter) noexcept {
+            if (presenter != nullptr &&
+                presenter->GetContentSource() == Base::StringView("Header")) {
+                walked = presenter;
+            }
+        };
+        const auto walk = [&](auto&& self, ::Aero::Media::Visual& node) -> void {
+            if (walked != nullptr) {
+                return;
+            }
+            if (&node != &container) {
+                if (::Aero::TryCast<ItemsPresenter>(&node) != nullptr ||
+                    ::Aero::TryCast<TreeViewItem>(&node) != nullptr) {
+                    return;
+                }
+            }
+            if (auto* presenter = ::Aero::TryCast<ContentPresenter>(&node)) {
+                consider(presenter);
+            }
+            const std::uint32_t count =
+                ::Aero::Media::VisualTreeHelper::GetChildrenCount(node);
+            for (std::uint32_t index = 0U; index < count; ++index) {
+                ::Aero::Media::Visual* child =
+                    ::Aero::Media::VisualTreeHelper::GetChild(node, index);
+                if (child != nullptr) {
+                    self(self, *child);
+                }
+            }
+        };
+        walk(walk, container);
+        part = walked;
+    }
+    if (!isHeaderPresenter(part)) {
+        return {};
+    }
+    auto& presenter = *static_cast<ContentPresenter*>(part);
+    UIElement* existing = presenter.GetContent();
+    if (existing != nullptr && existing != &content) {
+        // ContentSource presenters are pre-filled with a TextBlock host for
+        // string Header/Content. Replace it so a DataTemplate visual (gallery
+        // SampleTemplate StackPanel) can occupy PART_Header. Detach layout
+        // before visual: LayoutParent() is the visual parent.
+        ::Aero::VisualAttachment state;
+        state.visualParent = &presenter;
+        state.child = existing;
+        state.visualAttached = existing->GetVisualParent() == &presenter;
+        state.layoutAttached =
+            existing->GetIsLayoutAttached() &&
+            existing->LayoutParent() == &presenter;
+        state.renderAttached = false;
+        if (state.IsAttached()) {
+            Base::Result<void> detached = tree_->DetachVisual(state);
+            if (!detached) {
+                return detached.GetStatus();
+            }
+        }
+        presenter.SetContent(nullptr);
+    }
+    if (content.GetVisualParent() != &presenter) {
+        if (content.GetVisualParent() != nullptr &&
+            content.GetVisualParent() != record.container.Get()) {
+            Base::Result<void> detached = tree_->DetachVisual(
+                *content.GetVisualParent(),
+                static_cast<::Aero::Media::Visual&>(content));
+            if (!detached) {
+                return detached.GetStatus();
+            }
+        }
+        if (record.contentMount.visualAttached ||
+            record.contentMount.layoutAttached ||
+            record.contentMount.renderAttached) {
+            Base::Result<void> detached =
+                tree_->DetachVisual(record.contentMount);
+            if (!detached) {
+                return detached.GetStatus();
+            }
+        }
+        if (record.contentMount.child == &content) {
+            Base::Result<void> attached =
+                tree_->AttachVisual(record.contentMount, presenter);
+            if (!attached) {
+                return attached.GetStatus();
+            }
+        } else if (VisualTree(content) == nullptr &&
+                   content.GetLogicalParent() == nullptr) {
+            Base::Result<ElementAttachment> mounted =
+                tree_->AttachElement(presenter, content);
+            if (!mounted) {
+                return mounted.GetStatus();
+            }
+            record.contentMount = std::move(mounted).Value();
+        } else {
+            Base::Result<Aero::VisualAttachment> visual =
+                tree_->AttachVisualChild(presenter, content);
+            if (!visual) {
+                return visual.GetStatus();
+            }
+            record.contentMount.visualParent = &presenter;
+            record.contentMount.child = &content;
+            record.contentMount.visualAttached = visual.Value().visualAttached;
+            record.contentMount.layoutAttached = visual.Value().layoutAttached;
+            record.contentMount.renderAttached = visual.Value().renderAttached;
+        }
+    }
+    presenter.SetOwnedContent(record.content, content);
+    return AttachOwnedSubtree(record, content);
+}
+
+Base::Result<void>
+ItemContainerGenerator::GeneratorState::UpdateGeneratedHeader(
     Record& record) noexcept {
     if (!record.generatedHeader || !record.content || !record.container ||
-        !owner_->PropertyRegistry().Types().IsDerivedFrom(
+        !DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
             record.content->RuntimeType(), TextBlock::StaticTypeId()) ||
-        !owner_->PropertyRegistry().Types().IsDerivedFrom(
+        !DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
             record.container->RuntimeType(),
             HeaderedItemsControl::StaticTypeId())) {
         return {};
     }
     const Base::StringView text =
         static_cast<TextBlock*>(record.content.Get())->GetText();
-    if (owner_->PropertyRegistry().Types().IsDerivedFrom(
+    if (DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
             record.container->RuntimeType(),
             TreeViewItem::StaticTypeId())) {
-        return static_cast<TreeViewItem*>(record.container.Get())
+        static_cast<TreeViewItem*>(record.container.Get())
             ->SetHeader(text);
+        return {};
     }
-    return static_cast<HeaderedItemsControl*>(record.container.Get())
+    static_cast<HeaderedItemsControl*>(record.container.Get())
         ->SetHeader(text);
+    return {};
 }
 
-void ItemContainerGeneratorRuntime::OnGeneratedHeaderChanged(
+void ItemContainerGenerator::GeneratorState::OnGeneratedHeaderChanged(
     DependencyObject& object,
     const DependencyPropertyChangedEventArgs&) noexcept {
     for (Record& record : records_) {
@@ -2110,26 +2236,34 @@ void ItemContainerGeneratorRuntime::OnGeneratedHeaderChanged(
 }
 
 Base::Result<void>
-ItemContainerGeneratorRuntime::DetachRecord(
+ItemContainerGenerator::GeneratorState::DetachRecord(
     Record& record,
     bool recycleContainer) noexcept {
     if (!record.container) return {};
     FrameworkElement& container = *record.container;
     ContentControl* contentControl = nullptr;
+    ContentPresenter* contentPresenter = nullptr;
     HeaderedItemsControl* headeredItemsControl = nullptr;
-    if (owner_->PropertyRegistry().Types().IsDerivedFrom(
+    if (DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
             container.RuntimeType(),
             ContentControl::StaticTypeId())) {
         contentControl = static_cast<ContentControl*>(&container);
     }
-    if (owner_->PropertyRegistry().Types().IsDerivedFrom(
+    if (DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
+            container.RuntimeType(),
+            ContentPresenter::StaticTypeId())) {
+        contentPresenter = static_cast<ContentPresenter*>(&container);
+    }
+    if (DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
             container.RuntimeType(),
             HeaderedItemsControl::StaticTypeId())) {
         headeredItemsControl = static_cast<HeaderedItemsControl*>(&container);
     }
     Base::Status firstError;
     const auto capture = [&firstError](const Base::Result<void>& result) noexcept {
-        if (!result && firstError.IsOk()) firstError = result.GetStatus();
+        if (!result && firstError.IsOk()) {
+            firstError = result.GetStatus();
+        }
     };
     if (record.subtreeMounted &&
         subtreeCallback_ != nullptr) {
@@ -2148,7 +2282,7 @@ ItemContainerGeneratorRuntime::DetachRecord(
     // an explicit teardown because the container subtree walk cannot reach it.
     if (record.generatedHeader && record.content &&
         subtreeCallback_ != nullptr &&
-        owner_->PropertyRegistry().Types().IsDerivedFrom(
+        DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
             record.content->RuntimeType(), UIElement::StaticTypeId())) {
         capture(subtreeCallback_(
             *static_cast<Aero::Media::Visual*>(record.content.Get()),
@@ -2156,9 +2290,9 @@ ItemContainerGeneratorRuntime::DetachRecord(
             subtreeContext_));
     }
     capture(DetachOwnedSubtree(record));
-    owner_->ClearContainer(container);
+    owner_->ClearContainerForItemOverride(container);
     if (record.generatedHeader && headeredItemsControl != nullptr) {
-        if (record.content && owner_->PropertyRegistry().Types().IsDerivedFrom(
+        if (record.content && DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
                 record.content->RuntimeType(), TextBlock::StaticTypeId())) {
             static_cast<void>(
                 static_cast<TextBlock*>(record.content.Get())
@@ -2167,7 +2301,7 @@ ItemContainerGeneratorRuntime::DetachRecord(
                         generatedHeaderChangedHandler_));
         }
         const auto clearHeader = [&]() noexcept {
-            if (owner_->PropertyRegistry().Types().IsDerivedFrom(
+            if (DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
                     container.RuntimeType(), TreeViewItem::StaticTypeId())) {
                 static_cast<TreeViewItem&>(container).SetHeader(
                     Value::NullObject(Meta::TypeOf<Base::Object>()));
@@ -2186,10 +2320,9 @@ ItemContainerGeneratorRuntime::DetachRecord(
     }
     if (!record.itemIsOwnContainer &&
         templates_ != nullptr &&
-        owner_->PropertyRegistry().Types().IsDerivedFrom(
+        DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
             container.RuntimeType(), Control::StaticTypeId()) &&
-        ::Aero::Core::InteractionStateFacet::IsTemplateApplied(
-            static_cast<Control&>(container))) {
+        (static_cast<Control&>(container)).IsTemplateApplied()) {
         Base::Result<bool> cleared =
             templates_->Clear(static_cast<Control&>(container));
         if (!cleared) {
@@ -2199,24 +2332,25 @@ ItemContainerGeneratorRuntime::DetachRecord(
     }
     UIElement* content = nullptr;
     if (!record.itemIsOwnContainer && contentControl != nullptr) {
-        content = ::Aero::Core::InteractionStateFacet::ContentElement(
-            *contentControl);
+        content = (*contentControl).GetContentElement();
+    } else if (!record.itemIsOwnContainer && contentPresenter != nullptr) {
+        content = contentPresenter->GetContent();
     }
     if (content != nullptr) {
         capture(tree_->DetachElement(record.contentMount));
-        contentControl->SetContent(nullptr);
-        capture(values_->DetachObject(*content));
+        if (contentControl != nullptr) {
+            contentControl->SetContent(nullptr);
+        } else if (contentPresenter != nullptr) {
+            contentPresenter->SetContent(nullptr);
+        }
+        tree_->InvalidateNodeHandle(*content);
     }
     capture(tree_->DetachElement(record.containerMount));
     if (!record.itemIsOwnContainer &&
         recycleContainer && firstError.IsOk()) {
-        Base::Result<void> recycled = recycledContainers_.PushBack(std::move(record.container));
-        if (!recycled) {
-            capture(values_->DetachObject(container));
-            if (firstError.IsOk()) firstError = recycled.GetStatus();
-        }
+        recycledContainers_.PushBack(std::move(record.container));
     } else {
-        capture(values_->DetachObject(container));
+        tree_->InvalidateNodeHandle(container);
     }
     record.item.Reset();
     record.content.Reset();
@@ -2230,16 +2364,12 @@ ItemContainerGeneratorRuntime::DetachRecord(
 }
 
 Base::Result<void>
-ItemContainerGeneratorRuntime::ReleaseRecycledContainers() noexcept {
+ItemContainerGenerator::GeneratorState::ReleaseRecycledContainers() noexcept {
     Base::Status firstError;
     for (Base::Ref<FrameworkElement>& container :
         recycledContainers_) {
         if (!container) continue;
-        Base::Result<void> detached =
-            values_->DetachObject(*container);
-        if (!detached && firstError.IsOk()) {
-            firstError = detached.GetStatus();
-        }
+        tree_->InvalidateNodeHandle(*container);
     }
     recycledContainers_.Clear();
     return firstError.IsOk()
@@ -2248,7 +2378,7 @@ ItemContainerGeneratorRuntime::ReleaseRecycledContainers() noexcept {
 }
 
 Base::Result<void>
-ItemContainerGeneratorRuntime::InsertRecord(
+ItemContainerGenerator::GeneratorState::InsertRecord(
     std::uint32_t index,
     Record record) noexcept {
     if (index > records_.Size()) {
@@ -2257,20 +2387,8 @@ ItemContainerGeneratorRuntime::InsertRecord(
             Base::ErrorCode::OutOfRange,
             "Generated container insert is out of range");
     }
-    Base::Result<void> reserved =
-        records_.Reserve(records_.Size() + 1U);
-    if (!reserved) {
-        const Base::Status error = reserved.GetStatus();
-        static_cast<void>(DetachRecord(record));
-        return error;
-    }
-    Base::Result<void> appended =
-        records_.PushBack(std::move(record));
-    if (!appended) {
-        const Base::Status error = appended.GetStatus();
-        static_cast<void>(DetachRecord(record));
-        return error;
-    }
+    records_.Reserve(records_.Size() + 1U);
+    records_.PushBack(std::move(record));
     if (index + 1U == records_.Size()) return {};
     Record moving = std::move(records_.Back());
     for (std::uint32_t current =
@@ -2283,7 +2401,7 @@ ItemContainerGeneratorRuntime::InsertRecord(
     return {};
 }
 
-void ItemContainerGeneratorRuntime::RemoveRecordAt(
+void ItemContainerGenerator::GeneratorState::RemoveRecordAt(
     std::uint32_t index) noexcept {
     for (std::uint32_t current = index;
         current + 1U < records_.Size(); ++current) {
@@ -2294,7 +2412,7 @@ void ItemContainerGeneratorRuntime::RemoveRecordAt(
 }
 
 Base::Result<void>
-ItemContainerGeneratorRuntime::ReorderVisuals() noexcept {
+ItemContainerGenerator::GeneratorState::ReorderVisuals() noexcept {
     for (Record& record : records_) {
         Base::Result<void> detached = tree_->DetachVisual(record.containerMount);
         if (!detached) return detached.GetStatus();
@@ -2307,7 +2425,7 @@ ItemContainerGeneratorRuntime::ReorderVisuals() noexcept {
 }
 
 Base::Result<bool>
-ItemContainerGeneratorRuntime::SetRealizationRangeInternal(
+ItemContainerGenerator::GeneratorState::SetRealizationRangeInternal(
     std::uint32_t firstIndex,
     std::uint32_t count,
     bool force) noexcept {
@@ -2322,9 +2440,6 @@ ItemContainerGeneratorRuntime::SetRealizationRangeInternal(
         owner_->GetCount();
     firstIndex = std::min(firstIndex, itemCount);
     count = std::min(count, itemCount - firstIndex);
-    fprintf(stderr,
-        "[REALIZE] first=%u count=%u itemCount=%u force=%d\n",
-        firstIndex, count, itemCount, (int)force);
     if (!force &&
         firstGeneratedIndex_ == firstIndex &&
         records_.Size() == count) {
@@ -2346,9 +2461,7 @@ ItemContainerGeneratorRuntime::SetRealizationRangeInternal(
         return firstError;
     }
 
-    Base::Result<void> reserved =
-        records_.Reserve(count);
-    if (!reserved) return reserved.GetStatus();
+    records_.Reserve(count);
     for (std::uint32_t offset = 0U;
         offset < count; ++offset) {
         const std::uint32_t index =
@@ -2366,14 +2479,7 @@ ItemContainerGeneratorRuntime::SetRealizationRangeInternal(
             firstError = attached.GetStatus();
             break;
         }
-        Base::Result<void> added =
-            records_.PushBack(std::move(record));
-        if (!added) {
-            firstError = added.GetStatus();
-            static_cast<void>(
-                DetachRecord(record, true));
-            break;
-        }
+        records_.PushBack(std::move(record));
     }
     if (!firstError.IsOk()) {
         for (std::uint32_t index = records_.Size();
@@ -2389,7 +2495,7 @@ ItemContainerGeneratorRuntime::SetRealizationRangeInternal(
 }
 
 Base::Result<bool>
-ItemContainerGeneratorRuntime::SetRealizationRange(
+ItemContainerGenerator::GeneratorState::SetRealizationRange(
     std::uint32_t firstIndex,
     std::uint32_t count) noexcept {
     Base::Result<bool> changed =
@@ -2400,12 +2506,12 @@ ItemContainerGeneratorRuntime::SetRealizationRange(
         : changed.GetStatus();
     if (changed && changed.Value() &&
         owner_ != nullptr) {
-        owner_->OnContainersChanged();
+        ItemContainerGenerator::NotifyOwnerContainersChanged(*owner_);
     }
     return changed;
 }
 
-Base::Result<void> ItemContainerGeneratorRuntime::Refresh() noexcept {
+Base::Result<void> ItemContainerGenerator::GeneratorState::Refresh() noexcept {
     if (owner_ == nullptr || host_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -2430,9 +2536,7 @@ Base::Result<void> ItemContainerGeneratorRuntime::Refresh() noexcept {
         if (!detached) return detached.GetStatus();
     }
     records_.Clear();
-    Base::Result<void> reserved =
-        records_.Reserve(owner_->GetCount());
-    if (!reserved) return reserved.GetStatus();
+    records_.Reserve(owner_->GetCount());
     for (std::uint32_t index = 0U;
         index < owner_->GetCount(); ++index) {
         Base::Result<Record> made =
@@ -2460,30 +2564,13 @@ Base::Result<void> ItemContainerGeneratorRuntime::Refresh() noexcept {
             records_.Clear();
             return error;
         }
-        Base::Result<void> added =
-            records_.PushBack(
+        records_.PushBack(
                 std::move(record));
-        if (!added) {
-            const Base::Status error = added.GetStatus();
-            static_cast<void>(DetachRecord(record));
-            for (std::uint32_t cleanup = records_.Size();
-                cleanup > 0U; --cleanup) {
-                static_cast<void>(
-                    DetachRecord(records_[cleanup - 1U]));
-            }
-            records_.Clear();
-            return error;
-        }
     }
-    fprintf(stderr,
-        "[REFRESH] non-virt records=%u hostChildren=%u host=%p\n",
-        records_.Size(),
-        host_ ? Core::VisualFacet::PanelChildCount(*host_) : 0U,
-        (void*)host_);
     return {};
 }
 
-Base::Result<void> ItemContainerGeneratorRuntime::ApplyChange(
+Base::Result<void> ItemContainerGenerator::GeneratorState::ApplyChange(
     const ItemsChangedEvent& event) noexcept {
     if (event.action == ItemsChangeAction::Reset) {
         return Refresh();
@@ -2590,29 +2677,22 @@ Base::Result<void> ItemContainerGeneratorRuntime::ApplyChange(
     return Refresh();
 }
 
-void ItemContainerGeneratorRuntime::OnItemsChanged(
+void ItemContainerGenerator::GeneratorState::OnItemsChanged(
     const ItemsChangedEvent& event) noexcept {
     Base::Result<void> applied;
-    fprintf(stderr,
-        "[GEN] OnItemsChanged action=%d vhost=%p ownerCount=%u\n",
-        (int)event.action, (void*)virtualizingHost_,
-        owner_ ? owner_->GetCount() : 0U);
     if (virtualizingHost_ != nullptr &&
         owner_ != nullptr) {
-        applied =
-            virtualizingHost_->HandleItemsChanged(
-                event, owner_->GetCount());
-        if (applied) {
-            Base::Result<bool> realized =
-                SetRealizationRangeInternal(
-                    virtualizingHost_->
-                        desiredFirstIndex_,
-                    virtualizingHost_->
-                        desiredCount_,
-                    true);
-            if (!realized) {
-                applied = realized.GetStatus();
-            }
+        ItemContainerGenerator::HostHandleItemsChanged(
+            *virtualizingHost_, event, owner_->GetCount());
+        Base::Result<bool> realized =
+            SetRealizationRangeInternal(
+                virtualizingHost_->
+                    desiredFirstIndex_,
+                virtualizingHost_->
+                    desiredCount_,
+                true);
+        if (!realized) {
+            applied = realized.GetStatus();
         }
     } else {
         applied = ApplyChange(event);
@@ -2621,12 +2701,12 @@ void ItemContainerGeneratorRuntime::OnItemsChanged(
         ? Base::Status{}
         : applied.GetStatus();
     if (applied && owner_ != nullptr) {
-        owner_->OnContainersChanged();
+        ItemContainerGenerator::NotifyOwnerContainersChanged(*owner_);
     }
 }
 
 FrameworkElement*
-ItemContainerGeneratorRuntime::ContainerFromIndex(
+ItemContainerGenerator::GeneratorState::ContainerFromIndex(
     std::uint32_t index) const noexcept {
     return index >= firstGeneratedIndex_ &&
         index - firstGeneratedIndex_ <
@@ -2638,7 +2718,7 @@ ItemContainerGeneratorRuntime::ContainerFromIndex(
 }
 
 std::uint32_t
-ItemContainerGeneratorRuntime::IndexFromContainer(
+ItemContainerGenerator::GeneratorState::IndexFromContainer(
     const FrameworkElement& container) const noexcept {
     for (std::uint32_t index = 0U;
         index < records_.Size(); ++index) {
@@ -2651,7 +2731,7 @@ ItemContainerGeneratorRuntime::IndexFromContainer(
 }
 
 Base::Ref<Base::Object>
-ItemContainerGeneratorRuntime::ItemFromContainer(
+ItemContainerGenerator::GeneratorState::ItemFromContainer(
     const FrameworkElement& container) const noexcept {
     const std::uint32_t index =
         IndexFromContainer(container);
@@ -2666,14 +2746,14 @@ ItemContainerGeneratorRuntime::ItemFromContainer(
 namespace Aero::Controls {
 
 ItemContainerGenerator::~ItemContainerGenerator() noexcept {
-    delete static_cast<::Aero::Controls::ItemContainerGeneratorImpl*>(impl_);
-    impl_ = nullptr;
+    delete state_;
+    state_ = nullptr;
 }
 
 Base::Result<void> ItemContainerGenerator::Attach(
     ItemsControl& owner,
     Panel& itemsHost) noexcept {
-    auto* runtime = static_cast<::Aero::Controls::ItemContainerGeneratorImpl*>(impl_);
+    auto* runtime = state_;
     return runtime != nullptr
         ? runtime->Attach(owner, itemsHost)
         : Base::Result<void>(Base::Status::Failure(
@@ -2683,8 +2763,8 @@ Base::Result<void> ItemContainerGenerator::Attach(
 
 Base::Result<void> ItemContainerGenerator::AttachVirtualized(
     ItemsControl& owner,
-    VirtualizingStackPanel& itemsHost) noexcept {
-    auto* runtime = static_cast<::Aero::Controls::ItemContainerGeneratorImpl*>(impl_);
+    VirtualizingPanel& itemsHost) noexcept {
+    auto* runtime = state_;
     return runtime != nullptr
         ? runtime->AttachVirtualized(owner, itemsHost)
         : Base::Result<void>(Base::Status::Failure(
@@ -2693,12 +2773,12 @@ Base::Result<void> ItemContainerGenerator::AttachVirtualized(
 }
 
 Base::Result<bool> ItemContainerGenerator::Detach() noexcept {
-    auto* runtime = static_cast<::Aero::Controls::ItemContainerGeneratorImpl*>(impl_);
+    auto* runtime = state_;
     return runtime != nullptr ? runtime->Detach() : Base::Result<bool>(false);
 }
 
 Base::Result<void> ItemContainerGenerator::Refresh() noexcept {
-    auto* runtime = static_cast<::Aero::Controls::ItemContainerGeneratorImpl*>(impl_);
+    auto* runtime = state_;
     return runtime != nullptr
         ? runtime->Refresh()
         : Base::Result<void>(Base::Status::Failure(
@@ -2709,52 +2789,52 @@ Base::Result<void> ItemContainerGenerator::Refresh() noexcept {
 void ItemContainerGenerator::SetRealizationRange(
     std::uint32_t firstIndex,
     std::uint32_t count) noexcept {
-    auto* runtime = static_cast<::Aero::Controls::ItemContainerGeneratorImpl*>(impl_);
+    auto* runtime = state_;
     if (runtime != nullptr) (void)runtime->SetRealizationRange(firstIndex, count);
 }
 
 std::uint32_t ItemContainerGenerator::GetGeneratedCount() const noexcept {
-    auto* runtime = static_cast<::Aero::Controls::ItemContainerGeneratorImpl*>(impl_);
+    auto* runtime = state_;
     return runtime != nullptr ? runtime->GetGeneratedCount() : 0U;
 }
 
 std::uint32_t ItemContainerGenerator::GetFirstGeneratedIndex() const noexcept {
-    auto* runtime = static_cast<::Aero::Controls::ItemContainerGeneratorImpl*>(impl_);
+    auto* runtime = state_;
     return runtime != nullptr ? runtime->GetFirstGeneratedIndex() : 0U;
 }
 
 std::uint32_t ItemContainerGenerator::GetCreatedContainerCount() const noexcept {
-    auto* runtime = static_cast<::Aero::Controls::ItemContainerGeneratorImpl*>(impl_);
+    auto* runtime = state_;
     return runtime != nullptr ? runtime->GetCreatedContainerCount() : 0U;
 }
 
 std::uint32_t ItemContainerGenerator::GetRecycledContainerUseCount() const noexcept {
-    auto* runtime = static_cast<::Aero::Controls::ItemContainerGeneratorImpl*>(impl_);
+    auto* runtime = state_;
     return runtime != nullptr ? runtime->GetRecycledContainerUseCount() : 0U;
 }
 
 FrameworkElement* ItemContainerGenerator::ContainerFromIndex(
     std::uint32_t index) const noexcept {
-    auto* runtime = static_cast<::Aero::Controls::ItemContainerGeneratorImpl*>(impl_);
+    auto* runtime = state_;
     return runtime != nullptr ? runtime->ContainerFromIndex(index) : nullptr;
 }
 
 std::uint32_t ItemContainerGenerator::IndexFromContainer(
     const FrameworkElement& container) const noexcept {
-    auto* runtime = static_cast<::Aero::Controls::ItemContainerGeneratorImpl*>(impl_);
+    auto* runtime = state_;
     return runtime != nullptr ? runtime->IndexFromContainer(container) : UINT32_MAX;
 }
 
 Base::Ref<Base::Object> ItemContainerGenerator::ItemFromContainer(
     const FrameworkElement& container) const noexcept {
-    auto* runtime = static_cast<::Aero::Controls::ItemContainerGeneratorImpl*>(impl_);
+    auto* runtime = state_;
     return runtime != nullptr
         ? runtime->ItemFromContainer(container)
         : Base::Ref<Base::Object>{};
 }
 
 Base::Status ItemContainerGenerator::LastError() const noexcept {
-    auto* runtime = static_cast<::Aero::Controls::ItemContainerGeneratorImpl*>(impl_);
+    auto* runtime = state_;
     return runtime != nullptr
         ? runtime->LastError()
         : Base::Status::Failure(
@@ -2762,27 +2842,23 @@ Base::Status ItemContainerGenerator::LastError() const noexcept {
               "ItemContainerGenerator is not initialized");
 }
 
-} // namespace Aero::Controls
-
-namespace Aero::Core {
-
-Base::Result<Controls::ItemContainerGenerator*>
-InteractionStateFacet::CreateItemContainerGenerator(
+Base::Result<ItemContainerGenerator*>
+ItemContainerGenerator::GeneratorState::Create(
     ElementTree& tree,
     Aero::LayoutEngine& layout,
     Meta::EffectiveValueEngine& values,
     Aero::StyleEngine* styles,
     ::Aero::Render::RenderTree* renderer,
-    Controls::TemplateEngine* templates,
-    Controls::ItemSubtreeCallback subtreeCallback,
+    TemplateEngine* templates,
+    ItemSubtreeCallback subtreeCallback,
     void* subtreeContext) noexcept {
-    auto* generator = new (std::nothrow) Controls::ItemContainerGenerator();
+    auto* generator = new (std::nothrow) ItemContainerGenerator();
     if (generator == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfMemory,
             "ItemContainerGenerator allocation failed");
     }
-    generator->impl_ = new (std::nothrow) Controls::ItemContainerGeneratorImpl(
+    generator->state_ = new (std::nothrow) ItemContainerGenerator::GeneratorState(
         *generator,
         tree,
         layout,
@@ -2792,7 +2868,7 @@ InteractionStateFacet::CreateItemContainerGenerator(
         templates,
         subtreeCallback,
         subtreeContext);
-    if (generator->impl_ == nullptr) {
+    if (generator->state_ == nullptr) {
         delete generator;
         return Base::Status::Failure(
             Base::ErrorCode::OutOfMemory,
@@ -2801,22 +2877,67 @@ InteractionStateFacet::CreateItemContainerGenerator(
     return generator;
 }
 
-} // namespace Aero::Core
 
-
-
-namespace Aero {
-
-void DataTemplate::SetResources(Base::Ref<ResourceDictionary> value) noexcept {
-    Controls::DataTemplateState* state = static_cast<Controls::DataTemplateState*>(state_);
-    if (state == nullptr) return;
-    (void)Aero::AssignResourceDictionary(state->resources, std::move(value), "DataTemplate Resources is already assigned");
+bool ItemContainerGenerator::OwnerHasGenerator(
+    const ItemsControl& owner) noexcept {
+    return owner.generator_ != nullptr;
 }
 
-void Controls::ItemsPanelTemplate::SetResources(Base::Ref<ResourceDictionary> value) noexcept {
-    Controls::ItemsPanelTemplateState* state = static_cast<Controls::ItemsPanelTemplateState*>(state_);
-    if (state == nullptr) return;
-    (void)Aero::AssignResourceDictionary(state->resources, std::move(value), "ItemsPanelTemplate Resources is already assigned");
+void ItemContainerGenerator::SetOwnerGenerator(
+    ItemsControl& owner,
+    ItemContainerGenerator* generator) noexcept {
+    owner.generator_ = generator;
 }
 
-} // namespace Aero
+void ItemContainerGenerator::NotifyOwnerContainersChanged(
+    ItemsControl& owner) noexcept {
+    owner.OnContainersChanged();
+}
+
+Base::Result<void> ItemContainerGenerator::AttachHostGenerator(
+    VirtualizingPanel& host,
+    ItemContainerGenerator& generator,
+    std::uint32_t itemCount) noexcept {
+    return host.AttachGenerator(generator, itemCount);
+}
+
+void ItemContainerGenerator::DetachHostGenerator(
+    VirtualizingPanel& host,
+    ItemContainerGenerator& generator) noexcept {
+    host.DetachGenerator(generator);
+}
+
+void ItemContainerGenerator::HostHandleItemsChanged(
+    VirtualizingPanel& host,
+    const ItemsChangedEvent& event,
+    std::uint32_t itemCount) noexcept {
+    host.HandleItemsChanged(event, itemCount);
+}
+
+} // namespace Aero::Controls
+
+namespace Aero::Controls {
+
+Base::Result<ItemContainerGenerator*>
+ItemContainerGeneratorFactory::Create(
+    ElementTree& tree,
+    Aero::LayoutEngine& layout,
+    Meta::EffectiveValueEngine& values,
+    Aero::StyleEngine* styles,
+    ::Aero::Render::RenderTree* renderer,
+    TemplateEngine* templates,
+    ItemSubtreeCallback subtreeCallback,
+    void* subtreeContext) noexcept {
+    return ItemContainerGenerator::GeneratorState::Create(
+        tree,
+        layout,
+        values,
+        styles,
+        renderer,
+        templates,
+        subtreeCallback,
+        subtreeContext);
+}
+
+
+} // namespace Aero::Controls

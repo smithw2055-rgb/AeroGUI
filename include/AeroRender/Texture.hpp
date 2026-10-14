@@ -34,14 +34,10 @@ public:
     virtual bool HasAlpha() const noexcept = 0;
 
     /// Stores custom private data
-    void SetPrivateData(Ref<Base::Object> data) noexcept {
-        privateData_ = data;
-    }
+    void SetPrivateData(Ref<Base::Object> data) noexcept { privateData_ = data; }
 
     /// Gets custom private data
-    Ref<Base::Object> GetPrivateData() const noexcept {
-        return privateData_;
-    }
+    Ref<Base::Object> GetPrivateData() const noexcept { return privateData_; }
 
 protected:
     Texture() noexcept = default;

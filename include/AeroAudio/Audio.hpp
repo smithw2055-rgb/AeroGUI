@@ -22,11 +22,9 @@ public:
 
     void SetMusicVolume(float value) noexcept;
     void SetEffectsVolume(float value) noexcept;
-    Result<void> PlayMusic(
-        StringView filePath) noexcept;
+    Result<void> PlayMusic(StringView filePath) noexcept;
     Result<void> StopMusic() noexcept;
-    Result<void> PlayEffect(
-        StringView filePath) noexcept;
+    Result<void> PlayEffect(StringView filePath) noexcept;
 
 private:
     void* state_ = nullptr;

@@ -6,7 +6,7 @@ thread or pending frame queue.
 
 ## Default desktop application
 
-Every visible `Aero::Window` is managed by `DesktopHost` with one native window,
+Every visible `Aero::App::Window` is managed by `DesktopHost` with one native window,
 one `View`, and one source-only `Aero::App::RenderContext`:
 
 ```text
@@ -71,4 +71,4 @@ OpenGL context recreation through `RenderContext`; embedded hosts coordinate
 their own callback resources.
 
 Optional statistics are available from
-`<Aero/Diagnostics/Rendering.hpp>`.
+`<Aero/Diagnostics.hpp>`.

@@ -174,8 +174,8 @@ struct Shader {
 };
 
 static constexpr const uint8_t VertexForShader[Shader::Count] = {
-    0, 0, 0, 1, 2, 2, 2, 3, 4, 4, 4, 4, 5, 6, 6, 6, 7, 8, 8, 8, 8, 9, 10, 10, 10, 11, 12, 12, 12,
-    12, 9, 10, 10, 10, 11, 12, 12, 12, 12, 13, 14, 14, 14, 15, 16, 16, 16, 16, 17, 18, 19, 13, 20
+    0, 13, 0, 1, 2, 2, 2, 3, 4, 4, 4, 4, 5, 6, 6, 6, 7, 8, 8, 8, 8, 9, 10, 10, 10, 11, 12, 12, 12,
+    12, 9, 10, 10, 10, 11, 12, 12, 12, 12, 13, 14, 14, 14, 15, 16, 16, 16, 16, 17, 18, 13, 13, 13
 };
 
 static constexpr const uint8_t FormatForVertex[Shader::Vertex::Count] = {
@@ -197,6 +197,99 @@ static constexpr const uint8_t TypeForAttr[Shader::Vertex::Format::Attr::Count] 
 static constexpr const uint8_t SizeForType[Shader::Vertex::Format::Attr::Type::Count] = {
     4, 8, 16, 4, 8
 };
+
+#pragma pack(push, 1)
+
+// Format 0: Pos (8 bytes)
+struct VertexPos {
+    float x = 0.0f;
+    float y = 0.0f;
+};
+
+// Format 1: PosColor (12 bytes)
+struct VertexPosColor {
+    float x = 0.0f;
+    float y = 0.0f;
+    uint32_t color = 0xFFFFFFFF;
+};
+
+// Format 2: PosTex0 (16 bytes)
+struct VertexPosTex0 {
+    float x = 0.0f;
+    float y = 0.0f;
+    float u = 0.0f;
+    float v = 0.0f;
+};
+
+// Format 5: PosColorCoverage (16 bytes)
+struct VertexPosColorCoverage {
+    float x = 0.0f;
+    float y = 0.0f;
+    uint32_t color = 0xFFFFFFFF;
+    float coverage = 1.0f;
+};
+
+// Format 6: PosTex0Coverage (20 bytes)
+struct VertexPosTex0Coverage {
+    float x = 0.0f;
+    float y = 0.0f;
+    float u = 0.0f;
+    float v = 0.0f;
+    float coverage = 1.0f;
+};
+
+// Format 9: PosColorTex1 (20 bytes) - used for SDF text (PosColorTex1_SDF)
+struct VertexPosColorTex1 {
+    float x = 0.0f;
+    float y = 0.0f;
+    uint32_t color = 0xFFFFFFFF;
+    float u = 0.0f;
+    float v = 0.0f;
+};
+
+// Format 10: PosTex0Tex1 (24 bytes)
+struct VertexPosTex0Tex1 {
+    float x = 0.0f;
+    float y = 0.0f;
+    float u0 = 0.0f;
+    float v0 = 0.0f;
+    float u1 = 0.0f;
+    float v1 = 0.0f;
+};
+
+// Format 13: PosColorTex0Tex1 (28 bytes)
+struct VertexPosColorTex0Tex1 {
+    float x = 0.0f;
+    float y = 0.0f;
+    uint32_t color = 0xFFFFFFFF;
+    float u0 = 0.0f;
+    float v0 = 0.0f;
+    float u1 = 0.0f;
+    float v1 = 0.0f;
+};
+
+// Compatibility 24-byte full layout
+struct Vertex2D {
+    float x = 0.0f;
+    float y = 0.0f;
+    uint32_t color = 0xFFFFFFFF;
+    float u = 0.0f;
+    float v = 0.0f;
+    float coverage = 1.0f;
+};
+
+#pragma pack(pop)
+
+static_assert(sizeof(VertexPos) == 8, "VertexPos size mismatch");
+static_assert(sizeof(VertexPosColor) == 12, "VertexPosColor size mismatch");
+static_assert(sizeof(VertexPosTex0) == 16, "VertexPosTex0 size mismatch");
+static_assert(sizeof(VertexPosColorCoverage) == 16, "VertexPosColorCoverage size mismatch");
+static_assert(sizeof(VertexPosTex0Coverage) == 20, "VertexPosTex0Coverage size mismatch");
+static_assert(sizeof(VertexPosColorTex1) == 20, "VertexPosColorTex1 size mismatch");
+static_assert(sizeof(VertexPosTex0Tex1) == 24, "VertexPosTex0Tex1 size mismatch");
+static_assert(sizeof(VertexPosColorTex0Tex1) == 28, "VertexPosColorTex0Tex1 size mismatch");
+static_assert(sizeof(Vertex2D) == 24, "Vertex2D size mismatch");
+
 
 // Alpha blending mode
 struct RenderBlendMode {
@@ -286,8 +379,7 @@ union SamplerState {
 };
 
 // Uniform shader values with hash for caching
-struct UniformData {
-    const void* values = nullptr;
+struct UniformData { const void* values = nullptr;
     uint32_t numDwords = 0U;
     uint32_t hash = 0U;
 };
@@ -362,18 +454,15 @@ enum class RenderBackendHealth : std::uint8_t {
 namespace Diagnostics {
 struct RenderDeviceStatistics;
 struct RenderFrameStatistics;
-AERO_GUI_API RenderDeviceStatistics GetRenderDeviceStatistics(
-    const Aero::RenderDevice& device) noexcept;
-AERO_GUI_API RenderFrameStatistics GetLastRenderFrameStatistics(
-    const Aero::RenderDevice& device) noexcept;
+AERO_GUI_API RenderDeviceStatistics GetRenderDeviceStatistics(const Aero::RenderDevice& device) noexcept;
+AERO_GUI_API RenderFrameStatistics GetLastRenderFrameStatistics(const Aero::RenderDevice& device) noexcept;
 }
 
 namespace Render {
 using BlendMode = Aero::RenderBlendMode;
 using RenderDeviceBase = Aero::RenderDevice;
 
-AERO_GUI_API Result<Ref<Aero::RenderDevice>> CreateHeadlessRenderDevice(
-    Base::IAllocator* allocator = nullptr) noexcept;
+AERO_GUI_API Result<Ref<Aero::RenderDevice>> CreateHeadlessRenderDevice(Base::IAllocator* allocator = nullptr) noexcept;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -392,37 +481,31 @@ public:
 
     void NotifyDeviceLost() noexcept;
     Result<void> Restore() noexcept;
-    Result<void> WaitIdle(
-        std::uint32_t timeoutMilliseconds = 5000U) noexcept;
+    Result<void> WaitIdle(std::uint32_t timeoutMilliseconds = 5000U) noexcept;
 
     /// Retrieves device render capabilities
     virtual const DeviceCaps& GetCaps() const noexcept = 0;
 
     /// Creates render target surface with given dimensions, samples and optional stencil buffer
-    virtual Ref<RenderTarget> CreateRenderTarget(
-        const char* label, uint32_t width, uint32_t height,
+    virtual Ref<RenderTarget> CreateRenderTarget(const char* label, uint32_t width, uint32_t height,
         uint32_t sampleCount, bool needsStencil) noexcept = 0;
 
     /// Creates render target sharing transient (stencil, colorAA) buffers with the given surface
-    virtual Ref<RenderTarget> CloneRenderTarget(
-        const char* label, RenderTarget* surface) noexcept = 0;
+    virtual Ref<RenderTarget> CloneRenderTarget(const char* label, RenderTarget* surface) noexcept = 0;
 
     /// Creates texture with given dimensions and format
-    virtual Ref<Texture> CreateTexture(
-        const char* label, uint32_t width, uint32_t height,
+    virtual Ref<Texture> CreateTexture(const char* label, uint32_t width, uint32_t height,
         uint32_t numLevels, TextureFormat::Enum format, const void** data) noexcept = 0;
 
     /// Begins a block for uploading texture data
     virtual void BeginUpdatingTextures() noexcept;
 
     /// Updates a region of a texture mip level by copying the given data to the specified position
-    virtual void UpdateTexture(
-        Texture* texture, uint32_t level, uint32_t x, uint32_t y,
+    virtual void UpdateTexture(Texture* texture, uint32_t level, uint32_t x, uint32_t y,
         uint32_t width, uint32_t height, const void* data) noexcept = 0;
 
     /// Marks the end of a texture update block
-    virtual void EndUpdatingTextures(
-        Texture** textures, uint32_t count) noexcept;
+    virtual void EndUpdatingTextures(Texture** textures, uint32_t count) noexcept;
 
     /// Begins rendering offscreen commands
     virtual void BeginOffscreenRender() noexcept = 0;
@@ -446,8 +529,7 @@ public:
     virtual void EndTile(RenderTarget* surface) noexcept = 0;
 
     /// Resolves multisample render target
-    virtual void ResolveRenderTarget(
-        RenderTarget* surface, const Tile* tiles, uint32_t numTiles) noexcept = 0;
+    virtual void ResolveRenderTarget(RenderTarget* surface, const Tile* tiles, uint32_t numTiles) noexcept = 0;
 
     /// Gets a pointer to stream vertices
     virtual void* MapVertices(uint32_t bytes) noexcept = 0;
@@ -495,15 +577,12 @@ protected:
     virtual RenderBackendKind BackendKind() const noexcept { return backend_; }
     virtual void NotifyBackendDeviceLost() noexcept {}
     virtual Result<void> RestoreBackendDevice() noexcept { return {}; }
-    virtual Result<void> WaitBackendIdle(
-        std::uint32_t timeoutMilliseconds) noexcept {
+    virtual Result<void> WaitBackendIdle(std::uint32_t timeoutMilliseconds) noexcept {
         static_cast<void>(timeoutMilliseconds);
         return {};
     }
     virtual RenderBackendHealth BackendHealth() const noexcept {
-        return state_ == RenderDeviceState::Ready
-            ? RenderBackendHealth::Ready
-            : RenderBackendHealth::Failed;
+        return state_ == RenderDeviceState::Ready ? RenderBackendHealth::Ready : RenderBackendHealth::Failed;
     }
 
     RenderDeviceState state_ = RenderDeviceState::Ready;

@@ -78,6 +78,18 @@ public:
         const RenderFrame& frame,
         RenderTarget& target) noexcept;
 
+    void Downsample(
+        Texture* source,
+        const Rect& bounds,
+        const Size& sourceDimensions,
+        double opacity = 1.0) noexcept;
+
+    void Upsample(
+        Texture* base,
+        Texture* blur,
+        const Rect& bounds,
+        double blendWeight = 1.0) noexcept;
+
     FrameStatistics LastStatistics() const noexcept { return stats_; }
 
 private:
@@ -111,6 +123,7 @@ private:
     struct OffscreenTargetEntry {
         RenderNodeId nodeId = InvalidRenderNodeId;
         bool isMask = false;
+        bool inUse = false;
         Ref<RenderTarget> target;
         std::uint32_t width = 0U;
         std::uint32_t height = 0U;
@@ -118,11 +131,26 @@ private:
 
     struct ClipEntry {
         Rect rect;
-        Transform2D transform;
+        ProjectiveTransform2D transform;
+        bool geometry = false;
+        std::uint32_t vertexOffset = 0U;
+        std::uint32_t vertexCount = 0U;
+        std::uint32_t indexOffset = 0U;
+        std::uint32_t indexCount = 0U;
+    };
+
+    struct QueuedBatch {
+        Batch batch{};
+        float pixelUniforms0[8]{};
+        float pixelUniforms1[4]{};
+        float vertexUniforms0[4]{};
+        float vertexUniforms1[4]{};
     };
 
     void ResetFrame() noexcept;
     void FlushBatch() noexcept;
+    void CommitBatches() noexcept;
+    bool EnsureMappedBuffers() noexcept;
     Texture* FindImage(RenderImageId id) const noexcept;
     Texture* FindAtlas(std::uint32_t page) const noexcept;
     const Base::Vector<RenderGlyphQuad>* FindGlyphRun(
@@ -132,6 +160,7 @@ private:
     RenderTarget* GetOrCreateOffscreenTarget(
         RenderNodeId nodeId, std::uint32_t width, std::uint32_t height,
         bool isMask = false) noexcept;
+    void BeginOffscreenTargetFrame() noexcept;
 
     void EmitQuad(
         const Point points[4],
@@ -152,7 +181,18 @@ private:
 
     void EmitClipQuad(
         const Rect& rect,
-        const Transform2D& transform,
+        const ProjectiveTransform2D& transform,
+        std::uint8_t stencilMode,
+        std::uint8_t stencilRef) noexcept;
+
+    void EmitClipTriangles(
+        Base::Span<const Point> vertices,
+        Base::Span<const std::uint32_t> indices,
+        std::uint32_t vertexOffset,
+        std::uint32_t vertexCount,
+        std::uint32_t indexOffset,
+        std::uint32_t indexCount,
+        const ProjectiveTransform2D& transform,
         std::uint8_t stencilMode,
         std::uint8_t stencilRef) noexcept;
 
@@ -168,25 +208,32 @@ private:
         Shader::Enum shader,
         Texture* texture,
         Texture* maskTexture = nullptr) noexcept;
+    void SetBatchRamp(
+        Shader::Enum shader,
+        Texture* ramp,
+        const float uniforms[8],
+        std::uint8_t wrapMode = 0U) noexcept;
 
     void CompositeOffscreen(
         const RenderNodeSnapshot& node,
         RenderTarget* offscreen,
         RenderTarget* maskTarget,
-        const Transform2D& nodeTransform,
+        const ProjectiveTransform2D& nodeTransform,
         double nodeOpacity,
         double dpi,
         const RenderFrame& frame) noexcept;
 
     void EmitMaskBrush(
         const RenderMaskSnapshot& mask,
+        double padX,
+        double padY,
         double width,
         double height,
         const RenderFrame& frame) noexcept;
 
     void ProcessCommand(
         const RenderCommand& cmd,
-        const Transform2D& currentTransform,
+        const ProjectiveTransform2D& currentTransform,
         double currentOpacity) noexcept;
 
     RenderBlendMode::Enum currentBlendMode_ = BlendMode::SrcOver;
@@ -202,6 +249,9 @@ private:
     Base::Vector<OffscreenTargetEntry> offscreenTargets_{allocator_};
     Base::Vector<ClipEntry> clipStack_{allocator_};
     float offscreenSizeUniform_[2] = {0.0F, 0.0F};
+    float customEffectUniforms_[4] = {0.0F, 0.0F, 0.0F, 0.0F};
+    float paintUniforms_[8]{};
+    const RenderFrame* currentFrame_ = nullptr;
 
     std::uint8_t clipDepth_ = 0U;
 
@@ -212,9 +262,20 @@ private:
     uint32_t currentIndexCount_ = 0U;
 
     Batch currentBatch_{};
+    Base::Vector<QueuedBatch> queuedBatches_{allocator_};
+    uint32_t currentBatchVertexStart_ = 0U;
     FrameStatistics stats_{};
     bool initialized_ = false;
     bool inRender_ = false;
+
+    mutable RenderImageId lastImageId_ = InvalidRenderImageId;
+    mutable Texture* lastImage_ = nullptr;
+
+    mutable RenderGlyphRunId lastGlyphRunId_ = InvalidRenderGlyphRunId;
+    mutable const Base::Vector<RenderGlyphQuad>* lastGlyphRun_ = nullptr;
+
+    mutable RenderMeshId lastMeshId_ = InvalidRenderMeshId;
+    mutable const MeshEntry* lastMesh_ = nullptr;
 };
 
 using FrameEncoderStatistics = FrameStatistics;

@@ -4,6 +4,8 @@
 #include <Aero/Base/Config.hpp>
 
 #include <cstring>
+#include <string>
+#include <string_view>
 
 namespace Aero::Base {
 
@@ -11,16 +13,25 @@ class StringView  {
 public:
     constexpr StringView() noexcept = default;
 
-    constexpr StringView(const char* data, std::uint32_t size) noexcept
-        : data_(data), size_(size) {
+    constexpr StringView(const char* data, std::uint32_t size) noexcept : data_(data), size_(size) {
         AERO_ASSERT(data != nullptr || size == 0U);
     }
 
-    template<std::size_t N>
-    constexpr StringView(const char (&literal)[N]) noexcept
+    template<std::size_t N> constexpr StringView(const char (&literal)[N]) noexcept
         : data_(literal), size_(static_cast<std::uint32_t>(N - 1U)) {
         static_assert(N > 0U, "String literal must include a terminator");
         static_assert(N - 1U <= UINT32_MAX, "String literal is too large");
+    }
+
+    constexpr StringView(std::string_view sv) noexcept
+        : data_(sv.data()), size_(static_cast<std::uint32_t>(sv.size())) {}
+
+    template<class Traits, class Alloc>
+    StringView(const std::basic_string<char, Traits, Alloc>& str) noexcept
+        : data_(str.data()), size_(static_cast<std::uint32_t>(str.size())) {}
+
+    constexpr operator std::string_view() const noexcept {
+        return std::string_view(data_, size_);
     }
 
     constexpr const char* Data() const noexcept { return data_; }
@@ -33,12 +44,9 @@ public:
     }
 
     constexpr const char* begin() const noexcept { return data_; }
-    constexpr const char* end() const noexcept {
-        return size_ == 0U ? data_ : data_ + size_;
-    }
+    constexpr const char* end() const noexcept { return size_ == 0U ? data_ : data_ + size_; }
 
-    constexpr StringView Substr(
-        std::uint32_t offset, std::uint32_t count) const noexcept {
+    constexpr StringView Substr(std::uint32_t offset, std::uint32_t count) const noexcept {
         AERO_ASSERT(offset <= size_);
         AERO_ASSERT(count <= size_ - offset);
         return {offset == 0U ? data_ : data_ + offset, count};
@@ -51,11 +59,8 @@ public:
 
     int Compare(StringView other) const noexcept {
         const std::uint32_t common = size_ < other.size_ ? size_ : other.size_;
-        if (common > 0U) {
-            const int result = std::memcmp(data_, other.data_, common);
-            if (result != 0) {
-                return result;
-            }
+        if (common > 0U) { const int result = std::memcmp(data_, other.data_, common);
+            if (result != 0) { return result; }
         }
         return size_ < other.size_ ? -1 : (size_ > other.size_ ? 1 : 0);
     }
@@ -69,9 +74,7 @@ inline bool operator==(StringView left, StringView right) noexcept {
     return left.SizeBytes() == right.SizeBytes() && left.Compare(right) == 0;
 }
 
-inline bool operator!=(StringView left, StringView right) noexcept {
-    return !(left == right);
-}
+inline bool operator!=(StringView left, StringView right) noexcept { return !(left == right); }
 
 } // namespace Aero::Base
 

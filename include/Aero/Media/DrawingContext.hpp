@@ -7,7 +7,8 @@
 
 namespace Aero::Media {
 class Brush;
-struct DrawingContextRuntime;
+class Pen;
+class Geometry;
 
 // WPF-facing retained drawing surface used by FrameworkElement::OnRender().
 // The context records semantic drawing operations; render plans, resource IDs
@@ -18,47 +19,32 @@ public:
     DrawingContext(const DrawingContext&) = delete;
     DrawingContext& operator=(const DrawingContext&) = delete;
 
-    Result<void> PushClip(Base::Rect clip) noexcept;
-    Result<void> PopClip() noexcept;
-    Result<void> PushOpacity(double opacity) noexcept;
-    Result<void> PopOpacity() noexcept;
-    Result<void> PushTransform(
-        Base::Transform2D transform) noexcept;
-    Result<void> PopTransform() noexcept;
+    // Nested bridge for DisplayListBuilder (TU-local definition). Not a
+    // separate public companion type.
+    struct Bridge;
 
-    Result<void> DrawRectangle(
-        Base::Rect bounds,
-        Base::Color color) noexcept;
-    Result<void> DrawRectangle(
-        Base::Rect bounds,
-        const Ref<Brush>& brush) noexcept;
-    Result<void> DrawRectangle(
-        const Ref<Brush>& fill,
-        const Ref<Brush>& stroke,
-        Base::Rect bounds,
+    void PushClip(Base::Rect clip) noexcept;
+    void PopClip() noexcept;
+    void PushOpacity(double opacity) noexcept;
+    void PopOpacity() noexcept;
+    void PushTransform(Base::Transform2D transform) noexcept;
+    void PopTransform() noexcept;
+
+    void DrawRectangle(Base::Rect bounds, Base::Color color) noexcept;
+    void DrawRectangle(Base::Rect bounds, const Ref<Brush>& brush) noexcept;
+    void DrawRectangle(const Ref<Brush>& fill, const Ref<Brush>& stroke, Base::Rect bounds,
         double strokeThickness = 1.0) noexcept;
-    Result<void> DrawRoundedRectangle(
-        Base::Rect bounds,
-        Base::Color color,
-        double radius) noexcept;
-    Result<void> DrawRoundedRectangle(
-        Base::Rect bounds,
-        const Ref<Brush>& brush,
-        double radius) noexcept;
-    Result<void> DrawRectangleOutline(
-        Base::Rect bounds,
-        Base::Color color,
-        double thickness) noexcept;
-    Result<void> DrawRectangleOutline(
-        Base::Rect bounds,
-        const Ref<Brush>& brush,
-        double thickness) noexcept;
+    void DrawRoundedRectangle(Base::Rect bounds, Base::Color color, double radius) noexcept;
+    void DrawRoundedRectangle(Base::Rect bounds, const Ref<Brush>& brush, double radius) noexcept;
+    void DrawRectangleOutline(Base::Rect bounds, Base::Color color, double thickness) noexcept;
+    void DrawRectangleOutline(Base::Rect bounds, const Ref<Brush>& brush, double thickness) noexcept;
+    void DrawLine(const Ref<Pen>& pen, Base::Point start, Base::Point end) noexcept;
+    void DrawGeometry(const Ref<Brush>& brush, const Ref<Pen>& pen, const Geometry& geometry) noexcept;
 
 private:
-    friend struct DrawingContextRuntime;
+    friend struct Bridge;
 
-    explicit DrawingContext(void* implementation) noexcept
-        : implementation_(implementation) {}
+    explicit DrawingContext(void* implementation) noexcept : implementation_(implementation) {}
 
     void* implementation_ = nullptr;
 };
