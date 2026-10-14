@@ -17,14 +17,12 @@ struct VSInput {
     float2 position : POSITION;
     float4 color : COLOR;
     float2 uv0 : TEXCOORD0;
-    float coverage : COVERAGE;
 };
 
 struct VSOutput {
     float4 position : SV_Position;
     float4 color : COLOR;
     float2 uv0 : TEXCOORD0;
-    float coverage : COVERAGE;
 };
 
 VSOutput vs_main(VSInput input) {
@@ -35,7 +33,6 @@ VSOutput vs_main(VSInput input) {
     output.position = float4(ndc, 0.0, 1.0);
     output.color = input.color;
     output.uv0 = input.uv0;
-    output.coverage = input.coverage;
     return output;
 }
 
@@ -82,5 +79,5 @@ float4 ps_main(VSOutput input) : SV_Target {
     for (int i = 0; i < 33; ++i) {
         sumA += sourceTexture.Sample(sourceSampler, input.uv0 + kGaussianKernel[i].xy * texel).a * kGaussianKernel[i].z;
     }
-    return input.color * (sumA * input.coverage);
+    return input.color * sumA;
 }

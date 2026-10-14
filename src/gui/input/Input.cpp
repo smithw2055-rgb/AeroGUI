@@ -438,8 +438,11 @@ Base::Result<HitTestResult> HitTestState::HitTestElement(
     UIElement& element,
     Point position,
     const Media::Transform3DContext& transform3D) const noexcept {
-    if (!element.GetIsVisible() ||
-        !element.GetIsHitTestVisible()) {
+    if (!element.GetIsVisible()) {
+        return HitTestResult{};
+    }
+    const bool isOverlayRoot = IsOverlay(element);
+    if (!element.GetIsHitTestVisible() && !isOverlayRoot) {
         return HitTestResult{};
     }
     const bool contains =
@@ -493,7 +496,7 @@ Base::Result<HitTestResult> HitTestState::HitTestElement(
         if (!nested) return nested.GetStatus();
         if (nested.Value().HasTarget()) return nested;
     }
-    return contains && HasSelfHitSurface(element)
+    return contains && HasSelfHitSurface(element) && element.GetIsHitTestVisible()
         ? HitTestResult{&element, position}
         : HitTestResult{};
 }

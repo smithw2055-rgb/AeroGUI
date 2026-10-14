@@ -1,5 +1,7 @@
-#include "gui/controls/ScrollCommon.hpp"
-#include "gui/core/Describe.hpp"
+#include <Aero/Controls.hpp>
+#include <Aero/Value.hpp>
+#include <algorithm>
+#include <cmath>
 #include "gui/core/ValueConversion.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
@@ -8,21 +10,1386 @@
 #include "gui/core/EventRouter.hpp"
 #include "gui/input/InputManager.hpp"
 #include "render/DisplayList.hpp"
-#include <Aero/Controls.hpp>
-#include <Aero/ClassHandler.hpp>
-#include "gui/media/BrushRendering.hpp"
 #include <Aero/Input/Mouse.hpp>
 #include <Aero/TryCast.hpp>
-#include <Aero/Value.hpp>
-
-#include <algorithm>
-#include <cmath>
 #include <limits>
 #include "gui/templates/TemplateInstance.hpp"
-#include <Aero/Events/ControlEventArgs.hpp>
 #include "gui/core/DependencyObjectAccess.hpp"
+#include "gui/core/Describe.hpp"
+#include <Aero/ClassHandler.hpp>
+#include <Aero/VisualStateManager.hpp>
+#include "gui/controls/ContentHosting.hpp"
+#include "gui/media/BrushRendering.hpp"
+#include <Aero/Events/ControlEventArgs.hpp>
 
 namespace Aero::Controls {
+
+// ---------------------------------------------------------------------------
+// Internal Scroll Support Helpers (formerly ScrollCommon.hpp)
+// ---------------------------------------------------------------------------
+
+namespace ScrollSupport {
+
+inline constexpr double LayoutInfinity = 1.0e12;
+
+inline bool Same(double left, double right) noexcept {
+    return std::fabs(left - right) <= 0.000001;
+}
+
+inline bool SameData(
+    const ScrollData& left,
+    const ScrollData& right) noexcept {
+    return Same(left.horizontalOffset, right.horizontalOffset) &&
+        Same(left.verticalOffset, right.verticalOffset) &&
+        Same(left.extentWidth, right.extentWidth) &&
+        Same(left.extentHeight, right.extentHeight) &&
+        Same(left.viewportWidth, right.viewportWidth) &&
+        Same(left.viewportHeight, right.viewportHeight);
+}
+
+inline bool ValidNonnegative(double value) noexcept {
+    return std::isfinite(value) && value >= 0.0;
+}
+
+inline bool ValidData(const ScrollData& value) noexcept {
+    return ValidNonnegative(value.horizontalOffset) &&
+        ValidNonnegative(value.verticalOffset) &&
+        ValidNonnegative(value.extentWidth) &&
+        ValidNonnegative(value.extentHeight) &&
+        ValidNonnegative(value.viewportWidth) &&
+        ValidNonnegative(value.viewportHeight);
+}
+
+inline Visibility ComputeScrollBarVisibility(
+    ScrollBarVisibility mode,
+    double extent,
+    double viewport) noexcept {
+    switch (mode) {
+    case ScrollBarVisibility::Visible:
+        return Visibility::Visible;
+    case ScrollBarVisibility::Auto:
+        return extent > viewport + 0.000001
+            ? Visibility::Visible
+            : Visibility::Collapsed;
+    case ScrollBarVisibility::Disabled:
+    case ScrollBarVisibility::Hidden:
+    default:
+        return Visibility::Collapsed;
+    }
+}
+
+inline double ClampOffset(double offset, double extent, double viewport) noexcept {
+    if (!std::isfinite(offset) || offset <= 0.0) {
+        return 0.0;
+    }
+    const double maxOffset = extent > viewport ? extent - viewport : 0.0;
+    return offset > maxOffset ? maxOffset : offset;
+}
+
+template <typename TProperty>
+inline double ReadDouble(
+    const DependencyObject& object,
+    const TProperty& property,
+    double fallback = 0.0) noexcept {
+    (void)fallback;
+    return object.GetValue(property);
+}
+
+template <typename TProperty>
+inline bool ReadBool(
+    const DependencyObject& object,
+    const TProperty& property,
+    bool fallback = false) noexcept {
+    (void)fallback;
+    return object.GetValue(property);
+}
+
+template <typename TProperty>
+inline Orientation ReadOrientation(
+    const DependencyObject& object,
+    const TProperty& property) noexcept {
+    return object.GetValue(property);
+}
+
+template <typename TProperty>
+inline void StoreDouble(
+    DependencyObject& object,
+    const TProperty& property,
+    double value) noexcept {
+    object.SetValue(property, value);
+}
+
+template <typename TProperty>
+inline void StoreOrientation(
+    DependencyObject& object,
+    const TProperty& property,
+    Orientation value) noexcept {
+    object.SetValue(property, value);
+}
+
+} // namespace ScrollSupport
+
+// Bring helpers into Aero::Controls for unqualified use (matches former
+// anonymous-namespace amalgamation).
+using ScrollSupport::LayoutInfinity;
+using ScrollSupport::Same;
+using ScrollSupport::SameData;
+using ScrollSupport::ValidNonnegative;
+using ScrollSupport::ValidData;
+using ScrollSupport::ComputeScrollBarVisibility;
+using ScrollSupport::ClampOffset;
+using ScrollSupport::ReadDouble;
+using ScrollSupport::ReadBool;
+using ScrollSupport::ReadOrientation;
+using ScrollSupport::StoreDouble;
+using ScrollSupport::StoreOrientation;
+
+// ---------------------------------------------------------------------------
+// ScrollContentPresenter Implementation
+// ---------------------------------------------------------------------------
+
+using namespace Primitives;
+using namespace ::Aero::Render;
+
+ScrollContentPresenter::ScrollContentPresenter() noexcept
+    : ScrollContentPresenter(StaticTypeId()) {}
+
+ScrollContentPresenter::ScrollContentPresenter(
+    TypeId runtimeType) noexcept
+    : ContentControl(runtimeType) {
+    // WPF: ScrollContentPresenter clips; ScrollViewer does not. Only the
+    // presenter type opts in. Clipping the viewer nested two stencil clips
+    // over the items host and, after Intro's offscreen fade, discarded the
+    // list on the window target.
+    if (runtimeType == ScrollContentPresenter::StaticTypeId()) {
+        static_cast<void>(SetClipToBounds(true));
+    }
+}
+
+IScrollInfo*
+ScrollContentPresenter::ActiveContentScrollInfo() const noexcept {
+    return GetUsesContentScrolling()
+        ? contentScrollInfo_
+        : nullptr;
+}
+
+ScrollData ScrollContentPresenter::GetData() const noexcept {
+    IScrollInfo* logical = ActiveContentScrollInfo();
+    return logical != nullptr ? logical->GetData() : data_;
+}
+
+void ScrollContentPresenter::SetContentScrollInfo(
+    IScrollInfo* value) noexcept {
+    if (contentScrollInfo_ == value) return;
+    contentScrollInfo_ = value;
+    InvalidateMeasure();
+    (void)SyncLogicalData(ScrollInputKind::Line);
+}
+
+bool ScrollContentPresenter::GetCanHorizontallyScroll() const noexcept {
+    return GetAllowsHorizontalScroll();
+}
+
+bool ScrollContentPresenter::GetCanVerticallyScroll() const noexcept {
+    return GetAllowsVerticalScroll();
+}
+
+bool ScrollContentPresenter::GetCanContentScroll() const noexcept {
+    return GetUsesContentScrolling();
+}
+
+void ScrollContentPresenter::SetCanHorizontallyScroll(
+    bool value) noexcept {
+    if (canHorizontallyScroll_ == value) return;
+    canHorizontallyScroll_ = value;
+    InvalidateMeasure();
+}
+
+void ScrollContentPresenter::SetCanVerticallyScroll(
+    bool value) noexcept {
+    if (canVerticallyScroll_ == value) return;
+    canVerticallyScroll_ = value;
+    InvalidateMeasure();
+}
+
+void ScrollContentPresenter::SetCanContentScroll(
+    bool value) noexcept {
+    DependencyObject::SetValue(CanContentScrollProperty, value);
+}
+
+bool ScrollContentPresenter::GetAllowsHorizontalScroll() const noexcept {
+    return canHorizontallyScroll_;
+}
+
+bool ScrollContentPresenter::GetAllowsVerticalScroll() const noexcept {
+    return canVerticallyScroll_;
+}
+
+bool ScrollContentPresenter::GetUsesContentScrolling() const noexcept {
+    return GetValue(CanContentScrollProperty);
+}
+
+void ScrollContentPresenter::SetLineScrollAmount(
+    double value) noexcept {
+    if (!std::isfinite(value) || value <= 0.0) {
+        return;
+    }
+    lineScrollAmount_ = value;
+}
+
+Base::Result<bool> ScrollContentPresenter::UpdateData(
+    ScrollData value,
+    ScrollInputKind kind,
+    bool invalidateArrange) noexcept {
+    if (!ValidData(value)) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Scroll data must be finite and nonnegative");
+    }
+    value.horizontalOffset = GetAllowsHorizontalScroll()
+        ? ClampOffset(
+            value.horizontalOffset,
+            value.extentWidth,
+            value.viewportWidth)
+        : 0.0;
+    value.verticalOffset = GetAllowsVerticalScroll()
+        ? ClampOffset(
+            value.verticalOffset,
+            value.extentHeight,
+            value.viewportHeight)
+        : 0.0;
+    if (SameData(data_, value)) return false;
+    const ScrollData oldData = data_;
+    data_ = value;
+    pendingInputKind_ = kind;
+    if (invalidateArrange) {
+        InvalidateArrange();
+    }
+    OnScrollDataChanged(oldData, data_, kind);
+    return true;
+}
+
+Base::Result<bool>
+ScrollContentPresenter::SyncLogicalData(
+    ScrollInputKind kind) noexcept {
+    IScrollInfo* logical = ActiveContentScrollInfo();
+    if (logical == nullptr) return false;
+    ScrollData value = logical->GetData();
+    if (!ValidData(value)) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Logical scrolling provider returned invalid data");
+    }
+    if (SameData(data_, value)) return false;
+    const ScrollData oldData = data_;
+    data_ = value;
+    pendingInputKind_ = kind;
+    OnScrollDataChanged(oldData, data_, kind);
+    return true;
+}
+
+void ScrollContentPresenter::SetViewport(
+    Size viewport) noexcept {
+    if (!IsFinite(viewport) ||
+        viewport.width < 0.0 ||
+        viewport.height < 0.0) {
+        return;
+    }
+    IScrollInfo* logical = ActiveContentScrollInfo();
+    if (logical != nullptr) {
+        logical->SetViewport(viewport);
+        (void)SyncLogicalData(pendingInputKind_);
+        return;
+    }
+    ScrollData value = data_;
+    value.viewportWidth = viewport.width;
+    value.viewportHeight = viewport.height;
+    value.horizontalOffset = desiredHorizontalOffset_;
+    value.verticalOffset = desiredVerticalOffset_;
+    (void)UpdateData(value, pendingInputKind_, true);
+}
+
+void ScrollContentPresenter::SetHorizontalOffset(
+    double value) noexcept {
+    if (!ValidNonnegative(value)) {
+        return;
+    }
+    desiredHorizontalOffset_ = value;
+    IScrollInfo* logical = ActiveContentScrollInfo();
+    if (logical != nullptr) {
+        logical->SetHorizontalOffset(value);
+        (void)SyncLogicalData(pendingInputKind_);
+        return;
+    }
+    ScrollData data = data_;
+    data.horizontalOffset = value;
+    (void)UpdateData(data, pendingInputKind_, true);
+}
+
+void ScrollContentPresenter::SetVerticalOffset(
+    double value) noexcept {
+    if (!ValidNonnegative(value)) {
+        return;
+    }
+    desiredVerticalOffset_ = value;
+    IScrollInfo* logical = ActiveContentScrollInfo();
+    if (logical != nullptr) {
+        logical->SetVerticalOffset(value);
+        (void)SyncLogicalData(pendingInputKind_);
+        return;
+    }
+    ScrollData data = data_;
+    data.verticalOffset = value;
+    (void)UpdateData(data, pendingInputKind_, true);
+}
+
+Base::Result<bool>
+ScrollContentPresenter::ApplyScrollDelta(
+    double deltaX,
+    double deltaY,
+    ScrollInputKind kind) noexcept {
+    if (!std::isfinite(deltaX) ||
+        !std::isfinite(deltaY)) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Scroll delta must be finite");
+    }
+    pendingInputKind_ = kind;
+    const ScrollData current = GetData();
+    SetHorizontalOffset(std::max(
+        0.0, current.horizontalOffset + deltaX));
+    pendingInputKind_ = kind;
+    const ScrollData afterHorizontal = GetData();
+    SetVerticalOffset(std::max(
+        0.0, afterHorizontal.verticalOffset + deltaY));
+    pendingInputKind_ = ScrollInputKind::Line;
+    const ScrollData afterVertical = GetData();
+    return afterHorizontal.horizontalOffset != afterVertical.horizontalOffset ||
+        afterHorizontal.verticalOffset != afterVertical.verticalOffset;
+}
+
+Base::Result<bool>
+ScrollContentPresenter::LineHorizontal(
+    double direction) noexcept {
+    if (!std::isfinite(direction)) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Line scroll direction must be finite");
+    }
+    IScrollInfo* logical = ActiveContentScrollInfo();
+    if (logical != nullptr) {
+        pendingInputKind_ = ScrollInputKind::Line;
+        Base::Result<bool> changed =
+            logical->LineHorizontal(direction);
+        if (!changed) return changed.GetStatus();
+        Base::Result<bool> synced =
+            SyncLogicalData(ScrollInputKind::Line);
+        pendingInputKind_ = ScrollInputKind::Line;
+        if (!synced) return synced.GetStatus();
+        return changed.Value() || synced.Value();
+    }
+    return ApplyScrollDelta(
+        direction * lineScrollAmount_,
+        0.0,
+        ScrollInputKind::Line);
+}
+
+Base::Result<bool>
+ScrollContentPresenter::LineVertical(
+    double direction) noexcept {
+    if (!std::isfinite(direction)) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Line scroll direction must be finite");
+    }
+    IScrollInfo* logical = ActiveContentScrollInfo();
+    if (logical != nullptr) {
+        pendingInputKind_ = ScrollInputKind::Line;
+        Base::Result<bool> changed =
+            logical->LineVertical(direction);
+        if (!changed) return changed.GetStatus();
+        Base::Result<bool> synced =
+            SyncLogicalData(ScrollInputKind::Line);
+        pendingInputKind_ = ScrollInputKind::Line;
+        if (!synced) return synced.GetStatus();
+        return changed.Value() || synced.Value();
+    }
+    return ApplyScrollDelta(
+        0.0,
+        direction * lineScrollAmount_,
+        ScrollInputKind::Line);
+}
+
+Base::Result<bool>
+ScrollContentPresenter::PageHorizontal(
+    double direction) noexcept {
+    if (!std::isfinite(direction)) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Page scroll direction must be finite");
+    }
+    IScrollInfo* logical = ActiveContentScrollInfo();
+    if (logical != nullptr) {
+        pendingInputKind_ = ScrollInputKind::Page;
+        Base::Result<bool> changed =
+            logical->PageHorizontal(direction);
+        if (!changed) return changed.GetStatus();
+        Base::Result<bool> synced =
+            SyncLogicalData(ScrollInputKind::Page);
+        pendingInputKind_ = ScrollInputKind::Line;
+        if (!synced) return synced.GetStatus();
+        return changed.Value() || synced.Value();
+    }
+    return ApplyScrollDelta(
+        direction * GetData().viewportWidth,
+        0.0,
+        ScrollInputKind::Page);
+}
+
+Base::Result<bool>
+ScrollContentPresenter::PageVertical(
+    double direction) noexcept {
+    if (!std::isfinite(direction)) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Page scroll direction must be finite");
+    }
+    IScrollInfo* logical = ActiveContentScrollInfo();
+    if (logical != nullptr) {
+        pendingInputKind_ = ScrollInputKind::Page;
+        Base::Result<bool> changed =
+            logical->PageVertical(direction);
+        if (!changed) return changed.GetStatus();
+        Base::Result<bool> synced =
+            SyncLogicalData(ScrollInputKind::Page);
+        pendingInputKind_ = ScrollInputKind::Line;
+        if (!synced) return synced.GetStatus();
+        return changed.Value() || synced.Value();
+    }
+    return ApplyScrollDelta(
+        0.0,
+        direction * GetData().viewportHeight,
+        ScrollInputKind::Page);
+}
+
+Size
+ScrollContentPresenter::MeasureOverride(
+    Size availableSize) noexcept {
+    // A templated presenter measures Content and records extent. Without that,
+    // Auto scrollbars stay Collapsed and the thumb never appears.
+    if (RuntimeType() != StaticTypeId() &&
+        GetTemplateRoot() != nullptr) {
+        return ContentControl::MeasureOverride(
+            availableSize);
+    }
+    EnsureHostedContent();
+    UIElement* child = GetContentElement();
+    if (child == nullptr) {
+        data_.extentWidth = 0.0;
+        data_.extentHeight = 0.0;
+        data_.viewportWidth = availableSize.width;
+        data_.viewportHeight = availableSize.height;
+        return Size{};
+    }
+
+    IScrollInfo* logical = ActiveContentScrollInfo();
+    Size childAvailable = availableSize;
+    if (logical != nullptr) {
+        logical->SetViewport(availableSize);
+    } else {
+        if (GetAllowsHorizontalScroll()) {
+            childAvailable.width = LayoutInfinity;
+        }
+        if (GetAllowsVerticalScroll()) {
+            childAvailable.height = LayoutInfinity;
+        }
+    }
+    MeasureChild(*child, childAvailable);
+
+    if (logical != nullptr) {
+        Base::Result<bool> synced =
+            SyncLogicalData(pendingInputKind_);
+        if (!synced) return Size{};
+    } else {
+        ScrollData value = data_;
+        value.extentWidth = child->GetDesiredSize().width;
+        value.extentHeight = child->GetDesiredSize().height;
+        value.viewportWidth = availableSize.width;
+        value.viewportHeight = availableSize.height;
+        value.horizontalOffset = desiredHorizontalOffset_;
+        value.verticalOffset = desiredVerticalOffset_;
+        Base::Result<bool> updated = UpdateData(
+            value, pendingInputKind_, false);
+        if (!updated) return Size{};
+    }
+    const ScrollData value = GetData();
+    return Size{
+        std::min(value.extentWidth, availableSize.width),
+        std::min(value.extentHeight, availableSize.height)};
+}
+
+Size
+ScrollContentPresenter::ArrangeOverride(
+    Size finalSize) noexcept {
+    if (RuntimeType() != StaticTypeId() &&
+        GetTemplateRoot() != nullptr) {
+        return ContentControl::ArrangeOverride(
+            finalSize);
+    }
+    EnsureHostedContent();
+    UIElement* child = GetContentElement();
+    if (child == nullptr) {
+        SetViewport(finalSize);
+        return finalSize;
+    }
+    IScrollInfo* logical = ActiveContentScrollInfo();
+    SetViewport(finalSize);
+    const ScrollData value = GetData();
+    const double arrangeWidth = GetAllowsHorizontalScroll()
+        ? std::max(value.extentWidth, finalSize.width)
+        : finalSize.width;
+    const double arrangeHeight = GetAllowsVerticalScroll()
+        ? std::max(value.extentHeight, finalSize.height)
+        : finalSize.height;
+    const Rect slot = logical != nullptr
+        ? Rect{0.0, 0.0, finalSize.width, finalSize.height}
+        : Rect{
+            -value.horizontalOffset,
+            -value.verticalOffset,
+            arrangeWidth,
+            arrangeHeight};
+    ArrangeChild(*child, slot);
+    return finalSize;
+}
+
+void ScrollContentPresenter::OnScrollDataChanged(
+    const ScrollData&,
+    const ScrollData& newData,
+    ScrollInputKind kind) noexcept {
+    DependencyObject* templatedParent =
+        GetTemplatedParent();
+    if (templatedParent == nullptr ||
+        templatedParent == this ||
+        !DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
+            templatedParent->RuntimeType(),
+            ScrollViewer::StaticTypeId())) {
+        return;
+    }
+    static_cast<ScrollViewer*>(templatedParent)->
+        AdoptPresenterData(*this, newData, kind);
+}
+
+// ---------------------------------------------------------------------------
+// ScrollViewer & Thumb Implementation
+// ---------------------------------------------------------------------------
+
+using namespace Primitives;
+using namespace ::Aero::Render;
+
+ScrollViewer::ScrollViewer() noexcept
+    : ContentControl(StaticTypeId()),
+      lineUpHandler_(this, &ScrollViewer::OnLineUpCommand),
+      lineDownHandler_(this, &ScrollViewer::OnLineDownCommand),
+      lineLeftHandler_(this, &ScrollViewer::OnLineLeftCommand),
+      lineRightHandler_(this, &ScrollViewer::OnLineRightCommand),
+      pageUpHandler_(this, &ScrollViewer::OnPageUpCommand),
+      pageDownHandler_(this, &ScrollViewer::OnPageDownCommand),
+      pageLeftHandler_(this, &ScrollViewer::OnPageLeftCommand),
+      pageRightHandler_(this, &ScrollViewer::OnPageRightCommand),
+      scrollToTopHandler_(this, &ScrollViewer::OnScrollToTopCommand),
+      scrollToBottomHandler_(this, &ScrollViewer::OnScrollToBottomCommand),
+      scrollToLeftEndHandler_(this, &ScrollViewer::OnScrollToLeftEndCommand),
+      scrollToRightEndHandler_(this, &ScrollViewer::OnScrollToRightEndCommand),
+      commandHandles_(&Base::GetDefaultAllocator()),
+      scrollBarValueChangedHandler_(
+          this,
+          &ScrollViewer::OnScrollBarValueChanged) {
+    UpdateComputedScrollBarVisibility(lastData_);
+}
+
+ScrollViewer::~ScrollViewer() {
+    UnregisterCommands();
+    DetachScrollBars();
+}
+
+void ScrollViewer::OnMouseWheel(
+    MouseWheelEventArgs& args) {
+    if (contentPresenter_ == nullptr) return;
+    const double line = contentPresenter_->GetLineScrollAmount();
+    const double horizontal = -args.GetDeltaX() * line;
+    const double vertical = -args.GetDeltaY() * line;
+    Base::Result<bool> changed = contentPresenter_->ApplyScrollDelta(
+        horizontal, vertical, ScrollInputKind::Wheel);
+    if (changed && changed.Value()) {
+        args.SetHandled(true);
+    }
+}
+
+double ScrollViewer::GetHorizontalOffset() const noexcept {
+    return ReadDouble(*this, HorizontalOffsetProperty);
+}
+
+double ScrollViewer::GetVerticalOffset() const noexcept {
+    return ReadDouble(*this, VerticalOffsetProperty);
+}
+
+double ScrollViewer::GetExtentWidth() const noexcept {
+    return ReadDouble(*this, ExtentWidthProperty);
+}
+
+double ScrollViewer::GetExtentHeight() const noexcept {
+    return ReadDouble(*this, ExtentHeightProperty);
+}
+
+double ScrollViewer::GetViewportWidth() const noexcept {
+    return ReadDouble(*this, ViewportWidthProperty);
+}
+
+double ScrollViewer::GetViewportHeight() const noexcept {
+    return ReadDouble(*this, ViewportHeightProperty);
+}
+
+double ScrollViewer::GetScrollableWidth() const noexcept {
+    return ReadDouble(*this, ScrollableWidthProperty);
+}
+
+double ScrollViewer::GetScrollableHeight() const noexcept {
+    return ReadDouble(*this, ScrollableHeightProperty);
+}
+
+ScrollBarVisibility
+ScrollViewer::GetHorizontalScrollBarVisibility() const noexcept {
+    return GetHorizontalScrollBarVisibility(*this);
+}
+
+ScrollBarVisibility
+ScrollViewer::GetVerticalScrollBarVisibility() const noexcept {
+    return GetVerticalScrollBarVisibility(*this);
+}
+
+PanningMode ScrollViewer::GetPanningMode() const noexcept {
+    return GetValue(PanningModeProperty);
+}
+
+void ScrollViewer::SetPanningMode(
+    PanningMode value) noexcept {
+    SetValue(PanningModeProperty, value);
+}
+
+Visibility
+ScrollViewer::GetComputedHorizontalScrollBarVisibility()
+    const noexcept {
+    return GetValue(ComputedHorizontalScrollBarVisibilityProperty);
+}
+
+Visibility
+ScrollViewer::GetComputedVerticalScrollBarVisibility()
+    const noexcept {
+    return GetValue(ComputedVerticalScrollBarVisibilityProperty);
+}
+
+void ScrollViewer::SetCanHorizontallyScroll(
+    bool value) noexcept {
+    SetValue(CanHorizontallyScrollProperty, value);
+    if (contentPresenter_ != nullptr) {
+        contentPresenter_->SetCanHorizontallyScroll(value);
+    }
+}
+
+void ScrollViewer::SetCanVerticallyScroll(
+    bool value) noexcept {
+    SetValue(CanVerticallyScrollProperty, value);
+    if (contentPresenter_ != nullptr) {
+        contentPresenter_->SetCanVerticallyScroll(value);
+    }
+}
+
+void ScrollViewer::SetCanContentScroll(
+    bool value) noexcept {
+    SetValue(CanContentScrollProperty, value);
+}
+
+void ScrollViewer::SetHorizontalScrollBarVisibility(
+    ScrollBarVisibility value) noexcept {
+    SetHorizontalScrollBarVisibility(*this, value);
+    if (contentPresenter_ != nullptr) {
+        contentPresenter_->SetCanHorizontallyScroll(
+            value != ScrollBarVisibility::Disabled &&
+            GetValue(CanHorizontallyScrollProperty));
+    }
+    UpdateComputedScrollBarVisibility(lastData_);
+}
+
+void ScrollViewer::SetVerticalScrollBarVisibility(
+    ScrollBarVisibility value) noexcept {
+    SetVerticalScrollBarVisibility(*this, value);
+    if (contentPresenter_ != nullptr) {
+        contentPresenter_->SetCanVerticallyScroll(
+            value != ScrollBarVisibility::Disabled &&
+            GetValue(CanVerticallyScrollProperty));
+    }
+    UpdateComputedScrollBarVisibility(lastData_);
+}
+
+void ScrollViewer::SetHorizontalOffset(
+    double value) noexcept {
+    if (contentPresenter_ != nullptr) {
+        contentPresenter_->SetHorizontalOffset(value);
+    }
+}
+
+void ScrollViewer::SetVerticalOffset(
+    double value) noexcept {
+    if (contentPresenter_ != nullptr) {
+        contentPresenter_->SetVerticalOffset(value);
+    }
+}
+
+Base::Result<bool> ScrollViewer::LineHorizontal(
+    double direction) noexcept {
+    return contentPresenter_ != nullptr
+        ? contentPresenter_->LineHorizontal(direction)
+        : Base::Result<bool>(false);
+}
+
+Base::Result<bool> ScrollViewer::LineVertical(
+    double direction) noexcept {
+    return contentPresenter_ != nullptr
+        ? contentPresenter_->LineVertical(direction)
+        : Base::Result<bool>(false);
+}
+
+Base::Result<bool> ScrollViewer::PageHorizontal(
+    double direction) noexcept {
+    return contentPresenter_ != nullptr
+        ? contentPresenter_->PageHorizontal(direction)
+        : Base::Result<bool>(false);
+}
+
+Base::Result<bool> ScrollViewer::PageVertical(
+    double direction) noexcept {
+    return contentPresenter_ != nullptr
+        ? contentPresenter_->PageVertical(direction)
+        : Base::Result<bool>(false);
+}
+
+IScrollInfo* ScrollViewer::GetContentScrollInfo() const noexcept {
+    return contentPresenter_ != nullptr
+        ? contentPresenter_->GetContentScrollInfo()
+        : pendingScrollInfo_;
+}
+
+void ScrollViewer::SetContentScrollInfo(IScrollInfo* value) noexcept {
+    pendingScrollInfo_ = value;
+    if (contentPresenter_ != nullptr) {
+        contentPresenter_->SetContentScrollInfo(value);
+    }
+}
+
+void ScrollViewer::AdoptPresenterData(
+    ScrollContentPresenter& presenter,
+    const ScrollData& data,
+    ScrollInputKind kind) noexcept {
+    contentPresenter_ = &presenter;
+    const ScrollData oldData = lastData_;
+    lastData_ = data;
+    OnScrollDataChanged(oldData, data, kind);
+}
+
+void ScrollViewer::EnsureFallbackPresenter() noexcept {
+    if (GetTemplateRoot() != nullptr || contentPresenter_ != nullptr) return;
+    if (!ownedPresenter_) {
+        Base::Result<Ref<ScrollContentPresenter>> made = Base::MakeRef<ScrollContentPresenter>();
+        if (!made) return;
+        ownedPresenter_ = std::move(made).Value();
+    }
+    contentPresenter_ = ownedPresenter_.Get();
+    UIElement* content = GetContentElement();
+    if (content != nullptr && content != contentPresenter_) {
+        if (content->GetVisualParent() == this) RemoveVisualChild(content);
+        contentPresenter_->SetContent(content);
+    }
+    if (contentPresenter_->GetVisualParent() == nullptr) {
+        if (ElementTree* tree = VisualTree(this)) {
+            if (VisualTree(contentPresenter_) == nullptr &&
+                contentPresenter_->GetLogicalParent() == nullptr) {
+                static_cast<void>(tree->AttachElement(*this, *contentPresenter_));
+            } else {
+                static_cast<void>(tree->AttachVisualChild(*this, *contentPresenter_));
+            }
+        } else {
+            AddVisualChild(contentPresenter_);
+        }
+    }
+    contentPresenter_->SetContentScrollInfo(pendingScrollInfo_);
+    const bool canH = (GetHorizontalScrollBarVisibility() != ScrollBarVisibility::Disabled) &&
+        GetValue(CanHorizontallyScrollProperty);
+    const bool canV = (GetVerticalScrollBarVisibility() != ScrollBarVisibility::Disabled) &&
+        GetValue(CanVerticallyScrollProperty);
+    contentPresenter_->SetCanHorizontallyScroll(canH);
+    contentPresenter_->SetCanVerticallyScroll(canV);
+    contentPresenter_->SetCanContentScroll(GetValue(CanContentScrollProperty));
+}
+
+void ScrollViewer::OnApplyTemplate()
+    noexcept {
+    Control::OnApplyTemplate();
+    DependencyObject* part = GetTemplateChild(
+        ScrollContentPresenter::StaticTypeId());
+    contentPresenter_ =
+        part != nullptr &&
+        part != this
+        ? static_cast<ScrollContentPresenter*>(part)
+        : nullptr;
+    if (contentPresenter_ == nullptr) {
+        EnsureFallbackPresenter();
+    } else if (ownedPresenter_ && ownedPresenter_->GetVisualParent() == this) {
+        RemoveVisualChild(ownedPresenter_.Get());
+    }
+    if (contentPresenter_ != nullptr) {
+        UIElement* content = GetContentElement();
+        if (content != nullptr && content != contentPresenter_) {
+            if (content->GetVisualParent() == this) {
+                RemoveVisualChild(content);
+            }
+            if (contentPresenter_->GetContentElement() != content) {
+                contentPresenter_->SetContent(content);
+            }
+            if (ElementTree* tree = VisualTree(this)) {
+                AttachOwnedContentSubtree(*tree, *content);
+            }
+        }
+        contentPresenter_->SetContentScrollInfo(pendingScrollInfo_);
+        const bool canH = (GetHorizontalScrollBarVisibility() != ScrollBarVisibility::Disabled) &&
+            GetValue(CanHorizontallyScrollProperty);
+        const bool canV = (GetVerticalScrollBarVisibility() != ScrollBarVisibility::Disabled) &&
+            GetValue(CanVerticallyScrollProperty);
+        contentPresenter_->SetCanHorizontallyScroll(canH);
+        contentPresenter_->SetCanVerticallyScroll(canV);
+        contentPresenter_->SetCanContentScroll(GetValue(CanContentScrollProperty));
+    }
+    AttachScrollBars();
+    EnsureCommands();
+    return;
+}
+
+void ScrollViewer::OnContentChanged(const Value& oldContent, const Value& newContent) {
+    ContentControl::OnContentChanged(oldContent, newContent);
+    if (contentPresenter_ != nullptr) {
+        UIElement* content = GetContentElement();
+        if (content != nullptr && content != contentPresenter_) {
+            if (content->GetVisualParent() == this) {
+                RemoveVisualChild(content);
+            }
+            if (contentPresenter_->GetContentElement() != content) {
+                contentPresenter_->SetContent(content);
+            }
+            if (ElementTree* tree = VisualTree(this)) {
+                AttachOwnedContentSubtree(*tree, *content);
+            }
+        } else if (content == nullptr) {
+            contentPresenter_->SetContent(nullptr);
+        }
+    }
+}
+
+void ScrollViewer::OnVisualParentChanged(::Aero::Media::Visual* oldParent) noexcept {
+    ContentControl::OnVisualParentChanged(oldParent);
+    if (GetVisualParent() != nullptr) {
+        EnsureCommands();
+    } else {
+        UnregisterCommands();
+    }
+}
+
+void ScrollViewer::AttachScrollBars() noexcept {
+    DetachScrollBars();
+    DependencyObject* vert = GetTemplateChild(Base::StringView("PART_VerticalScrollBar"));
+    if (vert != nullptr && DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(vert->RuntimeType(), ScrollBar::StaticTypeId())) {
+        verticalScrollBar_ = static_cast<Primitives::ScrollBar*>(vert);
+        static_cast<void>(verticalScrollBar_->AddValueChangedHandler(
+            ScrollBar::ValueProperty, scrollBarValueChangedHandler_));
+    }
+    DependencyObject* horz = GetTemplateChild(Base::StringView("PART_HorizontalScrollBar"));
+    if (horz != nullptr && DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(horz->RuntimeType(), ScrollBar::StaticTypeId())) {
+        horizontalScrollBar_ = static_cast<Primitives::ScrollBar*>(horz);
+        static_cast<void>(horizontalScrollBar_->AddValueChangedHandler(
+            ScrollBar::ValueProperty, scrollBarValueChangedHandler_));
+    }
+}
+
+void ScrollViewer::DetachScrollBars() noexcept {
+    if (verticalScrollBar_ != nullptr) {
+        static_cast<void>(verticalScrollBar_->RemoveValueChangedHandler(
+            ScrollBar::ValueProperty, scrollBarValueChangedHandler_));
+        verticalScrollBar_ = nullptr;
+    }
+    if (horizontalScrollBar_ != nullptr) {
+        static_cast<void>(horizontalScrollBar_->RemoveValueChangedHandler(
+            ScrollBar::ValueProperty, scrollBarValueChangedHandler_));
+        horizontalScrollBar_ = nullptr;
+    }
+}
+
+void ScrollViewer::OnScrollBarValueChanged(
+    DependencyObject& sender,
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    if (synchronizingScrollBars_) return;
+    const double val = args.GetNewValue().Kind() == Meta::ValueKind::Double
+        ? args.GetNewValue().AsDouble() : 0.0;
+    if (&sender == verticalScrollBar_) {
+        SetVerticalOffset(val);
+    } else if (&sender == horizontalScrollBar_) {
+        SetHorizontalOffset(val);
+    }
+}
+
+Size ScrollViewer::MeasureOverride(
+    Size availableSize) noexcept {
+    if (GetTemplateRoot() == nullptr) {
+        EnsureFallbackPresenter();
+        if (contentPresenter_ != nullptr) {
+            if (ElementTree* tree = VisualTree(this)) {
+                if (VisualTree(contentPresenter_) == nullptr &&
+                    contentPresenter_->GetLogicalParent() == nullptr) {
+                    static_cast<void>(tree->AttachElement(*this, *contentPresenter_));
+                } else if (contentPresenter_->GetVisualParent() != this ||
+                           !contentPresenter_->GetIsLayoutAttached()) {
+                    static_cast<void>(tree->AttachVisualChild(*this, *contentPresenter_));
+                }
+            }
+            if (contentPresenter_->GetIsLayoutAttached() &&
+                contentPresenter_->LayoutParent() == this) {
+                MeasureChild(*contentPresenter_, availableSize);
+                AdoptPresenterData(*contentPresenter_, contentPresenter_->GetData(), ScrollInputKind::Line);
+                return contentPresenter_->GetDesiredSize();
+            }
+            return Size{};
+        }
+    }
+    const Size measured = ContentControl::MeasureOverride(availableSize);
+    if (contentPresenter_ != nullptr) {
+        AdoptPresenterData(
+            *contentPresenter_,
+            contentPresenter_->GetData(),
+            ScrollInputKind::Line);
+    }
+    return measured;
+}
+
+Size ScrollViewer::ArrangeOverride(Size finalSize) noexcept {
+    if (GetTemplateRoot() == nullptr && contentPresenter_ != nullptr) {
+        if (contentPresenter_->GetIsLayoutAttached() &&
+            contentPresenter_->LayoutParent() == this) {
+            ArrangeChild(
+                *contentPresenter_, {0.0, 0.0, finalSize.width, finalSize.height});
+            return finalSize;
+        }
+    }
+    return ContentControl::ArrangeOverride(finalSize);
+}
+
+std::uint32_t ScrollViewer::GetVisualChildrenCount() const noexcept {
+    if (GetTemplateRoot() == nullptr && ownedPresenter_ && ownedPresenter_->GetVisualParent() == this) {
+        return 1U;
+    }
+    return ContentControl::GetVisualChildrenCount();
+}
+
+::Aero::Media::Visual* ScrollViewer::GetVisualChild(std::uint32_t index) const noexcept {
+    if (GetTemplateRoot() == nullptr && ownedPresenter_ && ownedPresenter_->GetVisualParent() == this) {
+        return index == 0U ? ownedPresenter_.Get() : nullptr;
+    }
+    return ContentControl::GetVisualChild(index);
+}
+
+void ScrollViewer::OnTemplateDetached() noexcept {
+    UnregisterCommands();
+    DetachScrollBars();
+    contentPresenter_ = nullptr;
+    Control::OnTemplateDetached();
+}
+
+void ScrollViewer::OnPropertyChanged(
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    // Former OnScrollViewerVisibilityChanged delegate body: re-enter through
+    // the instance setters with the committed values. SetValue is then a
+    // no-op, while the setters refresh the read-only computed visibility.
+    const DependencyPropertyHandle prop = args.GetProperty();
+    if (prop == HorizontalScrollBarVisibilityProperty.Handle() ||
+        prop == VerticalScrollBarVisibilityProperty.Handle()) {
+        static_cast<void>(
+            SetHorizontalScrollBarVisibility(
+                GetHorizontalScrollBarVisibility()));
+        static_cast<void>(
+            SetVerticalScrollBarVisibility(
+                GetVerticalScrollBarVisibility()));
+    }
+    ContentControl::OnPropertyChanged(args);
+}
+
+ScrollBarVisibility
+ScrollViewer::GetHorizontalScrollBarVisibility(
+    const DependencyObject& element) noexcept {
+    return element.GetValue(HorizontalScrollBarVisibilityProperty);
+}
+
+ScrollBarVisibility
+ScrollViewer::GetVerticalScrollBarVisibility(
+    const DependencyObject& element) noexcept {
+    return element.GetValue(VerticalScrollBarVisibilityProperty);
+}
+
+void
+ScrollViewer::SetHorizontalScrollBarVisibility(
+    DependencyObject& element,
+    ScrollBarVisibility value) noexcept {
+    element.SetValue(HorizontalScrollBarVisibilityProperty, value);
+}
+
+void
+ScrollViewer::SetVerticalScrollBarVisibility(
+    DependencyObject& element,
+    ScrollBarVisibility value) noexcept {
+    element.SetValue(VerticalScrollBarVisibilityProperty, value);
+}
+
+void ScrollViewer::OnScrollDataChanged(
+    const ScrollData& oldData,
+    const ScrollData& newData,
+    ScrollInputKind kind) noexcept {
+    static_cast<void>(SetReadOnlyCurrentValue(
+        HorizontalOffsetProperty, newData.horizontalOffset));
+    static_cast<void>(SetReadOnlyCurrentValue(
+        VerticalOffsetProperty, newData.verticalOffset));
+    static_cast<void>(SetReadOnlyCurrentValue(
+        ExtentWidthProperty, newData.extentWidth));
+    static_cast<void>(SetReadOnlyCurrentValue(
+        ExtentHeightProperty, newData.extentHeight));
+    static_cast<void>(SetReadOnlyCurrentValue(
+        ViewportWidthProperty, newData.viewportWidth));
+    static_cast<void>(SetReadOnlyCurrentValue(
+        ViewportHeightProperty, newData.viewportHeight));
+    static_cast<void>(SetReadOnlyCurrentValue(
+        ScrollableWidthProperty,
+        std::max(
+            0.0,
+            newData.extentWidth -
+                newData.viewportWidth)));
+    static_cast<void>(SetReadOnlyCurrentValue(
+        ScrollableHeightProperty,
+        std::max(
+            0.0,
+            newData.extentHeight -
+                newData.viewportHeight)));
+    UpdateComputedScrollBarVisibility(newData);
+
+    const auto synchronizeBar = [&](
+        Base::StringView name,
+        bool horizontal) noexcept {
+        DependencyObject* part =
+            GetTemplateChild(name);
+        if (part == nullptr ||
+            !DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
+                part->RuntimeType(),
+                ScrollBar::StaticTypeId())) {
+            return;
+        }
+        auto& bar = *static_cast<ScrollBar*>(part);
+        const double extent = horizontal
+            ? newData.extentWidth
+            : newData.extentHeight;
+        const double viewport = horizontal
+            ? newData.viewportWidth
+            : newData.viewportHeight;
+        const double offset = horizontal
+            ? newData.horizontalOffset
+            : newData.verticalOffset;
+        const ScrollBarVisibility mode = horizontal
+            ? GetHorizontalScrollBarVisibility()
+            : GetVerticalScrollBarVisibility();
+        static_cast<void>(bar.SetRange(
+            0.0,
+            std::max(0.0, extent - viewport)));
+        static_cast<void>(
+            bar.SetViewportSize(viewport));
+        static_cast<void>(bar.SetValue(offset));
+        static_cast<void>(bar.SetVisibility(
+            ComputeScrollBarVisibility(
+                mode, extent, viewport)));
+    };
+    synchronizingScrollBars_ = true;
+    synchronizeBar(
+        Base::StringView(
+            "PART_HorizontalScrollBar"),
+        true);
+    synchronizeBar(
+        Base::StringView(
+            "PART_VerticalScrollBar"),
+        false);
+    synchronizingScrollBars_ = false;
+
+    auto* events = ElementTree::EventsOf(*this);
+    if (events != nullptr) {
+        ScrollChangedEventArgs args(oldData, newData, kind);
+        static_cast<void>(
+            events->RaiseEvent(
+            *this, ScrollChangedEvent, &args));
+    }
+}
+
+void ScrollViewer::UpdateComputedScrollBarVisibility(
+    const ScrollData& data) noexcept {
+    static_cast<void>(SetReadOnlyCurrentValue(
+        ComputedHorizontalScrollBarVisibilityProperty,
+        ComputeScrollBarVisibility(
+            GetHorizontalScrollBarVisibility(),
+            data.extentWidth,
+            data.viewportWidth)));
+    static_cast<void>(SetReadOnlyCurrentValue(
+        ComputedVerticalScrollBarVisibilityProperty,
+        ComputeScrollBarVisibility(
+            GetVerticalScrollBarVisibility(),
+            data.extentHeight,
+            data.viewportHeight)));
+}
+
+void ScrollViewer::EnsureCommands() noexcept {
+    if (!commandHandles_.Empty()) return;
+    Aero::InputRouter* input = ElementTree::InputOf(*this);
+    if (input == nullptr) return;
+    auto addCmd = [this, input](Base::StringView name, const ExecutedRoutedEventHandler& handler) {
+        auto cmd = Input::RoutedCommand::ResolveStatic(ScrollBar::StaticTypeId(), name);
+        if (cmd) {
+            auto added = input->AddCommandBinding(*this, Input::CommandBinding(std::move(cmd).Value(), handler));
+            if (added) commandHandles_.PushBack(added.Value());
+        }
+    };
+    addCmd("LineUpCommand", lineUpHandler_);
+    addCmd("LineUp", lineUpHandler_);
+    addCmd("LineDownCommand", lineDownHandler_);
+    addCmd("LineDown", lineDownHandler_);
+    addCmd("LineLeftCommand", lineLeftHandler_);
+    addCmd("LineLeft", lineLeftHandler_);
+    addCmd("LineRightCommand", lineRightHandler_);
+    addCmd("LineRight", lineRightHandler_);
+    addCmd("PageUpCommand", pageUpHandler_);
+    addCmd("PageUp", pageUpHandler_);
+    addCmd("PageDownCommand", pageDownHandler_);
+    addCmd("PageDown", pageDownHandler_);
+    addCmd("PageLeftCommand", pageLeftHandler_);
+    addCmd("PageLeft", pageLeftHandler_);
+    addCmd("PageRightCommand", pageRightHandler_);
+    addCmd("PageRight", pageRightHandler_);
+    addCmd("ScrollToTopCommand", scrollToTopHandler_);
+    addCmd("ScrollToTop", scrollToTopHandler_);
+    addCmd("ScrollToBottomCommand", scrollToBottomHandler_);
+    addCmd("ScrollToBottom", scrollToBottomHandler_);
+    addCmd("ScrollToLeftEndCommand", scrollToLeftEndHandler_);
+    addCmd("ScrollToLeftEnd", scrollToLeftEndHandler_);
+    addCmd("ScrollToRightEndCommand", scrollToRightEndHandler_);
+    addCmd("ScrollToRightEnd", scrollToRightEndHandler_);
+}
+
+void ScrollViewer::UnregisterCommands() noexcept {
+    Aero::InputRouter* input = ElementTree::InputOf(*this);
+    if (input != nullptr) {
+        for (Input::CommandBindingHandle handle : commandHandles_) {
+            static_cast<void>(input->RemoveCommandBinding(handle));
+        }
+    }
+    commandHandles_.Clear();
+}
+
+void ScrollViewer::OnLineUpCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
+    static_cast<void>(LineVertical(-1.0));
+    args.SetHandled(true);
+}
+
+void ScrollViewer::OnLineDownCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
+    static_cast<void>(LineVertical(1.0));
+    args.SetHandled(true);
+}
+
+void ScrollViewer::OnLineLeftCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
+    static_cast<void>(LineHorizontal(-1.0));
+    args.SetHandled(true);
+}
+
+void ScrollViewer::OnLineRightCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
+    static_cast<void>(LineHorizontal(1.0));
+    args.SetHandled(true);
+}
+
+void ScrollViewer::OnPageUpCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
+    static_cast<void>(PageVertical(-1.0));
+    args.SetHandled(true);
+}
+
+void ScrollViewer::OnPageDownCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
+    static_cast<void>(PageVertical(1.0));
+    args.SetHandled(true);
+}
+
+void ScrollViewer::OnPageLeftCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
+    static_cast<void>(PageHorizontal(-1.0));
+    args.SetHandled(true);
+}
+
+void ScrollViewer::OnPageRightCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
+    static_cast<void>(PageHorizontal(1.0));
+    args.SetHandled(true);
+}
+
+void ScrollViewer::OnScrollToTopCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
+    SetVerticalOffset(0.0);
+    args.SetHandled(true);
+}
+
+void ScrollViewer::OnScrollToBottomCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
+    SetVerticalOffset(GetScrollableHeight());
+    args.SetHandled(true);
+}
+
+void ScrollViewer::OnScrollToLeftEndCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
+    SetHorizontalOffset(0.0);
+    args.SetHandled(true);
+}
+
+void ScrollViewer::OnScrollToRightEndCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
+    SetHorizontalOffset(GetScrollableWidth());
+    args.SetHandled(true);
+}
+
+Thumb::Thumb(TypeId runtimeType) noexcept
+    : Control(runtimeType) {
+}
+
+Thumb::Thumb() noexcept
+    : Thumb(StaticTypeId()) {
+}
+
+Thumb::~Thumb() = default;
+
+void Thumb::OnApplyTemplate() noexcept {
+    Control::OnApplyTemplate();
+    UpdateVisualState(false);
+}
+
+void Thumb::OnPropertyChanged(
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    Control::OnPropertyChanged(args);
+    if (args.GetProperty() == UIElement::IsEnabledProperty ||
+        args.GetProperty() == UIElement::IsMouseOverProperty ||
+        args.GetProperty() == Thumb::IsDraggingProperty) {
+        UpdateVisualState(true);
+    }
+}
+
+void Thumb::UpdateVisualState(bool useTransitions) noexcept {
+    Base::StringView common = "Normal";
+    if (!GetIsEnabled()) {
+        common = "Disabled";
+    } else if (GetIsDragging()) {
+        common = "Pressed";
+    } else if (GetIsMouseOver()) {
+        common = "MouseOver";
+    }
+    static_cast<void>(VisualStateManager::GoToState(*this, common, useTransitions));
+}
+
+Base::Result<void> Thumb::BeginDrag(
+    std::uint32_t pointerId,
+    Point position) noexcept {
+    if (!IsFinite(position) || dragging_) {
+        return Base::Status::Failure(
+            dragging_
+                ? Base::ErrorCode::InvalidState
+                : Base::ErrorCode::InvalidArgument,
+            dragging_
+                ? "Thumb is already dragging"
+                : "Thumb drag position must be finite");
+    }
+    SetReadOnlyCurrentValue(IsDraggingProperty, true);
+    pointerId_ = pointerId;
+    lastPosition_ = position;
+    dragging_ = true;
+    UpdateVisualState(true);
+    return {};
+}
+
+Base::Result<ThumbDragDelta> Thumb::DragTo(
+    std::uint32_t pointerId,
+    Point position) noexcept {
+    if (!dragging_ || pointerId != pointerId_) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Thumb drag pointer is not active");
+    }
+    if (!IsFinite(position)) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Thumb drag position must be finite");
+    }
+    const ThumbDragDelta delta{
+        position.x - lastPosition_.x,
+        position.y - lastPosition_.y};
+    lastPosition_ = position;
+    return delta;
+}
+
+Base::Result<bool> Thumb::EndDrag(
+    std::uint32_t pointerId) noexcept {
+    if (!dragging_) return false;
+    if (pointerId != pointerId_) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Thumb drag pointer does not match");
+    }
+    SetReadOnlyCurrentValue(IsDraggingProperty, false);
+    pointerId_ = 0U;
+    dragging_ = false;
+    UpdateVisualState(true);
+    return true;
+}
+
+AERO_DESCRIBE(ScrollContentPresenter) {
+    using namespace Aero::Meta;
+    Register<ScrollContentPresenter>(context)
+        .Property(ScrollContentPresenter::CanContentScrollProperty, false, AffectsMeasure)
+        .Factory();
+}
+
+AERO_DESCRIBE(ScrollViewer) {
+    using namespace Aero::Meta;
+    Register<ScrollViewer>(context)
+        .Event(ScrollViewer::ScrollChangedEvent)
+        .Property(ScrollViewer::HorizontalOffsetProperty, 0.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::NonNegative<double>)
+        .Property(ScrollViewer::VerticalOffsetProperty, 0.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::NonNegative<double>)
+        .Property(ScrollViewer::ExtentWidthProperty, 0.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::NonNegative<double>)
+        .Property(ScrollViewer::ExtentHeightProperty, 0.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::NonNegative<double>)
+        .Property(ScrollViewer::ViewportWidthProperty, 0.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::NonNegative<double>)
+        .Property(ScrollViewer::ViewportHeightProperty, 0.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::NonNegative<double>)
+        .Property(ScrollViewer::ScrollableWidthProperty, 0.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::NonNegative<double>)
+        .Property(ScrollViewer::ScrollableHeightProperty, 0.0, FrameworkPropertyMetadataOptions::None, &::Aero::Base::Validate::NonNegative<double>)
+        .Property(ScrollViewer::ComputedHorizontalScrollBarVisibilityProperty, Visibility::Collapsed, AffectsMeasure | AffectsRender)
+        .Property(ScrollViewer::ComputedVerticalScrollBarVisibilityProperty, Visibility::Collapsed, AffectsMeasure | AffectsRender)
+        .Property(ScrollViewer::HorizontalScrollBarVisibilityProperty, ScrollBarVisibility::Disabled, AffectsMeasure | AffectsRender)
+        .Property(ScrollViewer::VerticalScrollBarVisibilityProperty, ScrollBarVisibility::Visible, AffectsMeasure | AffectsRender)
+        .Property(ScrollViewer::CanHorizontallyScrollProperty, true, AffectsMeasure)
+        .Property(ScrollViewer::CanVerticallyScrollProperty, true, AffectsMeasure)
+        .Property(ScrollViewer::CanContentScrollProperty, false, AffectsMeasure)
+        .Property(ScrollViewer::PanningModeProperty, PanningMode::None)
+        .TemplatePart("PART_VerticalScrollBar", TypeOf<ScrollBar>())
+        .TemplatePart("PART_HorizontalScrollBar", TypeOf<ScrollBar>())
+        .Factory();
+    AERO_ON(ScrollViewer, &ScrollViewer::OnMouseWheel, UIElement::MouseWheelEvent);
+}
+
+// ---------------------------------------------------------------------------
+// ScrollBar, Track, Slider, ProgressBar, GridSplitter Implementation
+// ---------------------------------------------------------------------------
+
 using namespace Primitives;
 using namespace ::Aero::Render;
 

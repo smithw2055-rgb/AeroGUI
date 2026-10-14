@@ -57,6 +57,9 @@
 #include <Aero/ICommand.hpp>
 #include <Aero/RoutedCommand.hpp>
 #include <Aero/Resources.hpp>
+#include <Aero/ResourceProvider.hpp>
+#include <Aero/PropertyPath.hpp>
+#include <Aero/Mvvm.hpp>
 #include <Aero/Layout.hpp>
 #include <Aero/Media/Geometries.hpp>
 #include <Aero/Media/Pen.hpp>
@@ -73,51 +76,8 @@
 #include <Aero/Media/Animation/StoryboardCompletedTrigger.hpp>
 #include <Aero/Media/Animation/TimerTrigger.hpp>
 #include <Aero/FrameworkTemplate.hpp>
-#include <Aero/Controls/ControlTemplate.hpp>
-#include <Aero/DataTemplate.hpp>
-#include <Aero/Controls/ItemsPanelTemplate.hpp>
-#include <Aero/Controls/Panel.hpp>
-#include <Aero/Controls/Panels.hpp>
-#include <Aero/Controls/VirtualizingPanel.hpp>
-#include <Aero/Controls/VirtualizingStackPanel.hpp>
-#include <Aero/Controls/VirtualizingWrapPanel.hpp>
-#include <Aero/Controls/Grid.hpp>
-#include <Aero/Controls/Primitives/ButtonBase.hpp>
-#include <Aero/Controls/Button.hpp>
-#include <Aero/Controls/Buttons.hpp>
-#include <Aero/Controls/Primitives/Thumb.hpp>
-#include <Aero/Controls/Ranges.hpp>
-#include <Aero/Controls/GridSplitter.hpp>
-#include <Aero/Controls/ScrollViewer.hpp>
 #include <Aero/Controls/Control.hpp>
-#include <Aero/Controls/ContentControl.hpp>
-#include <Aero/Controls/HeaderedContentControl.hpp>
-#include <Aero/Controls/Decorator.hpp>
-#include <Aero/Controls/Border.hpp>
-#include <Aero/Controls/Viewbox.hpp>
-#include <Aero/Controls/ContentPresenter.hpp>
-#include <Aero/Controls/UserControl.hpp>
-#include <Aero/Controls/Headers.hpp>
-#include <Aero/Controls/Label.hpp>
-#include <Aero/Controls/Popup.hpp>
-#include <Aero/Controls/ItemsControl.hpp>
-#include <Aero/Controls/HeaderedItemsControl.hpp>
-#include <Aero/Controls/ItemsPresenter.hpp>
-#include <Aero/Controls/Primitives/Selector.hpp>
-#include <Aero/Controls/Selectors.hpp>
-#include <Aero/Controls/TreeView.hpp>
-#include <Aero/Controls/Menus.hpp>
-#include <Aero/Controls/Separator.hpp>
-#include <Aero/Controls/ToolBar.hpp>
-#include <Aero/Controls/StatusBar.hpp>
-#include <Aero/Controls/ToolTip.hpp>
-#include <Aero/Controls/TextBlock.hpp>
-#include <Aero/Controls/TextBoxBase.hpp>
-#include <Aero/Controls/TextBox.hpp>
-#include <Aero/Controls/Image.hpp>
-#include <Aero/Shapes.hpp>
-#include <Aero/Controls/GridViews.hpp>
-#include <Aero/Controls/ListView.hpp>
+#include <Aero/DataTemplate.hpp>
 #include <Aero/Controls.hpp>
 #include <Aero/Input.hpp>
 #include <Aero/VisualStateManager.hpp>
@@ -176,6 +136,8 @@ Base::Result<void> PopulateCoreMetadata(
     Register<Threading::DispatcherObject>(context, TypeFlags::Abstract);
 
     Register<DependencyObject>(context, TypeFlags::Abstract);
+
+    DescribeHook<::Aero::ResourceProvider>::Run(context);
 
     return Meta::Register<Freezable>(
         context, TypeFlags::Abstract).Result();
@@ -381,6 +343,8 @@ Base::Result<void> PopulateUiStyling(
     DescribeHook<::Aero::Data::Binding>::Run(context);
     DescribeHook<::Aero::Data::MultiBinding>::Run(context);
     DescribeHook<::Aero::Data::MultiBindingProxy>::Run(context);
+    DescribeHook<::Aero::ViewModelBase>::Run(context);
+    DescribeHook<::Aero::PropertyPath>::Run(context);
     DescribeHook<::Aero::TriggerBase>::Run(context);
     DescribeHook<::Aero::Trigger>::Run(context);
     DescribeHook<::Aero::DataTrigger>::Run(context);
@@ -481,75 +445,8 @@ Base::Result<void> PopulateUiMetadata(
 
 #include "gui/core/TypeRegistryCore.hpp"
 
-// Templates
-#include <Aero/FrameworkTemplate.hpp>
-#include <Aero/Controls/ControlTemplate.hpp>
-#include <Aero/DataTemplate.hpp>
-#include <Aero/Controls/ItemsPanelTemplate.hpp>
-
-// Panels
-#include <Aero/Controls/Panel.hpp>
-#include <Aero/Controls/Panels.hpp>
-#include <Aero/Controls/VirtualizingPanel.hpp>
-#include <Aero/Controls/VirtualizingStackPanel.hpp>
-#include <Aero/Controls/VirtualizingWrapPanel.hpp>
-#include <Aero/Controls/Grid.hpp>
-
-// Primitives & Buttons
-#include <Aero/Controls/Primitives/ButtonBase.hpp>
-#include <Aero/Controls/Button.hpp>
-#include <Aero/Controls/Buttons.hpp>
-#include <Aero/Controls/Primitives/Thumb.hpp>
-#include <Aero/Controls/Ranges.hpp>
-#include <Aero/Controls/GridSplitter.hpp>
-#include <Aero/Controls/ScrollViewer.hpp>
-
-// Content & Decorators
-#include <Aero/Controls/Control.hpp>
-#include <Aero/Controls/ContentControl.hpp>
-#include <Aero/Controls/HeaderedContentControl.hpp>
-#include <Aero/Controls/Decorator.hpp>
-#include <Aero/Controls/Border.hpp>
-#include <Aero/Controls/Viewbox.hpp>
-#include <Aero/Controls/ContentPresenter.hpp>
-#include <Aero/Controls/UserControl.hpp>
-#include <Aero/Controls/Headers.hpp>
-#include <Aero/Controls/Label.hpp>
-#include <Aero/Controls/Popup.hpp>
-
-// Items
-#include <Aero/Controls/ItemsControl.hpp>
-#include <Aero/Controls/HeaderedItemsControl.hpp>
-#include <Aero/Controls/ItemsPresenter.hpp>
-
-// Selection
-#include <Aero/Controls/Primitives/Selector.hpp>
-#include <Aero/Controls/Selectors.hpp>
-
-// Trees
-#include <Aero/Controls/TreeView.hpp>
-
-// Menus
-#include <Aero/Controls/Menus.hpp>
-#include <Aero/Controls/Separator.hpp>
-
-// Bars & ToolTips
-#include <Aero/Controls/ToolBar.hpp>
-#include <Aero/Controls/StatusBar.hpp>
-#include <Aero/Controls/ToolTip.hpp>
-
-// Text & Media
-#include <Aero/Controls/TextBlock.hpp>
-#include <Aero/Controls/TextBoxBase.hpp>
-#include <Aero/Controls/TextBox.hpp>
-#include <Aero/Controls/Image.hpp>
-
-// Shapes
+#include <Aero/Controls.hpp>
 #include <Aero/Shapes.hpp>
-
-// ListView & GridView
-#include <Aero/Controls/GridViews.hpp>
-#include <Aero/Controls/ListView.hpp>
 #include "gui/core/Describe.hpp"
 
 namespace Aero::Controls {

@@ -145,7 +145,7 @@ Out ps_main(In i) {
     // Single-channel signed distance field text
     float dist = glyphs.Sample(glyphsSampler, i.uv0).r;
     float smoothing = max(fwidth(dist), 1.0 / 512.0);
-    float alpha = smoothstep(0.5 - smoothing, 0.5 + smoothing, dist);
+    float alpha = smoothstep(0.5 - 0.5 * smoothing, 0.5 + 0.5 * smoothing, dist);
     o.color = (alpha * opacity_ * i.coverage) * paint;
 
 #elif EFFECT_SDF_LCD
@@ -157,7 +157,7 @@ Out ps_main(In i) {
     float4 blue = glyphs.Sample(glyphsSampler, i.uv0 + offset);
     float3 dist3 = float3(red.r, green.r, blue.r);
     float sm = max(fwidth(dist3.g), 1.0 / 512.0);
-    float3 a3 = smoothstep(0.5 - sm, 0.5 + sm, dist3);
+    float3 a3 = smoothstep(0.5 - 0.5 * sm, 0.5 + 0.5 * sm, dist3);
     o.color = float4((opacity_ * i.coverage) * paint.rgb * a3.rgb, a3.g * i.coverage);
     o.alpha = float4((opacity_ * paint.a * i.coverage) * a3.rgb, a3.g * i.coverage);
 

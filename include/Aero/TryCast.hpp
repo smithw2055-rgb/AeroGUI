@@ -18,7 +18,10 @@ AERO_GUI_API bool IsRuntimeTypeDerivedFrom(const Object* object, Base::MetaTypeI
 
 template<class T> T* TryCast(Object* object) noexcept {
     static_assert(std::is_base_of<Object, T>::value, "Aero::TryCast requires an Aero object type");
-    if (!IsRuntimeTypeDerivedFrom(object, T::StaticTypeId())) { return nullptr; }
+    if (object == nullptr) { return nullptr; }
+    const Base::MetaTypeId runtimeType = object->RuntimeType();
+    if (runtimeType == T::StaticTypeId()) { return static_cast<T*>(object); }
+    if (!IsRuntimeTypeDerivedFrom(runtimeType, T::StaticTypeId())) { return nullptr; }
     return static_cast<T*>(object);
 }
 
@@ -28,6 +31,7 @@ AERO_GUI_API void* TryCastToInterface(Object* object, Base::MetaTypeId interface
 AERO_GUI_API const void* TryCastToInterface(const Object* object, Base::MetaTypeId interfaceType) noexcept;
 
 template<class TInterface> TInterface* TryCastToInterface(Object* object) noexcept {
+    if (object == nullptr) { return nullptr; }
     return static_cast<TInterface*>(TryCastToInterface(object, TInterface::StaticTypeId()));
 }
 

@@ -4,7 +4,7 @@
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/DependencyProperty.hpp>
-#include <Aero/Controls/ControlTemplate.hpp>
+#include <Aero/Controls/Control.hpp>
 
 #include <cstdint>
 

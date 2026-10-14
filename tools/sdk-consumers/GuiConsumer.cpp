@@ -1,20 +1,17 @@
 #include <Aero/Gui.hpp>
 #include <Aero/View.hpp>
-#include <Aero/Controls/Button.hpp>
+#include <Aero/Controls/Buttons.hpp>
 #include <Aero/Documents.hpp>
 #include <Aero/Shapes.hpp>
-#include <Aero/Controls/VirtualizingStackPanel.hpp>
+#include <Aero/Controls/VirtualizingPanels.hpp>
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Events.hpp>
 #include <Aero/Triggers.hpp>
 
 #include <Aero/Data/Binding.hpp>
-#include <Aero/Controls/Border.hpp>
+#include <Aero/Controls/Decorators.hpp>
 #include <Aero/Media/Brushes.hpp>
-#include <Aero/Controls/Primitives/ButtonBase.hpp>
-#include <Aero/Controls/ContentControl.hpp>
 #include <Aero/Controls/Control.hpp>
-#include <Aero/Controls/ControlTemplate.hpp>
 #include <Aero/DataTemplate.hpp>
 #include <Aero/DependencyObject.hpp>
 #include <Aero/DependencyProperty.hpp>
@@ -22,9 +19,8 @@
 #include <Aero/Media/Geometries.hpp>
 #include <Aero/Controls/Grid.hpp>
 #include <Aero/IRenderer.hpp>
-#include <Aero/Controls/ItemsControl.hpp>
+#include <Aero/Controls/Items.hpp>
 #include <Aero/Controls/Selectors.hpp>
-#include <Aero/Controls/Panel.hpp>
 #include <Aero/Resources.hpp>
 #include <Aero/RoutedEvent.hpp>
 #include <Aero/Controls/Panels.hpp>
@@ -32,8 +28,6 @@
 #include <Aero/Style.hpp>
 #include <Aero/Controls/TextBlock.hpp>
 #include <Aero/Controls/TextBox.hpp>
-#include <Aero/Controls/TextBoxBase.hpp>
-#include <Aero/Controls/Buttons.hpp>
 #include <Aero/Media/Transform2D.hpp>
 #include <Aero/Media/Transform3D.hpp>
 #include <Aero/Controls/TreeView.hpp>

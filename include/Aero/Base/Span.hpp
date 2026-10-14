@@ -4,6 +4,7 @@
 #include <Aero/Base/Config.hpp>
 
 #include <type_traits>
+#include <vector>
 
 namespace Aero::Base {
 
@@ -21,6 +22,14 @@ public:
         : data_(items), size_(static_cast<std::uint32_t>(N)) {
         static_assert(N <= UINT32_MAX, "Span array is too large");
     }
+
+    template<class Alloc, class = std::enable_if_t<!std::is_const_v<T>>>
+    Span(std::vector<T, Alloc>& vec) noexcept
+        : data_(vec.data()), size_(static_cast<std::uint32_t>(vec.size())) {}
+
+    template<class U, class Alloc, class = std::enable_if_t<std::is_const_v<T> && std::is_same_v<std::remove_const_t<T>, U>>>
+    Span(const std::vector<U, Alloc>& vec) noexcept
+        : data_(vec.data()), size_(static_cast<std::uint32_t>(vec.size())) {}
 
     template<class U, class = std::enable_if_t<std::is_convertible<U (*)[], T (*)[]>::value>>
     constexpr Span(const Span<U>& other) noexcept : data_(other.Data()), size_(other.Size()) {}

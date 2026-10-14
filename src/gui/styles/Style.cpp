@@ -9,7 +9,7 @@
 #include "gui/triggers/TriggerPlan.hpp"
 #include "gui/triggers/TriggerEngine.hpp"
 #include "gui/data/BindingEngine.hpp"
-#include <Aero/Controls/ControlTemplate.hpp>
+#include <Aero/Controls/Control.hpp>
 #include <Aero/Data/Binding.hpp>
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Style.hpp>

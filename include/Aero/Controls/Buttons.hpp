@@ -1,9 +1,78 @@
 #pragma once
 
-// Button leaves. Button and ButtonBase stay in their own headers.
-#include <Aero/Controls/Primitives/ButtonBase.hpp>
+#include <Aero/Controls/Control.hpp>
+#include <Aero/Input.hpp>
+#include <Aero/ICommand.hpp>
+#include <Aero/Events/ControlEventArgs.hpp>
 
-namespace Aero::Controls::Primitives {
+namespace Aero::Controls {
+
+using ::Aero::Meta::DependencyPropertyChangedEventArgs;
+using ::Aero::Meta::DependencyPropertyHandle;
+using ::Aero::Meta::PropertyValue;
+using ::Aero::Meta::TypeId;
+using ::Aero::Input::ICommand;
+
+enum class ClickMode : std::uint8_t {
+    Release = 0U,
+    Press,
+    Hover,
+};
+
+namespace Primitives {
+
+class AERO_GUI_API ButtonBase : public ContentControl {
+    AERO_DECLARE_TYPE(ButtonBase, ContentControl)
+
+public:
+    ClickMode GetClickMode() const noexcept;
+    void SetClickMode(ClickMode value) noexcept;
+    ICommand* GetCommand() const noexcept;
+    void SetCommand(Ref<ICommand> command) noexcept;
+    Value GetCommandParameter() const noexcept;
+    void SetCommandParameter(Value parameter) noexcept;
+    UIElement* GetCommandTarget() const noexcept;
+    void SetCommandTarget(Ref<UIElement> target) noexcept;
+    bool GetIsCommandEnabled() const noexcept;
+
+    inline static constexpr RoutedEvent<RoutedEventArgs> ClickEvent{"Click"};
+    UIElement::Event<RoutedEventArgs> Click() noexcept { return GetEvent(ClickEvent); }
+
+    AERO_DEPENDENCY_PROPERTY(ClickMode, ClickMode);
+    AERO_DEPENDENCY_PROPERTY(Ref<ICommand>, Command);
+    AERO_DEPENDENCY_PROPERTY(Value, CommandParameter);
+    AERO_DEPENDENCY_PROPERTY(Ref<UIElement>, CommandTarget);
+
+protected:
+    explicit ButtonBase(TypeId runtimeType) noexcept;
+    ~ButtonBase() override;
+
+    virtual void OnClick();
+    virtual void UpdateVisualState(bool useTransitions = true) noexcept;
+    void OnMouseLeftButtonDown(MouseButtonEventArgs& args);
+    void OnMouseLeftButtonUp(MouseButtonEventArgs& args);
+    void OnKeyDown(KeyEventArgs& args);
+    void OnKeyUp(KeyEventArgs& args);
+    void OnGotKeyboardFocus(KeyboardFocusChangedEventArgs& args);
+    void OnLostKeyboardFocus(KeyboardFocusChangedEventArgs& args);
+    void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
+    void OnApplyTemplate() noexcept override;
+    PropertyValue CoerceValueCore(DependencyPropertyHandle property, const PropertyValue& baseValue) noexcept override;
+
+private:
+    void HookCommand(ICommand* command) noexcept;
+    void UnhookCommand() noexcept;
+    void RefreshCanExecute() noexcept;
+    void OnCanExecuteChanged() noexcept;
+
+    Base::Ref<ICommand> hookedCommand_;
+    Base::Delegate<void()> canExecuteChangedHandler_;
+    std::uint32_t pointerId_ = 0U;
+    bool pointerDown_ = false;
+    bool keyboardDown_ = false;
+    bool wasMouseOver_ = false;
+    bool commandEnabled_ = true;
+};
 
 class AERO_GUI_API ToggleButton : public ButtonBase {
     AERO_DECLARE_TYPE(ToggleButton, ButtonBase)
@@ -67,9 +136,18 @@ protected:
     void OnKeyUp(KeyEventArgs& args);
 };
 
-} // namespace Aero::Controls::Primitives
+} // namespace Primitives
 
-namespace Aero::Controls {
+class AERO_GUI_API Button : public Primitives::ButtonBase {
+    AERO_DECLARE_TYPE(Button, Primitives::ButtonBase)
+
+public:
+    Button() noexcept : Button(StaticTypeId()) {}
+    ~Button() override = default;
+
+protected:
+    explicit Button(TypeId runtimeType) noexcept : Primitives::ButtonBase(runtimeType) {}
+};
 
 class AERO_GUI_API CheckBox : public Primitives::ToggleButton {
     AERO_DECLARE_TYPE(CheckBox, Primitives::ToggleButton)
@@ -106,3 +184,5 @@ private:
 };
 
 } // namespace Aero::Controls
+
+AERO_DECLARE_TYPE_ENUM(Aero::Controls::ClickMode)

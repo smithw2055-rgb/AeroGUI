@@ -1,10 +1,11 @@
 #pragma once
 
 #include <Aero/InputInterop.hpp>
-#include <Aero/Controls/TextBoxBase.hpp>
-#include <Aero/Controls/ScrollViewer.hpp>
+#include <Aero/Controls/Control.hpp>
+#include <Aero/Controls/Scroll.hpp>
 #include <Aero/TextFormatting.hpp>
 #include <Aero/Events/EventArgs.hpp>
+#include <Aero/Media/Brushes.hpp>
 
 namespace Aero::Controls {
 class PasswordBox;
@@ -14,7 +15,39 @@ using ::Aero::Meta::DependencyPropertyHandle;
 using ::Aero::Meta::PropertyValue;
 using ::Aero::Meta::TypeId;
 
-namespace Primitives { class TextBoxView; }
+namespace Primitives {
+
+class TextBoxView;
+
+class AERO_GUI_API TextBoxBase : public Control {
+    AERO_DECLARE_TYPE(TextBoxBase, Control)
+
+public:
+    Ref<Media::Brush> GetSelectionBrush() const noexcept;
+    virtual void SetSelectionBrush(Ref<Media::Brush> value) noexcept;
+    double GetSelectionOpacity() const noexcept;
+    virtual void SetSelectionOpacity(double value) noexcept;
+    Ref<Media::Brush> GetCaretBrush() const noexcept;
+    virtual void SetCaretBrush(Ref<Media::Brush> value) noexcept;
+
+    AERO_DEPENDENCY_PROPERTY(Ref<Media::Brush>, SelectionBrush);
+    AERO_DEPENDENCY_PROPERTY(double, SelectionOpacity);
+    AERO_DEPENDENCY_PROPERTY(Ref<Media::Brush>, CaretBrush);
+
+protected:
+    struct DragSelectionState {
+        std::uint32_t pointerId = 0U;
+        std::uint32_t dragAnchor = 0U;
+        bool isDragging = false;
+    };
+
+    explicit TextBoxBase(TypeId runtimeType) noexcept : Control(runtimeType) {}
+    ~TextBoxBase() override = default;
+
+    DragSelectionState drag_;
+};
+
+} // namespace Primitives
 
 class AERO_GUI_API TextBox : public Primitives::TextBoxBase,
       private IScrollInfo,

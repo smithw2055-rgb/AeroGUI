@@ -25,7 +25,7 @@
 #include <Aero/Media/Geometries.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/DataTemplate.hpp>
-#include <Aero/Controls/ControlTemplate.hpp>
+#include <Aero/Controls/Control.hpp>
 
 
 namespace Aero::Markup {

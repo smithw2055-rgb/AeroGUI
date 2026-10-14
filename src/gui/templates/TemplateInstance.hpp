@@ -9,7 +9,7 @@
 #include "gui/input/InputManager.hpp" 
 #include "gui/data/BindingEngine.hpp"
 #include <Aero/Base/HashMap.hpp>
-#include <Aero/Controls/ControlTemplate.hpp>
+#include <Aero/Controls/Control.hpp>
 #include <Aero/Resources.hpp>
 #include "render/RenderTree.hpp"
 

@@ -55,6 +55,10 @@ public:
         return value_;
     }
     explicit operator bool() const noexcept { return value_ != nullptr; }
+    bool operator==(std::nullptr_t) const noexcept { return value_ == nullptr; }
+    bool operator!=(std::nullptr_t) const noexcept { return value_ != nullptr; }
+    friend bool operator==(std::nullptr_t, const Ref& ref) noexcept { return ref.value_ == nullptr; }
+    friend bool operator!=(std::nullptr_t, const Ref& ref) noexcept { return ref.value_ != nullptr; }
 
     // Acquires a strong reference to an already-owned object. This is useful
     // for transactional bookkeeping that must outlive a caller's temporary

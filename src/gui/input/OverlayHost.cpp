@@ -2,6 +2,7 @@
 #include "render/RenderTree.hpp"
 #include <Aero/Documents.hpp>
 #include <Aero/Controls/Menus.hpp>
+#include <Aero/Controls.hpp>
 
 #include <cstdint>
 #include <utility>
@@ -436,7 +437,17 @@ Base::Result<void> OverlayHost::DismissOverlaysForPointer(
                         Controls::MenuItem::StaticTypeId())) {
                     isMenuPopup = true;
                 }
-                if (!popup->GetStaysOpen() || isMenuPopup) {
+                bool isComboPopup = (templated != nullptr &&
+                    Metadata()->Types().IsDerivedFrom(
+                        templated->RuntimeType(),
+                        Controls::ComboBox::StaticTypeId()));
+                if (!isComboPopup && placement != nullptr &&
+                    Metadata()->Types().IsDerivedFrom(
+                        placement->RuntimeType(),
+                        Controls::ComboBox::StaticTypeId())) {
+                    isComboPopup = true;
+                }
+                if (!popup->GetStaysOpen() || isMenuPopup || isComboPopup) {
                     popup->SetIsOpen(false);
                     if (templated != nullptr &&
                         Metadata()->Types().IsDerivedFrom(
@@ -451,6 +462,18 @@ Base::Result<void> OverlayHost::DismissOverlaysForPointer(
                             Controls::MenuItem::StaticTypeId())) {
                         Controls::MenuItem::DismissMenuTree(
                             *static_cast<Controls::MenuItem*>(placement));
+                    }
+                    if (templated != nullptr &&
+                        Metadata()->Types().IsDerivedFrom(
+                            templated->RuntimeType(),
+                            Controls::ComboBox::StaticTypeId())) {
+                        static_cast<Controls::ComboBox*>(templated)->SetIsDropDownOpen(false);
+                    }
+                    if (placement != nullptr &&
+                        Metadata()->Types().IsDerivedFrom(
+                            placement->RuntimeType(),
+                            Controls::ComboBox::StaticTypeId())) {
+                        static_cast<Controls::ComboBox*>(placement)->SetIsDropDownOpen(false);
                     }
                 }
             } else if (
@@ -526,6 +549,18 @@ Base::Result<bool> OverlayHost::DismissTopOverlayForEscape()
                         placement->RuntimeType(),
                         Controls::MenuItem::StaticTypeId())) {
                     static_cast<Controls::MenuItem*>(placement)->SetIsSubmenuOpen(false);
+                }
+                if (templated != nullptr &&
+                    Metadata()->Types().IsDerivedFrom(
+                        templated->RuntimeType(),
+                        Controls::ComboBox::StaticTypeId())) {
+                    static_cast<Controls::ComboBox*>(templated)->SetIsDropDownOpen(false);
+                }
+                if (placement != nullptr &&
+                    Metadata()->Types().IsDerivedFrom(
+                        placement->RuntimeType(),
+                        Controls::ComboBox::StaticTypeId())) {
+                    static_cast<Controls::ComboBox*>(placement)->SetIsDropDownOpen(false);
                 }
                 synced = SynchronizeOverlays();
                 if (!synced) {

@@ -3,7 +3,7 @@
 // Adorner, AdornerLayer, and AdornerDecorator.
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Controls/Decorator.hpp>
+#include <Aero/Controls/Decorators.hpp>
 
 namespace Aero::Documents {
 

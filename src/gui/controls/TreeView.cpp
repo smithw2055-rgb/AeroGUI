@@ -11,16 +11,14 @@
 #include <Aero/VisualStateManager.hpp>
 #include <Aero/Controls.hpp>
 #include <Aero/ClassHandler.hpp>
-#include <Aero/Controls/ControlTemplate.hpp>
+#include <Aero/Controls/Control.hpp>
 #include <Aero/TryCast.hpp>
 #include <Aero/Controls/Buttons.hpp>
-#include <Aero/Controls/ItemContainerGenerator.hpp>
+#include <Aero/Controls/Items.hpp>
 
 #include <utility>
 #include <Aero/Media/Transform2D.hpp>
-#include <Aero/Controls/Decorator.hpp>
-#include <Aero/Controls/ContentPresenter.hpp>
-#include <Aero/Controls/ItemsPresenter.hpp>
+#include <Aero/Controls/Decorators.hpp>
 #include <Aero/Visual.hpp>
 #include <Aero/VisualTreeHelper.hpp>
 #include "gui/core/DependencyObjectAccess.hpp"

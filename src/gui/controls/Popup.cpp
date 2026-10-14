@@ -7,9 +7,9 @@
 #include "gui/media/BrushRendering.hpp"
 #include "render/DisplayList.hpp"
 #include <Aero/Controls.hpp>
-#include <Aero/Controls/ItemContainerGenerator.hpp>
-#include <Aero/Controls/Decorator.hpp>
-#include <Aero/Controls/ControlTemplate.hpp>
+#include <Aero/Controls/Items.hpp>
+#include <Aero/Controls/Decorators.hpp>
+#include <Aero/Controls/Control.hpp>
 #include <Aero/DataTemplate.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Media/Transform2D.hpp>
@@ -460,6 +460,65 @@ Size Popup::ArrangeOverride(
     return finalSize;
 }
 
+bool ToolTip::GetIsOpen() const noexcept {
+    return GetValue(IsOpenProperty);
+}
+
+void ToolTip::SetIsOpen(bool value) noexcept {
+    SetValue(IsOpenProperty, value);
+}
+
+Base::Ref<UIElement> ToolTip::GetPlacementTarget() const noexcept {
+    return GetValue(PlacementTargetProperty);
+}
+
+void ToolTip::SetPlacementTarget(Base::Ref<UIElement> value) noexcept {
+    SetValue(PlacementTargetProperty, std::move(value));
+}
+
+void ToolTip::OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept {
+    ContentControl::OnPropertyChanged(args);
+    if (args.GetProperty() != IsOpenProperty) return;
+    const bool open = args.GetNewValue().AsBoolean();
+    UIElement* child = GetTemplateRoot() != nullptr ? GetTemplateRoot() : GetContentElement();
+    const bool hitTest = open && (child == nullptr || child->GetIsHitTestVisible());
+    static_cast<void>(SetIsHitTestVisible(hitTest));
+    InvalidateMeasure();
+}
+
+Size ToolTip::MeasureOverride(Size availableSize) noexcept {
+    static_cast<void>(availableSize);
+    UIElement* child = GetTemplateRoot() != nullptr ? GetTemplateRoot() : GetContentElement();
+    if (!GetIsOpen() || child == nullptr) return Size{};
+    constexpr double Unconstrained = 1.0e12;
+    MeasureChild(*child, Size{Unconstrained, Unconstrained});
+    return Size{};
+}
+
+Primitives::PlacementMode ToolTip::GetPlacement() const noexcept {
+    return GetValue(PlacementProperty);
+}
+
+void ToolTip::SetPlacement(Primitives::PlacementMode value) noexcept {
+    SetValue(PlacementProperty, value);
+}
+
+double ToolTip::GetHorizontalOffset() const noexcept {
+    return GetValue(HorizontalOffsetProperty);
+}
+
+void ToolTip::SetHorizontalOffset(double value) noexcept {
+    SetValue(HorizontalOffsetProperty, value);
+}
+
+double ToolTip::GetVerticalOffset() const noexcept {
+    return GetValue(VerticalOffsetProperty);
+}
+
+void ToolTip::SetVerticalOffset(double value) noexcept {
+    SetValue(VerticalOffsetProperty, value);
+}
+
 Size ToolTip::ArrangeOverride(Size finalSize) noexcept {
     UIElement* child = GetTemplateRoot() != nullptr ? GetTemplateRoot() : GetContentElement();
     if (child == nullptr) return finalSize;
@@ -471,6 +530,44 @@ Size ToolTip::ArrangeOverride(Size finalSize) noexcept {
         GetPlacement(), GetHorizontalOffset(), GetVerticalOffset(), false);
     ArrangeChild(*child, slot);
     return finalSize;
+}
+
+Base::Ref<ToolTip> ToolTipService::GetToolTip(
+    const DependencyObject& target) noexcept {
+    return target.GetValue(ToolTipProperty);
+}
+
+void ToolTipService::SetToolTip(
+    DependencyObject& target,
+    Base::Ref<ToolTip> value) noexcept {
+    target.SetValue(
+        ToolTipProperty,
+        std::move(value));
+}
+
+std::uint32_t ToolTipService::GetInitialShowDelay(
+    const DependencyObject& target) noexcept {
+    return target.GetValue(InitialShowDelayProperty);
+}
+
+void
+ToolTipService::SetInitialShowDelay(
+    DependencyObject& target,
+    std::uint32_t value) noexcept {
+    target.SetValue(
+        InitialShowDelayProperty, value);
+}
+
+std::uint32_t ToolTipService::GetShowDuration(
+    const DependencyObject& target) noexcept {
+    return target.GetValue(ShowDurationProperty);
+}
+
+void ToolTipService::SetShowDuration(
+    DependencyObject& target,
+    std::uint32_t value) noexcept {
+    target.SetValue(
+        ShowDurationProperty, value);
 }
 
 namespace Primitives {
@@ -503,5 +600,26 @@ AERO_DESCRIBE(Popup) {
 }
 
 } // namespace Primitives
+
+AERO_DESCRIBE(ToolTip) {
+    using namespace Aero::Meta;
+    Register<ToolTip>(context)
+        .Property(ToolTip::InitialShowDelayProperty, std::uint32_t{400U})
+        .Property(ToolTip::ShowDurationProperty, std::uint32_t{5000U})
+        .Property(ToolTip::IsOpenProperty, false, AffectsMeasure | AffectsRender)
+        .Property(ToolTip::PlacementProperty, Primitives::PlacementMode::Mouse)
+        .Property(ToolTip::HorizontalOffsetProperty, 0.0)
+        .Property(ToolTip::VerticalOffsetProperty, 0.0)
+        .Property(ToolTip::PlacementTargetProperty, Base::Ref<UIElement>{})
+        .Factory();
+}
+
+AERO_DESCRIBE(ToolTipService) {
+    using namespace Aero::Meta;
+    Register<ToolTipService>(context, TypeFlags::Abstract)
+        .Property(ToolTipService::ToolTipProperty, Base::Ref<ToolTip>{})
+        .Property(ToolTipService::InitialShowDelayProperty, std::uint32_t{400U})
+        .Property(ToolTipService::ShowDurationProperty, std::uint32_t{5000U});
+}
 
 } // namespace Aero::Controls

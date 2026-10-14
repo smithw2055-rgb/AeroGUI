@@ -6,20 +6,53 @@
 #include <Aero/CommandBinding.hpp>
 #include <Aero/Controls/Buttons.hpp>
 #include <Aero/Controls/Control.hpp>
-#include <Aero/Controls/Panel.hpp>
-#include <Aero/Controls/Primitives/Thumb.hpp>
+#include <Aero/Controls/Panels.hpp>
 #include <Aero/Events/CommandEventArgs.hpp>
 #include <Aero/Events/ControlEventArgs.hpp>
 #include <Aero/Events/EventArgs.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/DrawingContext.hpp>
 
-namespace Aero::Controls::Primitives {
+namespace Aero::Controls {
+
+struct ThumbDragDelta {
+    double horizontalChange = 0.0;
+    double verticalChange = 0.0;
+};
+
+namespace Primitives {
 
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::DependencyPropertyHandle;
 using ::Aero::Meta::PropertyValue;
 using ::Aero::Meta::TypeId;
+
+class AERO_GUI_API Thumb : public Control {
+    AERO_DECLARE_TYPE(Thumb, Control)
+
+public:
+    Thumb() noexcept;
+    ~Thumb() override;
+
+    bool GetIsDragging() const noexcept { return GetValue(IsDraggingProperty); }
+    Result<void> BeginDrag(std::uint32_t pointerId, Point position) noexcept;
+    Result<ThumbDragDelta> DragTo(std::uint32_t pointerId, Point position) noexcept;
+    Result<bool> EndDrag(std::uint32_t pointerId) noexcept;
+
+    void UpdateVisualState(bool useTransitions = true) noexcept;
+
+    AERO_READONLY_PROPERTY(bool, IsDragging);
+
+protected:
+    explicit Thumb(TypeId runtimeType) noexcept;
+    void OnApplyTemplate() noexcept override;
+    void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
+
+private:
+    std::uint32_t pointerId_ = 0U;
+    Point lastPosition_{};
+    bool dragging_ = false;
+};
 
 class AERO_GUI_API RangeBase : public Control {
     AERO_DECLARE_TYPE(RangeBase, Control)
@@ -205,9 +238,7 @@ private:
     void SynchronizeTrack() noexcept;
 };
 
-} // namespace Aero::Controls::Primitives
-
-namespace Aero::Controls {
+} // namespace Primitives
 
 enum class TickBarPlacement : std::uint8_t {
     Top = 0U,

@@ -1,22 +1,123 @@
 #pragma once
 
 // List, combo, and tab controls plus their items. Selector stays separate.
-#include <Aero/Controls/ContentControl.hpp>
+#include <Aero/Controls/Control.hpp>
 #include <Aero/DependencyProperty.hpp>
-#include <Aero/Controls/Primitives/Selector.hpp>
+#include <Aero/Controls/Items.hpp>
+#include <Aero/Events/ControlEventArgs.hpp>
 #include <Aero/Controls/Popup.hpp>
 #include <Aero/Controls/TextBlock.hpp>
 #include <Aero/Controls/TextBox.hpp>
-#include <Aero/Controls/ContentPresenter.hpp>
-#include <Aero/Controls/HeaderedContentControl.hpp>
-#include <Aero/Controls/Panel.hpp>
+#include <Aero/Controls/Panels.hpp>
 #include <Aero/DataTemplate.hpp>
+
+namespace Aero::Data { class CollectionView; }
 
 namespace Aero::Controls {
 
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::DependencyPropertyChangedEventHandler;
+using ::Aero::Meta::DependencyPropertyHandle;
+using ::Aero::Meta::PropertyValue;
 using ::Aero::Meta::TypeId;
+
+enum class SelectionMode : std::uint8_t {
+    Single = 0U,
+    Multiple,
+    Extended,
+};
+
+namespace Primitives {
+
+class AERO_GUI_API Selector : public ItemsControl {
+    AERO_DECLARE_TYPE(Selector, ItemsControl)
+
+public:
+    Selector() noexcept;
+    ~Selector() override;
+
+    bool Select(std::uint32_t index) noexcept;
+    bool Unselect(std::uint32_t index) noexcept;
+    bool Toggle(std::uint32_t index) noexcept;
+    bool SelectRange(std::uint32_t first, std::uint32_t last, bool preserveExisting = false) noexcept;
+    void AddSelectionChanged(const SelectionChangedHandler& handler) noexcept { selectionChanged_.Add(handler); }
+    bool RemoveSelectionChanged(const SelectionChangedHandler& handler) noexcept {
+        return selectionChanged_.Remove(handler);
+    }
+    void SyncContainers() noexcept;
+
+    SelectionMode GetSelectionMode() const noexcept;
+    void SetSelectionMode(SelectionMode value) noexcept;
+    std::uint32_t GetSelectedIndex() const noexcept;
+    void SetSelectedIndex(std::uint32_t index) noexcept;
+    Ref<Base::Object> GetSelectedItem() const noexcept;
+    void SetSelectedItem(Ref<Base::Object> item) noexcept;
+    Ref<Base::Object> GetSelectedValue() const noexcept;
+    void SetSelectedValue(Ref<Base::Object> value) noexcept;
+    StringView GetSelectedValuePath() const noexcept { return GetValue(SelectedValuePathProperty); }
+    Span<const std::uint32_t> GetSelectedIndices() const noexcept {
+        return {selectedIndices_.Data(), selectedIndices_.Size()};
+    }
+    std::uint32_t GetSelectedCount() const noexcept { return selectedIndices_.Size(); }
+    bool GetIsSelected(std::uint32_t index) const noexcept;
+    std::uint32_t GetIndexOfItem(const Base::Object* item) const noexcept;
+    bool GetIsSynchronizedWithCurrentItem() const noexcept;
+    void SetIsSynchronizedWithCurrentItem(bool value) noexcept;
+    void ClearSelection() noexcept;
+
+    inline static constexpr RoutedEvent<RoutedEventArgs> SelectionChangedRoutedEvent{"SelectionChanged"};
+    UIElement::Event<RoutedEventArgs> SelectionChanged() noexcept { return GetEvent(SelectionChangedRoutedEvent); }
+
+    AERO_DEPENDENCY_PROPERTY(SelectionMode, SelectionMode);
+    AERO_DEPENDENCY_PROPERTY(std::uint32_t, SelectedIndex);
+    AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, SelectedItem);
+    AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, SelectedValue);
+    AERO_DEPENDENCY_PROPERTY(String, SelectedValuePath);
+    AERO_ATTACHED_PROPERTY(bool, IsSelected);
+    AERO_DEPENDENCY_PROPERTY(bool, IsSynchronizedWithCurrentItem);
+
+    Base::Status LastSelectionError() const noexcept { return lastSelectionError_; }
+
+protected:
+    explicit Selector(TypeId runtimeType) noexcept;
+
+    Result<void> PrepareContainerForItemOverride(FrameworkElement& container, const Ref<Base::Object>& item,
+        std::uint32_t index) noexcept override;
+    void OnContainersChanged() noexcept override;
+    void OnItemsChanged(const ItemsChangedEvent& event) noexcept override;
+    PropertyValue CoerceValueCore(DependencyPropertyHandle property, const PropertyValue& baseValue) noexcept override;
+    [[deprecated("Use OnItemsChanged()")]]
+    void OnItemsSourceCoreChanged() noexcept override;
+    virtual void OnSelectionChanged(const SelectionChangedEvent& event);
+    void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
+
+    void ClearContainerForItemOverride(FrameworkElement& container) noexcept override;
+
+private:
+    void PushSelectionToCurrent() noexcept;
+    void OnViewCurrentChanged() noexcept;
+    Result<bool> ApplySelection(Span<const std::uint32_t> indices, std::uint32_t primaryIndex) noexcept;
+    void PublishProperties() noexcept;
+    void HookCurrentView() noexcept;
+    void UnhookCurrentView() noexcept;
+
+    Base::Vector<std::uint32_t> selectedIndices_;
+    std::uint32_t primaryIndex_ = UINT32_MAX;
+    std::uint32_t pendingIndex_ = UINT32_MAX;
+    Ref<Base::Object> pendingSelectedItem_;
+    SelectionChangedHandler selectionChanged_;
+    ItemsChangedHandler itemsChangedHandler_;
+    Base::Status lastSelectionError_;
+    DependencyPropertyHandle activeProperty_;
+    bool synchronizingProperties_ = false;
+    bool synchronizingCurrent_ = false;
+    Data::CollectionView* subscribedView_ = nullptr;
+    Base::Delegate<void()> currentChangedHandler_;
+};
+
+} // namespace Primitives
+
+using Primitives::Selector;
 
 class TabControl;
 
@@ -57,6 +158,10 @@ public:
     void SetIsSelected(bool value) noexcept;
 
     AERO_DEPENDENCY_PROPERTY(bool, IsSelected);
+
+protected:
+    void OnMouseLeftButtonDown(MouseButtonEventArgs& args);
+    void OnMouseLeftButtonUp(MouseButtonEventArgs& args);
 };
 
 class AERO_GUI_API ListBox : public Primitives::Selector {
@@ -102,6 +207,7 @@ public:
     void SetPlaceholder(StringView value) noexcept { SetValue(PlaceholderProperty, value); }
     StringView GetSelectionBoxText() const noexcept;
     Value GetSelectionBoxItem() const noexcept { return GetValue(SelectionBoxItemProperty); }
+    Ref<Base::Object> GetSelectionBoxItemTemplate() const noexcept { return GetValue(SelectionBoxItemTemplateProperty); }
 
     inline static constexpr RoutedEvent<RoutedEventArgs> DropDownOpenedEvent{"DropDownOpened"};
     inline static constexpr RoutedEvent<RoutedEventArgs> DropDownClosedEvent{"DropDownClosed"};
@@ -116,6 +222,7 @@ public:
     AERO_DEPENDENCY_PROPERTY(String, Placeholder);
     AERO_READONLY_PROPERTY(String, SelectionBoxText);
     AERO_READONLY_PROPERTY(Value, SelectionBoxItem);
+    AERO_READONLY_PROPERTY(Ref<Base::Object>, SelectionBoxItemTemplate);
 
 protected:
     Result<Ref<FrameworkElement>> GetContainerForItemOverride() const noexcept override;
@@ -229,3 +336,6 @@ private:
 };
 
 } // namespace Aero::Controls
+
+AERO_DECLARE_TYPE_ENUM(Aero::Controls::SelectionMode)
+

@@ -1,7 +1,6 @@
 #pragma once
 
-#include <Aero/Controls/HeaderedItemsControl.hpp>
-#include <Aero/Controls/ItemsControl.hpp>
+#include <Aero/Controls/Items.hpp>
 #include <Aero/Controls/TextBlock.hpp>
 #include <Aero/DependencyProperty.hpp>
 #include <Aero/RoutedEvent.hpp>

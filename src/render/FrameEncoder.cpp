@@ -429,6 +429,7 @@ void UiFrameEncoder::FlushBatch() noexcept {
         }
         static_cast<void>(queuedBatches_.PushBack(std::move(qb)));
 
+        currentBatch_ = Batch{};
         currentBatch_.numIndices = 0U;
         currentBatch_.numVertices = 0U;
         currentBatch_.startIndex = currentIndexCount_;
@@ -472,6 +473,7 @@ void UiFrameEncoder::CommitBatches() noexcept {
     }
     queuedBatches_.Clear();
 
+    currentBatch_ = Batch{};
     currentVertexOffset_ = 0U;
     currentVertexCount_ = 0U;
     currentIndexCount_ = 0U;
@@ -535,6 +537,57 @@ void UiFrameEncoder::EmitQuad(
             v[i].v = static_cast<float>(uvs[i].y);
         }
         currentVertexOffset_ += 4U * sizeof(VertexPosColorTex1);
+    } else if (format == Shader::Vertex::Format::PosTex0Tex1) {
+        auto* v = reinterpret_cast<VertexPosTex0Tex1*>(mappedVertices_ + currentVertexOffset_);
+        for (int i = 0; i < 4; ++i) {
+            v[i].x = static_cast<float>(points[i].x);
+            v[i].y = static_cast<float>(points[i].y);
+            v[i].u0 = static_cast<float>(uvs[i].x);
+            v[i].v0 = static_cast<float>(uvs[i].y);
+            v[i].u1 = static_cast<float>(uvs[i].x);
+            v[i].v1 = static_cast<float>(uvs[i].y);
+        }
+        currentVertexOffset_ += 4U * sizeof(VertexPosTex0Tex1);
+    } else if (format == Shader::Vertex::Format::PosColorTex0Tex1) {
+        auto* v = reinterpret_cast<VertexPosColorTex0Tex1*>(mappedVertices_ + currentVertexOffset_);
+        const uint32_t color32 = ColorToRGBA32(color, 1.0);
+        for (int i = 0; i < 4; ++i) {
+            v[i].x = static_cast<float>(points[i].x);
+            v[i].y = static_cast<float>(points[i].y);
+            v[i].color = color32;
+            v[i].u0 = static_cast<float>(uvs[i].x);
+            v[i].v0 = static_cast<float>(uvs[i].y);
+            v[i].u1 = static_cast<float>(uvs[i].x);
+            v[i].v1 = static_cast<float>(uvs[i].y);
+        }
+        currentVertexOffset_ += 4U * sizeof(VertexPosColorTex0Tex1);
+    } else if (format == Shader::Vertex::Format::Pos) {
+        auto* v = reinterpret_cast<VertexPos*>(mappedVertices_ + currentVertexOffset_);
+        for (int i = 0; i < 4; ++i) {
+            v[i].x = static_cast<float>(points[i].x);
+            v[i].y = static_cast<float>(points[i].y);
+        }
+        currentVertexOffset_ += 4U * sizeof(VertexPos);
+    } else if (format == Shader::Vertex::Format::PosColorCoverage) {
+        auto* v = reinterpret_cast<VertexPosColorCoverage*>(mappedVertices_ + currentVertexOffset_);
+        const uint32_t color32 = ColorToRGBA32(color, 1.0);
+        for (int i = 0; i < 4; ++i) {
+            v[i].x = static_cast<float>(points[i].x);
+            v[i].y = static_cast<float>(points[i].y);
+            v[i].color = color32;
+            v[i].coverage = 1.0f;
+        }
+        currentVertexOffset_ += 4U * sizeof(VertexPosColorCoverage);
+    } else if (format == Shader::Vertex::Format::PosTex0Coverage) {
+        auto* v = reinterpret_cast<VertexPosTex0Coverage*>(mappedVertices_ + currentVertexOffset_);
+        for (int i = 0; i < 4; ++i) {
+            v[i].x = static_cast<float>(points[i].x);
+            v[i].y = static_cast<float>(points[i].y);
+            v[i].u = static_cast<float>(uvs[i].x);
+            v[i].v = static_cast<float>(uvs[i].y);
+            v[i].coverage = 1.0f;
+        }
+        currentVertexOffset_ += 4U * sizeof(VertexPosTex0Coverage);
     } else {
         auto* v = reinterpret_cast<Vertex2D*>(mappedVertices_ + currentVertexOffset_);
         const uint32_t color32 = ColorToRGBA32(color, 1.0);
@@ -597,6 +650,37 @@ void UiFrameEncoder::EmitQuadWithColors(
             v[i].color = ColorToRGBA32(colors[i], opacity);
         }
         currentVertexOffset_ += 4U * sizeof(VertexPosColor);
+    } else if (format == Shader::Vertex::Format::PosColorCoverage) {
+        auto* v = reinterpret_cast<VertexPosColorCoverage*>(mappedVertices_ + currentVertexOffset_);
+        for (int i = 0; i < 4; ++i) {
+            v[i].x = static_cast<float>(points[i].x);
+            v[i].y = static_cast<float>(points[i].y);
+            v[i].color = ColorToRGBA32(colors[i], opacity);
+            v[i].coverage = 1.0f;
+        }
+        currentVertexOffset_ += 4U * sizeof(VertexPosColorCoverage);
+    } else if (format == Shader::Vertex::Format::PosColorTex1) {
+        auto* v = reinterpret_cast<VertexPosColorTex1*>(mappedVertices_ + currentVertexOffset_);
+        for (int i = 0; i < 4; ++i) {
+            v[i].x = static_cast<float>(points[i].x);
+            v[i].y = static_cast<float>(points[i].y);
+            v[i].color = ColorToRGBA32(colors[i], opacity);
+            v[i].u = static_cast<float>(uvs[i].x);
+            v[i].v = static_cast<float>(uvs[i].y);
+        }
+        currentVertexOffset_ += 4U * sizeof(VertexPosColorTex1);
+    } else if (format == Shader::Vertex::Format::PosColorTex0Tex1) {
+        auto* v = reinterpret_cast<VertexPosColorTex0Tex1*>(mappedVertices_ + currentVertexOffset_);
+        for (int i = 0; i < 4; ++i) {
+            v[i].x = static_cast<float>(points[i].x);
+            v[i].y = static_cast<float>(points[i].y);
+            v[i].color = ColorToRGBA32(colors[i], opacity);
+            v[i].u0 = static_cast<float>(uvs[i].x);
+            v[i].v0 = static_cast<float>(uvs[i].y);
+            v[i].u1 = static_cast<float>(uvs[i].x);
+            v[i].v1 = static_cast<float>(uvs[i].y);
+        }
+        currentVertexOffset_ += 4U * sizeof(VertexPosColorTex0Tex1);
     } else {
         auto* v = reinterpret_cast<Vertex2D*>(mappedVertices_ + currentVertexOffset_);
         for (int i = 0; i < 4; ++i) {
@@ -664,6 +748,16 @@ void UiFrameEncoder::EmitTriangleFan(
             v[i + 1].color = color32;
         }
         currentVertexOffset_ += vertexCount * static_cast<std::uint32_t>(sizeof(VertexPosColor));
+    } else if (format == Shader::Vertex::Format::Pos) {
+        auto* v = reinterpret_cast<VertexPos*>(mappedVertices_ + currentVertexOffset_);
+        v[0].x = static_cast<float>(centroid.x);
+        v[0].y = static_cast<float>(centroid.y);
+
+        for (std::uint32_t i = 0; i < perimeterCount; ++i) {
+            v[i + 1].x = static_cast<float>(perimeter[i].x);
+            v[i + 1].y = static_cast<float>(perimeter[i].y);
+        }
+        currentVertexOffset_ += vertexCount * static_cast<std::uint32_t>(sizeof(VertexPos));
     } else {
         auto* v = reinterpret_cast<Vertex2D*>(mappedVertices_ + currentVertexOffset_);
         v[0].x = static_cast<float>(centroid.x);
@@ -867,13 +961,21 @@ void UiFrameEncoder::CompositeOffscreen(
     double nodeOpacity,
     double dpi,
     const RenderFrame& frame) noexcept {
+    std::fprintf(stderr, "[DEBUG FrameEncoder] CompositeOffscreen ENTRY: node=%llu effectKind=%d offscreen=%p w=%f h=%f\n",
+        static_cast<unsigned long long>(node.id), static_cast<int>(node.effect.kind), static_cast<void*>(offscreen), node.renderSize.width, node.renderSize.height);
     if (offscreen == nullptr) return;
     Texture* texture = offscreen->GetTexture();
-    if (texture == nullptr) return;
+    if (texture == nullptr) {
+        std::fprintf(stderr, "[DEBUG FrameEncoder] CompositeOffscreen texture is NULL!\n");
+        return;
+    }
 
     const double w = node.renderSize.width;
     const double h = node.renderSize.height;
-    if (w <= 0.0 || h <= 0.0) return;
+    if (w <= 0.0 || h <= 0.0) {
+        std::fprintf(stderr, "[DEBUG FrameEncoder] CompositeOffscreen w/h <= 0! w=%f, h=%f\n", w, h);
+        return;
+    }
 
     const Point uvs[4] = {
         {0.0, 0.0}, {1.0, 0.0}, {1.0, 1.0}, {0.0, 1.0}};
@@ -892,13 +994,24 @@ void UiFrameEncoder::CompositeOffscreen(
     // Offscreen targets pad by twice the blur radius so the 3x3 kernel, which
     // samples at ±radius, does not clamp against the texture edge. Composite
     // quads are expanded by the same local padding so the halo is visible.
-    const double pad = (node.effect.kind == RenderEffectKind::DropShadow ||
-                        node.effect.kind == RenderEffectKind::Blur ||
-                        node.effect.kind == RenderEffectKind::DirectionalBlur)
-        ? std::max(0.0, node.effect.radius) * 2.0
-        : 0.0;
-    const double quadW = w + pad * 2.0;
-    const double quadH = h + pad * 2.0;
+    double padX = 0.0;
+    double padY = 0.0;
+    if (node.effect.kind == RenderEffectKind::DropShadow) {
+        const double radians =
+            node.effect.direction * 0.017453292519943295;
+        const double dx = std::cos(radians) * node.effect.depth;
+        const double dy = -std::sin(radians) * node.effect.depth;
+        const double blur = std::ceil(std::max(0.0, node.effect.radius) * 2.0);
+        padX = blur + std::ceil(std::abs(dx));
+        padY = blur + std::ceil(std::abs(dy));
+    } else if (node.effect.kind == RenderEffectKind::Blur ||
+               node.effect.kind == RenderEffectKind::DirectionalBlur) {
+        const double blur = std::ceil(std::max(0.0, node.effect.radius) * 2.0);
+        padX = blur;
+        padY = blur;
+    }
+    const double quadW = w + padX * 2.0;
+    const double quadH = h + padY * 2.0;
 
     // Drop shadow pass: blurred, tinted copy of the offscreen alpha, offset
     // along the effect direction, composited behind the source.
@@ -914,10 +1027,10 @@ void UiFrameEncoder::CompositeOffscreen(
         const double offsetY =
             -std::sin(radians) * node.effect.depth;
         const Point shadowPoints[4] = {
-            TransformPoint(nodeTransform, -pad + offsetX, -pad + offsetY),
-            TransformPoint(nodeTransform, -pad + quadW + offsetX, -pad + offsetY),
-            TransformPoint(nodeTransform, -pad + quadW + offsetX, -pad + quadH + offsetY),
-            TransformPoint(nodeTransform, -pad + offsetX, -pad + quadH + offsetY)};
+            TransformPoint(nodeTransform, -padX + offsetX, -padY + offsetY),
+            TransformPoint(nodeTransform, -padX + quadW + offsetX, -padY + offsetY),
+            TransformPoint(nodeTransform, -padX + quadW + offsetX, -padY + quadH + offsetY),
+            TransformPoint(nodeTransform, -padX + offsetX, -padY + quadH + offsetY)};
 
         Color shadowColor = node.effect.color;
         shadowColor.alpha *= static_cast<float>(
@@ -935,10 +1048,10 @@ void UiFrameEncoder::CompositeOffscreen(
         const double offsetX = std::cos(radians) * node.effect.radius;
         const double offsetY = std::sin(radians) * node.effect.radius;
         const Point blurPoints[4] = {
-            TransformPoint(nodeTransform, -pad - offsetX, -pad - offsetY),
-            TransformPoint(nodeTransform, -pad + quadW - offsetX, -pad - offsetY),
-            TransformPoint(nodeTransform, -pad + quadW - offsetX, -pad + quadH - offsetY),
-            TransformPoint(nodeTransform, -pad - offsetX, -pad + quadH - offsetY)};
+            TransformPoint(nodeTransform, -padX - offsetX, -padY - offsetY),
+            TransformPoint(nodeTransform, -padX + quadW - offsetX, -padY - offsetY),
+            TransformPoint(nodeTransform, -padX + quadW - offsetX, -padY + quadH - offsetY),
+            TransformPoint(nodeTransform, -padX - offsetX, -padY + quadH - offsetY)};
         SetBatchImage(Shader::Blur, texture);
         currentBatch_.pixelUniforms[0] =
             {offscreenSizeUniform_, 2U, 0U};
@@ -983,10 +1096,10 @@ void UiFrameEncoder::CompositeOffscreen(
     }
 
     const Point points[4] = {
-        TransformPoint(nodeTransform, -pad, -pad),
-        TransformPoint(nodeTransform, -pad + quadW, -pad),
-        TransformPoint(nodeTransform, -pad + quadW, -pad + quadH),
-        TransformPoint(nodeTransform, -pad, -pad + quadH)};
+        TransformPoint(nodeTransform, -padX, -padY),
+        TransformPoint(nodeTransform, -padX + quadW, -padY),
+        TransformPoint(nodeTransform, -padX + quadW, -padY + quadH),
+        TransformPoint(nodeTransform, -padX, -padY + quadH)};
 
     Color tint = Color{1.0F, 1.0F, 1.0F, 1.0F};
     tint.alpha = static_cast<float>(
@@ -1040,10 +1153,10 @@ void UiFrameEncoder::CompositeOffscreen(
         constexpr std::uint32_t kGridRows = 16U;
         for (std::uint32_t row = 0U; row < kGridRows; ++row) {
             for (std::uint32_t col = 0U; col < kGridCols; ++col) {
-                const double lx0 = -pad + quadW * static_cast<double>(col) / kGridCols;
-                const double ly0 = -pad + quadH * static_cast<double>(row) / kGridRows;
-                const double lx1 = -pad + quadW * static_cast<double>(col + 1U) / kGridCols;
-                const double ly1 = -pad + quadH * static_cast<double>(row + 1U) / kGridRows;
+                const double lx0 = -padX + quadW * static_cast<double>(col) / kGridCols;
+                const double ly0 = -padY + quadH * static_cast<double>(row) / kGridRows;
+                const double lx1 = -padX + quadW * static_cast<double>(col + 1U) / kGridCols;
+                const double ly1 = -padY + quadH * static_cast<double>(row + 1U) / kGridRows;
                 const double u0 = static_cast<double>(col) / kGridCols;
                 const double v0 = static_cast<double>(row) / kGridRows;
                 const double u1 = static_cast<double>(col + 1U) / kGridCols;
@@ -1334,13 +1447,18 @@ void UiFrameEncoder::ProcessCommand(
             const std::uint8_t targetWrapMode = cmd.wrapMode;
             if (currentBatch_.numIndices > 0U &&
                 (currentBatch_.shader != Shader::Path_Pattern ||
+                 currentBatch_.pattern != tex ||
                  currentBatch_.image != tex ||
+                 currentBatch_.patternSampler.f.wrapMode != targetWrapMode ||
                  currentBatch_.imageSampler.f.wrapMode != targetWrapMode ||
                  currentBatch_.renderState.f.colorEnable != 1U ||
                  currentBatch_.renderState.f.blendMode != static_cast<uint8_t>(currentBlendMode_))) {
                 FlushBatch();
             }
             currentBatch_.shader = Shader::Path_Pattern;
+            currentBatch_.pattern = tex;
+            currentBatch_.patternSampler.f.wrapMode = targetWrapMode;
+            currentBatch_.patternSampler.f.minmagFilter = MinMagFilter::Linear;
             currentBatch_.image = tex;
             currentBatch_.imageSampler.f.wrapMode = targetWrapMode;
             currentBatch_.imageSampler.f.minmagFilter = MinMagFilter::Linear;
@@ -1692,6 +1810,8 @@ Base::Result<void> UiFrameEncoder::RecordOffscreen(
 Base::Result<void> UiFrameEncoder::RecordOnscreen(
     const RenderFrame& frame,
     RenderTarget& target) noexcept {
+    std::fprintf(stderr, "[DEBUG FrameEncoder] RecordOnscreen ENTER: nodeCount=%u commands=%u initialized=%d device=%p\n",
+        frame.Nodes().Size(), frame.Commands().Size(), (int)initialized_, (void*)device_);
     if (!initialized_ || device_ == nullptr) return {};
 
     ResetFrame();
@@ -1916,8 +2036,20 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
             commandPrefix[rootIndex];
     };
 
+    for (std::uint32_t i = 0U; i < nodeCount; ++i) {
+        if (nodes[i].effect.kind != RenderEffectKind::None) {
+            std::fprintf(stderr, "[DEBUG FrameEncoder Nodes] node[%u] id=%llu parent=%llu effect=%d r=%f op=%f w=%f h=%f cmdCount=%u\n",
+                i, static_cast<unsigned long long>(nodes[i].id), static_cast<unsigned long long>(nodes[i].parentId),
+                static_cast<int>(nodes[i].effect.kind), nodes[i].effect.radius, nodes[i].effect.opacity,
+                nodes[i].renderSize.width, nodes[i].renderSize.height, nodes[i].commandCount);
+        }
+    }
+
     for (std::uint32_t nodeIndex = 0U; nodeIndex < nodeCount; ) {
         const RenderNodeSnapshot& node = nodes[nodeIndex];
+        std::fprintf(stderr, "[DEBUG Visit] nodeIndex=%u id=%llu parent=%llu subtreeEnd=%u op=%f\n",
+            nodeIndex, static_cast<unsigned long long>(node.id), static_cast<unsigned long long>(node.parentId),
+            subtreeEndOf(nodeIndex), node.opacity);
         while (!nodeStack.Empty() && nodeStack.Back().nodeId != node.parentId) {
             popNodeClip(nodeStack);
             static_cast<void>(nodeStack.PopBack());
@@ -1934,6 +2066,12 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
         const bool hasEffect = node.effect.kind != RenderEffectKind::None;
         const bool hasMask = node.mask.kind != RenderMaskKind::None;
         const std::uint32_t subtreeCommands = subtreeCommandCount(nodeIndex);
+
+        if (hasEffect) {
+            std::fprintf(stderr, "[DEBUG FrameEncoder] node %llu hasEffect: kind=%d, r=%f, op=%f, w=%f, h=%f, subCmds=%u, nodeOp=%f\n",
+                static_cast<unsigned long long>(node.id), static_cast<int>(node.effect.kind), node.effect.radius, node.effect.opacity,
+                node.renderSize.width, node.renderSize.height, subtreeCommands, node.opacity);
+        }
         // ClipToBounds under a parent scale (outer Viewbox, Intro
         // ScaleTransform) cannot rely on window stencil: during Opacity<1
         // the subtree is baked into a texture whose size is the clip, so
@@ -1988,20 +2126,32 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
 
         // Offscreen compositing: record the subtree into an offscreen target,
         // then composite it back with the node's effect, mask and opacity.
-        const double effectPadLocal =
-            (node.effect.kind == RenderEffectKind::DropShadow ||
-             node.effect.kind == RenderEffectKind::Blur ||
-             node.effect.kind == RenderEffectKind::DirectionalBlur)
-            ? std::max(0.0, node.effect.radius) * 2.0
-            : 0.0;
-        const std::uint32_t padPixels = static_cast<std::uint32_t>(
-            std::ceil(effectPadLocal * dpi));
+        double effectPadLocalX = 0.0;
+        double effectPadLocalY = 0.0;
+        if (node.effect.kind == RenderEffectKind::DropShadow) {
+            const double radians =
+                node.effect.direction * 0.017453292519943295;
+            const double dx = std::cos(radians) * node.effect.depth;
+            const double dy = -std::sin(radians) * node.effect.depth;
+            const double blur = std::ceil(std::max(0.0, node.effect.radius) * 2.0);
+            effectPadLocalX = blur + std::ceil(std::abs(dx));
+            effectPadLocalY = blur + std::ceil(std::abs(dy));
+        } else if (node.effect.kind == RenderEffectKind::Blur ||
+                   node.effect.kind == RenderEffectKind::DirectionalBlur) {
+            const double blur = std::ceil(std::max(0.0, node.effect.radius) * 2.0);
+            effectPadLocalX = blur;
+            effectPadLocalY = blur;
+        }
+        const std::uint32_t padPixelsX = static_cast<std::uint32_t>(
+            std::ceil(effectPadLocalX * dpi));
+        const std::uint32_t padPixelsY = static_cast<std::uint32_t>(
+            std::ceil(effectPadLocalY * dpi));
         const std::uint32_t offWidth = std::max(
             1U, static_cast<std::uint32_t>(
-                std::ceil(node.renderSize.width * dpi)) + padPixels * 2U);
+                std::ceil(node.renderSize.width * dpi)) + padPixelsX * 2U);
         const std::uint32_t offHeight = std::max(
             1U, static_cast<std::uint32_t>(
-                std::ceil(node.renderSize.height * dpi)) + padPixels * 2U);
+                std::ceil(node.renderSize.height * dpi)) + padPixelsY * 2U);
 
         CommitBatches();
         RenderTarget* offscreen =
@@ -2033,8 +2183,8 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
         ProjectiveTransform2D dpiPad;
         dpiPad.m11 = dpi;
         dpiPad.m22 = dpi;
-        dpiPad.m31 = static_cast<double>(padPixels);
-        dpiPad.m32 = static_cast<double>(padPixels);
+        dpiPad.m31 = static_cast<double>(padPixelsX);
+        dpiPad.m32 = static_cast<double>(padPixelsY);
         ProjectiveTransform2D offRoot = dpiPad;
         ProjectiveTransform2D compositeTransform = nodeTransform;
         if (node.hasViewboxTransform) {
@@ -2101,8 +2251,8 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
                 EnsureMappedBuffers();
                 EmitMaskBrush(
                     node.mask,
-                    static_cast<double>(padPixels),
-                    static_cast<double>(padPixels),
+                    static_cast<double>(padPixelsX),
+                    static_cast<double>(padPixelsY),
                     node.renderSize.width * dpi,
                     node.renderSize.height * dpi,
                     frame);

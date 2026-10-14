@@ -4,7 +4,7 @@
 #include "gui/triggers/TriggerPlan.hpp"
 #include <Aero/Base/HashMap.hpp>
 #include <Aero/Base/Allocator.hpp>
-#include <Aero/Controls/ControlTemplate.hpp>
+#include <Aero/Controls/Control.hpp>
 #include <Aero/Data/BindingExpression.hpp>
 #include <Aero/Resources.hpp>
 #include <Aero/Style.hpp>

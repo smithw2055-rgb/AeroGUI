@@ -3,7 +3,7 @@
 // Single precompiled-header / umbrella entry for new hosts.
 // Mirrors the NoesisPCH grouping so WPF/Noesis users find one include.
 // Grouped, not transitive-bloated: advanced users keep including type headers
-// directly (e.g. <Aero/Controls/Button.hpp>).
+// directly (e.g. <Aero/Controls/Buttons.hpp>).
 
 // Core values and ownership (cf. NsCore/NsMath/NsDrawing)
 #include <Aero/Base/Allocator.hpp>

@@ -4,6 +4,8 @@
 #include <Aero/Base/Config.hpp>
 
 #include <cstring>
+#include <string>
+#include <string_view>
 
 namespace Aero::Base {
 
@@ -19,6 +21,17 @@ public:
         : data_(literal), size_(static_cast<std::uint32_t>(N - 1U)) {
         static_assert(N > 0U, "String literal must include a terminator");
         static_assert(N - 1U <= UINT32_MAX, "String literal is too large");
+    }
+
+    constexpr StringView(std::string_view sv) noexcept
+        : data_(sv.data()), size_(static_cast<std::uint32_t>(sv.size())) {}
+
+    template<class Traits, class Alloc>
+    StringView(const std::basic_string<char, Traits, Alloc>& str) noexcept
+        : data_(str.data()), size_(static_cast<std::uint32_t>(str.size())) {}
+
+    constexpr operator std::string_view() const noexcept {
+        return std::string_view(data_, size_);
     }
 
     constexpr const char* Data() const noexcept { return data_; }

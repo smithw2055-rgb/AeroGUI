@@ -18,7 +18,7 @@ namespace Aero::Controls { class TemplateEngine; }
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Controls/ControlTemplate.hpp>
+#include <Aero/Controls/Control.hpp>
 #include <Aero/Data/Binding.hpp>
 #include <Aero/Layout.hpp>
 #include <Aero/FrameworkElement.hpp>

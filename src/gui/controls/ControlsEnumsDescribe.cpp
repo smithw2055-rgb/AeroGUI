@@ -1,17 +1,6 @@
 #include "gui/core/EnumRegistration.hpp"
 
-#include <Aero/Controls/Panel.hpp>
-#include <Aero/Controls/Menus.hpp>
-#include <Aero/Controls/Primitives/ButtonBase.hpp>
-#include <Aero/Controls/Ranges.hpp>
-#include <Aero/Controls/ScrollViewer.hpp>
-#include <Aero/Controls/GridSplitter.hpp>
-#include <Aero/Controls/Primitives/Selector.hpp>
-#include <Aero/Controls/Headers.hpp>
-#include <Aero/Controls/Popup.hpp>
-#include <Aero/Controls/GridViews.hpp>
-#include <Aero/Controls/VirtualizingPanel.hpp>
-#include <Aero/Controls/VirtualizationCacheLength.hpp>
+#include <Aero/Controls.hpp>
 
 namespace Aero {
 

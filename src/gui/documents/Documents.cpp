@@ -889,18 +889,30 @@ Base::Ref<Brush> TextBlock::GetForeground() const noexcept {
         GetVisualParent() != nullptr
         ? GetVisualParent()
         : ::Aero::TryCast<::Aero::Media::Visual>(GetLogicalParent());
+    if (current == nullptr && GetTemplatedParent() != nullptr) {
+        current = ::Aero::TryCast<::Aero::Media::Visual>(GetTemplatedParent());
+    }
     for (std::uint32_t depth = 0U;
          current != nullptr && depth < 64U;
          ++depth) {
         if (Base::Ref<Brush> authored = authoredForeground(*current)) {
             return authored;
         }
-        current = current->GetVisualParent() != nullptr
+        const ::Aero::Media::Visual* next = current->GetVisualParent() != nullptr
             ? current->GetVisualParent()
             : ::Aero::TryCast<::Aero::Media::Visual>(
                   current->GetLogicalParent());
+        if (next == nullptr && ::Aero::TryCast<::Aero::FrameworkElement>(current) != nullptr) {
+            next = ::Aero::TryCast<::Aero::Media::Visual>(
+                ::Aero::TryCast<::Aero::FrameworkElement>(current)->GetTemplatedParent());
+        }
+        current = next;
     }
-    return GetValue(ForegroundProperty);
+    Base::Ref<Brush> fallback = GetValue(ForegroundProperty);
+    const Color c = ::Aero::Media::SampleBrush(fallback);
+    std::fprintf(stderr, "[TB::GetForeground] text='%.20s' fallback color=(%.2f,%.2f,%.2f,%.2f)\n",
+        GetText().Data(), c.red, c.green, c.blue, c.alpha);
+    return fallback;
 }
 Base::Ref<Brush> TextBlock::GetBackground() const noexcept {
     return GetValue(BackgroundProperty);
@@ -1226,12 +1238,32 @@ Size TextBlock::MeasureOverride(Size availableSize) noexcept {
         // inline bindings such as MusicLevel observe the mounted model.
         ApplyRichText(*this);
     }
+
+    const Thickness padding =
+        GetValue(PaddingProperty);
+
+    if (!arrangingText_ &&
+        flatTextValid_ &&
+        GetTextWrapping() == TextWrapping::NoWrap &&
+        GetTextTrimming() == TextTrimming::None &&
+        !glyphRuns_.Empty() &&
+        GetVisualChildrenCount() == 0U) {
+        Size desired{
+            glyphRunSize_.width + padding.left + padding.right,
+            glyphRunSize_.height + padding.top + padding.bottom};
+        if (std::isfinite(availableSize.width) && availableSize.width > 0.0) {
+            desired.width = std::min(desired.width, availableSize.width);
+        }
+        if (std::isfinite(availableSize.height) && availableSize.height > 0.0) {
+            desired.height = std::min(desired.height, availableSize.height);
+        }
+        return desired;
+    }
+
     Base::String flattened;
     Base::Result<void> copied = Documents::CopyText(*this, flattened);
     if (!copied) return Size{};
 
-    const Thickness padding =
-        GetValue(PaddingProperty);
     Size textAvailable = availableSize;
     if (std::isfinite(textAvailable.width) && textAvailable.width > 0.0) {
         textAvailable.width = std::max(
@@ -1322,6 +1354,7 @@ Size TextBlock::MeasureOverride(Size availableSize) noexcept {
                     textHitRegions_ = std::move(output.hitRegions);
                     glyphRunSize_ = output.desiredSize;
                     serviceOwnsGlyphRun_ = !glyphRuns_.Empty();
+                    flatTextValid_ = true;
                     if (changed) {
                         InvalidateVisual();
                     }
@@ -1428,6 +1461,11 @@ void TextBlock::OnRender(
         }
     }
 
+    std::fprintf(stderr, "[TB::OnRender] text='%.20s' hasStyledRanges=%d hitRegions=%u glyphRuns=%u fg=(%.2f,%.2f,%.2f,%.2f)\n",
+        GetText().Data(), hasStyledRanges ? 1 : 0, (unsigned)textHitRegions_.Size(), (unsigned)glyphRuns_.Size(),
+        ::Aero::Media::SampleBrush(GetForeground()).red, ::Aero::Media::SampleBrush(GetForeground()).green,
+        ::Aero::Media::SampleBrush(GetForeground()).blue, ::Aero::Media::SampleBrush(GetForeground()).alpha);
+
     if (!hasStyledRanges || textHitRegions_.Empty()) {
         for (RenderGlyphRunId glyphRun : glyphRuns_) {
             Base::Result<void> drawn =
@@ -1533,6 +1571,10 @@ void TextBlock::OnRender(
                 : ::Aero::Media::SampleBrush(
                     GetForeground(), 0.5,
                     Color{0.0F, 0.0F, 0.0F, 1.0F});
+
+            std::fprintf(stderr, "  [StyleSpan] start=%u len=%u hasFg=%d tint=(%.2f,%.2f,%.2f,%.2f) bold=%d italic=%d clips=%u\n",
+                span.start, span.length, span.hasForeground ? 1 : 0, tint.red, tint.green, tint.blue, tint.alpha,
+                span.bold ? 1 : 0, span.italic ? 1 : 0, (unsigned)clips.Size());
 
             for (const RichTextLineClip& line : clips) {
                 const double extraRight = span.italic

@@ -9,7 +9,7 @@
 
 
 
-#include <Aero/Controls/ControlTemplate.hpp>
+#include <Aero/Controls/Control.hpp>
 #include <Aero/Controls.hpp>
 
 #include <Aero/Triggers.hpp>

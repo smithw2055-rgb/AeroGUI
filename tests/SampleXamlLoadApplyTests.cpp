@@ -6,16 +6,6 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Collections.hpp>
 #include <Aero/Controls.hpp>
-#include <Aero/Controls/ControlTemplate.hpp>
-#include <Aero/Controls/Border.hpp>
-#include <Aero/Controls/Image.hpp>
-#include <Aero/Controls/Label.hpp>
-#include <Aero/Controls/Ranges.hpp>
-#include <Aero/Controls/ScrollViewer.hpp>
-#include <Aero/Controls/Viewbox.hpp>
-#include <Aero/Controls/HeaderedItemsControl.hpp>
-#include <Aero/Controls/Buttons.hpp>
-#include <Aero/Controls/TreeView.hpp>
 #include <Aero/Data/IMultiValueConverter.hpp>
 #include <Aero/Data/IValueConverter.hpp>
 #include <Aero/Diagnostics.hpp>

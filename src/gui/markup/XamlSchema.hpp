@@ -1902,7 +1902,7 @@ private:
 // ===== UiObjectModelInternal contract =====
 
 
-#include <Aero/Controls/ControlTemplate.hpp>
+#include <Aero/Controls/Control.hpp>
 
 namespace Aero::Markup {
 

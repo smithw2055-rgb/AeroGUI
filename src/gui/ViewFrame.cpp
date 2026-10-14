@@ -3,9 +3,8 @@
 #include "gui/GuiRuntime.hpp"
 #include "gui/text/TextPipeline.hpp"
 #include "render/RenderTree.hpp"
-#include <Aero/Controls/ControlTemplate.hpp>
-#include <Aero/Controls/ContentControl.hpp>
-#include <Aero/Controls/Panel.hpp>
+#include <Aero/Controls/Control.hpp>
+#include <Aero/Controls/Panels.hpp>
 #include <Aero/Controls/TextBox.hpp>
 #include <Aero/Media/Transform2D.hpp>
 #include <Aero/VisualTreeHelper.hpp>

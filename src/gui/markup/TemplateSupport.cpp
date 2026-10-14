@@ -13,7 +13,7 @@
 
 
 
-#include <Aero/Controls/ControlTemplate.hpp>
+#include <Aero/Controls/Control.hpp>
 #include <Aero/DataTemplate.hpp>
 #include <Aero/VisualStateManager.hpp>
 

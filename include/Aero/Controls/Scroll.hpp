@@ -1,9 +1,10 @@
 #pragma once
 
 #include <Aero/Base/Vector.hpp>
+#include <Aero/Base/Geometry.hpp>
+#include <Aero/Base/Result.hpp>
 #include <Aero/CommandBinding.hpp>
-#include <Aero/Controls/ContentControl.hpp>
-#include <Aero/Controls/IScrollInfo.hpp>
+#include <Aero/Controls/Control.hpp>
 #include <Aero/Events/CommandEventArgs.hpp>
 #include <Aero/Events/ControlEventArgs.hpp>
 #include <Aero/Input.hpp>
@@ -11,8 +12,42 @@
 namespace Aero::Controls::Primitives { class ScrollBar; }
 
 namespace Aero::Controls {
+
+using Size = ::Aero::Base::Size;
 using ::Aero::Meta::DependencyPropertyChangedEventArgs;
 using ::Aero::Meta::TypeId;
+
+// ============================================================================
+// IScrollInfo
+// ============================================================================
+
+class AERO_GUI_API IScrollInfo {
+public:
+    virtual ~IScrollInfo() = default;
+    virtual ScrollData GetData() const noexcept = 0;
+    virtual void SetViewport(Size viewport) noexcept = 0;
+    virtual void SetHorizontalOffset(double value) noexcept = 0;
+    virtual void SetVerticalOffset(double value) noexcept = 0;
+    virtual Result<bool> LineHorizontal(double direction) noexcept = 0;
+    virtual Result<bool> LineVertical(double direction) noexcept = 0;
+    virtual Result<bool> PageHorizontal(double direction) noexcept = 0;
+    virtual Result<bool> PageVertical(double direction) noexcept = 0;
+
+    virtual Result<bool> LineUp() noexcept { return LineVertical(-1.0); }
+    virtual Result<bool> LineDown() noexcept { return LineVertical(1.0); }
+    virtual Result<bool> LineLeft() noexcept { return LineHorizontal(-1.0); }
+    virtual Result<bool> LineRight() noexcept { return LineHorizontal(1.0); }
+    virtual Result<bool> PageUp() noexcept { return PageVertical(-1.0); }
+    virtual Result<bool> PageDown() noexcept { return PageVertical(1.0); }
+    virtual Result<bool> MouseWheelUp() noexcept { return PageVertical(-1.0); }
+    virtual Result<bool> MouseWheelDown() noexcept { return PageVertical(1.0); }
+    virtual Result<bool> MouseWheelLeft() noexcept { return PageHorizontal(-1.0); }
+    virtual Result<bool> MouseWheelRight() noexcept { return PageHorizontal(1.0); }
+};
+
+// ============================================================================
+// ScrollContentPresenter
+// ============================================================================
 
 class AERO_GUI_API ScrollContentPresenter : public ContentControl,
       public IScrollInfo {
@@ -71,6 +106,10 @@ private:
     IScrollInfo* ActiveContentScrollInfo() const noexcept;
 };
 
+// ============================================================================
+// ScrollBarVisibility & PanningMode
+// ============================================================================
+
 enum class ScrollBarVisibility : std::uint8_t {
     Disabled = 0U,
     Auto,
@@ -78,8 +117,6 @@ enum class ScrollBarVisibility : std::uint8_t {
     Visible,
 };
 
-// Mirrors WPF's gesture-direction policy. Pointer/touch routing can use this
-// value without changing the established mouse-wheel scroll behavior.
 enum class PanningMode : std::uint8_t {
     None = 0U,
     HorizontalOnly,
@@ -88,6 +125,10 @@ enum class PanningMode : std::uint8_t {
     HorizontalFirst,
     VerticalFirst,
 };
+
+// ============================================================================
+// ScrollViewer
+// ============================================================================
 
 class AERO_GUI_API ScrollViewer : public ContentControl {
     AERO_DECLARE_TYPE(ScrollViewer, ContentControl)
@@ -111,22 +152,16 @@ public:
     double GetViewportHeight() const noexcept;
     double GetScrollableWidth() const noexcept;
     double GetScrollableHeight() const noexcept;
-    ScrollBarVisibility
-    GetHorizontalScrollBarVisibility() const noexcept;
-    static ScrollBarVisibility
-    GetHorizontalScrollBarVisibility(const DependencyObject& element) noexcept;
+    ScrollBarVisibility GetHorizontalScrollBarVisibility() const noexcept;
+    static ScrollBarVisibility GetHorizontalScrollBarVisibility(const DependencyObject& element) noexcept;
     void SetHorizontalScrollBarVisibility(ScrollBarVisibility value) noexcept;
     static void SetHorizontalScrollBarVisibility(DependencyObject& element, ScrollBarVisibility value) noexcept;
-    ScrollBarVisibility
-    GetVerticalScrollBarVisibility() const noexcept;
-    static ScrollBarVisibility
-    GetVerticalScrollBarVisibility(const DependencyObject& element) noexcept;
+    ScrollBarVisibility GetVerticalScrollBarVisibility() const noexcept;
+    static ScrollBarVisibility GetVerticalScrollBarVisibility(const DependencyObject& element) noexcept;
     void SetVerticalScrollBarVisibility(ScrollBarVisibility value) noexcept;
     static void SetVerticalScrollBarVisibility(DependencyObject& element, ScrollBarVisibility value) noexcept;
-    Visibility
-    GetComputedHorizontalScrollBarVisibility() const noexcept;
-    Visibility
-    GetComputedVerticalScrollBarVisibility() const noexcept;
+    Visibility GetComputedHorizontalScrollBarVisibility() const noexcept;
+    Visibility GetComputedVerticalScrollBarVisibility() const noexcept;
     void SetCanHorizontallyScroll(bool value) noexcept;
     void SetCanVerticallyScroll(bool value) noexcept;
     void SetCanContentScroll(bool value) noexcept;
@@ -165,7 +200,6 @@ protected:
     ::Aero::Media::Visual* GetVisualChild(std::uint32_t index) const noexcept override;
     void OnTemplateDetached() noexcept override;
     void OnMouseWheel(MouseWheelEventArgs& args);
-    // Replaces OnScrollViewerVisibilityChanged delegate (setter re-entry).
     void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
 
 private:
@@ -218,6 +252,8 @@ private:
     bool synchronizingScrollBars_ = false;
     DependencyPropertyChangedEventHandler scrollBarValueChangedHandler_;
 };
+
 } // namespace Aero::Controls
+
 AERO_DECLARE_TYPE_ENUM(Aero::Controls::ScrollBarVisibility)
 AERO_DECLARE_TYPE_ENUM(Aero::Controls::PanningMode)

@@ -1009,13 +1009,25 @@ bool TypeRegistry::IsDerivedFrom(
     TypeId type,
     TypeId expectedBase) const noexcept {
     if (type == InvalidTypeId || expectedBase == InvalidTypeId) return false;
-    TypeId current = type;
-    for (std::uint32_t depth = 0U;
-         current != InvalidTypeId && depth <= types_.Size(); ++depth) {
-        if (current == expectedBase) return true;
-        const TypeInfo* info = FindType(current);
-        if (info == nullptr) return false;
-        current = info->BaseType();
+    if (type == expectedBase) return true;
+    const TypeInfo* info = FindType(type);
+    if (info == nullptr) return false;
+
+    if (!info->ancestorChainBuilt_) {
+        info->ancestorChain_.Clear();
+        TypeId current = info->BaseType();
+        for (std::uint32_t depth = 0U;
+             current != InvalidTypeId && depth <= types_.Size(); ++depth) {
+            info->ancestorChain_.PushBack(current);
+            const TypeInfo* baseInfo = FindType(current);
+            if (baseInfo == nullptr) break;
+            current = baseInfo->BaseType();
+        }
+        info->ancestorChainBuilt_ = true;
+    }
+
+    for (std::uint32_t i = 0U; i < info->ancestorChain_.Size(); ++i) {
+        if (info->ancestorChain_[i] == expectedBase) return true;
     }
     return false;
 }
@@ -3945,3 +3957,23 @@ Registration::DependencyProperties() noexcept {
 }
 
 } // namespace Aero::Meta
+
+#include "gui/core/Describe.hpp"
+#include <Aero/ResourceProvider.hpp>
+#include <Aero/PropertyPath.hpp>
+
+namespace Aero {
+
+AERO_DESCRIBE(ResourceProvider) {
+    auto type = Register<ResourceProvider>(context, TypeFlags::Abstract);
+    (void)type.Result();
+}
+
+AERO_DESCRIBE(PropertyPath) {
+    auto type = Register<PropertyPath>(context);
+    (void)type.Result();
+}
+
+} // namespace Aero
+
+

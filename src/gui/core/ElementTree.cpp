@@ -16,12 +16,9 @@
 #include "render/RenderTree.hpp"
 #include <Aero/TryCast.hpp>
 #include <Aero/Controls/Buttons.hpp>
-#include <Aero/Controls/Panel.hpp>
-#include <Aero/Controls/ContentControl.hpp>
-#include <Aero/Controls/ContentPresenter.hpp>
+#include <Aero/Controls/Panels.hpp>
 #include <Aero/Controls/Control.hpp>
-#include <Aero/Controls/ControlTemplate.hpp>
-#include <Aero/Controls/Decorator.hpp>
+#include <Aero/Controls/Decorators.hpp>
 #include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero {

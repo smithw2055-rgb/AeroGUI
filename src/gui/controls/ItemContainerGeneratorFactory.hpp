@@ -1,10 +1,10 @@
 #pragma once
 
 // Src-only factory for ItemContainerGenerator. Engine refs stay out of the
-// installed Controls/ItemContainerGenerator.hpp surface.
+// installed Controls/Items.hpp surface.
 
 #include <Aero/Base/Result.hpp>
-#include <Aero/Controls/ItemContainerGenerator.hpp>
+#include <Aero/Controls/Items.hpp>
 
 namespace Aero {
 class ElementTree;

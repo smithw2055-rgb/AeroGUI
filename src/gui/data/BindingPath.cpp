@@ -2,6 +2,7 @@
 #include "gui/data/BindingPath.hpp"
 
 #include <Aero/Collections.hpp>
+#include <Aero/PropertyPath.hpp>
 #include <Aero/TryCast.hpp>
 
 #include <cstdio>
@@ -95,29 +96,9 @@ bool IsObjectLike(MetadataTypeKind kind) noexcept {
 
 const PropertyInfo* FindAttachedProperty(
     const TypeRegistry& descriptors,
-    Base::StringView authored) noexcept {
-    authored = TrimAscii(authored);
-    if (authored.SizeBytes() < 5U || authored[0] != '(' ||
-        authored[authored.SizeBytes() - 1U] != ')') {
-        return nullptr;
-    }
-    const Base::StringView expression = TrimAscii(authored.Substr(
-        1U, authored.SizeBytes() - 2U));
-    std::uint32_t separator = expression.SizeBytes();
-    for (std::uint32_t index = 0U;
-         index < expression.SizeBytes(); ++index) {
-        if (expression[index] == '.') separator = index;
-    }
-    if (separator == 0U || separator + 1U >= expression.SizeBytes()) {
-        return nullptr;
-    }
-    Base::StringView ownerName = TrimAscii(
-        expression.Substr(0U, separator));
-    const Base::StringView propertyName = TrimAscii(expression.Substr(
-        separator + 1U,
-        expression.SizeBytes() - separator - 1U));
-    for (std::uint32_t index = 0U;
-         index < ownerName.SizeBytes(); ++index) {
+    Base::StringView ownerName,
+    Base::StringView propertyName) noexcept {
+    for (std::uint32_t index = 0U; index < ownerName.SizeBytes(); ++index) {
         if (ownerName[index] == ':') {
             ownerName = ownerName.Substr(
                 index + 1U,
@@ -234,127 +215,35 @@ Base::Result<BindingPathPlan> BindingPathPlan::Compile(
         }
     }
 
+    Base::Vector<PropertyPathToken> tokens;
+    Base::Result<void> tokenized = PropertyPath::ParseTokens(path, tokens);
+    if (!tokenized) {
+        return RecordCompileError(
+            error,
+            InvalidSegmentIndex,
+            rootType,
+            path,
+            tokenized.GetStatus());
+    }
+    if (tokens.Empty()) {
+        return RecordCompileError(
+            error,
+            InvalidSegmentIndex,
+            rootType,
+            path,
+            InvalidPath("Binding path contains an empty segment"));
+    }
+
     TypeId currentType = rootType;
     std::uint32_t segmentIndex = 0U;
-    std::uint32_t begin = 0U;
-    while (begin < path.SizeBytes()) {
-        std::uint32_t end = begin;
-        const bool attachedSyntax = path[begin] == '(';
-        std::uint32_t attachedIndexOpen = UINT32_MAX;
-        std::uint32_t attachedIndexClose = UINT32_MAX;
-        if (attachedSyntax) {
-            while (end < path.SizeBytes() && path[end] != ')') ++end;
-            if (end >= path.SizeBytes()) {
-                return RecordCompileError(
-                    error,
-                    segmentIndex,
-                    currentType,
-                    path.Substr(begin, path.SizeBytes() - begin),
-                    InvalidPath(
-                        "Binding attached-property segment is missing ')'"));
-            }
-            ++end;
-            if (end < path.SizeBytes() && path[end] == '[') {
-                attachedIndexOpen = end;
-                attachedIndexClose = end + 1U;
-                while (attachedIndexClose < path.SizeBytes() &&
-                    path[attachedIndexClose] != ']') {
-                    ++attachedIndexClose;
-                }
-                if (attachedIndexClose >= path.SizeBytes()) {
-                    return RecordCompileError(
-                        error, segmentIndex, currentType,
-                        path.Substr(begin, path.SizeBytes() - begin),
-                        InvalidPath(
-                            "Binding collection index syntax is invalid"));
-                }
-                end = attachedIndexClose + 1U;
-            }
-        } else {
-            while (end < path.SizeBytes() && path[end] != '.') ++end;
-        }
-        const Base::StringView authoredName =
-            TrimAscii(path.Substr(
-                begin,
-                (attachedIndexOpen != UINT32_MAX
-                    ? attachedIndexOpen
-                    : end) - begin));
-        Base::StringView name = authoredName;
-        bool hasCollectionIndex = false;
-        std::uint32_t collectionIndex = UINT32_MAX;
-        if (attachedIndexOpen != UINT32_MAX) {
-            if (attachedIndexClose <= attachedIndexOpen + 1U) {
-                return RecordCompileError(
-                    error, segmentIndex, currentType, authoredName,
-                    InvalidPath(
-                        "Binding collection index syntax is invalid"));
-            }
-            std::uint64_t parsedIndex = 0U;
-            for (std::uint32_t index = attachedIndexOpen + 1U;
-                 index < attachedIndexClose; ++index) {
-                const char digit = path[index];
-                if (digit < '0' || digit > '9') {
-                    return RecordCompileError(
-                        error, segmentIndex, currentType, authoredName,
-                        InvalidPath(
-                            "Binding collection index must be an unsigned integer"));
-                }
-                parsedIndex = parsedIndex * 10U +
-                    static_cast<std::uint64_t>(digit - '0');
-                if (parsedIndex >
-                    static_cast<std::uint64_t>(UINT32_MAX)) {
-                    return RecordCompileError(
-                        error, segmentIndex, currentType, authoredName,
-                        Base::Status::Failure(
-                            Base::ErrorCode::OutOfRange,
-                            "Binding collection index is out of range"));
-                }
-            }
-            collectionIndex =
-                static_cast<std::uint32_t>(parsedIndex);
-            hasCollectionIndex = true;
-        } else if (!attachedSyntax) {
-            std::uint32_t open = authoredName.SizeBytes();
-            for (std::uint32_t index = 0U;
-                 index < authoredName.SizeBytes(); ++index) {
-                if (authoredName[index] == '[') {
-                    open = index;
-                    break;
-                }
-            }
-            if (open != authoredName.SizeBytes()) {
-                if (open == 0U ||
-                    authoredName[authoredName.SizeBytes() - 1U] != ']' ||
-                    open + 2U > authoredName.SizeBytes()) {
-                    return RecordCompileError(
-                        error, segmentIndex, currentType, authoredName,
-                        InvalidPath("Binding collection index syntax is invalid"));
-                }
-                std::uint64_t parsedIndex = 0U;
-                for (std::uint32_t index = open + 1U;
-                     index + 1U < authoredName.SizeBytes(); ++index) {
-                    const char digit = authoredName[index];
-                    if (digit < '0' || digit > '9') {
-                        return RecordCompileError(
-                            error, segmentIndex, currentType, authoredName,
-                            InvalidPath("Binding collection index must be an unsigned integer"));
-                    }
-                    parsedIndex = parsedIndex * 10U +
-                        static_cast<std::uint64_t>(digit - '0');
-                    if (parsedIndex >
-                        static_cast<std::uint64_t>(UINT32_MAX)) {
-                        return RecordCompileError(
-                            error, segmentIndex, currentType, authoredName,
-                            Base::Status::Failure(
-                                Base::ErrorCode::OutOfRange,
-                                "Binding collection index is out of range"));
-                    }
-                }
-                name = TrimAscii(authoredName.Substr(0U, open));
-                collectionIndex = static_cast<std::uint32_t>(parsedIndex);
-                hasCollectionIndex = true;
-            }
-        }
+    for (std::uint32_t tokenIndex = 0U; tokenIndex < tokens.Size(); ++tokenIndex) {
+        const PropertyPathToken& tok = tokens[tokenIndex];
+        const bool attachedSyntax = tok.isTypeQualified;
+        const Base::StringView name = tok.propertyName;
+        const bool hasCollectionIndex = tok.hasIndex;
+        const std::uint32_t collectionIndex = tok.collectionIndex;
+        const Base::StringView authoredName = tok.raw;
+
         if (name.Empty()) {
             return RecordCompileError(
                 error,
@@ -381,7 +270,7 @@ Base::Result<BindingPathPlan> BindingPathPlan::Compile(
         segment.inputType = currentType;
         if (IsObjectLike(input->Kind())) {
             const PropertyInfo* property = attachedSyntax
-                ? FindAttachedProperty(descriptors, name)
+                ? FindAttachedProperty(descriptors, tok.typeQualifier, name)
                 : descriptors.FindProperty(currentType, name, true);
             if (property == nullptr) {
                 // WPF resolves DataContext paths against the runtime object,
@@ -493,16 +382,7 @@ Base::Result<BindingPathPlan> BindingPathPlan::Compile(
                     Base::ErrorCode::NotFound,
                     "Binding path output type descriptor was not found"));
         }
-        const bool hasMore = end < path.SizeBytes();
-        if (hasMore && path[end] != '.') {
-            return RecordCompileError(
-                error,
-                segmentIndex,
-                currentType,
-                name,
-                InvalidPath(
-                    "Binding path segment separator is invalid"));
-        }
+        const bool hasMore = (tokenIndex + 1U < tokens.Size());
         if (segment.kind == BindingPathSegmentKind::ObjectProperty &&
             (hasMore || hasCollectionIndex) &&
             output->Kind() == MetadataTypeKind::Struct) {
@@ -537,8 +417,6 @@ Base::Result<BindingPathPlan> BindingPathPlan::Compile(
             plan.hasDynamicResult_ = true;
             ++segmentIndex;
         }
-        if (!hasMore) break;
-        begin = end + 1U;
     }
 
     plan.resultType_ = currentType;

@@ -4,7 +4,7 @@
 #include <Aero/Controls.hpp>
 #include <Aero/Data/Binding.hpp>
 #include <Aero/DependencyProperty.hpp>
-#include <Aero/Controls/ControlTemplate.hpp>
+#include <Aero/Controls/Control.hpp>
 #include <Aero/Visual.hpp>
 #include <Aero/Media/Animation/Storyboard.hpp>
 #include <Aero/Media/Animation/EasingFunctions.hpp>

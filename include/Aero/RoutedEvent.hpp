@@ -65,4 +65,9 @@ constexpr RoutedEventHandle MakeRoutedEventHandle(Meta::TypeId ownerType, String
     return {builder.Finish()};
 }
 
+#define AERO_ROUTED_EVENT(argsType, name, strategy) \
+    inline static constexpr ::Aero::RoutedEventRef<Self, argsType> name##Event{#name}; \
+    auto name() noexcept { return this->GetEvent(name##Event); }
+
 } // namespace Aero
+

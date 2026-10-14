@@ -3,6 +3,9 @@
 set(AERO_PUBLIC_HEADERS
     include/AeroPCH.hpp
     include/AeroApp/App.hpp
+    include/AeroApp/Application.hpp
+    include/AeroApp/Window.hpp
+    include/AeroApp/WindowInterop.hpp
     include/AeroAudio/Audio.hpp
     include/Aero/Base/Allocator.hpp
     include/Aero/Base/Assert.hpp
@@ -22,46 +25,24 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Base/String.hpp
     include/Aero/Base/StringView.hpp
     include/Aero/Base/Utf8.hpp
+    include/Aero/Base/Value.hpp
     include/Aero/Base/Vector.hpp
-    include/Aero/CAPI.h
-    include/Aero/Controls.hpp
-    include/Aero/Controls/UserControl.hpp
-    include/Aero/Controls/Buttons.hpp
-        include/Aero/Controls/Selectors.hpp
-    include/Aero/Controls/ListView.hpp
-    include/Aero/Controls/ScrollViewer.hpp
-    include/Aero/Controls/IScrollInfo.hpp
     include/Aero/Collections.hpp
     include/Aero/Diagnostics.hpp
     include/Aero/Threading.hpp
     include/Aero/Meta.hpp
+    include/Aero/Mvvm.hpp
     include/Aero/Value.hpp
-    include/Aero/Documents.hpp
-    include/Aero/Documents/NavigationService.hpp
-    include/Aero/Documents/TextPointer.hpp
-    include/Aero/Documents/TextRange.hpp
-    include/Aero/Media/DrawingContext.hpp
-    include/Aero/Events/ApplicationEventArgs.hpp
-    include/Aero/Events/CommandEventArgs.hpp
-    include/Aero/Events/ControlEventArgs.hpp
-    include/Aero/Events/Event.hpp
-    include/Aero/Events/EventArgs.hpp
-    include/Aero/Events.hpp
-    include/Aero/Events/NavigationEventArgs.hpp
-    include/Aero/Events/PropertyEventArgs.hpp
-    include/Aero/Events/WindowEventArgs.hpp
-    include/Aero/Freezable.hpp
-    include/Aero/Animatable.hpp
     include/Aero/Author.hpp
     include/Aero/ClassHandler.hpp
     include/Aero/Gui.hpp
-    include/AeroApp/Application.hpp
-    include/AeroApp/Window.hpp
+    include/Aero/CAPI.h
+    include/Aero/ResourceProvider.hpp
+    include/Aero/PropertyPath.hpp
     include/Aero/DataObject.hpp
     include/Aero/DragDrop.hpp
-    include/Aero/Input/Cursor.hpp
-    include/Aero/Input/Keyboard.hpp
-    include/Aero/Input/Mouse.hpp
+    include/Aero/Freezable.hpp
+    include/Aero/Animatable.hpp
     include/Aero/DependencyObject.hpp
     include/Aero/DispatcherObject.hpp
     include/Aero/TryCast.hpp
@@ -72,114 +53,26 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/UIElement.hpp
     include/Aero/FrameworkElement.hpp
     include/Aero/FrameworkContentElement.hpp
-    include/Aero/Controls/Control.hpp
-    include/Aero/Controls/ContentControl.hpp
-    include/Aero/Controls/Panel.hpp
-    include/Aero/Controls/Button.hpp
-    include/Aero/Controls/Grid.hpp
-    include/Aero/Controls/GridLength.hpp
-    include/Aero/Controls/Border.hpp
-    include/Aero/Controls/ItemsControl.hpp
-    include/Aero/Controls/ItemCollection.hpp
-    include/Aero/Controls/AlternationConverter.hpp
-    include/Aero/Controls/ItemsPanelTemplate.hpp
-    include/Aero/Controls/ItemsPresenter.hpp
-    include/Aero/Controls/HeaderedItemsControl.hpp
-    include/Aero/Controls/ItemContainerGenerator.hpp
-    include/Aero/Controls/TreeView.hpp
-    include/Aero/Controls/TextBlock.hpp
-    include/Aero/Controls/TextBoxBase.hpp
-    include/Aero/Controls/TextBox.hpp
-    include/Aero/Data/Binding.hpp
-    include/Aero/Data/BindingExpression.hpp
-    include/Aero/Data/MultiBindingExpression.hpp
-    include/Aero/Data/TemplateBindingExpression.hpp
-    include/Aero/Data/BindingOperations.hpp
-    include/Aero/Data/NotifyPropertyChanged.hpp
-    include/Aero/Data/SortDescription.hpp
-    include/Aero/Data/CollectionView.hpp
+    include/Aero/ContentElement.hpp
+    include/Aero/VisualTreeHelper.hpp
+    include/Aero/LogicalTreeHelper.hpp
+    include/Aero/View.hpp
+    include/Aero/ViewOptions.hpp
+    include/Aero/IRenderer.hpp
+    include/Aero/Layout.hpp
+    include/Aero/Module.hpp
+    include/Aero/Shapes.hpp
     include/Aero/Resources.hpp
     include/Aero/Style.hpp
     include/Aero/EventSetter.hpp
     include/Aero/FrameworkTemplate.hpp
-    include/Aero/Controls/ControlTemplate.hpp
-    include/Aero/VisualStateManager.hpp
     include/Aero/DataTemplate.hpp
-    include/Aero/Media/Animation.hpp
-    include/Aero/Media/Animation/Animations.hpp
-    include/Aero/Media/Animation/EasingFunctions.hpp
-    include/Aero/Media/Animation/KeyFrames.hpp
-    include/Aero/Media/Animation/Storyboard.hpp
-    include/Aero/Media/Animation/Timeline.hpp
-    include/Aero/Media/Brushes.hpp
-    include/Aero/Markup/XamlDocument.hpp
-    include/Aero/Markup/XamlReader.hpp
-    include/Aero/Media/CompositionTarget.hpp
-    include/Aero/View.hpp
-    include/Aero/IRenderer.hpp
-    include/AeroRender/RenderDevice.hpp
-    include/AeroRender/BackendCommon.hpp
-    include/AeroRender/Texture.hpp
-    include/AeroRender/RenderTarget.hpp
-    include/AeroRender/WindowInterop.hpp
-    include/Aero/Input.hpp
-    include/Aero/InputInterop.hpp
-    include/AeroApp/WindowInterop.hpp
-    include/AeroRender/D3D11.hpp
-    include/AeroRender/OpenGL33.hpp
-    include/Aero/Markup/ReloadCoordinator.hpp
-    include/Aero/Markup/ResourceScope.hpp
-    include/Aero/Markup/ServiceProvider.hpp
-    include/Aero/Markup/MarkupExtension.hpp
-    include/Aero/Media/FontProvider.hpp
-    include/Aero/Media/TextureProvider.hpp
-    include/Aero/Markup/XamlProvider.hpp
-    include/Aero/ViewOptions.hpp
-    include/Aero/Layout.hpp
-    include/Aero/Media/Effects.hpp
-    include/Aero/Media/Fonts.hpp
-    include/Aero/Media/Images.hpp
-    include/Aero/Module.hpp
-    include/Aero/Shapes.hpp
-        include/Aero/Interactivity/InteractionTriggers.hpp
-    include/Aero/Interactivity/Interaction.hpp
-    include/Aero/Interactivity/Conditions.hpp
-    include/Aero/Media/Animation/StoryboardCompletedTrigger.hpp
-    include/Aero/Media/Animation/TimerTrigger.hpp
-    include/Aero/Interactivity/TriggerAction.hpp
+    include/Aero/VisualStateManager.hpp
     include/Aero/Triggers.hpp
-    include/Aero/Interactivity/Behavior.hpp
-    include/Aero/Interactivity/BlendBehaviors.hpp
-    include/Aero/Media/Animation/StoryboardActions.hpp
-    include/Aero/Media/MediaElement.hpp
-    include/Aero/Media/Animation/MediaActions.hpp
     include/Aero/TextFormatting.hpp
     include/Aero/TextProperties.hpp
-    include/Aero/Controls/Decorator.hpp
-    include/Aero/Controls/ContentPresenter.hpp
-    include/Aero/Controls/Primitives.hpp
-    include/Aero/Controls/Primitives/Selector.hpp
-    include/Aero/Controls/Primitives/Thumb.hpp
-    include/Aero/Controls/Ranges.hpp
-    include/Aero/Controls/GridSplitter.hpp
-    include/Aero/Controls/Popup.hpp
-    include/Aero/Controls/HeaderedContentControl.hpp
-    include/Aero/Controls/VirtualizingPanel.hpp
-    include/Aero/Controls/VirtualizingStackPanel.hpp
-    include/Aero/Controls/VirtualizationCacheLength.hpp
-    include/Aero/Controls/VirtualizingWrapPanel.hpp
-    include/Aero/Controls/Menus.hpp
-    include/Aero/Controls/ToolBar.hpp
-    include/Aero/Controls/Separator.hpp
-    include/Aero/Controls/StatusBar.hpp
-    include/Aero/Controls/ToolTip.hpp
-    include/Aero/Controls/Image.hpp
-    include/Aero/Controls/GridViews.hpp
-    include/Aero/Media/Pen.hpp
-    include/Aero/Media/Transform2D.hpp
-    include/Aero/Media/Transform3D.hpp
-    include/Aero/Media/Geometries.hpp
-    include/Aero/Media/FreezableCollection.hpp
+    include/Aero/Input.hpp
+    include/Aero/InputInterop.hpp
     include/Aero/InputScope.hpp
     include/Aero/ICommand.hpp
     include/Aero/InputGesture.hpp
@@ -189,19 +82,98 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/CommandBinding.hpp
     include/Aero/ApplicationCommands.hpp
     include/Aero/KeyboardNavigation.hpp
+    include/Aero/Input/Cursor.hpp
+    include/Aero/Input/Keyboard.hpp
+    include/Aero/Input/Mouse.hpp
+    include/Aero/Controls.hpp
+    include/Aero/Controls/Buttons.hpp
+    include/Aero/Controls/Control.hpp
+    include/Aero/Controls/Decorators.hpp
+    include/Aero/Controls/Grid.hpp
+    include/Aero/Controls/GridLength.hpp
+    include/Aero/Controls/GridSplitter.hpp
+    include/Aero/Controls/Items.hpp
+    include/Aero/Controls/ListView.hpp
+    include/Aero/Controls/Menus.hpp
+    include/Aero/Controls/Panels.hpp
+    include/Aero/Controls/Popup.hpp
+    include/Aero/Controls/Ranges.hpp
+    include/Aero/Controls/Scroll.hpp
+    include/Aero/Controls/Selectors.hpp
+    include/Aero/Controls/TextBlock.hpp
+    include/Aero/Controls/TextBox.hpp
+    include/Aero/Controls/TreeView.hpp
+    include/Aero/Controls/VirtualizingPanels.hpp
+    include/Aero/Data/Binding.hpp
+    include/Aero/Data/BindingBase.hpp
+    include/Aero/Data/BindingExpression.hpp
+    include/Aero/Data/MultiBinding.hpp
+    include/Aero/Data/MultiBindingExpression.hpp
+    include/Aero/Data/TemplateBindingExpression.hpp
+    include/Aero/Data/BindingOperations.hpp
+    include/Aero/Data/NotifyPropertyChanged.hpp
+    include/Aero/Data/SortDescription.hpp
+    include/Aero/Data/CollectionView.hpp
     include/Aero/Data/IValueConverter.hpp
     include/Aero/Data/IMultiValueConverter.hpp
     include/Aero/Data/BooleanToVisibilityConverter.hpp
-    include/Aero/Data/BindingBase.hpp
-    include/Aero/Data/MultiBinding.hpp
-    include/Aero/ContentElement.hpp
-    include/Aero/VisualTreeHelper.hpp
-    include/Aero/LogicalTreeHelper.hpp
-    include/Aero/Controls/Viewbox.hpp
-    include/Aero/Controls/Headers.hpp
-    include/Aero/Controls/Label.hpp
-    include/Aero/Controls/Primitives/ButtonBase.hpp
+    include/Aero/Documents.hpp
+    include/Aero/Documents/NavigationService.hpp
+    include/Aero/Documents/TextPointer.hpp
+    include/Aero/Documents/TextRange.hpp
     include/Aero/Documents/Inlines.hpp
     include/Aero/Documents/Adorners.hpp
-    include/Aero/Controls/Panels.hpp
+    include/Aero/Events.hpp
+    include/Aero/Events/ApplicationEventArgs.hpp
+    include/Aero/Events/CommandEventArgs.hpp
+    include/Aero/Events/ControlEventArgs.hpp
+    include/Aero/Events/Event.hpp
+    include/Aero/Events/EventArgs.hpp
+    include/Aero/Events/NavigationEventArgs.hpp
+    include/Aero/Events/PropertyEventArgs.hpp
+    include/Aero/Events/WindowEventArgs.hpp
+    include/Aero/Interactivity/Interaction.hpp
+    include/Aero/Interactivity/InteractionTriggers.hpp
+    include/Aero/Interactivity/Conditions.hpp
+    include/Aero/Interactivity/TriggerAction.hpp
+    include/Aero/Interactivity/Behavior.hpp
+    include/Aero/Interactivity/BlendBehaviors.hpp
+    include/Aero/Markup/XamlDocument.hpp
+    include/Aero/Markup/XamlReader.hpp
+    include/Aero/Markup/XamlProvider.hpp
+    include/Aero/Markup/MarkupExtension.hpp
+    include/Aero/Markup/ReloadCoordinator.hpp
+    include/Aero/Markup/ResourceScope.hpp
+    include/Aero/Markup/ServiceProvider.hpp
+    include/Aero/Media/DrawingContext.hpp
+    include/Aero/Media/CompositionTarget.hpp
+    include/Aero/Media/Brushes.hpp
+    include/Aero/Media/Pen.hpp
+    include/Aero/Media/Effects.hpp
+    include/Aero/Media/Fonts.hpp
+    include/Aero/Media/FontProvider.hpp
+    include/Aero/Media/Images.hpp
+    include/Aero/Media/TextureProvider.hpp
+    include/Aero/Media/Geometries.hpp
+    include/Aero/Media/FreezableCollection.hpp
+    include/Aero/Media/Transform2D.hpp
+    include/Aero/Media/Transform3D.hpp
+    include/Aero/Media/Animation.hpp
+    include/Aero/Media/Animation/Animations.hpp
+    include/Aero/Media/Animation/EasingFunctions.hpp
+    include/Aero/Media/Animation/KeyFrames.hpp
+    include/Aero/Media/Animation/Storyboard.hpp
+    include/Aero/Media/Animation/StoryboardActions.hpp
+    include/Aero/Media/Animation/StoryboardCompletedTrigger.hpp
+    include/Aero/Media/Animation/Timeline.hpp
+    include/Aero/Media/Animation/TimerTrigger.hpp
+    include/Aero/Media/Animation/MediaActions.hpp
+    include/Aero/Media/MediaElement.hpp
+    include/AeroRender/RenderDevice.hpp
+    include/AeroRender/BackendCommon.hpp
+    include/AeroRender/Texture.hpp
+    include/AeroRender/RenderTarget.hpp
+    include/AeroRender/WindowInterop.hpp
+    include/AeroRender/D3D11.hpp
+    include/AeroRender/OpenGL33.hpp
 )

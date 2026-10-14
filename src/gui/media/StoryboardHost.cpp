@@ -9,6 +9,8 @@
 #include <Aero/Media/Transform3D.hpp>
 #include <Aero/UIElement.hpp>
 #include <Aero/Documents.hpp>
+#include <Aero/PropertyPath.hpp>
+#include <Aero/TryCast.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -124,12 +126,18 @@ Base::Result<Base::StringView> StoryboardHost::AnimationAttachedString(
         Base::Result<Meta::PropertyValue> value =
             timeline.GetValue(property);
         if (!value) return value.GetStatus();
-        if (value.Value().Kind() != Meta::ValueKind::String) {
-            return Base::Status::Failure(
-                Base::ErrorCode::ValidationFailed,
-                "Storyboard attached property must be a string");
+        if (value.Value().Kind() == Meta::ValueKind::String) {
+            return value.Value().AsString();
         }
-        return value.Value().AsString();
+        if (value.Value().Kind() == Meta::ValueKind::Object && value.Value().AsObject()) {
+            auto* pp = TryCast<PropertyPath>(value.Value().AsObject().Get());
+            if (pp != nullptr) {
+                return pp->Path();
+            }
+        }
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "Storyboard attached property must be a string or PropertyPath");
     }
 
 

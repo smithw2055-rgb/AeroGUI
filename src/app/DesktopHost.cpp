@@ -618,8 +618,7 @@ Base::Result<void> LoadFromUri(
             }
             lastUpdate = now;
             updateClockInitialized = true;
-            updateTimeSeconds +=
-                static_cast<double>(elapsedMilliseconds) / 1000.0;
+            updateTimeSeconds += static_cast<double>(elapsedMilliseconds) / 1000.0;
             const bool committed = view->Update(updateTimeSeconds);
             if (closeRequested || shutdown) return {};
 
@@ -637,8 +636,12 @@ Base::Result<void> LoadFromUri(
                     Base::ErrorCode::InvalidState,
                     "Application render device is unavailable");
             }
+            char capCheck[64];
+            const bool capturing =
+                GetEnvironmentVariableA("AERO_CAPTURE_PATH", capCheck, sizeof(capCheck)) > 0;
             const bool needsRender = force || frameRequested ||
-                committed || synchronized || !firstFrameRendered;
+                committed || synchronized || !firstFrameRendered ||
+                (capturing && updateTimeSeconds < 1.5);
             if (!needsRender) return {};
 
             if (!renderer.RenderOffscreen()) {
@@ -655,6 +658,8 @@ Base::Result<void> LoadFromUri(
         }
 
         Base::Result<void> Show() noexcept {
+            std::fprintf(stderr, "[Show] enter nativeWindow=%p closeRequested=%d\n", static_cast<void*>(nativeWindow.get()), closeRequested ? 1 : 0);
+            std::fflush(stderr);
             if (closeRequested || !nativeWindow) {
                 return HostFailure(
                     Base::ErrorCode::InvalidState,
@@ -664,7 +669,11 @@ Base::Result<void> LoadFromUri(
                 Base::Result<void> rendered = RenderFrame(true);
                 if (!rendered) return rendered.GetStatus();
             }
+            std::fprintf(stderr, "[Show] calling nativeWindow->Show()\n");
+            std::fflush(stderr);
             Base::Result<void> shown = nativeWindow->Show();
+            std::fprintf(stderr, "[Show] nativeWindow->Show() done ok=%d\n", shown ? 1 : 0);
+            std::fflush(stderr);
             if (shown && window != nullptr) {
                 DesktopHost::NotifyWindowContentRendered(*window);
             }
@@ -1202,20 +1211,44 @@ Base::Result<void> LoadFromUri(
     }
 
     Base::Result<int> Run() noexcept {
+        std::fprintf(stderr, "[Run] entered\n");
+        std::fflush(stderr);
         Base::Result<void> status = CreateRuntime();
+        std::fprintf(stderr, "[Run] CreateRuntime status=%s\n", status ? "OK" : (status.GetStatus().message ? status.GetStatus().message : "?"));
+        std::fflush(stderr);
         if (status) status = LoadApplication();
+        std::fprintf(stderr, "[Run] LoadApplication status=%s\n", status ? "OK" : (status.GetStatus().message ? status.GetStatus().message : "?"));
+        std::fflush(stderr);
         if (status) status = StartApplication();
+        std::fprintf(stderr, "[Run] StartApplication status=%s\n", status ? "OK" : (status.GetStatus().message ? status.GetStatus().message : "?"));
+        std::fflush(stderr);
         if (!status) return status.GetStatus();
+        std::fprintf(stderr, "[Run] windows.Size() = %u\n", static_cast<unsigned>(windows.Size()));
+        std::fflush(stderr);
 
         for (WindowHost* host : windows) {
+            std::fprintf(stderr, "[Run] calling RenderFrame(true) on host %p\n", static_cast<void*>(host));
+            std::fflush(stderr);
             status = host->RenderFrame(true);
-            if (!status) return status.GetStatus();
+            std::fprintf(stderr, "[Run] RenderFrame(true) done ok=%d\n", status ? 1 : 0);
+            std::fflush(stderr);
+            if (!status) {
+                std::fprintf(stderr, "[Run] RenderFrame failed: %s\n", status.GetStatus().message ? status.GetStatus().message : "?");
+                std::fflush(stderr);
+                return status.GetStatus();
+            }
         }
         if (visible && !windows.Empty()) {
             status = windows[0]->Show();
-            if (!status) return status.GetStatus();
+            if (!status) {
+                std::fprintf(stderr, "[Run] Show failed: %s\n", status.GetStatus().message ? status.GetStatus().message : "?");
+                std::fflush(stderr);
+                return status.GetStatus();
+            }
         }
 
+        std::fprintf(stderr, "[Loop] entered exitRequested=%d windows=%u\n", exitRequested ? 1 : 0, static_cast<unsigned>(windows.Size()));
+        std::fflush(stderr);
         while (!exitRequested) {
             bool handledEvent = false;
             for (std::uint32_t index = 0U;
@@ -1237,6 +1270,7 @@ Base::Result<void> LoadFromUri(
                     if (!status) return status.GetStatus();
                 }
             }
+            std::fprintf(stderr, "[Loop] iter anyOpen=%d handled=%d\n", anyOpen ? 1 : 0, handledEvent ? 1 : 0);
             if (!anyOpen) {
                 // Do not destroy WindowHost here: tearing down the View /
                 // D3D device while the live loop still expects to Present

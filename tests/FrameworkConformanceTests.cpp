@@ -5,18 +5,7 @@
 #include <Aero/Base/Stream.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Collections.hpp>
-#include <Aero/Controls/Button.hpp>
-#include <Aero/Controls/Panels.hpp>
-#include <Aero/Controls/Selectors.hpp>
-#include <Aero/Controls/ContentControl.hpp>
-#include <Aero/Controls/Grid.hpp>
-#include <Aero/Controls/ItemCollection.hpp>
-#include <Aero/Controls/ItemsControl.hpp>
-#include <Aero/Controls/Panel.hpp>
-#include <Aero/Controls/Primitives/Selector.hpp>
-#include <Aero/Controls/TextBlock.hpp>
-#include <Aero/Controls/VirtualizingStackPanel.hpp>
-#include <Aero/Controls/TextBox.hpp>
+#include <Aero/Controls.hpp>
 #include <Aero/Data/Binding.hpp>
 #include <Aero/Data/BindingExpression.hpp>
 #include <Aero/Data/BindingOperations.hpp>
@@ -28,7 +17,6 @@
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Gui.hpp>
 #include <Aero/Input.hpp>
-#include <Aero/Controls/ItemContainerGenerator.hpp>
 #include <Aero/Markup/XamlDocument.hpp>
 #include <Aero/Value.hpp>
 #include <Aero/Markup/XamlProvider.hpp>
@@ -46,19 +34,6 @@
 #include <Aero/Triggers.hpp>
 #include <Aero/CommandBinding.hpp>
 #include <Aero/ApplicationCommands.hpp>
-#include <Aero/Controls/Decorator.hpp>
-#include <Aero/Controls/Border.hpp>
-#include <Aero/Controls/Control.hpp>
-#include <Aero/Controls/Image.hpp>
-#include <Aero/Controls/ListView.hpp>
-#include <Aero/Controls/Popup.hpp>
-#include <Aero/Controls/Headers.hpp>
-#include <Aero/Controls/Ranges.hpp>
-#include <Aero/Controls/Viewbox.hpp>
-#include <Aero/Controls/TreeView.hpp>
-#include <Aero/Controls/UserControl.hpp>
-#include <Aero/Controls/Buttons.hpp>
-#include <Aero/Controls/Primitives/Thumb.hpp>
 #include <Aero/Data/BooleanToVisibilityConverter.hpp>
 #include <Aero/Data/IMultiValueConverter.hpp>
 #include <Aero/Data/MultiBinding.hpp>
@@ -4018,6 +3993,14 @@ bool TestComboBoxItemsSourcePopupClickSelects() {
     }
     CHECK(combo->GetSelectedIndex() == 2U);
     CHECK(combo->GetSelectionBoxText() == StringView("Horde"));
+    CHECK(!combo->GetIsDropDownOpen());
+
+    combo->SetIsDropDownOpen(true);
+    Pump(view, 0.128);
+    CHECK(combo->GetIsDropDownOpen());
+    static_cast<void>(view.MouseButtonDown(10, 10, Aero::Input::MouseButton::Left));
+    static_cast<void>(view.MouseButtonUp(10, 10, Aero::Input::MouseButton::Left));
+    Pump(view, 0.144);
     CHECK(!combo->GetIsDropDownOpen());
     return true;
 }

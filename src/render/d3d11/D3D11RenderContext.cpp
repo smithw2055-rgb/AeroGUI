@@ -17,6 +17,7 @@
 #include <gdiplus.h>
 #include <vector>
 #include <cstdlib>
+#include <chrono>
 #pragma comment(lib, "gdiplus.lib")
 #endif
 
@@ -300,9 +301,18 @@ protected:
             static_cast<D3D11RenderTarget*>(Target())->SetRTV(nullptr);
         }
 
+        static auto s_startTime = std::chrono::steady_clock::now();
+        const auto now = std::chrono::steady_clock::now();
+        const auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - s_startTime).count();
+        int targetDelayMs = 0;
+        char delayStr[32] = {0};
+        if (GetEnvironmentVariableA("AERO_CAPTURE_DELAY_MS", delayStr, sizeof(delayStr)) > 0) {
+            targetDelayMs = std::atoi(delayStr);
+            if (targetDelayMs < 0) targetDelayMs = 0;
+        }
         char cap[512] = {0};
         DWORD capLen = GetEnvironmentVariableA("AERO_CAPTURE_PATH", cap, sizeof(cap));
-        if (capLen > 0 && capLen < sizeof(cap)) {
+        if (capLen > 0 && capLen < sizeof(cap) && elapsedMs >= targetDelayMs) {
             if (device_ != nullptr && immediateContext_ != nullptr) {
                 D3D11_TEXTURE2D_DESC desc;
                 activeBackBuffer_->GetDesc(&desc);
@@ -338,7 +348,6 @@ protected:
                 SetEnvironmentVariableA("AERO_CAPTURE_PATH", nullptr);
             }
         }
-
         const HRESULT result = swapChain_->Present(1U, 0U);
         ReleaseCom(activeBackBuffer_);
         if (FAILED(result)) {

@@ -1,4 +1,4 @@
-#include <Aero/Controls/ControlTemplate.hpp>
+#include <Aero/Controls/Control.hpp>
 #include <Aero/VisualStateManager.hpp>
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
@@ -9,6 +9,8 @@
 #include "gui/templates/TemplateInstance.hpp"
 
 #include <Aero/Value.hpp>
+#include <Aero/PropertyPath.hpp>
+#include <Aero/TryCast.hpp>
 #include <Aero/Media/Transform2D.hpp>
 #include <Aero/Media/Transform3D.hpp>
 #include "gui/media/AnimationModel.hpp"
@@ -238,12 +240,23 @@ Base::Result<AnimationTarget> ResolveAnimationTarget(
     if (!authoredPathValue) {
         return authoredPathValue.GetStatus();
     }
-    if (authoredPathValue.Value().Kind() != ValueKind::String) {
+    Base::StringView authoredPath;
+    if (authoredPathValue.Value().Kind() == ValueKind::String) {
+        authoredPath = authoredPathValue.Value().AsString();
+    } else if (authoredPathValue.Value().Kind() == ValueKind::Object && authoredPathValue.Value().AsObject()) {
+        auto* pp = TryCast<PropertyPath>(authoredPathValue.Value().AsObject().Get());
+        if (pp != nullptr) {
+            authoredPath = pp->Path();
+        } else {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "VisualState Storyboard target property is not a string or PropertyPath");
+        }
+    } else {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
-            "VisualState Storyboard target property is not a string");
+            "VisualState Storyboard target property is not a string or PropertyPath");
     }
-    const Base::StringView authoredPath = authoredPathValue.Value().AsString();
     Base::Result<ResolvedAnimationProperty> resolved =
         ResolveAnimationPropertyPath(*target, authoredPath, properties);
     if (!resolved) return resolved.GetStatus();

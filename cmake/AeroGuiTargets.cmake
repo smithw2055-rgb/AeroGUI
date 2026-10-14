@@ -55,7 +55,9 @@ set(_aero_gui_core_sources
     src/gui/core/FrameworkContentElement.cpp
     src/gui/core/DependencyObject.cpp
     src/gui/core/Metadata.cpp
-    src/gui/core/Value.cpp
+    src/gui/core/PropertyPath.cpp
+    src/gui/core/ValueConversion.cpp
+    src/gui/core/ValueTable.cpp
     src/gui/core/Module.cpp
     src/gui/core/ElementEnumsDescribe.cpp)
 
@@ -118,29 +120,19 @@ set(_aero_gui_media_sources
 
 set(_aero_gui_controls_sources
     src/gui/controls/RichText.cpp
-    src/gui/controls/Bars.cpp
     src/gui/controls/Buttons.cpp
-    src/gui/controls/ContentControl.cpp
-    src/gui/controls/ContentControls.cpp
-    src/gui/controls/ContentPresenter.cpp
+    src/gui/controls/Control.cpp
+    src/gui/controls/Decorators.cpp
     src/gui/controls/Panels.cpp
-    src/gui/controls/Images.cpp
     src/gui/controls/Items.cpp
-    src/gui/controls/ItemContainerGenerator.cpp
     src/gui/controls/ListView.cpp
     src/gui/controls/Menus.cpp
-    src/gui/controls/ScrollContentPresenter.cpp
-    src/gui/controls/ScrollViewer.cpp
-    src/gui/controls/ScrollBar.cpp
-    src/gui/controls/Selection.cpp
-    src/gui/controls/Selector.cpp
-    src/gui/controls/ComboBox.cpp
+    src/gui/controls/Scroll.cpp
+    src/gui/controls/Selectors.cpp
     src/gui/controls/Popup.cpp
-    src/gui/controls/TabControl.cpp
     src/gui/controls/TextBox.cpp
-    src/gui/controls/PasswordBox.cpp
-    src/gui/controls/Trees.cpp
-    src/gui/controls/Virtualization.cpp
+    src/gui/controls/TreeView.cpp
+    src/gui/controls/VirtualizingPanels.cpp
     src/gui/controls/VisualStateManager.cpp
     src/gui/controls/ControlsEnumsDescribe.cpp)
 
@@ -218,8 +210,6 @@ set(_aero_gui_internal_headers
     src/gui/data/BindingPath.hpp
     src/gui/core/EnumRegistration.hpp
     src/gui/controls/ControlPropertyValidators.hpp
-    src/gui/controls/ScrollCommon.hpp
-    src/gui/controls/TextBoxCommon.hpp
     src/gui/markup/MarkupExtensionContract.hpp
     src/gui/markup/XamlObjectWriterState.hpp
     src/gui/templates/TemplateBlueprint.hpp

@@ -21,14 +21,20 @@ dir. IDE-only virtual folders are defined via `source_group()` in
 
 | Public header(s) | Implementation |
 | --- | --- |
-| `Controls/Button.hpp`, `CheckBox.hpp`, `RadioButton.hpp`, `Primitives/*Button*` | `Buttons.cpp` (+ `Bars.cpp` for menu/status/tool bars) |
-| `Controls/TextBox.hpp`, `TextBoxBase.hpp` | `TextBox.cpp` + `TextBoxInteraction.cpp` (behavior + selection/caret, merged from `TextBoxBehavior.cpp` + `TextBoxSelection.cpp`) + `TextBoxCommon.hpp` + `PasswordBox.cpp` |
-| `Controls/ScrollViewer*.hpp`, `Primitives/ScrollBar.hpp` | `ScrollViewer.cpp` + `ScrollBar.cpp` + `ScrollBehavior.cpp` + `ScrollContentPresenter.cpp` (shared: `ScrollCommon.hpp`) |
-| `Controls/ItemsControl.hpp`, `ListBox*.hpp`, `TreeView*.hpp`, `ComboBox*.hpp` | `Items.cpp` + `ItemContainerGenerator.cpp` + `Selection.cpp` + `Trees.cpp` + `ListView.cpp` + `Virtualization.cpp` (shared: `ItemsContainers.hpp`, renamed from `ItemsDetail.hpp`) |
-| `Controls/*Panel*.hpp`, `Grid*.hpp`, `Canvas.hpp` | `Panels.cpp` |
-| `Controls/Menu*.hpp`, `ContextMenu*.hpp`, `ToolBar.hpp` | `Menus.cpp` + `Bars.cpp` |
-| `Controls/ContentControl.hpp`, `UserControl.hpp`, `Headers.hpp` … | `ContentControls.cpp` |
-| `Controls/Image.hpp` | `Images.cpp` |
+| `Controls/Buttons.hpp`, `Button.hpp`, `CheckBox.hpp`, `RadioButton.hpp`, `Primitives/ButtonBase.hpp` | `Buttons.cpp` (all buttons & toggles unified) |
+| `Controls/Control.hpp`, `ContentControl.hpp`, `ContentPresenter.hpp`, `HeaderedContentControl.hpp`, `UserControl.hpp`, `Label.hpp`, `ControlTemplate.hpp` | `Control.cpp` (single-content hierarchy & templates) |
+| `Controls/Decorators.hpp`, `Decorator.hpp`, `Border.hpp`, `Viewbox.hpp`, `Separator.hpp`, `Image.hpp` | `Decorators.cpp` (decorator & chrome primitives) |
+| `Controls/Panels.hpp`, `Panel.hpp`, `Canvas.hpp`, `StackPanel.hpp`, `WrapPanel.hpp`, `DockPanel.hpp` | `Panels.cpp` (core layout panels) |
+| `Controls/VirtualizingPanels.hpp`, `VirtualizingPanel.hpp`, `VirtualizingStackPanel.hpp`, `VirtualizingWrapPanel.hpp` | `VirtualizingPanels.cpp` (virtualizing layout panels) |
+| `Controls/Scroll.hpp`, `ScrollViewer.hpp`, `IScrollInfo.hpp` | `Scroll.cpp` (ScrollViewer, ScrollBar, ScrollContentPresenter, IScrollInfo) |
+| `Controls/TextBox.hpp`, `TextBoxBase.hpp`, `PasswordBox.hpp` | `TextBox.cpp` (text editing, carets, selection, password masking) |
+| `Controls/Items.hpp`, `ItemsControl.hpp`, `ItemCollection.hpp`, `HeaderedItemsControl.hpp`, `ItemContainerGenerator.hpp`, `ItemsPresenter.hpp`, `ItemsPanelTemplate.hpp`, `AlternationConverter.hpp` | `Items.cpp` (items control & container generator) |
+| `Controls/Selectors.hpp`, `Primitives/Selector.hpp` | `Selectors.cpp` (Selector, ListBox, ComboBox, TabControl & their items) |
+| `Controls/ListView.hpp`, `GridViews.hpp` | `ListView.cpp` (ListView and GridView system) |
+| `Controls/TreeView.hpp` | `TreeView.cpp` (TreeView & TreeViewItem) |
+| `Controls/Menus.hpp`, `ToolBar.hpp`, `StatusBar.hpp` | `Menus.cpp` (Menu, MenuItem, ContextMenu, ToolBar, StatusBar) |
+| `Controls/Popup.hpp`, `ToolTip.hpp` | `Popup.cpp` (Popup & ToolTip) |
+| `Controls/Ranges.hpp`, `Primitives/Thumb.hpp` | `Ranges.cpp` (RangeBase, Slider, ProgressBar, Thumb) |
 | `VisualStateManager.hpp` | `VisualStateManager.cpp` (also `PopulateVisualStateMetadata`) |
 | Metadata bootstrap | `gui/BuiltinModules.cpp` (+ `gui/BuiltinModules.hpp`) orchestrates; enum bodies in family `*EnumsDescribe.cpp` / `app/Metadata.cpp`; element spine `AERO_DESCRIBE` in defining TUs (Visual/ContentElement/FCE/UIElement/FrameworkElement); POD value types + converters in `media/Geometry.cpp` via `PopulateMediaValueTypes`; animation eases/keyframes via `media/Animation.cpp` `PopulateAnimationTypes`; markup tokens in `markup/XamlSchemaMetadata.cpp`; VSM Register in `controls/VisualStateManager.cpp` (谁定义谁注册); `ControlPropertyValidators.hpp` remains under controls |
 
@@ -48,7 +54,7 @@ dir. IDE-only virtual folders are defined via `source_group()` in
 | --- | --- |
 | `Data/Binding*.hpp` | `data/Binding.cpp`, `BindingPath.cpp`, `BindingEvaluation.cpp`, `BindingExpression.cpp`, `BindingOperations.cpp` (shared: `BindingCommon.hpp`, `BindingEngine.hpp`), `CollectionView.cpp` |
 | `Markup/Xaml*.hpp` | `markup/XamlParser.cpp`, `XamlObjectWriter*.cpp`, `XamlObjectLoader.cpp`, `XamlCompiled{Schema,Document}.cpp`, `XamlSchema*.cpp` (tokens + `PopulateMarkupMetadata` in `XamlSchemaMetadata.cpp`), `XamlDocumentCache.cpp`, `GuiSchema.cpp`, `TemplateCompiler.cpp` |
-| `Meta.hpp` / `Module.hpp` | `core/Metadata.cpp`, `Module.cpp`, `gui/BuiltinModules.cpp`, `Value.cpp` + tables + `TypeBuilderCore.hpp` |
+| `Meta.hpp` / `Module.hpp` | `core/Metadata.cpp`, `Module.cpp`, `gui/BuiltinModules.cpp`, `core/ValueConversion.cpp`, `core/ValueTable.cpp` + tables + `TypeBuilderCore.hpp` |
 | `Triggers/*`, `Interactivity/*` | `triggers/Trigger*.cpp` + `interactivity/InteractivityEngine*.cpp` + `BlendBehaviors.cpp` |
 | Text stack | `text/TextPipeline.cpp`, `TextLayout.cpp`, `GlyphAtlas.cpp`, `FontManager.cpp`, `EditableText.cpp` + `freetype/` + `harfbuzz/` adapters |
 | Input | `input/Input.cpp` (routing), `Commands.cpp`, `OverlayHost.cpp`, `Clipboard.cpp`, `DragDrop.cpp`, `Cursor(s).cpp`, `Mouse.cpp`, `Keyboard.cpp`, `DataObject.cpp`; focus queue in `ViewInput.cpp`, declaration in `input/InputManager.hpp` (merged from `FocusHost.hpp`) |

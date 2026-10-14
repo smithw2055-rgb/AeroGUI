@@ -1055,6 +1055,13 @@ void D3D11RenderDevice::DrawBatch(const Batch& batch) noexcept {
         }
     } else if (batch.shader.v < Shader::Count && pixelShaders_[batch.shader.v] != nullptr) {
         pixelShader = pixelShaders_[batch.shader.v];
+        if (batch.shader.v == Shader::Shadow) {
+            static int shadowCount = 0;
+            if (shadowCount++ < 5) {
+                std::fprintf(stderr, "[DEBUG D3D11] DrawBatch Shader::Shadow indices=%u image=%p ps=%p\n",
+                    batch.numIndices, batch.image, pixelShader);
+            }
+        }
     } else {
         pixelShader = solidPixelShader_;
     }

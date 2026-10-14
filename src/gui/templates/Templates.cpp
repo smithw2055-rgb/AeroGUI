@@ -9,9 +9,9 @@
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
 #include "gui/data/BindingEngine.hpp"
-#include <Aero/Controls/ControlTemplate.hpp>
+#include <Aero/Controls/Control.hpp>
 #include <Aero/DataTemplate.hpp>
-#include <Aero/Controls/ItemsPanelTemplate.hpp>
+#include <Aero/Controls/Items.hpp>
 #include <Aero/Triggers.hpp>
 #include "gui/triggers/TriggerPlan.hpp"
 #include "gui/templates/TemplateInstance.hpp"

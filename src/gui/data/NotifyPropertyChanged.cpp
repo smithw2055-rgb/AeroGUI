@@ -29,3 +29,17 @@ Meta::MemberId FindNotifyPropertyMember(
 }
 
 } // namespace Aero::Data
+
+#include <Aero/Mvvm.hpp>
+#include "gui/core/Describe.hpp"
+
+namespace Aero {
+
+AERO_DESCRIBE(ViewModelBase) {
+    auto type = Register<ViewModelBase>(context);
+    type.PropertyChangeNotifications();
+    (void)type.Result();
+}
+
+} // namespace Aero
+

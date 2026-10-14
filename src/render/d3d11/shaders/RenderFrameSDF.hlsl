@@ -37,6 +37,6 @@ VSOutput vs_main(VSInput input) {
 float4 ps_main(VSOutput input) : SV_Target {
     const float distance = glyphTexture.Sample(glyphSampler, input.uv0).r;
     const float smoothing = max(fwidth(distance), 1.0 / 512.0);
-    const float alpha = smoothstep(0.5 - smoothing, 0.5 + smoothing, distance);
+    const float alpha = smoothstep(0.5 - 0.5 * smoothing, 0.5 + 0.5 * smoothing, distance);
     return input.color * (alpha * input.coverage);
 }

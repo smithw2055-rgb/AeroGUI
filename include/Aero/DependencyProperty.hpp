@@ -342,3 +342,17 @@ using Meta::ValueCodec;
 #define AERO_READONLY_PROPERTY(type, name) \
     inline static constexpr ::Aero::Meta::ReadOnlyPropertyRef<Self, type> name##Property{#name}
 
+#define AERO_DEPENDENCY_PROPERTY2(type, name) \
+    inline static constexpr ::Aero::Meta::DependencyPropertyRef<Self, type> name##Property{#name}; \
+    type Get##name() const noexcept { return this->GetValue(name##Property); } \
+    void Set##name(type value) noexcept { this->SetValue(name##Property, value); }
+
+#define AERO_READONLY_PROPERTY2(type, name) \
+    inline static constexpr ::Aero::Meta::ReadOnlyPropertyRef<Self, type> name##Property{#name}; \
+    type Get##name() const noexcept { return this->GetValue(name##Property); }
+
+// Backward compatibility aliases
+#define AERO_DEPENDENCY_PROPERTY_WITH_ACCESSORS(type, name) AERO_DEPENDENCY_PROPERTY2(type, name)
+#define AERO_READONLY_PROPERTY_WITH_ACCESSORS(type, name) AERO_READONLY_PROPERTY2(type, name)
+
+

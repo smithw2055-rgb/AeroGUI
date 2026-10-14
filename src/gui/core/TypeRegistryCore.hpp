@@ -117,6 +117,9 @@ public:
         return {templateParts_.Data(), templateParts_.Size()};
     }
     MemberId ContentMember() const noexcept { return contentMember_; }
+    Base::Span<const TypeId> AncestorChain() const noexcept {
+        return {ancestorChain_.Data(), ancestorChain_.Size()};
+    }
 private:
     friend class TypeRegistry;
     TypeInfo() noexcept = default;
@@ -135,6 +138,8 @@ private:
     Base::Vector<EventHandlerDescriptor> eventHandlers_;
     Base::Vector<TemplatePartDescriptor> templateParts_;
     MemberId contentMember_ = InvalidMemberId;
+    mutable Base::Vector<TypeId> ancestorChain_;
+    mutable bool ancestorChainBuilt_ = false;
 };
 
 class TypeRegistry {

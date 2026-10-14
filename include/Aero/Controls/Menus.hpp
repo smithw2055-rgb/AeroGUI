@@ -1,11 +1,12 @@
 #pragma once
 
-// Menu, its item, the context-menu host, and the attached-property service.
+// Menu, its item, the context-menu host, toolbar, and statusbar family.
 #include <Aero/ICommand.hpp>
-#include <Aero/Controls/HeaderedItemsControl.hpp>
-#include <Aero/Controls/ItemsControl.hpp>
+#include <Aero/Controls/Items.hpp>
 #include <Aero/Controls/Popup.hpp>
+#include <Aero/Controls/Panels.hpp>
 #include <Aero/Controls/TextBlock.hpp>
+#include <Aero/DataTemplate.hpp>
 
 namespace Aero::Controls {
 
@@ -134,6 +135,105 @@ public:
     static void SetContextMenu(DependencyObject& target, Ref<ContextMenu> value) noexcept;
 
     AERO_ATTACHED_PROPERTY(Ref<ContextMenu>, ContextMenu);
+};
+
+// ---------------- ToolBar Family ----------------
+
+class AERO_GUI_API ToolBar : public ItemsControl {
+    AERO_DECLARE_TYPE(ToolBar, ItemsControl)
+
+public:
+    ToolBar() noexcept;
+    ~ToolBar() override;
+
+    Value GetHeader() const noexcept;
+    void SetHeader(const Value& value) noexcept;
+    void SetHeader(StringView value) noexcept;
+    Ref<DataTemplate> GetHeaderTemplate() const noexcept;
+    void SetHeaderTemplate(Ref<DataTemplate> value) noexcept;
+    Orientation GetOrientation() const noexcept;
+    void SetOrientation(Orientation value) noexcept;
+    std::uint32_t GetOverflowCapacity() const noexcept;
+    void SetOverflowCapacity(std::uint32_t value) noexcept;
+    bool GetIsOverflowOpen() const noexcept;
+    void SetIsOverflowOpen(bool value) noexcept;
+    bool GetHasOverflowItems() const noexcept;
+    std::uint32_t GetOverflowItemCount() const noexcept;
+
+    AERO_DEPENDENCY_PROPERTY(Value, Header);
+    AERO_DEPENDENCY_PROPERTY(Ref<DataTemplate>, HeaderTemplate);
+    AERO_DEPENDENCY_PROPERTY(Orientation, Orientation);
+    AERO_DEPENDENCY_PROPERTY(std::uint32_t, OverflowCapacity);
+    AERO_DEPENDENCY_PROPERTY(bool, IsOverflowOpen);
+    AERO_DEPENDENCY_PROPERTY(bool, HasOverflowItems);
+    AERO_DEPENDENCY_PROPERTY(std::uint32_t, OverflowItemCount);
+
+protected:
+    void OnApplyTemplate() noexcept override;
+    void OnTemplateDetached() noexcept override;
+    void OnContainersChanged() noexcept override;
+    void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
+
+private:
+    TextBlock* headerText_ = nullptr;
+    TextBlock* overflowGlyph_ = nullptr;
+    void SynchronizeToolBar() noexcept;
+};
+
+class AERO_GUI_API ToolBarPanel : public Panel {
+    AERO_DECLARE_TYPE(ToolBarPanel, Panel)
+
+public:
+    ToolBarPanel() noexcept : Panel(StaticTypeId()) {}
+    ~ToolBarPanel() override = default;
+
+protected:
+    Size MeasureOverride(Size availableSize) noexcept override;
+    Size ArrangeOverride(Size finalSize) noexcept override;
+};
+
+class AERO_GUI_API ToolBarOverflowPanel : public Panel {
+    AERO_DECLARE_TYPE(ToolBarOverflowPanel, Panel)
+
+public:
+    ToolBarOverflowPanel() noexcept : Panel(StaticTypeId()) {}
+    ~ToolBarOverflowPanel() override = default;
+
+protected:
+    Size MeasureOverride(Size availableSize) noexcept override;
+    Size ArrangeOverride(Size finalSize) noexcept override;
+};
+
+class AERO_GUI_API ToolBarTray : public Base::Object {
+    AERO_DECLARE_TYPE(ToolBarTray, Base::Object)
+
+public:
+    Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
+    AERO_ATTACHED_PROPERTY(bool, IsLocked);
+};
+
+// ---------------- StatusBar Family ----------------
+
+class AERO_GUI_API StatusBarItem : public ContentControl {
+    AERO_DECLARE_TYPE(StatusBarItem, ContentControl)
+
+public:
+    StatusBarItem() noexcept : ContentControl(StaticTypeId()) {}
+    ~StatusBarItem() override = default;
+};
+
+class AERO_GUI_API StatusBar : public ItemsControl {
+    AERO_DECLARE_TYPE(StatusBar, ItemsControl)
+
+public:
+    StatusBar() noexcept : ItemsControl(StaticTypeId()) {}
+    ~StatusBar() override = default;
+    bool GetIsSizingGripVisible() const noexcept { return GetValue(IsSizingGripVisibleProperty); }
+    void SetIsSizingGripVisible(bool value) noexcept { SetValue(IsSizingGripVisibleProperty, value); }
+    AERO_DEPENDENCY_PROPERTY(bool, IsSizingGripVisible);
+
+protected:
+    Result<Ref<FrameworkElement>> GetContainerForItemOverride() const noexcept override;
 };
 
 } // namespace Aero::Controls

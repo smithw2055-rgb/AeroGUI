@@ -3,18 +3,26 @@
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/DrawingContext.hpp>
+#include <Aero/Media/Images.hpp>
+#include <Aero/Media/Transform2D.hpp>
+#include <Aero/Media/Transform3D.hpp>
+#include <Aero/Controls/Control.hpp>
 #include <algorithm>
-
+#include <utility>
 
 namespace Aero::Controls {
+
 using ::Aero::Meta::TypeId;
+using ::Aero::Media::Brush;
+using ::Aero::Media::ImageSource;
+using ::Aero::Media::MatrixTransform;
+
+// ---------------- Decorator Base & BulletDecorator ----------------
 
 class AERO_GUI_API Decorator : public FrameworkElement {
     AERO_DECLARE_TYPE(Decorator, FrameworkElement)
 
 public:
-    // Decorator is constructible in the reference XAML surface and is used as
-    // a lightweight single-child layout node in control templates.
     Decorator() noexcept : Decorator(StaticTypeId()) {}
     ~Decorator() override {
         if (child_ != nullptr && child_->GetVisualParent() == this) { RemoveVisualChild(child_); }
@@ -35,7 +43,6 @@ public:
         child_ = child;
         if (child_ != nullptr && child_->GetVisualParent() == nullptr) { AddVisualChild(child_); }
         if (child == nullptr) ownedChild_.Reset();
-        return;
     }
     void SetOwnedChild(const Ref<Base::Object>& childObject, UIElement& child) noexcept {
         if (!childObject || childObject.Get() != &child) { return; }
@@ -48,7 +55,6 @@ public:
         child_ = &child;
         ownedChild_ = childObject;
         if (child_->GetVisualParent() == nullptr) { AddVisualChild(child_); }
-        return;
     }
 
     const Ref<Base::Object>& OwnedChild() const noexcept { return ownedChild_; }
@@ -65,18 +71,14 @@ protected:
     }
     Size MeasureOverride(Size availableSize) noexcept override {
         UIElement* child = GetChild();
-        if (child == nullptr) {
-            if (!LayoutChildren().Empty()) { return Size{}; }
-            return Size{};
-        }
+        if (child == nullptr) return Size{};
         MeasureChild(*child, availableSize);
         return child->GetDesiredSize();
     }
     Size ArrangeOverride(Size finalSize) noexcept override {
         UIElement* child = GetChild();
         if (child == nullptr) return finalSize;
-        ArrangeChild(
-            *child, {0.0, 0.0, finalSize.width, finalSize.height});
+        ArrangeChild(*child, {0.0, 0.0, finalSize.width, finalSize.height});
         return finalSize;
     }
 
@@ -103,9 +105,6 @@ private:
     Ref<Base::Object> ownedChild_;
 };
 
-// WPF-compatible two-part decorator used by radio-button and check-box
-// templates. The bullet occupies its desired width on the leading edge while
-// the regular content receives the remaining slot.
 class AERO_GUI_API BulletDecorator : public FrameworkElement {
     AERO_DECLARE_TYPE(BulletDecorator, FrameworkElement)
 
@@ -172,10 +171,10 @@ protected:
             bulletSize.width + childSize.width,
             std::max(bulletSize.height, childSize.height)};
     }
-
     Size ArrangeOverride(Size finalSize) noexcept override {
         double bulletWidth = 0.0;
-        if (bullet_) { const Size desired = bullet_->GetDesiredSize();
+        if (bullet_) {
+            const Size desired = bullet_->GetDesiredSize();
             bulletWidth = std::min(finalSize.width, desired.width);
             const double y = std::max(0.0, (finalSize.height - desired.height) * 0.5);
             ArrangeChild(*bullet_, {
@@ -189,7 +188,6 @@ protected:
         }
         return finalSize;
     }
-
     void OnRender(Media::DrawingContext& context) noexcept override {
         const Ref<Media::Brush> background = GetBackground();
         if (background) {
@@ -200,6 +198,111 @@ protected:
 private:
     Ref<UIElement> bullet_;
     Ref<UIElement> child_;
+};
+
+// ---------------- Border ----------------
+
+class AERO_GUI_API Border : public Decorator {
+    AERO_DECLARE_TYPE(Border, Decorator)
+
+public:
+    Border() noexcept;
+
+    Ref<Brush> GetBackground() const noexcept;
+    void SetBackground(Ref<Brush> value) noexcept;
+    Ref<Brush> GetBorderBrush() const noexcept;
+    void SetBorderBrush(Ref<Brush> value) noexcept;
+    Thickness GetBorderThickness() const noexcept;
+    void SetBorderThickness(Thickness value) noexcept;
+    void SetBorderThickness(double value) noexcept;
+    CornerRadius GetCornerRadius() const noexcept;
+    void SetCornerRadius(CornerRadius value) noexcept;
+    void SetCornerRadius(double value) noexcept;
+    Thickness GetPadding() const noexcept;
+    void SetPadding(Thickness value) noexcept;
+
+    AERO_DEPENDENCY_PROPERTY(Ref<Aero::Media::Brush>, Background);
+    AERO_DEPENDENCY_PROPERTY(Ref<Aero::Media::Brush>, BorderBrush);
+    AERO_DEPENDENCY_PROPERTY(Aero::Base::Thickness, BorderThickness);
+    AERO_DEPENDENCY_PROPERTY(Aero::Base::CornerRadius, CornerRadius);
+    AERO_DEPENDENCY_PROPERTY(Aero::Base::Thickness, Padding);
+
+protected:
+    explicit Border(TypeId runtimeType) noexcept : Decorator(runtimeType) {}
+
+    Size MeasureOverride(Size availableSize) noexcept override;
+    Size ArrangeOverride(Size finalSize) noexcept override;
+    void OnRender(::Aero::Media::DrawingContext& context) noexcept override;
+};
+
+// ---------------- Viewbox ----------------
+
+class AERO_GUI_API Viewbox : public Decorator {
+    AERO_DECLARE_TYPE(Viewbox, Decorator)
+
+public:
+    Viewbox() noexcept : Decorator(StaticTypeId()) {}
+
+    Stretch GetStretch() const noexcept;
+    StretchDirection GetStretchDirection() const noexcept;
+    void SetStretch(Stretch value) noexcept;
+    void SetStretchDirection(StretchDirection value) noexcept;
+
+    AERO_DEPENDENCY_PROPERTY(Stretch, Stretch);
+    AERO_DEPENDENCY_PROPERTY(StretchDirection, StretchDirection);
+
+protected:
+    Size MeasureOverride(Size availableSize) noexcept override;
+    Size ArrangeOverride(Size finalSize) noexcept override;
+
+private:
+    Ref<MatrixTransform> viewTransform_;
+    Ref<FrameworkElement> projectedChild_;
+    void ApplyViewTransform(double scaleX, double scaleY, double offsetX, double offsetY) noexcept;
+};
+
+// ---------------- Separator ----------------
+
+class AERO_GUI_API Separator : public Control {
+    AERO_DECLARE_TYPE(Separator, Control)
+
+public:
+    Separator() noexcept : Control(StaticTypeId()) {}
+    ~Separator() override = default;
+};
+
+// ---------------- Image ----------------
+
+class AERO_GUI_API Image : public FrameworkElement {
+    AERO_DECLARE_TYPE(Image, FrameworkElement)
+
+public:
+    Image() noexcept : FrameworkElement(StaticTypeId()) {}
+    ~Image() override = default;
+
+    Ref<ImageSource> GetSource() const noexcept;
+    Stretch GetStretch() const noexcept;
+    StretchDirection GetStretchDirection() const noexcept;
+    void SetSource(Ref<ImageSource> value) noexcept;
+    void SetStretch(Stretch value) noexcept;
+    void SetStretchDirection(StretchDirection value) noexcept;
+    void SetRuntimeData(
+        std::uint64_t renderImage,
+        std::uint32_t pixelWidth,
+        std::uint32_t pixelHeight) noexcept;
+
+    AERO_DEPENDENCY_PROPERTY(Ref<ImageSource>, Source);
+    AERO_DEPENDENCY_PROPERTY(Stretch, Stretch);
+    AERO_DEPENDENCY_PROPERTY(StretchDirection, StretchDirection);
+
+protected:
+    Size MeasureOverride(Size availableSize) noexcept override;
+    void OnRender(::Aero::Media::DrawingContext& context) noexcept override;
+
+private:
+    std::uint64_t renderImage_ = 0U;
+    std::uint32_t pixelWidth_ = 0U;
+    std::uint32_t pixelHeight_ = 0U;
 };
 
 } // namespace Aero::Controls

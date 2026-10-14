@@ -1864,16 +1864,7 @@ Base::Result<Base::Ref<Base::Object>> ObjectWriter::CreateObject(
                 return true;
             };
 
-            if (eq("ContentControl") ) {
-                static int s_o = 0;
 
-                if (s_o <= 400) {
-                    ++s_o;
-
-                    std::fprintf(stderr, "[MkObj#%d] %.*s ok=%d\n", s_o,
-                        (int)nm.SizeBytes(), nm.Data(), (int)(created ? 1 : 0));
-                }
-            }
         }
     }
 
@@ -2037,12 +2028,7 @@ Base::Result<void> ObjectWriter::StartObject(
 
     const Node& node) noexcept {
 
-    if (node.Name().LocalName() == Base::StringView("Rectangle") ||
-        node.Name().LocalName() == Base::StringView("Grid")) {
-        std::fprintf(stderr, "[OW::StartObject] %.*s framesCount=%u\n",
-            (int)node.Name().LocalName().SizeBytes(), node.Name().LocalName().Data(),
-            (unsigned)frames_.Size());
-    }
+
 
     if (frames_.Empty() && root_) {
 
@@ -5074,7 +5060,7 @@ Base::Result<void> ObjectWriter::WriteDirectiveText(
 
 #include <Aero/Markup/MarkupExtension.hpp>
 
-#include <Aero/Controls/ControlTemplate.hpp>
+#include <Aero/Controls/Control.hpp>
 
 
 
@@ -5944,12 +5930,7 @@ Base::Result<void> ObjectWriter::WriteObjectToContent(
 
         created_[parentObjectIndex];
 
-    std::fprintf(stderr, "[OW::WriteObjectToContent] parent=%s/%p hasContent=%d child=%s/%p\n",
-        schema_->Types().FindType(contentOwner.type) ? (const char*)schema_->Types().FindType(contentOwner.type)->Name().Data() : "?",
-        contentOwner.object.Get(),
-        contentOwner.hasContentMember,
-        schema_->Types().FindType(created_[childObjectIndex].type) ? (const char*)schema_->Types().FindType(created_[childObjectIndex].type)->Name().Data() : "?",
-        created_[childObjectIndex].object.Get());
+
 
     if (!contentOwner.hasContentMember) {
 
@@ -7021,12 +7002,7 @@ Base::Result<void> ObjectWriter::WriteValue(
 
          (parentIsFreezable && !parentIsTimeline));
 
-    std::fprintf(stderr, "[WriteValue] target=%s/%p memberId=%llu stagesVis=%d stagesDef=%d isUIE=%d hasVisCont=%d hasVisStruct=%d\n",
-        schema_->Types().FindType(created_[targetObjectIndex].type) ? (const char*)schema_->Types().FindType(created_[targetObjectIndex].type)->Name().Data() : "?",
-        created_[targetObjectIndex].object.Get(),
-        (unsigned long long)member.id,
-        stagesVisualContent, stagesDeferredObjectContent,
-        isUIElementValue(value), hasVisualContent, hasVisualStructuralProperty);
+
 
     Base::Result<void> setResult =
 

@@ -41,7 +41,7 @@
 
 #include <Aero/Base/StringView.hpp>
 
-#include <Aero/Controls/ControlTemplate.hpp>
+#include <Aero/Controls/Control.hpp>
 
 #include <Aero/Controls.hpp>
 
@@ -51,7 +51,7 @@
 
 #include <Aero/TryCast.hpp>
 
-#include <Aero/Controls/Primitives/ButtonBase.hpp>
+
 
 #include <Aero/Controls/Buttons.hpp>
 

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Aero/Controls/GridLength.hpp>
-#include <Aero/Controls/Panel.hpp>
+#include <Aero/Controls/Panels.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Input.hpp>
 #include <Aero/InputBinding.hpp>

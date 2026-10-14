@@ -6,7 +6,7 @@
 #include "gui/core/EventRouter.hpp"
 #include "gui/input/InputManager.hpp" 
 #include <Aero/Controls.hpp>
-#include <Aero/Controls/Separator.hpp>
+#include <Aero/Controls/Panels.hpp>
 #include <Aero/ClassHandler.hpp>
 
 #include <utility>
@@ -584,6 +584,266 @@ AERO_DESCRIBE(ContextMenuService) {
 AERO_DESCRIBE(Separator) {
     using namespace Aero::Meta;
     Register<Separator>(context)
+        .Factory();
+}
+
+Size ToolBarPanel::MeasureOverride(Size availableSize) noexcept {
+    Size desired{};
+    for (UIElement* child : LayoutChildren()) {
+        if (child == nullptr) continue;
+        MeasureChild(
+            *child, {1.0e12, availableSize.height});
+        const Size childSize = child->GetDesiredSize();
+        desired.width += childSize.width;
+        desired.height = std::max(desired.height, childSize.height);
+    }
+    return desired;
+}
+
+Size ToolBarPanel::ArrangeOverride(Size finalSize) noexcept {
+    double offset = 0.0;
+    for (UIElement* child : LayoutChildren()) {
+        if (child == nullptr) continue;
+        const Size desired = child->GetDesiredSize();
+        ArrangeChild(
+            *child, {offset, 0.0, desired.width, finalSize.height});
+        offset += desired.width;
+    }
+    return finalSize;
+}
+
+Size ToolBarOverflowPanel::MeasureOverride(Size availableSize) noexcept {
+    Size desired{};
+    for (UIElement* child : LayoutChildren()) {
+        if (child == nullptr) continue;
+        MeasureChild(
+            *child, {availableSize.width, 1.0e12});
+        const Size childSize = child->GetDesiredSize();
+        desired.width = std::max(desired.width, childSize.width);
+        desired.height += childSize.height;
+    }
+    return desired;
+}
+
+Size ToolBarOverflowPanel::ArrangeOverride(Size finalSize) noexcept {
+    double offset = 0.0;
+    for (UIElement* child : LayoutChildren()) {
+        if (child == nullptr) continue;
+        const Size desired = child->GetDesiredSize();
+        ArrangeChild(
+            *child, {0.0, offset, finalSize.width, desired.height});
+        offset += desired.height;
+    }
+    return finalSize;
+}
+
+ToolBar::ToolBar() noexcept
+    : ItemsControl(StaticTypeId()) {}
+
+ToolBar::~ToolBar() = default;
+
+Meta::Value ToolBar::GetHeader()
+    const noexcept {
+    return GetValue(HeaderProperty);
+}
+
+void ToolBar::SetHeader(
+    const Meta::Value& value) noexcept {
+    SetValue(HeaderProperty, value);
+}
+
+void ToolBar::SetHeader(
+    Base::StringView value) noexcept {
+    Base::Result<Value> boxed = Value::TryFromString(
+        Meta::TypeOf<Base::String>(), value);
+    if (!boxed) { AERO_ASSERT(false); return; }
+    SetHeader(std::move(boxed).Value());
+}
+
+Base::Ref<DataTemplate>
+ToolBar::GetHeaderTemplate() const noexcept {
+    return GetValue(HeaderTemplateProperty);
+}
+
+void ToolBar::SetHeaderTemplate(
+    Base::Ref<DataTemplate> value) noexcept {
+    SetValue(
+        HeaderTemplateProperty, std::move(value));
+}
+
+Orientation ToolBar::GetOrientation()
+    const noexcept {
+    return GetValue(OrientationProperty);
+}
+
+void ToolBar::SetOrientation(
+    Orientation value) noexcept {
+    SetValue(OrientationProperty, value);
+}
+
+std::uint32_t ToolBar::GetOverflowCapacity()
+    const noexcept {
+    return GetValue(OverflowCapacityProperty);
+}
+
+void ToolBar::SetOverflowCapacity(
+    std::uint32_t value) noexcept {
+    SetValue(OverflowCapacityProperty, value);
+}
+
+bool ToolBar::GetIsOverflowOpen()
+    const noexcept {
+    return GetValue(IsOverflowOpenProperty);
+}
+
+void ToolBar::SetIsOverflowOpen(
+    bool value) noexcept {
+    SetValue(IsOverflowOpenProperty, value);
+}
+
+bool ToolBar::GetHasOverflowItems()
+    const noexcept {
+    return GetValue(HasOverflowItemsProperty);
+}
+
+std::uint32_t ToolBar::GetOverflowItemCount()
+    const noexcept {
+    return GetValue(OverflowItemCountProperty);
+}
+
+void ToolBar::OnContainersChanged() noexcept {
+    ItemsControl::OnContainersChanged();
+    SynchronizeToolBar();
+}
+
+void ToolBar::OnApplyTemplate() noexcept {
+    ItemsControl::OnApplyTemplate();
+    headerText_ = TryCast<TextBlock>(
+        GetTemplateChild(Base::StringView("PART_Header")));
+    overflowGlyph_ = TryCast<TextBlock>(
+        GetTemplateChild(Base::StringView("PART_OverflowGlyph")));
+    SynchronizeToolBar();
+}
+
+void ToolBar::OnTemplateDetached() noexcept {
+    headerText_ = nullptr;
+    overflowGlyph_ = nullptr;
+    ItemsControl::OnTemplateDetached();
+}
+
+void ToolBar::SynchronizeToolBar() noexcept {
+    if (headerText_ != nullptr) {
+        const Meta::Value headerValue = GetHeader();
+        headerText_->SetText(
+            headerValue.Kind() == Meta::ValueKind::String
+            ? headerValue.AsString()
+            : Base::StringView{});
+    }
+    Panel* host = GetItemsHost();
+    if (host != nullptr &&
+        DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
+            host->RuntimeType(),
+            StackPanel::StaticTypeId())) {
+        static_cast<StackPanel*>(host)->
+            SetOrientation(GetOrientation());
+    }
+    const std::uint32_t capacity =
+        GetOverflowCapacity();
+    const std::uint32_t count =
+        GetCount();
+    const std::uint32_t overflowCount =
+        count > capacity
+        ? count - capacity
+        : 0U;
+    SetValue(
+        HasOverflowItemsProperty,
+        overflowCount != 0U);
+    SetValue(
+        OverflowItemCountProperty,
+        overflowCount);
+    if (host != nullptr) {
+        const auto children = (*host).RenderChildren();
+        for (std::uint32_t index = 0U;
+             index < children.Size();
+             ++index) {
+            UIElement* child =
+                children[index] != nullptr
+                ? ::Aero::TryCast<::Aero::UIElement>(children[index])
+                : nullptr;
+            if (child == nullptr) continue;
+            child->SetVisibility(
+                index < capacity
+                ? Visibility::Visible
+                : Visibility::Collapsed);
+        }
+    }
+    if (overflowGlyph_ != nullptr) {
+        overflowGlyph_->SetText(
+            overflowCount != 0U
+            ? Base::StringView("...")
+            : Base::StringView(""));
+    }
+}
+
+void ToolBar::OnPropertyChanged(
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    ItemsControl::OnPropertyChanged(args);
+    if (args.GetProperty() == HeaderProperty.Handle() ||
+        args.GetProperty() == OverflowCapacityProperty.Handle() ||
+        args.GetProperty() == IsOverflowOpenProperty.Handle()) {
+        SynchronizeToolBar();
+    }
+}
+
+Result<Base::Ref<FrameworkElement>>
+StatusBar::GetContainerForItemOverride() const noexcept {
+    Base::Result<Base::Ref<StatusBarItem>> item =
+        Base::MakeRef<StatusBarItem>();
+    if (!item) return item.GetStatus();
+    return Base::Ref<FrameworkElement>(std::move(item).Value());
+}
+
+AERO_DESCRIBE(ToolBar) {
+    using namespace Aero::Meta;
+    Register<ToolBar>(context)
+        .Property(ToolBar::HeaderProperty, Value::NullObject(TypeOf<Base::Object>()), AffectsMeasure)
+        .Property(ToolBar::HeaderTemplateProperty, Base::Ref<DataTemplate>{}, AffectsMeasure)
+        .Property(ToolBar::OrientationProperty, Orientation::Horizontal, AffectsMeasure)
+        .Property(ToolBar::OverflowCapacityProperty, std::uint32_t{4U})
+        .Property(ToolBar::IsOverflowOpenProperty, false)
+        .Property(ToolBar::HasOverflowItemsProperty, false)
+        .Property(ToolBar::OverflowItemCountProperty, std::uint32_t{0U})
+        .Factory();
+}
+
+AERO_DESCRIBE(ToolBarTray) {
+    using namespace Aero::Meta;
+    Register<ToolBarTray>(context, TypeFlags::Abstract)
+        .Property(ToolBarTray::IsLockedProperty, false);
+}
+
+AERO_DESCRIBE(StatusBar) {
+    using namespace Aero::Meta;
+    Register<StatusBar>(context)
+        .Property(StatusBar::IsSizingGripVisibleProperty, true, AffectsMeasure)
+        .Factory();
+}
+
+AERO_DESCRIBE(ToolBarPanel) {
+    using namespace Aero::Meta;
+    Register<ToolBarPanel>(context)
+        .Factory();
+}
+
+AERO_DESCRIBE(ToolBarOverflowPanel) {
+    using namespace Aero::Meta;
+    Register<ToolBarOverflowPanel>(context)
+        .Factory();
+}
+
+AERO_DESCRIBE(StatusBarItem) {
+    using namespace Aero::Meta;
+    Register<StatusBarItem>(context)
         .Factory();
 }
 

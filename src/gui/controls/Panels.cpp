@@ -1669,20 +1669,7 @@ void SetPanelContent(
     if (!child) {
         return;
     }
-    {
-        static int s_s = 0;
-        ++s_s;
-        if (s_s < 400) {
-            const Meta::TypeInfo* ct = DependencyObjectAccess::PropertyRegistry((*static_cast<UIElement*>(child.Get()))).Types().FindType(child->RuntimeType());
-            const Meta::TypeInfo* ot = DependencyObjectAccess::PropertyRegistry((static_cast<Panel&>(owner))).Types().FindType(owner.RuntimeType());
-            std::fprintf(stderr, "[SetPanelContent#%d] owner=%s/%p child=%s/%p\n",
-                s_s,
-                ot ? (const char*)ot->Name().Data() : "?",
-                (const void*)&owner,
-                ct ? (const char*)ct->Name().Data() : "?",
-                (const void*)child.Get());
-        }
-    }
+
     (static_cast<Panel&>(owner)).AddChildCore( child, *static_cast<Aero::UIElement*>(child.Get()));
 }
 

@@ -1,8 +1,6 @@
-#include "gui/controls/TextBoxCommon.hpp"
 #include <Aero/Controls/TextBlock.hpp>
 #include "gui/core/Describe.hpp"
 #include "render/DisplayList.hpp"
-#include <Aero/Controls/TextBoxBase.hpp>
 #include <Aero/Controls/TextBox.hpp>
 #include <Aero/ClassHandler.hpp>
 #include <Aero/Media/Brushes.hpp>
@@ -27,6 +25,186 @@
 #include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero::Controls {
+namespace TextBoxSupport {
+
+inline constexpr double DefaultAdvance = 8.0;
+inline constexpr double DefaultLineHeight = 18.0;
+inline constexpr double CaretWidth = 1.0;
+inline constexpr double ScrollLine = 16.0;
+
+inline std::uint32_t EffectiveMaximumLength(
+    std::uint32_t value) noexcept {
+    return value == 0U ? UINT32_MAX : value;
+}
+
+inline double ClampOffset(
+    double value,
+    double extent,
+    double viewport) noexcept {
+    const double maximum =
+        std::max(0.0, extent - viewport);
+    return std::clamp(value, 0.0, maximum);
+}
+
+inline double ClampOffset(
+    double value,
+    double extent,
+    double viewport,
+    bool enabled) noexcept {
+    if (!enabled) return 0.0;
+    return ClampOffset(value, extent, viewport);
+}
+
+inline Point ToLocalPoint(
+    const UIElement& element,
+    Point point) noexcept {
+    const UIElement* current = &element;
+    while (current != nullptr) {
+        const Rect slot = current->GetLayoutSlot();
+        point.x -= slot.x;
+        point.y -= slot.y;
+        current = current->LayoutParent();
+    }
+    return point;
+}
+
+inline Rect ToRootRect(
+    const UIElement& element,
+    Rect rect) noexcept {
+    const UIElement* current = &element;
+    while (current != nullptr) {
+        const Rect slot = current->GetLayoutSlot();
+        rect.x += slot.x;
+        rect.y += slot.y;
+        current = current->LayoutParent();
+    }
+    return rect;
+}
+
+struct DragSelectionState {
+    std::uint32_t pointerId = 0U;
+    std::uint32_t dragAnchor = 0U;
+    bool isDragging = false;
+};
+
+} // namespace TextBoxSupport
+
+using TextBoxSupport::DefaultAdvance;
+using TextBoxSupport::DefaultLineHeight;
+using TextBoxSupport::CaretWidth;
+using TextBoxSupport::ScrollLine;
+using TextBoxSupport::EffectiveMaximumLength;
+using TextBoxSupport::ClampOffset;
+using TextBoxSupport::ToLocalPoint;
+using TextBoxSupport::ToRootRect;
+using TextBoxSupport::DragSelectionState;
+
+class TextDisplayPolicy {
+public:
+    virtual ~TextDisplayPolicy() = default;
+    virtual Base::Result<void> BuildDisplayText(
+        const ::Aero::Text::EditableTextModel& model,
+        Base::String& output) noexcept = 0;
+    virtual bool AllowsCopy() const noexcept = 0;
+    virtual bool AllowsCut() const noexcept = 0;
+};
+
+class PlainTextDisplayPolicy : public TextDisplayPolicy {
+public:
+    Base::Result<void> BuildDisplayText(
+        const ::Aero::Text::EditableTextModel& model,
+        Base::String& output) noexcept override {
+        return model.Snapshot(output);
+    }
+    bool AllowsCopy() const noexcept override { return true; }
+    bool AllowsCut() const noexcept override { return true; }
+};
+
+class PasswordTextDisplayPolicy : public TextDisplayPolicy {
+public:
+    explicit PasswordTextDisplayPolicy(
+        Base::IAllocator* allocator = nullptr) noexcept
+        : mask_(allocator) {
+        static_cast<void>(mask_.Assign(
+            Base::StringView(u8"\u2022")));
+    }
+
+    Base::Result<void> SetMask(Base::StringView value) noexcept {
+        ::Aero::Text::EditableTextModel validation;
+        Base::Result<void> assigned = validation.SetText(value);
+        if (!assigned || validation.GraphemeCount() != 1U) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Password mask must be one grapheme cluster");
+        }
+        return mask_.Assign(value);
+    }
+
+    Base::StringView GetMask() const noexcept { return mask_.View(); }
+
+    Base::Result<void> BuildDisplayText(
+        const ::Aero::Text::EditableTextModel& model,
+        Base::String& output) noexcept override {
+        output.Clear();
+        const std::uint32_t count = model.GraphemeCount();
+        if (count != 0U && mask_.SizeBytes() > UINT32_MAX / count) {
+            return Base::Status::Failure(
+                Base::ErrorCode::OutOfRange,
+                "Password display text exceeds capacity");
+        }
+        output.Reserve(mask_.SizeBytes() * count);
+        Base::String source;
+        Base::Result<void> snapshot = model.Snapshot(source);
+        if (!snapshot) return snapshot;
+        for (std::uint32_t index = 0U; index < count; ++index) {
+            Base::Result<std::uint32_t> begin =
+                model.ByteOffsetForGrapheme(index);
+            if (!begin) return begin.GetStatus();
+            Base::Result<std::uint32_t> end =
+                model.ByteOffsetForGrapheme(index + 1U);
+            if (!end) return end.GetStatus();
+            const Base::StringView cluster = source.View().Substr(
+                begin.Value(), end.Value() - begin.Value());
+            const bool newline = !cluster.Empty() &&
+                (cluster[0] == '\r' || cluster[0] == '\n');
+            output.Append(
+                newline ? cluster : mask_.View());
+        }
+        return {};
+    }
+
+    bool AllowsCopy() const noexcept override { return false; }
+    bool AllowsCut() const noexcept override { return false; }
+
+private:
+    Base::String mask_;
+};
+
+inline ::Aero::Text::EditableTextModel& Model(
+    void* value) noexcept {
+    return *static_cast<::Aero::Text::EditableTextModel*>(value);
+}
+
+inline const ::Aero::Text::EditableTextModel& Model(
+    const void* value) noexcept {
+    return *static_cast<const ::Aero::Text::EditableTextModel*>(value);
+}
+
+inline TextDisplayPolicy* DisplayPolicy(
+    void* value) noexcept {
+    return static_cast<TextDisplayPolicy*>(value);
+}
+
+inline PasswordTextDisplayPolicy* PasswordPolicy(
+    void* value) noexcept {
+    return static_cast<PasswordTextDisplayPolicy*>(value);
+}
+
+inline TextBlockLayout* LayoutService(
+    const ::Aero::Media::Visual& visual) noexcept {
+    return static_cast<TextBlockLayout*>(ElementTree::TextLayoutOf(visual));
+}
+
 using namespace Primitives;
 using namespace ::Aero::Render;
 
@@ -2034,6 +2212,316 @@ AERO_DESCRIBE(TextBox) {
     AERO_ON(TextBox, &TextBox::OnKeyDown, UIElement::KeyDownEvent);
     AERO_ON(TextBox, &TextBox::OnTextInput, UIElement::TextInputEvent);
     AERO_ON(TextBox, &TextBox::OnLostKeyboardFocus, UIElement::LostKeyboardFocusEvent);
+}
+
+PasswordBox::PasswordBox() noexcept
+    : TextBoxBase(StaticTypeId()),
+      passwordPolicy_(new (std::nothrow) PasswordTextDisplayPolicy()) {
+    editor_.displayPolicy_ = passwordPolicy_;
+    editor_.coordinateOwner_ = this;
+    editor_.passwordOwner_ = this;
+
+    if (passwordPolicy_ != nullptr) {
+        static_cast<void>(PasswordPolicy(passwordPolicy_)->SetMask(GetPasswordChar()));
+    }
+    SynchronizeEditorFromPassword();
+    editor_.SetForeground(GetForeground());
+    editor_.SetSelectionBrush(GetSelectionBrush());
+    editor_.SetSelectionOpacity(GetSelectionOpacity());
+    editor_.SetCaretBrush(GetCaretBrush());
+}
+
+PasswordBox::~PasswordBox() {
+    delete static_cast<::Aero::Controls::PasswordTextDisplayPolicy*>(passwordPolicy_);
+    passwordPolicy_ = nullptr;
+}
+
+void PasswordBox::SetPassword(
+    Base::StringView value) noexcept {
+    if (password_.View() == value) return;
+    ::Aero::Text::EditableTextModel next;
+    Base::Result<void> limited =
+        next.SetMaximumLength(
+            EffectiveMaximumLength(
+                GetMaxLength()));
+    if (limited) limited = next.SetText(value);
+    if (!limited) {
+        return;
+    }
+    Base::String nextPassword;
+    Base::Result<void> copied =
+        nextPassword.Assign(value);
+    if (!copied) return;
+    synchronizingEditor_ = true;
+    editor_.SetText(value);
+    synchronizingEditor_ = false;
+    password_ = std::move(nextPassword);
+    InvalidateMeasure();
+    InvalidateVisual();
+    RoutedEventArgs args;
+    RaiseEvent(PasswordChangedEvent, &args);
+}
+
+Base::StringView PasswordBox::GetPasswordChar() const noexcept {
+    return GetValue(PasswordCharProperty);
+}
+
+void PasswordBox::SetPasswordChar(
+    Base::StringView value) noexcept {
+    PasswordTextDisplayPolicy validation;
+    Base::Result<void> valid =
+        validation.SetMask(value);
+    if (!valid) return;
+    if (passwordPolicy_ == nullptr) {
+        return;
+    }
+    Base::Result<void> mask =
+        PasswordPolicy(passwordPolicy_)->SetMask(value);
+    if (!mask) return;
+    SetValue(PasswordCharProperty, value);
+    editor_.InvalidateMeasure();
+    InvalidateMeasure();
+    InvalidateVisual();
+}
+
+std::uint32_t PasswordBox::GetMaxLength() const noexcept {
+    return GetValue(MaxLengthProperty);
+}
+
+void PasswordBox::SetMaxLength(
+    std::uint32_t value) noexcept {
+    const std::uint32_t effective =
+        EffectiveMaximumLength(value);
+    if (Model(editor_.model_).GraphemeCount() > effective) {
+        return;
+    }
+    editor_.SetMaxLength(value);
+    SetValue(MaxLengthProperty, value);
+}
+
+void PasswordBox::SetSelectionBrush(
+    Base::Ref<Media::Brush> value) noexcept {
+    TextBoxBase::SetSelectionBrush(std::move(value));
+    (void)editor_.SetSelectionBrush(GetSelectionBrush());
+}
+
+void PasswordBox::SetSelectionOpacity(
+    double value) noexcept {
+    TextBoxBase::SetSelectionOpacity(value);
+    (void)editor_.SetSelectionOpacity(value);
+}
+
+void PasswordBox::SetCaretBrush(
+    Base::Ref<Media::Brush> value) noexcept {
+    TextBoxBase::SetCaretBrush(std::move(value));
+    (void)editor_.SetCaretBrush(GetCaretBrush());
+}
+
+TextSelection
+PasswordBox::GetSelection() const noexcept {
+    return editor_.GetSelection();
+}
+
+std::uint32_t PasswordBox::GetCaret() const noexcept {
+    return editor_.GetCaret();
+}
+
+void PasswordBox::SetSelection(
+    std::uint32_t anchor,
+    std::uint32_t caret) noexcept {
+    (void)editor_.SetSelection(anchor, caret);
+}
+
+void PasswordBox::SelectAll() noexcept {
+    editor_.SelectAll();
+}
+
+void PasswordBox::SetInputMethodHost(
+    Input::ITextInputMethodHost* host) noexcept {
+    (void)editor_.SetInputMethodHost(host);
+}
+
+Input::ITextInputMethodHost*
+PasswordBox::GetInputMethodHost() const noexcept {
+    return editor_.GetInputMethodHost();
+}
+
+bool PasswordBox::GetIsComposing() const noexcept {
+    return editor_.GetIsComposing();
+}
+
+Size PasswordBox::MeasureOverride(
+    Size availableSize) noexcept {
+    Size templateSize{};
+    if (GetTemplateRoot() != nullptr) {
+        templateSize = Control::MeasureOverride(availableSize);
+    }
+    editor_.SetUseLayoutRounding(GetUseLayoutRounding(), GetDpiScale());
+    editor_.SetForeground(GetForeground());
+    editor_.SetSelectionBrush(GetSelectionBrush());
+    editor_.SetSelectionOpacity(GetSelectionOpacity());
+    editor_.SetCaretBrush(GetCaretBrush());
+    editor_.SetPlaceholder(GetPlaceholder());
+    Base::Result<Size> measuredEditor =
+        editor_.MeasureOverride(availableSize);
+    if (!measuredEditor) {
+        return Size{};
+    }
+    const Size editorSize = measuredEditor.Value();
+    return Size{
+        std::max(templateSize.width, editorSize.width),
+        std::max(templateSize.height, editorSize.height)};
+}
+
+void PasswordBox::OnApplyTemplate() noexcept {
+    Control::OnApplyTemplate();
+    DependencyObject* part = GetTemplateChild(Base::StringView("PART_ContentHost"));
+    if (part != nullptr && DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
+            part->RuntimeType(), ScrollViewer::StaticTypeId())) {
+        static_cast<void>(editor_.AttachScrollViewer(static_cast<ScrollViewer*>(part)));
+    } else {
+        static_cast<void>(editor_.AttachScrollViewer(nullptr));
+    }
+}
+
+Size PasswordBox::ArrangeOverride(
+    Size finalSize) noexcept {
+    if (GetTemplateRoot() != nullptr) {
+        Control::ArrangeOverride(finalSize);
+    }
+    editor_.SetViewport(finalSize);
+    return finalSize;
+}
+
+void PasswordBox::OnRender(
+    ::Aero::Media::DrawingContext& context) noexcept {
+    DependencyObject* part = GetTemplateChild(Base::StringView("PART_ContentHost"));
+    if (part != nullptr && DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
+            part->RuntimeType(), ScrollViewer::StaticTypeId())) {
+        return;
+    }
+    static_cast<void>(editor_.RenderEditor(
+        context,
+        GetRenderSize(),
+        GetIsKeyboardFocused()));
+}
+
+void PasswordBox::SynchronizeEditorFromPassword() noexcept {
+    if (synchronizingEditor_) {
+        return;
+    }
+    synchronizingEditor_ = true;
+    editor_.SetMaxLength(GetMaxLength());
+    editor_.SetText(password_.View());
+    synchronizingEditor_ = false;
+}
+
+Base::Result<void>
+PasswordBox::SynchronizePasswordFromEditor()
+    noexcept {
+    if (synchronizingEditor_ ||
+        password_.View() == editor_.GetText()) {
+        return {};
+    }
+    Base::String next;
+    Base::Result<void> copied =
+        next.Assign(editor_.GetText());
+    if (!copied) return copied.GetStatus();
+    password_ = std::move(next);
+    InvalidateMeasure();
+    InvalidateVisual();
+    RoutedEventArgs args;
+    RaiseEvent(PasswordChangedEvent, &args);
+    return {};
+}
+
+void PasswordBox::OnMouseDown(MouseButtonEventArgs& args) {
+    editor_.HandleEditorMouseDown(*this, drag_, args);
+}
+
+void PasswordBox::OnMouseMove(MouseEventArgs& args) {
+    editor_.HandleEditorMouseMove(*this, drag_, args);
+}
+
+void PasswordBox::OnMouseUp(MouseButtonEventArgs& args) {
+    editor_.HandleEditorMouseUp(*this, drag_, args);
+}
+
+void PasswordBox::OnKeyDown(KeyEventArgs& args) {
+    editor_.HandleEditorKeyDown(*this, args);
+}
+
+void PasswordBox::OnTextInput(TextCompositionEventArgs& args) {
+    editor_.HandleEditorTextInput(args);
+}
+
+void PasswordBox::OnLostKeyboardFocus(KeyboardFocusChangedEventArgs& args) {
+    editor_.HandleEditorLostFocus(*this, drag_, args);
+}
+
+bool PasswordBox::ValidateValueCore(
+    DependencyPropertyHandle property,
+    const PropertyValue& value) const noexcept {
+    if (property == PasswordCharProperty.Handle()) {
+        if (value.Kind() != Meta::ValueKind::String) {
+            return false;
+        }
+        ::Aero::Text::EditableTextModel validation;
+        Base::Result<void> text =
+            validation.SetText(value.AsString());
+        return text &&
+            validation.GraphemeCount() == 1U;
+    }
+    return TextBoxBase::ValidateValueCore(property, value);
+}
+
+void PasswordBox::OnPropertyChanged(
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    TextBoxBase::OnPropertyChanged(args);
+    if (args.GetProperty() == PasswordBox::PasswordCharProperty) {
+        static_cast<void>(PasswordPolicy(passwordPolicy_)->SetMask(GetPasswordChar()));
+        editor_.InvalidateMeasure();
+        InvalidateMeasure();
+        InvalidateVisual();
+    } else if (args.GetProperty() == PasswordBox::MaxLengthProperty) {
+        static_cast<void>(editor_.CancelCompositionForFocusLoss());
+        static_cast<void>(editor_.SetMaxLength(GetMaxLength()));
+    } else if (args.GetProperty() == PasswordBox::ForegroundProperty) {
+        static_cast<void>(editor_.SetForeground(GetForeground()));
+    } else if (args.GetProperty() == PasswordBox::SelectionBrushProperty) {
+        static_cast<void>(editor_.SetSelectionBrush(GetSelectionBrush()));
+    } else if (args.GetProperty() == PasswordBox::SelectionOpacityProperty) {
+        static_cast<void>(editor_.SetSelectionOpacity(GetSelectionOpacity()));
+    } else if (args.GetProperty() == PasswordBox::CaretBrushProperty) {
+        static_cast<void>(editor_.SetCaretBrush(GetCaretBrush()));
+    } else if (args.GetProperty() == PasswordBox::PlaceholderProperty) {
+        editor_.SetPlaceholder(GetPlaceholder());
+    } else if (args.GetProperty() == UIElement::IsEnabledProperty && !args.GetNewValue().AsBoolean()) {
+        static_cast<void>(editor_.CancelCompositionForFocusLoss());
+    } else if (args.GetProperty() == UIElement::IsKeyboardFocusedProperty) {
+        editor_.InvalidateEditor();
+    }
+}
+
+AERO_DESCRIBE(PasswordBox) {
+    using namespace Aero::Meta;
+    Base::String defaultPasswordChar;
+    (void)defaultPasswordChar.Assign(Base::StringView(u8"\u2022"));
+
+    Register<PasswordBox>(context)
+        .Event(PasswordBox::PasswordChangedEvent)
+        .Property<Base::String, &PasswordBox::GetPassword, &PasswordBox::SetPassword>("Password", PropertyFlags::None)
+        .Property(PasswordBox::PasswordCharProperty, std::move(defaultPasswordChar), AffectsMeasure)
+        .Property(PasswordBox::MaxLengthProperty, std::uint32_t{0}, AffectsMeasure)
+        .Property(PasswordBox::PlaceholderProperty, Base::String{}, AffectsMeasure | AffectsRender)
+        .TemplatePart("PART_ContentHost", TypeOf<ScrollViewer>())
+        .Factory();
+    AERO_ON(PasswordBox, &PasswordBox::OnMouseDown, UIElement::MouseDownEvent);
+    AERO_ON(PasswordBox, &PasswordBox::OnMouseMove, UIElement::MouseMoveEvent);
+    AERO_ON(PasswordBox, &PasswordBox::OnMouseUp, UIElement::MouseUpEvent);
+    AERO_ON(PasswordBox, &PasswordBox::OnKeyDown, UIElement::KeyDownEvent);
+    AERO_ON(PasswordBox, &PasswordBox::OnTextInput, UIElement::TextInputEvent);
+    AERO_ON(PasswordBox, &PasswordBox::OnLostKeyboardFocus, UIElement::LostKeyboardFocusEvent);
 }
 
 } // namespace Aero::Controls

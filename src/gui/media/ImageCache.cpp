@@ -211,6 +211,8 @@ Base::Result<bool> ImageCache::Synchronize(
     Media::TextureProvider* textureProvider,
     ImageResources* backend,
     bool backendGenerationChanged) noexcept {
+    std::fprintf(stderr, "[ImageCache] Synchronize called root=%p docUri='%.*s'\n",
+        root, static_cast<int>(documentUri.Canonical().SizeBytes()), documentUri.Canonical().Data());
     ++epoch_;
     if (epoch_ == 0U) ++epoch_;
     bool changed = false;
@@ -233,6 +235,12 @@ Base::Result<bool> ImageCache::Synchronize(
             pending[pending.Size() - 1U];
         pending.PopBack();
         if (visual == nullptr) continue;
+        const auto tInfo = Aero::Meta::ResolveRuntimeTypeInfo(visual->RuntimeType());
+        std::fprintf(stderr, "[ImageCache] visit %.*s visual=%p children=%u\n",
+            static_cast<int>(tInfo.name.SizeBytes()),
+            tInfo.name.Data(),
+            visual,
+            static_cast<unsigned int>((*visual).RenderChildren().Size()));
         for (Aero::Media::Visual* child :
              (*visual).RenderChildren()) {
             pending.PushBack(child);
@@ -262,7 +270,17 @@ Base::Result<bool> ImageCache::Synchronize(
                 fill = static_cast<Shapes::Shape*>(visual)->GetFill();
             } else if (visual->RuntimeType() ==
                        Controls::Border::StaticTypeId()) {
-                fill = static_cast<Controls::Border*>(visual)->GetBackground();
+                auto* b = static_cast<Controls::Border*>(visual);
+                fill = b->GetBackground();
+                const char* typeName = !fill ? "null" :
+                    (fill->RuntimeType() == Media::SolidColorBrush::StaticTypeId() ? "SolidColorBrush" :
+                    (fill->RuntimeType() == Media::LinearGradientBrush::StaticTypeId() ? "LinearGradientBrush" :
+                    (fill->RuntimeType() == Media::RadialGradientBrush::StaticTypeId() ? "RadialGradientBrush" :
+                    (fill->RuntimeType() == Media::ImageBrush::StaticTypeId() ? "ImageBrush" : "Unknown"))));
+                std::fprintf(stderr, "[ImageCache] BORDER visual=%p fill=%p type=%llu ('%s')\n",
+                    b,
+                    fill.Get(), fill ? static_cast<unsigned long long>(fill->RuntimeType()) : 0ULL,
+                    typeName);
             } else if (DependencyObjectAccess::PropertyRegistry(visual).Types().IsDerivedFrom(
                            visual->RuntimeType(),
                            Controls::Panel::StaticTypeId())) {
@@ -274,10 +292,16 @@ Base::Result<bool> ImageCache::Synchronize(
             } else {
                 continue;
             }
-            if (!fill ||
-                fill->RuntimeType() !=
-                    Media::ImageBrush::
-                        StaticTypeId()) {
+            if (!fill) {
+                continue;
+            }
+            std::fprintf(stderr, "[ImageCache] found visual runtimeType=%llu fill runtimeType=%llu (ImageBrush=%llu)\n",
+                static_cast<unsigned long long>(visual->RuntimeType()),
+                static_cast<unsigned long long>(fill->RuntimeType()),
+                static_cast<unsigned long long>(Media::ImageBrush::StaticTypeId()));
+            if (fill->RuntimeType() !=
+                Media::ImageBrush::
+                    StaticTypeId()) {
                 continue;
             }
             imageBrush =
@@ -285,6 +309,7 @@ Base::Result<bool> ImageCache::Synchronize(
                     Media::ImageBrush*>(
                         fill.Get());
             source = imageBrush->GetSource();
+            std::fprintf(stderr, "[ImageCache] imageBrush source=%p\n", source.Get());
         } else {
             UIElement* element = ::Aero::TryCast<::Aero::UIElement>(visual);
             Base::Ref<Media::Brush> mask =
@@ -360,6 +385,14 @@ Base::Result<bool> ImageCache::Synchronize(
             ResolveImageUri(
                 documentUri,
                 bitmap->GetUriSource());
+        std::fprintf(stderr, "[ImageCache] uriSource='%.*s' docUri='%.*s' resolved ok=%d '%.*s'\n",
+            static_cast<int>(bitmap->GetUriSource().Canonical().SizeBytes()),
+            bitmap->GetUriSource().Canonical().Data(),
+            static_cast<int>(documentUri.Canonical().SizeBytes()),
+            documentUri.Canonical().Data(),
+            resolved ? 1 : 0,
+            resolved ? static_cast<int>(resolved.Value().Canonical().SizeBytes()) : 0,
+            resolved ? resolved.Value().Canonical().Data() : "");
         if (!resolved) {
             Base::Result<void> cleared =
                 ClearImageTarget(imageControl, imageBrush);
@@ -441,6 +474,9 @@ Base::Result<bool> ImageCache::Synchronize(
                 }
             }
             if (!imageStream) {
+                std::fprintf(stderr, "[ImageCache] imageStream is NULL for '%.*s'\n",
+                    static_cast<int>(resolved.Value().Canonical().SizeBytes()),
+                    resolved.Value().Canonical().Data());
                 Base::Result<void> cleared =
                     ClearImageTarget(imageControl, imageBrush);
                 if (!cleared) return cleared.GetStatus();
@@ -460,6 +496,8 @@ Base::Result<bool> ImageCache::Synchronize(
                     &callbacks,
                     &streamContext,
                     &width, &height, &channels, 4);
+            std::fprintf(stderr, "[ImageCache] decoded=%p width=%d height=%d channels=%d failed=%d eof=%d\n",
+                decoded, width, height, channels, streamContext.failed ? 1 : 0, streamContext.eof ? 1 : 0);
             if (streamContext.failed || decoded == nullptr ||
                 width <= 0 || height <= 0 ||
                 width >
@@ -485,6 +523,7 @@ Base::Result<bool> ImageCache::Synchronize(
                         width) *
                     static_cast<std::uint64_t>(
                         height) * 4U);
+            std::fprintf(stderr, "[ImageCache] decoded ok, resizing to byteCount=%u\n", byteCount);
             record->pixels.Resize(
                     byteCount);
             for (std::uint32_t index = 0U;
@@ -500,6 +539,7 @@ Base::Result<bool> ImageCache::Synchronize(
                 static_cast<std::uint32_t>(height);
             record->resolvedUri =
                 resolved.Value();
+            std::fprintf(stderr, "[ImageCache] premultiplied, backend=%p\n", backend);
 
             if (sourceRect.width > 0.0 &&
                 sourceRect.height > 0.0) {
@@ -556,6 +596,9 @@ Base::Result<bool> ImageCache::Synchronize(
         }
 
         if (backend != nullptr) {
+            std::fprintf(stderr, "[ImageCache] backend create=%p generation=%llu recordBackendGen=%llu\n",
+                backend->create, static_cast<unsigned long long>(backend->generation),
+                static_cast<unsigned long long>(record->backendGeneration));
             if (backend->create == nullptr) {
                 return Base::Status::Failure(
                     Base::ErrorCode::InvalidState,
@@ -572,6 +615,8 @@ Base::Result<bool> ImageCache::Synchronize(
                         record->width,
                         record->height,
                         record->pixels.AsSpan());
+                std::fprintf(stderr, "[ImageCache] uploaded ok=%d imgId=%llu\n",
+                    uploaded ? 1 : 0, uploaded ? static_cast<unsigned long long>(uploaded.Value()) : 0ULL);
                 if (!uploaded) {
                     Base::Result<void> cleared =
                         ClearImageTarget(imageControl, imageBrush);
@@ -603,6 +648,11 @@ Base::Result<bool> ImageCache::Synchronize(
                 record->width,
                 record->height);
         } else {
+            std::fprintf(stderr, "[ImageCache] SetRuntimeImage on imageBrush=%p imageId=%llu width=%u height=%u\n",
+                imageBrush,
+                static_cast<unsigned long long>(record->renderImage),
+                record->width,
+                record->height);
             imageBrush->SetRuntimeImage(
                 record->renderImage,
                 record->width,

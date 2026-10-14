@@ -102,7 +102,7 @@ Base::Result<void> ValidateCompiledCacheIdentity(
 
 
 #include <Aero/Base/ResourceUri.hpp>
-#include <Aero/Controls/UserControl.hpp>
+#include <Aero/Controls/Control.hpp>
 
 namespace Aero::Markup {
 namespace {

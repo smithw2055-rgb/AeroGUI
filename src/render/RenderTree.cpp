@@ -10,7 +10,7 @@
 #include "gui/core/EventRouter.hpp"
 #include "gui/media/BrushRendering.hpp"
 #include <Aero/Base/Assert.hpp>
-#include <Aero/Controls/Image.hpp>
+#include <Aero/Controls/Decorators.hpp>
 #include <Aero/Controls/Menus.hpp>
 #include <Aero/Controls/Popup.hpp>
 #include <Aero/Documents.hpp>
@@ -1645,6 +1645,7 @@ RenderEffectSnapshot RenderTree::BuildEffectSnapshot(
         snapshot.depth = drop->GetShadowDepth();
         snapshot.opacity = drop->GetOpacity();
         snapshot.color = drop->GetColor();
+        std::fprintf(stderr, "[DEBUG RenderTree] DropShadow: r=%f dir=%f depth=%f op=%f\n", snapshot.radius, snapshot.direction, snapshot.depth, snapshot.opacity);
     } else if (effect->RuntimeType() ==
         ::Aero::Media::PixelateEffect::StaticTypeId()) {
         snapshot.kind = RenderEffectKind::Pixelate;
@@ -2112,6 +2113,10 @@ Base::Result<void> RenderTree::BuildSubtree(
 
     snapshot.commandOffset = plan.commands_.Size();
     plan.nodes_.PushBack(snapshot);
+    if (snapshot.effect.kind != RenderEffectKind::None) {
+        std::fprintf(stderr, "[DEBUG RenderTree BuildSubtree] pushed node id=%llu effect=%d r=%f planNodes=%u\n",
+            static_cast<unsigned long long>(snapshot.id), static_cast<int>(snapshot.effect.kind), snapshot.effect.radius, plan.nodes_.Size());
+    }
     const std::uint32_t commandCount = snapshot.commandCount;
     if (commandCount != 0U) {
         plan.commands_.Append(drawing->Commands());
@@ -2227,6 +2232,10 @@ Base::Result<void> RenderTree::RefreshInPlace(
         // bytes only when the drawing was actually re-recorded.
         snapshot.commandOffset = stored.commandOffset;
         stored = snapshot;
+        if (stored.effect.kind != RenderEffectKind::None) {
+            std::fprintf(stderr, "[DEBUG RenderTree RefreshInPlace] updated stored node id=%llu effect=%d r=%f\n",
+                static_cast<unsigned long long>(stored.id), static_cast<int>(stored.effect.kind), stored.effect.radius);
+        }
         if (snapshot.commandCount != 0U &&
             (drawingDirty || sizeChanged)) {
             Base::Span<const RenderCommand> fresh = drawing->Commands();
