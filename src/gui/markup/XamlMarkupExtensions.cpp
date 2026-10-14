@@ -962,23 +962,67 @@ Base::Result<void> ParseArguments(
 
         } else if (key == ModeKey) {
 
-            if (value == OneTimeMode) {
+            switch (value.SizeBytes()) {
 
-                mode = Data::BindingMode::OneTime;
+            case 6:
 
-            } else if (value == OneWayMode) {
+                if (value == OneWayMode) {
 
-                mode = Data::BindingMode::OneWay;
+                    mode = Data::BindingMode::OneWay;
 
-            } else if (value == TwoWayMode) {
+                } else if (value == TwoWayMode) {
 
-                mode = Data::BindingMode::TwoWay;
+                    mode = Data::BindingMode::TwoWay;
 
-            } else if (value == OneWayToSourceMode) {
+                } else {
 
-                mode = Data::BindingMode::OneWayToSource;
+                    return Base::Status::Failure(
 
-            } else {
+                        Base::ErrorCode::Unsupported,
+
+                        "Binding mode is not supported");
+
+                }
+
+                break;
+
+            case 7:
+
+                if (value == OneTimeMode) {
+
+                    mode = Data::BindingMode::OneTime;
+
+                } else {
+
+                    return Base::Status::Failure(
+
+                        Base::ErrorCode::Unsupported,
+
+                        "Binding mode is not supported");
+
+                }
+
+                break;
+
+            case 14:
+
+                if (value == OneWayToSourceMode) {
+
+                    mode = Data::BindingMode::OneWayToSource;
+
+                } else {
+
+                    return Base::Status::Failure(
+
+                        Base::ErrorCode::Unsupported,
+
+                        "Binding mode is not supported");
+
+                }
+
+                break;
+
+            default:
 
                 return Base::Status::Failure(
 
@@ -990,23 +1034,81 @@ Base::Result<void> ParseArguments(
 
         } else if (key == UpdateSourceTriggerKey) {
 
-            if (value == PropertyChangedTrigger) {
+            switch (value.SizeBytes()) {
 
-                updateSourceTrigger = Meta::UpdateSourceTrigger::PropertyChanged;
+            case 7:
 
-            } else if (value == LostFocusTrigger) {
+                if (value == DefaultTrigger) {
 
-                updateSourceTrigger = Meta::UpdateSourceTrigger::LostFocus;
+                    updateSourceTrigger = Meta::UpdateSourceTrigger::Default;
 
-            } else if (value == ExplicitTrigger) {
+                } else {
 
-                updateSourceTrigger = Meta::UpdateSourceTrigger::Explicit;
+                    return Base::Status::Failure(
 
-            } else if (value == DefaultTrigger) {
+                        Base::ErrorCode::Unsupported,
 
-                updateSourceTrigger = Meta::UpdateSourceTrigger::Default;
+                        "Binding update trigger is not supported");
 
-            } else {
+                }
+
+                break;
+
+            case 8:
+
+                if (value == ExplicitTrigger) {
+
+                    updateSourceTrigger = Meta::UpdateSourceTrigger::Explicit;
+
+                } else {
+
+                    return Base::Status::Failure(
+
+                        Base::ErrorCode::Unsupported,
+
+                        "Binding update trigger is not supported");
+
+                }
+
+                break;
+
+            case 9:
+
+                if (value == LostFocusTrigger) {
+
+                    updateSourceTrigger = Meta::UpdateSourceTrigger::LostFocus;
+
+                } else {
+
+                    return Base::Status::Failure(
+
+                        Base::ErrorCode::Unsupported,
+
+                        "Binding update trigger is not supported");
+
+                }
+
+                break;
+
+            case 15:
+
+                if (value == PropertyChangedTrigger) {
+
+                    updateSourceTrigger = Meta::UpdateSourceTrigger::PropertyChanged;
+
+                } else {
+
+                    return Base::Status::Failure(
+
+                        Base::ErrorCode::Unsupported,
+
+                        "Binding update trigger is not supported");
+
+                }
+
+                break;
+
+            default:
 
                 return Base::Status::Failure(
 
@@ -5560,31 +5662,17 @@ Base::StringView PropertyLocalName(
 
     value = ::Aero::Base::ValueConversion::Trim(value);
 
-    std::uint32_t separator = UINT32_MAX;
+    for (std::uint32_t index = value.SizeBytes(); index > 0U; --index) {
 
-    for (std::uint32_t index = 0U;
+        if (value[index - 1U] == '.') {
 
-         index < value.SizeBytes();
-
-         ++index) {
-
-        if (value[index] == '.') {
-
-            separator = index;
+            return value.Substr(index, value.SizeBytes() - index);
 
         }
 
     }
 
-    return separator == UINT32_MAX
-
-        ? value
-
-        : value.Substr(
-
-              separator + 1U,
-
-              value.SizeBytes() - separator - 1U);
+    return value;
 
 }
 
@@ -5596,53 +5684,77 @@ const char* MissingPropertyMessage(
 
     bool source) noexcept {
 
-    if (propertyName == Base::StringView("Content")) {
+    switch (propertyName.SizeBytes()) {
 
-        return source
+    case 7:
 
-            ? "TemplateBinding source property Content was not found"
+        if (propertyName == Base::StringView("Content")) {
 
-            : "TemplateBinding target property for Content was not found";
+            return source
 
-    }
+                ? "TemplateBinding source property Content was not found"
 
-    if (propertyName == Base::StringView("ContentTemplate")) {
+                : "TemplateBinding target property for Content was not found";
 
-        return source
+        }
 
-            ? "TemplateBinding source property ContentTemplate was not found"
+        if (propertyName == Base::StringView("Padding")) {
 
-            : "TemplateBinding target property for ContentTemplate was not found";
+            return source
 
-    }
+                ? "TemplateBinding source property Padding was not found"
 
-    if (propertyName == Base::StringView("ContentTemplateSelector")) {
+                : "TemplateBinding target property for Padding was not found";
 
-        return source
+        }
 
-            ? "TemplateBinding source property ContentTemplateSelector was not found"
+        break;
 
-            : "TemplateBinding target property for ContentTemplateSelector was not found";
+    case 15:
 
-    }
+        if (propertyName == Base::StringView("ContentTemplate")) {
 
-    if (propertyName == Base::StringView("CanContentScroll")) {
+            return source
 
-        return source
+                ? "TemplateBinding source property ContentTemplate was not found"
 
-            ? "TemplateBinding source property CanContentScroll was not found"
+                : "TemplateBinding target property for ContentTemplate was not found";
 
-            : "TemplateBinding target property for CanContentScroll was not found";
+        }
 
-    }
+        break;
 
-    if (propertyName == Base::StringView("Padding")) {
+    case 16:
 
-        return source
+        if (propertyName == Base::StringView("CanContentScroll")) {
 
-            ? "TemplateBinding source property Padding was not found"
+            return source
 
-            : "TemplateBinding target property for Padding was not found";
+                ? "TemplateBinding source property CanContentScroll was not found"
+
+                : "TemplateBinding target property for CanContentScroll was not found";
+
+        }
+
+        break;
+
+    case 23:
+
+        if (propertyName == Base::StringView("ContentTemplateSelector")) {
+
+            return source
+
+                ? "TemplateBinding source property ContentTemplateSelector was not found"
+
+                : "TemplateBinding target property for ContentTemplateSelector was not found";
+
+        }
+
+        break;
+
+    default:
+
+        break;
 
     }
 

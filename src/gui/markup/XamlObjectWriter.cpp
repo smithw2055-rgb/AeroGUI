@@ -5774,11 +5774,29 @@ Base::Result<void> ObjectWriter::WriteValueToParent(
 
     }
 
+    const CreatedObjectRecord& parentRecord = created_[parent.objectIndex];
+
+    if (parentRecord.hasContentMember) {
+
+        return WriteValue(
+
+            parent.objectIndex,
+
+            parentRecord.contentMember,
+
+            std::move(value),
+
+            source);
+
+    }
+
+
+
     Base::Result<ResolvedMember> content =
 
         schema_->ResolveContentMember(
 
-            created_[parent.objectIndex].type);
+            parentRecord.type);
 
     if (!content) {
 
@@ -8894,17 +8912,11 @@ bool ObjectWriter::HasPropertyElementSyntax(
 
     const QualifiedName& name) const noexcept {
 
-    for (char character : name.LocalName()) {
+    const Base::StringView local = name.LocalName();
 
-        if (character == '.') {
+    return local.Data() != nullptr &&
 
-            return true;
-
-        }
-
-    }
-
-    return false;
+        std::memchr(local.Data(), '.', local.SizeBytes()) != nullptr;
 
 }
 

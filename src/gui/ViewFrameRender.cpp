@@ -41,12 +41,31 @@ void ViewFrame::AttachTextLayout(
         bool invalidate) noexcept {
         if (metadata == nullptr) return;
         const Meta::TypeId type = node.RuntimeType();
+        if (type == Controls::TextBlock::StaticTypeId()) {
+            (*static_cast<Controls::TextBlock*>(&node)).AttachTextLayout(
+                service,
+                invalidate);
+            return;
+        }
+        if (type == Controls::TextBox::StaticTypeId()) {
+            (*static_cast<Controls::TextBox*>(&node)).AttachTextLayout(
+                service,
+                invalidate);
+            return;
+        }
+        if (type == Controls::PasswordBox::StaticTypeId()) {
+            (*static_cast<Controls::PasswordBox*>(&node)).AttachTextLayout(
+                service,
+                invalidate);
+            return;
+        }
         if (metadata->Types().IsDerivedFrom(
                 type,
                 Controls::TextBlock::StaticTypeId())) {
             (*static_cast<Controls::TextBlock*>(&node)).AttachTextLayout(
                 service,
                 invalidate);
+            return;
         }
         if (metadata->Types().IsDerivedFrom(
                 type,
@@ -54,6 +73,7 @@ void ViewFrame::AttachTextLayout(
             (*static_cast<Controls::TextBox*>(&node)).AttachTextLayout(
                 service,
                 invalidate);
+            return;
         }
         if (metadata->Types().IsDerivedFrom(
                 type,
@@ -63,6 +83,7 @@ void ViewFrame::AttachTextLayout(
                     &node)).AttachTextLayout(
                 service,
                 invalidate);
+            return;
         }
     }
 
@@ -82,7 +103,8 @@ void ViewFrame::AttachPathResources(
         bool invalidate) noexcept {
         if (metadata == nullptr) return;
         const Meta::TypeId type = node.RuntimeType();
-        if (metadata->Types().IsDerivedFrom(
+        if (type == Shapes::Path::StaticTypeId() ||
+            metadata->Types().IsDerivedFrom(
                 type,
                 Shapes::Path::StaticTypeId())) {
             (*static_cast<Shapes::Path*>(&node)).AttachMeshResources(

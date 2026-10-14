@@ -146,7 +146,7 @@ bool DispatchTouch(
 } // namespace
 
 bool View::MouseMove(int x, int y) noexcept {
-    if (!active_) return false;
+    if (!active_ || state_ == nullptr) return false;
     Input::PointerInput input;
     input.pointerId = 0U;
     input.action = Input::PointerAction::Move;
@@ -154,10 +154,7 @@ bool View::MouseMove(int x, int y) noexcept {
         static_cast<double>(x),
         static_cast<double>(y)};
     Base::Result<Input::PointerDispatchResult> dispatched =
-        state_ != nullptr
-        ? DispatchPointer(*state_, input)
-        : Base::Result<Input::PointerDispatchResult>(
-              ViewNotInitialized("View has no implementation"));
+        DispatchPointer(*state_, input);
     return dispatched && dispatched.Value().routed;
 }
 
@@ -165,7 +162,7 @@ bool View::MouseButtonDown(
     int x,
     int y,
     Input::MouseButton button) noexcept {
-    if (!active_) return false;
+    if (!active_ || state_ == nullptr) return false;
     Input::PointerInput input;
     input.pointerId = 0U;
     input.action = Input::PointerAction::Down;
@@ -174,10 +171,7 @@ bool View::MouseButtonDown(
         static_cast<double>(y)};
     input.changedButton = button;
     Base::Result<Input::PointerDispatchResult> dispatched =
-        state_ != nullptr
-        ? DispatchPointer(*state_, input)
-        : Base::Result<Input::PointerDispatchResult>(
-              ViewNotInitialized("View has no implementation"));
+        DispatchPointer(*state_, input);
     return dispatched && dispatched.Value().routed;
 }
 
@@ -185,7 +179,7 @@ bool View::MouseButtonUp(
     int x,
     int y,
     Input::MouseButton button) noexcept {
-    if (!active_) return false;
+    if (!active_ || state_ == nullptr) return false;
     Input::PointerInput input;
     input.pointerId = 0U;
     input.action = Input::PointerAction::Up;
@@ -194,10 +188,7 @@ bool View::MouseButtonUp(
         static_cast<double>(y)};
     input.changedButton = button;
     Base::Result<Input::PointerDispatchResult> dispatched =
-        state_ != nullptr
-        ? DispatchPointer(*state_, input)
-        : Base::Result<Input::PointerDispatchResult>(
-              ViewNotInitialized("View has no implementation"));
+        DispatchPointer(*state_, input);
     return dispatched && dispatched.Value().routed;
 }
 
@@ -205,7 +196,7 @@ bool View::MouseDoubleClick(
     int x,
     int y,
     Input::MouseButton button) noexcept {
-    if (!active_) return false;
+    if (!active_ || state_ == nullptr) return false;
     Input::PointerInput input;
     input.pointerId = 0U;
     input.action = Input::PointerAction::Down;
@@ -215,10 +206,7 @@ bool View::MouseDoubleClick(
     input.changedButton = button;
     input.clickCount = 2U;
     Base::Result<Input::PointerDispatchResult> dispatched =
-        state_ != nullptr
-        ? DispatchPointer(*state_, input)
-        : Base::Result<Input::PointerDispatchResult>(
-              ViewNotInitialized("View has no implementation"));
+        DispatchPointer(*state_, input);
     return dispatched && dispatched.Value().routed;
 }
 
@@ -226,7 +214,7 @@ bool View::MouseWheel(
     int x,
     int y,
     int delta) noexcept {
-    if (!active_) return false;
+    if (!active_ || state_ == nullptr) return false;
     Input::PointerInput input;
     input.pointerId = 0U;
     input.action = Input::PointerAction::Wheel;
@@ -235,10 +223,7 @@ bool View::MouseWheel(
         static_cast<double>(y)};
     input.wheelDeltaY = static_cast<double>(delta);
     Base::Result<Input::PointerDispatchResult> dispatched =
-        state_ != nullptr
-        ? DispatchPointer(*state_, input)
-        : Base::Result<Input::PointerDispatchResult>(
-              ViewNotInitialized("View has no implementation"));
+        DispatchPointer(*state_, input);
     return dispatched && dispatched.Value().routed;
 }
 
@@ -246,7 +231,7 @@ bool View::MouseHWheel(
     int x,
     int y,
     int delta) noexcept {
-    if (!active_) return false;
+    if (!active_ || state_ == nullptr) return false;
     Input::PointerInput input;
     input.pointerId = 0U;
     input.action = Input::PointerAction::Wheel;
@@ -255,41 +240,32 @@ bool View::MouseHWheel(
         static_cast<double>(y)};
     input.wheelDeltaX = static_cast<double>(delta);
     Base::Result<Input::PointerDispatchResult> dispatched =
-        state_ != nullptr
-        ? DispatchPointer(*state_, input)
-        : Base::Result<Input::PointerDispatchResult>(
-              ViewNotInitialized("View has no implementation"));
+        DispatchPointer(*state_, input);
     return dispatched && dispatched.Value().routed;
 }
 
 bool View::KeyDown(Input::Key key) noexcept {
-    if (!active_) return false;
+    if (!active_ || state_ == nullptr) return false;
     Input::KeyboardInput input;
     input.action = Input::KeyboardAction::Down;
     input.key = static_cast<std::uint32_t>(key);
     Base::Result<Input::KeyboardDispatchResult> dispatched =
-        state_ != nullptr
-        ? DispatchKeyboard(*state_, input)
-        : Base::Result<Input::KeyboardDispatchResult>(
-              ViewNotInitialized("View has no implementation"));
+        DispatchKeyboard(*state_, input);
     return dispatched && dispatched.Value().routed;
 }
 
 bool View::KeyUp(Input::Key key) noexcept {
-    if (!active_) return false;
+    if (!active_ || state_ == nullptr) return false;
     Input::KeyboardInput input;
     input.action = Input::KeyboardAction::Up;
     input.key = static_cast<std::uint32_t>(key);
     Base::Result<Input::KeyboardDispatchResult> dispatched =
-        state_ != nullptr
-        ? DispatchKeyboard(*state_, input)
-        : Base::Result<Input::KeyboardDispatchResult>(
-              ViewNotInitialized("View has no implementation"));
+        DispatchKeyboard(*state_, input);
     return dispatched && dispatched.Value().routed;
 }
 
 bool View::Char(std::uint32_t codePoint) noexcept {
-    if (!active_ || codePoint > 0x10FFFFU ||
+    if (!active_ || state_ == nullptr || codePoint > 0x10FFFFU ||
         (codePoint >= 0xD800U && codePoint <= 0xDFFFU)) {
         return false;
     }
@@ -314,11 +290,8 @@ bool View::Char(std::uint32_t codePoint) noexcept {
         text[length++] = static_cast<char>(0x80U | (codePoint & 0x3FU));
     }
     Base::Result<Input::TextInputDispatchResult> dispatched =
-        state_ != nullptr
-        ? DispatchText(
-              *state_, {Base::StringView(text, length)})
-        : Base::Result<Input::TextInputDispatchResult>(
-              ViewNotInitialized("View has no implementation"));
+        DispatchText(
+            *state_, {Base::StringView(text, length)});
     return dispatched && dispatched.Value().routed;
 }
 
@@ -326,7 +299,7 @@ bool View::TouchDown(
     int x,
     int y,
     std::uint64_t id) noexcept {
-    return active_ && DispatchTouch(
+    return active_ && state_ != nullptr && DispatchTouch(
         state_, Input::PointerAction::Down, x, y, id);
 }
 
@@ -334,7 +307,7 @@ bool View::TouchMove(
     int x,
     int y,
     std::uint64_t id) noexcept {
-    return active_ && DispatchTouch(
+    return active_ && state_ != nullptr && DispatchTouch(
         state_, Input::PointerAction::Move, x, y, id);
 }
 
@@ -342,7 +315,7 @@ bool View::TouchUp(
     int x,
     int y,
     std::uint64_t id) noexcept {
-    return active_ && DispatchTouch(
+    return active_ && state_ != nullptr && DispatchTouch(
         state_, Input::PointerAction::Up, x, y, id);
 }
 

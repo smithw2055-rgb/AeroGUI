@@ -77,6 +77,10 @@ bool SchemaMatchesClrNamespacePrefix(
 }
 
 bool SchemaIsExtensionsClrNamespace(Base::StringView value) noexcept {
+    if (value.SizeBytes() < 31 ||
+        !SchemaMatchesClrNamespacePrefix(value, Base::StringView("clr-namespace:"))) {
+        return false;
+    }
     return SchemaMatchesClrNamespacePrefix(
             value, Base::StringView("clr-namespace:AeroGUIExtensions")) ||
         SchemaMatchesClrNamespacePrefix(
@@ -89,6 +93,9 @@ bool SchemaIsExtensionsClrNamespace(Base::StringView value) noexcept {
 
 Base::StringView SchemaCanonicalXamlNamespace(
     Base::StringView value) noexcept {
+    if (value.SizeBytes() < 31) {
+        return value;
+    }
     return value == SchemaWpfPresentationNamespace ||
             value == SchemaBehaviorsNamespace ||
             value == SchemaBlendInteractivityNamespace ||
@@ -107,20 +114,34 @@ bool SchemaIsSystemNamespace(
 
 Base::StringView SchemaCanonicalXamlTypeName(
     Base::StringView value) noexcept {
-    if (value == Base::StringView("Geometry")) {
-        return Base::StringView("StreamGeometry");
-    }
-    if (value == Base::StringView("VisualStateTransition")) {
-        return Base::StringView("VisualTransition");
-    }
-    if (value == Base::StringView("MonochromeBrush")) {
-        return Base::StringView("MonochromeShader");
-    }
-    if (value == Base::StringView("ConicGradientBrush")) {
-        return Base::StringView("ConicGradientShader");
-    }
-    if (value == Base::StringView("WavesBrush")) {
-        return Base::StringView("WavesShader");
+    switch (value.SizeBytes()) {
+    case 8:
+        if (value == Base::StringView("Geometry")) {
+            return Base::StringView("StreamGeometry");
+        }
+        break;
+    case 10:
+        if (value == Base::StringView("WavesBrush")) {
+            return Base::StringView("WavesShader");
+        }
+        break;
+    case 15:
+        if (value == Base::StringView("MonochromeBrush")) {
+            return Base::StringView("MonochromeShader");
+        }
+        break;
+    case 17:
+        if (value == Base::StringView("ConicGradientBrush")) {
+            return Base::StringView("ConicGradientShader");
+        }
+        break;
+    case 21:
+        if (value == Base::StringView("VisualStateTransition")) {
+            return Base::StringView("VisualTransition");
+        }
+        break;
+    default:
+        break;
     }
     return value;
 }
@@ -128,12 +149,22 @@ Base::StringView SchemaCanonicalXamlTypeName(
 bool SchemaIsAeroExtensionsFacade(
     Base::StringView xamlNamespace,
     Base::StringView ownerName) noexcept {
-    return SchemaIsExtensionsClrNamespace(xamlNamespace) &&
-        (ownerName == Base::StringView("Text") ||
-         ownerName == Base::StringView("Path") ||
-         ownerName == Base::StringView("Brush") ||
-          ownerName == Base::StringView("Element") ||
-          ownerName == Base::StringView("RichText"));
+    if (!SchemaIsExtensionsClrNamespace(xamlNamespace)) {
+        return false;
+    }
+    switch (ownerName.SizeBytes()) {
+    case 4:
+        return ownerName == Base::StringView("Text") ||
+               ownerName == Base::StringView("Path");
+    case 5:
+        return ownerName == Base::StringView("Brush");
+    case 7:
+        return ownerName == Base::StringView("Element");
+    case 8:
+        return ownerName == Base::StringView("RichText");
+    default:
+        return false;
+    }
 }
 
 } // namespace
@@ -343,7 +374,8 @@ Base::Result<ResolvedMember> Schema::ResolveMember(
             descriptors.FindProperty(memberId)) {
         const bool attached = SchemaHasPropertyFlag(
             property->Flags(), Meta::PropertyFlags::Attached);
-        if (!attached && !descriptors.IsDerivedFrom(
+        if (!attached && targetType != property->OwnerType() &&
+            !descriptors.IsDerivedFrom(
                 targetType, property->OwnerType())) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
@@ -362,7 +394,8 @@ Base::Result<ResolvedMember> Schema::ResolveMember(
             descriptors.FindEvent(memberId)) {
         const bool attached = SchemaHasEventFlag(
             event->Flags(), Meta::EventFlags::Attached);
-        if (!attached && !descriptors.IsDerivedFrom(
+        if (!attached && targetType != event->OwnerType() &&
+            !descriptors.IsDerivedFrom(
                 targetType, event->OwnerType())) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
@@ -395,36 +428,35 @@ Schema::ResolvePropertyOrEvent(
         SchemaHasPropertyFlag(
             property->Flags(),
             Meta::PropertyFlags::Collection)) {
-        Base::String textAlias;
-        Base::Result<void> aliasStatus =
-            textAlias.Assign(memberName);
-        if (aliasStatus) {
-            aliasStatus = textAlias.Append("Text");
-        }
-        if (!aliasStatus) return aliasStatus.GetStatus();
-
-        const Meta::PropertyInfo* alias =
-            descriptors.FindProperty(
-                ownerType, textAlias.View(), true);
-        if (alias != nullptr &&
-            !SchemaHasPropertyFlag(
-                alias->Flags(),
-                Meta::PropertyFlags::Collection)) {
-            property = alias;
+        char aliasBuffer[128];
+        if (memberName.SizeBytes() + 4U < sizeof(aliasBuffer)) {
+            std::memcpy(aliasBuffer, memberName.Data(), memberName.SizeBytes());
+            std::memcpy(aliasBuffer + memberName.SizeBytes(), "Text", 4U);
+            const Meta::PropertyInfo* alias =
+                descriptors.FindProperty(
+                    ownerType,
+                    Base::StringView(aliasBuffer, memberName.SizeBytes() + 4U),
+                    true);
+            if (alias != nullptr &&
+                !SchemaHasPropertyFlag(
+                    alias->Flags(),
+                    Meta::PropertyFlags::Collection)) {
+                property = alias;
+            }
         }
     }
     if (property != nullptr) {
         const bool attached = SchemaHasPropertyFlag(
             property->Flags(), Meta::PropertyFlags::Attached);
         if (ownerWasExplicit && syntax == MemberSyntax::Attribute &&
-            !attached &&
+            !attached && targetType != property->OwnerType() &&
             !descriptors.IsDerivedFrom(targetType, property->OwnerType())) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
                 "Explicit XAML attribute owner requires an attached property");
         }
         if (ownerWasExplicit && syntax == MemberSyntax::PropertyElement &&
-            !attached &&
+            !attached && targetType != property->OwnerType() &&
             !descriptors.IsDerivedFrom(targetType, property->OwnerType())) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
@@ -455,7 +487,7 @@ Schema::ResolvePropertyOrEvent(
                 "Explicit XAML attribute owner requires an attached event");
         }
         if (ownerWasExplicit && syntax == MemberSyntax::PropertyElement &&
-            !attached &&
+            !attached && targetType != event->OwnerType() &&
             !descriptors.IsDerivedFrom(targetType, event->OwnerType())) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
@@ -566,6 +598,7 @@ Base::Result<void> Schema::SetMember(
             "XAML runtime event assignment requires an event adapter");
     }
     if (!member.attached &&
+        objectType != member.ownerType &&
         !domain_->Types().IsDerivedFrom(objectType, member.ownerType)) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,

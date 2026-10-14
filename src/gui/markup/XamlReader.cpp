@@ -100,7 +100,8 @@ Base::Result<XamlDocument> XamlReader::LoadComponentCore(
             "XAML component root is incompatible with the requested type");
     }
     const GuiRuntime& state = static_cast<const GuiRuntime&>(*gui_->state_);
-    if (!state.schema.Metadata().Types().IsDerivedFrom(
+    if (root->RuntimeType() != expectedRoot &&
+        !state.schema.Metadata().Types().IsDerivedFrom(
             root->RuntimeType(), expectedRoot)) {
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "XAML component root is incompatible with the requested type");
