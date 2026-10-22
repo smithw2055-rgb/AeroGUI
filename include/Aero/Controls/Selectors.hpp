@@ -142,6 +142,7 @@ public:
 
 protected:
     explicit ListBoxItem(TypeId runtimeType) noexcept;
+    void OnApplyTemplate() noexcept override;
     virtual void OnSelected(RoutedEventArgs& e);
     virtual void OnUnselected(RoutedEventArgs& e);
     void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;

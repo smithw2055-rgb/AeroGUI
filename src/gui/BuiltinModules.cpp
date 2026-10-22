@@ -345,6 +345,7 @@ Base::Result<void> PopulateUiStyling(
     DescribeHook<::Aero::ViewModelBase>::Run(context);
     DescribeHook<::Aero::PropertyPath>::Run(context);
     DescribeHook<::Aero::TriggerBase>::Run(context);
+    DescribeHook<::Aero::SetterTriggerBase>::Run(context);
     DescribeHook<::Aero::Trigger>::Run(context);
     DescribeHook<::Aero::DataTrigger>::Run(context);
     DescribeHook<::Aero::Condition>::Run(context);
@@ -424,17 +425,25 @@ Base::Result<void> PopulateUiElements(
 
 Base::Result<void> PopulateUiMetadata(
     ::Aero::Meta::Registration& context) noexcept {
-    PopulateEnumMetadata(context);
-    PopulateUiInput(context);
+    Base::Result<void> status = PopulateEnumMetadata(context);
+    if (!status) return status.GetStatus();
+    status = PopulateUiInput(context);
+    if (!status) return status.GetStatus();
     // Media registers foundational value types such as Point. Resources author
     // Geometry dependency-property defaults that consume those values, so keep
     // Media ahead of Resources in the deterministic metadata bootstrap.
-    PopulateUiMedia(context);
-    PopulateUiResources(context);
-    PopulateUiStyling(context);
-    PopulateUiAnimation(context);
-    PopulateUiElements(context);
-    PopulateInputDevices(context);
+    status = PopulateUiMedia(context);
+    if (!status) return status.GetStatus();
+    status = PopulateUiResources(context);
+    if (!status) return status.GetStatus();
+    status = PopulateUiStyling(context);
+    if (!status) return status.GetStatus();
+    status = PopulateUiAnimation(context);
+    if (!status) return status.GetStatus();
+    status = PopulateUiElements(context);
+    if (!status) return status.GetStatus();
+    status = PopulateInputDevices(context);
+    if (!status) return status.GetStatus();
     return {};
 }
 

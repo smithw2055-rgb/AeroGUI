@@ -231,6 +231,22 @@ Base::Result<ResolvedAnimationProperty> ResolveAnimationPropertyPath(
                 if (!isLeaf) continue;
             }
         }
+        // GradientBrush.GradientStops special handling
+        if ((token.propertyName == Base::StringView("GradientStops") ||
+             token.typeQualifier == Base::StringView("GradientBrush")) &&
+            properties.Types().IsDerivedFrom(target->RuntimeType(), Media::GradientBrush::StaticTypeId())) {
+            auto* brush = static_cast<Media::GradientBrush*>(target);
+            const auto stops = brush->GetGradientStops();
+            if (token.hasIndex) {
+                if (token.collectionIndex >= stops.Size() || !stops[token.collectionIndex]) {
+                    return Base::Status::Failure(
+                        Base::ErrorCode::OutOfRange,
+                        "GradientStops index is out of range");
+                }
+                target = stops[token.collectionIndex].Get();
+                if (!isLeaf) continue;
+            }
+        }
 
         const Meta::DependencyProperty* property =
             FindPropertyForToken(properties, *target, token);

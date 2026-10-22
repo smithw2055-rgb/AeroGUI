@@ -449,8 +449,6 @@ void ViewRenderer::Render(
 
     const ::Aero::Render::RenderFrame& frame =
         view_->state_->RenderTree()->CurrentFrame();
-    std::fprintf(stderr, "[DEBUG ViewRenderer] Render: frameVersion=%u, updatedVersion=%u, offscreenReady=%d, pxW=%u, pxH=%u\n",
-        frame.Version(), updatedVersion_, (int)offscreenReady_, frame.PixelWidth(), frame.PixelHeight());
     if (frame.Version() == 0U) {
         view_->state_->ClearRendererFailure();
         return;

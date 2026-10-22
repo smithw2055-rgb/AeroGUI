@@ -4,6 +4,7 @@
 // Included from ViewFrame.hpp after ViewFrame is defined.
 
 #include "gui/templates/DataTemplateTriggerInstance.hpp"
+#include "gui/data/BindingCommon.hpp"
 
 namespace Aero {
 
@@ -38,6 +39,52 @@ public:
         Aero::FrameworkElement& owner,
         const Aero::NameScope* names) noexcept;
 
+    struct ResolvedBindingProperty {
+        Base::Object* source = nullptr;
+        ::Aero::DependencyObject* dependencySource = nullptr;
+        Meta::DependencyPropertyHandle dependencyProperty;
+        Meta::MemberId metadataProperty = Meta::InvalidMemberId;
+    };
+    using InteractionTriggerProperty = ResolvedBindingProperty;
+
+    struct BindingWatcher {
+        union {
+            Aero::FrameworkElement* owner = nullptr;
+            Aero::FrameworkElement* target;
+        };
+        ::Aero::DependencyObject* source = nullptr;
+        Base::Object* metadataSource = nullptr;
+        Meta::DependencyPropertyHandle property;
+        Meta::MemberId metadataProperty = Meta::InvalidMemberId;
+        std::uint64_t metadataSubscription = 0U;
+        Meta::DependencyPropertyChangedEventHandler handler;
+        void* context = nullptr;
+        void (*cleanupContext)(InteractivityEngine& engine, void* context) = nullptr;
+
+        BindingWatcher() noexcept : owner(nullptr) {}
+
+        template<typename T>
+        T* GetContext() const noexcept {
+            return static_cast<T*>(context);
+        }
+
+        void Unbind(InteractivityEngine& engine) noexcept;
+
+        Base::Result<void> Subscribe(
+            InteractivityEngine& engine,
+            Aero::FrameworkElement* targetOwner,
+            const ResolvedBindingProperty& prop,
+            Meta::DependencyPropertyChangedEventHandler dpHandler,
+            void (*clrCallback)(Base::Object&, Meta::MemberId, void*) noexcept,
+            void* ctx,
+            void (*cleanup)(InteractivityEngine&, void*)) noexcept;
+    };
+
+    using StyleDataTriggerSubscription = BindingWatcher;
+    using PropertyChangedTriggerSubscription = BindingWatcher;
+    using InteractionDataTriggerSubscription = BindingWatcher;
+    using DataTemplateTriggerSubscription = BindingWatcher;
+
     struct StyleDataTriggerAggregate {
         Base::Vector<std::uint8_t> known;
         Base::Vector<std::uint8_t> active;
@@ -64,15 +111,6 @@ public:
             Meta::MemberId property,
             void* context) noexcept;
     };
-    struct StyleDataTriggerSubscription {
-        Aero::FrameworkElement* target = nullptr;
-        ::Aero::DependencyObject* source = nullptr;
-        Base::Object* metadataSource = nullptr;
-        Meta::DependencyPropertyHandle property;
-        std::uint64_t metadataSubscription = 0U;
-        Meta::DependencyPropertyChangedEventHandler handler;
-        StyleDataTriggerHandlerState* context = nullptr;
-    };
     Base::Vector<StyleDataTriggerSubscription> styleDataTriggerSubscriptions;
 
     struct AttachedBehaviorInstance {
@@ -98,15 +136,6 @@ public:
             Meta::MemberId property,
             void* context) noexcept;
     };
-    struct PropertyChangedTriggerSubscription {
-        Aero::FrameworkElement* owner = nullptr;
-        ::Aero::DependencyObject* source = nullptr;
-        Base::Object* metadataSource = nullptr;
-        Meta::DependencyPropertyHandle property;
-        std::uint64_t metadataSubscription = 0U;
-        Meta::DependencyPropertyChangedEventHandler handler;
-        PropertyChangedTriggerState* context = nullptr;
-    };
     Base::Vector<PropertyChangedTriggerSubscription>
         propertyChangedTriggerSubscriptions;
 
@@ -125,15 +154,6 @@ public:
             Base::Object&,
             Meta::MemberId property,
             void* context) noexcept;
-    };
-    struct InteractionDataTriggerSubscription {
-        Aero::FrameworkElement* owner = nullptr;
-        ::Aero::DependencyObject* source = nullptr;
-        Base::Object* metadataSource = nullptr;
-        Meta::DependencyPropertyHandle property;
-        std::uint64_t metadataSubscription = 0U;
-        Meta::DependencyPropertyChangedEventHandler handler;
-        InteractionDataTriggerState* context = nullptr;
     };
     Base::Vector<InteractionDataTriggerSubscription>
         interactionDataTriggerSubscriptions;
@@ -181,14 +201,6 @@ public:
             Base::Object&,
             Meta::MemberId property,
             void* context) noexcept;
-    };
-    struct DataTemplateTriggerSubscription {
-        ::Aero::DependencyObject* source = nullptr;
-        Base::Object* metadataSource = nullptr;
-        Meta::DependencyPropertyHandle property;
-        std::uint64_t metadataSubscription = 0U;
-        Meta::DependencyPropertyChangedEventHandler handler;
-        DataTemplateTriggerHandlerState* context = nullptr;
     };
     Base::Vector<DataTemplateTriggerSubscription>
         dataTemplateTriggerSubscriptions;
@@ -255,12 +267,9 @@ public:
         Aero::FrameworkElement& owner,
         const Aero::NameScope* names) noexcept;
 
-    struct InteractionTriggerProperty {
-        Base::Object* source = nullptr;
-        ::Aero::DependencyObject* dependencySource = nullptr;
-        Meta::DependencyPropertyHandle dependencyProperty;
-        Meta::MemberId metadataProperty = Meta::InvalidMemberId;
-    };
+    Base::Result<ResolvedBindingProperty> ResolveBindingProperty(
+        Base::Object* sourceObject,
+        Base::StringView path) noexcept;
     Base::Result<InteractionTriggerProperty> ResolveInteractionTriggerProperty(
         const Data::Binding& binding,
         Aero::FrameworkElement& owner,

@@ -3,16 +3,12 @@
 #include <Aero/Media/Pen.hpp>
 #include <Aero/Media/Geometries.hpp>
 
-#include "DisplayList.hpp"
-#include "gui/media/BrushRendering.hpp"
-#include "gui/media/GeometryFlatten.hpp"
-#include "gui/media/FlattenSinks.inl"
-#include "gui/media/StrokeTessellate.hpp"
-#include "gui/core/ElementTree.hpp"
-#include "gui/core/LayoutEngine.hpp"
-#include "gui/core/EffectiveValueEngine.hpp"
-#include "gui/core/RoutedEvents.hpp"
-#include "gui/core/EventRouter.hpp"
+#include "render/DisplayList.hpp"
+#include "BrushRendering.hpp"
+#include "GeometryFlatten.hpp"
+#include "FlattenSinks.inl"
+#include "StrokeTessellate.hpp"
+
 namespace Aero::Media {
 namespace {
 
@@ -28,16 +24,10 @@ Result<void> EmitTriangles(
     const Base::Vector<std::uint32_t>& indices,
     Color color) noexcept {
     if (color.alpha <= 0.0F || indices.Size() < 3U) return {};
-    for (std::uint32_t index = 0U; index + 2U < indices.Size(); index += 3U) {
-        const Point a = vertices[indices[index]];
-        const Point b = vertices[indices[index + 1U]];
-        const Point c = vertices[indices[index + 2U]];
-        const Point quad[4] = {a, b, c, c};
-        const Color colors[4] = {color, color, color, color};
-        Result<void> drawn = builder.FillGradientQuad(quad, colors);
-        if (!drawn) return drawn.GetStatus();
-    }
-    return {};
+    return builder.DrawTriangles(
+        vertices.Data(), static_cast<std::uint32_t>(vertices.Size()),
+        indices.Data(), static_cast<std::uint32_t>(indices.Size()),
+        color);
 }
 
 // P4.4: stroke paint resolution shared by the standalone stroke path and

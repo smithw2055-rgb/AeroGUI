@@ -28,6 +28,9 @@ public:
     void SetFill(Ref<Brush> value) noexcept;
     Ref<Brush> GetStroke() const noexcept;
     void SetStroke(Ref<Brush> value) noexcept;
+    bool HitTestCore() const noexcept override {
+        return GetFill() != nullptr || GetStroke() != nullptr;
+    }
     Ref<Media::Pen> GetPen() const noexcept;
     void SetPen(Ref<Media::Pen> value) noexcept;
     double GetStrokeThickness() const noexcept;

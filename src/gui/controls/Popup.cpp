@@ -52,6 +52,44 @@ Popup::Popup(TypeId runtimeType) noexcept
 
 Popup::~Popup() = default;
 
+UIElement* Popup::GetChild() const noexcept {
+    UIElement* root = GetTemplateRoot();
+    if (root != nullptr) return root;
+    const auto& owned = OwnedContent();
+    if (owned) {
+        return TryCast<UIElement>(owned.Get());
+    }
+    return nullptr;
+}
+
+UIElement* Popup::GetContentElement() const noexcept {
+    return GetChild();
+}
+
+void Popup::SetChild(UIElement* child) noexcept {
+    SetContent(child);
+}
+
+void Popup::SetChild(Ref<UIElement> child) noexcept {
+    SetContent(std::move(child));
+}
+
+void Popup::SetChild(std::nullptr_t) noexcept {
+    SetContent(static_cast<UIElement*>(nullptr));
+}
+
+std::uint32_t Popup::GetVisualChildrenCount() const noexcept {
+    if (GetTemplateRoot() != nullptr) { return Control::GetVisualChildrenCount(); }
+    UIElement* child = GetChild();
+    return child != nullptr ? 1U : 0U;
+}
+
+::Aero::Media::Visual* Popup::GetVisualChild(std::uint32_t index) const noexcept {
+    if (GetTemplateRoot() != nullptr) { return Control::GetVisualChild(index); }
+    if (index != 0U) { return nullptr; }
+    return GetChild();
+}
+
 bool Popup::GetIsOpen() const noexcept {
     return GetValue(IsOpenProperty);
 }
@@ -160,10 +198,7 @@ void Popup::OnPropertyChanged(
         const bool open = args.GetNewValue().AsBoolean();
         bool hitTest = open;
         if (open) {
-            UIElement* popupChild =
-                GetTemplateRoot() != nullptr
-                    ? GetTemplateRoot()
-                    : GetContentElement();
+            UIElement* popupChild = GetChild();
             // Tooltips set IsHitTestVisible=False on the content so the pointer
             // can keep hitting the placement target. Forcing the Popup itself
             // hittable would steal MouseEnter/Leave from the planet underneath.
@@ -187,10 +222,7 @@ Size Popup::MeasureOverride(
     Size availableSize) noexcept {
     (void)availableSize;
     popupDesiredSize_ = {};
-    UIElement* popupChild =
-        GetTemplateRoot() != nullptr
-            ? GetTemplateRoot()
-            : GetContentElement();
+    UIElement* popupChild = GetChild();
     if (!GetIsOpen() || popupChild == nullptr) {
         return Size{};
     }
@@ -444,10 +476,7 @@ Rect PlacePopupContent(FrameworkElement& host, Size contentSize, Size finalSize,
 
 Size Popup::ArrangeOverride(
     Size finalSize) noexcept {
-    UIElement* popupChild =
-        GetTemplateRoot() != nullptr
-            ? GetTemplateRoot()
-            : GetContentElement();
+    UIElement* popupChild = GetChild();
     if (popupChild == nullptr) return finalSize;
     if (!GetIsOpen()) {
         ArrangeChild(*popupChild, {});
@@ -488,7 +517,12 @@ void ToolTip::OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) 
 
 Size ToolTip::MeasureOverride(Size availableSize) noexcept {
     static_cast<void>(availableSize);
-    UIElement* child = GetTemplateRoot() != nullptr ? GetTemplateRoot() : GetContentElement();
+    if (GetTemplateRoot() == nullptr) {
+        EnsureFallbackPresenter();
+    }
+    UIElement* child = GetTemplateRoot() != nullptr
+        ? GetTemplateRoot()
+        : (GetFallbackPresenter() != nullptr ? static_cast<UIElement*>(GetFallbackPresenter()) : GetContentElement());
     if (!GetIsOpen() || child == nullptr) return Size{};
     constexpr double Unconstrained = 1.0e12;
     MeasureChild(*child, Size{Unconstrained, Unconstrained});
@@ -520,7 +554,12 @@ void ToolTip::SetVerticalOffset(double value) noexcept {
 }
 
 Size ToolTip::ArrangeOverride(Size finalSize) noexcept {
-    UIElement* child = GetTemplateRoot() != nullptr ? GetTemplateRoot() : GetContentElement();
+    if (GetTemplateRoot() == nullptr) {
+        EnsureFallbackPresenter();
+    }
+    UIElement* child = GetTemplateRoot() != nullptr
+        ? GetTemplateRoot()
+        : (GetFallbackPresenter() != nullptr ? static_cast<UIElement*>(GetFallbackPresenter()) : GetContentElement());
     if (child == nullptr) return finalSize;
     if (!GetIsOpen()) {
         ArrangeChild(*child, {});

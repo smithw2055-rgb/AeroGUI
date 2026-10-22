@@ -508,6 +508,9 @@ Base::Result<void> DependencyObject::RecomputeEffectiveValueCore(
         NotifyValueChanged(args);
         OnPropertyChanged(args);
         OnPropertyInvalidated(flags);
+        if (HasFlag(flags, PropertyInvalidationFlags::Inheritance) && registry_ != nullptr) {
+            registry_->NotifyInheritancePropertyChanged(*this, propertyHandle);
+        }
         storedEntry = FindStoredEntry(propertyHandle);
     }
     if (storedEntry != nullptr) {
@@ -1043,6 +1046,47 @@ PropertyValue DependencyObject::GetValue(
         }
     }
     return metadata->defaultValue;
+}
+
+Base::StringView DependencyObject::GetStringView(
+    DependencyPropertyHandle propertyHandle) const noexcept {
+    Base::Result<void> ready = VerifyReady();
+    if (!ready) {
+        return {};
+    }
+
+    const PropertyStore* store = static_cast<const PropertyStore*>(valueStore_);
+    if (store != nullptr) {
+        if (const StoredValueEntry* hit =
+                store->entries.Find(propertyHandle.value)) {
+            if (hit->effectiveValue.Kind() == Base::ValueKind::String) {
+                return hit->effectiveValue.AsString();
+            }
+        }
+    }
+
+    const Meta::DependencyProperty* property =
+        registry_->Find(propertyHandle);
+    if (property == nullptr) {
+        return {};
+    }
+    const PropertyMetadata* metadata = property->MetadataFor(runtimeType_);
+    if (metadata == nullptr) {
+        return {};
+    }
+
+    const MemberId canonical = property->Handle().value;
+    if (store != nullptr && canonical != propertyHandle.value) {
+        if (const StoredValueEntry* aliasHit = store->entries.Find(canonical)) {
+            if (aliasHit->effectiveValue.Kind() == Base::ValueKind::String) {
+                return aliasHit->effectiveValue.AsString();
+            }
+        }
+    }
+    if (metadata->defaultValue.Kind() == Base::ValueKind::String) {
+        return metadata->defaultValue.AsString();
+    }
+    return {};
 }
 
 // from src/gui/core/EffectiveValueEngine.cpp

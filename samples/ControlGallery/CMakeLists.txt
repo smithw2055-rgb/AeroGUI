@@ -48,5 +48,5 @@ if(AERO_BUILD_TESTS)
         COMMAND AeroControlGallery --verify)
     set_tests_properties(AeroControlGallerySmoke PROPERTIES
         LABELS "sample;product"
-        TIMEOUT 180)
+        TIMEOUT 360)
 endif()

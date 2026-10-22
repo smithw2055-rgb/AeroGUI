@@ -51,6 +51,9 @@ Base::Status InvalidTemplate(const char* message) noexcept {
 
 bool IsDeferredBindingSetterValue(
     const PropertyValue& value) noexcept {
+    if (value.IsDynamicResource()) {
+        return true;
+    }
     if (value.Kind() != ValueKind::Object ||
         value.IsNullObject()) {
         return false;
@@ -66,28 +69,8 @@ bool IsDeferredBindingSetterValue(
 bool IsDynamicResourceSetterValue(
     const PropertyValue& value,
     Base::StringView& key) noexcept {
-    constexpr Base::StringView dynamicPrefix("\x01DynamicResource:");
-    if (value.Kind() == ValueKind::String) {
-        Base::StringView str = value.AsString();
-        if (str.SizeBytes() >= dynamicPrefix.SizeBytes() &&
-            str.Substr(0U, dynamicPrefix.SizeBytes()) == dynamicPrefix) {
-            key = str.Substr(
-                dynamicPrefix.SizeBytes(),
-                str.SizeBytes() - dynamicPrefix.SizeBytes());
-            return true;
-        }
-        return false;
-    }
-    if (!IsDeferredBindingSetterValue(value)) return false;
-    Base::Ref<Base::Object> stored = value.AsObject();
-    if (!stored || stored->RuntimeType() != Data::Binding::StaticTypeId()) return false;
-    auto& marker = static_cast<Data::Binding&>(*stored);
-    const Base::StringView bindingPath = marker.GetPathText();
-    if (bindingPath.SizeBytes() >= dynamicPrefix.SizeBytes() &&
-        bindingPath.Substr(0U, dynamicPrefix.SizeBytes()) == dynamicPrefix) {
-        key = bindingPath.Substr(
-            dynamicPrefix.SizeBytes(),
-            bindingPath.SizeBytes() - dynamicPrefix.SizeBytes());
+    if (value.IsDynamicResource()) {
+        key = value.AsDynamicResourceKey();
         return true;
     }
     return false;
@@ -277,6 +260,11 @@ TemplateBuilder::ProjectContentCore(
     }
     UIElement* content = (owner).GetContentElement();
     if (content == nullptr) return false;
+    if (owner.GetFallbackPresenter() != nullptr &&
+        (content == owner.GetFallbackPresenter() ||
+         content->GetVisualParent() == owner.GetFallbackPresenter())) {
+        return false;
+    }
 
     const ::Aero::Media::Visual* ancestor = &presenterVisual;
     while (ancestor != nullptr) {
@@ -1865,7 +1853,12 @@ bool Control::ApplyTemplate() noexcept {
     }
     Base::Result<TemplateHandle> applied =
         templateRuntime->Apply(*this, *value);
-    if (!applied) return false;
+    if (!applied) {
+        std::fprintf(stderr, "[ApplyTemplate] FAILED on control=%p type=%llu: %s\n",
+            (void*)this, (unsigned long long)RuntimeType(),
+            applied.GetStatus().message);
+        return false;
+    }
     // TemplateEngine has now completed its instance transaction and installed
     // the handle/name scope. Derived controls may safely resolve PART_* and
     // materialize item containers without re-entering the transaction.
@@ -1976,7 +1969,7 @@ Base::Result<void> FrameworkTemplateState::Materialize(
             }
             context.PopulateItemsPresenter(
                     *static_cast<ItemsPresenter*>(part.object),
-                    itemsControl.GetItemsPanel());
+                    itemsControl.GetItemsPanel().Get());
         }
     }
     return {};
@@ -2710,6 +2703,27 @@ Base::Result<void> TemplateEngine::ClearAt(
             instance.parts[partIndex - 1U].mount;
         if (mount.IsAttached()) {
             (void)tree_->DetachElement(mount);
+        }
+    }
+    if (instance.rootVisual != nullptr) {
+        Base::Vector<Media::Visual*> templateVisuals;
+        auto collectVisuals = [&templateVisuals](auto& self, Media::Visual* node) -> void {
+            if (node == nullptr) return;
+            templateVisuals.PushBack(node);
+            const std::uint32_t count = Media::VisualTreeHelper::GetChildrenCount(*node);
+            for (std::uint32_t i = 0U; i < count; ++i) {
+                self(self, Media::VisualTreeHelper::GetChild(*node, i));
+            }
+        };
+        collectVisuals(collectVisuals, instance.rootVisual);
+        for (std::uint32_t i = templateVisuals.Size(); i > 0U; --i) {
+            Media::Visual* v = templateVisuals[i - 1U];
+            if (v != nullptr) {
+                (void)values_->DetachObject(*v);
+                if (tree_ != nullptr) {
+                    tree_->InvalidateNodeHandle(*v);
+                }
+            }
         }
     }
     for (Aero::Controls::TemplatePart& part : instance.parts) {

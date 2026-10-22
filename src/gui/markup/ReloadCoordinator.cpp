@@ -164,9 +164,7 @@ ReloadCoordinator::ReloadCoordinator(
           ? allocator
           : &Base::GetDefaultAllocator()) {
     Gui& gui = view.GetGui();
-    GuiRuntime* guiState = gui.state_
-        ? &static_cast<GuiRuntime&>(*gui.state_)
-        : nullptr;
+    GuiRuntime* guiState = gui.state_.Get();
     void* memory = allocator_->Allocate({sizeof(ReloadCoordinatorState),
         alignof(ReloadCoordinatorState), Base::MemoryTag::Markup});
     if (memory == nullptr) {

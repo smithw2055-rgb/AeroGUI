@@ -3,6 +3,7 @@
 #include "gui/text/TextPipeline.hpp"
 #include "render/RenderTree.hpp"
 #include <Aero/BuiltinThemes.generated.hpp>
+#include <Aero/Controls/Panels.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -18,18 +19,18 @@ ViewFrame::ViewFrame(
         View& owner,
         Gui& guiOwner,
         Base::IAllocator& value,
-        Base::Ref<Base::Object> guiState) noexcept
+        Base::Ref<GuiRuntime> guiState) noexcept
     : allocator(&value),
-          guiOwner(&guiOwner),
-          gui(std::move(guiState)),
-          publicRenderer(owner, value),
-          dispatcher(&static_cast<GuiRuntime&>(*gui).dispatcher),
-          schemaBundle(&static_cast<GuiRuntime&>(*gui).schema),
-          documentCache(&static_cast<GuiRuntime&>(*gui).documents),
-          xamlProviders(&static_cast<GuiRuntime&>(*gui).xamlProviders),
-          itemGenerators(&value),
-          fragmentMounts(&value),
-          componentMounts(&value) {}
+      guiOwner(&guiOwner),
+      gui(std::move(guiState)),
+      publicRenderer(owner, value),
+      dispatcher(&gui->dispatcher),
+      schemaBundle(&gui->schema),
+      documentCache(&gui->documents),
+      xamlProviders(&gui->xamlProviders),
+      itemGenerators(&value),
+      fragmentMounts(&value),
+      componentMounts(&value) {}
 
 Base::Result<void> ViewFrame::ApplyViewport(
         const ViewViewport& next) noexcept {
@@ -113,32 +114,22 @@ void ViewFrame::Shutdown() noexcept {
         tree->SetLifecycleHandler(nullptr);
     }
 
-    // Capture hub-owned engines before DestroyUiEngines clears tree slots.
-    Aero::InputRouter* inputEngine = Input();
-    Aero::EventRouter* eventEngine = Events();
-    Aero::BindingEngine* bindingEngine = Bindings();
-    ::Aero::Render::RenderTree* renderTreeEngine = RenderTree();
-    Aero::LayoutEngine* layoutEngine = Layout();
-    Aero::AnimationEngine* animationEngine = Animations();
-
-    DestroyUiEngines();
     if (images != nullptr) {
         images->Shutdown(GetImageResources());
     }
 
-    FreeObject(*allocator, Base::MemoryTag::Ui, interactivity);
-    FreeObject(*allocator, Base::MemoryTag::Ui, storyboards);
-    FreeObject(*allocator, Base::MemoryTag::Ui, inputEngine);
-    FreeObject(*allocator, Base::MemoryTag::Ui, eventEngine);
-    FreeObject(*allocator, Base::MemoryTag::Ui, bindingEngine);
-    FreeObject(*allocator, Base::MemoryTag::Ui, renderTreeEngine);
-    FreeObject(*allocator, Base::MemoryTag::Ui, layoutEngine);
-    FreeObject(*allocator, Base::MemoryTag::Ui, tree);
-    FreeObject(*allocator, Base::MemoryTag::Ui, text);
-    FreeObject(*allocator, Base::MemoryTag::Ui, images);
-    FreeObject(*allocator, Base::MemoryTag::Ui, animationEngine);
-    FreeObject(*allocator, Base::MemoryTag::Ui, values);
-    FreeObject(*allocator, Base::MemoryTag::Ui, objectFactory);
+    if (engines != nullptr) {
+        FreeObject(*allocator, Base::MemoryTag::Ui, engines);
+        values = nullptr;
+        tree = nullptr;
+        images = nullptr;
+        text = nullptr;
+        interactivity = nullptr;
+        storyboards = nullptr;
+        overlays = nullptr;
+        focus = nullptr;
+        resources = nullptr;
+    }
     schema = nullptr;
     metadata = nullptr;
     device.Reset();
@@ -160,8 +151,7 @@ Base::Result<void> ViewFrame::Initialize(
         if (!gui) {
             return ViewInvalidState("View has no Gui provider state");
         }
-        const GuiRuntime& guiState =
-            static_cast<const GuiRuntime&>(*gui);
+        const GuiRuntime& guiState = *gui;
         seenTextureProviderChange = guiState.textureChangeGeneration;
         seenFontProviderChange = guiState.fontChangeGeneration;
 
@@ -198,52 +188,48 @@ Base::Result<void> ViewFrame::Initialize(
         schema = &schemaBundle->Schema();
 
         if (status) {
-            status = AllocateObject(*allocator, Base::MemoryTag::Ui, objectFactory, *dispatcher,
-                (*metadata).DependencyProperties(),
+            status = AllocateObject(
+                *allocator,
+                Base::MemoryTag::Ui,
+                engines,
+                *this,
+                allocator,
+                *dispatcher,
                 *metadata);
         }
-        if (status) {
-            status = AllocateObject(*allocator, Base::MemoryTag::Ui, values, *dispatcher,
-                (*metadata).DependencyProperties());
+        if (!status) {
+            Shutdown();
+            terminal = true;
+            return status.GetStatus();
         }
-        if (status) status = values->Initialize();
-        Aero::AnimationEngine* animations = nullptr;
+
+        values = &engines->values;
+        tree = &engines->tree;
+        images = &engines->images;
+        text = &engines->text;
+        interactivity = &engines->interactivity;
+        storyboards = &engines->storyboards;
+        overlays = &engines->overlays;
+        focus = &engines->focus;
+        resources = &engines->resources;
+
+        status = values->Initialize();
+        if (status) status = engines->animations.Initialize();
         if (status) {
-            status = AllocateObject(*allocator, Base::MemoryTag::Ui, animations, *dispatcher, *values, allocator);
-        }
-        if (status) status = animations->Initialize();
-        if (status) {
-            animations->SetAutomaticTickingEnabled(
+            engines->animations.SetAutomaticTickingEnabled(
                 options.automaticAnimationClock);
-        }
-        if (status) {
-            status = AllocateObject(*allocator, Base::MemoryTag::Ui, tree, *dispatcher, *values);
         }
         if (status) status = tree->Initialize();
         if (status) {
-            tree->SetAnimations(animations);
+            tree->SetAnimations(&engines->animations);
         }
-        Aero::LayoutEngine* layout = nullptr;
+        if (status) status = engines->layout.Initialize();
         if (status) {
-            status = AllocateObject(*allocator, Base::MemoryTag::Ui, layout, *dispatcher);
+            tree->SetLayout(&engines->layout);
         }
-        if (status) status = layout->Initialize();
+        if (status) status = engines->renderTree.Initialize();
         if (status) {
-            tree->SetLayout(layout);
-        }
-        ::Aero::Render::RenderTree* renderTree = nullptr;
-        if (status) {
-            status = AllocateObject(*allocator, Base::MemoryTag::Ui, renderTree, *dispatcher);
-        }
-        if (status) status = renderTree->Initialize();
-        if (status) {
-            tree->SetRenderTree(renderTree);
-        }
-        if (status) {
-            status = AllocateObject(*allocator, Base::MemoryTag::Ui, images, allocator);
-        }
-        if (status) {
-            status = AllocateObject(*allocator, Base::MemoryTag::Ui, text, allocator);
+            tree->SetRenderTree(&engines->renderTree);
         }
         if (status) {
             status = text->Initialize(
@@ -253,54 +239,44 @@ Base::Result<void> ViewFrame::Initialize(
             tree->SetLifecycleHandler(
                 &TextLifecycleHook, this);
         }
-        Aero::BindingEngine* bindings = nullptr;
+        if (status) status = engines->bindings.Initialize();
         if (status) {
-            status = AllocateObject(
-                *allocator,
-                Base::MemoryTag::Ui,
-                bindings,
-                *dispatcher,
-                metadata);
+            tree->SetBindings(&engines->bindings);
+            tree->SetEvents(&engines->events);
+            tree->SetInput(&engines->input);
         }
-        if (status) status = bindings->Initialize();
+
         if (status) {
-            tree->SetBindings(bindings);
-        }
-        Aero::EventRouter* events = nullptr;
-        if (status) {
-            status = AllocateObject(*allocator, Base::MemoryTag::Ui, events,
-                (*metadata).RoutedEventState());
-        }
-        if (status) {
-            tree->SetEvents(events);
-        }
-        Aero::InputRouter* input = nullptr;
-        if (status) {
-            status = AllocateObject(*allocator, Base::MemoryTag::Ui, input, *tree, *events);
+            tree->SetTemplates(&engines->templates);
+            Base::Result<VisualStateManager*> createdStates =
+                ::Aero::Controls::FrameworkTemplateState::CreateVisualStateManager(
+                    *values,
+                    engines->templates,
+                    engines->animations,
+                    (*metadata).DependencyProperties());
+            if (!createdStates) {
+                status = createdStates.GetStatus();
+            } else {
+                engines->visualStates = createdStates.Value();
+                tree->SetVisualStates(engines->visualStates);
+            }
         }
         if (status) {
-            tree->SetInput(input);
+            engines->styles.SetTriggerActionHandler(
+                &InteractivityEngine::ExecuteStyleTriggerActions, interactivity);
+            tree->SetStyles(&engines->styles);
+            tree->SetTextLayout(text != nullptr ? text->Layout() : nullptr);
+            tree->SetMeshResources(GetMeshResources());
+            tree->SetClipboard(options.clipboard);
+            tree->AttachResourceEnvironment(resources->Environment());
+            tree->SetNameScope(this, &ViewFrame::FindNameForElement);
+            tree->SetViewState(this);
         }
         if (status) {
-            status = AllocateObject(*allocator, Base::MemoryTag::Ui, interactivity, *this);
-        }
-        if (status) {
-            status = AllocateObject(*allocator, Base::MemoryTag::Ui, storyboards, *this);
-        }
-        if (status) status = CreateUiEngines();
-        if (status && interactivity != nullptr) {
             interactivity->Bind();
-        }
-        if (status && storyboards != nullptr) {
             storyboards->Bind();
-        }
-        if (status && overlays != nullptr) {
             overlays->Bind();
-        }
-        if (status && focus != nullptr) {
             focus->Bind();
-        }
-        if (status && resources != nullptr) {
             resources->Bind();
             status = resources->RebuildDynamicEnvironment();
         }
@@ -632,14 +608,32 @@ Base::Result<void> View::SetContent(
     // Attach the loaded document root (for example a UserControl) as a visual
     // child of the host root (for example the wrapping Window). The host is
     // kept as the view root so the app-facing Window remains the mounted root.
-    Aero::Markup::VisualEdge edge;
-    edge.parent = hostRoot.Value();
-    edge.child = documentRoot.Value();
-    next.visualContent.mountEdges.PushBack(std::move(edge));
+    if (auto* contentHost = ::Aero::TryCast<Controls::ContentControl>(hostRoot.Value())) {
+        Aero::Markup::VisualEdge edge;
+        edge.parent = hostRoot.Value();
+        edge.child = documentRoot.Value();
+        next.visualContent.mountEdges.PushBack(std::move(edge));
 
-    (*static_cast<Controls::ContentControl*>(hostRoot.Value())).SetOwnedContent(
-        next.root,
-        *documentRoot.Value());
+        contentHost->SetOwnedContent(
+            next.root,
+            *documentRoot.Value());
+    } else if (auto* panelHost = ::Aero::TryCast<Controls::Panel>(hostRoot.Value())) {
+        Aero::Markup::VisualEdge edge;
+        edge.parent = hostRoot.Value();
+        edge.child = documentRoot.Value();
+        next.visualContent.mountEdges.PushBack(std::move(edge));
+
+        if (auto* uiElement = ::Aero::TryCast<Aero::UIElement>(documentRoot.Value())) {
+            if (auto childElement = Base::Ref<Aero::UIElement>::TryFromBorrowed(*uiElement)) {
+                panelHost->GetChildren().Add(std::move(childElement));
+            }
+        }
+    } else {
+        next.Clear();
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "View host root must be a ContentControl or Panel to host content");
+    }
 
     next.root = std::move(root);
     state_->loadedDocument = std::move(next);
@@ -706,14 +700,15 @@ bool View::Update(double timeInSeconds) noexcept {
     double elapsedSeconds = 0.0;
     if (hasUpdateTime_) {
         elapsedSeconds = timeInSeconds - updateTimeSeconds_;
+    } else {
+        hasUpdateTime_ = true;
     }
     updateTimeSeconds_ = timeInSeconds;
-    hasUpdateTime_ = true;
-    const double elapsedMilliseconds = std::min(
-        elapsedSeconds * 1000.0,
-        static_cast<double>(UINT32_MAX));
-    const std::uint32_t elapsed =
-        static_cast<std::uint32_t>(elapsedMilliseconds);
+    const double elapsedMicrosecondsD = std::min(
+        elapsedSeconds * 1000000.0,
+        static_cast<double>(UINT64_MAX));
+    const std::uint64_t elapsed =
+        static_cast<std::uint64_t>(std::max(0.0, elapsedMicrosecondsD));
     if (elapsed != 0U) {
         Base::Result<std::uint32_t> advanced =
             AdvanceViewClocks(*state_, elapsed);

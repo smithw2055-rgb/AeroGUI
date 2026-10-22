@@ -16,10 +16,7 @@
 
 #include "gui/templates/TemplateInstance.hpp"
 
-
 #include "gui/markup/XamlObjectWriterState.hpp"
-
-
 
 #include <cstdio>
 
@@ -30,9 +27,8 @@
 #include <new>
 
 #include <string>
-
+#include <unordered_map>
 #include <utility>
-
 #include <vector>
 
 
@@ -1185,7 +1181,7 @@ struct DeferredBindingState {
     Base::Ref<Data::IValueConverter> converter;
 
     Meta::PropertyValue converterParameter;
-
+    Meta::PropertyValue fallbackValue;
     Base::IAllocator* allocator = nullptr;
 
 };
@@ -1334,6 +1330,7 @@ Base::Result<std::uint64_t> CommitBinding(void* context) noexcept {
     descriptor.converterResource = state->converter;
 
     descriptor.converterParameter = state->converterParameter;
+    descriptor.fallbackValue = state->fallbackValue;
 
     Base::Result<Data::BindingHandle> attached =
 
@@ -2455,7 +2452,22 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
 
     }
 
-    (void)fallbackValue;
+    Meta::PropertyValue convertedFallback;
+    if (!fallbackValue.Empty()) {
+        Base::Result<Meta::Value> conv = services.schema->ConvertText(
+            services.targetValueType, fallbackValue, &services);
+        if (conv) {
+            convertedFallback = conv.Value();
+        } else if (services.targetValueType == Meta::TypeOf<Base::String>()) {
+            Base::String str;
+            if (str.Assign(fallbackValue)) {
+                auto enc = Meta::ValueCodec<Base::String>::Encode(std::move(str));
+                if (enc) {
+                    convertedFallback = enc.Value();
+                }
+            }
+        }
+    }
 
     if ((!elementName.Empty() &&
 
@@ -2756,6 +2768,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
         binding.Value()->SetUpdateSourceTrigger(updateSourceTrigger);
 
         if (converter) binding.Value()->SetConverter(converter);
+        if (!convertedFallback.IsUnset()) binding.Value()->SetFallbackValue(convertedFallback);
 
         if (!converterParameter.Empty()) {
 
@@ -3309,8 +3322,9 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
         }
 
         state->converterParameter = std::move(parameter).Value();
-
     }
+
+    state->fallbackValue = convertedFallback;
 
     Base::Result<void> assigned =
 
@@ -4429,99 +4443,12 @@ Base::Result<ProvidedValue> DynamicResourceExtension::ProvideValue(
     // target dependency property.
 
     if (services.targetObject->RuntimeType() ==
-
         Aero::Setter::StaticTypeId()) {
-
-        // Keep the key live. A resolved brush would stay tied to the dictionary
-        // that defined the style, so Gallery's selectable Light palette could
-        // not override shell brushes such as Brush.Window.Background.
-        Base::Result<Base::Ref<Data::Binding>> marker =
-            Base::MakeRef<Data::Binding>();
-        if (!marker) return marker.GetStatus();
-        Base::String markerPath;
-        Base::Result<void> encodedKey =
-            markerPath.Assign("\x01DynamicResource:");
-        if (encodedKey) encodedKey = markerPath.Append(key);
-        if (!encodedKey) return encodedKey.GetStatus();
-        marker.Value()->SetPath(markerPath.View());
-        Base::Result<Meta::Value> markerValue = Meta::Value::FromObject(
-            Data::Binding::StaticTypeId(),
-            Base::Ref<Base::Object>(std::move(marker).Value()));
+        // Keep the key live. DynamicResource values evaluate against the host tree/resources.
+        Base::Result<Meta::Value> markerValue =
+            Meta::Value::FromDynamicResourceKey(key);
         if (!markerValue) return markerValue.GetStatus();
         return ProvidedValue::FromValue(std::move(markerValue).Value());
-
-        // Template/style setters are authored before their eventual target
-
-        // exists. Resolve from the complete parse-time resource scope, not
-
-        // only the immediate fallback dictionary: a theme's brushes commonly
-
-        // live in an earlier merged sibling dictionary.
-
-        for (const ResourceDictionary* resources :
-
-             services.ambientResourceChain) {
-
-            if (resources == nullptr) continue;
-
-            Base::Result<Aero::ResourceValue> resource =
-
-                resources->Lookup(key);
-
-            if (resource) {
-
-                return ProvidedValue::FromValue(
-
-                    std::move(resource).Value());
-
-            }
-
-            if (resource.GetStatus().code !=
-
-                Base::ErrorCode::NotFound) {
-
-                return resource.GetStatus();
-
-            }
-
-        }
-
-        if (services.fallbackResources != nullptr) {
-
-            Base::Result<Aero::ResourceValue> resource =
-
-                services.fallbackResources->Lookup(key);
-
-            if (resource) {
-
-                return ProvidedValue::FromValue(
-
-                    std::move(resource).Value());
-
-            }
-
-            if (resource.GetStatus().code !=
-
-                Base::ErrorCode::NotFound) {
-
-                return resource.GetStatus();
-
-            }
-
-        }
-
-        // WPF does not fail dictionary construction for a DynamicResource
-
-        // whose key is currently absent. Preserve an unset object value until
-
-        // the eventual style-instance resource expression can evaluate it.
-
-        return ProvidedValue::FromValue(
-
-            Meta::Value::NullObject(
-
-                Meta::TypeOf<Base::Object>()));
-
     }
 
     Base::Result<::Aero::DependencyObject*> targetResult =
@@ -4605,131 +4532,93 @@ Base::Result<ProvidedValue> DynamicResourceExtension::ProvideValue(
 
 
     Base::Result<Aero::ResourceValue> initialResource =
-
         Base::Status::Failure(Base::ErrorCode::NotFound, "Resource not found");
+    const ResourceDictionary* matchedResource = nullptr;
 
     for (const ResourceDictionary* resDict : services.ambientResourceChain) {
-
         if (resDict == nullptr) continue;
-
         Base::Result<Aero::ResourceValue> found = resDict->Lookup(key);
-
         if (found) {
-
             initialResource = std::move(found);
-
+            matchedResource = resDict;
             break;
-
         }
-
     }
 
     if (!initialResource && fallbackResources != nullptr) {
-
         initialResource = fallbackResources->Lookup(key);
-
     }
 
     if (initialResource) {
-
         const Meta::DependencyProperty* descriptor =
-
             DependencyObjectAccess::PropertyRegistry((*target)).Find(property);
-
         Base::Result<Meta::PropertyValue> converted =
-
             ConvertLookedUpDynamicResource(initialResource.Value(), descriptor);
-
         if (converted) {
-
             static_cast<void>(target->SetValue(property, std::move(converted).Value()));
-
         }
-
     }
 
     Base::IAllocator& allocator = Base::GetDefaultAllocator();
-
     void* memory = allocator.Allocate({
-
         sizeof(DeferredDynamicResourceState),
-
         alignof(DeferredDynamicResourceState),
-
         Base::MemoryTag::Markup});
-
     if (memory == nullptr) {
-
         return Base::Status::Failure(
-
             Base::ErrorCode::OutOfMemory,
-
             "Deferred DynamicResource allocation failed");
-
     }
 
     auto* state = new (memory) DeferredDynamicResourceState();
-
     state->engine = effectiveValues;
-
     state->targetOwner =
-
         Base::Ref<::Aero::DependencyObject>::TryFromBorrowed(*target);
-
     if (!state->targetOwner) {
-
         CleanupDeferredDynamicResource(state);
-
         return Base::Status::Failure(
-
             Base::ErrorCode::InvalidState,
-
             "DynamicResource target is not reference-counted");
-
     }
 
     state->target = state->targetOwner.Get();
-
     const Meta::DependencyProperty* descriptor =
-
         DependencyObjectAccess::PropertyRegistry(target).Find(property);
-
     state->property = descriptor != nullptr
-
         ? descriptor->Handle()
-
         : property;
-
     state->allocator = &allocator;
 
-    state->resources.Reserve(
-
-        services.ambientResourceChain.Size());
-
     Base::Result<void> reserved{};
-
-    for (const ResourceDictionary* resource :
-
-         services.ambientResourceChain) {
-
-        if (resource == nullptr) continue;
-
-        Base::Result<ResourceDictionary> shared =
-
-            resource->Share();
-
+    if (matchedResource != nullptr) {
+        state->resources.Reserve(1U);
+        Base::Result<ResourceDictionary> shared = matchedResource->Share();
         if (!shared) {
-
             reserved = shared.GetStatus();
-
-            break;
-
+        } else {
+            state->resources.PushBack(std::move(shared).Value());
         }
+    } else {
+        state->resources.Reserve(services.ambientResourceChain.Size());
+        for (std::uint32_t i = 0U; i < services.ambientResourceChain.Size(); ++i) {
+            const ResourceDictionary* resource = services.ambientResourceChain[i];
+            if (resource == nullptr) continue;
+            bool duplicate = false;
+            for (std::uint32_t j = 0U; j < i; ++j) {
+                if (services.ambientResourceChain[j] == resource) {
+                    duplicate = true;
+                    break;
+                }
+            }
+            if (duplicate) continue;
 
-        state->resources.PushBack(
-
-            std::move(shared).Value());
-
+            Base::Result<ResourceDictionary> shared = resource->Share();
+            if (!shared) {
+                reserved = shared.GetStatus();
+                break;
+            }
+            state->resources.PushBack(std::move(shared).Value());
+        }
     }
 
     if (reserved && fallbackResources != nullptr) {
@@ -5224,186 +5113,152 @@ std::string ToNativeString(Base::StringView value) {
 
 
 
+struct LocDictionaryCache {
+    std::unordered_map<std::string, std::string> documents;
+    std::unordered_map<std::string, std::unordered_map<std::string, Base::String>> strings;
+    std::unordered_map<std::string, Base::String> flags;
+};
+
+LocDictionaryCache& GetLocCache() {
+    static LocDictionaryCache cache;
+    return cache;
+}
+
 bool ReadLocDictionary(
-
     const Base::ResourceUri& uri,
-
     std::string& document) noexcept {
+    const std::string key = ToNativeString(uri.Canonical());
+    auto& cache = GetLocCache();
+    auto it = cache.documents.find(key);
+    if (it != cache.documents.end()) {
+        document = it->second;
+        return !document.empty();
+    }
 
     std::ifstream input(ToNativeString(uri.Path()), std::ios::binary);
-
     if (!input) {
-
         // The desktop sample is packaged beside its executable.  This
-
         // fallback also handles a provider URI whose native Path is empty.
-
-        input.open(ToNativeString(uri.Canonical()), std::ios::binary);
-
+        input.open(key, std::ios::binary);
     }
-
     if (!input) return false;
-
     document.assign(
-
         std::istreambuf_iterator<char>(input),
-
         std::istreambuf_iterator<char>());
-
+    if (!document.empty()) {
+        cache.documents.emplace(key, document);
+    }
     return !document.empty();
-
 }
-
-
 
 bool ReadLocString(
-
     const std::string& document,
-
     Base::StringView key,
-
     Base::String& value) noexcept {
-
     const std::string keyText = ToNativeString(key);
-
     const std::string marker = "x:Key=\"" + keyText + "\"";
-
     const std::size_t markerAt = document.find(marker);
-
     if (markerAt == std::string::npos) return false;
-
     const std::size_t valueBegin = document.find('>', markerAt);
-
     if (valueBegin == std::string::npos) return false;
-
     const std::size_t valueEnd = document.find("</", valueBegin + 1U);
-
     if (valueEnd == std::string::npos || valueEnd < valueBegin) return false;
-
     return value.Assign(Base::StringView(
-
         document.data() + valueBegin + 1U,
-
         static_cast<std::uint32_t>(valueEnd - valueBegin - 1U))).HasValue();
-
 }
-
-
 
 bool ReadLocFlag(
-
     const std::string& document,
-
     Base::String& imageSource) noexcept {
-
     const std::size_t flagAt = document.find("x:Key=\"Flag\"");
-
     if (flagAt == std::string::npos) return false;
-
     const std::string marker = "ImageSource=\"";
-
     const std::size_t sourceAt = document.find(marker, flagAt);
-
     if (sourceAt == std::string::npos) return false;
-
     const std::size_t sourceBegin = sourceAt + marker.size();
-
     const std::size_t sourceEnd = document.find('"', sourceBegin);
-
     if (sourceEnd == std::string::npos) return false;
-
     return imageSource.Assign(Base::StringView(
-
         document.data() + sourceBegin,
-
         static_cast<std::uint32_t>(sourceEnd - sourceBegin))).HasValue();
-
 }
 
-
-
 Base::Result<Meta::Value> ReadLocValue(
-
     const Base::ResourceUri& dictionaryUri,
-
     Base::StringView key,
-
     Meta::TypeId targetType) noexcept {
-
-    std::string document;
-
-    if (!ReadLocDictionary(dictionaryUri, document)) {
-
-        return Base::Status::Failure(
-
-            Base::ErrorCode::NotFound,
-
-            "Localization dictionary could not be opened");
-
-    }
+    const std::string uriKey = ToNativeString(dictionaryUri.Canonical());
+    auto& cache = GetLocCache();
 
     if (key == Base::StringView("Flag")) {
-
         Base::String imageFile;
-
-        if (!ReadLocFlag(document, imageFile)) {
-
-            return Base::Status::Failure(
-
-                Base::ErrorCode::NotFound,
-
-                "Localization flag resource was not found");
-
+        auto flagIt = cache.flags.find(uriKey);
+        if (flagIt != cache.flags.end()) {
+            imageFile = flagIt->second;
+        } else {
+            std::string document;
+            if (!ReadLocDictionary(dictionaryUri, document)) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::NotFound,
+                    "Localization dictionary could not be opened");
+            }
+            if (!ReadLocFlag(document, imageFile)) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::NotFound,
+                    "Localization flag resource was not found");
+            }
+            cache.flags.emplace(uriKey, imageFile);
         }
 
         Base::Result<Base::ResourceUri> imageUri =
-
             Base::ResourceUri::Resolve(dictionaryUri, imageFile.View());
-
         if (!imageUri) return imageUri.GetStatus();
 
         Base::Result<Base::Ref<Media::BitmapImage>> bitmap =
-
             Base::MakeRef<Media::BitmapImage>();
-
         if (!bitmap) return bitmap.GetStatus();
-
         bitmap.Value()->SetUriSource(imageUri.Value());
 
         Base::Result<Base::Ref<Media::ImageBrush>> brush =
-
             Base::MakeRef<Media::ImageBrush>();
-
         if (!brush) return brush.GetStatus();
-
         brush.Value()->SetSource(Base::Ref<Media::ImageSource>(
-
             std::move(bitmap).Value()));
 
         return Meta::Value::FromObject(
-
             targetType,
-
             Base::Ref<Base::Object>(std::move(brush).Value()));
+    }
 
+    const std::string textKey = ToNativeString(key);
+    auto dictIt = cache.strings.find(uriKey);
+    if (dictIt != cache.strings.end()) {
+        auto strIt = dictIt->second.find(textKey);
+        if (strIt != dictIt->second.end()) {
+            return Meta::Value::TryFromString(
+                Meta::TypeOf<Base::String>(), strIt->second.View());
+        }
+    }
+
+    std::string document;
+    if (!ReadLocDictionary(dictionaryUri, document)) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotFound,
+            "Localization dictionary could not be opened");
     }
 
     Base::String text;
-
     if (!ReadLocString(document, key, text)) {
-
         return Base::Status::Failure(
-
             Base::ErrorCode::NotFound,
-
             "Localization string resource was not found");
-
     }
 
+    cache.strings[uriKey].emplace(textKey, text);
+
     return Meta::Value::TryFromString(
-
         Meta::TypeOf<Base::String>(), text.View());
-
 }
 
 

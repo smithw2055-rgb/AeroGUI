@@ -12,12 +12,36 @@ namespace Aero {
 
 class ElementTree;
 class LogicalTreeHelper;
+namespace Render { class RenderTree; }
 
 } // namespace Aero
 
 namespace Aero::Media {
 
 class VisualTreeHelper;
+class Visual;
+
+struct PointHitTestResult {
+    Visual* visualHit = nullptr;
+    Base::Point pointHit{};
+
+    constexpr PointHitTestResult() noexcept = default;
+    constexpr PointHitTestResult(Visual* visual, Base::Point point) noexcept
+        : visualHit(visual), pointHit(point) {}
+
+    constexpr explicit operator bool() const noexcept { return visualHit != nullptr; }
+    constexpr bool HasHit() const noexcept { return visualHit != nullptr; }
+    Visual* GetVisualHit() const noexcept { return visualHit; }
+    Base::Point GetPointHit() const noexcept { return pointHit; }
+};
+
+struct PointHitTestParameters {
+    Base::Point hitPoint{};
+
+    constexpr explicit PointHitTestParameters(Base::Point point) noexcept
+        : hitPoint(point) {}
+    constexpr Base::Point HitPoint() const noexcept { return hitPoint; }
+};
 
 class AERO_GUI_API Visual : public ::Aero::DependencyObject {
     AERO_DECLARE_TYPE(Visual, ::Aero::DependencyObject)
@@ -78,6 +102,8 @@ public:
     bool IsAncestorOf(const Visual& descendant) const noexcept;
     Base::Transform2D TransformToVisual(const Visual& visual) const noexcept;
     bool TryTransformToVisual(const Visual& visual, Base::ProjectiveTransform2D& output) const noexcept;
+    Base::Transform2D TransformToRoot() const noexcept;
+    Base::Transform2D TransformToAncestor(const Visual* ancestor = nullptr) const noexcept;
     Base::Point PointToScreen(Base::Point point) const noexcept;
     bool TryPointToScreen(Base::Point point, Base::Point& screen) const noexcept;
     Base::Point PointFromScreen(Base::Point point) const noexcept;
@@ -85,29 +111,34 @@ public:
     Result<Ref<Base::Object>> AcquireLifetime() noexcept;
     void InvalidateRenderDrawing() noexcept;
     void InvalidateRenderState() noexcept;
-    FlagRef RenderAttached() noexcept { return {&visualFlags_, kFlagRenderAttached}; }
-    FlagRef RenderValid() noexcept { return {&visualFlags_, kFlagRenderValid}; }
-    FlagRef RenderQueued() noexcept { return {&visualFlags_, kFlagRenderQueued}; }
-    FlagRef Rendering() noexcept { return {&visualFlags_, kFlagRendering}; }
     RenderChildRange RenderChildren() const noexcept { return RenderChildRange(*this); }
 
     bool GetIsLoaded() const noexcept { return LoadedFlag(); }
+    bool IsRenderAttached() const noexcept { return (visualFlags_ & kFlagRenderAttached) != 0U; }
 
     Visual* GetVisualParent() const noexcept { return visualParent_; }
     ::Aero::DependencyObject* GetLogicalParent() const noexcept { return logicalParent_; }
-    Base::RenderNodeId& NodeId() noexcept { return renderNodeId_; }
-    std::uint8_t& RenderDirtyFlags() noexcept { return renderDirtyFlags_; }
-    std::uint64_t& RenderRevision() noexcept { return renderRevision_; }
+
+
+
+    // WPF-friendly hit-test extension point. Default walks visual children;
+    // custom Visuals override to participate without going through UIElement.
+    virtual PointHitTestResult HitTestCore(PointHitTestParameters hitTestParameters) const noexcept {
+        return HitTestCore(hitTestParameters.HitPoint());
+    }
+    virtual PointHitTestResult HitTestCore(Base::Point point) const noexcept {
+        if (HitTestCore()) {
+            return PointHitTestResult{const_cast<Visual*>(this), point};
+        }
+        return PointHitTestResult{};
+    }
+    virtual bool HitTestCore() const noexcept {
+        return false;
+    }
 
 protected:
     virtual std::uint32_t GetVisualChildrenCount() const noexcept { return 0U; }
     virtual Visual* GetVisualChild(std::uint32_t) const noexcept { return nullptr; }
-    // WPF-friendly hit-test extension point. Default walks visual children;
-    // custom Visuals override to participate without going through UIElement.
-    virtual bool HitTestCore(Base::Point point) const noexcept {
-        static_cast<void>(point);
-        return false;
-    }
     void AddVisualChild(Visual* child) noexcept;
     void RemoveVisualChild(Visual* child) noexcept;
     virtual void OnVisualParentChanged(Visual* oldParent) noexcept { static_cast<void>(oldParent); }
@@ -120,13 +151,25 @@ private:
     friend class ::Aero::LogicalTreeHelper;
     friend class ::Aero::ElementTree;
     friend class VisualTreeHelper;
+    friend class ::Aero::Render::RenderTree;
+
+    // Internal RenderTree / ElementTree state access
+    FlagRef RenderAttached() noexcept { return {&visualFlags_, kFlagRenderAttached}; }
+    FlagRef RenderValid() noexcept { return {&visualFlags_, kFlagRenderValid}; }
+    FlagRef RenderQueued() noexcept { return {&visualFlags_, kFlagRenderQueued}; }
+    FlagRef Rendering() noexcept { return {&visualFlags_, kFlagRendering}; }
+    Base::RenderNodeId& NodeId() noexcept { return renderNodeId_; }
+    std::uint8_t& RenderDirtyFlags() noexcept { return renderDirtyFlags_; }
+    std::uint64_t& RenderRevision() noexcept { return renderRevision_; }
 
     static constexpr std::uint8_t kFlagRenderAttached = 1U << 0U;
     static constexpr std::uint8_t kFlagRenderValid = 1U << 1U;
     static constexpr std::uint8_t kFlagRenderQueued = 1U << 2U;
     static constexpr std::uint8_t kFlagRendering = 1U << 3U;
     static constexpr std::uint8_t kFlagLoaded = 1U << 4U;
+    static constexpr std::uint8_t kFlagIsOverlay = 1U << 5U;
     bool LoadedFlag() const noexcept { return (visualFlags_ & kFlagLoaded) != 0U; }
+    bool IsOverlayFlag() const noexcept { return (visualFlags_ & kFlagIsOverlay) != 0U; }
 
     void SetLoadedFlag(bool loaded) noexcept {
         if (loaded) {
@@ -134,14 +177,26 @@ private:
         } else { visualFlags_ = static_cast<std::uint8_t>(visualFlags_ & static_cast<std::uint8_t>(~kFlagLoaded)); }
     }
 
+    void SetOverlayFlag(bool isOverlay) noexcept {
+        if (isOverlay) {
+            visualFlags_ = static_cast<std::uint8_t>(visualFlags_ | kFlagIsOverlay);
+        } else {
+            visualFlags_ = static_cast<std::uint8_t>(visualFlags_ & static_cast<std::uint8_t>(~kFlagIsOverlay));
+        }
+    }
+
     ::Aero::ElementTree* tree_ = nullptr;
     ::Aero::DependencyObject* logicalParent_ = nullptr;
     Visual* visualParent_ = nullptr;
+    Visual* firstVisualChild_ = nullptr;
+    Visual* nextVisualSibling_ = nullptr;
+    Visual* prevVisualSibling_ = nullptr;
     Ref<Base::Object> lifetime_;
     Base::RenderNodeId renderNodeId_ = Base::InvalidRenderNodeId;
     std::uint64_t renderRevision_ = 0U;
     std::uint32_t handleIndex_ = UINT32_MAX;
     std::uint32_t handleGeneration_ = 0U;
+    std::uint32_t drawingIndex_ = UINT32_MAX;
     std::uint8_t renderDirtyFlags_ = 0x07U;
     std::uint8_t visualFlags_ = 0U;
 };
@@ -152,4 +207,6 @@ namespace Aero {
 // WPF/Noesis-friendly alias: Visual is conceptually in Aero root even though
 // the implementation lives in Aero::Media (mirrors System.Windows.Media.Visual).
 using Visual = Media::Visual;
+using PointHitTestResult = Media::PointHitTestResult;
+using PointHitTestParameters = Media::PointHitTestParameters;
 } // namespace Aero

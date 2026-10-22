@@ -7,21 +7,18 @@
 #include <AeroRender/Texture.hpp>
 
 #include <Aero/Base/Allocator.hpp>
+#include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
+#include <Aero/Base/Span.hpp>
 #include <Aero/Base/Vector.hpp>
+#include <Aero/Base/HashMap.hpp>
+
+#include <cmath>
+#include <cstdint>
+#include <utility>
 
 namespace Aero::Render {
 
-struct FrameStatistics {
-    std::uint32_t sourceCommandCount = 0U;
-    std::uint32_t drawCallCount = 0U;
-    std::uint32_t vertexCount = 0U;
-    std::uint32_t indexCount = 0U;
-    std::uint32_t batchCount = 0U;
-};
-
-// A single glyph drawn as a textured quad. Position and UVs are in pixels of
-// the source atlas page; the encoder applies the active transform.
 struct RenderGlyphQuad {
     float x0 = 0.0F;
     float y0 = 0.0F;
@@ -32,6 +29,277 @@ struct RenderGlyphQuad {
     float u1 = 0.0F;
     float v1 = 0.0F;
     std::uint32_t page = 0U;
+};
+
+struct VertexOffsets {
+    std::int8_t colorOffset = -1;
+    std::int8_t tex0Offset = -1;
+    std::int8_t tex1Offset = -1;
+    std::int8_t coverageOffset = -1;
+    std::int8_t rectOffset = -1;
+    std::int8_t tileOffset = -1;
+    std::int8_t imagePosOffset = -1;
+    std::uint8_t stride = 0;
+};
+
+class RenderResourceTable {
+public:
+    struct ImageEntry {
+        RenderImageId id = InvalidRenderImageId;
+        Base::Ref<Texture> texture;
+    };
+    struct AtlasEntry {
+        std::uint32_t page = 0U;
+        Base::Ref<Texture> texture;
+    };
+    struct GradientEntry {
+        std::uintptr_t brushIdentity = 0U;
+        std::uint64_t revision = 0U;
+        Base::Ref<Texture> texture;
+    };
+    struct GlyphRunEntry {
+        RenderGlyphRunId glyphRun = InvalidRenderGlyphRunId;
+        Base::Vector<RenderGlyphQuad> quads;
+    };
+    struct MeshEntry {
+        RenderMeshId mesh = InvalidRenderMeshId;
+        Base::Vector<Point> vertices;
+        Base::Vector<float> coverages;
+        Base::Vector<std::uint32_t> indices;
+    };
+    struct OffscreenTargetEntry {
+        RenderNodeId nodeId = InvalidRenderNodeId;
+        bool isMask = false;
+        bool inUse = false;
+        Base::Ref<RenderTarget> target;
+        std::uint32_t width = 0U;
+        std::uint32_t height = 0U;
+    };
+
+    explicit RenderResourceTable(Base::IAllocator* alloc = nullptr) noexcept
+        : imageMap_(alloc), atlasMap_(alloc), gradientRamps_(alloc),
+          glyphRuns_(alloc), meshes_(alloc), offscreenTargets_(alloc) {}
+
+    void Clear() noexcept {
+        lastImageId_ = InvalidRenderImageId;
+        lastImage_ = nullptr;
+        lastGlyphRunId_ = InvalidRenderGlyphRunId;
+        lastGlyphRun_ = nullptr;
+        lastMeshId_ = InvalidRenderMeshId;
+        lastMesh_ = nullptr;
+        imageMap_.Clear();
+        atlasMap_.Clear();
+        glyphRunIndex_.Clear();
+        meshIndex_.Clear();
+        gradientRamps_.Clear();
+        glyphRuns_.Clear();
+        meshes_.Clear();
+        offscreenTargets_.Clear();
+    }
+
+    void RegisterImage(RenderImageId imageId, Base::Ref<Texture> texture) noexcept {
+        Texture* tex = texture.Get();
+        if (lastImageId_ == imageId) lastImage_ = tex;
+        imageMap_.Set(imageId, std::move(texture));
+    }
+
+    void UnregisterImage(RenderImageId imageId) noexcept {
+        if (lastImageId_ == imageId) {
+            lastImageId_ = InvalidRenderImageId;
+            lastImage_ = nullptr;
+        }
+        imageMap_.Erase(imageId);
+    }
+
+    void RegisterAtlas(std::uint32_t page, Base::Ref<Texture> texture) noexcept {
+        atlasMap_.Set(page, std::move(texture));
+    }
+
+    void RegisterGlyphRun(RenderGlyphRunId glyphRun, Base::Span<const RenderGlyphQuad> quads) noexcept {
+        const auto* found = glyphRunIndex_.FindEntry(glyphRun);
+        if (found != nullptr) {
+            auto& entry = glyphRuns_[found->Value()];
+            entry.quads.Clear();
+            entry.quads.Append(quads);
+            if (lastGlyphRunId_ == glyphRun) lastGlyphRun_ = &entry.quads;
+            return;
+        }
+        const std::uint32_t idx = glyphRuns_.Size();
+        GlyphRunEntry entry;
+        entry.glyphRun = glyphRun;
+        entry.quads.Append(quads);
+        glyphRuns_.PushBack(std::move(entry));
+        glyphRunIndex_.Set(glyphRun, idx);
+        if (lastGlyphRunId_ == glyphRun) lastGlyphRun_ = &glyphRuns_[idx].quads;
+    }
+
+    void UnregisterGlyphRun(RenderGlyphRunId glyphRun) noexcept {
+        if (lastGlyphRunId_ == glyphRun) {
+            lastGlyphRunId_ = InvalidRenderGlyphRunId;
+            lastGlyphRun_ = nullptr;
+        }
+        const auto* found = glyphRunIndex_.FindEntry(glyphRun);
+        if (found != nullptr) {
+            const std::uint32_t i = found->Value();
+            glyphRunIndex_.Erase(glyphRun);
+            if (i != glyphRuns_.Size() - 1U) {
+                glyphRuns_[i] = std::move(glyphRuns_[glyphRuns_.Size() - 1U]);
+                glyphRunIndex_.Set(glyphRuns_[i].glyphRun, i);
+            }
+            static_cast<void>(glyphRuns_.Resize(glyphRuns_.Size() - 1U));
+        }
+    }
+
+    void RegisterMesh(
+        RenderMeshId mesh,
+        Base::Span<const Point> vertices,
+        Base::Span<const std::uint32_t> indices,
+        Base::Span<const float> coverages = {}) noexcept {
+        const auto* found = meshIndex_.FindEntry(mesh);
+        if (found != nullptr) {
+            auto& entry = meshes_[found->Value()];
+            entry.vertices.Clear();
+            entry.coverages.Clear();
+            entry.indices.Clear();
+            entry.vertices.Append(vertices);
+            if (!coverages.Empty()) entry.coverages.Append(coverages);
+            entry.indices.Append(indices);
+            if (lastMeshId_ == mesh) lastMesh_ = &entry;
+            return;
+        }
+        const std::uint32_t idx = meshes_.Size();
+        MeshEntry entry;
+        entry.mesh = mesh;
+        entry.vertices.Append(vertices);
+        if (!coverages.Empty()) entry.coverages.Append(coverages);
+        entry.indices.Append(indices);
+        meshes_.PushBack(std::move(entry));
+        meshIndex_.Set(mesh, idx);
+        if (lastMeshId_ == mesh) lastMesh_ = &meshes_[idx];
+    }
+
+    void UnregisterMesh(RenderMeshId mesh) noexcept {
+        if (lastMeshId_ == mesh) {
+            lastMeshId_ = InvalidRenderMeshId;
+            lastMesh_ = nullptr;
+        }
+        const auto* found = meshIndex_.FindEntry(mesh);
+        if (found != nullptr) {
+            const std::uint32_t i = found->Value();
+            meshIndex_.Erase(mesh);
+            if (i != meshes_.Size() - 1U) {
+                meshes_[i] = std::move(meshes_[meshes_.Size() - 1U]);
+                meshIndex_.Set(meshes_[i].mesh, i);
+            }
+            static_cast<void>(meshes_.Resize(meshes_.Size() - 1U));
+        }
+    }
+
+    Texture* FindImage(RenderImageId id) const noexcept {
+        if (id == InvalidRenderImageId) return nullptr;
+        if (id == lastImageId_) return lastImage_;
+        const auto* entry = imageMap_.FindEntry(id);
+        if (entry != nullptr) {
+            lastImageId_ = id;
+            lastImage_ = entry->Value().Get();
+            return lastImage_;
+        }
+        return nullptr;
+    }
+
+    Texture* FindAtlas(std::uint32_t page) const noexcept {
+        const auto* entry = atlasMap_.FindEntry(page);
+        return entry != nullptr ? entry->Value().Get() : nullptr;
+    }
+
+    const Base::Vector<RenderGlyphQuad>* FindGlyphRun(RenderGlyphRunId id) const noexcept {
+        if (id == InvalidRenderGlyphRunId) return nullptr;
+        if (id == lastGlyphRunId_) return lastGlyphRun_;
+        const auto* entry = glyphRunIndex_.FindEntry(id);
+        if (entry != nullptr) {
+            lastGlyphRunId_ = id;
+            lastGlyphRun_ = &glyphRuns_[entry->Value()].quads;
+            return lastGlyphRun_;
+        }
+        return nullptr;
+    }
+
+    const MeshEntry* FindMesh(RenderMeshId id) const noexcept {
+        if (id == InvalidRenderMeshId) return nullptr;
+        if (id == lastMeshId_) return lastMesh_;
+        const auto* entry = meshIndex_.FindEntry(id);
+        if (entry != nullptr) {
+            lastMeshId_ = id;
+            lastMesh_ = &meshes_[entry->Value()];
+            return lastMesh_;
+        }
+        return nullptr;
+    }
+
+    Base::Vector<GradientEntry>& GradientRamps() noexcept { return gradientRamps_; }
+    const Base::Vector<GradientEntry>& GradientRamps() const noexcept { return gradientRamps_; }
+    Base::Vector<GlyphRunEntry>& GlyphRuns() noexcept { return glyphRuns_; }
+    const Base::Vector<GlyphRunEntry>& GlyphRuns() const noexcept { return glyphRuns_; }
+    Base::Vector<MeshEntry>& Meshes() noexcept { return meshes_; }
+    const Base::Vector<MeshEntry>& Meshes() const noexcept { return meshes_; }
+    Base::Vector<OffscreenTargetEntry>& OffscreenTargets() noexcept { return offscreenTargets_; }
+    const Base::Vector<OffscreenTargetEntry>& OffscreenTargets() const noexcept { return offscreenTargets_; }
+
+private:
+    Base::HashMap<RenderImageId, Base::Ref<Texture>> imageMap_;
+    Base::HashMap<std::uint32_t, Base::Ref<Texture>> atlasMap_;
+    Base::HashMap<RenderGlyphRunId, std::uint32_t> glyphRunIndex_;
+    Base::HashMap<RenderMeshId, std::uint32_t> meshIndex_;
+    Base::Vector<GradientEntry> gradientRamps_;
+    Base::Vector<GlyphRunEntry> glyphRuns_;
+    Base::Vector<MeshEntry> meshes_;
+    Base::Vector<OffscreenTargetEntry> offscreenTargets_;
+
+    mutable RenderImageId lastImageId_ = InvalidRenderImageId;
+    mutable Texture* lastImage_ = nullptr;
+    mutable RenderGlyphRunId lastGlyphRunId_ = InvalidRenderGlyphRunId;
+    mutable const Base::Vector<RenderGlyphQuad>* lastGlyphRun_ = nullptr;
+    mutable RenderMeshId lastMeshId_ = InvalidRenderMeshId;
+    mutable const MeshEntry* lastMesh_ = nullptr;
+};
+
+class RenderPassPlanner {
+public:
+    static bool NeedsOffscreenFBO(
+        const RenderNodeSnapshot& node,
+        const RenderMaskSnapshot* mask,
+        const RenderEffectSnapshot* effect,
+        std::uint32_t subtreeCommands,
+        bool hasNonAffine3D) noexcept {
+        if (node.opacity <= 0.0) return false;
+        if (effect != nullptr) {
+            if (effect->kind == RenderEffectKind::Blur ||
+                effect->kind == RenderEffectKind::DirectionalBlur ||
+                effect->kind == RenderEffectKind::Custom ||
+                effect->kind == RenderEffectKind::Pixelate ||
+                effect->kind == RenderEffectKind::DropShadow) {
+                return true;
+            }
+        }
+        if (mask != nullptr && mask->kind != RenderMaskKind::None && mask->kind != RenderMaskKind::Solid) {
+            return true;
+        }
+        if (node.opacity < 1.0 && subtreeCommands > 1U) {
+            return true;
+        }
+        if (hasNonAffine3D) {
+            return true;
+        }
+        return false;
+    }
+};
+
+struct FrameStatistics {
+    std::uint32_t sourceCommandCount = 0U;
+    std::uint32_t drawCallCount = 0U;
+    std::uint32_t vertexCount = 0U;
+    std::uint32_t indexCount = 0U;
+    std::uint32_t batchCount = 0U;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -68,7 +336,8 @@ public:
     Base::Result<void> RegisterMesh(
         RenderMeshId mesh,
         Base::Span<const Point> vertices,
-        Base::Span<const std::uint32_t> indices) noexcept;
+        Base::Span<const std::uint32_t> indices,
+        Base::Span<const float> coverages = {}) noexcept;
     void UnregisterMesh(RenderMeshId mesh) noexcept;
 
     Base::Result<void> RecordOffscreen(
@@ -78,56 +347,17 @@ public:
         const RenderFrame& frame,
         RenderTarget& target) noexcept;
 
-    void Downsample(
-        Texture* source,
-        const Rect& bounds,
-        const Size& sourceDimensions,
-        double opacity = 1.0) noexcept;
-
-    void Upsample(
-        Texture* base,
-        Texture* blur,
-        const Rect& bounds,
-        double blendWeight = 1.0) noexcept;
-
     FrameStatistics LastStatistics() const noexcept { return stats_; }
 
-private:
-    struct ImageEntry {
-        RenderImageId id = InvalidRenderImageId;
-        Ref<Texture> texture;
-    };
+    bool IsPPAAEnabled() const noexcept { return enablePPAA_; }
+    void SetPPAAEnabled(bool enabled) noexcept { enablePPAA_ = enabled; }
 
-    struct AtlasEntry {
-        std::uint32_t page = 0U;
-        Ref<Texture> texture;
-    };
-
-    struct GradientEntry {
-        std::uintptr_t brushIdentity = 0U;
-        std::uint64_t revision = 0U;
-        Ref<Texture> texture;
-    };
-
-    struct GlyphRunEntry {
-        RenderGlyphRunId glyphRun = InvalidRenderGlyphRunId;
-        Base::Vector<RenderGlyphQuad> quads;
-    };
-
-    struct MeshEntry {
-        RenderMeshId mesh = InvalidRenderMeshId;
-        Base::Vector<Point> vertices;
-        Base::Vector<std::uint32_t> indices;
-    };
-
-    struct OffscreenTargetEntry {
-        RenderNodeId nodeId = InvalidRenderNodeId;
-        bool isMask = false;
-        bool inUse = false;
-        Ref<RenderTarget> target;
-        std::uint32_t width = 0U;
-        std::uint32_t height = 0U;
-    };
+    using ImageEntry = RenderResourceTable::ImageEntry;
+    using AtlasEntry = RenderResourceTable::AtlasEntry;
+    using GradientEntry = RenderResourceTable::GradientEntry;
+    using GlyphRunEntry = RenderResourceTable::GlyphRunEntry;
+    using MeshEntry = RenderResourceTable::MeshEntry;
+    using OffscreenTargetEntry = RenderResourceTable::OffscreenTargetEntry;
 
     struct ClipEntry {
         Rect rect;
@@ -196,10 +426,6 @@ private:
         std::uint8_t stencilMode,
         std::uint8_t stencilRef) noexcept;
 
-    void ClearRenderTarget(
-        std::uint32_t width,
-        std::uint32_t height) noexcept;
-
     void SetContentStencil() noexcept;
 
     void EnsureBatchBlend(Shader::Enum shader) noexcept;
@@ -231,30 +457,54 @@ private:
         double height,
         const RenderFrame& frame) noexcept;
 
+    void EmitTriangles(
+        const Point* vertices,
+        std::uint32_t vertexCount,
+        const std::uint32_t* indices,
+        std::uint32_t indexCount,
+        const ProjectiveTransform2D& transform,
+        Color color,
+        double opacity) noexcept;
+
+    void EmitAnalyticalShadow(
+        const CmdAnalyticalShadow& cmd,
+        const ProjectiveTransform2D& transform,
+        double opacity) noexcept;
+
     void ProcessCommand(
-        const RenderCommand& cmd,
+        const RenderCommandHeader& h,
         const ProjectiveTransform2D& currentTransform,
         double currentOpacity) noexcept;
+
+    bool EnsureCapacity(std::uint32_t additionalBytes, std::uint32_t additionalIndices) noexcept;
+    bool PrepareGeometrySpace(
+        std::uint32_t vertexCount,
+        std::uint32_t vertexStride,
+        std::uint32_t indexCount) noexcept;
+    const VertexOffsets& CurrentVertexFormat(uint32_t& outStride) const noexcept;
 
     RenderBlendMode::Enum currentBlendMode_ = BlendMode::SrcOver;
 
     RenderDevice* device_ = nullptr;
     Base::IAllocator* allocator_ = nullptr;
 
-    Base::Vector<ImageEntry> images_{allocator_};
-    Base::Vector<AtlasEntry> atlases_{allocator_};
-    Base::Vector<GradientEntry> gradients_{allocator_};
-    Base::Vector<GlyphRunEntry> glyphRuns_{allocator_};
-    Base::Vector<MeshEntry> meshes_{allocator_};
-    Base::Vector<OffscreenTargetEntry> offscreenTargets_{allocator_};
+    RenderResourceTable resources_{allocator_};
     Base::Vector<ClipEntry> clipStack_{allocator_};
+    struct PushState {
+        ProjectiveTransform2D transform;
+        double opacity = 1.0;
+    };
+    Base::Vector<PushState> pushStack_{allocator_};
     float offscreenSizeUniform_[2] = {0.0F, 0.0F};
+    float glyphAtlasSizeUniform_[2] = {0.0F, 0.0F};
     float customEffectUniforms_[4] = {0.0F, 0.0F, 0.0F, 0.0F};
     float paintUniforms_[8]{};
     const RenderFrame* currentFrame_ = nullptr;
 
     std::uint8_t clipDepth_ = 0U;
 
+    Base::Vector<uint8_t> cpuVertices_{allocator_};
+    Base::Vector<uint16_t> cpuIndices_{allocator_};
     uint8_t* mappedVertices_ = nullptr;
     uint16_t* mappedIndices_ = nullptr;
     uint32_t currentVertexOffset_ = 0U;
@@ -266,16 +516,13 @@ private:
     uint32_t currentBatchVertexStart_ = 0U;
     FrameStatistics stats_{};
     bool initialized_ = false;
-    bool inRender_ = false;
+    bool enablePPAA_ = true;
 
-    mutable RenderImageId lastImageId_ = InvalidRenderImageId;
-    mutable Texture* lastImage_ = nullptr;
-
-    mutable RenderGlyphRunId lastGlyphRunId_ = InvalidRenderGlyphRunId;
-    mutable const Base::Vector<RenderGlyphQuad>* lastGlyphRun_ = nullptr;
-
-    mutable RenderMeshId lastMeshId_ = InvalidRenderMeshId;
-    mutable const MeshEntry* lastMesh_ = nullptr;
+    Base::Vector<std::uint32_t> recordDepths_{allocator_};
+    Base::Vector<RenderNodeId> recordAncestorStack_{allocator_};
+    Base::Vector<std::uint32_t> recordSubtreeEnds_{allocator_};
+    Base::Vector<std::uint32_t> recordCommandPrefix_{allocator_};
+    Base::Vector<std::uint32_t> recordEffectMaskPrefix_{allocator_};
 };
 
 using FrameEncoderStatistics = FrameStatistics;

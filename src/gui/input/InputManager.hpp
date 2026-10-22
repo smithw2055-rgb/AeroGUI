@@ -335,9 +335,9 @@ private:
 // View-owned input coordinator. Consumers see one service; focus, hit testing,
 // pointer capture, keyboard/text dispatch and routed commands remain private
 // implementation components behind this facade.
-class InputRouter {
+class InputManager {
 public:
-    InputRouter(ElementTree& tree, EventRouter& events) noexcept
+    InputManager(ElementTree& tree, EventRouter& events) noexcept
         : commands_(tree, events),
           focus_(tree, events),
           pointer_(hitTests_, events),
@@ -440,6 +440,7 @@ private:
     TextInputState text_;
 };
 
+using InputRouter = InputManager;
 
 // Source-only focus queue next to InputRouter
 // (merged from FocusHost.hpp; single owner ViewFrame keeps wiring).
@@ -451,7 +452,7 @@ public:
     void Bind() noexcept;
 
     ViewFrame* view = nullptr;
-    Aero::InputRouter* Input() const noexcept;
+    Aero::InputManager* Input() const noexcept;
     Base::Vector<Base::WeakRef<Aero::UIElement>> pendingFocusTargets;
 
     Base::Result<void> QueueFocus(Aero::UIElement& target) noexcept;

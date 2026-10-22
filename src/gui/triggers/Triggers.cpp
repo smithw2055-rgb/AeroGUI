@@ -68,6 +68,9 @@ Base::Result<void> InvalidStyle(const char* message) noexcept {
 
 bool IsDeferredBindingSetterValue(
     const PropertyValue& value) noexcept {
+    if (value.IsDynamicResource()) {
+        return true;
+    }
     if (value.Kind() != ValueKind::Object ||
         value.IsNullObject()) {
         return false;
@@ -80,42 +83,14 @@ bool IsDeferredBindingSetterValue(
             Data::Binding::StaticTypeId()) {
         return true;
     }
-    if (value.Kind() == ValueKind::String) {
-        const Base::StringView text = value.AsString();
-        constexpr Base::StringView prefix("\x01DynamicResource:");
-        if (text.SizeBytes() >= prefix.SizeBytes() &&
-            text.Substr(0U, prefix.SizeBytes()) == prefix) {
-            return true;
-        }
-    }
     return false;
 }
 
 bool IsDynamicResourceSetterValue(
     const PropertyValue& value,
     Base::StringView& key) noexcept {
-    constexpr Base::StringView dynamicPrefix("\x01DynamicResource:");
-    if (value.Kind() == ValueKind::String) {
-        Base::StringView str = value.AsString();
-        if (str.SizeBytes() >= dynamicPrefix.SizeBytes() &&
-            str.Substr(0U, dynamicPrefix.SizeBytes()) == dynamicPrefix) {
-            key = str.Substr(
-                dynamicPrefix.SizeBytes(),
-                str.SizeBytes() - dynamicPrefix.SizeBytes());
-            return true;
-        }
-        return false;
-    }
-    if (!IsDeferredBindingSetterValue(value)) return false;
-    Base::Ref<Base::Object> stored = value.AsObject();
-    if (!stored || stored->RuntimeType() != Data::Binding::StaticTypeId()) return false;
-    auto& marker = static_cast<Data::Binding&>(*stored);
-    const Base::StringView bindingPath = marker.GetPathText();
-    if (bindingPath.SizeBytes() >= dynamicPrefix.SizeBytes() &&
-        bindingPath.Substr(0U, dynamicPrefix.SizeBytes()) == dynamicPrefix) {
-        key = bindingPath.Substr(
-            dynamicPrefix.SizeBytes(),
-            bindingPath.SizeBytes() - dynamicPrefix.SizeBytes());
+    if (value.IsDynamicResource()) {
+        key = value.AsDynamicResourceKey();
         return true;
     }
     return false;
@@ -157,54 +132,150 @@ void Trigger::AddSetter(
     setterValues_.PushBack(setter.GetValue());
 }
 
+namespace {
+
+inline AuthoredTriggerData* EnsureAuthoredData(AuthoredTriggerData*& authored) noexcept {
+    if (authored == nullptr) {
+        authored = new (std::nothrow) AuthoredTriggerData();
+    }
+    return authored;
+}
+
+inline void ReleaseAuthoredData(AuthoredTriggerData*& authored) noexcept {
+    delete authored;
+    authored = nullptr;
+}
+
+inline StringView GetAuthoredPropertyName(const AuthoredTriggerData* authored) noexcept {
+    return authored != nullptr ? authored->propertyName.View() : StringView{};
+}
+
+inline StringView GetAuthoredSourceName(const AuthoredTriggerData* authored) noexcept {
+    return authored != nullptr ? authored->sourceName.View() : StringView{};
+}
+
+inline const PropertyValue& GetAuthoredPropertyValue(const AuthoredTriggerData* authored) noexcept {
+    static const PropertyValue emptyValue{};
+    return authored != nullptr ? authored->authoredValue : emptyValue;
+}
+
+inline void SetAuthoredPropertyName(AuthoredTriggerData*& authored, StringView value, bool trim = false) noexcept {
+    if (value.Empty()) return;
+    AuthoredTriggerData* data = EnsureAuthoredData(authored);
+    if (data == nullptr) return;
+    Base::String candidate;
+    if (trim) {
+        if (!candidate.Assign(::Aero::Base::ValueConversion::Trim(value))) return;
+    } else {
+        if (!candidate.Assign(value)) return;
+    }
+    data->propertyName = std::move(candidate);
+}
+
+inline void SetAuthoredSourceName(AuthoredTriggerData*& authored, StringView value) noexcept {
+    AuthoredTriggerData* data = EnsureAuthoredData(authored);
+    if (data == nullptr) return;
+    Base::String candidate;
+    if (!candidate.Assign(::Aero::Base::ValueConversion::Trim(value))) return;
+    data->sourceName = std::move(candidate);
+}
+
+inline void SetAuthoredPropertyValue(AuthoredTriggerData*& authored, const PropertyValue& value) noexcept {
+    if (value.IsUnset()) return;
+    AuthoredTriggerData* data = EnsureAuthoredData(authored);
+    if (data == nullptr) return;
+    data->authoredValue = value;
+}
+
+} // namespace
+
+Trigger::~Trigger() {
+    ReleaseAuthored();
+}
+
+Trigger::AuthoredData* Trigger::EnsureAuthored() noexcept {
+    return EnsureAuthoredData(authored_);
+}
+
+void Trigger::ReleaseAuthored() noexcept {
+    ReleaseAuthoredData(authored_);
+}
+
+StringView Trigger::GetPropertyName() const noexcept {
+    return GetAuthoredPropertyName(authored_);
+}
+
+StringView Trigger::GetSourceName() const noexcept {
+    return GetAuthoredSourceName(authored_);
+}
+
+const PropertyValue& Trigger::GetAuthoredValue() const noexcept {
+    return GetAuthoredPropertyValue(authored_);
+}
+
+bool Trigger::GetIsAuthored() const noexcept {
+    return authored_ != nullptr && !authored_->propertyName.Empty() && !authored_->authoredValue.IsUnset();
+}
+
 void Trigger::SetPropertyName(
     Base::StringView value) noexcept {
-    if (value.Empty()) return;
-    Base::String candidate;
-    if (!candidate.Assign(value)) return;
-    propertyName_ = std::move(candidate);
+    SetAuthoredPropertyName(authored_, value);
 }
 
 void Trigger::SetSourceName(
     Base::StringView value) noexcept {
-    Base::String candidate;
-    if (!candidate.Assign(
-            ::Aero::Base::ValueConversion::Trim(value))) return;
-    sourceName_ = std::move(candidate);
+    SetAuthoredSourceName(authored_, value);
 }
 
 void Trigger::SetAuthoredValue(
     const PropertyValue& value) noexcept {
-    if (value.IsUnset()) return;
-    authoredValue_ = value;
+    SetAuthoredPropertyValue(authored_, value);
 }
 
-void Trigger::AddAuthoredSetter(
+// ===== SetterTriggerBase =====
+
+void SetterTriggerBase::AddAuthoredSetter(
     Base::Ref<Setter> setter) noexcept {
     if (!setter) { AERO_ASSERT(false); return; }
-    authoredSetters_.PushBack(
-        std::move(setter));
-}
-
-void Trigger::ClearAuthoredSetters() noexcept {
-    authoredSetters_.Clear();
+    authoredSetters_.PushBack(std::move(setter));
 }
 
 // ===== DataTrigger =====
 
-void DataTrigger::AddAuthoredSetter(
-    Base::Ref<Setter> setter) noexcept {
-    if (!setter) { AERO_ASSERT(false); return; }
-    authoredSetters_.PushBack(
-        std::move(setter));
+DataTrigger::~DataTrigger() {
+    ReleaseAuthored();
+}
+
+DataTrigger::AuthoredData* DataTrigger::EnsureAuthored() noexcept {
+    return EnsureAuthoredData(authored_);
+}
+
+void DataTrigger::ReleaseAuthored() noexcept {
+    ReleaseAuthoredData(authored_);
+}
+
+StringView DataTrigger::GetPropertyName() const noexcept {
+    return GetAuthoredPropertyName(authored_);
+}
+
+StringView DataTrigger::GetSourceName() const noexcept {
+    return GetAuthoredSourceName(authored_);
+}
+
+const PropertyValue& DataTrigger::GetAuthoredValue() const noexcept {
+    return GetAuthoredPropertyValue(authored_);
 }
 
 void DataTrigger::SetPropertyName(StringView value) noexcept {
-    static_cast<void>(propertyName_.Assign(value));
+    SetAuthoredPropertyName(authored_, value);
 }
 
 void DataTrigger::SetSourceName(StringView value) noexcept {
-    static_cast<void>(sourceName_.Assign(value));
+    SetAuthoredSourceName(authored_, value);
+}
+
+void DataTrigger::SetAuthoredValue(const PropertyValue& value) noexcept {
+    SetAuthoredPropertyValue(authored_, value);
 }
 
 // ===== MultiTrigger =====
@@ -213,12 +284,6 @@ void MultiTrigger::AddCondition(
     Base::Ref<Condition> condition) noexcept {
     if (!condition) { AERO_ASSERT(false); return; }
     conditions_.PushBack(std::move(condition));
-}
-
-void MultiTrigger::AddAuthoredSetter(
-    Base::Ref<Setter> setter) noexcept {
-    if (!setter) { AERO_ASSERT(false); return; }
-    authoredSetters_.PushBack(std::move(setter));
 }
 
 // ===== MultiDataTrigger =====
@@ -230,29 +295,44 @@ void MultiDataTrigger::AddCondition(
         std::move(condition));
 }
 
-void MultiDataTrigger::AddAuthoredSetter(
-    Base::Ref<Setter> setter) noexcept {
-    if (!setter) { AERO_ASSERT(false); return; }
-    authoredSetters_.PushBack(
-        std::move(setter));
+// ===== Condition =====
+
+Condition::~Condition() {
+    ReleaseAuthored();
 }
 
-// ===== Condition =====
+Condition::AuthoredData* Condition::EnsureAuthored() noexcept {
+    return EnsureAuthoredData(authored_);
+}
+
+void Condition::ReleaseAuthored() noexcept {
+    ReleaseAuthoredData(authored_);
+}
+
+StringView Condition::GetPropertyName() const noexcept {
+    return GetAuthoredPropertyName(authored_);
+}
+
+StringView Condition::GetSourceName() const noexcept {
+    return GetAuthoredSourceName(authored_);
+}
+
+const PropertyValue& Condition::GetAuthoredValue() const noexcept {
+    return GetAuthoredPropertyValue(authored_);
+}
+
+void Condition::SetAuthoredValue(const PropertyValue& value) noexcept {
+    SetAuthoredPropertyValue(authored_, value);
+}
 
 void Condition::SetPropertyName(
     Base::StringView value) noexcept {
-    Base::String candidate;
-    if (!candidate.Assign(
-            ::Aero::Base::ValueConversion::Trim(value))) return;
-    propertyName_ = std::move(candidate);
+    SetAuthoredPropertyName(authored_, value, true);
 }
 
 void Condition::SetSourceName(
     Base::StringView value) noexcept {
-    Base::String candidate;
-    if (!candidate.Assign(
-            ::Aero::Base::ValueConversion::Trim(value))) return;
-    sourceName_ = std::move(candidate);
+    SetAuthoredSourceName(authored_, value);
 }
 
 } // namespace Aero
@@ -261,7 +341,7 @@ void Condition::SetSourceName(
 namespace Aero::MetadataSupport {
 namespace {
 
-void AddTriggerSetter(
+void AddSetterTriggerSetter(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
@@ -274,15 +354,14 @@ void AddTriggerSetter(
     if (!retained) {
         return;
     }
-    static_cast<Trigger&>(owner).AddAuthoredSetter(
+    static_cast<SetterTriggerBase&>(owner).AddAuthoredSetter(
         std::move(retained));
 }
 
-void ClearTriggerSetters(
+void ClearSetterTriggerSetters(
     Base::Object& owner,
     void*) noexcept {
-    static_cast<Trigger&>(owner).ClearAuthoredSetters();
-    return;
+    static_cast<SetterTriggerBase&>(owner).ClearAuthoredSetters();
 }
 
 void AddTriggerEnterAction(
@@ -361,27 +440,6 @@ void ClearMultiDataConditions(
     return;
 }
 
-void AddMultiDataSetter(
-    Base::Object& owner,
-    const Base::Ref<Base::Object>& value,
-    void*) noexcept {
-    if (!value) return;
-    Base::Ref<Setter> retained =
-        Base::Ref<Setter>::TryFromBorrowed(
-            static_cast<Setter&>(*value));
-    if (!retained) return;
-    static_cast<MultiDataTrigger&>(owner).AddAuthoredSetter(
-        std::move(retained));
-}
-
-void ClearMultiDataSetters(
-    Base::Object& owner,
-    void*) noexcept {
-    static_cast<MultiDataTrigger&>(owner)
-        .ClearAuthoredSetters();
-    return;
-}
-
 void AddMultiTriggerCondition(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
@@ -399,26 +457,6 @@ void ClearMultiTriggerConditions(
     Base::Object& owner,
     void*) noexcept {
     static_cast<MultiTrigger&>(owner).ClearConditions();
-    return;
-}
-
-void AddMultiTriggerSetter(
-    Base::Object& owner,
-    const Base::Ref<Base::Object>& value,
-    void*) noexcept {
-    if (!value) return;
-    Base::Ref<Setter> retained =
-        Base::Ref<Setter>::TryFromBorrowed(
-            static_cast<Setter&>(*value));
-    if (!retained) return;
-    static_cast<MultiTrigger&>(owner).AddAuthoredSetter(
-        std::move(retained));
-}
-
-void ClearMultiTriggerSetters(
-    Base::Object& owner,
-    void*) noexcept {
-    static_cast<MultiTrigger&>(owner).ClearAuthoredSetters();
     return;
 }
 
@@ -455,13 +493,19 @@ AERO_DESCRIBE(TriggerBase) {
             .Collection<Aero::Interactivity::TriggerAction>("ExitActions", &::Aero::MetadataSupport::AddTriggerExitAction, &::Aero::MetadataSupport::ClearTriggerExitActions);
 }
 
+AERO_DESCRIBE(SetterTriggerBase) {
+    using namespace Aero::Meta;
+    Register<SetterTriggerBase>(context, TypeFlags::Abstract)
+            .Content<Setter>("Setters", ContentKind::Collection, &::Aero::MetadataSupport::AddSetterTriggerSetter, &::Aero::MetadataSupport::ClearSetterTriggerSetters);
+}
+
 AERO_DESCRIBE(Trigger) {
     using namespace Aero::Meta;
     Register<Trigger>(context)
             .Property("Property", &Trigger::GetPropertyName, &Trigger::SetPropertyName)
             .Property("SourceName", &Trigger::GetSourceName, &Trigger::SetSourceName)
             .Property<Value, &Trigger::GetAuthoredValue, &Trigger::SetAuthoredValue>("Value", PropertyFlags::AnyValue)
-            .Content<Setter>("Setters", ContentKind::Collection, &::Aero::MetadataSupport::AddTriggerSetter, &::Aero::MetadataSupport::ClearTriggerSetters)
+            .Content<Setter>("Setters", ContentKind::Collection, &::Aero::MetadataSupport::AddSetterTriggerSetter, &::Aero::MetadataSupport::ClearSetterTriggerSetters)
             .Factory();
 }
 
@@ -489,7 +533,7 @@ AERO_DESCRIBE(MultiDataTrigger) {
     using namespace Aero::Meta;
     Register<MultiDataTrigger>(context)
             .Collection<Condition>("Conditions", &::Aero::MetadataSupport::AddMultiDataCondition, &::Aero::MetadataSupport::ClearMultiDataConditions)
-            .Content<Setter>("Setters", ContentKind::Collection, &::Aero::MetadataSupport::AddMultiDataSetter, &::Aero::MetadataSupport::ClearMultiDataSetters)
+            .Content<Setter>("Setters", ContentKind::Collection, &::Aero::MetadataSupport::AddSetterTriggerSetter, &::Aero::MetadataSupport::ClearSetterTriggerSetters)
             .Factory();
 }
 
@@ -497,7 +541,7 @@ AERO_DESCRIBE(MultiTrigger) {
     using namespace Aero::Meta;
     Register<MultiTrigger>(context)
             .Collection<Condition>("Conditions", &::Aero::MetadataSupport::AddMultiTriggerCondition, &::Aero::MetadataSupport::ClearMultiTriggerConditions)
-            .Content<Setter>("Setters", ContentKind::Collection, &::Aero::MetadataSupport::AddMultiTriggerSetter, &::Aero::MetadataSupport::ClearMultiTriggerSetters)
+            .Content<Setter>("Setters", ContentKind::Collection, &::Aero::MetadataSupport::AddSetterTriggerSetter, &::Aero::MetadataSupport::ClearSetterTriggerSetters)
             .Factory();
 }
 

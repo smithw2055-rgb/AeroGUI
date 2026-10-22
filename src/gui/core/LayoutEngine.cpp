@@ -465,13 +465,16 @@ void UIElement::MeasureCore(
     }
 
     VisualHandle pendingArrange{};
-    const bool queueArrange = !element.GetIsArrangeQueued();
+    bool queueArrange = !element.GetIsArrangeQueued();
     if (queueArrange) {
-        Base::Result<VisualHandle> handle = layout.EnqueueHandle(element);
-        if (!handle) { AERO_ASSERT(false); return; }
-        pendingArrange = handle.Value();
-        layout.arrangeQueue_.Reserve(
-            layout.arrangeQueue_.Size() + 1U);
+        const VisualHandle handle = ElementTree::HandleOf(element);
+        if (handle.IsValid()) {
+            pendingArrange = handle;
+            layout.arrangeQueue_.Reserve(
+                layout.arrangeQueue_.Size() + 1U);
+        } else {
+            queueArrange = false;
+        }
     }
 
     if (element.GetVisibility() == Visibility::Collapsed) {

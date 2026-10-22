@@ -1,5 +1,6 @@
 #include "gui/ViewFrame.hpp"
 #include "gui/input/InputDevicesState.hpp"
+#include <Aero/Base/Utf8.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -246,9 +247,21 @@ bool View::MouseHWheel(
 
 bool View::KeyDown(Input::Key key) noexcept {
     if (!active_ || state_ == nullptr) return false;
+    std::uint32_t currentModifiers = Input::DeviceState::LastModifiers();
+    const std::uint32_t rawKey = static_cast<std::uint32_t>(key);
+    if (rawKey == 0x10U || rawKey == 0xA0U || rawKey == 0xA1U) {
+        currentModifiers |= static_cast<std::uint32_t>(Input::KeyboardModifiers::Shift);
+    } else if (rawKey == 0x11U || rawKey == 0xA2U || rawKey == 0xA3U) {
+        currentModifiers |= static_cast<std::uint32_t>(Input::KeyboardModifiers::Control);
+    } else if (rawKey == 0x12U || rawKey == 0xA4U || rawKey == 0xA5U) {
+        currentModifiers |= static_cast<std::uint32_t>(Input::KeyboardModifiers::Alt);
+    }
+    Input::DeviceState::SetLastModifiers(currentModifiers);
+
     Input::KeyboardInput input;
     input.action = Input::KeyboardAction::Down;
-    input.key = static_cast<std::uint32_t>(key);
+    input.key = rawKey;
+    input.modifiers = currentModifiers;
     Base::Result<Input::KeyboardDispatchResult> dispatched =
         DispatchKeyboard(*state_, input);
     return dispatched && dispatched.Value().routed;
@@ -256,9 +269,21 @@ bool View::KeyDown(Input::Key key) noexcept {
 
 bool View::KeyUp(Input::Key key) noexcept {
     if (!active_ || state_ == nullptr) return false;
+    std::uint32_t currentModifiers = Input::DeviceState::LastModifiers();
+    const std::uint32_t rawKey = static_cast<std::uint32_t>(key);
+    if (rawKey == 0x10U || rawKey == 0xA0U || rawKey == 0xA1U) {
+        currentModifiers &= ~static_cast<std::uint32_t>(Input::KeyboardModifiers::Shift);
+    } else if (rawKey == 0x11U || rawKey == 0xA2U || rawKey == 0xA3U) {
+        currentModifiers &= ~static_cast<std::uint32_t>(Input::KeyboardModifiers::Control);
+    } else if (rawKey == 0x12U || rawKey == 0xA4U || rawKey == 0xA5U) {
+        currentModifiers &= ~static_cast<std::uint32_t>(Input::KeyboardModifiers::Alt);
+    }
+    Input::DeviceState::SetLastModifiers(currentModifiers);
+
     Input::KeyboardInput input;
     input.action = Input::KeyboardAction::Up;
-    input.key = static_cast<std::uint32_t>(key);
+    input.key = rawKey;
+    input.modifiers = currentModifiers;
     Base::Result<Input::KeyboardDispatchResult> dispatched =
         DispatchKeyboard(*state_, input);
     return dispatched && dispatched.Value().routed;
@@ -270,24 +295,9 @@ bool View::Char(std::uint32_t codePoint) noexcept {
         return false;
     }
     char text[4]{};
-    std::uint32_t length = 0U;
-    if (codePoint <= 0x7FU) {
-        text[length++] = static_cast<char>(codePoint);
-    } else if (codePoint <= 0x7FFU) {
-        text[length++] = static_cast<char>(0xC0U | (codePoint >> 6U));
-        text[length++] = static_cast<char>(0x80U | (codePoint & 0x3FU));
-    } else if (codePoint <= 0xFFFFU) {
-        text[length++] = static_cast<char>(0xE0U | (codePoint >> 12U));
-        text[length++] = static_cast<char>(
-            0x80U | ((codePoint >> 6U) & 0x3FU));
-        text[length++] = static_cast<char>(0x80U | (codePoint & 0x3FU));
-    } else {
-        text[length++] = static_cast<char>(0xF0U | (codePoint >> 18U));
-        text[length++] = static_cast<char>(
-            0x80U | ((codePoint >> 12U) & 0x3FU));
-        text[length++] = static_cast<char>(
-            0x80U | ((codePoint >> 6U) & 0x3FU));
-        text[length++] = static_cast<char>(0x80U | (codePoint & 0x3FU));
+    const std::uint32_t length = Base::EncodeCodePoint(codePoint, text);
+    if (length == 0U) {
+        return false;
     }
     Base::Result<Input::TextInputDispatchResult> dispatched =
         DispatchText(
@@ -330,7 +340,7 @@ void FocusHost::Bind() noexcept {
     // Input is read on demand from the ElementTree hub via Input().
 }
 
-Aero::InputRouter* FocusHost::Input() const noexcept {
+Aero::InputManager* FocusHost::Input() const noexcept {
     return view != nullptr ? view->Input() : nullptr;
 }
 
@@ -348,7 +358,7 @@ Base::Result<void> FocusHost::QueueFocus(Aero::UIElement& target) noexcept {
     }
 
 Base::Result<std::uint32_t> FocusHost::ProcessPendingFocus() noexcept {
-        Aero::InputRouter* input = Input();
+        Aero::InputManager* input = Input();
         if (input == nullptr || pendingFocusTargets.Empty()) return 0U;
         std::uint32_t focusedCount = 0U;
         std::uint32_t output = 0U;

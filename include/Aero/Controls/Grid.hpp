@@ -96,9 +96,11 @@ protected:
 private:
     GridLength ColumnAt(std::uint32_t index) const noexcept;
     GridLength RowAt(std::uint32_t index) const noexcept;
+    double MaxWidthAt(std::uint32_t index) const noexcept;
+    double MaxHeightAt(std::uint32_t index) const noexcept;
     Result<void> ValidateDefinitions(Span<const GridLength> definitions) const noexcept;
     Result<void> ResolveTracks(Span<const GridLength> definitions, Span<const double> desired, double available,
-        Base::Vector<double>& resolved) const noexcept;
+        Base::Vector<double>& resolved, Span<const double> maxLimits = {}) const noexcept;
 
     std::uint32_t GetColumnCount() const noexcept;
     std::uint32_t GetRowCount() const noexcept;

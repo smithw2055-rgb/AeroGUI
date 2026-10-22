@@ -1,5 +1,4 @@
 #include "../RenderContext.hpp"
-#include "../Presentation.hpp"
 #include "D3D11RenderDevice.hpp"
 
 #include <AeroRender/D3D11.hpp>
@@ -14,11 +13,7 @@
 #include <windows.h>
 #include <d3d11.h>
 #include <dxgi.h>
-#include <gdiplus.h>
-#include <vector>
-#include <cstdlib>
-#include <chrono>
-#pragma comment(lib, "gdiplus.lib")
+#include <dxgi1_2.h>
 #endif
 
 #include <cstdint>
@@ -80,23 +75,6 @@ public:
         width_ = width;
         height_ = height;
 
-        DXGI_SWAP_CHAIN_DESC swapChainDescriptor{};
-        swapChainDescriptor.BufferDesc.Width = width;
-        swapChainDescriptor.BufferDesc.Height = height;
-        swapChainDescriptor.BufferDesc.RefreshRate.Numerator = 0U;
-        swapChainDescriptor.BufferDesc.RefreshRate.Denominator = 1U;
-        swapChainDescriptor.BufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-        swapChainDescriptor.BufferDesc.ScanlineOrdering =
-            DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
-        swapChainDescriptor.BufferDesc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
-        swapChainDescriptor.SampleDesc.Count = 1U;
-        swapChainDescriptor.SampleDesc.Quality = 0U;
-        swapChainDescriptor.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-        swapChainDescriptor.BufferCount = 2U;
-        swapChainDescriptor.OutputWindow = window_;
-        swapChainDescriptor.Windowed = TRUE;
-        swapChainDescriptor.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
-
         const D3D_FEATURE_LEVEL levelsWith11_1[] = {
             D3D_FEATURE_LEVEL_11_1,
             D3D_FEATURE_LEVEL_11_0,
@@ -107,8 +85,8 @@ public:
             D3D_FEATURE_LEVEL_10_1,
             D3D_FEATURE_LEVEL_10_0};
 
-        auto createNative = [&](D3D_DRIVER_TYPE driver) noexcept -> HRESULT {
-            HRESULT result = D3D11CreateDeviceAndSwapChain(
+        auto createDevice = [&](D3D_DRIVER_TYPE driver) noexcept -> HRESULT {
+            HRESULT result = D3D11CreateDevice(
                 nullptr,
                 driver,
                 nullptr,
@@ -116,13 +94,11 @@ public:
                 levelsWith11_1,
                 static_cast<UINT>(sizeof(levelsWith11_1) / sizeof(levelsWith11_1[0])),
                 D3D11_SDK_VERSION,
-                &swapChainDescriptor,
-                &swapChain_,
                 &device_,
                 &featureLevel_,
                 &immediateContext_);
             if (result == E_INVALIDARG) {
-                result = D3D11CreateDeviceAndSwapChain(
+                result = D3D11CreateDevice(
                     nullptr,
                     driver,
                     nullptr,
@@ -130,8 +106,6 @@ public:
                     levelsWithout11_1,
                     static_cast<UINT>(sizeof(levelsWithout11_1) / sizeof(levelsWithout11_1[0])),
                     D3D11_SDK_VERSION,
-                    &swapChainDescriptor,
-                    &swapChain_,
                     &device_,
                     &featureLevel_,
                     &immediateContext_);
@@ -139,47 +113,132 @@ public:
             return result;
         };
 
-        HRESULT result = createNative(D3D_DRIVER_TYPE_HARDWARE);
+        HRESULT result = createDevice(D3D_DRIVER_TYPE_HARDWARE);
         if (FAILED(result)) {
             ReleaseNative();
-            result = createNative(D3D_DRIVER_TYPE_WARP);
+            result = createDevice(D3D_DRIVER_TYPE_WARP);
         }
-        if (FAILED(result) || device_ == nullptr ||
-            immediateContext_ == nullptr || swapChain_ == nullptr) {
+        if (FAILED(result) || device_ == nullptr || immediateContext_ == nullptr) {
             ReleaseNative();
-            return NativeFailure("Unable to create the D3D11 application device and swap chain");
+            return NativeFailure("Unable to create the D3D11 application device");
         }
 
-        IDXGIFactory* factory = nullptr;
         IDXGIDevice* dxgiDevice = nullptr;
         IDXGIAdapter* adapter = nullptr;
+        IDXGIFactory* factory = nullptr;
+        IDXGIFactory2* factory2 = nullptr;
+
         if (SUCCEEDED(device_->QueryInterface(
                 __uuidof(IDXGIDevice),
                 reinterpret_cast<void**>(&dxgiDevice))) &&
-            SUCCEEDED(dxgiDevice->GetAdapter(&adapter)) &&
-            SUCCEEDED(adapter->GetParent(
+            SUCCEEDED(dxgiDevice->GetAdapter(&adapter))) {
+            static_cast<void>(adapter->GetParent(
+                __uuidof(IDXGIFactory2),
+                reinterpret_cast<void**>(&factory2)));
+            static_cast<void>(adapter->GetParent(
                 __uuidof(IDXGIFactory),
-                reinterpret_cast<void**>(&factory)))) {
+                reinterpret_cast<void**>(&factory)));
+        }
+
+        if (factory2 != nullptr) {
+            DXGI_SWAP_CHAIN_DESC1 desc1{};
+            desc1.Width = width;
+            desc1.Height = height;
+            desc1.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+            desc1.Stereo = FALSE;
+            desc1.SampleDesc.Count = 1U;
+            desc1.SampleDesc.Quality = 0U;
+            desc1.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+            desc1.BufferCount = 2U;
+            desc1.Scaling = DXGI_SCALING_NONE;
+            desc1.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+            desc1.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
+            desc1.Flags = 0U;
+
+            IDXGISwapChain1* swapChain1 = nullptr;
+            HRESULT scResult = factory2->CreateSwapChainForHwnd(
+                device_,
+                window_,
+                &desc1,
+                nullptr,
+                nullptr,
+                &swapChain1);
+            if (FAILED(scResult)) {
+                // Fallback to FLIP_SEQUENTIAL
+                desc1.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
+                scResult = factory2->CreateSwapChainForHwnd(
+                    device_,
+                    window_,
+                    &desc1,
+                    nullptr,
+                    nullptr,
+                    &swapChain1);
+            }
+            if (FAILED(scResult)) {
+                // Fallback to STRETCH scaling if NONE is not supported by driver
+                desc1.Scaling = DXGI_SCALING_STRETCH;
+                desc1.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+                scResult = factory2->CreateSwapChainForHwnd(
+                    device_,
+                    window_,
+                    &desc1,
+                    nullptr,
+                    nullptr,
+                    &swapChain1);
+                if (FAILED(scResult)) {
+                    desc1.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
+                    scResult = factory2->CreateSwapChainForHwnd(
+                        device_,
+                        window_,
+                        &desc1,
+                        nullptr,
+                        nullptr,
+                        &swapChain1);
+                }
+            }
+            if (SUCCEEDED(scResult) && swapChain1 != nullptr) {
+                swapChain_ = swapChain1;
+            }
+        }
+
+        if (swapChain_ == nullptr && factory != nullptr) {
+            DXGI_SWAP_CHAIN_DESC swapChainDescriptor{};
+            swapChainDescriptor.BufferDesc.Width = width;
+            swapChainDescriptor.BufferDesc.Height = height;
+            swapChainDescriptor.BufferDesc.RefreshRate.Numerator = 0U;
+            swapChainDescriptor.BufferDesc.RefreshRate.Denominator = 1U;
+            swapChainDescriptor.BufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+            swapChainDescriptor.BufferDesc.ScanlineOrdering =
+                DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
+            swapChainDescriptor.BufferDesc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
+            swapChainDescriptor.SampleDesc.Count = 1U;
+            swapChainDescriptor.SampleDesc.Quality = 0U;
+            swapChainDescriptor.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+            swapChainDescriptor.BufferCount = 2U;
+            swapChainDescriptor.OutputWindow = window_;
+            swapChainDescriptor.Windowed = TRUE;
+            swapChainDescriptor.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
+            factory->CreateSwapChain(device_, &swapChainDescriptor, &swapChain_);
+        }
+
+        if (factory != nullptr) {
             static_cast<void>(factory->MakeWindowAssociation(
                 window_, DXGI_MWA_NO_ALT_ENTER));
         }
+        ReleaseCom(factory2);
         ReleaseCom(factory);
         ReleaseCom(adapter);
         ReleaseCom(dxgiDevice);
 
-        D3D11_TEXTURE2D_DESC stencilDesc{};
-        stencilDesc.Width = width;
-        stencilDesc.Height = height;
-        stencilDesc.MipLevels = 1U;
-        stencilDesc.ArraySize = 1U;
-        stencilDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-        stencilDesc.SampleDesc.Count = 1U;
-        stencilDesc.SampleDesc.Quality = 0U;
-        stencilDesc.Usage = D3D11_USAGE_DEFAULT;
-        stencilDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
-        device_->CreateTexture2D(&stencilDesc, nullptr, &depthStencil_);
-        if (depthStencil_ != nullptr) {
-            device_->CreateDepthStencilView(depthStencil_, nullptr, &depthStencilView_);
+        if (swapChain_ == nullptr) {
+            ReleaseNative();
+            return NativeFailure("Unable to create the D3D11 swap chain");
+        }
+
+        Base::Result<void> buffers = CreateBuffers(width, height);
+        if (!buffers) {
+            ReleaseNative();
+            return buffers.GetStatus();
         }
 
         Render::D3D11::DeviceOptions deviceOptions;
@@ -219,38 +278,19 @@ public:
 
 protected:
     Base::Result<void> BeginPresentation() noexcept override {
-        if (swapChain_ == nullptr || activeBackBuffer_ != nullptr) {
+        if (swapChain_ == nullptr || backBufferRTV_ == nullptr) {
             return InvalidState("D3D11 presentation frame acquisition is invalid");
         }
-        ID3D11Texture2D* backBuffer = nullptr;
-        const HRESULT result = swapChain_->GetBuffer(
-            0U,
-            __uuidof(ID3D11Texture2D),
-            reinterpret_cast<void**>(&backBuffer));
-        if (FAILED(result) || backBuffer == nullptr) {
-            if (IsDeviceRemoval(result)) NotifyDeviceLost();
-            ReleaseCom(backBuffer);
-            return NativeFailure("Unable to acquire the D3D11 swap-chain back buffer");
+        if (isFrameActive_) {
+            return InvalidState("D3D11 frame is already active");
         }
-        D3D11_TEXTURE2D_DESC descriptor{};
-        backBuffer->GetDesc(&descriptor);
-        if (descriptor.Width != width_ || descriptor.Height != height_ ||
-            descriptor.Format != DXGI_FORMAT_B8G8R8A8_UNORM) {
-            ReleaseCom(backBuffer);
-            return InvalidState("D3D11 swap-chain back buffer does not match the application context");
-        }
-        activeBackBuffer_ = backBuffer;
-        ID3D11RenderTargetView* rtv = nullptr;
-        if (device_ != nullptr) {
-            device_->CreateRenderTargetView(activeBackBuffer_, nullptr, &rtv);
-        }
+        isFrameActive_ = true;
         if (Target() != nullptr) {
             auto* target = static_cast<D3D11RenderTarget*>(Target());
-            target->SetRTV(rtv);
+            target->SetRTV(backBufferRTV_);
             target->SetDSV(depthStencilView_);
-            target->SetSize(descriptor.Width, descriptor.Height);
+            target->SetSize(width_, height_);
         }
-        ReleaseCom(rtv);
         return {};
     }
 
@@ -259,12 +299,15 @@ protected:
         std::uint32_t height) noexcept override {
         Base::Result<void> validSize =
             ValidatePresentationSize({width, height});
-        if (swapChain_ == nullptr || !validSize ||
-            activeBackBuffer_ != nullptr) {
+        if (swapChain_ == nullptr || !validSize || isFrameActive_) {
             return InvalidArgument("D3D11 presentation resize is invalid");
         }
-        immediateContext_->ClearState();
-        immediateContext_->Flush();
+        if (immediateContext_ != nullptr) {
+            immediateContext_->ClearState();
+            immediateContext_->Flush();
+        }
+        ReleaseCom(backBufferRTV_);
+        ReleaseCom(backBuffer_);
         ReleaseCom(depthStencilView_);
         ReleaseCom(depthStencil_);
         const HRESULT result = swapChain_->ResizeBuffers(
@@ -273,6 +316,69 @@ protected:
             if (IsDeviceRemoval(result)) NotifyDeviceLost();
             return NativeFailure("Unable to resize the D3D11 swap chain");
         }
+        Base::Result<void> buffers = CreateBuffers(width, height);
+        if (!buffers) return buffers;
+        ++surfaceGeneration_;
+        return {};
+    }
+
+    Base::Result<void> PresentFrame() noexcept override {
+        if (swapChain_ == nullptr || !isFrameActive_) {
+            return InvalidState("D3D11 presentation has no acquired frame");
+        }
+        if (Target() != nullptr) {
+            static_cast<D3D11RenderTarget*>(Target())->SetRTV(nullptr);
+        }
+        if (immediateContext_ != nullptr) {
+            ID3D11RenderTargetView* nullRTV = nullptr;
+            immediateContext_->OMSetRenderTargets(1U, &nullRTV, nullptr);
+        }
+        const HRESULT result = swapChain_->Present(1U, 0U);
+        isFrameActive_ = false;
+        if (FAILED(result)) {
+            if (IsDeviceRemoval(result)) NotifyDeviceLost();
+            return NativeFailure("Unable to present the D3D11 swap chain");
+        }
+        return {};
+    }
+
+    void CancelFrame() noexcept override {
+        if (Target() != nullptr) {
+            static_cast<D3D11RenderTarget*>(Target())->SetRTV(nullptr);
+        }
+        if (immediateContext_ != nullptr) {
+            ID3D11RenderTargetView* nullRTV = nullptr;
+            immediateContext_->OMSetRenderTargets(1U, &nullRTV, nullptr);
+        }
+        isFrameActive_ = false;
+    }
+
+    void ShutdownPresentation() noexcept override {
+        ReleaseNative();
+    }
+
+private:
+    Base::Result<void> CreateBuffers(std::uint32_t width, std::uint32_t height) noexcept {
+        ReleaseCom(backBufferRTV_);
+        ReleaseCom(backBuffer_);
+        ReleaseCom(depthStencilView_);
+        ReleaseCom(depthStencil_);
+
+        HRESULT result = swapChain_->GetBuffer(
+            0U,
+            __uuidof(ID3D11Texture2D),
+            reinterpret_cast<void**>(&backBuffer_));
+        if (FAILED(result) || backBuffer_ == nullptr) {
+            if (IsDeviceRemoval(result)) NotifyDeviceLost();
+            return NativeFailure("Unable to acquire D3D11 swap-chain back buffer");
+        }
+
+        result = device_->CreateRenderTargetView(backBuffer_, nullptr, &backBufferRTV_);
+        if (FAILED(result) || backBufferRTV_ == nullptr) {
+            ReleaseCom(backBuffer_);
+            return NativeFailure("Unable to create D3D11 render target view");
+        }
+
         D3D11_TEXTURE2D_DESC stencilDesc{};
         stencilDesc.Width = width;
         stencilDesc.Height = height;
@@ -287,100 +393,22 @@ protected:
         if (depthStencil_ != nullptr) {
             device_->CreateDepthStencilView(depthStencil_, nullptr, &depthStencilView_);
         }
+
         width_ = width;
         height_ = height;
-        ++surfaceGeneration_;
         return {};
     }
 
-    Base::Result<void> PresentFrame() noexcept override {
-        if (swapChain_ == nullptr || activeBackBuffer_ == nullptr) {
-            return InvalidState("D3D11 presentation has no acquired frame");
-        }
-        if (Target() != nullptr) {
-            static_cast<D3D11RenderTarget*>(Target())->SetRTV(nullptr);
-        }
-
-        static auto s_startTime = std::chrono::steady_clock::now();
-        const auto now = std::chrono::steady_clock::now();
-        const auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - s_startTime).count();
-        int targetDelayMs = 0;
-        char delayStr[32] = {0};
-        if (GetEnvironmentVariableA("AERO_CAPTURE_DELAY_MS", delayStr, sizeof(delayStr)) > 0) {
-            targetDelayMs = std::atoi(delayStr);
-            if (targetDelayMs < 0) targetDelayMs = 0;
-        }
-        char cap[512] = {0};
-        DWORD capLen = GetEnvironmentVariableA("AERO_CAPTURE_PATH", cap, sizeof(cap));
-        if (capLen > 0 && capLen < sizeof(cap) && elapsedMs >= targetDelayMs) {
-            if (device_ != nullptr && immediateContext_ != nullptr) {
-                D3D11_TEXTURE2D_DESC desc;
-                activeBackBuffer_->GetDesc(&desc);
-                desc.Usage = D3D11_USAGE_STAGING;
-                desc.BindFlags = 0;
-                desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-                desc.MiscFlags = 0;
-                ID3D11Texture2D* staging = nullptr;
-                if (SUCCEEDED(device_->CreateTexture2D(&desc, nullptr, &staging)) && staging != nullptr) {
-                    immediateContext_->CopyResource(staging, activeBackBuffer_);
-                    D3D11_MAPPED_SUBRESOURCE mapped;
-                    if (SUCCEEDED(immediateContext_->Map(staging, 0, D3D11_MAP_READ, 0, &mapped))) {
-                        static bool gdiplusInited = false;
-                        if (!gdiplusInited) {
-                            Gdiplus::GdiplusStartupInput gsi;
-                            ULONG_PTR token = 0;
-                            Gdiplus::GdiplusStartup(&token, &gsi, NULL);
-                            gdiplusInited = true;
-                        }
-                        Gdiplus::Bitmap bmp(desc.Width, desc.Height, mapped.RowPitch, PixelFormat32bppARGB, static_cast<BYTE*>(mapped.pData));
-                        CLSID pngClsid;
-                        CLSIDFromString(L"{557cf406-1a04-11d3-9a73-0000f81ef32e}", &pngClsid);
-                        int len = MultiByteToWideChar(CP_UTF8, 0, cap, -1, NULL, 0);
-                        if (len > 0) {
-                            std::vector<wchar_t> wpath(static_cast<size_t>(len));
-                            MultiByteToWideChar(CP_UTF8, 0, cap, -1, wpath.data(), len);
-                            bmp.Save(wpath.data(), &pngClsid, NULL);
-                        }
-                        immediateContext_->Unmap(staging, 0);
-                    }
-                    staging->Release();
-                }
-                SetEnvironmentVariableA("AERO_CAPTURE_PATH", nullptr);
-            }
-        }
-        const HRESULT result = swapChain_->Present(1U, 0U);
-        ReleaseCom(activeBackBuffer_);
-        if (FAILED(result)) {
-            if (IsDeviceRemoval(result)) NotifyDeviceLost();
-            return NativeFailure("Unable to present the D3D11 swap chain");
-        }
-        return {};
-    }
-
-    void CancelFrame() noexcept override {
-        if (Target() != nullptr) {
-            static_cast<D3D11RenderTarget*>(Target())->SetRTV(nullptr);
-        }
-        ReleaseCom(activeBackBuffer_);
-    }
-
-    void ShutdownPresentation() noexcept override {
-        ReleaseNative();
-    }
-
-private:
     static Base::Status AcquireTarget(
         void* context,
         Render::D3D11::EmbeddedTarget* target) noexcept {
         auto* owner = static_cast<D3D11RenderContext*>(context);
-        if (owner == nullptr || target == nullptr ||
-            owner->activeBackBuffer_ == nullptr) {
+        if (owner == nullptr || target == nullptr || !owner->isFrameActive_) {
             return InvalidState("D3D11 application target was requested outside an active frame");
         }
-        target->texture2D = reinterpret_cast<std::uintptr_t>(
-            owner->activeBackBuffer_);
-        target->depthStencilView = reinterpret_cast<std::uintptr_t>(
-            owner->depthStencilView_);
+        target->texture2D = reinterpret_cast<std::uintptr_t>(owner->backBuffer_);
+        target->renderTargetView = reinterpret_cast<std::uintptr_t>(owner->backBufferRTV_);
+        target->depthStencilView = reinterpret_cast<std::uintptr_t>(owner->depthStencilView_);
         target->width = owner->width_;
         target->height = owner->height_;
         target->stableId =
@@ -396,7 +424,9 @@ private:
     }
 
     void ReleaseNative() noexcept {
-        ReleaseCom(activeBackBuffer_);
+        isFrameActive_ = false;
+        ReleaseCom(backBufferRTV_);
+        ReleaseCom(backBuffer_);
         ReleaseCom(depthStencilView_);
         ReleaseCom(depthStencil_);
         if (immediateContext_ != nullptr) {
@@ -417,13 +447,15 @@ private:
     ID3D11Device* device_ = nullptr;
     ID3D11DeviceContext* immediateContext_ = nullptr;
     IDXGISwapChain* swapChain_ = nullptr;
-    ID3D11Texture2D* activeBackBuffer_ = nullptr;
+    ID3D11Texture2D* backBuffer_ = nullptr;
+    ID3D11RenderTargetView* backBufferRTV_ = nullptr;
     ID3D11Texture2D* depthStencil_ = nullptr;
     ID3D11DepthStencilView* depthStencilView_ = nullptr;
     D3D_FEATURE_LEVEL featureLevel_ = D3D_FEATURE_LEVEL_10_0;
     std::uint32_t width_ = 0U;
     std::uint32_t height_ = 0U;
     std::uint64_t surfaceGeneration_ = 1U;
+    bool isFrameActive_ = false;
 };
 
 #endif

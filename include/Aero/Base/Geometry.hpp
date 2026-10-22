@@ -38,6 +38,14 @@ struct Color  {
     float green = 0.0F;
     float blue = 0.0F;
     float alpha = 1.0F;
+
+    constexpr bool operator==(const Color& other) const noexcept {
+        return red == other.red && green == other.green &&
+            blue == other.blue && alpha == other.alpha;
+    }
+    constexpr bool operator!=(const Color& other) const noexcept {
+        return !(*this == other);
+    }
 };
 
 struct Transform2D  {

@@ -115,57 +115,7 @@ Base::Result<void> OverlayHost::SynchronizeOverlays() noexcept {
                         t.dy = dy;
                         return t;
                     };
-                    auto rootTransform = [&makeTranslate](
-                        Aero::UIElement&
-                            element) noexcept -> Base::Transform2D {
-                        Base::ProjectiveTransform2D
-                            result = Base::IdentityProjective();
-                        Aero::Media::Visual*
-                            current = &element;
-                        while (current != nullptr) {
-                            Aero::UIElement*
-                                currentElement =
-                                    ::Aero::TryCast<::Aero::UIElement>(
-                                        current);
-                            if (currentElement !=
-                                nullptr) {
-                                Aero::FrameworkElement*
-                                    currentFramework =
-                                        ::Aero::TryCast<::Aero::FrameworkElement>(
-                                            currentElement);
-                                if (currentFramework !=
-                                    nullptr) {
-                                    const Base::ProjectiveTransform2D localT =
-                                        currentFramework->
-                                            GetLocalVisualTransform();
-                                    if (Base::IsFiniteTransform(localT)) {
-                                        result =
-                                            Base::Compose(
-                                                result, localT);
-                                    }
-                                }
-                                const Aero::Rect slot =
-                                        currentElement->
-                                            GetLayoutSlot();
-                                result =
-                                    Base::Compose(
-                                        result,
-                                        Base::ToProjective(
-                                            makeTranslate(
-                                                slot.x, slot.y)));
-                            }
-                            current =
-                                current->
-                                    GetVisualParent();
-                        }
-                        Base::Transform2D affine{};
-                        if (!Base::TryToTransform2D(result, affine)) {
-                            return {};
-                        }
-                        return affine;
-                    };
-                    Base::Transform2D transform =
-                        rootTransform(*inputElement);
+                    Base::Transform2D transform = inputElement->TransformToRoot();
                     if (Metadata()->Types().IsDerivedFrom(
                             type, Controls::ContextMenu::StaticTypeId())) {
                         if (contextMenuHasPosition) {
@@ -178,8 +128,7 @@ Base::Result<void> OverlayHost::SynchronizeOverlays() noexcept {
                             if (target &&
                                 target->
                                     GetIsArrangeValid()) {
-                                transform =
-                                    rootTransform(*target);
+                                transform = target->TransformToRoot();
                                 transform =
                                     Aero::Media::ComposeTransforms(
                                         makeTranslate(
@@ -203,43 +152,6 @@ Base::Result<void> OverlayHost::SynchronizeOverlays() noexcept {
                     type,
                     Documents::AdornerLayer::StaticTypeId())) {
                 auto* layer = static_cast<Documents::AdornerLayer*>(node);
-                auto makeTranslate = [](double dx, double dy) noexcept -> Base::Transform2D {
-                    Base::Transform2D t{};
-                    t.dx = dx;
-                    t.dy = dy;
-                    return t;
-                };
-                auto rootTransform = [&makeTranslate](
-                    Aero::UIElement& element) noexcept -> Base::Transform2D {
-                    Base::ProjectiveTransform2D result = Base::IdentityProjective();
-                    Aero::Media::Visual* current = &element;
-                    while (current != nullptr) {
-                        Aero::UIElement* currentElement =
-                            ::Aero::TryCast<::Aero::UIElement>(current);
-                        if (currentElement != nullptr) {
-                            Aero::FrameworkElement* currentFramework =
-                                ::Aero::TryCast<::Aero::FrameworkElement>(
-                                    currentElement);
-                            if (currentFramework != nullptr) {
-                                const Base::ProjectiveTransform2D localT =
-                                    currentFramework->GetLocalVisualTransform();
-                                if (Base::IsFiniteTransform(localT)) {
-                                    result = Base::Compose(result, localT);
-                                }
-                            }
-                            const Aero::Rect slot = currentElement->GetLayoutSlot();
-                            result = Base::Compose(
-                                result,
-                                Base::ToProjective(makeTranslate(slot.x, slot.y)));
-                        }
-                        current = current->GetVisualParent();
-                    }
-                    Base::Transform2D affine{};
-                    if (!Base::TryToTransform2D(result, affine)) {
-                        return {};
-                    }
-                    return affine;
-                };
                 for (const Base::Ref<Documents::Adorner>& adorner :
                      layer->GetAdorners()) {
                     if (!adorner) continue;
@@ -247,7 +159,7 @@ Base::Result<void> OverlayHost::SynchronizeOverlays() noexcept {
                     if (target == nullptr) {
                         target = adorner.Get();
                     }
-                    Base::Transform2D transform = rootTransform(*target);
+                    Base::Transform2D transform = target->TransformToRoot();
                     renderOverlays.PushBack(adorner.Get());
                     overlayTransforms.PushBack(transform);
                     inputOverlays.PushBack(adorner.Get());

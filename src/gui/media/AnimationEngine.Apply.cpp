@@ -196,6 +196,14 @@ T SampleKeyFrames(
 Base::Result<bool> AnimationEngine::ApplyTrack(
     Track& track,
     AnimationTime nowMicroseconds) noexcept {
+    if (track.kind == Track::Kind::Color || track.kind == Track::Kind::ColorKeyFrames) {
+        fprintf(stderr, "[APPLY-ENTRY] handle=%llu target=%p state=%d now=%llu start=%llu begin=%llu dur=%llu\n",
+            static_cast<unsigned long long>(track.handle.value), static_cast<void*>(track.target),
+            static_cast<int>(track.state), static_cast<unsigned long long>(nowMicroseconds),
+            static_cast<unsigned long long>(track.startTimeMicroseconds),
+            static_cast<unsigned long long>(track.timing.beginTimeMicroseconds),
+            static_cast<unsigned long long>(track.timing.durationMicroseconds));
+    }
     if (track.state == AnimationState::Stopped ||
         track.state == AnimationState::Filling) {
         return false;
@@ -484,6 +492,13 @@ Base::Result<bool> AnimationEngine::ApplyTrack(
             Base::Result<Thickness> decoded =
                 Meta::ValueCodec<Thickness>::Decode(value);
             if (decoded) framework->SetAnimatedMargin(decoded.Value());
+        }
+    }
+    if (track.kind == Track::Kind::Color || track.kind == Track::Kind::ColorKeyFrames) {
+        Base::Result<Base::Color> c = Meta::ValueCodec<Base::Color>::Decode(value);
+        if (c) {
+            fprintf(stderr, "[ANIM-APPLY-COLOR] target=%p color=(%.3f,%.3f,%.3f,%.3f)\n",
+                static_cast<void*>(track.target), c.Value().red, c.Value().green, c.Value().blue, c.Value().alpha);
         }
     }
     Base::Result<void> applied = values_->SetAnimationValue(

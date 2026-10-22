@@ -6,12 +6,33 @@
 #include <Aero/IRenderer.hpp>
 #include <AeroRender/RenderTarget.hpp>
 #include <AeroRender/WindowInterop.hpp>
-#include "render/RenderDeviceMaintenance.hpp"
 
 #include <cstdint>
 #include <utility>
 
 namespace Aero::Render {
+
+// Platform-neutral value passed into a concrete desktop RenderContext. It is
+// deliberately only geometry: native ownership, capabilities and frame state
+// belong to the selected context itself.
+struct PresentationSize {
+    std::uint32_t width = 0U;
+    std::uint32_t height = 0U;
+};
+
+inline Base::Result<void> ValidatePresentationSize(
+    PresentationSize size,
+    std::uint32_t maximumDimension = 16384U) noexcept {
+    if (size.width == 0U || size.height == 0U ||
+        maximumDimension == 0U ||
+        size.width > maximumDimension ||
+        size.height > maximumDimension) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Presentation dimensions are outside the backend limits");
+    }
+    return {};
+}
 
 // Source-private render presentation owner. Backend-specific contexts create
 // the native device/target pair; this base owns the common frame and Present
@@ -89,9 +110,6 @@ inline Base::Result<void> RenderContext::Resize(
     if (device) {
         Base::Result<void> idle = device->WaitIdle();
         if (!idle) return idle.GetStatus();
-        Base::Result<std::uint32_t> collected =
-            CollectDeviceGarbage(*device);
-        if (!collected) return collected.GetStatus();
     }
     return ResizePresentation(width, height);
 }

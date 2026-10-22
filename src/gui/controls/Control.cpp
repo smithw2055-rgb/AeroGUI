@@ -25,6 +25,7 @@
 #include <Aero/VisualTreeHelper.hpp>
 #include <Aero/LogicalTreeHelper.hpp>
 #include "gui/controls/ContentHosting.hpp"
+#include "gui/controls/ItemsContainers.hpp"
 #include "gui/core/DependencyObjectAccess.hpp"
 
 #include <algorithm>
@@ -42,11 +43,33 @@ using namespace Aero::Meta;
 using namespace Aero::Threading;
 using namespace Aero::Render;
 
+namespace {
+
+void DetachVisualAttachment(ElementTree* tree, ::Aero::Media::Visual* parent, UIElement* child) noexcept {
+    if (tree == nullptr || child == nullptr) {
+        return;
+    }
+    ::Aero::VisualAttachment state;
+    state.visualParent = parent != nullptr ? parent : child->GetVisualParent();
+    state.child = child;
+    state.visualAttached = child->GetVisualParent() != nullptr;
+    state.layoutAttached = child->GetIsLayoutAttached() && child->LayoutParent() != nullptr;
+    state.renderAttached = false;
+    if (state.IsAttached()) {
+        static_cast<void>(tree->DetachVisual(state));
+    }
+}
+
+} // namespace
+
 // ============================================================================
 // Control
 // ============================================================================
 
 Size Control::MeasureOverride(Size availableSize) noexcept {
+    if (templateChild_ == nullptr && !IsTemplateApplied()) {
+        ApplyTemplate();
+    }
     if (templateChild_ == nullptr) return Size{};
     MeasureChild(*templateChild_, availableSize);
     return templateChild_->GetDesiredSize();
@@ -83,77 +106,25 @@ void Control::OnRender(::Aero::Media::DrawingContext& context) noexcept {
 void AttachOwnedContentSubtree(
     ElementTree& tree,
     UIElement& parent) noexcept {
-    const auto attachChild = [&](UIElement& child) noexcept {
-        if (child.GetVisualParent() == &parent &&
-            VisualTree(child) == &tree &&
-            child.GetIsLayoutAttached()) {
-            AttachOwnedContentSubtree(tree, child);
-            return;
-        }
-        if (child.GetVisualParent() != nullptr &&
-            child.GetVisualParent() != &parent) {
-            static_cast<void>(tree.DetachVisual(
-                *child.GetVisualParent(),
-                static_cast<::Aero::Media::Visual&>(child)));
-        }
-        if (VisualTree(child) == nullptr &&
-            child.GetLogicalParent() == nullptr) {
-            static_cast<void>(tree.AttachElement(parent, child));
-        } else if (child.GetVisualParent() != &parent ||
-                   !child.GetIsLayoutAttached()) {
-            static_cast<void>(tree.AttachVisualChild(parent, child));
-        }
-        if (Aero::BindingEngine* bindings =
-                Aero::ElementTree::BindingsOf(child)) {
-            static_cast<void>(bindings->ActivateDeferredWhenReady(child));
-        }
-        AttachOwnedContentSubtree(tree, child);
-    };
-
-    if (DependencyObjectAccess::PropertyRegistry((parent)).Types().IsDerivedFrom(
-            parent.RuntimeType(), Controls::Panel::StaticTypeId())) {
-        auto& panel = static_cast<Controls::Panel&>(parent);
-        const std::uint32_t count = (panel).ChildCountCore();
-        for (std::uint32_t index = 0U; index < count; ++index) {
-            const Base::Ref<Base::Object> owned =
-                (panel).ChildAtCore(index);
-            if (!owned ||
-                !DependencyObjectAccess::PropertyRegistry((parent)).Types().IsDerivedFrom(
-                    owned->RuntimeType(), UIElement::StaticTypeId())) {
-                continue;
-            }
-            attachChild(*static_cast<UIElement*>(owned.Get()));
-        }
-        return;
-    }
-    if (DependencyObjectAccess::PropertyRegistry((parent)).Types().IsDerivedFrom(
-            parent.RuntimeType(), Controls::Decorator::StaticTypeId())) {
-        auto& decorator = static_cast<Controls::Decorator&>(parent);
-        UIElement* child = decorator.GetChild();
-        if (child != nullptr) {
-            attachChild(*child);
-        }
-        return;
-    }
-    if (DependencyObjectAccess::PropertyRegistry((parent)).Types().IsDerivedFrom(
-            parent.RuntimeType(), ContentPresenter::StaticTypeId())) {
-        auto& presenter = static_cast<ContentPresenter&>(parent);
-        UIElement* child = presenter.GetContent();
-        if (child != nullptr && child != &parent) {
-            attachChild(*child);
-        }
-        return;
-    }
-    if (DependencyObjectAccess::PropertyRegistry((parent)).Types().IsDerivedFrom(
-            parent.RuntimeType(), Controls::ContentControl::StaticTypeId())) {
-        auto& control = static_cast<Controls::ContentControl&>(parent);
-        if (control.GetTemplateRoot() == nullptr) {
-            UIElement* child = control.GetContentElement();
-            if (child != nullptr && child != &parent) {
-                attachChild(*child);
+    const std::uint32_t count = Aero::Media::VisualTreeHelper::GetChildrenCount(parent);
+    for (std::uint32_t index = 0U; index < count; ++index) {
+        if (auto* childVisual = Aero::Media::VisualTreeHelper::GetChild(parent, index)) {
+            if (auto* child = ::Aero::TryCast<UIElement>(childVisual)) {
+                if (child->GetVisualParent() != nullptr &&
+                    child->GetVisualParent() != &parent) {
+                    static_cast<void>(tree.DetachVisual(
+                        *child->GetVisualParent(),
+                        static_cast<::Aero::Media::Visual&>(*child)));
+                }
+                if (child->GetVisualParent() != &parent || !child->GetIsLayoutAttached()) {
+                    static_cast<void>(tree.AttachVisualChild(parent, *child));
+                }
+                if (Aero::BindingEngine* bindings = Aero::ElementTree::BindingsOf(*child)) {
+                    static_cast<void>(bindings->ActivateDeferredWhenReady(*child));
+                }
+                AttachOwnedContentSubtree(tree, *child);
             }
         }
-        return;
     }
 }
 
@@ -164,7 +135,9 @@ void AttachOwnedContentSubtree(
 ContentControl::ContentControl(TypeId runtimeType) noexcept
     : Control(runtimeType) {}
 
-ContentControl::~ContentControl() = default;
+ContentControl::~ContentControl() {
+    ClearFallbackPresenter();
+}
 
 void ContentControl::OnContentChanged(const Value&, const Value&) {}
 
@@ -178,17 +151,15 @@ void ContentControl::OnContentTemplateSelectorChanged(
 
 void ContentControl::OnPropertyChanged(
     const DependencyPropertyChangedEventArgs& args) noexcept {
-    if (args.GetProperty() == ContentProperty.Handle()) {
-        OnContentPropertyChanged(*this, args);
-    }
     Control::OnPropertyChanged(args);
     const DependencyPropertyHandle prop = args.GetProperty();
-    if (prop == Control::ForegroundProperty ||
-        prop == Control::FontSizeProperty) {
-        SyncGeneratedTextFormatting();
-    } else if (prop == ContentProperty) {
+    if (prop == ContentProperty) {
+        OnContentPropertyChanged(*this, args);
         OnContentChanged(args.GetOldValue(), args.GetNewValue());
     } else if (prop == ContentTemplateProperty) {
+        if (fallbackPresenter_) {
+            fallbackPresenter_->SetValue(ContentPresenter::ContentTemplateProperty, args.GetNewValue());
+        }
         OnContentTemplateChanged(
             args.GetOldValue().Kind() == Meta::ValueKind::Object ? args.GetOldValue().AsObject() : Ref<Base::Object>{},
             args.GetNewValue().Kind() == Meta::ValueKind::Object ? args.GetNewValue().AsObject() : Ref<Base::Object>{});
@@ -199,160 +170,35 @@ void ContentControl::OnPropertyChanged(
     }
 }
 
-void ContentControl::SyncGeneratedTextFormatting() noexcept {
-    if (!literalTextContent_ || content_ == nullptr ||
-        !DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
-            content_->RuntimeType(), TextBlock::StaticTypeId())) {
-        return;
-    }
-    auto* text = static_cast<TextBlock*>(content_);
-    text->SetValue(TextBlock::FontSizeProperty, GetFontSize());
-}
-
-void ContentControl::SetGeneratedTextContent(
-    const Base::Ref<Base::Object>& contentObject,
-    UIElement& content) noexcept {
-    if (!DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
-            content.RuntimeType(), TextBlock::StaticTypeId())) {
-        return;
-    }
-    SetOwnedContent(contentObject, content);
-    literalTextContent_ = true;
-    SyncGeneratedTextFormatting();
-}
-
-void ContentControl::StoreContentProperty(Meta::Value value) noexcept {
-    if (synchronizingContentProperty_) return;
-    synchronizingContentProperty_ = true;
-    SetValue(ContentProperty, std::move(value));
-    synchronizingContentProperty_ = false;
-}
-
 void ContentControl::OnContentPropertyChanged(
     ::Aero::DependencyObject& object,
     const Meta::DependencyPropertyChangedEventArgs& change) noexcept {
     auto& control = static_cast<ContentControl&>(object);
-    if (control.synchronizingContentProperty_) return;
-    control.synchronizingContentProperty_ = true;
-    static_cast<void>(control.SetContentValue(change.GetNewValue()));
-    control.synchronizingContentProperty_ = false;
+    const Value& val = change.GetNewValue();
+    if (val.Kind() == Meta::ValueKind::Object && !val.IsNullObject()) {
+        control.ownedContent_ = val.AsObject();
+    } else {
+        control.ownedContent_.Reset();
+    }
+    if (control.fallbackPresenter_) {
+        control.fallbackPresenter_->SetContentValue(val);
+    }
 }
 
 void ContentControl::SetContentValue(Base::Ref<Base::Object> value) noexcept {
-    Base::Result<void> access = VerifyAccess();
+    Result<void> access = VerifyAccess();
     if (!access) return;
-    const bool isUIE = value &&
-        DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
-            value->RuntimeType(), UIElement::StaticTypeId());
-    if (isUIE) {
-        authoredContent_ = Meta::Value::FromObject(value->RuntimeType(), value);
-        (void)StoreContentProperty(authoredContent_);
-        auto& content = *static_cast<UIElement*>(value.Get());
-        SetOwnedContent(value, content);
-        if (GetTemplateRoot() == nullptr &&
-            content.GetVisualParent() != this) {
-            if (ElementTree* tree = VisualTree(this)) {
-                if (VisualTree(content) == nullptr &&
-                    content.GetLogicalParent() == nullptr) {
-                    (void)tree->AttachElement(*this, content);
-                } else if (content.GetVisualParent() != this) {
-                    (void)tree->AttachVisualChild(*this, content);
-                }
-            }
-        }
-        if (GetTemplateRoot() == nullptr) {
-            if (ElementTree* tree = VisualTree(this)) {
-                AttachOwnedContentSubtree(*tree, content);
-            }
-        }
-        InvalidateMeasure();
-        return;
+    if (value) {
+        SetValue(ContentProperty, Value::FromObject(value->RuntimeType(), value));
+    } else {
+        SetValue(ContentProperty, Value::NullObject(Meta::TypeOf<Base::Object>()));
     }
-    literalTextContent_ = false;
-    if (content_ != nullptr) {
-        SetContent(nullptr);
-    }
-    contentValue_ = std::move(value);
-    ownedContent_.Reset();
-    authoredContent_ = contentValue_
-        ? Meta::Value::FromObject(contentValue_->RuntimeType(), contentValue_)
-        : Meta::Value::NullObject(Meta::TypeOf<Base::Object>());
-    (void)StoreContentProperty(authoredContent_);
-    InvalidateMeasure();
-}
-
-void ContentControl::EnsureHostedContent() noexcept {
-    if (GetTemplateRoot() != nullptr || content_ == nullptr) {
-        return;
-    }
-    if (content_->GetVisualParent() == this &&
-        content_->GetIsLayoutAttached()) {
-        return;
-    }
-    ElementTree* tree = VisualTree(this);
-    if (tree == nullptr) {
-        if (content_->GetVisualParent() == nullptr) {
-            AddVisualChild(content_);
-        }
-        return;
-    }
-    if (VisualTree(content_) == nullptr &&
-        content_->GetLogicalParent() == nullptr) {
-        (void)tree->AttachElement(*this, *content_);
-    } else if (content_->GetVisualParent() != this || !content_->GetIsLayoutAttached()) {
-        (void)tree->AttachVisualChild(*this, *content_);
-    }
-    AttachOwnedContentSubtree(*tree, *content_);
 }
 
 void ContentControl::SetContentValue(Meta::Value value) noexcept {
-    if (value.IsUnset()) {
-        return;
-    }
-    if (value.Kind() == Meta::ValueKind::Object) {
-        authoredContent_ = value;
-        SetContentValue(value.AsObject());
-        return;
-    }
-    if (value.Kind() != Meta::ValueKind::String) {
-        (void)StoreContentProperty(value);
-        authoredContent_ = std::move(value);
-        contentValue_.Reset();
-        ownedContent_.Reset();
-        InvalidateMeasure();
-        return;
-    }
-
-    if (literalTextContent_ && content_ != nullptr &&
-        DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
-            content_->RuntimeType(), TextBlock::StaticTypeId())) {
-        auto* textBlock = static_cast<TextBlock*>(content_);
-        textBlock->SetValue(RichText::TextProperty, value.AsString());
-        textBlock->SetText(value.AsString());
-        (void)StoreContentProperty(value);
-        authoredContent_ = std::move(value);
-        contentValue_.Reset();
-        InvalidateMeasure();
-        InvalidateVisual();
-        return;
-    }
-
-    Base::Result<Base::Ref<TextBlock>> created = Base::MakeRef<TextBlock>();
-    if (!created) return;
-    created.Value()->SetValue(RichText::TextProperty, value.AsString());
-    created.Value()->SetText(value.AsString());
-    Base::Ref<Base::Object> retained(created.Value());
-    SetOwnedContent(retained, *created.Value());
-    if (GetTemplateRoot() == nullptr &&
-        created.Value()->GetVisualParent() != this) {
-        if (ElementTree* tree = VisualTree(this)) {
-            (void)tree->AttachElement(*this, *created.Value());
-        }
-    }
-    (void)StoreContentProperty(value);
-    authoredContent_ = std::move(value);
-    contentValue_.Reset();
-    literalTextContent_ = true;
+    Result<void> access = VerifyAccess();
+    if (!access) return;
+    SetValue(ContentProperty, std::move(value));
 }
 
 void ContentControl::SetContent(StringView text) noexcept {
@@ -371,122 +217,149 @@ void ContentControl::SetContent(const char* text) noexcept {
 void ContentControl::SetContent(UIElement* content) noexcept {
     Result<void> access = VerifyAccess();
     if (!access) return;
-    Result<void> valid = ValidateContent(content);
-    if (!valid) return;
-    Value propertyValue = content != nullptr
-        ? Value::FromObject(content->RuntimeType(), Ref<Base::Object>::FromBorrowed(*content))
-        : Value::NullObject(Meta::TypeOf<Base::Object>());
-    StoreContentProperty(std::move(propertyValue));
-    if (content_ == content) return;
-    if (content_ != nullptr && content == nullptr) {
-        if (content_->GetVisualParent() == this) { RemoveVisualChild(content_); }
-    }
-    content_ = content;
-    literalTextContent_ = false;
-    if (content == nullptr) {
+    if (content != nullptr) {
+        ownedContent_ = Ref<Base::Object>::FromBorrowed(*content);
+        SetContentValue(Value::FromObject(content->RuntimeType(), ownedContent_));
+    } else {
         ownedContent_.Reset();
-        contentValue_.Reset();
+        SetContentValue(Value::NullObject(Meta::TypeOf<Base::Object>()));
     }
-    InvalidateMeasure();
 }
 
 void ContentControl::SetOwnedContent(const Ref<Base::Object>& contentObject, UIElement& content) noexcept {
     if (!contentObject || contentObject.Get() != &content) { return; }
     Result<void> access = VerifyAccess();
     if (!access) return;
-    Result<void> valid = ValidateContent(&content);
-    if (!valid) return;
-    StoreContentProperty(Value::FromObject(contentObject->RuntimeType(), contentObject));
-    content_ = &content;
     ownedContent_ = contentObject;
-    contentValue_ = contentObject;
-    literalTextContent_ = false;
+    SetContentValue(Value::FromObject(contentObject->RuntimeType(), contentObject));
+}
+
+void ContentControl::SetGeneratedTextContent(const Ref<Base::Object>& contentObject, UIElement& content) noexcept {
+    SetOwnedContent(contentObject, content);
+}
+
+UIElement* ContentControl::GetContentElement() const noexcept {
+    if (ownedContent_) {
+        return TryCast<UIElement>(ownedContent_.Get());
+    }
+    const Value contentVal = GetContent();
+    if (contentVal.Kind() == Meta::ValueKind::Object && !contentVal.IsNullObject()) {
+        return TryCast<UIElement>(contentVal.AsObject().Get());
+    }
+    return nullptr;
+}
+
+ContentPresenter* ContentControl::GetFallbackPresenter() const noexcept {
+    return fallbackPresenter_.Get();
+}
+
+void ContentControl::EnsureFallbackPresenter() noexcept {
+    if (GetTemplateRoot() != nullptr) {
+        ClearFallbackPresenter();
+        return;
+    }
+    const Value contentVal = GetContent();
+    if (contentVal.IsUnset() || (contentVal.Kind() == Meta::ValueKind::Object && contentVal.IsNullObject())) {
+        ClearFallbackPresenter();
+        return;
+    }
+    if (!fallbackPresenter_) {
+        Base::Result<Ref<ContentPresenter>> made = Base::MakeRef<ContentPresenter>();
+        if (!made) return;
+        fallbackPresenter_ = std::move(made).Value();
+        UIElement* existingContent = ownedContent_ ? TryCast<UIElement>(ownedContent_.Get()) : nullptr;
+        if (existingContent != nullptr && existingContent->GetVisualParent() == this) {
+            if (ElementTree* tree = VisualTree(this)) {
+                DetachVisualAttachment(tree, this, existingContent);
+            } else {
+                RemoveVisualChild(existingContent);
+            }
+        }
+    }
+    if (ElementTree* tree = VisualTree(this)) {
+        if (fallbackPresenter_->GetVisualParent() != this ||
+            !fallbackPresenter_->GetIsLayoutAttached()) {
+            static_cast<void>(tree->AttachVisualChild(*this, *fallbackPresenter_));
+        }
+    } else if (fallbackPresenter_->GetVisualParent() == nullptr) {
+        AddVisualChild(fallbackPresenter_.Get());
+    }
+    fallbackPresenter_->SetValue(ContentPresenter::ContentTemplateProperty, GetContentTemplate());
+    fallbackPresenter_->SetContentValue(contentVal);
+}
+
+void ContentControl::ClearFallbackPresenter() noexcept {
+    if (!fallbackPresenter_) return;
+    fallbackPresenter_->ClearHostedContent();
+    if (fallbackPresenter_->GetVisualParent() == this) {
+        if (ElementTree* tree = VisualTree(this)) {
+            DetachVisualAttachment(tree, this, fallbackPresenter_.Get());
+        } else {
+            RemoveVisualChild(fallbackPresenter_.Get());
+        }
+    }
+    fallbackPresenter_.Reset();
+}
+
+void ContentControl::OnApplyTemplate() noexcept {
+    Control::OnApplyTemplate();
+    if (GetTemplateRoot() != nullptr) {
+        ClearFallbackPresenter();
+    }
 }
 
 std::uint32_t ContentControl::GetVisualChildrenCount() const noexcept {
     if (GetTemplateRoot() != nullptr) { return Control::GetVisualChildrenCount(); }
-    return content_ != nullptr && content_->GetVisualParent() == this ? 1U : 0U;
+    if (fallbackPresenter_ != nullptr && fallbackPresenter_->GetVisualParent() == this) {
+        return 1U;
+    }
+    UIElement* content = GetContentElement();
+    if (content != nullptr && content->GetVisualParent() == this) {
+        return 1U;
+    }
+    return 0U;
 }
 
 ::Aero::Media::Visual* ContentControl::GetVisualChild(std::uint32_t index) const noexcept {
     if (GetTemplateRoot() != nullptr) { return Control::GetVisualChild(index); }
-    if (index != 0U || content_ == nullptr || content_->GetVisualParent() != this) { return nullptr; }
-    return content_;
+    if (index != 0U) {
+        return nullptr;
+    }
+    if (fallbackPresenter_ != nullptr && fallbackPresenter_->GetVisualParent() == this) {
+        return fallbackPresenter_.Get();
+    }
+    UIElement* content = GetContentElement();
+    if (content != nullptr && content->GetVisualParent() == this) {
+        return content;
+    }
+    return nullptr;
 }
 
 std::uint32_t ContentControl::GetLogicalChildrenCount() const noexcept {
-    return content_ != nullptr ? 1U : Control::GetLogicalChildrenCount();
+    UIElement* elem = GetContentElement();
+    return elem != nullptr ? 1U : Control::GetLogicalChildrenCount();
 }
 
 DependencyObject* ContentControl::GetLogicalChild(std::uint32_t index) const noexcept {
-    if (content_ != nullptr) { return index == 0U ? content_ : nullptr; }
+    UIElement* elem = GetContentElement();
+    if (elem != nullptr) { return index == 0U ? elem : nullptr; }
     return Control::GetLogicalChild(index);
 }
 
 Size ContentControl::MeasureOverride(Size availableSize) noexcept {
     if (GetTemplateRoot() != nullptr) { return Control::MeasureOverride(availableSize); }
-    EnsureHostedContent();
-    if (content_ == nullptr) { return Size{}; }
-    MeasureChild(*content_, availableSize);
-    return content_->GetDesiredSize();
+    EnsureFallbackPresenter();
+    if (fallbackPresenter_ == nullptr) { return Size{}; }
+    MeasureChild(*fallbackPresenter_, availableSize);
+    return fallbackPresenter_->GetDesiredSize();
 }
 
 Size ContentControl::ArrangeOverride(Size finalSize) noexcept {
     if (GetTemplateRoot() != nullptr) { return Control::ArrangeOverride(finalSize); }
-    EnsureHostedContent();
-    if (content_ == nullptr) return finalSize;
-    ArrangeChild(*content_, {0.0, 0.0, finalSize.width, finalSize.height});
+    EnsureFallbackPresenter();
+    if (fallbackPresenter_ == nullptr) return finalSize;
+    ArrangeChild(*fallbackPresenter_, {0.0, 0.0, finalSize.width, finalSize.height});
     return finalSize;
-}
-
-Result<void> ContentControl::ValidateContent(UIElement* content) const noexcept {
-    if (content == nullptr) return {};
-    if (GetTemplateRoot() != nullptr) return {};
-    if (!LayoutChildren().Empty() && !IsOnlyAttachedContent(*content)) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidState,
-            "ContentControl content must be its only attached UIElement");
-    }
-    return {};
-}
-
-bool ContentControl::IsOnlyAttachedContent(const UIElement& content) const noexcept {
-    const UIElementChildRange children = LayoutChildren();
-    return children.Size() == 1U && children[0] == &content;
-}
-
-Base::Result<Base::Ref<Base::Object>> ContentControl::CreateTemplatedContent() const noexcept {
-    if (content_ != nullptr) {
-        return ownedContent_;
-    }
-    if (!contentValue_) {
-        return Base::Ref<Base::Object>{};
-    }
-    Base::Ref<Base::Object> contentTemplate = GetContentTemplate();
-    if (!contentTemplate) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            "ContentControl business content requires a ContentTemplate");
-    }
-    if (contentTemplate->RuntimeType() != DataTemplate::StaticTypeId()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "ContentControl ContentTemplate is not a DataTemplate");
-    }
-    Base::Result<Base::Ref<Base::Object>> created =
-        FrameworkTemplateState::Instantiate(
-            *static_cast<DataTemplate*>(contentTemplate.Get()),
-            contentValue_,
-            ElementTree::BindingsOf(*this));
-    if (!created) return created.GetStatus();
-    if (!created.Value() ||
-        !DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
-            created.Value()->RuntimeType(),
-            UIElement::StaticTypeId())) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "ContentTemplate must create a UIElement");
-    }
-    return created;
 }
 
 // ============================================================================
@@ -494,7 +367,10 @@ Base::Result<Base::Ref<Base::Object>> ContentControl::CreateTemplatedContent() c
 // ============================================================================
 
 ContentPresenter::ContentPresenter() noexcept
-    : FrameworkElement(StaticTypeId()) {}
+    : ContentPresenter(StaticTypeId()) {}
+
+ContentPresenter::ContentPresenter(TypeId runtimeType) noexcept
+    : FrameworkElement(runtimeType) {}
 
 static void DetachSubtreeBindings(
     Aero::Media::Visual& root,
@@ -505,13 +381,15 @@ static void DetachSubtreeBindings(
     const std::uint32_t logicalCount = Aero::LogicalTreeHelper::GetChildrenCount(root);
     for (std::uint32_t i = 0U; i < logicalCount; ++i) {
         if (auto* child = Aero::LogicalTreeHelper::GetChild(root, i)) {
-            if (bindings != nullptr) static_cast<void>(bindings->DetachObject(*child));
+            if (child != &root && bindings != nullptr) static_cast<void>(bindings->DetachObject(*child));
         }
     }
     const std::uint32_t count = Aero::Media::VisualTreeHelper::GetChildrenCount(root);
     for (std::uint32_t i = 0U; i < count; ++i) {
         if (auto* child = Aero::Media::VisualTreeHelper::GetChild(root, i)) {
-            DetachSubtreeBindings(*child, bindings);
+            if (child != &root) {
+                DetachSubtreeBindings(*child, bindings);
+            }
         }
     }
 }
@@ -519,27 +397,14 @@ static void DetachSubtreeBindings(
 void ContentPresenter::HostUiElement(
     const Base::Ref<Base::Object>& owner,
     UIElement& element) noexcept {
-    if (!owner || owner.Get() != &element) {
+    if (!owner || owner.Get() != &element || &element == this) {
         return;
     }
     ElementTree* tree = VisualTree(this);
     const auto detachHosted = [&](UIElement& hosted) noexcept {
         Aero::BindingEngine* bindings = ElementTree::BindingsOf(*this);
         DetachSubtreeBindings(hosted, bindings);
-        if (tree == nullptr) {
-            return;
-        }
-        ::Aero::VisualAttachment state;
-        state.visualParent = hosted.GetVisualParent() != nullptr
-            ? hosted.GetVisualParent()
-            : static_cast<::Aero::Media::Visual*>(this);
-        state.child = &hosted;
-        state.visualAttached = hosted.GetVisualParent() != nullptr;
-        state.layoutAttached = hosted.GetIsLayoutAttached() && hosted.LayoutParent() != nullptr;
-        state.renderAttached = false;
-        if (state.IsAttached()) {
-            static_cast<void>(tree->DetachVisual(state));
-        }
+        DetachVisualAttachment(tree, hosted.GetVisualParent() != nullptr ? hosted.GetVisualParent() : this, &hosted);
     };
 
     UIElement* existing = content_;
@@ -564,22 +429,13 @@ void ContentPresenter::HostUiElement(
     if (element.GetVisualParent() != nullptr &&
         element.GetVisualParent() != this) {
         ElementTree* detachTree = tree != nullptr ? tree : VisualTree(element);
-        if (detachTree != nullptr) {
-            ::Aero::VisualAttachment state;
-            state.visualParent = element.GetVisualParent();
-            state.child = &element;
-            state.visualAttached = true;
-            state.layoutAttached = element.GetIsLayoutAttached() && element.LayoutParent() != nullptr;
-            state.renderAttached = false;
-            static_cast<void>(detachTree->DetachVisual(state));
-        }
+        DetachVisualAttachment(detachTree, element.GetVisualParent(), &element);
     }
-    if (tree != nullptr &&
-        (element.GetVisualParent() != this || !element.GetIsLayoutAttached())) {
-        if (VisualTree(element) == nullptr && element.GetLogicalParent() == nullptr) {
-            static_cast<void>(tree->AttachElement(*this, element));
-        } else if (element.GetVisualParent() == nullptr || element.GetVisualParent() == this) {
+    if (element.GetVisualParent() != this || !element.GetIsLayoutAttached()) {
+        if (tree != nullptr) {
             static_cast<void>(tree->AttachVisualChild(*this, element));
+        } else if (element.GetVisualParent() == nullptr) {
+            AddVisualChild(&element);
         }
     }
     SetOwnedContent(owner, element);
@@ -599,19 +455,7 @@ void ContentPresenter::ClearHostedContent() noexcept {
     ElementTree* tree = VisualTree(this);
     Aero::BindingEngine* bindings = ElementTree::BindingsOf(*this);
     DetachSubtreeBindings(*content_, bindings);
-    if (tree != nullptr) {
-        ::Aero::VisualAttachment state;
-        state.visualParent = content_->GetVisualParent() != nullptr
-            ? content_->GetVisualParent()
-            : static_cast<::Aero::Media::Visual*>(this);
-        state.child = content_;
-        state.visualAttached = content_->GetVisualParent() != nullptr;
-        state.layoutAttached = content_->GetIsLayoutAttached() && content_->LayoutParent() != nullptr;
-        state.renderAttached = false;
-        if (state.IsAttached()) {
-            static_cast<void>(tree->DetachVisual(state));
-        }
-    }
+    DetachVisualAttachment(tree, content_->GetVisualParent() != nullptr ? content_->GetVisualParent() : this, content_);
     content_ = nullptr;
     ownedContent_.Reset();
     InvalidateMeasure();
@@ -621,13 +465,27 @@ void ContentPresenter::ApplyContent() noexcept {
     contentValue_ = GetValue(ContentProperty);
     Base::Ref<Base::Object> templateObj = GetValue(ContentTemplateProperty);
 
-    if (GetContentSource() == Base::StringView("SelectionBoxItem")) {
-        if (auto* comboBox = ::Aero::TryCast<ComboBox>(GetTemplatedParent())) {
-            if (contentValue_.Kind() == Meta::ValueKind::Unset || contentValue_.IsNullObject()) {
-                contentValue_ = comboBox->GetSelectionBoxItem();
+    DependencyObject* templatedParent = GetTemplatedParent();
+    Base::StringView source = GetContentSource();
+    if (templatedParent != nullptr && !source.Empty()) {
+        auto& registry = DependencyObjectAccess::PropertyRegistry(*templatedParent);
+        if (contentValue_.Kind() == Meta::ValueKind::Unset ||
+            (contentValue_.Kind() == Meta::ValueKind::Object && contentValue_.IsNullObject())) {
+            if (const Meta::DependencyProperty* prop =
+                    registry.Find(templatedParent->RuntimeType(), source)) {
+                contentValue_ = templatedParent->GetValue(prop->Handle());
             }
-            if (!templateObj) {
-                templateObj = comboBox->GetSelectionBoxItemTemplate();
+        }
+        if (!templateObj) {
+            Base::String templatePropName;
+            if (templatePropName.Assign(source) && templatePropName.Append(Base::StringView("Template"))) {
+                if (const Meta::DependencyProperty* tProp =
+                        registry.Find(templatedParent->RuntimeType(), templatePropName.View())) {
+                    Value tVal = templatedParent->GetValue(tProp->Handle());
+                    if (tVal.Kind() == Meta::ValueKind::Object && !tVal.IsNullObject()) {
+                        templateObj = tVal.AsObject();
+                    }
+                }
             }
         }
     }
@@ -637,6 +495,10 @@ void ContentPresenter::ApplyContent() noexcept {
         !value.IsNullObject() &&
         value.AsObject()) {
         Base::Object* obj = value.AsObject().Get();
+        if (obj == this) {
+            ClearHostedContent();
+            return;
+        }
         if (DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
                 obj->RuntimeType(), UIElement::StaticTypeId())) {
             appliedTemplate_.Reset();
@@ -708,7 +570,8 @@ void ContentPresenter::OnContentPropertyChanged(
 void ContentPresenter::OnPropertyChanged(
     const DependencyPropertyChangedEventArgs& args) noexcept {
     if (args.GetProperty() == ContentProperty.Handle() ||
-        args.GetProperty() == ContentTemplateProperty.Handle()) {
+        args.GetProperty() == ContentTemplateProperty.Handle() ||
+        args.GetProperty() == ContentTemplateSelectorProperty.Handle()) {
         ApplyContent();
     }
     FrameworkElement::OnPropertyChanged(args);
@@ -734,41 +597,23 @@ Base::Result<void> ContentPresenter::UpdatePresentedText() noexcept {
     Base::String text;
     switch (contentValue_.Kind()) {
     case Meta::ValueKind::String:
-        {
-            Base::Result<void> assigned = text.Assign(contentValue_.AsString());
-            if (!assigned) return assigned.GetStatus();
-        }
-        break;
     case Meta::ValueKind::Boolean:
-        {
-            Base::Result<void> assigned = text.Assign(
-                contentValue_.AsBoolean() ? Base::StringView("True") : Base::StringView("False"));
-            if (!assigned) return assigned.GetStatus();
-        }
-        break;
     case Meta::ValueKind::SignedInteger:
     case Meta::ValueKind::UnsignedInteger:
     case Meta::ValueKind::Double:
         {
-            char raw[64]{};
-            if (contentValue_.Kind() == Meta::ValueKind::SignedInteger) {
-                std::snprintf(raw, sizeof(raw), "%lld",
-                    static_cast<long long>(contentValue_.AsSignedInteger()));
-            } else if (contentValue_.Kind() == Meta::ValueKind::UnsignedInteger) {
-                std::snprintf(raw, sizeof(raw), "%llu",
-                    static_cast<unsigned long long>(contentValue_.AsUnsignedInteger()));
-            } else {
-                std::snprintf(raw, sizeof(raw), "%.15g", contentValue_.AsDouble());
-            }
-            Base::Result<void> assigned = text.Assign(raw);
-            if (!assigned) return assigned.GetStatus();
+            Base::Result<void> formatted = Base::ValueConversion::FormatScalarValue(text, contentValue_);
+            if (!formatted) return formatted.GetStatus();
         }
         break;
     case Meta::ValueKind::Object:
         if (!contentValue_.IsNullObject()) {
             auto* obj = contentValue_.AsObject().Get();
             if (obj != nullptr) {
-                if (!DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
+                if (obj->RuntimeType() == ::Aero::Controls::BoxedItemValue::StaticTypeId()) {
+                    const Meta::Value& inner = static_cast<const ::Aero::Controls::BoxedItemValue&>(*obj).Value();
+                    (void)Base::ValueConversion::FormatScalarValue(text, inner);
+                } else if (!DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
                         obj->RuntimeType(), UIElement::StaticTypeId())) {
                     Aero::BindingEngine* bindings = ElementTree::BindingsOf(*this);
                     Meta::Registry* metadata = bindings != nullptr ? bindings->Metadata() : Meta::CurrentObjectFactory().metadata;
@@ -795,8 +640,20 @@ Base::Result<void> ContentPresenter::UpdatePresentedText() noexcept {
         return {};
     }
     auto* textBlock = static_cast<TextBlock*>(content_);
-    textBlock->SetValue(RichText::TextProperty, text.View());
     textBlock->SetText(text.View());
+    if (DependencyObject* templatedParent = GetTemplatedParent()) {
+        if (auto* control = ::Aero::TryCast<Control>(templatedParent)) {
+            textBlock->SetValue(TextBlock::FontSizeProperty, control->GetValue(Control::FontSizeProperty));
+            textBlock->SetValue(TextBlock::FontFamilyProperty, control->GetValue(Control::FontFamilyProperty));
+            const Meta::PropertyValueSourceInfo cpFgSource =
+                GetValueSourceInfo(FrameworkElement::ForegroundProperty.Handle());
+            if (!cpFgSource.isInherited && cpFgSource.rank > Meta::PropertyValueRank::Inherited) {
+                textBlock->SetValue(TextBlock::ForegroundProperty, GetValue(FrameworkElement::ForegroundProperty));
+            } else {
+                textBlock->SetValue(TextBlock::ForegroundProperty, control->GetValue(Control::ForegroundProperty));
+            }
+        }
+    }
     return {};
 }
 
@@ -819,8 +676,26 @@ void ContentPresenter::SetContent(UIElement* content) noexcept {
     Base::Result<void> validated = ValidateContent(content);
     if (!validated) return;
     if (content == content_) return;
+    if (content_ != nullptr && content_->GetVisualParent() == this) {
+        if (ElementTree* tree = VisualTree(this)) {
+            DetachVisualAttachment(tree, this, content_);
+        } else {
+            RemoveVisualChild(content_);
+        }
+    }
     content_ = content;
-    if (content == nullptr) ownedContent_.Reset();
+    if (content == nullptr) {
+        ownedContent_.Reset();
+    } else {
+        if (content->GetVisualParent() != this || !content->GetIsLayoutAttached()) {
+            if (ElementTree* tree = VisualTree(this)) {
+                static_cast<void>(tree->AttachVisualChild(*this, *content));
+                AttachOwnedContentSubtree(*tree, *content);
+            } else if (content->GetVisualParent() == nullptr) {
+                AddVisualChild(content);
+            }
+        }
+    }
     InvalidateMeasure();
 }
 
@@ -834,15 +709,31 @@ void ContentPresenter::SetOwnedContent(
     if (!access) return;
     Base::Result<void> validated = ValidateContent(&content);
     if (!validated) return;
+    if (content_ != nullptr && content_ != &content && content_->GetVisualParent() == this) {
+        if (ElementTree* tree = VisualTree(this)) {
+            DetachVisualAttachment(tree, this, content_);
+        } else {
+            RemoveVisualChild(content_);
+        }
+    }
     content_ = &content;
     ownedContent_ = contentObject;
-    InvalidateMeasure();
-    if (ElementTree* tree = VisualTree(this)) {
-        AttachOwnedContentSubtree(*tree, content);
+    if (content.GetVisualParent() != this || !content.GetIsLayoutAttached()) {
+        if (ElementTree* tree = VisualTree(this)) {
+            static_cast<void>(tree->AttachVisualChild(*this, content));
+            AttachOwnedContentSubtree(*tree, content);
+        } else if (content.GetVisualParent() == nullptr) {
+            AddVisualChild(&content);
+        }
     }
+    InvalidateMeasure();
 }
 
 Base::Result<void> ContentPresenter::ValidateContent(UIElement* content) const noexcept {
+    if (content == this) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidState,
+            "ContentPresenter content cannot be itself");
+    }
     if (content == nullptr) {
         if (!LayoutChildren().Empty()) {
             return Base::Status::Failure(Base::ErrorCode::InvalidState,
@@ -856,26 +747,6 @@ Base::Result<void> ContentPresenter::ValidateContent(UIElement* content) const n
 }
 
 Size ContentPresenter::MeasureOverride(Size availableSize) noexcept {
-    if (content_ != nullptr && content_->GetVisualParent() != this) {
-        if (ElementTree* tree = VisualTree(this)) {
-            if (content_->GetVisualParent() != nullptr &&
-                content_->GetVisualParent() != this) {
-                ::Aero::VisualAttachment state;
-                state.visualParent = content_->GetVisualParent();
-                state.child = content_;
-                state.visualAttached = true;
-                state.layoutAttached = content_->GetIsLayoutAttached() && content_->LayoutParent() != nullptr;
-                state.renderAttached = false;
-                static_cast<void>(tree->DetachVisual(state));
-            }
-            if (VisualTree(*content_) == nullptr && content_->GetLogicalParent() == nullptr) {
-                (void)tree->AttachElement(*this, *content_);
-            } else if (content_->GetVisualParent() == nullptr || content_->GetVisualParent() == this) {
-                (void)tree->AttachVisualChild(*this, *content_);
-            }
-            AttachOwnedContentSubtree(*tree, *content_);
-        }
-    }
     if (content_ == nullptr) {
         return Size{};
     }
@@ -899,12 +770,26 @@ HeaderedContentControl::HeaderedContentControl(TypeId runtimeType) noexcept
 HeaderedContentControl::~HeaderedContentControl() = default;
 
 void HeaderedContentControl::OnHeaderChanged(const Value&, const Value&) {
-    ProjectHeaderContent();
+    DependencyObject* part = GetTemplateChild(Base::StringView("HeaderHost"));
+    if (part == nullptr) {
+        part = GetTemplateChild(Base::StringView("PART_Header"));
+    }
+    if (auto* presenter = TryCast<ContentPresenter>(part)) {
+        presenter->RefreshContentSource();
+    }
 }
 
 void HeaderedContentControl::OnHeaderTemplateChanged(
     const Ref<DataTemplate>&,
-    const Ref<DataTemplate>&) {}
+    const Ref<DataTemplate>&) {
+    DependencyObject* part = GetTemplateChild(Base::StringView("HeaderHost"));
+    if (part == nullptr) {
+        part = GetTemplateChild(Base::StringView("PART_Header"));
+    }
+    if (auto* presenter = TryCast<ContentPresenter>(part)) {
+        presenter->RefreshContentSource();
+    }
+}
 
 void HeaderedContentControl::OnPropertyChanged(
     const DependencyPropertyChangedEventArgs& args) noexcept {
@@ -950,30 +835,14 @@ void HeaderedContentControl::SetHeaderTemplate(Base::Ref<DataTemplate> value) no
 }
 
 void HeaderedContentControl::OnApplyTemplate() noexcept {
-    Control::OnApplyTemplate();
-    ProjectHeaderContent();
-}
-
-void HeaderedContentControl::ProjectHeaderContent() noexcept {
-    const Value header = GetHeader();
-    if (header.Kind() != ValueKind::Object || header.IsNullObject() || !header.AsObject()) {
-        return;
-    }
-    Base::Object* obj = header.AsObject().Get();
-    if (!DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
-            obj->RuntimeType(), UIElement::StaticTypeId())) {
-        return;
-    }
-    auto* element = static_cast<UIElement*>(obj);
+    ContentControl::OnApplyTemplate();
     DependencyObject* part = GetTemplateChild(Base::StringView("HeaderHost"));
     if (part == nullptr) {
         part = GetTemplateChild(Base::StringView("PART_Header"));
     }
-    auto* presenter = part != nullptr ? ::Aero::TryCast<ContentPresenter>(part) : nullptr;
-    if (presenter == nullptr) {
-        return;
+    if (auto* presenter = TryCast<ContentPresenter>(part)) {
+        presenter->RefreshContentSource();
     }
-    presenter->HostUiElement(header.AsObject(), *element);
 }
 
 // ============================================================================
@@ -1117,8 +986,12 @@ Size Expander::MeasureOverride(Size availableSize) noexcept {
     if (GetTemplateRoot() != nullptr) {
         return ContentControl::MeasureOverride(availableSize);
     }
+    EnsureFallbackPresenter();
+    UIElement* contentChild = GetFallbackPresenter() != nullptr
+        ? static_cast<UIElement*>(GetFallbackPresenter())
+        : GetContentElement();
     constexpr double HeaderExtent = 24.0;
-    if (!GetIsExpanded() || GetContentElement() == nullptr) {
+    if (!GetIsExpanded() || contentChild == nullptr) {
         return GetDirection() == ExpandDirection::Left || GetDirection() == ExpandDirection::Right
             ? Size{HeaderExtent, 0.0}
             : Size{0.0, HeaderExtent};
@@ -1129,8 +1002,8 @@ Size Expander::MeasureOverride(Size availableSize) noexcept {
     } else {
         childAvailable.height = std::max(0.0, childAvailable.height - HeaderExtent);
     }
-    MeasureChild(*GetContentElement(), childAvailable);
-    const Size desired = GetContentElement()->GetDesiredSize();
+    MeasureChild(*contentChild, childAvailable);
+    const Size desired = contentChild->GetDesiredSize();
     return GetDirection() == ExpandDirection::Left || GetDirection() == ExpandDirection::Right
         ? Size{desired.width + HeaderExtent, desired.height}
         : Size{desired.width, desired.height + HeaderExtent};
@@ -1140,7 +1013,11 @@ Size Expander::ArrangeOverride(Size finalSize) noexcept {
     if (GetTemplateRoot() != nullptr) {
         return ContentControl::ArrangeOverride(finalSize);
     }
-    if (!GetIsExpanded() || GetContentElement() == nullptr) {
+    EnsureFallbackPresenter();
+    UIElement* contentChild = GetFallbackPresenter() != nullptr
+        ? static_cast<UIElement*>(GetFallbackPresenter())
+        : GetContentElement();
+    if (!GetIsExpanded() || contentChild == nullptr) {
         return finalSize;
     }
     constexpr double HeaderExtent = 24.0;
@@ -1161,114 +1038,9 @@ Size Expander::ArrangeOverride(Size finalSize) noexcept {
         slot.width = std::max(0.0, slot.width - HeaderExtent);
         break;
     }
-    ArrangeChild(*GetContentElement(), slot);
+    ArrangeChild(*contentChild, slot);
     return finalSize;
 }
-
-// ============================================================================
-// Page
-// ============================================================================
-
-class PageContentHost : public ContentControl {
-public:
-    PageContentHost() noexcept : ContentControl(ContentControl::StaticTypeId()) {}
-};
-
-void Page::EnsureHost() noexcept {
-    if (host_) return;
-    Base::Result<Ref<PageContentHost>> made = Base::MakeRef<PageContentHost>();
-    if (!made) return;
-    host_ = std::move(made).Value();
-    if (host_->GetVisualParent() == nullptr) { AddVisualChild(host_.Get()); }
-}
-
-UIElement* Page::GetContent() const noexcept {
-    if (!host_) return nullptr;
-    const Value value = host_->GetContent();
-    if (value.Kind() != ValueKind::Object || !value.AsObject()) return nullptr;
-    return TryCast<UIElement>(value.AsObject().Get());
-}
-
-Value Page::GetContentValue() const noexcept {
-    return host_ ? host_->GetContent() : Value::NullObject(Meta::TypeOf<Base::Object>());
-}
-
-void Page::SetContent(UIElement* content) noexcept {
-    Result<void> access = VerifyAccess();
-    if (!access) return;
-    EnsureHost();
-    if (!host_) return;
-    synchronizingContent_ = true;
-    Value propertyValue = content != nullptr
-        ? Value::FromObject(content->RuntimeType(), Ref<Base::Object>::FromBorrowed(*content))
-        : Value::NullObject(Meta::TypeOf<Base::Object>());
-    SetValue(ContentProperty, std::move(propertyValue));
-    host_->SetContent(content);
-    synchronizingContent_ = false;
-    InvalidateMeasure();
-}
-
-void Page::SetContent(Ref<UIElement> content) noexcept {
-    SetContent(content.Get());
-}
-
-void Page::SetContent(StringView text) noexcept {
-    Result<void> access = VerifyAccess();
-    if (!access) return;
-    EnsureHost();
-    if (!host_) return;
-    synchronizingContent_ = true;
-    Result<Value> encoded = Value::TryFromString(Meta::TypeOf<String>(), text);
-    if (encoded) SetValue(ContentProperty, std::move(encoded).Value());
-    host_->SetContent(text);
-    synchronizingContent_ = false;
-    InvalidateMeasure();
-}
-
-void Page::SetContent(Value value) noexcept {
-    Result<void> access = VerifyAccess();
-    if (!access) return;
-    EnsureHost();
-    if (!host_) return;
-    synchronizingContent_ = true;
-    SetValue(ContentProperty, value);
-    host_->SetContent(std::move(value));
-    synchronizingContent_ = false;
-    InvalidateMeasure();
-}
-
-Ref<Base::Object> Page::GetContentTemplate() const noexcept {
-    return GetValue(ContentTemplateProperty);
-}
-
-void Page::SetContentTemplate(Ref<Base::Object> value) noexcept {
-    SetValue(ContentTemplateProperty, std::move(value));
-}
-
-void Page::OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept {
-    FrameworkElement::OnPropertyChanged(args);
-    if (synchronizingContent_) return;
-    if (args.GetProperty() == ContentProperty) {
-        EnsureHost();
-        if (host_) host_->SetContent(args.GetNewValue());
-    } else if (args.GetProperty() == ContentTemplateProperty) {
-        EnsureHost();
-        if (host_) host_->SetContentTemplate(GetContentTemplate());
-    }
-}
-
-Size Page::MeasureOverride(Size availableSize) noexcept {
-    if (!host_) return Size{};
-    MeasureChild(*host_, availableSize);
-    return host_->GetDesiredSize();
-}
-
-Size Page::ArrangeOverride(Size finalSize) noexcept {
-    if (!host_) return finalSize;
-    ArrangeChild(*host_, {0.0, 0.0, finalSize.width, finalSize.height});
-    return finalSize;
-}
-
 // ============================================================================
 // Internal Helpers & Describe Registrations
 // ============================================================================
@@ -1320,19 +1092,6 @@ void ClearContentPresenterContent(
     static_cast<ContentPresenter&>(owner).SetContent(nullptr);
 }
 
-void SetPageContent(Base::Object& owner, const Base::Ref<Base::Object>& child, void*) noexcept {
-    if (!child) return;
-    UIElement* element = TryCast<UIElement>(child.Get());
-    if (element == nullptr) return;
-    Ref<UIElement> retained = Ref<UIElement>::TryFromBorrowed(*element);
-    if (!retained) return;
-    static_cast<Page&>(owner).SetContent(std::move(retained));
-}
-
-void ClearPageContent(Base::Object& owner, void*) noexcept {
-    static_cast<Page&>(owner).SetContent(static_cast<UIElement*>(nullptr));
-}
-
 } // namespace
 
 AERO_DESCRIBE(Control) {
@@ -1374,6 +1133,7 @@ AERO_DESCRIBE(ContentPresenter) {
     Register<ContentPresenter>(context)
         .Property(ContentPresenter::ContentProperty, FrameworkPropertyMetadata(Meta::Value::NullObject(Meta::TypeOf<Base::Object>()), AffectsMeasure).Structural())
         .Property(ContentPresenter::ContentTemplateProperty, Base::Ref<Base::Object>{}, AffectsMeasure)
+        .Property(ContentPresenter::ContentTemplateSelectorProperty, Base::Ref<Base::Object>{}, AffectsMeasure)
         .Property(ContentPresenter::ContentSourceProperty, std::move(defaultContentSource))
         .ContentAccessor(MakeMemberId(ContentPresenter::StaticTypeId(), MemberKind::Property, "Content"), ContentKind::Single, &SetContentPresenterContent, &ClearContentPresenterContent, ContentFlags::Visual)
         .Factory();
@@ -1418,19 +1178,6 @@ AERO_DESCRIBE(Expander) {
 AERO_DESCRIBE(Page) {
     using namespace Aero::Meta;
     Register<Page>(context)
-        .Property(
-            Page::ContentProperty,
-            FrameworkPropertyMetadata(
-                Meta::Value::NullObject(Meta::TypeOf<Base::Object>()),
-                AffectsMeasure)
-                .Structural())
-        .Property(Page::ContentTemplateProperty, Base::Ref<Base::Object>{}, AffectsMeasure)
-        .ContentAccessor(
-            MakeMemberId(Page::StaticTypeId(), MemberKind::Property, "Content"),
-            ContentKind::Single,
-            &SetPageContent,
-            &ClearPageContent,
-            ContentFlags::Visual)
         .Factory();
 }
 

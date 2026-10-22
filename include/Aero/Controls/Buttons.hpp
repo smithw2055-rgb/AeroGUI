@@ -115,6 +115,8 @@ public:
     RepeatButton() noexcept : RepeatButton(StaticTypeId()) {}
     ~RepeatButton() override;
 
+    bool HitTestCore() const noexcept override { return true; }
+
     std::uint32_t GetDelay() const noexcept;
     std::uint32_t GetInterval() const noexcept;
     void SetDelay(std::uint32_t value) noexcept;

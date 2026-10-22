@@ -66,46 +66,20 @@ Base::Result<SchemaTypeInfo> ResolveTypeInfo(
     return schema.ResolveType(xamlNamespace, localName);
 }
 
-bool IsCompiledWhitespace(char value) noexcept {
-    return value == ' ' || value == '\t' ||
-        value == '\r' || value == '\n';
-}
-
-Base::StringView TrimCompiledText(
+inline Base::StringView TrimCompiledText(
     Base::StringView value) noexcept {
-    std::uint32_t begin = 0U;
-    std::uint32_t end = value.SizeBytes();
-    while (begin < end && IsCompiledWhitespace(value[begin])) {
-        ++begin;
-    }
-    while (end > begin && IsCompiledWhitespace(value[end - 1U])) {
-        --end;
-    }
-    return value.Substr(begin, end - begin);
+    return ::Aero::Base::ValueConversion::Trim(value);
 }
 
-bool IsWhitespaceOnly(
+inline bool IsWhitespaceOnly(
     Base::StringView value) noexcept {
     return TrimCompiledText(value).Empty();
 }
 
-bool EqualsAsciiInsensitive(
+inline bool EqualsAsciiInsensitive(
     Base::StringView value,
     Base::StringView expected) noexcept {
-    if (value.SizeBytes() != expected.SizeBytes()) return false;
-    for (std::uint32_t index = 0U;
-         index < value.SizeBytes(); ++index) {
-        char left = value[index];
-        char right = expected[index];
-        if (left >= 'A' && left <= 'Z') {
-            left = static_cast<char>(left - 'A' + 'a');
-        }
-        if (right >= 'A' && right <= 'Z') {
-            right = static_cast<char>(right - 'A' + 'a');
-        }
-        if (left != right) return false;
-    }
-    return true;
+    return ::Aero::Base::ValueConversion::EqualsAsciiInsensitive(value, expected);
 }
 
 bool TryGetCompiledLiteral(
@@ -160,12 +134,10 @@ template<class T>
 Base::Result<Meta::Value> MakeManifestCustomValue(
     Meta::TypeId type,
     const T& value) noexcept {
-    Base::Result<Base::Ref<Meta::ValueTypeSemantics>> semantics =
-        Base::MakeRef<Meta::ValueTypeSemantics>(
-            Meta::MakeValueTypeRegistration<T>());
-    if (!semantics) return semantics.GetStatus();
+    static const Meta::ValueTypeRegistration s_reg =
+        Meta::MakeValueTypeRegistration<T>();
     return Meta::Value::TryFromCustom(
-        type, &value, semantics.Value());
+        type, &value, &s_reg);
 }
 
 Base::Result<std::uint32_t> ParseManifestNumbers(
@@ -293,110 +265,75 @@ ConvertManifestPrimitive(
     const Base::StringView text =
         TrimCompiledText(literal);
     if (type == Meta::TypeOf<bool>()) {
-        if (EqualsAsciiInsensitive(text, "true") ||
-            text == Base::StringView("1")) {
-            return Meta::Value::FromBoolean(type, true);
+        Base::Result<bool> parsed =
+            ::Aero::Base::ValueConversion::ConvertBoolean(text);
+        if (!parsed) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "AXB2 Boolean literal is invalid");
         }
-        if (EqualsAsciiInsensitive(text, "false") ||
-            text == Base::StringView("0")) {
-            return Meta::Value::FromBoolean(type, false);
-        }
-        return Base::Status::Failure(
-            Base::ErrorCode::ValidationFailed,
-            "AXB2 Boolean literal is invalid");
+        return Meta::Value::FromBoolean(type, parsed.Value());
     }
 
-    Base::String owned;
-    owned.Assign(text);
-    char* end = nullptr;
-
     if (type == Meta::TypeOf<double>()) {
-        errno = 0;
-        const double parsed = std::strtod(
-            owned.CStr(), &end);
-        if (errno == ERANGE || end == owned.CStr() ||
-            *end != '\0' || !std::isfinite(parsed)) {
+        Base::Result<double> parsed =
+            ::Aero::Base::ValueConversion::ConvertDouble(text);
+        if (!parsed) {
             return Base::Status::Failure(
                 Base::ErrorCode::ValidationFailed,
                 "AXB2 Double literal is invalid");
         }
-        return Meta::Value::FromDouble(type, parsed);
+        return Meta::Value::FromDouble(type, parsed.Value());
     }
 
-    const bool signedType =
-        type == Meta::TypeOf<std::int8_t>() ||
-        type == Meta::TypeOf<std::int16_t>() ||
-        type == Meta::TypeOf<std::int32_t>() ||
-        type == Meta::TypeOf<std::int64_t>();
-    if (signedType) {
-        errno = 0;
-        const long long parsed = std::strtoll(
-            owned.CStr(), &end, 10);
-        if (errno == ERANGE || end == owned.CStr() ||
-            *end != '\0') {
-            return Base::Status::Failure(
-                Base::ErrorCode::ValidationFailed,
-                "AXB2 signed integer literal is invalid");
-        }
-        std::int64_t minimum =
-            (std::numeric_limits<std::int64_t>::min)();
-        std::int64_t maximum =
-            (std::numeric_limits<std::int64_t>::max)();
-        if (type == Meta::TypeOf<std::int8_t>()) {
-            minimum = (std::numeric_limits<std::int8_t>::min)();
-            maximum = (std::numeric_limits<std::int8_t>::max)();
-        } else if (type == Meta::TypeOf<std::int16_t>()) {
-            minimum = (std::numeric_limits<std::int16_t>::min)();
-            maximum = (std::numeric_limits<std::int16_t>::max)();
-        } else if (type == Meta::TypeOf<std::int32_t>()) {
-            minimum = (std::numeric_limits<std::int32_t>::min)();
-            maximum = (std::numeric_limits<std::int32_t>::max)();
-        }
-        if (parsed < minimum || parsed > maximum) {
-            return Base::Status::Failure(
-                Base::ErrorCode::OutOfRange,
-                "AXB2 signed integer literal is out of range");
-        }
-        return Meta::Value::FromSignedInteger(
-            type, static_cast<std::int64_t>(parsed));
+    if (type == Meta::TypeOf<std::int8_t>()) {
+        Base::Result<std::int8_t> parsed =
+            ::Aero::Base::ValueConversion::ConvertInteger<std::int8_t>(text);
+        if (!parsed) return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB2 signed integer literal is invalid");
+        return Meta::Value::FromSignedInteger(type, parsed.Value());
+    }
+    if (type == Meta::TypeOf<std::int16_t>()) {
+        Base::Result<std::int16_t> parsed =
+            ::Aero::Base::ValueConversion::ConvertInteger<std::int16_t>(text);
+        if (!parsed) return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB2 signed integer literal is invalid");
+        return Meta::Value::FromSignedInteger(type, parsed.Value());
+    }
+    if (type == Meta::TypeOf<std::int32_t>()) {
+        Base::Result<std::int32_t> parsed =
+            ::Aero::Base::ValueConversion::ConvertInteger<std::int32_t>(text);
+        if (!parsed) return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB2 signed integer literal is invalid");
+        return Meta::Value::FromSignedInteger(type, parsed.Value());
+    }
+    if (type == Meta::TypeOf<std::int64_t>()) {
+        Base::Result<std::int64_t> parsed =
+            ::Aero::Base::ValueConversion::ConvertInteger<std::int64_t>(text);
+        if (!parsed) return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB2 signed integer literal is invalid");
+        return Meta::Value::FromSignedInteger(type, parsed.Value());
     }
 
-    const bool unsignedType =
-        type == Meta::TypeOf<std::uint8_t>() ||
-        type == Meta::TypeOf<std::uint16_t>() ||
-        type == Meta::TypeOf<std::uint32_t>() ||
-        type == Meta::TypeOf<std::uint64_t>();
-    if (unsignedType) {
-        if (!text.Empty() && text[0] == '-') {
-            return Base::Status::Failure(
-                Base::ErrorCode::OutOfRange,
-                "AXB2 unsigned integer literal is negative");
-        }
-        errno = 0;
-        const unsigned long long parsed = std::strtoull(
-            owned.CStr(), &end, 10);
-        if (errno == ERANGE || end == owned.CStr() ||
-            *end != '\0') {
-            return Base::Status::Failure(
-                Base::ErrorCode::ValidationFailed,
-                "AXB2 unsigned integer literal is invalid");
-        }
-        std::uint64_t maximum =
-            (std::numeric_limits<std::uint64_t>::max)();
-        if (type == Meta::TypeOf<std::uint8_t>()) {
-            maximum = (std::numeric_limits<std::uint8_t>::max)();
-        } else if (type == Meta::TypeOf<std::uint16_t>()) {
-            maximum = (std::numeric_limits<std::uint16_t>::max)();
-        } else if (type == Meta::TypeOf<std::uint32_t>()) {
-            maximum = (std::numeric_limits<std::uint32_t>::max)();
-        }
-        if (parsed > maximum) {
-            return Base::Status::Failure(
-                Base::ErrorCode::OutOfRange,
-                "AXB2 unsigned integer literal is out of range");
-        }
-        return Meta::Value::FromUnsignedInteger(
-            type, static_cast<std::uint64_t>(parsed));
+    if (type == Meta::TypeOf<std::uint8_t>()) {
+        Base::Result<std::uint8_t> parsed =
+            ::Aero::Base::ValueConversion::ConvertInteger<std::uint8_t>(text);
+        if (!parsed) return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB2 unsigned integer literal is invalid");
+        return Meta::Value::FromUnsignedInteger(type, parsed.Value());
+    }
+    if (type == Meta::TypeOf<std::uint16_t>()) {
+        Base::Result<std::uint16_t> parsed =
+            ::Aero::Base::ValueConversion::ConvertInteger<std::uint16_t>(text);
+        if (!parsed) return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB2 unsigned integer literal is invalid");
+        return Meta::Value::FromUnsignedInteger(type, parsed.Value());
+    }
+    if (type == Meta::TypeOf<std::uint32_t>()) {
+        Base::Result<std::uint32_t> parsed =
+            ::Aero::Base::ValueConversion::ConvertInteger<std::uint32_t>(text);
+        if (!parsed) return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB2 unsigned integer literal is invalid");
+        return Meta::Value::FromUnsignedInteger(type, parsed.Value());
+    }
+    if (type == Meta::TypeOf<std::uint64_t>()) {
+        Base::Result<std::uint64_t> parsed =
+            ::Aero::Base::ValueConversion::ConvertInteger<std::uint64_t>(text);
+        if (!parsed) return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB2 unsigned integer literal is invalid");
+        return Meta::Value::FromUnsignedInteger(type, parsed.Value());
     }
 
     if (type == Meta::TypeOf<::Aero::Length>()) {

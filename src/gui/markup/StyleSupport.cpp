@@ -9,6 +9,7 @@
 #include "gui/styles/StyleEngine.hpp"
 #include <Aero/Triggers.hpp>
 #include "gui/templates/TemplateInstance.hpp"
+#include "gui/markup/XamlPropertyResolution.hpp"
 #include <cstdio>
 
 // ===== StyleSupport =====
@@ -32,7 +33,6 @@
 #include <utility>
 
 namespace Aero::Markup {
-using namespace ::Aero::Markup;
 
 namespace {
 
@@ -71,58 +71,11 @@ Base::Status MissingStyleProperty(
         message);
 }
 
-const Meta::DependencyProperty* ResolveStyleProperty(
+inline const Meta::DependencyProperty* ResolveStyleProperty(
     const Meta::DependencyPropertyRegistry& properties,
     Meta::TypeId targetType,
     Base::StringView name) noexcept {
-    const Meta::DependencyProperty* property =
-        properties.Find(targetType, name);
-    if (property != nullptr) return property;
-    if (name == Base::StringView("ContextMenu")) {
-        property = properties.Find(
-            Controls::ContextMenuService::
-                ContextMenuProperty.Handle());
-        if (property != nullptr) return property;
-    }
-    std::uint32_t separator = UINT32_MAX;
-    for (std::uint32_t index = 0U;
-         index < name.SizeBytes();
-         ++index) {
-        if (name[index] == '.') separator = index;
-    }
-    if (separator == UINT32_MAX ||
-        separator == 0U ||
-        separator + 1U >= name.SizeBytes()) {
-        return nullptr;
-    }
-    Base::StringView ownerName = name.Substr(0U, separator);
-    // Setter.Property is authored as text, so a qualified attached property
-    // retains its XML prefix (for example aero:Element.Transform3D). The
-    // namespace has already resolved to Aero's compatibility schema while the
-    // object graph was parsed; strip the lexical prefix before metadata lookup.
-    for (std::uint32_t index = 0U; index < ownerName.SizeBytes(); ++index) {
-        if (ownerName[index] == ':') {
-            ownerName = ownerName.Substr(
-                index + 1U,
-                ownerName.SizeBytes() - index - 1U);
-            break;
-        }
-    }
-    const Meta::TypeInfo* owner =
-        properties.Types().FindType(
-            Meta::AeroNamespaceUri(),
-            ownerName);
-    const Base::StringView member = name.Substr(
-        separator + 1U,
-        name.SizeBytes() - separator - 1U);
-    if (owner != nullptr) {
-        property = properties.Find(owner->Id(), member);
-        if (property != nullptr) return property;
-    }
-    // WPF-compatible style markup may qualify a property with a base class
-    // while the concrete runtime registers the same inherited property on a
-    // derived control type.
-    return properties.Find(targetType, member);
+    return ResolveXamlDependencyProperty(properties, targetType, name);
 }
 
 Base::Result<Meta::PropertyValue> ToPropertyValue(
@@ -322,53 +275,10 @@ Base::Result<Meta::PropertyValue> XamlStyleSchemaFacet::ConvertValueForProperty(
         if (!converted) return converted.GetStatus();
         candidate = &converted.Value();
     }
-    if (property->ValueType() == Aero::Length::StaticTypeId() &&
-        candidate->Type() == Meta::TypeOf<double>()) {
-        Base::Result<double> numeric =
-            Meta::ValueCodec<double>::Decode(*candidate);
-        if (!numeric) return numeric.GetStatus();
-        converted = Meta::ValueCodec<Aero::Length>::Encode(
-            Aero::Length::Pixels(numeric.Value()));
-        if (!converted) return converted.GetStatus();
-        candidate = &converted.Value();
-    }
-    if (property->ValueType() ==
-            Media::Brush::StaticTypeId() &&
-        candidate->Type() ==
-            Meta::TypeOf<Base::Color>()) {
-        Base::Result<Base::Color> color =
-            Meta::ValueCodec<Base::Color>::Decode(
-                *candidate);
-        if (!color) return color.GetStatus();
-        Base::Result<
-            Base::Ref<Media::Brush>>
-            brush =
-                Media::MakeSolidColorBrush(
-                    color.Value());
-        if (!brush) return brush.GetStatus();
-        return Meta::Value::FromObject(
-            Media::Brush::StaticTypeId(),
-            Base::Ref<Base::Object>(
-                std::move(brush).Value()));
-    }
-    if (property->ValueType() == Meta::TypeOf<Base::Color>() &&
-        candidate->Kind() == Meta::ValueKind::Object &&
-        options_.properties->Types().IsDerivedFrom(
-            candidate->Type(), Media::Brush::StaticTypeId())) {
-        Base::Result<Base::Ref<Media::Brush>> brush =
-            Meta::ValueCodec<Base::Ref<Media::Brush>>::Decode(
-                *candidate);
-        if (!brush) return brush.GetStatus();
-        Media::Brush* source = brush.Value().Get();
-        if (source == nullptr || source->RuntimeType() !=
-                Media::SolidColorBrush::StaticTypeId()) {
-            return InvalidStyleXaml(
-                "Color-backed text property requires SolidColorBrush");
-        }
-        return Meta::ValueCodec<Base::Color>::Encode(
-            static_cast<Media::SolidColorBrush*>(source)->GetColor());
-    }
-    return ToPropertyValue(*candidate, property->ValueType());
+    Base::Result<Meta::Value> coerced = CoerceXamlValueForProperty(
+        *property, *candidate, options_.properties->Types());
+    if (!coerced) return coerced.GetStatus();
+    return ToPropertyValue(coerced.Value(), property->ValueType());
 }
 
 bool SetterValueIsPending(const Aero::Setter* setter) noexcept {
@@ -391,56 +301,44 @@ bool StyleHasPendingResourceValues(Aero::Style& style) noexcept {
         if (authored == nullptr) {
             continue;
         }
-        if (authored->RuntimeType() == Aero::Trigger::StaticTypeId()) {
-            auto* trigger = static_cast<Aero::Trigger*>(authored);
-            if (!trigger->GetPropertyName().Empty() &&
-                trigger->GetAuthoredValue().IsUnset()) {
-                return true;
+        if (auto* setterTrigger = ::Aero::TryCast<Aero::SetterTriggerBase>(authored)) {
+            if (authored->RuntimeType() == Aero::Trigger::StaticTypeId()) {
+                auto* trigger = static_cast<Aero::Trigger*>(authored);
+                if (!trigger->GetPropertyName().Empty() &&
+                    trigger->GetAuthoredValue().IsUnset()) {
+                    return true;
+                }
+            } else if (authored->RuntimeType() == Aero::DataTrigger::StaticTypeId()) {
+                auto* trigger = static_cast<Aero::DataTrigger*>(authored);
+                if (trigger->GetBinding() &&
+                    trigger->GetAuthoredValue().IsUnset()) {
+                    return true;
+                }
+            } else if (authored->RuntimeType() ==
+                    Aero::MultiDataTrigger::StaticTypeId()) {
+                auto* trigger =
+                    static_cast<Aero::MultiDataTrigger*>(authored);
+                for (const Base::Ref<Aero::Condition>& condition :
+                     trigger->GetConditions()) {
+                    if (condition &&
+                        condition->GetBinding() &&
+                        condition->GetAuthoredValue().IsUnset()) {
+                        return true;
+                    }
+                }
             }
             for (const Base::Ref<Aero::Setter>& setterEntry :
-                 trigger->GetAuthoredSetters()) {
+                 setterTrigger->GetAuthoredSetters()) {
                 if (SetterValueIsPending(setterEntry.Get())) {
                     return true;
                 }
             }
             continue;
-        }
-        if (authored->RuntimeType() == Aero::DataTrigger::StaticTypeId()) {
-            auto* trigger = static_cast<Aero::DataTrigger*>(authored);
-            if (trigger->GetBinding() &&
-                trigger->GetAuthoredValue().IsUnset()) {
-                return true;
-            }
-            for (const Base::Ref<Aero::Setter>& setterEntry :
-                 trigger->GetAuthoredSetters()) {
-                if (SetterValueIsPending(setterEntry.Get())) {
-                    return true;
-                }
-            }
-            continue;
-        }
-        if (authored->RuntimeType() ==
-                Aero::MultiDataTrigger::StaticTypeId()) {
-            auto* trigger =
-                static_cast<Aero::MultiDataTrigger*>(authored);
-            for (const Base::Ref<Aero::Condition>& condition :
-                 trigger->GetConditions()) {
-                if (condition &&
-                    condition->GetBinding() &&
-                    condition->GetAuthoredValue().IsUnset()) {
-                    return true;
-                }
-            }
-            for (const Base::Ref<Aero::Setter>& setterEntry :
-                 trigger->GetAuthoredSetters()) {
-                if (SetterValueIsPending(setterEntry.Get())) {
-                    return true;
-                }
-            }
         }
     }
     return false;
 }
+
 
 Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
     Aero::Style& style) noexcept {
@@ -479,6 +377,57 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
             Base::ErrorCode::ValidationFailed,
             "Style TargetType must identify an object type");
     }
+    auto resolveTriggerSetters = [&](
+        Aero::SetterTriggerBase& trigger,
+        const char* triggerKindName) -> Base::Result<void> {
+        for (const Base::Ref<Aero::Setter>& setterEntry :
+             trigger.GetAuthoredSetters()) {
+            Aero::Setter* setter = setterEntry.Get();
+            if (setter == nullptr || !setter->GetIsAuthored()) {
+                thread_local char message[256]{};
+                std::snprintf(
+                    message,
+                    sizeof(message),
+                    "Style %s Setter requires Property and Value",
+                    triggerKindName);
+                return Base::Status::Failure(
+                    Base::ErrorCode::InvalidState,
+                    message);
+            }
+            const Meta::DependencyProperty* property =
+                ResolveStyleProperty(
+                    *options_.properties,
+                    targetType,
+                    setter->GetPropertyName());
+            if (property == nullptr) {
+                thread_local char message[256]{};
+                std::snprintf(
+                    message,
+                    sizeof(message),
+                    "%s Setter property",
+                    triggerKindName);
+                return MissingStyleProperty(
+                    message,
+                    setter->GetPropertyName(),
+                    targetType,
+                    options_.properties->Types());
+            }
+            Base::Result<Meta::PropertyValue> value =
+                ConvertValueForProperty(
+                    setter->GetAuthoredValue(),
+                    targetType,
+                    setter->GetPropertyName());
+            if (!value) return value.GetStatus();
+            Base::Result<void> resolved = setter->Resolve(
+                property->Handle(), value.Value());
+            if (!resolved) return resolved.GetStatus();
+            if (auto* propTrigger = ::Aero::TryCast<Aero::Trigger>(&trigger)) {
+                propTrigger->AddSetter(*setter);
+            }
+            setter->ReleaseAuthored();
+        }
+        return {};
+    };
     for (const Base::Ref<Aero::SetterBase>& entry :
          style.GetAuthoredSetters()) {
         Aero::Setter* setter =
@@ -526,6 +475,7 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
             property->Handle(), value.Value());
         if (!resolved) return resolved.GetStatus();
         style.AddSetter(*setter);
+        setter->ReleaseAuthored();
     }
     for (const Base::Ref<Aero::TriggerBase>& entry :
          style.GetAuthoredTriggers()) {
@@ -562,38 +512,11 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
             if (!conditionValue) return conditionValue.GetStatus();
             trigger->SetProperty(condition->Handle());
             trigger->SetValue(conditionValue.Value());
-            for (const Base::Ref<Aero::Setter>& setterEntry :
-                 trigger->GetAuthoredSetters()) {
-                Aero::Setter* setter = setterEntry.Get();
-                if (setter == nullptr || !setter->GetIsAuthored()) {
-                    return Base::Status::Failure(
-                        Base::ErrorCode::InvalidState,
-                        "Style Trigger Setter requires Property and Value");
-                }
-                const Meta::DependencyProperty* property =
-                    ResolveStyleProperty(
-                        *options_.properties,
-                        targetType,
-                        setter->GetPropertyName());
-                if (property == nullptr) {
-                    return MissingStyleProperty(
-                        "Trigger Setter property",
-                        setter->GetPropertyName(),
-                        targetType,
-                        options_.properties->Types());
-                }
-                Base::Result<Meta::PropertyValue> value =
-                    ConvertValueForProperty(
-                        setter->GetAuthoredValue(),
-                        targetType,
-                        setter->GetPropertyName());
-                if (!value) return value.GetStatus();
-                Base::Result<void> resolved = setter->Resolve(
-                    property->Handle(), value.Value());
-                if (!resolved) return resolved.GetStatus();
-                trigger->AddSetter(*setter);
-            }
+            Base::Result<void> settersResolved = resolveTriggerSetters(
+                *trigger, "Trigger");
+            if (!settersResolved) return settersResolved.GetStatus();
             style.AddTrigger(*trigger);
+            trigger->ReleaseAuthored();
             continue;
         }
         if (options_.properties->Types().IsDerivedFrom(
@@ -619,37 +542,11 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
                     Base::ErrorCode::InvalidState,
                     "Style DataTrigger requires Binding, Value, and Setters");
             }
-            for (const Base::Ref<Aero::Setter>& setterEntry :
-                 trigger->GetAuthoredSetters()) {
-                Aero::Setter* setter = setterEntry.Get();
-                if (setter == nullptr || !setter->GetIsAuthored()) {
-                    return Base::Status::Failure(
-                        Base::ErrorCode::InvalidState,
-                        "Style DataTrigger Setter requires Property and Value");
-                }
-                const Meta::DependencyProperty* property =
-                    ResolveStyleProperty(
-                        *options_.properties,
-                        targetType,
-                        setter->GetPropertyName());
-                if (property == nullptr) {
-                    return MissingStyleProperty(
-                        "DataTrigger Setter property",
-                        setter->GetPropertyName(),
-                        targetType,
-                        options_.properties->Types());
-                }
-                Base::Result<Meta::PropertyValue> value =
-                    ConvertValueForProperty(
-                        setter->GetAuthoredValue(),
-                        targetType,
-                        setter->GetPropertyName());
-                if (!value) return value.GetStatus();
-                Base::Result<void> resolved = setter->Resolve(
-                    property->Handle(), value.Value());
-                if (!resolved) return resolved.GetStatus();
-            }
+            Base::Result<void> settersResolved = resolveTriggerSetters(
+                *trigger, "DataTrigger");
+            if (!settersResolved) return settersResolved.GetStatus();
             style.AddTrigger(*trigger);
+            trigger->ReleaseAuthored();
             continue;
         }
         if (authored->RuntimeType() ==
@@ -671,37 +568,14 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
                         "Style MultiDataTrigger Condition requires Binding and Value");
                 }
             }
-            for (const Base::Ref<Aero::Setter>& setterEntry :
-                 trigger->GetAuthoredSetters()) {
-                Aero::Setter* setter = setterEntry.Get();
-                if (setter == nullptr || !setter->GetIsAuthored()) {
-                    return Base::Status::Failure(
-                        Base::ErrorCode::InvalidState,
-                        "Style MultiDataTrigger Setter requires Property and Value");
-                }
-                const Meta::DependencyProperty* property =
-                    ResolveStyleProperty(
-                        *options_.properties,
-                        targetType,
-                        setter->GetPropertyName());
-                if (property == nullptr) {
-                    return MissingStyleProperty(
-                        "MultiDataTrigger Setter property",
-                        setter->GetPropertyName(),
-                        targetType,
-                        options_.properties->Types());
-                }
-                Base::Result<Meta::PropertyValue> value =
-                    ConvertValueForProperty(
-                        setter->GetAuthoredValue(),
-                        targetType,
-                        setter->GetPropertyName());
-                if (!value) return value.GetStatus();
-                Base::Result<void> resolved = setter->Resolve(
-                    property->Handle(), value.Value());
-                if (!resolved) return resolved.GetStatus();
-            }
+            Base::Result<void> settersResolved = resolveTriggerSetters(
+                *trigger, "MultiDataTrigger");
+            if (!settersResolved) return settersResolved.GetStatus();
             style.AddTrigger(*trigger);
+            for (const Base::Ref<Aero::Condition>& condition :
+                 trigger->GetConditions()) {
+                if (condition) condition->ReleaseAuthored();
+            }
             continue;
         }
         return Base::Status::Failure(

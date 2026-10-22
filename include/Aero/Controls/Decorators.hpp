@@ -50,7 +50,10 @@ public:
         if (!access) return;
         Result<void> valid = ValidateChild(&child);
         if (!valid) return;
-        if (child_ == &child) return;
+        if (child_ == &child) {
+            ownedChild_ = childObject;
+            return;
+        }
         if (child_ != nullptr && child_->GetVisualParent() == this) { RemoveVisualChild(child_); }
         child_ = &child;
         ownedChild_ = childObject;
@@ -115,6 +118,7 @@ public:
     UIElement* GetChild() const noexcept { return child_.Get(); }
     Ref<Media::Brush> GetBackground() const noexcept { return GetValue(BackgroundProperty); }
     void SetBackground(Ref<Media::Brush> value) noexcept { SetValue(BackgroundProperty, std::move(value)); }
+    bool HitTestCore() const noexcept override { return GetBackground() != nullptr; }
     void SetBullet(Ref<UIElement> value) noexcept {
         UIElement* previous = bullet_.Get();
         if (previous == value.Get()) {
@@ -141,16 +145,16 @@ public:
 protected:
     std::uint32_t GetVisualChildrenCount() const noexcept override {
         std::uint32_t count = 0U;
-        if (bullet_ && bullet_->GetVisualParent() == this) ++count;
-        if (child_ && child_->GetVisualParent() == this) ++count;
+        if (bullet_) ++count;
+        if (child_) ++count;
         return count;
     }
     ::Aero::Media::Visual* GetVisualChild(std::uint32_t index) const noexcept override {
-        if (bullet_ && bullet_->GetVisualParent() == this) {
+        if (bullet_) {
             if (index == 0U) return bullet_.Get();
             --index;
         }
-        if (child_ && child_->GetVisualParent() == this && index == 0U) { return child_.Get(); }
+        if (child_ && index == 0U) { return child_.Get(); }
         return nullptr;
     }
     Size MeasureOverride(Size availableSize) noexcept override {
@@ -207,6 +211,10 @@ class AERO_GUI_API Border : public Decorator {
 
 public:
     Border() noexcept;
+
+    bool HitTestCore() const noexcept override {
+        return GetBackground() != nullptr || GetBorderBrush() != nullptr;
+    }
 
     Ref<Brush> GetBackground() const noexcept;
     void SetBackground(Ref<Brush> value) noexcept;
@@ -279,6 +287,8 @@ class AERO_GUI_API Image : public FrameworkElement {
 public:
     Image() noexcept : FrameworkElement(StaticTypeId()) {}
     ~Image() override = default;
+
+    bool HitTestCore() const noexcept override { return GetSource() != nullptr; }
 
     Ref<ImageSource> GetSource() const noexcept;
     Stretch GetStretch() const noexcept;

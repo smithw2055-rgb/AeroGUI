@@ -44,6 +44,303 @@ using namespace Aero::Threading;
 
 namespace Aero {
 
+FrameworkElement::FrameworkElement(TypeId runtimeType) noexcept
+    : UIElement(runtimeType) {}
+
+struct FrameworkElement::FrameworkRare {
+    Base::Vector<Ref<Base::Object>> authoredTriggers;
+    Base::Vector<Ref<Base::Object>> authoredBehaviors;
+    Base::Vector<Ref<Base::Object>> styleBehaviorPrototypes;
+    Base::Vector<Ref<Base::Object>> styleTriggerPrototypes;
+    NameScope names;
+    Base::Transform2D viewboxTransform{};
+    bool hasViewboxTransform = false;
+};
+
+FrameworkElement::FrameworkRare*
+FrameworkElement::EnsureFrameworkRare() noexcept {
+    if (frameworkRare_ == nullptr) {
+        frameworkRare_ = new (std::nothrow) FrameworkRare();
+    }
+    return frameworkRare_;
+}
+
+void FrameworkElement::DropRareIfUnused() noexcept {
+    if (frameworkRare_ == nullptr) return;
+    if (!frameworkRare_->authoredTriggers.Empty()) return;
+    if (!frameworkRare_->authoredBehaviors.Empty()) return;
+    if (!frameworkRare_->styleBehaviorPrototypes.Empty()) return;
+    if (!frameworkRare_->styleTriggerPrototypes.Empty()) return;
+    if (frameworkRare_->names.Size() != 0U) return;
+    if (frameworkRare_->hasViewboxTransform) return;
+    delete frameworkRare_;
+    frameworkRare_ = nullptr;
+}
+
+bool FrameworkElement::TryGetViewboxTransform(
+    Base::Transform2D& matrix) const noexcept {
+    if (frameworkRare_ == nullptr ||
+        !frameworkRare_->hasViewboxTransform) {
+        return false;
+    }
+    matrix = frameworkRare_->viewboxTransform;
+    return true;
+}
+
+bool FrameworkElement::SetViewboxTransform(
+    const Base::Transform2D& matrix) noexcept {
+    FrameworkRare* rare = EnsureFrameworkRare();
+    if (rare == nullptr) return false;
+    const bool changed = !rare->hasViewboxTransform ||
+        rare->viewboxTransform.m11 != matrix.m11 ||
+        rare->viewboxTransform.m12 != matrix.m12 ||
+        rare->viewboxTransform.m21 != matrix.m21 ||
+        rare->viewboxTransform.m22 != matrix.m22 ||
+        rare->viewboxTransform.dx != matrix.dx ||
+        rare->viewboxTransform.dy != matrix.dy;
+    rare->viewboxTransform = matrix;
+    rare->hasViewboxTransform = true;
+    return changed;
+}
+
+void FrameworkElement::ClearViewboxTransform() noexcept {
+    if (frameworkRare_ == nullptr) return;
+    frameworkRare_->hasViewboxTransform = false;
+    frameworkRare_->viewboxTransform = {};
+    DropRareIfUnused();
+}
+
+Base::Object* FrameworkElement::FindRegisteredName(
+    Base::StringView name) const noexcept {
+    return frameworkRare_ != nullptr
+        ? frameworkRare_->names.Find(name)
+        : nullptr;
+}
+
+Base::Result<void> FrameworkElement::RegisterName(
+    Base::StringView name,
+    Base::Object& scopedElement) noexcept {
+    FrameworkRare* rare = EnsureFrameworkRare();
+    if (rare == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "FrameworkElement name scope allocation failed");
+    }
+    return rare->names.Register(name, scopedElement);
+}
+
+FrameworkElement::~FrameworkElement() {
+    delete resources_;
+    resources_ = nullptr;
+    delete frameworkRare_;
+    frameworkRare_ = nullptr;
+}
+
+Base::Ref<Transform>
+FrameworkElement::GetLayoutTransform() const noexcept {
+    Base::Result<Base::Ref<Transform>> value =
+        GetValue(LayoutTransformProperty);
+    return value
+        ? std::move(value).Value()
+        : Base::Ref<Transform>{};
+}
+
+void FrameworkElement::SetLayoutTransform(
+    Base::Ref<Transform> value) noexcept {
+    SetValue(
+        LayoutTransformProperty,
+        std::move(value));
+}
+
+Base::ProjectiveTransform2D
+FrameworkElement::GetLocalVisualTransform() const noexcept {
+    Base::Transform2D result;
+    Size visualSize = GetRenderSize();
+    Base::Ref<Transform> layoutTransform =
+        GetLayoutTransform();
+    if (layoutTransform) {
+        result = layoutTransform->GetMatrix();
+        const Rect bounds = TransformBounds(
+            result,
+            {0.0, 0.0,
+             visualSize.width,
+             visualSize.height});
+        Base::Transform2D normalize;
+        normalize.dx = -bounds.x;
+        normalize.dy = -bounds.y;
+        result = ComposeTransforms(
+            result,
+            normalize);
+        visualSize = {
+            bounds.width,
+            bounds.height};
+    }
+
+    Base::Ref<Transform> renderTransform =
+        GetRenderTransform();
+    if (renderTransform) {
+        const Point origin = GetRenderTransformOrigin();
+        const double originX =
+            origin.x * visualSize.width;
+        const double originY =
+            origin.y * visualSize.height;
+        Base::Transform2D before;
+        before.dx = -originX;
+        before.dy = -originY;
+        Base::Transform2D after;
+        after.dx = originX;
+        after.dy = originY;
+        const Base::Transform2D render =
+            ComposeTransforms(
+                ComposeTransforms(
+                    before,
+                    renderTransform->GetMatrix()),
+                after);
+        result = ComposeTransforms(
+            result,
+            render);
+    }
+
+    if (frameworkRare_ != nullptr && frameworkRare_->hasViewboxTransform) {
+        result = ComposeTransforms(result, frameworkRare_->viewboxTransform);
+    }
+    return Base::ToProjective(result);
+}
+
+Base::Result<Value>
+FrameworkElement::GetDataContextResult() const noexcept {
+    return GetValue(DataContextProperty);
+}
+
+void FrameworkElement::SetDataContext(
+    Value value) noexcept {
+    SetValue(DataContextProperty, std::move(value));
+}
+
+void FrameworkElement::ClearDataContext() noexcept {
+    ClearValue(DataContextProperty);
+}
+
+void FrameworkElement::SyncLayoutScalars() noexcept {
+    layoutScalars_.width = GetValue(WidthProperty);
+    layoutScalars_.height = GetValue(HeightProperty);
+    layoutScalars_.minWidth = GetValue(MinWidthProperty);
+    layoutScalars_.maxWidth = GetValue(MaxWidthProperty);
+    layoutScalars_.minHeight = GetValue(MinHeightProperty);
+    layoutScalars_.maxHeight = GetValue(MaxHeightProperty);
+    layoutScalars_.margin = GetValue(MarginProperty);
+}
+
+void FrameworkElement::OnPropertyInvalidated(
+    PropertyInvalidationFlags flags) noexcept {
+    UIElement::OnPropertyInvalidated(flags);
+    SyncLayoutScalars();
+    if (HasFlag(flags, PropertyInvalidationFlags::Render)) {
+        InvalidateVisual();
+    }
+}
+
+void FrameworkElement::InvalidateVisual() noexcept {
+    Base::Result<void> access = VerifyAccess();
+    if (!access) {
+        return;
+    }
+    (*this).InvalidateRenderDrawing();
+}
+
+void FrameworkElement::OnRender(
+    ::Aero::Media::DrawingContext&) noexcept {
+    return;
+}
+
+Base::Span<const Base::Ref<Base::Object>>
+FrameworkElement::AuthoredTriggers() const noexcept {
+    return frameworkRare_ != nullptr
+        ? frameworkRare_->authoredTriggers.AsSpan()
+        : Base::Span<const Base::Ref<Base::Object>>{};
+}
+
+void FrameworkElement::AddAuthoredTrigger(
+    Base::Ref<Base::Object> trigger) noexcept {
+    if (!trigger) { AERO_ASSERT(false); return; }
+    FrameworkRare* rare = EnsureFrameworkRare();
+    if (rare == nullptr) { AERO_ASSERT(false); return; }
+    rare->authoredTriggers.PushBack(std::move(trigger));
+}
+
+void FrameworkElement::ClearAuthoredTriggers() noexcept {
+    if (frameworkRare_ != nullptr) {
+        frameworkRare_->authoredTriggers.Clear();
+        DropRareIfUnused();
+    }
+}
+
+void FrameworkElement::AddAuthoredBehavior(
+    Base::Ref<Base::Object> behavior) noexcept {
+    if (!behavior) { AERO_ASSERT(false); return; }
+    FrameworkRare* rare = EnsureFrameworkRare();
+    if (rare == nullptr) { AERO_ASSERT(false); return; }
+    rare->authoredBehaviors.PushBack(std::move(behavior));
+}
+
+void FrameworkElement::ClearAuthoredBehaviors() noexcept {
+    if (frameworkRare_ != nullptr) {
+        frameworkRare_->authoredBehaviors.Clear();
+        DropRareIfUnused();
+    }
+}
+
+void FrameworkElement::AddStyleBehaviorPrototype(
+    Base::Ref<Base::Object> behavior) noexcept {
+    if (!behavior) { AERO_ASSERT(false); return; }
+    FrameworkRare* rare = EnsureFrameworkRare();
+    if (rare == nullptr) { AERO_ASSERT(false); return; }
+    rare->styleBehaviorPrototypes.PushBack(std::move(behavior));
+}
+
+void FrameworkElement::ClearStyleBehaviorPrototypes() noexcept {
+    if (frameworkRare_ != nullptr) {
+        frameworkRare_->styleBehaviorPrototypes.Clear();
+        DropRareIfUnused();
+    }
+}
+
+void FrameworkElement::AddStyleTriggerPrototype(
+    Base::Ref<Base::Object> trigger) noexcept {
+    if (!trigger) { AERO_ASSERT(false); return; }
+    FrameworkRare* rare = EnsureFrameworkRare();
+    if (rare == nullptr) { AERO_ASSERT(false); return; }
+    rare->styleTriggerPrototypes.PushBack(std::move(trigger));
+}
+
+void FrameworkElement::ClearStyleTriggerPrototypes() noexcept {
+    if (frameworkRare_ != nullptr) {
+        frameworkRare_->styleTriggerPrototypes.Clear();
+        DropRareIfUnused();
+    }
+}
+
+Span<const Ref<Base::Object>>
+FrameworkElement::AuthoredBehaviors() const noexcept {
+    return frameworkRare_ != nullptr
+        ? frameworkRare_->authoredBehaviors.AsSpan()
+        : Span<const Ref<Base::Object>>{};
+}
+
+Span<const Ref<Base::Object>>
+FrameworkElement::StyleBehaviorPrototypes() const noexcept {
+    return frameworkRare_ != nullptr
+        ? frameworkRare_->styleBehaviorPrototypes.AsSpan()
+        : Span<const Ref<Base::Object>>{};
+}
+
+Span<const Ref<Base::Object>>
+FrameworkElement::StyleTriggerPrototypes() const noexcept {
+    return frameworkRare_ != nullptr
+        ? frameworkRare_->styleTriggerPrototypes.AsSpan()
+        : Span<const Ref<Base::Object>>{};
+}
+
 Result<Data::BindingExpression> FrameworkElement::SetBinding(
     DependencyPropertyHandle property,
     const Data::Binding& binding) noexcept {
@@ -509,6 +806,7 @@ AERO_DESCRIBE(FrameworkElement) {
     }
     Register<FrameworkElement>(context)
         .Event(FrameworkElement::LoadedEvent, RoutingStrategy::Direct)
+        .Event(FrameworkElement::UnloadedEvent, RoutingStrategy::Direct)
         .Property<
             Base::Ref<ResourceDictionary>,
             &FrameworkElement::SetResources>(

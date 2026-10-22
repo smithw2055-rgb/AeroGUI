@@ -7,60 +7,20 @@
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
 #include "gui/core/Describe.hpp"
-#include "gui/core/TypeRegistryCore.hpp"
-#include "gui/core/RenderStateCallbacks.hpp"
-#include "gui/core/ValueConversion.hpp"
-#include "gui/data/BindingEngine.hpp"
 #include <Aero/Interactivity/Conditions.hpp>
-#include <Aero/Interactivity/BlendBehaviors.hpp>
 #include <Aero/Interactivity/Interaction.hpp>
 #include <Aero/Interactivity/InteractionTriggers.hpp>
 #include <Aero/Interactivity/TriggerAction.hpp>
-#include <Aero/Style.hpp>
 #include <Aero/Triggers.hpp>
-#include <Aero/Resources.hpp>
-#include <Aero/Events.hpp>
 #include <Aero/Media/Animation.hpp>
-#include <Aero/Media/Animation/MediaActions.hpp>
-#include <Aero/Media/Animation/StoryboardActions.hpp>
 #include <Aero/Media/Animation/StoryboardCompletedTrigger.hpp>
-#include <Aero/Media/Animation/TimerTrigger.hpp>
-#include <Aero/Media/Brushes.hpp>
-#include <Aero/Media/Effects.hpp>
-#include <Aero/Media/Images.hpp>
-#include <Aero/Media/MediaElement.hpp>
-#include <Aero/Media/Transform2D.hpp>
-#include <Aero/Media/Transform3D.hpp>
-#include <Aero/Media/Geometries.hpp>
-#include <Aero/Media/Pen.hpp>
-#include <Aero/Media/Fonts.hpp>
-#include <Aero/Layout.hpp>
-#include <Aero/Collections.hpp>
-#include <Aero/Input.hpp>
-#include <Aero/ICommand.hpp>
-#include <Aero/RoutedCommand.hpp>
-#include <Aero/InputBinding.hpp>
-#include <Aero/EventSetter.hpp>
-#include <Aero/KeyboardNavigation.hpp>
-#include <Aero/CommandBinding.hpp>
-#include <Aero/ApplicationCommands.hpp>
-#include <Aero/InputGesture.hpp>
 #include <Aero/Data/Binding.hpp>
-#include <Aero/Data/MultiBinding.hpp>
-#include <Aero/Data/BooleanToVisibilityConverter.hpp>
-#include <Aero/Data/IMultiValueConverter.hpp>
-#include <Aero/Data/IValueConverter.hpp>
-#include <Aero/DataObject.hpp>
-#include <Aero/DragDrop.hpp>
-#include <Aero/Input/Cursor.hpp>
-#include <Aero/Input/Mouse.hpp>
-#include <Aero/Input/Keyboard.hpp>
-#include <Aero/Animatable.hpp>
 #include <cctype>
 #include <cmath>
 #include <cstdlib>
 #include <utility>
 #include "gui/core/DependencyObjectAccess.hpp"
+#include "gui/core/PropertyStore.hpp"
 
 namespace Aero::Interactivity {
 
@@ -125,16 +85,19 @@ Base::Result<Base::Ref<Behavior>> Behavior::ClonePrototype(
     Base::Ref<Behavior> clone =
         Base::Ref<Behavior>::FromBorrowed(
             *static_cast<Behavior*>(created.Value().Get()));
-    for (const Meta::DependencyProperty& property :
-         DependencyObjectAccess::PropertyRegistry((prototype)).Properties()) {
-        if (property.MetadataFor(prototype.RuntimeType()) == nullptr ||
-            property.MetadataFor(clone->RuntimeType()) == nullptr) {
-            continue;
+    const PropertyStore* store = DependencyObjectAccess::Store(prototype);
+    if (store != nullptr) {
+        for (const auto& record : store->entries) {
+            const StoredValueEntry& entry = record.Value();
+            if (!entry.HasLocal()) {
+                continue;
+            }
+            const Meta::PropertyValue local = entry.LocalValueOrUnset();
+            if (local.IsUnset()) {
+                continue;
+            }
+            clone->SetValue(Meta::DependencyPropertyHandle{record.Key()}, local);
         }
-        Meta::PropertyValue local =
-            prototype.ReadLocalValue(property.Handle());
-        if (local.IsUnset()) continue;
-        clone->SetValue(property.Handle(), local);
     }
     prototype.CopyAuthoredBindingsTo(*clone);
     return clone;

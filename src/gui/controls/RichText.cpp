@@ -90,26 +90,21 @@ Base::Result<void> AppendRichTextValue(
     Base::String& output,
     const Meta::Value& value,
     Base::StringView format) noexcept {
-    char raw[128]{};
-    bool numeric = false;
+    if (value.Kind() == Meta::ValueKind::String || value.Kind() == Meta::ValueKind::Boolean) {
+        Base::String text;
+        Base::Result<void> formatted = Base::ValueConversion::FormatScalarValue(text, value);
+        if (!formatted) return formatted.GetStatus();
+        return output.Append(text.View());
+    }
     double number = 0.0;
     switch (value.Kind()) {
-    case Meta::ValueKind::String:
-        return output.Append(value.AsString());
-    case Meta::ValueKind::Boolean:
-        return output.Append(value.AsBoolean()
-            ? Base::StringView("True")
-            : Base::StringView("False"));
     case Meta::ValueKind::SignedInteger:
-        numeric = true;
         number = static_cast<double>(value.AsSignedInteger());
         break;
     case Meta::ValueKind::UnsignedInteger:
-        numeric = true;
         number = static_cast<double>(value.AsUnsignedInteger());
         break;
     case Meta::ValueKind::Double:
-        numeric = true;
         number = value.AsDouble();
         break;
     default:
@@ -118,7 +113,14 @@ Base::Result<void> AppendRichTextValue(
             "RichText binding value has no text conversion");
     }
 
-    if (!numeric) return {};
+    if (format.Empty()) {
+        Base::String text;
+        Base::Result<void> formatted = Base::ValueConversion::FormatScalarValue(text, value);
+        if (!formatted) return formatted.GetStatus();
+        return output.Append(text.View());
+    }
+
+    char raw[128]{};
     std::uint32_t precision = 15U;
     Base::StringView prefix;
     Base::StringView suffix;
@@ -352,23 +354,15 @@ void ApplyRichText(DependencyObject& object) noexcept {
             trimmed, Base::StringView("]"), 6U);
         if (sizeEnd != UINT32_MAX) {
             const Base::StringView sizeStr = trimmed.Substr(6U, sizeEnd - 6U);
-            double fontSize = 0.0;
-            for (std::uint32_t i = 0U; i < sizeStr.SizeBytes(); ++i) {
-                const char c = sizeStr[i];
-                if (c >= '0' && c <= '9') {
-                    fontSize = fontSize * 10.0 + (c - '0');
-                }
-            }
-            if (fontSize > 0.0) {
+            const auto parsed = ::Aero::Base::ValueConversion::ParseDouble(sizeStr);
+            if (parsed && parsed.Value() > 0.0) {
                 hasSize = true;
+                const double fontSize = parsed.Value();
                 if (text.GetFontSize() != fontSize) {
                     text.SetFontSize(fontSize);
                 }
             }
         }
-    }
-    if (!hasSize) {
-        text.ClearValue(Controls::TextBlock::FontSizeProperty);
     }
     const bool isEnclosedBold = (StartsWithRichTextToken(trimmed, Base::StringView("[b]")) &&
         trimmed.SizeBytes() >= 7U &&
@@ -380,8 +374,6 @@ void ApplyRichText(DependencyObject& object) noexcept {
         if (text.GetFontWeight() != FontWeight::Bold) {
             text.SetFontWeight(FontWeight::Bold);
         }
-    } else {
-        text.ClearValue(Controls::TextBlock::FontWeightProperty);
     }
     if (text.GetText() != plain.View()) {
         text.SetText(plain.View());
@@ -395,146 +387,5 @@ void RichText::OnTextChanged(
     ApplyRichText(object);
 }
 
-namespace Controls {
-namespace {
-
-void AddTextBlockInline(
-    Base::Object& owner,
-    const Base::Ref<Base::Object>& child,
-    void*) noexcept {
-    if (!child) {
-        return;
-    }
-    auto& text = static_cast<TextBlock&>(owner);
-    if (!DependencyObjectAccess::PropertyRegistry((text)).Types().IsDerivedFrom(
-            child->RuntimeType(),
-            Aero::Documents::Inline::StaticTypeId())) {
-        return;
-    }
-    text.AddOwnedInline(child);
-}
-
-void ClearTextBlockInlines(
-    Base::Object& owner,
-    void*) noexcept {
-    static_cast<TextBlock&>(owner).ClearOwnedInlines();
-}
-
-void AddSpanInline(
-    Base::Object& owner,
-    const Base::Ref<Base::Object>& child,
-    void*) noexcept {
-    if (!child) {
-        return;
-    }
-    auto& span = static_cast<Documents::Span&>(owner);
-    if (!DependencyObjectAccess::PropertyRegistry((span)).Types().IsDerivedFrom(
-            child->RuntimeType(),
-            Documents::Inline::StaticTypeId())) {
-        return;
-    }
-    span.AddOwnedInline(
-        Base::Ref<Documents::Inline>::FromBorrowed(
-            *static_cast<Documents::Inline*>(child.Get())));
-}
-
-void ClearSpanInlines(
-    Base::Object& owner,
-    void*) noexcept {
-    static_cast<Documents::Span&>(owner).ClearOwnedInlines();
-}
-
-} // namespace
-
-AERO_DESCRIBE(TextBlock) {
-    using namespace Aero::Meta;
-    using namespace Aero::Media;
-    namespace Docs = Aero::Documents;
-    const auto makeBrush = [](Base::Color color) noexcept {
-        Base::Result<Base::Ref<Brush>> made = MakeSolidColorBrush(color);
-        return made ? std::move(made).Value() : Base::Ref<Brush>{};
-    };
-    const Base::Ref<Brush> black = makeBrush({0.0F, 0.0F, 0.0F, 1.0F});
-
-    Register<TextBlock>(context)
-        .Property(TextBlock::TextProperty, Base::String{}, AffectsMeasure)
-        .Property(TextBlock::BackgroundProperty, Base::Ref<Brush>{}, AffectsRender)
-        .Property(TextBlock::StrokeProperty, Base::Ref<Brush>{}, AffectsRender)
-        .AddOwner(TextBlock::FontSizeProperty, 15.0, Inherits | AffectsMeasure, &ValidatePositiveFiniteDouble)
-        .Property(TextBlock::FontWeightProperty, FontWeight::Normal, AffectsMeasure)
-        .Property(TextBlock::FontStyleProperty, FontStyle::Normal, AffectsMeasure)
-        .Property(TextBlock::TextDecorationsProperty, TextDecorations::None, AffectsRender)
-        .Property(TextBlock::StrokeThicknessProperty, 0.0, AffectsMeasure | AffectsRender, &Base::Validate::NonNegative<double>)
-        .Property(TextBlock::TextWrappingProperty, TextWrapping::NoWrap, AffectsMeasure)
-        .Property(TextBlock::TextTrimmingProperty, TextTrimming::None, AffectsMeasure)
-        .Property(TextBlock::TextAlignmentProperty, TextAlignment::Left, AffectsMeasure)
-        .Property(TextBlock::LineHeightProperty, 0.0, AffectsMeasure, &Base::Validate::NonNegative<double>)
-        .Property(TextBlock::PaddingProperty, Aero::Thickness{}, AffectsMeasure | AffectsArrange, &ValidateThicknessValue)
-        .Property<Value, &TextBlock::GetMetadataInlines, &TextBlock::SetInlineValue>("Inlines", PropertyFlags::AnyValue | PropertyFlags::Collection | PropertyFlags::Structural)
-        .ContentAccessor(MakeMemberId(TextBlock::StaticTypeId(), MemberKind::Property, "Inlines"), ContentKind::Collection, &AddTextBlockInline, &ClearTextBlockInlines, ContentFlags::None)
-        .Factory();
-
-    Register<Docs::TextElement>(context, TypeFlags::Abstract)
-        .AddOwner(Docs::TextElement::FontFamilyProperty, Aero::FrameworkElement::FontFamilyProperty, Base::Ref<FontFamily>{}, Inherits | AffectsMeasure)
-        .Property(Docs::TextElement::FontWeightProperty, FontWeight::Normal, Inherits | AffectsMeasure)
-        .AddOwner(Docs::TextElement::ForegroundProperty, Aero::FrameworkElement::ForegroundProperty, black, Inherits)
-        .Property(Docs::TextElement::FontSizeProperty, 15.0, Inherits, &ValidatePositiveFiniteDouble)
-        .Property(Docs::TextElement::FontStyleProperty, FontStyle::Normal, Inherits)
-        .Property(Docs::TextElement::TextDecorationsProperty, TextDecorations::None, Inherits);
-
-    Register<Docs::Inline>(context, TypeFlags::Abstract);
-
-    Register<Docs::Run>(context)
-        .Property(Docs::Run::TextProperty, FrameworkPropertyMetadata(Base::String{}).Structural())
-        .Content(Docs::Run::TextProperty.Id())
-        .Factory();
-
-    Register<Docs::Span>(context)
-        .Property<Value, &Docs::Span::GetMetadataInlines, &Docs::Span::SetInlineValue>("Inlines", PropertyFlags::AnyValue | PropertyFlags::Collection | PropertyFlags::Structural)
-        .ContentAccessor(MakeMemberId(Docs::Span::StaticTypeId(), MemberKind::Property, "Inlines"), ContentKind::Collection, &AddSpanInline, &ClearSpanInlines, ContentFlags::None)
-        .Factory();
-
-    Register<Docs::Bold>(context)
-        .Override(Docs::TextElement::FontWeightProperty, FontWeight::Bold, AffectsMeasure)
-        .Factory();
-
-    Register<Docs::Italic>(context)
-        .Override(Docs::TextElement::FontStyleProperty, FontStyle::Italic, AffectsMeasure)
-        .Factory();
-
-    Register<Docs::Underline>(context)
-        .Override(Docs::TextElement::TextDecorationsProperty, TextDecorations::Underline, AffectsRender)
-        .Factory();
-
-    Register<Docs::LineBreak>(context)
-        .Factory();
-
-    Register<Docs::RequestNavigateEventArgs>(context);
-
-    Register<Docs::Hyperlink>(context)
-        .Event(Docs::Hyperlink::ClickEvent)
-        .Event(Docs::Hyperlink::RequestNavigateEvent)
-        .Property(Docs::Hyperlink::NavigateUriProperty, Base::String{})
-        .Property(Docs::Hyperlink::CommandProperty, Base::Ref<ICommand>{})
-        .Property(Docs::Hyperlink::CommandParameterProperty, Value::NullObject(TypeOf<Base::Object>()))
-        .Property(Docs::Hyperlink::CommandTargetProperty, Base::Ref<UIElement>{})
-        .Override(Docs::TextElement::TextDecorationsProperty, TextDecorations::Underline, AffectsRender)
-        .Factory();
-
-    Register<Docs::InlineUIContainer>(context)
-        .Property(Docs::InlineUIContainer::ChildProperty, Base::Ref<UIElement>{})
-        .Factory();
-
-    Register<Docs::Adorner>(context)
-        .Factory();
-
-    Register<Docs::AdornerLayer>(context)
-        .Factory();
-
-    Register<Docs::AdornerDecorator>(context)
-        .Factory();
-}
-
-} // namespace Controls
-
 } // namespace Aero
+

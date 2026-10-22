@@ -24,12 +24,19 @@ public:
 
     bool IsFrozen() const noexcept;
 
+    Base::Ref<Freezable> Clone() const;
+    Base::Ref<Freezable> CloneCurrentValue() const;
+
     void AddChangedHandler(const FreezableChangedHandler& handler) noexcept;
     bool RemoveChangedHandler(const FreezableChangedHandler& handler) noexcept;
 
 protected:
     explicit Freezable(Meta::TypeId runtimeType) noexcept;
     ~Freezable() override;
+
+    virtual Base::Ref<Freezable> CreateInstanceCore() const;
+    virtual void CloneCore(const Freezable& source);
+    virtual void CloneCurrentValueCore(const Freezable& source);
 
     Result<void> WritePreamble() const noexcept;
     void WritePostscript() noexcept;

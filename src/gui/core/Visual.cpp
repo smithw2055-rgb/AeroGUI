@@ -197,6 +197,41 @@ bool Visual::TryTransformToVisual(
     return Base::IsFiniteTransform(output);
 }
 
+Base::Transform2D Visual::TransformToAncestor(
+    const Visual* ancestor) const noexcept {
+    Base::ProjectiveTransform2D result = Base::IdentityProjective();
+    const Visual* current = this;
+    while (current != nullptr && current != ancestor) {
+        const UIElement* element = ::Aero::TryCast<UIElement>(current);
+        if (element != nullptr) {
+            const FrameworkElement* framework =
+                ::Aero::TryCast<FrameworkElement>(current);
+            if (framework != nullptr) {
+                const Base::ProjectiveTransform2D localT =
+                    framework->GetLocalVisualTransform();
+                if (Base::IsFiniteTransform(localT)) {
+                    result = Base::Compose(result, localT);
+                }
+            }
+            const Base::Rect slot = element->GetLayoutSlot();
+            Base::Transform2D translate{};
+            translate.dx = slot.x;
+            translate.dy = slot.y;
+            result = Base::Compose(result, Base::ToProjective(translate));
+        }
+        current = current->GetVisualParent();
+    }
+    Base::Transform2D affine{};
+    if (!Base::TryToTransform2D(result, affine)) {
+        return {};
+    }
+    return affine;
+}
+
+Base::Transform2D Visual::TransformToRoot() const noexcept {
+    return TransformToAncestor(nullptr);
+}
+
 Base::Point Visual::PointToScreen(Base::Point point) const noexcept {
     Base::Point screen{};
     if (!TryPointToScreen(point, screen)) {

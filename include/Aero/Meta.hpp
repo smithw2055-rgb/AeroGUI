@@ -225,7 +225,7 @@ public:
     Base::Result<Value> TryCreateValue(TypeId type, const void* source) const noexcept;
     Base::Result<Value> TryConvertText(TypeId type, Base::StringView text) const noexcept;
 
-    const Base::Ref<ValueTypeSemantics>* FindValueSemantics(TypeId type) const noexcept;
+    const ValueTypeRegistration* FindValueSemantics(TypeId type) const noexcept;
     const TextValueConverterRegistration* FindTextConverter(TypeId type) const noexcept;
     bool IsFrozen() const noexcept;
     const TypeRegistry& Types() const noexcept;

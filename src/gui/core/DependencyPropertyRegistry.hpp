@@ -3,14 +3,40 @@
 #include <Aero/Base/HashMap.hpp>
 #include <Aero/DependencyProperty.hpp>
 
+namespace Aero {
+class DependencyObject;
+}
+
 namespace Aero::Meta {
 class TypeRegistry;
+
+class IInheritanceChangeSink {
+public:
+    virtual ~IInheritanceChangeSink() = default;
+    virtual void OnInheritancePropertyChanged(
+        DependencyObject& object,
+        DependencyPropertyHandle property) noexcept = 0;
+    virtual void OnObjectDestroyed(
+        DependencyObject&) noexcept {}
+};
+
+class RegistryLifetime final : public Base::Object {
+public:
+    bool isAlive = true;
+};
 
 class DependencyPropertyRegistry {
 public:
     DependencyPropertyRegistry(
         TypeRegistry& typeRegistry,
         BehaviorTable& behaviors) noexcept;
+    ~DependencyPropertyRegistry() noexcept {
+        if (lifetime_) {
+            lifetime_->isAlive = false;
+        }
+    }
+
+    Base::Ref<RegistryLifetime> Lifetime() const noexcept { return lifetime_; }
 
     DependencyPropertyRegistry(const DependencyPropertyRegistry&) = delete;
     DependencyPropertyRegistry& operator=(
@@ -50,6 +76,29 @@ public:
         return *typeRegistry_;
     }
 
+    Span<const DependencyPropertyHandle> InheritableProperties() const noexcept {
+        return {inheritableProperties_.Data(), inheritableProperties_.Size()};
+    }
+
+    void SetInheritanceChangeSink(IInheritanceChangeSink* sink) noexcept {
+        inheritanceSink_ = sink;
+    }
+
+    void NotifyInheritancePropertyChanged(
+        DependencyObject& object,
+        DependencyPropertyHandle property) noexcept {
+        if (inheritanceSink_ != nullptr) {
+            inheritanceSink_->OnInheritancePropertyChanged(object, property);
+        }
+    }
+
+    void NotifyObjectDestroyed(
+        DependencyObject& object) noexcept {
+        if (inheritanceSink_ != nullptr) {
+            inheritanceSink_->OnObjectDestroyed(object);
+        }
+    }
+
     const DependencyProperty* Find(
         DependencyPropertyHandle property) const noexcept;
     const DependencyProperty* Find(
@@ -75,6 +124,13 @@ private:
     BehaviorTable* behaviorRegistrations_ = nullptr;
     Base::Vector<DependencyProperty> properties_;
     Base::HashMap<MemberId, std::uint32_t> memberIndex_;
+    Base::Vector<DependencyPropertyHandle> inheritableProperties_;
+    IInheritanceChangeSink* inheritanceSink_ = nullptr;
+    static Base::Ref<RegistryLifetime> CreateLifetime() noexcept {
+        auto res = Base::MakeRef<RegistryLifetime>();
+        return res ? std::move(res).Value() : Base::Ref<RegistryLifetime>{};
+    }
+    Base::Ref<RegistryLifetime> lifetime_{CreateLifetime()};
     std::uint64_t nextReadOnlySecret_ = 1U;
     bool frozen_ = false;
 

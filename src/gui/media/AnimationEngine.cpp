@@ -73,6 +73,10 @@ AnimationEngine::AddTrack(
                 existing.state == AnimationState::Stopped) {
                 continue;
             }
+            fprintf(stderr, "[RETIRE-TRACK] handle=%llu target=%p prop=%llu\n",
+                static_cast<unsigned long long>(existing.handle.value),
+                static_cast<void*>(existing.target),
+                static_cast<unsigned long long>(existing.property.value));
             existing.state = AnimationState::Stopped;
             existing.valueApplied = false;
         }
@@ -390,6 +394,12 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
     track.fromColor = animation.from;
     track.toColor = animation.to;
     track.startTimeMicroseconds = currentTimeMicroseconds_;
+    fprintf(stderr, "[BEGIN-COLOR-TRANSITION] handle=%llu target=%p dur=%llu begin=%llu from=(%.2f,%.2f,%.2f) to=(%.2f,%.2f,%.2f)\n",
+        static_cast<unsigned long long>(track.handle.value), static_cast<void*>(track.target),
+        static_cast<unsigned long long>(track.timing.durationMicroseconds),
+        static_cast<unsigned long long>(track.timing.beginTimeMicroseconds),
+        track.fromColor.red, track.fromColor.green, track.fromColor.blue,
+        track.toColor.red, track.toColor.green, track.toColor.blue);
     return track.handle;
 }
 
@@ -468,6 +478,11 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
     track.kind = Track::Kind::ColorKeyFrames;
     track.fromColor = animation.baseValue;
     track.startTimeMicroseconds = currentTimeMicroseconds_;
+    fprintf(stderr, "[BEGIN-COLOR-KEYFRAMES] handle=%llu target=%p dur=%llu begin=%llu frames=%u\n",
+        static_cast<unsigned long long>(track.handle.value), static_cast<void*>(track.target),
+        static_cast<unsigned long long>(track.timing.durationMicroseconds),
+        static_cast<unsigned long long>(track.timing.beginTimeMicroseconds),
+        static_cast<unsigned int>(track.colorFrames.Size()));
     return track.handle;
 }
 

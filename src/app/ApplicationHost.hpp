@@ -14,38 +14,29 @@ namespace Aero::App {
 class Window;
 
 // Private bridge between the WPF-facing Application object and the optional
-// desktop host. The callback table keeps native lifetime out of public class
-// layouts while supporting the real multi-window Application.Windows model.
-struct ApplicationHost {
-    void* context = nullptr;
-    void (*requestExit)(void* context, int exitCode) noexcept = nullptr;
-    Base::Result<void> (*showWindow)(
-        void* context,
-        Window& window) noexcept = nullptr;
-    std::uint32_t (*windowCount)(
-        const void* context) noexcept = nullptr;
-    Window* (*windowAt)(
-        const void* context,
-        std::uint32_t index) noexcept = nullptr;
-    void (*setMainWindow)(
-        void* context,
-        Window* window) noexcept = nullptr;
-    Base::Result<bool> (*runDialog)(
-        void* context,
-        Window& window) noexcept = nullptr;
+// desktop host.
+class IApplicationHost {
+public:
+    virtual ~IApplicationHost() = default;
+    virtual void RequestExit(int exitCode) noexcept = 0;
+    virtual Base::Result<void> ShowWindow(Window& window) noexcept = 0;
+    virtual std::uint32_t WindowCount() const noexcept = 0;
+    virtual Window* WindowAt(std::uint32_t index) const noexcept = 0;
+    virtual void SetMainWindow(Window* window) noexcept = 0;
+    virtual Base::Result<bool> RunDialog(Window& window) noexcept = 0;
 };
 
 // One host bridge is created per hosted Window. This intentionally points at
 // a window record rather than the application host so independent top-level
 // windows can own distinct View, native surface and input-service lifetimes.
-struct WindowHostBridge {
-    void* context = nullptr;
-    Base::Result<void> (*show)(void* context) noexcept = nullptr;
-    void (*close)(void* context) noexcept = nullptr;
-    bool (*isOpen)(const void* context) noexcept = nullptr;
-    Platform::NativeWindowHandle (*nativeHandle)(
-        const void* context) noexcept = nullptr;
-    View* (*hostedView)(void* context) noexcept = nullptr;
+class IWindowHost {
+public:
+    virtual ~IWindowHost() = default;
+    virtual Base::Result<void> Show() noexcept = 0;
+    virtual void Close() noexcept = 0;
+    virtual bool IsOpen() const noexcept = 0;
+    virtual Platform::NativeWindowHandle NativeHandle() const noexcept = 0;
+    virtual View* HostedView() noexcept = 0;
 };
 
 } // namespace Aero::App

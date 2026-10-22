@@ -6,6 +6,11 @@
 #include <Aero/UIElement.hpp>
 #include <Aero/Value.hpp>
 
+namespace Aero {
+struct KeyEventArgs;
+struct KeyboardFocusChangedEventArgs;
+}
+
 namespace Aero::Input {
 
 // Represents the keyboard device. Mirrors AeroUI's Aero::Keyboard: exposes the

@@ -15,7 +15,7 @@ namespace Aero::Render {
 
 namespace {
 
-constexpr float GlyphRasterScale = 4.0F;
+constexpr float GlyphRasterScale = 2.0F;
 
 std::uint32_t AllocateAtlasPage() noexcept {
     static std::uint32_t next = 1U;
@@ -52,25 +52,6 @@ bool IsValidConfig(const TextConfig& config) noexcept {
 
 } // namespace
 
-struct TextRendererState {
-    TextConfig config;
-    Text::GlyphAtlas atlas;
-    Base::Vector<Ref<Texture>> pageTextures;
-    Base::Vector<std::uint32_t> pageIds;
-    Base::Vector<RenderGlyphRunId> glyphRuns;
-    std::uint64_t nextRunId = 1U;
-    std::uint64_t useStamp = 1U;
-
-    explicit TextRendererState(
-        const TextConfig& cfg,
-        Base::IAllocator* allocator) noexcept
-        : config(cfg),
-          atlas(allocator),
-          pageTextures(allocator),
-          pageIds(allocator),
-          glyphRuns(allocator) {}
-};
-
 TextRenderer::TextRenderer(
     Text::FontManager& fonts,
     RenderDevice& device,
@@ -86,44 +67,42 @@ TextRenderer::~TextRenderer() {
 }
 
 Base::Result<void> TextRenderer::Initialize(const TextConfig& config) noexcept {
-    if (state_ != nullptr) return {};
+    if (state_.has_value()) return {};
     if (!IsValidConfig(config)) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "Text configuration is invalid");
     }
 
-    state_ = new (stateStorage_) TextRendererState(config, allocator_);
+    state_.emplace(config, allocator_);
     state_->nextRunId = config.firstGlyphRunId;
     Base::Result<void> atlasInit = state_->atlas.Initialize(config.atlas);
     if (!atlasInit) {
-        state_->~TextRendererState();
-        state_ = nullptr;
+        state_.reset();
         return atlasInit.GetStatus();
     }
     return {};
 }
 
 void TextRenderer::Shutdown() noexcept {
-    if (state_ != nullptr) {
+    if (state_.has_value()) {
         if (encoder_ != nullptr) {
             for (RenderGlyphRunId glyphRun : state_->glyphRuns) {
                 encoder_->UnregisterGlyphRun(glyphRun);
             }
         }
-        state_->~TextRendererState();
-        state_ = nullptr;
+        state_.reset();
     }
 }
 
 bool TextRenderer::IsInitialized() const noexcept {
-    return state_ != nullptr;
+    return state_.has_value();
 }
 
 Base::Result<void> TextRenderer::ShapeAndPrepare(
     const ::Aero::Controls::TextLayoutRequest& request,
     ::Aero::Controls::TextLayoutResult& output) noexcept {
-    if (state_ == nullptr || fonts_ == nullptr) {
+    if (!state_.has_value() || fonts_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
             "TextRenderer is not initialized");
@@ -151,7 +130,7 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
         static_cast<void>(layout.Arrange(layoutRequest.maxWidth));
     }
 
-    output.desiredSize = Aero::Size{
+    output.desiredSize = ::Aero::Size{
         static_cast<double>(layout.Size().width),
         static_cast<double>(layout.Size().height)
     };
@@ -161,6 +140,7 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
     const auto& atlasConfig = state_->config.atlas;
     const float pageWidth = static_cast<float>(atlasConfig.pageWidth);
     const float pageHeight = static_cast<float>(atlasConfig.pageHeight);
+    const std::uint64_t runStamp = ++state_->useStamp;
 
     Base::Vector<RenderGlyphQuad> quads(allocator_);
     for (const Text::GlyphRun& run : layout.Runs()) {
@@ -177,7 +157,7 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
 
             Text::GlyphAtlasPlacement placement;
             Base::Result<void> ensured = state_->atlas.EnsureGlyph(
-                *fonts_, glyphRequest, state_->useStamp++, 0U, placement);
+                *fonts_, glyphRequest, ++state_->useStamp, runStamp, placement);
             if (!ensured) return ensured.GetStatus();
 
             RenderGlyphQuad quad;
@@ -273,7 +253,7 @@ void TextRenderer::ReleaseGlyphRun(Render::RenderGlyphRunId glyphRun) noexcept {
     if (encoder_ != nullptr) {
         encoder_->UnregisterGlyphRun(glyphRun);
     }
-    if (state_ != nullptr) {
+    if (state_.has_value()) {
         for (std::uint32_t index = 0U; index < state_->glyphRuns.Size(); ++index) {
             if (state_->glyphRuns[index] == glyphRun) {
                 if (index != state_->glyphRuns.Size() - 1U) {

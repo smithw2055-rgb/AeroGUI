@@ -27,6 +27,7 @@
 #include <cstdlib>
 #include <new>
 #include <utility>
+#include <Aero/Base/Hash.hpp>
 #include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero::Render {
@@ -88,29 +89,14 @@ std::uint64_t HashColor(std::uint64_t hash, const Color& value) noexcept {
     return HashScalar(hash, value.alpha);
 }
 
-std::uint64_t HashCommand(
+std::uint64_t HashCommandHeader(
     std::uint64_t hash,
-    const RenderCommand& command) noexcept {
-    hash = HashScalar(hash, static_cast<std::uint8_t>(command.kind));
-    hash = HashRect(hash, command.rect);
-    hash = HashTransform(hash, command.transform);
-    hash = HashColor(hash, command.color);
-    hash = HashRect(hash, command.sourceUv);
-    hash = HashScalar(hash, command.image);
-    hash = HashScalar(hash, command.mesh);
-    hash = HashScalar(hash, command.glyphRun);
-    hash = HashScalar(hash, command.scalar);
-    hash = HashScalar(hash, command.paintKind);
-    hash = HashScalar(hash, command.gradientRamp);
-    for (int i = 0; i < 4; ++i) {
-        hash = HashScalar(hash, command.uvs[i].x);
-        hash = HashScalar(hash, command.uvs[i].y);
-    }
-    for (float uniform : command.paintUniforms) {
-        hash = HashScalar(hash, uniform);
-    }
-    hash = HashScalar(hash, command.wrapMode);
-    return HashScalar(hash, command.cornerRadius);
+    const RenderCommandHeader& h) noexcept {
+    hash = HashScalar(hash, static_cast<std::uint8_t>(h.kind));
+    hash = HashScalar(hash, h.paintKind);
+    hash = HashScalar(hash, h.wrapMode);
+    hash = HashScalar(hash, h.flags);
+    return HashScalar(hash, h.payloadOffset);
 }
 
 bool IsValidColorComponent(float value) noexcept {
@@ -152,74 +138,69 @@ bool IsValidOpacity(double value) noexcept {
 
 std::uint64_t DisplayList::StableHash() const noexcept {
     std::uint64_t hash = 1469598103934665603ULL;
-    hash = HashScalar(hash, commands_.Size());
-    for (const RenderCommand& command : commands_) {
-        hash = HashCommand(hash, command);
+    hash = HashScalar(hash, headers_.Size());
+    for (const RenderCommandHeader& h : headers_) {
+        hash = HashCommandHeader(hash, h);
+    }
+    hash = HashScalar(hash, payload_.Size());
+    for (std::uint8_t b : payload_) {
+        hash = HashScalar(hash, b);
     }
     return hash;
-}
-
-Base::Result<void> DisplayListBuilder::Append(
-    const RenderCommand& command) noexcept {
-    if (finished_) {
-        return InvalidState("DisplayListBuilder has already been finished");
-    }
-    list_.commands_.PushBack(command);
-    return {};
 }
 
 Base::Result<void> DisplayListBuilder::PushClip(Rect clip) noexcept {
     if (!IsValidLayoutRect(clip)) {
         return InvalidArgument("Render clip must be finite and nonnegative");
     }
-    RenderCommand command;
-    command.kind = RenderCommandKind::PushClip;
-    command.rect = clip;
-    Base::Result<void> result = Append(command);
-    if (result) {
-        ++clipDepth_;
-    }
-    return result;
+    if (finished_) return InvalidState("DisplayListBuilder has already been finished");
+    CmdPushClip cmd{clip};
+    RenderCommandHeader h{};
+    h.kind = RenderCommandKind::PushClip;
+    h.payloadOffset = AppendPayload(cmd);
+    list_.headers_.PushBack(h);
+    ++clipDepth_;
+    return {};
 }
 
 Base::Result<void> DisplayListBuilder::PopClip() noexcept {
     if (clipDepth_ == 0U) {
         return InvalidState("Render clip stack underflow");
     }
-    RenderCommand command;
-    command.kind = RenderCommandKind::PopClip;
-    Base::Result<void> result = Append(command);
-    if (result) {
-        --clipDepth_;
-    }
-    return result;
+    if (finished_) return InvalidState("DisplayListBuilder has already been finished");
+    RenderCommandHeader h{};
+    h.kind = RenderCommandKind::PopClip;
+    h.payloadOffset = 0U;
+    list_.headers_.PushBack(h);
+    --clipDepth_;
+    return {};
 }
 
 Base::Result<void> DisplayListBuilder::PushOpacity(double opacity) noexcept {
     if (!IsValidOpacity(opacity)) {
         return InvalidArgument("Render opacity must be within [0, 1]");
     }
-    RenderCommand command;
-    command.kind = RenderCommandKind::PushOpacity;
-    command.scalar = opacity;
-    Base::Result<void> result = Append(command);
-    if (result) {
-        ++opacityDepth_;
-    }
-    return result;
+    if (finished_) return InvalidState("DisplayListBuilder has already been finished");
+    CmdPushOpacity cmd{opacity};
+    RenderCommandHeader h{};
+    h.kind = RenderCommandKind::PushOpacity;
+    h.payloadOffset = AppendPayload(cmd);
+    list_.headers_.PushBack(h);
+    ++opacityDepth_;
+    return {};
 }
 
 Base::Result<void> DisplayListBuilder::PopOpacity() noexcept {
     if (opacityDepth_ == 0U) {
         return InvalidState("Render opacity stack underflow");
     }
-    RenderCommand command;
-    command.kind = RenderCommandKind::PopOpacity;
-    Base::Result<void> result = Append(command);
-    if (result) {
-        --opacityDepth_;
-    }
-    return result;
+    if (finished_) return InvalidState("DisplayListBuilder has already been finished");
+    RenderCommandHeader h{};
+    h.kind = RenderCommandKind::PopOpacity;
+    h.payloadOffset = 0U;
+    list_.headers_.PushBack(h);
+    --opacityDepth_;
+    return {};
 }
 
 Base::Result<void> DisplayListBuilder::PushTransform(
@@ -232,27 +213,27 @@ Base::Result<void> DisplayListBuilder::PushTransform(
     if (!IsFinite(value)) {
         return InvalidArgument("Render transform must contain finite values");
     }
-    RenderCommand command;
-    command.kind = RenderCommandKind::PushTransform;
-    command.transform = value;
-    Base::Result<void> result = Append(command);
-    if (result) {
-        ++transformDepth_;
-    }
-    return result;
+    if (finished_) return InvalidState("DisplayListBuilder has already been finished");
+    CmdPushTransform cmd{value};
+    RenderCommandHeader h{};
+    h.kind = RenderCommandKind::PushTransform;
+    h.payloadOffset = AppendPayload(cmd);
+    list_.headers_.PushBack(h);
+    ++transformDepth_;
+    return {};
 }
 
 Base::Result<void> DisplayListBuilder::PopTransform() noexcept {
     if (transformDepth_ == 0U) {
         return InvalidState("Render transform stack underflow");
     }
-    RenderCommand command;
-    command.kind = RenderCommandKind::PopTransform;
-    Base::Result<void> result = Append(command);
-    if (result) {
-        --transformDepth_;
-    }
-    return result;
+    if (finished_) return InvalidState("DisplayListBuilder has already been finished");
+    RenderCommandHeader h{};
+    h.kind = RenderCommandKind::PopTransform;
+    h.payloadOffset = 0U;
+    list_.headers_.PushBack(h);
+    --transformDepth_;
+    return {};
 }
 
 Base::Result<void> DisplayListBuilder::FillRect(
@@ -261,11 +242,13 @@ Base::Result<void> DisplayListBuilder::FillRect(
     if (!IsValidLayoutRect(rect) || !IsFinite(color)) {
         return InvalidArgument("FillRect requires valid geometry and color");
     }
-    RenderCommand command;
-    command.kind = RenderCommandKind::FillRect;
-    command.rect = rect;
-    command.color = color;
-    return Append(command);
+    if (finished_) return InvalidState("DisplayListBuilder has already been finished");
+    CmdFillRect cmd{rect, color};
+    RenderCommandHeader h{};
+    h.kind = RenderCommandKind::FillRect;
+    h.payloadOffset = AppendPayload(cmd);
+    list_.headers_.PushBack(h);
+    return {};
 }
 
 Base::Result<void> DisplayListBuilder::FillRoundedRect(
@@ -273,29 +256,43 @@ Base::Result<void> DisplayListBuilder::FillRoundedRect(
     Color color,
     double cornerRadius) noexcept {
     if (!IsValidLayoutRect(rect) || !IsFinite(color) ||
-        !std::isfinite(cornerRadius) || cornerRadius < 0.0 ||
-        cornerRadius * 2.0 > std::fmin(rect.width, rect.height)) {
+        !std::isfinite(cornerRadius) || cornerRadius < 0.0) {
         return InvalidArgument(
             "FillRoundedRect requires valid geometry, color, and corner radius");
     }
-    RenderCommand command;
-    command.kind = RenderCommandKind::FillRoundedRect;
-    command.rect = rect;
-    command.color = color;
-    command.scalar = cornerRadius;
-    return Append(command);
+    const double maxRadius = std::fmin(rect.width, rect.height) * 0.5;
+    if (cornerRadius > maxRadius) {
+        if (cornerRadius - maxRadius <= 1.0e-3) {
+            cornerRadius = maxRadius;
+        } else {
+            return InvalidArgument(
+                "FillRoundedRect requires valid geometry, color, and corner radius");
+        }
+    }
+    if (finished_) return InvalidState("DisplayListBuilder has already been finished");
+    CmdRoundedRect cmd{rect, color, static_cast<float>(cornerRadius), 0.0f};
+    RenderCommandHeader h{};
+    h.kind = RenderCommandKind::FillRoundedRect;
+    h.payloadOffset = AppendPayload(cmd);
+    list_.headers_.PushBack(h);
+    return {};
 }
 
 Base::Result<void> DisplayListBuilder::FillGradientQuad(
     const Point points[4],
     const Color colors[4]) noexcept {
-    RenderCommand command;
-    command.kind = RenderCommandKind::FillGradientQuad;
+    if (finished_) return InvalidState("DisplayListBuilder has already been finished");
+    CmdGradientQuad cmd{};
     for (int i = 0; i < 4; ++i) {
-        command.points[i] = points[i];
-        command.colors[i] = colors[i];
+        cmd.points[i] = points[i];
+        cmd.colors[i] = colors[i];
     }
-    return Append(command);
+    RenderCommandHeader h{};
+    h.kind = RenderCommandKind::FillGradientQuad;
+    h.paintKind = 0U;
+    h.payloadOffset = AppendPayload(cmd);
+    list_.headers_.PushBack(h);
+    return {};
 }
 
 Base::Result<void> DisplayListBuilder::FillGradientQuad(
@@ -308,21 +305,22 @@ Base::Result<void> DisplayListBuilder::FillGradientQuad(
     if (paintKind == 0U || gradientBrush == 0U || uniforms == nullptr) {
         return InvalidArgument("GPU gradient fill requires paint and brush");
     }
-    RenderCommand command;
-    command.kind = RenderCommandKind::FillGradientQuad;
-    command.paintKind = paintKind;
-    command.wrapMode = wrapMode;
-    command.gradientBrush = gradientBrush;
-    command.color = Color{1.0F, 1.0F, 1.0F, 1.0F};
+    if (finished_) return InvalidState("DisplayListBuilder has already been finished");
+    CmdGradientQuad cmd{};
+    cmd.gradientBrush = gradientBrush;
     for (int i = 0; i < 4; ++i) {
-        command.points[i] = points[i];
-        command.uvs[i] = uvs[i];
-        command.colors[i] = command.color;
+        cmd.points[i] = points[i];
+        cmd.uvs[i] = uvs[i];
+        cmd.colors[i] = Color{1.0F, 1.0F, 1.0F, 1.0F};
     }
-    for (int i = 0; i < 8; ++i) {
-        command.paintUniforms[i] = uniforms[i];
-    }
-    return Append(command);
+    std::memcpy(cmd.paintUniforms, uniforms, sizeof(cmd.paintUniforms));
+    RenderCommandHeader h{};
+    h.kind = RenderCommandKind::FillGradientQuad;
+    h.paintKind = paintKind;
+    h.wrapMode = wrapMode;
+    h.payloadOffset = AppendPayload(cmd);
+    list_.headers_.PushBack(h);
+    return {};
 }
 
 Base::Result<void> DisplayListBuilder::StrokeRect(
@@ -332,18 +330,37 @@ Base::Result<void> DisplayListBuilder::StrokeRect(
     double cornerRadius) noexcept {
     if (!IsValidLayoutRect(rect) || !IsFinite(color) ||
         !std::isfinite(thickness) || thickness < 0.0 ||
-        !std::isfinite(cornerRadius) || cornerRadius < 0.0 ||
-        cornerRadius * 2.0 > std::fmin(rect.width, rect.height)) {
+        !std::isfinite(cornerRadius) || cornerRadius < 0.0) {
         return InvalidArgument(
             "StrokeRect requires valid geometry, color, and thickness");
     }
-    RenderCommand command;
-    command.kind = RenderCommandKind::StrokeRect;
-    command.rect = rect;
-    command.color = color;
-    command.scalar = thickness;
-    command.cornerRadius = cornerRadius;
-    return Append(command);
+    const double maxRadius = std::fmin(rect.width, rect.height) * 0.5;
+    if (cornerRadius > maxRadius) {
+        if (cornerRadius - maxRadius <= 1.0e-3) {
+            cornerRadius = maxRadius;
+        } else {
+            return InvalidArgument(
+                "StrokeRect requires valid geometry, color, and thickness");
+        }
+    }
+    if (finished_) return InvalidState("DisplayListBuilder has already been finished");
+    CmdStrokeRect cmd{rect, color, static_cast<float>(thickness), static_cast<float>(cornerRadius)};
+    RenderCommandHeader h{};
+    h.kind = RenderCommandKind::StrokeRect;
+    h.payloadOffset = AppendPayload(cmd);
+    list_.headers_.PushBack(h);
+    return {};
+}
+
+Base::Result<void> DisplayListBuilder::DrawAnalyticalShadow(
+    Rect rect, Color color, float cornerRadius, float blurRadius, Point offset) noexcept {
+    if (finished_) return InvalidState("DisplayListBuilder has already been finished");
+    CmdAnalyticalShadow cmd{rect, color, cornerRadius, blurRadius, offset};
+    RenderCommandHeader h{};
+    h.kind = RenderCommandKind::DrawAnalyticalShadow;
+    h.payloadOffset = AppendPayload(cmd);
+    list_.headers_.PushBack(h);
+    return {};
 }
 
 Base::Result<void> DisplayListBuilder::DrawImage(
@@ -357,14 +374,14 @@ Base::Result<void> DisplayListBuilder::DrawImage(
         return InvalidArgument(
             "DrawImage requires a valid image, destination, UV rectangle, and tint");
     }
-    RenderCommand command;
-    command.kind = RenderCommandKind::DrawImage;
-    command.rect = destination;
-    command.sourceUv = sourceUv;
-    command.color = tint;
-    command.image = image;
-    command.wrapMode = wrapMode;
-    return Append(command);
+    if (finished_) return InvalidState("DisplayListBuilder has already been finished");
+    CmdDrawImage cmd{image, destination, sourceUv, tint};
+    RenderCommandHeader h{};
+    h.kind = RenderCommandKind::DrawImage;
+    h.wrapMode = wrapMode;
+    h.payloadOffset = AppendPayload(cmd);
+    list_.headers_.PushBack(h);
+    return {};
 }
 
 Base::Result<void> DisplayListBuilder::DrawMesh(
@@ -373,11 +390,15 @@ Base::Result<void> DisplayListBuilder::DrawMesh(
     if (mesh == InvalidRenderMeshId || !IsFinite(tint)) {
         return InvalidArgument("DrawMesh requires a valid mesh and tint");
     }
-    RenderCommand command;
-    command.kind = RenderCommandKind::DrawMesh;
-    command.mesh = mesh;
-    command.color = tint;
-    return Append(command);
+    if (finished_) return InvalidState("DisplayListBuilder has already been finished");
+    CmdDrawSolidMesh cmd{};
+    cmd.mesh = mesh;
+    cmd.tint = tint;
+    RenderCommandHeader h{};
+    h.kind = RenderCommandKind::DrawSolidMesh;
+    h.payloadOffset = AppendPayload(cmd);
+    list_.headers_.PushBack(h);
+    return {};
 }
 
 Base::Result<void> DisplayListBuilder::DrawMesh(
@@ -397,26 +418,26 @@ Base::Result<void> DisplayListBuilder::DrawMesh(
         gradientBrush == 0U || uniforms == nullptr) {
         return InvalidArgument("GPU DrawMesh requires paint and brush");
     }
-    RenderCommand command;
-    command.kind = RenderCommandKind::DrawMesh;
-    command.mesh = mesh;
-    command.color = Color{1.0F, 1.0F, 1.0F, 1.0F};
-    command.paintKind = paintKind;
-    command.wrapMode = wrapMode;
-    command.gradientBrush = gradientBrush;
-    command.rect = bounds;
-    command.points[0] = startOrOrigin;
-    command.points[1] = delta;
-    command.points[2] = radii;
-    command.scalar = len2;
-    command.uvs[0].x = hasInverse ? 1.0 : 0.0;
-    if (hasInverse) {
-        command.transform = Base::ToProjective(inverse);
-    }
-    for (int i = 0; i < 8; ++i) {
-        command.paintUniforms[i] = uniforms[i];
-    }
-    return Append(command);
+    if (finished_) return InvalidState("DisplayListBuilder has already been finished");
+    CmdDrawGradientMesh cmd{};
+    cmd.mesh = mesh;
+    cmd.tint = Color{1.0F, 1.0F, 1.0F, 1.0F};
+    cmd.gradientBrush = gradientBrush;
+    cmd.bounds = bounds;
+    cmd.startOrOrigin = startOrOrigin;
+    cmd.delta = delta;
+    cmd.radii = radii;
+    cmd.len2 = len2;
+    cmd.hasInverse = hasInverse;
+    cmd.inverse = inverse;
+    std::memcpy(cmd.paintUniforms, uniforms, sizeof(cmd.paintUniforms));
+    RenderCommandHeader h{};
+    h.kind = RenderCommandKind::DrawGradientMesh;
+    h.paintKind = paintKind;
+    h.wrapMode = wrapMode;
+    h.payloadOffset = AppendPayload(cmd);
+    list_.headers_.PushBack(h);
+    return {};
 }
 
 Base::Result<void> DisplayListBuilder::DrawGlyphRun(
@@ -425,11 +446,37 @@ Base::Result<void> DisplayListBuilder::DrawGlyphRun(
     if (glyphRun == InvalidRenderGlyphRunId || !IsFinite(tint)) {
         return InvalidArgument("DrawGlyphRun requires a valid glyph run and tint");
     }
-    RenderCommand command;
-    command.kind = RenderCommandKind::DrawGlyphRun;
-    command.glyphRun = glyphRun;
-    command.color = tint;
-    return Append(command);
+    if (finished_) return InvalidState("DisplayListBuilder has already been finished");
+    CmdDrawGlyphRun cmd{glyphRun, tint};
+    RenderCommandHeader h{};
+    h.kind = RenderCommandKind::DrawGlyphRun;
+    h.payloadOffset = AppendPayload(cmd);
+    list_.headers_.PushBack(h);
+    return {};
+}
+
+Base::Result<void> DisplayListBuilder::DrawTriangles(
+    const Point* vertices,
+    std::uint32_t vertexCount,
+    const std::uint32_t* indices,
+    std::uint32_t indexCount,
+    Color color) noexcept {
+    if (finished_) return InvalidState("DisplayListBuilder has already been finished");
+    if (vertices == nullptr || vertexCount == 0U || indices == nullptr || indexCount == 0U) {
+        return {};
+    }
+    CmdDrawTriangles cmd{};
+    cmd.color = color;
+    cmd.vertexCount = vertexCount;
+    cmd.indexCount = indexCount;
+    cmd.vertexOffset = AppendRawBytes(vertices, vertexCount * sizeof(Point));
+    cmd.indexOffset = AppendRawBytes(indices, indexCount * sizeof(std::uint32_t));
+
+    RenderCommandHeader h{};
+    h.kind = RenderCommandKind::DrawTriangles;
+    h.payloadOffset = AppendPayload(cmd);
+    list_.headers_.PushBack(h);
+    return {};
 }
 
 Base::Result<DisplayList> DisplayListBuilder::Finish() noexcept {
@@ -443,237 +490,15 @@ Base::Result<DisplayList> DisplayListBuilder::Finish() noexcept {
     return std::move(list_);
 }
 
-} // namespace Aero::Render
-
-namespace Aero {
-
-using namespace Aero::Meta;
-using namespace Media;
-using Render::DisplayListBuilder;
-
-FrameworkElement::FrameworkElement(TypeId runtimeType) noexcept
-    : UIElement(runtimeType) {}
-
-struct FrameworkElement::FrameworkRare {
-    Base::Vector<Ref<Base::Object>> authoredTriggers;
-    Base::Vector<Ref<Base::Object>> authoredBehaviors;
-    Base::Vector<Ref<Base::Object>> styleBehaviorPrototypes;
-    Base::Vector<Ref<Base::Object>> styleTriggerPrototypes;
-    NameScope names;
-    Base::Transform2D viewboxTransform{};
-    bool hasViewboxTransform = false;
-};
-
-FrameworkElement::FrameworkRare*
-FrameworkElement::EnsureFrameworkRare() noexcept {
-    if (frameworkRare_ == nullptr) {
-        frameworkRare_ = new (std::nothrow) FrameworkRare();
-    }
-    return frameworkRare_;
-}
-
-void FrameworkElement::DropRareIfUnused() noexcept {
-    if (frameworkRare_ == nullptr) return;
-    if (!frameworkRare_->authoredTriggers.Empty()) return;
-    if (!frameworkRare_->authoredBehaviors.Empty()) return;
-    if (!frameworkRare_->styleBehaviorPrototypes.Empty()) return;
-    if (!frameworkRare_->styleTriggerPrototypes.Empty()) return;
-    if (frameworkRare_->names.Size() != 0U) return;
-    if (frameworkRare_->hasViewboxTransform) return;
-    delete frameworkRare_;
-    frameworkRare_ = nullptr;
-}
-
-bool FrameworkElement::TryGetViewboxTransform(
-    Base::Transform2D& matrix) const noexcept {
-    if (frameworkRare_ == nullptr ||
-        !frameworkRare_->hasViewboxTransform) {
-        return false;
-    }
-    matrix = frameworkRare_->viewboxTransform;
-    return true;
-}
-
-bool FrameworkElement::SetViewboxTransform(
-    const Base::Transform2D& matrix) noexcept {
-    FrameworkRare* rare = EnsureFrameworkRare();
-    if (rare == nullptr) return false;
-    const bool changed = !rare->hasViewboxTransform ||
-        rare->viewboxTransform.m11 != matrix.m11 ||
-        rare->viewboxTransform.m12 != matrix.m12 ||
-        rare->viewboxTransform.m21 != matrix.m21 ||
-        rare->viewboxTransform.m22 != matrix.m22 ||
-        rare->viewboxTransform.dx != matrix.dx ||
-        rare->viewboxTransform.dy != matrix.dy;
-    rare->viewboxTransform = matrix;
-    rare->hasViewboxTransform = true;
-    return changed;
-}
-
-void FrameworkElement::ClearViewboxTransform() noexcept {
-    if (frameworkRare_ == nullptr) return;
-    frameworkRare_->hasViewboxTransform = false;
-    frameworkRare_->viewboxTransform = {};
-    DropRareIfUnused();
-}
-
-Base::Object* FrameworkElement::FindRegisteredName(
-    Base::StringView name) const noexcept {
-    return frameworkRare_ != nullptr
-        ? frameworkRare_->names.Find(name)
-        : nullptr;
-}
-
-Base::Result<void> FrameworkElement::RegisterName(
-    Base::StringView name,
-    Base::Object& scopedElement) noexcept {
-    FrameworkRare* rare = EnsureFrameworkRare();
-    if (rare == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfMemory,
-            "FrameworkElement name scope allocation failed");
-    }
-    return rare->names.Register(name, scopedElement);
-}
-
-FrameworkElement::~FrameworkElement() {
-    delete resources_;
-    resources_ = nullptr;
-    delete frameworkRare_;
-    frameworkRare_ = nullptr;
-}
-
-Base::Ref<Transform>
-FrameworkElement::GetLayoutTransform() const noexcept {
-    Base::Result<Base::Ref<Transform>> value =
-        GetValue(LayoutTransformProperty);
-    return value
-        ? std::move(value).Value()
-        : Base::Ref<Transform>{};
-}
-
-void FrameworkElement::SetLayoutTransform(
-    Base::Ref<Transform> value) noexcept {
-    SetValue(
-        LayoutTransformProperty,
-        std::move(value));
-}
-
-Base::ProjectiveTransform2D
-FrameworkElement::GetLocalVisualTransform() const noexcept {
-    Base::Transform2D result;
-    Size visualSize = GetRenderSize();
-    Base::Ref<Transform> layoutTransform =
-        GetLayoutTransform();
-    if (layoutTransform) {
-        result = layoutTransform->GetMatrix();
-        const Rect bounds = TransformBounds(
-            result,
-            {0.0, 0.0,
-             visualSize.width,
-             visualSize.height});
-        Base::Transform2D normalize;
-        normalize.dx = -bounds.x;
-        normalize.dy = -bounds.y;
-        result = ComposeTransforms(
-            result,
-            normalize);
-        visualSize = {
-            bounds.width,
-            bounds.height};
-    }
-
-    // AeroGUI Viewbox: stretch is an inner wrapper transform, then this
-    // element's authored RenderTransform (intro TranslateY) sits outside it.
-    // Apply the Viewbox scale before RenderTransform so a parent animation
-    // does not get multiplied by the stretch.
-    if (frameworkRare_ != nullptr && frameworkRare_->hasViewboxTransform) {
-        result = ComposeTransforms(result, frameworkRare_->viewboxTransform);
-    }
-
-    Base::Ref<Transform> renderTransform =
-        GetRenderTransform();
-    if (renderTransform) {
-        const Point origin = GetRenderTransformOrigin();
-        const double originX =
-            origin.x * visualSize.width;
-        const double originY =
-            origin.y * visualSize.height;
-        Base::Transform2D before;
-        before.dx = -originX;
-        before.dy = -originY;
-        Base::Transform2D after;
-        after.dx = originX;
-        after.dy = originY;
-        const Base::Transform2D render =
-            ComposeTransforms(
-                ComposeTransforms(
-                    before,
-                    renderTransform->GetMatrix()),
-                after);
-        result = ComposeTransforms(
-            result,
-            render);
-    }
-    return Base::ToProjective(result);
-}
-
-Base::Result<Value>
-FrameworkElement::GetDataContextResult() const noexcept {
-    return GetValue(DataContextProperty);
-}
-
-void FrameworkElement::SetDataContext(
-    Value value) noexcept {
-    SetValue(DataContextProperty, std::move(value));
-}
-
-void FrameworkElement::ClearDataContext() noexcept {
-    ClearValue(DataContextProperty);
-}
-
-void FrameworkElement::SyncLayoutScalars() noexcept {
-    layoutScalars_.width = GetValue(WidthProperty);
-    layoutScalars_.height = GetValue(HeightProperty);
-    layoutScalars_.minWidth = GetValue(MinWidthProperty);
-    layoutScalars_.maxWidth = GetValue(MaxWidthProperty);
-    layoutScalars_.minHeight = GetValue(MinHeightProperty);
-    layoutScalars_.maxHeight = GetValue(MaxHeightProperty);
-    layoutScalars_.margin = GetValue(MarginProperty);
-}
-
-void FrameworkElement::OnPropertyInvalidated(
-    PropertyInvalidationFlags flags) noexcept {
-    UIElement::OnPropertyInvalidated(flags);
-    SyncLayoutScalars();
-    if (HasFlag(flags, PropertyInvalidationFlags::Render)) {
-        InvalidateVisual();
-    }
-}
-
-void FrameworkElement::InvalidateVisual() noexcept {
-    Base::Result<void> access = VerifyAccess();
-    if (!access) {
-        return;
-    }
-    (*this).InvalidateRenderDrawing();
-}
-
-void FrameworkElement::OnRender(
-    ::Aero::Media::DrawingContext&) noexcept {
-    return;
-}
-
-} // namespace Aero
-
-namespace Aero::Render {
-
 using Aero::FrameworkElement;
 
 void RenderFrame::Clear() noexcept {
     nodes_.Clear();
-    commands_.Clear();
+    commandHeaders_.Clear();
+    commandPayload_.Clear();
     gradientRamps_.Clear();
+    masks_.Clear();
+    effects_.Clear();
     geometryClipVertices_.Clear();
     geometryClipIndices_.Clear();
     version_ = 0U;
@@ -693,7 +518,8 @@ std::uint64_t RenderFrame::StableHash() const noexcept {
     hash = HashScalar(hash, pixelHeight_);
     hash = HashScalar(hash, dpiScale_);
     hash = HashScalar(hash, nodes_.Size());
-    hash = HashScalar(hash, commands_.Size());
+    hash = HashScalar(hash, commandHeaders_.Size());
+    hash = HashScalar(hash, commandPayload_.Size());
     hash = HashScalar(hash, gradientRamps_.Size());
     for (const RenderNodeSnapshot& node : nodes_) {
         hash = HashScalar(hash, node.id);
@@ -709,14 +535,14 @@ std::uint64_t RenderFrame::StableHash() const noexcept {
             static_cast<std::uint8_t>(
                 node.blendMode));
         hash = HashScalar(hash, node.opacity);
+        const RenderMaskSnapshot* mask = MaskAt(node.maskIndex);
         hash = HashScalar(
             hash,
-            static_cast<std::uint8_t>(
-                node.mask.kind));
+            mask != nullptr ? static_cast<std::uint8_t>(mask->kind) : 0U);
+        const RenderEffectSnapshot* effect = EffectAt(node.effectIndex);
         hash = HashScalar(
             hash,
-            static_cast<std::uint8_t>(
-                node.effect.kind));
+            effect != nullptr ? static_cast<std::uint8_t>(effect->kind) : 0U);
         hash = HashScalar(hash, node.commandOffset);
         hash = HashScalar(hash, node.commandCount);
         // P4.3: elementRevision is a commit-generation marker, not content.
@@ -724,8 +550,11 @@ std::uint64_t RenderFrame::StableHash() const noexcept {
         // visuals hash identically regardless of how many commits have
         // passed, which is what the content-stability gate compares.
     }
-    for (const RenderCommand& command : commands_) {
-        hash = HashCommand(hash, command);
+    for (const RenderCommandHeader& h : commandHeaders_) {
+        hash = HashCommandHeader(hash, h);
+    }
+    for (std::uint8_t b : commandPayload_) {
+        hash = HashScalar(hash, b);
     }
     for (const RenderGradientRampSnapshot& ramp : gradientRamps_) {
         // brushIdentity is intentionally omitted: it is a process-local cache
@@ -748,7 +577,7 @@ Base::Result<void> ValidateRenderFrame(const RenderFrame& frame) noexcept {
     std::uint32_t clipDepth = 0U;
     std::uint32_t opacityDepth = 0U;
     std::uint32_t transformDepth = 0U;
-    const Base::Span<const RenderCommand> commands = frame.Commands();
+    const Base::Span<const RenderCommandHeader> commands = frame.CommandHeaders();
     const Base::Span<const RenderNodeSnapshot> nodes = frame.Nodes();
     const Base::Span<const RenderGradientRampSnapshot> ramps =
         frame.GradientRamps();
@@ -792,159 +621,216 @@ Base::Result<void> ValidateRenderFrame(const RenderFrame& frame) noexcept {
             !Base::IsFiniteTransform(node.renderTransform) ||
             !IsValidOpacity(node.opacity) ||
             node.commandOffset > commands.Size() ||
-            node.commandCount > commands.Size() - node.commandOffset) {
+            node.commandCount > commands.Size() - node.commandOffset ||
+            node.payloadOffset > frame.CommandPayload().Size() ||
+            node.payloadSize > frame.CommandPayload().Size() - node.payloadOffset) {
             return InvalidArgument("RenderFrame node snapshot is invalid");
         }
-        if (static_cast<std::uint8_t>(node.mask.kind) >
-                static_cast<std::uint8_t>(RenderMaskKind::RadialGradient) ||
-            !IsFinite(node.mask.color)) {
-            return InvalidArgument("RenderFrame node mask is invalid");
-        }
-        if (node.mask.kind == RenderMaskKind::Image) {
-            const bool viewboxIsRelative =
-                node.mask.viewboxUnits == static_cast<std::uint8_t>(
-                    Media::BrushMappingMode::RelativeToBoundingBox);
-            const bool validViewbox =
-                IsValidLayoutRect(node.mask.sourceUv) &&
-                node.mask.sourceUv.x >= 0.0 &&
-                node.mask.sourceUv.y >= 0.0 &&
-                (!viewboxIsRelative ||
-                 (node.mask.sourceUv.x + node.mask.sourceUv.width <= 1.0 &&
-                  node.mask.sourceUv.y + node.mask.sourceUv.height <= 1.0));
-            if (node.mask.image == InvalidRenderImageId ||
-                node.mask.imageWidth == 0U || node.mask.imageHeight == 0U ||
-                !validViewbox || !IsValidLayoutRect(node.mask.viewport) ||
-                !IsFinite(node.mask.relativeTransform) ||
-                node.mask.viewboxUnits > static_cast<std::uint8_t>(
-                    Media::BrushMappingMode::Absolute) ||
-                node.mask.viewportUnits > static_cast<std::uint8_t>(
-                    Media::BrushMappingMode::Absolute) ||
-                node.mask.stretch > static_cast<std::uint8_t>(
-                    Media::Stretch::UniformToFill) ||
-                node.mask.tileMode > static_cast<std::uint8_t>(
-                    Media::TileMode::FlipXY) ||
-                node.mask.alignmentX > static_cast<std::uint8_t>(
-                    HorizontalAlignment::Right) ||
-                node.mask.alignmentY > static_cast<std::uint8_t>(
-                    VerticalAlignment::Bottom)) {
-                return InvalidArgument("RenderFrame image mask is invalid");
+        if (node.maskIndex != UINT32_MAX) {
+            const RenderMaskSnapshot* maskPtr = frame.MaskAt(node.maskIndex);
+            if (maskPtr == nullptr) {
+                return InvalidArgument("RenderFrame node mask index out of range");
+            }
+            const auto& mask = *maskPtr;
+            if (static_cast<std::uint8_t>(mask.kind) >
+                    static_cast<std::uint8_t>(RenderMaskKind::RadialGradient) ||
+                !IsFinite(mask.color)) {
+                return InvalidArgument("RenderFrame node mask is invalid");
+            }
+            if (mask.kind == RenderMaskKind::Image) {
+                const bool viewboxIsRelative =
+                    mask.viewboxUnits == static_cast<std::uint8_t>(
+                        Media::BrushMappingMode::RelativeToBoundingBox);
+                const bool validViewbox =
+                    IsValidLayoutRect(mask.sourceUv) &&
+                    mask.sourceUv.x >= 0.0 &&
+                    mask.sourceUv.y >= 0.0 &&
+                    (!viewboxIsRelative ||
+                     (mask.sourceUv.x + mask.sourceUv.width <= 1.0 &&
+                      mask.sourceUv.y + mask.sourceUv.height <= 1.0));
+                if (mask.image == InvalidRenderImageId ||
+                    mask.imageWidth == 0U || mask.imageHeight == 0U ||
+                    !validViewbox || !IsValidLayoutRect(mask.viewport) ||
+                    !IsFinite(mask.relativeTransform) ||
+                    mask.viewboxUnits > static_cast<std::uint8_t>(
+                        Media::BrushMappingMode::Absolute) ||
+                    mask.viewportUnits > static_cast<std::uint8_t>(
+                        Media::BrushMappingMode::Absolute) ||
+                    mask.stretch > static_cast<std::uint8_t>(
+                        Media::Stretch::UniformToFill) ||
+                    mask.tileMode > static_cast<std::uint8_t>(
+                        Media::TileMode::FlipXY) ||
+                    mask.alignmentX > static_cast<std::uint8_t>(
+                        HorizontalAlignment::Right) ||
+                    mask.alignmentY > static_cast<std::uint8_t>(
+                        VerticalAlignment::Bottom)) {
+                    return InvalidArgument("RenderFrame image mask is invalid");
+                }
+            }
+            if (mask.kind == RenderMaskKind::LinearGradient ||
+                mask.kind == RenderMaskKind::RadialGradient) {
+                if (mask.gradientRamp >= ramps.Size() ||
+                    mask.mappingMode > static_cast<std::uint8_t>(
+                        Media::BrushMappingMode::Absolute) ||
+                    !Aero::IsFinite(mask.startPoint) ||
+                    !Aero::IsFinite(mask.endPoint) ||
+                    !Aero::IsFinite(mask.center) ||
+                    !Aero::IsFinite(mask.gradientOrigin) ||
+                    !IsFinite(mask.relativeTransform) ||
+                    !std::isfinite(mask.radiusX) ||
+                    !std::isfinite(mask.radiusY) ||
+                    (mask.kind == RenderMaskKind::RadialGradient &&
+                     (mask.radiusX <= 0.0 || mask.radiusY <= 0.0))) {
+                    return InvalidArgument("RenderFrame gradient mask is invalid");
+                }
             }
         }
-        if (node.mask.kind == RenderMaskKind::LinearGradient ||
-            node.mask.kind == RenderMaskKind::RadialGradient) {
-            if (node.mask.gradientRamp >= ramps.Size() ||
-                node.mask.mappingMode > static_cast<std::uint8_t>(
-                    Media::BrushMappingMode::Absolute) ||
-                !Aero::IsFinite(node.mask.startPoint) ||
-                !Aero::IsFinite(node.mask.endPoint) ||
-                !Aero::IsFinite(node.mask.center) ||
-                !Aero::IsFinite(node.mask.gradientOrigin) ||
-                !IsFinite(node.mask.relativeTransform) ||
-                !std::isfinite(node.mask.radiusX) ||
-                !std::isfinite(node.mask.radiusY) ||
-                (node.mask.kind == RenderMaskKind::RadialGradient &&
-                 (node.mask.radiusX <= 0.0 || node.mask.radiusY <= 0.0))) {
-                return InvalidArgument("RenderFrame gradient mask is invalid");
+        if (node.effectIndex != UINT32_MAX) {
+            const RenderEffectSnapshot* effectPtr = frame.EffectAt(node.effectIndex);
+            if (effectPtr == nullptr) {
+                return InvalidArgument("RenderFrame node effect index out of range");
             }
-        }
-        if (static_cast<std::uint8_t>(node.effect.kind) >
-                static_cast<std::uint8_t>(RenderEffectKind::Custom) ||
-            node.effect.radius < 0.0 ||
-            !std::isfinite(node.effect.radius) ||
-            !std::isfinite(node.effect.direction) ||
-            node.effect.depth < 0.0 ||
-            !std::isfinite(node.effect.depth) ||
-            !IsValidOpacity(node.effect.opacity) ||
-            !IsFinite(node.effect.color)) {
-            return InvalidArgument("RenderFrame node effect is invalid");
+            const auto& effect = *effectPtr;
+            if (static_cast<std::uint8_t>(effect.kind) >
+                    static_cast<std::uint8_t>(RenderEffectKind::Custom) ||
+                effect.radius < 0.0 ||
+                !std::isfinite(effect.radius) ||
+                !std::isfinite(effect.direction) ||
+                effect.depth < 0.0 ||
+                !std::isfinite(effect.depth) ||
+                !IsValidOpacity(effect.opacity) ||
+                !IsFinite(effect.color)) {
+                return InvalidArgument("RenderFrame node effect is invalid");
+            }
         }
     }
 
-    for (const RenderCommand& command : commands) {
-        switch (command.kind) {
-        case RenderCommandKind::PushClip:
-            if (!IsValidLayoutRect(command.rect)) {
+    for (const RenderCommandHeader& h : frame.CommandHeaders()) {
+        switch (h.kind) {
+        case RenderCommandKind::PushClip: {
+            const auto& cmd = frame.PayloadAt<CmdPushClip>(h.payloadOffset);
+            if (!IsValidLayoutRect(cmd.rect)) {
                 return InvalidArgument("RenderFrame contains an invalid clip");
             }
             ++clipDepth;
             break;
+        }
         case RenderCommandKind::PopClip:
             if (clipDepth == 0U) {
                 return InvalidState("RenderFrame clip stack underflow");
             }
             --clipDepth;
             break;
-        case RenderCommandKind::PushOpacity:
-            if (!IsValidOpacity(command.scalar)) {
+        case RenderCommandKind::PushOpacity: {
+            const auto& cmd = frame.PayloadAt<CmdPushOpacity>(h.payloadOffset);
+            if (!IsValidOpacity(cmd.opacity)) {
                 return InvalidArgument("RenderFrame contains invalid opacity");
             }
             ++opacityDepth;
             break;
+        }
         case RenderCommandKind::PopOpacity:
             if (opacityDepth == 0U) {
                 return InvalidState("RenderFrame opacity stack underflow");
             }
             --opacityDepth;
             break;
-        case RenderCommandKind::PushTransform:
-            if (!IsFinite(command.transform)) {
+        case RenderCommandKind::PushTransform: {
+            const auto& cmd = frame.PayloadAt<CmdPushTransform>(h.payloadOffset);
+            if (!IsFinite(cmd.transform)) {
                 return InvalidArgument("RenderFrame contains invalid transform");
             }
             ++transformDepth;
             break;
+        }
         case RenderCommandKind::PopTransform:
             if (transformDepth == 0U) {
                 return InvalidState("RenderFrame transform stack underflow");
             }
             --transformDepth;
             break;
-        case RenderCommandKind::FillRect:
-            if (!IsValidLayoutRect(command.rect) || !IsFinite(command.color)) {
+        case RenderCommandKind::FillRect: {
+            const auto& cmd = frame.PayloadAt<CmdFillRect>(h.payloadOffset);
+            if (!IsValidLayoutRect(cmd.rect) || !IsFinite(cmd.color)) {
                 return InvalidArgument("RenderFrame contains invalid FillRect");
             }
             break;
-        case RenderCommandKind::FillRoundedRect:
-            if (!IsValidLayoutRect(command.rect) || !IsFinite(command.color) ||
-                !std::isfinite(command.scalar) || command.scalar < 0.0 ||
-                command.scalar * 2.0 > std::fmin(command.rect.width, command.rect.height)) {
+        }
+        case RenderCommandKind::FillRoundedRect: {
+            const auto& cmd = frame.PayloadAt<CmdRoundedRect>(h.payloadOffset);
+            if (!IsValidLayoutRect(cmd.rect) || !IsFinite(cmd.color) ||
+                !std::isfinite(cmd.radius) || cmd.radius < 0.0f ||
+                cmd.radius * 2.0f > std::fmin(cmd.rect.width, cmd.rect.height) + 1.0e-3f) {
                 return InvalidArgument("RenderFrame contains invalid FillRoundedRect");
             }
             break;
-        case RenderCommandKind::StrokeRect:
-            if (!IsValidLayoutRect(command.rect) || !IsFinite(command.color) ||
-                !std::isfinite(command.scalar) || command.scalar < 0.0 ||
-                !std::isfinite(command.cornerRadius) ||
-                command.cornerRadius < 0.0 ||
-                command.cornerRadius * 2.0 >
-                    std::fmin(command.rect.width, command.rect.height)) {
+        }
+        case RenderCommandKind::StrokeRect: {
+            const auto& cmd = frame.PayloadAt<CmdStrokeRect>(h.payloadOffset);
+            if (!IsValidLayoutRect(cmd.rect) || !IsFinite(cmd.color) ||
+                !std::isfinite(cmd.thickness) || cmd.thickness < 0.0f ||
+                !std::isfinite(cmd.cornerRadius) ||
+                cmd.cornerRadius < 0.0f ||
+                cmd.cornerRadius * 2.0f >
+                    std::fmin(cmd.rect.width, cmd.rect.height) + 1.0e-3f) {
                 return InvalidArgument("RenderFrame contains invalid StrokeRect");
             }
             break;
-        case RenderCommandKind::FillGradientQuad:
+        }
+        case RenderCommandKind::DrawAnalyticalShadow: {
+            const auto& cmd = frame.PayloadAt<CmdAnalyticalShadow>(h.payloadOffset);
+            if (!IsValidLayoutRect(cmd.rect) || !IsFinite(cmd.color)) {
+                return InvalidArgument("RenderFrame contains invalid DrawAnalyticalShadow");
+            }
+            break;
+        }
+        case RenderCommandKind::FillGradientQuad: {
+            const auto& cmd = frame.PayloadAt<CmdGradientQuad>(h.payloadOffset);
             for (int i = 0; i < 4; ++i) {
-                if (!::Aero::IsFinite(command.points[i]) || !IsFinite(command.colors[i])) {
+                if (!::Aero::IsFinite(cmd.points[i]) || !IsFinite(cmd.colors[i])) {
                     return InvalidArgument("RenderFrame contains invalid FillGradientQuad");
                 }
             }
             break;
-        case RenderCommandKind::DrawImage:
-            if (command.image == InvalidRenderImageId ||
-                !IsValidLayoutRect(command.rect) ||
-                !IsValidImageUv(command.sourceUv) ||
-                !IsFinite(command.color)) {
+        }
+        case RenderCommandKind::DrawTriangles: {
+            const auto& cmd = frame.PayloadAt<CmdDrawTriangles>(h.payloadOffset);
+            if (cmd.vertexCount == 0U || cmd.indexCount == 0U || !IsFinite(cmd.color)) {
+                return InvalidArgument("RenderFrame contains invalid DrawTriangles");
+            }
+            break;
+        }
+        case RenderCommandKind::DrawImage: {
+            const auto& cmd = frame.PayloadAt<CmdDrawImage>(h.payloadOffset);
+            if (cmd.image == InvalidRenderImageId ||
+                !IsValidLayoutRect(cmd.destination) ||
+                !IsValidImageUv(cmd.sourceUv) ||
+                !IsFinite(cmd.tint)) {
                 return InvalidArgument("RenderFrame contains invalid DrawImage");
             }
             break;
-        case RenderCommandKind::DrawMesh:
-            if (command.mesh == InvalidRenderMeshId || !IsFinite(command.color)) {
-                return InvalidArgument("RenderFrame contains invalid DrawMesh");
+        }
+        case RenderCommandKind::DrawSolidMesh: {
+            const auto& cmd = frame.PayloadAt<CmdDrawSolidMesh>(h.payloadOffset);
+            if (cmd.mesh == InvalidRenderMeshId || !IsFinite(cmd.tint)) {
+                return InvalidArgument("RenderFrame contains invalid DrawSolidMesh");
             }
             break;
-        case RenderCommandKind::DrawGlyphRun:
-            if (command.glyphRun == InvalidRenderGlyphRunId || !IsFinite(command.color)) {
+        }
+        case RenderCommandKind::DrawGradientMesh: {
+            const auto& cmd = frame.PayloadAt<CmdDrawGradientMesh>(h.payloadOffset);
+            if (cmd.mesh == InvalidRenderMeshId || !IsFinite(cmd.tint)) {
+                return InvalidArgument("RenderFrame contains invalid DrawGradientMesh");
+            }
+            break;
+        }
+        case RenderCommandKind::DrawGlyphRun: {
+            const auto& cmd = frame.PayloadAt<CmdDrawGlyphRun>(h.payloadOffset);
+            if (cmd.glyphRun == InvalidRenderGlyphRunId || !IsFinite(cmd.tint)) {
                 return InvalidArgument("RenderFrame contains invalid DrawGlyphRun");
             }
             break;
+        }
         }
     }
 
@@ -981,6 +867,11 @@ RenderTree::~RenderTree() noexcept {
         };
         clear(clear, *root_);
         root_ = nullptr;
+    }
+    for (const OverlayRecord& overlay : overlays_) {
+        if (overlay.element != nullptr) {
+            overlay.element->SetOverlayFlag(false);
+        }
     }
 }
 
@@ -1164,19 +1055,22 @@ Base::Result<void> RenderTree::Detach(
 
     auto clear = [&](auto&& self,
                      ::Aero::Media::Visual& element) noexcept -> void {
+        if (!element.RenderAttached()) {
+            return;
+        }
+        element.RenderAttached() = false;
         for (::Aero::Media::Visual* descendant :
-             (element).RenderChildren()) {
-            if (descendant == nullptr) continue;
+             element.RenderChildren()) {
+            if (descendant == nullptr || descendant == &element) continue;
             self(self, *descendant);
         }
         RemoveQueued(element);
         RemoveDrawing(element);
-        (element).RenderAttached() = false;
-        (element).RenderValid() = false;
-        (element).RenderDirtyFlags() =
+        element.RenderValid() = false;
+        element.RenderDirtyFlags() =
             static_cast<std::uint8_t>(
                 RenderInvalidation::All);
-        (element).NodeId() = InvalidRenderNodeId;
+        element.NodeId() = InvalidRenderNodeId;
     };
     clear(clear, child);
     // P4.3: node identities removed; committed node order is no longer valid.
@@ -1197,40 +1091,37 @@ Base::Result<void> RenderTree::QueueDirty(
 
 void RenderTree::RemoveQueued(::Aero::Media::Visual& element) noexcept {
     for (std::uint32_t index = 0U; index < dirty_.Size();) {
-        if (dirty_[index].Resolve() != &element) {
+        if (dirty_[index].Resolve() == &element) {
+            dirty_[index] = std::move(dirty_[dirty_.Size() - 1U]);
+            dirty_.PopBack();
+        } else {
             ++index;
-            continue;
         }
-        for (std::uint32_t next = index + 1U;
-             next < dirty_.Size(); ++next) {
-            dirty_[next - 1U] = std::move(dirty_[next]);
-        }
-        dirty_.PopBack();
     }
     (element).RenderQueued() = false;
 }
 
 RenderTree::DrawingRecord*
 RenderTree::FindDrawing(::Aero::Media::Visual& visual) noexcept {
-    for (DrawingRecord& record : drawings_) {
-        if (record.visual == &visual) {
-            return &record;
-        }
+    const std::uint32_t index = visual.drawingIndex_;
+    if (index < drawings_.Size() && drawings_[index].visual == &visual) {
+        return &drawings_[index];
     }
     return nullptr;
 }
 
 void RenderTree::RemoveDrawing(::Aero::Media::Visual& visual) noexcept {
-    for (std::uint32_t index = 0U;
-         index < drawings_.Size(); ++index) {
-        if (drawings_[index].visual != &visual) continue;
-        for (std::uint32_t next = index + 1U;
-             next < drawings_.Size(); ++next) {
-            drawings_[next - 1U] =
-                std::move(drawings_[next]);
+    const std::uint32_t index = visual.drawingIndex_;
+    if (index < drawings_.Size() && drawings_[index].visual == &visual) {
+        const std::uint32_t lastIndex = drawings_.Size() - 1U;
+        if (index != lastIndex) {
+            drawings_[index] = std::move(drawings_[lastIndex]);
+            if (drawings_[index].visual != nullptr) {
+                drawings_[index].visual->drawingIndex_ = index;
+            }
         }
         drawings_.PopBack();
-        return;
+        visual.drawingIndex_ = UINT32_MAX;
     }
 }
 
@@ -1374,114 +1265,6 @@ Media::Visual::InvalidateRenderState() noexcept {
             *this,
             RenderInvalidation::State);
     AERO_ASSERT(invalidated);
-    (void)invalidated;
-}
-
-void Controls::Image::SetRuntimeData(
-    std::uint64_t renderImage,
-    std::uint32_t pixelWidth,
-    std::uint32_t pixelHeight) noexcept {
-    const bool measureChanged =
-        pixelWidth_ != pixelWidth ||
-        pixelHeight_ != pixelHeight;
-    const bool renderChanged =
-        renderImage_ != renderImage;
-    renderImage_ = renderImage;
-    pixelWidth_ = pixelWidth;
-    pixelHeight_ = pixelHeight;
-    if (measureChanged) {
-        InvalidateMeasure();
-        return;
-    }
-    if (renderChanged) {
-        InvalidateVisual();
-    }
-}
-
-Base::Span<const Base::Ref<Base::Object>>
-FrameworkElement::AuthoredTriggers() const noexcept {
-    return frameworkRare_ != nullptr
-        ? frameworkRare_->authoredTriggers.AsSpan()
-        : Base::Span<const Base::Ref<Base::Object>>{};
-}
-
-void FrameworkElement::AddAuthoredTrigger(
-    Base::Ref<Base::Object> trigger) noexcept {
-    if (!trigger) { AERO_ASSERT(false); return; }
-    FrameworkRare* rare = EnsureFrameworkRare();
-    if (rare == nullptr) { AERO_ASSERT(false); return; }
-    rare->authoredTriggers.PushBack(std::move(trigger));
-}
-
-void
-FrameworkElement::ClearAuthoredTriggers() noexcept {
-    if (frameworkRare_ != nullptr) {
-        frameworkRare_->authoredTriggers.Clear();
-        DropRareIfUnused();
-    }
-}
-void FrameworkElement::AddAuthoredBehavior(
-    Base::Ref<Base::Object> behavior) noexcept {
-    if (!behavior) { AERO_ASSERT(false); return; }
-    FrameworkRare* rare = EnsureFrameworkRare();
-    if (rare == nullptr) { AERO_ASSERT(false); return; }
-    rare->authoredBehaviors.PushBack(std::move(behavior));
-}
-
-void FrameworkElement::ClearAuthoredBehaviors() noexcept {
-    if (frameworkRare_ != nullptr) {
-        frameworkRare_->authoredBehaviors.Clear();
-        DropRareIfUnused();
-    }
-}
-void FrameworkElement::AddStyleBehaviorPrototype(
-    Base::Ref<Base::Object> behavior) noexcept {
-    if (!behavior) { AERO_ASSERT(false); return; }
-    FrameworkRare* rare = EnsureFrameworkRare();
-    if (rare == nullptr) { AERO_ASSERT(false); return; }
-    rare->styleBehaviorPrototypes.PushBack(std::move(behavior));
-}
-
-void FrameworkElement::ClearStyleBehaviorPrototypes() noexcept {
-    if (frameworkRare_ != nullptr) {
-        frameworkRare_->styleBehaviorPrototypes.Clear();
-        DropRareIfUnused();
-    }
-}
-void FrameworkElement::AddStyleTriggerPrototype(
-    Base::Ref<Base::Object> trigger) noexcept {
-    if (!trigger) { AERO_ASSERT(false); return; }
-    FrameworkRare* rare = EnsureFrameworkRare();
-    if (rare == nullptr) { AERO_ASSERT(false); return; }
-    rare->styleTriggerPrototypes.PushBack(std::move(trigger));
-}
-
-void FrameworkElement::ClearStyleTriggerPrototypes() noexcept {
-    if (frameworkRare_ != nullptr) {
-        frameworkRare_->styleTriggerPrototypes.Clear();
-        DropRareIfUnused();
-    }
-}
-
-Span<const Ref<Base::Object>>
-FrameworkElement::AuthoredBehaviors() const noexcept {
-    return frameworkRare_ != nullptr
-        ? frameworkRare_->authoredBehaviors.AsSpan()
-        : Span<const Ref<Base::Object>>{};
-}
-
-Span<const Ref<Base::Object>>
-FrameworkElement::StyleBehaviorPrototypes() const noexcept {
-    return frameworkRare_ != nullptr
-        ? frameworkRare_->styleBehaviorPrototypes.AsSpan()
-        : Span<const Ref<Base::Object>>{};
-}
-
-Span<const Ref<Base::Object>>
-FrameworkElement::StyleTriggerPrototypes() const noexcept {
-    return frameworkRare_ != nullptr
-        ? frameworkRare_->styleTriggerPrototypes.AsSpan()
-        : Span<const Ref<Base::Object>>{};
 }
 
 } // namespace Aero
@@ -1493,13 +1276,7 @@ using namespace ::Aero::Meta;
 
 bool RenderTree::IsOverlay(
     const ::Aero::Media::Visual& element) const noexcept {
-    for (const OverlayRecord& overlay :
-         overlays_) {
-        if (overlay.element == &element) {
-            return true;
-        }
-    }
-    return false;
+    return element.IsOverlayFlag();
 }
 
 Base::Result<void> RenderTree::SetOverlays(
@@ -1583,6 +1360,16 @@ Base::Result<void> RenderTree::SetOverlays(
         }
     }
     if (!changed) return {};
+    for (const OverlayRecord& oldOverlay : overlays_) {
+        if (oldOverlay.element != nullptr) {
+            oldOverlay.element->SetOverlayFlag(false);
+        }
+    }
+    for (const OverlayRecord& newOverlay : next) {
+        if (newOverlay.element != nullptr) {
+            newOverlay.element->SetOverlayFlag(true);
+        }
+    }
     overlays_ = std::move(next);
     // P4.3: overlay membership feeds the commit tail; committed node order
     // is no longer valid.
@@ -1645,7 +1432,6 @@ RenderEffectSnapshot RenderTree::BuildEffectSnapshot(
         snapshot.depth = drop->GetShadowDepth();
         snapshot.opacity = drop->GetOpacity();
         snapshot.color = drop->GetColor();
-        std::fprintf(stderr, "[DEBUG RenderTree] DropShadow: r=%f dir=%f depth=%f op=%f\n", snapshot.radius, snapshot.direction, snapshot.depth, snapshot.opacity);
     } else if (effect->RuntimeType() ==
         ::Aero::Media::PixelateEffect::StaticTypeId()) {
         snapshot.kind = RenderEffectKind::Pixelate;
@@ -1683,44 +1469,70 @@ RenderEffectSnapshot RenderTree::BuildEffectSnapshot(
 std::uint32_t RenderTree::AppendGradientRamp(
     RenderFrame& plan,
     const ::Aero::Media::GradientBrush& brush) noexcept {
-    RenderGradientRampSnapshot ramp;
-    ramp.brushIdentity =
+    const std::uintptr_t brushIdentity =
         reinterpret_cast<std::uintptr_t>(&brush);
-    ramp.revision =
-        brush.GetRevision();
+    std::uint64_t revision = brush.GetRevision();
+    for (const auto& stop : brush.GetGradientStops()) {
+        if (stop) {
+            revision = Base::MixHash64(revision ^ stop->GetRevision());
+            const Color c = stop->GetColor();
+            const double offset = stop->GetOffset();
+            std::uint32_t rBits = 0, gBits = 0, bBits = 0, aBits = 0;
+            std::uint64_t oBits = 0;
+            std::memcpy(&rBits, &c.red, sizeof(rBits));
+            std::memcpy(&gBits, &c.green, sizeof(gBits));
+            std::memcpy(&bBits, &c.blue, sizeof(bBits));
+            std::memcpy(&aBits, &c.alpha, sizeof(aBits));
+            std::memcpy(&oBits, &offset, sizeof(oBits));
+            const std::uint64_t cBits =
+                (static_cast<std::uint64_t>(rBits) << 32) ^
+                (static_cast<std::uint64_t>(gBits)) ^
+                (static_cast<std::uint64_t>(bBits) << 16) ^
+                (static_cast<std::uint64_t>(aBits));
+            revision = Base::MixHash64(revision ^ cBits ^ oBits);
+        }
+    }
+
+    Base::Span<const RenderGradientRampSnapshot> existing =
+        plan.GradientRamps();
+    std::uint32_t targetIndex = UINT32_MAX;
+    for (std::uint32_t i = 0U; i < existing.Size(); ++i) {
+        if (existing[i].brushIdentity != brushIdentity) continue;
+        if (existing[i].revision == revision) {
+            return i;
+        }
+        targetIndex = i;
+        break;
+    }
+
+    RenderGradientRampSnapshot* dst = nullptr;
+    if (targetIndex != UINT32_MAX) {
+        dst = &plan.gradientRamps_[targetIndex];
+    } else {
+        RenderGradientRampSnapshot newRamp;
+        static_cast<void>(plan.gradientRamps_.PushBack(newRamp));
+        targetIndex = plan.gradientRamps_.Size() - 1U;
+        dst = &plan.gradientRamps_[targetIndex];
+    }
+
+    dst->brushIdentity = brushIdentity;
+    dst->revision = revision;
     for (std::uint32_t i = 0U; i < GradientRampWidth; ++i) {
         const double position =
             static_cast<double>(i) /
             static_cast<double>(GradientRampWidth - 1U);
         const Color color = SampleGradient(brush, position);
         const float alpha = color.alpha;
-        ramp.pixels[i * 4U + 0U] = static_cast<std::uint8_t>(
+        dst->pixels[i * 4U + 0U] = static_cast<std::uint8_t>(
             std::clamp(color.red * alpha * 255.0F + 0.5F, 0.0F, 255.0F));
-        ramp.pixels[i * 4U + 1U] = static_cast<std::uint8_t>(
+        dst->pixels[i * 4U + 1U] = static_cast<std::uint8_t>(
             std::clamp(color.green * alpha * 255.0F + 0.5F, 0.0F, 255.0F));
-        ramp.pixels[i * 4U + 2U] = static_cast<std::uint8_t>(
+        dst->pixels[i * 4U + 2U] = static_cast<std::uint8_t>(
             std::clamp(color.blue * alpha * 255.0F + 0.5F, 0.0F, 255.0F));
-        ramp.pixels[i * 4U + 3U] = static_cast<std::uint8_t>(
+        dst->pixels[i * 4U + 3U] = static_cast<std::uint8_t>(
             std::clamp(alpha * 255.0F + 0.5F, 0.0F, 255.0F));
     }
-    Base::Span<const RenderGradientRampSnapshot> existing =
-        plan.GradientRamps();
-    for (std::uint32_t i = 0U; i < existing.Size(); ++i) {
-        if (existing[i].brushIdentity != ramp.brushIdentity) continue;
-        // P4.3: revision-aware dedup. A brush whose stops changed keeps its
-        // table slot; pixels are refreshed in place so incremental commits
-        // never go stale and never grow the table with duplicates. Full
-        // rebuilds always start from an empty table, so this path never
-        // triggers there (zero behavior change for that path).
-        if (existing[i].revision != ramp.revision) {
-            RenderGradientRampSnapshot& stored = plan.gradientRamps_[i];
-            stored.revision = ramp.revision;
-            stored.pixels = ramp.pixels;
-        }
-        return i;
-    }
-    static_cast<void>(plan.gradientRamps_.PushBack(ramp));
-    return plan.gradientRamps_.Size() - 1U;
+    return targetIndex;
 }
 
 RenderMaskSnapshot RenderTree::BuildMaskSnapshot(
@@ -1783,6 +1595,8 @@ RenderMaskSnapshot RenderTree::BuildMaskSnapshot(
             gradient->GetMappingMode());
         snapshot.startPoint = gradient->GetStartPoint();
         snapshot.endPoint = gradient->GetEndPoint();
+        snapshot.tileMode = gradient->GetSpreadMethod() == ::Aero::Media::GradientSpreadMethod::Repeat ? 1U :
+            (gradient->GetSpreadMethod() == ::Aero::Media::GradientSpreadMethod::Reflect ? 2U : 0U);
         snapshot.gradientRamp = AppendGradientRamp(plan, *gradient);
     } else if (brush->RuntimeType() ==
         ::Aero::Media::RadialGradientBrush::StaticTypeId()) {
@@ -1796,6 +1610,8 @@ RenderMaskSnapshot RenderTree::BuildMaskSnapshot(
         snapshot.gradientOrigin = gradient->GetGradientOrigin();
         snapshot.radiusX = gradient->GetRadiusX();
         snapshot.radiusY = gradient->GetRadiusY();
+        snapshot.tileMode = gradient->GetSpreadMethod() == ::Aero::Media::GradientSpreadMethod::Repeat ? 1U :
+            (gradient->GetSpreadMethod() == ::Aero::Media::GradientSpreadMethod::Reflect ? 2U : 0U);
         snapshot.gradientRamp = AppendGradientRamp(plan, *gradient);
     }
     return snapshot;
@@ -1831,13 +1647,25 @@ void RenderTree::ResolveCommandGradients(
     std::uint32_t start,
     std::uint32_t count) noexcept {
     for (std::uint32_t i = 0U; i < count; ++i) {
-        RenderCommand& command = plan.commands_[start + i];
-        if (command.paintKind == 0U || command.gradientBrush == 0U) {
+        RenderCommandHeader& h = plan.commandHeaders_[start + i];
+        if (h.paintKind == 0U) {
             continue;
         }
-        const auto* brush = reinterpret_cast<
-            const ::Aero::Media::GradientBrush*>(command.gradientBrush);
-        command.gradientRamp = AppendGradientRamp(plan, *brush);
+        if (h.kind == RenderCommandKind::FillGradientQuad) {
+            auto& quad = plan.MutablePayloadAt<CmdGradientQuad>(h.payloadOffset);
+            if (quad.gradientBrush != 0U) {
+                const auto* brush = reinterpret_cast<
+                    const ::Aero::Media::GradientBrush*>(quad.gradientBrush);
+                quad.gradientRamp = AppendGradientRamp(plan, *brush);
+            }
+        } else if (h.kind == RenderCommandKind::DrawGradientMesh) {
+            auto& mesh = plan.MutablePayloadAt<CmdDrawGradientMesh>(h.payloadOffset);
+            if (mesh.gradientBrush != 0U) {
+                const auto* brush = reinterpret_cast<
+                    const ::Aero::Media::GradientBrush*>(mesh.gradientBrush);
+                mesh.gradientRamp = AppendGradientRamp(plan, *brush);
+            }
+        }
     }
 }
 
@@ -1891,6 +1719,16 @@ Base::Result<void> RenderTree::DescribeVisual(
     }
     visibleOut = visible;
     DrawingRecord* record = FindDrawing(visual);
+    const Size currentRenderSize = framework != nullptr ? framework->GetRenderSize() : Size{};
+    const bool sizeChanged = (record != nullptr && record->valid) &&
+        (record->recordedSize.width != currentRenderSize.width ||
+         record->recordedSize.height != currentRenderSize.height);
+    if (sizeChanged) {
+        (visual).RenderDirtyFlags() |=
+            static_cast<std::uint8_t>(
+                RenderInvalidation::Drawing);
+        (visual).RenderValid() = false;
+    }
     const bool drawingDirty =
         HasRenderInvalidation(
             static_cast<RenderInvalidation>(
@@ -1916,14 +1754,18 @@ Base::Result<void> RenderTree::DescribeVisual(
         if (record == nullptr) {
             record = drawings_.EmplaceBack();
             record->visual = &visual;
+            visual.drawingIndex_ = drawings_.Size() - 1U;
         }
         record->drawing =
             std::move(recorded).Value();
+        record->recordedSize = currentRenderSize;
         record->valid = true;
     }
     if (record == nullptr) {
         record = drawings_.EmplaceBack();
         record->visual = &visual;
+        visual.drawingIndex_ = drawings_.Size() - 1U;
+        record->recordedSize = currentRenderSize;
         record->valid = framework == nullptr;
     }
     const DisplayList& list = record->drawing;
@@ -1932,7 +1774,7 @@ Base::Result<void> RenderTree::DescribeVisual(
         ? list.CommandCount()
         : 0U;
 
-    if (plan.commands_.Size() > UINT32_MAX - commandCount) {
+    if (plan.commandHeaders_.Size() > UINT32_MAX - commandCount) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfRange,
             "RenderFrame command count exceeds 32-bit range");
@@ -1966,29 +1808,46 @@ Base::Result<void> RenderTree::DescribeVisual(
     snapshot.opacity = element != nullptr
         ? element->GetOpacity()
         : 1.0;
-    snapshot.effect = element != nullptr
-        ? BuildEffectSnapshot(element->GetEffect().Get())
-        : RenderEffectSnapshot{};
     if (element != nullptr) {
-        if (Base::Ref<Media::Geometry> clip = element->GetClip()) {
-            Base::Vector<Point> vertices;
-            Base::Vector<std::uint32_t> indices;
-            if (Media::TessellateGeometryFill(*clip, vertices, indices) &&
-                !vertices.Empty() && !indices.Empty()) {
-                snapshot.geometryClipVertexOffset = plan.geometryClipVertices_.Size();
-                snapshot.geometryClipIndexOffset = plan.geometryClipIndices_.Size();
-                snapshot.geometryClipVertexCount = vertices.Size();
-                snapshot.geometryClipIndexCount = indices.Size();
-                plan.geometryClipVertices_.Append(vertices.AsSpan());
-                plan.geometryClipIndices_.Append(indices.AsSpan());
-                clippedOut = true;
-            }
+        RenderEffectSnapshot effect = BuildEffectSnapshot(element->GetEffect().Get());
+        if (effect.kind != RenderEffectKind::None) {
+            snapshot.effectIndex = plan.effects_.Size();
+            plan.effects_.PushBack(std::move(effect));
         }
     }
-    snapshot.mask = element != nullptr
-        ? BuildMaskSnapshot(*element, plan)
-        : RenderMaskSnapshot{};
-    snapshot.commandOffset = plan.commands_.Size();
+    if (element != nullptr) {
+        if (Base::Ref<Media::Geometry> clip = element->GetClip()) {
+            const std::uint64_t currentRevision = clip->GetRevision();
+            if (record->clipRevision != currentRevision || record->clipVertices.Empty()) {
+                record->clipVertices.Clear();
+                record->clipIndices.Clear();
+                if (Media::TessellateGeometryFill(*clip, record->clipVertices, record->clipIndices)) {
+                    record->clipRevision = currentRevision;
+                }
+            }
+            if (!record->clipVertices.Empty() && !record->clipIndices.Empty()) {
+                snapshot.geometryClipVertexOffset = plan.geometryClipVertices_.Size();
+                snapshot.geometryClipIndexOffset = plan.geometryClipIndices_.Size();
+                snapshot.geometryClipVertexCount = record->clipVertices.Size();
+                snapshot.geometryClipIndexCount = record->clipIndices.Size();
+                plan.geometryClipVertices_.Append(record->clipVertices.AsSpan());
+                plan.geometryClipIndices_.Append(record->clipIndices.AsSpan());
+                clippedOut = true;
+            }
+        } else {
+            record->clipRevision = 0U;
+            record->clipVertices.Clear();
+            record->clipIndices.Clear();
+        }
+    }
+    if (element != nullptr) {
+        RenderMaskSnapshot mask = BuildMaskSnapshot(*element, plan);
+        if (mask.kind != RenderMaskKind::None) {
+            snapshot.maskIndex = plan.masks_.Size();
+            plan.masks_.PushBack(std::move(mask));
+        }
+    }
+    snapshot.commandOffset = plan.commandHeaders_.Size();
     snapshot.commandCount = commandCount;
     snapshot.elementRevision =
         (visual).RenderRevision() +
@@ -2111,17 +1970,25 @@ Base::Result<void> RenderTree::BuildSubtree(
     if (skipped) return {};
     static_cast<void>(clipped);
 
-    snapshot.commandOffset = plan.commands_.Size();
-    plan.nodes_.PushBack(snapshot);
-    if (snapshot.effect.kind != RenderEffectKind::None) {
-        std::fprintf(stderr, "[DEBUG RenderTree BuildSubtree] pushed node id=%llu effect=%d r=%f planNodes=%u\n",
-            static_cast<unsigned long long>(snapshot.id), static_cast<int>(snapshot.effect.kind), snapshot.effect.radius, plan.nodes_.Size());
-    }
+    snapshot.commandOffset = plan.commandHeaders_.Size();
     const std::uint32_t commandCount = snapshot.commandCount;
-    if (commandCount != 0U) {
-        plan.commands_.Append(drawing->Commands());
+    if (commandCount != 0U && drawing != nullptr) {
+        snapshot.payloadOffset =
+            static_cast<std::uint32_t>(plan.commandPayload_.Size());
+        snapshot.payloadSize =
+            static_cast<std::uint32_t>(drawing->Payload().Size());
+        for (const auto& h : drawing->Headers()) {
+            RenderCommandHeader newHeader = h;
+            newHeader.payloadOffset += snapshot.payloadOffset;
+            plan.commandHeaders_.PushBack(newHeader);
+        }
+        plan.commandPayload_.Append(drawing->Payload());
         ResolveCommandGradients(plan, snapshot.commandOffset, commandCount);
+    } else {
+        snapshot.payloadOffset = 0U;
+        snapshot.payloadSize = 0U;
     }
+    plan.nodes_.PushBack(snapshot);
 
     if (!visible) return {};
     for (::Aero::Media::Visual* child :
@@ -2160,6 +2027,18 @@ Base::Result<void> RenderTree::RefreshInPlace(
     }();
     const Media::Transform3DContext rootContext =
         Media::MakeImplicitViewRootContext(rootSize);
+
+    std::size_t validPayloadTotal = 0U;
+    for (const auto& node : currentFrame_.nodes_) {
+        validPayloadTotal += node.payloadSize;
+    }
+    if (currentFrame_.commandPayload_.Size() > (validPayloadTotal == 0U ? 0U : 2U * validPayloadTotal)) {
+        fallbackOut = true;
+        return {};
+    }
+
+    currentFrame_.effects_.Clear();
+    currentFrame_.masks_.Clear();
 
     std::uint32_t cursor = 0U;
     bool fallback = false;
@@ -2231,22 +2110,33 @@ Base::Result<void> RenderTree::RefreshInPlace(
         // Ranges are fixed: patch fields in place, refresh the command
         // bytes only when the drawing was actually re-recorded.
         snapshot.commandOffset = stored.commandOffset;
-        stored = snapshot;
-        if (stored.effect.kind != RenderEffectKind::None) {
-            std::fprintf(stderr, "[DEBUG RenderTree RefreshInPlace] updated stored node id=%llu effect=%d r=%f\n",
-                static_cast<unsigned long long>(stored.id), static_cast<int>(stored.effect.kind), stored.effect.radius);
-        }
+        snapshot.payloadOffset = stored.payloadOffset;
+        snapshot.payloadSize = stored.payloadSize;
         if (snapshot.commandCount != 0U &&
             (drawingDirty || sizeChanged)) {
-            Base::Span<const RenderCommand> fresh = drawing->Commands();
+            const std::uint32_t newPayloadSize =
+                drawing != nullptr ? static_cast<std::uint32_t>(drawing->Payload().Size()) : 0U;
+            if (newPayloadSize != stored.payloadSize) {
+                fallback = true;
+                return {};
+            }
+            if (newPayloadSize != 0U) {
+                std::memcpy(
+                    currentFrame_.commandPayload_.Data() + stored.payloadOffset,
+                    drawing->Payload().Data(),
+                    newPayloadSize);
+            }
+            const auto fresh = drawing->Headers();
             for (std::uint32_t i = 0U; i < snapshot.commandCount; ++i) {
-                currentFrame_.commands_[stored.commandOffset + i] =
-                    fresh[i];
+                RenderCommandHeader h = fresh[i];
+                h.payloadOffset += stored.payloadOffset;
+                currentFrame_.commandHeaders_[stored.commandOffset + i] = h;
             }
             ResolveCommandGradients(
                 currentFrame_, stored.commandOffset,
                 snapshot.commandCount);
         }
+        stored = snapshot;
         ++cursor;
 
         if (!visible) return {};
@@ -2368,7 +2258,8 @@ bool RenderTree::VerifyRefresh() noexcept {
     verifyFrame_.version_ = currentFrame_.Version();
     const bool agree =
         verifyFrame_.nodes_.Size() == currentFrame_.nodes_.Size() &&
-        verifyFrame_.commands_.Size() == currentFrame_.commands_.Size() &&
+        verifyFrame_.commandHeaders_.Size() == currentFrame_.commandHeaders_.Size() &&
+        verifyFrame_.commandPayload_.Size() == currentFrame_.commandPayload_.Size() &&
         verifyFrame_.gradientRamps_.Size() ==
             currentFrame_.gradientRamps_.Size() &&
         verifyFrame_.StableHash() == currentFrame_.StableHash();
@@ -2397,7 +2288,9 @@ Base::Result<std::uint32_t> RenderTree::Commit() noexcept {
         return 0U;
     }
     if (dirty_.Empty() && !viewportDirty_ &&
-        currentFrame_.Version() != 0U) return 0U;
+        currentFrame_.Version() != 0U) {
+        return 0U;
+    }
 
     // P4.3: viewport-only change with a stable structure and no dirty
     // visuals is descriptor-only: snapshots store element-relative state,
@@ -2476,9 +2369,9 @@ RenderDiagnostics RenderTree::Diagnostics() const noexcept {
     RenderDiagnostics diagnostics;
     diagnostics.commitVersion = commitVersion_;
     diagnostics.nodeCount = currentFrame_.Nodes().Size();
-    diagnostics.commandCount = currentFrame_.Commands().Size();
-    for (const RenderCommand& command : currentFrame_.Commands()) {
-        if (command.kind == RenderCommandKind::DrawGlyphRun) {
+    diagnostics.commandCount = currentFrame_.CommandCount();
+    for (const RenderCommandHeader& h : currentFrame_.CommandHeaders()) {
+        if (h.kind == RenderCommandKind::DrawGlyphRun) {
             ++diagnostics.glyphCommandCount;
         }
     }

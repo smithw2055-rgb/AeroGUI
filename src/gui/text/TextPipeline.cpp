@@ -727,11 +727,6 @@ struct TextPipelineState {
     }
 };
 
-static_assert(sizeof(TextPipelineState) <= 16384U,
-    "TextPipeline inline state storage is too small");
-static_assert(alignof(TextPipelineState) <= alignof(std::max_align_t),
-    "TextPipeline inline state alignment is insufficient");
-
 TextPipeline::TextPipeline(
     Base::IAllocator* allocator) noexcept
     : allocator_(allocator != nullptr
@@ -758,8 +753,15 @@ Base::Result<void> TextPipeline::Initialize(
             "View text default pixel size must be positive");
     }
 
-    state_ = new (stateStorage_)
-        TextPipelineState(*allocator_, device);
+    Base::Result<void> allocated = Base::AllocateObject(
+        *allocator_,
+        Base::MemoryTag::Ui,
+        state_,
+        *allocator_,
+        device);
+    if (!allocated) {
+        return allocated.GetStatus();
+    }
     state_->allocator = allocator_;
     state_->device = &device;
     state_->proxy.SetFaceResolver(
@@ -971,7 +973,7 @@ Base::Result<void> TextPipeline::Initialize(
             options.defaultPixelSize;
         state_->config.atlas.pageWidth = 1024U;
         state_->config.atlas.pageHeight = 1024U;
-        state_->config.atlas.maxPages = 4U;
+        state_->config.atlas.maxPages = 8U;
         state_->resources = resources;
         if (state_->resources != nullptr) {
             state_->resourceGeneration =
@@ -1126,8 +1128,7 @@ void TextPipeline::Shutdown() noexcept {
     state_->loadedFonts.Clear();
     state_->fonts.Shutdown();
     state_->fontProvider.Shutdown();
-    state_->~TextPipelineState();
-    state_ = nullptr;
+    Base::FreeObject(*allocator_, Base::MemoryTag::Ui, state_);
 }
 
 ::Aero::Controls::TextBlockLayout*

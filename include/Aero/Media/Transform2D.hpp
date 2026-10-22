@@ -180,6 +180,11 @@ public:
     void ClearChildren() noexcept;
     Base::Transform2D GetMatrix() const noexcept override;
 
+protected:
+    Base::Ref<Freezable> CreateInstanceCore() const override;
+    void CloneCore(const Freezable& source) override;
+    void CloneCurrentValueCore(const Freezable& source) override;
+
 private:
     bool FreezeCore(bool isChecking) noexcept override;
     void OnChildChanged(Freezable&) noexcept;
@@ -190,5 +195,7 @@ private:
 
 } // namespace Aero::Media
 
+
 AERO_DECLARE_TYPE_VALUE(Base::Point, "Point")
 AERO_DECLARE_TYPE_VALUE(Base::Transform2D, "Matrix")
+

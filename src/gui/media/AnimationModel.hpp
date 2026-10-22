@@ -6,6 +6,7 @@
 #include <Aero/Base/Geometry.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
+#include <Aero/Base/Vector.hpp>
 #include <Aero/Threading.hpp>
 #include <Aero/DependencyProperty.hpp>
 #include <cstdint>
@@ -749,6 +750,83 @@ inline Model::MatrixKeyFrame MatrixFrame(
         Base::Ref<EasingFunctionBase> easing = frame.GetEasingFunction();
         if (easing) result.easing = Easing(*easing);
         return result;
+}
+
+inline Model::DoubleKeyFrame MakeFrame(
+    const DoubleKeyFrame& frame,
+    AnimationTime durationMicroseconds,
+    std::uint32_t index,
+    std::uint32_t count) noexcept {
+    return DoubleFrame(frame, durationMicroseconds, index, count);
+}
+
+inline Model::ColorKeyFrame MakeFrame(
+    const ColorKeyFrame& frame,
+    AnimationTime durationMicroseconds,
+    std::uint32_t index,
+    std::uint32_t count) noexcept {
+    return ColorFrame(frame, durationMicroseconds, index, count);
+}
+
+inline Model::PointKeyFrame MakeFrame(
+    const PointKeyFrame& frame,
+    AnimationTime durationMicroseconds,
+    std::uint32_t index,
+    std::uint32_t count) noexcept {
+    return PointFrame(frame, durationMicroseconds, index, count);
+}
+
+template <typename TFrame>
+inline void SortKeyFramesByTime(Base::Vector<TFrame>& frames) noexcept {
+    for (std::uint32_t index = 1U; index < frames.Size(); ++index) {
+        TFrame current = std::move(frames[index]);
+        std::uint32_t position = index;
+        while (position > 0U &&
+               frames[position - 1U].keyTimeMicroseconds > current.keyTimeMicroseconds) {
+            frames[position] = std::move(frames[position - 1U]);
+            --position;
+        }
+        frames[position] = std::move(current);
+    }
+}
+
+template <typename TModelFrame, typename TAuthoredTimeline>
+inline Base::Vector<TModelFrame> BuildSortedKeyFrames(
+    const TAuthoredTimeline& authored,
+    AnimationTime authoredDuration) {
+    Base::Vector<TModelFrame> frames;
+    const auto authoredFrames = authored.GetKeyFrames();
+    if (authoredFrames.Empty()) {
+        return frames;
+    }
+    const auto schedule = MakeSchedule(authoredFrames, authoredDuration);
+    std::uint32_t keyIndex = 0U;
+    for (const auto& frame : authoredFrames) {
+        if (!frame) continue;
+        frames.PushBack(MakeFrame(*frame, schedule.duration, keyIndex++, schedule.count));
+    }
+    SortKeyFramesByTime(frames);
+    return frames;
+}
+
+template <typename TModelFrame, typename TAuthoredTimeline, typename TFrameFn>
+inline Base::Vector<TModelFrame> BuildSortedKeyFramesWith(
+    const TAuthoredTimeline& authored,
+    AnimationTime authoredDuration,
+    TFrameFn&& fn) {
+    Base::Vector<TModelFrame> frames;
+    const auto authoredFrames = authored.GetKeyFrames();
+    if (authoredFrames.Empty()) {
+        return frames;
+    }
+    const auto schedule = MakeSchedule(authoredFrames, authoredDuration);
+    std::uint32_t keyIndex = 0U;
+    for (const auto& frame : authoredFrames) {
+        if (!frame) continue;
+        frames.PushBack(fn(*frame, schedule.duration, keyIndex++, schedule.count));
+    }
+    SortKeyFramesByTime(frames);
+    return frames;
 }
 
 } // namespace Aero::Media::Animation

@@ -22,6 +22,8 @@
 
 namespace Aero {
 
+struct ViewFrame;
+
 struct PendingXamlDocument {
     Markup::LoaderResult document;
     // LoaderResult can own the root through more than its root field. This
@@ -68,6 +70,9 @@ struct GuiRuntime final : public Base::Object {
     void OnXamlChanged(const Base::ResourceUri& uri) noexcept;
     void OnTextureChanged(const Base::ResourceUri& uri) noexcept;
     void OnFontChanged(const Media::FontProviderChange& change) noexcept;
+
+    void RemovePendingDocument(std::uint32_t index) noexcept;
+    Base::Result<bool> AdoptPendingDocumentFor(Base::Object& root, ViewFrame& viewState) noexcept;
 
     Base::IAllocator* allocator = nullptr;
     ModuleSet modules;

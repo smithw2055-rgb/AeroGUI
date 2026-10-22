@@ -1,6 +1,5 @@
 [System.Environment]::SetEnvironmentVariable('TEMP', 'C:\Users\macx\AppData\Local\Temp')
 [System.Environment]::SetEnvironmentVariable('TMP', 'C:\Users\macx\AppData\Local\Temp')
-Add-Type -AssemblyName System.Drawing
 
 $src = @'
 using System;
@@ -9,7 +8,7 @@ using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 using System.Text;
 
-public class FullCap {
+public class QuestTester2 {
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     public struct STARTUPINFO {
         public int cb;
@@ -73,28 +72,28 @@ public class FullCap {
     public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
 
     [DllImport("user32.dll")]
-    public static extern bool SetForegroundWindow(IntPtr hWnd);
-
-    [DllImport("user32.dll")]
-    public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    public static extern bool SetThreadDesktop(IntPtr hDesktop);
-
-    [DllImport("user32.dll")]
-    public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
-
-    [DllImport("user32.dll")]
-    public static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
-
-    public const uint WM_MOUSEMOVE = 0x0200;
-    public const uint WM_LBUTTONDOWN = 0x0201;
-    public const uint WM_LBUTTONUP = 0x0202;
+    public static extern bool PrintWindow(IntPtr hWnd, IntPtr hdcBlink, uint nFlags);
 
     [StructLayout(LayoutKind.Sequential)]
     public struct RECT {
-        public int Left, Top, Right, Bottom;
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
     }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct POINT {
+        public int X;
+        public int Y;
+        public POINT(int x, int y) { X = x; Y = y; }
+    }
+
+    [DllImport("user32.dll")]
+    public static extern bool ClientToScreen(IntPtr hWnd, ref POINT lpPoint);
+
+    [DllImport("user32.dll")]
+    public static extern bool SetCursorPos(int X, int Y);
 
     public static int Launch(string exePath, string desktop, string workDir) {
         STARTUPINFO si = new STARTUPINFO();
@@ -105,19 +104,22 @@ public class FullCap {
 
         PROCESS_INFORMATION pi = new PROCESS_INFORMATION();
         bool ok = CreateProcess(null, "\"" + exePath + "\"", IntPtr.Zero, IntPtr.Zero, false, 0, IntPtr.Zero, workDir, ref si, out pi);
-        if (!ok) return 0;
+        if (!ok) {
+            Console.WriteLine("CreateProcess failed: " + Marshal.GetLastWin32Error());
+            return 0;
+        }
         CloseHandle(pi.hThread);
         CloseHandle(pi.hProcess);
         return pi.dwProcessId;
     }
 
-    public static IntPtr FindInventoryWindow() {
+    public static IntPtr FindQuestWindow() {
         IntPtr hDesk = OpenDesktop("Default", 0, false, 0x10000000);
         IntPtr found = IntPtr.Zero;
         EnumDesktopWindows(hDesk, (hWnd, lParam) => {
             StringBuilder title = new StringBuilder(256);
             GetWindowText(hWnd, title, 256);
-            if (title.ToString().Contains("Inventory")) {
+            if (title.ToString().Contains("QuestLog")) {
                 found = hWnd;
                 return false;
             }
@@ -127,72 +129,94 @@ public class FullCap {
         return found;
     }
 
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool SetThreadDesktop(IntPtr hDesktop);
+
     [DllImport("user32.dll")]
-    public static extern bool PrintWindow(IntPtr hWnd, IntPtr hdcBlink, uint nFlags);
+    public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
-    public static bool Capture(IntPtr hWnd, string outputPath) {
+    [DllImport("user32.dll")]
+    public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+    [DllImport("user32.dll")]
+    public static extern bool SetProcessDPIAware();
+
+    public static bool CaptureWindow(IntPtr hWnd, string outputPath) {
+        SetProcessDPIAware();
         IntPtr hDesk = OpenDesktop("Default", 0, false, 0x10000000);
-        if (hDesk != IntPtr.Zero) SetThreadDesktop(hDesk);
-
-        ShowWindow(hWnd, 9); // SW_RESTORE
-        SetWindowPos(hWnd, IntPtr.Zero, 10, 10, 1000, 600, 0x0040);
-        SetForegroundWindow(hWnd);
+        if (hDesk != IntPtr.Zero) {
+            SetThreadDesktop(hDesk);
+        }
+        ShowWindow(hWnd, 9);
         System.Threading.Thread.Sleep(500);
 
         RECT r;
-        GetWindowRect(hWnd, out r);
+        if (!GetWindowRect(hWnd, out r)) {
+            if (hDesk != IntPtr.Zero) CloseDesktop(hDesk);
+            return false;
+        }
         int w = r.Right - r.Left;
         int h = r.Bottom - r.Top;
-        Console.WriteLine(string.Format("Window Rect: {0},{1} to {2},{3} ({4}x{5})", r.Left, r.Top, r.Right, r.Bottom, w, h));
+        if (w <= 0 || h <= 0) {
+            if (hDesk != IntPtr.Zero) CloseDesktop(hDesk);
+            return false;
+        }
 
         using (Bitmap bmp = new Bitmap(w, h)) {
             using (Graphics g = Graphics.FromImage(bmp)) {
                 IntPtr hdc = g.GetHdc();
-                PrintWindow(hWnd, hdc, 2);
+                bool pw = PrintWindow(hWnd, hdc, 2);
                 g.ReleaseHdc(hdc);
+                if (!pw) {
+                    IntPtr hdc2 = g.GetHdc();
+                    PrintWindow(hWnd, hdc2, 0);
+                    g.ReleaseHdc(hdc2);
+                }
             }
             bmp.Save(outputPath, ImageFormat.Png);
+            Console.WriteLine("Saved: " + outputPath);
         }
         if (hDesk != IntPtr.Zero) CloseDesktop(hDesk);
         return true;
     }
 
-    public static void SendMouseMove(IntPtr hWnd, int clientX, int clientY) {
-        IntPtr lParam = (IntPtr)((clientY << 16) | (clientX & 0xFFFF));
-        PostMessage(hWnd, WM_MOUSEMOVE, IntPtr.Zero, lParam);
+    public static void HoverThumb(IntPtr hWnd) {
+        POINT pt = new POINT(296, 250);
+        ClientToScreen(hWnd, ref pt);
+        SetCursorPos(pt.X, pt.Y);
     }
 }
 '@
 
 Add-Type -TypeDefinition $src -ReferencedAssemblies System.Drawing
 
-# Kill existing if running
-Stop-Process -Name AeroInventory -Force -ErrorAction SilentlyContinue
+Get-Process AeroQuestLog -ErrorAction SilentlyContinue | Stop-Process -Force
 Start-Sleep -Milliseconds 500
 
-$procId = [FullCap]::Launch("C:\Projects\AeroGUI-R\build\samples\Inventory\RelWithDebInfo\AeroInventory.exe", "WinSta0\Default", "C:\Projects\AeroGUI-R")
-Write-Output "Launched PID: $procId"
-Start-Sleep -Seconds 6
+$exePath = "C:\Projects\AeroGUI-R\build\samples\QuestLog\RelWithDebInfo\AeroQuestLog.exe"
+if (-not (Test-Path $exePath)) {
+    $exePath = "C:\Projects\AeroGUI-R\build\samples\QuestLog\Debug\AeroQuestLog.exe"
+}
+$newPid = [QuestTester2]::Launch($exePath, "WinSta0\Default", "C:\Projects\AeroGUI-R")
+Write-Output "Launched PID: $newPid"
+Start-Sleep -Seconds 3
 
-$hwnd = [FullCap]::FindInventoryWindow()
-Write-Output "HWND: 0x$($hwnd.ToString('X'))"
+$hwnd = [QuestTester2]::FindQuestWindow()
+Write-Output "QuestLog HWND: 0x$($hwnd.ToString('X'))"
 
 if ($hwnd -ne [IntPtr]::Zero) {
-    # 1. Capture base window
-    $baseOut = "C:\Users\macx\.gemini\antigravity-ide\brain\6802036f-36a1-4baf-877e-95c5c9ae18b9\inventory_base.png"
-    [FullCap]::Capture($hwnd, $baseOut)
-    Write-Output "Base captured to $baseOut"
+    $outPath = "C:\Users\macx\.gemini\antigravity-ide\brain\b29e9f73-8b84-43cd-bba7-8b1287c5e001\questlog_result.png"
+    [QuestTester2]::CaptureWindow($hwnd, $outPath)
+    Write-Output "Captured default to $outPath"
 
-    # 2. Hover over slot 0:
-    # Slot 0 in a 1000x600 window:
-    # Inventory panel is column 2: ~54% to ~91% of 1000 = 540 to 910px.
-    # Slot 0 center is roughly X=590, Y=190.
-    Write-Output "Sending mouse move to (590, 190)..."
-    [FullCap]::SendMouseMove($hwnd, 590, 190)
-    Start-Sleep -Milliseconds 1000
+    [QuestTester2]::HoverThumb($hwnd)
+    Start-Sleep -Milliseconds 800
 
-    # 3. Capture hover
-    $hoverOut = "C:\Users\macx\.gemini\antigravity-ide\brain\6802036f-36a1-4baf-877e-95c5c9ae18b9\inventory_hovered.png"
-    [FullCap]::Capture($hwnd, $hoverOut)
-    Write-Output "Hover captured to $hoverOut"
+    $outHover = "C:\Users\macx\.gemini\antigravity-ide\brain\b29e9f73-8b84-43cd-bba7-8b1287c5e001\questlog_hover.png"
+    [QuestTester2]::CaptureWindow($hwnd, $outHover)
+    Write-Output "Captured hover to $outHover"
+} else {
+    Write-Output "Window not found!"
 }
+
+Stop-Process -Id $newPid -Force

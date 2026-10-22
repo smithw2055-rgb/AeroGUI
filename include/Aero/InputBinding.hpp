@@ -27,18 +27,27 @@ class AERO_GUI_API KeyBinding : public InputBinding {
 
 public:
     KeyBinding() noexcept : InputBinding(StaticTypeId()) {}
-    StringView GetCommandName() const noexcept { return commandName_.View(); }
-    StringView GetKeyName() const noexcept { return keyName_.View(); }
-    StringView GetModifiersName() const noexcept { return modifiersName_.View(); }
+    ~KeyBinding() override;
+
+    StringView GetCommandName() const noexcept;
+    StringView GetKeyName() const noexcept;
+    StringView GetModifiersName() const noexcept;
     void SetCommandName(StringView value) noexcept;
     void SetKeyName(StringView value) noexcept;
     void SetModifiersName(StringView value) noexcept;
     Result<void> Finalize() noexcept override;
+    void ReleaseAuthored() noexcept;
 
 private:
-    String commandName_;
-    String keyName_;
-    String modifiersName_;
+    struct AuthoredData {
+        AuthoredData() noexcept {}
+        String commandName;
+        String keyName;
+        String modifiersName;
+    };
+    AuthoredData* EnsureAuthored() noexcept;
+
+    AuthoredData* authored_ = nullptr;
     bool finalized_ = false;
 };
 
@@ -47,21 +56,29 @@ class AERO_GUI_API MouseBinding : public InputBinding {
 
 public:
     MouseBinding() noexcept : InputBinding(StaticTypeId()) {}
+    ~MouseBinding() override;
 
     MouseButton GetMouseButton() const noexcept { return button_; }
     void SetMouseButton(MouseButton value) noexcept { button_ = value; }
     PointerAction GetAction() const noexcept { return action_; }
     void SetAction(PointerAction value) noexcept { action_ = value; }
-    StringView GetCommandName() const noexcept { return commandName_.View(); }
+    StringView GetCommandName() const noexcept;
     void SetCommandName(StringView value) noexcept;
 
     bool Matches(const PointerInput& input) const noexcept;
     Result<void> Finalize() noexcept override;
+    void ReleaseAuthored() noexcept;
 
 private:
+    struct AuthoredData {
+        AuthoredData() noexcept {}
+        String commandName;
+    };
+    AuthoredData* EnsureAuthored() noexcept;
+
     MouseButton button_ = MouseButton::Left;
     PointerAction action_ = PointerAction::Down;
-    String commandName_;
+    AuthoredData* authored_ = nullptr;
     bool finalized_ = false;
 };
 

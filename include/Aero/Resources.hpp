@@ -33,15 +33,17 @@ public:
     StringView NameOf(const Base::Object& object) const noexcept;
     void Clear() noexcept;
 
-    std::uint32_t Size() const noexcept { return entries_.Size(); }
-    static bool IsValidName(StringView name) noexcept;
-
-private:
     struct Entry {
         String name;
         Base::Object* object = nullptr;
     };
 
+    Base::Span<const Entry> Entries() const noexcept { return entries_.AsSpan(); }
+
+    std::uint32_t Size() const noexcept { return entries_.Size(); }
+    static bool IsValidName(StringView name) noexcept;
+
+private:
     Base::Vector<Entry> entries_;
 };
 

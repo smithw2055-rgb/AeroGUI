@@ -11,55 +11,7 @@
 #include <algorithm>
 #include <cmath>
 #include "gui/core/Describe.hpp"
-#include "gui/core/RenderStateCallbacks.hpp"
-#include "gui/core/ValueConversion.hpp"
-#include "gui/data/BindingEngine.hpp"
-#include <Aero/Interactivity/Conditions.hpp>
-#include <Aero/Interactivity/Behavior.hpp>
-#include <Aero/Interactivity/Interaction.hpp>
-#include <Aero/Interactivity/InteractionTriggers.hpp>
-#include <Aero/Interactivity/TriggerAction.hpp>
-#include <Aero/Style.hpp>
-#include <Aero/Triggers.hpp>
-#include <Aero/Resources.hpp>
-#include <Aero/Events.hpp>
-#include <Aero/Media/Animation.hpp>
-#include <Aero/Media/Animation/MediaActions.hpp>
-#include <Aero/Media/Animation/StoryboardActions.hpp>
-#include <Aero/Media/Animation/StoryboardCompletedTrigger.hpp>
-#include <Aero/Media/Animation/TimerTrigger.hpp>
-#include <Aero/Media/Brushes.hpp>
-#include <Aero/Media/Effects.hpp>
-#include <Aero/Media/Images.hpp>
-#include <Aero/Media/MediaElement.hpp>
-#include <Aero/Media/Transform2D.hpp>
-#include <Aero/Media/Transform3D.hpp>
-#include <Aero/Media/Geometries.hpp>
-#include <Aero/Media/Pen.hpp>
-#include <Aero/Media/Fonts.hpp>
-#include <Aero/Layout.hpp>
-#include <Aero/FrameworkElement.hpp>
-#include <Aero/Collections.hpp>
 #include <Aero/Input.hpp>
-#include <Aero/ICommand.hpp>
-#include <Aero/RoutedCommand.hpp>
-#include <Aero/InputBinding.hpp>
-#include <Aero/EventSetter.hpp>
-#include <Aero/KeyboardNavigation.hpp>
-#include <Aero/CommandBinding.hpp>
-#include <Aero/ApplicationCommands.hpp>
-#include <Aero/InputGesture.hpp>
-#include <Aero/Data/Binding.hpp>
-#include <Aero/Data/MultiBinding.hpp>
-#include <Aero/Data/BooleanToVisibilityConverter.hpp>
-#include <Aero/Data/IMultiValueConverter.hpp>
-#include <Aero/Data/IValueConverter.hpp>
-#include <Aero/DataObject.hpp>
-#include <Aero/DragDrop.hpp>
-#include <Aero/Input/Cursor.hpp>
-#include <Aero/Input/Mouse.hpp>
-#include <Aero/Input/Keyboard.hpp>
-#include <Aero/Animatable.hpp>
 #include <cctype>
 #include <cstdlib>
 #include <utility>
@@ -67,38 +19,6 @@
 
 namespace Aero::Interactivity {
 namespace {
-
-Base::Transform2D Translation(double x, double y) noexcept {
-    Base::Transform2D result;
-    result.dx = x;
-    result.dy = y;
-    return result;
-}
-
-Base::Transform2D ToRootTransform(const ::Aero::Media::Visual& visual) noexcept {
-    Base::ProjectiveTransform2D result = Base::IdentityProjective();
-    const ::Aero::Media::Visual* current = &visual;
-    while (current != nullptr) {
-        const UIElement* element = ::Aero::TryCast<::Aero::UIElement>(current);
-        const FrameworkElement* framework =
-            ::Aero::TryCast<::Aero::FrameworkElement>(current);
-        if (element != nullptr) {
-            Base::ProjectiveTransform2D local = framework != nullptr
-                ? framework->GetLocalVisualTransform()
-                : Base::IdentityProjective();
-            const Rect slot = element->GetLayoutSlot();
-            local = Base::Compose(
-                local, Base::ToProjective(Translation(slot.x, slot.y)));
-            result = Base::Compose(result, local);
-        }
-        current = current->GetVisualParent();
-    }
-    Base::Transform2D affine;
-    if (!Base::TryToTransform2D(result, affine)) {
-        return {};
-    }
-    return affine;
-}
 
 Base::Result<Base::Ref<Media::Brush>> ReadBackground(
     FrameworkElement& source) noexcept {
@@ -135,14 +55,9 @@ Base::Result<void> SetShapeFill(
         static_cast<Shapes::Shape&>(target).SetFill(std::move(brush));
         return {};
     }
-    if (types.IsDerivedFrom(
-            target.RuntimeType(), Shapes::Path::StaticTypeId())) {
-        static_cast<Shapes::Path&>(target).SetFill(std::move(brush));
-        return {};
-    }
     return Base::Status::Failure(
         Base::ErrorCode::Unsupported,
-        "BackgroundEffectBehavior requires a Shape or Path target");
+        "BackgroundEffectBehavior requires a Shape target");
 }
 
 Base::Ref<Media::Brush> GetShapeFill(
@@ -152,10 +67,6 @@ Base::Ref<Media::Brush> GetShapeFill(
     if (types.IsDerivedFrom(
             target.RuntimeType(), Shapes::Shape::StaticTypeId())) {
         return static_cast<Shapes::Shape&>(target).GetFill();
-    }
-    if (types.IsDerivedFrom(
-            target.RuntimeType(), Shapes::Path::StaticTypeId())) {
-        return static_cast<Shapes::Path&>(target).GetFill();
     }
     return {};
 }
@@ -237,12 +148,12 @@ Base::Result<Base::Ref<Media::ImageBrush>> ProjectImageBrush(
     brush->SetTileMode(Media::TileMode::None);
 
     const Rect sourceBounds = Media::TransformBounds(
-        ToRootTransform(source),
+        source.TransformToRoot(),
         {0.0, 0.0,
          source.GetRenderSize().width,
          source.GetRenderSize().height});
     const Rect targetBounds = Media::TransformBounds(
-        ToRootTransform(target),
+        target.TransformToRoot(),
         {0.0, 0.0,
          target.GetRenderSize().width,
          target.GetRenderSize().height});
@@ -346,7 +257,7 @@ Base::Point MouseDragElementBehavior::RootPosition(
     Base::Point local) const noexcept {
     FrameworkElement* associated = GetAssociatedObject();
     return associated != nullptr
-        ? Media::TransformPoint(ToRootTransform(*associated), local)
+        ? Media::TransformPoint(associated->TransformToRoot(), local)
         : local;
 }
 

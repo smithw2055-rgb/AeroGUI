@@ -45,6 +45,7 @@ public:
     Ref<Transform> GetTransform() const noexcept { return transform_; }
     void SetTransform(Ref<Transform> value) noexcept;
     AERO_DEPENDENCY_PROPERTY(Ref<Transform>, Transform);
+    std::uint64_t GetRevision() const noexcept { return Revision(); }
 
 protected:
     explicit Geometry(Meta::TypeId runtimeType) noexcept : Animatable(runtimeType) {}

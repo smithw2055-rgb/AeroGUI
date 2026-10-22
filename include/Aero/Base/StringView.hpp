@@ -65,6 +65,20 @@ public:
         return size_ < other.size_ ? -1 : (size_ > other.size_ ? 1 : 0);
     }
 
+    bool EqualsInsensitive(StringView other) const noexcept {
+        if (size_ != other.size_) return false;
+        for (std::uint32_t i = 0U; i < size_; ++i) {
+            const char a = data_[i];
+            const char b = other.data_[i];
+            const char la = (a >= 'A' && a <= 'Z') ? static_cast<char>(a - 'A' + 'a') : a;
+            const char lb = (b >= 'A' && b <= 'Z') ? static_cast<char>(b - 'A' + 'a') : b;
+            if (la != lb) {
+                return false;
+            }
+        }
+        return true;
+    }
+
 private:
     const char* data_ = nullptr;
     std::uint32_t size_ = 0;

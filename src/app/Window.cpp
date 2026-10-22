@@ -19,32 +19,23 @@ void Window::InitializeComponent(
 }
 
 Base::Result<void> Window::Show() noexcept {
-    auto* state = static_cast<::Aero::App::WindowHostBridge*>(
-        hostState_);
-    if (state == nullptr) {
+    if (host_ == nullptr) {
         Application* application = Application::Current();
-        auto* applicationState = application != nullptr
-            ? static_cast<::Aero::App::ApplicationHost*>(
-                  application->hostState_)
-            : nullptr;
-        if (applicationState == nullptr ||
-            applicationState->showWindow == nullptr) {
+        if (application == nullptr || application->host_ == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
                 "Window.Show requires a running Application host");
         }
         Base::Result<void> attached =
-            applicationState->showWindow(applicationState->context, *this);
+            application->host_->ShowWindow(*this);
         if (!attached) return attached.GetStatus();
-        state = static_cast<::Aero::App::WindowHostBridge*>(
-            hostState_);
     }
-    if (state == nullptr || state->show == nullptr) {
+    if (host_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Window is not attached to an application host");
     }
-    Base::Result<void> shown = state->show(state->context);
+    Base::Result<void> shown = host_->Show();
     if (shown) {
         NotifySourceInitialized();
         NotifyActivated();
@@ -65,19 +56,13 @@ Base::Result<bool> Window::ShowDialog() noexcept {
         return shown.GetStatus();
     }
     Application* application = Application::Current();
-    auto* applicationState = application != nullptr
-        ? static_cast<::Aero::App::ApplicationHost*>(
-              application->hostState_)
-        : nullptr;
-    if (applicationState == nullptr ||
-        applicationState->runDialog == nullptr) {
+    if (application == nullptr || application->host_ == nullptr) {
         dialogActive_ = false;
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Window.ShowDialog requires a running Application host");
     }
-    Base::Result<bool> result = applicationState->runDialog(
-        applicationState->context, *this);
+    Base::Result<bool> result = application->host_->RunDialog(*this);
     dialogActive_ = false;
     return result;
 }
@@ -128,9 +113,7 @@ void Window::SetWindowState(WindowState value) noexcept {
 }
 
 bool Window::GetIsOpen() const noexcept {
-    const auto* state =
-        static_cast<const ::Aero::App::WindowHostBridge*>(hostState_);
-    return state != nullptr && state->isOpen != nullptr && state->isOpen(state->context);
+    return host_ != nullptr && host_->IsOpen();
 }
 
 void Window::Close() noexcept {
@@ -138,21 +121,19 @@ void Window::Close() noexcept {
     CancelEventArgs closing;
     OnClosing(closing);
     if (closing.GetCancel()) return;
-    auto* state = static_cast<::Aero::App::WindowHostBridge*>(
-        hostState_);
-    if (state != nullptr && state->close != nullptr) state->close(state->context);
+    if (host_ != nullptr) host_->Close();
     NotifyClosed();
 }
 
-void Window::Attach(void* hostState) noexcept {
-    hostState_ = hostState;
+void Window::Attach(IWindowHost* host) noexcept {
+    host_ = host;
     sourceInitialized_ = false;
     contentRendered_ = false;
     closed_ = false;
 }
 
 void Window::Detach() noexcept {
-    hostState_ = nullptr;
+    host_ = nullptr;
 }
 
 void Window::NotifySourceInitialized() noexcept {
@@ -189,18 +170,20 @@ void Window::NotifyClosed() noexcept {
     OnClosed(args);
 }
 
+bool Window::ComponentRequested() const noexcept {
+    return componentRequested_;
+}
+
+Base::StringView Window::ComponentUri() const noexcept {
+    return componentUri_.View();
+}
 
 Platform::NativeWindowHandle WindowInterop::NativeHandle(const Window& window) noexcept {
-    const auto* state =
-        static_cast<const ::Aero::App::WindowHostBridge*>(
-            window.hostState_);
-    return state != nullptr && state->nativeHandle != nullptr ? state->nativeHandle(state->context) : Platform::NativeWindowHandle{};
+    return window.host_ != nullptr ? window.host_->NativeHandle() : Platform::NativeWindowHandle{};
 }
 
 ::Aero::View* WindowInterop::HostedView(Window& window) noexcept {
-    auto* state = static_cast<::Aero::App::WindowHostBridge*>(
-        window.hostState_);
-    return state != nullptr && state->hostedView != nullptr ? state->hostedView(state->context) : nullptr;
+    return window.host_ != nullptr ? window.host_->HostedView() : nullptr;
 }
 
 } // namespace Aero::App

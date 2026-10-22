@@ -1,6 +1,6 @@
 #pragma once
 
-#include "render/Presentation.hpp"
+#include "render/RenderContext.hpp"
 
 #include <AeroRender/WindowInterop.hpp>
 #include <AeroRender/OpenGL33.hpp>
@@ -47,5 +47,7 @@ private:
     PresentationSize size_;
     std::uint64_t generation_ = 0U;
 };
+
+using WglContext = OpenGLWindow;
 
 } // namespace Aero::Render::Win32

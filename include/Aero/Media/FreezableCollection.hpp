@@ -15,6 +15,7 @@ template<class T> class FreezableCollection : public Freezable,
     static_assert(std::is_base_of<Freezable, T>::value, "FreezableCollection<T> requires a Freezable item type");
 
 public:
+    using Freezable::StaticTypeId;
     FreezableCollection() noexcept : Freezable(Freezable::StaticTypeId()) {}
     explicit FreezableCollection(Meta::TypeId runtimeType) noexcept : Freezable(runtimeType) {}
     ~FreezableCollection() override { DetachHandlers(); }
@@ -74,6 +75,47 @@ public:
     }
 
 protected:
+    Base::Ref<Freezable> CreateInstanceCore() const override {
+        auto made = Base::MakeRef<FreezableCollection<T>>(this->RuntimeType());
+        return made ? Base::Ref<Freezable>(std::move(made).Value()) : Base::Ref<Freezable>{};
+    }
+
+    void CloneCore(const Freezable& source) override {
+        Freezable::CloneCore(source);
+        const auto* src = static_cast<const FreezableCollection<T>*>(&source);
+        if (src != nullptr) {
+            this->Clear();
+            for (const Ref<T>& item : src->items_) {
+                if (!item) {
+                    this->items_.PushBack(Ref<T>{});
+                } else {
+                    Base::Ref<Freezable> cloned = item->Clone();
+                    if (cloned) {
+                        this->Add(Ref<T>::FromBorrowed(*static_cast<T*>(cloned.Get())));
+                    }
+                }
+            }
+        }
+    }
+
+    void CloneCurrentValueCore(const Freezable& source) override {
+        Freezable::CloneCurrentValueCore(source);
+        const auto* src = static_cast<const FreezableCollection<T>*>(&source);
+        if (src != nullptr) {
+            this->Clear();
+            for (const Ref<T>& item : src->items_) {
+                if (!item) {
+                    this->items_.PushBack(Ref<T>{});
+                } else {
+                    Base::Ref<Freezable> cloned = item->CloneCurrentValue();
+                    if (cloned) {
+                        this->Add(Ref<T>::FromBorrowed(*static_cast<T*>(cloned.Get())));
+                    }
+                }
+            }
+        }
+    }
+
     bool FreezeCore(bool isChecking) noexcept override {
         for (Ref<T>& item : items_) {
             if (!item) continue;

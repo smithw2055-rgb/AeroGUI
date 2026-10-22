@@ -24,27 +24,10 @@ bool IsSchemeCharacter(char value) noexcept {
         value == '+' || value == '-' || value == '.';
 }
 
-char ToLowerAscii(char value) noexcept {
+constexpr char ToLowerAscii(char value) noexcept {
     return value >= 'A' && value <= 'Z'
         ? static_cast<char>(value - 'A' + 'a')
         : value;
-}
-
-bool EqualsAsciiInsensitive(
-    StringView value,
-    StringView expected) noexcept {
-    if (value.SizeBytes() != expected.SizeBytes()) {
-        return false;
-    }
-    for (std::uint32_t index = 0U;
-         index < value.SizeBytes();
-         ++index) {
-        if (ToLowerAscii(value[index]) !=
-            ToLowerAscii(expected[index])) {
-            return false;
-        }
-    }
-    return true;
 }
 
 Result<void> AppendCharacter(
@@ -197,9 +180,7 @@ std::uint32_t FindComponentMarker(StringView path) noexcept {
     for (std::uint32_t offset = 0U;
          offset + marker.SizeBytes() <= path.SizeBytes();
          ++offset) {
-        if (EqualsAsciiInsensitive(
-                path.Substr(offset, marker.SizeBytes()),
-                marker)) {
+        if (path.Substr(offset, marker.SizeBytes()).EqualsInsensitive(marker)) {
             return offset;
         }
     }
@@ -349,14 +330,10 @@ Result<ResourceUri> ResourceUri::Parse(StringView text) noexcept {
         constexpr StringView compactPrefix("/application/");
         StringView payload = remainder;
         if (remainder.SizeBytes() >= standardPrefix.SizeBytes() &&
-            EqualsAsciiInsensitive(
-                remainder.Substr(0U, standardPrefix.SizeBytes()),
-                standardPrefix)) {
+            remainder.Substr(0U, standardPrefix.SizeBytes()).EqualsInsensitive(standardPrefix)) {
             payload = remainder.Substr(standardPrefix.SizeBytes());
         } else if (remainder.SizeBytes() >= compactPrefix.SizeBytes() &&
-                   EqualsAsciiInsensitive(
-                       remainder.Substr(0U, compactPrefix.SizeBytes()),
-                       compactPrefix)) {
+                   remainder.Substr(0U, compactPrefix.SizeBytes()).EqualsInsensitive(compactPrefix)) {
             payload = remainder.Substr(compactPrefix.SizeBytes());
         } else {
             return Status::Failure(

@@ -7,6 +7,9 @@ namespace Aero::App {
 
 class WindowInterop;
 class DesktopHost;
+struct DesktopHostState;
+struct WindowHost;
+class IWindowHost;
 
 enum class WindowState : std::uint8_t { Normal = 0U, Minimized, Maximized };
 enum class WindowStyle : std::uint8_t { None = 0U, SingleBorderWindow, ThreeDBorderWindow, ToolWindow };
@@ -90,8 +93,10 @@ protected:
 private:
     friend class WindowInterop;
     friend class DesktopHost;
+    friend struct DesktopHostState;
+    friend struct WindowHost;
 
-    void Attach(void* hostState) noexcept;
+    void Attach(IWindowHost* host) noexcept;
     void Detach() noexcept;
     void NotifySourceInitialized() noexcept;
     void NotifyActivated() noexcept;
@@ -101,7 +106,7 @@ private:
     bool ComponentRequested() const noexcept;
     StringView ComponentUri() const noexcept;
 
-    void* hostState_ = nullptr;
+    IWindowHost* host_ = nullptr;
     String componentUri_;
     bool componentRequested_ = false;
     bool sourceInitialized_ = false;

@@ -171,6 +171,8 @@ public:
 
     inline static constexpr RoutedEvent<RoutedEventArgs> LoadedEvent{"Loaded"};
     Event<RoutedEventArgs> Loaded() noexcept { return GetEvent(LoadedEvent); }
+    inline static constexpr RoutedEvent<RoutedEventArgs> UnloadedEvent{"Unloaded"};
+    Event<RoutedEventArgs> Unloaded() noexcept { return GetEvent(UnloadedEvent); }
 
     AERO_DEPENDENCY_PROPERTY(Value, DataContext);
     // A common inherited owner lets Window, controls and text elements share

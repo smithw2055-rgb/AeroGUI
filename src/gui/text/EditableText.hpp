@@ -6,13 +6,75 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
+#include <Aero/Base/Vector.hpp>
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 
 namespace Aero::Text {
 
-struct EditableTextState;
+struct EditableTextState {
+    struct EditRecord {
+        explicit EditRecord(
+            Base::IAllocator* allocator = nullptr) noexcept
+            : removed(allocator),
+              inserted(allocator) {}
+
+        std::uint32_t start = 0U;
+        std::uint32_t removedGraphemes = 0U;
+        std::uint32_t insertedGraphemes = 0U;
+        Base::String removed;
+        Base::String inserted;
+        TextSelection before;
+        TextSelection after;
+    };
+
+    explicit EditableTextState(Base::IAllocator* allocator) noexcept
+        : bytes(allocator),
+          graphemeOffsets(allocator),
+          lineStarts(allocator),
+          undo(allocator),
+          redo(allocator) {}
+
+    Base::Vector<char> bytes;
+    Base::Vector<std::uint32_t> graphemeOffsets;
+    Base::Vector<std::uint32_t> lineStarts;
+    Base::Vector<EditRecord> undo;
+    Base::Vector<EditRecord> redo;
+    std::uint32_t gapBegin = 0U;
+    std::uint32_t gapEnd = 0U;
+    std::uint32_t textBytes = 0U;
+    std::uint32_t codePoints = 0U;
+    std::uint32_t maximumLength = UINT32_MAX;
+    TextSelection selection;
+    std::uint64_t revision = 0U;
+    bool readOnly = false;
+
+    std::uint32_t GapSize() const noexcept { return gapEnd - gapBegin; }
+    std::uint8_t ByteAt(std::uint32_t offset) const noexcept;
+    std::uint32_t GraphemeCount() const noexcept {
+        return graphemeOffsets.Empty() ? 0U : graphemeOffsets.Size() - 1U;
+    }
+    Base::Result<void> EnsureIndexCapacity(std::uint32_t newTextBytes) noexcept;
+    Base::Result<void> EnsureGap(std::uint32_t requiredBytes) noexcept;
+    Base::Result<void> MoveGap(std::uint32_t byteOffset) noexcept;
+    Base::Result<void> RebuildIndexes() noexcept;
+    Base::Result<void> CopyByteRange(
+        std::uint32_t start,
+        std::uint32_t count,
+        Base::String& output) const noexcept;
+    Base::Result<void> ReplaceBytes(
+        std::uint32_t byteStart,
+        std::uint32_t removedBytes,
+        Base::StringView replacement) noexcept;
+    void TrimHistory(Base::Vector<EditRecord>& history) noexcept;
+    Base::Result<void> Replace(
+        TextRange range,
+        Base::StringView replacement,
+        bool recordHistory,
+        const TextSelection* forcedSelection = nullptr) noexcept;
+};
 
 // UTF-8 gap-buffer editor model. Public positions are extended grapheme
 // cluster indices; UTF-8 bytes and code-point counts remain queryable for
@@ -71,8 +133,7 @@ public:
 
 private:
     Base::IAllocator* allocator_ = nullptr;
-    alignas(std::max_align_t) std::uint8_t stateStorage_[4096]{};
-    EditableTextState* state_ = nullptr;
+    std::optional<EditableTextState> state_;
 
     Base::Result<void> EnsureState() noexcept;
 };

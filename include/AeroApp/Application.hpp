@@ -17,6 +17,8 @@ namespace Aero::App {
 
 struct RunOptions;
 class DesktopHost;
+struct DesktopHostState;
+class IApplicationHost;
 class Application;
 
 enum class ShutdownMode : std::uint8_t {
@@ -75,10 +77,11 @@ protected:
 
 private:
     friend class DesktopHost;
+    friend struct DesktopHostState;
     friend class Window;
     friend class WindowCollection;
 
-    Result<void> Attach(void* hostState, Window* mainWindow) noexcept;
+    Result<void> Attach(IApplicationHost* host, Window* mainWindow) noexcept;
     void Detach() noexcept;
     void RaiseStartup() noexcept;
     void RaiseExit(int exitCode) noexcept;
@@ -94,7 +97,7 @@ private:
     Ref<Object> mainWindowOwner_;
     Window* mainWindow_ = nullptr;
     ShutdownMode shutdownMode_ = ShutdownMode::OnLastWindowClose;
-    void* hostState_ = nullptr;
+    IApplicationHost* host_ = nullptr;
 };
 
 } // namespace Aero::App

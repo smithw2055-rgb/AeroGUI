@@ -4,6 +4,7 @@
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
+#include <Aero/Base/Vector.hpp>
 #include <AeroRender/RenderDevice.hpp>
 #include <AeroRender/RenderTarget.hpp>
 #include <AeroRender/Texture.hpp>
@@ -18,7 +19,7 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
-#include <d3d11.h>
+#include <d3d11_1.h>
 #include <dxgi.h>
 #endif
 
@@ -138,6 +139,9 @@ public:
 
     void DrawBatch(const Batch& batch) noexcept override;
 
+    void EnableScissorRect() noexcept { scissorStateIndex_ = 0U; }
+    void DisableScissorRect() noexcept { scissorStateIndex_ = 2U; }
+
     ID3D11Device* NativeDevice() const noexcept { return device_; }
     ID3D11DeviceContext* NativeContext() const noexcept { return context_; }
 
@@ -150,49 +154,14 @@ protected:
     Result<void> WaitBackendIdle(uint32_t timeoutMilliseconds) noexcept override;
 
 private:
-    Base::Result<void> InitD3D11() noexcept;
-    Base::Result<void> InitPipelines() noexcept;
-    void ReleasePipelines() noexcept;
-
-    D3D11RenderDeviceOptions options_;
-    Base::IAllocator* allocator_ = nullptr;
-
-    ID3D11Device* device_ = nullptr;
-    ID3D11DeviceContext* context_ = nullptr;
-    bool ownsDevice_ = false;
-
-    struct DynamicBufferState {
+    struct DynamicBuffer {
         uint32_t size = 0U;
-        uint32_t currentPos = 0U;
+        uint32_t pos = 0U;
         uint32_t drawPos = 0U;
+        D3D11_BIND_FLAG flags = D3D11_BIND_VERTEX_BUFFER;
+        ID3D11Buffer* obj = nullptr;
         bool isMapped = false;
     };
-
-    ID3D11Buffer* dynamicVB_ = nullptr;
-    ID3D11Buffer* dynamicIB_ = nullptr;
-    DynamicBufferState vbState_{};
-    DynamicBufferState ibState_{};
-    ID3D11Buffer* vertexCB_[2] = {};
-    ID3D11Buffer* pixelCB_[2] = {};
-
-    ID3D11BlendState* blendStates_[BlendMode::Count * 2] = {};
-    ID3D11DepthStencilState* stencilStates_[StencilMode::Count] = {};
-    ID3D11RasterizerState* rasterizerSolid_ = nullptr;
-    ID3D11RasterizerState* rasterizerScissor_ = nullptr;
-    ID3D11SamplerState* samplers_[64] = {};
-
-    ID3D11VertexShader* solidVertexShader_ = nullptr;
-    ID3D11PixelShader* solidPixelShader_ = nullptr;
-    ID3D11PixelShader* patternPixelShader_ = nullptr;
-    ID3D11PixelShader* sdfPixelShader_ = nullptr;
-    ID3D11PixelShader* blurPixelShader_ = nullptr;
-    ID3D11PixelShader* shadowPixelShader_ = nullptr;
-    ID3D11PixelShader* maskPixelShader_ = nullptr;
-    ID3D11PixelShader* linearPixelShader_ = nullptr;
-    ID3D11PixelShader* radialPixelShader_ = nullptr;
-    ID3D11PixelShader* customEffectPixelShader_ = nullptr;
-    ID3D11PixelShader* pixelShaders_[Shader::Count] = {};
-    ID3D11InputLayout* vertex2DInputLayout_ = nullptr;
 
     struct VertexShaderEntry {
         ID3D11VertexShader* shader = nullptr;
@@ -200,15 +169,84 @@ private:
         uint32_t stride = 0U;
     };
 
+    struct CustomShaderCacheEntry {
+        uint32_t bytecodeHash = 0U;
+        uint32_t bytecodeSize = 0U;
+        ID3D11PixelShader* shader = nullptr;
+    };
+
+    Base::Result<void> CreateBuffer(
+        DynamicBuffer& buffer, uint32_t size, D3D11_BIND_FLAG flags, const char* label) noexcept;
+    void* MapBuffer(DynamicBuffer& buffer, uint32_t bytes) noexcept;
+    void UnmapBuffer(DynamicBuffer& buffer) noexcept;
+
+    Base::Result<void> InitD3D11() noexcept;
+    Base::Result<void> InitPipelines() noexcept;
+    void ReleasePipelines() noexcept;
+    ID3D11InputLayout* CreateLayout(
+        uint32_t attributes, const void* code, uint32_t size, const char* label) noexcept;
+    ID3D11PixelShader* GetOrCreateCustomShader(const void* bytecode, uint32_t size) noexcept;
+
+    void InvalidateStateCache() noexcept;
+    void ClearTextures() noexcept;
+
+    void SetInputLayout(ID3D11InputLayout* layout) noexcept;
+    void SetVertexShader(ID3D11VertexShader* vs) noexcept;
+    void SetPixelShader(ID3D11PixelShader* ps) noexcept;
+    void SetRasterizerState(ID3D11RasterizerState* rs) noexcept;
+    void SetBlendState(ID3D11BlendState* bs) noexcept;
+    void SetDepthStencilState(ID3D11DepthStencilState* dss, uint32_t stencilRef) noexcept;
+    void SetTexture(uint32_t slot, ID3D11ShaderResourceView* srv) noexcept;
+    void SetSampler(uint32_t slot, ID3D11SamplerState* sampler) noexcept;
+
+    D3D11RenderDeviceOptions options_;
+    Base::IAllocator* allocator_ = nullptr;
+
+    ID3D11Device* device_ = nullptr;
+    ID3D11DeviceContext* context_ = nullptr;
+    ID3DUserDefinedAnnotation* groupMarker_ = nullptr;
+    bool ownsDevice_ = false;
+
+    DynamicBuffer vertices_{};
+    DynamicBuffer indices_{};
+    DynamicBuffer vertexCB_[2]{};
+    DynamicBuffer pixelCB_[2]{};
+    uint32_t vertexCBHash_[2]{};
+    uint32_t pixelCBHash_[2]{};
+
+    // 4-state rasterizer table: [0]=Solid+Scissor, [1]=Wire+Scissor, [2]=Solid, [3]=Wire
+    ID3D11RasterizerState* rasterizerStates_[4] = {};
+    uint32_t scissorStateIndex_ = 2U;
+
+    // 6 blend modes + 1 shared NoColor blend state for stencil-only passes
+    ID3D11BlendState* blendStates_[BlendMode::Count] = {};
+    ID3D11BlendState* blendStateNoColor_ = nullptr;
+    ID3D11DepthStencilState* stencilStates_[StencilMode::Count] = {};
+    ID3D11SamplerState* samplers_[StateCache::kSamplerTableSize] = {};
+
     VertexShaderEntry vertexShaders_[Shader::Vertex::Count] = {};
     ID3D11InputLayout* layouts_[Shader::Vertex::Format::Count] = {};
+    ID3D11PixelShader* pixelShaders_[Shader::Count] = {};
+    Base::Vector<CustomShaderCacheEntry> customShaders_{allocator_};
 
-    ID3D11InputLayout* CreateLayout(uint32_t attributes, const void* code, uint32_t size) noexcept;
+    // Direct pointer state cache (zero overhead)
+    ID3D11Buffer* cachedIB_ = nullptr;
+    uint32_t cachedIBOffset_ = UINT32_MAX;
+    ID3D11Buffer* cachedVB_ = nullptr;
+    uint32_t cachedVBStride_ = 0U;
+    uint32_t cachedVBOffset_ = UINT32_MAX;
+    ID3D11InputLayout* cachedLayout_ = nullptr;
+    ID3D11VertexShader* cachedVS_ = nullptr;
+    ID3D11PixelShader* cachedPS_ = nullptr;
+    ID3D11RasterizerState* cachedRasterizer_ = nullptr;
+    ID3D11BlendState* cachedBlend_ = nullptr;
+    ID3D11DepthStencilState* cachedDS_ = nullptr;
+    uint32_t cachedStencilRef_ = UINT32_MAX;
+    ID3D11ShaderResourceView* cachedTextures_[StateCache::kTextureSlots] = {};
+    ID3D11SamplerState* cachedSamplers_[StateCache::kTextureSlots] = {};
 
     DeviceCaps caps_{};
     D3D11RenderTarget* currentTarget_ = nullptr;
-    ID3D11RasterizerState* currentRasterizer_ = nullptr;
-    StateCache stateCache_{};
 };
 
 } // namespace Aero::Render

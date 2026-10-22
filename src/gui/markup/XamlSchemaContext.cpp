@@ -24,6 +24,8 @@
 
 // Query surface is public; registration/execution ops are private (friends).
 
+#include "gui/markup/XamlSchemaConventions.hpp"
+
 namespace Aero::Markup {
 
 namespace {
@@ -46,126 +48,7 @@ Base::Status RuntimeMemberNotFound() noexcept {
         "XAML runtime member was not found");
 }
 
-bool SchemaHasPropertyFlag(
-    Meta::PropertyFlags value,
-    Meta::PropertyFlags flag) noexcept {
-    return (static_cast<std::uint32_t>(value) &
-        static_cast<std::uint32_t>(flag)) != 0U;
-}
 
-bool SchemaHasEventFlag(
-    Meta::EventFlags value,
-    Meta::EventFlags flag) noexcept {
-    return (static_cast<std::uint32_t>(value) &
-        static_cast<std::uint32_t>(flag)) != 0U;
-}
-
-constexpr Base::StringView SchemaWpfPresentationNamespace(
-    "http://schemas.microsoft.com/winfx/2006/xaml/presentation");
-constexpr Base::StringView SchemaBehaviorsNamespace(
-    "http://schemas.microsoft.com/xaml/behaviors");
-constexpr Base::StringView SchemaBlendInteractivityNamespace(
-    "http://schemas.microsoft.com/expression/2010/interactivity");
-constexpr Base::StringView SchemaSystemNamespacePrefix(
-    "clr-namespace:System");
-
-bool SchemaMatchesClrNamespacePrefix(
-    Base::StringView value,
-    Base::StringView prefix) noexcept {
-    return value.SizeBytes() >= prefix.SizeBytes() &&
-        value.Substr(0U, prefix.SizeBytes()) == prefix;
-}
-
-bool SchemaIsExtensionsClrNamespace(Base::StringView value) noexcept {
-    if (value.SizeBytes() < 31 ||
-        !SchemaMatchesClrNamespacePrefix(value, Base::StringView("clr-namespace:"))) {
-        return false;
-    }
-    return SchemaMatchesClrNamespacePrefix(
-            value, Base::StringView("clr-namespace:AeroGUIExtensions")) ||
-        SchemaMatchesClrNamespacePrefix(
-            value, Base::StringView("clr-namespace:Aero.GUI.Extensions")) ||
-        SchemaMatchesClrNamespacePrefix(
-            value, Base::StringView("clr-namespace:NoesisGUIExtensions")) ||
-        SchemaMatchesClrNamespacePrefix(
-            value, Base::StringView("clr-namespace:Noesis.GUI.Extensions"));
-}
-
-Base::StringView SchemaCanonicalXamlNamespace(
-    Base::StringView value) noexcept {
-    if (value.SizeBytes() < 31) {
-        return value;
-    }
-    return value == SchemaWpfPresentationNamespace ||
-            value == SchemaBehaviorsNamespace ||
-            value == SchemaBlendInteractivityNamespace ||
-            SchemaIsExtensionsClrNamespace(value)
-        ? Meta::AeroNamespaceUri()
-        : value;
-}
-
-bool SchemaIsSystemNamespace(
-    Base::StringView value) noexcept {
-    return value.SizeBytes() >=
-            SchemaSystemNamespacePrefix.SizeBytes() &&
-        value.Substr(0U, SchemaSystemNamespacePrefix.SizeBytes()) ==
-            SchemaSystemNamespacePrefix;
-}
-
-Base::StringView SchemaCanonicalXamlTypeName(
-    Base::StringView value) noexcept {
-    switch (value.SizeBytes()) {
-    case 8:
-        if (value == Base::StringView("Geometry")) {
-            return Base::StringView("StreamGeometry");
-        }
-        break;
-    case 10:
-        if (value == Base::StringView("WavesBrush")) {
-            return Base::StringView("WavesShader");
-        }
-        break;
-    case 15:
-        if (value == Base::StringView("MonochromeBrush")) {
-            return Base::StringView("MonochromeShader");
-        }
-        break;
-    case 17:
-        if (value == Base::StringView("ConicGradientBrush")) {
-            return Base::StringView("ConicGradientShader");
-        }
-        break;
-    case 21:
-        if (value == Base::StringView("VisualStateTransition")) {
-            return Base::StringView("VisualTransition");
-        }
-        break;
-    default:
-        break;
-    }
-    return value;
-}
-
-bool SchemaIsAeroExtensionsFacade(
-    Base::StringView xamlNamespace,
-    Base::StringView ownerName) noexcept {
-    if (!SchemaIsExtensionsClrNamespace(xamlNamespace)) {
-        return false;
-    }
-    switch (ownerName.SizeBytes()) {
-    case 4:
-        return ownerName == Base::StringView("Text") ||
-               ownerName == Base::StringView("Path");
-    case 5:
-        return ownerName == Base::StringView("Brush");
-    case 7:
-        return ownerName == Base::StringView("Element");
-    case 8:
-        return ownerName == Base::StringView("RichText");
-    default:
-        return false;
-    }
-}
 
 } // namespace
 
@@ -236,10 +119,10 @@ Base::Result<const Meta::TypeInfo*> Schema::ResolveType(
 
     const Meta::TypeInfo* descriptor =
         domain_->Types().FindType(
-            SchemaIsSystemNamespace(xamlNamespace)
+            IsSystemNamespace(xamlNamespace)
                 ? Meta::AeroNamespaceUri()
-                : SchemaCanonicalXamlNamespace(xamlNamespace),
-            SchemaCanonicalXamlTypeName(localName));
+                : CanonicalXamlNamespace(xamlNamespace),
+            CanonicalXamlTypeName(localName));
     if (descriptor == nullptr) return RuntimeTypeNotFound();
     return descriptor;
 }
@@ -258,28 +141,21 @@ Base::Result<ResolvedMember> Schema::ResolveMember(
         return RuntimeMemberNotFound();
     }
 
-    const Base::StringView localName = name.LocalName();
-    std::uint32_t dot = localName.SizeBytes();
-    for (std::uint32_t index = 0U; index < localName.SizeBytes(); ++index) {
-        if (localName[index] != '.') continue;
-        if (dot != localName.SizeBytes()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "XAML runtime member contains multiple owner separators");
-        }
-        dot = index;
-    }
+    Base::Result<ParsedXamlMemberName> parsed =
+        ParseXamlMemberName(name.LocalName(), name.NamespaceUri(), target->XamlNamespace());
+    if (!parsed) return parsed.GetStatus();
 
-    if (dot == localName.SizeBytes()) {
+    const ParsedXamlMemberName& member = parsed.Value();
+    if (!member.hasOwner) {
         if (!name.NamespaceUri().Empty() &&
-            SchemaCanonicalXamlNamespace(name.NamespaceUri()) !=
+            CanonicalXamlNamespace(name.NamespaceUri()) !=
                 target->XamlNamespace()) {
             return RuntimeMemberNotFound();
         }
         Base::Result<ResolvedMember> resolved =
             ResolvePropertyOrEvent(
-            targetType, targetType, localName, syntax, false);
-        if (resolved || localName != Base::StringView("ToolTip")) {
+            targetType, targetType, member.memberName, syntax, false);
+        if (resolved || member.memberName != Base::StringView("ToolTip")) {
             return resolved;
         }
 
@@ -291,68 +167,45 @@ Base::Result<ResolvedMember> Schema::ResolveMember(
                 Meta::AeroNamespaceUri(), "ToolTipService");
         if (service == nullptr) return resolved.GetStatus();
         return ResolvePropertyOrEvent(
-            targetType, service->Id(), localName, syntax, false);
+            targetType, service->Id(), member.memberName, syntax, false);
     }
 
-    if (dot == 0U || dot + 1U >= localName.SizeBytes()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "XAML runtime member owner syntax is invalid");
-    }
-
-    const Base::StringView ownerName = localName.Substr(0U, dot);
-    const Base::StringView memberName = localName.Substr(
-        dot + 1U, localName.SizeBytes() - dot - 1U);
-    const Base::StringView ownerNamespace = name.NamespaceUri().Empty()
-        ? target->XamlNamespace() : name.NamespaceUri();
-    if (SchemaIsAeroExtensionsFacade(
-            ownerNamespace, ownerName)) {
-        // Keep the runtime schema in lockstep with the compiled manifest:
-        // Element is a real extension owner, but the legacy Gallery alias
-        // Element.BlendingMode targets UIElement.BlendMode.
-        if (ownerName == Base::StringView("Element") &&
-            memberName == Base::StringView("BlendingMode")) {
-            return ResolvePropertyOrEvent(
-                targetType,
-                targetType,
-                Base::StringView("BlendMode"),
-                syntax,
-                false);
-        }
+    if (IsAeroExtensionsFacade(
+            member.ownerNamespace, member.ownerName)) {
         const Meta::TypeInfo* aeroOwner = domain_->Types().FindType(
             Meta::AeroNamespaceUri(),
-            SchemaCanonicalXamlTypeName(ownerName));
+            CanonicalXamlTypeName(member.ownerName));
         if (aeroOwner != nullptr) {
             return ResolvePropertyOrEvent(
-                targetType, aeroOwner->Id(), memberName, syntax, true);
+                targetType, aeroOwner->Id(), member.memberName, syntax, true);
         }
         return ResolvePropertyOrEvent(
             targetType,
             targetType,
-            memberName,
+            member.memberName,
             syntax,
             false);
     }
     const Meta::TypeInfo* owner =
         domain_->Types().FindType(
-            SchemaCanonicalXamlNamespace(ownerNamespace),
-            SchemaCanonicalXamlTypeName(ownerName));
+            CanonicalXamlNamespace(member.ownerNamespace),
+            CanonicalXamlTypeName(member.ownerName));
     if (owner == nullptr && name.NamespaceUri().Empty()) {
         owner = domain_->Types().FindType(
             Meta::AeroNamespaceUri(),
-            SchemaCanonicalXamlTypeName(ownerName));
+            CanonicalXamlTypeName(member.ownerName));
     }
     if (owner == nullptr) return RuntimeMemberNotFound();
-    if (memberName == Base::StringView("ContextMenu")) {
+    if (member.memberName == Base::StringView("ContextMenu")) {
         const Meta::TypeInfo* service = domain_->Types().FindType(
             Meta::AeroNamespaceUri(), "ContextMenuService");
         if (service != nullptr) {
             return ResolvePropertyOrEvent(
-                targetType, service->Id(), memberName, syntax, true);
+                targetType, service->Id(), member.memberName, syntax, true);
         }
     }
     return ResolvePropertyOrEvent(
-        targetType, owner->Id(), memberName, syntax, true);
+        targetType, owner->Id(), member.memberName, syntax, true);
 }
 
 Base::Result<ResolvedMember> Schema::ResolveMember(
@@ -372,7 +225,7 @@ Base::Result<ResolvedMember> Schema::ResolveMember(
     }
     if (const Meta::PropertyInfo* property =
             descriptors.FindProperty(memberId)) {
-        const bool attached = SchemaHasPropertyFlag(
+        const bool attached = HasPropertyFlag(
             property->Flags(), Meta::PropertyFlags::Attached);
         if (!attached && targetType != property->OwnerType() &&
             !descriptors.IsDerivedFrom(
@@ -381,18 +234,15 @@ Base::Result<ResolvedMember> Schema::ResolveMember(
                 Base::ErrorCode::InvalidArgument,
                 "AXB2 member owner is incompatible with the target type");
         }
-        ResolvedMember resolved;
-        resolved.id = property->Id();
-        resolved.kind = Meta::MemberKind::Property;
-        resolved.ownerType = property->OwnerType();
-        resolved.valueType = property->ValueType();
-        resolved.propertyFlags = property->Flags();
-        resolved.attached = attached;
-        return resolved;
+        return MakeResolvedPropertyMember(
+            property->Id(),
+            property->OwnerType(),
+            property->ValueType(),
+            property->Flags());
     }
     if (const Meta::EventInfo* event =
             descriptors.FindEvent(memberId)) {
-        const bool attached = SchemaHasEventFlag(
+        const bool attached = HasEventFlag(
             event->Flags(), Meta::EventFlags::Attached);
         if (!attached && targetType != event->OwnerType() &&
             !descriptors.IsDerivedFrom(
@@ -401,14 +251,11 @@ Base::Result<ResolvedMember> Schema::ResolveMember(
                 Base::ErrorCode::InvalidArgument,
                 "AXB2 event owner is incompatible with the target type");
         }
-        ResolvedMember resolved;
-        resolved.id = event->Id();
-        resolved.kind = Meta::MemberKind::Event;
-        resolved.ownerType = event->OwnerType();
-        resolved.valueType = event->EventArgsType();
-        resolved.eventFlags = event->Flags();
-        resolved.attached = attached;
-        return resolved;
+        return MakeResolvedEventMember(
+            event->Id(),
+            event->OwnerType(),
+            event->EventArgsType(),
+            event->Flags());
     }
     return RuntimeMemberNotFound();
 }
@@ -425,7 +272,7 @@ Schema::ResolvePropertyOrEvent(
         descriptors.FindProperty(ownerType, memberName, true);
     if (property != nullptr &&
         syntax == MemberSyntax::Attribute &&
-        SchemaHasPropertyFlag(
+        HasPropertyFlag(
             property->Flags(),
             Meta::PropertyFlags::Collection)) {
         char aliasBuffer[128];
@@ -438,7 +285,7 @@ Schema::ResolvePropertyOrEvent(
                     Base::StringView(aliasBuffer, memberName.SizeBytes() + 4U),
                     true);
             if (alias != nullptr &&
-                !SchemaHasPropertyFlag(
+                !HasPropertyFlag(
                     alias->Flags(),
                     Meta::PropertyFlags::Collection)) {
                 property = alias;
@@ -446,7 +293,7 @@ Schema::ResolvePropertyOrEvent(
         }
     }
     if (property != nullptr) {
-        const bool attached = SchemaHasPropertyFlag(
+        const bool attached = HasPropertyFlag(
             property->Flags(), Meta::PropertyFlags::Attached);
         if (ownerWasExplicit && syntax == MemberSyntax::Attribute &&
             !attached && targetType != property->OwnerType() &&
@@ -463,22 +310,19 @@ Schema::ResolvePropertyOrEvent(
                 "XAML property element owner is incompatible with the target type");
         }
 
-        ResolvedMember resolved;
-        resolved.id = property->Id();
-        resolved.kind = Meta::MemberKind::Property;
-        resolved.ownerType = property->OwnerType();
-        resolved.valueType = property->ValueType();
-        resolved.propertyFlags = property->Flags();
-        resolved.attached = attached;
-        return resolved;
+        return MakeResolvedPropertyMember(
+            property->Id(),
+            property->OwnerType(),
+            property->ValueType(),
+            property->Flags());
     }
 
     const Meta::EventInfo* event =
         descriptors.FindEvent(ownerType, memberName, true);
     if (event != nullptr) {
-        const bool attached = SchemaHasEventFlag(
+        const bool attached = HasEventFlag(
             event->Flags(), Meta::EventFlags::Attached);
-        const bool routed = SchemaHasEventFlag(
+        const bool routed = HasEventFlag(
             event->Flags(), Meta::EventFlags::Routed);
         if (ownerWasExplicit && syntax == MemberSyntax::Attribute &&
             !attached && !routed) {
@@ -494,15 +338,14 @@ Schema::ResolvePropertyOrEvent(
                 "XAML event element owner is incompatible with the target type");
         }
 
-        ResolvedMember resolved;
-        resolved.id = event->Id();
-        resolved.kind = Meta::MemberKind::Event;
-        resolved.ownerType = event->OwnerType();
-        resolved.valueType = event->EventArgsType();
-        resolved.eventFlags = event->Flags();
-        resolved.attached = attached ||
-            (ownerWasExplicit &&
-             syntax == MemberSyntax::Attribute && routed);
+        ResolvedMember resolved = MakeResolvedEventMember(
+            event->Id(),
+            event->OwnerType(),
+            event->EventArgsType(),
+            event->Flags());
+        if (ownerWasExplicit && syntax == MemberSyntax::Attribute && routed) {
+            resolved.attached = true;
+        }
         return resolved;
     }
 
@@ -530,15 +373,11 @@ Base::Result<ResolvedMember> Schema::ResolveContentMember(
             "Content facet references a missing property descriptor");
     }
 
-    ResolvedMember resolved;
-    resolved.id = property->Id();
-    resolved.kind = Meta::MemberKind::Property;
-    resolved.ownerType = property->OwnerType();
-    resolved.valueType = property->ValueType();
-    resolved.propertyFlags = property->Flags();
-    resolved.attached = SchemaHasPropertyFlag(
-        property->Flags(), Meta::PropertyFlags::Attached);
-    return resolved;
+    return MakeResolvedPropertyMember(
+        property->Id(),
+        property->OwnerType(),
+        property->ValueType(),
+        property->Flags());
 }
 
 Base::Result<Base::Ref<Base::Object>> Schema::CreateObject(

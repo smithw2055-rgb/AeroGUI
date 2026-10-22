@@ -1,12 +1,8 @@
 #include "gui/core/TypeRegistryCore.hpp"
 #include "gui/markup/XamlSchema.hpp"
+#include "gui/markup/XamlSchemaConventions.hpp"
+#include "gui/markup/XamlBinaryCodec.hpp"
 #include "gui/core/ValueConversion.hpp"
-#include "gui/core/ElementTree.hpp"
-#include "gui/core/LayoutEngine.hpp"
-#include "gui/core/EffectiveValueEngine.hpp"
-#include "gui/core/RoutedEvents.hpp"
-#include "gui/core/EventRouter.hpp"
-#include "gui/templates/TemplateInstance.hpp"
 
 // ===== SchemaManifest =====
 
@@ -51,201 +47,7 @@ Base::Status MemberNotFound() noexcept {
         "XAML schema manifest member was not found");
 }
 
-bool HasPropertyFlag(
-    Meta::PropertyFlags value,
-    Meta::PropertyFlags flag) noexcept {
-    return (static_cast<std::uint32_t>(value) &
-        static_cast<std::uint32_t>(flag)) != 0U;
-}
 
-bool HasEventFlag(
-    Meta::EventFlags value,
-    Meta::EventFlags flag) noexcept {
-    return (static_cast<std::uint32_t>(value) &
-        static_cast<std::uint32_t>(flag)) != 0U;
-}
-
-constexpr Base::StringView WpfPresentationNamespace(
-    "http://schemas.microsoft.com/winfx/2006/xaml/presentation");
-constexpr Base::StringView BehaviorsNamespace(
-    "http://schemas.microsoft.com/xaml/behaviors");
-constexpr Base::StringView BlendInteractivityNamespace(
-    "http://schemas.microsoft.com/expression/2010/interactivity");
-constexpr Base::StringView SystemNamespacePrefix(
-    "clr-namespace:System");
-
-bool MatchesClrNamespacePrefix(
-    Base::StringView value,
-    Base::StringView prefix) noexcept {
-    return value.SizeBytes() >= prefix.SizeBytes() &&
-        value.Substr(0U, prefix.SizeBytes()) == prefix;
-}
-
-bool IsExtensionsClrNamespace(Base::StringView value) noexcept {
-    return MatchesClrNamespacePrefix(
-            value, Base::StringView("clr-namespace:AeroGUIExtensions")) ||
-        MatchesClrNamespacePrefix(
-            value, Base::StringView("clr-namespace:Aero.GUI.Extensions")) ||
-        MatchesClrNamespacePrefix(
-            value, Base::StringView("clr-namespace:NoesisGUIExtensions")) ||
-        MatchesClrNamespacePrefix(
-            value, Base::StringView("clr-namespace:Noesis.GUI.Extensions"));
-}
-
-Base::StringView CanonicalXamlNamespace(
-    Base::StringView value) noexcept {
-    return value == WpfPresentationNamespace ||
-            value == BehaviorsNamespace ||
-            value == BlendInteractivityNamespace ||
-            IsExtensionsClrNamespace(value)
-        ? Meta::AeroNamespaceUri()
-        : value;
-}
-
-bool IsSystemNamespace(
-    Base::StringView value) noexcept {
-    return value.SizeBytes() >=
-            SystemNamespacePrefix.SizeBytes() &&
-        value.Substr(0U, SystemNamespacePrefix.SizeBytes()) ==
-            SystemNamespacePrefix;
-}
-
-Base::StringView CanonicalXamlTypeName(
-    Base::StringView value) noexcept {
-    if (value == Base::StringView("Geometry")) {
-        return Base::StringView("StreamGeometry");
-    }
-    if (value == Base::StringView("VisualStateTransition")) {
-        return Base::StringView("VisualTransition");
-    }
-    if (value == Base::StringView("MonochromeBrush")) {
-        return Base::StringView("MonochromeShader");
-    }
-    if (value == Base::StringView("ConicGradientBrush")) {
-        return Base::StringView("ConicGradientShader");
-    }
-    if (value == Base::StringView("WavesBrush")) {
-        return Base::StringView("WavesShader");
-    }
-    return value;
-}
-
-bool IsAeroExtensionsFacade(
-    Base::StringView xamlNamespace,
-    Base::StringView ownerName) noexcept {
-    return IsExtensionsClrNamespace(xamlNamespace) &&
-        (ownerName == Base::StringView("Text") ||
-         ownerName == Base::StringView("Path") ||
-         ownerName == Base::StringView("Brush") ||
-          ownerName == Base::StringView("Element") ||
-          ownerName == Base::StringView("RichText"));
-}
-
-Base::Result<void> AppendU8(
-    Base::Vector<std::uint8_t>& output,
-    std::uint8_t value) noexcept {
-    output.PushBack(value);
-    return {};
-}
-
-Base::Result<void> AppendU32(
-    Base::Vector<std::uint8_t>& output,
-    std::uint32_t value) noexcept {
-    for (std::uint32_t shift = 0U; shift < 32U; shift += 8U) {
-        output.PushBack(
-            static_cast<std::uint8_t>(value >> shift));
-    }
-    return {};
-}
-
-Base::Result<void> AppendU64(
-    Base::Vector<std::uint8_t>& output,
-    std::uint64_t value) noexcept {
-    for (std::uint32_t shift = 0U; shift < 64U; shift += 8U) {
-        output.PushBack(
-            static_cast<std::uint8_t>(value >> shift));
-    }
-    return {};
-}
-
-Base::Result<void> AppendString(
-    Base::Vector<std::uint8_t>& output,
-    Base::StringView value) noexcept {
-    Base::Result<void> result = AppendU32(output, value.SizeBytes());
-    if (!result) return result.GetStatus();
-    for (std::uint32_t index = 0U; index < value.SizeBytes(); ++index) {
-        result = AppendU8(
-            output,
-            static_cast<std::uint8_t>(value[index]));
-        if (!result) return result.GetStatus();
-    }
-    return {};
-}
-
-class Decoder {
-public:
-    explicit Decoder(Base::Span<const std::uint8_t> bytes) noexcept
-        : bytes_(bytes) {}
-
-    Base::Result<std::uint8_t> ReadU8() noexcept {
-        if (offset_ >= bytes_.Size()) return Truncated();
-        return bytes_[offset_++];
-    }
-
-    Base::Result<std::uint32_t> ReadU32() noexcept {
-        if (bytes_.Size() - offset_ < 4U) return Truncated();
-        std::uint32_t value = 0U;
-        for (std::uint32_t shift = 0U; shift < 32U; shift += 8U) {
-            value |= static_cast<std::uint32_t>(bytes_[offset_++]) << shift;
-        }
-        return value;
-    }
-
-    Base::Result<std::uint64_t> ReadU64() noexcept {
-        if (bytes_.Size() - offset_ < 8U) return Truncated();
-        std::uint64_t value = 0U;
-        for (std::uint32_t shift = 0U; shift < 64U; shift += 8U) {
-            value |= static_cast<std::uint64_t>(bytes_[offset_++]) << shift;
-        }
-        return value;
-    }
-
-    Base::Result<Base::String> ReadString(
-        Base::IAllocator& allocator,
-        std::uint32_t& totalStringBytes,
-        std::uint32_t maxStringBytes) noexcept {
-        Base::Result<std::uint32_t> length = ReadU32();
-        if (!length) return length.GetStatus();
-        if (length.Value() > bytes_.Size() - offset_ ||
-            length.Value() > maxStringBytes ||
-            totalStringBytes > maxStringBytes - length.Value()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::OutOfRange,
-                "XAML schema manifest string bounds are invalid");
-        }
-        Base::String value(&allocator);
-        Base::Result<void> assigned = value.Assign(
-            Base::StringView(
-                reinterpret_cast<const char*>(bytes_.Data() + offset_),
-                length.Value()));
-        if (!assigned) return assigned.GetStatus();
-        offset_ += length.Value();
-        totalStringBytes += length.Value();
-        return value;
-    }
-
-    bool AtEnd() const noexcept { return offset_ == bytes_.Size(); }
-
-private:
-    static Base::Status Truncated() noexcept {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfRange,
-            "XAML schema manifest payload is truncated");
-    }
-
-    Base::Span<const std::uint8_t> bytes_;
-    std::uint32_t offset_ = 0U;
-};
 
 } // namespace
 
@@ -384,6 +186,28 @@ struct SchemaManifest::State {
             memberName,
             ManifestMemberKind::Property,
             true);
+        if (property != nullptr &&
+            syntax == MemberSyntax::Attribute &&
+            HasPropertyFlag(
+                static_cast<Meta::PropertyFlags>(property->flags),
+                Meta::PropertyFlags::Collection)) {
+            char aliasBuffer[128];
+            if (memberName.SizeBytes() + 4U < sizeof(aliasBuffer)) {
+                std::memcpy(aliasBuffer, memberName.Data(), memberName.SizeBytes());
+                std::memcpy(aliasBuffer + memberName.SizeBytes(), "Text", 4U);
+                const MemberRecord* alias = FindMember(
+                    ownerType,
+                    Base::StringView(aliasBuffer, memberName.SizeBytes() + 4U),
+                    ManifestMemberKind::Property,
+                    true);
+                if (alias != nullptr &&
+                    !HasPropertyFlag(
+                        static_cast<Meta::PropertyFlags>(alias->flags),
+                        Meta::PropertyFlags::Collection)) {
+                    property = alias;
+                }
+            }
+        }
         if (property != nullptr) {
             const Meta::PropertyFlags flags =
                 static_cast<Meta::PropertyFlags>(property->flags);
@@ -403,14 +227,11 @@ struct SchemaManifest::State {
                     Base::ErrorCode::InvalidArgument,
                     "XAML property element owner is incompatible with the target type");
             }
-            ResolvedMember resolved;
-            resolved.id = property->id;
-            resolved.kind = Meta::MemberKind::Property;
-            resolved.ownerType = property->ownerType;
-            resolved.valueType = property->valueType;
-            resolved.propertyFlags = flags;
-            resolved.attached = attached;
-            return resolved;
+            return MakeResolvedPropertyMember(
+                property->id,
+                property->ownerType,
+                property->valueType,
+                flags);
         }
 
         const MemberRecord* event = FindMember(
@@ -439,15 +260,15 @@ struct SchemaManifest::State {
                     Base::ErrorCode::InvalidArgument,
                     "XAML event element owner is incompatible with the target type");
             }
-            ResolvedMember resolved;
-            resolved.id = event->id;
-            resolved.kind = Meta::MemberKind::Event;
-            resolved.ownerType = event->ownerType;
-            resolved.valueType = event->valueType;
-            resolved.eventFlags = flags;
-            resolved.attached = attached ||
-                (ownerWasExplicit &&
-                 syntax == MemberSyntax::Attribute && routed);
+            ResolvedMember resolved = MakeResolvedEventMember(
+                event->id,
+                event->ownerType,
+                event->valueType,
+                flags);
+            if (ownerWasExplicit &&
+                syntax == MemberSyntax::Attribute && routed) {
+                resolved.attached = true;
+            }
             return resolved;
         }
         return MemberNotFound();
@@ -686,7 +507,7 @@ Base::Result<SchemaManifest> SchemaManifest::Deserialize(
     }
     Base::IAllocator& selected = allocator != nullptr
         ? *allocator : Base::GetDefaultAllocator();
-    Decoder decoder(bytes);
+    Decoder decoder(bytes, "XAML schema manifest payload is truncated");
     Base::Result<std::uint32_t> magic = decoder.ReadU32();
     if (!magic) return magic.GetStatus();
     Base::Result<std::uint32_t> encoding = decoder.ReadU32();
@@ -878,15 +699,15 @@ Base::Result<SchemaManifest> SchemaManifest::Deserialize(
             DestroyManifestState(selected, impl);
             return InvalidManifest("XAML schema manifest base type is missing");
         }
-        Meta::TypeId current = type.id;
+        Meta::TypeId ancestorId = type.id;
         std::uint32_t depth = 0U;
-        while (current != Meta::InvalidTypeId && depth <= impl->types.Size()) {
-            const SchemaManifest::State::TypeRecord* currentType = impl->FindType(current);
+        while (ancestorId != Meta::InvalidTypeId && depth <= impl->types.Size()) {
+            const SchemaManifest::State::TypeRecord* currentType = impl->FindType(ancestorId);
             if (currentType == nullptr) break;
-            current = currentType->baseType;
+            ancestorId = currentType->baseType;
             ++depth;
         }
-        if (current != Meta::InvalidTypeId) {
+        if (ancestorId != Meta::InvalidTypeId) {
             DestroyManifestState(selected, impl);
             return InvalidManifest("XAML schema manifest type hierarchy contains a cycle");
         }
@@ -987,93 +808,70 @@ Base::Result<ResolvedMember> SchemaManifest::ResolveMember(
     const SchemaManifest::State::TypeRecord* target = state_->FindType(targetType);
     if (target == nullptr || name.LocalName().Empty()) return MemberNotFound();
 
-    const Base::StringView localName = name.LocalName();
-    std::uint32_t dot = localName.SizeBytes();
-    for (std::uint32_t index = 0U; index < localName.SizeBytes(); ++index) {
-        if (localName[index] != '.') continue;
-        if (dot != localName.SizeBytes()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "XAML schema manifest member contains multiple owner separators");
-        }
-        dot = index;
-    }
+    Base::Result<ParsedXamlMemberName> parsed =
+        ParseXamlMemberName(name.LocalName(), name.NamespaceUri(), target->xamlNamespace.View());
+    if (!parsed) return parsed.GetStatus();
 
-    if (dot == localName.SizeBytes()) {
+    const ParsedXamlMemberName& member = parsed.Value();
+    if (!member.hasOwner) {
         if (!name.NamespaceUri().Empty() &&
             CanonicalXamlNamespace(name.NamespaceUri()) !=
                 target->xamlNamespace.View()) {
             return MemberNotFound();
         }
-        return state_->ResolvePropertyOrEvent(
-            targetType, targetType, localName, syntax, false);
-    }
-    if (dot == 0U || dot + 1U >= localName.SizeBytes()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "XAML schema manifest member owner syntax is invalid");
-    }
-    const Base::StringView ownerName = localName.Substr(0U, dot);
-    const Base::StringView memberName = localName.Substr(
-        dot + 1U, localName.SizeBytes() - dot - 1U);
-    const Base::StringView ownerNamespace = name.NamespaceUri().Empty()
-        ? target->xamlNamespace.View() : name.NamespaceUri();
-    if (IsAeroExtensionsFacade(
-            ownerNamespace, ownerName)) {
-        // The reference Gallery uses the legacy Element.BlendingMode
-        // extension name. Element is also a real Aero extension owner
-        // (PPAAOut), so normalize this one compatibility alias before
-        // looking up the owner rather than letting that type shadow the
-        // inherited UIElement BlendMode property.
-        if (ownerName == Base::StringView("Element") &&
-            memberName == Base::StringView("BlendingMode")) {
-            return state_->ResolvePropertyOrEvent(
-                targetType,
-                targetType,
-                Base::StringView("BlendMode"),
-                syntax,
-                false);
+        Base::Result<ResolvedMember> resolved = state_->ResolvePropertyOrEvent(
+            targetType, targetType, member.memberName, syntax, false);
+        if (resolved || member.memberName != Base::StringView("ToolTip")) {
+            return resolved;
         }
-        // The legacy AeroGUIExtensions facade predates real attached
-        // properties. Prefer a registered Aero owner (for example
-        // aero:Path.TrimEnd) and retain the facade only for extension-only
-        // members such as aero:Text.*.
+
+        // WPF exposes ToolTip as a FrameworkElement property even though the
+        // storage and display policy live in ToolTipService.
+        const SchemaManifest::State::TypeRecord* service =
+            state_->FindType(Meta::AeroNamespaceUri(), "ToolTipService");
+        if (service == nullptr) return resolved.GetStatus();
+        return state_->ResolvePropertyOrEvent(
+            targetType, service->id, member.memberName, syntax, false);
+    }
+
+    if (IsAeroExtensionsFacade(
+            member.ownerNamespace, member.ownerName)) {
         const SchemaManifest::State::TypeRecord* aeroOwner = state_->FindType(
             Meta::AeroNamespaceUri(),
-            CanonicalXamlTypeName(ownerName));
+            CanonicalXamlTypeName(member.ownerName));
         if (aeroOwner != nullptr) {
             return state_->ResolvePropertyOrEvent(
-                targetType, aeroOwner->id, memberName, syntax, true);
+                targetType, aeroOwner->id, member.memberName, syntax, true);
         }
         return state_->ResolvePropertyOrEvent(
             targetType,
             targetType,
-            memberName,
+            member.memberName,
             syntax,
             false);
     }
     const SchemaManifest::State::TypeRecord* owner = state_->FindType(
-        CanonicalXamlNamespace(ownerNamespace),
-        CanonicalXamlTypeName(ownerName));
+        CanonicalXamlNamespace(member.ownerNamespace),
+        CanonicalXamlTypeName(member.ownerName));
     if (owner == nullptr && name.NamespaceUri().Empty()) {
         owner = state_->FindType(
             Meta::AeroNamespaceUri(),
-            CanonicalXamlTypeName(ownerName));
+            CanonicalXamlTypeName(member.ownerName));
     }
     if (owner == nullptr) return MemberNotFound();
     // WPF exposes ContextMenu through FrameworkElement property-element
     // syntax (for example Border.ContextMenu) while storage is supplied by
     // the attached ContextMenuService property.
-    if (memberName == Base::StringView("ContextMenu")) {
+    if (member.memberName == Base::StringView("ContextMenu")) {
         const SchemaManifest::State::TypeRecord* service = state_->FindType(
             Meta::AeroNamespaceUri(), "ContextMenuService");
         if (service != nullptr) {
             return state_->ResolvePropertyOrEvent(
-                targetType, service->id, memberName, syntax, true);
+                targetType, service->id, member.memberName, syntax, true);
         }
     }
     return state_->ResolvePropertyOrEvent(
-        targetType, owner->id, memberName, syntax, true);
+        targetType, owner->id, member.memberName, syntax, true);
 }
 
 Base::Result<ResolvedMember> SchemaManifest::ResolveContentMember(
@@ -1090,16 +888,11 @@ Base::Result<ResolvedMember> SchemaManifest::ResolveContentMember(
     if (member == nullptr || member->kind != ManifestMemberKind::Property) {
         return InvalidManifest("XAML schema manifest content member is invalid");
     }
-    const Meta::PropertyFlags flags =
-        static_cast<Meta::PropertyFlags>(member->flags);
-    ResolvedMember resolved;
-    resolved.id = member->id;
-    resolved.kind = Meta::MemberKind::Property;
-    resolved.ownerType = member->ownerType;
-    resolved.valueType = member->valueType;
-    resolved.propertyFlags = flags;
-    resolved.attached = HasPropertyFlag(flags, Meta::PropertyFlags::Attached);
-    return resolved;
+    return MakeResolvedPropertyMember(
+        member->id,
+        member->ownerType,
+        member->valueType,
+        static_cast<Meta::PropertyFlags>(member->flags));
 }
 
 } // namespace Aero::Markup

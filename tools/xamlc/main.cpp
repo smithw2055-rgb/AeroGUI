@@ -244,5 +244,6 @@ int main(int argc, char** argv) {
             options.schemaPath)) {
         return Fail("cannot write dependency file");
     }
+    std::exit(0);
     return 0;
 }

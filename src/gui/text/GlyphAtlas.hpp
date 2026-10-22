@@ -13,7 +13,7 @@ using GlyphAtlasFence = std::uint64_t;
 struct GlyphAtlasConfig  {
     std::uint32_t pageWidth = 1024U;
     std::uint32_t pageHeight = 1024U;
-    std::uint32_t maxPages = 4U;
+    std::uint32_t maxPages = 8U;
     std::uint32_t padding = 1U;
 };
 
@@ -110,7 +110,6 @@ public:
 
 private:
     Base::IAllocator* allocator_ = nullptr;
-    alignas(std::max_align_t) std::uint8_t stateStorage_[4096]{};
     GlyphAtlasState* state_ = nullptr;
 };
 

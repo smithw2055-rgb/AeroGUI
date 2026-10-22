@@ -24,6 +24,7 @@ public:
         : command_(std::move(command)),
           canExecute_(canExecute),
           executed_(executed) {}
+    ~CommandBinding() override;
 
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
 
@@ -31,21 +32,28 @@ public:
     void SetCommand(Ref<RoutedCommand> value) noexcept { command_ = std::move(value); }
     const CanExecuteRoutedEventHandler& GetCanExecute() const noexcept { return canExecute_; }
     const ExecutedRoutedEventHandler& GetExecuted() const noexcept { return executed_; }
-    StringView GetCommandName() const noexcept { return commandName_.View(); }
-    StringView GetExecutedName() const noexcept { return executedName_.View(); }
-    StringView GetCanExecuteName() const noexcept { return canExecuteName_.View(); }
+    StringView GetCommandName() const noexcept;
+    StringView GetExecutedName() const noexcept;
+    StringView GetCanExecuteName() const noexcept;
     void SetCommandName(StringView value) noexcept;
     void SetExecutedName(StringView value) noexcept;
     void SetCanExecuteName(StringView value) noexcept;
     Result<void> Finalize() noexcept;
+    void ReleaseAuthored() noexcept;
     bool IsValid() const noexcept { return command_.Get() != nullptr; }
 
 private:
+    struct AuthoredData {
+        AuthoredData() noexcept {}
+        String commandName;
+        String executedName;
+        String canExecuteName;
+    };
+    AuthoredData* EnsureAuthored() noexcept;
+
     Ref<RoutedCommand> command_;
     CanExecuteRoutedEventHandler canExecute_;
     ExecutedRoutedEventHandler executed_;
-    String commandName_;
-    String executedName_;
-    String canExecuteName_;
+    AuthoredData* authored_ = nullptr;
 };
 } // namespace Aero::Input

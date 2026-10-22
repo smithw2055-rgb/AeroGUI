@@ -59,6 +59,12 @@ public:
     bool operator!=(std::nullptr_t) const noexcept { return value_ != nullptr; }
     friend bool operator==(std::nullptr_t, const Ref& ref) noexcept { return ref.value_ == nullptr; }
     friend bool operator!=(std::nullptr_t, const Ref& ref) noexcept { return ref.value_ != nullptr; }
+    template<class U> bool operator==(const U* other) const noexcept { return value_ == other; }
+    template<class U> bool operator!=(const U* other) const noexcept { return value_ != other; }
+    template<class U> friend bool operator==(const U* other, const Ref& ref) noexcept { return other == ref.value_; }
+    template<class U> friend bool operator!=(const U* other, const Ref& ref) noexcept { return other != ref.value_; }
+    template<class U> bool operator==(const Ref<U>& other) const noexcept { return value_ == other.Get(); }
+    template<class U> bool operator!=(const Ref<U>& other) const noexcept { return value_ != other.Get(); }
 
     // Acquires a strong reference to an already-owned object. This is useful
     // for transactional bookkeeping that must outlive a caller's temporary

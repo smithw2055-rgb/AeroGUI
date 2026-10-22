@@ -27,6 +27,18 @@ public:
         const DependencyObject* object) noexcept {
         return object->HasPropertyRegistry();
     }
+
+    static const PropertyStore* Store(
+        const DependencyObject& object) noexcept {
+        return object.Store();
+    }
+
+    static Base::Result<void> VisitFreezableChildren(
+        DependencyObject& object,
+        void* context,
+        Base::Result<void> (*visitor)(void* context, Freezable& child) noexcept) noexcept {
+        return object.VisitFreezableChildren(context, visitor);
+    }
 };
 
 } // namespace Aero

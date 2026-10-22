@@ -45,7 +45,6 @@ set(_aero_gui_core_sources
     src/gui/core/ObjectFactory.cpp
     src/gui/core/ContentElement.cpp
     src/gui/core/ElementTree.cpp
-    src/gui/core/Invariants.cpp
     src/gui/core/LayoutEngine.cpp
     src/gui/core/EffectiveValueEngine.cpp
     src/gui/core/TryCast.cpp
@@ -187,10 +186,9 @@ set(_aero_gui_shapes_sources
     src/gui/shapes/ShapesEnumsDescribe.cpp)
 
 set(_aero_gui_render_contract_sources
-    src/render/DrawingContext.cpp
+    src/gui/media/DrawingContext.cpp
     src/render/RenderTree.cpp
     src/render/RenderDevice.cpp
-    src/render/RenderTarget.cpp
     src/render/FrameEncoder.cpp
     src/render/TextRenderer.cpp)
 
@@ -430,7 +428,6 @@ unset(_aero_theme_embed_result)
 # implementation or factory symbols.
 add_library(AeroRenderOpenGL33 ${AERO_LIBRARY_TYPE}
     src/render/opengl33/OpenGL33RenderDevice.cpp
-            src/render/opengl33/OpenGL33Factories.cpp
     src/render/opengl33/OpenGL33RenderContext.cpp)
 add_library(Aero::RenderOpenGL33 ALIAS AeroRenderOpenGL33)
 target_include_directories(AeroRenderOpenGL33
@@ -682,31 +679,34 @@ if(AERO_ENABLE_D3D11_BACKEND)
     aero_compile_d3d11_ps(Upsample EFFECT_UPSAMPLE)
     aero_compile_d3d11_ps(Downsample EFFECT_DOWNSAMPLE)
 
-    aero_compile_d3d11_shader_pair(
-        RenderFrameSolid "${_aero_d3d11_shader_root}/RenderFrameSolid.hlsl" FALSE)
-    aero_compile_d3d11_shader_pair(
-        RenderFramePattern "${_aero_d3d11_shader_root}/RenderFramePattern.hlsl" FALSE)
-    aero_compile_d3d11_shader_pair(
-        RenderFrameSDF "${_aero_d3d11_shader_root}/RenderFrameSDF.hlsl" FALSE)
-    aero_compile_d3d11_shader_pair(
-        RenderFrameBlur "${_aero_d3d11_shader_root}/RenderFrameBlur.hlsl" FALSE)
-    aero_compile_d3d11_shader_pair(
-        RenderFrameShadow "${_aero_d3d11_shader_root}/RenderFrameShadow.hlsl" FALSE)
-    aero_compile_d3d11_shader_pair(
-        RenderFrameMask "${_aero_d3d11_shader_root}/RenderFrameMask.hlsl" FALSE)
-    aero_compile_d3d11_shader_pair(
-        RenderFrameLinear "${_aero_d3d11_shader_root}/RenderFrameLinear.hlsl" FALSE)
-    aero_compile_d3d11_shader_pair(
-        RenderFrameRadial "${_aero_d3d11_shader_root}/RenderFrameRadial.hlsl" FALSE)
+    aero_compile_d3d11_ps(Mask EFFECT_MASK)
+    aero_compile_d3d11_ps(Shadow EFFECT_SHADOW)
+    aero_compile_d3d11_ps(Blur EFFECT_BLUR)
     get_property(_aero_d3d11_shader_outputs GLOBAL PROPERTY
         AERO_D3D11_SHADER_OUTPUTS)
+
+    set(_aero_d3d11_aggregate_header
+        "${_aero_d3d11_shader_directory}/AeroD3D11Shaders.hpp")
+    set(_aero_d3d11_shader_manifest
+        "${_aero_d3d11_shader_directory}/shaders_manifest.txt")
+    file(MAKE_DIRECTORY "${_aero_d3d11_shader_directory}")
+    file(WRITE "${_aero_d3d11_shader_manifest}" "${_aero_d3d11_shader_outputs}")
+
+    add_custom_command(
+        OUTPUT "${_aero_d3d11_aggregate_header}"
+        COMMAND "${CMAKE_COMMAND}"
+            "-DMANIFEST_FILE=${_aero_d3d11_shader_manifest}"
+            "-DOUTPUT_FILE=${_aero_d3d11_aggregate_header}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/AggregateD3D11Shaders.cmake"
+        DEPENDS ${_aero_d3d11_shader_outputs}
+        VERBATIM)
+
     add_custom_target(AeroD3D11RenderFrameShaders
-        DEPENDS ${_aero_d3d11_shader_outputs})
+        DEPENDS ${_aero_d3d11_shader_outputs} "${_aero_d3d11_aggregate_header}")
 
     add_library(AeroRenderD3D11 ${AERO_LIBRARY_TYPE}
         src/render/d3d11/D3D11RenderDevice.cpp
-                src/render/d3d11/D3D11Device.cpp
-                src/render/d3d11/D3D11RenderContext.cpp)
+        src/render/d3d11/D3D11RenderContext.cpp)
     add_library(Aero::RenderD3D11 ALIAS AeroRenderD3D11)
     add_dependencies(AeroRenderD3D11 AeroD3D11RenderFrameShaders)
     target_include_directories(AeroRenderD3D11

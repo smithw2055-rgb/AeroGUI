@@ -18,6 +18,10 @@
 
 #include "TextBlockLayout.hpp"
 
+#if defined(_WIN32)
+extern "C" unsigned short RtlCaptureStackBackTrace(unsigned long, unsigned long, void**, unsigned long*);
+#endif
+
 #include <algorithm>
 #include <cctype>
 #include <cmath>
@@ -573,6 +577,15 @@ private:
 };
 
 Panel::~Panel() {
+    zOrderCache_.Clear();
+    for (std::uint32_t index = 0U; index < ownedChildren_.Size(); ++index) {
+        UIElement* child = ownedChildren_[index]
+            ? static_cast<UIElement*>(ownedChildren_[index].Get())
+            : nullptr;
+        if (child != nullptr && child->GetVisualParent() == this) {
+            RemoveVisualChild(child);
+        }
+    }
     if (childrenView_) {
         static_cast<PanelChildrenView*>(childrenView_.Get())->DetachOwner();
         childrenView_.Reset();
@@ -652,27 +665,39 @@ struct PanelZOrder {
 } // namespace
 
 ::Aero::Media::Visual* Panel::GetVisualChild(std::uint32_t index) const noexcept {
-    Base::Vector<PanelZOrder> ordered;
-    std::uint32_t document = 0U;
-    for (std::uint32_t childIndex = 0U; childIndex < ownedChildren_.Size(); ++childIndex) {
-        UIElement* child = ownedChildren_[childIndex]
-            ? static_cast<UIElement*>(ownedChildren_[childIndex].Get())
-            : nullptr;
-        if (child == nullptr || child->GetVisualParent() != this) continue;
-        PanelZOrder record;
-        record.z = child->GetValue(ZIndexProperty);
-        record.document = document++;
-        record.child = child;
-        ordered.PushBack(record);
+    if (zOrderDirty_ || zOrderCache_.Size() != GetVisualChildrenCount()) {
+        zOrderCache_.Clear();
+        bool hasNonZeroZ = false;
+        std::uint32_t document = 0U;
+        Base::Vector<PanelZOrder> ordered;
+        for (std::uint32_t childIndex = 0U; childIndex < ownedChildren_.Size(); ++childIndex) {
+            UIElement* child = ownedChildren_[childIndex]
+                ? static_cast<UIElement*>(ownedChildren_[childIndex].Get())
+                : nullptr;
+            if (child == nullptr || child->GetVisualParent() != this) continue;
+            PanelZOrder record;
+            record.z = child->GetValue(ZIndexProperty);
+            if (record.z != 0) hasNonZeroZ = true;
+            record.document = document++;
+            record.child = child;
+            ordered.PushBack(record);
+        }
+        if (hasNonZeroZ) {
+            std::sort(
+                ordered.Data(),
+                ordered.Data() + ordered.Size(),
+                [](const PanelZOrder& left, const PanelZOrder& right) noexcept {
+                    if (left.z != right.z) return left.z < right.z;
+                    return left.document < right.document;
+                });
+        }
+        zOrderCache_.Reserve(ordered.Size());
+        for (std::uint32_t i = 0U; i < ordered.Size(); ++i) {
+            zOrderCache_.PushBack(ordered[i].child);
+        }
+        zOrderDirty_ = false;
     }
-    std::sort(
-        ordered.Data(),
-        ordered.Data() + ordered.Size(),
-        [](const PanelZOrder& left, const PanelZOrder& right) noexcept {
-            if (left.z != right.z) return left.z < right.z;
-            return left.document < right.document;
-        });
-    return index < ordered.Size() ? ordered[index].child : nullptr;
+    return index < zOrderCache_.Size() ? zOrderCache_[index] : nullptr;
 }
 
 std::uint32_t Panel::GetLayoutChildrenCount() const noexcept {
@@ -705,20 +730,6 @@ void Panel::AddChildCore(const Base::Ref<Base::Object>& childObject, UIElement& 
         }
     }
     ownedChildren_.PushBack(childObject);
-    {
-        const Meta::TypeInfo* ct = DependencyObjectAccess::PropertyRegistry((*this)).Types().FindType(child.RuntimeType());
-        bool isCC = ct && ct->Name() == Base::StringView("ContentControl");
-        bool isRect = ct && ct->Name() == Base::StringView("Rectangle");
-        if (isCC || isRect) {
-            const Meta::TypeInfo* ot = DependencyObjectAccess::PropertyRegistry((*this)).Types().FindType(RuntimeType());
-            std::fprintf(stderr, "[AddChild] owner=%s/%p child=%s/%p count=%u\n",
-                ot ? (const char*)(ot->Name().Data()) : "?",
-                (const void*)this,
-                ct ? (const char*)(ct->Name().Data()) : "?",
-                (const void*)&child,
-                (unsigned)ownedChildren_.Size());
-        }
-    }
     if (child.GetVisualParent() != this) {
         if (ElementTree* tree = VisualTree(this)) {
             // XAML Panel content uses AddChildCore, not UIElementCollection::Add.
@@ -751,6 +762,7 @@ void Panel::AddChildCore(const Base::Ref<Base::Object>& childObject, UIElement& 
             AddVisualChild(&child);
         }
     }
+    zOrderDirty_ = true;
     NotifyChildrenViewReset();
     InvalidateMeasure();
 }
@@ -782,6 +794,7 @@ Base::Result<bool> Panel::RemoveChildCore(UIElement& child) noexcept {
         } else if (child.GetVisualParent() == this) {
             RemoveVisualChild(&child);
         }
+        zOrderDirty_ = true;
         NotifyChildrenViewReset();
         InvalidateMeasure();
         return true;
@@ -789,10 +802,6 @@ Base::Result<bool> Panel::RemoveChildCore(UIElement& child) noexcept {
     return false;
 }
 void Panel::ClearChildrenCore() noexcept {
-    const Meta::TypeInfo* ot = DependencyObjectAccess::PropertyRegistry((*this)).Types().FindType(RuntimeType());
-    std::fprintf(stderr, "[ClearChildrenCore] owner=%s/%p count=%u\n",
-        ot ? (const char*)ot->Name().Data() : "?",
-        (const void*)this, (unsigned)ownedChildren_.Size());
     Base::Result<void> access = VerifyAccess();
     if (!access) return;
     ElementTree* tree = VisualTree(this);
@@ -813,20 +822,13 @@ void Panel::ClearChildrenCore() noexcept {
         }
     }
     ownedChildren_.Clear();
+    zOrderDirty_ = true;
+    zOrderCache_.Clear();
     NotifyChildrenViewReset();
     InvalidateMeasure();
 }
 
 Ref<Base::Object> Panel::GetChildrenObject() const noexcept {
-    {
-        static int s_g = 0;
-        if (s_g < 4) {
-            ++s_g;
-            std::fprintf(stderr, "[ChildrenGetter] called owner=%p owned=%u visual=%u\n",
-                (const void*)this, (unsigned)ChildCountCore(),
-                (unsigned)GetVisualChildrenCount());
-        }
-    }
     if (!childrenView_) {
         Base::Result<Ref<PanelChildrenView>> made =
             Base::MakeRef<PanelChildrenView>(const_cast<Panel&>(*this));
@@ -855,13 +857,25 @@ void ClearPanelContent(
     (static_cast<Panel&>(owner)).ClearChildrenCore();
 }
 
+void OnZIndexPropertyChanged(
+    DependencyObject& target,
+    const DependencyPropertyChangedEventArgs&) noexcept {
+    if (auto* element = ::Aero::TryCast<UIElement>(&target)) {
+        if (auto* panel = ::Aero::TryCast<Panel>(element->GetVisualParent())) {
+            panel->InvalidateZOrder();
+        }
+    }
+}
+
 } // namespace
 
 AERO_DESCRIBE(Panel) {
     using namespace Aero::Meta;
     Register<Panel>(context, TypeFlags::Abstract)
         .Property(Panel::BackgroundProperty, Base::Ref<Media::Brush>{}, AffectsRender)
-        .Property(Panel::ZIndexProperty, std::int32_t{0}, AffectsParentArrange)
+        .Property(Panel::ZIndexProperty,
+            FrameworkPropertyMetadata(std::int32_t{0}, AffectsParentArrange)
+                .Changed(&OnZIndexPropertyChanged))
         .Property(Panel::IsItemsHostProperty, false)
         .Property<Base::Ref<Base::Object>, &Panel::GetChildrenObject, &Panel::SetChildrenObject>("Children", PropertyFlags::Collection | PropertyFlags::Structural)
         .ContentAccessor(MakeMemberId(Panel::StaticTypeId(), MemberKind::Property, "Children"), ContentKind::Collection, &SetPanelContent, &ClearPanelContent, ContentFlags::Visual);

@@ -34,6 +34,8 @@ public:
     TextBlock() noexcept;
     ~TextBlock() override;
 
+    bool HitTestCore() const noexcept override { return true; }
+
     void AttachTextLayout(void* service, bool invalidate = false) noexcept;
     void InvalidateDocumentText() noexcept;
     void AddOwnedInline(const Ref<Base::Object>& inlineObject) noexcept;

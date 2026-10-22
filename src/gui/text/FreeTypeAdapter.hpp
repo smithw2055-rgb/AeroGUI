@@ -63,7 +63,6 @@ private:
     void* FindNativeFace(FontFaceHandle face) noexcept;
 
     Base::IAllocator* allocator_ = nullptr;
-    alignas(std::max_align_t) std::uint8_t stateStorage_[4096]{};
     FreeTypeAdapterState* state_ = nullptr;
 };
 

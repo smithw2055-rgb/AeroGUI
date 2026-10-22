@@ -15,6 +15,7 @@ namespace Aero {
 class View;
 class FrameworkElement;
 class ResourceDictionary;
+struct GuiRuntime;
 namespace Markup {
 class XamlDocument;
 class XamlProvider;
@@ -63,7 +64,7 @@ private:
     Result<bool> TakeLoadedDocument(Base::Object& root, Markup::XamlDocument& document) noexcept;
 
     Base::IAllocator* allocator_ = nullptr;
-    Ref<Object> state_;
+    Ref<GuiRuntime> state_;
 };
 
 } // namespace Aero

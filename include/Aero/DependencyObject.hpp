@@ -6,7 +6,10 @@
 
 namespace Aero {
 
-namespace Meta { class DependencyPropertyRegistry; }
+namespace Meta {
+class DependencyPropertyRegistry;
+class RegistryLifetime;
+}
 struct StoredValueEntry;
 // Engine-owned state (definitions in src/gui/core/PropertyStore.hpp).
 // Kept out of the public header for Noesis-parity slimness; ChangeKind stays
@@ -29,6 +32,7 @@ class AERO_GUI_API DependencyObject : public DispatcherObject {
 public:
     TypeId RuntimeType() const noexcept override { return runtimeType_; }
     PropertyValue GetValue(DependencyPropertyHandle property) const noexcept;
+    StringView GetStringView(DependencyPropertyHandle property) const noexcept;
     template<class TOwner, class TValue> PropertyAccess<TValue> GetValue(
         const DependencyPropertyRef<TOwner, TValue>& property) const noexcept;
     template<class TOwner> StringView GetValue(const DependencyPropertyRef<TOwner, String>& property) const noexcept;
@@ -192,6 +196,7 @@ private:
     void RemoveChangeHandler(std::uint32_t index) noexcept;
 
     Meta::DependencyPropertyRegistry* registry_ = nullptr;
+    Base::Ref<Meta::RegistryLifetime> registryLifetime_;
     TypeId runtimeType_ = InvalidTypeId;
     bool objectServicesAvailable_ = false;
     mutable bool typeVerified_ = false;
@@ -210,8 +215,7 @@ template<class TOwner, class TValue> PropertyAccess<TValue> DependencyObject::Ge
 
 template<class TOwner> StringView DependencyObject::GetValue(
     const DependencyPropertyRef<TOwner, String>& property) const noexcept {
-    const PropertyValue stored = GetValue(property.Handle());
-    return stored.Kind() == Base::ValueKind::String ? stored.AsString() : StringView{};
+    return GetStringView(property.Handle());
 }
 
 template<class TOwner, class TValue> PropertyAccess<TValue> DependencyObject::GetValue(
@@ -224,8 +228,7 @@ template<class TOwner, class TValue> PropertyAccess<TValue> DependencyObject::Ge
 
 template<class TOwner> StringView DependencyObject::GetValue(
     const ReadOnlyPropertyRef<TOwner, String>& property) const noexcept {
-    const PropertyValue stored = GetValue(property.Handle());
-    return stored.Kind() == Base::ValueKind::String ? stored.AsString() : StringView{};
+    return GetStringView(property.Handle());
 }
 
 template<class TOwner, class TValue> void DependencyObject::SetValue(

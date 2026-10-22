@@ -42,11 +42,13 @@ public:
 
     Ref<Aero::Media::Brush> GetBackground() const noexcept { return GetValue(BackgroundProperty); }
     void SetBackground(Ref<Aero::Media::Brush> value) noexcept { SetValue(BackgroundProperty, std::move(value)); }
+    bool HitTestCore() const noexcept override { return GetBackground() != nullptr; }
     Ref<Base::Object> GetChildrenObject() const noexcept;
     void SetChildrenObject(Ref<Base::Object>) noexcept {}
     UIElementCollection& GetChildren() noexcept { return children_; }
     const UIElementCollection& GetChildren() const noexcept { return children_; }
     void ClearChildrenCore() noexcept;
+    void InvalidateZOrder() noexcept { zOrderDirty_ = true; }
 
     AERO_DEPENDENCY_PROPERTY(Ref<Aero::Media::Brush>, Background);
     AERO_DEPENDENCY_PROPERTY(bool, IsItemsHost);
@@ -68,6 +70,8 @@ private:
     UIElementCollection children_;
     Base::Vector<Ref<Base::Object>> ownedChildren_;
     mutable Base::Ref<Base::Object> childrenView_;
+    mutable Base::Vector<UIElement*> zOrderCache_;
+    mutable bool zOrderDirty_ = true;
     void NotifyChildrenViewReset() noexcept;
 };
 

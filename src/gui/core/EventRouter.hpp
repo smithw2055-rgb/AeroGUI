@@ -6,7 +6,7 @@ class UIElement;
 class ContentElement;
 struct RoutedEventArgs;
 class EventRouter;
-class InputRouter;
+class InputManager;
 class BindingEngine;
 class LayoutEngine;
 class StyleEngine;

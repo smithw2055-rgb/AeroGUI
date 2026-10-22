@@ -153,6 +153,20 @@ public:
         data_[size_].~T();
     }
 
+    void Erase(SizeType index) noexcept {
+        AERO_ASSERT(index < size_);
+        if constexpr (std::is_trivially_copyable<T>::value) {
+            if (index + 1U < size_) {
+                std::memmove(data_ + index, data_ + index + 1U, static_cast<std::size_t>(size_ - index - 1U) * sizeof(T));
+            }
+        } else {
+            for (SizeType move = index + 1U; move < size_; ++move) {
+                data_[move - 1U] = std::move_if_noexcept(data_[move]);
+            }
+        }
+        PopBack();
+    }
+
     void Reserve(SizeType requestedCapacity) noexcept {
         if (requestedCapacity <= capacity_) { return; }
 

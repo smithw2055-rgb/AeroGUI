@@ -2625,13 +2625,12 @@ Base::Result<void> MetaTable::BuildValueFacets(
     Base::Result<void> result;
     for (const TypeInfo& type : types.Types()) {
         if (IsValueType(type)) {
-            const Base::Ref<ValueTypeSemantics>* semantics =
+            const ValueTypeRegistration* semantics =
                 source.FindValueSemantics(type.Id());
-            if (semantics != nullptr &&
-                semantics->Get() != nullptr) {
+            if (semantics != nullptr) {
                 ValueSemanticsFacet facet;
                 facet.type = type.Id();
-                facet.semantics = *semantics;
+                facet.registration = *semantics;
                 const std::uint32_t index =
                     valueSemantics_.Size();
                 valueSemantics_.PushBack(
@@ -2710,9 +2709,9 @@ Base::Result<Base::HashCode> ComputeMetadataValueFacetHash(
     for (const TypeInfo& type : descriptors.Types()) {
         const ValueSemanticsFacet* facet =
             facets.FindValueSemantics(type.Id());
-        if (facet == nullptr || !facet->semantics) continue;
+        if (facet == nullptr) continue;
         const ValueTypeRegistration& registration =
-            facet->semantics->Registration();
+            facet->registration;
         builder.AddU64(type.Id());
         builder.AddU32(registration.size);
         builder.AddU32(registration.alignment);
@@ -2874,12 +2873,13 @@ Base::Result<Registry::Storage*> Registry::BuildCandidate(
     // behavior payload that stores a non-inline value.  Restore them before
     // property registrations so a second registry candidate observes the
     // same value codec domain as the committed registry.
-    for (const ValueTable::ValueSemanticsEntry& semantics :
+    for (const ValueTable::ValueSemanticsEntry* semantics :
          storage_->valueRegistrations.valueSemantics_) {
+        if (semantics == nullptr) continue;
         Base::Result<void> cloned =
             candidate->valueRegistrations.RegisterValueSemantics(
-                semantics.type,
-                semantics.semantics->Registration());
+                semantics->type,
+                semantics->registration);
         if (!cloned) return fail(cloned.GetStatus());
     }
     for (const TextValueConverterRegistration& converter :
@@ -3498,14 +3498,13 @@ Base::Result<Value> Registry::TryCreateValue(
             "Metadata value type descriptor was not found");
     }
     if (!HasTypeFlag(descriptor->Flags(), TypeFlags::ValueType) ||
-        behavior == nullptr ||
-        !behavior->semantics) {
+        behavior == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::Unsupported,
             "Metadata type has no value semantics");
     }
     return Value::TryFromCustom(
-        type, source, behavior->semantics);
+        type, source, &behavior->registration);
 }
 
 Base::Result<Value> Registry::TryConvertText(

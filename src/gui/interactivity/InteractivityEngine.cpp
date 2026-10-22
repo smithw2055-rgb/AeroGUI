@@ -118,6 +118,87 @@ void InteractivityEngine::Bind() noexcept {
     // the host as attached to its owning view (already set in the ctor).
 }
 
+void InteractivityEngine::BindingWatcher::Unbind(InteractivityEngine& engine) noexcept {
+    if (source != nullptr && property.IsValid()) {
+        static_cast<void>(source->RemoveValueChangedHandler(property, handler));
+        source = nullptr;
+        property = Meta::DependencyPropertyHandle{};
+    }
+    if (metadataSource != nullptr && metadataSubscription != 0U && engine.Metadata() != nullptr) {
+        static_cast<void>(engine.Metadata()->UnsubscribePropertyChanged(
+            *metadataSource, metadataSubscription));
+        metadataSource = nullptr;
+        metadataSubscription = 0U;
+    }
+    if (context != nullptr) {
+        if (cleanupContext != nullptr) {
+            cleanupContext(engine, context);
+        }
+        context = nullptr;
+    }
+}
+
+Base::Result<void> InteractivityEngine::BindingWatcher::Subscribe(
+    InteractivityEngine& engine,
+    Aero::FrameworkElement* targetOwner,
+    const ResolvedBindingProperty& prop,
+    Meta::DependencyPropertyChangedEventHandler dpHandler,
+    void (*clrCallback)(Base::Object&, Meta::MemberId, void*) noexcept,
+    void* ctx,
+    void (*cleanup)(InteractivityEngine&, void*)) noexcept {
+    owner = targetOwner;
+    context = ctx;
+    cleanupContext = cleanup;
+
+    if (prop.dependencySource != nullptr && prop.dependencyProperty.IsValid()) {
+        source = prop.dependencySource;
+        property = prop.dependencyProperty;
+        handler = std::move(dpHandler);
+        source->AddValueChangedHandler(property, handler);
+        return {};
+    }
+
+    if (prop.source != nullptr && engine.Metadata() != nullptr) {
+        metadataSource = prop.source;
+        metadataProperty = prop.metadataProperty;
+        Base::Result<std::uint64_t> notification =
+            engine.Metadata()->SubscribePropertyChanged(
+                *metadataSource,
+                clrCallback,
+                context);
+        if (!notification) {
+            return notification.GetStatus();
+        }
+        metadataSubscription = notification.Value();
+        return {};
+    }
+
+    return Base::Status::Failure(
+        Base::ErrorCode::InvalidArgument,
+        "BindingWatcher: invalid property or source to subscribe");
+}
+
+namespace {
+
+template<typename T>
+void DefaultWatcherCleanup(InteractivityEngine& engine, void* ctx) noexcept {
+    auto* typed = static_cast<T*>(ctx);
+    FreeObject(*engine.Allocator(), Base::MemoryTag::Ui, typed);
+}
+
+void StyleDataWatcherCleanup(InteractivityEngine& engine, void* ctx) noexcept {
+    auto* state = static_cast<InteractivityEngine::StyleDataTriggerHandlerState*>(ctx);
+    if (state != nullptr) {
+        if (state->ownsAggregate && state->aggregate != nullptr) {
+            FreeObject(*engine.Allocator(), Base::MemoryTag::Ui, state->aggregate);
+            state->aggregate = nullptr;
+        }
+        FreeObject(*engine.Allocator(), Base::MemoryTag::Ui, state);
+    }
+}
+
+} // namespace
+
 Base::IAllocator* InteractivityEngine::Allocator() const noexcept {
     return view != nullptr ? view->allocator : nullptr;
 }
@@ -312,44 +393,23 @@ Base::Object* InteractivityEngine::ResolveDataTemplateConditionSource(
             : Base::StringView{};
         Base::Object* source = nullptr;
         if (condition.binding &&
-            !condition.binding->GetElementName().Empty()) {
-            const Base::StringView elementName =
-                condition.binding->GetElementName();
-            source = context.FindName(elementName);
-            Visual* current = context.root;
-            while (source == nullptr && current != nullptr) {
-                if (auto* framework =
-                        TryCast<FrameworkElement>(current)) {
-                    source = framework->FindName(elementName);
+            (!condition.binding->GetElementName().Empty() ||
+             condition.binding->GetRelativeSource())) {
+            if (context.root != nullptr) {
+                Base::Object* selfObject = context.root;
+                if (condition.binding->GetRelativeSource() &&
+                    condition.binding->GetRelativeSource()->GetMode() ==
+                        Data::RelativeSourceMode::Self &&
+                    context.root->GetTemplatedParent() != nullptr) {
+                    selfObject = context.root->GetTemplatedParent();
                 }
-                Visual* logical =
-                    TryCast<Visual>(
-                        current->GetLogicalParent());
-                current = logical != nullptr
-                    ? logical
-                    : current->GetVisualParent();
+                source = ResolveAuthoredBindingSource(
+                    *condition.binding,
+                    *context.root,
+                    &context,
+                    nullptr,
+                    selfObject);
             }
-            if (source == nullptr && view != nullptr) {
-                source = view->loadedDocument.names.Find(elementName);
-            }
-        } else if (condition.binding &&
-                   condition.binding->GetRelativeSource() &&
-                   context.root != nullptr) {
-            // DataTrigger Bindings with RelativeSource (FindAncestor,
-            // TemplatedParent, Self) are resolved from the generated template
-            // root, not the item payload compiled into condition.source.
-            Base::Object* selfObject = context.root;
-            if (condition.binding->GetRelativeSource()->GetMode() ==
-                    Data::RelativeSourceMode::Self &&
-                context.root->GetTemplatedParent() != nullptr) {
-                selfObject = context.root->GetTemplatedParent();
-            }
-            source = ResolveAuthoredBindingSource(
-                *condition.binding,
-                *context.root,
-                &context,
-                nullptr,
-                selfObject);
         } else {
             Base::Ref<Base::Object> retainedSource =
                 condition.source.Lock();
@@ -521,28 +581,9 @@ Base::Result<void> InteractivityEngine::EvaluateDataTemplateTrigger(
                 if (!target) continue;
 
                 Meta::PropertyValue valueToApply = setter.value;
-                constexpr Base::StringView dynamicPrefix("\x01DynamicResource:");
                 Base::StringView resourceKey;
-                if (setter.value.Kind() == Meta::ValueKind::String) {
-                    Base::StringView str = setter.value.AsString();
-                    if (str.SizeBytes() >= dynamicPrefix.SizeBytes() &&
-                        str.Substr(0U, dynamicPrefix.SizeBytes()) == dynamicPrefix) {
-                        resourceKey = str.Substr(
-                            dynamicPrefix.SizeBytes(),
-                            str.SizeBytes() - dynamicPrefix.SizeBytes());
-                    }
-                } else if (setter.value.Kind() == Meta::ValueKind::Object &&
-                           setter.value.AsObject() &&
-                           setter.value.AsObject()->RuntimeType() ==
-                               Data::Binding::StaticTypeId()) {
-                    auto& marker = static_cast<Data::Binding&>(*setter.value.AsObject());
-                    Base::StringView path = marker.GetPathText();
-                    if (path.SizeBytes() >= dynamicPrefix.SizeBytes() &&
-                        path.Substr(0U, dynamicPrefix.SizeBytes()) == dynamicPrefix) {
-                        resourceKey = path.Substr(
-                            dynamicPrefix.SizeBytes(),
-                            path.SizeBytes() - dynamicPrefix.SizeBytes());
-                    }
+                if (setter.value.IsDynamicResource()) {
+                    resourceKey = setter.value.AsDynamicResourceKey();
                 }
                 if (!resourceKey.Empty()) {
                     ResourceValue resource;
@@ -671,10 +712,11 @@ Base::Result<void> InteractivityEngine::AttachDataTemplateClrSubscription(
                  ++index) {
                 DataTemplateTriggerSubscription& existing =
                     dataTemplateTriggerSubscriptions[index];
-                if (existing.context == nullptr ||
-                    existing.context->triggerContext.Get() != &context ||
-                    existing.context->triggerIndex != triggerIndex ||
-                    existing.context->conditionIndex != conditionIndex) {
+                auto* ctx = existing.GetContext<DataTemplateTriggerHandlerState>();
+                if (ctx == nullptr ||
+                    ctx->triggerContext.Get() != &context ||
+                    ctx->triggerIndex != triggerIndex ||
+                    ctx->conditionIndex != conditionIndex) {
                     continue;
                 }
                 if (existing.metadataSource == source) {
@@ -702,31 +744,37 @@ Base::Result<void> InteractivityEngine::AttachDataTemplateClrSubscription(
                     FromBorrowed(context);
             handlerContext->triggerIndex = triggerIndex;
             handlerContext->conditionIndex = conditionIndex;
+            Meta::MemberId clrMemberId = Meta::InvalidMemberId;
             if (!path.Empty()) {
                 const Meta::PropertyInfo* clrProperty =
                     Metadata()->Types().FindProperty(
                         source->RuntimeType(), path, true);
                 if (clrProperty != nullptr) {
-                    handlerContext->metadataProperty = clrProperty->Id();
+                    clrMemberId = clrProperty->Id();
+                    handlerContext->metadataProperty = clrMemberId;
                 }
             }
-            Base::Result<std::uint64_t> notification =
-                Metadata()->SubscribePropertyChanged(
-                    *source,
-                    &DataTemplateTriggerHandlerState::MetadataInvoke,
-                    handlerContext);
-            if (!notification) {
+            ResolvedBindingProperty prop;
+            prop.source = source;
+            prop.metadataProperty = clrMemberId;
+
+            DataTemplateTriggerSubscription record;
+            Base::Result<void> subscribed = record.Subscribe(
+                *this,
+                nullptr,
+                prop,
+                nullptr,
+                &DataTemplateTriggerHandlerState::MetadataInvoke,
+                handlerContext,
+                &DefaultWatcherCleanup<DataTemplateTriggerHandlerState>);
+            if (!subscribed) {
                 FreeObject(*Allocator(), Base::MemoryTag::Ui, handlerContext);
-                return notification.GetStatus();
+                return subscribed.GetStatus();
             }
-            if (notification.Value() == 0U) {
+            if (record.metadataSubscription == 0U) {
                 FreeObject(*Allocator(), Base::MemoryTag::Ui, handlerContext);
                 continue;
             }
-            DataTemplateTriggerSubscription record;
-            record.metadataSource = source;
-            record.metadataSubscription = notification.Value();
-            record.context = handlerContext;
             dataTemplateTriggerSubscriptions.PushBack(std::move(record));
         }
         return {};
@@ -800,17 +848,15 @@ Base::Result<std::uint32_t>
                 for (const DataTemplateTriggerSubscription&
                          existing :
                      dataTemplateTriggerSubscriptions) {
+                    auto* ctx = existing.GetContext<DataTemplateTriggerHandlerState>();
                     alreadyAttached =
                         alreadyAttached ||
-                        (existing.context != nullptr &&
-                         existing.context->
-                                 triggerContext.Get() ==
+                        (ctx != nullptr &&
+                         ctx->triggerContext.Get() ==
                              &context &&
-                         existing.context->
-                                 triggerIndex ==
+                         ctx->triggerIndex ==
                              triggerIndex &&
-                         existing.context->
-                                 conditionIndex ==
+                         ctx->conditionIndex ==
                              conditionIndex);
                 }
                 if (alreadyAttached) continue;
@@ -834,26 +880,30 @@ Base::Result<std::uint32_t>
                     triggerIndex;
                 handlerContext->conditionIndex =
                     conditionIndex;
-                auto callback =
+
+                ResolvedBindingProperty prop;
+                prop.source = dependencySource.Get();
+                prop.dependencySource = dependencySource.Get();
+                prop.dependencyProperty = condition.property;
+
+                DataTemplateTriggerSubscription record;
+                Base::Result<void> subscribed = record.Subscribe(
+                    *this,
+                    nullptr,
+                    prop,
                     [handlerContext](
                         DependencyObject& object,
-                        const Meta::
-                            DependencyPropertyChangedEventArgs&
-                                args) noexcept {
-                        handlerContext->Invoke(
-                            object, args);
-                    };
-                Meta::DependencyPropertyChangedEventHandler
-                    handler(callback);
-                dependencySource->AddValueChangedHandler(
-                    condition.property, handler);
-                DataTemplateTriggerSubscription record;
-                record.source = dependencySource.Get();
-                record.property = condition.property;
-                record.handler = handler;
-                record.context = handlerContext;
-                dataTemplateTriggerSubscriptions.
-                    PushBack(std::move(record));
+                        const Meta::DependencyPropertyChangedEventArgs& args) noexcept {
+                        handlerContext->Invoke(object, args);
+                    },
+                    nullptr,
+                    handlerContext,
+                    &DefaultWatcherCleanup<DataTemplateTriggerHandlerState>);
+                if (!subscribed) {
+                    FreeObject(*Allocator(), Base::MemoryTag::Ui, handlerContext);
+                    return subscribed.GetStatus();
+                }
+                dataTemplateTriggerSubscriptions.PushBack(std::move(record));
                 ++count;
             }
             bool watchesDataContext = false;
@@ -871,11 +921,12 @@ Base::Result<std::uint32_t>
                 bool alreadyWatching = false;
                 for (const DataTemplateTriggerSubscription& existing :
                      dataTemplateTriggerSubscriptions) {
+                    auto* ctx = existing.GetContext<DataTemplateTriggerHandlerState>();
                     alreadyWatching = alreadyWatching ||
-                        (existing.context != nullptr &&
-                         existing.context->triggerContext.Get() ==
+                        (ctx != nullptr &&
+                         ctx->triggerContext.Get() ==
                              &context &&
-                         existing.context->triggerIndex == triggerIndex &&
+                         ctx->triggerIndex == triggerIndex &&
                          existing.source == dcOwner &&
                          existing.property ==
                              FrameworkElement::DataContextProperty.Handle());
@@ -891,24 +942,30 @@ Base::Result<std::uint32_t>
                             FromBorrowed(context);
                     handlerContext->triggerIndex = triggerIndex;
                     handlerContext->conditionIndex = 0U;
-                    auto callback =
+
+                    ResolvedBindingProperty prop;
+                    prop.source = dcOwner;
+                    prop.dependencySource = dcOwner;
+                    prop.dependencyProperty =
+                        FrameworkElement::DataContextProperty.Handle();
+
+                    DataTemplateTriggerSubscription record;
+                    Base::Result<void> subscribed = record.Subscribe(
+                        *this,
+                        nullptr,
+                        prop,
                         [handlerContext](
                             DependencyObject& object,
-                            const Meta::DependencyPropertyChangedEventArgs&
-                                args) noexcept {
+                            const Meta::DependencyPropertyChangedEventArgs& args) noexcept {
                             handlerContext->Invoke(object, args);
-                        };
-                    Meta::DependencyPropertyChangedEventHandler handler(
-                        callback);
-                    dcOwner->AddValueChangedHandler(
-                        FrameworkElement::DataContextProperty.Handle(),
-                        handler);
-                    DataTemplateTriggerSubscription record;
-                    record.source = dcOwner;
-                    record.property =
-                        FrameworkElement::DataContextProperty.Handle();
-                    record.handler = handler;
-                    record.context = handlerContext;
+                        },
+                        nullptr,
+                        handlerContext,
+                        &DefaultWatcherCleanup<DataTemplateTriggerHandlerState>);
+                    if (!subscribed) {
+                        FreeObject(*Allocator(), Base::MemoryTag::Ui, handlerContext);
+                        return subscribed.GetStatus();
+                    }
                     dataTemplateTriggerSubscriptions.PushBack(
                             std::move(record));
                     ++count;
@@ -942,81 +999,22 @@ Base::Object* InteractivityEngine::ResolveAuthoredBindingSource(
             dataTemplateContext,
         const NameScope* names,
         Base::Object* self) noexcept {
-        if (binding.GetSource()) {
-            return binding.GetSource().Get();
+        if (dataTemplateContext != nullptr && !binding.GetElementName().Empty()) {
+            Base::Object* source = dataTemplateContext->FindName(binding.GetElementName());
+            if (source != nullptr) return source;
         }
-        if (!binding.GetElementName().Empty()) {
-            Base::Object* source = dataTemplateContext != nullptr
-                ? dataTemplateContext->FindName(binding.GetElementName())
-                : nullptr;
-            if (source == nullptr) {
-                source = owner.FindName(binding.GetElementName());
-            }
-            if (source == nullptr && names != nullptr) {
-                source = names->Find(binding.GetElementName());
-            }
-            if (source == nullptr) {
-                source = view->loadedDocument.names.Find(
-                    binding.GetElementName());
-            }
-            return source;
+        Base::Result<Base::Object*> codeSource = Data::ResolveCodeBindingSource(
+            binding, owner, Metadata(), names, self, /*startAtTarget=*/true);
+        if (codeSource && codeSource.Value() != nullptr) {
+            return codeSource.Value();
         }
-
-        const Base::Ref<RelativeSource> relative =
-            binding.GetRelativeSource();
-        if (relative) {
-            if (relative->GetMode() ==
-                RelativeSourceMode::Self) {
-                return self != nullptr
-                    ? self
-                    : static_cast<Base::Object*>(&owner);
-            }
-            if (relative->GetMode() ==
-                RelativeSourceMode::TemplatedParent) {
-                return owner.GetTemplatedParent();
-            }
-            if (relative->GetMode() !=
-                RelativeSourceMode::FindAncestor) {
-                return nullptr;
-            }
-            Base::StringView ancestorName =
-                relative->GetAncestorType();
-            for (std::uint32_t index = 0U;
-                 index < ancestorName.SizeBytes(); ++index) {
-                if (ancestorName[index] != ':') continue;
-                ancestorName = ancestorName.Substr(
-                    index + 1U,
-                    ancestorName.SizeBytes() - index - 1U);
-                break;
-            }
-            std::uint32_t matched = 0U;
-            // The Binding is authored on a Trigger/Action object. Its
-            // inheritance context is the associated element, so that element
-            // is the first FindAncestor candidate (unlike a Binding authored
-            // directly on a visual, which starts at the visual's parent).
-            Visual* current = &owner;
-            while (current != nullptr) {
-                const Meta::TypeInfo* type =
-                    Metadata() != nullptr
-                    ? Metadata()->Types().FindType(
-                          current->RuntimeType())
-                    : nullptr;
-                const bool matches = ancestorName.Empty() ||
-                    (type != nullptr &&
-                     type->Name() == ancestorName);
-                if (matches &&
-                    ++matched == relative->GetAncestorLevel()) {
-                    return current;
-                }
-                Visual* next = TryCast<Visual>(current->GetLogicalParent());
-                if (next == nullptr) {
-                    next = current->GetVisualParent();
-                }
-                current = next;
-            }
+        if (!binding.GetElementName().Empty() && view != nullptr) {
+            Base::Object* source = view->loadedDocument.names.Find(binding.GetElementName());
+            if (source != nullptr) return source;
+        }
+        if (binding.GetSource() || !binding.GetElementName().Empty() || binding.GetRelativeSource()) {
             return nullptr;
         }
-
         Meta::PropertyValue dataContext = owner.GetDataContext();
         if (dataContext.Kind() != Meta::ValueKind::Object ||
             dataContext.IsNullObject() ||
@@ -1228,13 +1226,13 @@ void InteractivityEngine::ClearAnimationSubscriptionsFor(
                 IsInVisualSubtree(
                     static_cast<Visual*>(
                         subscription.source), fragmentRoot);
+            auto* ctx = subscription.GetContext<DataTemplateTriggerHandlerState>();
             const bool contextMatches =
-                subscription.context != nullptr &&
-                subscription.context->triggerContext &&
-                subscription.context->triggerContext->root != nullptr &&
+                ctx != nullptr &&
+                ctx->triggerContext &&
+                ctx->triggerContext->root != nullptr &&
                 IsInVisualSubtree(
-                    subscription.context->
-                        triggerContext->root,
+                    ctx->triggerContext->root,
                     fragmentRoot);
             const bool matches =
                 sourceMatches || contextMatches;
@@ -1242,20 +1240,7 @@ void InteractivityEngine::ClearAnimationSubscriptionsFor(
                 ++index;
                 continue;
             }
-            if (subscription.source != nullptr) {
-                static_cast<void>(
-                    subscription.source->RemoveValueChangedHandler(
-                        subscription.property, subscription.handler));
-            } else if (subscription.metadataSource != nullptr &&
-                       subscription.metadataSubscription != 0U &&
-                       Metadata() != nullptr) {
-                static_cast<void>(Metadata()->UnsubscribePropertyChanged(
-                    *subscription.metadataSource,
-                    subscription.metadataSubscription));
-            }
-            FreeObject(
-                *Allocator(), Base::MemoryTag::Ui,
-                subscription.context);
+            subscription.Unbind(*this);
             for (std::uint32_t next = index + 1U;
                  next < dataTemplateTriggerSubscriptions.Size(); ++next) {
                 dataTemplateTriggerSubscriptions[next - 1U] =
@@ -1263,70 +1248,23 @@ void InteractivityEngine::ClearAnimationSubscriptionsFor(
             }
             dataTemplateTriggerSubscriptions.PopBack();
         }
-        for (std::uint32_t index = 0U;
-             index < propertyChangedTriggerSubscriptions.Size();) {
-            PropertyChangedTriggerSubscription& subscription =
-                propertyChangedTriggerSubscriptions[index];
-            if (subscription.owner == nullptr ||
-                !IsInVisualSubtree(subscription.owner, fragmentRoot)) {
-                ++index;
-                continue;
+        auto clearMatchingTriggers = [this, &fragmentRoot](auto& subscriptions) {
+            for (std::uint32_t index = 0U; index < subscriptions.Size();) {
+                auto& subscription = subscriptions[index];
+                if (subscription.owner == nullptr ||
+                    !IsInVisualSubtree(subscription.owner, fragmentRoot)) {
+                    ++index;
+                    continue;
+                }
+                subscription.Unbind(*this);
+                if (index + 1U != subscriptions.Size()) {
+                    subscriptions[index] = std::move(subscriptions.Back());
+                }
+                subscriptions.PopBack();
             }
-            if (subscription.source != nullptr) {
-                static_cast<void>(
-                    subscription.source->RemoveValueChangedHandler(
-                        subscription.property,
-                        subscription.handler));
-            } else if (subscription.metadataSource != nullptr &&
-                       subscription.metadataSubscription != 0U &&
-                       Metadata() != nullptr) {
-                static_cast<void>(Metadata()->UnsubscribePropertyChanged(
-                    *subscription.metadataSource,
-                    subscription.metadataSubscription));
-            }
-            FreeObject(
-                *Allocator(), Base::MemoryTag::Ui,
-                subscription.context);
-            if (index + 1U !=
-                propertyChangedTriggerSubscriptions.Size()) {
-                propertyChangedTriggerSubscriptions[index] =
-                    std::move(
-                        propertyChangedTriggerSubscriptions.Back());
-            }
-            propertyChangedTriggerSubscriptions.PopBack();
-        }
-        for (std::uint32_t index = 0U;
-             index < interactionDataTriggerSubscriptions.Size();) {
-            InteractionDataTriggerSubscription& subscription =
-                interactionDataTriggerSubscriptions[index];
-            if (subscription.owner == nullptr ||
-                !IsInVisualSubtree(subscription.owner, fragmentRoot)) {
-                ++index;
-                continue;
-            }
-            if (subscription.source != nullptr) {
-                static_cast<void>(
-                    subscription.source->RemoveValueChangedHandler(
-                        subscription.property,
-                        subscription.handler));
-            } else if (subscription.metadataSource != nullptr &&
-                       subscription.metadataSubscription != 0U &&
-                       Metadata() != nullptr) {
-                static_cast<void>(Metadata()->UnsubscribePropertyChanged(
-                    *subscription.metadataSource,
-                    subscription.metadataSubscription));
-            }
-            FreeObject(
-                *Allocator(), Base::MemoryTag::Ui,
-                subscription.context);
-            if (index + 1U !=
-                interactionDataTriggerSubscriptions.Size()) {
-                interactionDataTriggerSubscriptions[index] =
-                    std::move(
-                        interactionDataTriggerSubscriptions.Back());
-            }
-            interactionDataTriggerSubscriptions.PopBack();
-        }
+        };
+        clearMatchingTriggers(propertyChangedTriggerSubscriptions);
+        clearMatchingTriggers(interactionDataTriggerSubscriptions);
         for (std::uint32_t index = 0U;
              index < pendingInteractionTriggers.Size();) {
             PendingInteractionTrigger& pending =
@@ -1430,66 +1368,15 @@ void InteractivityEngine::ClearAnimationSubscriptionsFor(
     }
 
 void InteractivityEngine::ClearAnimationEventSubscriptions() noexcept {
-        for (DataTemplateTriggerSubscription&
-                 subscription :
-             dataTemplateTriggerSubscriptions) {
-            if (subscription.source != nullptr) {
-                static_cast<void>(
-                    subscription.source->
-                        RemoveValueChangedHandler(
-                            subscription.property,
-                            subscription.handler));
-            } else if (subscription.metadataSource != nullptr &&
-                       subscription.metadataSubscription != 0U &&
-                       Metadata() != nullptr) {
-                static_cast<void>(Metadata()->UnsubscribePropertyChanged(
-                    *subscription.metadataSource,
-                    subscription.metadataSubscription));
+        auto clearAll = [this](auto& subscriptions) {
+            for (auto& subscription : subscriptions) {
+                subscription.Unbind(*this);
             }
-            FreeObject(
-                *Allocator(),
-                Base::MemoryTag::Ui,
-                subscription.context);
-        }
-        dataTemplateTriggerSubscriptions.Clear();
-        for (PropertyChangedTriggerSubscription& subscription :
-             propertyChangedTriggerSubscriptions) {
-            if (subscription.source != nullptr) {
-                static_cast<void>(
-                    subscription.source->RemoveValueChangedHandler(
-                        subscription.property,
-                        subscription.handler));
-            } else if (subscription.metadataSource != nullptr &&
-                       subscription.metadataSubscription != 0U &&
-                       Metadata() != nullptr) {
-                static_cast<void>(Metadata()->UnsubscribePropertyChanged(
-                    *subscription.metadataSource,
-                    subscription.metadataSubscription));
-            }
-            FreeObject(
-                *Allocator(), Base::MemoryTag::Ui,
-                subscription.context);
-        }
-        propertyChangedTriggerSubscriptions.Clear();
-        for (InteractionDataTriggerSubscription& subscription :
-             interactionDataTriggerSubscriptions) {
-            if (subscription.source != nullptr) {
-                static_cast<void>(
-                    subscription.source->RemoveValueChangedHandler(
-                        subscription.property,
-                        subscription.handler));
-            } else if (subscription.metadataSource != nullptr &&
-                       subscription.metadataSubscription != 0U &&
-                       Metadata() != nullptr) {
-                static_cast<void>(Metadata()->UnsubscribePropertyChanged(
-                    *subscription.metadataSource,
-                    subscription.metadataSubscription));
-            }
-            FreeObject(
-                *Allocator(), Base::MemoryTag::Ui,
-                subscription.context);
-        }
-        interactionDataTriggerSubscriptions.Clear();
+            subscriptions.Clear();
+        };
+        clearAll(dataTemplateTriggerSubscriptions);
+        clearAll(propertyChangedTriggerSubscriptions);
+        clearAll(interactionDataTriggerSubscriptions);
         ClearPendingInteractionTriggers();
         pendingStyleDataTriggerEvaluations.Clear();
         flushingPendingStyleDataTriggers_ = false;
@@ -1589,59 +1476,8 @@ Base::Object* InteractivityEngine::ResolveBehaviorBindingSource(
         Interactivity::Behavior& behavior,
         Aero::FrameworkElement& owner,
         const Aero::NameScope* names) noexcept {
-        if (binding.GetSource()) return binding.GetSource().Get();
-        if (!binding.GetElementName().Empty()) {
-            Base::Object* source = owner.FindName(
-                binding.GetElementName());
-            if (source == nullptr && names != nullptr) {
-                source = names->Find(binding.GetElementName());
-            }
-            if (source == nullptr) {
-                source = view->loadedDocument.names.Find(
-                    binding.GetElementName());
-            }
-            return source;
-        }
-        const Base::Ref<Data::RelativeSource> relative =
-            binding.GetRelativeSource();
-        if (!relative) return nullptr;
-        if (relative->GetMode() == Data::RelativeSourceMode::Self) {
-            return &behavior;
-        }
-        if (relative->GetMode() ==
-            Data::RelativeSourceMode::TemplatedParent) {
-            return owner.GetTemplatedParent();
-        }
-        if (relative->GetMode() !=
-            Data::RelativeSourceMode::FindAncestor) {
-            return nullptr;
-        }
-        Base::StringView ancestorName = relative->GetAncestorType();
-        for (std::uint32_t index = 0U;
-             index < ancestorName.SizeBytes(); ++index) {
-            if (ancestorName[index] == ':') {
-                ancestorName = ancestorName.Substr(
-                    index + 1U,
-                    ancestorName.SizeBytes() - index - 1U);
-                break;
-            }
-        }
-        std::uint32_t matched = 0U;
-        Aero::Media::Visual* current = ::Aero::TryCast<::Aero::Media::Visual>(owner.GetLogicalParent());
-        if (current == nullptr) current = owner.GetVisualParent();
-        while (current != nullptr) {
-            const Meta::TypeInfo* type =
-                Metadata()->Types().FindType(current->RuntimeType());
-            const bool matches = ancestorName.Empty() ||
-                (type != nullptr && type->Name() == ancestorName);
-            if (matches && ++matched == relative->GetAncestorLevel()) {
-                return current;
-            }
-            Aero::Media::Visual* next = ::Aero::TryCast<::Aero::Media::Visual>(current->GetLogicalParent());
-            if (next == nullptr) next = current->GetVisualParent();
-            current = next;
-        }
-        return nullptr;
+        return ResolveAuthoredBindingSource(
+            binding, owner, nullptr, names, &behavior);
     }
 
 Base::Result<void> InteractivityEngine::AttachBehavior(
@@ -1767,6 +1603,56 @@ namespace Aero {
 
 using namespace ::Aero;
 
+Base::Result<InteractivityEngine::ResolvedBindingProperty>
+InteractivityEngine::ResolveBindingProperty(
+        Base::Object* sourceObject,
+        Base::StringView path) noexcept {
+        if (sourceObject == nullptr || Metadata() == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                "Binding source was not found");
+        }
+        if (path.Empty()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::Unsupported,
+                "Binding requires a property path");
+        }
+        ResolvedBindingProperty resolved;
+        resolved.source = sourceObject;
+        if (Metadata()->Types().IsDerivedFrom(
+                sourceObject->RuntimeType(),
+                ::Aero::DependencyObject::StaticTypeId())) {
+            resolved.dependencySource =
+                static_cast<::Aero::DependencyObject*>(sourceObject);
+            const Meta::DependencyProperty* property =
+                (*Metadata()).DependencyProperties().Find(
+                    sourceObject->RuntimeType(), path);
+            if (property != nullptr) {
+                resolved.dependencyProperty = property->Handle();
+                return resolved;
+            }
+            resolved.dependencySource = nullptr;
+        }
+        Base::StringView rootPath = path;
+        for (std::uint32_t index = 0U; index < path.SizeBytes(); ++index) {
+            if (path[index] == '.') {
+                rootPath = path.Substr(0U, index);
+                break;
+            }
+        }
+        const Meta::PropertyInfo* property =
+            Metadata()->Types().FindProperty(
+                sourceObject->RuntimeType(), rootPath, true);
+        if (property == nullptr ||
+            !Metadata()->CanReadProperty(property->Id())) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                "Binding property was not found");
+        }
+        resolved.metadataProperty = property->Id();
+        return resolved;
+    }
+
 Base::Result<InteractivityEngine::InteractionTriggerProperty>
 InteractivityEngine::ResolveInteractionTriggerProperty(
         const Data::Binding& binding,
@@ -1785,43 +1671,7 @@ InteractivityEngine::ResolveInteractionTriggerProperty(
                 Base::ErrorCode::Unsupported,
                 "Interaction Trigger Binding requires a property path");
         }
-
-        InteractionTriggerProperty resolved;
-        resolved.source = sourceObject;
-        if (Metadata()->Types().IsDerivedFrom(
-                sourceObject->RuntimeType(),
-                ::Aero::DependencyObject::StaticTypeId())) {
-            resolved.dependencySource =
-                static_cast<::Aero::DependencyObject*>(sourceObject);
-            const Meta::DependencyProperty* property =
-                (
-                    *Metadata()).DependencyProperties().Find(sourceObject->RuntimeType(), path);
-            if (property != nullptr) {
-                resolved.dependencyProperty = property->Handle();
-                return resolved;
-            }
-            // CLR properties on a DependencyObject (or a non-DP path) fall
-            // through to metadata lookup below.
-            resolved.dependencySource = nullptr;
-        }
-
-        Base::StringView rootPath = path;
-        for (std::uint32_t index = 0U; index < path.SizeBytes(); ++index) {
-            if (path[index] == '.') {
-                rootPath = path.Substr(0U, index);
-                break;
-            }
-        }
-        const Meta::PropertyInfo* property = Metadata()->Types().FindProperty(
-            sourceObject->RuntimeType(), rootPath, true);
-        if (property == nullptr ||
-            !Metadata()->CanReadProperty(property->Id())) {
-            return Base::Status::Failure(
-                Base::ErrorCode::NotFound,
-                "Interaction Trigger Binding property was not found");
-        }
-        resolved.metadataProperty = property->Id();
-        return resolved;
+        return ResolveBindingProperty(sourceObject, path);
     }
 
 Base::Result<bool> InteractivityEngine::EvaluateInteractionDataTrigger(
@@ -1870,8 +1720,9 @@ Base::Result<bool> InteractivityEngine::StartPropertyChangedTrigger(
         if (!trigger.GetBinding()) return false;
         for (const PropertyChangedTriggerSubscription& existing :
              propertyChangedTriggerSubscriptions) {
-            if (existing.owner == &owner && existing.context != nullptr &&
-                existing.context->trigger == &trigger) {
+            auto* ctx = existing.GetContext<PropertyChangedTriggerState>();
+            if (existing.owner == &owner && ctx != nullptr &&
+                ctx->trigger == &trigger) {
                 return false;
             }
         }
@@ -1894,46 +1745,25 @@ Base::Result<bool> InteractivityEngine::StartPropertyChangedTrigger(
         context->owner = &owner;
         context->names = names;
         context->metadataProperty = property.Value().metadataProperty;
-        Meta::DependencyPropertyChangedEventHandler handler(
+
+        PropertyChangedTriggerSubscription subscription;
+        Base::Result<void> subscribed = subscription.Subscribe(
+            *this,
+            &owner,
+            property.Value(),
             [context](
                 ::Aero::DependencyObject& object,
                 const Meta::DependencyPropertyChangedEventArgs& args) noexcept {
-                    context->Invoke(object, args);
-                });
-        std::uint64_t metadataSubscription = 0U;
-        Base::Result<void> subscribed;
-        if (property.Value().dependencySource != nullptr) {
-            property.Value().dependencySource
-                ->AddValueChangedHandler(
-                    property.Value().dependencyProperty, handler);
-        } else {
-            Base::Result<std::uint64_t> notification =
-                Metadata()->SubscribePropertyChanged(
-                    *property.Value().source,
-                    &PropertyChangedTriggerState::MetadataInvoke,
-                    context);
-            if (notification) {
-                metadataSubscription = notification.Value();
-            } else {
-                subscribed = notification.GetStatus();
-            }
-        }
+                context->Invoke(object, args);
+            },
+            &PropertyChangedTriggerState::MetadataInvoke,
+            context,
+            &DefaultWatcherCleanup<PropertyChangedTriggerState>);
         if (!subscribed) {
-            FreeObject(
-                *Allocator(), Base::MemoryTag::Ui, context);
+            FreeObject(*Allocator(), Base::MemoryTag::Ui, context);
             return subscribed.GetStatus();
         }
-        PropertyChangedTriggerSubscription subscription;
-        subscription.owner = &owner;
-        subscription.source = property.Value().dependencySource;
-        subscription.metadataSource = property.Value().dependencySource == nullptr
-            ? property.Value().source : nullptr;
-        subscription.property = property.Value().dependencyProperty;
-        subscription.metadataSubscription = metadataSubscription;
-        subscription.handler = handler;
-        subscription.context = context;
-        propertyChangedTriggerSubscriptions.PushBack(
-                std::move(subscription));
+        propertyChangedTriggerSubscriptions.PushBack(std::move(subscription));
         return true;
     }
 
@@ -1944,8 +1774,9 @@ Base::Result<bool> InteractivityEngine::StartInteractionDataTrigger(
         if (!trigger.GetBinding()) return false;
         for (const InteractionDataTriggerSubscription& existing :
              interactionDataTriggerSubscriptions) {
-            if (existing.owner == &owner && existing.context != nullptr &&
-                existing.context->trigger == &trigger) {
+            auto* ctx = existing.GetContext<InteractionDataTriggerState>();
+            if (existing.owner == &owner && ctx != nullptr &&
+                ctx->trigger == &trigger) {
                 return false;
             }
         }
@@ -1968,46 +1799,25 @@ Base::Result<bool> InteractivityEngine::StartInteractionDataTrigger(
         context->owner = &owner;
         context->names = names;
         context->metadataProperty = property.Value().metadataProperty;
-        Meta::DependencyPropertyChangedEventHandler handler(
+
+        InteractionDataTriggerSubscription subscription;
+        Base::Result<void> subscribed = subscription.Subscribe(
+            *this,
+            &owner,
+            property.Value(),
             [context](
                 ::Aero::DependencyObject& object,
                 const Meta::DependencyPropertyChangedEventArgs& args) noexcept {
-                    context->Invoke(object, args);
-                });
-        std::uint64_t metadataSubscription = 0U;
-        Base::Result<void> subscribed;
-        if (property.Value().dependencySource != nullptr) {
-            property.Value().dependencySource
-                ->AddValueChangedHandler(
-                    property.Value().dependencyProperty, handler);
-        } else {
-            Base::Result<std::uint64_t> notification =
-                Metadata()->SubscribePropertyChanged(
-                    *property.Value().source,
-                    &InteractionDataTriggerState::MetadataInvoke,
-                    context);
-            if (notification) {
-                metadataSubscription = notification.Value();
-            } else {
-                subscribed = notification.GetStatus();
-            }
-        }
+                context->Invoke(object, args);
+            },
+            &InteractionDataTriggerState::MetadataInvoke,
+            context,
+            &DefaultWatcherCleanup<InteractionDataTriggerState>);
         if (!subscribed) {
-            FreeObject(
-                *Allocator(), Base::MemoryTag::Ui, context);
+            FreeObject(*Allocator(), Base::MemoryTag::Ui, context);
             return subscribed.GetStatus();
         }
-        InteractionDataTriggerSubscription subscription;
-        subscription.owner = &owner;
-        subscription.source = property.Value().dependencySource;
-        subscription.metadataSource = property.Value().dependencySource == nullptr
-            ? property.Value().source : nullptr;
-        subscription.property = property.Value().dependencyProperty;
-        subscription.metadataSubscription = metadataSubscription;
-        subscription.handler = handler;
-        subscription.context = context;
-        interactionDataTriggerSubscriptions.PushBack(
-                std::move(subscription));
+        interactionDataTriggerSubscriptions.PushBack(std::move(subscription));
         Base::Result<bool> evaluated =
             EvaluateInteractionDataTrigger(*context);
         if (!evaluated) return evaluated.GetStatus();
@@ -2407,32 +2217,7 @@ void InteractivityEngine::ClearStyleDataTriggersFor(
                 ++index;
                 continue;
             }
-            if (subscription.source != nullptr &&
-                subscription.property.IsValid()) {
-                (void)subscription.source->RemoveValueChangedHandler(
-                    subscription.property,
-                    subscription.handler);
-            }
-            if (subscription.metadataSource != nullptr &&
-                subscription.metadataSubscription != 0U &&
-                Metadata() != nullptr) {
-                static_cast<void>(Metadata()->UnsubscribePropertyChanged(
-                    *subscription.metadataSource,
-                    subscription.metadataSubscription));
-            }
-            if (subscription.context != nullptr) {
-                if (subscription.context->ownsAggregate &&
-                    subscription.context->aggregate != nullptr) {
-                    FreeObject(
-                        *Allocator(),
-                        Base::MemoryTag::Ui,
-                        subscription.context->aggregate);
-                }
-                FreeObject(
-                    *Allocator(),
-                    Base::MemoryTag::Ui,
-                    subscription.context);
-            }
+            subscription.Unbind(*this);
             if (index + 1U !=
                 styleDataTriggerSubscriptions.Size()) {
                 styleDataTriggerSubscriptions[index] =
@@ -2455,11 +2240,12 @@ Base::Result<std::uint32_t> InteractivityEngine::StartStyleDataTriggers(
             bool alreadyAttached = false;
             for (const StyleDataTriggerSubscription& existing :
                  styleDataTriggerSubscriptions) {
+                auto* ctx = existing.GetContext<StyleDataTriggerHandlerState>();
                 alreadyAttached = alreadyAttached ||
                     (existing.target == &target &&
-                     existing.context != nullptr &&
-                     existing.context->style == &style &&
-                     existing.context->triggerIndex == index);
+                     ctx != nullptr &&
+                     ctx->style == &style &&
+                     ctx->triggerIndex == index);
             }
             if (alreadyAttached) continue;
             if (!trigger.binding) {
@@ -2531,38 +2317,10 @@ Base::Result<std::uint32_t> InteractivityEngine::StartStyleDataTriggers(
                 }
                 const Base::StringView path =
                     binding->GetPath().GetPath();
-                ::Aero::DependencyObject* dependencySource = nullptr;
-                const Meta::DependencyProperty* dependencyProperty = nullptr;
-                Meta::MemberId metadataProperty = Meta::InvalidMemberId;
-                if (Metadata()->Types().IsDerivedFrom(
-                        sourceObject->RuntimeType(),
-                        ::Aero::DependencyObject::StaticTypeId())) {
-                    dependencySource =
-                        static_cast<::Aero::DependencyObject*>(sourceObject);
-                    dependencyProperty =
-                        (*Metadata()).DependencyProperties().Find(
-                                sourceObject->RuntimeType(), path);
-                }
-                if (dependencyProperty == nullptr) {
-                    Base::StringView rootPath = path;
-                    for (std::uint32_t pathIndex = 0U;
-                         pathIndex < path.SizeBytes(); ++pathIndex) {
-                        if (path[pathIndex] == '.') {
-                            rootPath = path.Substr(0U, pathIndex);
-                            break;
-                        }
-                    }
-                    const Meta::PropertyInfo* clrProperty =
-                        Metadata()->Types().FindProperty(
-                            sourceObject->RuntimeType(), rootPath, true);
-                    if (clrProperty == nullptr ||
-                        !Metadata()->CanReadProperty(clrProperty->Id())) {
-                        return Base::Status::Failure(
-                            Base::ErrorCode::NotFound,
-                            "Style DataTrigger Binding path was not found");
-                    }
-                    metadataProperty = clrProperty->Id();
-                    dependencySource = nullptr;
+                Base::Result<ResolvedBindingProperty> prop =
+                    ResolveBindingProperty(sourceObject, path);
+                if (!prop) {
+                    return prop.GetStatus();
                 }
 
                 StyleDataTriggerHandlerState* context = nullptr;
@@ -2578,38 +2336,27 @@ Base::Result<std::uint32_t> InteractivityEngine::StartStyleDataTriggers(
                 context->conditionIndex = conditionIndex;
                 context->aggregate = aggregate;
                 context->ownsAggregate = ownsAggregate;
-                context->source = dependencySource;
+                context->source = prop.Value().dependencySource;
                 context->metadataSource =
-                    dependencyProperty == nullptr ? sourceObject : nullptr;
-                context->property = dependencyProperty != nullptr
-                    ? dependencyProperty->Handle()
-                    : Meta::DependencyPropertyHandle{};
-                context->metadataProperty = metadataProperty;
+                    prop.Value().dependencyProperty.IsValid() ? nullptr : sourceObject;
+                context->property = prop.Value().dependencyProperty;
+                context->metadataProperty = prop.Value().metadataProperty;
                 context->expected = expected;
-                auto callback = [context](
-                    ::Aero::DependencyObject& object,
-                    const Meta::DependencyPropertyChangedEventArgs& args)
-                    noexcept {
-                        context->Invoke(object, args);
-                    };
-                Meta::DependencyPropertyChangedEventHandler handler(callback);
-                std::uint64_t metadataSubscription = 0U;
-                Base::Result<void> subscribed;
-                if (dependencyProperty != nullptr) {
-                    dependencySource->AddValueChangedHandler(
-                        dependencyProperty->Handle(), handler);
-                } else {
-                    Base::Result<std::uint64_t> notification =
-                        Metadata()->SubscribePropertyChanged(
-                            *sourceObject,
-                            &StyleDataTriggerHandlerState::MetadataInvoke,
-                            context);
-                    if (notification) {
-                        metadataSubscription = notification.Value();
-                    } else {
-                        subscribed = notification.GetStatus();
-                    }
-                }
+
+                StyleDataTriggerSubscription subscription;
+                Base::Result<void> subscribed = subscription.Subscribe(
+                    *this,
+                    &target,
+                    prop.Value(),
+                    [context](
+                        ::Aero::DependencyObject& object,
+                        const Meta::DependencyPropertyChangedEventArgs& args)
+                        noexcept {
+                            context->Invoke(object, args);
+                        },
+                    &StyleDataTriggerHandlerState::MetadataInvoke,
+                    context,
+                    &StyleDataWatcherCleanup);
                 if (!subscribed) {
                     FreeObject(
                         *Allocator(),
@@ -2617,17 +2364,6 @@ Base::Result<std::uint32_t> InteractivityEngine::StartStyleDataTriggers(
                         context);
                     return subscribed.GetStatus();
                 }
-                StyleDataTriggerSubscription subscription;
-                subscription.target = &target;
-                subscription.source = dependencySource;
-                subscription.metadataSource =
-                    dependencyProperty == nullptr ? sourceObject : nullptr;
-                subscription.property = dependencyProperty != nullptr
-                    ? dependencyProperty->Handle()
-                    : Meta::DependencyPropertyHandle{};
-                subscription.metadataSubscription = metadataSubscription;
-                subscription.handler = handler;
-                subscription.context = context;
                 styleDataTriggerSubscriptions.PushBack(
                         std::move(subscription));
                 // Defer the first evaluation until DataBind. Evaluating
@@ -2648,9 +2384,10 @@ Base::Result<std::uint32_t> InteractivityEngine::StartStyleDataTriggers(
                     bool owned = false;
                     for (const StyleDataTriggerSubscription& existing :
                          styleDataTriggerSubscriptions) {
+                        auto* ctx = existing.GetContext<StyleDataTriggerHandlerState>();
                         owned = owned ||
-                            (existing.context != nullptr &&
-                             existing.context->aggregate == aggregate);
+                            (ctx != nullptr &&
+                             ctx->aggregate == aggregate);
                     }
                     if (!owned) {
                         FreeObject(

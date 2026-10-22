@@ -122,12 +122,13 @@ StoryboardHost::StoryboardCompletionSession::StoryboardCompletionSession(
 Base::Result<Base::StringView> StoryboardHost::AnimationAttachedString(
         Timeline& timeline,
         Meta::DependencyPropertyHandle property) noexcept {
+        Base::Result<Base::StringView> sv = timeline.GetStringView(property);
+        if (sv) {
+            return sv;
+        }
         Base::Result<Meta::PropertyValue> value =
             timeline.GetValue(property);
         if (!value) return value.GetStatus();
-        if (value.Value().Kind() == Meta::ValueKind::String) {
-            return value.Value().AsString();
-        }
         if (value.Value().Kind() == Meta::ValueKind::Object && value.Value().AsObject()) {
             auto* pp = TryCast<PropertyPath>(value.Value().AsObject().Get());
             if (pp != nullptr) {

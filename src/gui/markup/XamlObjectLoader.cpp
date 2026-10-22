@@ -943,15 +943,6 @@ Base::Result<LoaderResult> Loader::LoaderState::Operation::LoadCore(
                         uri,
                         options,
                         existingRoot);
-                if (loaded) {
-                    static_cast<void>(loadState.documentCache->Store(
-                        uri,
-                        probedRevision.Value(),
-                        provider.Value().cacheIdentity,
-                        cached.Value().document,
-                        {loaded.Value().dependencies.Data(),
-                         loaded.Value().dependencies.Size()}));
-                }
                 loadStack_.PopBack();
                 return loaded;
             }
@@ -1545,7 +1536,6 @@ Base::Status Loader::LoaderState::Operation::Failure(
     ::Aero::Diagnostics::DiagnosticCode code,
     Base::StringView message) noexcept {
     if (diagnostics_ != nullptr) {
-        std::fprintf(stderr, "[XamlObjectLoader::Failure] %.*s (detail: %s)\n", (int)message.SizeBytes(), message.Data(), status.message ? status.message : "");
         Base::Result<::Aero::Diagnostics::Diagnostic> diagnostic =
             ::Aero::Diagnostics::Diagnostic::Create(
                 code,

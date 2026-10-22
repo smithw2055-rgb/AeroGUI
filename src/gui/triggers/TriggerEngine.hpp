@@ -28,7 +28,8 @@ public:
     TriggerEngine(
         StyleProviderSession& values,
         DependencyPropertyRegistry& properties,
-        Base::Vector<StyleApplication>& applications) noexcept;
+        Base::Vector<StyleApplication>& applications,
+        const Base::HashMap<const DependencyObject*, std::uint32_t>& objectIndexMap) noexcept;
     ~TriggerEngine() noexcept;
 
     // Style application lifecycle (trigger side). The style setter application
@@ -80,6 +81,7 @@ private:
     StyleProviderSession& values_;
     DependencyPropertyRegistry& properties_;
     Base::Vector<StyleApplication>& applications_;
+    const Base::HashMap<const DependencyObject*, std::uint32_t>& objectIndexMap_;
     DependencyPropertyChangedEventHandler propertyChangedHandler_;
     Dispatcher* dispatcher_ = nullptr;
     bool dataBindPhaseEnabled_ = false;

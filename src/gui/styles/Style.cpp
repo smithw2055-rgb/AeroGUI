@@ -343,14 +343,49 @@ void Style::Program::ClearAuthored() noexcept {
     authoredTriggers.Clear();
 }
 
+Setter::~Setter() {
+    ReleaseAuthored();
+}
+
+Setter::AuthoredData* Setter::EnsureAuthored() noexcept {
+    if (authored_ == nullptr) {
+        authored_ = new (std::nothrow) AuthoredData{};
+    }
+    return authored_;
+}
+
+void Setter::ReleaseAuthored() noexcept {
+    delete authored_;
+    authored_ = nullptr;
+}
+
+StringView Setter::GetPropertyName() const noexcept {
+    return authored_ != nullptr ? authored_->propertyName.View() : StringView{};
+}
+
+StringView Setter::GetTargetName() const noexcept {
+    return authored_ != nullptr ? authored_->targetName.View() : StringView{};
+}
+
+const PropertyValue& Setter::GetAuthoredValue() const noexcept {
+    static const PropertyValue emptyValue{};
+    return authored_ != nullptr ? authored_->authoredValue : emptyValue;
+}
+
+bool Setter::GetIsAuthored() const noexcept {
+    return authored_ != nullptr && !authored_->propertyName.Empty() && !authored_->authoredValue.IsUnset();
+}
+
 void Setter::SetPropertyName(
     Base::StringView value) noexcept {
     if (value.Empty()) {
         return;
     }
+    AuthoredData* authored = EnsureAuthored();
+    if (authored == nullptr) return;
     Base::String candidate;
     if (!candidate.Assign(value)) return;
-    propertyName_ = std::move(candidate);
+    authored->propertyName = std::move(candidate);
 }
 
 void Setter::SetTargetName(
@@ -358,15 +393,19 @@ void Setter::SetTargetName(
     if (value.Empty()) {
         return;
     }
+    AuthoredData* authored = EnsureAuthored();
+    if (authored == nullptr) return;
     Base::String candidate;
     if (!candidate.Assign(value)) return;
-    targetName_ = std::move(candidate);
+    authored->targetName = std::move(candidate);
 }
 
 void Setter::SetAuthoredValue(
     const PropertyValue& value) noexcept {
     if (value.IsUnset()) return;
-    authoredValue_ = value;
+    AuthoredData* authored = EnsureAuthored();
+    if (authored == nullptr) return;
+    authored->authoredValue = value;
 }
 
 Base::Result<void> Setter::Resolve(
@@ -1064,33 +1103,24 @@ Base::Result<void> StyleEngine::AttachSetterBindings(
     DependencyObject& object,
     const Style& style) noexcept {
     BindingEngine* bindings = ElementTree::BindingsOf(object);
-    constexpr Base::StringView dynamicPrefix("\x01DynamicResource:");
     for (const StyleSetter& setter : Style::Program::RuntimeSetters(style)) {
         if (!IsDeferredBindingSetterValue(setter.value)) {
             continue;
         }
-        Base::Ref<Base::Object> stored = setter.value.AsObject();
-        if (stored && stored->RuntimeType() == Data::Binding::StaticTypeId()) {
-            auto& marker = static_cast<Data::Binding&>(*stored);
-            const Base::StringView bindingPath = marker.GetPathText();
-            if (bindingPath.SizeBytes() >= dynamicPrefix.SizeBytes() &&
-                bindingPath.Substr(0U, dynamicPrefix.SizeBytes()) ==
-                    dynamicPrefix) {
-                if (effectiveValuesEngine_ != nullptr) {
-                    const Base::StringView key = bindingPath.Substr(
-                        dynamicPrefix.SizeBytes(),
-                        bindingPath.SizeBytes() - dynamicPrefix.SizeBytes());
-                    Base::Result<void> attached =
-                        Markup::AttachDeferredStyleDynamicResource(
-                            *effectiveValuesEngine_,
-                            object,
-                            setter.property,
-                            key);
-                    if (!attached) return attached.GetStatus();
-                }
-                continue;
+        if (setter.value.IsDynamicResource()) {
+            Base::StringView dynamicKey = setter.value.AsDynamicResourceKey();
+            if (effectiveValuesEngine_ != nullptr) {
+                Base::Result<void> attached =
+                    Markup::AttachDeferredStyleDynamicResource(
+                        *effectiveValuesEngine_,
+                        object,
+                        setter.property,
+                        dynamicKey);
+                if (!attached) return attached.GetStatus();
             }
+            continue;
         }
+        Base::Ref<Base::Object> stored = setter.value.AsObject();
         if (bindings == nullptr || bindings->Metadata() == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::NotInitialized,
@@ -1299,7 +1329,7 @@ StyleEngine::StyleEngine(
       applications_(),
       objectIndexMap_(),
       triggerEngine_(new TriggerEngine(
-          *values_, *properties_, applications_)) {}
+          *values_, *properties_, applications_, objectIndexMap_)) {}
 
 StyleEngine::~StyleEngine() noexcept {
     delete triggerEngine_;

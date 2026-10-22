@@ -130,30 +130,6 @@ void GradientBrush::AddGradientStop(
     WritePostscript();
 }
 
-void GradientStopCollection::Add(
-    Base::Ref<GradientStop> stop) noexcept {
-    Base::Result<void> writable = WritePreamble();
-    if (!writable) { AERO_ASSERT(false); return; }
-    if (!stop) { AERO_ASSERT(false); return; }
-    if (stopChangedHandler_.Empty()) {
-        stopChangedHandler_ = FreezableChangedHandler(
-            this, &GradientStopCollection::OnStopChanged);
-    }
-    GradientStop* retained = stop.Get();
-    if (!retained->IsFrozen()) {
-        retained->AddChangedHandler(stopChangedHandler_);
-    }
-    stops_.PushBack(std::move(stop));
-    if (!changed_.Empty()) {
-        changed_.Invoke({
-            Collections::ItemsChangeAction::Add,
-            UINT32_MAX,
-            stops_.Size() - 1U,
-            0U,
-            1U});
-    }
-    WritePostscript();
-}
 
 GradientBrush::~GradientBrush() {
     for (const Base::Ref<GradientStop>& stop : stops_) {
@@ -192,49 +168,38 @@ bool GradientBrush::FreezeCore(bool isChecking) noexcept {
     return Brush::FreezeCore(isChecking);
 }
 
-GradientStopCollection::~GradientStopCollection() {
-    for (const Base::Ref<GradientStop>& stop : stops_) {
-        if (stop && !stopChangedHandler_.Empty()) {
-            static_cast<void>(
-                stop->RemoveChangedHandler(stopChangedHandler_));
+void GradientBrush::CloneCore(const Freezable& source) {
+    Brush::CloneCore(source);
+    const auto* src = TryCast<GradientBrush>(&source);
+    if (src != nullptr) {
+        ClearGradientStops();
+        for (const Base::Ref<GradientStop>& stop : src->stops_) {
+            if (stop) {
+                Base::Ref<Freezable> cloned = stop->Clone();
+                if (cloned) {
+                    AddGradientStop(Base::Ref<GradientStop>::FromBorrowed(*static_cast<GradientStop*>(cloned.Get())));
+                }
+            }
         }
     }
 }
 
-void GradientStopCollection::Clear() noexcept {
-    if (!WritePreamble() || stops_.Empty()) return;
-    const std::uint32_t count = stops_.Size();
-    for (const Base::Ref<GradientStop>& stop : stops_) {
-        if (stop && !stopChangedHandler_.Empty()) {
-            static_cast<void>(
-                stop->RemoveChangedHandler(stopChangedHandler_));
+void GradientBrush::CloneCurrentValueCore(const Freezable& source) {
+    Brush::CloneCurrentValueCore(source);
+    const auto* src = TryCast<GradientBrush>(&source);
+    if (src != nullptr) {
+        ClearGradientStops();
+        for (const Base::Ref<GradientStop>& stop : src->stops_) {
+            if (stop) {
+                Base::Ref<Freezable> cloned = stop->CloneCurrentValue();
+                if (cloned) {
+                    AddGradientStop(Base::Ref<GradientStop>::FromBorrowed(*static_cast<GradientStop*>(cloned.Get())));
+                }
+            }
         }
     }
-    stops_.Clear();
-    if (!changed_.Empty()) {
-        changed_.Invoke({
-            Collections::ItemsChangeAction::Reset,
-            0U, 0U, count, 0U});
-    }
-    WritePostscript();
 }
 
-void GradientStopCollection::OnStopChanged(Freezable&) noexcept {
-    WritePostscript();
-}
-
-bool GradientStopCollection::FreezeCore(bool isChecking) noexcept {
-    for (const Base::Ref<GradientStop>& stop : stops_) {
-        if (!stop) continue;
-        if (isChecking) {
-            if (!stop->CanFreeze()) return false;
-        } else {
-            static_cast<void>(stop->Freeze());
-        }
-    }
-    if (!isChecking) changed_.Reset();
-    return Freezable::FreezeCore(isChecking);
-}
 
 std::uint64_t Brush::GetRevision() const noexcept {
     return (*this).Revision();
@@ -1634,8 +1599,8 @@ AERO_DESCRIBE(SolidColorBrush) {
 AERO_DESCRIBE(GradientStop) {
     using namespace Aero::Meta;
     Register<GradientStop>(context)
-            .Property(GradientStop::OffsetProperty, 0.0)
-            .Property(GradientStop::ColorProperty, Color{})
+            .Property(GradientStop::OffsetProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
+            .Property(GradientStop::ColorProperty, FrameworkPropertyMetadata(Color{}).AffectsRender())
             .Factory();
 }
 

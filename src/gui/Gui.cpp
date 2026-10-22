@@ -123,15 +123,84 @@ namespace Aero {
 
 namespace {
 
-void RemovePendingDocument(
-    GuiRuntime& state,
-    std::uint32_t index) noexcept {
-    if (index + 1U < state.pendingDocuments.Size()) {
-        state.pendingDocuments[index] =
-            std::move(state.pendingDocuments.Back());
+template <typename TPayload, void (GuiRuntime::*Method)(const TPayload&) noexcept>
+struct RuntimeChangeTask {
+    Base::Ref<GuiRuntime> runtime;
+    TPayload payload;
+    Base::IAllocator* allocator;
+
+    static void Execute(void* ctx) noexcept {
+        auto* task = static_cast<RuntimeChangeTask*>(ctx);
+        if (task->runtime) {
+            (task->runtime.Get()->*Method)(task->payload);
+        }
+        Cleanup(ctx);
     }
-    state.pendingDocuments.PopBack();
+
+    static void Cleanup(void* ctx) noexcept {
+        auto* task = static_cast<RuntimeChangeTask*>(ctx);
+        Base::IAllocator* alloc = task->allocator;
+        task->~RuntimeChangeTask();
+        alloc->Deallocate(task, sizeof(RuntimeChangeTask), alignof(RuntimeChangeTask), Base::MemoryTag::Ui);
+    }
+};
+
+template <typename TPayload, void (GuiRuntime::*Method)(const TPayload&) noexcept>
+bool PostRuntimeTask(GuiRuntime& self, const TPayload& payload) noexcept {
+    using TaskType = RuntimeChangeTask<TPayload, Method>;
+    Base::IAllocator* alloc = self.allocator != nullptr ? self.allocator : &Base::GetDefaultAllocator();
+    void* mem = alloc->Allocate({sizeof(TaskType), alignof(TaskType), Base::MemoryTag::Ui});
+    if (mem == nullptr) {
+        return false;
+    }
+    auto* task = new (mem) TaskType{Base::Ref<GuiRuntime>::FromBorrowed(self), payload, alloc};
+    auto posted = self.dispatcher.Post(
+        Threading::DispatcherPriority::Normal,
+        &TaskType::Execute,
+        task,
+        &TaskType::Cleanup);
+    if (!posted) {
+        TaskType::Cleanup(task);
+        return false;
+    }
+    return true;
 }
+
+} // namespace
+
+void GuiRuntime::RemovePendingDocument(
+    std::uint32_t index) noexcept {
+    if (index + 1U < pendingDocuments.Size()) {
+        pendingDocuments[index] =
+            std::move(pendingDocuments.Back());
+    }
+    pendingDocuments.PopBack();
+}
+
+Base::Result<bool> GuiRuntime::AdoptPendingDocumentFor(
+    Base::Object& root,
+    ViewFrame& viewState) noexcept {
+    for (std::uint32_t index = 0U;
+         index < pendingDocuments.Size(); ++index) {
+        Markup::LoaderResult& pending =
+            pendingDocuments[index].document;
+        if (pending.root.Get() != &root) continue;
+        Markup::LoaderResult taken = std::move(pending);
+        RemovePendingDocument(index);
+        Base::Result<void> adopted =
+            AdoptLoadedComponent(
+                viewState, std::move(taken));
+        if (!adopted) return adopted.GetStatus();
+        if (UIElement* element = TryCast<UIElement>(&root)) {
+            element->InvalidateMeasure();
+            element->InvalidateArrange();
+        }
+        return true;
+    }
+    return false;
+}
+
+namespace {
 
 void CollectUnclaimedDocuments(GuiRuntime& state) noexcept {
     std::uint32_t index = 0U;
@@ -142,7 +211,7 @@ void CollectUnclaimedDocuments(GuiRuntime& state) noexcept {
             pending.document.root;
         if (!root ||
             root->UseCount() <= pending.internalRootReferences) {
-            RemovePendingDocument(state, index);
+            state.RemovePendingDocument(index);
             continue;
         }
         ++index;
@@ -235,7 +304,12 @@ Base::Result<Markup::XamlDocument> GuiRuntime::LoadCompiled(
 }
 
 void GuiRuntime::OnXamlChanged(const Base::ResourceUri& uri) noexcept {
-    if (!dispatcher.CheckAccess()) return;
+    if (!dispatcher.CheckAccess()) {
+        if (!PostRuntimeTask<Base::ResourceUri, &GuiRuntime::OnXamlChanged>(*this, uri)) {
+            xamlChangesLost = true;
+        }
+        return;
+    }
     if (uri.Empty()) {
         documents.Clear();
     } else {
@@ -244,19 +318,35 @@ void GuiRuntime::OnXamlChanged(const Base::ResourceUri& uri) noexcept {
     XamlProviderChangeRecord record;
     record.uri = uri;
     record.generation = ++xamlChangeGeneration;
+    if (xamlChanges.Size() >= 128U) {
+        xamlChanges.Clear();
+        xamlChangesLost = true;
+    }
     xamlChanges.PushBack(std::move(record));
 }
 
 void GuiRuntime::OnTextureChanged(const Base::ResourceUri& uri) noexcept {
-    if (!dispatcher.CheckAccess()) return;
+    if (!dispatcher.CheckAccess()) {
+        if (!PostRuntimeTask<Base::ResourceUri, &GuiRuntime::OnTextureChanged>(*this, uri)) {
+            textureChangesLost = true;
+        }
+        return;
+    }
     XamlProviderChangeRecord record;
     record.uri = uri;
     record.generation = ++textureChangeGeneration;
+    if (textureChanges.Size() >= 128U) {
+        textureChanges.Clear();
+        textureChangesLost = true;
+    }
     textureChanges.PushBack(std::move(record));
 }
 
 void GuiRuntime::OnFontChanged(const Media::FontProviderChange& change) noexcept {
-    if (!dispatcher.CheckAccess()) return;
+    if (!dispatcher.CheckAccess()) {
+        static_cast<void>(PostRuntimeTask<Media::FontProviderChange, &GuiRuntime::OnFontChanged>(*this, change));
+        return;
+    }
     fontChangedBaseUri = change.baseUri;
     static_cast<void>(fontChangedFamily.Assign(change.familyName));
     ++fontChangeGeneration;
@@ -336,7 +426,7 @@ Gui::Gui(
             alignof(GuiRuntime),
             Base::MemoryTag::Object);
     }
-    state_ = Base::Ref<Base::Object>(std::move(made).Value());
+    state_ = std::move(made).Value();
 }
 
 Gui::~Gui() noexcept {
@@ -345,7 +435,7 @@ Gui::~Gui() noexcept {
 
 Base::Result<void> Gui::AddModule(
     const ModuleRegistration& registration) noexcept {
-    GuiRuntime& state = static_cast<GuiRuntime&>(*state_);
+    GuiRuntime& state = *state_;
     if (state.initialized) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -358,7 +448,7 @@ Base::Result<void> Gui::SetXamlProvider(
     Ref<Markup::XamlProvider> provider,
     Base::StringView scheme,
     Base::StringView assembly) noexcept {
-    GuiRuntime& state = static_cast<GuiRuntime&>(*state_);
+    GuiRuntime& state = *state_;
     if (state.initialized) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -416,7 +506,7 @@ Base::Result<void> Gui::SetXamlProvider(
 
 Base::Result<void> Gui::SetTextureProvider(
     Ref<Media::TextureProvider> provider) noexcept {
-    GuiRuntime& state = static_cast<GuiRuntime&>(*state_);
+    GuiRuntime& state = *state_;
     if (state.initialized) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -438,7 +528,7 @@ Base::Result<void> Gui::SetTextureProvider(
 
 Base::Result<void> Gui::SetFontProvider(
     Ref<Media::FontProvider> provider) noexcept {
-    GuiRuntime& state = static_cast<GuiRuntime&>(*state_);
+    GuiRuntime& state = *state_;
     if (state.initialized) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -459,7 +549,7 @@ Base::Result<void> Gui::SetFontProvider(
 }
 
 Base::Result<void> Gui::Initialize() noexcept {
-    GuiRuntime& state = static_cast<GuiRuntime&>(*state_);
+    GuiRuntime& state = *state_;
     if (state.initialized) return {};
     Base::Result<void> prepared = state.schema.Prepare(state.modules);
     if (!prepared) return prepared.GetStatus();
@@ -496,7 +586,7 @@ Base::Result<Base::Ref<Base::Object>> Gui::LoadXamlRoot(
             Base::ErrorCode::NotInitialized,
             "Gui must be initialized before XAML loading");
     }
-    GuiRuntime& state = static_cast<GuiRuntime&>(*state_);
+    GuiRuntime& state = *state_;
     CollectUnclaimedDocuments(state);
     Markup::XamlReader reader(*this);
     Base::Result<Markup::XamlDocument> loaded = reader.Load(uri);
@@ -531,7 +621,7 @@ Base::Result<void> Gui::LoadComponent(
             Base::ErrorCode::InvalidArgument,
             "XAML component requires a managed root object");
     }
-    GuiRuntime& state = static_cast<GuiRuntime&>(*state_);
+    GuiRuntime& state = *state_;
     CollectUnclaimedDocuments(state);
     Markup::XamlReader reader(*this);
     Base::Result<Markup::XamlDocument> loaded =
@@ -547,21 +637,9 @@ Base::Result<void> Gui::LoadComponent(
     if (UIElement* element = TryCast<UIElement>(&component)) {
         if (ElementTree* tree = VisualTree(element)) {
             if (ViewFrame* viewState = tree->GetViewState()) {
-                for (std::uint32_t index = 0U;
-                     index < state.pendingDocuments.Size(); ++index) {
-                    Markup::LoaderResult& pending =
-                        state.pendingDocuments[index].document;
-                    if (pending.root.Get() != &component) continue;
-                    Markup::LoaderResult taken = std::move(pending);
-                    RemovePendingDocument(state, index);
-                    Base::Result<void> adopted =
-                        AdoptLoadedComponent(
-                            *viewState, std::move(taken));
-                    if (!adopted) return adopted.GetStatus();
-                    element->InvalidateMeasure();
-                    element->InvalidateArrange();
-                    break;
-                }
+                Base::Result<bool> adopted =
+                    state.AdoptPendingDocumentFor(component, *viewState);
+                if (!adopted) return adopted.GetStatus();
             }
         }
     }
@@ -571,7 +649,7 @@ Base::Result<void> Gui::LoadComponent(
 Base::Result<bool> Gui::TakeLoadedDocument(
     Base::Object& root,
     Markup::XamlDocument& document) noexcept {
-    GuiRuntime& state = static_cast<GuiRuntime&>(*state_);
+    GuiRuntime& state = *state_;
     for (std::uint32_t index = 0U;
          index < state.pendingDocuments.Size(); ++index) {
         Markup::LoaderResult& pending =
@@ -582,7 +660,7 @@ Base::Result<bool> Gui::TakeLoadedDocument(
                 std::move(pending), *state.allocator);
         if (!adopted) return adopted.GetStatus();
         document = std::move(adopted).Value();
-        RemovePendingDocument(state, index);
+        state.RemovePendingDocument(index);
         return true;
     }
     return false;
@@ -635,7 +713,7 @@ Base::Result<Base::Ref<View>> Gui::CreateView(
 }
 
 bool Gui::IsInitialized() const noexcept {
-    const GuiRuntime& state = static_cast<const GuiRuntime&>(*state_);
+    const GuiRuntime& state = *state_;
     return state.initialized && state.schema.IsFrozen();
 }
 

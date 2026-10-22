@@ -1,6 +1,7 @@
 #include <Aero/Data/BindingExpression.hpp>
 #include <Aero/Data/BindingOperations.hpp>
 #include <Aero/UIElement.hpp>
+#include <Aero/Resources.hpp>
 
 #include "gui/data/BindingCommon.hpp"
 #include "gui/data/BindingEngine.hpp"
@@ -157,22 +158,31 @@ Base::Status BindingOpsUnsupported(const char* message) noexcept {
     return Base::Status::Failure(Base::ErrorCode::Unsupported, message);
 }
 
-// Resolve Binding.Source / ElementName / RelativeSource the same way style
-// setters and markup do before MetadataBindingDescriptor::Attach.
+} // namespace
+
 Base::Result<Base::Object*> ResolveCodeBindingSource(
     const Binding& binding,
     DependencyObject& target,
-    BindingEngine& engine) noexcept {
+    const Meta::Registry* metadata,
+    const Aero::NameScope* names,
+    Base::Object* self,
+    bool startAtTarget) noexcept {
     if (binding.GetSource()) {
         return binding.GetSource().Get();
     }
     if (!binding.GetElementName().Empty()) {
-        FrameworkElement* framework = ::Aero::TryCast<FrameworkElement>(&target);
-        if (framework == nullptr) {
-            return BindingOpsNotFound(
-                "Binding ElementName requires a FrameworkElement target");
+        Base::Object* source = nullptr;
+        if (names != nullptr) {
+            source = names->Find(binding.GetElementName());
         }
-        Base::Object* source = framework->FindName(binding.GetElementName());
+        if (source == nullptr) {
+            FrameworkElement* framework = ::Aero::TryCast<FrameworkElement>(&target);
+            if (framework == nullptr) {
+                return BindingOpsNotFound(
+                    "Binding ElementName requires a FrameworkElement target");
+            }
+            source = framework->FindName(binding.GetElementName());
+        }
         if (source == nullptr) {
             return BindingOpsNotFound(
                 "Binding ElementName was not found");
@@ -184,7 +194,7 @@ Base::Result<Base::Object*> ResolveCodeBindingSource(
     }
     const RelativeSourceMode mode = binding.GetRelativeSource()->GetMode();
     if (mode == RelativeSourceMode::Self) {
-        return static_cast<Base::Object*>(&target);
+        return self != nullptr ? self : static_cast<Base::Object*>(&target);
     }
     if (mode == RelativeSourceMode::TemplatedParent) {
         FrameworkElement* framework = ::Aero::TryCast<FrameworkElement>(&target);
@@ -209,19 +219,22 @@ Base::Result<Base::Object*> ResolveCodeBindingSource(
         const std::uint32_t requestedLevel =
             binding.GetRelativeSource()->GetAncestorLevel();
         std::uint32_t matchedLevel = 0U;
-        Media::Visual* current = ::Aero::TryCast<Media::Visual>(&target);
-        if (current != nullptr) {
-            Media::Visual* parent =
-                ::Aero::TryCast<Media::Visual>(current->GetLogicalParent());
-            if (parent == nullptr) {
-                parent = current->GetVisualParent();
+        Media::Visual* current = nullptr;
+        if (startAtTarget) {
+            current = ::Aero::TryCast<Media::Visual>(&target);
+        } else {
+            Media::Visual* targetVisual = ::Aero::TryCast<Media::Visual>(&target);
+            if (targetVisual != nullptr) {
+                current = ::Aero::TryCast<Media::Visual>(targetVisual->GetLogicalParent());
+                if (current == nullptr) {
+                    current = targetVisual->GetVisualParent();
+                }
             }
-            current = parent;
         }
         while (current != nullptr) {
             const Meta::TypeInfo* type =
-                engine.Metadata() != nullptr
-                    ? engine.Metadata()->Types().FindType(current->RuntimeType())
+                metadata != nullptr
+                    ? metadata->Types().FindType(current->RuntimeType())
                     : nullptr;
             const bool matchesType = ancestorName.Empty() ||
                 (type != nullptr && type->Name() == ancestorName);
@@ -240,6 +253,18 @@ Base::Result<Base::Object*> ResolveCodeBindingSource(
     }
     return BindingOpsUnsupported(
         "Binding RelativeSource mode is not supported by SetBinding");
+}
+
+namespace {
+
+// Resolve Binding.Source / ElementName / RelativeSource the same way style
+// setters and markup do before MetadataBindingDescriptor::Attach.
+inline Base::Result<Base::Object*> ResolveCodeBindingSource(
+    const Binding& binding,
+    DependencyObject& target,
+    BindingEngine& engine) noexcept {
+    return Data::ResolveCodeBindingSource(
+        binding, target, engine.Metadata(), nullptr, nullptr, false);
 }
 
 } // namespace

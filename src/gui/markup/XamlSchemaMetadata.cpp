@@ -269,39 +269,43 @@ Base::Result<void> XamlFacets::Add(
     return {};
 }
 
-#define AERO_ADD_XAML_FACET(                                              \
-    FacetType, Column, KindValue, InvalidExpression, InvalidMessage,       \
-    DuplicateMessage)                                                     \
-    if (frozen_) return FrozenStatus();                                   \
-    if (facet.abiVersion != XamlFacetAbiVersion) {                        \
-        return Base::Status::Failure(                                     \
-            Base::ErrorCode::Unsupported,                                 \
-            "XAML capability facet ABI version is incompatible");       \
-    }                                                                     \
-    Base::Result<void> valid = ValidateObjectType(facet.type, descriptors);\
-    if (!valid) return valid.GetStatus();                                  \
-    if (InvalidExpression) return InvalidFacet(InvalidMessage);           \
-    DraftType* existing = FindDraft(facet.type);                          \
-    if (existing != nullptr &&                                            \
-        existing->facets[static_cast<std::uint8_t>(KindValue)] !=         \
-            InvalidFacetIndex) {                                          \
-        return DuplicateFacet(DuplicateMessage);                          \
-    }                                                                     \
-    drafts_.Reserve(                                                     \
-        drafts_.Size() + (existing == nullptr ? 1U : 0U));                \
-    Column.Reserve(Column.Size() + 1U);                                    \
-    Base::Result<DraftType*> ensured = EnsureType(facet.type);            \
-    if (!ensured) return ensured.GetStatus();                             \
-    ensured.Value()->facets[static_cast<std::uint8_t>(KindValue)] =       \
-        Column.Size();                                                     \
-    Column.PushBack(facet);                                               \
-    return {}
+template<class Facet, class ColumnType>
+Base::Result<void> XamlFacets::AddFacetCore(
+    ColumnType& column,
+    FacetKind kind,
+    const Facet& facet,
+    const Meta::TypeRegistry& descriptors,
+    bool isInvalid,
+    const char* invalidMessage,
+    const char* duplicateMessage) noexcept {
+    if (frozen_) return FrozenStatus();
+    if (facet.abiVersion != XamlFacetAbiVersion) {
+        return Base::Status::Failure(
+            Base::ErrorCode::Unsupported,
+            "XAML capability facet ABI version is incompatible");
+    }
+    Base::Result<void> valid = ValidateObjectType(facet.type, descriptors);
+    if (!valid) return valid.GetStatus();
+    if (isInvalid) return InvalidFacet(invalidMessage);
+    DraftType* existing = FindDraft(facet.type);
+    if (existing != nullptr &&
+        existing->facets[static_cast<std::uint8_t>(kind)] != InvalidFacetIndex) {
+        return DuplicateFacet(duplicateMessage);
+    }
+    drafts_.Reserve(drafts_.Size() + (existing == nullptr ? 1U : 0U));
+    column.Reserve(column.Size() + 1U);
+    Base::Result<DraftType*> ensured = EnsureType(facet.type);
+    if (!ensured) return ensured.GetStatus();
+    ensured.Value()->facets[static_cast<std::uint8_t>(kind)] = column.Size();
+    column.PushBack(facet);
+    return {};
+}
 
 Base::Result<void> XamlFacets::Add(
     const XamlLifecycleFacet& facet,
     const Meta::TypeRegistry& descriptors) noexcept {
-    AERO_ADD_XAML_FACET(
-        XamlLifecycleFacet, lifecycles_, FacetKind::Lifecycle,
+    return AddFacetCore(
+        lifecycles_, FacetKind::Lifecycle, facet, descriptors,
         facet.beginInit == nullptr && facet.endInit == nullptr &&
             facet.abortInit == nullptr &&
             facet.endInitWithServices == nullptr,
@@ -312,8 +316,8 @@ Base::Result<void> XamlFacets::Add(
 Base::Result<void> XamlFacets::Add(
     const XamlNameScopeFacet& facet,
     const Meta::TypeRegistry& descriptors) noexcept {
-    AERO_ADD_XAML_FACET(
-        XamlNameScopeFacet, nameScopes_, FacetKind::NameScope,
+    return AddFacetCore(
+        nameScopes_, FacetKind::NameScope, facet, descriptors,
         !facet.createsNameScope && facet.registerName == nullptr,
         "XAML name-scope facet is invalid",
         "XAML name-scope facet is already registered");
@@ -322,8 +326,8 @@ Base::Result<void> XamlFacets::Add(
 Base::Result<void> XamlFacets::Add(
     const XamlResourceScopeFacet& facet,
     const Meta::TypeRegistry& descriptors) noexcept {
-    AERO_ADD_XAML_FACET(
-        XamlResourceScopeFacet, resourceScopes_, FacetKind::ResourceScope,
+    return AddFacetCore(
+        resourceScopes_, FacetKind::ResourceScope, facet, descriptors,
         !facet.createsResourceScope && facet.addResource == nullptr &&
             facet.resolveResourceScope == nullptr,
         "XAML resource-scope facet is invalid",
@@ -333,9 +337,8 @@ Base::Result<void> XamlFacets::Add(
 Base::Result<void> XamlFacets::Add(
     const XamlDeferredContentFacet& facet,
     const Meta::TypeRegistry& descriptors) noexcept {
-    AERO_ADD_XAML_FACET(
-        XamlDeferredContentFacet, deferredContents_,
-        FacetKind::DeferredContent,
+    return AddFacetCore(
+        deferredContents_, FacetKind::DeferredContent, facet, descriptors,
         !facet.defersVisualContent,
         "XAML deferred-content facet is invalid",
         "XAML deferred-content facet is already registered");
@@ -344,9 +347,8 @@ Base::Result<void> XamlFacets::Add(
 Base::Result<void> XamlFacets::Add(
     const XamlImplicitResourceKeyFacet& facet,
     const Meta::TypeRegistry& descriptors) noexcept {
-    AERO_ADD_XAML_FACET(
-        XamlImplicitResourceKeyFacet, implicitResourceKeys_,
-        FacetKind::ImplicitResourceKey,
+    return AddFacetCore(
+        implicitResourceKeys_, FacetKind::ImplicitResourceKey, facet, descriptors,
         facet.resolve == nullptr,
         "XAML implicit-resource-key facet is invalid",
         "XAML implicit-resource-key facet is already registered");
@@ -355,14 +357,12 @@ Base::Result<void> XamlFacets::Add(
 Base::Result<void> XamlFacets::Add(
     const XamlPropertyTargetFacet& facet,
     const Meta::TypeRegistry& descriptors) noexcept {
-    AERO_ADD_XAML_FACET(
-        XamlPropertyTargetFacet, propertyTargets_, FacetKind::PropertyTarget,
+    return AddFacetCore(
+        propertyTargets_, FacetKind::PropertyTarget, facet, descriptors,
         facet.resolve == nullptr,
         "XAML property-target facet is invalid",
         "XAML property-target facet is already registered");
 }
-
-#undef AERO_ADD_XAML_FACET
 
 Base::Result<void> XamlFacets::Add(
     const XamlMarkupExtensionFacet& facet,
@@ -459,16 +459,33 @@ Base::Result<void> XamlFacets::Freeze(
         plan.type = descriptor.Id();
         plan.firstFacetRef = facetRefs_.Size();
         const DraftType* draft = FindDraft(plan.type);
-        if (draft != nullptr) {
-            for (std::uint8_t kind = 0U;
-                 kind < static_cast<std::uint8_t>(FacetKind::Count);
-                 ++kind) {
-                const std::uint32_t facet = draft->facets[kind];
-                if (facet == InvalidFacetIndex) continue;
-                facetRefs_.PushBack(facet);
-                plan.facetMask |= static_cast<FacetMask>(1U << kind);
-                ++plan.facetCount;
+        for (std::uint8_t kind = 0U;
+             kind < static_cast<std::uint8_t>(FacetKind::Count);
+             ++kind) {
+            std::uint32_t facet = draft != nullptr
+                ? draft->facets[kind] : InvalidFacetIndex;
+            if (facet == InvalidFacetIndex &&
+                kind != static_cast<std::uint8_t>(FacetKind::Lifecycle) &&
+                kind != static_cast<std::uint8_t>(FacetKind::MarkupExtension)) {
+                Meta::TypeId current = descriptor.BaseType();
+                std::uint32_t depth = 0U;
+                while (current != Meta::InvalidTypeId && depth <= descriptors.TypeCount()) {
+                    const DraftType* ancestorDraft = FindDraft(current);
+                    if (ancestorDraft != nullptr &&
+                        ancestorDraft->facets[kind] != InvalidFacetIndex) {
+                        facet = ancestorDraft->facets[kind];
+                        break;
+                    }
+                    const Meta::TypeInfo* baseInfo = descriptors.FindType(current);
+                    if (baseInfo == nullptr) break;
+                    current = baseInfo->BaseType();
+                    ++depth;
+                }
             }
+            if (facet == InvalidFacetIndex) continue;
+            facetRefs_.PushBack(facet);
+            plan.facetMask |= static_cast<FacetMask>(1U << kind);
+            ++plan.facetCount;
         }
         const std::uint32_t position = plans_.Size();
         plans_.PushBack(plan);
@@ -519,6 +536,9 @@ const XamlLifecycleFacet* XamlFacets::FindLifecycle(
 const XamlNameScopeFacet* XamlFacets::FindNameScope(
     Meta::TypeId type,
     const Meta::TypeRegistry& descriptors) const noexcept {
+    if (const XamlNameScopeFacet* exact = FindNameScopeExact(type)) {
+        return exact;
+    }
     return FindByPolicy<XamlNameScopeFacet>(
         type, descriptors,
         [this](Meta::TypeId current) noexcept {
@@ -529,6 +549,9 @@ const XamlNameScopeFacet* XamlFacets::FindNameScope(
 const XamlResourceScopeFacet* XamlFacets::FindResourceScope(
     Meta::TypeId type,
     const Meta::TypeRegistry& descriptors) const noexcept {
+    if (const XamlResourceScopeFacet* exact = FindResourceScopeExact(type)) {
+        return exact;
+    }
     return FindByPolicy<XamlResourceScopeFacet>(
         type, descriptors,
         [this](Meta::TypeId current) noexcept {
@@ -539,6 +562,9 @@ const XamlResourceScopeFacet* XamlFacets::FindResourceScope(
 const XamlDeferredContentFacet* XamlFacets::FindDeferredContent(
     Meta::TypeId type,
     const Meta::TypeRegistry& descriptors) const noexcept {
+    if (const XamlDeferredContentFacet* exact = FindDeferredContentExact(type)) {
+        return exact;
+    }
     return FindByPolicy<XamlDeferredContentFacet>(
         type, descriptors,
         [this](Meta::TypeId current) noexcept {
@@ -550,6 +576,9 @@ const XamlImplicitResourceKeyFacet*
 XamlFacets::FindImplicitResourceKey(
     Meta::TypeId type,
     const Meta::TypeRegistry& descriptors) const noexcept {
+    if (const XamlImplicitResourceKeyFacet* exact = FindImplicitResourceKeyExact(type)) {
+        return exact;
+    }
     return FindByPolicy<XamlImplicitResourceKeyFacet>(
         type, descriptors,
         [this](Meta::TypeId current) noexcept {
@@ -560,6 +589,9 @@ XamlFacets::FindImplicitResourceKey(
 const XamlPropertyTargetFacet* XamlFacets::FindPropertyTarget(
     Meta::TypeId type,
     const Meta::TypeRegistry& descriptors) const noexcept {
+    if (const XamlPropertyTargetFacet* exact = FindPropertyTargetExact(type)) {
+        return exact;
+    }
     return FindByPolicy<XamlPropertyTargetFacet>(
         type, descriptors,
         [this](Meta::TypeId current) noexcept {

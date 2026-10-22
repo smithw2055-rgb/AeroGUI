@@ -1,10 +1,4 @@
 #include "gui/markup/XamlSchema.hpp"
-#include "gui/core/ElementTree.hpp"
-#include "gui/core/LayoutEngine.hpp"
-#include "gui/core/EffectiveValueEngine.hpp"
-#include "gui/core/RoutedEvents.hpp"
-#include "gui/core/EventRouter.hpp"
-#include <Aero/VisualStateManager.hpp>
 
 
 // ===== DocumentCache =====

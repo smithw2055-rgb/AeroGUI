@@ -4,6 +4,7 @@
 #include "gui/controls/ItemsContainers.hpp"
 #include "gui/core/ValueConversion.hpp"
 #include "gui/core/DependencyObjectAccess.hpp"
+#include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/markup/MarkupExtensionContract.hpp"
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/TryCast.hpp>
@@ -248,7 +249,9 @@ Base::Result<bool> TriggerPlan::IsConditionMet(
     const DependencyObject& object) const noexcept {
     Base::Result<PropertyValue> current = object.GetValue(property);
     if (!current) return current.GetStatus();
-    Base::Result<bool> matched = ComparePropertyValues(current.Value(), value, nullptr);
+    const Meta::Registry* metadata = Meta::CurrentObjectFactory().metadata;
+    Base::Result<bool> matched = ComparePropertyValues(
+        current.Value(), value, metadata);
     if (!matched) {
         return current.Value() == value;
     }
@@ -258,10 +261,12 @@ Base::Result<bool> TriggerPlan::IsConditionMet(
 TriggerEngine::TriggerEngine(
     StyleProviderSession& values,
     DependencyPropertyRegistry& properties,
-    Base::Vector<StyleApplication>& applications) noexcept
+    Base::Vector<StyleApplication>& applications,
+    const Base::HashMap<const DependencyObject*, std::uint32_t>& objectIndexMap) noexcept
     : values_(values),
       properties_(properties),
       applications_(applications),
+      objectIndexMap_(objectIndexMap),
       propertyChangedHandler_(this, &TriggerEngine::OnPropertyChanged) {}
 
 TriggerEngine::~TriggerEngine() noexcept {
@@ -351,6 +356,27 @@ Base::Result<void> TriggerEngine::EvaluateTriggers(
     if (!cleared) return cleared.GetStatus();
     const Base::Span<const TriggerPlan> triggers =
         StyleRuntimeTriggers(style);
+    std::uint64_t activeMask = 0ULL;
+    Base::Vector<std::uint8_t> activeStatesFallback;
+    if (triggers.Size() > 64U) {
+        activeStatesFallback.Resize(triggers.Size(), 0U);
+    }
+    auto setActive = [&](std::uint32_t idx, bool act) {
+        if (idx < 64U) {
+            if (act) {
+                activeMask |= (UINT64_C(1) << idx);
+            }
+        } else {
+            activeStatesFallback[idx] = act ? 1U : 0U;
+        }
+    };
+    auto getActive = [&](std::uint32_t idx) -> bool {
+        if (idx < 64U) {
+            return (activeMask & (UINT64_C(1) << idx)) != 0ULL;
+        }
+        return activeStatesFallback[idx] != 0U;
+    };
+
     for (std::uint32_t index = 0U;
          index < triggers.Size(); ++index) {
         const TriggerPlan& trigger =
@@ -365,6 +391,7 @@ Base::Result<void> TriggerEngine::EvaluateTriggers(
             if (!met) return met.GetStatus();
             active = met.Value();
         }
+        setActive(index, active);
         if (active) {
             for (const StyleTriggerSetter& setter :
                  trigger.setters) {
@@ -408,20 +435,19 @@ Base::Result<void> TriggerEngine::EvaluateTriggers(
          index < triggers.Size(); ++index) {
         const TriggerPlan& trigger =
             triggers[index];
-        bool active = false;
-        if (trigger.IsBindingTrigger()) {
-            active = application.bindingTriggerKnown[index] != 0U &&
-                application.bindingTriggerStates[index] != 0U;
-        } else {
-            Base::Result<bool> met =
-                trigger.IsConditionMet(object);
-            if (!met) return met.GetStatus();
-            active = met.Value();
+        const bool active = getActive(index);
+        const std::uint32_t currentAppIndex = FindApplication(object);
+        if (currentAppIndex == UINT32_MAX || currentAppIndex >= applications_.Size()) {
+            break;
+        }
+        StyleApplication& currentApp = applications_[currentAppIndex];
+        if (index >= currentApp.triggerStates.Size()) {
+            break;
         }
         const bool wasActive =
-            application.triggerStates[index] != 0U;
+            currentApp.triggerStates[index] != 0U;
         if (active == wasActive) continue;
-        application.triggerStates[index] =
+        currentApp.triggerStates[index] =
             active ? 1U : 0U;
         Base::Result<void> actions =
             ExecuteTriggerActions(
@@ -648,13 +674,8 @@ const Base::Status& TriggerEngine::LastActionStatus() const noexcept {
 
 std::uint32_t TriggerEngine::FindApplication(
     const DependencyObject& object) const noexcept {
-    for (std::uint32_t index = 0U;
-         index < applications_.Size(); ++index) {
-        if (applications_[index].object == &object) {
-            return index;
-        }
-    }
-    return UINT32_MAX;
+    const std::uint32_t* found = objectIndexMap_.Find(&object);
+    return found != nullptr ? *found : UINT32_MAX;
 }
 
 } // namespace Aero

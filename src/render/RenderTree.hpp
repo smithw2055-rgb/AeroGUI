@@ -129,14 +129,16 @@ struct RenderNodeSnapshot {
     Transform2D viewboxTransform{};
     ::Aero::BlendMode blendMode = ::Aero::BlendMode::Normal;
     double opacity = 1.0;
-    RenderMaskSnapshot mask;
-    RenderEffectSnapshot effect;
+    std::uint32_t maskIndex = UINT32_MAX;
+    std::uint32_t effectIndex = UINT32_MAX;
     std::uint32_t geometryClipVertexOffset = UINT32_MAX;
     std::uint32_t geometryClipIndexOffset = UINT32_MAX;
     std::uint32_t geometryClipVertexCount = 0U;
     std::uint32_t geometryClipIndexCount = 0U;
     std::uint32_t commandOffset = 0U;
     std::uint32_t commandCount = 0U;
+    std::uint32_t payloadOffset = 0U;
+    std::uint32_t payloadSize = 0U;
     std::uint64_t elementRevision = 0U;
 };
 
@@ -148,17 +150,53 @@ namespace Aero::Render {
 
 class RenderFrame {
 public:
-    RenderFrame() noexcept : nodes_(), commands_() {}
+    RenderFrame() noexcept : nodes_(), commandHeaders_(), commandPayload_() {}
 
     Base::Span<const RenderNodeSnapshot> Nodes() const noexcept {
         return {nodes_.Data(), nodes_.Size()};
     }
-    Base::Span<const RenderCommand> Commands() const noexcept {
-        return {commands_.Data(), commands_.Size()};
+    Base::Span<const RenderCommandHeader> CommandHeaders() const noexcept {
+        return {commandHeaders_.Data(), commandHeaders_.Size()};
+    }
+    Base::Span<const RenderCommandHeader> Commands() const noexcept {
+        return CommandHeaders();
+    }
+    Base::Span<const std::uint8_t> CommandPayload() const noexcept {
+        return {commandPayload_.Data(), commandPayload_.Size()};
+    }
+    template <typename T>
+    const T& PayloadAt(std::uint32_t offset) const noexcept {
+        return *reinterpret_cast<const T*>(commandPayload_.Data() + offset);
+    }
+    template <typename T>
+    const T* PayloadPtr(std::uint32_t offset) const noexcept {
+        if (offset + sizeof(T) > commandPayload_.Size()) return nullptr;
+        return reinterpret_cast<const T*>(commandPayload_.Data() + offset);
+    }
+    template <typename T>
+    T& MutablePayloadAt(std::uint32_t offset) noexcept {
+        return *reinterpret_cast<T*>(commandPayload_.Data() + offset);
+    }
+    std::uint32_t CommandCount() const noexcept {
+        return commandHeaders_.Size();
     }
     Base::Span<const RenderGradientRampSnapshot>
     GradientRamps() const noexcept {
         return {gradientRamps_.Data(), gradientRamps_.Size()};
+    }
+    Base::Span<const RenderMaskSnapshot> Masks() const noexcept {
+        return {masks_.Data(), masks_.Size()};
+    }
+    Base::Span<const RenderEffectSnapshot> Effects() const noexcept {
+        return {effects_.Data(), effects_.Size()};
+    }
+    const RenderMaskSnapshot* MaskAt(std::uint32_t index) const noexcept {
+        if (index >= masks_.Size()) return nullptr;
+        return &masks_[index];
+    }
+    const RenderEffectSnapshot* EffectAt(std::uint32_t index) const noexcept {
+        if (index >= effects_.Size()) return nullptr;
+        return &effects_[index];
     }
     Base::Span<const Point> GeometryClipVertices() const noexcept {
         return {geometryClipVertices_.Data(), geometryClipVertices_.Size()};
@@ -179,8 +217,11 @@ public:
 private:
     friend class ::Aero::Render::RenderTree;
     Base::Vector<RenderNodeSnapshot> nodes_;
-    Base::Vector<RenderCommand> commands_;
+    Base::Vector<RenderCommandHeader> commandHeaders_;
+    Base::Vector<std::uint8_t> commandPayload_;
     Base::Vector<RenderGradientRampSnapshot> gradientRamps_;
+    Base::Vector<RenderMaskSnapshot> masks_;
+    Base::Vector<RenderEffectSnapshot> effects_;
     Base::Vector<Point> geometryClipVertices_;
     Base::Vector<std::uint32_t> geometryClipIndices_;
     std::uint64_t version_ = 0U;
@@ -253,6 +294,10 @@ private:
     struct DrawingRecord {
         ::Aero::Media::Visual* visual = nullptr;
         DisplayList drawing;
+        Base::Vector<Point> clipVertices;
+        Base::Vector<std::uint32_t> clipIndices;
+        std::uint64_t clipRevision = 0U;
+        Aero::Size recordedSize{};
         bool valid = false;
     };
 

@@ -1,10 +1,10 @@
 #include "Window.hpp"
 
+#include <Aero/Base/Utf8.hpp>
 #include <Aero/Base/Vector.hpp>
 
 #include <cstdint>
 #include <limits>
-#include <new>
 
 #if defined(_WIN32)
 #ifndef WIN32_LEAN_AND_MEAN
@@ -186,397 +186,45 @@ Base::Result<void> ConvertWindowTitle(
     return {};
 }
 
-#endif
-
-} // namespace
-
-struct Win32WindowState {
-    explicit Win32WindowState(Base::IAllocator& allocator) noexcept
-        : events(&allocator) {}
-
-    Base::Vector<WindowEvent> events;
-    std::uint32_t width = 0U;
-    std::uint32_t height = 0U;
-    double dpiScale = 1.0;
-    bool open = false;
-
-#if defined(_WIN32)
-    HINSTANCE instance = nullptr;
-    HWND window = nullptr;
-    std::uint16_t pendingHighSurrogate = 0U;
-
-    void Push(const WindowEvent& event) noexcept {
-        events.PushBack(event);
+std::uint32_t Win32Modifiers() noexcept {
+    std::uint32_t result = WindowModifierNone;
+    if ((GetKeyState(VK_SHIFT) & 0x8000) != 0) {
+        result |= WindowModifierShift;
     }
-
-    bool Dequeue(WindowEvent& event) noexcept {
-        if (events.Empty()) {
-            return false;
-        }
-        event = events[0U];
-        for (std::uint32_t index = 1U;
-             index < events.Size(); ++index) {
-            events[index - 1U] = events[index];
-        }
-        events.PopBack();
-        return true;
+    if ((GetKeyState(VK_CONTROL) & 0x8000) != 0) {
+        result |= WindowModifierControl;
     }
-
-    static std::uint32_t Modifiers() noexcept {
-        std::uint32_t result = WindowModifierNone;
-        if ((GetKeyState(VK_SHIFT) & 0x8000) != 0) {
-            result |= WindowModifierShift;
-        }
-        if ((GetKeyState(VK_CONTROL) & 0x8000) != 0) {
-            result |= WindowModifierControl;
-        }
-        if ((GetKeyState(VK_MENU) & 0x8000) != 0) {
-            result |= WindowModifierAlt;
-        }
-        return result;
+    if ((GetKeyState(VK_MENU) & 0x8000) != 0) {
+        result |= WindowModifierAlt;
     }
+    return result;
+}
 
-    static WindowPointerButton ButtonFromMessage(
-        UINT message,
-        WPARAM word) noexcept {
-        switch (message) {
-        case WM_LBUTTONDOWN:
-        case WM_LBUTTONDBLCLK:
-        case WM_LBUTTONUP:
-            return WindowPointerButton::Left;
-        case WM_RBUTTONDOWN:
-        case WM_RBUTTONDBLCLK:
-        case WM_RBUTTONUP:
-            return WindowPointerButton::Right;
-        case WM_MBUTTONDOWN:
-        case WM_MBUTTONDBLCLK:
-        case WM_MBUTTONUP:
-            return WindowPointerButton::Middle;
-        case WM_XBUTTONDOWN:
-        case WM_XBUTTONDBLCLK:
-        case WM_XBUTTONUP:
-            return GET_XBUTTON_WPARAM(word) == XBUTTON1
-                ? WindowPointerButton::XButton1
-                : WindowPointerButton::XButton2;
-        default:
-            return WindowPointerButton::Unknown;
-        }
+WindowPointerButton Win32ButtonFromMessage(
+    UINT message,
+    WPARAM word) noexcept {
+    switch (message) {
+    case WM_LBUTTONDOWN:
+    case WM_LBUTTONDBLCLK:
+    case WM_LBUTTONUP:
+        return WindowPointerButton::Left;
+    case WM_RBUTTONDOWN:
+    case WM_RBUTTONDBLCLK:
+    case WM_RBUTTONUP:
+        return WindowPointerButton::Right;
+    case WM_MBUTTONDOWN:
+    case WM_MBUTTONDBLCLK:
+    case WM_MBUTTONUP:
+        return WindowPointerButton::Middle;
+    case WM_XBUTTONDOWN:
+    case WM_XBUTTONDBLCLK:
+    case WM_XBUTTONUP:
+        return GET_XBUTTON_WPARAM(word) == XBUTTON1
+            ? WindowPointerButton::XButton1
+            : WindowPointerButton::XButton2;
+    default:
+        return WindowPointerButton::Unknown;
     }
-
-    void UpdateClientMetrics() noexcept {
-        if (window == nullptr) {
-            return;
-        }
-        RECT client{};
-        if (GetClientRect(window, &client) != FALSE) {
-            width = static_cast<std::uint32_t>(
-                client.right - client.left);
-            height = static_cast<std::uint32_t>(
-                client.bottom - client.top);
-        }
-        using GetDpiForWindowFunction = UINT (WINAPI*)(HWND);
-        const HMODULE user32 = GetModuleHandleW(L"user32.dll");
-        const auto getDpi = user32 != nullptr
-            ? reinterpret_cast<GetDpiForWindowFunction>(
-                  GetProcAddress(user32, "GetDpiForWindow"))
-            : nullptr;
-        dpiScale = getDpi != nullptr
-            ? static_cast<double>(getDpi(window)) / 96.0
-            : 1.0;
-    }
-
-    void QueuePointer(
-        WindowEventType type,
-        double x,
-        double y,
-        WindowPointerButton button =
-            WindowPointerButton::Unknown) noexcept {
-        WindowEvent event;
-        event.type = type;
-        event.x = x;
-        event.y = y;
-        event.button = button;
-        event.modifiers = Modifiers();
-        event.dpiScale = dpiScale;
-        Push(event);
-    }
-
-    void QueueCodePoint(std::uint32_t codePoint) noexcept {
-        if (codePoint > 0x10FFFFU ||
-            (codePoint >= 0xD800U && codePoint <= 0xDFFFU)) {
-            codePoint = 0xFFFDU;
-        }
-        WindowEvent event;
-        event.type = WindowEventType::TextInput;
-        if (codePoint <= 0x7FU) {
-            event.text[0] = static_cast<char>(codePoint);
-            event.textSize = 1U;
-        } else if (codePoint <= 0x7FFU) {
-            event.text[0] = static_cast<char>(
-                0xC0U | (codePoint >> 6U));
-            event.text[1] = static_cast<char>(
-                0x80U | (codePoint & 0x3FU));
-            event.textSize = 2U;
-        } else if (codePoint <= 0xFFFFU) {
-            event.text[0] = static_cast<char>(
-                0xE0U | (codePoint >> 12U));
-            event.text[1] = static_cast<char>(
-                0x80U | ((codePoint >> 6U) & 0x3FU));
-            event.text[2] = static_cast<char>(
-                0x80U | (codePoint & 0x3FU));
-            event.textSize = 3U;
-        } else {
-            event.text[0] = static_cast<char>(
-                0xF0U | (codePoint >> 18U));
-            event.text[1] = static_cast<char>(
-                0x80U | ((codePoint >> 12U) & 0x3FU));
-            event.text[2] = static_cast<char>(
-                0x80U | ((codePoint >> 6U) & 0x3FU));
-            event.text[3] = static_cast<char>(
-                0x80U | (codePoint & 0x3FU));
-            event.textSize = 4U;
-        }
-        Push(event);
-    }
-
-    void QueueUtf16(std::uint16_t value) noexcept {
-        if (value >= 0xD800U && value <= 0xDBFFU) {
-            if (pendingHighSurrogate != 0U) {
-                QueueCodePoint(0xFFFDU);
-            }
-            pendingHighSurrogate = value;
-            return;
-        }
-        if (value >= 0xDC00U && value <= 0xDFFFU) {
-            if (pendingHighSurrogate == 0U) {
-                QueueCodePoint(0xFFFDU);
-                return;
-            }
-            const std::uint32_t codePoint =
-                0x10000U +
-                ((static_cast<std::uint32_t>(
-                      pendingHighSurrogate) - 0xD800U) << 10U) +
-                (static_cast<std::uint32_t>(value) - 0xDC00U);
-            pendingHighSurrogate = 0U;
-            QueueCodePoint(codePoint);
-            return;
-        }
-        if (pendingHighSurrogate != 0U) {
-            pendingHighSurrogate = 0U;
-            QueueCodePoint(0xFFFDU);
-        }
-        QueueCodePoint(value);
-    }
-
-    LRESULT HandleMessage(
-        HWND nativeWindow,
-        UINT message,
-        WPARAM word,
-        LPARAM value) noexcept {
-        switch (message) {
-        case WM_CLOSE: {
-            // Do not mark the native window closed here. WPF raises Closing
-            // first; DestroyWindow runs only if Close() is not cancelled.
-            // Do not PostQuitMessage from this handler: DXGI Present() pumps
-            // messages, and WM_QUIT consumed inside Present leaves the host
-            // looping with a still-open HWND / swapchain.
-            WindowEvent event;
-            event.type = WindowEventType::CloseRequested;
-            Push(event);
-            return 0;
-        }
-        case WM_DESTROY: {
-            open = false;
-            window = nullptr;
-            WindowEvent event;
-            event.type = WindowEventType::Closed;
-            Push(event);
-            PostQuitMessage(0);
-            return 0;
-        }
-        case WM_SIZE: {
-            const std::uint32_t resizedWidth = LOWORD(value);
-            const std::uint32_t resizedHeight = HIWORD(value);
-            if (resizedWidth != 0U && resizedHeight != 0U) {
-                width = resizedWidth;
-                height = resizedHeight;
-                WindowEvent event;
-                event.type = WindowEventType::Resized;
-                event.width = width;
-                event.height = height;
-                event.dpiScale = dpiScale;
-                Push(event);
-            }
-            return 0;
-        }
-        case WM_DPICHANGED: {
-            dpiScale = static_cast<double>(HIWORD(word)) / 96.0;
-            const auto* suggested =
-                reinterpret_cast<const RECT*>(value);
-            if (suggested != nullptr) {
-                static_cast<void>(SetWindowPos(
-                    nativeWindow,
-                    nullptr,
-                    suggested->left,
-                    suggested->top,
-                    suggested->right - suggested->left,
-                    suggested->bottom - suggested->top,
-                    SWP_NOACTIVATE | SWP_NOZORDER));
-            }
-            UpdateClientMetrics();
-            WindowEvent event;
-            event.type = WindowEventType::ScaleChanged;
-            event.width = width;
-            event.height = height;
-            event.dpiScale = dpiScale;
-            Push(event);
-            return 0;
-        }
-        case WM_PAINT: {
-            PAINTSTRUCT paint{};
-            BeginPaint(nativeWindow, &paint);
-            EndPaint(nativeWindow, &paint);
-            WindowEvent event;
-            event.type = WindowEventType::Exposed;
-            event.width = width;
-            event.height = height;
-            event.dpiScale = dpiScale;
-            Push(event);
-            return 0;
-        }
-        case WM_ERASEBKGND:
-            return 1;
-        case WM_MOUSEMOVE:
-            QueuePointer(
-                WindowEventType::PointerMove,
-                static_cast<double>(GET_X_LPARAM(value)),
-                static_cast<double>(GET_Y_LPARAM(value)));
-            return 0;
-        case WM_LBUTTONDOWN:
-        case WM_RBUTTONDOWN:
-        case WM_MBUTTONDOWN:
-        case WM_XBUTTONDOWN:
-            static_cast<void>(SetCapture(nativeWindow));
-            QueuePointer(
-                WindowEventType::PointerDown,
-                static_cast<double>(GET_X_LPARAM(value)),
-                static_cast<double>(GET_Y_LPARAM(value)),
-                ButtonFromMessage(message, word));
-            return message == WM_XBUTTONDOWN ? TRUE : 0;
-        case WM_LBUTTONDBLCLK:
-        case WM_RBUTTONDBLCLK:
-        case WM_MBUTTONDBLCLK:
-        case WM_XBUTTONDBLCLK:
-            static_cast<void>(SetCapture(nativeWindow));
-            QueuePointer(
-                WindowEventType::PointerDoubleClick,
-                static_cast<double>(GET_X_LPARAM(value)),
-                static_cast<double>(GET_Y_LPARAM(value)),
-                ButtonFromMessage(message, word));
-            return message == WM_XBUTTONDBLCLK ? TRUE : 0;
-        case WM_LBUTTONUP:
-        case WM_RBUTTONUP:
-        case WM_MBUTTONUP:
-        case WM_XBUTTONUP:
-            static_cast<void>(ReleaseCapture());
-            QueuePointer(
-                WindowEventType::PointerUp,
-                static_cast<double>(GET_X_LPARAM(value)),
-                static_cast<double>(GET_Y_LPARAM(value)),
-                ButtonFromMessage(message, word));
-            return message == WM_XBUTTONUP ? TRUE : 0;
-        case WM_MOUSEWHEEL:
-        case WM_MOUSEHWHEEL: {
-            POINT point{
-                GET_X_LPARAM(value),
-                GET_Y_LPARAM(value)};
-            static_cast<void>(ScreenToClient(nativeWindow, &point));
-            WindowEvent event;
-            event.type = WindowEventType::PointerWheel;
-            event.x = static_cast<double>(point.x);
-            event.y = static_cast<double>(point.y);
-            const double delta = static_cast<double>(
-                GET_WHEEL_DELTA_WPARAM(word));
-            if (message == WM_MOUSEWHEEL) {
-                event.wheelDeltaY = delta;
-            } else {
-                event.wheelDeltaX = delta;
-            }
-            event.modifiers = Modifiers();
-            event.dpiScale = dpiScale;
-            Push(event);
-            return 0;
-        }
-        case WM_KEYDOWN:
-        case WM_SYSKEYDOWN:
-        case WM_KEYUP:
-        case WM_SYSKEYUP: {
-            WindowEvent event;
-            event.type =
-                message == WM_KEYDOWN || message == WM_SYSKEYDOWN
-                ? WindowEventType::KeyDown
-                : WindowEventType::KeyUp;
-            event.key = static_cast<std::uint32_t>(word);
-            event.modifiers = Modifiers();
-            event.repeat = (static_cast<std::uintptr_t>(value) &
-                (UINT64_C(1) << 30U)) != 0U;
-            Push(event);
-            return 0;
-        }
-        case WM_CHAR:
-            QueueUtf16(static_cast<std::uint16_t>(word));
-            return 0;
-        case WM_UNICHAR:
-            if (word == UNICODE_NOCHAR) {
-                return TRUE;
-            }
-            QueueCodePoint(static_cast<std::uint32_t>(word));
-            return 0;
-        default:
-            break;
-        }
-        return DefWindowProcW(nativeWindow, message, word, value);
-    }
-
-    static LRESULT CALLBACK WindowProcedure(
-        HWND nativeWindow,
-        UINT message,
-        WPARAM word,
-        LPARAM value) noexcept {
-        Win32WindowState* self = reinterpret_cast<Win32WindowState*>(
-            GetWindowLongPtrW(nativeWindow, GWLP_USERDATA));
-        if (message == WM_NCCREATE) {
-            const auto* created =
-                reinterpret_cast<const CREATESTRUCTW*>(value);
-            self = created != nullptr
-                ? static_cast<Win32WindowState*>(created->lpCreateParams)
-                : nullptr;
-            if (self != nullptr) {
-                self->window = nativeWindow;
-                SetWindowLongPtrW(
-                    nativeWindow,
-                    GWLP_USERDATA,
-                    reinterpret_cast<LONG_PTR>(self));
-            }
-        }
-        return self != nullptr
-            ? self->HandleMessage(nativeWindow, message, word, value)
-            : DefWindowProcW(nativeWindow, message, word, value);
-    }
-#endif
-};
-
-static_assert(sizeof(Win32WindowState) <= 8192U,
-    "Win32Window inline state storage is too small");
-static_assert(alignof(Win32WindowState) <= alignof(std::max_align_t),
-    "Win32Window inline state alignment is insufficient");
-
-Win32Window::Win32Window(
-    Base::IAllocator* allocator) noexcept
-    : allocator_(allocator != nullptr
-          ? allocator
-          : &Base::GetDefaultAllocator()) {
-    state_ = new (stateStorage_) Win32WindowState(*allocator_);
 }
 
 void ApplyDarkWindowChrome(HWND window) noexcept {
@@ -603,18 +251,331 @@ void ApplyDarkWindowChrome(HWND window) noexcept {
     FreeLibrary(dwm);
 }
 
+#endif
+
+} // namespace
+
+Win32Window::Win32Window(
+    Base::IAllocator* allocator) noexcept
+    : allocator_(allocator != nullptr
+          ? allocator
+          : &Base::GetDefaultAllocator()),
+      events_(allocator_) {
+}
+
 Win32Window::~Win32Window() {
     Close();
-    if (state_ != nullptr) {
-        state_->~Win32WindowState();
-        state_ = nullptr;
-    }
 }
+
+#if defined(_WIN32)
+
+void Win32Window::Push(const WindowEvent& event) noexcept {
+    events_.PushBack(event);
+}
+
+bool Win32Window::Dequeue(WindowEvent& event) noexcept {
+    if (eventHead_ >= events_.Size()) {
+        eventHead_ = 0U;
+        events_.Clear();
+        return false;
+    }
+    event = events_[eventHead_++];
+    if (eventHead_ >= events_.Size()) {
+        eventHead_ = 0U;
+        events_.Clear();
+    }
+    return true;
+}
+
+void Win32Window::UpdateClientMetrics() noexcept {
+    if (window_ == nullptr) {
+        return;
+    }
+    RECT client{};
+    if (GetClientRect(window_, &client) != FALSE) {
+        width_ = static_cast<std::uint32_t>(
+            client.right - client.left);
+        height_ = static_cast<std::uint32_t>(
+            client.bottom - client.top);
+    }
+    using GetDpiForWindowFunction = UINT (WINAPI*)(HWND);
+    const HMODULE user32 = GetModuleHandleW(L"user32.dll");
+    const auto getDpi = user32 != nullptr
+        ? reinterpret_cast<GetDpiForWindowFunction>(
+              GetProcAddress(user32, "GetDpiForWindow"))
+        : nullptr;
+    dpiScale_ = getDpi != nullptr
+        ? static_cast<double>(getDpi(window_)) / 96.0
+        : 1.0;
+}
+
+void Win32Window::QueuePointer(
+    WindowEventType type,
+    double x,
+    double y,
+    WindowPointerButton button) noexcept {
+    WindowEvent event;
+    event.type = type;
+    event.x = x;
+    event.y = y;
+    event.button = button;
+    event.modifiers = Win32Modifiers();
+    event.dpiScale = dpiScale_;
+    Push(event);
+}
+
+void Win32Window::QueueKey(
+    WindowEventType type,
+    std::uint32_t key,
+    bool repeat) noexcept {
+    WindowEvent event;
+    event.type = type;
+    event.key = key;
+    event.modifiers = Win32Modifiers();
+    event.repeat = repeat;
+    Push(event);
+}
+
+void Win32Window::QueueCodePoint(std::uint32_t codePoint) noexcept {
+    if (codePoint > 0x10FFFFU ||
+        (codePoint >= 0xD800U && codePoint <= 0xDFFFU)) {
+        codePoint = 0xFFFDU;
+    }
+    WindowEvent event;
+    event.type = WindowEventType::TextInput;
+    event.textSize = static_cast<std::uint8_t>(
+        Base::EncodeCodePoint(codePoint, event.text));
+    Push(event);
+}
+
+void Win32Window::QueueUtf16(std::uint16_t value) noexcept {
+    if (value >= 0xD800U && value <= 0xDBFFU) {
+        if (pendingHighSurrogate_ != 0U) {
+            QueueCodePoint(0xFFFDU);
+        }
+        pendingHighSurrogate_ = value;
+        return;
+    }
+    if (value >= 0xDC00U && value <= 0xDFFFU) {
+        if (pendingHighSurrogate_ == 0U) {
+            QueueCodePoint(0xFFFDU);
+            return;
+        }
+        const std::uint32_t codePoint =
+            0x10000U +
+            ((static_cast<std::uint32_t>(
+                  pendingHighSurrogate_) - 0xD800U) << 10U) +
+            (static_cast<std::uint32_t>(value) - 0xDC00U);
+        pendingHighSurrogate_ = 0U;
+        QueueCodePoint(codePoint);
+        return;
+    }
+    if (pendingHighSurrogate_ != 0U) {
+        pendingHighSurrogate_ = 0U;
+        QueueCodePoint(0xFFFDU);
+    }
+    QueueCodePoint(value);
+}
+
+LRESULT Win32Window::HandleMessage(
+    HWND nativeWindow,
+    UINT message,
+    WPARAM word,
+    LPARAM value) noexcept {
+    switch (message) {
+    case WM_CLOSE: {
+        // Do not mark the native window closed here. WPF raises Closing
+        // first; DestroyWindow runs only if Close() is not cancelled.
+        // Do not PostQuitMessage from this handler: DXGI Present() pumps
+        // messages, and WM_QUIT consumed inside Present leaves the host
+        // looping with a still-open HWND / swapchain.
+        WindowEvent event;
+        event.type = WindowEventType::CloseRequested;
+        Push(event);
+        return 0;
+    }
+    case WM_DESTROY: {
+        open_ = false;
+        window_ = nullptr;
+        WindowEvent event;
+        event.type = WindowEventType::Closed;
+        Push(event);
+        PostQuitMessage(0);
+        return 0;
+    }
+    case WM_SIZE: {
+        const std::uint32_t resizedWidth = LOWORD(value);
+        const std::uint32_t resizedHeight = HIWORD(value);
+        if (resizedWidth != 0U && resizedHeight != 0U) {
+            width_ = resizedWidth;
+            height_ = resizedHeight;
+            WindowEvent event;
+            event.type = WindowEventType::Resized;
+            event.width = width_;
+            event.height = height_;
+            event.dpiScale = dpiScale_;
+            Push(event);
+        }
+        return 0;
+    }
+    case WM_DPICHANGED: {
+        dpiScale_ = static_cast<double>(HIWORD(word)) / 96.0;
+        const auto* suggested =
+            reinterpret_cast<const RECT*>(value);
+        if (suggested != nullptr) {
+            static_cast<void>(SetWindowPos(
+                nativeWindow,
+                nullptr,
+                suggested->left,
+                suggested->top,
+                suggested->right - suggested->left,
+                suggested->bottom - suggested->top,
+                SWP_NOACTIVATE | SWP_NOZORDER));
+        }
+        UpdateClientMetrics();
+        WindowEvent event;
+        event.type = WindowEventType::ScaleChanged;
+        event.width = width_;
+        event.height = height_;
+        event.dpiScale = dpiScale_;
+        Push(event);
+        return 0;
+    }
+    case WM_PAINT: {
+        PAINTSTRUCT paint{};
+        BeginPaint(nativeWindow, &paint);
+        EndPaint(nativeWindow, &paint);
+        WindowEvent event;
+        event.type = WindowEventType::Exposed;
+        event.width = width_;
+        event.height = height_;
+        event.dpiScale = dpiScale_;
+        Push(event);
+        return 0;
+    }
+    case WM_ERASEBKGND:
+        return 1;
+    case WM_MOUSEMOVE:
+        QueuePointer(
+            WindowEventType::PointerMove,
+            static_cast<double>(GET_X_LPARAM(value)),
+            static_cast<double>(GET_Y_LPARAM(value)));
+        return 0;
+    case WM_LBUTTONDOWN:
+    case WM_RBUTTONDOWN:
+    case WM_MBUTTONDOWN:
+    case WM_XBUTTONDOWN:
+        static_cast<void>(SetCapture(nativeWindow));
+        QueuePointer(
+            WindowEventType::PointerDown,
+            static_cast<double>(GET_X_LPARAM(value)),
+            static_cast<double>(GET_Y_LPARAM(value)),
+            Win32ButtonFromMessage(message, word));
+        return message == WM_XBUTTONDOWN ? TRUE : 0;
+    case WM_LBUTTONDBLCLK:
+    case WM_RBUTTONDBLCLK:
+    case WM_MBUTTONDBLCLK:
+    case WM_XBUTTONDBLCLK:
+        static_cast<void>(SetCapture(nativeWindow));
+        QueuePointer(
+            WindowEventType::PointerDoubleClick,
+            static_cast<double>(GET_X_LPARAM(value)),
+            static_cast<double>(GET_Y_LPARAM(value)),
+            Win32ButtonFromMessage(message, word));
+        return message == WM_XBUTTONDBLCLK ? TRUE : 0;
+    case WM_LBUTTONUP:
+    case WM_RBUTTONUP:
+    case WM_MBUTTONUP:
+    case WM_XBUTTONUP:
+        static_cast<void>(ReleaseCapture());
+        QueuePointer(
+            WindowEventType::PointerUp,
+            static_cast<double>(GET_X_LPARAM(value)),
+            static_cast<double>(GET_Y_LPARAM(value)),
+            Win32ButtonFromMessage(message, word));
+        return message == WM_XBUTTONUP ? TRUE : 0;
+    case WM_MOUSEWHEEL:
+    case WM_MOUSEHWHEEL: {
+        POINT point{
+            GET_X_LPARAM(value),
+            GET_Y_LPARAM(value)};
+        static_cast<void>(ScreenToClient(nativeWindow, &point));
+        WindowEvent event;
+        event.type = WindowEventType::PointerWheel;
+        event.x = static_cast<double>(point.x);
+        event.y = static_cast<double>(point.y);
+        const double delta = static_cast<double>(
+            GET_WHEEL_DELTA_WPARAM(word));
+        if (message == WM_MOUSEWHEEL) {
+            event.wheelDeltaY = delta;
+        } else {
+            event.wheelDeltaX = delta;
+        }
+        event.modifiers = Win32Modifiers();
+        event.dpiScale = dpiScale_;
+        Push(event);
+        return 0;
+    }
+    case WM_KEYDOWN:
+    case WM_SYSKEYDOWN:
+    case WM_KEYUP:
+    case WM_SYSKEYUP: {
+        QueueKey(
+            message == WM_KEYDOWN || message == WM_SYSKEYDOWN
+                ? WindowEventType::KeyDown
+                : WindowEventType::KeyUp,
+            static_cast<std::uint32_t>(word),
+            (static_cast<std::uintptr_t>(value) &
+                (UINT64_C(1) << 30U)) != 0U);
+        return 0;
+    }
+    case WM_CHAR:
+        QueueUtf16(static_cast<std::uint16_t>(word));
+        return 0;
+    case WM_UNICHAR:
+        if (word == UNICODE_NOCHAR) {
+            return TRUE;
+        }
+        QueueCodePoint(static_cast<std::uint32_t>(word));
+        return 0;
+    default:
+        break;
+    }
+    return DefWindowProcW(nativeWindow, message, word, value);
+}
+
+LRESULT CALLBACK Win32Window::WindowProcedure(
+    HWND nativeWindow,
+    UINT message,
+    WPARAM word,
+    LPARAM value) noexcept {
+    Win32Window* self = reinterpret_cast<Win32Window*>(
+        GetWindowLongPtrW(nativeWindow, GWLP_USERDATA));
+    if (message == WM_NCCREATE) {
+        const auto* created =
+            reinterpret_cast<const CREATESTRUCTW*>(value);
+        self = created != nullptr
+            ? static_cast<Win32Window*>(created->lpCreateParams)
+            : nullptr;
+        if (self != nullptr) {
+            self->window_ = nativeWindow;
+            SetWindowLongPtrW(
+                nativeWindow,
+                GWLP_USERDATA,
+                reinterpret_cast<LONG_PTR>(self));
+        }
+    }
+    return self != nullptr
+        ? self->HandleMessage(nativeWindow, message, word, value)
+        : DefWindowProcW(nativeWindow, message, word, value);
+}
+
+#endif // defined(_WIN32)
 
 Base::Result<void> Win32Window::Create(
     const WindowDescriptor& descriptor) noexcept {
 #if defined(_WIN32)
-    if (state_->window != nullptr || state_->open) {
+    if (window_ != nullptr || open_) {
         return WindowFailure(
             Base::ErrorCode::AlreadyExists,
             "Win32 window is already created");
@@ -633,17 +594,17 @@ Base::Result<void> Win32Window::Create(
             "Win32 window dimensions are invalid");
     }
 
-    state_->events.Clear();
-    state_->width = descriptor.width;
-    state_->height = descriptor.height;
-    state_->dpiScale = 1.0;
-    state_->pendingHighSurrogate = 0U;
+    events_.Clear();
+    width_ = descriptor.width;
+    height_ = descriptor.height;
+    dpiScale_ = 1.0;
+    pendingHighSurrogate_ = 0U;
     EnsureInteractiveDesktop();
     EnablePerMonitorDpiAwareness();
     const UINT dpi = QuerySystemDpi();
-    state_->dpiScale = static_cast<double>(dpi) / 96.0;
-    state_->instance = GetModuleHandleW(nullptr);
-    if (state_->instance == nullptr) {
+    dpiScale_ = static_cast<double>(dpi) / 96.0;
+    instance_ = GetModuleHandleW(nullptr);
+    if (instance_ == nullptr) {
         return WindowFailure(
             Base::ErrorCode::InternalError,
             "Win32 module handle is unavailable");
@@ -652,14 +613,14 @@ Base::Result<void> Win32Window::Create(
     WNDCLASSEXW windowClass{};
     windowClass.cbSize = sizeof(windowClass);
     windowClass.style = CS_OWNDC | CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS;
-    windowClass.lpfnWndProc = &Win32WindowState::WindowProcedure;
-    windowClass.hInstance = state_->instance;
+    windowClass.lpfnWndProc = &Win32Window::WindowProcedure;
+    windowClass.hInstance = instance_;
     windowClass.hCursor =
         LoadCursorW(nullptr, MAKEINTRESOURCEW(32512));
     windowClass.lpszClassName = Win32WindowClassName();
     if (RegisterClassExW(&windowClass) == 0U &&
         GetLastError() != ERROR_CLASS_ALREADY_EXISTS) {
-        state_->instance = nullptr;
+        instance_ = nullptr;
         return WindowFailure(
             Base::ErrorCode::InternalError,
             "Win32 window class registration failed");
@@ -669,7 +630,7 @@ Base::Result<void> Win32Window::Create(
     Base::Result<void> converted = ConvertWindowTitle(
         descriptor.title, title);
     if (!converted) {
-        state_->instance = nullptr;
+        instance_ = nullptr;
         return converted.GetStatus();
     }
 
@@ -687,7 +648,7 @@ Base::Result<void> Win32Window::Create(
         bounds.bottom = DipToPhysical(descriptor.height, dpi);
         if (AdjustWindowRectForDpi(
                 &bounds, style, dpi) == FALSE) {
-            state_->instance = nullptr;
+            instance_ = nullptr;
             return WindowFailure(
                 Base::ErrorCode::InternalError,
                 "Win32 window bounds adjustment failed");
@@ -696,7 +657,7 @@ Base::Result<void> Win32Window::Create(
         outerHeight = bounds.bottom - bounds.top;
     }
 
-    state_->window = CreateWindowExW(
+    window_ = CreateWindowExW(
         0U,
         Win32WindowClassName(),
         title.Data(),
@@ -707,19 +668,19 @@ Base::Result<void> Win32Window::Create(
         outerHeight,
         nullptr,
         nullptr,
-        state_->instance,
-        state_);
-    if (state_->window == nullptr) {
-        state_->instance = nullptr;
+        instance_,
+        this);
+    if (window_ == nullptr) {
+        instance_ = nullptr;
         return WindowFailure(
             Base::ErrorCode::InternalError,
             "Win32 window creation failed");
     }
 
-    ApplyDarkWindowChrome(state_->window);
+    ApplyDarkWindowChrome(window_);
 
-    state_->open = true;
-    state_->UpdateClientMetrics();
+    open_ = true;
+    UpdateClientMetrics();
     if (descriptor.visible) {
         Base::Result<void> shown = Show();
         if (!shown) {
@@ -736,15 +697,15 @@ Base::Result<void> Win32Window::Create(
 
 Base::Result<void> Win32Window::Show() noexcept {
 #if defined(_WIN32)
-    if (state_->window == nullptr || !state_->open) {
+    if (window_ == nullptr || !open_) {
         return WindowFailure(
             Base::ErrorCode::NotInitialized,
             "Win32 window is not created");
     }
-    ShowWindow(state_->window, SW_SHOWNORMAL);
-    SetForegroundWindow(state_->window);
-    BringWindowToTop(state_->window);
-    if (UpdateWindow(state_->window) == FALSE) {
+    ShowWindow(window_, SW_SHOWNORMAL);
+    SetForegroundWindow(window_);
+    BringWindowToTop(window_);
+    if (UpdateWindow(window_) == FALSE) {
         return WindowFailure(
             Base::ErrorCode::InternalError,
             "Win32 window update failed");
@@ -758,7 +719,7 @@ Base::Result<void> Win32Window::Show() noexcept {
 Base::Result<bool> Win32Window::PollEvent(
     WindowEvent& event) noexcept {
 #if defined(_WIN32)
-    if (state_->Dequeue(event)) {
+    if (Dequeue(event)) {
         return true;
     }
     MSG message{};
@@ -766,15 +727,15 @@ Base::Result<bool> Win32Window::PollEvent(
                &message, nullptr, 0U, 0U,
                PM_REMOVE) != FALSE) {
         if (message.message == WM_QUIT) {
-            state_->open = false;
+            open_ = false;
             WindowEvent quit;
             quit.type = WindowEventType::CloseRequested;
-            state_->Push(quit);
+            Push(quit);
         } else {
             TranslateMessage(&message);
             DispatchMessageW(&message);
         }
-        if (state_->Dequeue(event)) {
+        if (Dequeue(event)) {
             return true;
         }
     }
@@ -788,10 +749,10 @@ Base::Result<bool> Win32Window::PollEvent(
 Base::Result<bool> Win32Window::WaitEvent(
     WindowEvent& event) noexcept {
 #if defined(_WIN32)
-    if (state_->Dequeue(event)) {
+    if (Dequeue(event)) {
         return true;
     }
-    while (state_->open) {
+    while (open_) {
         MSG message{};
         const BOOL received = GetMessageW(
             &message, nullptr, 0U, 0U);
@@ -801,19 +762,19 @@ Base::Result<bool> Win32Window::WaitEvent(
                 "Win32 message retrieval failed");
         }
         if (received == 0) {
-            state_->open = false;
+            open_ = false;
             WindowEvent quit;
             quit.type = WindowEventType::CloseRequested;
-            state_->Push(quit);
-            return state_->Dequeue(event);
+            Push(quit);
+            return Dequeue(event);
         }
         TranslateMessage(&message);
         DispatchMessageW(&message);
-        if (state_->Dequeue(event)) {
+        if (Dequeue(event)) {
             return true;
         }
     }
-    return state_->Dequeue(event);
+    return Dequeue(event);
 #else
     static_cast<void>(event);
     return UnsupportedWin32Window();
@@ -822,53 +783,46 @@ Base::Result<bool> Win32Window::WaitEvent(
 
 void Win32Window::Close() noexcept {
 #if defined(_WIN32)
-    HWND nativeWindow = state_ != nullptr
-        ? state_->window
-        : nullptr;
+    HWND nativeWindow = window_;
     if (nativeWindow != nullptr &&
         IsWindow(nativeWindow) != FALSE) {
         static_cast<void>(DestroyWindow(nativeWindow));
     }
-    if (state_ != nullptr) {
-        state_->window = nullptr;
-        state_->instance = nullptr;
-        state_->open = false;
-        state_->pendingHighSurrogate = 0U;
-    }
+    window_ = nullptr;
+    instance_ = nullptr;
+    open_ = false;
+    pendingHighSurrogate_ = 0U;
 #endif
 }
 
 bool Win32Window::IsOpen() const noexcept {
 #if defined(_WIN32)
-    return state_ != nullptr &&
-        state_->open &&
-        state_->window != nullptr &&
-        IsWindow(state_->window) != FALSE;
+    return open_ &&
+        window_ != nullptr &&
+        IsWindow(window_) != FALSE;
 #else
-    return state_ != nullptr && state_->open;
+    return open_;
 #endif
 }
 
 std::uint32_t Win32Window::ClientWidth() const noexcept {
-    return state_ != nullptr ? state_->width : 0U;
+    return width_;
 }
 
 std::uint32_t Win32Window::ClientHeight() const noexcept {
-    return state_ != nullptr ? state_->height : 0U;
+    return height_;
 }
 
 double Win32Window::DpiScale() const noexcept {
-    return state_ != nullptr ? state_->dpiScale : 1.0;
+    return dpiScale_;
 }
 
 NativeWindowHandle Win32Window::NativeHandle() const noexcept {
     NativeWindowHandle handle;
 #if defined(_WIN32)
-    if (state_ != nullptr) {
-        handle.system = WindowSystem::Win32;
-        handle.window = reinterpret_cast<std::uintptr_t>(state_->window);
-        handle.instance = reinterpret_cast<std::uintptr_t>(state_->instance);
-    }
+    handle.system = WindowSystem::Win32;
+    handle.window = reinterpret_cast<std::uintptr_t>(window_);
+    handle.instance = reinterpret_cast<std::uintptr_t>(instance_);
 #endif
     return handle;
 }

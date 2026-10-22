@@ -125,11 +125,6 @@ MenuItem::OnApplyTemplate() noexcept {
             Popup::StaticTypeId())
         ? static_cast<Popup*>(submenu)
         : nullptr;
-    if (gestureText_ == nullptr ||
-        checkGlyph_ == nullptr ||
-        submenuPopup_ == nullptr) {
-        return;
-    }
     static_cast<void>(SynchronizeMenuTemplate());
 }
 
@@ -193,11 +188,21 @@ static ItemsControl* GetParentItemsControl(MenuItem& item) noexcept {
     return nullptr;
 }
 
+static MenuItem* GetMenuItemAt(ItemsControl& host, std::uint32_t i) noexcept {
+    Base::Ref<Base::Object> obj = host.GetItem(i);
+    if (MenuItem* item = ::Aero::TryCast<MenuItem>(obj.Get())) {
+        return item;
+    }
+    if (ItemContainerGenerator* gen = host.GetItemContainerGenerator()) {
+        return ::Aero::TryCast<MenuItem>(gen->ContainerFromIndex(i));
+    }
+    return nullptr;
+}
+
 static bool HasAnySubmenuOpen(ItemsControl& host) noexcept {
     const std::uint32_t count = host.GetCount();
     for (std::uint32_t i = 0; i < count; ++i) {
-        Base::Ref<Base::Object> obj = host.GetItem(i);
-        if (MenuItem* item = ::Aero::TryCast<MenuItem>(obj.Get())) {
+        if (MenuItem* item = GetMenuItemAt(host, i)) {
             if (item->GetIsSubmenuOpen()) {
                 return true;
             }
@@ -209,8 +214,7 @@ static bool HasAnySubmenuOpen(ItemsControl& host) noexcept {
 static void CloseAllSubmenus(ItemsControl& host) noexcept {
     const std::uint32_t count = host.GetCount();
     for (std::uint32_t i = 0; i < count; ++i) {
-        Base::Ref<Base::Object> obj = host.GetItem(i);
-        if (MenuItem* item = ::Aero::TryCast<MenuItem>(obj.Get())) {
+        if (MenuItem* item = GetMenuItemAt(host, i)) {
             item->SetIsSubmenuOpen(false);
             item->SetHighlightedState(false);
             CloseAllSubmenus(*item);
@@ -223,8 +227,7 @@ static void CloseSiblingSubmenus(MenuItem& item) noexcept {
     if (parent == nullptr) return;
     const std::uint32_t count = parent->GetCount();
     for (std::uint32_t i = 0; i < count; ++i) {
-        Base::Ref<Base::Object> obj = parent->GetItem(i);
-        if (MenuItem* sibling = ::Aero::TryCast<MenuItem>(obj.Get())) {
+        if (MenuItem* sibling = GetMenuItemAt(*parent, i)) {
             if (sibling != &item) {
                 sibling->SetIsSubmenuOpen(false);
                 sibling->SetHighlightedState(false);

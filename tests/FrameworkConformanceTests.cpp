@@ -879,6 +879,7 @@ const Aero::ModuleRegistration kTestModule =
 
 Result<void> RegisterTutorialTypes(Registration& registration) noexcept {
     using Aero::Meta::FrameworkPropertyMetadata;
+    std::printf("        [debug] Register NumericUpDown\n"); std::fflush(stdout);
     Result<void> status = Aero::Meta::Register<NumericUpDown>(registration)
         .Property(
             NumericUpDown::ValueProperty,
@@ -1112,20 +1113,24 @@ LiveGui* NewLiveGui(ViewOptions options = {}) {
 }
 
 LiveGui* NewTutorialLiveGui(ViewOptions options = {}) {
+    std::printf("    [debug] new LiveGui\n"); std::fflush(stdout);
     auto* live = new LiveGui();
     options.diagnostics = &live->diagnostics;
+    std::printf("    [debug] AddModule test\n"); std::fflush(stdout);
     Result<void> module = live->gui.AddModule(kTestModule);
     if (!module) {
         std::fprintf(stderr, "AddModule test failed: %s\n",
             module.GetStatus().message);
         return nullptr;
     }
+    std::printf("    [debug] AddModule tutorial\n"); std::fflush(stdout);
     Result<void> tutorial = live->gui.AddModule(kTutorialModule);
     if (!tutorial) {
         std::fprintf(stderr, "AddModule tutorial failed: %s\n",
             tutorial.GetStatus().message);
         return nullptr;
     }
+    std::printf("    [debug] SetXamlProvider\n"); std::fflush(stdout);
     Result<Ref<Aero::Markup::XamlProviderAdapter>> provider =
         MakeRef<Aero::Markup::XamlProviderAdapter>(
             &OpenTutorialXaml, nullptr, nullptr);
@@ -1139,12 +1144,14 @@ LiveGui* NewTutorialLiveGui(ViewOptions options = {}) {
             xaml.GetStatus().message);
         return nullptr;
     }
+    std::printf("    [debug] live->gui.Initialize\n"); std::fflush(stdout);
     Result<void> initialized = live->gui.Initialize();
     if (!initialized) {
         std::fprintf(stderr, "Initialize failed: %s\n",
             initialized.GetStatus().message);
         return nullptr;
     }
+    std::printf("    [debug] live->gui.CreateView\n"); std::fflush(stdout);
     Result<Ref<View>> created = live->gui.CreateView(options);
     if (!created) {
         std::fprintf(stderr, "CreateView failed: %s\n",
@@ -4313,7 +4320,7 @@ bool TestDataTemplateItemHoverStoryboard() {
         root->FindName<ItemsControl>(StringView("Players"));
     CHECK(players != nullptr);
 
-    const DataTemplate* itemTemplate = players->GetItemTemplate();
+    const DataTemplate* itemTemplate = players->GetItemTemplate().Get();
     CHECK(itemTemplate != nullptr);
     Aero::ResourceValue overOn =
         itemTemplate->GetResources().Lookup(StringView("OverOn"));
@@ -5080,12 +5087,18 @@ bool CountMatchesAfterLayout(
     LiveGui& live,
     ItemsControl& list,
     std::uint32_t expected) noexcept {
+    std::fprintf(stderr, "[debug CountMatchesAfterLayout] 1. ApplyTemplate\n");
     static_cast<void>(list.ApplyTemplate());
+    std::fprintf(stderr, "[debug CountMatchesAfterLayout] 2. PumpBindings\n");
     PumpBindings(live);
+    std::fprintf(stderr, "[debug CountMatchesAfterLayout] 3. ApplyTemplate\n");
     static_cast<void>(list.ApplyTemplate());
+    std::fprintf(stderr, "[debug CountMatchesAfterLayout] 4. PumpBindings\n");
     PumpBindings(live);
+    std::fprintf(stderr, "[debug CountMatchesAfterLayout] 4. PumpBindings done\n");
     const std::uint32_t count = list.GetCount();
     const std::uint32_t realized = list.GetRealizedItemCount();
+    std::fprintf(stderr, "[debug CountMatchesAfterLayout] 5. count=%u realized=%u\n", count, realized);
     if (count != expected) {
         std::fprintf(
             stderr,
@@ -6341,6 +6354,175 @@ bool TestBoardFlipRotationYStoryboard() {
 
 } // namespace
 
+bool TestValueLayoutAndSSO() {
+    // 1. Size verification
+    static_assert(sizeof(Aero::Base::Value) <= 56U, "Value size must not exceed 56 bytes");
+    CHECK(sizeof(Aero::Base::Value) <= 56U);
+
+    // 2. Short string optimization (SSO)
+    Aero::Base::Value shortVal("HelloWorld");
+    CHECK(shortVal.Kind() == Aero::Base::ValueKind::String);
+    CHECK(shortVal.IsShortString());
+    CHECK(shortVal.AsString() == "HelloWorld");
+
+    // Copy constructor preserves short string
+    Aero::Base::Value shortCopy = shortVal;
+    CHECK(shortCopy.Kind() == Aero::Base::ValueKind::String);
+    CHECK(shortCopy.IsShortString());
+    CHECK(shortCopy.AsString() == "HelloWorld");
+    CHECK(shortCopy == shortVal);
+
+    // Move constructor
+    Aero::Base::Value shortMoved = std::move(shortCopy);
+    CHECK(shortMoved.AsString() == "HelloWorld");
+    CHECK(shortCopy.IsUnset());
+
+    // Copy assignment
+    Aero::Base::Value assigned;
+    assigned = shortVal;
+    CHECK(assigned.AsString() == "HelloWorld");
+    CHECK(assigned == shortVal);
+
+    // 3. Long string (heap allocated fallback)
+    const char* longStr = "This is a very long string that definitely exceeds thirty-one bytes in length";
+    Aero::Base::Value longVal(longStr);
+    CHECK(longVal.Kind() == Aero::Base::ValueKind::String);
+    CHECK(!longVal.IsShortString());
+    CHECK(longVal.AsString() == longStr);
+
+    Aero::Base::Value longCopy = longVal;
+    CHECK(!longCopy.IsShortString());
+    CHECK(longCopy.AsString() == longStr);
+    CHECK(longCopy == longVal);
+
+    // 4. Primitive scalars
+    Aero::Base::Value boolVal(true);
+    CHECK(boolVal.Kind() == Aero::Base::ValueKind::Boolean);
+    CHECK(boolVal.AsBoolean() == true);
+    Aero::Base::Value boolCopy = boolVal;
+    CHECK(boolCopy.AsBoolean() == true);
+    CHECK(boolCopy == boolVal);
+
+    Aero::Base::Value intVal(42);
+    CHECK(intVal.Kind() == Aero::Base::ValueKind::SignedInteger);
+    CHECK(intVal.AsSignedInteger() == 42);
+
+    Aero::Base::Value dblVal(3.14159);
+    CHECK(dblVal.Kind() == Aero::Base::ValueKind::Double);
+    CHECK(dblVal.AsDouble() == 3.14159);
+
+    // 5. Custom inline values
+    Aero::Thickness thickness{1.0, 2.0, 3.0, 4.0};
+    static const Aero::Meta::ValueTypeRegistration s_thickReg =
+        Aero::Meta::MakeValueTypeRegistration<Aero::Thickness>();
+    Aero::Base::Result<Aero::Base::Value> thickVal =
+        Aero::Base::Value::TryFromCustom(
+            Aero::Base::MakeMetaTypeId("Thickness"),
+            &thickness,
+            &s_thickReg);
+    CHECK(thickVal);
+    CHECK(thickVal.Value().Kind() == Aero::Base::ValueKind::Custom);
+    CHECK(thickVal.Value().IsInlineCustom());
+    const auto* readThick = static_cast<const Aero::Thickness*>(thickVal.Value().AsCustom());
+    CHECK(readThick != nullptr);
+    CHECK(readThick->left == 1.0 && readThick->top == 2.0 &&
+          readThick->right == 3.0 && readThick->bottom == 4.0);
+
+    Aero::Base::Value thickCopy = thickVal.Value();
+    CHECK(thickCopy.IsInlineCustom());
+    CHECK(thickCopy == thickVal.Value());
+
+    // 6. Object value
+    Aero::Base::Result<Aero::Base::Ref<Aero::Media::SolidColorBrush>> brush =
+        Aero::Base::MakeRef<Aero::Media::SolidColorBrush>();
+    CHECK(brush);
+    Aero::Base::Value objVal(Aero::Base::Ref<Aero::Base::Object>(brush.Value()));
+    CHECK(objVal.Kind() == Aero::Base::ValueKind::Object);
+    CHECK(!objVal.IsNullObject());
+    CHECK(objVal.AsObject().Get() == brush.Value().Get());
+
+    Aero::Base::Value objCopy = objVal;
+    CHECK(objCopy == objVal);
+
+    // 7. Transition between kinds (Assignment overwriting)
+    objVal = shortVal; // overwriting Object with ShortString
+    CHECK(objVal.Kind() == Aero::Base::ValueKind::String);
+    CHECK(objVal.IsShortString());
+    CHECK(objVal.AsString() == "HelloWorld");
+
+    objVal = longVal; // overwriting ShortString with LongString
+    CHECK(objVal.Kind() == Aero::Base::ValueKind::String);
+    CHECK(!objVal.IsShortString());
+    CHECK(objVal.AsString() == longStr);
+
+    objVal = intVal; // overwriting LongString with scalar
+    CHECK(objVal.Kind() == Aero::Base::ValueKind::SignedInteger);
+    CHECK(objVal.AsSignedInteger() == 42);
+
+    return true;
+}
+
+bool TestPasswordBoxDecoupled() {
+    LiveGui* live = NewLiveGui();
+    CHECK(live != nullptr);
+    View& view = *live->view;
+
+    // 1. Hierarchy & type verification: PasswordBox must NOT inherit or embed TextBox
+    static_assert(!std::is_base_of_v<Aero::Controls::TextBox, Aero::Controls::PasswordBox>);
+    static_assert(std::is_base_of_v<Aero::Controls::Primitives::TextBoxBase, Aero::Controls::PasswordBox>);
+    static_assert(std::is_base_of_v<Aero::Controls::Primitives::TextBoxBase, Aero::Controls::TextBox>);
+
+    // 2. Lifecycle & basic properties
+    auto pboxResult = Aero::Base::MakeRef<PasswordBox>();
+    CHECK(pboxResult);
+    Ref<PasswordBox> pbox = pboxResult.Value();
+    view.SetContent(pbox, {800.0, 600.0});
+    CHECK(pbox->GetPassword().Empty());
+    CHECK(pbox->GetMaxLength() == 0U);
+    CHECK(pbox->GetPasswordChar() == StringView(u8"\u2022"));
+
+    // 3. SetPassword and PasswordChanged event
+    bool changedFired = false;
+    bool* flag = &changedFired;
+    pbox->PasswordChanged().Add([flag](Aero::Base::Object*, Aero::RoutedEventArgs&) noexcept {
+        *flag = true;
+    });
+
+    pbox->SetPassword(StringView("Secret123"));
+    CHECK(changedFired);
+    CHECK(pbox->GetPassword() == StringView("Secret123"));
+
+    // 4. Change PasswordChar mask
+    pbox->SetPasswordChar(StringView("*"));
+    CHECK(pbox->GetPasswordChar() == StringView("*"));
+    // Multi-grapheme mask is rejected
+    pbox->SetPasswordChar(StringView("**"));
+    CHECK(pbox->GetPasswordChar() == StringView("*"));
+
+    // 5. MaxLength constraints
+    pbox->SetPassword(StringView("Sec"));
+    pbox->SetMaxLength(5U);
+    CHECK(pbox->GetMaxLength() == 5U);
+    pbox->SetPassword(StringView("TooLongPassword"));
+    CHECK(pbox->GetPassword() == StringView("Sec")); // rejected because exceeds 5 chars
+
+    // 6. Security: clipboard copy/cut must NOT expose password
+    pbox->SelectAll();
+    Aero::Input::MemoryClipboard clipboard;
+    static_cast<void>(clipboard.WriteText(StringView("initial")));
+    Aero::Base::String clipText;
+    static_cast<void>(clipboard.ReadText(clipText));
+    CHECK(clipText == StringView("initial"));
+
+    // 7. Clear password
+    changedFired = false;
+    pbox->SetPassword(StringView(""));
+    CHECK(changedFired);
+    CHECK(pbox->GetPassword().Empty());
+
+    return true;
+}
+
 bool TestStyleSetterMergedStaticResource();
 bool TestMergedNestedStaticResource();
 bool TestTypeKeyedStaticResourceBasedOn();
@@ -6349,6 +6531,8 @@ bool TestInventoryTemplateApply();
 bool TestTutorialSampleXamlLoadApply();
 
 int main() {
+    RUN(TestValueLayoutAndSSO);
+    RUN(TestPasswordBoxDecoupled);
     RUN(TestStreamContract);
     RUN(TestPublicNamesAndHierarchy);
     RUN(TestDependencyPropertyVirtualFallback);

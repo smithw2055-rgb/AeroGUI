@@ -219,6 +219,22 @@ const GridView* GridViewFromColumnsValue(const Base::Ref<Base::Object>& value) n
     return ::Aero::TryCast<GridView>(value.Get());
 }
 
+DependencyObject* GetAncestorOrParent(const DependencyObject* current) noexcept {
+    if (current == nullptr) return nullptr;
+    const FrameworkElement* fe = ::Aero::TryCast<FrameworkElement>(current);
+    const ::Aero::Media::Visual* vis = ::Aero::TryCast<::Aero::Media::Visual>(current);
+    if (fe != nullptr && fe->GetTemplatedParent() != nullptr) {
+        return fe->GetTemplatedParent();
+    }
+    if (vis != nullptr && vis->GetVisualParent() != nullptr) {
+        return vis->GetVisualParent();
+    }
+    if (vis != nullptr && vis->GetLogicalParent() != nullptr) {
+        return vis->GetLogicalParent();
+    }
+    return nullptr;
+}
+
 // Walk templated/visual/logical parents to the owning ListView and return its
 // GridView. This covers two WPF patterns used by the gallery theme:
 //  - GridViewHeaderRowPresenter inside ScrollViewer template whose
@@ -239,19 +255,8 @@ const GridView* FindAncestorGridView(const FrameworkElement& start) noexcept {
             }
             return nullptr;
         }
-        const FrameworkElement* fe = ::Aero::TryCast<FrameworkElement>(current);
-        const ::Aero::Media::Visual* vis = ::Aero::TryCast<::Aero::Media::Visual>(current);
-        DependencyObject* next = nullptr;
-        if (fe != nullptr && fe->GetTemplatedParent() != nullptr) {
-            next = fe->GetTemplatedParent();
-        } else if (vis != nullptr && vis->GetVisualParent() != nullptr) {
-            next = vis->GetVisualParent();
-        } else if (vis != nullptr && vis->GetLogicalParent() != nullptr) {
-            next = vis->GetLogicalParent();
-        } else {
-            break;
-        }
-        if (next == current) break;
+        DependencyObject* next = GetAncestorOrParent(current);
+        if (next == nullptr || next == current) break;
         current = next;
     }
     return nullptr;
@@ -294,18 +299,8 @@ Base::Ref<Base::Object> ResolveRowItem(const GridViewRowPresenter& presenter,
     // Fall back to the templated ListViewItem's DataContext.
     const DependencyObject* current = &presenter;
     for (std::uint32_t depth = 0U; depth < 16U && current != nullptr; ++depth) {
-        const FrameworkElement* fe = ::Aero::TryCast<FrameworkElement>(current);
-        const ::Aero::Media::Visual* vis = ::Aero::TryCast<::Aero::Media::Visual>(current);
-        DependencyObject* next = nullptr;
-        if (fe != nullptr && fe->GetTemplatedParent() != nullptr) {
-            next = fe->GetTemplatedParent();
-        } else if (vis != nullptr && vis->GetVisualParent() != nullptr) {
-            next = vis->GetVisualParent();
-        } else if (vis != nullptr && vis->GetLogicalParent() != nullptr) {
-            next = vis->GetLogicalParent();
-        } else {
-            break;
-        }
+        DependencyObject* next = GetAncestorOrParent(current);
+        if (next == nullptr) break;
         if (const auto* item = ::Aero::TryCast<ListViewItem>(next)) {
             Value itemContext = item->GetDataContext();
             if (itemContext.Kind() == ValueKind::Object && !itemContext.IsNullObject() &&
@@ -482,10 +477,6 @@ void GridViewHeaderRowPresenter::RebuildIfNeeded() noexcept {
 }
 
 Size GridViewHeaderRowPresenter::MeasureOverride(Size availableSize) noexcept {
-    {
-        static int s_hm = 0;
-        if (s_hm < 2) { ++s_hm; std::fprintf(stderr, "[GridViewHeader] Measure #%d\n", s_hm); }
-    }
     RebuildIfNeeded();
     double totalWidth = 0.0;
     double maxHeight = 0.0;
@@ -603,15 +594,6 @@ void GridViewRowPresenter::ClearCells() noexcept {
 void GridViewRowPresenter::RebuildIfNeeded() noexcept {
     const GridView* view = ResolvePresenterView(*this, GetValue(ColumnsProperty));
     Base::Ref<Base::Object> item = ResolveRowItem(*this, GetValue(ContentProperty));
-    {
-        static int s_logged = 0;
-        if (s_logged < 3) {
-            ++s_logged;
-            std::fprintf(stderr, "[GridViewRow] view=%p item=%p cols=%u\n",
-                (const void*)view, item ? (const void*)item.Get() : nullptr,
-                view ? (unsigned)view->GetColumns().Size() : 0U);
-        }
-    }
     std::uint32_t columnCount = view != nullptr
         ? static_cast<std::uint32_t>(view->GetColumns().Size()) : 0U;
     if (view == lastView_ && columnCount == lastColumnCount_ &&
@@ -721,10 +703,6 @@ void GridViewRowPresenter::RebuildIfNeeded() noexcept {
 }
 
 Size GridViewRowPresenter::MeasureOverride(Size availableSize) noexcept {
-    {
-        static int s_rm = 0;
-        if (s_rm < 3) { ++s_rm; std::fprintf(stderr, "[GridViewRow] Measure #%d\n", s_rm); }
-    }
     RebuildIfNeeded();
     double totalWidth = 0.0;
     double maxHeight = 0.0;
@@ -818,12 +796,12 @@ AERO_DESCRIBE(ViewBase) {
 AERO_DESCRIBE(GridView) {
     using namespace Aero::Meta;
     Register<GridView>(context)
-        .Property<bool, &GridView::GetAllowsColumnReorder, &GridView::SetAllowsColumnReorder>("AllowsColumnReorder")
-        .Property<Base::Ref<Style>, &GridView::GetColumnHeaderContainerStyle, &GridView::SetColumnHeaderContainerStyle>("ColumnHeaderContainerStyle", PropertyFlags::Structural)
-        .Property<Base::Ref<Base::Object>, &GridView::GetColumnHeaderContextMenu, &GridView::SetColumnHeaderContextMenu>("ColumnHeaderContextMenu", PropertyFlags::Structural)
-        .Property<Base::Ref<Base::Object>, &GridView::GetColumnHeaderTemplate, &GridView::SetColumnHeaderTemplate>("ColumnHeaderTemplate", PropertyFlags::Structural)
-        .Property<Base::Ref<Base::Object>, &GridView::GetColumnHeaderTemplateSelector, &GridView::SetColumnHeaderTemplateSelector>("ColumnHeaderTemplateSelector", PropertyFlags::Structural)
-        .Property<Base::Ref<Base::Object>, &GridView::GetColumnHeaderToolTip, &GridView::SetColumnHeaderToolTip>("ColumnHeaderToolTip", PropertyFlags::Structural)
+        .Property(GridView::AllowsColumnReorderProperty, false)
+        .Property(GridView::ColumnHeaderContainerStyleProperty, Base::Ref<Style>{})
+        .Property(GridView::ColumnHeaderContextMenuProperty, Base::Ref<Base::Object>{})
+        .Property(GridView::ColumnHeaderTemplateProperty, Base::Ref<Base::Object>{})
+        .Property(GridView::ColumnHeaderTemplateSelectorProperty, Base::Ref<Base::Object>{})
+        .Property(GridView::ColumnHeaderToolTipProperty, Base::Ref<Base::Object>{})
         .Property<Base::Ref<Base::Object>, &GridView::GetColumnsObject, &GridView::SetColumnsObject>("Columns", PropertyFlags::Structural)
         .Content<Base::Object>("ColumnItems", ContentKind::Collection, &AddGridViewColumn, &ClearGridViewColumns)
         .Factory();

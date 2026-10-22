@@ -794,6 +794,14 @@ Size Path::MeasureOverride(
     Base::Result<void> geometry =
         EnsureGeometry();
     if (!geometry) return Size{};
+    const PathStrokeParams stroke = ResolvePathStroke(*this);
+    const double strokeOffset = (stroke.brush && stroke.thickness > 0.0)
+        ? stroke.thickness * 0.5
+        : 0.0;
+    const double strokeExtent = (stroke.brush && stroke.thickness > 0.0)
+        ? stroke.thickness
+        : 0.0;
+
     const Size natural{
         geometryBounds_.width,
         geometryBounds_.height};
@@ -819,10 +827,10 @@ Size Path::MeasureOverride(
         const Size native{
             std::max(
                 0.0,
-                geometryBounds_.x + geometryBounds_.width),
+                geometryBounds_.x + geometryBounds_.width + strokeOffset),
             std::max(
                 0.0,
-                geometryBounds_.y + geometryBounds_.height)};
+                geometryBounds_.y + geometryBounds_.height + strokeOffset)};
         return Size{
             widthBounded
                 ? std::min(native.width, availableSize.width)
@@ -874,11 +882,9 @@ void Path::OnRender(
     Base::Ref<Geometry> authoredGeometry = GetData();
     if (authoredGeometry && authoredGeometry->RuntimeType() ==
             PathGeometry::StaticTypeId()) {
-        // Segment points can be animation targets. Rebuild the lightweight
-        // mesh when rendering object-model geometry so those changes are
-        // visible without coupling Geometry to the visual tree.
         ResetGeometry();
     }
+
     const Size target = GetRenderSize();
     if (GetStretch() != Stretch::None &&
         (target.width != lastRenderWidth_ || target.height != lastRenderHeight_)) {

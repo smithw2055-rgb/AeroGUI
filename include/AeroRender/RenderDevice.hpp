@@ -420,6 +420,7 @@ struct Batch {
     UniformData pixelUniforms[2]{};
 
     void* pixelShader = nullptr;
+    uint32_t pixelShaderSize = 0U;
 };
 
 #ifndef DYNAMIC_VB_SIZE

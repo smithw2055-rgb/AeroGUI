@@ -52,21 +52,19 @@ namespace Aero {
 namespace MediaAnimation = ::Aero::Media::Animation;
 
 inline Base::Status ViewInvalidState(const char* message) noexcept {
-    return Base::Status::Failure(
-        Base::ErrorCode::InvalidState, message);
-}
-
-inline Base::Status AeroNotInitialized(const char* message) noexcept {
-    return Base::Status::Failure(
-        Base::ErrorCode::NotInitialized, message);
+    return Base::Status::InvalidState(message);
 }
 
 inline Base::Status ViewApiInvalidState(const char* message) noexcept {
-    return Base::Status::Failure(Base::ErrorCode::InvalidState, message);
+    return ViewInvalidState(message);
 }
 
 inline Base::Status ViewNotInitialized(const char* message) noexcept {
-    return Base::Status::Failure(Base::ErrorCode::NotInitialized, message);
+    return Base::Status::NotInitialized(message);
+}
+
+inline Base::Status AeroNotInitialized(const char* message) noexcept {
+    return ViewNotInitialized(message);
 }
 
 inline Base::Result<void> ValidateViewport(
@@ -128,46 +126,15 @@ inline Base::Result<Base::ResourceUri> BuiltInThemeUri(
     return Base::ResourceUri::Parse(text.View());
 }
 
-template<class T, class... TArgs>
-inline Base::Result<void> AllocateObject(
-    Base::IAllocator& allocator,
-    Base::MemoryTag tag,
-    T*& output,
-    TArgs&&... arguments) noexcept {
-    if (output != nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::AlreadyExists,
-            "Object is already allocated");
-    }
-    void* memory = allocator.Allocate({
-        sizeof(T), alignof(T), tag});
-    if (memory == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfMemory,
-            "Object allocation failed");
-    }
-    output = new (memory) T(
-        std::forward<TArgs>(arguments)...);
-    return {};
-}
-
-template<class T>
-inline void FreeObject(
-    Base::IAllocator& allocator,
-    Base::MemoryTag tag,
-    T*& object) noexcept {
-    if (object == nullptr) return;
-    object->~T();
-    allocator.Deallocate(
-        object, sizeof(T), alignof(T), tag);
-    object = nullptr;
-}
+using Base::AllocateObject;
+using Base::FreeObject;
 
 class InteractivityEngine;
 class StoryboardHost;
 class OverlayHost;
 class FocusHost;
 class ResourceHost;
+struct ViewEngines;
 namespace Text { class TextPipeline; }
 namespace Render { class RenderTree; }
 
@@ -217,12 +184,12 @@ struct ViewFrame {
         View& owner,
         Gui& guiOwner,
         Base::IAllocator& value,
-        Base::Ref<Base::Object> guiState) noexcept;
+        Base::Ref<GuiRuntime> guiState) noexcept;
 
     // Composition roots and Gui-owned services.
     Base::IAllocator* allocator = nullptr;
     Gui* guiOwner = nullptr;
-    Base::Ref<Base::Object> gui;
+    Base::Ref<GuiRuntime> gui;
     ViewRenderer publicRenderer;
     RenderingEventHandler renderingHandlers;
     Audio::Engine audio;
@@ -243,8 +210,8 @@ struct ViewFrame {
     // Frame ownership + ElementTree hub.
     // Domain callers reach Layout/Bindings/Styles/Animations/… through
     // ElementTree (VisualTree()); ViewFrame keeps ownership for hosts that are
-    // not yet on the tree, and thin accessors that forward to tree once wired.
-    Meta::ObjectFactoryScope* objectFactory = nullptr;
+    // not yet on the tree, and direct accessors that forward to engines.
+    ViewEngines* engines = nullptr;
     Meta::EffectiveValueEngine* values = nullptr;
     Aero::ElementTree* tree = nullptr;
     Aero::Media::ImageCache* images = nullptr;
@@ -261,7 +228,7 @@ struct ViewFrame {
     Aero::BindingEngine* Bindings() const noexcept;
     Aero::StyleEngine* Styles() const noexcept;
     Aero::EventRouter* Events() const noexcept;
-    Aero::InputRouter* Input() const noexcept;
+    Aero::InputManager* Input() const noexcept;
     Aero::AnimationEngine* Animations() const noexcept;
     VisualStateManager* VisualStates() const noexcept;
     Aero::Controls::TemplateEngine* Templates() const noexcept;
@@ -374,9 +341,8 @@ struct ViewFrame {
     static Base::Object* FindNameForElement(
         void* context,
         Base::StringView name,
-        Meta::TypeId expectedType) noexcept;
-
-    Base::Result<void> CreateUiEngines() noexcept;
+        Meta::TypeId expectedType = Meta::InvalidTypeId,
+        const DependencyObject* requester = nullptr) noexcept;
 
     static Base::Result<void> GeneratedItemSubtreeChanged(
         Aero::Media::Visual& root,
@@ -392,15 +358,10 @@ struct ViewFrame {
     Base::Result<void> AttachPendingItemGenerators(
         Aero::Media::Visual& rootVisual) noexcept;
 
-    void DestroyUiEngines() noexcept;
-
     Base::Result<void> VisitAndAttach(
         Aero::Media::Visual& rootVisual) noexcept;
 
     void ClearTextInputHosts(
-        Aero::Media::Visual* node) noexcept;
-
-    void ClearElementEvents(
         Aero::Media::Visual* node) noexcept;
 
     void BeginDestroyInteractions() noexcept;
@@ -423,8 +384,43 @@ struct ViewFrame {
 #include "gui/media/StoryboardHost.hpp"
 #include "gui/input/OverlayHost.hpp"
 #include "gui/styles/ResourceHost.hpp"
+#include <Aero/Controls/Control.hpp>
+#include <Aero/Controls/Panels.hpp>
+#include <Aero/Controls/Decorators.hpp>
 
 namespace Aero {
+
+template <typename TFn>
+inline void ForEachVisualAndLogicalChild(Aero::Media::Visual& node, TFn&& fn) {
+    for (Aero::Media::Visual* child : node.RenderChildren()) {
+        if (child != nullptr) {
+            fn(child);
+        }
+    }
+    if (auto* panel = ::Aero::TryCast<Controls::Panel>(&node)) {
+        const std::uint32_t count = panel->GetChildren().GetCount();
+        for (std::uint32_t index = 0U; index < count; ++index) {
+            UIElement* child = panel->GetChildren().GetItem(index);
+            if (child != nullptr && child->GetVisualParent() != &node) {
+                fn(child);
+            }
+        }
+    }
+    if (auto* host = ::Aero::TryCast<Controls::ContentControl>(&node)) {
+        if (host->GetTemplateRoot() == nullptr) {
+            UIElement* content = host->GetContentElement();
+            if (content != nullptr && content->GetVisualParent() != host) {
+                fn(content);
+            }
+        }
+    }
+    if (auto* decorator = ::Aero::TryCast<Controls::Decorator>(&node)) {
+        UIElement* child = decorator->GetChild();
+        if (child != nullptr && child->GetVisualParent() != decorator) {
+            fn(child);
+        }
+    }
+}
 
 Base::Result<void> ApplyViewUi(
     ViewFrame& state,
@@ -504,7 +500,7 @@ Base::Result<void> ReplaceViewDocument(
     Aero::Size availableSize) noexcept;
 Base::Result<std::uint32_t> AdvanceViewClocks(
     ViewFrame& state,
-    std::uint32_t elapsedMilliseconds) noexcept;
+    std::uint64_t elapsedMicroseconds) noexcept;
 Base::Result<void> MountViewFragment(
     ViewFrame& state,
     Controls::ContentControl& host,
@@ -519,5 +515,46 @@ Base::Result<void> UnmountViewFragment(
 Base::Result<void> AdoptLoadedComponent(
     ViewFrame& state,
     Markup::LoaderResult&& document) noexcept;
+
+} // namespace Aero
+
+#include "gui/templates/TemplateInstance.hpp"
+#include "gui/interactivity/InteractivityEngine.hpp"
+#include "gui/media/StoryboardHost.hpp"
+#include "gui/input/OverlayHost.hpp"
+#include "gui/styles/ResourceHost.hpp"
+#include "gui/text/TextPipeline.hpp"
+#include "render/RenderTree.hpp"
+
+namespace Aero {
+
+struct ViewEngines {
+    Meta::ObjectFactoryScope objectFactory;
+    Meta::EffectiveValueEngine values;
+    Aero::AnimationEngine animations;
+    Aero::ElementTree tree;
+    Aero::LayoutEngine layout;
+    ::Aero::Render::RenderTree renderTree;
+    Aero::Media::ImageCache images;
+    Aero::Text::TextPipeline text;
+    Aero::BindingEngine bindings;
+    Aero::EventRouter events;
+    Aero::InputManager input;
+    InteractivityEngine interactivity;
+    StoryboardHost storyboards;
+    ResourceHost resources;
+    Aero::StyleEngine styles;
+    Aero::Controls::TemplateEngine templates;
+    OverlayHost overlays;
+    FocusHost focus;
+    VisualStateManager* visualStates = nullptr;
+
+    ViewEngines(
+        ViewFrame& frame,
+        Base::IAllocator* allocator,
+        ::Aero::Threading::Dispatcher& dispatcher,
+        ::Aero::Meta::Registry& metadata) noexcept;
+    ~ViewEngines() noexcept;
+};
 
 } // namespace Aero

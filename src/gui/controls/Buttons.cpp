@@ -208,9 +208,7 @@ void ButtonBase::RefreshCanExecute() noexcept {
         }
     }
     commandEnabled_ = enabled;
-    if (!enabled && GetIsEnabled()) {
-        SetIsEnabled(false);
-    }
+    CoerceValue(UIElement::IsEnabledProperty.Handle());
     UpdateVisualState();
 }
 
@@ -247,7 +245,6 @@ void ButtonBase::OnMouseLeftButtonDown(MouseButtonEventArgs& args) {
     if (GetClickMode() == ClickMode::Press) {
         OnClick();
     }
-    UpdateVisualState();
 }
 
 void ButtonBase::OnMouseLeftButtonUp(MouseButtonEventArgs& args) {

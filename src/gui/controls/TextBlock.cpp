@@ -23,6 +23,9 @@
 #include <cstring>
 #include <utility>
 #include "gui/core/DependencyObjectAccess.hpp"
+#include "gui/core/Describe.hpp"
+#include "gui/core/ValueConversion.hpp"
+#include "ControlPropertyValidators.hpp"
 
 namespace Aero::Controls {
 using namespace Aero::Meta;
@@ -107,11 +110,7 @@ Base::Ref<Brush> TextBlock::GetForeground() const noexcept {
         }
         current = next;
     }
-    Base::Ref<Brush> fallback = GetValue(ForegroundProperty);
-    const Color c = ::Aero::Media::SampleBrush(fallback);
-    std::fprintf(stderr, "[TB::GetForeground] text='%.20s' fallback color=(%.2f,%.2f,%.2f,%.2f)\n",
-        GetText().Data(), c.red, c.green, c.blue, c.alpha);
-    return fallback;
+    return GetValue(ForegroundProperty);
 }
 Base::Ref<Brush> TextBlock::GetBackground() const noexcept {
     return GetValue(BackgroundProperty);
@@ -127,6 +126,7 @@ double TextBlock::GetFontSize() const noexcept {
     const auto attachedRank =
         static_cast<std::uint8_t>(attached.rank);
     const auto ownedRank = static_cast<std::uint8_t>(owned.rank);
+
     if (attachedRank > ownedRank) return attachedSize;
     if (ownedRank > attachedRank) return ownedSize;
     constexpr double kDefaultSize = 15.0;
@@ -566,12 +566,6 @@ Size TextBlock::MeasureOverride(Size availableSize) noexcept {
     Size desired{
         glyphRunSize_.width + padding.left + padding.right,
         glyphRunSize_.height + padding.top + padding.bottom};
-    if (std::isfinite(availableSize.width) && availableSize.width > 0.0) {
-        desired.width = std::min(desired.width, availableSize.width);
-    }
-    if (std::isfinite(availableSize.height) && availableSize.height > 0.0) {
-        desired.height = std::min(desired.height, availableSize.height);
-    }
     const std::uint32_t uiCount = GetVisualChildrenCount();
     for (std::uint32_t index = 0U; index < uiCount; ++index) {
         auto* child = static_cast<UIElement*>(GetVisualChild(index));
@@ -659,11 +653,6 @@ void TextBlock::OnRender(
             break;
         }
     }
-
-    std::fprintf(stderr, "[TB::OnRender] text='%.20s' hasStyledRanges=%d hitRegions=%u glyphRuns=%u fg=(%.2f,%.2f,%.2f,%.2f)\n",
-        GetText().Data(), hasStyledRanges ? 1 : 0, (unsigned)textHitRegions_.Size(), (unsigned)glyphRuns_.Size(),
-        ::Aero::Media::SampleBrush(GetForeground()).red, ::Aero::Media::SampleBrush(GetForeground()).green,
-        ::Aero::Media::SampleBrush(GetForeground()).blue, ::Aero::Media::SampleBrush(GetForeground()).alpha);
 
     if (!hasStyledRanges || textHitRegions_.Empty()) {
         for (RenderGlyphRunId glyphRun : glyphRuns_) {
@@ -771,10 +760,6 @@ void TextBlock::OnRender(
                     GetForeground(), 0.5,
                     Color{0.0F, 0.0F, 0.0F, 1.0F});
 
-            std::fprintf(stderr, "  [StyleSpan] start=%u len=%u hasFg=%d tint=(%.2f,%.2f,%.2f,%.2f) bold=%d italic=%d clips=%u\n",
-                span.start, span.length, span.hasForeground ? 1 : 0, tint.red, tint.green, tint.blue, tint.alpha,
-                span.bold ? 1 : 0, span.italic ? 1 : 0, (unsigned)clips.Size());
-
             for (const RichTextLineClip& line : clips) {
                 const double extraRight = span.italic
                     ? std::max(3.0, 0.25 * line.height + 2.0)
@@ -837,6 +822,57 @@ void TextBlock::ReleaseServiceGlyphRun() noexcept {
         }
     }
     serviceOwnsGlyphRun_ = false;
+}
+
+namespace {
+
+void AddTextBlockInline(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& child,
+    void*) noexcept {
+    if (!child) {
+        return;
+    }
+    auto& text = static_cast<TextBlock&>(owner);
+    if (!DependencyObjectAccess::PropertyRegistry((text)).Types().IsDerivedFrom(
+            child->RuntimeType(),
+            Aero::Documents::Inline::StaticTypeId())) {
+        return;
+    }
+    text.AddOwnedInline(child);
+}
+
+void ClearTextBlockInlines(
+    Base::Object& owner,
+    void*) noexcept {
+    static_cast<TextBlock&>(owner).ClearOwnedInlines();
+}
+
+} // namespace
+
+AERO_DESCRIBE(TextBlock) {
+    using namespace Aero::Meta;
+    using namespace Aero::Media;
+
+    Register<TextBlock>(context)
+        .Property(TextBlock::TextProperty, Base::String{}, AffectsMeasure)
+        .Property(TextBlock::BackgroundProperty, Base::Ref<Brush>{}, AffectsRender)
+        .Property(TextBlock::StrokeProperty, Base::Ref<Brush>{}, AffectsRender)
+        .AddOwner(TextBlock::FontSizeProperty, 15.0, Inherits | AffectsMeasure, &ValidatePositiveFiniteDouble)
+        .Property(TextBlock::FontWeightProperty, FontWeight::Normal, AffectsMeasure)
+        .Property(TextBlock::FontStyleProperty, FontStyle::Normal, AffectsMeasure)
+        .Property(TextBlock::TextDecorationsProperty, TextDecorations::None, AffectsRender)
+        .Property(TextBlock::StrokeThicknessProperty, 0.0, AffectsMeasure | AffectsRender, &Base::Validate::NonNegative<double>)
+        .Property(TextBlock::TextWrappingProperty, TextWrapping::NoWrap, AffectsMeasure)
+        .Property(TextBlock::TextTrimmingProperty, TextTrimming::None, AffectsMeasure)
+        .Property(TextBlock::TextAlignmentProperty, TextAlignment::Left, AffectsMeasure)
+        .Property(TextBlock::LineHeightProperty, 0.0, AffectsMeasure, &Base::Validate::NonNegative<double>)
+        .Property(TextBlock::PaddingProperty, Aero::Thickness{}, AffectsMeasure | AffectsArrange, &ValidateThicknessValue)
+        .Property<Value, &TextBlock::GetMetadataInlines, &TextBlock::SetInlineValue>("Inlines", PropertyFlags::AnyValue | PropertyFlags::Collection | PropertyFlags::Structural)
+        .ContentAccessor(MakeMemberId(TextBlock::StaticTypeId(), MemberKind::Property, "Inlines"), ContentKind::Collection, &AddTextBlockInline, &ClearTextBlockInlines, ContentFlags::None)
+        .Factory();
+
+    ::Aero::Documents::PopulateDocumentsMetadata(context);
 }
 
 } // namespace Aero::Controls

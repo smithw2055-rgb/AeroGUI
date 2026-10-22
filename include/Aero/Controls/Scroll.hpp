@@ -48,13 +48,15 @@ public:
 // ScrollContentPresenter
 // ============================================================================
 
-class AERO_GUI_API ScrollContentPresenter : public ContentControl,
+class AERO_GUI_API ScrollContentPresenter : public ContentPresenter,
       public IScrollInfo {
-    AERO_DECLARE_TYPE(ScrollContentPresenter, ContentControl)
+    AERO_DECLARE_TYPE(ScrollContentPresenter, ContentPresenter)
 
 public:
     ScrollContentPresenter() noexcept;
     ~ScrollContentPresenter() override = default;
+
+    UIElement* GetContentElement() const noexcept { return GetContent(); }
 
     ScrollData GetData() const noexcept override;
     IScrollInfo* GetContentScrollInfo() const noexcept { return contentScrollInfo_; }

@@ -75,14 +75,14 @@ RegistrationValues::RegisterTextConverter(
 Base::Result<Value> RegistrationValues::TryCreateValue(
     TypeId type,
     const void* source) const noexcept {
-    const Base::Ref<ValueTypeSemantics>* semantics =
+    const ValueTypeRegistration* semantics =
         FindValueSemantics(type);
-    if (semantics == nullptr || !*semantics) {
+    if (semantics == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
             "Value type semantics are not registered");
     }
-    return Value::TryFromCustom(type, source, *semantics);
+    return Value::TryFromCustom(type, source, semantics);
 }
 
 Base::Result<Value> RegistrationValues::TryConvertText(
@@ -107,7 +107,7 @@ Base::Result<Value> RegistrationValues::TryConvertText(
     return converted;
 }
 
-const Base::Ref<ValueTypeSemantics>*
+const ValueTypeRegistration*
 RegistrationValues::FindValueSemantics(
     TypeId type) const noexcept {
     return registrations_ != nullptr
@@ -172,10 +172,13 @@ Base::Result<void> ValueTable::RegisterValueSemantics(
             Base::ErrorCode::AlreadyExists,
             "Value type semantics are already registered");
     }
-    Base::Result<Base::Ref<ValueTypeSemantics>> created =
-        Base::MakeRef<ValueTypeSemantics>(registration);
-    if (!created) return created.GetStatus();
-    valueSemantics_.PushBack({type, std::move(created).Value()});
+    auto* entry = new (std::nothrow) ValueSemanticsEntry{type, registration};
+    if (entry == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "Value type semantics allocation failed");
+    }
+    valueSemantics_.PushBack(entry);
     return {};
 }
 
@@ -208,10 +211,10 @@ Base::Result<void> ValueTable::Freeze() noexcept {
     return {};
 }
 
-const Base::Ref<ValueTypeSemantics>*
+const ValueTypeRegistration*
 ValueTable::FindValueSemantics(TypeId type) const noexcept {
-    for (const ValueSemanticsEntry& entry : valueSemantics_) {
-        if (entry.type == type) return &entry.semantics;
+    for (const ValueSemanticsEntry* entry : valueSemantics_) {
+        if (entry != nullptr && entry->type == type) return &entry->registration;
     }
     return nullptr;
 }

@@ -156,7 +156,7 @@ ScrollContentPresenter::ScrollContentPresenter() noexcept
 
 ScrollContentPresenter::ScrollContentPresenter(
     TypeId runtimeType) noexcept
-    : ContentControl(runtimeType) {
+    : ContentPresenter(runtimeType) {
     // WPF: ScrollContentPresenter clips; ScrollViewer does not. Only the
     // presenter type opts in. Clipping the viewer nested two stencil clips
     // over the items host and, after Intro's offscreen fade, discarded the
@@ -475,15 +475,7 @@ ScrollContentPresenter::PageVertical(
 Size
 ScrollContentPresenter::MeasureOverride(
     Size availableSize) noexcept {
-    // A templated presenter measures Content and records extent. Without that,
-    // Auto scrollbars stay Collapsed and the thumb never appears.
-    if (RuntimeType() != StaticTypeId() &&
-        GetTemplateRoot() != nullptr) {
-        return ContentControl::MeasureOverride(
-            availableSize);
-    }
-    EnsureHostedContent();
-    UIElement* child = GetContentElement();
+    UIElement* child = GetContent();
     if (child == nullptr) {
         data_.extentWidth = 0.0;
         data_.extentHeight = 0.0;
@@ -531,13 +523,7 @@ ScrollContentPresenter::MeasureOverride(
 Size
 ScrollContentPresenter::ArrangeOverride(
     Size finalSize) noexcept {
-    if (RuntimeType() != StaticTypeId() &&
-        GetTemplateRoot() != nullptr) {
-        return ContentControl::ArrangeOverride(
-            finalSize);
-    }
-    EnsureHostedContent();
-    UIElement* child = GetContentElement();
+    UIElement* child = GetContent();
     if (child == nullptr) {
         SetViewport(finalSize);
         return finalSize;
@@ -811,14 +797,17 @@ void ScrollViewer::EnsureFallbackPresenter() noexcept {
     }
     if (contentPresenter_->GetVisualParent() == nullptr) {
         if (ElementTree* tree = VisualTree(this)) {
-            if (VisualTree(contentPresenter_) == nullptr &&
-                contentPresenter_->GetLogicalParent() == nullptr) {
-                static_cast<void>(tree->AttachElement(*this, *contentPresenter_));
-            } else {
-                static_cast<void>(tree->AttachVisualChild(*this, *contentPresenter_));
-            }
+            static_cast<void>(tree->AttachVisualChild(*this, *contentPresenter_));
         } else {
             AddVisualChild(contentPresenter_);
+        }
+    }
+    if (content != nullptr && content->GetVisualParent() != contentPresenter_) {
+        if (ElementTree* tree = VisualTree(this)) {
+            static_cast<void>(tree->AttachVisualChild(*contentPresenter_, *content));
+            AttachOwnedContentSubtree(*tree, *content);
+        } else {
+            ElementTree::EnsureVisualChildStorage(*contentPresenter_, *content);
         }
     }
     contentPresenter_->SetContentScrollInfo(pendingScrollInfo_);
@@ -843,8 +832,24 @@ void ScrollViewer::OnApplyTemplate()
         : nullptr;
     if (contentPresenter_ == nullptr) {
         EnsureFallbackPresenter();
-    } else if (ownedPresenter_ && ownedPresenter_->GetVisualParent() == this) {
-        RemoveVisualChild(ownedPresenter_.Get());
+    } else if (ownedPresenter_) {
+        ownedPresenter_->ClearHostedContent();
+        if (ownedPresenter_->GetVisualParent() == this) {
+            if (ElementTree* tree = VisualTree(this)) {
+                ::Aero::VisualAttachment state;
+                state.visualParent = this;
+                state.child = ownedPresenter_.Get();
+                state.visualAttached = true;
+                state.layoutAttached = ownedPresenter_->GetIsLayoutAttached() && ownedPresenter_->LayoutParent() != nullptr;
+                state.renderAttached = false;
+                if (state.IsAttached()) {
+                    static_cast<void>(tree->DetachVisual(state));
+                }
+            } else {
+                RemoveVisualChild(ownedPresenter_.Get());
+            }
+        }
+        ownedPresenter_.Reset();
     }
     if (contentPresenter_ != nullptr) {
         UIElement* content = GetContentElement();
@@ -856,7 +861,12 @@ void ScrollViewer::OnApplyTemplate()
                 contentPresenter_->SetContent(content);
             }
             if (ElementTree* tree = VisualTree(this)) {
+                if (content->GetVisualParent() != contentPresenter_) {
+                    static_cast<void>(tree->AttachVisualChild(*contentPresenter_, *content));
+                }
                 AttachOwnedContentSubtree(*tree, *content);
+            } else if (content->GetVisualParent() != contentPresenter_) {
+                ElementTree::EnsureVisualChildStorage(*contentPresenter_, *content);
             }
         }
         contentPresenter_->SetContentScrollInfo(pendingScrollInfo_);
@@ -885,7 +895,12 @@ void ScrollViewer::OnContentChanged(const Value& oldContent, const Value& newCon
                 contentPresenter_->SetContent(content);
             }
             if (ElementTree* tree = VisualTree(this)) {
+                if (content->GetVisualParent() != contentPresenter_) {
+                    static_cast<void>(tree->AttachVisualChild(*contentPresenter_, *content));
+                }
                 AttachOwnedContentSubtree(*tree, *content);
+            } else if (content->GetVisualParent() != contentPresenter_) {
+                ElementTree::EnsureVisualChildStorage(*contentPresenter_, *content);
             }
         } else if (content == nullptr) {
             contentPresenter_->SetContent(nullptr);
@@ -1282,6 +1297,10 @@ void Thumb::OnPropertyChanged(
     if (args.GetProperty() == UIElement::IsEnabledProperty ||
         args.GetProperty() == UIElement::IsMouseOverProperty ||
         args.GetProperty() == Thumb::IsDraggingProperty) {
+        if (args.GetProperty() == UIElement::IsMouseOverProperty) {
+            fprintf(stderr, "[THUMB-HOVER] mouseOver=%d\n", GetIsMouseOver());
+            fflush(stderr);
+        }
         UpdateVisualState(true);
     }
 }
@@ -1514,19 +1533,76 @@ void Track::SetIsDirectionReversed(
 
 void Track::SetDecreaseRepeatButton(
     Base::Ref<RepeatButton> value) noexcept {
+    if (decreaseRepeatButton_ == value) return;
+    if (decreaseRepeatButton_ != nullptr) {
+        if (ElementTree* tree = VisualTree(this)) {
+            Aero::ElementAttachment state{};
+            state.logicalParent = this;
+            state.visualParent = this;
+            state.child = decreaseRepeatButton_.Get();
+            state.logicalAttached = true;
+            state.visualAttached = true;
+            state.layoutAttached = decreaseRepeatButton_->GetIsLayoutAttached();
+            state.renderAttached = decreaseRepeatButton_->IsRenderAttached();
+            static_cast<void>(tree->DetachElement(state));
+        }
+    }
     decreaseRepeatButton_ = std::move(value);
+    if (decreaseRepeatButton_ != nullptr) {
+        if (ElementTree* tree = VisualTree(this)) {
+            static_cast<void>(tree->AttachElement(*this, *decreaseRepeatButton_));
+        }
+    }
     InvalidateMeasure();
 }
 
 void Track::SetThumb(
     Base::Ref<Thumb> value) noexcept {
+    if (thumb_ == value) return;
+    if (thumb_ != nullptr) {
+        if (ElementTree* tree = VisualTree(this)) {
+            Aero::ElementAttachment state{};
+            state.logicalParent = this;
+            state.visualParent = this;
+            state.child = thumb_.Get();
+            state.logicalAttached = true;
+            state.visualAttached = true;
+            state.layoutAttached = thumb_->GetIsLayoutAttached();
+            state.renderAttached = thumb_->IsRenderAttached();
+            static_cast<void>(tree->DetachElement(state));
+        }
+    }
     thumb_ = std::move(value);
+    if (thumb_ != nullptr) {
+        if (ElementTree* tree = VisualTree(this)) {
+            static_cast<void>(tree->AttachElement(*this, *thumb_));
+        }
+    }
     InvalidateMeasure();
 }
 
 void Track::SetIncreaseRepeatButton(
     Base::Ref<RepeatButton> value) noexcept {
+    if (increaseRepeatButton_ == value) return;
+    if (increaseRepeatButton_ != nullptr) {
+        if (ElementTree* tree = VisualTree(this)) {
+            Aero::ElementAttachment state{};
+            state.logicalParent = this;
+            state.visualParent = this;
+            state.child = increaseRepeatButton_.Get();
+            state.logicalAttached = true;
+            state.visualAttached = true;
+            state.layoutAttached = increaseRepeatButton_->GetIsLayoutAttached();
+            state.renderAttached = increaseRepeatButton_->IsRenderAttached();
+            static_cast<void>(tree->DetachElement(state));
+        }
+    }
     increaseRepeatButton_ = std::move(value);
+    if (increaseRepeatButton_ != nullptr) {
+        if (ElementTree* tree = VisualTree(this)) {
+            static_cast<void>(tree->AttachElement(*this, *increaseRepeatButton_));
+        }
+    }
     InvalidateMeasure();
 }
 
@@ -1609,20 +1685,45 @@ Base::Result<double> Track::ValueFromThumbOffset(
 
 Size Track::MeasureOverride(
     Size availableSize) noexcept {
+    if (ElementTree* tree = VisualTree(this)) {
+        const auto ensureAttached = [&](UIElement* child, const char* name) {
+            if (child == nullptr) return;
+            if (VisualTree(child) == nullptr && child->GetLogicalParent() == nullptr) {
+                auto res = tree->AttachElement(*this, *child);
+                fprintf(stderr, "[TRACK-ATTACH] %s AttachElement res=%d\n", name, res ? 1 : 0);
+            } else if (child->GetVisualParent() != this || !child->GetIsLayoutAttached()) {
+                auto res = tree->AttachVisualChild(*this, *child);
+                fprintf(stderr, "[TRACK-ATTACH] %s AttachVisualChild res=%d\n", name, res ? 1 : 0);
+            }
+        };
+        ensureAttached(decreaseRepeatButton_.Get(), "Decrease");
+        ensureAttached(thumb_.Get(), "Thumb");
+        ensureAttached(increaseRepeatButton_.Get(), "Increase");
+    } else {
+        fprintf(stderr, "[TRACK-ATTACH] tree is NULL for track=%p\n", static_cast<void*>(this));
+    }
     Size desired{};
-    for (UIElement* child : LayoutChildren()) {
-        if (child == nullptr) continue;
-        MeasureChild(*child, availableSize);
+    if (thumb_ != nullptr) {
+        if (!thumb_->IsTemplateApplied()) {
+            thumb_->ApplyTemplate();
+        }
+        MeasureChild(*thumb_, availableSize);
+        desired = thumb_->GetDesiredSize();
+    }
+    if (decreaseRepeatButton_ != nullptr) {
+        MeasureChild(*decreaseRepeatButton_, availableSize);
         if (GetOrientation() == Orientation::Vertical) {
-            desired.width = std::max(
-                desired.width,
-                child->GetDesiredSize().width);
-            desired.height += child->GetDesiredSize().height;
+            desired.width = std::max(desired.width, decreaseRepeatButton_->GetDesiredSize().width);
         } else {
-            desired.width += child->GetDesiredSize().width;
-            desired.height = std::max(
-                desired.height,
-                child->GetDesiredSize().height);
+            desired.height = std::max(desired.height, decreaseRepeatButton_->GetDesiredSize().height);
+        }
+    }
+    if (increaseRepeatButton_ != nullptr) {
+        MeasureChild(*increaseRepeatButton_, availableSize);
+        if (GetOrientation() == Orientation::Vertical) {
+            desired.width = std::max(desired.width, increaseRepeatButton_->GetDesiredSize().width);
+        } else {
+            desired.height = std::max(desired.height, increaseRepeatButton_->GetDesiredSize().height);
         }
     }
     return desired;

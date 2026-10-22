@@ -14,6 +14,7 @@
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
 #include "gui/input/InputManager.hpp"
+#include <Aero/TextProperties.hpp>
 #include "TextBlockLayout.hpp"
 
 #include <algorithm>
@@ -58,6 +59,15 @@ inline double ClampOffset(
 inline Point ToLocalPoint(
     const UIElement& element,
     Point point) noexcept {
+    if (ElementTree* tree = ::Aero::VisualTree(element)) {
+        if (Media::Visual* root = tree->Root()) {
+            if (InputRouter* router = ElementTree::InputOf(element)) {
+                Base::Result<Input::HitTestResult> local =
+                    router->RootToLocal(*root, const_cast<UIElement&>(element), point);
+                if (local) return local.Value().position;
+            }
+        }
+    }
     const UIElement* current = &element;
     while (current != nullptr) {
         const Rect slot = current->GetLayoutSlot();
@@ -238,16 +248,13 @@ void TextBoxBase::SetCaretBrush(
     SetValue(CaretBrushProperty, std::move(value));
 }
 
-TextBox::TextBox() noexcept
-    : TextBoxBase(StaticTypeId()),
+TextBoxBase::TextBoxBase(TypeId runtimeType) noexcept
+    : Control(runtimeType),
       model_(new (std::nothrow) ::Aero::Text::EditableTextModel()),
       compositionModel_(new (std::nothrow) ::Aero::Text::EditableTextModel()),
-      displayPolicy_(nullptr),
-      plainPolicy_(new (std::nothrow) PlainTextDisplayPolicy()) {
-    displayPolicy_ = plainPolicy_;
-}
+      displayPolicy_(nullptr) {}
 
-TextBox::~TextBox() {
+TextBoxBase::~TextBoxBase() {
     if (inputMethodHost_ != nullptr) {
         static_cast<void>(
             inputMethodHost_->
@@ -260,26 +267,34 @@ TextBox::~TextBox() {
     model_ = nullptr;
     delete static_cast<::Aero::Text::EditableTextModel*>(compositionModel_);
     compositionModel_ = nullptr;
-    delete static_cast<::Aero::Controls::PlainTextDisplayPolicy*>(plainPolicy_);
-    plainPolicy_ = nullptr;
     displayPolicy_ = nullptr;
 }
 
-
 const void*
-TextBox::GetActiveModel() const noexcept {
+TextBoxBase::GetActiveModel() const noexcept {
     return compositionActive_
         ? compositionModel_
         : model_;
 }
 
 TextSelection
-TextBox::GetSelection() const noexcept {
+TextBoxBase::GetSelection() const noexcept {
     return Model(GetActiveModel()).Selection();
 }
 
-std::uint32_t TextBox::GetCaret() const noexcept {
+std::uint32_t TextBoxBase::GetCaret() const noexcept {
     return Model(GetActiveModel()).Caret();
+}
+
+TextBox::TextBox() noexcept
+    : TextBoxBase(StaticTypeId()),
+      plainPolicy_(new (std::nothrow) PlainTextDisplayPolicy()) {
+    displayPolicy_ = plainPolicy_;
+}
+
+TextBox::~TextBox() {
+    delete static_cast<::Aero::Controls::PlainTextDisplayPolicy*>(plainPolicy_);
+    plainPolicy_ = nullptr;
 }
 
 Base::StringView TextBox::GetText() const noexcept {
@@ -459,7 +474,7 @@ void TextBox::SetMinLines(
     SetValue(MinLinesProperty, value);
 }
 
-void TextBox::SetSelection(
+void TextBoxBase::SetSelection(
     std::uint32_t anchor,
     std::uint32_t caret) noexcept {
     if (compositionActive_) {
@@ -476,7 +491,7 @@ void TextBox::SetSelection(
     InvalidateEditor();
 }
 
-void TextBox::SelectAll() noexcept {
+void TextBoxBase::SelectAll() noexcept {
     if (compositionActive_) {
         Base::Result<void> cancelled =
             CancelCompositionForFocusLoss();
@@ -491,7 +506,7 @@ void TextBox::SelectAll() noexcept {
     InvalidateEditor();
 }
 
-void TextBox::Undo() noexcept {
+void TextBoxBase::Undo() noexcept {
     if (compositionActive_) {
         Base::Result<void> cancelled =
             CancelCompositionForFocusLoss();
@@ -506,7 +521,7 @@ void TextBox::Undo() noexcept {
     (void)committed;
 }
 
-void TextBox::Redo() noexcept {
+void TextBoxBase::Redo() noexcept {
     if (compositionActive_) {
         Base::Result<void> cancelled =
             CancelCompositionForFocusLoss();
@@ -521,7 +536,7 @@ void TextBox::Redo() noexcept {
     (void)committed;
 }
 
-Base::Result<void> TextBox::AttachScrollViewer(
+Base::Result<void> TextBoxBase::AttachScrollViewer(
     ScrollViewer* viewer) noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) {
@@ -549,14 +564,14 @@ Base::Result<void> TextBox::AttachScrollViewer(
     return {};
 }
 
-void TextBox::InvalidateEditor() noexcept {
+void TextBoxBase::InvalidateEditor() noexcept {
     InvalidateVisual();
     if (view_) {
         view_->InvalidateVisual();
     }
 }
 
-void TextBox::SetInputMethodHost(
+void TextBoxBase::SetInputMethodHost(
     Input::ITextInputMethodHost* host) noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) {
@@ -585,11 +600,11 @@ void TextBox::SetInputMethodHost(
 }
 
 Base::Result<void>
-TextBox::BeginComposition() noexcept {
+TextBoxBase::BeginComposition() noexcept {
     if (compositionActive_) {
         return {};
     }
-    if (GetIsReadOnly() || !GetIsEnabled()) {
+    if (GetIsReadOnlyCore() || !GetIsEnabled()) {
         return Base::Status::Failure(
             Base::ErrorCode::ReadOnly,
             "TextBox cannot begin composition while disabled or read-only");
@@ -629,7 +644,7 @@ TextBox::BeginComposition() noexcept {
     return {};
 }
 
-Base::Result<void> TextBox::UpdateComposition(
+Base::Result<void> TextBoxBase::UpdateComposition(
     Base::StringView text) noexcept {
     if (!compositionActive_) {
         Base::Result<void> begun =
@@ -687,7 +702,7 @@ Base::Result<void> TextBox::UpdateComposition(
     return {};
 }
 
-Base::Result<void> TextBox::CommitComposition(
+Base::Result<void> TextBoxBase::CommitComposition(
     Base::StringView text) noexcept {
     if (!compositionActive_) {
         Base::Result<void> begun =
@@ -738,7 +753,7 @@ Base::Result<void> TextBox::CommitComposition(
 }
 
 Base::Result<void>
-TextBox::CancelComposition() noexcept {
+TextBoxBase::CancelComposition() noexcept {
     if (!compositionActive_) {
         return {};
     }
@@ -751,7 +766,7 @@ TextBox::CancelComposition() noexcept {
 }
 
 Base::Result<void>
-TextBox::CancelCompositionForFocusLoss() noexcept {
+TextBoxBase::CancelCompositionForFocusLoss() noexcept {
     if (!compositionActive_) {
         return {};
     }
@@ -795,24 +810,7 @@ Base::Result<void> TextBox::SynchronizeModel() noexcept {
     return {};
 }
 
-Base::Result<void> TextBox::CommitModelText() noexcept {
-    Base::String snapshot;
-    Base::Result<void> copied =
-        Model(model_).Snapshot(snapshot);
-    if (!copied) {
-        return copied;
-    }
-    updatingTextProperty_ = true;
-    SetCurrentValue(TextProperty, snapshot);
-    updatingTextProperty_ = false;
-    if (passwordOwner_ != nullptr) {
-        Base::Result<void> password =
-            passwordOwner_->
-                SynchronizePasswordFromEditor();
-        if (!password) {
-            return password.GetStatus();
-        }
-    }
+Base::Result<void> TextBoxBase::CommitModelText() noexcept {
     InvalidateMeasure();
     EnsureCaretVisible();
     InvalidateEditor();
@@ -822,10 +820,25 @@ Base::Result<void> TextBox::CommitModelText() noexcept {
     return {};
 }
 
-Base::Result<void> TextBox::SanitizeInput(
+Base::Result<void> TextBox::CommitModelText() noexcept {
+    Base::String snapshot;
+    if (model_ != nullptr) {
+        Base::Result<void> copied =
+            Model(model_).Snapshot(snapshot);
+        if (!copied) {
+            return copied;
+        }
+    }
+    updatingTextProperty_ = true;
+    SetCurrentValue(TextProperty, snapshot);
+    updatingTextProperty_ = false;
+    return TextBoxBase::CommitModelText();
+}
+
+Base::Result<void> TextBoxBase::SanitizeInput(
     Base::StringView input,
     Base::String& output) const noexcept {
-    if (GetAcceptsReturn()) {
+    if (GetAcceptsReturnCore()) {
         return output.Assign(input);
     }
     output.Clear();
@@ -854,13 +867,13 @@ Base::Result<void> TextBox::SanitizeInput(
     return {};
 }
 
-Base::Result<void> TextBox::ConstrainManualInput(
+Base::Result<void> TextBoxBase::ConstrainManualInput(
     Base::String& input,
     const void* target,
     TextSelection selection) const noexcept {
     const auto& model = Model(target);
     const std::uint32_t maximum =
-        GetMaxLength();
+        GetMaxLengthCore();
     if (maximum == 0U || input.Empty()) {
         return {};
     }
@@ -898,7 +911,7 @@ Base::Result<void> TextBox::ConstrainManualInput(
     return {};
 }
 
-Base::Result<void> TextBox::ReplaceSelection(
+Base::Result<void> TextBoxBase::ReplaceSelection(
     Base::StringView text) noexcept {
     if (compositionActive_) {
         Base::Result<void> cancelled =
@@ -934,7 +947,7 @@ Base::Result<void> TextBox::ReplaceSelection(
     return CommitModelText();
 }
 
-Base::Result<void> TextBox::DeleteBackward() noexcept {
+Base::Result<void> TextBoxBase::DeleteBackward() noexcept {
     if (compositionActive_) {
         Base::Result<void> cancelled =
             CancelCompositionForFocusLoss();
@@ -950,7 +963,7 @@ Base::Result<void> TextBox::DeleteBackward() noexcept {
     return CommitModelText();
 }
 
-Base::Result<void> TextBox::DeleteForward() noexcept {
+Base::Result<void> TextBoxBase::DeleteForward() noexcept {
     if (compositionActive_) {
         Base::Result<void> cancelled =
             CancelCompositionForFocusLoss();
@@ -966,7 +979,7 @@ Base::Result<void> TextBox::DeleteForward() noexcept {
     return CommitModelText();
 }
 
-Base::Result<void> TextBox::SelectedText(
+Base::Result<void> TextBoxBase::SelectedText(
     Base::String& output) const noexcept {
     const TextSelection selection =
         Model(model_).Selection();
@@ -998,7 +1011,7 @@ Base::Result<void> TextBox::SelectedText(
             end.Value() - begin.Value()));
 }
 
-Base::Result<void> TextBox::CopySelection(
+Base::Result<void> TextBoxBase::CopySelection(
     Input::IClipboard& clipboard) const noexcept {
     if (!DisplayPolicy(displayPolicy_)->AllowsCopy()) {
         return Base::Status::Failure(
@@ -1018,7 +1031,7 @@ Base::Result<void> TextBox::CopySelection(
         selected.View());
 }
 
-Base::Result<void> TextBox::CutSelection(
+Base::Result<void> TextBoxBase::CutSelection(
     Input::IClipboard& clipboard) noexcept {
     if (compositionActive_) {
         Base::Result<void> cancelled =
@@ -1032,7 +1045,7 @@ Base::Result<void> TextBox::CutSelection(
             Base::ErrorCode::ReadOnly,
             "Text display policy blocks clipboard cut");
     }
-    if (GetIsReadOnly()) {
+    if (GetIsReadOnlyCore()) {
         return Base::Status::Failure(
             Base::ErrorCode::ReadOnly,
             "TextBox is read-only");
@@ -1055,7 +1068,7 @@ Base::Result<void> TextBox::CutSelection(
     return CommitModelText();
 }
 
-Base::Result<void> TextBox::Paste(
+Base::Result<void> TextBoxBase::Paste(
     Input::IClipboard& clipboard) noexcept {
     if (compositionActive_) {
         Base::Result<void> cancelled =
@@ -1064,7 +1077,7 @@ Base::Result<void> TextBox::Paste(
             return cancelled;
         }
     }
-    if (GetIsReadOnly()) {
+    if (GetIsReadOnlyCore()) {
         return Base::Status::Failure(
             Base::ErrorCode::ReadOnly,
             "TextBox is read-only");
@@ -1078,45 +1091,45 @@ Base::Result<void> TextBox::Paste(
     return ReplaceSelection(text.View());
 }
 
-void TextBox::HandleEditorMouseDown(UIElement& owner, DragSelectionState& drag, MouseButtonEventArgs& args) {
-    if (args.GetChangedButton() != MouseButton::Left || !owner.GetIsEnabled()) {
+void TextBoxBase::OnMouseDown(MouseButtonEventArgs& args) {
+    if (args.GetChangedButton() != MouseButton::Left || !GetIsEnabled()) {
         return;
     }
-    const Point local = ToLocalPoint(owner, args.GetPosition());
+    const Point local = ToLocalPoint(*this, args.GetPosition());
     const std::uint32_t caret = HitTestText(local);
     static_cast<void>(SetSelection(caret, caret));
-    static_cast<void>(owner.Focus());
-    Base::Result<void> captured = owner.CapturePointer(args.GetPointerId());
+    static_cast<void>(Focus());
+    Base::Result<void> captured = CapturePointer(args.GetPointerId());
     if (captured) {
-        drag.pointerId = args.GetPointerId();
-        drag.dragAnchor = caret;
-        drag.isDragging = true;
+        drag_.pointerId = args.GetPointerId();
+        drag_.dragAnchor = caret;
+        drag_.isDragging = true;
     }
     args.SetHandled(true);
 }
 
-void TextBox::HandleEditorMouseMove(UIElement& owner, DragSelectionState& drag, MouseEventArgs& args) {
-    if (!drag.isDragging || drag.pointerId != args.GetPointerId()) {
+void TextBoxBase::OnMouseMove(MouseEventArgs& args) {
+    if (!drag_.isDragging || drag_.pointerId != args.GetPointerId()) {
         return;
     }
-    const Point local = ToLocalPoint(owner, args.GetPosition());
-    static_cast<void>(SetSelection(drag.dragAnchor, HitTestText(local)));
+    const Point local = ToLocalPoint(*this, args.GetPosition());
+    static_cast<void>(SetSelection(drag_.dragAnchor, HitTestText(local)));
     args.SetHandled(true);
 }
 
-void TextBox::HandleEditorMouseUp(UIElement& owner, DragSelectionState& drag, MouseButtonEventArgs& args) {
-    if (args.GetChangedButton() != MouseButton::Left || !drag.isDragging || drag.pointerId != args.GetPointerId()) {
+void TextBoxBase::OnMouseUp(MouseButtonEventArgs& args) {
+    if (args.GetChangedButton() != MouseButton::Left || !drag_.isDragging || drag_.pointerId != args.GetPointerId()) {
         return;
     }
-    const Point local = ToLocalPoint(owner, args.GetPosition());
-    static_cast<void>(SetSelection(drag.dragAnchor, HitTestText(local)));
-    drag.isDragging = false;
-    static_cast<void>(owner.ReleasePointer(args.GetPointerId()));
+    const Point local = ToLocalPoint(*this, args.GetPosition());
+    static_cast<void>(SetSelection(drag_.dragAnchor, HitTestText(local)));
+    drag_.isDragging = false;
+    static_cast<void>(ReleasePointer(args.GetPointerId()));
     args.SetHandled(true);
 }
 
-void TextBox::HandleEditorKeyDown(UIElement& owner, KeyEventArgs& args) {
-    if (!owner.GetIsEnabled()) {
+void TextBoxBase::OnKeyDown(KeyEventArgs& args) {
+    if (!GetIsEnabled()) {
         return;
     }
     const bool shift = HasKeyboardModifier(args.GetModifiers(), KeyboardModifiers::Shift);
@@ -1127,17 +1140,17 @@ void TextBox::HandleEditorKeyDown(UIElement& owner, KeyEventArgs& args) {
         SelectAll();
         result = {};
     } else if (control && args.GetKey() == KeyboardKeyC) {
-        Input::IClipboard* clipboard = ElementTree::ClipboardOf(owner);
+        Input::IClipboard* clipboard = ElementTree::ClipboardOf(*this);
         if (clipboard != nullptr) {
             result = CopySelection(*clipboard);
         }
     } else if (control && args.GetKey() == KeyboardKeyX) {
-        Input::IClipboard* clipboard = ElementTree::ClipboardOf(owner);
+        Input::IClipboard* clipboard = ElementTree::ClipboardOf(*this);
         if (clipboard != nullptr) {
             result = CutSelection(*clipboard);
         }
     } else if (control && args.GetKey() == KeyboardKeyV) {
-        Input::IClipboard* clipboard = ElementTree::ClipboardOf(owner);
+        Input::IClipboard* clipboard = ElementTree::ClipboardOf(*this);
         if (clipboard != nullptr) {
             result = Paste(*clipboard);
         }
@@ -1163,7 +1176,7 @@ void TextBox::HandleEditorKeyDown(UIElement& owner, KeyEventArgs& args) {
         result = DeleteBackward();
     } else if (args.GetKey() == KeyboardKeyDelete) {
         result = DeleteForward();
-    } else if (args.GetKey() == KeyboardKeyEnter && GetAcceptsReturn()) {
+    } else if (args.GetKey() == KeyboardKeyEnter && GetAcceptsReturnCore()) {
         result = ReplaceSelection(Base::StringView("\n"));
     } else {
         handled = false;
@@ -1173,8 +1186,8 @@ void TextBox::HandleEditorKeyDown(UIElement& owner, KeyEventArgs& args) {
     }
 }
 
-void TextBox::HandleEditorTextInput(TextCompositionEventArgs& args) {
-    if (!GetIsEnabled() || GetIsReadOnly()) {
+void TextBoxBase::OnTextInput(TextCompositionEventArgs& args) {
+    if (!GetIsEnabled() || GetIsReadOnlyCore()) {
         return;
     }
     if (compositionActive_) {
@@ -1189,37 +1202,27 @@ void TextBox::HandleEditorTextInput(TextCompositionEventArgs& args) {
     }
 }
 
-void TextBox::HandleEditorLostFocus(UIElement& owner, DragSelectionState& drag, KeyboardFocusChangedEventArgs&) {
+void TextBoxBase::OnLostKeyboardFocus(KeyboardFocusChangedEventArgs&) {
     static_cast<void>(CancelCompositionForFocusLoss());
-    if (!drag.isDragging) {
+    if (!drag_.isDragging) {
         return;
     }
-    drag.isDragging = false;
-    static_cast<void>(owner.ReleasePointer(drag.pointerId));
+    drag_.isDragging = false;
+    static_cast<void>(ReleasePointer(drag_.pointerId));
 }
 
-void TextBox::OnMouseDown(MouseButtonEventArgs& args) {
-    HandleEditorMouseDown(*this, drag_, args);
-}
-
-void TextBox::OnMouseMove(MouseEventArgs& args) {
-    HandleEditorMouseMove(*this, drag_, args);
-}
-
-void TextBox::OnMouseUp(MouseButtonEventArgs& args) {
-    HandleEditorMouseUp(*this, drag_, args);
-}
-
-void TextBox::OnKeyDown(KeyEventArgs& args) {
-    HandleEditorKeyDown(*this, args);
-}
-
-void TextBox::OnTextInput(TextCompositionEventArgs& args) {
-    HandleEditorTextInput(args);
-}
-
-void TextBox::OnLostKeyboardFocus(KeyboardFocusChangedEventArgs& args) {
-    HandleEditorLostFocus(*this, drag_, args);
+void TextBoxBase::OnPropertyChanged(
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    Control::OnPropertyChanged(args);
+    if (args.GetProperty() == TextBoxBase::SelectionBrushProperty ||
+        args.GetProperty() == TextBoxBase::SelectionOpacityProperty ||
+        args.GetProperty() == TextBoxBase::CaretBrushProperty) {
+        InvalidateEditor();
+    } else if (args.GetProperty() == UIElement::IsEnabledProperty && !args.GetNewValue().AsBoolean()) {
+        static_cast<void>(CancelCompositionForFocusLoss());
+    } else if (args.GetProperty() == UIElement::IsKeyboardFocusedProperty) {
+        InvalidateEditor();
+    }
 }
 
 void TextBox::OnPropertyChanged(
@@ -1234,10 +1237,6 @@ void TextBox::OnPropertyChanged(
         static_cast<void>(Model(model_).SetReadOnly(args.GetNewValue().AsBoolean()));
     } else if (args.GetProperty() == TextBox::MaxLengthProperty) {
         static_cast<void>(CancelCompositionForFocusLoss());
-    } else if (args.GetProperty() == UIElement::IsEnabledProperty && !args.GetNewValue().AsBoolean()) {
-        static_cast<void>(CancelCompositionForFocusLoss());
-    } else if (args.GetProperty() == UIElement::IsKeyboardFocusedProperty) {
-        InvalidateEditor();
     }
 }
 
@@ -1262,11 +1261,11 @@ PropertyValue TextBox::CoerceValueCore(
 using namespace Primitives;
 using namespace ::Aero::Render;
 
-Base::Result<void> TextBox::MoveCaretHorizontal(
+Base::Result<void> TextBoxBase::MoveCaretHorizontal(
     double direction,
     bool extend) noexcept {
     const TextSelection old =
-        Model(model_).Selection();
+        Model(GetActiveModel()).Selection();
     std::uint32_t next = old.caret;
     if (!extend && !old.GetIsEmpty()) {
         next = direction < 0.0
@@ -1275,7 +1274,7 @@ Base::Result<void> TextBox::MoveCaretHorizontal(
         if (next != 0U) {
             --next;
         }
-    } else if (next < Model(model_).GraphemeCount()) {
+    } else if (next < Model(GetActiveModel()).GraphemeCount()) {
         ++next;
     }
     SetSelection(extend ? old.anchor : next, next);
@@ -1283,30 +1282,30 @@ Base::Result<void> TextBox::MoveCaretHorizontal(
 }
 
 Base::Result<void>
-TextBox::MoveCaretLineBoundary(
+TextBoxBase::MoveCaretLineBoundary(
     bool end,
     bool extend) noexcept {
     const TextSelection old =
-        Model(model_).Selection();
+        Model(GetActiveModel()).Selection();
     std::uint32_t lineIndex = 0U;
     for (std::uint32_t line = 0U;
-         line < Model(model_).LineCount(); ++line) {
+         line < Model(GetActiveModel()).LineCount(); ++line) {
         Base::Result<TextRange> range =
-            Model(model_).LineRange(line);
+            Model(GetActiveModel()).LineRange(line);
         if (!range) {
             return range.GetStatus();
         }
         const std::uint32_t nextStart =
-            line + 1U < Model(model_).LineCount()
+            line + 1U < Model(GetActiveModel()).LineCount()
             ? range.Value().GetEnd() + 1U
-            : Model(model_).GraphemeCount() + 1U;
+            : Model(GetActiveModel()).GraphemeCount() + 1U;
         if (old.caret < nextStart) {
             lineIndex = line;
             break;
         }
     }
     Base::Result<TextRange> range =
-        Model(model_).LineRange(lineIndex);
+        Model(GetActiveModel()).LineRange(lineIndex);
     if (!range) {
         return range.GetStatus();
     }
@@ -1317,7 +1316,7 @@ TextBox::MoveCaretLineBoundary(
     return {};
 }
 
-double TextBox::GetLineHeight() const noexcept {
+double TextBoxBase::GetLineHeight() const noexcept {
     if (!caretStops_.Empty() &&
         caretStops_[0].height > 0.0) {
         return caretStops_[0].height;
@@ -1326,7 +1325,7 @@ double TextBox::GetLineHeight() const noexcept {
         std::max(1.0, GetDpiScale());
 }
 
-Rect TextBox::GetCaretRectangle() const noexcept {
+Rect TextBoxBase::GetCaretRectangle() const noexcept {
     if (caretStops_.Empty()) {
         return {
             -scroll_.horizontalOffset,
@@ -1347,7 +1346,7 @@ Rect TextBox::GetCaretRectangle() const noexcept {
         stop.height};
 }
 
-std::uint32_t TextBox::HitTestText(
+std::uint32_t TextBoxBase::HitTestText(
     Point position) const noexcept {
     if (caretStops_.Empty()) {
         return 0U;
@@ -1392,7 +1391,7 @@ std::uint32_t TextBox::HitTestText(
 }
 
 Base::Result<void>
-TextBox::RebuildCaretStops() noexcept {
+TextBoxBase::RebuildCaretStops() noexcept {
     caretStops_.Clear();
     const auto& active = Model(GetActiveModel());
     const std::uint32_t graphemes =
@@ -1519,7 +1518,7 @@ TextBox::RebuildCaretStops() noexcept {
     return {};
 }
 
-Size TextBox::MeasureOverride(
+Size TextBoxBase::MeasureOverride(
     Size availableSize) noexcept {
     Base::Result<void> display =
         DisplayPolicy(displayPolicy_)->BuildDisplayText(
@@ -1532,10 +1531,10 @@ Size TextBox::MeasureOverride(
     wrapColumns_ = UINT32_MAX;
     showingPlaceholder_ =
         displayText_.Empty() &&
-        !GetPlaceholder().Empty();
+        !GetPlaceholderCore().Empty();
     if (showingPlaceholder_) {
         display = displayText_.Assign(
-            GetPlaceholder());
+            GetPlaceholderCore());
         if (!display) {
             return Size{};
         }
@@ -1543,7 +1542,7 @@ Size TextBox::MeasureOverride(
     const Thickness padding = GetPadding();
     const Size contentAvailable =
         Deflate(availableSize, padding);
-    if (GetTextWrapping() !=
+    if (GetTextWrappingCore() !=
             TextWrapping::NoWrap &&
         contentAvailable.width > 0.0) {
         const double fallbackAdvance =
@@ -1588,7 +1587,7 @@ Size TextBox::MeasureOverride(
                 GetFontWeight() ==
                     FontWeight::SemiBold;
             const bool italic =
-                GetFontStyle() !=
+                GetFontStyleCore() !=
                     FontStyle::Normal;
             if (bold && italic) {
                 family = Base::StringView(
@@ -1602,8 +1601,8 @@ Size TextBox::MeasureOverride(
             }
         }
         request.fontFamily = family;
-        request.wrapping = GetTextWrapping();
-        request.alignment = GetTextAlignment();
+        request.wrapping = GetTextWrappingCore();
+        request.alignment = GetTextAlignmentCore();
         request.direction = GetFlowDirection() == FlowDirection::RightToLeft
             ? Text::TextDirection::RightToLeft
             : Text::TextDirection::LeftToRight;
@@ -1615,7 +1614,7 @@ Size TextBox::MeasureOverride(
             return Size{};
         }
         for (RenderGlyphRunId glyph :
-             result.glyphRuns) {
+              result.glyphRuns) {
             if (glyph ==
                 InvalidRenderGlyphRunId) {
                 for (RenderGlyphRunId release :
@@ -1707,9 +1706,9 @@ Size TextBox::MeasureOverride(
             std::max(GetLineHeight(), textSize_.height),
             contentAvailable.height)};
     const std::uint32_t maximumLines =
-        GetMaxLines();
+        GetMaxLinesCore();
     const std::uint32_t minimumLines =
-        GetMinLines();
+        GetMinLinesCore();
     if (maximumLines != 0U) {
         const double lineBoxHeight =
             std::max(
@@ -1719,7 +1718,7 @@ Size TextBox::MeasureOverride(
             lineBoxHeight *
             static_cast<double>(
                 maximumLines);
-        if (GetTextWrapping() !=
+        if (GetTextWrappingCore() !=
                 TextWrapping::NoWrap &&
             !displayText_.Empty()) {
             desired.height = std::min(
@@ -1750,7 +1749,7 @@ Size TextBox::MeasureOverride(
         std::max(templateSize.height, textInflated.height)};
 }
 
-Size TextBox::ArrangeOverride(
+Size TextBoxBase::ArrangeOverride(
     Size finalSize) noexcept {
     if (GetTemplateRoot() != nullptr) {
         Control::ArrangeOverride(finalSize);
@@ -1766,7 +1765,7 @@ Size TextBox::ArrangeOverride(
     return finalSize;
 }
 
-void TextBox::OnApplyTemplate() noexcept {
+void TextBoxBase::OnApplyTemplate() noexcept {
     Control::OnApplyTemplate();
     DependencyObject* part = GetTemplateChild(Base::StringView("PART_ContentHost"));
     if (part != nullptr && DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
@@ -1777,7 +1776,7 @@ void TextBox::OnApplyTemplate() noexcept {
     }
 }
 
-void TextBox::OnRender(
+void TextBoxBase::OnRender(
     ::Aero::Media::DrawingContext& context) noexcept {
     if (GetTemplateRoot() == nullptr) {
         auto& builder = Aero::Render::DrawingBridge::Builder(context);
@@ -1836,7 +1835,7 @@ void TextBox::OnRender(
 }
 
 Base::Result<void>
-TextBox::RenderEditor(
+TextBoxBase::RenderEditor(
     ::Aero::Media::DrawingContext& context,
     Size viewport,
     bool drawCaret,
@@ -1939,7 +1938,7 @@ TextBox::RenderEditor(
                     glyph,
                     showingPlaceholder_
                     ? ::Aero::Media::SampleBrush(
-                        GetPlaceholderForeground(),
+                        GetPlaceholderForegroundCore(),
                         0.5,
                         Color{
                             123.0F / 255.0F,
@@ -1955,8 +1954,7 @@ TextBox::RenderEditor(
             return drawn;
         }
     }
-    if (drawCaret &&
-        !showingPlaceholder_) {
+    if (drawCaret) {
         Rect caret = GetCaretRectangle();
         caret.x += scroll_.horizontalOffset;
         caret.y += scroll_.verticalOffset;
@@ -1980,7 +1978,7 @@ TextBox::RenderEditor(
     return builder.PopClip();
 }
 
-void TextBox::ReleaseGlyphRuns() noexcept {
+void TextBoxBase::ReleaseGlyphRuns() noexcept {
     auto* layoutService = LayoutService(*this);
     if (serviceOwnsGlyphRuns_ && layoutService != nullptr) {
         for (RenderGlyphRunId glyph :
@@ -1992,7 +1990,7 @@ void TextBox::ReleaseGlyphRuns() noexcept {
     serviceOwnsGlyphRuns_ = false;
 }
 
-void TextBox::SetViewport(
+void TextBoxBase::SetViewport(
     Size viewport) noexcept {
     if (!IsValidLayoutSize(viewport)) {
         return;
@@ -2022,7 +2020,7 @@ void TextBox::SetViewport(
     }
 }
 
-void TextBox::SetHorizontalOffset(
+void TextBoxBase::SetHorizontalOffset(
     double value) noexcept {
     if (!std::isfinite(value)) {
         return;
@@ -2038,7 +2036,7 @@ void TextBox::SetHorizontalOffset(
     InvalidateEditor();
 }
 
-void TextBox::SetVerticalOffset(
+void TextBoxBase::SetVerticalOffset(
     double value) noexcept {
     if (!std::isfinite(value)) {
         return;
@@ -2054,35 +2052,35 @@ void TextBox::SetVerticalOffset(
     InvalidateEditor();
 }
 
-Base::Result<bool> TextBox::LineHorizontal(
+Base::Result<bool> TextBoxBase::LineHorizontal(
     double direction) noexcept {
     const double old = scroll_.horizontalOffset;
     SetHorizontalOffset(old + direction * ScrollLine);
     return old != scroll_.horizontalOffset;
 }
 
-Base::Result<bool> TextBox::LineVertical(
+Base::Result<bool> TextBoxBase::LineVertical(
     double direction) noexcept {
     const double old = scroll_.verticalOffset;
     SetVerticalOffset(old + direction * GetLineHeight());
     return old != scroll_.verticalOffset;
 }
 
-Base::Result<bool> TextBox::PageHorizontal(
+Base::Result<bool> TextBoxBase::PageHorizontal(
     double direction) noexcept {
     const double old = scroll_.horizontalOffset;
     SetHorizontalOffset(old + direction * scroll_.viewportWidth);
     return old != scroll_.horizontalOffset;
 }
 
-Base::Result<bool> TextBox::PageVertical(
+Base::Result<bool> TextBoxBase::PageVertical(
     double direction) noexcept {
     const double old = scroll_.verticalOffset;
     SetVerticalOffset(old + direction * scroll_.viewportHeight);
     return old != scroll_.verticalOffset;
 }
 
-void TextBox::EnsureCaretVisible() noexcept {
+void TextBoxBase::EnsureCaretVisible() noexcept {
     const Rect caret = GetCaretRectangle();
     double horizontal =
         scroll_.horizontalOffset;
@@ -2110,7 +2108,7 @@ void TextBox::EnsureCaretVisible() noexcept {
     SetVerticalOffset(vertical);
 }
 
-void TextBox::UpdateCandidateWindow() noexcept {
+void TextBoxBase::UpdateCandidateWindow() noexcept {
     if (inputMethodHost_ == nullptr ||
         !compositionActive_) {
         return;
@@ -2119,10 +2117,7 @@ void TextBox::UpdateCandidateWindow() noexcept {
     Rect caret = GetCaretRectangle();
     caret.x += GetPadding().left;
     caret.y += GetPadding().top;
-    UIElement& owner =
-        coordinateOwner_ != nullptr
-        ? *coordinateOwner_
-        : static_cast<UIElement&>(*this);
+    UIElement& owner = *this;
     candidate.caret =
         ToRootRect(owner, caret);
     candidate.dpiScale = GetDpiScale();
@@ -2134,7 +2129,7 @@ namespace Primitives {
 TextBoxView::TextBoxView() noexcept
     : FrameworkElement(StaticTypeId()) {}
 
-TextBoxView::TextBoxView(TextBox* owner) noexcept
+TextBoxView::TextBoxView(TextBoxBase* owner) noexcept
     : FrameworkElement(StaticTypeId()), owner_(owner) {}
 
 Size TextBoxView::MeasureOverride(Size) noexcept {
@@ -2150,11 +2145,7 @@ Size TextBoxView::ArrangeOverride(Size finalSize) noexcept {
 
 void TextBoxView::OnRender(::Aero::Media::DrawingContext& context) noexcept {
     if (owner_ == nullptr) return;
-    bool focused = owner_->GetIsKeyboardFocused();
-    if (owner_->passwordOwner_ != nullptr) {
-        focused = owner_->passwordOwner_->GetIsKeyboardFocused();
-    }
-    static_cast<void>(owner_->RenderEditor(context, GetRenderSize(), focused, true));
+    static_cast<void>(owner_->RenderEditor(context, GetRenderSize(), owner_->GetIsKeyboardFocused(), true));
 }
 
 AERO_DESCRIBE(TextBoxView) {
@@ -2176,7 +2167,14 @@ AERO_DESCRIBE(TextBoxBase) {
         .Override(UIElement::IsTabStopProperty, true, FrameworkPropertyMetadataOptions::None)
         .Property(TextBoxBase::SelectionBrushProperty, selection, AffectsRender)
         .Property(TextBoxBase::SelectionOpacityProperty, 0.25, AffectsRender, &ValidateNormalizedDouble)
-        .Property(TextBoxBase::CaretBrushProperty, black, AffectsRender);
+        .Property(TextBoxBase::CaretBrushProperty, black, AffectsRender)
+        .TemplatePart("PART_ContentHost", TypeOf<ScrollViewer>());
+    AERO_ON(TextBoxBase, &TextBoxBase::OnMouseDown, UIElement::MouseDownEvent);
+    AERO_ON(TextBoxBase, &TextBoxBase::OnMouseMove, UIElement::MouseMoveEvent);
+    AERO_ON(TextBoxBase, &TextBoxBase::OnMouseUp, UIElement::MouseUpEvent);
+    AERO_ON(TextBoxBase, &TextBoxBase::OnKeyDown, UIElement::KeyDownEvent);
+    AERO_ON(TextBoxBase, &TextBoxBase::OnTextInput, UIElement::TextInputEvent);
+    AERO_ON(TextBoxBase, &TextBoxBase::OnLostKeyboardFocus, UIElement::LostKeyboardFocusEvent);
 }
 
 } // namespace Primitives
@@ -2206,29 +2204,16 @@ AERO_DESCRIBE(TextBox) {
         .Property(TextBox::MaxLinesProperty, std::uint32_t{0}, AffectsMeasure | AffectsRender)
         .Property(TextBox::MinLinesProperty, std::uint32_t{1}, AffectsMeasure | AffectsRender, &Base::Validate::Positive<std::uint32_t>)
         .Factory();
-    AERO_ON(TextBox, &TextBox::OnMouseDown, UIElement::MouseDownEvent);
-    AERO_ON(TextBox, &TextBox::OnMouseMove, UIElement::MouseMoveEvent);
-    AERO_ON(TextBox, &TextBox::OnMouseUp, UIElement::MouseUpEvent);
-    AERO_ON(TextBox, &TextBox::OnKeyDown, UIElement::KeyDownEvent);
-    AERO_ON(TextBox, &TextBox::OnTextInput, UIElement::TextInputEvent);
-    AERO_ON(TextBox, &TextBox::OnLostKeyboardFocus, UIElement::LostKeyboardFocusEvent);
 }
 
 PasswordBox::PasswordBox() noexcept
     : TextBoxBase(StaticTypeId()),
       passwordPolicy_(new (std::nothrow) PasswordTextDisplayPolicy()) {
-    editor_.displayPolicy_ = passwordPolicy_;
-    editor_.coordinateOwner_ = this;
-    editor_.passwordOwner_ = this;
-
+    displayPolicy_ = passwordPolicy_;
     if (passwordPolicy_ != nullptr) {
         static_cast<void>(PasswordPolicy(passwordPolicy_)->SetMask(GetPasswordChar()));
     }
-    SynchronizeEditorFromPassword();
-    editor_.SetForeground(GetForeground());
-    editor_.SetSelectionBrush(GetSelectionBrush());
-    editor_.SetSelectionOpacity(GetSelectionOpacity());
-    editor_.SetCaretBrush(GetCaretBrush());
+    SetValue(TextProperties::PasswordLengthProperty, std::uint32_t{0});
 }
 
 PasswordBox::~PasswordBox() {
@@ -2252,12 +2237,18 @@ void PasswordBox::SetPassword(
     Base::Result<void> copied =
         nextPassword.Assign(value);
     if (!copied) return;
-    synchronizingEditor_ = true;
-    editor_.SetText(value);
-    synchronizingEditor_ = false;
+    if (model_ != nullptr) {
+        static_cast<void>(Model(model_).SetText(value));
+        static_cast<void>(Model(model_).SetSelection(0U, 0U));
+    }
     password_ = std::move(nextPassword);
+    SetValue(TextProperties::PasswordLengthProperty, static_cast<std::uint32_t>(password_.SizeBytes()));
     InvalidateMeasure();
     InvalidateVisual();
+    InvalidateEditor();
+    if (view_) {
+        view_->InvalidateMeasure();
+    }
     RoutedEventArgs args;
     RaiseEvent(PasswordChangedEvent, &args);
 }
@@ -2279,9 +2270,12 @@ void PasswordBox::SetPasswordChar(
         PasswordPolicy(passwordPolicy_)->SetMask(value);
     if (!mask) return;
     SetValue(PasswordCharProperty, value);
-    editor_.InvalidateMeasure();
     InvalidateMeasure();
     InvalidateVisual();
+    InvalidateEditor();
+    if (view_) {
+        view_->InvalidateMeasure();
+    }
 }
 
 std::uint32_t PasswordBox::GetMaxLength() const noexcept {
@@ -2292,171 +2286,29 @@ void PasswordBox::SetMaxLength(
     std::uint32_t value) noexcept {
     const std::uint32_t effective =
         EffectiveMaximumLength(value);
-    if (Model(editor_.model_).GraphemeCount() > effective) {
+    if (Model(model_).GraphemeCount() > effective) {
         return;
     }
-    editor_.SetMaxLength(value);
     SetValue(MaxLengthProperty, value);
 }
 
-void PasswordBox::SetSelectionBrush(
-    Base::Ref<Media::Brush> value) noexcept {
-    TextBoxBase::SetSelectionBrush(std::move(value));
-    (void)editor_.SetSelectionBrush(GetSelectionBrush());
-}
-
-void PasswordBox::SetSelectionOpacity(
-    double value) noexcept {
-    TextBoxBase::SetSelectionOpacity(value);
-    (void)editor_.SetSelectionOpacity(value);
-}
-
-void PasswordBox::SetCaretBrush(
-    Base::Ref<Media::Brush> value) noexcept {
-    TextBoxBase::SetCaretBrush(std::move(value));
-    (void)editor_.SetCaretBrush(GetCaretBrush());
-}
-
-TextSelection
-PasswordBox::GetSelection() const noexcept {
-    return editor_.GetSelection();
-}
-
-std::uint32_t PasswordBox::GetCaret() const noexcept {
-    return editor_.GetCaret();
-}
-
-void PasswordBox::SetSelection(
-    std::uint32_t anchor,
-    std::uint32_t caret) noexcept {
-    (void)editor_.SetSelection(anchor, caret);
-}
-
-void PasswordBox::SelectAll() noexcept {
-    editor_.SelectAll();
-}
-
-void PasswordBox::SetInputMethodHost(
-    Input::ITextInputMethodHost* host) noexcept {
-    (void)editor_.SetInputMethodHost(host);
-}
-
-Input::ITextInputMethodHost*
-PasswordBox::GetInputMethodHost() const noexcept {
-    return editor_.GetInputMethodHost();
-}
-
-bool PasswordBox::GetIsComposing() const noexcept {
-    return editor_.GetIsComposing();
-}
-
-Size PasswordBox::MeasureOverride(
-    Size availableSize) noexcept {
-    Size templateSize{};
-    if (GetTemplateRoot() != nullptr) {
-        templateSize = Control::MeasureOverride(availableSize);
+Base::Result<void> PasswordBox::CommitModelText() noexcept {
+    Base::String snapshot;
+    if (model_ != nullptr) {
+        Base::Result<void> copied =
+            Model(model_).Snapshot(snapshot);
+        if (!copied) {
+            return copied;
+        }
     }
-    editor_.SetUseLayoutRounding(GetUseLayoutRounding(), GetDpiScale());
-    editor_.SetForeground(GetForeground());
-    editor_.SetSelectionBrush(GetSelectionBrush());
-    editor_.SetSelectionOpacity(GetSelectionOpacity());
-    editor_.SetCaretBrush(GetCaretBrush());
-    editor_.SetPlaceholder(GetPlaceholder());
-    Base::Result<Size> measuredEditor =
-        editor_.MeasureOverride(availableSize);
-    if (!measuredEditor) {
-        return Size{};
+    const bool changed = (password_.View() != snapshot.View());
+    if (changed) {
+        password_ = std::move(snapshot);
+        SetValue(TextProperties::PasswordLengthProperty, static_cast<std::uint32_t>(password_.SizeBytes()));
+        RoutedEventArgs args;
+        RaiseEvent(PasswordChangedEvent, &args);
     }
-    const Size editorSize = measuredEditor.Value();
-    return Size{
-        std::max(templateSize.width, editorSize.width),
-        std::max(templateSize.height, editorSize.height)};
-}
-
-void PasswordBox::OnApplyTemplate() noexcept {
-    Control::OnApplyTemplate();
-    DependencyObject* part = GetTemplateChild(Base::StringView("PART_ContentHost"));
-    if (part != nullptr && DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
-            part->RuntimeType(), ScrollViewer::StaticTypeId())) {
-        static_cast<void>(editor_.AttachScrollViewer(static_cast<ScrollViewer*>(part)));
-    } else {
-        static_cast<void>(editor_.AttachScrollViewer(nullptr));
-    }
-}
-
-Size PasswordBox::ArrangeOverride(
-    Size finalSize) noexcept {
-    if (GetTemplateRoot() != nullptr) {
-        Control::ArrangeOverride(finalSize);
-    }
-    editor_.SetViewport(finalSize);
-    return finalSize;
-}
-
-void PasswordBox::OnRender(
-    ::Aero::Media::DrawingContext& context) noexcept {
-    DependencyObject* part = GetTemplateChild(Base::StringView("PART_ContentHost"));
-    if (part != nullptr && DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
-            part->RuntimeType(), ScrollViewer::StaticTypeId())) {
-        return;
-    }
-    static_cast<void>(editor_.RenderEditor(
-        context,
-        GetRenderSize(),
-        GetIsKeyboardFocused()));
-}
-
-void PasswordBox::SynchronizeEditorFromPassword() noexcept {
-    if (synchronizingEditor_) {
-        return;
-    }
-    synchronizingEditor_ = true;
-    editor_.SetMaxLength(GetMaxLength());
-    editor_.SetText(password_.View());
-    synchronizingEditor_ = false;
-}
-
-Base::Result<void>
-PasswordBox::SynchronizePasswordFromEditor()
-    noexcept {
-    if (synchronizingEditor_ ||
-        password_.View() == editor_.GetText()) {
-        return {};
-    }
-    Base::String next;
-    Base::Result<void> copied =
-        next.Assign(editor_.GetText());
-    if (!copied) return copied.GetStatus();
-    password_ = std::move(next);
-    InvalidateMeasure();
-    InvalidateVisual();
-    RoutedEventArgs args;
-    RaiseEvent(PasswordChangedEvent, &args);
-    return {};
-}
-
-void PasswordBox::OnMouseDown(MouseButtonEventArgs& args) {
-    editor_.HandleEditorMouseDown(*this, drag_, args);
-}
-
-void PasswordBox::OnMouseMove(MouseEventArgs& args) {
-    editor_.HandleEditorMouseMove(*this, drag_, args);
-}
-
-void PasswordBox::OnMouseUp(MouseButtonEventArgs& args) {
-    editor_.HandleEditorMouseUp(*this, drag_, args);
-}
-
-void PasswordBox::OnKeyDown(KeyEventArgs& args) {
-    editor_.HandleEditorKeyDown(*this, args);
-}
-
-void PasswordBox::OnTextInput(TextCompositionEventArgs& args) {
-    editor_.HandleEditorTextInput(args);
-}
-
-void PasswordBox::OnLostKeyboardFocus(KeyboardFocusChangedEventArgs& args) {
-    editor_.HandleEditorLostFocus(*this, drag_, args);
+    return TextBoxBase::CommitModelText();
 }
 
 bool PasswordBox::ValidateValueCore(
@@ -2479,27 +2331,17 @@ void PasswordBox::OnPropertyChanged(
     const DependencyPropertyChangedEventArgs& args) noexcept {
     TextBoxBase::OnPropertyChanged(args);
     if (args.GetProperty() == PasswordBox::PasswordCharProperty) {
-        static_cast<void>(PasswordPolicy(passwordPolicy_)->SetMask(GetPasswordChar()));
-        editor_.InvalidateMeasure();
+        if (passwordPolicy_ != nullptr) {
+            static_cast<void>(PasswordPolicy(passwordPolicy_)->SetMask(GetPasswordChar()));
+        }
         InvalidateMeasure();
         InvalidateVisual();
+        InvalidateEditor();
+        if (view_) {
+            view_->InvalidateMeasure();
+        }
     } else if (args.GetProperty() == PasswordBox::MaxLengthProperty) {
-        static_cast<void>(editor_.CancelCompositionForFocusLoss());
-        static_cast<void>(editor_.SetMaxLength(GetMaxLength()));
-    } else if (args.GetProperty() == PasswordBox::ForegroundProperty) {
-        static_cast<void>(editor_.SetForeground(GetForeground()));
-    } else if (args.GetProperty() == PasswordBox::SelectionBrushProperty) {
-        static_cast<void>(editor_.SetSelectionBrush(GetSelectionBrush()));
-    } else if (args.GetProperty() == PasswordBox::SelectionOpacityProperty) {
-        static_cast<void>(editor_.SetSelectionOpacity(GetSelectionOpacity()));
-    } else if (args.GetProperty() == PasswordBox::CaretBrushProperty) {
-        static_cast<void>(editor_.SetCaretBrush(GetCaretBrush()));
-    } else if (args.GetProperty() == PasswordBox::PlaceholderProperty) {
-        editor_.SetPlaceholder(GetPlaceholder());
-    } else if (args.GetProperty() == UIElement::IsEnabledProperty && !args.GetNewValue().AsBoolean()) {
-        static_cast<void>(editor_.CancelCompositionForFocusLoss());
-    } else if (args.GetProperty() == UIElement::IsKeyboardFocusedProperty) {
-        editor_.InvalidateEditor();
+        static_cast<void>(CancelCompositionForFocusLoss());
     }
 }
 
@@ -2514,14 +2356,7 @@ AERO_DESCRIBE(PasswordBox) {
         .Property(PasswordBox::PasswordCharProperty, std::move(defaultPasswordChar), AffectsMeasure)
         .Property(PasswordBox::MaxLengthProperty, std::uint32_t{0}, AffectsMeasure)
         .Property(PasswordBox::PlaceholderProperty, Base::String{}, AffectsMeasure | AffectsRender)
-        .TemplatePart("PART_ContentHost", TypeOf<ScrollViewer>())
         .Factory();
-    AERO_ON(PasswordBox, &PasswordBox::OnMouseDown, UIElement::MouseDownEvent);
-    AERO_ON(PasswordBox, &PasswordBox::OnMouseMove, UIElement::MouseMoveEvent);
-    AERO_ON(PasswordBox, &PasswordBox::OnMouseUp, UIElement::MouseUpEvent);
-    AERO_ON(PasswordBox, &PasswordBox::OnKeyDown, UIElement::KeyDownEvent);
-    AERO_ON(PasswordBox, &PasswordBox::OnTextInput, UIElement::TextInputEvent);
-    AERO_ON(PasswordBox, &PasswordBox::OnLostKeyboardFocus, UIElement::LostKeyboardFocusEvent);
 }
 
 } // namespace Aero::Controls
@@ -2534,13 +2369,7 @@ void Controls::TextBlock::AttachTextLayout(
     if (invalidate) InvalidateMeasure();
 }
 
-void Controls::TextBox::AttachTextLayout(
-    void*,
-    bool invalidate) noexcept {
-    if (invalidate) InvalidateMeasure();
-}
-
-void Controls::PasswordBox::AttachTextLayout(
+void Controls::Primitives::TextBoxBase::AttachTextLayout(
     void*,
     bool invalidate) noexcept {
     if (invalidate) InvalidateMeasure();

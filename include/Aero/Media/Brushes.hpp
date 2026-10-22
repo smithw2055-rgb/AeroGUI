@@ -7,6 +7,7 @@
 #include <Aero/Collections.hpp>
 #include <Aero/DependencyProperty.hpp>
 #include <Aero/ElementEnums.hpp>
+#include <Aero/Media/FreezableCollection.hpp>
 #include <Aero/Media/Images.hpp>
 #include <Aero/Media/Transform2D.hpp>
 
@@ -80,61 +81,45 @@ public:
     void SetOffset(double value) noexcept;
     void SetColor(Color value) noexcept;
 
+    std::uint64_t GetRevision() const noexcept { return Revision(); }
+
     AERO_DEPENDENCY_PROPERTY(double, Offset);
     AERO_DEPENDENCY_PROPERTY(Color, Color);
 
 };
 
-class AERO_GUI_API GradientStopCollection : public Freezable,
-    public Collections::IItemsSource {
-    AERO_DECLARE_TYPE(GradientStopCollection, Freezable)
+class AERO_GUI_API GradientStopCollection : public FreezableCollection<GradientStop> {
+    AERO_DECLARE_TYPE(GradientStopCollection, FreezableCollection<GradientStop>)
 
 public:
-    GradientStopCollection() noexcept : Freezable(StaticTypeId()),
-          stops_(&Base::GetDefaultAllocator()) {}
-    ~GradientStopCollection() override;
-    Span<const Ref<GradientStop>> GetItems() const noexcept { return stops_.AsSpan(); }
-    std::uint32_t GetCount() const noexcept override { return stops_.Size(); }
-    Ref<Base::Object> GetItem(std::uint32_t index) const noexcept override {
-        return index < stops_.Size() ? Ref<Base::Object>(stops_[index]) : Ref<Base::Object>{};
-    }
-    void AddItemsChanged(const Collections::ItemsChangedHandler& handler) noexcept override {
-        if (IsFrozen()) return;
-        changed_.Add(handler);
-    }
-    bool RemoveItemsChanged(const Collections::ItemsChangedHandler& handler) noexcept override {
-        return changed_.Remove(handler);
-    }
-    void Add(Ref<GradientStop> stop) noexcept;
-    void Clear() noexcept;
+    GradientStopCollection() noexcept
+        : FreezableCollection<GradientStop>(StaticTypeId()) {}
+    ~GradientStopCollection() override = default;
 
 protected:
-    bool FreezeCore(bool isChecking) noexcept override;
-
-private:
-    void OnStopChanged(Freezable&) noexcept;
-    Base::Vector<Ref<GradientStop>> stops_;
-    Collections::ItemsChangedHandler changed_;
-    FreezableChangedHandler stopChangedHandler_;
+    Base::Ref<Freezable> CreateInstanceCore() const override {
+        auto made = Base::MakeRef<GradientStopCollection>();
+        return made ? Base::Ref<Freezable>(std::move(made).Value()) : Base::Ref<Freezable>{};
+    }
 };
 
 // Shader parameters are a revision counter plus optional dependency
 // properties declared by a derived shader. XAML bindings require the owner
 // to be a DependencyObject.
-class AERO_GUI_API BrushShader : public DependencyObject {
-    AERO_DECLARE_TYPE(BrushShader, DependencyObject)
+class AERO_GUI_API BrushShader : public Animatable {
+    AERO_DECLARE_TYPE(BrushShader, Animatable)
 
 public:
     std::uint64_t GetRevision() const noexcept { return revision_; }
-    BrushShader() noexcept : DependencyObject(StaticTypeId()) {}
+    BrushShader() noexcept : Animatable(StaticTypeId()) {}
     ~BrushShader() override = default;
 
 protected:
     explicit BrushShader(TypeId runtimeType) noexcept
-        : DependencyObject(runtimeType) {}
+        : Animatable(runtimeType) {}
     void BumpRevision() noexcept { ++revision_; }
     void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override {
-        DependencyObject::OnPropertyChanged(args);
+        Animatable::OnPropertyChanged(args);
         BumpRevision();
     }
 
@@ -151,6 +136,12 @@ public:
     void SetColor(Color value) noexcept {
         color_ = value;
         BumpRevision();
+    }
+
+protected:
+    Base::Ref<Freezable> CreateInstanceCore() const override {
+        auto made = Base::MakeRef<MonochromeShader>();
+        return made ? Base::Ref<Freezable>(std::move(made).Value()) : Base::Ref<Freezable>{};
     }
 
 private:
@@ -170,6 +161,12 @@ public:
     void ClearGradientStops() noexcept { stops_.Clear(); }
     Span<const Ref<GradientStop>> GetGradientStops() const noexcept { return stops_.AsSpan(); }
 
+protected:
+    Base::Ref<Freezable> CreateInstanceCore() const override {
+        auto made = Base::MakeRef<ConicGradientShader>();
+        return made ? Base::Ref<Freezable>(std::move(made).Value()) : Base::Ref<Freezable>{};
+    }
+
 private:
     Base::Vector<Ref<GradientStop>> stops_;
 };
@@ -183,6 +180,12 @@ public:
     void SetTime(double value) noexcept;
 
     AERO_DEPENDENCY_PROPERTY(double, Time);
+
+protected:
+    Base::Ref<Freezable> CreateInstanceCore() const override {
+        auto made = Base::MakeRef<WavesShader>();
+        return made ? Base::Ref<Freezable>(std::move(made).Value()) : Base::Ref<Freezable>{};
+    }
 };
 
 class AERO_GUI_API SolidColorBrush : public Brush {
@@ -224,6 +227,8 @@ protected:
           stops_(&Base::GetDefaultAllocator()) {}
     ~GradientBrush() override;
     bool FreezeCore(bool isChecking) noexcept override;
+    void CloneCore(const Freezable& source) override;
+    void CloneCurrentValueCore(const Freezable& source) override;
 
 private:
     void OnGradientStopChanged(Freezable&) noexcept;

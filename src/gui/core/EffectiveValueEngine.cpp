@@ -22,6 +22,7 @@
 #include <Aero/Visual.hpp>
 #include <Aero/VisualTreeHelper.hpp>
 #include <Aero/UIElement.hpp>
+#include <Aero/FrameworkElement.hpp>
 
 #include <cstdio>
 #include <cstdint>
@@ -279,6 +280,9 @@ Base::Result<void> DependencyPropertyRegistry::ValidateValue(
     const DependencyProperty& property,
     const PropertyMetadata& metadata,
     const PropertyValue& value) const noexcept {
+    if (value.IsDynamicResource()) {
+        return {};
+    }
     if (value.IsUnset() || value.Type() == InvalidTypeId) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
@@ -375,8 +379,31 @@ Base::Result<PropertyValue> DependencyPropertyRegistry::EvaluateValue(
     const DependencyProperty& property,
     const PropertyMetadata& metadata,
     const PropertyValue& baseValue) const noexcept {
+    PropertyValue resolved = baseValue;
+    if (baseValue.IsDynamicResource()) {
+        const Base::StringView key = baseValue.AsDynamicResourceKey();
+        ResourceValue resource;
+        if (auto* fe = ::Aero::TryCast<FrameworkElement>(&object)) {
+            resource = fe->TryFindResource(key);
+        }
+        if (resource.IsUnset()) {
+            resolved = metadata.defaultValue;
+        } else if (resource.Kind() == Meta::ValueKind::String &&
+                   resource.Type() != property.ValueType()) {
+            Base::Result<PropertyValue> converted =
+                PropertyValue::TryFromString(property.ValueType(), resource.AsString());
+            if (converted) {
+                resolved = converted.Value();
+            } else {
+                resolved = resource;
+            }
+        } else {
+            resolved = resource;
+        }
+    }
+
     Base::Result<void> validation = ValidateValue(
-        property, metadata, baseValue);
+        property, metadata, resolved);
     if (!validation) {
         return validation.GetStatus();
     }
@@ -384,7 +411,7 @@ Base::Result<PropertyValue> DependencyPropertyRegistry::EvaluateValue(
     // without a metadata delegate (AND semantics). Defaults are pass-through
     // (Validate true / Coerce identity), so registered behavior is unchanged
     // and authors can override instead of registering per-DP delegates.
-    if (!object.ValidateValueCore(property.Handle(), baseValue)) {
+    if (!object.ValidateValueCore(property.Handle(), resolved)) {
         return ValidationFailedStatus();
     }
 
@@ -392,7 +419,7 @@ Base::Result<PropertyValue> DependencyPropertyRegistry::EvaluateValue(
     // Overrides adjust the value (or return Unset to reject); the default
     // returns the base value unchanged.
     const PropertyValue adjusted =
-        object.CoerceValueCore(property.Handle(), baseValue);
+        object.CoerceValueCore(property.Handle(), resolved);
     if (adjusted.IsUnset()) {
         return ValidationFailedStatus();
     }
@@ -632,6 +659,7 @@ Base::Result<void> DependencyPropertyRegistry::AddOwner(
     entry.metadata = metadata;
     property.metadata_.PushBack(
         std::move(entry));
+    property.ClearMetadataCache();
 
     Base::HashMap<MemberId, std::uint32_t>::InsertResult indexResult =
         memberIndex_.Insert(
@@ -640,6 +668,7 @@ Base::Result<void> DependencyPropertyRegistry::AddOwner(
     AERO_ASSERT(indexResult.inserted);
     if (!indexResult.inserted) {
         property.metadata_.PopBack();
+        property.ClearMetadataCache();
         return Base::Status::Failure(
             Base::ErrorCode::InternalError,
             "Reserved owner alias insertion unexpectedly failed");
@@ -659,6 +688,7 @@ Base::Result<void> DependencyPropertyRegistry::AddOwner(
     if (!alias) {
         static_cast<void>(memberIndex_.Erase(aliasMember));
         property.metadata_.PopBack();
+        property.ClearMetadataCache();
         return alias.GetStatus();
     }
     AERO_ASSERT(alias.Value() == aliasMember);
@@ -718,6 +748,7 @@ Base::Result<void> DependencyPropertyRegistry::OverrideMetadata(
     entry.owner = false;
     entry.metadata = metadata;
     property.metadata_.PushBack(std::move(entry));
+    property.ClearMetadataCache();
     return {};
 }
 
@@ -751,6 +782,24 @@ Base::Result<void> DependencyPropertyRegistry::Freeze() noexcept {
                 return validation.GetStatus();
             }
         }
+    }
+
+    inheritableProperties_.Clear();
+    for (const DependencyProperty& property : properties_) {
+        bool inherits = false;
+        for (const DependencyProperty::MetadataEntry& entry : property.metadata_) {
+            if (HasFlag(entry.metadata.flags, FrameworkPropertyMetadataOptions::Inherits)) {
+                inherits = true;
+                break;
+            }
+        }
+        if (inherits) {
+            inheritableProperties_.PushBack(property.Handle());
+        }
+    }
+
+    for (DependencyProperty& property : properties_) {
+        property.ClearMetadataCache();
     }
 
     frozen_ = true;
@@ -866,12 +915,18 @@ void DependencyMutationScope::Release() noexcept {
 DependencyObject::DependencyObject(TypeId runtimeType) noexcept
     : DispatcherObject(*CurrentObjectFactory().dispatcher),
       registry_(CurrentObjectFactory().dependencyProperties),
+      registryLifetime_(CurrentObjectFactory().dependencyProperties != nullptr
+          ? CurrentObjectFactory().dependencyProperties->Lifetime()
+          : nullptr),
       runtimeType_(runtimeType),
       objectServicesAvailable_(HasObjectFactory()),
       valueStore_(nullptr),
       rare_(nullptr) {}
 
 DependencyObject::~DependencyObject() {
+    if (registry_ != nullptr && registryLifetime_ && registryLifetime_->isAlive) {
+        registry_->NotifyObjectDestroyed(*this);
+    }
     if (rare_ != nullptr) {
         delete rare_;
         rare_ = nullptr;
@@ -984,32 +1039,12 @@ EffectiveValueEngine::EffectiveValueEngine(
     DependencyPropertyRegistry& registry) noexcept
     : dispatcher_(&dispatcher),
       registry_(&registry),
-      parents_(),
-      inheritanceSubscriptions_(),
-      inheritanceChangedHandler_(
-          this,
-          &EffectiveValueEngine::OnInheritancePropertyChanged) {}
+      parents_() {}
 
 void EffectiveValueEngine::Shutdown() noexcept {
-    // P3.2: no frame-hook registration anymore; ViewFrame drives Flush()
-    // explicitly. Shutdown only releases subscriptions and queued links.
-    for (DependencyObject* object : inheritanceSubscriptions_) {
-        if (object == nullptr) continue;
-        for (const DependencyProperty& property : registry_->Properties()) {
-            const PropertyMetadata* metadata =
-                property.MetadataFor(object->RuntimeType());
-            if (metadata != nullptr &&
-                HasFlag(
-                    metadata->flags,
-                    FrameworkPropertyMetadataOptions::Inherits)) {
-                static_cast<void>(
-                    object->RemoveValueChangedHandler(
-                        property.Handle(),
-                        inheritanceChangedHandler_));
-            }
-        }
+    if (registry_ != nullptr) {
+        registry_->SetInheritanceChangeSink(nullptr);
     }
-    inheritanceSubscriptions_.Clear();
     ClearQueueLinks();
     parents_.Clear();
 }
@@ -1028,7 +1063,7 @@ Base::Result<void> EffectiveValueEngine::Initialize() noexcept {
             "DependencyPropertyRegistry must be frozen before the value engine");
     }
 
-    // P3.2: ViewFrame calls Flush() directly; no PropertyChanges hook.
+    registry_->SetInheritanceChangeSink(this);
     initialized_ = true;
     return {};
 }
@@ -1171,36 +1206,13 @@ Base::Result<void> EffectiveValueEngine::SetInheritanceParent(
 
     DependencyObject* previousParent = InheritanceParent(child);
     if (parent != nullptr) {
-        Base::Result<void> subscribed = EnsureInheritanceSubscription(child);
-        if (!subscribed) return subscribed.GetStatus();
-        subscribed = EnsureInheritanceSubscription(*parent);
-        if (!subscribed) return subscribed.GetStatus();
         parents_.Set(&child, parent);
     } else {
         parents_.Erase(&child);
-        Base::Result<void> subscribed = EnsureInheritanceSubscription(child);
-        if (!subscribed) return subscribed.GetStatus();
-    }
-
-    const auto participates = [this](DependencyObject& object) noexcept {
-        if (parents_.Find(&object) != nullptr) return true;
-        for (auto& link : parents_) {
-            if (link.Value() == &object) return true;
-        }
-        return false;
-    };
-
-    if (parent != nullptr && !participates(child)) {
-        RemoveInheritanceSubscription(child);
-    }
-    if (previousParent != nullptr &&
-        previousParent != parent &&
-        !participates(*previousParent)) {
-        RemoveInheritanceSubscription(*previousParent);
     }
 
     Base::Vector<MemberId> keys;
-    (child).ForEachStoredKey(
+    child.ForEachStoredKey(
         [](void* context, MemberId key) noexcept {
             static_cast<Base::Vector<MemberId>*>(context)->PushBack(key);
         },
@@ -1209,6 +1221,24 @@ Base::Result<void> EffectiveValueEngine::SetInheritanceParent(
         Base::Result<void> queued =
             QueueObjectProperty(child, DependencyPropertyHandle{key});
         if (!queued) return queued.GetStatus();
+    }
+
+    for (DependencyPropertyHandle inheritableHandle : registry_->InheritableProperties()) {
+        const DependencyProperty* prop = registry_->Find(inheritableHandle);
+        if (prop == nullptr) continue;
+        const PropertyMetadata* metadata = prop->MetadataFor(child.RuntimeType());
+        if (metadata == nullptr) continue;
+
+        if (child.FindStoredEntry(inheritableHandle) != nullptr) {
+            continue;
+        }
+
+        bool needsQueue = (parent != nullptr || previousParent != nullptr);
+
+        if (needsQueue) {
+            Base::Result<void> queued = QueueObjectProperty(child, inheritableHandle);
+            if (!queued) return queued.GetStatus();
+        }
     }
     return {};
 }
@@ -1231,15 +1261,16 @@ Base::Result<void> EffectiveValueEngine::QueueDescendants(
                     return {};
                 }
             }
+            const TypeId childType = child->RuntimeType();
             const PropertyMetadata* metadata = registered != nullptr
-                ? registered->MetadataFor(child->RuntimeType())
+                ? registered->MetadataFor(childType)
                 : nullptr;
             const bool inherits = metadata != nullptr &&
                 HasFlag(
                     metadata->flags,
                     FrameworkPropertyMetadataOptions::Inherits);
             if (inherits ||
-                (*child).FindStoredEntry( property) != nullptr) {
+                (*child).FindStoredEntry(property) != nullptr) {
                 Base::Result<void> queued =
                     QueueObjectProperty(*child, property);
                 if (!queued) return queued.GetStatus();
@@ -1283,85 +1314,10 @@ Base::Result<void> EffectiveValueEngine::QueueDescendants(
     return {};
 }
 
-Base::Result<void>
-EffectiveValueEngine::EnsureInheritanceSubscription(
-    DependencyObject& object) noexcept {
-    for (DependencyObject* subscribed : inheritanceSubscriptions_) {
-        if (subscribed == &object) return {};
-    }
-
-    for (const DependencyProperty& property : registry_->Properties()) {
-        const PropertyMetadata* metadata =
-            property.MetadataFor(object.RuntimeType());
-        if (metadata == nullptr ||
-            !HasFlag(
-                metadata->flags,
-                FrameworkPropertyMetadataOptions::Inherits)) {
-            continue;
-        }
-
-        object.AddValueChangedHandler(
-            property.Handle(),
-            inheritanceChangedHandler_);
-
-        Base::Result<void> queued =
-            QueueObjectProperty(object, property.Handle());
-        if (!queued) {
-            static_cast<void>(object.RemoveValueChangedHandler(
-                property.Handle(),
-                inheritanceChangedHandler_));
-            return queued.GetStatus();
-        }
-    }
-
-    inheritanceSubscriptions_.PushBack(&object);
-    return {};
-}
-
-void EffectiveValueEngine::RemoveInheritanceSubscription(
-    DependencyObject& object) noexcept {
-    for (std::uint32_t index = 0U;
-         index < inheritanceSubscriptions_.Size();
-         ++index) {
-        if (inheritanceSubscriptions_[index] != &object) continue;
-        for (const DependencyProperty& property : registry_->Properties()) {
-            const PropertyMetadata* metadata =
-                property.MetadataFor(object.RuntimeType());
-            if (metadata != nullptr &&
-                HasFlag(
-                    metadata->flags,
-                    FrameworkPropertyMetadataOptions::Inherits)) {
-                static_cast<void>(
-                    object.RemoveValueChangedHandler(
-                        property.Handle(),
-                        inheritanceChangedHandler_));
-            }
-        }
-        for (std::uint32_t next = index + 1U;
-             next < inheritanceSubscriptions_.Size();
-             ++next) {
-            inheritanceSubscriptions_[next - 1U] =
-                inheritanceSubscriptions_[next];
-        }
-        inheritanceSubscriptions_.PopBack();
-        return;
-    }
-}
-
 void EffectiveValueEngine::OnInheritancePropertyChanged(
     DependencyObject& object,
-    const DependencyPropertyChangedEventArgs& args) noexcept {
-    const DependencyProperty* property = registry_->Find(args.GetProperty());
-    const PropertyMetadata* metadata = property != nullptr
-        ? property->MetadataFor(object.RuntimeType())
-        : nullptr;
-    if (metadata == nullptr ||
-        !HasFlag(
-            metadata->flags,
-            FrameworkPropertyMetadataOptions::Inherits)) {
-        return;
-    }
-    static_cast<void>(QueueDescendants(object, args.GetProperty()));
+    DependencyPropertyHandle property) noexcept {
+    static_cast<void>(QueueDescendants(object, property));
 }
 
 
@@ -1387,8 +1343,13 @@ Base::Result<void> EffectiveValueEngine::Apply(
         if (inheritFrom == nullptr) {
             inheritFrom = ::Aero::LogicalTreeHelper::GetParent(object);
         }
+        std::uint32_t loopCount = 0;
         while (inheritFrom != nullptr &&
             registered->MetadataFor(inheritFrom->RuntimeType()) == nullptr) {
+            if (++loopCount > 100) {
+                inheritFrom = nullptr;
+                break;
+            }
             DependencyObject* next = InheritanceParent(*inheritFrom);
             if (next == nullptr) {
                 if (::Aero::Media::Visual* visual =
@@ -1626,10 +1587,8 @@ Base::Result<void> EffectiveValueEngine::Invalidate(
     return QueueDescendants(object, property);
 }
 
-Base::Result<void> EffectiveValueEngine::DetachObject(DependencyObject& object) noexcept {
-    Base::Result<void> ready = VerifyMutable(); if (!ready) return ready.GetStatus();
-    RemoveInheritanceSubscription(object);
-    // P2.2: unlink every queued link for the detached object; links return
+void EffectiveValueEngine::OnObjectDestroyed(DependencyObject& object) noexcept {
+    // P2.2: unlink every queued link for the detached or destroyed object; links return
     // to the free list. O(n) single pass, no element shifting.
     QueueLink* previous = nullptr;
     QueueLink* cursor = queueHead_;
@@ -1661,6 +1620,11 @@ Base::Result<void> EffectiveValueEngine::DetachObject(DependencyObject& object) 
     for (DependencyObject* child : children) {
         parents_.Erase(child);
     }
+}
+
+Base::Result<void> EffectiveValueEngine::DetachObject(DependencyObject& object) noexcept {
+    Base::Result<void> ready = VerifyMutable(); if (!ready) return ready.GetStatus();
+    OnObjectDestroyed(object);
     Base::Vector<MemberId> keys;
     (object).ForEachStoredKey(
         [](void* context, MemberId key) noexcept {

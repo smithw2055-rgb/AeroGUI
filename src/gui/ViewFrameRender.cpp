@@ -41,46 +41,23 @@ void ViewFrame::AttachTextLayout(
         bool invalidate) noexcept {
         if (metadata == nullptr) return;
         const Meta::TypeId type = node.RuntimeType();
-        if (type == Controls::TextBlock::StaticTypeId()) {
+        if (type == Controls::TextBlock::StaticTypeId() ||
+            metadata->Types().IsDerivedFrom(type, Controls::TextBlock::StaticTypeId())) {
             (*static_cast<Controls::TextBlock*>(&node)).AttachTextLayout(
                 service,
                 invalidate);
             return;
         }
-        if (type == Controls::TextBox::StaticTypeId()) {
+        if (type == Controls::TextBox::StaticTypeId() ||
+            metadata->Types().IsDerivedFrom(type, Controls::TextBox::StaticTypeId())) {
             (*static_cast<Controls::TextBox*>(&node)).AttachTextLayout(
                 service,
                 invalidate);
             return;
         }
-        if (type == Controls::PasswordBox::StaticTypeId()) {
+        if (type == Controls::PasswordBox::StaticTypeId() ||
+            metadata->Types().IsDerivedFrom(type, Controls::PasswordBox::StaticTypeId())) {
             (*static_cast<Controls::PasswordBox*>(&node)).AttachTextLayout(
-                service,
-                invalidate);
-            return;
-        }
-        if (metadata->Types().IsDerivedFrom(
-                type,
-                Controls::TextBlock::StaticTypeId())) {
-            (*static_cast<Controls::TextBlock*>(&node)).AttachTextLayout(
-                service,
-                invalidate);
-            return;
-        }
-        if (metadata->Types().IsDerivedFrom(
-                type,
-                Controls::TextBox::StaticTypeId())) {
-            (*static_cast<Controls::TextBox*>(&node)).AttachTextLayout(
-                service,
-                invalidate);
-            return;
-        }
-        if (metadata->Types().IsDerivedFrom(
-                type,
-                Controls::PasswordBox::
-                    StaticTypeId())) {
-            (*static_cast<Controls::PasswordBox*>(
-                    &node)).AttachTextLayout(
                 service,
                 invalidate);
             return;

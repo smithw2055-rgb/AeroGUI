@@ -917,6 +917,11 @@ void ListBoxItem::UpdateVisualState(bool useTransitions) noexcept {
             useTransitions));
 }
 
+void ListBoxItem::OnApplyTemplate() noexcept {
+    ContentControl::OnApplyTemplate();
+    UpdateVisualState(false);
+}
+
 void ListBoxItem::OnSelected(RoutedEventArgs& e) {
     RaiseEvent(SelectedEvent, &e);
 }
@@ -1718,8 +1723,8 @@ ComboBox::UpdateSelectionBox() noexcept {
 
     Meta::Value selectionItemValue;
     Base::Ref<Base::Object> selectionBoxTemplate;
-    if (const DataTemplate* tpl = GetItemTemplate()) {
-        selectionBoxTemplate = Base::Ref<Base::Object>::FromBorrowed(*const_cast<DataTemplate*>(tpl));
+    if (Base::Ref<DataTemplate> tpl = GetItemTemplate()) {
+        selectionBoxTemplate = std::move(tpl);
     }
     if (!selected) {
         selectionItemValue = Meta::Value::NullObject(Meta::TypeOf<Base::Object>());
@@ -1745,6 +1750,8 @@ ComboBox::UpdateSelectionBox() noexcept {
     } else if (DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
                    selected->RuntimeType(), UIElement::StaticTypeId())) {
         selectionItemValue = Meta::Value::TryFromString(Meta::TypeOf<Base::String>(), text).Value();
+    } else if (selected && selected->RuntimeType() == BoxedItemValue::StaticTypeId()) {
+        selectionItemValue = static_cast<const BoxedItemValue&>(*selected).Value();
     } else {
         selectionItemValue = Meta::Value::FromObject(selected->RuntimeType(), selected);
     }
@@ -2099,9 +2106,8 @@ Base::Result<void> TabControl::PrepareContainerForItemOverride(
         auto& tabItem = static_cast<TabItem&>(container);
         if (item && item.Get() != &container) {
             tabItem.SetHeader(Value::FromObject(item->RuntimeType(), item));
-            if (const DataTemplate* tpl = GetItemTemplate()) {
-                tabItem.SetHeaderTemplate(Ref<DataTemplate>::FromBorrowed(
-                    const_cast<DataTemplate&>(*tpl)));
+            if (Base::Ref<DataTemplate> tpl = GetItemTemplate()) {
+                tabItem.SetHeaderTemplate(std::move(tpl));
             }
             tabItem.SetContent(item.Get());
             tabItem.SetValue(ContentControl::ContentProperty,

@@ -27,48 +27,9 @@
 #include "gui/controls/ItemsContainers.hpp"
 #include <Aero/Freezable.hpp>
 #include "gui/core/Describe.hpp"
-#include "gui/core/RenderStateCallbacks.hpp"
-#include "gui/core/ValueConversion.hpp"
-#include <Aero/Interactivity/Conditions.hpp>
-#include <Aero/Interactivity/Behavior.hpp>
-#include <Aero/Interactivity/BlendBehaviors.hpp>
-#include <Aero/Interactivity/Interaction.hpp>
-#include <Aero/Interactivity/InteractionTriggers.hpp>
-#include <Aero/Interactivity/TriggerAction.hpp>
-#include <Aero/Style.hpp>
-#include <Aero/Triggers.hpp>
-#include <Aero/Events.hpp>
-#include <Aero/Media/Animation.hpp>
-#include <Aero/Media/Animation/MediaActions.hpp>
-#include <Aero/Media/Animation/StoryboardActions.hpp>
-#include <Aero/Media/Animation/StoryboardCompletedTrigger.hpp>
-#include <Aero/Media/Animation/TimerTrigger.hpp>
-#include <Aero/Media/Effects.hpp>
-#include <Aero/Media/Images.hpp>
-#include <Aero/Media/MediaElement.hpp>
-#include <Aero/Media/Transform2D.hpp>
-#include <Aero/Media/Transform3D.hpp>
-#include <Aero/Media/Pen.hpp>
-#include <Aero/Media/Fonts.hpp>
-#include <Aero/Collections.hpp>
-#include <Aero/Input.hpp>
-#include <Aero/ICommand.hpp>
-#include <Aero/RoutedCommand.hpp>
-#include <Aero/InputBinding.hpp>
-#include <Aero/EventSetter.hpp>
-#include <Aero/KeyboardNavigation.hpp>
-#include <Aero/CommandBinding.hpp>
-#include <Aero/ApplicationCommands.hpp>
-#include <Aero/InputGesture.hpp>
 #include <Aero/Data/MultiBinding.hpp>
 #include <Aero/Data/IMultiValueConverter.hpp>
 #include <Aero/Data/IValueConverter.hpp>
-#include <Aero/DataObject.hpp>
-#include <Aero/DragDrop.hpp>
-#include <Aero/Input/Cursor.hpp>
-#include <Aero/Input/Mouse.hpp>
-#include <Aero/Input/Keyboard.hpp>
-#include <Aero/Animatable.hpp>
 #include <cctype>
 #include <cstdlib>
 #include "gui/core/DependencyObjectAccess.hpp"
@@ -1728,6 +1689,21 @@ void BindingEngine::MetadataPropertyChanged(
     }
 }
 
+static bool FallbackValueMatchesTarget(
+    const TypeRegistry& types,
+    TypeId valueType,
+    TypeId targetType) noexcept {
+    if (valueType == targetType ||
+        targetType == TypeOf<Base::Object>() ||
+        targetType == TypeOf<Meta::Value>() ||
+        valueType == TypeOf<Base::Object>() ||
+        valueType == TypeOf<Meta::Value>()) {
+        return true;
+    }
+    return types.IsAssignableFrom(targetType, valueType) ||
+        HasDefaultTargetConversion(valueType, targetType);
+}
+
 Base::Result<void> BindingEngine::VerifyDescriptor(
     const BindingDescriptor& descriptor) const noexcept {
     if (descriptor.source == nullptr || descriptor.target == nullptr ||
@@ -1767,13 +1743,14 @@ Base::Result<void> BindingEngine::VerifyDescriptor(
         return InvalidArgument(
             "Binding requires ConvertBack for different source and target types");
     }
+    const TypeRegistry& types = DependencyObjectAccess::PropertyRegistry(*descriptor.target).Types();
     if (!descriptor.fallbackValue.IsUnset() &&
-        descriptor.fallbackValue.Type() != target.Value().Type()) {
+        !FallbackValueMatchesTarget(types, descriptor.fallbackValue.Type(), target.Value().Type())) {
         return InvalidArgument(
             "Binding fallback value type differs from the target property");
     }
     if (!descriptor.targetNullValue.IsUnset() &&
-        descriptor.targetNullValue.Type() != target.Value().Type()) {
+        !FallbackValueMatchesTarget(types, descriptor.targetNullValue.Type(), target.Value().Type())) {
         return InvalidArgument(
             "Binding target-null value type differs from the target property");
     }
@@ -1798,13 +1775,14 @@ Base::Result<void> BindingEngine::VerifyDescriptor(
     Base::Result<PropertyValue> target =
         descriptor.target->GetValue(descriptor.targetProperty);
     if (!target) return target.GetStatus();
+    const TypeRegistry& metaTypes = descriptor.metadata->Types();
     if (!descriptor.fallbackValue.IsUnset() &&
-        descriptor.fallbackValue.Type() != target.Value().Type()) {
+        !FallbackValueMatchesTarget(metaTypes, descriptor.fallbackValue.Type(), target.Value().Type())) {
         return InvalidArgument(
             "Binding fallback value type differs from the target property");
     }
     if (!descriptor.targetNullValue.IsUnset() &&
-        descriptor.targetNullValue.Type() != target.Value().Type()) {
+        !FallbackValueMatchesTarget(metaTypes, descriptor.targetNullValue.Type(), target.Value().Type())) {
         return InvalidArgument(
             "Binding target-null value type differs from the target property");
     }

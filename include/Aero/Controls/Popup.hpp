@@ -30,10 +30,11 @@ public:
     Popup() noexcept;
     ~Popup() override;
 
-    UIElement* GetChild() const noexcept { return GetContentElement(); }
-    void SetChild(UIElement* child) noexcept { SetContent(child); }
-    void SetChild(Ref<UIElement> child) noexcept { SetContent(std::move(child)); }
-    void SetChild(std::nullptr_t) noexcept { SetContent(static_cast<UIElement*>(nullptr)); }
+    UIElement* GetChild() const noexcept;
+    UIElement* GetContentElement() const noexcept override;
+    void SetChild(UIElement* child) noexcept;
+    void SetChild(Ref<UIElement> child) noexcept;
+    void SetChild(std::nullptr_t) noexcept;
     bool GetIsOpen() const noexcept;
     void SetIsOpen(bool value) noexcept;
     PlacementMode GetPlacement() const noexcept;
@@ -74,6 +75,8 @@ protected:
     virtual void OnOpened(RoutedEventArgs& e);
     virtual void OnClosed(RoutedEventArgs& e);
     void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
+    std::uint32_t GetVisualChildrenCount() const noexcept override;
+    ::Aero::Media::Visual* GetVisualChild(std::uint32_t index) const noexcept override;
     Size MeasureOverride(Size availableSize) noexcept override;
     Size ArrangeOverride(Size finalSize) noexcept override;
 

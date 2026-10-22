@@ -41,9 +41,6 @@ public:
 
 private:
     Base::IAllocator* allocator_ = nullptr;
-    // The source-private state is constructed directly in this storage. This
-    // preserves local helper types without a heap-allocated Pimpl lifetime.
-    alignas(std::max_align_t) std::uint8_t stateStorage_[16384]{};
     TextPipelineState* state_ = nullptr;
 };
 

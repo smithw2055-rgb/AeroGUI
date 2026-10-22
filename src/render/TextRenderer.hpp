@@ -8,13 +8,32 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 
 namespace Aero::Text { class FontManager; }
 
 namespace Aero::Render {
 
 class UiFrameEncoder;
-struct TextRendererState;
+struct TextRendererState {
+    TextConfig config;
+    Text::GlyphAtlas atlas;
+    Base::Vector<Ref<Texture>> pageTextures;
+    Base::Vector<std::uint32_t> pageIds;
+    Base::Vector<RenderGlyphRunId> glyphRuns;
+    std::uint64_t nextRunId = 1U;
+    std::uint64_t useStamp = 1U;
+
+    explicit TextRendererState(
+        const TextConfig& cfg,
+        Base::IAllocator* allocator) noexcept
+        : config(cfg),
+          atlas(allocator),
+          pageTextures(allocator),
+          pageIds(allocator),
+          glyphRuns(allocator) {}
+};
+
 using TextConfig = Aero::Render::TextConfig;
 
 class TextRenderer : public ::Aero::Controls::TextBlockLayout {
@@ -45,8 +64,7 @@ private:
     RenderDevice* device_ = nullptr;
     UiFrameEncoder* encoder_ = nullptr;
     Base::IAllocator* allocator_ = nullptr;
-    alignas(std::max_align_t) std::uint8_t stateStorage_[16384]{};
-    TextRendererState* state_ = nullptr;
+    std::optional<TextRendererState> state_;
 };
 
 } // namespace Aero::Render

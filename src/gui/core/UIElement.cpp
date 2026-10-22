@@ -371,6 +371,7 @@ void UIElement::OnPropertyInvalidated(
     }
     if (HasFlag(flags, PropertyInvalidationFlags::Render)) {
         (*this).InvalidateRenderState();
+        (*this).InvalidateVisual();
     }
     DependencyObject::OnPropertyInvalidated(flags);
 }
@@ -646,7 +647,7 @@ struct InputClassHandlerRecord {
     UIElement::ClassHandler handler = nullptr;
 };
 
-InputClassHandlerRecord gInputClassHandlers[96];
+InputClassHandlerRecord gInputClassHandlers[128];
 std::uint32_t gInputClassHandlerCount = 0U;
 
 const TypeRegistry* ClassHandlerTypes(const UIElement& element) noexcept {
@@ -672,8 +673,8 @@ void UIElement::RegisterClassHandler(
             return;
         }
     }
-    AERO_ASSERT(gInputClassHandlerCount < 96U);
-    if (gInputClassHandlerCount >= 96U) {
+    AERO_ASSERT(gInputClassHandlerCount < 128U);
+    if (gInputClassHandlerCount >= 128U) {
         return;
     }
     InputClassHandlerRecord& record = gInputClassHandlers[gInputClassHandlerCount];
@@ -689,14 +690,28 @@ void UIElement::EnsureInputClassHandlers() noexcept {
         return;
     }
     ready = true;
-    RegisterInputClassHandler<
-        UIElement,
-        MouseButtonEventArgs,
-        &UIElement::OnMouseDown>(MouseDownEvent);
-    RegisterInputClassHandler<
-        UIElement,
-        MouseButtonEventArgs,
-        &UIElement::OnMouseUp>(MouseUpEvent);
+    RegisterInputClassHandler<UIElement, MouseButtonEventArgs, &UIElement::OnPreviewMouseDown>(PreviewMouseDownEvent);
+    RegisterInputClassHandler<UIElement, MouseButtonEventArgs, &UIElement::OnMouseDown>(MouseDownEvent);
+    RegisterInputClassHandler<UIElement, MouseButtonEventArgs, &UIElement::OnMouseLeftButtonDown>(MouseLeftButtonDownEvent);
+    RegisterInputClassHandler<UIElement, MouseButtonEventArgs, &UIElement::OnMouseRightButtonDown>(MouseRightButtonDownEvent);
+    RegisterInputClassHandler<UIElement, MouseButtonEventArgs, &UIElement::OnPreviewMouseUp>(PreviewMouseUpEvent);
+    RegisterInputClassHandler<UIElement, MouseButtonEventArgs, &UIElement::OnMouseUp>(MouseUpEvent);
+    RegisterInputClassHandler<UIElement, MouseButtonEventArgs, &UIElement::OnMouseLeftButtonUp>(MouseLeftButtonUpEvent);
+    RegisterInputClassHandler<UIElement, MouseButtonEventArgs, &UIElement::OnMouseRightButtonUp>(MouseRightButtonUpEvent);
+    RegisterInputClassHandler<UIElement, MouseEventArgs, &UIElement::OnPreviewMouseMove>(PreviewMouseMoveEvent);
+    RegisterInputClassHandler<UIElement, MouseEventArgs, &UIElement::OnMouseMove>(MouseMoveEvent);
+    RegisterInputClassHandler<UIElement, MouseEventArgs, &UIElement::OnMouseEnter>(MouseEnterEvent);
+    RegisterInputClassHandler<UIElement, MouseEventArgs, &UIElement::OnMouseLeave>(MouseLeaveEvent);
+    RegisterInputClassHandler<UIElement, MouseWheelEventArgs, &UIElement::OnPreviewMouseWheel>(PreviewMouseWheelEvent);
+    RegisterInputClassHandler<UIElement, MouseWheelEventArgs, &UIElement::OnMouseWheel>(MouseWheelEvent);
+    RegisterInputClassHandler<UIElement, KeyEventArgs, &UIElement::OnPreviewKeyDown>(PreviewKeyDownEvent);
+    RegisterInputClassHandler<UIElement, KeyEventArgs, &UIElement::OnKeyDown>(KeyDownEvent);
+    RegisterInputClassHandler<UIElement, KeyEventArgs, &UIElement::OnPreviewKeyUp>(PreviewKeyUpEvent);
+    RegisterInputClassHandler<UIElement, KeyEventArgs, &UIElement::OnKeyUp>(KeyUpEvent);
+    RegisterInputClassHandler<UIElement, TextCompositionEventArgs, &UIElement::OnPreviewTextInput>(PreviewTextInputEvent);
+    RegisterInputClassHandler<UIElement, TextCompositionEventArgs, &UIElement::OnTextInput>(TextInputEvent);
+    RegisterInputClassHandler<UIElement, KeyboardFocusChangedEventArgs, &UIElement::OnGotKeyboardFocus>(GotKeyboardFocusEvent);
+    RegisterInputClassHandler<UIElement, KeyboardFocusChangedEventArgs, &UIElement::OnLostKeyboardFocus>(LostKeyboardFocusEvent);
 }
 
 void UIElement::InvokeClassHandler(

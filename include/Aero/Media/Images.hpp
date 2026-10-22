@@ -1,6 +1,7 @@
 #pragma once
 
 // Image source family plus Stretch. BitmapImage and CroppedBitmap live here.
+#include <Aero/Animatable.hpp>
 #include <Aero/Base/Geometry.hpp>
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/Ref.hpp>
@@ -29,20 +30,18 @@ using ::Aero::Meta::TypeId;
 
 // Decoded images are immutable resources. A generation counter replaces the
 // dependency-property store; XAML still sets UriSource and SourceRect by name.
-class AERO_GUI_API ImageSource : public Base::Object {
-    AERO_DECLARE_TYPE(ImageSource, Base::Object)
+class AERO_GUI_API ImageSource : public Animatable {
+    AERO_DECLARE_TYPE(ImageSource, Animatable)
 
 public:
-    TypeId RuntimeType() const noexcept override { return runtimeType_; }
     std::uint64_t GetRevision() const noexcept { return revision_; }
 
 protected:
-    explicit ImageSource(TypeId runtimeType) noexcept : runtimeType_(runtimeType) {}
+    explicit ImageSource(TypeId runtimeType) noexcept : Animatable(runtimeType) {}
     ~ImageSource() override = default;
     void BumpRevision() noexcept { ++revision_; }
 
 private:
-    TypeId runtimeType_;
     std::uint64_t revision_ = 0U;
 };
 
@@ -55,6 +54,12 @@ public:
 
     Base::ResourceUri GetUriSource() const noexcept { return uri_; }
     void SetUriSource(const Base::ResourceUri& value) noexcept;
+
+protected:
+    Base::Ref<Freezable> CreateInstanceCore() const override {
+        auto made = Base::MakeRef<BitmapImage>();
+        return made ? Base::Ref<Freezable>(std::move(made).Value()) : Base::Ref<Freezable>{};
+    }
 
 private:
     Base::ResourceUri uri_{};
@@ -71,6 +76,12 @@ public:
     void SetSource(Ref<ImageSource> value) noexcept;
     Base::Rect GetSourceRect() const noexcept { return sourceRect_; }
     void SetSourceRect(Base::Rect value) noexcept;
+
+protected:
+    Base::Ref<Freezable> CreateInstanceCore() const override {
+        auto made = Base::MakeRef<CroppedBitmap>();
+        return made ? Base::Ref<Freezable>(std::move(made).Value()) : Base::Ref<Freezable>{};
+    }
 
 private:
     Ref<ImageSource> source_{};

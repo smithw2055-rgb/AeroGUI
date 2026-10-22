@@ -389,7 +389,7 @@ private:
     Base::Result<LoaderResult> CompleteLoad(
         Base::Result<Base::Ref<Base::Object>> loaded) noexcept;
     Base::Result<void> ResolveDeferredStaticResources() noexcept;
-    Base::Result<void> FinalizeDeferredStyles() noexcept;
+    Base::Result<void> FinalizeDeferredStylesAndTemplates() noexcept;
     Base::Result<Base::Ref<Base::Object>> LoadReaderCore(
         NodeReader& reader) noexcept;
     Base::Result<Base::Ref<Base::Object>> LoadCompiledCore(
@@ -427,6 +427,29 @@ private:
     Base::Result<void> WriteDirectiveText(
         Frame& frame,
         const Node& node) noexcept;
+
+    struct ResolvedNodeMember {
+        ResolvedMember member;
+        MemberWritePolicy memberPolicy;
+        bool hasCompiledPolicy = false;
+        bool memberValueTypeIsObject = false;
+        bool memberValueTypeIsValueType = false;
+    };
+
+    Base::Result<ResolvedNodeMember> ResolveNodeMember(
+        const Node& node,
+        Meta::TypeId targetType,
+        MemberSyntax syntax) noexcept;
+
+    Base::Result<void> WriteMarkupOrTextToTarget(
+        const Node& node,
+        std::uint32_t targetObjectIndex,
+        const ResolvedMember& member,
+        const MemberWritePolicy& policy,
+        bool valueTypeIsValueType,
+        Frame* memberFrame,
+        Frame* targetFrameForDeferred,
+        Meta::TypeId targetValueTypeOverride) noexcept;
 
     Base::Result<void> StartPropertyElement(
         const Node& node,
@@ -832,6 +855,15 @@ private:
     static std::uint16_t FacetCountBefore(
         FacetMask mask, FacetKind kind) noexcept;
     Base::Result<DraftType*> EnsureType(Meta::TypeId type) noexcept;
+    template<class Facet, class ColumnType>
+    Base::Result<void> AddFacetCore(
+        ColumnType& column,
+        FacetKind kind,
+        const Facet& facet,
+        const Meta::TypeRegistry& descriptors,
+        bool isInvalid,
+        const char* invalidMessage,
+        const char* duplicateMessage) noexcept;
     DraftType* FindDraft(Meta::TypeId type) noexcept;
     const DraftType* FindDraft(Meta::TypeId type) const noexcept;
     const XamlTypePlan* FindPlan(Meta::TypeId type) const noexcept;

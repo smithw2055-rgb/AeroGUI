@@ -40,6 +40,12 @@ struct Status  {
     static constexpr Status Ok() noexcept { return {}; }
 
     static constexpr Status Failure(ErrorCode code, const char* message) noexcept { return {code, message}; }
+    static constexpr Status InvalidArgument(const char* message) noexcept { return {ErrorCode::InvalidArgument, message}; }
+    static constexpr Status InvalidState(const char* message) noexcept { return {ErrorCode::InvalidState, message}; }
+    static constexpr Status NotInitialized(const char* message) noexcept { return {ErrorCode::NotInitialized, message}; }
+    static constexpr Status NotFound(const char* message) noexcept { return {ErrorCode::NotFound, message}; }
+    static constexpr Status OutOfRange(const char* message) noexcept { return {ErrorCode::OutOfRange, message}; }
+    static constexpr Status OutOfMemory(const char* message = "Out of memory") noexcept { return {ErrorCode::OutOfMemory, message}; }
 };
 
 template<class T> class Result  {

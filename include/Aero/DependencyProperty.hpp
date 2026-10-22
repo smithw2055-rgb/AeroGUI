@@ -280,6 +280,12 @@ private:
 
     DependencyProperty() noexcept : name_(), metadata_() {}
 
+    void ClearMetadataCache() const noexcept {
+        for (std::uint32_t i = 0U; i < 4U; ++i) {
+            metadataCache_[i] = {};
+        }
+    }
+
     const MetadataEntry* FindMetadataExact(TypeId forType) const noexcept;
 
     TypeRegistry* typeRegistry_ = nullptr;
@@ -327,6 +333,17 @@ using Meta::PropertyValue;
 using Meta::PropertyValueSourceInfo;
 using Meta::ReadOnlyPropertyRef;
 using Meta::TypeId;
+namespace Meta {
+template<typename T>
+struct PropParamTraits {
+    using SetParam = std::conditional_t<
+        (std::is_scalar_v<T> || sizeof(T) <= 8),
+        T,
+        const T&
+    >;
+};
+} // namespace Meta
+
 using Meta::TypeOf;
 using Meta::UpdateSourceTrigger;
 using Meta::ValueCodec;
@@ -345,7 +362,9 @@ using Meta::ValueCodec;
 #define AERO_DEPENDENCY_PROPERTY2(type, name) \
     inline static constexpr ::Aero::Meta::DependencyPropertyRef<Self, type> name##Property{#name}; \
     type Get##name() const noexcept { return this->GetValue(name##Property); } \
-    void Set##name(type value) noexcept { this->SetValue(name##Property, value); }
+    void Set##name(typename ::Aero::Meta::PropParamTraits<type>::SetParam value) noexcept { \
+        this->SetValue(name##Property, value); \
+    }
 
 #define AERO_READONLY_PROPERTY2(type, name) \
     inline static constexpr ::Aero::Meta::ReadOnlyPropertyRef<Self, type> name##Property{#name}; \

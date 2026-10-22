@@ -5,11 +5,15 @@
 #include <Aero/Base/Ref.hpp>
 #include <Aero/DependencyProperty.hpp>
 #include <Aero/Input/Cursor.hpp>
-#include <Aero/RoutedEvent.hpp>
+#include <Aero/Events.hpp>
 #include <Aero/UIElement.hpp>
 #include <Aero/Value.hpp>
 
 namespace Aero::Input {
+
+using ::Aero::MouseButtonEventArgs;
+using ::Aero::MouseEventArgs;
+using ::Aero::MouseWheelEventArgs;
 
 // Represents the mouse device. Mirrors AeroUI's Aero::Mouse: exposes the set of
 // mouse attached routed events and a handful of static accessors for the current

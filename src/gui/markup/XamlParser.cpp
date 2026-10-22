@@ -865,26 +865,7 @@ Base::Result<void> Utf8XmlTokenizer::AppendCodePoint(
     }
 
     char bytes[4]{};
-    std::uint32_t length = 0U;
-    if (codePoint <= 0x7FU) {
-        bytes[0] = static_cast<char>(codePoint);
-        length = 1U;
-    } else if (codePoint <= 0x7FFU) {
-        bytes[0] = static_cast<char>(0xC0U | (codePoint >> 6U));
-        bytes[1] = static_cast<char>(0x80U | (codePoint & 0x3FU));
-        length = 2U;
-    } else if (codePoint <= 0xFFFFU) {
-        bytes[0] = static_cast<char>(0xE0U | (codePoint >> 12U));
-        bytes[1] = static_cast<char>(0x80U | ((codePoint >> 6U) & 0x3FU));
-        bytes[2] = static_cast<char>(0x80U | (codePoint & 0x3FU));
-        length = 3U;
-    } else {
-        bytes[0] = static_cast<char>(0xF0U | (codePoint >> 18U));
-        bytes[1] = static_cast<char>(0x80U | ((codePoint >> 12U) & 0x3FU));
-        bytes[2] = static_cast<char>(0x80U | ((codePoint >> 6U) & 0x3FU));
-        bytes[3] = static_cast<char>(0x80U | (codePoint & 0x3FU));
-        length = 4U;
-    }
+    const std::uint32_t length = Base::EncodeCodePoint(codePoint, bytes);
     return output.AppendUnchecked(Base::StringView(bytes, length));
 }
 

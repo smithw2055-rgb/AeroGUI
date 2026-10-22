@@ -58,7 +58,7 @@ dir. IDE-only virtual folders are defined via `source_group()` in
 | `Triggers/*`, `Interactivity/*` | `triggers/Trigger*.cpp` + `interactivity/InteractivityEngine*.cpp` + `BlendBehaviors.cpp` |
 | Text stack | `text/TextPipeline.cpp`, `TextLayout.cpp`, `GlyphAtlas.cpp`, `FontManager.cpp`, `EditableText.cpp` + `freetype/` + `harfbuzz/` adapters |
 | Input | `input/Input.cpp` (routing), `Commands.cpp`, `OverlayHost.cpp`, `Clipboard.cpp`, `DragDrop.cpp`, `Cursor(s).cpp`, `Mouse.cpp`, `Keyboard.cpp`, `DataObject.cpp`; focus queue in `ViewInput.cpp`, declaration in `input/InputManager.hpp` (merged from `FocusHost.hpp`) |
-| Core kernel | `core/ElementTree.cpp`, `EffectiveValueEngine.cpp`, `DependencyObject.cpp`, `LayoutEngine.cpp`, `Visual.cpp`, `UIElement.cpp`, `FrameworkElement.cpp`, `Dispatcher.cpp`, `RoutedEvents.cpp` (+ `core/{ElementTree,LayoutEngine,EffectiveValueEngine,RoutedEvents,EventRouter}.hpp`, `core/PropertyStore.hpp`); single-TU helpers live in their `.cpp` (e.g. `Invariants.cpp`, merged from `Invariants.hpp`) |
+| Core kernel | `core/ElementTree.cpp`, `EffectiveValueEngine.cpp`, `DependencyObject.cpp`, `LayoutEngine.cpp`, `Visual.cpp`, `UIElement.cpp`, `FrameworkElement.cpp`, `Dispatcher.cpp`, `RoutedEvents.cpp` (+ `core/{ElementTree,LayoutEngine,EffectiveValueEngine,RoutedEvents,EventRouter}.hpp`, `core/PropertyStore.hpp`); single-TU helpers live in their `.cpp` |
 | Styles / templates | `styles/Resources.cpp`, `Style.cpp` (+ `StyleEngine.hpp`, `ResourceHost.hpp`); `templates/Templates.cpp` |
 | Documents / shapes / diagnostics | `documents/Documents.cpp`, `Adorners.cpp`; `shapes/Shapes.cpp`, `Path.cpp`; `diagnostics/Diagnostics.cpp`, `Inspector.cpp` |
 
@@ -67,7 +67,7 @@ dir. IDE-only virtual folders are defined via `source_group()` in
 `ViewFocus.cpp` → `ViewInput.cpp` §focus · `ItemsDetail.hpp` → `ItemsContainers.hpp` ·
 `TypeBuilderDetail.hpp` → `TypeBuilderCore.hpp` · `StoryboardHostCommon.hpp` → `StoryboardHost.hpp` ·
 `FocusHost.hpp` → `input/InputManager.hpp` · `TextBoxBehavior.cpp` + `TextBoxSelection.cpp` → `TextBoxInteraction.cpp` ·
-`Invariants.hpp` → `Invariants.cpp` · `metadata/{Support,Values,Templates,Primitives,Items,Panels,TextMedia}.inl` → `metadata/Metadata.{Foundation,Widgets,Layout}.inl` ·
+`Invariants.hpp` / `Invariants.cpp` (retired dead code) · `metadata/{Support,Values,Templates,Primitives,Items,Panels,TextMedia}.inl` → `metadata/Metadata.{Foundation,Widgets,Layout}.inl` ·
 `EnumMetadata.cpp` / `*Metadata.cpp` sprawl → family `*EnumsDescribe.cpp` + App `Metadata.cpp` (do not restore)
 
 ## Noesis-parity round (2nd pass)

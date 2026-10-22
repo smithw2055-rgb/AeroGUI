@@ -25,15 +25,7 @@ Base::StringView Trim(Base::StringView value) noexcept {
 bool EqualsAsciiInsensitive(
     Base::StringView left,
     Base::StringView right) noexcept {
-    if (left.SizeBytes() != right.SizeBytes()) return false;
-    for (std::uint32_t index = 0U;
-         index < left.SizeBytes(); ++index) {
-        if (std::tolower(static_cast<unsigned char>(left[index])) !=
-            std::tolower(static_cast<unsigned char>(right[index]))) {
-            return false;
-        }
-    }
-    return true;
+    return left.EqualsInsensitive(right);
 }
 
 Base::Result<double> ParseDouble(
@@ -98,4 +90,68 @@ Base::Result<Base::ResourceUri> ConvertResourceUri(
     return Base::ResourceUri::Parse(Trim(text));
 }
 
+Base::Result<void> FormatScalarValue(
+    Base::String& output,
+    const Meta::Value& value) noexcept {
+    switch (value.Kind()) {
+    case Meta::ValueKind::String:
+        return output.Assign(value.AsString());
+    case Meta::ValueKind::Boolean:
+        return output.Assign(value.AsBoolean()
+            ? Base::StringView("True")
+            : Base::StringView("False"));
+    case Meta::ValueKind::SignedInteger: {
+        char buffer[48]{};
+        const int length = std::snprintf(
+            buffer, sizeof(buffer), "%lld",
+            static_cast<long long>(value.AsSignedInteger()));
+        if (length <= 0) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "Integer formatting failed");
+        }
+        return output.Assign(Base::StringView(
+            buffer, static_cast<std::uint32_t>(length)));
+    }
+    case Meta::ValueKind::UnsignedInteger: {
+        char buffer[48]{};
+        const int length = std::snprintf(
+            buffer, sizeof(buffer), "%llu",
+            static_cast<unsigned long long>(value.AsUnsignedInteger()));
+        if (length <= 0) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "Unsigned integer formatting failed");
+        }
+        return output.Assign(Base::StringView(
+            buffer, static_cast<std::uint32_t>(length)));
+    }
+    case Meta::ValueKind::Double: {
+        char buffer[64]{};
+        const int length = std::snprintf(
+            buffer, sizeof(buffer), "%.15g", value.AsDouble());
+        if (length <= 0) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "Floating point formatting failed");
+        }
+        return output.Assign(Base::StringView(
+            buffer, static_cast<std::uint32_t>(length)));
+    }
+    default:
+        return Base::Status::Failure(
+            Base::ErrorCode::Unsupported,
+            "Value has no scalar text representation");
+    }
+}
+
+Base::Result<Base::String> FormatScalarValue(
+    const Meta::Value& value) noexcept {
+    Base::String result;
+    Base::Result<void> formatted = FormatScalarValue(result, value);
+    if (!formatted) return formatted.GetStatus();
+    return result;
+}
+
 } // namespace Aero::Base::ValueConversion
+

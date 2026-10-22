@@ -21,6 +21,7 @@
 #include "gui/controls/ItemContainerGeneratorFactory.hpp"
 #include "gui/templates/TemplateInstance.hpp"
 #include "gui/core/DependencyObjectAccess.hpp"
+#include "gui/core/ValueConversion.hpp"
 
 #include <algorithm>
 #include <cstdio>
@@ -29,6 +30,51 @@
 
 namespace Aero::Controls {
 using Aero::Controls::TemplateEngine;
+
+namespace {
+
+::Aero::Media::Visual* FindDescendantItemsHostOrPresenter(
+    UIElement* root,
+    const Meta::DependencyPropertyRegistry& registry,
+    bool checkPanelHost) noexcept {
+    if (root == nullptr) return nullptr;
+    Base::Vector<::Aero::Media::Visual*> pending;
+    static_cast<void>(pending.PushBack(root));
+    while (!pending.Empty()) {
+        ::Aero::Media::Visual* current = pending.Back();
+        pending.PopBack();
+        if (current == nullptr) continue;
+        if (registry.Types().IsDerivedFrom(current->RuntimeType(), ItemsPresenter::StaticTypeId())) {
+            return current;
+        }
+        if (checkPanelHost && registry.Types().IsDerivedFrom(current->RuntimeType(), Panel::StaticTypeId())) {
+            auto& panel = *static_cast<Panel*>(current);
+            if (panel.GetValue(Panel::IsItemsHostProperty)) {
+                return current;
+            }
+        }
+        if (registry.Types().IsDerivedFrom(current->RuntimeType(), ContentControl::StaticTypeId())) {
+            UIElement* content = static_cast<ContentControl*>(current)->GetContentElement();
+            if (content != nullptr) {
+                static_cast<void>(pending.PushBack(content));
+            }
+        }
+        if (registry.Types().IsDerivedFrom(current->RuntimeType(), Decorator::StaticTypeId())) {
+            UIElement* child = static_cast<Decorator*>(current)->GetChild();
+            if (child != nullptr) {
+                static_cast<void>(pending.PushBack(child));
+            }
+        }
+        for (::Aero::Media::Visual* child : current->RenderChildren()) {
+            if (child != nullptr) {
+                static_cast<void>(pending.PushBack(child));
+            }
+        }
+    }
+    return nullptr;
+}
+
+} // namespace
 
 // ============================================================================
 // ItemsControl & ItemCollection & Templates
@@ -316,20 +362,14 @@ ItemsControl::~ItemsControl() {
 }
 
 void ItemsControl::OnApplyTemplate() noexcept {
-    DependencyObject* part =
-        GetTemplateChild("ItemsHost");
+    DependencyObject* part = GetTemplateChild("ItemsHost");
     if (part == nullptr) {
         part = GetTemplateChild("ItemsPresenter");
     }
     if (part == nullptr) {
-        part = GetTemplateChild(
-            ItemsPresenter::StaticTypeId());
+        part = GetTemplateChild(ItemsPresenter::StaticTypeId());
     }
     if (part == nullptr) {
-        // Reference XAML is also allowed to declare an items host directly
-        // (<StackPanel IsItemsHost="True"/>), without an ItemsPresenter or a
-        // PART name. TemplateEngine resolves such a panel before returning a
-        // generic Panel part.
         part = GetTemplateChild(Panel::StaticTypeId());
     }
     if (part == nullptr) {
@@ -337,37 +377,10 @@ void ItemsControl::OnApplyTemplate() noexcept {
         // builder and is therefore not necessarily present in the outer
         // template part table. Discover the direct IsItemsHost declaration
         // from the complete applied visual subtree.
-        Base::Vector<::Aero::Media::Visual*> pending;
-        UIElement* root = GetTemplateRoot();
-        if (root != nullptr) {
-            static_cast<void>(pending.PushBack(root));
-        }
-        while (!pending.Empty() && part == nullptr) {
-            ::Aero::Media::Visual* current = pending.Back();
-            pending.PopBack();
-            if (current == nullptr) continue;
-            if (DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
-                    current->RuntimeType(), Panel::StaticTypeId())) {
-                auto& panel = *static_cast<Panel*>(current);
-                if (panel.GetValue(Panel::IsItemsHostProperty)) {
-                    part = current;
-                    break;
-                }
-            }
-            if (DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
-                    current->RuntimeType(), ContentControl::StaticTypeId())) {
-                UIElement* content = (*static_cast<ContentControl*>(current)).GetContentElement();
-                if (content != nullptr) {
-                    static_cast<void>(pending.PushBack(content));
-                }
-            }
-            for (::Aero::Media::Visual* child :
-                     (*current).RenderChildren()) {
-                if (child != nullptr) {
-                    static_cast<void>(pending.PushBack(child));
-                }
-            }
-        }
+        part = FindDescendantItemsHostOrPresenter(
+            GetTemplateRoot(),
+            DependencyObjectAccess::PropertyRegistry(*this),
+            true);
     }
     if (part == nullptr) {
         // AeroTheme.Styles (copied from Noesis App Theme) does not set
@@ -422,8 +435,8 @@ bool ItemsControl::EnsureDefaultItemsPresenter() noexcept {
     const auto makeHostPanel = [&]() noexcept -> std::pair<Base::Ref<Base::Object>, Panel*> {
         Base::Ref<Base::Object> panelOwner;
         Panel* panel = nullptr;
-        const ItemsPanelTemplate* itemsPanel = GetItemsPanel();
-        if (itemsPanel != nullptr) {
+        Base::Ref<ItemsPanelTemplate> itemsPanel = GetItemsPanel();
+        if (itemsPanel) {
             Base::Result<Base::Ref<Base::Object>> created =
                 ::Aero::Controls::FrameworkTemplateState::Instantiate(*itemsPanel);
             if (created && created.Value() &&
@@ -466,6 +479,13 @@ bool ItemsControl::EnsureDefaultItemsPresenter() noexcept {
         DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             part->RuntimeType(), ItemsPresenter::StaticTypeId())) {
         templatedPresenter = static_cast<ItemsPresenter*>(part);
+    }
+    if (templatedPresenter == nullptr && GetTemplateRoot() != nullptr) {
+        templatedPresenter = static_cast<ItemsPresenter*>(
+            FindDescendantItemsHostOrPresenter(
+                GetTemplateRoot(),
+                DependencyObjectAccess::PropertyRegistry(*this),
+                false));
     }
     if (templatedPresenter != nullptr) {
         if (templatedPresenter->GetItemsHost() == nullptr) {
@@ -567,26 +587,10 @@ void ItemsControl::SetItemsSourceCore(
 #pragma GCC diagnostic pop
 }
 
-void ItemsControl::SetItemTemplateCore(
-    const DataTemplate* value) noexcept {
-    if (itemTemplate_ == value) return;
-    itemTemplate_ = value;
-    PublishReset();
-}
-
-void ItemsControl::SetItemTemplateSelectorCore(
-    const DataTemplateSelector* value) noexcept {
-    if (itemTemplateSelector_ == value) return;
-    itemTemplateSelector_ = value;
-    PublishReset();
-}
-
 Base::Ref<DataTemplate> ItemsControl::GetTemplateForItemOverride(
     const Base::Ref<Base::Object>& item,
     std::uint32_t) const noexcept {
-    if (itemTemplateSelector_ != nullptr) {
-        DataTemplateSelector* selector =
-            const_cast<DataTemplateSelector*>(itemTemplateSelector_);
+    if (Base::Ref<DataTemplateSelector> selector = GetItemTemplateSelector()) {
         Base::Ref<DataTemplate> selected = selector->SelectTemplate(
             item.Get(),
             const_cast<ItemsControl*>(this));
@@ -594,9 +598,8 @@ Base::Ref<DataTemplate> ItemsControl::GetTemplateForItemOverride(
             return selected;
         }
     }
-    if (itemTemplate_ != nullptr) {
-        return Base::Ref<DataTemplate>::FromBorrowed(
-            *const_cast<DataTemplate*>(itemTemplate_));
+    if (Base::Ref<DataTemplate> itemTemplate = GetItemTemplate()) {
+        return itemTemplate;
     }
     if (!item) {
         return {};
@@ -625,20 +628,6 @@ Base::Ref<DataTemplate> ItemsControl::GetTemplateForItemOverride(
         type = parent;
     }
     return {};
-}
-
-void ItemsControl::SetItemsPanelCore(
-    const ItemsPanelTemplate* value) noexcept {
-    if (itemsPanel_ == value) return;
-    itemsPanel_ = value;
-    PublishReset();
-}
-
-void ItemsControl::SetItemContainerStyleCore(
-    const Style* value) noexcept {
-    if (itemContainerStyle_ == value) return;
-    itemContainerStyle_ = value;
-    PublishReset();
 }
 
 void ItemsControl::OnLocalChanged(
@@ -686,28 +675,12 @@ void ItemsControl::OnPropertyChanged(
             source = Collections::CollectionAsItemsSource(obj);
         }
         SetItemsSourceCore(source);
-    } else if (prop == DisplayMemberPathProperty.Handle()) {
+    } else if (prop == DisplayMemberPathProperty.Handle() ||
+               prop == ItemTemplateProperty.Handle() ||
+               prop == ItemTemplateSelectorProperty.Handle() ||
+               prop == ItemsPanelProperty.Handle() ||
+               prop == ItemContainerStyleProperty.Handle()) {
         PublishReset();
-    } else if (prop == ItemTemplateProperty.Handle()) {
-        Base::Object* obj = args.GetNewValue().Kind() == Meta::ValueKind::Object
-            ? args.GetNewValue().AsObject().Get()
-            : nullptr;
-        SetItemTemplateCore(TryCast<DataTemplate>(obj));
-    } else if (prop == ItemTemplateSelectorProperty.Handle()) {
-        Base::Object* obj = args.GetNewValue().Kind() == Meta::ValueKind::Object
-            ? args.GetNewValue().AsObject().Get()
-            : nullptr;
-        SetItemTemplateSelectorCore(TryCast<DataTemplateSelector>(obj));
-    } else if (prop == ItemsPanelProperty.Handle()) {
-        Base::Object* obj = args.GetNewValue().Kind() == Meta::ValueKind::Object
-            ? args.GetNewValue().AsObject().Get()
-            : nullptr;
-        SetItemsPanelCore(TryCast<ItemsPanelTemplate>(obj));
-    } else if (prop == ItemContainerStyleProperty.Handle()) {
-        Base::Object* obj = args.GetNewValue().Kind() == Meta::ValueKind::Object
-            ? args.GetNewValue().AsObject().Get()
-            : nullptr;
-        SetItemContainerStyleCore(TryCast<Style>(obj));
     }
     Control::OnPropertyChanged(args);
 }
@@ -958,16 +931,6 @@ void ItemsControl::AssignItemsSource(
         TryCastToInterface<Collections::IItemsSource>(source.Get());
     if (directSource == nullptr) {
         directSource = Collections::CollectionAsItemsSource(source.Get());
-    }
-    {
-        static int s_n = 0;
-        if (s_n < 5) {
-            ++s_n;
-            std::fprintf(stderr, "[ItemsSource] src=%p iface=%p count=%u\n",
-                source ? (const void*)source.Get() : nullptr,
-                (const void*)directSource,
-                directSource ? directSource->GetCount() : 0U);
-        }
     }
     SetItemsSourceCore(directSource);
 }
@@ -1340,62 +1303,12 @@ ItemContainerGenerator::GeneratorState::CreateRecord(
                 *record.item, property->Id());
         if (!value) return value.GetStatus();
         Base::String display;
-        Base::Result<void> formatted;
-        switch (value.Value().Kind()) {
-        case Meta::ValueKind::String:
-            formatted = display.Assign(value.Value().AsString());
-            break;
-        case Meta::ValueKind::Boolean:
-            formatted = display.Assign(
-                value.Value().AsBoolean()
-                    ? Base::StringView("True")
-                    : Base::StringView("False"));
-            break;
-        case Meta::ValueKind::SignedInteger: {
-            char buffer[48]{};
-            const int length = std::snprintf(
-                buffer, sizeof(buffer), "%lld",
-                static_cast<long long>(value.Value().AsSignedInteger()));
-            formatted = length > 0
-                ? display.Assign(Base::StringView(
-                      buffer, static_cast<std::uint32_t>(length)))
-                : Base::Result<void>(Base::Status::Failure(
-                      Base::ErrorCode::ValidationFailed,
-                      "DisplayMemberPath integer formatting failed"));
-            break;
-        }
-        case Meta::ValueKind::UnsignedInteger: {
-            char buffer[48]{};
-            const int length = std::snprintf(
-                buffer, sizeof(buffer), "%llu",
-                static_cast<unsigned long long>(
-                    value.Value().AsUnsignedInteger()));
-            formatted = length > 0
-                ? display.Assign(Base::StringView(
-                      buffer, static_cast<std::uint32_t>(length)))
-                : Base::Result<void>(Base::Status::Failure(
-                      Base::ErrorCode::ValidationFailed,
-                      "DisplayMemberPath unsigned formatting failed"));
-            break;
-        }
-        case Meta::ValueKind::Double: {
-            char buffer[64]{};
-            const int length = std::snprintf(
-                buffer, sizeof(buffer), "%.15g", value.Value().AsDouble());
-            formatted = length > 0
-                ? display.Assign(Base::StringView(
-                      buffer, static_cast<std::uint32_t>(length)))
-                : Base::Result<void>(Base::Status::Failure(
-                      Base::ErrorCode::ValidationFailed,
-                      "DisplayMemberPath numeric formatting failed"));
-            break;
-        }
-        default:
+        Base::Result<void> formatted = Base::ValueConversion::FormatScalarValue(display, value.Value());
+        if (!formatted) {
             return Base::Status::Failure(
                 Base::ErrorCode::Unsupported,
                 "DisplayMemberPath value has no text representation");
         }
-        if (!formatted) return formatted.GetStatus();
         Base::Result<Base::Ref<TextBlock>> text =
             Base::MakeRef<TextBlock>();
         if (!text) return text.GetStatus();
@@ -1410,60 +1323,12 @@ ItemContainerGenerator::GeneratorState::CreateRecord(
             static_cast<const ::Aero::Controls::BoxedItemValue&>(
                 *record.item).Value();
         Base::String display;
-        Base::Result<void> formatted;
-        switch (value.Kind()) {
-        case Meta::ValueKind::String:
-            formatted = display.Assign(value.AsString());
-            break;
-        case Meta::ValueKind::Boolean:
-            formatted = display.Assign(
-                value.AsBoolean() ? Base::StringView("True")
-                                  : Base::StringView("False"));
-            break;
-        case Meta::ValueKind::SignedInteger: {
-            char buffer[48]{};
-            const int length = std::snprintf(
-                buffer, sizeof(buffer), "%lld",
-                static_cast<long long>(value.AsSignedInteger()));
-            formatted = length > 0
-                ? display.Assign(Base::StringView(
-                      buffer, static_cast<std::uint32_t>(length)))
-                : Base::Result<void>(Base::Status::Failure(
-                      Base::ErrorCode::ValidationFailed,
-                      "Boxed integer item formatting failed"));
-            break;
-        }
-        case Meta::ValueKind::UnsignedInteger: {
-            char buffer[48]{};
-            const int length = std::snprintf(
-                buffer, sizeof(buffer), "%llu",
-                static_cast<unsigned long long>(value.AsUnsignedInteger()));
-            formatted = length > 0
-                ? display.Assign(Base::StringView(
-                      buffer, static_cast<std::uint32_t>(length)))
-                : Base::Result<void>(Base::Status::Failure(
-                      Base::ErrorCode::ValidationFailed,
-                      "Boxed unsigned item formatting failed"));
-            break;
-        }
-        case Meta::ValueKind::Double: {
-            char buffer[64]{};
-            const int length = std::snprintf(
-                buffer, sizeof(buffer), "%.15g", value.AsDouble());
-            formatted = length > 0
-                ? display.Assign(Base::StringView(
-                      buffer, static_cast<std::uint32_t>(length)))
-                : Base::Result<void>(Base::Status::Failure(
-                      Base::ErrorCode::ValidationFailed,
-                      "Boxed numeric item formatting failed"));
-            break;
-        }
-        default:
+        Base::Result<void> formatted = Base::ValueConversion::FormatScalarValue(display, value);
+        if (!formatted) {
             return Base::Status::Failure(
                 Base::ErrorCode::Unsupported,
                 "Boxed data item has no default text representation");
         }
-        if (!formatted) return formatted.GetStatus();
         Base::Result<Base::Ref<TextBlock>> text =
             Base::MakeRef<TextBlock>();
         if (!text) return text.GetStatus();
@@ -1524,58 +1389,7 @@ ItemContainerGenerator::GeneratorState::CreateRecord(
                             *record.item, property->Id());
                     if (!value) continue;
                     const Meta::Value& v = value.Value();
-                    Base::Result<void> formatted;
-                    switch (v.Kind()) {
-                    case Meta::ValueKind::String:
-                        formatted = display.Assign(v.AsString());
-                        break;
-                    case Meta::ValueKind::Boolean:
-                        formatted = display.Assign(
-                            v.AsBoolean() ? Base::StringView("True")
-                                          : Base::StringView("False"));
-                        break;
-                    case Meta::ValueKind::SignedInteger: {
-                        char buffer[48]{};
-                        const int length = std::snprintf(
-                            buffer, sizeof(buffer), "%lld",
-                            static_cast<long long>(v.AsSignedInteger()));
-                        formatted = length > 0
-                            ? display.Assign(Base::StringView(
-                                  buffer, static_cast<std::uint32_t>(length)))
-                            : Base::Result<void>(Base::Status::Failure(
-                                  Base::ErrorCode::ValidationFailed,
-                                  "Item fallback integer formatting failed"));
-                        break;
-                    }
-                    case Meta::ValueKind::UnsignedInteger: {
-                        char buffer[48]{};
-                        const int length = std::snprintf(
-                            buffer, sizeof(buffer), "%llu",
-                            static_cast<unsigned long long>(
-                                v.AsUnsignedInteger()));
-                        formatted = length > 0
-                            ? display.Assign(Base::StringView(
-                                  buffer, static_cast<std::uint32_t>(length)))
-                            : Base::Result<void>(Base::Status::Failure(
-                                  Base::ErrorCode::ValidationFailed,
-                                  "Item fallback unsigned formatting failed"));
-                        break;
-                    }
-                    case Meta::ValueKind::Double: {
-                        char buffer[64]{};
-                        const int length = std::snprintf(
-                            buffer, sizeof(buffer), "%.15g", v.AsDouble());
-                        formatted = length > 0
-                            ? display.Assign(Base::StringView(
-                                  buffer, static_cast<std::uint32_t>(length)))
-                            : Base::Result<void>(Base::Status::Failure(
-                                  Base::ErrorCode::ValidationFailed,
-                                  "Item fallback numeric formatting failed"));
-                        break;
-                    }
-                    default:
-                        continue;
-                    }
+                    Base::Result<void> formatted = Base::ValueConversion::FormatScalarValue(display, v);
                     if (formatted) {
                         haveDisplay = true;
                         break;
@@ -1760,13 +1574,19 @@ ItemContainerGenerator::GeneratorState::AttachOwnedSubtree(
                            ContentControl::StaticTypeId())) {
             auto& content =
                 *static_cast<ContentControl*>(current);
-            Base::Result<void> attached =
-                attachChild(
-                    content,
-                    (content).OwnedContent());
-            if (!attached) {
-                (void)DetachOwnedSubtree(record);
-                return attached.GetStatus();
+            if (content.GetTemplateRoot() != nullptr) {
+                pending.PushBack(content.GetTemplateRoot());
+            } else if (content.GetFallbackPresenter() != nullptr) {
+                pending.PushBack(content.GetFallbackPresenter());
+            }
+        } else if (DependencyObjectAccess::PropertyRegistry(owner_).Types().
+                       IsDerivedFrom(
+                           type,
+                           Control::StaticTypeId())) {
+            auto& ctrl =
+                *static_cast<Control*>(current);
+            if (ctrl.GetTemplateRoot() != nullptr) {
+                pending.PushBack(ctrl.GetTemplateRoot());
             }
         } else if (DependencyObjectAccess::PropertyRegistry(owner_).Types().
                        IsDerivedFrom(
@@ -1794,9 +1614,12 @@ ItemContainerGenerator::GeneratorState::DetachOwnedSubtree(
     for (std::uint32_t index =
              record.subtreeMounts.Size();
          index > 0U; --index) {
+        ElementAttachment mount = record.subtreeMounts[index - 1U];
         Base::Result<void> detached =
-            tree_->DetachElement(
-                record.subtreeMounts[index - 1U]);
+            tree_->DetachElement(mount);
+        if (mount.child != nullptr && values_ != nullptr) {
+            (void)values_->DetachObject(*mount.child);
+        }
         if (!detached && firstError.IsOk()) {
             firstError = detached.GetStatus();
         }
@@ -1822,17 +1645,17 @@ ItemContainerGenerator::GeneratorState::AttachRecord(
     // subtree. Activation resolves implicit styles and materializes the
     // control template; applying the explicit container style afterwards
     // leaves the already-instantiated implicit template in place.
-    const Style* style = owner_->GetItemContainerStyle();
+    Base::Ref<Style> style = owner_->GetItemContainerStyle();
     const ItemsControl* styleSource = owner_;
-    if (style == nullptr) {
+    if (!style) {
         const DependencyObject* current = owner_->GetLogicalParent();
         if (current == nullptr) {
             current = owner_->GetVisualParent();
         }
         while (current != nullptr) {
             if (const auto* itemsCtrl = TryCast<ItemsControl>(current)) {
-                if (itemsCtrl->GetItemContainerStyle() != nullptr) {
-                    style = itemsCtrl->GetItemContainerStyle();
+                if (Base::Ref<Style> inheritedStyle = itemsCtrl->GetItemContainerStyle()) {
+                    style = std::move(inheritedStyle);
                     styleSource = itemsCtrl;
                     break;
                 }
@@ -1852,21 +1675,11 @@ ItemContainerGenerator::GeneratorState::AttachRecord(
             current = next;
         }
     }
-    if (style != nullptr && styles_ != nullptr) {
-        Base::Result<Base::Ref<Style>> retained =
-            styleSource->GetValue(ItemsControl::ItemContainerStyleProperty);
-        if (!retained || !retained.Value()) {
-            (void)tree_->DetachElement(record.containerMount);
-            return retained
-                ? Base::Status::Failure(
-                      Base::ErrorCode::InvalidState,
-                      "ItemContainerStyle is not retained")
-                : retained.GetStatus();
-        }
+    if (style && styles_ != nullptr) {
         container.SetValue(
             FrameworkElement::StyleProperty,
-            std::move(retained).Value());
-        record.appliedStyle = style;
+            style);
+        record.appliedStyle = style.Get();
     }
 
     ContentControl* contentControl = nullptr;
@@ -1933,22 +1746,19 @@ ItemContainerGenerator::GeneratorState::AttachRecord(
         } else {
             (*contentControl).SetOwnedContent( record.content, content);
         }
-        if (record.generatedTextContent &&
-            DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
-                container.RuntimeType(), Control::StaticTypeId())) {
-            auto* text = static_cast<TextBlock*>(record.content.Get());
-            auto& hostControl = static_cast<Control&>(container);
-            text->SetValue(
-                TextBlock::FontSizeProperty, hostControl.GetFontSize());
+
+        if (content.GetLogicalParent() == nullptr) {
+            Base::Result<void> logical =
+                tree_->AttachLogical(container, content);
+            if (!logical) {
+                (void)tree_->DetachElement(record.containerMount);
+                return logical.GetStatus();
+            }
+            record.contentMount.logicalParent = &container;
+            record.contentMount.visualParent = &container;
+            record.contentMount.child = &content;
+            record.contentMount.logicalAttached = true;
         }
-        Base::Result<ElementAttachment> contentMounted =
-            tree_->AttachElement(container, content);
-        if (!contentMounted) {
-            (void)tree_->DetachElement(record.containerMount);
-            return contentMounted.GetStatus();
-        }
-        record.contentMount =
-            std::move(contentMounted).Value();
     } else if (!record.itemIsOwnContainer && contentPresenter != nullptr &&
                record.content.Get() != nullptr) {
         auto& content =
@@ -2055,16 +1865,7 @@ ItemContainerGenerator::GeneratorState::ProjectGeneratedContent(
             record.content->RuntimeType(), TextBlock::StaticTypeId())) {
         return {};
     }
-    if (record.generatedTextContent &&
-        DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
-            record.content->RuntimeType(), TextBlock::StaticTypeId()) &&
-        DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
-            record.container->RuntimeType(), Control::StaticTypeId())) {
-        auto* text = static_cast<TextBlock*>(record.content.Get());
-        auto& hostControl = static_cast<Control&>(*record.container);
-        text->SetValue(
-            TextBlock::FontSizeProperty, hostControl.GetFontSize());
-    }
+
     if (!DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
             record.container->RuntimeType(), Control::StaticTypeId())) {
         return {};
@@ -2343,6 +2144,9 @@ ItemContainerGenerator::GeneratorState::DetachRecord(
         } else if (contentPresenter != nullptr) {
             contentPresenter->SetContent(nullptr);
         }
+        if (values_ != nullptr) {
+            (void)values_->DetachObject(*content);
+        }
         tree_->InvalidateNodeHandle(*content);
     }
     capture(tree_->DetachElement(record.containerMount));
@@ -2350,6 +2154,9 @@ ItemContainerGenerator::GeneratorState::DetachRecord(
         recycleContainer && firstError.IsOk()) {
         recycledContainers_.PushBack(std::move(record.container));
     } else {
+        if (values_ != nullptr) {
+            (void)values_->DetachObject(container);
+        }
         tree_->InvalidateNodeHandle(container);
     }
     record.item.Reset();
@@ -2369,6 +2176,9 @@ ItemContainerGenerator::GeneratorState::ReleaseRecycledContainers() noexcept {
     for (Base::Ref<FrameworkElement>& container :
         recycledContainers_) {
         if (!container) continue;
+        if (values_ != nullptr) {
+            (void)values_->DetachObject(*container);
+        }
         tree_->InvalidateNodeHandle(*container);
     }
     recycledContainers_.Clear();

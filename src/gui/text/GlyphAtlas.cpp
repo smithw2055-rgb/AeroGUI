@@ -233,11 +233,6 @@ struct GlyphAtlasState {
     }
 };
 
-static_assert(sizeof(GlyphAtlasState) <= 4096U,
-    "GlyphAtlas inline state storage is too small");
-static_assert(alignof(GlyphAtlasState) <= alignof(std::max_align_t),
-    "GlyphAtlas inline state alignment is insufficient");
-
 GlyphAtlas::GlyphAtlas(
     Base::IAllocator* allocator) noexcept
     : allocator_(allocator != nullptr
@@ -264,15 +259,21 @@ Base::Result<void> GlyphAtlas::Initialize(
             Base::ErrorCode::InvalidArgument,
             "Glyph atlas configuration is invalid");
     }
-    state_ = new (stateStorage_) GlyphAtlasState(allocator_);
+    Base::Result<void> allocated = Base::AllocateObject(
+        *allocator_,
+        Base::MemoryTag::Ui,
+        state_,
+        allocator_);
+    if (!allocated) {
+        return allocated.GetStatus();
+    }
     state_->config = config;
     return {};
 }
 
 void GlyphAtlas::Shutdown() noexcept {
     if (state_ == nullptr) return;
-    state_->~GlyphAtlasState();
-    state_ = nullptr;
+    Base::FreeObject(*allocator_, Base::MemoryTag::Ui, state_);
 }
 
 bool GlyphAtlas::IsInitialized() const noexcept {
@@ -357,6 +358,7 @@ Base::Result<void> GlyphAtlas::EnsureGlyph(
             const GlyphAtlasState::Page& page = state_->pages[index];
             if (page.hasPendingUploads ||
                 page.lastSubmittedFence > completedFence ||
+                (completedFence != 0U && page.lastUse >= completedFence) ||
                 page.lastUse >= oldestUse) {
                 continue;
             }

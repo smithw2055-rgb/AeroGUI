@@ -2,36 +2,12 @@
 
 #include "gui/markup/XamlObjectWriterState.hpp"
 
+#include <cstddef>
 #include <new>
 #include <utility>
 
 namespace Aero {
 namespace {
-
-template<class T, class... TArgs>
-Base::Result<T*> Create(
-    Base::IAllocator& allocator,
-    Base::MemoryTag tag,
-    TArgs&&... arguments) noexcept {
-    void* memory = allocator.Allocate({sizeof(T), alignof(T), tag});
-    if (memory == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfMemory,
-            "Schema bundle service allocation failed");
-    }
-    return new (memory) T(std::forward<TArgs>(arguments)...);
-}
-
-template<class T>
-void Destroy(
-    Base::IAllocator& allocator,
-    Base::MemoryTag tag,
-    T*& value) noexcept {
-    if (value == nullptr) return;
-    value->~T();
-    allocator.Deallocate(value, sizeof(T), alignof(T), tag);
-    value = nullptr;
-}
 
 Base::Status InvalidBundleState(const char* message) noexcept {
     return Base::Status::Failure(Base::ErrorCode::InvalidState, message);
@@ -46,6 +22,12 @@ struct GuiSchema::State {
     Base::IAllocator* allocator = nullptr;
     ::Aero::Meta::Registry metadata;
     const ModuleSet* modules = nullptr;
+
+    alignas(Markup::Schema) std::byte schemaStorage[sizeof(Markup::Schema)]{};
+    alignas(Markup::DynamicResourceExtension) std::byte dynamicResourceStorage[sizeof(Markup::DynamicResourceExtension)]{};
+    alignas(Markup::BindingExtension) std::byte bindingStorage[sizeof(Markup::BindingExtension)]{};
+    alignas(Markup::UiObjectModel) std::byte uiObjectModelStorage[sizeof(Markup::UiObjectModel)]{};
+
     Markup::Schema* schema = nullptr;
     Markup::DynamicResourceExtension* dynamicResource = nullptr;
     Markup::BindingExtension* binding = nullptr;
@@ -61,10 +43,22 @@ struct GuiSchema::State {
     bool terminal = false;
 
     ~State() noexcept {
-        Destroy(*allocator, Base::MemoryTag::Markup, uiObjectModel);
-        Destroy(*allocator, Base::MemoryTag::Markup, binding);
-        Destroy(*allocator, Base::MemoryTag::Markup, dynamicResource);
-        Destroy(*allocator, Base::MemoryTag::Markup, schema);
+        if (uiObjectModel != nullptr) {
+            uiObjectModel->~UiObjectModel();
+            uiObjectModel = nullptr;
+        }
+        if (binding != nullptr) {
+            binding->~BindingExtension();
+            binding = nullptr;
+        }
+        if (dynamicResource != nullptr) {
+            dynamicResource->~DynamicResourceExtension();
+            dynamicResource = nullptr;
+        }
+        if (schema != nullptr) {
+            schema->~Schema();
+            schema = nullptr;
+        }
     }
 };
 
@@ -124,55 +118,23 @@ Base::Result<void> GuiSchema::Finalize(
         ? *requested.allocator
         : *state_->allocator;
 
-    Base::Result<Markup::Schema*> schema =
-        Create<Markup::Schema>(
-            *state_->allocator,
-            Base::MemoryTag::Markup,
-            state_->metadata,
-            state_->allocator);
-    if (!schema) {
-        state_->terminal = true;
-        return schema.GetStatus();
-    }
-    state_->schema = schema.Value();
+    state_->schema = new (state_->schemaStorage) Markup::Schema(
+        state_->metadata,
+        state_->allocator);
 
-    Base::Result<Markup::DynamicResourceExtension*> dynamicResource =
-        Create<Markup::DynamicResourceExtension>(
-            *state_->allocator,
-            Base::MemoryTag::Markup,
-            Markup::DynamicResourceExtensionOptions{});
-    if (!dynamicResource) {
-        state_->terminal = true;
-        return dynamicResource.GetStatus();
-    }
-    state_->dynamicResource = dynamicResource.Value();
+    state_->dynamicResource = new (state_->dynamicResourceStorage) Markup::DynamicResourceExtension(
+        Markup::DynamicResourceExtensionOptions{});
 
-    Base::Result<Markup::BindingExtension*> binding =
-        Create<Markup::BindingExtension>(
-            *state_->allocator,
-            Base::MemoryTag::Markup,
-            Markup::BindingExtensionOptions{
-                nullptr,
-                Aero::FrameworkElement::DataContextProperty.Handle()});
-    if (!binding) {
-        state_->terminal = true;
-        return binding.GetStatus();
-    }
-    state_->binding = binding.Value();
+    state_->binding = new (state_->bindingStorage) Markup::BindingExtension(
+        Markup::BindingExtensionOptions{
+            nullptr,
+            Aero::FrameworkElement::DataContextProperty.Handle()});
 
-    Base::Result<Markup::UiObjectModel*> uiObjectModel =
-        Create<Markup::UiObjectModel>(
-            *state_->allocator,
-            Base::MemoryTag::Markup,
-            Markup::UiObjectModelOptions{
-                &state_->metadata,
-                &(state_->metadata).DependencyProperties(),
-                &programAllocator});
-    if (!uiObjectModel) {
-        state_->terminal = true;
-        return uiObjectModel.GetStatus();
-    }
-    state_->uiObjectModel = uiObjectModel.Value();
+    state_->uiObjectModel = new (state_->uiObjectModelStorage) Markup::UiObjectModel(
+        Markup::UiObjectModelOptions{
+            &state_->metadata,
+            &(state_->metadata).DependencyProperties(),
+            &programAllocator});
 
     Base::Result<void> status =
         state_->resourceExtension.Register(*state_->schema);

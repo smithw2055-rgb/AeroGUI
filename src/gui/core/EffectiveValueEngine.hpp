@@ -14,7 +14,7 @@
 
 #include <cstdint>
 
-namespace Aero::Meta { class Registry; class Registration; }
+#include "gui/core/DependencyPropertyRegistry.hpp"
 
 namespace Aero::Meta {
 
@@ -24,12 +24,12 @@ using ::Aero::Threading::CurrentDispatcherThreadToken;
 
 using EffectiveValueDiagnostics = PropertyValueSourceInfo;
 
-class EffectiveValueEngine {
+class EffectiveValueEngine : public IInheritanceChangeSink {
 public:
     EffectiveValueEngine(
         Dispatcher& dispatcher,
         DependencyPropertyRegistry& registry) noexcept;
-    ~EffectiveValueEngine() noexcept;
+    ~EffectiveValueEngine() noexcept override;
 
     EffectiveValueEngine(const EffectiveValueEngine&) = delete;
     EffectiveValueEngine& operator=(const EffectiveValueEngine&) = delete;
@@ -46,6 +46,13 @@ public:
         DependencyObject* parent) noexcept;
     DependencyObject* InheritanceParent(
         const DependencyObject& child) const noexcept;
+
+    // IInheritanceChangeSink: invoked directly when an inheritable property changes
+    void OnInheritancePropertyChanged(
+        DependencyObject& object,
+        DependencyPropertyHandle property) noexcept override;
+    void OnObjectDestroyed(
+        DependencyObject& object) noexcept override;
 
     // Allocates a process-local provider origin unique to this value engine.
     // Provider sessions allocate lazily on the owning Dispatcher and retain the
@@ -137,9 +144,6 @@ private:
     QueueLink* linkFree_ = nullptr;
     std::uint32_t queueCount_ = 0U;
     Base::HashMap<DependencyObject*, DependencyObject*> parents_;
-    Base::Vector<DependencyObject*> inheritanceSubscriptions_;
-    DependencyPropertyChangedEventHandler
-        inheritanceChangedHandler_;
     PropertyProviderOriginAllocator providerOrigins_;
     bool initialized_ = false;
     bool flushing_ = false;
@@ -151,14 +155,6 @@ private:
     Base::Result<void> QueueDescendants(
         DependencyObject& parent,
         DependencyPropertyHandle property) noexcept;
-    Base::Result<void> EnsureInheritanceSubscription(
-        DependencyObject& object) noexcept;
-    void RemoveInheritanceSubscription(
-        DependencyObject& object) noexcept;
-    void OnInheritancePropertyChanged(
-        DependencyObject& object,
-        const DependencyPropertyChangedEventArgs&
-            args) noexcept;
     Base::Result<void> Apply(
         DependencyObject& object,
         DependencyPropertyHandle property) noexcept;

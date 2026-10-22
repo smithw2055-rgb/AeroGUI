@@ -32,6 +32,8 @@ public:
     Thumb() noexcept;
     ~Thumb() override;
 
+    bool HitTestCore() const noexcept override { return true; }
+
     bool GetIsDragging() const noexcept { return GetValue(IsDraggingProperty); }
     Result<void> BeginDrag(std::uint32_t pointerId, Point position) noexcept;
     Result<ThumbDragDelta> DragTo(std::uint32_t pointerId, Point position) noexcept;
@@ -93,6 +95,8 @@ public:
     using Control::GetValue;
     using Control::SetValue;
 
+    bool HitTestCore() const noexcept override { return true; }
+
     Orientation GetOrientation() const noexcept;
     double GetMinimum() const noexcept;
     double GetMaximum() const noexcept;
@@ -120,15 +124,15 @@ public:
     // otherwise steal TemplateRoot and hide the gold indicator.
     std::uint32_t GetVisualChildrenCount() const noexcept override {
         std::uint32_t count = 0U;
-        if (decreaseRepeatButton_ && decreaseRepeatButton_->GetVisualParent() == this) { ++count; }
-        if (thumb_ && thumb_->GetVisualParent() == this) { ++count; }
-        if (increaseRepeatButton_ && increaseRepeatButton_->GetVisualParent() == this) { ++count; }
+        if (decreaseRepeatButton_) { ++count; }
+        if (thumb_) { ++count; }
+        if (increaseRepeatButton_) { ++count; }
         return count;
     }
     ::Aero::Media::Visual* GetVisualChild(std::uint32_t index) const noexcept override {
         std::uint32_t current = 0U;
         const auto take = [&](::Aero::Media::Visual* child) noexcept -> ::Aero::Media::Visual* {
-            if (child == nullptr || child->GetVisualParent() != this) { return nullptr; }
+            if (child == nullptr) { return nullptr; }
             if (current == index) return child;
             ++current;
             return nullptr;
@@ -251,6 +255,8 @@ class AERO_GUI_API TickBar : public Control {
 public:
     TickBar() noexcept : Control(StaticTypeId()) {}
     ~TickBar() override = default;
+
+    bool HitTestCore() const noexcept override { return GetFill() != nullptr; }
 
     Ref<Aero::Media::Brush> GetFill() const noexcept;
     TickBarPlacement GetPlacement() const noexcept;

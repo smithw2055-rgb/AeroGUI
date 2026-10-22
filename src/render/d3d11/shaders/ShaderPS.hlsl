@@ -53,10 +53,47 @@ cbuffer EffectBuffer : register(b1) {
     float4 uEffect1;
 };
 
+static const float3 kGaussianKernel[33] = {
+    float3( 0.0000000f,  0.0000000f,  0.0717812f),
+    float3( 0.1250000f,  0.0000000f,  0.0693556f),
+    float3(-0.1596450f,  0.1462479f,  0.0647477f),
+    float3( 0.0244362f, -0.2784383f,  0.0604458f),
+    float3( 0.2012222f,  0.2624588f,  0.0564298f),
+    float3(-0.3692676f, -0.0653182f,  0.0526806f),
+    float3( 0.3498025f, -0.2225157f,  0.0491805f),
+    float3(-0.1170021f,  0.4352419f,  0.0459130f),
+    float3(-0.2231357f, -0.4296341f,  0.0428625f),
+    float3( 0.4841151f,  0.1767981f,  0.0400147f),
+    float3(-0.5036411f,  0.2078957f,  0.0373561f),
+    float3( 0.2427883f, -0.5188245f,  0.0348742f),
+    float3( 0.1794144f,  0.5720013f,  0.0325572f),
+    float3(-0.5407570f, -0.3133797f,  0.0303941f),
+    float3( 0.6343695f, -0.1394644f,  0.0283747f),
+    float3(-0.3871458f,  0.5506751f,  0.0264895f),
+    float3(-0.0894397f, -0.6901996f,  0.0247295f),
+    float3( 0.5490718f,  0.4627583f,  0.0230865f),
+    float3(-0.7388785f,  0.0305549f,  0.0215526f),
+    float3( 0.5389551f, -0.5363323f,  0.0201207f),
+    float3(-0.0360582f,  0.7797915f,  0.0187839f),
+    float3(-0.5128175f, -0.6145268f,  0.0175359f),
+    float3( 0.8123596f,  0.1093018f,  0.0163708f),
+    float3(-0.6883106f,  0.4789086f,  0.0152831f),
+    float3( 0.1880861f, -0.8360614f,  0.0142677f),
+    float3( 0.4350333f,  0.7591911f,  0.0133197f),
+    float3(-0.8504484f, -0.2713162f,  0.0124348f),
+    float3( 0.8261024f, -0.3816803f,  0.0116086f),
+    float3(-0.3578882f,  0.8551556f,  0.0108373f),
+    float3(-0.3194073f, -0.8880338f,  0.0101173f),
+    float3( 0.8499086f,  0.4466882f,  0.0094451f),
+    float3(-0.9440346f,  0.2488445f,  0.0088176f),
+    float3( 0.5365958f, -0.8345298f,  0.0082317f)
+};
+
 struct In {
     float4 position : SV_Position;
     float4 color : COLOR;
     float2 uv0 : TEXCOORD0;
+    float4 st1 : TEXCOORD1;
     float coverage : COVERAGE;
 };
 
@@ -142,22 +179,44 @@ Out ps_main(In i) {
 #endif
 
 #elif EFFECT_SDF
-    // Single-channel signed distance field text
-    float dist = glyphs.Sample(glyphsSampler, i.uv0).r;
-    float smoothing = max(fwidth(dist), 1.0 / 512.0);
-    float alpha = smoothstep(0.5 - 0.5 * smoothing, 0.5 + 0.5 * smoothing, dist);
+    // Single-channel text rasterization (SDF)
+    #define SDF_SCALE 7.96875
+    #define SDF_BIAS 0.50196078431
+    #define SDF_AA_FACTOR 0.65
+    #define SDF_BASE_MIN 0.125
+    #define SDF_BASE_MAX 0.25
+    #define SDF_BASE_DEV -0.65
+
+    float dist = SDF_SCALE * (glyphs.Sample(glyphsSampler, i.uv0).r - SDF_BIAS);
+    float2 grad = ddx(i.st1.xy);
+    float gradLen = max(length(grad), 1.0 / 512.0);
+    float scale = 1.0 / gradLen;
+    float base = SDF_BASE_DEV * (1.0 - (clamp(scale, SDF_BASE_MIN, SDF_BASE_MAX) - SDF_BASE_MIN) / (SDF_BASE_MAX - SDF_BASE_MIN));
+    float range = SDF_AA_FACTOR * gradLen;
+    float alpha = smoothstep(base - range, base + range, dist);
     o.color = (alpha * opacity_ * i.coverage) * paint;
 
 #elif EFFECT_SDF_LCD
     // Subpixel ClearType LCD text with Dual Source Blending (Target0=color, Target1=alpha)
-    float2 grad = ddx(i.uv0);
-    float2 offset = grad * float2(0.333333, 0.0);
-    float4 red = glyphs.Sample(glyphsSampler, i.uv0 - offset);
-    float4 green = glyphs.Sample(glyphsSampler, i.uv0);
-    float4 blue = glyphs.Sample(glyphsSampler, i.uv0 + offset);
-    float3 dist3 = float3(red.r, green.r, blue.r);
-    float sm = max(fwidth(dist3.g), 1.0 / 512.0);
-    float3 a3 = smoothstep(0.5 - 0.5 * sm, 0.5 + 0.5 * sm, dist3);
+    #define SDF_SCALE 7.96875
+    #define SDF_BIAS 0.50196078431
+    #define SDF_AA_FACTOR 0.65
+    #define SDF_BASE_MIN 0.125
+    #define SDF_BASE_MAX 0.25
+    #define SDF_BASE_DEV -0.65
+
+    float2 grad = ddx(i.st1.xy);
+    float gradLen = max(length(grad), 1.0 / 512.0);
+    float scale = 1.0 / gradLen;
+    float base = SDF_BASE_DEV * (1.0 - (clamp(scale, SDF_BASE_MIN, SDF_BASE_MAX) - SDF_BASE_MIN) / (SDF_BASE_MAX - SDF_BASE_MIN));
+    float range = SDF_AA_FACTOR * gradLen;
+
+    float2 offset = float2(i.st1.z, 0.0);
+    float red = SDF_SCALE * (glyphs.Sample(glyphsSampler, i.uv0 - offset).r - SDF_BIAS);
+    float green = SDF_SCALE * (glyphs.Sample(glyphsSampler, i.uv0).r - SDF_BIAS);
+    float blue = SDF_SCALE * (glyphs.Sample(glyphsSampler, i.uv0 + offset).r - SDF_BIAS);
+    float3 dist3 = float3(red, green, blue);
+    float3 a3 = smoothstep(base - range, base + range, dist3);
     o.color = float4((opacity_ * i.coverage) * paint.rgb * a3.rgb, a3.g * i.coverage);
     o.alpha = float4((opacity_ * paint.a * i.coverage) * a3.rgb, a3.g * i.coverage);
 
@@ -177,14 +236,24 @@ Out ps_main(In i) {
     o.color = lerp(image.Sample(imageSampler, i.uv0), pattern.Sample(patternSampler, i.uv0), i.color.a);
 
 #elif EFFECT_SHADOW
-    float blendVal = uEffect0.w;
-    float4 img = image.Sample(imageSampler, i.uv0);
-    float shadowA = shadow.Sample(shadowSampler, i.uv0).a;
-    o.color = (img + (1.0 - img.a) * (uEffect0 * shadowA)) * (opacity_ * paint.a);
+    float2 texSize = uPaint0.xy;
+    float2 texel = 1.0 / max(texSize, float2(1.0, 1.0));
+    float sumA = 0.0;
+    [unroll]
+    for (int sIdx = 0; sIdx < 33; ++sIdx) {
+        sumA += shadow.Sample(shadowSampler, i.uv0 + kGaussianKernel[sIdx].xy * texel).a * kGaussianKernel[sIdx].z;
+    }
+    o.color = i.color * (sumA * i.coverage);
 
 #elif EFFECT_BLUR
-    float blendVal = uEffect0.w;
-    o.color = lerp(image.Sample(imageSampler, i.uv0), shadow.Sample(shadowSampler, i.uv0), blendVal) * (opacity_ * paint.a);
+    float2 texSize = uPaint0.xy;
+    float2 texel = 1.0 / max(texSize, float2(1.0, 1.0));
+    float4 sum = float4(0.0, 0.0, 0.0, 0.0);
+    [unroll]
+    for (int bIdx = 0; bIdx < 33; ++bIdx) {
+        sum += image.Sample(imageSampler, i.uv0 + kGaussianKernel[bIdx].xy * texel) * kGaussianKernel[bIdx].z;
+    }
+    o.color = sum * (i.color * i.coverage);
 
 #else
     o.color = opacity_ * paint;

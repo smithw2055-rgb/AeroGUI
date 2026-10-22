@@ -1,4 +1,5 @@
 #include "OpenGL33RenderDevice.hpp"
+#include <AeroRender/OpenGL33.hpp>
 #include <cstddef>
 #include <cstring>
 #include <algorithm>
@@ -94,6 +95,13 @@ constexpr GLenum GL_UNPACK_ALIGNMENT = 0x0CF5;
 constexpr GLenum GL_VENDOR = 0x1F00;
 constexpr GLenum GL_VERSION = 0x1F02;
 
+constexpr GLbitfield GL_MAP_READ_BIT = 0x0001;
+constexpr GLbitfield GL_MAP_WRITE_BIT = 0x0002;
+constexpr GLbitfield GL_MAP_INVALIDATE_RANGE_BIT = 0x0004;
+constexpr GLbitfield GL_MAP_INVALIDATE_BUFFER_BIT = 0x0008;
+constexpr GLbitfield GL_MAP_FLUSH_EXPLICIT_BIT = 0x0010;
+constexpr GLbitfield GL_MAP_UNSYNCHRONIZED_BIT = 0x0020;
+
 // Vertex2D layout (24 bytes): float2 pos @0, uint32 color @8, float2 uv @12,
 // float coverage @20. Matches UiFrameEncoder::Vertex2D and the D3D11 backend.
 constexpr GLint VertexStride = 24;
@@ -101,89 +109,7 @@ constexpr GLintptr ColorOffset = 8;
 constexpr GLintptr UVOffset = 12;
 constexpr GLintptr CoverageOffset = 20;
 
-struct GLCallbacks {
-    const GLubyte* (*glGetString)(GLenum name);
-    GLenum (*glGetError)(void);
-    void (*glGenBuffers)(GLsizei n, GLuint* buffers);
-    void (*glDeleteBuffers)(GLsizei n, const GLuint* buffers);
-    void (*glBindBuffer)(GLenum target, GLuint buffer);
-    void (*glBufferData)(GLenum target, GLsizeiptr size, const void* data, GLenum usage);
-    void (*glBufferSubData)(GLenum target, GLintptr offset, GLsizeiptr size, const void* data);
-    void (*glGenVertexArrays)(GLsizei n, GLuint* arrays);
-    void (*glDeleteVertexArrays)(GLsizei n, const GLuint* arrays);
-    void (*glBindVertexArray)(GLuint array);
-    void (*glVertexAttribPointer)(GLuint index, GLint size, GLenum type,
-        GLboolean normalized, GLsizei stride, const void* pointer);
-    void (*glEnableVertexAttribArray)(GLuint index);
-    void (*glDisableVertexAttribArray)(GLuint index);
-    void (*glVertexAttrib1f)(GLuint index, GLfloat x);
-    void (*glVertexAttrib2f)(GLuint index, GLfloat x, GLfloat y);
-    void (*glVertexAttrib4f)(GLuint index, GLfloat x, GLfloat y, GLfloat z, GLfloat w);
-    GLuint (*glCreateShader)(GLenum type);
-    void (*glShaderSource)(GLuint shader, GLsizei count, const GLchar* const* string, const GLint* length);
-    void (*glCompileShader)(GLuint shader);
-    void (*glGetShaderiv)(GLuint shader, GLenum pname, GLint* params);
-    void (*glGetShaderInfoLog)(GLuint shader, GLsizei maxLength, GLsizei* length, GLchar* infoLog);
-    void (*glDeleteShader)(GLuint shader);
-    GLuint (*glCreateProgram)(void);
-    void (*glAttachShader)(GLuint program, GLuint shader);
-    void (*glLinkProgram)(GLuint program);
-    void (*glGetProgramiv)(GLuint program, GLenum pname, GLint* params);
-    void (*glGetProgramInfoLog)(GLuint program, GLsizei maxLength, GLsizei* length, GLchar* infoLog);
-    void (*glDeleteProgram)(GLuint program);
-    void (*glUseProgram)(GLuint program);
-        GLint (*glGetUniformLocation)(GLuint program, const GLchar* name);
-    void (*glUniform1i)(GLint location, GLint v0);
-    void (*glUniform1f)(GLint location, GLfloat v0);
-    void (*glUniform2f)(GLint location, GLfloat v0, GLfloat v1);
-    void (*glUniform4f)(GLint location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3);
-    void (*glGenTextures)(GLsizei n, GLuint* textures);
-    void (*glDeleteTextures)(GLsizei n, const GLuint* textures);
-    void (*glBindTexture)(GLenum target, GLuint texture);
-    void (*glActiveTexture)(GLenum texture);
-    void (*glTexImage2D)(GLenum target, GLint level, GLint internalFormat,
-        GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const void* pixels);
-    void (*glTexSubImage2D)(GLenum target, GLint level, GLint xoffset, GLint yoffset,
-        GLsizei width, GLsizei height, GLenum format, GLenum type, const void* pixels);
-    void (*glTexParameteri)(GLenum target, GLenum pname, GLint param);
-    void (*glPixelStorei)(GLenum pname, GLint param);
-    void (*glGenSamplers)(GLsizei n, GLuint* samplers);
-    void (*glDeleteSamplers)(GLsizei n, const GLuint* samplers);
-    void (*glBindSampler)(GLuint unit, GLuint sampler);
-    void (*glSamplerParameteri)(GLuint sampler, GLenum pname, GLint param);
-    void (*glSamplerParameterfv)(GLuint sampler, GLenum pname, const GLfloat* param);
-    void (*glGenFramebuffers)(GLsizei n, GLuint* framebuffers);
-    void (*glDeleteFramebuffers)(GLsizei n, const GLuint* framebuffers);
-    void (*glBindFramebuffer)(GLenum target, GLuint framebuffer);
-    void (*glFramebufferTexture2D)(GLenum target, GLenum attachment,
-        GLenum textarget, GLuint texture, GLint level);
-    void (*glFramebufferRenderbuffer)(GLenum target, GLenum attachment,
-        GLenum renderbuffertarget, GLuint renderbuffer);
-    GLenum (*glCheckFramebufferStatus)(GLenum target);
-    void (*glGenRenderbuffers)(GLsizei n, GLuint* renderbuffers);
-    void (*glDeleteRenderbuffers)(GLsizei n, const GLuint* renderbuffers);
-    void (*glBindRenderbuffer)(GLenum target, GLuint renderbuffer);
-    void (*glRenderbufferStorage)(GLenum target, GLenum internalFormat,
-        GLsizei width, GLsizei height);
-    void (*glEnable)(GLenum cap);
-    void (*glDisable)(GLenum cap);
-    void (*glBlendFuncSeparate)(GLenum sfactorRGB, GLenum dfactorRGB,
-        GLenum sfactorAlpha, GLenum dfactorAlpha);
-    void (*glViewport)(GLint x, GLint y, GLsizei width, GLsizei height);
-    void (*glScissor)(GLint x, GLint y, GLsizei width, GLsizei height);
-    void (*glClearColor)(GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha);
-    void (*glClear)(GLbitfield mask);
-    void (*glClearStencil)(GLint s);
-    void (*glStencilFunc)(GLenum func, GLint ref, GLuint mask);
-    void (*glStencilOp)(GLenum sfail, GLenum dpfail, GLenum dppass);
-    void (*glStencilMask)(GLuint mask);
-    void (*glColorMask)(GLboolean red, GLboolean green, GLboolean blue, GLboolean alpha);
-    void (*glStencilFuncSeparate)(GLenum face, GLenum func, GLint ref, GLuint mask);
-    void (*glStencilOpSeparate)(GLenum face, GLenum sfail, GLenum dpfail, GLenum dppass);
-    void (*glStencilMaskSeparate)(GLenum face, GLuint mask);
-    void (*glDrawElements)(GLenum mode, GLsizei count, GLenum type, const void* indices);
-    void (*glDrawElementsBaseVertex)(GLenum mode, GLsizei count, GLenum type, const void* indices, GLint basevertex);
-};
+
 
 // Resolves the OpenGL 3.3 core entry points through the host-provided loader.
 bool ResolveCallbacks(
@@ -268,13 +194,12 @@ bool ResolveCallbacks(
         load(gl.glStencilMask, "glStencilMask") &&
         load(gl.glColorMask, "glColorMask") &&
         load(gl.glDrawElements, "glDrawElements") &&
+        load(gl.glMapBufferRange, "glMapBufferRange") &&
+        load(gl.glUnmapBuffer, "glUnmapBuffer") &&
         (load(gl.glDrawElementsBaseVertex, "glDrawElementsBaseVertex") || true);
 }
 
-// OpenGL function table shared by the device and its resources. Populated on
-// the first device Initialize; GL entry points do not vary between contexts.
-GLCallbacks g_gl{};
-bool g_glResolved = false;
+
 
 GLuint CompileShader(
     const GLCallbacks& gl,
@@ -458,19 +383,28 @@ constexpr const char* UberPixelShaderSource =
     "    fragColor = texture(image, vUV) * (opacity_ * paint * vCoverage);\n"
     "#endif\n"
     "#elif defined(EFFECT_SDF)\n"
-    "    float dist = texture(glyphs, vUV).r;\n"
-    "    float smoothing = max(fwidth(dist), 1.0 / 512.0);\n"
-    "    float alpha = smoothstep(0.5 - 0.5 * smoothing, 0.5 + 0.5 * smoothing, dist);\n"
+    "    vec2 atlasSize = vec2(textureSize(glyphs, 0));\n"
+    "    float dist = 7.96875 * (texture(glyphs, vUV).r - 0.50196078431);\n"
+    "    vec2 grad = dFdx(vUV * atlasSize);\n"
+    "    float gradLen = max(length(grad), 1.0 / 512.0);\n"
+    "    float scale = 1.0 / gradLen;\n"
+    "    float base = -0.65 * (1.0 - (clamp(scale, 0.125, 0.25) - 0.125) / (0.25 - 0.125));\n"
+    "    float range = 0.65 * gradLen;\n"
+    "    float alpha = smoothstep(base - range, base + range, dist);\n"
     "    fragColor = (alpha * opacity_ * vCoverage) * paint;\n"
     "#elif defined(EFFECT_SDF_LCD)\n"
-    "    vec2 grad = dFdx(vUV);\n"
-    "    vec2 offset = grad * vec2(0.333333, 0.0);\n"
-    "    vec4 red = texture(glyphs, vUV - offset);\n"
-    "    vec4 green = texture(glyphs, vUV);\n"
-    "    vec4 blue = texture(glyphs, vUV + offset);\n"
-    "    vec3 dist3 = vec3(red.r, green.r, blue.r);\n"
-    "    float sm = max(fwidth(dist3.g), 1.0 / 512.0);\n"
-    "    vec3 a3 = smoothstep(0.5 - 0.5 * sm, 0.5 + 0.5 * sm, dist3);\n"
+    "    vec2 atlasSize = vec2(textureSize(glyphs, 0));\n"
+    "    vec2 grad = dFdx(vUV * atlasSize);\n"
+    "    float gradLen = max(length(grad), 1.0 / 512.0);\n"
+    "    float scale = 1.0 / gradLen;\n"
+    "    float base = -0.65 * (1.0 - (clamp(scale, 0.125, 0.25) - 0.125) / (0.25 - 0.125));\n"
+    "    float range = 0.65 * gradLen;\n"
+    "    vec2 offset = vec2(1.0 / (3.0 * atlasSize.x), 0.0);\n"
+    "    float red = 7.96875 * (texture(glyphs, vUV - offset).r - 0.50196078431);\n"
+    "    float green = 7.96875 * (texture(glyphs, vUV).r - 0.50196078431);\n"
+    "    float blue = 7.96875 * (texture(glyphs, vUV + offset).r - 0.50196078431);\n"
+    "    vec3 dist3 = vec3(red, green, blue);\n"
+    "    vec3 a3 = smoothstep(base - range, base + range, dist3);\n"
     "    fragColor = vec4((opacity_ * vCoverage) * paint.rgb * a3.rgb, a3.g * vCoverage);\n"
     "    fragAlpha = vec4((opacity_ * paint.a * vCoverage) * a3.rgb, a3.g * vCoverage);\n"
     "#elif defined(EFFECT_DOWNSAMPLE)\n"
@@ -485,14 +419,14 @@ constexpr const char* UberPixelShaderSource =
     "#elif defined(EFFECT_UPSAMPLE)\n"
     "    fragColor = mix(texture(image, vUV), texture(pattern, vUV), vColor.a);\n"
     "#elif defined(EFFECT_SHADOW)\n"
-    "    vec2 texel = 1.0 / uTextureSize;\n"
+    "    vec2 texel = 1.0 / max(uTextureSize, vec2(1.0));\n"
     "    float sumA = 0.0;\n"
     "    for (int i = 0; i < 33; ++i) {\n"
     "        sumA += texture(shadow, vUV + kGaussianKernel[i].xy * texel).a * kGaussianKernel[i].z;\n"
     "    }\n"
     "    fragColor = vColor * (sumA * vCoverage);\n"
     "#elif defined(EFFECT_BLUR)\n"
-    "    vec2 texel = 1.0 / uTextureSize;\n"
+    "    vec2 texel = 1.0 / max(uTextureSize, vec2(1.0));\n"
     "    vec4 sum = vec4(0.0);\n"
     "    for (int i = 0; i < 33; ++i) {\n"
     "        sum += texture(image, vUV + kGaussianKernel[i].xy * texel) * kGaussianKernel[i].z;\n"
@@ -629,19 +563,21 @@ GLuint CreateAndInitProgram(
 } // namespace
 
 OpenGL33Texture::OpenGL33Texture(
+    Ref<RenderDevice> device,
     unsigned int textureId,
     uint32_t width,
     uint32_t height,
     bool hasMipMaps,
     bool hasAlpha,
-    uint32_t glFormat) noexcept
-    : textureId_(textureId), width_(width), height_(height),
+    uint32_t glFormat,
+    const GLCallbacks* gl) noexcept
+    : device_(std::move(device)), gl_(gl), textureId_(textureId), width_(width), height_(height),
       hasMipMaps_(hasMipMaps), hasAlpha_(hasAlpha), glFormat_(glFormat) {}
 
 OpenGL33Texture::~OpenGL33Texture() noexcept {
-    if (textureId_ != 0 && g_glResolved && g_gl.glDeleteTextures != nullptr) {
+    if (textureId_ != 0 && gl_ != nullptr && gl_->glDeleteTextures != nullptr) {
         GLuint texture = textureId_;
-        g_gl.glDeleteTextures(1, &texture);
+        gl_->glDeleteTextures(1, &texture);
     }
 }
 
@@ -652,8 +588,9 @@ OpenGL33RenderTarget::OpenGL33RenderTarget(
     unsigned int rboId,
     uint32_t width,
     uint32_t height,
-    bool defaultFbo) noexcept
-    : texture_(std::move(texture)), fboId_(fboId), rboId_(rboId),
+    bool defaultFbo,
+    const GLCallbacks* gl) noexcept
+    : gl_(gl), texture_(std::move(texture)), fboId_(fboId), rboId_(rboId),
       width_(width), height_(height), defaultFbo_(defaultFbo) {
     device_ = std::move(device);
     kind_ = defaultFbo ? RenderTargetKind::Window : RenderTargetKind::Embedded;
@@ -661,14 +598,14 @@ OpenGL33RenderTarget::OpenGL33RenderTarget(
 }
 
 OpenGL33RenderTarget::~OpenGL33RenderTarget() noexcept {
-    if (g_glResolved) {
-        if (rboId_ != 0 && g_gl.glDeleteRenderbuffers != nullptr) {
+    if (gl_ != nullptr && !defaultFbo_) {
+        if (rboId_ != 0 && gl_->glDeleteRenderbuffers != nullptr) {
             GLuint rbo = rboId_;
-            g_gl.glDeleteRenderbuffers(1, &rbo);
+            gl_->glDeleteRenderbuffers(1, &rbo);
         }
-        if (fboId_ != 0 && g_gl.glDeleteFramebuffers != nullptr) {
+        if (fboId_ != 0 && gl_->glDeleteFramebuffers != nullptr) {
             GLuint fbo = fboId_;
-            g_gl.glDeleteFramebuffers(1, &fbo);
+            gl_->glDeleteFramebuffers(1, &fbo);
         }
     }
 }
@@ -692,16 +629,16 @@ OpenGL33RenderDevice::~OpenGL33RenderDevice() noexcept {
 Base::Result<void> OpenGL33RenderDevice::Initialize() noexcept {
     if (vao_ != 0) return {};
 
-    if (!g_glResolved) {
+    if (!glResolved_) {
         if (!ResolveCallbacks(
-                options_.resolve, options_.callbackContext, g_gl)) {
+                options_.resolve, options_.callbackContext, gl_)) {
             return Base::Status::Failure(
                 Base::ErrorCode::Unsupported,
                 "Unable to resolve the OpenGL 3.3 core entry points");
         }
-        g_glResolved = true;
+        glResolved_ = true;
     }
-    const GLCallbacks& gl = g_gl;
+    const GLCallbacks& gl = gl_;
 
     GLuint vertexShader = CompileShader(gl, GL_VERTEX_SHADER, VertexShaderSource);
     if (vertexShader == 0) {
@@ -718,20 +655,33 @@ Base::Result<void> OpenGL33RenderDevice::Initialize() noexcept {
     }
     gl.glDeleteShader(vertexShader);
 
-    // Populate backward-compatible program member fields
-    solidProgram_        = programs_[Shader::Path_Solid];
-    patternProgram_      = programs_[Shader::Path_Pattern];
-    sdfProgram_          = programs_[Shader::SDF_Solid];
-    blurProgram_         = programs_[Shader::Blur];
-    shadowProgram_       = programs_[Shader::Shadow];
-    maskProgram_         = programs_[Shader::Mask];
     customEffectProgram_ = programs_[Shader::Custom_Effect];
-    linearProgram_       = programs_[Shader::Path_Linear];
-    radialProgram_       = programs_[Shader::Path_Radial];
 
-    if (solidProgram_ == 0 || patternProgram_ == 0 || sdfProgram_ == 0 ||
-        blurProgram_ == 0 || shadowProgram_ == 0 || maskProgram_ == 0 ||
-        linearProgram_ == 0 || radialProgram_ == 0) {
+    auto cacheLocations = [&](GLuint prog, ProgramLocations& locs) {
+        if (prog == 0) return;
+        locs.uViewportSize = gl.glGetUniformLocation(prog, "uViewportSize");
+        locs.uFlipY = gl.glGetUniformLocation(prog, "uFlipY");
+        locs.uTextureSize = gl.glGetUniformLocation(prog, "uTextureSize");
+        locs.uPaint0 = gl.glGetUniformLocation(prog, "uPaint0");
+        locs.uPaint1 = gl.glGetUniformLocation(prog, "uPaint1");
+        locs.uEffect0 = gl.glGetUniformLocation(prog, "uEffect0");
+        locs.uEffect1 = gl.glGetUniformLocation(prog, "uEffect1");
+        locs.uEffectColor = gl.glGetUniformLocation(prog, "uEffectColor");
+    };
+
+    for (size_t i = 0; i < Shader::Count; ++i) {
+        if (programs_[i] != 0) {
+            cacheLocations(programs_[i], programLocations_[i]);
+        }
+    }
+    if (customEffectProgram_ != 0) {
+        cacheLocations(customEffectProgram_, customEffectLocations_);
+    }
+
+    if (programs_[Shader::Path_Solid] == 0 || programs_[Shader::Path_Pattern] == 0 ||
+        programs_[Shader::SDF_Solid] == 0 || programs_[Shader::Blur] == 0 ||
+        programs_[Shader::Shadow] == 0 || programs_[Shader::Mask] == 0 ||
+        programs_[Shader::Path_Linear] == 0 || programs_[Shader::Path_Radial] == 0) {
         Shutdown();
         return Base::Status::Failure(Base::ErrorCode::InternalError, "Failed to compile/link a GL program");
     }
@@ -743,6 +693,9 @@ Base::Result<void> OpenGL33RenderDevice::Initialize() noexcept {
         Shutdown();
         return Base::Status::Failure(Base::ErrorCode::InternalError, "Failed to create the GL vertex buffers");
     }
+
+    vbRing_.Initialize(DYNAMIC_VB_SIZE);
+    ibRing_.Initialize(DYNAMIC_IB_SIZE);
 
     gl.glBindVertexArray(vao_);
     gl.glBindBuffer(GL_ARRAY_BUFFER, dynamicVB_);
@@ -761,7 +714,7 @@ Base::Result<void> OpenGL33RenderDevice::Initialize() noexcept {
     if (gl.glVertexAttrib4f != nullptr) gl.glVertexAttrib4f(1, 1.0f, 1.0f, 1.0f, 1.0f);
     if (gl.glVertexAttrib2f != nullptr) gl.glVertexAttrib2f(2, 0.0f, 0.0f);
     if (gl.glVertexAttrib1f != nullptr) gl.glVertexAttrib1f(3, 1.0f);
-    gl.glBindVertexArray(0);
+    // Keep vao_ bound so subsequent MapIndices/dynamicIB_ binding does not violate Core Profile
 
     // Create the 64 sampler states indexed by SamplerState.v
     // (wrapMode:3 bits | minmagFilter:1 << 3 | mipFilter:2 << 4).
@@ -774,8 +727,8 @@ Base::Result<void> OpenGL33RenderDevice::Initialize() noexcept {
         const GLint filter = (minmag == MinMagFilter::Linear)
             ? static_cast<GLint>(GL_LINEAR)
             : static_cast<GLint>(GL_NEAREST);
-        g_gl.glSamplerParameteri(samplers_[v], GL_TEXTURE_MAG_FILTER, filter);
-        g_gl.glSamplerParameteri(samplers_[v], GL_TEXTURE_MIN_FILTER, filter);
+        gl.glSamplerParameteri(samplers_[v], GL_TEXTURE_MAG_FILTER, filter);
+        gl.glSamplerParameteri(samplers_[v], GL_TEXTURE_MIN_FILTER, filter);
 
         GLint wrapS = GL_CLAMP_TO_EDGE;
         GLint wrapT = GL_CLAMP_TO_EDGE;
@@ -785,7 +738,7 @@ Base::Result<void> OpenGL33RenderDevice::Initialize() noexcept {
             wrapT = GL_CLAMP_TO_BORDER;
             {
                 const GLfloat borderColor[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-                g_gl.glSamplerParameterfv(samplers_[v], GL_TEXTURE_BORDER_COLOR, borderColor);
+                gl.glSamplerParameterfv(samplers_[v], GL_TEXTURE_BORDER_COLOR, borderColor);
             }
             break;
         case WrapMode::Repeat:
@@ -807,8 +760,8 @@ Base::Result<void> OpenGL33RenderDevice::Initialize() noexcept {
             break;
         }
         static_cast<void>(mip);
-        g_gl.glSamplerParameteri(samplers_[v], GL_TEXTURE_WRAP_S, wrapS);
-        g_gl.glSamplerParameteri(samplers_[v], GL_TEXTURE_WRAP_T, wrapT);
+        gl.glSamplerParameteri(samplers_[v], GL_TEXTURE_WRAP_S, wrapS);
+        gl.glSamplerParameteri(samplers_[v], GL_TEXTURE_WRAP_T, wrapT);
     }
 
     gl.glDisable(GL_CULL_FACE);
@@ -820,94 +773,74 @@ Base::Result<void> OpenGL33RenderDevice::Initialize() noexcept {
 }
 
 void OpenGL33RenderDevice::SetVertexFormat(uint8_t format, uintptr_t offset) noexcept {
-    const GLCallbacks& gl = g_gl;
-    const GLsizei stride = SizeForFormat[format] != 0U
+    const GLCallbacks& gl = gl_;
+    const GLsizei stride = (format < Shader::Vertex::Format::Count && SizeForFormat[format] != 0U)
         ? static_cast<GLsizei>(SizeForFormat[format]) : 24;
 
-    switch (format) {
-    case Shader::Vertex::Format::PosColor:
-        gl.glEnableVertexAttribArray(0);
-        gl.glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<const void*>(offset + 0));
+    if (!stateCache_.UpdateVertexFormat(format, static_cast<uint32_t>(stride), offset)) {
+        return;
+    }
+
+    int8_t colorOffset = -1;
+    int8_t tex0Offset = -1;
+    int8_t tex1Offset = -1;
+    int8_t coverageOffset = -1;
+
+    if (format < Shader::Vertex::Format::Count) {
+        const uint8_t attrs = AttributesForFormat[format];
+        uint8_t curr = 8; // Pos is always 8 bytes
+        for (uint32_t i = 1; i < Shader::Vertex::Format::Attr::Count; ++i) {
+            if (attrs & (1U << i)) {
+                if (i == Shader::Vertex::Format::Attr::Color) colorOffset = static_cast<int8_t>(curr);
+                else if (i == Shader::Vertex::Format::Attr::Tex0) tex0Offset = static_cast<int8_t>(curr);
+                else if (i == Shader::Vertex::Format::Attr::Tex1) tex1Offset = static_cast<int8_t>(curr);
+                else if (i == Shader::Vertex::Format::Attr::Coverage) coverageOffset = static_cast<int8_t>(curr);
+                curr += SizeForType[TypeForAttr[i]];
+            }
+        }
+    } else {
+        // Full Vertex2D fallback
+        colorOffset = 8;
+        tex0Offset = 12;
+        coverageOffset = 20;
+    }
+
+    // Location 0: Pos (always enabled)
+    gl.glEnableVertexAttribArray(0);
+    gl.glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<const void*>(offset));
+
+    // Location 1: Color
+    if (colorOffset >= 0) {
         gl.glEnableVertexAttribArray(1);
-        gl.glVertexAttribPointer(1, 4, GL_UNSIGNED_BYTE, GL_TRUE, stride, reinterpret_cast<const void*>(offset + 8));
+        gl.glVertexAttribPointer(1, 4, GL_UNSIGNED_BYTE, GL_TRUE, stride, reinterpret_cast<const void*>(offset + colorOffset));
+    } else {
+        gl.glDisableVertexAttribArray(1);
+        if (gl.glVertexAttrib4f != nullptr) gl.glVertexAttrib4f(1, 1.0f, 1.0f, 1.0f, 1.0f);
+    }
+
+    // Location 2: UV (Tex0 or Tex1)
+    const int8_t uvOffset = (tex0Offset >= 0) ? tex0Offset : tex1Offset;
+    if (uvOffset >= 0) {
+        gl.glEnableVertexAttribArray(2);
+        gl.glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<const void*>(offset + uvOffset));
+    } else {
         gl.glDisableVertexAttribArray(2);
-        gl.glDisableVertexAttribArray(3);
         if (gl.glVertexAttrib2f != nullptr) gl.glVertexAttrib2f(2, 0.0f, 0.0f);
-        if (gl.glVertexAttrib1f != nullptr) gl.glVertexAttrib1f(3, 1.0f);
-        break;
+    }
 
-    case Shader::Vertex::Format::PosTex0:
-        gl.glEnableVertexAttribArray(0);
-        gl.glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<const void*>(offset + 0));
-        gl.glDisableVertexAttribArray(1);
-        gl.glEnableVertexAttribArray(2);
-        gl.glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<const void*>(offset + 8));
-        gl.glDisableVertexAttribArray(3);
-        if (gl.glVertexAttrib4f != nullptr) gl.glVertexAttrib4f(1, 1.0f, 1.0f, 1.0f, 1.0f);
-        if (gl.glVertexAttrib1f != nullptr) gl.glVertexAttrib1f(3, 1.0f);
-        break;
-
-    case Shader::Vertex::Format::PosColorCoverage:
-        gl.glEnableVertexAttribArray(0);
-        gl.glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<const void*>(offset + 0));
-        gl.glEnableVertexAttribArray(1);
-        gl.glVertexAttribPointer(1, 4, GL_UNSIGNED_BYTE, GL_TRUE, stride, reinterpret_cast<const void*>(offset + 8));
-        gl.glDisableVertexAttribArray(2);
+    // Location 3: Coverage
+    if (coverageOffset >= 0) {
         gl.glEnableVertexAttribArray(3);
-        gl.glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<const void*>(offset + 12));
-        if (gl.glVertexAttrib2f != nullptr) gl.glVertexAttrib2f(2, 0.0f, 0.0f);
-        break;
-
-    case Shader::Vertex::Format::PosTex0Coverage:
-        gl.glEnableVertexAttribArray(0);
-        gl.glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<const void*>(offset + 0));
-        gl.glDisableVertexAttribArray(1);
-        gl.glEnableVertexAttribArray(2);
-        gl.glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<const void*>(offset + 8));
-        gl.glEnableVertexAttribArray(3);
-        gl.glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<const void*>(offset + 16));
-        if (gl.glVertexAttrib4f != nullptr) gl.glVertexAttrib4f(1, 1.0f, 1.0f, 1.0f, 1.0f);
-        break;
-
-    case Shader::Vertex::Format::PosColorTex1:
-        gl.glEnableVertexAttribArray(0);
-        gl.glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<const void*>(offset + 0));
-        gl.glEnableVertexAttribArray(1);
-        gl.glVertexAttribPointer(1, 4, GL_UNSIGNED_BYTE, GL_TRUE, stride, reinterpret_cast<const void*>(offset + 8));
-        gl.glEnableVertexAttribArray(2);
-        gl.glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<const void*>(offset + 12));
+        gl.glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<const void*>(offset + coverageOffset));
+    } else {
         gl.glDisableVertexAttribArray(3);
         if (gl.glVertexAttrib1f != nullptr) gl.glVertexAttrib1f(3, 1.0f);
-        break;
-
-    case Shader::Vertex::Format::PosTex0Tex1:
-        gl.glEnableVertexAttribArray(0);
-        gl.glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<const void*>(offset + 0));
-        gl.glDisableVertexAttribArray(1);
-        gl.glEnableVertexAttribArray(2);
-        gl.glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<const void*>(offset + 8));
-        gl.glDisableVertexAttribArray(3);
-        if (gl.glVertexAttrib4f != nullptr) gl.glVertexAttrib4f(1, 1.0f, 1.0f, 1.0f, 1.0f);
-        if (gl.glVertexAttrib1f != nullptr) gl.glVertexAttrib1f(3, 1.0f);
-        break;
-
-    default:
-        // Full Vertex2D layout
-        gl.glEnableVertexAttribArray(0);
-        gl.glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 24, reinterpret_cast<const void*>(offset + 0));
-        gl.glEnableVertexAttribArray(1);
-        gl.glVertexAttribPointer(1, 4, GL_UNSIGNED_BYTE, GL_TRUE, 24, reinterpret_cast<const void*>(offset + 8));
-        gl.glEnableVertexAttribArray(2);
-        gl.glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 24, reinterpret_cast<const void*>(offset + 12));
-        gl.glEnableVertexAttribArray(3);
-        gl.glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, 24, reinterpret_cast<const void*>(offset + 20));
-        break;
     }
 }
 
 void OpenGL33RenderDevice::Shutdown() noexcept {
-    if (g_glResolved) {
-        const GLCallbacks& gl = g_gl;
+    if (glResolved_) {
+        const GLCallbacks& gl = gl_;
         if (samplers_[0] != 0 && gl.glDeleteSamplers != nullptr) {
             gl.glDeleteSamplers(StateCache::kSamplerTableSize, samplers_);
             for (uint8_t i = 0; i < StateCache::kSamplerTableSize; ++i) samplers_[i] = 0;
@@ -921,15 +854,7 @@ void OpenGL33RenderDevice::Shutdown() noexcept {
                 }
             }
         }
-        solidProgram_ = 0;
-        patternProgram_ = 0;
-        sdfProgram_ = 0;
-        blurProgram_ = 0;
-        shadowProgram_ = 0;
-        maskProgram_ = 0;
         customEffectProgram_ = 0;
-        linearProgram_ = 0;
-        radialProgram_ = 0;
         currentProgram_ = 0;
         if (dynamicVB_ != 0 && gl.glDeleteBuffers != nullptr) gl.glDeleteBuffers(1, &dynamicVB_);
         if (dynamicIB_ != 0 && gl.glDeleteBuffers != nullptr) gl.glDeleteBuffers(1, &dynamicIB_);
@@ -949,7 +874,7 @@ Ref<RenderTarget> OpenGL33RenderDevice::CreateRenderTarget(
     static_cast<void>(sampleCount);
     if (vao_ == 0 || width == 0 || height == 0) return {};
 
-    const GLCallbacks& gl = g_gl;
+    const GLCallbacks& gl = gl_;
 
     GLuint texture = 0;
     gl.glGenTextures(1, &texture);
@@ -959,6 +884,8 @@ Ref<RenderTarget> OpenGL33RenderDevice::CreateRenderTarget(
         0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
     gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     gl.glBindTexture(GL_TEXTURE_2D, 0);
 
     GLuint fbo = 0;
@@ -986,12 +913,31 @@ Ref<RenderTarget> OpenGL33RenderDevice::CreateRenderTarget(
         return {};
     }
 
-    Ref<OpenGL33Texture> glTex = Base::MakeRef<OpenGL33Texture>(
-        texture, width, height, false, true, GL_RGBA).Value();
-
     Ref<RenderDevice> self = Ref<RenderDevice>::TryFromBorrowed(*this);
-    return Base::MakeRef<OpenGL33RenderTarget>(
-        std::move(self), std::move(glTex), fbo, rbo, width, height, false).Value();
+    auto makeTexResult = allocator_ != nullptr
+        ? Base::MakeRefWithAllocator<OpenGL33Texture>(
+              *allocator_, self, texture, width, height, false, true, static_cast<uint32_t>(GL_RGBA), &gl_)
+        : Base::MakeRef<OpenGL33Texture>(
+              self, texture, width, height, false, true, static_cast<uint32_t>(GL_RGBA), &gl_);
+    if (!makeTexResult) {
+        if (rbo != 0) gl.glDeleteRenderbuffers(1, &rbo);
+        gl.glDeleteFramebuffers(1, &fbo);
+        gl.glDeleteTextures(1, &texture);
+        return {};
+    }
+    Ref<OpenGL33Texture> glTex = makeTexResult.Value();
+
+    auto makeRtResult = allocator_ != nullptr
+        ? Base::MakeRefWithAllocator<OpenGL33RenderTarget>(
+              *allocator_, std::move(self), std::move(glTex), fbo, rbo, width, height, false, &gl_)
+        : Base::MakeRef<OpenGL33RenderTarget>(
+              std::move(self), std::move(glTex), fbo, rbo, width, height, false, &gl_);
+    if (!makeRtResult) {
+        if (rbo != 0) gl.glDeleteRenderbuffers(1, &rbo);
+        gl.glDeleteFramebuffers(1, &fbo);
+        return {};
+    }
+    return makeRtResult.Value();
 }
 
 Ref<RenderTarget> OpenGL33RenderDevice::CloneRenderTarget(
@@ -1007,7 +953,7 @@ Ref<Texture> OpenGL33RenderDevice::CreateTexture(
     static_cast<void>(label);
     if (vao_ == 0 || width == 0 || height == 0) return {};
 
-    const GLCallbacks& gl = g_gl;
+    const GLCallbacks& gl = gl_;
     const bool isR8 = format == TextureFormat::R8;
     const GLint internalFormat = isR8 ? GL_R8 : GL_RGBA8;
     const GLenum glFormat = isR8 ? GL_RED : GL_RGBA;
@@ -1025,8 +971,19 @@ Ref<Texture> OpenGL33RenderDevice::CreateTexture(
     gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     gl.glBindTexture(GL_TEXTURE_2D, 0);
 
-    return Base::MakeRef<OpenGL33Texture>(
-        texture, width, height, numLevels > 1, format != TextureFormat::RGBX8, glFormat).Value();
+    Ref<RenderDevice> self = Ref<RenderDevice>::TryFromBorrowed(*this);
+    auto makeTexResult = allocator_ != nullptr
+        ? Base::MakeRefWithAllocator<OpenGL33Texture>(
+              *allocator_, std::move(self), texture, width, height,
+              numLevels > 1, format != TextureFormat::RGBX8, glFormat, &gl_)
+        : Base::MakeRef<OpenGL33Texture>(
+              std::move(self), texture, width, height,
+              numLevels > 1, format != TextureFormat::RGBX8, glFormat, &gl_);
+    if (!makeTexResult) {
+        gl.glDeleteTextures(1, &texture);
+        return {};
+    }
+    return makeTexResult.Value();
 }
 
 void OpenGL33RenderDevice::BeginUpdatingTextures() noexcept {}
@@ -1037,13 +994,13 @@ void OpenGL33RenderDevice::UpdateTexture(
     if (vao_ == 0 || texture == nullptr || data == nullptr) return;
     auto* glTex = static_cast<OpenGL33Texture*>(texture);
 
-    g_gl.glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-    g_gl.glBindTexture(GL_TEXTURE_2D, glTex->GetNativeTexture());
-    g_gl.glTexSubImage2D(GL_TEXTURE_2D, static_cast<GLint>(level),
+    gl_.glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    gl_.glBindTexture(GL_TEXTURE_2D, glTex->GetNativeTexture());
+    gl_.glTexSubImage2D(GL_TEXTURE_2D, static_cast<GLint>(level),
         static_cast<GLint>(x), static_cast<GLint>(y),
         static_cast<GLsizei>(width), static_cast<GLsizei>(height),
         glTex->GetGLFormat(), GL_UNSIGNED_BYTE, data);
-    g_gl.glBindTexture(GL_TEXTURE_2D, 0);
+    gl_.glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 void OpenGL33RenderDevice::EndUpdatingTextures(Texture** textures, uint32_t count) noexcept {
@@ -1052,45 +1009,74 @@ void OpenGL33RenderDevice::EndUpdatingTextures(Texture** textures, uint32_t coun
 }
 
 void OpenGL33RenderDevice::BeginOffscreenRender() noexcept {
+    ++offscreenDepth_;
     renderingOffscreen_ = true;
-    if (vao_ == 0 || currentTarget_ == nullptr) return;
-    if (currentTarget_->IsDefaultFBO()) return;
+    if (vao_ == 0 || currentTarget_ == nullptr || currentTarget_->IsDefaultFBO()) return;
     stateCache_.Reset();
-    g_gl.glDisable(GL_SCISSOR_TEST);
-    g_gl.glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-    g_gl.glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-    g_gl.glClear(GL_COLOR_BUFFER_BIT);
+    cachedPaint0Hash_ = 0U;
+    cachedEffectColorHash_ = 0U;
+    cachedFlipY_ = -1.0f;
+    gl_.glDisable(GL_SCISSOR_TEST);
+    gl_.glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    gl_.glStencilMask(0xFF);
+    gl_.glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+    gl_.glClearStencil(0);
+    gl_.glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 }
+void OpenGL33RenderDevice::ClearTextures() noexcept {
+    for (uint32_t slot = 0; slot < StateCache::kTextureSlots; ++slot) {
+        if (gl_.glActiveTexture != nullptr && gl_.glBindTexture != nullptr) {
+            gl_.glActiveTexture(GL_TEXTURE0 + slot);
+            gl_.glBindTexture(GL_TEXTURE_2D, 0);
+        }
+    }
+}
+
 void OpenGL33RenderDevice::EndOffscreenRender() noexcept {
-    renderingOffscreen_ = false;
+    ClearTextures();
+    if (offscreenDepth_ > 0U) {
+        --offscreenDepth_;
+    }
+    renderingOffscreen_ = (offscreenDepth_ > 0U);
 }
 void OpenGL33RenderDevice::BeginOnscreenRender() noexcept {
+    offscreenDepth_ = 0U;
     renderingOffscreen_ = false;
-    // Clear the window color buffer once per frame. SetRenderTarget must not
-    // clear the default FBO: offscreen compositing rebinds it after drawing
-    // background/sidebar content and a second clear would wipe those pixels.
     if (vao_ == 0 || currentTarget_ == nullptr) return;
-    if (!currentTarget_->IsDefaultFBO()) return;
     stateCache_.Reset();
-    g_gl.glDisable(GL_SCISSOR_TEST);
-    g_gl.glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-    g_gl.glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-    g_gl.glClear(GL_COLOR_BUFFER_BIT);
+    cachedPaint0Hash_ = 0U;
+    cachedEffectColorHash_ = 0U;
+    cachedFlipY_ = -1.0f;
+    gl_.glDisable(GL_SCISSOR_TEST);
+    gl_.glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    gl_.glStencilMask(0xFF);
+    gl_.glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+    gl_.glClearStencil(0);
+    gl_.glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 }
 void OpenGL33RenderDevice::EndOnscreenRender() noexcept {
+    ClearTextures();
+    offscreenDepth_ = 0U;
     renderingOffscreen_ = false;
 }
 
 void OpenGL33RenderDevice::SetRenderTarget(RenderTarget* surface) noexcept {
     if (vao_ == 0) return;
+    ClearTextures();
     stateCache_.Reset();
+    cachedPaint0Hash_ = 0U;
+    cachedEffectColorHash_ = 0U;
+    cachedFlipY_ = -1.0f;
     currentTarget_ = static_cast<OpenGL33RenderTarget*>(surface);
     if (currentTarget_ == nullptr) return;
 
+    if (offscreenDepth_ == 0U && currentTarget_->IsDefaultFBO()) {
+        renderingOffscreen_ = false;
+    }
     viewportWidth_ = currentTarget_->GetWidth();
     viewportHeight_ = currentTarget_->GetHeight();
-    g_gl.glBindFramebuffer(GL_FRAMEBUFFER, currentTarget_->GetFBO());
-    g_gl.glViewport(0, 0,
+    gl_.glBindFramebuffer(GL_FRAMEBUFFER, currentTarget_->GetFBO());
+    gl_.glViewport(0, 0,
         static_cast<GLsizei>(viewportWidth_), static_cast<GLsizei>(viewportHeight_));
 }
 
@@ -1098,23 +1084,19 @@ void OpenGL33RenderDevice::BeginTile(RenderTarget* surface, const Tile& tile) no
     static_cast<void>(surface);
     if (vao_ == 0) return;
 
-    if (g_gl.glClearStencil != nullptr && g_gl.glClear != nullptr) {
-        g_gl.glClearStencil(0);
-        g_gl.glClear(GL_STENCIL_BUFFER_BIT);
-    }
-
     // Scissor origin is bottom-left; the encoder issues top-left coordinates.
-    const GLint y = static_cast<GLint>(viewportHeight_) -
-        static_cast<GLint>(tile.y + tile.height);
-    g_gl.glScissor(static_cast<GLint>(tile.x), y,
+    const GLint y = renderingOffscreen_
+        ? static_cast<GLint>(tile.y)
+        : (static_cast<GLint>(viewportHeight_) - static_cast<GLint>(tile.y + tile.height));
+    gl_.glScissor(static_cast<GLint>(tile.x), y,
         static_cast<GLsizei>(tile.width), static_cast<GLsizei>(tile.height));
-    g_gl.glEnable(GL_SCISSOR_TEST);
+    gl_.glEnable(GL_SCISSOR_TEST);
 }
 
 void OpenGL33RenderDevice::EndTile(RenderTarget* surface) noexcept {
     static_cast<void>(surface);
     if (vao_ == 0) return;
-    g_gl.glDisable(GL_SCISSOR_TEST);
+    gl_.glDisable(GL_SCISSOR_TEST);
 }
 
 void OpenGL33RenderDevice::ResolveRenderTarget(
@@ -1125,27 +1107,61 @@ void OpenGL33RenderDevice::ResolveRenderTarget(
 }
 
 void* OpenGL33RenderDevice::MapVertices(uint32_t bytes) noexcept {
-    activeVBBytes_ = bytes > 0U ? bytes : DYNAMIC_VB_SIZE;
-    return mappedVBMemory_;
+    if (bytes == 0U || gl_.glMapBufferRange == nullptr) return nullptr;
+    activeVBBytes_ = bytes;
+    uint32_t allocOffset = 0U;
+    const bool wrapped = vbRing_.Allocate(bytes, 64U, allocOffset);
+    gl_.glBindBuffer(GL_ARRAY_BUFFER, dynamicVB_);
+    GLbitfield access = GL_MAP_WRITE_BIT | GL_MAP_UNSYNCHRONIZED_BIT;
+    if (wrapped && gl_.glBufferData != nullptr) {
+        // Buffer Orphaning to eliminate CPU-GPU pipeline stalls on wrap
+        gl_.glBufferData(GL_ARRAY_BUFFER, vbRing_.capacity, nullptr, GL_DYNAMIC_DRAW);
+        access = GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT;
+    }
+    return gl_.glMapBufferRange(
+        GL_ARRAY_BUFFER,
+        static_cast<GLintptr>(allocOffset),
+        static_cast<GLsizeiptr>(bytes),
+        access);
 }
 
 void OpenGL33RenderDevice::UnmapVertices() noexcept {
-    if (vao_ == 0 || activeVBBytes_ == 0U) return;
-    g_gl.glBindBuffer(GL_ARRAY_BUFFER, dynamicVB_);
-    g_gl.glBufferSubData(GL_ARRAY_BUFFER, 0,
-        static_cast<GLsizeiptr>(activeVBBytes_), mappedVBMemory_);
+    if (vao_ == 0 || activeVBBytes_ == 0U || gl_.glUnmapBuffer == nullptr) return;
+    gl_.glBindBuffer(GL_ARRAY_BUFFER, dynamicVB_);
+    gl_.glUnmapBuffer(GL_ARRAY_BUFFER);
+    activeVBBytes_ = 0U;
 }
 
 void* OpenGL33RenderDevice::MapIndices(uint32_t bytes) noexcept {
-    activeIBBytes_ = bytes > 0U ? bytes : DYNAMIC_IB_SIZE;
-    return mappedIBMemory_;
+    if (bytes == 0U || gl_.glMapBufferRange == nullptr) return nullptr;
+    if (vao_ != 0 && gl_.glBindVertexArray != nullptr) {
+        gl_.glBindVertexArray(vao_);
+    }
+    activeIBBytes_ = bytes;
+    uint32_t allocOffset = 0U;
+    const bool wrapped = ibRing_.Allocate(bytes, 64U, allocOffset);
+    gl_.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, dynamicIB_);
+    GLbitfield access = GL_MAP_WRITE_BIT | GL_MAP_UNSYNCHRONIZED_BIT;
+    if (wrapped && gl_.glBufferData != nullptr) {
+        // Buffer Orphaning to eliminate CPU-GPU pipeline stalls on wrap
+        gl_.glBufferData(GL_ELEMENT_ARRAY_BUFFER, ibRing_.capacity, nullptr, GL_DYNAMIC_DRAW);
+        access = GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT;
+    }
+    return gl_.glMapBufferRange(
+        GL_ELEMENT_ARRAY_BUFFER,
+        static_cast<GLintptr>(allocOffset),
+        static_cast<GLsizeiptr>(bytes),
+        access);
 }
 
 void OpenGL33RenderDevice::UnmapIndices() noexcept {
-    if (vao_ == 0 || activeIBBytes_ == 0U) return;
-    g_gl.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, dynamicIB_);
-    g_gl.glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0,
-        static_cast<GLsizeiptr>(activeIBBytes_), mappedIBMemory_);
+    if (vao_ == 0 || activeIBBytes_ == 0U || gl_.glUnmapBuffer == nullptr) return;
+    if (gl_.glBindVertexArray != nullptr) {
+        gl_.glBindVertexArray(vao_);
+    }
+    gl_.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, dynamicIB_);
+    gl_.glUnmapBuffer(GL_ELEMENT_ARRAY_BUFFER);
+    activeIBBytes_ = 0U;
 }
 
 void OpenGL33RenderDevice::DrawBatch(const Batch& batch) noexcept {
@@ -1158,7 +1174,7 @@ void OpenGL33RenderDevice::DrawBatch(const Batch& batch) noexcept {
     } else if (batch.shader.v < Shader::Count && programs_[batch.shader.v] != 0) {
         program = programs_[batch.shader.v];
     } else {
-        program = solidProgram_;
+        program = programs_[Shader::Path_Solid];
     }
     if (program == 0) return;
 
@@ -1166,29 +1182,17 @@ void OpenGL33RenderDevice::DrawBatch(const Batch& batch) noexcept {
     uint8_t samplerIndices[5] = {0, 0, 0, 0, 0};
     GLuint samplerIds[5] = {0, 0, 0, 0, 0};
 
-    // Slot 0: Pattern (with fallback to image, ramps or glyphs for legacy single-slot draws)
-    Texture* patTex = batch.pattern ? batch.pattern : batch.image;
-    if (patTex != nullptr) {
-        texIds[0] = static_cast<OpenGL33Texture*>(patTex)->GetNativeTexture();
-        samplerIndices[0] = StateCache::ClampSamplerIndex(
-            batch.pattern ? batch.patternSampler.v : batch.imageSampler.v);
-        samplerIds[0] = samplers_[samplerIndices[0]];
-    } else if (batch.ramps != nullptr) {
-        texIds[0] = static_cast<OpenGL33Texture*>(batch.ramps)->GetNativeTexture();
-        samplerIndices[0] = StateCache::ClampSamplerIndex(batch.rampsSampler.v);
-        samplerIds[0] = samplers_[samplerIndices[0]];
-    } else if (batch.glyphs != nullptr) {
-        texIds[0] = static_cast<OpenGL33Texture*>(batch.glyphs)->GetNativeTexture();
-        samplerIndices[0] = StateCache::ClampSamplerIndex(batch.glyphsSampler.v);
+    // Slot 0: Pattern
+    if (batch.pattern != nullptr) {
+        texIds[0] = static_cast<OpenGL33Texture*>(batch.pattern)->GetNativeTexture();
+        samplerIndices[0] = StateCache::ClampSamplerIndex(batch.patternSampler.v);
         samplerIds[0] = samplers_[samplerIndices[0]];
     }
 
-    // Slot 1: Ramps (for legacy Mask, fallback to shadow if ramps is null)
-    Texture* rampsTex = batch.ramps ? batch.ramps : (batch.shader.v == Shader::Mask ? batch.shadow : nullptr);
-    if (rampsTex != nullptr) {
-        texIds[1] = static_cast<OpenGL33Texture*>(rampsTex)->GetNativeTexture();
-        samplerIndices[1] = StateCache::ClampSamplerIndex(
-            batch.ramps ? batch.rampsSampler.v : batch.shadowSampler.v);
+    // Slot 1: Ramps
+    if (batch.ramps != nullptr) {
+        texIds[1] = static_cast<OpenGL33Texture*>(batch.ramps)->GetNativeTexture();
+        samplerIndices[1] = StateCache::ClampSamplerIndex(batch.rampsSampler.v);
         samplerIds[1] = samplers_[samplerIndices[1]];
     }
 
@@ -1206,12 +1210,10 @@ void OpenGL33RenderDevice::DrawBatch(const Batch& batch) noexcept {
         samplerIds[3] = samplers_[samplerIndices[3]];
     }
 
-    // Slot 4: Shadow (with fallback to image when shader == Shadow)
-    Texture* shadowTex = batch.shadow ? batch.shadow : (batch.shader.v == Shader::Shadow ? batch.image : nullptr);
-    if (shadowTex != nullptr) {
-        texIds[4] = static_cast<OpenGL33Texture*>(shadowTex)->GetNativeTexture();
-        samplerIndices[4] = StateCache::ClampSamplerIndex(
-            batch.shadow ? batch.shadowSampler.v : batch.imageSampler.v);
+    // Slot 4: Shadow
+    if (batch.shadow != nullptr) {
+        texIds[4] = static_cast<OpenGL33Texture*>(batch.shadow)->GetNativeTexture();
+        samplerIndices[4] = StateCache::ClampSamplerIndex(batch.shadowSampler.v);
         samplerIds[4] = samplers_[samplerIndices[4]];
     }
 
@@ -1220,19 +1222,36 @@ void OpenGL33RenderDevice::DrawBatch(const Batch& batch) noexcept {
     const bool pipelineHandleChanged = stateCache_.UpdatePipelineHandle(
         static_cast<std::uintptr_t>(program));
     if (pipelineEnumChanged || pipelineHandleChanged || currentProgram_ != program) {
-        g_gl.glUseProgram(program);
+        gl_.glUseProgram(program);
         currentProgram_ = program;
+        cachedPaint0Hash_ = 0U;
+        cachedEffectColorHash_ = 0U;
+        cachedFlipY_ = -1.0f;
+        cachedViewportWidth_ = 0U;
+        cachedViewportHeight_ = 0U;
+        cachedTextureSizeWidth_ = 0U;
+        cachedTextureSizeHeight_ = 0U;
     }
 
-    const GLint viewportLocation = g_gl.glGetUniformLocation(program, "uViewportSize");
-    if (viewportLocation != -1) {
-        g_gl.glUniform2f(viewportLocation,
-            static_cast<GLfloat>(viewportWidth_),
-            static_cast<GLfloat>(viewportHeight_));
+    const ProgramLocations& locs = (batch.shader.v == Shader::Custom_Effect)
+        ? customEffectLocations_
+        : ((batch.shader.v < Shader::Count) ? programLocations_[batch.shader.v] : programLocations_[Shader::Path_Solid]);
+
+    if (locs.uViewportSize != -1) {
+        if (cachedViewportWidth_ != viewportWidth_ || cachedViewportHeight_ != viewportHeight_) {
+            gl_.glUniform2f(locs.uViewportSize,
+                static_cast<GLfloat>(viewportWidth_),
+                static_cast<GLfloat>(viewportHeight_));
+            cachedViewportWidth_ = viewportWidth_;
+            cachedViewportHeight_ = viewportHeight_;
+        }
     }
-    const GLint flipLocation = g_gl.glGetUniformLocation(program, "uFlipY");
-    if (flipLocation != -1) {
-        g_gl.glUniform1f(flipLocation, renderingOffscreen_ ? 1.0F : 0.0F);
+    if (locs.uFlipY != -1) {
+        const float flipVal = renderingOffscreen_ ? 1.0F : 0.0F;
+        if (cachedFlipY_ != flipVal) {
+            gl_.glUniform1f(locs.uFlipY, flipVal);
+            cachedFlipY_ = flipVal;
+        }
     }
 
     const bool setTextureSize = (batch.shader.v == Shader::Blur ||
@@ -1241,57 +1260,66 @@ void OpenGL33RenderDevice::DrawBatch(const Batch& batch) noexcept {
                                  batch.shader.v == Shader::Custom_Effect);
     if (setTextureSize && batch.pixelUniforms[0].values != nullptr &&
         batch.pixelUniforms[0].numDwords >= 2U) {
-        const GLint textureSizeLocation =
-            g_gl.glGetUniformLocation(program, "uTextureSize");
-        if (textureSizeLocation != -1) {
+        if (locs.uTextureSize != -1) {
             const float* size =
                 static_cast<const float*>(batch.pixelUniforms[0].values);
-            g_gl.glUniform2f(
-                textureSizeLocation, size[0], size[1]);
+            uint32_t sw = 0U, sh = 0U;
+            std::memcpy(&sw, &size[0], sizeof(float));
+            std::memcpy(&sh, &size[1], sizeof(float));
+            if (cachedTextureSizeWidth_ != sw || cachedTextureSizeHeight_ != sh) {
+                gl_.glUniform2f(locs.uTextureSize, size[0], size[1]);
+                cachedTextureSizeWidth_ = sw;
+                cachedTextureSizeHeight_ = sh;
+            }
         }
     }
 
     if (batch.pixelUniforms[0].values != nullptr &&
         batch.pixelUniforms[0].numDwords >= 1U &&
-        g_gl.glUniform4f != nullptr) {
-        const float* vals =
-            static_cast<const float*>(batch.pixelUniforms[0].values);
-        const uint32_t num = batch.pixelUniforms[0].numDwords;
-        const GLint paint0Loc =
-            g_gl.glGetUniformLocation(program, "uPaint0");
-        if (paint0Loc != -1) {
-            float p0[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-            for (uint32_t i = 0; i < std::min(num, 4U); ++i) p0[i] = vals[i];
-            g_gl.glUniform4f(paint0Loc, p0[0], p0[1], p0[2], p0[3]);
-        }
-        if (num > 4U) {
-            const GLint paint1Loc =
-                g_gl.glGetUniformLocation(program, "uPaint1");
-            if (paint1Loc != -1) {
-                float p1[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-                for (uint32_t i = 4U; i < std::min(num, 8U); ++i) p1[i - 4U] = vals[i];
-                g_gl.glUniform4f(paint1Loc, p1[0], p1[1], p1[2], p1[3]);
+        gl_.glUniform4f != nullptr) {
+        const uint32_t hash0 = batch.pixelUniforms[0].hash != 0U
+            ? batch.pixelUniforms[0].hash
+            : 1U;
+        if (cachedPaint0Hash_ != hash0) {
+            const float* vals =
+                static_cast<const float*>(batch.pixelUniforms[0].values);
+            const uint32_t num = batch.pixelUniforms[0].numDwords;
+            if (locs.uPaint0 != -1) {
+                float p0[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+                for (uint32_t i = 0; i < std::min(num, 4U); ++i) p0[i] = vals[i];
+                gl_.glUniform4f(locs.uPaint0, p0[0], p0[1], p0[2], p0[3]);
             }
+            if (num > 4U) {
+                if (locs.uPaint1 != -1) {
+                    float p1[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+                    for (uint32_t i = 4U; i < std::min(num, 8U); ++i) p1[i - 4U] = vals[i];
+                    gl_.glUniform4f(locs.uPaint1, p1[0], p1[1], p1[2], p1[3]);
+                }
+            }
+            cachedPaint0Hash_ = hash0;
         }
     }
 
     if (batch.pixelUniforms[1].values != nullptr &&
         batch.pixelUniforms[1].numDwords >= 4U &&
-        g_gl.glUniform4f != nullptr) {
-        const GLint colorLocation =
-            g_gl.glGetUniformLocation(program, "uEffectColor");
-        if (colorLocation != -1) {
-            const float* color =
-                static_cast<const float*>(batch.pixelUniforms[1].values);
-            g_gl.glUniform4f(
-                colorLocation, color[0], color[1], color[2], color[3]);
+        gl_.glUniform4f != nullptr) {
+        const uint32_t hash1 = batch.pixelUniforms[1].hash != 0U
+            ? batch.pixelUniforms[1].hash
+            : 1U;
+        if (cachedEffectColorHash_ != hash1) {
+            if (locs.uEffectColor != -1) {
+                const float* color =
+                    static_cast<const float*>(batch.pixelUniforms[1].values);
+                gl_.glUniform4f(
+                    locs.uEffectColor, color[0], color[1], color[2], color[3]);
+            }
+            cachedEffectColorHash_ = hash1;
         }
     } else if (batch.shader.v == Shader::Custom_Effect &&
-               g_gl.glUniform4f != nullptr) {
-        const GLint colorLocation =
-            g_gl.glGetUniformLocation(program, "uEffectColor");
-        if (colorLocation != -1) {
-            g_gl.glUniform4f(colorLocation, 1.0F, 1.0F, 1.0F, 1.0F);
+               gl_.glUniform4f != nullptr) {
+        if (locs.uEffectColor != -1 && cachedEffectColorHash_ != 0xFFFFFFFFU) {
+            gl_.glUniform4f(locs.uEffectColor, 1.0F, 1.0F, 1.0F, 1.0F);
+            cachedEffectColorHash_ = 0xFFFFFFFFU;
         }
     }
 
@@ -1299,19 +1327,6 @@ void OpenGL33RenderDevice::DrawBatch(const Batch& batch) noexcept {
         ? VertexForShader[batch.shader.v] : 0U;
     const uint8_t format = (vertexEnum < Shader::Vertex::Count)
         ? FormatForVertex[vertexEnum] : 0U;
-    const uint32_t stride = SizeForFormat[format] != 0U
-        ? SizeForFormat[format] : 24U;
-
-    if (g_gl.glDrawElementsBaseVertex == nullptr) {
-        g_gl.glBindBuffer(GL_ARRAY_BUFFER, dynamicVB_);
-        g_gl.glBufferSubData(GL_ARRAY_BUFFER, 0,
-            static_cast<GLsizeiptr>(batch.numVertices) * stride,
-            mappedVBMemory_ + batch.vertexOffset);
-        g_gl.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, dynamicIB_);
-        g_gl.glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0,
-            static_cast<GLsizeiptr>(batch.numIndices) * sizeof(uint16_t),
-            mappedIBMemory_ + static_cast<GLsizeiptr>(batch.startIndex) * sizeof(uint16_t));
-    }
 
     // Blend + color-mask via shared StateCache (dedupe parallel D3D path).
     const BlendStateKey blendKey{
@@ -1319,32 +1334,32 @@ void OpenGL33RenderDevice::DrawBatch(const Batch& batch) noexcept {
         batch.renderState.f.colorEnable};
     if (stateCache_.UpdateBlend(blendKey)) {
         if (blendKey.blendMode == BlendMode::Src) {
-            g_gl.glDisable(GL_BLEND);
+            gl_.glDisable(GL_BLEND);
         } else {
-            g_gl.glEnable(GL_BLEND);
+            gl_.glEnable(GL_BLEND);
             switch (blendKey.blendMode) {
             case BlendMode::SrcOver_Multiply:
-                g_gl.glBlendFuncSeparate(
+                gl_.glBlendFuncSeparate(
                     GL_DEST_COLOR, GL_ONE_MINUS_SRC_ALPHA,
                     GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
                 break;
             case BlendMode::SrcOver_Screen:
-                g_gl.glBlendFuncSeparate(
+                gl_.glBlendFuncSeparate(
                     GL_ONE, GL_ONE_MINUS_SRC_COLOR,
                     GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
                 break;
             case BlendMode::SrcOver_Additive:
-                g_gl.glBlendFuncSeparate(
+                gl_.glBlendFuncSeparate(
                     GL_ONE, GL_ONE, GL_ONE, GL_ONE);
                 break;
             case BlendMode::SrcOver_Dual:
-                g_gl.glBlendFuncSeparate(
+                gl_.glBlendFuncSeparate(
                     GL_ONE, GL_ONE_MINUS_SRC1_COLOR,
                     GL_ONE, GL_ONE_MINUS_SRC1_ALPHA);
                 break;
             case BlendMode::SrcOver:
             default:
-                g_gl.glBlendFuncSeparate(
+                gl_.glBlendFuncSeparate(
                     GL_ONE, GL_ONE_MINUS_SRC_ALPHA,
                     GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
                 break;
@@ -1352,83 +1367,113 @@ void OpenGL33RenderDevice::DrawBatch(const Batch& batch) noexcept {
         }
         const GLboolean colorMask =
             blendKey.colorEnable != 0 ? GL_TRUE : GL_FALSE;
-        g_gl.glColorMask(colorMask, colorMask, colorMask, colorMask);
+        gl_.glColorMask(colorMask, colorMask, colorMask, colorMask);
     }
 
     const DepthStencilStateKey dsKey{
         batch.renderState.f.stencilMode,
         batch.stencilRef};
-    if (g_gl.glStencilFunc != nullptr && g_gl.glStencilOp != nullptr &&
+    if (gl_.glStencilFunc != nullptr && gl_.glStencilOp != nullptr &&
         stateCache_.UpdateDepthStencil(dsKey)) {
         switch (dsKey.stencilMode) {
         case StencilMode::Equal_Keep:
         case StencilMode::Equal_Keep_ZTest:
-            g_gl.glEnable(GL_STENCIL_TEST);
-            g_gl.glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
-            g_gl.glStencilFunc(GL_EQUAL, static_cast<GLint>(dsKey.stencilRef), 0xFF);
+            gl_.glEnable(GL_STENCIL_TEST);
+            gl_.glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+            gl_.glStencilFunc(GL_EQUAL, static_cast<GLint>(dsKey.stencilRef), 0xFF);
             break;
         case StencilMode::Equal_Incr:
-            g_gl.glEnable(GL_STENCIL_TEST);
-            g_gl.glStencilOp(GL_KEEP, GL_KEEP, GL_INCR_WRAP);
-            g_gl.glStencilFunc(GL_EQUAL, static_cast<GLint>(dsKey.stencilRef), 0xFF);
+            gl_.glEnable(GL_STENCIL_TEST);
+            gl_.glStencilOp(GL_KEEP, GL_KEEP, GL_INCR_WRAP);
+            gl_.glStencilFunc(GL_EQUAL, static_cast<GLint>(dsKey.stencilRef), 0xFF);
             break;
         case StencilMode::Equal_Decr:
-            g_gl.glEnable(GL_STENCIL_TEST);
-            g_gl.glStencilOp(GL_KEEP, GL_KEEP, GL_DECR_WRAP);
-            g_gl.glStencilFunc(GL_EQUAL, static_cast<GLint>(dsKey.stencilRef), 0xFF);
+            gl_.glEnable(GL_STENCIL_TEST);
+            gl_.glStencilOp(GL_KEEP, GL_KEEP, GL_DECR_WRAP);
+            gl_.glStencilFunc(GL_EQUAL, static_cast<GLint>(dsKey.stencilRef), 0xFF);
             break;
         case StencilMode::Clear:
-            g_gl.glEnable(GL_STENCIL_TEST);
-            g_gl.glStencilOp(GL_ZERO, GL_ZERO, GL_ZERO);
-            g_gl.glStencilFunc(GL_ALWAYS, 0, 0xFF);
+            gl_.glEnable(GL_STENCIL_TEST);
+            gl_.glStencilOp(GL_ZERO, GL_ZERO, GL_ZERO);
+            gl_.glStencilFunc(GL_ALWAYS, 0, 0xFF);
             break;
         case StencilMode::Disabled:
         case StencilMode::Disabled_ZTest:
         default:
-            g_gl.glDisable(GL_STENCIL_TEST);
+            gl_.glDisable(GL_STENCIL_TEST);
             break;
         }
     }
 
     for (uint8_t slot = 0U; slot < 5U; ++slot) {
-        if (texIds[slot] != 0) {
-            g_gl.glActiveTexture(GL_TEXTURE0 + slot);
-            g_gl.glBindTexture(GL_TEXTURE_2D, texIds[slot]);
-            if (stateCache_.UpdateSampler(
-                    slot, SamplerBindKey{samplerIndices[slot], true})) {
-                g_gl.glBindSampler(slot, samplerIds[slot]);
-            }
-        } else {
-            static_cast<void>(stateCache_.UpdateSampler(slot, SamplerBindKey{}));
+        if (stateCache_.UpdateTextureAndSampler(
+                slot, static_cast<std::uintptr_t>(texIds[slot]), samplerIndices[slot])) {
+            gl_.glActiveTexture(GL_TEXTURE0 + slot);
+            gl_.glBindTexture(GL_TEXTURE_2D, texIds[slot]);
+            gl_.glBindSampler(slot, texIds[slot] != 0 ? samplerIds[slot] : 0);
         }
     }
 
-    g_gl.glBindVertexArray(vao_);
-    g_gl.glBindBuffer(GL_ARRAY_BUFFER, dynamicVB_);
-    const uintptr_t vbOffset = (g_gl.glDrawElementsBaseVertex != nullptr)
-        ? batch.vertexOffset : 0U;
-    SetVertexFormat(format, vbOffset);
+    const uintptr_t totalVBOffset = vbRing_.currentDrawOffset + batch.vertexOffset;
+    const uintptr_t totalIBOffset = ibRing_.currentDrawOffset + static_cast<uintptr_t>(batch.startIndex) * sizeof(uint16_t);
 
-    if (g_gl.glDrawElementsBaseVertex != nullptr) {
-        g_gl.glDrawElementsBaseVertex(GL_TRIANGLES,
-            static_cast<GLsizei>(batch.numIndices), GL_UNSIGNED_SHORT,
-            reinterpret_cast<const void*>(static_cast<std::uintptr_t>(batch.startIndex) * sizeof(uint16_t)),
-            0);
-    } else {
-        g_gl.glDrawElements(GL_TRIANGLES,
-            static_cast<GLsizei>(batch.numIndices), GL_UNSIGNED_SHORT, nullptr);
+    gl_.glBindVertexArray(vao_);
+    gl_.glBindBuffer(GL_ARRAY_BUFFER, dynamicVB_);
+    gl_.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, dynamicIB_);
+    SetVertexFormat(format, totalVBOffset);
+
+    gl_.glDrawElements(GL_TRIANGLES,
+        static_cast<GLsizei>(batch.numIndices), GL_UNSIGNED_SHORT,
+        reinterpret_cast<const void*>(totalIBOffset));
+}
+
+Base::Result<Base::Ref<Aero::RenderDevice>> OpenGL33::CreateDevice(
+    const ::Aero::Render::OpenGL33::DeviceOptions& options,
+    Base::IAllocator* allocator) noexcept {
+    Base::IAllocator& selected = allocator != nullptr
+        ? *allocator : Base::GetDefaultAllocator();
+
+    Base::Result<Base::Ref<OpenGL33RenderDevice>> made =
+        Base::MakeRefWithAllocator<OpenGL33RenderDevice>(
+            selected, options, &selected);
+    if (!made) return made.GetStatus();
+
+    Base::Ref<OpenGL33RenderDevice> device = std::move(made).Value();
+    Base::Result<void> init = device->Initialize();
+    if (!init) return init.GetStatus();
+
+    return Base::Ref<Aero::RenderDevice>(std::move(device));
+}
+
+Base::Result<Base::Ref<Aero::RenderTarget>> OpenGL33::CreateTarget(
+    Base::Ref<Aero::RenderDevice> device,
+    const OpenGL33::TargetOptions& options,
+    Base::IAllocator* allocator) noexcept {
+    static_cast<void>(allocator);
+    if (!device) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Device is null");
     }
 
-    for (uint8_t slot = 0U; slot < 5U; ++slot) {
-        if (texIds[slot] != 0) {
-            g_gl.glActiveTexture(GL_TEXTURE0 + slot);
-            g_gl.glBindSampler(slot, 0);
-            g_gl.glBindTexture(GL_TEXTURE_2D, 0);
-            static_cast<void>(stateCache_.UpdateSampler(slot, SamplerBindKey{}));
+    if (options.acquireTarget != nullptr) {
+        OpenGL33::EmbeddedTarget targetInfo{};
+        void* ctx = options.targetContext != nullptr ? options.targetContext : options.callbackContext;
+        Base::Status st = options.acquireTarget(ctx, &targetInfo);
+        if (st.IsOk() && targetInfo.width > 0 && targetInfo.height > 0) {
+            auto* glDevice = static_cast<OpenGL33RenderDevice*>(device.Get());
+            const GLCallbacks* gl = glDevice != nullptr ? &glDevice->Callbacks() : nullptr;
+            Ref<OpenGL33Texture> glTex;
+
+            Ref<RenderDevice> devCopy = device;
+            return Base::Ref<Aero::RenderTarget>(
+                Base::MakeRef<OpenGL33RenderTarget>(
+                    std::move(devCopy), std::move(glTex),
+                    static_cast<unsigned int>(targetInfo.framebuffer),
+                    static_cast<unsigned int>(targetInfo.depthStencilTexture),
+                    targetInfo.width, targetInfo.height, targetInfo.defaultFramebuffer, gl).Value());
         }
     }
-    g_gl.glActiveTexture(GL_TEXTURE0);
-    g_gl.glBindVertexArray(0);
+
+    return device->CreateRenderTarget("DefaultGLTarget", 800, 600, 1, false);
 }
 
 } // namespace Aero::Render

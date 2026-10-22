@@ -12,6 +12,7 @@
 #include <new>
 #include <utility>
 #include "gui/core/DependencyObjectAccess.hpp"
+#include "gui/core/TypeRegistryCore.hpp"
 
 namespace Aero {
 
@@ -248,6 +249,73 @@ Base::Result<void> Freezable::Freeze() noexcept {
     return {};
 }
 
+Base::Ref<Freezable> Freezable::CreateInstanceCore() const {
+    return {};
+}
+
+Base::Ref<Freezable> Freezable::Clone() const {
+    Base::Ref<Freezable> clone = CreateInstanceCore();
+    if (clone) {
+        clone->CloneCore(*this);
+    }
+    return clone;
+}
+
+Base::Ref<Freezable> Freezable::CloneCurrentValue() const {
+    Base::Ref<Freezable> clone = CreateInstanceCore();
+    if (clone) {
+        clone->CloneCurrentValueCore(*this);
+    }
+    return clone;
+}
+
+void Freezable::CloneCore(const Freezable& source) {
+    const PropertyStore* store = DependencyObjectAccess::Store(source);
+    if (store == nullptr) return;
+
+    for (const auto& record : store->entries) {
+        const StoredValueEntry& entry = record.Value();
+        if (!entry.HasLocal()) continue;
+
+        const Meta::DependencyPropertyHandle handle{record.Key()};
+        PropertyValue localValue = entry.LocalValueOrUnset();
+        if (localValue.IsUnset()) continue;
+
+        if (localValue.Kind() == Meta::ValueKind::Object &&
+            !localValue.IsNullObject() && localValue.AsObject()) {
+            Base::Object* obj = localValue.AsObject().Get();
+            if (auto* childFreezable = TryCast<Freezable>(obj)) {
+                Base::Ref<Freezable> childClone = childFreezable->Clone();
+                SetValue(handle, PropertyValue::FromObject(localValue.Type(), std::move(childClone)));
+                continue;
+            }
+        }
+        SetValue(handle, localValue);
+    }
+}
+
+void Freezable::CloneCurrentValueCore(const Freezable& source) {
+    const PropertyStore* store = DependencyObjectAccess::Store(source);
+    if (store == nullptr) return;
+
+    for (const auto& record : store->entries) {
+        const Meta::DependencyPropertyHandle handle{record.Key()};
+        PropertyValue currentValue = source.GetValue(handle);
+        if (currentValue.IsUnset()) continue;
+
+        if (currentValue.Kind() == Meta::ValueKind::Object &&
+            !currentValue.IsNullObject() && currentValue.AsObject()) {
+            Base::Object* obj = currentValue.AsObject().Get();
+            if (auto* childFreezable = TryCast<Freezable>(obj)) {
+                Base::Ref<Freezable> childClone = childFreezable->CloneCurrentValue();
+                SetValue(handle, PropertyValue::FromObject(currentValue.Type(), std::move(childClone)));
+                continue;
+            }
+        }
+        SetValue(handle, currentValue);
+    }
+}
+
 void Freezable::AddChangedHandler(
     const FreezableChangedHandler& handler) noexcept {
     if (handler.Empty()) return;
@@ -455,14 +523,27 @@ Base::Result<void> DependencyObject::VisitFreezableChildren(
     Base::Result<void> (*visitor)(void*, Freezable&) noexcept) noexcept {
     DependencyObject& object = *this;
     if (visitor == nullptr) return {};
-    for (const Meta::DependencyProperty& property :
-         DependencyObjectAccess::PropertyRegistry((object)).Properties()) {
-        if (property.MetadataFor(object.RuntimeType()) == nullptr) continue;
-        const Meta::PropertyValue value = object.GetValue(property.Handle());
-        Freezable* child = AsFreezable(object, value);
-        if (child == nullptr) continue;
-        Base::Result<void> visited = visitor(context, *child);
-        if (!visited) return visited.GetStatus();
+    const PropertyStore* store = object.Store();
+    if (store == nullptr) {
+        return {};
+    }
+    Base::Vector<Freezable*> children;
+    for (const auto& record : store->entries) {
+        const StoredValueEntry& entry = record.Value();
+        if (entry.effectiveValue.Kind() != Meta::ValueKind::Object ||
+            entry.effectiveValue.IsNullObject()) {
+            continue;
+        }
+        Freezable* child = AsFreezable(object, entry.effectiveValue);
+        if (child != nullptr) {
+            (void)children.PushBack(child);
+        }
+    }
+    for (Freezable* child : children) {
+        if (child != nullptr) {
+            Base::Result<void> visited = visitor(context, *child);
+            if (!visited) return visited.GetStatus();
+        }
     }
     return {};
 }

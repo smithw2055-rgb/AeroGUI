@@ -153,7 +153,7 @@ public:
     void SetAlternationCount(std::uint32_t value) noexcept { SetValue(AlternationCountProperty, value); }
     StringView GetDisplayMemberPath() const noexcept { return GetValue(DisplayMemberPathProperty); }
     void SetDisplayMemberPath(StringView value) noexcept { SetValue(DisplayMemberPathProperty, value); }
-    const DataTemplate* GetItemTemplate() const noexcept { return itemTemplate_; }
+    Ref<DataTemplate> GetItemTemplate() const noexcept { return GetValue(ItemTemplateProperty); }
     void SetItemTemplate(Ref<DataTemplate> value) noexcept { SetValue(ItemTemplateProperty, std::move(value)); }
     void SetItemTemplate(const DataTemplate* value) noexcept {
         Ref<DataTemplate> retained;
@@ -164,7 +164,7 @@ public:
         }
         SetItemTemplate(std::move(retained));
     }
-    const DataTemplateSelector* GetItemTemplateSelector() const noexcept { return itemTemplateSelector_; }
+    Ref<DataTemplateSelector> GetItemTemplateSelector() const noexcept { return GetValue(ItemTemplateSelectorProperty); }
     void SetItemTemplateSelector(Ref<DataTemplateSelector> value) noexcept {
         SetValue(ItemTemplateSelectorProperty, std::move(value));
     }
@@ -176,7 +176,7 @@ public:
     virtual void ClearContainerForItemOverride(FrameworkElement& container) noexcept;
     virtual Ref<DataTemplate> GetTemplateForItemOverride(const Ref<Base::Object>& item,
         std::uint32_t index) const noexcept;
-    const ItemsPanelTemplate* GetItemsPanel() const noexcept { return itemsPanel_; }
+    Ref<ItemsPanelTemplate> GetItemsPanel() const noexcept { return GetValue(ItemsPanelProperty); }
     void SetItemsPanel(Ref<ItemsPanelTemplate> value) noexcept { SetValue(ItemsPanelProperty, std::move(value)); }
     void SetItemsPanel(const ItemsPanelTemplate* value) noexcept {
         Ref<ItemsPanelTemplate> retained;
@@ -187,7 +187,7 @@ public:
         }
         SetItemsPanel(std::move(retained));
     }
-    const Style* GetItemContainerStyle() const noexcept { return itemContainerStyle_; }
+    Ref<Style> GetItemContainerStyle() const noexcept { return GetValue(ItemContainerStyleProperty); }
     void SetItemContainerStyle(Ref<Style> value) noexcept { SetValue(ItemContainerStyleProperty, std::move(value)); }
     void SetItemContainerStyle(const Style* value) noexcept {
         Ref<Style> retained;
@@ -204,10 +204,16 @@ public:
     std::uint32_t GetRecycledContainerUseCount() const noexcept;
     ItemContainerGenerator* GetItemContainerGenerator() const noexcept { return generator_; }
     void SetItemsSourceCore(Collections::IItemsSource* source) noexcept;
-    void SetItemTemplateCore(const DataTemplate* value) noexcept;
-    void SetItemTemplateSelectorCore(const DataTemplateSelector* value) noexcept;
-    void SetItemsPanelCore(const ItemsPanelTemplate* value) noexcept;
-    void SetItemContainerStyleCore(const Style* value) noexcept;
+    void SetItemTemplateCore(const DataTemplate* value) noexcept { SetItemTemplate(value); }
+    void SetItemTemplateSelectorCore(const DataTemplateSelector* value) noexcept {
+        Ref<DataTemplateSelector> retained;
+        if (value != nullptr) {
+            retained = Ref<DataTemplateSelector>::TryFromBorrowed(*const_cast<DataTemplateSelector*>(value));
+        }
+        SetItemTemplateSelector(std::move(retained));
+    }
+    void SetItemsPanelCore(const ItemsPanelTemplate* value) noexcept { SetItemsPanel(value); }
+    void SetItemContainerStyleCore(const Style* value) noexcept { SetItemContainerStyle(value); }
 
     AERO_READONLY_PROPERTY(std::uint32_t, ItemCount);
     AERO_READONLY_PROPERTY(bool, HasItems);
@@ -253,10 +259,6 @@ private:
 
     ItemCollection items_;
     Collections::IItemsSource* source_ = nullptr;
-    const DataTemplate* itemTemplate_ = nullptr;
-    const DataTemplateSelector* itemTemplateSelector_ = nullptr;
-    const ItemsPanelTemplate* itemsPanel_ = nullptr;
-    const Style* itemContainerStyle_ = nullptr;
     ItemContainerGenerator* generator_ = nullptr;
     Panel* itemsHost_ = nullptr;
     Ref<Base::Object> defaultItemsPresenter_;

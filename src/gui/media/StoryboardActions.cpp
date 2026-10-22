@@ -381,14 +381,8 @@ StoryboardHost::ExecuteAnimationAction(
     if (type == Interactivity::SelectAllAction::StaticTypeId()) {
         if (Metadata()->Types().IsDerivedFrom(
                 owner.RuntimeType(),
-                Controls::TextBox::StaticTypeId())) {
-            static_cast<Controls::TextBox&>(owner).SelectAll();
-            return {};
-        }
-        if (Metadata()->Types().IsDerivedFrom(
-                owner.RuntimeType(),
-                Controls::PasswordBox::StaticTypeId())) {
-            static_cast<Controls::PasswordBox&>(owner).SelectAll();
+                Controls::Primitives::TextBoxBase::StaticTypeId())) {
+            static_cast<Controls::Primitives::TextBoxBase&>(owner).SelectAll();
             return {};
         }
         return Base::Status::Failure(

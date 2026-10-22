@@ -18,49 +18,7 @@
 #include <cctype>
 #include <mutex>
 #include "gui/core/Describe.hpp"
-#include "gui/core/TypeRegistryCore.hpp"
-#include "gui/core/RenderStateCallbacks.hpp"
 #include "gui/core/ValueConversion.hpp"
-#include "gui/data/BindingEngine.hpp"
-#include <Aero/Interactivity/Conditions.hpp>
-#include <Aero/Interactivity/Behavior.hpp>
-#include <Aero/Interactivity/BlendBehaviors.hpp>
-#include <Aero/Interactivity/Interaction.hpp>
-#include <Aero/Interactivity/InteractionTriggers.hpp>
-#include <Aero/Interactivity/TriggerAction.hpp>
-#include <Aero/Style.hpp>
-#include <Aero/Triggers.hpp>
-#include <Aero/Resources.hpp>
-#include <Aero/Events.hpp>
-#include <Aero/Media/Animation.hpp>
-#include <Aero/Media/Animation/MediaActions.hpp>
-#include <Aero/Media/Animation/StoryboardActions.hpp>
-#include <Aero/Media/Animation/StoryboardCompletedTrigger.hpp>
-#include <Aero/Media/Animation/TimerTrigger.hpp>
-#include <Aero/Media/Brushes.hpp>
-#include <Aero/Media/Effects.hpp>
-#include <Aero/Media/Images.hpp>
-#include <Aero/Media/MediaElement.hpp>
-#include <Aero/Media/Transform2D.hpp>
-#include <Aero/Media/Transform3D.hpp>
-#include <Aero/Media/Geometries.hpp>
-#include <Aero/Media/Pen.hpp>
-#include <Aero/Media/Fonts.hpp>
-#include <Aero/Layout.hpp>
-#include <Aero/FrameworkElement.hpp>
-#include <Aero/Collections.hpp>
-#include <Aero/EventSetter.hpp>
-#include <Aero/Data/Binding.hpp>
-#include <Aero/Data/MultiBinding.hpp>
-#include <Aero/Data/BooleanToVisibilityConverter.hpp>
-#include <Aero/Data/IMultiValueConverter.hpp>
-#include <Aero/Data/IValueConverter.hpp>
-#include <Aero/DataObject.hpp>
-#include <Aero/DragDrop.hpp>
-#include <Aero/Input/Cursor.hpp>
-#include <Aero/Input/Mouse.hpp>
-#include <Aero/Input/Keyboard.hpp>
-#include <Aero/Animatable.hpp>
 #include <cmath>
 #include <cstdlib>
 #include <utility>
@@ -424,99 +382,200 @@ Base::Result<std::uint32_t> ParseModifiersName(
 
 } // namespace
 
+CommandBinding::~CommandBinding() {
+    ReleaseAuthored();
+}
+
+CommandBinding::AuthoredData* CommandBinding::EnsureAuthored() noexcept {
+    if (authored_ == nullptr) {
+        authored_ = new (std::nothrow) AuthoredData{};
+    }
+    return authored_;
+}
+
+void CommandBinding::ReleaseAuthored() noexcept {
+    delete authored_;
+    authored_ = nullptr;
+}
+
+StringView CommandBinding::GetCommandName() const noexcept {
+    return authored_ != nullptr ? authored_->commandName.View() : StringView{};
+}
+
+StringView CommandBinding::GetExecutedName() const noexcept {
+    return authored_ != nullptr ? authored_->executedName.View() : StringView{};
+}
+
+StringView CommandBinding::GetCanExecuteName() const noexcept {
+    return authored_ != nullptr ? authored_->canExecuteName.View() : StringView{};
+}
+
 void CommandBinding::SetCommandName(Base::StringView value) noexcept {
+    AuthoredData* authored = EnsureAuthored();
+    if (authored == nullptr) return;
     Base::String candidate;
     if (!candidate.Assign(TrimAscii(value))) return;
-    commandName_ = std::move(candidate);
+    authored->commandName = std::move(candidate);
     command_.Reset();
 }
 
 void CommandBinding::SetExecutedName(Base::StringView value) noexcept {
+    AuthoredData* authored = EnsureAuthored();
+    if (authored == nullptr) return;
     Base::String candidate;
     if (!candidate.Assign(TrimAscii(value))) return;
-    executedName_ = std::move(candidate);
+    authored->executedName = std::move(candidate);
 }
 
 void CommandBinding::SetCanExecuteName(Base::StringView value) noexcept {
+    AuthoredData* authored = EnsureAuthored();
+    if (authored == nullptr) return;
     Base::String candidate;
     if (!candidate.Assign(TrimAscii(value))) return;
-    canExecuteName_ = std::move(candidate);
+    authored->canExecuteName = std::move(candidate);
 }
 
 Base::Result<void> CommandBinding::Finalize() noexcept {
-    if (command_) return {};
-    if (commandName_.Empty()) {
+    if (command_) {
+        ReleaseAuthored();
+        return {};
+    }
+    if (authored_ == nullptr || authored_->commandName.Empty()) {
         return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
             "CommandBinding requires Command");
     }
     Base::Result<Base::Ref<RoutedCommand>> command =
-        RoutedCommand::ResolveAuthored(commandName_.View());
+        RoutedCommand::ResolveAuthored(authored_->commandName.View());
     if (!command) return command.GetStatus();
     command_ = std::move(command).Value();
+    ReleaseAuthored();
     return {};
+}
+
+KeyBinding::~KeyBinding() {
+    ReleaseAuthored();
+}
+
+KeyBinding::AuthoredData* KeyBinding::EnsureAuthored() noexcept {
+    if (authored_ == nullptr) {
+        authored_ = new (std::nothrow) AuthoredData{};
+    }
+    return authored_;
+}
+
+void KeyBinding::ReleaseAuthored() noexcept {
+    delete authored_;
+    authored_ = nullptr;
+}
+
+StringView KeyBinding::GetCommandName() const noexcept {
+    return authored_ != nullptr ? authored_->commandName.View() : StringView{};
+}
+
+StringView KeyBinding::GetKeyName() const noexcept {
+    return authored_ != nullptr ? authored_->keyName.View() : StringView{};
+}
+
+StringView KeyBinding::GetModifiersName() const noexcept {
+    return authored_ != nullptr ? authored_->modifiersName.View() : StringView{};
 }
 
 void KeyBinding::SetCommandName(
     Base::StringView value) noexcept {
+    AuthoredData* authored = EnsureAuthored();
+    if (authored == nullptr) return;
     Base::String candidate;
     if (!candidate.Assign(TrimAscii(value))) return;
-    commandName_ = std::move(candidate);
+    authored->commandName = std::move(candidate);
     command_.Reset();
     finalized_ = false;
 }
 
 void KeyBinding::SetKeyName(
     Base::StringView value) noexcept {
+    AuthoredData* authored = EnsureAuthored();
+    if (authored == nullptr) return;
     Base::String candidate;
     if (!candidate.Assign(TrimAscii(value))) return;
-    keyName_ = std::move(candidate);
+    authored->keyName = std::move(candidate);
     command_.Reset();
     finalized_ = false;
 }
 
 void KeyBinding::SetModifiersName(
     Base::StringView value) noexcept {
+    AuthoredData* authored = EnsureAuthored();
+    if (authored == nullptr) return;
     Base::String candidate;
     if (!candidate.Assign(TrimAscii(value))) return;
-    modifiersName_ = std::move(candidate);
+    authored->modifiersName = std::move(candidate);
     command_.Reset();
     finalized_ = false;
 }
 
 Base::Result<void> KeyBinding::Finalize() noexcept {
     if (finalized_) return {};
-    if (commandName_.Empty() && !command_) {
+    if (authored_ == nullptr && !command_) {
         return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
             "KeyBinding requires Command and Key");
     }
-    if (keyName_.Empty()) {
-        return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
-            "KeyBinding requires Command and Key");
+    if (authored_ != nullptr) {
+        if (authored_->commandName.Empty() && !command_) {
+            return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
+                "KeyBinding requires Command and Key");
+        }
+        if (authored_->keyName.Empty()) {
+            return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
+                "KeyBinding requires Command and Key");
+        }
+        if (!command_) {
+            Base::Result<Base::Ref<RoutedCommand>> command =
+                RoutedCommand::ResolveAuthored(authored_->commandName.View());
+            if (!command) return command.GetStatus();
+            command_ = std::move(command).Value();
+        }
+        Base::Result<std::uint32_t> key = ParseKeyName(authored_->keyName.View());
+        if (!key) return key.GetStatus();
+        Base::Result<std::uint32_t> modifiers = ParseModifiersName(
+            authored_->modifiersName.View());
+        if (!modifiers) return modifiers.GetStatus();
+        Base::Result<Base::Ref<KeyGesture>> gesture =
+            Base::MakeRef<KeyGesture>(key.Value(), modifiers.Value());
+        if (!gesture) return gesture.GetStatus();
+        command_->AddInputGesture(
+            Base::Ref<InputGesture>(std::move(gesture).Value()));
     }
-    if (!command_) {
-        Base::Result<Base::Ref<RoutedCommand>> command =
-            RoutedCommand::ResolveAuthored(commandName_.View());
-        if (!command) return command.GetStatus();
-        command_ = std::move(command).Value();
-    }
-    Base::Result<std::uint32_t> key = ParseKeyName(keyName_.View());
-    if (!key) return key.GetStatus();
-    Base::Result<std::uint32_t> modifiers = ParseModifiersName(
-        modifiersName_.View());
-    if (!modifiers) return modifiers.GetStatus();
-    Base::Result<Base::Ref<KeyGesture>> gesture =
-        Base::MakeRef<KeyGesture>(key.Value(), modifiers.Value());
-    if (!gesture) return gesture.GetStatus();
-    command_->AddInputGesture(
-        Base::Ref<InputGesture>(std::move(gesture).Value()));
     finalized_ = true;
+    ReleaseAuthored();
     return {};
 }
 
+MouseBinding::~MouseBinding() {
+    ReleaseAuthored();
+}
+
+MouseBinding::AuthoredData* MouseBinding::EnsureAuthored() noexcept {
+    if (authored_ == nullptr) {
+        authored_ = new (std::nothrow) AuthoredData{};
+    }
+    return authored_;
+}
+
+void MouseBinding::ReleaseAuthored() noexcept {
+    delete authored_;
+    authored_ = nullptr;
+}
+
+StringView MouseBinding::GetCommandName() const noexcept {
+    return authored_ != nullptr ? authored_->commandName.View() : StringView{};
+}
+
 void MouseBinding::SetCommandName(Base::StringView value) noexcept {
+    AuthoredData* authored = EnsureAuthored();
+    if (authored == nullptr) return;
     Base::String candidate;
     if (!candidate.Assign(TrimAscii(value))) return;
-    commandName_ = std::move(candidate);
+    authored->commandName = std::move(candidate);
     command_.Reset();
     finalized_ = false;
 }
@@ -529,17 +588,19 @@ Base::Result<void> MouseBinding::Finalize() noexcept {
     if (finalized_) return {};
     if (command_) {
         finalized_ = true;
+        ReleaseAuthored();
         return {};
     }
-    if (commandName_.Empty()) {
+    if (authored_ == nullptr || authored_->commandName.Empty()) {
         return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
             "MouseBinding requires Command");
     }
     Base::Result<Base::Ref<RoutedCommand>> command =
-        RoutedCommand::ResolveAuthored(commandName_.View());
+        RoutedCommand::ResolveAuthored(authored_->commandName.View());
     if (!command) return command.GetStatus();
     command_ = std::move(command).Value();
     finalized_ = true;
+    ReleaseAuthored();
     return {};
 }
 

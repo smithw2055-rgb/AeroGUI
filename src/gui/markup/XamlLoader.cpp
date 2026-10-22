@@ -1,11 +1,5 @@
 #include "gui/core/TypeRegistryCore.hpp"
 #include "gui/markup/XamlObjectWriterState.hpp"
-#include "gui/core/ElementTree.hpp"
-#include "gui/core/LayoutEngine.hpp"
-#include "gui/core/EffectiveValueEngine.hpp"
-#include "gui/core/RoutedEvents.hpp"
-#include "gui/core/EventRouter.hpp"
-#include <Aero/VisualStateManager.hpp>
 // Consolidated implementation. Keep sections ordered by dependency.
 
 #include <atomic>

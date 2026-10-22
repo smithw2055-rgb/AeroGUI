@@ -24,6 +24,7 @@
 #include "gui/markup/MarkupExtensionContract.hpp"
 
 #include "gui/markup/XamlObjectWriterState.hpp"
+#include "gui/markup/XamlPropertyResolution.hpp"
 
 
 #include <Aero/Controls.hpp>
@@ -1428,7 +1429,7 @@ Base::Result<LoaderResult> ObjectWriter::CompleteLoad(
 
     {
 
-        Base::Result<void> finalizedStyles = FinalizeDeferredStyles();
+        Base::Result<void> finalizedStyles = FinalizeDeferredStylesAndTemplates();
 
         if (!finalizedStyles) {
 
@@ -1534,48 +1535,40 @@ Base::Result<void> ObjectWriter::ResolveDeferredStaticResources() noexcept {
 
 
 
-Base::Result<void> ObjectWriter::FinalizeDeferredStyles() noexcept {
-
+Base::Result<void> ObjectWriter::FinalizeDeferredStylesAndTemplates() noexcept {
     for (std::uint32_t index = 0U; index < created_.Size(); ++index) {
-
         CreatedObjectRecord& record = created_[index];
-
         if (!record.endCalled || !record.object) {
-
             continue;
-
         }
-
         if (record.type == Aero::Style::StaticTypeId()) {
-
             auto& style = static_cast<Aero::Style&>(*record.object);
-
             if (style.GetIsSealed()) {
-
                 continue;
-
             }
-
             Base::Result<void> endResult = schema_->EndInit(
-
                 record.type,
-
                 *record.object,
-
                 BuildExtensionServices(index, {}, {}));
-
             if (!endResult) {
-
                 return endResult.GetStatus();
-
             }
-
+        } else if (record.type == Aero::Controls::ControlTemplate::StaticTypeId()) {
+            auto& controlTemplate =
+                static_cast<Aero::Controls::ControlTemplate&>(*record.object);
+            if (controlTemplate.GetIsSealed()) {
+                continue;
+            }
+            Base::Result<void> endResult = schema_->EndInit(
+                record.type,
+                *record.object,
+                BuildExtensionServices(index, {}, {}));
+            if (!endResult) {
+                return endResult.GetStatus();
+            }
         }
-
     }
-
     return {};
-
 }
 
 
@@ -1846,27 +1839,7 @@ Base::Result<Base::Ref<Base::Object>> ObjectWriter::CreateObject(
 
     Base::Result<Base::Ref<Base::Object>> created = schema_->CreateObject(type);
 
-    {
-        const Meta::TypeInfo* ti = schema_->Types().FindType(type);
 
-        if (ti != nullptr) {
-            Base::StringView nm = ti->Name();
-
-            auto eq = [&](const char* s) noexcept {
-                std::uint32_t n = 0U;
-
-                while (s[n] != '\0') ++n;
-
-                if (n != nm.SizeBytes()) return false;
-
-                for (std::uint32_t i = 0U; i < n; ++i) if (nm.Data()[i] != s[i]) return false;
-
-                return true;
-            };
-
-
-        }
-    }
 
     return created;
 
@@ -2652,6 +2625,77 @@ Base::Result<void> ObjectWriter::EndObject(
 
 }
 
+Base::Result<ObjectWriter::ResolvedNodeMember> ObjectWriter::ResolveNodeMember(
+    const Node& node,
+    Meta::TypeId targetType,
+    MemberSyntax syntax) noexcept {
+    ResolvedNodeMember result;
+    if (node.HasCompiledMemberBinding()) {
+        result.member = ResolveCompiledMember(
+            node.CompiledMember());
+        result.memberPolicy = ResolveCompiledMemberPolicy(
+            node.CompiledMember());
+        result.hasCompiledPolicy = true;
+        result.memberValueTypeIsObject =
+            node.CompiledMember().ValueTypeIsObject();
+        result.memberValueTypeIsValueType =
+            node.CompiledMember().ValueTypeIsValueType();
+        if (!IsCompiledMemberCompatible(
+                *schema_,
+                targetType,
+                result.member)) {
+            return Failure(
+                Base::Status::Failure(
+                    Base::ErrorCode::InvalidArgument,
+                    MessageInvalidAttachedMember.Data()),
+                XamlObjectWriterDiagnosticCodes::
+                    InvalidAttachedMember,
+                MessageInvalidAttachedMember,
+                node.Source());
+        }
+    } else {
+        Base::Result<ResolvedMember> memberResult =
+            node.CompiledMemberId() != Meta::InvalidMemberId
+            ? schema_->ResolveMember(
+                  targetType,
+                  node.CompiledMemberId())
+            : schema_->ResolveMember(
+                  targetType,
+                  node.Name(),
+                  syntax);
+        if (!memberResult) {
+            const bool notFound =
+                memberResult.GetStatus().code ==
+                    Base::ErrorCode::NotFound;
+            return Failure(
+                memberResult.GetStatus(),
+                notFound
+                    ? XamlObjectWriterDiagnosticCodes::UnknownMember
+                    : XamlObjectWriterDiagnosticCodes::
+                        InvalidAttachedMember,
+                notFound
+                    ? MessageUnknownMember
+                    : MessageInvalidAttachedMember,
+                node.Source());
+        }
+        result.member = memberResult.Value();
+        result.memberPolicy =
+            schema_->ResolveMemberWritePolicy(result.member);
+        if (const Meta::TypeInfo* valueType =
+                schema_->Types().FindType(
+                    result.member.valueType)) {
+            result.memberValueTypeIsObject =
+                valueType->Kind() ==
+                    Meta::MetadataTypeKind::Object;
+            result.memberValueTypeIsValueType =
+                HasTypeFlag(
+                    valueType->Flags(),
+                    Meta::TypeFlags::ValueType);
+        }
+    }
+    return result;
+}
+
 Base::Result<void> ObjectWriter::StartMember(
 
     const Node& node) noexcept {
@@ -2830,141 +2874,15 @@ Base::Result<void> ObjectWriter::StartMember(
 
 
 
-    ResolvedMember member;
-
-    MemberWritePolicy memberPolicy;
-
-    bool hasCompiledPolicy = false;
-
-    bool memberValueTypeIsObject = false;
-
-    bool memberValueTypeIsValueType = false;
-
-    if (node.HasCompiledMemberBinding()) {
-
-        member = ResolveCompiledMember(
-
-            node.CompiledMember());
-
-        memberPolicy = ResolveCompiledMemberPolicy(
-
-            node.CompiledMember());
-
-        hasCompiledPolicy = true;
-
-        memberValueTypeIsObject =
-
-            node.CompiledMember().ValueTypeIsObject();
-
-        memberValueTypeIsValueType =
-
-            node.CompiledMember().ValueTypeIsValueType();
-
-        if (!IsCompiledMemberCompatible(
-
-                *schema_,
-
-                created_[objectFrame.objectIndex].type,
-
-                member)) {
-
-            return Failure(
-
-                Base::Status::Failure(
-
-                    Base::ErrorCode::InvalidArgument,
-
-                    MessageInvalidAttachedMember.Data()),
-
-                XamlObjectWriterDiagnosticCodes::
-
-                    InvalidAttachedMember,
-
-                MessageInvalidAttachedMember,
-
-                node.Source());
-
-        }
-
-    } else {
-
-        Base::Result<ResolvedMember> memberResult =
-
-            node.CompiledMemberId() != Meta::InvalidMemberId
-
-            ? schema_->ResolveMember(
-
-                  created_[objectFrame.objectIndex].type,
-
-                  node.CompiledMemberId())
-
-            : schema_->ResolveMember(
-
-                  created_[objectFrame.objectIndex].type,
-
-                  node.Name(),
-
-                  MemberSyntax::Attribute);
-
-        if (!memberResult) {
-
-            const bool notFound =
-
-                memberResult.GetStatus().code ==
-
-                    Base::ErrorCode::NotFound;
-
-            return Failure(
-
-                memberResult.GetStatus(),
-
-                notFound
-
-                    ? XamlObjectWriterDiagnosticCodes::UnknownMember
-
-                    : XamlObjectWriterDiagnosticCodes::
-
-                        InvalidAttachedMember,
-
-                notFound
-
-                    ? MessageUnknownMember
-
-                    : MessageInvalidAttachedMember,
-
-                node.Source());
-
-        }
-
-        member = memberResult.Value();
-
-        memberPolicy =
-
-            schema_->ResolveMemberWritePolicy(member);
-
-        if (const Meta::TypeInfo* valueType =
-
-                schema_->Types().FindType(
-
-                    member.valueType)) {
-
-            memberValueTypeIsObject =
-
-                valueType->Kind() ==
-
-                    Meta::MetadataTypeKind::Object;
-
-            memberValueTypeIsValueType =
-
-                HasTypeFlag(
-
-                    valueType->Flags(),
-
-                    Meta::TypeFlags::ValueType);
-
-        }
-
-    }
+    Base::Result<ResolvedNodeMember> resolvedNodeMember =
+        ResolveNodeMember(node, created_[objectFrame.objectIndex].type, MemberSyntax::Attribute);
+    if (!resolvedNodeMember) return resolvedNodeMember.GetStatus();
+
+    const ResolvedMember member = resolvedNodeMember.Value().member;
+    const MemberWritePolicy memberPolicy = resolvedNodeMember.Value().memberPolicy;
+    const bool hasCompiledPolicy = resolvedNodeMember.Value().hasCompiledPolicy;
+    const bool memberValueTypeIsObject = resolvedNodeMember.Value().memberValueTypeIsObject;
+    const bool memberValueTypeIsValueType = resolvedNodeMember.Value().memberValueTypeIsValueType;
 
 
 
@@ -3586,11 +3504,155 @@ Base::Result<ProvidedValue> ObjectWriter::EvaluateMarkupExtension(
 
 // ===== ObjectWriter property / content apply =====
 
+Base::Result<void> ObjectWriter::WriteMarkupOrTextToTarget(
+    const Node& node,
+    std::uint32_t targetObjectIndex,
+    const ResolvedMember& member,
+    const MemberWritePolicy& policy,
+    bool valueTypeIsValueType,
+    Frame* memberFrame,
+    Frame* targetFrameForDeferred,
+    Meta::TypeId targetValueTypeOverride) noexcept {
+    Base::StringView extensionName;
+    Base::StringView argument;
+    const MarkupValueKind markup = ParseMarkupValue(
+        node.Value(), extensionName, argument);
 
+    if (markup == MarkupValueKind::Invalid) {
+        return Failure(
+            Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                MessageInvalidMarkupExtension.Data()),
+            XamlObjectWriterDiagnosticCodes::InvalidMarkupExtension,
+            MessageInvalidMarkupExtension,
+            node.Source());
+    }
 
+    auto dispatchValue = [&](Meta::Value&& val) -> Base::Result<void> {
+        if (memberFrame != nullptr) {
+            return WriteValueToMember(*memberFrame, std::move(val), node.Source());
+        }
+        return WriteValue(targetObjectIndex, member, std::move(val), node.Source(), &policy);
+    };
 
+    auto dispatchProvided = [&](ProvidedValue&& prov) -> Base::Result<void> {
+        if (memberFrame != nullptr) {
+            return WriteProvidedValueToMember(*memberFrame, std::move(prov), node.Source());
+        }
+        return WriteProvidedValue(targetObjectIndex, member, std::move(prov), node.Source(), &policy);
+    };
 
+    if (markup == MarkupValueKind::Null) {
+        if (memberFrame != nullptr) {
+            if (targetObjectIndex < created_.Size() &&
+                member.id == Controls::Primitives::ToggleButton::IsCheckedProperty.Handle().value &&
+                schema_->Types().IsDerivedFrom(
+                    created_[targetObjectIndex].type,
+                    Controls::Primitives::ToggleButton::StaticTypeId())) {
+                Base::Result<Meta::Value> nullable =
+                    Meta::ValueCodec<Nullable<bool>>::Encode(Nullable<bool>{});
+                if (!nullable) return nullable.GetStatus();
+                return dispatchValue(std::move(nullable).Value());
+            }
+            if (member.valueType == Meta::TypeOf<Base::String>()) {
+                Base::Result<Meta::Value> empty =
+                    Meta::Value::TryFromString(Meta::TypeOf<Base::String>(), {});
+                if (!empty) return empty.GetStatus();
+                return dispatchValue(std::move(empty).Value());
+            }
+            if (valueTypeIsValueType && !policy.acceptsAnyValue) {
+                return Failure(
+                    Base::Status::Failure(
+                        Base::ErrorCode::ValidationFailed,
+                        MessageNullNotAllowed.Data()),
+                    XamlObjectWriterDiagnosticCodes::NullNotAllowed,
+                    MessageNullNotAllowed,
+                    node.Source());
+            }
+        } else {
+            if (valueTypeIsValueType) {
+                return Failure(
+                    Base::Status::Failure(
+                        Base::ErrorCode::ValidationFailed,
+                        MessageNullNotAllowed.Data()),
+                    XamlObjectWriterDiagnosticCodes::NullNotAllowed,
+                    MessageNullNotAllowed,
+                    node.Source());
+            }
+        }
+        Meta::Value value = Meta::Value::NullObject(member.valueType);
+        return dispatchValue(std::move(value));
+    }
 
+    if (markup == MarkupValueKind::StaticResource) {
+        Base::Result<Aero::ResourceValue> resource = LookupResource(argument);
+        if (!resource) {
+            if (loadContext_ != nullptr &&
+                loadContext_->deferUnresolvedStaticResources) {
+                if (targetFrameForDeferred != nullptr) {
+                    targetFrameForDeferred->deferredStaticResource = true;
+                }
+                hasDeferredStaticResources_ = true;
+                if (targetObjectIndex < created_.Size()) {
+                    created_[targetObjectIndex].deferredStaticResource = true;
+                }
+                DeferredStaticResourceRecord deferred;
+                deferred.targetObjectIndex = targetObjectIndex;
+                deferred.member = member;
+                deferred.policy = policy;
+                deferred.hasPolicy = true;
+                deferred.source = node.Source();
+                Base::Result<void> key = deferred.key.Assign(argument);
+                if (!key) return key.GetStatus();
+                deferredStaticResources_.PushBack(std::move(deferred));
+                return {};
+            }
+            Base::Result<Base::String> message =
+                StaticResourceNotFoundMessage(argument);
+            if (!message) return message.GetStatus();
+            return Failure(
+                resource.GetStatus(),
+                XamlObjectWriterDiagnosticCodes::StaticResourceNotFound,
+                message.Value().View(),
+                node.Source());
+        }
+        return dispatchValue(std::move(resource).Value());
+    }
+
+    if (markup == MarkupValueKind::Extension) {
+        Base::Result<ProvidedValue> value = EvaluateMarkupExtension(
+            targetObjectIndex,
+            member,
+            extensionName,
+            argument,
+            node.Source());
+        if (!value) return value.GetStatus();
+        return dispatchProvided(std::move(value).Value());
+    }
+
+    const ExtensionServices services = BuildExtensionServices(
+        targetObjectIndex,
+        member,
+        node.Source());
+
+    const Meta::TypeId effectiveValueType =
+        targetValueTypeOverride != Meta::InvalidTypeId
+            ? targetValueTypeOverride
+            : member.valueType;
+
+    Base::Result<Meta::Value> convertResult = schema_->ConvertText(
+        effectiveValueType,
+        markup == MarkupValueKind::EscapedLiteral ? argument : node.Value(),
+        &services);
+    if (!convertResult) {
+        return Failure(
+            convertResult.GetStatus(),
+            XamlObjectWriterDiagnosticCodes::InvalidValue,
+            MessageInvalidValue,
+            node.Source());
+    }
+    return dispatchValue(std::move(convertResult).Value());
+}
 
 Base::Result<void> ObjectWriter::WriteText(
 
@@ -4017,275 +4079,18 @@ Base::Result<void> ObjectWriter::WriteText(
         }
 
         const MemberWritePolicy policy =
-
             frame.hasMemberPolicy
-
             ? frame.memberPolicy
-
-            : schema_->ResolveMemberWritePolicy(
-
-                  frame.member);
-
-        const bool acceptsAnyValue =
-
-            policy.acceptsAnyValue;
-
-        Base::StringView extensionName;
-
-        Base::StringView argument;
-
-        const MarkupValueKind markup = ParseMarkupValue(
-
-            node.Value(),
-
-            extensionName,
-
-            argument);
-
-        if (markup == MarkupValueKind::Invalid) {
-
-            return Failure(
-
-                Base::Status::Failure(
-
-                    Base::ErrorCode::ValidationFailed,
-
-                    MessageInvalidMarkupExtension.Data()),
-
-                XamlObjectWriterDiagnosticCodes::InvalidMarkupExtension,
-
-                MessageInvalidMarkupExtension,
-
-                node.Source());
-
-        }
-
-        if (markup == MarkupValueKind::Null) {
-
-            if (frame.targetObjectIndex < created_.Size() &&
-
-                frame.member.id ==
-
-                    Controls::Primitives::ToggleButton::
-
-                        IsCheckedProperty.Handle().value &&
-
-                schema_->Types().IsDerivedFrom(
-
-                    created_[frame.targetObjectIndex].type,
-
-                    Controls::Primitives::ToggleButton::
-
-                        StaticTypeId())) {
-
-                Base::Result<Meta::Value> nullable =
-
-                    Meta::ValueCodec<Nullable<bool>>::Encode(
-
-                        Nullable<bool>{});
-
-                if (!nullable) return nullable.GetStatus();
-
-                Base::Result<void> written = WriteValueToMember(
-
-                    frame, std::move(nullable).Value(), node.Source());
-
-                if (!written) return written.GetStatus();
-
-                return {};
-
-            }
-
-            if (frame.member.valueType == Meta::TypeOf<Base::String>()) {
-
-                Base::Result<Meta::Value> empty =
-
-                    Meta::Value::TryFromString(
-
-                        Meta::TypeOf<Base::String>(), {});
-
-                if (!empty) return empty.GetStatus();
-
-                return WriteValueToMember(
-
-                    frame, std::move(empty).Value(), node.Source());
-
-            }
-
-            if (frame.memberValueTypeIsValueType &&
-
-                !acceptsAnyValue) {
-
-                return Failure(
-
-                    Base::Status::Failure(
-
-                        Base::ErrorCode::ValidationFailed,
-
-                        MessageNullNotAllowed.Data()),
-
-                    XamlObjectWriterDiagnosticCodes::NullNotAllowed,
-
-                    MessageNullNotAllowed,
-
-                    node.Source());
-
-            }
-
-            Meta::Value value = Meta::Value::NullObject(frame.member.valueType);
-
-            return WriteValueToMember(frame, std::move(value), node.Source());
-
-        }
-
-        if (markup == MarkupValueKind::StaticResource) {
-
-            Base::Result<Aero::ResourceValue> resource = LookupResource(argument);
-
-            if (!resource) {
-
-                if (loadContext_ != nullptr &&
-
-                    loadContext_->deferUnresolvedStaticResources) {
-
-                    frame.deferredStaticResource = true;
-
-                    hasDeferredStaticResources_ = true;
-
-                    if (frame.targetObjectIndex < created_.Size()) {
-
-                        created_[frame.targetObjectIndex]
-
-                            .deferredStaticResource = true;
-
-                    }
-
-                    DeferredStaticResourceRecord deferred;
-
-                    deferred.targetObjectIndex =
-
-                        frame.targetObjectIndex;
-
-                    deferred.member = frame.member;
-
-                    deferred.policy = policy;
-
-                    deferred.hasPolicy = true;
-
-                    deferred.source = node.Source();
-
-                    Base::Result<void> key = deferred.key.Assign(
-
-                        argument);
-
-                    if (!key) return key.GetStatus();
-
-                    deferredStaticResources_.PushBack(
-
-                            std::move(deferred));
-
-                    return {};
-
-                }
-
-                Base::Result<Base::String> message =
-
-                    StaticResourceNotFoundMessage(argument);
-
-                if (!message) return message.GetStatus();
-
-                return Failure(
-
-                    resource.GetStatus(),
-
-                    XamlObjectWriterDiagnosticCodes::StaticResourceNotFound,
-
-                    message.Value().View(),
-
-                    node.Source());
-
-            }
-
-            return WriteValueToMember(
-
-                frame, std::move(resource).Value(), node.Source());
-
-        }
-
-
-
-        if (markup == MarkupValueKind::Extension) {
-
-            Base::Result<ProvidedValue> value =
-
-                EvaluateMarkupExtension(
-
-                    frame.targetObjectIndex,
-
-                    frame.member,
-
-                    extensionName,
-
-                    argument,
-
-                    node.Source());
-
-            if (!value) return value.GetStatus();
-
-            return WriteProvidedValueToMember(
-
-                frame,
-
-                std::move(value).Value(),
-
-                node.Source());
-
-        }
-
-
-
-        const ExtensionServices services = BuildExtensionServices(
-
+            : schema_->ResolveMemberWritePolicy(frame.member);
+        return WriteMarkupOrTextToTarget(
+            node,
             frame.targetObjectIndex,
-
             frame.member,
-
-            node.Source());
-
-        Base::Result<Meta::Value> convertResult = schema_->ConvertText(
-
-            frame.member.valueType,
-
-            markup == MarkupValueKind::EscapedLiteral
-
-                ? argument
-
-                : node.Value(),
-
-            &services);
-
-        if (!convertResult) {
-
-            return Failure(
-
-                convertResult.GetStatus(),
-
-                XamlObjectWriterDiagnosticCodes::InvalidValue,
-
-                MessageInvalidValue,
-
-                node.Source());
-
-        }
-
-        return WriteValueToMember(
-
-            frame,
-
-            std::move(convertResult).Value(),
-
-            node.Source());
-
+            policy,
+            frame.memberValueTypeIsValueType,
+            &frame,
+            &frame,
+            Meta::InvalidTypeId);
     }
 
 
@@ -4340,252 +4145,22 @@ Base::Result<void> ObjectWriter::WriteText(
 
 
 
-    Base::StringView extensionName;
-
-    Base::StringView argument;
-
-    const MarkupValueKind markup = ParseMarkupValue(
-
-        node.Value(),
-
-        extensionName,
-
-        argument);
-
-    if (markup == MarkupValueKind::Invalid) {
-
-        return Failure(
-
-            Base::Status::Failure(
-
-                Base::ErrorCode::ValidationFailed,
-
-                MessageInvalidMarkupExtension.Data()),
-
-            XamlObjectWriterDiagnosticCodes::InvalidMarkupExtension,
-
-            MessageInvalidMarkupExtension,
-
-            node.Source());
-
-    }
-
-    if (markup == MarkupValueKind::Null) {
-
-        if (contentOwner.contentValueTypeIsValueType) {
-
-            return Failure(
-
-                Base::Status::Failure(
-
-                    Base::ErrorCode::ValidationFailed,
-
-                    MessageNullNotAllowed.Data()),
-
-                XamlObjectWriterDiagnosticCodes::NullNotAllowed,
-
-                MessageNullNotAllowed,
-
-                node.Source());
-
-        }
-
-        Meta::Value value = Meta::Value::NullObject(
-
-            contentMember.valueType);
-
-        return WriteValue(
-
-            frame.objectIndex,
-
-            contentMember,
-
-            std::move(value),
-
-            node.Source(),
-
-            &contentOwner.contentPolicy);
-
-    }
-
-    if (markup == MarkupValueKind::StaticResource) {
-
-        Base::Result<Aero::ResourceValue> resource = LookupResource(argument);
-
-        if (!resource) {
-
-            if (loadContext_ != nullptr &&
-
-                loadContext_->deferUnresolvedStaticResources) {
-
-                frame.deferredStaticResource = true;
-
-                hasDeferredStaticResources_ = true;
-
-                if (frame.objectIndex < created_.Size()) {
-
-                    created_[frame.objectIndex].deferredStaticResource =
-
-                        true;
-
-                }
-
-                DeferredStaticResourceRecord deferred;
-
-                deferred.targetObjectIndex = frame.objectIndex;
-
-                deferred.member = contentMember;
-
-                deferred.policy = contentOwner.contentPolicy;
-
-                deferred.hasPolicy = true;
-
-                deferred.source = node.Source();
-
-                Base::Result<void> key = deferred.key.Assign(
-
-                    argument);
-
-                if (!key) return key.GetStatus();
-
-                deferredStaticResources_.PushBack(
-
-                        std::move(deferred));
-
-                return {};
-
-            }
-
-            Base::Result<Base::String> message =
-
-                StaticResourceNotFoundMessage(argument);
-
-            if (!message) return message.GetStatus();
-
-            return Failure(
-
-                resource.GetStatus(),
-
-                XamlObjectWriterDiagnosticCodes::StaticResourceNotFound,
-
-                message.Value().View(),
-
-                node.Source());
-
-        }
-
-        return WriteValue(
-
-            frame.objectIndex,
-
-            contentMember,
-
-            std::move(resource).Value(),
-
-            node.Source(),
-
-            &contentOwner.contentPolicy);
-
-    }
-
-
-
-    if (markup == MarkupValueKind::Extension) {
-
-        Base::Result<ProvidedValue> value =
-
-            EvaluateMarkupExtension(
-
-                frame.objectIndex,
-
-                contentMember,
-
-                extensionName,
-
-                argument,
-
-                node.Source());
-
-        if (!value) return value.GetStatus();
-
-        return WriteProvidedValue(
-
-            frame.objectIndex,
-
-            contentMember,
-
-            std::move(value).Value(),
-
-            node.Source(),
-
-            &contentOwner.contentPolicy);
-
-    }
-
-
-
-    const ExtensionServices services = BuildExtensionServices(
-
-        frame.objectIndex,
-
-        contentMember,
-
-        node.Source());
-
     const bool itemsControlScalarContent =
-
         schema_->Types().IsDerivedFrom(
-
             contentOwner.type,
-
             Controls::ItemsControl::StaticTypeId()) &&
-
         contentOwner.hasContentMember &&
-
         contentOwner.contentMember.id == contentMember.id;
 
-    Base::Result<Meta::Value> convertResult = schema_->ConvertText(
-
-        itemsControlScalarContent
-
-            ? Meta::TypeOf<Base::String>()
-
-            : contentMember.valueType,
-
-        markup == MarkupValueKind::EscapedLiteral
-
-            ? argument
-
-            : node.Value(),
-
-        &services);
-
-    if (!convertResult) {
-
-        return Failure(
-
-            convertResult.GetStatus(),
-
-            XamlObjectWriterDiagnosticCodes::InvalidValue,
-
-            MessageInvalidValue,
-
-            node.Source());
-
-    }
-
-    return WriteValue(
-
+    return WriteMarkupOrTextToTarget(
+        node,
         frame.objectIndex,
-
         contentMember,
-
-        std::move(convertResult).Value(),
-
-        node.Source(),
-
-        &contentOwner.contentPolicy);
-
+        contentOwner.contentPolicy,
+        contentOwner.contentValueTypeIsValueType,
+        nullptr,
+        &frame,
+        itemsControlScalarContent ? Meta::TypeOf<Base::String>() : Meta::InvalidTypeId);
 }
 
 
@@ -5108,139 +4683,15 @@ Base::Result<void> ObjectWriter::StartPropertyElement(
 
         frames_[targetFrameIndex].objectIndex;
 
-    ResolvedMember member;
-
-    MemberWritePolicy memberPolicy;
-
-    bool hasCompiledPolicy = false;
-
-    bool memberValueTypeIsObject = false;
-
-    bool memberValueTypeIsValueType = false;
-
-    if (node.HasCompiledMemberBinding()) {
-
-        member = ResolveCompiledMember(
-
-            node.CompiledMember());
-
-        memberPolicy = ResolveCompiledMemberPolicy(
-
-            node.CompiledMember());
-
-        hasCompiledPolicy = true;
-
-        memberValueTypeIsObject =
-
-            node.CompiledMember().ValueTypeIsObject();
-
-        memberValueTypeIsValueType =
-
-            node.CompiledMember().ValueTypeIsValueType();
-
-        if (!IsCompiledMemberCompatible(
-
-                *schema_,
-
-                created_[targetObjectIndex].type,
-
-                member)) {
-
-            return Failure(
-
-                Base::Status::Failure(
-
-                    Base::ErrorCode::InvalidArgument,
-
-                    MessageInvalidAttachedMember.Data()),
-
-                XamlObjectWriterDiagnosticCodes::
-
-                    InvalidAttachedMember,
-
-                MessageInvalidAttachedMember,
-
-                node.Source());
-
-        }
-
-    } else {
-
-        Base::Result<ResolvedMember> memberResult =
-
-            node.CompiledMemberId() != Meta::InvalidMemberId
-
-            ? schema_->ResolveMember(
-
-                  created_[targetObjectIndex].type,
-
-                  node.CompiledMemberId())
-
-            : schema_->ResolveMember(
-
-                  created_[targetObjectIndex].type,
-
-                  node.Name(),
-
-                  MemberSyntax::PropertyElement);
-
-        if (!memberResult) {
-
-            const bool notFound =
-
-                memberResult.GetStatus().code ==
-
-                    Base::ErrorCode::NotFound;
-
-            return Failure(
-
-                memberResult.GetStatus(),
-
-                notFound
-
-                    ? XamlObjectWriterDiagnosticCodes::UnknownMember
-
-                    : XamlObjectWriterDiagnosticCodes::
-
-                        InvalidAttachedMember,
-
-                notFound
-
-                    ? MessageUnknownMember
-
-                    : MessageInvalidAttachedMember,
-
-                node.Source());
-
-        }
-
-        member = memberResult.Value();
-
-        memberPolicy =
-
-            schema_->ResolveMemberWritePolicy(member);
-
-        if (const Meta::TypeInfo* valueType =
-
-                schema_->Types().FindType(
-
-                    member.valueType)) {
-
-            memberValueTypeIsObject =
-
-                valueType->Kind() == Meta::MetadataTypeKind::Object;
-
-            memberValueTypeIsValueType =
-
-                HasTypeFlag(
-
-                    valueType->Flags(),
-
-                    Meta::TypeFlags::ValueType);
-
-        }
-
-    }
+    Base::Result<ResolvedNodeMember> resolvedNodeMember =
+        ResolveNodeMember(node, created_[targetObjectIndex].type, MemberSyntax::PropertyElement);
+    if (!resolvedNodeMember) return resolvedNodeMember.GetStatus();
+
+    const ResolvedMember member = resolvedNodeMember.Value().member;
+    const MemberWritePolicy memberPolicy = resolvedNodeMember.Value().memberPolicy;
+    const bool hasCompiledPolicy = resolvedNodeMember.Value().hasCompiledPolicy;
+    const bool memberValueTypeIsObject = resolvedNodeMember.Value().memberValueTypeIsObject;
+    const bool memberValueTypeIsValueType = resolvedNodeMember.Value().memberValueTypeIsValueType;
 
 
 
@@ -6794,107 +6245,16 @@ Base::Result<void> ObjectWriter::WriteValue(
 
         source);
 
-    if ((member.valueType == Meta::TypeOf<Aero::Length>() ||
-
-         member.valueType == Meta::TypeOf<::Aero::GridLength>()) &&
-
-        value.Type() != member.valueType &&
-
-        (value.Kind() == Meta::ValueKind::SignedInteger ||
-
-         value.Kind() == Meta::ValueKind::UnsignedInteger ||
-
-         value.Kind() == Meta::ValueKind::Double)) {
-
-        Base::Result<Meta::Value> converted =
-
-            ConvertConstantBindingValue(
-
-                value, member.valueType);
-
-        if (!converted) {
-
-            return Failure(
-
-                converted.GetStatus(),
-
-                XamlObjectWriterDiagnosticCodes::TypeMismatch,
-
-                MessageTypeMismatch,
-
-                source);
-
-        }
-
-        value = std::move(converted).Value();
-
+    Base::Result<Meta::Value> coerced =
+        CoerceXamlValueForProperty(member.valueType, std::move(value));
+    if (!coerced) {
+        return Failure(
+            coerced.GetStatus(),
+            XamlObjectWriterDiagnosticCodes::TypeMismatch,
+            MessageTypeMismatch,
+            source);
     }
-
-    if (member.valueType ==
-
-            Media::Brush::StaticTypeId() &&
-
-        value.Type() ==
-
-            Meta::TypeOf<Base::Color>()) {
-
-        Base::Result<Base::Color> color =
-
-            Meta::ValueCodec<Base::Color>::Decode(
-
-                value);
-
-        if (!color) {
-
-            return Failure(
-
-                color.GetStatus(),
-
-                XamlObjectWriterDiagnosticCodes::
-
-                    InvalidWriterState,
-
-                MessageInvalidWriterState,
-
-                source);
-
-        }
-
-        Base::Result<
-
-            Base::Ref<Media::Brush>>
-
-            brush =
-
-                Media::MakeSolidColorBrush(
-
-                    color.Value());
-
-        if (!brush) {
-
-            return Failure(
-
-                brush.GetStatus(),
-
-                XamlObjectWriterDiagnosticCodes::
-
-                    InvalidWriterState,
-
-                MessageInvalidWriterState,
-
-                source);
-
-        }
-
-        value = Meta::Value::FromObject(
-
-            Media::Brush::StaticTypeId(),
-
-            Base::Ref<Base::Object>(
-
-                std::move(brush).Value()));
-
-    }
+    value = std::move(coerced).Value();
 
     Base::Result<Meta::ContentInfo> content =
 
@@ -7393,11 +6753,8 @@ Base::Result<void> ObjectWriter::ConnectEvent(
 
 
     Base::Result<Base::Ref<XamlEventConnection>> connection =
-
         Base::MakeRef<XamlEventConnection>(
-
-            Base::WeakRef<Base::Object>(root_),
-
+            Base::WeakRef<Base::Object>(codeBehind.object),
             thunk);
 
     if (!connection) return connection.GetStatus();
@@ -9080,7 +8437,6 @@ Base::Status ObjectWriter::Failure(
 
     ::Aero::Diagnostics::SourceSpan source) noexcept {
 
-    std::fprintf(stderr, "[ObjectWriter::Failure] %.*s (status: %s)\n", (int)message.SizeBytes(), message.Data(), status.message ? status.message : "");
     if (diagnostics_ != nullptr) {
 
         Base::Result<::Aero::Diagnostics::Diagnostic> item = ::Aero::Diagnostics::Diagnostic::Create(

@@ -1,5 +1,4 @@
 #include "../RenderContext.hpp"
-#include "../Presentation.hpp"
 
 #include <AeroRender/OpenGL33.hpp>
 
@@ -28,10 +27,11 @@ namespace {
 #if AERO_HAS_WGL_SURFACE || AERO_HAS_GLX_SURFACE
 
 #if defined(_WIN32)
-using PlatformOpenGLWindow = Win32::OpenGLWindow;
+using PlatformOpenGLContext = Win32::WglContext;
 #else
-using PlatformOpenGLWindow = X11::OpenGLWindow;
+using PlatformOpenGLContext = X11::GlxContext;
 #endif
+using PlatformOpenGLWindow = PlatformOpenGLContext;
 
 class OpenGLRenderContext final : public RenderContext {
 public:

@@ -3,6 +3,7 @@
 #include <Aero/Base/Utf8.hpp>
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Controls/Popup.hpp>
+#include <Aero/Controls/Ranges.hpp>
 #include <Aero/Media/Transform2D.hpp>
 #include <Aero/Media/Transform3D.hpp>
 #include <Aero/Media/Geometries.hpp>
@@ -17,52 +18,7 @@
 #include "gui/core/EventRouter.hpp"
 #include "gui/input/InputManager.hpp" 
 #include "gui/core/Describe.hpp"
-#include "gui/core/TypeRegistryCore.hpp"
-#include "gui/core/RenderStateCallbacks.hpp"
-#include "gui/core/ValueConversion.hpp"
-#include "gui/data/BindingEngine.hpp"
-#include <Aero/Interactivity/Conditions.hpp>
-#include <Aero/Interactivity/Behavior.hpp>
-#include <Aero/Interactivity/BlendBehaviors.hpp>
-#include <Aero/Interactivity/Interaction.hpp>
-#include <Aero/Interactivity/InteractionTriggers.hpp>
-#include <Aero/Interactivity/TriggerAction.hpp>
-#include <Aero/Style.hpp>
-#include <Aero/Triggers.hpp>
-#include <Aero/Resources.hpp>
-#include <Aero/Events.hpp>
-#include <Aero/Media/Animation.hpp>
-#include <Aero/Media/Animation/MediaActions.hpp>
-#include <Aero/Media/Animation/StoryboardActions.hpp>
-#include <Aero/Media/Animation/StoryboardCompletedTrigger.hpp>
-#include <Aero/Media/Animation/TimerTrigger.hpp>
-#include <Aero/Media/Brushes.hpp>
-#include <Aero/Media/Effects.hpp>
-#include <Aero/Media/Images.hpp>
-#include <Aero/Media/MediaElement.hpp>
-#include <Aero/Media/Pen.hpp>
-#include <Aero/Media/Fonts.hpp>
-#include <Aero/Layout.hpp>
-#include <Aero/Collections.hpp>
-#include <Aero/ICommand.hpp>
-#include <Aero/RoutedCommand.hpp>
-#include <Aero/InputBinding.hpp>
-#include <Aero/EventSetter.hpp>
 #include <Aero/KeyboardNavigation.hpp>
-#include <Aero/CommandBinding.hpp>
-#include <Aero/ApplicationCommands.hpp>
-#include <Aero/InputGesture.hpp>
-#include <Aero/Data/Binding.hpp>
-#include <Aero/Data/MultiBinding.hpp>
-#include <Aero/Data/BooleanToVisibilityConverter.hpp>
-#include <Aero/Data/IMultiValueConverter.hpp>
-#include <Aero/Data/IValueConverter.hpp>
-#include <Aero/DataObject.hpp>
-#include <Aero/DragDrop.hpp>
-#include <Aero/Input/Cursor.hpp>
-#include <Aero/Input/Mouse.hpp>
-#include <Aero/Input/Keyboard.hpp>
-#include <Aero/Animatable.hpp>
 #include <cctype>
 #include <cstdlib>
 #include <utility>
@@ -77,64 +33,6 @@ namespace {
 bool Contains(Size size, Point point) noexcept {
     return point.x >= 0.0 && point.y >= 0.0 &&
         point.x < size.width && point.y < size.height;
-}
-
-bool HasAssignedObject(
-    UIElement& element,
-    Base::StringView name) noexcept {
-    const Meta::DependencyProperty* property =
-        DependencyObjectAccess::PropertyRegistry((element)).Find(
-            element.RuntimeType(), name);
-    if (property == nullptr) return false;
-    const Meta::PropertyValue value =
-        element.GetValue(property->Handle());
-    return value.Kind() == Meta::ValueKind::Object &&
-        !value.IsNullObject() &&
-        static_cast<bool>(value.AsObject());
-}
-
-bool HasSelfHitSurface(UIElement& element) noexcept {
-    const Meta::DependencyPropertyRegistry& properties =
-        DependencyObjectAccess::PropertyRegistry((element));
-    const Meta::TypeId type = element.RuntimeType();
-    // Hit-testing lives in the GUI kernel and must not take a Controls
-    // dependency. Identify painted content through DPs, matching WPF:
-    // an element is only a self hit-target if it would draw something.
-    // Empty Decorator / FrameworkElement / Viewbox / ContentPresenter
-    // (e.g. Gallery DropDownHeight covering the sidebar) must pass hits
-    // through. Opacity 0 is still hittable; Visibility and
-    // IsHitTestVisible are checked by HitTestElement.
-    if (properties.Find(type, Base::StringView("TextTrimming")) != nullptr) {
-        return true;
-    }
-    if (properties.Find(type, Base::StringView("Fill")) != nullptr) {
-        return HasAssignedObject(element, Base::StringView("Fill")) ||
-            HasAssignedObject(element, Base::StringView("Stroke"));
-    }
-    if (properties.Find(type, Base::StringView("Source")) != nullptr) {
-        return HasAssignedObject(element, Base::StringView("Source"));
-    }
-    if (properties.Find(type, Base::StringView("Template")) != nullptr) {
-        if (properties.Find(type, Base::StringView("IsDragging")) != nullptr ||
-            properties.Find(type, Base::StringView("Interval")) != nullptr) {
-            return true;
-        }
-        if ((element).RenderChildren().Size() > 0U) {
-            return false;
-        }
-    }
-    if (properties.Find(type, Base::StringView("Background")) != nullptr) {
-        return HasAssignedObject(element, Base::StringView("Background")) ||
-            HasAssignedObject(element, Base::StringView("BorderBrush"));
-    }
-    // Track is not a Control (no Template DP) and typically has no Background.
-    // BlendTutorial's slider groove is a Track inside a Border; without this,
-    // clicks land on the Border and Slider never sees on-track move-to-point.
-    if (properties.Find(type, Base::StringView("DecreaseRepeatButton")) !=
-        nullptr) {
-        return true;
-    }
-    return false;
 }
 
 bool IsVisualDescendantOrSelf(
@@ -464,27 +362,54 @@ Base::Result<HitTestResult> HitTestState::HitTestElement(
     }
 
     const auto children = (element).RenderChildren();
+    const bool isTrack = (element.RuntimeType() == Controls::Primitives::Track::StaticTypeId());
+    const bool isThumb = (element.RuntimeType() == Controls::Primitives::Thumb::StaticTypeId());
+    const bool isScrollBar = (element.RuntimeType() == Controls::Primitives::ScrollBar::StaticTypeId());
+    if (isTrack || isThumb || isScrollBar) {
+        const char* typeName = isTrack ? "Track" : (isThumb ? "Thumb" : "ScrollBar");
+        fprintf(stderr, "[HITTEST-NODE] type=%s contains=%d pos=(%.1f,%.1f) rSize=(%.1f,%.1f) vChildren=%u\n",
+            typeName, contains ? 1 : 0,
+            position.x, position.y, element.GetRenderSize().width, element.GetRenderSize().height,
+            children.Size());
+    }
     for (std::uint32_t index = children.Size(); index > 0U; --index) {
         ::Aero::Media::Visual* childNode = children[index - 1U];
         if (childNode == nullptr) continue;
         UIElement* child = ::Aero::TryCast<::Aero::UIElement>(childNode);
         if (child == nullptr) continue;
         if (IsOverlay(*child)) continue;
+        const bool childIsThumb = (child->RuntimeType() == Controls::Primitives::Thumb::StaticTypeId());
+        if (isTrack || isThumb || childIsThumb) {
+            fprintf(stderr, "[HITTEST-CHILD] parent=%s childIsThumb=%d slot=(%.1f,%.1f,%.1f,%.1f) arrangeValid=%d\n",
+                isTrack ? "Track" : (isThumb ? "Thumb" : "ScrollBar"), childIsThumb ? 1 : 0,
+                child->GetLayoutSlot().x, child->GetLayoutSlot().y, child->GetLayoutSlot().width, child->GetLayoutSlot().height,
+                child->GetIsArrangeValid() ? 1 : 0);
+        }
         // Hidden/template branches may be present in the visual tree before
         // they receive a layout slot. They are not hittable and must not
         // poison hit testing for an otherwise arranged root.
         if (!child->GetIsArrangeValid()) {
             const Rect slot = child->GetLayoutSlot();
-            if (!(slot.width > 0.0 && slot.height > 0.0)) continue;
+            if (!(slot.width > 0.0 && slot.height > 0.0)) {
+                if (isTrack || isThumb) {
+                    fprintf(stderr, "[HITTEST-CHILD] SKIPPED: slot empty\n");
+                }
+                continue;
+            }
         }
         Point childPosition;
         Media::Transform3DContext childContext;
-        if (!ParentToLocal(
+        const bool p2lOk = ParentToLocal(
                 *child,
                 position,
                 childPosition,
                 transform3D,
-                childContext)) {
+                childContext);
+        if (isTrack || isThumb) {
+            fprintf(stderr, "[HITTEST-P2L] p2l_res=%d childPos=(%.1f,%.1f)\n",
+                p2lOk ? 1 : 0, childPosition.x, childPosition.y);
+        }
+        if (!p2lOk) {
             continue;
         }
         Base::Result<HitTestResult> nested =
@@ -495,9 +420,16 @@ Base::Result<HitTestResult> HitTestState::HitTestElement(
         if (!nested) return nested.GetStatus();
         if (nested.Value().HasTarget()) return nested;
     }
-    return contains && HasSelfHitSurface(element) && element.GetIsHitTestVisible()
-        ? HitTestResult{&element, position}
-        : HitTestResult{};
+    const Media::PointHitTestResult coreHit = element.HitTestCore(position);
+    if (!contains || !coreHit.HasHit() || !element.GetIsHitTestVisible()) {
+        return HitTestResult{};
+    }
+    UIElement* hitElement = coreHit.visualHit != nullptr
+        ? ::Aero::TryCast<UIElement>(coreHit.visualHit)
+        : nullptr;
+    return HitTestResult{
+        hitElement != nullptr ? hitElement : &element,
+        coreHit.pointHit};
 }
 
 PointerStateMachine::PointerStateMachine(HitTestState& hitTests,
@@ -871,8 +803,7 @@ Base::Result<PointerDispatchResult> PointerStateMachine::Dispatch(
     Base::Result<HitTestResult> hit = visualHit;
     if (captured != nullptr) {
         hit = hitTests_->RootToLocal(*root_, *captured, input.position);
-        if (!hit) return hit.GetStatus();
-        if (!hit.Value().HasTarget()) {
+        if (!hit || !hit.Value().HasTarget()) {
             hit = HitTestResult{captured, {}};
         }
     }
@@ -886,6 +817,14 @@ Base::Result<PointerDispatchResult> PointerStateMachine::Dispatch(
             parentVisual = TryCast<Visual>(hoverTarget->GetLogicalParent());
         }
         hoverTarget = TryCast<UIElement>(parentVisual);
+    }
+    if (input.action == PointerAction::Move) {
+        if (input.position.x >= 320.0 && input.position.x <= 360.0) {
+            fprintf(stderr, "[MOVE-THUMB-ZONE] pos=(%.1f, %.1f) hoverTarget=%p type=%llu\n",
+                input.position.x, input.position.y, static_cast<void*>(hoverTarget),
+                hoverTarget ? hoverTarget->RuntimeType() : 0ULL);
+            fflush(stderr);
+        }
     }
     Base::Result<void> hover =
         UpdateHover(input.pointerId, hoverTarget);

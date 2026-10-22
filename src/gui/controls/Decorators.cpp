@@ -178,6 +178,27 @@ void Image::SetStretchDirection(StretchDirection value) noexcept {
     SetValue(StretchDirectionProperty, value);
 }
 
+void Image::SetRuntimeData(
+    std::uint64_t renderImage,
+    std::uint32_t pixelWidth,
+    std::uint32_t pixelHeight) noexcept {
+    const bool measureChanged =
+        pixelWidth_ != pixelWidth ||
+        pixelHeight_ != pixelHeight;
+    const bool renderChanged =
+        renderImage_ != renderImage;
+    renderImage_ = renderImage;
+    pixelWidth_ = pixelWidth;
+    pixelHeight_ = pixelHeight;
+    if (measureChanged) {
+        InvalidateMeasure();
+        return;
+    }
+    if (renderChanged) {
+        InvalidateVisual();
+    }
+}
+
 Size Image::MeasureOverride(Size availableSize) noexcept {
     if (pixelWidth_ == 0U || pixelHeight_ == 0U) {
         return Size{};
@@ -335,7 +356,6 @@ Size Viewbox::ArrangeOverride(Size finalSize) noexcept {
 
     ApplyViewTransform(scaleX, scaleY, offsetX, offsetY);
     ArrangeChild(*child, {0.0, 0.0, natural.width, natural.height});
-    ApplyViewTransform(scaleX, scaleY, offsetX, offsetY);
     return finalSize;
 }
 
@@ -456,17 +476,17 @@ void Border::OnRender(::Aero::Media::DrawingContext& context) noexcept {
     const bool hasBorder = brush.alpha > 0.0F || paintedBorder;
     const bool hasBackground = paintedBackground || backgroundColor.alpha > 0.0F;
 
-    if (radius > 0.0 && uniformThickness > 0.0 &&
-        hasBorder && !hasBackground) {
+    if (uniformThickness > 0.0 && hasBorder && !hasBackground) {
         static_cast<void>(builder.StrokeRect(
             bounds, brush, uniformThickness, radius));
         return;
     }
-    if (radius > 0.0 && uniformThickness > 0.0 &&
-        hasBorder) {
+    if (uniformThickness > 0.0 && hasBorder && hasBackground) {
         Base::Result<void> border = paintedBorder
             ? PaintBrushRect(builder, borderBrush, bounds, radius, isRtl)
-            : builder.FillRoundedRect(bounds, brush, radius);
+            : (radius > 0.0
+                ? builder.FillRoundedRect(bounds, brush, radius)
+                : builder.FillRect(bounds, brush));
         if (!border) return;
         const double inset = std::min(
             uniformThickness,
@@ -483,22 +503,21 @@ void Border::OnRender(::Aero::Media::DrawingContext& context) noexcept {
             std::min(inner.width, inner.height) * 0.5);
         if (paintedBackground) {
             static_cast<void>(PaintBrushRect(builder, background, inner, innerRadius, isRtl));
-        } else {
+        } else if (innerRadius > 0.0) {
             static_cast<void>(builder.FillRoundedRect(
                 inner, backgroundColor, innerRadius));
+        } else {
+            static_cast<void>(builder.FillRect(inner, backgroundColor));
         }
         return;
     }
-    Base::Result<void> fill = paintedBackground
-        ? PaintBrushRect(builder, background, bounds, radius, isRtl)
-        : (radius > 0.0
-            ? builder.FillRoundedRect(bounds, backgroundColor, radius)
-            : builder.FillRect(bounds, backgroundColor));
-    if (!fill) return;
-    if (uniformThickness > 0.0 && hasBorder) {
-        static_cast<void>(builder.StrokeRect(
-            bounds, brush, uniformThickness, radius));
-        return;
+    if (hasBackground) {
+        Base::Result<void> fill = paintedBackground
+            ? PaintBrushRect(builder, background, bounds, radius, isRtl)
+            : (radius > 0.0
+                ? builder.FillRoundedRect(bounds, backgroundColor, radius)
+                : builder.FillRect(bounds, backgroundColor));
+        if (!fill) return;
     }
     if (!uniform && hasBorder) {
         const auto fillSide =

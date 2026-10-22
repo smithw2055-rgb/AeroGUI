@@ -56,4 +56,37 @@ constexpr bool IsValidAlignment(std::size_t alignment) noexcept {
     return alignment != 0U && (alignment & (alignment - 1U)) == 0U;
 }
 
+template<class T, class... TArgs>
+inline Result<void> AllocateObject(
+    IAllocator& allocator,
+    MemoryTag tag,
+    T*& output,
+    TArgs&&... arguments) noexcept {
+    if (output != nullptr) {
+        return Status::Failure(
+            ErrorCode::AlreadyExists,
+            "Object is already allocated");
+    }
+    void* memory = allocator.Allocate({
+        sizeof(T), alignof(T), tag});
+    if (memory == nullptr) {
+        return Status::OutOfMemory("Object allocation failed");
+    }
+    output = new (memory) T(
+        std::forward<TArgs>(arguments)...);
+    return {};
+}
+
+template<class T>
+inline void FreeObject(
+    IAllocator& allocator,
+    MemoryTag tag,
+    T*& object) noexcept {
+    if (object == nullptr) return;
+    object->~T();
+    allocator.Deallocate(
+        object, sizeof(T), alignof(T), tag);
+    object = nullptr;
+}
+
 } // namespace Aero::Base

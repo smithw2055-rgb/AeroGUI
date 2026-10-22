@@ -105,10 +105,12 @@ private:
         Base::StringView fromState,
         Base::StringView toState) noexcept;
     Base::Result<void> ApplyState(
+        Control& control,
         TemplateHandle handle,
         const VisualStatePlan& state,
         ActiveGroup& active) noexcept;
     Base::Result<void> ClearStateValues(
+        Control& control,
         TemplateHandle handle,
         const VisualStatePlan& state,
         ActiveGroup& active) noexcept;
@@ -125,6 +127,7 @@ private:
         ActiveGroup& active,
         const Aero::Media::Animation::Model::TimelineTiming& parent = {}) noexcept;
     Base::Result<void> CaptureTransitionValues(
+        Control& control,
         TemplateHandle handle,
         const VisualStatePlan& next,
         Base::Vector<TransitionValue>& values) noexcept;
@@ -259,7 +262,9 @@ Base::Result<AnimationTarget> ResolveAnimationTarget(
     }
     Base::Result<ResolvedAnimationProperty> resolved =
         ResolveAnimationPropertyPath(*target, authoredPath, properties);
-    if (!resolved) return resolved.GetStatus();
+    if (!resolved) {
+        return resolved.GetStatus();
+    }
     return AnimationTarget{resolved.Value().target, resolved.Value().property};
 }
 
@@ -371,12 +376,14 @@ const VisualTransitionPlan* VisualStateManagerState::FindTransition(
 }
 
 Base::Result<void> VisualStateManagerState::ApplyState(
+    Control& control,
     TemplateHandle handle,
     const VisualStatePlan& state,
     ActiveGroup& active) noexcept {
     for (const VisualStateSetterPlan& setter : state.setters) {
-        DependencyObject* target =
-            templates_->FindName(handle, setter.targetName.View());
+        DependencyObject* target = setter.targetName.Empty()
+            ? static_cast<DependencyObject*>(&control)
+            : templates_->FindName(handle, setter.targetName.View());
         if (target == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::NotFound,
@@ -391,8 +398,9 @@ Base::Result<void> VisualStateManagerState::ApplyState(
         active.nextOrdinal = 0U;
     }
     for (const VisualStateSetterPlan& setter : state.setters) {
-        DependencyObject* target =
-            templates_->FindName(handle, setter.targetName.View());
+        DependencyObject* target = setter.targetName.Empty()
+            ? static_cast<DependencyObject*>(&control)
+            : templates_->FindName(handle, setter.targetName.View());
         const PropertyProviderToken token{
             PropertyValueRank::VisualState,
             active.providerOrigin,
@@ -400,7 +408,7 @@ Base::Result<void> VisualStateManagerState::ApplyState(
         Base::Result<void> applied = values_->SetProviderContribution(
             *target, setter.property, token, setter.value);
         if (!applied) {
-            static_cast<void>(ClearStateValues(handle, state, active));
+            static_cast<void>(ClearStateValues(control, handle, state, active));
             return applied.GetStatus();
         }
     }
@@ -408,6 +416,7 @@ Base::Result<void> VisualStateManagerState::ApplyState(
 }
 
 Base::Result<void> VisualStateManagerState::ClearStateValues(
+    Control& control,
     TemplateHandle handle,
     const VisualStatePlan& state,
     ActiveGroup& active) noexcept {
@@ -415,8 +424,9 @@ Base::Result<void> VisualStateManagerState::ClearStateValues(
         return {};
     }
     for (const VisualStateSetterPlan& setter : state.setters) {
-        DependencyObject* target =
-            templates_->FindName(handle, setter.targetName.View());
+        DependencyObject* target = setter.targetName.Empty()
+            ? static_cast<DependencyObject*>(&control)
+            : templates_->FindName(handle, setter.targetName.View());
         if (target == nullptr) continue;
         Base::Result<std::uint32_t> cleared =
             values_->ClearProviderOrigin(
@@ -565,38 +575,11 @@ Base::Result<void> VisualStateManagerState::StartStoryboardAnimations(
                 Media::Animation::DoubleAnimationUsingKeyFrames&>(
                     timeline);
             Base::Vector<Aero::Media::Animation::Model::DoubleKeyFrame>
-                frames;
-            const auto schedule =
-                Aero::Media::Animation::MakeSchedule(
-                    authored.GetKeyFrames(),
-                    ComposeTiming(authored, effectiveParent).durationMicroseconds);
-            std::uint32_t keyIndex = 0U;
-            for (const Base::Ref<Media::Animation::DoubleKeyFrame>&
-                     frame : authored.GetKeyFrames()) {
-                if (!frame) continue;
-                frames.PushBack(
-                        Aero::Media::Animation::DoubleFrame(
-                            *frame,
-                            schedule.duration,
-                            keyIndex,
-                            schedule.count));
-                ++keyIndex;
-            }
-            for (std::uint32_t index = 1U;
-                 index < frames.Size(); ++index) {
-                Aero::Media::Animation::Model::DoubleKeyFrame current =
-                    frames[index];
-                std::uint32_t position = index;
-                while (position > 0U &&
-                       frames[position - 1U]
-                               .keyTimeMicroseconds >
-                           current.keyTimeMicroseconds) {
-                    frames[position] =
-                        frames[position - 1U];
-                    --position;
-                }
-                frames[position] = current;
-            }
+                frames =
+                    Aero::Media::Animation::BuildSortedKeyFrames<
+                        Aero::Media::Animation::Model::DoubleKeyFrame>(
+                        authored,
+                        ComposeTiming(authored, effectiveParent).durationMicroseconds);
             if (frames.Empty()) {
                 return {};
             }
@@ -633,38 +616,11 @@ Base::Result<void> VisualStateManagerState::StartStoryboardAnimations(
                 Media::Animation::ColorAnimationUsingKeyFrames&>(
                 timeline);
             Base::Vector<Aero::Media::Animation::Model::ColorKeyFrame>
-                frames;
-            const auto schedule =
-                Aero::Media::Animation::MakeSchedule(
-                    authored.GetKeyFrames(),
-                    ComposeTiming(authored, effectiveParent).durationMicroseconds);
-            std::uint32_t keyIndex = 0U;
-            for (const Base::Ref<Media::Animation::ColorKeyFrame>&
-                     frame : authored.GetKeyFrames()) {
-                if (!frame) continue;
-                frames.PushBack(
-                        Aero::Media::Animation::ColorFrame(
-                            *frame,
-                            schedule.duration,
-                            keyIndex,
-                            schedule.count));
-                ++keyIndex;
-            }
-            for (std::uint32_t index = 1U;
-                 index < frames.Size(); ++index) {
-                Aero::Media::Animation::Model::ColorKeyFrame current =
-                    frames[index];
-                std::uint32_t position = index;
-                while (position > 0U &&
-                       frames[position - 1U]
-                               .keyTimeMicroseconds >
-                           current.keyTimeMicroseconds) {
-                    frames[position] =
-                        frames[position - 1U];
-                    --position;
-                }
-                frames[position] = current;
-            }
+                frames =
+                    Aero::Media::Animation::BuildSortedKeyFrames<
+                        Aero::Media::Animation::Model::ColorKeyFrame>(
+                        authored,
+                        ComposeTiming(authored, effectiveParent).durationMicroseconds);
             if (frames.Empty()) {
                 return {};
             }
@@ -679,6 +635,64 @@ Base::Result<void> VisualStateManagerState::StartStoryboardAnimations(
             Aero::Media::Animation::Model::ColorKeyFrameAnimation
                 runtime;
             runtime.baseValue = decoded.Value();
+            runtime.timing =
+                ComposeTiming(authored, effectiveParent);
+            if (runtime.timing.durationMicroseconds == 0U) {
+                runtime.timing.durationMicroseconds =
+                    frames.Back().keyTimeMicroseconds;
+            }
+            runtime.keyFrames = frames.AsSpan();
+            started = animations_->Begin(
+                *resolved.Value().object,
+                resolved.Value().property,
+                runtime);
+        } else if (timeline.RuntimeType() ==
+                   Media::Animation::PointAnimation::StaticTypeId()) {
+            auto& authored =
+                static_cast<Media::Animation::PointAnimation&>(timeline);
+            Aero::Media::Animation::Model::PointAnimation runtime =
+                Aero::Media::Animation::Point(authored);
+            runtime.timing = ComposeTiming(authored, effectiveParent);
+            started = animations_->Begin(
+                *resolved.Value().object,
+                resolved.Value().property,
+                runtime);
+        } else if (
+            timeline.RuntimeType() ==
+                Media::Animation::PointAnimationUsingKeyFrames::
+                    StaticTypeId()) {
+            auto& authored = static_cast<
+                Media::Animation::PointAnimationUsingKeyFrames&>(
+                timeline);
+            Base::Vector<Aero::Media::Animation::Model::PointKeyFrame>
+                frames =
+                    Aero::Media::Animation::BuildSortedKeyFrames<
+                        Aero::Media::Animation::Model::PointKeyFrame>(
+                        authored,
+                        ComposeTiming(authored, effectiveParent).durationMicroseconds);
+            if (frames.Empty()) {
+                return {};
+            }
+            Base::Result<PropertyValue> base =
+                (*resolved.Value().object).GetAnimationBaseValueInternal(
+                    resolved.Value().property);
+            if (!base || base.Value().IsUnset()) {
+                base = resolved.Value().object->GetValue(
+                    resolved.Value().property);
+            }
+            if (!base) return base.GetStatus();
+            Base::Result<Base::Point> decoded =
+                ValueCodec<Base::Point>::Decode(base.Value());
+            Aero::Media::Animation::Model::PointKeyFrameAnimation
+                runtime;
+            if (decoded) {
+                runtime.baseValue = decoded.Value();
+            } else if (!frames.Empty() &&
+                       frames.Front().keyTimeMicroseconds == 0U) {
+                runtime.baseValue = frames.Front().value;
+            } else {
+                return decoded.GetStatus();
+            }
             runtime.timing =
                 ComposeTiming(authored, effectiveParent);
             if (runtime.timing.durationMicroseconds == 0U) {
@@ -706,79 +720,39 @@ Base::Result<void> VisualStateManagerState::StartStoryboardAnimations(
                 auto& authored = static_cast<
                     Media::Animation::ObjectAnimationUsingKeyFrames&>(
                         timeline);
-                const auto schedule =
-                    Aero::Media::Animation::MakeSchedule(
-                        authored.GetKeyFrames(),
-                        ComposeTiming(authored, effectiveParent).durationMicroseconds);
-                std::uint32_t keyIndex = 0U;
-                for (const Base::Ref<
-                         Media::Animation::ObjectKeyFrame>&
-                     frame : authored.GetKeyFrames()) {
-                    if (!frame) continue;
-                    Aero::Media::Animation::Model::DiscreteAnimationKeyFrame
-                        runtime;
-                    runtime.keyTimeMicroseconds =
-                        Aero::Media::Animation::ResolveKeyTime(
-                            frame->GetKeyTime(),
-                            schedule.duration,
-                            keyIndex,
-                            schedule.count);
-                    ++keyIndex;
-                    runtime.value = frame->GetValue();
-                    frames.PushBack(
-                            std::move(runtime));
-                }
+                frames = Aero::Media::Animation::BuildSortedKeyFramesWith<
+                    Aero::Media::Animation::Model::DiscreteAnimationKeyFrame>(
+                    authored,
+                    ComposeTiming(authored, effectiveParent).durationMicroseconds,
+                    [](const Media::Animation::ObjectKeyFrame& frame,
+                       Aero::Media::Animation::AnimationTime duration,
+                       std::uint32_t keyIndex,
+                       std::uint32_t count) {
+                        Aero::Media::Animation::Model::DiscreteAnimationKeyFrame runtime;
+                        runtime.keyTimeMicroseconds = Aero::Media::Animation::ResolveKeyTime(
+                            frame.GetKeyTime(), duration, keyIndex, count);
+                        runtime.value = frame.GetValue();
+                        return runtime;
+                    });
             } else {
                 auto& authored = static_cast<
                     Media::Animation::BooleanAnimationUsingKeyFrames&>(
                         timeline);
-                const auto schedule =
-                    Aero::Media::Animation::MakeSchedule(
-                        authored.GetKeyFrames(),
-                        ComposeTiming(authored, effectiveParent).durationMicroseconds);
-                std::uint32_t keyIndex = 0U;
-                for (const Base::Ref<
-                         Media::Animation::BooleanKeyFrame>&
-                     frame : authored.GetKeyFrames()) {
-                    if (!frame) continue;
-                    Base::Result<PropertyValue> encoded =
-                        ValueCodec<bool>::Encode(
-                            frame->GetValue());
-                    if (!encoded) {
-                        return encoded.GetStatus();
-                    }
-                    Aero::Media::Animation::Model::DiscreteAnimationKeyFrame
-                        runtime;
-                    runtime.keyTimeMicroseconds =
-                        Aero::Media::Animation::ResolveKeyTime(
-                            frame->GetKeyTime(),
-                            schedule.duration,
-                            keyIndex,
-                            schedule.count);
-                    ++keyIndex;
-                    runtime.value =
-                        std::move(encoded).Value();
-                    frames.PushBack(
-                            std::move(runtime));
-                }
-            }
-            for (std::uint32_t index = 1U;
-                 index < frames.Size(); ++index) {
-                Aero::Media::Animation::Model::DiscreteAnimationKeyFrame
-                    current =
-                        std::move(frames[index]);
-                std::uint32_t position = index;
-                while (position > 0U &&
-                       frames[position - 1U]
-                               .keyTimeMicroseconds >
-                           current.keyTimeMicroseconds) {
-                    frames[position] =
-                        std::move(
-                            frames[position - 1U]);
-                    --position;
-                }
-                frames[position] =
-                    std::move(current);
+                frames = Aero::Media::Animation::BuildSortedKeyFramesWith<
+                    Aero::Media::Animation::Model::DiscreteAnimationKeyFrame>(
+                    authored,
+                    ComposeTiming(authored, effectiveParent).durationMicroseconds,
+                    [](const Media::Animation::BooleanKeyFrame& frame,
+                       Aero::Media::Animation::AnimationTime duration,
+                       std::uint32_t keyIndex,
+                       std::uint32_t count) {
+                        Aero::Media::Animation::Model::DiscreteAnimationKeyFrame runtime;
+                        runtime.keyTimeMicroseconds = Aero::Media::Animation::ResolveKeyTime(
+                            frame.GetKeyTime(), duration, keyIndex, count);
+                        Base::Result<PropertyValue> encoded = ValueCodec<bool>::Encode(frame.GetValue());
+                        if (encoded) runtime.value = std::move(encoded).Value();
+                        return runtime;
+                    });
             }
             if (frames.Empty()) {
                 return {};
@@ -822,14 +796,16 @@ Base::Result<void> VisualStateManagerState::StartStoryboardAnimations(
 }
 
 Base::Result<void> VisualStateManagerState::CaptureTransitionValues(
+    Control& control,
     TemplateHandle handle,
     const VisualStatePlan& next,
     Base::Vector<TransitionValue>& output) noexcept {
     output.Clear();
     for (const VisualStateSetterPlan& setter :
          next.setters) {
-        DependencyObject* target =
-            templates_->FindName(
+        DependencyObject* target = setter.targetName.Empty()
+            ? static_cast<DependencyObject*>(&control)
+            : templates_->FindName(
                 handle,
                 setter.targetName.View());
         if (target == nullptr) {
@@ -925,17 +901,16 @@ Base::Result<void> VisualStateManagerState::CaptureStoryboardTimeline(
                 StaticTypeId()) {
         auto& authored = static_cast<
             Media::Animation::DoubleAnimationUsingKeyFrames&>(timeline);
-        const auto frames = authored.GetKeyFrames();
+        Base::Vector<Aero::Media::Animation::Model::DoubleKeyFrame> frames =
+            Aero::Media::Animation::BuildSortedKeyFrames<
+                Aero::Media::Animation::Model::DoubleKeyFrame>(
+                authored,
+                ComposeTiming(authored, {}).durationMicroseconds);
         if (frames.Empty()) {
             return {};
         }
         Base::Result<PropertyValue> to =
-            ValueCodec<double>::Encode(
-                Aero::Media::Animation::DoubleFrame(
-                    *frames[frames.Size() - 1U],
-                    0U,
-                    frames.Size() - 1U,
-                    frames.Size()).value);
+            ValueCodec<double>::Encode(frames.Back().value);
         if (!to) return to.GetStatus();
         values.PushBack(
             TransitionValue{
@@ -950,17 +925,16 @@ Base::Result<void> VisualStateManagerState::CaptureStoryboardTimeline(
                 StaticTypeId()) {
         auto& authored = static_cast<
             Media::Animation::ColorAnimationUsingKeyFrames&>(timeline);
-        const auto frames = authored.GetKeyFrames();
+        Base::Vector<Aero::Media::Animation::Model::ColorKeyFrame> frames =
+            Aero::Media::Animation::BuildSortedKeyFrames<
+                Aero::Media::Animation::Model::ColorKeyFrame>(
+                authored,
+                ComposeTiming(authored, {}).durationMicroseconds);
         if (frames.Empty()) {
             return {};
         }
         Base::Result<PropertyValue> to =
-            ValueCodec<Base::Color>::Encode(
-                Aero::Media::Animation::ColorFrame(
-                    *frames[frames.Size() - 1U],
-                    0U,
-                    frames.Size() - 1U,
-                    frames.Size()).value);
+            ValueCodec<Base::Color>::Encode(frames.Back().value);
         if (!to) return to.GetStatus();
         values.PushBack(
             TransitionValue{
@@ -974,6 +948,9 @@ Base::Result<void> VisualStateManagerState::CaptureStoryboardTimeline(
             Media::Animation::DoubleAnimation::StaticTypeId()) {
         auto& authored =
             static_cast<Media::Animation::DoubleAnimation&>(timeline);
+        if (!authored.GetHasTo()) {
+            return {};
+        }
         Base::Result<PropertyValue> to =
             ValueCodec<double>::Encode(authored.GetTo());
         if (!to) return to.GetStatus();
@@ -991,6 +968,45 @@ Base::Result<void> VisualStateManagerState::CaptureStoryboardTimeline(
             static_cast<Media::Animation::ColorAnimation&>(timeline);
         Base::Result<PropertyValue> to =
             ValueCodec<Base::Color>::Encode(authored.GetTo());
+        if (!to) return to.GetStatus();
+        values.PushBack(
+            TransitionValue{
+                target,
+                property,
+                from.Value(),
+                std::move(to).Value()});
+        return {};
+    }
+    if (timeline.RuntimeType() ==
+            Media::Animation::PointAnimationUsingKeyFrames::
+                StaticTypeId()) {
+        auto& authored = static_cast<
+            Media::Animation::PointAnimationUsingKeyFrames&>(timeline);
+        Base::Vector<Aero::Media::Animation::Model::PointKeyFrame> frames =
+            Aero::Media::Animation::BuildSortedKeyFrames<
+                Aero::Media::Animation::Model::PointKeyFrame>(
+                authored,
+                ComposeTiming(authored, {}).durationMicroseconds);
+        if (frames.Empty()) {
+            return {};
+        }
+        Base::Result<PropertyValue> to =
+            ValueCodec<Base::Point>::Encode(frames.Back().value);
+        if (!to) return to.GetStatus();
+        values.PushBack(
+            TransitionValue{
+                target,
+                property,
+                from.Value(),
+                std::move(to).Value()});
+        return {};
+    }
+    if (timeline.RuntimeType() ==
+            Media::Animation::PointAnimation::StaticTypeId()) {
+        auto& authored =
+            static_cast<Media::Animation::PointAnimation&>(timeline);
+        Base::Result<PropertyValue> to =
+            ValueCodec<Base::Point>::Encode(authored.GetTo());
         if (!to) return to.GetStatus();
         values.PushBack(
             TransitionValue{
@@ -1107,9 +1123,38 @@ Base::Result<void> VisualStateManagerState::StartTransitionAnimations(
             if (!fromColor || !toColor) {
                 continue;
             }
+            if (fromColor.Value() == toColor.Value()) {
+                continue;
+            }
             ColorAnimation animation;
             animation.from = fromColor.Value();
             animation.to = toColor.Value();
+            animation.timing.durationMicroseconds =
+                transition.generatedDurationMicroseconds;
+            animation.timing.fillBehavior =
+                FillBehavior::HoldEnd;
+            animation.easing = easing;
+            started = animations_->Begin(
+                *value.target,
+                value.property,
+                animation);
+        } else if (value.from.Type() == Meta::TypeOf<Base::Point>()) {
+            Base::Result<Base::Point> fromPoint =
+                ValueCodec<Base::Point>::Decode(
+                    value.from);
+            Base::Result<Base::Point> toPoint =
+                ValueCodec<Base::Point>::Decode(
+                    value.to);
+            if (!fromPoint || !toPoint) {
+                continue;
+            }
+            if (fromPoint.Value().x == toPoint.Value().x &&
+                fromPoint.Value().y == toPoint.Value().y) {
+                continue;
+            }
+            PointAnimation animation;
+            animation.from = fromPoint.Value();
+            animation.to = toPoint.Value();
             animation.timing.durationMicroseconds =
                 transition.generatedDurationMicroseconds;
             animation.timing.fillBehavior =
@@ -1141,7 +1186,6 @@ Base::Result<bool> VisualStateManagerState::GoToState(
     if (stateName.Empty()) {
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Visual state name is required");
     }
-    PruneStale();
     const TemplateHandle handle =
         templates_->AppliedHandle(control);
     const ControlTemplate* plan =
@@ -1186,6 +1230,7 @@ Base::Result<bool> VisualStateManagerState::GoToState(
         }
     }
     if (next == nullptr) {
+
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
             "Visual state was not found");
@@ -1214,12 +1259,18 @@ Base::Result<bool> VisualStateManagerState::GoToState(
     nextName.Assign(stateName);
     bool addedRecord = false;
     if (activeIndex == UINT32_MAX) {
-        ActiveGroup active;
-        active.templateValue = handle.value;
-        active.groupName = std::move(nextGroup);
-        active_.PushBack(std::move(active));
-        activeIndex = active_.Size() - 1U;
-        addedRecord = true;
+        if (!active_.Empty()) {
+            PruneStale();
+            activeIndex = FindActive(handle, groupName);
+        }
+        if (activeIndex == UINT32_MAX) {
+            ActiveGroup active;
+            active.templateValue = handle.value;
+            active.groupName = std::move(nextGroup);
+            active_.PushBack(std::move(active));
+            activeIndex = active_.Size() - 1U;
+            addedRecord = true;
+        }
     }
 
     const VisualStatePlan* previous = nullptr;
@@ -1243,6 +1294,7 @@ Base::Result<bool> VisualStateManagerState::GoToState(
         !transition->storyboard) {
         Base::Result<void> captured =
             CaptureTransitionValues(
+                control,
                 handle,
                 *next,
                 transitionValues);
@@ -1280,6 +1332,20 @@ Base::Result<bool> VisualStateManagerState::GoToState(
                 return captured.GetStatus();
             }
         }
+    } else if (previous != nullptr && previous->storyboard && !next->storyboard) {
+        // Bug 2.2: When there is no generated duration or no transition, capture revert to base
+        // so HoldEnd animation values from previous state get restored to base values.
+        Base::Result<void> captured = CaptureStoryboardRevertToBase(
+            control,
+            handle,
+            *previous,
+            transitionValues);
+        if (!captured) {
+            if (addedRecord) {
+                RemoveActiveAt(activeIndex);
+            }
+            return captured.GetStatus();
+        }
     }
     if (previous != nullptr) {
         Base::Result<void> animationsCleared =
@@ -1289,12 +1355,12 @@ Base::Result<bool> VisualStateManagerState::GoToState(
             return animationsCleared.GetStatus();
         }
         Base::Result<void> cleared =
-            ClearStateValues(handle, *previous, active_[activeIndex]);
+            ClearStateValues(control, handle, *previous, active_[activeIndex]);
         if (!cleared) {
             if (addedRecord) RemoveActiveAt(activeIndex);
             return cleared.GetStatus();
         }
-        if (!next->storyboard) {
+        if (!next->storyboard && (transition == nullptr || transition->generatedDurationMicroseconds == 0U)) {
             for (const TransitionValue& value : transitionValues) {
                 if (value.target == nullptr ||
                     !value.property.IsValid() ||
@@ -1317,10 +1383,10 @@ Base::Result<bool> VisualStateManagerState::GoToState(
             }
         }
     }
-    Base::Result<void> applied = ApplyState(handle, *next, active_[activeIndex]);
+    Base::Result<void> applied = ApplyState(control, handle, *next, active_[activeIndex]);
     if (!applied) {
         if (previous != nullptr) {
-            static_cast<void>(ApplyState(handle, *previous, active_[activeIndex]));
+            static_cast<void>(ApplyState(control, handle, *previous, active_[activeIndex]));
         }
         if (addedRecord) RemoveActiveAt(activeIndex);
         return applied.GetStatus();
@@ -1354,14 +1420,15 @@ Base::Result<bool> VisualStateManagerState::GoToState(
             stateTiming);
     }
     if (!animated) {
+
         static_cast<void>(
             ClearStateAnimations(
                 active_[activeIndex]));
         static_cast<void>(
-            ClearStateValues(handle, *next, active_[activeIndex]));
+            ClearStateValues(control, handle, *next, active_[activeIndex]));
         if (previous != nullptr) {
             static_cast<void>(
-                ApplyState(handle, *previous, active_[activeIndex]));
+                ApplyState(control, handle, *previous, active_[activeIndex]));
             static_cast<void>(
                 StartStateAnimations(
                     control, handle, *previous,
@@ -1370,6 +1437,7 @@ Base::Result<bool> VisualStateManagerState::GoToState(
         if (addedRecord) RemoveActiveAt(activeIndex);
         return animated.GetStatus();
     }
+
     active_[activeIndex].stateName = std::move(nextName);
     return true;
 }
@@ -1398,7 +1466,7 @@ Base::Result<bool> VisualStateManagerState::ClearState(
             return animationsCleared.GetStatus();
         }
         Base::Result<void> cleared =
-            ClearStateValues(handle, *state, active_[activeIndex]);
+            ClearStateValues(control, handle, *state, active_[activeIndex]);
         if (!cleared) return cleared.GetStatus();
     }
     RemoveActiveAt(activeIndex);
@@ -1557,37 +1625,6 @@ void ClearGroupTransitions(
         object).ClearTransitions();
 }
 
-[[maybe_unused]] void AddElementVisualStateGroup(
-    Base::Object& object,
-    const Base::Ref<Base::Object>& value,
-    void*) noexcept {
-    if (!value || value->RuntimeType() != VisualStateGroup::StaticTypeId()) {
-        return;
-    }
-    auto& target = static_cast<::Aero::DependencyObject&>(object);
-    Base::Ref<VisualStateGroupCollection> valueStore = target.GetValue(VisualStateManager::VisualStateGroupsProperty);
-    if (!valueStore) {
-        Base::Result<Base::Ref<VisualStateGroupCollection>> created =
-            Base::MakeRef<VisualStateGroupCollection>();
-        if (!created) return;
-        valueStore = std::move(created).Value();
-        target.SetValue(
-            VisualStateManager::VisualStateGroupsProperty,
-            valueStore);
-    }
-    (void)valueStore->Add(
-        Base::Ref<VisualStateGroup>::FromBorrowed(
-            *static_cast<VisualStateGroup*>(value.Get())));
-}
-
-[[maybe_unused]] void ClearElementVisualStateGroups(
-    Base::Object& object,
-    void*) noexcept {
-    static_cast<::Aero::DependencyObject&>(object).SetValue(
-        VisualStateManager::VisualStateGroupsProperty,
-        Base::Ref<VisualStateGroupCollection>{});
-}
-
 void AddStateContent(
     Base::Object& object,
     const Base::Ref<Base::Object>& value,
@@ -1640,24 +1677,6 @@ void ClearTransitionStoryboard(
     void*) noexcept {
     static_cast<VisualTransition&>(object).SetStoryboard({});
 }
-
-[[maybe_unused]] void AddVisualStateGroupToCollection(
-    Base::Object& owner,
-    const Base::Ref<Base::Object>& value,
-    void*) noexcept {
-    if (!value || value->RuntimeType() != VisualStateGroup::StaticTypeId()) return;
-    auto& collection = static_cast<VisualStateGroupCollection&>(owner);
-    collection.Add(
-        Base::Ref<VisualStateGroup>::FromBorrowed(
-            *static_cast<VisualStateGroup*>(value.Get())));
-}
-
-[[maybe_unused]] void ClearVisualStateGroupCollection(
-    Base::Object& owner,
-    void*) noexcept {
-    static_cast<VisualStateGroupCollection&>(owner).Clear();
-}
-
 
 } // namespace
 

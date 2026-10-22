@@ -440,6 +440,43 @@ bool TransformGroup::FreezeCore(bool isChecking) noexcept {
     return Transform::FreezeCore(isChecking);
 }
 
+Base::Ref<Freezable> TransformGroup::CreateInstanceCore() const {
+    auto made = Base::MakeRef<TransformGroup>();
+    return made ? Base::Ref<Freezable>(std::move(made).Value()) : Base::Ref<Freezable>{};
+}
+
+void TransformGroup::CloneCore(const Freezable& source) {
+    Transform::CloneCore(source);
+    const auto* src = TryCast<TransformGroup>(&source);
+    if (src != nullptr) {
+        ClearChildren();
+        for (const Base::Ref<Transform>& child : src->GetChildren()) {
+            if (child) {
+                Base::Ref<Freezable> cloned = child->Clone();
+                if (cloned) {
+                    AddChild(Base::Ref<Transform>::FromBorrowed(*static_cast<Transform*>(cloned.Get())));
+                }
+            }
+        }
+    }
+}
+
+void TransformGroup::CloneCurrentValueCore(const Freezable& source) {
+    Transform::CloneCurrentValueCore(source);
+    const auto* src = TryCast<TransformGroup>(&source);
+    if (src != nullptr) {
+        ClearChildren();
+        for (const Base::Ref<Transform>& child : src->GetChildren()) {
+            if (child) {
+                Base::Ref<Freezable> cloned = child->CloneCurrentValue();
+                if (cloned) {
+                    AddChild(Base::Ref<Transform>::FromBorrowed(*static_cast<Transform*>(cloned.Get())));
+                }
+            }
+        }
+    }
+}
+
 Base::Transform2D TransformGroup::GetMatrix() const noexcept {
     Base::Transform2D result;
     for (const Base::Ref<Transform>& child : children_) {

@@ -18,6 +18,10 @@
 
 #include <cstdint>
 
+namespace Aero {
+class NameScope;
+}
+
 namespace Aero::Data {
 
 using Aero::Meta::TypeRegistry;
@@ -26,6 +30,14 @@ using Aero::Meta::Registry;
 using Aero::Meta::BindingPathCompileError;
 using PropertyValue = ::Aero::PropertyValue;
 using DependencyProperty = ::Aero::Meta::DependencyProperty;
+
+Base::Result<Base::Object*> ResolveCodeBindingSource(
+    const Binding& binding,
+    DependencyObject& target,
+    const Meta::Registry* metadata = nullptr,
+    const Aero::NameScope* names = nullptr,
+    Base::Object* self = nullptr,
+    bool startAtTarget = false) noexcept;
 
 Base::Status InvalidState(const char* message) noexcept;
 

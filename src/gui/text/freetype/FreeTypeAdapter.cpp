@@ -1,5 +1,8 @@
 #include "../FreeTypeAdapter.hpp"
 
+#include <Aero/Base/Allocator.hpp>
+#include <Aero/Base/Utf8.hpp>
+
 #include <ft2build.h>
 #include FT_FREETYPE_H
 #include FT_OUTLINE_H
@@ -29,27 +32,15 @@ Base::Status FreeTypeFailure(const char* message) noexcept {
 std::uint32_t DecodeUtf8CodePoint(
     Base::StringView text,
     std::uint32_t& offset) noexcept {
-    const auto* bytes =
-        reinterpret_cast<const unsigned char*>(text.Data());
-    const unsigned char lead = bytes[offset++];
-    if (lead <= 0x7FU) return lead;
-    std::uint32_t codePoint = 0U;
-    std::uint32_t remaining = 0U;
-    if ((lead & 0xE0U) == 0xC0U) {
-        codePoint = lead & 0x1FU;
-        remaining = 1U;
-    } else if ((lead & 0xF0U) == 0xE0U) {
-        codePoint = lead & 0x0FU;
-        remaining = 2U;
-    } else {
-        codePoint = lead & 0x07U;
-        remaining = 3U;
+    const auto decoded = Base::DecodeCodePoint(
+        text.Data() + offset,
+        text.SizeBytes() - offset);
+    if (decoded.length == 0U) {
+        offset += 1U;
+        return 0xFFFDU;
     }
-    while (remaining-- > 0U) {
-        codePoint = (codePoint << 6U) |
-            static_cast<std::uint32_t>(bytes[offset++] & 0x3FU);
-    }
-    return codePoint;
+    offset += decoded.length;
+    return decoded.value;
 }
 
 Base::Result<FT_UInt> ToPixelSize(
@@ -235,11 +226,6 @@ struct FreeTypeAdapterState {
     }
 };
 
-static_assert(sizeof(FreeTypeAdapterState) <= 4096U,
-    "FreeTypeAdapter inline state storage is too small");
-static_assert(alignof(FreeTypeAdapterState) <= alignof(std::max_align_t),
-    "FreeTypeAdapter inline state alignment is insufficient");
-
 FreeTypeAdapter::FreeTypeAdapter(
     Base::IAllocator* allocator) noexcept
     : allocator_(allocator != nullptr
@@ -256,10 +242,16 @@ FreeTypeAdapter::Initialize() noexcept {
             Base::ErrorCode::AlreadyExists,
             "FreeType adapter is already initialized");
     }
-    state_ = new (stateStorage_) FreeTypeAdapterState(allocator_);
+    Base::Result<void> allocated = Base::AllocateObject(
+        *allocator_,
+        Base::MemoryTag::Ui,
+        state_,
+        allocator_);
+    if (!allocated) {
+        return allocated.GetStatus();
+    }
     if (FT_Init_FreeType(&state_->library) != 0) {
-        state_->~FreeTypeAdapterState();
-        state_ = nullptr;
+        Base::FreeObject(*allocator_, Base::MemoryTag::Ui, state_);
         return FreeTypeFailure("FreeType initialization failed");
     }
     return {};
@@ -276,8 +268,7 @@ void FreeTypeAdapter::Shutdown() noexcept {
     if (state_->library != nullptr) {
         FT_Done_FreeType(state_->library);
     }
-    state_->~FreeTypeAdapterState();
-    state_ = nullptr;
+    Base::FreeObject(*allocator_, Base::MemoryTag::Ui, state_);
 }
 
 bool FreeTypeAdapter::IsInitialized() const noexcept {

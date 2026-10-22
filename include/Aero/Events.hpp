@@ -19,6 +19,8 @@ class UIElement;
 
 namespace Input {
 class RoutedCommand;
+enum class DragDropEffects : std::uint8_t;
+enum class KeyboardAction : std::uint8_t;
 }
 
 // -----------------------------------------------------------------------------

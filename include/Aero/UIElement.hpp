@@ -69,7 +69,7 @@ public:
     explicit UIElement(TypeId runtimeType) noexcept;
     ~UIElement() override;
 
-    template<class TOwner, class TArgs> auto GetEvent(
+    template<class TOwner, class TArgs> Event<TArgs> GetEvent(
         const Aero::RoutedEventRef<TOwner, TArgs>& event) noexcept { return Event<TArgs>(*this, event.Handle()); }
     UIElement* LayoutParent() const noexcept;
     void InvalidateMeasure() noexcept;

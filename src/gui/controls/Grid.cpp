@@ -265,12 +265,12 @@ Size Grid::MeasureOverride(
     for (std::uint32_t index = 0U; index < columns; ++index) {
         const GridLength definition = ColumnAt(index);
         if (definition.unit == GridUnitType::Pixel)
-            desiredColumns[index] = definition.value;
+            desiredColumns[index] = std::min(definition.value, MaxWidthAt(index));
     }
     for (std::uint32_t index = 0U; index < rows; ++index) {
         const GridLength definition = RowAt(index);
         if (definition.unit == GridUnitType::Pixel)
-            desiredRows[index] = definition.value;
+            desiredRows[index] = std::min(definition.value, MaxHeightAt(index));
     }
 
     constexpr double Unconstrained = 1.0e12;
@@ -653,6 +653,12 @@ Size Grid::MeasureOverride(
         }
     }
 
+    for (std::uint32_t index = 0U; index < columns; ++index) {
+        desiredColumns[index] = std::min(desiredColumns[index], MaxWidthAt(index));
+    }
+    for (std::uint32_t index = 0U; index < rows; ++index) {
+        desiredRows[index] = std::min(desiredRows[index], MaxHeightAt(index));
+    }
     desiredColumns_ = std::move(desiredColumns);
     desiredRows_ = std::move(desiredRows);
     return Size{totalDesiredWidth, totalDesiredHeight};
@@ -671,17 +677,24 @@ Size Grid::ArrangeOverride(Size finalSize) noexcept {
         }
     }
 
+    Base::Vector<double> maxCols;
+    maxCols.Reserve(GetColumnCount());
+    for (std::uint32_t i = 0U; i < GetColumnCount(); ++i) maxCols.PushBack(MaxWidthAt(i));
+    Base::Vector<double> maxRows;
+    maxRows.Reserve(GetRowCount());
+    for (std::uint32_t i = 0U; i < GetRowCount(); ++i) maxRows.PushBack(MaxHeightAt(i));
+
     Base::Vector<double> columns;
     Base::Vector<double> rows;
     Base::Result<void> resolved = ResolveTracks(
         {columns_.Data(), columns_.Size()},
         {desiredColumns_.Data(), desiredColumns_.Size()},
-        finalSize.width, columns);
+        finalSize.width, columns, maxCols.AsSpan());
     if (!resolved) return finalSize;
     resolved = ResolveTracks(
         {rows_.Data(), rows_.Size()},
         {desiredRows_.Data(), desiredRows_.Size()},
-        finalSize.height, rows);
+        finalSize.height, rows, maxRows.AsSpan());
     if (!resolved) return finalSize;
 
     const bool isRtl = GetFlowDirection() == FlowDirection::RightToLeft;
@@ -751,6 +764,18 @@ GridLength Grid::RowAt(std::uint32_t index) const noexcept {
     }
     return rows_.Empty() ? GridLength::Star() : (index < rows_.Size() ? rows_[index] : GridLength::Star());
 }
+double Grid::MaxWidthAt(std::uint32_t index) const noexcept {
+    if (index < columnDefinitionObjects_.Size() && columnDefinitionObjects_[index]) {
+        return columnDefinitionObjects_[index]->GetMaxWidth();
+    }
+    return 1.0e12;
+}
+double Grid::MaxHeightAt(std::uint32_t index) const noexcept {
+    if (index < rowDefinitionObjects_.Size() && rowDefinitionObjects_[index]) {
+        return rowDefinitionObjects_[index]->GetMaxHeight();
+    }
+    return 1.0e12;
+}
 Base::Result<void> Grid::ValidateDefinitions(
     Base::Span<const GridLength> definitions) const noexcept {
     for (const GridLength& definition : definitions) {
@@ -784,7 +809,8 @@ Base::Result<void> Grid::ResolveTracks(
     Base::Span<const GridLength> definitions,
     Base::Span<const double> desired,
     double available,
-    Base::Vector<double>& resolved) const noexcept {
+    Base::Vector<double>& resolved,
+    Base::Span<const double> maxLimits) const noexcept {
     const std::uint32_t count = definitions.Empty() ? 1U : definitions.Size();
     if (!std::isfinite(available) || available < 0.0 ||
         (!desired.Empty() && desired.Size() != count)) {
@@ -794,14 +820,18 @@ Base::Result<void> Grid::ResolveTracks(
     resolved.Resize(count, 0.0);
     double occupied = 0.0;
     double totalStarWeight = 0.0;
+    const auto getMaxLimit = [&](std::uint32_t idx) noexcept -> double {
+        return (!maxLimits.Empty() && idx < maxLimits.Size()) ? maxLimits[idx] : 1.0e12;
+    };
     for (std::uint32_t index = 0U; index < count; ++index) {
         const GridLength definition = definitions.Empty()
             ? GridLength::Star() : definitions[index];
+        const double limit = getMaxLimit(index);
         if (definition.unit == GridUnitType::Pixel) {
-            resolved[index] = definition.value;
-            occupied += definition.value;
+            resolved[index] = std::min(definition.value, limit);
+            occupied += resolved[index];
         } else if (definition.unit == GridUnitType::Auto) {
-            resolved[index] = desired.Empty() ? 0.0 : desired[index];
+            resolved[index] = std::min(desired.Empty() ? 0.0 : desired[index], limit);
             occupied += resolved[index];
         } else {
             totalStarWeight += definition.value;
@@ -825,13 +855,14 @@ Base::Result<void> Grid::ResolveTracks(
             const GridLength definition = definitions.Empty()
                 ? GridLength::Star() : definitions[index];
             if (definition.unit != GridUnitType::Star) continue;
+            const double limit = getMaxLimit(index);
             // WPF: star tracks behave like Auto when the constraint is
             // infinite (StackPanel → ColorSelector Grid with Height="*").
             if (unconstrained) {
-                resolved[index] = definition.value * maxStarUnit;
+                resolved[index] = std::min(definition.value * maxStarUnit, limit);
             } else {
-                resolved[index] = remaining *
-                    (definition.value / totalStarWeight);
+                resolved[index] = std::min(remaining *
+                    (definition.value / totalStarWeight), limit);
             }
         }
     }

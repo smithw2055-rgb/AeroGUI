@@ -496,7 +496,6 @@ foreach(required_source_entry IN ITEMS
         "src/gui/input/OverlayHost.hpp"
         "src/gui/styles/ResourceHost.hpp"
         "src/render/RenderDevice.cpp"
-        "src/render/RenderTarget.cpp"
         "src/render/FrameEncoder.cpp"
         "src/render/TextRenderer.cpp"
         "src/render/RenderTree.cpp"
@@ -743,19 +742,31 @@ aero_forbid_text(
 aero_forbid_file("src/render/Surface.hpp")
 aero_forbid_file("src/render/Surface.cpp")
 aero_forbid_file("src/render/WindowRenderContext.hpp")
-aero_require_file("src/render/Presentation.hpp")
+aero_forbid_file("src/render/Presentation.hpp")
+aero_require_text(
+    "src/render/RenderContext.hpp"
+    "struct PresentationSize"
+    "Render context must own presentation size contract")
 aero_forbid_text(
-    "src/render/Presentation.hpp"
-    "Descriptor"
-    "Render presentation values must not recreate a generic native-context protocol")
-aero_forbid_text(
-    "src/render/d3d11/D3D11Device.cpp"
+    "src/render/d3d11/D3D11RenderDevice.cpp"
     "ViewRenderer"
     "Backend target implementations must not depend on the private GUI renderer")
 aero_forbid_text(
-    "src/render/d3d11/D3D11Device.cpp"
+    "src/render/d3d11/D3D11RenderDevice.cpp"
     "RenderOnscreenFrame"
     "AeroGui must own onscreen frame submission")
+aero_forbid_file("src/render/RenderTarget.cpp")
+aero_forbid_file("src/render/RenderPassPlanner.hpp")
+aero_forbid_file("src/render/RenderResourceTable.hpp")
+aero_forbid_file("src/render/common/RingBuffer.hpp")
+aero_require_text(
+    "src/render/FrameEncoder.hpp"
+    "class RenderResourceTable"
+    "FrameEncoder must own internal resource table")
+aero_require_text(
+    "src/render/common/StateCache.hpp"
+    "struct RingBufferTracker"
+    "StateCache header must own RingBufferTracker")
 aero_forbid_file("src/render/private/BackendApi.hpp")
 aero_forbid_file("src/render/RenderTargetState.hpp")
 aero_forbid_file("src/render/RenderDeviceState.hpp")
@@ -788,9 +799,11 @@ aero_require_text(
     "class OpenGLRenderContext final : public RenderContext"
     "OpenGL window presentation must belong to a concrete render backend context")
 aero_forbid_text(
-    "src/render/d3d11/D3D11Device.cpp"
+    "src/render/d3d11/D3D11RenderDevice.cpp"
     "ViewRenderData*"
     "D3D11 RenderDevice must not own per-View renderer data")
+aero_forbid_file("src/render/d3d11/D3D11Device.cpp")
+aero_forbid_file("src/render/opengl33/OpenGL33Factories.cpp")
 aero_forbid_text(
     "src/render/opengl33/OpenGL33RenderDevice.hpp"
     "ViewRenderData*"

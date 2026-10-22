@@ -38,6 +38,12 @@ Result<String> ConvertString(
 Result<Base::ResourceUri> ConvertResourceUri(
     StringView text) noexcept;
 
+Result<void> FormatScalarValue(
+    String& output,
+    const Meta::Value& value) noexcept;
+Result<String> FormatScalarValue(
+    const Meta::Value& value) noexcept;
+
 template<class T>
 Result<T> ConvertInteger(
     StringView text) noexcept {

@@ -872,6 +872,11 @@ class ValueTable {
 public:
     explicit ValueTable(TypeRegistry& types) noexcept
         : types_(&types) {}
+    ~ValueTable() noexcept {
+        for (ValueSemanticsEntry* entry : valueSemantics_) {
+            delete entry;
+        }
+    }
 
     ValueTable(const ValueTable&) = delete;
     ValueTable& operator=(
@@ -892,7 +897,7 @@ private:
 
     struct ValueSemanticsEntry {
         TypeId type = InvalidTypeId;
-        Base::Ref<ValueTypeSemantics> semantics;
+        ValueTypeRegistration registration;
     };
 
     Base::Result<void> RegisterValueSemantics(
@@ -900,13 +905,13 @@ private:
         const ValueTypeRegistration& registration) noexcept;
     Base::Result<void> RegisterTextConverter(
         const TextValueConverterRegistration& registration) noexcept;
-    const Base::Ref<ValueTypeSemantics>* FindValueSemantics(
+    const ValueTypeRegistration* FindValueSemantics(
         TypeId type) const noexcept;
     const TextValueConverterRegistration* FindTextConverter(
         TypeId type) const noexcept;
 
     TypeRegistry* types_ = nullptr;
-    Base::Vector<ValueSemanticsEntry> valueSemantics_;
+    Base::Vector<ValueSemanticsEntry*> valueSemantics_;
     Base::Vector<TextValueConverterRegistration> textConverters_;
     bool frozen_ = false;
 };
@@ -1122,7 +1127,7 @@ struct CollectionChangeNotificationFacet {
 // routed back through TypeRegistry after Meta::Registry::Seal().
 struct ValueSemanticsFacet {
     TypeId type = InvalidTypeId;
-    Base::Ref<ValueTypeSemantics> semantics;
+    ValueTypeRegistration registration;
 };
 
 struct TextConverterFacet {

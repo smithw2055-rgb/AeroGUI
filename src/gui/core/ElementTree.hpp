@@ -59,7 +59,8 @@ class BindingEngine;
 class StyleEngine;
 struct ViewFrame;
 class EventRouter;
-class InputRouter;
+class InputManager;
+using InputRouter = InputManager;
 class AnimationEngine;
 class VisualStateManager;
 namespace Input { class IClipboard; }
@@ -148,7 +149,7 @@ public:
         ElementTree* tree = Of(visual);
         return tree != nullptr ? tree->Events() : nullptr;
     }
-    static Aero::InputRouter* InputOf(const ::Aero::Media::Visual& visual) noexcept {
+    static Aero::InputManager* InputOf(const ::Aero::Media::Visual& visual) noexcept {
         ElementTree* tree = Of(visual);
         return tree != nullptr ? tree->Input() : nullptr;
     }
@@ -196,7 +197,7 @@ public:
         Base::StringView name,
         Meta::TypeId expectedType = Meta::InvalidTypeId) noexcept {
         ElementTree* tree = Of(element);
-        return tree != nullptr ? tree->FindName(name, expectedType) : nullptr;
+        return tree != nullptr ? tree->FindName(name, expectedType, &element) : nullptr;
     }
     static ResourceEnvironment EnvironmentOf(const ::Aero::Media::Visual& visual) noexcept {
         ElementTree* tree = Of(visual);
@@ -224,6 +225,7 @@ public:
         ::Aero::Media::Visual& parent, ::Aero::Media::Visual& child) noexcept;
     Base::Result<void> DetachNode(::Aero::Media::Visual& node) noexcept;
     void InvalidateNodeHandle(::Aero::Media::Visual& node) noexcept;
+    void InvalidateNodeHandleFromDestructor(::Aero::Media::Visual& node) noexcept;
     void InvalidateHandleSubtree(::Aero::Media::Visual& node) noexcept;
     void DetachPropertyDependencyGraph(
         DependencyObject& node,
@@ -286,7 +288,7 @@ public:
     Aero::BindingEngine* Bindings() const noexcept { return bindings_; }
     Aero::StyleEngine* Styles() const noexcept { return styles_; }
     Aero::EventRouter* Events() const noexcept { return events_; }
-    Aero::InputRouter* Input() const noexcept { return input_; }
+    Aero::InputManager* Input() const noexcept { return input_; }
     Aero::AnimationEngine* Animations() const noexcept { return animations_; }
     VisualStateManager* VisualStates() const noexcept { return visualStates_; }
     Controls::TemplateEngine* Templates() const noexcept { return templates_; }
@@ -305,7 +307,7 @@ public:
     }
     void SetStyles(Aero::StyleEngine* styles) noexcept { styles_ = styles; }
     void SetEvents(Aero::EventRouter* events) noexcept { events_ = events; }
-    void SetInput(Aero::InputRouter* input) noexcept { input_ = input; }
+    void SetInput(Aero::InputManager* input) noexcept { input_ = input; }
     void SetAnimations(Aero::AnimationEngine* animations) noexcept {
         animations_ = animations;
     }
@@ -343,16 +345,18 @@ public:
     using FindNameFn = Base::Object* (*)(
         void* context,
         Base::StringView name,
-        Meta::TypeId expectedType) noexcept;
+        Meta::TypeId expectedType,
+        const DependencyObject* requester) noexcept;
     void SetNameScope(void* context, FindNameFn findName) noexcept {
         nameScopeContext_ = context;
         findName_ = findName;
     }
     Base::Object* FindName(
         Base::StringView name,
-        Meta::TypeId expectedType = Meta::InvalidTypeId) const noexcept {
+        Meta::TypeId expectedType = Meta::InvalidTypeId,
+        const DependencyObject* requester = nullptr) const noexcept {
         return findName_ != nullptr
-            ? findName_(nameScopeContext_, name, expectedType)
+            ? findName_(nameScopeContext_, name, expectedType, requester)
             : nullptr;
     }
 
@@ -389,7 +393,7 @@ private:
     Aero::BindingEngine* bindings_ = nullptr;
     Aero::StyleEngine* styles_ = nullptr;
     Aero::EventRouter* events_ = nullptr;
-    Aero::InputRouter* input_ = nullptr;
+    Aero::InputManager* input_ = nullptr;
     Aero::AnimationEngine* animations_ = nullptr;
     VisualStateManager* visualStates_ = nullptr;
     Controls::TemplateEngine* templates_ = nullptr;

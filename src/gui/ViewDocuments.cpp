@@ -60,30 +60,44 @@ void ClearLoadedDocument(ViewFrame& state) noexcept {
 Base::Object* ViewFrame::FindNameForElement(
         void* context,
         Base::StringView name,
-        Meta::TypeId expectedType) noexcept {
+        Meta::TypeId expectedType,
+        const DependencyObject* requester) noexcept {
         auto* runtime = static_cast<ViewFrame*>(context);
         if (runtime == nullptr || name.Empty()) return nullptr;
         Base::Object* object = runtime->activeFragmentNames != nullptr
             ? runtime->activeFragmentNames->Find(name)
             : nullptr;
+
+        // If requester is within a loaded component mount or fragment, resolve inside that component's scope first
+        if (object == nullptr && requester != nullptr) {
+            const DependencyObject* current = requester;
+            for (std::uint32_t depth = 0U; current != nullptr && depth < 256U; ++depth) {
+                for (ViewFrame::FragmentMount* component : runtime->componentMounts) {
+                    if (component != nullptr && component->document.root.Get() == current) {
+                        object = component->document.names.Find(name);
+                        break;
+                    }
+                }
+                if (object != nullptr) break;
+                for (ViewFrame::FragmentMount* fragment : runtime->fragmentMounts) {
+                    if (fragment != nullptr && fragment->document.root.Get() == current) {
+                        object = fragment->document.names.Find(name);
+                        break;
+                    }
+                }
+                if (object != nullptr) break;
+                const auto* visual = ::Aero::TryCast<const ::Aero::Media::Visual>(current);
+                if (visual == nullptr) break;
+                const ::Aero::Base::Object* parent = visual->GetLogicalParent();
+                if (parent == nullptr) {
+                    parent = visual->GetVisualParent();
+                }
+                current = ::Aero::TryCast<const DependencyObject>(parent);
+            }
+        }
+
         if (object == nullptr) {
             object = runtime->loadedDocument.names.Find(name);
-        }
-        if (object == nullptr) {
-            for (ViewFrame::FragmentMount* fragment :
-                 runtime->fragmentMounts) {
-                if (fragment == nullptr) continue;
-                object = fragment->document.names.Find(name);
-                if (object != nullptr) break;
-            }
-        }
-        if (object == nullptr) {
-            for (ViewFrame::FragmentMount* component :
-                 runtime->componentMounts) {
-                if (component == nullptr) continue;
-                object = component->document.names.Find(name);
-                if (object != nullptr) break;
-            }
         }
         if (object == nullptr || expectedType == Meta::InvalidTypeId) {
             return object;
@@ -171,7 +185,7 @@ Base::Result<void> ResourceHost::LoadLayer(
                 "Gui XAML runtime is unavailable");
         }
         Base::Result<Markup::XamlDocument> loaded =
-            static_cast<GuiRuntime&>(*view->gui).Load(
+            view->gui->Load(
             &view->loadContext,
             uri, loadOptions.Value(), diagnostics);
         if (!loaded) {
@@ -204,7 +218,7 @@ Base::Result<void> ResourceHost::LoadCompiledLayer(
                 "Gui XAML runtime is unavailable");
         }
         Base::Result<Markup::XamlDocument> loaded =
-            static_cast<GuiRuntime&>(*view->gui).LoadCompiled(
+            view->gui->LoadCompiled(
                 &view->loadContext,
                 bytes, originUri, loadOptions.Value());
         if (!loaded) return loaded.GetStatus();
@@ -235,6 +249,309 @@ Base::Result<void> ValidateDocumentRoot(ViewFrame& state,
             ? Base::Result<void>()
             : Base::Result<void>(rootLayout.GetStatus());
     }
+
+namespace {
+
+Base::Result<void> MountOwnedLayoutChildren(
+    ElementTree& context,
+    Aero::Media::Visual& node) noexcept {
+    if (auto* panel = ::Aero::TryCast<Controls::Panel>(&node)) {
+        const std::uint32_t count = panel->GetChildren().GetCount();
+        for (std::uint32_t index = 0U; index < count; ++index) {
+            UIElement* child = panel->GetChildren().GetItem(index);
+            if (child == nullptr) continue;
+            if (child->GetVisualParent() == panel &&
+                child->GetIsLayoutAttached()) {
+                continue;
+            }
+            if (child->GetVisualParent() != nullptr &&
+                child->GetVisualParent() != panel) {
+                continue;
+            }
+            Base::Result<VisualAttachment> mounted =
+                context.AttachVisualChild(*panel, *child);
+            if (!mounted) return mounted.GetStatus();
+        }
+    }
+    if (auto* host = ::Aero::TryCast<Controls::ContentControl>(&node)) {
+        if ((*host).GetTemplateRoot() == nullptr) {
+            UIElement* content =
+                (*host).GetContentElement();
+            if (content != nullptr &&
+                (content->GetVisualParent() != host ||
+                 !content->GetIsLayoutAttached()) &&
+                (content->GetVisualParent() == nullptr ||
+                 content->GetVisualParent() == host)) {
+                Base::Result<VisualAttachment> mounted =
+                    context.AttachVisualChild(*host, *content);
+                if (!mounted) return mounted.GetStatus();
+            }
+        }
+    }
+    if (auto* decorator = ::Aero::TryCast<Controls::Decorator>(&node)) {
+        UIElement* child = (*decorator).GetChild();
+        if (child != nullptr &&
+            (child->GetVisualParent() != decorator ||
+             !child->GetIsLayoutAttached()) &&
+            (child->GetVisualParent() == nullptr ||
+             child->GetVisualParent() == decorator)) {
+            Base::Result<VisualAttachment> mounted =
+                context.AttachVisualChild(*decorator, *child);
+            if (!mounted) return mounted.GetStatus();
+        }
+    }
+
+    Base::Result<void> result;
+    ForEachVisualAndLogicalChild(node, [&](Aero::Media::Visual* child) {
+        if (!result) return;
+        UIElement* childEl = ::Aero::TryCast<UIElement>(child);
+        UIElement* parentEl = ::Aero::TryCast<UIElement>(&node);
+        if (childEl != nullptr && parentEl != nullptr &&
+            child->GetVisualParent() == &node &&
+            (!childEl->GetIsLayoutAttached() ||
+             childEl->LayoutParent() != parentEl)) {
+            Base::Result<VisualAttachment> mounted = context.AttachVisualChild(node, *child);
+            if (!mounted) {
+                result = mounted.GetStatus();
+                return;
+            }
+        }
+        result = MountOwnedLayoutChildren(context, *child);
+    });
+    if (!result) return result.GetStatus();
+    return {};
+}
+
+void InvalidateLayoutSubtree(UIElement& element) noexcept {
+    element.InvalidateMeasure();
+    element.InvalidateArrange();
+    ForEachVisualAndLogicalChild(element, [](Aero::Media::Visual* child) {
+        if (auto* childElement = ::Aero::TryCast<UIElement>(child)) {
+            InvalidateLayoutSubtree(*childElement);
+        }
+    });
+}
+
+Base::Result<void> ActivateMountedSubtree(
+    ViewFrame& state,
+    Aero::Media::Visual& subtreeRoot,
+    Markup::LoaderResult& doc) noexcept {
+    if (state.tree == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "View has no element tree");
+    }
+    ElementTree& context = *state.tree;
+
+    const auto hostLoadedContent = [&]() noexcept -> Base::Result<void> {
+        Controls::ContentControl* host =
+            ::Aero::TryCast<Controls::ContentControl>(doc.root.Get());
+        if (host == nullptr || VisualTree(host) != &context) {
+            return {};
+        }
+        UIElement* content = (*host).GetContentElement();
+        if (content == nullptr) {
+            for (Markup::VisualEdge& edge : doc.visualContent.mountEdges) {
+                if (edge.parent != host || edge.child == nullptr) {
+                    continue;
+                }
+                UIElement* child = ::Aero::TryCast<UIElement>(edge.child);
+                if (child == nullptr || child == host) {
+                    continue;
+                }
+                (void)(*host).SetContentValue(
+                    Base::Ref<Base::Object>::FromBorrowed(*child));
+                content = (*host).GetContentElement();
+                break;
+            }
+        }
+        if (content == nullptr ||
+            content->GetIsLayoutAttached() ||
+            (content->GetVisualParent() == host &&
+             content->GetIsLayoutAttached())) {
+            return {};
+        }
+        ::Aero::Media::Visual* visualParent = host;
+        if (content->GetVisualParent() != nullptr) {
+            visualParent = content->GetVisualParent();
+        }
+        if (VisualTree(content) == nullptr &&
+            content->GetLogicalParent() == nullptr) {
+            Base::Result<ElementAttachment> mounted =
+                context.AttachElement(*host, *visualParent, *content);
+            if (!mounted) return mounted.GetStatus();
+        } else {
+            Base::Result<VisualAttachment> mounted =
+                context.AttachVisualChild(*visualParent, *content);
+            if (!mounted) return mounted.GetStatus();
+        }
+        return {};
+    };
+
+    const auto attachEdges = [&](bool deferred) noexcept -> Base::Result<void> {
+        std::uint32_t attached = 0U;
+        for (const Markup::VisualEdge& edge : doc.visualContent.mountEdges) {
+            if (edge.state.layoutAttached || edge.state.logicalAttached) {
+                ++attached;
+            }
+        }
+        while (attached < doc.visualContent.mountEdges.Size()) {
+            bool progressed = false;
+            for (Markup::VisualEdge& edge : doc.visualContent.mountEdges) {
+                if (edge.parent == nullptr || edge.child == nullptr) {
+                    continue;
+                }
+                if (edge.state.layoutAttached && edge.state.logicalAttached) {
+                    continue;
+                }
+                if (UIElement* childEl = ::Aero::TryCast<UIElement>(edge.child);
+                    childEl != nullptr &&
+                    childEl->GetIsLayoutAttached() &&
+                    (childEl->GetVisualParent() == edge.parent ||
+                     childEl->GetLogicalParent() == edge.parent)) {
+                    edge.state.layoutAttached = true;
+                    if (childEl->GetLogicalParent() == edge.parent) {
+                        edge.state.logicalAttached = true;
+                    }
+                    ++attached;
+                    progressed = true;
+                    continue;
+                }
+                if (VisualTree(edge.parent) != &context) {
+                    continue;
+                }
+                if (deferred && VisualTree(edge.child) == &context &&
+                    (edge.state.layoutAttached || edge.state.logicalAttached)) {
+                    continue;
+                }
+                if (UIElement* childEl = ::Aero::TryCast<UIElement>(edge.child);
+                    childEl != nullptr && VisualTree(childEl) == &context) {
+                    ::Aero::Media::Visual* visualParent = edge.parent;
+                    if (childEl->GetVisualParent() != nullptr &&
+                        VisualTree(childEl->GetVisualParent()) == &context) {
+                        visualParent = childEl->GetVisualParent();
+                    }
+                    if (childEl->GetLogicalParent() == nullptr &&
+                        edge.parent != nullptr) {
+                        (void)context.AttachLogical(*edge.parent, *childEl);
+                    }
+                    if (!childEl->GetIsLayoutAttached() ||
+                        childEl->GetVisualParent() != visualParent) {
+                        Base::Result<VisualAttachment> mounted =
+                            context.AttachVisualChild(*visualParent, *childEl);
+                        if (!mounted) return mounted.GetStatus();
+                        edge.state.visualAttached = true;
+                        edge.state.layoutAttached = true;
+                    } else {
+                        edge.state.visualAttached = true;
+                        edge.state.layoutAttached = true;
+                    }
+                    if (childEl->GetLogicalParent() == edge.parent) {
+                        edge.state.logicalAttached = true;
+                    }
+                    ++attached;
+                    progressed = true;
+                    continue;
+                }
+                if (VisualTree(edge.child) == &context) {
+                    continue;
+                }
+                ::Aero::Media::Visual* visualParent = edge.parent;
+                if (edge.child->GetVisualParent() != nullptr &&
+                    VisualTree(edge.child->GetVisualParent()) == &context) {
+                    visualParent = edge.child->GetVisualParent();
+                }
+                Base::Result<ElementAttachment> mounted =
+                    context.AttachElement(*edge.parent, *visualParent, *edge.child);
+                if (!mounted) return mounted.GetStatus();
+                edge.state = std::move(mounted).Value();
+                ++attached;
+                progressed = true;
+            }
+            if (!progressed) break;
+        }
+        return {};
+    };
+
+    struct DeferGuard {
+        bool& flag;
+        bool active = true;
+        ~DeferGuard() {
+            if (active) flag = false;
+        }
+    } deferGuard{state.deferGeneratedActivation};
+    state.deferGeneratedActivation = true;
+
+    // Round 1
+    Base::Result<void> hosted = hostLoadedContent();
+    if (!hosted) return hosted.GetStatus();
+    Base::Result<void> attached = attachEdges(false);
+    if (!attached) return attached.GetStatus();
+    hosted = hostLoadedContent();
+    if (!hosted) return hosted.GetStatus();
+    attached = MountOwnedLayoutChildren(context, subtreeRoot);
+    if (!attached) return attached.GetStatus();
+
+    // Round 2 (deferred)
+    attached = attachEdges(true);
+    if (!attached) return attached.GetStatus();
+    hosted = hostLoadedContent();
+    if (!hosted) return hosted.GetStatus();
+    attached = MountOwnedLayoutChildren(context, subtreeRoot);
+    if (!attached) return attached.GetStatus();
+
+    Markup::EffectServices runtimeServices;
+    runtimeServices.effectiveValues = state.values;
+    runtimeServices.bindings = state.Bindings();
+    runtimeServices.fallbackResources =
+        state.resources != nullptr
+            ? &state.resources->dynamicResourceEnvironment
+            : nullptr;
+    runtimeServices.lifetime = state.effectLifetime;
+    Base::Result<void> bound = doc.effects.Bind(runtimeServices);
+    if (!bound) return bound.GetStatus();
+    Base::Result<void> prepared = doc.effects.Prepare(doc.names);
+    if (!prepared) return prepared.GetStatus();
+    Base::Result<void> committed = doc.effects.Commit();
+    if (!committed) return committed.GetStatus();
+
+    Base::Result<void> applied = ApplyViewUi(state, subtreeRoot);
+    if (!applied) return applied.GetStatus();
+
+    Base::Result<void> interactions = state.VisitAndAttach(subtreeRoot);
+    if (!interactions) return interactions.GetStatus();
+
+    if (UIElement* rootElement = ::Aero::TryCast<UIElement>(&subtreeRoot)) {
+        InvalidateLayoutSubtree(*rootElement);
+    }
+
+    state.deferGeneratedActivation = false;
+    deferGuard.active = false;
+    if (state.Bindings() != nullptr) {
+        Base::Result<std::uint32_t> flushed = state.Bindings()->Flush();
+        if (!flushed) return flushed.GetStatus();
+    }
+
+    Base::Result<void> generated = state.FlushGeneratedVisuals();
+    if (!generated) return generated.GetStatus();
+
+    if (state.storyboards != nullptr) {
+        Base::Result<std::uint32_t> animations =
+            state.storyboards->StartLoadedAnimations(&subtreeRoot, &doc.names);
+        if (!animations) return animations.GetStatus();
+    }
+
+    if (DependencyObject* target =
+            ::Aero::TryCast<DependencyObject>(doc.root.Get())) {
+        if (state.Bindings() != nullptr) {
+            static_cast<void>(
+                state.Bindings()->ActivateDeferredWhenReady(*target));
+        }
+    }
+    return {};
+}
+
+} // namespace
 
 Base::Result<void> MountRoot(ViewFrame& state, 
         Base::Ref<Base::Object> requestedRoot,
@@ -285,167 +602,14 @@ Base::Result<void> MountRoot(ViewFrame& state,
             availableSize);
         if (!mountedResult) return mountedResult.GetStatus();
         state.root = std::move(requestedRoot);
-        state.mounted = true;
-        Markup::EffectServices runtimeServices;
-        runtimeServices.effectiveValues = state.values;
-        runtimeServices.bindings = state.Bindings();
-        runtimeServices.fallbackResources = &state.resources->dynamicResourceEnvironment;
-        runtimeServices.lifetime = state.effectLifetime;
-        Base::Result<void> bound = state.loadedDocument.effects.Bind(runtimeServices);
-        if (!bound) {
-            static_cast<void>(state.DetachVisualGraph({
-                state.loadedDocument.visualContent.mountEdges.Data(),
-                state.loadedDocument.visualContent.mountEdges.Size()}));
-            state.mounted = false;
-            state.root.Reset();
-            ClearLoadedDocument(state);
-            return bound.GetStatus();
-        }
-        Base::Result<void> prepared =
-            state.loadedDocument.effects.Prepare(state.loadedDocument.names);
-        if (!prepared) {
-            static_cast<void>(state.DetachVisualGraph({
-                state.loadedDocument.visualContent.mountEdges.Data(),
-                state.loadedDocument.visualContent.mountEdges.Size()}));
-            state.mounted = false;
-            state.root.Reset();
-            ClearLoadedDocument(state);
-            return prepared.GetStatus();
-        }
-        Base::Result<void> effects = state.loadedDocument.effects.Commit();
-        if (!effects) {
-            static_cast<void>(state.DetachVisualGraph({
-                state.loadedDocument.visualContent.mountEdges.Data(),
-                state.loadedDocument.visualContent.mountEdges.Size()}));
-            state.mounted = false;
-            state.root.Reset();
-            ClearLoadedDocument(state);
-            return effects.GetStatus();
-        }
-        Base::Result<std::uint32_t> initialBindings =
-            state.Bindings()->Flush();
-        if (!initialBindings) {
-            static_cast<void>(state.DetachVisualGraph({
-                state.loadedDocument.visualContent.mountEdges.Data(),
-                state.loadedDocument.visualContent.mountEdges.Size()}));
-            state.mounted = false;
-            state.root.Reset();
-            ClearLoadedDocument(state);
-            return initialBindings.GetStatus();
-        }
-        state.deferGeneratedActivation = true;
-        Base::Result<void> uiApplied =
-            ApplyViewUi(state, *rootVisual.Value());
-        if (!uiApplied) {
-            state.deferGeneratedActivation = false;
-            DetachViewUi(state);
-            static_cast<void>(state.DetachVisualGraph({
-                state.loadedDocument.visualContent.mountEdges.Data(),
-                state.loadedDocument.visualContent.mountEdges.Size()}));
-            state.mounted = false;
-            state.root.Reset();
-            ClearLoadedDocument(state);
-            return uiApplied.GetStatus();
-        }
-        Base::Result<void> interactions =
-            state.CreateInteractions();
-        if (!interactions) {
-            state.deferGeneratedActivation = false;
-            state.BeginDestroyInteractions();
-            DetachViewUi(state);
-            state.FinishDestroyInteractions();
-            static_cast<void>(state.DetachVisualGraph({
-                state.loadedDocument.visualContent.mountEdges.Data(),
-                state.loadedDocument.visualContent.mountEdges.Size()}));
-            state.mounted = false;
-            state.root.Reset();
-            ClearLoadedDocument(state);
-            return interactions.GetStatus();
-        }
-        Base::Result<void> completed =
-            state.CompleteVisualEdges({
-                state.loadedDocument.visualContent.mountEdges.Data(),
-                state.loadedDocument.visualContent.mountEdges.Size()});
-        if (!completed) {
-            state.deferGeneratedActivation = false;
-            state.BeginDestroyInteractions();
-            DetachViewUi(state);
-            state.FinishDestroyInteractions();
-            static_cast<void>(state.DetachVisualGraph({
-                state.loadedDocument.visualContent.mountEdges.Data(),
-                state.loadedDocument.visualContent.mountEdges.Size()}));
-            state.mounted = false;
-            state.root.Reset();
-            ClearLoadedDocument(state);
-            return completed.GetStatus();
-        }
-        uiApplied =
-            ApplyViewUi(
-                state,
-                *rootVisual.Value());
-        if (!uiApplied) {
-            state.deferGeneratedActivation = false;
-            state.BeginDestroyInteractions();
-            DetachViewUi(state);
-            state.FinishDestroyInteractions();
-            static_cast<void>(state.DetachVisualGraph({
-                state.loadedDocument.visualContent.mountEdges.Data(),
-                state.loadedDocument.visualContent.mountEdges.Size()}));
-            state.mounted = false;
-            state.root.Reset();
-            ClearLoadedDocument(state);
-            return uiApplied.GetStatus();
-        }
-        Base::Result<void> itemGeneratorsAttached =
-            state.AttachPendingItemGenerators(*rootVisual.Value());
-        if (!itemGeneratorsAttached) {
-            state.deferGeneratedActivation = false;
-            state.BeginDestroyInteractions();
-            DetachViewUi(state);
-            state.FinishDestroyInteractions();
-            static_cast<void>(state.DetachVisualGraph({
-                state.loadedDocument.visualContent.mountEdges.Data(),
-                state.loadedDocument.visualContent.mountEdges.Size()}));
-            state.mounted = false;
-            state.root.Reset();
-            ClearLoadedDocument(state);
-            return itemGeneratorsAttached.GetStatus();
-        }
-        Base::Result<std::uint32_t> settledBindings =
-            state.Bindings()->Flush();
-        state.deferGeneratedActivation = false;
-        if (!settledBindings) {
-            state.BeginDestroyInteractions();
-            DetachViewUi(state);
-            state.FinishDestroyInteractions();
-            static_cast<void>(state.DetachVisualGraph({
-                state.loadedDocument.visualContent.mountEdges.Data(),
-                state.loadedDocument.visualContent.mountEdges.Size()}));
-            state.mounted = false;
-            state.root.Reset();
-            ClearLoadedDocument(state);
-            return settledBindings.GetStatus();
-        }
-        Base::Result<void> generated = state.FlushGeneratedVisuals();
-        if (!generated) {
-            state.BeginDestroyInteractions();
-            DetachViewUi(state);
-            state.FinishDestroyInteractions();
-            static_cast<void>(state.DetachVisualGraph({
-                state.loadedDocument.visualContent.mountEdges.Data(),
-                state.loadedDocument.visualContent.mountEdges.Size()}));
-            state.mounted = false;
-            state.root.Reset();
-            ClearLoadedDocument(state);
-            return generated.GetStatus();
-        }
-        Base::Result<std::uint32_t> startedAnimations =
-            state.storyboards->StartLoadedAnimations(rootVisual.Value());
-        if (!startedAnimations) {
+        const auto rollbackRoot = [&]() noexcept {
             if (state.Animations() != nullptr) {
                 static_cast<void>(state.Animations()->RemoveAll());
             }
-            state.storyboards->storyboardSessions.Clear();
+            if (state.storyboards != nullptr) {
+                state.storyboards->storyboardSessions.Clear();
+            }
+            state.deferGeneratedActivation = false;
             state.BeginDestroyInteractions();
             DetachViewUi(state);
             state.FinishDestroyInteractions();
@@ -455,8 +619,20 @@ Base::Result<void> MountRoot(ViewFrame& state,
             state.mounted = false;
             state.root.Reset();
             ClearLoadedDocument(state);
-            return startedAnimations.GetStatus();
+        };
+
+        Base::Result<void> interactions = state.CreateInteractions();
+        if (!interactions) {
+            rollbackRoot();
+            return interactions.GetStatus();
         }
+        Base::Result<void> activated = ActivateMountedSubtree(
+            state, *rootVisual.Value(), state.loadedDocument);
+        if (!activated) {
+            rollbackRoot();
+            return activated.GetStatus();
+        }
+        state.mounted = true;
         return {};
     }
 
@@ -504,8 +680,8 @@ Base::Result<void> DetachFragment(ViewFrame& state,
                     childElement->GetIsLayoutAttached() &&
                     childElement->LayoutParent() == parentElement;
                 edgeState.renderAttached =
-                    (*edgeState.child).RenderAttached() &&
-                    (*edgeState.child).GetVisualParent() == edgeState.visualParent;
+                    edgeState.child->IsRenderAttached() &&
+                    edgeState.child->GetVisualParent() == edgeState.visualParent;
             };
 
         std::uint32_t remaining = 0U;
@@ -836,92 +1012,12 @@ Base::Result<void> MountViewFragment(
         static_cast<void>(DetachFragment(*state_, *fragment));
         FreeObject(*state_->allocator, Base::MemoryTag::Ui, fragment);
     };
-    const auto attachEdges = [&](bool deferred) noexcept
-        -> Base::Result<void> {
-        std::uint32_t attached = 0U;
-        for (const Aero::Markup::VisualEdge& edge :
-             fragment->document.visualContent.mountEdges) {
-            if (edge.state.logicalAttached) ++attached;
-        }
-        while (attached < fragment->document.visualContent.mountEdges.Size()) {
-            bool progressed = false;
-            for (Aero::Markup::VisualEdge& edge :
-                 fragment->document.visualContent.mountEdges) {
-                if (edge.state.logicalAttached || edge.parent == nullptr ||
-                    edge.child == nullptr) {
-                    continue;
-                }
-                if (Aero::UIElement* childEl =
-                        ::Aero::TryCast<Aero::UIElement>(edge.child);
-                    childEl != nullptr && childEl->GetIsLayoutAttached()) {
-                    ++attached;
-                    progressed = true;
-                    continue;
-                }
-                if (VisualTree(edge.parent) != state_->tree ||
-                    (deferred && VisualTree(edge.child) == state_->tree)) {
-                    continue;
-                }
-                Base::Result<Aero::ElementAttachment> mounted =
-                    context.AttachElement(*edge.parent, *edge.child);
-                if (!mounted) return mounted.GetStatus();
-                edge.state = std::move(mounted).Value();
-                ++attached;
-                progressed = true;
-            }
-            if (!progressed) break;
-        }
-        return {};
-    };
 
-    Base::Result<void> attached = attachEdges(false);
-    if (!attached) {
+    Base::Result<void> activated = ActivateMountedSubtree(
+        *state_, *rootVisual.Value(), fragment->document);
+    if (!activated) {
         detachFailedFragment();
-        return attached.GetStatus();
-    }
-    Base::Result<void> applied =
-        ApplyViewUi(*state_, *rootVisual.Value());
-    if (!applied) {
-        detachFailedFragment();
-        return applied.GetStatus();
-    }
-    attached = attachEdges(true);
-    if (!attached) {
-        detachFailedFragment();
-        return attached.GetStatus();
-    }
-    applied = ApplyViewUi(*state_, *rootVisual.Value());
-    if (!applied) {
-        detachFailedFragment();
-        return applied.GetStatus();
-    }
-    Markup::EffectServices runtimeServices;
-    runtimeServices.effectiveValues = state_->values;
-    runtimeServices.bindings = state_->Bindings();
-    runtimeServices.fallbackResources = &state_->resources->dynamicResourceEnvironment;
-    runtimeServices.lifetime = state_->effectLifetime;
-    Base::Result<void> boundEffects = fragment->document.effects.Bind(runtimeServices);
-    if (!boundEffects) {
-        detachFailedFragment();
-        return boundEffects.GetStatus();
-    }
-    Base::Result<void> preparedEffects =
-        fragment->document.effects.Prepare(fragment->document.names);
-    if (!preparedEffects) {
-        detachFailedFragment();
-        return preparedEffects.GetStatus();
-    }
-    Base::Result<void> effects = fragment->document.effects.Commit();
-    if (!effects) {
-        detachFailedFragment();
-        return effects.GetStatus();
-    }
-    Base::Result<std::uint32_t> animations =
-        state_->storyboards->StartLoadedAnimations(
-            rootVisual.Value(), &fragment->document.names);
-    if (!animations) {
-        detachFailedFragment();
-        return animations.GetStatus();
+        return activated.GetStatus();
     }
     restoreActiveNames();
     state_->fragmentMounts.PushBack(fragment);
@@ -950,108 +1046,6 @@ Base::Result<void> UnmountViewFragment(
               "content host does not contain a mounted XAML fragment"));
 }
 
-namespace {
-
-Base::Result<void> MountOwnedLayoutChildren(
-    ElementTree& context,
-    Aero::Media::Visual& node) noexcept {
-    if (auto* panel = ::Aero::TryCast<Controls::Panel>(&node)) {
-        const std::uint32_t count = panel->GetChildren().GetCount();
-        for (std::uint32_t index = 0U; index < count; ++index) {
-            UIElement* child = panel->GetChildren().GetItem(index);
-            if (child == nullptr) continue;
-            if (child->GetVisualParent() == panel &&
-                child->GetIsLayoutAttached()) {
-                continue;
-            }
-            if (child->GetVisualParent() != nullptr &&
-                child->GetVisualParent() != panel) {
-                continue;
-            }
-            Base::Result<VisualAttachment> mounted =
-                context.AttachVisualChild(*panel, *child);
-            if (!mounted) return mounted.GetStatus();
-        }
-    }
-    if (auto* host = ::Aero::TryCast<Controls::ContentControl>(&node)) {
-        if ((*host).GetTemplateRoot() == nullptr) {
-            UIElement* content =
-                (*host).GetContentElement();
-            if (content != nullptr &&
-                (content->GetVisualParent() != host ||
-                 !content->GetIsLayoutAttached()) &&
-                (content->GetVisualParent() == nullptr ||
-                 content->GetVisualParent() == host)) {
-                Base::Result<VisualAttachment> mounted =
-                    context.AttachVisualChild(*host, *content);
-                if (!mounted) return mounted.GetStatus();
-            }
-        }
-    }
-
-    const std::uint32_t visualCount =
-        Aero::Media::VisualTreeHelper::GetChildrenCount(node);
-    for (std::uint32_t index = 0U; index < visualCount; ++index) {
-        Aero::Media::Visual* child =
-            Aero::Media::VisualTreeHelper::GetChild(node, index);
-        if (child == nullptr) continue;
-        UIElement* childEl = ::Aero::TryCast<UIElement>(child);
-        UIElement* parentEl = ::Aero::TryCast<UIElement>(&node);
-        if (childEl != nullptr && parentEl != nullptr &&
-            child->GetVisualParent() == &node &&
-            (!childEl->GetIsLayoutAttached() ||
-             childEl->LayoutParent() != parentEl)) {
-            Base::Result<VisualAttachment> mounted =
-                context.AttachVisualChild(node, *child);
-            if (!mounted) return mounted.GetStatus();
-        }
-        Base::Result<void> nested =
-            MountOwnedLayoutChildren(context, *child);
-        if (!nested) return nested.GetStatus();
-    }
-    if (auto* panel = ::Aero::TryCast<Controls::Panel>(&node)) {
-        const std::uint32_t count = panel->GetChildren().GetCount();
-        for (std::uint32_t index = 0U; index < count; ++index) {
-            UIElement* child = panel->GetChildren().GetItem(index);
-            if (child == nullptr || child->GetVisualParent() == &node) {
-                continue;
-            }
-            Base::Result<void> nested =
-                MountOwnedLayoutChildren(context, *child);
-            if (!nested) return nested.GetStatus();
-        }
-    }
-    return {};
-}
-
-void InvalidateLayoutSubtree(UIElement& element) noexcept {
-    element.InvalidateMeasure();
-    element.InvalidateArrange();
-    const std::uint32_t visualCount =
-        Aero::Media::VisualTreeHelper::GetChildrenCount(element);
-    for (std::uint32_t index = 0U; index < visualCount; ++index) {
-        Aero::Media::Visual* child =
-            Aero::Media::VisualTreeHelper::GetChild(element, index);
-        auto* childElement = child != nullptr
-            ? ::Aero::TryCast<UIElement>(child)
-            : nullptr;
-        if (childElement != nullptr) {
-            InvalidateLayoutSubtree(*childElement);
-        }
-    }
-    if (auto* panel = ::Aero::TryCast<Controls::Panel>(&element)) {
-        const std::uint32_t count = panel->GetChildren().GetCount();
-        for (std::uint32_t index = 0U; index < count; ++index) {
-            UIElement* child = panel->GetChildren().GetItem(index);
-            if (child == nullptr || child->GetVisualParent() == &element) {
-                continue;
-            }
-            InvalidateLayoutSubtree(*child);
-        }
-    }
-}
-
-} // namespace
 
 Base::Result<void> AdoptLoadedComponent(
     ViewFrame& state,
@@ -1074,185 +1068,34 @@ Base::Result<void> AdoptLoadedComponent(
     mount->document = std::move(incoming);
     state.componentMounts.PushBack(mount);
     Markup::LoaderResult& document = mount->document;
-
-    ElementTree& context = *state.tree;
-    const auto attachEdges = [&]() noexcept -> Base::Result<void> {
-        std::uint32_t attached = 0U;
-        for (const Markup::VisualEdge& edge :
-             document.visualContent.mountEdges) {
-            if (edge.state.layoutAttached) ++attached;
-        }
-        while (attached < document.visualContent.mountEdges.Size()) {
-            bool progressed = false;
-            for (Markup::VisualEdge& edge :
-                 document.visualContent.mountEdges) {
-                if (edge.parent == nullptr ||
-                    edge.child == nullptr) {
-                    continue;
-                }
-                if (edge.state.layoutAttached) {
-                    continue;
-                }
-                if (UIElement* childEl =
-                        ::Aero::TryCast<UIElement>(edge.child);
-                    childEl != nullptr &&
-                    childEl->GetIsLayoutAttached() &&
-                    childEl->GetVisualParent() == edge.parent) {
-                    edge.state.layoutAttached = true;
-                    ++attached;
-                    progressed = true;
-                    continue;
-                }
-                if (VisualTree(edge.parent) != &context) {
-                    continue;
-                }
-                if (UIElement* childEl =
-                        ::Aero::TryCast<UIElement>(edge.child);
-                    childEl != nullptr &&
-                    VisualTree(childEl) == &context) {
-                    // LoadComponent may join the logical/tree membership of
-                    // UserControl content before layout edges exist. Skipping
-                    // here left ColorSelector/NumericUpDown Grids with no
-                    // layout children (0 height in a StackPanel).
-                    if (!childEl->GetIsLayoutAttached() ||
-                        childEl->GetVisualParent() != edge.parent) {
-                        Base::Result<VisualAttachment> mounted =
-                            context.AttachVisualChild(
-                                *edge.parent, *childEl);
-                        if (!mounted) return mounted.GetStatus();
-                        edge.state.visualAttached = true;
-                        edge.state.layoutAttached = true;
-                    } else {
-                        edge.state.layoutAttached = true;
-                    }
-                    ++attached;
-                    progressed = true;
-                    continue;
-                }
-                if (VisualTree(edge.child) == &context) {
-                    continue;
-                }
-                Base::Result<ElementAttachment> mounted =
-                    context.AttachElement(*edge.parent, *edge.child);
-                if (!mounted) return mounted.GetStatus();
-                edge.state = std::move(mounted).Value();
-                ++attached;
-                progressed = true;
-            }
-            if (!progressed) break;
-        }
-        return {};
-    };
-
-    const auto hostLoadedContent = [&]() noexcept -> Base::Result<void> {
-        Controls::ContentControl* host =
-            ::Aero::TryCast<Controls::ContentControl>(
-                document.root.Get());
-        if (host == nullptr || VisualTree(host) != &context) {
-            return {};
-        }
-        UIElement* content =
-            (*host).GetContentElement();
-        if (content == nullptr) {
-            for (Markup::VisualEdge& edge :
-                 document.visualContent.mountEdges) {
-                if (edge.parent != host || edge.child == nullptr) {
-                    continue;
-                }
-                UIElement* child =
-                    ::Aero::TryCast<UIElement>(edge.child);
-                if (child == nullptr || child == host) {
-                    continue;
-                }
-                (void)(*host).SetContentValue(
-                    Base::Ref<Base::Object>::FromBorrowed(*child));
-                content = (*host).GetContentElement();
-                break;
-            }
-        }
-        if (content == nullptr ||
-            (content->GetVisualParent() == host &&
-             content->GetIsLayoutAttached())) {
-            return {};
-        }
-        if (VisualTree(content) == nullptr &&
-            content->GetLogicalParent() == nullptr) {
-            Base::Result<ElementAttachment> mounted =
-                context.AttachElement(*host, *content);
-            if (!mounted) return mounted.GetStatus();
-        } else {
-            Base::Result<VisualAttachment> mounted =
-                context.AttachVisualChild(*host, *content);
-            if (!mounted) return mounted.GetStatus();
-        }
-        return {};
-    };
-
-    Base::Result<void> hosted = hostLoadedContent();
-    if (!hosted) return hosted.GetStatus();
-
-    Base::Result<void> attached = attachEdges();
-    if (!attached) return attached.GetStatus();
-    hosted = hostLoadedContent();
-    if (!hosted) return hosted.GetStatus();
-
     Base::Result<Aero::Media::Visual*> rootVisual =
         state.ResolveVisual(
             *document.root, document.root->RuntimeType());
-    if (rootVisual) {
-        attached = MountOwnedLayoutChildren(context, *rootVisual.Value());
-        if (!attached) return attached.GetStatus();
-        Base::Result<void> applied =
-            ApplyViewUi(state, *rootVisual.Value());
-        if (!applied) return applied.GetStatus();
-        attached = attachEdges();
-        if (!attached) return attached.GetStatus();
-        hosted = hostLoadedContent();
-        if (!hosted) return hosted.GetStatus();
-        attached = MountOwnedLayoutChildren(context, *rootVisual.Value());
-        if (!attached) return attached.GetStatus();
-        applied = ApplyViewUi(state, *rootVisual.Value());
-        if (!applied) return applied.GetStatus();
-        // LoadComponent can populate a UserControl after the View has already
-        // created its interaction services. Attach newly materialized
-        // controls and template-generated visuals so ButtonBase receives
-        // pointer/key behavior and text/path services are initialized.
-        Base::Result<void> interactions =
-            state.VisitAndAttach(*rootVisual.Value());
-        if (!interactions) return interactions.GetStatus();
-        if (UIElement* rootElement =
-                ::Aero::TryCast<UIElement>(rootVisual.Value())) {
-            InvalidateLayoutSubtree(*rootElement);
+    if (!rootVisual) {
+        state.componentMounts.PopBack();
+        FreeObject(*state.allocator, Base::MemoryTag::Ui, mount);
+        return rootVisual.GetStatus();
+    }
+    if (FrameworkElement* fe = ::Aero::TryCast<FrameworkElement>(document.root.Get())) {
+        for (const auto& entry : document.names.Entries()) {
+            if (entry.object != nullptr) {
+                static_cast<void>(fe->RegisterName(entry.name.View(), *entry.object));
+            }
         }
     }
-
-    Markup::EffectServices runtimeServices;
-    runtimeServices.effectiveValues = state.values;
-    runtimeServices.bindings = state.Bindings();
-    runtimeServices.fallbackResources =
-        state.resources != nullptr
-            ? &state.resources->dynamicResourceEnvironment
-            : nullptr;
-    runtimeServices.lifetime = state.effectLifetime;
-    Base::Result<void> bound = document.effects.Bind(runtimeServices);
-    if (!bound) return bound.GetStatus();
-    Base::Result<void> prepared = document.effects.Prepare(document.names);
-    if (!prepared) return prepared.GetStatus();
-    Base::Result<void> committed = document.effects.Commit();
-    if (!committed) return committed.GetStatus();
-    Base::Result<std::uint32_t> flushed = state.Bindings()->Flush();
-    if (!flushed) return flushed.GetStatus();
-
-    if (rootVisual && state.storyboards != nullptr) {
-        Base::Result<std::uint32_t> animations =
-            state.storyboards->StartLoadedAnimations(
-                rootVisual.Value(), &document.names);
-        if (!animations) return animations.GetStatus();
-    }
-    if (DependencyObject* target =
-            ::Aero::TryCast<DependencyObject>(document.root.Get())) {
-        static_cast<void>(
-            state.Bindings()->ActivateDeferredWhenReady(*target));
+    const Aero::NameScope* previousActiveNames = state.activeFragmentNames;
+    state.activeFragmentNames = &document.names;
+    struct ActiveNamesGuard {
+        const Aero::NameScope*& target;
+        const Aero::NameScope* previous;
+        ~ActiveNamesGuard() { target = previous; }
+    } namesGuard{state.activeFragmentNames, previousActiveNames};
+    Base::Result<void> activated = ActivateMountedSubtree(
+        state, *rootVisual.Value(), document);
+    if (!activated) {
+        state.componentMounts.PopBack();
+        FreeObject(*state.allocator, Base::MemoryTag::Ui, mount);
+        return activated.GetStatus();
     }
     return {};
 }

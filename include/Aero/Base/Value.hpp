@@ -20,6 +20,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <limits>
+#include <new>
 #include <type_traits>
 #include <utility>
 
@@ -44,7 +45,8 @@ enum class ValueKind : std::uint8_t {
     Double,
     String,
     Object,
-    Custom
+    Custom,
+    DynamicResource
 };
 
 using ValueCopyCallback = Result<void> (*)(void* destination, const void* source, void* context) noexcept;
@@ -72,12 +74,14 @@ private:
 class AERO_BASE_API Value {
 public:
     static constexpr std::uint32_t InlineCapacity = 32U;
+
     Value() noexcept = default;
-    Value(const Value&) noexcept = default;
-    Value(Value&&) noexcept = default;
-    Value& operator=(const Value&) noexcept = default;
-    Value& operator=(Value&&) noexcept = default;
-    ~Value() = default;
+    Value(const Value& other) noexcept;
+    Value(Value&& other) noexcept;
+    Value& operator=(const Value& other) noexcept;
+    Value& operator=(Value&& other) noexcept;
+    ~Value();
+
     Value(bool value) noexcept;
     Value(std::int64_t value) noexcept;
     Value(int value) noexcept;
@@ -90,37 +94,182 @@ public:
     Value(Ref<Base::Object> value) noexcept;
     template<class T, class = std::enable_if_t<std::is_base_of_v<Base::Object, T> && !std::is_same_v<T, Base::Object>>>
     Value(Ref<T> value) noexcept : Value(Ref<Base::Object>(std::move(value))) {}
+
     static Value Unset() noexcept;
     static Value FromBoolean(TypeId type, bool value) noexcept;
     static Value FromSignedInteger(TypeId type, std::int64_t value) noexcept;
     static Value FromUnsignedInteger(TypeId type, std::uint64_t value) noexcept;
     static Value FromDouble(TypeId type, double value) noexcept;
     static Result<Value> TryFromString(TypeId type, StringView value) noexcept;
+    static Result<Value> FromDynamicResourceKey(StringView key) noexcept;
     static Value FromObject(TypeId type, Ref<Base::Object> value) noexcept;
     static Value NullObject(TypeId type) noexcept;
-    static Result<Value> TryFromCustom(TypeId type, const void* source, const Ref<ValueTypeSemantics>& semantics) noexcept;
+
+    static Result<Value> TryFromCustom(
+        TypeId type,
+        const void* source,
+        const ValueTypeRegistration* semantics) noexcept;
+    static Result<Value> TryFromCustom(
+        TypeId type,
+        const void* source,
+        const ValueTypeRegistration& semantics) noexcept {
+        return TryFromCustom(type, source, &semantics);
+    }
+    static Result<Value> TryFromCustom(
+        TypeId type,
+        const void* source,
+        const Ref<ValueTypeSemantics>& semantics) noexcept;
+
     TypeId Type() const noexcept { return type_; }
     ValueKind Kind() const noexcept { return kind_; }
     bool IsUnset() const noexcept { return kind_ == ValueKind::Unset; }
-    bool IsNullObject() const noexcept { return kind_ == ValueKind::Object && !storage_; }
+    bool IsNullObject() const noexcept;
     bool IsInlineCustom() const noexcept { return kind_ == ValueKind::Custom && inlineCustom_; }
+    bool IsShortString() const noexcept { return (kind_ == ValueKind::String || kind_ == ValueKind::DynamicResource) && isShortString_; }
+    bool IsDynamicResource() const noexcept { return kind_ == ValueKind::DynamicResource; }
+
     bool AsBoolean() const noexcept;
     std::int64_t AsSignedInteger() const noexcept;
     std::uint64_t AsUnsignedInteger() const noexcept;
     double AsDouble() const noexcept;
     StringView AsString() const noexcept;
+    StringView AsDynamicResourceKey() const noexcept;
     const Ref<Base::Object>& AsObject() const noexcept;
     const void* AsCustom() const noexcept;
     void* MutableCustom() noexcept;
     bool Equals(const Value& other) const noexcept;
+    void Reset() noexcept;
+
 private:
-    alignas(std::max_align_t) unsigned char inlineData_[InlineCapacity]{};
+    union Storage {
+        alignas(8) unsigned char inlineData[InlineCapacity];
+        Ref<Base::Object> storage;
+
+        Storage() noexcept {
+            std::memset(inlineData, 0, sizeof(inlineData));
+        }
+        ~Storage() noexcept {}
+    } storage_{};
+
     TypeId type_ = InvalidTypeId;
+    const ValueTypeRegistration* semantics_ = nullptr;
     ValueKind kind_ = ValueKind::Unset;
     bool inlineCustom_ = false;
-    Ref<Base::Object> storage_;
-    Ref<ValueTypeSemantics> semantics_;
+    bool isShortString_ = false;
+    std::uint8_t stringLength_ = 0U;
+
+    bool HasActiveObject() const noexcept {
+        return (kind_ == ValueKind::Object) ||
+               ((kind_ == ValueKind::String || kind_ == ValueKind::DynamicResource) && !isShortString_) ||
+               (kind_ == ValueKind::Custom && !inlineCustom_);
+    }
+    void DestroyStorage() noexcept;
+
+    friend class ValueAccess;
 };
+
+static_assert(sizeof(Value) <= 56U, "Value size must not exceed 56 bytes");
+
+inline void Value::DestroyStorage() noexcept {
+    if (HasActiveObject()) {
+        storage_.storage.~Ref();
+    } else if (kind_ == ValueKind::Custom && inlineCustom_ && semantics_ != nullptr && semantics_->destroy != nullptr) {
+        semantics_->destroy(storage_.inlineData, semantics_->context);
+    }
+}
+
+inline Value::~Value() {
+    DestroyStorage();
+}
+
+inline Value::Value(const Value& other) noexcept
+    : type_(other.type_),
+      semantics_(other.semantics_),
+      kind_(other.kind_),
+      inlineCustom_(other.inlineCustom_),
+      isShortString_(other.isShortString_),
+      stringLength_(other.stringLength_) {
+    if (other.HasActiveObject()) {
+        new (&storage_.storage) Ref<Base::Object>(other.storage_.storage);
+    } else {
+        std::memcpy(storage_.inlineData, other.storage_.inlineData, InlineCapacity);
+    }
+}
+
+inline Value::Value(Value&& other) noexcept
+    : type_(other.type_),
+      semantics_(other.semantics_),
+      kind_(other.kind_),
+      inlineCustom_(other.inlineCustom_),
+      isShortString_(other.isShortString_),
+      stringLength_(other.stringLength_) {
+    if (other.HasActiveObject()) {
+        new (&storage_.storage) Ref<Base::Object>(std::move(other.storage_.storage));
+    } else {
+        std::memcpy(storage_.inlineData, other.storage_.inlineData, InlineCapacity);
+    }
+    other.kind_ = ValueKind::Unset;
+    other.type_ = InvalidTypeId;
+    other.semantics_ = nullptr;
+    other.inlineCustom_ = false;
+    other.isShortString_ = false;
+    other.stringLength_ = 0U;
+}
+
+inline Value& Value::operator=(const Value& other) noexcept {
+    if (this == &other) return *this;
+    DestroyStorage();
+    type_ = other.type_;
+    semantics_ = other.semantics_;
+    kind_ = other.kind_;
+    inlineCustom_ = other.inlineCustom_;
+    isShortString_ = other.isShortString_;
+    stringLength_ = other.stringLength_;
+    if (other.HasActiveObject()) {
+        new (&storage_.storage) Ref<Base::Object>(other.storage_.storage);
+    } else {
+        std::memcpy(storage_.inlineData, other.storage_.inlineData, InlineCapacity);
+    }
+    return *this;
+}
+
+inline Value& Value::operator=(Value&& other) noexcept {
+    if (this == &other) return *this;
+    DestroyStorage();
+    type_ = other.type_;
+    semantics_ = other.semantics_;
+    kind_ = other.kind_;
+    inlineCustom_ = other.inlineCustom_;
+    isShortString_ = other.isShortString_;
+    stringLength_ = other.stringLength_;
+    if (other.HasActiveObject()) {
+        new (&storage_.storage) Ref<Base::Object>(std::move(other.storage_.storage));
+    } else {
+        std::memcpy(storage_.inlineData, other.storage_.inlineData, InlineCapacity);
+    }
+    other.kind_ = ValueKind::Unset;
+    other.type_ = InvalidTypeId;
+    other.semantics_ = nullptr;
+    other.inlineCustom_ = false;
+    other.isShortString_ = false;
+    other.stringLength_ = 0U;
+    return *this;
+}
+
+inline bool Value::IsNullObject() const noexcept {
+    return kind_ == ValueKind::Object && !storage_.storage;
+}
+
+inline void Value::Reset() noexcept {
+    DestroyStorage();
+    type_ = InvalidTypeId;
+    kind_ = ValueKind::Unset;
+    inlineCustom_ = false;
+    isShortString_ = false;
+    stringLength_ = 0U;
+    semantics_ = nullptr;
+    std::memset(storage_.inlineData, 0, InlineCapacity);
+}
 
 inline bool operator==(const Value& left, const Value& right) noexcept { return left.Equals(right); }
 inline bool operator!=(const Value& left, const Value& right) noexcept { return !(left == right); }

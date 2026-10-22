@@ -25,6 +25,9 @@
 #include <cstring>
 #include <utility>
 #include "gui/core/DependencyObjectAccess.hpp"
+#include "gui/core/Describe.hpp"
+#include "gui/controls/ControlPropertyValidators.hpp"
+#include <Aero/Media/Brushes.hpp>
 
 namespace Aero::Controls {
 
@@ -820,6 +823,104 @@ void NavigationService::OnRequestNavigate(
     if (handler_(args.GetUri(), *args.GetHyperlink())) {
         args.SetHandled(true);
     }
+}
+
+namespace {
+
+void AddSpanInline(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& child,
+    void*) noexcept {
+    if (!child) {
+        return;
+    }
+    auto& span = static_cast<Span&>(owner);
+    if (!DependencyObjectAccess::PropertyRegistry((span)).Types().IsDerivedFrom(
+            child->RuntimeType(),
+            Inline::StaticTypeId())) {
+        return;
+    }
+    span.AddOwnedInline(
+        Base::Ref<Inline>::FromBorrowed(
+            *static_cast<Inline*>(child.Get())));
+}
+
+void ClearSpanInlines(
+    Base::Object& owner,
+    void*) noexcept {
+    static_cast<Span&>(owner).ClearOwnedInlines();
+}
+
+} // namespace
+
+void PopulateDocumentsMetadata(::Aero::Meta::Registration& context) noexcept {
+    using namespace Aero::Meta;
+    using namespace Aero::Media;
+    const auto makeBrush = [](Base::Color color) noexcept {
+        Base::Result<Base::Ref<Brush>> made = MakeSolidColorBrush(color);
+        return made ? std::move(made).Value() : Base::Ref<Brush>{};
+    };
+    const Base::Ref<Brush> black = makeBrush({0.0F, 0.0F, 0.0F, 1.0F});
+
+    Register<TextElement>(context, TypeFlags::Abstract)
+        .AddOwner(TextElement::FontFamilyProperty, Aero::FrameworkElement::FontFamilyProperty, Base::Ref<FontFamily>{}, Inherits | AffectsMeasure)
+        .Property(TextElement::FontWeightProperty, FontWeight::Normal, Inherits | AffectsMeasure)
+        .AddOwner(TextElement::ForegroundProperty, Aero::FrameworkElement::ForegroundProperty, black, Inherits)
+        .Property(TextElement::FontSizeProperty, 15.0, Inherits, &Controls::ValidatePositiveFiniteDouble)
+        .Property(TextElement::FontStyleProperty, FontStyle::Normal, Inherits)
+        .Property(TextElement::TextDecorationsProperty, Controls::TextDecorations::None, Inherits);
+
+    Register<Inline>(context, TypeFlags::Abstract);
+
+    Register<Run>(context)
+        .Property(Run::TextProperty, FrameworkPropertyMetadata(Base::String{}).Structural())
+        .Content(Run::TextProperty.Id())
+        .Factory();
+
+    Register<Span>(context)
+        .Property<Value, &Span::GetMetadataInlines, &Span::SetInlineValue>("Inlines", PropertyFlags::AnyValue | PropertyFlags::Collection | PropertyFlags::Structural)
+        .ContentAccessor(MakeMemberId(Span::StaticTypeId(), MemberKind::Property, "Inlines"), ContentKind::Collection, &AddSpanInline, &ClearSpanInlines, ContentFlags::None)
+        .Factory();
+
+    Register<Bold>(context)
+        .Override(TextElement::FontWeightProperty, FontWeight::Bold, AffectsMeasure)
+        .Factory();
+
+    Register<Italic>(context)
+        .Override(TextElement::FontStyleProperty, FontStyle::Italic, AffectsMeasure)
+        .Factory();
+
+    Register<Underline>(context)
+        .Override(TextElement::TextDecorationsProperty, Controls::TextDecorations::Underline, AffectsRender)
+        .Factory();
+
+    Register<LineBreak>(context)
+        .Factory();
+
+    Register<RequestNavigateEventArgs>(context);
+
+    Register<Hyperlink>(context)
+        .Event(Hyperlink::ClickEvent)
+        .Event(Hyperlink::RequestNavigateEvent)
+        .Property(Hyperlink::NavigateUriProperty, Base::String{})
+        .Property(Hyperlink::CommandProperty, Base::Ref<Input::ICommand>{})
+        .Property(Hyperlink::CommandParameterProperty, Value::NullObject(TypeOf<Base::Object>()))
+        .Property(Hyperlink::CommandTargetProperty, Base::Ref<UIElement>{})
+        .Override(TextElement::TextDecorationsProperty, Controls::TextDecorations::Underline, AffectsRender)
+        .Factory();
+
+    Register<InlineUIContainer>(context)
+        .Property(InlineUIContainer::ChildProperty, Base::Ref<UIElement>{})
+        .Factory();
+
+    Register<Adorner>(context)
+        .Factory();
+
+    Register<AdornerLayer>(context)
+        .Factory();
+
+    Register<AdornerDecorator>(context)
+        .Factory();
 }
 
 } // namespace Aero::Documents
